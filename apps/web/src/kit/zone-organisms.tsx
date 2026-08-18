@@ -16,11 +16,11 @@ const SIDEBAR_GROUPS = [
   {
     kicker: 'Ứng dụng',
     items: [
-      { icon: FileText, label: 'Docs' },
       { icon: Users, label: 'CRM' },
-      { icon: SquareCheckBig, label: 'Work' },
-      { icon: Package, label: 'ERP · Kho' },
-      { icon: Factory, label: 'MES' },
+      { icon: FileText, label: 'Docs', locked: true },
+      { icon: SquareCheckBig, label: 'Work', locked: true },
+      { icon: Package, label: 'ERP · Kho', locked: true },
+      { icon: Factory, label: 'MES', locked: true },
     ],
   },
 ]
@@ -51,7 +51,7 @@ export function ZoneOrganisms() {
             name="AppSidebar"
             note="w-[232px]"
             bodyClassName="p-4"
-            footer="Logo 32 · NavItem[] · Kicker nhóm “Ứng dụng”"
+            footer="Logo 32 · NavItem[] · Kicker nhóm “Ứng dụng” · phần chưa mở để locked"
           >
             <AppSidebar product="PV One" org="Thắng Lợi" groups={SIDEBAR_GROUPS} />
           </SpecCard>

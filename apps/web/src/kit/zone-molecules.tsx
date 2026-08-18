@@ -1,4 +1,4 @@
-import { Bell, House, Inbox, SquareCheckBig } from 'lucide-react'
+import { Bell, Factory, Gauge, House, Inbox, SquareCheckBig, Users } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -134,7 +134,7 @@ export function ZoneMolecules() {
           code="M-06"
           name="NavItem"
           bodyClassName="flex flex-col gap-1 px-3.5 py-[18px]"
-          footer="h-[38px] rounded-md · active = bg-accent · badge số dùng bg-destructive"
+          footer="h-[38px] rounded-md · active = bg-accent · badge số dùng bg-destructive · locked = nút tắt + ổ khoá 14 · depth 1 = module trong nhánh, thụt 32px"
         >
           <NavItem icon={House} label="Trang chủ" active />
           <NavItem icon={SquareCheckBig} label="Phê duyệt" count={7} />
@@ -144,6 +144,11 @@ export function ZoneMolecules() {
               hover
             </span>
           </div>
+          <NavItem icon={Factory} label="Factory" locked />
+          {/* depth 1 — module NẰM TRONG nhánh ngay trên nó. Nhánh đồng cấp với
+              nhánh, module thụt vào một bậc (docs/kien-truc-san-pham.md). */}
+          <NavItem icon={Users} label="Kinh doanh" />
+          <NavItem icon={Gauge} label="Performance" depth={1} />
         </SpecCard>
 
         {/* M-07 */}

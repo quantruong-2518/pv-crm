@@ -114,7 +114,9 @@ buộc của từng cái khi dựng thêm.
    Factory · Finance) → nhãn "ONE PLUS" (Nhân sự · Tài liệu & quy trình · Công
    việc · Báo cáo) → footer Admin & audit log. Item active:
    `background rgba(46,99,230,.24)` + `inset 0 1px 0 rgba(150,180,255,.22)`,
-   icon `#7FA3FF`.
+   icon `#7FA3FF`. Item `locked` (phần chưa mở): nút `disabled`, không hover, ổ
+   khoá 14 đứng chỗ badge số; **chữ giữ nguyên `--muted-foreground`** — chỉ hai
+   icon mờ `opacity-55`, vì dìm chữ là phá luật 13.
 3. `GlassCard` (`variant: a | b`), `StatCard` (số Space Grotesk 42px + label +
    delta icon + footer strip nguồn), `Chip`, `ContextRail`.
 4. `AiAction` — 3 biến thể: strip ngang (dưới dashboard), block trong detail,

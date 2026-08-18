@@ -13,6 +13,13 @@ export type SidebarItem = {
   label: string
   active?: boolean
   count?: number
+  /** phần chưa mở — NavItem tắt nút và hiện ổ khoá */
+  locked?: boolean
+  /** 0 = cấp một · 1 = module nằm trong nhánh ngay phía trên. Xem NavItem. */
+  depth?: 0 | 1
+  /** Điều hướng do APP quyết, không phải thư viện: @pv/ui không biết router,
+   *  không biết đường dẫn. Màn truyền hàm vào, sidebar chỉ gọi lại. */
+  onClick?: () => void
 }
 
 export type SidebarGroup = {
