@@ -120,35 +120,69 @@ BD không đụng tới. Mã hoá ở `COMMISSION_SPLIT` trong
 
 ---
 
-## Bộ màn Pebble Sales — thứ tự kể (CHỐT)
+## Bốn module Pebble Sales (CHỐT)
 
-Bản vẽ đã xoá, thứ tự thì giữ. Chạy một chiều theo thời gian; đường demo 60 giây
-là 3 → 1 → 5.
+> **Đổi ngày 19/08.** Trước đó chỗ này là _bộ 10 màn kể chuyện_ — mỗi màn trả
+> một câu hỏi cho người xem demo. Nó là bộ **kể**, không phải app phòng kinh
+> doanh mở ra dùng mỗi sáng. Bộ 10 màn đã bỏ hẳn, thay bằng bốn module dưới.
+> Cần bản cũ thì `git show 8c714c8:docs/kien-truc-san-pham.md`.
 
-| #   | Màn                           | Lát cắt                    | Vai                                                                      |
-| --- | ----------------------------- | -------------------------- | ------------------------------------------------------------------------ |
-| 1   | Ký xong đơn bán tự có         | 21/07 16:20                | **Màn showoff.** Một cú bấm sinh SO-0891 · WO-1180 · vật tư · 3 tin nhắn |
-| 2   | Tháng này chốt được bao nhiêu | 10/08 07:58                | Màn của người ký hợp đồng — tiền                                         |
-| 3   | Sổ khách hàng                 | 10/08 07:58                | Khoanh vùng ai đang trôi, gỡ chặn PO-0455                                |
-| 4   | Thẻ chạm khách                | 10/08 09:38                | Cầm gì trước khi bấm gọi                                                 |
-| 5   | Cổng khách hàng               | 10/08 07:58 · 08:04        | Khách của khách hàng nhìn                                                |
-| 6   | Diagram luồng CRM             | 17/08 09:10 · DAS Vina     | Sơ đồ 6 bước × 7 vai — ai chịu trách nhiệm, ai chờ ai                    |
-| 7   | Vòng đời object               | 17/08 09:10 · DAS Vina     | Hồ sơ nào sinh lúc nào, ai đứng tên, 7 trạng thái của OP                 |
-| 8   | Bảng cơ hội đang mở           | 17/08 09:10 · sổ 10 cơ hội | Mười đơn song song, đơn nào đang mục                                     |
-| 9   | Dòng thời gian một đơn        | 17/07 → 05/09 · DAS Vina   | 50 ngày vẽ đúng độ dài — 18 ngày gọi không ai nghe                       |
-| 10  | Đơn tuột ở đâu                | 01/05 → 17/08              | 100 đầu mối → 6 hợp đồng, 6 lý do ra khỏi luồng                          |
+Bốn module là **một vòng khép kín**, không phải bốn tính năng rời:
+nguồn → chia việc → đo → chỉnh.
 
-Màn 06–10 là **năm góc nhìn của cùng một luồng**, không phải năm tính năng. Mỗi
-màn trả đúng một câu hỏi: 06 ai làm gì · 07 hồ sơ nào tồn tại · 08 nhiều đơn cùng
-lúc · 09 thật sự mất bao lâu · 10 tuột ở đâu. Không nhét câu trả lời của màn này
-vào màn khác.
+| #   | Module                       | Trả câu hỏi gì                    | Trạng thái                                  |
+| --- | ---------------------------- | --------------------------------- | ------------------------------------------- |
+| 1   | **Thị trường**               | Khách ở đâu ra, ngành nào đang mở | ⚠ chưa có dữ liệu — xem "Nợ đang treo" dưới |
+| 2   | **Lead**                     | Ai đang trong tay ai              | dựng trước — nguồn của cả ba module kia     |
+| 3   | **Performance**              | Ai đang làm được, ai đang tắc     | lát cắt hiện tại, không có trục thời gian   |
+| 4   | **Số liệu & kế hoạch (AI+)** | Tháng tới phòng nên làm gì        | làm cuối — ăn đầu ra của 1 + 2 + 3          |
 
-Màn 01–05 có đúng ba khối phụ, không thêm: **Màn này bán cái gì** (kèm câu chốt
-deal) · **Số trên màn lấy từ đâu** · **Cố tình không làm**. Màn 06–10 là sơ đồ,
-không có ba khối này — nhưng mỗi màn sơ đồ vẫn phải có khối **Cố tình không làm**.
-Không viết lịch sử phiên bản lên màn.
+### Module 2 · Lead
 
-Hai màn ngoài bộ mười, từng dựng rồi xoá: `POC - Bản đồ hệ sinh thái`,
+| Mục | Việc                                           | Ràng buộc đã có                                                                                                     |
+| --- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 2.1 | Danh sách lead, lọc theo MQL/SQL + ngành + SLA | SLA = `daysInStage` vượt `limitDays` của `PIPELINE_STAGES`. Không đẻ khái niệm quá hạn thứ hai                      |
+| 2.2 | Giao lead / nhận lead vào sale pipeline        | Cổng MQL→SQL là bộ 10 câu (xem dưới). Người gật là TP Kinh doanh. Đổi tay thì `COMMISSION_SPLIT` chia lại phần chốt |
+| 2.3 | Report lead có vấn đề                          | Đúng **6 lý do** của `EXIT_REASONS`, **không có ô "khác"**                                                          |
+
+**MQL và SQL là hai bậc đã có sẵn trong `FUNNEL`, không phải nhãn mới:**
+
+| Bậc     | `FUNNEL`            | Nghĩa                                                    |
+| ------- | ------------------- | -------------------------------------------------------- |
+| Đầu mối | `dau-moi` · 100     | Mới vào, chưa ai xác minh                                |
+| **MQL** | `cong-ty-that` · 44 | Marketing xác nhận công ty có thật — **chưa đủ 10/10 ô** |
+| **SQL** | `co-hoi` · 30       | **Đủ 10/10 init data**, Sale đã nhận                     |
+
+Ranh giới MQL→SQL chính là hành động 2.2. Cổng đã là luật: **chưa đủ 10/10 thì
+không được đẩy sang SQL**, và agent 2 không chạy. Không mở đường vòng.
+
+### Module 3 · Performance
+
+Chia theo aspect, xem được theo từng vai. **Không có trục tháng-quý-năm** —
+fixture là một lát cắt đóng băng 17/08 09:10, dựng trục thời gian sẽ phải đẻ số
+không ai ký. Ba khối: tổng quan · xét theo vai · top các con số chuyển đổi (ghi
+cả số tuyệt đối và %, không ghi mỗi %).
+
+Đo mỗi vai bằng gì thì **chưa chốt** — xem "Nợ đang treo".
+
+### Luật chung bốn module
+
+- Mỗi màn dùng **đúng một kịch bản**, và bốn module này đều là **DAS Vina**.
+- Mỗi màn giữ khối **Cố tình không làm**. Không viết lịch sử phiên bản lên màn.
+- Module 4 chịu luật 9 như mọi khối AI: có "Căn cứ:", có nút, không tự chạy.
+
+### Nợ đang treo — đừng tự quyết, hỏi
+
+1. **Module 1 không có dữ liệu và va luật "không kịch bản thứ ba".** Sao Đỏ và
+   DAS Vina đều là dữ liệu _một khách_; không có gì để vẽ thị trường.
+2. **Tiêu chí chấm từng vai ở module 3.** BD đo bằng số ô 10/10 lấy được?
+   Marketing đo bằng lead kéo về? Chưa ai quyết.
+3. **Ngưỡng SLA cho bậc đầu mối và MQL.** `PIPELINE_STAGES` chỉ có hạn cho năm
+   cột của sổ cơ hội, tức chỉ áp được cho SQL. Lead nằm ở kho chung bao lâu thì
+   coi là quá hạn — chưa có số. Đừng chế ngưỡng ở tầng màn.
+4. **Đường demo 60 giây** của bộ cũ (3 → 1 → 5) chưa có bản thay thế.
+
+Ba màn từng dựng rồi xoá, không thuộc bộ nào: `POC - Bản đồ hệ sinh thái`,
 `POC - Walkthrough Sao Đỏ`, và một màn Supply `ERP Kho - Tablet Nhập kho`.
 
 ---
@@ -162,10 +196,10 @@ Toàn bộ số liệu đã mã hoá trong `@pv/engines/fixtures` và bị
 `packages/engines/src/fixtures/scenario.test.ts` khoá — đổi số nào phải sửa test,
 test đỏ là lời nhắc đúng lúc.
 
-| Kịch bản                                            | Import từ                       | Đóng băng     |
-| --------------------------------------------------- | ------------------------------- | ------------- |
-| **Sao Đỏ** — khách đã mua, dùng cho màn One 01–05   | `@pv/engines/fixtures/sao-do`   | 10/08 · 07:58 |
-| **DAS Vina** — khách chưa mua, dùng cho Sales 06–12 | `@pv/engines/fixtures/das-vina` | 17/08 · 09:10 |
+| Kịch bản                                                    | Import từ                       | Đóng băng     |
+| ----------------------------------------------------------- | ------------------------------- | ------------- |
+| **Sao Đỏ** — khách đã mua, dùng cho màn One 01–05           | `@pv/engines/fixtures/sao-do`   | 10/08 · 07:58 |
+| **DAS Vina** — khách chưa mua, dùng cho cả bốn module Sales | `@pv/engines/fixtures/das-vina` | 17/08 · 09:10 |
 
 Sao Đỏ có hai lát cắt ngoại lệ: màn ký hợp đồng ở **21/07 · 16:20** (nguồn gốc
 của SO-0891), và thẻ chạm khách ở **10/08 · 09:38** (ngay trước cuộc gọi). Đầu
