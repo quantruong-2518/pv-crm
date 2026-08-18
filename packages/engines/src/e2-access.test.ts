@@ -35,7 +35,7 @@ const items: { ref: ObjectRef }[] = [
 describe('E2 · quyền & ghi vết', () => {
   it('trả về SỐ dòng bị ẩn, không chỉ danh sách đã lọc', () => {
     // Màn Tìm toàn cục bắt buộc có hàng "Bị ẩn theo quyền của bạn"
-    // (AGENTS §7 · màn 03). Con số đó phải do E2 đưa ra — nếu `visible` chỉ
+    // (docs/luat-thiet-ke.md §7 · màn 03). Con số đó phải do E2 đưa ra — nếu `visible` chỉ
     // trả danh sách, màn sẽ không có cách nào biết đã giấu bao nhiêu.
     const { visible, hidden } = createAccessControl().visible(huy, items)
     expect(visible.map((i) => i.ref.code)).toEqual(['OP-0288'])

@@ -8,7 +8,7 @@ import { systemClock, type Clock, type ObjectRef } from './types'
  *  **Nhánh phát sự kiện, không tự gọi Zalo API.** Đây là lý do `emit` là hàm
  *  duy nhất nhánh được gọi — không có `sendZalo()` nào lộ ra ngoài. Màn 05
  *  (Thông báo & kênh) cần đúng một dòng `blocked-duplicate` trong nhật ký gửi
- *  (AGENTS.md §7); dòng đó sinh ra ở đây chứ không phải mock trên màn. */
+ *  (docs/luat-thiet-ke.md §7); dòng đó sinh ra ở đây chứ không phải mock trên màn. */
 
 export type Channel = 'zalo-oa' | 'telegram' | 'email' | 'in-app'
 

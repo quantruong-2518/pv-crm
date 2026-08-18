@@ -10,7 +10,7 @@ import { ZoneTemplates } from '@/kit/zone-templates'
  *  trong `@pv/ui`, không phải bản sao tĩnh. Trang lệch nghĩa là thư
  *  viện lệch — đó là mục đích của nó.
  *
- *  Nguồn: project/Pebble Aurora - Theme Kit.dc.html (chốt 10/08). */
+ *  Nguồn: Pebble Aurora - Theme Kit (chốt 10/08). */
 
 const ZONES = [
   { id: 'zone-00', number: '00', label: 'Foundations', count: 9 },

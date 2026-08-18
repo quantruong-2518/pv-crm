@@ -1,6 +1,6 @@
 /** Luật 15 · Không AI slop, và luật 11 · không emoji.
  *
- *  Ba thứ bị chặn, đều lấy thẳng từ CLAUDE.md:
+ *  Ba thứ bị chặn, đều lấy thẳng từ docs/luat-thiet-ke.md:
  *   · emoji — không có chỗ nào trên giao diện dùng emoji;
  *   · ▲▼▬ và họ hàng — delta số dùng icon Lucide trending-up/down/minus;
  *   · icon `sparkles` / `bot` / `wand` — Trợ lý AI dùng `orbit`, không có ngoại lệ. */
@@ -24,7 +24,7 @@ export default {
     docs: { description: 'Không emoji, không ▲▼, không icon AI slop (luật 11 + 15)' },
     schema: [],
     messages: {
-      emoji: 'Emoji "{{ch}}" không dùng trên giao diện (luật 11 · CLAUDE.md).',
+      emoji: 'Emoji "{{ch}}" không dùng trên giao diện (luật 11 · docs/luat-thiet-ke.md).',
       glyph:
         'Ký tự "{{ch}}" không dùng để chỉ hướng. Delta số dùng icon Lucide trending-up / trending-down / minus (luật 15).',
       icon: 'Icon "{{name}}" là AI slop. Trợ lý AI dùng `orbit` — không `sparkles`, không `bot` (luật 15).',

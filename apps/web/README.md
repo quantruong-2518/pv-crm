@@ -1,12 +1,12 @@
 # Pebble Aurora v2.0 — thư viện component + theme kit sống
 
-Bản dựng thật của `project/Pebble Aurora - Theme Kit.dc.html` (chốt 10/08).
+Bản dựng thật của theme kit Aurora v2.0 (chốt 10/08).
 
 Stack: **Vite + React 19 + TypeScript + Tailwind v4**, quy ước shadcn/ui (`cn` + `cva`),
-dark-only. Token layer là `packages/tokens/globals.css` — bản thiết kế
-`project/theme/globals.css` cộng một khối bổ sung đặt tên cho các giá trị vốn đã
-có trong theme kit nhưng chưa được tokenize (xem mục _Token bổ sung_).
-`pnpm tokens:check` gác hai bên khớp nhau.
+dark-only. Token layer là `packages/tokens/globals.css` — bản token chốt 10/08
+cộng một khối bổ sung đặt tên cho các giá trị vốn đã có trong theme kit nhưng
+chưa được tokenize (xem mục _Token bổ sung_). `pnpm tokens:check` chặn mọi
+`var(--x)` trỏ vào token không tồn tại.
 
 ```bash
 pnpm install
@@ -52,7 +52,7 @@ packages/ui/src/             @pv/ui — cửa vào duy nhất là index.ts
 ├─ layout/
 │  aurora-field              nền màn 4 lớp (luật 12)
 │  glass-card                F-03 · variant a | b
-│  app-shell                 khung màn, mobile-first (AGENTS.md §4)
+│  app-shell                 khung màn, mobile-first (docs/luat-thiet-ke.md §4)
 │  assistant-fab             FAB 60px, icon `orbit`
 └─ assets/                   logo bản nền tối
 
@@ -64,8 +64,8 @@ apps/web/src/
    └─ chrome/                SpecCard · Zone — chrome của trang styleguide
 ```
 
-`AppShell` và `AssistantFab` không có trong file `.dc.html` — chúng đến từ
-`CLAUDE.md` luật 5 và `handoff/AGENTS.md` §4, và là thứ mọi màn thật sẽ ngồi bên
+`AppShell` và `AssistantFab` không có trong theme kit gốc — chúng đến từ
+`docs/luat-thiet-ke.md` §1 luật 5 và §4, và là thứ mọi màn thật sẽ ngồi bên
 trong. Chúng nằm trong thư viện nhưng **không** được thêm vào trang kit, để trang
 kit giữ đúng 1:1 với bản thiết kế.
 
@@ -89,31 +89,31 @@ kit giữ đúng 1:1 với bản thiết kế.
 
 Đặt tên cho giá trị đã có sẵn trong theme kit, **không thêm màu mới**:
 
-`--glass-foreground` (#B4BECD, đã ghi trong AGENTS.md §2) · `--hc-surface` +
+`--glass-foreground` (#B4BECD, đã ghi trong docs/luat-thiet-ke.md §2) · `--hc-surface` +
 `--hc-border` (biến thể tương phản cao) · `--avatar-from` · `--gold-from` /
 `--gold-to` · `--aurora-*` (3 tông quầng) · `--shadow-success` / `--shadow-ai` /
 `--shadow-assistant` / `--shadow-control` / `--shadow-control-soft` ·
 `--motion-duration` / `--motion-ease`.
 
 Class mới trong `@layer components`: `.glass-b-flat` (panel tài liệu, không sheen
-đáy) · `.glass-ai` / `.glass-ai-panel` (nền khối AI, theo AGENTS.md §2) ·
+đáy) · `.glass-ai` / `.glass-ai-panel` (nền khối AI, theo docs/luat-thiet-ke.md §2) ·
 `.aurora-blob` / `.aurora-grid-fine` / `.aurora-grid-major` / `.aurora-vignette` /
 `.aurora-noise` / `.aurora-grain-*` (bốn lớp nền).
 
 ---
 
-## Sáu chỗ cố ý lệch khỏi `.dc.html`
+## Sáu chỗ cố ý lệch khỏi theme kit gốc
 
-`AGENTS.md` §0 nói “tài liệu và file mâu thuẫn → file thắng”. Ngoại lệ áp dụng ở
-đây: khi `CLAUDE.md` **cấm thẳng** hoặc **bắt buộc thẳng** một điều mà file kit
+Quy tắc cũ là “tài liệu và bản vẽ mâu thuẫn → bản vẽ thắng”. Ngoại lệ áp dụng
+ở đây: khi luật **cấm thẳng** hoặc **bắt buộc thẳng** một điều mà bản kit
 (viết trước quyết định đó) còn làm ngược, thì luật thắng. Sáu chỗ:
 
-| #   | `.dc.html`                                      | Bản dựng                       | Căn cứ                                                 |
+| #   | theme kit gốc                                   | Bản dựng                       | Căn cứ                                                 |
 | --- | ----------------------------------------------- | ------------------------------ | ------------------------------------------------------ |
 | 1   | `▲ 2 hóa đơn` trong M-01                        | icon `trending-up`             | luật 15 cấm ▲▼▬                                        |
 | 2   | Sidebar ghi “Pebble One”                        | “PV One”                       | luật 14: “gọi **PV One** trên mọi màn”                 |
 | 3   | Nút Trợ lý ở TopBar dùng `zap`                  | `orbit`                        | luật 15: “dùng `orbit`, không `sparkles`, không `bot`” |
-| 4   | Chữ trong khối AI thừa hưởng `--foreground`     | `--on-tint-primary` / `-muted` | luật 1 + AGENTS §1.5                                   |
+| 4   | Chữ trong khối AI thừa hưởng `--foreground`     | `--on-tint-primary` / `-muted` | luật 1 · chữ trong khối đã tint dùng `--on-tint-*`     |
 | 5   | Mục lục ghi Foundations **10**, Organisms **7** | **9** và **5**                 | đếm đúng số item thật trong chính file đó              |
 | 6   | Icon delta 16px                                 | 14px                           | 16px làm StatCard tràn khỏi `h-[150px]`                |
 
@@ -121,7 +121,7 @@ Chỗ 1–4 đổi được về nguyên bản trong một lượt nếu muốn 
 sử thay vì bản thi hành luật.
 
 **Còn treo, chưa tự quyết:** T-03 vẽ mobile **390 × 844 · status 44**, còn
-`CLAUDE.md` (“Ba thiết bị là ba vai”) nói **440 × 956 · status 62 · bottom nav
+`docs/luat-thiet-ke.md` §3 nói **440 × 956 · status 62 · bottom nav
 84**, kèm ghi chú “bản One cũ còn dựng ở 390×844; khi sửa lại thì nâng lên 440”.
 Bản dựng giữ theo file. Nói một tiếng là đổi.
 
@@ -130,10 +130,14 @@ Bản dựng giữ theo file. Nói một tiếng là đổi.
 ## Chưa làm
 
 Màn 01 Home / Morning brief đã dựng. Bốn màn còn lại trong
-`project/handoff/screens/` (Approvals inbox · Global search · AI assistant ·
-Notifications) chưa — dựng bằng `/man <tên màn>`, quy trình ở
-`.claude/commands/man.md`.
+`docs/luat-thiet-ke.md` §7 (Hộp phê duyệt · Tìm toàn cục · Trợ lý AI · Thông báo)
+chưa — dựng bằng `/man <tên màn>`, quy trình ở `.claude/commands/man.md`.
 
-Mười hai màn Pebble Sales (`project/Sales 01–12`) cũng chưa. Chúng dùng kịch bản
-DAS Vina, dữ liệu đã có sẵn trong `@pv/engines/fixtures/das-vina`: sổ 10 cơ hội,
-phễu 100 → 6, sáu lý do ra khỏi luồng.
+Mười hai màn Pebble Sales (thứ tự kể ở `docs/kien-truc-san-pham.md`) cũng chưa.
+Chúng dùng kịch bản DAS Vina, dữ liệu đã có sẵn trong
+`@pv/engines/fixtures/das-vina`: sổ 10 cơ hội, phễu 100 → 6, sáu lý do ra khỏi
+luồng.
+
+Nguồn thiết kế gốc đã xoá 18/08 nên **không còn bản vẽ để đối chiếu** — mọi con
+số layout trên màn mới là lựa chọn, phải nêu ra trong PR. Xem bản cũ:
+`git show 107f5e2:project/<tên file>.dc.html`.

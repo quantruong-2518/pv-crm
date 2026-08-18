@@ -4,7 +4,7 @@ import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
 /** O-07 · BottomNav — thay Sidebar dưới lg (1024px).
- *  Bốn mục cố định theo "Ba thiết bị là ba vai" (CLAUDE.md): Home · Duyệt ·
+ *  Bốn mục cố định theo "Ba thiết bị là ba vai" (docs/luat-thiet-ke.md): Home · Duyệt ·
  *  Tìm · Trợ lý. Cao 84 + safe-area đáy — không cấu hình được danh sách mục,
  *  đây là điều hướng CHỐT, không phải sidebar rút gọn. */
 export type BottomNavKey = 'home' | 'approvals' | 'search' | 'assistant'

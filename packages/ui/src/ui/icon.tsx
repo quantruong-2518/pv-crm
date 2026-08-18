@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '../lib/cn'
 
-/** Luật 11 · CLAUDE.md — Lucide outline, stroke 1.75, size 16 trong nút / 20 trong nav.
+/** Luật 11 · docs/luat-thiet-ke.md — Lucide outline, stroke 1.75, size 16 trong nút / 20 trong nav.
  *  Không icon fill, không emoji. Trợ lý AI dùng `orbit`. */
 export type IconProps = {
   icon: LucideIcon

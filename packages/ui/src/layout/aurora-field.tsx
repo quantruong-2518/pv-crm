@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
-/** Nền màn — ĐÚNG 4 lớp, không có lớp thứ 5 (luật 12 · CLAUDE.md):
+/** Nền màn — ĐÚNG 4 lớp, không có lớp thứ 5 (luật 12 · docs/luat-thiet-ke.md):
  *  quầng aurora → lưới 32px → lưới 160px → hạt nhiễu.
  *  Hai lớp hạt phủ trên cùng (overlay + soft-light) là phần "sần" của mặt kính,
  *  vẫn thuộc lớp 4 chứ không phải lớp mới.

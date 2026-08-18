@@ -40,7 +40,7 @@ describe('E4 · thông báo đa kênh', () => {
 
   it('gửi trùng trong cửa sổ chống trùng thì bị chặn, và LƯU LẠI dòng bị chặn', () => {
     // Màn 05 cần đúng một dòng "Blocked (duplicate)" trong nhật ký gửi
-    // (AGENTS §7). Dòng đó sinh ra ở đây, không phải mock trên màn.
+    // (docs/luat-thiet-ke.md §7). Dòng đó sinh ra ở đây, không phải mock trên màn.
     const bus = createNotificationBus(rules)
     bus.emit({ name: 'đơn-trễ-hạn', at: '2026-08-10T07:58:00+07:00', ref: SO })
     const again = bus.emit({ name: 'đơn-trễ-hạn', at: '2026-08-10T08:04:00+07:00', ref: SO })

@@ -15,10 +15,10 @@ import {
 } from 'lucide-react'
 import { AiAction, AppShell, BriefCard, Icon, OrderLifecycleCard, StatCard } from '@pv/ui'
 
-/** Màn 01 · Home / Morning brief (AGENTS.md §7).
- *  Nguồn: project/handoff/screens/One 01 - Home (Desktop) EN.dc.html — bản EN
+/** Màn 01 · Home / Morning brief (docs/luat-thiet-ke.md §7).
+ *  Nguồn: bản vẽ One 01 - Home (Desktop) EN — bản EN
  *  là bản CHỐT duy nhất cho màn này, nội dung giữ nguyên tiếng Anh theo file.
- *  Kịch bản 1 · Sao Đỏ, đóng băng 10 Aug 07:58 (CLAUDE.md). */
+ *  Kịch bản 1 · Sao Đỏ, đóng băng 10 Aug 07:58 (docs/luat-thiet-ke.md). */
 export function HomePage() {
   return (
     <AppShell

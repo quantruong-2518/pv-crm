@@ -8,7 +8,7 @@ import { cn } from '../lib/cn'
  *  Bento 1×1 · h-[150px].
  *
  *  Delta dùng icon Lucide trending-up / trending-down / minus.
- *  Theme kit .dc.html còn ký tự "▲" ở ô này; luật 15 (CLAUDE.md) và AGENTS.md §1.11
+ *  Theme kit gốc còn ký tự "▲" ở ô này; luật 15 (docs/luat-thiet-ke.md §1)
  *  cấm ▲▼▬ nên bản dựng theo luật, không theo ký tự cũ. */
 export type StatCardProps = {
   /** đã format sẵn: "890 tr", "1,84 tỷ", "86%" */

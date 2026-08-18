@@ -16,7 +16,7 @@ import aurora from '@pv/eslint-plugin-aurora'
  *  còn nợ cũ thì đếm được và trả dần. Không có rule nào để ở `warn` — `warn`
  *  là cách êm ái để không bao giờ sửa. */
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', 'project/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -72,7 +72,7 @@ export default tseslint.config(
   },
   {
     // Luật 4, ngoại lệ duy nhất: biến thể tương phản cao cho kiosk tablet
-    // ngoài sáng, viền 2px (CLAUDE.md luật 4).
+    // ngoài sáng, viền 2px (docs/luat-thiet-ke.md §1 luật 4).
     files: ['packages/ui/src/organisms/kiosk-tile.tsx'],
     rules: { 'aurora/no-box-border': 'off' },
   },
@@ -89,7 +89,7 @@ export default tseslint.config(
   },
   {
     // Test không phải giao diện. Tiêu đề test được phép trích nguyên văn tài
-    // liệu thiết kế — kể cả dấu ⚠ trong bảng của project/CLAUDE.md — và test
+    // liệu thiết kế — kể cả dấu ⚠ trong bảng của docs/kien-truc-san-pham.md — và
     // của chính rule no-ai-slop buộc phải viết ra thứ nó cấm.
     files: ['**/*.test.{ts,tsx,js}'],
     rules: { 'aurora/no-ai-slop': 'off' },

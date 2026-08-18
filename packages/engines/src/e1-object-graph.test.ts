@@ -4,7 +4,7 @@ import { saoDo } from './fixtures/sao-do'
 
 describe('E1 · đồ thị object', () => {
   it('dựng đúng chuỗi câu chuyện mà ContextRail cần', () => {
-    // CLAUDE.md luật 10 + AGENTS §14 ghi thẳng chuỗi này ra:
+    // docs/luat-thiet-ke.md luật 10 ghi thẳng chuỗi này ra:
     // HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042
     const codes = saoDo.graph.story('WO-1180').map((o) => o.code)
 

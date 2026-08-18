@@ -4,5 +4,3 @@ coverage
 pnpm-lock.yaml
 eslint-suppressions.json
 
-# Nguồn thiết kế — file .dc.html là spec pixel, không được format lại.
-project/

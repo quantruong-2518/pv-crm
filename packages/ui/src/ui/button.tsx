@@ -5,7 +5,7 @@ import { cn } from '../lib/cn'
 /** A-01 · Button — 4 variant · 3 size.
  *  default → h-10 px-[18px] rounded-md bg-primary text-primary-foreground shadow-primary
  *  ghost   → bg-white/9 · destructive → bg-destructive/20 text-destructive-foreground
- *  Nút tablet luôn size lg (≥48px) — luật 13 · CLAUDE.md.
+ *  Nút tablet luôn size lg (≥48px) — luật 13 · docs/luat-thiet-ke.md.
  *
  *  Ghi chú: padding ngang 18/24px lấy đúng từ theme kit; thang spacing 8 bậc
  *  áp cho gap và padding khối, không áp cho padding ngang của control. */

@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { saoDo } from './sao-do'
+import {
+  SAO_DO_CUSTOMER,
+  SAO_DO_KPI,
+  SAO_DO_QUOTES,
+  SAO_DO_RECEIVABLES,
+  SAO_DO_TIMELINE,
+  saoDo,
+} from './sao-do'
 import { dasVina, EXIT_REASONS, FUNNEL, isRotting, OPEN_DEALS, PIPELINE_STAGES } from './das-vina'
 
-/** Khoá mọi con số đã CHỐT trong CLAUDE.md.
+/** Khoá mọi con số đã CHỐT trong docs/kien-truc-san-pham.md.
  *
  *  Đây là loại test đáng giá nhất của repo này: dữ liệu demo không có compiler
  *  nào gác, và một con số sai trên màn demo tốn nhiều hơn một bug. Sửa số nào
- *  ở đây thì phải sửa CLAUDE.md trước — test đỏ là lời nhắc đúng lúc. */
+ *  ở đây thì phải sửa docs/kien-truc-san-pham.md trước — test đỏ là lời nhắc đúng lúc. */
 
 describe('Kịch bản đóng băng — con số đã chốt', () => {
   it('hai kịch bản, không hơn, và không dùng chung mã object nào', () => {
@@ -15,7 +22,7 @@ describe('Kịch bản đóng băng — con số đã chốt', () => {
     expect(overlap).toEqual([])
   })
 
-  it('lát cắt thời gian đúng như CLAUDE.md', () => {
+  it('lát cắt thời gian đúng như docs/kien-truc-san-pham.md', () => {
     expect(saoDo.frozenAt).toBe('2026-08-10T07:58:00+07:00')
     expect(dasVina.frozenAt).toBe('2026-08-17T09:10:00+07:00')
   })
@@ -23,6 +30,32 @@ describe('Kịch bản đóng băng — con số đã chốt', () => {
   it('Sao Đỏ: đơn 1,84 tỷ và đúng một đầu mối bên khách', () => {
     expect(saoDo.graph.get('SO-0891')?.amount).toBe(1_840_000_000)
     expect(saoDo.graph.get('HĐ-2607')?.amount).toBe(1_840_000_000)
+    expect(SAO_DO_CUSTOMER.contact).toBe('Nguyễn Văn Đạt')
+  })
+
+  it('Sao Đỏ: báo giá vật tư — đúng ba bên, bên chọn khớp giá của PO-0455', () => {
+    expect(SAO_DO_QUOTES).toHaveLength(3)
+    const chosen = SAO_DO_QUOTES.filter((q) => q.chosen)
+    expect(chosen).toHaveLength(1)
+    expect(chosen[0]?.vendor).toBe('Nam Việt Steel')
+    // Bên được chọn KHÔNG phải bên rẻ nhất — Toàn Phát rẻ hơn nhưng chậm 5 ngày.
+    expect(chosen[0]?.amount).toBe(saoDo.graph.get('PO-0455')?.amount)
+    expect(Math.min(...SAO_DO_QUOTES.map((q) => q.amount))).toBeLessThan(chosen[0]!.amount)
+  })
+
+  it('Sao Đỏ: công nợ quá hạn cộng lại đúng bằng KPI 890 tr', () => {
+    const kpi = SAO_DO_KPI.find((k) => k.key === 'qua-han')
+    expect(kpi?.value).toBe(SAO_DO_RECEIVABLES.reduce((s, r) => s + r.amount, 0))
+    expect(kpi?.invoices).toBe(SAO_DO_RECEIVABLES.length)
+  })
+
+  it('Sao Đỏ: mốc thời gian trong ngày chạy đúng một chiều', () => {
+    const mins = SAO_DO_TIMELINE.map((t) => {
+      const [h, m] = t.at.split(':').map(Number)
+      return h! * 60 + m!
+    })
+    expect(mins[0]).toBe(7 * 60 + 58) // brief đóng băng 07:58
+    for (let i = 1; i < mins.length; i++) expect(mins[i]!).toBeGreaterThan(mins[i - 1]!)
   })
 
   it('DAS Vina: BG-1077 · 4,2 tỷ/năm', () => {
@@ -45,7 +78,7 @@ describe('Sổ 10 cơ hội đang mở', () => {
     expect(count('Nguyễn Khánh Linh')).toBe(3)
   })
 
-  it('đúng 4 đơn đang mục — bốn dấu ⚠ trong bảng của CLAUDE.md', () => {
+  it('đúng 4 đơn đang mục — bốn dấu ⚠ trong bảng của docs/kien-truc-san-pham.md', () => {
     const rotting = OPEN_DEALS.filter(isRotting).map((d) => d.code)
     expect(rotting.sort()).toEqual(['OP-0248', 'OP-0252', 'OP-0263', 'OP-0301'])
   })

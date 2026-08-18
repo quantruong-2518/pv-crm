@@ -3,7 +3,7 @@ import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
 /** Nút Trợ lý AI nổi — 60px, góc phải dưới.
- *  Một trong hai chỗ duy nhất được dùng rounded-full (luật 5 · CLAUDE.md).
+ *  Một trong hai chỗ duy nhất được dùng rounded-full (luật 5 · docs/luat-thiet-ke.md).
  *  Icon `orbit`: One ở tâm, bốn nhánh quay quanh — không `sparkles`, không `bot`. */
 export function AssistantFab({ onClick, className }: { onClick?: () => void; className?: string }) {
   return (

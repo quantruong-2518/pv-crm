@@ -3,7 +3,7 @@ import { cn } from '../lib/cn'
 
 /** A-06 · StatusDot — size-2 rounded-full.
  *  `current` thêm ring-4 ring-primary/24. Đây là một trong hai chỗ duy nhất
- *  được dùng rounded-full (luật 5 · CLAUDE.md), chỗ kia là FAB Trợ lý AI. */
+ *  được dùng rounded-full (luật 5 · docs/luat-thiet-ke.md), chỗ kia là FAB Trợ lý AI. */
 const statusDotVariants = cva('inline-block size-2 shrink-0 rounded-full', {
   variants: {
     state: {

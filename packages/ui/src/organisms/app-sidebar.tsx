@@ -22,7 +22,7 @@ export type SidebarGroup = {
 }
 
 export type AppSidebarProps = {
-  /** tên sản phẩm trung tâm — luôn "PV One" (luật 14 · CLAUDE.md) */
+  /** tên sản phẩm trung tâm — luôn "PV One" (luật 14 · docs/luat-thiet-ke.md) */
   product: string
   /** tên công ty đang đăng nhập */
   org: string

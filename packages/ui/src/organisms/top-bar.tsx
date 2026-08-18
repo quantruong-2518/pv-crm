@@ -7,7 +7,7 @@ import { cn } from '../lib/cn'
 /** O-02 · TopBar — h-16.
  *  SearchField + nút Trợ lý (ẩn dưới lg — BottomNav đã có mục Trợ lý) + chuông
  *  (chấm 7px destructive) + Avatar.
- *  Icon trợ lý là `orbit` — không `sparkles`, không `bot` (luật 15 · CLAUDE.md). */
+ *  Icon trợ lý là `orbit` — không `sparkles`, không `bot` (luật 15 · docs/luat-thiet-ke.md). */
 export type TopBarProps = {
   user: { name: string; initials?: string }
   /** có thông báo chưa đọc → chấm đỏ trên chuông */

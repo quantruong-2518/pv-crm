@@ -6,7 +6,7 @@ import { cn } from '../lib/cn'
 
 /** M-09 · AIAction — chữ ký của hệ.
  *
- *  LUẬT CỨNG (luật 9 · CLAUDE.md · AGENTS.md §1.13): mọi khối AI có dòng
+ *  LUẬT CỨNG (luật 9 · docs/luat-thiet-ke.md §1): mọi khối AI có dòng
  *  "Căn cứ: …" và LUÔN chờ nút. AI không bao giờ tự thực hiện.
  *  Vì vậy `basis` và `onConfirm` là bắt buộc ở tầng kiểu — không dựng được
  *  một khối AI thiếu căn cứ hoặc thiếu nút xác nhận.

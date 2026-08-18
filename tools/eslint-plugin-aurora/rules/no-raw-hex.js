@@ -1,5 +1,5 @@
 /** Luật 1 · Màu chỉ lấy từ `globals.css`.
- *  AGENTS.md §8.1: "Không có hex nào trong code ngoài `globals.css`".
+ *  docs/luat-thiet-ke.md §8.1: "Không có hex nào trong code ngoài `globals.css`".
  *
  *  Ngoại lệ duy nhất đã ratify: `packages/tokens/src/tokens.ts` — ở đó hex là
  *  NỘI DUNG hiển thị của bảng màu, không phải giá trị style. Ngoại lệ khai báo

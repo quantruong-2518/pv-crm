@@ -13,7 +13,7 @@ import noScenarioMix from './rules/no-scenario-mix.js'
  *
  *  Ba luật còn lại vẫn là việc của mắt người, ghi rõ để không ai tưởng CI đã
  *  gác hộ: luật 12 (nền đúng 4 lớp) · luật 13 (tương phản ≥ 4.5:1) ·
- *  AGENTS §8.8 (lệch < 4px so với screens-png). */
+ *  docs/luat-thiet-ke.md §8.8 (nền 4 lớp · tương phản · cỡ nút tablet). */
 export default {
   meta: { name: '@pv/eslint-plugin-aurora', version: '1.0.0' },
   rules: {

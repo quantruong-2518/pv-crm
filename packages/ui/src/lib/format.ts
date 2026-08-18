@@ -1,4 +1,4 @@
-/** Tiền chuẩn VN: phẩy thập phân, chấm ngăn nghìn (luật 6 · CLAUDE.md).
+/** Tiền chuẩn VN: phẩy thập phân, chấm ngăn nghìn (luật 6 · docs/luat-thiet-ke.md).
  *  Không tự làm tròn khác với con số đã chốt trong kịch bản dữ liệu. */
 
 const vi = (value: number, fractionDigits: number) =>

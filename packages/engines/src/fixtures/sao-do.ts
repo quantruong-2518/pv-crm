@@ -2,7 +2,7 @@ import { loadScenario, type Scenario } from './scenario'
 
 /** KỊCH BẢN 1 · Đơn hàng Sao Đỏ — khách ĐÃ MUA. Dùng cho màn One 01–05.
  *
- *  Đóng băng tại 10/08 · 07:58 (CLAUDE.md · "Kịch bản dữ liệu").
+ *  Đóng băng tại 10/08 · 07:58 (docs/kien-truc-san-pham.md · "Kịch bản dữ liệu").
  *  Hai lát cắt ngoại lệ: màn ký hợp đồng ở 21/07 · 16:20 (nguồn gốc của
  *  SO-0891), và thẻ chạm khách ở 10/08 · 09:38.
  *
@@ -55,8 +55,9 @@ const scenario: Scenario = {
       code: 'PO-0455',
       kind: 'PO',
       branch: 'Supply',
-      label: 'Đơn mua thép Ø40',
+      label: 'Nam Việt Steel · 500 kg thép Ø40 · kho K1-A2',
       state: 'chờ duyệt',
+      amount: 128_500_000,
     },
     { code: 'L-2608-042', kind: 'L', branch: 'Supply', label: 'Lô nhập kho', state: 'chưa về' },
     {
@@ -112,3 +113,78 @@ const scenario: Scenario = {
 }
 
 export const saoDo = loadScenario(scenario)
+
+// ---------------------------------------------------------------------------
+// Phần dưới đây cứu ra từ AGENTS.md §6 ("Dữ liệu demo — đóng băng tại 10 Aug,
+// 07:58") trước khi project/ bị xoá. Để ở đây thay vì trong tài liệu vì đây là
+// thứ màn thật sẽ đọc, và vì có test khoá thì không ai sửa lệch được.
+// KHÔNG BỊA SỐ MỚI: mọi seed/mock dùng đúng bộ này.
+// ---------------------------------------------------------------------------
+
+/** Công ty dùng hệ, và người đang nhìn màn. */
+export const SAO_DO_TENANT = {
+  company: 'Thắng Lợi Engineering',
+  user: 'Nguyễn Văn Thắng',
+  role: 'Giám đốc',
+} as const
+
+/** Khách hàng của câu chuyện. Đầu mối bên khách chỉ có MỘT người. */
+export const SAO_DO_CUSTOMER = {
+  name: 'Sao Đỏ Engineering',
+  contact: 'Nguyễn Văn Đạt',
+  contactRole: 'Phó giám đốc kỹ thuật',
+  openDeals: 2,
+  overdue: 0,
+  documents: 14,
+} as const
+
+export type Kpi = {
+  key: string
+  label: string
+  /** Tiền tính bằng đồng; tỉ lệ tính bằng phần thập phân (0.86 = 86%). */
+  value: number
+  deltaPct?: number
+  target?: number
+  invoices?: number
+}
+
+/** Bốn KPI của Trang chủ. Trường bỏ trống nghĩa là KPI đó không có mục đó. */
+export const SAO_DO_KPI: Kpi[] = [
+  { key: 'doanh-thu', label: 'Doanh thu tháng 8', value: 4_200_000_000, deltaPct: 0.12 },
+  { key: 'dung-han', label: 'Giao đúng hạn', value: 0.86, target: 0.9 },
+  { key: 'qua-han', label: 'Công nợ quá hạn', value: 890_000_000, invoices: 2 },
+  { key: 'oee', label: 'Hiệu suất thiết bị · xưởng X1', value: 0.914 },
+]
+
+/** Ba báo giá vật tư cho PO-0455. Nam Việt Steel là bên được chọn. */
+export const SAO_DO_QUOTES = [
+  { vendor: 'Nam Việt Steel', amount: 128_500_000, leadTimeDays: 2, chosen: true },
+  { vendor: 'Hưng Long', amount: 131_200_000, leadTimeDays: 1, chosen: false },
+  { vendor: 'Toàn Phát', amount: 127_900_000, leadTimeDays: 5, chosen: false },
+] as const
+
+/** Công nợ quá hạn — cộng lại đúng 890 tr của KPI thứ ba. */
+export const SAO_DO_RECEIVABLES = [
+  { customer: 'Minh Quang', amount: 520_000_000, overdueDays: 12 },
+  { customer: 'Trường Thịnh', amount: 370_000_000, overdueDays: 0 },
+] as const
+
+/** Người bên Thắng Lợi xuất hiện trên màn One 01–05. */
+export const SAO_DO_PEOPLE = [
+  { name: 'Lê Minh Đức', role: 'Trưởng phòng Kế hoạch' },
+  { name: 'Trần Thu Hà', role: 'Trưởng phòng Kinh doanh' },
+  { name: 'Phạm Thị Mai', role: 'Kế toán trưởng' },
+  { name: 'Nguyễn Văn Tú', role: 'Nhân viên' },
+  { name: 'Vũ Văn Nam', role: 'Nhân viên' },
+] as const
+
+/** Mốc thời gian của ngày 10/08 — thứ tự sự kiện trên năm màn One. */
+export const SAO_DO_TIMELINE = [
+  { at: '07:58', what: 'Morning brief' },
+  { at: '08:03', what: 'Trợ lý AI đề xuất' },
+  { at: '08:21', what: 'CNC-03 dừng' },
+  { at: '08:40', what: 'Duyệt bước 1' },
+  { at: '09:12', what: 'Đã duyệt' },
+  { at: '09:40', what: 'Tìm toàn cục' },
+  { at: '16:30', what: 'Sửa quy tắc thông báo' },
+] as const

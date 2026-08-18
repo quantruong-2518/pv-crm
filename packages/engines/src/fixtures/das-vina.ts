@@ -220,7 +220,7 @@ export const FUNNEL = [
 ] as const
 
 /** SÁU lý do ra khỏi luồng. Không có lý do thứ bảy, không có ô "khác"
- *  (CLAUDE.md). Tổng đúng bằng 100 đầu mối trừ 6 hợp đồng. */
+ *  (docs/luat-thiet-ke.md). Tổng đúng bằng 100 đầu mối trừ 6 hợp đồng. */
 export const EXIT_REASONS = [
   { label: 'Không gọi được ai', count: 38 },
   { label: 'Không phải khách của mình', count: 18 },
@@ -231,7 +231,7 @@ export const EXIT_REASONS = [
 ] as const
 
 // ---------------------------------------------------------------------------
-// Hoa hồng một đơn (CLAUDE.md). Đơn đổi tay giữa hai Sale thì chia lại phần
+// Hoa hồng một đơn (docs/luat-thiet-ke.md). Đơn đổi tay giữa hai Sale thì chia lại phần
 // chốt theo số lần chạm; phần của BD không đụng tới.
 // ---------------------------------------------------------------------------
 export const COMMISSION_SPLIT = { moCua: 30, chot: 60, diCungDemo: 10 } as const

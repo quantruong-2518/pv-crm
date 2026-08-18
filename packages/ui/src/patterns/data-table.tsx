@@ -5,7 +5,7 @@ import { cn } from '../lib/cn'
  *  h-11 · divide-white/6 · hover:bg-white/5
  *  selected = shadow-[inset_2px_0_0] shadow-primary + bg-primary/10
  *
- *  Bảng LUÔN nằm trên .glass-b, không bao giờ .glass-a (luật 8 · CLAUDE.md) —
+ *  Bảng LUÔN nằm trên .glass-b, không bao giờ .glass-a (luật 8 · docs/luat-thiet-ke.md) —
  *  component không tự vẽ mặt kính, khối cha phải là <GlassCard variant="b">.
  *  Dòng `hidden` là kết quả E2 trả về, không phải cách trình bày của màn. */
 /** `hover` là trạng thái ép cứng — chỉ dùng để chụp tài liệu trong theme kit. */

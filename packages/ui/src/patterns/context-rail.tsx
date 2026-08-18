@@ -1,7 +1,7 @@
 import { Chip } from '../ui/chip'
 import { cn } from '../lib/cn'
 
-/** M-02 · ContextRail — BẮT BUỘC trên mọi màn (luật 10 · CLAUDE.md).
+/** M-02 · ContextRail — BẮT BUỘC trên mọi màn (luật 10 · docs/luat-thiet-ke.md).
  *  Dãy chip mã mono nối các object của cùng một câu chuyện, dựng thẳng từ E1.
  *  Chip azure = object của câu chuyện đang mở · chip trắng mờ = object liên quan.
  *  Mobile rút gọn còn ≤3 chip. */

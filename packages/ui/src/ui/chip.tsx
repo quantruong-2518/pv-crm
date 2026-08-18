@@ -24,7 +24,7 @@ const chipVariants = cva(
 
 export type ChipProps = Omit<React.HTMLAttributes<HTMLElement>, 'onClick'> &
   Omit<VariantProps<typeof chipVariants>, 'interactive'> & {
-    /** Chip mở object — ContextRail luôn truyền hàm này (luật 10 · CLAUDE.md) */
+    /** Chip mở object — ContextRail luôn truyền hàm này (luật 10 · docs/luat-thiet-ke.md) */
     onOpen?: () => void
   }
 

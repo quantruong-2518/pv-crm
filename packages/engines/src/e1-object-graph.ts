@@ -6,7 +6,7 @@ import type { Edge, ObjectRef } from './types'
  *  (`HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042`).
  *
  *  Nhánh tạo và cập nhật object của mình, đọc object nhánh khác qua đồ thị.
- *  **ContextRail dựng thẳng từ đây** (luật 10 · CLAUDE.md) — màn KHÔNG tự viết
+ *  **ContextRail dựng thẳng từ đây** (luật 10 · docs/luat-thiet-ke.md) — màn KHÔNG tự viết
  *  tay danh sách chip, vì hai màn viết tay hai lần sẽ lệch nhau. */
 export interface ObjectGraph {
   get(code: string): ObjectRef | undefined

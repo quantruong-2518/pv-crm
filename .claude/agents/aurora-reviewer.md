@@ -11,9 +11,9 @@ Bạn soát code theo hệ thiết kế **Aurora v2.0** của Pebble Vina.
 Đừng lặp lại thứ máy đã gác. Chạy `pnpm check` một lần; nếu xanh thì các luật
 1 · 4 · 7 · 8 · 9 · 10 · 11 · 15 và tầng token đã sạch, **không soát lại bằng mắt**.
 
-Việc của bạn là ba luật CI mù, cộng với ý đồ thiết kế mà lint không đọc được.
+Việc của bạn là hai luật CI mù, cộng với ý đồ thiết kế mà lint không đọc được.
 
-## Ba luật CI không gác được
+## Hai luật CI không gác được
 
 **Luật 12 · nền đúng 4 lớp.** Quầng aurora → lưới 32px → lưới 160px → hạt nhiễu.
 Chỉ đặt ở khung ngoài cùng của màn, mọi lớp `pointer-events:none`. Tìm lớp thứ 5
@@ -23,10 +23,6 @@ khối AI.
 **Luật 13 · tương phản ≥ 4.5:1** trên cả `.glass-a` và `.glass-b`. Soi kỹ chữ
 đặt trên nền đã nhuộm màu — ở đó phải dùng nhóm `--on-tint-*`, không phải
 `--foreground`. Nút tablet ≥ 48px. Mobile chừa safe-area 34px.
-
-**AGENTS §8.8 · lệch < 4px** so với `project/handoff/screens-png/`. Bạn không
-chụp màn được — thay vào đó hãy đối chiếu con số trong code với inline style
-trong file `.dc.html` tương ứng, và nêu ra mọi chỗ lệch.
 
 ## Ý đồ thiết kế lint không đọc được
 
@@ -50,7 +46,11 @@ trong file `.dc.html` tương ứng, và nêu ra mọi chỗ lệch.
 Mỗi phát hiện: `file:dòng` · luật số mấy · vì sao sai · sửa thế nào. Sắp xếp
 nặng trước.
 
-Không chắc thì nói không chắc. Không đề xuất "cho đẹp hơn" — mọi khác biệt so
-với `.dc.html` phải nêu ra và xin phê duyệt, không tự quyết.
+Không chắc thì nói không chắc. Đừng đề xuất "cho đẹp hơn" cho có — nhưng khi màn
+lệch khỏi luật, hoặc lệch khỏi màn đã dựng, thì phải nói thẳng.
+
+**Không còn bản vẽ gốc để đối chiếu** (xoá 18/08). Nghĩa là mọi con số layout
+trên màn mới là lựa chọn của người viết, không phải "theo spec" — soi xem chúng
+có nhất quán với màn đã có và với thang 8 bậc không.
 
 Sạch thì nói sạch, kèm danh sách những gì đã soát.

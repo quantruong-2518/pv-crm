@@ -3,7 +3,7 @@ import { cn } from '../lib/cn'
 
 /** F-03 · Surfaces.
  *  a → thẻ thường, KPI, brief card, panel chính
- *  b → bảng, danh sách dài, sidebar phải, popover (luật 8 · CLAUDE.md)
+ *  b → bảng, danh sách dài, sidebar phải, popover (luật 8 · docs/luat-thiet-ke.md)
  *  Không có variant thứ ba: khối AI dùng <AiAction>, không dùng GlassCard. */
 export type GlassCardProps = HTMLAttributes<HTMLDivElement> & {
   variant?: 'a' | 'b'

@@ -7,7 +7,7 @@ import { cn } from '../lib/cn'
  *  Số ≥34px · chữ phụ ≥14px · nút ≥48px.
  *
  *  `highContrast` là NGOẠI LỆ DUY NHẤT được dùng viền (2px) trong cả hệ —
- *  cho kiosk đứng ngoài sáng, nơi bỏ viền là mất đọc (luật 4 · CLAUDE.md). */
+ *  cho kiosk đứng ngoài sáng, nơi bỏ viền là mất đọc (luật 4 · docs/luat-thiet-ke.md). */
 export type KioskTileProps = {
   /** đã format sẵn: "68%" */
   value: string

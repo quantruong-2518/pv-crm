@@ -2,9 +2,9 @@
    Dark-only. Mọi màu chữ đã kiểm tương phản ≥ 4.5:1 trên glass-a và glass-b.
 
    ĐÂY LÀ FILE TOKEN DUY NHẤT. Không viết hex ở bất kỳ file nào khác trong src/.
-   Nguồn: project/theme/globals.css (chốt 10/08) + phần bổ sung ở cuối khối :root,
+   Nguồn: bản token chốt 10/08 + phần bổ sung ở cuối khối :root,
    mỗi biến bổ sung đều lấy giá trị đang có sẵn trong
-   "Pebble Aurora - Theme Kit.dc.html" — không có hex nào được bịa mới. */
+   theme kit gốc — không có hex nào được bịa mới. */
 
 @import 'tailwindcss';
 @import 'tw-animate-css';
@@ -213,7 +213,7 @@
       inset 0 26px 40px -32px var(--sheen-b);
   }
   /* glass-b phẳng — panel spec trong theme kit: không sheen đáy,
-     giữ đúng bóng của .dc.html cho các khối tài liệu */
+     giữ đúng bóng của theme kit gốc cho khối tài liệu */
   .glass-b-flat {
     background: var(--popover);
     backdrop-filter: blur(16px) saturate(1.3);

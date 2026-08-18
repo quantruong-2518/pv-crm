@@ -3,7 +3,7 @@ import type { Actor, Edge, ObjectRef } from '../types'
 
 /** Kịch bản dữ liệu đóng băng.
  *
- *  CLAUDE.md: "Có đúng **hai kịch bản**, không thêm kịch bản thứ ba" và
+ *  docs/kien-truc-san-pham.md: "Có đúng **hai kịch bản**, không thêm kịch bản thứ ba" và
  *  "**Không trộn hai kịch bản trên cùng một màn**".
  *
  *  Luật đó được giữ ở ba tầng:

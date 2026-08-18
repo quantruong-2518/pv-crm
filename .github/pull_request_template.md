@@ -2,25 +2,32 @@
 
 <!-- Một đoạn. Màn nào / component nào, và vì sao. -->
 
-## Nguồn thiết kế
+## Nguồn
 
-<!-- File .dc.html và PNG đã dựng theo. Bỏ trống nếu PR không đụng giao diện. -->
+<!-- Bỏ trống nếu PR không đụng giao diện. -->
 
-- Spec:
+- Đặc tả: <!-- docs/luat-thiet-ke.md §7 · hoặc mục nào trong docs/ -->
 - Lát cắt dữ liệu: <!-- Sao Đỏ 10/08 07:58 · hoặc · DAS Vina 17/08 09:10 -->
 
-## Ba thứ CI không gác được
+## Hai thứ CI không gác được
 
 CI đã kiểm hex, viền, spacing, emoji, icon, kịch bản, token, kiểu, test, build.
-Ba thứ dưới đây vẫn là việc của mắt người — tick nghĩa là **đã tự nhìn**, không
-phải "chắc là ổn":
+Hai dòng dưới đây vẫn là việc của mắt người — tick nghĩa là **đã tự mở màn ra
+nhìn**, không phải "chắc là ổn":
 
 - [ ] **Luật 12** — nền đúng 4 lớp, không có lớp thứ 5
-- [ ] **Luật 13** — tương phản chữ ≥ 4.5:1 trên cả `.glass-a` và `.glass-b`; nút tablet ≥ 48px
-- [ ] **AGENTS §8.8** — so với `project/handoff/screens-png/` ở 100% zoom, lệch < 4px
+- [ ] **Luật 13** — tương phản chữ ≥ 4.5:1 trên cả `.glass-a` và `.glass-b`; nút tablet ≥ 48px; mobile chừa safe-area 34px
 
-## Lệch khỏi spec
+## Quyết định thiết kế tự làm
 
-<!-- MỌI khác biệt so với .dc.html phải nêu ở đây kèm căn cứ, và xin phê duyệt
-     TRƯỚC khi merge. "Làm cho đẹp hơn" không phải căn cứ. Không có thì ghi
-     "không có". -->
+<!-- Nguồn thiết kế gốc (.dc.html + ảnh tham chiếu 1:1) đã xoá 18/08, nên mọi
+     con số layout trên màn mới là LỰA CHỌN, không phải "theo spec". Liệt kê
+     chúng ra để người review gật hoặc bác: kích thước, khoảng cách, thứ tự
+     khối. Không có thì ghi "không có".
+
+     Cần xem bản vẽ cũ: git show 107f5e2:project/<tên file>.dc.html -->
+
+## Nợ spacing
+
+<!-- Màn mới KHÔNG được thêm vi phạm aurora/spacing-scale nào. Nếu PR này có
+     dọn bớt nợ cũ thì chạy `pnpm lint:prune` và nói rõ đã dọn file nào. -->

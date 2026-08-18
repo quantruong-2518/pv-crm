@@ -1,7 +1,7 @@
 import { scanClassStrings } from '../lib/classes.js'
 
 /** Luật 7 · Spacing chỉ 8 bậc: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48.
- *  AGENTS.md §8: "Padding/gap chỉ thuộc 8 bậc. Không có 10, 14, 18."
+ *  docs/luat-thiet-ke.md §8: "Padding/gap chỉ thuộc 8 bậc. Không có 10, 14, 18."
  *
  *  Rule bắt cả hai dạng:
  *    · bậc Tailwind — `p-4` (16px) hợp lệ, `p-2.5` (10px) và `p-7` (28px) không;
@@ -22,7 +22,7 @@ export default {
     schema: [],
     messages: {
       offScale:
-        'Class "{{token}}" cho ra {{px}}px, không thuộc thang 8 bậc (4·8·12·16·20·24·32·48) — luật 7. Chọn bậc gần nhất, hoặc nếu con số lấy đúng từ file .dc.html thì nêu ra và xin phê duyệt trước khi giữ.',
+        'Class "{{token}}" cho ra {{px}}px, không thuộc thang 8 bậc (4·8·12·16·20·24·32·48) — luật 7. Chọn bậc gần nhất, hoặc nếu con số lấy đúng từ bản vẽ gốc thì nêu ra và xin phê duyệt trước khi giữ.',
     },
   },
   create(context) {

@@ -8,7 +8,7 @@ import { AuroraField } from '@pv/ui'
  *  của người dùng thật. Thêm màn mới = thêm một dòng vào SCREENS, không sửa
  *  chỗ nào khác.
  *
- *  Đường dẫn theo cấu trúc sản phẩm ở CLAUDE.md — One ở gốc, nhánh vệ tinh
+ *  Đường dẫn theo cấu trúc sản phẩm ở docs/kien-truc-san-pham.md — One ở gốc, nhánh vệ tinh
  *  (Sales · Supply · Factory · Finance) nằm dưới tiền tố riêng. */
 
 const withFallback = (load: () => Promise<{ default: ComponentType }>) => {

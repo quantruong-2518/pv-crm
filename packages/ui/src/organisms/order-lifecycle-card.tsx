@@ -4,7 +4,7 @@ import { Progress } from '../ui/progress'
 import { StatusDot, type StatusDotState } from '../ui/status-dot'
 import { cn } from '../lib/cn'
 
-/** O-06 · OrderLifecycleCard — hero 2×2 của dashboard (AGENTS.md §7, màn 01:
+/** O-06 · OrderLifecycleCard — hero 2×2 của dashboard (docs/luat-thiet-ke.md §7, màn 01:
  *  "1 ô hero 2×2, order lifecycle 10 mốc"). Header (StatusDot + tiêu đề + tiền)
  *  → mô tả → Progress mốc đang chạy → dải mốc vòng đời → ContextRail. */
 export type LifecycleStep = Extract<StatusDotState, 'ok' | 'current' | 'next'>

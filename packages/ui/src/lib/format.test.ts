@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { billions, dong, millions, percent } from './format'
 
-/** Luật 6 · CLAUDE.md: "Tiền chuẩn VN: phẩy thập phân, chấm ngăn nghìn."
+/** Luật 6 · docs/luat-thiet-ke.md: "Tiền chuẩn VN: phẩy thập phân, chấm ngăn nghìn."
  *
  *  Test này gác đúng một thứ: nếu ai đó đổi locale hoặc dùng Intl mặc định,
  *  tiền sẽ hiện kiểu Anh (1,840,000,000.00) và không ai nhận ra cho tới lúc

@@ -8,7 +8,7 @@ import { BottomNav, type BottomNavKey } from '../organisms/bottom-nav'
 /** AppShell — khung màn, mobile-first (T-01 ở ≥ lg, 1024px).
  *  < lg: không Sidebar, không FAB — BottomNav (Home·Duyệt·Tìm·Trợ lý) thay
  *  cả hai. ≥ lg: Sidebar 232 · gutter 24 · margin 32 · FAB Trợ lý AI nổi.
- *  AGENTS.md §4: đây là component dựng trước tiên, mọi màn ngồi bên trong nó. */
+ *  docs/luat-thiet-ke.md §4: đây là component dựng trước tiên, mọi màn ngồi bên trong nó. */
 export type AppShellProps = {
   sidebar: AppSidebarProps
   topbar: TopBarProps

@@ -9,7 +9,7 @@ import { HomePage } from './home'
  *  BriefCard · AiAction — nên bắt được mọi lỗi runtime ở tầng dựng: prop thiếu,
  *  import vòng, component ném lỗi khi thiếu dữ liệu.
  *
- *  Nó cũng khoá vài chuỗi lấy thẳng từ file .dc.html: đổi số trên màn mà quên
+ *  Nó cũng khoá vài chuỗi lấy thẳng từ bản vẽ gốc: đổi số trên màn mà quên
  *  đổi spec thì test đỏ. */
 describe('Màn 01 · Home / Morning brief', () => {
   it('dựng được toàn bộ cây, không ném lỗi', () => {

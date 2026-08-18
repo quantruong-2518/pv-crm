@@ -1,10 +1,10 @@
 /** Kiểu dùng chung của bốn engine.
  *
- *  Nguồn: CLAUDE.md — "Luật engine thuộc platform". Engine là của platform,
+ *  Nguồn: docs/kien-truc-san-pham.md — "Luật engine thuộc platform". Engine là của platform,
  *  không của nhánh nào. Nhánh tiêu thụ engine qua hợp đồng chung; nhánh không
  *  được tự dựng bản riêng, không fork, không giữ trạng thái engine đã giữ. */
 
-/** Năm nhánh sản phẩm (CLAUDE.md · "Cấu trúc sản phẩm — 5 nhánh"). */
+/** Năm nhánh sản phẩm (docs/kien-truc-san-pham.md · "Cấu trúc sản phẩm — 5 nhánh"). */
 export type Branch = 'One' | 'Sales' | 'Supply' | 'Factory' | 'Finance'
 
 /** Tiền tố mã object. Mã đọc được trên UI và là khoá của E1. */
@@ -50,7 +50,7 @@ export type Edge = { from: string; to: string; kind: EdgeKind }
 export type Actor = {
   id: string
   name: string
-  /** Vai trong Sales (CLAUDE.md · "Vai người trong Sales") hoặc vai One. */
+  /** Vai trong Sales (docs/kien-truc-san-pham.md · "Pebble Sales — vai người") hoặc vai One. */
   role: string
   /** Nhánh được phép đọc. Rỗng = chỉ One Core. */
   branches: Branch[]
