@@ -17,6 +17,8 @@ export type AiActionProps = {
   suggestion: ReactNode
   /** dữ liệu trợ lý đã đọc để ra đề xuất — BẮT BUỘC */
   basis: string
+  /** nhãn dòng căn cứ — đổi được cho màn tiếng Anh, ví dụ "Basis" */
+  basisLabel?: string
   /** nút thực hiện — BẮT BUỘC, AI không tự chạy */
   onConfirm: () => void
   confirmLabel?: string
@@ -32,6 +34,7 @@ export type AiActionProps = {
 export function AiAction({
   suggestion,
   basis,
+  basisLabel = 'Căn cứ',
   onConfirm,
   confirmLabel = 'Thực hiện',
   onInspect,
@@ -55,7 +58,7 @@ export function AiAction({
       <div className="flex-1 text-[13px] leading-[1.55] text-on-tint-primary">
         {suggestion}
         <small className="mt-[5px] block text-[11.5px] text-on-tint-primary-muted">
-          Căn cứ: {basis}
+          {basisLabel}: {basis}
         </small>
       </div>
 

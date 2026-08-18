@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { NavItem } from '@/components/patterns/nav-item'
 import { Kicker } from '@/components/ui/separator'
@@ -26,10 +27,12 @@ export type AppSidebarProps = {
   /** tên công ty đang đăng nhập */
   org: string
   groups: SidebarGroup[]
+  /** khối cố định đáy sidebar, ví dụ "Admin & audit log" — đẩy xuống bằng mt-auto */
+  footer?: ReactNode
   className?: string
 }
 
-export function AppSidebar({ product, org, groups, className }: AppSidebarProps) {
+export function AppSidebar({ product, org, groups, footer, className }: AppSidebarProps) {
   return (
     <nav
       aria-label="Điều hướng chính"
@@ -58,6 +61,8 @@ export function AppSidebar({ product, org, groups, className }: AppSidebarProps)
           ))}
         </div>
       ))}
+
+      {footer && <div className="mt-auto">{footer}</div>}
     </nav>
   )
 }

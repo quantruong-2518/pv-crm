@@ -18,7 +18,7 @@ export type StatCardProps = {
     direction: 'up' | 'down' | 'flat'
     text: string
     /** hướng tốt hay xấu — không suy từ direction, vì "công nợ tăng" là xấu */
-    tone: 'success' | 'danger' | 'muted'
+    tone: 'success' | 'danger' | 'warning' | 'muted'
   }
   sparkline?: Pick<SparklineProps, 'points' | 'source'> & { tone?: SparklineTone }
   className?: string
@@ -28,6 +28,7 @@ const deltaIcon = { up: TrendingUp, down: TrendingDown, flat: Minus }
 const deltaTone = {
   success: 'text-success',
   danger: 'text-destructive-foreground',
+  warning: 'text-warning',
   muted: 'text-muted-foreground',
 }
 
