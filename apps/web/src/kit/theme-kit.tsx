@@ -54,7 +54,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
               </b>
               . Mỗi item có mã, tên component shadcn/ui và chuỗi class Tailwind để dev dựng đúng
               1:1. Token nằm ở{' '}
-              <span className="text-accent-foreground font-mono">theme/globals.css</span>.
+              <span className="text-accent-foreground font-mono">packages/tokens/globals.css</span>.
             </p>
           </div>
 
@@ -100,8 +100,10 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
                 <div className="text-muted-foreground flex flex-col gap-4 text-[12.5px] leading-[1.9]">
                   <p>
                     Token nằm ở{' '}
-                    <span className="text-accent-foreground font-mono">theme/globals.css</span> —
-                    Tailwind v4 <span className="text-foreground font-mono">@theme inline</span>,
+                    <span className="text-accent-foreground font-mono">
+                      packages/tokens/globals.css
+                    </span>{' '}
+                    — Tailwind v4 <span className="text-foreground font-mono">@theme inline</span>,
                     dán thẳng vào dự án shadcn/ui.
                   </p>
                   <p>
