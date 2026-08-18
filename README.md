@@ -8,7 +8,8 @@ packages/ui        @pv/ui — thư viện component
 packages/engines   @pv/engines — E1 đồ thị object · E2 quyền · E3 duyệt · E4 thông báo
 apps/web           app thật (/) + theme kit sống (/kit)
 tools/             eslint-plugin-aurora + script gác token & CSS
-project/           nguồn thiết kế: theme kit, 5 màn PV One, các màn Sales
+project/           nguồn thiết kế: theme kit, 5 màn PV One, 12 màn Sales,
+                   bản đồ hệ sinh thái, walkthrough Sao Đỏ, bộ handoff EN
 ```
 
 Stack: pnpm workspace · React 19 · TypeScript · Vite 6 · Tailwind v4 · quy ước
