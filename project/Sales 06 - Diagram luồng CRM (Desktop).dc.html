@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#0B1220;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#7FA3FF;text-decoration:none}
+  a:hover{color:#A8C0FF}
+</style>
+</helmet>
+
+<div style="width:1920px;min-height:2080px;position:relative;overflow:hidden;background-color:#0B1220;background-image:radial-gradient(760px 460px at 88% -6%,rgba(46,99,230,.30),transparent 70%),radial-gradient(620px 420px at 4% 34%,rgba(19,58,138,.42),transparent 72%),linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(160deg,#0B1220,#0F172A 45%,#16233F);background-size:auto,auto,32px 32px,32px 32px,160px 160px,160px 160px,auto;padding:30px 36px 38px;box-sizing:border-box">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:14px">
+    <div>
+      <div style="font-family:'Archivo';font-size:31px;font-weight:600;color:#E5E7EB;letter-spacing:-.01em">Từ người lạ đến hợp đồng — 6 bước, 7 vai</div>
+      <div style="font-size:14px;color:#93A1B8;margin-top:7px;line-height:1.5">Đọc từ trái sang phải. Mỗi hàng là một vai — hàng trên cùng là khách, hàng dưới cùng là phần máy chạy nền. Chỗ nào máy làm, chỗ nào người làm — nhìn màu là biết.</div>
+      <div style="font-size:13px;color:#7FA3FF;margin-top:7px;line-height:1.5"><b>Hôm nay</b> Marketing và BD chạm khách đầu tiên. <b>Đích đến:</b> Trợ lý AI làm việc đó — nhắn tin, gọi và nghe điện, lái khách trả lời đủ 10 câu.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px">
+      <div style="font-family:'IBM Plex Mono';font-size:12px;color:#93A1B8">Ảnh chụp lúc 17/08 · 09:10</div>
+      <div style="display:flex;gap:16px;align-items:center">
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:18px;height:10px;border-radius:3px;background:rgba(46,99,230,.55)"></span><span style="font-size:12px;color:#93A1B8">máy làm sẵn, chờ người bấm</span></div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:18px;height:10px;border-radius:3px;background:rgba(255,255,255,.20)"></span><span style="font-size:12px;color:#93A1B8">người làm</span></div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:10px;height:22px;border-radius:3px;background:rgba(255,205,0,.32)"></span><span style="font-size:12px;color:#93A1B8">chốt kiểm: chưa đủ thì không đi tiếp</span></div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:18px;height:10px;border-radius:3px;background:rgba(46,99,230,.22);box-shadow:inset 0 0 0 1px rgba(127,163,255,.6)"></span><span style="font-size:12px;color:#7FA3FF">việc AI sẽ nhận sau này</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;align-items:center;padding:9px 12px;margin-bottom:16px;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11)">
+    <span style="font-size:11px;color:#93A1B8;font-weight:600;letter-spacing:.05em">KHÁCH ĐANG THEO</span>
+    <span style="font-family:'IBM Plex Mono';font-size:12px;color:#E5E7EB;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:3px">AC-0142 · DAS Vina</span>
+    <span style="color:rgba(255,255,255,.24)">→</span>
+    <span style="font-family:'IBM Plex Mono';font-size:12px;color:#E5E7EB;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:3px">CT-0391 · Kim Dae-ho, giám đốc nhà máy</span>
+    <span style="color:rgba(255,255,255,.24)">→</span>
+    <span style="font-family:'IBM Plex Mono';font-size:12px;color:#D4DEF2;padding:3px 9px;background:rgba(46,99,230,.22);border-radius:3px">OP-0288 · bán Factory MES + One Plus</span>
+    <span style="color:rgba(255,255,255,.24)">→</span>
+    <span style="font-family:'IBM Plex Mono';font-size:12px;color:#E5E7EB;padding:3px 9px;background:rgba(255,255,255,.06);border-radius:3px">BG-1077 · 4,2 tỷ/năm</span>
+    <span style="margin-left:auto;font-size:12px;color:#93A1B8">Nhà máy đóng gói chip · Bắc Ninh · 1.400 người · giám đốc bên Hàn Quốc ký cuối</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:150px 1fr 36px 1fr 1fr 1fr 36px 1fr 1fr;gap:10px;align-items:stretch">
+
+    <div></div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:0 2px 6px"><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700;color:#7FA3FF">1</span><div><div style="font-family:'Archivo';font-size:14.5px;font-weight:600;color:#E5E7EB">Lead vào hệ</div><div style="font-size:11.5px;color:#93A1B8;margin-top:2px">xong trong 2 giờ</div></div></div>
+    <div></div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:0 2px 6px"><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700;color:#7FA3FF">2</span><div><div style="font-family:'Archivo';font-size:14.5px;font-weight:600;color:#E5E7EB">Nói với khách lần đầu</div><div style="font-size:11.5px;color:#93A1B8;margin-top:2px">hỏi cho đủ 10 thông tin · 2 ngày</div></div></div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:0 2px 6px"><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700;color:#7FA3FF">3</span><div><div style="font-family:'Archivo';font-size:14.5px;font-weight:600;color:#E5E7EB">Máy tìm hiểu khách</div><div style="font-size:11.5px;color:#93A1B8;margin-top:2px">xếp khách vào nhóm · 1 ngày</div></div></div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:0 2px 6px"><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700;color:#7FA3FF">4</span><div><div style="font-family:'Archivo';font-size:14.5px;font-weight:600;color:#E5E7EB">In phiếu tiếp cận</div><div style="font-size:11.5px;color:#93A1B8;margin-top:2px">chọn người bán · 4 giờ</div></div></div>
+    <div></div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:0 2px 6px"><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700;color:#7FA3FF">5</span><div><div style="font-family:'Archivo';font-size:14.5px;font-weight:600;color:#E5E7EB">Gặp lần 2, lần 3</div><div style="font-size:11.5px;color:#93A1B8;margin-top:2px">3–14 ngày</div></div></div>
+    <div style="display:flex;align-items:baseline;gap:8px;padding:0 2px 6px"><span style="font-family:'Space Grotesk';font-size:22px;font-weight:700;color:#7FA3FF">6</span><div><div style="font-family:'Archivo';font-size:14.5px;font-weight:600;color:#E5E7EB">Chốt</div><div style="font-size:11.5px;color:#93A1B8;margin-top:2px">báo giá → ký</div></div></div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#E5E7EB">Khách hàng</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">DAS Vina · 3 người<br>bên ngoài công ty mình</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:13px;font-weight:600;color:#E5E7EB">Tự tải hồ sơ MES trên web, không để lại số</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.5;margin-top:6px">Chỉ có email công ty. Đây là toàn bộ thứ mình có lúc bắt đầu.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="grid-row:span 8;display:flex;align-items:center;justify-content:center;background:rgba(255,205,0,.10);border-radius:4px;box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">
+      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:'IBM Plex Mono';font-size:11px;font-weight:600;color:#FFE9A3;letter-spacing:.06em;padding:8px 0">CHỐT KIỂM 1 · GIAO CHO BD</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:13px;font-weight:600;color:#E5E7EB">Kim Dae-ho nhận gặp 06/08, nói đủ 10 câu</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
+        <span style="font-family:'IBM Plex Mono';font-size:10px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Zalo tổ kỹ thuật</span>
+        <span style="font-family:'IBM Plex Mono';font-size:10px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">email công ty</span>
+        <span style="font-family:'IBM Plex Mono';font-size:10px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">gặp tại nhà máy</span>
+      </div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.5;margin-top:7px">Khách trả lời trên kênh khách muốn — máy đi theo, không bắt khách đổi kênh.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không bị hỏi gì thêm. Máy đọc nguồn công khai.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không nhìn thấy — đây là chuyện nội bộ.</div>
+    </div>
+    <div style="grid-row:span 8;display:flex;align-items:center;justify-content:center;background:rgba(255,205,0,.10);border-radius:4px;box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">
+      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-family:'IBM Plex Mono';font-size:11px;font-weight:600;color:#FFE9A3;letter-spacing:.06em;padding:8px 0">CHỐT KIỂM 2 · GIAO CHO SALE</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:13px;font-weight:600;color:#E5E7EB">Cho demo tại dây chuyền, kéo thêm người vào</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.5;margin-top:6px">Từ lần 2 có trưởng phòng mua dự cùng. Người ký thật vẫn chưa xuất hiện.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:13px;font-weight:600;color:#E5E7EB">Giám đốc bên Hàn ký cuối</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.5;margin-top:6px">Trên 3 tỷ phải xin công ty mẹ — Nam gạch ra từ bước 3, nên không ai hứa sai ngày.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#E5E7EB">Marketing</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">Vũ Minh Châu<br>kéo khách về</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">4 nguồn khách, dồn về 1 hồ sơ</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:#E5E7EB;padding:3px 7px;background:rgba(255,255,255,.06);border-radius:3px">LinkedIn 6</span>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:#E5E7EB;padding:3px 7px;background:rgba(255,255,255,.06);border-radius:3px">Facebook · Zalo 4</span>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:#D4DEF2;padding:3px 7px;background:rgba(46,99,230,.22);border-radius:3px">Web 3</span>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;color:#E5E7EB;padding:3px 7px;background:rgba(255,255,255,.06);border-radius:3px">BD đi gặp 2</span>
+      </div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:9px">Cùng một công ty vào 3 lần → máy gộp thành 1.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Giao rồi thì không chen vào cuộc nói chuyện của BD.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Đưa tài liệu để BD dùng làm bằng chứng — đưa file, không đi gặp.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không tham gia.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Vẫn không chen vào. Chỉ nhận khách lại qua đường quay về phía dưới.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Thắng thì lấy chuyện này đi kể cho khách chip khác.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#E5E7EB">BD</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">Lê Hoàng Nam<br>đi mở khách mới</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Chờ. Chỉ nhận lead đã qua chốt kiểm 1.</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">HÔM NAY</span><div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Đi gặp khách — dùng đúng form của máy</div></div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Nam gặp khách 06/08, bật ghi âm. Máy nghe rồi điền trước, Nam sửa lại.</div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <span style="font-family:'Space Grotesk';font-size:16px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">10/10</span>
+        <div style="flex:1;height:6px;background:rgba(255,255,255,.10);border-radius:3px"><div style="width:100%;height:6px;background:#2E63E6;border-radius:3px"></div></div>
+      </div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Đọc máy viết, gật hoặc gạch</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Nam gạch 1 câu: đơn trên 3 tỷ phải xin công ty mẹ, không quyết ở đây.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Bấm “Giao Sale”</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Nút chỉ sáng khi đủ 10 thông tin, đã gật bản xếp nhóm, đã in phiếu.</div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <span style="height:28px;padding:0 13px;display:flex;align-items:center;background:#2E63E6;color:#FFFFFF;font-size:12px;font-weight:600;border-radius:4px">Giao Sale</span>
+        <span style="height:28px;padding:0 12px;display:flex;align-items:center;background:rgba(255,255,255,.06);color:#E5E7EB;font-size:12px;border-radius:4px">Giữ thêm 1 ngày</span>
+      </div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Xem được, sửa không được. Tránh 2 người cùng nói với khách.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Thắng thì Nam ăn phần <b style="color:#E5E7EB">mở cửa 30%</b> — xem bảng chia ở dưới.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#7FA3FF">Trợ lý AI</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">hôm nay: dọn việc sẵn<br>sắp tới: người chạm khách đầu tiên</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(46,99,230,.22);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.12),inset 0 30px 46px -34px rgba(150,180,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#D4DEF2">Chấm 78 điểm · đề nghị giao Nam · chờ bấm</div>
+      <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:7px">Căn cứ: khách tự tải hồ sơ MES trên web · làm ngành chip · 1.400 người · Nam nói được tiếng Hàn</div>
+      <div style="font-size:11.5px;color:#B9C8E8;opacity:.85;line-height:1.45;margin-top:6px">Máy không tự giao. Việc nằm ở chốt kiểm 1 cho tới khi có người bấm.</div>
+      <div style="margin-top:9px;padding:8px 10px;background:rgba(46,99,230,.30);border-radius:4px;box-shadow:inset 0 0 0 1px rgba(127,163,255,.6)">
+        <div style="font-family:'IBM Plex Mono';font-size:10px;color:#7FA3FF;letter-spacing:.05em;margin-bottom:4px">SẮP TỚI</div>
+        <div style="font-size:11.5px;color:#D4DEF2;line-height:1.5">Ai nhắn hay bình luận dưới bài marketing trên LinkedIn, Facebook, Zalo là AI trả lời ngay, không chờ người lọc tay.</div>
+      </div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(46,99,230,.22);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.12),inset 0 30px 46px -34px rgba(150,180,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#D4DEF2">Soạn sẵn 4 lượt hỏi cho đủ 10 câu</div>
+      <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:7px">Mỗi lượt tối đa 3 câu. Hôm nay Nam gửi và Nam gọi, máy chỉ viết trước rồi nghe ghi âm điền vào form.</div>
+      <div style="margin-top:9px;padding:8px 10px;background:rgba(46,99,230,.30);border-radius:4px;box-shadow:inset 0 0 0 1px rgba(127,163,255,.6)">
+        <div style="font-family:'IBM Plex Mono';font-size:10px;color:#7FA3FF;letter-spacing:.05em;margin-bottom:4px">SẮP TỚI</div>
+        <div style="font-size:11.5px;color:#D4DEF2;line-height:1.5">AI tự nhắn, tự gọi và nghe điện, lái khách trả lời đủ 10 câu. Khách hỏi giá thì gọi người vào.</div>
+      </div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(46,99,230,.22);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.12),inset 0 30px 46px -34px rgba(150,180,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#D4DEF2">Đọc 11 nguồn, viết 6 điều kèm độ chắc</div>
+      <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:7px">Tiền cho phần mềm 4–6 tỷ/năm <span style="font-family:'IBM Plex Mono'">82%</span> · đau nhất là truy vết lô hàng <span style="font-family:'IBM Plex Mono'">76%</span> · đang quản bằng Excel <span style="font-family:'IBM Plex Mono'">64%</span></div>
+      <div style="font-size:11.5px;color:#B9C8E8;opacity:.8;line-height:1.45;margin-top:6px">Dưới 60% thì không dám kết luận — đổi thành câu hỏi cho lần gặp sau.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(46,99,230,.22);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.12),inset 0 30px 46px -34px rgba(150,180,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#D4DEF2">Đề nghị người phục vụ khách</div>
+      <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:7px">Đủ thông tin rồi, AI chọn người khớp nhất: <b>Đỗ Quang Huy</b> — huy hiệu chip ★★★, MES ★★★, <b>6 năm</b> bán cho nhà máy chip, thắng 46%, đang giữ ít hơn Bình.</div>
+      <div style="font-size:11.5px;color:#B9C8E8;opacity:.85;line-height:1.45;margin-top:6px">Kèm nhóm khách và phiếu tiếp cận. Trưởng phòng Thu Hà gật là xong.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(46,99,230,.22);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.12),inset 0 30px 46px -34px rgba(150,180,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#D4DEF2">Xếp 3 việc nên làm, có khả năng thắng kèm theo</div>
+      <div style="font-size:11.5px;color:#B9C8E8;line-height:1.55;margin-top:7px">Demo ngay tại dây chuyền <span style="font-family:'IBM Plex Mono';color:#5EE0A8">+16%</span><br>Cho đi xem nhà máy khác đang dùng <span style="font-family:'IBM Plex Mono';color:#5EE0A8">+11%</span><br>Gửi báo giá luôn <span style="font-family:'IBM Plex Mono';color:#FF6B5E">−7%</span></div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(46,99,230,.22);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.12),inset 0 30px 46px -34px rgba(150,180,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#D4DEF2">Soạn báo giá, tự xin duyệt vì giảm quá tay</div>
+      <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:7px">Giảm 8% mà nhóm A chỉ được 6% → chờ trưởng phòng gật, chưa gửi khách.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#E5E7EB">Sale</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">Đỗ Quang Huy<br>người chốt hợp đồng</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Chưa thấy khách này — cố ý, để đỡ mất giờ.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Chỉ nhảy vào khi AI báo khách đang nóng.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Đọc được, chưa phải việc của mình.</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Nhận việc · đọc phiếu 30 giây</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Phiếu ghi rõ: mở lời bằng chuyện truy vết lô hàng, đừng mở bằng giá.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Lần 2: demo tại xưởng. Lần 3: xin một cái hẹn quyết</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Kéo Diệu Anh đi cùng buổi demo. Chốt mốc: quyết trước 05/09.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Ký · chuyển sang bộ phận triển khai</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Hồ sơ khách vẫn giữ nguyên 10 thông tin và mọi lần nói chuyện. Ra khỏi sơ đồ này ở đây.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#E5E7EB">Presales</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">Phạm Diệu Anh<br>đi cùng để giải thích sản phẩm</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không tham gia.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không đi cùng lần đầu — chưa biết khách cần gì thì chưa cần người kỹ thuật.</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Soi lại 6 điều máy suy đoán về mặt kỹ thuật</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Diệu Anh xác nhận: truy vết lô hàng làm được bằng MES chuẩn, không phải làm thêm.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Nhận lịch giữ chỗ cho buổi demo — chưa cam kết ngày.</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Chạy demo 22/08 bằng lô hàng thật của khách</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Không dùng dữ liệu mẫu. Huy nói tiền, Diệu Anh nói máy chạy thế nào.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Chốt phạm vi làm thêm trước khi báo giá, để không hụt lúc triển khai.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:5px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13.5px;font-weight:600;color:#E5E7EB">Trưởng phòng</div>
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.4">Trần Thu Hà<br>người gật, giữ tải cả nhóm</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không xem từng lead. Cuối tuần đọc bảng nguồn nào ra khách thật.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Chỉ hiện lên khi BD giữ lead quá 1 ngày mà chưa gọi.</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.04);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Không tham gia.</div>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#FFE9A3;padding:2px 6px;background:rgba(255,205,0,.18);border-radius:3px">CỬA 1</span><div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Gật phân công: Huy, không phải Bình</div></div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Bình có 4 giờ để nói không. Im thì máy chuyển và Hà biết.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="position:relative;padding:12px 14px;background:rgba(255,255,255,.05);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)">
+      <div style="font-size:12.5px;color:#93A1B8;line-height:1.5">Đổi nhịp chạm nếu khách chậm hơn dự tính. Không gọi khách thay Huy.</div>
+      <span style="position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:15px">→</span>
+    </div>
+    <div style="padding:12px 14px;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26)">
+      <div style="display:flex;align-items:baseline;gap:7px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#FFE9A3;padding:2px 6px;background:rgba(255,205,0,.18);border-radius:3px">CỬA 2</span><div style="font-size:13.5px;font-weight:600;color:#E5E7EB">Duyệt giảm 8%</div></div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-top:7px">Nhóm A chỉ được 6%. Không gật thì báo giá không rời khỏi hệ.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:4px;padding-right:4px">
+      <div style="font-family:'Archivo';font-size:13px;font-weight:600;color:#E5E7EB">Hệ thống giữ gì</div>
+      <div style="font-size:11px;color:#93A1B8;line-height:1.4">phần chạy nền, không ai gõ tay</div>
+    </div>
+    <div style="display:flex;gap:7px;align-items:center;padding:9px 12px;background:rgba(15,23,42,.84);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.11)"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">E1</span><span style="font-size:12px;color:#93A1B8;line-height:1.4">đặt mã khách, gộp bản trùng</span></div>
+    <div style="display:flex;gap:7px;align-items:center;padding:9px 12px;background:rgba(15,23,42,.84);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.11)"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">E2</span><span style="font-size:12px;color:#93A1B8;line-height:1.4">ghi ai điền ô nào, lúc nào</span></div>
+    <div style="display:flex;gap:7px;align-items:center;padding:9px 12px;background:rgba(15,23,42,.84);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.11)"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">E2</span><span style="font-size:12px;color:#93A1B8;line-height:1.4">chặn nguồn máy không được đọc</span></div>
+    <div style="display:flex;gap:7px;align-items:center;padding:9px 12px;background:rgba(15,23,42,.84);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.11)"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">E3</span><span style="font-size:12px;color:#93A1B8;line-height:1.4">giữ 2 chốt kiểm, ai đang chờ ai</span></div>
+    <div style="display:flex;gap:7px;align-items:center;padding:9px 12px;background:rgba(15,23,42,.84);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.11)"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">E4</span><span style="font-size:12px;color:#93A1B8;line-height:1.4">đếm ngày im lặng, chặn nhắn quá 2 lần/tuần</span></div>
+    <div style="display:flex;gap:7px;align-items:center;padding:9px 12px;background:rgba(15,23,42,.84);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.11)"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">E3</span><span style="font-size:12px;color:#93A1B8;line-height:1.4">chạy duyệt khi giảm giá quá tay</span></div>
+  </div>
+
+  <div style="position:relative;height:72px;margin:4px 0 8px">
+    <div style="position:absolute;left:216px;right:300px;top:2px;height:40px;border-left:1.5px dashed rgba(94,224,168,.55);border-right:1.5px dashed rgba(94,224,168,.55);border-bottom:1.5px dashed rgba(94,224,168,.55);border-radius:0 0 14px 14px"></div>
+    <div style="position:absolute;left:209px;top:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:9px solid rgba(94,224,168,.8)"></div>
+    <div style="position:absolute;left:206px;top:44px;display:flex;gap:9px;align-items:center;padding:8px 13px;background:rgba(34,181,115,.16);border-radius:4px;box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">
+      <span style="font-family:'IBM Plex Mono';font-size:11px;color:#5EE0A8;font-weight:600">VỀ NUÔI</span>
+      <span style="font-size:12.5px;color:#B9E7D2">Khách im hết lần 3 → Huy nhả, Marketing nuôi lại. Không ghi “thua”, hồ sơ giữ nguyên.</span>
+    </div>
+    <div style="position:absolute;right:300px;top:44px;display:flex;gap:9px;align-items:center;padding:8px 13px;background:rgba(34,181,115,.16);border-radius:4px;box-shadow:inset 0 1px 0 rgba(255,255,255,.10);transform:translateX(50%)">
+      <span style="font-family:'IBM Plex Mono';font-size:11px;color:#5EE0A8;font-weight:600">QUAY LẠI</span>
+      <span style="font-size:12.5px;color:#B9E7D2">Khách chủ động liên hệ lại thì vào thẳng bước 5, không làm lại 4 bước đầu.</span>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;margin:0 0 16px">
+    <div style="flex:1;display:flex;gap:10px;align-items:center;padding:11px 14px;background:rgba(255,205,0,.14);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">
+      <span style="font-family:'IBM Plex Mono';font-size:11px;color:#FFE9A3;font-weight:600">CHỐT 1 CẦN</span>
+      <span style="font-size:12.5px;color:#D9CFAE">Biết tên công ty · có 1 số hoặc 1 email gọi được · đã gộp bản trùng. Người bấm: BD.</span>
+    </div>
+    <div style="flex:1;display:flex;gap:10px;align-items:center;padding:11px 14px;background:rgba(255,205,0,.14);border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.10)">
+      <span style="font-family:'IBM Plex Mono';font-size:11px;color:#FFE9A3;font-weight:600">CHỐT 2 CẦN</span>
+      <span style="font-size:12.5px;color:#D9CFAE">Đủ 10/10 thông tin · presales đã soi phần kỹ thuật · đã in phiếu. Người bấm: trưởng phòng.</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:14px;align-items:stretch">
+
+    <div style="padding:14px 16px;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11),inset 0 26px 40px -32px rgba(120,160,255,.18)">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+        <div style="font-family:'Archivo';font-size:15.5px;font-weight:600;color:#E5E7EB">Huy hiệu — ai giỏi bán cái gì</div>
+        <div style="font-size:11.5px;color:#93A1B8">máy tự cấp theo số đơn đã thắng</div>
+      </div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-bottom:10px">AI đọc bảng này để đề nghị người phục vụ: đơn chip về tay người có huy hiệu chip và nhiều năm làm chip nhất. Không chia theo lượt, không chia theo ai xin trước.</div>
+      <div style="display:grid;grid-template-columns:124px 1fr 96px 56px 70px;gap:8px;font-size:11px;color:#93A1B8;font-weight:600;padding-bottom:7px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.08)">
+        <div>Người</div><div>Huy hiệu</div><div>Thắng · kinh nghiệm</div><div>Đang giữ</div><div>Ngoại ngữ</div>
+      </div>
+      <div style="display:grid;grid-template-columns:124px 1fr 96px 56px 70px;gap:8px;padding:9px 8px;align-items:center;background:rgba(46,99,230,.16);margin:0 -8px;border-radius:4px">
+        <div><div style="font-size:12.5px;color:#E5E7EB;font-weight:600">Đỗ Quang Huy</div><div style="font-size:11px;color:#B9C8E8">Sale · nhà máy chip</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#D4DEF2;padding:2px 6px;background:rgba(255,255,255,.10);border-radius:3px">Chip ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#D4DEF2;padding:2px 6px;background:rgba(255,255,255,.10);border-radius:3px">MES ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#D4DEF2;padding:2px 6px;background:rgba(255,255,255,.10);border-radius:3px">Kiểm chất lượng ★★</span></div>
+        <div><div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#5EE0A8;font-variant-numeric:tabular-nums">46%</div><div style="font-size:10.5px;color:#B9C8E8;margin-top:2px;line-height:1.3">6 năm ngành chip</div></div>
+        <div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#D4DEF2;font-variant-numeric:tabular-nums">5/10</div>
+        <div style="font-size:11.5px;color:#B9C8E8">Anh · Trung</div>
+      </div>
+      <div style="display:grid;grid-template-columns:124px 1fr 96px 56px 70px;gap:8px;padding:9px 0;align-items:center;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)">
+        <div><div style="font-size:12.5px;color:#E5E7EB;font-weight:600">Đặng Thanh Bình</div><div style="font-size:11px;color:#93A1B8">Sale · xưởng cơ khí, ô tô</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Ô tô ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Kho ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8;padding:2px 6px;background:rgba(255,255,255,.04);border-radius:3px">Chip — chưa có</span></div>
+        <div><div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">41%</div><div style="font-size:10.5px;color:#93A1B8;margin-top:2px;line-height:1.3">9 năm cơ khí, ô tô</div></div>
+        <div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">6/10</div>
+        <div style="font-size:11.5px;color:#93A1B8">Anh</div>
+      </div>
+      <div style="display:grid;grid-template-columns:124px 1fr 96px 56px 70px;gap:8px;padding:9px 0;align-items:center;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)">
+        <div><div style="font-size:12.5px;color:#E5E7EB;font-weight:600">Nguyễn Khánh Linh</div><div style="font-size:11px;color:#93A1B8">Sale · nhà máy dược</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Dược ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Quản tài liệu ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Truy vết lô ★★</span></div>
+        <div><div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">38%</div><div style="font-size:10.5px;color:#93A1B8;margin-top:2px;line-height:1.3">4 năm ngành dược</div></div>
+        <div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">4/10</div>
+        <div style="font-size:11.5px;color:#93A1B8">Anh</div>
+      </div>
+      <div style="display:grid;grid-template-columns:124px 1fr 96px 56px 70px;gap:8px;padding:9px 0;align-items:center;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)">
+        <div><div style="font-size:12.5px;color:#E5E7EB;font-weight:600">Lê Hoàng Nam</div><div style="font-size:11px;color:#93A1B8">BD · đi mở khách mới</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Gõ cửa nhà máy Hàn ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Lấy đủ thông tin ★★★</span></div>
+        <div><div style="font-size:11.5px;color:#93A1B8">không chấm</div><div style="font-size:10.5px;color:#93A1B8;margin-top:2px;line-height:1.3">5 năm đi mở khách</div></div>
+        <div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">9/14</div>
+        <div style="font-size:11.5px;color:#93A1B8">Hàn · Anh</div>
+      </div>
+      <div style="display:grid;grid-template-columns:124px 1fr 96px 56px 70px;gap:8px;padding:9px 0;align-items:center">
+        <div><div style="font-size:12.5px;color:#E5E7EB;font-weight:600">Phạm Diệu Anh</div><div style="font-size:11px;color:#93A1B8">Presales · đi cùng ở demo</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">MES ★★★</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:2px 6px;background:rgba(255,255,255,.06);border-radius:3px">Chuẩn ô tô ★★</span></div>
+        <div><div style="font-size:11.5px;color:#93A1B8">đi kèm</div><div style="font-size:10.5px;color:#93A1B8;margin-top:2px;line-height:1.3">7 năm làm MES</div></div>
+        <div style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums">7 buổi</div>
+        <div style="font-size:11.5px;color:#93A1B8">Anh · Nhật</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div style="flex:1;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:4px">
+          <div style="font-size:12px;color:#E5E7EB;font-weight:600;margin-bottom:5px">Lấy huy hiệu bằng gì</div>
+          <div style="font-size:11.5px;color:#93A1B8;line-height:1.5">Thắng 3 đơn cùng ngành trong 18 tháng. Không ai tự phong. Cả năm không thắng đơn nào thì huy hiệu rụng.</div>
+        </div>
+        <div style="flex:1;padding:10px 12px;background:rgba(46,99,230,.16);border-radius:4px">
+          <div style="font-size:12px;color:#D4DEF2;font-weight:600;margin-bottom:5px">AI đề nghị theo thang điểm này</div>
+          <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5">Đúng ngành 35 · số năm kinh nghiệm ngành đó 20 · đúng sản phẩm 25 · đang rảnh 10 · gần khách và nói được tiếng khách 10.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:14px 16px;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11),inset 0 26px 40px -32px rgba(120,160,255,.18);display:flex;flex-direction:column">
+      <div style="font-family:'Archivo';font-size:15.5px;font-weight:600;color:#E5E7EB;margin-bottom:4px">Khi đơn vào tay người không có huy hiệu</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-bottom:10px">Chuyện xảy ra suốt, nên có luật sẵn, không nhờ nhau qua Zalo.</div>
+      <div style="padding:11px 13px;background:rgba(46,99,230,.22);border-radius:4px">
+        <div style="font-size:13px;font-weight:600;color:#D4DEF2">Xin chuyển khách DAS Vina: Bình → Huy</div>
+        <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:6px">Căn cứ: Bình chưa có huy hiệu chip · Huy thắng 46% đơn ngành này · khách nói tiếng Trung ở tổ kỹ thuật</div>
+        <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5;margin-top:7px">{{ chinhSachLabel }}</div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <span style="height:28px;padding:0 13px;display:flex;align-items:center;background:#2E63E6;color:#FFFFFF;font-size:12px;font-weight:600;border-radius:4px">Chuyển · chia lại phần chốt</span>
+          <span style="height:28px;padding:0 12px;display:flex;align-items:center;background:rgba(255,255,255,.10);color:#E5E7EB;font-size:12px;border-radius:4px">Không đồng ý</span>
+        </div>
+      </div>
+      <div style="margin-top:11px;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:4px">
+        <div style="font-size:12px;color:#E5E7EB;font-weight:600;margin-bottom:7px">Một đơn có đúng 100%, chia trước khi bắt đầu</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:baseline"><span style="font-size:11.5px;color:#93A1B8">Mở cửa — BD, một suất mỗi đơn</span><span style="font-family:'Space Grotesk';font-size:13px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums;text-align:right">30%</span></div>
+          <div style="display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:baseline"><span style="font-size:11.5px;color:#93A1B8">Chốt — Sale đang giữ lúc ký</span><span style="font-family:'Space Grotesk';font-size:13px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums;text-align:right">60%</span></div>
+          <div style="display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:baseline"><span style="font-size:11.5px;color:#93A1B8">Đi cùng demo — presales</span><span style="font-family:'Space Grotesk';font-size:13px;font-weight:600;color:#E5E7EB;font-variant-numeric:tabular-nums;text-align:right">10%</span></div>
+        </div>
+        <div style="font-size:11.5px;color:#93A1B8;line-height:1.55;margin-top:8px;padding-top:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)">Đơn đổi tay giữa hai Sale thì <b style="color:#E5E7EB">60% phần chốt</b> chia theo số lần chạm, phần mở cửa của BD không đụng tới. Mọi lần chuyển vào sổ, cuối quý đọc lại.</div>
+      </div>
+      <div style="margin-top:11px;padding:11px 12px 10px;background:rgba(218,37,29,.16);border-radius:4px">
+        <div style="font-size:12px;color:#FFD9D5;font-weight:600;margin-bottom:4px">Không được dùng luật này để đẩy việc khó</div>
+        <div style="font-size:11.5px;color:#FFD9D5;opacity:.9;line-height:1.5">Chỉ chuyển khi người nhận có huy hiệu cao hơn, không phải khi họ rảnh hơn.</div>
+      </div>
+    </div>
+
+    <div style="padding:14px 16px;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11),inset 0 26px 40px -32px rgba(120,160,255,.18);display:flex;flex-direction:column">
+      <div style="font-family:'Archivo';font-size:15.5px;font-weight:600;color:#E5E7EB;margin-bottom:4px">Khách không trả lời thì bao lâu hỏi lại</div>
+      <div style="font-size:12px;color:#93A1B8;line-height:1.5;margin-bottom:10px">Máy tự hẹn, không ai phải nhớ. Trưởng phòng Thu Hà đổi được.</div>
+      <sc-for list="{{ nhip }}" as="row" hint-placeholder-count="4">
+        <div style="display:grid;grid-template-columns:76px 1fr 70px;gap:8px;padding:9px 0;align-items:baseline;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)">
+          <div style="font-size:12px;color:#E5E7EB;font-weight:600">{{ row.buoc }}</div>
+          <div style="font-size:11.5px;color:#93A1B8;line-height:1.45">{{ row.viec }}</div>
+          <div style="font-family:'Space Grotesk';font-size:13.5px;font-weight:600;color:#7FA3FF;font-variant-numeric:tabular-nums">{{ row.cho }}</div>
+        </div>
+      </sc-for>
+      <div style="margin-top:12px;padding:11px 13px;background:rgba(255,205,0,.14);border-radius:4px">
+        <div style="font-size:12px;color:#FFE9A3;font-weight:600;margin-bottom:7px">Thế nào là “1 lần chạm”</div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#5EE0A8;margin-bottom:4px">TÍNH</div>
+            <div style="font-size:11.5px;color:#D9CFAE;line-height:1.6">gửi Zalo hoặc email<br>gọi nói được trên 20 giây<br>gặp mặt</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#FF6B5E;margin-bottom:4px">KHÔNG TÍNH</div>
+            <div style="font-size:11.5px;color:#D9CFAE;line-height:1.6">gọi không ai nghe<br>khách mở email<br>mình xem LinkedIn</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:auto;padding-top:11px;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#FFD9D5;padding:3px 7px;background:rgba(218,37,29,.20);border-radius:3px">khách nói “đừng nhắn nữa” → dừng trong 1 phút</span>
+        <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#E5E7EB;padding:3px 7px;background:rgba(255,255,255,.06);border-radius:3px">tối đa 2 lần chạm mỗi tuần</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:2080},&quot;nhipCham&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Nhanh · khách tự tìm đến&quot;,&quot;Chuẩn&quot;,&quot;Chậm · đơn to, nhiều người quyết&quot;],&quot;default&quot;:&quot;Chuẩn&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Hỏi lại sau bao lâu&quot;},&quot;chinhSachForward&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Xin chuyển · người giữ có 4 giờ để nói không&quot;,&quot;Chuyển thẳng khi lệch huy hiệu&quot;,&quot;Chỉ trưởng phòng được chuyển&quot;],&quot;default&quot;:&quot;Xin chuyển · người giữ có 4 giờ để nói không&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Chuyển đơn theo huy hiệu&quot;}}">
+const PRESETS = {
+  "Nhanh · khách tự tìm đến": [
+    { buoc: "Lần 1", viec: "Máy nhắc lại đúng câu khách chưa trả lời", cho: "2 giờ" },
+    { buoc: "Lần 2", viec: "Đổi người, đổi kênh: BD nhắn tay, kèm 1 bằng chứng", cho: "1 ngày" },
+    { buoc: "Lần 3", viec: "Một câu có hạn: giữ suất tháng này hay bỏ", cho: "3 ngày" },
+    { buoc: "Về nuôi", viec: "Trả về Marketing, hồ sơ giữ nguyên", cho: "7 ngày" }
+  ],
+  "Chuẩn": [
+    { buoc: "Lần 1", viec: "Máy nhắc lại đúng câu khách chưa trả lời", cho: "4 giờ" },
+    { buoc: "Lần 2", viec: "Đổi người, đổi kênh: BD nhắn tay, kèm 1 bằng chứng", cho: "3 ngày" },
+    { buoc: "Lần 3", viec: "Xin một cái hẹn hoặc một buổi demo, không nói giá", cho: "7 ngày" },
+    { buoc: "Về nuôi", viec: "Trả về Marketing, hồ sơ giữ nguyên", cho: "21 ngày" }
+  ],
+  "Chậm · đơn to, nhiều người quyết": [
+    { buoc: "Lần 1", viec: "Hỏi qua người trực tiếp dùng, đừng hỏi phòng mua", cho: "24 giờ" },
+    { buoc: "Lần 2", viec: "Gửi hồ sơ khách cùng ngành, xin 20 phút với người quyết", cho: "7 ngày" },
+    { buoc: "Lần 3", viec: "Mời đi xem nhà máy khác đang dùng", cho: "21 ngày" },
+    { buoc: "Về nuôi", viec: "Trả về Marketing, hỏi lại theo mùa mua của khách", cho: "60 ngày" }
+  ]
+};
+
+const CHINH_SACH = {
+  "Xin chuyển · người giữ có 4 giờ để nói không": "Máy chỉ xin. Bình có 4 giờ để nói không; im thì tự chuyển và trưởng phòng Thu Hà biết.",
+  "Chuyển thẳng khi lệch huy hiệu": "Máy chuyển luôn. Bình nhận thông báo kèm lý do, vẫn giữ phần theo số lần đã chạm.",
+  "Chỉ trưởng phòng được chuyển": "Máy xếp vào việc chờ trưởng phòng Thu Hà quyết. Trong nhóm không ai tự chuyển được."
+};
+
+class Component extends DCLogic {
+  renderVals() {
+    const nhipKey = this.props.nhipCham ?? "Chuẩn";
+    const csKey = this.props.chinhSachForward ?? "Xin chuyển · người giữ có 4 giờ để nói không";
+    return {
+      nhip: PRESETS[nhipKey] ?? PRESETS["Chuẩn"],
+      chinhSachLabel: CHINH_SACH[csKey] ?? CHINH_SACH["Xin chuyển · người giữ có 4 giờ để nói không"]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

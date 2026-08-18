@@ -1,0 +1,152 @@
+/* Pebble Vina — Aurora v2 · shadcn/ui token layer (Tailwind v4)
+   Dark-only. Mọi màu chữ đã kiểm tương phản ≥ 4.5:1 trên glass-a và glass-b. */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root,
+.dark {
+  /* ---- brand (nguyên bản, chỉ dùng làm nền / kẻ / quầng sáng) ---- */
+  --brand-blue:   #133A8A;  /* Pebble Blue */
+  --brand-navy:   #0F172A;  /* Deep Navy   */
+  --brand-slate:  #5E6B80;  /* Slate Gray  */
+  --brand-gray:   #E5E7EB;  /* Light Gray  */
+  --brand-red:    #DA251D;  /* Flag Red    */
+  --brand-yellow: #FFCD00;  /* Flag Yellow */
+  --brand-gold:   #C9A227;  /* Gold Rim    */
+
+  /* ---- shadcn semantic ---- */
+  --background: #0B1220;
+  --foreground: #E5E7EB;
+
+  --card: rgba(255, 255, 255, 0.085);      /* glass-a */
+  --card-foreground: #E5E7EB;
+  --popover: rgba(15, 23, 42, 0.84);       /* glass-b */
+  --popover-foreground: #E5E7EB;
+
+  --primary: #2E63E6;                      /* tint on-dark của Pebble Blue */
+  --primary-foreground: #FFFFFF;
+  --secondary: rgba(19, 58, 138, 0.55);
+  --secondary-foreground: #E5E7EB;
+
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #93A1B8;             /* KHÔNG dùng --brand-slate làm chữ */
+  --accent: rgba(46, 99, 230, 0.22);
+  --accent-foreground: #7FA3FF;            /* azure-text */
+
+  --destructive: #DA251D;
+  --destructive-foreground: #FF6B5E;
+  --warning: #FFCD00;
+  --warning-foreground: #FFCD00;
+  --success: #22B573;                      /* semantic phái sinh — không có trong bảng brand */
+
+  --border: transparent;                   /* borderless: phân lớp bằng bóng */
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #2E63E6;
+
+  --radius: 0.375rem;                      /* 6px — thẻ */
+
+  /* ---- chữ trên nền tint (khối AI, thẻ trạng thái nền màu) ----
+     Cần vì --foreground quá gắt và --muted-foreground quá chìm khi
+     mặt nền đã nhuộm màu. Chỉ dùng BÊN TRONG khối đã tint. ---- */
+  --on-tint-primary: #D4DEF2;
+  --on-tint-primary-muted: #B9C8E8;
+  --on-tint-success: #B9E7D2;
+  --on-tint-success-strong: #5EE0A8;
+  --on-tint-warning: #D9CFAE;
+  --on-tint-warning-strong: #FFE9A3;
+  --on-tint-destructive: #FFD9D5;
+
+  /* ---- sheen: ánh sáng bên trong mép kính ---- */
+  --sheen-a:  rgba(150, 215, 255, 0.26);
+  --sheen-b:  rgba(120, 160, 255, 0.18);
+  --sheen-ai: rgba(150, 180, 255, 0.26);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-on-tint-primary: var(--on-tint-primary);
+  --color-on-tint-primary-muted: var(--on-tint-primary-muted);
+  --color-on-tint-success: var(--on-tint-success);
+  --color-on-tint-success-strong: var(--on-tint-success-strong);
+  --color-on-tint-warning: var(--on-tint-warning);
+  --color-on-tint-warning-strong: var(--on-tint-warning-strong);
+  --color-on-tint-destructive: var(--on-tint-destructive);
+
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-num: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 10px;
+
+  --shadow-card:  0 10px 26px rgba(0, 0, 0, 0.40);
+  --shadow-panel: 0 12px 30px rgba(0, 0, 0, 0.46);
+  --shadow-frame: 0 32px 80px rgba(0, 0, 0, 0.45);
+  --shadow-primary: 0 3px 12px rgba(46, 99, 230, 0.30);
+}
+
+@layer base {
+  * { border-color: transparent; }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { border: 0; font: inherit; color: inherit; cursor: pointer; }
+}
+
+@layer components {
+  /* glass-a — thẻ thường, KPI, brief card */
+  .glass-a {
+    background: var(--card);
+    backdrop-filter: blur(24px) saturate(1.5);
+    box-shadow:
+      var(--shadow-card),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 30px 46px -34px var(--sheen-a);
+  }
+  /* glass-b — bảng, danh sách dài (đục hơn để chữ không trôi) */
+  .glass-b {
+    background: var(--popover);
+    backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow:
+      var(--shadow-panel),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11),
+      inset 0 26px 40px -32px var(--sheen-b);
+  }
+  /* nền aurora — chỉ đặt ở khung ngoài cùng của mỗi màn */
+  .aurora-field {
+    background: linear-gradient(160deg, #0B1220, #0F172A 45%, #16233F);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

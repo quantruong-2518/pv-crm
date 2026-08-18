@@ -1,0 +1,351 @@
+/* Pebble Vina — Aurora v2 · shadcn/ui token layer (Tailwind v4)
+   Dark-only. Mọi màu chữ đã kiểm tương phản ≥ 4.5:1 trên glass-a và glass-b.
+
+   ĐÂY LÀ FILE TOKEN DUY NHẤT. Không viết hex ở bất kỳ file nào khác trong src/.
+   Nguồn: project/theme/globals.css (chốt 10/08) + phần bổ sung ở cuối khối :root,
+   mỗi biến bổ sung đều lấy giá trị đang có sẵn trong
+   "Pebble Aurora - Theme Kit.dc.html" — không có hex nào được bịa mới. */
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root,
+.dark {
+  /* ---- brand (nguyên bản, chỉ dùng làm nền / kẻ / quầng sáng) ---- */
+  --brand-blue: #133a8a; /* Pebble Blue */
+  --brand-navy: #0f172a; /* Deep Navy   */
+  --brand-slate: #5e6b80; /* Slate Gray  */
+  --brand-gray: #e5e7eb; /* Light Gray  */
+  --brand-red: #da251d; /* Flag Red    */
+  --brand-yellow: #ffcd00; /* Flag Yellow */
+  --brand-gold: #c9a227; /* Gold Rim    */
+
+  /* ---- shadcn semantic ---- */
+  --background: #0b1220;
+  --foreground: #e5e7eb;
+
+  --card: rgba(255, 255, 255, 0.085); /* glass-a */
+  --card-foreground: #e5e7eb;
+  --popover: rgba(15, 23, 42, 0.84); /* glass-b */
+  --popover-foreground: #e5e7eb;
+
+  --primary: #2e63e6; /* tint on-dark của Pebble Blue */
+  --primary-foreground: #ffffff;
+  --secondary: rgba(19, 58, 138, 0.55);
+  --secondary-foreground: #e5e7eb;
+
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #93a1b8; /* KHÔNG dùng --brand-slate làm chữ */
+  --accent: rgba(46, 99, 230, 0.22);
+  --accent-foreground: #7fa3ff; /* azure-text */
+
+  --destructive: #da251d;
+  --destructive-foreground: #ff6b5e;
+  --warning: #ffcd00;
+  --warning-foreground: #ffcd00;
+  --success: #22b573; /* semantic phái sinh — không có trong bảng brand */
+
+  --border: transparent; /* borderless: phân lớp bằng bóng */
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #2e63e6;
+
+  --radius: 0.375rem; /* 6px — thẻ */
+
+  /* ---- chữ trên nền tint (khối AI, thẻ trạng thái nền màu) ----
+     Cần vì --foreground quá gắt và --muted-foreground quá chìm khi
+     mặt nền đã nhuộm màu. Chỉ dùng BÊN TRONG khối đã tint. ---- */
+  --on-tint-primary: #d4def2;
+  --on-tint-primary-muted: #b9c8e8;
+  --on-tint-success: #b9e7d2;
+  --on-tint-success-strong: #5ee0a8;
+  --on-tint-warning: #d9cfae;
+  --on-tint-warning-strong: #ffe9a3;
+  --on-tint-destructive: #ffd9d5;
+
+  /* ---- sheen: ánh sáng bên trong mép kính ---- */
+  --sheen-a: rgba(150, 215, 255, 0.26);
+  --sheen-b: rgba(120, 160, 255, 0.18);
+  --sheen-ai: rgba(150, 180, 255, 0.26);
+
+  /* ================================================================
+     BỔ SUNG — đặt tên cho các giá trị đã tồn tại trong theme kit
+     nhưng chưa được tokenize ở bản 10/08. Không thêm màu mới.
+     ================================================================ */
+
+  /* chữ body 11.5–12.5px nằm trên kính (chip, badge nháp) — AGENTS.md §2 */
+  --glass-foreground: #b4becd;
+
+  /* biến thể tương phản cao cho kiosk tablet ngoài sáng.
+     NGOẠI LỆ DUY NHẤT của luật borderless (luật 4 · CLAUDE.md). */
+  --hc-surface: #0a1220;
+  --hc-border: rgba(255, 255, 255, 0.42);
+
+  /* avatar 2 tông — cùng họ Pebble Blue, dùng làm nền chứ không làm chữ */
+  --avatar-from: #1e3f7a;
+  --avatar-to: var(--brand-blue);
+
+  /* Gold Rim chỉ tồn tại dưới dạng vệt kim loại trong bảng brand */
+  --gold-from: #e3c766;
+  --gold-to: #8f6f13;
+
+  /* quầng aurora — 2 tông, 5 blob (luật 12 · CLAUDE.md) */
+  --aurora-azure: rgba(46, 99, 230, 0.3);
+  --aurora-azure-soft: rgba(46, 99, 230, 0.22);
+  --aurora-blue: rgba(19, 58, 138, 0.58);
+
+  /* bóng ánh màu — thay cho viền màu (hệ borderless) */
+  --shadow-success: 0 3px 14px rgba(34, 181, 115, 0.22);
+  --shadow-ai: 0 12px 30px rgba(46, 99, 230, 0.14);
+  --shadow-assistant: 0 3px 14px rgba(46, 99, 230, 0.24);
+  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.34);
+  --shadow-control-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
+
+  /* chuyển động — 180ms ease-out (F-09) */
+  --motion-duration: 180ms;
+  --motion-ease: cubic-bezier(0, 0, 0.2, 1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-on-tint-primary: var(--on-tint-primary);
+  --color-on-tint-primary-muted: var(--on-tint-primary-muted);
+  --color-on-tint-success: var(--on-tint-success);
+  --color-on-tint-success-strong: var(--on-tint-success-strong);
+  --color-on-tint-warning: var(--on-tint-warning);
+  --color-on-tint-warning-strong: var(--on-tint-warning-strong);
+  --color-on-tint-destructive: var(--on-tint-destructive);
+
+  /* bổ sung */
+  --color-glass-foreground: var(--glass-foreground);
+  --color-hc-surface: var(--hc-surface);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-slate: var(--brand-slate);
+  --color-brand-gray: var(--brand-gray);
+  --color-brand-red: var(--brand-red);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-gold: var(--brand-gold);
+
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-num: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 10px;
+
+  --shadow-card: 0 10px 26px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 12px 30px rgba(0, 0, 0, 0.46);
+  --shadow-frame: 0 32px 80px rgba(0, 0, 0, 0.45);
+  --shadow-primary: 0 3px 12px rgba(46, 99, 230, 0.3);
+  --shadow-control: var(--shadow-control);
+  --shadow-control-soft: var(--shadow-control-soft);
+  --shadow-success: var(--shadow-success);
+  --shadow-ai: var(--shadow-ai);
+  --shadow-assistant: var(--shadow-assistant);
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@layer base {
+  * {
+    border-color: transparent;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button {
+    border: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  a {
+    color: var(--accent-foreground);
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  /* glass-a — thẻ thường, KPI, brief card */
+  .glass-a {
+    background: var(--card);
+    backdrop-filter: blur(24px) saturate(1.5);
+    box-shadow:
+      var(--shadow-card),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 30px 46px -34px var(--sheen-a);
+  }
+  /* glass-b — bảng, danh sách dài (đục hơn để chữ không trôi) */
+  .glass-b {
+    background: var(--popover);
+    backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow:
+      var(--shadow-panel),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11),
+      inset 0 26px 40px -32px var(--sheen-b);
+  }
+  /* glass-b phẳng — panel spec trong theme kit: không sheen đáy,
+     giữ đúng bóng của .dc.html cho các khối tài liệu */
+  .glass-b-flat {
+    background: var(--popover);
+    backdrop-filter: blur(16px) saturate(1.3);
+    box-shadow:
+      var(--shadow-panel),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
+  /* khối AI — chữ ký của hệ (M-09). Gạch chéo + gradient azure. */
+  .glass-ai {
+    background:
+      linear-gradient(90deg, rgba(46, 99, 230, 0.22), rgba(46, 99, 230, 0.06)),
+      repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 9px);
+    backdrop-filter: blur(24px) saturate(1.4);
+    box-shadow:
+      var(--shadow-ai),
+      inset 0 1px 0 var(--sheen-ai);
+  }
+  /* bản panel dọc của khối AI dùng 150deg — AGENTS.md §2 */
+  .glass-ai-panel {
+    background:
+      linear-gradient(150deg, rgba(46, 99, 230, 0.22), rgba(46, 99, 230, 0.06)),
+      repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 9px);
+    backdrop-filter: blur(24px) saturate(1.4);
+    box-shadow:
+      var(--shadow-ai),
+      inset 0 1px 0 var(--sheen-ai);
+  }
+
+  /* ---- nền màn: đúng 4 lớp, không lớp thứ 5 (luật 12 · CLAUDE.md) ----
+     1 quầng aurora → 2 lưới 32px → 3 lưới 160px → 4 hạt nhiễu */
+  .aurora-field {
+    background: linear-gradient(160deg, #0b1220, #0f172a 45%, #16233f);
+  }
+  .aurora-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    pointer-events: none;
+    animation: aurdrift 14s ease-in-out infinite alternate;
+  }
+  .aurora-grid-fine,
+  .aurora-grid-major,
+  .aurora-vignette,
+  .aurora-noise {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .aurora-grid-fine {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .aurora-grid-major {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+    background-size: 160px 160px;
+  }
+  .aurora-vignette {
+    background:
+      radial-gradient(130% 80% at 50% -10%, rgba(255, 255, 255, 0.06), transparent 55%),
+      radial-gradient(120% 95% at 50% 100%, transparent 45%, rgba(3, 7, 16, 0.66) 100%);
+  }
+  .aurora-noise {
+    opacity: 0.11;
+    mix-blend-mode: soft-light;
+    background-size: 220px 220px;
+    background-image: var(--noise-tile);
+  }
+  /* hai lớp hạt phủ trên cùng — cho mặt kính có vân như phun cát */
+  .aurora-grain-overlay,
+  .aurora-grain-soft {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: var(--noise-tile);
+  }
+  .aurora-grain-overlay {
+    opacity: 0.1;
+    mix-blend-mode: overlay;
+    background-size: 140px 140px;
+  }
+  .aurora-grain-soft {
+    opacity: 0.05;
+    mix-blend-mode: soft-light;
+    background-size: 52px 52px;
+  }
+}
+
+@layer utilities {
+  /* số luôn tabular (luật 6 · CLAUDE.md) */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  /* chuyển động chuẩn của hệ: 180ms ease-out (F-09) */
+  .motion-std {
+    transition-property: background-color, box-shadow, color, filter, opacity, transform;
+    transition-duration: var(--motion-duration);
+    transition-timing-function: var(--motion-ease);
+  }
+}
+
+:root {
+  --noise-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes aurdrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-40px, 30px, 0) scale(1.12);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

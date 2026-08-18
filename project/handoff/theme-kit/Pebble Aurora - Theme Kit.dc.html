@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  body{margin:0;background:#070C16;color:#E5E7EB;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#7FA3FF;text-decoration:none}
+  a:hover{color:#A8C2FF}
+  button{border:0;font:inherit;color:inherit;cursor:pointer;appearance:none;-webkit-appearance:none}
+  @keyframes aurdrift{0%{transform:translate3d(0,0,0) scale(1)}100%{transform:translate3d(-40px,30px,0) scale(1.12)}}
+  @keyframes shimmer{0%{opacity:.3}50%{opacity:.7}100%{opacity:.3}}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important}}
+</style>
+</helmet>
+
+<div style="position:relative;overflow:hidden;background:linear-gradient(160deg,#0B1220,#0F172A 45%,#16233F);min-height:100vh;min-width:1536px;padding:56px 48px 110px">
+  <div style="position:absolute;width:720px;height:720px;border-radius:50%;filter:blur(90px);background:rgba(46,99,230,.30);top:-240px;right:-120px;pointer-events:none;animation:aurdrift 14s ease-in-out infinite alternate"></div>
+  <div style="position:absolute;width:560px;height:560px;border-radius:50%;filter:blur(90px);background:rgba(19,58,138,.58);top:6%;left:-160px;pointer-events:none;animation:aurdrift 18s ease-in-out infinite alternate-reverse"></div>
+  <div style="position:absolute;width:640px;height:640px;border-radius:50%;filter:blur(90px);background:rgba(46,99,230,.22);top:28%;left:24%;pointer-events:none;animation:aurdrift 22s ease-in-out infinite alternate"></div>
+  <div style="position:absolute;width:600px;height:600px;border-radius:50%;filter:blur(90px);background:rgba(19,58,138,.58);top:50%;right:-140px;pointer-events:none;animation:aurdrift 26s ease-in-out infinite alternate-reverse"></div>
+  <div style="position:absolute;width:680px;height:680px;border-radius:50%;filter:blur(90px);background:rgba(46,99,230,.24);top:72%;left:-180px;pointer-events:none;animation:aurdrift 20s ease-in-out infinite alternate"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.030) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.030) 1px,transparent 1px);background-size:32px 32px"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:160px 160px"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 80% at 50% -10%,rgba(255,255,255,.06),transparent 55%),radial-gradient(120% 95% at 50% 100%,transparent 45%,rgba(3,7,16,.66) 100%)"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;opacity:.11;mix-blend-mode:soft-light;background-size:220px 220px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+
+  <div style="position:relative;z-index:1;min-width:1440px;max-width:1440px;margin:0 auto">
+
+    <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:40px;padding-bottom:40px">
+      <div style="max-width:680px">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+          <img src="assets/wordmark-light.png" alt="Pebble Vina" style="height:34px;width:auto;display:block">
+          <span style="width:1px;height:20px;background:rgba(255,255,255,.16)"></span>
+          <span style="font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#93A1B8;font-weight:600">Aurora · v2.0</span>
+        </div>
+        <h1 style="font-family:'Archivo';font-size:40px;font-weight:600;letter-spacing:-.8px;line-height:1.15;margin:0">Theme kit</h1>
+        <p style="font-size:13.5px;line-height:1.75;color:#9AA6BA;margin:16px 0 0;text-wrap:pretty">Tổ chức theo atomic design: <b style="color:#E5E7EB">Foundations → Atoms → Molecules → Organisms → Templates</b>. Mỗi item có mã, tên component shadcn/ui và chuỗi class Tailwind để dev dựng đúng 1:1. Token nằm ở <span style="font-family:'IBM Plex Mono';color:#7FA3FF">theme/globals.css</span>.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
+        <a href="#zone-00" style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-radius:4px;background:rgba(255,255,255,.05);width:250px" style-hover="background:rgba(255,255,255,.10)"><span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#7FA3FF;width:22px">00</span><span style="font-size:12.5px;color:#E5E7EB;flex:1">Foundations</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">10</span></a>
+        <a href="#zone-01" style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-radius:4px;background:rgba(255,255,255,.05);width:250px" style-hover="background:rgba(255,255,255,.10)"><span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#7FA3FF;width:22px">01</span><span style="font-size:12.5px;color:#E5E7EB;flex:1">Atoms</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">11</span></a>
+        <a href="#zone-02" style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-radius:4px;background:rgba(255,255,255,.05);width:250px" style-hover="background:rgba(255,255,255,.10)"><span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#7FA3FF;width:22px">02</span><span style="font-size:12.5px;color:#E5E7EB;flex:1">Molecules</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">9</span></a>
+        <a href="#zone-03" style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-radius:4px;background:rgba(255,255,255,.05);width:250px" style-hover="background:rgba(255,255,255,.10)"><span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#7FA3FF;width:22px">03</span><span style="font-size:12.5px;color:#E5E7EB;flex:1">Organisms</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">7</span></a>
+        <a href="#zone-04" style="display:flex;align-items:center;gap:14px;padding:9px 16px;border-radius:4px;background:rgba(255,255,255,.05);width:250px" style-hover="background:rgba(255,255,255,.10)"><span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;color:#7FA3FF;width:22px">04</span><span style="font-size:12.5px;color:#E5E7EB;flex:1">Templates</span><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">3</span></a>
+      </div>
+    </header>
+
+    <section id="zone-00" style="padding:40px 0 8px;border-top:1px solid rgba(255,255,255,.12)">
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-bottom:28px">
+        <div style="font-family:'Space Grotesk';font-size:104px;font-weight:600;line-height:.78;letter-spacing:-5px;color:rgba(255,255,255,.11)">00</div>
+        <div style="flex:1;padding-bottom:10px">
+          <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600;margin-bottom:8px">Zone 00 · Foundations</div>
+          <h2 style="font-family:'Archivo';font-size:28px;font-weight:600;margin:0;letter-spacing:-.4px">Nền móng</h2>
+          <p style="font-size:12.5px;color:#9AA6BA;margin:8px 0 0;max-width:640px;line-height:1.7">Token thô. Không có component nào ở đây — chỉ màu, chữ, khoảng cách, bo góc, cao độ, chuyển động. Mọi thứ phía dưới chỉ được tiêu thụ token trong zone này.</p>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.022);border-radius:6px;padding:24px;display:flex;flex-direction:column;gap:16px">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-01</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Brand palette</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">--brand-*</span>
+            </div>
+            <div style="padding:18px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              <div><div style="height:44px;border-radius:4px;background:#133A8A"></div><div style="font-size:11px;margin-top:7px">Pebble Blue</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#133A8A</div></div>
+              <div><div style="height:44px;border-radius:4px;background:#0F172A"></div><div style="font-size:11px;margin-top:7px">Deep Navy</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#0F172A</div></div>
+              <div><div style="height:44px;border-radius:4px;background:#5E6B80"></div><div style="font-size:11px;margin-top:7px">Slate Gray</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#5E6B80</div></div>
+              <div><div style="height:44px;border-radius:4px;background:#E5E7EB"></div><div style="font-size:11px;margin-top:7px">Light Gray</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#E5E7EB</div></div>
+              <div><div style="height:44px;border-radius:4px;background:#DA251D"></div><div style="font-size:11px;margin-top:7px">Flag Red</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#DA251D</div></div>
+              <div><div style="height:44px;border-radius:4px;background:#FFCD00"></div><div style="font-size:11px;margin-top:7px">Flag Yellow</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#FFCD00</div></div>
+              <div><div style="height:44px;border-radius:4px;background:linear-gradient(135deg,#E3C766,#C9A227 45%,#8F6F13)"></div><div style="font-size:11px;margin-top:7px">Gold Rim</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#C9A227</div></div>
+              <div><div style="height:44px;border-radius:4px;background:#FFFFFF"></div><div style="font-size:11px;margin-top:7px">White</div><div style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">#FFFFFF</div></div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Slate Gray và Pebble Blue chỉ làm nền · kẻ · quầng sáng. Không bao giờ làm màu chữ trên nền tối.</div>
+          </div>
+
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-02</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Semantic tokens</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">shadcn/ui</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#0B1220"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--background</span><span style="font-size:11.5px;color:#9AA6BA">#0B1220 · nền màn</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#E5E7EB"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--foreground</span><span style="font-size:11.5px;color:#9AA6BA">#E5E7EB · chữ chính</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#2E63E6"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--primary</span><span style="font-size:11.5px;color:#9AA6BA">#2E63E6 · nền nút chính, AI, active</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:rgba(46,99,230,.22)"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--accent</span><span style="font-size:11.5px;color:#9AA6BA">azure 22% · nền chip nguồn</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#7FA3FF"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--accent-foreground</span><span style="font-size:11.5px;color:#9AA6BA">#7FA3FF · MỌI chữ màu azure</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#93A1B8"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--muted-foreground</span><span style="font-size:11.5px;color:#9AA6BA">#93A1B8 · chú thích, nhãn</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#22B573"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--success</span><span style="font-size:11.5px;color:#9AA6BA">#22B573 · phái sinh, ngoài brand</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#FFCD00"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--warning</span><span style="font-size:11.5px;color:#9AA6BA">Flag Yellow</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:#DA251D"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--destructive</span><span style="font-size:11.5px;color:#9AA6BA">Flag Red · chữ #FF6B5E</span></div>
+              <div style="display:flex;align-items:center;gap:12px"><span style="width:34px;height:20px;border-radius:3px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)"></span><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;width:180px">--border</span><span style="font-size:11.5px;color:#9AA6BA">transparent · hệ borderless</span></div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">bg-primary · text-accent-foreground · text-muted-foreground · bg-destructive/20</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-03</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Surfaces</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:13px 15px">
+                <div style="font-size:12.5px;font-weight:600">.glass-a</div>
+                <div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#9AA6BA;margin-top:4px;line-height:1.6">white/8.5 · blur 24 · saturate 1.5</div>
+                <div style="font-size:11px;color:#93A1B8;margin-top:6px">Thẻ thường · KPI · brief card</div>
+              </div>
+              <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11),inset 0 26px 40px -32px rgba(120,160,255,.18);padding:13px 15px">
+                <div style="font-size:12.5px;font-weight:600">.glass-b</div>
+                <div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#9AA6BA;margin-top:4px;line-height:1.6">navy/84 · blur 16 · saturate 1.3</div>
+                <div style="font-size:11px;color:#93A1B8;margin-top:6px">Bảng · danh sách dài · panel</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:center;gap:9px"><span style="width:24px;height:13px;border-radius:2px;background:rgba(150,215,255,.26)"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#9AA6BA">--sheen-a</span></div>
+                <div style="display:flex;align-items:center;gap:9px"><span style="width:24px;height:13px;border-radius:2px;background:rgba(120,160,255,.18)"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#9AA6BA">--sheen-b</span></div>
+                <div style="display:flex;align-items:center;gap:9px"><span style="width:24px;height:13px;border-radius:2px;background:rgba(150,180,255,.26)"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#9AA6BA">--sheen-ai</span></div>
+              </div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Sheen chỉ là ánh sáng trong mép kính — không làm màu chữ hay nền đặc.</div>
+          </div>
+
+          <div style="grid-column:span 2;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-04</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Type scale</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">4 họ chữ · 8 bậc</span>
+            </div>
+            <div style="padding:8px 16px 16px">
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-5xl</span>
+                <span style="font-family:'Space Grotesk';font-size:42px;font-weight:600;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;line-height:1">1,84 tỷ</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Space Grotesk<br>42 / 600 / −1.5</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-3xl</span>
+                <span style="font-family:'Archivo';font-size:28px;font-weight:600;letter-spacing:-.4px">Đơn hàng Sao Đỏ</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Archivo<br>28 / 600</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-2xl</span>
+                <span style="font-family:'Archivo';font-size:22px;font-weight:600">Chào buổi sáng, anh Thắng</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Archivo<br>22 / 600</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-lg</span>
+                <span style="font-family:'Archivo';font-size:15px;font-weight:600">Lệnh sản xuất WO-1180 chậm 2 ngày</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Archivo<br>15 / 600</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-base</span>
+                <span style="font-size:13px;line-height:1.6">Kho K1-A2 hết thép Ø40 từ 08/08. Đề nghị mua 500 kg từ Thép Nam Việt.</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Plex Sans<br>13 / 400 / 1.6</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-sm</span>
+                <span style="font-size:12.5px;color:#9AA6BA;line-height:1.6">Thiếu thép Ø40 tại K1-A2 · hạn giao khách 22/08 còn nguyên</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Plex Sans<br>12.5 / 400</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">text-xs</span>
+                <span style="font-size:11.5px;color:#93A1B8">Cập nhật 07:58 · hôm nay · nguồn ERP kho</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Plex Sans<br>11.5 / 400</span>
+              </div>
+              <div style="display:grid;grid-template-columns:96px 1fr 128px;align-items:center;gap:16px;padding:11px 0">
+                <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">font-mono</span>
+                <span style="font-family:'IBM Plex Mono';font-size:12.5px;font-variant-numeric:tabular-nums">SO-0891 · WO-1180 · L-2608-042 · 128,5 tr</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;text-align:right">Plex Mono<br>12.5 · tabular</span>
+              </div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">font-display Archivo · font-sans IBM Plex Sans · font-num Space Grotesk · font-mono IBM Plex Mono — tất cả đủ dấu tiếng Việt.</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:16px">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-05</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Spacing</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">thang 4px</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">1</span><span style="height:12px;width:4px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">4px · gap icon–chữ</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">2</span><span style="height:12px;width:8px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">8px · gap trong chip</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">3</span><span style="height:12px;width:12px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">12px · gap nút</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">4</span><span style="height:12px;width:16px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">16px · gap bento, padding thẻ nhỏ</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">5</span><span style="height:12px;width:20px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">20px · padding thẻ</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">6</span><span style="height:12px;width:24px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">24px · gutter desktop</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">8</span><span style="height:12px;width:32px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">32px · margin màn desktop</span></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF;width:34px">12</span><span style="height:12px;width:48px;background:#2E63E6;border-radius:2px"></span><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">48px · giữa hai zone</span></div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Chỉ dùng 8 bậc này. Không có 6px, 14px, 18px, 22px.</div>
+          </div>
+
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-06</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Radius</span>
+            </div>
+            <div style="padding:18px 16px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;gap:14px"><span style="width:52px;height:34px;border-radius:6px;background:rgba(255,255,255,.10)"></span><div><div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">rounded-lg</div><div style="font-size:11px;color:#93A1B8;margin-top:2px">6px · thẻ, panel</div></div></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="width:52px;height:30px;border-radius:4px;background:rgba(255,255,255,.10)"></span><div><div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">rounded-md</div><div style="font-size:11px;color:#93A1B8;margin-top:2px">4px · nút, input, nav</div></div></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="width:52px;height:22px;border-radius:3px;background:rgba(255,255,255,.10)"></span><div><div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">rounded-sm</div><div style="font-size:11px;color:#93A1B8;margin-top:2px">3px · tag, chip</div></div></div>
+              <div style="display:flex;align-items:center;gap:14px"><span style="width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.10);margin:0 18px"></span><div><div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">rounded-full</div><div style="font-size:11px;color:#93A1B8;margin-top:2px">chỉ chấm trạng thái</div></div></div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">--radius: 0.375rem</div>
+          </div>
+
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-07</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Elevation</span>
+            </div>
+            <div style="padding:18px 16px;display:flex;flex-direction:column;gap:16px">
+              <div style="height:40px;border-radius:6px;background:rgba(255,255,255,.085);box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);display:flex;align-items:center;padding:0 12px;font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">shadow-card</div>
+              <div style="height:40px;border-radius:6px;background:rgba(15,23,42,.84);box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);display:flex;align-items:center;padding:0 12px;font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">shadow-panel</div>
+              <div style="height:40px;border-radius:6px;background:rgba(15,23,42,.92);box-shadow:0 32px 80px rgba(0,0,0,.45);display:flex;align-items:center;padding:0 12px;font-family:'IBM Plex Mono';font-size:10.5px;color:#7FA3FF">shadow-frame</div>
+              <div style="height:40px;border-radius:4px;background:#2E63E6;box-shadow:0 3px 12px rgba(46,99,230,.30);display:flex;align-items:center;padding:0 12px;font-family:'IBM Plex Mono';font-size:10.5px;color:#FFFFFF">shadow-primary</div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Borderless: mép đọc bằng bóng + vệt sáng inset 1px.</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-08</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Iconography</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">lucide-react</span>
+            </div>
+            <div style="padding:18px 16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+              <i data-lucide="house" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="square-check-big" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="bell" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="search" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="zap" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>
+              <i data-lucide="scan-line" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="package" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="factory" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="file-text" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="users" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#E5E7EB"></i>
+              <i data-lucide="triangle-alert" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#FFCD00"></i>
+              <i data-lucide="circle-check" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#22B573"></i>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">size 16 trong nút · 20 trong nav · stroke-width 1.75 · không icon fill, không emoji</div>
+          </div>
+
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">F-09</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Motion &amp; grid</span>
+            </div>
+            <div style="padding:18px 16px;font-size:12.5px;color:#9AA6BA;line-height:1.9">
+              Chuyển động <span style="font-family:'IBM Plex Mono';color:#E5E7EB">180ms ease-out</span> · hover thẻ = bóng dày thêm một bậc · aurora trôi 14–26s · tôn trọng <span style="font-family:'IBM Plex Mono';color:#E5E7EB">prefers-reduced-motion</span>.<br>
+              Nền màn có 4 lớp cố định: quầng aurora → lưới 32px → lưới 160px → hạt nhiễu. Không thêm lớp thứ 5.
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">transition-all duration-180 ease-out</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="zone-01" style="padding:48px 0 8px">
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-bottom:28px;border-top:1px solid rgba(255,255,255,.12);padding-top:40px">
+        <div style="font-family:'Space Grotesk';font-size:104px;font-weight:600;line-height:.78;letter-spacing:-5px;color:rgba(255,255,255,.11)">01</div>
+        <div style="flex:1;padding-bottom:10px">
+          <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600;margin-bottom:8px">Zone 01 · Atoms</div>
+          <h2 style="font-family:'Archivo';font-size:28px;font-weight:600;margin:0;letter-spacing:-.4px">Nguyên tử</h2>
+          <p style="font-size:12.5px;color:#9AA6BA;margin:8px 0 0;max-width:640px;line-height:1.7">Không chia nhỏ được nữa. Mỗi atom map 1:1 với một component shadcn/ui.</p>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.022);border-radius:6px;padding:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden;grid-column:span 2">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-01</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Button</span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">4 variant · 3 size</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)" style-hover="filter:brightness(1.12)">Duyệt 128,5 tr</button>
+              <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(19,58,138,.55);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)" style-hover="background:rgba(19,58,138,.75)">Gửi lại</button>
+              <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.09);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)" style-hover="background:rgba(255,255,255,.16)">Xem căn cứ</button>
+              <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(218,37,29,.20);color:#FF6B5E;box-shadow:0 1px 2px rgba(0,0,0,.30)" style-hover="background:rgba(218,37,29,.32)">Từ chối</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <button style="height:32px;padding:0 12px;border-radius:4px;font-size:11.5px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)">sm · 32</button>
+              <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)">md · 40</button>
+              <button style="height:48px;padding:0 24px;border-radius:4px;font-size:14px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)">lg · 48 (tablet)</button>
+              <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.05);color:#93A1B8;cursor:not-allowed">disabled</button>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">default → h-10 px-4 rounded-md bg-primary text-primary-foreground shadow-primary<br>ghost → bg-white/10 · destructive → bg-destructive/20 text-destructive-foreground · nút tablet luôn size lg (≥48px)</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-02</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Badge</span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">7 trạng thái</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;gap:8px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(94,107,128,.28);color:#B4BECD">Nháp</span>
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(255,205,0,.20);color:#FFCD00">Chờ duyệt</span>
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(34,181,115,.20);color:#22B573">Đã duyệt</span>
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">Đang chạy</span>
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(34,181,115,.20);color:#22B573">Hoàn thành</span>
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(218,37,29,.24);color:#FF6B5E">Quá hạn</span>
+            <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(218,37,29,.24);color:#FF6B5E">Dừng</span>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">text-xs font-semibold px-3 py-1 rounded-sm bg-{state}/20</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-03</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Chip</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;gap:8px;flex-wrap:wrap">
+            <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">SO-0891</span>
+            <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">K1-A2</span>
+            <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">MES · WO-1180</span>
+            <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">CRM</span>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">chip nguồn hệ thống dùng bg-accent — bấm được, mở object</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-04</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Input</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;flex-direction:column;gap:10px">
+            <div style="height:40px;border-radius:4px;background:rgba(255,255,255,.06);display:flex;align-items:center;padding:0 14px;font-size:12.5px;color:#93A1B8">Tên khách hàng</div>
+            <div style="height:40px;border-radius:4px;background:rgba(255,255,255,.06);display:flex;align-items:center;padding:0 14px;font-size:12.5px;color:#E5E7EB;box-shadow:0 0 0 2px rgba(46,99,230,.55)">Cơ điện Sao Đỏ</div>
+            <div style="height:40px;border-radius:4px;background:rgba(255,255,255,.06);display:flex;align-items:center;padding:0 14px;font-size:12.5px;color:#FF6B5E;box-shadow:0 0 0 2px rgba(218,37,29,.50)">Thiếu mã số thuế</div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">bg-input h-10 rounded-md focus:ring-2 ring-ring</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-05</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Avatar</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;align-items:center;gap:12px">
+            <div style="width:38px;height:38px;border-radius:4px;background:linear-gradient(135deg,#1E3F7A,#133A8A);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600">NT</div>
+            <div style="width:30px;height:30px;border-radius:4px;background:linear-gradient(135deg,#1E3F7A,#133A8A);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">TH</div>
+            <div style="width:24px;height:24px;border-radius:4px;background:linear-gradient(135deg,#1E3F7A,#133A8A);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600">LĐ</div>
+            <div style="font-size:11.5px;color:#93A1B8;margin-left:4px;line-height:1.6">38 · 30 · 24<br>viết tắt tên, không ảnh</div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">rounded-md — không rounded-full, hệ này góc sắc</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-06</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">StatusDot</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:#22B573"></span><span style="font-size:12px;color:#9AA6BA">ok — đã xong</span></div>
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:#2E63E6;box-shadow:0 0 0 4px rgba(46,99,230,.24)"></span><span style="font-size:12px;color:#9AA6BA">current — đang chờ anh</span></div>
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.24)"></span><span style="font-size:12px;color:#9AA6BA">next — chưa tới</span></div>
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:#FF6B5E"></span><span style="font-size:12px;color:#9AA6BA">bad — dừng / quá hạn</span></div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">size-2 rounded-full · current thêm ring-4 ring-primary/24</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-07</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Progress</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:11.5px;color:#9AA6BA">WO-1180</span><span style="font-family:'Space Grotesk';font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">68%</span></div>
+              <div style="height:8px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden"><span style="display:block;height:100%;width:68%;border-radius:3px;background:linear-gradient(90deg,#2E63E6,#7FA3FF)"></span></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:11.5px;color:#9AA6BA">Giao đúng hạn</span><span style="font-family:'Space Grotesk';font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">86%</span></div>
+              <div style="height:8px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden"><span style="display:block;height:100%;width:86%;border-radius:3px;background:#FFCD00"></span></div>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">h-2 rounded-sm bg-white/10 · số luôn font-num</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-08</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Skeleton</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;flex-direction:column;gap:10px">
+            <div style="height:11px;border-radius:3px;background:rgba(255,255,255,.10);width:58%;animation:shimmer 1.6s ease-in-out infinite"></div>
+            <div style="height:30px;border-radius:3px;background:rgba(255,255,255,.10);width:76%;animation:shimmer 1.6s ease-in-out .2s infinite"></div>
+            <div style="height:11px;border-radius:3px;background:rgba(255,255,255,.10);width:42%;animation:shimmer 1.6s ease-in-out .4s infinite"></div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">animate-pulse bg-white/10 rounded-sm</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-09</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Separator &amp; Kicker</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
+            <div style="height:1px;background:rgba(255,255,255,.08)"></div>
+            <div style="height:1px;background:linear-gradient(90deg,rgba(255,255,255,.18),rgba(255,255,255,.02))"></div>
+            <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600">Ứng dụng</div>
+            <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#93A1B8">Hôm nay · 10/08</div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">h-px bg-white/8 · kicker: font-mono text-[10.5px] tracking-[.2em] uppercase</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-10</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Money</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#9AA6BA">KPI hero</span><span style="font-family:'Space Grotesk';font-size:28px;font-weight:600;letter-spacing:-1px;font-variant-numeric:tabular-nums">1,84 tỷ</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#9AA6BA">Trong thẻ</span><span style="font-family:'Space Grotesk';font-size:20px;font-weight:600;letter-spacing:-.4px;font-variant-numeric:tabular-nums">128,5 tr</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12px;color:#9AA6BA">Trong bảng</span><span style="font-family:'IBM Plex Mono';font-size:12.5px;font-variant-numeric:tabular-nums">1.840.000.000 ₫</span></div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Chuẩn VN: phẩy thập phân, chấm ngăn nghìn · luôn tabular-nums</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">A-11</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Sparkline</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:flex-end;gap:12px"><svg width="86" height="26" viewBox="0 0 86 26" fill="none"><polyline points="0,22 12,18 24,20 36,13 48,15 60,8 72,9 86,3" stroke="#22B573" stroke-width="1.5" fill="none" stroke-linejoin="round"/></svg><span style="font-family:'IBM Plex Mono';font-size:9.5px;color:#93A1B8">T8 · CRM</span></div>
+            <div style="display:flex;align-items:flex-end;gap:12px"><svg width="86" height="26" viewBox="0 0 86 26" fill="none"><polyline points="0,6 12,5 24,8 36,7 48,6 60,14 72,19 86,11" stroke="#FFCD00" stroke-width="1.5" fill="none" stroke-linejoin="round"/></svg><span style="font-family:'IBM Plex Mono';font-size:9.5px;color:#93A1B8">24h · MES</span></div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">86×26 · stroke 1.5 · luôn kèm nhãn nguồn dữ liệu</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="zone-02" style="padding:48px 0 8px">
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-bottom:28px;border-top:1px solid rgba(255,255,255,.12);padding-top:40px">
+        <div style="font-family:'Space Grotesk';font-size:104px;font-weight:600;line-height:.78;letter-spacing:-5px;color:rgba(255,255,255,.11)">02</div>
+        <div style="flex:1;padding-bottom:10px">
+          <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600;margin-bottom:8px">Zone 02 · Molecules</div>
+          <h2 style="font-family:'Archivo';font-size:28px;font-weight:600;margin:0;letter-spacing:-.4px">Phân tử</h2>
+          <p style="font-size:12.5px;color:#9AA6BA;margin:8px 0 0;max-width:640px;line-height:1.7">Hai đến bốn atom ghép lại thành một đơn vị có nghĩa nghiệp vụ. Đây là tầng mang chữ ký của hệ — nhất là ContextRail và AIAction.</p>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.022);border-radius:6px;padding:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-01</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">StatCard</span>
+          </div>
+          <div style="padding:16px">
+            <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:18px 20px;height:150px;display:flex;flex-direction:column">
+              <div style="font-family:'Space Grotesk';font-size:42px;font-weight:600;line-height:1;letter-spacing:-1.5px;font-variant-numeric:tabular-nums">890 tr</div>
+              <div style="font-size:12px;color:#9AA6BA;margin-top:8px">Công nợ quá hạn</div>
+              <div style="font-size:11.5px;font-weight:600;margin-top:12px;color:#FF6B5E">▲ 2 hóa đơn</div>
+              <div style="margin-top:auto;display:flex;align-items:flex-end;gap:10px"><svg width="86" height="22" viewBox="0 0 86 26" fill="none"><polyline points="0,20 12,19 24,16 36,17 48,11 60,10 72,6 86,4" stroke="#FF6B5E" stroke-width="1.5" fill="none" stroke-linejoin="round"/></svg><span style="font-family:'IBM Plex Mono';font-size:9.5px;color:#93A1B8">30d · ERP</span></div>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">Card + font-num text-5xl + label text-xs + delta + Sparkline<br>bento 1×1 · h-[150px]</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-02</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">ContextRail</span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#7FA3FF">bắt buộc mọi màn</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">HĐ-2607</span>
+              <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">SO-0891</span>
+              <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">MES · WO-1180</span>
+              <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">PO-0455</span>
+            </div>
+            <div style="font-size:11.5px;color:#93A1B8;line-height:1.7">Dãy chip nối các object của cùng một câu chuyện. Mobile rút gọn còn ≤3 chip.</div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">flex gap-2 flex-wrap · Chip[] · chip nguồn = bg-accent</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-03</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">ApprovalChain</span>
+          </div>
+          <div style="padding:24px 16px 20px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:8px;height:8px;border-radius:50%;background:#22B573"></span>
+              <span style="flex:1;height:1.5px;background:rgba(255,255,255,.14)"></span>
+              <span style="width:8px;height:8px;border-radius:50%;background:#2E63E6;box-shadow:0 0 0 4px rgba(46,99,230,.24)"></span>
+              <span style="flex:1;height:1.5px;background:rgba(255,255,255,.14)"></span>
+              <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.24)"></span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:10.5px;color:#93A1B8"><span>Đức ✓ 08:40</span><span style="color:#7FA3FF;font-weight:600">Anh — đang chờ</span><span>Kế toán Mai</span></div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">StatusDot[] + Separator + tên người · bước hiện tại luôn text-accent-foreground</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-04</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">SearchField</span>
+          </div>
+          <div style="padding:18px 16px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:4px;background:rgba(255,255,255,.06);color:#93A1B8;font-size:12.5px">
+              <i data-lucide="search" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i>
+              Tìm khách hàng, đơn hàng, tài liệu…
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;height:52px;padding:0 16px;border-radius:4px;background:rgba(15,23,42,.9);color:#E5E7EB;font-size:14px;box-shadow:0 0 0 2px rgba(46,99,230,.45)">
+              <i data-lucide="search" width="18" height="18" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>
+              sao đỏ
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">4 nguồn · 0,3 giây</span>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">topbar h-10 · màn tìm h-13 · tablet kiosk h-16 text-2xl</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-05</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">ScanField</span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">tablet</span>
+          </div>
+          <div style="padding:18px 16px">
+            <div style="display:flex;gap:10px;align-items:center">
+              <div style="flex:1;height:64px;border-radius:4px;background:rgba(34,181,115,.13);box-shadow:0 3px 14px rgba(34,181,115,.22),inset 0 1px 0 rgba(255,255,255,.10);display:flex;align-items:center;padding:0 16px;font-family:'IBM Plex Mono';font-size:22px;font-variant-numeric:tabular-nums">L-2608-042</div>
+              <div style="width:56px;height:56px;border-radius:4px;background:#2E63E6;box-shadow:0 3px 12px rgba(46,99,230,.30);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i data-lucide="scan-line" width="24" height="24" stroke-width="1.9" style="display:inline-flex;color:#FFFFFF"></i>
+              </div>
+            </div>
+            <div style="font-size:11.5px;color:#22B573;margin-top:12px">✓ Khớp PO-0455 · vị trí đề xuất K1-A2</div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">h-16 font-mono text-[22px] · nút quét 56px · đúng/sai = ring success/destructive + toast</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-06</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">NavItem</span>
+          </div>
+          <div style="padding:18px 14px;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;background:rgba(46,99,230,.24);color:#E5E7EB;box-shadow:inset 0 1px 0 rgba(150,180,255,.22)">
+              <i data-lucide="house" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i> Trang chủ
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA">
+              <i data-lucide="square-check-big" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i> Phê duyệt
+              <span style="margin-left:auto;background:#DA251D;color:#fff;font-size:10.5px;font-weight:600;border-radius:3px;padding:1px 7px">7</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA;background:rgba(255,255,255,.06)">
+              <i data-lucide="bell" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i> Thông báo <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:9.5px;color:#93A1B8">hover</span>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">h-[38px] rounded-md · active = bg-accent · badge số dùng bg-destructive</div>
+        </div>
+
+        <div style="grid-column:span 2;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-07</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">TableRow</span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">default · hover · selected · hidden-by-permission</span>
+          </div>
+          <div style="padding:14px 16px">
+            <div style="display:grid;grid-template-columns:1fr 1.4fr .9fr 1fr;font-size:11px;color:#93A1B8;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)"><span>Hóa đơn</span><span>Khách hàng</span><span style="text-align:right">Số tiền</span><span style="text-align:right">Trạng thái</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1.4fr .9fr 1fr;align-items:center;height:44px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px"><span style="font-family:'IBM Plex Mono'">HD-2214</span><span>Cơ khí Minh Quang</span><span style="font-family:'IBM Plex Mono';text-align:right;font-variant-numeric:tabular-nums">520,0 tr</span><span style="text-align:right"><span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(218,37,29,.24);color:#FF6B5E">Quá hạn 12 ngày</span></span></div>
+            <div style="display:grid;grid-template-columns:1fr 1.4fr .9fr 1fr;align-items:center;height:44px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;background:rgba(255,255,255,.05)"><span style="font-family:'IBM Plex Mono'">HD-2231</span><span>Trường Thịnh</span><span style="font-family:'IBM Plex Mono';text-align:right;font-variant-numeric:tabular-nums">370,0 tr</span><span style="text-align:right"><span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(218,37,29,.24);color:#FF6B5E">Quá hạn 5 ngày</span></span></div>
+            <div style="display:grid;grid-template-columns:1fr 1.4fr .9fr 1fr;align-items:center;height:44px;border-bottom:1px solid rgba(255,255,255,.06);font-size:12.5px;box-shadow:inset 2px 0 0 #2E63E6;background:rgba(46,99,230,.10)"><span style="font-family:'IBM Plex Mono'">HD-2280</span><span>Cơ điện Sao Đỏ</span><span style="font-family:'IBM Plex Mono';text-align:right;font-variant-numeric:tabular-nums">1.840,0 tr</span><span style="text-align:right"><span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(94,107,128,.28);color:#B4BECD">Nháp</span></span></div>
+            <div style="display:grid;grid-template-columns:1fr 1.4fr .9fr 1fr;align-items:center;height:44px;font-size:12.5px;opacity:.55"><span style="font-family:'IBM Plex Mono'">GV-0117</span><span>Giá vốn lô hàng Sao Đỏ</span><span style="font-family:'IBM Plex Mono';text-align:right">— — —</span><span style="text-align:right;font-size:11px;color:#93A1B8">Bị ẩn theo quyền của bạn</span></div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">h-11 · divide-white/6 · hover:bg-white/5 · selected = shadow-[inset_2px_0_0] shadow-primary + bg-primary/10<br>Bảng luôn nằm trên .glass-b, không bao giờ .glass-a</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-08</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">EmptyState</span>
+          </div>
+          <div style="padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+            <i data-lucide="inbox" width="26" height="26" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i>
+            <div style="font-size:12.5px;color:#9AA6BA;line-height:1.65;text-wrap:pretty">Chưa có yêu cầu nào chờ anh. Việc mới sẽ hiện tại đây kèm thông báo Zalo.</div>
+            <button style="height:32px;padding:0 14px;border-radius:4px;font-size:11.5px;font-weight:600;background:rgba(255,255,255,.11);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)">Xem lịch sử duyệt</button>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Luôn 1 icon + 1 câu hướng dẫn + 1 nút. Không bao giờ chỉ có chữ “Không có dữ liệu”.</div>
+        </div>
+
+        <div style="grid-column:span 2;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">M-09</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">AIAction</span>
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#7FA3FF">chữ ký của hệ</span>
+          </div>
+          <div style="padding:16px">
+            <div style="background:linear-gradient(90deg,rgba(46,99,230,.22),rgba(46,99,230,.06)),repeating-linear-gradient(115deg,rgba(255,255,255,.04) 0 1px,transparent 1px 9px);backdrop-filter:blur(24px) saturate(1.4);border-radius:6px;box-shadow:0 12px 30px rgba(46,99,230,.14),inset 0 1px 0 rgba(150,180,255,.26);padding:16px 20px;display:flex;align-items:center;gap:14px">
+              <div style="width:32px;height:32px;border-radius:3px;background:linear-gradient(135deg,#2E63E6,#133A8A);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i data-lucide="zap" width="16" height="16" stroke-width="1.9" style="display:inline-flex;color:#FFFFFF"></i>
+              </div>
+              <div style="flex:1;font-size:13px;line-height:1.55">Trợ lý đề xuất: duyệt PO-0455 hôm nay và chuyển 30% khối lượng WO-1180 sang CNC-05 → kịp giao 22/08, dư 1 ngày.
+                <small style="display:block;color:#9AA6BA;font-size:11.5px;margin-top:5px">Căn cứ: tồn kho K1-A2 · năng lực xưởng X1 · hợp đồng SO-0891.</small>
+              </div>
+              <div style="display:flex;gap:10px;flex-shrink:0">
+                <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)">Thực hiện</button>
+                <button style="height:40px;padding:0 18px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.09);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)">Xem căn cứ</button>
+              </div>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">Luật cứng: luôn có dòng “Căn cứ: …” và luôn chờ nút. AI không bao giờ tự thực hiện.<br>bg-gradient-to-r from-primary/22 to-primary/6 + hatch overlay · ring-0 · shadow-[0_12px_30px_theme(primary/14)]</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="zone-03" style="padding:48px 0 8px">
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-bottom:28px;border-top:1px solid rgba(255,255,255,.12);padding-top:40px">
+        <div style="font-family:'Space Grotesk';font-size:104px;font-weight:600;line-height:.78;letter-spacing:-5px;color:rgba(255,255,255,.11)">03</div>
+        <div style="flex:1;padding-bottom:10px">
+          <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600;margin-bottom:8px">Zone 03 · Organisms</div>
+          <h2 style="font-family:'Archivo';font-size:28px;font-weight:600;margin:0;letter-spacing:-.4px">Sinh vật</h2>
+          <p style="font-size:12.5px;color:#9AA6BA;margin:8px 0 0;max-width:640px;line-height:1.7">Khối hoàn chỉnh, đặt thẳng vào màn. Mỗi organism tự mang đủ ngữ cảnh: tiêu đề, dữ liệu, context rail, hành động.</p>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.022);border-radius:6px;padding:24px;display:flex;flex-direction:column;gap:16px">
+
+        <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">O-01</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">AppSidebar</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">w-[232px]</span>
+            </div>
+            <div style="padding:16px">
+              <div style="width:232px;background:rgba(255,255,255,.065);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:20px 14px;display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:center;gap:10px;padding:2px 8px 16px">
+                  <img src="assets/mark-light.png" alt="" style="width:32px;height:32px;object-fit:contain;flex-shrink:0;margin:-2px">
+                  <div><b style="font-family:'Archivo';font-size:14px">Pebble One</b><small style="display:block;font-size:10.5px;color:#93A1B8;font-weight:400">Thắng Lợi</small></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;background:rgba(46,99,230,.24);color:#E5E7EB;box-shadow:inset 0 1px 0 rgba(150,180,255,.22)"><i data-lucide="house" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>Trang chủ</div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="square-check-big" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Phê duyệt<span style="margin-left:auto;background:#DA251D;color:#fff;font-size:10.5px;font-weight:600;border-radius:3px;padding:1px 7px">7</span></div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="bell" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Thông báo</div>
+                <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#93A1B8;padding:16px 12px 6px">Ứng dụng</div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="file-text" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Docs</div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="users" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>CRM</div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="square-check-big" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Work</div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="package" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>ERP · Kho</div>
+                <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="factory" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>MES</div>
+              </div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Logo 32 · NavItem[] · Kicker nhóm “Ứng dụng”</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">O-02</span>
+                <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">TopBar</span>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">h-16</span>
+              </div>
+              <div style="padding:16px">
+                <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:12px 16px;display:flex;align-items:center;gap:14px">
+                  <div style="flex:1;display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:4px;background:rgba(255,255,255,.06);color:#93A1B8;font-size:12.5px"><i data-lucide="search" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i>Tìm khách hàng, đơn hàng, tài liệu…</div>
+                  <button style="display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:4px;background:linear-gradient(135deg,rgba(46,99,230,.30),rgba(46,99,230,.12));color:#7FA3FF;font-size:12.5px;font-weight:600;box-shadow:0 3px 14px rgba(46,99,230,.24),inset 0 1px 0 rgba(150,180,255,.22)"><i data-lucide="zap" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>Trợ lý</button>
+                  <div style="width:40px;height:40px;border-radius:4px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;position:relative"><i data-lucide="bell" width="17" height="17" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i><span style="position:absolute;top:9px;right:10px;width:7px;height:7px;border-radius:50%;background:#DA251D"></span></div>
+                  <div style="width:38px;height:38px;border-radius:4px;background:linear-gradient(135deg,#1E3F7A,#133A8A);display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600">NT</div>
+                </div>
+              </div>
+              <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">SearchField + nút Trợ lý + chuông (chấm 7px destructive) + Avatar</div>
+            </div>
+
+            <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">O-03</span>
+                <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">BriefCard</span>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">bento 2×1</span>
+              </div>
+              <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#FF6B5E;flex-shrink:0"></span>
+                    <b style="font-family:'Archivo';font-size:15px;font-weight:600;flex:1">WO-1180 chậm 2 ngày</b>
+                    <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(218,37,29,.24);color:#FF6B5E">Quá hạn</span>
+                  </div>
+                  <div style="font-size:12.5px;color:#9AA6BA;line-height:1.6;text-wrap:pretty">Thiếu thép Ø40 tại K1-A2 từ 08/08. Hạn giao khách 22/08 còn nguyên.</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:8px">
+                    <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">SO-0891</span>
+                    <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">MES · WO-1180</span>
+                    <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">K1-A2</span>
+                  </div>
+                </div>
+                <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#FFCD00;flex-shrink:0"></span>
+                    <b style="font-family:'Archivo';font-size:15px;font-weight:600;flex:1">CNC-03 dừng lần 3</b>
+                    <span style="font-size:11px;font-weight:600;padding:4px 11px;border-radius:3px;background:rgba(255,205,0,.20);color:#FFCD00">Dừng 37′</span>
+                  </div>
+                  <div style="font-size:12.5px;color:#9AA6BA;line-height:1.6;text-wrap:pretty">Lỗi E-214 lặp lần thứ 3 trong tuần. Lệnh bảo trì BT-0310 đã giao anh Hải.</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:8px">
+                    <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">MES · CNC-03</span>
+                    <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">BT-0310</span>
+                  </div>
+                </div>
+              </div>
+              <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">StatusDot + tiêu đề text-lg + mô tả text-sm + ContextRail + Badge góc phải</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">O-04</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">ApprovalCard</span>
+            </div>
+            <div style="padding:16px">
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:20px 22px;display:flex;flex-direction:column;gap:16px">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                  <div style="flex:1"><div style="font-family:'Archivo';font-size:15px;font-weight:600">Mua thép Ø40 — PO-0455</div><div style="font-size:12px;color:#9AA6BA;margin-top:5px">Thép Nam Việt · giao 2 ngày</div></div>
+                  <div style="font-family:'Space Grotesk';font-size:20px;font-weight:600;letter-spacing:-.4px;font-variant-numeric:tabular-nums">128,5 tr</div>
+                </div>
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#22B573"></span>
+                    <span style="flex:1;height:1.5px;background:rgba(255,255,255,.14)"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:#2E63E6;box-shadow:0 0 0 4px rgba(46,99,230,.24)"></span>
+                    <span style="flex:1;height:1.5px;background:rgba(255,255,255,.14)"></span>
+                    <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.24)"></span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:10.5px;color:#93A1B8"><span>Đức ✓ 08:40</span><span style="color:#7FA3FF;font-weight:600">Anh — đang chờ</span><span>Kế toán Mai</span></div>
+                </div>
+                <div style="display:flex;gap:10px">
+                  <button style="flex:1;height:40px;border-radius:4px;font-size:12.5px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)">Duyệt 128,5 tr</button>
+                  <button style="height:40px;padding:0 16px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(218,37,29,.20);color:#FF6B5E;box-shadow:0 1px 2px rgba(0,0,0,.30)">Từ chối</button>
+                  <button style="height:40px;padding:0 16px;border-radius:4px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.09);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)">Hỏi AI</button>
+                </div>
+              </div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.7">Tiêu đề + Money góc phải + ApprovalChain + 3 Button. Nút chính luôn nói rõ số tiền.</div>
+          </div>
+
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+              <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">O-05</span>
+              <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">KioskTile</span>
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">tablet · đọc xa 3m</span>
+            </div>
+            <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:22px;display:flex;flex-direction:column">
+                <div style="font-family:'Space Grotesk';font-size:36px;font-weight:600;letter-spacing:-1px;font-variant-numeric:tabular-nums">68%</div>
+                <div style="font-size:14px;color:#9AA6BA;line-height:1.6;margin-top:10px">WO-1180 · chậm 2 ngày<br>hạn giao 22/08</div>
+                <div style="margin-top:auto;padding-top:14px"><span style="font-family:'IBM Plex Mono';font-size:11.5px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">MES</span></div>
+              </div>
+              <div style="background:#0A1220;border:2px solid rgba(255,255,255,.42);border-radius:6px;padding:22px;display:flex;flex-direction:column">
+                <div style="font-family:'IBM Plex Mono';font-size:10px;color:#B4BECD;letter-spacing:.14em;margin-bottom:10px">TƯƠNG PHẢN CAO</div>
+                <div style="font-family:'Space Grotesk';font-size:36px;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums;color:#FFFFFF">68%</div>
+                <div style="font-size:14px;color:#E5E7EB;line-height:1.6;margin-top:10px">WO-1180 · chậm 2 ngày<br>hạn giao 22/08</div>
+                <button style="margin-top:auto;height:48px;border-radius:4px;font-size:14px;font-weight:700;background:#FFCD00;color:#0F172A;border:2px solid #FFCD00">Xem lệnh</button>
+              </div>
+            </div>
+            <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">Biến thể tương phản cao là NGOẠI LỆ DUY NHẤT được dùng viền — 2px, cho kiosk ngoài sáng.<br>Số ≥34px · chữ phụ ≥14px · nút ≥48px.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="zone-04" style="padding:48px 0 8px">
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-bottom:28px;border-top:1px solid rgba(255,255,255,.12);padding-top:40px">
+        <div style="font-family:'Space Grotesk';font-size:104px;font-weight:600;line-height:.78;letter-spacing:-5px;color:rgba(255,255,255,.11)">04</div>
+        <div style="flex:1;padding-bottom:10px">
+          <div style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600;margin-bottom:8px">Zone 04 · Templates</div>
+          <h2 style="font-family:'Archivo';font-size:28px;font-weight:600;margin:0;letter-spacing:-.4px">Khung màn</h2>
+          <p style="font-size:12.5px;color:#9AA6BA;margin:8px 0 0;max-width:640px;line-height:1.7">Ba thiết bị là ba vai, không phải một layout co giãn. Vẽ đúng kích thước tuyệt đối này.</p>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,.022);border-radius:6px;padding:24px;display:grid;grid-template-columns:1.6fr 1.2fr .8fr;gap:16px;align-items:start">
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">T-01</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Desktop</span>
+            <span style="margin-left:auto;font-family:'Space Grotesk';font-size:14px;font-weight:600;letter-spacing:-.3px">1440 × 900</span>
+          </div>
+          <div style="padding:20px 16px">
+            <div style="position:relative;height:270px;border-radius:4px;background:rgba(11,18,32,.7);display:flex;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)">
+              <div style="width:70px;background:rgba(46,99,230,.16);display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;font-family:'IBM Plex Mono';font-size:9.5px;color:#7FA3FF">232</div>
+              <div style="flex:1;display:flex;flex-direction:column;padding:10px">
+                <div style="height:20px;background:rgba(255,255,255,.07);border-radius:2px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-family:'IBM Plex Mono';font-size:9px;color:#93A1B8">topbar 64</div>
+                <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;gap:6px;margin-top:8px">
+                  <div style="grid-column:span 2;grid-row:span 2;background:rgba(46,99,230,.22);border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono';font-size:9.5px;color:#7FA3FF">hero 2×2</div>
+                  <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                  <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                  <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                  <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                </div>
+                <div style="height:24px;background:rgba(46,99,230,.20);border-radius:2px;margin-top:8px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono';font-size:9.5px;color:#7FA3FF">AIAction</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">12 cột · gutter 24 · margin 32 · sidebar 232 · topbar 64<br>Bento 4 cột, gap 16, ô cao 150 — mỗi dashboard đúng 1 ô hero 2×2</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">T-02</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Tablet</span>
+            <span style="margin-left:auto;font-family:'Space Grotesk';font-size:14px;font-weight:600;letter-spacing:-.3px">1024 × 768</span>
+          </div>
+          <div style="padding:20px 16px">
+            <div style="height:270px;border-radius:4px;background:rgba(11,18,32,.7);padding:12px;display:flex;flex-direction:column;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)">
+              <div style="height:26px;background:rgba(255,255,255,.07);border-radius:2px;display:flex;align-items:center;padding:0 8px;font-family:'IBM Plex Mono';font-size:9px;color:#93A1B8">header 72 · không sidebar</div>
+              <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;margin-top:10px">
+                <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+                <div style="background:rgba(255,255,255,.07);border-radius:2px"></div>
+              </div>
+              <div style="height:24px;background:rgba(46,99,230,.20);border-radius:2px;margin-top:10px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono';font-size:9.5px;color:#7FA3FF">ticker trợ lý</div>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">8 cột · gutter 20 · margin 28 · header 72<br>Kiosk full màn · nút ≥48 · có nút “Tương phản cao”</div>
+        </div>
+
+        <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 16px;background:rgba(255,255,255,.045)">
+            <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;letter-spacing:.1em">T-03</span>
+            <span style="font-family:'Archivo';font-size:13.5px;font-weight:600">Mobile</span>
+            <span style="margin-left:auto;font-family:'Space Grotesk';font-size:14px;font-weight:600;letter-spacing:-.3px">390 × 844</span>
+          </div>
+          <div style="padding:20px 16px;display:flex;justify-content:center">
+            <div style="width:132px;height:270px;border-radius:6px;background:rgba(11,18,32,.7);padding:8px;display:flex;flex-direction:column;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)">
+              <div style="height:12px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono';font-size:7.5px;color:#93A1B8">status 44</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px;margin-top:4px">
+                <div style="height:52px;background:rgba(46,99,230,.22);border-radius:2px"></div>
+                <div style="height:40px;background:rgba(255,255,255,.07);border-radius:2px"></div>
+                <div style="height:40px;background:rgba(255,255,255,.07);border-radius:2px"></div>
+              </div>
+              <div style="height:26px;background:rgba(255,255,255,.09);border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono';font-size:7.5px;color:#93A1B8">bottom nav 84</div>
+              <div style="height:8px"></div>
+            </div>
+          </div>
+          <div style="padding:10px 16px;background:rgba(0,0,0,.20);font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8;line-height:1.8">4 cột · gutter 16 · margin 16<br>Nav 4 mục: Trang chủ · Duyệt · Tìm · Trợ lý<br>Safe-area dưới 34</div>
+        </div>
+      </div>
+    </section>
+
+    <sc-if value="{{ showChecklist }}" hint-placeholder-val="{{ true }}">
+      <section style="padding:48px 0 0">
+        <div style="border-top:1px solid rgba(255,255,255,.12);padding-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);padding:24px 26px">
+            <div style="font-family:'Archivo';font-size:17px;font-weight:600;margin-bottom:16px">Checklist nghiệm thu mỗi màn</div>
+            <div style="font-size:12.5px;color:#9AA6BA;line-height:2">
+              01 · Khung đúng kích thước tuyệt đối, lưới đúng T-01/02/03.<br>
+              02 · Mọi dữ liệu tra được về kịch bản Sao Đỏ — không bịa mã, tên, số mới.<br>
+              03 · Có ≥1 ContextRail bấm được và ≥1 AIAction kèm dòng “Căn cứ:”.<br>
+              04 · Azure đếm được: chỉ AI, nút chính, active. Không trang trí.<br>
+              05 · Bảng và danh sách dài nằm trên .glass-b.<br>
+              06 · Số dùng font-num hoặc font-mono, tabular; tiền chuẩn VN.<br>
+              07 · Có trạng thái phụ: hover, selected, và 1 dòng “Bị ẩn theo quyền”.<br>
+              08 · Tương phản chữ ≥ 4,5:1; nút tablet ≥48px; mobile chừa safe-area 34px.
+            </div>
+          </div>
+          <div style="background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);padding:24px 26px">
+            <div style="font-family:'Archivo';font-size:17px;font-weight:600;margin-bottom:16px">Bàn giao cho dev</div>
+            <div style="font-size:12.5px;color:#9AA6BA;line-height:1.9">
+              Token nằm ở <span style="font-family:'IBM Plex Mono';color:#7FA3FF">theme/globals.css</span> — Tailwind v4 <span style="font-family:'IBM Plex Mono';color:#E5E7EB">@theme inline</span>, dán thẳng vào dự án shadcn/ui.<br><br>
+              Mỗi item trong kit ghi sẵn chuỗi class ở chân khối. Thứ tự dựng: Foundations → Atoms → Molecules → Organisms.<br><br>
+              Ba thứ đừng đổi: teal cũ đã bỏ hẳn, hệ borderless (<span style="font-family:'IBM Plex Mono';color:#E5E7EB">--border: transparent</span>), và luật AI luôn chờ nút.
+            </div>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <footer style="border-top:1px solid rgba(255,255,255,.10);margin-top:48px;padding-top:24px;display:flex;justify-content:space-between;align-items:center;gap:24px">
+      <div style="font-size:11.5px;color:#93A1B8;line-height:1.8">Pebble Vina · Aurora v2.0 · theme kit cho POC “Đơn hàng Sao Đỏ” — ngày đóng băng 10/08 · 07:58<br>Không emoji · không icon fill · không màu đặc ngoài bảng brand · không viền trừ biến thể tương phản cao.</div>
+      <img src="assets/mark-light.png" alt="" style="width:40px;height:40px;object-fit:contain;opacity:.7">
+    </footer>
+  </div>
+
+  <div style="position:absolute;inset:0;z-index:3;pointer-events:none;opacity:.10;mix-blend-mode:overlay;background-size:140px 140px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+  <div style="position:absolute;inset:0;z-index:3;pointer-events:none;opacity:.05;mix-blend-mode:soft-light;background-size:52px 52px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showChecklist&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Nội dung&quot;}}">
+class Component extends DCLogic {
+  drawIcons() {
+    if (window.lucide) { window.lucide.createIcons(); return; }
+    if (this._t) return;
+    this._t = setInterval(() => {
+      if (window.lucide) { clearInterval(this._t); this._t = null; window.lucide.createIcons(); }
+    }, 120);
+  }
+  componentDidMount() { this.drawIcons(); }
+  componentDidUpdate() { this.drawIcons(); }
+  componentWillUnmount() { if (this._t) clearInterval(this._t); }
+  renderVals() {
+    return { showChecklist: this.props.showChecklist ?? true };
+  }
+}
+</script>
+</body>
+</html>

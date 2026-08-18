@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#f0eee9;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#2E63E6;text-decoration:none}
+  a:hover{color:#1E4BB8}
+  button{border:0;font:inherit;color:inherit;cursor:pointer;appearance:none;-webkit-appearance:none}
+</style>
+</helmet>
+
+<div style="padding:34px 40px 60px;display:flex;flex-direction:column;gap:26px;width:2280px">
+
+  <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+    <div style="width:640px;padding:18px 20px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px">
+      <div style="font-family:'Caveat';font-size:27px;font-weight:700;color:#1a1a1a;line-height:1.15">Luồng CRM của Pebble Sales — từ một cái tên lạ đến hợp đồng</div>
+      <div style="font-size:12.5px;line-height:1.75;color:rgba(0,0,0,.66);margin-top:9px;text-wrap:pretty">Một chiều, không nhánh rẽ tùy hứng: mọi lead đi đúng mười một chặng dưới đây, dù vào từ LinkedIn hay từ BD gặp ở triển lãm. Ba vai (Marketing · BD · Sale) đổi tay nhau tại hai cửa ải có điều kiện đo được, không phải bằng lời hứa. Bản vẽ này là hợp đồng nội bộ trước khi dựng màn — mọi màn CRM sau này phải chỉ được mình đứng ở chặng nào.</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:12px">
+        <a href="#L1" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L1 nguồn</a>
+        <a href="#L2" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L2 cửa vào</a>
+        <a href="#L3" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(46,99,230,.14);border-radius:4px;color:#1E4BB8">L3 chạm 1 · 10 trường</a>
+        <a href="#L4" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L4 cook + research</a>
+        <a href="#L5" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L5 định vị nhóm</a>
+        <a href="#L6" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L6 bảng hướng dẫn</a>
+        <a href="#L7" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(46,99,230,.14);border-radius:4px;color:#1E4BB8">L7 chạm 2</a>
+        <a href="#L8" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L8 chạm 3 · đồng hồ</a>
+        <a href="#L9" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L9 ranh giới vai</a>
+        <a href="#L10" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(255,205,0,.3);border-radius:4px;color:#1a1a1a">L10 gom màn</a>
+        <a href="#L11" style="font:600 10.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:4px;color:#1a1a1a">L11 engine</a>
+      </div>
+    </div>
+
+    <div style="width:430px;padding:18px 20px;background:rgba(255,205,0,.16);border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px">
+      <div style="font-family:'Caveat';font-size:22px;font-weight:600;color:#1a1a1a;margin-bottom:9px">Bốn luật cứng của luồng</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font:600 9px 'IBM Plex Mono',monospace;padding:2px 6px;background:#1a1a1a;color:#fff;border-radius:3px">1</span><span style="font-size:11.5px;line-height:1.55;color:rgba(0,0,0,.72)"><b>Không đủ 10 trường thì không sang chặng sau.</b> AI hay BD trực tiếp đều một form, không có bản rút gọn cho người quen.</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font:600 9px 'IBM Plex Mono',monospace;padding:2px 6px;background:#2E63E6;color:#fff;border-radius:3px">2</span><span style="font-size:11.5px;line-height:1.55;color:rgba(0,0,0,.72)"><b>Mỗi lần chạm phải sinh ra một hạn kế tiếp.</b> Không có hồ sơ nào ở trạng thái "đang chờ" mà không có ngày giờ và tên người.</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font:600 9px 'IBM Plex Mono',monospace;padding:2px 6px;background:#1a1a1a;color:#fff;border-radius:3px">3</span><span style="font-size:11.5px;line-height:1.55;color:rgba(0,0,0,.72)"><b>AI soạn, người gật.</b> AI được đọc, được gọi tên căn cứ, được đề xuất — nút gửi và nút chuyển chặng luôn của người.</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font:600 9px 'IBM Plex Mono',monospace;padding:2px 6px;background:#1a1a1a;color:#fff;border-radius:3px">4</span><span style="font-size:11.5px;line-height:1.55;color:rgba(0,0,0,.72)"><b>Im lặng không phải là thua.</b> Hết chạm 3 mà im thì rơi về Marketing nuôi, không đóng hồ sơ, không để BD giữ tiếp.</span></div>
+      </div>
+    </div>
+
+    <div style="width:330px;padding:16px 18px;background:#fff;border:1.25px dashed rgba(0,0,0,.35);border-radius:225px 12px 255px 12px/12px 255px 12px 225px">
+      <div style="font-size:11px;font-weight:600;color:rgba(0,0,0,.6);margin-bottom:8px">Đọc bản vẽ này thế nào</div>
+      <div style="font-size:11px;color:rgba(0,0,0,.58);line-height:1.7;text-wrap:pretty">Khối viền <span style="color:#1E4BB8;font-weight:600">xanh</span> = chỗ máy làm việc và chờ người gật. Khối viền <b>đen</b> = chỗ người làm. Khối <span style="border-bottom:1.25px dashed rgba(0,0,0,.4)">nét đứt</span> = chưa có màn, đang là đề xuất. Chữ mono = mã object thật trong kịch bản Sao Đỏ.</div>
+      <div style="font-size:11px;color:rgba(0,0,0,.58);line-height:1.7;margin-top:8px">Nhắc ai trong chat bằng mã chặng: <span style="font-family:'IBM Plex Mono';font-size:10px;padding:1px 5px;background:rgba(0,0,0,.07);border-radius:3px">L5</span>, <span style="font-family:'IBM Plex Mono';font-size:10px;padding:1px 5px;background:rgba(0,0,0,.07);border-radius:3px">L8</span>.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:stretch;gap:0;padding:14px 16px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;overflow:hidden">
+    <div style="flex:1;display:flex;align-items:center;gap:6px">
+      <div style="flex:1;padding:9px 10px;background:rgba(0,0,0,.045);border-radius:6px"><div style="font:600 9px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.42)">L1 · L2</div><div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-top:3px">Vào hệ · gộp · chia người</div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">Marketing chủ</div></div>
+      <div style="color:rgba(0,0,0,.3);font-size:15px">→</div>
+      <div style="flex:1;padding:9px 10px;background:rgba(46,99,230,.1);border-radius:6px"><div style="font:600 9px 'IBM Plex Mono',monospace;color:#1E4BB8">L3</div><div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-top:3px">Chạm 1 — lấy đủ 10 trường</div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">AI hoặc BD · cùng form</div></div>
+      <div style="color:rgba(0,0,0,.3);font-size:15px">→</div>
+      <div style="flex:1;padding:9px 10px;background:rgba(46,99,230,.1);border-radius:6px"><div style="font:600 9px 'IBM Plex Mono',monospace;color:#1E4BB8">L4 · L5</div><div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-top:3px">Cook data · research · định vị nhóm</div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">AI làm · TP gật</div></div>
+      <div style="color:rgba(0,0,0,.3);font-size:15px">→</div>
+      <div style="flex:1;padding:9px 10px;background:rgba(255,205,0,.2);border-radius:6px"><div style="font:600 9px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">L6</div><div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-top:3px">Bảng hướng dẫn tiếp cận</div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">cửa ải BD → Sale</div></div>
+      <div style="color:rgba(0,0,0,.3);font-size:15px">→</div>
+      <div style="flex:1;padding:9px 10px;background:rgba(0,0,0,.045);border-radius:6px"><div style="font:600 9px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.42)">L7 · L8</div><div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-top:3px">Chạm 2 · chạm 3 · đồng hồ</div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">Sale chủ · AI xếp việc</div></div>
+      <div style="color:rgba(0,0,0,.3);font-size:15px">→</div>
+      <div style="flex:1;padding:9px 10px;background:rgba(0,0,0,.045);border-radius:6px"><div style="font:600 9px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.42)">ra khỏi CRM</div><div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-top:3px">Báo giá → ký → <span style="font-family:'IBM Plex Mono';font-size:10.5px">SO-0891</span></div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">Supply nhận chủ</div></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap">
+
+    <div id="L1" style="width:520px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L1</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Nguồn vào — bảy cửa, một hồ sơ</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:12px;text-wrap:pretty">Mỗi nguồn khác nhau ba thứ: ai chịu trách nhiệm, dữ liệu tối thiểu để vào được hệ, và hạn chạm đầu. Không nguồn nào được vào bằng cách gõ tay vào bảng Excel rồi dán lên.</div>
+      <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;font-size:8.5px;font-weight:600;color:rgba(0,0,0,.45);padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12)">
+        <div>Nguồn</div><div>Vào hệ bằng gì · tối thiểu</div><div>Ai chịu</div><div>Hạn chạm 1</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);align-items:baseline">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">LinkedIn</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Tên công ty + chức danh người chạm · tin nhắn đầu do người gửi</div><div style="font-size:10px;color:rgba(0,0,0,.6)">Marketing</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">3 ngày</div>
+        </div>
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);align-items:baseline">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Facebook · Zalo OA</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Hội thoại có sẵn · số điện thoại lấy trong 3 lượt trao đổi đầu</div><div style="font-size:10px;color:rgba(0,0,0,.6)">Marketing</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:#1E4BB8">2 giờ</div>
+        </div>
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);align-items:baseline">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Form website</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Bản vẽ hoặc mô tả chi tiết cần gia công · email công ty</div><div style="font-size:10px;color:rgba(0,0,0,.6)">Marketing</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:#1E4BB8">2 giờ</div>
+        </div>
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);align-items:baseline;background:rgba(46,99,230,.07);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:4px">
+          <div style="font-size:11px;font-weight:600;color:#1E4BB8">Triển lãm · hội thảo</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Danh thiếp chụp tại chỗ · ghi âm 30 giây điều khách nói <span style="font-family:'IBM Plex Mono';font-size:9.5px;padding:1px 4px;background:rgba(46,99,230,.14);border-radius:3px">MTA-2026 → LD-0334</span></div><div style="font-size:10px;color:rgba(0,0,0,.6)">Marketing + BD</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">24 giờ</div>
+        </div>
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);align-items:baseline">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">BD trực tiếp</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Gõ cửa, gọi nguội, đi tuyến khu công nghiệp · nhập ngay trên mobile</div><div style="font-size:10px;color:rgba(0,0,0,.6)">BD</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">tại chỗ</div>
+        </div>
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.12);align-items:baseline">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Giới thiệu</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Tên người giới thiệu là trường bắt buộc — nếu trống thì thành nguồn nguội</div><div style="font-size:10px;color:rgba(0,0,0,.6)">Sale giữ khách cũ</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:#1E4BB8">4 giờ</div>
+        </div>
+        <div style="display:grid;grid-template-columns:118px 1fr 92px 74px;gap:6px;padding:8px 0;align-items:baseline">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Danh sách mua · quét</div><div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.5">Vào thùng riêng, gắn cờ chưa có thoả thuận liên hệ, không tính KPI</div><div style="font-size:10px;color:rgba(0,0,0,.6)">Marketing</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">7 ngày</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:9px 11px;background:rgba(255,205,0,.16);border:1.25px solid rgba(0,0,0,.3);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+        <div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.6">Nguồn không bao giờ bị ghi đè: một công ty vào từ ba cửa thì hồ sơ giữ cả ba, cột "nguồn đầu tiên" dùng để chấm điểm, cột "nguồn gần nhất" dùng để chia người.</div>
+      </div>
+    </div>
+
+    <div id="L2" style="width:560px;background:#fff;border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L2</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Cửa vào — gộp trùng, chấm sơ bộ, chia người, đặt đồng hồ</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:12px;text-wrap:pretty">Bốn việc máy làm trong vài giây, trước khi có người nào nhìn thấy lead. Chấm điểm ở chặng này <b>chỉ được dùng ba tín hiệu</b> — thứ gì cần research thì để đến L4, đừng đoán sớm rồi chia người sai.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;gap:10px;align-items:stretch">
+          <div style="width:26px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.35)">a</div>
+          <div style="flex:1;padding:10px 12px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Gộp trùng theo mã số thuế · tên miền email · số điện thoại</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.55;margin-top:4px">Trùng thì gộp thành một hồ sơ, giữ mọi lần chạm cũ. Nghi ngờ thì để cạnh nhau và hỏi người, không tự gộp — gộp sai hai khách cùng tập đoàn là lỗi khó lần ra.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:stretch">
+          <div style="width:26px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.35)">b</div>
+          <div style="flex:1;padding:10px 12px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Điểm sơ bộ = nguồn × ngành × dấu hiệu đã hỏi trước đây</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+              <span style="font:500 9.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.07);border-radius:3px">triển lãm +18</span>
+              <span style="font:500 9.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.07);border-radius:3px">cơ khí chính xác +22</span>
+              <span style="font:500 9.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(0,0,0,.07);border-radius:3px">đã hỏi 3 lần/18 tháng +26</span>
+              <span style="font:500 9.5px 'IBM Plex Mono',monospace;padding:3px 7px;background:rgba(46,99,230,.14);color:#1E4BB8;border-radius:3px">Sao Đỏ = 78</span>
+            </div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.55;margin-top:6px">Luật chấm điểm không do ai gõ tay: nó là bản in ra từ sổ thắng thua quý trước, và đổi được ở màn cấu hình.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:stretch">
+          <div style="width:26px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace;color:#1E4BB8">c</div>
+          <div style="flex:1;padding:10px 12px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Đã giao <span style="font-family:'IBM Plex Mono';font-size:11px">LD-0334</span> cho Trần Thu Hà · hẹn chạm đầu trước 09:12</div>
+            <div style="font-size:10px;color:rgba(0,0,0,.62);line-height:1.55;margin-top:5px">Căn cứ: tỉ lệ thắng ngành cơ khí của Hà 41% · đang giữ 6/10 hồ sơ · Hải Dương thuộc tuyến của Hà · lịch sáng nay còn trống 2 giờ</div>
+            <div style="display:flex;gap:6px;margin-top:9px">
+              <span style="height:22px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:10px;color:#fff;font-weight:600">Nhận việc</span>
+              <span style="height:22px;padding:0 11px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:10px">Đổi người</span>
+              <span style="height:22px;padding:0 11px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:10px">Xem luật chia</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:stretch">
+          <div style="width:26px;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.35)">d</div>
+          <div style="flex:1;padding:10px 12px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Đồng hồ chạm 1 chạy ngay, quá hạn thì chuyền — không báo cáo suông</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.55;margin-top:4px">Quá hạn lần một: nhắc người giữ. Lần hai: chuyền sang người rảnh nhất cùng tuyến và báo TP Kinh doanh. Đọc lịch và phép trong One nên biết ai thật sự đang vắng.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L3" style="width:1060px;background:#fff;border:1.5px solid #2E63E6;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#2E63E6;color:#fff;border-radius:4px">L3</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Chạm 1 — một mục tiêu duy nhất: lấy đủ mười trường</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:14px;text-wrap:pretty">Chạm 1 không bán, không báo giá, không hứa lịch giao. Nó chỉ đi lấy dữ liệu — vì L4 và L5 chạy được hay không phụ thuộc hoàn toàn vào chất lượng mười trường này. Hai đường lấy, một form: AI đi luồng chính trên kênh chữ, BD đi trực tiếp bằng đúng form đó trên mobile.</div>
+      <div style="display:flex;gap:16px;align-items:flex-start">
+
+        <div style="width:300px;display:flex;flex-direction:column;gap:9px">
+          <div style="padding:11px 13px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Đường A · AI hỏi trên kênh chữ</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.6;margin-top:5px">Zalo OA · Facebook · email · form web. Luồng chính bốn nhịp, mỗi nhịp gom 2–3 trường, không bao giờ hỏi quá 3 câu một lượt.</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+              <div style="font-size:10px;color:rgba(0,0,0,.7)"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:1px 5px;background:rgba(255,255,255,.7);border-radius:3px">1</span> Anh/chị cần gia công chi tiết gì, vật liệu nào</div>
+              <div style="font-size:10px;color:rgba(0,0,0,.7)"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:1px 5px;background:rgba(255,255,255,.7);border-radius:3px">2</span> Số lượng mỗi lô, bao lâu đặt lại, cần hàng khi nào</div>
+              <div style="font-size:10px;color:rgba(0,0,0,.7)"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:1px 5px;background:rgba(255,255,255,.7);border-radius:3px">3</span> Đang mua của ai, vì sao tìm chỗ mới</div>
+              <div style="font-size:10px;color:rgba(0,0,0,.7)"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:1px 5px;background:rgba(255,255,255,.7);border-radius:3px">4</span> Ai quyết, quy trình mua, gọi giờ nào tiện</div>
+            </div>
+            <div style="font-size:10px;color:rgba(0,0,0,.62);line-height:1.55;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(0,0,0,.2)">AI dừng luồng và gọi người ngay khi khách hỏi giá, gửi bản vẽ, hoặc nhắc deadline dưới 7 ngày. Ba tình huống đó là tín hiệu nóng, không để máy trả lời.</div>
+          </div>
+          <div style="padding:11px 13px;border:1.5px solid #1a1a1a;border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Đường B · BD trực tiếp, cùng form</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.6;margin-top:5px">Gặp mặt, gọi điện, đi tuyến. Form trên mobile 440, ghi âm bật kèm — AI rút trường từ bản ghi và điền trước, BD chỉ sửa.</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.6;margin-top:6px">Không có ngoại lệ "khách quen khỏi cần nhập": trường thiếu thì hồ sơ đứng ở L3, và đứng ở L3 thì không lên bảng cơ hội của ai.</div>
+          </div>
+          <div style="padding:11px 13px;background:rgba(255,205,0,.16);border:1.25px solid rgba(0,0,0,.3);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-bottom:5px">Luật đủ · luật thiếu</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.68);line-height:1.6">Đủ <b>10/10</b> → tự chạy L4. Đủ <b>3 trường lõi</b> (chi tiết gia công · sản lượng &amp; mốc · người quyết) và ≥7/10 → chạy L4 ở chế độ tin thấp, đánh dấu vàng. Dưới mức đó → về hàng đợi chạm lại, không được gửi báo giá.</div>
+          </div>
+        </div>
+
+        <div style="flex:1">
+          <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;font-size:8.5px;font-weight:600;color:rgba(0,0,0,.45);padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12)">
+            <div>#</div><div>Trường</div><div>Sao Đỏ trả lời gì</div><div>Nuôi cho chặng</div>
+          </div>
+          <div style="display:flex;flex-direction:column">
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">01</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Pháp nhân &amp; mã số thuế <span style="font-size:9px;color:#B0121C;font-weight:400">· lõi để gộp</span></div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">CP Cơ điện Sao Đỏ · Hải Dương</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">L2 gộp</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">02</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Ngành &amp; sản phẩm cuối</div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Cơ điện · cụm truyền động cho dây chuyền đóng gói</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">L5</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(46,99,230,.06);margin:0 -8px;padding-left:8px;padding-right:8px">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:#1E4BB8">03</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Chi tiết cần gia công · vật liệu · dung sai <span style="font-size:9px;color:#B0121C;font-weight:400">· lõi</span></div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Trục truyền TR-2040 · thép Ø40 · dung sai h7</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:#1E4BB8">báo giá</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(46,99,230,.06);margin:0 -8px;padding-left:8px;padding-right:8px">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:#1E4BB8">04</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Sản lượng &amp; nhịp đặt lại <span style="font-size:9px;color:#B0121C;font-weight:400">· lõi</span></div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">500 chiếc/lô · dự kiến 2 lô/năm</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:#1E4BB8">L5 · giá</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">05</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Mốc cần hàng</div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Lô đầu trong tháng 8</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">năng lực X1</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">06</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Khung giá đang mua · ngân sách</div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Quanh 3,6–3,8 tr/chiếc</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">L6 · giá</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">07</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Đang mua của ai · vì sao đổi</div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Một xưởng ở Bắc Ninh · trễ hai lô liền</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">L6 lời mở</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(46,99,230,.06);margin:0 -8px;padding-left:8px;padding-right:8px">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:#1E4BB8">08</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Người quyết &amp; người dùng <span style="font-size:9px;color:#B0121C;font-weight:400">· lõi</span></div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Nguyễn Văn Đạt · Phó giám đốc kỹ thuật</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:#1E4BB8">L7 chọn sale</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">09</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Quy trình mua · điều khoản thanh toán</div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Cần 2 vòng báo giá · thanh toán 30 ngày</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">Finance</div>
+            </div>
+            <div style="display:grid;grid-template-columns:20px 1fr 1fr 82px;gap:8px;padding:7px 0;align-items:baseline">
+              <div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.4)">10</div><div style="font-size:11px;color:#1a1a1a;font-weight:600">Kênh &amp; giờ liên lạc ưa dùng</div><div style="font-size:10.5px;color:rgba(0,0,0,.6);line-height:1.45">Zalo · trả lời trong 2 giờ · tránh giờ họp sáng thứ hai</div><div style="font:500 9.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">L8 đồng hồ</div>
+            </div>
+          </div>
+          <div style="margin-top:11px;display:flex;gap:9px;align-items:center;padding:9px 11px;border:1.25px dashed rgba(0,0,0,.3);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font:600 12px 'IBM Plex Mono',monospace;color:#1a1a1a">10/10</div>
+            <div style="flex:1;height:7px;background:rgba(0,0,0,.1);border-radius:4px"><div style="width:100%;height:7px;background:#2E63E6;border-radius:4px"></div></div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.6)">Sao Đỏ đủ trường lúc 08/07 · 11:30 → tự đẩy sang L4</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L4" style="width:1060px;background:#fff;border:1.5px solid #2E63E6;border-radius:225px 14px 255px 14px/14px 255px 14px 225px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#2E63E6;color:#fff;border-radius:4px">L4</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Cook data &amp; research sâu — máy đi tìm, người gật</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:14px;text-wrap:pretty">Mười trường là điều khách <b>nói</b>. L4 đi tìm điều khách <b>không nói</b>, rồi đối chiếu hai bên. Mọi kết luận phải kèm nguồn và độ tin; không tìm được thì hiện thẳng "không tìm được" chứ không suy diễn cho đẹp bảng.</div>
+      <div style="display:flex;gap:12px;align-items:stretch">
+        <div style="width:216px;padding:11px 13px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-bottom:7px">Vào</div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="font-size:10.5px;color:rgba(0,0,0,.65)">10 trường từ L3</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.65)">Website · trang sản phẩm khách</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.65)">LinkedIn: quy mô, ai mới vào, ai vừa đi</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.65)">Đăng ký kinh doanh · vốn · nhóm ngành</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.65)">Tin tuyển dụng · tin dự án · tin đầu tư</div>
+            <div style="font-size:10.5px;color:rgba(0,0,0,.65)">Dữ liệu nội bộ: từng hỏi giá bao lần, thắng thua ngành này</div>
+          </div>
+          <div style="font-size:10px;color:rgba(0,0,0,.5);line-height:1.55;margin-top:9px;padding-top:8px;border-top:1px dashed rgba(0,0,0,.18)">AI đọc qua đồ thị object và bị chặn bởi quyền — không có cửa sau. Mỗi lần đọc ghi vết.</div>
+        </div>
+        <div style="display:flex;align-items:center;color:rgba(0,0,0,.3);font-size:16px">→</div>
+        <div style="flex:1;padding:12px 14px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font-size:11.5px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Ra — sáu kết luận, mỗi kết luận một độ tin</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+            <div style="padding:7px 9px;background:rgba(255,255,255,.62);border-radius:5px"><div style="font-size:10.5px;color:#1a1a1a;font-weight:600">Sức mua thật: 3–4 tỷ/năm cho gia công ngoài</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:3px">Căn cứ: vốn điều lệ · 2 dây chuyền công bố 2025 · <span style="font-family:'IBM Plex Mono';font-size:9px">tin 82%</span></div></div>
+            <div style="padding:7px 9px;background:rgba(255,255,255,.62);border-radius:5px"><div style="font-size:10.5px;color:#1a1a1a;font-weight:600">Đau thật là giao trễ, không phải giá</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:3px">Căn cứ: trường 07 · hai tin tuyển kỹ sư kế hoạch · <span style="font-family:'IBM Plex Mono';font-size:9px">tin 74%</span></div></div>
+            <div style="padding:7px 9px;background:rgba(255,255,255,.62);border-radius:5px"><div style="font-size:10.5px;color:#1a1a1a;font-weight:600">Khớp năng lực X1: 92% — tiện CNC Ø40 h7 là việc thường ngày</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:3px">Căn cứ: định mức 4 đơn tương tự 2024–2025 · <span style="font-family:'IBM Plex Mono';font-size:9px">tin 90%</span></div></div>
+            <div style="padding:7px 9px;background:rgba(255,255,255,.62);border-radius:5px"><div style="font-size:10.5px;color:#1a1a1a;font-weight:600">Người quyết thật là PGĐ kỹ thuật, phòng mua chỉ chốt giấy</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:3px">Căn cứ: trường 08 · sơ đồ tổ chức công bố · <span style="font-family:'IBM Plex Mono';font-size:9px">tin 68%</span></div></div>
+            <div style="padding:7px 9px;background:rgba(255,255,255,.62);border-radius:5px"><div style="font-size:10.5px;color:#1a1a1a;font-weight:600">Nhịp mua theo mùa: hỏi giá tháng 7 và tháng 12</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:3px">Căn cứ: 3 lần hỏi giá trong sổ khách · <span style="font-family:'IBM Plex Mono';font-size:9px">tin 61%</span></div></div>
+            <div style="padding:7px 9px;background:rgba(255,255,255,.4);border:1.25px dashed rgba(0,0,0,.28);border-radius:5px"><div style="font-size:10.5px;color:rgba(0,0,0,.6);font-weight:600">Không tìm được: ai đang là nhà cung cấp chính</div><div style="font-size:9.5px;color:rgba(0,0,0,.5);margin-top:3px">Đưa thành câu hỏi bắt buộc cho chạm 2</div></div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+            <span style="height:23px;padding:0 13px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:10px;color:#fff;font-weight:600">Xác nhận định vị</span>
+            <span style="height:23px;padding:0 11px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:10px">Bác một kết luận</span>
+            <span style="height:23px;padding:0 11px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:10px">Xem 11 nguồn đã đọc</span>
+            <span style="font-size:10px;color:rgba(0,0,0,.5);margin-left:4px">Chưa bấm thì L5 chưa có nhóm, và L6 chưa in bảng nào.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L5" style="width:700px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L5</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Định vị nhóm — hai trục, năm nhóm</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:13px;text-wrap:pretty">Không chấm điểm 0–100 rồi xếp hạng — điểm số không nói được phải làm gì. Hai trục: <b>giá trị vòng đời</b> (sức mua × nhịp đặt lại) và <b>độ khớp năng lực xưởng</b>. Nhóm quyết định cả nhịp chạm, người bán, và mức giảm giá được phép.</div>
+      <div style="display:flex;gap:14px;align-items:stretch">
+        <div style="width:250px;display:flex;flex-direction:column">
+          <div style="font-size:9px;font-weight:600;color:rgba(0,0,0,.45);margin-bottom:5px">Giá trị vòng đời ↑ · Độ khớp năng lực →</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:6px;height:194px">
+            <div style="padding:8px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;flex-direction:column"><div style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">B</div><div style="font-size:10.5px;font-weight:600;color:#1a1a1a;margin-top:3px;line-height:1.35">Đơn lớn một lần</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:auto;line-height:1.4">giá trị cao · khớp thấp</div></div>
+            <div style="padding:8px 9px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.09);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;flex-direction:column"><div style="font:600 10px 'IBM Plex Mono',monospace;color:#1E4BB8">A</div><div style="font-size:10.5px;font-weight:600;color:#1a1a1a;margin-top:3px;line-height:1.35">Xương sống</div><div style="font-size:9.5px;color:rgba(0,0,0,.6);margin-top:auto;line-height:1.4">Sao Đỏ ở đây</div></div>
+            <div style="padding:8px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;flex-direction:column"><div style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">D</div><div style="font-size:10.5px;font-weight:600;color:#1a1a1a;margin-top:3px;line-height:1.35">Săn giá</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:auto;line-height:1.4">thấp · thấp</div></div>
+            <div style="padding:8px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;flex-direction:column"><div style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">C</div><div style="font-size:10.5px;font-weight:600;color:#1a1a1a;margin-top:3px;line-height:1.35">Nhỏ đều tay</div><div style="font-size:9.5px;color:rgba(0,0,0,.55);margin-top:auto;line-height:1.4">lấp khe máy trống</div></div>
+          </div>
+          <div style="margin-top:7px;padding:7px 9px;border:1.25px dashed rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+            <div style="font-size:10px;color:rgba(0,0,0,.6);line-height:1.55"><span style="font-family:'IBM Plex Mono';font-size:9.5px;font-weight:600">E · chưa đủ dữ liệu</span> — nằm ngoài ô, không phải nhóm thứ năm cho vui: hồ sơ dưới 7/10 trường rơi vào đây và chỉ có một hành động hợp lệ là hỏi tiếp.</div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <div style="display:grid;grid-template-columns:22px 1fr 92px 66px;gap:7px;font-size:8.5px;font-weight:600;color:rgba(0,0,0,.45);padding-bottom:5px;border-bottom:1px solid rgba(0,0,0,.12)"><div></div><div>Cách đánh</div><div>Ai bán</div><div>Giảm tối đa</div></div>
+          <div style="display:grid;grid-template-columns:22px 1fr 92px 66px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(46,99,230,.06);margin:0 -8px;padding-left:8px;padding-right:8px"><div style="font:600 10px 'IBM Plex Mono',monospace;color:#1E4BB8">A</div><div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.5">Đánh bằng năng lực và đúng hạn. Mời thăm xưởng, chào lô mẫu trước khi chào cả đơn.</div><div style="font-size:10px;color:rgba(0,0,0,.62)">Sale mạnh nhất ngành đó</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">6%</div></div>
+          <div style="display:grid;grid-template-columns:22px 1fr 92px 66px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline"><div style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">B</div><div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.5">Hỏi kỹ khả thi trước khi hứa. Cần Factory xác nhận năng lực mới được báo giá.</div><div style="font-size:10px;color:rgba(0,0,0,.62)">Sale + TP Kế hoạch</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">3%</div></div>
+          <div style="display:grid;grid-template-columns:22px 1fr 92px 66px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline"><div style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">C</div><div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.5">Đánh bằng thủ tục gọn: báo giá trong 24 giờ, không đàm phán vòng hai.</div><div style="font-size:10px;color:rgba(0,0,0,.62)">Sale trẻ · phần lớn tự phục vụ</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">2%</div></div>
+          <div style="display:grid;grid-template-columns:22px 1fr 92px 66px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline"><div style="font:600 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">D</div><div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.5">Chỉ báo giá theo bảng, không tùy biến, không thăm xưởng. Nhận thì làm, không thì thôi.</div><div style="font-size:10px;color:rgba(0,0,0,.62)">Không giao ai · AI xử</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.6)">0%</div></div>
+          <div style="padding:8px 10px;background:rgba(255,205,0,.16);border:1.25px solid rgba(0,0,0,.28);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;margin-top:2px">
+            <div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.6">Nhóm không đóng đinh: mỗi lần chạm mới, mỗi đơn đóng, nhóm được tính lại. Đổi nhóm là một sự kiện có ghi vết và có thông báo cho người đang giữ — không đổi âm thầm.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L6" style="width:1340px;background:#fff;border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L6</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Bảng hướng dẫn tiếp cận — thứ Sale đọc 30 giây trước khi bấm gọi</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:13px;text-wrap:pretty">Đây là sản phẩm cuối của L4 + L5, và là cửa ải bàn giao BD → Sale: không có bảng này thì hồ sơ chưa được lên bảng cơ hội. Bảng in ra theo nhóm, nhưng ba cột phải điền bằng dữ liệu riêng của khách này, không phải câu mẫu.</div>
+      <div style="display:grid;grid-template-columns:126px repeat(5,1fr);gap:8px">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.45)"></div>
+        <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.55)">Mở đầu bằng gì</div>
+        <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.55)">Bằng chứng phải đưa</div>
+        <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.55)">Câu hỏi buộc phải hỏi</div>
+        <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.55)">Cấm</div>
+        <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.55)">Gặp lại nếu im</div>
+
+        <div style="padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.09);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"><div style="font:600 11px 'IBM Plex Mono',monospace;color:#1E4BB8">Nhóm A</div><div style="font-size:10px;color:rgba(0,0,0,.62);margin-top:4px;line-height:1.45">Sao Đỏ · xương sống</div></div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.55">Nhắc thẳng chuyện trễ hai lô của nhà cung cấp cũ, và hỏi mốc nào không được trễ nữa.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.55">Bốn đơn tiện Ø40 h7 đã làm 2024–2025, chưa lần nào giao trễ. Ảnh lô mẫu ra khỏi CNC-05.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.55">Ai đang là nhà cung cấp chính — ô L4 không tìm được. Và ai ký ngoài anh Đạt.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.55">Không giảm giá ở chạm 2. Không hứa mốc giao trước khi Factory xác nhận X1.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.55">Chạm 2 sau <b>3 ngày</b> · đổi kênh sang Zalo theo trường 10</div>
+
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"><div style="font:600 11px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.55)">Nhóm B</div><div style="font-size:10px;color:rgba(0,0,0,.5);margin-top:4px;line-height:1.45">đơn lớn một lần</div></div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Đặt câu hỏi khả thi trước, không chào năng lực chưa chắc có.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Đơn tương tự gần nhất + giới hạn máy nói thật.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Đơn này có lặp lại không, hay đúng một lần.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Không nhận nếu phải mua máy mới. Không ép Factory.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Chạm 2 sau <b>5 ngày</b> · email kèm hồ sơ năng lực</div>
+
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"><div style="font:600 11px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.55)">Nhóm C</div><div style="font-size:10px;color:rgba(0,0,0,.5);margin-top:4px;line-height:1.45">nhỏ đều tay</div></div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Chào tốc độ: gửi bản vẽ, 24 giờ có giá.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Bảng giá theo nhóm chi tiết, không cần thăm xưởng.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Mỗi tháng cần bao nhiêu chi tiết loại này.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Không cho Sale đàm phán vòng hai — hết biên.</div>
+        <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.55">Chạm 2 sau <b>7 ngày</b> · một lần, rồi về nuôi</div>
+
+        <div style="padding:9px 10px;border:1.25px dashed rgba(0,0,0,.32);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"><div style="font:600 11px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">Nhóm D</div><div style="font-size:10px;color:rgba(0,0,0,.45);margin-top:4px;line-height:1.45">săn giá</div></div>
+        <div style="padding:9px 10px;border:1.25px dashed rgba(0,0,0,.25);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.52);line-height:1.55">Không có lời mở riêng — trả lời bằng bảng giá.</div>
+        <div style="padding:9px 10px;border:1.25px dashed rgba(0,0,0,.25);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.52);line-height:1.55">Không đưa gì thêm.</div>
+        <div style="padding:9px 10px;border:1.25px dashed rgba(0,0,0,.25);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.52);line-height:1.55">Không hỏi. Chờ khách quay lại.</div>
+        <div style="padding:9px 10px;border:1.25px dashed rgba(0,0,0,.25);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.52);line-height:1.55">Không tốn giờ Sale. Không thăm xưởng.</div>
+        <div style="padding:9px 10px;border:1.25px dashed rgba(0,0,0,.25);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.52);line-height:1.55">Không hẹn lại · vào danh sách nhận bảng giá</div>
+      </div>
+    </div>
+
+    <div id="L7" style="width:760px;background:#fff;border:1.5px solid #2E63E6;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#2E63E6;color:#fff;border-radius:4px">L7</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Chạm 2 — hệ xếp việc kế tiếp và đề xuất người phù hợp</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:13px;text-wrap:pretty">Chạm 2 là chỗ đổi tay: BD đã lấy dữ liệu xong, giờ chọn người thật sự có khả năng chốt. Hệ đề xuất hai thứ cùng lúc — <b>làm gì</b> và <b>ai làm</b> — mỗi thứ kèm căn cứ đếm được, và cả hai đều chờ nút.</div>
+      <div style="display:flex;gap:12px;align-items:stretch">
+        <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.5)">Ba hành động xếp theo giá trị kỳ vọng</div>
+          <div style="padding:9px 11px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:11px;font-weight:600;color:#1a1a1a">Mời thăm xưởng X1 trước khi báo giá</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:#1E4BB8">+14% thắng</div></div>
+            <div style="font-size:10px;color:rgba(0,0,0,.62);line-height:1.55;margin-top:4px">Căn cứ: 6/9 đơn nhóm A thắng năm nay đều có thăm xưởng trước · khách đau chuyện trễ, thăm xưởng là câu trả lời trực quan nhất</div>
+          </div>
+          <div style="padding:9px 11px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:11px;color:rgba(0,0,0,.75)">Chào lô mẫu 20 chiếc, giá riêng</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.55)">+9%</div></div>
+            <div style="font-size:10px;color:rgba(0,0,0,.55);line-height:1.5;margin-top:4px">Căn cứ: khách chưa từng mua · X1 còn khe trống tuần 33</div>
+          </div>
+          <div style="padding:9px 11px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:11px;color:rgba(0,0,0,.75)">Gửi ngay báo giá đủ 500 chiếc</div><div style="font:500 10px 'IBM Plex Mono',monospace;color:#B0121C">−6%</div></div>
+            <div style="font-size:10px;color:rgba(0,0,0,.55);line-height:1.5;margin-top:4px">Căn cứ: chưa chốt được dung sai và mốc giao — báo giá sớm thường phải sửa, và mỗi lần sửa mất 4 ngày</div>
+          </div>
+          <div style="padding:8px 10px;border:1.25px dashed rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;margin-top:2px">
+            <div style="font-size:10px;color:rgba(0,0,0,.6);line-height:1.55">Hành động bị loại cũng hiện, kèm lý do loại. Sale vẫn chọn được — nhưng phải bấm qua một câu cảnh báo, và lựa chọn đó vào sổ thắng thua.</div>
+          </div>
+        </div>
+        <div style="width:262px;display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:9.5px;font-weight:600;color:rgba(0,0,0,.5)">Đề xuất người chốt</div>
+          <div style="padding:9px 11px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+            <div style="font-size:11.5px;font-weight:600;color:#1a1a1a">Trần Thu Hà</div>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(0,0,0,.65)"><span>Thắng ngành cơ khí</span><span style="font-family:'IBM Plex Mono';font-weight:600">41%</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(0,0,0,.65)"><span>Đang giữ</span><span style="font-family:'IBM Plex Mono';font-weight:600">6/10</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(0,0,0,.65)"><span>Tuyến Hải Dương</span><span style="font-family:'IBM Plex Mono';font-weight:600">có</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:rgba(0,0,0,.65)"><span>Phép 12–14/08</span><span style="font-family:'IBM Plex Mono';font-weight:600;color:#8A5A00">đã duyệt</span></div>
+            </div>
+            <div style="font-size:10px;color:rgba(0,0,0,.62);line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(0,0,0,.2)">Vì có phép giữa tuần: hệ đề xuất chốt lịch thăm xưởng <b>trước 11/08</b>, và đặt người dự phòng cùng tuyến.</div>
+          </div>
+          <div style="padding:8px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:10.5px;color:rgba(0,0,0,.7)">Dự phòng · <span style="font-family:'IBM Plex Mono';font-size:10px;padding:1px 5px;border:1.25px dashed rgba(0,0,0,.4);border-radius:3px">KD-02</span></div><div style="font:500 10px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">3/10</div></div>
+            <div style="font-size:9.5px;color:rgba(0,0,0,.52);line-height:1.5;margin-top:4px">Chưa đặt tên trong kịch bản — chờ bạn chốt.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:auto">
+            <span style="height:24px;padding:0 13px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:#fff;font-weight:600">Giao Hà · đặt lịch thăm xưởng</span>
+            <div style="display:flex;gap:5px">
+              <span style="flex:1;height:24px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px">Chọn người khác</span>
+              <span style="flex:1;height:24px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px">Hoãn 1 ngày</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L8" style="width:556px;background:#fff;border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L8</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Đồng hồ gặp lại — cấu hình, không phải thói quen</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:12px;text-wrap:pretty">Khách không trả lời là trạng thái thường gặp nhất, nên nó phải có luật mặc định thay vì phụ thuộc người nào nhớ dai. Bảng dưới là mặc định của cả hệ; nhóm khách ở <a href="#L5">L5</a> ghi đè được, và TP Kinh doanh đổi được cho từng chiến dịch.</div>
+      <div style="display:grid;grid-template-columns:74px 1fr 82px 66px;gap:7px;font-size:8.5px;font-weight:600;color:rgba(0,0,0,.45);padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12)">
+        <div>Chặng</div><div>Máy làm gì khi im lặng</div><div>Kênh đổi sang</div><div>Chờ</div>
+      </div>
+      <sc-for list="{{ nhip }}" as="row" hint-placeholder-count="4">
+        <div style="display:grid;grid-template-columns:74px 1fr 82px 66px;gap:7px;padding:8px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace;color:#1a1a1a">{{ row.buoc }}</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.68);line-height:1.5">{{ row.viec }}</div>
+          <div style="font-size:10px;color:rgba(0,0,0,.6)">{{ row.kenh }}</div>
+          <div style="font:600 10.5px 'IBM Plex Mono',monospace;color:#1E4BB8">{{ row.cho }}</div>
+        </div>
+      </sc-for>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:12px">
+        <div style="padding:9px 11px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Ba cái phanh</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.62);line-height:1.6;margin-top:4px">Trần 2 chạm/tuần/khách trên mọi kênh cộng lại · khách nhắn "đừng liên lạc nữa" thì dừng toàn hệ trong 1 phút · mỗi chuỗi chạm có nút tắt nằm ngay trên hồ sơ, không phải trong cấu hình.</div>
+        </div>
+        <div style="padding:9px 11px;background:rgba(255,205,0,.16);border:1.25px solid rgba(0,0,0,.28);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Hết chạm 3 thì đi đâu</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.6;margin-top:4px">Về <b>Marketing nuôi</b> — không đóng "thua", vì thua cần lý do và im lặng không phải lý do. Hồ sơ giữ nguyên 10 trường và bảng hướng dẫn; lần sau khách quay lại thì vào thẳng <a href="#L7">L7</a>, không phải hỏi lại từ đầu. Đó là chỗ CRM này khác một danh sách liên hệ.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L9" style="width:756px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L9</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Ranh giới Marketing · BD · Sale — hai cửa ải, không có vùng xám</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:13px;text-wrap:pretty">Chỗ mọi CRM chết là chỗ bàn giao: Marketing bảo đã giao, BD bảo lead rác, Sale bảo không ai nói gì với tôi. Cách chữa duy nhất là đặt điều kiện đo được lên từng cửa, và cho hệ từ chối bàn giao khi chưa đủ.</div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:grid;grid-template-columns:84px 1fr 1fr 1fr;gap:8px;align-items:stretch">
+          <div style="display:flex;align-items:center;font-size:10px;font-weight:600;color:rgba(0,0,0,.5)">Vai</div>
+          <div style="padding:8px 10px;background:rgba(0,0,0,.05);border-radius:6px;font-size:11px;font-weight:600;color:#1a1a1a">Marketing</div>
+          <div style="padding:8px 10px;background:rgba(0,0,0,.05);border-radius:6px;font-size:11px;font-weight:600;color:#1a1a1a">BD</div>
+          <div style="padding:8px 10px;background:rgba(46,99,230,.1);border-radius:6px;font-size:11px;font-weight:600;color:#1E4BB8">Sale</div>
+        </div>
+        <div style="display:grid;grid-template-columns:84px 1fr 1fr 1fr;gap:8px;align-items:stretch;margin-top:7px">
+          <div style="display:flex;align-items:center;font-size:10px;font-weight:600;color:rgba(0,0,0,.5)">Giữ chặng</div>
+          <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.68);line-height:1.5"><a href="#L1">L1</a> · <a href="#L2">L2</a> và toàn bộ hàng nuôi sau <a href="#L8">L8</a></div>
+          <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.68);line-height:1.5"><a href="#L3">L3</a> → <a href="#L6">L6</a>: lấy trường, chạy research, in bảng hướng dẫn</div>
+          <div style="padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.07);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.5"><a href="#L7">L7</a> → báo giá → ký, rồi bàn giao Supply</div>
+        </div>
+        <div style="display:grid;grid-template-columns:84px 1fr 1fr 1fr;gap:8px;align-items:stretch;margin-top:7px">
+          <div style="display:flex;align-items:center;font-size:10px;font-weight:600;color:rgba(0,0,0,.5)">Đo bằng</div>
+          <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.68);line-height:1.5">Số lead <b>đủ điều kiện vào L3</b>, không phải số lead thô</div>
+          <div style="padding:9px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.68);line-height:1.5">Tỉ lệ hồ sơ đủ 10/10 trường và thời gian từ L1 đến L6</div>
+          <div style="padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.07);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;font-size:10.5px;color:rgba(0,0,0,.7);line-height:1.5">Tỉ lệ thắng và số ngày để chốt, chấm theo nhóm khách</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:13px">
+        <div style="flex:1;padding:10px 12px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Cửa ải 1 · Marketing → BD</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.65);line-height:1.6;margin-top:4px">Có pháp nhân xác định được + một kênh liên lạc trả lời được + đã gộp trùng. Thiếu thì lead ở lại hàng nuôi, BD không nhận và cũng không bị tính.</div>
+        </div>
+        <div style="flex:1;padding:10px 12px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a">Cửa ải 2 · BD → Sale</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.65);line-height:1.6;margin-top:4px">Đủ 10/10 trường (hoặc 3 lõi + ≥7) · định vị đã được người xác nhận ở <a href="#L4">L4</a> · bảng hướng dẫn <a href="#L6">L6</a> đã in. Thiếu một trong ba thì nút "Giao Sale" không bật.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L10" style="width:1120px;background:#fff;border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L10</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Gom màn — CRM tạm có gì, còn thiếu gì</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:13px;text-wrap:pretty">Đối chiếu luồng trên với những gì đã dựng trong dự án này. Sáu màn đã lên nền Aurora nằm ở nửa sau của luồng — tức phần <b>đã chốt deal</b>; nửa đầu (vào hệ, lấy trường, định vị) hiện mới có phác thảo. Đó chính là hàng đợi dựng tiếp.</div>
+      <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;font-size:8.5px;font-weight:600;color:rgba(0,0,0,.45);padding-bottom:6px;border-bottom:1px solid rgba(0,0,0,.12)">
+        <div>Chặng</div><div>Việc trên luồng</div><div>Màn đang có</div><div>Trạng thái</div>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L1 · L2</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Cửa vào lead, gộp trùng, chia người, đặt đồng hồ</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)">Wireframe 2a trong <i>Sales - Wireframe nhóm màn</i></div><div style="font-size:10px;font-weight:600;color:#8A5A00">mới phác thảo</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(176,18,28,.05);margin:0 -8px;padding-left:8px;padding-right:8px">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L3</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Form 10 trường · AI hỏi trên kênh chữ · BD nhập mobile</div><div style="font-size:10.5px;color:rgba(0,0,0,.5)">chưa có màn nào</div><div style="font-size:10px;font-weight:600;color:#B0121C">thiếu · ưu tiên 1</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(176,18,28,.05);margin:0 -8px;padding-left:8px;padding-right:8px">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L4 · L5</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Cook data, research sâu, xác nhận định vị nhóm</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)">gần nhất: <i>One 04 - Trợ lý AI</i> (khung hội thoại, không có khối định vị)</div><div style="font-size:10px;font-weight:600;color:#B0121C">thiếu · ưu tiên 2</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline;background:rgba(176,18,28,.05);margin:0 -8px;padding-left:8px;padding-right:8px">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L6</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Bảng hướng dẫn tiếp cận theo nhóm</div><div style="font-size:10.5px;color:rgba(0,0,0,.5)">chưa có màn nào</div><div style="font-size:10px;font-weight:600;color:#B0121C">thiếu · ưu tiên 3</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L7</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Thẻ chạm khách: cầm gì trước khi bấm gọi</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)"><i>Sales 04 - Thẻ chạm khách</i> · 3 thiết bị</div><div style="font-size:10px;font-weight:600;color:#0F7A4B">đã dựng Aurora</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L7 · L8</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Sổ khách hàng: ai đang trôi, ai đang bị chặn</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)"><i>Sales 03 - Sổ khách hàng</i> · 3 thiết bị</div><div style="font-size:10px;font-weight:600;color:#0F7A4B">đã dựng Aurora</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L8</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Cấu hình nhịp chạm · trần chạm · phanh</div><div style="font-size:10.5px;color:rgba(0,0,0,.5)">chưa có màn nào</div><div style="font-size:10px;font-weight:600;color:#B0121C">thiếu · ưu tiên 4</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">L8</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Chuỗi giữ ấm khi im lặng · nhật ký hội thoại</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)">Wireframe 2d · 2f</div><div style="font-size:10px;font-weight:600;color:#8A5A00">mới phác thảo</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">sau L7</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Bàn dựng báo giá nối giá vốn thật</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)">Wireframe 1d</div><div style="font-size:10px;font-weight:600;color:#8A5A00">mới phác thảo</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">ra khỏi CRM</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Ký xong sinh đơn bán · bàn giao Supply</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)"><i>Sales 01 - Ký xong đơn bán tự có</i></div><div style="font-size:10px;font-weight:600;color:#0F7A4B">đã dựng Aurora</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;border-bottom:1px dashed rgba(0,0,0,.1);align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">vòng ngoài</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Tháng này chốt bao nhiêu · cổng khách hàng</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)"><i>Sales 02</i> · <i>Sales 05</i></div><div style="font-size:10px;font-weight:600;color:#0F7A4B">đã dựng Aurora</div>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr 1fr 116px;gap:7px;padding:7px 0;align-items:baseline">
+          <div style="font:600 10px 'IBM Plex Mono',monospace">nền One</div><div style="font-size:10.5px;color:rgba(0,0,0,.68)">Duyệt giảm giá vượt biên · tìm toàn cục · thông báo đa kênh</div><div style="font-size:10.5px;color:rgba(0,0,0,.6)"><i>One 02</i> · <i>One 03</i> · <i>One 05</i></div><div style="font-size:10px;font-weight:600;color:#0F7A4B">đã dựng Aurora</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <div style="flex:1;padding:11px 13px;background:rgba(46,99,230,.07);border:1.5px solid #2E63E6;border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font-family:'Caveat';font-size:19px;font-weight:600;color:#1a1a1a;margin-bottom:5px">Bốn màn dựng tiếp, theo thứ tự này</div>
+          <div style="font-size:11.5px;color:rgba(0,0,0,.7);line-height:1.7;text-wrap:pretty">① <b>Form 10 trường</b> — desktop + mobile 440, vì đây là chỗ dữ liệu vào và không có nó thì mọi màn AI sau đều là bịa. ② <b>Khối định vị + bảng hướng dẫn</b> — một màn hai tầng, đây là màn showoff mới của Sales. ③ <b>Cửa vào lead</b> — nâng wireframe 2a lên Aurora. ④ <b>Cấu hình nhịp chạm</b> — màn nhỏ nhưng là chỗ người mua thấy mình cầm cương.</div>
+        </div>
+        <div style="width:330px;padding:11px 13px;border:1.25px dashed rgba(0,0,0,.32);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font-size:11px;font-weight:600;color:rgba(0,0,0,.62);margin-bottom:6px">Cố tình không làm ở vòng này</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.65;text-wrap:pretty">Không làm bảng kanban kéo thẻ. Không làm chấm điểm dự báo doanh thu. Không làm AI tự gửi tin. Không làm màn cấu hình luật chia người — dùng mặc định, chờ khách thật phàn nàn rồi mới mở.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="L11" style="width:1120px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px;padding:18px 20px;scroll-margin:24px">
+      <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:4px">
+        <span style="font:600 11px 'IBM Plex Mono',monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">L11</span>
+        <span style="font-family:'Caveat';font-size:24px;font-weight:600;color:#1a1a1a">Luồng này dựa lên bốn engine của platform, không tự dựng gì</span>
+      </div>
+      <div style="font-size:11.5px;color:rgba(0,0,0,.58);line-height:1.65;margin-bottom:13px;text-wrap:pretty">Kiểm tra chéo: nếu chặng nào cần một cơ chế mà bốn engine không có, thì phải sửa engine cho cả hệ, không được viết riêng cho CRM. Cột phải là chỗ dễ phạm luật nhất.</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div style="padding:11px 13px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font:600 10.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">E1 · đồ thị object</div>
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-top:5px;line-height:1.45">Sinh và nối <span style="font-family:'IBM Plex Mono';font-size:10px">LD-0334 → BG-0512 → HĐ-2607</span></div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.6;margin-top:5px">Gộp trùng ở L2 là thao tác trên đồ thị, không phải trên bảng riêng của CRM. ContextRail mọi màn dựng thẳng từ đây.</div>
+        </div>
+        <div style="padding:11px 13px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font:600 10.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">E2 · quyền &amp; ghi vết</div>
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-top:5px;line-height:1.45">Chặn AI ở L4, ghi vết mọi lần đọc</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.6;margin-top:5px">Khi khách hỏi "AI đọc gì của tôi", câu trả lời lấy từ E2 chứ không phải từ lời hứa của Sales.</div>
+        </div>
+        <div style="padding:11px 13px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font:600 10.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">E3 · quy trình duyệt</div>
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-top:5px;line-height:1.45">Hai cửa ải ở L9 · giảm giá vượt biên · xác nhận định vị</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.6;margin-top:5px">Luật "AI luôn chờ nút" thực thi được vì E3 giữ trạng thái chờ, không vì thiện chí của code CRM.</div>
+        </div>
+        <div style="padding:11px 13px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+          <div style="font:600 10.5px 'IBM Plex Mono',monospace;color:rgba(0,0,0,.5)">E4 · thông báo đa kênh</div>
+          <div style="font-size:11px;font-weight:600;color:#1a1a1a;margin-top:5px;line-height:1.45">Toàn bộ đồng hồ L8 · trần chạm · phanh</div>
+          <div style="font-size:10.5px;color:rgba(0,0,0,.58);line-height:1.6;margin-top:5px">CRM phát sự kiện "im lặng 3 ngày", E4 quyết gửi Zalo hay không, chống trùng và tôn trọng giờ khách chọn ở trường 10.</div>
+        </div>
+      </div>
+      <div style="margin-top:13px;padding:11px 13px;background:rgba(255,205,0,.16);border:1.25px solid rgba(0,0,0,.28);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+        <div style="font-size:11.5px;color:rgba(0,0,0,.72);line-height:1.7;text-wrap:pretty"><b>Một chỗ engine hiện chưa đủ:</b> L5 cần lưu "nhóm khách" như một thuộc tính có phiên bản và có lịch sử đổi nhóm. Hôm nay E1 chỉ giữ quan hệ và vòng đời object. Đề xuất sửa E1 cho cả hệ (Factory cũng cần phân nhóm nhà cung cấp) chứ không nhét bảng riêng vào CRM.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;nhipCham&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Nhanh · inbound nóng&quot;,&quot;Chuẩn&quot;,&quot;Chậm · dự án lớn&quot;],&quot;default&quot;:&quot;Chuẩn&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Đồng hồ gặp lại (L8)&quot;}}">
+const PRESETS = {
+  "Nhanh · inbound nóng": [
+    { buoc: "Chạm 1", viec: "Hỏi lại đúng câu chưa được trả lời, không nhắc lại cả luồng", kenh: "kênh cũ", cho: "2 giờ" },
+    { buoc: "Chạm 2", viec: "Đổi kênh và đổi người nói: BD nhắn thay AI, kèm một bằng chứng ở bảng L6", kenh: "Zalo · gọi", cho: "1 ngày" },
+    { buoc: "Chạm 3", viec: "Một câu duy nhất, có hạn: giữ khe máy tuần này hay bỏ", kenh: "gọi", cho: "3 ngày" },
+    { buoc: "Về nuôi", viec: "Rời tay Sale, vào chuỗi Marketing; hồ sơ và bảng hướng dẫn giữ nguyên", kenh: "email · Zalo OA", cho: "7 ngày" }
+  ],
+  "Chuẩn": [
+    { buoc: "Chạm 1", viec: "Hỏi lại đúng câu chưa được trả lời, không nhắc lại cả luồng", kenh: "kênh cũ", cho: "4 giờ" },
+    { buoc: "Chạm 2", viec: "Đổi kênh và đổi người nói: BD nhắn thay AI, kèm một bằng chứng ở bảng L6", kenh: "Zalo · gọi", cho: "3 ngày" },
+    { buoc: "Chạm 3", viec: "Chốt một mốc gặp mặt hoặc thăm xưởng, không nhắc giá", kenh: "gọi · gặp", cho: "7 ngày" },
+    { buoc: "Về nuôi", viec: "Rời tay Sale, vào chuỗi Marketing; hồ sơ và bảng hướng dẫn giữ nguyên", kenh: "email · Zalo OA", cho: "21 ngày" }
+  ],
+  "Chậm · dự án lớn": [
+    { buoc: "Chạm 1", viec: "Hỏi lại qua người giới thiệu hoặc người dùng cuối, không hỏi phòng mua", kenh: "kênh cũ", cho: "24 giờ" },
+    { buoc: "Chạm 2", viec: "Gửi hồ sơ năng lực và đơn tương tự, xin 20 phút với người quyết", kenh: "email · gặp", cho: "7 ngày" },
+    { buoc: "Chạm 3", viec: "Mời thăm xưởng, mốc mở trong 30 ngày", kenh: "gặp", cho: "21 ngày" },
+    { buoc: "Về nuôi", viec: "Rời tay Sale, vào chuỗi Marketing theo mùa mua của khách", kenh: "email", cho: "60 ngày" }
+  ]
+};
+
+class Component extends DCLogic {
+  renderVals() {
+    const key = this.props.nhipCham ?? "Chuẩn";
+    return { nhip: PRESETS[key] ?? PRESETS["Chuẩn"] };
+  }
+}
+
+</script>
+</body>
+</html>

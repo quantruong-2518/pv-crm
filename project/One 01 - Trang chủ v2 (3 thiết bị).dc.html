@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#070C16;color:#E5E7EB;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#7FA3FF;text-decoration:none}
+  a:hover{color:#A8C2FF}
+  button{border:0;font:inherit;color:inherit;cursor:pointer;appearance:none;-webkit-appearance:none}
+  @keyframes aurdrift{0%{transform:translate3d(0,0,0) scale(1)}100%{transform:translate3d(-40px,30px,0) scale(1.12)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;min-width:1536px;background:#070C16;padding:56px 48px 90px;display:flex;flex-direction:column;align-items:center;gap:64px">
+
+  <div style="width:1440px;display:grid;grid-template-columns:1fr 440px;gap:40px;align-items:end">
+    <div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+        <span style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#7FA3FF;font-weight:600">PV One · màn 1 · bản 2</span>
+        <span style="width:1px;height:14px;background:rgba(255,255,255,.16)"></span>
+        <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">Máy tính 1440 · Máy bảng 1024 · Điện thoại 390</span>
+      </div>
+      <h1 style="font-family:'Archivo';font-size:32px;font-weight:600;letter-spacing:-.6px;margin:0">Sáng thứ hai, anh Thắng không phải gọi ai để hỏi</h1>
+      <p style="font-size:14px;line-height:1.85;color:#9AA6BA;margin:14px 0 0;max-width:880px;text-wrap:pretty">Đây là màn <b style="color:#FFFFFF;font-weight:600">anh Thắng</b> mở trước cả email. Trước Pebble, cùng câu hỏi này phải gọi bốn người và mở bốn file Excel. Sau Pebble, số của bốn nhánh nằm cạnh nhau, cập nhật lúc <span style="font-family:'IBM Plex Mono';color:#B4BECD">07:58</span>. Đây là màn ai cũng phải mua, nên nó phải đúng trước tiên.</p>
+      <p style="font-size:12.5px;line-height:1.75;color:#93A1B8;margin:12px 0 0;max-width:880px">Bản 1 có bốn thẻ số và bốn đồ thị nhỏ trang trí. Bản này bỏ hết đồ thị và giữ lại đúng những con số dẫn tới một việc phải làm.</p>
+    </div>
+    <div style="background:rgba(46,99,230,.16);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(150,180,255,.24);padding:20px 22px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <i data-lucide="git-compare-arrows" width="15" height="15" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>
+        <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#B9C8E8;font-weight:600">Đổi gì so với bản 1</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:#D4DEF2;line-height:1.6">
+        <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;flex-shrink:0">01</span><span>Bản 1 ghi doanh thu <b style="color:#FFFFFF">vượt kế hoạch 12%</b>, trong khi màn Sales nói còn thiếu 1,8 tỷ. Sửa lại cho khớp.</span></div>
+        <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;flex-shrink:0">02</span><span>Bỏ bốn đồ thị nhỏ. Không ai đọc, mà số trong đó chưa nơi nào tính ra được.</span></div>
+        <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;flex-shrink:0">03</span><span>Thẻ “giao đúng hạn 86%” đổi thành hộp duyệt — thứ anh bấm được ngay sáng nay.</span></div>
+        <div style="display:flex;gap:10px"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#7FA3FF;flex-shrink:0">04</span><span>Mỗi khối có một dòng ghi lấy số từ nhánh nào, lúc mấy giờ.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-family:'Archivo';font-size:18px;font-weight:600">Máy tính · 1440 × 900</span>
+      <span style="font-size:12.5px;color:#93A1B8"><b style="color:#B4BECD">anh Thắng</b> ngồi xuống bàn, chưa uống hết cốc cà phê · 10/08 07:58</span>
+    </div>
+
+    <div style="position:relative;width:1440px;height:900px;border-radius:8px;overflow:hidden;background:linear-gradient(160deg,#0B1220,#0F172A 45%,#16233F);box-shadow:0 32px 80px rgba(0,0,0,.45)">
+      <div style="position:absolute;width:620px;height:620px;border-radius:50%;filter:blur(90px);background:rgba(46,99,230,.30);top:-220px;right:-120px;pointer-events:none;animation:aurdrift 16s ease-in-out infinite alternate"></div>
+      <div style="position:absolute;width:520px;height:520px;border-radius:50%;filter:blur(90px);background:rgba(19,58,138,.58);top:40%;left:-180px;pointer-events:none;animation:aurdrift 22s ease-in-out infinite alternate-reverse"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.030) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.030) 1px,transparent 1px);background-size:32px 32px"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:160px 160px"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 80% at 50% -10%,rgba(255,255,255,.06),transparent 55%),radial-gradient(120% 95% at 50% 100%,transparent 45%,rgba(3,7,16,.66) 100%)"></div>
+      <div style="position:absolute;inset:0;pointer-events:none;opacity:.11;mix-blend-mode:soft-light;background-size:220px 220px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+
+      <button style="position:absolute;z-index:4;right:32px;bottom:32px;width:60px;height:60px;border-radius:50%;background:linear-gradient(140deg,#4C7BF0,#2E63E6 55%,#133A8A);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 28px rgba(46,99,230,.48),inset 0 1px 0 rgba(190,212,255,.55)" style-hover="filter:brightness(1.12)" aria-label="Trợ lý AI">
+        <i data-lucide="orbit" width="27" height="27" stroke-width="1.8" style="display:inline-flex;color:#FFFFFF"></i>
+      </button>
+
+      <div style="position:relative;z-index:1;height:900px;display:flex">
+
+        <div style="width:232px;flex-shrink:0;background:rgba(255,255,255,.065);backdrop-filter:blur(24px) saturate(1.5);box-shadow:inset -1px 0 0 rgba(255,255,255,.07);padding:20px 14px;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;align-items:center;gap:10px;padding:2px 8px 12px">
+            <img src="assets/mark-light.png" alt="" style="width:30px;height:30px;object-fit:contain;flex-shrink:0">
+            <div><b style="font-family:'Archivo';font-size:14px">PV One</b><small style="display:block;font-size:10.5px;color:#93A1B8;font-weight:400">Cơ khí Thắng Lợi</small></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;background:rgba(46,99,230,.24);color:#E5E7EB;box-shadow:inset 0 1px 0 rgba(150,180,255,.22)"><i data-lucide="house" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>Trang chủ</div>
+          <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="square-check-big" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Phê duyệt<span style="margin-left:auto;background:#DA251D;color:#fff;font-size:10.5px;font-weight:600;border-radius:3px;padding:1px 7px">7</span></div>
+          <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="bell" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Thông báo<span style="margin-left:auto;background:#DA251D;color:#fff;font-size:10.5px;font-weight:600;border-radius:3px;padding:1px 7px">12</span></div>
+          <div style="display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:4px;font-size:13.5px;color:#9AA6BA"><i data-lucide="search" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Tìm toàn cục</div>
+
+          <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#93A1B8;padding:12px 12px 5px">Nhánh đã mua</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="users" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Sales</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="package" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Supply</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="factory" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Factory</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="calculator" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Finance</div>
+
+          <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#93A1B8;padding:12px 12px 5px">One Plus</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="users-round" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Nhân sự</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="folder-open" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Tài liệu &amp; quy trình</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="list-checks" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Công việc</div>
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:4px;font-size:13px;color:#9AA6BA"><i data-lucide="chart-column" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Báo cáo</div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:4px;background:rgba(255,255,255,.05)">
+            <i data-lucide="shield-check" width="15" height="15" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i>
+            <div style="font-size:11px;color:#93A1B8;line-height:1.5">Quản trị<br>&amp; nhật ký</div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:0;padding:22px 32px 24px;display:flex;flex-direction:column">
+
+          <div style="display:flex;align-items:center;gap:14px;height:40px;flex-shrink:0">
+            <div style="flex:1;display:flex;align-items:center;gap:10px;height:40px;padding:0 16px;border-radius:4px;background:rgba(255,255,255,.06);color:#93A1B8;font-size:13px">
+              <i data-lucide="search" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i>
+              Tìm khách hàng, đơn hàng, lệnh sản xuất, tài liệu…
+              <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10.5px;color:#93A1B8">⌘K</span>
+            </div>
+            <div style="width:40px;height:40px;border-radius:4px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;position:relative"><i data-lucide="bell" width="17" height="17" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i><span style="position:absolute;top:9px;right:10px;width:7px;height:7px;border-radius:50%;background:#DA251D"></span></div>
+            <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 12px 0 6px;border-radius:4px;background:rgba(255,255,255,.06)">
+              <div style="width:30px;height:30px;border-radius:4px;background:linear-gradient(135deg,#1E3F7A,#133A8A);overflow:hidden;flex-shrink:0"><img src="https://i.pravatar.cc/120?img=60" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+              <div><div style="font-size:12px;font-weight:600;line-height:1.2">Nguyễn Văn Thắng</div><div style="font-size:10px;color:#93A1B8;margin-top:2px">Giám đốc</div></div>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;display:flex;align-items:flex-end;gap:18px;flex-shrink:0">
+            <div style="flex:1;min-width:0">
+              <h2 style="font-family:'Archivo';font-size:22px;font-weight:600;margin:0">Chào buổi sáng, anh Thắng</h2>
+              <p style="font-size:12.5px;color:#9AA6BA;margin:7px 0 0">Thứ hai 10/08 · có <b style="color:#E5E7EB;font-weight:600">một đơn đang chậm</b> và <b style="color:#E5E7EB;font-weight:600">bảy việc chờ anh duyệt</b></p>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:4px;background:rgba(255,255,255,.06)">
+              <i data-lucide="snowflake" width="14" height="14" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i>
+              <span style="font-size:11.5px;color:#9AA6BA">Số đóng băng lúc <span style="font-family:'IBM Plex Mono';color:#E5E7EB">10/08 07:58</span></span>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:176px 176px 176px;gap:16px;flex-shrink:0">
+
+            <div style="grid-column:span 2;grid-row:span 2;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:18px 22px 14px;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:11px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#FF6B5E;flex-shrink:0"></span>
+                <b style="font-family:'Archivo';font-size:17px;font-weight:600">Đơn <b style="color:#FFFFFF">Sao Đỏ</b> đang chậm 2 ngày</b>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:13px;padding:3px 9px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">SO-0891</span>
+              </div>
+              <div style="font-size:13px;color:#9AA6BA;margin-top:9px;line-height:1.6">500 trục TR-2040 · 1,84 tỷ · phải giao trước <b style="color:#E5E7EB;font-weight:600">22/08</b>. Xưởng dừng vì hết thép Ø40 trong kho.</div>
+
+              <div style="margin-top:16px;padding:14px 16px;border-radius:4px;background:rgba(0,0,0,.20);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px">
+                  <span style="font-size:12.5px;color:#9AA6BA">Lệnh sản xuất <span style="font-family:'IBM Plex Mono';color:#B4BECD">WO-1180</span> làm được</span>
+                  <span style="font-family:'Space Grotesk';font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">68%</span>
+                </div>
+                <div style="height:8px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden"><span style="display:block;height:100%;width:68%;border-radius:3px;background:linear-gradient(90deg,#2E63E6,#7FA3FF)"></span></div>
+              </div>
+
+              <div style="margin-top:12px;padding:15px 16px 13px;border-radius:4px;background:rgba(0,0,0,.20);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
+                <div style="display:flex;align-items:center">
+                  <span style="width:9px;height:9px;border-radius:50%;background:#22B573;flex-shrink:0"></span>
+                  <span style="flex:1;height:1.5px;background:rgba(255,255,255,.16)"></span>
+                  <span style="width:9px;height:9px;border-radius:50%;background:#22B573;flex-shrink:0"></span>
+                  <span style="flex:1;height:1.5px;background:rgba(255,255,255,.16)"></span>
+                  <span style="width:11px;height:11px;border-radius:50%;background:#2E63E6;box-shadow:0 0 0 4px rgba(46,99,230,.26);flex-shrink:0"></span>
+                  <span style="flex:1;height:1.5px;background:rgba(255,255,255,.10)"></span>
+                  <span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.22);flex-shrink:0"></span>
+                  <span style="flex:1;height:1.5px;background:rgba(255,255,255,.10)"></span>
+                  <span style="width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.22);flex-shrink:0"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;color:#93A1B8">
+                  <span>Ký 21/07</span><span>Vào xưởng 22/07</span><span style="color:#7FA3FF;font-weight:600">Hôm nay</span><span>Giao 22/08</span><span>Thu tiền 24/09</span>
+                </div>
+              </div>
+
+              <div style="margin-top:auto;padding-top:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09);display:flex;align-items:center;gap:12px">
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Sales · Supply · Factory · 07:58</span>
+                <span style="margin-left:auto;font-size:11.5px;color:#7FA3FF">Mở đơn hàng</span>
+              </div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:16px 18px 13px;display:flex;flex-direction:column">
+              <div style="font-size:12.5px;color:#9AA6BA">Ký được trong tháng 8</div>
+              <div style="display:flex;align-items:baseline;gap:7px;margin-top:9px">
+                <span style="font-family:'Space Grotesk';font-size:34px;font-weight:600;line-height:1.1;letter-spacing:-1.2px;font-variant-numeric:tabular-nums">4,2 tỷ</span>
+                <span style="font-family:'Space Grotesk';font-size:15px;color:#93A1B8;font-variant-numeric:tabular-nums">/ 6,0</span>
+              </div>
+              <div style="height:7px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:11px"><span style="display:block;height:100%;width:70%;border-radius:3px;background:linear-gradient(90deg,#2E63E6,#7FA3FF)"></span></div>
+              <div style="font-size:12px;color:#FFE9A3;margin-top:10px">Còn thiếu 1,8 tỷ, còn 21 ngày</div>
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Sales · 07:58</span></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:16px 18px 13px;display:flex;flex-direction:column">
+              <div style="font-size:12.5px;color:#9AA6BA">Khách nợ quá hạn</div>
+              <div style="font-family:'Space Grotesk';font-size:34px;font-weight:600;line-height:1.1;letter-spacing:-1.2px;font-variant-numeric:tabular-nums;margin-top:9px;color:#FF6B5E">890 tr</div>
+              <div style="font-size:12px;color:#9AA6BA;margin-top:11px;line-height:1.6">Hai hóa đơn, cái cũ nhất quá hạn 12 ngày</div>
+              <div style="font-size:12px;color:#B4BECD;margin-top:6px"><b style="color:#E5E7EB;font-weight:600">Minh Quang</b> nợ nhiều nhất — 520 tr</div>
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Finance · 07:58</span></div>
+            </div>
+
+            <div style="background:rgba(46,99,230,.18);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(150,180,255,.26);padding:16px 18px 13px;display:flex;flex-direction:column">
+              <div style="font-size:12.5px;color:#B9C8E8">Chờ anh duyệt</div>
+              <div style="display:flex;align-items:baseline;gap:9px;margin-top:9px">
+                <span style="font-family:'Space Grotesk';font-size:34px;font-weight:600;line-height:1.1;letter-spacing:-1.2px;font-variant-numeric:tabular-nums;color:#FFFFFF">7</span>
+                <span style="font-size:12.5px;color:#B9C8E8">việc</span>
+              </div>
+              <div style="font-size:12px;color:#B9C8E8;margin-top:11px;line-height:1.6">Gấp nhất là mua thép cho xưởng — <b style="color:#FFFFFF;font-weight:600">128,5 tr</b></div>
+              <div style="font-size:12px;margin-top:6px"><span style="font-family:'IBM Plex Mono';font-size:11px;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,.14);color:#FFFFFF">PO-0455</span></div>
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(150,180,255,.24)"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#B9C8E8">Supply · Nhân sự · Finance · 07:58</span></div>
+            </div>
+
+            <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:16px 18px 13px;display:flex;flex-direction:column">
+              <div style="font-size:12.5px;color:#9AA6BA">Máy <b style="color:#E5E7EB;font-weight:600">CNC-03</b> sáng nay</div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:9px">
+                <span style="font-family:'Space Grotesk';font-size:34px;font-weight:600;line-height:1.1;letter-spacing:-1.2px;font-variant-numeric:tabular-nums;color:#FFE9A3">37</span>
+                <span style="font-size:13px;color:#9AA6BA">phút chết</span>
+              </div>
+              <div style="font-size:12px;color:#9AA6BA;margin-top:11px;line-height:1.6">Lần thứ ba trong tuần, cùng một lỗi</div>
+              <div style="font-size:12px;color:#B4BECD;margin-top:6px">Đã giao <b style="color:#E5E7EB;font-weight:600">anh Hải</b> đi sửa, chưa thấy báo lại</div>
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Factory · 07:58</span></div>
+            </div>
+
+            <div style="grid-column:span 2;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:16px 20px 13px;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#FFCD00;flex-shrink:0"></span>
+                <b style="font-family:'Archivo';font-size:15px;font-weight:600;flex:1">Hai hợp đồng lớn có thể tuột tháng này</b>
+                <span style="font-family:'Space Grotesk';font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:#FFE9A3">1,10 tỷ</span>
+              </div>
+              <div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;margin-top:10px;text-wrap:pretty"><b style="color:#E5E7EB;font-weight:600">Trường Thịnh</b> xin giảm 8% rồi quá hạn trả lời · <b style="color:#E5E7EB;font-weight:600">Sao Đỏ</b> im 6 ngày, đơn cũ của họ đang chậm 2 ngày.</div>
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09);display:flex;align-items:center;gap:12px">
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Sales · Cơ hội · 07:58</span>
+                <span style="margin-left:auto;font-size:11.5px;color:#7FA3FF">Mở màn kinh doanh</span>
+              </div>
+            </div>
+
+            <div style="grid-column:span 2;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15),inset 0 30px 46px -34px rgba(150,215,255,.26);padding:16px 20px 13px;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#FF6B5E;flex-shrink:0"></span>
+                <b style="font-family:'Archivo';font-size:15px;font-weight:600;flex:1">Kho hết thép Ø40, xưởng phải dừng</b>
+                <span style="font-family:'IBM Plex Mono';font-size:12px;padding:3px 9px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">PO-0455</span>
+              </div>
+              <div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;margin-top:10px;text-wrap:pretty">Đơn mua 500kg của <b style="color:#E5E7EB;font-weight:600">Thép Nam Việt</b> đang chờ anh duyệt từ 08/08. Duyệt hôm nay thì 13/08 thép về, xưởng chạy lại.</div>
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09);display:flex;align-items:center;gap:12px">
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Supply · Mua hàng · 07:58</span>
+                <span style="margin-left:auto;font-size:11.5px;color:#7FA3FF">Mở hộp duyệt</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;flex-shrink:0;background:rgba(46,99,230,.16);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(150,180,255,.26),inset 0 30px 46px -34px rgba(150,180,255,.26);padding:13px 20px;display:flex;align-items:center;gap:18px">
+            <div style="width:34px;height:34px;border-radius:4px;background:linear-gradient(140deg,#4C7BF0,#2E63E6 60%,#133A8A);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(190,212,255,.5)">
+              <i data-lucide="orbit" width="18" height="18" stroke-width="1.8" style="display:inline-flex;color:#FFFFFF"></i>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+              <span style="font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#B9C8E8;font-weight:600;padding:2px 7px;border-radius:2px;background:rgba(255,255,255,.10);align-self:flex-start">Trợ lý gợi ý · chưa làm gì cả</span>
+              <div style="font-size:13.5px;line-height:1.55">Duyệt đơn mua thép hôm nay và đẩy 30% việc của <span style="font-family:'IBM Plex Mono'">WO-1180</span> sang máy <b style="color:#FFFFFF">CNC-05</b> thì vẫn kịp giao <b style="color:#FFFFFF">22/08</b>, dư một ngày.</div>
+              <div style="font-size:11.5px;color:#B9C8E8;line-height:1.5">Căn cứ: kho K1-A2 hết thép · máy CNC-05 rảnh 14 giờ tuần này · hạn giao ghi trên <span style="font-family:'IBM Plex Mono'">SO-0891</span> · thép Nam Việt cam kết 3 ngày.</div>
+            </div>
+            <div style="display:flex;gap:10px;flex-shrink:0">
+              <button style="height:42px;padding:0 20px;border-radius:4px;font-size:13px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30)" style-hover="filter:brightness(1.14)">Làm cả hai việc</button>
+              <button style="height:42px;padding:0 16px;border-radius:4px;font-size:13px;font-weight:600;background:rgba(255,255,255,.09);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)" style-hover="background:rgba(255,255,255,.16)">Chỉ duyệt mua thép</button>
+              <button style="height:42px;padding:0 16px;border-radius:4px;font-size:13px;font-weight:600;background:rgba(255,255,255,.09);color:#E5E7EB;box-shadow:0 1px 2px rgba(0,0,0,.34)" style-hover="background:rgba(255,255,255,.16)">Để sau</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;flex-shrink:0;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);padding:11px 108px 11px 20px;display:flex;align-items:center;gap:14px">
+            <span style="font-size:11.5px;color:#93A1B8;flex-shrink:0">Sáng nay xoay quanh</span>
+            <div style="flex:1;min-width:0;display:flex;gap:8px;flex-wrap:wrap">
+              <span style="font-size:11.5px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">Khách hàng <span style="font-family:'IBM Plex Mono'">KH-0117</span></span>
+              <span style="font-size:11.5px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">Đơn bán <span style="font-family:'IBM Plex Mono'">SO-0891</span></span>
+              <span style="font-size:11.5px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">Lệnh sản xuất <span style="font-family:'IBM Plex Mono'">WO-1180</span></span>
+              <span style="font-size:11.5px;padding:4px 10px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">Đơn mua <span style="font-family:'IBM Plex Mono'">PO-0455</span></span>
+              <span style="font-size:11.5px;padding:4px 10px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">Máy <span style="font-family:'IBM Plex Mono'">CNC-03</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div style="background:rgba(46,99,230,.12);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(150,180,255,.20);padding:18px 20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <i data-lucide="tag" width="15" height="15" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i>
+        <span style="font-size:13px;font-weight:600;color:#E5E7EB">Màn này bán cái gì</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:#9AA6BA;line-height:1.7">
+        <div>Đây là <b style="color:#E5E7EB;font-weight:600">One Core</b> — tầng nền ai cũng phải mua, giá thấp hoặc kèm theo. Nhiệm vụ của nó không phải thu tiền, mà là kéo cả công ty vào một chỗ.</div>
+        <div>Sáu khối trên màn lấy số từ bốn nhánh khác nhau. Không nhánh nào tự dựng được màn này, nên bán được One trước rồi bán vệ tinh sau.</div>
+        <div style="padding-top:2px;color:#93A1B8">Câu chốt trong buổi demo: <b style="color:#E5E7EB;font-weight:600">“Anh không cần ai báo cáo nữa.”</b></div>
+      </div>
+    </div>
+    <div style="background:rgba(15,23,42,.84);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);padding:18px 20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <i data-lucide="circle-slash" width="15" height="15" stroke-width="1.75" style="display:inline-flex;color:#FFD9D5"></i>
+        <span style="font-size:13px;font-weight:600;color:#E5E7EB">Cố tình không đưa lên màn</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:#9AA6BA;line-height:1.7">
+        <div><b style="color:#E5E7EB;font-weight:600">Đồ thị xu hướng nhỏ trong thẻ số.</b> Nhìn thì sang, nhưng chưa nơi nào tính ra được dãy số đó, mà nó cũng không đổi được quyết định nào.</div>
+        <div><b style="color:#E5E7EB;font-weight:600">Số kiểu “giao đúng hạn 86%”.</b> Đọc xong không biết làm gì. Đổi chỗ đó thành hộp duyệt, anh bấm được ngay.</div>
+        <div><b style="color:#E5E7EB;font-weight:600">Chấm điểm nhân viên.</b> Cùng dữ liệu, nhưng biến màn sáng thành nơi đấu tố.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-family:'Archivo';font-size:18px;font-weight:600">Máy bảng · 1024 × 768</span>
+      <span style="font-size:12.5px;color:#93A1B8">bảng treo phòng họp, cả công ty nhìn lúc giao ban 08:00</span>
+    </div>
+
+    <div style="display:flex;gap:32px;align-items:flex-start">
+      <div style="position:relative;width:1024px;height:768px;flex-shrink:0;border-radius:8px;overflow:hidden;background:linear-gradient(160deg,#0B1220,#0F172A 45%,#16233F);box-shadow:0 32px 80px rgba(0,0,0,.45)">
+        <div style="position:absolute;width:520px;height:520px;border-radius:50%;filter:blur(90px);background:rgba(46,99,230,.30);top:-180px;right:-100px;pointer-events:none;animation:aurdrift 16s ease-in-out infinite alternate"></div>
+        <div style="position:absolute;width:440px;height:440px;border-radius:50%;filter:blur(90px);background:rgba(19,58,138,.58);top:45%;left:-160px;pointer-events:none;animation:aurdrift 22s ease-in-out infinite alternate-reverse"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.030) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.030) 1px,transparent 1px);background-size:32px 32px"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:160px 160px"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 80% at 50% -10%,rgba(255,255,255,.06),transparent 55%),radial-gradient(120% 95% at 50% 100%,transparent 45%,rgba(3,7,16,.66) 100%)"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;opacity:.11;mix-blend-mode:soft-light;background-size:220px 220px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+
+        <div style="position:relative;z-index:1;height:768px;display:flex;flex-direction:column">
+
+          <div style="height:72px;flex-shrink:0;padding:0 24px;display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.065);backdrop-filter:blur(24px) saturate(1.5);box-shadow:inset 0 -1px 0 rgba(255,255,255,.07)">
+            <img src="assets/mark-light.png" alt="" style="width:28px;height:28px;object-fit:contain;flex-shrink:0">
+            <div style="min-width:0">
+              <div style="font-family:'Archivo';font-size:17px;font-weight:600;line-height:1.2">Giao ban sáng — thứ hai 10/08</div>
+              <div style="font-size:12.5px;color:#93A1B8;margin-top:3px">Số tự cập nhật lúc <span style="font-family:'IBM Plex Mono'">07:58</span></div>
+            </div>
+            <button style="margin-left:auto;height:48px;padding:0 18px;border-radius:4px;font-size:13.5px;font-weight:600;background:rgba(255,255,255,.09);color:#E5E7EB;display:flex;align-items:center;gap:9px" style-hover="background:rgba(255,255,255,.16)"><i data-lucide="contrast" width="18" height="18" stroke-width="1.75" style="display:inline-flex;color:#9AA6BA"></i>Tương phản cao</button>
+          </div>
+
+          <div style="flex:1;min-height:0;padding:20px 24px 22px;display:flex;flex-direction:column;gap:16px">
+
+            <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:16px">
+
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:18px 20px;display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:11px">
+                  <span style="width:9px;height:9px;border-radius:50%;background:#FF6B5E;flex-shrink:0"></span>
+                  <span style="font-size:15px;color:#E5E7EB;flex:1">Đơn <b style="color:#FFFFFF;font-weight:600">Sao Đỏ</b> chậm 2 ngày</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:13px;padding:3px 9px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">SO-0891</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:11px;margin-top:14px">
+                  <span style="font-family:'Space Grotesk';font-size:40px;font-weight:600;line-height:1.05;letter-spacing:-1.4px;font-variant-numeric:tabular-nums">68%</span>
+                  <span style="font-size:14px;color:#93A1B8">đã làm xong</span>
+                </div>
+                <div style="height:10px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:14px"><span style="display:block;height:100%;width:68%;border-radius:3px;background:linear-gradient(90deg,#2E63E6,#7FA3FF)"></span></div>
+                <div style="font-size:14px;color:#9AA6BA;margin-top:14px;line-height:1.55">Dừng vì hết thép Ø40 · phải giao trước 22/08</div>
+                <div style="margin-top:auto;padding-top:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#93A1B8">Factory · WO-1180 · 07:58</span></div>
+              </div>
+
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:18px 20px;display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:11px">
+                  <span style="width:9px;height:9px;border-radius:50%;background:#FFCD00;flex-shrink:0"></span>
+                  <span style="font-size:15px;color:#E5E7EB;flex:1">Máy <b style="color:#FFFFFF;font-weight:600">CNC-03</b> hay dừng</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:11px;margin-top:14px">
+                  <span style="font-family:'Space Grotesk';font-size:40px;font-weight:600;line-height:1.05;letter-spacing:-1.4px;font-variant-numeric:tabular-nums;color:#FFE9A3">37</span>
+                  <span style="font-size:14px;color:#93A1B8">phút chết sáng nay</span>
+                </div>
+                <div style="font-size:14px;color:#9AA6BA;margin-top:16px;line-height:1.6">Lần thứ ba trong tuần, cùng một lỗi. Đã giao <b style="color:#E5E7EB;font-weight:600">anh Hải</b> đi sửa, chưa thấy báo lại.</div>
+                <div style="margin-top:auto;padding-top:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#93A1B8">Factory · CNC-03 · 07:58</span></div>
+              </div>
+
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:18px 20px;display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:11px">
+                  <span style="width:9px;height:9px;border-radius:50%;background:#2E63E6;flex-shrink:0"></span>
+                  <span style="font-size:15px;color:#E5E7EB;flex:1">Ký được trong tháng 8</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:9px;margin-top:14px">
+                  <span style="font-family:'Space Grotesk';font-size:40px;font-weight:600;line-height:1.05;letter-spacing:-1.4px;font-variant-numeric:tabular-nums">4,2 tỷ</span>
+                  <span style="font-family:'Space Grotesk';font-size:18px;color:#93A1B8;font-variant-numeric:tabular-nums">/ 6,0 tỷ</span>
+                </div>
+                <div style="height:10px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:14px"><span style="display:block;height:100%;width:70%;border-radius:3px;background:linear-gradient(90deg,#2E63E6,#7FA3FF)"></span></div>
+                <div style="font-size:14px;color:#FFE9A3;margin-top:14px">Còn thiếu 1,8 tỷ · còn 21 ngày</div>
+                <div style="margin-top:auto;padding-top:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#93A1B8">Sales · 07:58</span></div>
+              </div>
+
+              <div style="background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:18px 20px;display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:11px">
+                  <span style="width:9px;height:9px;border-radius:50%;background:#FF6B5E;flex-shrink:0"></span>
+                  <span style="font-size:15px;color:#E5E7EB;flex:1">Khách nợ quá hạn</span>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:11px;margin-top:14px">
+                  <span style="font-family:'Space Grotesk';font-size:40px;font-weight:600;line-height:1.05;letter-spacing:-1.4px;font-variant-numeric:tabular-nums;color:#FF6B5E">890 tr</span>
+                </div>
+                <div style="font-size:14px;color:#9AA6BA;margin-top:16px;line-height:1.6">Hai hóa đơn, cái cũ nhất quá 12 ngày. <b style="color:#E5E7EB;font-weight:600">Minh Quang</b> nợ 520 tr.</div>
+                <div style="margin-top:auto;padding-top:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.09)"><span style="font-family:'IBM Plex Mono';font-size:11px;color:#93A1B8">Finance · 07:58</span></div>
+              </div>
+            </div>
+
+            <div style="flex-shrink:0;background:rgba(46,99,230,.16);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(150,180,255,.26);padding:14px 18px;display:flex;align-items:center;gap:16px">
+              <div style="width:36px;height:36px;border-radius:4px;background:linear-gradient(140deg,#4C7BF0,#2E63E6 60%,#133A8A);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(190,212,255,.5)">
+                <i data-lucide="orbit" width="19" height="19" stroke-width="1.8" style="display:inline-flex;color:#FFFFFF"></i>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#B9C8E8;font-weight:600;margin-bottom:5px">Trợ lý gợi ý · chưa làm gì cả</div>
+                <div style="font-size:14.5px;line-height:1.5">Duyệt đơn mua thép hôm nay thì <b style="color:#FFFFFF">13/08</b> xưởng chạy lại, vẫn kịp giao 22/08</div>
+                <div style="font-size:12.5px;color:#B9C8E8;line-height:1.5;margin-top:4px">Căn cứ: kho K1-A2 hết thép · Nam Việt cam kết 3 ngày · hạn giao trên hợp đồng</div>
+              </div>
+              <button style="height:48px;padding:0 20px;border-radius:4px;font-size:14px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30);flex-shrink:0" style-hover="filter:brightness(1.14)">Mở đơn mua</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;padding-top:8px">
+        <div style="font-family:'Archivo';font-size:15px;font-weight:600">Cắt gì so với máy tính</div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="minus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#FF6B5E;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Bỏ sidebar, bỏ ô tìm, bỏ dãy chip đáy. Không ai bấm vào bảng treo tường.</div></div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="minus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#FF6B5E;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Bỏ vòng đời đơn hàng năm mốc. Cả phòng đứng nhìn hai giây, không ai đọc kịp mốc nào.</div></div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="plus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#5EE0A8;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Bốn ô bằng nhau, số 40px, chữ phụ 14–15px để đọc từ 3 mét. Mỗi ô đúng một câu chuyện.</div></div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="plus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#5EE0A8;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Dải trợ lý còn một nút. Trong buổi giao ban chỉ có một người bấm, và bấm xong là cả phòng biết.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-family:'Archivo';font-size:18px;font-weight:600">Điện thoại · 390 × 844</span>
+      <span style="font-size:12.5px;color:#93A1B8"><b style="color:#B4BECD">anh Thắng</b> mở tin Zalo trên xe, trước khi tới công ty · 07:58</span>
+    </div>
+
+    <div style="display:flex;gap:40px;align-items:flex-start">
+      <div style="position:relative;width:390px;height:844px;flex-shrink:0;border-radius:26px;overflow:hidden;background:linear-gradient(160deg,#0B1220,#0F172A 45%,#16233F);box-shadow:0 32px 80px rgba(0,0,0,.45)">
+        <div style="position:absolute;width:360px;height:360px;border-radius:50%;filter:blur(90px);background:rgba(46,99,230,.30);top:-120px;right:-90px;pointer-events:none;animation:aurdrift 16s ease-in-out infinite alternate"></div>
+        <div style="position:absolute;width:320px;height:320px;border-radius:50%;filter:blur(90px);background:rgba(19,58,138,.58);top:52%;left:-140px;pointer-events:none;animation:aurdrift 22s ease-in-out infinite alternate-reverse"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.030) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.030) 1px,transparent 1px);background-size:32px 32px"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);background-size:160px 160px"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;background:radial-gradient(130% 80% at 50% -10%,rgba(255,255,255,.06),transparent 55%),radial-gradient(120% 95% at 50% 100%,transparent 45%,rgba(3,7,16,.66) 100%)"></div>
+        <div style="position:absolute;inset:0;pointer-events:none;opacity:.11;mix-blend-mode:soft-light;background-size:220px 220px;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E&quot;)"></div>
+
+        <div style="position:relative;z-index:1;height:844px;display:flex;flex-direction:column">
+
+          <div style="height:44px;flex-shrink:0;padding:0 22px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-family:'IBM Plex Mono';font-size:12.5px;font-weight:600">07:58</span>
+            <div style="display:flex;align-items:center;gap:6px"><i data-lucide="signal" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#E5E7EB"></i><i data-lucide="wifi" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#E5E7EB"></i><i data-lucide="battery-full" width="17" height="17" stroke-width="2" style="display:inline-flex;color:#E5E7EB"></i></div>
+          </div>
+
+          <div style="flex-shrink:0;padding:4px 16px 12px">
+            <div style="font-family:'Archivo';font-size:19px;font-weight:600;line-height:1.2">Chào buổi sáng, anh Thắng</div>
+            <div style="font-size:11.5px;color:#93A1B8;margin-top:4px">Thứ hai 10/08 · một đơn chậm, bảy việc chờ anh</div>
+          </div>
+
+          <div style="flex:1;min-height:0;overflow:hidden;padding:0 16px;display:flex;flex-direction:column;gap:11px">
+
+            <div style="flex-shrink:0;background:rgba(255,255,255,.085);backdrop-filter:blur(24px) saturate(1.5);border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,.40),inset 0 1px 0 rgba(255,255,255,.15);padding:15px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#FF6B5E;flex-shrink:0"></span>
+                <span style="font-size:13.5px;color:#E5E7EB;flex:1">Đơn <b style="color:#FFFFFF;font-weight:600">Sao Đỏ</b> chậm 2 ngày</span>
+                <span style="font-family:'IBM Plex Mono';font-size:11.5px;padding:2px 7px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">SO-0891</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:10px;margin-top:11px">
+                <span style="font-family:'Space Grotesk';font-size:32px;font-weight:600;line-height:1.15;letter-spacing:-1.2px;font-variant-numeric:tabular-nums">68%</span>
+                <span style="font-size:12.5px;color:#93A1B8">đã làm xong</span>
+              </div>
+              <div style="height:8px;border-radius:3px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:10px"><span style="display:block;height:100%;width:68%;border-radius:3px;background:linear-gradient(90deg,#2E63E6,#7FA3FF)"></span></div>
+              <div style="font-size:12px;color:#9AA6BA;margin-top:10px;line-height:1.55">Xưởng dừng vì hết thép Ø40, phải giao trước 22/08</div>
+              <div style="margin-top:11px;padding-top:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)"><span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Sales · Supply · Factory · 07:58</span></div>
+            </div>
+
+            <div style="flex:1;min-height:0;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);padding:13px 15px;display:flex;flex-direction:column">
+              <div style="font-size:13px;font-weight:600;color:#E5E7EB">Ba việc còn lại sáng nay</div>
+
+              <div style="display:flex;gap:11px;align-items:center;padding:12px 0;box-shadow:inset 0 -1px 0 rgba(255,255,255,.07)">
+                <span style="width:3px;height:38px;border-radius:2px;background:#DA251D;flex-shrink:0"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;color:#E5E7EB">Kho hết thép, xưởng phải dừng</div>
+                  <div style="font-size:11px;color:#93A1B8;margin-top:4px">Đơn mua chờ anh duyệt từ 08/08</div>
+                </div>
+                <span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:#FF6B5E">128,5 tr</span>
+              </div>
+
+              <div style="display:flex;gap:11px;align-items:center;padding:12px 0;box-shadow:inset 0 -1px 0 rgba(255,255,255,.07)">
+                <span style="width:3px;height:38px;border-radius:2px;background:#FFCD00;flex-shrink:0"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;color:#E5E7EB">Hai hợp đồng có thể tuột</div>
+                  <div style="font-size:11px;color:#93A1B8;margin-top:4px">Trường Thịnh và Sao Đỏ, đều im</div>
+                </div>
+                <span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:#FFE9A3">1,10 tỷ</span>
+              </div>
+
+              <div style="display:flex;gap:11px;align-items:center;padding:12px 0">
+                <span style="width:3px;height:38px;border-radius:2px;background:rgba(255,255,255,.18);flex-shrink:0"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;color:#E5E7EB">Khách nợ quá hạn</div>
+                  <div style="font-size:11px;color:#93A1B8;margin-top:4px">Minh Quang nợ lâu nhất, 12 ngày</div>
+                </div>
+                <span style="font-family:'Space Grotesk';font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">890 tr</span>
+              </div>
+
+              <div style="margin-top:auto;padding-top:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07);display:flex;flex-direction:column;gap:4px">
+                <span style="font-size:12px;color:#B4BECD">Còn bốn việc nhỏ hơn đang chờ trong hộp duyệt.</span>
+                <span style="font-family:'IBM Plex Mono';font-size:10px;color:#93A1B8">Supply · Sales · Finance · 07:58</span>
+              </div>
+            </div>
+
+            <div style="flex-shrink:0;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.11);padding:10px 13px;display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:11px;color:#93A1B8">Sáng nay xoay quanh</span>
+              <div style="display:flex;gap:7px;overflow:hidden">
+                <span style="flex-shrink:0;font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;border-radius:3px;background:rgba(46,99,230,.24);color:#7FA3FF">SO-0891</span>
+                <span style="flex-shrink:0;font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">WO-1180</span>
+                <span style="flex-shrink:0;font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;border-radius:3px;background:rgba(255,255,255,.09);color:#B4BECD">PO-0455</span>
+                <span style="flex-shrink:0;font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;border-radius:3px;background:rgba(255,255,255,.06);color:#93A1B8">CNC-03</span>
+              </div>
+            </div>
+
+            <button style="flex-shrink:0;height:52px;border-radius:4px;font-size:14.5px;font-weight:600;background:#2E63E6;color:#FFFFFF;box-shadow:0 3px 12px rgba(46,99,230,.30);display:flex;align-items:center;justify-content:center;gap:9px;width:100%" style-hover="filter:brightness(1.14)"><i data-lucide="square-check-big" width="19" height="19" stroke-width="1.75" style="display:inline-flex;color:#FFFFFF"></i>Duyệt mua thép · 128,5 tr</button>
+          </div>
+
+          <div style="height:84px;flex-shrink:0;margin-top:10px;padding:0 12px;display:flex;flex-direction:column;background:rgba(15,23,42,.84);backdrop-filter:blur(16px) saturate(1.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.09)">
+            <div style="height:50px;display:flex;align-items:center;justify-content:space-around">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:76px"><i data-lucide="house" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#7FA3FF"></i><span style="font-size:10.5px;color:#7FA3FF;font-weight:600">Trang chủ</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:76px"><i data-lucide="square-check-big" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i><span style="font-size:10.5px;color:#93A1B8">Duyệt</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:76px"><i data-lucide="search" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i><span style="font-size:10.5px;color:#93A1B8">Tìm</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:76px"><i data-lucide="orbit" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#93A1B8"></i><span style="font-size:10.5px;color:#93A1B8">Trợ lý</span></div>
+            </div>
+            <div style="height:34px;display:flex;align-items:center;justify-content:center"><span style="width:134px;height:5px;border-radius:3px;background:rgba(255,255,255,.30)"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px;padding-top:8px">
+        <div style="font-family:'Archivo';font-size:15px;font-weight:600">Cắt gì so với máy bảng</div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="arrow-up" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#7FA3FF;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Thứ tự đọc: đơn nào đang chậm → còn ba việc gì → bấm duyệt cái gấp nhất. Anh ngồi trên xe, đọc trong hai mươi giây.</div></div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="minus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#FF6B5E;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Bỏ ô doanh thu tháng. Con số đó không đổi trong ngày, để lúc ngồi bàn xem cũng được.</div></div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="plus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#5EE0A8;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Nút cuối nói thẳng số tiền phải duyệt. Không phải “mở hộp duyệt” rồi tìm tiếp.</div></div>
+        <div style="display:flex;gap:11px;align-items:flex-start"><i data-lucide="plus" width="15" height="15" stroke-width="2" style="display:inline-flex;color:#5EE0A8;flex-shrink:0;margin-top:3px"></i><div style="font-size:12.5px;color:#9AA6BA;line-height:1.7;text-wrap:pretty">Dãy chip mã vẫn giữ — trên điện thoại nó là thứ chứng minh bốn nhánh thật sự nối với nhau.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1536,&quot;height&quot;:3000}}">
+class Component extends DCLogic {
+  drawIcons() {
+    if (window.lucide) { window.lucide.createIcons(); return; }
+    if (this._t) return;
+    this._t = setInterval(() => {
+      if (window.lucide) { clearInterval(this._t); this._t = null; window.lucide.createIcons(); }
+    }, 120);
+  }
+  componentDidMount() { this.drawIcons(); }
+  componentDidUpdate() { this.drawIcons(); }
+  componentWillUnmount() { if (this._t) clearInterval(this._t); }
+}
+</script>
+</body>
+</html>

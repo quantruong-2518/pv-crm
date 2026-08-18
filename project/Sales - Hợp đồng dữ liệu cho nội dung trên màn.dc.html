@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="./doc-page.js"></script>
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#2E63E6;text-decoration:none}
+  a:hover{color:#133A8A}
+</style>
+</helmet>
+
+<doc-page margin="0.8in">
+
+  <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:10px;border-bottom:2px solid #133A8A">
+    <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#2E63E6;font-weight:600">Pebble Sales · nội bộ</span>
+    <span style="font-family:'IBM Plex Mono';font-size:10px;color:#5E6B80;margin-left:auto">Bản 1 · 13/08</span>
+  </div>
+
+  <h1 style="font-family:'Archivo';font-size:27px;font-weight:600;letter-spacing:-.5px;line-height:1.25;margin:22px 0 0;color:#0F172A">Mỗi chữ trên màn phải mọc ra từ một cột trong bảng</h1>
+
+  <p style="font-size:13.5px;line-height:1.75;color:#3D4A5C;margin:14px 0 0">Bốn màn Sales đang có nhiều câu đọc rất trơn — “im 6 ngày vì đơn cũ của họ đang chậm 2 ngày”, “vào đừng chào mời”, “máy có điền cũng là điền bừa”. Đó là văn viết tay trong bản vẽ. Muốn dựng thật thì từng câu phải chỉ ra được nó lấy từ cột nào, hoặc phải bỏ. Tài liệu này phân loại toàn bộ chữ trên <b>Sales 04 · Theo dõi khách hàng</b>, kèm bảng dữ liệu và bảng luật. Ba màn còn lại làm theo đúng khuôn này.</p>
+
+  <h2 style="font-family:'Archivo';font-size:17px;font-weight:600;margin:30px 0 0;color:#0F172A">1 · Bốn loại chữ, đừng lẫn</h2>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:12px;break-inside:avoid">
+    <thead>
+      <tr style="background:#F1F4F9">
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:104px">Loại</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600">Ví dụ trên màn</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:190px">Ai quyết nội dung</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;font-weight:600;vertical-align:top">A · Trường thẳng</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">“Cơ điện Sao Đỏ” · “520 tr” · “KH-0117” · “6 ngày trước”</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Đọc thẳng một cột. Không có gì để bàn.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;font-weight:600;vertical-align:top">B · Nhãn enum</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">“Đúng hẹn” · “Chậm 2 ngày” · “Không có” · “Thu nợ trước”</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Bảng tra cố định, mỗi giá trị enum đúng một nhãn tiếng Việt. Khoá danh sách enum trước khi vẽ.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;font-weight:600;vertical-align:top">C · Câu mẫu</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">“Im <span style="font-family:'IBM Plex Mono';font-size:11px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">{n}</span> ngày, vì đơn cũ của họ đang chậm <span style="font-family:'IBM Plex Mono';font-size:11px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">{m}</span> ngày”</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Bảng luật ở mục 4 chọn mẫu nào hiện ra. Số nhét vào chỗ trống. Không có mô hình học máy nào ở đây.</td>
+      </tr>
+      <tr>
+        <td style="padding:10px;color:#0F172A;font-weight:600;vertical-align:top">D · Chữ viết sẵn</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">“Vào đừng chào mời” · “Đòi nợ xong rồi hãy bán tiếp”</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Người viết một lần, gắn cứng vào <b>đúng một</b> luật. Đổi chữ là sửa code, không phải sửa dữ liệu.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:14px;padding:13px 16px;background:#FFF8E1;border-left:3px solid #E0A800;break-inside:avoid">
+    <p style="font-size:12.5px;line-height:1.7;color:#3D4A5C;margin:0">Loại D là chỗ dễ trượt tay nhất. Mỗi luật được phép có <b>đúng một</b> câu D. Nếu thấy mình đang viết câu D thứ hai cho cùng một luật, tức là luật đó chưa đủ chặt và cần tách làm hai.</p>
+  </div>
+
+  <h2 style="font-family:'Archivo';font-size:17px;font-weight:600;margin:30px 0 0;color:#0F172A">2 · Bảng dữ liệu màn này thật sự đọc</h2>
+
+  <p style="font-size:13px;line-height:1.7;color:#3D4A5C;margin:12px 0 0">Chỉ liệt kê cột màn dùng, không phải cả lược đồ. Bốn bảng đầu thuộc Sales, ba bảng sau thuộc nhánh khác — Sales đọc nhờ qua đồ thị object, không giữ bản sao.</p>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:11.5px">
+    <thead>
+      <tr style="background:#F1F4F9">
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:120px">Bảng</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600">Cột màn dùng</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:74px">Chủ</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">customer</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">code · name · since_year · contact_name · owner_id</td>
+        <td style="padding:9px 10px;color:#2E63E6;vertical-align:top">Sales</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">activity</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">customer_id · channel <span style="color:#8A94A6">(zalo·call·email·meet)</span> · direction <span style="color:#8A94A6">(out·in)</span> · occurred_at</td>
+        <td style="padding:9px 10px;color:#2E63E6;vertical-align:top">Sales</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">opportunity</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">code · customer_id · value · stage <span style="color:#8A94A6">(5 giá trị)</span> · reply_due_at · discount_pct · opened_count · last_opened_at</td>
+        <td style="padding:9px 10px;color:#2E63E6;vertical-align:top">Sales</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">contract</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">code · customer_id · value · signed_at</td>
+        <td style="padding:9px 10px;color:#2E63E6;vertical-align:top">Sales</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF;background:#FAFBFD">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">work_order</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">code · sales_order_id · percent_done · status <span style="color:#8A94A6">(planned·running·blocked·done)</span> · blocked_reason <span style="color:#8A94A6">(material·machine·manpower·none)</span> · promised_date · forecast_end</td>
+        <td style="padding:9px 10px;color:#B85C00;vertical-align:top">Factory</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF;background:#FAFBFD">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">delivery</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">sales_order_id · promised_date · delivered_at</td>
+        <td style="padding:9px 10px;color:#B85C00;vertical-align:top">Supply</td>
+      </tr>
+      <tr style="background:#FAFBFD">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">invoice</td>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.65;vertical-align:top">customer_id · amount · due_date · paid_at</td>
+        <td style="padding:9px 10px;color:#B85C00;vertical-align:top">Finance</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-family:'Archivo';font-size:17px;font-weight:600;margin:30px 0 0;color:#0F172A">3 · Chín con số dẫn xuất — màn chỉ đọc chín cái này</h2>
+
+  <p style="font-size:13px;line-height:1.7;color:#3D4A5C;margin:12px 0 0">Không màn nào truy vấn thẳng bảy bảng trên. Tất cả đi qua một khung nhìn <span style="font-family:'IBM Plex Mono';font-size:11.5px;background:#F1F4F9;padding:1px 6px;border-radius:3px">customer_watch</span>, mỗi khách một dòng. Mọi giá trị mà luật ở mục 4 đọc đều phải là một cột của khung nhìn này — nhờ vậy luật chỉ còn việc so số với số.</p>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:11.5px">
+    <thead>
+      <tr style="background:#F1F4F9">
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:158px">Con số</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600">Tính thế nào</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:88px">Nhịp</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">days_silent</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Hôm nay trừ lần <span style="font-family:'IBM Plex Mono';font-size:10.5px">activity.occurred_at</span> gần nhất, tính cả chiều đi lẫn chiều đến</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Hằng đêm</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">late_days</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><span style="font-family:'IBM Plex Mono';font-size:10.5px">forecast_end − promised_date</span> của lệnh trễ nhất trong các lệnh còn chạy. Âm thì bằng 0</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">15 phút</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">blocked_reason</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Enum lấy từ chính lệnh trễ nhất đó. Bốn giá trị, không có ô “khác”</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">15 phút</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">overdue_amount</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Cộng hóa đơn chưa trả có <span style="font-family:'IBM Plex Mono';font-size:10.5px">due_date</span> đã qua</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Hằng đêm</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">overdue_days</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Hôm nay trừ hạn của hóa đơn quá hạn lâu nhất</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Hằng đêm</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">reply_overdue</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Có cơ hội nào <span style="font-family:'IBM Plex Mono';font-size:10.5px">reply_due_at</span> đã qua mà chưa có activity chiều đi sau đó</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Tức thời</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">last_delivery_ok</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Lần giao gần nhất có <span style="font-family:'IBM Plex Mono';font-size:10.5px">delivered_at ≤ promised_date</span> hay không</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Hằng đêm</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">open_value</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Cộng <span style="font-family:'IBM Plex Mono';font-size:10.5px">opportunity.value</span> của cơ hội còn treo — stage chưa phải thắng hay thua</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Tức thời</td>
+      </tr>
+      <tr>
+        <td style="padding:9px 10px;font-family:'IBM Plex Mono';font-size:11px;color:#0F172A;vertical-align:top">discount_pct</td>
+        <td style="padding:9px 10px;color:#3D4A5C;line-height:1.6;vertical-align:top">Mức giảm khách xin, lấy từ chính cơ hội đã làm <span style="font-family:'IBM Plex Mono';font-size:10.5px">reply_overdue</span> bật lên. Bằng 0 nếu khách không xin giảm</td>
+        <td style="padding:9px 10px;color:#5E6B80;vertical-align:top">Tức thời</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-family:'Archivo';font-size:17px;font-weight:600;margin:30px 0 0;color:#0F172A">4 · Bảng luật — cả màn chỉ có năm câu</h2>
+
+  <p style="font-size:13px;line-height:1.7;color:#3D4A5C;margin:12px 0 0">Đọc từ trên xuống, gặp luật nào đúng trước thì dừng. Cột “Nên làm gì” và câu dẫn trên máy bảng đi kèm luật, không chọn riêng.</p>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:11.5px">
+    <thead>
+      <tr style="background:#F1F4F9">
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:26px">#</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:186px">Điều kiện</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600">Câu hiện ra <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#8A94A6">(loại C)</span></th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:104px">Nên làm gì</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #E2E7EF;background:#F5F8FF">
+        <td style="padding:10px;font-family:'IBM Plex Mono';color:#2E63E6;font-weight:600;vertical-align:top">1</td>
+        <td style="padding:10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.6;vertical-align:top">late_days &gt; 0<br>và days_silent ≥ 5</td>
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">Im <span style="font-family:'IBM Plex Mono';font-size:10.5px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">days_silent</span> ngày, vì đơn cũ của họ đang chậm <span style="font-family:'IBM Plex Mono';font-size:10.5px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">late_days</span> ngày<br><span style="font-size:11px;color:#8A94A6">Câu D đi kèm: “Vào đừng chào mời”</span></td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Gọi sáng nay</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;font-family:'IBM Plex Mono';color:#2E63E6;font-weight:600;vertical-align:top">2</td>
+        <td style="padding:10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.6;vertical-align:top">overdue_days &gt; 7</td>
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">Đòi nợ xong rồi hãy bán tiếp · quá <span style="font-family:'IBM Plex Mono';font-size:10.5px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">overdue_days</span> ngày</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Thu nợ trước</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;font-family:'IBM Plex Mono';color:#2E63E6;font-weight:600;vertical-align:top">3</td>
+        <td style="padding:10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.6;vertical-align:top">reply_overdue<br>và discount_pct &gt; 0</td>
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">Xin giảm <span style="font-family:'IBM Plex Mono';font-size:10.5px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">discount_pct</span>%, mình chưa trả lời · <span style="font-family:'IBM Plex Mono';font-size:10.5px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">days_silent</span> ngày</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Trả lời giá</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;font-family:'IBM Plex Mono';color:#2E63E6;font-weight:600;vertical-align:top">4</td>
+        <td style="padding:10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;line-height:1.6;vertical-align:top">days_silent &gt; 30<br>và open_value = 0</td>
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top"><span style="font-family:'IBM Plex Mono';font-size:10.5px;background:#EAF0FE;padding:1px 5px;border-radius:3px;color:#2E63E6">days_silent</span> ngày không liên lạc, không cơ hội nào</td>
+        <td style="padding:10px;color:#3D4A5C;vertical-align:top">Hỏi thăm</td>
+      </tr>
+      <tr>
+        <td style="padding:10px;font-family:'IBM Plex Mono';color:#5E6B80;font-weight:600;vertical-align:top">5</td>
+        <td style="padding:10px;font-family:'IBM Plex Mono';font-size:10.5px;color:#3D4A5C;vertical-align:top">không luật nào đúng</td>
+        <td style="padding:10px;color:#5E6B80;vertical-align:top">Khách không hiện lên nhóm “đang có chuyện”</td>
+        <td style="padding:10px;color:#5E6B80;vertical-align:top">Không có gì</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:14px;padding:13px 16px;background:#EAF0FE;border-left:3px solid #2E63E6;break-inside:avoid">
+    <p style="font-size:12.5px;line-height:1.7;color:#3D4A5C;margin:0">Năm luật này là toàn bộ “trí thông minh” của màn. Không có điểm sức khỏe khách hàng, không có xác suất rời bỏ. Ai cũng mở bảng ra kiểm được vì sao <b>Sao Đỏ</b> lên đầu danh sách.</p>
+  </div>
+
+  <h2 style="font-family:'Archivo';font-size:17px;font-weight:600;margin:30px 0 0;color:#0F172A">5 · Bảy câu trong bản vẽ phải sửa hoặc bỏ</h2>
+
+  <p style="font-size:13px;line-height:1.7;color:#3D4A5C;margin:12px 0 0">Đây là phần thật sự đáng đọc. Bảy câu dưới đây nghe hay trong bản vẽ nhưng không mọc ra từ cột nào.</p>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:11.5px">
+    <thead>
+      <tr style="background:#F1F4F9">
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600">Câu đang có</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:96px">Vấn đề</th>
+        <th style="text-align:left;padding:9px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5E6B80;font-weight:600;width:230px">Xử lý</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“Nên lần này chậm là lạ với họ”</td>
+        <td style="padding:10px;color:#B00020;vertical-align:top">Suy diễn tâm lý</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Bỏ vế sau.</b> Giữ đúng “Lần giao trước: đúng hẹn” — là <span style="font-family:'IBM Plex Mono';font-size:10.5px">last_delivery_ok</span>. Người đọc tự suy ra.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“Khách im, chưa đòi hỏi gì” · “Chưa khiếu nại lần nào”</td>
+        <td style="padding:10px;color:#B00020;vertical-align:top">Chưa có bảng khiếu nại</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Bỏ khỏi bản đầu.</b> Thêm lại khi có bảng <span style="font-family:'IBM Plex Mono';font-size:10.5px">complaint</span> — mà bảng đó thuộc Field service, chưa nằm trong phạm vi.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“Vào đừng chào mời”</td>
+        <td style="padding:10px;color:#B8860B;vertical-align:top">Chữ viết sẵn</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Giữ</b>, nhưng gắn cứng vào luật 1. Bốn luật kia có bốn câu khác, viết một lần rồi khoá.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“Có lẽ vì đơn cũ của họ đang chậm” <span style="color:#8A94A6">(One 01)</span></td>
+        <td style="padding:10px;color:#B00020;vertical-align:top">Chữ “có lẽ”</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Bỏ “có lẽ”.</b> Hoặc đúng luật 1 và nói thẳng, hoặc không nói. Phần mềm không được phép đoán chừng.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“Máy tìm ra mã vật tư tương ứng trong kho” <span style="color:#8A94A6">(Sales 03)</span></td>
+        <td style="padding:10px;color:#2F7D32;vertical-align:top">Dựng được</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Giữ.</b> Là enum kết quả khớp: <span style="font-family:'IBM Plex Mono';font-size:10.5px">matched · ambiguous · not_found</span>. Ba nhãn, ba câu.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #E2E7EF">
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“Máy có điền cũng là điền bừa” <span style="color:#8A94A6">(Sales 03)</span></td>
+        <td style="padding:10px;color:#B8860B;vertical-align:top">Chữ viết sẵn</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Giữ</b>, gắn vào <span style="font-family:'IBM Plex Mono';font-size:10.5px">field.fill_source = human_required</span>. Mọi trường mang cờ này dùng chung một câu.</td>
+      </tr>
+      <tr>
+        <td style="padding:10px;color:#0F172A;line-height:1.6;vertical-align:top">“30 khách còn lại không có gì bất thường”</td>
+        <td style="padding:10px;color:#2F7D32;vertical-align:top">Dựng được</td>
+        <td style="padding:10px;color:#3D4A5C;line-height:1.6;vertical-align:top"><b>Giữ.</b> Là phép đếm số khách rơi vào luật 5.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 style="font-family:'Archivo';font-size:17px;font-weight:600;margin:30px 0 0;color:#0F172A">6 · Rủi ro lớn nhất không nằm ở lược đồ</h2>
+
+  <p style="font-size:13.5px;line-height:1.75;color:#3D4A5C;margin:12px 0 0">Năm trong chín con số ở mục 3 đọc từ Factory, Supply, Finance — những nhánh có hệ thống ghi nhận rõ ràng, số tự sinh ra trong lúc làm việc. Bốn con số còn lại thuộc Sales, và hai trong số đó — <span style="font-family:'IBM Plex Mono';font-size:12px;background:#F1F4F9;padding:1px 6px;border-radius:3px">days_silent</span> và <span style="font-family:'IBM Plex Mono';font-size:12px;background:#F1F4F9;padding:1px 6px;border-radius:3px">reply_overdue</span> — đều đếm trên bảng <span style="font-family:'IBM Plex Mono';font-size:12px;background:#F1F4F9;padding:1px 6px;border-radius:3px">activity</span>, tức là phụ thuộc vào việc nhân viên kinh doanh có ghi lại cuộc gọi hay không.</p>
+
+  <p style="font-size:13.5px;line-height:1.75;color:#3D4A5C;margin:12px 0 0">Nếu không nối được Zalo OA và tổng đài để tự sinh <span style="font-family:'IBM Plex Mono';font-size:12px;background:#F1F4F9;padding:1px 6px;border-radius:3px">activity</span>, cột “Nói chuyện lần cuối” sẽ sai ngay trong tuần đầu và cả màn mất tin cậy — <b>ba trong năm luật</b> đều dựa vào hai con số đó. <b>Đây là việc phải chốt trước khi dựng màn, không phải sau.</b></p>
+
+  <div style="margin-top:18px;padding:14px 16px;background:#F1F4F9;break-inside:avoid">
+    <p style="font-size:12.5px;line-height:1.7;color:#3D4A5C;margin:0"><b style="color:#0F172A">Ba màn còn lại cần bảng tương tự.</b> Sales 02 nặng nhất vì có mục dự báo chốt kịp — công thức đó phải viết ra trước khi vẽ tiếp, nếu không nó sẽ trượt thành “AI dự đoán” trong lúc demo.</p>
+  </div>
+
+</doc-page>
+
+</x-dc>
+</body>
+</html>

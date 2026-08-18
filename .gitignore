@@ -1,0 +1,7 @@
+node_modules
+dist
+*.tsbuildinfo
+.DS_Store
+
+# Transcript thiết kế — chứa dữ liệu thương mại, không đẩy lên repo công khai
+chats/

@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#f0eee9;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#2E63E6;text-decoration:none}
+  a:hover{color:#1E4BB8}
+  button{border:0;font:inherit;color:inherit;cursor:pointer;appearance:none;-webkit-appearance:none}
+  .dv-turn{padding:32px 36px 28px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+  .dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+  .dv-tname{font:600 13px/1.2 'IBM Plex Sans',system-ui,sans-serif;color:#1a1a1a}
+  .dv-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:24px;align-items:start;max-width:1480px}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+  .dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 'IBM Plex Sans',system-ui,sans-serif;color:rgba(0,0,0,.55)}
+  .dv-card{width:100%;max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.10);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+  .dv-opt:target .dv-oid{background:#2E63E6;color:#fff}
+  .dv-next{margin:22px 0 0;font:12px/1.6 'IBM Plex Sans',system-ui,sans-serif;color:rgba(0,0,0,.5)}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t2">
+  <div class="dv-thd">
+    <a class="dv-tid" href="#t2">2</a>
+    <span class="dv-tname">Pebble Sales · sáu khoảnh khắc hệ tự làm việc — nhìn thoáng là thấy máy đang chạy</span>
+  </div>
+
+  <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:26px;flex-wrap:wrap">
+    <div style="width:470px;padding:16px 18px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px">
+      <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Luật vẽ của turn này — mỗi màn phải đủ ba tầng</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:#1a1a1a;color:#fff;border-radius:3px">1</span><span style="font-size:11.5px;color:rgba(0,0,0,.68);line-height:1.55"><b>Máy đã làm gì</b> — câu chủ động, thì quá khứ, có số</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:#2E63E6;color:#fff;border-radius:3px">2</span><span style="font-size:11.5px;color:rgba(0,0,0,.68);line-height:1.55"><b>Căn cứ</b> — kể tên nguồn, mỗi nguồn là một nhánh khác nhau</span></div>
+        <div style="display:flex;gap:8px;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.12);border-radius:3px">3</span><span style="font-size:11.5px;color:rgba(0,0,0,.68);line-height:1.55"><b>Nút người bấm</b> — máy dừng ở đây, không tự đi tiếp</span></div>
+      </div>
+      <div style="font-size:11px;color:rgba(0,0,0,.5);line-height:1.6;margin-top:10px;text-wrap:pretty">Thiếu tầng 2 thì thành hộp đen. Thiếu tầng 3 thì phạm luật 9 của hệ. Cả sáu màn dưới đều gắn ContextRail để thấy câu chuyện chạy xuyên nhánh.</div>
+    </div>
+    <div style="width:400px;padding:16px 18px;background:rgba(255,205,0,.14);border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px">
+      <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Sáu màn là một vòng khép kín</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:9px">
+        <a class="dv-oid" href="#2a">2a</a><span style="font-size:10px;color:rgba(0,0,0,.55)">cửa vào</span>
+        <span style="color:rgba(0,0,0,.3)">→</span>
+        <a class="dv-oid" href="#2b">2b</a><span style="font-size:10px;color:rgba(0,0,0,.55)">đồng hồ</span>
+        <span style="color:rgba(0,0,0,.3)">→</span>
+        <a class="dv-oid" href="#2c">2c</a><span style="font-size:10px;color:rgba(0,0,0,.55)">thẻ chạm</span>
+        <span style="color:rgba(0,0,0,.3)">→</span>
+        <a class="dv-oid" href="#2f">2f</a><span style="font-size:10px;color:rgba(0,0,0,.55)">nhật ký</span>
+        <span style="color:rgba(0,0,0,.3)">→</span>
+        <a class="dv-oid" href="#2d">2d</a><span style="font-size:10px;color:rgba(0,0,0,.55)">giữ ấm</span>
+        <span style="color:rgba(0,0,0,.3)">→</span>
+        <a class="dv-oid" href="#2e">2e</a><span style="font-size:10px;color:rgba(0,0,0,.55)">sổ thắng thua</span>
+      </div>
+      <div style="font-size:12px;line-height:1.7;color:rgba(0,0,0,.72);text-wrap:pretty">Mọi lần chạm ở <a class="dv-oid" href="#2c">2c</a> rơi thẳng vào <a class="dv-oid" href="#2f">2f</a>, và <a class="dv-oid" href="#2e">2e</a> chỉnh lại luật chấm điểm của <a class="dv-oid" href="#2a">2a</a> — đó là chỗ hệ tự khá lên theo thời gian, và là lý do người mua không bỏ đi được sau một năm dùng.</div>
+    </div>
+    <div style="width:246px;padding:14px 16px;background:#fff;border:1.25px dashed rgba(0,0,0,.35);border-radius:225px 12px 255px 12px/12px 255px 12px 225px">
+      <div style="font-size:10.5px;font-weight:600;color:rgba(0,0,0,.6);margin-bottom:7px">Về tên người</div>
+      <div style="font-size:10.5px;color:rgba(0,0,0,.55);line-height:1.65;text-wrap:pretty">Tên có trong kịch bản Sao Đỏ vẽ nét liền. Nhân sự kinh doanh thứ hai kịch bản chưa có — vẽ nét đứt, ghi <span style="font-family:'IBM Plex Mono';font-size:9.5px">KD-02</span>, chờ bạn đặt tên.</div>
+    </div>
+  </div>
+
+  <div class="dv-opts" style="grid-template-columns:repeat(auto-fit,minmax(440px,1fr))">
+
+    <div class="dv-opt" id="2a">
+      <div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Cửa vào — bốn nguồn đổ về một hồ sơ, tự chia người, tự đặt đồng hồ</div>
+      <div class="dv-card">
+        <div style="padding:16px 16px 12px;height:322px;display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a">Cửa vào lead</div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.45)">08/07 · 07:12 · 14 lead vào hôm qua</div>
+          </div>
+          <div style="display:flex;gap:10px;flex:1;align-items:stretch">
+            <div style="width:104px;display:flex;flex-direction:column;gap:5px">
+              <div style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.5)">Nguồn</div>
+              <div style="padding:5px 7px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:9px">Zalo OA</span><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.45)">6</span></div>
+              <div style="padding:5px 7px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:9px">Form web</span><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.45)">3</span></div>
+              <div style="padding:5px 7px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:9px">Hộp thư KD</span><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.45)">2</span></div>
+              <div style="padding:5px 7px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:9px;color:#1E4BB8;font-weight:600">Triển lãm MTA</span><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:#1E4BB8">3</span></div>
+              <div style="margin-top:6px;padding:6px 7px;background:rgba(255,205,0,.18);border:1.25px solid rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="font-size:8.5px;color:rgba(0,0,0,.65);line-height:1.5">Đã gộp 3 bản trùng thành 1 hồ sơ</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;color:rgba(0,0,0,.3);font-size:13px">→</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+              <div style="padding:8px 10px;border:1.5px solid #1a1a1a;border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline">
+                  <div style="font-size:11.5px;font-weight:600">Cơ điện Sao Đỏ · Hải Dương</div>
+                  <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.5)">LD-0334</div>
+                </div>
+                <div style="display:flex;gap:9px;align-items:center;margin-top:7px">
+                  <div style="flex:1">
+                    <div style="display:flex;justify-content:space-between;font-size:8.5px;color:rgba(0,0,0,.5);margin-bottom:3px"><span>Điểm tiềm năng</span><span style="font-family:'IBM Plex Mono';color:#1a1a1a;font-weight:600">78</span></div>
+                    <div style="height:6px;background:rgba(0,0,0,.1);border-radius:3px"><div style="width:78%;height:6px;background:#2E63E6;border-radius:3px"></div></div>
+                  </div>
+                </div>
+                <div style="font-size:9px;color:rgba(0,0,0,.55);margin-top:6px;line-height:1.55">Đã hỏi 3 lần trong 18 tháng · quy mô 500 chi tiết · ngành cơ khí chính xác</div>
+              </div>
+              <div style="flex:1;padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;display:flex;flex-direction:column">
+                <div style="font-size:11px;font-weight:600;color:#1a1a1a;line-height:1.5">Đã giao Trần Thu Hà · hẹn chạm đầu trước 09:12</div>
+                <div style="font-size:9px;color:rgba(0,0,0,.62);margin-top:5px;line-height:1.55">Căn cứ: tỉ lệ thắng ngành cơ khí của Hà 41% · đang giữ 6/10 hồ sơ · Hải Dương thuộc tuyến của Hà · lịch sáng nay còn trống 2 giờ</div>
+                <div style="display:flex;gap:6px;align-items:center;margin-top:7px;padding-top:7px;border-top:1px dashed rgba(0,0,0,.2)">
+                  <span style="font-size:9px;color:rgba(0,0,0,.6)">Quá hạn thì chuyền</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;border:1.25px dashed rgba(0,0,0,.4);border-radius:3px">KD-02</span>
+                  <span style="font-size:9px;color:rgba(0,0,0,.45)">rồi báo TP</span>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:auto">
+                  <div style="height:19px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:9px;color:#fff;font-weight:600">Nhận việc</div>
+                  <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Đổi người</div>
+                  <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Xem luật chia</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 16px 15px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.42);font-weight:600;letter-spacing:.04em">RAIL</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">LD-0334</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">MTA-2026</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Trần Thu Hà</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Chứng minh: bốn nguồn, một hồ sơ, không ai gõ tay.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Câu “đã giao Hà · hẹn 09:12” là câu duy nhất trong màn mà đối thủ Excel không viết được. Bốn căn cứ đến từ bốn nơi: CRM, lịch trong One, tuyến bán, sổ thắng thua <a class="dv-oid" href="#2e">2e</a>.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2b">
+      <div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Đồng hồ cam kết — màn của Trưởng phòng, tự chuyền khi vắng người</div>
+      <div class="dv-card">
+        <div style="padding:16px 16px 12px;height:322px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a">Ai đang giữ, còn bao lâu</div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.45)">10/08 · 07:58 · 11 hồ sơ đang chạy</div>
+          </div>
+          <div style="border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;background:rgba(0,0,0,.02);padding:8px 9px;display:flex;flex-direction:column;gap:5px">
+            <div style="display:grid;grid-template-columns:64px 1fr 76px 62px 58px;gap:6px;font-size:8px;color:rgba(0,0,0,.45);font-weight:600;padding-bottom:5px;border-bottom:1px solid rgba(0,0,0,.1)">
+              <div>Mã</div><div>Khách</div><div>Người giữ</div><div>Còn lại</div><div>Việc</div>
+            </div>
+            <div style="display:grid;grid-template-columns:64px 1fr 76px 62px 58px;gap:6px;align-items:center;font-size:9px">
+              <div style="font-family:'IBM Plex Mono';font-size:8.5px">BG-0577</div><div style="color:rgba(0,0,0,.75)">Trường Thịnh</div><div style="color:rgba(0,0,0,.6)">Thu Hà</div><div style="font-family:'IBM Plex Mono';font-size:8.5px;color:#B0121C">quá 3g 20p</div><div style="font-size:8px;color:rgba(0,0,0,.5)">Gửi giá</div>
+            </div>
+            <div style="display:grid;grid-template-columns:64px 1fr 76px 62px 58px;gap:6px;align-items:center;font-size:9px;padding:5px 6px;margin:0 -6px;background:rgba(46,99,230,.08);border-radius:4px">
+              <div style="font-family:'IBM Plex Mono';font-size:8.5px;color:#1E4BB8">BG-0512</div><div style="color:#1a1a1a;font-weight:600">Cơ điện Sao Đỏ</div><div style="color:rgba(0,0,0,.6)">Thu Hà</div><div style="font-family:'IBM Plex Mono';font-size:8.5px;color:#8A5A00">còn 1g 04p</div><div style="font-size:8px;color:rgba(0,0,0,.5)">Gọi lại</div>
+            </div>
+            <div style="display:grid;grid-template-columns:64px 1fr 76px 62px 58px;gap:6px;align-items:center;font-size:9px">
+              <div style="font-family:'IBM Plex Mono';font-size:8.5px">LD-0341</div><div style="color:rgba(0,0,0,.75)">Hòa Phong</div><div style="color:rgba(0,0,0,.45);font-style:italic">KD-02</div><div style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.5)">còn 5g</div><div style="font-size:8px;color:rgba(0,0,0,.5)">Chạm đầu</div>
+            </div>
+            <div style="display:grid;grid-template-columns:64px 1fr 76px 62px 58px;gap:6px;align-items:center;font-size:9px">
+              <div style="font-family:'IBM Plex Mono';font-size:8.5px">LD-0343</div><div style="color:rgba(0,0,0,.75)">Minh Quang</div><div style="color:rgba(0,0,0,.6)">Thu Hà</div><div style="font-family:'IBM Plex Mono';font-size:8.5px;color:#8A5A00">còn 2g 40p</div><div style="font-size:8px;color:rgba(0,0,0,.5)">Chạm đầu</div>
+            </div>
+            <div style="display:grid;grid-template-columns:64px 1fr 76px 62px 58px;gap:6px;align-items:center;font-size:9px;opacity:.5">
+              <div style="font-family:'IBM Plex Mono';font-size:8.5px">LD-0339</div><div style="color:rgba(0,0,0,.75)">Đại Phúc</div><div style="color:rgba(0,0,0,.6)">Thu Hà</div><div style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.5)">còn 1 ngày</div><div style="font-size:8px;color:rgba(0,0,0,.5)">Báo giá</div>
+            </div>
+          </div>
+          <div style="flex:1;padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;display:flex;flex-direction:column">
+            <div style="font-size:11px;font-weight:600;color:#1a1a1a;line-height:1.5">Đã chuyền BG-0577 sang KD-02 lúc 07:41 · 3 hồ sơ nữa sẽ quá hạn trước 12:00</div>
+            <div style="font-size:9px;color:rgba(0,0,0,.62);margin-top:5px;line-height:1.55">Căn cứ: Hà ở nhà máy Sao Đỏ cả sáng theo lịch trong One · nghỉ phép 12–14/08 đã duyệt trong HR · KD-02 đang giữ 3/10 hồ sơ</div>
+            <div style="display:flex;gap:6px;margin-top:auto">
+              <div style="height:19px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:9px;color:#fff;font-weight:600">Chuyền cả 3</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Chọn từng cái</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Giãn hạn</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 16px 15px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.42);font-weight:600;letter-spacing:.04em">RAIL</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">BG-0577</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">BG-0512</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Lịch · One</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Phép · HR</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Chứng minh: khách không bị bỏ rơi vì người bán bận hay nghỉ.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Đây là màn duy nhất phải đọc phép và lịch — tức phải có One Plus. Bán CRM rời không làm được, và đó chính là lập luận bán chéo.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2c">
+      <div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Thẻ chạm — hệ tự dựng hồ sơ trước mỗi lần sale chạm khách</div>
+      <div class="dv-card">
+        <div style="padding:16px 16px 12px;height:322px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a">Trước khi gọi Sao Đỏ</div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.45)">dựng trong 0,4 giây · 6 nguồn</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:7.5px;color:rgba(0,0,0,.42)">FACTORY</div>
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75);margin-top:3px;line-height:1.45">WO-1180 đạt 68% · <b>chậm 2 ngày</b></div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:7.5px;color:rgba(0,0,0,.42)">FINANCE</div>
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75);margin-top:3px;line-height:1.45">2 hóa đơn chờ · chưa quá hạn</div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:7.5px;color:rgba(0,0,0,.42)">CỔNG KHÁCH</div>
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75);margin-top:3px;line-height:1.45">Mở BG-0581 lần 2 · 21:40 hôm qua</div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:7.5px;color:rgba(0,0,0,.42)">TÀI LIỆU</div>
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75);margin-top:3px;line-height:1.45">Bản vẽ TR-2040 rev.C · điều khoản phạt 0,5%/tuần</div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:7.5px;color:rgba(0,0,0,.42)">LỊCH SỬ</div>
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75);margin-top:3px;line-height:1.45">4 đơn từ 2024 · chưa lần nào giao trễ</div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:7.5px;color:rgba(0,0,0,.42)">NGƯỜI</div>
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75);margin-top:3px;line-height:1.45">Gọi anh Kiên trước, không gọi phòng mua</div>
+            </div>
+          </div>
+          <div style="flex:1;padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;display:flex;flex-direction:column">
+            <div style="font-size:11px;font-weight:600;color:#1a1a1a;line-height:1.5">Nói trước chuyện chậm 2 ngày, kèm mốc mới 22/08 — đừng để khách hỏi</div>
+            <div style="font-size:9px;color:rgba(0,0,0,.62);margin-top:5px;line-height:1.55">Căn cứ: khách đã tự thấy tiến độ trên cổng · hợp đồng có điều khoản phạt · thép về 13/08 nếu PO-0455 duyệt hôm nay</div>
+            <div style="display:flex;gap:6px;margin-top:auto">
+              <div style="height:19px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:9px;color:#fff;font-weight:600">Gọi · tự ghi nhận</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Gửi Zalo thay vì gọi</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 16px 15px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.42);font-weight:600;letter-spacing:.04em">RAIL</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">HĐ-2607</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">SO-0891</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">WO-1180</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">PO-0455</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">BG-0512</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Chứng minh: sale không bao giờ gọi khách trong trạng thái mù.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Sáu ô là sáu nguồn khác nhau và không ô nào do người nhập. Đây là màn để demo — bấm một cái, hồ sơ tự dựng, người xem hiểu ngay “một hệ” nghĩa là gì.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2d">
+      <div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Giữ ấm — agent soạn chuỗi chạm, người duyệt, có trần và có phanh</div>
+      <div class="dv-card">
+        <div style="padding:16px 16px 12px;height:322px;display:flex;gap:10px">
+          <div style="width:150px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-family:'Caveat';font-size:17px;font-weight:600;color:#1a1a1a">Đang nguội</div>
+            <div style="padding:6px 8px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-size:9.5px;font-weight:600;color:#1a1a1a">Cơ điện Sao Đỏ</div>
+              <div style="height:5px;background:rgba(0,0,0,.1);border-radius:3px;margin-top:5px"><div style="width:34%;height:5px;background:#8A5A00;border-radius:3px"></div></div>
+              <div style="font-size:8px;color:rgba(0,0,0,.55);margin-top:4px">im 6 ngày · BG mở rộng</div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75)">Hòa Phong</div>
+              <div style="height:5px;background:rgba(0,0,0,.1);border-radius:3px;margin-top:5px"><div style="width:18%;height:5px;background:#B0121C;border-radius:3px"></div></div>
+              <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:4px">im 24 ngày</div>
+            </div>
+            <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-size:9.5px;color:rgba(0,0,0,.75)">Đại Phúc</div>
+              <div style="height:5px;background:rgba(0,0,0,.1);border-radius:3px;margin-top:5px"><div style="width:62%;height:5px;background:rgba(0,0,0,.35);border-radius:3px"></div></div>
+              <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:4px">im 9 ngày</div>
+            </div>
+            <div style="margin-top:auto;padding:6px 8px;border:1.25px dashed rgba(0,0,0,.3);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.6);line-height:1.5">Trần: 2 chạm / tuần / khách · agent không tự gửi bao giờ</div>
+            </div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+            <div style="font-family:'Caveat';font-size:17px;font-weight:600;color:#1a1a1a">Chuỗi agent đề xuất</div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;gap:7px;align-items:center;padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <span style="font-family:'IBM Plex Mono';font-size:8px;padding:2px 5px;background:rgba(0,0,0,.08);border-radius:3px">11/08</span>
+                <span style="font-size:9.5px;color:rgba(0,0,0,.75);flex:1">Zalo · gửi ảnh lô đầu ra khỏi máy</span>
+              </div>
+              <div style="display:flex;gap:7px;align-items:center;padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <span style="font-family:'IBM Plex Mono';font-size:8px;padding:2px 5px;background:rgba(0,0,0,.08);border-radius:3px">14/08</span>
+                <span style="font-size:9.5px;color:rgba(0,0,0,.75);flex:1">Email · bảng giá phần mở rộng, hạn 25/08</span>
+              </div>
+              <div style="display:flex;gap:7px;align-items:center;padding:6px 8px;border:1.25px dashed rgba(0,0,0,.32);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <span style="font-family:'IBM Plex Mono';font-size:8px;padding:2px 5px;background:rgba(0,0,0,.06);border-radius:3px">18/08</span>
+                <span style="font-size:9.5px;color:rgba(0,0,0,.55);flex:1">Việc cho Hà · gọi nếu vẫn im</span>
+              </div>
+            </div>
+            <div style="flex:1;padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;display:flex;flex-direction:column">
+              <div style="font-size:10px;color:rgba(0,0,0,.72);line-height:1.55;font-style:italic">“Anh Kiên ơi, lô trục đầu tiên vừa ra khỏi CNC-05 sáng nay, em gửi anh xem trước…”</div>
+              <div style="font-size:9px;color:rgba(0,0,0,.62);margin-top:6px;line-height:1.55">Căn cứ: im 6 ngày sau khi mở BG-0581 hai lần · năm ngoái đặt lại vào tháng 9 · anh Kiên hay trả lời Zalo trong 2 giờ</div>
+              <div style="display:flex;gap:6px;margin-top:auto">
+                <div style="height:19px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:9px;color:#fff;font-weight:600">Duyệt cả chuỗi</div>
+                <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Sửa lời</div>
+                <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Tắt giữ ấm</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 16px 15px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.42);font-weight:600;letter-spacing:.04em">RAIL</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">BG-0512</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">WO-1180</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Zalo OA</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Chứng minh: agent chạy nền, nhưng cầm cương là người.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Nội dung giữ ấm lấy từ Factory chứ không phải lời chào chung — “lô đầu vừa ra khỏi CNC-05” là thứ chỉ hệ có xưởng mới viết nổi. Trần chạm và nút tắt là phần trấn an người mua sợ spam khách.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2e">
+      <div class="dv-olabel"><a class="dv-oid" href="#2e">2e</a>Sổ thắng thua — thống kê rồi tự chỉnh lại luật chấm điểm</div>
+      <div class="dv-card">
+        <div style="padding:16px 16px 12px;height:322px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a">Thắng thua quý III</div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.45)">47 hồ sơ đóng · 100% có gắn lý do</div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <div style="flex:1;padding:7px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:15px;font-weight:600">28%</div>
+              <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:2px">tỉ lệ thắng chung</div>
+            </div>
+            <div style="flex:1;padding:7px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:15px;font-weight:600">41%</div>
+              <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:2px">nguồn triển lãm</div>
+            </div>
+            <div style="flex:1;padding:7px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+              <div style="font-family:'IBM Plex Mono';font-size:15px;font-weight:600">19</div>
+              <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:2px">ngày trung bình để chốt</div>
+            </div>
+          </div>
+          <div style="border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;padding:8px 9px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.5)">Vì sao thua · 34 hồ sơ</div>
+            <div style="display:flex;align-items:center;gap:7px"><span style="font-size:9px;width:96px;color:rgba(0,0,0,.7)">Giá cao hơn</span><div style="flex:1;height:8px;background:rgba(0,0,0,.08);border-radius:3px"><div style="width:38%;height:8px;background:rgba(0,0,0,.4);border-radius:3px"></div></div><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.55);width:26px;text-align:right">38%</span></div>
+            <div style="display:flex;align-items:center;gap:7px"><span style="font-size:9px;width:96px;color:#1a1a1a;font-weight:600">Hẹn giao quá xa</span><div style="flex:1;height:8px;background:rgba(0,0,0,.08);border-radius:3px"><div style="width:24%;height:8px;background:#2E63E6;border-radius:3px"></div></div><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:#1E4BB8;width:26px;text-align:right">24%</span></div>
+            <div style="display:flex;align-items:center;gap:7px"><span style="font-size:9px;width:96px;color:rgba(0,0,0,.7)">Ta im quá lâu</span><div style="flex:1;height:8px;background:rgba(0,0,0,.08);border-radius:3px"><div style="width:20%;height:8px;background:rgba(0,0,0,.4);border-radius:3px"></div></div><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.55);width:26px;text-align:right">20%</span></div>
+            <div style="display:flex;align-items:center;gap:7px"><span style="font-size:9px;width:96px;color:rgba(0,0,0,.7)">Thiếu năng lực</span><div style="flex:1;height:8px;background:rgba(0,0,0,.08);border-radius:3px"><div style="width:18%;height:8px;background:rgba(0,0,0,.4);border-radius:3px"></div></div><span style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.55);width:26px;text-align:right">18%</span></div>
+          </div>
+          <div style="flex:1;padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;display:flex;flex-direction:column">
+            <div style="font-size:11px;font-weight:600;color:#1a1a1a;line-height:1.5">“Hẹn giao quá xa” tăng 9 điểm — đề xuất sửa luật chấm điểm ở <a class="dv-oid" href="#2a">2a</a></div>
+            <div style="font-size:9px;color:rgba(0,0,0,.62);margin-top:5px;line-height:1.55">Căn cứ: 8/8 hồ sơ thua vì lý do này rơi vào tuần X1 tải trên 85% · lịch máy từ Factory · hẹn giao ghi trong báo giá</div>
+            <div style="display:flex;gap:6px;margin-top:auto">
+              <div style="height:19px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:9px;color:#fff;font-weight:600">Áp luật mới</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Xem 8 hồ sơ</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Giữ nguyên</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 16px 15px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.42);font-weight:600;letter-spacing:.04em">RAIL</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Quý III</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Tải X1</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">Luật chấm điểm</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Chứng minh: hệ học được, và tháng sau khá hơn tháng này.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Lý do thua “hẹn giao quá xa” chỉ đối chiếu được khi có lịch máy thật từ Factory. CRM đứng một mình chỉ đếm được “giá cao” — câu trả lời vô dụng nhất trong bán hàng.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2f">
+      <div class="dv-olabel"><a class="dv-oid" href="#2f">2f</a>Nhật ký hội thoại — mỗi cuộc một tóm tắt, một sắc thái, không mất lần báo giá nào</div>
+      <div class="dv-card">
+        <div style="padding:16px 16px 12px;min-height:322px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a">Nhật ký Cơ điện Sao Đỏ</div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.45)">14 cuộc từ 08/07 · 4 kênh</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600;width:64px">Sắc thái</span>
+            <div style="flex:1;display:flex;gap:3px;align-items:flex-end;height:22px">
+              <div style="flex:1;height:12px;background:#22B573;border-radius:2px"></div>
+              <div style="flex:1;height:16px;background:#22B573;border-radius:2px"></div>
+              <div style="flex:1;height:9px;background:rgba(0,0,0,.22);border-radius:2px"></div>
+              <div style="flex:1;height:14px;background:#22B573;border-radius:2px"></div>
+              <div style="flex:1;height:8px;background:#8A5A00;border-radius:2px"></div>
+              <div style="flex:1;height:18px;background:#22B573;border-radius:2px"></div>
+              <div style="flex:1;height:19px;background:#22B573;border-radius:2px"></div>
+              <div style="flex:1;height:10px;background:rgba(0,0,0,.22);border-radius:2px"></div>
+              <div style="flex:1;height:13px;background:#22B573;border-radius:2px"></div>
+              <div style="flex:1;height:9px;background:rgba(0,0,0,.22);border-radius:2px"></div>
+              <div style="flex:1;height:7px;background:#8A5A00;border-radius:2px"></div>
+              <div style="flex:1;height:6px;background:#B0121C;border-radius:2px"></div>
+              <div style="flex:1;height:5px;background:#B0121C;border-radius:2px"></div>
+              <div style="flex:1;height:22px;border:1.5px dashed rgba(0,0,0,.35);border-radius:2px"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:9px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+              <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-left:3px solid #B0121C;border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;align-items:baseline;gap:6px">
+                  <span style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.6)">Zalo</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.42)">09/08 · 16:22</span>
+                  <span style="font-size:8px;padding:1px 5px;background:rgba(176,18,28,.12);color:#B0121C;border-radius:2px;margin-left:auto">Tiêu cực</span>
+                </div>
+                <div style="font-size:9.5px;color:rgba(0,0,0,.72);margin-top:4px;line-height:1.5">Anh Kiên hỏi lần hai vì sao chưa thấy lịch giao mới. Không nhắc giá.</div>
+              </div>
+              <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-left:3px solid #8A5A00;border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;align-items:baseline;gap:6px">
+                  <span style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.6)">Gọi · 4p12</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.42)">06/08 · 10:05</span>
+                  <span style="font-size:8px;padding:1px 5px;background:rgba(138,90,0,.14);color:#8A5A00;border-radius:2px;margin-left:auto">Thận trọng</span>
+                </div>
+                <div style="font-size:9.5px;color:rgba(0,0,0,.72);margin-top:4px;line-height:1.5">Khách cân nhắc phần mở rộng, xin giữ giá tới cuối tháng.</div>
+              </div>
+              <div style="padding:6px 8px;border:1.25px solid rgba(0,0,0,.42);border-left:3px solid #22B573;border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;align-items:baseline;gap:6px">
+                  <span style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.6)">Gặp tại xưởng</span>
+                  <span style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.42)">21/07 · 14:00</span>
+                  <span style="font-size:8px;padding:1px 5px;background:rgba(34,181,115,.14);color:#0F7A4B;border-radius:2px;margin-left:auto">Tích cực</span>
+                </div>
+                <div style="font-size:9.5px;color:rgba(0,0,0,.72);margin-top:4px;line-height:1.5">Ký HĐ-2607. Khách khen dung sai lô mẫu, ngỏ ý đơn tháng 10.</div>
+              </div>
+              <div style="padding:5px 8px;border:1.25px dashed rgba(0,0,0,.28);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;opacity:.6">
+                <div style="font-size:8.5px;color:rgba(0,0,0,.5)">11 cuộc trước đó · đã tóm tắt</div>
+              </div>
+            </div>
+            <div style="width:156px;display:flex;flex-direction:column;gap:5px">
+              <div style="font-size:8.5px;font-weight:600;color:rgba(0,0,0,.5)">Chuỗi báo giá · đủ 4 bản</div>
+              <div style="padding:5px 7px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.5)">BG-0512 v1 · 14/07</span><span style="font-family:'IBM Plex Mono';font-size:9px;font-weight:600">1,92 tỷ</span></div>
+                <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:3px">khách xin giảm 4%</div>
+              </div>
+              <div style="padding:5px 7px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.5)">v2 · 17/07</span><span style="font-family:'IBM Plex Mono';font-size:9px;font-weight:600">1,86 tỷ</span></div>
+                <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:3px">bỏ mạ, giữ nhiệt luyện</div>
+              </div>
+              <div style="padding:5px 7px;border:1.25px solid rgba(0,0,0,.42);border-left:3px solid #22B573;border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.5)">v3 · 21/07 · ký</span><span style="font-family:'IBM Plex Mono';font-size:9px;font-weight:600">1,84 tỷ</span></div>
+                <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:3px">→ HĐ-2607</div>
+              </div>
+              <div style="padding:5px 7px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 8px 255px 8px/8px 255px 8px 225px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-family:'IBM Plex Mono';font-size:8px;color:#1E4BB8">BG-0581 · 04/08</span><span style="font-family:'IBM Plex Mono';font-size:9px;font-weight:600;color:#1a1a1a">420 tr</span></div>
+                <div style="font-size:8px;color:rgba(0,0,0,.55);margin-top:3px">mở rộng · khách mở 2 lần, chưa trả lời</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:auto;padding:9px 10px;border:1.75px solid #2E63E6;background:rgba(46,99,230,.08);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="font-size:11px;font-weight:600;color:#1a1a1a;line-height:1.5">Sắc thái đảo chiều từ 08/08 — hai cuộc gần nhất đều về giao hàng, không về giá</div>
+            <div style="font-size:9px;color:rgba(0,0,0,.62);margin-top:5px;line-height:1.55">Căn cứ: 14 cuộc ghi tự động từ 4 kênh · trùng ngày WO-1180 bắt đầu chậm</div>
+            <div style="display:flex;gap:6px;margin-top:7px">
+              <div style="height:19px;padding:0 12px;background:#2E63E6;border-radius:3px;display:flex;align-items:center;font-size:9px;color:#fff;font-weight:600">Đưa vào thẻ chạm</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Nghe lại bản gốc</div>
+              <div style="height:19px;padding:0 10px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px;display:flex;align-items:center;font-size:9px">Sửa sắc thái</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:11px 16px 15px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:9px">
+            <span style="font-size:8.5px;color:rgba(0,0,0,.42);font-weight:600;letter-spacing:.04em">RAIL</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">BG-0512</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">BG-0581</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">HĐ-2607</span>
+            <span style="font-family:'IBM Plex Mono';font-size:9px;padding:2px 6px;background:rgba(0,0,0,.08);border-radius:3px">WO-1180</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Chứng minh: người bán nghỉ việc thì quan hệ vẫn ở lại công ty.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Ba thứ không được mất: <b>tóm tắt</b> để người mới đọc 30 giây là nắm, <b>sắc thái theo thời gian</b> để thấy lúc quan hệ xấu đi, <b>đủ mọi bản báo giá</b> để không ai cãi được đã hứa giá nào. Nút “sửa sắc thái” là chỗ máy nhận mình có thể chấm sai.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:24px;padding:16px 18px;width:1000px;max-width:100%;background:rgba(46,99,230,.06);border:1.5px solid #2E63E6;border-radius:255px 14px 225px 14px/14px 225px 14px 255px">
+    <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a;margin-bottom:7px">Bộ này khác bộ turn 1 ở đâu</div>
+    <div style="font-size:12.5px;line-height:1.75;color:rgba(0,0,0,.72);text-wrap:pretty">Turn 1 vẽ <b>chỗ để nhìn</b>, turn này vẽ <b>chỗ máy đã làm xong việc và đang chờ người gật</b>. Bốn trong năm màn phải đọc dữ liệu ngoài CRM mới chạy được — lịch và phép ở <a class="dv-oid" href="#2b">2b</a>, tiến độ xưởng ở <a class="dv-oid" href="#2c">2c</a> và <a class="dv-oid" href="#2d">2d</a>, tải máy ở <a class="dv-oid" href="#2e">2e</a> — nên chính bộ màn này là lập luận “mua cả hệ” chứ không cần slide nào giải thích thêm. Vẫn nên giữ <a class="dv-oid" href="#1d">1d</a> của turn trước làm màn sâu thứ sáu: nó là chỗ khách chịu trả tiền.</div>
+  </div>
+
+  <p class="dv-next">Thử tiếp: “dựng <a class="dv-oid" href="#2c">2c</a> và <a class="dv-oid" href="#2a">2a</a> thành màn thật trên nền Aurora” · “thêm màn bàn giao ký → đơn bán” · “đặt tên cho KD-02 rồi rà lại số”</p>
+</section>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd">
+    <a class="dv-tid" href="#t1">1</a>
+    <span class="dv-tname">Pebble Sales · năm cách nhóm màn cho CRM — màn nào làm neo?</span>
+  </div>
+
+  <div style="display:flex;gap:24px;align-items:flex-start;margin-bottom:28px;flex-wrap:wrap">
+    <div style="width:520px;padding:16px 18px;background:#fff;border:1.5px solid #1a1a1a;border-radius:255px 14px 225px 14px/14px 225px 14px 255px">
+      <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Ba mốc đầu của Sao Đỏ — phần việc của Sales</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;background:rgba(0,0,0,.07);border-radius:3px">LD-0334</span>
+        <span style="color:rgba(0,0,0,.35)">→</span>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;background:rgba(0,0,0,.07);border-radius:3px">BG-0512</span>
+        <span style="color:rgba(0,0,0,.35)">→</span>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;background:rgba(0,0,0,.07);border-radius:3px">HĐ-2607</span>
+        <span style="color:rgba(0,0,0,.35)">⇢</span>
+        <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 9px;background:rgba(46,99,230,.12);color:#1E4BB8;border-radius:3px">SO-0891 · Supply</span>
+      </div>
+      <div style="font-size:12px;line-height:1.7;color:rgba(0,0,0,.62);text-wrap:pretty">Cơ điện Sao Đỏ · 500 trục truyền TR-2040 · 1,84 tỷ · Trần Thu Hà phụ trách. Lead vào từ triển lãm MTA ngày 08/07, báo giá 14/07, ký 21/07. Sau khi ký, Sales buông — SO là object của Supply.</div>
+    </div>
+    <div style="width:400px;padding:16px 18px;background:rgba(255,205,0,.14);border:1.5px solid #1a1a1a;border-radius:225px 14px 255px 14px/14px 255px 14px 225px">
+      <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a;margin-bottom:8px">Câu duy nhất cần trả lời</div>
+      <div style="font-size:12.5px;line-height:1.75;color:rgba(0,0,0,.72);text-wrap:pretty">Người bán mở máy buổi sáng thì thấy gì <b>trước tiên</b>? Cái đó là màn neo, và nó quyết định bốn màn còn lại xếp quanh thế nào. Năm phương án dưới đây khác nhau ở đúng chỗ đó.</div>
+    </div>
+  </div>
+
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Neo = bảng cơ hội (kanban)</div>
+      <div class="dv-card">
+        <div style="padding:18px 18px 14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <div style="width:74px;height:9px;background:rgba(0,0,0,.20);border-radius:3px"></div>
+            <div style="flex:1"></div>
+            <div style="width:52px;height:16px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+            <div style="width:38px;height:16px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;height:196px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Lead</div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Khảo sát</div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Báo giá</div>
+              <div style="padding:6px 7px;border:1.75px solid #2E63E6;border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:rgba(46,99,230,.08)">
+                <div style="font-family:'IBM Plex Mono';font-size:8px;color:#1E4BB8;font-weight:600">SAO ĐỎ</div>
+                <div style="font-family:'IBM Plex Mono';font-size:8px;color:rgba(0,0,0,.6);margin-top:3px">1,84 tỷ</div>
+                <div style="width:70%;height:4px;background:rgba(46,99,230,.35);border-radius:2px;margin-top:5px"></div>
+              </div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Đàm phán</div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:#fff"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Ký</div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:rgba(0,0,0,.05)"></div>
+              <div style="height:38px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:rgba(0,0,0,.05)"></div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 18px 16px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <span style="font-size:9.5px;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:3px">Bảng cơ hội</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Chi tiết cơ hội</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Báo giá</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Ký hợp đồng</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(46,99,230,.12);color:#1E4BB8;border-radius:3px">Bàn giao Supply</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Được: ai cũng hiểu ngay, đúng kỳ vọng “CRM là cái này”.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Mất: xưởng gia công theo đơn chỉ có 20–40 cơ hội mở, kanban trống trải và người bán không thấy <b>việc phải làm hôm nay</b>. Kéo thẻ là thao tác quản lý, không phải thao tác bán.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Neo = hồ sơ khách 360°</div>
+      <div class="dv-card">
+        <div style="padding:18px 18px 14px;display:flex;gap:12px;height:236px">
+          <div style="width:112px;display:flex;flex-direction:column;gap:6px">
+            <div style="height:18px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+            <div style="padding:6px 8px;border:1.75px solid #2E63E6;border-radius:225px 8px 255px 8px/8px 255px 8px 225px;background:rgba(46,99,230,.08)">
+              <div style="font-family:'IBM Plex Mono';font-size:8px;color:#1E4BB8;font-weight:600">SAO ĐỎ</div>
+            </div>
+            <div style="height:26px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+            <div style="height:26px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+            <div style="height:26px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+            <div style="height:26px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px"></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div style="font-family:'Caveat';font-size:19px;font-weight:600;color:#1a1a1a">Cơ điện Sao Đỏ</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <span style="font-size:8px;padding:3px 6px;background:#1a1a1a;color:#fff;border-radius:2px">Tổng quan</span>
+              <span style="font-size:8px;padding:3px 6px;background:rgba(0,0,0,.08);border-radius:2px">Cơ hội</span>
+              <span style="font-size:8px;padding:3px 6px;background:rgba(0,0,0,.08);border-radius:2px">Báo giá</span>
+              <span style="font-size:8px;padding:3px 6px;background:rgba(0,0,0,.08);border-radius:2px">Đơn hàng</span>
+              <span style="font-size:8px;padding:3px 6px;background:rgba(0,0,0,.08);border-radius:2px">Công nợ</span>
+              <span style="font-size:8px;padding:3px 6px;background:rgba(0,0,0,.08);border-radius:2px">Bảo hành</span>
+              <span style="font-size:8px;padding:3px 6px;background:rgba(0,0,0,.08);border-radius:2px">Tài liệu</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+              <div style="height:40px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;padding:5px 6px"><div style="font-family:'IBM Plex Mono';font-size:11px;font-weight:600">1,84</div><div style="font-size:7px;color:rgba(0,0,0,.5);margin-top:2px">tỷ đang chạy</div></div>
+              <div style="height:40px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;padding:5px 6px"><div style="font-family:'IBM Plex Mono';font-size:11px;font-weight:600">2</div><div style="font-size:7px;color:rgba(0,0,0,.5);margin-top:2px">hóa đơn chờ</div></div>
+              <div style="height:40px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 8px 255px 8px/8px 255px 8px 225px;padding:5px 6px"><div style="font-family:'IBM Plex Mono';font-size:11px;font-weight:600">68%</div><div style="font-size:7px;color:rgba(0,0,0,.5);margin-top:2px">tiến độ WO</div></div>
+            </div>
+            <div style="flex:1;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;padding:8px 9px;display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Dòng thời gian gộp 4 hệ</div>
+              <div style="display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;background:#1a1a1a;border-radius:50%"></span><div style="flex:1;height:5px;background:rgba(0,0,0,.13);border-radius:3px"></div><span style="font-family:'IBM Plex Mono';font-size:7px;color:rgba(0,0,0,.45)">CRM</span></div>
+              <div style="display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;background:#1a1a1a;border-radius:50%"></span><div style="flex:1;height:5px;background:rgba(0,0,0,.13);border-radius:3px"></div><span style="font-family:'IBM Plex Mono';font-size:7px;color:rgba(0,0,0,.45)">Supply</span></div>
+              <div style="display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;background:#2E63E6;border-radius:50%"></span><div style="flex:1;height:5px;background:rgba(46,99,230,.25);border-radius:3px"></div><span style="font-family:'IBM Plex Mono';font-size:7px;color:#1E4BB8">Factory</span></div>
+              <div style="display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;background:#1a1a1a;border-radius:50%"></span><div style="flex:1;height:5px;background:rgba(0,0,0,.13);border-radius:3px"></div><span style="font-family:'IBM Plex Mono';font-size:7px;color:rgba(0,0,0,.45)">Finance</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 18px 16px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <span style="font-size:9.5px;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:3px">Hồ sơ khách 360°</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Cơ hội của khách</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Báo giá</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Ghi nhận liên hệ</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(46,99,230,.12);color:#1E4BB8;border-radius:3px">Bàn giao Supply</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Được: đây là màn chứng minh “một hệ, nhiều sản phẩm” mạnh nhất.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Khách hàng cũ chiếm phần lớn doanh thu xưởng gia công, nên vào bằng khách đúng hơn vào bằng cơ hội. Mất: không nói được “hôm nay làm gì” — cần một màn việc đi kèm.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Neo = việc hôm nay, có lý do</div>
+      <div class="dv-card">
+        <div style="padding:18px 18px 14px;height:236px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a">Hôm nay của chị Hà</div>
+            <div style="font-family:'IBM Plex Mono';font-size:9px;color:rgba(0,0,0,.45)">10/08 · 6 việc</div>
+          </div>
+          <div style="padding:9px 10px;border:1.75px solid #2E63E6;border-radius:225px 10px 255px 10px/10px 255px 10px 225px;background:rgba(46,99,230,.08)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <div style="font-size:11px;font-weight:600;color:#1a1a1a">Gọi lại Sao Đỏ</div>
+              <div style="font-family:'IBM Plex Mono';font-size:9px;color:#1E4BB8">1,84 tỷ</div>
+            </div>
+            <div style="font-size:9.5px;color:rgba(0,0,0,.6);margin-top:5px;line-height:1.5">Vì sao: khách mở lại tệp báo giá BG-0512 lần thứ hai, 21:40 tối qua</div>
+            <div style="display:flex;gap:5px;margin-top:7px">
+              <div style="height:15px;width:52px;background:#2E63E6;border-radius:3px"></div>
+              <div style="height:15px;width:44px;border:1.25px solid rgba(0,0,0,.4);border-radius:3px"></div>
+            </div>
+          </div>
+          <div style="padding:8px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="width:118px;height:7px;background:rgba(0,0,0,.22);border-radius:3px"></div>
+            <div style="font-size:9px;color:rgba(0,0,0,.45);margin-top:5px">Vì sao: hợp đồng hết hạn trong 9 ngày</div>
+          </div>
+          <div style="padding:8px 10px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+            <div style="width:96px;height:7px;background:rgba(0,0,0,.22);border-radius:3px"></div>
+            <div style="font-size:9px;color:rgba(0,0,0,.45);margin-top:5px">Vì sao: lệnh chậm 2 ngày — khách nên biết trước</div>
+          </div>
+          <div style="padding:8px 10px;border:1.25px dashed rgba(0,0,0,.32);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;opacity:.6">
+            <div style="width:130px;height:7px;background:rgba(0,0,0,.16);border-radius:3px"></div>
+          </div>
+        </div>
+        <div style="padding:12px 18px 16px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <span style="font-size:9.5px;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:3px">Việc hôm nay</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Ghi nhận cuộc gọi</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Hồ sơ khách</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Báo giá</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Bảng cơ hội</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Được: người bán thật sự dùng — và “vì sao” chỉ có được nhờ dữ liệu bốn nhánh.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Cổng khách hàng ghi lại lần mở tệp, Factory cấp tiến độ chậm, Finance cấp hạn thu. Mất: sếp không thấy toàn cảnh phễu — bảng cơ hội tụt xuống hạng hai.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1d">
+      <div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Neo = bàn dựng báo giá</div>
+      <div class="dv-card">
+        <div style="padding:18px 18px 14px;height:236px;display:flex;gap:10px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:baseline;gap:7px">
+              <div style="font-family:'Caveat';font-size:19px;font-weight:600;color:#1a1a1a">Báo giá BG-0512</div>
+              <div style="font-family:'IBM Plex Mono';font-size:8.5px;color:rgba(0,0,0,.45)">TR-2040 × 500</div>
+            </div>
+            <div style="border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;padding:8px 9px;display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;gap:6px;align-items:center"><div style="flex:1;height:6px;background:rgba(0,0,0,.22);border-radius:3px"></div><div style="width:34px;height:6px;background:rgba(0,0,0,.13);border-radius:3px"></div></div>
+              <div style="display:flex;gap:6px;align-items:center"><div style="flex:1;height:6px;background:rgba(0,0,0,.22);border-radius:3px"></div><div style="width:34px;height:6px;background:rgba(0,0,0,.13);border-radius:3px"></div></div>
+              <div style="display:flex;gap:6px;align-items:center"><div style="flex:1;height:6px;background:rgba(0,0,0,.22);border-radius:3px"></div><div style="width:34px;height:6px;background:rgba(0,0,0,.13);border-radius:3px"></div></div>
+              <div style="display:flex;gap:6px;align-items:center"><div style="flex:1;height:6px;background:rgba(0,0,0,.22);border-radius:3px"></div><div style="width:34px;height:6px;background:rgba(0,0,0,.13);border-radius:3px"></div></div>
+              <div style="height:1px;background:rgba(0,0,0,.14)"></div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:9px;color:rgba(0,0,0,.5)">Tổng</div><div style="font-family:'IBM Plex Mono';font-size:12px;font-weight:600">1.840.000.000</div></div>
+            </div>
+            <div style="padding:7px 9px;border:1.5px solid #1a1a1a;border-radius:225px 10px 255px 10px/10px 255px 10px 225px;background:rgba(255,205,0,.16)">
+              <div style="font-size:9px;color:rgba(0,0,0,.7);line-height:1.55">Xin giá thép Ø40 từ Supply · xác nhận năng lực X1 từ Factory</div>
+            </div>
+          </div>
+          <div style="width:132px;display:flex;flex-direction:column;gap:7px">
+            <div style="padding:8px 9px;border:1.75px solid #2E63E6;border-radius:225px 10px 255px 10px/10px 255px 10px 225px;background:rgba(46,99,230,.08)">
+              <div style="font-size:8.5px;color:#1E4BB8;font-weight:600">Giá vốn dự kiến</div>
+              <div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;margin-top:4px;color:#1a1a1a">1,42 tỷ</div>
+              <div style="font-size:8px;color:rgba(0,0,0,.55);margin-top:4px">vật tư · giờ máy · giờ công</div>
+            </div>
+            <div style="padding:8px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600">Lãi gộp</div>
+              <div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;margin-top:4px">22,8%</div>
+            </div>
+            <div style="padding:8px 9px;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;flex:1">
+              <div style="font-size:8.5px;color:rgba(0,0,0,.5);font-weight:600;margin-bottom:6px">Lần gửi</div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="height:5px;background:rgba(0,0,0,.14);border-radius:3px"></div>
+                <div style="height:5px;background:rgba(0,0,0,.14);border-radius:3px;width:70%"></div>
+                <div style="height:5px;background:rgba(46,99,230,.35);border-radius:3px;width:85%"></div>
+              </div>
+              <div style="font-size:8px;color:rgba(0,0,0,.5);margin-top:6px;line-height:1.5">Khách đã mở 2 lần</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 18px 16px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <span style="font-size:9.5px;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:3px">Bàn dựng báo giá</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Xin giá &amp; năng lực</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Gửi &amp; theo dấu mở tệp</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">Ký hợp đồng</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">→</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(46,99,230,.12);color:#1E4BB8;border-radius:3px">Bàn giao Supply</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Được: đánh đúng chỗ đau nhất của xưởng gia công theo đơn.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Báo giá là việc khó thật: phải bóc vật tư, hỏi giá, ước giờ máy — hiện làm trên Excel và thường sai. Không đối thủ nào ở Việt Nam nối báo giá với giá vốn thật. Mất: hẹp — chỉ đúng với công ty làm theo đơn, không đúng với bán hàng loạt.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1e">
+      <div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Nhóm theo ba người xem, không theo bước</div>
+      <div class="dv-card">
+        <div style="padding:18px 18px 14px;height:236px;display:flex;gap:9px;align-items:stretch">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div style="font-family:'Caveat';font-size:15px;font-weight:600;color:#1a1a1a">Người bán</div>
+            <div style="flex:1;border:1.75px solid #2E63E6;border-radius:225px 10px 255px 10px/10px 255px 10px 225px;background:rgba(46,99,230,.07);padding:7px 8px;display:flex;flex-direction:column;gap:5px">
+              <div style="height:12px;background:rgba(46,99,230,.22);border-radius:2px"></div>
+              <div style="height:5px;background:rgba(0,0,0,.14);border-radius:3px"></div>
+              <div style="height:5px;background:rgba(0,0,0,.14);border-radius:3px;width:80%"></div>
+              <div style="height:26px;border:1.25px solid rgba(0,0,0,.32);border-radius:3px;margin-top:2px"></div>
+              <div style="height:26px;border:1.25px solid rgba(0,0,0,.32);border-radius:3px"></div>
+              <div style="margin-top:auto;font-size:8px;color:rgba(0,0,0,.55);line-height:1.5">Máy tính 1440 · phễu, khách, báo giá</div>
+            </div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div style="font-family:'Caveat';font-size:15px;font-weight:600;color:#1a1a1a">Chính khách</div>
+            <div style="flex:1;border:1.25px solid rgba(0,0,0,.42);border-radius:225px 10px 255px 10px/10px 255px 10px 225px;padding:7px 8px;display:flex;flex-direction:column;gap:5px">
+              <div style="height:12px;background:rgba(0,0,0,.16);border-radius:2px"></div>
+              <div style="height:34px;border:1.25px solid rgba(0,0,0,.32);border-radius:3px;padding:4px 5px"><div style="font-family:'IBM Plex Mono';font-size:7px;color:rgba(0,0,0,.5)">68% · 22/08</div></div>
+              <div style="height:5px;background:rgba(0,0,0,.14);border-radius:3px"></div>
+              <div style="height:5px;background:rgba(0,0,0,.14);border-radius:3px;width:70%"></div>
+              <div style="height:20px;border:1.25px dashed rgba(0,0,0,.3);border-radius:3px"></div>
+              <div style="margin-top:auto;font-size:8px;color:rgba(0,0,0,.55);line-height:1.5">Cổng khách · tiến độ, tệp, hóa đơn</div>
+            </div>
+          </div>
+          <div style="width:98px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-family:'Caveat';font-size:15px;font-weight:600;color:#1a1a1a">Thợ hiện trường</div>
+            <div style="flex:1;border:1.25px solid rgba(0,0,0,.42);border-radius:16px;padding:7px 7px;display:flex;flex-direction:column;gap:5px">
+              <div style="height:4px;width:26px;background:rgba(0,0,0,.25);border-radius:3px;margin:0 auto"></div>
+              <div style="height:24px;border:1.25px solid rgba(0,0,0,.32);border-radius:3px"></div>
+              <div style="height:24px;border:1.25px solid rgba(0,0,0,.32);border-radius:3px"></div>
+              <div style="height:24px;background:rgba(255,205,0,.24);border:1.25px solid rgba(0,0,0,.32);border-radius:3px"></div>
+              <div style="margin-top:auto;font-size:8px;color:rgba(0,0,0,.55);line-height:1.45">Điện thoại · lắp đặt, bảo hành</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 18px 16px;background:rgba(0,0,0,.03);border-top:1px solid rgba(0,0,0,.08)">
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+            <span style="font-size:9.5px;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:3px">3 bề mặt × 2 màn mỗi bề mặt</span>
+            <span style="color:rgba(0,0,0,.3);font-size:10px">·</span>
+            <span style="font-size:9.5px;padding:3px 7px;background:rgba(0,0,0,.09);border-radius:3px">chung một hồ sơ khách</span>
+          </div>
+          <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:'Caveat';font-size:16px;color:#1a1a1a;line-height:1.45">Được: nói đúng cái Pebble Sales bán — ba năng lực trong một hợp đồng.</div>
+            <div style="font-size:11.5px;color:rgba(0,0,0,.55);line-height:1.65;margin-top:5px;text-wrap:pretty">Cổng khách hàng là thứ đối thủ hiếm có, và nó tự sinh dữ liệu cho <a class="dv-oid" href="#1c">1c</a>. Mất: dàn mỏng — sáu màn nông thay vì ba màn sâu, khó thuyết phục người mua là Trưởng phòng Kinh doanh.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:26px;padding:16px 18px;width:940px;max-width:100%;background:rgba(46,99,230,.06);border:1.5px solid #2E63E6;border-radius:255px 14px 225px 14px/14px 225px 14px 255px">
+    <div style="font-family:'Caveat';font-size:20px;font-weight:600;color:#1a1a1a;margin-bottom:7px">Nếu chọn thay tôi</div>
+    <div style="font-size:12.5px;line-height:1.75;color:rgba(0,0,0,.72);text-wrap:pretty">Ghép <a class="dv-oid" href="#1c">1c</a> làm màn neo với <a class="dv-oid" href="#1d">1d</a> làm màn sâu. Lý do: <a class="dv-oid" href="#1c">1c</a> là màn duy nhất mà mỗi dòng đều <b>chỉ tồn tại được nhờ có cả hệ</b> — bỏ Factory hay Finance ra là dòng “vì sao” biến mất, nên nó tự chứng minh luận điểm ecosystem mà không cần nói. Còn <a class="dv-oid" href="#1d">1d</a> là chỗ khách chịu trả tiền. <a class="dv-oid" href="#1a">1a</a> vẫn nên có nhưng là màn thứ tư, không phải màn mở.</div>
+  </div>
+
+  <p class="dv-next">Thử tiếp: “chốt <a class="dv-oid" href="#1c">1c</a> + <a class="dv-oid" href="#1d">1d</a>, phác 5 màn chi tiết” · “<a class="dv-oid" href="#1e">1e</a> nhưng bỏ hiện trường” · “thêm hướng khác cho màn neo”</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Phác thảo&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { showNotes: this.props.showNotes ?? true };
+  }
+}
+</script>
+</body>
+</html>

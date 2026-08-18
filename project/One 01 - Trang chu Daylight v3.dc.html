@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#EDF0F6;color:#14203B;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:#133A8A;text-decoration:none}
+  a:hover{color:#2E63E6}
+  button{border:0;font:inherit;color:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;text-align:left}
+</style>
+</helmet>
+
+<div style="min-height:100vh;min-width:1520px;padding:48px;display:flex;flex-direction:column;align-items:center;gap:24px">
+
+  <div style="width:1440px;display:flex;align-items:flex-end;gap:32px">
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <span style="font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#133A8A;font-weight:600">PV One · trang chủ · Daylight v3</span>
+        <span style="width:1px;height:13px;background:#D3DAE7"></span>
+        <span style="font-family:'IBM Plex Mono';font-size:10.5px;color:#55637C">Máy tính 1440 × 900 · 10/08 · 07:58</span>
+      </div>
+      <h1 style="font-size:31px;font-weight:600;letter-spacing:-.7px;line-height:1.25;margin:0">Ba loại việc khác bản chất, ba hàng đợi riêng</h1>
+      <p style="font-size:15px;line-height:1.8;color:#55637C;margin:16px 0 0;max-width:940px;text-wrap:pretty">v2 gom việc duyệt, sự cố và việc nên biết vào một danh sách “gấp / không gấp”. Vận hành thật thì ba thứ đó khác nhau: việc duyệt có hạn của nhà cung cấp, sự cố là việc cấp dưới không xử lý được nên đội lên, việc nên biết thì không có nút nào phải bấm. v3 tách đúng ba hàng đợi, mỗi việc duyệt nói rõ <b style="color:#14203B;font-weight:600">ai trình · bao nhiêu tiền · vì sao phải lên tới giám đốc</b>, hoãn thì phải chọn mốc quay lại, và đi vắng thì uỷ quyền được.</p>
+    </div>
+    <div style="width:300px;background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.08),0 0 0 1px #E4E9F2;padding:20px">
+      <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#55637C;font-weight:600;margin-bottom:12px">Khác v2</div>
+      <div style="font-size:13px;color:#55637C;line-height:1.75;text-wrap:pretty">Badge hộp duyệt khớp đúng hàng đợi · mỗi việc có hạn mức bị vượt · AI nằm ngay dưới việc nó nói tới, không đứng riêng trên đầu · hoãn phải chọn mốc · thẻ đơn trễ thành danh sách chứ không cắm cứng một đơn.</div>
+      <div style="font-size:12.5px;color:#55637C;line-height:1.7;margin-top:12px;padding-top:12px;box-shadow:inset 0 1px 0 #EFF2F7;text-wrap:pretty">Tiền một đơn vị duy nhất: <b style="font-family:'IBM Plex Mono';font-weight:500;color:#14203B">triệu · tỷ</b>. Mỗi số trên cột phải có một dòng nói lấy từ đâu. Ô hero đổi từ dòng tiền tuần sang tiền đang có trong tài khoản — câu duy nhất giám đốc hỏi buổi sáng.</div>
+    </div>
+  </div>
+
+  <div style="position:relative;width:1440px;height:900px;border-radius:12px;overflow:hidden;background:#F4F6FA;box-shadow:0 28px 70px rgba(20,32,59,.20),0 0 0 1px #DDE3EE">
+    <div style="height:900px;display:flex">
+
+      <div style="width:244px;flex-shrink:0;background:#FFFFFF;box-shadow:inset -1px 0 0 #E4E9F2;padding:20px 16px 16px;display:flex;flex-direction:column;gap:4px">
+        <div style="display:flex;align-items:center;gap:12px;padding:4px 8px 20px">
+          <img src="assets/pebble-vina-mark.png" alt="" style="width:28px;height:28px;object-fit:contain;flex-shrink:0">
+          <div><b style="font-size:15.5px;font-weight:600;letter-spacing:-.2px">PV One</b><small style="display:block;font-size:11.5px;color:#55637C;font-weight:400;margin-top:4px">Cơ khí Thắng Lợi</small></div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 12px;border-radius:8px;font-size:15px;font-weight:600;background:#EEF3FF;color:#133A8A"><i data-lucide="list-checks" width="20" height="20" stroke-width="1.75" style="display:inline-flex"></i>Việc của tôi</div>
+        <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 12px;border-radius:8px;font-size:15px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="inbox" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Chờ tôi duyệt<span style="margin-left:auto;background:#B81C15;color:#fff;font-size:11.5px;font-weight:600;border-radius:6px;padding:4px 8px;font-variant-numeric:tabular-nums">{{ approveCount }}</span></div>
+        <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 12px;border-radius:8px;font-size:15px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="bell" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Thông báo<span style="margin-left:auto;background:#EDF0F6;color:#55637C;font-size:11.5px;font-weight:600;border-radius:6px;padding:4px 8px;font-variant-numeric:tabular-nums">12</span></div>
+
+        <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#5F6D85;font-weight:600;padding:24px 12px 8px">Từng bộ phận</div>
+        <sc-if value="{{ seeSales }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="users" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Kinh doanh</div>
+        </sc-if>
+        <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="package" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Kho &amp; mua hàng</div>
+        <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="factory" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Xưởng sản xuất</div>
+        <sc-if value="{{ seeFinance }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="calculator" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Tiền &amp; công nợ</div>
+        </sc-if>
+
+        <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#5F6D85;font-weight:600;padding:24px 12px 8px">Cả công ty</div>
+        <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="users-round" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Nhân sự</div>
+        <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="folder-open" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Tài liệu &amp; quy trình</div>
+        <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:8px;font-size:14.5px;color:#55637C" style-hover="background:#F1F4FA"><i data-lucide="chart-column" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:#55637C"></i>Báo cáo</div>
+
+        <div style="margin-top:auto;display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;background:#F4F6FA">
+          <div role="img" aria-label="Ảnh đại diện" style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background-color:#DDE3EE;background-size:cover;background-position:center;background-image:url({{ roleAvatar }})"></div>
+          <div style="min-width:0"><div style="font-size:13px;font-weight:600;line-height:1.3">{{ roleName }}</div><div style="font-size:11px;color:#55637C;margin-top:4px">{{ roleTitle }}</div></div>
+          <i data-lucide="settings" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#5F6D85;margin-left:auto"></i>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+        <div style="height:66px;flex-shrink:0;background:#FFFFFF;box-shadow:inset 0 -1px 0 #E4E9F2;display:flex;align-items:center;gap:20px;padding:0 32px">
+          <div style="flex:1;max-width:480px;display:flex;align-items:center;gap:12px;height:44px;padding:0 16px;border-radius:8px;background:#F4F6FA;box-shadow:inset 0 0 0 1px #E4E9F2;color:#55637C;font-size:14.5px">
+            <i data-lucide="search" width="16" height="16" stroke-width="1.75" style="display:inline-flex"></i>
+            Tìm khách hàng, đơn hàng, lệnh sản xuất…
+            <span style="margin-left:auto;font-family:'IBM Plex Mono';font-size:10.5px;color:#5F6D85">⌘K</span>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:#55637C"><i data-lucide="clock" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#5F6D85"></i>Số liệu lúc <b style="font-family:'IBM Plex Mono';font-weight:600;color:#14203B">07:58</b></div>
+            <button style="display:flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:8px;background:#2E63E6;color:#FFFFFF;font-size:14px;font-weight:600;box-shadow:0 1px 2px rgba(19,58,138,.24)" style-hover="background:#265AD8"><i data-lucide="orbit" width="16" height="16" stroke-width="1.75" style="display:inline-flex"></i>Trợ lý AI</button>
+          </div>
+        </div>
+
+        <div style="height:42px;flex-shrink:0;background:#FFFFFF;box-shadow:inset 0 -1px 0 #E4E9F2;display:flex;align-items:center;gap:8px;padding:0 32px">
+          <span style="font-size:12px;color:#5F6D85">Đang theo</span>
+          <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 8px;border-radius:6px;background:#F4F6FA;color:#55637C">HĐ-2607</span>
+          <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#C7D0DF"></i>
+          <span style="font-family:'IBM Plex Mono';font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;background:#EEF3FF;color:#133A8A">SO-0891</span>
+          <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#C7D0DF"></i>
+          <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 8px;border-radius:6px;background:#F4F6FA;color:#55637C">WO-1180</span>
+          <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#C7D0DF"></i>
+          <span style="font-family:'IBM Plex Mono';font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px;background:#FDECEA;color:#B81C15">PO-0455</span>
+          <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#C7D0DF"></i>
+          <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 8px;border-radius:6px;background:#F4F6FA;color:#55637C">L-2608-042</span>
+          <span style="margin-left:auto;font-size:12px;color:#133A8A;font-weight:600">Xem cả chuỗi</span>
+        </div>
+
+        <div style="flex:1;min-height:0;padding:16px 32px;display:flex;flex-direction:column;gap:16px">
+
+          <div style="flex-shrink:0;display:flex;align-items:flex-end;gap:24px">
+            <div style="flex:1;min-width:0">
+              <h2 style="font-size:21px;font-weight:600;letter-spacing:-.4px;line-height:1.2;margin:0">{{ greeting }}</h2>
+              <p style="font-size:13.5px;color:#55637C;line-height:1.5;margin:4px 0 0">{{ greetingSub }}</p>
+            </div>
+            <div style="flex-shrink:0;text-align:right">
+              <div style="font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#5F6D85;font-weight:600;margin-bottom:8px">Xem màn này như</div>
+              <div style="display:flex;gap:4px;padding:4px;border-radius:8px;background:#FFFFFF;box-shadow:0 0 0 1px #E4E9F2">
+                <sc-if value="{{ isGd }}" hint-placeholder-val="{{ true }}"><button style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:600;background:#133A8A;color:#FFFFFF">Giám đốc</button></sc-if>
+                <sc-if value="{{ notGd }}" hint-placeholder-val="{{ false }}"><button onClick="{{ pickGd }}" style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500;background:#FFFFFF;color:#55637C" style-hover="background:#F1F4FA">Giám đốc</button></sc-if>
+                <sc-if value="{{ isTp }}" hint-placeholder-val="{{ false }}"><button style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:600;background:#133A8A;color:#FFFFFF">TP Kinh doanh</button></sc-if>
+                <sc-if value="{{ notTp }}" hint-placeholder-val="{{ true }}"><button onClick="{{ pickTp }}" style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500;background:#FFFFFF;color:#55637C" style-hover="background:#F1F4FA">TP Kinh doanh</button></sc-if>
+                <sc-if value="{{ isTk }}" hint-placeholder-val="{{ false }}"><button style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:600;background:#133A8A;color:#FFFFFF">Thủ kho</button></sc-if>
+                <sc-if value="{{ notTk }}" hint-placeholder-val="{{ true }}"><button onClick="{{ pickTk }}" style="height:34px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:500;background:#FFFFFF;color:#55637C" style-hover="background:#F1F4FA">Thủ kho</button></sc-if>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:1;min-height:0;display:grid;grid-template-columns:1fr 344px;gap:20px">
+
+            <div style="min-width:0;background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.06),0 0 0 1px #E4E9F2;overflow:hidden;display:flex;flex-direction:column">
+              <div style="flex:1;min-height:0;overflow-y:auto">
+
+                <div style="display:flex;align-items:center;gap:12px;padding:16px 24px 10px">
+                  <span style="width:7px;height:7px;border-radius:50%;background:#B81C15;flex-shrink:0"></span>
+                  <b style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:#B81C15">Chờ anh quyết</b>
+                  <span style="font-size:12.5px;color:#5F6D85">{{ queueLabel }}</span>
+                  <span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:#133A8A;font-weight:600"><i data-lucide="user-round-check" width="16" height="16" stroke-width="1.75" style="display:inline-flex"></i>Uỷ quyền khi đi vắng</span>
+                </div>
+
+                <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="2">
+                  <div style="padding:4px 24px 10px" style-hover="background:#FCFDFE">
+                    <div style="display:flex;align-items:flex-start;gap:16px">
+                      <div style="width:36px;height:36px;border-radius:8px;background:{{ d.tint }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="{{ d.icon }}" width="20" height="20" stroke-width="1.75" style="display:inline-flex;color:{{ d.ink }}"></i></div>
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:baseline;gap:16px">
+                          <div style="flex:1;min-width:0;font-size:15.5px;font-weight:600;line-height:1.4;letter-spacing:-.2px">{{ d.title }}</div>
+                          <div style="flex-shrink:0;font-family:'Space Grotesk';font-size:17px;font-weight:600;letter-spacing:-.3px;font-variant-numeric:tabular-nums">{{ d.amount }}</div>
+                        </div>
+                        <div style="font-size:13px;color:#55637C;line-height:1.6;margin-top:6px;text-wrap:pretty">{{ d.who }}</div>
+                        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#55637C;line-height:1.6;margin-top:2px;text-wrap:pretty"><i data-lucide="shield-alert" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#8A6300;flex-shrink:0"></i>{{ d.why }}</div>
+                        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+                          <span style="font-size:13.5px;color:#55637C">Hạn <b style="font-weight:600;color:#14203B;background:#FFF0BF;padding:4px 8px;border-radius:6px;white-space:nowrap">{{ d.due }}</b></span>
+                          <sc-for list="{{ d.chips }}" as="c" hint-placeholder-count="2">
+                            <span style="font-family:'IBM Plex Mono';font-size:11px;padding:4px 8px;border-radius:6px;background:#F4F6FA;color:#55637C">{{ c }}</span>
+                          </sc-for>
+                        </div>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;width:152px">
+                        <button style="height:44px;padding:0 20px;border-radius:8px;background:#2E63E6;color:#FFFFFF;font-size:14px;font-weight:600;text-align:center;box-shadow:0 1px 2px rgba(19,58,138,.24)" style-hover="background:#265AD8">{{ d.btn }}</button>
+                        <button style="display:flex;align-items:center;justify-content:center;gap:4px;height:34px;border-radius:8px;background:#FFFFFF;color:#55637C;font-size:13px;font-weight:500;box-shadow:0 0 0 1px #E4E9F2" style-hover="background:#F7F9FC">Hoãn đến {{ d.snooze }}<i data-lucide="chevron-down" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#8B97AC"></i></button>
+                      </div>
+                    </div>
+                    <sc-if value="{{ d.hasAi }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;gap:12px;margin:8px 0 0 52px;padding:10px 12px;border-radius:8px;background:#F5F8FF">
+                        <span style="width:28px;height:28px;border-radius:8px;background:#2E63E6;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="orbit" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#fff"></i></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:13.5px;line-height:1.6;text-wrap:pretty"><b style="font-weight:600;color:#133A8A">Trợ lý AI · </b>{{ d.aiText }}</div>
+                          <div style="font-size:12px;color:#5A6FA0;line-height:1.55;margin-top:2px;text-wrap:pretty">{{ d.aiBasis }}</div>
+                        </div>
+                        <div style="display:flex;align-items:flex-start;gap:8px;flex-shrink:0">
+                          <button style="height:34px;padding:0 14px;border-radius:8px;background:#FFFFFF;color:#133A8A;font-size:12.5px;font-weight:600;box-shadow:0 0 0 1px #D6E1FB" style-hover="background:#FBFCFF">Xem căn cứ</button>
+                          <button style="height:34px;padding:0 14px;border-radius:8px;background:#FFFFFF;color:#133A8A;font-size:12.5px;font-weight:600;box-shadow:0 0 0 1px #D6E1FB" style-hover="background:#FBFCFF">{{ d.aiBtn }}</button>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+
+                <div style="display:flex;align-items:center;gap:12px;padding:0 24px 10px 76px">
+                  <span style="font-size:13px;color:#133A8A;font-weight:600;text-wrap:pretty">{{ queueRest }}</span>
+                  <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#133A8A;flex-shrink:0"></i>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 24px 8px;box-shadow:inset 0 1px 0 #EFF2F7">
+                  <span style="width:7px;height:7px;border-radius:50%;background:#8A6300;flex-shrink:0"></span>
+                  <b style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:#8A6300">Đang tắc, cấp dưới chưa gỡ được</b>
+                  <span style="font-size:12.5px;color:#5F6D85">{{ blockedCount }}</span>
+                </div>
+
+                <sc-for list="{{ blocked }}" as="b" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:flex-start;gap:16px;padding:2px 24px 10px" style-hover="background:#FCFDFE">
+                    <div style="width:32px;height:32px;border-radius:8px;background:{{ b.tint }};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px"><i data-lucide="{{ b.icon }}" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:{{ b.ink }}"></i></div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:14.5px;font-weight:600;line-height:1.4">{{ b.title }}</div>
+                      <div style="font-size:13px;color:#55637C;line-height:1.55;margin-top:4px;text-wrap:pretty">{{ b.sub }} · <b style="font-weight:500;color:#8A6300">để nguyên thì {{ b.cost }}</b></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;padding-top:2px">
+                      <button style="height:38px;padding:0 14px;border-radius:8px;background:#FFFFFF;color:#133A8A;font-size:13px;font-weight:600;box-shadow:0 0 0 1px #D6E1FB" style-hover="background:#F7FAFF">{{ b.btn1 }}</button>
+                      <button style="height:38px;padding:0 14px;border-radius:8px;background:#FFFFFF;color:#55637C;font-size:13px;font-weight:500;box-shadow:0 0 0 1px #E4E9F2" style-hover="background:#F7F9FC">{{ b.btn2 }}</button>
+                    </div>
+                  </div>
+                </sc-for>
+
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 24px 8px;box-shadow:inset 0 1px 0 #EFF2F7">
+                  <span style="width:7px;height:7px;border-radius:50%;background:#C7D0DF;flex-shrink:0"></span>
+                  <b style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:#5F6D85">Nên để mắt, chưa cần quyết</b>
+                  <span style="font-size:12.5px;color:#5F6D85">{{ watchCount }}</span>
+                </div>
+
+                <sc-for list="{{ watch }}" as="w" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:16px;padding:8px 24px" style-hover="background:#FCFDFE">
+                    <i data-lucide="{{ w.icon }}" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#8B97AC;flex-shrink:0"></i>
+                    <div style="flex:1;min-width:0;font-size:13.5px;line-height:1.5;text-wrap:pretty"><b style="font-weight:600">{{ w.title }}</b><span style="color:#55637C"> — {{ w.sub }}</span></div>
+                    <span style="font-size:13.5px;color:#133A8A;font-weight:600;flex-shrink:0">{{ w.btn }}</span>
+                    <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#133A8A;flex-shrink:0"></i>
+                  </div>
+                </sc-for>
+
+                <div style="height:12px"></div>
+              </div>
+            </div>
+
+            <div style="min-width:0;display:flex;flex-direction:column;gap:20px;overflow-y:auto">
+
+              <sc-if value="{{ showStats }}" hint-placeholder-val="{{ true }}">
+                <div style="background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.06),0 0 0 1px #E4E9F2;overflow:hidden;flex-shrink:0">
+                  <div style="padding:12px 20px;box-shadow:inset 0 -1px 0 #E4E9F2;display:flex;align-items:center">
+                    <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5F6D85;font-weight:600;flex:1">Số anh quản</span>
+                    <span style="font-size:11.5px;color:#5F6D85">bấm để mở báo cáo</span>
+                  </div>
+                  <button style="display:block;width:100%;padding:16px 20px;background:#FFFFFF;box-shadow:inset 0 -1px 0 #E4E9F2" style-hover="background:#F7F9FC">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:12.5px;color:#55637C;flex:1">{{ hero.label }}</span>
+                      <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#5F6D85"></i>
+                    </div>
+                    <div style="font-family:'Space Grotesk';font-size:28px;font-weight:600;letter-spacing:-.8px;margin-top:4px;font-variant-numeric:tabular-nums;color:{{ hero.ink }}">{{ hero.num }}</div>
+                    <div style="font-size:12.5px;color:#55637C;margin-top:4px;line-height:1.45">{{ hero.delta }}</div>
+                    <div style="font-family:'IBM Plex Mono';font-size:11px;color:#55637C;margin-top:8px;line-height:1.5">{{ hero.src }}</div>
+                  </button>
+                  <sc-for list="{{ stats }}" as="s" hint-placeholder-count="3">
+                    <button style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 20px;background:#FFFFFF;box-shadow:inset 0 -1px 0 #EFF2F7" style-hover="background:#F7F9FC">
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12.5px;color:#55637C;line-height:1.4">{{ s.label }}</div>
+                        <div style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;margin-top:4px;color:{{ s.ink }}"><i data-lucide="{{ s.icon }}" width="16" height="16" stroke-width="1.75" style="display:inline-flex"></i>{{ s.delta }}</div>
+                        <div style="font-family:'IBM Plex Mono';font-size:11px;color:#55637C;margin-top:4px;line-height:1.45">{{ s.src }}</div>
+                      </div>
+                      <div style="font-family:'Space Grotesk';font-size:20px;font-weight:600;letter-spacing:-.5px;font-variant-numeric:tabular-nums;flex-shrink:0">{{ s.num }}</div>
+                      <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#5F6D85;flex-shrink:0"></i>
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <div style="background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.06),0 0 0 1px #E4E9F2;overflow:hidden;flex-shrink:0">
+                <div style="padding:12px 20px;box-shadow:inset 0 -1px 0 #E4E9F2;display:flex;align-items:center;gap:8px">
+                  <span style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5F6D85;font-weight:600;flex:1">{{ lateTitle }}</span>
+                  <span style="font-size:11.5px;font-weight:600;padding:4px 8px;border-radius:6px;background:#FDECEA;color:#B81C15;font-variant-numeric:tabular-nums">{{ lateCount }}</span>
+                </div>
+                <sc-for list="{{ lateOrders }}" as="o" hint-placeholder-count="2">
+                  <button style="display:block;width:100%;padding:16px 20px;background:#FFFFFF;box-shadow:inset 0 -1px 0 #EFF2F7" style-hover="background:#F7F9FC">
+                    <div style="display:flex;align-items:flex-start;gap:12px">
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:14.5px;font-weight:600;letter-spacing:-.1px;line-height:1.4">{{ o.name }}</div>
+                        <div style="font-family:'IBM Plex Mono';font-size:11px;color:#55637C;margin-top:4px">{{ o.code }}</div>
+                      </div>
+                      <span style="font-size:12px;font-weight:600;padding:4px 8px;border-radius:6px;background:#FDECEA;color:#B81C15;flex-shrink:0;white-space:nowrap">{{ o.late }}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:#55637C;margin:12px 0 8px"><span>{{ o.stage }}</span><b style="font-family:'Space Grotesk';font-weight:600;color:#14203B;font-variant-numeric:tabular-nums">{{ o.pct }}</b></div>
+                    <div style="height:8px;border-radius:6px;background:#EDF0F6;overflow:hidden"><span style="display:block;height:100%;border-radius:6px;background:#2E63E6;width:{{ o.pct }}"></span></div>
+                    <div style="font-size:12.5px;color:#55637C;line-height:1.5;margin-top:8px;text-wrap:pretty">{{ o.cause }}</div>
+                  </button>
+                </sc-for>
+                <div style="display:flex;align-items:center;gap:8px;padding:12px 20px">
+                  <span style="font-size:13px;color:#133A8A;font-weight:600">{{ lateMore }}</span>
+                  <i data-lucide="chevron-right" width="16" height="16" stroke-width="1.75" style="display:inline-flex;color:#133A8A"></i>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:1440px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+    <div style="background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.06),0 0 0 1px #E4E9F2;padding:20px 24px">
+      <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5F6D85;font-weight:600;margin-bottom:12px">Vì sao lên tới anh</div>
+      <div style="font-size:13.5px;color:#55637C;line-height:1.75;text-wrap:pretty">Mỗi việc duyệt ghi rõ hạn mức nào bị vượt. Việc dưới hạn mức thì cấp dưới tự quyết, không đổ về đây — nếu không, giám đốc thành nút cổ chai của cả công ty.</div>
+    </div>
+    <div style="background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.06),0 0 0 1px #E4E9F2;padding:20px 24px">
+      <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5F6D85;font-weight:600;margin-bottom:12px">Hoãn phải có mốc</div>
+      <div style="font-size:13.5px;color:#55637C;line-height:1.75;text-wrap:pretty">Không còn “Để sau”. Hoãn là chọn mốc quay lại, và việc tự nổi lên đúng mốc đó. Việc rời khỏi màn chỉ theo ba đường: quyết, uỷ quyền, hoặc trả lại kèm lý do.</div>
+    </div>
+    <div style="background:#FFFFFF;border-radius:12px;box-shadow:0 1px 2px rgba(20,32,59,.06),0 0 0 1px #E4E9F2;padding:20px 24px">
+      <div style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5F6D85;font-weight:600;margin-bottom:12px">Cố tình không làm</div>
+      <div style="font-size:13.5px;color:#55637C;line-height:1.75;text-wrap:pretty">Không nút duyệt một chạm cho khoản trăm triệu — luôn mở phiếu để xem giá và tồn kho. Không biểu đồ trên trang chủ. Không việc tự ghi tay ở bản này, sẽ đặt trong Công việc.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1520,&quot;height&quot;:1300},&quot;defaultRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Giám đốc&quot;,&quot;TP Kinh doanh&quot;,&quot;Thủ kho&quot;],&quot;default&quot;:&quot;Giám đốc&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Nội dung&quot;},&quot;showStats&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Nội dung&quot;}}">
+const TINT = {
+  red:  { tint: '#FDECEA', ink: '#B81C15' },
+  amber:{ tint: '#FFF6E0', ink: '#8A6300' },
+  blue: { tint: '#EEF3FF', ink: '#133A8A' },
+  green:{ tint: '#E9F7F0', ink: '#12805A' }
+};
+
+const ROLES = {
+  gd: {
+    name: 'Nguyễn Văn Thắng', title: 'Giám đốc', avatar: 'https://i.pravatar.cc/120?img=60',
+    approveCount: 7, seeSales: true, seeFinance: true,
+    greeting: 'Sáng thứ hai, anh Thắng',
+    greetingSub: '7 việc chờ anh quyết, 2 việc trong đó hết hạn hôm nay. Hai chỗ đang tắc mà cấp dưới chưa gỡ được.',
+    queueLabel: '7 việc · 2 hết hạn hôm nay',
+    queueRest: 'Xem 5 việc hạn từ mai — gia công ngoài 96 triệu · 2 đơn phép · 1 tăng lương · 1 thanh toán',
+    decisions: [
+      { icon:'shopping-cart', ...TINT.red,
+        title:'Mua 1,2 tấn thép Ø40 cho đơn Sao Đỏ',
+        amount:'214 triệu',
+        who:'Chị Lan · Mua hàng · trình 07:41 · Thép Việt Đức, cao hơn tháng 6 là 4%',
+        why:'Vượt hạn mức 100 triệu của TP Mua hàng',
+        due:'12:00 trưa nay', snooze:'11:00', chips:['PO-0455','PR-0231','WO-1180'], btn:'Mở phiếu duyệt',
+        hasAi:true,
+        aiText:'Duyệt hôm nay vẫn kịp giao 22/08, với điều kiện chuyển 30% khối lượng sang CNC-05.',
+        aiBasis:'Căn cứ: tồn K1-A2 còn 0,3 tấn · định mức cần 1,5 tấn · CNC-03 đang hỏng.',
+        aiBtn:'Duyệt kèm đổi máy' },
+      { icon:'percent', ...TINT.amber,
+        title:'Giảm giá 8% cho Trường Thịnh để chốt đơn',
+        amount:'1,84 tỷ',
+        who:'Chị Hà · Kinh doanh · trình 09/08 16:30 · khách đã chờ 2 ngày',
+        why:'Vượt quyền giảm 5% của TP Kinh doanh · giảm 8% thì biên lãi còn 9,1%',
+        due:'hôm nay', snooze:'16:00', chips:['BG-0498','KH-0142'], btn:'Xem giá thành' }
+    ],
+    blockedCount: '2 chỗ',
+    blocked: [
+      { icon:'wrench', ...TINT.red,
+        title:'Lệnh bảo trì CNC-03 giao 06:24, anh Hải chưa nhận',
+        sub:'Lỗi E-214, máy dừng lần thứ ba trong tuần · mất 37 phút sáng nay',
+        cost:'WO-1180 chậm thêm nửa ngày mỗi giờ máy dừng',
+        btn1:'Nhắc anh Hải', btn2:'Giao người khác' },
+      { icon:'clock-alert', ...TINT.amber,
+        title:'Yêu cầu mua PR-0231 nằm ở Mua hàng 2 ngày chưa ra đơn',
+        sub:'Xưởng gửi 08/08 · quy trình chuẩn 1 ngày · mới có 2 trong 3 báo giá',
+        cost:'32% khối lượng WO-1180 tiếp tục nằm chờ',
+        btn1:'Hỏi Mua hàng', btn2:'Cho mua 1 báo giá' }
+    ],
+    watchCount: '3 việc',
+    watch: [
+      { icon:'users', title:'3 khách hàng im lặng quá lâu', sub:'Sao Đỏ 6 ngày với báo giá mở rộng · Trường Thịnh chờ duyệt giá · Hòa Phong dừng liên lạc 11 ngày', btn:'Mở sổ khách' },
+      { icon:'receipt', title:'2 hóa đơn quá hạn 12 ngày, tổng 890 triệu', sub:'kế toán đã nhắc khách hai lần, chưa cần anh gọi', btn:'Xem công nợ' },
+      { icon:'trending-down', title:'Biên lãi lệnh WO-1180 còn 16,2%', sub:'báo giá tính 19% · lệch do phát sinh giờ máy và giá thép', btn:'Xem giá thành' }
+    ],
+    hero: { num:'1,86 tỷ', label:'Tiền đang có trong tài khoản', delta:'đủ trả lương tháng 8 (720 triệu) và 2 khoản nhà cung cấp đến hạn tuần này (515 triệu)', ink:'#12805A', src:'3 tài khoản ngân hàng · đối chiếu 07:30 hôm nay' },
+    stats: [
+      { num:'4,2 tỷ', label:'Doanh thu tháng 8', delta:'vượt kế hoạch 12% · đích 3,75 tỷ', icon:'trending-up', ink:'#12805A', src:'hóa đơn đã xuất + đơn đã ký' },
+      { num:'890 triệu', label:'Công nợ quá hạn', delta:'47 ngày thu tiền · đích 35 ngày', icon:'trending-up', ink:'#B81C15', src:'sổ công nợ, kế toán khóa 07:00' },
+      { num:'86%', label:'Giao đúng hạn 90 ngày', delta:'thấp hơn đích 90%', icon:'trending-down', ink:'#B81C15', src:'ngày giao thực tế vs cam kết trên đơn' }
+    ],
+    lateTitle: 'Đơn đang trễ hạn giao', lateCount: '2 / 14 đơn', lateMore: 'Xem cả 14 đơn đang chạy',
+    lateOrders: [
+      { name:'Cơ khí Sao Đỏ', code:'SO-0891 · hẹn giao 22/08', late:'chậm 2 ngày', stage:'Lệnh sản xuất WO-1180', pct:'68%', cause:'Chờ 1,2 tấn thép Ø40 · đang nằm ở việc duyệt đầu tiên bên trái' },
+      { name:'Xây dựng Trường Thịnh', code:'SO-0884 · hẹn giao 14/08', late:'chậm 1 ngày', stage:'Lệnh sản xuất WO-1174', pct:'92%', cause:'Xong hàng, chờ khách cử người nghiệm thu · đã hẹn lại 12/08' }
+    ]
+  },
+  tp: {
+    name: 'Trần Thu Hà', title: 'Trưởng phòng Kinh doanh', avatar: 'https://i.pravatar.cc/120?img=47',
+    approveCount: 2, seeSales: true, seeFinance: false,
+    greeting: 'Sáng thứ hai, chị Hà',
+    greetingSub: 'Đơn Sao Đỏ đang chậm và khách vẫn chưa được báo. 2 việc chờ chị quyết, 1 việc phải làm trước 10:00.',
+    queueLabel: '2 việc · 1 hết hạn sáng nay',
+    queueRest: 'Xem hộp duyệt đầy đủ của phòng Kinh doanh',
+    decisions: [
+      { icon:'phone', ...TINT.red,
+        title:'Gọi anh Đạt bên Sao Đỏ trước khi khách tự phát hiện đơn chậm',
+        amount:'2,4 tỷ',
+        who:'Phó giám đốc kỹ thuật · người duy nhất chị làm việc bên Sao Đỏ · thẻ chạm khách đã soạn sẵn nội dung nói',
+        why:'Đổi hạn giao là việc của chị, nhưng giảm giá bù thì phải trình anh Thắng',
+        due:'trước 10:00', snooze:'11:30', chips:['SO-0891','BG-0512'], btn:'Mở thẻ gọi',
+        hasAi:true,
+        aiText:'Chốt hai chuyện trong một cuộc: hạn giao mới 22/08 và báo giá mở rộng BG-0512 đang im 6 ngày.',
+        aiBasis:'Căn cứ: tiến độ WO-1180 68% · lịch giao SO-0891 · lịch sử 4 lần liên lạc với anh Đạt.',
+        aiBtn:'Soạn nội dung gọi' },
+      { icon:'file-check', ...TINT.amber,
+        title:'Duyệt báo giá bảo dưỡng định kỳ cho Hòa Phong',
+        amount:'186 triệu',
+        who:'Em Tuấn · nhân viên kinh doanh trình 09/08 · 17:20 · biên lãi 24%',
+        why:'Vượt hạn mức 150 triệu của nhân viên kinh doanh',
+        due:'mai · 11/08', snooze:'mai 08:00', chips:['BG-0517','KH-0138'], btn:'Mở báo giá' }
+    ],
+    blockedCount: '1 chỗ',
+    blocked: [
+      { icon:'megaphone', ...TINT.amber,
+        title:'Khách Sao Đỏ chưa được báo hạn giao mới',
+        sub:'Xưởng đổi hạn từ 20/08 sang 22/08 từ hôm 08/08 · mẫu tin Zalo OA đã có, chưa ai gửi',
+        cost:'Khách tự phát hiện thì lần sau sẽ đòi điều khoản phạt chậm giao',
+        btn1:'Soạn tin cho khách', btn2:'Giao em Tuấn' }
+    ],
+    watchCount: '2 việc',
+    watch: [
+      { icon:'percent', title:'Trường Thịnh đòi giảm 8% mới ký', sub:'đã trình anh Thắng, đang chờ quyết trong hôm nay', btn:'Xem tiến độ' },
+      { icon:'users', title:'18 khách đang theo, 3 khách có rủi ro', sub:'im lặng quá 5 ngày hoặc đang so giá bên khác', btn:'Mở sổ khách' }
+    ],
+    hero: { num:'4,2 tỷ', label:'Doanh thu tháng 8 phòng Kinh doanh', delta:'vượt kế hoạch 12% · đích 3,75 tỷ · còn 21 ngày', ink:'#12805A', src:'hóa đơn đã xuất + đơn đã ký' },
+    stats: [
+      { num:'3 / 18', label:'Khách đang có rủi ro', delta:'1 khách im 6 ngày', icon:'trending-up', ink:'#B81C15', src:'ngày liên lạc gần nhất trên sổ khách' },
+      { num:'1,84 tỷ', label:'Đơn đang chờ giám đốc quyết giá', delta:'Trường Thịnh · chờ 2 ngày', icon:'minus', ink:'#8A6300', src:'hộp duyệt của anh Thắng' },
+      { num:'86%', label:'Giao đúng hạn 90 ngày', delta:'khách hỏi nhiều nhất · đích 90%', icon:'trending-down', ink:'#B81C15', src:'ngày giao thực tế vs cam kết' }
+    ],
+    lateTitle: 'Đơn đang trễ hạn giao', lateCount: '2 / 9 đơn', lateMore: 'Xem cả 9 đơn của phòng',
+    lateOrders: [
+      { name:'Cơ khí Sao Đỏ', code:'SO-0891 · hẹn giao 22/08', late:'chậm 2 ngày', stage:'Lệnh sản xuất WO-1180', pct:'68%', cause:'Xưởng chờ thép Ø40 · giám đốc đang duyệt phiếu mua trong sáng nay' },
+      { name:'Xây dựng Trường Thịnh', code:'SO-0884 · hẹn giao 14/08', late:'chậm 1 ngày', stage:'Lệnh sản xuất WO-1174', pct:'92%', cause:'Chờ khách cử người nghiệm thu · chị hẹn lại 12/08' }
+    ]
+  },
+  tk: {
+    name: 'Phạm Văn Sơn', title: 'Thủ kho', avatar: 'https://i.pravatar.cc/120?img=13',
+    approveCount: 1, seeSales: false, seeFinance: false,
+    greeting: 'Sáng thứ hai, anh Sơn',
+    greetingSub: 'Một lô thép về trong sáng nay và xưởng X1 đang chờ dao tiện. 1 việc chờ anh ký.',
+    queueLabel: '1 việc · hết hạn hôm nay',
+    queueRest: 'Xem hộp duyệt của kho',
+    decisions: [
+      { icon:'truck', ...TINT.blue,
+        title:'Nhận 500 kg thép Ø40 lô L-2608-042',
+        amount:'89 triệu',
+        who:'Thép Việt Đức giao · xe hẹn khoảng 10:00 · cân, chụp ảnh rồi ký ngay trên tablet ở cửa kho',
+        why:'Phiếu nhập trên 50 triệu cần thủ kho ký, không giao nhân viên kho',
+        due:'trong hôm nay', snooze:'14:00', chips:['L-2608-042','PO-0455'], btn:'Mở phiếu nhập',
+        hasAi:true,
+        aiText:'Xếp lô này vào ô A2 để cạnh phần xưởng đang cần, khỏi phải đảo hàng lần hai.',
+        aiBasis:'Căn cứ: ô A2 còn trống 1,4 tấn · định mức WO-1180 · lịch xuất vật tư sáng nay.',
+        aiBtn:'Đặt chỗ ô A2' }
+    ],
+    blockedCount: '1 chỗ',
+    blocked: [
+      { icon:'package-open', ...TINT.amber,
+        title:'Tổ trưởng Hoàng Anh Tú xin dao tiện từ 06:50, chưa xuất',
+        sub:'Còn đủ 6 bộ trong ô B1 · phiếu xin đã có, chờ anh xuất kho',
+        cost:'Tổ 2 đang đứng máy chờ dao, tính từ 07:20',
+        btn1:'Xuất kho ngay', btn2:'Giao em Bình' }
+    ],
+    watchCount: '2 việc',
+    watch: [
+      { icon:'triangle-alert', title:'Thép Ø40 vẫn thiếu 700 kg so định mức', sub:'sau lô về hôm nay vẫn chưa đủ · phiếu mua phần còn lại đang chờ giám đốc duyệt', btn:'Xem tiến độ' },
+      { icon:'boxes', title:'4 mã vật tư dưới mức tồn tối thiểu', sub:'chưa chặn lệnh nào, nên gom vào phiếu mua tuần sau', btn:'Xem tồn kho' }
+    ],
+    hero: { num:'500 kg', label:'Thép Ø40 chờ nhập hôm nay', delta:'xe hẹn 10:00 · xếp vào ô A2 · sau khi nhập, tồn Ø40 còn thiếu 700 kg', ink:'#14203B', src:'đơn mua PO-0455 · lịch giao nhà cung cấp' },
+    stats: [
+      { num:'1', label:'Vật tư đang chặn sản xuất', delta:'chặn 32% lệnh WO-1180', icon:'trending-up', ink:'#B81C15', src:'định mức lệnh vs tồn thực tế' },
+      { num:'12', label:'Phiếu nhập xuất hôm nay', delta:'3 phiếu chờ ký', icon:'minus', ink:'#8A6300', src:'sổ kho, tính từ 00:00 hôm nay' },
+      { num:'98,2%', label:'Khớp sổ sau kiểm kê tháng 7', delta:'đích 99%', icon:'trending-down', ink:'#8A6300', src:'biên bản kiểm kê 31/07' }
+    ],
+    lateTitle: 'Lệnh đang chờ vật tư', lateCount: '1 / 6 lệnh', lateMore: 'Xem cả 6 lệnh đang chạy',
+    lateOrders: [
+      { name:'Xưởng X1 · đơn Sao Đỏ', code:'WO-1180 · cần trước 12/08', late:'chờ 2 ngày', stage:'Đã xuất vật tư', pct:'68%', cause:'Thiếu 1,2 tấn thép Ø40 · lô 500 kg về trong sáng nay' }
+    ]
+  }
+};
+
+class Component extends DCLogic {
+  state = { role: null };
+
+  currentKey() {
+    if (this.state.role) return this.state.role;
+    const p = this.props.defaultRole;
+    if (p === 'TP Kinh doanh') return 'tp';
+    if (p === 'Thủ kho') return 'tk';
+    return 'gd';
+  }
+
+  renderVals() {
+    const key = this.currentKey();
+    const r = ROLES[key];
+    return {
+      roleName: r.name, roleTitle: r.title, roleAvatar: r.avatar,
+      approveCount: r.approveCount, seeSales: r.seeSales, seeFinance: r.seeFinance,
+      greeting: r.greeting, greetingSub: r.greetingSub,
+      queueLabel: r.queueLabel, queueRest: r.queueRest, decisions: r.decisions,
+      blocked: r.blocked, blockedCount: r.blockedCount,
+      watch: r.watch, watchCount: r.watchCount,
+      stats: r.stats, hero: r.hero,
+      lateTitle: r.lateTitle, lateCount: r.lateCount, lateMore: r.lateMore, lateOrders: r.lateOrders,
+      showStats: this.props.showStats !== false,
+      isGd: key === 'gd', notGd: key !== 'gd',
+      isTp: key === 'tp', notTp: key !== 'tp',
+      isTk: key === 'tk', notTk: key !== 'tk',
+      pickGd: () => this.setState({ role: 'gd' }),
+      pickTp: () => this.setState({ role: 'tp' }),
+      pickTk: () => this.setState({ role: 'tk' })
+    };
+  }
+
+  drawIcons() {
+    if (window.lucide) { window.lucide.createIcons(); return; }
+    if (this._t) return;
+    this._t = setInterval(() => {
+      if (window.lucide) { clearInterval(this._t); this._t = null; window.lucide.createIcons(); }
+    }, 120);
+  }
+  componentDidMount() { this.drawIcons(); }
+  componentDidUpdate() { this.drawIcons(); }
+  componentWillUnmount() { if (this._t) clearInterval(this._t); }
+}
+</script>
+</body>
+</html>
