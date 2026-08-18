@@ -1,77 +1,29 @@
-import {
-  Bell,
-  Calculator,
-  ChartColumn,
-  Factory,
-  FolderOpen,
-  House,
-  ListChecks,
-  Package,
-  Search,
-  ShieldCheck,
-  SquareCheckBig,
-  Users,
-  UsersRound,
-} from 'lucide-react'
-import { AiAction, AppShell, BriefCard, Icon, OrderLifecycleCard, StatCard } from '@pv/ui'
+import { AiAction, AppShell, BriefCard, OrderLifecycleCard, StatCard } from '@pv/ui'
+import { useAppChrome } from '@/app/chrome'
 
 /** Màn 01 · Home / Morning brief (docs/luat-thiet-ke.md §7).
  *  Nguồn: bản vẽ One 01 - Home (Desktop) EN — bản EN
  *  là bản CHỐT duy nhất cho màn này, nội dung giữ nguyên tiếng Anh theo file.
- *  Kịch bản 1 · Sao Đỏ, đóng băng 10 Aug 07:58 (docs/luat-thiet-ke.md). */
+ *  Kịch bản 1 · Sao Đỏ, đóng băng 10 Aug 07:58 (docs/luat-thiet-ke.md).
+ *
+ *  Sidebar và topbar KHÔNG khai ở đây nữa — cả hai lấy từ `app/chrome.tsx` để
+ *  thêm màn mới là nav của mọi màn biết ngay. Nhánh nào khoá do phiên đăng nhập
+ *  quyết (E2), không còn gõ cứng `locked` từng dòng.
+ *
+ *  Vì thế nav màn này giờ là TIẾNG VIỆT trong khi thân màn còn tiếng Anh theo
+ *  bản vẽ cũ. Bản vẽ đã xoá và docs nói giao diện tiếng Việt, nên phần thân là
+ *  thứ cần dịch — làm ở lượt riêng, không lẫn vào việc nối nav. */
 export function HomePage() {
+  const chrome = useAppChrome({
+    searchPlaceholder: 'Search customers, orders, work orders, documents…',
+  })
+
   return (
     <AppShell
       activeNav="home"
-      approvalsCount={7}
-      sidebar={{
-        product: 'PV One',
-        org: 'Thắng Lợi Engineering',
-        groups: [
-          {
-            items: [
-              { icon: House, label: 'Home', active: true },
-              { icon: SquareCheckBig, label: 'Approvals', count: 7 },
-              { icon: Bell, label: 'Notifications', count: 12 },
-              { icon: Search, label: 'Global search' },
-            ],
-          },
-          {
-            kicker: 'Branches owned',
-            items: [
-              { icon: Users, label: 'Sales' },
-              { icon: Package, label: 'Supply' },
-              { icon: Factory, label: 'Factory' },
-              { icon: Calculator, label: 'Finance' },
-            ],
-          },
-          {
-            kicker: 'One Plus',
-            items: [
-              { icon: UsersRound, label: 'People' },
-              { icon: FolderOpen, label: 'Documents & processes' },
-              { icon: ListChecks, label: 'Work' },
-              { icon: ChartColumn, label: 'Reports' },
-            ],
-          },
-        ],
-        footer: (
-          <div className="flex items-center gap-2.5 rounded-md bg-white/5 px-3 py-[11px]">
-            <Icon icon={ShieldCheck} size={16} className="text-muted-foreground" />
-            <div className="text-muted-foreground text-[11px] leading-[1.5]">
-              Admin
-              <br />
-              &amp; audit log
-            </div>
-          </div>
-        ),
-      }}
-      topbar={{
-        user: { name: 'Nguyễn Văn Thắng' },
-        unread: true,
-        assistantLabel: 'Assistant',
-        search: { placeholder: 'Search customers, orders, work orders, documents…' },
-      }}
+      approvalsCount={chrome.approvalsCount}
+      sidebar={chrome.sidebar}
+      topbar={chrome.topbar}
     >
       <div className="flex flex-col gap-5 lg:gap-6">
         <div>

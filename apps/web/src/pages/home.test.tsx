@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
+import { renderScreen } from '@/test-utils'
 import { HomePage } from './home'
 
 /** Test "màn dựng được".
@@ -13,11 +14,11 @@ import { HomePage } from './home'
  *  đổi spec thì test đỏ. */
 describe('Màn 01 · Home / Morning brief', () => {
   it('dựng được toàn bộ cây, không ném lỗi', () => {
-    expect(() => render(<HomePage />)).not.toThrow()
+    expect(() => renderScreen(<HomePage />)).not.toThrow()
   })
 
   it('hiện lát cắt dữ liệu đúng của kịch bản Sao Đỏ', () => {
-    render(<HomePage />)
+    renderScreen(<HomePage />)
 
     expect(screen.getByText(/Good morning, Mr\. Thắng/)).toBeInTheDocument()
     expect(screen.getByText('07:58')).toBeInTheDocument()
@@ -25,16 +26,32 @@ describe('Màn 01 · Home / Morning brief', () => {
   })
 
   it('khối AI có dòng căn cứ và nút xác nhận — luật 9, không bao giờ tự chạy', () => {
-    render(<HomePage />)
+    renderScreen(<HomePage />)
 
     expect(screen.getByText(/Basis/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Do it/ })).toBeInTheDocument()
   })
 
   it('ContextRail có mặt — luật 10, bắt buộc trên mọi màn', () => {
-    render(<HomePage />)
+    renderScreen(<HomePage />)
 
     expect(screen.getByText('HĐ-2607')).toBeInTheDocument()
     expect(screen.getByText('Supply · SO-0891')).toBeInTheDocument()
+  })
+
+  it('nav có ĐỦ bốn module Sales, không phải một mục Kinh doanh', () => {
+    renderScreen(<HomePage />)
+
+    for (const label of ['Thị trường', 'Lead', 'Performance', 'Số liệu & kế hoạch']) {
+      expect(screen.getByRole('button', { name: label })).toBeEnabled()
+    }
+  })
+
+  it('nhánh không có license thì tự khoá, không gõ cứng locked từng dòng', () => {
+    renderScreen(<HomePage />)
+
+    // Trần Thu Hà chỉ có One + Sales.
+    expect(screen.getByRole('button', { name: /Cung ứng/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Tài chính/ })).toBeDisabled()
   })
 })
