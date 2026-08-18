@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    # develop là nhánh tích hợp, master là nhánh phát hành. Cả hai đều phải xanh
+    # — nhánh không được kiểm thì cái gác chỉ là trang trí.
+    branches: [master, develop]
   pull_request:
   workflow_dispatch:
 
