@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { NavItem } from '../patterns/nav-item'
 import { Kicker } from '../ui/separator'
 import { cn } from '../lib/cn'
-import markLight from '../assets/mark-light.png'
+import markLight from '../assets/mark-light.webp'
 
 /** O-01 · AppSidebar — w-[232px].
  *  Logo 32 · NavItem[] · Kicker nhóm.

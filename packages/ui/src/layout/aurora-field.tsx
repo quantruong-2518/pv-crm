@@ -2,10 +2,10 @@ import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
 /** Nền màn — ĐÚNG 4 lớp, không có lớp thứ 5 (luật 12 · docs/luat-thiet-ke.md):
- *  quầng aurora → lưới 32px → lưới 160px → hạt nhiễu.
- *  Hai lớp hạt phủ trên cùng (overlay + soft-light) là phần "sần" của mặt kính,
- *  vẫn thuộc lớp 4 chứ không phải lớp mới.
- *  Chỉ đặt ở KHUNG NGOÀI CÙNG của mỗi màn, mọi lớp đều pointer-events:none. */
+ *  quầng aurora (2 blob blur 90px) → lưới 32px → lưới 160px → hạt nhiễu.
+ *  Chỉ đặt ở KHUNG NGOÀI CÙNG của mỗi màn, mọi lớp đều pointer-events:none.
+ *
+ *  Nền này TĨNH — xem lý do ở `.aurora-blob` trong packages/tokens/globals.css. */
 
 type Blob = {
   size: number
@@ -13,24 +13,18 @@ type Blob = {
   top: string
   left?: string
   right?: string
-  tone: 'azure' | 'azure-soft' | 'blue'
-  /** 14–26s */
-  duration: number
-  reverse?: boolean
+  tone: 'azure' | 'blue'
 }
 
-/** Năm quầng của theme kit, trải dọc trang để blur luôn có gì để làm mờ. */
+/** Đúng hai quầng, theo nguyên văn luật 12. Bản trước dựng năm quầng — vừa
+ *  quá số luật cho, vừa nhân năm lần chi phí raster của blur 90px. */
 const BLOBS: Blob[] = [
-  { size: 720, top: '-240px', right: '-120px', tone: 'azure', duration: 14 },
-  { size: 560, top: '6%', left: '-160px', tone: 'blue', duration: 18, reverse: true },
-  { size: 640, top: '28%', left: '24%', tone: 'azure-soft', duration: 22 },
-  { size: 600, top: '50%', right: '-140px', tone: 'blue', duration: 26, reverse: true },
-  { size: 680, top: '72%', left: '-180px', tone: 'azure-soft', duration: 20 },
+  { size: 720, top: '-240px', right: '-120px', tone: 'azure' },
+  { size: 640, top: '38%', left: '-160px', tone: 'blue' },
 ]
 
 const toneVar: Record<Blob['tone'], string> = {
   azure: 'var(--aurora-azure)',
-  'azure-soft': 'var(--aurora-azure-soft)',
   blue: 'var(--aurora-blue)',
 }
 
@@ -49,8 +43,6 @@ export function AuroraField({ children, className }: { children: ReactNode; clas
             left: blob.left,
             right: blob.right,
             background: toneVar[blob.tone],
-            animationDuration: `${blob.duration}s`,
-            animationDirection: blob.reverse ? 'alternate-reverse' : 'alternate',
           }}
         />
       ))}
@@ -63,9 +55,6 @@ export function AuroraField({ children, className }: { children: ReactNode; clas
       <div className="aurora-noise" />
 
       {children}
-
-      <div className="aurora-grain-overlay z-[3]" />
-      <div className="aurora-grain-soft z-[3]" />
     </div>
   )
 }

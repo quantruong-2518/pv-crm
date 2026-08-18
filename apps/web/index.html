@@ -5,8 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Chỉ nạp weight thật sự có trong code (luật 6 · docs/luat-thiet-ke.md):
+         Archivo 600 + 700 (<b> ở AppSidebar) · Space Grotesk 600 + 700 (KioskTile)
+         · Plex Sans 400/500/600/700 (font body, 700 cho nút kiosk tương phản cao)
+         · Plex Mono 400 + 600 (Kicker).
+         Bỏ Archivo 500, Space Grotesk 500, Mono 500 — không chỗ nào gọi tới.
+         Thêm Plex Sans 700 — `kiosk-tile.tsx:50` gọi font-bold trên font body mà
+         weight đó chưa từng được nạp, trình duyệt phải bôi đậm giả. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
       rel="stylesheet"
     />
     <title>PV One</title>
