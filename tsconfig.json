@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+
+    "types": ["vite/client", "vitest/globals"],
+
+    "baseUrl": ".",
+    "paths": {
+      "@pv/ui": ["packages/ui/src/index.ts"],
+      "@pv/ui/*": ["packages/ui/src/*"],
+      "@pv/tokens": ["packages/tokens/src/index.ts"],
+      "@pv/engines": ["packages/engines/src/index.ts"],
+      "@pv/engines/*": ["packages/engines/src/*"],
+      "@/*": ["apps/web/src/*"]
+    }
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "apps/web/vite.config.ts",
+    "alias.config.ts",
+    "vitest.config.ts",
+    // Bắt buộc: `@testing-library/jest-dom/vitest` mở rộng kiểu `Assertion`
+    // của vitest ngay trong file này. Thiếu nó thì `toBeInTheDocument` chạy
+    // được nhưng `tsc` báo lỗi.
+    "vitest.setup.ts"
+  ],
+  "exclude": ["**/dist", "**/node_modules"]
+}

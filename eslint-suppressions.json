@@ -1,0 +1,137 @@
+{
+  "apps/web/src/kit/chrome/spec-card.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "apps/web/src/kit/chrome/zone.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "apps/web/src/kit/theme-kit.tsx": {
+    "aurora/spacing-scale": {
+      "count": 9
+    }
+  },
+  "apps/web/src/kit/zone-atoms.tsx": {
+    "aurora/spacing-scale": {
+      "count": 15
+    }
+  },
+  "apps/web/src/kit/zone-foundations.tsx": {
+    "aurora/spacing-scale": {
+      "count": 22
+    }
+  },
+  "apps/web/src/kit/zone-molecules.tsx": {
+    "aurora/spacing-scale": {
+      "count": 7
+    }
+  },
+  "apps/web/src/kit/zone-organisms.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "apps/web/src/kit/zone-templates.tsx": {
+    "aurora/spacing-scale": {
+      "count": 7
+    }
+  },
+  "apps/web/src/pages/home.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "packages/ui/src/organisms/app-sidebar.tsx": {
+    "aurora/spacing-scale": {
+      "count": 5
+    }
+  },
+  "packages/ui/src/organisms/approval-card.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "packages/ui/src/organisms/bottom-nav.tsx": {
+    "aurora/spacing-scale": {
+      "count": 2
+    }
+  },
+  "packages/ui/src/organisms/brief-card.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "packages/ui/src/organisms/kiosk-tile.tsx": {
+    "aurora/spacing-scale": {
+      "count": 6
+    }
+  },
+  "packages/ui/src/organisms/order-lifecycle-card.tsx": {
+    "aurora/spacing-scale": {
+      "count": 6
+    }
+  },
+  "packages/ui/src/organisms/top-bar.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/patterns/ai-action.tsx": {
+    "aurora/spacing-scale": {
+      "count": 4
+    }
+  },
+  "packages/ui/src/patterns/approval-chain.tsx": {
+    "aurora/spacing-scale": {
+      "count": 2
+    }
+  },
+  "packages/ui/src/patterns/context-rail.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/patterns/nav-item.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "packages/ui/src/patterns/scan-field.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/patterns/search-field.tsx": {
+    "aurora/spacing-scale": {
+      "count": 3
+    }
+  },
+  "packages/ui/src/patterns/stat-card.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/ui/badge.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/ui/button.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/ui/chip.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/ui/input.tsx": {
+    "aurora/spacing-scale": {
+      "count": 1
+    }
+  }
+}

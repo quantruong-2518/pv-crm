@@ -1,0 +1,73 @@
+{
+  "name": "pv-crm",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Pebble Vina — PV One / Pebble Sales. Monorepo: token · thư viện UI · engine nền tảng · app web.",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @pv/web dev",
+    "build": "pnpm --filter @pv/web build",
+    "preview": "pnpm --filter @pv/web preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:prune": "eslint . --prune-suppressions",
+    "lint:debt": "node tools/scripts/lint-debt.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
+    "tokens:check": "node tools/scripts/check-token-drift.mjs",
+    "css:check": "node tools/scripts/check-css-coverage.mjs",
+    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm tokens:check && pnpm test && pnpm build && pnpm css:check",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@pv/eslint-plugin-aurora": "workspace:*",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^3.0.0",
+    "eslint": "^9.24.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^15.15.0",
+    "husky": "^9.1.7",
+    "jsdom": "^26.0.0",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.0",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.24.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": [
+      "prettier --write",
+      "eslint --fix --max-warnings=0"
+    ],
+    "*.{css,json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

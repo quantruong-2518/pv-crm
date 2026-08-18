@@ -1,7 +1,10 @@
 node_modules
 dist
+coverage
 *.tsbuildinfo
 .DS_Store
+.vite
+.eslintcache
 
 # Transcript thiết kế — chứa dữ liệu thương mại, không đẩy lên repo công khai
 chats/

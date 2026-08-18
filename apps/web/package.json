@@ -1,0 +1,26 @@
+{
+  "name": "@pv/web",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PV One — app web. Trang thật + theme kit sống ở /kit.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@pv/engines": "workspace:*",
+    "@pv/tokens": "workspace:*",
+    "@pv/ui": "workspace:*",
+    "lucide-react": "^0.460.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.0"
+  }
+}

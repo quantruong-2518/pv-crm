@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# PR mới đẩy lên thì huỷ lần chạy cũ — không xếp hàng chờ kết quả đã lỗi thời.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Kiểm tra toàn repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Cài đặt (khoá lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # Mỗi bước một dòng riêng trong giao diện GitHub: đỏ ở đâu thấy ngay ở đó,
+      # không phải mở log đọc từ đầu.
+      - name: Định dạng
+        run: pnpm format:check
+
+      - name: Kiểu
+        run: pnpm typecheck
+
+      - name: Lint · 15 luật Aurora
+        run: pnpm lint
+
+      - name: Tầng token khớp bản thiết kế
+        run: pnpm tokens:check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Tailwind quét đủ mọi package
+        run: pnpm css:check
+
+      # Nợ kỹ thuật phải đi xuống, không được đứng yên vì file suppressions cũ.
+      - name: Suppressions còn đúng thực tế
+        run: |
+          pnpm lint:prune
+          if ! git diff --quiet eslint-suppressions.json; then
+            echo "::error::Có vi phạm đã được sửa nhưng vẫn nằm trong eslint-suppressions.json."
+            echo "Chạy 'pnpm lint:prune' ở máy rồi commit file đã gọn lại."
+            git diff eslint-suppressions.json
+            exit 1
+          fi
+
+      - name: Kích thước bundle
+        if: always()
+        run: |
+          echo "### Bundle sau build" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -lh apps/web/dist/assets/*.js apps/web/dist/assets/*.css \
+            | awk '{print $5"\t"$9}' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

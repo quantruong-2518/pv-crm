@@ -1,0 +1,15 @@
+/* Điểm vào CSS của app.
+ *
+ * Tầng token nằm ở @pv/tokens — file màu duy nhất, app không thêm màu nào.
+ * Việc duy nhất của file này là nói cho Tailwind biết PHẢI QUÉT NHỮNG ĐÂU.
+ *
+ * Tailwind v4 tự dò nguồn từ thư mục gốc của Vite (apps/web) và không nhìn
+ * thấy package workspace. Thiếu dòng @source dưới đây thì mọi class chỉ dùng
+ * bên trong @pv/ui — size-[38px] của Avatar, h-[150px] của StatCard,
+ * w-[232px] của Sidebar — biến mất khỏi bản build, KHÔNG có cảnh báo nào,
+ * và chỉ lộ ra khi nhìn màn thật. `pnpm css:check` gác đúng chỗ này. */
+
+@import '@pv/tokens/globals.css';
+
+@source '../../src';
+@source '../../../../packages/ui/src';

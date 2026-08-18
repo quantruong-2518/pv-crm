@@ -1,0 +1,15 @@
+{
+  "name": "@pv/tokens",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Aurora v2.0 — tầng token. FILE MÀU DUY NHẤT của cả hệ.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./globals.css": "./globals.css"
+  },
+  "dependencies": {
+    "tailwindcss": "^4.1.0",
+    "tw-animate-css": "^1.2.0"
+  }
+}

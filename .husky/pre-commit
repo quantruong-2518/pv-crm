@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Cố ý NHẸ: chỉ format + lint những file vừa sửa.
+#
+# Typecheck và test không chạy ở đây. Lý do: commit phải nhanh, nếu không thì
+# người ta bắt đầu gõ --no-verify và cái gác này thành trang trí. Phần nặng để
+# CI lo — nó chặn ở merge, đúng chỗ cần chặn.
+npx lint-staged

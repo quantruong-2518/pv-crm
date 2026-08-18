@@ -1,0 +1,13 @@
+{
+  "name": "@pv/engines",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "E1 đồ thị object · E2 quyền & ghi vết · E3 quy trình duyệt · E4 thông báo. Engine thuộc platform, nhánh không được fork.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures/index.ts",
+    "./fixtures/sao-do": "./src/fixtures/sao-do.ts",
+    "./fixtures/das-vina": "./src/fixtures/das-vina.ts"
+  }
+}
