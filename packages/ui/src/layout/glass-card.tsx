@@ -7,19 +7,16 @@ import { cn } from '../lib/cn'
  *  Không có variant thứ ba: khối AI dùng <AiAction>, không dùng GlassCard. */
 export type GlassCardProps = HTMLAttributes<HTMLDivElement> & {
   variant?: 'a' | 'b'
-  /** hover = bóng dày thêm một bậc (F-09) */
-  hoverable?: boolean
 }
 
-export function GlassCard({ variant = 'a', hoverable, className, ...props }: GlassCardProps) {
+/** Không có trạng thái hover. Thẻ là mặt phẳng chứa nội dung, không phải nút —
+ *  bóng dày lên khi rê chuột chẳng nói thêm được gì, mà mỗi lần đổi bóng là một
+ *  lần mặt kính phải tính lại backdrop-blur. Chuyển động (F-09) để dành cho thứ
+ *  bấm được: nút, hàng bảng, chip, nav. */
+export function GlassCard({ variant = 'a', className, ...props }: GlassCardProps) {
   return (
     <div
-      className={cn(
-        'rounded-lg',
-        variant === 'a' ? 'glass-a' : 'glass-b',
-        hoverable && 'motion-std hover:shadow-panel',
-        className,
-      )}
+      className={cn('rounded-lg', variant === 'a' ? 'glass-a' : 'glass-b', className)}
       {...props}
     />
   )

@@ -24,7 +24,7 @@ export function BriefCard({
   className,
 }: BriefCardProps) {
   return (
-    <GlassCard hoverable className={cn('flex flex-col gap-2.5 px-5 py-[18px]', className)}>
+    <GlassCard className={cn('flex flex-col gap-2.5 px-5 py-[18px]', className)}>
       <div className="flex items-center gap-2.5">
         <StatusDot state={state} />
         <b className="font-display flex-1 text-[15px] font-semibold">{title}</b>

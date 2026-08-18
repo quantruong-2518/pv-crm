@@ -191,7 +191,7 @@ export function ZoneFoundations() {
             <div className="glass-b rounded-lg px-[15px] py-[13px]">
               <div className="text-[12.5px] font-semibold">.glass-b</div>
               <div className="text-muted-foreground mt-1 font-mono text-[10.5px] leading-[1.6]">
-                navy/84 · blur 16 · saturate 1.3
+                navy/84 · không blur
               </div>
               <div className="text-muted-foreground mt-1.5 text-[11px]">
                 Bảng · danh sách dài · panel
@@ -319,12 +319,14 @@ export function ZoneFoundations() {
             bodyClassName="px-4 py-[18px] text-[12.5px] leading-[1.9] text-muted-foreground"
             footer="transition-all duration-180 ease-out"
           >
-            Chuyển động <span className="text-foreground font-mono">180ms ease-out</span> · hover
-            thẻ = bóng dày thêm một bậc · aurora trôi 14–26s · tôn trọng{' '}
+            Chuyển động <span className="text-foreground font-mono">180ms ease-out</span>, chỉ dành
+            cho thứ bấm được: nút, hàng bảng, chip, nav. Thẻ kính không có hover — nó là mặt phẳng
+            chứa nội dung, không phải nút. Tôn trọng{' '}
             <span className="text-foreground font-mono">prefers-reduced-motion</span>.
             <br />
-            Nền màn có 4 lớp cố định: quầng aurora → lưới 32px → lưới 160px → hạt nhiễu. Không thêm
-            lớp thứ 5.
+            Nền màn TĨNH, 4 lớp cố định: quầng aurora (2 blob) → lưới 32px → lưới 160px → hạt nhiễu.
+            Không thêm lớp thứ 5, không cho quầng trôi — nền động buộc mọi mặt kính bên trên tính
+            lại backdrop-blur mỗi frame.
           </SpecCard>
         </div>
       </ZoneBody>

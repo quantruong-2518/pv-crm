@@ -70,7 +70,7 @@ export function OrderLifecycleCard({
   className,
 }: OrderLifecycleCardProps) {
   return (
-    <GlassCard hoverable className={cn('flex flex-col gap-4 px-6 py-[22px]', className)}>
+    <GlassCard className={cn('flex flex-col gap-4 px-6 py-[22px]', className)}>
       <div className="flex items-center gap-[11px]">
         <StatusDot state={state} />
         <b className="font-display flex-1 text-[17px] font-semibold">{title}</b>

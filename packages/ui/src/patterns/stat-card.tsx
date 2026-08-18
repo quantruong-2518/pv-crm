@@ -34,7 +34,7 @@ const deltaTone = {
 
 export function StatCard({ value, label, delta, sparkline, className }: StatCardProps) {
   return (
-    <GlassCard hoverable className={cn('flex h-[150px] flex-col px-5 py-[18px]', className)}>
+    <GlassCard className={cn('flex h-[150px] flex-col px-5 py-[18px]', className)}>
       <div className="tnum font-num text-[42px] font-semibold leading-none tracking-[-1.5px]">
         {value}
       </div>
