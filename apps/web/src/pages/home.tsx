@@ -19,12 +19,7 @@ export function HomePage() {
   })
 
   return (
-    <AppShell
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      sidebar={chrome.sidebar}
-      topbar={chrome.topbar}
-    >
+    <AppShell activeNav="home" approvalsCount={chrome.approvalsCount} header={chrome.header}>
       <div className="flex flex-col gap-5 lg:gap-6">
         <div>
           <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">

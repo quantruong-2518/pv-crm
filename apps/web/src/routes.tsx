@@ -50,6 +50,14 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/campaigns'),
   },
   {
+    /** Hồ sơ một nguồn. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
+     *  là một dòng của sổ, và nav vẫn sáng ở mục Chiến dịch & Sự kiện. */
+    path: '/sales/campaigns/:code',
+    name: 'Kinh doanh · Module 1 · Hồ sơ nguồn',
+    branch: 'Sales',
+    load: () => import('@/pages/campaign-detail'),
+  },
+  {
     path: '/sales/leads',
     name: 'Kinh doanh · Module 2 · Sổ lead',
     branch: 'Sales',

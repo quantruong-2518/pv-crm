@@ -227,8 +227,7 @@ export function LeadsPage() {
          'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
       activeNav="home"
       approvalsCount={chrome.approvalsCount}
-      sidebar={chrome.sidebar}
-      topbar={chrome.topbar}
+      header={chrome.header}
     >
       <div className="flex flex-col gap-4 lg:gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">

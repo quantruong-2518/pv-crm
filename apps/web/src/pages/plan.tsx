@@ -116,8 +116,7 @@ export function PlanPage() {
          'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
       activeNav="home"
       approvalsCount={chrome.approvalsCount}
-      sidebar={chrome.sidebar}
-      topbar={chrome.topbar}
+      header={chrome.header}
     >
       <div className="flex flex-col gap-5 lg:gap-6">
         <div className="flex flex-col gap-3">

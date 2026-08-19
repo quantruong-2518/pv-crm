@@ -11,7 +11,6 @@ import {
   Megaphone,
   Orbit,
   Package,
-  Search,
   ShieldCheck,
   SlidersHorizontal,
   SquareCheckBig,
@@ -20,7 +19,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import type { AppShellProps, SidebarItem } from '@pv/ui'
+import type { AppShellProps, HeaderAction, HeaderApp } from '@pv/ui'
 import { Button } from '@pv/ui'
 import type { Branch } from '@pv/engines'
 import { useSession } from './session'
@@ -78,12 +77,15 @@ const APPROVALS_WAITING = 7
 const NOTIFICATIONS_UNREAD = 12
 
 /** One Core — nền bắt buộc, mọi nhánh đều cần (docs · "Hai tầng license").
- *  Bốn mục đầu là bốn màn One trong luat-thiet-ke.md §7. */
+ *  Bốn mục đầu là bốn màn One trong luat-thiet-ke.md §7.
+ *
+ *  "Tìm toàn cục" KHÔNG còn là một mục ở đây: nó đã thành ô tìm của tầng 1,
+ *  chiếm nguyên khoảng giữa nav. Giữ thêm một nút mở cùng việc đó là hai lối
+ *  vào một chỗ, và cái nút bao giờ cũng là lối tệ hơn. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/' },
   { icon: SquareCheckBig, label: 'Phê duyệt', count: APPROVALS_WAITING },
   { icon: Bell, label: 'Thông báo', count: NOTIFICATIONS_UNREAD },
-  { icon: Search, label: 'Tìm toàn cục' },
   { icon: ShieldCheck, label: 'Quản trị & ghi vết' },
 ]
 
@@ -189,7 +191,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
 
   const plain =
     (locked: boolean) =>
-    (entry: NavEntry): SidebarItem => ({
+    (entry: NavEntry): HeaderAction => ({
       icon: entry.icon,
       label: entry.label,
       count: entry.count,
@@ -204,79 +206,65 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
    *  `canEnter` ở guard, nên ổ khoá trên nav và cửa chặn ở route không bao giờ
    *  nói ngược nhau. Nhánh khoá thì không trải module: chưa mua thì biết bên
    *  trong có gì cũng không vào được. */
-  const branchRows = (b: BranchEntry): SidebarItem[] => {
+  const inModule = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
+
+  const branchApp = (b: BranchEntry): HeaderApp => {
     const locked = !actor?.branches.includes(b.branch)
     const landing = b.modules?.[0]?.path
 
-    const head: SidebarItem = {
+    return {
       icon: b.icon,
       label: b.label,
       locked,
-      /* Nhánh KHÔNG tự sáng khi đang ở module con — sáng cả cha lẫn con thì
-         người xem không biết mình đang ở đâu. Con sáng là đủ. */
-      active: false,
+      /* Nhánh sáng khi người dùng đang ở BẤT KỲ module nào của nó. Ở nav dọc
+         thì không: cha và con cùng nằm trên màn nên sáng cả hai là thừa. Ở nav
+         hai tầng thì con nằm trong dropdown ĐANG ĐÓNG — cha không sáng thì cả
+         thanh nav không chỉ ra được người dùng đang đứng ở đâu. */
+      active: Boolean(b.modules?.some((m) => inModule(m.path))),
       onClick: landing && !locked ? () => navigate(landing) : undefined,
+      /* Nhánh khoá thì không trải module: chưa mua thì biết bên trong có gì
+         cũng không vào được. */
+      items:
+        locked || !b.modules
+          ? undefined
+          : b.modules.map((m): HeaderAction => ({
+              icon: m.icon,
+              label: m.label,
+              /* Màn con của module (hồ sơ một lead ở `/sales/leads/:code`) vẫn
+                 phải để mục cha sáng: người dùng đứng trong module đó, chỉ là
+                 sâu hơn một tầng. */
+              active: inModule(m.path),
+              onClick: () => navigate(m.path),
+            })),
     }
-
-    if (locked || !b.modules) return [head]
-
-    return [
-      head,
-      ...b.modules.map((m): SidebarItem => ({
-        icon: m.icon,
-        label: m.label,
-        depth: 1,
-        /* Màn con của module (hồ sơ một lead ở `/sales/leads/:code`) vẫn phải
-           để mục cha sáng: người dùng đứng trong module đó, chỉ là sâu hơn một
-           tầng. So bằng dấu bằng thì nav tắt hết khi mở một dòng. */
-        active: pathname === m.path || pathname.startsWith(`${m.path}/`),
-        onClick: () => navigate(m.path),
-      })),
-    ]
   }
 
-  const sidebar: AppShellProps['sidebar'] = {
+  const header: AppShellProps['header'] = {
     product: 'PV One',
     org: 'Pebble Vina',
-    groups: [
-      { kicker: 'One Core', items: ONE_CORE.map(plain(false)) },
-      {
-        /* Nhánh vệ tinh trước, One Plus sau — cùng một nhóm "mua thêm mới có".
-           One Plus xuống cuối vì chưa năng lực nào của nó được dựng. */
-        kicker: 'Tính năng',
-        items: [...BRANCHES.flatMap(branchRows), ...ONE_PLUS.map(plain(true))],
-      },
-    ],
-    footer: (
-      <div className="flex items-center gap-3 rounded-md bg-white/5 px-3 py-3">
-        <div className="min-w-0 flex-1">
-          <b className="block truncate text-[11.5px] font-semibold">{actor?.name ?? 'Khách'}</b>
-          <small className="text-muted-foreground block truncate text-[10.5px] font-normal">
-            {actor?.role ?? 'chưa đăng nhập'}
-          </small>
-        </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            signOut()
-            navigate('/dang-nhap', { replace: true })
-          }}
-        >
-          Đổi vai
-        </Button>
-      </div>
-    ),
-  }
-
-  const topbar: AppShellProps['topbar'] = {
-    user: { name: actor?.name ?? 'Khách' },
+    core: ONE_CORE.map(plain(false)),
+    /* Nhánh vệ tinh trước, One Plus sau — cùng một nhóm "mua thêm mới có".
+       One Plus xuống cuối vì chưa năng lực nào của nó được dựng. */
+    apps: [...BRANCHES.map(branchApp), ...ONE_PLUS.map(plain(true))],
+    user: { name: actor?.name ?? 'Khách', role: actor?.role },
     unread: NOTIFICATIONS_UNREAD > 0,
     assistantLabel: 'Trợ lý',
     search: {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
     },
+    userAction: (
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          signOut()
+          navigate('/dang-nhap', { replace: true })
+        }}
+      >
+        Đổi vai
+      </Button>
+    ),
   }
 
-  return { sidebar, topbar, approvalsCount: APPROVALS_WAITING }
+  return { header, approvalsCount: APPROVALS_WAITING }
 }

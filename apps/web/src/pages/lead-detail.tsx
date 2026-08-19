@@ -134,12 +134,7 @@ export function LeadDetailPage() {
   const lead = book.find((l) => l.code === code) ?? null
 
   const shell = (children: ReactNode) => (
-    <AppShell
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      sidebar={chrome.sidebar}
-      topbar={chrome.topbar}
-    >
+    <AppShell activeNav="home" approvalsCount={chrome.approvalsCount} header={chrome.header}>
       {children}
     </AppShell>
   )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { SALES_MODULES } from '@/app/chrome'
 import { renderScreen } from '@/test-utils'
 import { HomePage } from './home'
@@ -46,9 +46,20 @@ describe('Màn 01 · Home / Morning brief', () => {
   it('nav có ĐỦ năm module Sales, không phải một mục Kinh doanh', () => {
     renderScreen(<HomePage />)
 
+    /* Từ 19/08 nav là hai tầng: module nằm trong dropdown của nhánh, không trải
+       sẵn trên màn. Phải MỞ nhánh ra rồi mới đếm — trải sẵn chín ứng dụng cùng
+       module của chúng là thứ đã làm nav dọc cũ vỡ. */
+    const branch = screen.getByRole('button', { name: /Kinh doanh/ })
+    expect(branch).toHaveAttribute('aria-haspopup', 'menu')
+    expect(branch).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(branch)
+    expect(branch).toHaveAttribute('aria-expanded', 'true')
+
     expect(SALES_MODULES).toHaveLength(5)
+    const menu = screen.getByRole('menu', { name: 'Kinh doanh' })
     for (const m of SALES_MODULES) {
-      expect(screen.getByRole('button', { name: m.label })).toBeEnabled()
+      expect(within(menu).getByRole('menuitem', { name: m.label })).toBeEnabled()
     }
   })
 

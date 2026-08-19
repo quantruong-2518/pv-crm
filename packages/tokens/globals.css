@@ -249,6 +249,22 @@
       var(--shadow-panel),
       inset 0 1px 0 rgba(255, 255, 255, 0.11);
   }
+  /* glass-menu — mặt của thứ NỔI TRÊN nội dung: dropdown của nav, menu ngữ
+     cảnh. Khác glass-b ở đúng một điểm, và điểm đó là lý do nó tồn tại: ĐỤC
+     HẲN. `--popover` nằm ở alpha .84 nên 16% nền vẫn lọt qua — trên một thẻ
+     kính thì 16% đó đủ để đọc xuyên thấy chữ nằm dưới, và hai tầng chữ chồng
+     nhau thì không tầng nào đọc được. Thứ đè lên nội dung phải che được nội
+     dung.
+     Nền đặc dựng bằng hai lớp: `--background` phủ kín phía sau, `--popover`
+     phủ lên trên để giữ đúng sắc của mặt popover. KHÔNG `backdrop-filter`:
+     nền đã đục thì không còn gì phía sau để làm mờ, blur lúc đó là bắt trình
+     duyệt chụp lại vùng nền rồi lọc để không ai thấy khác biệt. */
+  .glass-menu {
+    background: linear-gradient(var(--popover), var(--popover)), var(--background);
+    box-shadow:
+      var(--shadow-panel),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
   /* khối AI — chữ ký của hệ (M-09). Gạch chéo + gradient azure. */
   .glass-ai {
     background:

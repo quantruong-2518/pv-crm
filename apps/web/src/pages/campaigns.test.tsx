@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import { HEAD_OF_SALES, SOURCES, dasVina, sourceStats } from '@pv/engines/fixtures/das-vina'
-import { renderScreen } from '@/test-utils'
+import { renderRoutes, renderScreen } from '@/test-utils'
 import { ANCHOR_SOURCE, DRAFT_TEMPLATE } from '@/data/campaigns'
-import { CHANNEL_LABEL, E4_CHANNELS } from '@/data/sales-config'
+import { E4_CHANNELS } from '@/data/sales-config'
+import { CampaignDetailPage } from './campaign-detail'
 import { CampaignsPage } from './campaigns'
 
 /** Test "màn dựng được" + khoá những thứ của module 1 mà mắt người hay bỏ sót.
@@ -14,9 +15,10 @@ import { CampaignsPage } from './campaigns'
  *  Nguồn lấy qua `useQuery` nên lần render đầu là trạng thái chờ; chỗ nào cần
  *  dòng thật thì phải `findBy…`, không `getBy…`.
  *
- *  Đổi 19/08: bảng lead rời khỏi màn (thuộc module 2) nên ba ca cũ về giao chủ
- *  và phiếu việc đã bỏ. Thay vào là sắp xếp cột, bấm cả dòng, timeline kỳ vọng,
- *  đóng/theo dõi, và form sửa. */
+ *  Đổi 19/08 (lần 2): hồ sơ một nguồn rời sang `/sales/campaigns/:code`, nên
+ *  mọi ca về timeline · theo dõi · đóng · form sửa đã chuyển sang
+ *  `campaign-detail.test.tsx`. Ở đây chỉ còn thứ thuộc về SỔ: bảng, bộ lọc,
+ *  sắp xếp, và việc bấm một dòng mở đúng đường dẫn hồ sơ. */
 
 /** Sáu nguồn CÓ ĐỢT — tức có người chạy. Hai nguồn tự nhiên không nằm trong đây. */
 const RUNNING = SOURCES.filter((s) => s.waves.length > 0)
@@ -37,8 +39,8 @@ function anchor() {
  *  tức thì và mọi `getBy…` sau nó chạy trên một màn chưa có dữ liệu. Tên nguồn
  *  thì chỉ xuất hiện khi đã có dòng thật, nên nó mới là mốc chờ đúng.
  *
- *  Dùng `findAllByText` vì tên nguồn đang mở có mặt ở hai chỗ: dòng bảng và
- *  panel chi tiết. */
+ *  Từ 19/08 tên nguồn chỉ còn ở dòng bảng — hồ sơ đã sang màn riêng — nhưng
+ *  vẫn dùng `findAllByText` để lời chờ không đỏ nếu sau này có chỗ thứ hai. */
 async function openBook() {
   await screen.findAllByText(anchor().label)
 }
@@ -88,7 +90,7 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     expect(screen.queryByText(/lượt hiển thị/i)).not.toBeInTheDocument()
   })
 
-  it('đủ tám nguồn trên bảng, và đổi bộ lọc thì panel không giữ nguồn đã bị lọc giấu', async () => {
+  it('đủ tám nguồn trên bảng, và bộ lọc loại cắt đúng phần của nó', async () => {
     renderScreen(<CampaignsPage />)
     await openBook()
 
@@ -97,7 +99,7 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
       expect(screen.getAllByText(s.code).length).toBeGreaterThan(0)
     }
 
-    // Nguồn mồi là một SỰ KIỆN — lọc sang "Chiến dịch" phải đẩy nó khỏi màn.
+    // Nguồn mồi là một SỰ KIỆN — lọc sang "Chiến dịch" phải đẩy nó khỏi bảng.
     expect(anchor().kind).toBe('su-kien')
     fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch' }))
 
@@ -106,11 +108,6 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     expect(screen.queryByText(ANCHOR_SOURCE)).not.toBeInTheDocument()
     expect(screen.getAllByText(firstCampaign).length).toBeGreaterThan(0)
 
-    // Nguồn này chưa có object nào trong đồ thị E1 → rail rút về đúng một chip
-    // của chính mã nguồn, chứ không mượn chuỗi của nguồn khác.
-    expect(screen.queryByText('AC-0142')).not.toBeInTheDocument()
-
-    // Bỏ lọc thì nguồn cũ tự mở lại — màn nhớ chỗ người dùng đang đứng.
     fireEvent.click(screen.getByRole('button', { name: 'Tất cả' }))
     expect(screen.getAllByText(ANCHOR_SOURCE).length).toBeGreaterThan(0)
   })
@@ -146,81 +143,38 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     )
   })
 
-  it('bấm CẢ DÒNG mở chi tiết, không phải mỗi cái mã', async () => {
-    renderScreen(<CampaignsPage />)
-    await openBook()
-
+  it('bấm CẢ DÒNG mở HỒ SƠ nguồn ở đường dẫn riêng, không mở panel tại chỗ', async () => {
     const other = SOURCES.find((s) => s.code !== ANCHOR_SOURCE && s.waves.length > 0)
     if (!other) throw new Error('Fixture không có nguồn thứ hai đã chạy đợt')
 
-    // Trước khi bấm, tên nguồn chỉ có mặt ở dòng bảng.
-    expect(screen.getAllByText(other.label)).toHaveLength(1)
+    renderRoutes(
+      [
+        { path: '/sales/campaigns', element: <CampaignsPage /> },
+        { path: '/sales/campaigns/:code', element: <CampaignDetailPage /> },
+      ],
+      { route: '/sales/campaigns' },
+    )
+    await openBook()
 
     const row = screen.getByText(other.label).closest('[role="row"]')
     if (!row) throw new Error('Ô tên không nằm trong một dòng bảng')
     fireEvent.click(row)
 
-    // Dòng sáng lên và panel phải mở đúng nguồn đó → tên có mặt ở hai chỗ.
-    expect(row).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getAllByText(other.label)).toHaveLength(2)
+    /* Sổ biến mất, hồ sơ hiện ra: đây là ĐIỀU HƯỚNG, không phải mở thêm một
+       panel cạnh bảng. Lối về nằm ngay trên đầu hồ sơ. */
+    expect(await screen.findByRole('button', { name: 'Sổ nguồn' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Chiến dịch mới' })).not.toBeInTheDocument()
+    expect(screen.getAllByText(other.label).length).toBeGreaterThan(0)
   })
 
-  it('timeline nói rõ đợt mấy, gửi bằng gì, và bao nhiêu lead trên KỲ VỌNG bao nhiêu', async () => {
+  it('khối AI của form có dòng "Căn cứ", có nút, và có "Chưa tạo gì cả" — luật 9', async () => {
     renderScreen(<CampaignsPage />)
     await openBook()
 
-    for (const w of anchor().waves) {
-      expect(screen.getByText(`Đợt ${w.no}`)).toBeInTheDocument()
-      // Kỳ vọng là số đặt TRƯỚC khi chạy, không phải điểm màn tự chấm.
-      expect(
-        screen.getAllByText(`${w.leads} lead trên kỳ vọng ${w.expected}`).length,
-      ).toBeGreaterThan(0)
-    }
+    /* Sổ KHÔNG có khối AI: trợ lý soạn nội dung cho MỘT nguồn, mà sổ không mở
+       nguồn nào. Khối đó nằm ở hồ sơ nguồn và ở form. */
+    expect(screen.queryByRole('button', { name: 'Soạn nội dung' })).not.toBeInTheDocument()
 
-    // Mỗi kênh có hình định danh riêng — nhìn là biết đợt đó gửi đi đâu.
-    for (const c of new Set(anchor().waves.map((w) => w.channel))) {
-      expect(screen.getAllByText(CHANNEL_LABEL[c]).length).toBeGreaterThan(0)
-    }
-
-    // Bảng lead đã dời sang module 2; còn lại đúng một con số và một lối đi.
-    expect(screen.getByRole('button', { name: 'Mở Sổ lead' })).toBeInTheDocument()
-    expect(screen.queryByText(/Lead đổ về từ/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Giao chủ' })).not.toBeInTheDocument()
-  })
-
-  it('theo dõi và đóng là state của màn — đóng rồi thì chuỗi không nhận thêm đợt', async () => {
-    renderScreen(<CampaignsPage />)
-    await openBook()
-
-    // `renderScreen` đăng nhập bằng TP Kinh doanh, nên nút đọc theo chỗ người đó
-    // đã có trong danh sách theo dõi của nguồn hay chưa.
-    const before = anchor().followers ?? []
-    const watching = before.includes(HEAD_OF_SALES)
-    fireEvent.click(screen.getByRole('button', { name: watching ? 'Bỏ theo dõi' : 'Theo dõi' }))
-
-    const after = watching ? before.length - 1 : before.length + 1
-    if (after > 0) {
-      expect(screen.getByText(`${after} người theo dõi`)).toBeInTheDocument()
-    } else {
-      expect(screen.getByText('Chưa ai theo dõi')).toBeInTheDocument()
-    }
-
-    expect(screen.getByRole('button', { name: 'Thêm đợt vào chuỗi' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^Đóng / }))
-
-    expect(screen.getByText('Đã đóng')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Thêm đợt vào chuỗi' })).not.toBeInTheDocument()
-  })
-
-  it('mọi khối AI có dòng "Căn cứ", có nút, và có "Chưa tạo gì cả" — luật 9', async () => {
-    renderScreen(<CampaignsPage />)
-    await openBook()
-
-    expect(screen.getAllByText(/^Căn cứ:/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/Chưa tạo gì cả/).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'Soạn nội dung' })).toBeInTheDocument()
-
-    // Form có khối AI riêng — nó cũng phải chịu đủ ba thứ trên.
     fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch mới' }))
     expect(screen.getAllByText(/^Căn cứ:/).length).toBeGreaterThan(0)
     expect(screen.getByText(/Chưa tạo gì cả/)).toBeInTheDocument()
@@ -321,24 +275,5 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     // Gửi xong là có lối ra, và màn nói thẳng dòng này chưa lên bảng nguồn.
     expect(screen.getByText(/không lệnh gửi nào được phát/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Về sổ nguồn' })).toBeInTheDocument()
-  })
-
-  it('nút Sửa mở ĐÚNG màn tạo, đổ sẵn tên và chuỗi đợt của nguồn đang mở', async () => {
-    renderScreen(<CampaignsPage />)
-    await openBook()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }))
-
-    expect(screen.getByText(`Sửa ${ANCHOR_SOURCE}`)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Tên' })).toHaveValue(anchor().label)
-
-    const value = (el: HTMLElement) => (el as HTMLInputElement).value
-    expect(screen.getAllByRole('textbox', { name: 'Tên đợt' }).map(value)).toEqual(
-      anchor().waves.map((w) => w.label),
-    )
-
-    /* Kịch bản không lưu nội dung đã soạn — form nói ra thay vì bịa lại bài cũ,
-       và nói lại một lần dưới TỪNG ô soạn trống chứ không chỉ ở đầu section. */
-    expect(screen.getAllByText(/Kịch bản không lưu nội dung đã soạn/).length).toBeGreaterThan(1)
   })
 })

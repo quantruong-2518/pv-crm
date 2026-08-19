@@ -1,28 +1,28 @@
 import { Bell, Factory, FileText, House, Package, SquareCheckBig, Users } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { ApprovalCard, AppSidebar, BriefCard, KioskTile, TopBar } from '@pv/ui'
+import { ApprovalCard, AppHeader, BriefCard, KioskTile } from '@pv/ui'
 
 /** Zone 03 · Organisms — khối hoàn chỉnh, đặt thẳng vào màn. */
 
-const SIDEBAR_GROUPS = [
+const HEADER_CORE = [
+  { icon: House, label: 'Trang chủ', active: true },
+  { icon: SquareCheckBig, label: 'Phê duyệt', count: 7 },
+  { icon: Bell, label: 'Thông báo' },
+]
+
+const HEADER_APPS = [
   {
+    icon: Users,
+    label: 'Kinh doanh',
+    active: true,
     items: [
-      { icon: House, label: 'Trang chủ', active: true },
-      { icon: SquareCheckBig, label: 'Phê duyệt', count: 7 },
-      { icon: Bell, label: 'Thông báo' },
+      { icon: Users, label: 'Lead', active: true },
+      { icon: FileText, label: 'Báo giá' },
     ],
   },
-  {
-    kicker: 'Ứng dụng',
-    items: [
-      { icon: Users, label: 'CRM' },
-      { icon: FileText, label: 'Docs', locked: true },
-      { icon: SquareCheckBig, label: 'Work', locked: true },
-      { icon: Package, label: 'ERP · Kho', locked: true },
-      { icon: Factory, label: 'MES', locked: true },
-    ],
-  },
+  { icon: Package, label: 'Cung ứng', locked: true },
+  { icon: Factory, label: 'Sản xuất', locked: true },
 ]
 
 const CHAIN = [
@@ -47,27 +47,24 @@ export function ZoneOrganisms() {
         <div className="grid grid-cols-[300px_1fr] items-start gap-4">
           {/* O-01 */}
           <SpecCard
-            code="O-01"
-            name="AppSidebar"
-            note="w-[232px]"
+            code="O-06"
+            name="AppHeader"
+            note="tầng 1 h-16 · tầng 2 h-12"
             bodyClassName="p-4"
-            footer="Logo 32 · NavItem[] · Kicker nhóm “Ứng dụng” · phần chưa mở để locked"
+            footer="Tầng 1: thương hiệu + ô tìm toàn cục + việc chờ + Trợ lý + Avatar. Tầng 2: ứng dụng, mục có module con thì xổ dropdown (glass-menu, đục hẳn)"
           >
-            <AppSidebar product="PV One" org="Thắng Lợi" groups={SIDEBAR_GROUPS} />
+            <AppHeader
+              product="PV One"
+              org="Thắng Lợi"
+              core={HEADER_CORE}
+              apps={HEADER_APPS}
+              user={{ name: 'Nguyễn Văn Thắng' }}
+              unread
+              search={{ placeholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' }}
+            />
           </SpecCard>
 
           <div className="flex flex-col gap-4">
-            {/* O-02 */}
-            <SpecCard
-              code="O-02"
-              name="TopBar"
-              note="h-16"
-              bodyClassName="p-4"
-              footer="SearchField + nút Trợ lý + chuông (chấm 7px destructive) + Avatar"
-            >
-              <TopBar user={{ name: 'Nguyễn Văn Thắng' }} unread />
-            </SpecCard>
-
             {/* O-03 */}
             <SpecCard
               code="O-03"

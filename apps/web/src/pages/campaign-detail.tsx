@@ -1,0 +1,457 @@
+import { useState, type ReactNode } from 'react'
+import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Eye,
+  MapPin,
+  Pencil,
+  Plus,
+  Reply,
+  Target,
+  TriangleAlert,
+  Users,
+  Wallet,
+} from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import {
+  AiAction,
+  AppShell,
+  Avatar,
+  Badge,
+  Button,
+  ChannelTag,
+  ContextRail,
+  EmptyState,
+  GlassCard,
+  Icon,
+  MetaPill,
+  Progress,
+  SectionTitle,
+  Skeleton,
+  StatCard,
+  Timeline,
+  millions,
+  percent,
+  type TimelineItem,
+} from '@pv/ui'
+import {
+  DAY_FROZEN,
+  dasVina,
+  HEAD_OF_SALES,
+  REQUIRED_SLOTS,
+  dayISO,
+} from '@pv/engines/fixtures/das-vina'
+import { useAppChrome } from '@/app/chrome'
+import { useSession } from '@/app/session'
+import { dm } from '@/lib/date'
+import { sourcesQuery } from '@/data/campaigns'
+import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { CampaignForm, NotDoing } from './campaign-parts'
+import { KIND_ICON, KIND_LABEL, KIND_TONE, draftOf, sendsViaE4 } from './campaign-model'
+
+/** Module 1 · hồ sơ MỘT nguồn — màn riêng từ 19/08.
+ *
+ *  VÌ SAO TÁCH. Trước đó chi tiết là panel bên phải sổ nguồn: cùng một màn phải
+ *  gánh sáu ô KPI của cả kỳ, bảng tám nguồn, rồi toàn bộ hồ sơ một nguồn —
+ *  bốn score card, chuỗi đợt, khối AI, lối sang Sổ lead và khối "cố tình không
+ *  làm". Panel đó rộng chừng 410px và tự cuộn bên trong, tức người đọc phải
+ *  cuộn một cột hẹp bên trong một trang đã dài. Cùng lối đi với Sổ lead → Hồ sơ
+ *  lead (`/sales/leads/:code`), và vì cùng lối nên người dùng chỉ phải học một
+ *  lần: bấm một dòng là mở hồ sơ của dòng đó.
+ *
+ *  Hồ sơ có ĐƯỜNG DẪN RIÊNG nên gửi được cho người khác, mở lại được bằng F5,
+ *  và nút Back của trình duyệt trả đúng về sổ. Panel cũ không làm được điều nào
+ *  trong ba điều đó.
+ *
+ *  BỐ CỤC HAI CỘT từ `lg`: trái là thứ người ta tới đây để đọc — nguồn này chạy
+ *  ra sao, chuỗi đợt thế nào; phải là thứ để LÀM TIẾP — trợ lý soạn đợt sau,
+ *  lối sang Sổ lead. Một cột dọc dài thì mọi thứ đứng ngang hàng nhau và không
+ *  gì nổi lên trước.
+ *
+ *  SỬA dùng đúng form của màn tạo (`campaign-parts.tsx`), mở đè lên hồ sơ —
+ *  không đẻ màn thứ ba (docs · mục 1.6).
+ *
+ *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
+export function CampaignDetailPage() {
+  const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, sự kiện, đợt gửi…' })
+  const navigate = useNavigate()
+  const { code = '' } = useParams()
+  const { data: sources = [], isPending } = useQuery(sourcesQuery)
+  const me = useSession((s) => s.actor?.name ?? null)
+
+  /* Bốn state POC — ở màn cũ chúng phải giữ theo MÃ nguồn vì một màn ôm tám
+     nguồn. Ở đây màn CHỈ có một nguồn, nên chúng là state phẳng: đổi nguồn là
+     đổi đường dẫn, tức component dựng lại từ đầu. */
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
+  const [seedWave, setSeedWave] = useState(false)
+  const [closed, setClosed] = useState(false)
+  const [drafted, setDrafted] = useState(false)
+  const [followers, setFollowers] = useState<string[] | null>(null)
+
+  const source = sources.find((s) => s.code === code) ?? null
+
+  const shell = (children: ReactNode) => (
+    <AppShell activeNav="home" approvalsCount={chrome.approvalsCount} header={chrome.header}>
+      {children}
+    </AppShell>
+  )
+
+  if (isPending) {
+    return shell(
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-11 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>,
+    )
+  }
+
+  if (!source) {
+    return shell(
+      <GlassCard className="p-5 lg:p-6">
+        <EmptyState
+          icon={TriangleAlert}
+          message={`Không có nguồn nào mang mã ${code} trong kỳ này.`}
+          action={{ label: 'Về sổ nguồn', onClick: () => navigate('/sales/campaigns') }}
+          className="py-12"
+        />
+      </GlassCard>,
+    )
+  }
+
+  const now = followers ?? source.followers
+  const following = me !== null && now.includes(me)
+  const runnable = source.waves.length > 0
+  const editable = source.kind !== 'tu-nhien'
+
+  const status = closed
+    ? { label: 'Đã đóng', tone: 'draft' as const }
+    : !runnable
+      ? { label: 'Không có đợt', tone: 'draft' as const }
+      : source.finished
+        ? { label: 'Đã chạy xong', tone: 'success' as const }
+        : { label: 'Đang chạy', tone: 'running' as const }
+
+  /* Luật 10 · ContextRail dựng thẳng từ E1, qua đơn tiêu biểu nguồn này đã đẻ
+     ra. Nguồn chưa đẻ đơn nào thì rail hiện đúng một chip của chính nó. */
+  const story = source.anchorDeal ? dasVina.graph.story(source.anchorDeal) : []
+  const rail =
+    story.length > 0
+      ? story.map((o) => ({ code: o.code, source: o.code === source.anchorDeal }))
+      : [{ code: source.code, source: false }]
+
+  const items: TimelineItem[] = source.waves.map((w) => ({
+    id: String(w.no),
+    /* Ba trạng thái thật: đạt kỳ vọng · hụt kỳ vọng · chưa tới ngày chạy. */
+    state: w.day > DAY_FROZEN ? 'next' : w.hit ? 'ok' : 'warning',
+    marker: `Đợt ${w.no}`,
+    title: w.label,
+    meta: (
+      <>
+        <MetaPill mono icon={CalendarDays}>
+          {dm(dayISO(w.day))}
+        </MetaPill>
+        <ChannelTag
+          icon={CHANNEL_ICON[w.channel]}
+          label={CHANNEL_LABEL[w.channel]}
+          tone={sendsViaE4(w.channel) ? 'default' : 'warning'}
+        />
+      </>
+    ),
+    children: (
+      <div className="flex flex-col gap-2">
+        <span className="text-muted-foreground text-[11px]">
+          gửi <span className="tnum font-num">{w.sent}</span> · mở{' '}
+          <span className="tnum font-num">{w.opened}</span> · trả lời{' '}
+          <span className="tnum font-num">{w.replied}</span>
+        </span>
+        <Progress
+          value={w.hitRate}
+          label={`${w.leads} lead trên kỳ vọng ${w.expected}`}
+          tone={w.hit ? 'success' : 'warning'}
+        />
+        {sendsViaE4(w.channel) ? null : (
+          <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
+            <Icon icon={TriangleAlert} size={16} />
+            Hệ chưa nối đường gửi cho {CHANNEL_LABEL[w.channel]} — đợt này người tự đăng, số ở trên
+            là số nhập tay.
+          </span>
+        )}
+      </div>
+    ),
+  }))
+
+  if (mode === 'edit') {
+    return shell(
+      <CampaignForm
+        mode="edit"
+        code={source.code}
+        initial={draftOf(source, seedWave)}
+        seededWave={seedWave}
+        sources={sources}
+        onCancel={() => {
+          setSeedWave(false)
+          setMode('view')
+        }}
+      />,
+    )
+  }
+
+  return shell(
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="self-start"
+        onClick={() => navigate('/sales/campaigns')}
+      >
+        <Icon icon={ArrowLeft} size={16} />
+        Sổ nguồn
+      </Button>
+
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Icon icon={KIND_ICON[source.kind]} size={20} className="text-accent-foreground" />
+            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
+              {source.label}
+            </h2>
+            <Badge tone={KIND_TONE[source.kind]}>{KIND_LABEL[source.kind]}</Badge>
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <MetaPill mono>{source.code}</MetaPill>
+            {/* Nguồn không đợt thì KHÔNG có khoảng: `lastDay` bằng chính
+                `startDay`, in ra "04/05 → 04/05" đọc như thể nguồn sống đúng
+                một ngày — trong khi nó chảy suốt kỳ. */}
+            <MetaPill mono icon={CalendarDays}>
+              {runnable
+                ? `${dm(source.startISO)} → ${dm(source.lastISO)}`
+                : `từ ${dm(source.startISO)}`}
+            </MetaPill>
+            <MetaPill avatar={source.owner}>{source.owner}</MetaPill>
+            {source.venue ? <MetaPill icon={MapPin}>{source.venue}</MetaPill> : null}
+          </div>
+        </div>
+
+        <ContextRail objects={rail} />
+      </div>
+
+      {/* Nút nghiệp vụ, không phải nút phụ: `md` (h-10) chứ không `sm` (h-8).
+          iPad dọc 768px chạy đúng layout này bằng ngón tay. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {editable ? (
+          <Button size="md" variant="ghost" disabled={closed} onClick={() => setMode('edit')}>
+            <Icon icon={Pencil} size={16} />
+            Sửa
+          </Button>
+        ) : null}
+
+        {runnable && !closed ? (
+          <Button
+            size="md"
+            variant="ghost"
+            onClick={() => {
+              setClosed(true)
+              /* Nối E3 khi có backend: đóng một chiến dịch là YÊU CẦU DUYỆT,
+                 không phải một cái công tắc — đóng xong thì chi phí đã tiêu
+                 chốt sổ và công trạng Marketing tính trên con số đó. */
+            }}
+          >
+            <Icon icon={Archive} size={16} />
+            Đóng {KIND_LABEL[source.kind].toLowerCase()}
+          </Button>
+        ) : null}
+
+        <Button
+          size="md"
+          variant={following ? 'default' : 'ghost'}
+          disabled={me === null}
+          onClick={() => {
+            if (!me) return
+            setFollowers(now.includes(me) ? now.filter((n) => n !== me) : [...now, me])
+            /* Nối E4 khi có backend: theo dõi là ĐĂNG KÝ NHẬN THÔNG BÁO của
+               nguồn này — đợt chạy xong, số hụt kỳ vọng, chiến dịch bị đóng
+               đều bắn về đây. */
+          }}
+        >
+          <Icon icon={Eye} size={16} />
+          {following ? 'Bỏ theo dõi' : 'Theo dõi'}
+        </Button>
+
+        {now.length > 0 ? (
+          <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1">
+              {now.map((name) => (
+                <Avatar key={name} name={name} size="sm" />
+              ))}
+            </span>
+            <span className="text-muted-foreground text-[11px]">{now.length} người theo dõi</span>
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-[11px]">Chưa ai theo dõi</span>
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
+        <div className="flex flex-col gap-4 lg:gap-6">
+          {/* Score card của CHÍNH nguồn này. Bốn ô, hàng ngang trên `sm` —
+              panel cũ chỉ đủ chỗ xếp 2×2. */}
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <StatCard
+              size="compact"
+              icon={Target}
+              value={source.expected > 0 ? percent(source.hitRate) : '—'}
+              label="Đạt kỳ vọng lead"
+              hint={
+                source.expected > 0
+                  ? `${source.leads} lead trên kỳ vọng ${source.expected}`
+                  : `${source.leads} lead · không đợt nào đặt kỳ vọng`
+              }
+            />
+            <StatCard
+              size="compact"
+              icon={Reply}
+              value={source.sent > 0 ? percent(source.replyRate) : '—'}
+              label="Tỉ lệ trả lời"
+              hint={
+                source.sent > 0
+                  ? `${source.replied} trả lời trên ${source.sent} lượt gửi`
+                  : 'không đợt nào gửi đi'
+              }
+            />
+            <StatCard
+              size="compact"
+              icon={Wallet}
+              value={source.costPerGood === null ? '—' : millions(source.costPerGood)}
+              label="Chi phí mỗi lead tốt"
+              hint={`đã tiêu ${millions(source.cost)}`}
+            />
+            {/* Ô thứ tư đổi theo loại: sự kiện đo bằng người ĐẾN, chiến dịch đo
+                bằng lead qua cổng. `attendRate` null nghĩa là không phải sự
+                kiện, không phải "chưa ai đến". */}
+            {source.attendRate === null ? (
+              <StatCard
+                size="compact"
+                icon={Users}
+                value={percent(source.mqlRate)}
+                label="Tỉ lệ MQL"
+                hint={`${source.good}/${source.leads} lead qua cổng ${REQUIRED_SLOTS} ô bắt buộc`}
+              />
+            ) : (
+              <StatCard
+                size="compact"
+                icon={Users}
+                value={percent(source.attendRate)}
+                label="Tỉ lệ có mặt"
+                hint={`${source.checkedIn}/${source.registered} người đến trên số đăng ký`}
+              />
+            )}
+          </div>
+
+          <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+            {!runnable ? (
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Nguồn tự nhiên — không ai chạy đợt nào. {source.leads} lead về từ đây là khách tự
+                tìm tới hoặc do người trong phòng tự mở, nên không có chuỗi đợt để vẽ và không có kỳ
+                vọng để chấm.
+              </p>
+            ) : (
+              <>
+                <SectionTitle
+                  size="sm"
+                  hint={`${source.waves.length} đợt · chuỗi trải ${source.runDays} ngày · mọi lần gửi đi qua hệ gửi chung, màn không tự gọi nền tảng nào`}
+                >
+                  Chuỗi đợt
+                </SectionTitle>
+                <Timeline items={items} />
+                {closed ? (
+                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                    Chiến dịch đã đóng — chuỗi không nhận thêm đợt và nội dung không sửa được nữa.
+                    Mở lại là một yêu cầu duyệt khác.
+                  </p>
+                ) : (
+                  <Button
+                    size="md"
+                    variant="ghost"
+                    className="self-start"
+                    onClick={() => {
+                      setSeedWave(true)
+                      setMode('edit')
+                    }}
+                  >
+                    <Icon icon={Plus} size={16} />
+                    Thêm đợt vào chuỗi
+                  </Button>
+                )}
+              </>
+            )}
+          </GlassCard>
+        </div>
+
+        <div className="flex flex-col gap-4 lg:gap-6">
+          {/* Luật 9 · khối AI có "Căn cứ:", có nút, và có state "Chưa tạo gì
+              cả". Đề xuất đổi theo nhánh: nguồn KHÔNG có đợt thì không thể đề
+              xuất "đợt tiếp theo". */}
+          <div className="flex flex-col gap-3">
+            <AiAction
+              variant="panel"
+              suggestion={
+                runnable
+                  ? `Soạn đợt tiếp theo cho ${source.code} — nhắm ${source.notGood} lead chưa qua cổng, hỏi đúng ô còn thiếu.`
+                  : `Mở đợt đầu tiên cho ${source.code} — nhắm đúng nhóm khách nguồn này đang tự kéo về.`
+              }
+              basis={
+                runnable
+                  ? `${source.waves.length} đợt đã chạy · ${source.leads} lead trên kỳ vọng ${source.expected} · ${source.good} lead đủ ${REQUIRED_SLOTS} ô bắt buộc`
+                  : `${source.leads} lead đã về mà không đợt nào kéo · ${source.good} lead qua cổng, tức ${percent(source.mqlRate)}`
+              }
+              confirmLabel="Soạn nội dung"
+              done={drafted}
+              onConfirm={() => {
+                setDrafted(true)
+                /* Nối E3 khi có backend: `proposeFromAi` với basis ở trên. */
+              }}
+            />
+            {drafted ? (
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Bản nháp chưa rời màn này — chưa có ai nhận. Chưa có màn Hộp duyệt để gửi tới; khi
+                có backend, bản soạn đi tới {HEAD_OF_SALES} rồi mới có đợt nào được bung.
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Chưa tạo gì cả. Trợ lý chỉ soạn khi có người bấm, và bản soạn vẫn phải qua{' '}
+                {HEAD_OF_SALES} trước khi đợt được gửi.
+              </p>
+            )}
+          </div>
+
+          {/* Bảng lead không nằm ở đây — lý do ngay dưới, trong "Cố tình không
+              làm". Còn lại đúng một con số và một lối đi. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-white/5 p-4">
+            <span className="text-[11.5px] leading-[1.5]">
+              <span className="tnum font-num">{source.good}</span>/
+              <span className="tnum font-num">{source.leads}</span> lead của nguồn này đã qua cổng
+              init data
+            </span>
+            <Button
+              size="md"
+              variant="ghost"
+              onClick={() => navigate(`/sales/leads?source=${source.code}`)}
+            >
+              <Icon icon={ArrowRight} size={16} />
+              Mở Sổ lead
+            </Button>
+          </div>
+
+          <NotDoing />
+        </div>
+      </div>
+    </div>,
+  )
+}
+
+export default CampaignDetailPage

@@ -51,14 +51,16 @@ export * from './patterns/search-field'
 export * from './patterns/stat-card'
 export * from './patterns/timeline'
 
-// ---- Zone 03 · Organisms (O-01 … O-05) ----
-export * from './organisms/app-sidebar'
+// ---- Zone 03 · Organisms (O-01 … O-06) ----
+/** AppSidebar (O-01) đã bỏ 19/08 — nav dọc không chứa nổi bộ mục (1040px nội
+ *  dung trên màn 801px). AppHeader hai tầng thay chỗ; lý do đầy đủ ở docblock
+ *  của nó. */
+export * from './organisms/app-header'
 export * from './organisms/approval-card'
 export * from './organisms/bottom-nav'
 export * from './organisms/brief-card'
 export * from './organisms/kiosk-tile'
 export * from './organisms/order-lifecycle-card'
-export * from './organisms/top-bar'
 
 // ---- Zone 04 · Templates ----
 export * from './layout/app-shell'
