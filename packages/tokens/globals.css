@@ -184,6 +184,19 @@
      danh sách xổ xuống của mọi bộ lọc ra nền trắng chữ đen giữa một màn tối. */
   :root {
     color-scheme: dark;
+    /* Chỗ của thanh cuộn dọc LUÔN được giữ, kể cả khi trang không cuộn.
+       Không có dòng này thì bề rộng dùng được của trang đổi 15px giữa hai
+       loại màn: màn `AppShell fill` (Chiến dịch — `lg:h-screen
+       lg:overflow-hidden`, trang không bao giờ cuộn nên không có thanh cuộn)
+       và màn cuộn thường (Performance, Sổ lead…). Đi từ màn này sang màn kia
+       là cả bố cục nhảy ngang một nhịp — người dùng thấy màn "co dãn, giật"
+       dù nav dùng chung. Giữ chỗ sẵn thì hai loại màn rộng bằng nhau. */
+    scrollbar-gutter: stable;
+    /* `scrollbar-gutter` một mình KHÔNG giữ chỗ ở tầng viewport (đo trên
+       Chrome 1999px: stable + overflow auto vẫn ra 0px, chỉ `scroll` mới ra
+       15px). Ép rãnh cuộn luôn có mặt. Màn `fill` không cuộn thật nên rãnh
+       này chỉ là một vệt trống — đổi lại, mọi màn rộng bằng nhau. */
+    overflow-y: scroll;
   }
   * {
     border-color: transparent;

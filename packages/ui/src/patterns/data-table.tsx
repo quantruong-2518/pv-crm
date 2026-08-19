@@ -62,7 +62,16 @@ export function DataTable({
   const template = columns.map((c) => c.width).join(' ')
 
   return (
-    <div className={className} role="table">
+    /* `overflow-x-hidden`: header nút sắp xếp cuối cùng dùng `-m-1` để nới
+       vùng bấm mà không đẩy chữ (xem bên dưới) — ở cột cuối, mép phải của nút
+       tràn ra ngoài bảng đúng 4px vì không còn cột nào bên phải để `gap-3`
+       nuốt phần tràn đó. Bảng luôn nằm trong khối cha `overflow-y-auto`
+       (luật 8), mà CSS coi cặp overflow-x/overflow-y là MỘT cặp: chỉ đặt một
+       trục thành `auto` thì trục kia tự động cũng thành `auto`, nên 4px tràn
+       này biến thành một thanh cuộn ngang thật — vô hình khi bảng đủ dòng để
+       cần cuộn dọc (thanh cuộn dọc đã chiếm khoảng đó), lộ ra thành một thanh
+       cuộn ngang trơ trọi giữa khoảng trống khi bảng lọc còn ít dòng. */
+    <div className={cn('overflow-x-hidden', className)} role="table">
       <div
         role="row"
         className="border-b-white/6 text-muted-foreground grid gap-3 border-b pb-2 text-[11px]"
