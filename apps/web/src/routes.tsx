@@ -39,17 +39,15 @@ type ScreenDef = {
   public?: boolean
 }
 
-/** Bốn module Sales đều có route từ đầu — nav phải trỏ đi đâu đó thật, không
- *  được có nút chết. Ba module chưa dựng dùng chung `sales-pending`, màn đó đọc
- *  `SALES_MODULES` để nói đúng thứ đang vướng. Dựng xong module nào thì đổi
- *  `load` của nó sang màn thật, nav không phải sửa. */
+/** Năm module Sales đều có màn thật từ 19/08 — không còn mục nào trỏ vào màn
+ *  "chưa dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
 export const SCREENS: ScreenDef[] = [
   { path: '/', name: 'Trang chủ · Morning brief', load: () => import('@/pages/home') },
   {
-    path: '/sales/market',
-    name: 'Kinh doanh · Module 1 · Thị trường',
+    path: '/sales/campaigns',
+    name: 'Kinh doanh · Module 1 · Chiến dịch & Sự kiện',
     branch: 'Sales',
-    load: () => import('@/pages/sales-pending'),
+    load: () => import('@/pages/campaigns'),
   },
   {
     path: '/sales/leads',
@@ -61,13 +59,19 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/performance',
     name: 'Kinh doanh · Module 3 · Performance',
     branch: 'Sales',
-    load: () => import('@/pages/sales-pending'),
+    load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
     name: 'Kinh doanh · Module 4 · Số liệu & kế hoạch',
     branch: 'Sales',
-    load: () => import('@/pages/sales-pending'),
+    load: () => import('@/pages/plan'),
+  },
+  {
+    path: '/sales/config',
+    name: 'Kinh doanh · Module 5 · Cấu hình',
+    branch: 'Sales',
+    load: () => import('@/pages/sales-config'),
   },
   { path: '/dang-nhap', name: 'Chọn vai', public: true, load: () => import('@/pages/sign-in') },
   { path: '/kit', name: 'Theme kit sống', public: true, load: () => import('@/kit/theme-kit') },

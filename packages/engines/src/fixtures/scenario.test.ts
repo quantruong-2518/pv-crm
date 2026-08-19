@@ -7,7 +7,23 @@ import {
   SAO_DO_TIMELINE,
   saoDo,
 } from './sao-do'
-import { dasVina, EXIT_REASONS, FUNNEL, isRotting, OPEN_DEALS, PIPELINE_STAGES } from './das-vina'
+import {
+  BOOK_SPLIT,
+  canPromoteToSql,
+  dasVina,
+  DAY_FROZEN,
+  EXIT_REASONS,
+  FUNNEL,
+  INIT_DATA_QUESTIONS,
+  isRotting,
+  isRunning,
+  LEADS,
+  OPEN_DEALS,
+  PIPELINE_STAGES,
+  REQUIRED_SLOTS,
+  SOURCES,
+  dayISO,
+} from './das-vina'
 
 /** Khoá mọi con số đã CHỐT trong docs/kien-truc-san-pham.md.
  *
@@ -99,10 +115,126 @@ describe('Phễu 01/05 → 17/08', () => {
     }
   })
 
-  it('sáu lý do ra khỏi luồng, cộng lại đúng 94 — không có ô "khác"', () => {
+  it('sáu lý do ra khỏi luồng, cộng lại đúng 52 — không có ô "khác"', () => {
     expect(EXIT_REASONS).toHaveLength(6)
     const lost = EXIT_REASONS.reduce((s, r) => s + r.count, 0)
-    expect(lost).toBe(94)
-    expect(lost + FUNNEL[FUNNEL.length - 1]!.count).toBe(FUNNEL[0].count)
+    expect(lost).toBe(BOOK_SPLIT.exited)
+  })
+
+  /** Phép cân sửa 19/08: bản cũ ghi 94 + 6 = 100 và quên 42 lead còn sống.
+   *  docs/kien-truc-san-pham.md · "Phép cân của sổ lead". */
+  it('100 đầu mối = 6 đã ký + 42 đang chạy + 52 đã rơi', () => {
+    const { signed, running, exited } = BOOK_SPLIT
+    expect(signed + running + exited).toBe(FUNNEL[0].count)
+    expect(signed).toBe(FUNNEL[FUNNEL.length - 1]?.count)
+  })
+})
+
+describe('Sổ lead — 100 dòng, cân với phễu', () => {
+  it('đúng 100 dòng, mã không trùng', () => {
+    expect(LEADS).toHaveLength(FUNNEL[0].count)
+    expect(new Set(LEADS.map((l) => l.code)).size).toBe(LEADS.length)
+    expect(new Set(LEADS.map((l) => l.company)).size).toBe(LEADS.length)
+  })
+
+  it('bậc của từng dòng khớp ba bậc đầu của phễu', () => {
+    const atLeast = (tiers: string[]) => LEADS.filter((l) => tiers.includes(l.tier)).length
+    expect(atLeast(['mql', 'sql'])).toBe(FUNNEL[1]?.count)
+    expect(atLeast(['sql'])).toBe(FUNNEL[2]?.count)
+  })
+
+  it('ba phần của sổ cộng lại đúng 100', () => {
+    const signed = LEADS.filter((l) => l.contractCode).length
+    const exited = LEADS.filter((l) => l.exitReason).length
+    const running = LEADS.filter(isRunning).length
+    expect({ signed, running, exited }).toEqual({ ...BOOK_SPLIT })
+    expect(signed + running + exited).toBe(LEADS.length)
+  })
+
+  it('số dòng mỗi lý do rơi khớp từng con số của EXIT_REASONS', () => {
+    for (const r of EXIT_REASONS) {
+      expect(LEADS.filter((l) => l.exitReason === r.label)).toHaveLength(r.count)
+    }
+  })
+
+  it('mười dòng SQL đang mở khớp từng đơn của sổ cơ hội', () => {
+    const linked = LEADS.filter((l) => l.dealCode)
+    expect(linked.map((l) => l.dealCode)).toEqual(OPEN_DEALS.map((d) => d.code))
+    for (const l of linked) {
+      const deal = OPEN_DEALS.find((d) => d.code === l.dealCode)
+      expect([l.company, l.owner, l.stage, l.daysHere]).toEqual([
+        deal?.company,
+        deal?.owner,
+        deal?.stage,
+        deal?.daysInStage,
+      ])
+    }
+  })
+
+  it('mọi dòng SQL đều đã qua cổng; không dòng nào chưa qua mà lọt vào', () => {
+    for (const l of LEADS) {
+      if (l.tier === 'sql') expect(l.requiredFilled).toBe(REQUIRED_SLOTS)
+      expect(l.answered).toBe(l.requiredFilled + l.optionalFilled)
+      expect(l.filled).toHaveLength(l.answered)
+    }
+  })
+
+  it('cổng là sáu ô bắt buộc, không phải 10/10', () => {
+    expect(INIT_DATA_QUESTIONS).toHaveLength(10)
+    expect(REQUIRED_SLOTS).toBe(6)
+
+    const ready = LEADS.find((l) => l.tier === 'mql' && l.requiredFilled === REQUIRED_SLOTS)
+    expect(ready).toBeDefined()
+    // Đủ sáu ô bắt buộc là qua cổng, kể cả khi bốn ô tuỳ chọn còn trống.
+    expect(ready && ready.optionalFilled < 4).toBe(true)
+    expect(ready && canPromoteToSql(ready).ok).toBe(true)
+
+    const short = LEADS.find((l) => l.tier === 'mql' && l.requiredFilled < REQUIRED_SLOTS)
+    expect(short && canPromoteToSql(short).ok).toBe(false)
+  })
+
+  it('mọi lead có timeline, và timeline không vượt quá ngày đóng băng', () => {
+    const frozen = dayISO(DAY_FROZEN)
+    for (const l of LEADS) {
+      expect(l.history.length).toBeGreaterThan(0)
+      for (const e of l.history) expect(e.at <= frozen).toBe(true)
+    }
+  })
+})
+
+describe('Nguồn lead — module 1 Chiến dịch & Sự kiện', () => {
+  it('tám nguồn, tổng lead đúng 100 = bậc đầu của phễu', () => {
+    expect(SOURCES).toHaveLength(8)
+    expect(SOURCES.reduce((s, x) => s + x.leads, 0)).toBe(FUNNEL[0].count)
+  })
+
+  it('lead trong sổ chia đúng về từng nguồn', () => {
+    for (const s of SOURCES) {
+      expect(LEADS.filter((l) => l.source === s.code)).toHaveLength(s.leads)
+    }
+  })
+
+  it('lead của từng đợt cộng lại đúng lead của chiến dịch', () => {
+    for (const s of SOURCES) {
+      if (s.waves.length === 0) continue
+      expect(s.waves.reduce((n, w) => n + w.leads, 0)).toBe(s.leads)
+    }
+  })
+
+  it('một đợt không thể có người mở nhiều hơn người nhận', () => {
+    for (const s of SOURCES) {
+      for (const w of s.waves) {
+        expect(w.opened).toBeLessThanOrEqual(w.sent)
+        expect(w.replied).toBeLessThanOrEqual(w.sent)
+        expect(w.leads).toBeLessThanOrEqual(w.replied)
+      }
+    }
+  })
+
+  it('sự kiện thì người đến không nhiều hơn người đăng ký', () => {
+    for (const s of SOURCES.filter((x) => x.kind === 'su-kien')) {
+      expect(s.checkedIn ?? 0).toBeLessThanOrEqual(s.registered ?? 0)
+      expect(s.venue).toBeTruthy()
+    }
   })
 })

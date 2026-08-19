@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
+import { SALES_MODULES } from '@/app/chrome'
 import { renderScreen } from '@/test-utils'
 import { HomePage } from './home'
 
@@ -39,11 +40,15 @@ describe('Màn 01 · Home / Morning brief', () => {
     expect(screen.getByText('Supply · SO-0891')).toBeInTheDocument()
   })
 
-  it('nav có ĐỦ bốn module Sales, không phải một mục Kinh doanh', () => {
+  /** Năm từ 19/08 — module 1 đổi tên thành "Chiến dịch & Sự kiện" và thêm
+   *  module 5 · Cấu hình (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
+   *  Đọc thẳng từ SALES_MODULES nên đổi bảng đó là test tự đi theo. */
+  it('nav có ĐỦ năm module Sales, không phải một mục Kinh doanh', () => {
     renderScreen(<HomePage />)
 
-    for (const label of ['Thị trường', 'Lead', 'Performance', 'Số liệu & kế hoạch']) {
-      expect(screen.getByRole('button', { name: label })).toBeEnabled()
+    expect(SALES_MODULES).toHaveLength(5)
+    for (const m of SALES_MODULES) {
+      expect(screen.getByRole('button', { name: m.label })).toBeEnabled()
     }
   })
 

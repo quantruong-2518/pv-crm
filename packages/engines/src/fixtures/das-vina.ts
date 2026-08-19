@@ -1,6 +1,6 @@
 import { loadScenario, type Scenario } from './scenario'
 
-/** KỊCH BẢN 2 · DAS Vina — khách CHƯA MUA. Dùng cho cả bốn module Sales và mọi
+/** KỊCH BẢN 2 · DAS Vina — khách CHƯA MUA. Dùng cho cả năm module Sales và mọi
  *  màn nói về *trước khi có hợp đồng*. Đóng băng tại 17/08 · 09:10.
  *
  *  Nhà máy đóng gói chip · Bắc Ninh · 1.400 người.
@@ -8,6 +8,20 @@ import { loadScenario, type Scenario } from './scenario'
  *  One Plus) → BG-1077 · 4,2 tỷ/năm. Giám đốc bên Hàn Quốc ký cuối; trên 3 tỷ
  *  phải xin công ty mẹ. */
 export const DAS_VINA_FROZEN_AT = '2026-08-17T09:10:00+07:00'
+
+/** Ngày đầu của kỳ — mọi mốc trong kịch bản đếm bằng số ngày kể từ đây.
+ *  01/05 → 17/08 là 108 ngày; `DAY_FROZEN` phải trỏ đúng vào ngày đóng băng. */
+const PERIOD_START_UTC = Date.UTC(2026, 4, 1)
+const DAY_MS = 86_400_000
+export const DAY_FROZEN = 108
+
+/** Mốc thời gian tất định. KHÔNG dùng `Date.now()` ở fixture — kịch bản đóng
+ *  băng thì hai lần chạy phải ra đúng một chuỗi. */
+export function dayISO(offset: number, hhmm = '09:00'): string {
+  const d = new Date(PERIOD_START_UTC + offset * DAY_MS)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${hhmm}:00+07:00`
+}
 
 const scenario: Scenario = {
   id: 'das-vina',
@@ -77,14 +91,20 @@ const scenario: Scenario = {
 
 export const dasVina = loadScenario(scenario)
 
+/** Tên bốn vai hay bị gõ tay ở nhiều chỗ. Lấy từ `actors`, không gõ lại. */
+export const MARKETING = 'Vũ Minh Châu'
+export const BD = 'Lê Hoàng Nam'
+export const HEAD_OF_SALES = 'Trần Thu Hà'
+
 // ---------------------------------------------------------------------------
 // Sổ 10 cơ hội đang mở — thuộc kịch bản 2, chốt 17/08.
-// Dùng cho mọi màn cần nhiều đơn cùng lúc (module 2 Lead · module 3 Performance).
 // Tổng 18,5 tỷ/năm · Huy 4 đơn · Bình 3 · Linh 3.
 // ---------------------------------------------------------------------------
 
 /** Năm cột của sổ. Số kèm theo là HẠN của cột, tính bằng ngày —
- *  quá hạn thì đơn tô cảnh báo. Không có cột thứ sáu. */
+ *  quá hạn thì đơn tô cảnh báo. Không có cột thứ sáu.
+ *
+ *  Sửa được ở module 5 · Cấu hình (mục 5.2), không sửa ở tầng màn. */
 export const PIPELINE_STAGES = [
   { key: 'moi', label: 'Mới', limitDays: 2 },
   { key: 'tim-hieu', label: 'Đang tìm hiểu', limitDays: 14 },
@@ -220,33 +240,76 @@ export const FUNNEL = [
   { key: 'hop-dong', label: 'Hợp đồng', count: 6 },
 ] as const
 
-/** SÁU lý do ra khỏi luồng. Không có lý do thứ bảy, không có ô "khác"
- *  (docs/luat-thiet-ke.md). Tổng đúng bằng 100 đầu mối trừ 6 hợp đồng. */
+/** SÁU lý do ra khỏi luồng. Không có lý do thứ bảy, không có ô "khác".
+ *  Sửa được ở module 5 · Cấu hình (mục 5.4) — nhưng vẫn là danh sách ĐÓNG.
+ *
+ *  SỬA 19/08 · tổng 94 → 52. Bản cũ ghi "tổng đúng bằng 100 đầu mối trừ 6 hợp
+ *  đồng", tức quên mất 10 đơn ĐANG MỞ của `OPEN_DEALS` và 32 lead còn sống ở
+ *  hai bậc đầu — chúng chưa rơi mà cũng chưa ký. Phép cân đúng:
+ *
+ *      100 đầu mối = 6 đã ký + 42 đang chạy + 52 đã ra khỏi luồng
+ *
+ *  Thứ tự sáu lý do giữ nguyên (docs/kien-truc-san-pham.md · "Phép cân của sổ lead"). */
 export const EXIT_REASONS = [
-  { label: 'Không gọi được ai', count: 38 },
-  { label: 'Không phải khách của mình', count: 18 },
-  { label: 'Năm nay không có tiền', count: 14 },
-  { label: 'Người liên hệ nghỉ việc', count: 11 },
-  { label: 'Khách chọn bên khác', count: 8 },
-  { label: 'Im sau báo giá', count: 5 },
+  { label: 'Không gọi được ai', count: 21 },
+  { label: 'Không phải khách của mình', count: 10 },
+  { label: 'Năm nay không có tiền', count: 8 },
+  { label: 'Người liên hệ nghỉ việc', count: 6 },
+  { label: 'Khách chọn bên khác', count: 4 },
+  { label: 'Im sau báo giá', count: 3 },
+] as const
+
+export type ExitReason = (typeof EXIT_REASONS)[number]['label']
+
+/** Ba phần của 100 dòng sổ lead. Khoá ở `scenario.test.ts`. */
+export const BOOK_SPLIT = { signed: 6, running: 42, exited: 52 } as const
+
+// ---------------------------------------------------------------------------
+// Hoa hồng và công trạng — HAI thứ khác nhau
+// (docs/kien-truc-san-pham.md · "Hoa hồng và công trạng").
+// ---------------------------------------------------------------------------
+
+/** Hoa hồng chỉ chia được khi có đơn ký. Đơn đổi tay giữa hai Sale thì chia lại
+ *  phần chốt theo số lần chạm; phần của BD không đụng tới. */
+export const COMMISSION_SPLIT = { moCua: 30, chot: 60, diCungDemo: 10 } as const
+
+/** Công trạng ghi ở MỌI lần chạm, kể cả khi chưa có đơn — mỗi vai đo bằng đúng
+ *  thứ vai đó làm. Sửa được ở module 5 · Cấu hình (mục 5.6). */
+export const CREDIT_RULES = [
+  {
+    role: 'Marketing',
+    metrics: ['Lead kéo về', 'Lead tốt — qua được cổng init data', 'Số lead tốt trên mỗi đợt'],
+  },
+  {
+    role: 'BD',
+    metrics: [
+      'Ô bắt buộc moi được',
+      'Lead xác minh là công ty thật',
+      'Phản hồi trả ngược cho Marketing',
+    ],
+  },
+  {
+    role: 'Sale',
+    metrics: ['Đơn chốt', 'Giá trị đơn', 'Tốc độ qua từng cột'],
+  },
+  {
+    role: 'Presales',
+    metrics: ['Buổi demo đi cùng', 'Demo ra được báo giá'],
+  },
+  {
+    /** Vai này phân công chứ không giữ khách — số của phòng chính là số của họ. */
+    role: 'Trưởng phòng Kinh doanh',
+    metrics: [],
+  },
 ] as const
 
 // ---------------------------------------------------------------------------
-// Hoa hồng một đơn (docs/luat-thiet-ke.md). Đơn đổi tay giữa hai Sale thì chia lại phần
-// chốt theo số lần chạm; phần của BD không đụng tới.
-// ---------------------------------------------------------------------------
-export const COMMISSION_SPLIT = { moCua: 30, chot: 60, diCungDemo: 10 } as const
-
-// ---------------------------------------------------------------------------
-// Sổ lead — module 2 (docs/kien-truc-san-pham.md · "Bốn module Pebble Sales").
-//
-// `LEADS` CỐ Ý ĐỂ RỖNG: khung màn dựng trước, dữ liệu mock đổ vào sau khi chốt.
-// Mọi thứ khác trong khối này không phải số mới — nó là FUNNEL và bảng vai đã
-// chốt, nhìn dưới góc một sổ lead.
+// Sổ lead — module 2 (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
 // ---------------------------------------------------------------------------
 
 /** Bốn ngành của phòng, lấy đúng từ vai đã chốt của ba Sale ở `actors`:
- *  Huy chip · Bình cơ khí + ô tô · Linh dược. Không có ngành thứ năm. */
+ *  Huy chip · Bình cơ khí + ô tô · Linh dược. Không có ngành thứ năm.
+ *  Sửa được ở module 5 · Cấu hình (mục 5.3). */
 export const LEAD_CATEGORIES = [
   { key: 'chip', label: 'Chip', sale: 'Đỗ Quang Huy' },
   { key: 'co-khi', label: 'Cơ khí', sale: 'Đặng Thanh Bình' },
@@ -266,11 +329,409 @@ export const LEAD_TIERS = [
 
 export type LeadTier = (typeof LEAD_TIERS)[number]['key']
 
-/** Bộ 10 câu. Đủ 10/10 mới thành init data — điều kiện DUY NHẤT để dắt lead
- *  thành cơ hội thật, và là cổng của bậc SQL (docs/kien-truc-san-pham.md). */
-export const INIT_DATA_SLOTS = 10
+/** Bộ 10 câu — của HỆ, không của vai nào. Ai chạm khách cũng điền vào đây.
+ *
+ *  ĐỔI 19/08: cổng không còn là 10/10. Đủ **sáu ô bắt buộc** là thành init data,
+ *  tức chạy được vào pipeline và agent 2 chạy được. Bốn ô còn lại làm dày hồ sơ,
+ *  thiếu thì không chặn — nhưng vẫn đếm, vì đó là thước công trạng của BD.
+ *
+ *  Ô nào bắt buộc là CẤU HÌNH (module 5 · mục 5.1), bảng này là mặc định. */
+export const INIT_DATA_QUESTIONS = [
+  { no: 1, key: 'phap-nhan', label: 'Công ty là ai — tên pháp nhân, mã số thuế', required: true },
+  { no: 2, key: 'nganh', label: 'Ngành và sản phẩm chính', required: true },
+  { no: 3, key: 'quy-mo', label: 'Quy mô — số người, số nhà máy', required: true },
+  { no: 4, key: 'nguoi-lien-he', label: 'Người liên hệ và chức danh', required: true },
+  { no: 5, key: 'kenh', label: 'Kênh liên lạc gọi lại được', required: true },
+  { no: 6, key: 'dau', label: 'Đau ở đâu — việc khách muốn giải', required: true },
+  { no: 7, key: 'dang-dung', label: 'Đang dùng gì', required: false },
+  { no: 8, key: 'nguoi-ky', label: 'Ai ký cuối, ai duyệt tiền', required: false },
+  { no: 9, key: 'tien', label: 'Khoảng tiền', required: false },
+  { no: 10, key: 'moc', label: 'Khi nào cần xong', required: false },
+] as const
 
-export type ExitReason = (typeof EXIT_REASONS)[number]['label']
+export type QuestionKey = (typeof INIT_DATA_QUESTIONS)[number]['key']
+
+/** Vẫn là mười ô — chỉ cổng đổi, không phải bộ câu đổi. */
+export const INIT_DATA_SLOTS = INIT_DATA_QUESTIONS.length
+
+/** Số ô BẮT BUỘC. Đây mới là cổng MQL → SQL. */
+export const REQUIRED_SLOTS = INIT_DATA_QUESTIONS.filter((q) => q.required).length
+
+const REQUIRED_KEYS = INIT_DATA_QUESTIONS.filter((q) => q.required).map((q) => q.key)
+const OPTIONAL_KEYS = INIT_DATA_QUESTIONS.filter((q) => !q.required).map((q) => q.key)
+
+// ---------------------------------------------------------------------------
+// Module 1 · Chiến dịch & Sự kiện — nguồn của sổ lead.
+// ---------------------------------------------------------------------------
+
+export type SourceKind = 'chien-dich' | 'su-kien' | 'tu-nhien'
+
+/** Kênh của một đợt. Bốn kênh đầu là kênh E4 đã có; ba kênh sau là nền tảng
+ *  đăng bài ra ngoài — E4 chưa hỗ trợ, đang là nợ treo số 2 của docs. */
+export type WaveChannel =
+  'email' | 'zalo-oa' | 'telegram' | 'in-app' | 'linkedin' | 'facebook' | 'website'
+
+export type Wave = {
+  no: number
+  label: string
+  channel: WaveChannel
+  /** Ngày chạy, tính bằng ngày kể từ 01/05. */
+  day: number
+  /** Số người nhận / số người tiếp cận được. */
+  sent: number
+  /** Mở mail hoặc xem bài. */
+  opened: number
+  /** Trả lời hoặc tương tác. */
+  replied: number
+  /** Lead đổ về TỪ ĐỢT NÀY. Cộng mọi đợt = `leads` của chiến dịch. */
+  leads: number
+}
+
+export type Source = {
+  code: string
+  kind: SourceKind
+  label: string
+  owner: string
+  /** Ngày chạy đầu tiên, tính bằng ngày kể từ 01/05. */
+  startDay: number
+  /** Tổng lead đổ về. Cộng cả tám nguồn = 100, đúng bậc đầu của phễu. */
+  leads: number
+  waves: Wave[]
+  /** Chỉ sự kiện: có địa điểm, có người đăng ký, có người đến. */
+  venue?: string
+  registered?: number
+  checkedIn?: number
+  /** Chi phí đã tiêu, đồng. Dùng cho công trạng Marketing (giá mỗi lead tốt). */
+  cost: number
+}
+
+/** TÁM nguồn của kỳ 01/05 → 17/08. Sáu cái đầu là chiến dịch/sự kiện có người
+ *  làm, hai cái cuối là nguồn tự nhiên — không ai chạy chiến dịch nào cả.
+ *
+ *  Tổng lead = 22+18+16+12+9+11+7+5 = 100 = bậc `dau-moi` của FUNNEL. */
+export const SOURCES: Source[] = [
+  {
+    code: 'CD-0101',
+    kind: 'chien-dich',
+    label: 'Chuỗi email — nhà máy điện tử Bắc Ninh',
+    owner: MARKETING,
+    startDay: 11,
+    leads: 22,
+    cost: 18_000_000,
+    waves: [
+      {
+        no: 1,
+        label: 'Mở màn — thư giới thiệu',
+        channel: 'email',
+        day: 11,
+        sent: 1_200,
+        opened: 384,
+        replied: 41,
+        leads: 11,
+      },
+      {
+        no: 2,
+        label: 'Nhắc lần 1 — bản so sánh trước/sau',
+        channel: 'email',
+        day: 25,
+        sent: 1_159,
+        opened: 301,
+        replied: 22,
+        leads: 7,
+      },
+      {
+        no: 3,
+        label: 'Nhắc lần 2 — mời xem demo',
+        channel: 'zalo-oa',
+        day: 39,
+        sent: 1_137,
+        opened: 268,
+        replied: 14,
+        leads: 4,
+      },
+    ],
+  },
+  {
+    code: 'CD-0102',
+    kind: 'chien-dich',
+    label: 'Bài đa nền tảng — MES cho đóng gói chip',
+    owner: MARKETING,
+    startDay: 33,
+    leads: 18,
+    cost: 26_000_000,
+    waves: [
+      {
+        no: 1,
+        label: 'Bài dài — vì sao nhà máy chip cần MES',
+        channel: 'linkedin',
+        day: 33,
+        sent: 8_400,
+        opened: 512,
+        replied: 63,
+        leads: 6,
+      },
+      {
+        no: 2,
+        label: 'Bài ngắn — ba con số của một dây chuyền',
+        channel: 'zalo-oa',
+        day: 40,
+        sent: 5_100,
+        opened: 340,
+        replied: 38,
+        leads: 5,
+      },
+      {
+        no: 3,
+        label: 'Bài ảnh — trong nhà máy khách cũ',
+        channel: 'facebook',
+        day: 47,
+        sent: 6_800,
+        opened: 291,
+        replied: 25,
+        leads: 4,
+      },
+      {
+        no: 4,
+        label: 'Thư nhắc cho người đã bấm vào bài',
+        channel: 'email',
+        day: 54,
+        sent: 900,
+        opened: 233,
+        replied: 19,
+        leads: 3,
+      },
+    ],
+  },
+  {
+    code: 'SK-0103',
+    kind: 'su-kien',
+    label: 'Hội thảo · Số hoá nhà máy đóng gói',
+    owner: MARKETING,
+    startDay: 32,
+    leads: 16,
+    cost: 84_000_000,
+    venue: 'KCN Quế Võ · Bắc Ninh',
+    registered: 120,
+    checkedIn: 78,
+    waves: [
+      {
+        no: 1,
+        label: 'Thư mời',
+        channel: 'email',
+        day: 32,
+        sent: 640,
+        opened: 210,
+        replied: 96,
+        leads: 6,
+      },
+      {
+        no: 2,
+        label: 'Nhắc trước ngày diễn ra',
+        channel: 'zalo-oa',
+        day: 52,
+        sent: 120,
+        opened: 98,
+        replied: 24,
+        leads: 2,
+      },
+      {
+        no: 3,
+        label: 'Ngày diễn ra — check-in tại cửa',
+        channel: 'in-app',
+        day: 54,
+        sent: 120,
+        opened: 78,
+        replied: 78,
+        leads: 5,
+      },
+      {
+        no: 4,
+        label: 'Thư cảm ơn kèm tài liệu',
+        channel: 'email',
+        day: 56,
+        sent: 120,
+        opened: 84,
+        replied: 31,
+        leads: 3,
+      },
+    ],
+  },
+  {
+    code: 'SK-0104',
+    kind: 'su-kien',
+    label: 'Webinar · Giá thành theo lệnh sản xuất',
+    owner: MARKETING,
+    startDay: 61,
+    leads: 12,
+    cost: 21_000_000,
+    venue: 'Trực tuyến',
+    registered: 86,
+    checkedIn: 51,
+    waves: [
+      {
+        no: 1,
+        label: 'Thư mời',
+        channel: 'email',
+        day: 61,
+        sent: 980,
+        opened: 274,
+        replied: 86,
+        leads: 5,
+      },
+      {
+        no: 2,
+        label: 'Nhắc trước 1 giờ',
+        channel: 'zalo-oa',
+        day: 75,
+        sent: 86,
+        opened: 71,
+        replied: 51,
+        leads: 3,
+      },
+      {
+        no: 3,
+        label: 'Gửi bản ghi cho người vắng',
+        channel: 'email',
+        day: 77,
+        sent: 86,
+        opened: 58,
+        replied: 19,
+        leads: 4,
+      },
+    ],
+  },
+  {
+    code: 'CD-0105',
+    kind: 'chien-dich',
+    label: 'Nuôi lại khách im — quý 2',
+    owner: MARKETING,
+    startDay: 19,
+    leads: 9,
+    cost: 6_000_000,
+    waves: [
+      {
+        no: 1,
+        label: 'Hỏi thăm — có gì đổi không',
+        channel: 'email',
+        day: 19,
+        sent: 310,
+        opened: 118,
+        replied: 17,
+        leads: 4,
+      },
+      {
+        no: 2,
+        label: 'Gửi việc mới làm cho khách cùng ngành',
+        channel: 'email',
+        day: 47,
+        sent: 293,
+        opened: 96,
+        replied: 11,
+        leads: 3,
+      },
+      {
+        no: 3,
+        label: 'Mời cà phê tại nhà máy',
+        channel: 'zalo-oa',
+        day: 82,
+        sent: 282,
+        opened: 71,
+        replied: 8,
+        leads: 2,
+      },
+    ],
+  },
+  {
+    code: 'SK-0106',
+    kind: 'su-kien',
+    label: 'Triển lãm công nghiệp hỗ trợ · gian hàng',
+    owner: MARKETING,
+    startDay: 93,
+    leads: 11,
+    cost: 145_000_000,
+    venue: 'Trung tâm triển lãm · Hà Nội',
+    registered: 143,
+    checkedIn: 143,
+    waves: [
+      {
+        no: 1,
+        label: 'Báo trước — mời ghé gian hàng',
+        channel: 'email',
+        day: 93,
+        sent: 1_400,
+        opened: 402,
+        replied: 57,
+        leads: 3,
+      },
+      {
+        no: 2,
+        label: 'Ba ngày hội chợ — quét mã tại gian',
+        channel: 'in-app',
+        day: 99,
+        sent: 143,
+        opened: 143,
+        replied: 143,
+        leads: 6,
+      },
+      {
+        no: 3,
+        label: 'Thư sau hội chợ',
+        channel: 'email',
+        day: 103,
+        sent: 143,
+        opened: 91,
+        replied: 22,
+        leads: 2,
+      },
+    ],
+  },
+  {
+    code: 'GT',
+    kind: 'tu-nhien',
+    label: 'Khách cũ giới thiệu',
+    owner: HEAD_OF_SALES,
+    startDay: 4,
+    leads: 7,
+    cost: 0,
+    waves: [],
+  },
+  {
+    code: 'TM',
+    kind: 'tu-nhien',
+    label: 'BD tự mở',
+    owner: BD,
+    startDay: 1,
+    leads: 5,
+    cost: 0,
+    waves: [],
+  },
+]
+
+const sourceByCode = new Map(SOURCES.map((s) => [s.code, s]))
+
+// ---------------------------------------------------------------------------
+// 100 dòng sổ lead. Đây là toàn bộ kỳ 01/05 → 17/08, không phải một trang.
+// ---------------------------------------------------------------------------
+
+export type LeadEventKind =
+  | 'vao-so'
+  | 'cham'
+  | 'dien-o'
+  | 'giao'
+  | 'len-bac'
+  | 'vao-pipeline'
+  | 'doi-cot'
+  | 'ky'
+  | 'ra-khoi-luong'
+
+export type LeadEvent = {
+  /** ISO, giờ VN. */
+  at: string
+  kind: LeadEventKind
+  /** Ai làm. 'Trợ lý AI' là agent 1 — vẫn phải có người bấm (luật 9). */
+  by: string
+  note: string
+}
 
 export type Lead = {
   code: string
@@ -278,44 +739,457 @@ export type Lead = {
   province: string
   category: LeadCategory
   tier: LeadTier
-  /** Số ô của bộ 10 câu đã điền. Bậc `sql` bắt buộc bằng `INIT_DATA_SLOTS`. */
+  /** Số ô BẮT BUỘC đã điền, 0…6. Đây là thứ cổng nhìn vào. */
+  requiredFilled: number
+  /** Số ô tuỳ chọn đã điền, 0…4. */
+  optionalFilled: number
+  /** Tổng ô đã điền. Giữ lại vì màn cũ đọc trường này. */
   answered: number
+  /** Ô nào đã điền — dựng thẳng từ hai con số trên, thứ tự theo `INIT_DATA_QUESTIONS`. */
+  filled: QuestionKey[]
   /** Ai đang giữ. Bỏ trống = còn ở kho chung, chưa ai nhận. */
   owner?: string
-  /** Bậc SQL thì đã vào sổ cơ hội, nằm ở một cột của `PIPELINE_STAGES`. */
+  /** Bậc SQL còn sống thì đang nằm ở một cột của `PIPELINE_STAGES`. */
   stage?: StageKey
+  /** Mã cơ hội trong sổ 10 đơn đang mở, nếu có. */
+  dealCode?: string
+  /** Mã hợp đồng, nếu đã ký. */
+  contractCode?: string
   /** Số ngày nằm ở chỗ hiện tại. */
   daysHere: number
+  /** Mã nguồn — trỏ vào `SOURCES`. Đây là dây nối module 1 ↔ module 2. */
+  source: string
+  createdAt: string
   /** Có giá trị = đã ra khỏi luồng. Phải là một trong SÁU lý do EXIT_REASONS. */
   exitReason?: ExitReason
+  exitedAt?: string
+  /** Toàn bộ đời của lead, theo thứ tự thời gian. */
+  history: LeadEvent[]
 }
 
-/** CỐ Ý RỖNG — xem ghi chú đầu khối.
+/** Một dòng thô. Cột theo thứ tự:
+ *  công ty · tỉnh · ngành · bậc · ô bắt buộc · ô tuỳ chọn · người giữ ·
+ *  cột pipeline · số ngày ở đây · chỉ số lý do rơi (-1 = còn trong luồng). */
+type Row = readonly [
+  string,
+  string,
+  LeadCategory,
+  LeadTier,
+  number,
+  number,
+  string,
+  StageKey | '',
+  number,
+  number,
+]
+
+/** Mười dòng đầu là mười đơn đang mở, sáu dòng sau là sáu hợp đồng đã ký —
+ *  thứ tự này có ý nghĩa, `buildBook` dựa vào nó để nối `dealCode`/`contractCode`. */
+const OPEN_ROWS = OPEN_DEALS.length
+const WON_ROWS = 6
+
+const ROWS: Row[] = [
+  // ── 10 SQL đang mở · khớp từng dòng với OPEN_DEALS ───────────────────────
+  ['Điện tử Kỳ Anh', 'Hải Phòng', 'chip', 'sql', 6, 2, 'Đỗ Quang Huy', 'moi', 4, -1],
+  ['Nhựa Tân Á', 'Hưng Yên', 'co-khi', 'sql', 6, 1, 'Đặng Thanh Bình', 'moi', 2, -1],
+  ['DAS Vina', 'Bắc Ninh', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'tim-hieu', 11, -1],
+  ['Bao bì Minh Long', 'Bình Dương', 'duoc', 'sql', 6, 2, 'Nguyễn Khánh Linh', 'tim-hieu', 6, -1],
+  ['Cơ khí Phú Thái', 'Hải Dương', 'co-khi', 'sql', 6, 3, 'Đặng Thanh Bình', 'da-demo', 24, -1],
+  ['Dược Vĩnh Hà', 'Hà Nam', 'duoc', 'sql', 6, 3, 'Nguyễn Khánh Linh', 'da-demo', 19, -1],
+  ['Thực phẩm Hải Vân', 'Đà Nẵng', 'duoc', 'sql', 6, 4, 'Nguyễn Khánh Linh', 'da-bao-gia', 31, -1],
+  ['Thép Đông Đô', 'Thái Nguyên', 'co-khi', 'sql', 6, 4, 'Đặng Thanh Bình', 'da-bao-gia', 9, -1],
+  ['Nhựa An Phát Tây', 'Hưng Yên', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'cho-ky', 5, -1],
+  ['Điện lạnh Thái Bình Dương', 'Bắc Ninh', 'chip', 'sql', 6, 3, 'Đỗ Quang Huy', 'cho-ky', 14, -1],
+
+  // ── 6 hợp đồng đã ký · bậc cuối của phễu ─────────────────────────────────
+  ['Linh kiện Trường Sơn', 'Bắc Giang', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', '', 12, -1],
+  ['Cơ khí Đại Việt', 'Vĩnh Phúc', 'co-khi', 'sql', 6, 4, 'Đặng Thanh Bình', '', 20, -1],
+  ['Dược Hồng Hà', 'Nam Định', 'duoc', 'sql', 6, 4, 'Nguyễn Khánh Linh', '', 33, -1],
+  ['Phụ tùng Sông Công', 'Thái Nguyên', 'o-to', 'sql', 6, 4, 'Đặng Thanh Bình', '', 27, -1],
+  ['Bán dẫn Nam Sơn', 'Bắc Ninh', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', '', 41, -1],
+  ['Thiết bị y tế Việt Trì', 'Phú Thọ', 'duoc', 'sql', 6, 4, 'Nguyễn Khánh Linh', '', 15, -1],
+
+  // ── 14 SQL đã rơi · rơi SAU khi đã vào sổ cơ hội ─────────────────────────
+  ['Cơ khí Tiến Đạt', 'Hải Dương', 'co-khi', 'sql', 6, 3, 'Đặng Thanh Bình', '', 46, 2],
+  ['Điện tử Quang Trung', 'Hà Nội', 'chip', 'sql', 6, 2, 'Đỗ Quang Huy', '', 52, 2],
+  ['Dược Hoà Bình', 'Hoà Bình', 'duoc', 'sql', 6, 3, 'Nguyễn Khánh Linh', '', 38, 2],
+  ['Ô tô Thành Công', 'Hưng Yên', 'o-to', 'sql', 6, 4, 'Đặng Thanh Bình', '', 44, 3],
+  ['Linh kiện Bảo Sơn', 'Bắc Ninh', 'chip', 'sql', 6, 3, 'Đỗ Quang Huy', '', 29, 3],
+  ['Dược phẩm Đức Thành', 'Hà Nội', 'duoc', 'sql', 6, 2, 'Nguyễn Khánh Linh', '', 61, 3],
+  ['Khuôn mẫu Nhật Quang', 'Bắc Ninh', 'co-khi', 'sql', 6, 3, 'Đặng Thanh Bình', '', 35, 3],
+  ['Điện tử Hưng Thịnh', 'Hải Phòng', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', '', 26, 4],
+  ['Cơ khí Phúc Lâm', 'Hà Nam', 'co-khi', 'sql', 6, 4, 'Đặng Thanh Bình', '', 40, 4],
+  ['Sinh học Tây Hồ', 'Hà Nội', 'duoc', 'sql', 6, 3, 'Nguyễn Khánh Linh', '', 33, 4],
+  ['Phụ tùng An Bình', 'Vĩnh Phúc', 'o-to', 'sql', 6, 3, 'Đặng Thanh Bình', '', 48, 4],
+  ['Bán dẫn Trung Kiên', 'Bắc Ninh', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', '', 57, 5],
+  ['Dược Đông Á', 'Nam Định', 'duoc', 'sql', 6, 4, 'Nguyễn Khánh Linh', '', 43, 5],
+  ['Thép Hoàng Long', 'Thái Nguyên', 'co-khi', 'sql', 6, 4, 'Đặng Thanh Bình', '', 50, 5],
+
+  // ── 12 MQL còn sống · BD đang moi nốt ô bắt buộc ─────────────────────────
+  ['Cơ khí Mai Linh', 'Hải Dương', 'co-khi', 'mql', 6, 1, BD, '', 9, -1],
+  ['Điện tử Sao Việt', 'Bắc Ninh', 'chip', 'mql', 6, 0, BD, '', 14, -1],
+  ['Dược Tân Phát', 'Hà Nam', 'duoc', 'mql', 6, 2, BD, '', 6, -1],
+  ['Ô tô Việt Hưng', 'Hưng Yên', 'o-to', 'mql', 5, 1, BD, '', 21, -1],
+  ['Linh kiện Nam Cường', 'Bắc Giang', 'chip', 'mql', 5, 0, BD, '', 17, -1],
+  ['Cơ khí Đại Phong', 'Quảng Ninh', 'co-khi', 'mql', 4, 1, BD, '', 30, -1],
+  ['Dược phẩm Lam Sơn', 'Thanh Hoá', 'duoc', 'mql', 4, 0, BD, '', 25, -1],
+  ['Phụ tùng Cửu Long', 'Long An', 'o-to', 'mql', 3, 1, BD, '', 38, -1],
+  ['Bán dẫn Thăng Long', 'Hà Nội', 'chip', 'mql', 3, 0, '', '', 42, -1],
+  ['Thép Bạch Đằng', 'Hải Phòng', 'co-khi', 'mql', 5, 2, BD, '', 11, -1],
+  ['Thiết bị y tế Hồng Lĩnh', 'Hà Tĩnh', 'duoc', 'mql', 4, 2, '', '', 34, -1],
+  ['Điện tử Tân Cảng', 'Đồng Nai', 'chip', 'mql', 6, 1, BD, '', 8, -1],
+
+  // ── 2 MQL đã rơi ─────────────────────────────────────────────────────────
+  ['Cơ khí Sơn Hà', 'Hưng Yên', 'co-khi', 'mql', 5, 1, BD, '', 55, 3],
+  ['Dược Bình An', 'Nam Định', 'duoc', 'mql', 4, 0, BD, '', 47, 3],
+
+  // ── 20 đầu mối còn sống · kho chung hoặc Marketing đang nuôi ─────────────
+  ['Nhựa Hải Long', 'Hải Phòng', 'co-khi', 'dau-moi', 3, 0, MARKETING, '', 12, -1],
+  ['Điện tử Bắc Hà', 'Bắc Ninh', 'chip', 'dau-moi', 2, 1, MARKETING, '', 19, -1],
+  ['Cơ khí Tam Đảo', 'Vĩnh Phúc', 'co-khi', 'dau-moi', 2, 0, '', '', 27, -1],
+  ['Dược Thái Dương', 'Hà Nội', 'duoc', 'dau-moi', 3, 1, MARKETING, '', 8, -1],
+  ['Ô tô Trường Hải Bắc', 'Hưng Yên', 'o-to', 'dau-moi', 1, 0, '', '', 44, -1],
+  ['Linh kiện Yên Phong', 'Bắc Ninh', 'chip', 'dau-moi', 3, 0, MARKETING, '', 15, -1],
+  ['Thép Vạn Xuân', 'Thái Nguyên', 'co-khi', 'dau-moi', 2, 1, '', '', 31, -1],
+  ['Dược phẩm Nam Hà', 'Nam Định', 'duoc', 'dau-moi', 1, 1, '', '', 36, -1],
+  ['Phụ tùng Đông Anh', 'Hà Nội', 'o-to', 'dau-moi', 2, 0, MARKETING, '', 23, -1],
+  ['Bán dẫn Quế Võ', 'Bắc Ninh', 'chip', 'dau-moi', 3, 1, MARKETING, '', 5, -1],
+  ['Cơ khí Chí Linh', 'Hải Dương', 'co-khi', 'dau-moi', 1, 0, '', '', 51, -1],
+  ['Sinh học Ba Đình', 'Hà Nội', 'duoc', 'dau-moi', 2, 0, '', '', 29, -1],
+  ['Điện tử Vân Trung', 'Bắc Giang', 'chip', 'dau-moi', 3, 0, MARKETING, '', 10, -1],
+  ['Khuôn mẫu Gia Lâm', 'Hà Nội', 'co-khi', 'dau-moi', 2, 1, '', '', 33, -1],
+  ['Ô tô Phù Cát', 'Bình Định', 'o-to', 'dau-moi', 1, 0, '', '', 58, -1],
+  ['Dược Vĩnh Bảo', 'Hải Phòng', 'duoc', 'dau-moi', 2, 0, MARKETING, '', 22, -1],
+  ['Linh kiện Tiên Du', 'Bắc Ninh', 'chip', 'dau-moi', 3, 1, MARKETING, '', 7, -1],
+  ['Thép Uông Bí', 'Quảng Ninh', 'co-khi', 'dau-moi', 1, 1, '', '', 40, -1],
+  ['Thiết bị y tế Cẩm Phả', 'Quảng Ninh', 'duoc', 'dau-moi', 2, 0, '', '', 26, -1],
+  ['Điện tử Sông Lô', 'Vĩnh Phúc', 'chip', 'dau-moi', 3, 0, MARKETING, '', 13, -1],
+
+  // ── 36 đầu mối đã rơi · 21 "không gọi được ai" ───────────────────────────
+  ['Cơ khí Lương Tài', 'Bắc Ninh', 'co-khi', 'dau-moi', 1, 0, '', '', 63, 0],
+  ['Điện tử Thuận Thành', 'Bắc Ninh', 'chip', 'dau-moi', 1, 0, '', '', 59, 0],
+  ['Dược Kim Bảng', 'Hà Nam', 'duoc', 'dau-moi', 0, 0, '', '', 71, 0],
+  ['Ô tô Mê Linh', 'Hà Nội', 'o-to', 'dau-moi', 1, 0, '', '', 54, 0],
+  ['Thép Nghi Sơn', 'Thanh Hoá', 'co-khi', 'dau-moi', 0, 1, '', '', 66, 0],
+  ['Linh kiện Đình Vũ', 'Hải Phòng', 'chip', 'dau-moi', 1, 0, '', '', 49, 0],
+  ['Dược phẩm Ninh Giang', 'Hải Dương', 'duoc', 'dau-moi', 0, 0, '', '', 74, 0],
+  ['Cơ khí Kim Thành', 'Hải Dương', 'co-khi', 'dau-moi', 1, 1, '', '', 45, 0],
+  ['Phụ tùng Bình Xuyên', 'Vĩnh Phúc', 'o-to', 'dau-moi', 0, 0, '', '', 68, 0],
+  ['Bán dẫn Phổ Yên', 'Thái Nguyên', 'chip', 'dau-moi', 1, 0, '', '', 41, 0],
+  ['Nhựa Văn Lâm', 'Hưng Yên', 'co-khi', 'dau-moi', 0, 0, '', '', 77, 0],
+  ['Dược Duy Tiên', 'Hà Nam', 'duoc', 'dau-moi', 1, 0, '', '', 37, 0],
+  ['Điện tử Yên Mỹ', 'Hưng Yên', 'chip', 'dau-moi', 0, 1, '', '', 62, 0],
+  ['Cơ khí Sóc Sơn', 'Hà Nội', 'co-khi', 'dau-moi', 1, 0, '', '', 56, 0],
+  ['Ô tô Tiên Lãng', 'Hải Phòng', 'o-to', 'dau-moi', 0, 0, '', '', 70, 0],
+  ['Thiết bị y tế Đồ Sơn', 'Hải Phòng', 'duoc', 'dau-moi', 1, 0, '', '', 43, 0],
+  ['Linh kiện Việt Yên', 'Bắc Giang', 'chip', 'dau-moi', 0, 0, '', '', 65, 0],
+  ['Thép Lục Nam', 'Bắc Giang', 'co-khi', 'dau-moi', 1, 1, '', '', 39, 0],
+  ['Dược Lý Nhân', 'Hà Nam', 'duoc', 'dau-moi', 0, 0, '', '', 72, 0],
+  ['Khuôn mẫu Đông Hưng', 'Thái Bình', 'co-khi', 'dau-moi', 1, 0, '', '', 48, 0],
+  ['Điện tử Vũ Thư', 'Thái Bình', 'chip', 'dau-moi', 0, 0, '', '', 60, 0],
+
+  // ── 10 "không phải khách của mình" ───────────────────────────────────────
+  ['Cơ khí Quỳnh Phụ', 'Thái Bình', 'co-khi', 'dau-moi', 2, 0, MARKETING, '', 53, 1],
+  ['Dược Hải Hậu', 'Nam Định', 'duoc', 'dau-moi', 1, 1, MARKETING, '', 46, 1],
+  ['Ô tô Đại An', 'Hải Dương', 'o-to', 'dau-moi', 2, 0, MARKETING, '', 58, 1],
+  ['Linh kiện Xuân Trường', 'Nam Định', 'chip', 'dau-moi', 1, 0, MARKETING, '', 64, 1],
+  ['Thép Hạ Long', 'Quảng Ninh', 'co-khi', 'dau-moi', 2, 1, MARKETING, '', 42, 1],
+  ['Điện tử Móng Cái', 'Quảng Ninh', 'chip', 'dau-moi', 1, 0, MARKETING, '', 69, 1],
+  ['Dược phẩm Sông Cầu', 'Bắc Giang', 'duoc', 'dau-moi', 2, 0, MARKETING, '', 51, 1],
+  ['Cơ khí Tân Uyên', 'Bình Dương', 'co-khi', 'dau-moi', 1, 1, MARKETING, '', 73, 1],
+  ['Phụ tùng Bến Cát', 'Bình Dương', 'o-to', 'dau-moi', 2, 0, MARKETING, '', 47, 1],
+  ['Sinh học Củ Chi', 'TP HCM', 'duoc', 'dau-moi', 1, 0, MARKETING, '', 67, 1],
+
+  // ── 5 "năm nay không có tiền" · rơi ngay ở bậc đầu mối ───────────────────
+  ['Cơ khí Thạch Thất', 'Hà Nội', 'co-khi', 'dau-moi', 3, 1, MARKETING, '', 44, 2],
+  ['Điện tử Chương Mỹ', 'Hà Nội', 'chip', 'dau-moi', 3, 0, MARKETING, '', 50, 2],
+  ['Dược Ứng Hoà', 'Hà Nội', 'duoc', 'dau-moi', 2, 1, MARKETING, '', 57, 2],
+  ['Ô tô Quốc Oai', 'Hà Nội', 'o-to', 'dau-moi', 3, 0, MARKETING, '', 61, 2],
+  ['Thép Phú Xuyên', 'Hà Nội', 'co-khi', 'dau-moi', 2, 0, MARKETING, '', 55, 2],
+]
+
+/** Nguồn của từng dòng, cùng thứ tự với `ROWS`.
  *
- *  Lúc đổ dữ liệu vào: số dòng phải cân với `FUNNEL` (100 đầu mối, 44 từ MQL
- *  trở lên, 30 từ SQL trở lên) và với `EXIT_REASONS` (94 dòng có `exitReason`).
- *  `scenario.test.ts` đã có sẵn phép cân đối 94 + 6 = 100 để bắt lệch. */
-export const LEADS: Lead[] = []
+ *  Tách riêng khỏi `ROWS` có chủ ý: đếm được bằng mắt là mỗi nguồn kéo về đúng
+ *  bao nhiêu lead, và `scenario.test.ts` khoá tổng này khớp với `SOURCES`. */
+const SOURCE_PLAN: string[] = [
+  // 10 SQL đang mở
+  'CD-0102',
+  'SK-0106',
+  'SK-0103',
+  'CD-0101',
+  'SK-0104',
+  'CD-0101',
+  'CD-0102',
+  'GT',
+  'SK-0103',
+  'CD-0101',
+  // 6 hợp đồng
+  'SK-0103',
+  'CD-0101',
+  'CD-0102',
+  'SK-0104',
+  'GT',
+  'SK-0106',
+  // 14 SQL đã rơi
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0101',
+  'CD-0105',
+  'SK-0106',
+  'CD-0102',
+  'CD-0101',
+  'SK-0103',
+  'GT',
+  'CD-0102',
+  'SK-0104',
+  'CD-0101',
+  // 12 MQL còn sống
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'SK-0106',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'GT',
+  'CD-0101',
+  'TM',
+  // 2 MQL đã rơi
+  'CD-0102',
+  'SK-0104',
+  // 20 đầu mối còn sống
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'SK-0106',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0106',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'CD-0105',
+  'SK-0106',
+  'TM',
+  'CD-0101',
+  'CD-0102',
+  'GT',
+  'TM',
+  // 36 đầu mối đã rơi
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'SK-0106',
+  'GT',
+  'TM',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'SK-0106',
+  'GT',
+  'TM',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'SK-0106',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'SK-0106',
+  'CD-0101',
+  'CD-0102',
+  'SK-0103',
+  'SK-0104',
+  'CD-0105',
+  'CD-0101',
+  'SK-0103',
+  'CD-0101',
+]
+
+const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
+const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
+
+/** Dựng timeline của một lead từ chính các trường của nó — không bịa thêm mốc
+ *  nào ngoài những gì dòng đã nói. Cùng một dòng luôn ra cùng một chuỗi. */
+function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[] {
+  const src = sourceByCode.get(lead.source)
+  const out: LeadEvent[] = []
+  const push = (day: number, kind: LeadEventKind, by: string, note: string) =>
+    out.push({ at: dayISO(Math.min(day, DAY_FROZEN)), kind, by, note })
+
+  push(
+    bornDay,
+    'vao-so',
+    src?.owner ?? MARKETING,
+    src
+      ? `Vào sổ từ ${src.kind === 'tu-nhien' ? 'nguồn' : 'chiến dịch'} ${src.code} · ${src.label}`
+      : 'Vào sổ',
+  )
+
+  if (lead.requiredFilled > 0) {
+    push(
+      bornDay + 1,
+      'cham',
+      'Trợ lý AI',
+      `Agent 1 nhắn lại trên kênh khách vừa dùng · lấy được ${Math.min(lead.requiredFilled, 3)} ô đầu`,
+    )
+  }
+
+  if (lead.tier !== 'dau-moi') {
+    push(bornDay + 4, 'len-bac', MARKETING, 'Xác minh công ty có thật · lên bậc MQL')
+    push(bornDay + 5, 'giao', HEAD_OF_SALES, `Giao cho ${BD} đi lấy nốt ô bắt buộc`)
+  }
+
+  if (lead.requiredFilled >= 3) {
+    push(
+      bornDay + 7,
+      'dien-o',
+      lead.tier === 'dau-moi' ? MARKETING : BD,
+      `Điền thêm ô · còn thiếu ${Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)} ô bắt buộc`,
+    )
+  }
+
+  if (lead.tier === 'sql' && lead.owner) {
+    push(bornDay + 9, 'len-bac', HEAD_OF_SALES, 'Đủ ô bắt buộc · qua cổng init data')
+    push(bornDay + 10, 'vao-pipeline', lead.owner, `Nhận vào sổ cơ hội · ${lead.owner} đứng tên`)
+    if (lead.stage) {
+      push(
+        DAY_FROZEN - lead.daysHere,
+        'doi-cot',
+        lead.owner,
+        `Sang cột "${STAGE_LABEL.get(lead.stage) ?? lead.stage}"`,
+      )
+    }
+    if (lead.contractCode) {
+      push(DAY_FROZEN - lead.daysHere, 'ky', lead.owner, `Ký hợp đồng ${lead.contractCode}`)
+    }
+  }
+
+  if (lead.exitReason) {
+    push(
+      DAY_FROZEN - lead.daysHere,
+      'ra-khoi-luong',
+      lead.owner ?? MARKETING,
+      `Ra khỏi luồng · ${lead.exitReason} · rơi ở bậc ${TIER_LABEL.get(lead.tier) ?? lead.tier}`,
+    )
+  }
+
+  return out.sort((a, b) => a.at.localeCompare(b.at))
+}
+
+function buildBook(): Lead[] {
+  if (ROWS.length !== SOURCE_PLAN.length) {
+    throw new Error(`DAS Vina: ${ROWS.length} dòng nhưng ${SOURCE_PLAN.length} nguồn`)
+  }
+
+  return ROWS.map((row, i) => {
+    const [company, province, category, tier, req, opt, owner, stage, daysHere, exitIdx] = row
+    const source = SOURCE_PLAN[i] ?? 'TM'
+    const src = sourceByCode.get(source)
+
+    // Ngày vào sổ trải đều quanh ngày chạy đầu tiên của nguồn — tất định.
+    const bornDay = Math.min((src?.startDay ?? 1) + (i % 9), DAY_FROZEN - daysHere)
+    const deal = i < OPEN_ROWS ? OPEN_DEALS[i] : undefined
+    const contractCode =
+      i >= OPEN_ROWS && i < OPEN_ROWS + WON_ROWS ? `HĐ-27${11 + (i - OPEN_ROWS)}` : undefined
+
+    const base: Omit<Lead, 'history'> = {
+      code: `LD-0${101 + i}`,
+      company,
+      province,
+      category,
+      tier,
+      requiredFilled: req,
+      optionalFilled: opt,
+      answered: req + opt,
+      filled: [...REQUIRED_KEYS.slice(0, req), ...OPTIONAL_KEYS.slice(0, opt)],
+      owner: owner === '' ? undefined : owner,
+      stage: stage === '' ? undefined : stage,
+      dealCode: deal?.code,
+      contractCode,
+      daysHere,
+      source,
+      createdAt: dayISO(Math.max(bornDay, 0)),
+      exitReason: exitIdx >= 0 ? EXIT_REASONS[exitIdx]?.label : undefined,
+      exitedAt: exitIdx >= 0 ? dayISO(DAY_FROZEN - daysHere) : undefined,
+    }
+
+    return { ...base, history: buildHistory(base, Math.max(bornDay, 0)) }
+  })
+}
+
+/** 100 dòng — đúng bậc `dau-moi` của phễu. Không phải một trang, là cả kỳ. */
+export const LEADS: Lead[] = buildBook()
+
+/** Lead của chính DAS Vina — dòng mồi mọi màn mở ra đầu tiên. */
+export const DAS_VINA_LEAD = 'LD-0103'
+
+// ---------------------------------------------------------------------------
+// Hàm tra cứu — màn gọi những cái này, không tự lọc bằng tay.
+// ---------------------------------------------------------------------------
 
 /** Quá SLA = nằm ở cột hiện tại lâu hơn hạn của cột.
  *
- *  CHỈ bậc SQL mới có hạn, vì hạn nằm ở `PIPELINE_STAGES` mà đầu mối và MQL
- *  thì chưa vào pipeline. Ngưỡng cho hai bậc đó chưa ai đặt — nợ treo, ghi ở
- *  docs/kien-truc-san-pham.md · "Nợ đang treo". Đừng tự chế ngưỡng ở tầng màn. */
+ *  CHỈ bậc SQL còn sống mới có hạn, vì hạn nằm ở `PIPELINE_STAGES`. Ngưỡng cho
+ *  đầu mối và MQL là mục 5.5 của module Cấu hình — chưa ai đặt giá trị mặc định,
+ *  đừng chế ở tầng màn. */
 export function isOverSla(lead: Lead): boolean {
   if (!lead.stage) return false
   return lead.daysHere > (stageLimit.get(lead.stage) ?? Infinity)
 }
 
+/** Lead còn trong luồng — chưa rơi và chưa ký. */
+export function isRunning(lead: Lead): boolean {
+  return !lead.exitReason && !lead.contractCode
+}
+
 /** Cổng MQL → SQL của hành động giao/nhận lead.
  *
- *  Chưa đủ 10/10 ô thì không được nhận vào pipeline, và agent 2 không chạy —
- *  dựng phiếu tiếp cận trên dữ liệu thiếu sẽ ra lời khuyên sai. Trả luôn câu
- *  từ chối để màn hiện đúng chữ, không tự chế. */
+ *  ĐỔI 19/08: cổng là **sáu ô bắt buộc**, không phải 10/10. Trả luôn câu từ chối
+ *  để màn hiện đúng chữ, không tự chế. */
 export function canPromoteToSql(lead: Lead): { ok: boolean; reason?: string } {
+  if (lead.exitReason) return { ok: false, reason: `Lead đã ra khỏi luồng · ${lead.exitReason}` }
   if (lead.tier === 'sql') return { ok: false, reason: 'Lead đã ở bậc SQL' }
-  if (lead.answered < INIT_DATA_SLOTS) {
-    return { ok: false, reason: `Còn thiếu ${INIT_DATA_SLOTS - lead.answered} ô của bộ 10 câu` }
+  const missing = REQUIRED_SLOTS - lead.requiredFilled
+  if (missing > 0) {
+    return { ok: false, reason: `Còn thiếu ${missing} ô bắt buộc của bộ 10 câu` }
   }
   return { ok: true }
+}
+
+/** Số của một nguồn nhìn từ sổ lead — đây là cách module 1 đo bằng LEAD, không
+ *  đo bằng lượt xem. "Lead tốt" = lead đã qua cổng init data. */
+export function sourceStats(code: string) {
+  const src = sourceByCode.get(code)
+  const mine = LEADS.filter((l) => l.source === code)
+  const good = mine.filter((l) => l.requiredFilled >= REQUIRED_SLOTS)
+  const signed = mine.filter((l) => l.contractCode)
+  const cost = src?.cost ?? 0
+
+  return {
+    source: src,
+    leads: mine.length,
+    good: good.length,
+    signed: signed.length,
+    running: mine.filter(isRunning).length,
+    cost,
+    /** Giá mỗi lead tốt, đồng. 0 lead tốt thì trả `null` — không chia cho 0. */
+    costPerGood: good.length > 0 ? Math.round(cost / good.length) : null,
+  }
 }

@@ -6,13 +6,14 @@ import {
   Factory,
   FolderOpen,
   Gauge,
-  Globe,
   House,
   ListChecks,
+  Megaphone,
   Orbit,
   Package,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   SquareCheckBig,
   Target,
   Users,
@@ -107,23 +108,26 @@ export type SalesModule = {
   path: string
   /** Module này trả câu hỏi gì (docs/kien-truc-san-pham.md). */
   question: string
-  /** Còn vướng gì. Bỏ trống = đã dựng. Nội dung lấy từ mục "Nợ đang treo". */
-  blocked?: string
 }
 
-/** BỐN module Pebble Sales — bảng CHỐT ở docs/kien-truc-san-pham.md.
+/** NĂM module Pebble Sales — bảng CHỐT ở docs/kien-truc-san-pham.md.
  *
- *  Bảng này là nguồn duy nhất cho cả nav lẫn màn "chưa dựng": thêm hay đổi
- *  module thì sửa đúng một chỗ, không có chuyện nav nói bốn mà route có một. */
+ *  Bảng này là nguồn duy nhất của nav: thêm hay đổi module thì sửa đúng một
+ *  chỗ, không có chuyện nav nói năm mà route có một.
+ *
+ *  Đổi 19/08: module 1 từ "Thị trường" (bị chặn vì cần dữ liệu thị trường
+ *  ngoài, tức cần kịch bản thứ ba) → "Chiến dịch & Sự kiện", trả đúng câu hỏi
+ *  cũ bằng dữ liệu của chính phòng; thêm module 5 · Cấu hình.
+ *
+ *  Trường `blocked` đã bỏ cùng màn `sales-pending`: cả năm module giờ đều có
+ *  màn thật, không còn mục nào cần chỗ để nói "đang vướng gì". */
 export const SALES_MODULES: SalesModule[] = [
   {
     no: 1,
-    icon: Globe,
-    label: 'Thị trường',
-    path: '/sales/market',
-    question: 'Khách ở đâu ra, ngành nào đang mở',
-    blocked:
-      'Chưa có dữ liệu, và va luật "không thêm kịch bản thứ ba". Sao Đỏ và DAS Vina đều là dữ liệu MỘT khách — không có gì để vẽ thị trường.',
+    icon: Megaphone,
+    label: 'Chiến dịch & Sự kiện',
+    path: '/sales/campaigns',
+    question: 'Khách ở đâu ra, đợt nào ra khách',
   },
   {
     no: 2,
@@ -138,8 +142,6 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'Performance',
     path: '/sales/performance',
     question: 'Ai đang làm được, ai đang tắc',
-    blocked:
-      'Tiêu chí chấm từng vai chưa ai chốt — BD đo bằng số ô 10/10 lấy được, hay Marketing đo bằng lead kéo về? Phạm vi đã chốt: lát cắt 17/08, không có trục tháng-quý-năm.',
   },
   {
     no: 4,
@@ -147,8 +149,15 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'Số liệu & kế hoạch',
     path: '/sales/plan',
     question: 'Tháng tới phòng nên làm gì',
-    blocked:
-      'Ăn đầu ra của module 1 + 2 + 3 nên làm cuối. Khi làm vẫn chịu luật 9: có dòng "Căn cứ:", có nút người bấm, không hành động nào tự chạy.',
+  },
+  {
+    /** Module 5 KHÔNG nằm trong vòng khép kín của bốn module trên — nó là thứ
+     *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
+    no: 5,
+    icon: SlidersHorizontal,
+    label: 'Cấu hình',
+    path: '/sales/config',
+    question: 'Dữ liệu của phòng có hình dạng gì',
   },
 ]
 
