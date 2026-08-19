@@ -1,18 +1,42 @@
-import { Bell, Factory, Gauge, House, Inbox, SquareCheckBig, Users } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Bell,
+  CalendarDays,
+  Factory,
+  Gauge,
+  House,
+  Inbox,
+  Mail,
+  MessageCircle,
+  SquareCheckBig,
+  Target,
+  Users,
+} from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
   AiAction,
   ApprovalChain,
   Badge,
+  Button,
+  ChannelTag,
   ContextRail,
   DataTable,
   EmptyState,
+  Kicker,
+  MetaPill,
   millions,
   NavItem,
+  Progress,
+  RichText,
+  RichTextView,
   ScanField,
   SearchField,
   StatCard,
+  type TableColumn,
+  type TableSort,
+  Timeline,
+  type TimelineItem,
 } from '@pv/ui'
 
 /** Zone 02 · Molecules — tầng mang chữ ký của hệ: ContextRail và AIAction. */
@@ -30,15 +54,154 @@ const RAIL = [
   { code: 'PO-0455' },
 ]
 
-const TABLE_COLUMNS = [
-  { header: 'Hóa đơn', width: '1fr' as const },
-  { header: 'Khách hàng', width: '1.4fr' as const },
-  { header: 'Số tiền', width: '.9fr' as const, align: 'right' as const },
-  { header: 'Trạng thái', width: '1fr' as const, align: 'right' as const },
+const TABLE_COLUMNS: TableColumn[] = [
+  { header: 'Hóa đơn', width: '1fr', sortKey: 'code' },
+  { header: 'Khách hàng', width: '1.4fr' },
+  { header: 'Số tiền', width: '.9fr', align: 'right', sortKey: 'amount' },
+  { header: 'Trạng thái', width: '1fr', align: 'right' },
 ]
 
 const mono = (text: string) => <span className="font-mono">{text}</span>
 const amount = (dong: number) => <span className="tnum font-mono">{millions(dong)}</span>
+
+/** Thứ tự là trạng thái của MÀN, không của bảng — kit giữ nó bằng useState để
+ *  chứng minh đúng hợp đồng đó: DataTable chỉ vẽ mũi tên và báo cột vừa bấm. */
+function TableDemo() {
+  const [sort, setSort] = useState<TableSort>({ key: 'amount', dir: 'desc' })
+  const onSort = (key: string) =>
+    setSort((current) =>
+      current.key === key
+        ? { key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'asc' },
+    )
+
+  return (
+    <DataTable
+      columns={TABLE_COLUMNS}
+      sort={sort}
+      onSort={onSort}
+      rows={[
+        {
+          id: 'HD-2214',
+          onOpen: () => {},
+          cells: [
+            mono('HD-2214'),
+            'Cơ khí Minh Quang',
+            amount(520_000_000),
+            <Badge tone="danger">Quá hạn 12 ngày</Badge>,
+          ],
+        },
+        {
+          id: 'HD-2231',
+          state: 'hover',
+          cells: [
+            mono('HD-2231'),
+            'Trường Thịnh',
+            amount(370_000_000),
+            <Badge tone="danger">Quá hạn 5 ngày</Badge>,
+          ],
+        },
+        {
+          id: 'HD-2280',
+          state: 'selected',
+          onOpen: () => {},
+          cells: [
+            mono('HD-2280'),
+            'Cơ điện Sao Đỏ',
+            amount(1_840_000_000),
+            <Badge tone="draft">Nháp</Badge>,
+          ],
+        },
+        {
+          id: 'GV-0117',
+          state: 'hidden',
+          cells: [
+            mono('GV-0117'),
+            'Giá vốn lô hàng Sao Đỏ',
+            <span className="font-mono">— — —</span>,
+            <span className="text-muted-foreground text-[11px]">Bị ẩn theo quyền của bạn</span>,
+          ],
+        },
+      ]}
+    />
+  )
+}
+
+const WAVES: TimelineItem[] = [
+  {
+    id: 'w1',
+    state: 'ok',
+    marker: 'Đợt 1',
+    title: 'Thư mời hội thảo',
+    meta: (
+      <>
+        <MetaPill icon={CalendarDays} mono>
+          12/08
+        </MetaPill>
+        <ChannelTag icon={Mail} label="Gmail" />
+      </>
+    ),
+    children: <Progress label="38 / 40 lead kỳ vọng" value={0.95} />,
+  },
+  {
+    id: 'w2',
+    state: 'current',
+    marker: 'Đợt 2',
+    title: 'Nhắc lịch cho người đã đăng ký',
+    meta: (
+      <>
+        <MetaPill icon={CalendarDays} mono>
+          18/08
+        </MetaPill>
+        <ChannelTag icon={MessageCircle} label="Zalo OA" tone="accent" />
+      </>
+    ),
+    children: <Progress label="21 / 60 lead kỳ vọng" value={0.35} />,
+    actions: (
+      <Button size="sm" variant="ghost">
+        Xem nội dung đợt
+      </Button>
+    ),
+  },
+  {
+    id: 'w3',
+    state: 'next',
+    marker: 'Đợt 3',
+    title: 'Gửi tài liệu sau hội thảo',
+    meta: (
+      <>
+        <MetaPill icon={CalendarDays} mono>
+          26/08
+        </MetaPill>
+        <MetaPill icon={Target} tone="warning">
+          Chưa soạn nội dung
+        </MetaPill>
+      </>
+    ),
+  },
+]
+
+/** Nội dung là HTML và người dùng gõ vào chính nó — kit phải giữ state thật,
+ *  nếu không ô soạn không chứng minh được gì. */
+function RichTextDemo() {
+  const [html, setHtml] = useState('<p>Kính gửi anh Đức,</p>')
+  return (
+    <div className="flex flex-col gap-4">
+      <RichText
+        value={html}
+        onChange={setHtml}
+        label="Nội dung đợt 2"
+        placeholder="Soạn nội dung gửi cho đợt này"
+      />
+      {/* Bản chỉ đọc của cùng nội dung — hai khối dùng chung một bộ kiểu, nên
+          thứ hiện ra sau khi lưu đúng bằng thứ vừa gõ. */}
+      <div className="flex flex-col gap-2">
+        <Kicker tone="muted">RichTextView · bản chỉ đọc</Kicker>
+        <RichTextView html={html} />
+      </div>
+    </div>
+  )
+}
 
 export function ZoneMolecules() {
   return (
@@ -57,12 +220,14 @@ export function ZoneMolecules() {
         <SpecCard
           code="M-01"
           name="StatCard"
-          bodyClassName="p-4"
+          note="hero · compact"
+          bodyClassName="flex flex-col gap-3 p-4"
           footer={
             <>
-              Card + font-num text-5xl + label text-xs + delta + Sparkline
+              hero → font-num 42px, h-[150px] CHỈ khi có sparkline (sparkline được mt-auto ghim
+              đáy); không có thì cao theo nội dung, không chừa khoảng trắng chết
               <br />
-              bento 1×1 · h-[150px]
+              compact → px-4 py-3, số 26px, thêm dòng hint 11px — cho bảng chỉ số dày
             </>
           }
         >
@@ -75,6 +240,13 @@ export function ZoneMolecules() {
               tone: 'danger',
               source: '30d · ERP',
             }}
+          />
+          <StatCard
+            size="compact"
+            icon={Target}
+            value="34%"
+            label="Tỉ lệ MQL"
+            hint="21 / 61 lead của đợt đang chạy"
           />
         </SpecCard>
 
@@ -156,63 +328,24 @@ export function ZoneMolecules() {
           className="col-span-2"
           code="M-07"
           name="TableRow"
-          note="default · hover · selected · hidden-by-permission"
+          note="dòng bấm được · header sắp xếp được"
           bodyClassName="px-4 py-3.5"
           footer={
             <>
               h-11 · divide-white/6 · hover:bg-white/5 · selected = shadow-[inset_2px_0_0]
               shadow-primary + bg-primary/10
               <br />
+              row.onOpen → cả dòng mở object: cursor-pointer · hover:bg-white/8 + hover:shadow-card
+              · tabIndex 0 · Enter và Space
+              <br />
+              col.sortKey → header thành nút, mũi tên ArrowUp/ArrowDown, mờ khi chưa sort theo cột
+              đó
+              <br />
               Bảng luôn nằm trên .glass-b, không bao giờ .glass-a
             </>
           }
         >
-          <DataTable
-            columns={TABLE_COLUMNS}
-            rows={[
-              {
-                id: 'HD-2214',
-                cells: [
-                  mono('HD-2214'),
-                  'Cơ khí Minh Quang',
-                  amount(520_000_000),
-                  <Badge tone="danger">Quá hạn 12 ngày</Badge>,
-                ],
-              },
-              {
-                id: 'HD-2231',
-                state: 'hover',
-                cells: [
-                  mono('HD-2231'),
-                  'Trường Thịnh',
-                  amount(370_000_000),
-                  <Badge tone="danger">Quá hạn 5 ngày</Badge>,
-                ],
-              },
-              {
-                id: 'HD-2280',
-                state: 'selected',
-                cells: [
-                  mono('HD-2280'),
-                  'Cơ điện Sao Đỏ',
-                  amount(1_840_000_000),
-                  <Badge tone="draft">Nháp</Badge>,
-                ],
-              },
-              {
-                id: 'GV-0117',
-                state: 'hidden',
-                cells: [
-                  mono('GV-0117'),
-                  'Giá vốn lô hàng Sao Đỏ',
-                  <span className="font-mono">— — —</span>,
-                  <span className="text-muted-foreground text-[11px]">
-                    Bị ẩn theo quyền của bạn
-                  </span>,
-                ],
-              },
-            ]}
-          />
+          <TableDemo />
         </SpecCard>
 
         {/* M-08 */}
@@ -252,6 +385,44 @@ export function ZoneMolecules() {
             onConfirm={() => {}}
             onInspect={() => {}}
           />
+        </SpecCard>
+
+        {/* M-10 */}
+        <SpecCard
+          code="M-10"
+          name="Timeline"
+          note="chuỗi đợt"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Cùng ngôn ngữ với ApprovalChain (chấm + đường nối) nhưng chạy dọc và mỗi mốc mang được
+              meta, số liệu, nút.
+              <br />
+              Đường nối bg-white/8 rộng 1px — không border (luật 4) · mốc cuối không kéo đường xuống
+            </>
+          }
+        >
+          <Timeline items={WAVES} />
+        </SpecCard>
+
+        {/* M-11 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-11"
+          name="RichText"
+          note="mức POC"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              contentEditable + document.execCommand — không thêm dependency. Chỗ để thay bằng
+              editor thật, giữ nguyên hợp đồng props.
+              <br />
+              Đậm · nghiêng · gạch đầu dòng · chèn ảnh (data URL) · xem và sửa HTML thô. Chỉ đồng bộ
+              innerHTML khi ô không focus, nếu không con trỏ nhảy về đầu mỗi ký tự.
+            </>
+          }
+        >
+          <RichTextDemo />
         </SpecCard>
       </ZoneBody>
     </section>

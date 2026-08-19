@@ -234,7 +234,19 @@ góc Sale. Người gật vẫn là TP Kinh doanh.
 | 1.2 | Nội dung soạn sẵn cho từng đợt              | AI soạn được, nhưng chịu luật 9: có "Căn cứ:", có nút, không đợt nào tự gửi                |
 | 1.3 | Sự kiện có mặt người thật                   | Hội thảo · webinar · triển lãm: có địa điểm, danh sách đăng ký, check-in                   |
 | 1.4 | Theo dõi chiến dịch đã chạy                 | Đo bằng **lead đổ về**, không đo bằng lượt xem. Số đo đóng băng 17/08, không vẽ đường cong |
-| 1.5 | Lead đổ về → giao chủ → tạo phiếu việc      | Cổng init data vẫn là luật. Xem "phiếu việc ≠ cơ hội" dưới                                 |
+| 1.5 | Lead đổ về → giao chủ → tạo phiếu việc      | **Đã dời sang module 2** — xem ghi chú ngay dưới bảng                                      |
+| 1.6 | Sửa · đóng · theo dõi một chiến dịch        | Sửa dùng ĐÚNG màn tạo, không dựng màn thứ hai. Đóng và theo dõi nối E3/E4 khi có backend   |
+| 1.7 | Kỳ vọng lead của từng đợt                   | Số đặt TRƯỚC khi chạy (`Wave.expected`). Timeline đo đạt/hụt theo nó, không tự chấm điểm   |
+
+> **Đổi ngày 19/08 · bản ba — mục 1.5 rời khỏi module 1.** Bản hai để bảng lead
+> đổ về ngay trên màn Chiến dịch, kèm hai nút "giao chủ" và "tạo phiếu việc".
+> Người dùng bỏ nó khỏi màn: _"bỏ phần lead list đi, nó thuộc lead"_. Lý do
+> đứng vững — cùng một dòng lead mà thao tác được ở hai màn thì không màn nào là
+> nơi đúng để tra, và module 2 đã có đủ cả ba việc (2.1 danh sách · 2.2 giao/nhận
+> · 2.3 report). Màn Chiến dịch giờ chỉ còn **một con số** "bao nhiêu lead của
+> nguồn này đã qua cổng" kèm lối sang Sổ lead. Ràng buộc cũ không đổi: cổng init
+> data vẫn là luật, và "phiếu việc ≠ cơ hội" (dưới) vẫn đúng — nó chỉ được thi
+> hành ở module 2.
 
 **Hai loại, một khung.** _Chiến dịch_ (chạy trên kênh, nhiều đợt) và _sự kiện_
 (có ngày, có chỗ, có người đến) dùng chung bảng và chung cách đo — chỉ khác ở

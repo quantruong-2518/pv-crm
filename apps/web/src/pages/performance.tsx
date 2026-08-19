@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TriangleAlert } from 'lucide-react'
+import { Activity, FileCheck, TriangleAlert, UserMinus, Users, Wallet } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
@@ -14,6 +14,7 @@ import {
   Money,
   percent,
   Skeleton,
+  Sparkline,
   StatCard,
   cn,
 } from '@pv/ui'
@@ -47,9 +48,13 @@ import {
  *  tháng 5, tháng 6, tháng 7 mà không ai ký. Vì thế:
  *
  *   · thẻ số **không có ô delta** — delta là "so với kỳ trước", mà ở đây chỉ có
- *     một kỳ. Phần trăm của mỗi thẻ so với bậc đầu phễu, ghi thẳng vào nhãn;
+ *     một kỳ. Phần trăm của mỗi thẻ là so với bậc đầu phễu, và nó nằm ở dòng
+ *     `hint` chứ không nhồi vào nhãn — nhãn nói "số này là gì", hint nói "so
+ *     với cái gì";
  *   · đường duy nhất trên màn là sparkline **theo sáu bậc phễu**, không theo
- *     thời gian — bậc phễu là số đã chốt nên vẽ được.
+ *     thời gian — bậc phễu là số đã chốt nên vẽ được. Đường đó đứng cạnh bảng
+ *     "Rớt qua từng bậc phễu" ở khối 3, không đứng trên thẻ số (lý do đầy đủ ở
+ *     `OverviewBlock`).
  *
  *  Thước đo của từng vai lấy nguyên từ `CREDIT_RULES`: module 3 chỉ hiển thị,
  *  không tự định nghĩa cách chấm ai. Thước nào fixture chưa có dữ liệu thì màn
@@ -133,40 +138,80 @@ function LoadingBlock() {
 // Khối 1 · Tổng quan
 // ---------------------------------------------------------------------------
 
-/** Sáu ô số của cả phòng. Không ô nào có delta: xem khối chú thích ở đầu file. */
+/** Sáu ô số của cả phòng. Không ô nào có delta: xem khối chú thích ở đầu file.
+ *
+ *  ---- Vì sao cả sáu thẻ là `compact`, và vì sao sparkline không còn ở đây ----
+ *  Bản trước: thẻ mở đầu mang sparkline phễu nên cao 150px, năm thẻ còn lại chỉ
+ *  có đúng một con số và một dòng nhãn. Ô của CSS grid `stretch` theo thẻ cao
+ *  nhất trong hàng, nên năm thẻ kia bị kéo cao bằng thẻ đầu và mỗi thẻ thừa ra
+ *  một mảng trắng chết — đúng lỗi người dùng chỉ ra trên toàn nhánh Sales.
+ *
+ *  Hai lối thoát hiển nhiên đều dở. Giữ `hero` cho riêng thẻ đầu thì một thẻ
+ *  150px đứng cạnh năm thẻ ~95px, đọc ra như lỗi layout chứ không ra như chủ ý.
+ *  Bỏ hẳn sparkline thì mất đường DUY NHẤT màn này được phép vẽ.
+ *
+ *  Lối thứ ba là trả đường về chỗ nó thuộc về: sparkline vẽ SÁU BẬC PHỄU, mà
+ *  sáu bậc phễu chính là nội dung bảng "Rớt qua từng bậc phễu" ở khối 3 — đường
+ *  và số của cùng một thứ đứng cạnh nhau thì đọc được, còn đứng trên một thẻ số
+ *  của "Lead cả kỳ" thì nó chỉ là hình trang trí. Hàng thẻ ở đây vì thế đồng
+ *  đều tuyệt đối và mỗi thẻ cao đúng bằng nội dung của nó.
+ *
+ *  Lưới đọc theo ĐÚNG ba thiết bị của luật 3, không đẻ điểm gãy thứ tư: mobile
+ *  390 → 2 cột · tablet 1024 (`lg`) → 3 cột · desktop 1440 (`xl`) → cả sáu chỉ
+ *  số nằm trên MỘT hàng để quét mắt. Sáu cột ở tablet thì ô "Giá trị đang mở"
+ *  còn ~126px cho một con số kiểu "18,4 tỷ" — nó xuống dòng, thẻ đó cao hơn năm
+ *  thẻ kia, và khoảng trắng chết quay lại bằng cửa sau. */
 function OverviewBlock({ o, period }: { o: Overview; period: string }) {
-  const share = (n: number) => (o.leads > 0 ? percent(n / o.leads) : '')
+  /* Cả câu, không chỉ con số: "24%" đứng một mình không nói được so với cái gì,
+     mà mẫu số ở đây luôn là bậc đầu phễu chứ không phải số lead đang chạy. */
+  const share = (n: number) => (o.leads > 0 ? `${percent(n / o.leads)} của đầu mối` : '')
 
   return (
     <section aria-label="Tổng quan" className="flex flex-col gap-3">
       <h3 className="text-[13px] font-semibold">Tổng quan</h3>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard
+          size="compact"
+          icon={Users}
           value={num(o.leads)}
-          label={`Lead cả kỳ · ${period}`}
-          sparkline={{
-            points: o.funnelPoints,
-            source: 'Sáu bậc phễu · Kinh doanh',
-            tone: 'primary',
-          }}
+          label="Lead cả kỳ"
+          hint={period}
         />
-        <StatCard value={num(o.signed)} label={`Hợp đồng đã ký · ${share(o.signed)} của đầu mối`} />
         <StatCard
+          size="compact"
+          icon={FileCheck}
+          value={num(o.signed)}
+          label="Hợp đồng đã ký"
+          hint={share(o.signed)}
+        />
+        <StatCard
+          size="compact"
+          icon={Activity}
           value={num(o.running)}
-          label={`Lead đang chạy · ${share(o.running)} của đầu mối`}
+          label="Lead đang chạy"
+          hint={share(o.running)}
         />
         <StatCard
+          size="compact"
+          icon={UserMinus}
           value={num(o.exited)}
-          label={`Lead đã ra khỏi luồng · ${share(o.exited)} của đầu mối`}
+          label="Lead đã ra khỏi luồng"
+          hint={share(o.exited)}
         />
         <StatCard
+          size="compact"
+          icon={Wallet}
           value={billions(o.openValue, 1)}
-          label={`Giá trị ${num(o.openDeals)} đơn đang mở`}
+          label="Giá trị đang mở"
+          hint={`${num(o.openDeals)} đơn đang mở`}
         />
         <StatCard
+          size="compact"
+          icon={TriangleAlert}
           value={num(o.rotting)}
-          label={`Đơn đang mục · ${num(o.rotting)}/${num(o.openDeals)} đơn đang mở quá hạn cột`}
+          label="Đơn đang mục"
+          hint={`Quá hạn cột · trên ${num(o.openDeals)} đơn đang mở`}
         />
       </div>
 
@@ -413,7 +458,18 @@ function ConversionBlock({ data }: { data: Performance }) {
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
         <GlassCard variant="b" className="flex flex-col gap-3 p-5 lg:p-6">
-          <h4 className="text-[12px] font-semibold">Rớt qua từng bậc phễu</h4>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h4 className="text-[12px] font-semibold">Rớt qua từng bậc phễu</h4>
+            {/* Đường DUY NHẤT của màn, và nó chạy theo sáu bậc phễu chứ không
+                theo thời gian. Đứng ở đây vì bảng ngay dưới là đúng sáu bậc mà
+                đường này vẽ — trên thẻ số "Lead cả kỳ" thì nó không có gì để
+                đối chiếu, chỉ tạo ra khoảng trắng cho năm thẻ bên cạnh. */}
+            <Sparkline
+              points={data.overview.funnelPoints}
+              source="Sáu bậc phễu · Kinh doanh"
+              tone="primary"
+            />
+          </div>
           <DataTable
             columns={[
               { header: 'Bậc', width: '1.7fr' },
@@ -526,7 +582,7 @@ function AssistantBlock({ o, conversions }: { o: Overview; conversions: Conversi
 function NotDoing() {
   const items = [
     'Không có trục tháng-quý-năm. Kịch bản là một lát cắt đã đóng băng; vẽ đường theo tháng thì phải đẻ số cho những tháng không ai ký. Đường duy nhất trên màn chạy theo sáu bậc phễu, và bậc phễu là số đã chốt.',
-    'Không có ô delta trên thẻ số. Delta nghĩa là "so với kỳ trước", mà ở đây chỉ có một kỳ. Phần trăm trên nhãn là so với bậc đầu của phễu, không phải so với thời gian.',
+    'Không có ô delta trên thẻ số. Delta nghĩa là "so với kỳ trước", mà ở đây chỉ có một kỳ. Phần trăm ở dòng phụ của thẻ là so với bậc đầu của phễu, không phải so với thời gian.',
     'Không đo phản hồi BD trả ngược cho Marketing. Đó là thước thứ ba của vai BD trong bảng công trạng, nhưng sổ lead không ghi lần nào — ô để trống, không điền số gần đúng.',
     'Không đo buổi demo của Presales. Sổ cơ hội không có trường "ai đi cùng buổi demo", nên cả hai thước của vai này chưa có nguồn số.',
     'Không xếp hạng ba Sale thành bảng thứ tự. Ba người ba ngành, quy mô đơn khác nhau; xếp bằng một cột số là so nhầm thứ.',

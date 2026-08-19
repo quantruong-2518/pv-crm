@@ -51,7 +51,13 @@ export type PlanStat = {
   key: string
   /** Đã format sẵn, theo chuẩn tiền VN của `@pv/ui`. */
   value: string
+  /** Tên của chỉ số, một mệnh đề. Không nhồi ngữ cảnh vào đây. */
   label: string
+  /** Ngữ cảnh của con số — mẫu số, chỗ nó bám vào, hay số tiền đi kèm. Tách ra
+   *  làm trường riêng chứ không nối vào `label` bằng dấu chấm giữa: nhãn trả
+   *  lời "số này là gì", hint trả lời "so với cái gì". Nối làm một thì thẻ nào
+   *  cũng thành một câu dài đọc bằng mắt mới ra, mà thẻ số sinh ra để liếc. */
+  hint: string
 }
 
 /** Một đề xuất cho tháng tới. Đúng hình của `AiActionProps`: có câu đề xuất, có
@@ -252,22 +258,26 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
       {
         key: 'dang-muc',
         value: `${rotting.length}/${OPEN_DEALS.length}`,
-        label: `Đơn đang mục · ${billions(rottingValue)} đang treo`,
+        label: 'Đơn đang mục',
+        hint: `${billions(rottingValue)} đang treo`,
       },
       {
         key: 'qua-sla',
         value: `${overSla.length}`,
-        label: `Lead quá SLA · trên ${running.length} lead đang chạy`,
+        label: 'Lead quá SLA',
+        hint: `Trên ${running.length} lead đang chạy`,
       },
       {
         key: 'lead-tot',
         value: `${good.length}/${LEADS.length}`,
-        label: `Lead tốt trên tổng lead · qua cổng ${REQUIRED_SLOTS} ô bắt buộc`,
+        label: 'Lead tốt trên tổng lead',
+        hint: `Qua cổng ${REQUIRED_SLOTS} ô bắt buộc`,
       },
       {
         key: 'gia-lead-tot',
         value: paidGood > 0 ? millions(Math.round(paidCost / paidGood)) : '—',
-        label: `Giá mỗi lead tốt · ${costs.length} nguồn có chi phí`,
+        label: 'Giá mỗi lead tốt',
+        hint: `${costs.length} nguồn có chi phí`,
       },
     ],
     /* Hai ô đầu NGHI là cùng một chỗ tắc, nhưng "hai số bằng nhau" không đủ để

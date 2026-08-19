@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react'
-import { ClipboardList, Orbit, Send, X } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  CircleCheckBig,
+  ClipboardList,
+  Coins,
+  Orbit,
+  Send,
+  Timer,
+  TriangleAlert,
+  X,
+} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
@@ -45,6 +55,19 @@ import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
  *  Số lấy qua `useQuery`, mọi phép tính nằm ở `data/plan.ts` (kể cả câu "Căn
  *  cứ", xem ghi chú ở đầu file đó). Màn này chỉ bày và giữ đúng một thứ trạng
  *  thái riêng của nó: người dùng đã nhặt đề xuất nào vào kế hoạch. */
+
+/** Icon nhận dạng cho từng ô số, khoá theo `PlanStat.key`.
+ *
+ *  Bảng nằm ở TẦNG MÀN chứ không ở `data/plan.ts`: icon là chuyện trình bày,
+ *  còn file dữ liệu chỉ được biết con số và câu chữ của nó. Khoá lạ thì tra ra
+ *  `undefined` và thẻ đơn giản là không có icon — thiếu một hình trang trí không
+ *  đáng để làm hỏng cả màn. */
+const STAT_ICON: Record<string, LucideIcon> = {
+  'dang-muc': TriangleAlert,
+  'qua-sla': Timer,
+  'lead-tot': CircleCheckBig,
+  'gia-lead-tot': Coins,
+}
 
 export function PlanPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -107,7 +130,10 @@ export function PlanPage() {
 
         {!board ? (
           <div className="flex flex-col gap-4 lg:gap-6">
-            <Skeleton className="h-[150px] w-full" />
+            {/* Cao xấp xỉ hàng thẻ `compact` thật, không phải 150px của bản
+                `hero` cũ — khung chờ cao hơn nội dung thì màn giật một nhịp
+                lúc số về. */}
+            <Skeleton className="h-24 w-full" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
           </div>
@@ -115,12 +141,26 @@ export function PlanPage() {
           <>
             {/* 1 · Phòng đang đứng ở đâu — bốn số một kế hoạch cần, không hơn.
                 Không chép cả module 3 sang: "ai đang làm được, ai đang tắc" là
-                câu hỏi của màn Performance, không phải của màn này. */}
+                câu hỏi của màn Performance, không phải của màn này.
+
+                Thẻ dùng bản `compact`: bốn ô này không có sparkline và không có
+                delta (lý do delta ở khối "Cố tình không làm" dưới cùng), nên bản
+                `hero` cao 150px để lại đúng một mảng trắng dưới nhãn. Ngữ cảnh
+                của mỗi số nằm ở dòng `hint`, tách sẵn từ `data/plan.ts` — màn
+                không cắt chuỗi, vì cắt ở đây thì nhãn và ngữ cảnh dính lại ngay
+                lần ai đó sửa câu chữ ở tầng dữ liệu. */}
             <section className="flex flex-col gap-3">
               <h3 className="text-[13px] font-semibold">Phòng đang đứng ở đâu</h3>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {board.stats.map((s) => (
-                  <StatCard key={s.key} value={s.value} label={s.label} />
+                  <StatCard
+                    key={s.key}
+                    size="compact"
+                    icon={STAT_ICON[s.key]}
+                    value={s.value}
+                    label={s.label}
+                    hint={s.hint}
+                  />
                 ))}
               </div>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">{board.statsNote}</p>

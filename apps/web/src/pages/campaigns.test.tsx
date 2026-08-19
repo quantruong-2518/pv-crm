@@ -1,63 +1,104 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
-import { percent } from '@pv/ui'
-import { HEAD_OF_SALES, LEAD_CATEGORIES, SOURCES, sourceStats } from '@pv/engines/fixtures/das-vina'
+import { fireEvent, screen, within } from '@testing-library/react'
+import { HEAD_OF_SALES, SOURCES, dasVina, sourceStats } from '@pv/engines/fixtures/das-vina'
 import { renderScreen } from '@/test-utils'
 import { ANCHOR_SOURCE, DRAFT_TEMPLATE } from '@/data/campaigns'
+import { CHANNEL_LABEL, E4_CHANNELS } from '@/data/sales-config'
 import { CampaignsPage } from './campaigns'
 
-/** Ba Sale nhận được lead — tính lại từ fixture đúng như màn, không gõ tên. */
-const SALES = [...new Set(LEAD_CATEGORIES.map((c) => c.sale))]
-
-/** Test "màn dựng được" + khoá bốn thứ của module 1 mà mắt người hay bỏ sót.
+/** Test "màn dựng được" + khoá những thứ của module 1 mà mắt người hay bỏ sót.
  *
  *  Con số kỳ vọng KHÔNG gõ tay: chúng tính lại từ fixture ngay trong test, nên
  *  đổi fixture mà quên đổi màn thì test đỏ chứ không im lặng trôi qua.
  *
- *  Nguồn và lead lấy qua `useQuery` nên lần render đầu là trạng thái chờ; chỗ
- *  nào cần dòng thật thì phải `findBy…`, không `getBy…`. */
+ *  Nguồn lấy qua `useQuery` nên lần render đầu là trạng thái chờ; chỗ nào cần
+ *  dòng thật thì phải `findBy…`, không `getBy…`.
+ *
+ *  Đổi 19/08: bảng lead rời khỏi màn (thuộc module 2) nên ba ca cũ về giao chủ
+ *  và phiếu việc đã bỏ. Thay vào là sắp xếp cột, bấm cả dòng, timeline kỳ vọng,
+ *  đóng/theo dõi, và form sửa. */
+
+/** Sáu nguồn CÓ ĐỢT — tức có người chạy. Hai nguồn tự nhiên không nằm trong đây. */
+const RUNNING = SOURCES.filter((s) => s.waves.length > 0)
+const WAVES = RUNNING.flatMap((s) => s.waves)
+
+/** Nguồn mồi mọi lần mở màn, suy từ fixture đúng như tầng data. */
+const ANCHOR = SOURCES.find((s) => s.code === ANCHOR_SOURCE)
+
+function anchor() {
+  if (!ANCHOR) throw new Error('Fixture không có nguồn mồi nào')
+  return ANCHOR
+}
+
+/** Chờ SỔ NGUỒN thật sự về trước khi tra bằng `getBy…`.
+ *
+ *  KHÔNG chờ bằng `findAllByText(ANCHOR_SOURCE)`: ContextRail vẽ chip mã nguồn
+ *  mồi ngay từ lần render ĐẦU, lúc bảng còn là skeleton — nên lời chờ đó xanh
+ *  tức thì và mọi `getBy…` sau nó chạy trên một màn chưa có dữ liệu. Tên nguồn
+ *  thì chỉ xuất hiện khi đã có dòng thật, nên nó mới là mốc chờ đúng.
+ *
+ *  Dùng `findAllByText` vì tên nguồn đang mở có mặt ở hai chỗ: dòng bảng và
+ *  panel chi tiết. */
+async function openBook() {
+  await screen.findAllByText(anchor().label)
+}
+
+/** Mã của dòng đầu bảng. Dòng 0 là hàng header — `DataTable` đánh `role="row"`
+ *  cho cả nó. */
+function firstRowCode() {
+  const [, first] = screen.getAllByRole('row')
+  if (!first) throw new Error('Bảng chưa có dòng nào')
+  const [code] = within(first).getAllByRole('cell')
+  return code?.textContent?.trim()
+}
+
 describe('Module 1 · Chiến dịch & Sự kiện', () => {
   it('dựng được toàn bộ cây, không ném lỗi', () => {
     expect(() => renderScreen(<CampaignsPage />)).not.toThrow()
   })
 
-  it('tám nguồn cộng lại đúng 100 lead, và KPI đo bằng lead chứ không bằng lượt xem', async () => {
+  it('score card đo CHIẾN DỊCH — đợt, người tiếp cận, kỳ vọng; không đo bằng lượt xem', async () => {
     renderScreen(<CampaignsPage />)
 
-    const total = SOURCES.reduce((n, s) => n + sourceStats(s.code).leads, 0)
-    expect(total).toBe(100)
+    /* Ô "Đạt kỳ vọng lead" cộng lead của SÁU nguồn có đợt, không phải cả 100
+       dòng sổ: 12 lead của hai nguồn tự nhiên không đợt nào kéo về. Nhãn phải
+       nói ra điều đó, nếu không người đọc tưởng sổ lead mất 12 dòng. */
+    const leads = RUNNING.reduce((n, s) => n + sourceStats(s.code).leads, 0)
+    const expected = WAVES.reduce((n, w) => n + w.expected, 0)
+    const all = SOURCES.reduce((n, s) => n + sourceStats(s.code).leads, 0)
 
-    // Ô "Lead cả kỳ" phải là chính con số đó, không phải một số khác gõ tay.
-    expect(await screen.findByText(String(total))).toBeInTheDocument()
-    expect(screen.getByText('Lead cả kỳ')).toBeInTheDocument()
+    expect(await screen.findByText(`${leads}/${expected} lead từ các đợt`)).toBeInTheDocument()
+    expect(leads).toBeLessThan(all)
+    expect(all).toBe(100)
 
-    // Đủ tám nguồn trên bảng — sáu chiến dịch/sự kiện + hai nguồn tự nhiên.
+    // Số ĐỢT là thước đo của module 1, và đợt nằm ngoài E4 phải đếm được.
+    const manual = WAVES.filter((w) => !E4_CHANNELS.includes(w.channel)).length
+    expect(screen.getByText('Đợt đã gửi')).toBeInTheDocument()
+    expect(screen.getByText(`${manual} đợt người tự đăng`)).toBeInTheDocument()
+
+    // "Chiến dịch đã chạy đợt" nói đúng nghĩa: nguồn có người chạy, không phải
+    // đợt còn đang gửi.
+    const events = SOURCES.filter((s) => s.kind === 'su-kien').length
+    expect(
+      screen.getByText(`${SOURCES.length} nguồn cả kỳ · ${events} sự kiện`),
+    ).toBeInTheDocument()
+
+    // Thước đo của module 1 là lead, không phải lượt xem (docs · mục 1.4).
+    expect(screen.queryByText(/lượt xem/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/lượt hiển thị/i)).not.toBeInTheDocument()
+  })
+
+  it('đủ tám nguồn trên bảng, và đổi bộ lọc thì panel không giữ nguồn đã bị lọc giấu', async () => {
+    renderScreen(<CampaignsPage />)
+    await openBook()
+
     expect(SOURCES).toHaveLength(8)
     for (const s of SOURCES) {
       expect(screen.getAllByText(s.code).length).toBeGreaterThan(0)
     }
 
-    // Thước đo của module 1 là lead, không phải lượt xem (docs · mục 1.4).
-    expect(screen.queryByText(/lượt xem/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/lượt hiển thị/i)).not.toBeInTheDocument()
-
-    // Tỉ lệ qua cổng nằm trong NHÃN, không nằm ở khe `delta` của StatCard: khe
-    // đó nghĩa là biến thiên so với kỳ trước, mà kịch bản đóng băng không có kỳ
-    // trước nào để so.
-    const good = SOURCES.reduce((n, s) => n + sourceStats(s.code).good, 0)
-    expect(
-      screen.getByText(`Lead tốt · ${percent(good / total)} qua cổng init data`),
-    ).toBeInTheDocument()
-  })
-
-  it('đổi bộ lọc thì panel không giữ một nguồn đã bị lọc giấu', async () => {
-    renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
-
     // Nguồn mồi là một SỰ KIỆN — lọc sang "Chiến dịch" phải đẩy nó khỏi màn.
-    const anchor = SOURCES.find((s) => s.code === ANCHOR_SOURCE)
-    expect(anchor?.kind).toBe('su-kien')
-
+    expect(anchor().kind).toBe('su-kien')
     fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch' }))
 
     const firstCampaign = SOURCES.find((s) => s.kind === 'chien-dich')?.code
@@ -74,150 +115,218 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     expect(screen.getAllByText(ANCHOR_SOURCE).length).toBeGreaterThan(0)
   })
 
-  it('bản nháp tab "Tạo mới" chép nhịp từ fixture, không gõ tay con số nào', async () => {
+  it('sắp xếp nằm ở header cột, và thứ tự là state của màn — bảng không tự sắp mảng', async () => {
     renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo mới' }))
+    await openBook()
 
-    // Nguồn mẫu = nguồn đã chạy đợt và ra nhiều lead nhất trong kỳ.
-    const sample = [...SOURCES]
-      .filter((s) => s.waves.length > 0)
-      .sort((a, b) => b.leads - a.leads)[0]
-    const opening = sample?.waves[0]
-    if (!sample || !opening) throw new Error('Fixture không có nguồn nào đã chạy đợt')
-    expect(DRAFT_TEMPLATE.fromCode).toBe(sample.code)
+    const byDay = [...SOURCES].sort((a, b) => a.startDay - b.startDay)
+    const oldest = byDay[0]?.code
+    const newest = byDay[byDay.length - 1]?.code
 
-    // Khán giả mặc định = số người nhận đợt mở màn của chính nguồn đó.
-    expect(screen.getByLabelText(/Khán giả/)).toHaveValue(String(opening.sent))
+    // Mặc định: theo ngày, mới nhất lên trước.
+    expect(screen.getByRole('columnheader', { name: /Bắt đầu/ })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
+    expect(firstRowCode()).toBe(newest)
 
-    // Nhịp đợt = hiệu ngày giữa các đợt của nguồn đó, không phải 14/28 gõ tay.
-    for (const w of sample.waves.slice(1)) {
-      expect(screen.getAllByText(`Sau ${w.day - opening.day} ngày`).length).toBeGreaterThan(0)
+    // Bấm lại cùng cột thì đảo chiều.
+    fireEvent.click(screen.getByRole('button', { name: /Bắt đầu/ }))
+    expect(screen.getByRole('columnheader', { name: /Bắt đầu/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    )
+    expect(firstRowCode()).toBe(oldest)
+
+    // Đổi sang cột khác thì cột cũ nhả khoá sắp xếp.
+    fireEvent.click(screen.getByRole('button', { name: /Giá trị/ }))
+    expect(screen.getByRole('columnheader', { name: /Bắt đầu/ })).toHaveAttribute(
+      'aria-sort',
+      'none',
+    )
+  })
+
+  it('bấm CẢ DÒNG mở chi tiết, không phải mỗi cái mã', async () => {
+    renderScreen(<CampaignsPage />)
+    await openBook()
+
+    const other = SOURCES.find((s) => s.code !== ANCHOR_SOURCE && s.waves.length > 0)
+    if (!other) throw new Error('Fixture không có nguồn thứ hai đã chạy đợt')
+
+    // Trước khi bấm, tên nguồn chỉ có mặt ở dòng bảng.
+    expect(screen.getAllByText(other.label)).toHaveLength(1)
+
+    const row = screen.getByText(other.label).closest('[role="row"]')
+    if (!row) throw new Error('Ô tên không nằm trong một dòng bảng')
+    fireEvent.click(row)
+
+    // Dòng sáng lên và panel phải mở đúng nguồn đó → tên có mặt ở hai chỗ.
+    expect(row).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getAllByText(other.label)).toHaveLength(2)
+  })
+
+  it('timeline nói rõ đợt mấy, gửi bằng gì, và bao nhiêu lead trên KỲ VỌNG bao nhiêu', async () => {
+    renderScreen(<CampaignsPage />)
+    await openBook()
+
+    for (const w of anchor().waves) {
+      expect(screen.getByText(`Đợt ${w.no}`)).toBeInTheDocument()
+      // Kỳ vọng là số đặt TRƯỚC khi chạy, không phải điểm màn tự chấm.
+      expect(
+        screen.getAllByText(`${w.leads} lead trên kỳ vọng ${w.expected}`).length,
+      ).toBeGreaterThan(0)
     }
-  })
 
-  it('bảng lead đổ về nói rõ ĐANG TRONG TAY AI — ba trạng thái, không ô trống', async () => {
-    renderScreen(<CampaignsPage />)
-
-    // Nguồn mồi là nguồn đã kéo chính DAS Vina về.
-    expect(await screen.findByRole('cell', { name: 'DAS Vina' })).toBeInTheDocument()
-    expect(screen.getByText(/Lead đổ về từ/)).toBeInTheDocument()
-
-    // 1 · đang trong tay một Sale · 2 · còn ở kho chung · 3 · đã rời luồng.
-    expect(screen.getAllByText('Đỗ Quang Huy').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('kho chung').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/^đã rời luồng ·/).length).toBeGreaterThan(0)
-  })
-
-  it('lead ở kho chung giao được chủ — đề nghị chờ TP gật, bậc không đổi (mục 1.5)', async () => {
-    renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
-
-    const gateBefore = screen.getByText(/lead đã qua cổng/).textContent
-    const [assign] = screen.getAllByRole('button', { name: 'Giao chủ' })
-    if (!assign) throw new Error('Không lead nào ở kho chung có nút "Giao chủ"')
-    fireEvent.click(assign)
-
-    // Chọn được ĐÚNG ba Sale. TP Kinh doanh gật chứ không giữ khách.
-    for (const name of SALES) {
-      expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    // Mỗi kênh có hình định danh riêng — nhìn là biết đợt đó gửi đi đâu.
+    for (const c of new Set(anchor().waves.map((w) => w.channel))) {
+      expect(screen.getAllByText(CHANNEL_LABEL[c]).length).toBeGreaterThan(0)
     }
-    expect(screen.queryByRole('button', { name: HEAD_OF_SALES })).not.toBeInTheDocument()
 
-    const [first] = SALES
-    if (!first) throw new Error('Fixture không có Sale nào nhận lead')
-    fireEvent.click(screen.getByRole('button', { name: first }))
-
-    // Mới là ĐỀ NGHỊ: lead chưa rời kho chung, và cổng init data không nhúc nhích.
-    expect(screen.getByText(new RegExp(`Đã đề nghị giao · ${first}`))).toBeInTheDocument()
-    expect(screen.getByText(/lead đã qua cổng/).textContent).toBe(gateBefore)
-    expect(screen.getByText(/lead rời kho chung khi/)).toBeInTheDocument()
+    // Bảng lead đã dời sang module 2; còn lại đúng một con số và một lối đi.
+    expect(screen.getByRole('button', { name: 'Mở Sổ lead' })).toBeInTheDocument()
+    expect(screen.queryByText(/Lead đổ về từ/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Giao chủ' })).not.toBeInTheDocument()
   })
 
-  it('tạo phiếu việc KHÔNG đổi bậc lead và không đổi số đã qua cổng', async () => {
+  it('theo dõi và đóng là state của màn — đóng rồi thì chuỗi không nhận thêm đợt', async () => {
     renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
+    await openBook()
 
-    const gateBefore = screen.getByText(/lead đã qua cổng/).textContent
-    const sqlBefore = screen.getAllByText('SQL').length
-    expect(sqlBefore).toBeGreaterThan(0)
+    // `renderScreen` đăng nhập bằng TP Kinh doanh, nên nút đọc theo chỗ người đó
+    // đã có trong danh sách theo dõi của nguồn hay chưa.
+    const before = anchor().followers ?? []
+    const watching = before.includes(HEAD_OF_SALES)
+    fireEvent.click(screen.getByRole('button', { name: watching ? 'Bỏ theo dõi' : 'Theo dõi' }))
 
-    const [first] = screen.getAllByRole('button', { name: 'Tạo phiếu việc' })
-    if (!first) throw new Error('Không có nút "Tạo phiếu việc" nào trên bảng lead đổ về')
-    fireEvent.click(first)
+    const after = watching ? before.length - 1 : before.length + 1
+    if (after > 0) {
+      expect(screen.getByText(`${after} người theo dõi`)).toBeInTheDocument()
+    } else {
+      expect(screen.getByText('Chưa ai theo dõi')).toBeInTheDocument()
+    }
 
-    // Phiếu việc có thật — nút đổi thành nhãn "Đã tạo".
-    expect(screen.getAllByText('Đã tạo')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Thêm đợt vào chuỗi' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Đóng / }))
 
-    // …nhưng cổng init data không có đường vòng: bậc và số lead tốt y nguyên.
-    expect(screen.getAllByText('SQL')).toHaveLength(sqlBefore)
-    expect(screen.getByText(/lead đã qua cổng/).textContent).toBe(gateBefore)
-    expect(screen.getByText(/không phải cơ hội/)).toBeInTheDocument()
+    expect(screen.getByText('Đã đóng')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Thêm đợt vào chuỗi' })).not.toBeInTheDocument()
   })
 
   it('mọi khối AI có dòng "Căn cứ", có nút, và có "Chưa tạo gì cả" — luật 9', async () => {
     renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
+    await openBook()
 
     expect(screen.getAllByText(/^Căn cứ:/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Chưa tạo gì cả/).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('button', { name: 'Soạn nội dung' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Soạn nội dung' })).toBeInTheDocument()
 
-    // Tab tạo mới có khối AI riêng — nó cũng phải chịu đủ ba thứ trên.
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo mới' }))
+    // Form có khối AI riêng — nó cũng phải chịu đủ ba thứ trên.
+    fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch mới' }))
     expect(screen.getAllByText(/^Căn cứ:/).length).toBeGreaterThan(0)
     expect(screen.getByText(/Chưa tạo gì cả/)).toBeInTheDocument()
 
+    // Bản nháp đổ thẳng vào ô nội dung của TỪNG đợt, không in ra một danh sách rời.
     fireEvent.click(screen.getByRole('button', { name: 'Soạn nội dung' }))
     expect(screen.queryByText(/Chưa tạo gì cả/)).not.toBeInTheDocument()
-    expect(screen.getAllByText(/chưa gửi cho ai/).length).toBeGreaterThan(0)
+    expect(
+      screen.getByText(new RegExp(`Đã đổ nháp vào ${DRAFT_TEMPLATE.waves.length} đợt`)),
+    ).toBeInTheDocument()
   })
 
-  it('ContextRail dựng từ đồ thị E1 và có mặt ở CẢ hai tab — luật 10', async () => {
+  it('ContextRail dựng từ đồ thị E1 và có mặt ở CẢ hai chế độ — luật 10', async () => {
     renderScreen(<CampaignsPage />)
 
     // Nguồn mồi kéo về DAS Vina → OP-0288: AC-0142 → CT-0391 → OP-0288 → BG-1077.
     expect(await screen.findByText('AC-0142')).toBeInTheDocument()
     expect(screen.getByText('BG-1077')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo mới' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch mới' }))
     expect(screen.getByText('AC-0142')).toBeInTheDocument()
     expect(screen.getByText('BG-1077')).toBeInTheDocument()
   })
 
-  it('kênh E4 chưa mở đường thì nói thẳng, không giả vờ gửi được', async () => {
+  it('form tạo chép nhịp và kỳ vọng từ fixture, và nói thẳng kênh E4 chưa mở đường', async () => {
     renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
+    await openBook()
+    fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch mới' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo mới' }))
-    // Ba đợt mặc định đều nằm trong bốn kênh E4 — chưa có gì để cảnh báo.
+    // Nguồn mẫu = nguồn đã chạy đợt và ra nhiều lead nhất trong kỳ.
+    const sample = [...RUNNING].sort((a, b) => b.leads - a.leads)[0]
+    const waves = sample?.waves ?? []
+    const opening = waves[0]
+    const closing = waves[waves.length - 1]
+    if (!sample || !opening || !closing) throw new Error('Fixture không có nguồn nào đã chạy đợt')
+    expect(DRAFT_TEMPLATE.fromCode).toBe(sample.code)
+
+    // Khán giả và số ngày chạy đều chép từ chính nguồn đó, không phải số tròn.
+    expect(screen.getByLabelText('Khán giả · số người nhận')).toHaveValue(String(opening.sent))
+    expect(screen.getByLabelText('Chạy trong bao nhiêu ngày')).toHaveValue(
+      String(closing.day - opening.day),
+    )
+
+    // Nhịp và kỳ vọng của từng đợt cũng vậy.
+    const value = (el: HTMLElement) => (el as HTMLInputElement).value
+    expect(screen.getAllByLabelText('Sau bao nhiêu ngày').map(value)).toEqual(
+      sample.waves.map((w) => String(w.day - opening.day)),
+    )
+    expect(screen.getAllByLabelText('Kỳ vọng bao nhiêu lead *').map(value)).toEqual(
+      sample.waves.map((w) => String(w.expected)),
+    )
+
+    // Kỳ vọng cả chiến dịch cộng từ các đợt, không có ô cho người gõ tay.
+    const total = sample.waves.reduce((n, w) => n + w.expected, 0)
+    expect(screen.getByText(String(total))).toBeInTheDocument()
+
+    // Đợt mặc định đều nằm trong bốn kênh E4 — chưa có gì để cảnh báo.
     expect(screen.queryByText(/E4 chưa mở đường/)).not.toBeInTheDocument()
-
     const [linkedin] = screen.getAllByRole('button', { name: 'LinkedIn' })
     if (!linkedin) throw new Error('Không có nút chọn kênh LinkedIn trong chuỗi đợt')
     fireEvent.click(linkedin)
-
     expect(screen.getAllByText(/E4 chưa mở đường cho LinkedIn/).length).toBeGreaterThan(0)
   })
 
-  it('nút cuối là gửi duyệt, không phải gửi ngay — E5 chỉ bung đợt sau khi có người gật', async () => {
+  it('nút cuối là gửi duyệt, không phải gửi ngay — và chuỗi duyệt thêm được người', async () => {
     renderScreen(<CampaignsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
-    fireEvent.click(screen.getByRole('button', { name: 'Tạo mới' }))
+    await openBook()
+    fireEvent.click(screen.getByRole('button', { name: 'Chiến dịch mới' }))
 
     const label = `Gửi ${HEAD_OF_SALES} duyệt`
     expect(screen.getByRole('button', { name: label })).toBeDisabled()
+    // Nút xám phải nói ra nó đang chờ gì.
+    expect(screen.getByText(/còn thiếu tên/)).toBeInTheDocument()
 
-    /* Tìm ô theo NHÃN chứ không theo placeholder: placeholder nay suy từ nguồn
-       mẫu trong fixture, đổi fixture là test đỏ vì lý do không liên quan. */
-    fireEvent.change(screen.getByLabelText('Tên'), {
-      target: { value: 'Chuỗi email — nhà máy dược Hà Nam' },
-    })
-    const submit = screen.getByRole('button', { name: label })
-    expect(submit).not.toBeDisabled()
+    /* Tìm ô theo NHÃN chứ không theo placeholder: placeholder suy từ nguồn mẫu
+       trong fixture, đổi fixture là test đỏ vì lý do không liên quan. */
+    fireEvent.change(screen.getByLabelText('Tên *'), { target: { value: DRAFT_TEMPLATE.name } })
+    expect(screen.getByRole('button', { name: label })).not.toBeDisabled()
 
-    fireEvent.click(submit)
+    // Chuỗi duyệt thêm được mắt xích; người đầu vẫn là TP Kinh doanh.
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm người duyệt' }))
+    const second = dasVina.actors.find((a) => a.name !== HEAD_OF_SALES)
+    if (!second) throw new Error('Kịch bản chỉ có một người')
+    fireEvent.click(screen.getByRole('button', { name: second.name }))
+    expect(screen.getAllByText(second.name).length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: label }))
     expect(screen.getByText(new RegExp(`chờ ${HEAD_OF_SALES} gật`))).toBeInTheDocument()
     expect(screen.getByText(/E4 không nhận lệnh gửi nào/)).toBeInTheDocument()
+  })
+
+  it('nút Sửa mở ĐÚNG màn tạo, đổ sẵn tên và chuỗi đợt của nguồn đang mở', async () => {
+    renderScreen(<CampaignsPage />)
+    await openBook()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa' }))
+
+    expect(screen.getByText(`Sửa ${ANCHOR_SOURCE}`)).toBeInTheDocument()
+    expect(screen.getByLabelText('Tên *')).toHaveValue(anchor().label)
+
+    const value = (el: HTMLElement) => (el as HTMLInputElement).value
+    expect(screen.getAllByLabelText('Tên đợt *').map(value)).toEqual(
+      anchor().waves.map((w) => w.label),
+    )
+
+    // Kịch bản không lưu nội dung đã soạn — form nói ra thay vì bịa lại bài cũ.
+    expect(screen.getByText(/Kịch bản không lưu nội dung đã soạn/)).toBeInTheDocument()
   })
 })

@@ -385,6 +385,19 @@ export type Wave = {
   replied: number
   /** Lead đổ về TỪ ĐỢT NÀY. Cộng mọi đợt = `leads` của chiến dịch. */
   leads: number
+  /** Kỳ vọng lead của đợt — con số ĐẶT TRƯỚC khi gửi, không phải số đo.
+   *
+   *  Cách đặt, đúng như Marketing đặt thật: đợt **mở màn** tính theo số người
+   *  nhận và chất lượng danh sách (danh sách lạnh quanh 0,8%; danh sách ấm hoặc
+   *  danh sách người đã đăng ký thì cao hơn nhiều). Đợt **nhắc** đặt SAU khi đợt
+   *  liền trước đã chạy: lấy tỉ lệ lead trên người trả lời của đợt đó, áp lên số
+   *  người đợt nhắc còn giữ lại được.
+   *
+   *  Hệ quả có chủ ý: kỳ vọng luôn đuổi theo đợt trước nên trễ đúng một nhịp —
+   *  đợt vừa vượt thì đợt sau bị đặt cao rồi hụt, và ngược lại. Vì thế
+   *  `expected` gần như không bao giờ trùng `leads`. Một cột kỳ vọng lúc nào
+   *  cũng đúng y số đo là cột không nói được điều gì. */
+  expected: number
 }
 
 export type Source = {
@@ -392,6 +405,15 @@ export type Source = {
   kind: SourceKind
   label: string
   owner: string
+  /** Người theo dõi thêm — nguồn nào cũng có thể có hai ba người cùng nhìn.
+   *
+   *  Chủ nguồn (`owner`) KHÔNG nằm trong đây: chủ là người chịu trách nhiệm,
+   *  follower là người xin theo. Trộn hai vai vào một danh sách thì mất luôn câu
+   *  trả lời "hỏi ai khi số hụt". Tên phải có trong `actors`.
+   *
+   *  Vắng mặt là câu trả lời hợp lệ — nguồn không ai theo dõi thì bỏ trống, đừng
+   *  điền cho đủ danh sách. */
+  followers?: string[]
   /** Ngày chạy đầu tiên, tính bằng ngày kể từ 01/05. */
   startDay: number
   /** Tổng lead đổ về. Cộng cả tám nguồn = 100, đúng bậc đầu của phễu. */
@@ -408,13 +430,21 @@ export type Source = {
 /** TÁM nguồn của kỳ 01/05 → 17/08. Sáu cái đầu là chiến dịch/sự kiện có người
  *  làm, hai cái cuối là nguồn tự nhiên — không ai chạy chiến dịch nào cả.
  *
- *  Tổng lead = 22+18+16+12+9+11+7+5 = 100 = bậc `dau-moi` của FUNNEL. */
+ *  Tổng lead = 22+18+16+12+9+11+7+5 = 100 = bậc `dau-moi` của FUNNEL.
+ *
+ *  **Kỳ vọng của kỳ.** Cộng `expected` của cả hai mươi đợt được 101, về thật 88
+ *  (12 lead còn lại đến từ hai nguồn tự nhiên, không ai đặt kỳ vọng cho chúng).
+ *  Chỗ hụt không rải đều: SK-0104 là nguồn DUY NHẤT vượt kỳ vọng cả chuỗi, còn
+ *  SK-0106 — gian hàng triển lãm, 145 triệu, đắt nhất kỳ — đặt 19 và về 11. Hai
+ *  đầu này là lý do cột kỳ vọng đáng có mặt trên màn. */
 export const SOURCES: Source[] = [
   {
     code: 'CD-0101',
     kind: 'chien-dich',
     label: 'Chuỗi email — nhà máy điện tử Bắc Ninh',
     owner: MARKETING,
+    /** BD theo dõi vì lead của chuỗi này đổ thẳng vào tay anh để moi ô bắt buộc. */
+    followers: [BD],
     startDay: 11,
     leads: 22,
     cost: 18_000_000,
@@ -428,6 +458,8 @@ export const SOURCES: Source[] = [
         opened: 384,
         replied: 41,
         leads: 11,
+        // Danh sách lạnh 1.200 nhà máy, đặt 0,83% — về 11, vượt một chút.
+        expected: 10,
       },
       {
         no: 2,
@@ -438,6 +470,9 @@ export const SOURCES: Source[] = [
         opened: 301,
         replied: 22,
         leads: 7,
+        // Đợt 1 ra 11 lead trên 41 người trả lời (27%); đợt nhắc dự tính giữ
+        // được chừng 30 người trả lời → đặt 8. Về 7.
+        expected: 8,
       },
       {
         no: 3,
@@ -448,6 +483,8 @@ export const SOURCES: Source[] = [
         opened: 268,
         replied: 14,
         leads: 4,
+        // 7 trên 22 của đợt 2 (32%) áp lên chừng 16 người trả lời còn lại.
+        expected: 5,
       },
     ],
   },
@@ -469,6 +506,9 @@ export const SOURCES: Source[] = [
         opened: 512,
         replied: 63,
         leads: 6,
+        // Lần đầu chạy LinkedIn nên không có số cũ để dựa: đặt theo reach mong
+        // đợi 8.400 người. Đặt cao và hụt — đúng cái giá của kênh chưa từng đo.
+        expected: 8,
       },
       {
         no: 2,
@@ -479,6 +519,9 @@ export const SOURCES: Source[] = [
         opened: 340,
         replied: 38,
         leads: 5,
+        // Sau đợt 1 đã biết bài đăng chỉ ra 6 lead trên 63 lượt tương tác (9,5%);
+        // hạ kỳ vọng xuống 4 rồi lại vượt.
+        expected: 4,
       },
       {
         no: 3,
@@ -489,6 +532,8 @@ export const SOURCES: Source[] = [
         opened: 291,
         replied: 25,
         leads: 4,
+        // Facebook đặt thấp hơn Zalo vì tương tác loãng hơn. Vượt lần nữa.
+        expected: 3,
       },
       {
         no: 4,
@@ -499,6 +544,9 @@ export const SOURCES: Source[] = [
         opened: 233,
         replied: 19,
         leads: 3,
+        // Hai đợt vượt liên tiếp nên đợt cuối được đặt cao lên 4 — và hụt. Kỳ
+        // vọng đuổi theo đợt trước thì luôn trễ đúng một nhịp.
+        expected: 4,
       },
     ],
   },
@@ -507,6 +555,9 @@ export const SOURCES: Source[] = [
     kind: 'su-kien',
     label: 'Hội thảo · Số hoá nhà máy đóng gói',
     owner: MARKETING,
+    /** Sự kiện có mặt người thật: BD trực bàn đăng ký, TP Kinh doanh gật khoản
+     *  84 triệu. Cả hai theo dõi từ lúc mở đợt mời. */
+    followers: [BD, HEAD_OF_SALES],
     startDay: 32,
     leads: 16,
     cost: 84_000_000,
@@ -523,6 +574,9 @@ export const SOURCES: Source[] = [
         opened: 210,
         replied: 96,
         leads: 6,
+        // Việc chính của thư mời là lấy ĐĂNG KÝ, lead chỉ là phần dôi ra — nên
+        // đặt thấp, 5. Về 6.
+        expected: 5,
       },
       {
         no: 2,
@@ -533,6 +587,8 @@ export const SOURCES: Source[] = [
         opened: 98,
         replied: 24,
         leads: 2,
+        // Nhắc cho đúng 120 người đã đăng ký, danh sách ấm nhất có thể → đặt 3.
+        expected: 3,
       },
       {
         no: 3,
@@ -543,6 +599,10 @@ export const SOURCES: Source[] = [
         opened: 78,
         replied: 78,
         leads: 5,
+        // Đặt theo số người dự kiến đến hội trường: cứ 10 người đến thì 1 thành
+        // lead. Về 5 trên 78 người đến — chỗ hụt kinh điển của sự kiện: có mặt
+        // không đồng nghĩa để lại việc.
+        expected: 8,
       },
       {
         no: 4,
@@ -553,6 +613,8 @@ export const SOURCES: Source[] = [
         opened: 84,
         replied: 31,
         leads: 3,
+        // Thư cuối chuỗi, đặt 2 cho có; về 3.
+        expected: 2,
       },
     ],
   },
@@ -561,6 +623,8 @@ export const SOURCES: Source[] = [
     kind: 'su-kien',
     label: 'Webinar · Giá thành theo lệnh sản xuất',
     owner: MARKETING,
+    /** Webinar chạy một mình được, chỉ BD theo để nhận lead ngay trong buổi. */
+    followers: [BD],
     startDay: 61,
     leads: 12,
     cost: 21_000_000,
@@ -577,6 +641,8 @@ export const SOURCES: Source[] = [
         opened: 274,
         replied: 86,
         leads: 5,
+        // Chép nhịp thư mời của SK-0103 nhưng danh sách lớn hơn một chút: đặt 4.
+        expected: 4,
       },
       {
         no: 2,
@@ -587,6 +653,9 @@ export const SOURCES: Source[] = [
         opened: 71,
         replied: 51,
         leads: 3,
+        // Đặt theo số người dự kiến vào phòng. Buổi phát trực tiếp bao giờ cũng
+        // được kỳ vọng nhiều nhất chuỗi — và ở đây hụt.
+        expected: 5,
       },
       {
         no: 3,
@@ -597,6 +666,9 @@ export const SOURCES: Source[] = [
         opened: 58,
         replied: 19,
         leads: 4,
+        // Đặt 2 vì đây là đợt vét. Về 4 — gấp đôi kỳ vọng, và nhiều hơn cả buổi
+        // phát trực tiếp. Con số đáng để Marketing đọc lại cách đặt kỳ vọng.
+        expected: 2,
       },
     ],
   },
@@ -605,6 +677,8 @@ export const SOURCES: Source[] = [
     kind: 'chien-dich',
     label: 'Nuôi lại khách im — quý 2',
     owner: MARKETING,
+    /** Danh sách khách im là sổ cũ của phòng kinh doanh, nên TP Kinh doanh theo. */
+    followers: [HEAD_OF_SALES],
     startDay: 19,
     leads: 9,
     cost: 6_000_000,
@@ -618,6 +692,9 @@ export const SOURCES: Source[] = [
         opened: 118,
         replied: 17,
         leads: 4,
+        // Danh sách ẤM 310 người từng nói chuyện: đặt gần 2%, tức 6. Về 4 —
+        // khách im thì im thật, đây là chỗ hụt lớn nhất theo tỉ lệ của chuỗi.
+        expected: 6,
       },
       {
         no: 2,
@@ -628,6 +705,8 @@ export const SOURCES: Source[] = [
         opened: 96,
         replied: 11,
         leads: 3,
+        // Hạ xuống 2 sau khi đợt 1 hụt. Về 3.
+        expected: 2,
       },
       {
         no: 3,
@@ -638,6 +717,8 @@ export const SOURCES: Source[] = [
         opened: 71,
         replied: 8,
         leads: 2,
+        // Đợt 2 vượt nên nâng lại lên 3 — rồi hụt. Vẫn đúng một nhịp trễ.
+        expected: 3,
       },
     ],
   },
@@ -646,6 +727,8 @@ export const SOURCES: Source[] = [
     kind: 'su-kien',
     label: 'Triển lãm công nghiệp hỗ trợ · gian hàng',
     owner: MARKETING,
+    /** 145 triệu — khoản lớn nhất kỳ, nên cả BD lẫn TP Kinh doanh đứng cùng. */
+    followers: [BD, HEAD_OF_SALES],
     startDay: 93,
     leads: 11,
     cost: 145_000_000,
@@ -662,6 +745,8 @@ export const SOURCES: Source[] = [
         opened: 402,
         replied: 57,
         leads: 3,
+        // Thư báo trước chỉ để kéo người ghé gian, lead là phần dôi: đặt 4.
+        expected: 4,
       },
       {
         no: 2,
@@ -672,6 +757,10 @@ export const SOURCES: Source[] = [
         opened: 143,
         replied: 143,
         leads: 6,
+        // Đây là con số biện minh cho 145 triệu: kỳ vọng một nửa số người quét
+        // mã tại gian sẽ thành lead. Về 6 trên 143 — hụt đúng một nửa, và là
+        // chỗ hụt đắt nhất của cả kỳ.
+        expected: 12,
       },
       {
         no: 3,
@@ -682,9 +771,14 @@ export const SOURCES: Source[] = [
         opened: 91,
         replied: 22,
         leads: 2,
+        // Vét nốt 143 người đã quét mã: đặt 3.
+        expected: 3,
       },
     ],
   },
+  /** Hai nguồn tự nhiên: không có đợt nào nên KHÔNG có kỳ vọng nào để so, và
+   *  cũng không ai theo dõi — chúng tự chảy. Đây là lý do màn phải tách "nguồn
+   *  đang chạy" khỏi "tổng số nguồn": 12 lead dưới đây không thuộc về đợt nào. */
   {
     code: 'GT',
     kind: 'tu-nhien',

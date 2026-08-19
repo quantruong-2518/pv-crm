@@ -1,3 +1,4 @@
+import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -5,11 +6,14 @@ import {
   Badge,
   type BadgeProps,
   Button,
+  ChannelTag,
   Chip,
   Input,
   Kicker,
+  MetaPill,
   Money,
   Progress,
+  SectionTitle,
   Separator,
   Skeleton,
   Sparkline,
@@ -224,6 +228,66 @@ export function ZoneAtoms() {
         >
           <Sparkline points={[22, 18, 20, 13, 15, 8, 9, 3]} tone="success" source="T8 · CRM" />
           <Sparkline points={[6, 5, 8, 7, 6, 14, 19, 11]} tone="warning" source="24h · MES" />
+        </SpecCard>
+
+        {/* A-12 */}
+        <SpecCard
+          code="A-12"
+          name="MetaPill"
+          note="ngày · mã · người"
+          bodyClassName="flex flex-wrap items-center gap-2 px-4 py-4"
+          footer="rounded-sm px-2 py-1 text-[11px] bg-white/9 · mono cho ngày và mã · không bấm được, cần bấm thì dùng Chip"
+        >
+          <MetaPill icon={CalendarDays} mono>
+            18/08 · 09:10
+          </MetaPill>
+          <MetaPill icon={Hash} mono tone="accent">
+            CD-0412
+          </MetaPill>
+          <MetaPill avatar="Trần Thu Hà">Trần Thu Hà</MetaPill>
+          <MetaPill tone="warning">Còn 3 ngày</MetaPill>
+          <MetaPill tone="success">Đạt kỳ vọng</MetaPill>
+        </SpecCard>
+
+        {/* A-13 */}
+        <SpecCard
+          code="A-13"
+          name="ChannelTag"
+          note="icon do app truyền vào"
+          bodyClassName="flex flex-col gap-3 px-4 py-4"
+          footer="Thư viện không biết Gmail là gì — ánh xạ kênh → icon là bảng của app · iconOnly vẫn phải có title + aria-label"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <ChannelTag icon={Mail} label="Gmail" />
+            <ChannelTag icon={MessageCircle} label="Zalo OA" tone="accent" />
+            <ChannelTag icon={Linkedin} label="LinkedIn" tone="warning" />
+          </div>
+          <div className="flex items-center gap-2">
+            <ChannelTag icon={Mail} label="Gmail" iconOnly />
+            <ChannelTag icon={MessageCircle} label="Zalo OA" tone="accent" iconOnly />
+            <ChannelTag icon={Send} label="Telegram — chưa nối đường gửi" tone="warning" iconOnly />
+            <span className="text-muted-foreground text-[11.5px]">iconOnly · cho ô bảng hẹp</span>
+          </div>
+        </SpecCard>
+
+        {/* A-14 */}
+        <SpecCard
+          code="A-14"
+          name="SectionTitle"
+          note="3 cỡ"
+          bodyClassName="flex flex-col gap-5 px-4 py-4"
+          footer="lg → font-display 18px (section của form) · md → 14px · sm → 12.5px (tiêu đề thẻ)"
+        >
+          <SectionTitle
+            size="lg"
+            kicker="Bước 2"
+            hint="Mỗi đợt một nội dung. Ô có dấu sao là bắt buộc."
+            actions={<Button size="sm">Thêm đợt</Button>}
+          >
+            Kế hoạch từng đợt
+          </SectionTitle>
+          <SectionTitle size="md">Người duyệt</SectionTitle>
+          <SectionTitle size="sm">Chỉ số của sự kiện</SectionTitle>
         </SpecCard>
       </ZoneBody>
     </section>

@@ -109,11 +109,6 @@
       "count": 3
     }
   },
-  "packages/ui/src/patterns/stat-card.tsx": {
-    "aurora/spacing-scale": {
-      "count": 1
-    }
-  },
   "packages/ui/src/ui/badge.tsx": {
     "aurora/spacing-scale": {
       "count": 1

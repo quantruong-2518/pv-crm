@@ -1,5 +1,15 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
+  Facebook,
+  Globe,
+  Linkedin,
+  Mail,
+  MessageCircle,
+  Send,
+  Smartphone,
+  type LucideIcon,
+} from 'lucide-react'
+import {
   COMMISSION_SPLIT,
   CREDIT_RULES,
   EXIT_REASONS,
@@ -42,6 +52,31 @@ export const CHANNEL_LABEL: Record<WaveChannel, string> = {
   linkedin: 'LinkedIn',
   facebook: 'Facebook',
   website: 'Website',
+}
+
+/** Icon định danh của từng kênh — nhìn là biết đợt đó gửi đi đâu, không phải
+ *  đọc chữ rồi mới biết. Dùng ở MỌI chỗ web nhắc tới kênh, để một kênh chỉ có
+ *  đúng một hình.
+ *
+ *  Bảng nằm ở tầng `data/` của app chứ không ở `@pv/ui`: "kênh nào là kênh gì"
+ *  là kiến thức nghiệp vụ của phòng kinh doanh, còn thư viện chỉ biết nhận một
+ *  `LucideIcon` qua props. Đẩy bảng này vào `@pv/ui` là bắt thư viện biết Zalo
+ *  OA tồn tại (luật biên giới package · CLAUDE.md).
+ *
+ *  Truyền tên icon làm dữ liệu là hợp lệ với luật 11 — chỗ render vẫn phải đi
+ *  qua `<Icon icon={...} />`, không ai render thẳng.
+ *
+ *  Bốn kênh E4 lấy hình của chính công cụ gửi (thư · tin nhắn · Telegram · app
+ *  trên máy khách); ba kênh còn lại lấy logo nền tảng, vì chúng là chỗ ĐĂNG chứ
+ *  không phải chỗ gửi — khác biệt đó là nợ treo số 2, đừng làm mờ nó đi. */
+export const CHANNEL_ICON: Record<WaveChannel, LucideIcon> = {
+  email: Mail,
+  'zalo-oa': MessageCircle,
+  telegram: Send,
+  'in-app': Smartphone,
+  linkedin: Linkedin,
+  facebook: Facebook,
+  website: Globe,
 }
 
 /** Bốn kênh E4 đã có đường thật. Ba kênh còn lại khai báo được nhưng chưa gửi
