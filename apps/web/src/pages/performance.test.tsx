@@ -2,99 +2,245 @@ import { describe, expect, it } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import { percent } from '@pv/ui'
 import {
-  BD,
   BOOK_SPLIT,
   dasVina,
-  EXIT_REASONS,
   FUNNEL,
-  isRunning,
+  HANDOFF_SLA,
   LEADS,
-  MARKETING,
+  leadMilestones,
+  ROLE_KPI_MODEL,
 } from '@pv/engines/fixtures/das-vina'
 import { renderScreen } from '@/test-utils'
 import { railChips } from '@/data/performance'
+import { MONTHS, QUARTERS, YEARS } from '@/data/period'
 import { PerformancePage } from './performance'
 
-/** Test "màn dựng được" + khoá bốn thứ của module 3 mà mắt người hay bỏ sót.
+/** Test "màn dựng được" + khoá những thứ của module 3 mà mắt người hay bỏ sót.
  *
  *  Số lấy qua `useQuery` nên lần render đầu là trạng thái chờ; mọi ca cần số
  *  thật đều phải `findBy…`, không `getBy…`.
  *
- *  Con số kỳ vọng lấy THẲNG từ fixture, không gõ lại: nếu ai đó sửa phễu thì
- *  test đỏ ở đúng chỗ nó sai, chứ không đỏ vì test cũ hơn dữ liệu. */
+ *  Con số kỳ vọng lấy THẲNG từ fixture, không gõ lại: ai đó sửa phễu thì test
+ *  đỏ ở đúng chỗ nó sai, chứ không đỏ vì test cũ hơn dữ liệu. */
 describe('Module 3 · Performance', () => {
-  const lastStep = FUNNEL[FUNNEL.length - 1]!
+  /** Kỳ rộng nhất kịch bản có — chọn nó thì phễu trên màn phải bằng `FUNNEL`. */
+  const wholePeriod = YEARS[YEARS.length - 1]
+
+  const pickPeriod = (label: string) => fireEvent.click(screen.getByRole('button', { name: label }))
 
   it('dựng được toàn bộ cây, không ném lỗi', () => {
     expect(() => renderScreen(<PerformancePage />)).not.toThrow()
   })
 
-  it('tổng quan khớp phễu và phép cân của sổ lead', async () => {
+  it('mở màn ra là quý chứa lát cắt, không phải cả kỳ', async () => {
     renderScreen(<PerformancePage />)
-    const box = within(await screen.findByRole('region', { name: 'Tổng quan' }))
+    const bar = await screen.findByLabelText('Chỉ số tổng quan')
 
-    // 100 đầu mối = 6 đã ký + 42 đang chạy + 52 đã ra khỏi luồng.
-    expect(box.getByText(String(FUNNEL[0].count))).toBeInTheDocument()
-    expect(box.getByText(String(lastStep.count))).toBeInTheDocument()
-    expect(box.getByText(String(BOOK_SPLIT.running))).toBeInTheDocument()
-    expect(box.getByText(String(BOOK_SPLIT.exited))).toBeInTheDocument()
+    expect(bar).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: QUARTERS[QUARTERS.length - 1]?.label }),
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('khối theo vai có đủ bảy vai của kịch bản', async () => {
+  /* CA QUAN TRỌNG NHẤT CỦA MÀN. Trục thời gian chỉ hợp lệ nếu cắt cả kỳ ra ĐÚNG
+     những con số đã chốt — nếu không thì nó đang đẻ số không ai ký. */
+  it('chọn cả kỳ thì phễu trên màn khớp từng bậc của FUNNEL', async () => {
     renderScreen(<PerformancePage />)
-    await screen.findByRole('region', { name: 'Xét theo vai' })
+    await screen.findByLabelText('Chỉ số tổng quan')
 
-    for (const actor of dasVina.actors) {
-      expect(screen.getAllByText(actor.name).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Năm' }))
+    pickPeriod(wholePeriod?.label ?? '')
+
+    const box = within(await screen.findByLabelText('Chỉ số tổng quan'))
+    const step = (key: string) => String(FUNNEL.find((s) => s.key === key)?.count)
+
+    expect(box.getAllByText(step('dau-moi')).length).toBeGreaterThan(0)
+    expect(box.getAllByText(step('cong-ty-that')).length).toBeGreaterThan(0)
+    expect(box.getAllByText(step('co-hoi')).length).toBeGreaterThan(0)
+    expect(box.getAllByText(step('hop-dong')).length).toBeGreaterThan(0)
+  })
+
+  it('đổi kỳ thì số đổi theo — tháng 5 không cho ra số của cả kỳ', async () => {
+    renderScreen(<PerformancePage />)
+    await screen.findByLabelText('Chỉ số tổng quan')
+
+    const may = MONTHS[0]
+    const inMay = LEADS.map(leadMilestones).filter((m) => m.vaoSo.slice(0, 7) === may?.key).length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tháng' }))
+    pickPeriod(may?.label ?? '')
+
+    const box = within(await screen.findByLabelText('Chỉ số tổng quan'))
+    expect(box.getAllByText(String(inMay)).length).toBeGreaterThan(0)
+    expect(inMay).toBeLessThan(FUNNEL[0].count)
+  })
+
+  it('thanh thời gian bấm được và nó chuyển kỳ về đúng tháng đó', async () => {
+    renderScreen(<PerformancePage />)
+    await screen.findByLabelText('Chỉ số tổng quan')
+
+    const july = MONTHS[2]
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${july?.short}$`) }))
+
+    expect(await screen.findByText(july?.label ?? '', { exact: false })).toBeInTheDocument()
+  })
+
+  it('bộ lọc chức năng xếp theo vòng đời và lọc đúng vai', async () => {
+    renderScreen(<PerformancePage />)
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
+
+    // Ba Sale nằm cùng một nhóm — lọc 'Sale' phải còn đúng ba dòng.
+    const sales = dasVina.actors.filter((a) => a.role.startsWith('Sale'))
+    fireEvent.click(box.getByRole('button', { name: /^Sale/ }))
+
+    for (const actor of sales) expect(box.getByText(actor.name)).toBeInTheDocument()
+    expect(box.queryByText('Vũ Minh Châu')).not.toBeInTheDocument()
+  })
+
+  it('người hiện dạng LIST, không phải bảy thẻ chi tiết trải màn', async () => {
+    renderScreen(<PerformancePage />)
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
+
+    for (const actor of dasVina.actors.filter((a) => a.branches.includes('Sales'))) {
+      expect(box.getByText(actor.name)).toBeInTheDocument()
     }
+    // Bảng bằng chứng của từng người chỉ có trong drawer, không nằm sẵn trên màn.
+    expect(screen.queryByText(/Đơn đang mở · tốc độ qua cột/)).not.toBeInTheDocument()
   })
 
-  it('TP Kinh doanh không tính công trạng cá nhân, và ô của vai đó không trống', async () => {
+  it('bấm một dòng thì mở drawer KPI của đúng người đó', async () => {
     renderScreen(<PerformancePage />)
-    const box = within(await screen.findByRole('region', { name: 'Xét theo vai' }))
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
 
-    expect(box.getByText(/Không tính công trạng cá nhân/)).toBeInTheDocument()
-    // Vai này vẫn phải thấy số của phòng — ô trống sẽ bị đọc thành "chưa làm gì".
-    expect(box.getByText('Lead cả kỳ')).toBeInTheDocument()
+    fireEvent.click(box.getByText('Đỗ Quang Huy'))
+    const drawer = within(await screen.findByRole('dialog'))
+
+    expect(drawer.getByText('Đỗ Quang Huy')).toBeInTheDocument()
+    expect(drawer.getByText('Đơn đang mở · tốc độ qua cột')).toBeInTheDocument()
   })
 
-  it('thước chưa có dữ liệu nói thẳng "chưa đo được", không hiện số 0', async () => {
-    renderScreen(<PerformancePage />)
-    await screen.findByRole('region', { name: 'Xét theo vai' })
+  it('cùng một vai thì cùng một bộ thước — hai Sale đọc y hệt nhau', async () => {
+    const labels = async (name: string) => {
+      const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
+      fireEvent.click(box.getByText(name))
+      const drawer = within(await screen.findByRole('dialog'))
+      const sale = ROLE_KPI_MODEL.find((r) => r.role === 'Sale')
+      for (const kpi of sale?.kpis ?? []) {
+        expect(drawer.getAllByText(kpi.label).length).toBeGreaterThan(0)
+      }
+      fireEvent.click(drawer.getAllByRole('button', { name: 'Đóng' })[0] as HTMLElement)
+    }
 
-    // Phản hồi BD → Marketing (1) + hai thước của Presales (2).
-    expect(screen.getAllByText('chưa đo được').length).toBeGreaterThanOrEqual(3)
+    renderScreen(<PerformancePage />)
+    await labels('Đỗ Quang Huy')
+    await labels('Nguyễn Khánh Linh')
   })
 
-  it('con số chuyển đổi ghi CẢ số tuyệt đối lẫn phần trăm', async () => {
+  it('drawer trả lời "còn bao lâu nữa mới đạt" bằng ba mốc ngày · tháng · quý', async () => {
     renderScreen(<PerformancePage />)
-    const box = within(await screen.findByRole('region', { name: 'Top các con số chuyển đổi' }))
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
 
-    expect(box.getByText(`${FUNNEL[0].count} → ${FUNNEL[1].count}`)).toBeInTheDocument()
-    expect(box.getByText(percent(FUNNEL[1].count / FUNNEL[0].count))).toBeInTheDocument()
-    expect(box.getByText(`${FUNNEL[1].count} → ${FUNNEL[2].count}`)).toBeInTheDocument()
+    fireEvent.click(box.getByText('Lê Hoàng Nam'))
+    const drawer = within(await screen.findByRole('dialog'))
+
+    expect(drawer.getByText('Còn bao lâu nữa mới đạt')).toBeInTheDocument()
+    expect(drawer.getByText(/Hôm nay ·/)).toBeInTheDocument()
+    expect(drawer.getAllByText(/còn thiếu/).length).toBeGreaterThan(0)
+    expect(drawer.getAllByText(/còn \d+ ngày/).length).toBeGreaterThan(0)
   })
 
-  it('top lý do rơi ghi cả count lẫn %, mẫu số là 52 lead đã rơi', async () => {
-    renderScreen(<PerformancePage />)
-    const box = within(await screen.findByRole('region', { name: 'Top các con số chuyển đổi' }))
+  it('ai cũng mở được drawer của người khác — không có cửa quyền nào ở đây', async () => {
+    // Ba Sale là vai `ownOnly`; đứng ở phiên của Sale vẫn phải xem được vai khác.
+    renderScreen(<PerformancePage />, { actorId: 'u-huy' })
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
 
-    const top = [...EXIT_REASONS].sort((a, b) => b.count - a.count)[0]!
-    const total = EXIT_REASONS.reduce((a, r) => a + r.count, 0)
-
-    expect(box.getByText(top.label)).toBeInTheDocument()
-    expect(box.getByText(String(top.count))).toBeInTheDocument()
-    expect(box.getByText(percent(top.count / total))).toBeInTheDocument()
+    fireEvent.click(box.getByText('Nguyễn Khánh Linh'))
+    expect(
+      within(await screen.findByRole('dialog')).getByText('Nguyễn Khánh Linh'),
+    ).toBeInTheDocument()
   })
 
-  it('chọn một vai thì chỉ còn thẻ của vai đó', async () => {
+  it('vai chưa có nguồn số nói thẳng "chưa đo được", không hiện số 0', async () => {
     renderScreen(<PerformancePage />)
-    await screen.findByRole('region', { name: 'Xét theo vai' })
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
 
-    // "Đơn chốt" là thước của vai Sale — chọn Marketing thì nó phải biến mất.
-    expect(screen.getAllByText('Đơn chốt').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByRole('button', { name: MARKETING }))
-    expect(screen.queryByText('Đơn chốt')).not.toBeInTheDocument()
+    fireEvent.click(box.getByText('Phạm Diệu Anh'))
+    const drawer = within(await screen.findByRole('dialog'))
+
+    expect(drawer.getAllByText('chưa đo được').length).toBeGreaterThan(0)
+    expect(drawer.getAllByText(/ai đi cùng buổi demo/).length).toBeGreaterThan(0)
+  })
+
+  it('TP Kinh doanh không chấm cá nhân, và ô của vai đó không trống', async () => {
+    renderScreen(<PerformancePage />)
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
+
+    fireEvent.click(box.getByText('Trần Thu Hà'))
+    const drawer = within(await screen.findByRole('dialog'))
+
+    expect(drawer.getByText(/Không tính công trạng cá nhân/)).toBeInTheDocument()
+    expect(drawer.getByText('Lead vào sổ trong kỳ')).toBeInTheDocument()
+  })
+
+  it('SLA bàn giao chỉ có chặng đo được, không bịa chặng sau bán', async () => {
+    renderScreen(<PerformancePage />)
+    const box = within(await screen.findByLabelText('Dòng chảy'))
+
+    for (const leg of HANDOFF_SLA) expect(box.getByText(leg.label)).toBeInTheDocument()
+    expect(box.queryByText(/Sales → Onboarding \(/)).not.toBeInTheDocument()
+  })
+
+  it('lý do rời luồng ghi cả count lẫn %, mẫu số là lead rơi TRONG KỲ', async () => {
+    renderScreen(<PerformancePage />)
+    await screen.findByLabelText('Dòng chảy')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Năm' }))
+    pickPeriod(wholePeriod?.label ?? '')
+
+    const box = within(await screen.findByLabelText('Dòng chảy'))
+    expect(box.getByText(new RegExp(`${BOOK_SPLIT.exited} lead rơi trong kỳ`))).toBeInTheDocument()
+  })
+
+  it('kỳ rỗng thì nói ra vì sao rỗng và mở đường đi tiếp, không để ô trắng', async () => {
+    renderScreen(<PerformancePage />)
+    await screen.findByLabelText('Dòng chảy')
+
+    // Tháng 8 không lead nào rơi — đây là kỳ rỗng thật của kịch bản.
+    fireEvent.click(screen.getByRole('button', { name: 'Tháng' }))
+    pickPeriod(MONTHS[MONTHS.length - 1]?.label ?? '')
+
+    const box = within(await screen.findByLabelText('Dòng chảy'))
+    expect(box.getByText(/Không lead nào ra khỏi luồng/)).toBeInTheDocument()
+    expect(box.getByRole('button', { name: 'Xem cả kỳ' })).toBeInTheDocument()
+  })
+
+  it('thẻ số có delta khi có kỳ trước, và KHÔNG có delta ở kỳ đầu', async () => {
+    renderScreen(<PerformancePage />)
+    await screen.findByLabelText('Chỉ số tổng quan')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tháng' }))
+    pickPeriod(MONTHS[1]?.label ?? '')
+    expect(
+      within(await screen.findByLabelText('Chỉ số tổng quan')).getAllByText(
+        new RegExp(`so với ${MONTHS[0]?.label}`, 'i'),
+      ).length,
+    ).toBeGreaterThan(0)
+
+    pickPeriod(MONTHS[0]?.label ?? '')
+    expect(
+      within(await screen.findByLabelText('Chỉ số tổng quan')).getAllByText(
+        /kỳ đầu — chưa có mốc so/,
+      ).length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('khối AI chờ nút và có dòng "Chưa tạo gì cả" — luật 9', async () => {
+    renderScreen(<PerformancePage />)
+    const button = await screen.findByRole('button', { name: 'Dựng bản tóm tắt' })
+
+    expect(screen.getByText(/Chưa tạo gì cả/)).toBeInTheDocument()
+    fireEvent.click(button)
+    expect(screen.queryByText(/Chưa tạo gì cả/)).not.toBeInTheDocument()
   })
 
   it('ContextRail có mặt và dựng từ đồ thị E1 — luật 10', async () => {
@@ -116,53 +262,47 @@ describe('Module 3 · Performance', () => {
     expect(fallback[0]?.source).toBe(false)
   })
 
-  /* Công trạng ghi ở MỌI lần chạm, nên hai lead đã rơi vẫn đứng trong bảng của
-     BD. Nhưng gọi cả nhóm là "đang giữ" là khai khống số lead sống của một
-     người — ca này khoá đúng chữ. */
-  it('nhãn của BD là "đã chạm", và tách rõ bao nhiêu lead còn trong luồng', async () => {
+  it('tỷ lệ chuyển đổi đọc trên LỨA nên phễu không bao giờ phình ở bậc dưới', async () => {
     renderScreen(<PerformancePage />)
-    const box = within(await screen.findByRole('region', { name: 'Xét theo vai' }))
+    await screen.findByLabelText('Chỉ số tổng quan')
 
-    const touched = LEADS.filter((l) => l.owner === BD)
-    const stillIn = touched.filter(isRunning).length
-    const dropped = touched.length - stillIn
+    for (const month of MONTHS) {
+      fireEvent.click(screen.getByRole('button', { name: 'Tháng' }))
+      pickPeriod(month.label)
 
-    // Nếu fixture đổi tới mức BD không còn lead rơi nào thì ca này mất nghĩa.
-    expect(dropped).toBeGreaterThan(0)
-    expect(box.getByText(`Lead BD đã chạm · ${touched.length} dòng`)).toBeInTheDocument()
-    expect(box.queryByText(/lead đang giữ/i)).not.toBeInTheDocument()
-    expect(
-      box.getByText(
-        new RegExp(
-          `${touched.length} lead đã chạm · ${stillIn} còn trong luồng · ${dropped} đã rơi`,
-        ),
-      ),
-    ).toBeInTheDocument()
+      const box = within(await screen.findByLabelText('Chỉ số tổng quan'))
+      for (const rate of box.getAllByText(/^\d+%$/)) {
+        expect(Number(rate.textContent?.replace('%', ''))).toBeLessThanOrEqual(100)
+      }
+    }
   })
 
-  /* Fixture CÓ buổi demo (đơn đứng ở cột "Đã demo", phễu có bậc báo giá) — thứ
-     nó thiếu là TRƯỜNG "ai đi cùng". Nói nhầm hai thứ đó là bịa dữ kiện. */
-  it('Presales nói đúng thứ fixture thiếu: trường "ai đi cùng buổi demo"', async () => {
+  it('không còn khối "Cố tình không làm" trên màn này', async () => {
     renderScreen(<PerformancePage />)
-    const box = within(await screen.findByRole('region', { name: 'Xét theo vai' }))
+    await screen.findByLabelText('Chỉ số tổng quan')
 
-    expect(box.queryByText(/không ghi buổi demo nào/)).not.toBeInTheDocument()
-    expect(box.getAllByText(/ai đi cùng buổi demo/).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Cố tình không làm')).not.toBeInTheDocument()
   })
 
-  it('khối AI chờ nút và có dòng "Chưa tạo gì cả" — luật 9', async () => {
+  it('số chụp tại lát cắt phải tự khai là số chụp', async () => {
     renderScreen(<PerformancePage />)
-    const button = await screen.findByRole('button', { name: 'Dựng bản tóm tắt' })
+    const box = within(await screen.findByLabelText('Chỉ số tổng quan'))
 
-    expect(screen.getByText(/Chưa tạo gì cả/)).toBeInTheDocument()
-    fireEvent.click(button)
-    expect(screen.queryByText(/Chưa tạo gì cả/)).not.toBeInTheDocument()
+    // Giá trị đang mở và đơn đang mục không có ngày để cắt theo kỳ.
+    expect(box.getAllByText(/số chụp tại 17\/08/).length).toBeGreaterThanOrEqual(2)
   })
 
-  it('nói thẳng là không có trục thời gian', async () => {
+  it('mục tiêu tỷ lệ KHÔNG bị nhân theo độ dài kỳ', async () => {
     renderScreen(<PerformancePage />)
-    await screen.findByRole('region', { name: 'Tổng quan' })
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
 
-    expect(screen.getByText(/Không có trục tháng-quý-năm/)).toBeInTheDocument()
+    fireEvent.click(box.getByText('Đỗ Quang Huy'))
+    const drawer = within(await screen.findByRole('dialog'))
+
+    // Quý là kỳ hai tháng; win rate 31% phải vẫn là 31%, không thành 62%.
+    const winRate = ROLE_KPI_MODEL.find((r) => r.role === 'Sale')?.kpis.find(
+      (k) => k.key === 'win-rate',
+    )
+    expect(drawer.getByText(`mục tiêu ${percent(winRate?.monthlyTarget ?? 0)}`)).toBeInTheDocument()
   })
 })

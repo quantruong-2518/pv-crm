@@ -16,7 +16,9 @@ import {
   MetaPill,
   Money,
   Progress,
+  RadialGauge,
   SectionTitle,
+  SegmentedControl,
   Select,
   Separator,
   Skeleton,
@@ -51,6 +53,8 @@ export function ZoneAtoms() {
      không, và ô tick có đổi nền không. */
   const [tier, setTier] = useState('all')
   const [picked, setPicked] = useState<string[]>(['Đỗ Quang Huy'])
+  const [grain, setGrain] = useState('quy')
+  const [fn, setFn] = useState('all')
 
   return (
     <section id="zone-01" className="pb-2 pt-12">
@@ -179,10 +183,11 @@ export function ZoneAtoms() {
           code="A-07"
           name="Progress"
           bodyClassName="flex flex-col gap-3.5 px-4 py-5"
-          footer="h-2 rounded-sm bg-white/10 · số luôn font-num"
+          footer="h-2 rounded-sm bg-white/10 · số luôn font-num · azure = đang chạy (gradient, tả chuyển động) · warning = dưới đích · success = đã đạt đích (hai tone sau nền phẳng: chỉ số đã đo xong)"
         >
           <Progress label="WO-1180" value={0.68} />
           <Progress label="Giao đúng hạn" value={0.86} tone="warning" />
+          <Progress label="38 / 40 lead kỳ vọng" value={0.95} tone="success" />
         </SpecCard>
 
         {/* A-08 */}
@@ -375,6 +380,72 @@ export function ZoneAtoms() {
             <AvatarGroup names={TEAM} size="md" max={2} />
           </div>
           <AvatarGroup names={[]} />
+        </SpecCard>
+
+        {/* A-18 */}
+        <SpecCard
+          code="A-18"
+          name="RadialGauge"
+          note="đồng hồ KPI"
+          bodyClassName="flex flex-wrap items-center gap-6 px-4 py-5"
+          footer="Progress (A-07) là tiến độ NẰM TRONG một dòng; cái này là ô đứng giữa một khối, số lớn ở tâm · vượt mục tiêu vẫn nhận, vòng chạy trọn và phần vượt đọc ở chữ · empty = chưa đo được, không phải 0%"
+        >
+          <RadialGauge
+            size={132}
+            tone="success"
+            value={1}
+            center="100%"
+            caption="của mục tiêu kỳ"
+            label="Đơn chốt của Đỗ Quang Huy"
+          />
+          <RadialGauge
+            size={132}
+            tone="warning"
+            value={0.46}
+            center="46%"
+            caption="của mục tiêu kỳ"
+            label="Ô bắt buộc moi được"
+          />
+          <RadialGauge
+            size={132}
+            value={0}
+            center=""
+            empty="chưa đo được"
+            label="Buổi demo đi cùng"
+          />
+        </SpecCard>
+
+        {/* A-19 */}
+        <SpecCard
+          code="A-19"
+          name="SegmentedControl"
+          note="2–6 lựa chọn ngang hàng"
+          bodyClassName="flex flex-col gap-4 px-4 py-4"
+          footer="Select (A-15) giấu lựa chọn cho tới lúc bấm, hợp danh sách dài; cái này để lộ hết, hợp bộ chọn kỳ và bộ lọc vai — thứ người dùng đổi qua đổi lại liên tục · nền chung của nhóm là một tấm mờ để cả nhóm đọc ra như MỘT control"
+        >
+          <SegmentedControl
+            label="Mức kỳ"
+            value={grain}
+            onChange={setGrain}
+            options={[
+              { value: 'thang', label: 'Tháng' },
+              { value: 'quy', label: 'Quý' },
+              { value: 'nam', label: 'Năm' },
+            ]}
+          />
+          <SegmentedControl
+            label="Chức năng"
+            size="sm"
+            value={fn}
+            onChange={setFn}
+            options={[
+              { value: 'all', label: 'Tất cả', count: 7 },
+              { value: 'mkt', label: 'Marketing', count: 1 },
+              { value: 'bd', label: 'BD', count: 1 },
+              { value: 'sale', label: 'Sale', count: 3 },
+              { value: 'cs', label: 'CS', count: 0, disabled: true },
+            ]}
+          />
         </SpecCard>
       </ZoneBody>
     </section>

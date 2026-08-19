@@ -93,7 +93,9 @@ export function DataTable({
                   type="button"
                   onClick={() => onSort?.(col.sortKey as string)}
                   className={cn(
-                    'motion-std hover:text-foreground -m-1 inline-flex items-center gap-1 rounded-sm p-1',
+                    // rounded-md: đây là CONTROL (bấm được, có focus ring), mà
+                    // control bo 4 — `rounded-sm` 3px là cấp tag (luật 5).
+                    'motion-std hover:text-foreground -m-1 inline-flex items-center gap-1 rounded-md p-1',
                     active && 'text-accent-foreground font-semibold',
                   )}
                 >
@@ -123,7 +125,19 @@ export function DataTable({
             key={row.id}
             role="row"
             tabIndex={openable ? 0 : undefined}
+            /* Hai thuộc tính nói CÙNG một điều, và đó là chủ ý.
+               `aria-selected` chỉ hợp lệ trên `row` của `grid`/`treegrid`; ở
+               đây vai ngoài là `role="table"` nên nó bị bỏ qua — trình đọc màn
+               hình KHÔNG biết dòng nào đang mở. `aria-current` hợp lệ ở mọi
+               phần tử và được đọc ra, nên nó là thứ thật sự tải nghĩa.
+               Chỗ đúng về lâu dài là đổi cả bảng sang `role="grid"` +
+               `gridcell`, lúc đó `aria-selected` mới có hiệu lực và
+               `aria-current` gỡ đi. Chưa làm bây giờ vì việc đó phá 12
+               assertion ở `leads.test.tsx` và `sales-config.test.tsx` — hai
+               file đang có người sửa dở. `aria-selected` giữ nguyên để test
+               hiện có không đỏ. */
             aria-selected={row.state === 'selected' ? true : undefined}
+            aria-current={row.state === 'selected' ? true : undefined}
             onClick={openable ? open : undefined}
             onKeyDown={openable ? onKeyDown : undefined}
             className={cn(

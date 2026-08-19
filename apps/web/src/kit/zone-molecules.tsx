@@ -18,6 +18,7 @@ import {
   AiAction,
   ApprovalChain,
   Badge,
+  BarChart,
   Button,
   ChannelTag,
   ContextRail,
@@ -141,7 +142,9 @@ const WAVES: TimelineItem[] = [
         <ChannelTag icon={Mail} label="Gmail" />
       </>
     ),
-    children: <Progress label="38 / 40 lead kỳ vọng" value={0.95} />,
+    /* Đợt 1 đã xong (state ok) và chạm kỳ vọng — `success`. Dùng `primary` ở
+       đây sẽ đọc thành "đang chạy", sai với chấm bên trái. */
+    children: <Progress label="38 / 40 lead kỳ vọng" value={0.95} tone="success" />,
   },
   {
     id: 'w2',
@@ -399,6 +402,10 @@ export function ZoneMolecules() {
               meta, số liệu, nút.
               <br />
               Đường nối bg-white/8 rộng 1px — không border (luật 4) · mốc cuối không kéo đường xuống
+              <br />
+              Marker (&ldquo;Đợt 2&rdquo;) là NHÃN nên dùng thẳng Kicker tone muted, không tô azure:
+              trạng thái đã do StatusDot nói, và azure chỉ dành cho AI · nút chính · trạng thái
+              active (luật 3)
             </>
           }
         >
@@ -419,10 +426,73 @@ export function ZoneMolecules() {
               <br />
               Đậm · nghiêng · gạch đầu dòng · chèn ảnh (data URL) · xem và sửa HTML thô. Chỉ đồng bộ
               innerHTML khi ô không focus, nếu không con trỏ nhảy về đầu mỗi ký tự.
+              <br />
+              Placeholder dùng text-glass-foreground chứ không phải màu chữ phụ — ô soạn nằm trên ba
+              lớp trắng chồng nhau, muted-foreground trên nền đó chỉ còn 3,87:1 (luật 13)
             </>
           }
         >
           <RichTextDemo />
+        </SpecCard>
+
+        {/* M-12 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-12"
+          name="BarChart"
+          note="cột dọc · thanh ngang"
+          bodyClassName="grid grid-cols-2 gap-6 px-4 py-5"
+          footer={
+            <>
+              Sparkline (A-11) vẽ hình dáng một chuỗi trong 86px và không đọc được từng mốc. Khi mỗi
+              mốc là một con số phải so với nhau thì cần cột, và cột mang theo số của nó.
+              <br />
+              Hai hướng vì hai loại nhãn: nhãn thời gian ngắn xếp dưới cột dọc, nhãn bậc dài phải
+              nằm ngang. `onSelect` biến cột thành nút — đồ thị kiêm luôn bộ chọn kỳ. Nhãn nguồn dữ
+              liệu bắt buộc, cùng luật với Sparkline.
+            </>
+          }
+        >
+          <BarChart
+            height={96}
+            source="Lead vào sổ theo tháng · bấm một cột để xem tháng đó"
+            data={[
+              { key: 't5', label: 'T5', value: 43, display: '43' },
+              { key: 't6', label: 'T6', value: 41, display: '41' },
+              { key: 't7', label: 'T7', value: 12, display: '12', active: true },
+              { key: 't8', label: 'T8', value: 4, display: '4' },
+            ].map((d) => ({ ...d, onSelect: () => {} }))}
+          />
+          <BarChart
+            orientation="bar"
+            max={100}
+            source="Mốc đời lead · Sổ lead 100 dòng"
+            data={[
+              { key: 'a', label: 'Lead vào sổ', value: 100, display: '100', note: 'đầu phễu' },
+              {
+                key: 'b',
+                label: 'MQL — công ty thật',
+                value: 44,
+                display: '44',
+                note: '44% của bậc trên',
+              },
+              {
+                key: 'c',
+                label: 'SQL — vào sổ cơ hội',
+                value: 30,
+                display: '30',
+                note: '68% của bậc trên',
+              },
+              {
+                key: 'd',
+                label: 'Hợp đồng',
+                value: 6,
+                display: '6',
+                note: '20% của bậc trên',
+                tone: 'success' as const,
+              },
+            ]}
+          />
         </SpecCard>
       </ZoneBody>
     </section>

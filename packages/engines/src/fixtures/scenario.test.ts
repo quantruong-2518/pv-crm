@@ -10,14 +10,19 @@ import {
 import {
   BOOK_SPLIT,
   canPromoteToSql,
+  CREDIT_RULES,
   dasVina,
   DAY_FROZEN,
+  daysBetween,
+  HANDOFF_SLA,
   EXIT_REASONS,
   FUNNEL,
   INIT_DATA_QUESTIONS,
   isRotting,
   isRunning,
   LEADS,
+  leadMilestones,
+  ROLE_KPI_MODEL,
   OPEN_DEALS,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
@@ -236,5 +241,95 @@ describe('Nguồn lead — module 1 Chiến dịch & Sự kiện', () => {
       expect(s.checkedIn ?? 0).toBeLessThanOrEqual(s.registered ?? 0)
       expect(s.venue).toBeTruthy()
     }
+  })
+})
+
+describe('Khung KPI — tài liệu vòng đời khách hàng & KPI CRM', () => {
+  it('mọi thước của CREDIT_RULES đều có mặt trong ROLE_KPI_MODEL của đúng vai', () => {
+    /* Hai bảng cùng nói về một thứ: CREDIT_RULES đặt TÊN thước, ROLE_KPI_MODEL
+       thêm lớp, công thức và ngưỡng. Không khoá vào nhau thì một hôm ai đó đổi
+       tên thước ở bảng này, bảng kia giữ tên cũ, và màn Performance chấm người
+       bằng một thước không còn tồn tại. */
+    for (const rule of CREDIT_RULES) {
+      const row = ROLE_KPI_MODEL.find((r) => r.role === rule.role)
+      expect(row, `Vai "${rule.role}" thiếu dòng trong ROLE_KPI_MODEL`).toBeDefined()
+      for (const label of rule.metrics) {
+        expect(row?.kpis.map((k) => k.label)).toContain(label)
+      }
+    }
+  })
+
+  it('mỗi vai có đúng một thước chính, trừ vai không chấm cá nhân', () => {
+    for (const row of ROLE_KPI_MODEL) {
+      const primary = row.kpis.filter((k) => k.primary)
+      expect(primary.length, `Vai "${row.role}" có ${primary.length} thước chính`).toBe(
+        row.kpis.length === 0 ? 0 : 1,
+      )
+    }
+  })
+
+  it('chỉ thước cộng dồn mới được đặt mục tiêu theo tháng', () => {
+    // Nhân mục tiêu tỷ lệ với số tháng của kỳ là cách nhanh nhất để cả bảng đỏ.
+    for (const row of ROLE_KPI_MODEL) {
+      for (const kpi of row.kpis) {
+        if (kpi.paced) expect(kpi.unit).not.toBe('ty-le')
+      }
+    }
+  })
+
+  it('Trưởng phòng Kinh doanh không có thước cá nhân nào', () => {
+    const head = ROLE_KPI_MODEL.find((r) => r.role === 'Trưởng phòng Kinh doanh')
+    expect(head?.kpis).toHaveLength(0)
+  })
+})
+
+describe('Mốc đời lead — nền của trục tháng · quý · năm', () => {
+  const marks = LEADS.map(leadMilestones)
+
+  it('bốn mốc cộng cả kỳ ra đúng bốn bậc của phễu', () => {
+    /* ĐÂY là ca test cho phép màn Performance có trục thời gian. Cắt sổ lead
+       theo tháng chỉ hợp lệ nếu cộng mọi tháng lại ra đúng con số đã chốt —
+       nếu không thì trục thời gian đang đẻ ra số không ai ký. */
+    const step = (key: string) => FUNNEL.find((s) => s.key === key)?.count
+
+    expect(marks.length).toBe(step('dau-moi'))
+    expect(marks.filter((m) => m.mql).length).toBe(step('cong-ty-that'))
+    expect(marks.filter((m) => m.sql).length).toBe(step('co-hoi'))
+    expect(marks.filter((m) => m.ky).length).toBe(step('hop-dong'))
+    expect(marks.filter((m) => m.roi).length).toBe(BOOK_SPLIT.exited)
+  })
+
+  it('mốc đời đi đúng thứ tự: vào sổ → MQL → SQL → ký', () => {
+    for (const m of marks) {
+      if (m.mql) expect(m.mql >= m.vaoSo).toBe(true)
+      if (m.sql) expect(m.mql).toBeDefined()
+      if (m.sql && m.mql) expect(m.sql >= m.mql).toBe(true)
+      if (m.ky && m.sql) expect(m.ky >= m.sql).toBe(true)
+    }
+  })
+
+  it('lead nào lên MQL cũng có dấu tay BD, và không lead nào rơi ngoài khoảng kịch bản', () => {
+    const first = dayISO(0).slice(0, 10)
+    const frozen = dayISO(DAY_FROZEN).slice(0, 10)
+
+    for (const m of marks) {
+      for (const at of [m.vaoSo, m.mql, m.sql, m.ky, m.roi, m.bdCham]) {
+        if (!at) continue
+        expect(at.slice(0, 10) >= first).toBe(true)
+        expect(at.slice(0, 10) <= frozen).toBe(true)
+      }
+    }
+    expect(marks.filter((m) => m.bdCham).length).toBeGreaterThan(0)
+  })
+
+  it('SLA bàn giao chỉ giữ chặng đo được bằng sổ lead của kịch bản này', () => {
+    // Hai chặng sau bán thuộc kịch bản Sao Đỏ — trộn vào đây là phạm luật.
+    expect(HANDOFF_SLA.map((s) => s.key)).toEqual(['mkt-bd', 'bd-sale'])
+
+    const legs = marks
+      .map((m) => daysBetween(m.vaoSo, m.bdCham))
+      .filter((v): v is number => v !== null)
+    expect(legs.length).toBeGreaterThan(0)
+    for (const d of legs) expect(d).toBeGreaterThanOrEqual(0)
   })
 })

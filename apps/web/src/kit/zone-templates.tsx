@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { cn } from '@pv/ui'
+import { Badge, Button, Drawer, GlassCard, cn } from '@pv/ui'
 
 /** Zone 04 · Templates — ba thiết bị là ba vai, không phải một layout co giãn.
  *  Ba sơ đồ dưới đây là bản vẽ khung, không phải component sản phẩm. */
@@ -13,6 +14,10 @@ const accentSlot =
 
 /** Kích thước khung trong Zone 04 là bản vẽ tỉ lệ, cố ý không thuộc thang 8 bậc. */
 export function ZoneTemplates() {
+  /* T-04 là component SỐNG, không phải bản vẽ khung như ba cái trên: panel đóng
+     thì không có gì để nhìn, nên nó phải mở được ngay trên trang kit. */
+  const [open, setOpen] = useState(false)
+
   return (
     <section id="zone-04" className="pb-2 pt-12">
       <div className="border-t-white/12 border-t pt-10">
@@ -125,6 +130,55 @@ export function ZoneTemplates() {
             </div>
             <div className="h-2" />
           </div>
+        </SpecCard>
+
+        {/* T-04 */}
+        <SpecCard
+          className="col-span-3"
+          code="T-04"
+          name="Drawer"
+          note="panel phải · md 480 / lg 640"
+          bodyClassName="flex flex-wrap items-center gap-4 px-4 py-5"
+          footer={
+            <>
+              Cùng hình dạng với màn 04 · Trợ lý AI: panel phải, tấm che `--scrim`. Dưới `sm` panel
+              chiếm cả bề ngang — 480px trên màn 390px là panel bị cắt.
+              <br />
+              Đóng bằng Escape, bằng nút X, hoặc bấm ra tấm che. Mở thì tiêu điểm nhảy vào panel,
+              nếu không Tab kế tiếp đi thẳng vào phần đang bị che. Đóng thì KHÔNG render gì — panel
+              đóng còn nằm trong cây DOM là trình đọc màn hình vẫn đọc thấy.
+            </>
+          }
+        >
+          <Button onClick={() => setOpen(true)}>Mở panel chi tiết</Button>
+          <span className="text-muted-foreground text-[11.5px]">
+            Dùng cho chi tiết một dòng bảng: danh sách là chỗ so sánh người này với người kia, điều
+            hướng sang màn riêng thì mất bảng.
+          </span>
+
+          <Drawer
+            open={open}
+            width="lg"
+            onClose={() => setOpen(false)}
+            title="Đỗ Quang Huy"
+            subtitle="Sale · chip · Quý 3 · 2026 · 01/07 → 17/08"
+            meta={<Badge tone="success">Đạt</Badge>}
+          >
+            <div className="flex flex-col gap-4">
+              <GlassCard className="p-5">
+                <div className="text-muted-foreground text-[11px]">Đã đạt trong kỳ</div>
+                <div className="tnum font-num mt-1 text-[30px] font-semibold tracking-[-1px]">
+                  2 / 2
+                </div>
+              </GlassCard>
+              <GlassCard variant="b" className="p-4">
+                <p className="text-muted-foreground text-[11.5px] leading-[1.6]">
+                  Thân panel tự cuộn, đầu và chân đứng yên. Bảng bên trong vẫn phải nằm trên
+                  `.glass-b` như mọi bảng khác (luật 8).
+                </p>
+              </GlassCard>
+            </div>
+          </Drawer>
         </SpecCard>
       </ZoneBody>
     </section>

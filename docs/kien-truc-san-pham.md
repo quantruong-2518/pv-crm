@@ -209,13 +209,13 @@ Bốn module đầu là **một vòng khép kín**, không phải bốn tính n�
 nguồn → chia việc → đo → chỉnh. Module 5 **không nằm trong vòng** — nó là thứ
 định hình cái vòng.
 
-| #   | Module                       | Trả câu hỏi gì                    | Trạng thái                                |
-| --- | ---------------------------- | --------------------------------- | ----------------------------------------- |
-| 1   | **Chiến dịch & Sự kiện**     | Khách ở đâu ra, đợt nào ra khách  | nguồn của vòng — dựng cùng module 2       |
-| 2   | **Lead**                     | Ai đang trong tay ai              | sổ chính — mọi module khác trỏ về đây     |
-| 3   | **Performance**              | Ai đang làm được, ai đang tắc     | lát cắt hiện tại, không có trục thời gian |
-| 4   | **Số liệu & kế hoạch (AI+)** | Tháng tới phòng nên làm gì        | làm cuối — ăn đầu ra của 1 + 2 + 3        |
-| 5   | **Cấu hình**                 | Dữ liệu của phòng có hình dạng gì | làm sớm — bốn module kia đọc hình từ đây  |
+| #   | Module                       | Trả câu hỏi gì                    | Trạng thái                               |
+| --- | ---------------------------- | --------------------------------- | ---------------------------------------- |
+| 1   | **Chiến dịch & Sự kiện**     | Khách ở đâu ra, đợt nào ra khách  | nguồn của vòng — dựng cùng module 2      |
+| 2   | **Lead**                     | Ai đang trong tay ai              | sổ chính — mọi module khác trỏ về đây    |
+| 3   | **Performance**              | Ai đang làm được, ai đang tắc     | có trục tháng · quý · năm · khoảng ngày  |
+| 4   | **Số liệu & kế hoạch (AI+)** | Tháng tới phòng nên làm gì        | làm cuối — ăn đầu ra của 1 + 2 + 3       |
+| 5   | **Cấu hình**                 | Dữ liệu của phòng có hình dạng gì | làm sớm — bốn module kia đọc hình từ đây |
 
 ### Module 1 · Chiến dịch & Sự kiện
 
@@ -292,13 +292,50 @@ buộc thì không được đẩy sang SQL**, và agent 2 không chạy. Không
 
 ### Module 3 · Performance
 
-Chia theo aspect, xem được theo từng vai. **Không có trục tháng-quý-năm** —
-fixture là một lát cắt đóng băng 17/08 09:10, dựng trục thời gian sẽ phải đẻ số
-không ai ký. Ba khối: tổng quan · xét theo vai · top các con số chuyển đổi (ghi
-cả số tuyệt đối và %, không ghi mỗi %).
+Chia theo chức năng, xem được theo từng người, và **có trục tháng · quý · năm ·
+khoảng ngày tự chọn**.
 
-Đo mỗi vai bằng gì đã chốt ở bảng **công trạng** phía trên — module 3 chỉ hiển
-thị, không tự định nghĩa thước đo. Thước đo sửa ở module 5.
+> **Đổi ngày 19/08 — màn này giờ CÓ trục thời gian.** Bản trước cấm, với lý do
+> "fixture là một lát cắt, dựng trục thời gian sẽ phải đẻ số không ai ký". Lý do
+> đó sai ở một chỗ kiểm được: mỗi dòng sổ lead đã mang sẵn ngày của từng mốc đời
+> nó — vào sổ, lên MQL, vào sổ cơ hội, ký, ra khỏi luồng. Cắt theo tháng là ĐỌC
+> LẠI những ngày đã có. Bằng chứng nằm ở `scenario.test.ts`: cộng bốn mốc của cả
+> kỳ ra đúng `100 · 44 · 30 · 6`, tức đúng bốn bậc của `FUNNEL`. Ca test đó là
+> điều kiện để trục thời gian được phép tồn tại — bỏ nó là mở cửa cho số bịa.
+
+**Hai mốc biên.** Lát cắt 17/08 09:10 là chỗ hết số đo; chân trời 31/08 (hết
+tháng chứa lát cắt) là chỗ hết chỉ tiêu. Mục tiêu tính tới chân trời chứ không
+tới lát cắt, nếu không tháng 8 chỉ được giao 17/31 chỉ tiêu và câu hỏi "còn bao
+lâu nữa mới đạt" mất nghĩa.
+
+**Hai cách cắt, mỗi con số khai một cách.**
+
+| Cách cắt        | Dùng cho                                       | Đọc là                                                |
+| --------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| **Lứa**         | phễu và ba tỷ lệ MQL · SQL · win rate          | "của lead VÀO SỔ trong kỳ, bao nhiêu đi tới bậc X"    |
+| **Ngày xảy ra** | hợp đồng ký, lead rời luồng, thước hoạt động   | "trong kỳ này phòng làm được bao nhiêu"               |
+| _(số chụp)_     | giá trị đơn đang mở, đơn mục, giá mỗi lead tốt | không có ngày để cắt — nhãn phải ghi "tính đến 17/08" |
+
+Phễu đọc theo **lứa** vì chỉ có lứa mới giữ được tính lồng nhau: đếm theo ngày
+xảy ra thì tháng 8 ra "2 SQL trên 2 MQL = 100%" chỉ vì hai lead đó lên MQL từ
+tháng 6 — đúng phép tính, sai câu chuyện.
+
+**Bốn khối:** bộ chọn kỳ kiêm thanh thời gian · bento chỉ số (một ô hero 2×2 là
+phễu bốn bậc) · dòng chảy (lý do rời luồng + SLA bàn giao) · danh sách nhân sự.
+
+**Người là một DANH SÁCH, không phải bảy thẻ chi tiết.** Bấm một dòng mở drawer
+(T-04) chứa: đồng hồ KPI chính ở giữa với mục tiêu · đã đạt · còn thiếu · còn
+mấy ngày vây quanh → nhịp "còn bao lâu nữa mới đạt" theo ngày · tháng · quý →
+ba lớp thước của vai → bảng bằng chứng. Cùng một vai thì cùng một bộ thước.
+Ai cũng mở được drawer của mọi người: KPI là thứ để phòng nhìn nhau mà chạy.
+
+Đo mỗi vai bằng gì đã chốt ở `ROLE_KPI_MODEL` và bảng **công trạng** phía trên —
+module 3 chỉ hiển thị, không tự định nghĩa thước đo. Thước đo và ngưỡng sửa ở
+module 5. Ba lớp thước (hoạt động · chuyển đổi · chất lượng) lấy từ tài liệu
+"Vòng đời khách hàng, KPI & thiết kế CRM"; **lớp chất lượng không dùng để xếp
+Đạt / Cần cải thiện** — tài liệu để nó ở một cột riêng, và cho nó quyền đánh
+trượt thì một Sale chốt đủ đơn vẫn bị gắn "Cần cải thiện" vì một đơn cũ quá hạn
+cột.
 
 ### Module 5 · Cấu hình
 
@@ -329,6 +366,10 @@ Ba luật của module này:
 
 - Mỗi màn dùng **đúng một kịch bản**, và năm module này đều là **DAS Vina**.
 - Mỗi màn giữ khối **Cố tình không làm**. Không viết lịch sử phiên bản lên màn.
+  **Ngoại lệ từ 19/08: màn Performance bỏ khối này** theo yêu cầu người dùng —
+  những điều bị bỏ ở đó giờ nói tại chỗ ("chưa đo được" ngay trên thước, "kỳ này
+  không lead nào rơi" ngay trong ô rỗng) thay vì gom vào một danh sách cuối màn.
+  Bốn màn còn lại chưa đổi.
 - Module 4 chịu luật 9 như mọi khối AI: có "Căn cứ:", có nút, không tự chạy.
 - Module 1 và 5 cũng chịu luật 9 ở mọi khối AI soạn nội dung.
 

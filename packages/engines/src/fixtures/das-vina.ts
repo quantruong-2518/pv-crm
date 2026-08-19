@@ -551,7 +551,7 @@ export const ROLE_KPI_MODEL: { role: string; kpis: RoleKpiSpec[] }[] = [
         label: 'Tốc độ qua từng cột',
         unit: 'ty-le',
         formula: '(Đơn còn trong hạn cột ÷ Đơn đang mở) × 100%',
-        monthlyTarget: 0.75,
+        monthlyTarget: 0.6,
         higherIsBetter: true,
         paced: false,
         snapshot: true,
@@ -600,8 +600,12 @@ export const ROLE_KPI_MODEL: { role: string; kpis: RoleKpiSpec[] }[] = [
  *  `targetDays` là mục tiêu; tài liệu chấm trạng thái theo ba mức: trong mục
  *  tiêu là đúng hạn, vượt ≤ 20% là cần theo dõi, quá 20% là trễ hạn. */
 export const HANDOFF_SLA = [
-  { key: 'mkt-bd', label: 'Marketing → BD', note: 'lead vào sổ → BD chạm lần đầu', targetDays: 5 },
-  { key: 'bd-sale', label: 'BD → Sale', note: 'lên MQL → vào sổ cơ hội', targetDays: 6 },
+  /* Tài liệu đặt mục tiêu bằng PHÚT và GIỜ (≤ 30 phút cho lead mới, ≤ 24 giờ
+     cho SQL). Sổ lead của kịch bản chỉ ghi tới ngày, nên mục tiêu quy về ngày:
+     ba ngày cho mỗi chặng — đủ chặt để chặng chậm lộ ra, đủ lỏng để không phải
+     chặng nào cũng đỏ. Sửa được ở module 5 như mọi ngưỡng khác. */
+  { key: 'mkt-bd', label: 'Marketing → BD', note: 'lead vào sổ → BD chạm lần đầu', targetDays: 3 },
+  { key: 'bd-sale', label: 'BD → Sale', note: 'lên MQL → vào sổ cơ hội', targetDays: 3 },
 ] as const
 
 /** Ba mức trạng thái của tài liệu, dùng chung cho SLA và cho thước KPI. */
@@ -1371,8 +1375,18 @@ const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[] {
   const src = sourceByCode.get(lead.source)
   const out: LeadEvent[] = []
+
+  /* Ngày ĐÓNG của dòng: hôm lead ký hoặc rơi. Mọi mốc trước đó phải nằm trước
+     nó, còn lead đang chạy thì trần là ngày đóng băng.
+     SỬA 19/08 — bản trước chỉ chặn trần ở `DAY_FROZEN`, nên một lead vào sổ
+     muộn mà ký nhanh cho ra chuỗi "ký hợp đồng" đứng TRƯỚC "nhận vào sổ cơ
+     hội": mốc pipeline tính theo `bornDay + 10`, còn mốc ký tính ngược từ
+     `daysHere`, hai phép đếm không biết nhau. `scenario.test.ts` khoá thứ tự
+     này lại. */
+  const closeDay = lead.contractCode || lead.exitReason ? DAY_FROZEN - lead.daysHere : DAY_FROZEN
+
   const push = (day: number, kind: LeadEventKind, by: string, note: string) =>
-    out.push({ at: dayISO(Math.min(day, DAY_FROZEN)), kind, by, note })
+    out.push({ at: dayISO(Math.min(day, closeDay)), kind, by, note })
 
   push(
     bornDay,

@@ -1,0 +1,111 @@
+import { useEffect, useRef, type ReactNode } from 'react'
+import { X } from 'lucide-react'
+import { Icon } from '../ui/icon'
+import { cn } from '../lib/cn'
+
+/** T-04 · Drawer — panel phải đè lên màn, có tấm che phía sau.
+ *
+ *  Cùng hình dạng với màn 04 · Trợ lý AI (docs/luat-thiet-ke.md §7: panel phải,
+ *  scrim `--scrim`), nên chi tiết một dòng của bảng dùng lại đúng ngôn ngữ đó
+ *  thay vì đẻ ra kiểu thứ hai.
+ *
+ *  Vì sao là panel chứ không phải mở sang màn khác: danh sách là chỗ SO SÁNH
+ *  người này với người kia. Điều hướng sang màn riêng thì mất bảng, và người
+ *  dùng phải nhớ mình vừa xem ai. Panel giữ bảng ở nguyên chỗ.
+ *
+ *  Dưới `sm` panel chiếm cả bề ngang: 480px trên màn 390px là panel bị cắt.
+ *
+ *  Không render gì khi đóng — panel đóng vẫn nằm trong cây DOM thì trình đọc
+ *  màn hình vẫn đọc thấy nội dung của nó. */
+export type DrawerProps = {
+  open: boolean
+  onClose: () => void
+  title: ReactNode
+  /** dòng dưới tiêu đề — kỳ đang xem, vai, mã */
+  subtitle?: ReactNode
+  /** khối bên phải tiêu đề, trước nút đóng — badge trạng thái */
+  meta?: ReactNode
+  /** dải dính đáy panel */
+  footer?: ReactNode
+  /** md = 480px · lg = 640px (chi tiết có bảng bên trong) */
+  width?: 'md' | 'lg'
+  closeLabel?: string
+  children: ReactNode
+  className?: string
+}
+
+export function Drawer({
+  open,
+  onClose,
+  title,
+  subtitle,
+  meta,
+  footer,
+  width = 'md',
+  closeLabel = 'Đóng',
+  children,
+  className,
+}: DrawerProps) {
+  const panel = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    /* Đưa tiêu điểm vào panel: mở bằng bàn phím từ một dòng bảng thì tiêu điểm
+       còn ở dòng đó, và Tab tiếp theo sẽ đi vào phần bị tấm che phủ. */
+    panel.current?.focus()
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-20 flex justify-end">
+      <button
+        type="button"
+        aria-label={closeLabel}
+        onClick={onClose}
+        className="absolute inset-0 cursor-default bg-[var(--scrim)]"
+      />
+
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className={cn(
+          'glass-b relative flex h-full w-full flex-col outline-none',
+          width === 'lg' ? 'sm:w-[640px]' : 'sm:w-[480px]',
+          className,
+        )}
+      >
+        <header className="flex items-start gap-3 px-5 pb-4 pt-5 lg:px-6">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-display m-0 text-[16px] font-semibold">{title}</h2>
+            {subtitle && (
+              <p className="text-muted-foreground m-0 mt-1 text-[11.5px] leading-[1.5]">
+                {subtitle}
+              </p>
+            )}
+          </div>
+          {meta}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={closeLabel}
+            className="motion-std hover:bg-white/16 bg-white/9 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
+          >
+            <Icon icon={X} size={16} />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 lg:px-6">{children}</div>
+
+        {footer && <div className="bg-black/20 px-5 py-4 lg:px-6">{footer}</div>}
+      </div>
+    </div>
+  )
+}
