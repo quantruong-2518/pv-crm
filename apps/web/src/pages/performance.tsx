@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Activity,
   CalendarRange,
@@ -777,24 +777,33 @@ function PersonDrawer({
   data: Performance | undefined
   onClose: () => void
 }) {
-  if (!person || !data) return null
+  /* Giữ lại người VỪA xem trong quãng panel trượt ra.
+     `person` về null ngay lúc bấm đóng; trả `null` luôn thì cả `<Drawer>` bị
+     gỡ khỏi cây trước khi nó kịp chạy hoạt cảnh đi ra, và panel biến mất đánh
+     phụt — đúng cái giật mà hoạt cảnh sinh ra để xoá. Panel đọc người cũ thêm
+     một nhịp 180ms nữa rồi mới tự gỡ. */
+  const last = useRef<PersonCard | null>(null)
+  if (person) last.current = person
+  const shown = person ?? last.current
 
-  const verdict = VERDICT[person.verdict]
+  if (!shown || !data) return null
+
+  const verdict = VERDICT[shown.verdict]
 
   return (
     <Drawer
-      open
+      open={person !== null}
       width="lg"
       onClose={onClose}
-      title={person.name}
-      subtitle={`${person.role} · ${data.period.label} · ${vn(data.period.from)} → ${vn(data.period.cutoff)}`}
+      title={shown.name}
+      subtitle={`${shown.role} · ${data.period.label} · ${vn(data.period.from)} → ${vn(data.period.cutoff)}`}
       meta={<Badge tone={verdict.tone}>{verdict.label}</Badge>}
     >
       <div className="flex flex-col gap-5">
-        <GaugeBlock person={person} data={data} />
-        {person.pace.length > 0 && <PaceBlock pace={person.pace} unit={person.primary?.unit} />}
-        <LayerBlock person={person} />
-        <EvidenceBlock person={person} />
+        <GaugeBlock person={shown} data={data} />
+        {shown.pace.length > 0 && <PaceBlock pace={shown.pace} unit={shown.primary?.unit} />}
+        <LayerBlock person={shown} />
+        <EvidenceBlock person={shown} />
       </div>
     </Drawer>
   )

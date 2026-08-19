@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
@@ -13,10 +13,11 @@ import { cn } from '../lib/cn'
  *  người này với người kia. Điều hướng sang màn riêng thì mất bảng, và người
  *  dùng phải nhớ mình vừa xem ai. Panel giữ bảng ở nguyên chỗ.
  *
- *  Dưới `sm` panel chiếm cả bề ngang: 480px trên màn 390px là panel bị cắt.
+ *  Dưới `sm` panel chiếm cả bề ngang: 560px trên màn 390px là panel bị cắt.
  *
  *  Không render gì khi đóng — panel đóng vẫn nằm trong cây DOM thì trình đọc
- *  màn hình vẫn đọc thấy nội dung của nó. */
+ *  màn hình vẫn đọc thấy nội dung của nó. Ngoại lệ duy nhất là quãng panel
+ *  đang TRƯỢT RA: nó phải còn trong DOM thì mới có gì để chạy hoạt cảnh. */
 export type DrawerProps = {
   open: boolean
   onClose: () => void
@@ -27,7 +28,7 @@ export type DrawerProps = {
   meta?: ReactNode
   /** dải dính đáy panel */
   footer?: ReactNode
-  /** md = 480px · lg = 640px (chi tiết có bảng bên trong) */
+  /** md = 560px · lg = 760px (chi tiết có bảng bên trong) */
   width?: 'md' | 'lg'
   closeLabel?: string
   children: ReactNode
@@ -48,8 +49,40 @@ export function Drawer({
 }: DrawerProps) {
   const panel = useRef<HTMLDivElement>(null)
 
+  /** Panel còn trong DOM hay không, và nó đang đi ra hay đi vào.
+   *
+   *  `open` tắt KHÔNG gỡ panel ngay: gỡ ngay thì không còn gì để chạy hoạt
+   *  cảnh đi ra, panel biến mất đánh phụt. Giữ lại tới lúc hoạt cảnh chạy xong
+   *  rồi mới gỡ.
+   *
+   *  Mốc gỡ là `animationend` chứ không phải một `setTimeout` 180ms: hằng số
+   *  đó đã nằm trong `--motion-duration`, chép nó sang JS là hai chỗ phải nhớ
+   *  sửa cùng nhau. */
+  const [mounted, setMounted] = useState(open)
+  const [leaving, setLeaving] = useState(false)
+
   useEffect(() => {
-    if (!open) return
+    if (open) {
+      setMounted(true)
+      setLeaving(false)
+      return
+    }
+    if (!mounted) return
+
+    /* Người tắt hoạt cảnh trong hệ điều hành thì `animationend` KHÔNG bao giờ
+       bắn (globals.css đặt `animation: none !important`), nên panel sẽ mắc lại
+       vĩnh viễn. Gỡ thẳng. */
+    const reduced =
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) {
+      setMounted(false)
+      return
+    }
+    setLeaving(true)
+  }, [open, mounted])
+
+  useEffect(() => {
+    if (!mounted || leaving) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
@@ -58,9 +91,9 @@ export function Drawer({
        còn ở dòng đó, và Tab tiếp theo sẽ đi vào phần bị tấm che phủ. */
     panel.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [mounted, leaving, onClose])
 
-  if (!open) return null
+  if (!mounted) return null
 
   return (
     /* z-50 — PHẢI cao hơn nav (z-40 ở AppShell). Drawer từng là z-20 vì hồi
@@ -72,7 +105,10 @@ export function Drawer({
         type="button"
         aria-label={closeLabel}
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-[var(--scrim)]"
+        className={cn(
+          'absolute inset-0 cursor-default bg-[var(--scrim)]',
+          leaving ? 'animate-scrim-out' : 'animate-scrim-in',
+        )}
       />
 
       <div
@@ -80,13 +116,19 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         tabIndex={-1}
+        /* Chỉ nghe hoạt cảnh của CHÍNH panel: `animationend` nổi bọt, nên một
+           shimmer của Skeleton bên trong cũng sẽ gỡ mất panel giữa chừng. */
+        onAnimationEnd={(e) => {
+          if (e.target === e.currentTarget && leaving) setMounted(false)
+        }}
         className={cn(
           /* `glass-overlay`, KHÔNG `glass-b`: panel này đè lên trang, mà
              `glass-b` để lọt 16% nền — dưới nó lại là tấm scrim tối 52%, nên
              chữ trong panel đọc trên một lớp bùn và cả drawer trông như bị
              làm mờ. Thứ nổi lên trên thì phải che được thứ ở dưới. */
           'glass-overlay relative flex h-full w-full flex-col outline-none',
-          width === 'lg' ? 'sm:w-[640px]' : 'sm:w-[480px]',
+          width === 'lg' ? 'sm:w-[760px]' : 'sm:w-[560px]',
+          leaving ? 'animate-drawer-out' : 'animate-drawer-in',
           className,
         )}
       >

@@ -142,7 +142,7 @@ export function ZoneTemplates() {
           footer={
             <>
               Cùng hình dạng với màn 04 · Trợ lý AI: panel phải, tấm che `--scrim`. Dưới `sm` panel
-              chiếm cả bề ngang — 480px trên màn 390px là panel bị cắt.
+              chiếm cả bề ngang — 560px trên màn 390px là panel bị cắt.
               <br />
               Đóng bằng Escape, bằng nút X, hoặc bấm ra tấm che. Mở thì tiêu điểm nhảy vào panel,
               nếu không Tab kế tiếp đi thẳng vào phần đang bị che. Đóng thì KHÔNG render gì — panel
