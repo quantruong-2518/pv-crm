@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Kicker } from '../ui/separator'
 import { StatusDot, type StatusDotState } from '../ui/status-dot'
 import { cn } from '../lib/cn'
 
@@ -45,11 +46,14 @@ export function Timeline({ items, className }: { items: TimelineItem[]; classNam
 
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-baseline gap-2">
-              {item.marker && (
-                <span className="text-accent-foreground font-mono text-[10.5px] font-semibold uppercase tracking-[.14em]">
-                  {item.marker}
-                </span>
-              )}
+              {/* Marker là NHÃN ("Đợt 2"), không phải trạng thái — trạng thái
+                  đã do StatusDot bên trái nói rồi. Azure chỉ dành cho AI · nút
+                  chính · trạng thái active (luật 3), nên nhãn tô azure vừa sai
+                  nghĩa vừa làm loãng thứ thật sự đang active trên màn.
+                  Và bộ kiểu này chính là Kicker (A-09) chép lại lệch một chút
+                  tracking — hai bản đứng cạnh nhau trên cùng màn thì lệch đó
+                  đọc ra như lỗi. Dùng thẳng Kicker, khỏi giữ bản sao. */}
+              {item.marker && <Kicker tone="muted">{item.marker}</Kicker>}
               <span className="font-display text-[13.5px] font-semibold">{item.title}</span>
             </div>
 

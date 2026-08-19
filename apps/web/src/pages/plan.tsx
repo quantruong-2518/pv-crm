@@ -85,11 +85,21 @@ export function PlanPage() {
 
   /* Luật 10 · rail dựng thẳng từ E1, màn không tự viết chip. Mỏ neo là đơn lớn
      nhất đang chạy — kế hoạch tháng tới xoay quanh chỗ nhiều tiền nhất đang
-     đứng im. Rail nằm NGOÀI nhánh chờ dữ liệu: màn lúc chờ vẫn là một màn. */
+     đứng im. Rail nằm NGOÀI nhánh chờ dữ liệu: màn lúc chờ vẫn là một màn.
+
+     `source` bật cho ĐÚNG object đang mở. Luật 10 và docblock của ContextRail
+     nói "chip azure = object của câu chuyện đang mở, chip trắng mờ = object
+     liên quan"; bản trước viết `!== PLAN_ANCHOR` nên tô azure cho mọi object
+     TRỪ cái đang mở — ba chip azure vây quanh một chip mờ, đúng ngược nghĩa và
+     phá luôn luật 3 (azure phải đếm được).
+
+     Chip KHÔNG bấm được: `onOpen` rỗng biến chip thành một cái nút vào được
+     bằng Tab, có con trỏ pointer, bấm thì không xảy ra gì. Chưa có màn hồ sơ
+     object để mở thì để nó là chữ. */
   const rail = useMemo(() => {
     const story = dasVina.graph.story(PLAN_ANCHOR)
-    if (story.length === 0) return [{ code: PLAN_ANCHOR, source: false, onOpen: () => {} }]
-    return story.map((o) => ({ code: o.code, source: o.code !== PLAN_ANCHOR, onOpen: () => {} }))
+    if (story.length === 0) return [{ code: PLAN_ANCHOR, source: true }]
+    return story.map((o) => ({ code: o.code, source: o.code === PLAN_ANCHOR }))
   }, [])
 
   const toggle = (id: string) => {

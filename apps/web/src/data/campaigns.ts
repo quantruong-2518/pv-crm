@@ -8,8 +8,8 @@ import {
   dasVina,
   dayISO,
   sourceStats,
-  type Lead,
   type Source,
+  type Wave,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 import { E4_CHANNELS } from '@/data/sales-config'
@@ -36,6 +36,14 @@ function rate(top: number, bottom: number): number {
   return bottom > 0 ? top / bottom : 0
 }
 
+/** Đạt bao nhiêu phần kỳ vọng. Khác `rate` ở đúng một chỗ: KHÔNG đặt kỳ vọng
+ *  thì mọi lead về đều là "đủ" — 0 trên 0 không phải là hụt, và trả 0% ở đó sẽ
+ *  làm thanh tiến độ nói ngược với chấm trạng thái ngay bên cạnh. */
+function hitOf(leads: number, expected: number): number {
+  if (expected > 0) return leads / expected
+  return leads > 0 ? 1 : 0
+}
+
 /** Tiền của các đơn ĐANG MỞ, tra theo mã. `OPEN_DEALS` là chỗ duy nhất trong
  *  kịch bản có `amount`. */
 const DEAL_AMOUNT = new Map(OPEN_DEALS.map((d) => [d.code, d.amount]))
@@ -49,6 +57,8 @@ const DEAL_AMOUNT = new Map(OPEN_DEALS.map((d) => [d.code, d.amount]))
  *  con số không ai ký. Màn phải nói ra chỗ thiếu này. */
 export const OPEN_VALUE = {
   label: 'Giá trị đơn đang mở',
+  /** Bản ngắn cho header cột — ô hẹp 0.9fr không chứa nổi nhãn đầy đủ. */
+  shortLabel: 'Giá trị đơn mở',
   /** Số đơn đang mở đang được cộng vào cột này. */
   deals: OPEN_DEALS.length,
   /** Hợp đồng đã ký trong kỳ — có mã, KHÔNG có tiền trong kịch bản. */
@@ -56,8 +66,23 @@ export const OPEN_VALUE = {
   signedHasAmount: false,
 } as const
 
-export type SourceRow = Source &
+/** Một đợt kèm phép chấm của chính nó.
+ *
+ *  `hit` và `hitRate` nằm ở ĐÂY chứ không ở JSX vì hai thứ trên màn đọc cùng một
+ *  phép so — chấm trạng thái của mốc timeline và màu thanh tiến độ ngay dưới nó.
+ *  Viết phép so hai lần trong màn là cách chắc chắn nhất để một hôm nào đó chấm
+ *  xanh nằm trên thanh vàng. */
+export type WaveRow = Wave & {
+  /** Đợt đã đạt kỳ vọng đặt trước hay chưa. */
+  hit: boolean
+  /** Đạt bao nhiêu phần kỳ vọng của ĐỢT này. Trên 1 là vượt. */
+  hitRate: number
+}
+
+export type SourceRow = Omit<Source, 'waves'> &
   ReturnType<typeof sourceStats> & {
+    waves: WaveRow[]
+
     /** Mã đơn của nguồn này ĐANG CÓ MẶT trong đồ thị E1, nếu có.
      *
      *  Đây là chỗ ContextRail bám vào (luật 10): chiến dịch chưa có `ObjectKind`
@@ -84,13 +109,16 @@ export type SourceRow = Source &
     /** Tổng kỳ vọng lead mọi đợt — số đặt TRƯỚC khi chạy. */
     expected: number
 
-    // ---- năm tỉ lệ · mỗi cái trả lời đúng một câu ----------------------------
+    /** Lead của nguồn CHƯA qua cổng init data — `leads` trừ `good`. Đây là con
+     *  số khối AI nhắm tới khi đề xuất đợt tiếp theo, nên nó là một phép trừ
+     *  nghiệp vụ chứ không phải một phép trừ trang trí trong JSX. */
+    notGood: number
+
+    // ---- bốn tỉ lệ · mỗi cái trả lời đúng một câu ----------------------------
     /** Mở trên số người nhận. */
     openRate: number
     /** Trả lời trên số người nhận. */
     replyRate: number
-    /** Chạm được người rồi thì ra khách ở mức nào — lead trên người trả lời. */
-    leadRate: number
     /** Qua cổng init data ở mức nào — lead tốt trên lead. Đây là tỉ lệ đắt nhất:
      *  một nguồn kéo nhiều lead mà `mqlRate` thấp là nguồn đang làm bận cả BD. */
     mqlRate: number
@@ -164,14 +192,9 @@ export const DRAFT_TEMPLATE = {
   venue: SAMPLE_EVENT?.venue ?? '',
   /** Số người nhận của đợt mở màn nguồn mẫu — điểm xuất phát để người soạn sửa. */
   audience: SAMPLE?.waves[0]?.sent ?? 0,
-  /** Chuỗi chạy trong bao nhiêu ngày — khoảng từ đợt đầu tới đợt cuối của nguồn
-   *  mẫu. Đây là ô "đặt sẵn chạy bao lâu" của form: người soạn thấy ngay chuỗi
-   *  này dài bằng chuỗi đã chạy thật, không phải một con số tròn. */
-  runDays: (() => {
-    const w = SAMPLE?.waves ?? []
-    const first = w[0]?.day ?? 0
-    return (w[w.length - 1]?.day ?? first) - first
-  })(),
+  /** KHÔNG có `runDays`: chuỗi dài bao nhiêu ngày là thứ SUY RA từ nhịp các đợt,
+   *  không phải một ô người soạn gõ riêng. Giữ cả hai thì hai con số chọi nhau
+   *  ngay trên cùng một màn mà không ai cảnh báo. Form tính lại từ `afterDays`. */
   waves: (SAMPLE?.waves ?? []).map((w): DraftWave => ({
     label: w.label,
     channel: w.channel,
@@ -210,6 +233,11 @@ function rowOf(s: Source): SourceRow {
   return {
     ...s,
     ...stats,
+    waves: s.waves.map((w) => ({
+      ...w,
+      hit: w.leads >= w.expected,
+      hitRate: hitOf(w.leads, w.expected),
+    })),
     anchorDeal: LEADS.find(
       (l) => l.source === s.code && l.dealCode && dasVina.graph.get(l.dealCode),
     )?.dealCode,
@@ -218,10 +246,10 @@ function rowOf(s: Source): SourceRow {
     opened,
     replied,
     expected,
+    notGood: stats.leads - stats.good,
 
     openRate: rate(opened, sent),
     replyRate: rate(replied, sent),
-    leadRate: rate(stats.leads, replied),
     mqlRate: rate(stats.good, stats.leads),
     hitRate: rate(stats.leads, expected),
     attendRate: typeof s.registered === 'number' ? rate(s.checkedIn ?? 0, s.registered) : null,
@@ -242,22 +270,21 @@ async function fetchSources(): Promise<SourceRow[]> {
   return SOURCES.map(rowOf)
 }
 
-async function fetchLeadsOfSource(code: string): Promise<Lead[]> {
-  return LEADS.filter((l) => l.source === code)
-}
-
 /** Số của CẢ KỲ cho hàng score card — đo CHIẾN DỊCH, không đo lead.
  *
  *  Phần cộng theo đợt (`sent` … `expected`, `leads`, `good`, `cost`) chỉ lấy các
  *  nguồn CÓ ĐỢT. Đó là lý do `leads` ở đây là 88 chứ không phải 100: 12 lead còn
  *  lại đến từ hai nguồn tự nhiên, không đợt nào kéo chúng về nên không đợt nào
- *  được ghi công. Cộng chúng vào thì `leadRate` và `hitRate` đều đội lên bằng số
- *  không có ai làm. Chỗ chênh nói ra được bằng `sources` trừ `running`; con số
- *  100 của cả sổ nằm ở module 2, đúng chỗ của nó. */
+ *  được ghi công. Cộng chúng vào thì `hitRate` đội lên bằng số không có ai làm.
+ *  Chỗ chênh không để người đọc tự trừ: `natural` và `bookLeads` nói thẳng ra
+ *  ngay dưới hàng KPI. Thao tác trên chính 100 dòng đó vẫn là việc của module 2. */
 async function fetchCampaignTotals() {
   const running = SOURCES.filter((s) => s.waves.length > 0)
   const waves = running.flatMap((s) => s.waves)
   const events = SOURCES.filter((s) => s.kind === 'su-kien')
+  const natural = SOURCES.filter((s) => s.kind === 'tu-nhien')
+  /** Đợt nằm ngoài bốn kênh E4: hệ không gửi được, người tự đăng rồi nhập số về. */
+  const manual = waves.filter((w) => !E4_CHANNELS.includes(w.channel))
 
   const sent = sum(waves, (w) => w.sent)
   const opened = sum(waves, (w) => w.opened)
@@ -269,6 +296,11 @@ async function fetchCampaignTotals() {
 
   const registered = sum(events, (s) => s.registered ?? 0)
   const checkedIn = sum(events, (s) => s.checkedIn ?? 0)
+
+  /** Lead của CẢ SỔ — tám nguồn cộng lại, đúng bậc đầu của phễu. Số này thuộc
+   *  module 2; ở đây có mặt để màn nói thẳng chỗ chênh với `leads` thay vì bắt
+   *  người đọc tự trừ hai con số nằm cách nhau nửa màn. */
+  const bookLeads = sum(SOURCES, (s) => s.leads)
 
   return {
     /** Nguồn có đợt — tức có người chạy. */
@@ -287,7 +319,6 @@ async function fetchCampaignTotals() {
 
     openRate: rate(opened, sent),
     replyRate: rate(replied, sent),
-    leadRate: rate(leads, replied),
     /** Đạt bao nhiêu phần kỳ vọng của cả kỳ. */
     hitRate: rate(leads, expected),
 
@@ -305,7 +336,18 @@ async function fetchCampaignTotals() {
 
     /** Đợt nằm ngoài bốn kênh E4 — không có đường gửi thật, người phải tự đăng.
      *  Đây là nợ treo số 2 hiện ra thành một con số đếm được. */
-    manualWaves: waves.filter((w) => !E4_CHANNELS.includes(w.channel)).length,
+    manualWaves: manual.length,
+    /** Lượt gửi của riêng các đợt tự đăng. Hơn nửa `sent` của cả kỳ nằm ở đây,
+     *  và đó là số NGƯỜI TỰ NHẬP chứ không phải số hệ đo được — hàng KPI phải
+     *  nói ra, nếu không cả ba ô tiếp cận/mở/trả lời đều mượn uy tín của một
+     *  con số không ai kiểm được. */
+    manualSent: sum(manual, (w) => w.sent),
+
+    /** Nguồn tự nhiên: không ai chạy đợt nào nên không đợt nào được ghi công.
+     *  `leads` ở đây là CHỖ CHÊNH giữa cả sổ và phần các đợt kéo về. */
+    natural: { count: natural.length, leads: bookLeads - leads },
+    /** Cả sổ lead của kỳ — 100 dòng, thuộc module 2. */
+    bookLeads,
 
     /** Kỳ của kịch bản: 01/05 → ngày đóng băng. Suy từ `DAY_FROZEN`. */
     period: { fromISO: dayISO(0), toISO: dayISO(DAY_FROZEN) },
@@ -316,7 +358,6 @@ export type CampaignTotals = Awaited<ReturnType<typeof fetchCampaignTotals>>
 
 export type SourceSort = {
   key: string
-  label: string
   compare: (a: SourceRow, b: SourceRow) => number
 }
 
@@ -324,21 +365,22 @@ export type SourceSort = {
  *
  *  `compare` là hàm so sánh THUẦN, luôn tăng dần. Màn giữ hướng riêng (mặc định
  *  `desc` — mới nhất, cao nhất lên trước) và tự `reverse`; nhét hướng vào đây
- *  thì mỗi mục phải có hai bản và hai bản đó sẽ lệch nhau. */
+ *  thì mỗi mục phải có hai bản và hai bản đó sẽ lệch nhau.
+ *
+ *  KHÔNG có `label`: sắp xếp đã dời vào header cột, mà header cột tự mang tên
+ *  của nó. Một nhãn "Theo ngày" không chỗ nào hiện là một nhãn sẽ trôi khỏi tên
+ *  cột mà không ai biết. */
 export const SOURCE_SORTS = [
   {
     key: 'ngay',
-    label: 'Theo ngày',
     compare: (a: SourceRow, b: SourceRow) => a.startDay - b.startDay,
   },
   {
     key: 'mql',
-    label: 'Theo tỉ lệ MQL',
     compare: (a: SourceRow, b: SourceRow) => a.mqlRate - b.mqlRate,
   },
   {
     key: 'gia-tri',
-    label: 'Theo giá trị',
     compare: (a: SourceRow, b: SourceRow) => a.value - b.value,
   },
 ] as const satisfies readonly SourceSort[]
@@ -349,12 +391,6 @@ export const sourcesQuery = queryOptions({
   queryKey: ['sales', 'sources'] as const,
   queryFn: fetchSources,
 })
-
-export const sourceLeadsQuery = (code: string) =>
-  queryOptions({
-    queryKey: ['sales', 'sources', code, 'leads'] as const,
-    queryFn: () => fetchLeadsOfSource(code),
-  })
 
 export const campaignTotalsQuery = queryOptions({
   queryKey: ['sales', 'campaign-totals'] as const,

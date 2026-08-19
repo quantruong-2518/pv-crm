@@ -258,18 +258,24 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     if (!sample || !opening || !closing) throw new Error('Fixture không có nguồn nào đã chạy đợt')
     expect(DRAFT_TEMPLATE.fromCode).toBe(sample.code)
 
-    // Khán giả và số ngày chạy đều chép từ chính nguồn đó, không phải số tròn.
+    // Khán giả chép từ chính nguồn đó, không phải số tròn. Số ngày chạy KHÔNG
+    // có ô nhập riêng — nó suy từ nhịp các đợt, nên đọc ở dòng tổng của chuỗi.
     expect(screen.getByLabelText('Khán giả · số người nhận')).toHaveValue(String(opening.sent))
-    expect(screen.getByLabelText('Chạy trong bao nhiêu ngày')).toHaveValue(
-      String(closing.day - opening.day),
-    )
+    expect(
+      screen.getByText(new RegExp(`trải ${closing.day - opening.day} ngày`)),
+    ).toBeInTheDocument()
 
     // Nhịp và kỳ vọng của từng đợt cũng vậy.
     const value = (el: HTMLElement) => (el as HTMLInputElement).value
     expect(screen.getAllByLabelText('Sau bao nhiêu ngày').map(value)).toEqual(
       sample.waves.map((w) => String(w.day - opening.day)),
     )
-    expect(screen.getAllByLabelText('Kỳ vọng bao nhiêu lead *').map(value)).toEqual(
+    /* Tra ô bắt buộc bằng `getByRole` chứ không `getByLabelText`: dấu sao là
+       `aria-hidden` nên TÊN của ô là "Kỳ vọng bao nhiêu lead", không phải
+       "Kỳ vọng bao nhiêu lead *". `getByLabelText` đọc thẳng `textContent` của
+       thẻ label nên không thấy được điều đó; `getByRole` tính đúng tên mà trình
+       đọc màn hình sẽ đọc. */
+    expect(screen.getAllByRole('textbox', { name: 'Kỳ vọng bao nhiêu lead' }).map(value)).toEqual(
       sample.waves.map((w) => String(w.expected)),
     )
 
@@ -277,12 +283,13 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     const total = sample.waves.reduce((n, w) => n + w.expected, 0)
     expect(screen.getByText(String(total))).toBeInTheDocument()
 
-    // Đợt mặc định đều nằm trong bốn kênh E4 — chưa có gì để cảnh báo.
-    expect(screen.queryByText(/E4 chưa mở đường/)).not.toBeInTheDocument()
+    /* Đợt mặc định đều nằm trong bốn kênh E4 — chưa có gì để cảnh báo. Tên
+       engine KHÔNG lên giao diện (luật 14): màn nói "hệ", không nói "E4". */
+    expect(screen.queryByText(/chưa nối đường gửi/)).not.toBeInTheDocument()
     const [linkedin] = screen.getAllByRole('button', { name: 'LinkedIn' })
     if (!linkedin) throw new Error('Không có nút chọn kênh LinkedIn trong chuỗi đợt')
     fireEvent.click(linkedin)
-    expect(screen.getAllByText(/E4 chưa mở đường cho LinkedIn/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Hệ chưa nối đường gửi cho LinkedIn/).length).toBeGreaterThan(0)
   })
 
   it('nút cuối là gửi duyệt, không phải gửi ngay — và chuỗi duyệt thêm được người', async () => {
@@ -297,7 +304,9 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
 
     /* Tìm ô theo NHÃN chứ không theo placeholder: placeholder suy từ nguồn mẫu
        trong fixture, đổi fixture là test đỏ vì lý do không liên quan. */
-    fireEvent.change(screen.getByLabelText('Tên *'), { target: { value: DRAFT_TEMPLATE.name } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tên' }), {
+      target: { value: DRAFT_TEMPLATE.name },
+    })
     expect(screen.getByRole('button', { name: label })).not.toBeDisabled()
 
     // Chuỗi duyệt thêm được mắt xích; người đầu vẫn là TP Kinh doanh.
@@ -309,7 +318,9 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
 
     fireEvent.click(screen.getByRole('button', { name: label }))
     expect(screen.getByText(new RegExp(`chờ ${HEAD_OF_SALES} gật`))).toBeInTheDocument()
-    expect(screen.getByText(/E4 không nhận lệnh gửi nào/)).toBeInTheDocument()
+    // Gửi xong là có lối ra, và màn nói thẳng dòng này chưa lên bảng nguồn.
+    expect(screen.getByText(/không lệnh gửi nào được phát/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Về sổ nguồn' })).toBeInTheDocument()
   })
 
   it('nút Sửa mở ĐÚNG màn tạo, đổ sẵn tên và chuỗi đợt của nguồn đang mở', async () => {
@@ -319,14 +330,15 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sửa' }))
 
     expect(screen.getByText(`Sửa ${ANCHOR_SOURCE}`)).toBeInTheDocument()
-    expect(screen.getByLabelText('Tên *')).toHaveValue(anchor().label)
+    expect(screen.getByRole('textbox', { name: 'Tên' })).toHaveValue(anchor().label)
 
     const value = (el: HTMLElement) => (el as HTMLInputElement).value
-    expect(screen.getAllByLabelText('Tên đợt *').map(value)).toEqual(
+    expect(screen.getAllByRole('textbox', { name: 'Tên đợt' }).map(value)).toEqual(
       anchor().waves.map((w) => w.label),
     )
 
-    // Kịch bản không lưu nội dung đã soạn — form nói ra thay vì bịa lại bài cũ.
-    expect(screen.getByText(/Kịch bản không lưu nội dung đã soạn/)).toBeInTheDocument()
+    /* Kịch bản không lưu nội dung đã soạn — form nói ra thay vì bịa lại bài cũ,
+       và nói lại một lần dưới TỪNG ô soạn trống chứ không chỉ ở đầu section. */
+    expect(screen.getAllByText(/Kịch bản không lưu nội dung đã soạn/).length).toBeGreaterThan(1)
   })
 })

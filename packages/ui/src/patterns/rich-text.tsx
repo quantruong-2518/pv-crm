@@ -161,8 +161,14 @@ export function RichText({
         />
       ) : (
         <div className="relative">
+          {/* Placeholder đi theo ĐÚNG màu chữ của ô soạn, không phải màu chữ phụ.
+              Ô soạn nằm trên `bg-input`, mà trong màn thật `bg-input` lại nằm
+              trong thẻ đợt `bg-white/5` trong GlassCard glass-a — ba lớp trắng
+              chồng nhau kéo nền hiệu dụng lên ≈ #3B4251, và #93A1B8
+              (muted-foreground) trên đó chỉ còn 3.87:1, dưới ngưỡng 4.5:1 của
+              luật 13. `--glass-foreground` đo được 5.39:1 trên cùng nền đó. */}
           {placeholder && isBlank(value) && (
-            <span className="text-muted-foreground pointer-events-none absolute left-3 top-3 text-[12.5px] leading-[1.7]">
+            <span className="text-glass-foreground pointer-events-none absolute left-3 top-3 text-[12.5px] leading-[1.7]">
               {placeholder}
             </span>
           )}
