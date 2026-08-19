@@ -77,6 +77,11 @@
   /* chữ body 11.5–12.5px nằm trên kính (chip, badge nháp) — AGENTS.md §2 */
   --glass-foreground: #b4becd;
 
+  /* tấm che sau panel đè lên màn — nguyên văn màn 04 · Trợ lý AI
+     (docs/luat-thiet-ke.md §7: "đè lên brief + scrim rgba(3,7,16,.52)").
+     Không phải màu mới: cùng hệ với đáy vignette của nền aurora. */
+  --scrim: rgba(3, 7, 16, 0.52);
+
   /* biến thể tương phản cao cho kiosk tablet ngoài sáng.
      NGOẠI LỆ DUY NHẤT của luật borderless (luật 4 · CLAUDE.md). */
   --hc-surface: #0a1220;
@@ -174,6 +179,12 @@
 }
 
 @layer base {
+  /* Hệ này dark-only. Control gốc của trình duyệt — popup <select>, thanh cuộn,
+     ô ngày — đọc màu từ `color-scheme`, KHÔNG đọc từ token. Thiếu dòng này thì
+     danh sách xổ xuống của mọi bộ lọc ra nền trắng chữ đen giữa một màn tối. */
+  :root {
+    color-scheme: dark;
+  }
   * {
     border-color: transparent;
   }

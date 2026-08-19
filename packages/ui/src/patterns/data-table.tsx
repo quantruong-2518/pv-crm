@@ -65,7 +65,7 @@ export function DataTable({
     <div className={className} role="table">
       <div
         role="row"
-        className="border-b-white/6 text-muted-foreground grid border-b pb-2 text-[11px]"
+        className="border-b-white/6 text-muted-foreground grid gap-3 border-b pb-2 text-[11px]"
         style={{ gridTemplateColumns: template }}
       >
         {columns.map((col) => {
@@ -127,7 +127,11 @@ export function DataTable({
             onClick={openable ? open : undefined}
             onKeyDown={openable ? onKeyDown : undefined}
             className={cn(
-              'motion-std grid h-11 items-center text-[12.5px]',
+              /* `gap-3` giữa các cột là bắt buộc, không phải trang trí: ô căn
+                 phải chạm sát ô kế bên và hai giá trị dính liền nhau thành một
+                 chuỗi vô nghĩa ("6/6Mới · 4 ngày"). Header dùng cùng khe để hai
+                 lưới không lệch. */
+              'motion-std grid h-11 items-center gap-3 text-[12.5px]',
               i < rows.length - 1 && 'border-b-white/6 border-b',
               openable &&
                 'hover:bg-white/8 focus-visible:bg-white/8 cursor-pointer outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',

@@ -226,7 +226,10 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         icon: m.icon,
         label: m.label,
         depth: 1,
-        active: pathname === m.path,
+        /* Màn con của module (hồ sơ một lead ở `/sales/leads/:code`) vẫn phải
+           để mục cha sáng: người dùng đứng trong module đó, chỉ là sâu hơn một
+           tầng. So bằng dấu bằng thì nav tắt hết khi mở một dòng. */
+        active: pathname === m.path || pathname.startsWith(`${m.path}/`),
         onClick: () => navigate(m.path),
       })),
     ]

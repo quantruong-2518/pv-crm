@@ -5,7 +5,14 @@ import { cn } from '../lib/cn'
  *  quầng aurora (2 blob blur 90px) → lưới 32px → lưới 160px → hạt nhiễu.
  *  Chỉ đặt ở KHUNG NGOÀI CÙNG của mỗi màn, mọi lớp đều pointer-events:none.
  *
- *  Nền này TĨNH — xem lý do ở `.aurora-blob` trong packages/tokens/globals.css. */
+ *  Nền này TĨNH — xem lý do ở `.aurora-blob` trong packages/tokens/globals.css.
+ *
+ *  **`overflow-clip` chứ không `overflow-hidden`.** Hai cái cắt giống hệt nhau —
+ *  quầng blur 90px tràn mép vẫn bị xén như cũ — nhưng `hidden` đẻ ra một hộp
+ *  cuộn, và một hộp cuộn ở khung NGOÀI CÙNG thì mọi `position: sticky` bên
+ *  trong màn neo vào hộp đó thay vì vào cửa sổ, tức là không bao giờ dính. Thanh
+ *  liên hệ + next action ở đáy màn hồ sơ lead là chỗ đầu tiên vấp phải.
+ *  `overflow: clip` cắt mà không tạo hộp cuộn. */
 
 type Blob = {
   size: number
@@ -30,7 +37,7 @@ const toneVar: Record<Blob['tone'], string> = {
 
 export function AuroraField({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('aurora-field relative min-h-screen overflow-hidden', className)}>
+    <div className={cn('aurora-field relative min-h-screen overflow-clip', className)}>
       {/* 1 · quầng aurora */}
       {BLOBS.map((blob, i) => (
         <div

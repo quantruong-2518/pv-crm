@@ -361,6 +361,253 @@ const REQUIRED_KEYS = INIT_DATA_QUESTIONS.filter((q) => q.required).map((q) => q
 const OPTIONAL_KEYS = INIT_DATA_QUESTIONS.filter((q) => !q.required).map((q) => q.key)
 
 // ---------------------------------------------------------------------------
+// Khung KPI — "Tài liệu tổng hợp vòng đời khách hàng, KPI & thiết kế CRM".
+// Sửa được ở module 5 · Cấu hình (mục 5.6, cùng chỗ với CREDIT_RULES).
+// ---------------------------------------------------------------------------
+
+/** BA LỚP KPI của tài liệu (§2 · "Tách 3 lớp KPI thay vì 1 lớp").
+ *
+ *  Lý do tài liệu đưa ra, chép lại vì nó quyết định cách đọc cả màn Performance:
+ *  chỉ nhìn lớp kết quả thì một người có đầu vào kém chất lượng bị chấm sai. Lớp
+ *  hoạt động nói "người này làm bao nhiêu", lớp chuyển đổi nói "làm có ăn thua
+ *  không", lớp chất lượng nói "làm có sạch không". */
+export const KPI_LAYERS = [
+  { key: 'hoat-dong', label: 'Hoạt động', note: 'Người này làm được bao nhiêu việc trong kỳ' },
+  { key: 'chuyen-doi', label: 'Chuyển đổi', note: 'Việc đã làm có đẩy được sang bậc sau không' },
+  { key: 'chat-luong', label: 'Chất lượng', note: 'Thứ làm ra có sạch không, có đắt không' },
+] as const
+
+export type KpiLayer = (typeof KPI_LAYERS)[number]['key']
+
+/** Cách đọc con số. `ty-le` là 0–1, `tien` là đồng. */
+export type KpiMeasureUnit = 'so' | 'tien' | 'ty-le'
+
+export type RoleKpiSpec = {
+  key: string
+  layer: KpiLayer
+  /** Tên thước. Thước nào có trong `CREDIT_RULES` thì chép ĐÚNG chữ ở đó —
+   *  `scenario.test.ts` khoá việc này, để hai bảng không trôi khỏi nhau. */
+  label: string
+  unit: KpiMeasureUnit
+  /** Công thức, viết theo đúng bảng "Nhóm 3 — Hiệu suất theo nhân sự". */
+  formula: string
+  /** Mục tiêu của MỘT THÁNG. `null` = thước quan sát, không chấm đạt/không đạt. */
+  monthlyTarget: number | null
+  /** Đúng cho hầu hết; `false` cho giá mỗi lead tốt — rẻ hơn mới là tốt hơn. */
+  higherIsBetter: boolean
+  /** Thước cộng dồn theo thời gian, tức đo được nhịp "còn thiếu bao nhiêu, còn
+   *  mấy ngày". Tỷ lệ và số đo tại một thời điểm thì không. */
+  paced: boolean
+  /** Số chụp tại lát cắt 17/08, không cắt được theo kỳ — nhãn phải nói ra. */
+  snapshot?: boolean
+  /** Thước đứng ở tâm đồng hồ KPI của vai. Đúng một cái mỗi vai. */
+  primary?: boolean
+}
+
+/** Thước của từng vai. Vai nào cũng có đủ ba lớp trừ Presales (fixture thiếu
+ *  nguồn số) và Trưởng phòng (không chấm cá nhân — luật ở bảng công trạng). */
+export const ROLE_KPI_MODEL: { role: string; kpis: RoleKpiSpec[] }[] = [
+  {
+    role: 'Marketing',
+    kpis: [
+      {
+        key: 'lead-keo-ve',
+        layer: 'hoat-dong',
+        label: 'Lead kéo về',
+        unit: 'so',
+        formula: 'COUNT(lead vào sổ trong kỳ, từ nguồn vai này đứng tên)',
+        monthlyTarget: 24,
+        higherIsBetter: true,
+        paced: true,
+        primary: true,
+      },
+      {
+        key: 'lead-tot',
+        layer: 'hoat-dong',
+        label: 'Lead tốt — qua được cổng init data',
+        unit: 'so',
+        formula: `COUNT(lead trong kỳ điền đủ ${REQUIRED_SLOTS} ô bắt buộc)`,
+        monthlyTarget: 9,
+        higherIsBetter: true,
+        paced: true,
+      },
+      {
+        key: 'ty-le-lead-tot',
+        layer: 'chuyen-doi',
+        label: 'Tỷ lệ lead tốt',
+        unit: 'ty-le',
+        formula: '(Lead tốt ÷ Lead kéo về) × 100%',
+        monthlyTarget: 0.4,
+        higherIsBetter: true,
+        paced: false,
+      },
+      {
+        key: 'lead-tot-moi-dot',
+        layer: 'chat-luong',
+        label: 'Số lead tốt trên mỗi đợt',
+        unit: 'so',
+        formula: 'Lead tốt ÷ số đợt đã chạy trong kỳ',
+        monthlyTarget: 1.2,
+        higherIsBetter: true,
+        paced: false,
+      },
+      {
+        key: 'gia-moi-lead-tot',
+        layer: 'chat-luong',
+        label: 'Giá mỗi lead tốt',
+        unit: 'tien',
+        formula: 'Tổng chi của nguồn ÷ số lead tốt (CPL của tài liệu)',
+        monthlyTarget: 12_000_000,
+        higherIsBetter: false,
+        paced: false,
+        snapshot: true,
+      },
+    ],
+  },
+  {
+    role: 'BD',
+    kpis: [
+      {
+        key: 'o-bat-buoc',
+        layer: 'hoat-dong',
+        label: 'Ô bắt buộc moi được',
+        unit: 'so',
+        formula: 'SUM(ô bắt buộc đã điền của lead BD chạm trong kỳ)',
+        monthlyTarget: 60,
+        higherIsBetter: true,
+        paced: true,
+        primary: true,
+      },
+      {
+        key: 'lead-xac-minh',
+        layer: 'hoat-dong',
+        label: 'Lead xác minh là công ty thật',
+        unit: 'so',
+        formula: 'COUNT(lead lên bậc MQL trong kỳ)',
+        monthlyTarget: 12,
+        higherIsBetter: true,
+        paced: true,
+      },
+      {
+        key: 'mql-sang-sql',
+        layer: 'chuyen-doi',
+        label: 'Tỷ lệ MQL → SQL',
+        unit: 'ty-le',
+        formula: '(Số lead vào sổ cơ hội trong kỳ ÷ Số lead lên MQL trong kỳ) × 100%',
+        monthlyTarget: 0.6,
+        higherIsBetter: true,
+        paced: false,
+      },
+      {
+        key: 'phan-hoi-nguoc',
+        layer: 'chat-luong',
+        label: 'Phản hồi trả ngược cho Marketing',
+        unit: 'so',
+        formula: 'COUNT(phản hồi BD gửi về đợt) — sổ lead chưa ghi trường này',
+        monthlyTarget: null,
+        higherIsBetter: true,
+        paced: false,
+      },
+    ],
+  },
+  {
+    role: 'Sale',
+    kpis: [
+      {
+        key: 'don-chot',
+        layer: 'hoat-dong',
+        label: 'Đơn chốt',
+        unit: 'so',
+        formula: 'COUNT(hợp đồng ký trong kỳ, đứng tên vai này)',
+        monthlyTarget: 1,
+        higherIsBetter: true,
+        paced: true,
+        primary: true,
+      },
+      {
+        key: 'gia-tri-don',
+        layer: 'hoat-dong',
+        label: 'Giá trị đơn',
+        unit: 'tien',
+        formula: 'SUM(giá trị đơn đang mở đứng tên vai này)',
+        monthlyTarget: 5_000_000_000,
+        higherIsBetter: true,
+        paced: false,
+        snapshot: true,
+      },
+      {
+        key: 'win-rate',
+        layer: 'chuyen-doi',
+        label: 'Win rate',
+        unit: 'ty-le',
+        formula: '(Đơn chốt trong kỳ ÷ SQL nhận trong kỳ) × 100%',
+        monthlyTarget: 0.31,
+        higherIsBetter: true,
+        paced: false,
+      },
+      {
+        key: 'toc-do-cot',
+        layer: 'chat-luong',
+        label: 'Tốc độ qua từng cột',
+        unit: 'ty-le',
+        formula: '(Đơn còn trong hạn cột ÷ Đơn đang mở) × 100%',
+        monthlyTarget: 0.75,
+        higherIsBetter: true,
+        paced: false,
+        snapshot: true,
+      },
+    ],
+  },
+  {
+    role: 'Presales',
+    kpis: [
+      {
+        key: 'demo-di-cung',
+        layer: 'hoat-dong',
+        label: 'Buổi demo đi cùng',
+        unit: 'so',
+        formula: 'COUNT(buổi demo có tên vai này) — sổ cơ hội chưa có trường này',
+        monthlyTarget: null,
+        higherIsBetter: true,
+        paced: true,
+        primary: true,
+      },
+      {
+        key: 'demo-ra-bao-gia',
+        layer: 'chuyen-doi',
+        label: 'Demo ra được báo giá',
+        unit: 'ty-le',
+        formula: '(Báo giá sau demo ÷ Buổi demo) × 100% — chưa ghép được demo với người',
+        monthlyTarget: null,
+        higherIsBetter: true,
+        paced: false,
+      },
+    ],
+  },
+  {
+    /** Không có dòng nào: vai này phân công chứ không giữ khách. Màn hiện số
+     *  của phòng thay cho thước cá nhân. */
+    role: 'Trưởng phòng Kinh doanh',
+    kpis: [],
+  },
+]
+
+/** Ngưỡng SLA bàn giao — bảng "Nhóm 2 · SLA bàn giao" của tài liệu, phần chặng
+ *  nào đo được bằng sổ lead của kịch bản này. Hai chặng sau (Sales → Onboarding,
+ *  Onboarding → CS) thuộc giai đoạn sau bán: kịch bản DAS Vina là khách CHƯA
+ *  MUA nên không có mốc nào để đo, và trộn sang kịch bản Sao Đỏ là phạm luật.
+ *
+ *  `targetDays` là mục tiêu; tài liệu chấm trạng thái theo ba mức: trong mục
+ *  tiêu là đúng hạn, vượt ≤ 20% là cần theo dõi, quá 20% là trễ hạn. */
+export const HANDOFF_SLA = [
+  { key: 'mkt-bd', label: 'Marketing → BD', note: 'lead vào sổ → BD chạm lần đầu', targetDays: 5 },
+  { key: 'bd-sale', label: 'BD → Sale', note: 'lên MQL → vào sổ cơ hội', targetDays: 6 },
+] as const
+
+/** Ba mức trạng thái của tài liệu, dùng chung cho SLA và cho thước KPI. */
+export const SLA_WATCH_MARGIN = 0.2
+
+// ---------------------------------------------------------------------------
 // Module 1 · Chiến dịch & Sự kiện — nguồn của sổ lead.
 // ---------------------------------------------------------------------------
 
@@ -1286,4 +1533,436 @@ export function sourceStats(code: string) {
     /** Giá mỗi lead tốt, đồng. 0 lead tốt thì trả `null` — không chia cho 0. */
     costPerGood: good.length > 0 ? Math.round(cost / good.length) : null,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Hồ sơ một lead — thứ màn chi tiết đọc. Ba khối: người liên hệ · transcript ·
+// báo cáo tìm hiểu.
+//
+// TẤT CẢ dựng lại từ chính các trường của lead, KHÔNG có bảng thứ hai chép tay
+// 100 dòng. Đó là điều kiện để sổ không bao giờ tự mâu thuẫn: ô số 4 chưa điền
+// thì không có người liên hệ, ô số 5 chưa điền thì không có kênh gọi lại — đúng
+// như cổng init data nói, không phải một danh bạ chạy song song.
+// ---------------------------------------------------------------------------
+
+/** 'LD-0103' → 2. Vị trí trong sổ, dùng làm hạt giống tất định cho mọi thứ suy
+ *  ra dưới đây — hai lần chạy phải ra đúng một hồ sơ. */
+function seedOf(code: string): number {
+  return Math.max(0, Number(code.slice(3)) - 101)
+}
+
+/** Bỏ dấu tiếng Việt để dựng địa chỉ thư. Không dùng cho chữ hiển thị. */
+function deburr(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+}
+
+const CONTACT_FAMILY = [
+  'Nguyễn',
+  'Trần',
+  'Lê',
+  'Phạm',
+  'Hoàng',
+  'Vũ',
+  'Đặng',
+  'Bùi',
+  'Đỗ',
+  'Ngô',
+  'Dương',
+  'Lý',
+] as const
+
+const CONTACT_GIVEN = [
+  'Minh Tuấn',
+  'Thu Hằng',
+  'Quốc Bảo',
+  'Hải Yến',
+  'Trung Kiên',
+  'Thanh Tú',
+  'Đức Anh',
+  'Ngọc Lan',
+  'Văn Hùng',
+  'Phương Thảo',
+  'Xuân Trường',
+  'Kim Chi',
+  'Hữu Đạt',
+] as const
+
+const CONTACT_TITLE = [
+  'Giám đốc nhà máy',
+  'Trưởng phòng sản xuất',
+  'Phó giám đốc',
+  'Trưởng phòng IT',
+  'Giám đốc vận hành',
+  'Trưởng phòng mua hàng',
+  'Kế toán trưởng',
+] as const
+
+export type LeadContact = {
+  name: string
+  title: string
+  /** Chỉ có khi ô số 5 "kênh liên lạc gọi lại được" đã điền. */
+  phone?: string
+  email?: string
+  /** Kênh khách vừa dùng — cùng kênh của đợt kéo lead này về. */
+  channel?: WaveChannel
+}
+
+/** Người liên hệ bên khách.
+ *
+ *  `null` là câu trả lời hợp lệ và hay gặp: ô số 4 chưa moi được thì CHƯA CÓ
+ *  người liên hệ. Điền một cái tên cho đủ ô là phá đúng thứ cổng init data sinh
+ *  ra để đo.
+ *
+ *  DAS Vina lấy người thật trong đồ thị object (CT-0391), không lấy tên suy ra —
+ *  đây là dòng mồi của cả kịch bản, nó phải khớp với `objects`. */
+export function leadContact(lead: Lead): LeadContact | null {
+  if (!lead.filled.includes('nguoi-lien-he')) return null
+
+  const i = seedOf(lead.code)
+  const reachable = lead.filled.includes('kenh')
+  const channel = reachable ? primaryChannel(lead.source) : undefined
+
+  if (lead.code === DAS_VINA_LEAD) {
+    return {
+      name: 'Kim Dae-ho',
+      title: 'Giám đốc nhà máy',
+      phone: reachable ? '0912 300 391' : undefined,
+      email: reachable ? 'daeho.kim@dasvina.vn' : undefined,
+      channel,
+    }
+  }
+
+  const family = CONTACT_FAMILY[i % CONTACT_FAMILY.length] as string
+  const given = CONTACT_GIVEN[(i * 5) % CONTACT_GIVEN.length] as string
+  const title = CONTACT_TITLE[(i * 3) % CONTACT_TITLE.length] as string
+  const box = deburr(given).toLowerCase().replace(/\s+/g, '.')
+  const host = deburr(lead.company)
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .slice(0, 12)
+
+  return {
+    name: `${family} ${given}`,
+    title,
+    phone: reachable ? `0912 ${300 + i} ${100 + ((i * 7) % 900)}` : undefined,
+    email: reachable ? `${box}@${host}.vn` : undefined,
+    channel,
+  }
+}
+
+/** Kênh chính của một nguồn — đợt kéo về nhiều lead nhất.
+ *
+ *  Nguồn tự nhiên không có đợt nào nên KHÔNG có kênh: trả `undefined` chứ không
+ *  trả 'email' cho có. "Khách cũ giới thiệu" không đi qua kênh nào cả. */
+export function primaryChannel(sourceCode: string): WaveChannel | undefined {
+  const waves = sourceByCode.get(sourceCode)?.waves ?? []
+  const best = waves.reduce<Wave | undefined>(
+    (top, w) => (!top || w.leads > top.leads ? w : top),
+    undefined,
+  )
+  return best?.channel
+}
+
+/** Bốn kiểu xuất xứ của một lead. Ba kiểu đầu suy từ `SourceKind`; kiểu thứ tư
+ *  tách riêng vì "khách cũ giới thiệu" và "BD tự mở" là hai câu chuyện khác nhau
+ *  dù cùng là nguồn tự nhiên. */
+export type OriginKind = 'chien-dich' | 'su-kien' | 'gioi-thieu' | 'tu-mo'
+
+export type LeadOrigin = {
+  kind: OriginKind
+  code: string
+  label: string
+  /** Ai chịu trách nhiệm nguồn này. */
+  owner: string
+  /** Kênh của đợt kéo lead về. Nguồn tự nhiên không có. */
+  channel?: WaveChannel
+  /** Sự kiện thì có chỗ và có người đến. */
+  venue?: string
+  checkedIn?: number
+  registered?: number
+  /** Ngày nguồn chạy lần đầu, ISO. */
+  startedAt: string
+  /** Một câu nói rõ lead này về bằng đường nào. */
+  note: string
+}
+
+/** Lead này từ đâu về. Đây là dây nối module 2 → module 1. */
+export function leadOrigin(lead: Lead): LeadOrigin {
+  const src = sourceByCode.get(lead.source)
+  if (!src) {
+    throw new Error(`Lead ${lead.code} trỏ vào nguồn "${lead.source}" không có trong SOURCES`)
+  }
+
+  const kind: OriginKind =
+    src.kind === 'su-kien'
+      ? 'su-kien'
+      : src.kind === 'chien-dich'
+        ? 'chien-dich'
+        : src.code === 'GT'
+          ? 'gioi-thieu'
+          : 'tu-mo'
+
+  const note = {
+    'chien-dich': `Về từ chiến dịch ${src.code} — ${src.waves.length} đợt đã chạy.`,
+    'su-kien': `Về từ sự kiện ${src.code} tại ${src.venue ?? 'chưa ghi địa điểm'}.`,
+    'gioi-thieu': 'Khách cũ giới thiệu thẳng vào công ty — không đi qua đợt nào.',
+    'tu-mo': `${src.owner} tự mở, tạo trực tiếp trong sổ — không đi qua đợt nào.`,
+  }[kind]
+
+  return {
+    kind,
+    code: src.code,
+    label: src.label,
+    owner: src.owner,
+    channel: primaryChannel(src.code),
+    venue: src.venue,
+    checkedIn: src.checkedIn,
+    registered: src.registered,
+    startedAt: dayISO(src.startDay),
+    note,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Transcript — NGÔN NGỮ LƯU LÀ TIẾNG ANH (docs/kien-truc-san-pham.md ·
+// "Transcript"). Giao diện vẫn tiếng Việt; transcript là dữ liệu lưu, không
+// phải thứ hiển thị mặc định. Bộ 10 câu là phần RÚT RA từ đây.
+// ---------------------------------------------------------------------------
+
+/** Câu hỏi bên mình, đúng một câu cho mỗi ô của bộ 10 câu. */
+const ASK: Record<QuestionKey, string> = {
+  'phap-nhan': 'Can you confirm the legal entity name and the tax code for the paperwork?',
+  nganh: 'What does the plant actually make, and which line matters most to you?',
+  'quy-mo': 'How many people are on site, and how many plants do you run?',
+  'nguoi-lien-he': 'Who owns this on your side, and what is their title?',
+  kenh: 'What is the best way to reach you — Zalo, email, or a direct call?',
+  dau: 'Where does it hurt today? If we fix one thing this year, what is it?',
+  'dang-dung': 'What are you running today — spreadsheets, an ERP, something in-house?',
+  'nguoi-ky': 'Who signs the final contract, and who approves the budget?',
+  tien: 'What budget range are we looking at for this year?',
+  moc: 'When do you need this live?',
+}
+
+/** Câu trả lời bên khách. Lấy dữ liệu từ chính dòng lead nên hai lead khác nhau
+ *  ra hai transcript khác nhau mà vẫn tất định. */
+const REPLY: Record<QuestionKey, (l: Lead, category: string) => string> = {
+  'phap-nhan': (l) => `${l.company} JSC. The plant is in ${l.province}; I will send the tax code.`,
+  nganh: (_l, c) => `${c}. One main line, plus a smaller line we started this year.`,
+  'quy-mo': (l) => `About ${400 + (seedOf(l.code) % 12) * 100} people on site. One plant for now.`,
+  'nguoi-lien-he': () => 'I own it. Procurement joins once we get to numbers.',
+  kenh: () => 'Zalo is fastest. Email works for anything I have to forward internally.',
+  dau: (_l, c) =>
+    `We cannot tell where a ${c.toLowerCase()} batch actually sits until the shift ends.`,
+  'dang-dung': () => 'Excel plus a very old in-house tool. Nobody trusts the numbers in it.',
+  'nguoi-ky': () => 'The board signs. Finance approves anything above the yearly cap.',
+  tien: () => 'We have not fixed a number. It has to clear payback inside two years.',
+  moc: () => 'Before the next audit. That gives us roughly one quarter.',
+}
+
+export type TurnKind = 'gap' | 'goi' | 'chat' | 'mail'
+
+export type TranscriptTurn = {
+  no: number
+  /** ISO, giờ VN — lấy đúng mốc của lần chạm trong timeline. */
+  at: string
+  kind: TurnKind
+  /** Ai bên mình. 'Trợ lý AI' là agent 1. */
+  by: string
+  /** Ô nào của bộ 10 câu moi được trong lần chạm này. */
+  slots: QuestionKey[]
+  /** Nguyên văn, tiếng Anh. */
+  lines: { speaker: 'pv' | 'kh'; text: string }[]
+}
+
+/** Lần chạm nào được tính là một turn. 'len-bac' và 'ky' là KẾT QUẢ của một lần
+ *  chạm chứ không phải một cuộc nói chuyện — không đẻ turn. */
+const TURN_KINDS = new Set<LeadEventKind>(['vao-so', 'cham', 'dien-o', 'giao', 'doi-cot'])
+
+function turnKindOf(by: string): TurnKind {
+  if (by === 'Trợ lý AI') return 'chat'
+  if (by === MARKETING) return 'mail'
+  if (by === HEAD_OF_SALES) return 'goi'
+  return 'gap'
+}
+
+/** Transcript của một lead.
+ *
+ *  MỘT TURN = MỘT LẦN CHẠM có ghi trong timeline. Ô moi được chia theo thứ tự
+ *  cho các lần chạm — ô số 1 lấy ở lần chạm đầu, ô cuối lấy ở lần gần nhất. Vì
+ *  thế số turn không bao giờ vượt số mốc trong timeline, và lead chưa moi được ô
+ *  nào thì KHÔNG có turn nào: gọi mà không hỏi ra gì thì không có gì để lưu. */
+export function leadTranscript(lead: Lead): TranscriptTurn[] {
+  const keys = lead.filled
+  if (keys.length === 0) return []
+
+  const touches = lead.history.filter((e) => TURN_KINDS.has(e.kind))
+  if (touches.length === 0) return []
+
+  const category = LEAD_CATEGORIES.find((c) => c.key === lead.category)?.label ?? lead.category
+  const count = Math.max(1, Math.min(touches.length, Math.ceil(keys.length / 2)))
+  const per = Math.ceil(keys.length / count)
+
+  return Array.from({ length: count }, (_, i) => {
+    const slots = keys.slice(i * per, (i + 1) * per)
+    const touch = touches[Math.min(i, touches.length - 1)]
+    const by = touch?.by ?? MARKETING
+    return {
+      no: i + 1,
+      at: touch?.at ?? lead.createdAt,
+      kind: turnKindOf(by),
+      by,
+      slots,
+      lines: slots.flatMap((k) => [
+        { speaker: 'pv' as const, text: ASK[k] },
+        { speaker: 'kh' as const, text: REPLY[k](lead, category) },
+      ]),
+    }
+  }).filter((t) => t.slots.length > 0)
+}
+
+// ---------------------------------------------------------------------------
+// Báo cáo tìm hiểu khách hàng — phần RÚT RA từ transcript, viết tiếng Việt.
+// ---------------------------------------------------------------------------
+
+/** Một dòng của báo cáo. Chỉ ô ĐÃ điền mới có dòng; ô trống nằm ở `missing…`. */
+const DIGEST: Record<QuestionKey, (l: Lead, category: string) => string> = {
+  'phap-nhan': (l) => `${l.company} — pháp nhân đã xác minh, nhà máy đặt tại ${l.province}.`,
+  nganh: (_l, c) => `Ngành ${c.toLowerCase()}; một dây chuyền chính, một dây mới mở trong năm.`,
+  'quy-mo': (l) => `Khoảng ${400 + (seedOf(l.code) % 12) * 100} người tại chỗ, một nhà máy.`,
+  'nguoi-lien-he': () => 'Người liên hệ tự đứng tên việc này; mua hàng vào cuộc khi bàn tới số.',
+  kenh: () => 'Zalo là kênh nhanh nhất; email dùng cho thứ cần chuyển tiếp nội bộ.',
+  dau: (_l, c) => `Đau chính: không biết lô ${c.toLowerCase()} nằm ở đâu cho tới khi hết ca.`,
+  'dang-dung': () => 'Đang dùng Excel và một công cụ nội bộ cũ; số trong đó không ai tin.',
+  'nguoi-ky': () => 'Hội đồng ký; tài chính duyệt mọi khoản vượt trần năm.',
+  tien: () => 'Chưa chốt con số; điều kiện là hoàn vốn trong hai năm.',
+  moc: () => 'Cần chạy trước kỳ kiểm toán tới — còn khoảng một quý.',
+}
+
+export type ResearchLine = {
+  key: QuestionKey
+  no: number
+  label: string
+  required: boolean
+  body: string
+}
+
+export type LeadResearch = {
+  /** Cập nhật lần thứ mấy. Mỗi turn là một lần cập nhật, không hơn không kém. */
+  version: number
+  updatedAt: string
+  updatedBy: string
+  /** Một câu mở đầu — thứ đọc trước khi bấm gọi khách. */
+  headline: string
+  lines: ResearchLine[]
+  missingRequired: QuestionKey[]
+  missingOptional: QuestionKey[]
+}
+
+/** Báo cáo tìm hiểu khách hàng ở trạng thái HIỆN TẠI.
+ *
+ *  Số lần cập nhật = số turn. Đây không phải cách đánh số cho đẹp: báo cáo là
+ *  phần rút ra từ transcript, nên nó chỉ đổi khi có thêm một lần nói chuyện.
+ *  Lead chưa có turn nào thì báo cáo ở phiên bản 0 — chưa ai tìm hiểu gì. */
+export function leadResearch(lead: Lead): LeadResearch {
+  const turns = leadTranscript(lead)
+  const last = turns[turns.length - 1]
+  const category = LEAD_CATEGORIES.find((c) => c.key === lead.category)?.label ?? lead.category
+  const filled = new Set(lead.filled)
+  const missing = INIT_DATA_QUESTIONS.filter((q) => !filled.has(q.key))
+  const shortBy = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
+
+  return {
+    version: turns.length,
+    updatedAt: last?.at ?? lead.createdAt,
+    updatedBy: last?.by ?? MARKETING,
+    headline:
+      shortBy > 0
+        ? `${lead.company} · ${category} · ${lead.province}. Còn thiếu ${shortBy} ô bắt buộc — chưa qua cổng init data.`
+        : `${lead.company} · ${category} · ${lead.province}. Đủ ${REQUIRED_SLOTS} ô bắt buộc, hồ sơ chạy được vào pipeline.`,
+    lines: INIT_DATA_QUESTIONS.filter((q) => filled.has(q.key)).map((q) => ({
+      key: q.key,
+      no: q.no,
+      label: q.label,
+      required: q.required,
+      body: DIGEST[q.key](lead, category),
+    })),
+    missingRequired: missing.filter((q) => q.required).map((q) => q.key),
+    missingOptional: missing.filter((q) => !q.required).map((q) => q.key),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Giao việc — ai nên nhận.
+// ---------------------------------------------------------------------------
+
+/** Ngành một người phụ trách, suy từ `LEAD_CATEGORIES`.
+ *
+ *  Vai không gắn ngành (Marketing, BD, Presales, TP Kinh doanh) trả mảng rỗng,
+ *  và mảng rỗng ở đây nghĩa là "làm được mọi ngành" chứ không phải "không làm
+ *  được ngành nào" — chỗ gọi phải đọc đúng nghĩa đó. */
+export function domainsOf(name: string): string[] {
+  return LEAD_CATEGORIES.filter((c) => c.sale === name).map((c) => c.label)
+}
+
+/** Sale phụ trách một ngành. Đây là luật chia việc mặc định của phòng
+ *  (module 5 · mục 5.3), không phải gợi ý. */
+export function saleOfCategory(category: LeadCategory): string | undefined {
+  return LEAD_CATEGORIES.find((c) => c.key === category)?.sale
+}
+
+// ---------------------------------------------------------------------------
+// Mốc thời gian của một lead — nền của trục tháng · quý · năm ở module 3.
+// ---------------------------------------------------------------------------
+
+/** Kỳ dữ liệu của kịch bản: từ ngày đầu tới đúng lát cắt đã đóng băng.
+ *  Bộ chọn kỳ của màn Performance không được vượt ra ngoài hai mốc này. */
+export const DAS_VINA_PERIOD = { from: dayISO(0), to: DAS_VINA_FROZEN_AT } as const
+
+/** Năm mốc đời của một lead, đọc từ chính `history` chứ không đoán thêm.
+ *
+ *  Đây là thứ cho phép cắt sổ lead theo tháng/quý/năm mà không đẻ ra con số
+ *  nào: mỗi mốc là một sự kiện ĐÃ CÓ NGÀY trong kịch bản. Cộng cả kỳ thì bốn
+ *  mốc `vaoSo · mql · sql · ky` ra đúng bốn bậc 100 · 44 · 30 · 6 của `FUNNEL`
+ *  — `scenario.test.ts` khoá đẳng thức đó.
+ *
+ *  `bdCham` là lần BD đặt tay vào lead (mốc `dien-o` do BD ghi). Nó KHÁC "lead
+ *  BD đang giữ": lead lên SQL thì đổi chủ sang Sale, nhưng công trạng của BD
+ *  vẫn nằm ở lần chạm đó (docs · "Hoa hồng và công trạng"). */
+export type LeadMilestones = {
+  /** Ngày vào sổ. Lead nào cũng có. */
+  vaoSo: string
+  /** Lên bậc MQL — Marketing xác minh công ty có thật. */
+  mql?: string
+  /** Vào sổ cơ hội, tức lên bậc SQL. */
+  sql?: string
+  ky?: string
+  roi?: string
+  bdCham?: string
+}
+
+export function leadMilestones(lead: Lead): LeadMilestones {
+  const at = (kind: LeadEventKind, by?: string) =>
+    lead.history.find((e) => e.kind === kind && (by === undefined || e.by === by))?.at
+
+  return {
+    vaoSo: lead.createdAt,
+    /* `len-bac` xuất hiện hai lần: lên MQL rồi qua cổng init data. Lấy cái ĐẦU
+       tiên — cái thứ hai đã có mốc riêng là `vao-pipeline`. */
+    mql: at('len-bac'),
+    sql: at('vao-pipeline'),
+    ky: at('ky'),
+    roi: lead.exitedAt,
+    bdCham: at('dien-o', BD),
+  }
+}
+
+/** Số ngày giữa hai mốc ISO. Trả `null` nếu thiếu một đầu — chặng không đo được
+ *  thì nói ra, đừng trả 0 (0 nghĩa là "đo rồi, xong trong ngày"). */
+export function daysBetween(from: string | undefined, to: string | undefined): number | null {
+  if (!from || !to) return null
+  return (Date.parse(to) - Date.parse(from)) / DAY_MS
 }

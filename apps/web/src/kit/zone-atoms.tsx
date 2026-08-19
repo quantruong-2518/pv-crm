@@ -1,12 +1,15 @@
+import { useState } from 'react'
 import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
   Avatar,
+  AvatarGroup,
   Badge,
   type BadgeProps,
   Button,
   ChannelTag,
+  Checkbox,
   Chip,
   Input,
   Kicker,
@@ -14,6 +17,7 @@ import {
   Money,
   Progress,
   SectionTitle,
+  Select,
   Separator,
   Skeleton,
   Sparkline,
@@ -39,7 +43,15 @@ const STATUS_DOTS = [
   { state: 'bad', text: 'bad — dừng / quá hạn' },
 ] as const
 
+const TEAM = ['Trần Thu Hà', 'Đỗ Quang Huy', 'Lê Hoàng Nam', 'Vũ Minh Châu', 'Phạm Diệu Anh']
+
 export function ZoneAtoms() {
+  /* Ba atom cuối là control có trạng thái — bày một bản chết thì không kiểm được
+     hai thứ quan trọng nhất của chúng: ô lọc có sáng lên khi khác mặc định
+     không, và ô tick có đổi nền không. */
+  const [tier, setTier] = useState('all')
+  const [picked, setPicked] = useState<string[]>(['Đỗ Quang Huy'])
+
   return (
     <section id="zone-01" className="pb-2 pt-12">
       <div className="border-t-white/12 border-t pt-10">
@@ -288,6 +300,81 @@ export function ZoneAtoms() {
           </SectionTitle>
           <SectionTitle size="md">Người duyệt</SectionTitle>
           <SectionTitle size="sm">Chỉ số của sự kiện</SectionTitle>
+        </SpecCard>
+
+        {/* A-15 */}
+        <SpecCard
+          code="A-15"
+          name="Select"
+          note="ô lọc một dòng"
+          noteAccent
+          bodyClassName="flex flex-wrap items-center gap-3 px-4 py-4"
+          footer="select gốc — bàn phím, chạm, tìm theo chữ cái là của trình duyệt · popup lấy màu từ color-scheme: dark · khác mặc định thì ô SÁNG lên"
+        >
+          <Select
+            label="Bậc"
+            value={tier}
+            onChange={setTier}
+            options={[
+              { value: 'all', label: 'Tất cả' },
+              { value: 'dau-moi', label: 'Đầu mối · 56' },
+              { value: 'mql', label: 'MQL · 14' },
+              { value: 'sql', label: 'SQL · 30' },
+            ]}
+          />
+          <Select
+            label="Ngành"
+            size="sm"
+            value="chip"
+            onChange={() => {}}
+            options={[
+              { value: 'all', label: 'Tất cả' },
+              { value: 'chip', label: 'Chip' },
+            ]}
+          />
+          <span className="text-muted-foreground text-[11.5px]">
+            ô bên phải đang lọc khác mặc định
+          </span>
+        </SpecCard>
+
+        {/* A-16 */}
+        <SpecCard
+          code="A-16"
+          name="Checkbox"
+          note="chọn nhiều"
+          bodyClassName="flex flex-col gap-1 px-4 py-4"
+          footer="input thật nằm dưới sr-only — Space, focus và trình đọc màn hình là của trình duyệt · borderless: chưa tick đọc bằng nền white/12"
+        >
+          {TEAM.slice(0, 3).map((name) => (
+            <Checkbox
+              key={name}
+              checked={picked.includes(name)}
+              onChange={() =>
+                setPicked((xs) =>
+                  xs.includes(name) ? xs.filter((x) => x !== name) : [...xs, name],
+                )
+              }
+              label={name}
+              hint="Sale · chip — ngành khớp với lead"
+              trailing={<Avatar name={name} size="sm" />}
+            />
+          ))}
+        </SpecCard>
+
+        {/* A-17 */}
+        <SpecCard
+          code="A-17"
+          name="AvatarGroup"
+          note="cụm người trong ô bảng"
+          bodyClassName="flex flex-col gap-4 px-4 py-4"
+          footer="chồng -ml-2 · tràn thì gộp thành +N và tooltip liệt kê nốt · rê chuột ra tên · danh sách rỗng nói thẳng chứ không để ô trắng"
+        >
+          <div className="flex items-center gap-4">
+            <AvatarGroup names={TEAM.slice(0, 2)} />
+            <AvatarGroup names={TEAM} />
+            <AvatarGroup names={TEAM} size="md" max={2} />
+          </div>
+          <AvatarGroup names={[]} />
         </SpecCard>
       </ZoneBody>
     </section>
