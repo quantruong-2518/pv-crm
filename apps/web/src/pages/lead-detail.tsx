@@ -242,10 +242,13 @@ export function LeadDetailPage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+          {/* Timeline xuống cuối vì nó là khối DÀI nhất của cột: đặt nó trên
+              thì "Lead có vấn đề" tụt khỏi tầm mắt và người dùng tưởng màn
+              không có chỗ báo lead hỏng. */}
           <SlotsCard lead={lead} />
           <PeopleCard lead={lead} people={people} />
-          <HistoryCard lead={lead} />
           <ExitPanel lead={lead} />
+          <HistoryCard lead={lead} />
         </div>
       </div>
 

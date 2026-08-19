@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import { FUNNEL, LEADS } from '@pv/engines/fixtures/das-vina'
+import { useLeadDesk } from '@/app/desk'
 import { renderRoutes, renderScreen } from '@/test-utils'
 import { LeadsPage } from './leads'
 
@@ -166,6 +167,28 @@ describe('Module 2 · Sổ lead', () => {
     fireEvent.click(first as HTMLElement)
 
     expect(screen.getAllByText('Đã đề nghị').length).toBeGreaterThan(0)
+  })
+
+  it('việc vừa được giao rơi vào ĐÚNG cột của nó và đeo nhãn "mới"', async () => {
+    // Huy là Sale ngành chip; lead dưới đây do Linh giữ, đang ở cột "Đã demo".
+    const other = LEADS.find((l) => l.stage === 'da-demo' && l.owner !== 'Đỗ Quang Huy')
+    expect(other).toBeDefined()
+
+    renderScreen(<LeadsPage />, { actorId: 'u-huy' })
+    await screen.findByRole('cell', { name: 'DAS Vina' })
+
+    act(() => {
+      useLeadDesk.getState().assign(other?.code ?? '', ['u-huy'], 'Báo tắc')
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Việc của tôi · \d+/ }))
+
+    const card = screen.getByRole('button', { name: `Mở hồ sơ ${other?.company}` })
+    expect(within(card).getByText('mới')).toBeInTheDocument()
+    expect(within(card).getByText(/Vừa được giao · Báo tắc/)).toBeInTheDocument()
+
+    // Thẻ nằm trong cột "Đã demo", không nằm trong một hộp "việc mới" riêng.
+    const column = card.parentElement?.parentElement as HTMLElement
+    expect(within(column).getByText('Đã demo')).toBeInTheDocument()
   })
 
   it('vai Sale thấy việc của chính mình, không thấy việc của vai khác', async () => {
