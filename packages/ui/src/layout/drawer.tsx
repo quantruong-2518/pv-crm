@@ -63,7 +63,11 @@ export function Drawer({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end">
+    /* z-50 — PHẢI cao hơn nav (z-40 ở AppShell). Drawer từng là z-20 vì hồi
+       nav còn là cột dọc thì không có gì tranh tầng với nó; nav hai tầng dán
+       đỉnh có z-index thật, nên z-20 làm nav chọc thủng cả tấm che lẫn panel.
+       Thang tầng của app: nav 40 · drawer 50. */
+    <div className="fixed inset-0 z-50 flex justify-end">
       <button
         type="button"
         aria-label={closeLabel}
@@ -77,7 +81,11 @@ export function Drawer({
         aria-modal="true"
         tabIndex={-1}
         className={cn(
-          'glass-b relative flex h-full w-full flex-col outline-none',
+          /* `glass-overlay`, KHÔNG `glass-b`: panel này đè lên trang, mà
+             `glass-b` để lọt 16% nền — dưới nó lại là tấm scrim tối 52%, nên
+             chữ trong panel đọc trên một lớp bùn và cả drawer trông như bị
+             làm mờ. Thứ nổi lên trên thì phải che được thứ ở dưới. */
+          'glass-overlay relative flex h-full w-full flex-col outline-none',
           width === 'lg' ? 'sm:w-[640px]' : 'sm:w-[480px]',
           className,
         )}

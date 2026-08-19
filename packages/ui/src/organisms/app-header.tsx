@@ -292,7 +292,7 @@ export function AppHeader({
                   id={menuId}
                   role="menu"
                   aria-label={app.label}
-                  className="glass-menu shadow-card absolute left-0 z-50 mt-1 flex min-w-[232px] flex-col gap-1 rounded-lg p-2"
+                  className="glass-overlay shadow-card absolute left-0 z-50 mt-1 flex min-w-[232px] flex-col gap-1 rounded-lg p-2"
                 >
                   {app.items?.map((item) => (
                     <button
