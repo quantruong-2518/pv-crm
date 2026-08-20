@@ -1,10 +1,28 @@
 import { useState } from 'react'
+import { Bell, House, Package, SquareCheckBig, Users } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { Badge, Button, Drawer, GlassCard, cn } from '@pv/ui'
+import { AppShell, Badge, Button, Drawer, GlassCard, cn } from '@pv/ui'
 
 /** Zone 04 · Templates — ba thiết bị là ba vai, không phải một layout co giãn.
- *  Ba sơ đồ dưới đây là bản vẽ khung, không phải component sản phẩm. */
+ *  T-01/02/03 là bản vẽ khung; T-04 và T-05 là component SỐNG. */
+
+/** Nav mẫu cho T-05 — đủ để thấy hai tầng, không phải bộ mục thật của app. */
+const SHELL_HEADER = {
+  product: 'PV One',
+  org: 'Thắng Lợi',
+  user: { name: 'Nguyễn Văn Thắng' },
+  search: { placeholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' },
+  core: [
+    { icon: House, label: 'Trang chủ', active: true },
+    { icon: SquareCheckBig, label: 'Phê duyệt', count: 7 },
+    { icon: Bell, label: 'Thông báo', locked: true },
+  ],
+  apps: [
+    { icon: Users, label: 'Kinh doanh', active: true },
+    { icon: Package, label: 'Cung ứng', locked: true },
+  ],
+}
 
 const frame =
   'h-[270px] rounded-md bg-[color-mix(in_srgb,var(--background)_70%,transparent)] shadow-[inset_0_0_0_1px_rgb(255_255_255/.07)]'
@@ -137,7 +155,7 @@ export function ZoneTemplates() {
           className="col-span-3"
           code="T-04"
           name="Drawer"
-          note="panel phải · md 480 / lg 640"
+          note="panel phải · md 560 / lg 760"
           bodyClassName="flex flex-wrap items-center gap-4 px-4 py-5"
           footer={
             <>
@@ -179,6 +197,49 @@ export function ZoneTemplates() {
               </GlassCard>
             </div>
           </Drawer>
+        </SpecCard>
+
+        {/* T-05 */}
+        <SpecCard
+          className="col-span-3"
+          code="T-05"
+          name="AppShell"
+          note="khung của MỌI màn"
+          bodyClassName="p-4"
+          footer={
+            <>
+              Nhịp khung nằm ở một chỗ: lề `p-4 lg:p-6` · khoảng nav↔nội dung `gap-4 lg:gap-6` ·
+              chừa chỗ BottomNav dưới `lg`. Màn tự gõ `p-8` là màn đó tự tách khỏi hệ.
+              <br />
+              `AssistantFab` CHỈ hiện khi màn truyền `onOpenAssistant`; `lockedNav` khoá mục
+              BottomNav chưa có màn. Cả hai vì cùng một lý do: không hứa màn chưa tồn tại.
+              <br />Ở đây thu 50% trong một hộp cắt — `scale` cũng là thứ giữ `fixed` của FAB nằm
+              trong khung mẫu thay vì bay ra góc cửa sổ thật.
+            </>
+          }
+        >
+          <div className="h-[420px] overflow-hidden rounded-md">
+            <div className="h-[840px] w-[1900px] origin-top-left scale-50">
+              <AppShell
+                activeNav="home"
+                approvalsCount={7}
+                lockedNav={['search']}
+                header={SHELL_HEADER}
+                onNavigate={() => {}}
+                onOpenAssistant={() => {}}
+              >
+                <div className="grid grid-cols-4 gap-4">
+                  <GlassCard className="col-span-2 row-span-2 h-[280px] p-5">
+                    <div className="text-muted-foreground text-[11px]">hero 2×2</div>
+                  </GlassCard>
+                  <GlassCard className="h-[132px] p-5" />
+                  <GlassCard className="h-[132px] p-5" />
+                  <GlassCard className="h-[132px] p-5" />
+                  <GlassCard className="h-[132px] p-5" />
+                </div>
+              </AppShell>
+            </div>
+          </div>
         </SpecCard>
       </ZoneBody>
     </section>

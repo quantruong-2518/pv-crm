@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
+import { millions } from '@pv/ui'
 import { HEAD_OF_SALES, SOURCES } from '@pv/engines/fixtures/das-vina'
 import { renderRoutes } from '@/test-utils'
 import { ANCHOR_SOURCE } from '@/data/campaigns'
+import { COST_KIND_LABEL } from '@/data/source-cost'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { CampaignDetailPage } from './campaign-detail'
 import { CampaignsPage } from './campaigns'
@@ -131,6 +133,36 @@ describe('Module 1 · Hồ sơ nguồn', () => {
     /* Kịch bản không lưu nội dung đã soạn — form nói ra thay vì bịa lại bài cũ,
        và nói lại một lần dưới TỪNG ô soạn trống chứ không chỉ ở đầu section. */
     expect(screen.getAllByText(/Kịch bản không lưu nội dung đã soạn/).length).toBeGreaterThan(1)
+  })
+
+  /* Hồ sơ nguồn là chỗ ĐÚNG để thấy tiền của một nguồn đi đâu — sổ nguồn chỉ có
+     chỗ cho một con số mỗi dòng. Hai ca dưới gác hai nhánh của khối đó. */
+  it('bày tiền đi đâu — từng loại có số và tỉ trọng, cộng đúng chi phí của nguồn', async () => {
+    const paid = SOURCES.find((s) => s.costLines.length > 0)
+    if (!paid) throw new Error('Fixture không có nguồn nào tiêu tiền')
+
+    openSource(paid.code)
+    await openProfile(paid.code)
+
+    expect(screen.getByText('Tiền đi đâu')).toBeInTheDocument()
+    for (const kind of new Set(paid.costLines.map((l) => l.kind))) {
+      expect(screen.getAllByText(COST_KIND_LABEL[kind]).length).toBeGreaterThan(0)
+    }
+
+    /* Tổng của bảng phải là chi phí của nguồn, không phải một con số khác —
+       câu hint khai thẳng ra để người đọc đối chiếu được bằng mắt. */
+    expect(screen.getByText(new RegExp(`cộng đúng ${millions(paid.cost)}`))).toBeInTheDocument()
+  })
+
+  it('nguồn 0 đồng KHÔNG có bảng chi phí rỗng — nó có một câu nói vì sao', async () => {
+    const free = SOURCES.find((s) => s.cost === 0)
+    if (!free) throw new Error('Fixture không có nguồn nào 0 đồng')
+
+    openSource(free.code)
+    await openProfile(free.code)
+
+    expect(screen.getAllByText(/không tốn đồng tiền mặt nào/).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Loại chi')).not.toBeInTheDocument()
   })
 
   it('lối về trả đúng người dùng lại sổ nguồn', async () => {

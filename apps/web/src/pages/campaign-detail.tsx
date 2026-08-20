@@ -24,10 +24,13 @@ import {
   Button,
   ChannelTag,
   ContextRail,
+  CostBand,
+  DataTable,
   EmptyState,
   GlassCard,
   Icon,
   MetaPill,
+  Money,
   Progress,
   SectionTitle,
   Skeleton,
@@ -93,11 +96,7 @@ export function CampaignDetailPage() {
 
   const source = sources.find((s) => s.code === code) ?? null
 
-  const shell = (children: ReactNode) => (
-    <AppShell activeNav="home" approvalsCount={chrome.approvalsCount} header={chrome.header}>
-      {children}
-    </AppShell>
-  )
+  const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
   if (isPending) {
     return shell(
@@ -185,17 +184,23 @@ export function CampaignDetailPage() {
 
   if (mode === 'edit') {
     return shell(
-      <CampaignForm
-        mode="edit"
-        code={source.code}
-        initial={draftOf(source, seedWave)}
-        seededWave={seedWave}
-        sources={sources}
-        onCancel={() => {
-          setSeedWave(false)
-          setMode('view')
-        }}
-      />,
+      /* Luật 10 · rail có mặt ở CẢ hai chế độ, đúng như sổ nguồn làm với chế độ
+         tạo mới. Sửa là một việc của cùng hồ sơ, không phải một màn khác —
+         chuỗi object không được biến mất chỉ vì người dùng bấm sang form. */
+      <div className="flex flex-col gap-4 lg:gap-6">
+        <ContextRail objects={rail} />
+        <CampaignForm
+          mode="edit"
+          code={source.code}
+          initial={draftOf(source, seedWave)}
+          seededWave={seedWave}
+          sources={sources}
+          onCancel={() => {
+            setSeedWave(false)
+            setMode('view')
+          }}
+        />
+      </div>,
     )
   }
 
@@ -323,12 +328,26 @@ export function CampaignDetailPage() {
                   : 'không đợt nào gửi đi'
               }
             />
+            {/* Điểm vẫn là số to — nó là thứ người ta liếc — nhưng dải đi kèm
+                ngay dưới, và khối "Tiền đi đâu" bên dưới vẽ nó ra. Hiện điểm
+                một mình là hiện con số hẹp nhất trong ba con số. */}
             <StatCard
               size="compact"
               icon={Wallet}
-              value={source.costPerGood === null ? '—' : millions(source.costPerGood)}
+              /* `costPerGood` của nguồn 0 đồng là 0 chứ không phải null (0 chia
+                 cho 3 lead tốt vẫn ra 0), và "0,0 tr" cỡ chữ to đọc ra là RẺ
+                 NHẤT BẢNG. Người ta liếc con số chứ không liếc hint. */
+              value={
+                source.cost === 0 || source.costPerGood === null
+                  ? '—'
+                  : millions(source.costPerGood)
+              }
               label="Chi phí mỗi lead tốt"
-              hint={`đã tiêu ${millions(source.cost)}`}
+              hint={
+                source.cost === 0
+                  ? 'không tốn đồng tiền mặt nào'
+                  : `đã tiêu ${millions(source.cost)} · dải ${source.bandText}`
+              }
             />
             {/* Ô thứ tư đổi theo loại: sự kiện đo bằng người ĐẾN, chiến dịch đo
                 bằng lead qua cổng. `attendRate` null nghĩa là không phải sự
@@ -351,6 +370,79 @@ export function CampaignDetailPage() {
               />
             )}
           </div>
+
+          {/* Tiền của nguồn này đi đâu — năm loại L1…L5, số và tỉ trọng.
+              Bảng nằm trên glass-b (luật 8).
+
+              Nguồn tự nhiên KHÔNG có bảng: 0 đồng tiền mặt là câu trả lời đúng
+              cho GT và TM, không phải chỗ thiếu dữ liệu, và một cái bảng rỗng
+              đọc như một lỗi tải. Nó được một câu chữ thay chỗ. */}
+          <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+            <SectionTitle
+              size="sm"
+              hint={
+                source.costByKind.total > 0
+                  ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng chi phí của nguồn. Giờ người KHÔNG có ở đây: đây là tiền đã ra khỏi tài khoản.`
+                  : undefined
+              }
+            >
+              Tiền đi đâu
+            </SectionTitle>
+
+            {source.costByKind.rows.length === 0 ? (
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Nguồn này không tốn đồng tiền mặt nào, nên không có dòng chi nào để phân rã — đó là
+                nội dung của nó, không phải chỗ thiếu dữ liệu. {source.leads} lead về từ đây vẫn tốn
+                giờ người, nhưng giờ người là một lớp chi phí khác và hệ chưa có bảng giờ nào để đo.
+              </p>
+            ) : (
+              <>
+                {/* Một số 20px đứng dưới chữ "Tiền đi đâu" mà không có nhãn thì
+                    đọc ra là TỔNG CHI, không phải giá mỗi lead tốt. Trang kit
+                    luôn kèm caption; màn phải kèm theo. */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground text-[12px]">Giá mỗi lead tốt</span>
+                  <CostBand
+                    variant="card"
+                    point={source.band.point}
+                    lo={source.band.lo}
+                    hi={source.band.hi}
+                    enough={source.enough}
+                  />
+                </div>
+                <DataTable
+                  columns={[
+                    { header: 'Loại chi', width: '1.4fr' },
+                    { header: 'Số tiền', width: '1fr', align: 'right' },
+                    { header: 'Tỉ trọng', width: '0.7fr', align: 'right' },
+                  ]}
+                  rows={source.costByKind.rows.map((r) => ({
+                    id: r.kind,
+                    cells: [
+                      <span key="k">{r.label}</span>,
+                      <Money key="a" value={r.amount} scale="table" />,
+                      <span key="s" className="tnum font-num">
+                        {percent(r.share)}
+                      </span>,
+                    ],
+                  }))}
+                />
+                {source.costByKind.absent.length > 0 ? (
+                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                    Không có dòng nào thuộc {source.costByKind.absent.join(', ')} — nguồn này không
+                    tiêu tiền ở {source.costByKind.absent.length > 1 ? 'những loại' : 'loại'} đó,
+                    khác hẳn với chưa ai nhập số.
+                  </p>
+                ) : null}
+                {source.enough ? null : (
+                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                    Dải giá ở trên chưa đủ chắc để so với nguồn khác — {source.why}. Con số vẫn hiện
+                    vì tiền đã tiêu thật; thứ chưa đứng vững là câu so sánh, không phải chi phí.
+                  </p>
+                )}
+              </>
+            )}
+          </GlassCard>
 
           <GlassCard variant="b" className="flex flex-col gap-4 p-5">
             {!runnable ? (
@@ -411,6 +503,10 @@ export function CampaignDetailPage() {
               }
               confirmLabel="Soạn nội dung"
               done={drafted}
+              /* Luật 9 · state "Chưa tạo gì cả" nằm TRONG khối, ngay dưới nút.
+                 Trước 20/08 màn tự dựng nó bằng một thẻ `<p>` bên ngoài — bản
+                 thủ công đó đã xoá, không giữ hai bản cùng nói một chuyện. */
+              empty={`Chưa tạo gì cả. Trợ lý chỉ soạn khi có người bấm, và bản soạn vẫn phải qua ${HEAD_OF_SALES} trước khi đợt được gửi.`}
               onConfirm={() => {
                 setDrafted(true)
                 /* Nối E3 khi có backend: `proposeFromAi` với basis ở trên. */
@@ -421,12 +517,7 @@ export function CampaignDetailPage() {
                 Bản nháp chưa rời màn này — chưa có ai nhận. Chưa có màn Hộp duyệt để gửi tới; khi
                 có backend, bản soạn đi tới {HEAD_OF_SALES} rồi mới có đợt nào được bung.
               </p>
-            ) : (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chưa tạo gì cả. Trợ lý chỉ soạn khi có người bấm, và bản soạn vẫn phải qua{' '}
-                {HEAD_OF_SALES} trước khi đợt được gửi.
-              </p>
-            )}
+            ) : null}
           </div>
 
           {/* Bảng lead không nằm ở đây — lý do ngay dưới, trong "Cố tình không

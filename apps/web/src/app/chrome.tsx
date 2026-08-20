@@ -19,7 +19,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import type { AppShellProps, HeaderAction, HeaderApp } from '@pv/ui'
+import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import { Button } from '@pv/ui'
 import type { Branch } from '@pv/engines'
 import { useSession } from './session'
@@ -61,12 +61,29 @@ import { useSession } from './session'
  *  trông như gốc cây chứ không như một trong hai tầng license.
  *
  *  @pv/ui vẫn không biết router: nav ở đây tự tính `active` từ `useLocation` và
- *  tự truyền `onClick` xuống. Thư viện chỉ nhận props. */
+ *  tự truyền `onClick` xuống. Thư viện chỉ nhận props.
+ *
+ *  ------------------------------------------------------------------
+ *  ĐIỀU HƯỚNG SINH Ở ĐÂY, MỘT CHỖ — sửa 20/08
+ *  ------------------------------------------------------------------
+ *  Trước đó `useAppChrome` chỉ trả `header`, còn `onNavigate`/`onOpenAssistant`
+ *  của `AppShell` thì KHÔNG màn nào truyền. Hệ quả dưới `lg`: bốn mục BottomNav,
+ *  nút tròn Trợ lý và nút "Trợ lý" ở tầng 1 đều bấm không ra gì — toàn bộ điều
+ *  hướng dưới màn điện thoại là chết.
+ *
+ *  Vá bằng cách trả nguyên gói `shell`: màn viết `<AppShell {...chrome.shell}>`
+ *  và không màn nào tự nối dây nữa. Chín màn không thể nối thiếu thứ chúng không
+ *  còn cầm.
+ *
+ *  Ba đường vào Trợ lý AI đều đã thành thật khi `onOpenAssistant` trống:
+ *  `AssistantFab` không vẽ, mục 'assistant' của BottomNav nằm trong `lockedNav`,
+ *  và nút tầng 1 của `AppHeader` vào trạng thái khoá. Không cửa nào hứa màn 04. */
 
 type NavEntry = {
   icon: LucideIcon
   label: string
-  /** Chưa có màn thì bỏ trống — nút hiện ra nhưng chưa bấm đi đâu được. */
+  /** Chưa có màn thì bỏ trống — mục TỰ KHOÁ (ổ khoá, nút tắt). Một nút trông
+   *  bấm được rồi không đi đâu tệ hơn hẳn một nút nói thẳng là chưa mở. */
   path?: string
   count?: number
 }
@@ -88,6 +105,22 @@ const ONE_CORE: NavEntry[] = [
   { icon: Bell, label: 'Thông báo', count: NOTIFICATIONS_UNREAD },
   { icon: ShieldCheck, label: 'Quản trị & ghi vết' },
 ]
+
+/** BottomNav (< lg) — bốn mục CHỐT theo docs/luat-thiet-ke.md §3, không cấu hình
+ *  được danh sách. Bảng này là nguồn duy nhất của cả ba câu hỏi về chúng: mục
+ *  nào đi được, mục nào khoá, mục nào đang sáng.
+ *
+ *  Ba mục cuối là ba màn One chưa dựng (§7 · 02 Hộp phê duyệt · 03 Tìm toàn cục ·
+ *  04 Trợ lý AI). Dựng xong màn nào thì điền đường dẫn vào đúng dòng của nó ở
+ *  đây — không phải sửa chín màn, và không phải nhớ gỡ nó khỏi danh sách khoá. */
+const BOTTOM_NAV: { key: BottomNavKey; path?: string }[] = [
+  { key: 'home', path: '/' },
+  { key: 'approvals' },
+  { key: 'search' },
+  { key: 'assistant' },
+]
+
+const LOCKED_NAV: BottomNavKey[] = BOTTOM_NAV.filter((i) => !i.path).map((i) => i.key)
 
 /** One Plus — tầng thu tiền theo đầu người. Nằm CUỐI nhóm "Tính năng", sau bốn
  *  nhánh vệ tinh. Khoá cứng cho tới khi có mô hình license thật: kiểu `Branch`
@@ -189,16 +222,23 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
 
+  /** `groupLocked` là khoá theo TẦNG LICENSE (One Plus chưa mua). Mục không có
+   *  đường dẫn cũng khoá, dù tầng của nó đã mở: "Phê duyệt", "Thông báo" và
+   *  "Quản trị & ghi vết" là ba năng lực Core thật nhưng màn chưa dựng, và tới
+   *  20/08 chúng vẫn hiện ra như nút bình thường rồi bấm không đi đâu. */
   const plain =
-    (locked: boolean) =>
-    (entry: NavEntry): HeaderAction => ({
-      icon: entry.icon,
-      label: entry.label,
-      count: entry.count,
-      locked,
-      active: entry.path ? pathname === entry.path : false,
-      onClick: entry.path && !locked ? () => navigate(entry.path!) : undefined,
-    })
+    (groupLocked: boolean) =>
+    (entry: NavEntry): HeaderAction => {
+      const locked = groupLocked || !entry.path
+      return {
+        icon: entry.icon,
+        label: entry.label,
+        count: entry.count,
+        locked,
+        active: entry.path ? pathname === entry.path : false,
+        onClick: entry.path && !locked ? () => navigate(entry.path!) : undefined,
+      }
+    }
 
   /** Một nhánh + các module của nó, phẳng ra thành danh sách có cấp.
    *
@@ -266,5 +306,42 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     ),
   }
 
-  return { header, approvalsCount: APPROVALS_WAITING }
+  /** Mục BottomNav đang đứng — hoặc KHÔNG mục nào.
+   *
+   *  BottomNav chỉ có bốn mục One Core, và hôm nay đúng MỘT mục có màn (`/`).
+   *  Màn nhánh (`/sales/*`) không thuộc bốn mục đó: chỗ nó sáng là tầng 2 của
+   *  AppHeader, chứ không phải thanh dưới. Trả `undefined` cho tám màn nhánh —
+   *  ép chúng sáng ở 'home' là gắn `aria-current="page"` lên một mục không phải
+   *  trang hiện tại, tức nói dối trình đọc màn hình. */
+  const activeNav: BottomNavKey | undefined = BOTTOM_NAV.find((i) => i.path === pathname)?.key
+
+  /** Điều hướng của BottomNav. Mục khoá không tới được đây (`lockedNav` tắt nút
+   *  ở tầng kiểu), nhưng vẫn kiểm `path` chứ không tin vào điều đó — một handler
+   *  chỉ đúng khi ai đó nhớ khoá nút là một handler chờ hỏng. */
+  const onNavigate = (key: BottomNavKey) => {
+    const to = BOTTOM_NAV.find((i) => i.key === key)?.path
+    if (to) navigate(to)
+  }
+
+  /** Gói props của `AppShell`. Màn spread nguyên gói, không cầm mảnh nào.
+   *
+   *  `onOpenAssistant` CỐ TÌNH vắng mặt: màn 04 · Trợ lý AI chưa dựng. Thiếu nó
+   *  thì `AssistantFab` không render và mục 'assistant' của BottomNav nằm trong
+   *  `lockedNav` — không có nút nào hứa một màn không tồn tại. Dựng xong màn 04
+   *  thì thêm `onOpenAssistant` vào đây và điền `path` cho dòng 'assistant'
+   *  của `BOTTOM_NAV`.
+   *
+   *  KIỂU KHAI TƯỜNG MINH, có lý do: JSX bỏ qua kiểm dư thừa trên spread, nên
+   *  `<AppShell {...shell}>` nuốt im lặng mọi prop mà `AppShell` không biết.
+   *  Gõ sai một tên ở đây là mất nguyên một dây điều hướng mà `tsc` vẫn xanh —
+   *  đúng loại lỗi đã làm nav dưới `lg` chết suốt từ 19/08. */
+  const shell: Omit<AppShellProps, 'children'> = {
+    header,
+    activeNav,
+    lockedNav: LOCKED_NAV,
+    approvalsCount: APPROVALS_WAITING,
+    onNavigate,
+  }
+
+  return { shell }
 }

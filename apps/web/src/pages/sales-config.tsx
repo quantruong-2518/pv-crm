@@ -92,16 +92,10 @@ export function SalesConfigPage() {
      mặt trên mọi màn, kể cả lúc bảng còn là khung xám. */
   const rail = dasVina.graph
     .story(ANCHOR_CODE)
-    .map((o) => ({ code: o.code, source: o.code !== ANCHOR_CODE, onOpen: () => {} }))
+    .map((o) => ({ code: o.code, source: o.code !== ANCHOR_CODE }))
 
   return (
-    <AppShell
-      /* BottomNav chỉ có bốn mục Core; màn nhánh không nằm trong đó nên giữ
-         'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      header={chrome.header}
-    >
+    <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-5 lg:gap-6">
         <div>
           <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">

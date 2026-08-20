@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { billions, millions } from '@pv/ui'
+import { costBand } from '@pv/engines'
 import {
   EXIT_REASONS,
   HEAD_OF_SALES,
@@ -8,14 +9,15 @@ import {
   OPEN_DEALS,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
-  SOURCES,
+  costOfGoodLead,
   isOverSla,
   isRotting,
   isRunning,
-  sourceStats,
+  sourcesPaid,
   type ExitReason,
   type OpenDeal,
 } from '@pv/engines/fixtures/das-vina'
+import { bandText, costGap, rankSources, type SourceCost } from './source-cost'
 
 /** Module 4 · Số liệu & kế hoạch. Kịch bản 2 · DAS Vina.
  *
@@ -80,6 +82,15 @@ export type PlanBoard = {
   stats: PlanStat[]
   /** Chỗ hai ô số nhìn cùng một thứ — nói ra, đừng để người đọc đếm hai lần. */
   statsNote: string
+  /** Nguồn CÓ TIÊU TIỀN, rẻ nhất lên đầu. Xếp theo ĐIỂM, hiện DẢI — quyết định
+   *  D-03. Nguồn cỡ mẫu nhỏ vẫn ở đây, mang `enough = false`. */
+  ranking: SourceCost[]
+  /** Phạm vi của bảng, và hai nguồn 0 đồng đứng ngoài nó vì sao. */
+  rankingNote: string
+  /** Câu so sánh ĐÃ QUA CỔNG `separableCost`, hoặc câu trung tính khi hai dải
+   *  còn chồng nhau. Viết ở tầng dữ liệu vì nó là kết luận của một phép kiểm,
+   *  không phải một dòng chữ trang trí. */
+  rankingClaim: string
   proposals: PlanProposal[]
   /** Người gật. Lấy từ vai đã chốt, không gõ tên vào màn. */
   approver: string
@@ -134,39 +145,6 @@ function exitTally(): { total: number; ranked: ExitTally[] } {
   return { total: exited.length, ranked }
 }
 
-type SourceCost = {
-  code: string
-  label: string
-  cost: number
-  good: number
-  costPerGood: number
-}
-
-/** Giá mỗi lead tốt của từng nguồn CÓ TIÊU TIỀN, rẻ nhất lên đầu.
- *
- *  Hai nguồn tự nhiên (khách cũ giới thiệu, BD tự mở) chi 0 đồng nên giá của
- *  chúng luôn là 0 — để chúng vào bảng so giá thì nguồn rẻ nhất vĩnh viễn là
- *  một thứ không mua thêm được bằng ngân sách. Câu hỏi của khối này là "tiền
- *  nên dồn vào đâu", nên chỉ so những chỗ tiền đi qua. */
-function paidSourceCosts(): SourceCost[] {
-  const out: SourceCost[] = []
-
-  for (const s of SOURCES) {
-    if (s.cost <= 0) continue
-    const stats = sourceStats(s.code)
-    if (stats.costPerGood === null) continue
-    out.push({
-      code: s.code,
-      label: s.label,
-      cost: s.cost,
-      good: stats.good,
-      costPerGood: stats.costPerGood,
-    })
-  }
-
-  return out.sort((a, b) => a.costPerGood - b.costPerGood)
-}
-
 /** Một chữ số sau dấu phẩy, chuẩn VN. Dùng cho số trung bình — số đếm thì không
  *  bao giờ có phần thập phân. */
 function avg(sum: number, n: number): string {
@@ -217,16 +195,35 @@ function buildProposals(): PlanProposal[] {
     })
   }
 
-  // 3 · Giá mỗi lead tốt → dồn tiền vào nguồn rẻ, cắt nguồn đắt.
-  const costs = paidSourceCosts()
-  const cheap = costs[0]
-  const dear = costs[costs.length - 1]
+  /* 3 · Giá mỗi lead tốt → dồn tiền vào nguồn rẻ, cắt nguồn đắt.
+     ------------------------------------------------------------------------
+     CỔNG `separableCost` ĐỨNG TRƯỚC CÂU CHỮ, KHÔNG PHẢI SAU
+     ------------------------------------------------------------------------
+     Bản trước lấy hai đầu bảng rồi chia hai ĐIỂM: `48,3 tr ÷ 2,0 tr = 24` và
+     in "chênh 24 lần". Con số 24 không sai phép tính, nó sai về thứ nó nói: hai
+     điểm ấy đứng trên mẫu số 9 và 3 lead tốt, và khoảng tin cậy của chúng
+     rộng tới mức bội số thật nằm đâu đó từ 6,6 lần trở lên — 24 chỉ là một giá
+     trị trong dải đó, được in ra như thể nó là kết luận.
+
+     Giờ câu KHẲNG ĐỊNH chỉ ra lò khi hai DẢI rời nhau (`costGap`), và bội số
+     lấy từ hai đầu GẦN NHAU NHẤT của hai dải. Hai dải chồng nhau thì đề xuất
+     vẫn còn — tiền vẫn phải quyết — nhưng nó đổi sang câu trung tính nói cả hai
+     dải, và không nguồn nào bị gọi là đắt hơn nguồn nào. */
+  const byPrice = rankSources().ranked
+  const cheap = byPrice[0]
+  const dear = byPrice[byPrice.length - 1]
   if (cheap && dear && cheap.code !== dear.code) {
-    const times = Math.round(dear.costPerGood / cheap.costPerGood)
+    const gap = costGap(cheap, dear)
+    const bands = `${cheap.code} chi ${millions(cheap.cost)} ra ${cheap.good} lead tốt trên ${cheap.leads} lead · dải ${bandText(cheap.band)} mỗi lead tốt · ${dear.code} chi ${millions(dear.cost)} ra ${dear.good} lead tốt trên ${dear.leads} lead · dải ${bandText(dear.band)}`
+
     out.push({
       id: 'don-ngan-sach',
-      suggestion: `Dồn ngân sách sang ${cheap.code} và cắt ${dear.code} — chênh ${times} lần giá mỗi lead tốt.`,
-      basis: `${cheap.code} chi ${millions(cheap.cost)} ra ${cheap.good} lead tốt, ${millions(cheap.costPerGood)} mỗi lead tốt · ${dear.code} chi ${millions(dear.cost)} ra ${dear.good} lead tốt, ${millions(dear.costPerGood)} mỗi lead tốt`,
+      suggestion: gap
+        ? `Dồn ngân sách sang ${gap.cheap.code} và cắt ${gap.dear.code} — ${gap.dear.code} đắt hơn ít nhất ${gap.timesText} lần mỗi lead tốt.`
+        : `Giữ nguyên ngân sách của ${cheap.code} và ${dear.code} tháng tới, chạy thêm đợt để dày mẫu số — chưa nguồn nào chứng minh được là rẻ hơn nguồn nào.`,
+      basis: gap
+        ? `${bands} · hai dải RỜI NHAU, nên bội số lấy từ hai đầu gần nhau nhất (${millions(gap.dear.band.lo)} chia ${millions(gap.cheap.band.hi ?? 0)}) chứ không phải từ hai điểm`
+        : `${bands} · hai dải CHỒNG NHAU, nên không có bội số nào đứng vững — tỉ số hai điểm ở đây là một con số không ai kiểm được`,
       owner: MARKETING,
       codes: [cheap.code, dear.code],
       confirmLabel: 'Thêm vào kế hoạch',
@@ -243,9 +240,17 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
   const running = LEADS.filter(isRunning)
   const good = LEADS.filter((l) => l.requiredFilled >= REQUIRED_SLOTS)
 
-  const costs = paidSourceCosts()
-  const paidCost = costs.reduce((sum, c) => sum + c.cost, 0)
-  const paidGood = costs.reduce((sum, c) => sum + c.good, 0)
+  /* Ô tổng chia bằng hàm chung của fixture, không cộng lại từ bảng xếp hạng ở
+     trên: bảng bỏ nguồn chưa ra lead tốt nào, mà tiền của nguồn đó vẫn đã tiêu.
+     Cộng từ bảng là làm cả phòng trông rẻ hơn thật. */
+  const paid = sourcesPaid()
+  const spend = costOfGoodLead(paid)
+  /* Ô này KHÔNG được hiện một con số trần (§6.7). Điểm vẫn là số to — nó là thứ
+     người ta liếc — nhưng dải đi kèm ngay dưới, ở dòng hint. Cận trên của cả
+     phạm vi là 13,6 tr, tức trên ngưỡng 12 tr của thước Marketing: đọc điểm 10,0
+     tr một mình thì kết luận ngược hẳn. */
+  const paidLeads = paid.reduce((sum, s) => sum + s.leads, 0)
+  const paidBand = costBand(spend.cost, spend.good, paidLeads)
 
   /** Lead quá SLA và đơn đang mục có PHẢI cùng một tập không — kiểm bằng mã
    *  đơn, không suy từ hai con số bằng nhau. */
@@ -275,9 +280,12 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
       },
       {
         key: 'gia-lead-tot',
-        value: paidGood > 0 ? millions(Math.round(paidCost / paidGood)) : '—',
+        /* Nhãn phải KHAI PHẠM VI: cùng chữ "giá mỗi lead tốt" mà màn Chiến dịch
+           đọc trên nguồn đã chạy đợt, màn Performance đọc trên nguồn của
+           Marketing. Không nói ra tập nào thì ba con số trông như một. */
+        value: spend.perGood === null ? '—' : millions(spend.perGood),
         label: 'Giá mỗi lead tốt',
-        hint: `${costs.length} nguồn có chi phí`,
+        hint: `${paid.length} nguồn có tiêu tiền · ${millions(spend.cost)} ra ${spend.good} lead tốt · dải ${bandText(paidBand)}`,
       },
     ],
     /* Hai ô đầu NGHI là cùng một chỗ tắc, nhưng "hai số bằng nhau" không đủ để
@@ -290,9 +298,59 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
   }
 }
 
+/** Bảng "nguồn nào rẻ" — bằng chứng đứng ngay dưới đề xuất số 3.
+ *
+ *  Ba điều bảng này phải giữ, cả ba là quyết định chứ không phải mặc định:
+ *
+ *   1. **Xếp theo ĐIỂM** như hôm nay (D-03), không theo cận trên. Đổi khoá xếp
+ *      hạng là đổi thứ hạng của người làm ra nguồn đó, và chưa ai gật.
+ *   2. **Nguồn cỡ mẫu nhỏ Ở LẠI bảng**, mang `enough = false`. Tài liệu §6.5 đề
+ *      xuất loại CD-0105 ra ngoài; bản này không loại — một dòng biến mất là một
+ *      dòng không ai còn nhớ để hỏi, mà 6 triệu vẫn đã tiêu thật.
+ *   3. **Câu so sánh đi qua `costGap`.** Nó chỉ ra lò khi hai dải rời nhau; còn
+ *      lại là câu trung tính đọc cả hai dải. */
+function buildRanking(): { ranking: SourceCost[]; rankingNote: string; rankingClaim: string } {
+  const { ranked, cashless } = rankSources()
+  const thin = ranked.filter((r) => !r.enough)
+  const cheap = ranked[0]
+  const dear = ranked[ranked.length - 1]
+  const gap = cheap && dear && cheap.code !== dear.code ? costGap(cheap, dear) : null
+
+  const note = [
+    `${ranked.length} nguồn có tiêu tiền, rẻ nhất lên đầu theo ĐIỂM — dải bên cạnh mới là thứ quyết được việc.`,
+    cashless.length > 0
+      ? `${cashless.map((r) => r.code).join(' và ')} không tốn đồng tiền mặt nào nên đứng ngoài bảng so giá: một bảng có chúng thì nguồn rẻ nhất vĩnh viễn là thứ không mua thêm được bằng ngân sách.`
+      : '',
+    thin.length > 0
+      ? `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')} — dải vẫn hiện, nhưng không câu so sánh nào được dựa vào ${thin.length > 1 ? 'chúng' : 'nó'}.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return {
+    ranking: ranked,
+    rankingNote: note,
+    rankingClaim: gap
+      ? `Câu so sánh giữa hai đầu bảng: ${gap.cheap.code} rẻ hơn ${gap.dear.code} ít nhất ${gap.timesText} lần mỗi lead tốt, vì dải ${bandText(gap.cheap.band)} và dải ${bandText(gap.dear.band)} rời hẳn nhau.`
+      : cheap && dear
+        ? `Chưa câu so sánh nào đứng vững trên bảng này: dải của ${cheap.code} (${bandText(cheap.band)}) và dải của ${dear.code} (${bandText(dear.band)}) còn chồng nhau, nên hai đầu bảng chưa phân biệt được với nhau.`
+        : 'Chưa nguồn nào tiêu tiền trong kỳ, nên chưa có gì để so.',
+  }
+}
+
 async function fetchPlanBoard(): Promise<PlanBoard> {
   const { stats, statsNote } = buildStats()
-  return { stats, statsNote, proposals: buildProposals(), approver: HEAD_OF_SALES }
+  const { ranking, rankingNote, rankingClaim } = buildRanking()
+  return {
+    stats,
+    statsNote,
+    ranking,
+    rankingNote,
+    rankingClaim,
+    proposals: buildProposals(),
+    approver: HEAD_OF_SALES,
+  }
 }
 
 export const planBoardQuery = queryOptions({

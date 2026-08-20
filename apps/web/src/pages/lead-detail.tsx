@@ -133,11 +133,7 @@ export function LeadDetailPage() {
 
   const lead = book.find((l) => l.code === code) ?? null
 
-  const shell = (children: ReactNode) => (
-    <AppShell activeNav="home" approvalsCount={chrome.approvalsCount} header={chrome.header}>
-      {children}
-    </AppShell>
-  )
+  const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
   if (isPending) {
     return shell(
@@ -170,8 +166,8 @@ export function LeadDetailPage() {
   const story = lead.dealCode ? dasVina.graph.story(lead.dealCode) : []
   const rail =
     story.length > 0
-      ? story.map((o) => ({ code: o.code, source: o.code !== lead.dealCode, onOpen: () => {} }))
-      : [{ code: lead.code, source: false, onOpen: () => {} }]
+      ? story.map((o) => ({ code: o.code, source: o.code !== lead.dealCode }))
+      : [{ code: lead.code, source: false }]
 
   const openSource = () => navigate(`/sales/campaigns?source=${origin.code}`)
 

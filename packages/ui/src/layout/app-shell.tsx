@@ -44,10 +44,14 @@ const SHELL = {
 
 export type AppShellProps = {
   header: Omit<AppHeaderProps, 'onOpenAssistant'>
-  /** mục đang active trên BottomNav (< lg) */
-  activeNav: BottomNavKey
+  /** Mục đang active trên BottomNav (< lg). Bỏ trống = không mục nào sáng —
+   *  đúng cho tám màn nhánh, chỗ chúng sáng là tầng 2 của AppHeader. */
+  activeNav?: BottomNavKey
   approvalsCount?: number
+  /** mục BottomNav chưa có màn — nút tắt + ổ khoá thay vì bấm không ra gì */
+  lockedNav?: BottomNavKey[]
   children: ReactNode
+  /** Không truyền thì khung KHÔNG vẽ nút Trợ lý nổi — xem lý do ở chỗ render. */
   onOpenAssistant?: () => void
   onNavigate?: (key: BottomNavKey) => void
 }
@@ -56,6 +60,7 @@ export function AppShell({
   header,
   activeNav,
   approvalsCount,
+  lockedNav,
   children,
   onOpenAssistant,
   onNavigate,
@@ -74,11 +79,19 @@ export function AppShell({
         <main className="min-w-0 flex-1">{children}</main>
       </div>
 
-      <AssistantFab onClick={onOpenAssistant} className="hidden lg:flex" />
+      {/* Nút Trợ lý nổi CHỈ khi có người nhận cú bấm.
+          Màn 04 · Trợ lý AI chưa dựng, nên trên phần lớn màn `onOpenAssistant`
+          còn trống. Một nút 60px sáng azure ở góc phải dưới mà bấm không ra gì
+          tệ hơn hẳn việc không có nút: nó hứa một màn không tồn tại, và nó hứa
+          trên MỌI màn. Có màn rồi thì màn truyền hàm vào, nút tự hiện lại. */}
+      {onOpenAssistant ? (
+        <AssistantFab onClick={onOpenAssistant} className="hidden lg:flex" />
+      ) : null}
 
       <BottomNav
         active={activeNav}
         approvalsCount={approvalsCount}
+        locked={lockedNav}
         onNavigate={(key) => (key === 'assistant' ? onOpenAssistant?.() : onNavigate?.(key))}
       />
     </AuroraField>

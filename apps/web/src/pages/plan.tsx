@@ -18,9 +18,12 @@ import {
   Button,
   Chip,
   ContextRail,
+  CostBand,
+  DataTable,
   EmptyState,
   GlassCard,
   Icon,
+  SectionTitle,
   Skeleton,
   StatCard,
 } from '@pv/ui'
@@ -111,13 +114,7 @@ export function PlanPage() {
   }
 
   return (
-    <AppShell
-      /* BottomNav chỉ có bốn mục Core; màn nhánh không nằm trong đó nên giữ
-         'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      header={chrome.header}
-    >
+    <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-5 lg:gap-6">
         <div className="flex flex-col gap-3">
           <div>
@@ -175,6 +172,53 @@ export function PlanPage() {
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">{board.statsNote}</p>
             </section>
 
+            {/* 1b · Bảng giá mỗi lead tốt — bằng chứng của đề xuất ngân sách,
+                đứng ngay trên nó thay vì bắt người đọc tin một câu.
+
+                Bảng LUÔN nằm trên glass-b (luật 8). Mỗi dòng hiện DẢI chứ không
+                hiện một con số trần: cận trên là số dùng để quyết chi tiền, mà
+                trên cỡ mẫu 9–22 lead nó cách điểm tới ba lần. Thứ tự vẫn xếp
+                theo điểm như hôm nay — thứ bị chặn là câu chữ, không phải thứ
+                tự (quyết định D-03, lý do đầy đủ ở `data/source-cost.ts`). */}
+            <GlassCard variant="b" className="flex flex-col gap-3 p-5 lg:p-6">
+              <SectionTitle size="sm" kicker="Tiền đã đi đâu" hint={board.rankingNote}>
+                Giá mỗi lead tốt theo nguồn
+              </SectionTitle>
+              <DataTable
+                columns={[
+                  { header: 'Hạng', width: '0.4fr' },
+                  { header: 'Mã', width: '0.9fr' },
+                  { header: 'Lead tốt', width: '0.7fr', align: 'right' },
+                  { header: 'Giá mỗi lead tốt · dải 95%', width: '2fr' },
+                ]}
+                rows={board.ranking.map((r, i) => ({
+                  id: r.code,
+                  cells: [
+                    <span key="r" className="tnum font-num text-muted-foreground">
+                      {i + 1}
+                    </span>,
+                    <Chip key="c" variant="object">
+                      {r.code}
+                    </Chip>,
+                    <span key="g" className="tnum font-num">
+                      {r.good}/{r.leads}
+                    </span>,
+                    <CostBand
+                      key="b"
+                      variant="table"
+                      point={r.band.point}
+                      lo={r.band.lo}
+                      hi={r.band.hi}
+                      enough={r.enough}
+                    />,
+                  ],
+                }))}
+              />
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                {board.rankingClaim}
+              </p>
+            </GlassCard>
+
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
               {/* 2 · Đề xuất. Mỗi khối là một <AiAction>: có căn cứ số thật, có
                   nút, và có dòng "Chưa tạo gì cả" ngay dưới nút. */}
@@ -192,40 +236,44 @@ export function PlanPage() {
                 {board.proposals.map((p) => {
                   const added = picked.includes(p.id)
                   return (
-                    <div key={p.id} className="flex flex-col gap-2">
-                      {/* KHÔNG dùng `done` của AiAction: nó in cứng chữ "Đã
-                          thực hiện", mà bấm nút ở đây mới chỉ là ĐƯA VÀO KẾ
-                          HOẠCH — chưa ai làm gì, và {board.approver} còn chưa
-                          gật. Giữ nút lại và đổi nhãn để rút ra được, thay vì
-                          báo một việc đã xong khi nó chưa xong. */}
-                      <AiAction
-                        variant="panel"
-                        suggestion={p.suggestion}
-                        basis={p.basis}
-                        /* Nhãn khác hẳn nút "Bỏ khỏi kế hoạch" ở danh sách bên
-                           dưới — hai nút cùng tên trên một màn thì người dùng
-                           không biết mình đang rút cái nào. */
-                        confirmLabel={added ? 'Đã thêm · bấm để rút' : p.confirmLabel}
-                        onConfirm={() => {
-                          toggle(p.id)
-                          /* Nối E3 khi có backend: `proposeFromAi` với đúng
-                             `basis` ở trên. Đề xuất vào hệ ở trạng thái chờ,
-                             không phải trạng thái đã làm. */
-                        }}
-                      />
-                      {added ? (
-                        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                          Đã nằm trong kế hoạch, người làm là{' '}
-                          <b className="text-foreground font-semibold">{p.owner}</b>. Vẫn chưa gửi
-                          cho ai.
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                          Chưa tạo gì cả. Bấm nút trên thì đề xuất mới vào kế hoạch, và{' '}
-                          {board.approver} vẫn phải gật trước khi {p.owner} bắt tay vào làm.
-                        </p>
-                      )}
-                    </div>
+                    /* KHÔNG dùng `done` của AiAction: nó in cứng chữ "Đã thực
+                       hiện", mà bấm nút ở đây mới chỉ là ĐƯA VÀO KẾ HOẠCH —
+                       chưa ai làm gì, và {board.approver} còn chưa gật. Giữ nút
+                       lại và đổi nhãn để rút ra được, thay vì báo một việc đã
+                       xong khi nó chưa xong.
+                       Vì `done` luôn false nên `empty` là chỗ DUY NHẤT của cả
+                       hai câu trạng thái — hai câu ấy trước 20/08 là hai thẻ
+                       `<p>` màn tự dựng bên ngoài khối. */
+                    <AiAction
+                      key={p.id}
+                      variant="panel"
+                      suggestion={p.suggestion}
+                      basis={p.basis}
+                      /* Nhãn khác hẳn nút "Bỏ khỏi kế hoạch" ở danh sách bên
+                         dưới — hai nút cùng tên trên một màn thì người dùng
+                         không biết mình đang rút cái nào. */
+                      confirmLabel={added ? 'Đã thêm · bấm để rút' : p.confirmLabel}
+                      empty={
+                        added ? (
+                          <>
+                            Đã nằm trong kế hoạch, người làm là{' '}
+                            <b className="text-on-tint-primary font-semibold">{p.owner}</b>. Vẫn
+                            chưa gửi cho ai.
+                          </>
+                        ) : (
+                          <>
+                            Chưa tạo gì cả. Bấm nút trên thì đề xuất mới vào kế hoạch, và{' '}
+                            {board.approver} vẫn phải gật trước khi {p.owner} bắt tay vào làm.
+                          </>
+                        )
+                      }
+                      onConfirm={() => {
+                        toggle(p.id)
+                        /* Nối E3 khi có backend: `proposeFromAi` với đúng
+                           `basis` ở trên. Đề xuất vào hệ ở trạng thái chờ,
+                           không phải trạng thái đã làm. */
+                      }}
+                    />
                   )
                 })}
               </section>

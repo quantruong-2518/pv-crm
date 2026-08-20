@@ -8,6 +8,7 @@ import {
   HANDOFF_SLA,
   LEADS,
   leadMilestones,
+  MARKETING,
   ROLE_KPI_MODEL,
 } from '@pv/engines/fixtures/das-vina'
 import { renderScreen } from '@/test-utils'
@@ -290,6 +291,20 @@ describe('Module 3 · Performance', () => {
 
     // Giá trị đang mở và đơn đang mục không có ngày để cắt theo kỳ.
     expect(box.getAllByText(/số chụp tại 17\/08/).length).toBeGreaterThanOrEqual(2)
+  })
+
+  /* Câu "chi phí của một nguồn không chia được theo ngày" đúng cho tới 20/08,
+     khi mỗi dòng chi có `day`. Giữ lại nó là để trên màn một lời thú nhận đã
+     sai — kiểu nợ tệ nhất, vì nó trông như một quyết định có chủ ý. */
+  it('bảng nguồn của Marketing cắt theo kỳ, và khai phần chi không chia nhỏ được', async () => {
+    renderScreen(<PerformancePage />)
+    const box = within(await screen.findByLabelText('Hiệu suất theo nhân sự'))
+
+    fireEvent.click(box.getByText(MARKETING))
+    const drawer = within(await screen.findByRole('dialog'))
+
+    expect(drawer.getByText(/Cắt theo kỳ đang xem, cả lead lẫn tiền/)).toBeInTheDocument()
+    expect(document.body.textContent ?? '').not.toMatch(/không chia được theo ngày/)
   })
 
   it('mục tiêu tỷ lệ KHÔNG bị nhân theo độ dài kỳ', async () => {

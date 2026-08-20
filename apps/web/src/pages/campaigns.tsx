@@ -138,7 +138,7 @@ export function CampaignsPage() {
 
   if (mode === 'create') {
     return (
-      <AppShell activeNav="home" approvalsCount={chrome.approvalsCount} header={chrome.header}>
+      <AppShell {...chrome.shell}>
         {/* Luật 10 · rail có mặt ở CẢ hai chế độ. Tạo mới là một việc của cùng
             màn, không phải một màn khác — chuỗi object không được biến mất chỉ
             vì người dùng bấm sang form. */}
@@ -157,13 +157,7 @@ export function CampaignsPage() {
   }
 
   return (
-    <AppShell
-      /* BottomNav chỉ có bốn mục Core; màn nhánh không nằm trong đó nên giữ
-         'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      header={chrome.header}
-    >
+    <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-4 lg:gap-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -234,7 +228,7 @@ export function CampaignsPage() {
                 icon={Wallet}
                 value={totals.costPerGood === null ? '—' : millions(totals.costPerGood)}
                 label="Chi phí mỗi lead tốt"
-                hint={`đã tiêu ${millions(totals.cost)}`}
+                hint={totals.costPerGoodHint}
               />
             </div>
 

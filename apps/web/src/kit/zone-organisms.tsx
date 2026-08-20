@@ -1,7 +1,14 @@
 import { Bell, Factory, FileText, House, Package, SquareCheckBig, Users } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { ApprovalCard, AppHeader, BriefCard, KioskTile } from '@pv/ui'
+import {
+  ApprovalCard,
+  AppHeader,
+  BottomNav,
+  BriefCard,
+  KioskTile,
+  OrderLifecycleCard,
+} from '@pv/ui'
 
 /** Zone 03 · Organisms — khối hoàn chỉnh, đặt thẳng vào màn. */
 
@@ -44,8 +51,69 @@ export function ZoneOrganisms() {
       </div>
 
       <ZoneBody className="flex flex-col gap-4">
+        <div className="grid grid-cols-[1fr_390px] items-start gap-4">
+          {/* O-02 */}
+          <SpecCard
+            code="O-02"
+            name="OrderLifecycleCard"
+            note="hero 2×2 · 10 mốc"
+            bodyClassName="p-4"
+            footer={
+              <>
+                Ô hero DUY NHẤT của một dashboard (§7, màn 01). Header (StatusDot + tiêu đề + tiền)
+                → mô tả → Progress → dải mốc vòng đời → ContextRail.
+                <br />
+                Chỉ 3 mốc có nhãn — đầu, đang chạy, cuối. Mười nhãn cạnh nhau thì không đọc được cái
+                nào.
+              </>
+            }
+          >
+            <OrderLifecycleCard
+              state="bad"
+              title="Đơn Sao Đỏ — SO-0891"
+              amount="1,84 tỷ"
+              description="Chậm 2 ngày · thiếu thép Ø40 · hạn giao khách 22/08"
+              progress={{ label: 'Lệnh sản xuất WO-1180', value: 0.68 }}
+              milestones={['ok', 'ok', 'ok', 'ok', 'ok', 'current', 'next', 'next', 'next', 'next']}
+              milestoneLabels={['08/07 lead', 'hôm nay 10/08', '25/08 xuất hoá đơn']}
+              objects={[
+                { code: 'HĐ-2607', onOpen: () => {} },
+                { code: 'Supply · SO-0891', source: true, onOpen: () => {} },
+                { code: 'Factory · WO-1180', source: true, onOpen: () => {} },
+                { code: 'Supply · PO-0455', source: true, onOpen: () => {} },
+              ]}
+            />
+          </SpecCard>
+
+          {/* O-07 */}
+          <SpecCard
+            code="O-07"
+            name="BottomNav"
+            note="dưới lg · cao 84 + safe-area"
+            bodyClassName="p-4"
+            footer={
+              <>
+                Bốn mục CHỐT, không cấu hình được danh sách: Trang chủ · Duyệt · Tìm · Trợ lý. Đây
+                là điều hướng của điện thoại, không phải sidebar rút gọn.
+                <br />
+                Mục chưa có màn thì truyền vào `locked`: nút tắt, ổ khoá 14 đứng chỗ badge số, và
+                CHỮ giữ nguyên `--muted-foreground` — dìm chữ là phá luật 13.
+                <br />Ở đây `static lg:flex` đè `fixed lg:hidden` để nhìn được trên màn desktop của
+                kit.
+              </>
+            }
+          >
+            <BottomNav
+              active="home"
+              approvalsCount={7}
+              locked={['search', 'assistant']}
+              className="static rounded-md lg:flex"
+            />
+          </SpecCard>
+        </div>
+
         <div className="grid grid-cols-[300px_1fr] items-start gap-4">
-          {/* O-01 */}
+          {/* O-06 */}
           <SpecCard
             code="O-06"
             name="AppHeader"

@@ -12,12 +12,15 @@ import { ZoneTemplates } from '@/kit/zone-templates'
  *
  *  Nguồn: Pebble Aurora - Theme Kit (chốt 10/08). */
 
+/** Mục lục. `count` là số SpecCard THẬT trong từng zone — đếm lại khi thêm hay
+ *  bớt một thẻ. Bản trước ghi 9/14/11/5/3 trong khi trang render 9/19/12/4/4:
+ *  mục lục của một styleguide mà nói sai số thì không còn ai tin phần còn lại. */
 const ZONES = [
   { id: 'zone-00', number: '00', label: 'Foundations', count: 9 },
-  { id: 'zone-01', number: '01', label: 'Atoms', count: 14 },
-  { id: 'zone-02', number: '02', label: 'Molecules', count: 11 },
-  { id: 'zone-03', number: '03', label: 'Organisms', count: 5 },
-  { id: 'zone-04', number: '04', label: 'Templates', count: 3 },
+  { id: 'zone-01', number: '01', label: 'Atoms', count: 20 },
+  { id: 'zone-02', number: '02', label: 'Molecules', count: 12 },
+  { id: 'zone-03', number: '03', label: 'Organisms', count: 6 },
+  { id: 'zone-04', number: '04', label: 'Templates', count: 5 },
 ]
 
 const CHECKLIST = [

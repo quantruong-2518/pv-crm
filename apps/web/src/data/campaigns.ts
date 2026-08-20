@@ -1,18 +1,23 @@
 import { queryOptions } from '@tanstack/react-query'
+import { millions } from '@pv/ui'
+import { costBand, type CostBandValue } from '@pv/engines'
 import {
   DAS_VINA_LEAD,
   DAY_FROZEN,
   LEADS,
   OPEN_DEALS,
   SOURCES,
+  costOfGoodLead,
   dasVina,
   dayISO,
   sourceStats,
+  sourcesRan,
   type Source,
   type Wave,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 import { E4_CHANNELS } from '@/data/sales-config'
+import { bandText, costBreakdown, costOf, type CostBreakdown } from '@/data/source-cost'
 
 /** Nguồn lead — module 1 · Chiến dịch & Sự kiện. Kịch bản 2 · DAS Vina.
  *
@@ -131,6 +136,20 @@ export type SourceRow = Omit<Source, 'waves'> &
     /** Tiền của các đơn đang mở mà nguồn này kéo về — xem `OPEN_VALUE`. */
     value: number
 
+    // ---- tiền · dải giá và phân rã ------------------------------------------
+    /** Dải giá mỗi lead tốt, 95%. `costPerGood` là `band.point` — cùng một số,
+     *  và màn KHÔNG được hiện điểm một mình (§6.7). */
+    band: CostBandValue
+    /** Dải đủ chắc để đứng cạnh một câu khẳng định chưa. */
+    enough: boolean
+    /** Vì sao chưa đủ. Rỗng khi `enough`. */
+    why: string
+    /** Dải viết thành chữ, cho những chỗ chỉ nhận chuỗi (hint của thẻ số). */
+    bandText: string
+    /** Tiền của nguồn đi đâu — năm loại L1…L5, số và tỉ trọng. Nguồn tự nhiên
+     *  cho `rows` rỗng: 0 đồng tiền mặt là NỘI DUNG, không phải chỗ thiếu số. */
+    costByKind: CostBreakdown
+
     // ---- trục thời gian của chuỗi -------------------------------------------
     startISO: string
     /** Ngày của đợt cuối. Nguồn không có đợt thì bằng chính `startDay`. */
@@ -160,7 +179,7 @@ export const ANCHOR_SOURCE =
 /** Nguồn mẫu của tab "Tạo mới": nguồn ĐÃ CHẠY ĐỢT và ra nhiều lead nhất trong
  *  kỳ. Chọn bằng số chứ không chỉ tay vào một mã — đổi fixture thì mẫu tự đi
  *  theo. */
-const SAMPLE = [...SOURCES].filter((s) => s.waves.length > 0).sort((a, b) => b.leads - a.leads)[0]
+const SAMPLE = [...sourcesRan()].sort((a, b) => b.leads - a.leads)[0]
 
 /** Sự kiện đông lead nhất — chỉ dùng để gợi ý ô địa điểm. */
 const SAMPLE_EVENT = [...SOURCES].filter((s) => s.venue).sort((a, b) => b.leads - a.leads)[0]
@@ -224,6 +243,7 @@ function openValueOf(code: string): number {
 
 function rowOf(s: Source): SourceRow {
   const stats = sourceStats(s.code)
+  const priced = costOf(s, s.cost, stats.leads, stats.good)
   const sent = sum(s.waves, (w) => w.sent)
   const opened = sum(s.waves, (w) => w.opened)
   const replied = sum(s.waves, (w) => w.replied)
@@ -256,6 +276,12 @@ function rowOf(s: Source): SourceRow {
 
     value: openValueOf(s.code),
 
+    band: priced.band,
+    enough: priced.enough,
+    why: priced.why,
+    bandText: bandText(priced.band),
+    costByKind: costBreakdown(s.costLines),
+
     startISO: dayISO(s.startDay),
     lastDay,
     lastISO: dayISO(lastDay),
@@ -279,7 +305,10 @@ async function fetchSources(): Promise<SourceRow[]> {
  *  Chỗ chênh không để người đọc tự trừ: `natural` và `bookLeads` nói thẳng ra
  *  ngay dưới hàng KPI. Thao tác trên chính 100 dòng đó vẫn là việc của module 2. */
 async function fetchCampaignTotals() {
-  const running = SOURCES.filter((s) => s.waves.length > 0)
+  /* Phạm vi xin ở fixture, không tự lọc — "giá mỗi lead tốt" là nhãn dùng chung
+     ba màn và mỗi màn tự chọn tập nguồn là cách chắc chắn để ba màn hiện ba con
+     số dưới một chữ. Xem `costOfGoodLead` ở `das-vina.ts`. */
+  const running = sourcesRan()
   const waves = running.flatMap((s) => s.waves)
   const events = SOURCES.filter((s) => s.kind === 'su-kien')
   const natural = SOURCES.filter((s) => s.kind === 'tu-nhien')
@@ -291,8 +320,7 @@ async function fetchCampaignTotals() {
   const replied = sum(waves, (w) => w.replied)
   const expected = sum(waves, (w) => w.expected)
   const leads = sum(running, (s) => s.leads)
-  const good = sum(running, (s) => sourceStats(s.code).good)
-  const cost = sum(running, (s) => s.cost)
+  const spend = costOfGoodLead(running)
 
   const registered = sum(events, (s) => s.registered ?? 0)
   const checkedIn = sum(events, (s) => s.checkedIn ?? 0)
@@ -314,7 +342,7 @@ async function fetchCampaignTotals() {
     opened,
     replied,
     leads,
-    good,
+    good: spend.good,
     expected,
 
     openRate: rate(opened, sent),
@@ -322,9 +350,14 @@ async function fetchCampaignTotals() {
     /** Đạt bao nhiêu phần kỳ vọng của cả kỳ. */
     hitRate: rate(leads, expected),
 
-    cost,
+    cost: spend.cost,
     /** Giá mỗi lead tốt của cả kỳ. `null` khi chưa có lead tốt nào. */
-    costPerGood: good > 0 ? Math.round(cost / good) : null,
+    costPerGood: spend.perGood,
+    /** Nhãn khai PHẠM VI của ô trên. Cùng chữ "chi phí mỗi lead tốt" mà màn Kế
+     *  hoạch đọc trên nguồn CÓ TIÊU TIỀN, màn Performance đọc trên nguồn CỦA
+     *  MARKETING; không nói ra tập nào thì ba con số trông như một. Chuỗi ở
+     *  tầng dữ liệu chứ không ở JSX, vì nó phải đổi cùng lúc với phép lọc. */
+    costPerGoodHint: `${running.length} nguồn đã chạy đợt · đã tiêu ${millions(spend.cost)} · dải ${bandText(costBand(spend.cost, spend.good, leads))}`,
 
     /** Sự kiện có mặt người thật — mục 1.3. */
     events: events.length,

@@ -15,7 +15,10 @@ export * from './assets'
 export * from './layout/aurora-field'
 export * from './layout/glass-card'
 
-// ---- Zone 01 · Atoms (A-01 … A-19) ----
+// ---- Zone 01 · Atoms (A-01 … A-20) ----
+/** A-20 · AssistantFab là một atom — đúng một nút. File nằm ở `layout/` vì
+ *  AppShell là chỗ duy nhất gắn nó, nhưng trên trang kit nó thuộc Zone 01. */
+export * from './layout/assistant-fab'
 export * from './ui/avatar'
 export * from './ui/avatar-group'
 export * from './ui/badge'
@@ -23,6 +26,7 @@ export * from './ui/button'
 export * from './ui/channel-tag'
 export * from './ui/checkbox'
 export * from './ui/chip'
+export * from './ui/cost-band'
 export * from './ui/icon'
 export * from './ui/input'
 export * from './ui/meta-pill'
@@ -51,10 +55,11 @@ export * from './patterns/search-field'
 export * from './patterns/stat-card'
 export * from './patterns/timeline'
 
-// ---- Zone 03 · Organisms (O-01 … O-06) ----
+// ---- Zone 03 · Organisms (O-02 … O-07) ----
 /** AppSidebar (O-01) đã bỏ 19/08 — nav dọc không chứa nổi bộ mục (1040px nội
  *  dung trên màn 801px). AppHeader hai tầng thay chỗ; lý do đầy đủ ở docblock
- *  của nó. */
+ *  của nó. OrderLifecycleCard đã dọn về O-02 (chỗ trống đó) — trước 20/08 nó
+ *  dùng chung mã O-06 với AppHeader. */
 export * from './organisms/app-header'
 export * from './organisms/approval-card'
 export * from './organisms/bottom-nav'
@@ -62,7 +67,6 @@ export * from './organisms/brief-card'
 export * from './organisms/kiosk-tile'
 export * from './organisms/order-lifecycle-card'
 
-// ---- Zone 04 · Templates ----
+// ---- Zone 04 · Templates (T-04 · T-05) ----
 export * from './layout/app-shell'
 export * from './layout/drawer'
-export * from './layout/assistant-fab'

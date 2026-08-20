@@ -375,7 +375,11 @@ export function ZoneMolecules() {
           bodyClassName="p-4"
           footer={
             <>
-              Luật cứng: luôn có dòng “Căn cứ: …” và luôn chờ nút. AI không bao giờ tự thực hiện.
+              Luật cứng: luôn có dòng “Căn cứ: …”, luôn chờ nút, và luôn có “Chưa tạo gì cả” ngay
+              dưới nút. AI không bao giờ tự thực hiện.
+              <br />
+              `empty` là prop BẮT BUỘC — dòng đó không phải việc của màn, nếu không màn nào cũng
+              chép lại và có màn quên.
               <br />
               bg-gradient-to-r from-primary/22 to-primary/6 + hatch overlay · ring-0 ·
               shadow-[0_12px_30px_theme(primary/14)]
@@ -385,6 +389,7 @@ export function ZoneMolecules() {
           <AiAction
             suggestion="Trợ lý đề xuất: duyệt PO-0455 hôm nay và chuyển 30% khối lượng WO-1180 sang CNC-05 → kịp giao 22/08, dư 1 ngày."
             basis="tồn kho K1-A2 · năng lực xưởng X1 · hợp đồng SO-0891."
+            empty="Chưa tạo gì cả. Trợ lý chỉ chuyển khối lượng khi có người bấm, và lệnh chuyển vẫn phải qua chuỗi duyệt."
             onConfirm={() => {}}
             onInspect={() => {}}
           />

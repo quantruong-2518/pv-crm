@@ -144,7 +144,14 @@ function GroupLabel({
 }
 
 /** Tạo và SỬA chiến dịch dùng chung một form (docs · mục 1.6) — dàn ngang, ba
- *  section, tự cuộn bên trong.
+ *  section, CUỘN CÙNG TRANG.
+ *
+ *  Trước 20/08 chỗ này hứa "tự cuộn bên trong" và mang theo ba class
+ *  `lg:min-h-0 lg:flex-1 lg:overflow-y-auto` ở hai tầng. Ba class đó là xác của
+ *  chế độ `AppShell fill` — chế độ đã bỏ (xem docblock `layout/app-shell.tsx`).
+ *  Không còn `fill` thì cha của form không phải flex container cao cố định, nên
+ *  `flex-1` không có gì để chia và `overflow-y-auto` không bao giờ tràn: form
+ *  vẫn cuộn ở tầng trang y như mọi màn khác. Class đã xoá, lời hứa sửa theo.
  *
  *  Không đợt nào tự gửi. Nút cuối cùng là "gửi duyệt", không phải "gửi ngay":
  *  E3 giữ chuỗi duyệt, E5 chỉ bung đợt sau khi có người gật.
@@ -210,6 +217,11 @@ export function CampaignForm({
     return [...all].sort((a, b) => b.leads - a.leads)[0]
   }, [sources])
 
+  /* Số đợt còn TRỐNG ô nội dung — hệ quả cụ thể của việc chưa bấm nút soạn.
+     Luật 9 đòi state "Chưa tạo gì cả" nói ra cái gì đang đứng im, và ở màn này
+     thứ đứng im là chuỗi đợt chưa gửi duyệt được. */
+  const blankWaves = draft.waves.filter((w) => w.content.trim() === '').length
+
   const setWave = (i: number, patch: Partial<DraftWave>) =>
     setDraft((d) => ({ ...d, waves: d.waves.map((w, j) => (j === i ? { ...w, ...patch } : w)) }))
 
@@ -265,7 +277,7 @@ export function CampaignForm({
   const stopId = `${uid}-stop`
 
   return (
-    <GlassCard className="flex flex-col gap-5 p-5 lg:min-h-0 lg:flex-1 lg:p-6">
+    <GlassCard className="flex flex-col gap-5 p-5 lg:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div ref={headRef} tabIndex={-1} className="min-w-0 outline-none">
           <SectionTitle
@@ -349,7 +361,7 @@ export function CampaignForm({
             : `Chưa gửi duyệt được — còn thiếu ${missing.join(' · ')}.`}
       </p>
 
-      <div className="flex flex-col gap-8 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      <div className="flex flex-col gap-8">
         <section className="flex flex-col gap-4">
           <SectionTitle size="lg" kicker="Bước 1">
             Thông tin chung
@@ -744,6 +756,13 @@ export function CampaignForm({
                     }
                     confirmLabel="Soạn nội dung"
                     done={drafted}
+                    /* Luật 9 · state "Chưa tạo gì cả" nằm TRONG khối, ngay dưới
+                       nút. Bản thủ công cũ ở ngoài khối đã xoá. */
+                    empty={
+                      blankWaves > 0
+                        ? `Chưa tạo gì cả. ${blankWaves}/${draft.waves.length} đợt còn ô nội dung trống — chuỗi này chưa gửi duyệt được.`
+                        : 'Chưa tạo gì cả. Mọi ô nội dung đã có chữ của bạn — trợ lý không đè lên bản người viết.'
+                    }
                     onConfirm={() => {
                       /* Đổ nháp vào Ô NỘI DUNG của từng đợt, không in ra một danh
                          sách riêng: người soạn sửa ngay tại chỗ mình sẽ gửi. Đợt nào
@@ -764,11 +783,7 @@ export function CampaignForm({
                       Đã đổ nháp vào {draft.waves.length} đợt — bản nháp chờ người sửa và duyệt,
                       chưa gửi cho ai.
                     </p>
-                  ) : (
-                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Chưa tạo gì cả. Trợ lý không tự soạn và không tự gửi.
-                    </p>
-                  )}
+                  ) : null}
                 </>
               )}
             </div>

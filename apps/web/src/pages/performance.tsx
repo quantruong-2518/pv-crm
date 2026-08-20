@@ -19,6 +19,7 @@ import {
   BarChart,
   billions,
   ContextRail,
+  CostBand,
   DataTable,
   Drawer,
   EmptyState,
@@ -124,6 +125,9 @@ const VERDICT: Record<Verdict, { label: string; tone: 'success' | 'warning' | 'd
   dat: { label: 'Đạt', tone: 'success' },
   'can-cai-thien': { label: 'Cần cải thiện', tone: 'warning' },
   'chua-do': { label: 'Chưa đo được', tone: 'draft' },
+  /* Đã đo xong, số hiện đủ — chỉ chưa chấm được vì kỳ chưa đóng. Tông 'draft'
+     giống 'chua-do' vì cả hai đều KHÔNG phải một lời khen hay một lời chê. */
+  'chua-chot': { label: 'Chưa chốt', tone: 'draft' },
 }
 
 /** Số nguyên hiện nguyên, số lẻ giữ một chữ số — chuẩn VN, phẩy thập phân (luật 6). */
@@ -160,13 +164,7 @@ export function PerformancePage() {
   const picked = data?.people.find((p) => p.actorId === openId) ?? null
 
   return (
-    <AppShell
-      /* BottomNav chỉ có bốn mục Core; màn nhánh không nằm trong đó nên giữ
-         'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      header={chrome.header}
-    >
+    <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-5 lg:gap-6">
         <SectionTitle
           size="lg"
@@ -743,7 +741,11 @@ function RowProgress({ reading }: { reading: KpiReading | null }) {
         <span
           className={cn(
             'block h-full rounded-sm',
-            reading.verdict === 'dat' ? 'bg-success' : 'bg-warning',
+            reading.verdict === 'dat'
+              ? 'bg-success'
+              : reading.verdict === 'chua-chot'
+                ? 'bg-white/25'
+                : 'bg-warning',
           )}
           style={{ width: `${pct * 100}%` }}
         />
@@ -852,7 +854,12 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
   const done = k.value ?? 0
   const target = k.target
   const missing = target === null ? null : Math.max(0, target - done)
-  const tone = k.verdict === 'dat' ? 'success' : k.verdict === 'chua-do' ? 'primary' : 'warning'
+  const tone =
+    k.verdict === 'dat'
+      ? 'success'
+      : k.verdict === 'chua-do' || k.verdict === 'chua-chot'
+        ? 'primary'
+        : 'warning'
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5">
@@ -1082,27 +1089,34 @@ function KpiRow({ k }: { k: KpiReading }) {
 /** Bằng chứng — bảng cho thấy con số ở trên đếm từ những dòng nào.
  *  Bảng nằm trên glass-b (luật 8), kể cả khi ngắn. */
 function EvidenceBlock({ person }: { person: PersonCard }) {
-  if (person.sources) return <SourcesTable rows={person.sources} />
+  if (person.sources) return <SourcesTable rows={person.sources} note={person.sourcesNote} />
   if (person.leads) return <BdLeadsTable rows={person.leads} />
   if (person.deals) return <DealsTable rows={person.deals} />
   return null
 }
 
-function SourcesTable({ rows }: { rows: NonNullable<PersonCard['sources']> }) {
+/** Từng nguồn của Marketing, ĐÃ CẮT THEO KỲ — cả lead lẫn tiền.
+ *
+ *  Câu hint cũ ("chi phí của một nguồn không chia được theo ngày") đúng cho tới
+ *  20/08; giờ mỗi dòng chi mang ngày nên nó chia được, và câu đó thành lời thú
+ *  nhận sai. Câu mới đến từ tầng dữ liệu vì nó phải đổi cùng lúc với phép cắt.
+ *
+ *  Cột giá hiện DẢI chứ không hiện một con số trần (§6.7): trên cỡ mẫu vài lead
+ *  của một tháng, cận trên cách điểm nhiều lần, và cận trên mới là số dùng để
+ *  quyết chi tiền. */
+function SourcesTable({ rows, note }: { rows: NonNullable<PersonCard['sources']>; note?: string }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-      <SectionTitle
-        size="sm"
-        hint="Cả kỳ, không cắt theo tháng — chi phí của một nguồn không chia được theo ngày."
-      >
-        Từng nguồn · lead tốt và giá của nó
+      <SectionTitle size="sm" hint={note}>
+        Từng nguồn của Marketing · lead tốt và giá của nó
       </SectionTitle>
       <DataTable
         columns={[
           { header: 'Mã', width: '0.9fr' },
-          { header: 'Lead', width: '0.6fr', align: 'right' },
-          { header: 'Lead tốt', width: '0.8fr', align: 'right' },
-          { header: 'Giá mỗi lead tốt', width: '1.2fr', align: 'right' },
+          { header: 'Lead', width: '0.5fr', align: 'right' },
+          { header: 'Lead tốt', width: '0.7fr', align: 'right' },
+          { header: 'Chi trong kỳ', width: '1fr', align: 'right' },
+          { header: 'Giá mỗi lead tốt · dải 95%', width: '1.8fr' },
         ]}
         rows={rows.map((r) => ({
           id: r.code,
@@ -1116,13 +1130,24 @@ function SourcesTable({ rows }: { rows: NonNullable<PersonCard['sources']> }) {
             <span key="g" className="tnum font-num">
               {num(r.good)}
             </span>,
-            r.costPerGood === null ? (
-              <span key="p" className="text-muted-foreground">
-                chưa có lead tốt
-              </span>
-            ) : (
-              <Money key="p" value={r.costPerGood} scale="table" />
-            ),
+            /* Chi cả kỳ đứng ngay cạnh chi trong kỳ: thiếu nó thì một nguồn 145
+               triệu hiện 0 đồng ở tháng 5 đọc như thể nó không tốn gì. */
+            <span key="s" className="flex flex-col items-end">
+              <Money value={r.cost} scale="table" />
+              {r.cost !== r.costWhole ? (
+                <span className="text-muted-foreground text-[10.5px]">
+                  cả kỳ {millions(r.costWhole)}
+                </span>
+              ) : null}
+            </span>,
+            <CostBand
+              key="p"
+              variant="table"
+              point={r.band.point}
+              lo={r.band.lo}
+              hi={r.band.hi}
+              enough={r.enough}
+            />,
           ],
         }))}
       />
@@ -1245,20 +1270,17 @@ function AssistantBlock({ data }: { data: Performance }) {
         basis={`${num(o.leads)} lead vào sổ · ${num(o.mql)} MQL · ${num(o.sql)} SQL · ${num(o.signedInPeriod)} hợp đồng ký · ${num(o.exited)} lead rời luồng · ${data.period.label}`}
         confirmLabel="Dựng bản tóm tắt"
         done={drafted}
+        /* Luật 9 · state "Chưa tạo gì cả" nằm TRONG khối, ngay dưới nút. Bản
+           thủ công cũ ở ngoài khối đã xoá. */
+        empty={`Chưa tạo gì cả. Trợ lý chỉ dựng khi có người bấm, và bản dựng ra vẫn phải qua ${HEAD_OF_SALES} trước khi thành báo cáo của phòng.`}
         onConfirm={() => {
           setDrafted(true)
           /* Nối E3 khi có backend: `proposeFromAi` với đúng basis ở trên. Bản
              tóm tắt vào hệ ở trạng thái chờ, không tự gửi cho ai. */
         }}
       />
-      {drafted ? null : (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa tạo gì cả. Trợ lý chỉ dựng khi có người bấm, và bản dựng ra vẫn phải qua{' '}
-          {HEAD_OF_SALES} trước khi thành báo cáo của phòng.
-        </p>
-      )}
 
-      <ContextRail objects={rail.map((chip) => ({ ...chip, onOpen: () => {} }))} />
+      <ContextRail objects={rail} />
       <p className="text-muted-foreground flex items-center gap-2 text-[11.5px] leading-[1.5]">
         <Icon icon={TrendingDown} size={14} />
         Chuỗi trên là đơn lớn nhất đang mở, dựng từ đồ thị object — không phải chip viết tay.

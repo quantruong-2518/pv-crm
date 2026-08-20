@@ -222,13 +222,7 @@ export function LeadsPage() {
       : [{ code: ANCHOR_CODE, source: false, onOpen: () => open(ANCHOR_CODE) }]
 
   return (
-    <AppShell
-      /* BottomNav chỉ có bốn mục Core; màn nhánh không nằm trong đó nên giữ
-         'home' làm mục sáng — người dùng dưới lg vẫn về được Core. */
-      activeNav="home"
-      approvalsCount={chrome.approvalsCount}
-      header={chrome.header}
-    >
+    <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-4 lg:gap-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>

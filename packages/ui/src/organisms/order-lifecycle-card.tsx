@@ -4,9 +4,12 @@ import { Progress } from '../ui/progress'
 import { StatusDot, type StatusDotState } from '../ui/status-dot'
 import { cn } from '../lib/cn'
 
-/** O-06 · OrderLifecycleCard — hero 2×2 của dashboard (docs/luat-thiet-ke.md §7, màn 01:
+/** O-02 · OrderLifecycleCard — hero 2×2 của dashboard (docs/luat-thiet-ke.md §7, màn 01:
  *  "1 ô hero 2×2, order lifecycle 10 mốc"). Header (StatusDot + tiêu đề + tiền)
- *  → mô tả → Progress mốc đang chạy → dải mốc vòng đời → ContextRail. */
+ *  → mô tả → Progress mốc đang chạy → dải mốc vòng đời → ContextRail.
+ *
+ *  Mã là O-02, không phải O-06 — O-06 thuộc về AppHeader. Hai component mang
+ *  cùng một mã tới 20/08; O-02 là chỗ trống sau khi AppSidebar (O-01) bị bỏ. */
 export type LifecycleStep = Extract<StatusDotState, 'ok' | 'current' | 'next'>
 
 export type OrderLifecycleCardProps = {

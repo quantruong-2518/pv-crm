@@ -9,6 +9,7 @@ import {
   isRotting,
 } from '@pv/engines/fixtures/das-vina'
 import { renderScreen } from '@/test-utils'
+import { costGap, rankSources } from '@/data/source-cost'
 import { PlanPage } from './plan'
 
 /** Module 4 là màn AI nặng nhất của hệ, nên test ở đây gác đúng một thứ: LUẬT 9.
@@ -127,6 +128,51 @@ describe('Module 4 · Số liệu & kế hoạch', () => {
     // Chuỗi của OP-0288 do E1 dựng: AC-0142 → CT-0391 → OP-0288 → BG-1077.
     expect(screen.getByText('AC-0142')).toBeInTheDocument()
     expect(screen.getByText('BG-1077')).toBeInTheDocument()
+  })
+
+  /* Ba ca dưới đây gác cùng một thứ: màn KHÔNG được nói quá về tiền.
+     Bản trước in "chênh 24 lần" — tỉ số hai ĐIỂM đứng trên mẫu số 9 và 3 lead
+     tốt. Thứ chứng minh được chỉ là 6,6 lần. */
+  it('bảng xếp hạng hiện đúng sáu nguồn có tiêu tiền, rẻ nhất lên đầu theo điểm', async () => {
+    renderScreen(<PlanPage />)
+    await screen.findByText('Giá mỗi lead tốt theo nguồn')
+
+    const shown = screen
+      .getAllByText(/^(?:CD|SK)-\d{4}$/)
+      .map((n) => n.textContent ?? '')
+      .slice(0, 6)
+
+    expect(shown).toEqual(rankSources().ranked.map((r) => r.code))
+  })
+
+  it('câu so sánh giá đi qua cổng dải — "ít nhất N lần", không phải tỉ số hai điểm', async () => {
+    renderScreen(<PlanPage />)
+    await screen.findByText('Giá mỗi lead tốt theo nguồn')
+
+    const rows = rankSources().ranked
+    const gap = costGap(rows[0]!, rows[rows.length - 1]!)
+    expect(gap).not.toBeNull()
+
+    expect(screen.getAllByText(new RegExp(`ít nhất ${gap!.timesText} lần`)).length).toBeGreaterThan(
+      0,
+    )
+  })
+
+  it('không chỗ nào trên màn in tỉ số hai điểm dưới dạng "chênh N lần"', async () => {
+    renderScreen(<PlanPage />)
+    await screen.findByText('Giá mỗi lead tốt theo nguồn')
+
+    expect(document.body.textContent ?? '').not.toMatch(/chênh \d+ lần/)
+  })
+
+  it('nguồn cỡ mẫu nhỏ vẫn có mặt trên bảng, kèm lý do chưa đủ để so', async () => {
+    renderScreen(<PlanPage />)
+    await screen.findByText('Giá mỗi lead tốt theo nguồn')
+
+    const thin = rankSources().ranked.filter((r) => !r.enough)
+    expect(thin.length).toBeGreaterThan(0)
+    for (const r of thin) expect(screen.getByText(r.code)).toBeInTheDocument()
+    expect(screen.getAllByText('chưa đủ để so').length).toBe(thin.length)
   })
 
   it('nói thẳng thứ cố tình không làm, trước hết là dự báo doanh số', () => {

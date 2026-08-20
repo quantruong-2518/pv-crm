@@ -57,8 +57,11 @@ export function AuroraField({ children, className }: { children: ReactNode; clas
       <div className="aurora-grid-fine" />
       {/* 3 · lưới 160px */}
       <div className="aurora-grid-major" />
-      <div className="aurora-vignette" />
-      {/* 4 · hạt nhiễu */}
+      {/* 4 · hạt nhiễu.
+          KHÔNG có lớp thứ 5. `.aurora-vignette` đứng ở đây tới 20/08 — cùng
+          loại vi phạm với hai lớp hạt phủ đã bỏ ở globals.css, chỉ là bị sót
+          lại. Luật 12 đếm đúng bốn lớp và không có chỗ cho một lớp làm tối
+          đáy màn. */}
       <div className="aurora-noise" />
 
       {children}

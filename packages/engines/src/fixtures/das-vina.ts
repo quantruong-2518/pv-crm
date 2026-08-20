@@ -400,6 +400,16 @@ export type RoleKpiSpec = {
   paced: boolean
   /** Số chụp tại lát cắt 17/08, không cắt được theo kỳ — nhãn phải nói ra. */
   snapshot?: boolean
+  /** Thước mà TIỀN ghi nhận trước còn KẾT QUẢ về sau.
+   *
+   *  Gian hàng 145 tr của SK-0106 rơi trọn vào tháng 8, còn lead của nó về rải
+   *  ra các tháng sau — nên "giá mỗi lead tốt của tháng 8" đọc ra 72,5 tr trong
+   *  khi đợt mới đi được 17/31 ngày. Con số ấy đúng, nhưng chấm Đạt/Trượt trên
+   *  nó là chấm độ trễ kế toán chứ không chấm việc ai làm.
+   *
+   *  Vì thế thước mang cờ này VẪN HIỆN SỐ ở kỳ chưa đóng, nhưng KHÔNG chấm
+   *  nhãn — trạng thái là "chưa chốt". Kỳ đã đóng thì chấm bình thường. */
+  settlesLate?: boolean
   /** Thước đứng ở tâm đồng hồ KPI của vai. Đúng một cái mỗi vai. */
   primary?: boolean
 }
@@ -460,7 +470,11 @@ export const ROLE_KPI_MODEL: { role: string; kpis: RoleKpiSpec[] }[] = [
         monthlyTarget: 12_000_000,
         higherIsBetter: false,
         paced: false,
-        snapshot: true,
+        /* Hết `snapshot` từ 20/08: `Source.costLines[].day` cho phép cắt chi
+           phí theo kỳ, nên tử số và mẫu số cuối cùng cũng cùng một khoảng thời
+           gian. Đổi lại phải nhận `settlesLate` — xem chú thích của cờ đó. */
+        snapshot: false,
+        settlesLate: true,
       },
     ],
   },
@@ -651,6 +665,83 @@ export type Wave = {
   expected: number
 }
 
+// ---------------------------------------------------------------------------
+// Chi phí của một nguồn — NĂM loại chi tiền mặt
+//
+// `Source.cost` là một cục tiền: chia cho số lead tốt ra giá, hết. Không ai đọc
+// được 145 triệu của SK-0106 đi đâu, và màn Performance phải tự thú "chi phí của
+// một nguồn không chia được theo ngày". `costLines` trả lời cả hai chỗ đó bằng
+// đúng một cấu trúc: mỗi dòng có LOẠI và có NGÀY.
+//
+// Danh sách năm loại là ĐÓNG — không có loại thứ sáu, không có ô "khác", cùng
+// luật với `EXIT_REASONS`. Nhân công KHÔNG có mặt ở đây: 300 triệu là **tiền mặt
+// đã ra khỏi tài khoản**, còn giờ người là một lớp khác và hôm nay chưa có bảng
+// giờ nào trong hệ để đo. Nhét giờ vào đây là đổi NGHĨA của một con số đã khoá
+// mà không đổi GIÁ TRỊ của nó — kiểu sai không test nào bắt được.
+// ---------------------------------------------------------------------------
+
+/** Năm loại chi TIỀN MẶT. Danh sách đóng, sửa được ở module 5 · Cấu hình nhưng
+ *  vẫn phải là danh sách đóng: một ô "khác" là chỗ mọi hoá đơn khó phân loại
+ *  chui vào, và sau ba tháng nó thành loại lớn nhất bảng. */
+export type CostKind = 'du-lieu' | 'kenh' | 'noi-dung' | 'su-kien' | 'cong-cu'
+
+export type CostLine = {
+  kind: CostKind
+  label: string
+  /** Đồng. Cộng mọi dòng của một nguồn = `Source.cost`, không xê một đồng. */
+  amount: number
+  /** Ngày tiêu, tính bằng ngày kể từ 01/05 — cùng trục với `Source.startDay`.
+   *  Có nó thì chi phí mới cắt được theo kỳ; hôm nay màn Performance phải thú
+   *  nhận "chi phí của một nguồn không chia được theo ngày".
+   *
+   *  Quy ước điền, viết ra để không ai phải đoán:
+   *  - dòng gắn với MỘT đợt → ngày của đợt đó;
+   *  - dòng gắn với ngày diễn ra sự kiện → ngày sự kiện;
+   *  - dòng GỘP cả chuỗi (gói ESP nhiều tháng, cả bộ nội dung, phần công cụ
+   *    chia theo đợt) → `startDay` của nguồn, vì đó là lúc phòng cam kết chi để
+   *    chuỗi chạy được.
+   *
+   *  Hệ quả phải nói ra thay vì giấu: **dòng gộp không chia nhỏ hơn được**, nên
+   *  cắt kỳ ở giữa một chuỗi thì cả dòng rơi trọn vào lát đầu. Chia mịn hơn cần
+   *  chứng từ mịn hơn, mà hôm nay chưa có chứng từ nào. */
+  day: number
+}
+
+/** Đơn giá một dòng danh sách Apollo, đồng. DẪN XUẤT: gói Professional
+ *  $79/ghế/tháng × 26.400 đ = 2.085.600 đ ÷ 2.000 credit = 1.042,80 đ/credit,
+ *  làm tròn tới 100 đ. Phần chênh do làm tròn KHÔNG rải xuống nguồn — nó nằm
+ *  trong `UNUSED_APOLLO_CREDIT`.
+ *
+ *  **Số ĐẶT bởi Trần Thu Hà · 20/08.** */
+export const ROW_PRICE = 1_000
+
+/** Phí xác minh một địa chỉ thư, đồng.
+ *  **Số ĐẶT bởi Trần Thu Hà · 20/08** — chưa có hoá đơn nhà cung cấp nào. */
+export const EMAIL_VERIFY_PRICE = 300
+
+/** Pool công cụ dùng chung cả phòng, đồng: ghế Sales Navigator Core 4 tháng
+ *  ($396) 10.450.000 + bộ thiết kế 4 tháng 3.500.000 + ghế CRM cho Marketing
+ *  4 tháng 4.850.000.
+ *
+ *  Apollo KHÔNG nằm trong pool — nó tính thẳng vào loại `du-lieu` theo credit
+ *  tiêu, để một đồng không bị tính hai lần.
+ *
+ *  **Số ĐẶT bởi Trần Thu Hà · 20/08.** */
+export const TOOL_POOL = 18_800_000
+
+/** Mẫu số chia pool công cụ: số ĐỢT đã chạy trong kỳ.
+ *
+ *  Khoá phân bổ là theo đợt chứ không theo dòng dữ liệu, vì ghế Sales Navigator
+ *  và nền tảng webinar tiêu theo THỜI GIAN. Chia theo dòng thì một chuỗi email
+ *  gánh hết tiền ghế LinkedIn — sai hẳn nghĩa.
+ *
+ *  **Khoá ĐẶT bởi Trần Thu Hà · 20/08.** Con số 20 không được gõ tay: nó phải
+ *  bằng tổng `waves.length` của tám nguồn, và `scenario.test.ts` khoá chuyện đó. */
+export const TOOL_POOL_WAVES = 20
+
+/** 18.800.000 ÷ 20 = 940.000 đ mỗi đợt. */
+export const TOOL_PER_WAVE = TOOL_POOL / TOOL_POOL_WAVES
+
 export type Source = {
   code: string
   kind: SourceKind
@@ -674,8 +765,20 @@ export type Source = {
   venue?: string
   registered?: number
   checkedIn?: number
-  /** Chi phí đã tiêu, đồng. Dùng cho công trạng Marketing (giá mỗi lead tốt). */
+  /** Chi phí đã tiêu, đồng. **Đây là TIỀN MẶT đã ra khỏi tài khoản** — không gồm
+   *  giờ người. Dùng cho công trạng Marketing (giá mỗi lead tốt).
+   *
+   *  Giá trị của tám nguồn đã chốt và bị test khoá; `costLines` phân rã nó chứ
+   *  không được sửa nó. */
   cost: number
+  /** Phân rã `cost` thành các dòng chi có LOẠI và có NGÀY. Cộng lại đúng bằng
+   *  `cost`, không xê một đồng — `scenario.test.ts` khoá từng nguồn một.
+   *
+   *  Nguồn tự nhiên không tiêu đồng nào thì mảng RỖNG. Không bịa dòng cho đủ
+   *  bảng: 0 đồng tiền mặt là câu trả lời ĐÚNG cho GT và TM, không phải chỗ
+   *  thiếu dữ liệu. (Hai nguồn đó vẫn tốn giờ người — nhưng giờ người là lớp
+   *  khác, chưa dựng ở vòng này.) */
+  costLines: CostLine[]
 }
 
 /** TÁM nguồn của kỳ 01/05 → 17/08. Sáu cái đầu là chiến dịch/sự kiện có người
@@ -699,6 +802,29 @@ export const SOURCES: Source[] = [
     startDay: 11,
     leads: 22,
     cost: 18_000_000,
+    /* Chuỗi email thuần: hai phần ba tiền nằm ở nội dung và kênh, tiền dữ liệu
+       chỉ 1.560.000 — tức 8,67% chi của nguồn. Đó là con số đáng đọc nhất của
+       cả bảng: chỗ ai cũng nghĩ tới đầu tiên khi nghe "lead từ Apollo giá bao
+       nhiêu" là chỗ nhỏ nhất. */
+    costLines: [
+      {
+        kind: 'du-lieu',
+        label: 'Danh sách Apollo — đợt mở màn',
+        amount: 1_200 * ROW_PRICE,
+        day: 11,
+      },
+      { kind: 'du-lieu', label: 'Xác minh email', amount: 1_200 * EMAIL_VERIFY_PRICE, day: 11 },
+      { kind: 'kenh', label: 'Gói gửi ESP · 3 tháng', amount: 3_300_000, day: 11 },
+      { kind: 'kenh', label: 'Quảng cáo dẫn lại', amount: 3_000_000, day: 25 },
+      { kind: 'kenh', label: 'Gói ZNS Zalo OA · đợt 3', amount: 600_000, day: 39 },
+      {
+        kind: 'noi-dung',
+        label: 'Nội dung 3 đợt · thư + bản so sánh + landing',
+        amount: 6_720_000,
+        day: 11,
+      },
+      { kind: 'cong-cu', label: 'Công cụ dùng chung · 3 đợt', amount: 3 * TOOL_PER_WAVE, day: 11 },
+    ],
     waves: [
       {
         no: 1,
@@ -747,6 +873,22 @@ export const SOURCES: Source[] = [
     startDay: 33,
     leads: 18,
     cost: 26_000_000,
+    /* Nguồn DUY NHẤT không mua dòng nào: nó chạy trên bài đăng, khán giả là
+       reach của nền tảng. Không có dòng `du-lieu` — và một dòng 0 đồng cho đủ
+       bảng thì tệ hơn không có dòng, vì nó làm người đọc tưởng đã đo. */
+    costLines: [
+      { kind: 'kenh', label: 'Quảng cáo LinkedIn · reach 8.400', amount: 8_000_000, day: 33 },
+      { kind: 'kenh', label: 'Đẩy bài Zalo OA · 5.100', amount: 2_000_000, day: 40 },
+      { kind: 'kenh', label: 'Quảng cáo Facebook · reach 6.800', amount: 4_000_000, day: 47 },
+      { kind: 'kenh', label: 'ESP thư nhắc đợt 4 · 900 lượt', amount: 500_000, day: 54 },
+      {
+        kind: 'noi-dung',
+        label: 'Nội dung 4 ấn phẩm · bài dài, bài ngắn, bộ ảnh, thư',
+        amount: 7_740_000,
+        day: 33,
+      },
+      { kind: 'cong-cu', label: 'Công cụ dùng chung · 4 đợt', amount: 4 * TOOL_PER_WAVE, day: 33 },
+    ],
     waves: [
       {
         no: 1,
@@ -812,6 +954,24 @@ export const SOURCES: Source[] = [
     startDay: 32,
     leads: 16,
     cost: 84_000_000,
+    /* 72,6 trên 84 triệu là loại `su-kien`, và bốn dòng đó tiêu HẾT trong đúng
+       một ngày — ngày 54, ngày hội trường mở cửa. Đây là lý do `day` phải có:
+       một nguồn 84 triệu không tiêu đều suốt kỳ, nó tiêu dồn vào một buổi. */
+    costLines: [
+      { kind: 'du-lieu', label: 'Danh sách mời Apollo', amount: 640 * ROW_PRICE, day: 32 },
+      { kind: 'kenh', label: 'ESP + ZNS mời và nhắc', amount: 1_000_000, day: 32 },
+      { kind: 'noi-dung', label: 'Slide, thư mời, tài liệu phát tay', amount: 6_000_000, day: 32 },
+      {
+        kind: 'su-kien',
+        label: 'Thuê hội trường + âm thanh + màn hình · nửa ngày',
+        amount: 28_000_000,
+        day: 54,
+      },
+      { kind: 'su-kien', label: 'Ăn giữa giờ · 78 người', amount: 78 * 250_000, day: 54 },
+      { kind: 'su-kien', label: 'Quà + túi tài liệu · 120 bộ', amount: 120 * 150_000, day: 54 },
+      { kind: 'su-kien', label: 'Đi lại + dựng khu trưng bày tại chỗ', amount: 7_100_000, day: 54 },
+      { kind: 'cong-cu', label: 'Công cụ dùng chung · 4 đợt', amount: 4 * TOOL_PER_WAVE, day: 32 },
+    ],
     venue: 'KCN Quế Võ · Bắc Ninh',
     registered: 120,
     checkedIn: 78,
@@ -879,6 +1039,24 @@ export const SOURCES: Source[] = [
     startDay: 61,
     leads: 12,
     cost: 21_000_000,
+    /* Sự kiện trực tuyến nên khối `su-kien` chỉ còn quà cho người dự; phần lớn
+       tiền chuyển sang `cong-cu` (nền tảng webinar) và `noi-dung`. Cùng là "sự
+       kiện" với SK-0103 nhưng hình dạng chi phí khác hẳn — gộp hai cái vào một
+       nhãn "sự kiện" trên màn là mất đúng chỗ đáng nhìn. */
+    costLines: [
+      { kind: 'du-lieu', label: 'Danh sách mời Apollo', amount: 980 * ROW_PRICE, day: 61 },
+      { kind: 'kenh', label: 'ESP mời + nhắc + gửi bản ghi', amount: 700_000, day: 61 },
+      { kind: 'kenh', label: 'ZNS nhắc trước 1 giờ · 86 tin', amount: 100_000, day: 75 },
+      { kind: 'noi-dung', label: 'Slide + dựng lại bản ghi + ảnh bìa', amount: 7_940_000, day: 61 },
+      { kind: 'su-kien', label: 'Quà cho người dự · 51 phần', amount: 51 * 60_000, day: 75 },
+      {
+        kind: 'cong-cu',
+        label: 'Nền tảng webinar · gói 3 tháng, 500 chỗ',
+        amount: 5_400_000,
+        day: 61,
+      },
+      { kind: 'cong-cu', label: 'Công cụ dùng chung · 3 đợt', amount: 3 * TOOL_PER_WAVE, day: 61 },
+    ],
     venue: 'Trực tuyến',
     registered: 86,
     checkedIn: 51,
@@ -933,6 +1111,16 @@ export const SOURCES: Source[] = [
     startDay: 19,
     leads: 9,
     cost: 6_000_000,
+    /* KHÔNG có dòng `du-lieu`, và đó là dòng đáng giá nhất của cả bảng phân rã:
+       danh sách là sổ cũ của phòng, không mua dòng nào. Hôm nay màn chỉ nói
+       "6 triệu"; phân rã xong nó nói được VÌ SAO 6 triệu — và nói luôn rằng
+       đường này KHÔNG nhân lên được, vì sổ cũ chỉ có 310 người. */
+    costLines: [
+      { kind: 'kenh', label: 'ESP 3 đợt · 885 lượt', amount: 500_000, day: 19 },
+      { kind: 'noi-dung', label: '3 thư, viết trong nhà', amount: 2_500_000, day: 19 },
+      { kind: 'cong-cu', label: 'Công cụ dùng chung · 3 đợt', amount: 3 * TOOL_PER_WAVE, day: 19 },
+      { kind: 'kenh', label: 'ZNS đợt 3 · 282 tin', amount: 180_000, day: 82 },
+    ],
     waves: [
       {
         no: 1,
@@ -983,6 +1171,36 @@ export const SOURCES: Source[] = [
     startDay: 93,
     leads: 11,
     cost: 145_000_000,
+    /* Khoản lớn nhất kỳ, và 120,44 triệu của nó là bốn dòng `su-kien`. Riêng
+       tiền thuê gian 72 triệu đã lớn hơn cả chi phí của bốn nguồn cộng lại.
+       Trên trục ngày: nguồn này chưa tiêu đồng nào cho tới ngày 93, rồi tiêu
+       hết 145 triệu trong 7 ngày. */
+    costLines: [
+      { kind: 'du-lieu', label: 'Danh sách mời trước Apollo', amount: 1_400 * ROW_PRICE, day: 93 },
+      { kind: 'kenh', label: 'ESP thư mời + thư sau hội chợ', amount: 600_000, day: 93 },
+      {
+        kind: 'noi-dung',
+        label: 'Backdrop, standee, tờ rơi, video màn hình',
+        amount: 18_000_000,
+        day: 93,
+      },
+      { kind: 'su-kien', label: 'Thuê gian hàng 18 m² · ban tổ chức', amount: 72_000_000, day: 93 },
+      { kind: 'cong-cu', label: 'Công cụ dùng chung · 3 đợt', amount: 3 * TOOL_PER_WAVE, day: 93 },
+      { kind: 'su-kien', label: 'Thi công gian + điện nước', amount: 26_000_000, day: 99 },
+      {
+        kind: 'su-kien',
+        label: 'Vận chuyển + lưu trú 3 ngày · 3 người',
+        amount: 11_000_000,
+        day: 99,
+      },
+      { kind: 'su-kien', label: 'Quà tại gian · 143 phần', amount: 143 * 80_000, day: 99 },
+      {
+        kind: 'cong-cu',
+        label: 'Máy quét mã + phần mềm check-in · thuê 3 ngày',
+        amount: 1_740_000,
+        day: 99,
+      },
+    ],
     venue: 'Trung tâm triển lãm · Hà Nội',
     registered: 143,
     checkedIn: 143,
@@ -1038,6 +1256,11 @@ export const SOURCES: Source[] = [
     startDay: 4,
     leads: 7,
     cost: 0,
+    /* Không dòng nào, và 0 đồng TIỀN MẶT là câu trả lời đúng — không phải chỗ
+       thiếu dữ liệu. Nguồn này vẫn tốn giờ người (TP Kinh doanh gọi lại khách
+       cũ), nhưng giờ người là lớp khác: chưa có bảng giờ nào trong hệ, và bịa
+       một dòng tiền mặt cho nó là làm hỏng đúng con số 300 triệu. */
+    costLines: [],
     waves: [],
   },
   {
@@ -1048,11 +1271,304 @@ export const SOURCES: Source[] = [
     startDay: 1,
     leads: 5,
     cost: 0,
+    /* Như GT: 0 đồng tiền mặt, mảng rỗng. Xem chú thích ở GT. */
+    costLines: [],
     waves: [],
   },
 ]
 
 const sourceByCode = new Map(SOURCES.map((s) => [s.code, s]))
+
+// ---------------------------------------------------------------------------
+// Bảng giá nhà cung cấp và phép quy đổi "1.000 dòng tốn bao nhiêu"
+//
+// RANH GIỚI, đọc trước khi dùng: mọi thứ trong khối này là **đơn giá để LẬP KẾ
+// HOẠCH**, không phải số đo của kỳ 01/05 → 17/08. Số đo nằm ở `Source.cost` và
+// `Source.costLines`; hai bên KHÔNG được trộn. Màn kế hoạch dùng khối này để
+// trả lời "muốn thêm ngần này đầu mối thì đặt bao nhiêu tiền"; màn Performance
+// **không được đọc nó** — Performance chỉ đọc thứ đã tiêu thật.
+//
+// Trộn hai loại số này là kiểu sai khó thấy nhất: một bảng "chi phí" nửa dự
+// toán nửa hoá đơn vẫn cộng ra một con số đẹp, và không ai biết nó là số nào.
+// ---------------------------------------------------------------------------
+
+/** Tỷ giá quy đổi, đồng/USD. Vietcombank bán ra 18/08/2026 — là số ĐO, nhưng
+ *  vẫn phải khoá một mốc, nếu không mọi đơn giá USD trôi theo ngày chạy và hai
+ *  lần mở màn ra hai con số.
+ *
+ *  **Mốc ĐẶT bởi Trần Thu Hà · 20/08.** */
+export const USD_VND = 26_400
+
+/** Vì sao một dòng giá đứng được — hoặc vì sao nó không đứng được.
+ *
+ *  - `tra-duoc` — có bảng giá đọc được, ngày tra ghi ở `checkedOn`.
+ *  - `khong-xac-minh-duoc` — các nguồn tra không thống nhất với nhau, con số
+ *    đang dùng là số ĐẶT và phải đối chiếu bằng báo giá thật trước khi ký.
+ *  - `khong-quy-doi-duoc` — nhà cung cấp KHÔNG bán theo dòng, nên phép chia ra
+ *    đồng/1.000 dòng không tồn tại. Đây là KẾT LUẬN, không phải ô còn thiếu. */
+export type RateConfidence = 'tra-duoc' | 'khong-xac-minh-duoc' | 'khong-quy-doi-duoc'
+
+export type VendorRate = {
+  vendor: string
+  plan: string
+  /** Giá niêm yết, giữ nguyên đơn vị nhà cung cấp công bố. Chuỗi chứ không phải
+   *  số: "$79/ghế/tháng (trả năm)" và "99 triệu đ/năm, tối đa 5 người" không
+   *  quy về một đơn vị được, và ép chúng vào một số là mất mất điều kiện bán. */
+  listPrice: string
+  /** Đồng cho 1.000 dòng dữ liệu lấy ra được. `null` khi không quy đổi được. */
+  perThousandRows: number | null
+  /** Ngày tra bảng giá. */
+  checkedOn: string
+  confidence: RateConfidence
+  note: string
+  source: string
+}
+
+/** Bảng giá tra ngày 20/08/2026. **Đơn giá LẬP KẾ HOẠCH** — xem chú thích khối.
+ *
+ *  Hai chỗ trống trong bảng là chỗ trống CÓ CHỦ Ý, không phải việc chưa làm:
+ *
+ *  1. **Sales Navigator không quy ra đồng/1.000 dòng được.** Nó bán quyền tìm
+ *     và xem, không bán dòng dữ liệu — cả ba gói đều 0 email, 0 số điện thoại.
+ *     Vì thế nó thuộc loại `cong-cu` (phân bổ theo thời gian), không thuộc
+ *     `du-lieu`. Thêm nữa, chính giá ghế cũng **không xác minh được**: nguồn tra
+ *     dao động $89,99 – $119,99/tháng.
+ *  2. **Dữ liệu doanh nghiệp VN không quy ra được.** Vietdata công bố giá gói
+ *     nhưng không công bố số dòng mỗi gói cho phép lấy ra, nên phép chia không
+ *     thực hiện được. Các nơi bán "file data doanh nghiệp" trên Google Sites
+ *     không có bảng giá công khai và không có pháp nhân kiểm được — không đưa
+ *     vào mô hình.
+ *
+ *  Con số đắt nhất của bảng: mua credit lẻ đắt **5,06 lần** gói Professional.
+ *  Một mô hình chi phí không nhìn thấy chỗ đó sẽ để phòng trả gấp năm lần mà
+ *  không ai biết. */
+export const VENDOR_RATES: VendorRate[] = [
+  {
+    vendor: 'Apollo.io',
+    plan: 'Free',
+    listPrice: '$0 · 10 export credit/tháng',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-quy-doi-duoc',
+    note: '10 credit/tháng không bao giờ đủ 1.000 dòng — phép chia có ra số cũng vô nghĩa.',
+    source: 'https://www.saleshandy.com/blog/apolloio-pricing/',
+  },
+  {
+    vendor: 'Apollo.io',
+    plan: 'Basic',
+    listPrice: '$49/ghế/tháng (trả năm) · 1.000 credit/tháng',
+    perThousandRows: 1_293_600,
+    checkedOn: '2026-08-20',
+    confidence: 'tra-duoc',
+    note: '$49 × 26.400 = 1.293.600 đ ÷ 1.000 credit = 1.293,60 đ/dòng.',
+    source: 'https://www.saleshandy.com/blog/apolloio-pricing/',
+  },
+  {
+    vendor: 'Apollo.io',
+    plan: 'Professional',
+    listPrice: '$79/ghế/tháng (trả năm) · 2.000 credit/tháng',
+    perThousandRows: 1_042_800,
+    checkedOn: '2026-08-20',
+    confidence: 'tra-duoc',
+    note: 'Gói phòng đang dùng. $79 × 26.400 = 2.085.600 ÷ 2.000 = 1.042,80 đ/dòng — làm tròn thành ROW_PRICE = 1.000 đ.',
+    source: 'https://www.saleshandy.com/blog/apolloio-pricing/',
+  },
+  {
+    vendor: 'Apollo.io',
+    plan: 'Organization',
+    listPrice: '$119/ghế/tháng · tối thiểu 3 ghế · 4.000 credit/tháng',
+    perThousandRows: 785_400,
+    checkedOn: '2026-08-20',
+    confidence: 'tra-duoc',
+    note: 'Rẻ nhất mỗi dòng, nhưng phải mua tối thiểu 3 ghế — điều kiện bán không nằm trong đơn giá.',
+    source: 'https://www.saleshandy.com/blog/apolloio-pricing/',
+  },
+  {
+    vendor: 'Apollo.io',
+    plan: 'Mua lẻ · overage',
+    listPrice: '$0,20/credit · tối thiểu 250 credit mỗi lần',
+    perThousandRows: 5_280_000,
+    checkedOn: '2026-08-20',
+    confidence: 'tra-duoc',
+    note: 'Đắt 5,06 lần Professional và 6,72 lần Organization. Đây là cái bẫy: muốn 54.545 dòng ngay thì mua lẻ hết 288 triệu thay vì 70,9 triệu.',
+    source: 'https://www.saleshandy.com/blog/apolloio-pricing/',
+  },
+  {
+    vendor: 'LinkedIn Sales Navigator',
+    plan: 'Core',
+    listPrice: '$99/ghế/tháng',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-xac-minh-duoc',
+    note: 'Không export dòng nào (0 email, 0 số điện thoại) nên không có đồng/1.000 dòng. Và chính giá ghế cũng dao động $89,99 – $119,99 tuỳ nguồn tra: $99 là số ĐẶT bởi Trần Thu Hà · 20/08, phải đối chiếu báo giá thật trước khi ký.',
+    source: 'https://www.cleanlist.ai/blog/2026-05-08-linkedin-sales-navigator-pricing-guide',
+  },
+  {
+    vendor: 'LinkedIn Sales Navigator',
+    plan: 'Advanced',
+    listPrice: '$149/ghế/tháng',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-quy-doi-duoc',
+    note: 'Cũng không export dòng. Bán quyền tìm và xem, nên thuộc loại cong-cu chứ không phải du-lieu.',
+    source: 'https://overloop.com/blog/linkedin-sales-navigator-pricing',
+  },
+  {
+    vendor: 'LinkedIn Sales Navigator',
+    plan: 'Advanced Plus',
+    listPrice: '~$1.600/năm · báo giá riêng',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-xac-minh-duoc',
+    note: 'Báo giá riêng, không có bảng công khai. Con số ~$1.600/năm chỉ để biết bậc giá.',
+    source: 'https://overloop.com/blog/linkedin-sales-navigator-pricing',
+  },
+  {
+    vendor: 'Vietdata',
+    plan: 'Báo cáo ngành · BC003',
+    listPrice: '5 triệu đ/năm',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-quy-doi-duoc',
+    note: 'Không công bố số dòng doanh nghiệp mỗi gói cho lấy ra — phép chia không thực hiện được.',
+    source: 'https://www.vietdata.vn/vi/data-sets',
+  },
+  {
+    vendor: 'Vietdata',
+    plan: 'Truy cập dữ liệu · Account001',
+    listPrice: '7 triệu đ/năm',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-quy-doi-duoc',
+    note: 'Như trên: giá gói có, số dòng không.',
+    source: 'https://www.vietdata.vn/vi/data-sets',
+  },
+  {
+    vendor: 'Vietdata',
+    plan: 'Dữ liệu + báo cáo · Account002',
+    listPrice: '11 triệu đ/năm',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-quy-doi-duoc',
+    note: 'Như trên: giá gói có, số dòng không.',
+    source: 'https://www.vietdata.vn/vi/data-sets',
+  },
+  {
+    vendor: 'Vietdata',
+    plan: 'Truy cập hệ thống · Account003',
+    listPrice: '99 triệu đ/năm · tối đa 5 người',
+    perThousandRows: null,
+    checkedOn: '2026-08-20',
+    confidence: 'khong-quy-doi-duoc',
+    note: 'Gói đắt nhất mà vẫn không biết được bao nhiêu dòng. Cần một báo giá thật trước khi điền ô này.',
+    source: 'https://demo-macro.vietdata.vn/b%E1%BA%A3ng-gi%C3%A1-d%E1%BB%AF-li%E1%BB%87u',
+  },
+]
+
+/** Tỉ lệ dòng hỏng / không xác minh được, 0–1.
+ *  **Số ĐẶT bởi Trần Thu Hà · 20/08 — chưa ai đo.** */
+export const BAD_ROW_RATE = 0.12
+
+/** Tỉ lệ một dòng danh sách LẠNH thành đầu mối. Đây là số **ĐO**, không phải số
+ *  đặt: 22 lead của CD-0101 trên 1.200 dòng của đợt mở màn = 1,8333%.
+ *
+ *  Tử số là lead của CẢ chuỗi ba đợt, mẫu số là dòng của MỘT đợt — và đó là
+ *  đúng phép chia, vì ba đợt đều gửi lại chính danh sách 1.200 dòng đó (đợt 2
+ *  gửi 1.159 = 1.200 − 41 người đã trả lời, đợt 3 gửi 1.137 = 1.159 − 22). Cả
+ *  22 lead ra từ một lô duy nhất.
+ *
+ *  `scenario.test.ts` khoá con số này bằng chính CD-0101, để nó không trôi khi
+ *  ai đó sửa fixture. */
+export const COLD_ROW_LEAD_RATE = 22 / 1_200
+
+export type RowsToLeadsInput = {
+  /** Đồng mỗi dòng mua vào. Mặc định `ROW_PRICE`. */
+  rowPrice?: number
+  /** Đồng mỗi dòng xác minh thư. Mặc định `EMAIL_VERIFY_PRICE`. */
+  verifyPrice?: number
+  /** Tỉ lệ dòng hỏng, 0–1. Mặc định `BAD_ROW_RATE`. */
+  badRowRate?: number
+  /** Tỉ lệ ra đầu mối, đo trên dòng NHƯ ĐÃ MUA. Mặc định `COLD_ROW_LEAD_RATE`. */
+  leadRatePerRow?: number
+}
+
+export type RowsToLeadsResult = {
+  rows: number
+  /** Dòng còn gửi được sau khi trừ tỉ lệ hỏng. */
+  usableRows: number
+  /** Đầu mối kỳ vọng. KHÔNG làm tròn: 18,33 là một kỳ vọng, không phải 18 con
+   *  người, và làm tròn ở đây thì bậc sau của chuỗi lệch theo. */
+  leads: number
+  /** Tiền DỮ LIỆU: mua dòng + xác minh. Không gồm kênh, nội dung, công cụ. */
+  dataCost: number
+  /** Tiền dữ liệu trên mỗi dòng GỬI ĐƯỢC — số để so bảng giá nhà cung cấp. */
+  costPerUsableRow: number
+  /** Tiền dữ liệu trên mỗi đầu mối. `null` khi chuỗi không ra đầu mối nào. */
+  dataCostPerLead: number | null
+}
+
+/** Trả lời thẳng câu "1.000 dòng Apollo ra bao nhiêu đầu mối, tốn bao nhiêu".
+ *
+ *  Chuỗi: `dòng → trừ tỉ lệ hỏng → × tỉ lệ ra lead → đầu mối`. Với mặc định của
+ *  kỳ này, `rowsToLeads(1.000)` ra **18,33 đầu mối** và **70.909 đ tiền dữ liệu
+ *  mỗi đầu mối** (1.000 × 1.300 = 1.300.000 ÷ 18,33).
+ *
+ *  **Chỗ dễ tính sai, viết ra để không ai sửa nhầm:** `COLD_ROW_LEAD_RATE` đo
+ *  trên dòng NHƯ ĐÃ MUA, tức nó đã chứa sẵn phần dòng hỏng. Muốn áp nó lên dòng
+ *  GỬI ĐƯỢC thì phải quy đổi ngược bằng chính `badRowRate`, nếu không 12% bị
+ *  trừ hai lần và cả chuỗi hụt đúng 12%. Hai bước vẫn viết tách ra vì chúng trả
+ *  lời hai câu khác nhau — `costPerUsableRow` (1.477,27 đ) là số để so giá nhà
+ *  cung cấp, `leads` là số để đặt kế hoạch.
+ *
+ *  **Và câu hỏi gốc sai đơn vị.** Apollo không bán lead, nó bán dòng. Muốn 1.000
+ *  đầu mối cần 54.545 dòng ≈ 70,9 triệu tiền dữ liệu — nhưng ~818 triệu tổng
+ *  chi, vì tiền dữ liệu chỉ chiếm 8,67% giá thật của một đầu mối ở CD-0101.
+ *  Cái bẫy đi kèm: 54.545 credit KHÔNG mua lẻ được ở đơn giá này. Mua lẻ
+ *  $0,20/credit thì hết 288 triệu — gấp 4,06 lần. Muốn 1.000 đ/dòng phải mua
+ *  27,3 tháng-ghế Professional.
+ *
+ *  Hàm THUẦN, dùng cho bậc LẬP KẾ HOẠCH. Không đọc `Source.cost`, và
+ *  `Source.cost` cũng không được tính ngược từ đây. */
+export function rowsToLeads(rows: number, opts: RowsToLeadsInput = {}): RowsToLeadsResult {
+  const rowPrice = opts.rowPrice ?? ROW_PRICE
+  const verifyPrice = opts.verifyPrice ?? EMAIL_VERIFY_PRICE
+  const badRowRate = opts.badRowRate ?? BAD_ROW_RATE
+  const leadRatePerRow = opts.leadRatePerRow ?? COLD_ROW_LEAD_RATE
+
+  const usableRows = rows * (1 - badRowRate)
+  const leadRatePerUsableRow = badRowRate < 1 ? leadRatePerRow / (1 - badRowRate) : 0
+  const leads = usableRows * leadRatePerUsableRow
+  const dataCost = rows * (rowPrice + verifyPrice)
+
+  return {
+    rows,
+    usableRows,
+    leads,
+    dataCost,
+    costPerUsableRow: usableRows > 0 ? dataCost / usableRows : 0,
+    dataCostPerLead: leads > 0 ? dataCost / leads : null,
+  }
+}
+
+/** Credit Apollo mua rồi KHÔNG dùng — 4.122.400 đ. Chi phí chìm của kỳ.
+ *
+ *  **Nằm NGOÀI `Source.cost`, và đó là điểm chính.** 300.000.000 đ là *phần gán
+ *  được cho nguồn*; tiền thật ra khỏi tài khoản kỳ này là **304.122.400 đ**.
+ *
+ *  Kiểm được: thuê bao Professional 4 tháng `$316 × 26.400 = 8.342.400 đ`; phần
+ *  gán xuống nguồn `4.220 dòng × 1.000 = 4.220.000 đ`; chênh `4.122.400 đ`, gồm
+ *  3.780 credit chưa dùng ở đơn giá thật (3.941.784 đ) và chênh do làm tròn đơn
+ *  giá 1.042,80 → 1.000 (180.616 đ).
+ *
+ *  **Vì sao không chia xuống nguồn.** Credit thừa là kết quả của một quyết định
+ *  MUA GÓI, không phải của một chiến dịch. Chia nó xuống thì nguồn bị chấm điểm
+ *  vì một quyết định nó không tham gia, và tệ hơn: tháng nào phòng mua dư thì
+ *  mọi nguồn tự dưng đắt lên mà không ai làm gì sai. Khoản này là thước của
+ *  người mua gói (TP Kinh doanh), không phải của người chạy đợt.
+ *
+ *  Bỏ qua nó cũng không được: bỏ qua thì tổng phân bổ nhỏ hơn tiền thật, và CAC
+ *  cấp phòng bị thổi đẹp. Vì thế nó đứng đây, có tên, ngoài 300 triệu. */
+export const UNUSED_APOLLO_CREDIT = 4_122_400
 
 // ---------------------------------------------------------------------------
 // 100 dòng sổ lead. Đây là toàn bộ kỳ 01/05 → 17/08, không phải một trang.
@@ -1528,24 +2044,152 @@ export function canPromoteToSql(lead: Lead): { ok: boolean; reason?: string } {
   return { ok: true }
 }
 
+// ---------------------------------------------------------------------------
+// Giá mỗi lead tốt — MỘT phép chia, BA phạm vi có tên
+//
+// Ba màn hỏi ba câu khác nhau dưới cùng một nhãn, và đó là chuyện ĐÚNG: kế hoạch
+// hỏi "đồng tiền tiếp theo nên dồn đâu", chiến dịch hỏi "phần đã chạy ăn thua ra
+// sao", performance hỏi "công trạng của người đứng tên nguồn tới đâu". Ba câu ba
+// tập nguồn, ép về một con số là sai nghiệp vụ.
+//
+// Cái KHÔNG được khác nhau là phép tính và cách gọi tên tập nguồn. Trước 20/08
+// mỗi màn tự viết bộ lọc của mình (`cost > 0` · `waves.length > 0` · `owner ===
+// Marketing`); hôm nay cả ba tình cờ ra cùng sáu nguồn nên cùng ra 10,0 tr và
+// không ai thấy. Thêm một nguồn trả tiền mà chủ không phải Marketing là ba màn
+// hiện ba con số dưới một nhãn, và không test nào đỏ.
+//
+// Vì thế: phạm vi phải xin ở đây, phép chia chỉ có ở đây, và nhãn trên màn phải
+// khai nó đang xem phạm vi nào. `scenario.test.ts` khoá cả ba danh sách mã.
+// ---------------------------------------------------------------------------
+
+/** Nguồn CÓ TIÊU TIỀN — phạm vi của câu hỏi "tiền nên dồn vào đâu".
+ *
+ *  Hai nguồn tự nhiên phải đứng ngoài: chúng chi 0 đồng nên giá của chúng luôn
+ *  là 0, và một bảng so giá có chúng thì nguồn rẻ nhất vĩnh viễn là thứ không
+ *  mua thêm được bằng ngân sách. Câu hỏi này chỉ so những chỗ tiền đi qua. */
+export function sourcesPaid(): Source[] {
+  return SOURCES.filter((s) => s.cost > 0)
+}
+
+/** Nguồn ĐÃ CHẠY ĐỢT — phạm vi của câu hỏi "phần có người làm hiệu quả ra sao".
+ *
+ *  Mốc là có đợt chứ không phải có tiền: nguồn nào không đợt nào kéo về thì
+ *  không đợt nào được ghi công. Đây là lý do màn Chiến dịch cộng ra 88 lead chứ
+ *  không phải 100 — 12 lead còn lại tự chảy về, cộng vào là mọi tỉ lệ đội lên
+ *  bằng số không ai làm ra. */
+export function sourcesRan(): Source[] {
+  return SOURCES.filter((s) => s.waves.length > 0)
+}
+
+/** Nguồn của MỘT NGƯỜI — phạm vi của câu hỏi "công trạng của vai này tới đâu".
+ *
+ *  Đọc `owner`, không đọc `followers`: chủ là người chịu trách nhiệm, follower
+ *  là người xin theo dõi. Chấm công trạng theo follower thì một nguồn được tính
+ *  cho ba người cùng lúc. Tên truyền vào phải có trong `actors` — dùng hằng
+ *  `MARKETING` · `BD` · `HEAD_OF_SALES`, đừng gõ lại chuỗi. */
+export function sourcesOwnedBy(owner: string): Source[] {
+  return SOURCES.filter((s) => s.owner === owner)
+}
+
+export type GoodLeadCost = {
+  /** Tổng chi của phạm vi, đồng. */
+  cost: number
+  /** Lead qua được cổng init data, đếm từ sổ lead của chính các nguồn đó. */
+  good: number
+  /** Giá mỗi lead tốt, đồng đã làm tròn. `null` khi chưa có lead tốt nào —
+   *  KHÔNG phải 0: "chưa đo được" và "không mất đồng nào" là hai chuyện khác. */
+  perGood: number | null
+}
+
+/** Giá mỗi lead tốt của một phạm vi nguồn. **Nơi duy nhất phép chia này tồn
+ *  tại** — ba màn gọi cùng hàm này với ba phạm vi của mình, không màn nào tự
+ *  chia lấy.
+ *
+ *  Mọi nguồn trong phạm vi đều góp chi phí, kể cả nguồn chưa ra lead tốt nào:
+ *  tiền đã tiêu thì đã tiêu, bỏ nó khỏi tử số là làm cả phạm vi trông rẻ hơn
+ *  thật.
+ *
+ *  **Phạm vi THỜI GIAN, đọc kỹ chỗ này.** `Source.cost` là chi phí CẢ KỲ, chưa
+ *  có trục ngày. Màn nào cắt lead theo tháng rồi chia cho chi phí này thì tử số
+ *  và mẫu số khác khoảng thời gian.
+ *
+ *  ĐÃ GỠ 20/08: `Source.costLines[].day` cắt được chi phí theo kỳ, và tầng app
+ *  (`data/source-cost.ts`) dùng nó để tính thước theo đúng kỳ đang xem. Hàm này
+ *  vẫn cộng CẢ KỲ — nó là phép chia dùng chung cho ba phạm vi nguồn, không phải
+ *  chỗ cắt thời gian. Cần số theo kỳ thì lọc `costLines` trước rồi mới gọi. */
+export function costOfGoodLead(sources: readonly Source[]): GoodLeadCost {
+  let cost = 0
+  let good = 0
+
+  for (const s of sources) {
+    cost += s.cost
+    good += LEADS.filter((l) => l.source === s.code && l.requiredFilled >= REQUIRED_SLOTS).length
+  }
+
+  return { cost, good, perGood: good > 0 ? Math.round(cost / good) : null }
+}
+
 /** Số của một nguồn nhìn từ sổ lead — đây là cách module 1 đo bằng LEAD, không
- *  đo bằng lượt xem. "Lead tốt" = lead đã qua cổng init data. */
+ *  đo bằng lượt xem. "Lead tốt" = lead đã qua cổng init data.
+ *
+ *  **Bốn chỉ số giá, bốn MẪU SỐ khác nhau** — cùng một tử số `cost`. Chúng
+ *  không thay thế nhau và không bao giờ được đứng chung một cột dưới nhãn "chi
+ *  phí": một nguồn rẻ trên đầu mối có thể đắt trên SQL, và chênh lệch đó chính
+ *  là thứ đáng nhìn.
+ *
+ *  **Bốn chỉ số CỐ TÌNH VẮNG MẶT** — ROAS · ROI · thời gian hoàn vốn · LTV. Cả
+ *  bốn cần tiền của hợp đồng, mà `Lead.contractCode` chỉ có MÃ chứ không có
+ *  tiền. Thêm trường trả `null` cho chúng ở đây cũng được, nhưng thà không có
+ *  trường còn hơn có một trường luôn rỗng mà màn tưởng sẽ đầy. Bốn cái mở khoá
+ *  cùng lúc khi có `CONTRACTS` mang giá trị tiền.
+ *
+ *  CAC (`cost ÷ signed`) thì tính được nhưng vô nghĩa về thống kê — mẫu số là 0
+ *  hoặc 1 ở mọi nguồn — nên nó cũng không có mặt; `signed` đã ở đây cho ai muốn
+ *  tự chia và tự chịu trách nhiệm với con số đó. */
 export function sourceStats(code: string) {
   const src = sourceByCode.get(code)
   const mine = LEADS.filter((l) => l.source === code)
-  const good = mine.filter((l) => l.requiredFilled >= REQUIRED_SLOTS)
   const signed = mine.filter((l) => l.contractCode)
-  const cost = src?.cost ?? 0
+  /* Một nguồn là phạm vi nhỏ nhất có thể — đi qua đúng hàm chung để hàng của
+     bảng và ô tổng phía trên nó không thể tính bằng hai công thức. */
+  const spend = costOfGoodLead(src ? [src] : [])
+
+  /* MQL+ là "bậc ≥ mql", tức gồm cả SQL: một lead lên SQL thì nó đã là công ty
+     thật rồi, không đếm nó vào MQL là làm mẫu số teo đi ở đúng nguồn tốt nhất. */
+  const mqlPlus = mine.filter((l) => l.tier === 'mql' || l.tier === 'sql').length
+  const sql = mine.filter((l) => l.tier === 'sql').length
+
+  /* Mẫu số 0 thì trả `null`, không trả 0 — cùng luật với `costPerGood`.
+     Tử số 0 (nguồn tự nhiên) thì 0 là kết quả thật, giữ nguyên. */
+  const per = (n: number) => (n > 0 ? Math.round(spend.cost / n) : null)
 
   return {
     source: src,
     leads: mine.length,
-    good: good.length,
+    good: spend.good,
     signed: signed.length,
     running: mine.filter(isRunning).length,
-    cost,
+    cost: spend.cost,
     /** Giá mỗi lead tốt, đồng. 0 lead tốt thì trả `null` — không chia cho 0. */
-    costPerGood: good.length > 0 ? Math.round(cost / good.length) : null,
+    costPerGood: spend.perGood,
+    /** Chi phí mỗi ĐẦU MỐI, đồng: `cost ÷ leads`. Mẫu số rộng nhất của bốn cái,
+     *  nên cũng là con số dễ khiến một nguồn trông rẻ nhất. */
+    costPerLead: per(mine.length),
+    /** Chi phí mỗi MQL, đồng: `cost ÷ số lead bậc ≥ mql`. */
+    costPerMql: per(mqlPlus),
+    /** Chi phí mỗi SQL, đồng: `cost ÷ số lead bậc sql`. `null` khi nguồn chưa
+     *  đẩy được ai vào sổ cơ hội — TM hôm nay là đúng trường hợp đó, và "chưa
+     *  có SQL nào" khác hẳn "0 đồng mỗi SQL". */
+    costPerSql: per(sql),
+    /** Tỉ lệ lead tốt thô `p̂ = good ÷ leads`, 0–1. `null` khi nguồn chưa có
+     *  lead nào.
+     *
+     *  **Không được hiện một mình ở chỗ liếc.** Trên cỡ mẫu 5–22 của tám nguồn,
+     *  con số này là một câu chuyện về vài người: khoảng tin cậy 95% của nguồn
+     *  lớn nhất vẫn rộng 38 điểm phần trăm. Khoảng tin cậy và phần co ngót về
+     *  trung bình phòng là việc của `stats.ts` ở vòng sau; tới lúc đó bảng hiện
+     *  số co ngót, còn số thô này chỉ nằm trong drawer. */
+    goodRate: mine.length > 0 ? spend.good / mine.length : null,
   }
 }
 

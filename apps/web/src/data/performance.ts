@@ -1,4 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
+import { millions } from '@pv/ui'
+import { type CostBandValue } from '@pv/engines'
 import {
   BD,
   DAS_VINA_FROZEN_AT,
@@ -14,10 +16,9 @@ import {
   REQUIRED_SLOTS,
   ROLE_KPI_MODEL,
   SLA_WATCH_MARGIN,
-  SOURCES,
   daysBetween,
   leadMilestones,
-  sourceStats,
+  sourcesOwnedBy,
   type KpiLayer,
   type KpiMeasureUnit,
   type Lead,
@@ -38,6 +39,7 @@ import {
   type Period,
   type PeriodChoice,
 } from './period'
+import { costOf, spendIn } from './source-cost'
 
 /** Module 3 · Performance — "ai đang làm được, ai đang tắc". Kịch bản 2 · DAS Vina.
  *
@@ -81,7 +83,10 @@ function stageOf(key: StageKey) {
 type Row = { lead: Lead; at: LeadMilestones }
 const BOOK: Row[] = LEADS.map((lead) => ({ lead, at: leadMilestones(lead) }))
 
-const MKT_SOURCES = SOURCES.filter((s) => s.owner === MARKETING)
+/** Nguồn ĐỨNG TÊN Marketing — phạm vi xin ở fixture chứ không tự lọc. Đây là
+ *  một trong ba phạm vi của cùng nhãn "giá mỗi lead tốt"; hai cái kia là "có
+ *  tiêu tiền" (Kế hoạch) và "đã chạy đợt" (Chiến dịch). Xem `costOfGoodLead`. */
+const MKT_SOURCES = sourcesOwnedBy(MARKETING)
 const MKT_CODES = new Set(MKT_SOURCES.map((s) => s.code))
 
 // ---------------------------------------------------------------------------
@@ -92,8 +97,13 @@ export type { KpiLayer, KpiMeasureUnit, Period, PeriodChoice }
 
 export type RoleKind = 'marketing' | 'bd' | 'sale' | 'presales' | 'truong-phong'
 
-/** Ba trạng thái của tài liệu KPI, dùng chung cho người và cho SLA. */
-export type Verdict = 'dat' | 'can-cai-thien' | 'chua-do'
+/** Trạng thái của một thước.
+ *
+ *  Ba cái đầu là của tài liệu KPI, dùng chung cho người và cho SLA. Cái thứ tư
+ *  thêm 20/08 và KHÁC HẲN `chua-do`: `chua-do` là chưa có nguồn số; `chua-chot`
+ *  là ĐÃ ĐO XONG, số hiện đủ, nhưng kỳ chưa đóng nên chưa chấm nhãn. Gộp hai
+ *  cái vào nhau sẽ giấu mất một con số đã có. */
+export type Verdict = 'dat' | 'can-cai-thien' | 'chua-do' | 'chua-chot'
 
 /** Một thước đã đo. `value === null` là chưa đo được — nói thẳng chứ không hiện
  *  số 0, vì 0 nghĩa là "đo rồi, kết quả bằng không". */
@@ -133,14 +143,29 @@ export type PaceRow = {
   perDay: number | null
 }
 
+/** Một nguồn của Marketing, ĐÃ CẮT THEO KỲ — cả lead lẫn tiền.
+ *
+ *  Trước 20/08 dòng này trộn hai khoảng thời gian: `leads`/`good` cắt theo kỳ
+ *  còn `cost` là chi phí cả kỳ, vì `Source.cost` chưa có trục ngày. Giờ mỗi
+ *  `CostLine` mang `day`, nên tử số và mẫu số đứng chung một khoảng. */
 export type SourceRow = {
   code: string
   label: string
   waves: number
   leads: number
   good: number
+  /** Tiền tiêu TRONG KỲ, đồng — tổng các `costLine` có ngày rơi vào kỳ. */
   cost: number
+  /** Chi phí cả kỳ của nguồn, để dòng nói được "trong kỳ bao nhiêu trên tổng
+   *  bao nhiêu". Thiếu nó thì một nguồn 145 triệu hiện 0 đồng ở tháng 5 đọc như
+   *  thể nó miễn phí. */
+  costWhole: number
   costPerGood: number | null
+  /** Dải giá mỗi lead tốt của kỳ. */
+  band: CostBandValue
+  /** Dải đủ chắc để đứng cạnh câu khẳng định chưa (§6.7). */
+  enough: boolean
+  why: string
 }
 
 export type LeadRow = {
@@ -181,6 +206,10 @@ export type PersonCard = {
   /** Câu phải hiện khi vai này không chấm bằng số cá nhân. */
   note?: string
   sources?: SourceRow[]
+  /** Câu phải in ngay trên bảng nguồn: kỳ đang cắt là kỳ nào, và phần chi phí
+   *  nào KHÔNG chia nhỏ hơn được. Ở tầng dữ liệu vì nó đổi cùng lúc với phép
+   *  cắt — để ở JSX thì một hôm nào đó câu nói một đằng, số một nẻo. */
+  sourcesNote?: string
   leads?: LeadRow[]
   deals?: DealRow[]
 }
@@ -405,7 +434,18 @@ function roleOf(actorRole: string): { key: string; kind: RoleKind; kpis: RoleKpi
 
 /** Giá trị đo được của một thước, cùng câu giải thích số đó ở đâu ra.
  *  `value: null` = fixture không có nguồn số. */
-type Measured = { value: number | null; note: string }
+type Measured = {
+  value: number | null
+  note: string
+  /** Ghi đè cờ `snapshot` của `ROLE_KPI_MODEL`.
+   *
+   *  Cờ ở fixture nói "thước này không cắt được theo kỳ". Với
+   *  `gia-moi-lead-tot` điều đó đúng cho tới 20/08, khi `CostLine.day` xuất
+   *  hiện và chi phí cắt được. Sửa cờ ở fixture là việc của `packages/**`;
+   *  cho tới lúc đó màn không được in "số chụp tại 17/08" dưới một con số đã
+   *  cắt theo kỳ — câu đó sai, và sai theo hướng làm người đọc tin nhầm. */
+  snapshot?: boolean
+}
 
 function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
   /* CHỈ thước cộng dồn mới nhân mục tiêu theo độ dài kỳ. Tỷ lệ và số chụp thì
@@ -424,6 +464,12 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
        bằng một cách duy nhất. */
     ratio = def.higherIsBetter ? value / target : rate(target, value)
     verdict = ratio !== null && ratio >= 1 ? 'dat' : 'can-cai-thien'
+
+    /* Kỳ chưa đóng + thước chốt muộn = hiện số, hoãn nhãn. Tiền của nguồn đang
+       chạy đã ghi đủ vào kỳ, lead của nó thì chưa về hết, nên tỉ số đọc ra một
+       con số thật mà chấm điểm trên nó là chấm độ trễ. `ratio` giữ nguyên để
+       đồng hồ vẫn vẽ được — chỉ cái NHÃN bị hoãn. */
+    if (def.settlesLate && !p.closed) verdict = 'chua-chot'
   }
 
   return {
@@ -437,38 +483,75 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
     ratio,
     verdict,
     note: measured.note,
-    snapshot: def.snapshot === true,
+    snapshot: measured.snapshot ?? def.snapshot === true,
     primary: def.primary === true,
   }
 }
 
-/** Marketing — lead kéo về, phần qua được cổng, và giá của nó. */
+/** Marketing — lead kéo về, phần qua được cổng, và giá của nó.
+ *
+ *  --------------------------------------------------------------------------
+ *  CHI PHÍ GIỜ CẮT ĐƯỢC THEO KỲ (20/08) — TRẢ MỘT MÓN NỢ, MỞ MỘT CÂU HỎI
+ *  --------------------------------------------------------------------------
+ *  Trước hôm nay `gia-moi-lead-tot` chia lead CỦA KỲ cho chi phí CẢ KỲ: tháng 5
+ *  có 10 lead tốt đứng trên 300 triệu của bốn tháng, và mọi kỳ đều ra đúng
+ *  10,0 triệu vì tử số lẫn mẫu số đều là số của cả kỳ. Mỗi `CostLine` giờ có
+ *  `day`, nên hai vế đứng chung một khoảng được.
+ *
+ *  **Con số đổi rất mạnh, và với hai kỳ nó đổi cả NHÃN:** quý 3 đi từ 10,0 tr
+ *  lên 23,7 tr và tháng 8 lên 72,5 tr — cả hai vượt ngưỡng 12 tr, tức thước của
+ *  một người đổi từ Đạt sang Cần cải thiện. Lý do không phải ai làm kém đi: gian
+ *  hàng triển lãm 145 triệu rơi trọn vào tháng 8 trong khi lead của nó mới về
+ *  bốn dòng. Đó là sự thật mà cách tính cũ đang che, nhưng nó là sự thật về MỘT
+ *  NGƯỜI — nên nó phải được nói to ở chỗ người ta chấm công, không lẳng lặng
+ *  đổi màu một cái nhãn.
+ *
+ *  Chỗ phép cắt còn nợ nằm ở `spendIn().lumped` và phải hiện lên màn: dòng gộp
+ *  cả chuỗi ghi ở `startDay` không chia nhỏ hơn được. */
 function marketingReadings(p: Period): {
   measured: Record<string, Measured>
   sources: SourceRow[]
+  sourcesNote: string
 } {
   const mine = BOOK.filter((r) => MKT_CODES.has(r.lead.source) && inPeriod(r.at.vaoSo, p))
   const good = mine.filter((r) => r.lead.requiredFilled >= REQUIRED_SLOTS)
   const waves = MKT_SOURCES.flatMap((s) => s.waves.filter((w) => inPeriod(waveDay(w.day), p)))
 
+  /** Dòng chi có rơi vào kỳ đang xem không. Cùng trục ngày với `Wave.day`. */
+  const inThisPeriod = (line: { day: number }) => inPeriod(waveDay(line.day), p)
+
   const sources: SourceRow[] = MKT_SOURCES.map((s) => {
-    const stats = sourceStats(s.code)
+    const rows = BOOK.filter((r) => r.lead.source === s.code && inPeriod(r.at.vaoSo, p))
+    const hits = rows.filter((r) => r.lead.requiredFilled >= REQUIRED_SLOTS).length
+    const cut = spendIn([s], inThisPeriod)
+    const priced = costOf(s, cut.cost, rows.length, hits)
+
     return {
       code: s.code,
       label: s.label,
-      waves: s.waves.length,
-      leads: stats.leads,
-      good: stats.good,
-      cost: stats.cost,
-      costPerGood: stats.costPerGood,
+      waves: s.waves.filter((w) => inPeriod(waveDay(w.day), p)).length,
+      leads: rows.length,
+      good: hits,
+      cost: cut.cost,
+      costWhole: s.cost,
+      costPerGood: priced.band.point,
+      band: priced.band,
+      enough: priced.enough,
+      why: priced.why,
     }
   })
 
-  const cost = sum(sources.map((s) => s.cost))
-  const allGood = sum(sources.map((s) => s.good))
+  const spend = spendIn(MKT_SOURCES, inThisPeriod)
+  const perGood = good.length > 0 ? Math.round(spend.cost / good.length) : null
 
   return {
     sources,
+    sourcesNote: [
+      `Cắt theo kỳ đang xem, cả lead lẫn tiền: ${millions(spend.cost)} tiêu trong kỳ trên ${good.length} lead tốt của kỳ.`,
+      spend.lumped > 0
+        ? `Trong đó ${millions(spend.lumped)} là dòng chi GỘP cả chuỗi — gói gửi nhiều tháng, cả bộ nội dung, phần công cụ chia theo đợt — ghi ở ngày mở chuỗi, nên nó rơi trọn vào lát này dù chuỗi còn chạy sang kỳ sau. Chia mịn hơn cần chứng từ mịn hơn, hôm nay chưa có.`
+        : 'Không nguồn nào bị cắt ngang chuỗi trong kỳ này, nên không có phần chi phí nào rơi lệch lát.',
+    ].join(' '),
     measured: {
       'lead-keo-ve': {
         value: mine.length,
@@ -490,8 +573,14 @@ function marketingReadings(p: Period): {
             : 'Kỳ này không đợt nào chạy — không có mẫu số để chia',
       },
       'gia-moi-lead-tot': {
-        value: allGood > 0 ? Math.round(cost / allGood) : null,
-        note: `Tổng chi ${MKT_SOURCES.length} nguồn chia cho ${allGood} lead tốt · cả kỳ, không cắt theo tháng`,
+        value: perGood,
+        note:
+          good.length > 0
+            ? `${millions(spend.cost)} tiêu trong kỳ trên ${MKT_SOURCES.length} nguồn của ${MARKETING}, chia cho ${good.length} lead tốt của kỳ · đã cắt theo kỳ như bốn thước trên, không còn là số chụp tại ${vn(DAS_VINA_FROZEN_AT.slice(0, 10))}`
+            : `${millions(spend.cost)} tiêu trong kỳ mà chưa lead tốt nào về — không có mẫu số để chia, và 0 đồng mỗi lead tốt là câu nói ngược`,
+        /* Cắt được theo kỳ rồi thì nó không còn là số chụp. Cờ ở fixture vẫn
+           đang bật; đổi nó là việc của `packages/**`, ghi trong báo cáo. */
+        snapshot: false,
       },
     },
   }
@@ -745,15 +834,15 @@ function measureFor(
   name: string,
 ): {
   measured: Record<string, Measured>
-  extras: Partial<Pick<PersonCard, 'sources' | 'leads' | 'deals'>>
+  extras: Partial<Pick<PersonCard, 'sources' | 'sourcesNote' | 'leads' | 'deals'>>
   pacer?: (period: Period) => number | null
 } {
   switch (kind) {
     case 'marketing': {
-      const { measured, sources } = marketingReadings(p)
+      const { measured, sources, sourcesNote } = marketingReadings(p)
       return {
         measured,
-        extras: { sources },
+        extras: { sources, sourcesNote },
         pacer: (period) => marketingReadings(period).measured['lead-keo-ve']?.value ?? null,
       }
     }

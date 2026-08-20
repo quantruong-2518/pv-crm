@@ -3,6 +3,7 @@ import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from 'lucide-
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
+  AssistantFab,
   Avatar,
   AvatarGroup,
   Badge,
@@ -11,6 +12,8 @@ import {
   ChannelTag,
   Checkbox,
   Chip,
+  CostBand,
+  type CostBandProps,
   Input,
   Kicker,
   MetaPill,
@@ -46,6 +49,36 @@ const STATUS_DOTS = [
 ] as const
 
 const TEAM = ['Trần Thu Hà', 'Đỗ Quang Huy', 'Lê Hoàng Nam', 'Vũ Minh Châu', 'Phạm Diệu Anh']
+
+/** Bốn trạng thái của A-21. Số lấy từ ví dụ tính tay ở
+ *  `docs/plans/chi-phi-nguon-lead.md §6` — không phải fixture, và cũng không
+ *  được là fixture: trang kit là tài liệu của component, không phải một màn. */
+const COST_BANDS: Array<{
+  code: string
+  caption: string
+  band: Pick<CostBandProps, 'point' | 'lo' | 'hi' | 'enough'>
+}> = [
+  {
+    code: 'SK-0103',
+    caption: 'bình thường — điểm đứng trên, dải đọc kèm',
+    band: { point: 14_000_000, lo: 8_560_000, hi: 28_410_000 },
+  },
+  {
+    code: 'SK-0106',
+    caption: 'enough=false — 3 lead tốt, dải lên trước, điểm tụt xuống',
+    band: { point: 48_333_333, lo: 23_303_830, hi: 135_264_000, enough: false },
+  },
+  {
+    code: 'CD-0107',
+    caption: 'point=null — 0 lead tốt, KHÔNG in 0 ₫',
+    band: { point: null, lo: 7_000_000, hi: null, enough: false },
+  },
+  {
+    code: 'CD-0101',
+    caption: 'hi=null — dải hở đầu trên',
+    band: { point: 6_000_000, lo: 3_518_220, hi: null },
+  },
+]
 
 export function ZoneAtoms() {
   /* Ba atom cuối là control có trạng thái — bày một bản chết thì không kiểm được
@@ -446,6 +479,87 @@ export function ZoneAtoms() {
               { value: 'cs', label: 'CS', count: 0, disabled: true },
             ]}
           />
+        </SpecCard>
+
+        {/* A-20 */}
+        <SpecCard
+          code="A-20"
+          name="AssistantFab"
+          note="60px · rounded-full"
+          bodyClassName="flex items-center justify-center px-4 py-6"
+          footer={
+            <>
+              Một trong hai chỗ duy nhất được dùng rounded-full (luật 5) · icon `orbit`, không
+              `sparkles`, không `bot` (luật 15).
+              <br />
+              AppShell chỉ vẽ nút này khi màn có truyền `onOpenAssistant`. Một nút nổi bấm không ra
+              gì thì tệ hơn không có nút — nó hứa một màn chưa tồn tại, trên mọi màn.
+            </>
+          }
+        >
+          {/* `static` đè `fixed` của component: ở đây nó là mẫu vật trong thẻ,
+              không phải nút thật neo vào góc cửa sổ. */}
+          <AssistantFab className="static" />
+        </SpecCard>
+
+        {/* A-21 */}
+        <SpecCard
+          className="col-span-3"
+          code="A-21"
+          name="CostBand"
+          note="không tính gì cả — nhận số đã tính"
+          noteAccent
+          bodyClassName="grid grid-cols-2 gap-8 px-4 py-5"
+          footer={
+            <>
+              Đúng hai dòng: ô của DataTable cao h-11 (44px), dòng thứ ba là tràn. Thứ tự hai dòng
+              nói ai là phần đọc chính — `enough=false` thì ĐẢO, dải lên trên, điểm tụt xuống sau
+              nhãn "chưa đủ để so". Không giấu số, chỉ đổi thứ tự nhấn.
+              <br />
+              `point=null` là 0 lead tốt, không phải 0 đồng — in "0 ₫ mỗi lead tốt" cho một nguồn
+              chưa có lead tốt nào là khẳng định nó rẻ nhất sổ. `hi=null` là dải hở đầu trên, đọc
+              thành "từ X trở lên".
+              <br />
+              Hai cận luôn ghi bằng triệu kể cả trong bảng nơi điểm ghi đủ đồng: cận là số ước
+              lượng, ghi tới hàng đồng là giả vờ chính xác. Wilson · χ² · cổng đủ mẫu nằm ở
+              @pv/engines/stats — thư viện không biết engine.
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            <div className="text-muted-foreground font-mono text-[10.5px] uppercase tracking-[.1em]">
+              variant table · trong ô DataTable
+            </div>
+            {COST_BANDS.map((row) => (
+              <div key={row.code} className="flex h-11 items-center gap-4">
+                <span className="text-muted-foreground w-20 shrink-0 font-mono text-[11px]">
+                  {row.code}
+                </span>
+                <span className="w-48 shrink-0">
+                  <CostBand variant="table" {...row.band} />
+                </span>
+                <span className="text-muted-foreground text-[11px] leading-[1.5]">
+                  {row.caption}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="text-muted-foreground font-mono text-[10.5px] uppercase tracking-[.1em]">
+              variant card · dòng số của StatCard
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {COST_BANDS.map((row) => (
+                <div key={row.code} className="flex flex-col gap-2 rounded-lg bg-white/5 px-4 py-4">
+                  <CostBand variant="card" {...row.band} />
+                  <span className="text-muted-foreground text-[12px]">
+                    Giá mỗi lead tốt · {row.code}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </SpecCard>
       </ZoneBody>
     </section>

@@ -78,7 +78,11 @@ function CountBadge({ count }: { count: number }) {
 }
 
 /** Một mục tầng 1. Icon-only từ `lg` xuống để nhường chỗ cho ô tìm; tên vẫn ở
- *  `aria-label` nên trình đọc màn hình và tooltip đều còn chữ. */
+ *  `aria-label` nên trình đọc màn hình và tooltip đều còn chữ.
+ *
+ *  `locked` theo đúng tiền lệ `patterns/nav-item.tsx`: nút tắt, không hover, ổ
+ *  khoá 14 đứng chỗ badge số, và độ mờ chỉ đặt lên ICON. Bản trước phủ
+ *  `opacity-45` lên cả nút — đo được 2,29:1, dưới ngưỡng 4,5:1 của luật 13. */
 function CoreButton({ action }: { action: HeaderAction }) {
   return (
     <button
@@ -90,12 +94,19 @@ function CoreButton({ action }: { action: HeaderAction }) {
       onClick={action.onClick}
       className={cn(
         'motion-std relative flex size-10 shrink-0 items-center justify-center rounded-md',
-        action.active ? 'bg-primary/15 text-accent-foreground' : 'text-muted-foreground',
-        action.locked ? 'cursor-not-allowed opacity-45' : 'hover:bg-white/10',
+        action.active ? 'bg-primary/15 text-on-tint-primary' : 'text-muted-foreground',
+        action.locked ? 'cursor-not-allowed' : 'hover:bg-white/10',
       )}
     >
-      <Icon icon={action.icon} size={17} />
-      {action.count ? <CountBadge count={action.count} /> : null}
+      <Icon icon={action.icon} size={17} className={cn(action.locked && 'opacity-55')} />
+      {action.locked ? (
+        <span className="text-muted-foreground absolute -right-1 -top-1">
+          <Icon icon={Lock} size={14} className="opacity-55" />
+          <span className="sr-only">chưa mở</span>
+        </span>
+      ) : action.count ? (
+        <CountBadge count={action.count} />
+      ) : null}
     </button>
   )
 }
@@ -216,13 +227,34 @@ export function AppHeader({
           ))}
         </div>
 
+        {/* Không có `onOpenAssistant` = màn 04 chưa dựng. Nút vẫn đứng đây
+            nhưng ở trạng thái KHOÁ, không biến mất: BottomNav dưới `lg` đang
+            khoá đúng mục này, và một năng lực hiện ở điện thoại mà bốc hơi ở
+            desktop là hai màn kể hai câu chuyện. Khoá thì bỏ luôn nền azure —
+            luật 3 để azure cho AI đang dùng được, không cho AI đang đóng. */}
         <button
           type="button"
+          disabled={!onOpenAssistant}
           onClick={onOpenAssistant}
-          className="motion-std text-accent-foreground hidden h-10 shrink-0 items-center gap-2 rounded-md bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_30%,transparent),color-mix(in_srgb,var(--primary)_12%,transparent))] px-4 text-[12.5px] font-semibold shadow-[var(--shadow-assistant),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12] lg:flex"
+          className={cn(
+            'motion-std hidden h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[12.5px] font-semibold lg:flex',
+            onOpenAssistant
+              ? 'text-accent-foreground bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_30%,transparent),color-mix(in_srgb,var(--primary)_12%,transparent))] shadow-[var(--shadow-assistant),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12]'
+              : /* KHÔNG nền trắng: nó làm SÁNG chỗ đặt một nhãn vốn đã mờ,
+                   tức đẩy tương phản đi sai chiều. Khoá đọc bằng ổ khoá + con
+                   trỏ, không bằng một mặt nền. */
+                'text-muted-foreground cursor-not-allowed',
+          )}
         >
-          <Icon icon={Orbit} size={16} />
+          {/* Chỉ ICON mờ, chữ ở lại `--muted-foreground` — luật 13. */}
+          <Icon icon={Orbit} size={16} className={cn(!onOpenAssistant && 'opacity-55')} />
           {assistantLabel}
+          {onOpenAssistant ? null : (
+            <>
+              <Icon icon={Lock} size={14} className="opacity-55" />
+              <span className="sr-only">chưa mở</span>
+            </>
+          )}
         </button>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -265,17 +297,26 @@ export function AppHeader({
                   }
                   app.onClick?.()
                 }}
+                /* Mục khoá: chỉ hai ICON mờ đi, CHỮ giữ nguyên
+                   `--muted-foreground`. Dìm cả nút bằng `opacity-45` như bản
+                   trước là 2,29:1 — phá luật 13. Dấu hiệu "chưa mở" nằm ở ổ
+                   khoá, không ở độ mờ (tiền lệ: `patterns/nav-item.tsx`). */
                 className={cn(
                   'motion-std flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-3 text-[12.5px]',
                   app.active
-                    ? 'bg-primary/15 text-accent-foreground font-semibold'
+                    ? 'bg-primary/15 text-on-tint-primary font-semibold'
                     : 'text-muted-foreground',
-                  app.locked ? 'cursor-not-allowed opacity-45' : 'hover:bg-white/10',
+                  app.locked ? 'cursor-not-allowed' : 'hover:bg-white/10',
                 )}
               >
-                <Icon icon={app.icon} size={16} />
+                <Icon icon={app.icon} size={16} className={cn(app.locked && 'opacity-55')} />
                 {app.label}
-                {app.locked ? <Icon icon={Lock} size={14} className="opacity-70" /> : null}
+                {app.locked ? (
+                  <>
+                    <Icon icon={Lock} size={14} className="opacity-55" />
+                    <span className="sr-only">chưa mở</span>
+                  </>
+                ) : null}
                 {hasItems ? (
                   <Icon
                     icon={ChevronDown}
@@ -307,7 +348,7 @@ export function AppHeader({
                       className={cn(
                         'motion-std flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-3 text-left text-[12.5px]',
                         item.active
-                          ? 'bg-primary/15 text-accent-foreground font-semibold'
+                          ? 'bg-primary/15 text-on-tint-primary font-semibold'
                           : 'text-muted-foreground hover:bg-white/10',
                       )}
                     >

@@ -21,23 +21,32 @@ describe('Màn 01 · Home / Morning brief', () => {
   it('hiện lát cắt dữ liệu đúng của kịch bản Sao Đỏ', () => {
     renderScreen(<HomePage />)
 
-    expect(screen.getByText(/Good morning, Mr\. Thắng/)).toBeInTheDocument()
+    expect(screen.getByText(/Chào buổi sáng, anh Thắng/)).toBeInTheDocument()
     expect(screen.getByText('07:58')).toBeInTheDocument()
-    expect(screen.getByText(/Sao Đỏ order — SO-0891/)).toBeInTheDocument()
+    expect(screen.getByText(/Đơn Sao Đỏ — SO-0891/)).toBeInTheDocument()
   })
 
-  it('khối AI có dòng căn cứ và nút xác nhận — luật 9, không bao giờ tự chạy', () => {
+  /** Chuỗi khoá ở ca này đổi từ tiếng Anh sang tiếng Việt ngày 20/08 cùng bản
+   *  dịch màn (luật 14): "Basis" → "Căn cứ", "Do it" → nhãn mặc định "Thực
+   *  hiện". Nhãn mặc định nên màn không khai `confirmLabel` nữa. */
+  it('khối AI có căn cứ, nút xác nhận, và state "Chưa tạo gì cả" — luật 9', () => {
     renderScreen(<HomePage />)
 
-    expect(screen.getByText(/Basis/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Do it/ })).toBeInTheDocument()
+    expect(screen.getByText(/Căn cứ/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Thực hiện/ })).toBeInTheDocument()
+    /* State rỗng phải nói ra HỆ QUẢ của việc chưa bấm, không nói suông — nên ca
+       này khoá đúng cái hệ quả đó chứ không khoá bốn chữ "Chưa tạo gì cả". */
+    expect(screen.getByText(/PO-0455 nằm nguyên ở chờ duyệt/)).toBeInTheDocument()
   })
 
-  it('ContextRail có mặt — luật 10, bắt buộc trên mọi màn', () => {
+  it('ContextRail dựng từ đồ thị E1 — luật 10, bắt buộc trên mọi màn', () => {
     renderScreen(<HomePage />)
 
-    expect(screen.getByText('HĐ-2607')).toBeInTheDocument()
-    expect(screen.getByText('Supply · SO-0891')).toBeInTheDocument()
+    /* `L-2608-042` không có trên ô hero, không có trong thẻ brief nào, và không
+       nằm trong chuỗi chữ nào của màn. Chỉ `E1.story('SO-0891')` mới kéo được nó
+       ra — nên nó chứng minh rail là rail dựng từ đồ thị, không phải chip gõ tay. */
+    expect(screen.getByText('L-2608-042')).toBeInTheDocument()
+    expect(screen.getByText('PO-0455')).toBeInTheDocument()
   })
 
   /** Năm từ 19/08 — module 1 đổi tên thành "Chiến dịch & Sự kiện" và thêm

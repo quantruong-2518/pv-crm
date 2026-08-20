@@ -10,10 +10,14 @@ import {
 import {
   BOOK_SPLIT,
   canPromoteToSql,
+  COLD_ROW_LEAD_RATE,
+  costOfGoodLead,
+  type CostKind,
   CREDIT_RULES,
   dasVina,
   DAY_FROZEN,
   daysBetween,
+  EMAIL_VERIFY_PRICE,
   HANDOFF_SLA,
   EXIT_REASONS,
   FUNNEL,
@@ -22,11 +26,24 @@ import {
   isRunning,
   LEADS,
   leadMilestones,
+  MARKETING,
   ROLE_KPI_MODEL,
   OPEN_DEALS,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
+  ROW_PRICE,
+  rowsToLeads,
   SOURCES,
+  sourcesOwnedBy,
+  sourcesPaid,
+  sourcesRan,
+  sourceStats,
+  TOOL_PER_WAVE,
+  TOOL_POOL,
+  TOOL_POOL_WAVES,
+  UNUSED_APOLLO_CREDIT,
+  USD_VND,
+  VENDOR_RATES,
   dayISO,
 } from './das-vina'
 
@@ -241,6 +258,339 @@ describe('Nguồn lead — module 1 Chiến dịch & Sự kiện', () => {
       expect(s.checkedIn ?? 0).toBeLessThanOrEqual(s.registered ?? 0)
       expect(s.venue).toBeTruthy()
     }
+  })
+})
+
+describe('Giá mỗi lead tốt — một phép chia, ba phạm vi có tên', () => {
+  /* VÌ SAO khối này tồn tại. Trước 20/08 ba màn tự lọc lấy tập nguồn của mình
+     (`cost > 0` ở Kế hoạch · `waves.length > 0` ở Chiến dịch · `owner ===
+     Marketing` ở Performance) và hôm nay cả ba tình cờ ra cùng sáu nguồn, cùng
+     ra 10,0 tr. Ba câu hỏi khác nhau thật, nên ba phạm vi khác nhau là ĐÚNG —
+     cái sai là không ai khoá chuyện chúng đang trùng.
+
+     Ba ca dưới đây khoá đúng chỗ đó: thêm một nguồn TRẢ TIỀN mà chủ không phải
+     Marketing — đúng thứ tầng prospect sắp tạo ra — thì hai ca đầu ĐỎ, và người
+     sửa buộc phải mở cả ba màn xem nhãn nào còn nói đúng phạm vi của nó. */
+
+  const codesOf = (xs: readonly { code: string }[]) => xs.map((x) => x.code)
+  const SIX = ['CD-0101', 'CD-0102', 'SK-0103', 'SK-0104', 'CD-0105', 'SK-0106']
+
+  it('ba phạm vi hôm nay cùng ra sáu nguồn — trùng hợp đã khoá, không phải luật', () => {
+    expect(codesOf(sourcesPaid())).toEqual(SIX)
+    expect(codesOf(sourcesRan())).toEqual(SIX)
+    expect(codesOf(sourcesOwnedBy(MARKETING))).toEqual(SIX)
+
+    // Hai nguồn tự nhiên đứng ngoài cả ba: 0 đồng, 0 đợt, chủ không phải Marketing.
+    expect(codesOf(SOURCES.filter((s) => !SIX.includes(s.code)))).toEqual(['GT', 'TM'])
+  })
+
+  it('mỗi phạm vi khoá đúng một con số, cả ba đi qua cùng một hàm', () => {
+    const same = { cost: 300_000_000, good: 30, perGood: 10_000_000 }
+    expect(costOfGoodLead(sourcesPaid())).toEqual(same)
+    expect(costOfGoodLead(sourcesRan())).toEqual(same)
+    expect(costOfGoodLead(sourcesOwnedBy(MARKETING))).toEqual(same)
+  })
+
+  it('giá của một nguồn đi qua đúng hàm chung — hàng bảng và ô tổng không lệch nhau', () => {
+    /* `sourceStats` là thứ các màn dùng cho TỪNG hàng; nếu nó giữ phép chia
+       riêng thì tổng của bảng và ô tổng phía trên có thể nói hai chuyện. */
+    for (const s of SOURCES) {
+      const stats = sourceStats(s.code)
+      const scope = costOfGoodLead([s])
+      expect(stats.cost).toBe(scope.cost)
+      expect(stats.good).toBe(scope.good)
+      expect(stats.costPerGood).toBe(scope.perGood)
+    }
+  })
+
+  it('phạm vi rỗng không chia cho 0 — trả null chứ không trả 0', () => {
+    // "Chưa đo được" và "không mất đồng nào" là hai chuyện khác nhau trên màn.
+    expect(costOfGoodLead([])).toEqual({ cost: 0, good: 0, perGood: null })
+  })
+
+  it('thước "giá mỗi lead tốt" thôi là số chụp, nhưng phải khai là chốt muộn', () => {
+    /* Trước 20/08: số lead cắt được theo kỳ còn `Source.cost` thì không, nên cờ
+       `snapshot` là thứ duy nhất bắt màn in ra "tính đến 17/08".
+
+       Từ 20/08 `costLines[].day` cắt được chi phí, nên `snapshot` phải TẮT —
+       để cờ lại là màn tiếp tục in một lời cảnh báo không còn đúng. Đổi lại
+       phải BẬT `settlesLate`: tiền của nguồn đang chạy ghi đủ vào kỳ mà lead
+       thì chưa về hết, nên kỳ chưa đóng chỉ hiện số, không chấm nhãn. Hai cờ
+       này đi cùng nhau; bật tắt lệch nhau là màn nói sai một trong hai chuyện. */
+    const kpi = ROLE_KPI_MODEL.find((r) => r.role === 'Marketing')?.kpis.find(
+      (k) => k.key === 'gia-moi-lead-tot',
+    )
+    expect(kpi?.snapshot).toBe(false)
+    expect(kpi?.settlesLate).toBe(true)
+    expect(kpi?.paced).toBe(false)
+    // Rẻ hơn mới là tốt hơn — đảo cờ này là cả đồng hồ KPI chấm ngược.
+    expect(kpi?.higherIsBetter).toBe(false)
+  })
+})
+
+describe('Phân rã 300 triệu — năm loại chi tiền mặt', () => {
+  /* VÌ SAO khối này tồn tại. `Source.cost` là một cục tiền: không ai đọc được
+     145 triệu của SK-0106 đi đâu, và không cắt được theo ngày. `costLines` phân
+     rã nó — nhưng một phân rã KHÔNG cộng khớp còn tệ hơn không phân rã, vì nó
+     trông như đã kiểm. Tám ca dưới đây khoá đúng chỗ đó.
+
+     Ranh giới phải giữ: 300 triệu là TIỀN MẶT. Giờ người không có mặt ở đây. */
+
+  const CASH = 300_000_000
+  const KINDS: CostKind[] = ['du-lieu', 'kenh', 'noi-dung', 'su-kien', 'cong-cu']
+  const lines = SOURCES.flatMap((s) => s.costLines)
+  const sumOf = (xs: readonly { amount: number }[]) => xs.reduce((n, x) => n + x.amount, 0)
+
+  it('mỗi nguồn cộng đúng Source.cost, và tám nguồn cộng đúng 300 triệu', () => {
+    for (const s of SOURCES) {
+      expect(sumOf(s.costLines), `${s.code} lệch`).toBe(s.cost)
+    }
+    expect(sumOf(lines)).toBe(CASH)
+    expect(SOURCES.reduce((n, s) => n + s.cost, 0)).toBe(CASH)
+  })
+
+  it('Source.cost KHÔNG đổi một đồng nào — cả mô hình đứng trên tám con số này', () => {
+    /* Phân rã được phép giải thích `cost`, không được phép sửa `cost`. Nếu một
+       dòng chi không khớp thì sai ở dòng chi, không sai ở tổng đã chốt. */
+    expect(SOURCES.map((s) => [s.code, s.cost])).toEqual([
+      ['CD-0101', 18_000_000],
+      ['CD-0102', 26_000_000],
+      ['SK-0103', 84_000_000],
+      ['SK-0104', 21_000_000],
+      ['CD-0105', 6_000_000],
+      ['SK-0106', 145_000_000],
+      ['GT', 0],
+      ['TM', 0],
+    ])
+  })
+
+  it('đúng NĂM loại, không có loại thứ sáu và không có ô "khác"', () => {
+    // Cùng luật với EXIT_REASONS: một ô "khác" là chỗ mọi hoá đơn khó phân loại
+    // chui vào, và sau ba tháng nó thành loại lớn nhất bảng.
+    for (const l of lines) expect(KINDS).toContain(l.kind)
+    expect(new Set(lines.map((l) => l.kind)).size).toBe(KINDS.length)
+  })
+
+  it('cộng ngang theo loại — 65,4% tiền của phòng nằm ở sự kiện', () => {
+    const of = (k: CostKind) => sumOf(lines.filter((l) => l.kind === k))
+    expect(KINDS.map((k) => [k, of(k)])).toEqual([
+      ['du-lieu', 4_580_000],
+      ['kenh', 24_480_000],
+      ['noi-dung', 48_900_000],
+      ['su-kien', 196_100_000],
+      ['cong-cu', 25_940_000],
+    ])
+    /* Con số đáng đọc nhất: câu hỏi gốc của người dùng — "lead từ Apollo giá bao
+       nhiêu" — là câu hỏi về 1,5% ngân sách. Dữ liệu là dòng NHỎ NHẤT bảng. */
+    expect(of('du-lieu') / CASH).toBeCloseTo(0.0153, 4)
+    expect(of('su-kien') / CASH).toBeCloseTo(0.6537, 4)
+  })
+
+  it('không dòng nào tiêu trước khi nguồn chạy, không dòng nào vượt lát cắt', () => {
+    for (const s of SOURCES) {
+      for (const l of s.costLines) {
+        expect(l.day, `${s.code} · ${l.label}`).toBeGreaterThanOrEqual(s.startDay)
+        expect(l.day, `${s.code} · ${l.label}`).toBeLessThanOrEqual(DAY_FROZEN)
+      }
+    }
+  })
+
+  it('hai nguồn tự nhiên không có dòng nào — 0 đồng tiền mặt là câu trả lời đúng', () => {
+    /* Đừng bịa dòng cho đủ bảng. GT và TM tốn GIỜ NGƯỜI chứ không tốn tiền mặt,
+       và giờ người là một lớp khác chưa dựng — nhét nó vào đây là đổi nghĩa của
+       con số 300 triệu mà không đổi giá trị, kiểu sai không test nào bắt được. */
+    for (const code of ['GT', 'TM']) {
+      const s = SOURCES.find((x) => x.code === code)
+      expect(s?.costLines).toEqual([])
+      expect(s?.cost).toBe(0)
+    }
+  })
+
+  it('khoá phân bổ công cụ: 20 đợt là số ĐẾM ĐƯỢC, không phải số gõ tay', () => {
+    expect(SOURCES.reduce((n, s) => n + s.waves.length, 0)).toBe(TOOL_POOL_WAVES)
+    expect(TOOL_PER_WAVE).toBe(940_000)
+    // Pool chia hết xuống 20 đợt, và 20 đợt đó thuộc đúng sáu nguồn có tiền.
+    expect(TOOL_PER_WAVE * TOOL_POOL_WAVES).toBe(TOOL_POOL)
+    const tool = SOURCES.flatMap((s) => s.costLines.filter((l) => l.kind === 'cong-cu'))
+    const shared = tool.filter((l) => l.label.startsWith('Công cụ dùng chung'))
+    expect(sumOf(shared)).toBe(TOOL_POOL)
+  })
+
+  it('dây nối credit ↔ tiền: 4.220 dòng Apollo, 4.220.000 đ, phần còn lại là phí xác minh', () => {
+    const rows = 1_200 + 640 + 980 + 1_400
+    const data = SOURCES.flatMap((s) => s.costLines.filter((l) => l.kind === 'du-lieu'))
+    const bought = data.filter((l) => !l.label.startsWith('Xác minh'))
+    expect(rows).toBe(4_220)
+    expect(sumOf(bought)).toBe(rows * ROW_PRICE)
+    expect(sumOf(data) - sumOf(bought)).toBe(1_200 * EMAIL_VERIFY_PRICE)
+  })
+
+  it('chi phí chìm nằm NGOÀI 300 triệu — tiền thật ra khỏi tài khoản là 304.122.400', () => {
+    /* 300 triệu là *phần gán được cho nguồn*. Credit mua rồi không dùng là kết
+       quả của một quyết định MUA GÓI, không của chiến dịch nào — chia nó xuống
+       nguồn thì tháng nào phòng mua dư là mọi nguồn tự dưng đắt lên. */
+    expect(UNUSED_APOLLO_CREDIT).toBe(4_122_400)
+    expect(CASH + UNUSED_APOLLO_CREDIT).toBe(304_122_400)
+    expect(sumOf(lines)).not.toBe(304_122_400)
+  })
+})
+
+describe('Bốn chỉ số giá của một nguồn — bốn mẫu số, không thay nhau được', () => {
+  /* Bảng §5.2 của docs/plans/chi-phi-nguon-lead.md, khoá từng ô. Đổi một con số
+     ở đây là đổi thứ hạng nguồn trên ba màn cùng lúc. */
+
+  const TABLE = [
+    {
+      code: 'CD-0101',
+      lead: 818_182,
+      mql: 1_636_364,
+      sql: 2_250_000,
+      good: 2_000_000,
+      rate: 9 / 22,
+    },
+    {
+      code: 'CD-0102',
+      lead: 1_444_444,
+      mql: 2_888_889,
+      sql: 4_333_333,
+      good: 3_714_286,
+      rate: 7 / 18,
+    },
+    {
+      code: 'SK-0103',
+      lead: 5_250_000,
+      mql: 12_000_000,
+      sql: 16_800_000,
+      good: 14_000_000,
+      rate: 6 / 16,
+    },
+    {
+      code: 'SK-0104',
+      lead: 1_750_000,
+      mql: 3_500_000,
+      sql: 5_250_000,
+      good: 5_250_000,
+      rate: 4 / 12,
+    },
+    {
+      code: 'CD-0105',
+      lead: 666_667,
+      mql: 3_000_000,
+      sql: 6_000_000,
+      good: 6_000_000,
+      rate: 1 / 9,
+    },
+    {
+      code: 'SK-0106',
+      lead: 13_181_818,
+      mql: 36_250_000,
+      sql: 48_333_333,
+      good: 48_333_333,
+      rate: 3 / 11,
+    },
+    { code: 'GT', lead: 0, mql: 0, sql: 0, good: 0, rate: 3 / 7 },
+    { code: 'TM', lead: 0, mql: 0, sql: null, good: 0, rate: 1 / 5 },
+  ]
+
+  it('bốn mẫu số cho ra bốn con số khác nhau ở cả tám nguồn', () => {
+    for (const row of TABLE) {
+      const s = sourceStats(row.code)
+      expect(s.costPerLead, `${row.code} · mỗi đầu mối`).toBe(row.lead)
+      expect(s.costPerMql, `${row.code} · mỗi MQL`).toBe(row.mql)
+      expect(s.costPerSql, `${row.code} · mỗi SQL`).toBe(row.sql)
+      expect(s.costPerGood, `${row.code} · mỗi lead tốt`).toBe(row.good)
+      expect(s.goodRate ?? 0, `${row.code} · tỉ lệ lead tốt`).toBeCloseTo(row.rate, 6)
+    }
+  })
+
+  it('mẫu số 0 trả null, không trả 0 — "chưa có SQL nào" khác "0 đồng mỗi SQL"', () => {
+    // TM chưa đẩy được ai vào sổ cơ hội. In "0 đ/SQL" cho nó là nói nguồn này
+    // rẻ nhất sổ, trong khi sự thật là nó chưa có SQL nào để mà tính giá.
+    expect(sourceStats('TM').costPerSql).toBeNull()
+    expect(sourceStats('TM').costPerLead).toBe(0)
+    expect(sourceStats('KHONG-CO-MA-NAY').goodRate).toBeNull()
+  })
+
+  it('cả sổ: 34 lead tốt trên 100 đầu mối — trung bình phòng là 34,0%', () => {
+    const good = SOURCES.reduce((n, s) => n + sourceStats(s.code).good, 0)
+    const leads = SOURCES.reduce((n, s) => n + sourceStats(s.code).leads, 0)
+    expect([good, leads]).toEqual([34, 100])
+    /* Chi/lead tốt của phòng (8.823.529) RẺ HƠN chi/SQL (10.000.000) vì lead tốt
+       có 34 mà SQL chỉ có 30: bốn lead đã qua cổng mà chưa ai nhận vào sổ cơ
+       hội. Đó là tồn kho có tiền đứng sau, và hôm nay không màn nào đếm nó. */
+    const sql = LEADS.filter((l) => l.tier === 'sql').length
+    expect(sql).toBe(30)
+    expect(Math.round(300_000_000 / good)).toBeLessThan(Math.round(300_000_000 / sql))
+  })
+})
+
+describe('Bảng giá nhà cung cấp — số để LẬP KẾ HOẠCH, không phải số đo', () => {
+  it('Apollo quy được ra đồng/1.000 dòng, và mua lẻ đắt 5,06 lần gói Professional', () => {
+    const apollo = VENDOR_RATES.filter((r) => r.vendor === 'Apollo.io')
+    const pro = apollo.find((r) => r.plan === 'Professional')
+    const overage = apollo.find((r) => r.plan === 'Mua lẻ · overage')
+    expect(pro?.perThousandRows).toBe(1_042_800)
+    expect(pro?.perThousandRows).toBe(Math.round((79 * USD_VND * 1_000) / 2_000))
+    expect(overage?.perThousandRows).toBe(5_280_000)
+    expect((overage?.perThousandRows ?? 0) / (pro?.perThousandRows ?? 1)).toBeCloseTo(5.06, 2)
+    // Đơn giá dùng trong fixture là bản làm tròn tới 100 đ của 1.042,80.
+    expect(ROW_PRICE).toBe(1_000)
+  })
+
+  it('hai ô trống là KẾT LUẬN chứ không phải việc chưa làm', () => {
+    /* Sales Navigator bán quyền tìm và xem, không bán dòng — nên nó thuộc loại
+       cong-cu. Vietdata công bố giá gói mà không công bố số dòng, nên phép chia
+       không tồn tại. Điền bừa một con số vào hai chỗ này là bịa mẫu số. */
+    const unpriced = VENDOR_RATES.filter(
+      (r) => r.vendor.includes('Sales Navigator') || r.vendor === 'Vietdata',
+    )
+    expect(unpriced.length).toBeGreaterThan(0)
+    for (const r of unpriced) expect(r.perThousandRows).toBeNull()
+
+    // Giá ghế Sales Navigator Core cũng không xác minh được ($89,99 – $119,99).
+    const core = VENDOR_RATES.find((r) => r.plan === 'Core')
+    expect(core?.confidence).toBe('khong-xac-minh-duoc')
+    for (const r of VENDOR_RATES) expect(r.checkedOn).toBe('2026-08-20')
+  })
+})
+
+describe('1.000 dòng Apollo ra bao nhiêu đầu mối — câu hỏi gốc, trả lời bằng hàm', () => {
+  it('1.000 dòng → 880 gửi được → 18,33 đầu mối → 70.909 đ tiền dữ liệu mỗi đầu mối', () => {
+    const r = rowsToLeads(1_000)
+    expect(r.usableRows).toBe(880)
+    expect(r.leads).toBeCloseTo(18.333, 3)
+    expect(r.dataCost).toBe(1_300_000)
+    expect(r.costPerUsableRow).toBeCloseTo(1_477.27, 2)
+    expect(Math.round(r.dataCostPerLead ?? 0)).toBe(70_909)
+  })
+
+  it('tỉ lệ ra lead là số ĐO của CD-0101, không phải số đặt', () => {
+    const cd = SOURCES.find((s) => s.code === 'CD-0101')
+    expect(COLD_ROW_LEAD_RATE).toBe((cd?.leads ?? 0) / (cd?.waves[0]?.sent ?? 1))
+    expect(COLD_ROW_LEAD_RATE).toBeCloseTo(0.018333, 6)
+  })
+
+  it('không trừ 12% hai lần — tỉ lệ đo trên dòng NHƯ ĐÃ MUA đã chứa phần hỏng', () => {
+    /* Đây là chỗ dễ sửa nhầm nhất của cả hàm: nhân thẳng 1,8333% vào 880 dòng
+       gửi được thì ra 16,1 đầu mối, hụt đúng 12% so với thứ CD-0101 đã đo. */
+    const a = rowsToLeads(1_000)
+    const b = rowsToLeads(1_000, { badRowRate: 0 })
+    expect(a.leads).toBeCloseTo(b.leads, 9)
+    expect(a.leads).not.toBeCloseTo(880 * COLD_ROW_LEAD_RATE, 3)
+    // Tỉ lệ hỏng chỉ đổi giá mỗi dòng gửi được, không đổi số đầu mối.
+    expect(b.costPerUsableRow).toBe(1_300)
+  })
+
+  it('câu hỏi gốc sai đơn vị: 1.000 ĐẦU MỐI cần 54.545 dòng, và tiền dữ liệu chỉ là phần nhỏ', () => {
+    const need = 1_000 / COLD_ROW_LEAD_RATE
+    expect(Math.round(need)).toBe(54_545)
+    const r = rowsToLeads(Math.round(need))
+    expect(r.dataCost).toBe(70_908_500)
+    /* CPL đầy đủ của CD-0101 là 818.182 đ/đầu mối, nên 1.000 đầu mối ≈ 818
+       triệu: tiền dữ liệu chỉ chiếm 8,67%. Tối ưu chỗ mua danh sách gần như
+       không đổi được gì — đó là kết luận đắt nhất của cả vòng khảo sát. */
+    const full = (sourceStats('CD-0101').costPerLead ?? 0) * 1_000
+    expect(r.dataCost / full).toBeCloseTo(0.0867, 4)
   })
 })
 
