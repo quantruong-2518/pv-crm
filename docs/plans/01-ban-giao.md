@@ -7,8 +7,8 @@ Viết cho người (hoặc phiên) tiếp theo. Đọc file này trước, rồ
 
 |                        |                                                                                                                       |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Nhánh                  | `develop`, đã đẩy tới `6d89a37`                                                                                       |
-| Hai commit của đợt này | `ab924ac` tài liệu khảo sát · `6d89a37` code ba vòng                                                                  |
+| Nhánh                  | `develop`, đã đẩy                                                                                                     |
+| Ba commit của đợt này  | `ab924ac` tài liệu khảo sát · `6d89a37` code ba vòng · `5b9cb1b` chính file này                                       |
 | Cổng                   | `pnpm check` xanh — 19 file test · **354 ca** (mốc đầu đợt: 17 · 209)                                                 |
 | Còn trong cây làm việc | `.gitignore` (sửa sẵn từ trước) · `apps/web/vercel.json` (chưa theo dõi) — **không phải của đợt này**, cố ý để nguyên |
 
