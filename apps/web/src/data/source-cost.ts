@@ -27,15 +27,14 @@ import {
  *  --------------------------------------------------------------------------
  *  XẾP HẠNG THEO ĐIỂM, HIỆN DẢI, CHẶN CÂU KHẲNG ĐỊNH
  *  --------------------------------------------------------------------------
- *  Quyết định D-03 (`docs/plans/00-tong-hop-vong-1.md §4`): bảng vẫn xếp theo
- *  ĐIỂM như hôm nay, mỗi dòng hiện DẢI, và thứ bị chặn là **câu chữ** chứ không
- *  phải thứ tự. Tài liệu §6.5 đề xuất xếp theo cận trên và loại nguồn trượt
- *  cổng khỏi bảng — bản này KHÔNG làm thế: một nguồn biến mất khỏi bảng vì cỡ
+ *  Quyết định D-03: bảng vẫn xếp theo ĐIỂM như hôm nay, mỗi dòng hiện DẢI, và
+ *  thứ bị chặn là **câu chữ** chứ không phải thứ tự. Bản này KHÔNG xếp theo cận
+ *  trên, cũng KHÔNG loại nguồn trượt cổng khỏi bảng: một nguồn biến mất vì cỡ
  *  mẫu nhỏ là một nguồn không ai còn nhớ để hỏi. Nó ở lại với `enough = false`,
  *  và mọi câu so sánh dính tới nó thì im.
  *
  *  Con số nào cũng suy từ fixture. File này KHÔNG giữ bản sao hằng số nào của
- *  kịch bản — ba ngưỡng ở `ENOUGH_GATE` là luật HIỂN THỊ của §6.7, không phải
+ *  kịch bản — ba ngưỡng ở `ENOUGH_GATE` là luật HIỂN THỊ, không phải
  *  số đo của DAS Vina. */
 
 /** Nhãn tiếng Việt của năm loại chi tiền mặt (luật 14 · tên khoá không lên màn).
@@ -50,8 +49,8 @@ export const COST_KIND_LABEL: Record<CostKind, string> = {
   'cong-cu': 'Công cụ',
 }
 
-/** Thứ tự đọc L1…L5 của `docs/plans/chi-phi-nguon-lead.md §1` — dữ liệu trước,
- *  công cụ sau. KHÔNG xếp theo bảng chữ cái và KHÔNG xếp theo số tiền: bảng của
+/** Thứ tự đọc L1…L5 — dữ liệu trước, công cụ sau.
+ *  KHÔNG xếp theo bảng chữ cái và KHÔNG xếp theo số tiền: bảng của
  *  hai nguồn khác nhau phải đọc được cạnh nhau, mà thứ tự chạy theo tiền thì
  *  mỗi nguồn một kiểu. */
 export const COST_KINDS = [
@@ -62,7 +61,7 @@ export const COST_KINDS = [
   'cong-cu',
 ] as const satisfies readonly CostKind[]
 
-/** Ba cổng của `docs/plans/chi-phi-nguon-lead.md §6.7`. Vượt bất kỳ cổng nào
+/** Ba cổng chặn câu khẳng định. Vượt bất kỳ cổng nào
  *  thì dải vẫn HIỆN, nhưng nó không được đứng cạnh một câu khẳng định.
  *
  *  Đây là luật hiển thị, không phải số đo — vì thế nó ở tầng app chứ không ở
@@ -93,7 +92,7 @@ export type SourceCost = {
   /** `lo` rẻ nhất còn hợp lý · `point` số hôm nay · `hi` đắt nhất còn hợp lý.
    *  `point`/`hi` là `null` khi nguồn chưa ra lead tốt nào — xem `costBand`. */
   band: CostBandValue
-  /** Dải này có đủ chắc để đứng cạnh một câu khẳng định không (§6.7). Dòng vẫn
+  /** Dải này có đủ chắc để đứng cạnh một câu khẳng định không. Dòng vẫn
    *  ở lại bảng khi `false`; thứ bị chặn là câu chữ. */
   enough: boolean
   /** Vì sao chưa đủ, một mệnh đề đọc được. Rỗng khi `enough`. */
@@ -172,7 +171,7 @@ export type Ranking = {
   /** Nguồn CÓ TIÊU TIỀN, rẻ nhất lên đầu — xếp theo ĐIỂM (D-03). Nguồn cỡ mẫu
    *  nhỏ VẪN ở đây, mang `enough = false`. */
   ranked: SourceCost[]
-  /** Nguồn 0 đồng tiền mặt — khối riêng, không xếp chung (§6.7). */
+  /** Nguồn 0 đồng tiền mặt — khối riêng, không xếp chung. */
   cashless: SourceCost[]
 }
 
@@ -198,7 +197,7 @@ export function rankSources(): Ranking {
  *  `null` = hai dải chồng nhau → màn phải đổi sang câu trung tính nói cả hai
  *  dải. Bội số là `dear.lo / cheap.hi`, tức khoảng cách hẹp nhất còn hợp lý —
  *  KHÔNG bao giờ là tỉ số hai điểm. Tỉ số hai điểm của CD-0101 và SK-0106 là 24
- *  lần; thứ chứng minh được chỉ là 6,6 lần (§6.6). */
+ *  lần; thứ chứng minh được chỉ là 6,6 lần. */
 export type CostGap = {
   cheap: SourceCost
   dear: SourceCost

@@ -1,4 +1,4 @@
-/** Tầng toán của mô hình chi phí nguồn lead — `docs/plans/chi-phi-nguon-lead.md §6`.
+/** Tầng toán của mô hình chi phí nguồn lead.
  *
  *  File này **không import gì cả**: không React, không fixture, không engine
  *  anh em. Nó nhận số và trả số. Hai lý do, cả hai đều là điều kiện sống:
@@ -7,19 +7,19 @@
  *     package"). Một hàm thống kê lỡ biết tới `das-vina.ts` thì không mang đi
  *     đâu được nữa.
  *   · Test của nó không cần kịch bản nào. Mọi con số trong `stats.test.ts` là
- *     số **tính tay của §6**, không phải số đọc ra từ fixture — fixture đổi mà
- *     bảng §6 không đổi thì test này vẫn phải xanh.
+ *     số **tính tay**, không phải số đọc ra từ fixture — fixture đổi mà số
+ *     tính tay không đổi thì test này vẫn phải xanh.
  *
- *  Đây **không** phải engine thứ năm (§7.1): không giữ trạng thái, không có
+ *  Đây **không** phải engine thứ năm: không giữ trạng thái, không có
  *  `create*`, không có vòng đời. Chỉ là hàm thuần. Gọi nó là "E6" thì phá định
- *  nghĩa engine ở `docs/kien-truc-san-pham.md`.
+ *  nghĩa engine.
  *
  *  Một luật xuyên suốt file: **không hàm nào ném, không hàm nào trả `Infinity`
  *  hay `NaN` cho tiền.** Mấy hàm này chạy ngay giữa lúc render một bảng tám
  *  dòng; một ngoại lệ ở đây là một màn trắng. Chỗ nào không biết thì trả `null`
- *  và nói rõ ở JSDoc, để tầng trên buộc phải xử "chưa đủ dữ liệu" (§6.7). */
+ *  và nói rõ ở JSDoc, để tầng trên buộc phải xử "chưa đủ dữ liệu". */
 
-/** z của mức tin cậy 95%. Tài liệu §6.2 tính tay với đúng số này (z² = 3,8416),
+/** z của mức tin cậy 95%. Số tính tay dùng đúng số này (z² = 3,8416),
  *  nên đổi nó là đổi mọi con số đã khoá trong `stats.test.ts`. */
 const Z95 = 1.96
 
@@ -39,7 +39,7 @@ export type WilsonInterval = {
 export type ChiSquareResult = { chi2: number; df: number; p: number }
 
 /** Dải chi phí mỗi lead tốt, **đồng nguyên**. `point` là số hôm nay vẫn hiện;
- *  `lo`/`hi` là hai đầu suy từ khoảng Wilson của mẫu số (§6.5). */
+ *  `lo`/`hi` là hai đầu suy từ khoảng Wilson của mẫu số. */
 export type CostBandValue = {
   /** `cost / x`. **`null` khi `x = 0`** — chưa có lead tốt nào thì không có
    *  giá mỗi lead tốt. Đây là chỗ dễ nói ngược nhất cả file: in "0 đồng" cho
@@ -49,7 +49,7 @@ export type CostBandValue = {
    *  `n = 0` trả 0 — cận dưới duy nhất còn đúng khi không có quan sát nào là
    *  cận dưới rỗng nghĩa. */
   lo: number
-  /** Đầu ĐẮT: `cost / (n · p_dưới)` — **số dùng để xếp hạng** (§6.5).
+  /** Đầu ĐẮT: `cost / (n · p_dưới)` — **số dùng để xếp hạng**.
    *  **`null` khi `p_dưới = 0`**, tức khi `x = 0` hoặc `n = 0`: đầu đắt lúc đó
    *  là vô cực, và vô cực không phải một số tiền. */
   hi: number | null
@@ -61,7 +61,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 // Khoảng tin cậy
 // ---------------------------------------------------------------------------
 
-/** Khoảng tin cậy **Wilson** cho một tỉ lệ (§6.2).
+/** Khoảng tin cậy **Wilson** cho một tỉ lệ.
  *
  *  ```
  *            p̂ + z²/(2n)                    z            ┌───────────────────────┐
@@ -69,7 +69,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  *             1 + z²/n                   1 + z²/n         └───────────────────────┘
  *  ```
  *
- *  **Vì sao không Wald** (`p̂ ± z·√(p̂q̂/n)`), §6.2: trên cỡ mẫu 5–22 của kịch bản
+ *  **Vì sao không Wald** (`p̂ ± z·√(p̂q̂/n)`): trên cỡ mẫu 5–22 của kịch bản
  *  này Wald hỏng theo hai cách, và cả hai đều xảy ra thật —
  *   · cận dưới **âm**: CD-0105 (1/9) ra `[−9,42% ; 31,64%]`, một xác suất dưới không;
  *   · bề rộng **bằng 0** khi `x = 0`: ra `[0% ; 0%]`, tức "chắc chắn 0%".
@@ -106,7 +106,7 @@ export function wilson(x: number, n: number, z: number = Z95): WilsonInterval {
   return { p, lo, hi }
 }
 
-/** Hai tỉ lệ có **tách được** không — hai khoảng Wilson rời nhau (§6.2).
+/** Hai tỉ lệ có **tách được** không — hai khoảng Wilson rời nhau.
  *
  *  Đây là cổng chặn mọi câu khẳng định so sánh **về tỉ lệ** trên giao diện.
  *  Trên fixture DAS Vina nó trả `false` cho cả 28 cặp của tám nguồn: cận dưới
@@ -115,7 +115,7 @@ export function wilson(x: number, n: number, z: number = Z95): WilsonInterval {
  *
  *  **Không dùng hàm này để chấm câu "A rẻ hơn B".** Câu về TIỀN đứng trên dải
  *  chi phí, mà chi phí còn phụ thuộc `cost` — dùng `separableCost`. Hai khái
- *  niệm khác nhau: theo tỉ lệ thì 0/15 cặp tách được, theo tiền thì 5/15 (§6.6).
+ *  niệm khác nhau: theo tỉ lệ thì 0/15 cặp tách được, theo tiền thì 5/15.
  *
  *  `n = 0` cho khoảng `[0 ; 1]`, nên nguồn không có lead nào không bao giờ tách
  *  được với ai — đúng ý muốn. */
@@ -129,7 +129,7 @@ export function separable(a: Rate, b: Rate, z: number = Z95): boolean {
 // Co ngót
 // ---------------------------------------------------------------------------
 
-/** Co ngót Beta-Binomial về trung bình chung — empirical Bayes (§6.4).
+/** Co ngót Beta-Binomial về trung bình chung — empirical Bayes.
  *
  *  ```
  *   p̃ = (x + k·m) / (n + k)        với  α = k·m,  β = k(1−m),  k = α + β
@@ -140,7 +140,7 @@ export function separable(a: Rate, b: Rate, z: number = Z95): boolean {
  *  **số của kịch bản**, không phải hằng toán — vì thế chúng là tham số, và
  *  `stats.ts` không được biết giá trị của chúng.
  *
- *  Vì sao phải co ngót: §6.4 ước lượng phương sai giữa nhóm ra **số âm**
+ *  Vì sao phải co ngót: ước lượng phương sai giữa nhóm ra **số âm**
  *  (`0,842381 − 7 × 0,2244 = −0,728`), tức dữ liệu không thấy tín hiệu nào giữa
  *  tám nguồn. Ước lượng đúng lúc đó là `k = ∞` — mọi nguồn hiện đúng 34,0%.
  *  Một bảng tám dòng cùng in 34,0% thì không dùng được, nên `k` thành **quyết
@@ -165,7 +165,7 @@ export function shrink(x: number, n: number, priorMean: number, priorWeight: num
 // Kiểm định đồng nhất
 // ---------------------------------------------------------------------------
 
-/** χ² đồng nhất k nhóm — "tám nguồn có khác nhau thật không" (§6.3).
+/** χ² đồng nhất k nhóm — "tám nguồn có khác nhau thật không".
  *
  *  ```
  *   X² = Σ nᵢ(p̂ᵢ − m)² / [ m(1−m) ]        m = Σxᵢ / Σnᵢ,   df = k − 1
@@ -176,7 +176,7 @@ export function shrink(x: number, n: number, priorMean: number, priorWeight: num
  *
  *  Trên tám nguồn DAS Vina: `X² = 3,7539`, `df = 7`, `p ≈ 0,81`. Kỳ vọng của
  *  χ²(7) là 7, quan sát được 3,75 — **thấp hơn cả nhiễu ngẫu nhiên thuần tuý**.
- *  Kết luận cứng của §6.3: hôm nay chưa có bằng chứng nào cho thấy tám nguồn
+ *  Kết luận cứng: hôm nay chưa có bằng chứng nào cho thấy tám nguồn
  *  khác nhau về tỉ lệ lead tốt; bảng xếp hạng hiện tại đang xếp hạng nhiễu.
  *
  *  Biên:
@@ -208,7 +208,7 @@ export function chiSquareHomogeneity(groups: readonly Rate[]): ChiSquareResult {
 // Tiền
 // ---------------------------------------------------------------------------
 
-/** Dải chi phí mỗi lead tốt (§6.5). Trả **đồng nguyên**, đã làm tròn.
+/** Dải chi phí mỗi lead tốt. Trả **đồng nguyên**, đã làm tròn.
  *
  *  ```
  *   chi/lead tốt = C / (n · p)
@@ -220,20 +220,20 @@ export function chiSquareHomogeneity(groups: readonly Rate[]): ChiSquareResult {
  *
  *  Xếp hạng bằng `hi` vì đó là **số xấu nhất còn hợp lý**: một nguồn chỉ được
  *  gọi là rẻ nếu nó rẻ cả trong trường hợp xui. Quy tắc này tự phạt cỡ mẫu nhỏ,
- *  không cần thêm luật nào. Ví dụ chốt của §6.5: CD-0105 điểm 6.000.000 nhưng
+ *  không cần thêm luật nào. Ví dụ chốt: CD-0105 điểm 6.000.000 nhưng
  *  `hi = 33.517.055` — đắt thứ nhì cả bảng, chứ không phải rẻ thứ tư.
  *
  *  Biên, đọc kỹ vì đây là chỗ mô hình dễ nói ngược nhất:
  *   · `x = 0` → `point = null` và `hi = null`. **Không bao giờ trả 0** cho
  *     "chưa có lead tốt nào" — in "0 đồng/lead" cho một nguồn chưa ra lead tốt
  *     nào là nói ngược hoàn toàn. Và không trả `Infinity`, vì vô cực không phải
- *     một số tiền: `null` buộc tầng trên phải viết ra "chưa đủ dữ liệu" (§6.7).
+ *     một số tiền: `null` buộc tầng trên phải viết ra "chưa đủ dữ liệu".
  *     `lo` vẫn có số thật và vẫn dùng được — nó đọc là "ít nhất chừng này đồng".
  *   · `n = 0` → `{ null, 0, null }`. Không lead nào thì không có cận nào; cận
  *     dưới rỗng nghĩa (0) là cận dưới duy nhất còn đúng.
  *   · `cost = 0` (GT · TM khi bảng đo **tiền mặt**) → cả ba đầu bằng 0, đúng
  *     nghĩa. Hai nguồn đó chỉ có giá thật khi bảng chuyển sang **chi đầy đủ**
- *     (§4) — lúc đó `cost` truyền vào là `fullCost`, không phải `cost`. */
+ *     — lúc đó `cost` truyền vào là `fullCost`, không phải `cost`. */
 export function costBand(cost: number, x: number, n: number): CostBandValue {
   if (!(n > 0)) return { point: null, lo: 0, hi: null }
 
@@ -249,8 +249,7 @@ export function costBand(cost: number, x: number, n: number): CostBandValue {
   }
 }
 
-/** Hai nguồn có được phép nói "**A rẻ hơn B**" không — hai DẢI CHI PHÍ rời nhau
- *  (§6.6 · §6.7).
+/** Hai nguồn có được phép nói "**A rẻ hơn B**" không — hai DẢI CHI PHÍ rời nhau.
  *
  *  Khác `separable` ở chỗ: `separable` so hai tỉ lệ, hàm này so hai dải tiền,
  *  mà tiền còn phụ thuộc `cost`. Trên sáu nguồn có tiêu tiền của DAS Vina, theo
@@ -276,13 +275,13 @@ export function separableCost(a: PricedRate, b: PricedRate): boolean {
 // Cỡ mẫu
 // ---------------------------------------------------------------------------
 
-/** Cỡ mẫu tối thiểu **mỗi nhóm** để phân biệt hai tỉ lệ (§6.1, câu hỏi 2).
+/** Cỡ mẫu tối thiểu **mỗi nhóm** để phân biệt hai tỉ lệ.
  *
  *  ```
  *   n = [ z_{α/2}·√(2p̄q̄) + z_β·√(p₁q₁ + p₂q₂) ]² / (p₁ − p₂)²      p̄ = (p₁+p₂)/2
  *  ```
  *
- *  Mặc định `alpha = 0,05` · `power = 0,80` — đúng bộ số của §6.1. Trả số
+ *  Mặc định `alpha = 0,05` · `power = 0,80`. Trả số
  *  nguyên đã làm tròn LÊN: nửa người không đi khảo sát được.
  *
  *  Con số này là câu sắc nhất của cả tài liệu: `minSampleFor(0,40, 0,25) = 152`

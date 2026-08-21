@@ -72,7 +72,7 @@ import {
   type PeriodChoice,
 } from '@/data/period'
 
-/** Module 3 · Performance (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
+/** Module 3 · Performance.
  *
  *  Màn trả đúng một câu: **ai đang làm được, ai đang tắc — trong kỳ nào**.
  *
@@ -1101,7 +1101,7 @@ function EvidenceBlock({ person }: { person: PersonCard }) {
  *  20/08; giờ mỗi dòng chi mang ngày nên nó chia được, và câu đó thành lời thú
  *  nhận sai. Câu mới đến từ tầng dữ liệu vì nó phải đổi cùng lúc với phép cắt.
  *
- *  Cột giá hiện DẢI chứ không hiện một con số trần (§6.7): trên cỡ mẫu vài lead
+ *  Cột giá hiện DẢI chứ không hiện một con số trần: trên cỡ mẫu vài lead
  *  của một tháng, cận trên cách điểm nhiều lần, và cận trên mới là số dùng để
  *  quyết chi tiền. */
 function SourcesTable({ rows, note }: { rows: NonNullable<PersonCard['sources']>; note?: string }) {

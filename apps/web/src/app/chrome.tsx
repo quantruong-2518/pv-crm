@@ -46,7 +46,7 @@ import { useSession } from './session'
  *  thì cả hai là cùng một câu hỏi: "cái này công ty mình có chưa?". Chốt xếp
  *  theo câu hỏi đó, One Plus nằm cuối vì chưa nhánh nào của nó được dựng.
  *
- *  Cấp bậc BÊN TRONG mỗi mục vẫn phải đúng docs/kien-truc-san-pham.md —
+ *  Cấp bậc BÊN TRONG mỗi mục vẫn phải đúng cấu trúc sản phẩm —
  *  module nằm dưới nhánh của nó, không ngang hàng nhánh.
  *
  *  Hai lỗi cấp bậc đã sửa ở bản trước:
@@ -141,11 +141,11 @@ export type SalesModule = {
   icon: LucideIcon
   label: string
   path: string
-  /** Module này trả câu hỏi gì (docs/kien-truc-san-pham.md). */
+  /** Module này trả câu hỏi gì. */
   question: string
 }
 
-/** NĂM module Pebble Sales — bảng CHỐT ở docs/kien-truc-san-pham.md.
+/** NĂM module Pebble Sales — bảng CHỐT.
  *
  *  Bảng này là nguồn duy nhất của nav: thêm hay đổi module thì sửa đúng một
  *  chỗ, không có chuyện nav nói năm mà route có một.

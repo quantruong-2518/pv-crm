@@ -228,7 +228,7 @@ export function isRotting(deal: OpenDeal): boolean {
 
 // ---------------------------------------------------------------------------
 // Phễu 01/05 → 17/08 (cũng thuộc kịch bản 2). Bậc `cong-ty-that` là MQL,
-// bậc `co-hoi` là SQL — xem docs/kien-truc-san-pham.md, module 2 Lead.
+// bậc `co-hoi` là SQL — module 2 Lead.
 // ---------------------------------------------------------------------------
 
 export const FUNNEL = [
@@ -249,7 +249,7 @@ export const FUNNEL = [
  *
  *      100 đầu mối = 6 đã ký + 42 đang chạy + 52 đã ra khỏi luồng
  *
- *  Thứ tự sáu lý do giữ nguyên (docs/kien-truc-san-pham.md · "Phép cân của sổ lead"). */
+ *  Thứ tự sáu lý do giữ nguyên. */
 export const EXIT_REASONS = [
   { label: 'Không gọi được ai', count: 21 },
   { label: 'Không phải khách của mình', count: 10 },
@@ -266,7 +266,6 @@ export const BOOK_SPLIT = { signed: 6, running: 42, exited: 52 } as const
 
 // ---------------------------------------------------------------------------
 // Hoa hồng và công trạng — HAI thứ khác nhau
-// (docs/kien-truc-san-pham.md · "Hoa hồng và công trạng").
 // ---------------------------------------------------------------------------
 
 /** Hoa hồng chỉ chia được khi có đơn ký. Đơn đổi tay giữa hai Sale thì chia lại
@@ -304,7 +303,7 @@ export const CREDIT_RULES = [
 ] as const
 
 // ---------------------------------------------------------------------------
-// Sổ lead — module 2 (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
+// Sổ lead — module 2.
 // ---------------------------------------------------------------------------
 
 /** Bốn ngành của phòng, lấy đúng từ vai đã chốt của ba Sale ở `actors`:
@@ -365,7 +364,7 @@ const OPTIONAL_KEYS = INIT_DATA_QUESTIONS.filter((q) => !q.required).map((q) => 
 // Sửa được ở module 5 · Cấu hình (mục 5.6, cùng chỗ với CREDIT_RULES).
 // ---------------------------------------------------------------------------
 
-/** BA LỚP KPI của tài liệu (§2 · "Tách 3 lớp KPI thay vì 1 lớp").
+/** BA LỚP KPI — "Tách 3 lớp KPI thay vì 1 lớp".
  *
  *  Lý do tài liệu đưa ra, chép lại vì nó quyết định cách đọc cả màn Performance:
  *  chỉ nhìn lớp kết quả thì một người có đầu vào kém chất lượng bị chấm sai. Lớp
@@ -2386,8 +2385,8 @@ export function leadOrigin(lead: Lead): LeadOrigin {
 }
 
 // ---------------------------------------------------------------------------
-// Transcript — NGÔN NGỮ LƯU LÀ TIẾNG ANH (docs/kien-truc-san-pham.md ·
-// "Transcript"). Giao diện vẫn tiếng Việt; transcript là dữ liệu lưu, không
+// Transcript — NGÔN NGỮ LƯU LÀ TIẾNG ANH.
+// Giao diện vẫn tiếng Việt; transcript là dữ liệu lưu, không
 // phải thứ hiển thị mặc định. Bộ 10 câu là phần RÚT RA từ đây.
 // ---------------------------------------------------------------------------
 

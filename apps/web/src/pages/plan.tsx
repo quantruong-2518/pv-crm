@@ -32,8 +32,8 @@ import { useAppChrome } from '@/app/chrome'
 import { dm } from '@/lib/date'
 import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
 
-/** Module 4 · Số liệu & kế hoạch (docs/kien-truc-san-pham.md · "Năm module
- *  Pebble Sales"). Trả đúng một câu: **tháng tới phòng nên làm gì**.
+/** Module 4 · Số liệu & kế hoạch. Trả đúng một câu: **tháng tới phòng nên
+ *  làm gì**.
  *
  *  Màn này ĂN ĐẦU RA của module 1 + 2 + 3, nên nó làm cuối. Nó không đẻ số mới:
  *  mọi con số trên màn suy từ sổ lead, sổ cơ hội và tám nguồn đã có.

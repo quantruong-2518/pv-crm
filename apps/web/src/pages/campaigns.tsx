@@ -55,7 +55,7 @@ import {
   sendsViaE4,
 } from './campaign-model'
 
-/** Module 1 · Chiến dịch & Sự kiện — SỔ NGUỒN (docs/kien-truc-san-pham.md).
+/** Module 1 · Chiến dịch & Sự kiện — SỔ NGUỒN.
  *
  *  Module này trả câu "khách ở đâu ra". Chủ màn là vai **Marketing**; người gật
  *  vẫn là TP Kinh doanh.

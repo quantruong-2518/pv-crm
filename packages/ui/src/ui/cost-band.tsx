@@ -7,9 +7,8 @@ import { Money } from './money'
  *  Màn hôm nay in đúng MỘT con số — "48,3 tr mỗi lead tốt" — và người đọc hiểu
  *  đó là sự thật đã chốt. Nó là 145 triệu chia cho **3** lead tốt. Phép kiểm χ²
  *  trên tám nguồn ra 3,75 với df = 7: chưa đủ bằng chứng nói tám nguồn khác
- *  nhau về chất lượng, và trong 15 cặp chỉ **5 cặp** được phép nói "rẻ hơn"
- *  (`docs/plans/chi-phi-nguon-lead.md §6.6`). Một con số trần trụi ở ô bảng nói
- *  ngược lại cả hai điều đó.
+ *  nhau về chất lượng, và trong 15 cặp chỉ **5 cặp** được phép nói "rẻ hơn".
+ *  Một con số trần trụi ở ô bảng nói ngược lại cả hai điều đó.
  *
  *  Component KHÔNG tính gì cả. Wilson, co ngót và cổng đủ mẫu nằm ở
  *  `@pv/engines/stats`; `@pv/ui` không biết engine (CLAUDE.md · "Biên giới

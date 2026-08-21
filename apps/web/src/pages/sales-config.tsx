@@ -17,7 +17,7 @@ import { HEAD_OF_SALES, dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { ANCHOR_CODE, salesConfigQuery } from '@/data/sales-config'
 
-/** Module 5 · Cấu hình (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
+/** Module 5 · Cấu hình.
  *
  *  Chỗ DUY NHẤT định hình dữ liệu của phòng kinh doanh. Trước module này mọi
  *  hằng số nằm rải trong fixture và không ai ngoài lập trình viên đổi được.

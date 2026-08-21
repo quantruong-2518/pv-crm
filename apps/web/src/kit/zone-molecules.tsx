@@ -321,7 +321,7 @@ export function ZoneMolecules() {
           </div>
           <NavItem icon={Factory} label="Factory" locked />
           {/* depth 1 — module NẰM TRONG nhánh ngay trên nó. Nhánh đồng cấp với
-              nhánh, module thụt vào một bậc (docs/kien-truc-san-pham.md). */}
+              nhánh, module thụt vào một bậc. */}
           <NavItem icon={Users} label="Kinh doanh" />
           <NavItem icon={Gauge} label="Performance" depth={1} />
         </SpecCard>

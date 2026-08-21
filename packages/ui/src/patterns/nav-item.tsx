@@ -21,9 +21,9 @@ export type NavItemProps = {
   /** 0 = mục cấp một (nhánh, năng lực Core/Plus) · 1 = module NẰM TRONG một
    *  nhánh, thụt vào 32px.
    *
-   *  Cấp phải khớp cấu trúc sản phẩm ở docs/kien-truc-san-pham.md: bốn nhánh vệ
-   *  tinh đồng cấp với nhau, module của một nhánh thì nằm dưới nhánh đó. Để
-   *  module ngang hàng nhánh là nói sai sản phẩm, không phải sai thẩm mỹ. */
+   *  Cấp phải khớp cấu trúc sản phẩm: bốn nhánh vệ tinh đồng cấp với nhau,
+   *  module của một nhánh thì nằm dưới nhánh đó. Để module ngang hàng nhánh là
+   *  nói sai sản phẩm, không phải sai thẩm mỹ. */
   depth?: 0 | 1
   onClick?: () => void
   className?: string

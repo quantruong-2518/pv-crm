@@ -2,7 +2,7 @@ import { loadScenario, type Scenario } from './scenario'
 
 /** KỊCH BẢN 1 · Đơn hàng Sao Đỏ — khách ĐÃ MUA. Dùng cho màn One 01–05.
  *
- *  Đóng băng tại 10/08 · 07:58 (docs/kien-truc-san-pham.md · "Kịch bản dữ liệu").
+ *  Đóng băng tại 10/08 · 07:58.
  *  Hai lát cắt ngoại lệ: màn ký hợp đồng ở 21/07 · 16:20 (nguồn gốc của
  *  SO-0891), và thẻ chạm khách ở 10/08 · 09:38.
  *

@@ -163,7 +163,7 @@ export type SourceRow = {
   costPerGood: number | null
   /** Dải giá mỗi lead tốt của kỳ. */
   band: CostBandValue
-  /** Dải đủ chắc để đứng cạnh câu khẳng định chưa (§6.7). */
+  /** Dải đủ chắc để đứng cạnh câu khẳng định chưa. */
   enough: boolean
   why: string
 }

@@ -89,8 +89,8 @@ export default tseslint.config(
   },
   {
     // Test không phải giao diện. Tiêu đề test được phép trích nguyên văn tài
-    // liệu thiết kế — kể cả dấu ⚠ trong bảng của docs/kien-truc-san-pham.md — và
-    // của chính rule no-ai-slop buộc phải viết ra thứ nó cấm.
+    // liệu thiết kế — kể cả dấu ⚠ trong bảng — và của chính rule no-ai-slop
+    // buộc phải viết ra thứ nó cấm.
     files: ['**/*.test.{ts,tsx,js}'],
     rules: { 'aurora/no-ai-slop': 'off' },
   },

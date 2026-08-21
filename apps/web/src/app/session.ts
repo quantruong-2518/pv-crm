@@ -17,7 +17,7 @@ import { createAccessControl, type Actor, type Branch } from '@pv/engines'
  *  phần còn lại của app không phải sửa. */
 
 /** E2 · một bản duy nhất cho cả app. Mọi lần chặn đường đều ghi vết ở đây —
- *  "nhánh không tự kiểm quyền" (docs/kien-truc-san-pham.md · luật engine). */
+ *  "nhánh không tự kiểm quyền" — luật engine. */
 export const access = createAccessControl()
 
 type SessionState = {

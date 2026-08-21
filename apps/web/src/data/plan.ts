@@ -245,7 +245,7 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
      Cộng từ bảng là làm cả phòng trông rẻ hơn thật. */
   const paid = sourcesPaid()
   const spend = costOfGoodLead(paid)
-  /* Ô này KHÔNG được hiện một con số trần (§6.7). Điểm vẫn là số to — nó là thứ
+  /* Ô này KHÔNG được hiện một con số trần. Điểm vẫn là số to — nó là thứ
      người ta liếc — nhưng dải đi kèm ngay dưới, ở dòng hint. Cận trên của cả
      phạm vi là 13,6 tr, tức trên ngưỡng 12 tr của thước Marketing: đọc điểm 10,0
      tr một mình thì kết luận ngược hẳn. */
@@ -304,8 +304,8 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
  *
  *   1. **Xếp theo ĐIỂM** như hôm nay (D-03), không theo cận trên. Đổi khoá xếp
  *      hạng là đổi thứ hạng của người làm ra nguồn đó, và chưa ai gật.
- *   2. **Nguồn cỡ mẫu nhỏ Ở LẠI bảng**, mang `enough = false`. Tài liệu §6.5 đề
- *      xuất loại CD-0105 ra ngoài; bản này không loại — một dòng biến mất là một
+ *   2. **Nguồn cỡ mẫu nhỏ Ở LẠI bảng**, mang `enough = false`. Có đề xuất loại
+ *      CD-0105 ra ngoài; bản này không loại — một dòng biến mất là một
  *      dòng không ai còn nhớ để hỏi, mà 6 triệu vẫn đã tiêu thật.
  *   3. **Câu so sánh đi qua `costGap`.** Nó chỉ ra lò khi hai dải rời nhau; còn
  *      lại là câu trung tính đọc cả hai dải. */

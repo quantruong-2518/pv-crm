@@ -17,8 +17,7 @@ import type { Performance } from './performance'
  *      không đồng nào rơi ra ngoài mọi lát và không đồng nào bị đếm hai lần.
  *
  *  Con số kỳ vọng: chỗ nào suy lại được từ fixture thì suy lại, chỗ nào là KẾT
- *  LUẬN đã chốt của `docs/plans/chi-phi-nguon-lead.md §6.5 · §6.6` thì ghi thẳng
- *  — đó chính là thứ cần khoá. */
+ *  LUẬN đã chốt thì ghi thẳng — đó chính là thứ cần khoá. */
 
 const PAID_ORDER = ['CD-0101', 'CD-0102', 'SK-0104', 'CD-0105', 'SK-0103', 'SK-0106']
 

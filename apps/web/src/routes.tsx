@@ -10,7 +10,7 @@ import { RequireAccess } from '@/app/guard'
  *  của người dùng thật. Thêm màn mới = thêm một dòng vào SCREENS, không sửa
  *  chỗ nào khác — kể cả nav, vì nav đọc đường dẫn từ `app/chrome.tsx`.
  *
- *  Đường dẫn theo cấu trúc sản phẩm ở docs/kien-truc-san-pham.md — One ở gốc, nhánh vệ tinh
+ *  Đường dẫn theo cấu trúc sản phẩm — One ở gốc, nhánh vệ tinh
  *  (Sales · Supply · Factory · Finance) nằm dưới tiền tố riêng.
  *
  *  `branch` là cửa license của màn:

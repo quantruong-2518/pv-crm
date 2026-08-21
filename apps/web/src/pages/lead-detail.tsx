@@ -80,9 +80,9 @@ import { AssignedPills, AssignMenu } from '@/components/assign-menu'
  *  action ở phải — hai thứ người dùng cần đúng lúc đang đọc dở hồ sơ, nên chúng
  *  không được cuộn mất.
  *
- *  Transcript lưu bằng TIẾNG ANH và **không mở sẵn** (docs/kien-truc-san-pham.md
- *  · "Transcript"): thứ đọc mặc định là báo cáo tìm hiểu — phần rút ra, tiếng
- *  Việt. Nguyên văn nằm sau một nút, cho người cần soi lại câu chữ.
+ *  Transcript lưu bằng TIẾNG ANH và **không mở sẵn**: thứ đọc mặc định là báo
+ *  cáo tìm hiểu — phần rút ra, tiếng Việt. Nguyên văn nằm sau một nút, cho
+ *  người cần soi lại câu chữ.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
 

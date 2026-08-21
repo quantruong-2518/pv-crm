@@ -10,8 +10,8 @@ import { useSession } from '@/app/session'
  *  là thứ bộ màn cần được (docs/luat-thiet-ke.md §7 · màn 03 phải đổi theo
  *  người xem: TP Kinh doanh nhìn khác Giám đốc).
  *
- *  Danh sách người lấy từ `actors` của kịch bản 2 · DAS Vina — bảng vai đã chốt
- *  ở docs/kien-truc-san-pham.md · "Pebble Sales — vai người". Đây là màn duy
+ *  Danh sách người lấy từ `actors` của kịch bản 2 · DAS Vina — bảng vai đã
+ *  chốt của Pebble Sales. Đây là màn duy
  *  nhất biết danh sách này; store phiên thì không, nên nó không kéo kịch bản
  *  vào những màn không liên quan. */
 export function SignInPage() {

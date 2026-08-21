@@ -15,8 +15,8 @@ import { persist } from 'zustand/middleware'
  *  cùng mở sổ thấy hai bộ ghim khác nhau. Ghim chung là ghim của người bấm cuối
  *  cùng — vô dụng với mọi người còn lại.
  *
- *  **Giao việc là ĐỀ NGHỊ, không phải lệnh.** Người gật vẫn là TP Kinh doanh
- *  (docs/kien-truc-san-pham.md · vai người). Store này giữ đề nghị để màn hiện
+ *  **Giao việc là ĐỀ NGHỊ, không phải lệnh.** Người gật vẫn là TP Kinh doanh.
+ *  Store này giữ đề nghị để màn hiện
  *  đúng trạng thái "đã đề nghị"; khi E3 nối vào thì chỗ này đổi thành phiếu
  *  duyệt thật và màn không phải sửa.
  *

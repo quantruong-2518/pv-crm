@@ -50,7 +50,7 @@ describe('Màn 01 · Home / Morning brief', () => {
   })
 
   /** Năm từ 19/08 — module 1 đổi tên thành "Chiến dịch & Sự kiện" và thêm
-   *  module 5 · Cấu hình (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
+   *  module 5 · Cấu hình.
    *  Đọc thẳng từ SALES_MODULES nên đổi bảng đó là test tự đi theo. */
   it('nav có ĐỦ năm module Sales, không phải một mục Kinh doanh', () => {
     renderScreen(<HomePage />)

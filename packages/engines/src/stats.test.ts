@@ -10,16 +10,16 @@ import {
   type PricedRate,
 } from './stats'
 
-/** Test của tầng toán — `docs/plans/chi-phi-nguon-lead.md §6`.
+/** Test của tầng toán.
  *
- *  Mọi con số dưới đây là **số tính tay trong §6**, chép vào đây bằng tay, KHÔNG
- *  đọc từ `fixtures/das-vina.ts`. Đó là chủ ý: `stats.ts` không biết kịch bản
- *  nào, nên test của nó cũng không được biết. Fixture đổi mà bảng §6 không đổi
+ *  Mọi con số dưới đây là **số tính tay**, chép vào đây bằng tay, KHÔNG đọc từ
+ *  `fixtures/das-vina.ts`. Đó là chủ ý: `stats.ts` không biết kịch bản nào, nên
+ *  test của nó cũng không được biết. Fixture đổi mà số tính tay không đổi
  *  thì file này vẫn phải xanh — và ngược lại, ai sửa công thức để chiều một màn
  *  thì đỏ ở đây trước khi kịp đẩy lên giao diện.
  *
- *  Tám dòng dưới đây là tám nguồn của DAS Vina ở §5.2 / §6.2: `x` lead tốt trên
- *  `n` lead, `cost` là **tiền mặt** (không gồm nhân công — §4). */
+ *  Tám dòng dưới đây là tám nguồn của DAS Vina: `x` lead tốt trên
+ *  `n` lead, `cost` là **tiền mặt** (không gồm nhân công). */
 const SOURCES = [
   { code: 'CD-0101', cost: 18_000_000, x: 9, n: 22 },
   { code: 'CD-0102', cost: 26_000_000, x: 7, n: 18 },
@@ -31,24 +31,24 @@ const SOURCES = [
   { code: 'TM', cost: 0, x: 1, n: 5 },
 ] as const satisfies readonly (PricedRate & { code: string })[]
 
-/** Sáu nguồn có tiêu tiền — khối mà §6.5 xếp hạng. GT và TM đứng ngoài khi bảng
- *  đo tiền mặt, vì `cost = 0` (§6.7). */
+/** Sáu nguồn có tiêu tiền — khối được xếp hạng. GT và TM đứng ngoài khi bảng
+ *  đo tiền mặt, vì `cost = 0`. */
 const PAID = SOURCES.filter((s) => s.cost > 0)
 
 const at = (code: string) => {
   const found = SOURCES.find((s) => s.code === code)
-  if (!found) throw new Error(`Không có nguồn ${code} trong bảng §6`)
+  if (!found) throw new Error(`Không có nguồn ${code} trong bảng`)
   return found
 }
 
-/** Trung bình phòng và sức mạnh prior của §6.4. Cả hai là số của KỊCH BẢN, nên
+/** Trung bình phòng và sức mạnh prior. Cả hai là số của KỊCH BẢN, nên
  *  chúng đứng ở đây chứ không nằm trong `stats.ts`. */
 const DEPT_MEAN = 0.34
 const PRIOR_K = 25
 
-describe('wilson · khoảng tin cậy (§6.2)', () => {
-  // Bảng §6.2, cột "Cận dưới" và "Cận trên". Sáu chữ số của cột p_dưới lấy ở
-  // bảng xếp hạng §6.5.
+describe('wilson · khoảng tin cậy', () => {
+  // Cột "Cận dưới" và "Cận trên" của bảng tính tay. Sáu chữ số của cột p_dưới
+  // lấy ở bảng xếp hạng.
   const TABLE = [
     { code: 'CD-0101', lo: 0.232556, hi: 0.612655 },
     { code: 'CD-0102', lo: 0.20305, hi: 0.613813 },
@@ -60,7 +60,7 @@ describe('wilson · khoảng tin cậy (§6.2)', () => {
     { code: 'TM', lo: 0.036223, hi: 0.624472 },
   ]
 
-  it.each(TABLE)('$code khớp bảng §6.2 tới 4 chữ số thập phân', ({ code, lo, hi }) => {
+  it.each(TABLE)('$code khớp bảng tới 4 chữ số thập phân', ({ code, lo, hi }) => {
     const s = at(code)
     const w = wilson(s.x, s.n)
     expect(w.p).toBeCloseTo(s.x / s.n, 10)
@@ -76,7 +76,7 @@ describe('wilson · khoảng tin cậy (§6.2)', () => {
     expect((w.hi - w.lo) * 100).toBeCloseTo(18.3, 1)
   })
 
-  it('ví dụ tính tay của §6.2 (9/22) khớp tới 6 chữ số', () => {
+  it('ví dụ tính tay (9/22) khớp tới 6 chữ số', () => {
     const w = wilson(9, 22)
     expect(w.lo).toBeCloseTo(0.232556, 6)
     expect(w.hi).toBeCloseTo(0.612655, 6)
@@ -105,7 +105,7 @@ describe('wilson · khoảng tin cậy (§6.2)', () => {
   })
 
   it('x = 0 cho khoảng có bề rộng THẬT, không phải [0% ; 0%] như Wald', () => {
-    // §6.2: 0 lead tốt trên 9 lead — Wald nói "chắc chắn 0%", Wilson nói tới 29,92%.
+    // 0 lead tốt trên 9 lead — Wald nói "chắc chắn 0%", Wilson nói tới 29,92%.
     const w = wilson(0, 9)
     expect(w.lo).toBe(0)
     expect(w.hi).toBeCloseTo(0.299153, 5)
@@ -128,7 +128,7 @@ describe('wilson · khoảng tin cậy (§6.2)', () => {
     expect(wilson(0, 1)).toEqual({ p: 0, lo: 0, hi: expect.closeTo(0.793457, 5) })
   })
 
-  it('độ giãn p̂/p_dưới khớp cột "Cổng" của §6.5 — CD-0105 và TM trượt cổng 3,0', () => {
+  it('độ giãn p̂/p_dưới khớp cột "Cổng" — CD-0105 và TM trượt cổng 3,0', () => {
     const stretch = (code: string) => {
       const s = at(code)
       const w = wilson(s.x, s.n)
@@ -154,7 +154,7 @@ describe('wilson · khoảng tin cậy (§6.2)', () => {
   })
 })
 
-describe('chiSquareHomogeneity · tám nguồn có khác nhau thật không (§6.3)', () => {
+describe('chiSquareHomogeneity · tám nguồn có khác nhau thật không', () => {
   it('tám nguồn ra X² = 3,7539 · df = 7 · p ≈ 0,81', () => {
     const r = chiSquareHomogeneity(SOURCES)
     expect(r.chi2).toBeCloseTo(3.7539, 4)
@@ -225,8 +225,8 @@ describe('chiSquareHomogeneity · tám nguồn có khác nhau thật không (§6
   })
 })
 
-describe('shrink · co ngót về trung bình phòng (§6.4)', () => {
-  // Bảng §6.4, cột "Co ngót", với m = 0,34 và k = 25.
+describe('shrink · co ngót về trung bình phòng', () => {
+  // Cột "Co ngót", với m = 0,34 và k = 25.
   const TABLE = [
     { code: 'CD-0101', shrunk: 0.37234 },
     { code: 'CD-0102', shrunk: 0.360465 },
@@ -238,7 +238,7 @@ describe('shrink · co ngót về trung bình phòng (§6.4)', () => {
     { code: 'CD-0105', shrunk: 0.279412 },
   ]
 
-  it.each(TABLE)('$code co ngót đúng bảng §6.4', ({ code, shrunk }) => {
+  it.each(TABLE)('$code co ngót đúng bảng', ({ code, shrunk }) => {
     const s = at(code)
     expect(shrink(s.x, s.n, DEPT_MEAN, PRIOR_K)).toBeCloseTo(shrunk, 5)
   })
@@ -295,9 +295,9 @@ describe('shrink · co ngót về trung bình phòng (§6.4)', () => {
   })
 })
 
-describe('separable · tách được theo TỈ LỆ (§6.2)', () => {
+describe('separable · tách được theo TỈ LỆ', () => {
   // Đúng 15 cặp của sáu nguồn có tiền. Theo tỉ lệ thì KHÔNG cặp nào tách được —
-  // kể cả cặp cực đoan nhất. Đó là phát hiện chính của §6.2.
+  // kể cả cặp cực đoan nhất. Đó là phát hiện chính.
   const PAIRS: [string, string][] = [
     ['CD-0101', 'CD-0102'],
     ['CD-0101', 'SK-0103'],
@@ -342,8 +342,8 @@ describe('separable · tách được theo TỈ LỆ (§6.2)', () => {
   })
 })
 
-describe('costBand · dải chi phí mỗi lead tốt (§6.5)', () => {
-  // Bảng xếp hạng §6.5, đơn vị đồng. `hi` là cột "Cận trên" — số dùng để xếp hạng.
+describe('costBand · dải chi phí mỗi lead tốt', () => {
+  // Bảng xếp hạng, đơn vị đồng. `hi` là cột "Cận trên" — số dùng để xếp hạng.
   const TABLE = [
     { code: 'CD-0101', point: 2_000_000, lo: 1_335_469, hi: 3_518_220 },
     { code: 'CD-0102', point: 3_714_286, lo: 2_353_231, hi: 7_113_741 },
@@ -353,7 +353,7 @@ describe('costBand · dải chi phí mỗi lead tốt (§6.5)', () => {
     { code: 'SK-0106', point: 48_333_333, lo: 23_303_830, hi: 135_255_281 },
   ]
 
-  it.each(TABLE)('$code ra đúng ba số của §6.5', ({ code, point, lo, hi }) => {
+  it.each(TABLE)('$code ra đúng ba số của bảng xếp hạng', ({ code, point, lo, hi }) => {
     const s = at(code)
     expect(costBand(s.cost, s.x, s.n)).toEqual({ point, lo, hi })
   })
@@ -375,7 +375,7 @@ describe('costBand · dải chi phí mỗi lead tốt (§6.5)', () => {
     // Bảng theo cận trên: CD-0105 rơi xuống áp chót — 33,5 triệu, đắt thứ nhì.
     expect(ranked).toEqual(['CD-0101', 'CD-0102', 'SK-0104', 'SK-0103', 'CD-0105', 'SK-0106'])
 
-    // Và nó không chỉ tụt hạng: nó rớt khỏi bảng, vì trượt CỔNG độ giãn (§6.7).
+    // Và nó không chỉ tụt hạng: nó rớt khỏi bảng, vì trượt CỔNG độ giãn.
     const c = at('CD-0105')
     const w = wilson(c.x, c.n)
     expect(w.p / w.lo).toBeGreaterThan(3)
@@ -424,7 +424,7 @@ describe('costBand · dải chi phí mỗi lead tốt (§6.5)', () => {
     expect(costBand(0, 1, 5)).toEqual({ point: 0, lo: 0, hi: 0 })
   })
 
-  it('chuyển sang CHI ĐẦY ĐỦ thì hai nguồn "0 đồng" có giá thật (§4 · §6.5)', () => {
+  it('chuyển sang CHI ĐẦY ĐỦ thì hai nguồn "0 đồng" có giá thật', () => {
     // GT: 4,2 triệu nhân công ÷ 3 lead tốt → rẻ nhất cả sổ theo điểm.
     const gt = costBand(4_200_000, 3, 7)
     expect(gt.point).toBe(1_400_000)
@@ -435,7 +435,7 @@ describe('costBand · dải chi phí mỗi lead tốt (§6.5)', () => {
     expect(tm.hi).toBe(49_691_964)
   })
 
-  it('thước Marketing: cận trên 13.615.131 đ vượt ngưỡng 12 triệu (§6.7)', () => {
+  it('thước Marketing: cận trên 13.615.131 đ vượt ngưỡng 12 triệu', () => {
     // Sáu nguồn của Marketing gộp lại là 30/88 trên 300 triệu. Chấm theo điểm là
     // 10 triệu → Đạt; chấm theo cận trên là 13,6 triệu → Cần cải thiện.
     const b = costBand(300_000_000, 30, 88)
@@ -445,8 +445,8 @@ describe('costBand · dải chi phí mỗi lead tốt (§6.5)', () => {
   })
 })
 
-describe('separableCost · cặp nào được phép nói "rẻ hơn" (§6.6)', () => {
-  // Đủ 15 cặp của sáu nguồn có tiền. `true` là năm cặp của bảng §6.6.
+describe('separableCost · cặp nào được phép nói "rẻ hơn"', () => {
+  // Đủ 15 cặp của sáu nguồn có tiền. `true` là năm cặp tách được.
   const PAIRS: [string, string, boolean][] = [
     ['CD-0101', 'CD-0102', false],
     ['CD-0101', 'SK-0103', true],
@@ -495,7 +495,7 @@ describe('separableCost · cặp nào được phép nói "rẻ hơn" (§6.6)', 
     expect(b.lo).toBeLessThan(a.hi ?? 0)
   })
 
-  it('câu AI đổi từ "chênh 24 lần" xuống "ít nhất 6,6 lần" (§6.6)', () => {
+  it('câu AI đổi từ "chênh 24 lần" xuống "ít nhất 6,6 lần"', () => {
     const cheap = costBand(18_000_000, 9, 22)
     const dear = costBand(145_000_000, 3, 11)
     // Tỉ số hai ĐIỂM — con số hôm nay `plan.ts:228` đang in.
@@ -504,7 +504,7 @@ describe('separableCost · cặp nào được phép nói "rẻ hơn" (§6.6)', 
     expect(dear.lo / (cheap.hi ?? 1)).toBeCloseTo(6.624, 3)
   })
 
-  it('bốn cặp tách được còn lại có "ít nhất N lần" khớp §6.6', () => {
+  it('bốn cặp tách được còn lại có "ít nhất N lần" đúng', () => {
     const band = (code: string) => {
       const s = at(code)
       return costBand(s.cost, s.x, s.n)
@@ -531,7 +531,7 @@ describe('separableCost · cặp nào được phép nói "rẻ hơn" (§6.6)', 
   })
 })
 
-describe('minSampleFor · cỡ mẫu để phân biệt hai nguồn (§6.1)', () => {
+describe('minSampleFor · cỡ mẫu để phân biệt hai nguồn', () => {
   it('40% so 25% cần 152 lead mỗi nguồn', () => {
     expect(minSampleFor(0.4, 0.25)).toBe(152)
   })
@@ -540,7 +540,7 @@ describe('minSampleFor · cỡ mẫu để phân biệt hai nguồn (§6.1)', ()
     expect(minSampleFor(0.4, 0.2)).toBe(82)
   })
 
-  it('152 lớn hơn cả sổ lead của cả kỳ — câu sắc nhất của §6.1', () => {
+  it('152 lớn hơn cả sổ lead của cả kỳ', () => {
     const biggest = Math.max(...SOURCES.map((s) => s.n))
     const wholeBook = SOURCES.reduce((s, x) => s + x.n, 0)
     expect(biggest).toBe(22)

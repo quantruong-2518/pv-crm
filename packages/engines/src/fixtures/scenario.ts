@@ -3,8 +3,8 @@ import type { Actor, Edge, ObjectRef } from '../types'
 
 /** Kịch bản dữ liệu đóng băng.
  *
- *  docs/kien-truc-san-pham.md: "Có đúng **hai kịch bản**, không thêm kịch bản thứ ba" và
- *  "**Không trộn hai kịch bản trên cùng một màn**".
+ *  Có đúng **hai kịch bản**, không thêm kịch bản thứ ba. **Không trộn hai
+ *  kịch bản trên cùng một màn**.
  *
  *  Luật đó được giữ ở ba tầng:
  *   1 · mỗi kịch bản là một `ObjectGraph` riêng — trộn phải cầm hai graph, nhìn thấy ngay khi review;

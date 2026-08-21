@@ -47,11 +47,11 @@ import {
   dayISO,
 } from './das-vina'
 
-/** Khoá mọi con số đã CHỐT trong docs/kien-truc-san-pham.md.
+/** Khoá mọi con số đã CHỐT của hai kịch bản.
  *
  *  Đây là loại test đáng giá nhất của repo này: dữ liệu demo không có compiler
  *  nào gác, và một con số sai trên màn demo tốn nhiều hơn một bug. Sửa số nào
- *  ở đây thì phải sửa docs/kien-truc-san-pham.md trước — test đỏ là lời nhắc đúng lúc. */
+ *  ở đây thì phải sửa fixture trước — test đỏ là lời nhắc đúng lúc. */
 
 describe('Kịch bản đóng băng — con số đã chốt', () => {
   it('hai kịch bản, không hơn, và không dùng chung mã object nào', () => {
@@ -60,7 +60,7 @@ describe('Kịch bản đóng băng — con số đã chốt', () => {
     expect(overlap).toEqual([])
   })
 
-  it('lát cắt thời gian đúng như docs/kien-truc-san-pham.md', () => {
+  it('lát cắt thời gian đúng như đã chốt', () => {
     expect(saoDo.frozenAt).toBe('2026-08-10T07:58:00+07:00')
     expect(dasVina.frozenAt).toBe('2026-08-17T09:10:00+07:00')
   })
@@ -116,7 +116,7 @@ describe('Sổ 10 cơ hội đang mở', () => {
     expect(count('Nguyễn Khánh Linh')).toBe(3)
   })
 
-  it('đúng 4 đơn đang mục — bốn dấu ⚠ trong bảng của docs/kien-truc-san-pham.md', () => {
+  it('đúng 4 đơn đang mục — bốn dấu ⚠ trong bảng', () => {
     const rotting = OPEN_DEALS.filter(isRotting).map((d) => d.code)
     expect(rotting.sort()).toEqual(['OP-0248', 'OP-0252', 'OP-0263', 'OP-0301'])
   })
@@ -143,8 +143,7 @@ describe('Phễu 01/05 → 17/08', () => {
     expect(lost).toBe(BOOK_SPLIT.exited)
   })
 
-  /** Phép cân sửa 19/08: bản cũ ghi 94 + 6 = 100 và quên 42 lead còn sống.
-   *  docs/kien-truc-san-pham.md · "Phép cân của sổ lead". */
+  /** Phép cân sửa 19/08: bản cũ ghi 94 + 6 = 100 và quên 42 lead còn sống. */
   it('100 đầu mối = 6 đã ký + 42 đang chạy + 52 đã rơi', () => {
     const { signed, running, exited } = BOOK_SPLIT
     expect(signed + running + exited).toBe(FUNNEL[0].count)
@@ -436,7 +435,7 @@ describe('Phân rã 300 triệu — năm loại chi tiền mặt', () => {
 })
 
 describe('Bốn chỉ số giá của một nguồn — bốn mẫu số, không thay nhau được', () => {
-  /* Bảng §5.2 của docs/plans/chi-phi-nguon-lead.md, khoá từng ô. Đổi một con số
+  /* Bảng bốn chỉ số giá của một nguồn, khoá từng ô. Đổi một con số
      ở đây là đổi thứ hạng nguồn trên ba màn cùng lúc. */
 
   const TABLE = [

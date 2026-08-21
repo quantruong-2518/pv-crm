@@ -11,7 +11,6 @@ Làm đúng thứ tự sau. Mỗi lần MỘT màn.
 
 - `CLAUDE.md` — hợp đồng làm việc, cái gì máy gác, biên giới package
 - `docs/luat-thiet-ke.md` — 15 luật (§1), token dùng thật (§2), ba thiết bị (§3), đặc tả 5 màn One (§7), checklist (§8)
-- `docs/kien-truc-san-pham.md` — nhánh nào sở hữu object nào, vai người, thứ tự bộ màn Sales
 
 > **Không còn bản vẽ `.dc.html`.** Nguồn thiết kế gốc đã xoá 18/08; bộ màn đang
 > dựng lại từ đặc tả chữ. Muốn xem bản cũ để tham khảo:
@@ -26,8 +25,7 @@ Làm đúng thứ tự sau. Mỗi lần MỘT màn.
 2. Nó trả **đúng câu hỏi nào**? Câu trả lời của màn khác không được nhét vào đây.
 3. **State nào bắt buộc phải code** theo `docs/luat-thiet-ke.md §7`? Kể cả empty state.
 
-Không chắc màn nào thì liệt kê `docs/luat-thiet-ke.md §7` và bảng bộ màn Sales
-trong `docs/kien-truc-san-pham.md` rồi hỏi, đừng đoán.
+Không chắc màn nào thì liệt kê `docs/luat-thiet-ke.md §7` rồi hỏi, đừng đoán.
 
 ## 3 · Dựng
 

@@ -53,7 +53,7 @@ import {
 } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 
-/** Module 2 · Sổ lead (docs/kien-truc-san-pham.md · "Năm module Pebble Sales").
+/** Module 2 · Sổ lead.
  *
  *  ------------------------------------------------------------------
  *  MÀN NÀY LÀ MỘT DANH SÁCH, KHÔNG PHẢI MỘT BÀN LÀM VIỆC

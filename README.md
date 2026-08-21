@@ -3,7 +3,7 @@
 Pebble Vina — **PV One** dựng theo hệ thiết kế **Aurora v2.0**.
 
 ```
-docs/              luật thiết kế + kiến trúc sản phẩm
+docs/              luật thiết kế Aurora v2.0
 packages/tokens    globals.css — file màu duy nhất + bảng token dạng dữ liệu
 packages/ui        @pv/ui — thư viện component
 packages/engines   @pv/engines — E1 đồ thị object · E2 quyền · E3 duyệt · E4 thông báo
@@ -38,20 +38,19 @@ Lệnh lẻ khi cần: `pnpm lint:fix` · `pnpm format` · `pnpm test:watch` ·
 
 ## Nguồn sự thật
 
-| #   | File                          | Dùng để                                                                        |
-| --- | ----------------------------- | ------------------------------------------------------------------------------ |
-| 1   | `CLAUDE.md`                   | Hợp đồng làm việc: cái gì máy gác, cái gì người gác, biên giới package.        |
-| 2   | `docs/luat-thiet-ke.md`       | 15 luật cứng, token dùng thật, ba thiết bị, đặc tả 5 màn One, checklist PR.    |
-| 3   | `docs/kien-truc-san-pham.md`  | 5 nhánh, hai tầng license, luật engine, vai người Sales, hai kịch bản dữ liệu. |
-| 4   | `packages/tokens/globals.css` | Token gốc. File màu duy nhất của cả hệ.                                        |
-| 5   | `apps/web/README.md`          | Bản dựng lệch chỗ nào so với thiết kế gốc, và vì sao.                          |
+| #   | File                          | Dùng để                                                                     |
+| --- | ----------------------------- | --------------------------------------------------------------------------- |
+| 1   | `CLAUDE.md`                   | Hợp đồng làm việc: cái gì máy gác, cái gì người gác, biên giới package.     |
+| 2   | `docs/luat-thiet-ke.md`       | 15 luật cứng, token dùng thật, ba thiết bị, đặc tả 5 màn One, checklist PR. |
+| 3   | `packages/tokens/globals.css` | Token gốc. File màu duy nhất của cả hệ.                                     |
+| 4   | `apps/web/README.md`          | Bản dựng lệch chỗ nào so với thiết kế gốc, và vì sao.                       |
 
 Thiếu token thì **hỏi, đừng bịa hex mới**.
 
 > **Nguồn thiết kế gốc đã xoá 18/08.** `project/` từng chứa 22 bản vẽ `.dc.html`,
 > ảnh tham chiếu 1:1 và gói handoff EN — khoảng 12 MB. Bộ màn sẽ dựng lại; luật
-> và kiến trúc đã cứu sang `docs/`, số liệu đã cứu sang `@pv/engines/fixtures`
-> kèm test khoá. Lấy lại bản cũ: `git show 107f5e2:project/<tên file>`.
+> đã cứu sang `docs/luat-thiet-ke.md`, số liệu sang `@pv/engines/fixtures` kèm
+> test khoá. Lấy lại bản cũ: `git show 107f5e2:project/<tên file>`.
 
 ## Luật cưỡng chế bằng máy
 
@@ -79,5 +78,4 @@ khung thiết bị, cộng `AppShell` và `AssistantFab`. Màn 01 Home / Morning
 Bốn engine có interface + bản in-memory + hai kịch bản dữ liệu đóng băng.
 
 Chưa làm: bốn màn PV One còn lại (Hộp phê duyệt · Tìm toàn cục · Trợ lý AI ·
-Thông báo — đặc tả ở `docs/luat-thiet-ke.md §7`), và 12 màn Pebble Sales (thứ tự
-kể ở `docs/kien-truc-san-pham.md`).
+Thông báo — đặc tả ở `docs/luat-thiet-ke.md §7`), và bộ màn Pebble Sales.

@@ -50,9 +50,9 @@ const STATUS_DOTS = [
 
 const TEAM = ['Trần Thu Hà', 'Đỗ Quang Huy', 'Lê Hoàng Nam', 'Vũ Minh Châu', 'Phạm Diệu Anh']
 
-/** Bốn trạng thái của A-21. Số lấy từ ví dụ tính tay ở
- *  `docs/plans/chi-phi-nguon-lead.md §6` — không phải fixture, và cũng không
- *  được là fixture: trang kit là tài liệu của component, không phải một màn. */
+/** Bốn trạng thái của A-21. Số lấy từ ví dụ tính tay — không phải fixture, và
+ *  cũng không được là fixture: trang kit là tài liệu của component, không phải
+ *  một màn. */
 const COST_BANDS: Array<{
   code: string
   caption: string

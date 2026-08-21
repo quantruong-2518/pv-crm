@@ -138,7 +138,7 @@ export type SourceRow = Omit<Source, 'waves'> &
 
     // ---- tiền · dải giá và phân rã ------------------------------------------
     /** Dải giá mỗi lead tốt, 95%. `costPerGood` là `band.point` — cùng một số,
-     *  và màn KHÔNG được hiện điểm một mình (§6.7). */
+     *  và màn KHÔNG được hiện điểm một mình. */
     band: CostBandValue
     /** Dải đủ chắc để đứng cạnh một câu khẳng định chưa. */
     enough: boolean

@@ -133,7 +133,7 @@ Màn 01 Home / Morning brief đã dựng. Bốn màn còn lại trong
 `docs/luat-thiet-ke.md` §7 (Hộp phê duyệt · Tìm toàn cục · Trợ lý AI · Thông báo)
 chưa — dựng bằng `/man <tên màn>`, quy trình ở `.claude/commands/man.md`.
 
-Mười hai màn Pebble Sales (thứ tự kể ở `docs/kien-truc-san-pham.md`) cũng chưa.
+Mười hai màn Pebble Sales cũng chưa.
 Chúng dùng kịch bản DAS Vina, dữ liệu đã có sẵn trong
 `@pv/engines/fixtures/das-vina`: sổ 10 cơ hội, phễu 100 → 6, sáu lý do ra khỏi
 luồng.
