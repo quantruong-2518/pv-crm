@@ -15,6 +15,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     include: ['{apps,packages,tools}/**/*.{test,spec}.{ts,tsx,js,mjs}'],
+    // Không tự sinh test nữa (xem CLAUDE.md, "Chính sách test") — cây có thể
+    // có 0 file test hợp lệ, `pnpm check` không được đỏ vì lý do đó.
+    passWithNoTests: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

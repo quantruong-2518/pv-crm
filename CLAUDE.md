@@ -58,12 +58,26 @@ Máy gác — sai là không merge được:
 | 10 · ContextRail         | tầng kiểu (`RailObject.onOpen`) + `E1.story()` dựng chuỗi                 |
 | 11 · icon qua `<Icon>`   | `aurora/icon-through-gate`                                                |
 | 15 · không AI slop       | `aurora/no-ai-slop`                                                       |
-| kịch bản không trộn      | `aurora/no-scenario-mix` + test khoá mọi con số đã chốt                   |
+| kịch bản không trộn      | `aurora/no-scenario-mix`                                                  |
 
 Người gác — CI **không** biết, phải tự nhìn:
 
 - **Luật 12** — nền đúng 4 lớp, không lớp thứ 5
 - **Luật 13** — tương phản ≥ 4.5:1 trên cả `.glass-a` và `.glass-b`; nút tablet ≥ 48px
+
+## Test — không tự sinh, trừ một ngoại lệ
+
+Không tự viết test khi dựng/sửa màn trừ khi được yêu cầu rõ — mỗi test UI
+vibe-code ra là một khoản token phải trả lại mỗi lần sửa màn đó. 23/08 đã xoá
+sạch 366 test cũ (mọi file `*.test.ts`/`*.test.tsx`, kể cả
+`tools/eslint-plugin-aurora/plugin.test.js`) vì đúng lý do này;
+`vitest.config.ts` đã bật `passWithNoTests` nên cây 0 test không làm
+`pnpm check` đỏ.
+
+**Ngoại lệ duy nhất, vẫn là luật cứng:** thêm số mới vào fixture bắt buộc kèm
+một test khoá số đó ngay cạnh fixture (xem "Dữ liệu" bên dưới). Đây không phải
+thói quen vibe-code — đó là cơ chế duy nhất bắt số liệu demo, thứ không
+compiler nào gác được, không lặng lẽ trôi.
 
 ## Biên giới package — không được phá
 
@@ -82,8 +96,8 @@ Cả bốn là rule `no-restricted-imports` trong `eslint.config.js`.
 | DAS Vina — khách **chưa mua** | `@pv/engines/fixtures/das-vina` | 17/08 · 09:10 |
 
 Một màn dùng đúng một kịch bản. **Không gõ số thẳng vào JSX** — mọi con số đã
-chốt nằm trong fixture và bị `scenario.test.ts` khoá. Cần số mới thì thêm vào
-fixture kèm test, đừng rải vào màn.
+chốt nằm trong fixture. Cần số mới thì thêm vào fixture kèm một test khoá số
+đó ngay cạnh, đừng rải vào màn — xem ngoại lệ ở mục "Test" bên trên.
 
 ## Thêm component mới
 
