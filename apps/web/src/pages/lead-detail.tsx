@@ -1,88 +1,84 @@
 import { useState, type ReactNode } from 'react'
-import {
-  ArrowLeft,
-  ChevronDown,
-  Inbox,
-  Mail,
-  MessageSquare,
-  Phone,
-  Pin,
-  TriangleAlert,
-  Users,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, Inbox, Mail, Phone, Pin, TriangleAlert } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
+  Avatar,
   AvatarGroup,
   Badge,
   Button,
   Chip,
-  ContextRail,
   GlassCard,
   Icon,
   Kicker,
   MetaPill,
-  Money,
-  Progress,
   SectionTitle,
   Separator,
   Skeleton,
-  StatusDot,
-  Timeline,
-  cn,
 } from '@pv/ui'
 import {
-  canPromoteToSql,
   dasVina,
-  EXIT_REASONS,
-  HEAD_OF_SALES,
-  INIT_DATA_QUESTIONS,
-  INIT_DATA_SLOTS,
   isOverSla,
   LEAD_CATEGORIES,
   LEAD_TIERS,
   leadContact,
   leadOrigin,
-  leadResearch,
-  leadTranscript,
-  OPEN_DEALS,
   PIPELINE_STAGES,
-  REQUIRED_SLOTS,
+  staffEmail,
   type ExitReason,
   type Lead,
-  type LeadEventKind,
   type LeadTier,
-  type TurnKind,
 } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/session'
 import { dm, dmy } from '@/lib/date'
-import { leadBookQuery, nextActions, ORIGIN_FACE, peopleOn } from '@/data/leads'
+import { leadBookQuery, ORIGIN_FACE, peopleOn } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { AssignedPills, AssignMenu } from '@/components/assign-menu'
+import { ConvertDialog, ConvertedCard } from '@/components/convert-dialog'
+import { ExitDialog } from '@/components/exit-dialog'
+import { ActivityCard, NextActionCard, NotesCard, ProfileCard } from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
  *
  *  ------------------------------------------------------------------
  *  VÌ SAO LÀ MỘT TRANG RIÊNG
  *  ------------------------------------------------------------------
- *  Hồ sơ này có bảy khối và một trong số đó là transcript nguyên văn. Nhét vào
- *  panel bên phải của sổ thì vừa bóp bảng còn 60% chiều rộng vừa bắt người dùng
- *  cuộn ba màn hình trong một cột hẹp. Danh sách và hồ sơ là hai việc khác nhau
- *  nên là hai trang khác nhau; sổ giữ đường quay lại ở góc trái trên.
+ *  Hồ sơ này có một form ba mươi ô, một ô soạn tự do, một danh sách việc và cả
+ *  dòng thời gian có nguyên văn. Nhét vào panel bên phải của sổ thì vừa bóp
+ *  bảng còn 60% chiều rộng vừa bắt người dùng cuộn năm màn hình trong một cột
+ *  hẹp. Danh sách và hồ sơ là hai việc khác nhau nên là hai trang khác nhau; sổ
+ *  giữ đường quay lại ở góc trái trên.
  *
- *  Bố cục: hai cột — bên trái là CÂU CHUYỆN (từ đâu về · đã hiểu gì · đã nói
- *  những gì), bên phải là TRẠNG THÁI (mười ô, ai đang làm, cả đời lead, và nút
- *  đưa ra khỏi luồng). Dưới cùng là thanh dính: thông tin liên hệ ở trái, next
- *  action ở phải — hai thứ người dùng cần đúng lúc đang đọc dở hồ sơ, nên chúng
- *  không được cuộn mất.
+ *  ------------------------------------------------------------------
+ *  BỐ CỤC — hai cột 3:1 (chốt 22/08, bản 3)
+ *  ------------------------------------------------------------------
+ *   0 · ĐẦU TRANG — tên account và trạng thái, rồi một hàng pill phân loại.
+ *       Không còn nút nào ở đây: ghim và giao việc đã xuống thanh công cụ.
  *
- *  Transcript lưu bằng TIẾNG ANH và **không mở sẵn**: thứ đọc mặc định là báo
- *  cáo tìm hiểu — phần rút ra, tiếng Việt. Nguyên văn nằm sau một nút, cho
- *  người cần soi lại câu chữ.
+ *   1 · CỘT CHÍNH (3 phần) — thứ người dùng SỬA, xếp theo thứ tự điền:
+ *       hồ sơ lead → thông tin quan trọng → việc tiếp theo.
+ *
+ *   2 · CỘT PHỤ (1 phần) — thứ người dùng TRA: lead từ đâu về, ai đang cầm, và
+ *       dòng thời gian đã gộp cả transcript vào trong.
+ *
+ *   3 · THANH CÔNG CỤ dính đáy — ai gọi cho ai bên trái, làm gì bên phải.
+ *
+ *  ------------------------------------------------------------------
+ *  HAI THỨ ĐÃ GỠ, VÀ CÁI GIÁ CỦA CHÚNG
+ *  ------------------------------------------------------------------
+ *  · **Khối tóm tắt bốn ô** (đau ở đâu · tiền · ai quyết · cổng). Dựng ra để
+ *    khỏi phải quét ba mươi ô nhập, nhưng khi cột chính chỉ còn 3/4 màn thì form
+ *    đã tự đọc được, và khối tóm tắt thành một bản sao thứ hai của cùng bốn
+ *    trường — hai chỗ hiện một dữ liệu là hai chỗ để lệch nhau.
+ *
+ *  · **ContextRail** (luật 10). Đây là NỢ LUẬT có ý thức, giống hệt nợ đã ghi ở
+ *    `pages/leads.tsx`: bốn chip mã treo trên đầu hồ sơ không ai bấm, vì mã cơ
+ *    hội và mã báo giá của lead này đã nằm trong cụm Sổ sách của chính form, ở
+ *    đúng chỗ người ta đi tìm chúng. Rail quay lại khi nào có màn thật để nó mở
+ *    sang — không sớm hơn.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
 
@@ -95,29 +91,6 @@ const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
-const DEAL_AMOUNT = new Map(OPEN_DEALS.map((d) => [d.code, d.amount]))
-
-const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'> = {
-  'vao-so': 'next',
-  cham: 'next',
-  'dien-o': 'current',
-  giao: 'current',
-  'len-bac': 'ok',
-  'gap-lan-dau': 'ok',
-  'vao-pipeline': 'ok',
-  'doi-cot': 'current',
-  ky: 'ok',
-  'ra-khoi-luong': 'bad',
-}
-
-/** Bốn kiểu lần chạm. Hình lấy từ chính công cụ đã dùng — nhìn là biết lần đó
- *  gặp mặt hay chỉ nhắn một câu. */
-const TURN_FACE: Record<TurnKind, { label: string; icon: LucideIcon }> = {
-  gap: { label: 'Gặp mặt', icon: Users },
-  goi: { label: 'Gọi điện', icon: Phone },
-  chat: { label: 'Nhắn tin', icon: MessageSquare },
-  mail: { label: 'Email', icon: Mail },
-}
 
 export function LeadDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -127,10 +100,16 @@ export function LeadDetailPage() {
 
   const me = useSession((s) => s.actor)
   const assigns = useLeadDesk((s) => s.assigns)
-  const acted = useLeadDesk((s) => s.acted)
-  const act = useLeadDesk((s) => s.act)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
+  const savedName = useLeadDesk((s) => s.profiles[code]?.company)
+  const deal = useLeadDesk((s) => s.deals[code])
+
+  const [converting, setConverting] = useState(false)
+  const [exiting, setExiting] = useState(false)
+  /* Lý do vừa báo trong phiên này. Chưa có backend nên nó chết cùng lần mở màn
+     — và đó là điều đúng: một đề nghị chưa ai gật thì chưa phải sự thật của sổ. */
+  const [reported, setReported] = useState<ExitReason | null>(null)
 
   const lead = book.find((l) => l.code === code) ?? null
 
@@ -155,20 +134,10 @@ export function LeadDetailPage() {
   }
 
   const origin = leadOrigin(lead)
-  const research = leadResearch(lead)
-  const turns = leadTranscript(lead)
   const people = peopleOn(lead, assigns, dasVina.actors)
-  const pinnedHere = pins.includes(lead.code)
-  const done = acted[lead.code] ?? []
-
-  /* Luật 10 · ContextRail dựng thẳng từ E1. Lead chưa vào sổ cơ hội thì chưa có
-     object nào trong đồ thị — rail hiện đúng một chip của chính nó, chứ không
-     biến mất. */
-  const story = lead.dealCode ? dasVina.graph.story(lead.dealCode) : []
-  const rail =
-    story.length > 0
-      ? story.map((o) => ({ code: o.code, source: o.code !== lead.dealCode }))
-      : [{ code: lead.code, source: false }]
+  /* Tên account đọc từ bản hồ sơ ĐÃ LƯU: sửa tên trong form thì đầu trang phải
+     đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
+  const accountName = savedName ?? lead.company
 
   const openSource = () => navigate(`/sales/campaigns?source=${origin.code}`)
 
@@ -184,67 +153,64 @@ export function LeadDetailPage() {
         Sổ lead
       </Button>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              {lead.company}
-            </h2>
-            <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
-            <StatusBadge lead={lead} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip>{lead.code}</Chip>
-            <MetaPill>{lead.province}</MetaPill>
-            <MetaPill>{CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
-            <MetaPill mono>vào sổ {dmy(lead.createdAt)}</MetaPill>
-            {lead.stage && (
-              <MetaPill tone={isOverSla(lead) ? 'warning' : 'accent'}>
-                {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
-              </MetaPill>
-            )}
-          </div>
+      {/* Dòng tên chỉ chở HAI thứ: tên account và trạng thái. Mọi nhãn phân
+          loại — mã, bậc, ngành, tỉnh, cột — xuống hàng pill dưới. Bậc là một
+          CÁCH XẾP LOẠI lead, trạng thái là lead ĐANG SỐNG HAY KHÔNG; để hai
+          badge cạnh nhau trên dòng tên thì chúng đọc ra như một cặp cùng loại. */}
+      <div className="flex min-w-0 flex-col gap-2">
+        <Kicker>Account</Kicker>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">{accountName}</h2>
+          <StatusBadge lead={lead} reported={reported} />
         </div>
-
-        {/* Góc phải trên: ghim và giao việc. Hai thứ này thuộc về CẢ hồ sơ nên
-            đứng cạnh tiêu đề, không nằm lẫn trong một khối nội dung. */}
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            size="md"
-            variant={pinnedHere ? 'default' : 'ghost'}
-            aria-pressed={pinnedHere}
-            onClick={() => me && togglePin(me.id, lead.code)}
-          >
-            <Icon icon={Pin} size={16} />
-            {pinnedHere ? 'Đã ghim' : 'Ghim'}
-          </Button>
-          <AssignMenu lead={lead} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip>{lead.code}</Chip>
+          <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
+          <MetaPill>{CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
+          <MetaPill>{lead.province}</MetaPill>
+          <MetaPill mono>vào sổ {dmy(lead.createdAt)}</MetaPill>
+          {lead.stage && (
+            <MetaPill tone={isOverSla(lead) ? 'warning' : 'accent'}>
+              {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
+            </MetaPill>
+          )}
         </div>
       </div>
-
-      <ContextRail objects={rail} />
 
       <AssignedPills lead={lead} />
+      <ConvertedCard lead={lead} />
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
+      <div className="grid items-start gap-4 lg:grid-cols-[3fr_1fr] lg:gap-6">
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <OriginCard lead={lead} onOpen={openSource} />
-          <ResearchCard research={research} />
-          <TranscriptCard turns={turns} />
+          <ProfileCard lead={lead} />
+          <NotesCard lead={lead} />
+          <NextActionCard lead={lead} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          {/* Timeline xuống cuối vì nó là khối DÀI nhất của cột: đặt nó trên
-              thì "Lead có vấn đề" tụt khỏi tầm mắt và người dùng tưởng màn
-              không có chỗ báo lead hỏng. */}
-          <SlotsCard lead={lead} />
+          <OriginCard lead={lead} onOpen={openSource} />
           <PeopleCard lead={lead} people={people} />
-          <ExitPanel lead={lead} />
-          <HistoryCard lead={lead} />
+          <ActivityCard lead={lead} />
         </div>
       </div>
 
-      <ActionBar lead={lead} done={done} onAct={act} onOpenSource={openSource} />
+      <ToolsBar
+        lead={lead}
+        pinned={pins.includes(lead.code)}
+        converted={Boolean(deal)}
+        reported={reported}
+        onPin={() => me && togglePin(me.id, lead.code)}
+        onExit={() => setExiting(true)}
+        onConvert={() => setConverting(true)}
+      />
+
+      <ConvertDialog lead={lead} open={converting} onClose={() => setConverting(false)} />
+      <ExitDialog
+        lead={lead}
+        open={exiting}
+        onClose={() => setExiting(false)}
+        onReport={setReported}
+      />
     </div>,
   )
 }
@@ -266,18 +232,18 @@ function EmptyLead({ code, onBack }: { code: string; onBack: () => void }) {
   )
 }
 
-function StatusBadge({ lead }: { lead: Lead }) {
+function StatusBadge({ lead, reported }: { lead: Lead; reported: ExitReason | null }) {
   if (lead.contractCode) return <Badge tone="success">Đã ký · {lead.contractCode}</Badge>
   if (lead.exitReason) return <Badge tone="danger">Đã rơi · {lead.exitReason}</Badge>
+  if (reported) return <Badge tone="warning">Đã báo · {reported}</Badge>
   if (isOverSla(lead)) return <Badge tone="warning">Quá hạn cột</Badge>
   return <Badge tone="running">Đang chạy</Badge>
 }
 
 /** Lead này từ đâu về — bốn kiểu, bốn cách kể.
  *
- *  Đây là câu hỏi đầu tiên người cầm lead hỏi, nên nó là khối đầu tiên. Chiến
- *  dịch và sự kiện mở được sang màn nguồn; hai kiểu tự nhiên vẫn mở được vì
- *  chúng CÓ mặt trong sổ nguồn — chỉ khác là chúng không có đợt nào để xem. */
+ *  Chiến dịch và sự kiện mở được sang màn nguồn; hai kiểu tự nhiên vẫn mở được
+ *  vì chúng CÓ mặt trong sổ nguồn — chỉ khác là chúng không có đợt nào để xem. */
 function OriginCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
   const origin = leadOrigin(lead)
   const face = ORIGIN_FACE[origin.kind]
@@ -313,233 +279,10 @@ function OriginCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
       {isEvent && (
         <div className="flex flex-wrap gap-3 rounded-md bg-white/5 p-3 text-[11.5px]">
           <span>{origin.venue}</span>
-          <Separator className="hidden w-px self-stretch sm:block" />
           <span>
             <span className="tnum font-num">{origin.checkedIn}</span>/
             <span className="tnum font-num">{origin.registered}</span> người đến trên số đăng ký
           </span>
-        </div>
-      )}
-
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        {origin.note} Công trạng kéo lead này về ghi cho nguồn trên; lead qua được cổng thì tính là
-        lead tốt.
-      </p>
-    </GlassCard>
-  )
-}
-
-/** Báo cáo tìm hiểu khách hàng — trạng thái HIỆN TẠI của hiểu biết về khách.
- *
- *  Số lần cập nhật hiện to và đứng trước: nó trả lời "bản tôi đang đọc có mới
- *  không". Một báo cáo không ghi lần cập nhật thì người đọc không biết mình
- *  đang đọc thứ của hôm nay hay của sáu tuần trước. */
-function ResearchCard({ research }: { research: ReturnType<typeof leadResearch> }) {
-  return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Báo cáo tìm hiểu khách hàng">
-      <SectionTitle
-        kicker={`Cập nhật lần thứ ${research.version}`}
-        size="md"
-        hint={
-          research.version > 0
-            ? `Lần gần nhất ${dmy(research.updatedAt)} · ${research.updatedBy}. Mỗi lần nói chuyện với khách là một lần cập nhật.`
-            : 'Chưa ai nói chuyện được với khách — báo cáo còn trắng.'
-        }
-      >
-        Báo cáo tìm hiểu khách hàng
-      </SectionTitle>
-
-      <p className="text-[12.5px] leading-[1.6]">{research.headline}</p>
-
-      {research.lines.length > 0 && (
-        <ul className="flex flex-col gap-3">
-          {research.lines.map((line) => (
-            <li key={line.key} className="flex items-start gap-3">
-              <StatusDot state="ok" className="mt-1" />
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="text-[11px] font-semibold">
-                  <span className="font-mono">{line.no}.</span> {line.label}
-                  {!line.required && (
-                    <span className="text-muted-foreground"> · không bắt buộc</span>
-                  )}
-                </span>
-                <span className="text-glass-foreground text-[12px] leading-[1.6]">{line.body}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {(research.missingRequired.length > 0 || research.missingOptional.length > 0) && (
-        <div className="flex flex-col gap-2 rounded-md bg-white/5 p-3">
-          <Kicker tone="muted">Chưa moi được</Kicker>
-          <MissingLine
-            keys={research.missingRequired}
-            tone="warning"
-            note={`còn thiếu ${research.missingRequired.length} ô BẮT BUỘC — cổng init data chưa mở`}
-          />
-          <MissingLine
-            keys={research.missingOptional}
-            tone="muted"
-            note="không chặn cổng, nhưng vẫn đếm — đó là thước công trạng của BD"
-          />
-        </div>
-      )}
-    </GlassCard>
-  )
-}
-
-function MissingLine({
-  keys,
-  tone,
-  note,
-}: {
-  keys: string[]
-  tone: 'warning' | 'muted'
-  note: string
-}) {
-  if (keys.length === 0) return null
-  const labels = INIT_DATA_QUESTIONS.filter((q) => keys.includes(q.key))
-  return (
-    <p
-      className={cn(
-        'text-[11.5px] leading-[1.5]',
-        tone === 'warning' ? 'text-warning' : 'text-muted-foreground',
-      )}
-    >
-      {labels.map((q) => `${q.no}. ${q.label}`).join(' · ')} — {note}.
-    </p>
-  )
-}
-
-/** Transcript các lần gặp.
- *
- *  Nguyên văn lưu bằng tiếng Anh và ĐÓNG sẵn: docs chốt "transcript tiếng Anh là
- *  dữ liệu lưu, không phải thứ hiển thị mặc định". Thứ mở sẵn là phần rút ra —
- *  ô nào của bộ 10 câu moi được trong lần chạm đó. */
-function TranscriptCard({ turns }: { turns: ReturnType<typeof leadTranscript> }) {
-  const [openTurn, setOpenTurn] = useState<number | null>(null)
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Transcript">
-      <SectionTitle
-        kicker={`${turns.length} lần chạm`}
-        size="md"
-        hint="Lưu nguyên văn bằng tiếng Anh — một ngôn ngữ duy nhất để phân tích được cả sổ. Bộ 10 câu là phần rút ra từ đây, không thay thế nó."
-      >
-        Transcript
-      </SectionTitle>
-
-      {turns.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa lần chạm nào moi được ô nào, nên chưa có gì để lưu. Gọi mà không hỏi ra gì thì không
-          sinh transcript — đó là lý do khối này trống chứ không phải hệ chưa ghi.
-        </p>
-      ) : (
-        <ol className="flex flex-col gap-3">
-          {turns.map((turn) => {
-            const face = TURN_FACE[turn.kind]
-            const open = openTurn === turn.no
-            return (
-              <li key={turn.no} className="flex flex-col gap-3 rounded-md bg-white/5 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="draft">Lần {turn.no}</Badge>
-                  <MetaPill icon={face.icon}>{face.label}</MetaPill>
-                  <MetaPill avatar={turn.by}>{turn.by}</MetaPill>
-                  <MetaPill mono>{dmy(turn.at)}</MetaPill>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {INIT_DATA_QUESTIONS.filter((q) => turn.slots.includes(q.key)).map((q) => (
-                    <Chip key={q.key}>
-                      ô {q.no} · {q.label}
-                    </Chip>
-                  ))}
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="self-start"
-                  aria-expanded={open}
-                  onClick={() => setOpenTurn(open ? null : turn.no)}
-                >
-                  <Icon icon={ChevronDown} size={16} className={cn(open && 'rotate-180')} />
-                  {open ? 'Ẩn nguyên văn' : 'Xem nguyên văn'}
-                </Button>
-
-                {open && (
-                  <div className="flex flex-col gap-2">
-                    {turn.lines.map((line, i) => (
-                      <p
-                        key={i}
-                        className={cn(
-                          'text-[12px] leading-[1.65]',
-                          line.speaker === 'pv'
-                            ? 'text-accent-foreground'
-                            : 'text-glass-foreground',
-                        )}
-                      >
-                        <span className="font-mono text-[10.5px] uppercase tracking-[.13em]">
-                          {line.speaker === 'pv' ? 'PV' : 'KH'}
-                        </span>{' '}
-                        {line.text}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      )}
-    </GlassCard>
-  )
-}
-
-/** Mười ô của bộ 10 câu + cổng. Câu từ chối do engine trả, màn không tự chế. */
-function SlotsCard({ lead }: { lead: Lead }) {
-  const gate = canPromoteToSql(lead)
-  const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
-  const amount = lead.dealCode ? DEAL_AMOUNT.get(lead.dealCode) : undefined
-
-  return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Bộ 10 câu">
-      <SectionTitle size="sm">Bộ 10 câu</SectionTitle>
-
-      <Progress
-        value={lead.requiredFilled / REQUIRED_SLOTS}
-        label={`Ô bắt buộc · ${lead.requiredFilled}/${REQUIRED_SLOTS}`}
-        tone={missing > 0 ? 'warning' : 'primary'}
-      />
-
-      <ul className="flex flex-col gap-2">
-        {INIT_DATA_QUESTIONS.map((q) => {
-          const filled = lead.filled.includes(q.key)
-          return (
-            <li key={q.key} className="flex items-start gap-2 text-[11.5px] leading-[1.5]">
-              <StatusDot state={filled ? 'ok' : q.required ? 'warning' : 'next'} className="mt-1" />
-              <span className={cn(!filled && 'text-muted-foreground')}>
-                <span className="font-mono">{q.no}.</span> {q.label}
-                {!q.required && <span className="text-muted-foreground"> · không bắt buộc</span>}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
-
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Cổng là {REQUIRED_SLOTS} ô bắt buộc, không phải {INIT_DATA_SLOTS}/{INIT_DATA_SLOTS}. Ô nào
-        bắt buộc sửa ở module Cấu hình, không sửa trên màn này.
-        {!gate.ok && ` ${gate.reason}.`}
-      </p>
-
-      {amount && (
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-[11.5px]">Giá trị đơn</span>
-          {/* `card` in ra "4.200,0 tr" — đúng số nhưng không ai đọc đơn tỷ bằng
-              đơn vị triệu. Đơn của sổ cơ hội luôn ở thang tỷ. */}
-          <Money value={amount} scale="hero" />
         </div>
       )}
     </GlassCard>
@@ -561,130 +304,50 @@ function PeopleCard({ lead, people }: { lead: Lead; people: string[] }) {
           <span className="text-muted-foreground">còn ở kho chung, chưa ai nhận</span>
         )}
       </p>
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Giao việc thêm người vào đây nhưng KHÔNG đổi người giữ — đổi tay là đề nghị riêng, vì phần
-        chốt của hoa hồng chia lại theo đó.
-      </p>
     </GlassCard>
   )
 }
 
-/** Cả đời lead, theo thứ tự thời gian. Danh sách dài → glass-b (luật 8). */
-function HistoryCard({ lead }: { lead: Lead }) {
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Timeline">
-      <SectionTitle size="sm">Timeline · {lead.history.length} mốc</SectionTitle>
-      <Timeline
-        items={lead.history.map((e, i) => ({
-          id: `${e.at}-${i}`,
-          state: EVENT_DOT[e.kind],
-          marker: dm(e.at),
-          title: e.note,
-          meta: <MetaPill avatar={e.by}>{e.by}</MetaPill>,
-        }))}
-      />
-    </GlassCard>
-  )
-}
-
-/** 2.3 · report. ĐÚNG sáu lý do, không có ô "khác". */
-function ExitPanel({ lead }: { lead: Lead }) {
-  const [reported, setReported] = useState<ExitReason | null>(null)
-  const [draft, setDraft] = useState<ExitReason | null>(null)
-
-  return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead có vấn đề">
-      <SectionTitle size="sm">
-        <span className="flex items-center gap-2">
-          <Icon icon={TriangleAlert} size={16} className="text-warning" />
-          Lead có vấn đề
-        </span>
-      </SectionTitle>
-
-      {lead.exitReason ? (
-        <div className="flex flex-col gap-2">
-          <Badge tone="danger" className="self-start">
-            Đã ra khỏi luồng · {lead.exitReason}
-          </Badge>
-          {lead.exitedAt && (
-            <span className="text-muted-foreground text-[11.5px]">
-              Ghi nhận {dmy(lead.exitedAt)}
-            </span>
-          )}
-        </div>
-      ) : reported ? (
-        <div className="flex flex-col gap-3">
-          <Badge tone="warning" className="self-start">
-            Đã báo · {reported}
-          </Badge>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="self-start"
-            onClick={() => setReported(null)}
-          >
-            Rút lại
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {EXIT_REASONS.map((r) => (
-              <Button
-                key={r.label}
-                size="sm"
-                variant={draft === r.label ? 'default' : 'ghost'}
-                onClick={() => setDraft(r.label)}
-              >
-                {r.label}
-              </Button>
-            ))}
-          </div>
-          <Button
-            size="md"
-            variant="destructive"
-            disabled={!draft}
-            className="self-start"
-            onClick={() => {
-              if (!draft) return
-              setReported(draft)
-              setDraft(null)
-              /* Nối E2 khi có backend: mọi lần đưa lead ra khỏi luồng phải ghi vết. */
-            }}
-          >
-            Đưa ra khỏi luồng
-          </Button>
-          <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Sáu lý do là toàn bộ danh sách, không có ô &quot;khác&quot;. Lý do thứ bảy là hành động
-            cấu hình ở module 5, không gõ vào màn.
-          </p>
-        </>
-      )}
-    </GlassCard>
-  )
-}
-
-/** Thanh dính đáy: liên hệ khách bên trái, next action bên phải.
+/** Thanh công cụ dính đáy — AI ở trái, LÀM GÌ ở phải.
  *
- *  Hai thứ này đi cùng nhau có chủ ý — mọi hành động ở đây kết thúc bằng việc
- *  chạm khách, nên số điện thoại phải nằm ngay cạnh nút chứ không nằm ở một
- *  khối đã cuộn mất từ lâu. Thanh DÍNH chứ không cố định tuyệt đối: nó ở trong
- *  luồng nội dung nên không đè lên sidebar, và dưới `lg` thì nhường chỗ cho
- *  BottomNav 84px của AppShell. */
-function ActionBar({
+ *  ------------------------------------------------------------------
+ *  VÌ SAO PIC ĐỨNG NGAY CẠNH KHÁCH
+ *  ------------------------------------------------------------------
+ *  Thanh này chia làm hai nửa theo câu hỏi nó trả lời, không theo loại
+ *  component:
+ *
+ *   · nửa trái = **AI** — khách là ai (công ty + người liên hệ + số gọi được)
+ *     và PIC bên mình là ai;
+ *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
+ *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
+ *
+ *  PIC nằm ngay sau khối khách, TRƯỚC vạch ngăn, vì hai thứ đó là một cặp đọc
+ *  cùng nhau: trước khi bấm gọi, người ta liếc "mình đang gọi cho ai" và "lead
+ *  này đang đứng tên ai" — nếu không phải tên mình thì cuộc gọi đó là chen
+ *  ngang. Đẩy PIC sang nửa phải là trộn một thông tin vào giữa các nút; đẩy
+ *  xuống một khối riêng trong trang là bắt cuộn đi tìm đúng lúc sắp gọi.
+ *
+ *  Thanh DÍNH chứ không cố định tuyệt đối: nó ở trong luồng nội dung nên không
+ *  đè lên sidebar, và dưới `lg` thì nhường chỗ cho BottomNav 84px của AppShell. */
+function ToolsBar({
   lead,
-  done,
-  onAct,
-  onOpenSource,
+  pinned,
+  converted,
+  reported,
+  onPin,
+  onExit,
+  onConvert,
 }: {
   lead: Lead
-  done: string[]
-  onAct: (code: string, key: string) => void
-  onOpenSource: () => void
+  pinned: boolean
+  converted: boolean
+  reported: ExitReason | null
+  onPin: () => void
+  onExit: () => void
+  onConvert: () => void
 }) {
   const contact = leadContact(lead)
-  const actions = nextActions(lead).filter((a) => a.key !== 'giao-viec')
-  const primary = actions.find((a) => a.primary)
+  const ownerRole = dasVina.actors.find((a) => a.name === lead.owner)?.role
 
   return (
     <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
@@ -694,11 +357,11 @@ function ActionBar({
            blur vì nó nằm trên một cái nền tĩnh (xem globals.css). Thanh này thì
            có NỘI DUNG TRÔI phía sau, và 16% lọt qua của --popover đủ để chữ bên
            dưới đội lên chữ của thanh. */
-        className="shadow-panel flex flex-wrap items-center justify-between gap-4 p-4 backdrop-blur-xl"
-        aria-label="Liên hệ và việc tiếp theo"
+        className="shadow-panel flex flex-wrap items-center gap-4 p-4 backdrop-blur-xl"
+        aria-label="Thanh công cụ"
       >
         <div className="flex min-w-0 flex-col gap-1">
-          <Kicker tone="muted">Liên hệ khách</Kicker>
+          <Kicker tone="muted">Khách</Kicker>
           {contact ? (
             <div className="flex flex-wrap items-center gap-2">
               <MetaPill avatar={contact.name}>
@@ -718,45 +381,86 @@ function ActionBar({
             </div>
           ) : (
             <span className="text-warning text-[11.5px] leading-[1.5]">
-              Chưa có người liên hệ — ô số 4 của bộ 10 câu còn trống. Chưa moi được thì chưa gọi
-              được cho ai.
+              Chưa moi được người liên hệ — chưa gọi được cho ai.
             </span>
           )}
         </div>
 
-        <div className="flex flex-col items-start gap-2 lg:items-end">
-          <div className="flex flex-wrap gap-2">
-            {actions.map((a) => {
-              const pressed = done.includes(a.key)
-              return pressed ? (
-                <Badge key={a.key} tone="warning" className="self-center">
-                  Đã đề nghị · {a.label}
-                </Badge>
-              ) : (
-                <Button
-                  key={a.key}
-                  size="md"
-                  variant={a.primary ? 'default' : 'ghost'}
-                  onClick={() => (a.key === 'mo-nguon' ? onOpenSource() : onAct(lead.code, a.key))}
-                >
-                  <Icon icon={a.icon} size={16} />
-                  {a.label}
-                </Button>
-              )
-            })}
-          </div>
-          {primary && (
-            <span className="text-muted-foreground max-w-[520px] text-[11px] leading-[1.5] lg:text-right">
-              {primary.why} Người gật là {HEAD_OF_SALES}.
+        <Separator className="hidden h-8 w-px lg:block" />
+
+        <div className="flex min-w-0 flex-col gap-1">
+          <Kicker tone="muted">PIC của lead</Kicker>
+          {lead.owner ? (
+            <span className="flex items-center gap-2">
+              <Avatar name={lead.owner} size="sm" />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[12.5px] font-semibold">
+                  {lead.owner}
+                  {ownerRole && (
+                    <span className="text-muted-foreground font-normal"> · {ownerRole}</span>
+                  )}
+                </span>
+                {/* Hòm thư công ty, cùng thứ sổ lead in ở cột Lead PIC — hai màn
+                    nói về một người thì phải nói cùng một mã. */}
+                <span className="text-muted-foreground truncate font-mono text-[10.5px]">
+                  {staffEmail(lead.owner)}
+                </span>
+              </span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-[11.5px]">
+              Còn ở kho chung, chưa ai nhận
             </span>
           )}
         </div>
 
-        {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của
-            AppShell). Thanh này chạm mép phải cùng chỗ với nút đó, nên không
-            chừa thì nút đè lên đúng hành động cuối. Dưới `lg` không có FAB nên
-            cũng không có ô này. */}
-        <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
+        <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <Button
+            size="md"
+            variant={pinned ? 'default' : 'ghost'}
+            aria-pressed={pinned}
+            onClick={onPin}
+          >
+            <Icon icon={Pin} size={16} />
+            {pinned ? 'Đã ghim' : 'Ghim'}
+          </Button>
+          <AssignMenu lead={lead} placement="up" />
+
+          <Separator className="hidden h-8 w-px lg:block" />
+
+          <Button
+            size="md"
+            variant="ghost"
+            disabled={!contact?.phone}
+            title={contact?.phone ?? 'Chưa moi được kênh gọi lại được'}
+          >
+            <Icon icon={Phone} size={16} />
+            {contact ? `Gọi ${contact.name}` : 'Gọi PIC'}
+          </Button>
+
+          {(reported ?? lead.exitReason) ? (
+            <Badge tone="warning">Đã báo · {reported ?? lead.exitReason}</Badge>
+          ) : (
+            <Button size="md" variant="destructive" onClick={onExit}>
+              <Icon icon={TriangleAlert} size={16} />
+              Lead có vấn đề
+            </Button>
+          )}
+
+          {converted ? (
+            <Badge tone="success">Đã đổi thành cơ hội</Badge>
+          ) : (
+            <Button size="md" onClick={onConvert}>
+              <Icon icon={ArrowRight} size={16} />
+              Chuyển thành cơ hội
+            </Button>
+          )}
+
+          {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của
+              AppShell). Thanh này chạm mép phải cùng chỗ với nút đó, nên không
+              chừa thì nút đè lên đúng hành động cuối. */}
+          <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
+        </div>
       </GlassCard>
     </div>
   )

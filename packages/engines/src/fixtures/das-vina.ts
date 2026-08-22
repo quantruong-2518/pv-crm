@@ -1,4 +1,5 @@
 import { loadScenario, type Scenario } from './scenario'
+import type { Actor } from '../types'
 
 /** KỊCH BẢN 2 · DAS Vina — khách CHƯA MUA. Dùng cho cả năm module Sales và mọi
  *  màn nói về *trước khi có hợp đồng*. Đóng băng tại 17/08 · 09:10.
@@ -2461,7 +2462,7 @@ const ASK: Record<QuestionKey, string> = {
 const REPLY: Record<QuestionKey, (l: Lead, category: string) => string> = {
   'phap-nhan': (l) => `${l.company} JSC. The plant is in ${l.province}; I will send the tax code.`,
   nganh: (_l, c) => `${c}. One main line, plus a smaller line we started this year.`,
-  'quy-mo': (l) => `About ${400 + (seedOf(l.code) % 12) * 100} people on site. One plant for now.`,
+  'quy-mo': (l) => `About ${headcountOf(l)} people on site. One plant for now.`,
   'nguoi-lien-he': () => 'I own it. Procurement joins once we get to numbers.',
   kenh: () => 'Zalo is fastest. Email works for anything I have to forward internally.',
   dau: (_l, c) =>
@@ -2541,7 +2542,7 @@ export function leadTranscript(lead: Lead): TranscriptTurn[] {
 const DIGEST: Record<QuestionKey, (l: Lead, category: string) => string> = {
   'phap-nhan': (l) => `${l.company} — pháp nhân đã xác minh, nhà máy đặt tại ${l.province}.`,
   nganh: (_l, c) => `Ngành ${c.toLowerCase()}; một dây chuyền chính, một dây mới mở trong năm.`,
-  'quy-mo': (l) => `Khoảng ${400 + (seedOf(l.code) % 12) * 100} người tại chỗ, một nhà máy.`,
+  'quy-mo': (l) => `Khoảng ${headcountOf(l)} người tại chỗ, một nhà máy.`,
   'nguoi-lien-he': () => 'Người liên hệ tự đứng tên việc này; mua hàng vào cuộc khi bàn tới số.',
   kenh: () => 'Zalo là kênh nhanh nhất; email dùng cho thứ cần chuyển tiếp nội bộ.',
   dau: (_l, c) => `Đau chính: không biết lô ${c.toLowerCase()} nằm ở đâu cho tới khi hết ca.`,
@@ -2678,4 +2679,411 @@ export function leadMilestones(lead: Lead): LeadMilestones {
 export function daysBetween(from: string | undefined, to: string | undefined): number | null {
   if (!from || !to) return null
   return (Date.parse(to) - Date.parse(from)) / DAY_MS
+}
+
+// ---------------------------------------------------------------------------
+// HỒ SƠ LEAD — bộ 10 câu mở ra thành TRƯỜNG THẬT
+// ---------------------------------------------------------------------------
+//
+// `Lead` ở trên là dòng SỔ: vừa đủ để xếp hàng, đếm bậc, tô cảnh báo. Nó cố ý
+// không mang nội dung — `requiredFilled: 6` nói "đã moi được sáu ô" chứ không
+// nói sáu ô đó ghi gì.
+//
+// `LeadProfile` là chỗ chứa nội dung đó. Nguyên tắc dựng nó chỉ có một câu:
+//
+//     MỖI TRƯỜNG THUỘC ĐÚNG MỘT Ô CỦA BỘ 10 CÂU, HOẶC KHÔNG THUỘC Ô NÀO
+//     VÀ KHI ĐÓ NÓ LÀ THỨ HỆ TỰ GHI.
+//
+// Nhờ vậy hồ sơ không phải "một form CRM chép của người khác": nó là bộ 10 câu
+// đã chốt, mở ra thành ô nhập. Điền đầy trường là moi được ô; moi đủ sáu ô bắt
+// buộc là qua cổng init data. Người dùng thấy thanh cổng nhích lên trong lúc gõ
+// chứ không phải bấm một nút "đánh dấu đã moi" ở đâu đó.
+//
+// Ô CHƯA MOI ĐƯỢC TRẢ CHUỖI RỖNG (hoặc null với số). Đây là điểm dễ hỏng nhất
+// của cả file: điền một giá trị mặc định cho đẹp form là phá đúng thứ cổng init
+// data sinh ra để đo — `leadContact` phía trên đã dặn y hệt về ô số 4.
+// ---------------------------------------------------------------------------
+
+/** Số người tại chỗ của một khách.
+ *
+ *  Tách thành hàm vì BA chỗ đang nói về cùng con số này: câu trả lời trong
+ *  transcript (`REPLY['quy-mo']`), dòng rút ra của báo cáo (`DIGEST['quy-mo']`)
+ *  và trường `headcount` của hồ sơ. Ba bản chép tay sẽ lệch nhau, và lệch ở đây
+ *  đọc ra thành "hệ ghi hai quy mô khác nhau cho một nhà máy".
+ *
+ *  DAS Vina lấy số THẬT của kịch bản (1.400 người, ghi ở `objects` · AC-0142),
+ *  không lấy số suy ra — nó là dòng mồi, mọi chỗ nói về nó phải khớp nhau. */
+export function headcountOf(lead: Pick<Lead, 'code'>): number {
+  if (lead.code === DAS_VINA_LEAD) return 1_400
+  return 400 + (seedOf(lead.code) % 12) * 100
+}
+
+/** Hai đồng tiền, không hơn.
+ *
+ *  Thêm EUR hay JPY thì phải bịa tỷ giá — mà `USD_VND` là mốc ĐẶT có người chịu
+ *  trách nhiệm (Trần Thu Hà · 20/08), không phải một con số tiện tay. Cần đồng
+ *  thứ ba thì thêm mốc tỷ giá trước, đừng thêm dòng select trước. */
+export type CurrencyCode = 'VND' | 'USD'
+
+export const CURRENCIES = [
+  { code: 'VND', label: 'VND · Việt Nam đồng', symbol: '₫', rate: 1 },
+  { code: 'USD', label: 'USD · đô la Mỹ', symbol: '$', rate: USD_VND },
+] as const satisfies readonly { code: CurrencyCode; label: string; symbol: string; rate: number }[]
+
+/** Quy về đồng. Mọi chỗ CỘNG tiền phải đi qua đây — sổ cơ hội cộng bằng đồng,
+ *  cộng thẳng số USD vào đó là sai 26.400 lần. */
+export function toDong(amount: number, currency: CurrencyCode): number {
+  return amount * (CURRENCIES.find((c) => c.code === currency)?.rate ?? 1)
+}
+
+/** Hồ sơ đầy đủ của một lead.
+ *
+ *  Bốn cụm, xếp đúng thứ tự người cầm lead cần đọc:
+ *   1 · KHÁCH LÀ AI          — ô 1 · 2 · 3
+ *   2 · NÓI CHUYỆN VỚI AI    — ô 4 · 5
+ *   3 · VIỆC KHÁCH MUỐN GIẢI — ô 6 · 7 · 8 · 9 · 10
+ *   4 · SỔ SÁCH              — hệ tự ghi, không moi từ khách
+ *
+ *  Cụm 4 phủ đúng tám cột của sổ lead (mã · công ty · người liên hệ · chức danh
+ *  · nguồn · trạng thái · người giữ; ghim là thứ của người XEM chứ không của
+ *  lead) — mở hồ sơ ra là thấy lại đủ dòng mình vừa bấm, không thiếu cột nào. */
+export type LeadProfile = {
+  // ── 1 · Khách là ai ──────────────────────────────────────────────────────
+  /** ô 1 — tên trên giấy tờ, khác tên gọi trong sổ. */
+  legalName: string
+  /** ô 1 */
+  taxCode: string
+  /** ô 1 */
+  address: string
+  /** Tỉnh — hệ ghi từ lúc lead vào sổ, không phải ô moi được. */
+  province: string
+  /** ô 2 — ngành đã có sẵn ở dòng sổ; đây là ô CHỌN, không phải ô gõ. */
+  category: LeadCategory
+  /** ô 2 */
+  mainProduct: string
+  /** ô 3 */
+  headcount: number | null
+  /** ô 3 */
+  plants: number | null
+
+  // ── 2 · Nói chuyện với ai ────────────────────────────────────────────────
+  /** ô 4 */
+  contactName: string
+  /** ô 4 */
+  contactTitle: string
+  /** ô 5 */
+  phone: string
+  /** ô 5 */
+  email: string
+  /** ô 5 — kênh khách gọi lại được, cùng bộ kênh với module 1. */
+  channel: WaveChannel | ''
+
+  // ── 3 · Việc khách muốn giải ─────────────────────────────────────────────
+  /** ô 6 — câu quan trọng nhất của cả hồ sơ, nên là ô DÀI. */
+  pain: string
+  /** ô 7 */
+  currentStack: string
+  /** ô 8 */
+  decisionMaker: string
+  /** ô 8 */
+  approver: string
+  /** ô 9 — khoảng tiền KHÁCH nói, không phải giá mình chào. */
+  budget: number | null
+  /** ô 9 */
+  currency: CurrencyCode
+  /** ô 10 — ISO ngày. */
+  deadline: string
+
+  // ── 4 · Sổ sách ──────────────────────────────────────────────────────────
+  code: string
+  company: string
+  tier: LeadTier
+  source: string
+  owner: string
+  bdOwner: string
+  marketingOwner: string
+  createdAt: string
+  stage: StageKey | ''
+  dealCode: string
+  contractCode: string
+  exitReason: ExitReason | ''
+}
+
+/** Ô nào của bộ 10 câu do trường nào chở.
+ *
+ *  Đây là bảng NỐI, và nó phải nằm cạnh `LeadProfile` chứ không nằm ở tầng màn:
+ *  cổng init data đọc bảng này để biết một ô đã moi được hay chưa, mà cổng là
+ *  luật của phòng, không phải cách trình bày của một cái form.
+ *
+ *  MỘT Ô CÓ GÌ LÀ ĐÃ MOI ĐƯỢC. Ô 1 chở ba trường (tên pháp nhân · mã số thuế ·
+ *  địa chỉ); xoá mã số thuế mà còn tên pháp nhân thì ô vẫn tính là có — cổng
+ *  hỏi "đã biết công ty là ai chưa", không hỏi "đã điền hết ba dòng chưa". */
+export const SLOT_FIELDS: Record<QuestionKey, (keyof LeadProfile)[]> = {
+  'phap-nhan': ['legalName', 'taxCode', 'address'],
+  nganh: ['mainProduct'],
+  'quy-mo': ['headcount', 'plants'],
+  'nguoi-lien-he': ['contactName', 'contactTitle'],
+  kenh: ['phone', 'email', 'channel'],
+  dau: ['pain'],
+  'dang-dung': ['currentStack'],
+  'nguoi-ky': ['decisionMaker', 'approver'],
+  tien: ['budget'],
+  moc: ['deadline'],
+}
+
+/** Ô nào đã moi được, đọc từ CHÍNH hồ sơ đang sửa.
+ *
+ *  Hàm này là thứ khiến thanh cổng nhích lên trong lúc gõ: màn không tự đếm ô,
+ *  nó hỏi hàm này. Trả về cùng thứ tự với `INIT_DATA_QUESTIONS`. */
+export function filledSlots(profile: LeadProfile): QuestionKey[] {
+  return INIT_DATA_QUESTIONS.filter((q) =>
+    SLOT_FIELDS[q.key].some((f) => {
+      const v = profile[f]
+      return v !== '' && v !== null && v !== undefined
+    }),
+  ).map((q) => q.key)
+}
+
+const MAIN_PRODUCT: Record<LeadCategory, string> = {
+  chip: 'Đóng gói và kiểm tra chip bán dẫn',
+  'co-khi': 'Gia công cơ khí chính xác theo bản vẽ',
+  'o-to': 'Phụ tùng lắp ráp ô tô',
+  duoc: 'Dược phẩm và thực phẩm chức năng',
+}
+
+/** Hồ sơ đầy đủ, dựng từ dòng sổ.
+ *
+ *  Tất định: cùng một mã lead luôn ra cùng một hồ sơ. Trường của ô CHƯA moi
+ *  được trả rỗng — đó là dữ liệu, không phải lỗi hiển thị.
+ *
+ *  Nội dung tiếng Việt ở đây và bản rút ra của `DIGEST` nói cùng một chuyện: cả
+ *  hai đều là phần rút ra từ transcript tiếng Anh, chỉ khác là bảng dưới cắt
+ *  nhỏ ra thành từng ô để sửa được. */
+export function leadProfile(lead: Lead): LeadProfile {
+  const i = seedOf(lead.code)
+  const has = (k: QuestionKey) => lead.filled.includes(k)
+  const contact = leadContact(lead)
+  const origin = leadOrigin(lead)
+  const marks = leadMilestones(lead)
+  const anchor = lead.code === DAS_VINA_LEAD
+  const category = LEAD_CATEGORIES.find((c) => c.key === lead.category)?.label ?? lead.category
+  const amount = lead.dealCode
+    ? OPEN_DEALS.find((d) => d.code === lead.dealCode)?.amount
+    : undefined
+
+  return {
+    legalName: has('phap-nhan')
+      ? anchor
+        ? 'DAS Vina Co., Ltd.'
+        : `Công ty Cổ phần ${lead.company}`
+      : '',
+    taxCode: has('phap-nhan') ? String(2_300_000_000 + i * 37) : '',
+    address: has('phap-nhan') ? `Lô ${1 + (i % 9)}, Khu công nghiệp ${lead.province}` : '',
+    province: lead.province,
+    category: lead.category,
+    mainProduct: has('nganh')
+      ? anchor
+        ? 'Đóng gói chip bán dẫn cho khách Hàn Quốc'
+        : MAIN_PRODUCT[lead.category]
+      : '',
+    headcount: has('quy-mo') ? headcountOf(lead) : null,
+    plants: has('quy-mo') ? 1 : null,
+
+    contactName: contact?.name ?? '',
+    contactTitle: contact?.title ?? '',
+    phone: contact?.phone ?? '',
+    email: contact?.email ?? '',
+    channel: contact?.channel ?? '',
+
+    pain: has('dau')
+      ? `Không biết một lô ${category.toLowerCase()} đang nằm ở đâu cho tới lúc hết ca. Muốn nhìn được tiến độ ngay trong ca, không phải sau ca.`
+      : '',
+    currentStack: has('dang-dung')
+      ? 'Excel và một công cụ nội bộ cũ. Số trong đó không ai tin, mỗi phòng giữ một bản riêng.'
+      : '',
+    decisionMaker: has('nguoi-ky')
+      ? anchor
+        ? 'Giám đốc bên Hàn Quốc ký cuối'
+        : 'Hội đồng quản trị ký cuối'
+      : '',
+    approver: has('nguoi-ky')
+      ? anchor
+        ? 'Trên 3 tỷ phải xin công ty mẹ duyệt'
+        : 'Tài chính duyệt mọi khoản vượt trần năm'
+      : '',
+    budget: has('tien') ? (amount ?? 250_000_000 * (2 + (i % 12))) : null,
+    currency: 'VND',
+    /* "Trước kỳ kiểm toán tới — còn khoảng một quý" của báo cáo, quy ra ngày.
+       Rải trong khoảng 60–120 ngày để hai lead không cùng một hạn. */
+    deadline: has('moc') ? dayISO(DAY_FROZEN + 60 + (i % 5) * 15).slice(0, 10) : '',
+
+    code: lead.code,
+    company: lead.company,
+    tier: lead.tier,
+    source: lead.source,
+    owner: lead.owner ?? '',
+    /* Hai vai này KHÔNG phải người giữ lead — chúng là công trạng đã ghi: BD có
+       tên khi BD đã đặt tay vào (mốc `dien-o`), Marketing có tên khi lead về từ
+       một nguồn có đợt chạy. Suy ra chứ không khai tay, vì hoa hồng đọc đúng
+       hai mốc đó (`CREDIT_RULES`). */
+    bdOwner: marks.bdCham ? BD : '',
+    marketingOwner: origin.kind === 'chien-dich' || origin.kind === 'su-kien' ? MARKETING : '',
+    createdAt: lead.createdAt,
+    stage: lead.stage ?? '',
+    dealCode: lead.dealCode ?? '',
+    contractCode: lead.contractCode ?? '',
+    exitReason: lead.exitReason ?? '',
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Đổi lead thành cơ hội — trạng thái, lý do thua, và bản nháp phiếu
+// ---------------------------------------------------------------------------
+
+/** NĂM trạng thái của một cơ hội.
+ *
+ *  Đừng nhầm với `PIPELINE_STAGES`. Hai bảng trả lời hai câu khác nhau:
+ *   · `PIPELINE_STAGES` — đơn ĐANG NẰM Ở CỘT NÀO của sổ cơ hội, và cột đó có
+ *     hạn bao nhiêu ngày. Đó là thứ đo tắc nghẽn.
+ *   · `OPPORTUNITY_STATES` — người bán ĐANG LÀM GÌ với đơn, kể cả hai kết cục
+ *     đóng sổ (won · lost) mà cột pipeline không diễn tả được.
+ *
+ *  `stage` dưới đây là dây nối: chọn một trạng thái là đơn rơi vào đúng một cột.
+ *  Hai kết cục đóng sổ không có cột nào — đơn ra khỏi bảng năm cột, nên `stage`
+ *  của chúng là `null` chứ không phải "cột thứ sáu".
+ *
+ *  Thứ tự giữ đúng thứ tự đã chốt khi đặt hàng màn, không xếp lại theo nhóm. */
+export const OPPORTUNITY_STATES = [
+  { key: 'gui-quotation', label: 'Gửi quotation', stage: 'da-bao-gia' },
+  { key: 'nego', label: 'Nego', stage: 'cho-ky' },
+  { key: 'close-won', label: 'Close won', stage: null },
+  { key: 'close-lost', label: 'Close lost', stage: null },
+  { key: 'pending', label: 'Pending', stage: 'tim-hieu' },
+] as const satisfies readonly { key: string; label: string; stage: StageKey | null }[]
+
+export type OpportunityState = (typeof OPPORTUNITY_STATES)[number]['key']
+
+/** Lý do thua một CƠ HỘI. Khác `EXIT_REASONS`, và khác ở chỗ quan trọng:
+ *
+ *   · `EXIT_REASONS` là sáu lý do một LEAD chết TRƯỚC khi thành cơ hội. Danh
+ *     sách ĐÓNG, không có ô "khác": lý do thứ bảy là việc của module 5.
+ *   · Bảng này là lý do một cơ hội ĐÃ BÁO GIÁ thua. Nó MỞ — có ô ghi thêm — vì
+ *     lý do thua đơn là thứ học được từ thị trường, không phải thứ phòng tự quy
+ *     định. Bảy dòng dưới là bảy lý do hay gặp, không phải toàn bộ. */
+export const LOSS_REASONS = [
+  'Giá cao hơn đối thủ',
+  'Khách chọn đối thủ khác',
+  'Không đủ ngân sách năm nay',
+  'Dự án hoãn vô thời hạn',
+  'Thiếu tính năng khách cần',
+  'Thời gian triển khai không kịp',
+  'Mất người ủng hộ bên trong',
+] as const
+
+/** Tệp đính kèm — POC giữ đúng tên và cỡ, không giữ nội dung. */
+export type OpportunityFile = { name: string; size: number }
+
+/** Phiếu đổi lead thành cơ hội, đúng bộ trường đã chốt. */
+export type OpportunityDraft = {
+  code: string
+  name: string
+  account: string
+  /** Mã object account trong đồ thị E1, nếu lead đã có. */
+  accountCode: string
+  /** ISO ngày — ngày dự kiến đóng đơn. */
+  closedDate: string
+  state: OpportunityState
+  amount: number | null
+  currency: CurrencyCode
+  /** id của actor, không phải tên: tên đổi được, id thì không. */
+  saleOwners: string[]
+  bdOwners: string[]
+  description: string
+  attachments: OpportunityFile[]
+  /** Chỉ có nghĩa khi `state === 'close-lost'`. */
+  lossReason: string
+  lossNote: string
+}
+
+/** Mã cơ hội kế tiếp — lớn nhất trong sổ cộng một.
+ *
+ *  Đếm từ `OPEN_DEALS` chứ không gõ hằng số: thêm một đơn vào sổ là mã kế tiếp
+ *  tự đúng. Có backend thì đây là chỗ đổi thành lời gọi cấp mã. */
+export function nextOpportunityCode(): string {
+  const top = OPEN_DEALS.reduce((max, d) => Math.max(max, Number(d.code.slice(3))), 0)
+  return `OP-${String(top + 1).padStart(4, '0')}`
+}
+
+/** Bản nháp mở sẵn của phiếu đổi.
+ *
+ *  Mở form ra là đã có gần đủ: mã hệ cấp, tên ghép từ khách và thứ đang bán,
+ *  tiền lấy đúng khoảng tiền khách đã nói (ô 9), người bán là Sale phụ trách
+ *  ngành. Người dùng SỬA một bản nháp chứ không GÕ một tờ giấy trắng — đó là
+ *  khác biệt giữa một phiếu mất hai phút và một phiếu bị bỏ dở.
+ *
+ *  Ngày đóng dự kiến: 45 ngày kể từ lát cắt đóng băng. Không dùng `Date.now()`
+ *  — kịch bản đóng băng thì hai lần mở form phải ra đúng một ngày. */
+export function draftOpportunity(lead: Lead, actors: readonly Actor[]): OpportunityDraft {
+  const profile = leadProfile(lead)
+  const saleName = lead.owner ?? saleOfCategory(lead.category)
+  const idOf = (name: string | undefined) => actors.find((a) => a.name === name)?.id
+  const sale = idOf(saleName)
+  const bd = profile.bdOwner ? idOf(profile.bdOwner) : undefined
+  const account = lead.dealCode
+    ? dasVina.graph.story(lead.dealCode).find((o) => o.kind === 'AC')
+    : undefined
+
+  return {
+    code: nextOpportunityCode(),
+    name: profile.mainProduct
+      ? `${lead.company} · ${profile.mainProduct}`
+      : `${lead.company} · chưa chốt phạm vi`,
+    account: lead.company,
+    accountCode: account?.code ?? '',
+    closedDate: dayISO(DAY_FROZEN + 45).slice(0, 10),
+    state: 'gui-quotation',
+    amount: profile.budget,
+    currency: profile.currency,
+    saleOwners: sale ? [sale] : [],
+    bdOwners: bd ? [bd] : [],
+    description: profile.pain,
+    attachments: [],
+    lossReason: '',
+    lossNote: '',
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Định danh người trong công ty
+// ---------------------------------------------------------------------------
+
+/** Tên miền thư của Pebble Vina. Một chỗ, vì nó xuất hiện ở mọi màn có tên
+ *  người bên mình. */
+export const COMPANY_DOMAIN = 'pebblevina.com'
+
+/** Mã nhân viên: tên gọi + chữ đầu của các chữ đứng trước.
+ *
+ *  "Đỗ Quang Huy" → `huydq`. Đây là quy ước đặt hòm thư của công ty Việt Nam,
+ *  không phải một cách viết tắt tự nghĩ ra: tên gọi đứng trước vì đó là thứ
+ *  người ta gọi nhau, họ và tên đệm rút thành chữ cái để phân biệt hai người
+ *  trùng tên.
+ *
+ *  Bỏ dấu bằng `deburr` — hòm thư không mang dấu tiếng Việt. */
+export function staffHandle(name: string): string {
+  const parts = deburr(name).toLowerCase().split(/\s+/).filter(Boolean)
+  const given = parts[parts.length - 1] ?? ''
+  const initials = parts
+    .slice(0, -1)
+    .map((p) => p.slice(0, 1))
+    .join('')
+  return `${given}${initials}`
+}
+
+/** Hòm thư công ty của một người bên mình.
+ *
+ *  Dùng nó ở MỌI cột "ai đang giữ": tên hiển thị đọc đẹp nhưng trùng được, còn
+ *  hòm thư là khoá thật của một con người trong hệ. Khi có backend thì trường
+ *  này đến từ hệ nhân sự chứ không suy từ tên — đổi thân hàm, chỗ gọi giữ nguyên. */
+export function staffEmail(name: string): string {
+  return `${staffHandle(name)}@${COMPANY_DOMAIN}`
 }

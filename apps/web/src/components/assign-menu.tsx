@@ -37,10 +37,13 @@ type MenuProps = {
   lead: Lead
   /** Nút to cho màn chi tiết, nút nhỏ cho hàng bảng. */
   size?: 'sm' | 'md'
+  /** Bảng xổ lên hay xuống. `up` cho nút nằm trên thanh dính đáy — xổ xuống ở
+   *  đó thì bảng rơi ra ngoài cửa sổ và người dùng chỉ thấy một mép sáng. */
+  placement?: 'down' | 'up'
   className?: string
 }
 
-export function AssignMenu({ lead, size = 'md', className }: MenuProps) {
+export function AssignMenu({ lead, size = 'md', placement = 'down', className }: MenuProps) {
   const me = useSession((s) => s.actor)
   const assigns = useLeadDesk((s) => s.assigns)
   const assign = useLeadDesk((s) => s.assign)
@@ -125,7 +128,10 @@ export function AssignMenu({ lead, size = 'md', className }: MenuProps) {
                blur vì nó nằm trên nền tĩnh, còn bảng này NỔI TRÊN nội dung —
                16% lọt qua của --popover đủ để chữ bên dưới đội lên danh sách
                người. */
-            className="absolute right-0 top-[calc(100%+8px)] z-30 flex max-h-[70vh] w-[360px] max-w-[calc(100vw-32px)] flex-col gap-3 p-4 backdrop-blur-xl"
+            className={cn(
+              'absolute right-0 z-30 flex max-h-[70vh] w-[360px] max-w-[calc(100vw-32px)] flex-col gap-3 p-4 backdrop-blur-xl',
+              placement === 'up' ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]',
+            )}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">

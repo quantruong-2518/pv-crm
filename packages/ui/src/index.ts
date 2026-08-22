@@ -40,6 +40,7 @@ export * from './ui/separator'
 export * from './ui/skeleton'
 export * from './ui/sparkline'
 export * from './ui/status-dot'
+export * from './ui/textarea'
 
 // ---- Zone 02 · Molecules (M-01 … M-12) ----
 export * from './patterns/ai-action'

@@ -8,7 +8,7 @@ import { LeadDetailPage } from './lead-detail'
  *
  *  Năm thứ màn này phải nói ra, và đều là thứ dễ mất khi ai đó rút gọn giao diện:
  *   · lead từ ĐÂU về, và mở được sang màn nguồn;
- *   · báo cáo tìm hiểu ghi rõ CẬP NHẬT LẦN THỨ MẤY;
+ *   · hồ sơ ghi rõ CẬP NHẬT LẦN THỨ MẤY;
  *   · transcript lưu tiếng Anh và KHÔNG mở sẵn;
  *   · thanh đáy luôn có liên hệ khách + next action;
  *   · giao việc chọn được nhiều người, có "giao cho tôi" đứng đầu. */
@@ -26,6 +26,8 @@ describe('Module 2 · Hồ sơ lead', () => {
   it('mở đúng dòng của đường dẫn', async () => {
     openLead()
     expect(await screen.findByRole('heading', { name: 'DAS Vina' })).toBeInTheDocument()
+    /* Một chỗ duy nhất: chip cạnh tên account. Ô "Mã lead" của hồ sơ nằm trong
+       cụm Sổ sách, và cụm đó đóng sẵn. */
     expect(screen.getByText(DAS_VINA_LEAD)).toBeInTheDocument()
   })
 
@@ -65,19 +67,19 @@ describe('Module 2 · Hồ sơ lead', () => {
     ).toBeInTheDocument()
   })
 
-  it('báo cáo tìm hiểu ghi rõ cập nhật lần thứ mấy, và số đó bằng số lần chạm', async () => {
+  it('hồ sơ ghi rõ cập nhật lần thứ mấy, và số đó bằng số lần chạm', async () => {
     openLead()
-    const box = within(await screen.findByLabelText('Báo cáo tìm hiểu khách hàng'))
+    const box = within(await screen.findByLabelText('Hồ sơ lead'))
 
     const lead = LEADS.find((l) => l.code === DAS_VINA_LEAD)
     const turns = leadTranscript(lead!)
     expect(turns.length).toBeGreaterThan(0)
-    expect(box.getByText(`Cập nhật lần thứ ${turns.length}`)).toBeInTheDocument()
+    expect(box.getByText(new RegExp(`Cập nhật lần thứ ${turns.length}`))).toBeInTheDocument()
   })
 
   it('transcript lưu tiếng Anh và KHÔNG mở sẵn — docs chốt vậy', async () => {
     openLead()
-    const box = within(await screen.findByLabelText('Transcript'))
+    const box = within(await screen.findByLabelText('Dòng thời gian'))
 
     expect(box.getByText(/Lưu nguyên văn bằng tiếng Anh/)).toBeInTheDocument()
     expect(box.queryByText(/Can you confirm the legal entity/)).not.toBeInTheDocument()
@@ -94,30 +96,35 @@ describe('Module 2 · Hồ sơ lead', () => {
     expect(box.getByText(/Cổng là 6 ô bắt buộc, không phải 10\/10/)).toBeInTheDocument()
   })
 
-  it('thanh đáy luôn có liên hệ khách VÀ next action', async () => {
+  it('thanh công cụ có khách, PIC bên mình, và ba hành động', async () => {
     openLead()
-    const bar = within(await screen.findByLabelText('Liên hệ và việc tiếp theo'))
+    const bar = within(await screen.findByLabelText('Thanh công cụ'))
 
     // Tên khách hiện hai chỗ trong thanh: ô liên hệ và nhãn nút gọi.
     expect(bar.getAllByText(/Kim Dae-ho/).length).toBeGreaterThan(1)
-    expect(bar.getByText('Liên hệ khách')).toBeInTheDocument()
+    expect(bar.getByText('Khách')).toBeInTheDocument()
+    // PIC bên mình đứng ngay cạnh khách — DAS Vina do Đỗ Quang Huy giữ.
+    expect(bar.getByText('PIC của lead')).toBeInTheDocument()
+    expect(bar.getByText('Đỗ Quang Huy')).toBeInTheDocument()
+
     expect(bar.getByRole('button', { name: /Gọi Kim Dae-ho/ })).toBeInTheDocument()
-    // DAS Vina đang ở cột "Đang tìm hiểu" và còn trong hạn → đề nghị sang cột kế.
-    expect(bar.getByRole('button', { name: /Đề nghị sang cột kế/ })).toBeInTheDocument()
+    expect(bar.getByRole('button', { name: 'Lead có vấn đề' })).toBeInTheDocument()
+    expect(bar.getByRole('button', { name: /Chuyển thành cơ hội/ })).toBeInTheDocument()
   })
 
-  it('lead chưa moi được ô số 4 thì nói thẳng là chưa gọi được cho ai', async () => {
+  it('lead chưa moi được người liên hệ thì nói thẳng là chưa gọi được cho ai', async () => {
     const blank = LEADS.find((l) => !l.filled.includes('nguoi-lien-he'))
     expect(blank).toBeDefined()
 
     openLead(blank?.code)
-    const bar = within(await screen.findByLabelText('Liên hệ và việc tiếp theo'))
-    expect(bar.getByText(/ô số 4 của bộ 10 câu còn trống/)).toBeInTheDocument()
+    const bar = within(await screen.findByLabelText('Thanh công cụ'))
+    expect(bar.getByText(/chưa gọi được cho ai/)).toBeInTheDocument()
   })
 
   it('report lead có ĐÚNG sáu lý do, không có ô "khác"', async () => {
     openLead()
-    const box = within(await screen.findByLabelText('Lead có vấn đề'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Lead có vấn đề' }))
+    const box = within(screen.getByRole('dialog'))
 
     for (const label of [
       'Không gọi được ai',
@@ -127,12 +134,12 @@ describe('Module 2 · Hồ sơ lead', () => {
       'Khách chọn bên khác',
       'Im sau báo giá',
     ]) {
-      expect(box.getByRole('button', { name: label })).toBeInTheDocument()
+      expect(box.getByRole('option', { name: label })).toBeInTheDocument()
     }
 
-    // Khớp tên ĐẦY ĐỦ của nút: "khác" nằm sẵn trong "Khách chọn bên khác".
+    // Khớp tên ĐẦY ĐỦ của mục: "khác" nằm sẵn trong "Khách chọn bên khác".
     expect(
-      screen.queryByRole('button', { name: /^(khác|lý do khác|other)$/i }),
+      box.queryByRole('option', { name: /^(khác|lý do khác|other)$/i }),
     ).not.toBeInTheDocument()
   })
 
@@ -164,11 +171,9 @@ describe('Module 2 · Hồ sơ lead', () => {
     expect(screen.queryByRole('checkbox', { name: /Nguyễn Khánh Linh/ })).not.toBeInTheDocument()
   })
 
-  it('ContextRail có mặt — luật 10', async () => {
-    openLead()
-    expect(await screen.findByText('AC-0142')).toBeInTheDocument()
-    expect(screen.getByText('BG-1077')).toBeInTheDocument()
-  })
+  /* Test "ContextRail có mặt — luật 10" đã xoá cùng chính cái rail, 22/08.
+     Đây là NỢ LUẬT có ý thức, lý do ghi ở docblock `lead-detail.tsx`. Trả nợ
+     thì viết lại test này trước. */
 
   it('ghim từ hồ sơ và quay lại được sổ', async () => {
     openLead()

@@ -27,6 +27,7 @@ import {
   Skeleton,
   Sparkline,
   StatusDot,
+  Textarea,
 } from '@pv/ui'
 
 /** Zone 01 · Atoms — không chia nhỏ được nữa, mỗi atom map 1:1 với shadcn/ui. */
@@ -560,6 +561,41 @@ export function ZoneAtoms() {
               ))}
             </div>
           </div>
+        </SpecCard>
+
+        {/* A-22 */}
+        <SpecCard
+          code="A-22"
+          name="Textarea"
+          note="chữ THUẦN — không phải RichText"
+          noteAccent
+          bodyClassName="flex flex-col gap-3 px-4 py-5"
+          footer={
+            <>
+              Cùng nền, cùng vòng focus, cùng 12,5px với Input (A-04) — ô một dòng và ô nhiều dòng
+              phải là một họ, không phải hai kiểu gần giống nhau.
+              <br />
+              `autoGrow` cao dần theo nội dung: ô nhập phải cuộn trong lúc gõ là ô nhập giấu mất câu
+              vừa viết. Cần định dạng (đậm, gạch đầu dòng, ảnh) thì dùng RichText · M-11 — đừng nhét
+              HTML vào một ô đáng lẽ là chữ thuần.
+            </>
+          }
+        >
+          <Textarea
+            readOnly
+            rows={3}
+            placeholder="Đau ở đâu — việc khách muốn giải…"
+            aria-label="Textarea rỗng"
+          />
+          <Textarea
+            readOnly
+            autoGrow
+            aria-label="Textarea có nội dung"
+            value={
+              'Không biết một lô chip đang nằm ở đâu cho tới lúc hết ca.\nMuốn nhìn được tiến độ ngay trong ca, không phải sau ca.'
+            }
+          />
+          <Textarea invalid readOnly rows={2} value="Thiếu lý do thua" aria-label="Textarea lỗi" />
         </SpecCard>
       </ZoneBody>
     </section>

@@ -7,13 +7,13 @@ import {
   Inbox,
   Pin,
   Target,
-  TriangleAlert,
   Users,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
+  Badge,
   Button,
   Chip,
   DataTable,
@@ -42,6 +42,7 @@ import {
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
   SOURCES,
+  staffEmail,
   type Lead,
 } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
@@ -88,27 +89,37 @@ import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
  *     tiêu đề gọn hơn) trước khi màn ra khỏi POC.
  *
  *  ------------------------------------------------------------------
- *  TÁM CỘT — chốt 22/08
+ *  TÁM CỘT — chốt 22/08, tên cột sửa lần 2
  *  ------------------------------------------------------------------
- *  Ghim · Mã · Công ty · Người liên hệ · Chức danh · Nguồn · Trạng thái ·
- *  Người giữ. Sổ đổi trục: từ "lead đi tới đâu trong phễu" sang "ai đang nói
+ *  Ghim · Mã · **Account** · Người liên hệ · Chức danh · Nguồn · Trạng thái ·
+ *  **Lead PIC**. Sổ đổi trục: từ "lead đi tới đâu trong phễu" sang "ai đang nói
  *  chuyện với ai" — hai cột NGƯỜI (bên khách và bên mình) thay bốn cột đo tiến
  *  độ. Gỡ theo: Bậc · Ô bắt buộc · Đang ở (số ngày) · Đang làm (nhóm avatar).
- *  Sắp xếp vì thế chỉ còn cột Công ty: hai khoá `slots` và `days` mất cột để bấm.
+ *  Sắp xếp vì thế chỉ còn cột Account: hai khoá `slots` và `days` mất cột để bấm.
  *
- *  Nhãn lấy từ chính fixture chứ không dịch lại: câu số 4 của init data tên là
- *  "Người liên hệ và chức danh" (`INIT_DATA_QUESTIONS`), nên hai cột người tên
- *  đúng như vậy. "Account" viết thành "Công ty" vì trường trong fixture là
- *  `company`, và "account" trong tiếng Việt hay bị đọc thành tài khoản đăng nhập.
+ *  Ba cột đổi cách vẽ cùng lúc, và ba cái đổi cùng một hướng — **bỏ chữ thừa,
+ *  giữ tín hiệu**:
+ *
+ *   · **Account** (trước là "Công ty") — bỏ tam giác cảnh báo SLA. Cột tên khách
+ *     không phải chỗ báo động; tín hiệu đó chuyển sang màu vàng của pill trạng
+ *     thái, tức là chuyển vào đúng cột nói về trạng thái.
+ *   · **Nguồn** — bỏ mã, còn một hình. `SK-0103` là sáu ký tự không ai đọc ra
+ *     nghĩa khi lướt bảng; cái hình trả lời xong câu "về bằng đường nào". Cột
+ *     rút từ `1fr` xuống 64px, chỗ dôi ra chia cho hai cột bên phải.
+ *   · **Lead PIC** (trước là "Người giữ") — in hòm thư công ty
+ *     (`huydq@pebblevina.com`) chứ không in tên. Tên trùng được, hòm thư thì
+ *     không, và mọi hệ khác (thư, lịch, bảng hoa hồng) đều khoá theo nó.
+ *
+ *  Nhãn hai cột người lấy từ chính fixture chứ không dịch lại: câu số 4 của init
+ *  data tên là "Người liên hệ và chức danh" (`INIT_DATA_QUESTIONS`).
  *
  *  58/100 lead CHƯA có người liên hệ — ô số 4 chưa moi được. Hai cột người vẽ
  *  "—" cho chúng và nói lý do ở `title`. `leadContact` đã dặn thẳng: điền một
  *  cái tên cho đủ ô là phá đúng thứ cổng init data sinh ra để đo.
  *
- *  Hàng lọc: ô tìm · Trạng thái · Nguồn · Người giữ · Công ty. "Trạng thái" ở
- *  lại vì nó là thứ đang giữ sổ mở ra ở 42 dòng đang chạy thay vì cả 100 dòng
- *  kể cả 52 lead đã rơi. Bỏ: Bậc · Ngành · Quá SLA — tam giác cảnh báo SLA vẫn
- *  còn trên tên công ty, chỉ mất cái nút lọc riêng.
+ *  Hàng lọc: ô tìm · Trạng thái · Nguồn · Lead PIC · Account — tên ô lọc đi
+ *  theo tên cột, vì một trường mà hai chỗ gọi hai tên là chỗ để hiểu nhầm. Bỏ:
+ *  Bậc · Ngành · Quá SLA.
  *
  *  Sổ là CẢ KỲ 01/05 → 17/08: 100 dòng, phân trang, không cuộn vô tận.
  *
@@ -270,7 +281,7 @@ export function LeadsPage() {
             ]}
           />
           <Select
-            label="Người giữ"
+            label="Lead PIC"
             value={owner}
             onChange={setOwner}
             className="max-w-[200px]"
@@ -283,12 +294,12 @@ export function LeadsPage() {
             ]}
           />
           <Select
-            label="Công ty"
+            label="Account"
             value={account}
             onChange={setAccount}
             className="max-w-[220px]"
             options={[
-              { value: 'all', label: 'Mọi công ty' },
+              { value: 'all', label: 'Mọi account' },
               ...accounts.map((a) => ({ value: a, label: a })),
             ]}
           />
@@ -344,12 +355,13 @@ export function LeadsPage() {
               columns={[
                 { header: 'Ghim', width: '52px' },
                 { header: 'Mã', width: '0.85fr' },
-                { header: 'Công ty', width: '1.6fr', sortKey: 'company' },
+                { header: 'Account', width: '1.6fr', sortKey: 'company' },
                 { header: 'Người liên hệ', width: '1.2fr' },
                 { header: 'Chức danh', width: '1.3fr' },
-                { header: 'Nguồn', width: '1fr' },
-                { header: 'Trạng thái', width: '1.4fr' },
-                { header: 'Người giữ', width: '1.1fr' },
+                /* Cột nguồn còn đúng một hình, nên nó rộng bằng một hình. */
+                { header: 'Nguồn', width: '64px' },
+                { header: 'Trạng thái', width: '1.5fr' },
+                { header: 'Lead PIC', width: '1.5fr' },
               ]}
               rows={rows.map((l) => {
                 /* Gọi MỘT lần cho cả hai cột người: `leadContact` dựng lại tên
@@ -367,17 +379,14 @@ export function LeadsPage() {
                       onToggle={() => me && togglePin(me.id, l.code)}
                     />,
                     <Chip key="c">{l.code}</Chip>,
-                    <span key="n" className="flex min-w-0 items-center gap-2">
-                      <span className="truncate">{l.company}</span>
-                      {isOverSla(l) && (
-                        <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
-                      )}
+                    <span key="n" className="block truncate" title={l.company}>
+                      {l.company}
                     </span>,
                     <PersonCell key="ct" value={contact?.name} missing={NO_CONTACT} />,
                     <PersonCell key="ti" value={contact?.title} missing={NO_CONTACT} />,
                     <SourceMark key="s" lead={l} />,
                     <StatusCell key="w" lead={l} />,
-                    <PersonCell key="o" value={l.owner} missing="Còn ở kho chung, chưa ai nhận" />,
+                    <PicCell key="o" owner={l.owner} />,
                   ],
                 }
               })}
@@ -475,7 +484,14 @@ function ScoreCards() {
   )
 }
 
-/** Nguồn của một lead: hình của kênh + mã nguồn, cùng cỡ với chữ trong ô.
+/** Nguồn của một lead — MỘT HÌNH, không kèm mã.
+ *
+ *  Mã nguồn đã bỏ 22/08. Nó là chuỗi mono sáu ký tự (`SK-0103`) mà không ai đọc
+ *  ra nghĩa khi lướt bảng: người quét sổ muốn biết "lead này về bằng đường nào",
+ *  và câu đó cái hình trả lời xong rồi. Ai cần mã thì mở hồ sơ — ở đó nó có cả
+ *  tên nguồn đi kèm, tức là có nghĩa.
+ *
+ *  Hình đầy đủ vẫn nằm ở `title`: kiểu xuất xứ và kênh, một dòng.
  *
  *  Đây là dây nối sang module 1 nhìn từ phía sổ. Kênh nào là hình nào đọc từ
  *  module 5 · Cấu hình, không khai lại ở đây. Nguồn tự nhiên không đi qua kênh
@@ -486,41 +502,83 @@ function SourceMark({ lead }: { lead: Lead }) {
   const face = ORIGIN_FACE[origin.kind]
   const icon = origin.channel ? CHANNEL_ICON[origin.channel] : face.icon
   const title = origin.channel
-    ? `${origin.label} · ${CHANNEL_LABEL[origin.channel]}`
-    : `${origin.label} · ${face.label}`
+    ? `${origin.code} · ${origin.label} · ${CHANNEL_LABEL[origin.channel]}`
+    : `${origin.code} · ${origin.label} · ${face.label}`
 
   return (
-    <span className="flex min-w-0 items-center gap-2" title={title}>
+    <span className="flex items-center" title={title} aria-label={title}>
       <Icon icon={icon} size={16} className="text-accent-foreground shrink-0" />
-      <span className="truncate font-mono text-[11px]">{origin.code}</span>
     </span>
   )
 }
 
-/** Cột "Trạng thái" — một ô trả lời cho cả ba loại dòng: đã ký, đã rơi, và đang
- *  chạy ở một cột của sổ cơ hội.
+/** Cột "Trạng thái" — một PILL, và màu của pill là câu trả lời thứ hai.
  *
- *  KHÔNG còn kèm số ngày. Cột này trả lời "lead đang ở trạng thái nào", còn "nằm
- *  đó bao lâu rồi" là câu khác — nhồi cả hai vào một ô 12,5px thì không đọc được
- *  cái nào. Tín hiệu quá hạn vẫn còn: tam giác cảnh báo trên tên công ty.
+ *  ------------------------------------------------------------------
+ *  NĂM MÀU, THEO LOẠI TRẠNG THÁI CHỨ KHÔNG THEO CỘT PIPELINE
+ *  ------------------------------------------------------------------
+ *  Bảng token có đúng năm tone semantic, và năm loại trạng thái của một dòng sổ
+ *  khớp vào đó không dư không thiếu:
  *
- *  Nhãn trùng tên với ô lọc "Trạng thái" là CỐ Ý: ba giá trị của ô lọc (đang
- *  chạy · đã ký · đã rơi) là bản thô của chính cột này. */
+ *    xanh lá  · đã ký          — hết đường, kết cục tốt
+ *    đỏ       · đã rơi         — hết đường, kết cục xấu
+ *    vàng     · quá hạn cột    — đang chạy nhưng CẦN NGƯỜI ĐỘNG VÀO
+ *    azure    · đang trong cột — đang chạy, còn trong hạn
+ *    xám      · chưa vào sổ    — chưa bắt đầu
+ *
+ *  Không tô năm màu khác nhau cho năm CỘT pipeline: bảng brand không có năm màu
+ *  trung tính để làm việc đó, và bịa hex mới là phá luật 1. Quan trọng hơn: màu
+ *  nên nói "dòng này có cần tôi không", chứ không nói lại đúng chữ đã in trong
+ *  chính cái pill.
+ *
+ *  Màu vàng ở đây thay hẳn tam giác cảnh báo đã gỡ khỏi cột Account: cùng một
+ *  tín hiệu, nhưng đứng ở cột nói về trạng thái thay vì cột nói về tên khách. */
 function StatusCell({ lead }: { lead: Lead }) {
-  if (lead.contractCode) {
-    return <span className="text-success text-[11.5px]">Đã ký · {lead.contractCode}</span>
-  }
+  if (lead.contractCode) return <Badge tone="success">Đã ký · {lead.contractCode}</Badge>
+
   if (lead.exitReason) {
     return (
-      <span className="text-muted-foreground block truncate text-[11.5px]" title={lead.exitReason}>
-        Đã rơi · {lead.exitReason}
+      <Badge tone="danger" className="max-w-full" title={`Đã rơi · ${lead.exitReason}`}>
+        <span className="min-w-0 truncate">Đã rơi · {lead.exitReason}</span>
+      </Badge>
+    )
+  }
+
+  if (!lead.stage) return <Badge tone="draft">Chưa vào sổ cơ hội</Badge>
+
+  const over = isOverSla(lead)
+  return (
+    <Badge
+      tone={over ? 'warning' : 'running'}
+      title={over ? `Quá hạn cột · nằm đây ${lead.daysHere} ngày` : undefined}
+    >
+      {STAGE_LABEL.get(lead.stage) ?? lead.stage}
+      {over && ` · quá hạn`}
+    </Badge>
+  )
+}
+
+/** Cột "Lead PIC" — hòm thư công ty, không phải tên hiển thị.
+ *
+ *  Tên đọc đẹp nhưng TRÙNG ĐƯỢC; `huydq@pebblevina.com` thì không. Sổ là chỗ
+ *  người ta đối chiếu với hệ khác (thư, lịch, bảng hoa hồng), và mọi hệ đó khoá
+ *  theo hòm thư. Tên đầy đủ vẫn còn, ở `title`.
+ *
+ *  Cách dựng mã nằm ở fixture (`staffEmail`), không ở đây: đó là quy ước của
+ *  công ty, không phải cách trình bày của một cái bảng. */
+function PicCell({ owner }: { owner?: string }) {
+  if (!owner) {
+    return (
+      <span className="text-muted-foreground" title="Còn ở kho chung, chưa ai nhận">
+        —
       </span>
     )
   }
-  if (!lead.stage) {
-    return <span className="text-muted-foreground text-[11.5px]">Chưa vào sổ cơ hội</span>
-  }
-  return <span className="text-[11.5px]">{STAGE_LABEL.get(lead.stage) ?? lead.stage}</span>
+  return (
+    <span className="block truncate font-mono text-[11px]" title={owner}>
+      {staffEmail(owner)}
+    </span>
+  )
 }
 
 /** Một ô người: tên, hoặc "—" kèm lý do ở `title`.

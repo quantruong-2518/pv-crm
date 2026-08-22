@@ -71,14 +71,14 @@ describe('Module 2 · Sổ lead', () => {
     const dealRate = `${Math.round((deals / total) * 100)}%`
 
     const owner = LEADS.find((l) => l.owner)?.owner as string
-    fireEvent.change(screen.getByLabelText('Người giữ'), { target: { value: owner } })
+    fireEvent.change(screen.getByLabelText('Lead PIC'), { target: { value: owner } })
     expect(screen.getByText(dealRate)).toBeInTheDocument()
   })
 
   it('bộ lọc là MỘT hàng select, không phải rừng nút pill', () => {
     renderScreen(<LeadsPage />)
 
-    for (const label of ['Trạng thái', 'Nguồn', 'Người giữ', 'Công ty']) {
+    for (const label of ['Trạng thái', 'Nguồn', 'Lead PIC', 'Account']) {
       expect(screen.getByLabelText(label).tagName).toBe('SELECT')
     }
 
@@ -111,10 +111,11 @@ describe('Module 2 · Sổ lead', () => {
 
   it('mỗi dòng nói rõ mình từ nguồn nào — dây nối sang module 1', async () => {
     renderScreen(<LeadsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
+    const row = (await screen.findByRole('cell', { name: 'DAS Vina' })).parentElement as HTMLElement
 
-    // DAS Vina về từ hội thảo SK-0103.
-    expect(screen.getAllByText('SK-0103').length).toBeGreaterThan(0)
+    /* Cột nguồn còn đúng một hình từ 22/08 — mã và tên nguồn nằm ở nhãn, cho
+       chuột và cho trình đọc màn hình. DAS Vina về từ hội thảo SK-0103. */
+    expect(within(row).getByLabelText(/SK-0103/)).toBeInTheDocument()
   })
 
   it('sổ phân trang 10 dòng, không đổ cả 100 dòng ra một lượt', async () => {
@@ -145,12 +146,12 @@ describe('Module 2 · Sổ lead', () => {
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       'Ghim',
       'Mã',
-      'Công ty',
+      'Account',
       'Người liên hệ',
       'Chức danh',
       'Nguồn',
       'Trạng thái',
-      'Người giữ',
+      'Lead PIC',
     ])
   })
 
@@ -171,26 +172,26 @@ describe('Module 2 · Sổ lead', () => {
     expect(blank).toBeDefined()
 
     fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'all' } })
-    fireEvent.change(screen.getByLabelText('Công ty'), { target: { value: blank?.company ?? '' } })
+    fireEvent.change(screen.getByLabelText('Account'), { target: { value: blank?.company ?? '' } })
 
     const row = (screen.getAllByRole('cell', { name: blank?.company })[0] as HTMLElement)
       .parentElement as HTMLElement
     expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('lọc được theo Người giữ, kể cả mục "chưa ai nhận"', async () => {
+  it('lọc được theo Lead PIC, kể cả mục "chưa ai nhận"', async () => {
     renderScreen(<LeadsPage />)
     await screen.findByRole('cell', { name: 'DAS Vina' })
     fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'all' } })
 
     const owner = LEADS.find((l) => l.owner)?.owner as string
-    fireEvent.change(screen.getByLabelText('Người giữ'), { target: { value: owner } })
+    fireEvent.change(screen.getByLabelText('Lead PIC'), { target: { value: owner } })
     expect(screen.getByText(/dòng khớp bộ lọc/).textContent).toBe(
       `${LEADS.filter((l) => l.owner === owner).length} dòng khớp bộ lọc`,
     )
 
     // 33 dòng chưa ai nhận — không có mục này thì chỉ tìm ra chúng bằng mắt.
-    const orphan = screen.getByLabelText('Người giữ') as HTMLSelectElement
+    const orphan = screen.getByLabelText('Lead PIC') as HTMLSelectElement
     const noOwner = [...orphan.options].find((o) => o.text === 'Chưa ai nhận')
     expect(noOwner).toBeDefined()
     fireEvent.change(orphan, { target: { value: noOwner?.value } })
