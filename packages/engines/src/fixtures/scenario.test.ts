@@ -20,7 +20,9 @@ import {
   EMAIL_VERIFY_PRICE,
   HANDOFF_SLA,
   EXIT_REASONS,
+  FIRST_MEETINGS,
   FUNNEL,
+  hasFirstMeeting,
   INIT_DATA_QUESTIONS,
   isRotting,
   isRunning,
@@ -662,13 +664,38 @@ describe('Mốc đời lead — nền của trục tháng · quý · năm', () =
     const frozen = dayISO(DAY_FROZEN).slice(0, 10)
 
     for (const m of marks) {
-      for (const at of [m.vaoSo, m.mql, m.sql, m.ky, m.roi, m.bdCham]) {
+      for (const at of [m.vaoSo, m.mql, m.gap, m.sql, m.ky, m.roi, m.bdCham]) {
         if (!at) continue
         expect(at.slice(0, 10) >= first).toBe(true)
         expect(at.slice(0, 10) <= frozen).toBe(true)
       }
     }
     expect(marks.filter((m) => m.bdCham).length).toBeGreaterThan(0)
+  })
+
+  it('mốc gặp lần đầu đếm ra đúng FIRST_MEETINGS, và là chặng GIỮA hai bậc phễu', () => {
+    const step = (key: string) => FUNNEL.find((s) => s.key === key)?.count ?? 0
+
+    // Số khai và số đếm được từ sổ phải là một. Đây là chỗ hai thứ hay trôi.
+    expect(marks.filter((m) => m.gap).length).toBe(FIRST_MEETINGS)
+    expect(LEADS.filter(hasFirstMeeting).length).toBe(FIRST_MEETINGS)
+
+    /* Không phải bậc thứ bảy của phễu: ít hơn số công ty thật, nhiều hơn số cơ
+       hội. Ra ngoài khoảng này là kịch bản tự mâu thuẫn. */
+    expect(FIRST_MEETINGS).toBeLessThanOrEqual(step('cong-ty-that'))
+    expect(FIRST_MEETINGS).toBeGreaterThanOrEqual(step('co-hoi'))
+  })
+
+  it('gặp lần đầu đứng sau MQL, trước khi vào sổ cơ hội, và SQL nào cũng đã gặp', () => {
+    for (const m of marks) {
+      if (m.gap) {
+        expect(m.mql, 'gặp mà chưa lên MQL').toBeDefined()
+        if (m.mql) expect(m.gap >= m.mql).toBe(true)
+        if (m.sql) expect(m.gap <= m.sql).toBe(true)
+      }
+      // Không lead nào vào sổ cơ hội mà chưa gặp mặt lần nào.
+      if (m.sql) expect(m.gap).toBeDefined()
+    }
   })
 
   it('SLA bàn giao chỉ giữ chặng đo được bằng sổ lead của kịch bản này', () => {

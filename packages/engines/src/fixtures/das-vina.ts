@@ -240,6 +240,18 @@ export const FUNNEL = [
   { key: 'hop-dong', label: 'Hợp đồng', count: 6 },
 ] as const
 
+/** Buổi gặp đầu tiên trong kỳ — 38 trên 100 đầu mối.
+ *
+ *  KHÔNG phải bậc thứ bảy của `FUNNEL`. Phễu là sáu bậc đã chốt, và cả màn
+ *  Performance lẫn thẻ điểm của Sổ lead đọc thẳng vào nó — nhét thêm một bậc là
+ *  đổi nghĩa mọi tỉ lệ qua bậc đang có. Đây là một con số RIÊNG, đo cùng kỳ, nằm
+ *  giữa hai bậc đã chốt: 44 công ty thật ≥ 38 buổi gặp ≥ 30 cơ hội.
+ *
+ *  Con số này không khai bằng tay rồi sinh sự kiện cho vừa: nó ĐẾM RA từ chính
+ *  100 dòng sổ bằng điều kiện ở `hasFirstMeeting`. Khai một số rời là cách chắc
+ *  chắn nhất để số và sổ trôi khỏi nhau — `scenario.test.ts` khoá đẳng thức. */
+export const FIRST_MEETINGS = 38
+
 /** SÁU lý do ra khỏi luồng. Không có lý do thứ bảy, không có ô "khác".
  *  Sửa được ở module 5 · Cấu hình (mục 5.4) — nhưng vẫn là danh sách ĐÓNG.
  *
@@ -1579,6 +1591,7 @@ export type LeadEventKind =
   | 'dien-o'
   | 'giao'
   | 'len-bac'
+  | 'gap-lan-dau'
   | 'vao-pipeline'
   | 'doi-cot'
   | 'ky'
@@ -1885,6 +1898,35 @@ const SOURCE_PLAN: string[] = [
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 
+/** Lead này đã có buổi gặp đầu tiên chưa — MỘT chỗ hỏi, `buildHistory` và mọi
+ *  màn đều đọc ở đây.
+ *
+ *  Hai điều kiện, cả hai đọc thẳng từ dòng sổ, không có hạn ngạch nào:
+ *   · **đã lên MQL** — công ty có thật thì mới đáng đi gặp;
+ *   · **đủ 5 ô bắt buộc** — ô số 4 là người liên hệ, ô số 5 là kênh gọi lại
+ *     được. Gặp được là gặp NGƯỜI MÌNH GỌI LẠI ĐƯỢC, và đây cũng đúng là điều
+ *     kiện `leadContact` trả về số điện thoại với email.
+ *
+ *  Cộng lại đúng 38 dòng = `FIRST_MEETINGS`, trong đó cả 30 lead đã vào sổ cơ
+ *  hội (SQL nào cũng đủ 6 ô) và 8 lead còn đứng ở MQL. Đổi một trong hai điều
+ *  kiện là `scenario.test.ts` đỏ ngay, không trôi âm thầm.
+ *
+ *  MỘT CHỖ CHƯA KHỚP, ghi ra đây để người sau khỏi dò lại. `leadTranscript` gắn
+ *  nhãn "Gặp mặt" cho lần chạm nào do người hiện trường làm (`turnKindOf` đoán
+ *  theo TÊN người, không đọc sự kiện nào cả) — đó là một phỏng đoán hiển thị,
+ *  không phải một buổi gặp có thật. Sau khi mốc này về đúng chuyến đi của BD
+ *  thì trên 38 lead: 27 lead hai chỗ trùng ngày, 1 lead lệch (nguồn do người
+ *  hiện trường mở nên chính lần "vào sổ" cũng bị gọi là gặp), 10 lead có mốc
+ *  nhưng lần chạm đó không moi thêm ô nào nên không thành turn. Ngược lại có 4
+ *  lead transcript gọi là "Gặp mặt" mà chưa đủ điều kiện gặp.
+ *
+ *  Muốn hai chỗ khớp tuyệt đối thì bỏ phỏng đoán trong `turnKindOf` và cho nó
+ *  đọc `gap-lan-dau`. Việc đó đổi panel lần chạm của màn hồ sơ lead nên chưa
+ *  làm ở đợt này — đây là NỢ đã biết, không phải chỗ chưa ai nhìn. */
+export function hasFirstMeeting(lead: Pick<Lead, 'tier' | 'requiredFilled'>): boolean {
+  return lead.tier !== 'dau-moi' && lead.requiredFilled >= 5
+}
+
 /** Dựng timeline của một lead từ chính các trường của nó — không bịa thêm mốc
  *  nào ngoài những gì dòng đã nói. Cùng một dòng luôn ra cùng một chuỗi. */
 function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[] {
@@ -1924,6 +1966,16 @@ function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[]
   if (lead.tier !== 'dau-moi') {
     push(bornDay + 4, 'len-bac', MARKETING, 'Xác minh công ty có thật · lên bậc MQL')
     push(bornDay + 5, 'giao', HEAD_OF_SALES, `Giao cho ${BD} đi lấy nốt ô bắt buộc`)
+  }
+
+  /* Buổi gặp đầu tiên và lần điền ô của BD là CÙNG một chuyến, không phải hai:
+     BD được giao đi lấy nốt ô bắt buộc ở `bornDay + 5`, và moi được chúng vì đã
+     ngồi được với người liên hệ. Tách ra hai ngày là đẻ thêm một chuyến thăm
+     không có trong kịch bản — mà `leadTranscript` đã dựng đúng lần chạm này
+     thành một turn "Gặp mặt" rồi, nên hai chỗ sẽ ghi hai ngày khác nhau cho
+     cùng một buổi. `scenario.test.ts` khoá hai chỗ đó bằng nhau. */
+  if (hasFirstMeeting(lead)) {
+    push(bornDay + 7, 'gap-lan-dau', BD, 'Buổi gặp đầu tiên với người liên hệ')
   }
 
   if (lead.requiredFilled >= 3) {
@@ -2579,12 +2631,13 @@ export function saleOfCategory(category: LeadCategory): string | undefined {
  *  Bộ chọn kỳ của màn Performance không được vượt ra ngoài hai mốc này. */
 export const DAS_VINA_PERIOD = { from: dayISO(0), to: DAS_VINA_FROZEN_AT } as const
 
-/** Năm mốc đời của một lead, đọc từ chính `history` chứ không đoán thêm.
+/** Bảy mốc đời của một lead, đọc từ chính `history` chứ không đoán thêm.
  *
  *  Đây là thứ cho phép cắt sổ lead theo tháng/quý/năm mà không đẻ ra con số
  *  nào: mỗi mốc là một sự kiện ĐÃ CÓ NGÀY trong kịch bản. Cộng cả kỳ thì bốn
- *  mốc `vaoSo · mql · sql · ky` ra đúng bốn bậc 100 · 44 · 30 · 6 của `FUNNEL`
- *  — `scenario.test.ts` khoá đẳng thức đó.
+ *  mốc `vaoSo · mql · sql · ky` ra đúng bốn bậc 100 · 44 · 30 · 6 của `FUNNEL`,
+ *  còn mốc `gap` ra đúng `FIRST_MEETINGS` = 38 — một chặng nằm GIỮA MQL và cơ
+ *  hội, không phải bậc thứ bảy. `scenario.test.ts` khoá cả hai đẳng thức.
  *
  *  `bdCham` là lần BD đặt tay vào lead (mốc `dien-o` do BD ghi). Nó KHÁC "lead
  *  BD đang giữ": lead lên SQL thì đổi chủ sang Sale, nhưng công trạng của BD
@@ -2594,6 +2647,8 @@ export type LeadMilestones = {
   vaoSo: string
   /** Lên bậc MQL — Marketing xác minh công ty có thật. */
   mql?: string
+  /** Buổi gặp đầu tiên. Trống = chưa gặp — điều kiện ở `hasFirstMeeting`. */
+  gap?: string
   /** Vào sổ cơ hội, tức lên bậc SQL. */
   sql?: string
   ky?: string
@@ -2610,6 +2665,7 @@ export function leadMilestones(lead: Lead): LeadMilestones {
     /* `len-bac` xuất hiện hai lần: lên MQL rồi qua cổng init data. Lấy cái ĐẦU
        tiên — cái thứ hai đã có mốc riêng là `vao-pipeline`. */
     mql: at('len-bac'),
+    gap: at('gap-lan-dau'),
     sql: at('vao-pipeline'),
     ky: at('ky'),
     roi: lead.exitedAt,

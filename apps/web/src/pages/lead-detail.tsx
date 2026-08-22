@@ -103,6 +103,7 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
   'dien-o': 'current',
   giao: 'current',
   'len-bac': 'ok',
+  'gap-lan-dau': 'ok',
   'vao-pipeline': 'ok',
   'doi-cot': 'current',
   ky: 'ok',

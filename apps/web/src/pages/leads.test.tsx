@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { act, fireEvent, screen, within } from '@testing-library/react'
-import { FUNNEL, LEADS } from '@pv/engines/fixtures/das-vina'
-import { useLeadDesk } from '@/app/desk'
+import { fireEvent, screen, within } from '@testing-library/react'
+import { FIRST_MEETINGS, FUNNEL, LEADS } from '@pv/engines/fixtures/das-vina'
 import { renderRoutes, renderScreen } from '@/test-utils'
 import { LeadsPage } from './leads'
 
 /** Test màn Sổ lead — DANH SÁCH, không còn là bàn làm việc.
  *
  *  Khoá đúng những thứ dễ trôi mất khi ai đó dọn giao diện lần sau:
- *   · phễu vẫn là số ĐÃ CHỐT và vẫn nói ra tỉ lệ qua bậc;
+ *   · thẻ điểm là số ĐÃ CHỐT của cả kỳ, không chạy theo bộ lọc;
  *   · bộ lọc là MỘT hàng select, không quay lại rừng nút pill;
  *   · bấm một dòng là SANG TRANG, không mở panel;
+ *   · tám cột đúng thứ tự, và hai cột người đọc từ fixture chứ không bịa tên;
  *   · ghim theo người và tách khỏi bảng;
- *   · tab "Việc của tôi" xếp việc theo cột kanban.
+ *   · đầu màn KHÔNG mọc lại tab hay rail chip mồi (gỡ 22/08).
  *
  *  Sổ lấy qua `useQuery` nên lần render đầu là trạng thái chờ; chỗ nào cần dòng
  *  thật thì phải `findBy…`, không `getBy…`. */
@@ -28,34 +28,57 @@ describe('Module 2 · Sổ lead', () => {
     expect(() => renderScreen(<LeadsPage />)).not.toThrow()
   })
 
-  it('phễu hiện đúng sáu bậc đã chốt và tỉ lệ qua từng bậc', () => {
+  it('thẻ điểm là bốn ô, số lấy từ FUNNEL đã chốt', async () => {
     renderScreen(<LeadsPage />)
 
-    for (const step of FUNNEL) {
-      expect(screen.getAllByText(String(step.count)).length).toBeGreaterThan(0)
+    const total = FUNNEL[0]?.count ?? 0
+    const ops = FUNNEL.find((s) => s.key === 'co-hoi')?.count ?? 0
+    const deals = FUNNEL.find((s) => s.key === 'hop-dong')?.count ?? 0
+
+    for (const label of ['Tổng số lead', 'First meeting / lead', 'Ops / lead', 'Deal / lead']) {
+      expect(screen.getByText(label)).toBeInTheDocument()
     }
 
-    // 44/100 · 30/44 · 19/30 · 11/19 · 6/11 — năm tỉ lệ, một cho mỗi bước rớt.
-    expect(screen.getByText('44%')).toBeInTheDocument()
-    expect(screen.getByText('68%')).toBeInTheDocument()
-    expect(screen.getByText(/Phễu đếm LUỸ KẾ cả kỳ/)).toBeInTheDocument()
+    expect(screen.getAllByText(String(total)).length).toBeGreaterThan(0)
+    expect(screen.getByText(`${Math.round((ops / total) * 100)}%`)).toBeInTheDocument()
+    expect(screen.getByText(`${Math.round((deals / total) * 100)}%`)).toBeInTheDocument()
+
+    // Phễu sáu bậc đã gỡ cùng đợt — không mọc lại.
+    expect(screen.queryByText(/Phễu đếm LUỸ KẾ cả kỳ/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Công ty thật/ })).not.toBeInTheDocument()
   })
 
-  it('bấm một bậc trên phễu là lọc theo bậc đó — thẻ điểm cũng là bộ lọc', async () => {
+  it('ô "First meeting" lấy số từ fixture, không mượn số bậc MQL', () => {
+    renderScreen(<LeadsPage />)
+
+    const total = FUNNEL[0]?.count ?? 0
+    expect(screen.getByText(`${Math.round((FIRST_MEETINGS / total) * 100)}%`)).toBeInTheDocument()
+    expect(
+      screen.getByText(`${FIRST_MEETINGS} buổi gặp đầu tiên trên ${total} đầu mối`),
+    ).toBeInTheDocument()
+
+    // Vẫn cấm đổ số của bậc MQL (Công ty thật) vào ô này: nhãn nói gặp, số đo khác.
+    const mql = FUNNEL.find((s) => s.key === 'cong-ty-that')?.count ?? 0
+    expect(screen.queryByText(`${Math.round((mql / total) * 100)}%`)).not.toBeInTheDocument()
+  })
+
+  it('thẻ điểm giữ nguyên số khi đổi bộ lọc — điểm của CẢ KỲ', async () => {
     renderScreen(<LeadsPage />)
     await screen.findByRole('cell', { name: 'DAS Vina' })
 
-    const mql = LEADS.filter((l) => l.tier === 'mql').length
-    fireEvent.click(screen.getByRole('button', { name: /Công ty thật/ }))
+    const total = FUNNEL[0]?.count ?? 0
+    const deals = FUNNEL.find((s) => s.key === 'hop-dong')?.count ?? 0
+    const dealRate = `${Math.round((deals / total) * 100)}%`
 
-    expect((screen.getByLabelText('Bậc') as HTMLSelectElement).value).toBe('mql')
-    expect(screen.getByText(`MQL · ${mql}`)).toBeInTheDocument()
+    const owner = LEADS.find((l) => l.owner)?.owner as string
+    fireEvent.change(screen.getByLabelText('Người giữ'), { target: { value: owner } })
+    expect(screen.getByText(dealRate)).toBeInTheDocument()
   })
 
   it('bộ lọc là MỘT hàng select, không phải rừng nút pill', () => {
     renderScreen(<LeadsPage />)
 
-    for (const label of ['Trạng thái', 'Bậc', 'Ngành', 'Nguồn']) {
+    for (const label of ['Trạng thái', 'Nguồn', 'Người giữ', 'Công ty']) {
       expect(screen.getByLabelText(label).tagName).toBe('SELECT')
     }
 
@@ -115,90 +138,76 @@ describe('Module 2 · Sổ lead', () => {
     expect(screen.getAllByRole('button', { name: 'Bỏ hết bộ lọc' }).length).toBeGreaterThan(0)
   })
 
-  it('bật "Quá SLA" thì nói rõ hai bậc đầu chưa ai đặt ngưỡng', async () => {
+  it('sổ có đúng tám cột đã chốt, theo đúng thứ tự', async () => {
     renderScreen(<LeadsPage />)
     await screen.findByRole('cell', { name: 'DAS Vina' })
 
-    expect(screen.queryByText(/chưa có ngưỡng — chưa đo được/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Quá SLA' }))
-    expect(screen.getByText(/đầu mối và MQL chưa có ngưỡng — chưa đo được/)).toBeInTheDocument()
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Ghim',
+      'Mã',
+      'Công ty',
+      'Người liên hệ',
+      'Chức danh',
+      'Nguồn',
+      'Trạng thái',
+      'Người giữ',
+    ])
   })
 
-  it('ContextRail có mặt và dựng từ đồ thị E1 — luật 10', async () => {
+  it('hai cột người đọc từ leadContact, không phải tên suy ra ở tầng màn', async () => {
     renderScreen(<LeadsPage />)
+    const row = (await screen.findByRole('cell', { name: 'DAS Vina' })).parentElement as HTMLElement
 
-    // Chuỗi của OP-0288: AC-0142 → CT-0391 → OP-0288 → BG-1077.
-    expect(await screen.findByText('AC-0142')).toBeInTheDocument()
-    expect(screen.getByText('BG-1077')).toBeInTheDocument()
+    // Dòng mồi lấy người THẬT trong đồ thị object (CT-0391) — fixture chốt vậy.
+    expect(within(row).getByText('Kim Dae-ho')).toBeInTheDocument()
+    expect(within(row).getByText('Giám đốc nhà máy')).toBeInTheDocument()
   })
 
-  it('tab "Việc của tôi" xếp việc theo cột kanban và nói rõ vì sao là việc của mình', async () => {
-    renderScreen(<LeadsPage />)
-    await screen.findByRole('cell', { name: 'DAS Vina' })
-
-    fireEvent.click(screen.getByRole('button', { name: /Việc của tôi · \d+/ }))
-
-    // Sáu cột: chưa vào sổ cơ hội + năm cột của PIPELINE_STAGES.
-    for (const label of [
-      'Chưa vào sổ cơ hội',
-      'Mới',
-      'Đang tìm hiểu',
-      'Đã demo',
-      'Đã báo giá',
-      'Chờ ký',
-    ]) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
-    }
-
-    // TP Kinh doanh không giữ khách: việc của vai này là thứ chờ mình gật.
-    expect(screen.getAllByText(/chờ bạn gật cho vào pipeline/).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Không có nút "hoàn thành" ở đây/)).toBeInTheDocument()
-  })
-
-  it('bấm hành động trên thẻ việc là ĐỀ NGHỊ, không phải làm luôn', async () => {
+  it('lead chưa moi được ô số 4 thì cột người là "—", không phải tên bịa', async () => {
     renderScreen(<LeadsPage />)
     await screen.findByRole('cell', { name: 'DAS Vina' })
-    fireEvent.click(screen.getByRole('button', { name: /Việc của tôi · \d+/ }))
 
-    /* Đúng cái NÚT, không phải cả thẻ: thẻ có tên trợ năng riêng
-       ("Mở hồ sơ …") nên hai thứ không lẫn vào nhau. */
-    const first = screen.getAllByRole('button', { name: 'Đề nghị nhận vào pipeline' })[0]
-    expect(first).toBeDefined()
-    fireEvent.click(first as HTMLElement)
+    const blank = LEADS.find((l) => !l.filled.includes('nguoi-lien-he'))
+    expect(blank).toBeDefined()
 
-    expect(screen.getAllByText('Đã đề nghị').length).toBeGreaterThan(0)
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'all' } })
+    fireEvent.change(screen.getByLabelText('Công ty'), { target: { value: blank?.company ?? '' } })
+
+    const row = (screen.getAllByRole('cell', { name: blank?.company })[0] as HTMLElement)
+      .parentElement as HTMLElement
+    expect(within(row).getAllByText('—').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('việc vừa được giao rơi vào ĐÚNG cột của nó và đeo nhãn "mới"', async () => {
-    // Huy là Sale ngành chip; lead dưới đây do Linh giữ, đang ở cột "Đã demo".
-    const other = LEADS.find((l) => l.stage === 'da-demo' && l.owner !== 'Đỗ Quang Huy')
-    expect(other).toBeDefined()
-
-    renderScreen(<LeadsPage />, { actorId: 'u-huy' })
+  it('lọc được theo Người giữ, kể cả mục "chưa ai nhận"', async () => {
+    renderScreen(<LeadsPage />)
     await screen.findByRole('cell', { name: 'DAS Vina' })
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'all' } })
 
-    act(() => {
-      useLeadDesk.getState().assign(other?.code ?? '', ['u-huy'], 'Báo tắc')
-    })
-    fireEvent.click(screen.getByRole('button', { name: /Việc của tôi · \d+/ }))
+    const owner = LEADS.find((l) => l.owner)?.owner as string
+    fireEvent.change(screen.getByLabelText('Người giữ'), { target: { value: owner } })
+    expect(screen.getByText(/dòng khớp bộ lọc/).textContent).toBe(
+      `${LEADS.filter((l) => l.owner === owner).length} dòng khớp bộ lọc`,
+    )
 
-    const card = screen.getByRole('button', { name: `Mở hồ sơ ${other?.company}` })
-    expect(within(card).getByText('mới')).toBeInTheDocument()
-    expect(within(card).getByText(/Vừa được giao · Báo tắc/)).toBeInTheDocument()
-
-    // Thẻ nằm trong cột "Đã demo", không nằm trong một hộp "việc mới" riêng.
-    const column = card.parentElement?.parentElement as HTMLElement
-    expect(within(column).getByText('Đã demo')).toBeInTheDocument()
+    // 33 dòng chưa ai nhận — không có mục này thì chỉ tìm ra chúng bằng mắt.
+    const orphan = screen.getByLabelText('Người giữ') as HTMLSelectElement
+    const noOwner = [...orphan.options].find((o) => o.text === 'Chưa ai nhận')
+    expect(noOwner).toBeDefined()
+    fireEvent.change(orphan, { target: { value: noOwner?.value } })
+    expect(screen.getByText(/dòng khớp bộ lọc/).textContent).toBe(
+      `${LEADS.filter((l) => !l.owner).length} dòng khớp bộ lọc`,
+    )
   })
 
-  it('vai Sale thấy việc của chính mình, không thấy việc của vai khác', async () => {
-    renderScreen(<LeadsPage />, { actorId: 'u-huy' })
+  it('đầu màn không còn tab và không còn rail chip mồi — gỡ 22/08', async () => {
+    renderScreen(<LeadsPage />)
     await screen.findByRole('cell', { name: 'DAS Vina' })
 
-    fireEvent.click(screen.getByRole('button', { name: /Việc của tôi · \d+/ }))
+    // "Sổ lead" chỉ còn là TIÊU ĐỀ màn, không còn là một nút chọn tab.
+    expect(screen.queryByRole('button', { name: 'Sổ lead' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Việc của tôi/ })).not.toBeInTheDocument()
 
-    const board = screen.getByText(/Bấm hành động trên thẻ là ĐỀ NGHỊ/).parentElement as HTMLElement
-    expect(within(board).getAllByText(/Bạn đang giữ/).length).toBeGreaterThan(0)
-    expect(within(board).queryByText(/chờ bạn gật cho vào pipeline/)).not.toBeInTheDocument()
+    // Rail gỡ cùng đợt: chuỗi dựng từ dòng mồi cứng, không từ dòng đang xem.
+    expect(screen.queryByLabelText('Chuỗi object liên quan')).not.toBeInTheDocument()
   })
 })

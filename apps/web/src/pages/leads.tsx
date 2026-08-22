@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, ChevronsRight, Inbox, Pin, TriangleAlert } from 'lucide-react'
+import {
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
+  FileCheck,
+  Inbox,
+  Pin,
+  Target,
+  TriangleAlert,
+  Users,
+} from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  AvatarGroup,
-  Badge,
   Button,
   Chip,
-  ContextRail,
   DataTable,
   EmptyState,
   GlassCard,
@@ -17,40 +24,31 @@ import {
   SearchField,
   Select,
   Skeleton,
+  StatCard,
   cn,
+  percent,
   type TableSort,
 } from '@pv/ui'
 import {
   DAS_VINA_FROZEN_AT,
-  dasVina,
   dayISO,
+  FIRST_MEETINGS,
   FUNNEL,
   isOverSla,
   isRunning,
   LEAD_CATEGORIES,
-  LEAD_TIERS,
+  leadContact,
   leadOrigin,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
   SOURCES,
   type Lead,
-  type LeadCategory,
-  type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/session'
 import { dm } from '@/lib/date'
-import {
-  ANCHOR_CODE,
-  leadBookQuery,
-  myWork,
-  ORIGIN_FACE,
-  peopleOn,
-  WORK_COLUMNS,
-  type WorkColumn,
-  type WorkItem,
-} from '@/data/leads'
+import { leadBookQuery, ORIGIN_FACE } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 
 /** Module 2 · Sổ lead.
@@ -64,35 +62,74 @@ import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
  *  dòng là sang trang — dòng nổi lên và đổi con trỏ để nói ra điều đó.
  *
  *  Ba khối, đúng thứ tự mắt cần:
- *   1 · phễu — thẻ điểm của cả kỳ, VÀ là bộ lọc: bấm một bậc là lọc theo bậc đó;
+ *   1 · thẻ điểm — bốn con số của cả kỳ, đọc trong một nhịp mắt;
  *   2 · một hàng lọc — ô tìm + bốn select, không còn ba chục nút pill;
  *   3 · sổ — ghim của tôi tách lên trên, rồi bảng phân trang.
  *
- *  Tab thứ hai **Việc của tôi** là cùng một sổ nhìn từ phía người đăng nhập:
- *  việc xếp theo cột kanban của phòng, việc mới giao nằm đúng cột nó thuộc về.
- *  Người nhận việc không bấm "next" — họ bấm ĐÚNG hành động của việc đó, và
- *  luồng tự trôi trong kanban.
+ *  ------------------------------------------------------------------
+ *  GỠ 22/08 — MỘT MÀN TRẢ LỜI MỘT CÂU
+ *  ------------------------------------------------------------------
+ *  Hai thứ đã gỡ khỏi đầu màn:
+ *   · **hai tab "Sổ lead" / "Việc của tôi"**. Sổ trả lời "phòng đang có gì",
+ *     bàn việc cá nhân trả lời "tôi phải làm gì". Hai câu khác nhau thì là hai
+ *     màn, không phải hai tab nấp sau tiêu đề của sổ. `MyWork` xoá khỏi màn,
+ *     nhưng phần dựng việc (`myWork`, `WORK_COLUMNS` ở `data/leads.ts`) GIỮ
+ *     NGUYÊN — màn việc dựng lại được mà không phải viết lại từ đầu.
+ *   · **ContextRail**. Luật 10 đòi rail trên mọi màn, nên đây là NỢ LUẬT có ý
+ *     thức chứ không phải quên: chuỗi ở màn này dựng từ một dòng mồi CỨNG
+ *     (`ANCHOR_CODE`), nên bốn chip mã treo trên đầu một danh sách 100 dòng nói
+ *     về một lead mà người dùng không hề chọn. Rail quay lại khi nào nó dựng
+ *     được từ dòng đang được chọn — không sớm hơn.
+ *   · **khối tiêu đề "Sổ lead" + dòng kỳ** — gỡ TẠM THỜI, khác hai thứ trên.
+ *     Kỳ và số dòng cả kỳ vẫn còn nguyên trên phễu ngay bên dưới
+ *     (`Phễu 01/05 → 17/08`), nên đầu màn đang lặp lại chính nó. Hệ quả phải
+ *     biết: màn HẾT `<h2>` — trình đọc màn hình không còn tên cho vùng nội
+ *     dung, và tên màn chỉ còn nằm ở nav tầng 2. Trả lại khối này (hoặc một
+ *     tiêu đề gọn hơn) trước khi màn ra khỏi POC.
+ *
+ *  ------------------------------------------------------------------
+ *  TÁM CỘT — chốt 22/08
+ *  ------------------------------------------------------------------
+ *  Ghim · Mã · Công ty · Người liên hệ · Chức danh · Nguồn · Trạng thái ·
+ *  Người giữ. Sổ đổi trục: từ "lead đi tới đâu trong phễu" sang "ai đang nói
+ *  chuyện với ai" — hai cột NGƯỜI (bên khách và bên mình) thay bốn cột đo tiến
+ *  độ. Gỡ theo: Bậc · Ô bắt buộc · Đang ở (số ngày) · Đang làm (nhóm avatar).
+ *  Sắp xếp vì thế chỉ còn cột Công ty: hai khoá `slots` và `days` mất cột để bấm.
+ *
+ *  Nhãn lấy từ chính fixture chứ không dịch lại: câu số 4 của init data tên là
+ *  "Người liên hệ và chức danh" (`INIT_DATA_QUESTIONS`), nên hai cột người tên
+ *  đúng như vậy. "Account" viết thành "Công ty" vì trường trong fixture là
+ *  `company`, và "account" trong tiếng Việt hay bị đọc thành tài khoản đăng nhập.
+ *
+ *  58/100 lead CHƯA có người liên hệ — ô số 4 chưa moi được. Hai cột người vẽ
+ *  "—" cho chúng và nói lý do ở `title`. `leadContact` đã dặn thẳng: điền một
+ *  cái tên cho đủ ô là phá đúng thứ cổng init data sinh ra để đo.
+ *
+ *  Hàng lọc: ô tìm · Trạng thái · Nguồn · Người giữ · Công ty. "Trạng thái" ở
+ *  lại vì nó là thứ đang giữ sổ mở ra ở 42 dòng đang chạy thay vì cả 100 dòng
+ *  kể cả 52 lead đã rơi. Bỏ: Bậc · Ngành · Quá SLA — tam giác cảnh báo SLA vẫn
+ *  còn trên tên công ty, chỉ mất cái nút lọc riêng.
  *
  *  Sổ là CẢ KỲ 01/05 → 17/08: 100 dòng, phân trang, không cuộn vô tận.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. Vào được màn này là vai có
  *  nhánh Sales — cửa ở `app/guard.tsx`, không kiểm lại ở đây.
  *
- *  State: bộ lọc, trang, tab và cột sắp xếp là chuyện RIÊNG của màn nên giữ ở
- *  đây bằng `useState`. Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và
+ *  State: bộ lọc, trang và cột sắp xếp là chuyện RIÊNG của màn nên giữ ở đây
+ *  bằng `useState`. Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và
  *  đi qua cả màn chi tiết — chúng nằm ở `app/desk.ts`. */
 
 const PAGE_SIZE = 10
 
+/** Mục "chưa ai nhận" của ô lọc Người giữ. Phải là một giá trị KHÔNG trùng tên
+ *  người nào trong sổ — `<select>` gốc chỉ mang được chuỗi. */
+const NO_OWNER = '\u0000chua-ai-nhan'
+
+const NO_CONTACT = 'Chưa có người liên hệ — ô số 4 của init data chưa moi được'
+
 /* Mốc kỳ suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
 const PERIOD_FROM = dm(dayISO(0))
 const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
-
-const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
-  'dau-moi': 'draft',
-  mql: 'running',
-  sql: 'success',
-}
 
 /** Bốn trạng thái của một dòng trong sổ. "Đang chạy" là mặc định — lead đã rơi
  *  vẫn tra được, vì đó là nơi câu trả lời "vì sao mất" nằm. */
@@ -106,7 +143,6 @@ const STATUSES = [
 type StatusKey = (typeof STATUSES)[number]['key']
 
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
-const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
 
 function matchStatus(lead: Lead, status: StatusKey): boolean {
@@ -122,17 +158,14 @@ export function LeadsPage() {
   const { data: book = [], isPending } = useQuery(leadBookQuery)
 
   const me = useSession((s) => s.actor)
-  const assigns = useLeadDesk((s) => s.assigns)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
 
-  const [tab, setTab] = useState<'so' | 'viec'>('so')
   const [query, setQuery] = useState('')
-  const [tier, setTier] = useState<LeadTier | 'all'>('all')
-  const [category, setCategory] = useState<LeadCategory | 'all'>('all')
   const [source, setSource] = useState<string>('all')
+  const [owner, setOwner] = useState<string>('all')
+  const [account, setAccount] = useState<string>('all')
   const [status, setStatus] = useState<StatusKey>('running')
-  const [overSlaOnly, setOverSlaOnly] = useState(false)
   const [sort, setSort] = useState<TableSort | undefined>()
   const [page, setPage] = useState(0)
 
@@ -142,15 +175,15 @@ export function LeadsPage() {
     () =>
       book.filter((l) => {
         if (!matchStatus(l, status)) return false
-        if (tier !== 'all' && l.tier !== tier) return false
-        if (category !== 'all' && l.category !== category) return false
         if (source !== 'all' && l.source !== source) return false
-        if (overSlaOnly && !isOverSla(l)) return false
+        if (owner !== 'all' && (owner === NO_OWNER ? Boolean(l.owner) : l.owner !== owner))
+          return false
+        if (account !== 'all' && l.company !== account) return false
         if (query.trim() === '') return true
         const needle = query.trim().toLowerCase()
         return l.company.toLowerCase().includes(needle) || l.code.toLowerCase().includes(needle)
       }),
-    [book, status, tier, category, source, overSlaOnly, query],
+    [book, status, source, owner, account, query],
   )
 
   /* Sắp xếp nằm ở màn, không ở `DataTable`: thứ tự là trạng thái của màn, bảng
@@ -158,17 +191,13 @@ export function LeadsPage() {
   const visible = useMemo(() => {
     if (!sort) return filtered
     const dir = sort.dir === 'asc' ? 1 : -1
-    return [...filtered].sort((a, b) => {
-      if (sort.key === 'company') return a.company.localeCompare(b.company) * dir
-      if (sort.key === 'slots') return (a.requiredFilled - b.requiredFilled) * dir
-      return (a.daysHere - b.daysHere) * dir
-    })
+    return [...filtered].sort((a, b) => a.company.localeCompare(b.company, 'vi') * dir)
   }, [filtered, sort])
 
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
   /* Đổi bộ lọc mà đang đứng ở trang 7 thì phải về trang đầu, nếu không người
      dùng thấy một trang trắng và tưởng là không có kết quả. */
-  useEffect(() => setPage(0), [status, tier, category, source, overSlaOnly, query, sort])
+  useEffect(() => setPage(0), [status, source, owner, account, query, sort])
   /* `useEffect` trên chạy SAU lượt vẽ, nên chỉ dựa vào nó thì vẫn lọt đúng một
      nhịp bảng trắng. Kẹp luôn lúc dựng để nhịp đó không bao giờ lên màn hình. */
   const safePage = Math.min(page, pageCount - 1)
@@ -180,263 +209,186 @@ export function LeadsPage() {
     [pins, book],
   )
 
-  const work = useMemo(() => myWork({ actor: me, leads: book, assigns }), [me, book, assigns])
+  /* Hai danh sách lọc dựng TỪ SỔ chứ không khai tay: thêm một Sale hay một
+     công ty vào fixture là ô lọc tự có, không ai phải nhớ sửa thêm chỗ này. */
+  const owners = useMemo(
+    () =>
+      [...new Set(book.map((l) => l.owner).filter((o): o is string => Boolean(o)))].sort((a, b) =>
+        a.localeCompare(b, 'vi'),
+      ),
+    [book],
+  )
 
-  /* Bậc HIỆN TẠI đếm lại từ sổ, KHÔNG mượn `FUNNEL.count`: phễu là luỹ kế (đã
-     từng đạt bậc), ô lọc này là bậc lead đang đứng. Mượn số của phễu thì chọn
-     "MQL" ra một đằng còn đầu màn ghi một nẻo. */
-  const tierNow = useMemo(
-    () => new Map(LEAD_TIERS.map((t) => [t.key, book.filter((l) => l.tier === t.key).length])),
+  const accounts = useMemo(
+    () => [...new Set(book.map((l) => l.company))].sort((a, b) => a.localeCompare(b, 'vi')),
     [book],
   )
 
   const dirty =
-    query !== '' ||
-    tier !== 'all' ||
-    category !== 'all' ||
-    source !== 'all' ||
-    status !== 'running' ||
-    overSlaOnly
+    query !== '' || source !== 'all' || owner !== 'all' || account !== 'all' || status !== 'running'
 
   const clearFilters = () => {
     setQuery('')
-    setTier('all')
-    setCategory('all')
     setSource('all')
+    setOwner('all')
+    setAccount('all')
     setStatus('running')
-    setOverSlaOnly(false)
   }
-
-  /* Luật 10 · ContextRail dựng thẳng từ E1, ở TẦNG MÀN chứ không trong một
-     panel — hai tab là hai việc của cùng một màn, rail không được biến mất khi
-     người dùng sang tab kia. Chuỗi đi qua đơn của dòng mồi. */
-  const anchor = book.find((l) => l.code === ANCHOR_CODE)
-  const story = anchor?.dealCode ? dasVina.graph.story(anchor.dealCode) : []
-  const rail =
-    story.length > 0
-      ? story.map((o) => ({
-          code: o.code,
-          source: o.code !== anchor?.dealCode,
-          onOpen: () => open(ANCHOR_CODE),
-        }))
-      : [{ code: ANCHOR_CODE, source: false, onOpen: () => open(ANCHOR_CODE) }]
 
   return (
     <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-4 lg:gap-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Sổ lead</h2>
-            <p className="text-muted-foreground mt-1 text-[12px]">
-              DAS Vina · kỳ{' '}
-              <span className="font-mono">
-                {PERIOD_FROM} → {PERIOD_TO}
-              </span>{' '}
-              · {book.length} dòng cả kỳ
-            </p>
-          </div>
+        <ScoreCards />
 
-          {/* Hai tab là hai câu hỏi khác nhau trên cùng một sổ: "phòng đang có
-              gì" và "tôi phải làm gì". */}
-          <div className="flex gap-2">
-            <Button
-              size="md"
-              variant={tab === 'so' ? 'default' : 'ghost'}
-              onClick={() => setTab('so')}
-            >
-              Sổ lead
+        {/* Một hàng lọc. Ô tìm nở hết chỗ còn lại, bốn select cùng cao 40px
+            đứng cạnh nó — không còn ba dòng nút pill để mắt phải quét. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <SearchField
+            size="topbar"
+            placeholder="Tìm theo tên công ty hoặc mã lead…"
+            value={query}
+            onChange={setQuery}
+            className="min-w-[240px] flex-1"
+          />
+          <Select
+            label="Trạng thái"
+            value={status}
+            neutralValue="running"
+            onChange={(v) => setStatus(v as StatusKey)}
+            options={STATUSES.map((s) => ({ value: s.key, label: s.label }))}
+          />
+          <Select
+            label="Nguồn"
+            value={source}
+            onChange={setSource}
+            /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
+               dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
+            className="max-w-[240px]"
+            options={[
+              { value: 'all', label: 'Mọi nguồn' },
+              ...SOURCES.map((s) => ({ value: s.code, label: `${s.code} · ${s.label}` })),
+            ]}
+          />
+          <Select
+            label="Người giữ"
+            value={owner}
+            onChange={setOwner}
+            className="max-w-[200px]"
+            options={[
+              { value: 'all', label: 'Mọi người' },
+              /* 33/100 dòng chưa ai nhận. Không có mục này thì cách duy nhất
+                 tìm ra chúng là đọc hết sổ bằng mắt. */
+              { value: NO_OWNER, label: 'Chưa ai nhận' },
+              ...owners.map((o) => ({ value: o, label: o })),
+            ]}
+          />
+          <Select
+            label="Công ty"
+            value={account}
+            onChange={setAccount}
+            className="max-w-[220px]"
+            options={[
+              { value: 'all', label: 'Mọi công ty' },
+              ...accounts.map((a) => ({ value: a, label: a })),
+            ]}
+          />
+          {dirty && (
+            <Button size="md" variant="ghost" onClick={clearFilters}>
+              Bỏ hết bộ lọc
             </Button>
-            <Button
-              size="md"
-              variant={tab === 'viec' ? 'default' : 'ghost'}
-              onClick={() => setTab('viec')}
-            >
-              Việc của tôi · {work.length}
-            </Button>
-          </div>
+          )}
         </div>
 
-        <ContextRail objects={rail} />
+        {pinned.length > 0 && (
+          <PinnedStrip
+            leads={pinned}
+            onOpen={open}
+            onUnpin={(code) => me && togglePin(me.id, code)}
+          />
+        )}
 
-        {tab === 'viec' ? (
-          <MyWork items={work} onOpen={open} onSeeBook={() => setTab('so')} />
-        ) : (
-          <>
-            <FunnelCard
-              book={book}
-              tier={tier}
-              status={status}
-              onTier={setTier}
-              onStatus={setStatus}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground text-[11.5px]">
+            <span className="tnum font-num">{visible.length}</span> dòng khớp bộ lọc
+          </span>
+          {visible.length > PAGE_SIZE && (
+            <Pager page={safePage} pageCount={pageCount} onPage={setPage} />
+          )}
+        </div>
+
+        {/* Bảng LUÔN nằm trên glass-b — luật 8. */}
+        <GlassCard variant="b" className="p-4 lg:p-5">
+          {isPending ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+          ) : visible.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
+              message="Không có lead nào khớp bộ lọc đang chọn."
+              action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
+              className="py-12"
             />
+          ) : (
+            <DataTable
+              sort={sort}
+              onSort={(key) =>
+                setSort((s) =>
+                  s?.key === key
+                    ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+                    : { key, dir: 'asc' },
+                )
+              }
+              columns={[
+                { header: 'Ghim', width: '52px' },
+                { header: 'Mã', width: '0.85fr' },
+                { header: 'Công ty', width: '1.6fr', sortKey: 'company' },
+                { header: 'Người liên hệ', width: '1.2fr' },
+                { header: 'Chức danh', width: '1.3fr' },
+                { header: 'Nguồn', width: '1fr' },
+                { header: 'Trạng thái', width: '1.4fr' },
+                { header: 'Người giữ', width: '1.1fr' },
+              ]}
+              rows={rows.map((l) => {
+                /* Gọi MỘT lần cho cả hai cột người: `leadContact` dựng lại tên
+                   và chức danh từ mã lead mỗi lần gọi. */
+                const contact = leadContact(l)
 
-            {/* Một hàng lọc. Ô tìm nở hết chỗ còn lại, bốn select cùng cao 40px
-                đứng cạnh nó — không còn ba dòng nút pill để mắt phải quét. */}
-            <div className="flex flex-wrap items-center gap-3">
-              <SearchField
-                size="topbar"
-                placeholder="Tìm theo tên công ty hoặc mã lead…"
-                value={query}
-                onChange={setQuery}
-                className="min-w-[240px] flex-1"
-              />
-              <Select
-                label="Trạng thái"
-                value={status}
-                neutralValue="running"
-                onChange={(v) => setStatus(v as StatusKey)}
-                options={STATUSES.map((s) => ({ value: s.key, label: s.label }))}
-              />
-              <Select
-                label="Bậc"
-                value={tier}
-                onChange={(v) => setTier(v as LeadTier | 'all')}
-                options={[
-                  { value: 'all', label: 'Tất cả' },
-                  ...LEAD_TIERS.map((t) => ({
-                    value: t.key,
-                    label: `${t.label} · ${tierNow.get(t.key) ?? 0}`,
-                  })),
-                ]}
-              />
-              <Select
-                label="Ngành"
-                value={category}
-                onChange={(v) => setCategory(v as LeadCategory | 'all')}
-                options={[
-                  { value: 'all', label: 'Tất cả' },
-                  ...LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label })),
-                ]}
-              />
-              <Select
-                label="Nguồn"
-                value={source}
-                onChange={setSource}
-                /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo
-                   option dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
-                className="max-w-[240px]"
-                options={[
-                  { value: 'all', label: 'Mọi nguồn' },
-                  ...SOURCES.map((s) => ({ value: s.code, label: `${s.code} · ${s.label}` })),
-                ]}
-              />
-              <Button
-                size="md"
-                variant={overSlaOnly ? 'default' : 'ghost'}
-                onClick={() => setOverSlaOnly((v) => !v)}
-              >
-                <Icon icon={TriangleAlert} size={16} />
-                Quá SLA
-              </Button>
-              {dirty && (
-                <Button size="md" variant="ghost" onClick={clearFilters}>
-                  Bỏ hết bộ lọc
-                </Button>
-              )}
-            </div>
+                return {
+                  id: l.code,
+                  onOpen: () => open(l.code),
+                  cells: [
+                    <PinCell
+                      key="p"
+                      on={pins.includes(l.code)}
+                      company={l.company}
+                      onToggle={() => me && togglePin(me.id, l.code)}
+                    />,
+                    <Chip key="c">{l.code}</Chip>,
+                    <span key="n" className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{l.company}</span>
+                      {isOverSla(l) && (
+                        <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
+                      )}
+                    </span>,
+                    <PersonCell key="ct" value={contact?.name} missing={NO_CONTACT} />,
+                    <PersonCell key="ti" value={contact?.title} missing={NO_CONTACT} />,
+                    <SourceMark key="s" lead={l} />,
+                    <StatusCell key="w" lead={l} />,
+                    <PersonCell key="o" value={l.owner} missing="Còn ở kho chung, chưa ai nhận" />,
+                  ],
+                }
+              })}
+            />
+          )}
+        </GlassCard>
 
-            {/* Lọc "Quá SLA" chỉ có nghĩa trong bậc SQL — `isOverSla` đo bằng hạn
-                của cột, mà chỉ lead đã vào sổ cơ hội mới có cột. Không nói ra thì
-                bật lọc ở bậc đầu mối ra EmptyState, người dùng đọc thành "không
-                ai quá hạn". */}
-            {overSlaOnly && (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Ngưỡng SLA mới có cho cột của sổ cơ hội; đầu mối và MQL chưa có ngưỡng — chưa đo
-                được. Lọc này vì thế chỉ lọc bên trong bậc SQL: rỗng ở hai bậc kia nghĩa là chưa ai
-                đặt hạn, không phải không ai quá hạn.
-              </p>
-            )}
-
-            {pinned.length > 0 && (
-              <PinnedStrip
-                leads={pinned}
-                onOpen={open}
-                onUnpin={(code) => me && togglePin(me.id, code)}
-              />
-            )}
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground text-[11.5px]">
-                <span className="tnum font-num">{visible.length}</span> dòng khớp bộ lọc
-              </span>
-              {visible.length > PAGE_SIZE && (
-                <Pager page={safePage} pageCount={pageCount} onPage={setPage} />
-              )}
-            </div>
-
-            {/* Bảng LUÔN nằm trên glass-b — luật 8. */}
-            <GlassCard variant="b" className="p-4 lg:p-5">
-              {isPending ? (
-                <div className="flex flex-col gap-3">
-                  <Skeleton className="h-11 w-full" />
-                  <Skeleton className="h-11 w-full" />
-                  <Skeleton className="h-11 w-full" />
-                </div>
-              ) : visible.length === 0 ? (
-                <EmptyState
-                  icon={Inbox}
-                  message="Không có lead nào khớp bộ lọc đang chọn."
-                  action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
-                  className="py-12"
-                />
-              ) : (
-                <DataTable
-                  sort={sort}
-                  onSort={(key) =>
-                    setSort((s) =>
-                      s?.key === key
-                        ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
-                        : { key, dir: 'asc' },
-                    )
-                  }
-                  columns={[
-                    { header: 'Ghim', width: '52px' },
-                    { header: 'Mã', width: '0.9fr' },
-                    { header: 'Công ty', width: '2fr', sortKey: 'company' },
-                    { header: 'Nguồn', width: '1fr' },
-                    { header: 'Bậc', width: '0.7fr' },
-                    { header: 'Ô bắt buộc', width: '0.9fr', align: 'right', sortKey: 'slots' },
-                    { header: 'Đang ở', width: '1.3fr', sortKey: 'days' },
-                    { header: 'Đang làm', width: '1fr' },
-                  ]}
-                  rows={rows.map((l) => ({
-                    id: l.code,
-                    onOpen: () => open(l.code),
-                    cells: [
-                      <PinCell
-                        key="p"
-                        on={pins.includes(l.code)}
-                        company={l.company}
-                        onToggle={() => me && togglePin(me.id, l.code)}
-                      />,
-                      <Chip key="c">{l.code}</Chip>,
-                      <span key="n" className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{l.company}</span>
-                        {isOverSla(l) && (
-                          <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
-                        )}
-                      </span>,
-                      <SourceMark key="s" lead={l} />,
-                      <Badge key="t" tone={TIER_TONE[l.tier]}>
-                        {TIER_LABEL.get(l.tier) ?? l.tier}
-                      </Badge>,
-                      <span key="a" className="tnum font-num">
-                        {l.requiredFilled}/{REQUIRED_SLOTS}
-                      </span>,
-                      <WhereCell key="w" lead={l} />,
-                      <AvatarGroup key="o" names={peopleOn(l, assigns, dasVina.actors)} />,
-                    ],
-                  }))}
-                />
-              )}
-            </GlassCard>
-
-            {visible.length > PAGE_SIZE && (
-              <div className="flex justify-end">
-                <Pager page={safePage} pageCount={pageCount} onPage={setPage} />
-              </div>
-            )}
-          </>
+        {visible.length > PAGE_SIZE && (
+          <div className="flex justify-end">
+            <Pager page={safePage} pageCount={pageCount} onPage={setPage} />
+          </div>
         )}
       </div>
     </AppShell>
@@ -445,146 +397,81 @@ export function LeadsPage() {
 
 // ---------------------------------------------------------------------------
 
-/** Phễu — thẻ điểm của cả kỳ VÀ bộ lọc chính.
+/** Thẻ điểm cả kỳ — BỐN con số, không còn phễu sáu bậc.
  *
- *  Bản trước là sáu con số nằm im trên một thẻ: chiếm chỗ nhất màn mà không trả
- *  lời được câu nào ngoài "có sáu bậc". Bản này thêm ba thứ khiến nó đáng chỗ:
- *   · **tỉ lệ qua bậc** — thứ duy nhất nói được phễu đang tắc ở đâu;
- *   · **thanh dài theo số** — so bậc bằng mắt, không phải đọc rồi trừ;
- *   · **bấm được** — ba bậc có bậc lead tương ứng thì bấm vào là lọc theo bậc
- *     đó, và ba con số cân sổ ở góc phải là ba bộ lọc trạng thái.
+ *  Phễu cũ trả lời "tắc ở bậc nào". Nhưng câu người mở sổ hỏi TRƯỚC là "một
+ *  trăm đầu mối ra được bao nhiêu deal", và câu đó phải đọc được trong một nhịp
+ *  mắt chứ không phải trừ hai số cạnh nhau. Bốn ô ở đây là bốn con số trên CÙNG
+ *  một mẫu số — 100 đầu mối cả kỳ.
  *
- *  Số ở đây LUỸ KẾ (đã từng đạt bậc), khác nghĩa với "bậc hiện tại" của ô lọc
- *  Bậc — dòng cuối nói thẳng điều đó, vì không nói thì người dùng đọc thành "số
- *  liệu đá nhau". */
-function FunnelCard({
-  book,
-  tier,
-  status,
-  onTier,
-  onStatus,
-}: {
-  book: Lead[]
-  tier: LeadTier | 'all'
-  status: StatusKey
-  onTier: (t: LeadTier | 'all') => void
-  onStatus: (s: StatusKey) => void
-}) {
-  const top = FUNNEL[0]?.count ?? 1
-  const balance = [
-    { key: 'signed' as const, label: 'đã ký', n: book.filter((l) => l.contractCode).length },
-    { key: 'running' as const, label: 'đang chạy', n: book.filter(isRunning).length },
-    { key: 'exited' as const, label: 'đã rơi', n: book.filter((l) => l.exitReason).length },
-  ]
+ *  Gỡ theo phễu: bấm một bậc để lọc, và ba pill cân sổ (đã ký · đang chạy · đã
+ *  rơi). Không mất chức năng nào — hai ô Select "Trạng thái" và "Bậc" ở hàng lọc
+ *  ngay dưới lọc y hệt.
+ *
+ *  Số đọc từ `FUNNEL` chứ KHÔNG từ `book` đã lọc: thẻ điểm là điểm của CẢ KỲ.
+ *  Điểm mà đổi theo bộ lọc thì nó không còn là điểm — dòng "42 dòng khớp bộ lọc"
+ *  ngay dưới bảng mới là chỗ trả lời cho bộ lọc.
+ *
+ *  Ô "First meeting / lead" có số thật từ 22/08: `FIRST_MEETINGS` = 38, nằm
+ *  trong fixture chứ không gõ ở đây. Nó ĐẾM RA từ 100 dòng sổ chứ không khai
+ *  tay — `hasFirstMeeting`: lead đã lên MQL và đã có kênh gọi lại được (ô số 5
+ *  của init data). Và nó KHÔNG phải bậc thứ bảy của phễu: 38 nằm giữa 44 công ty
+ *  thật và 30 cơ hội, `scenario.test.ts` khoá đúng chỗ đó. */
+type FunnelKey = (typeof FUNNEL)[number]['key']
+
+const funnelCount = (key: FunnelKey) => FUNNEL.find((s) => s.key === key)?.count ?? 0
+
+function ScoreCards() {
+  const total = funnelCount('dau-moi')
+  const ops = funnelCount('co-hoi')
+  const deals = funnelCount('hop-dong')
+
+  /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
+  const per = (n: number) => (total === 0 ? '—' : percent(n / total))
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-4 lg:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Kicker>
-          Phễu {PERIOD_FROM} → {PERIOD_TO}
-        </Kicker>
-        <div className="flex flex-wrap gap-2">
-          {balance.map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              onClick={() => onStatus(b.key)}
-              className={cn(
-                'motion-std flex items-center gap-2 rounded-sm px-2 py-1 text-[11px]',
-                status === b.key
-                  ? 'bg-primary/24 text-accent-foreground font-semibold'
-                  : 'text-glass-foreground bg-white/9 hover:bg-white/16',
-              )}
-            >
-              <span className="tnum font-num text-[12.5px] font-semibold">{b.n}</span>
-              {b.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-3">
+      <Kicker>
+        Thẻ điểm {PERIOD_FROM} → {PERIOD_TO}
+      </Kicker>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {FUNNEL.map((step, i) => {
-          const asTier = LEAD_TIERS.find((t) => t.funnelKey === step.key)
-          const prev = FUNNEL[i - 1]
-          const pass = prev ? Math.round((step.count / prev.count) * 100) : null
-          const active = Boolean(asTier) && tier === asTier?.key
-
-          const body = (
-            <>
-              <span className="flex items-baseline gap-2">
-                <span className="tnum font-num text-[26px] font-semibold leading-none tracking-[-.8px]">
-                  {step.count}
-                </span>
-                {pass !== null && (
-                  <span className="text-muted-foreground tnum flex items-center text-[11px]">
-                    <Icon icon={ChevronsRight} size={14} />
-                    {pass}%
-                  </span>
-                )}
-              </span>
-
-              {/* Hàng nhãn giữ chiều cao tối thiểu để thanh của sáu ô thẳng
-                  hàng, kể cả ô không có badge bậc. */}
-              <span className="flex min-h-5 flex-wrap items-center gap-2">
-                <span
-                  className={cn('text-[11.5px]', active && 'text-accent-foreground font-semibold')}
-                >
-                  {step.label}
-                </span>
-                {/* Badge chỉ có nghĩa khi nó NÓI THÊM: bậc `dau-moi` trùng tên
-                    với bậc phễu, in ra là "Đầu mối · Đầu mối". */}
-                {asTier && asTier.label !== step.label && (
-                  <Badge tone={TIER_TONE[asTier.key]}>{asTier.label}</Badge>
-                )}
-              </span>
-
-              {/* Thanh dài theo số. Không phải trang trí: sáu con số xếp hàng thì
-                  mắt phải đọc từng cái, sáu thanh thì thấy ngay chỗ hụt. */}
-              <span className="h-1 w-full overflow-hidden rounded-sm bg-white/10">
-                <span
-                  className={cn(
-                    'block h-full rounded-sm',
-                    active ? 'bg-accent-foreground' : 'bg-primary',
-                  )}
-                  style={{ width: `${(step.count / top) * 100}%` }}
-                />
-              </span>
-            </>
-          )
-
-          const shape = cn(
-            'motion-std flex flex-col gap-2 rounded-md p-3 text-left',
-            active ? 'bg-primary/24' : 'bg-white/5',
-          )
-
-          /* Chỉ ba bậc có bậc lead tương ứng mới bấm được. Ba bậc còn lại
-             (báo giá · chờ ký · hợp đồng) là trạng thái của ĐƠN chứ không phải
-             bậc của lead — dựng nút cho chúng là hứa một bộ lọc không tồn tại. */
-          return asTier ? (
-            <button
-              key={step.key}
-              type="button"
-              title={active ? 'Bỏ lọc bậc này' : `Lọc sổ theo bậc ${asTier.label}`}
-              onClick={() => onTier(active ? 'all' : asTier.key)}
-              className={cn(shape, !active && 'hover:bg-white/9')}
-            >
-              {body}
-            </button>
-          ) : (
-            <div key={step.key} className={shape}>
-              {body}
-            </div>
-          )
-        })}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          size="compact"
+          icon={Users}
+          value={String(total)}
+          label="Tổng số lead"
+          hint={`đầu mối vào sổ cả kỳ ${PERIOD_FROM} → ${PERIOD_TO}`}
+        />
+        <StatCard
+          size="compact"
+          icon={CalendarCheck}
+          value={per(FIRST_MEETINGS)}
+          label="First meeting / lead"
+          hint={`${FIRST_MEETINGS} buổi gặp đầu tiên trên ${total} đầu mối`}
+        />
+        <StatCard
+          size="compact"
+          icon={Target}
+          value={per(ops)}
+          label="Ops / lead"
+          hint={`${ops} cơ hội trên ${total} đầu mối`}
+        />
+        <StatCard
+          size="compact"
+          icon={FileCheck}
+          value={per(deals)}
+          label="Deal / lead"
+          hint={`${deals} hợp đồng đã ký trên ${total} đầu mối`}
+        />
       </div>
 
       <p className="text-muted-foreground text-[11px] leading-[1.5]">
-        Phễu đếm LUỸ KẾ cả kỳ: lead đã lên SQL vẫn được tính ở mọi bậc nó đi qua. Ô lọc
+        Ba tỉ lệ đều LUỸ KẾ cả kỳ: lead đã lên SQL vẫn được tính ở mọi bậc nó đi qua. Ô lọc
         &quot;Bậc&quot; đếm bậc lead ĐANG đứng, nên hai chỗ ra số khác nhau — đúng như vậy, không
         phải lệch số.
       </p>
-    </GlassCard>
+    </div>
   )
 }
 
@@ -610,9 +497,16 @@ function SourceMark({ lead }: { lead: Lead }) {
   )
 }
 
-/** Lead đang đứng ở đâu — một ô trả lời cho cả ba loại dòng: đã ký, đã rơi, và
- *  đang chạy ở một cột của sổ cơ hội. */
-function WhereCell({ lead }: { lead: Lead }) {
+/** Cột "Trạng thái" — một ô trả lời cho cả ba loại dòng: đã ký, đã rơi, và đang
+ *  chạy ở một cột của sổ cơ hội.
+ *
+ *  KHÔNG còn kèm số ngày. Cột này trả lời "lead đang ở trạng thái nào", còn "nằm
+ *  đó bao lâu rồi" là câu khác — nhồi cả hai vào một ô 12,5px thì không đọc được
+ *  cái nào. Tín hiệu quá hạn vẫn còn: tam giác cảnh báo trên tên công ty.
+ *
+ *  Nhãn trùng tên với ô lọc "Trạng thái" là CỐ Ý: ba giá trị của ô lọc (đang
+ *  chạy · đã ký · đã rơi) là bản thô của chính cột này. */
+function StatusCell({ lead }: { lead: Lead }) {
   if (lead.contractCode) {
     return <span className="text-success text-[11.5px]">Đã ký · {lead.contractCode}</span>
   }
@@ -626,9 +520,26 @@ function WhereCell({ lead }: { lead: Lead }) {
   if (!lead.stage) {
     return <span className="text-muted-foreground text-[11.5px]">Chưa vào sổ cơ hội</span>
   }
+  return <span className="text-[11.5px]">{STAGE_LABEL.get(lead.stage) ?? lead.stage}</span>
+}
+
+/** Một ô người: tên, hoặc "—" kèm lý do ở `title`.
+ *
+ *  "—" ở đây là DỮ LIỆU, không phải lỗi hiển thị. 58/100 lead chưa moi được ô số
+ *  4 nên chưa có người liên hệ, và 33 dòng chưa ai nhận. Điền đại một cái tên
+ *  cho đủ ô là phá đúng thứ cổng init data sinh ra để đo — `leadContact` trong
+ *  fixture đã ghi thẳng điều đó. */
+function PersonCell({ value, missing }: { value?: string; missing: string }) {
+  if (!value) {
+    return (
+      <span className="text-muted-foreground" title={missing}>
+        —
+      </span>
+    )
+  }
   return (
-    <span className="text-[11.5px]">
-      {STAGE_LABEL.get(lead.stage)} · <span className="tnum font-num">{lead.daysHere}</span> ngày
+    <span className="block truncate" title={value}>
+      {value}
     </span>
   )
 }
@@ -699,184 +610,6 @@ function PinnedStrip({
           </GlassCard>
         ))}
       </div>
-    </div>
-  )
-}
-
-/** Việc của tôi — cùng một sổ, xếp theo cột kanban của phòng.
- *
- *  Người nhận việc KHÔNG bấm "next": mỗi thẻ mang đúng hành động của việc đó
- *  (lấy nốt ô, đề nghị vào pipeline, báo tắc, nhắc ký) và luồng tự trôi sang cột
- *  kế trong kanban của phòng. Vì thế thẻ không có nút "hoàn thành" — không việc
- *  nào ở đây kết thúc bằng một dấu tick.
- *
- *  Việc VỪA ĐƯỢC GIAO đứng ở đúng cột nó thuộc về và đeo nhãn "mới", chứ không
- *  gom vào một hộp riêng: người nhận cần thấy việc mới rơi vào chỗ nào trong
- *  luồng, không phải thấy nó nằm ngoài luồng. */
-function MyWork({
-  items,
-  onOpen,
-  onSeeBook,
-}: {
-  items: WorkItem[]
-  onOpen: (code: string) => void
-  onSeeBook: () => void
-}) {
-  const acted = useLeadDesk((s) => s.acted)
-  const act = useLeadDesk((s) => s.act)
-
-  if (items.length === 0) {
-    return (
-      <GlassCard className="p-5 lg:p-6">
-        <EmptyState
-          icon={Inbox}
-          message="Vai này chưa có việc nào trên sổ lead: chưa giữ lead nào và chưa ai giao việc gì. Mở sổ để nhận một dòng về mình."
-          action={{ label: 'Mở sổ lead', onClick: onSeeBook }}
-          className="py-12"
-        />
-      </GlassCard>
-    )
-  }
-
-  const summary = [
-    { label: 'việc đang mở', n: items.length },
-    { label: 'mới giao cho tôi', n: items.filter((i) => i.fresh).length },
-    { label: 'quá hạn cột', n: items.filter((i) => i.overSla).length },
-  ]
-
-  return (
-    <div className="flex flex-col gap-4 lg:gap-5">
-      <div className="flex flex-wrap gap-3">
-        {summary.map((s) => (
-          <GlassCard key={s.label} className="flex items-baseline gap-2 px-4 py-3">
-            <span className="tnum font-num text-[20px] font-semibold">{s.n}</span>
-            <span className="text-muted-foreground text-[11.5px]">{s.label}</span>
-          </GlassCard>
-        ))}
-      </div>
-
-      {/* Danh sách dài nằm trên glass-b — luật 8. */}
-      <GlassCard variant="b" className="p-4 lg:p-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {WORK_COLUMNS.map((col) => (
-            <WorkColumnView
-              key={col.key}
-              column={col}
-              items={items.filter((i) => i.column === col.key)}
-              acted={acted}
-              onAct={act}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
-      </GlassCard>
-
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Bấm hành động trên thẻ là ĐỀ NGHỊ — luồng trôi sang cột kế trong kanban của phòng sau khi TP
-        Kinh doanh gật. Không có nút &quot;hoàn thành&quot; ở đây: việc kết thúc bằng lead sang cột
-        khác, không bằng một dấu tick.
-      </p>
-    </div>
-  )
-}
-
-function WorkColumnView({
-  column,
-  items,
-  acted,
-  onAct,
-  onOpen,
-}: {
-  column: { key: WorkColumn; label: string; limitDays?: number }
-  items: WorkItem[]
-  acted: Record<string, string[]>
-  onAct: (code: string, key: string) => void
-  onOpen: (code: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className="text-[11.5px] font-semibold">{column.label}</span>
-        <span className="text-muted-foreground text-[11px]">
-          <span className="tnum font-num">{items.length}</span> việc
-          {column.limitDays ? ` · hạn ${column.limitDays} ngày` : ''}
-        </span>
-      </div>
-
-      {items.length === 0 ? (
-        <span className="text-muted-foreground rounded-md bg-white/5 p-3 text-[11px]">
-          Không có việc nào ở cột này.
-        </span>
-      ) : (
-        /* Cột tự cuộn, không để cột dài nhất kéo cả bảng xuống ba màn hình. Sáu
-           cột phải nhìn thấy cùng lúc thì mới trả lời được câu "việc đang tắc ở
-           cột nào" — đó là toàn bộ lý do bảng này xếp theo cột. */
-        <div className="flex max-h-[420px] flex-col gap-3 overflow-y-auto pr-1">
-          {items.map((item) => {
-            const done = (acted[item.lead.code] ?? []).includes(item.action.key)
-            return (
-              <div
-                key={item.lead.code}
-                role="button"
-                tabIndex={0}
-                /* Tên riêng cho cả thẻ. Không có nó thì tên trợ năng của thẻ là
-                 toàn bộ chữ bên trong — kể cả nhãn của nút hành động nằm trong
-                 nó — và "thẻ" với "nút" hoá ra cùng một tên. */
-                aria-label={`Mở hồ sơ ${item.lead.company}`}
-                onClick={() => onOpen(item.lead.code)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter' && e.key !== ' ') return
-                  e.preventDefault()
-                  onOpen(item.lead.code)
-                }}
-                className={cn(
-                  'motion-std hover:shadow-card flex cursor-pointer flex-col gap-2 rounded-md bg-white/5 p-3 outline-none',
-                  'hover:bg-white/9 focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-[11.5px] font-semibold leading-[1.4]">
-                    {item.lead.company}
-                  </span>
-                  {item.overSla && (
-                    <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground font-mono text-[10.5px]">
-                    {item.lead.code}
-                  </span>
-                  {item.fresh && <Badge tone="running">mới</Badge>}
-                </div>
-
-                <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                  {item.reason}
-                </span>
-
-                {done ? (
-                  <Badge tone="warning" className="self-start">
-                    Đã đề nghị
-                  </Badge>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onAct(item.lead.code, item.action.key)
-                    }}
-                    className="self-start"
-                  >
-                    <Icon icon={item.action.icon} size={16} />
-                    {item.action.label}
-                  </Button>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
