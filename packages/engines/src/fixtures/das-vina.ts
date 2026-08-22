@@ -105,7 +105,7 @@ export const HEAD_OF_SALES = 'Trần Thu Hà'
 /** Năm cột của sổ. Số kèm theo là HẠN của cột, tính bằng ngày —
  *  quá hạn thì đơn tô cảnh báo. Không có cột thứ sáu.
  *
- *  Sửa được ở module 5 · Cấu hình (mục 5.2), không sửa ở tầng màn. */
+ *  Sửa được ở module Cấu hình (mục 5.2), không sửa ở tầng màn. */
 export const PIPELINE_STAGES = [
   { key: 'moi', label: 'Mới', limitDays: 2 },
   { key: 'tim-hieu', label: 'Đang tìm hiểu', limitDays: 14 },
@@ -254,7 +254,7 @@ export const FUNNEL = [
 export const FIRST_MEETINGS = 38
 
 /** SÁU lý do ra khỏi luồng. Không có lý do thứ bảy, không có ô "khác".
- *  Sửa được ở module 5 · Cấu hình (mục 5.4) — nhưng vẫn là danh sách ĐÓNG.
+ *  Sửa được ở module Cấu hình (mục 5.4) — nhưng vẫn là danh sách ĐÓNG.
  *
  *  SỬA 19/08 · tổng 94 → 52. Bản cũ ghi "tổng đúng bằng 100 đầu mối trừ 6 hợp
  *  đồng", tức quên mất 10 đơn ĐANG MỞ của `OPEN_DEALS` và 32 lead còn sống ở
@@ -286,7 +286,7 @@ export const BOOK_SPLIT = { signed: 6, running: 42, exited: 52 } as const
 export const COMMISSION_SPLIT = { moCua: 30, chot: 60, diCungDemo: 10 } as const
 
 /** Công trạng ghi ở MỌI lần chạm, kể cả khi chưa có đơn — mỗi vai đo bằng đúng
- *  thứ vai đó làm. Sửa được ở module 5 · Cấu hình (mục 5.6). */
+ *  thứ vai đó làm. Sửa được ở module Cấu hình (mục 5.6). */
 export const CREDIT_RULES = [
   {
     role: 'Marketing',
@@ -321,7 +321,7 @@ export const CREDIT_RULES = [
 
 /** Bốn ngành của phòng, lấy đúng từ vai đã chốt của ba Sale ở `actors`:
  *  Huy chip · Bình cơ khí + ô tô · Linh dược. Không có ngành thứ năm.
- *  Sửa được ở module 5 · Cấu hình (mục 5.3). */
+ *  Sửa được ở module Cấu hình (mục 5.3). */
 export const LEAD_CATEGORIES = [
   { key: 'chip', label: 'Chip', sale: 'Đỗ Quang Huy' },
   { key: 'co-khi', label: 'Cơ khí', sale: 'Đặng Thanh Bình' },
@@ -347,7 +347,7 @@ export type LeadTier = (typeof LEAD_TIERS)[number]['key']
  *  tức chạy được vào pipeline và agent 2 chạy được. Bốn ô còn lại làm dày hồ sơ,
  *  thiếu thì không chặn — nhưng vẫn đếm, vì đó là thước công trạng của BD.
  *
- *  Ô nào bắt buộc là CẤU HÌNH (module 5 · mục 5.1), bảng này là mặc định. */
+ *  Ô nào bắt buộc là CẤU HÌNH (module Cấu hình · mục 5.1), bảng này là mặc định. */
 export const INIT_DATA_QUESTIONS = [
   { no: 1, key: 'phap-nhan', label: 'Công ty là ai — tên pháp nhân, mã số thuế', required: true },
   { no: 2, key: 'nganh', label: 'Ngành và sản phẩm chính', required: true },
@@ -374,7 +374,7 @@ const OPTIONAL_KEYS = INIT_DATA_QUESTIONS.filter((q) => !q.required).map((q) => 
 
 // ---------------------------------------------------------------------------
 // Khung KPI — "Tài liệu tổng hợp vòng đời khách hàng, KPI & thiết kế CRM".
-// Sửa được ở module 5 · Cấu hình (mục 5.6, cùng chỗ với CREDIT_RULES).
+// Sửa được ở module Cấu hình (mục 5.6, cùng chỗ với CREDIT_RULES).
 // ---------------------------------------------------------------------------
 
 /** BA LỚP KPI — "Tách 3 lớp KPI thay vì 1 lớp".
@@ -629,7 +629,7 @@ export const HANDOFF_SLA = [
   /* Tài liệu đặt mục tiêu bằng PHÚT và GIỜ (≤ 30 phút cho lead mới, ≤ 24 giờ
      cho SQL). Sổ lead của kịch bản chỉ ghi tới ngày, nên mục tiêu quy về ngày:
      ba ngày cho mỗi chặng — đủ chặt để chặng chậm lộ ra, đủ lỏng để không phải
-     chặng nào cũng đỏ. Sửa được ở module 5 như mọi ngưỡng khác. */
+     chặng nào cũng đỏ. Sửa được ở module Cấu hình như mọi ngưỡng khác. */
   { key: 'mkt-bd', label: 'Marketing → BD', note: 'lead vào sổ → BD chạm lần đầu', targetDays: 3 },
   { key: 'bd-sale', label: 'BD → Sale', note: 'lên MQL → vào sổ cơ hội', targetDays: 3 },
 ] as const
@@ -692,7 +692,7 @@ export type Wave = {
 // mà không đổi GIÁ TRỊ của nó — kiểu sai không test nào bắt được.
 // ---------------------------------------------------------------------------
 
-/** Năm loại chi TIỀN MẶT. Danh sách đóng, sửa được ở module 5 · Cấu hình nhưng
+/** Năm loại chi TIỀN MẶT. Danh sách đóng, sửa được ở module Cấu hình nhưng
  *  vẫn phải là danh sách đóng: một ô "khác" là chỗ mọi hoá đơn khó phân loại
  *  chui vào, và sau ba tháng nó thành loại lớn nhất bảng. */
 export type CostKind = 'du-lieu' | 'kenh' | 'noi-dung' | 'su-kien' | 'cong-cu'
@@ -2619,13 +2619,13 @@ export function domainsOf(name: string): string[] {
 }
 
 /** Sale phụ trách một ngành. Đây là luật chia việc mặc định của phòng
- *  (module 5 · mục 5.3), không phải gợi ý. */
+ *  (module Cấu hình · mục 5.3), không phải gợi ý. */
 export function saleOfCategory(category: LeadCategory): string | undefined {
   return LEAD_CATEGORIES.find((c) => c.key === category)?.sale
 }
 
 // ---------------------------------------------------------------------------
-// Mốc thời gian của một lead — nền của trục tháng · quý · năm ở module 3.
+// Mốc thời gian của một lead — nền của trục tháng · quý · năm ở module Performance.
 // ---------------------------------------------------------------------------
 
 /** Kỳ dữ liệu của kịch bản: từ ngày đầu tới đúng lát cắt đã đóng băng.
@@ -2966,7 +2966,7 @@ export type OpportunityState = (typeof OPPORTUNITY_STATES)[number]['key']
 /** Lý do thua một CƠ HỘI. Khác `EXIT_REASONS`, và khác ở chỗ quan trọng:
  *
  *   · `EXIT_REASONS` là sáu lý do một LEAD chết TRƯỚC khi thành cơ hội. Danh
- *     sách ĐÓNG, không có ô "khác": lý do thứ bảy là việc của module 5.
+ *     sách ĐÓNG, không có ô "khác": lý do thứ bảy là việc của module Cấu hình.
  *   · Bảng này là lý do một cơ hội ĐÃ BÁO GIÁ thua. Nó MỞ — có ô ghi thêm — vì
  *     lý do thua đơn là thứ học được từ thị trường, không phải thứ phòng tự quy
  *     định. Bảy dòng dưới là bảy lý do hay gặp, không phải toàn bộ. */
@@ -3005,12 +3005,181 @@ export type OpportunityDraft = {
   lossNote: string
 }
 
+// ---------------------------------------------------------------------------
+// SỔ CƠ HỘI — 30 dòng, SUY RA từ chính sổ lead
+// ---------------------------------------------------------------------------
+//
+// Sổ này KHÔNG khai tay 30 dòng mới. Nó đọc lại sổ lead và lấy đúng những lead
+// đã lên bậc SQL — vì "lead lên SQL" và "lead vào sổ cơ hội" là một sự kiện,
+// không phải hai. Con số khớp ba chỗ và `scenario.test.ts` khoá cả ba:
+//
+//     LEADS.filter(tier === 'sql')  =  FUNNEL['co-hoi'].count  =  30
+//     = 10 đơn đang mở (OPEN_DEALS) + 6 hợp đồng đã ký + 14 đơn đã thua
+//
+// Khai một mảng 30 dòng riêng ở đây là tạo bản chép thứ hai của cùng một sự
+// thật: sửa một dòng lead thì sổ cơ hội trôi khỏi nó ngay, và không test nào
+// bắt được vì hai mảng đều "đúng" với chính mình.
+//
+// `OPEN_DEALS` KHÔNG bị thay thế. Nó vẫn là bảng NGUỒN cho tiền và cột của 10
+// đơn đang mở — sổ dưới đây đọc nó chứ không đoán lại.
+
+/** Một dòng sổ cơ hội.
+ *
+ *  Đúng bằng phiếu đổi (`OpportunityDraft`) cộng hai thứ mà một phiếu chưa gửi
+ *  thì chưa có: lead nó sinh ra từ đâu, và nó đang nằm ở cột nào. Một kiểu chứ
+ *  không hai: phiếu vừa gửi ở màn hồ sơ lead phải xếp cạnh 30 dòng này trong
+ *  cùng một bảng, mà hai kiểu gần giống nhau là hai chỗ để lệch trường. */
+export type Opportunity = OpportunityDraft & {
+  /** Lead sinh ra đơn này. Đây là dây nối module Lead ↔ module Ops. */
+  leadCode: string
+  /** Cột của `PIPELINE_STAGES`, hoặc `null` với hai kết cục đã đóng sổ. */
+  stage: StageKey | null
+}
+
+/** Đơn ĐANG LÀM GÌ, suy từ dòng lead.
+ *
+ *  Đây là dây nối `PIPELINE_STAGES` (đơn nằm cột nào) sang `OPPORTUNITY_STATES`
+ *  (người bán đang làm gì với nó). Hai kết cục đóng sổ thắng chỗ mọi thứ khác:
+ *  một đơn đã ký thì cột nó từng đứng không còn là câu trả lời nữa.
+ *
+ *  Ba cột đầu (`moi` · `tim-hieu` · `da-demo`) đều ra "Pending" — không phải vì
+ *  lười gộp, mà vì `OPPORTUNITY_STATES` chỉ có năm giá trị và cả ba cột đó đều
+ *  là "chưa gửi giá". Cột vẫn còn nguyên ở trường `stage`, không mất chỗ nào. */
+export function opportunityStateOf(lead: Lead): OpportunityState {
+  if (lead.contractCode) return 'close-won'
+  if (lead.exitReason) return 'close-lost'
+  if (lead.stage === 'cho-ky') return 'nego'
+  if (lead.stage === 'da-bao-gia') return 'gui-quotation'
+  return 'pending'
+}
+
+/** Ngày đóng của một đơn, tính bằng số ngày kể từ đầu kỳ.
+ *
+ *  Đơn đã đóng sổ thì đó là ngày THẬT — ngày ký, hoặc ngày rơi; cả hai đã nằm
+ *  sẵn trong dòng lead (`daysHere` đếm ngược từ lát cắt).
+ *
+ *  Đơn đang mở thì đó là ngày DỰ KIẾN, và nó suy từ chính hạn của các cột chứ
+ *  không phải một hằng số "45 ngày": đơn đi hết phần hạn còn lại của cột đang
+ *  đứng, rồi hết hạn của từng cột phía sau. Nghĩa của con số vì thế đọc được —
+ *  "nếu đơn này chạy đúng nhịp SLA thì nó đóng ngày đó" — và đơn đang mục tự
+ *  có ngày sớm hơn đơn vừa vào cột, đúng như thực tế.
+ *
+ *  Ngày dự kiến RƠI VÀO QUÁ KHỨ được, và không kẹp lại: một đơn mục ở cột CUỐI
+ *  (Chờ ký) không còn hạn nào phía sau để bù, nên nó đáng lẽ đã đóng rồi. Kẹp
+ *  ngày đó về lát cắt là xoá đúng câu đáng nói nhất của dòng. Trong kịch bản
+ *  đóng băng có đúng một đơn như vậy — OP-0252, `scenario.test.ts` khoá. */
+export function opportunityCloseDay(lead: Lead): number {
+  if (lead.contractCode || lead.exitReason) return DAY_FROZEN - lead.daysHere
+
+  const i = PIPELINE_STAGES.findIndex((s) => s.key === lead.stage)
+  if (i < 0) return DAY_FROZEN
+
+  const left = (PIPELINE_STAGES[i]?.limitDays ?? 0) - lead.daysHere
+  const ahead = PIPELINE_STAGES.slice(i + 1).reduce((sum, s) => sum + s.limitDays, 0)
+  return DAY_FROZEN + left + ahead
+}
+
+/** Tiền của 10 đơn đang mở, tra bằng mã. */
+const openAmount = new Map(OPEN_DEALS.map((d) => [d.code, d.amount]))
+
+/** Mã bắt đầu cấp cho đơn CHƯA có mã trong `OPEN_DEALS`.
+ *
+ *  20 đơn đã đóng sổ (6 ký + 14 thua) không nằm trong bảng 10 đơn đang mở nên
+ *  chưa có mã nào. Cấp từ 0201 lên: khoảng đó nằm dưới mã nhỏ nhất đang dùng
+ *  (OP-0248) nên không đụng mã nào, và `nextOpportunityCode` vẫn ra OP-0305
+ *  đúng như trước — thêm sổ này không được phép đổi mã của phiếu kế tiếp. */
+const CLOSED_CODE_FROM = 201
+
+function buildOpportunities(): Opportunity[] {
+  const idOf = (name: string) => dasVina.actors.find((a) => a.name === name)?.id
+  let minted = CLOSED_CODE_FROM
+
+  return LEADS.filter((l) => l.tier === 'sql').map((lead) => {
+    const profile = leadProfile(lead)
+    const code = lead.dealCode ?? `OP-0${minted++}`
+    const account = lead.dealCode
+      ? dasVina.graph.story(lead.dealCode).find((o) => o.kind === 'AC')
+      : undefined
+    const sale = lead.owner ? idOf(lead.owner) : undefined
+    const bd = profile.bdOwner ? idOf(profile.bdOwner) : undefined
+
+    return {
+      code,
+      /* Cùng công thức tên với `draftOpportunity` — một đơn có sẵn trong sổ và
+         một đơn vừa đổi từ lead phải đọc ra cùng một kiểu tên. Mọi lead SQL đều
+         đã moi ô 2 (ô BẮT BUỘC) nên nhánh "chưa chốt phạm vi" không bao giờ
+         chạy ở đây; giữ lại vì phiếu người dùng tự tạo thì có thể. */
+      name: profile.mainProduct
+        ? `${lead.company} · ${profile.mainProduct}`
+        : `${lead.company} · chưa chốt phạm vi`,
+      account: lead.company,
+      accountCode: account?.code ?? '',
+      leadCode: lead.code,
+      /* Đơn đang mở lấy tiền ĐÃ CHÀO ở `OPEN_DEALS`; đơn đã đóng sổ chỉ còn
+         khoảng tiền khách nói (ô 9) để mà lấy — `Lead.contractCode` có mã chứ
+         không có tiền, và bịa một giá trị hợp đồng ở đây là bịa doanh số.
+         2/30 đơn vì thế trống tiền: ô 9 là ô TUỲ CHỌN, chưa ai moi. Trống là dữ
+         liệu — màn vẽ "—", không vẽ 0. */
+      amount: lead.dealCode ? (openAmount.get(lead.dealCode) ?? null) : profile.budget,
+      currency: profile.currency,
+      closedDate: dayISO(opportunityCloseDay(lead)).slice(0, 10),
+      state: opportunityStateOf(lead),
+      stage: lead.stage ?? null,
+      saleOwners: sale ? [sale] : [],
+      bdOwners: bd ? [bd] : [],
+      description: profile.pain,
+      attachments: [],
+      /* Lý do thua để TRỐNG có chủ đích. `EXIT_REASONS` là lý do một LEAD chết,
+         `LOSS_REASONS` là lý do một ĐƠN thua — hai danh sách khác nhau, và nhét
+         nhãn của bảng này vào trường của bảng kia làm bảy nút chọn không nút
+         nào sáng mà người dùng tưởng đã chọn rồi. Câu thật đi vào ô ghi thêm,
+         chỗ nó là chữ tự do; chọn lý do thua là việc còn phải làm. */
+      lossReason: '',
+      lossNote: lead.exitReason ?? '',
+    }
+  })
+}
+
+/** 30 cơ hội của cả kỳ 01/05 → 17/08. Không phải một trang. */
+export const OPPORTUNITIES: Opportunity[] = buildOpportunities()
+
+/** Cơ hội sinh ra từ một lead, nếu có.
+ *
+ *  Màn hồ sơ lead cần chiều này: `Lead.dealCode` chỉ có ở 10 đơn đang mở, nên
+ *  hỏi thẳng trường đó thì 20 lead đã đóng sổ mất đường sang cơ hội của chính
+ *  mình. */
+export function opportunityOfLead(leadCode: string): Opportunity | undefined {
+  return OPPORTUNITIES.find((o) => o.leadCode === leadCode)
+}
+
+/** Bao nhiêu lead của MỘT nguồn đã thành cơ hội — cột "→ Ops" của sổ chiến dịch.
+ *
+ *  Đi vòng qua `OPPORTUNITIES` chứ không đếm thẳng `tier === 'sql'` trên `LEADS`:
+ *  hôm nay hai phép đếm ra cùng số, nhưng sổ cơ hội là thứ ĐỊNH NGHĨA "đã thành
+ *  cơ hội", và ngày nó nhận thêm một dòng ngoài bậc SQL thì phép đếm tắt kia im
+ *  lặng nói sai. Chiến dịch hỏi "tôi đẻ ra bao nhiêu cơ hội" thì phải đếm trên
+ *  chính sổ cơ hội.
+ *
+ *  Cộng cả sáu nguồn có đợt KHÔNG ra 30: hai nguồn tự nhiên cũng đẻ cơ hội. Đó
+ *  là chỗ chênh có thật, không phải lỗi — cùng lý do `leads` của kỳ là 88. */
+export function opsFromSource(code: string): number {
+  const bySource = new Set(LEADS.filter((l) => l.source === code).map((l) => l.code))
+  return OPPORTUNITIES.filter((o) => bySource.has(o.leadCode)).length
+}
+
 /** Mã cơ hội kế tiếp — lớn nhất trong sổ cộng một.
  *
- *  Đếm từ `OPEN_DEALS` chứ không gõ hằng số: thêm một đơn vào sổ là mã kế tiếp
- *  tự đúng. Có backend thì đây là chỗ đổi thành lời gọi cấp mã. */
-export function nextOpportunityCode(): string {
-  const top = OPEN_DEALS.reduce((max, d) => Math.max(max, Number(d.code.slice(3))), 0)
+ *  Đếm từ sổ chứ không gõ hằng số: thêm một đơn vào sổ là mã kế tiếp tự đúng.
+ *  Có backend thì đây là chỗ đổi thành lời gọi cấp mã.
+ *
+ *  `taken` là những mã đã cấp mà sổ CHƯA biết — phiếu người dùng vừa gửi trong
+ *  phiên này. Không truyền nó vào thì đổi hai lead ra hai đơn TRÙNG MÃ, và hai
+ *  đơn trùng mã là hai dòng sổ mà không ai phân biệt được. */
+export function nextOpportunityCode(taken: readonly string[] = []): string {
+  const top = [...OPPORTUNITIES.map((o) => o.code), ...taken].reduce(
+    (max, code) => Math.max(max, Number(code.slice(3))),
+    0,
+  )
   return `OP-${String(top + 1).padStart(4, '0')}`
 }
 
@@ -3022,8 +3191,15 @@ export function nextOpportunityCode(): string {
  *  khác biệt giữa một phiếu mất hai phút và một phiếu bị bỏ dở.
  *
  *  Ngày đóng dự kiến: 45 ngày kể từ lát cắt đóng băng. Không dùng `Date.now()`
- *  — kịch bản đóng băng thì hai lần mở form phải ra đúng một ngày. */
-export function draftOpportunity(lead: Lead, actors: readonly Actor[]): OpportunityDraft {
+ *  — kịch bản đóng băng thì hai lần mở form phải ra đúng một ngày.
+ *
+ *  `taken` đi thẳng xuống `nextOpportunityCode`: màn phải nói ra những mã đã
+ *  cấp trong phiên này, nếu không hai lần đổi ra hai đơn trùng mã. */
+export function draftOpportunity(
+  lead: Lead,
+  actors: readonly Actor[],
+  taken: readonly string[] = [],
+): OpportunityDraft {
   const profile = leadProfile(lead)
   const saleName = lead.owner ?? saleOfCategory(lead.category)
   const idOf = (name: string | undefined) => actors.find((a) => a.name === name)?.id
@@ -3034,7 +3210,7 @@ export function draftOpportunity(lead: Lead, actors: readonly Actor[]): Opportun
     : undefined
 
   return {
-    code: nextOpportunityCode(),
+    code: nextOpportunityCode(taken),
     name: profile.mainProduct
       ? `${lead.company} · ${profile.mainProduct}`
       : `${lead.company} · chưa chốt phạm vi`,

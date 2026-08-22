@@ -19,9 +19,9 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import { bandText, costGap, rankSources, type SourceCost } from './source-cost'
 
-/** Module 4 · Số liệu & kế hoạch. Kịch bản 2 · DAS Vina.
+/** Module 5 · Số liệu & kế hoạch. Kịch bản 2 · DAS Vina.
  *
- *  Đây là chỗ DUY NHẤT màn lấy số của module 4. Khi có backend, đổi thân
+ *  Đây là chỗ DUY NHẤT màn lấy số của module này. Khi có backend, đổi thân
  *  `fetchPlanBoard` thành lời gọi HTTP; màn không phải sửa.
  *
  *  --------------------------------------------------------------------------
@@ -155,10 +155,10 @@ function avg(sum: number, n: number): string {
 // ---------------------------------------------------------------------------
 // Ba đề xuất. Mỗi cái ăn đầu ra của một module khác nhau:
 //   · đơn đang mục   ← module 2 (sổ cơ hội, và SLA cũng là khái niệm của nó —
-//                       hạn nằm ở PIPELINE_STAGES; module 3 chỉ ĐỌC lại)
+//                       hạn nằm ở PIPELINE_STAGES; module Performance chỉ ĐỌC lại)
 //   · lý do rơi lớn  ← module 2 (sổ lead)
 //   · giá lead tốt   ← module 1 (chiến dịch)
-// Đó là lý do module 4 làm cuối, và là lý do có đúng ba khối chứ không phải ba
+// Đó là lý do module này làm cuối, và là lý do có đúng ba khối chứ không phải ba
 // mươi: mỗi đề xuất phải chỉ được vào một chỗ đã đo, không phải một linh cảm.
 // ---------------------------------------------------------------------------
 

@@ -46,11 +46,11 @@ export const KIND_ICON: Record<SourceKind, LucideIcon> = {
   'tu-nhien': Sprout,
 }
 
-/** Kênh gửi đọc từ module 5 · Cấu hình, KHÔNG khai lại ở đây.
+/** Kênh gửi đọc từ module Cấu hình, KHÔNG khai lại ở đây.
  *
  *  Trước 19/08 màn này giữ bản sao `CHANNEL_LABEL` + `E4_CHANNELS` của riêng
  *  nó, vì E4 mới có `type Channel` — một kiểu, không phải danh sách chạy được.
- *  Bản sao đó phá đúng luật 1 của module 5 ("cấu hình là dữ liệu, không màn nào
+ *  Bản sao đó phá đúng luật 1 của module Cấu hình ("cấu hình là dữ liệu, không màn nào
  *  giữ bản sao một hằng số"), và hai bản sao thì sớm muộn lệch nhau.
  *
  *  Bốn kênh E4 đã mở đường; ba kênh còn lại là nền tảng đăng bài ra ngoài — nợ

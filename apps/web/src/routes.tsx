@@ -39,8 +39,8 @@ type ScreenDef = {
   public?: boolean
 }
 
-/** Năm module Sales đều có màn thật từ 19/08 — không còn mục nào trỏ vào màn
- *  "chưa dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
+/** Sáu module Sales đều có màn thật — không còn mục nào trỏ vào màn "chưa
+ *  dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
 export const SCREENS: ScreenDef[] = [
   { path: '/', name: 'Trang chủ · Morning brief', load: () => import('@/pages/home') },
   {
@@ -72,20 +72,34 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/lead-detail'),
   },
   {
+    path: '/sales/ops',
+    name: 'Kinh doanh · Module 3 · Sổ cơ hội',
+    branch: 'Sales',
+    load: () => import('@/pages/ops'),
+  },
+  {
+    /** Hồ sơ một cơ hội. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
+     *  là một dòng của sổ, và nav bên trái vẫn sáng ở mục Ops. */
+    path: '/sales/ops/:code',
+    name: 'Kinh doanh · Module 3 · Hồ sơ cơ hội',
+    branch: 'Sales',
+    load: () => import('@/pages/ops-detail'),
+  },
+  {
     path: '/sales/performance',
-    name: 'Kinh doanh · Module 3 · Performance',
+    name: 'Kinh doanh · Module 4 · Performance',
     branch: 'Sales',
     load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
-    name: 'Kinh doanh · Module 4 · Số liệu & kế hoạch',
+    name: 'Kinh doanh · Module 5 · Số liệu & kế hoạch',
     branch: 'Sales',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
-    name: 'Kinh doanh · Module 5 · Cấu hình',
+    name: 'Kinh doanh · Module 6 · Cấu hình',
     branch: 'Sales',
     load: () => import('@/pages/sales-config'),
   },

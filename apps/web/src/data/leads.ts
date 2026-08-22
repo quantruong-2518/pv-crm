@@ -252,7 +252,7 @@ export type WorkItem = {
  *   · BD           — lead mình giữ mà còn thiếu ô bắt buộc;
  *   · Marketing    — lead mình giữ ở bậc đầu mối, đang nuôi;
  *   · Presales     — đơn đang ở hai cột có demo; sổ không ghi "ai đi cùng demo"
- *                    nên đây là cả nhóm chứ không phải một người (docs · module 3);
+ *                    nên đây là cả nhóm chứ không phải một người (docs · module Performance);
  *   · TP Kinh doanh— thứ CHỜ MÌNH GẬT: lead đủ ô chờ vào pipeline, đơn quá hạn,
  *                    lead còn nằm kho chung. Vai này không giữ khách nào. */
 export function myWork(input: {

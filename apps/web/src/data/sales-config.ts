@@ -23,7 +23,7 @@ import {
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 
-/** Cấu hình phòng kinh doanh — module 5. Kịch bản 2 · DAS Vina.
+/** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
  *
  *  Mọi hằng số định hình dữ liệu của phòng gom về đúng một chỗ. Màn khác đọc
  *  chúng qua fixture/engine; màn Cấu hình là nơi DUY NHẤT được sửa.

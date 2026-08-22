@@ -41,7 +41,7 @@ import {
 } from './period'
 import { costOf, spendIn } from './source-cost'
 
-/** Module 3 · Performance — "ai đang làm được, ai đang tắc". Kịch bản 2 · DAS Vina.
+/** Module 4 · Performance — "ai đang làm được, ai đang tắc". Kịch bản 2 · DAS Vina.
  *
  *  Đây là chỗ DUY NHẤT màn lấy số hiệu suất. Khi có backend, đổi thân
  *  `fetchPerformance` thành lời gọi HTTP; màn không phải sửa.
@@ -57,7 +57,7 @@ import { costOf, spendIn } from './source-cost'
  *  2. **Số chụp tại lát cắt thì phải khai là số chụp.** Giá trị đơn đang mở, đơn
  *     đang mục, giá mỗi lead tốt: ba thứ này không có ngày để cắt. Chúng mang cờ
  *     `snapshot` và màn phải in ra chữ "tính đến 17/08".
- *  3. **Thước đo lấy từ `ROLE_KPI_MODEL`** (fixture · module 5). Module 3 chỉ hiển
+ *  3. **Thước đo lấy từ `ROLE_KPI_MODEL`** (fixture · module Cấu hình). Màn này chỉ hiển
  *     thị, không tự định nghĩa cách chấm một vai. Thước nào fixture chưa có
  *     nguồn số thì `value: null` — màn hiện "chưa đo được", KHÔNG điền số gần
  *     đúng thay.

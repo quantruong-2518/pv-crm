@@ -25,7 +25,7 @@ import {
  *  SÁU LÝ DO, DANH SÁCH ĐÓNG
  *  ------------------------------------------------------------------
  *  `EXIT_REASONS` không có ô "khác" và sẽ không có: lý do thứ bảy là một hành
- *  động cấu hình ở module 5, không phải một dòng gõ tay. Ô ghi thêm ở dưới là
+ *  động cấu hình ở module Cấu hình, không phải một dòng gõ tay. Ô ghi thêm ở dưới là
  *  để kể chi tiết của ĐÚNG lead này — nó không tạo ra lý do mới, và không bắt
  *  buộc.
  *
@@ -119,7 +119,7 @@ export function ExitDialog({
           />
           <span className="text-muted-foreground text-[11px] leading-[1.5]">
             Sáu lý do là toàn bộ danh sách, không có ô &quot;khác&quot;. Lý do thứ bảy là việc của
-            module 5 · Cấu hình.
+            module Cấu hình.
           </span>
         </div>
 

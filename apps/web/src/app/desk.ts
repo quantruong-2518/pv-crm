@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LeadProfile, OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import type { LeadProfile, Opportunity, OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 
 /** Bàn làm việc của một người trên sổ lead — ghim, giao việc, và mọi thứ người
  *  dùng GÕ VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, việc tự hẹn, phiếu đổi
@@ -86,6 +86,16 @@ type DeskState = {
   /** mã lead → việc tự ghi. */
   todos: Record<string, LeadTodo[]>
 
+  /** MÃ CƠ HỘI → những trường hồ sơ ĐÃ SỬA so với dòng dựng từ fixture.
+   *
+   *  Cùng cách giữ với `profiles` của lead — giữ PATCH chứ không giữ cả hồ sơ —
+   *  và cùng lý do: bản gốc vẫn dựng lại được từ `OPPORTUNITIES`, còn có patch
+   *  thì màn nói được "ba ô đã sửa, hoàn tác được".
+   *
+   *  Khoá bằng MÃ CƠ HỘI chứ không mã lead: một phiếu người dùng tự tạo cũng là
+   *  một dòng sổ cơ hội sửa được, mà nó chưa chắc đã có lead nào đứng sau. */
+  ops: Record<string, Partial<Opportunity>>
+
   /** mã lead → phiếu đổi thành cơ hội đã gửi.
    *
    *  Một lead đổi ĐÚNG MỘT LẦN: có phiếu rồi thì nút đổi tắt và màn hiện mã cơ
@@ -109,6 +119,8 @@ type DeskState = {
   removeTodo: (code: string, id: string) => void
   convert: (code: string, draft: OpportunityDraft) => void
   undoConvert: (code: string) => void
+  patchOp: (code: string, patch: Partial<Opportunity>) => void
+  resetOp: (code: string) => void
   /** Dọn sạch — dùng ở test và ở nút "bỏ hết ghim". */
   reset: () => void
 }
@@ -127,6 +139,7 @@ export const useLeadDesk = create<DeskState>()(
       notes: {},
       todos: {},
       deals: {},
+      ops: {},
       seq: 0,
 
       togglePin: (actorId, code) =>
@@ -197,6 +210,16 @@ export const useLeadDesk = create<DeskState>()(
           return { deals: next }
         }),
 
+      patchOp: (code, patch) =>
+        set((s) => ({ ops: { ...s.ops, [code]: { ...s.ops[code], ...patch } } })),
+
+      resetOp: (code) =>
+        set((s) => {
+          const next = { ...s.ops }
+          delete next[code]
+          return { ops: next }
+        }),
+
       reset: () =>
         set({
           pins: {},
@@ -206,6 +229,7 @@ export const useLeadDesk = create<DeskState>()(
           notes: {},
           todos: {},
           deals: {},
+          ops: {},
           seq: 0,
         }),
     }),

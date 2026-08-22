@@ -72,7 +72,7 @@ import {
   type PeriodChoice,
 } from '@/data/period'
 
-/** Module 3 · Performance.
+/** Module 4 · Performance.
  *
  *  Màn trả đúng một câu: **ai đang làm được, ai đang tắc — trong kỳ nào**.
  *
@@ -96,7 +96,7 @@ import {
  *     còn mấy ngày, rồi mới tới ba lớp thước và bảng bằng chứng. Cùng một vai
  *     thì cùng một bộ thước — KPI của BD giống nhau, của Sale giống nhau.
  *
- *  Thước đo lấy nguyên từ `ROLE_KPI_MODEL` (fixture · module 5): module 3 chỉ hiển
+ *  Thước đo lấy nguyên từ `ROLE_KPI_MODEL` (fixture · module Cấu hình): màn này chỉ hiển
  *  thị, không tự định nghĩa cách chấm ai. Thước nào fixture chưa có nguồn số thì
  *  màn nói thẳng "chưa đo được".
  *
@@ -168,7 +168,7 @@ export function PerformancePage() {
       <div className="flex flex-col gap-5 lg:gap-6">
         <SectionTitle
           size="lg"
-          kicker="Kinh doanh · Module 3"
+          kicker="Kinh doanh · Module 4"
           hint={
             <>
               Kỳ cắt theo ngày xảy ra của từng mốc — lead vào sổ, lên MQL, vào sổ cơ hội, ký. Kịch

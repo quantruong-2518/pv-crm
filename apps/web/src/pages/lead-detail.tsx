@@ -24,6 +24,7 @@ import {
   LEAD_TIERS,
   leadContact,
   leadOrigin,
+  opportunityOfLead,
   PIPELINE_STAGES,
   staffEmail,
   type ExitReason,
@@ -141,6 +142,11 @@ export function LeadDetailPage() {
 
   const openSource = () => navigate(`/sales/campaigns?source=${origin.code}`)
 
+  /* Lead đã lên SQL thì nó ĐÃ có một dòng trong sổ cơ hội — mời đổi lần nữa là
+     mời tạo đơn thứ hai cho cùng một khách, và sổ cơ hội cộng ra một con số
+     không có thật. Nút đổi vì thế thành đường sang đúng đơn đó. */
+  const existingOp = opportunityOfLead(lead.code)
+
   return shell(
     <div className="flex flex-col gap-4 lg:gap-6">
       <Button
@@ -198,6 +204,8 @@ export function LeadDetailPage() {
         lead={lead}
         pinned={pins.includes(lead.code)}
         converted={Boolean(deal)}
+        opCode={existingOp?.code}
+        onOpenOp={() => existingOp && navigate(`/sales/ops/${existingOp.code}`)}
         reported={reported}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
@@ -321,6 +329,9 @@ function PeopleCard({ lead, people }: { lead: Lead; people: string[] }) {
  *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
  *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
  *
+ *  Nút cuối đổi mặt theo trạng thái: lead đã có đơn trong sổ cơ hội thì nó là
+ *  đường SANG đơn đó, không phải lời mời đổi lần nữa (23/08).
+ *
  *  PIC nằm ngay sau khối khách, TRƯỚC vạch ngăn, vì hai thứ đó là một cặp đọc
  *  cùng nhau: trước khi bấm gọi, người ta liếc "mình đang gọi cho ai" và "lead
  *  này đang đứng tên ai" — nếu không phải tên mình thì cuộc gọi đó là chen
@@ -333,18 +344,23 @@ function ToolsBar({
   lead,
   pinned,
   converted,
+  opCode,
   reported,
   onPin,
   onExit,
   onConvert,
+  onOpenOp,
 }: {
   lead: Lead
   pinned: boolean
   converted: boolean
+  /** Mã cơ hội lead này ĐÃ có trong sổ, nếu có. */
+  opCode?: string
   reported: ExitReason | null
   onPin: () => void
   onExit: () => void
   onConvert: () => void
+  onOpenOp: () => void
 }) {
   const contact = leadContact(lead)
   const ownerRole = dasVina.actors.find((a) => a.name === lead.owner)?.role
@@ -447,7 +463,12 @@ function ToolsBar({
             </Button>
           )}
 
-          {converted ? (
+          {opCode ? (
+            <Button size="md" onClick={onOpenOp}>
+              <Icon icon={ArrowRight} size={16} />
+              Cơ hội {opCode}
+            </Button>
+          ) : converted ? (
             <Badge tone="success">Đã đổi thành cơ hội</Badge>
           ) : (
             <Button size="md" onClick={onConvert}>

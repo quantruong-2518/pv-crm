@@ -196,7 +196,7 @@ export function AssignMenu({ lead, size = 'md', placement = 'down', className }:
                 thiếu thay vì bày một nhóm rỗng tên AM cho đủ hình. */}
             <p className="text-muted-foreground text-[11px] leading-[1.5]">
               Phòng có năm vai đã chốt: TP Kinh doanh · Marketing · BD · Sale · Presales. Chưa có
-              vai AM — thêm vai là việc của module 5 · Cấu hình.
+              vai AM — thêm vai là việc của module Cấu hình.
             </p>
 
             <Select

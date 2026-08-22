@@ -6,6 +6,7 @@ import {
   Factory,
   FolderOpen,
   Gauge,
+  Handshake,
   House,
   ListChecks,
   Megaphone,
@@ -145,16 +146,22 @@ export type SalesModule = {
   question: string
 }
 
-/** NĂM module Pebble Sales — bảng CHỐT.
+/** SÁU module Pebble Sales — bảng CHỐT.
  *
  *  Bảng này là nguồn duy nhất của nav: thêm hay đổi module thì sửa đúng một
- *  chỗ, không có chuyện nav nói năm mà route có một.
+ *  chỗ, không có chuyện nav nói sáu mà route có năm.
  *
  *  Đổi 19/08: module 1 từ "Thị trường" (bị chặn vì cần dữ liệu thị trường
  *  ngoài, tức cần kịch bản thứ ba) → "Chiến dịch & Sự kiện", trả đúng câu hỏi
- *  cũ bằng dữ liệu của chính phòng; thêm module 5 · Cấu hình.
+ *  cũ bằng dữ liệu của chính phòng; thêm module Cấu hình.
  *
- *  Trường `blocked` đã bỏ cùng màn `sales-pending`: cả năm module giờ đều có
+ *  Đổi 23/08: thêm **module 3 · Ops** — sổ cơ hội, chỗ lead đi tiếp sau khi qua
+ *  cổng init data. Ba module sau nó lùi một số (Performance 3→4, Số liệu 4→5,
+ *  Cấu hình 5→6). Số ở đây là số ĐỊNH DANH màn; mọi tham chiếu chéo trong
+ *  comment đã đổi sang gọi TÊN module, nên lần đánh số lại này không kéo theo
+ *  hai chục chỗ phải sửa nữa.
+ *
+ *  Trường `blocked` đã bỏ cùng màn `sales-pending`: cả sáu module giờ đều có
  *  màn thật, không còn mục nào cần chỗ để nói "đang vướng gì". */
 export const SALES_MODULES: SalesModule[] = [
   {
@@ -172,23 +179,33 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Ai đang trong tay ai',
   },
   {
+    /** Đứng ngay sau Lead vì đó là bước kế tiếp của cùng một khách: qua cổng
+     *  init data thì lead thành cơ hội. Hai sổ dùng chung bố cục và chung ba
+     *  mảnh bảng (`components/table-bits.tsx`). */
     no: 3,
+    icon: Handshake,
+    label: 'Ops',
+    path: '/sales/ops',
+    question: 'Đơn nào đang chạy, đáng bao nhiêu tiền',
+  },
+  {
+    no: 4,
     icon: Gauge,
     label: 'Performance',
     path: '/sales/performance',
     question: 'Ai đang làm được, ai đang tắc',
   },
   {
-    no: 4,
+    no: 5,
     icon: Target,
     label: 'Số liệu & kế hoạch',
     path: '/sales/plan',
     question: 'Tháng tới phòng nên làm gì',
   },
   {
-    /** Module 5 KHÔNG nằm trong vòng khép kín của bốn module trên — nó là thứ
+    /** Cấu hình KHÔNG nằm trong vòng khép kín của năm module trên — nó là thứ
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
-    no: 5,
+    no: 6,
     icon: SlidersHorizontal,
     label: 'Cấu hình',
     path: '/sales/config',
@@ -298,7 +315,10 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         variant="ghost"
         onClick={() => {
           signOut()
-          navigate('/dang-nhap', { replace: true })
+          /* `?doi-vai` mở thẳng bảng chọn vai ở màn đăng nhập. Không có nó thì
+             người demo rơi vào form mật khẩu và phải bấm thêm một lần nữa mới
+             tới đúng thứ nút này hứa. */
+          navigate('/dang-nhap?doi-vai=1', { replace: true })
         }}
       >
         Đổi vai

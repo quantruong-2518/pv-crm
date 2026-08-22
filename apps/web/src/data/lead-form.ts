@@ -350,7 +350,7 @@ export const fieldsOf = (group: GroupKey) => PROFILE_FIELDS.filter((f) => f.grou
  *  đi moi.
  *
  *  Đọc thẳng từ `INIT_DATA_QUESTIONS` chứ không khai lại ở bảng trên: ô nào bắt
- *  buộc là CẤU HÌNH sửa được ở module 5, và một bản chép tay ở đây sẽ trôi khỏi
+ *  buộc là CẤU HÌNH sửa được ở module Cấu hình, và một bản chép tay ở đây sẽ trôi khỏi
  *  cấu hình ngay lần đầu ai đó đổi. */
 export function isMandatory(field: ProfileField): boolean {
   if (!field.slot) return false

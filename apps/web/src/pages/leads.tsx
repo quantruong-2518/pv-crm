@@ -1,14 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  CalendarCheck,
-  ChevronLeft,
-  ChevronRight,
-  FileCheck,
-  Inbox,
-  Pin,
-  Target,
-  Users,
-} from 'lucide-react'
+import { CalendarCheck, FileCheck, Inbox, Pin, Target, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -42,7 +33,6 @@ import {
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
   SOURCES,
-  staffEmail,
   type Lead,
 } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
@@ -51,6 +41,7 @@ import { useSession } from '@/app/session'
 import { dm } from '@/lib/date'
 import { leadBookQuery, ORIGIN_FACE } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { Pager, PersonCell, PicCell } from '@/components/table-bits'
 
 /** Module 2 · Sổ lead.
  *
@@ -126,6 +117,10 @@ import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. Vào được màn này là vai có
  *  nhánh Sales — cửa ở `app/guard.tsx`, không kiểm lại ở đây.
  *
+ *  Ba mảnh `Pager` · `PicCell` · `PersonCell` đã chuyển sang
+ *  `components/table-bits.tsx` (23/08) — sổ cơ hội của module Ops cần đúng ba thứ
+ *  đó, và hai cái sổ của cùng một phòng phải phân trang giống nhau.
+ *
  *  State: bộ lọc, trang và cột sắp xếp là chuyện RIÊNG của màn nên giữ ở đây
  *  bằng `useState`. Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và
  *  đi qua cả màn chi tiết — chúng nằm ở `app/desk.ts`. */
@@ -137,6 +132,8 @@ const PAGE_SIZE = 10
 const NO_OWNER = '\u0000chua-ai-nhan'
 
 const NO_CONTACT = 'Chưa có người liên hệ — ô số 4 của init data chưa moi được'
+
+const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
 
 /* Mốc kỳ suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
 const PERIOD_FROM = dm(dayISO(0))
@@ -386,7 +383,7 @@ export function LeadsPage() {
                     <PersonCell key="ti" value={contact?.title} missing={NO_CONTACT} />,
                     <SourceMark key="s" lead={l} />,
                     <StatusCell key="w" lead={l} />,
-                    <PicCell key="o" owner={l.owner} />,
+                    <PicCell key="o" owner={l.owner} empty={NO_OWNER_TITLE} />,
                   ],
                 }
               })}
@@ -494,7 +491,7 @@ function ScoreCards() {
  *  Hình đầy đủ vẫn nằm ở `title`: kiểu xuất xứ và kênh, một dòng.
  *
  *  Đây là dây nối sang module 1 nhìn từ phía sổ. Kênh nào là hình nào đọc từ
- *  module 5 · Cấu hình, không khai lại ở đây. Nguồn tự nhiên không đi qua kênh
+ *  module Cấu hình, không khai lại ở đây. Nguồn tự nhiên không đi qua kênh
  *  nào nên lấy hình của KIỂU xuất xứ — bắt tay cho "khách cũ giới thiệu", ngòi
  *  bút cho "BD tự mở". */
 function SourceMark({ lead }: { lead: Lead }) {
@@ -555,50 +552,6 @@ function StatusCell({ lead }: { lead: Lead }) {
       {STAGE_LABEL.get(lead.stage) ?? lead.stage}
       {over && ` · quá hạn`}
     </Badge>
-  )
-}
-
-/** Cột "Lead PIC" — hòm thư công ty, không phải tên hiển thị.
- *
- *  Tên đọc đẹp nhưng TRÙNG ĐƯỢC; `huydq@pebblevina.com` thì không. Sổ là chỗ
- *  người ta đối chiếu với hệ khác (thư, lịch, bảng hoa hồng), và mọi hệ đó khoá
- *  theo hòm thư. Tên đầy đủ vẫn còn, ở `title`.
- *
- *  Cách dựng mã nằm ở fixture (`staffEmail`), không ở đây: đó là quy ước của
- *  công ty, không phải cách trình bày của một cái bảng. */
-function PicCell({ owner }: { owner?: string }) {
-  if (!owner) {
-    return (
-      <span className="text-muted-foreground" title="Còn ở kho chung, chưa ai nhận">
-        —
-      </span>
-    )
-  }
-  return (
-    <span className="block truncate font-mono text-[11px]" title={owner}>
-      {staffEmail(owner)}
-    </span>
-  )
-}
-
-/** Một ô người: tên, hoặc "—" kèm lý do ở `title`.
- *
- *  "—" ở đây là DỮ LIỆU, không phải lỗi hiển thị. 58/100 lead chưa moi được ô số
- *  4 nên chưa có người liên hệ, và 33 dòng chưa ai nhận. Điền đại một cái tên
- *  cho đủ ô là phá đúng thứ cổng init data sinh ra để đo — `leadContact` trong
- *  fixture đã ghi thẳng điều đó. */
-function PersonCell({ value, missing }: { value?: string; missing: string }) {
-  if (!value) {
-    return (
-      <span className="text-muted-foreground" title={missing}>
-        —
-      </span>
-    )
-  }
-  return (
-    <span className="block truncate" title={value}>
-      {value}
-    </span>
   )
 }
 
@@ -668,39 +621,6 @@ function PinnedStrip({
           </GlassCard>
         ))}
       </div>
-    </div>
-  )
-}
-
-/** Phân trang. Sổ 100 dòng không cuộn vô tận — người dùng phải biết mình đang ở
- *  đâu trong sổ. */
-function Pager({
-  page,
-  pageCount,
-  onPage,
-}: {
-  page: number
-  pageCount: number
-  onPage: (p: number) => void
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => onPage(page - 1)}>
-        <Icon icon={ChevronLeft} size={16} />
-        Trước
-      </Button>
-      <span className="text-muted-foreground tnum font-num text-[11.5px]">
-        {page + 1}/{pageCount}
-      </span>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={page >= pageCount - 1}
-        onClick={() => onPage(page + 1)}
-      >
-        Sau
-        <Icon icon={ChevronRight} size={16} />
-      </Button>
     </div>
   )
 }

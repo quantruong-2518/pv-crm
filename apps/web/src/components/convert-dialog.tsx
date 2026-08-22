@@ -1,37 +1,41 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowRight, Paperclip, Trash2, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Avatar,
   Badge,
   Button,
   Chip,
   Drawer,
   Icon,
   Input,
-  Kicker,
   MetaPill,
   Select,
   Textarea,
   billions,
   cn,
-  dong,
 } from '@pv/ui'
 import {
-  CURRENCIES,
   dasVina,
   draftOpportunity,
   HEAD_OF_SALES,
-  LOSS_REASONS,
   OPPORTUNITY_STATES,
-  PIPELINE_STAGES,
   toDong,
-  type CurrencyCode,
   type Lead,
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
 import { useLeadDesk } from '@/app/desk'
+import { missingOf, toggled } from '@/data/ops'
 import { dmy } from '@/lib/date'
+import {
+  AmountRow,
+  AttachmentsField,
+  Field,
+  LossBlock,
+  PeopleRow,
+  STAGE_LABEL,
+  STATE_LABEL,
+} from './ops-fields'
 
 /** Đổi lead thành cơ hội — phiếu điền, mở đè lên hồ sơ.
  *
@@ -55,15 +59,20 @@ import { dmy } from '@/lib/date'
  *  đóng, trạng thái, tệp đính kèm — là ba ô duy nhất thật sự phải nghĩ.
  *
  *  ------------------------------------------------------------------
+ *  Ô NHẬP DÙNG CHUNG VỚI MÀN HỒ SƠ CƠ HỘI — sửa 23/08
+ *  ------------------------------------------------------------------
+ *  Bốn khối ô (`Field` · `AmountRow` · `PeopleRow` · `LossBlock`) đã chuyển sang
+ *  `components/ops-fields.tsx`, và bản kiểm "còn thiếu gì" (`missingOf`) sang
+ *  `data/ops.ts` — cả hai dùng chung với `pages/ops-detail.tsx`. Cùng một phiếu
+ *  điền ở hai chỗ thì phải là một bộ ô và một bản kiểm, không phải hai bản
+ *  chép — lý do đầy đủ ở docblock của hai file đó.
+ *
+ *  ------------------------------------------------------------------
  *  CLOSE LOST MỞ RA MỘT KHỐI KHÁC
  *  ------------------------------------------------------------------
  *  Chọn "Close lost" là mở khối lý do thua, và khối đó CHẶN nút gửi cho tới khi
  *  có lý do. Một đơn thua không ghi lý do là một bài học mất trắng — sổ vẫn trừ
- *  đúng số tiền, nhưng không ai học được gì từ nó.
- *
- *  Bảy lý do dựng sẵn là bảy lý do hay gặp, KHÔNG phải danh sách đóng — khác
- *  hẳn `EXIT_REASONS` của lead. Vì thế có ô ghi thêm, và ô đó không phải "cho
- *  đủ": chọn một lý do dựng sẵn rồi vẫn ghi thêm được câu của riêng đơn này. */
+ *  đúng số tiền, nhưng không ai học được gì từ nó. */
 
 type Props = {
   lead: Lead
@@ -71,17 +80,15 @@ type Props = {
   onClose: () => void
 }
 
-const STATE_LABEL = new Map(OPPORTUNITY_STATES.map((s) => [s.key, s.label]))
-const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
-
-/** Người của phòng, dùng cho cả hai ô chủ sở hữu. */
-const SALES_PEOPLE = dasVina.actors.filter((a) => a.branches.includes('Sales'))
-
 export function ConvertDialog({ lead, open, onClose }: Props) {
   const convert = useLeadDesk((s) => s.convert)
-  const seed = useMemo(() => draftOpportunity(lead, dasVina.actors), [lead])
+  const deals = useLeadDesk((s) => s.deals)
+
+  /* Mã đã cấp trong phiên này. Không đưa vào thì phiếu thứ hai lấy lại đúng mã
+     của phiếu thứ nhất — hai dòng sổ trùng mã, và không ai phân biệt được. */
+  const taken = useMemo(() => Object.values(deals).map((d) => d.code), [deals])
+  const seed = useMemo(() => draftOpportunity(lead, dasVina.actors, taken), [lead, taken])
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
-  const fileRef = useRef<HTMLInputElement>(null)
 
   /* Mở phiếu là một lần bắt đầu mới: nạp lại bản nháp. Không nạp lại thì đóng
      rồi mở lại vẫn thấy thứ mình vừa gõ dở của lần trước — hoặc tệ hơn, của
@@ -96,15 +103,7 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
   const lost = draft.state === 'close-lost'
   const stage = OPPORTUNITY_STATES.find((s) => s.key === draft.state)?.stage ?? null
 
-  /* Thiếu gì thì NÓI RA thiếu gì, đừng chỉ tắt nút. Một nút mờ không lý do là
-     một ngõ cụt — người dùng không biết phải sửa ô nào để nó sáng lại. */
-  const missing: string[] = []
-  if (draft.name.trim() === '') missing.push('tên cơ hội')
-  if (draft.closedDate === '') missing.push('ngày đóng dự kiến')
-  if (draft.amount === null || draft.amount === 0) missing.push('giá trị đơn')
-  if (draft.saleOwners.length === 0) missing.push('ít nhất một Sale đứng đơn')
-  if (lost && draft.lossReason === '' && draft.lossNote.trim() === '') missing.push('lý do thua')
-
+  const missing = missingOf(draft)
   const ready = missing.length === 0
 
   return (
@@ -224,28 +223,14 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
           required
           hint="Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong."
           picked={draft.saleOwners}
-          onToggle={(id) =>
-            set(
-              'saleOwners',
-              draft.saleOwners.includes(id)
-                ? draft.saleOwners.filter((x) => x !== id)
-                : [...draft.saleOwners, id],
-            )
-          }
+          onToggle={(id) => set('saleOwners', toggled(draft.saleOwners, id))}
         />
 
         <PeopleRow
           label="BD mở cửa"
           hint="Người moi được ô bắt buộc và mở được khách. Công trạng mở cửa ghi cho danh sách này, tách khỏi phần chốt."
           picked={draft.bdOwners}
-          onToggle={(id) =>
-            set(
-              'bdOwners',
-              draft.bdOwners.includes(id)
-                ? draft.bdOwners.filter((x) => x !== id)
-                : [...draft.bdOwners, id],
-            )
-          }
+          onToggle={(id) => set('bdOwners', toggled(draft.bdOwners, id))}
         />
 
         <Field
@@ -261,70 +246,7 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
           />
         </Field>
 
-        <Field
-          label="Tệp đính kèm"
-          plain
-          hint="POC giữ tên và cỡ tệp, không tải nội dung lên — chưa có backend để nhận."
-        >
-          <div className="flex flex-col gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="self-start"
-              onClick={() => fileRef.current?.click()}
-            >
-              <Icon icon={Paperclip} size={16} />
-              Chọn tệp
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              className="hidden"
-              aria-label="Chọn tệp đính kèm"
-              onChange={(e) => {
-                const picked = [...(e.target.files ?? [])].map((f) => ({
-                  name: f.name,
-                  size: f.size,
-                }))
-                e.target.value = ''
-                if (picked.length > 0) set('attachments', [...draft.attachments, ...picked])
-              }}
-            />
-
-            {draft.attachments.length === 0 ? (
-              <span className="text-muted-foreground text-[11.5px]">Chưa đính kèm gì.</span>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {draft.attachments.map((f) => (
-                  <li
-                    key={f.name}
-                    className="flex items-center gap-3 rounded-md bg-white/5 px-3 py-2"
-                  >
-                    <Icon icon={Paperclip} size={16} className="text-muted-foreground shrink-0" />
-                    <span className="min-w-0 flex-1 truncate text-[12px]">{f.name}</span>
-                    <span className="text-muted-foreground tnum font-mono text-[11px]">
-                      {Math.max(1, Math.round(f.size / 1024)).toLocaleString('vi-VN')} KB
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Bỏ tệp ${f.name}`}
-                      onClick={() =>
-                        set(
-                          'attachments',
-                          draft.attachments.filter((x) => x.name !== f.name),
-                        )
-                      }
-                      className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex size-8 shrink-0 items-center justify-center rounded-md"
-                    >
-                      <Icon icon={Trash2} size={16} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Field>
+        <AttachmentsField draft={draft} onSet={set} />
 
         {lost && <LossBlock draft={draft} onSet={set} />}
       </div>
@@ -334,216 +256,15 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
 
 // ---------------------------------------------------------------------------
 
-type SetFn = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => void
-
-/** Khung một ô của phiếu. Cùng hình với ô của form hồ sơ — hai chỗ nhập trên
- *  cùng một màn mà khác hình thì đọc ra như hai sản phẩm. */
-function Field({
-  label,
-  required,
-  hint,
-  plain,
-  className,
-  children,
-}: {
-  label: string
-  required?: boolean
-  hint?: ReactNode
-  /** Bỏ thẻ `<label>` bọc ngoài — cho Select và cụm nút tự mang nhãn. */
-  plain?: boolean
-  className?: string
-  children: ReactNode
-}) {
-  const head = (
-    <span className="text-muted-foreground text-[11px]">
-      {label}
-      {required && (
-        <span className="text-warning" aria-hidden="true">
-          {' '}
-          *
-        </span>
-      )}
-    </span>
-  )
-
-  return (
-    <div className={cn('flex min-w-0 flex-col gap-2', className)}>
-      {plain ? (
-        <div className="flex flex-col gap-2">
-          {head}
-          {children}
-        </div>
-      ) : (
-        <label className="flex flex-col gap-2">
-          {head}
-          {children}
-        </label>
-      )}
-      {hint && <span className="text-muted-foreground text-[11px] leading-[1.5]">{hint}</span>}
-    </div>
-  )
-}
-
-/** Giá trị đơn + đồng tiền, và dòng đọc lại ngay dưới.
- *
- *  Hai ô đi cùng nhau vì một mình con số không có nghĩa: 4.200.000 là bốn triệu
- *  đồng hay bốn triệu đô. Dòng đọc lại in ra cả hai cách đọc, và với ngoại tệ
- *  thì in luôn phần quy ra đồng — sổ cơ hội cộng bằng đồng. */
-function AmountRow({ draft, onSet }: { draft: OpportunityDraft; onSet: SetFn }) {
-  const amount = draft.amount
-  const currency = draft.currency
-  const symbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? ''
-
-  return (
-    <section className="grid gap-4 sm:grid-cols-2">
-      <Field label="Giá trị đơn" required>
-        <span className="relative flex items-center">
-          <Input
-            inputMode="numeric"
-            aria-label="Giá trị đơn"
-            aria-required
-            className="pr-8 font-mono"
-            value={amount === null ? '' : amount.toLocaleString('vi-VN')}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, '')
-              onSet('amount', digits === '' ? null : Number(digits))
-            }}
-          />
-          <span className="text-muted-foreground pointer-events-none absolute right-3 text-[12px]">
-            {symbol}
-          </span>
-        </span>
-      </Field>
-
-      <Field label="Đồng tiền" plain>
-        <Select
-          label="Đồng tiền"
-          hideLabel
-          value={currency}
-          neutralValue={currency}
-          onChange={(v) => onSet('currency', v as CurrencyCode)}
-          options={CURRENCIES.map((c) => ({ value: c.code, label: c.label }))}
-          className="w-full"
-        />
-      </Field>
-
-      {amount !== null && amount > 0 && (
-        <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
-          {currency === 'VND'
-            ? `${dong(amount)} · ${billions(amount)}`
-            : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toDong(amount, currency))} quy ra đồng`}
-        </span>
-      )}
-    </section>
-  )
-}
-
-/** Chọn nhiều người bằng nút bật/tắt có avatar.
- *
- *  Bảy người thì danh sách checkbox dọc chiếm nửa panel mà chỉ để tick một hai
- *  cái. Nút bật/tắt xếp ngang gói cùng chỗ đó vào hai hàng, và avatar cho phép
- *  nhận ra người bằng mắt thay vì đọc tên. */
-function PeopleRow({
-  label,
-  hint,
-  required,
-  picked,
-  onToggle,
-}: {
-  label: string
-  hint: string
-  required?: boolean
-  picked: string[]
-  onToggle: (id: string) => void
-}) {
-  return (
-    <Field label={label} required={required} hint={hint} plain>
-      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
-        {SALES_PEOPLE.map((p) => {
-          const on = picked.includes(p.id)
-          return (
-            <button
-              key={p.id}
-              type="button"
-              aria-pressed={on}
-              title={p.role}
-              onClick={() => onToggle(p.id)}
-              className={cn(
-                'motion-std flex h-10 items-center gap-2 rounded-md pl-1 pr-3 text-[12px]',
-                on
-                  ? 'bg-primary/24 text-accent-foreground font-semibold'
-                  : 'bg-white/9 hover:bg-white/16',
-              )}
-            >
-              <Avatar name={p.name} size="sm" />
-              {p.name}
-            </button>
-          )
-        })}
-      </div>
-    </Field>
-  )
-}
-
-/** Khối lý do thua — chỉ hiện khi trạng thái là Close lost.
- *
- *  Bảy lý do dựng sẵn bấm một phát là xong, và ô ghi thêm luôn mở chứ không nấp
- *  sau một nút "khác": lý do thật thường là "lý do dựng sẵn CỘNG một câu của
- *  riêng đơn này", không phải một trong hai. */
-function LossBlock({ draft, onSet }: { draft: OpportunityDraft; onSet: SetFn }) {
-  return (
-    <section className="flex flex-col gap-4 rounded-md bg-white/5 p-4" aria-label="Lý do thua">
-      <div className="flex flex-col gap-2">
-        <Kicker>
-          <span className="flex items-center gap-2">
-            <Icon icon={TriangleAlert} size={16} className="text-warning" />
-            Vì sao thua
-          </span>
-        </Kicker>
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Bảy lý do hay gặp, không phải danh sách đóng — khác sáu lý do lead ra khỏi luồng. Một đơn
-          thua không ghi lý do là một bài học mất trắng.
-        </span>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {LOSS_REASONS.map((r) => (
-          <Button
-            key={r}
-            size="sm"
-            variant={draft.lossReason === r ? 'default' : 'ghost'}
-            aria-pressed={draft.lossReason === r}
-            onClick={() => onSet('lossReason', draft.lossReason === r ? '' : r)}
-          >
-            {r}
-          </Button>
-        ))}
-      </div>
-
-      <Field
-        label="Ghi rõ thêm"
-        hint="Câu của riêng đơn này — tên đối thủ, con số họ chào, ai đổi ý."
-      >
-        <Textarea
-          autoGrow
-          rows={2}
-          value={draft.lossNote}
-          aria-label="Ghi rõ lý do thua"
-          onChange={(e) => onSet('lossNote', e.target.value)}
-        />
-      </Field>
-    </section>
-  )
-}
-
-/** Thẻ đọc của một phiếu đã gửi — dùng ở màn hồ sơ, ngay dưới thanh đáy.
+/** Thẻ đọc của một phiếu đã gửi — dùng ở màn hồ sơ lead, ngay dưới thanh đáy.
  *
  *  Đổi xong mà màn không đổi gì thì người dùng bấm lại lần nữa. Thẻ này là câu
- *  trả lời "rồi, xong": mã mới, trạng thái, tiền, người đứng đơn, và đường lùi
- *  vì chưa có backend nào để rút phiếu về. */
+ *  trả lời "rồi, xong": mã mới, trạng thái, tiền, người đứng đơn, đường sang
+ *  hồ sơ cơ hội vừa tạo, và đường lùi vì chưa có backend nào để rút phiếu về. */
 export function ConvertedCard({ lead }: { lead: Lead }) {
   const deal = useLeadDesk((s) => s.deals[lead.code])
   const undo = useLeadDesk((s) => s.undoConvert)
+  const navigate = useNavigate()
   if (!deal) return null
 
   const lost = deal.state === 'close-lost'
@@ -571,6 +292,10 @@ export function ConvertedCard({ lead }: { lead: Lead }) {
         </span>
       )}
       <span className="text-muted-foreground text-[11.5px]">chờ {HEAD_OF_SALES} gật</span>
+      <Button size="sm" onClick={() => navigate(`/sales/ops/${deal.code}`)}>
+        <Icon icon={ArrowRight} size={16} />
+        Mở hồ sơ cơ hội
+      </Button>
       <Button size="sm" variant="ghost" onClick={() => undo(lead.code)}>
         Rút phiếu
       </Button>

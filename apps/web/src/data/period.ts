@@ -1,6 +1,6 @@
 import { DAS_VINA_FROZEN_AT, DAS_VINA_PERIOD } from '@pv/engines/fixtures/das-vina'
 
-/** Trục thời gian của module 3 — tháng · quý · năm · khoảng ngày tự chọn.
+/** Trục thời gian của module Performance — tháng · quý · năm · khoảng ngày tự chọn.
  *
  *  ---------------------------------------------------------------------------
  *  VÌ SAO MÀN NÀY CÓ TRỤC THỜI GIAN (đổi luật ngày 19/08)
