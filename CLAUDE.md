@@ -27,6 +27,15 @@ pnpm lint:debt      # còn nợ bao nhiêu vi phạm cũ, ở file nào
 
 Node 22 (`.nvmrc`), pnpm 10. `pnpm check` là thứ CI chạy — xanh ở máy thì qua CI.
 
+## Đổi bố cục thì PHÁC TRƯỚC
+
+Mọi yêu cầu dựng màn mới, đổi bố cục, thêm/bớt/gộp khối đều đi qua skill
+`.claude/skills/sketch-first` — sơ đồ ASCII + bảng khối + danh sách quyết định
+cần gật, **trước khi** chạm file. Bác một sơ đồ 20 dòng rẻ hơn bác một màn đã
+dựng khoảng ba mươi lần; số đo cụ thể nằm trong chính skill đó.
+
+Skill tự kích hoạt khi yêu cầu khớp, hoặc gọi thẳng bằng `/sketch-first`.
+
 ## Cái gì máy gác, cái gì người gác
 
 **Đừng tự kiểm bằng mắt thứ máy đã gác, và đừng tưởng máy đã gác thứ nó không gác.**
