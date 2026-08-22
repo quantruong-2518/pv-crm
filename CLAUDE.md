@@ -7,11 +7,17 @@ backend thật mà không phải sửa màn.
 ```
 docs/luat-thiet-ke.md   15 luật cứng (§1) · token dùng thật (§2) · ba thiết bị (§3)
 packages/tokens         globals.css — FILE MÀU DUY NHẤT + bảng token dạng dữ liệu
-packages/ui             @pv/ui — thư viện component
+packages/ui             @pv/ui — thư viện component               → packages/ui/CLAUDE.md
 packages/engines        @pv/engines — E1 đồ thị object · E2 quyền · E3 duyệt · E4 thông báo
-apps/web                app thật (/) + theme kit sống (/kit)
+                                                                    → packages/engines/CLAUDE.md
+apps/web                app thật (/) + theme kit sống (/kit)       → apps/web/CLAUDE.md
 tools/                  eslint-plugin-aurora + script gác token/CSS
 ```
+
+Ba file `CLAUDE.md` con nói zone nào chứa gì và mở file nào theo việc — không
+liệt kê danh sách file cụ thể để khỏi lệch khi cấu trúc đổi. Viết bằng tiếng
+Anh vì đây là bản đồ cho agent đọc, không phải tài liệu sản phẩm cho người
+trong nhóm (cùng lý do skill `sketch-first` viết tiếng Anh).
 
 Mọi trích dẫn `luật N` trong code trỏ vào `docs/luat-thiet-ke.md §1`.
 **Thiếu token thì HỎI, đừng bịa hex mới.**
