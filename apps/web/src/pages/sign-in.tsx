@@ -1,62 +1,124 @@
-import { useLocation, useNavigate } from 'react-router-dom'
-import { AuroraField, Badge, GlassCard, wordmarkLight } from '@pv/ui'
-import { dasVina } from '@pv/engines/fixtures/das-vina'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Button, Checkbox, Input } from '@pv/ui'
+import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
+import { EMAIL_HINT, checkSignIn, findActorByEmail, type AuthError } from '@/data/auth'
 import { useSession } from '@/app/session'
 
-/** Màn chọn vai — cửa vào của POC.
+/** Màn đăng nhập — cửa vào của PV One.
  *
- *  Chưa có backend nên không có mật khẩu: chọn một người trong phòng là vào.
- *  Cái này KHÔNG phải màn đăng nhập thật, nó là công tắc đổi vai — và đổi vai
- *  là thứ bộ màn cần được (docs/luat-thiet-ke.md §7 · màn 03 phải đổi theo
- *  người xem: TP Kinh doanh nhìn khác Giám đốc).
+ *  Trước 23/08 đây là màn CHỌN VAI: bấm một cái tên là vào, không mật khẩu.
+ *  Đổi thành form email + mật khẩu vì đây là màn đầu tiên khách nhìn thấy, và
+ *  một hệ ERP không hỏi mật khẩu thì không ai tin phần còn lại của nó.
  *
- *  Danh sách người lấy từ `actors` của kịch bản 2 · DAS Vina — bảng vai đã
- *  chốt của Pebble Sales. Đây là màn duy
- *  nhất biết danh sách này; store phiên thì không, nên nó không kéo kịch bản
- *  vào những màn không liên quan. */
+ *  Bảng chọn vai đã BỎ HẲN, không lùi xuống chân card. Đổi vai vẫn làm được và
+ *  vẫn cần được (docs/luat-thiet-ke.md §7 — TP Kinh doanh nhìn khác Giám đốc),
+ *  nhưng bằng đúng đường mọi người dùng đi: đăng xuất rồi đăng nhập bằng email
+ *  của vai kia. Một cửa sau bỏ qua mật khẩu ngay trên màn đăng nhập thì màn này
+ *  không còn chứng minh được điều nó sinh ra để chứng minh.
+ *
+ *  Email của bảy vai nằm trong fixture `das-vina` (`actors[].email`) — chỗ tra
+ *  khi demo, không phải một nút trên màn.
+ *
+ *  Kịch bản: DAS Vina. Luật mật khẩu ở `data/auth.ts`, không nằm trong màn. */
 export function SignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const signIn = useSession((s) => s.signIn)
+  const remembered = useSession((s) => s.remember)
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(remembered)
+  const [error, setError] = useState<AuthError | null>(null)
+
+  const emailRef = useRef<HTMLInputElement>(null)
+  useEffect(() => emailRef.current?.focus(), [])
 
   const from = (location.state as { from?: string } | null)?.from ?? '/'
 
   return (
-    <AuroraField>
-      <div className="flex min-h-svh items-center justify-center p-6">
-        <GlassCard className="flex w-full max-w-md flex-col gap-5 p-8">
-          <div className="flex flex-col gap-2">
-            <img src={wordmarkLight} alt="PV One" className="h-6 self-start object-contain" />
-            <p className="text-muted-foreground text-[12.5px] leading-[1.65]">
-              Chọn vai để vào. Mỗi vai thấy một phần khác nhau của hệ — quyền do E2 quyết, không
-              phải do màn tự giấu.
-            </p>
-          </div>
+    <AuthCard title="Đăng nhập">
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault()
+          const wrong = checkSignIn(email, password)
+          setError(wrong)
+          if (wrong) return
+          /* `checkSignIn` đã xác nhận email có người — nhưng nó trả LỖI chứ
+             không trả người, nên phải tra lại. Hai hàm tách nhau vì màn quên
+             mật khẩu cần tra người mà không cần kiểm mật khẩu. */
+          const actor = findActorByEmail(email)
+          if (!actor) return
+          signIn(actor, { remember })
+          navigate(from, { replace: true })
+        }}
+        className="flex flex-col gap-5"
+      >
+        <AuthField
+          label="Email"
+          htmlFor="email"
+          error={error?.field === 'email' ? error.message : undefined}
+        >
+          <Input
+            ref={emailRef}
+            id="email"
+            type="email"
+            inputMode="email"
+            autoComplete="username"
+            placeholder={EMAIL_HINT}
+            value={email}
+            invalid={error?.field === 'email'}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              setError(null)
+            }}
+          />
+        </AuthField>
 
-          <div className="flex flex-col gap-2">
-            {dasVina.actors.map((actor) => (
-              <button
-                key={actor.id}
-                type="button"
-                onClick={() => {
-                  signIn(actor)
-                  navigate(from, { replace: true })
-                }}
-                className="motion-std flex items-center gap-3 rounded-md bg-white/5 px-4 py-3 text-left hover:bg-white/10"
-              >
-                <span className="flex-1">
-                  <b className="block text-[13.5px] font-semibold">{actor.name}</b>
-                  <small className="text-muted-foreground block text-[11px] font-normal">
-                    {actor.role}
-                  </small>
-                </span>
-                {actor.ownOnly ? <Badge tone="draft">chỉ khách của mình</Badge> : null}
-              </button>
-            ))}
-          </div>
-        </GlassCard>
-      </div>
-    </AuroraField>
+        <AuthField
+          label="Mật khẩu"
+          htmlFor="password"
+          error={error?.field === 'password' ? error.message : undefined}
+          action={
+            <Link
+              to="/quen-mat-khau"
+              state={{ email }}
+              className="motion-std text-muted-foreground hover:text-foreground text-[11.5px] font-semibold"
+            >
+              Quên mật khẩu?
+            </Link>
+          }
+        >
+          <PasswordInput
+            id="password"
+            autoComplete="current-password"
+            placeholder="Mật khẩu của bạn"
+            value={password}
+            invalid={error?.field === 'password'}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setError(null)
+            }}
+          />
+        </AuthField>
+
+        {/* Không `hint`: hậu quả của ô này (phiên sống qua lần đóng trình duyệt
+            hay không) nằm ở tầng dưới — `rememberAware` trong `app/session.ts`.
+            Nhãn "trên máy này" đã đủ cho người bấm. */}
+        <Checkbox
+          checked={remember}
+          onChange={setRemember}
+          label="Nhớ tôi trên máy này"
+          className="-mx-3"
+        />
+
+        <Button type="submit" size="lg">
+          Đăng nhập
+        </Button>
+      </form>
+    </AuthCard>
   )
 }
 

@@ -89,22 +89,29 @@ const scenario: Scenario = {
     { from: 'CNC-03', to: 'BT-0310', kind: 'sinh-ra' },
   ],
 
+  /** Cùng công ty với kịch bản 2 nên cùng tên miền email, và người trùng thì
+   *  email trùng — Hà ở đây với Hà ở DAS Vina là một người. Đổi một bên mà quên
+   *  bên kia thì một tài khoản đăng nhập được ở kịch bản này và không ở kịch bản
+   *  kia; `actors.test.ts` khoá chuyện đó. */
   actors: [
     {
       id: 'u-thang',
       name: 'Nguyễn Văn Thắng',
+      email: 'thang@pebblevina.vn',
       role: 'Giám đốc',
       branches: ['One', 'Sales', 'Supply', 'Factory', 'Finance'],
     },
     {
       id: 'u-ha',
       name: 'Trần Thu Hà',
+      email: 'ha@pebblevina.vn',
       role: 'Trưởng phòng Kinh doanh',
       branches: ['One', 'Sales'],
     },
     {
       id: 'u-huy',
       name: 'Đỗ Quang Huy',
+      email: 'huy@pebblevina.vn',
       role: 'Sale · ngành chip',
       branches: ['One', 'Sales'],
       ownOnly: true,

@@ -58,7 +58,7 @@ function BranchLocked({ branch }: { branch: Branch | null }) {
           <Icon icon={Lock} size={26} className="text-muted-foreground" />
           <h1 className="font-display text-[20px] font-semibold">Bị ẩn theo quyền của bạn</h1>
           <p className="text-muted-foreground text-pretty text-[12.5px] leading-[1.65]">
-            Vai hiện tại không có nhánh {branch}. Xin quyền để mở, hoặc đổi sang vai khác.
+            Vai hiện tại không có nhánh {branch}. Xin quyền để mở, hoặc đăng nhập bằng vai khác.
           </p>
           <div className="flex gap-3">
             <Button
@@ -76,7 +76,7 @@ function BranchLocked({ branch }: { branch: Branch | null }) {
                 navigate('/dang-nhap', { replace: true })
               }}
             >
-              Đổi vai
+              Đăng xuất
             </Button>
           </div>
         </GlassCard>

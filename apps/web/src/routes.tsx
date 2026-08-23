@@ -103,7 +103,23 @@ export const SCREENS: ScreenDef[] = [
     branch: 'Sales',
     load: () => import('@/pages/sales-config'),
   },
-  { path: '/dang-nhap', name: 'Chọn vai', public: true, load: () => import('@/pages/sign-in') },
+  /** Ba màn của luồng auth. Đều `public` — bắt đăng nhập để vào được màn quên
+   *  mật khẩu thì không còn ai vào được nó. Là BA đường dẫn chứ không phải ba
+   *  trạng thái của một màn, vì link đặt lại trong mail phải có URL riêng và nút
+   *  Back của trình duyệt phải lùi đúng một bước. */
+  { path: '/dang-nhap', name: 'Đăng nhập', public: true, load: () => import('@/pages/sign-in') },
+  {
+    path: '/quen-mat-khau',
+    name: 'Quên mật khẩu',
+    public: true,
+    load: () => import('@/pages/forgot-password'),
+  },
+  {
+    path: '/dat-lai-mat-khau',
+    name: 'Đặt mật khẩu mới',
+    public: true,
+    load: () => import('@/pages/reset-password'),
+  },
   { path: '/kit', name: 'Theme kit sống', public: true, load: () => import('@/kit/theme-kit') },
 ]
 

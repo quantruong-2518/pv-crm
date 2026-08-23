@@ -319,14 +319,14 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         size="sm"
         variant="ghost"
         onClick={() => {
+          /* Nhãn là "Đăng xuất" chứ không phải "Đổi vai": từ 23/08 màn đăng nhập
+             không còn bảng chọn vai, nên nút này chỉ làm được đúng một việc —
+             ra khỏi phiên. Muốn sang vai khác thì đăng nhập bằng email vai đó. */
           signOut()
-          /* `?doi-vai` mở thẳng bảng chọn vai ở màn đăng nhập. Không có nó thì
-             người demo rơi vào form mật khẩu và phải bấm thêm một lần nữa mới
-             tới đúng thứ nút này hứa. */
-          navigate('/dang-nhap?doi-vai=1', { replace: true })
+          navigate('/dang-nhap', { replace: true })
         }}
       >
-        Đổi vai
+        Đăng xuất
       </Button>
     ),
   }

@@ -50,6 +50,13 @@ export type Edge = { from: string; to: string; kind: EdgeKind }
 export type Actor = {
   id: string
   name: string
+  /** Khoá đăng nhập. Luôn viết thường trong fixture — màn đăng nhập chuẩn hoá
+   *  chuỗi người gõ (`trim().toLowerCase()`) rồi mới so, nên không có chỗ nào
+   *  phải nhớ so sánh không phân biệt hoa thường lần thứ hai.
+   *
+   *  Bắt buộc chứ không `?`: người không có email là người không vào được hệ,
+   *  và đó phải là lỗi lúc biên dịch chứ không phải một nút bấm mãi không ăn. */
+  email: string
   /** Vai trong Sales hoặc vai One. */
   role: string
   /** Nhánh được phép đọc. Rỗng = chỉ One Core. */

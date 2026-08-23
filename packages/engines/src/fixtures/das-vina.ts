@@ -56,18 +56,39 @@ const scenario: Scenario = {
     { from: 'OP-0288', to: 'BG-1077', kind: 'sinh-ra' },
   ],
 
+  /** Bảy người của phòng Kinh doanh Pebble Vina — KHÔNG phải người của DAS Vina.
+   *  DAS Vina là khách, nằm ở `objects`; đây là những người nhìn màn.
+   *
+   *  `email` là phần đuôi của `id` ghép với tên miền công ty (u-ha → ha@…), nên
+   *  không có bảng ánh xạ thứ hai phải giữ cho khớp. Viết thẳng ra chứ không
+   *  sinh bằng hàm: đây là fixture ĐÓNG BĂNG, người đọc phải thấy được chuỗi
+   *  gõ vào ô đăng nhập mà không phải chạy code trong đầu. */
   actors: [
     {
       id: 'u-ha',
       name: 'Trần Thu Hà',
+      email: 'ha@pebblevina.vn',
       role: 'Trưởng phòng Kinh doanh',
       branches: ['One', 'Sales'],
     },
-    { id: 'u-chau', name: 'Vũ Minh Châu', role: 'Marketing', branches: ['One', 'Sales'] },
-    { id: 'u-nam', name: 'Lê Hoàng Nam', role: 'BD', branches: ['One', 'Sales'] },
+    {
+      id: 'u-chau',
+      name: 'Vũ Minh Châu',
+      email: 'chau@pebblevina.vn',
+      role: 'Marketing',
+      branches: ['One', 'Sales'],
+    },
+    {
+      id: 'u-nam',
+      name: 'Lê Hoàng Nam',
+      email: 'nam@pebblevina.vn',
+      role: 'BD',
+      branches: ['One', 'Sales'],
+    },
     {
       id: 'u-huy',
       name: 'Đỗ Quang Huy',
+      email: 'huy@pebblevina.vn',
       role: 'Sale · chip',
       branches: ['One', 'Sales'],
       ownOnly: true,
@@ -75,6 +96,7 @@ const scenario: Scenario = {
     {
       id: 'u-binh',
       name: 'Đặng Thanh Bình',
+      email: 'binh@pebblevina.vn',
       role: 'Sale · cơ khí, ô tô',
       branches: ['One', 'Sales'],
       ownOnly: true,
@@ -82,11 +104,18 @@ const scenario: Scenario = {
     {
       id: 'u-linh',
       name: 'Nguyễn Khánh Linh',
+      email: 'linh@pebblevina.vn',
       role: 'Sale · dược',
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
-    { id: 'u-anh', name: 'Phạm Diệu Anh', role: 'Presales', branches: ['One', 'Sales'] },
+    {
+      id: 'u-anh',
+      name: 'Phạm Diệu Anh',
+      email: 'anh@pebblevina.vn',
+      role: 'Presales',
+      branches: ['One', 'Sales'],
+    },
   ],
 }
 
