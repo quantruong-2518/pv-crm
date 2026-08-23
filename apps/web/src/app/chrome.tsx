@@ -161,13 +161,18 @@ export type SalesModule = {
  *  comment đã đổi sang gọi TÊN module, nên lần đánh số lại này không kéo theo
  *  hai chục chỗ phải sửa nữa.
  *
+ *  Đổi 23/08 (lần hai): module 1 rút tên còn **"Chiến dịch"**. Nhãn "sự kiện" đã
+ *  ra khỏi màn — một buổi hội thảo vẫn là một chiến dịch có chuỗi đợt và có mail
+ *  đi ra, đo bằng đúng bộ chỉ số ấy, nên hai chữ trong nav chỉ dạy người mới một
+ *  phân biệt không đổi được việc gì họ làm.
+ *
  *  Trường `blocked` đã bỏ cùng màn `sales-pending`: cả sáu module giờ đều có
  *  màn thật, không còn mục nào cần chỗ để nói "đang vướng gì". */
 export const SALES_MODULES: SalesModule[] = [
   {
     no: 1,
     icon: Megaphone,
-    label: 'Chiến dịch & Sự kiện',
+    label: 'Chiến dịch',
     path: '/sales/campaigns',
     question: 'Khách ở đâu ra, đợt nào ra khách',
   },

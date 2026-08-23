@@ -1,7 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Plus, Send, Trash2, TriangleAlert, UserPlus } from 'lucide-react'
+import { CalendarClock, Plus, Save, Send, Trash2, TriangleAlert, UserPlus, Zap } from 'lucide-react'
 import {
-  AiAction,
   ApprovalChain,
   Avatar,
   Badge,
@@ -15,46 +14,53 @@ import {
   SectionTitle,
   cn,
 } from '@pv/ui'
-import { DAS_VINA_FROZEN_AT, HEAD_OF_SALES, dasVina } from '@pv/engines/fixtures/das-vina'
+import { DAS_VINA_FROZEN_AT, dasVina } from '@pv/engines/fixtures/das-vina'
 import { dm } from '@/lib/date'
-import { DRAFT_TEMPLATE, type DraftWave, type SourceRow } from '@/data/campaigns'
+import {
+  DRAFT_TEMPLATE,
+  LEAD_CATEGORIES,
+  LEAD_TIERS,
+  PROVINCES,
+  TODAY,
+  groupText,
+  membersOf,
+  type DraftWave,
+  type LeadGroup,
+} from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import {
   CHANNELS,
-  KIND_ICON,
-  KIND_LABEL,
   ROLE_OF,
-  draftHtml,
   nextWave,
   sendsViaE4,
+  whenText,
   type CampaignDraft,
 } from './campaign-model'
 
 /** Module 1 · các KHỐI GIAO DIỆN dùng chung của hai màn.
  *
- *  Form ở ĐÂY chứ không ở một trong hai màn, vì cả hai đều mở nó: sổ nguồn mở
- *  để TẠO, hồ sơ nguồn mở để SỬA. Đúng một form cho cả hai việc là luật của
- *  module (docs · mục 1.6) — chép thành hai bản là hai bản sẽ lệch nhau.
+ *  Form ở ĐÂY chứ không ở một trong hai màn, vì cả ba lối vào đều mở nó: sổ mở
+ *  để TẠO, hồ sơ mở để SỬA và để NHÂN BẢN. Đúng một form cho ba việc — chép
+ *  thành hai bản là hai bản sẽ lệch nhau.
  *
  *  Hằng số và phép dựng bản nháp nằm ở `campaign-model.ts`, không ở đây. */
 
-/** Cố tình không làm — ba thứ bị bỏ có chủ ý, kèm lý do.
+/** Cố tình không làm — hai thứ bị bỏ có chủ ý, kèm lý do.
  *
- *  Khối này ở lại trên màn (không phải trong comment) vì cả ba là câu người xem
- *  hỏi ngay trong buổi demo đầu tiên: "lead đâu", "sao không gửi luôn được",
- *  "sao không có biểu đồ". Trả lời một lần trên màn rẻ hơn trả lời mười lần.
+ *  Khối này ở lại trên màn (không phải trong comment) vì cả hai là câu người xem
+ *  hỏi ngay trong buổi demo đầu tiên. Trả lời một lần trên màn rẻ hơn trả lời
+ *  mười lần.
  *
- *  Không dùng `GlassCard`: khối này nằm trong cột phải của hồ sơ nguồn, thêm
- *  một mặt kính nữa là thêm một lớp nền (luật 12). */
+ *  Mục "không có nút Gửi ngay" đã BỎ 23/08 — giờ có thật, ở từng đợt. Mục "AI
+ *  đề xuất" cũng bỏ vì khối AI không còn trên module này.
+ *
+ *  Không dùng `GlassCard`: khối này nằm trong cột phải của hồ sơ chiến dịch,
+ *  thêm một mặt kính nữa là thêm một lớp nền (luật 12). */
 export function NotDoing() {
   const items = [
     {
       title: 'Không có bảng lead trên màn này',
-      body: 'Lead thuộc module 2. Cùng một dòng lead mà thao tác được ở hai màn thì không màn nào là nơi đúng để tra. Ở đây còn đúng một con số "đã qua cổng" và một lối sang Sổ lead.',
-    },
-    {
-      title: 'Không có nút "Gửi ngay"',
-      body: 'Nút cuối của form là gửi duyệt. Chuỗi duyệt do hệ giữ, và không đợt nào bung ra trước khi có người gật.',
+      body: 'Lead thuộc module 2. Cùng một dòng lead mà thao tác được ở hai màn thì không màn nào là nơi đúng để tra. Ở đây còn đúng một con số và một lối sang Sổ lead.',
     },
     {
       title: 'Không vẽ đường theo thời gian',
@@ -115,12 +121,10 @@ function Field({
   )
 }
 
-/** Nhãn cho một CỤM NÚT (loại, kênh). Không bọc `<label>`: một nhãn trỏ vào
- *  nhiều nút thì trình đọc màn hình đọc sai cái nào đang được chọn.
+/** Nhãn cho một CỤM NÚT. Không bọc `<label>`: một nhãn trỏ vào nhiều nút thì
+ *  trình đọc màn hình đọc sai cái nào đang được chọn.
  *
- *  Có `id` để cụm nút bên dưới nối vào bằng `role="group" aria-labelledby`. Thiếu
- *  dây nối đó thì nhãn chỉ là một chữ đứng cạnh, và bảy nút kênh của ba đợt đọc
- *  ra y hệt nhau. */
+ *  Có `id` để cụm nút bên dưới nối vào bằng `role="group" aria-labelledby`. */
 function GroupLabel({
   id,
   children,
@@ -143,48 +147,452 @@ function GroupLabel({
   )
 }
 
-/** Tạo và SỬA chiến dịch dùng chung một form (docs · mục 1.6) — dàn ngang, ba
- *  section, CUỘN CÙNG TRANG.
+/** Một hàng chip bật/tắt nhiều lựa chọn — ba chiều của nhóm người nhận.
  *
- *  Trước 20/08 chỗ này hứa "tự cuộn bên trong" và mang theo ba class
- *  `lg:min-h-0 lg:flex-1 lg:overflow-y-auto` ở hai tầng. Ba class đó là xác của
- *  chế độ `AppShell fill` — chế độ đã bỏ (xem docblock `layout/app-shell.tsx`).
- *  Không còn `fill` thì cha của form không phải flex container cao cố định, nên
- *  `flex-1` không có gì để chia và `overflow-y-auto` không bao giờ tràn: form
- *  vẫn cuộn ở tầng trang y như mọi màn khác. Class đã xoá, lời hứa sửa theo.
+ *  `aria-pressed` chứ không phải `checkbox`: đây là bộ lọc, bật một cái là danh
+ *  sách bên dưới đổi ngay. Checkbox hứa hẹn một nút "Áp dụng" ở đâu đó.
  *
- *  Không đợt nào tự gửi. Nút cuối cùng là "gửi duyệt", không phải "gửi ngay":
- *  E3 giữ chuỗi duyệt, E5 chỉ bung đợt sau khi có người gật.
+ *  `max` GẤP phần đuôi lại. Hàng tỉnh có 21 mục và trải ba dòng — ba dòng chip
+ *  xám đọc ra như một bức tường, và hai hàng thật sự đáng chọn (ngành, bậc) bị
+ *  đẩy lên trên nó. Tám mục đầu đã phủ phần lớn sổ; mục nào ĐANG BẬT thì luôn
+ *  hiện, kể cả khi nó nằm trong phần gấp — nếu không thì mở lại bản nháp là
+ *  thấy con số người nhận nói một đằng mà hàng chip nói một nẻo. */
+function ChipRow({
+  label,
+  options,
+  picked,
+  onToggle,
+  disabled,
+  max,
+}: {
+  label: string
+  options: { value: string; label: string }[]
+  picked: string[]
+  onToggle: (value: string) => void
+  disabled?: boolean
+  max?: number
+}) {
+  const id = useId()
+  const [open, setOpen] = useState(false)
+
+  const folded =
+    max === undefined || open
+      ? options
+      : options.filter((o, i) => i < max || picked.includes(o.value))
+  const hidden = options.length - folded.length
+
+  return (
+    <div className="flex flex-col gap-2">
+      <GroupLabel id={id}>{label}</GroupLabel>
+      <div role="group" aria-labelledby={id} className="flex flex-wrap gap-2">
+        {folded.map((o) => (
+          <Button
+            key={o.value}
+            size="sm"
+            disabled={disabled}
+            aria-pressed={picked.includes(o.value)}
+            variant={picked.includes(o.value) ? 'default' : 'ghost'}
+            onClick={() => onToggle(o.value)}
+          >
+            {o.label}
+          </Button>
+        ))}
+        {hidden > 0 ? (
+          <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+            + {hidden} {label.toLowerCase()} nữa
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/** BƯỚC 1 · gửi cho ai — tên chiến dịch và nhóm người nhận.
  *
- *  GỬI XONG LÀ KHOÁ. Trước đây bấm gửi rồi vẫn gõ tiếp được, sửa đợt được, thêm
- *  người duyệt được — mà không còn nút gửi lại, nên mọi sửa đổi sau đó rơi vào
- *  hư không. Giờ ô nhập thành chỉ đọc và lối ra đổi tên thành "Về sổ nguồn". */
+ *  Nhóm là một BỘ LỌC trên sổ lead, không phải một tệp tải lên: ba hàng chip,
+ *  và con số người nhận đổi ngay dưới tay. Đây là chỗ quyết định người mới có
+ *  dùng được màn này hay không — mọi thứ khác chỉ là soạn chữ, còn "gửi nhầm
+ *  cho ai" là lỗi duy nhất không rút lại được. */
+function StepAudience({
+  draft,
+  setDraft,
+  locked,
+}: {
+  draft: CampaignDraft
+  setDraft: (fn: (d: CampaignDraft) => CampaignDraft) => void
+  locked: boolean
+}) {
+  const members = useMemo(() => membersOf(draft.group), [draft.group])
+
+  const toggle = <K extends keyof LeadGroup>(key: K, value: string) =>
+    setDraft((d) => {
+      const cur = d.group[key] as string[]
+      const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value]
+      return { ...d, group: { ...d.group, [key]: next } }
+    })
+
+  return (
+    <section className="flex flex-col gap-4">
+      <SectionTitle size="lg" kicker="Bước 1" hint="Ô có dấu sao là bắt buộc.">
+        Gửi cho ai?
+      </SectionTitle>
+
+      {/* Ô một dòng KHÔNG kéo hết 1.400px. Một ô nhập rộng bằng cả màn nói với
+          người dùng rằng nó chờ một đoạn văn, và mắt phải đi hết bề ngang mới
+          biết mình gõ tới đâu. */}
+      <div className="max-w-2xl">
+        <Field
+          label="Tên chiến dịch"
+          required
+          hint="Tên này hiện trong sổ và trong báo cáo — đặt sao cho ba tháng nữa đọc lại vẫn biết nó là cái gì."
+        >
+          <Input
+            value={draft.name}
+            aria-required
+            readOnly={locked}
+            placeholder={`Ví dụ ${DRAFT_TEMPLATE.name}`}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+          />
+        </Field>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-md bg-white/5 p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <GroupLabel required>Nhóm người nhận</GroupLabel>
+          {/* Con số phải to và phải đứng ngay trên các hàng chip. Nó là thứ nói
+              cho người dùng biết họ đang hiểu bộ lọc đúng hay ngược — một dòng
+              giải thích không làm được việc đó. */}
+          <span className="flex items-baseline gap-2">
+            <span className="tnum font-num text-[26px] font-semibold leading-none">
+              {members.length}
+            </span>
+            <span className="text-muted-foreground text-[11.5px]">người nhận</span>
+          </span>
+        </div>
+
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          Không chọn gì ở một hàng nghĩa là hàng đó KHÔNG lọc — không phải loại hết. Đang gửi cho:{' '}
+          <b className="text-foreground font-semibold">{groupText(draft.group)}</b>.
+        </p>
+
+        <ChipRow
+          label="Ngành"
+          disabled={locked}
+          options={LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))}
+          picked={draft.group.categories}
+          onToggle={(v) => toggle('categories', v)}
+        />
+        <ChipRow
+          label="Bậc"
+          disabled={locked}
+          options={LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))}
+          picked={draft.group.tiers}
+          onToggle={(v) => toggle('tiers', v)}
+        />
+        <ChipRow
+          label="Tỉnh"
+          disabled={locked}
+          max={8}
+          options={PROVINCES.map((p) => ({ value: p, label: p }))}
+          picked={draft.group.provinces}
+          onToggle={(v) => toggle('provinces', v)}
+        />
+
+        {/* Năm cái tên thật. Một con số đứng một mình không kiểm được; năm dòng
+            đầu thì người soạn liếc một cái là biết mình vừa chọn đúng nhóm hay
+            vừa chọn nhầm cả sổ. */}
+        {members.length === 0 ? (
+          <p className="text-warning flex items-start gap-2 text-[11.5px] leading-[1.5]">
+            <Icon icon={TriangleAlert} size={16} />
+            Không ai khớp ba điều kiện này cùng lúc. Bỏ bớt một hàng chip là danh sách có người trở
+            lại.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <span className="text-muted-foreground text-[11px]">
+              {members.length <= 5 ? 'Cả nhóm' : '5 người đầu nhóm'}
+            </span>
+            <ul className="m-0 flex list-none flex-col gap-1 p-0">
+              {members.slice(0, 5).map((l) => (
+                <li key={l.code} className="text-[11.5px]">
+                  <b className="font-semibold">{l.company}</b>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {l.province} · {LEAD_TIERS.find((t) => t.key === l.tier)?.label ?? l.tier}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {members.length > 5 ? (
+              <span className="text-muted-foreground text-[11px]">
+                còn {members.length - 5} người nữa
+              </span>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** Một thẻ đợt của Bước 2. Xếp DỌC, mỗi thẻ chiếm cả bề ngang.
+ *
+ *  Trước 23/08 các thẻ nằm trong lưới 2–3 cột. Cột hẹp ép ô soạn nội dung xuống
+ *  chừng 300px — mà nội dung mail mới là việc chính của bước này, và không ai
+ *  soạn được một lá thư trong một ô bằng nửa cái danh thiếp. */
+function WaveCard({
+  index,
+  wave,
+  locked,
+  copied,
+  onPatch,
+  onDrop,
+  cardRef,
+}: {
+  index: number
+  wave: DraftWave
+  locked: boolean
+  /** Đợt CHÉP TỪ chiến dịch cũ — ô nội dung trống ở đó là đúng, không phải thiếu. */
+  copied: boolean
+  onPatch: (patch: Partial<DraftWave>) => void
+  onDrop: () => void
+  cardRef: (el: HTMLDivElement | null) => void
+}) {
+  const uid = useId()
+  const titleId = `${uid}-title`
+  const channelId = `${uid}-channel`
+  const whenId = `${uid}-when`
+  const contentId = `${uid}-content`
+
+  const digits = (v: string) => Number(v.replace(/\D/g, '') || '0')
+
+  return (
+    /* Mỗi thẻ là một NHÓM có tên. Ba đợt thì màn có 3 ô "Tên đợt", 3 nút "Bỏ" và
+       21 nút kênh trùng tên nhau — không có nhóm thì trình đọc màn hình không
+       nói được nút nào thuộc đợt nào. */
+    <div
+      role="group"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      ref={cardRef}
+      className="flex flex-col gap-4 rounded-md bg-white/5 p-4 outline-none"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span id={titleId} className="text-[12.5px] font-semibold">
+          Đợt {index + 1}
+        </span>
+        <span className="text-muted-foreground text-[11px]">{whenText(wave)}</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={locked}
+          aria-label={`Bỏ đợt ${index + 1}`}
+          onClick={onDrop}
+        >
+          <Icon icon={Trash2} size={16} />
+          Bỏ
+        </Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Field label="Tên đợt" required>
+          <Input
+            value={wave.label}
+            aria-required
+            readOnly={locked}
+            onChange={(e) => onPatch({ label: e.target.value })}
+          />
+        </Field>
+
+        <div className="flex flex-col gap-2">
+          <GroupLabel id={channelId} required>
+            Kênh bắn
+          </GroupLabel>
+          {/* Đây là thao tác CHÍNH của Bước 2, và ở iPad dọc 768px nó được bấm
+              bằng ngón tay — `<button>` trần bọc một tag 11px chỉ cao 24px.
+              `min-h-8` đưa nó về đúng cỡ nút `sm` của cả màn (luật 13). */}
+          <div role="group" aria-labelledby={channelId} className="flex flex-wrap gap-1">
+            {CHANNELS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                disabled={locked}
+                aria-pressed={wave.channel === c}
+                onClick={() => onPatch({ channel: c })}
+                className="motion-std flex min-h-8 items-center rounded-md px-1"
+              >
+                <ChannelTag
+                  icon={CHANNEL_ICON[c]}
+                  label={CHANNEL_LABEL[c]}
+                  tone={wave.channel === c ? 'accent' : sendsViaE4(c) ? 'default' : 'warning'}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Nói thẳng đợt này ai gửi. Chọn được kênh ngoài — kịch bản có thật hai
+          đợt như thế, LinkedIn và Facebook — nhưng màn không giả vờ rằng bấm nút
+          là bài lên. */}
+      {sendsViaE4(wave.channel) ? (
+        <span className="text-muted-foreground flex items-start gap-2 text-[11px] leading-[1.5]">
+          <Icon icon={Send} size={16} />
+          Hệ gửi đợt này · nhật ký gửi và luật chống trùng người nhận do hệ giữ
+        </span>
+      ) : (
+        <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
+          <Icon icon={TriangleAlert} size={16} />
+          Hệ chưa nối đường gửi cho {CHANNEL_LABEL[wave.channel]} — hệ giữ lịch và nhắc, người tự
+          đăng bài rồi nhập số về.
+        </span>
+      )}
+
+      {/* GỬI KHI NÀO — hai lựa chọn, không phải một ô "sau bao nhiêu ngày".
+          "Sau 14 ngày" bắt người soạn tự cộng lịch trong đầu và không bao giờ
+          nói ra thứ hai ngày mấy. Ở đây chọn xong là đọc được thành ngày. */}
+      <div className="flex flex-col gap-2">
+        <GroupLabel id={whenId} required>
+          Gửi khi nào
+        </GroupLabel>
+        <div role="group" aria-labelledby={whenId} className="flex flex-wrap items-end gap-3">
+          <Button
+            size="sm"
+            disabled={locked}
+            aria-pressed={wave.sendNow}
+            variant={wave.sendNow ? 'default' : 'ghost'}
+            onClick={() => onPatch({ sendNow: true })}
+          >
+            <Icon icon={Zap} size={16} />
+            Gửi ngay
+          </Button>
+          <Button
+            size="sm"
+            disabled={locked}
+            aria-pressed={!wave.sendNow}
+            variant={!wave.sendNow ? 'default' : 'ghost'}
+            onClick={() => onPatch({ sendNow: false })}
+          >
+            <Icon icon={CalendarClock} size={16} />
+            Hẹn ngày
+          </Button>
+
+          {/* Ô ngày giờ KHÔNG biến mất khi bấm "Gửi ngay" — nó mờ đi. Biến mất
+              thì bấm nhầm một cái là mất ngày vừa gõ, và người mới bấm nhầm
+              nhiều. Giá trị vẫn nằm trong bản nháp, bấm lại là thấy. */}
+          <div className={cn('flex flex-wrap items-end gap-2', wave.sendNow && 'opacity-40')}>
+            <label className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-[11px]">Ngày</span>
+              <Input
+                type="date"
+                className="w-[150px]"
+                value={wave.dateISO}
+                min={TODAY}
+                disabled={wave.sendNow}
+                readOnly={locked}
+                onChange={(e) => onPatch({ dateISO: e.target.value })}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-[11px]">Giờ</span>
+              <Input
+                type="time"
+                className="w-[110px]"
+                value={wave.time}
+                disabled={wave.sendNow}
+                readOnly={locked}
+                onChange={(e) => onPatch({ time: e.target.value })}
+              />
+            </label>
+          </div>
+        </div>
+        {wave.sendNow ? (
+          <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+            "Gửi ngay" là ngay khi bạn bấm <b className="text-foreground">Bắt đầu chạy</b> — lưu
+            nháp thì chưa có mail nào đi.
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+        <Field
+          label="Kỳ vọng bao nhiêu lead"
+          hint="Không bắt buộc. Để 0 nghĩa là chưa đặt, và sau này màn ghi 'chưa đặt kỳ vọng' chứ không ghi 'hụt'."
+        >
+          <Input
+            value={String(wave.expected)}
+            inputMode="numeric"
+            readOnly={locked}
+            onChange={(e) => onPatch({ expected: digits(e.target.value) })}
+          />
+        </Field>
+
+        <div className="flex flex-col gap-2">
+          <GroupLabel id={contentId} required>
+            Nội dung mail của đợt {index + 1}
+          </GroupLabel>
+          {locked ? (
+            <div className="bg-input rounded-md p-3">
+              <RichTextView html={wave.content} />
+            </div>
+          ) : (
+            <RichText
+              value={wave.content}
+              onChange={(html) => onPatch({ content: html })}
+              label={`Nội dung mail của đợt ${index + 1}`}
+              placeholder="Soạn nội dung đợt này — chèn được ảnh, sửa được HTML thô."
+            />
+          )}
+          {copied && wave.content.trim() === '' ? (
+            <span className="text-muted-foreground text-[11px] leading-[1.5]">
+              Kịch bản không lưu nội dung đã soạn — ô này để trống là đúng.
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Tạo · sửa · nhân bản chiến dịch dùng chung một form — BA BƯỚC, cuộn cùng
+ *  trang, một thanh chốt dính đáy.
+ *
+ *  BA ĐỔI LỚN 23/08, cả ba đều là để người chưa từng chạy chiến dịch dùng được:
+ *
+ *   1 · **Không cần người duyệt vẫn tạo được.** Chuỗi duyệt còn đó nhưng rỗng
+ *       lúc mở, và nút chốt không hỏi tới nó. Trước đây TP Kinh doanh là mắt
+ *       xích ghim và nút cuối đọc là "Gửi … duyệt" — tức một người mới không tự
+ *       tạo nổi chiến dịch đầu tiên của mình.
+ *   2 · **Có NHÁP.** Lưu nháp không gửi cho ai và không tính là chạy; chỉ "Bắt
+ *       đầu chạy" mới bung đợt. Nhờ vậy soạn dở bỏ đó được, và "Gửi ngay" ở
+ *       từng đợt có một mốc rõ ràng để mà "ngay" so với.
+ *   3 · **Không còn khối AI.** Bỏ theo yêu cầu 23/08. Luật 9 cấm AI tự chạy,
+ *       không đòi mọi form phải có AI — không có khối thì không có gì để gác.
+ *
+ *  BẤM CHẠY LÀ KHOÁ. Ô nhập thành chỉ đọc và lối ra đổi tên thành "Về sổ" —
+ *  trước đây bấm gửi rồi vẫn gõ tiếp được mà không còn nút gửi lại, nên mọi sửa
+ *  đổi sau đó rơi vào hư không. */
 export function CampaignForm({
   mode,
   code,
   initial,
-  seededWave,
-  sources,
-  onCancel,
+  seededWave = false,
+  onClose,
 }: {
-  mode: 'create' | 'edit'
+  mode: 'create' | 'edit' | 'duplicate'
   code?: string
   initial: CampaignDraft
   /** Form mở bằng nút "Thêm đợt vào chuỗi": đợt cuối là đợt vừa thêm. */
-  seededWave: boolean
-  sources: SourceRow[]
-  onCancel: () => void
+  seededWave?: boolean
+  onClose: () => void
 }) {
   const uid = useId()
   const [draft, setDraft] = useState<CampaignDraft>(initial)
-  /* Chuỗi duyệt mở đầu bằng đúng một mắt xích — TP Kinh doanh, và đó là mắt xích
-     KHÔNG BỎ ĐƯỢC (docs: "Người gật vẫn là TP Kinh doanh"). Người thêm vào chỉ
-     nối phía sau. */
-  const [approvers, setApprovers] = useState<string[]>([HEAD_OF_SALES])
+  /* Chuỗi duyệt mở đầu RỖNG — "không cần người duyệt vẫn tạo được". Ai muốn có
+     người gật thì tự thêm; hệ không ghim ai vào đó nữa. */
+  const [approvers, setApprovers] = useState<string[]>([])
   const [picking, setPicking] = useState(false)
-  const [stopOnReply, setStopOnReply] = useState(true)
-  const [drafted, setDrafted] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [saved, setSaved] = useState<'none' | 'draft' | 'running'>('none')
   const [askCancel, setAskCancel] = useState(false)
 
   /* Luật 13 · đổi chế độ là thay nguyên cây con, nút vừa bấm biến mất và focus
@@ -194,8 +602,8 @@ export function CampaignForm({
     headRef.current?.focus()
   }, [])
 
-  /* "Thêm đợt" thả người dùng ở đầu Section 1 trong khi thẻ đợt mới nằm cuối
-     Section 2, trong một lưới 2–3 cột. Cuộn tới và đặt focus vào chính thẻ đó. */
+  /* "Thêm đợt" thả người dùng ở đầu Bước 1 trong khi thẻ đợt mới nằm cuối Bước
+     2. Cuộn tới và đặt focus vào chính thẻ đó. */
   const waveRefs = useRef<(HTMLDivElement | null)[]>([])
   const [focusWave, setFocusWave] = useState<number | null>(
     seededWave ? initial.waves.length - 1 : null,
@@ -210,17 +618,8 @@ export function CampaignForm({
     el.focus()
   }, [focusWave])
 
-  /* Căn cứ của khối AI phải là số THẬT trong kịch bản, không phải câu nói suông:
-     lấy đúng đợt đã ra nhiều lead nhất trong kỳ làm mẫu mở lời. */
-  const best = useMemo(() => {
-    const all = sources.flatMap((s) => s.waves.map((w) => ({ code: s.code, ...w })))
-    return [...all].sort((a, b) => b.leads - a.leads)[0]
-  }, [sources])
-
-  /* Số đợt còn TRỐNG ô nội dung — hệ quả cụ thể của việc chưa bấm nút soạn.
-     Luật 9 đòi state "Chưa tạo gì cả" nói ra cái gì đang đứng im, và ở màn này
-     thứ đứng im là chuỗi đợt chưa gửi duyệt được. */
-  const blankWaves = draft.waves.filter((w) => w.content.trim() === '').length
+  const locked = saved === 'running'
+  const members = useMemo(() => membersOf(draft.group), [draft.group])
 
   const setWave = (i: number, patch: Partial<DraftWave>) =>
     setDraft((d) => ({ ...d, waves: d.waves.map((w, j) => (j === i ? { ...w, ...patch } : w)) }))
@@ -231,50 +630,48 @@ export function CampaignForm({
     setFocusWave(at)
   }
 
-  const digits = (v: string) => Number(v.replace(/\D/g, '') || '0')
+  /** Số đợt CHÉP TỪ chiến dịch cũ. Đợt vừa thêm trong phiên này không nằm trong
+   *  đó — câu "kịch bản không lưu nội dung" chỉ đúng với đợt cũ. */
+  const copiedWaves = mode === 'create' ? 0 : initial.waves.length - (seededWave ? 1 : 0)
 
-  /* Bốn con số dưới cộng từ BẢN NHÁP người dùng vừa gõ, không phải từ fixture —
-     tầng data không có hàm nào cộng hộ một chiến dịch chưa tồn tại. */
-  const expected = draft.waves.reduce((n, w) => n + w.expected, 0)
-  const spread = draft.waves.reduce((n, w) => Math.max(n, w.afterDays), 0)
-  const byE4 = draft.waves.filter((w) => sendsViaE4(w.channel)).length
-  const manual = draft.waves.length - byE4
+  const blankWaves = draft.waves.filter((w) => w.content.trim() === '').length
 
-  /* Ô khán giả xoá trắng được. Không in "0 người nhận" cho ô trắng — số 0 ở đây
-     đọc thành "gửi cho không ai", mà thật ra là chưa ai đặt số. */
-  const audienceText =
-    draft.audience === '' ? 'chưa đặt số người nhận' : `${draft.audience} người nhận`
+  /* HAI NGƯỠNG khác nhau, và đó là điểm mấu chốt của cả form.
 
-  const stopText = stopOnReply
-    ? 'khách trả lời thì ngưng nhắc'
-    : 'chuỗi chạy hết kể cả khi khách đã trả lời'
+     Lưu nháp chỉ đòi một cái TÊN: nháp là chỗ để soạn dở, chặn nó bằng một danh
+     sách yêu cầu là xoá luôn lý do nháp tồn tại.
 
-  /* Nói RÕ còn thiếu gì, không để một cái nút xám câm. Chuỗi duyệt không có mặt
-     trong danh sách này: TP Kinh doanh là mắt xích ghim, chuỗi không rỗng được. */
+     Bắt đầu chạy đòi đủ bốn thứ, vì lúc đó mail bay đi thật và không rút lại
+     được. Nói RÕ còn thiếu gì, không để một cái nút xám câm. */
+  const canSave = draft.name.trim() !== ''
+
   const missing = [
-    draft.name.trim() === '' ? 'tên' : null,
+    draft.name.trim() === '' ? 'tên chiến dịch' : null,
+    members.length === 0 ? 'ít nhất một người nhận' : null,
     draft.waves.length === 0 ? 'ít nhất một đợt' : null,
-    draft.kind === 'su-kien' && draft.venue.trim() === '' ? 'địa điểm của sự kiện' : null,
+    blankWaves > 0 ? `nội dung mail cho ${blankWaves} đợt` : null,
   ].filter((x): x is string => x !== null)
-  const ready = missing.length === 0
+  const canRun = missing.length === 0
 
-  const firstApprover = approvers[0] ?? HEAD_OF_SALES
   const candidates = dasVina.actors.filter((a) => !approvers.includes(a.name))
-
-  /** Số đợt CHÉP TỪ NGUỒN. Đợt vừa thêm trong phiên này không nằm trong đó —
-   *  câu "kịch bản không lưu nội dung" chỉ đúng với đợt cũ. */
-  const copiedWaves = mode === 'edit' ? initial.waves.length - (seededWave ? 1 : 0) : 0
 
   /* Nháp đã đụng vào chưa. Bấm "Huỷ" lúc nháp còn nguyên thì đi thẳng; đụng rồi
      thì hỏi lại ngay tại chỗ — không `window.confirm`, hộp thoại của trình duyệt
      không có mặt kính nào và không nằm trong hệ thiết kế. */
-  const untouched =
-    JSON.stringify(draft) === JSON.stringify(initial) && approvers.length === 1 && stopOnReply
+  const untouched = JSON.stringify(draft) === JSON.stringify(initial) && approvers.length === 0
 
   const statusId = `${uid}-status`
-  const kindId = `${uid}-kind`
   const approverId = `${uid}-approver`
   const stopId = `${uid}-stop`
+
+  const title =
+    mode === 'edit'
+      ? `Sửa ${code}`
+      : mode === 'duplicate'
+        ? 'Nhân bản chiến dịch'
+        : 'Chiến dịch mới'
+
+  const kicker = mode === 'edit' ? 'Sửa' : mode === 'duplicate' ? 'Nhân bản' : 'Tạo mới'
 
   return (
     <GlassCard className="flex flex-col gap-5 p-5 lg:p-6">
@@ -282,24 +679,27 @@ export function CampaignForm({
         <div ref={headRef} tabIndex={-1} className="min-w-0 outline-none">
           <SectionTitle
             size="lg"
-            kicker={mode === 'edit' ? 'Sửa chiến dịch' : 'Tạo mới'}
+            kicker={kicker}
             hint={
-              mode === 'edit'
-                ? 'Sửa dùng đúng màn tạo, không có màn thứ hai. Ô có dấu sao là bắt buộc.'
-                : 'Ô có dấu sao là bắt buộc. Chuỗi đợt và kỳ vọng đặt ngay ở đây, không đợi chạy xong mới ghi.'
+              mode === 'duplicate'
+                ? 'Chép nguyên chuỗi đợt và nội dung. Nhóm người nhận CỐ TÌNH để trống — chọn lại ở Bước 1.'
+                : 'Ba bước, cuộn thẳng xuống. Không cần ai duyệt: lưu nháp lúc nào cũng được, chỉ "Bắt đầu chạy" mới gửi mail.'
             }
           >
-            {mode === 'edit' ? `Sửa ${code}` : 'Chiến dịch mới'}
+            {title}
           </SectionTitle>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {saved === 'draft' ? <Badge tone="draft">Đã lưu nháp · chưa gửi ai</Badge> : null}
+          {saved === 'running' ? <Badge tone="running">Đang chạy</Badge> : null}
+
           {askCancel ? (
             <>
               <span className="text-warning text-[11.5px] leading-[1.5]">
                 Bỏ bản nháp đang soạn?
               </span>
-              <Button size="md" variant="destructive" onClick={onCancel}>
+              <Button size="md" variant="destructive" onClick={onClose}>
                 Bỏ nháp
               </Button>
               <Button size="md" variant="ghost" onClick={() => setAskCancel(false)}>
@@ -310,376 +710,152 @@ export function CampaignForm({
             <Button
               size="md"
               variant="ghost"
-              onClick={() => (sent || untouched ? onCancel() : setAskCancel(true))}
+              onClick={() => (saved !== 'none' || untouched ? onClose() : setAskCancel(true))}
             >
-              {sent ? 'Về sổ nguồn' : 'Huỷ'}
-            </Button>
-          )}
-
-          {sent ? (
-            <Badge tone="running">Đã gửi · chờ {firstApprover} gật</Badge>
-          ) : (
-            <Button
-              size="md"
-              disabled={!ready}
-              aria-describedby={statusId}
-              onClick={() => {
-                setSent(true)
-                setAskCancel(false)
-                /* Nối E3 khi có backend: `submit` một yêu cầu loại 'chiến-dịch'
-                   với chuỗi duyệt đúng bằng `approvers`, và `stopOnReply` đi kèm
-                   kế hoạch xuống E5. */
-              }}
-            >
-              <Icon icon={Send} size={16} />
-              Gửi {firstApprover} duyệt
+              {saved === 'none' ? 'Huỷ' : 'Về sổ'}
             </Button>
           )}
         </div>
       </div>
 
-      {/* MỘT thẻ `<p>` cho cả ba trạng thái, không ba thẻ thay nhau: vùng
-          `aria-live` phải có mặt sẵn trong DOM trước khi chữ đổi, nếu không
-          trình đọc màn hình chẳng đọc gì cả. Nút gửi `disabled` nên không nhận
-          được focus — `aria-describedby` là đường duy nhất còn lại để người dùng
-          bàn phím nghe được lý do nút xám.
-
-          Nhánh "còn thiếu" tô `text-warning`: đây là câu DUY NHẤT giải thích vì
-          sao nút bị chặn, để nó ở màu mờ nhất màn là chôn đúng thứ cần đọc. */}
-      <p
-        id={statusId}
-        aria-live="polite"
-        className={cn(
-          'text-[11.5px] leading-[1.5]',
-          !sent && !ready ? 'text-warning' : 'text-muted-foreground',
-        )}
-      >
-        {sent
-          ? `Chưa có màn Hộp duyệt — yêu cầu sẽ vào hệ duyệt khi có backend. Chưa gật thì không đợt nào được bung và không lệnh gửi nào được phát. Kịch bản đóng băng không nhận chiến dịch mới: dòng này chưa lên bảng nguồn.`
-          : ready
-            ? `${draft.waves.length} đợt · ${audienceText} · kỳ vọng ${expected} lead · hệ gửi được ${byE4} đợt, ${manual} đợt phải tự đăng · ${stopText}. Không đợt nào tự gửi trước khi có người gật.`
-            : `Chưa gửi duyệt được — còn thiếu ${missing.join(' · ')}.`}
-      </p>
-
       <div className="flex flex-col gap-8">
-        <section className="flex flex-col gap-4">
-          <SectionTitle size="lg" kicker="Bước 1">
-            Thông tin chung
-          </SectionTitle>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <Field label="Tên" required>
-              <Input
-                value={draft.name}
-                aria-required
-                readOnly={sent}
-                /* Gợi ý lấy tên nguồn mẫu, không chép nguyên văn một nhãn vào
-                   code: "Ví dụ" ở đầu để không ai đọc thành tên có thật. */
-                placeholder={`Ví dụ ${DRAFT_TEMPLATE.name}`}
-                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              />
-            </Field>
-
-            <div className="flex flex-col gap-2">
-              <GroupLabel id={kindId} required>
-                Loại
-              </GroupLabel>
-              <div role="group" aria-labelledby={kindId} className="flex flex-wrap gap-2">
-                {(['chien-dich', 'su-kien'] as const).map((k) => (
-                  <Button
-                    key={k}
-                    size="sm"
-                    disabled={sent}
-                    variant={draft.kind === k ? 'default' : 'ghost'}
-                    onClick={() => setDraft((d) => ({ ...d, kind: k }))}
-                  >
-                    <Icon icon={KIND_ICON[k]} size={16} />
-                    {KIND_LABEL[k]}
-                  </Button>
-                ))}
-              </div>
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Sự kiện là buổi có mặt người thật — có chỗ, có đăng ký, có người điểm danh. Cả hai
-                đo bằng cùng một câu hỏi: đợt này ra bao nhiêu khách.
-              </span>
-            </div>
-
-            {draft.kind === 'su-kien' ? (
-              <Field label="Địa điểm" required>
-                <Input
-                  value={draft.venue}
-                  aria-required
-                  readOnly={sent}
-                  placeholder={`Ví dụ ${DRAFT_TEMPLATE.venue}`}
-                  onChange={(e) => setDraft((d) => ({ ...d, venue: e.target.value }))}
-                />
-              </Field>
-            ) : null}
-
-            <Field
-              label="Khán giả · số người nhận"
-              hint={`Mở sẵn bằng số người nhận của đợt mở màn ${DRAFT_TEMPLATE.fromCode} — điểm xuất phát để sửa, không phải số đo của chiến dịch này.`}
-            >
-              <Input
-                value={draft.audience}
-                inputMode="numeric"
-                readOnly={sent}
-                onChange={(e) =>
-                  setDraft((d) => ({ ...d, audience: e.target.value.replace(/\D/g, '') }))
-                }
-              />
-            </Field>
-
-            <div className="flex flex-col gap-2">
-              <GroupLabel>Chạy trong bao nhiêu ngày</GroupLabel>
-              <span className="tnum font-num text-[26px] font-semibold leading-none">{spread}</span>
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Suy từ nhịp các đợt — từ đợt mở màn tới đợt cuối. Đây là số ĐỌC, không phải ô nhập:
-                một ô "chạy bao nhiêu ngày" gõ tay sẽ chọi với chính chuỗi đợt ngay dưới nó.
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <GroupLabel>Kỳ vọng lead cả chiến dịch</GroupLabel>
-              <span className="tnum font-num text-[26px] font-semibold leading-none">
-                {expected}
-              </span>
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Cộng từ kỳ vọng của các đợt, không gõ thẳng. Đặt kỳ vọng ở từng đợt là cách duy nhất
-                sau này chấm được đợt nào đạt, đợt nào hụt.
-              </span>
-            </div>
-          </div>
-        </section>
+        <StepAudience draft={draft} setDraft={setDraft} locked={locked} />
 
         <section className="flex flex-col gap-4">
           <SectionTitle
             size="lg"
             kicker="Bước 2"
-            hint="Mỗi đợt một nội dung riêng. Nhịp tính bằng số ngày kể từ đợt mở màn."
+            hint="Mỗi đợt một nội dung riêng và một mốc gửi riêng."
           >
-            Kế hoạch từng đợt
+            Gửi cái gì, lúc nào?
           </SectionTitle>
 
-          {mode === 'edit' ? (
+          {copiedWaves > 0 ? (
             <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Kịch bản không lưu nội dung đã soạn — ô nội dung của các đợt cũ để trống. Dựng lại một
-              bài chưa từng có thì màn đang bịa.
+              Kịch bản không lưu nội dung đã soạn — ô nội dung của {copiedWaves} đợt cũ để trống.
+              Dựng lại một bài chưa từng có thì màn đang bịa.
             </p>
           ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            {draft.waves.map((w, i) => {
-              const titleId = `${uid}-wave-${i}`
-              const channelId = `${uid}-wave-${i}-channel`
-              const contentId = `${uid}-wave-${i}-content`
-              return (
-                /* Mỗi thẻ là một NHÓM có tên. Ba đợt thì màn có 3 ô "Tên đợt",
-                   3 ô "Sau bao nhiêu ngày", 3 nút "Bỏ" và 21 nút kênh trùng tên
-                   nhau — không có nhóm thì trình đọc màn hình không nói được nút
-                   nào thuộc đợt nào. */
-                <div
-                  key={i}
-                  role="group"
-                  aria-labelledby={titleId}
-                  tabIndex={-1}
-                  ref={(el) => {
-                    waveRefs.current[i] = el
-                  }}
-                  className="flex flex-col gap-3 rounded-md bg-white/5 p-4 outline-none"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span id={titleId} className="text-[11.5px] font-semibold">
-                      Đợt {i + 1}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={sent}
-                      aria-label={`Bỏ đợt ${i + 1}`}
-                      onClick={() =>
-                        setDraft((d) => ({ ...d, waves: d.waves.filter((_, j) => j !== i) }))
-                      }
-                    >
-                      <Icon icon={Trash2} size={16} />
-                      Bỏ
-                    </Button>
-                  </div>
-
-                  <Field label="Tên đợt" required>
-                    <Input
-                      value={w.label}
-                      aria-required
-                      readOnly={sent}
-                      onChange={(e) => setWave(i, { label: e.target.value })}
-                    />
-                  </Field>
-
-                  <div className="flex flex-col gap-2">
-                    <GroupLabel id={channelId} required>
-                      Kênh
-                    </GroupLabel>
-                    {/* Đây là thao tác CHÍNH của Bước 2, và ở iPad dọc 768px nó
-                        được bấm bằng ngón tay — `<button>` trần bọc một tag
-                        11px chỉ cao 24px. `min-h-8` đưa nó về đúng cỡ nút `sm`
-                        của cả màn (luật 13). */}
-                    <div role="group" aria-labelledby={channelId} className="flex flex-wrap gap-1">
-                      {CHANNELS.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          disabled={sent}
-                          aria-pressed={w.channel === c}
-                          onClick={() => setWave(i, { channel: c })}
-                          className="motion-std flex min-h-8 items-center rounded-md px-1"
-                        >
-                          <ChannelTag
-                            icon={CHANNEL_ICON[c]}
-                            label={CHANNEL_LABEL[c]}
-                            tone={
-                              w.channel === c ? 'accent' : sendsViaE4(c) ? 'default' : 'warning'
-                            }
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Nói thẳng đợt này ai gửi. Chọn được kênh ngoài — kịch bản
-                      có thật hai đợt như thế, LinkedIn và Facebook — nhưng màn
-                      không giả vờ rằng bấm nút là bài lên. */}
-                  {sendsViaE4(w.channel) ? (
-                    <span className="text-muted-foreground flex items-start gap-2 text-[11px] leading-[1.5]">
-                      <Icon icon={Send} size={16} />
-                      Hệ gửi đợt này · nhật ký gửi và luật chống trùng người nhận do hệ giữ
-                    </span>
-                  ) : (
-                    <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
-                      <Icon icon={TriangleAlert} size={16} />
-                      Hệ chưa nối đường gửi cho {CHANNEL_LABEL[w.channel]} — hệ giữ lịch và nhắc,
-                      người tự đăng bài rồi nhập số về.
-                    </span>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Sau bao nhiêu ngày">
-                      <Input
-                        value={String(w.afterDays)}
-                        inputMode="numeric"
-                        readOnly={sent}
-                        onChange={(e) => setWave(i, { afterDays: digits(e.target.value) })}
-                      />
-                    </Field>
-                    <Field label="Kỳ vọng bao nhiêu lead" required>
-                      <Input
-                        value={String(w.expected)}
-                        inputMode="numeric"
-                        aria-required
-                        readOnly={sent}
-                        onChange={(e) => setWave(i, { expected: digits(e.target.value) })}
-                      />
-                    </Field>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <GroupLabel id={contentId}>Nội dung đợt {i + 1}</GroupLabel>
-                    {sent ? (
-                      <div className="bg-input rounded-md p-3">
-                        <RichTextView html={w.content} />
-                      </div>
-                    ) : (
-                      <RichText
-                        value={w.content}
-                        onChange={(html) => setWave(i, { content: html })}
-                        label={`Nội dung đợt ${i + 1}`}
-                        placeholder="Soạn nội dung đợt này — chèn được ảnh, sửa được HTML thô."
-                      />
-                    )}
-                    {/* Câu này đã có một lần ở đầu Section 2, nhưng người dùng
-                        cuộn tới thẻ đợt thứ ba chỉ thấy một ô soạn trống — lặp
-                        lại đúng chỗ họ đang nhìn. */}
-                    {i < copiedWaves && w.content.trim() === '' ? (
-                      <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                        Kịch bản không lưu nội dung đã soạn — ô này để trống là đúng.
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              )
-            })}
+          <div className="flex flex-col gap-4">
+            {draft.waves.map((w, i) => (
+              <WaveCard
+                key={i}
+                index={i}
+                wave={w}
+                locked={locked}
+                copied={i < copiedWaves}
+                onPatch={(patch) => setWave(i, patch)}
+                onDrop={() => setDraft((d) => ({ ...d, waves: d.waves.filter((_, j) => j !== i) }))}
+                cardRef={(el) => {
+                  waveRefs.current[i] = el
+                }}
+              />
+            ))}
 
             <button
               type="button"
-              disabled={sent}
+              disabled={locked}
               onClick={addWave}
-              className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-md bg-white/5 p-4 text-[12.5px] font-semibold"
+              className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-md bg-white/5 p-4 text-[12.5px] font-semibold"
             >
               <Icon icon={Plus} size={20} />
               Thêm đợt
             </button>
           </div>
-
-          <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Chuỗi {draft.waves.length} đợt · trải {spread} ngày · kỳ vọng {expected} lead.
-          </p>
         </section>
 
         <section className="flex flex-col gap-4">
           <SectionTitle
             size="lg"
             kicker="Bước 3"
-            hint="Chuỗi duyệt và điều kiện dừng do hệ giữ. Màn chỉ soạn ra hai thứ đó."
+            hint="Cả hai thứ ở bước này đều không bắt buộc — bỏ qua được."
           >
-            Duyệt &amp; điều kiện dừng
+            Khi nào dừng?
           </SectionTitle>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
-              <GroupLabel id={approverId} required>
-                Người duyệt
-              </GroupLabel>
+              <GroupLabel id={stopId}>Điều kiện dừng</GroupLabel>
+              <div role="group" aria-labelledby={stopId} className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={locked}
+                  aria-pressed={draft.stopOnReply}
+                  variant={draft.stopOnReply ? 'default' : 'ghost'}
+                  onClick={() => setDraft((d) => ({ ...d, stopOnReply: !d.stopOnReply }))}
+                >
+                  Khách trả lời thì ngưng nhắc
+                </Button>
+              </div>
 
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {approvers.map((name) => (
-                  <li key={name} className="flex items-center gap-2">
-                    <Avatar name={name} size="sm" />
-                    <span className="min-w-0 flex-1 text-[11.5px]">
-                      <b className="font-semibold">{name}</b>
-                      <span className="text-muted-foreground"> · {ROLE_OF.get(name)}</span>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      /* TP Kinh doanh là mắt xích ghim. Chỉ chặn "người cuối
-                         cùng" thì thêm một Sale rồi bỏ TP là hợp lệ, và nút gửi
-                         đọc thành "Gửi Đỗ Quang Huy duyệt" — trái docs. */
-                      disabled={sent || name === HEAD_OF_SALES}
-                      aria-label={`Bỏ ${name} khỏi chuỗi duyệt`}
-                      onClick={() => setApprovers((prev) => prev.filter((n) => n !== name))}
-                    >
-                      <Icon icon={Trash2} size={16} />
-                      Bỏ khỏi chuỗi duyệt
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+              <Field
+                label="Đủ bao nhiêu lead thì dừng cả chuỗi"
+                hint="Để 0 là không đặt trần — chuỗi chạy hết các đợt đã soạn."
+              >
+                <Input
+                  value={String(draft.stopAtLeads)}
+                  inputMode="numeric"
+                  readOnly={locked}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      stopAtLeads: Number(e.target.value.replace(/\D/g, '') || '0'),
+                    }))
+                  }
+                />
+              </Field>
 
-              {candidates.length === 0 ? (
-                <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Cả phòng đã ở trong chuỗi — không còn ai để thêm.
-                </span>
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Điều kiện dừng do hệ giữ, không phải do người ngồi canh. Chống trùng người nhận cũng
+                vậy: một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+              <GroupLabel id={approverId}>Người duyệt — không bắt buộc</GroupLabel>
+
+              {approvers.length === 0 ? (
+                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  Chưa có ai trong chuỗi duyệt, và chiến dịch vẫn tạo được. Thêm người vào đây khi
+                  khoản chi hoặc danh sách gửi cần một người thứ hai nhìn qua.
+                </p>
               ) : (
+                <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                  {approvers.map((name) => (
+                    <li key={name} className="flex items-center gap-2">
+                      <Avatar name={name} size="sm" />
+                      <span className="min-w-0 flex-1 text-[11.5px]">
+                        <b className="font-semibold">{name}</b>
+                        <span className="text-muted-foreground"> · {ROLE_OF.get(name)}</span>
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={locked}
+                        aria-label={`Bỏ ${name} khỏi chuỗi duyệt`}
+                        onClick={() => setApprovers((prev) => prev.filter((n) => n !== name))}
+                      >
+                        <Icon icon={Trash2} size={16} />
+                        Bỏ
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {candidates.length > 0 ? (
                 <Button
                   size="sm"
                   variant={picking ? 'default' : 'ghost'}
                   className="self-start"
-                  disabled={sent}
+                  disabled={locked}
                   onClick={() => setPicking((v) => !v)}
                 >
                   <Icon icon={UserPlus} size={16} />
                   Thêm người duyệt
                 </Button>
-              )}
+              ) : null}
 
               {picking && candidates.length > 0 ? (
                 <div role="group" aria-labelledby={approverId} className="flex flex-wrap gap-2">
@@ -699,96 +875,87 @@ export function CampaignForm({
                 </div>
               ) : null}
 
-              <ApprovalChain
-                steps={approvers.map((name, i) => ({
-                  label: name,
-                  state: i === 0 ? 'current' : 'next',
-                }))}
-              />
-
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chuỗi đi từ trái sang phải, người đầu tiên nhận trước. {HEAD_OF_SALES} là mắt xích
-                không bỏ được — người gật cuối cùng vẫn là TP Kinh doanh; người thêm vào chỉ nối
-                phía sau.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2 rounded-md bg-white/5 p-4">
-                <GroupLabel id={stopId}>Điều kiện dừng</GroupLabel>
-                <div role="group" aria-labelledby={stopId} className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant={stopOnReply ? 'default' : 'ghost'}
-                    disabled={sent}
-                    aria-pressed={stopOnReply}
-                    onClick={() => {
-                      setStopOnReply((v) => !v)
-                      /* Nối E5 khi có backend: điều kiện dừng đi CÙNG kế hoạch
-                         chiến dịch xuống E5, không phải một quy tắc rời của E4 —
-                         E4 chỉ biết "gửi hay không gửi", nó không biết chuỗi này
-                         còn mấy đợt nữa. */
-                    }}
-                  >
-                    Khách trả lời thì ngưng nhắc
-                  </Button>
-                </div>
-                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Điều kiện dừng do hệ giữ, và nó đi kèm bản gửi duyệt — câu tóm tắt ngay trên nút
-                  gửi nói rõ chuỗi này dừng theo cách nào. Chống trùng người nhận cũng do hệ giữ:
-                  một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.
-                </p>
-              </div>
-
-              {sent ? (
-                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Đã gửi duyệt — trợ lý không soạn thêm vào bản đã gửi.
-                </p>
-              ) : (
+              {approvers.length > 0 ? (
                 <>
-                  <AiAction
-                    variant="panel"
-                    suggestion={`Soạn nội dung cho ${draft.waves.length} đợt, mở lời bằng thứ đợt ra nhiều lead nhất đã dùng.`}
-                    basis={
-                      best
-                        ? `Đợt ${best.no} của ${best.code} · gửi ${best.sent}, trả lời ${best.replied}, ra ${best.leads} lead trên kỳ vọng ${best.expected}`
-                        : 'Chưa có đợt nào đã chạy trong kỳ'
-                    }
-                    confirmLabel="Soạn nội dung"
-                    done={drafted}
-                    /* Luật 9 · state "Chưa tạo gì cả" nằm TRONG khối, ngay dưới
-                       nút. Bản thủ công cũ ở ngoài khối đã xoá. */
-                    empty={
-                      blankWaves > 0
-                        ? `Chưa tạo gì cả. ${blankWaves}/${draft.waves.length} đợt còn ô nội dung trống — chuỗi này chưa gửi duyệt được.`
-                        : 'Chưa tạo gì cả. Mọi ô nội dung đã có chữ của bạn — trợ lý không đè lên bản người viết.'
-                    }
-                    onConfirm={() => {
-                      /* Đổ nháp vào Ô NỘI DUNG của từng đợt, không in ra một danh
-                         sách riêng: người soạn sửa ngay tại chỗ mình sẽ gửi. Đợt nào
-                         đã có chữ thì giữ nguyên — trợ lý không đè bài của người. */
-                      setDraft((d) => ({
-                        ...d,
-                        waves: d.waves.map((w) => ({
-                          ...w,
-                          content: w.content.trim() === '' ? draftHtml(w) : w.content,
-                        })),
-                      }))
-                      setDrafted(true)
-                    }}
+                  <ApprovalChain
+                    steps={approvers.map((name, i) => ({
+                      label: name,
+                      state: i === 0 ? 'current' : 'next',
+                    }))}
                   />
-
-                  {drafted ? (
-                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Đã đổ nháp vào {draft.waves.length} đợt — bản nháp chờ người sửa và duyệt,
-                      chưa gửi cho ai.
-                    </p>
-                  ) : null}
+                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                    Chuỗi đi từ trái sang phải, người đầu tiên nhận trước. Có chuỗi thì không đợt
+                    nào bung ra trước khi người cuối gật.
+                  </p>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </section>
+      </div>
+
+      {/* THANH CHỐT dính đáy khung nhìn. Form này dài hơn một màn, và hai nút
+          quan trọng nhất nằm ở cuối thì người mới cuộn lên cuộn xuống để tìm.
+          Thanh mang theo câu tóm tắt vì đó là chỗ duy nhất trên màn nói đủ ba
+          điều cùng lúc: gửi cho bao nhiêu người, mấy đợt, và đợt đầu đi lúc nào.
+
+          `glass-overlay` chứ KHÔNG `bg-white/5`: thanh này ĐÈ LÊN nội dung đang
+          cuộn phía dưới, và một mặt đục 5% thì danh sách người nhận hiện mờ mờ
+          sau hai cái nút — đúng lỗi mà docblock của `glass-overlay` mô tả. Đây
+          không phải lớp nền thứ năm (luật 12): nó là mặt của thứ nổi trên trang,
+          cùng vai với dropdown của nav và panel của Drawer. */}
+      <div className="glass-overlay sticky bottom-0 -mx-5 -mb-5 flex flex-col gap-3 rounded-b-md p-4 lg:-mx-6 lg:-mb-6">
+        {/* MỘT thẻ `<p>` cho mọi trạng thái, không nhiều thẻ thay nhau: vùng
+            `aria-live` phải có mặt sẵn trong DOM trước khi chữ đổi, nếu không
+            trình đọc màn hình chẳng đọc gì cả. Nút bị `disabled` không nhận được
+            focus — `aria-describedby` là đường duy nhất còn lại để người dùng
+            bàn phím nghe được lý do nút xám. */}
+        <p
+          id={statusId}
+          aria-live="polite"
+          className={cn(
+            'text-[11.5px] leading-[1.5]',
+            !locked && !canRun ? 'text-warning' : 'text-muted-foreground',
+          )}
+        >
+          {locked
+            ? 'Đang chạy — ô nhập đã khoá. Kịch bản đóng băng không nhận chiến dịch mới, nên dòng này chưa lên sổ.'
+            : canRun
+              ? `Gửi cho ${members.length} người · ${draft.waves.length} đợt · đợt đầu ${whenText(draft.waves[0]!)} · ${draft.stopOnReply ? 'khách trả lời thì ngưng nhắc' : 'chuỗi chạy hết kể cả khi khách đã trả lời'}.`
+              : `Chưa chạy được — còn thiếu ${missing.join(' · ')}. Vẫn lưu nháp được.`}
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="md"
+            variant="ghost"
+            disabled={locked || !canSave}
+            onClick={() => {
+              setSaved('draft')
+              setAskCancel(false)
+              /* Nối E1/E5 khi có backend: lưu bản nháp, KHÔNG lên lịch gửi. */
+            }}
+          >
+            <Icon icon={Save} size={16} />
+            Lưu nháp
+          </Button>
+
+          <Button
+            size="md"
+            disabled={locked || !canRun}
+            aria-describedby={statusId}
+            onClick={() => {
+              setSaved('running')
+              setAskCancel(false)
+              /* Nối E5 khi có backend: đẩy kế hoạch xuống hàng đợi gửi kèm hai
+                 điều kiện dừng. Có `approvers` thì đi qua E3 trước; chuỗi rỗng
+                 thì chạy thẳng — đó là điều "không cần người duyệt" nghĩa là. */
+            }}
+          >
+            <Icon icon={Zap} size={16} />
+            Bắt đầu chạy
+          </Button>
+        </div>
       </div>
     </GlassCard>
   )

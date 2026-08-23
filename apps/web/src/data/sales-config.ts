@@ -83,6 +83,14 @@ export const CHANNEL_ICON: Record<WaveChannel, LucideIcon> = {
  *  được — nợ treo số 2 của docs, không lấp bằng cách giấu chúng đi. */
 export const E4_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram', 'in-app']
 
+/** Kênh GỬI TỚI MỘT ĐỊA CHỈ — nơi duy nhất "mail hỏng" có nghĩa.
+ *
+ *  Khác `E4_CHANNELS` ở một chỗ và chỗ đó quan trọng: `in-app` hệ gửi được
+ *  nhưng nó không có địa chỉ nào để dội, còn ba kênh đăng bài thì vừa không gửi
+ *  được vừa không dội được. Tách hai danh sách vì chúng trả lời hai câu khác
+ *  nhau — "hệ có gửi hộ được không" và "gửi hỏng thì có đo được không". */
+export const ADDRESSED_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram']
+
 const ALL_CHANNELS = Object.keys(CHANNEL_LABEL) as WaveChannel[]
 
 const WAVES = SOURCES.flatMap((s) => s.waves)

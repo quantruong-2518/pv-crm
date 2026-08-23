@@ -1,119 +1,121 @@
 import { useMemo, useState } from 'react'
-import {
-  CalendarDays,
-  Inbox,
-  Layers,
-  Megaphone,
-  Plus,
-  Reply,
-  Target,
-  Users,
-  Wallet,
-} from 'lucide-react'
+import { CheckCircle2, Inbox, Mail, MailOpen, Plus, Reply, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
+  Avatar,
   Button,
   ChannelTag,
-  Chip,
-  ContextRail,
   DataTable,
   EmptyState,
   GlassCard,
   Icon,
-  MetaPill,
   SectionTitle,
+  Select,
+  SegmentedControl,
   Skeleton,
   StatCard,
-  cn,
-  millions,
+  StatusDot,
   percent,
   type TableSort,
 } from '@pv/ui'
-import { dasVina, HEAD_OF_SALES, MARKETING } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { dm } from '@/lib/date'
 import {
-  ANCHOR_SOURCE,
-  OPEN_VALUE,
+  CAMPAIGN_STATUS,
+  NO_FILTER,
   SOURCE_SORTS,
+  STATUS_DOT,
+  STATUS_LABEL,
+  TIME_WINDOWS,
   campaignTotalsQuery,
+  channelsInUse,
+  filterSources,
+  ownersOf,
   sourcesQuery,
+  type CampaignFilter,
+  type CampaignStatus,
   type SourceSortKey,
+  type TimeWindowKey,
 } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { CampaignForm } from './campaign-parts'
-import {
-  KINDS,
-  KIND_ICON,
-  MAX_CHANNEL_TAGS,
-  PERIOD,
-  channelsOf,
-  draftOf,
-  grouped,
-  sendsViaE4,
-} from './campaign-model'
+import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from './campaign-model'
 
-/** Module 1 · Chiến dịch & Sự kiện — SỔ NGUỒN.
+/** Module 1 · SỔ CHIẾN DỊCH.
  *
- *  Module này trả câu "khách ở đâu ra". Chủ màn là vai **Marketing**; người gật
- *  vẫn là TP Kinh doanh.
+ *  Màn này trả đúng một câu: **chiến dịch nào đang chạy, gửi cho bao nhiêu
+ *  người, ra bao nhiêu cơ hội.**
  *
- *  MÀN NÀY CHỈ CÒN SỔ. Tới 19/08 nó ôm cả ba việc: sổ nguồn, hồ sơ một nguồn ở
- *  panel bên phải, và form tạo/sửa. Hồ sơ đã rời sang `/sales/campaigns/:code`
- *  (`campaign-detail.tsx`) — lý do đầy đủ ở docblock màn đó. Còn lại đúng hai
- *  chế độ:
- *   · `list`   — sáu ô KPI của kỳ + bảng nguồn TRÀN NGANG. Bảng cũ chỉ được
- *     1.45fr của một lưới hai cột, nên bảy cột phải chen trong ~613px; giờ nó
- *     có cả bề ngang màn.
- *   · `create` — form tạo, dùng chung `CampaignForm` với màn sửa.
+ *  ĐỔI LỚN 23/08 — trước đó nó là "Sổ nguồn" và ôm ba khái niệm cùng lúc:
+ *  chiến dịch, sự kiện, nguồn tự nhiên. Ba thứ đó đo bằng ba bộ chỉ số khác
+ *  nhau nên không cột nào so được với cột nào, và người mới phải học một phân
+ *  biệt không đổi được việc họ làm. Giờ còn MỘT khái niệm:
  *
- *  BA LUẬT màn này không được phá:
- *   · Mọi lần gửi đi qua hệ gửi chung (E4 giữ nhật ký + chống trùng). Màn không
- *     gọi API nền tảng nào.
- *   · Luật 9 — mọi khối AI có "Căn cứ:", có nút, và có "Chưa tạo gì cả".
- *   · Đợt được chấm bằng KỲ VỌNG đặt trước (`Wave.expected`), không phải bằng
- *     một điểm số màn tự nghĩ ra (docs · mục 1.7).
+ *   · Nguồn tự nhiên ra khỏi sổ (`fetchSources`) — không đợt, không người nhận,
+ *     không có gì để gửi hay dừng. 12 lead của chúng vẫn ở Sổ lead.
+ *   · Sự kiện ở lại nhưng đọc thành chiến dịch — nó có chuỗi đợt và có mail đi
+ *     ra, tức nó trả lời đúng câu màn này hỏi. Cái bỏ đi là NHÃN, không phải
+ *     dòng dữ liệu.
  *
- *  TÊN ENGINE KHÔNG LÊN GIAO DIỆN (luật 14) — trên màn viết bằng VIỆC, trong
- *  comment mới giữ E1…E5.
+ *  Bảng đo đúng một cái phễu, theo thứ tự người đọc từ trái sang: gửi cho bao
+ *  nhiêu người → mở → trả lời → hỏng → thành cơ hội. Ba cột cũ (Lead · MQL ·
+ *  Giá trị đơn mở) đã bỏ: chúng là số của module 2 và module 3, và một con số
+ *  cùng tên hiện ở ba màn là ba chỗ để lệch nhau.
  *
- *  HAI CHỖ DỄ ĐẶT NHÃN SAI — đọc trước khi sửa chữ trên màn:
- *   · `campaignTotals.leads` là **88**, không phải 100. Nó chỉ cộng lead của
- *     sáu nguồn CÓ ĐỢT; 12 lead còn lại đến từ hai nguồn tự nhiên. Chỗ chênh in
- *     thẳng dưới hàng KPI chứ không bắt ai tự trừ.
- *   · `totals.sent` là LƯỢT GỬI, không phải người: CD-0101 gửi cùng một danh
- *     sách ba lần, SK-0106 quét lại đúng 143 người đã quét mã.
+ *  BỐN BỘ LỌC nằm cùng hàng tiêu đề bảng, dựng từ chính dữ liệu đang có
+ *  (`ownersOf`, `channelsInUse`) — một mục lọc không dòng nào khớp đọc y hệt
+ *  một bộ lọc hỏng.
  *
- *  Màn KHÔNG tự cộng số nghiệp vụ. Mọi tổng, mọi tỉ lệ nằm ở `data/campaigns.ts`
- *  — một phép chia viết trong JSX là một phép chia không ai test được.
+ *  KHÔNG có ContextRail ở màn này (bỏ 23/08). Luật 10 buộc rail đi kèm việc MỞ
+ *  một object; sổ không mở object nào, và bốn chip đứng cạnh nút "Chiến dịch
+ *  mới" chỉ trỏ vào một đơn của một dòng trong sáu. Rail vẫn ở hồ sơ chiến dịch,
+ *  nơi đúng một object đang được mở.
+ *
+ *  KHÔNG có khối AI (bỏ 23/08 theo yêu cầu). Không có khối AI thì luật 9 không
+ *  có gì để cưỡng chế ở đây — nó cấm AI tự chạy, không đòi mọi màn phải có AI.
+ *
+ *  Màn KHÔNG tự cộng số nghiệp vụ. Mọi tổng, mọi tỉ lệ, mọi phép lọc nằm ở
+ *  `data/campaigns.ts` — một phép chia viết trong JSX là một phép chia không ai
+ *  test được.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
 export function CampaignsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, sự kiện, đợt gửi…' })
+  const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
   const navigate = useNavigate()
 
   const { data: sources = [], isPending } = useQuery(sourcesQuery)
   const { data: totals } = useQuery(campaignTotalsQuery)
 
   const [mode, setMode] = useState<'list' | 'create'>('list')
-  const [kind, setKind] = useState<(typeof KINDS)[number]['key']>('all')
+  const [filter, setFilter] = useState<CampaignFilter>(NO_FILTER)
   /* Thứ tự bảng là state của MÀN, không phải của `DataTable` — bảng chỉ vẽ mũi
      tên và báo người dùng vừa bấm cột nào. Mặc định mới nhất lên trước. */
   const [sort, setSort] = useState<{ key: SourceSortKey; dir: TableSort['dir'] }>({
-    key: 'ngay',
+    key: 'bat-dau',
     dir: 'desc',
   })
 
+  const owners = useMemo(() => ownersOf(sources), [sources])
+  const channels = useMemo(() => channelsInUse(sources), [sources])
+
+  /* Số đếm trên bộ chọn trạng thái tính trên tập ĐÃ LỌC BA CHIỀU KIA. Đếm trên
+     cả sáu dòng thì lọc kênh email xong vẫn thấy "Đang chạy · 1" trong khi bảng
+     rỗng, và người dùng kết luận bảng hỏng. */
+  const beforeStatus = useMemo(
+    () => filterSources(sources, { ...filter, status: null }),
+    [sources, filter],
+  )
+
   const visible = useMemo(() => {
-    const list = sources.filter((s) => kind === 'all' || s.kind === kind)
+    const list = filterSources(sources, filter)
     const compare = SOURCE_SORTS.find((s) => s.key === sort.key)?.compare
     if (!compare) return list
     /* `compare` của tầng data LUÔN tăng dần — hướng là việc của màn. */
     const asc = [...list].sort(compare)
     return sort.dir === 'asc' ? asc : asc.reverse()
-  }, [sources, kind, sort])
+  }, [sources, filter, sort])
 
   const toggleSort = (key: string) => {
     const found = SOURCE_SORTS.find((s) => s.key === key)
@@ -125,33 +127,23 @@ export function CampaignsPage() {
     )
   }
 
-  /* Luật 10 · ContextRail dựng thẳng từ E1. Sổ không "mở" object nào, nên rail
-     đi qua nguồn mồi — cùng chuỗi mà mọi màn của kịch bản này chỉ vào. Chip mở
-     hồ sơ của object thì E1 chưa làm được, nên không có `onOpen`: một chip bấm
-     được rồi không xảy ra gì còn tệ hơn một chip đứng yên. */
-  const anchor = sources.find((s) => s.code === ANCHOR_SOURCE) ?? sources[0] ?? null
-  const story = anchor?.anchorDeal ? dasVina.graph.story(anchor.anchorDeal) : []
-  const rail =
-    story.length > 0
-      ? story.map((o) => ({ code: o.code, source: o.code === anchor?.anchorDeal }))
-      : [{ code: anchor?.code ?? ANCHOR_SOURCE, source: false }]
+  /* So với BỘ LỌC RỖNG, không so số dòng. Một bộ lọc đang bật mà tình cờ khớp
+     cả sáu dòng vẫn là một bộ lọc đang bật — giấu nút "Xoá lọc" ở đó là nhốt
+     người dùng trong một phép lọc họ không thấy. */
+  const filtering =
+    filter.owner !== null ||
+    filter.channel !== null ||
+    filter.status !== null ||
+    filter.window !== NO_FILTER.window
 
   if (mode === 'create') {
     return (
       <AppShell {...chrome.shell}>
-        {/* Luật 10 · rail có mặt ở CẢ hai chế độ. Tạo mới là một việc của cùng
-            màn, không phải một màn khác — chuỗi object không được biến mất chỉ
-            vì người dùng bấm sang form. */}
-        <div className="flex flex-col gap-4 lg:gap-6">
-          <ContextRail objects={rail} />
-          <CampaignForm
-            mode="create"
-            initial={draftOf(null, false)}
-            seededWave={false}
-            sources={sources}
-            onCancel={() => setMode('list')}
-          />
-        </div>
+        <CampaignForm
+          mode="create"
+          initial={draftOf(null, false)}
+          onClose={() => setMode('list')}
+        />
       </AppShell>
     )
   }
@@ -159,84 +151,70 @@ export function CampaignsPage() {
   return (
     <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-4 lg:gap-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              Chiến dịch &amp; Sự kiện
-            </h2>
-            <p className="text-muted-foreground mt-1 text-[12px]">
-              DAS Vina · kỳ <span className="font-mono">{PERIOD}</span> · chủ màn {MARKETING} ·
-              người gật {HEAD_OF_SALES}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <ContextRail objects={rail} />
-            <Button size="md" onClick={() => setMode('create')}>
-              <Icon icon={Plus} size={16} />
-              Chiến dịch mới
-            </Button>
-          </div>
+        {/* Tiêu đề và MỘT nút. Dòng phụ "DAS Vina · kỳ … · chủ màn …" đã bỏ:
+            kỳ và vai không đổi được gì từ màn này, và ba mẩu chữ mờ dưới tiêu
+            đề là ba thứ mắt phải bỏ qua trước khi tới hàng số. */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Chiến dịch</h2>
+          <Button size="md" onClick={() => setMode('create')}>
+            <Icon icon={Plus} size={16} />
+            Chiến dịch mới
+          </Button>
         </div>
 
-        {/* Sáu ô này đo CHIẾN DỊCH: bao nhiêu nguồn có người chạy, bao nhiêu đợt
-            đã gửi, chạm được bao nhiêu lượt, và các tỉ lệ rút ra từ đó. Số lead
-            chi tiết là việc của module 2.
+        {/* NĂM ô, đọc từ trái sang là một câu: bao nhiêu chiến dịch xong · bao
+            nhiêu còn chạy · gửi đi bao nhiêu · có ai mở · có ai trả lời.
 
             Điểm gãy là `lg`: ba thiết bị của luật 3, không đẻ điểm gãy thứ tư. */}
         {totals ? (
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
               <StatCard
                 size="compact"
-                icon={Megaphone}
+                icon={CheckCircle2}
+                value={String(totals.done)}
+                label="Chiến dịch đã hoàn thành"
+                hint={`trên ${totals.campaigns} chiến dịch của kỳ`}
+              />
+              <StatCard
+                size="compact"
+                icon={Zap}
                 value={String(totals.running)}
-                label="Chiến dịch đã chạy đợt"
-                hint={`${totals.sources} nguồn cả kỳ · ${totals.events} sự kiện`}
+                label="Chiến dịch đang chạy"
+                hint="đợt cuối còn trong 14 ngày — trả lời vẫn về"
               />
               <StatCard
                 size="compact"
-                icon={Layers}
-                value={String(totals.waves)}
-                label="Đợt đã gửi"
-                hint={`${totals.manualWaves} đợt người tự đăng`}
-              />
-              {/* "Lượt", không phải "người": cùng một danh sách bị gửi lại ở đợt
-                  nhắc, và người quét mã ở gian hàng bị đếm lại ở đợt sau. */}
-              <StatCard
-                size="compact"
-                icon={Users}
+                icon={Mail}
                 value={grouped(totals.sent)}
-                label="Lượt tiếp cận"
-                hint={`mở ${percent(totals.openRate)} · ${grouped(totals.manualSent)} lượt là số người tự nhập`}
+                label="Số mail đã gửi"
+                hint={`${totals.waves} đợt · ${grouped(totals.addressed.sent)} lượt gửi tới một địa chỉ thật`}
+              />
+              <StatCard
+                size="compact"
+                icon={MailOpen}
+                value={percent(totals.openRate)}
+                label="Tỉ lệ mở mail"
+                hint={`${grouped(totals.opened)} lượt mở`}
               />
               <StatCard
                 size="compact"
                 icon={Reply}
                 value={percent(totals.replyRate)}
                 label="Tỉ lệ trả lời"
-                hint={`${totals.replied} người trả lời · ${totals.manualWaves} đợt trong đó nhập số bằng tay`}
-              />
-              <StatCard
-                size="compact"
-                icon={Target}
-                value={percent(totals.hitRate)}
-                label="Đạt kỳ vọng lead"
-                hint={`${totals.leads}/${totals.expected} lead từ các đợt`}
-              />
-              <StatCard
-                size="compact"
-                icon={Wallet}
-                value={totals.costPerGood === null ? '—' : millions(totals.costPerGood)}
-                label="Chi phí mỗi lead tốt"
-                hint={totals.costPerGoodHint}
+                hint={`${grouped(totals.replied)} người trả lời`}
               />
             </div>
 
-            {/* Chỗ chênh giữa 88 và 100 nói thẳng ở đây. Không có dòng này thì
-                người đọc phải tự trừ hai con số nằm cách nhau nửa màn. */}
+            {/* Hai chỗ chênh nói thẳng ở đây, không bắt ai tự trừ: mẫu số của ba
+                tỉ lệ trên gồm cả reach bài đăng, và sổ này chỉ có sáu dòng chứ
+                không phải cả kỳ. */}
             <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              {totals.natural.count} nguồn tự nhiên kéo thêm {totals.natural.leads} lead, không đợt
-              nào ghi công — cả sổ {totals.bookLeads} dòng nằm ở Sổ lead.
+              Ba tỉ lệ trên chia cho cùng một mẫu số là {grouped(totals.sent)} lượt gửi, trong đó{' '}
+              {grouped(totals.sent - totals.addressed.sent)} lượt là reach bài đăng và số người quét
+              mã tại chỗ — không phải mail. {totals.natural.count} nguồn tự nhiên (
+              {totals.natural.leads} lead, không ai chạy đợt nào) không nằm trong sổ này; chúng ở Sổ
+              lead. {totals.ops}/{totals.opsBook} cơ hội của kỳ đến từ sáu chiến dịch dưới đây.
             </p>
           </div>
         ) : (
@@ -247,25 +225,90 @@ export function CampaignsPage() {
         <GlassCard variant="b" className="flex flex-col gap-4 p-5">
           <SectionTitle
             size="sm"
-            kicker="Nguồn của kỳ"
-            /* Câu giải thích cột "Giá trị" nằm ở ĐÂY, một lần. Trước nó là
+            kicker="Sổ của kỳ"
+            /* Câu giải thích ba cột tỉ lệ nằm ở ĐÂY, một lần. Trước nó là
                `title` của từng ô — vô hình với cảm ứng và bàn phím. */
-            hint={`${visible.length}/${sources.length} nguồn đang hiện · bấm một dòng để mở hồ sơ nguồn. ${OPEN_VALUE.label}: cộng ${OPEN_VALUE.deals} đơn đang mở trong kỳ; ${OPEN_VALUE.signedDeals} hợp đồng đã ký không có số tiền trong kịch bản.`}
+            hint={`${visible.length}/${sources.length} chiến dịch đang hiện · bấm một dòng để mở hồ sơ. Mở · Trả lời · Hỏng đều chia cho SỐ NGƯỜI NHẬN của chính chiến dịch đó, nên chiến dịch chạy bằng bài đăng có ba tỉ lệ thấp — cột Kênh nói ra lý do.`}
             actions={
-              /* Bộ lọc gọn: bốn loại nằm cùng hàng tiêu đề, không chiếm một hàng
-                 riêng và không có nhãn "Loại" đứng trước. */
-              <div className="flex flex-wrap items-center gap-1">
-                {KINDS.map((k) => (
-                  <Button
-                    key={k.key}
+              <div className="flex flex-wrap items-center gap-3">
+                <SegmentedControl
+                  size="sm"
+                  label="Trạng thái"
+                  hideLabel
+                  value={filter.status ?? 'all'}
+                  onChange={(v) =>
+                    setFilter((f) => ({
+                      ...f,
+                      status: v === 'all' ? null : (v as CampaignStatus),
+                    }))
+                  }
+                  options={[
+                    { value: 'all', label: 'Tất cả', count: beforeStatus.length },
+                    /* Chỉ hiện trạng thái CÓ dòng. "Nháp · 0" hôm nay luôn rỗng
+                       (fixture không có chiến dịch nháp nào) và một ô bấm vào ra
+                       bảng trống là một ô dạy người mới rằng công cụ hỏng. */
+                    ...CAMPAIGN_STATUS.filter((s) =>
+                      beforeStatus.some((r) => r.status === s.key),
+                    ).map((s) => ({
+                      value: s.key,
+                      label: s.label,
+                      count: beforeStatus.filter((r) => r.status === s.key).length,
+                    })),
+                  ]}
+                />
+
+                <Select
+                  size="sm"
+                  label="Kênh"
+                  hideLabel
+                  value={filter.channel ?? 'all'}
+                  neutralValue="all"
+                  onChange={(v) =>
+                    setFilter((f) => ({
+                      ...f,
+                      channel: v === 'all' ? null : (v as (typeof channels)[number]),
+                    }))
+                  }
+                  options={[
+                    { value: 'all', label: 'Mọi kênh' },
+                    ...channels.map((c) => ({ value: c, label: CHANNEL_LABEL[c] })),
+                  ]}
+                />
+
+                <Select
+                  size="sm"
+                  label="Thời gian"
+                  hideLabel
+                  value={filter.window}
+                  neutralValue="all"
+                  onChange={(v) => setFilter((f) => ({ ...f, window: v as TimeWindowKey }))}
+                  options={TIME_WINDOWS.map((w) => ({ value: w.key, label: w.label }))}
+                />
+
+                {/* Ô lọc PIC chỉ có mặt khi có từ hai người trở lên. Cả kỳ này
+                    một mình Marketing chạy sáu chiến dịch, nên hôm nay nó vắng
+                    — và câu dưới bảng nói ra chuyện đó. Một hộp lọc một lựa
+                    chọn là một hộp không lọc được gì. */}
+                {owners.length > 1 ? (
+                  <Select
                     size="sm"
-                    variant={kind === k.key ? 'default' : 'ghost'}
-                    onClick={() => setKind(k.key)}
-                    className={cn(kind === k.key && 'shadow-primary')}
-                  >
-                    {k.label}
+                    label="PIC"
+                    hideLabel
+                    value={filter.owner ?? 'all'}
+                    neutralValue="all"
+                    onChange={(v) => setFilter((f) => ({ ...f, owner: v === 'all' ? null : v }))}
+                    options={[
+                      { value: 'all', label: 'Mọi PIC' },
+                      ...owners.map((o) => ({ value: o, label: o })),
+                    ]}
+                  />
+                ) : null}
+
+                {filtering ? (
+                  <Button size="sm" variant="ghost" onClick={() => setFilter(NO_FILTER)}>
+                    Xoá lọc
                   </Button>
-                ))}
+                ) : null}
               </div>
             }
           >
@@ -281,8 +324,8 @@ export function CampaignsPage() {
           ) : visible.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              message="Không có nguồn nào thuộc loại đang lọc."
-              action={{ label: 'Xem tất cả', onClick: () => setKind('all') }}
+              message="Không có chiến dịch nào khớp bộ lọc đang bật."
+              action={{ label: 'Xoá lọc', onClick: () => setFilter(NO_FILTER) }}
               className="py-12"
             />
           ) : (
@@ -290,34 +333,41 @@ export function CampaignsPage() {
               sort={sort}
               onSort={toggleSort}
               columns={[
-                { header: 'Mã', width: '0.9fr' },
-                { header: 'Tên', width: '2.4fr' },
-                { header: 'Kênh', width: '0.8fr' },
-                { header: 'Bắt đầu', width: '0.8fr', sortKey: 'ngay' },
-                { header: 'Lead', width: '0.5fr', align: 'right' },
-                { header: 'MQL', width: '0.6fr', align: 'right', sortKey: 'mql' },
-                {
-                  header: OPEN_VALUE.shortLabel,
-                  width: '0.9fr',
-                  align: 'right',
-                  sortKey: 'gia-tri',
-                },
+                { header: 'Chiến dịch', width: '2.4fr' },
+                { header: 'PIC', width: '1fr' },
+                { header: 'Kênh bắn', width: '0.8fr' },
+                { header: 'Bắt đầu', width: '0.75fr', sortKey: 'bat-dau' },
+                { header: 'Kết thúc', width: '0.75fr', sortKey: 'ket-thuc' },
+                { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'nguoi-nhan' },
+                { header: 'Mở mail', width: '0.7fr', align: 'right', sortKey: 'mo' },
+                { header: 'Trả lời', width: '0.7fr', align: 'right', sortKey: 'tra-loi' },
+                { header: 'Mail hỏng', width: '0.75fr', align: 'right', sortKey: 'hong' },
+                { header: '→ Ops', width: '0.7fr', align: 'right', sortKey: 'ops' },
               ]}
               rows={visible.map((s) => {
                 const chans = channelsOf(s)
                 return {
                   id: s.code,
-                  /* Yêu cầu 4 · CẢ DÒNG mở hồ sơ. Chip mã không có `onOpen`
-                     riêng: hai vùng bấm chồng nhau trên một dòng chỉ làm người
-                     dùng đoán xem phải bấm chỗ nào. */
+                  /* CẢ DÒNG mở hồ sơ. Không có vùng bấm thứ hai bên trong dòng:
+                     hai vùng bấm chồng nhau chỉ làm người dùng đoán xem phải
+                     bấm chỗ nào. */
                   onOpen: () => navigate(`/sales/campaigns/${s.code}`),
                   cells: [
-                    <span key="c" className="flex items-center gap-2">
-                      <Icon icon={KIND_ICON[s.kind]} size={16} className="text-muted-foreground" />
-                      <Chip variant="object">{s.code}</Chip>
+                    /* Trạng thái là một CHẤM đứng trước tên, không phải một cột
+                       riêng: nó chỉ có ba giá trị, và một cột 0.8fr cho ba chữ
+                       là 0.8fr lấy mất của cột tên. Chấm có `label` nên trình
+                       đọc màn hình vẫn nghe được trạng thái. */
+                    <span key="n" className="flex min-w-0 items-center gap-2">
+                      <StatusDot state={STATUS_DOT[s.status]} label={STATUS_LABEL[s.status]} />
+                      <Icon icon={CAMPAIGN_ICON} size={16} className="text-muted-foreground" />
+                      <span className="truncate">{s.label}</span>
+                      <span className="text-muted-foreground font-num shrink-0 text-[11px]">
+                        {s.code}
+                      </span>
                     </span>,
-                    <span key="l" className="block truncate">
-                      {s.label}
+                    <span key="p" className="flex min-w-0 items-center gap-2">
+                      <Avatar name={s.owner} size="sm" />
+                      <span className="truncate text-[11.5px]">{s.owner}</span>
                     </span>,
                     <span key="ch" className="flex items-center gap-1">
                       {chans.length === 0 ? <span className="text-muted-foreground">—</span> : null}
@@ -327,7 +377,6 @@ export function CampaignsPage() {
                           iconOnly
                           icon={CHANNEL_ICON[c]}
                           label={CHANNEL_LABEL[c]}
-                          tone={sendsViaE4(c) ? 'default' : 'warning'}
                         />
                       ))}
                       {chans.length > MAX_CHANNEL_TAGS ? (
@@ -336,23 +385,39 @@ export function CampaignsPage() {
                         </span>
                       ) : null}
                     </span>,
-                    <MetaPill key="d" mono icon={CalendarDays}>
+                    <span key="b" className="tnum font-num">
                       {dm(s.startISO)}
-                    </MetaPill>,
-                    <span key="n" className="tnum font-num">
-                      {s.leads}
                     </span>,
-                    <span key="m" className="tnum font-num">
-                      {percent(s.mqlRate)}
+                    <span key="e" className="tnum font-num">
+                      {dm(s.lastISO)}
                     </span>,
-                    <span key="v" className="tnum font-num">
-                      {s.value === 0 ? '—' : millions(s.value)}
+                    <span key="r" className="tnum font-num">
+                      {grouped(s.sent)}
+                    </span>,
+                    <span key="o" className="tnum font-num">
+                      {percent(s.openRate)}
+                    </span>,
+                    <span key="t" className="tnum font-num">
+                      {percent(s.replyRate)}
+                    </span>,
+                    <span key="h" className="tnum font-num">
+                      {percent(s.bounceRate)}
+                    </span>,
+                    <span key="ops" className="tnum font-num">
+                      {s.ops}
                     </span>,
                   ],
                 }
               })}
             />
           )}
+
+          {owners.length <= 1 ? (
+            <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+              Cả kỳ chỉ một người chạy chiến dịch ({owners[0] ?? '—'}), nên chưa có gì để lọc theo
+              PIC — ô lọc đó sẽ tự hiện khi có người thứ hai.
+            </p>
+          ) : null}
         </GlassCard>
       </div>
     </AppShell>

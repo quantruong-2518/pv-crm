@@ -660,6 +660,18 @@ export type Wave = {
   opened: number
   /** Trả lời hoặc tương tác. */
   replied: number
+  /** Địa chỉ KHÔNG nhận được — mail dội về, số ZNS không tới nơi.
+   *
+   *  Chỉ kênh GỬI TỚI MỘT ĐỊA CHỈ mới hỏng được. Đợt đăng bài (LinkedIn,
+   *  Facebook, website) và đợt quét mã tại chỗ (in-app) luôn bằng 0: chúng không
+   *  có địa chỉ nào để dội. 0 ở đó là NỘI DUNG — "kênh này không hỏng được" —
+   *  chứ không phải chỗ chưa ai nhập.
+   *
+   *  Trong chuỗi dùng lại CÙNG một danh sách, số này giải thích luôn chỗ danh
+   *  sách teo đi: `sent` của đợt sau bằng `sent` trừ `bounced` của đợt trước.
+   *  Đúng với cả hai chuỗi email thuần của kịch bản (CD-0101, CD-0105), và
+   *  `campaigns.test.ts` khoá chuyện đó. */
+  bounced: number
   /** Lead đổ về TỪ ĐỢT NÀY. Cộng mọi đợt = `leads` của chiến dịch. */
   leads: number
   /** Kỳ vọng lead của đợt — con số ĐẶT TRƯỚC khi gửi, không phải số đo.
@@ -676,6 +688,18 @@ export type Wave = {
    *  cũng đúng y số đo là cột không nói được điều gì. */
   expected: number
 }
+
+/** Chuỗi còn được coi là ĐANG CHẠY bao nhiêu ngày sau đợt cuối, ngày.
+ *
+ *  Một chiến dịch không chết ngay lúc đợt cuối rời máy chủ: mail còn nằm trong
+ *  hộp thư, và trả lời còn lác đác về thêm chừng hai tuần. Cột trạng thái phải
+ *  đọc theo cửa sổ đó, không đọc theo mốc "đã gửi xong" — gọi một chuỗi vừa gửi
+ *  hôm kia là "đã xong" thì người chạy nó đóng sổ sớm mất hai tuần trả lời.
+ *
+ *  **Số ĐẶT, không phải số đo** — kịch bản chưa có nhật ký trả lời theo ngày để
+ *  rút ra con số này. Đặt 14 vì đó là nhịp nhắc của chính các chuỗi trong kịch
+ *  bản (CD-0101 cách nhau 14 ngày). Có nhật ký thật thì đo lại. */
+export const WAVE_REPLY_WINDOW = 14
 
 // ---------------------------------------------------------------------------
 // Chi phí của một nguồn — NĂM loại chi tiền mặt
@@ -846,6 +870,9 @@ export const SOURCES: Source[] = [
         sent: 1_200,
         opened: 384,
         replied: 41,
+        // 41 địa chỉ dội về — đúng chỗ danh sách teo từ 1.200 xuống 1.159 ở đợt
+        // sau. Trùng số người trả lời là trùng ngẫu nhiên, không phải chép nhầm.
+        bounced: 41,
         leads: 11,
         // Danh sách lạnh 1.200 nhà máy, đặt 0,83% — về 11, vượt một chút.
         expected: 10,
@@ -858,6 +885,8 @@ export const SOURCES: Source[] = [
         sent: 1_159,
         opened: 301,
         replied: 22,
+        // 1.159 − 22 = 1.137, đúng số gửi của đợt 3.
+        bounced: 22,
         leads: 7,
         // Đợt 1 ra 11 lead trên 41 người trả lời (27%); đợt nhắc dự tính giữ
         // được chừng 30 người trả lời → đặt 8. Về 7.
@@ -871,6 +900,9 @@ export const SOURCES: Source[] = [
         sent: 1_137,
         opened: 268,
         replied: 14,
+        // ZNS gửi tới số điện thoại nên vẫn hỏng được; đợt cuối chuỗi, không có
+        // đợt sau để đối chiếu chỗ teo.
+        bounced: 19,
         leads: 4,
         // 7 trên 22 của đợt 2 (32%) áp lên chừng 16 người trả lời còn lại.
         expected: 5,
@@ -910,6 +942,9 @@ export const SOURCES: Source[] = [
         sent: 8_400,
         opened: 512,
         replied: 63,
+        // Bài đăng không có địa chỉ nào để dội — 0 ở đây là nội dung, không phải
+        // ô chưa nhập. Ba đợt đầu của CD-0102 đều thế.
+        bounced: 0,
         leads: 6,
         // Lần đầu chạy LinkedIn nên không có số cũ để dựa: đặt theo reach mong
         // đợi 8.400 người. Đặt cao và hụt — đúng cái giá của kênh chưa từng đo.
@@ -923,6 +958,7 @@ export const SOURCES: Source[] = [
         sent: 5_100,
         opened: 340,
         replied: 38,
+        bounced: 0,
         leads: 5,
         // Sau đợt 1 đã biết bài đăng chỉ ra 6 lead trên 63 lượt tương tác (9,5%);
         // hạ kỳ vọng xuống 4 rồi lại vượt.
@@ -936,6 +972,7 @@ export const SOURCES: Source[] = [
         sent: 6_800,
         opened: 291,
         replied: 25,
+        bounced: 0,
         leads: 4,
         // Facebook đặt thấp hơn Zalo vì tương tác loãng hơn. Vượt lần nữa.
         expected: 3,
@@ -948,6 +985,9 @@ export const SOURCES: Source[] = [
         sent: 900,
         opened: 233,
         replied: 19,
+        // Đợt duy nhất của CD-0102 gửi tới địa chỉ: 21 trên 900 người đã bấm vào
+        // bài, tức 2,3% — danh sách ấm nên hỏng ít.
+        bounced: 21,
         leads: 3,
         // Hai đợt vượt liên tiếp nên đợt cuối được đặt cao lên 4 — và hụt. Kỳ
         // vọng đuổi theo đợt trước thì luôn trễ đúng một nhịp.
@@ -996,6 +1036,8 @@ export const SOURCES: Source[] = [
         sent: 640,
         opened: 210,
         replied: 96,
+        // Danh sách mời mua ngoài: 18 trên 640, tức 2,8%.
+        bounced: 18,
         leads: 6,
         // Việc chính của thư mời là lấy ĐĂNG KÝ, lead chỉ là phần dôi ra — nên
         // đặt thấp, 5. Về 6.
@@ -1009,6 +1051,8 @@ export const SOURCES: Source[] = [
         sent: 120,
         opened: 98,
         replied: 24,
+        // 120 người TỰ ĐĂNG KÝ — số họ tự điền, nên gần như không hỏng.
+        bounced: 2,
         leads: 2,
         // Nhắc cho đúng 120 người đã đăng ký, danh sách ấm nhất có thể → đặt 3.
         expected: 3,
@@ -1021,6 +1065,8 @@ export const SOURCES: Source[] = [
         sent: 120,
         opened: 78,
         replied: 78,
+        // Quét mã tại cửa — không gửi đi đâu cả, không hỏng được.
+        bounced: 0,
         leads: 5,
         // Đặt theo số người dự kiến đến hội trường: cứ 10 người đến thì 1 thành
         // lead. Về 5 trên 78 người đến — chỗ hụt kinh điển của sự kiện: có mặt
@@ -1035,6 +1081,7 @@ export const SOURCES: Source[] = [
         sent: 120,
         opened: 84,
         replied: 31,
+        bounced: 1,
         leads: 3,
         // Thư cuối chuỗi, đặt 2 cho có; về 3.
         expected: 2,
@@ -1081,6 +1128,8 @@ export const SOURCES: Source[] = [
         sent: 980,
         opened: 274,
         replied: 86,
+        // 26 trên 980, tức 2,7% — cùng hạng với thư mời của SK-0103.
+        bounced: 26,
         leads: 5,
         // Chép nhịp thư mời của SK-0103 nhưng danh sách lớn hơn một chút: đặt 4.
         expected: 4,
@@ -1093,6 +1142,7 @@ export const SOURCES: Source[] = [
         sent: 86,
         opened: 71,
         replied: 51,
+        bounced: 1,
         leads: 3,
         // Đặt theo số người dự kiến vào phòng. Buổi phát trực tiếp bao giờ cũng
         // được kỳ vọng nhiều nhất chuỗi — và ở đây hụt.
@@ -1106,6 +1156,7 @@ export const SOURCES: Source[] = [
         sent: 86,
         opened: 58,
         replied: 19,
+        bounced: 1,
         leads: 4,
         // Đặt 2 vì đây là đợt vét. Về 4 — gấp đôi kỳ vọng, và nhiều hơn cả buổi
         // phát trực tiếp. Con số đáng để Marketing đọc lại cách đặt kỳ vọng.
@@ -1142,6 +1193,10 @@ export const SOURCES: Source[] = [
         sent: 310,
         opened: 118,
         replied: 17,
+        // Sổ cũ của phòng, 310 người, nhiều địa chỉ đã chết theo người đổi việc:
+        // 17 dội về — đúng chỗ danh sách teo còn 293 ở đợt 2. Lại trùng số người
+        // trả lời, lại là trùng ngẫu nhiên.
+        bounced: 17,
         leads: 4,
         // Danh sách ẤM 310 người từng nói chuyện: đặt gần 2%, tức 6. Về 4 —
         // khách im thì im thật, đây là chỗ hụt lớn nhất theo tỉ lệ của chuỗi.
@@ -1155,6 +1210,8 @@ export const SOURCES: Source[] = [
         sent: 293,
         opened: 96,
         replied: 11,
+        // 293 − 11 = 282, đúng số tin ZNS của đợt 3.
+        bounced: 11,
         leads: 3,
         // Hạ xuống 2 sau khi đợt 1 hụt. Về 3.
         expected: 2,
@@ -1167,6 +1224,7 @@ export const SOURCES: Source[] = [
         sent: 282,
         opened: 71,
         replied: 8,
+        bounced: 5,
         leads: 2,
         // Đợt 2 vượt nên nâng lại lên 3 — rồi hụt. Vẫn đúng một nhịp trễ.
         expected: 3,
@@ -1225,6 +1283,9 @@ export const SOURCES: Source[] = [
         sent: 1_400,
         opened: 402,
         replied: 57,
+        // Danh sách mời trước lớn nhất kỳ, 1.400 dòng mua ngoài: 47 dội về, 3,4%
+        // — cùng hạng với đợt mở màn CD-0101, và cùng là danh sách lạnh.
+        bounced: 47,
         leads: 3,
         // Thư báo trước chỉ để kéo người ghé gian, lead là phần dôi: đặt 4.
         expected: 4,
@@ -1237,6 +1298,7 @@ export const SOURCES: Source[] = [
         sent: 143,
         opened: 143,
         replied: 143,
+        bounced: 0,
         leads: 6,
         // Đây là con số biện minh cho 145 triệu: kỳ vọng một nửa số người quét
         // mã tại gian sẽ thành lead. Về 6 trên 143 — hụt đúng một nửa, và là
@@ -1251,6 +1313,7 @@ export const SOURCES: Source[] = [
         sent: 143,
         opened: 91,
         replied: 22,
+        bounced: 2,
         leads: 2,
         // Vét nốt 143 người đã quét mã: đặt 3.
         expected: 3,
