@@ -1,0 +1,38 @@
+{
+  // Tầng TRÌNH DUYỆT — app web, thư viện UI, token, và engine dùng chung.
+  //
+  // `include` liệt kê đích danh `apps/web`, KHÔNG viết `apps/**`. Ngày thêm
+  // `apps/api`, một dấu sao sẽ lặng lẽ kéo code máy chủ vào đây và cho nó mượn
+  // `lib: DOM` — đúng lỗ hổng mà việc tách này bịt.
+  "extends": "./tsconfig.base.json",
+
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "vitest/globals"],
+    "jsx": "react-jsx"
+  },
+
+  "include": [
+    "apps/web/**/*.ts",
+    "apps/web/**/*.tsx",
+    "packages/ui/**/*.ts",
+    "packages/ui/**/*.tsx",
+    "packages/tokens/**/*.ts",
+
+    // Engine cũng được kiểm ở đây, và lại được kiểm lần nữa dưới
+    // `tsconfig.api.json`. Hai lần là CỐ Ý: engine phải biên dịch được ở cả hai
+    // môi trường, và đó là điều kiện để nó dùng lại được ở backend.
+    "packages/engines/**/*.ts",
+
+    "apps/web/vite.config.ts",
+    "alias.config.ts",
+    "vitest.config.ts",
+
+    // Bắt buộc: `@testing-library/jest-dom/vitest` mở rộng kiểu `Assertion`
+    // của vitest ngay trong file này. Thiếu nó thì `toBeInTheDocument` chạy
+    // được nhưng `tsc` báo lỗi.
+    "vitest.setup.ts"
+  ],
+
+  "exclude": ["**/dist", "**/node_modules"]
+}

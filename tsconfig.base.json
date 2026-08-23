@@ -1,0 +1,52 @@
+{
+  // Tầng nền — mọi thứ ĐỘC LẬP MÔI TRƯỜNG.
+  //
+  // Không có `lib`, không có `types`, không có `jsx` ở đây. Ba khoá đó là thứ
+  // duy nhất phân biệt trình duyệt với máy chủ, và trộn chúng vào tầng nền là
+  // đúng cái lỗi mà việc tách này sinh ra để sửa: một cây, một `lib` chứa DOM,
+  // và code máy chủ gọi `localStorage` thì BIÊN DỊCH XANH rồi nổ lúc chạy.
+  //
+  // Ba file kế thừa file này: `tsconfig.web.json` · `tsconfig.api.json` ·
+  // `tsconfig.json` (bản gốc, làm mặc định cho editor).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+
+    // `bundler` chứ không `nodenext`, kể cả cho phía máy chủ. Mọi package đều
+    // `"type": "module"` và import không kèm đuôi (`from './types'`), nên
+    // `nodenext` sẽ bắt lỗi toàn bộ engine ngay hôm nay. Đổi khi `apps/api`
+    // chốt cách chạy — tsx và tsup đều bundle nên `bundler` vẫn đúng với chúng.
+    "moduleResolution": "bundler",
+
+    "useDefineForClassFields": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+
+    // `paths` KHÔNG gộp khi `extends` — con khai lại là đè sạch bảng của cha.
+    // Nên cả bảng nằm đúng một chỗ, kể cả những lối chỉ web dùng. Chia đôi
+    // bảng này ra hai file là tạo ra hai bản sẽ lệch nhau, đổi lấy một hàng
+    // rào mà `no-restricted-imports` đã dựng rồi (eslint.config.js).
+    "baseUrl": ".",
+    "paths": {
+      "@pv/ui": ["packages/ui/src/index.ts"],
+      "@pv/ui/*": ["packages/ui/src/*"],
+      "@pv/tokens": ["packages/tokens/src/index.ts"],
+      "@pv/engines": ["packages/engines/src/index.ts"],
+      "@pv/engines/*": ["packages/engines/src/*"],
+      "@/*": ["apps/web/src/*"]
+    }
+  },
+  "exclude": ["**/dist", "**/node_modules"]
+}

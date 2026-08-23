@@ -1,0 +1,36 @@
+{
+  // Tầng MÁY CHỦ — không DOM, không React, không Vite.
+  //
+  // ------------------------------------------------------------------
+  // FILE NÀY CÓ VIỆC NGAY HÔM NAY, DÙ `apps/api` CHƯA TỒN TẠI
+  // ------------------------------------------------------------------
+  // `packages/engines` được viết không phụ thuộc React có chủ ý, để ma trận
+  // quyền E2 chạy được ở cả hai đầu — `eslint.config.js` đã cấm nó import
+  // `react`. Nhưng eslint chỉ chặn được lời `import`; nó không thấy
+  // `localStorage`, `document`, `window`, `fetch`, `navigator` — những thứ
+  // KHÔNG cần import và vẫn xanh chừng nào `lib` còn chứa DOM.
+  //
+  // Chạy engine qua đúng `lib` của máy chủ là hàng rào duy nhất bắt được
+  // chuyện đó, và nó bắt được NGAY LÚC GÕ chứ không phải lúc chạy production.
+  // Vì thế `typecheck` chạy cả hai config kể từ hôm nay, không đợi `apps/api`.
+  "extends": "./tsconfig.base.json",
+
+  "compilerOptions": {
+    // Không `DOM`, không `DOM.Iterable`. Đây là toàn bộ lý do file này tồn tại.
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+
+  "include": ["packages/engines/**/*.ts", "apps/api/**/*.ts"],
+
+  "exclude": [
+    "**/dist",
+    "**/node_modules",
+
+    // Test của engine chạy bằng vitest globals (`describe`, `it`, `expect`),
+    // mà `types` ở đây chỉ có `node`. Chúng đã được kiểm dưới
+    // `tsconfig.web.json` rồi — kiểm lần hai ở đây chỉ tổ đỏ vì sai môi trường.
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

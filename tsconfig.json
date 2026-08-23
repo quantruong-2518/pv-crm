@@ -1,51 +1,18 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "useDefineForClassFields": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "skipLibCheck": true,
-
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "verbatimModuleSyntax": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": false,
-
-    "types": ["vite/client", "vitest/globals"],
-
-    "baseUrl": ".",
-    "paths": {
-      "@pv/ui": ["packages/ui/src/index.ts"],
-      "@pv/ui/*": ["packages/ui/src/*"],
-      "@pv/tokens": ["packages/tokens/src/index.ts"],
-      "@pv/engines": ["packages/engines/src/index.ts"],
-      "@pv/engines/*": ["packages/engines/src/*"],
-      "@/*": ["apps/web/src/*"]
-    }
-  },
-  "include": [
-    "apps/**/*.ts",
-    "apps/**/*.tsx",
-    "packages/**/*.ts",
-    "packages/**/*.tsx",
-    "apps/web/vite.config.ts",
-    "alias.config.ts",
-    "vitest.config.ts",
-    // Bắt buộc: `@testing-library/jest-dom/vitest` mở rộng kiểu `Assertion`
-    // của vitest ngay trong file này. Thiếu nó thì `toBeInTheDocument` chạy
-    // được nhưng `tsc` báo lỗi.
-    "vitest.setup.ts"
-  ],
-  "exclude": ["**/dist", "**/node_modules"]
+  // MẶC ĐỊNH CHO EDITOR — không phải nơi khai cấu hình.
+  //
+  // VS Code và eslint đi ngược lên tìm `tsconfig.json` gần nhất; ở gốc repo thì
+  // đó là file này. 95% file trong cây là code trình duyệt nên nó trỏ vào tầng
+  // web. Cấu hình thật nằm ở ba file kia:
+  //
+  //   tsconfig.base.json   thứ độc lập môi trường (paths, strict, target)
+  //   tsconfig.web.json    apps/web · packages/ui · tokens · engines   — có DOM
+  //   tsconfig.api.json    packages/engines · apps/api                 — KHÔNG DOM
+  //
+  // `pnpm typecheck` chạy web và api riêng, không chạy file này.
+  //
+  // Ngày dựng `apps/api`, thêm `apps/api/tsconfig.json` một dòng:
+  //   { "extends": "../../tsconfig.api.json" }
+  // để editor mở file máy chủ ra là dùng đúng `lib`, không mượn DOM của web.
+  "extends": "./tsconfig.web.json"
 }
