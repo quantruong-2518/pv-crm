@@ -40,6 +40,12 @@ import {
   type TimeWindowKey,
 } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { useSession } from '@/app/auth'
+import { useIntakeDesk } from '@/app/intake-desk'
+import { toast } from '@/app/toast'
+import { RECIPIENT_SPEC, leadBookKeys, rowsToLeads } from '@/data/intake'
+import { leadBookQuery } from '@/data/leads'
+import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { CampaignForm } from './campaign-parts'
 import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from './campaign-model'
 
@@ -87,6 +93,14 @@ export function CampaignsPage() {
 
   const { data: sources = [], isPending } = useQuery(sourcesQuery)
   const { data: totals } = useQuery(campaignTotalsQuery)
+
+  /* Sổ lead đọc ở ĐÂY chỉ để chống trùng và cấp mã cho lô nạp — màn không vẽ
+     dòng lead nào. Không có nó thì một danh sách người nhận nạp lần thứ hai sẽ
+     đẻ ra bản sao của chính nó trong sổ lead. */
+  const { data: leadBook = [] } = useQuery(leadBookQuery)
+  const importedLeads = useIntakeDesk((s) => s.leads)
+  const addLeads = useIntakeDesk((s) => s.addLeads)
+  const me = useSession((s) => s.actor)
 
   const [mode, setMode] = useState<'list' | 'create'>('list')
   const [filter, setFilter] = useState<CampaignFilter>(NO_FILTER)
@@ -136,6 +150,58 @@ export function CampaignsPage() {
     filter.status !== null ||
     filter.window !== NO_FILTER.window
 
+  /* Sổ lead như nó đang thấy — fixture cộng dòng đã nạp. Khoá chống trùng phải
+     dựng trên CẢ HAI, nếu không nạp lại đúng danh sách vừa nạp sẽ vào lần nữa. */
+  const recipientKeys = useMemo(
+    () => leadBookKeys([...importedLeads, ...leadBook]),
+    [importedLeads, leadBook],
+  )
+
+  const commitRecipients = ({
+    rows,
+    motion,
+    fileName,
+    report,
+    scope,
+  }: ImportCommit & { scope?: string }) => {
+    const at = new Date().toISOString()
+    const by = me?.name ?? 'Không rõ'
+
+    addLeads(
+      {
+        spec: 'recipient',
+        scope,
+        fileName,
+        motion,
+        intake: RECIPIENT_SPEC.intake,
+        at,
+        by,
+        accepted: rows.length,
+        duplicates: report.duplicates,
+        dupInFile: report.dupInFile,
+        errors: report.errors.length,
+      },
+      (batchId) =>
+        rowsToLeads(rows, {
+          book: [...importedLeads, ...leadBook],
+          motion,
+          intake: RECIPIENT_SPEC.intake,
+          source: scope,
+          batchId,
+          at,
+          by,
+        }),
+    )
+
+    toast(`${rows.length} người nhận đã vào sổ lead`, {
+      tone: 'success',
+      detail: scope
+        ? `Gắn vào nguồn ${scope}. ${report.duplicates} dòng đã có sẵn nên bỏ qua.`
+        : `${report.duplicates} dòng đã có sẵn nên bỏ qua.`,
+      action: { label: 'Mở sổ lead', onClick: () => navigate('/sales/leads') },
+    })
+  }
+
   if (mode === 'create') {
     return (
       <AppShell {...chrome.shell}>
@@ -156,10 +222,26 @@ export function CampaignsPage() {
             đề là ba thứ mắt phải bỏ qua trước khi tới hàng số. */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Chiến dịch</h2>
-          <Button size="md" onClick={() => setMode('create')}>
-            <Icon icon={Plus} size={16} />
-            Chiến dịch mới
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Nạp danh sách người nhận cho MỘT chiến dịch đã có. Ở sổ thì
+                chiến dịch phải chọn (`scopeOptions`); trong hồ sơ một chiến
+                dịch thì mã của nó cố định, không chọn lại. */}
+            <ImportZone
+              spec={RECIPIENT_SPEC}
+              existingKeys={recipientKeys}
+              scopeOptions={sources.map((s) => ({
+                value: s.code,
+                label: `${s.code} · ${s.label}`,
+              }))}
+              buttonLabel="Nạp danh sách"
+              onCommit={commitRecipients}
+              onSeeResult={() => navigate('/sales/leads')}
+            />
+            <Button size="md" onClick={() => setMode('create')}>
+              <Icon icon={Plus} size={16} />
+              Chiến dịch mới
+            </Button>
+          </div>
         </div>
 
         {/* NĂM ô, đọc từ trái sang là một câu: bao nhiêu chiến dịch xong · bao

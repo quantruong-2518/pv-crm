@@ -18,8 +18,8 @@ import { ZoneTemplates } from '@/kit/zone-templates'
 const ZONES = [
   { id: 'zone-00', number: '00', label: 'Foundations', count: 9 },
   { id: 'zone-01', number: '01', label: 'Atoms', count: 20 },
-  { id: 'zone-02', number: '02', label: 'Molecules', count: 12 },
-  { id: 'zone-03', number: '03', label: 'Organisms', count: 6 },
+  { id: 'zone-02', number: '02', label: 'Molecules', count: 13 },
+  { id: 'zone-03', number: '03', label: 'Organisms', count: 7 },
   { id: 'zone-04', number: '04', label: 'Templates', count: 5 },
 ]
 

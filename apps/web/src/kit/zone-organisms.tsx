@@ -8,6 +8,7 @@ import {
   BriefCard,
   KioskTile,
   OrderLifecycleCard,
+  Toast,
 } from '@pv/ui'
 
 /** Zone 03 · Organisms — khối hoàn chỉnh, đặt thẳng vào màn. */
@@ -222,6 +223,48 @@ export function ZoneOrganisms() {
                 </>
               }
               action={{ label: 'Xem lệnh' }}
+            />
+          </SpecCard>
+
+          {/* O-08 */}
+          <SpecCard
+            className="col-span-2"
+            code="O-08"
+            name="Toast · ToastHost"
+            note="việc ĐÃ XONG, không phải việc đang chạy"
+            noteAccent
+            bodyClassName="flex flex-col gap-3 p-4"
+            footer={
+              <>
+                Ba thứ KHÔNG phải toast: lỗi của ô đang gõ (thuộc về ô đó) · việc đang chạy (đó là
+                thanh tiến độ ở chỗ bấm nút) · câu hỏi cần trả lời (toast tự tắt).
+                <br />
+                Tone `danger` KHÔNG tự tắt — cưỡng chế ở tầng kiểu, `ttlMs` bị bỏ qua. Host đứng góc
+                phải dưới, `bottom-[118px]` trên mobile để né nav 84 + safe-area 34 (luật 3). Danh
+                sách nằm ở `app/toast.ts`, host chỉ nhận props.
+              </>
+            }
+          >
+            <Toast
+              item={{
+                id: 'kit-1',
+                tone: 'success',
+                title: '412 lead đã vào sổ',
+                detail: '71 dòng trùng bỏ qua · 17 dòng không nạp được',
+                action: { label: 'Xem', onClick: () => {} },
+              }}
+              onDismiss={() => {}}
+              defaultTtlMs={6000}
+            />
+            <Toast
+              item={{
+                id: 'kit-2',
+                tone: 'danger',
+                title: 'Không gửi được đợt 3',
+                detail: 'Hệ gửi chung từ chối 12 địa chỉ. Tấm này không tự tắt.',
+              }}
+              onDismiss={() => {}}
+              defaultTtlMs={6000}
             />
           </SpecCard>
         </div>

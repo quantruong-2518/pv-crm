@@ -24,6 +24,7 @@ import {
   ContextRail,
   DataTable,
   EmptyState,
+  FileDrop,
   Kicker,
   MetaPill,
   millions,
@@ -497,6 +498,35 @@ export function ZoneMolecules() {
                 tone: 'success' as const,
               },
             ]}
+          />
+        </SpecCard>
+
+        {/* M-13 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-13"
+          name="FileDrop"
+          note="sáu đường vào, không phải một"
+          noteAccent
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Kéo-thả · bấm cả tấm · nút thật (tab tới được) · Ctrl+V dán bảng từ Excel · slot
+              `hint` cho link tải tệp mẫu · trình duyệt không có kéo-thả thì bốn đường sau vẫn chạy.
+              Một vùng chỉ nhận kéo-thả là vùng chết với bàn phím, trình đọc màn hình và iPad.
+              <br />
+              KHÔNG viền đứt — luật 4. Nghỉ là mặt tối phẳng, đang kéo vào thì đổi sang mặt azure
+              của khối AI (`.glass-ai`). Lỗi đuôi/cỡ/nhiều tệp hiện TRONG khung, không bắn toast:
+              chỗ sửa nằm ngay đây.
+            </>
+          }
+        >
+          <FileDrop
+            accept={['.csv', '.tsv', '.xlsx']}
+            maxBytes={5 * 1024 * 1024}
+            onPick={() => {}}
+            onPasteText={() => {}}
+            hint="Tải tệp mẫu — một dòng tiêu đề, một dòng ví dụ"
           />
         </SpecCard>
       </ZoneBody>

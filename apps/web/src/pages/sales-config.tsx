@@ -10,11 +10,14 @@ import {
   GlassCard,
   Icon,
   Input,
+  Kicker,
   Skeleton,
   StatusDot,
 } from '@pv/ui'
+import { MOTION_BY_INTAKE } from '@pv/engines'
 import { HEAD_OF_SALES, dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
+import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
 import { ANCHOR_CODE, salesConfigQuery } from '@/data/sales-config'
 
 /** Module 6 · Cấu hình.
@@ -442,6 +445,21 @@ export function SalesConfigPage() {
               </p>
             </Section>
 
+            {/* 5.8 — bảng phân loại của cả luồng lead vào hệ.
+                ĐỌC ĐƯỢC, CHƯA SỬA ĐƯỢC, và nói thẳng chỗ đó ở `hint`. Hai danh
+                sách này là danh sách ĐÓNG (`@pv/engines/lead-intake`): sửa
+                chúng là đổi nghĩa mọi con số đã đo theo kênh, nên nó cần một
+                đợt duyệt riêng chứ không phải một cái nút bật tắt. Chỗ đứng thì
+                phải có sẵn từ bây giờ — chôn sáu thế trong code là cách chắc
+                chắn để không ai trong phòng biết chúng tồn tại. */}
+            <Section
+              no="5.8"
+              title="Lead vào hệ bằng đường nào"
+              hint="Hai trục ĐỘC LẬP: ai chủ động (thế) và dòng chui vào sổ bằng cách nào (đường vào). Bảng đọc được, chưa sửa được — đổi một danh sách đóng là đổi nghĩa mọi số đã đo theo kênh."
+            >
+              <IntakeMatrix />
+            </Section>
+
             {/* Gửi duyệt — mọi thay đổi đi MỘT LẦN, không tự lưu lắt nhắt. */}
             <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
               <h3 className="text-[13px] font-semibold">Thay đổi đang chờ gửi</h3>
@@ -497,6 +515,75 @@ export function SalesConfigPage() {
         )}
       </div>
     </AppShell>
+  )
+}
+
+/** Bảng SÁU THẾ × NĂM ĐƯỜNG VÀO.
+ *
+ *  Hai danh sách xếp cạnh nhau chứ không lồng vào nhau, vì chúng độc lập: một
+ *  lead `event` vào bằng `quet` hay bằng `tep` là hai mức tin khác nhau của cùng
+ *  một buổi hội thảo. Vẽ thành lưới 6×5 thì mắt đọc ra một phép nhân — mà phép
+ *  nhân đó sai: có cặp không xảy ra (`quet` chỉ chở `event`), và `intakeCarries`
+ *  của engine mới là chỗ giữ luật đó.
+ *
+ *  Cột phải nói ĐƯỜNG NÀO ĐÃ DỰNG. Vẽ đủ năm đường mà ba cái không bấm được ở
+ *  đâu cả là một bảng nói dối — người đọc sẽ đi tìm nút "quét thẻ" suốt buổi. */
+function IntakeMatrix() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <GlassCard variant="b" className="flex flex-col gap-3 p-4">
+        <Kicker>Trục A · Thế — ai chủ động</Kicker>
+        <ul className="flex flex-col gap-3">
+          {MOTION_ORDER.map((key) => {
+            const face = MOTION_FACE[key]
+            return (
+              <li key={key} className="flex items-start gap-3">
+                <Icon icon={face.icon} size={16} className="text-muted-foreground mt-1" />
+                <span className="min-w-0 flex-1">
+                  <span className="text-[12px] font-semibold">{face.label}</span>
+                  <span className="text-glass-foreground block text-[11.5px] leading-[1.7]">
+                    {face.blurb}
+                  </span>
+                  <span className="text-muted-foreground block text-[11px] leading-[1.7]">
+                    {face.example}
+                  </span>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </GlassCard>
+
+      <GlassCard variant="b" className="flex flex-col gap-3 p-4">
+        <Kicker>Trục B · Đường vào — dòng chui vào sổ thế nào</Kicker>
+        <ul className="flex flex-col gap-3">
+          {INTAKE_ORDER.map((key) => {
+            const face = INTAKE_FACE[key]
+            const trust = trustOf(key)
+            return (
+              <li key={key} className="flex items-start gap-3">
+                <Icon icon={face.icon} size={16} className="text-muted-foreground mt-1" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-[12px] font-semibold">{face.label}</span>
+                    <Badge tone={trust.tone}>{trust.label}</Badge>
+                    {!face.built && (
+                      <span className="text-muted-foreground text-[11px]">chưa dựng</span>
+                    )}
+                  </span>
+                  <span className="text-glass-foreground block text-[11.5px] leading-[1.7]">
+                    {face.blurb}
+                  </span>
+                  <span className="text-muted-foreground block text-[11px] leading-[1.7]">
+                    Chở được: {MOTION_BY_INTAKE[key].map((m) => MOTION_FACE[m].label).join(' · ')}
+                  </span>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </GlassCard>
+    </div>
   )
 }
 

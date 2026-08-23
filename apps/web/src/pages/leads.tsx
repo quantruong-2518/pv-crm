@@ -41,6 +41,10 @@ import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
 import { leadBookQuery, ORIGIN_FACE } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { useIntakeDesk } from '@/app/intake-desk'
+import { toast } from '@/app/toast'
+import { LEAD_SPEC, leadBookKeys, mergeLeadBook, rowsToLeads } from '@/data/intake'
+import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { Pager, PersonCell, PicCell } from '@/components/table-bits'
 
 /** Module 2 · Sổ lead.
@@ -163,7 +167,15 @@ function matchStatus(lead: Lead, status: StatusKey): boolean {
 export function LeadsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
-  const { data: book = [], isPending } = useQuery(leadBookQuery)
+  const { data: frozen = [], isPending } = useQuery(leadBookQuery)
+
+  /* Sổ trên màn = 100 dòng đóng băng + dòng người dùng NẠP TỪ TỆP trong phiên
+     này. Gộp ở `mergeLeadBook` chứ không ở đây, cùng cách `mergeOps` gộp ba
+     nguồn của sổ cơ hội — hai bản gộp chép tay sẽ lệch ngay lần đầu ai đó thêm
+     nguồn thứ ba. */
+  const importedLeads = useIntakeDesk((s) => s.leads)
+  const addLeads = useIntakeDesk((s) => s.addLeads)
+  const book = useMemo(() => mergeLeadBook(frozen, importedLeads), [frozen, importedLeads])
 
   const me = useSession((s) => s.actor)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
@@ -243,9 +255,64 @@ export function LeadsPage() {
     setStatus('running')
   }
 
+  /* Khoá chống trùng dựng từ sổ ĐANG THẤY (đã gộp cả dòng nạp trước đó), không
+     từ 100 dòng đóng băng: nạp cùng một tệp hai lần phải bị bắt ở lần thứ hai. */
+  const existingKeys = useMemo(() => leadBookKeys(book), [book])
+
+  const commitLeads = ({ rows, motion, fileName, report }: ImportCommit) => {
+    const at = new Date().toISOString()
+    addLeads(
+      {
+        spec: 'lead',
+        fileName,
+        motion,
+        intake: LEAD_SPEC.intake,
+        at,
+        by: me?.name ?? 'Không rõ',
+        accepted: rows.length,
+        duplicates: report.duplicates,
+        dupInFile: report.dupInFile,
+        errors: report.errors.length,
+      },
+      (batchId) =>
+        rowsToLeads(rows, {
+          book,
+          motion,
+          intake: LEAD_SPEC.intake,
+          batchId,
+          at,
+          by: me?.name ?? 'Không rõ',
+        }),
+    )
+
+    toast(`${rows.length} lead đã vào sổ`, {
+      tone: 'success',
+      detail: [
+        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, bỏ qua`,
+        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
+        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    })
+  }
+
   return (
     <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-4 lg:gap-6">
+        {/* Tiêu đề trả lại (nợ ghi ở docblock đầu file: màn đang HẾT `<h2>`) và
+            cùng lúc là chỗ đứng của nút nạp — một hàng, hai việc. */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Sổ lead</h2>
+          <ImportZone
+            spec={LEAD_SPEC}
+            existingKeys={existingKeys}
+            buttonLabel="Nạp lead"
+            onCommit={commitLeads}
+            onSeeResult={clearFilters}
+          />
+        </div>
+
         <ScoreCards />
 
         {/* Một hàng lọc. Ô tìm nở hết chỗ còn lại, bốn select cùng cao 40px

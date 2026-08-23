@@ -43,8 +43,13 @@ import { DAY_FROZEN, dasVina, dayISO } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
+import { useIntakeDesk } from '@/app/intake-desk'
+import { toast } from '@/app/toast'
 import { STATUS_LABEL, STATUS_TONE, sourcesQuery } from '@/data/campaigns'
+import { RECIPIENT_SPEC, leadBookKeys, rowsToLeads } from '@/data/intake'
+import { leadBookQuery } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { CampaignForm, NotDoing } from './campaign-parts'
 import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './campaign-model'
 
@@ -82,6 +87,13 @@ export function CampaignDetailPage() {
   const { data: sources = [], isPending } = useQuery(sourcesQuery)
   const me = useSession((s) => s.actor?.name ?? null)
 
+  /* Sổ lead đọc ở đây CHỈ để chống trùng và cấp mã cho lô nạp — màn không vẽ
+     dòng lead nào (lý do ở "Cố tình không làm"). Hook nằm trên hai cửa thoát
+     sớm bên dưới, vì thứ tự hook không được đổi giữa hai lượt vẽ. */
+  const { data: leadBook = [] } = useQuery(leadBookQuery)
+  const importedLeads = useIntakeDesk((s) => s.leads)
+  const addLeads = useIntakeDesk((s) => s.addLeads)
+
   /* Bốn state POC — màn CHỈ có một chiến dịch nên chúng là state phẳng: đổi
      chiến dịch là đổi đường dẫn, tức component dựng lại từ đầu. */
   const [mode, setMode] = useState<'view' | 'edit' | 'duplicate'>('view')
@@ -117,6 +129,55 @@ export function CampaignDetailPage() {
 
   const now = followers ?? source.followers
   const following = me !== null && now.includes(me)
+
+  /* Danh sách người nhận nạp vào ĐÂY mang mã nguồn của chính chiến dịch này.
+     Khoá chống trùng dựng trên cả sổ lead lẫn dòng đã nạp — cùng một tệp nạp
+     hai lần không được đẻ ra hai bộ lead. */
+  const seen = [...importedLeads, ...leadBook]
+  const recipientKeys = leadBookKeys(seen)
+
+  const commitRecipients = ({ rows, motion, fileName, report }: ImportCommit) => {
+    const at = new Date().toISOString()
+    const by = me ?? 'Không rõ'
+
+    addLeads(
+      {
+        spec: 'recipient',
+        scope: source.code,
+        fileName,
+        motion,
+        intake: RECIPIENT_SPEC.intake,
+        at,
+        by,
+        accepted: rows.length,
+        duplicates: report.duplicates,
+        dupInFile: report.dupInFile,
+        errors: report.errors.length,
+      },
+      (batchId) =>
+        rowsToLeads(rows, {
+          book: seen,
+          motion,
+          intake: RECIPIENT_SPEC.intake,
+          source: source.code,
+          batchId,
+          at,
+          by,
+        }),
+    )
+
+    toast(`${rows.length} người nhận vào sổ lead, gắn nguồn ${source.code}`, {
+      tone: 'success',
+      detail:
+        report.duplicates > 0
+          ? `${report.duplicates} dòng đã có trong sổ nên bỏ qua — không nạp trùng.`
+          : undefined,
+      action: {
+        label: 'Mở sổ lead',
+        onClick: () => navigate(`/sales/leads?source=${source.code}`),
+      },
+    })
+  }
 
   /* "Đã dừng" là state của phiên này, đè lên trạng thái suy từ dữ liệu. Một
      chiến dịch bị người dừng tay thì không còn là "đang chạy" nữa, kể cả khi đợt
@@ -464,6 +525,19 @@ export function CampaignDetailPage() {
               không dựng lại được danh sách. Bấm <b className="text-foreground">Nhân bản</b> để chọn
               nhóm mới bằng bộ lọc trên sổ lead.
             </p>
+            {/* Đường thứ hai cho đúng chỗ thiếu vừa thú nhận ở trên: nếu danh
+                sách còn nằm trong một tệp ở máy ai đó, nạp thẳng vào đây và nó
+                thành lead mang mã nguồn của CHÍNH chiến dịch này — không phải
+                nhân bản chiến dịch rồi lọc lại từ sổ. */}
+            <ImportZone
+              spec={RECIPIENT_SPEC}
+              existingKeys={recipientKeys}
+              scope={source.code}
+              scopeLabel={`${source.code} · ${source.label}`}
+              buttonLabel="Nạp danh sách từ tệp"
+              onCommit={commitRecipients}
+              onSeeResult={() => navigate(`/sales/leads?source=${source.code}`)}
+            />
           </div>
 
           <div className="flex flex-col gap-2 rounded-md bg-white/5 p-4">

@@ -15,6 +15,7 @@
  *  adapter gọi API — interface không đổi, màn không phải sửa dòng nào. */
 
 export * from './types'
+export * from './lead-intake'
 export * from './e1-object-graph'
 export * from './e2-access'
 export * from './e3-approvals'
