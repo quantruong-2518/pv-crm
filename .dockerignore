@@ -1,0 +1,31 @@
+# Build context là GỐC REPO (xem đầu apps/api/Dockerfile). Không lọc thì mỗi
+# lần build đẩy cả node_modules và .git sang daemon — chậm, và có nguy cơ
+# node_modules của máy dev lọt vào ảnh.
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+.git
+.github
+.husky
+.vercel
+.vite
+*.tsbuildinfo
+.eslintcache
+
+# Bí mật không bao giờ được vào ảnh.
+.env
+**/.env
+**/.env.*
+!**/.env.example
+
+# Không cần cho máy chủ.
+apps/web/src
+apps/web/public
+apps/web/index.html
+packages/ui/src
+packages/tokens/src
+packages/tokens/globals.css
+docs
+chats

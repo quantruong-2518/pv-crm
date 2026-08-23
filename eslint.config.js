@@ -104,9 +104,9 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@pv/ui/*', '@pv/engines/src/*', '**/packages/*/src/**'],
+              group: ['@pv/ui/*', '@pv/engines/src/*', '**/packages/*/src/**', '@api/*'],
               message:
-                'Import qua cửa chính của package (@pv/ui · @pv/engines · @pv/tokens), không với vào ruột nó. Thiếu export thì mở export ở package đó.',
+                'Import qua cửa chính của package (@pv/ui · @pv/engines · @pv/tokens), không với vào ruột nó. Thiếu export thì mở export ở package đó. `@api/*` là alias NỘI BỘ của máy chủ — app web không với sang đó (khối 3b khai lại rule này cho chính apps/api).',
             },
           ],
         },
@@ -146,6 +146,106 @@ export default tseslint.config(
         },
       ],
     },
+  },
+
+  // ---- 3b · biên giới BÊN TRONG apps/api ----------------------------------
+  // Ba luật, cùng cơ chế với biên giới package ở trên. Nest module KHÔNG tự ép
+  // được chúng: `@Module({ imports })` chỉ nói ai dùng được provider của ai, nó
+  // không ngăn một file `import` thẳng vào file khác.
+  {
+    files: ['apps/api/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@pv/ui', '@pv/ui/*', '@pv/tokens', '@pv/tokens/*', 'react', 'react-dom'],
+              message:
+                'apps/api là máy chủ — không biết React, không biết thư viện trình bày. Đối xứng với rule cấm @pv/engines import react.',
+            },
+            {
+              group: ['@pv/engines/src/*', '**/packages/*/src/**'],
+              message:
+                'Import qua cửa chính của package, không với vào ruột nó — cùng luật với apps/web (khối 3).',
+            },
+            {
+              group: ['@/*'],
+              message: 'Alias @/ là của apps/web. Máy chủ không với sang app web.',
+            },
+            {
+              group: ['@pv/engines/fixtures', '@pv/engines/fixtures/*'],
+              message:
+                'Fixture là dữ liệu kịch bản, không phải nguồn dữ liệu của máy chủ. Chỉ `seed.ts` được nhập — chỗ khác nhập là đưa tên khách hàng vào đường chạy thật.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Seed nạp CHÍNH kịch bản đóng băng vào Postgres tại máy — đó là việc của
+    // nó, và là ngoại lệ duy nhất của luật fixture ở trên.
+    files: ['apps/api/src/seed.ts'],
+    rules: { 'no-restricted-imports': 'off', 'no-console': 'off' },
+  },
+  {
+    // Platform là NỀN. Nền biết nhánh là nền đã thành một nhánh.
+    files: ['apps/api/src/platform/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/branches/**'],
+              message:
+                'platform/ không thuộc nhánh nào và không được biết nhánh nào. Cần dữ liệu của nhánh thì để nhánh đưa vào, đừng đi lấy.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Chéo nhánh phải đi qua service xuất khẩu của module, không đi qua file.
+    // Đây là luật giữ cho việc tách service sau này là một tuần, không phải
+    // một quý — xem CLAUDE.md của apps/api.
+    files: ['apps/api/src/branches/sales/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/branches/supply/**', '**/branches/factory/**', '**/branches/finance/**'],
+              message:
+                'Nhánh Sales không với vào ruột nhánh khác. Đọc chéo nhánh qua service mà module kia xuất khẩu.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    // ---- NGOẠI LỆ ĐÃ RATIFY: decorator của Nest cần import DẠNG GIÁ TRỊ ----
+    //
+    // `consistent-type-imports` nhìn thấy `private readonly repo: LeadRepository`
+    // trong constructor và kết luận "chỉ dùng làm kiểu". Về cú pháp thì đúng.
+    // Về thực thi thì sai, và sai theo kiểu chỉ nổ lúc chạy:
+    // `emitDecoratorMetadata` phát sinh `design:paramtypes` từ chính lời
+    // `import` đó. Đổi sang `import type` thì TypeScript xoá lời import, siêu
+    // dữ liệu ghi `Object`, và Nest báo "Cannot resolve dependency" ở một chỗ
+    // chẳng liên quan gì tới file vừa sửa.
+    //
+    // Đây là chỗ ma sát có thật giữa idiom Nest và cấu hình ESM/`verbatim` của
+    // repo. Cách duy nhất vừa giữ rule vừa giữ DI là gắn `@Inject()` tay lên
+    // MỌI tham số constructor — ồn hơn nhiều so với một ngoại lệ có ghi lý do.
+    // Đổi lại: `apps/api` không được lợi từ rule này, và người viết phải tự
+    // dùng `import type` cho những gì thật sự chỉ là kiểu.
+    files: ['apps/api/**/*.ts'],
+    rules: { '@typescript-eslint/consistent-type-imports': 'off' },
   },
 
   // ---- công cụ và cấu hình -------------------------------------------------

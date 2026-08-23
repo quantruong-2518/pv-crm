@@ -1,0 +1,23 @@
+{
+  // Bảng alias cho LÚC CHẠY, đọc bởi `tsconfig-paths` trong `scripts.start`.
+  //
+  // Node không hiểu `paths` của TypeScript: sau khi biên dịch, dòng
+  // `import { createAccessControl } from '@pv/engines'` vẫn là
+  // `require('@pv/engines')`, và Node sẽ lần theo symlink của pnpm tới
+  // `packages/engines/package.json` → `"exports": "./src/index.ts"` → một file
+  // `.ts` mà nó không chạy được.
+  //
+  // Bảng này trỏ thẳng vào bản ĐÃ BIÊN DỊCH trong `dist`, nên không lần tới
+  // nguồn `.ts` nữa. Khi `@pv/engines` có bước build riêng thì file này biến
+  // mất — nó tồn tại đúng vì engine đang xuất khẩu TS thô.
+  "compilerOptions": {
+    "baseUrl": "./dist",
+    "paths": {
+      "@pv/engines": ["packages/engines/src/index"],
+      "@pv/engines/*": ["packages/engines/src/*"],
+      "@pv/contracts": ["packages/contracts/src/index"],
+      "@pv/contracts/*": ["packages/contracts/src/*"],
+      "@api/*": ["apps/api/src/*"]
+    }
+  }
+}

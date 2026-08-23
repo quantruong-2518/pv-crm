@@ -9,6 +9,9 @@ import { fileURLToPath, URL } from 'node:url'
  *  Dùng regex neo hai đầu chứ không dùng chuỗi tiền tố: `@pv/tokens` dạng chuỗi
  *  sẽ nuốt luôn `@pv/tokens/globals.css` và trỏ nó vào `index.ts/globals.css`.
  *
+ *  `apps/api` KHÔNG đọc bảng này — Node runtime không hiểu alias của bundler.
+ *  Phía máy chủ phân giải bằng `tsconfig-paths`, xem `apps/api/package.json`.
+ *
  *  @param rootUrl `import.meta.url` của file gọi, quy về thư mục gốc repo. */
 export function pvAliases(rootUrl: string) {
   const r = (p: string) => fileURLToPath(new URL(p, rootUrl))
@@ -26,6 +29,8 @@ export function pvAliases(rootUrl: string) {
       find: /^@pv\/engines\/fixtures\/(.+)$/,
       replacement: `${r('./packages/engines/src/fixtures')}/$1`,
     },
+    { find: /^@pv\/contracts$/, replacement: r('./packages/contracts/src/index.ts') },
+    { find: /^@pv\/contracts\/(.+)$/, replacement: `${r('./packages/contracts/src')}/$1` },
     { find: /^@\/(.+)$/, replacement: `${r('./apps/web/src')}/$1` },
   ]
 }

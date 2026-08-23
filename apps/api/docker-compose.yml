@@ -1,0 +1,25 @@
+# Postgres cho phát triển tại máy. KHÔNG dùng cho production — mật khẩu ở đây
+# là mật khẩu công khai, và dữ liệu nằm trong volume của Docker.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pv-crm-db
+    environment:
+      POSTGRES_USER: pv
+      POSTGRES_PASSWORD: pv
+      POSTGRES_DB: pv_crm
+      # Đối chiếu chuỗi theo tiếng Việt — tên công ty có dấu, và thứ tự sắp xếp
+      # mặc định của C sẽ xếp 'Đ' sau 'Z'.
+      LANG: C.UTF-8
+    ports:
+      - '5432:5432'
+    volumes:
+      - pv-crm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pv -d pv_crm']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pv-crm-pgdata:

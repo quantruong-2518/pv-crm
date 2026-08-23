@@ -1,0 +1,15 @@
+{
+  "name": "@pv/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hợp đồng dữ liệu FE ↔ BE. zod là nguồn kiểu duy nhất — TS suy ra bằng z.infer, không mô hình lần hai.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sales": "./src/sales/index.ts"
+  },
+  "dependencies": {
+    "@pv/engines": "workspace:*",
+    "zod": "^4.1.0"
+  }
+}

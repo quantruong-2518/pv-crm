@@ -12,16 +12,43 @@
   //
   // Chạy engine qua đúng `lib` của máy chủ là hàng rào duy nhất bắt được
   // chuyện đó, và nó bắt được NGAY LÚC GÕ chứ không phải lúc chạy production.
-  // Vì thế `typecheck` chạy cả hai config kể từ hôm nay, không đợi `apps/api`.
   "extends": "./tsconfig.base.json",
 
   "compilerOptions": {
-    // Không `DOM`, không `DOM.Iterable`. Đây là toàn bộ lý do file này tồn tại.
+    // Không `DOM`, không `DOM.Iterable`. Đây là lý do đầu tiên file này tồn tại.
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+
+    // ------------------------------------------------------------------
+    // CJS + DECORATOR — bốn khoá phải khác `tsconfig.base.json`
+    // ------------------------------------------------------------------
+    // NestJS dựng DI trên decorator và `emitDecoratorMetadata`, còn hệ sinh
+    // thái của nó vẫn là CommonJS. Web thì ngược lại: ESM thuần, không
+    // decorator. Hai môi trường thật sự khác nhau ở bốn khoá dưới đây, và đó
+    // đúng là loại khác biệt mà việc tách ba tsconfig sinh ra để chứa.
+    //
+    //  · `commonjs`  — `apps/api/package.json` khai `"type": "commonjs"`;
+    //                  hai chỗ phải khớp, lệch là Node từ chối chạy dist.
+    //  · `node10`    — `bundler` CHỈ dùng được với `module: esnext` trở lên.
+    //                  Không dùng `node16` vì `packages/engines` là
+    //                  `"type": "module"` với import không kèm đuôi — node16
+    //                  sẽ bắt lỗi toàn bộ engine, đúng cảnh báo đã ghi ở
+    //                  `tsconfig.base.json`.
+    //  · `verbatimModuleSyntax: false` — bật + commonjs thì `tsc` từ chối mọi
+    //                  cú pháp ESM. Không tắt được thì không biên dịch được.
+    //  · `useDefineForClassFields: false` — decorator trên field cần ngữ nghĩa
+    //                  GÁN. Để `true` thì field khai trong class bị
+    //                  `[[Define]]` ghi đè lại thành `undefined` sau khi
+    //                  decorator đã chạy.
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "verbatimModuleSyntax": false,
+    "useDefineForClassFields": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
 
-  "include": ["packages/engines/**/*.ts", "apps/api/**/*.ts"],
+  "include": ["packages/engines/**/*.ts", "packages/contracts/**/*.ts", "apps/api/**/*.ts"],
 
   "exclude": [
     "**/dist",

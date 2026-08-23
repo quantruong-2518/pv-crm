@@ -45,6 +45,9 @@
       "@pv/tokens": ["packages/tokens/src/index.ts"],
       "@pv/engines": ["packages/engines/src/index.ts"],
       "@pv/engines/*": ["packages/engines/src/*"],
+      "@pv/contracts": ["packages/contracts/src/index.ts"],
+      "@pv/contracts/*": ["packages/contracts/src/*"],
+      "@api/*": ["apps/api/src/*"],
       "@/*": ["apps/web/src/*"]
     }
   },

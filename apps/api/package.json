@@ -1,0 +1,41 @@
+{
+  "name": "@pv/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PV One — máy chủ. NestJS trên Fastify, modular monolith chia theo NHÁNH.",
+  "//type": "CommonJS, KHÔNG phải module. Root package.json khai \"type\": \"module\" và mọi thư mục con thừa kế nó; để trống ở đây thì Node từ chối chạy dist đã biên dịch ra CJS. Phải khớp với \"module\": \"commonjs\" trong tsconfig.api.json.",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "node --watch --enable-source-maps --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "TS_NODE_PROJECT=tsconfig.runtime.json node --enable-source-maps --env-file-if-exists=.env -r tsconfig-paths/register dist/apps/api/src/main.js",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "//db": "push là công cụ BÀN LÀM VIỆC — nó so schema rồi ALTER thẳng, không sinh file nào để review. Với dữ liệu thật thì generate + migrate: một file SQL đọc được trước khi nó chạm production.",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-fastify": "^11.0.0",
+    "@pv/contracts": "workspace:*",
+    "@pv/engines": "workspace:*",
+    "drizzle-orm": "^0.38.0",
+    "fastify": "^5.2.0",
+    "pg": "^8.13.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.7",
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.30.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0"
+  }
+}

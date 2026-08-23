@@ -20,6 +20,11 @@ Bản đồ dữ liệu đầy đủ (ERD · dòng chảy · ba trục quyền �
 
 ## Còn treo
 
+> **Cập nhật 24/08** — `Framework BE` đã chốt: **NestJS trên adapter Fastify**,
+> và `apps/api` đã dựng tới lát cắt dọc đầu tiên chạy thật. Trạng thái, thứ đã
+> kiểm, nợ và việc tiếp theo: [`ban-giao-api.md`](./ban-giao-api.md).
+> Hai mục còn lại dưới đây vẫn treo.
+
 - **Framework BE**: NestJS hay Fastify. Nest đáng giá nếu ≥3 người viết BE và
   có `@pv/contracts` bằng zod để khỏi viết DTO hai lần; dưới ngưỡng đó thì
   Fastify + Drizzle gọn hơn.

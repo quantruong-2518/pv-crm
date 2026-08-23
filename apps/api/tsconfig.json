@@ -1,0 +1,55 @@
+{
+  // Cấu hình BIÊN DỊCH của apps/api. Mọi lựa chọn về kiểu nằm ở
+  // `tsconfig.api.json` (thứ `pnpm typecheck:api` chạy) — file này CHỈ thêm
+  // phần phát sinh file. Một nguồn cho quy tắc kiểu, không hai bản: kiểm bằng
+  // một bộ luật rồi build bằng bộ khác là cách để "typecheck xanh, build đỏ".
+  "extends": "../../tsconfig.api.json",
+
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./dist",
+
+    // `rootDir` là GỐC REPO, không phải `apps/api`: engine và contracts được
+    // nhập bằng đường dẫn nguồn (`@pv/engines` → packages/engines/src), nên
+    // `tsc` biên dịch chúng cùng lúc. Vì thế output là
+    // `dist/apps/api/src/main.js` — xem `scripts.start`.
+    "rootDir": "../..",
+
+    // Bật cùng `noEmit` thì `tsc` từ chối phát sinh file. Không có file nào
+    // trong cây nhập kèm đuôi `.ts` nên tắt đi là vô hại.
+    "allowImportingTsExtensions": false,
+
+    "sourceMap": true,
+    "declaration": false
+  },
+
+  "include": [
+    "src/**/*.ts",
+    "../../packages/engines/src/**/*.ts",
+    "../../packages/contracts/src/**/*.ts"
+  ],
+
+  "exclude": ["dist", "node_modules", "**/*.test.ts"],
+
+  // ------------------------------------------------------------------
+  // ts-node · CHỈ dành cho `pnpm dev`
+  // ------------------------------------------------------------------
+  // `packages/engines` và `packages/contracts` khai `"type": "module"`, nên Node
+  // coi MỌI file .ts trong đó là ESM, và `require()` chúng từ một tiến trình CJS
+  // là `ERR_REQUIRE_ESM`.
+  //
+  // Bản BUILD không dính: `tsc` phát sinh .js vào `apps/api/dist/`, mà
+  // package.json gần nhất tính ngược lên từ đó là `apps/api/package.json` với
+  // `"type": "commonjs"`. Chỉ chạy thẳng từ NGUỒN mới vướng.
+  //
+  // `moduleTypes` là cửa chính thức của ts-node để đè phán quyết đó theo glob,
+  // đường dẫn tính từ thư mục chứa chính file này.
+  "ts-node": {
+    "moduleTypes": {
+      "src/**/*.ts": "cjs",
+      "../../packages/engines/src/**/*.ts": "cjs",
+      "../../packages/contracts/src/**/*.ts": "cjs"
+    },
+    "transpileOnly": true
+  }
+}

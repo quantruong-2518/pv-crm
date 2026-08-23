@@ -10,3 +10,9 @@ coverage
 chats/
 .vercel
 .env*
+
+# Mẫu biến môi trường thì PHẢI theo repo — nó là tài liệu, không phải bí mật.
+!apps/api/.env.example
+
+# PGlite — cơ sở dữ liệu chạy trong tiến trình, dữ liệu của máy dev.
+apps/api/.pglite/
