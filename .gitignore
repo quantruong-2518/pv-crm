@@ -8,3 +8,5 @@ coverage
 
 # Transcript thiết kế — chứa dữ liệu thương mại, không đẩy lên repo công khai
 chats/
+.vercel
+.env*
