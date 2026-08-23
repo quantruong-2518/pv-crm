@@ -51,7 +51,7 @@ import {
   type TurnKind,
 } from '@pv/engines/fixtures/das-vina'
 import { todosOf, useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 import { dm, dmy } from '@/lib/date'
 import { nextActions } from '@/data/leads'
 import {

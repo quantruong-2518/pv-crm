@@ -37,7 +37,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
 import { leadBookQuery, ORIGIN_FACE } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
@@ -115,7 +115,7 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *  Sổ là CẢ KỲ 01/05 → 17/08: 100 dòng, phân trang, không cuộn vô tận.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. Vào được màn này là vai có
- *  nhánh Sales — cửa ở `app/guard.tsx`, không kiểm lại ở đây.
+ *  nhánh Sales — cửa ở `app/auth/guard.tsx`, không kiểm lại ở đây.
  *
  *  Ba mảnh `Pager` · `PicCell` · `PersonCell` đã chuyển sang
  *  `components/table-bits.tsx` (23/08) — sổ cơ hội của module Ops cần đúng ba thứ

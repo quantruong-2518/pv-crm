@@ -22,6 +22,7 @@ import {
   isRunning,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
+import { api } from '@/app/api'
 
 /** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
  *
@@ -178,5 +179,9 @@ async function fetchSalesConfig() {
 
 export const salesConfigQuery = queryOptions({
   queryKey: ['sales', 'config'] as const,
-  queryFn: fetchSalesConfig,
+  queryFn: () =>
+    api.read('/sales/config', {
+      need: { branch: 'Sales', permission: 'cấu-hình.xem' },
+      load: fetchSalesConfig,
+    }),
 })

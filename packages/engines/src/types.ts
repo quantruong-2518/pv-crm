@@ -7,6 +7,15 @@
 /** Năm nhánh sản phẩm. */
 export type Branch = 'One' | 'Sales' | 'Supply' | 'Factory' | 'Finance'
 
+/** Vai CHUẨN HOÁ — khoá của ma trận quyền. Sáu vai, đúng bằng số vai có người
+ *  thật trong hai kịch bản; vai không ai mang là vai không ai kiểm được.
+ *
+ *  Nằm ở đây chứ không ở `e2-access.ts` cùng ma trận, vì `Actor` cần nó và
+ *  `Actor` là kiểu dùng chung của cả bốn engine — để bên kia thì `types.ts`
+ *  phải import ngược E2. Ma trận vẫn thuộc E2: kiểu là hình dạng, ma trận là
+ *  luật, và luật quyền là của E2. */
+export type RoleId = 'giám-đốc' | 'trưởng-phòng' | 'marketing' | 'bd' | 'presales' | 'sale'
+
 /** Tiền tố mã object. Mã đọc được trên UI và là khoá của E1. */
 export type ObjectKind =
   | 'AC' // account — công ty
@@ -57,11 +66,20 @@ export type Actor = {
    *  Bắt buộc chứ không `?`: người không có email là người không vào được hệ,
    *  và đó phải là lỗi lúc biên dịch chứ không phải một nút bấm mãi không ăn. */
   email: string
-  /** Vai trong Sales hoặc vai One. */
+  /** NHÃN vai, thứ hiện trên màn. Mang cả tên ngành phụ trách ("Sale · chip")
+   *  nên nó còn đổi — đừng bám quyền vào chuỗi này, bám vào `roleId`. */
   role: string
-  /** Nhánh được phép đọc. Rỗng = chỉ One Core. */
+  /** Vai chuẩn hoá — khoá của ma trận quyền (`ROLE_PERMISSIONS` trong E2).
+   *
+   *  Bắt buộc chứ không `?`: mặc định ngầm cho người thiếu vai chỉ có hai lựa
+   *  chọn, và cả hai đều sai. Mặc định rộng thì một dòng fixture gõ thiếu là
+   *  một người có quyền họ không được có; mặc định hẹp thì họ mất quyền và
+   *  không ai biết vì sao. Thiếu vai phải là lỗi lúc biên dịch. */
+  roleId: RoleId
+  /** Trục LICENSE: nhánh công ty đã mua và người này được đọc. Rỗng = chỉ One
+   *  Core. Khác hẳn `roleId` — xem "ba trục quyền" ở đầu `e2-access.ts`. */
   branches: Branch[]
-  /** Giới hạn theo dữ liệu: chỉ thấy object mình đứng tên. */
+  /** Trục PHẠM VI: chỉ thấy object mình đứng tên. */
   ownOnly?: boolean
 }
 

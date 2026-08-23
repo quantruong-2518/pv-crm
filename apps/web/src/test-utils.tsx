@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 
 /** Dựng một màn trong test với đúng ba thứ màn thật có: router, query client,
  *  và một phiên đăng nhập.
@@ -33,10 +33,17 @@ function wrap(children: ReactNode, route: string) {
   )
 }
 
+/** Đăng nhập bằng đúng cửa mà màn thật đi qua (`signIn` của store), KHÔNG bằng
+ *  `setState({ actor })`.
+ *
+ *  Nhét thẳng `actor` vào store để lại một phiên nửa vời: có người nhưng không
+ *  có vé và `status` vẫn là 'khởi-động'. Guard sẽ ngồi đợi mãi và mọi lời gọi
+ *  qua `app/api` bị `requireLiveSession` chặn — test đỏ vì bản dựng test sai,
+ *  không phải vì màn sai. */
 function signIn(actorId = 'u-ha') {
   const actor = dasVina.actors.find((a) => a.id === actorId)
   if (!actor) throw new Error(`Không có vai ${actorId} trong kịch bản`)
-  useSession.setState({ actor })
+  useSession.getState().signIn(actor)
   useLeadDesk.getState().reset()
 }
 

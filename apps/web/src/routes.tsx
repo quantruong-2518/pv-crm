@@ -1,8 +1,8 @@
 import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import { AuroraField } from '@pv/ui'
-import type { Branch } from '@pv/engines'
-import { RequireAccess } from '@/app/guard'
+import type { Branch, Permission } from '@pv/engines'
+import { RequireAccess } from '@/app/auth'
 
 /** Bảng route của PV One.
  *
@@ -13,10 +13,16 @@ import { RequireAccess } from '@/app/guard'
  *  Đường dẫn theo cấu trúc sản phẩm — One ở gốc, nhánh vệ tinh
  *  (Sales · Supply · Factory · Finance) nằm dưới tiền tố riêng.
  *
- *  `branch` là cửa license của màn:
- *   · `null`      → One Core, chỉ cần đăng nhập
- *   · một `Branch`→ phải có nhánh đó mới vào được
- *   · `public`    → không cần gì (màn chọn vai, theme kit)
+ *  HAI cửa, không phải một — và chúng trả lời hai câu khác hẳn nhau:
+ *   · `branch`     → **công ty có mua nhánh này không** (license)
+ *   · `permission` → **vai này có được vào màn này không**
+ *
+ *  Một Marketing và một Sale cùng đứng trong nhánh Sales đã mua, nhưng màn Cấu
+ *  hình và màn Sổ cơ hội không mở cho cả hai như nhau. Gộp hai cửa làm một thì
+ *  hoặc phải cấp license theo đầu người (sai mô hình thương mại), hoặc phải mở
+ *  hết màn cho mọi người trong nhánh (sai mô hình quyền).
+ *
+ *   · `public` → không cần cửa nào (ba màn auth, theme kit)
  *
  *  Guard bọc NGOÀI `Suspense`: chưa có quyền thì không tải chunk của màn về
  *  máy làm gì. */
@@ -35,6 +41,12 @@ type ScreenDef = {
   load: () => Promise<{ default: ComponentType }>
   /** Nhánh cần license; bỏ trống = One Core. */
   branch?: Branch
+  /** Quyền vai màn này đòi. Bỏ trống = có license là vào được.
+   *
+   *  Luôn là quyền `.xem` của miền tương ứng: đây là cửa VÀO MÀN. Quyền làm
+   *  (`lead.giao`, `cấu-hình.đề-nghị`) hỏi ở chính cái nút bằng `useCan`, vì
+   *  chặn cả màn chỉ vì người dùng không sửa được là lấy mất phần họ đọc được. */
+  permission?: Permission
   /** Không cần đăng nhập. */
   public?: boolean
 }
@@ -47,6 +59,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns',
     name: 'Kinh doanh · Module 1 · Chiến dịch',
     branch: 'Sales',
+    permission: 'chiến-dịch.xem',
     load: () => import('@/pages/campaigns'),
   },
   {
@@ -55,12 +68,14 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/:code',
     name: 'Kinh doanh · Module 1 · Hồ sơ chiến dịch',
     branch: 'Sales',
+    permission: 'chiến-dịch.xem',
     load: () => import('@/pages/campaign-detail'),
   },
   {
     path: '/sales/leads',
     name: 'Kinh doanh · Module 2 · Sổ lead',
     branch: 'Sales',
+    permission: 'lead.xem',
     load: () => import('@/pages/leads'),
   },
   {
@@ -69,12 +84,14 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/leads/:code',
     name: 'Kinh doanh · Module 2 · Hồ sơ lead',
     branch: 'Sales',
+    permission: 'lead.xem',
     load: () => import('@/pages/lead-detail'),
   },
   {
     path: '/sales/ops',
     name: 'Kinh doanh · Module 3 · Sổ cơ hội',
     branch: 'Sales',
+    permission: 'cơ-hội.xem',
     load: () => import('@/pages/ops'),
   },
   {
@@ -83,24 +100,28 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/ops/:code',
     name: 'Kinh doanh · Module 3 · Hồ sơ cơ hội',
     branch: 'Sales',
+    permission: 'cơ-hội.xem',
     load: () => import('@/pages/ops-detail'),
   },
   {
     path: '/sales/performance',
     name: 'Kinh doanh · Module 4 · Performance',
     branch: 'Sales',
+    permission: 'hiệu-suất.xem',
     load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
     name: 'Kinh doanh · Module 5 · Số liệu & kế hoạch',
     branch: 'Sales',
+    permission: 'kế-hoạch.xem',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
     name: 'Kinh doanh · Module 6 · Cấu hình',
     branch: 'Sales',
+    permission: 'cấu-hình.xem',
     load: () => import('@/pages/sales-config'),
   },
   /** Ba màn của luồng auth. Đều `public` — bắt đăng nhập để vào được màn quên
@@ -124,12 +145,14 @@ export const SCREENS: ScreenDef[] = [
 ]
 
 export const router = createBrowserRouter(
-  SCREENS.map(({ path, load, branch, public: isPublic }) => ({
+  SCREENS.map(({ path, load, branch, permission, public: isPublic }) => ({
     path,
     element: isPublic ? (
       withFallback(load)
     ) : (
-      <RequireAccess branch={branch ?? null}>{withFallback(load)}</RequireAccess>
+      <RequireAccess branch={branch ?? null} permission={permission}>
+        {withFallback(load)}
+      </RequireAccess>
     ),
   })),
 )

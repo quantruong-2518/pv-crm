@@ -34,6 +34,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
 import type { LeadAssignment } from '@/app/desk'
+import { api } from '@/app/api'
 
 /** Sổ lead — module 2. Kịch bản 2 · DAS Vina.
  *
@@ -58,7 +59,11 @@ async function fetchLeadBook(): Promise<Lead[]> {
 
 export const leadBookQuery = queryOptions({
   queryKey: ['sales', 'lead-book'] as const,
-  queryFn: fetchLeadBook,
+  queryFn: () =>
+    api.read('/sales/leads', {
+      need: { branch: 'Sales', permission: 'lead.xem' },
+      load: fetchLeadBook,
+    }),
 })
 
 // ---------------------------------------------------------------------------

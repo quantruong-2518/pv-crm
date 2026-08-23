@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
 import { MIN_PASSWORD, checkNewPassword, readResetTicket, type AuthError } from '@/data/auth'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 
 /** Quên mật khẩu — bước 2: đặt mật khẩu mới rồi vào thẳng.
  *

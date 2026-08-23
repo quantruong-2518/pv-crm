@@ -22,8 +22,8 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import { Button } from '@pv/ui'
-import type { Branch } from '@pv/engines'
-import { useSession } from './session'
+import type { Branch, Permission } from '@pv/engines'
+import { access, useSession } from './auth'
 
 /** Khung app dùng chung: sidebar + topbar cho MỌI màn.
  *
@@ -142,6 +142,14 @@ export type SalesModule = {
   icon: LucideIcon
   label: string
   path: string
+  /** Quyền cần để VÀO module — phải khớp `permission` của cùng `path` trong
+   *  `routes.tsx`.
+   *
+   *  Hai chỗ khai chứ không một, vì `routes.tsx` phải import trang còn file này
+   *  bị trang import: gộp lại là một vòng import. Đổi lại, hai bảng nằm cạnh
+   *  cùng một `path` nên lệch nhau là nhìn thấy — và nếu có lệch thì nav rộng
+   *  hơn cửa chứ không bao giờ ngược lại: cửa mới là chỗ chặn thật. */
+  permission: Permission
   /** Module này trả câu hỏi gì. */
   question: string
 }
@@ -174,6 +182,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Megaphone,
     label: 'Chiến dịch',
     path: '/sales/campaigns',
+    permission: 'chiến-dịch.xem',
     question: 'Khách ở đâu ra, đợt nào ra khách',
   },
   {
@@ -181,6 +190,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Users,
     label: 'Lead',
     path: '/sales/leads',
+    permission: 'lead.xem',
     question: 'Ai đang trong tay ai',
   },
   {
@@ -191,6 +201,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Handshake,
     label: 'Ops',
     path: '/sales/ops',
+    permission: 'cơ-hội.xem',
     question: 'Đơn nào đang chạy, đáng bao nhiêu tiền',
   },
   {
@@ -198,6 +209,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Gauge,
     label: 'Performance',
     path: '/sales/performance',
+    permission: 'hiệu-suất.xem',
     question: 'Ai đang làm được, ai đang tắc',
   },
   {
@@ -205,6 +217,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Target,
     label: 'Số liệu & kế hoạch',
     path: '/sales/plan',
+    permission: 'kế-hoạch.xem',
     question: 'Tháng tới phòng nên làm gì',
   },
   {
@@ -214,6 +227,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: SlidersHorizontal,
     label: 'Cấu hình',
     path: '/sales/config',
+    permission: 'cấu-hình.xem',
     question: 'Dữ liệu của phòng có hình dạng gì',
   },
 ]
@@ -264,15 +278,24 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
 
   /** Một nhánh + các module của nó, phẳng ra thành danh sách có cấp.
    *
-   *  Nhánh khoá khi phiên hiện tại không có nó — cùng một nguồn sự thật với
-   *  `canEnter` ở guard, nên ổ khoá trên nav và cửa chặn ở route không bao giờ
-   *  nói ngược nhau. Nhánh khoá thì không trải module: chưa mua thì biết bên
-   *  trong có gì cũng không vào được. */
+   *  HAI ổ khoá khác nhau, đúng như hai cửa của `routes.tsx`:
+   *   · **nhánh** khoá khi công ty chưa mua — hỏi trục license;
+   *   · **module** khoá khi vai không có quyền vào — hỏi trục vai.
+   *
+   *  Cả hai đều hỏi `access.check`, cùng một hàm mà guard hỏi, nên ổ khoá trên
+   *  nav và cửa chặn ở route không bao giờ nói ngược nhau. Trước 23/08 nav tự
+   *  đọc `actor.branches` — đúng cùng một câu hỏi hỏi ở hai chỗ, và hai chỗ đó
+   *  lệch nhau ngay khi luật quyền mọc thêm trục thứ hai. */
   const inModule = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
 
   const branchApp = (b: BranchEntry): HeaderApp => {
-    const locked = !actor?.branches.includes(b.branch)
-    const landing = b.modules?.[0]?.path
+    const locked = !access.check(actor, { branch: b.branch }).ok
+    const opensFor = (m: SalesModule) =>
+      access.check(actor, { branch: b.branch, permission: m.permission }).ok
+    /* Mục hạ cánh của nhánh là module ĐẦU TIÊN người này vào được, không phải
+       module số 1 cứng. Một Presales bấm "Kinh doanh" mà rơi vào màn Chiến dịch
+       khoá thì cái nút đó nói dối. */
+    const landing = b.modules?.find(opensFor)?.path
 
     return {
       icon: b.icon,
@@ -289,15 +312,24 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       items:
         locked || !b.modules
           ? undefined
-          : b.modules.map((m): HeaderAction => ({
-              icon: m.icon,
-              label: m.label,
-              /* Màn con của module (hồ sơ một lead ở `/sales/leads/:code`) vẫn
-                 phải để mục cha sáng: người dùng đứng trong module đó, chỉ là
-                 sâu hơn một tầng. */
-              active: inModule(m.path),
-              onClick: () => navigate(m.path),
-            })),
+          : b.modules.map((m): HeaderAction => {
+              /* Module thiếu quyền vẫn HIỆN, chỉ khoá — không ẩn. Danh sách
+                 module là bản đồ của nhánh: ẩn bớt thì hai người cùng phòng mô
+                 tả sản phẩm bằng hai bản đồ khác nhau, và người ít quyền hơn
+                 không biết mình đang thiếu gì để mà đi xin. Cùng luật với mục
+                 chưa dựng màn ở One Core. */
+              const open = opensFor(m)
+              return {
+                icon: m.icon,
+                label: m.label,
+                locked: !open,
+                /* Màn con của module (hồ sơ một lead ở `/sales/leads/:code`) vẫn
+                   phải để mục cha sáng: người dùng đứng trong module đó, chỉ là
+                   sâu hơn một tầng. */
+                active: inModule(m.path),
+                onClick: open ? () => navigate(m.path) : undefined,
+              }
+            }),
     }
   }
 

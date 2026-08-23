@@ -58,6 +58,31 @@ export function checkSignIn(email: string, password: string): AuthError | null {
   return null
 }
 
+/** Xác thực — hàm mà màn đăng nhập thật sự gọi.
+ *
+ *  `async` dù hôm nay không có gì để đợi, và đó là điểm chính: khi có backend,
+ *  thân hàm đổi thành một lời gọi mạng và màn không phải sửa dòng nào. Nếu để
+ *  màn gọi `checkSignIn` đồng bộ thì lúc cắm backend phải mở lại màn, thêm
+ *  trạng thái đang gửi, thêm khoá nút — tức là dựng lại đúng thứ máy trạng thái
+ *  phiên đã có sẵn (`app/auth`).
+ *
+ *  Trả về kết quả CÓ NHÁNH chứ không ném lỗi: sai mật khẩu là đường đi bình
+ *  thường của một form đăng nhập, không phải sự cố. `throw` cho việc thường
+ *  ngày đẩy màn vào `try/catch` và làm lỗi mạng thật lẫn với lỗi gõ nhầm. */
+export type SignInResult = { ok: true; actor: Actor } | { ok: false; error: AuthError }
+
+export async function signInWithEmail(email: string, password: string): Promise<SignInResult> {
+  const wrong = checkSignIn(email, password)
+  if (wrong) return { ok: false, error: wrong }
+
+  /* `checkSignIn` đã xác nhận email có người — nhưng nó trả LỖI chứ không trả
+     người, nên phải tra lại. Hai hàm tách nhau vì màn quên mật khẩu cần tra
+     người mà không cần kiểm mật khẩu. */
+  const actor = findActorByEmail(email)
+  if (!actor) return { ok: false, error: { field: 'email', message: 'Không tìm thấy tài khoản.' } }
+  return { ok: true, actor }
+}
+
 /** Kiểm mật khẩu mới ở màn đặt lại. Ô xác nhận tồn tại để bắt lỗi gõ, nên nó
  *  phải được kiểm SAU khi mật khẩu chính đã hợp lệ — báo "hai ô không khớp"
  *  trong lúc ô đầu còn quá ngắn là bắt sửa nhầm chỗ. */

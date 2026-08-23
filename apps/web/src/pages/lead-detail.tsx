@@ -33,7 +33,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 import { dm, dmy } from '@/lib/date'
 import { leadBookQuery, ORIGIN_FACE, peopleOn } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'

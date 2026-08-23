@@ -23,6 +23,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import { ADDRESSED_CHANNELS, E4_CHANNELS } from '@/data/sales-config'
 import { bandText, costBreakdown, costOf, type CostBreakdown } from '@/data/source-cost'
+import { api } from '@/app/api'
 
 /** Nguồn lead — module 1 · Chiến dịch & Sự kiện. Kịch bản 2 · DAS Vina.
  *
@@ -608,12 +609,19 @@ export const channelsInUse = (rows: SourceRow[]): WaveChannel[] => {
   return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c)
 }
 
+/** Hai query, MỘT mức quyền: cả hai đọc cùng một sổ chiến dịch, chỉ khác lát
+ *  cắt. Cho chúng hai mức khác nhau là mở đường cho một màn hiện tổng mà không
+ *  hiện được dòng nào. */
+const CAMPAIGN_ACCESS = { branch: 'Sales', permission: 'chiến-dịch.xem' } as const
+
 export const sourcesQuery = queryOptions({
   queryKey: ['sales', 'sources'] as const,
-  queryFn: fetchSources,
+  queryFn: () =>
+    api.read('/sales/campaigns/sources', { need: CAMPAIGN_ACCESS, load: fetchSources }),
 })
 
 export const campaignTotalsQuery = queryOptions({
   queryKey: ['sales', 'campaign-totals'] as const,
-  queryFn: fetchCampaignTotals,
+  queryFn: () =>
+    api.read('/sales/campaigns/totals', { need: CAMPAIGN_ACCESS, load: fetchCampaignTotals }),
 })

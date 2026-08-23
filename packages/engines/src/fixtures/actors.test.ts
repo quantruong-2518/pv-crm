@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { ROLE_PERMISSIONS, createAccessControl, type Permission } from '../e2-access'
+import type { RoleId } from '../types'
 import { dasVina } from './das-vina'
 import { saoDo } from './sao-do'
 
@@ -68,5 +70,108 @@ describe('Luật chung của email, áp cho cả hai kịch bản', () => {
       const twin = dasVina.actors.find((b) => b.id === a.id)
       if (twin) expect(twin.email).toBe(a.email)
     }
+  })
+})
+
+/** Khoá VAI — cùng lý do với email, và nặng hơn một bậc.
+ *
+ *  Gõ nhầm `roleId` không làm hỏng màn nào: app vẫn dựng, người vẫn đăng nhập
+ *  được, chỉ là họ mang quyền của người khác. Một Sale gắn nhầm `trưởng-phòng`
+ *  thì nhìn được sổ của cả phòng và gật được phê duyệt — không compiler nào bắt
+ *  được, không ai nhìn màn mà thấy, và đó đúng là loại lỗi ngoại lệ "test khoá
+ *  dữ liệu fixture" (CLAUDE.md · mục Test) sinh ra để chặn. */
+describe('Vai chuẩn hoá của người đăng nhập', () => {
+  it('bảy vai DAS Vina — đúng bảng đã chốt', () => {
+    expect(dasVina.actors.map((a) => [a.id, a.roleId])).toEqual([
+      ['u-ha', 'trưởng-phòng'],
+      ['u-chau', 'marketing'],
+      ['u-nam', 'bd'],
+      ['u-huy', 'sale'],
+      ['u-binh', 'sale'],
+      ['u-linh', 'sale'],
+      ['u-anh', 'presales'],
+    ])
+  })
+
+  it('ba vai Sao Đỏ — đúng bảng đã chốt', () => {
+    expect(saoDo.actors.map((a) => [a.id, a.roleId])).toEqual([
+      ['u-thang', 'giám-đốc'],
+      ['u-ha', 'trưởng-phòng'],
+      ['u-huy', 'sale'],
+    ])
+  })
+
+  it('người xuất hiện ở cả hai kịch bản thì mang cùng một vai', () => {
+    for (const a of saoDo.actors) {
+      const twin = dasVina.actors.find((b) => b.id === a.id)
+      if (twin) expect(twin.roleId).toBe(a.roleId)
+    }
+  })
+
+  it('chỉ người `ownOnly` mới là vai sale, và mọi vai sale đều `ownOnly`', () => {
+    for (const a of [...dasVina.actors, ...saoDo.actors]) {
+      expect(Boolean(a.ownOnly)).toBe(a.roleId === 'sale')
+    }
+  })
+})
+
+/** Khoá MA TRẬN QUYỀN — không khoá cả bảng, chỉ khoá những khẳng định mà đổi
+ *  nhầm là hỏng luật nghiệp vụ. Khoá nguyên bảng thì mỗi lần thêm một quyền
+ *  mới là một test đỏ vô nghĩa, và test đỏ vô nghĩa dạy người ta sửa test. */
+describe('Ma trận vai → quyền', () => {
+  const access = createAccessControl()
+  const roleOf = (id: string) => [...dasVina.actors, ...saoDo.actors].find((a) => a.id === id)!
+  const has = (role: RoleId, p: Permission) => ROLE_PERMISSIONS[role].includes(p)
+
+  it('giao việc và gật phê duyệt chỉ thuộc về người quản lý', () => {
+    for (const role of ['giám-đốc', 'trưởng-phòng'] as const) {
+      expect(has(role, 'lead.giao')).toBe(true)
+      expect(has(role, 'phê-duyệt.duyệt')).toBe(true)
+      expect(has(role, 'ghi-vết.xem')).toBe(true)
+    }
+    for (const role of ['marketing', 'bd', 'presales', 'sale'] as const) {
+      expect(has(role, 'lead.giao')).toBe(false)
+      expect(has(role, 'phê-duyệt.duyệt')).toBe(false)
+      expect(has(role, 'ghi-vết.xem')).toBe(false)
+    }
+  })
+
+  it('Marketing mang khách về nhưng không định đoạt khách', () => {
+    expect(has('marketing', 'chiến-dịch.sửa')).toBe(true)
+    expect(has('marketing', 'lead.chuyển-đổi')).toBe(false)
+    expect(has('marketing', 'lead.loại')).toBe(false)
+  })
+
+  it('Presales dựng số cho cơ hội nhưng không chốt', () => {
+    expect(has('presales', 'cơ-hội.sửa')).toBe(true)
+    expect(has('presales', 'cơ-hội.chốt')).toBe(false)
+  })
+
+  it('vai sale có quyền chốt, nhưng chỉ trên đơn đứng tên mình', () => {
+    const huy = roleOf('u-huy')
+    const mine = dasVina.objects.find((o) => o.kind === 'OP' && o.owner === huy.name)
+    const theirs = dasVina.objects.find((o) => o.kind === 'OP' && o.owner && o.owner !== huy.name)
+
+    expect(access.allows(huy, 'cơ-hội.chốt')).toBe(true)
+    if (mine)
+      expect(access.check(huy, { ref: mine, permission: 'cơ-hội.chốt' })).toEqual({ ok: true })
+    if (theirs) {
+      expect(access.check(huy, { ref: theirs, permission: 'cơ-hội.chốt' })).toMatchObject({
+        ok: false,
+        reason: 'ngoài-phạm-vi',
+      })
+    }
+  })
+
+  it('thiếu license báo `thiếu-nhánh`, không báo thiếu quyền', () => {
+    const ha = roleOf('u-ha')
+    expect(access.check(ha, { branch: 'Factory' })).toMatchObject({
+      ok: false,
+      reason: 'thiếu-nhánh',
+    })
+    expect(access.check(null, { branch: 'Sales' })).toMatchObject({
+      ok: false,
+      reason: 'chưa-đăng-nhập',
+    })
   })
 })

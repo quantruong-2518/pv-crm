@@ -40,6 +40,7 @@ import {
   type PeriodChoice,
 } from './period'
 import { costOf, spendIn } from './source-cost'
+import { api } from '@/app/api'
 
 /** Module 4 · Performance — "ai đang làm được, ai đang tắc". Kịch bản 2 · DAS Vina.
  *
@@ -941,6 +942,10 @@ export function performanceQuery(choice: PeriodChoice) {
   const period = resolvePeriod(choice)
   return queryOptions({
     queryKey: ['sales', 'performance', period.key] as const,
-    queryFn: () => fetchPerformance(period),
+    queryFn: () =>
+      api.read(`/sales/performance/${period.key}`, {
+        need: { branch: 'Sales', permission: 'hiệu-suất.xem' },
+        load: () => fetchPerformance(period),
+      }),
   })
 }

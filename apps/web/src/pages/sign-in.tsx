@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Input } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
-import { EMAIL_HINT, checkSignIn, findActorByEmail, type AuthError } from '@/data/auth'
-import { useSession } from '@/app/session'
+import { EMAIL_HINT, signInWithEmail, type AuthError } from '@/data/auth'
+import { useSession } from '@/app/auth'
 
 /** Màn đăng nhập — cửa vào của PV One.
  *
@@ -24,6 +24,8 @@ import { useSession } from '@/app/session'
 export function SignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const status = useSession((s) => s.status)
+  const beginSignIn = useSession((s) => s.beginSignIn)
   const signIn = useSession((s) => s.signIn)
   const remembered = useSession((s) => s.remember)
 
@@ -35,23 +37,42 @@ export function SignInPage() {
   const emailRef = useRef<HTMLInputElement>(null)
   useEffect(() => emailRef.current?.focus(), [])
 
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  /** Guard gửi kèm hai thứ khi nó đá người ta về đây: đường đang định vào, và
+   *  phiên vừa chết hay chưa từng có. Cả hai đều phải dùng — quay lại đúng chỗ
+   *  cũ, và nói đúng lý do. */
+  const sent = location.state as { from?: string; expired?: boolean } | null
+  const from = sent?.from ?? '/'
+
+  /* Đã có phiên mà vẫn vào màn này (gõ tay `/dang-nhap`, hoặc tab khác vừa đăng
+     nhập hộ) thì đi tiếp, đừng bắt đăng nhập lần hai. */
+  if (status === 'đã-vào') return <Navigate to={from} replace />
+
+  const sending = status === 'đang-vào'
 
   return (
-    <AuthCard title="Đăng nhập">
+    <AuthCard
+      title="Đăng nhập"
+      lead={
+        sent?.expired
+          ? 'Phiên trước đã hết hạn. Đăng nhập lại để quay về đúng chỗ bạn đang làm dở.'
+          : undefined
+      }
+    >
       <form
         noValidate
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault()
-          const wrong = checkSignIn(email, password)
-          setError(wrong)
-          if (wrong) return
-          /* `checkSignIn` đã xác nhận email có người — nhưng nó trả LỖI chứ
-             không trả người, nên phải tra lại. Hai hàm tách nhau vì màn quên
-             mật khẩu cần tra người mà không cần kiểm mật khẩu. */
-          const actor = findActorByEmail(email)
-          if (!actor) return
-          signIn(actor, { remember })
+          if (sending) return
+          beginSignIn()
+          const result = await signInWithEmail(email, password)
+          if (!result.ok) {
+            /* Về lại 'khách' qua `signOut`: một form đã có kết luận mà máy trạng
+               thái còn kẹt ở 'đang-vào' thì nút khoá vĩnh viễn. */
+            useSession.getState().signOut()
+            setError(result.error)
+            return
+          }
+          signIn(result.actor, { remember })
           navigate(from, { replace: true })
         }}
         className="flex flex-col gap-5"
@@ -105,7 +126,7 @@ export function SignInPage() {
         </AuthField>
 
         {/* Không `hint`: hậu quả của ô này (phiên sống qua lần đóng trình duyệt
-            hay không) nằm ở tầng dưới — `rememberAware` trong `app/session.ts`.
+            hay không) nằm ở tầng dưới — `rememberAware` trong `app/auth/session.ts`.
             Nhãn "trên máy này" đã đủ cho người bấm. */}
         <Checkbox
           checked={remember}
@@ -114,8 +135,8 @@ export function SignInPage() {
           className="-mx-3"
         />
 
-        <Button type="submit" size="lg">
-          Đăng nhập
+        <Button type="submit" size="lg" disabled={sending}>
+          {sending ? 'Đang vào…' : 'Đăng nhập'}
         </Button>
       </form>
     </AuthCard>

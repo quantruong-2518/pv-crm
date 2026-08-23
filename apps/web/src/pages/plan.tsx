@@ -53,7 +53,7 @@ import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
  *  người, và đó đúng là thứ luật 9 cấm.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. Vào được màn này là vai có
- *  nhánh Sales — cửa ở `app/guard.tsx`, không kiểm lại ở đây.
+ *  nhánh Sales — cửa ở `app/auth/guard.tsx`, không kiểm lại ở đây.
  *
  *  Số lấy qua `useQuery`, mọi phép tính nằm ở `data/plan.ts` (kể cả câu "Căn
  *  cứ", xem ghi chú ở đầu file đó). Màn này chỉ bày và giữ đúng một thứ trạng

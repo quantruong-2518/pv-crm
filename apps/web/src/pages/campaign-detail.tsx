@@ -41,7 +41,7 @@ import {
 } from '@pv/ui'
 import { DAY_FROZEN, dasVina, dayISO } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
 import { STATUS_LABEL, STATUS_TONE, sourcesQuery } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'

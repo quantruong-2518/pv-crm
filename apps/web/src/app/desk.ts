@@ -12,7 +12,7 @@ import type { LeadProfile, Opportunity, OpportunityDraft } from '@pv/engines/fix
  *  Hai thứ này sống lâu hơn một lần mở màn và đi qua NHIỀU màn: ghim ở bảng thì
  *  màn chi tiết phải thấy, giao việc ở màn chi tiết thì tab "Việc của tôi" ở
  *  bảng phải thấy. Bộ lọc và trang thì ngược lại — chúng chết cùng lần mở màn
- *  nên vẫn nằm trong `useState` của màn (xem `app/session.ts`).
+ *  nên vẫn nằm trong `useState` của màn (xem `app/auth/session.ts`).
  *
  *  **Ghim theo NGƯỜI, không theo sổ.** `pins` khoá bằng `actorId`: hai người
  *  cùng mở sổ thấy hai bộ ghim khác nhau. Ghim chung là ghim của người bấm cuối

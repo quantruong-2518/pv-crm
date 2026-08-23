@@ -5,10 +5,17 @@
   Register it in `routes.tsx` — no route means the screen doesn't exist, no
   matter how much of the file is written.
 - `app/` — state that lives ACROSS screens: `desk.ts` (pins/assignments/drafts,
-  per user), `session.ts` (login session), `guard.tsx` (gates by
-  `Branch`/license), `chrome.tsx` (nav shell, reads paths from here — don't
-  hardcode them in a screen). State that dies with the screen (filters, page
-  number) stays in that screen's own `useState`.
+  per user), `chrome.tsx` (nav shell, reads paths from here — don't hardcode
+  them in a screen). State that dies with the screen (filters, page number)
+  stays in that screen's own `useState`.
+  - `app/auth/` — the whole auth flow: session state machine, ticket expiry,
+    multi-tab sync, the screen gate (`RequireAccess`) and the button gate
+    (`useCan`). Import from `@/app/auth`, never from a file inside it. Read its
+    `index.ts` for the file-by-file map.
+  - `app/api/` — every call that crosses into "data from outside" goes through
+    this interceptor chain, which stamps the session, refuses dead sessions and
+    enforces permissions before any byte moves. `data/*.ts` calls it; screens
+    never do.
 - `components/` — things only one or a few screens use, not mature enough for
   `@pv/ui` yet. Once it is, move it to the right zone in `@pv/ui` — don't let
   it linger here.

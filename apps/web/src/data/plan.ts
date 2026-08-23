@@ -18,6 +18,7 @@ import {
   type OpenDeal,
 } from '@pv/engines/fixtures/das-vina'
 import { bandText, costGap, rankSources, type SourceCost } from './source-cost'
+import { api } from '@/app/api'
 
 /** Module 5 · Số liệu & kế hoạch. Kịch bản 2 · DAS Vina.
  *
@@ -355,5 +356,9 @@ async function fetchPlanBoard(): Promise<PlanBoard> {
 
 export const planBoardQuery = queryOptions({
   queryKey: ['sales', 'plan-board'] as const,
-  queryFn: fetchPlanBoard,
+  queryFn: () =>
+    api.read('/sales/plan', {
+      need: { branch: 'Sales', permission: 'kế-hoạch.xem' },
+      load: fetchPlanBoard,
+    }),
 })

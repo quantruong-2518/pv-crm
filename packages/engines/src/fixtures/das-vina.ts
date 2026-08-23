@@ -69,6 +69,7 @@ const scenario: Scenario = {
       name: 'Trần Thu Hà',
       email: 'ha@pebblevina.vn',
       role: 'Trưởng phòng Kinh doanh',
+      roleId: 'trưởng-phòng',
       branches: ['One', 'Sales'],
     },
     {
@@ -76,6 +77,7 @@ const scenario: Scenario = {
       name: 'Vũ Minh Châu',
       email: 'chau@pebblevina.vn',
       role: 'Marketing',
+      roleId: 'marketing',
       branches: ['One', 'Sales'],
     },
     {
@@ -83,13 +85,18 @@ const scenario: Scenario = {
       name: 'Lê Hoàng Nam',
       email: 'nam@pebblevina.vn',
       role: 'BD',
+      roleId: 'bd',
       branches: ['One', 'Sales'],
     },
     {
+      /** Ba người mang `roleId: 'sale'` nhưng ba nhãn `role` khác nhau — đó
+       *  chính là lý do hai trường tách nhau. Ngành phụ trách đổi thì sửa nhãn,
+       *  quyền không nhúc nhích. */
       id: 'u-huy',
       name: 'Đỗ Quang Huy',
       email: 'huy@pebblevina.vn',
       role: 'Sale · chip',
+      roleId: 'sale',
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
@@ -98,6 +105,7 @@ const scenario: Scenario = {
       name: 'Đặng Thanh Bình',
       email: 'binh@pebblevina.vn',
       role: 'Sale · cơ khí, ô tô',
+      roleId: 'sale',
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
@@ -106,6 +114,7 @@ const scenario: Scenario = {
       name: 'Nguyễn Khánh Linh',
       email: 'linh@pebblevina.vn',
       role: 'Sale · dược',
+      roleId: 'sale',
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
@@ -114,6 +123,7 @@ const scenario: Scenario = {
       name: 'Phạm Diệu Anh',
       email: 'anh@pebblevina.vn',
       role: 'Presales',
+      roleId: 'presales',
       branches: ['One', 'Sales'],
     },
   ],

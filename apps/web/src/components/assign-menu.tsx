@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, Search, UserRoundPlus, X } from 'lucide-react'
 import { Avatar, AvatarGroup, Badge, Button, Checkbox, GlassCard, Icon, Select, cn } from '@pv/ui'
 import { dasVina, HEAD_OF_SALES, type Lead } from '@pv/engines/fixtures/das-vina'
-import { useSession } from '@/app/session'
+import { useSession } from '@/app/auth'
 import { useLeadDesk } from '@/app/desk'
 import { assigneeOptions, nextActions } from '@/data/leads'
 

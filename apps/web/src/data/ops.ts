@@ -11,6 +11,7 @@ import {
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
+import { api } from '@/app/api'
 
 /** Sổ cơ hội — module 3. Kịch bản 2 · DAS Vina.
  *
@@ -36,7 +37,11 @@ async function fetchOps(): Promise<Opportunity[]> {
 
 export const opsBookQuery = queryOptions({
   queryKey: ['sales', 'ops-book'] as const,
-  queryFn: fetchOps,
+  queryFn: () =>
+    api.read('/sales/ops', {
+      need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      load: fetchOps,
+    }),
 })
 
 /** Cột mà một trạng thái rơi vào. Hai kết cục đóng sổ không có cột nào. */
