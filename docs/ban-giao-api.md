@@ -3,6 +3,12 @@
 Lát cắt **24/08/2026**, nhánh `develop`. Tiếp nối `ban-giao-backend.md`: file
 đó chốt NỀN TẢNG, file này ghi thứ đã dựng thật và thứ chưa.
 
+> **Cập nhật 26/08** — lược đồ dữ liệu đã đi trước một bước so với file này:
+> luồng chính chốt lại (chiến dịch TIÊU THỤ lead, không sinh ra lead), `sales.lead`
+> dựng lại 37 cột, thêm `opportunity` và `contract`, và Neon thành DB chính.
+> Trạng thái bảng, nợ, và bốn chặn của endpoint landing page:
+> [`ban-giao-db.md`](./ban-giao-db.md).
+
 ---
 
 ## Chốt nốt hai thứ còn treo

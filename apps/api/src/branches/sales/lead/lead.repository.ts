@@ -1,13 +1,26 @@
-import { and, count, desc, eq, ilike, isNotNull, isNull, type SQL } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  ilike,
+  isNotNull,
+  isNull,
+  notExists,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { LeadBookQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
-import { lead, type LeadRowDb } from './lead.schema'
+import { contract } from '../contract/contract.schema'
+import { lead } from './lead.schema'
+import type { LeadRead } from './lead.mapper'
 
 export type LeadBookPage = {
-  rows: { row: LeadRowDb; ownerName: string | null }[]
+  rows: (LeadRead & { ownerName: string | null })[]
   /** Số dòng người này ĐƯỢC thấy, sau khi áp cả bộ lọc lẫn trục phạm vi. */
   total: number
   /** Số dòng bộ lọc khớp nhưng phạm vi cắt đi. Đây là con số màn hiện thành
@@ -15,6 +28,18 @@ export type LeadBookPage = {
    *  không đếm được thứ nó không nhận. */
   hidden: number
 }
+
+/** Số ngày lead nằm ở chỗ hiện tại.
+ *
+ *  Tính trong câu truy vấn chứ không đọc từ một cột: đây là con số đổi theo
+ *  thời gian ngay cả khi không ai chạm vào dòng dữ liệu, nên một cột `days_here`
+ *  chỉ đúng vào đêm job vừa chạy. Lead đã rơi thì đồng hồ dừng ở `exited_at`.
+ *
+ *  Qua `epoch` chứ không `EXTRACT(day FROM …)`: epoch luôn là tổng số giây của
+ *  cả khoảng, không phụ thuộc cách Postgres cắt interval thành tháng/ngày. */
+const DAYS_HERE = sql<number>`GREATEST(0, FLOOR(
+  EXTRACT(epoch FROM COALESCE(${lead.exitedAt}, now()) - ${lead.stageSince}) / 86400
+))::int`
 
 /** Chỗ DUY NHẤT trong module lead có SQL.
  *
@@ -43,7 +68,7 @@ export class LeadRepository {
     ])
 
     const rows = await this.db
-      .select({ row: lead, ownerName: actor.name })
+      .select({ row: lead, ownerName: actor.name, daysHere: DAYS_HERE })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
       .where(and(...filters, scope))
@@ -59,6 +84,21 @@ export class LeadRepository {
     return r?.n ?? 0
   }
 
+  /** Lead này đã ký chưa.
+   *
+   *  Hỏi thẳng bảng `contract` qua `lead_code`, một chặng trên một chỉ mục.
+   *  Bản trước đọc cột `lead.contract_code`, nhưng cột đó đã bỏ khi quan hệ
+   *  lead → cơ hội thành 1-n: một lead ký hai hợp đồng thì một cột chở không
+   *  nổi, và cột thứ hai là chỗ để hai bên lệch nhau. */
+  private signed(): SQL {
+    return notExists(
+      this.db
+        .select({ one: sql`1` })
+        .from(contract)
+        .where(eq(contract.leadCode, lead.code)),
+    )
+  }
+
   private filtersOf(q: LeadBookQuery): (SQL | undefined)[] {
     return [
       q.stage ? eq(lead.stage, q.stage) : undefined,
@@ -67,7 +107,7 @@ export class LeadRepository {
       /* "Còn chạy" = chưa rơi khỏi luồng và chưa ký. Định nghĩa này nằm ở
          `isRunning()` bên engine; ở đây là bản dịch sang SQL của cùng một câu,
          và bước B của doc bàn giao sẽ gộp chúng lại làm một. */
-      q.running ? and(isNull(lead.exitReason), isNull(lead.contractCode)) : undefined,
+      q.running ? and(isNull(lead.exitReason), this.signed()) : undefined,
       q.running === false ? isNotNull(lead.exitReason) : undefined,
       q.q ? ilike(lead.company, `%${q.q}%`) : undefined,
     ]

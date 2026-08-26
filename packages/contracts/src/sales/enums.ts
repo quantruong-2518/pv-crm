@@ -43,3 +43,34 @@ export type LeadCategory = z.infer<typeof LeadCategory>
 export type LeadTier = z.infer<typeof LeadTier>
 export type StageKey = z.infer<typeof StageKey>
 export type ExitReason = z.infer<typeof ExitReason>
+
+/** Lead vào hệ bằng đường nào. Hệ tự ghi, không ai gõ tay.
+ *
+ *  Khác hẳn `source` — `source` nói lead về từ NGUỒN nào (một mã trong sổ
+ *  nguồn của module 1), còn cái này nói nó đi qua CỬA nào để vào cơ sở dữ
+ *  liệu. Một lead có thể tới từ nguồn 'hoi-thao-q3' mà vào bằng cửa 'import'. */
+export const IntakeChannel = z.enum(['landing', 'bd', 'import'])
+
+/** Kênh gọi lại được khách — ô 5 của cổng init data.
+ *
+ *  Cùng bộ với kênh của module 1 (`WaveChannel` bên fixture): một chiến dịch
+ *  bắn qua kênh nào thì khách trả lời qua đúng kênh đó, nên hai bảng phải là
+ *  MỘT. Ngày bước B tách domain khỏi fixture, fixture nhập từ đây. */
+export const ContactChannel = z.enum([
+  'email',
+  'zalo-oa',
+  'telegram',
+  'in-app',
+  'linkedin',
+  'facebook',
+  'website',
+])
+
+/** Đơn vị tiền. Nợ số 7 của `docs/ban-giao-backend.md`: mọi cột tiền phải đi
+ *  kèm một cột này, và ràng buộc "có tiền thì phải có đơn vị" được ép ở tầng
+ *  bảng bằng CHECK chứ không nhờ người nhớ. */
+export const CurrencyCode = z.enum(['VND', 'USD'])
+
+export type IntakeChannel = z.infer<typeof IntakeChannel>
+export type ContactChannel = z.infer<typeof ContactChannel>
+export type CurrencyCode = z.infer<typeof CurrencyCode>

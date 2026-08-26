@@ -1,9 +1,106 @@
 {
-  "id": "acaff770-7cb4-4876-a3c0-286de74fde47",
+  "id": "1f2f1cb3-4bce-4d38-a0b7-3693078b217c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "sales.contract": {
+      "name": "contract",
+      "schema": "sales",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "opportunity_code": {
+          "name": "opportunity_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lead_code": {
+          "name": "lead_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "signed_at": {
+          "name": "signed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "contract_lead_idx": {
+          "name": "contract_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_owner_id_actor_id_fk": {
+          "name": "contract_owner_id_actor_id_fk",
+          "tableFrom": "contract",
+          "tableTo": "actor",
+          "schemaTo": "platform",
+          "columnsFrom": ["owner_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "contract_opportunity_fk": {
+          "name": "contract_opportunity_fk",
+          "tableFrom": "contract",
+          "tableTo": "opportunity",
+          "schemaTo": "sales",
+          "columnsFrom": ["opportunity_code", "lead_code"],
+          "columnsTo": ["code", "lead_code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_money_pair": {
+          "name": "contract_money_pair",
+          "value": "(\"amount\" IS NULL) = (\"currency\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "sales.lead": {
       "name": "lead",
       "schema": "sales",
@@ -14,46 +111,159 @@
           "primaryKey": true,
           "notNull": true
         },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "company": {
           "name": "company",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
+        "legal_name": {
+          "name": "legal_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_code": {
+          "name": "tax_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "province": {
           "name": "province",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "category": {
           "name": "category",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "tier": {
-          "name": "tier",
+        "main_product": {
+          "name": "main_product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "headcount": {
+          "name": "headcount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plants": {
+          "name": "plants",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_name": {
+          "name": "contact_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "required_filled": {
-          "name": "required_filled",
-          "type": "smallint",
+        "contact_title": {
+          "name": "contact_title",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 0
+          "notNull": false
         },
-        "optional_filled": {
-          "name": "optional_filled",
-          "type": "smallint",
+        "email": {
+          "name": "email",
+          "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "default": 0
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_channel": {
+          "name": "contact_channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pain": {
+          "name": "pain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_stack": {
+          "name": "current_stack",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_maker": {
+          "name": "decision_maker",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approver": {
+          "name": "approver",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "budget": {
+          "name": "budget",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deadline": {
+          "name": "deadline",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         },
         "owner_id": {
           "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bd_owner_id": {
+          "name": "bd_owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "marketing_owner_id": {
+          "name": "marketing_owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tier": {
+          "name": "tier",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -64,37 +274,57 @@
           "primaryKey": false,
           "notNull": false
         },
-        "deal_code": {
-          "name": "deal_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contract_code": {
-          "name": "contract_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "days_here": {
-          "name": "days_here",
-          "type": "integer",
+        "stage_since": {
+          "name": "stage_since",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": 0
+          "default": "now()"
+        },
+        "intake_channel": {
+          "name": "intake_channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "source": {
           "name": "source",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
+        "score": {
+          "name": "score",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "default": 0
+        },
+        "last_touch_at": {
+          "name": "last_touch_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "required_filled": {
+          "name": "required_filled",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "((\n        (\"legal_name\" IS NOT NULL OR \"tax_code\" IS NOT NULL OR \"address\" IS NOT NULL)::int\n      + (\"main_product\" IS NOT NULL)::int\n      + (\"headcount\" IS NOT NULL OR \"plants\" IS NOT NULL)::int\n      + (\"contact_title\" IS NOT NULL)::int\n      + (\"phone\" IS NOT NULL OR \"contact_channel\" IS NOT NULL)::int\n      + (\"pain\" IS NOT NULL)::int\n      )::smallint)",
+            "type": "stored"
+          }
+        },
+        "optional_filled": {
+          "name": "optional_filled",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "((\n        (\"current_stack\" IS NOT NULL)::int\n      + (\"decision_maker\" IS NOT NULL OR \"approver\" IS NOT NULL)::int\n      + (\"budget\" IS NOT NULL)::int\n      + (\"deadline\" IS NOT NULL)::int\n      )::smallint)",
+            "type": "stored"
+          }
         },
         "exit_reason": {
           "name": "exit_reason",
@@ -154,6 +384,37 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "lead_source_idx": {
+          "name": "lead_source_idx",
+          "columns": [
+            {
+              "expression": "source",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "lead_email_live_idx": {
+          "name": "lead_email_live_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"exit_reason\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -166,12 +427,190 @@
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "lead_bd_owner_id_actor_id_fk": {
+          "name": "lead_bd_owner_id_actor_id_fk",
+          "tableFrom": "lead",
+          "tableTo": "actor",
+          "schemaTo": "platform",
+          "columnsFrom": ["bd_owner_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lead_marketing_owner_id_actor_id_fk": {
+          "name": "lead_marketing_owner_id_actor_id_fk",
+          "tableFrom": "lead",
+          "tableTo": "actor",
+          "schemaTo": "platform",
+          "columnsFrom": ["marketing_owner_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "lead_money_pair": {
+          "name": "lead_money_pair",
+          "value": "(\"budget\" IS NULL) = (\"currency\" IS NULL)"
+        },
+        "lead_exit_pair": {
+          "name": "lead_exit_pair",
+          "value": "(\"exit_reason\" IS NULL) = (\"exited_at\" IS NULL)"
+        },
+        "lead_exit_no_stage": {
+          "name": "lead_exit_no_stage",
+          "value": "\"exit_reason\" IS NULL OR \"stage\" IS NULL"
+        },
+        "lead_no_blank": {
+          "name": "lead_no_blank",
+          "value": "\"company\" <> '' AND \"legal_name\" <> '' AND \"tax_code\" <> '' AND \"address\" <> '' AND \"province\" <> '' AND \"main_product\" <> '' AND \"contact_name\" <> '' AND \"contact_title\" <> '' AND \"email\" <> '' AND \"phone\" <> '' AND \"pain\" <> '' AND \"current_stack\" <> '' AND \"decision_maker\" <> '' AND \"approver\" <> '' AND \"source\" <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.opportunity": {
+      "name": "opportunity",
+      "schema": "sales",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lead_code": {
+          "name": "lead_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage": {
+          "name": "stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_close": {
+          "name": "expected_close",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lost_reason": {
+          "name": "lost_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "opportunity_lead_idx": {
+          "name": "opportunity_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "opportunity_owner_idx": {
+          "name": "opportunity_owner_idx",
+          "columns": [
+            {
+              "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "opportunity_lead_code_lead_code_fk": {
+          "name": "opportunity_lead_code_lead_code_fk",
+          "tableFrom": "opportunity",
+          "tableTo": "lead",
+          "schemaTo": "sales",
+          "columnsFrom": ["lead_code"],
+          "columnsTo": ["code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "opportunity_owner_id_actor_id_fk": {
+          "name": "opportunity_owner_id_actor_id_fk",
+          "tableFrom": "opportunity",
+          "tableTo": "actor",
+          "schemaTo": "platform",
+          "columnsFrom": ["owner_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "opportunity_code_lead_key": {
+          "name": "opportunity_code_lead_key",
+          "nullsNotDistinct": false,
+          "columns": ["code", "lead_code"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "opportunity_money_pair": {
+          "name": "opportunity_money_pair",
+          "value": "(\"amount\" IS NULL) = (\"currency\" IS NULL)"
+        },
+        "opportunity_lost_closed": {
+          "name": "opportunity_lost_closed",
+          "value": "\"lost_reason\" IS NULL OR \"closed_at\" IS NOT NULL"
+        }
+      },
       "isRLSEnabled": false
     },
     "platform.actor": {

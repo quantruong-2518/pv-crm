@@ -40,7 +40,7 @@ export class LeadService {
        nếu mapper cũng sai theo, nhưng không lọt qua đây. Giá phải trả bị chặn
        trên bởi `size` tối đa 200 dòng. */
     return LeadBookResponse.parse({
-      rows: visible.map((v) => toContract(v.row)),
+      rows: visible.map((v) => toContract(v)),
       total: page.total,
       hidden: page.hidden + hidden,
     })
