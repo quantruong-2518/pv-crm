@@ -16,7 +16,7 @@ export class LeadController {
   constructor(private readonly leads: LeadService) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(LeadBookQuery)) q: LeadBookQuery) {
     return this.leads.book(who, q)
   }

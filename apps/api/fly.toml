@@ -1,0 +1,55 @@
+# Deploy CHỈ từ GỐC REPO — build context phải thấy packages/engines,
+# packages/contracts, giống hệt điều kiện đã ghi ở đầu apps/api/Dockerfile:
+#
+#     fly deploy . --config apps/api/fly.toml --app pvone-crm-api
+#
+# KHÔNG truyền thêm `--dockerfile`: đường dẫn của `--dockerfile` VÀ của
+# `[build] dockerfile` bên dưới được flyctl tính tương đối với thư mục CHỨA
+# `fly.toml` (tức `apps/api/`), không phải tương đối với build context — do
+# đó giá trị đúng là "Dockerfile" trần, không phải "apps/api/Dockerfile". Đã
+# vấp lỗi `dockerfile '.../apps/api/apps/api/Dockerfile' not found` thật khi
+# để sai, ghi lại đây để khỏi vấp lại.
+#
+# KHÔNG dùng buildpack: Fly.io tự khuyến cáo không dùng buildpack cho monorepo
+# pnpm — đúng gotcha symlink `.pnpm` mà Dockerfile đã giải thủ công. Chi tiết
+# và điều kiện chọn Fly.io/Neon: docs/ban-giao-api.md § "Nơi chạy".
+#
+app = "pvone-crm-api"
+primary_region = "sin" # Singapore — gần VN nhất, Fly.io chưa có region tại VN
+
+# Biến KHÔNG phải secret thì khai ở đây (theo repo, ai đọc cũng thấy) — chỉ
+# `DATABASE_URL` mới qua `fly secrets set` vì đó là thứ thật sự nhạy cảm.
+[env]
+NODE_ENV = "production"
+
+[build]
+dockerfile = "Dockerfile"
+
+# Hai process, MỘT image — đúng thiết kế `src/worker.ts` đã ghi: đổi lệnh
+# chạy, không đổi image. CMD gốc trong Dockerfile là cho `api`; `worker` đè
+# lệnh chạy ở đây.
+[processes]
+api = "node --enable-source-maps -r tsconfig-paths/register dist/apps/api/src/main.js"
+worker = "node --enable-source-maps -r tsconfig-paths/register dist/apps/api/src/worker.js"
+
+[http_service]
+internal_port = 3000
+processes = ["api"]
+force_https = true
+# Giữ máy API luôn chạy — không auto-stop. Cold-start vài giây khi Sale mở
+# Sổ lead là trải nghiệm tệ hơn vài USD/tháng tiết kiệm được.
+auto_stop_machines = false
+auto_start_machines = true
+min_machines_running = 1
+
+[[http_service.checks]]
+grace_period = "20s"
+interval = "15s"
+method = "GET"
+path = "/healthz"
+timeout = "3s"
+
+# Kích thước máy: mặc định Fly (shared-cpu-1x) đủ cho quy mô hiện tại. Chỉnh
+# riêng từng process bằng `fly scale vm --process-group worker ...` sau khi
+# app đã tồn tại — không đoán syntax `[[vm]]` theo process ở đây khi chưa
+# kiểm bằng CLI thật.

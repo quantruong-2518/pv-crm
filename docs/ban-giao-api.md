@@ -7,10 +7,10 @@ Lát cắt **24/08/2026**, nhánh `develop`. Tiếp nối `ban-giao-backend.md`:
 
 ## Chốt nốt hai thứ còn treo
 
-| Treo ở doc trước              | Chốt                                              |
-| ----------------------------- | ------------------------------------------------- |
-| Framework: NestJS hay Fastify | **NestJS trên `@nestjs/platform-fastify`**        |
-| Nơi chạy                      | Chưa chốt — còn chờ pháp chế trả lời Nghị định 53 |
+| Treo ở doc trước              | Chốt                                                                          |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| Framework: NestJS hay Fastify | **NestJS trên `@nestjs/platform-fastify`**                                    |
+| Nơi chạy                      | **Fly.io (API + worker) · Neon (Postgres)** — có điều kiện, xem mục ngay dưới |
 
 NestJS là lựa chọn của chủ dự án, biết trước ba chỗ ma sát với repo này (idiom
 DTO class vs zod · ESM vs decorator · DI container chồng lên factory đã có).
@@ -18,6 +18,44 @@ Cả ba đã trung hoà, cách làm ghi ở mục "Ma sát Nest" bên dưới. C
 adapter Fastify chứ không phải Express mặc định: chuỗi hook của Fastify là đúng
 hình chuỗi interceptor `BEFORE`/`AFTER` mà `apps/web/src/app/api/client.ts` đã
 dựng, và nó giữ đường lùi nếu sau này muốn gỡ lớp Nest.
+
+### Nơi chạy — Fly.io + Neon, có điều kiện
+
+Chốt **26/08**: **Fly.io** (API + worker, hai process cùng image, xem
+`apps/api/fly.toml`) · **Neon** (Postgres managed). So với AWS: chi phí ước
+~30–45 USD/tháng ở quy mô hiện tại, AWS RDS + ECS Fargate + ALB khó xuống
+dưới 150 USD/tháng dù traffic thấp vì ALB và RDS có phí sàn cố định bất kể
+tải. Team hiện chưa có người trực ops nên PaaS (Fly) rẻ vận hành hơn IaaS tự
+quản (Vultr VM trần) hay AWS tự quản — đúng bậc "container host trước,
+ECS/RDS khi có người trực ops" mà `ban-giao-backend.md` đã phác.
+
+**Có điều kiện, không phải chốt cuối cùng:** quyết định này CỐ TÌNH bỏ qua
+Nghị định 53/2022 (lưu trữ dữ liệu trong nước) — Fly.io và Neon đều không có
+hạ tầng tại Việt Nam, gần nhất là Singapore. Câu hỏi pháp chế ở
+`ban-giao-backend.md` vẫn treo nguyên, chưa được trả lời ở đây. Nếu pháp chế
+xác nhận bắt buộc lưu trong nước, phần phải đổi là **Neon → Vultr Managed
+Database hoặc cloud VN** (Viettel IDC/VNG/FPT/CMC — Vultr có datacenter Hồ
+Chí Minh, cần tự xác nhận lại trước khi chọn); Fly.io/Vercel không giữ data
+at rest nên không phải đổi theo.
+
+**Build vẫn qua `apps/api/Dockerfile` có sẵn, không phải buildpack.** Fly.io
+tự khuyến cáo không dùng buildpack cho monorepo — đúng gotcha symlink
+`.pnpm` mà Dockerfile đã giải thủ công (xem comment trong chính file đó).
+"Không dùng Docker" chỉ đúng cho workflow phát triển hằng ngày (vẫn
+`pglite://`, không cần cài Docker tại máy) — Docker chỉ còn là build recipe
+phía Fly, không ai gõ lệnh Docker tay:
+
+```bash
+fly deploy . --config apps/api/fly.toml --dockerfile apps/api/Dockerfile
+```
+
+Chạy từ GỐC REPO — cùng lý do `Dockerfile` đã ghi ở dòng đầu: build context
+phải thấy `packages/engines`, `packages/contracts`.
+
+**Chưa làm hôm nay** (nằm ngoài phạm vi lần chuẩn bị này — chỉ mới soạn
+config, chưa deploy thật): tạo account Fly.io + Neon, `fly launch`/`fly
+deploy` với `DATABASE_URL` thật, set `VITE_API_URL` trên Vercel. Cả bốn cần
+tay người, không script hoá được vì đụng account/secret thật.
 
 **Không microservice.** Modular monolith, module chia theo NHÁNH, một Postgres
 nhiều schema. Ba lý do nằm trong chính code: `E2.check()` chạy trong vòng lặp
@@ -202,3 +240,13 @@ quả gõ tay bằng `curl`; nó nên thành test.
 
 Repository và controller không test riêng — phủ qua vài ca tích hợp trên lát
 cắt dọc thật.
+
+---
+
+## Công cụ đã thêm cho phiên sau
+
+`deploy-guardian` (`.claude/agents/deploy-guardian.md`) — gọi khi cần "deploy
+BE". Build-kiểm trước, deploy qua `pnpm fly:deploy`, xác nhận `/healthz` thật
+trước khi báo xong, và đã ghi sẵn ba lỗi thật vấp phải lúc dựng lần đầu (path
+Dockerfile lặp đôi, `husky` vỡ bước cài `--prod`, `tsconfig-paths` khai nhầm
+`devDependencies`) để không vấp lại.

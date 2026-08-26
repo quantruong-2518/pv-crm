@@ -23,7 +23,13 @@ Bản đồ dữ liệu đầy đủ (ERD · dòng chảy · ba trục quyền �
 > **Cập nhật 24/08** — `Framework BE` đã chốt: **NestJS trên adapter Fastify**,
 > và `apps/api` đã dựng tới lát cắt dọc đầu tiên chạy thật. Trạng thái, thứ đã
 > kiểm, nợ và việc tiếp theo: [`ban-giao-api.md`](./ban-giao-api.md).
-> Hai mục còn lại dưới đây vẫn treo.
+>
+> **Cập nhật 26/08** — `Nơi chạy BE` cũng đã chốt: **Fly.io + Neon**, CÓ ĐIỀU
+> KIỆN — chốt bằng cách cố tình bỏ qua mục Nghị định 53 ngay dưới đây, chưa
+> phải câu trả lời cho nó. Lý do chọn, và phần phải đổi nếu pháp chế xác nhận
+> bắt buộc lưu trong nước: [`ban-giao-api.md`](./ban-giao-api.md#nơi-chạy--flyio--neon-có-điều-kiện).
+>
+> Một mục còn lại dưới đây vẫn treo thật — chưa ai hỏi pháp chế.
 
 - **Framework BE**: NestJS hay Fastify. Nest đáng giá nếu ≥3 người viết BE và
   có `@pv/contracts` bằng zod để khỏi viết DTO hai lần; dưới ngưỡng đó thì

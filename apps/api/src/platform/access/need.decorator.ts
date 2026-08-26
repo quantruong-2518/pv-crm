@@ -9,10 +9,10 @@ export const PUBLIC_KEY = 'pv:public'
  *  Hình này là hình `apps/web/src/data/*.ts` đang dùng, từng chữ một:
  *
  *      // apps/web/src/data/leads.ts
- *      api.read('/sales/leads', { need: { branch: 'Sales', permission: 'lead.view' } })
+ *      api.read('/sales/leads', { need: { branch: 'Sales', permission: 'lead.xem' } })
  *
  *      // apps/api — cùng một câu, phía bên kia dây
- *      @Need({ branch: 'Sales', permission: 'lead.view' })
+ *      @Need({ branch: 'Sales', permission: 'lead.xem' })
  *
  *  Hai đầu khai giống nhau vì hai đầu hỏi CÙNG MỘT E2. Đó là toàn bộ ý nghĩa
  *  của "một ma trận quyền, kiểm hai lần".

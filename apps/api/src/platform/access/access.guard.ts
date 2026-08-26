@@ -11,11 +11,18 @@ import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from './need.decorator'
 /** CHỐT LỆCH GIỮA ENGINE VÀ HỢP ĐỒNG.
  *
  *  `packages/contracts` khai lại bốn `DenyReason` bằng zod thay vì nhập từ
- *  engine (để hợp đồng không kéo theo cả engine). Phép gán một dòng dưới đây
- *  là chỗ `tsc` bắt được nếu hai bên lệch: thêm một lý do thứ năm vào E2 mà
- *  quên thêm vào hợp đồng thì build đỏ ngay, không đợi tới lúc màn nhận một
- *  chuỗi nó không biết đọc. */
-const asContractReason = (r: EngineDenyReason): ContractDenyReason => r
+ *  engine (để hợp đồng không kéo theo cả engine), bằng khoá ASCII thay vì
+ *  tiếng Việt (để sống sót qua HTTP). Bảng dưới đây dịch 1-1, đúng bảng đã ghi
+ *  ở `e2-access.ts`. `Record<EngineDenyReason, …>` là chỗ `tsc` bắt được nếu
+ *  hai bên lệch: thêm một lý do thứ năm vào E2 mà quên thêm vào bảng này thì
+ *  build đỏ ngay, không đợi tới lúc màn nhận một chuỗi nó không biết đọc. */
+const CONTRACT_REASON: Record<EngineDenyReason, ContractDenyReason> = {
+  'chưa-đăng-nhập': 'unauthenticated',
+  'thiếu-nhánh': 'branch-not-licensed',
+  'thiếu-quyền': 'permission-denied',
+  'ngoài-phạm-vi': 'out-of-scope',
+}
+const asContractReason = (r: EngineDenyReason): ContractDenyReason => CONTRACT_REASON[r]
 
 /** Hàng rào quyền của máy chủ — bản đối xứng của `requireAccess` bên web.
  *
@@ -67,12 +74,12 @@ export class AccessGuard implements CanActivate {
     if (actor) {
       await this.audit.write({
         actorId: actor.id,
-        action: 'view',
+        action: 'xem',
         note: `chặn ${req.method} ${req.url} · ${verdict.reason}`,
       })
     }
 
-    const unauth = verdict.reason === 'unauthenticated'
+    const unauth = verdict.reason === 'chưa-đăng-nhập'
     throw new PvError({
       kind: unauth ? 'unauthenticated' : 'forbidden',
       status: unauth ? 401 : 403,

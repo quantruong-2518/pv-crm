@@ -46,7 +46,12 @@ RUN pnpm --filter @pv/api build
 # được nhưng `require('@nestjs/core')` không tìm thấy gì.
 FROM manifests AS run
 ENV NODE_ENV=production
-RUN pnpm install --frozen-lockfile --prod --filter @pv/api... \
+# `--ignore-scripts`: package.json GỐC có `"prepare": "husky"`, chạy sau mọi
+# lần install. `husky` là devDependency nên `--prod` không cài nó, và lệnh
+# `husky` gọi ở bước `prepare` báo "not found" — vỡ cả bước install. Không
+# dependency thật nào của server (drizzle-orm, pg, fastify, @nestjs/*, zod,
+# rxjs) cần script cài đặt để chạy, nên bỏ qua an toàn.
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts --filter @pv/api... \
     && addgroup -S pv && adduser -S pv -G pv
 
 COPY --from=build --chown=pv:pv /repo/apps/api/dist apps/api/dist
