@@ -50,6 +50,16 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/campaigns'),
   },
   {
+    /** Kho danh sách prospect + luồng nhập năm bước. Đoạn TĨNH nên phải đứng
+     *  TRƯỚC `:code` — dữ liệu router xếp hạng theo độ cụ thể nên nó thắng dù
+     *  đứng đâu, nhưng ai đó đổi sang `Routes` thủ công thì thứ tự thành
+     *  load-bearing và "kho-danh-sach" sẽ bị nuốt thành một mã nguồn. */
+    path: '/sales/campaigns/kho-danh-sach',
+    name: 'Kinh doanh · Module 1 · Kho danh sách',
+    branch: 'Sales',
+    load: () => import('@/pages/prospect-lists'),
+  },
+  {
     /** Hồ sơ một nguồn. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
      *  là một dòng của sổ, và nav vẫn sáng ở mục Chiến dịch & Sự kiện. */
     path: '/sales/campaigns/:code',

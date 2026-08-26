@@ -7,7 +7,16 @@ import { cn } from '../lib/cn'
  *  Số ≥34px · chữ phụ ≥14px · nút ≥48px.
  *
  *  `highContrast` là NGOẠI LỆ DUY NHẤT được dùng viền (2px) trong cả hệ —
- *  cho kiosk đứng ngoài sáng, nơi bỏ viền là mất đọc (luật 4 · docs/luat-thiet-ke.md). */
+ *  cho kiosk đứng ngoài sáng, nơi bỏ viền là mất đọc (luật 4 · docs/luat-thiet-ke.md).
+ *
+ *  CHỮ PHỤ Ở LẠI 14px — đây là "cỡ ngoài thang có lý do" của §8.1 điều 14, không
+ *  phải nợ chưa trả. Thang 9 bậc chốt bậc 5 là 13px, nhưng sàn đọc-xa-3m của
+ *  chính khối này là 14px (dòng trên, và footer O-05 trên trang /kit in đúng câu
+ *  ấy). Hạ xuống 13px là hạ sàn đọc của kiosk ngoài sáng để làm đẹp một bảng —
+ *  thang chữ nhường ở đây, vì nó là thứ không có con số nào trong luật 13 gọi
+ *  đích danh, còn "đọc được ngoài nắng" thì có.
+ *  Số thì ngược lại: 36px không thuộc bậc nào, đã nâng lên 42px (bậc 1 · hero) —
+ *  vẫn trên sàn ≥34px, và nay nằm trong thang. */
 export type KioskTileProps = {
   /** đã format sẵn: "68%" */
   value: string
@@ -36,10 +45,10 @@ export function KioskTile({
           className,
         )}
       >
-        <div className="text-glass-foreground mb-2.5 font-mono text-[10px] tracking-[.14em]">
+        <div className="text-glass-foreground mb-2.5 font-mono text-[10.5px] tracking-[.14em]">
           TƯƠNG PHẢN CAO
         </div>
-        <div className="tnum font-num text-[36px] font-bold tracking-[-1px] text-white">
+        <div className="tnum font-num text-[42px] font-bold tracking-[-1.5px] text-white">
           {value}
         </div>
         <div className="text-foreground mt-2.5 text-[14px] leading-[1.6]">{lines}</div>
@@ -58,7 +67,7 @@ export function KioskTile({
 
   return (
     <GlassCard className={cn('flex flex-col p-[22px]', className)}>
-      <div className="tnum font-num text-[36px] font-semibold tracking-[-1px]">{value}</div>
+      <div className="tnum font-num text-[42px] font-semibold tracking-[-1.5px]">{value}</div>
       <div className="text-muted-foreground mt-2.5 text-[14px] leading-[1.6]">{lines}</div>
       {source && (
         <div className="mt-auto pt-3.5">

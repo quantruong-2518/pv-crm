@@ -50,7 +50,7 @@ export function SegmentedControl({
         aria-labelledby={`seg-${label}`}
         className={cn(
           'flex min-w-0 flex-wrap items-center gap-1 rounded-md bg-white/5 p-1',
-          size === 'sm' ? 'text-[11px]' : 'text-[12px]',
+          size === 'sm' ? 'text-[11px]' : 'text-[12.5px]',
         )}
       >
         {options.map((o) => {

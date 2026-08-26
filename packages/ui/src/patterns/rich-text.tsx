@@ -206,7 +206,7 @@ export function RichTextView({ html, className }: { html: string; className?: st
   if (isBlank(html)) return null
   return (
     <div
-      className={cn('text-glass-foreground text-[12px] leading-[1.7]', CONTENT_STYLE, className)}
+      className={cn('text-glass-foreground text-[12.5px] leading-[1.7]', CONTENT_STYLE, className)}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

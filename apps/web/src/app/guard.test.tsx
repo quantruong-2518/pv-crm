@@ -47,7 +47,12 @@ describe('RequireAccess', () => {
     expect(screen.getByText('Bị ẩn theo quyền của bạn')).toBeInTheDocument()
     // Đá về màn login lúc này là nói dối nguyên nhân — người dùng sẽ đăng nhập vòng vo.
     expect(screen.queryByText('màn chọn vai')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Xin quyền' })).toBeInTheDocument()
+    /* Ràng buộc 11 · không nút nào hứa một tính năng không tồn tại. Nút "Xin
+       quyền" từng đứng ở đây với `onClick` rỗng: bấm không xảy ra gì và không
+       chữ nào nói ra. Nay màn nói thẳng, và nút duy nhất là lối ra có thật. */
+    expect(screen.queryByRole('button', { name: 'Xin quyền' })).not.toBeInTheDocument()
+    expect(screen.getByText(/chưa có đường xin quyền/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Đổi vai' })).toBeInTheDocument()
   })
 
   it('ghi vết mọi lần chặn — không có vết thì sau này không ai giải thích được', () => {

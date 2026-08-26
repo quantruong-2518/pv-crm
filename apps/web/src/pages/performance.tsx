@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react'
 import {
   Activity,
+  ArrowRight,
   CalendarRange,
   FileCheck,
   Filter,
-  TrendingDown,
   TriangleAlert,
   UserMinus,
   Users,
   Wallet,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
@@ -18,6 +19,7 @@ import {
   Badge,
   BarChart,
   billions,
+  Button,
   ContextRail,
   CostBand,
   DataTable,
@@ -26,24 +28,26 @@ import {
   GlassCard,
   Icon,
   Input,
+  InsetPanel,
   Kicker,
+  LoadingBlock,
   MetaPill,
   millions,
   Money,
+  PageHeader,
   percent,
   Progress,
   RadialGauge,
   SectionTitle,
   SegmentedControl,
   Separator,
-  Skeleton,
   StatCard,
+  TableSkeleton,
   cn,
   type BarDatum,
 } from '@pv/ui'
 import {
   DAS_VINA_FROZEN_AT,
-  dasVina,
   HEAD_OF_SALES,
   LEAD_TIERS,
   SLA_WATCH_MARGIN as SLA_MARGIN,
@@ -52,9 +56,10 @@ import { useAppChrome } from '@/app/chrome'
 import { dm } from '@/lib/date'
 import {
   BD_NAME,
+  BOOK_TOTAL,
   LAYERS,
+  PERFORMANCE_RAIL,
   performanceQuery,
-  railChips,
   type KpiReading,
   type PaceRow,
   type Performance,
@@ -96,12 +101,37 @@ import {
  *     còn mấy ngày, rồi mới tới ba lớp thước và bảng bằng chứng. Cùng một vai
  *     thì cùng một bộ thước — KPI của BD giống nhau, của Sale giống nhau.
  *
+ *  4. **Phễu vẽ ĐÚNG MỘT LẦN.** Tới 20/08 màn vẽ phễu ở hai chỗ — ô hero của
+ *     khối thước, và một bản y hệt trong drawer của vai không chấm cá nhân —
+ *     cùng đọc `data.funnel`, cùng `orientation="bar"`, cùng nhãn "của bậc
+ *     trên". Hai bản cùng số là hai chỗ để lệch nhau. Drawer giờ chỉ DẪN sang
+ *     phễu ở đầu màn, và dẫn bằng CHỮ chứ không bằng nút: drawer không cuộn
+ *     được lên đầu màn, nút ở đó sẽ hứa một chỗ nó không đưa tới.
+ *
+ *  5. **Màn có lối đi tiếp** (21/08). Trước đó cả 1.363 dòng không có một
+ *     `navigate` nào: vòng "nguồn → chia việc → đo → chỉnh" đứt đúng ở khớp
+ *     "đo". Giờ ba đường, và cả ba đều tới một màn CÓ THẬT trong `routes.tsx`:
+ *     chân màn sang `/sales/plan` (bước "chỉnh"), dòng bảng nguồn sang hồ sơ
+ *     nguồn, dòng bảng lead và bảng đơn sang hồ sơ lead. Chip ContextRail thì
+ *     KHÔNG bấm được — bốn mã của nó chưa có màn nào nhận.
+ *
+ *  6. **Kết luận đứng trước chẩn đoán** (21/08). "Mấy người đang dưới mục tiêu"
+ *     và "bậc rớt sâu nhất" từng chỉ sống trong câu quảng cáo của khối AI ở
+ *     đáy trang. Giờ chúng là một dòng ngay dưới tiêu đề khối đầu tiên, và bảng
+ *     người đứng trước khối dòng chảy.
+ *
  *  Thước đo lấy nguyên từ `ROLE_KPI_MODEL` (fixture · module 5): module 3 chỉ hiển
  *  thị, không tự định nghĩa cách chấm ai. Thước nào fixture chưa có nguồn số thì
  *  màn nói thẳng "chưa đo được".
  *
+ *  **Màn này được miễn khối "Cố tình không làm" (19/08).** Đổi lại, mọi điều bị
+ *  bỏ phải nói TẠI CHỖ: "chưa đo được" đứng ngay trên thước, "kỳ này không lead
+ *  nào rơi" đứng ngay trong ô rỗng, hai chặng SLA sau bán nói lý do ngay dưới
+ *  tiêu đề bảng. Đừng đưa khối gom lại quay về.
+ *
  *  Số lấy qua `useQuery`, tính hết trong `data/performance.ts`. Màn này không
- *  cộng trừ con số nào, chỉ chọn cách đọc chúng.
+ *  cộng trừ con số nào, chỉ chọn cách đọc chúng — kể cả "còn thiếu bao nhiêu"
+ *  (`KpiReading.gap`) và "bậc rớt sâu nhất" (`Performance.worstStep`).
  *
  *  State của màn, cả ba đều là chuyện riêng của màn nên giữ bằng `useState`: kỳ
  *  đang xem · vai đang lọc · người đang mở drawer. */
@@ -154,6 +184,19 @@ function targetText(k: KpiReading): string | null {
   return num(k.target)
 }
 
+/** Nhãn ô khoảng cách. Với thước "càng thấp càng tốt" — giá mỗi lead tốt —
+ *  "còn thiếu" là câu nói ngược: vượt mục tiêu ở đó là tin xấu, không phải một
+ *  lời khen. Chiều do tầng dữ liệu chốt (`gapKind`), màn không tự đoán. */
+function gapLabel(k: KpiReading): string {
+  return k.gapKind === 'dang-vuot' ? 'Đang vượt mục tiêu' : 'Còn thiếu'
+}
+
+function gapText(k: KpiReading): string {
+  if (k.gap === null) return '—'
+  if (k.gap === 0) return k.gapKind === 'dang-vuot' ? 'trong mục tiêu' : 'đã đạt'
+  return kpiText({ value: k.gap, unit: k.unit })
+}
+
 export function PerformancePage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const [choice, setChoice] = useState<PeriodChoice>(DEFAULT_CHOICE)
@@ -165,34 +208,29 @@ export function PerformancePage() {
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-5 lg:gap-6">
-        <SectionTitle
-          size="lg"
-          kicker="Kinh doanh · Module 3"
-          hint={
+      <div className="flex flex-col gap-4 lg:gap-6">
+        <PageHeader
+          title="Performance"
+          subtitle={
             <>
-              Kỳ cắt theo ngày xảy ra của từng mốc — lead vào sổ, lên MQL, vào sổ cơ hội, ký. Kịch
-              bản DAS Vina đóng băng lúc{' '}
-              <span className="font-mono">{DAS_VINA_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
-              <span className="font-mono">{dm(DAS_VINA_FROZEN_AT)}</span>; sau mốc đó không có số đo
-              nào.
+              Kịch bản DAS Vina · chủ màn là {HEAD_OF_SALES} · kỳ dữ liệu {vn(DATA_WINDOW.from)} →{' '}
+              <span className="font-mono">{dm(DAS_VINA_FROZEN_AT)}</span> lúc{' '}
+              <span className="font-mono">{DAS_VINA_FROZEN_AT.slice(11, 16)}</span>, sau mốc đó
+              không còn số đo · chuỗi dưới là đơn lớn nhất đang mở, dựng từ đồ thị object.
             </>
           }
-        >
-          Performance
-        </SectionTitle>
+          rail={<ContextRail objects={PERFORMANCE_RAIL} />}
+        />
 
         <PeriodBar choice={choice} onChange={setChoice} data={data} />
 
         {isPending || !data ? (
-          <LoadingBlock />
+          <Waiting />
         ) : (
           <>
             <ScoreBento data={data} />
-            <FlowBlock
-              data={data}
-              onWiden={() => setChoice({ grain: 'nam', key: YEARS[YEARS.length - 1]?.key ?? '' })}
-            />
+            {/* Bảng người đứng TRƯỚC khối dòng chảy: nó là câu trả lời của màn
+                ("ai đang tắc"), còn lý do rơi và SLA là phần chẩn đoán đọc sau. */}
             <PeopleBlock
               data={data}
               role={role}
@@ -200,6 +238,11 @@ export function PerformancePage() {
               openId={openId}
               onOpen={setOpenId}
             />
+            <FlowBlock
+              data={data}
+              onWiden={() => setChoice({ grain: 'nam', key: YEARS[YEARS.length - 1]?.key ?? '' })}
+            />
+            <SourceNote />
             <AssistantBlock data={data} />
           </>
         )}
@@ -210,13 +253,17 @@ export function PerformancePage() {
   )
 }
 
-function LoadingBlock() {
+/** Khung chờ đo theo đúng hai khối sẽ mọc lên: hàng thẻ số (hai dải cao xấp xỉ
+ *  hai hàng bento) rồi bảng nhân sự bảy dòng. Khung thấp hơn nội dung thật thì
+ *  màn nhảy một nhịp lúc số về — đúng thứ khung chờ sinh ra để tránh. */
+function Waiting() {
   return (
-    <GlassCard className="flex flex-col gap-3 p-5 lg:p-6">
-      <Skeleton className="h-11 w-full" />
-      <Skeleton className="h-11 w-full" />
-      <Skeleton className="h-11 w-full" />
-    </GlassCard>
+    <>
+      <LoadingBlock height={216} lines={2} label="Đang tải thước của phòng" />
+      <GlassCard variant="b" className="flex flex-col gap-3 p-4 lg:p-5">
+        <TableSkeleton rows={7} header label="Đang tải bảng hiệu suất theo nhân sự" />
+      </GlassCard>
+    </>
   )
 }
 
@@ -255,7 +302,7 @@ function PeriodBar({
         <div className="flex flex-wrap items-center gap-3">
           <Icon icon={CalendarRange} size={16} className="text-accent-foreground" />
           <SegmentedControl
-            label="Mức kỳ"
+            label="Mức của kỳ xem"
             hideLabel
             value={choice.grain}
             options={GRAINS}
@@ -272,13 +319,16 @@ function PeriodBar({
               )
             }
           />
+          {/* Bộ chọn kỳ KHÔNG dùng `size="sm"`: nó lái mọi con số dưới nó, mà
+              `sm` cho ô cao 24px — nửa ngưỡng 48px của luật 13. `md` lên 32px;
+              phần còn lại tới 48px chờ quyết định chung về Button và
+              SegmentedControl, ghi trong báo cáo. */}
           {choice.grain === 'ngay' ? (
             <DayRange choice={choice} onChange={onChange} />
           ) : (
             <SegmentedControl
-              label="Kỳ"
+              label="Kỳ xem"
               hideLabel
-              size="sm"
               value={choice.key}
               options={list.map((p) => ({ value: p.key, label: p.label }))}
               onChange={(key) => onChange({ grain: choice.grain, key })}
@@ -313,7 +363,8 @@ function PeriodBar({
 
 /** Khoảng ngày tự chọn. Hai ô ngày gốc của trình duyệt — chúng có sẵn lịch, bàn
  *  phím và bánh xe của hệ điều hành; popover tự dựng thua cả ba. `min`/`max`
- *  chặn ngay ở tầng control để không ai chọn được ngày kịch bản không có. */
+ *  chặn ngay ở tầng control để không ai chọn được ngày kịch bản không có, nên
+ *  khối này KHÔNG cần thêm một câu nhắc kỳ dữ liệu — phụ đề màn đã nói. */
 function DayRange({
   choice,
   onChange,
@@ -334,7 +385,7 @@ function DayRange({
           min={DATA_WINDOW.from}
           max={to}
           onChange={(e) => onChange({ ...choice, grain: 'ngay', key: '', from: e.target.value })}
-          className="h-8 w-[148px] px-3 text-[11.5px]"
+          className="w-[148px] px-3 text-[11.5px]"
         />
       </label>
       <label className="flex items-center gap-2">
@@ -345,12 +396,9 @@ function DayRange({
           min={from}
           max={DATA_WINDOW.horizon}
           onChange={(e) => onChange({ ...choice, grain: 'ngay', key: '', to: e.target.value })}
-          className="h-8 w-[148px] px-3 text-[11.5px]"
+          className="w-[148px] px-3 text-[11.5px]"
         />
       </label>
-      <span className="text-muted-foreground text-[11px]">
-        Kịch bản có số từ {vn(DATA_WINDOW.from)} đến {vn(DATA_WINDOW.cutoff)}
-      </span>
     </div>
   )
 }
@@ -378,6 +426,46 @@ function delta(now: number | null, before: number | null, unit: 'so' | 'ty-le' |
   }
 }
 
+/** Một ô tỷ lệ. Mẫu số bằng 0 thì ô KHÔNG hiện 0% — nó hiện gạch ngang, và câu
+ *  ngay dưới gạch nói ra gạch ấy nghĩa là gì. Gạch đứng một mình là chỗ người
+ *  đọc tự điền nghĩa, và mỗi người điền một nghĩa khác nhau. */
+function rateCell(value: number | null, hint: string, why: string) {
+  return { value: value === null ? '—' : percent(value), hint: value === null ? why : hint }
+}
+
+/** Kết luận của cả màn, viết thành MỘT dòng.
+ *
+ *  Ba con số này đã có sẵn trong `data` từ lâu — `behind` và `worstStep` tính ở
+ *  tầng dữ liệu, `daysLeft` ở `period` — nhưng tới 20/08 chúng chỉ hiện trong
+ *  câu quảng cáo của khối AI ở đáy trang. Người mở màn năm giây đầu thấy chín
+ *  con số trần và không biết nhìn vào đâu. Dòng này không đẻ số mới, nó chỉ đưa
+ *  kết luận lên chỗ mắt chạm trước.
+ *
+ *  Mẫu câu chênh lấy đúng của `campaigns.tsx` — cùng repo, cùng cách đọc. */
+function Conclusion({ data }: { data: Performance }) {
+  const total = data.people.length
+
+  return (
+    <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+      {data.behind > 0 ? (
+        <b className="text-foreground font-semibold">
+          {num(data.behind)} trên {num(total)} người đang dưới mục tiêu kỳ
+        </b>
+      ) : (
+        /* KHÔNG viết "cả N người đều đạt": `behind` chỉ đếm người bị chấm Cần
+           cải thiện, còn người chưa có thước nào chấm được thì không đạt cũng
+           không trượt — gộp họ vào một lời khen là nói quá. */
+        <b className="text-foreground font-semibold">
+          Không ai trong {num(total)} người đang dưới mục tiêu kỳ
+        </b>
+      )}
+      {data.worstStep ? ` · phễu hẹp nhất ở ${data.worstStep}` : ''}
+      {data.period.closed ? ' · kỳ đã đóng' : ` · còn ${num(data.period.daysLeft)} ngày tới hết kỳ`}
+      .
+    </p>
+  )
+}
+
 function ScoreBento({ data }: { data: Performance }) {
   const o = data.overview
   const before = data.previous?.overview ?? null
@@ -386,14 +474,14 @@ function ScoreBento({ data }: { data: Performance }) {
     : 'kỳ đầu — chưa có mốc so'
 
   return (
-    <section aria-label="Chỉ số tổng quan" className="flex flex-col gap-3">
-      <SectionTitle
-        size="md"
-        hint="Bốn ô đầu là Nhóm 1 của khung KPI, đọc trên LỨA lead vào sổ trong kỳ — mỗi bậc là tập con của bậc trên. Bốn ô dưới đếm theo ngày xảy ra, hoặc là số chụp tại lát cắt."
-      >
-        Chỉ số tổng quan
-      </SectionTitle>
+    <section aria-label="Thước của phòng trong kỳ" className="flex flex-col gap-3">
+      <SectionTitle size="md">Thước của phòng trong kỳ</SectionTitle>
+      <Conclusion data={data} />
 
+      {/* `xl:` là điểm gãy thứ tư, ngoài ba điểm của hợp đồng §8.1#5 — giữ lại
+          có chủ ý và đã ghi thành câu hỏi cho người quyết: hạ xuống `lg:` thì
+          tablet 1024px phải nhét bốn cột, trong đó ô hero chiếm hai, và thẻ số
+          compact tụt xuống dưới 200px. Đừng đổi lặng lẽ. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
         <FunnelHero data={data} />
 
@@ -408,25 +496,40 @@ function ScoreBento({ data }: { data: Performance }) {
         <StatCard
           size="compact"
           icon={Activity}
-          value={o.mqlRate === null ? '—' : percent(o.mqlRate)}
           label="Tỷ lệ MQL"
-          hint={`${num(o.mql)} trên ${num(o.leads)} lead của lứa`}
+          {...rateCell(
+            o.mqlRate,
+            `${num(o.mql)} trên ${num(o.leads)} lead của lứa`,
+            'chưa đo được — kỳ này chưa lead nào vào sổ để làm mẫu số',
+          )}
           delta={delta(o.mqlRate, before?.mqlRate ?? null, 'ty-le')}
         />
         <StatCard
           size="compact"
           icon={Activity}
-          value={o.sqlRate === null ? '—' : percent(o.sqlRate)}
           label="Tỷ lệ SQL"
-          hint={`${num(o.sql)} trên ${num(o.mql)} lead lên MQL`}
+          {...rateCell(
+            o.sqlRate,
+            `${num(o.sql)} trên ${num(o.mql)} lead lên MQL`,
+            'chưa đo được — lứa của kỳ chưa lead nào lên MQL để làm mẫu số',
+          )}
           delta={delta(o.sqlRate, before?.sqlRate ?? null, 'ty-le')}
         />
         <StatCard
           size="compact"
           icon={FileCheck}
-          value={o.winRate === null ? '—' : percent(o.winRate)}
-          label="Win rate"
-          hint={`${num(o.won)} đã ký trên ${num(o.sql)} SQL của lứa`}
+          /* Luật 14 · chữ trên màn là tiếng Việt. "Win rate" không nằm trong
+             danh sách viết tắt được miễn (MQL · SQL · SLA · BD · KPI), và nó là
+             chuỗi màn tự gõ chứ không lấy từ fixture. Ba ô tỷ lệ giờ đọc liền
+             một mạch: Tỷ lệ MQL · Tỷ lệ SQL · Tỷ lệ chốt. Nhãn của thước cùng
+             tên trong `ROLE_KPI_MODEL` vẫn là 'Win rate' — đổi nó là việc của
+             `packages/**`, đã ghi thành đòi hỏi trong báo cáo. */
+          label="Tỷ lệ chốt"
+          {...rateCell(
+            o.winRate,
+            `${num(o.won)} đã ký trên ${num(o.sql)} SQL của lứa`,
+            'chưa đo được — lứa của kỳ chưa lead nào vào sổ cơ hội để làm mẫu số',
+          )}
           delta={delta(o.winRate, before?.winRate ?? null, 'ty-le')}
         />
 
@@ -450,7 +553,11 @@ function ScoreBento({ data }: { data: Performance }) {
           size="compact"
           icon={Wallet}
           value={billions(o.openValue, 1)}
-          label="Giá trị đang mở"
+          /* Cùng con số này ở drawer ghi "Giá trị đơn đang mở"; nhãn trần "Giá
+             trị đang mở" ở đây thừa hưởng chữ "trong kỳ" của tiêu đề khối trong
+             khi nó KHÔNG cắt theo kỳ (quyết định G · mọi nhãn tiền khai phạm
+             vi). Hai đầu giờ đọc y hệt nhau. */
+          label="Giá trị đơn đang mở"
           hint={`${num(o.openDeals)} đơn · số chụp tại ${dm(DAS_VINA_FROZEN_AT)}`}
         />
         <StatCard
@@ -465,11 +572,15 @@ function ScoreBento({ data }: { data: Performance }) {
   )
 }
 
-/** Ô hero 2×2 của màn (luật 3 · mỗi dashboard đúng một ô hero).
+/** Ô hero 2×2 của màn (luật 3 · mỗi dashboard đúng một ô hero), và là chỗ DUY
+ *  NHẤT trên màn vẽ phễu.
  *
- *  Phễu bốn bậc, đúng Biểu đồ 1 của khung KPI. `FUNNEL` trong fixture có sáu
- *  bậc, nhưng hai bậc "Báo giá" và "Chờ ký" là trạng thái của sổ cơ hội và
- *  không có ngày trên từng dòng lead — vẽ chúng theo kỳ là bịa ngày. */
+ *  Phễu bốn bậc. `FUNNEL` trong fixture có sáu bậc, nhưng hai bậc "Báo giá" và
+ *  "Chờ ký" là trạng thái của sổ cơ hội và không có ngày trên từng dòng lead —
+ *  vẽ chúng theo kỳ là bịa ngày.
+ *
+ *  Mỗi bậc ghi CẢ số tuyệt đối lẫn tỷ lệ, vì phần trăm đứng một mình giấu mất
+ *  mẫu số. Điều đó là hợp đồng của `BarDatum.note`, không cần nói lại trên màn. */
 function FunnelHero({ data }: { data: Performance }) {
   const steps = data.funnel
   const last = steps[steps.length - 1]
@@ -504,11 +615,15 @@ function FunnelHero({ data }: { data: Performance }) {
         className="flex-1"
       />
 
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        {first && last
-          ? `Cả phễu: ${num(first.count)} → ${num(last.count)} · ${last.ofTop === null ? '—' : percent(last.ofTop)} từ lead vào sổ thành hợp đồng.`
-          : 'Kỳ này chưa có lead nào vào sổ.'}{' '}
-        Mỗi bậc ghi CẢ số tuyệt đối lẫn tỷ lệ — phần trăm đứng một mình giấu mất mẫu số.
+      {/* Nửa câu sau là chỗ bắc cầu sang hai màn kia: Sổ lead đếm 100 dòng, sổ
+          nguồn cộng ra 100 lead, còn cột đầu phễu ở đây là phần VÀO SỔ TRONG
+          KỲ. Không có nửa câu đó thì "16" và chữ "Sổ lead 100 dòng" đứng cách
+          nhau 40px trong cùng một thẻ mà không ai nối. Mẫu câu lấy của
+          `campaigns.tsx`; số 100 đọc từ fixture qua `BOOK_TOTAL`. */}
+      <p className="text-muted-foreground text-[12.5px] leading-[1.5]">
+        {first && last && first.count > 0
+          ? `Cả phễu: ${num(first.count)} → ${num(last.count)} · ${last.ofTop === null ? 'chưa đo được' : percent(last.ofTop)} từ lead vào sổ thành hợp đồng — ${num(first.count)} trên ${num(BOOK_TOTAL)} lead cả sổ, phần vào sổ trong kỳ này.`
+          : `Kỳ này chưa lead nào vào sổ — phễu chưa có mẫu số để đo, dù cả sổ có ${num(BOOK_TOTAL)} lead.`}
       </p>
     </GlassCard>
   )
@@ -524,17 +639,19 @@ function FlowBlock({ data, onWiden }: { data: Performance; onWiden: () => void }
       <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6">
         <SectionTitle
           size="sm"
-          hint={`Mẫu số là ${num(data.exitedTotal)} lead ra khỏi luồng TRONG KỲ, không phải toàn bộ sổ. Danh sách lý do là danh sách đóng, không có ô "khác".`}
+          hint={`Mẫu số là ${num(data.exitedTotal)} lead ra khỏi luồng trong kỳ, không phải cả sổ — và danh sách lý do là danh sách đóng, không có ô "khác".`}
         >
           Lý do rời luồng
         </SectionTitle>
         {data.exits.length === 0 ? (
           /* Ô trống phải nói ra "vì sao trống" và mở đường đi tiếp — kỳ hẹp là
-             lý do hay gặp nhất, nên nút đưa thẳng về cả kỳ. */
+             lý do hay gặp nhất, nên nút đưa thẳng về cả kỳ. Câu KHÔNG gõ số
+             lượng lý do: danh sách đóng ấy sửa được ở module 5, và một con số
+             gõ tay ở đây sẽ nói sai ngay hôm ai đó thêm một lý do. */
           <EmptyState
             className="my-auto"
             icon={UserMinus}
-            message={`Không lead nào ra khỏi luồng trong ${data.period.label.toLowerCase()}. Kỳ càng hẹp thì càng dễ rỗng — mở rộng ra cả kỳ để thấy đủ sáu lý do.`}
+            message={`Không lead nào ra khỏi luồng trong ${data.period.label.toLowerCase()}. Kỳ càng hẹp thì càng dễ rỗng — mở rộng ra cả kỳ để thấy đủ danh sách lý do.`}
             action={{ label: 'Xem cả kỳ', onClick: onWiden }}
           />
         ) : (
@@ -556,7 +673,7 @@ function FlowBlock({ data, onWiden }: { data: Performance; onWiden: () => void }
       <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6">
         <SectionTitle
           size="sm"
-          hint="Nhóm 2 của khung KPI. Hai chặng sau — Sales → Onboarding và Onboarding → CS — thuộc giai đoạn sau bán, mà DAS Vina là kịch bản khách CHƯA MUA nên không có mốc nào để đo."
+          hint="Hai chặng sau bán không có mốc nào để đo — DAS Vina là kịch bản khách chưa mua."
         >
           SLA bàn giao
         </SectionTitle>
@@ -581,25 +698,46 @@ function FlowBlock({ data, onWiden }: { data: Performance; onWiden: () => void }
               <span key="t" className="tnum font-num">
                 ≤ {num(s.targetDays)} ngày
               </span>,
-              <span
-                key="a"
-                className={cn('tnum font-num font-semibold', s.verdict !== 'dat' && 'text-warning')}
-              >
-                {s.actualDays === null ? '—' : `${num(s.actualDays)} ngày`}
+              /* Chặng không có lần bàn giao nào trong kỳ thì ô nói thẳng "chưa
+                 đo được", không để một dấu gạch tự nhận nghĩa. Trong bảng này
+                 gạch ngang vì thế không mang nghĩa nào cả. */
+              s.actualDays === null ? (
+                <span key="a" className="text-muted-foreground text-[11px]">
+                  chưa đo được
+                </span>
+              ) : (
+                <span
+                  key="a"
+                  className={cn(
+                    'tnum font-num font-semibold',
+                    s.verdict === 'can-cai-thien' && 'text-warning',
+                  )}
+                >
+                  {num(s.actualDays)} ngày
+                </span>
+              ),
+              /* Ba trạng thái có tên nhưng chỉ hai tông: `buildSla` gộp "Cần
+                 theo dõi" và "Trễ hạn" vào cùng `can-cai-thien`, nên hai badge
+                 ra cùng màu vàng và chú thích dưới bảng hứa ba mức mà mắt chỉ
+                 thấy hai. Tông thứ ba phải lấy `--destructive-foreground` —
+                 token đang đo 4,34:1 trên glass-a, dưới ngưỡng luật 13, và
+                 quyết định L cấm đụng nó trong đợt này. Nên mức nặng nhất tách
+                 ra bằng HÌNH chứ không bằng màu. */
+              <span key="s" className="flex items-center justify-end gap-2">
+                {s.state === 'Trễ hạn' && (
+                  <Icon icon={TriangleAlert} size={16} className="text-warning" />
+                )}
+                <Badge tone={VERDICT[s.verdict].tone}>{s.state}</Badge>
               </span>,
-              <Badge key="s" tone={s.verdict === 'dat' ? 'success' : 'warning'}>
-                {s.state}
-              </Badge>,
             ],
           }))}
         />
         <div className="mt-auto flex flex-col gap-2">
           <Separator fade />
           <p className="text-muted-foreground text-[11px] leading-[1.6]">
-            <b className="text-foreground font-semibold">Ba mức của tài liệu:</b> trong mục tiêu là
-            Đúng hạn · vượt không quá {percent(SLA_MARGIN)} là Cần theo dõi · hơn nữa là Trễ hạn.
-            &quot;Lần đo&quot; là số lần bàn giao thật rơi vào kỳ này — chặng không có lần nào thì
-            màn nói &quot;chưa đo được&quot; chứ không hiện 0 ngày.
+            Trong mục tiêu là Đúng hạn · vượt không quá {percent(SLA_MARGIN)} là Cần theo dõi · hơn
+            nữa là Trễ hạn · &quot;Lần đo&quot; đếm số lần bàn giao thật rơi vào kỳ, không có lần
+            nào thì chặng chưa đo được chứ không phải 0 ngày.
           </p>
         </div>
       </GlassCard>
@@ -607,6 +745,13 @@ function FlowBlock({ data, onWiden }: { data: Performance; onWiden: () => void }
   )
 }
 
+/** Ô rỗng của một bảng bằng chứng trong drawer.
+ *
+ *  KHÔNG dùng `EmptyState`: nó bắt buộc có một nút, mà từ đây không có màn nào
+ *  để đi tới — "kỳ này BD chưa chạm lead nào" là một sự thật, không phải một
+ *  việc còn dang dở. Vẽ nút ở đây là hứa một chỗ không tồn tại. Đổi lại, câu
+ *  phải nói ra VÌ SAO rỗng ngay tại chỗ, đúng luật của màn được miễn khối "Cố
+ *  tình không làm". */
 function Empty({ children }: { children: string }) {
   return <p className="text-muted-foreground text-[11.5px] leading-[1.5]">{children}</p>
 }
@@ -634,14 +779,16 @@ function PeopleBlock({
     <section aria-label="Hiệu suất theo nhân sự" className="flex flex-col gap-3">
       <SectionTitle
         size="md"
-        hint="Nhóm 3 của khung KPI. Cùng một vai thì cùng một bộ thước — bấm vào một dòng để mở chi tiết KPI của người đó."
+        hint="Xếp người đang tắc lên đầu, tắc nặng nhất trước — bấm một dòng để mở chi tiết của người đó."
         actions={
           <div className="flex items-center gap-2">
             <Icon icon={Filter} size={16} className="text-muted-foreground" />
+            {/* Nhãn là "Vai": cả màn gọi thứ này là vai ("Thước của vai", "Ba
+                lớp thước của vai"), tầng dữ liệu gọi `roleKey`, và bảng vai
+                người của tài liệu kiến trúc cũng gọi là vai. */}
             <SegmentedControl
-              label="Chức năng"
+              label="Vai"
               hideLabel
-              size="sm"
               value={role}
               onChange={onRole}
               options={[
@@ -664,16 +811,18 @@ function PeopleBlock({
             lòng thẻ, đừng bóp cột — bóp thì tên người và con số cùng vỡ. */}
         <div className="-mx-1 overflow-x-auto px-1">
           <DataTable
-            className="min-w-[600px]"
+            className="min-w-[680px]"
             columns={[
               { header: 'Nhân sự', width: '1.8fr' },
-              { header: 'Thước chính', width: '1.4fr' },
+              { header: 'Thước chính', width: '1.2fr' },
               /* Số đo và mục tiêu ở CHUNG một ô: tách đôi thì bảng thành sáu
                  cột và cột cuối bị cắt ngay ở tablet, mà "55 / 120" đọc liền
                  còn nhanh hơn hai ô rời. */
               { header: 'Trong kỳ / mục tiêu', width: '1.1fr', align: 'right' },
-              { header: 'Tiến độ', width: '1.3fr' },
-              { header: 'Trạng thái', width: '1.1fr', align: 'right' },
+              { header: 'Tiến độ', width: '1.2fr' },
+              /* Cột này rộng hơn ba cột giữa vì nó phải chứa được TÊN thước
+                 đang trượt, không chỉ một cái badge. */
+              { header: 'Trạng thái', width: '1.7fr', align: 'right' },
             ]}
             rows={shown.map((p) => ({
               id: p.actorId,
@@ -695,11 +844,7 @@ function PeopleBlock({
                 /* Badge và số thước trên CÙNG một dòng: hàng bảng cao cứng
                    44px, xếp hai dòng là chữ dưới chạm mép hàng kế tiếp. */
                 <span key="s" className="flex items-center justify-end gap-2">
-                  {p.scored.total > 0 && (
-                    <span className="text-muted-foreground tnum whitespace-nowrap text-[10.5px]">
-                      {p.scored.ok}/{p.scored.total} thước
-                    </span>
-                  )}
+                  <ScoreNote person={p} />
                   <Badge tone={VERDICT[p.verdict].tone}>{VERDICT[p.verdict].label}</Badge>
                 </span>,
               ],
@@ -708,6 +853,26 @@ function PeopleBlock({
         </div>
       </GlassCard>
     </section>
+  )
+}
+
+/** Chữ nhỏ đứng trước badge trạng thái.
+ *
+ *  Đúng một thước trượt thì in TÊN nó. "2/3 thước" nói CÓ trượt mà không nói
+ *  trượt ở đâu, và ca thật của kịch bản làm điều đó thành một câu nói ngược:
+ *  hàng Vũ Minh Châu ở tháng 5 hiện 31/24, thanh tiến độ xanh đầy, ngay cạnh
+ *  là badge "Cần cải thiện" — thước thật sự trượt là Tỷ lệ lead tốt, và nó chỉ
+ *  thấy được sau khi mở drawer. Từ hai thước trở lên thì tên không đủ chỗ, quay
+ *  về đếm. Danh sách `failing` dựng ở tầng dữ liệu nên nó không lệch `scored`. */
+function ScoreNote({ person }: { person: PersonCard }) {
+  if (person.scored.total === 0) return null
+
+  const one = person.failing.length === 1 ? person.failing[0] : null
+
+  return (
+    <span className="text-muted-foreground tnum min-w-0 truncate text-[10.5px]">
+      {one ? `trượt: ${one}` : `${person.scored.ok}/${person.scored.total} thước`}
+    </span>
   )
 }
 
@@ -729,22 +894,34 @@ function PrimaryValue({ reading }: { reading: KpiReading | null }) {
   )
 }
 
-/** Thanh tiến độ trong ô bảng — chiều cao 6px để không đội hàng lên quá 44px. */
+/** Thanh tiến độ trong ô bảng — chiều cao 6px để không đội hàng lên quá 44px.
+ *
+ *  Rãnh lấy `--surface-control`, thanh của trạng thái "chưa chốt" lấy
+ *  `--muted-foreground`: cả hai đều là token có tên, không phải một mức trắng
+ *  gõ tay. Chưa chốt cố tình KHÔNG dùng tông thắng/thua — kỳ chưa đóng thì thanh
+ *  chỉ nói "đo được tới đây", không nói đạt hay trượt. */
 function RowProgress({ reading }: { reading: KpiReading | null }) {
-  if (!reading || reading.ratio === null) {
-    return <span className="text-muted-foreground text-[11px]">chưa chấm</span>
+  /* Ba lý do khác nhau làm ô này không có thanh, và chúng KHÔNG được gộp thành
+     một câu: vai không chấm cá nhân · thước chưa có nguồn số · thước có số mà
+     chưa ai đặt mục tiêu. Gộp lại là mất đúng thứ người xem cần biết. */
+  if (!reading) return <span className="text-muted-foreground text-[11px]">—</span>
+  if (reading.value === null) {
+    return <span className="text-warning text-[11px]">chưa đo được</span>
+  }
+  if (reading.ratio === null) {
+    return <span className="text-muted-foreground text-[11px]">chưa đặt mục tiêu</span>
   }
   const pct = Math.min(reading.ratio, 1)
   return (
     <span className="flex items-center gap-2">
-      <span className="h-1.5 flex-1 overflow-hidden rounded-sm bg-white/10">
+      <span className="bg-surface-control h-1.5 flex-1 overflow-hidden rounded-sm">
         <span
           className={cn(
             'block h-full rounded-sm',
             reading.verdict === 'dat'
               ? 'bg-success'
               : reading.verdict === 'chua-chot'
-                ? 'bg-white/25'
+                ? 'bg-muted-foreground'
                 : 'bg-warning',
           )}
           style={{ width: `${pct * 100}%` }}
@@ -821,8 +998,10 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
 
   if (!k) {
     /* Vai không chấm cá nhân thì ô này KHÔNG được để trống — trống sẽ bị đọc
-       thành "người này không làm gì". Thay đồng hồ cá nhân bằng đúng thứ câu
-       luật nói: số của phòng, kèm phễu của phòng trong kỳ. */
+       thành "người này không làm gì". Thay đồng hồ cá nhân bằng số của phòng.
+       Phễu thì KHÔNG vẽ lại ở đây: bản y hệt đã có ở đầu màn, và hai bản cùng
+       một số là hai chỗ để lệch nhau. Dẫn bằng chữ, không bằng nút — drawer
+       không cuộn được lên đầu màn nên nút ở đây sẽ hứa chỗ nó không đưa tới. */
     return (
       <GlassCard className="flex flex-col gap-4 p-5">
         <Kicker>Thước của vai</Kicker>
@@ -830,30 +1009,22 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
         <div className="grid grid-cols-2 gap-4">
           <Fact label="Lead vào sổ trong kỳ" value={num(data.overview.leads)} strong />
           <Fact label="Hợp đồng ký trong kỳ" value={num(data.overview.signedInPeriod)} strong />
-          <Fact label="Giá trị đang mở" value={billions(data.overview.openValue, 1)} />
+          {/* Mệnh đề "số chụp tại 17/08" từng đứng trong CẢ HAI nhãn, hai ô
+              cạnh nhau trong một lưới 2×2. Nó là một câu nói về cả hàng dưới,
+              nên nó xuống dòng chú thích chung. */}
+          <Fact label="Giá trị đơn đang mở" value={billions(data.overview.openValue, 1)} />
           <Fact label="Đơn đang mục" value={num(data.overview.rotting)} />
         </div>
         <Separator fade />
-        <BarChart
-          orientation="bar"
-          max={data.funnel[0]?.count}
-          data={data.funnel.map((step): BarDatum => ({
-            key: step.key,
-            label: step.label,
-            value: step.count,
-            display: num(step.count),
-            note: step.ratio === null ? 'đầu phễu' : `${percent(step.ratio)} của bậc trên`,
-            tone: step.key === 'hop-dong' ? 'success' : 'primary',
-          }))}
-          source="Phễu của phòng trong kỳ · Sổ lead"
-        />
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+          Hai ô dưới là số chụp tại {dm(DAS_VINA_FROZEN_AT)}, không cắt theo kỳ. Phễu của phòng
+          trong kỳ nằm ở khối &quot;Thước của phòng trong kỳ&quot; đầu màn, không vẽ lại trong
+          drawer.
+        </p>
       </GlassCard>
     )
   }
 
-  const done = k.value ?? 0
-  const target = k.target
-  const missing = target === null ? null : Math.max(0, target - done)
   const tone =
     k.verdict === 'dat'
       ? 'success'
@@ -866,12 +1037,14 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Kicker>Thước chính của vai</Kicker>
-          <h4 className="mt-2 text-[13.5px] font-semibold">{k.label}</h4>
+          <h4 className="mt-2 text-[13px] font-semibold">{k.label}</h4>
         </div>
         {k.snapshot && <MetaPill tone="warning">số chụp tại {dm(DAS_VINA_FROZEN_AT)}</MetaPill>}
       </div>
 
-      <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
+      {/* Ba điểm gãy của hợp đồng màn: base · md · lg. Trước đây khối này gãy ở
+          `sm:` — điểm thứ tư, và là điểm duy nhất trong cả màn. */}
+      <div className="flex flex-col items-center gap-5 md:flex-row md:gap-6">
         <RadialGauge
           size={168}
           tone={tone}
@@ -884,29 +1057,21 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
 
         <div className="grid flex-1 grid-cols-2 gap-4">
           <Fact label="Đã đạt trong kỳ" value={kpiText(k)} strong />
-          <Fact label="Mục tiêu kỳ" value={targetText(k) ?? 'không đặt'} />
+          <Fact label="Mục tiêu kỳ" value={targetText(k) ?? 'chưa đặt'} />
           <Fact
-            label="Còn thiếu"
-            value={
-              missing === null
-                ? '—'
-                : missing === 0
-                  ? 'đã đạt'
-                  : kpiText({ value: missing, unit: k.unit })
-            }
-            tone={missing !== null && missing > 0 ? 'warning' : 'success'}
+            label={gapLabel(k)}
+            value={gapText(k)}
+            tone={k.gap === null ? undefined : k.gap > 0 ? 'warning' : 'success'}
           />
           <Fact
-            label="Còn lại của kỳ"
+            label="Còn lại của kỳ xem"
             value={data.period.closed ? 'kỳ đã đóng' : `${num(data.period.daysLeft)} ngày`}
           />
         </div>
       </div>
 
       <p className="text-muted-foreground text-[11.5px] leading-[1.6]">
-        <b className="text-foreground font-semibold">Công thức:</b> {k.formula}
-        <br />
-        {k.note}
+        {k.note} · công thức: {k.formula}
       </p>
     </GlassCard>
   )
@@ -929,7 +1094,7 @@ function Fact({
       <span
         className={cn(
           'tnum font-num font-semibold',
-          strong ? 'text-[22px] tracking-[-.5px]' : 'text-[16px]',
+          strong ? 'text-[22px] tracking-[-.5px]' : 'text-[15px]',
           tone === 'warning' && 'text-warning',
           tone === 'success' && 'text-on-tint-success-strong',
         )}
@@ -964,7 +1129,7 @@ function PaceBlock({ pace, unit }: { pace: PaceRow[]; unit?: KpiReading['unit'] 
     <GlassCard variant="b" className="flex flex-col gap-4 p-5">
       <SectionTitle
         size="sm"
-        hint="Ba mốc luôn tính từ lát cắt của kịch bản, không theo kỳ đang xem ở trên."
+        hint="Ba mốc luôn tính từ lát cắt của kịch bản, không theo kỳ xem chọn ở đầu màn."
       >
         Còn bao lâu nữa mới đạt
       </SectionTitle>
@@ -972,11 +1137,14 @@ function PaceBlock({ pace, unit }: { pace: PaceRow[]; unit?: KpiReading['unit'] 
       {/* Mốc "hôm nay" KHÔNG có thanh tiến độ, và đó là chủ ý: chia mục tiêu
           tháng cho 31 ngày ra những con số như "0,03 đơn" — vẽ thanh cho nó thì
           mỗi ngày không ký hợp đồng đều hiện ra như một ngày trượt chỉ tiêu.
-          Câu người ta thật sự cần là "để kịp tháng, mỗi ngày phải bao nhiêu". */}
+          Câu người ta thật sự cần là "để kịp tháng, mỗi ngày phải bao nhiêu".
+
+          Ô lồng nằm trên `glass-b` — mặt navy đục không tính vào trần hai lớp
+          trắng của luật 13, nên chữ phụ ở đây vẫn đủ tương phản. */}
       {today && month && (
-        <div className="flex flex-col gap-2">
+        <InsetPanel pad="sm" className="flex flex-col gap-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="text-[12px] font-semibold">{today.label}</span>
+            <span className="text-[12.5px] font-semibold">{today.label}</span>
             <span className="text-muted-foreground text-[11px]">
               hôm nay đã có <b className="text-foreground font-semibold">{fmt(today.done)}</b>
             </span>
@@ -988,7 +1156,7 @@ function PaceBlock({ pace, unit }: { pace: PaceRow[]; unit?: KpiReading['unit'] 
                 ? `Để kịp ${month.label.toLowerCase()} còn phải thêm ${fmt(month.missing)} trong ${num(month.daysLeft)} ngày — nhịp ${pace1(month.missing / month.daysLeft)} mỗi ngày.`
                 : `${month.label} đã đóng và còn hụt ${fmt(month.missing)} — mốc này không gỡ lại được nữa.`}
           </p>
-        </div>
+        </InsetPanel>
       )}
 
       {milestones.map((row) => (
@@ -1039,7 +1207,7 @@ function LayerBlock({ person }: { person: PersonCard }) {
         return (
           <GlassCard key={layer.key} variant="b" className="flex flex-col gap-3 p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h5 className="text-[12px] font-semibold">{layer.label}</h5>
+              <h5 className="text-[12.5px] font-semibold">{layer.label}</h5>
               <span className="text-muted-foreground text-[10.5px]">
                 {layer.note}
                 {layer.key === 'chat-luong' ? ' · không dùng để xếp hạng' : ''}
@@ -1057,16 +1225,22 @@ function LayerBlock({ person }: { person: PersonCard }) {
   )
 }
 
+/** Thước chốt muộn, kỳ chưa đóng: số đã đủ nhưng nhãn phải hoãn. Tiền của một
+ *  nguồn đang chạy đã ghi hết vào kỳ trong khi lead của nó chưa về hết, nên
+ *  chấm ngay bây giờ là chấm ĐỘ TRỄ chứ không chấm hiệu quả. Câu này phải đứng
+ *  ngay cạnh con số — nói ở một khối gom cuối màn thì người đọc số không thấy. */
+const CHUA_CHOT_NOTE = 'kỳ chưa đóng nên thước này hiện đủ số mà chưa chấm Đạt hay Trượt'
+
 function KpiRow({ k }: { k: KpiReading }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span className="text-[12px]">{k.label}</span>
+        <span className="text-[12.5px]">{k.label}</span>
         <span className="flex items-baseline gap-2">
           <span
             className={cn(
               'tnum font-num text-[15px] font-semibold',
-              k.value === null && 'text-warning text-[12px]',
+              k.value === null && 'text-warning text-[12.5px]',
               k.verdict === 'dat' && 'text-on-tint-success-strong',
               k.verdict === 'can-cai-thien' && 'text-warning',
             )}
@@ -1076,10 +1250,16 @@ function KpiRow({ k }: { k: KpiReading }) {
           {k.target !== null && (
             <span className="text-muted-foreground tnum text-[11px]">mục tiêu {targetText(k)}</span>
           )}
+          {/* Chưa chốt KHÔNG mượn tông thắng/thua — nó không phải một lời khen
+              cũng không phải một lời chê. */}
+          {k.verdict === 'chua-chot' && (
+            <Badge tone={VERDICT[k.verdict].tone}>{VERDICT[k.verdict].label}</Badge>
+          )}
         </span>
       </div>
       <p className="text-muted-foreground text-[10.5px] leading-[1.5]">
         {k.note}
+        {k.verdict === 'chua-chot' ? ` · ${CHUA_CHOT_NOTE}` : ''}
         {k.snapshot ? ` · số chụp tại ${dm(DAS_VINA_FROZEN_AT)}` : ''}
       </p>
     </div>
@@ -1101,25 +1281,41 @@ function EvidenceBlock({ person }: { person: PersonCard }) {
  *  20/08; giờ mỗi dòng chi mang ngày nên nó chia được, và câu đó thành lời thú
  *  nhận sai. Câu mới đến từ tầng dữ liệu vì nó phải đổi cùng lúc với phép cắt.
  *
+ *  Nhãn tiền ở đây khai phạm vi hai lần, cố ý: cột ghi "Chi của nguồn" và câu
+ *  dưới tiêu đề nói tiền mua dòng của lô danh sách nằm TRONG số đó nhưng có
+ *  mẫu số riêng. Bản trước viết "KHÔNG phải tiền mua dòng" — nghe ra thành hai
+ *  thước rời nhau, trong khi fixture chốt `ProspectBatch.cost` là một phần của
+ *  `Source.cost`; người đi tìm 31 triệu ở ngoài 300 triệu sẽ không thấy nó.
+ *
+ *  Phạm vi của bảng là `sourcesOwnedBy(Marketing)` — nguồn ĐỨNG TÊN vai này.
+ *  Hai phạm vi cùng nhãn "giá mỗi lead tốt" ở màn khác là "có tiêu tiền" (Kế
+ *  hoạch) và "đã chạy đợt" (Chiến dịch); ba tập khác nhau, ba con số khác nhau.
+ *
  *  Cột giá hiện DẢI chứ không hiện một con số trần (§6.7): trên cỡ mẫu vài lead
  *  của một tháng, cận trên cách điểm nhiều lần, và cận trên mới là số dùng để
- *  quyết chi tiền. */
+ *  quyết chi tiền.
+ *
+ *  Cả dòng mở hồ sơ nguồn — sáu mã ở đây đều là nguồn có thật trong sổ nguồn,
+ *  nên đường này không hứa gì nó không đưa tới. */
 function SourcesTable({ rows, note }: { rows: NonNullable<PersonCard['sources']>; note?: string }) {
+  const navigate = useNavigate()
+
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <SectionTitle size="sm" hint={note}>
-        Từng nguồn của Marketing · lead tốt và giá của nó
+        Nguồn đứng tên Marketing · lead tốt và giá của nó
       </SectionTitle>
       <DataTable
         columns={[
           { header: 'Mã', width: '0.9fr' },
           { header: 'Lead', width: '0.5fr', align: 'right' },
           { header: 'Lead tốt', width: '0.7fr', align: 'right' },
-          { header: 'Chi trong kỳ', width: '1fr', align: 'right' },
+          { header: 'Chi của nguồn', width: '1fr', align: 'right' },
           { header: 'Giá mỗi lead tốt · dải 95%', width: '1.8fr' },
         ]}
         rows={rows.map((r) => ({
           id: r.code,
+          onOpen: () => navigate(`/sales/campaigns/${r.code}`),
           cells: [
             <span key="c" className="font-mono text-[11px]">
               {r.code}
@@ -1155,7 +1351,11 @@ function SourcesTable({ rows, note }: { rows: NonNullable<PersonCard['sources']>
   )
 }
 
+/** Lead BD đã chạm. Cả dòng mở hồ sơ lead — mã ở đây là mã sổ lead, và
+ *  `/sales/leads/:code` nhận đúng nó. */
 function BdLeadsTable({ rows }: { rows: NonNullable<PersonCard['leads']> }) {
+  const navigate = useNavigate()
+
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <SectionTitle
@@ -1176,6 +1376,7 @@ function BdLeadsTable({ rows }: { rows: NonNullable<PersonCard['leads']> }) {
           ]}
           rows={rows.map((r) => ({
             id: r.code,
+            onOpen: () => navigate(`/sales/leads/${r.code}`),
             cells: [
               r.company,
               <Badge key="t" tone="running">
@@ -1195,7 +1396,15 @@ function BdLeadsTable({ rows }: { rows: NonNullable<PersonCard['leads']> }) {
   )
 }
 
+/** Đơn đang mở của một Sale.
+ *
+ *  Dòng mở HỒ SƠ LEAD, không mở "hồ sơ đơn": `routes.tsx` không có màn nào nhận
+ *  mã đơn, và lead là chỗ duy nhất kể được câu chuyện của đơn đó. Đơn nào sổ
+ *  lead không có dòng trỏ vào thì dòng KHÔNG bấm được — thà một dòng trơ còn
+ *  hơn một cú bấm rơi vào màn trống. */
 function DealsTable({ rows }: { rows: NonNullable<PersonCard['deals']> }) {
+  const navigate = useNavigate()
+
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <SectionTitle
@@ -1216,6 +1425,7 @@ function DealsTable({ rows }: { rows: NonNullable<PersonCard['deals']> }) {
           ]}
           rows={rows.map((r) => ({
             id: r.code,
+            onOpen: r.leadCode ? () => navigate(`/sales/leads/${r.leadCode}`) : undefined,
             cells: [
               <span key="n" className="flex items-center gap-2">
                 {r.company}
@@ -1238,40 +1448,59 @@ function DealsTable({ rows }: { rows: NonNullable<PersonCard['deals']> }) {
 
 // ---------------------------------------------------------------------------
 
+/** "Số trên màn lấy từ đâu" — khối có tên của khuôn màn.
+ *
+ *  Màn này có nhiều phép cắt hơn mọi màn khác của nhánh: lứa · ngày xảy ra · số
+ *  chụp. Ba phép ấy từng nằm rải trong một câu `hint` dài ở đầu màn và trong
+ *  prop `source` của ba biểu đồ — tức người đọc phải ghép lại lấy. Ba gạch đầu
+ *  dòng, đọc một lần là xong.
+ *
+ *  Đây KHÔNG phải khối "Cố tình không làm" quay về: màn vẫn được miễn khối đó
+ *  (19/08), và mọi điều bị bỏ vẫn nói tại chỗ. */
+function SourceNote() {
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-3 p-5 lg:p-6">
+      <SectionTitle size="sm" kicker="Số trên màn lấy từ đâu">
+        Ba phép cắt, không trộn vào nhau
+      </SectionTitle>
+      <ul className="text-muted-foreground m-0 flex list-none flex-col gap-2 p-0 text-[12.5px] leading-[1.6]">
+        <li>
+          <b className="text-foreground font-semibold">Lứa của kỳ</b> — lead vào sổ trong kỳ. Phễu
+          và ba ô tỷ lệ đọc trên lứa này, nên mỗi bậc luôn là tập con của bậc trên.
+        </li>
+        <li>
+          <b className="text-foreground font-semibold">Ngày xảy ra</b> — hợp đồng ký, lead ra khỏi
+          luồng, ô bắt buộc BD moi được: đếm theo ngày việc đó xảy ra, không theo lứa của lead.
+        </li>
+        <li>
+          <b className="text-foreground font-semibold">Số chụp tại {dm(DAS_VINA_FROZEN_AT)}</b> —
+          giá trị đơn đang mở và đơn đang mục. Hai thứ này không có ngày để cắt, nên chúng giữ
+          nguyên khi đổi kỳ.
+        </li>
+      </ul>
+    </GlassCard>
+  )
+}
+
 /** Luật 9 · khối AI có "Căn cứ:", có nút, và có state "Chưa tạo gì cả" ngay dưới
  *  nút. Trợ lý không tự dựng, và bản dựng ra vẫn phải qua người gật.
  *
- *  Luật 10 · ContextRail dựng thẳng từ E1, màn không tự viết chip. */
+ *  Hai kết luận trong lời gợi ý — bậc rớt sâu nhất và số người dưới mục tiêu —
+ *  đến từ `data/performance.ts`, không tính lại ở đây: chúng là phán xét về số
+ *  liệu, và một phán xét tính ở hai chỗ là hai phán xét. */
 function AssistantBlock({ data }: { data: Performance }) {
   const [drafted, setDrafted] = useState(false)
+  const navigate = useNavigate()
   const o = data.overview
 
-  /* Bậc rớt sâu nhất phải gọi tên CẢ HAI đầu: "Hợp đồng" một mình không nói
-     được rớt từ đâu xuống. */
-  const worstIndex = data.funnel.reduce(
-    (best, step, i) =>
-      step.ratio !== null && (best === -1 || step.ratio < (data.funnel[best]?.ratio ?? 1))
-        ? i
-        : best,
-    -1,
-  )
-  const worst =
-    worstIndex > 0
-      ? `${data.funnel[worstIndex - 1]?.label} → ${data.funnel[worstIndex]?.label}`
-      : null
-
-  const behind = data.people.filter((p) => p.verdict === 'can-cai-thien')
-  const rail = railChips(dasVina.graph.story(o.biggestDealCode), o.biggestDealCode)
-
   return (
-    <div className="flex flex-col gap-3">
+    <section aria-label="Bước kế của vòng" className="flex flex-col gap-3">
       <AiAction
-        suggestion={`Dựng bản tóm tắt ${data.period.label.toLowerCase()} gửi ${HEAD_OF_SALES} — nêu ${num(behind.length)} người đang dưới mục tiêu${worst ? ` và bậc rớt sâu nhất "${worst}"` : ''}.`}
+        suggestion={`Dựng bản tóm tắt ${data.period.label.toLowerCase()} gửi ${HEAD_OF_SALES} — nêu ${num(data.behind)} người đang dưới mục tiêu${data.worstStep ? ` và bậc rớt sâu nhất "${data.worstStep}"` : ''}.`}
         basis={`${num(o.leads)} lead vào sổ · ${num(o.mql)} MQL · ${num(o.sql)} SQL · ${num(o.signedInPeriod)} hợp đồng ký · ${num(o.exited)} lead rời luồng · ${data.period.label}`}
         confirmLabel="Dựng bản tóm tắt"
         done={drafted}
-        /* Luật 9 · state "Chưa tạo gì cả" nằm TRONG khối, ngay dưới nút. Bản
-           thủ công cũ ở ngoài khối đã xoá. */
+        /* Luật 9 · state "Chưa tạo gì cả" nằm TRONG khối, ngay dưới nút. */
         empty={`Chưa tạo gì cả. Trợ lý chỉ dựng khi có người bấm, và bản dựng ra vẫn phải qua ${HEAD_OF_SALES} trước khi thành báo cáo của phòng.`}
         onConfirm={() => {
           setDrafted(true)
@@ -1280,12 +1509,20 @@ function AssistantBlock({ data }: { data: Performance }) {
         }}
       />
 
-      <ContextRail objects={rail} />
-      <p className="text-muted-foreground flex items-center gap-2 text-[11.5px] leading-[1.5]">
-        <Icon icon={TrendingDown} size={14} />
-        Chuỗi trên là đơn lớn nhất đang mở, dựng từ đồ thị object — không phải chip viết tay.
-      </p>
-    </div>
+      {/* Bước "chỉnh" của vòng bốn module. Màn này ĐO; chỗ sửa chỉ tiêu và duyệt
+          đề xuất nằm ở module 4, và tới 20/08 không màn nào của module 1–3 mời
+          người dùng sang đó — cả vòng đứt đúng ở khớp này. `/sales/plan` có
+          thật trong `routes.tsx`, nên nút không hứa gì nó không đưa tới. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="md" onClick={() => navigate('/sales/plan')}>
+          Xem kế hoạch của kỳ
+          <Icon icon={ArrowRight} size={16} />
+        </Button>
+        <p className="text-muted-foreground min-w-0 flex-1 text-[12.5px] leading-[1.5]">
+          Màn này chỉ đo; chỉ tiêu và đề xuất chỉnh nằm ở Số liệu &amp; kế hoạch.
+        </p>
+      </div>
+    </section>
   )
 }
 

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import {
-  ArrowLeft,
   ChevronDown,
+  Database,
   Inbox,
   Mail,
   MessageSquare,
@@ -22,20 +22,24 @@ import {
   ContextRail,
   GlassCard,
   Icon,
+  InsetPanel,
   Kicker,
+  LoadingBlock,
   MetaPill,
   Money,
+  PageHeader,
   Progress,
   SectionTitle,
   Separator,
-  Skeleton,
   StatusDot,
   Timeline,
   cn,
 } from '@pv/ui'
 import {
   canPromoteToSql,
+  DAS_VINA_FROZEN_AT,
   dasVina,
+  dayISO,
   EXIT_REASONS,
   HEAD_OF_SALES,
   INIT_DATA_QUESTIONS,
@@ -69,22 +73,34 @@ import { AssignedPills, AssignMenu } from '@/components/assign-menu'
  *  ------------------------------------------------------------------
  *  VÌ SAO LÀ MỘT TRANG RIÊNG
  *  ------------------------------------------------------------------
- *  Hồ sơ này có bảy khối và một trong số đó là transcript nguyên văn. Nhét vào
+ *  Hồ sơ này có năm thẻ và một trong số đó là transcript nguyên văn. Nhét vào
  *  panel bên phải của sổ thì vừa bóp bảng còn 60% chiều rộng vừa bắt người dùng
  *  cuộn ba màn hình trong một cột hẹp. Danh sách và hồ sơ là hai việc khác nhau
  *  nên là hai trang khác nhau; sổ giữ đường quay lại ở góc trái trên.
  *
  *  Bố cục: hai cột — bên trái là CÂU CHUYỆN (từ đâu về · đã hiểu gì · đã nói
- *  những gì), bên phải là TRẠNG THÁI (mười ô, ai đang làm, cả đời lead, và nút
- *  đưa ra khỏi luồng). Dưới cùng là thanh dính: thông tin liên hệ ở trái, next
- *  action ở phải — hai thứ người dùng cần đúng lúc đang đọc dở hồ sơ, nên chúng
- *  không được cuộn mất.
+ *  những gì), bên phải là TRẠNG THÁI (ai đang giữ + mười ô, rồi cả đời lead kèm
+ *  lý do rơi ở chân nó). Dưới cùng là thanh dính: thông tin liên hệ ở trái,
+ *  việc tiếp theo ở phải — hai thứ người dùng cần đúng lúc đang đọc dở hồ sơ,
+ *  nên chúng không được cuộn mất. Ngay trên thanh đó là khối "Cố tình không
+ *  làm": mọi nút của màn này dừng ở "đã đề nghị", và điều đó phải nói ra trên
+ *  màn chứ không nằm trong comment.
+ *
+ *  **Bảy thẻ dồn còn năm (20/08).** "Đang làm" gộp vào thẻ bộ 10 câu vì cả hai
+ *  trả lời cùng câu "ai đang giữ, moi được mấy ô"; "Lead có vấn đề" xuống chân
+ *  timeline vì lý do rơi là mốc cuối của đời lead. Bù lại chỗ mất: "Lead có vấn
+ *  đề" nay nằm sau một danh sách dài, nên nó giữ tiêu đề riêng và vạch ngăn để
+ *  mắt vẫn nhặt ra được.
  *
  *  Transcript lưu bằng TIẾNG ANH và **không mở sẵn** (docs/kien-truc-san-pham.md
  *  · "Transcript"): thứ đọc mặc định là báo cáo tìm hiểu — phần rút ra, tiếng
  *  Việt. Nguyên văn nằm sau một nút, cho người cần soi lại câu chữ.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
+
+/* Mốc kỳ dữ liệu suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
+const PERIOD_FROM = dm(dayISO(0))
+const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
 
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
   'dau-moi': 'draft',
@@ -137,10 +153,11 @@ export function LeadDetailPage() {
 
   if (isPending) {
     return shell(
+      /* Khung chờ cao xấp xỉ nội dung thật: một dải cỡ tiêu đề, rồi hai khối cỡ
+         hai thẻ đầu của cột trái. Thấp hơn thì màn nhảy một nhịp lúc số về. */
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-11 w-64" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-40 w-full" />
+        <LoadingBlock height={44} width="256px" label="Đang tải hồ sơ lead" />
+        <LoadingBlock height={160} lines={2} />
       </div>,
     )
   }
@@ -148,7 +165,7 @@ export function LeadDetailPage() {
   if (!lead) {
     return shell(
       <GlassCard className="p-5 lg:p-6">
-        <EmptyLead code={code} onBack={() => navigate('/sales/leads')} />
+        <EmptyLead code={code} count={book.length} onBack={() => navigate('/sales/leads')} />
       </GlassCard>,
     )
   }
@@ -169,30 +186,29 @@ export function LeadDetailPage() {
       ? story.map((o) => ({ code: o.code, source: o.code !== lead.dealCode }))
       : [{ code: lead.code, source: false }]
 
-  const openSource = () => navigate(`/sales/campaigns?source=${origin.code}`)
+  /* Đi THẲNG vào hồ sơ nguồn, không bắn `?source=` vào sổ nguồn: sổ nguồn không
+     đọc query nên nút cũ đổ người dùng vào bảng tám dòng để tự dò lại. Cả 8
+     nguồn đều mở được ở `/sales/campaigns/:code`, kể cả hai nguồn tự nhiên. */
+  const openSource = () => navigate(`/sales/campaigns/${origin.code}`)
+  /* Mang mã lô theo: kho danh sách đọc `?lo=` lúc dựng và mở thẳng thẻ của lô đó.
+     Không mang thì chip mã lô chỉ đổ người dùng vào bảng tám dòng để tự dò lại —
+     một nút hứa nhiều hơn nó làm. */
+  const openBatch = (batchCode: string) =>
+    navigate(`/sales/campaigns/kho-danh-sach?lo=${batchCode}`)
 
   return shell(
     <div className="flex flex-col gap-4 lg:gap-6">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => navigate('/sales/leads')}
-        className="self-start"
-      >
-        <Icon icon={ArrowLeft} size={16} />
-        Sổ lead
-      </Button>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              {lead.company}
-            </h2>
+      <PageHeader
+        back={{ label: 'Sổ lead', onBack: () => navigate('/sales/leads') }}
+        title={lead.company}
+        meta={
+          <>
             <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
             <StatusBadge lead={lead} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+          </>
+        }
+        tags={
+          <>
             <Chip>{lead.code}</Chip>
             <MetaPill>{lead.province}</MetaPill>
             <MetaPill>{CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
@@ -202,61 +218,109 @@ export function LeadDetailPage() {
                 {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
               </MetaPill>
             )}
-          </div>
-        </div>
-
-        {/* Góc phải trên: ghim và giao việc. Hai thứ này thuộc về CẢ hồ sơ nên
-            đứng cạnh tiêu đề, không nằm lẫn trong một khối nội dung. */}
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            size="md"
-            variant={pinnedHere ? 'default' : 'ghost'}
-            aria-pressed={pinnedHere}
-            onClick={() => me && togglePin(me.id, lead.code)}
-          >
-            <Icon icon={Pin} size={16} />
-            {pinnedHere ? 'Đã ghim' : 'Ghim'}
-          </Button>
-          <AssignMenu lead={lead} />
-        </div>
-      </div>
-
-      <ContextRail objects={rail} />
+          </>
+        }
+        /* Góc phải trên: ghim và giao việc. Hai thứ này thuộc về CẢ hồ sơ nên
+           đứng cạnh tiêu đề, không nằm lẫn trong một khối nội dung. */
+        actions={
+          <>
+            <Button
+              size="md"
+              variant={pinnedHere ? 'default' : 'ghost'}
+              aria-pressed={pinnedHere}
+              onClick={() => me && togglePin(me.id, lead.code)}
+            >
+              <Icon icon={Pin} size={16} />
+              {pinnedHere ? 'Đã ghim' : 'Ghim'}
+            </Button>
+            <AssignMenu lead={lead} />
+          </>
+        }
+        rail={<ContextRail objects={rail} />}
+      />
 
       <AssignedPills lead={lead} />
 
       <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <OriginCard lead={lead} onOpen={openSource} />
+          <OriginCard lead={lead} onOpen={openSource} onOpenBatch={openBatch} />
           <ResearchCard research={research} />
           <TranscriptCard turns={turns} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          {/* Timeline xuống cuối vì nó là khối DÀI nhất của cột: đặt nó trên
-              thì "Lead có vấn đề" tụt khỏi tầm mắt và người dùng tưởng màn
-              không có chỗ báo lead hỏng. */}
-          <SlotsCard lead={lead} />
-          <PeopleCard lead={lead} people={people} />
-          <ExitPanel lead={lead} />
+          {/* Hai thẻ, không bốn. "Ai đang giữ" và "moi được mấy ô" là một câu
+              hỏi chứ không hai — chúng ở chung một thẻ. Lý do lead rơi là dòng
+              CUỐI của đời lead nên nó nằm ở chân timeline, không đứng ngang
+              hàng với timeline. */}
+          <HolderAndSlotsCard lead={lead} people={people} />
           <HistoryCard lead={lead} />
         </div>
       </div>
+
+      <NotDoing />
 
       <ActionBar lead={lead} done={done} onAct={act} onOpenSource={openSource} />
     </div>,
   )
 }
 
+/** Cố tình không làm — bốn thứ bị bỏ có chủ ý, kèm lý do.
+ *
+ *  Ba trong bốn dòng nói ra thứ người bấm sẽ tưởng là đã xảy ra: bấm "đề nghị"
+ *  xong không có gì chạy tiếp, đưa lead ra khỏi luồng xong không ai ghi lại.
+ *  Chúng nằm trên MÀN chứ không trong comment — người bấm nút không đọc source. */
+function NotDoing() {
+  const items = [
+    {
+      title: 'Đề nghị chưa đi qua chuỗi duyệt thật',
+      body: `Mọi nút ở thanh đáy và nút giao việc đều dừng ở "đã đề nghị". E3 chưa nối, nên chưa có phiếu duyệt nào chạy tới ${HEAD_OF_SALES} và chưa ai nhận được thông báo.`,
+    },
+    {
+      title: 'Đưa lead ra khỏi luồng chưa ghi vết',
+      body: 'Lý do rơi hiện ngay ở chân timeline, nhưng chưa vào sổ ghi vết của E2 — bản này chưa trả lời được "ai đã đưa lead ra, lúc nào".',
+    },
+    {
+      title: 'Chưa có phiếu tiếp cận tự soạn',
+      body: 'Đủ ô bắt buộc thì cổng mở, còn việc kế tiếp vẫn là người làm. Màn này không có khối trợ lý nào, nên cũng không có gì tự chạy sau khi qua cổng.',
+    },
+    {
+      title: 'Bộ 10 câu chỉ ĐỌC ở đây',
+      body: 'Ô nào bắt buộc, thêm bớt câu nào là hình của cả phòng — sửa ở module 5 · Cấu hình, không sửa trên một hồ sơ.',
+    },
+  ]
+
+  return (
+    <GlassCard className="flex flex-col gap-3 p-5 lg:p-6">
+      <SectionTitle size="sm">Cố tình không làm</SectionTitle>
+      <ul className="grid gap-3 lg:grid-cols-2 lg:gap-4">
+        {items.map((it) => (
+          <li key={it.title} className="flex flex-col gap-1">
+            <b className="text-[12.5px] font-semibold">{it.title}</b>
+            <span className="text-muted-foreground text-[12.5px] leading-[1.6]">{it.body}</span>
+          </li>
+        ))}
+      </ul>
+    </GlassCard>
+  )
+}
+
 // ---------------------------------------------------------------------------
 
-function EmptyLead({ code, onBack }: { code: string; onBack: () => void }) {
+/** Mã không có trong sổ. Vẫn là `EmptyState` viết tay chứ không dùng `M-08`: mã
+ *  lead phải in bằng mono, mà `EmptyState.message` hiện chỉ nhận `string` (G-06
+ *  của sổ gap — đã ghi vào sharedRequests). Nới xong thì xoá hàm này. */
+function EmptyLead({ code, count, onBack }: { code: string; count: number; onBack: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
       <Icon icon={Inbox} size={26} className="text-muted-foreground" />
       <p className="text-muted-foreground text-[12.5px] leading-[1.65]">
-        Sổ không có dòng nào mang mã <span className="font-mono">{code}</span>. Sổ là 100 dòng của
-        kỳ 01/05 → 17/08; mã ngoài khoảng đó không tồn tại.
+        Sổ không có dòng nào mang mã <span className="font-mono">{code}</span>. Sổ là{' '}
+        <span className="tnum">{count}</span> dòng của kỳ dữ liệu{' '}
+        <span className="font-mono">
+          {PERIOD_FROM} → {PERIOD_TO}
+        </span>
+        ; mã ngoài khoảng đó không tồn tại.
       </p>
       <Button size="sm" variant="ghost" onClick={onBack}>
         Về sổ lead
@@ -276,11 +340,24 @@ function StatusBadge({ lead }: { lead: Lead }) {
  *
  *  Đây là câu hỏi đầu tiên người cầm lead hỏi, nên nó là khối đầu tiên. Chiến
  *  dịch và sự kiện mở được sang màn nguồn; hai kiểu tự nhiên vẫn mở được vì
- *  chúng CÓ mặt trong sổ nguồn — chỉ khác là chúng không có đợt nào để xem. */
-function OriginCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
+ *  chúng CÓ mặt trong sổ nguồn — chỉ khác là chúng không có đợt nào để xem.
+ *
+ *  Công trạng kéo lead này về ghi cho NGUỒN, và lead qua được cổng thì tính là
+ *  lead tốt của nguồn đó. Câu ấy ở đây chứ không trên màn: nó là luật công
+ *  trạng (module 5 · mục 5.6), không phải một con số của hồ sơ này. */
+function OriginCard({
+  lead,
+  onOpen,
+  onOpenBatch,
+}: {
+  lead: Lead
+  onOpen: () => void
+  onOpenBatch: (batchCode: string) => void
+}) {
   const origin = leadOrigin(lead)
   const face = ORIGIN_FACE[origin.kind]
   const isEvent = origin.kind === 'su-kien'
+  const batch = origin.batch
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead đến từ đâu">
@@ -310,20 +387,45 @@ function OriginCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
       </div>
 
       {isEvent && (
-        <div className="flex flex-wrap gap-3 rounded-md bg-white/5 p-3 text-[11.5px]">
+        <InsetPanel pad="sm" className="flex flex-wrap gap-3 text-[11.5px]">
           <span>{origin.venue}</span>
           <Separator className="hidden w-px self-stretch sm:block" />
           <span>
-            <span className="tnum font-num">{origin.checkedIn}</span>/
-            <span className="tnum font-num">{origin.registered}</span> người đến trên số đăng ký
+            <span className="tnum font-mono">{origin.checkedIn}</span>/
+            <span className="tnum font-mono">{origin.registered}</span> người đến trên số đăng ký
           </span>
-        </div>
+        </InsetPanel>
       )}
 
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        {origin.note} Công trạng kéo lead này về ghi cho nguồn trên; lead qua được cổng thì tính là
-        lead tốt.
-      </p>
+      {/* Lô đứng sau lead — chỉ hiện khi `origin.batch` có giá trị, và `undefined`
+          là câu trả lời HỢP LỆ chứ không phải chỗ thiếu dữ liệu.
+
+          Ba con số của chỗ này, tất cả đều ở mức DÒNG SỔ và tất cả đọc từ
+          docblock của `prospectBatchOfSource`, đừng đếm lại bằng tay:
+           · 64/100 dòng mang được mã lô — khối này hiện;
+           · 22/100 dòng thật sự không có lô nào đứng sau (15 dòng của ba đợt
+             reach nền tảng + 7 dòng khách cũ giới thiệu);
+           · 14/100 dòng CÓ lô nhưng không truy được tới mức dòng, vì `Lead` cố
+             tình không mang `waveNo`.
+          Cộng lại: khối này vắng ở 36/100 dòng. Con số 22 KHÔNG phải số ở mức
+          đợt — mức đợt là chuyện của màn kho danh sách, không của màn này.
+
+          Không có dòng "chưa có lô" thay thế: rỗng ở đây nghĩa là không có lô,
+          chứ không phải "chưa đo được". */}
+      {batch && (
+        <InsetPanel pad="sm" className="flex flex-wrap items-center gap-2 text-[11.5px]">
+          <Icon icon={Database} size={14} className="text-glass-foreground" />
+          <span className="text-glass-foreground">Về từ lô</span>
+          <Chip variant="object" onOpen={() => onOpenBatch(batch.code)}>
+            {batch.code}
+          </Chip>
+          <span className="text-glass-foreground">
+            {batch.supplier} · nhập {dm(batch.importedAt)}
+          </span>
+        </InsetPanel>
+      )}
+
+      <p className="text-muted-foreground text-[12.5px] leading-[1.5]">{origin.note}</p>
     </GlassCard>
   )
 }
@@ -362,7 +464,9 @@ function ResearchCard({ research }: { research: ReturnType<typeof leadResearch> 
                     <span className="text-muted-foreground"> · không bắt buộc</span>
                   )}
                 </span>
-                <span className="text-glass-foreground text-[12px] leading-[1.6]">{line.body}</span>
+                <span className="text-glass-foreground text-[12.5px] leading-[1.6]">
+                  {line.body}
+                </span>
               </span>
             </li>
           ))}
@@ -370,19 +474,21 @@ function ResearchCard({ research }: { research: ReturnType<typeof leadResearch> 
       )}
 
       {(research.missingRequired.length > 0 || research.missingOptional.length > 0) && (
-        <div className="flex flex-col gap-2 rounded-md bg-white/5 p-3">
+        <InsetPanel pad="sm" className="flex flex-col gap-2">
           <Kicker tone="muted">Chưa moi được</Kicker>
           <MissingLine
             keys={research.missingRequired}
             tone="warning"
-            note={`còn thiếu ${research.missingRequired.length} ô BẮT BUỘC — cổng init data chưa mở`}
+            /* Luật 14 · "cổng init data" là tên trong tài liệu; trên màn nó là
+               cổng ô bắt buộc, giống cách module 1 đã gọi. */
+            note={`còn thiếu ${research.missingRequired.length} ô BẮT BUỘC — cổng ô bắt buộc chưa mở`}
           />
           <MissingLine
             keys={research.missingOptional}
             tone="muted"
             note="không chặn cổng, nhưng vẫn đếm — đó là thước công trạng của BD"
           />
-        </div>
+        </InsetPanel>
       )}
     </GlassCard>
   )
@@ -430,9 +536,9 @@ function TranscriptCard({ turns }: { turns: ReturnType<typeof leadTranscript> })
       </SectionTitle>
 
       {turns.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa lần chạm nào moi được ô nào, nên chưa có gì để lưu. Gọi mà không hỏi ra gì thì không
-          sinh transcript — đó là lý do khối này trống chứ không phải hệ chưa ghi.
+        <p className="text-glass-foreground text-[12.5px] leading-[1.5]">
+          Chưa lần chạm nào moi được ô nào nên chưa có gì để lưu — gọi mà không hỏi ra gì thì không
+          sinh transcript.
         </p>
       ) : (
         <ol className="flex flex-col gap-3">
@@ -440,7 +546,10 @@ function TranscriptCard({ turns }: { turns: ReturnType<typeof leadTranscript> })
             const face = TURN_FACE[turn.kind]
             const open = openTurn === turn.no
             return (
-              <li key={turn.no} className="flex flex-col gap-3 rounded-md bg-white/5 p-3">
+              /* `bg-surface-inset` gõ thẳng chứ không bọc `InsetPanel`: mục của
+                 một `<ol>` phải là `<li>`, và InsetPanel dựng ra `<div>`. Cùng
+                 một mức nền có tên, chỉ khác thẻ. */
+              <li key={turn.no} className="bg-surface-inset flex flex-col gap-3 rounded-md p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="draft">Lần {turn.no}</Badge>
                   <MetaPill icon={face.icon}>{face.label}</MetaPill>
@@ -473,7 +582,7 @@ function TranscriptCard({ turns }: { turns: ReturnType<typeof leadTranscript> })
                       <p
                         key={i}
                         className={cn(
-                          'text-[12px] leading-[1.65]',
+                          'text-[12.5px] leading-[1.65]',
                           line.speaker === 'pv'
                             ? 'text-accent-foreground'
                             : 'text-glass-foreground',
@@ -496,14 +605,39 @@ function TranscriptCard({ turns }: { turns: ReturnType<typeof leadTranscript> })
   )
 }
 
-/** Mười ô của bộ 10 câu + cổng. Câu từ chối do engine trả, màn không tự chế. */
-function SlotsCard({ lead }: { lead: Lead }) {
+/** Ai đang giữ + mười ô của bộ 10 câu — MỘT thẻ.
+ *
+ *  Hai khối này từng là hai thẻ đứng cạnh nhau và cùng trả lời một câu của
+ *  module 2: "ai đang trong tay ai, và đã moi được mấy ô". Tách ra thì cột phải
+ *  có bốn tiêu đề cho hai ý.
+ *
+ *  Người GIỮ và người ĐƯỢC GIAO là hai vai khác nhau — cụm avatar gộp cả hai,
+ *  nên ngay dưới nó phải có một dòng gọi thẳng tên người giữ. Câu "giao việc
+ *  không đổi người giữ" đã nằm trong bảng giao việc (`components/assign-menu`),
+ *  chỗ người ta thật sự bấm; nói lại ở đây là nói hai lần.
+ *
+ *  Câu từ chối của cổng do engine trả (`canPromoteToSql`), màn không tự chế. Ô
+ *  nào bắt buộc sửa ở module 5 · Cấu hình, không sửa trên màn này. */
+function HolderAndSlotsCard({ lead, people }: { lead: Lead; people: string[] }) {
   const gate = canPromoteToSql(lead)
   const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
   const amount = lead.dealCode ? DEAL_AMOUNT.get(lead.dealCode) : undefined
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Bộ 10 câu">
+    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Người giữ và bộ 10 câu">
+      <SectionTitle size="sm">Ai đang giữ</SectionTitle>
+      <AvatarGroup names={people} max={5} size="md" emptyLabel="chưa ai nhận" />
+      <p className="text-[12.5px] leading-[1.5]">
+        Người giữ:{' '}
+        {lead.owner ? (
+          <b className="font-semibold">{lead.owner}</b>
+        ) : (
+          <span className="text-muted-foreground">còn ở kho chung, chưa ai nhận</span>
+        )}
+      </p>
+
+      <Separator />
+
       <SectionTitle size="sm">Bộ 10 câu</SectionTitle>
 
       <Progress
@@ -527,9 +661,8 @@ function SlotsCard({ lead }: { lead: Lead }) {
         })}
       </ul>
 
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Cổng là {REQUIRED_SLOTS} ô bắt buộc, không phải {INIT_DATA_SLOTS}/{INIT_DATA_SLOTS}. Ô nào
-        bắt buộc sửa ở module Cấu hình, không sửa trên màn này.
+      <p className="text-muted-foreground text-[12.5px] leading-[1.5]">
+        Cổng là {REQUIRED_SLOTS} ô bắt buộc, không phải {INIT_DATA_SLOTS}/{INIT_DATA_SLOTS}.
         {!gate.ok && ` ${gate.reason}.`}
       </p>
 
@@ -545,30 +678,14 @@ function SlotsCard({ lead }: { lead: Lead }) {
   )
 }
 
-/** Ai đang làm việc trên lead này. Chủ lead và người được giao việc là HAI vai
- *  khác nhau — gộp vào một dòng là mất câu trả lời "ai chịu trách nhiệm". */
-function PeopleCard({ lead, people }: { lead: Lead; people: string[] }) {
-  return (
-    <GlassCard className="flex flex-col gap-3 p-5 lg:p-6" aria-label="Người đang làm">
-      <SectionTitle size="sm">Đang làm</SectionTitle>
-      <AvatarGroup names={people} max={5} size="md" emptyLabel="chưa ai nhận" />
-      <p className="text-[11.5px] leading-[1.5]">
-        Người giữ:{' '}
-        {lead.owner ? (
-          <b className="font-semibold">{lead.owner}</b>
-        ) : (
-          <span className="text-muted-foreground">còn ở kho chung, chưa ai nhận</span>
-        )}
-      </p>
-      <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Giao việc thêm người vào đây nhưng KHÔNG đổi người giữ — đổi tay là đề nghị riêng, vì phần
-        chốt của hoa hồng chia lại theo đó.
-      </p>
-    </GlassCard>
-  )
-}
-
-/** Cả đời lead, theo thứ tự thời gian. Danh sách dài → glass-b (luật 8). */
+/** Cả đời lead, theo thứ tự thời gian, và ở CHÂN nó là chỗ báo lead có vấn đề.
+ *
+ *  Lý do rơi là mốc CUỐI của đời một lead, không phải một thẻ đứng ngang hàng
+ *  với timeline — đặt nó ở chân danh sách các mốc là đặt đúng chỗ nó thuộc về.
+ *  Đổi lại, nó nằm sau một danh sách dài, nên giữ vạch ngăn và tiêu đề riêng
+ *  (kèm `aria-label`) để mắt và trình đọc màn hình vẫn nhặt ra được.
+ *
+ *  Danh sách dài → glass-b (luật 8). */
 function HistoryCard({ lead }: { lead: Lead }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Timeline">
@@ -582,17 +699,19 @@ function HistoryCard({ lead }: { lead: Lead }) {
           meta: <MetaPill avatar={e.by}>{e.by}</MetaPill>,
         }))}
       />
+      <Separator />
+      <ExitBlock lead={lead} />
     </GlassCard>
   )
 }
 
 /** 2.3 · report. ĐÚNG sáu lý do, không có ô "khác". */
-function ExitPanel({ lead }: { lead: Lead }) {
+function ExitBlock({ lead }: { lead: Lead }) {
   const [reported, setReported] = useState<ExitReason | null>(null)
   const [draft, setDraft] = useState<ExitReason | null>(null)
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead có vấn đề">
+    <section className="flex flex-col gap-4" aria-label="Lead có vấn đề">
       <SectionTitle size="sm">
         <span className="flex items-center gap-2">
           <Icon icon={TriangleAlert} size={16} className="text-warning" />
@@ -627,11 +746,14 @@ function ExitPanel({ lead }: { lead: Lead }) {
         </div>
       ) : (
         <>
+          {/* `size="md"` chứ không `sm`: chọn lý do rơi là hành động nghiệp vụ,
+              không phải một nút phụ — nó đứng ngay trước nút không rút lại được
+              ở dưới. */}
           <div className="flex flex-wrap gap-2">
             {EXIT_REASONS.map((r) => (
               <Button
                 key={r.label}
-                size="sm"
+                size="md"
                 variant={draft === r.label ? 'default' : 'ghost'}
                 onClick={() => setDraft(r.label)}
               >
@@ -653,17 +775,17 @@ function ExitPanel({ lead }: { lead: Lead }) {
           >
             Đưa ra khỏi luồng
           </Button>
-          <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Sáu lý do là toàn bộ danh sách, không có ô &quot;khác&quot;. Lý do thứ bảy là hành động
-            cấu hình ở module 5, không gõ vào màn.
+          <p className="text-glass-foreground text-[12.5px] leading-[1.5]">
+            Sáu lý do là toàn bộ danh sách, không có ô &quot;khác&quot; — thêm lý do thứ bảy là việc
+            của module 5 · Cấu hình.
           </p>
         </>
       )}
-    </GlassCard>
+    </section>
   )
 }
 
-/** Thanh dính đáy: liên hệ khách bên trái, next action bên phải.
+/** Thanh dính đáy: liên hệ khách bên trái, việc tiếp theo bên phải.
  *
  *  Hai thứ này đi cùng nhau có chủ ý — mọi hành động ở đây kết thúc bằng việc
  *  chạm khách, nên số điện thoại phải nằm ngay cạnh nút chứ không nằm ở một

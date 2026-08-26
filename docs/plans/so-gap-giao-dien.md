@@ -369,7 +369,8 @@ mười giây.
 16. …cho một khối đúng **một** câu giải thích. Câu thứ hai về docblock.
 17. …**không bao giờ** đặt `opacity` lên chữ. Trạng thái tắt = nền `bg-white/5` + ổ khoá.
 18. …dùng `<Button size="md">` cho nút nghiệp vụ và để `Button` tự nâng lên 48px ở `md:`.
-19. …nối `onNavigate` và `onOpenAssistant` cho `AppShell`, và truyền đúng `activeNav` của mình.
+19. …nối `onNavigate` cho `AppShell` và truyền đúng `activeNav` của mình. **`onOpenAssistant` chỉ nối khi màn 04 · Trợ lý AI đã có route** — sửa 20/08.
+    Bản đầu của điều này đòi nối cả hai. Nó viết trước luật mới 6 của `01-ban-giao.md` (_"không nút nào hứa một màn không tồn tại"_): màn 04 chưa dựng, nên nối `onOpenAssistant` là vẽ ra một nút FAB bấm vào không đi đâu. `app/chrome.tsx` **cố tình** để trống prop này và có chú thích tại chỗ; `app-shell.tsx` không vẽ `AssistantFab` khi không có người nhận. Đừng "sửa" chỗ đó cho đủ hai prop.
 20. …đi theo bảng từ vựng §5.3. Một khái niệm, một cách gọi.
 
 ### 8.2 · Bốn mức nền có tên (thêm vào `packages/tokens/globals.css`)

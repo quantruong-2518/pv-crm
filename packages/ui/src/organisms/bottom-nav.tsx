@@ -77,14 +77,14 @@ export function BottomNav({
                 locked_ && 'opacity-55',
               )}
             />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <span className="text-[10.5px] font-medium">{item.label}</span>
             {locked_ ? (
               <span className="text-muted-foreground absolute right-2 top-0">
                 <Icon icon={Lock} size={14} className="opacity-55" />
                 <span className="sr-only">chưa mở</span>
               </span>
             ) : item.key === 'approvals' && Boolean(approvalsCount) ? (
-              <span className="bg-destructive text-primary-foreground absolute right-2 top-0 rounded-sm px-[5px] py-px text-[9.5px] font-semibold">
+              <span className="bg-destructive text-primary-foreground absolute right-2 top-0 rounded-sm px-[5px] py-px text-[10.5px] font-semibold">
                 {approvalsCount}
               </span>
             ) : null}

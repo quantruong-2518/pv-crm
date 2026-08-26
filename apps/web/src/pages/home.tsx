@@ -1,7 +1,16 @@
 import { useState } from 'react'
-import { AiAction, AppShell, BriefCard, ContextRail, OrderLifecycleCard, StatCard } from '@pv/ui'
+import {
+  AiAction,
+  AppShell,
+  BriefCard,
+  ContextRail,
+  OrderLifecycleCard,
+  PageHeader,
+  StatCard,
+} from '@pv/ui'
 import { saoDo } from '@pv/engines/fixtures/sao-do'
 import { useAppChrome } from '@/app/chrome'
+import { homeKpis } from '@/data/home'
 
 /** Màn 01 · Trang chủ / Morning brief (docs/luat-thiet-ke.md §7).
  *  Kịch bản 1 · Sao Đỏ, đóng băng 10/08 · 07:58.
@@ -18,9 +27,17 @@ import { useAppChrome } from '@/app/chrome'
  *   · "contract SO-0891" → "đơn bán SO-0891" — SO-0891 là đơn bán bên Supply,
  *     hợp đồng của câu chuyện này là HĐ-2607 (`fixtures/sao-do.ts`).
  *
- *  CÒN NỢ: bốn ô KPI và dải sparkline vẫn gõ số thẳng vào JSX, trong khi
- *  `SAO_DO_KPI` đã giữ đúng bộ số đó. Trả nợ ở vòng dọn dữ liệu, không lẫn vào
- *  lượt dịch này. */
+ *  TRẢ NỢ 21/08 — hai món:
+ *   · bốn ô KPI không còn gõ số vào JSX; chúng đọc `SAO_DO_KPI` qua
+ *     `@/data/home`, tức đi qua đúng bộ số mà `scenario.test.ts` đang khoá;
+ *   · tiêu đề màn qua `PageHeader` như tám màn Sales. Trước bản này đây là màn
+ *     duy nhất của hệ tự gõ `<h2>` cho tiêu đề màn, nên cũng là màn duy nhất
+ *     không có `<h1>` nào.
+ *
+ *  CÒN NỢ: màn KHÔNG có lối đi nào sang nhánh Kinh doanh. Đây là bước 1 của
+ *  chuỗi màn mà bước 2 chỉ tới được bằng thanh điều hướng. Nút ở đây bắc qua
+ *  HAI kịch bản (Sao Đỏ → DAS Vina) nên phải có người quyết trước — ghi trong
+ *  báo cáo bàn giao, đừng tự dựng. */
 
 /** Mỏ neo của ContextRail — chính là đơn ô hero đang nói tới. `E1.story()` leo
  *  từ nó ra cả chuỗi (LD-0334 → HĐ-2607 → SO-0891 → WO-1180 → PO-0455 →
@@ -36,6 +53,10 @@ export function HomePage() {
      bấm; bấm rồi thì nó nói "Đã thực hiện" và thôi nhắc. */
   const [done, setDone] = useState(false)
 
+  /* Bốn ô KPI — giá trị, câu delta và dáng dải đều dựng ở tầng dữ liệu. Màn chỉ
+     xếp chỗ cho chúng. */
+  const kpis = homeKpis()
+
   /* Luật 10 · ContextRail dựng thẳng từ E1, một hàng riêng ngay dưới tiêu đề
      màn. `source` bật cho ĐÚNG object đang mở — chip azure phải đếm được
      (luật 3), không phải cả chuỗi cùng sáng. */
@@ -48,17 +69,16 @@ export function HomePage() {
   return (
     <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-5 lg:gap-6">
-        <div>
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-            Chào buổi sáng, anh Thắng
-          </h2>
-          <p className="text-muted-foreground mt-1.5 text-[12px]">
-            Thứ Hai 10/08 · gộp Sales, Supply, Factory, Finance · cập nhật{' '}
-            <span className="font-mono">07:58</span> · 4 việc cần anh nhìn
-          </p>
-        </div>
-
-        <ContextRail objects={rail} />
+        <PageHeader
+          title="Chào buổi sáng, anh Thắng"
+          subtitle={
+            <>
+              Thứ Hai 10/08 · gộp Sales, Supply, Factory, Finance · cập nhật{' '}
+              <span className="font-mono">07:58</span> · 4 việc cần anh nhìn
+            </>
+          }
+          rail={<ContextRail objects={rail} />}
+        />
 
         <div className="grid grid-cols-2 gap-3 lg:auto-rows-[150px] lg:grid-cols-4 lg:gap-4">
           <OrderLifecycleCard
@@ -78,46 +98,17 @@ export function HomePage() {
             ]}
           />
 
-          <StatCard
-            value="4,2 tỷ"
-            label="Doanh thu tháng 8"
-            delta={{ direction: 'up', text: 'vượt kế hoạch 12%', tone: 'success' }}
-            sparkline={{
-              points: [22, 18, 20, 13, 15, 8, 9, 3],
-              source: 'tháng 8 · Sales',
-              tone: 'success',
-            }}
-          />
-          <StatCard
-            value="86%"
-            label="Giao đúng hạn"
-            delta={{ direction: 'flat', text: 'đi ngang · mục tiêu 90%', tone: 'warning' }}
-            sparkline={{
-              points: [12, 11, 13, 12, 12, 13, 11, 12],
-              source: '90 ngày · Supply',
-              tone: 'warning',
-            }}
-          />
-          <StatCard
-            value="890 tr"
-            label="Công nợ quá hạn"
-            delta={{ direction: 'up', text: '2 hoá đơn · quá hạn 12 ngày', tone: 'danger' }}
-            sparkline={{
-              points: [20, 19, 16, 17, 11, 10, 6, 4],
-              source: '30 ngày · Finance',
-              tone: 'danger',
-            }}
-          />
-          <StatCard
-            value="91,4%"
-            label="Hiệu suất thiết bị · xưởng X1"
-            delta={{ direction: 'down', text: 'CNC-03 dừng 37 phút', tone: 'warning' }}
-            sparkline={{
-              points: [6, 5, 8, 7, 6, 14, 19, 11],
-              source: '24 giờ · Factory',
-              tone: 'warning',
-            }}
-          />
+          {/* Bốn ô đọc từ `SAO_DO_KPI` — màn không giữ bản sao nào của bộ số
+              đã chốt, và không tự dựng câu delta. */}
+          {kpis.map((k) => (
+            <StatCard
+              key={k.key}
+              value={k.value}
+              label={k.label}
+              delta={k.delta}
+              sparkline={k.sparkline}
+            />
+          ))}
 
           <BriefCard
             className="col-span-2"

@@ -99,7 +99,7 @@ export function BarChart({
 }
 
 function Source({ source }: { source: string }) {
-  return <span className="text-muted-foreground font-mono text-[9.5px]">{source}</span>
+  return <span className="text-muted-foreground font-mono text-[10.5px]">{source}</span>
 }
 
 function Column({ d, top, barArea }: { d: BarDatum; top: number; barArea: number }) {
@@ -137,7 +137,7 @@ function Column({ d, top, barArea }: { d: BarDatum; top: number; barArea: number
       >
         {d.label}
       </span>
-      {d.note && <span className="text-muted-foreground text-[9.5px] leading-none">{d.note}</span>}
+      {d.note && <span className="text-muted-foreground text-[10.5px] leading-none">{d.note}</span>}
     </>
   )
 
@@ -166,7 +166,7 @@ function Column({ d, top, barArea }: { d: BarDatum; top: number; barArea: number
 function BarRow({ d, top }: { d: BarDatum; top: number }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1">
-      <span className="truncate text-[12px]">{d.label}</span>
+      <span className="truncate text-[12.5px]">{d.label}</span>
       <span className="tnum font-num text-right text-[13px] font-semibold">
         {d.display ?? d.value}
       </span>

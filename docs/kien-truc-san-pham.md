@@ -342,15 +342,36 @@ cột.
 Chỗ duy nhất định hình dữ liệu của phòng kinh doanh. Trước module này, mọi hằng
 số đều nằm rải trong fixture và không ai ngoài lập trình viên đổi được.
 
-| Mục | Cấu hình cái gì            | Hôm nay là hằng số nào                                 |
-| --- | -------------------------- | ------------------------------------------------------ |
-| 5.1 | Bộ 10 câu · ô nào bắt buộc | `INIT_DATA_QUESTIONS`                                  |
-| 5.2 | Cột của sổ cơ hội + hạn    | `PIPELINE_STAGES`                                      |
-| 5.3 | Ngành và Sale phụ trách    | `LEAD_CATEGORIES`                                      |
-| 5.4 | Lý do ra khỏi luồng        | `EXIT_REASONS` — sửa được, nhưng **không có ô "khác"** |
-| 5.5 | Ngưỡng SLA cho đầu mối/MQL | chưa có hằng số — nợ treo số 3 tan ở đây               |
-| 5.6 | Hoa hồng và công trạng     | `COMMISSION_SPLIT` · `CREDIT_RULES`                    |
-| 5.7 | Kênh và mẫu nội dung       | kênh của E4 + mẫu đợt gửi của module 1                 |
+| Mục | Cấu hình cái gì                 | Hôm nay là hằng số nào                                 |
+| --- | ------------------------------- | ------------------------------------------------------ |
+| 5.1 | Bộ 10 câu · ô nào bắt buộc      | `INIT_DATA_QUESTIONS`                                  |
+| 5.2 | Cột của sổ cơ hội + hạn         | `PIPELINE_STAGES`                                      |
+| 5.3 | Ngành và Sale phụ trách         | `LEAD_CATEGORIES`                                      |
+| 5.4 | Lý do ra khỏi luồng             | `EXIT_REASONS` — sửa được, nhưng **không có ô "khác"** |
+| 5.5 | Ngưỡng SLA cho đầu mối/MQL      | chưa có hằng số — nợ treo số 3 tan ở đây               |
+| 5.6 | Hoa hồng và công trạng          | `COMMISSION_SPLIT` · `CREDIT_RULES`                    |
+| 5.7 | Kênh và mẫu nội dung            | kênh của E4 + mẫu đợt gửi của module 1                 |
+| 5.8 | Nhà cung cấp danh sách prospect | `PROSPECT_BATCHES` — kho danh sách, năm bước nhập      |
+
+**5.8 — chốt 20/08.** Kho danh sách prospect (`/sales/campaigns/kho-danh-sach`)
+là nơi tám lô mua/xin/thu prospect được nhập, soát, khử trùng, rồi dùng làm
+khán giả cho một đợt của module 1. Nó đứng trong module 1 — không phải màn
+riêng, không phải module 2 — vì câu hỏi chốt của nó cũng là "khách ở đâu ra",
+và cùng lý do 19/08 đã đẩy mục 1.5 khỏi module 1: cùng một dòng mà thao tác
+được ở hai màn thì không màn nào là nơi đúng để tra. Prospect **không phải**
+dòng lead nên không được có mặt trong sổ lead, kể cả dưới dạng một tab.
+
+**Ranh giới prospect ↔ lead.** Một dòng prospect nằm ở kho danh sách, không
+vào sổ lead. Chỉ **tín hiệu** — trả lời, đăng ký, check-in, điền form — mới
+sinh một dòng lead. Nhập 1.200 dòng danh sách vẫn ra **0 lead**; lead sinh khi
+bên kia trả lời, không khi lô được nhập.
+
+**Prospect đứng NGOÀI phễu**, không phải bậc thứ bảy — phễu vẫn đúng sáu bậc
+`100 · 44 · 30 · 19 · 11 · 6`. `OriginKind` giữ đúng **4 giá trị**
+(`chien-dich · su-kien · gioi-thieu · tu-mo`); lô đi bằng trục thứ hai
+`LeadOrigin.batch` (optional — 22/100 lead không có lô nào đứng sau).
+`ObjectKind` **không** thêm `'DS'`: lô mượn ContextRail y như chiến dịch đang
+mượn (`SourceRow.anchorDeal`), không sửa E1 cho việc này.
 
 Ba luật của module này:
 

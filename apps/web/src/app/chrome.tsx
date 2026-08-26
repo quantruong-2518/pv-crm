@@ -88,21 +88,24 @@ type NavEntry = {
   count?: number
 }
 
-/** Hai con số này mang nguyên từ màn 01 sang, CHƯA có fixture nào đỡ. Lúc dựng
- *  màn Hộp phê duyệt và màn Thông báo thì lấy từ E3/E4, đừng nhân bản thêm. */
-const APPROVALS_WAITING = 7
-const NOTIFICATIONS_UNREAD = 12
-
 /** One Core — nền bắt buộc, mọi nhánh đều cần (docs · "Hai tầng license").
  *  Bốn mục đầu là bốn màn One trong luat-thiet-ke.md §7.
  *
  *  "Tìm toàn cục" KHÔNG còn là một mục ở đây: nó đã thành ô tìm của tầng 1,
  *  chiếm nguyên khoảng giữa nav. Giữ thêm một nút mở cùng việc đó là hai lối
- *  vào một chỗ, và cái nút bao giờ cũng là lối tệ hơn. */
+ *  vào một chỗ, và cái nút bao giờ cũng là lối tệ hơn.
+ *
+ *  BA MỤC CUỐI KHÔNG ĐEO SỐ — sửa 21/08. Trước bản này "Phê duyệt" đeo 7 và
+ *  "Thông báo" đeo 12: hai hằng gõ tay, không fixture nào đỡ, gắn lên hai mục
+ *  KHÔNG có `path` nên đang khoá. Nav vì thế vừa đeo ổ khoá vừa nói "có 7 việc
+ *  chờ anh" — một con số bịa trỏ vào một màn không tồn tại, và nó hiện trên cả
+ *  chín màn. Ổ khoá đã nói đủ "chưa mở". Dựng xong màn Hộp phê duyệt và màn
+ *  Thông báo thì điền `path` cho đúng dòng của nó ở đây và lấy số từ E3/E4,
+ *  đừng gõ lại hằng. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/' },
-  { icon: SquareCheckBig, label: 'Phê duyệt', count: APPROVALS_WAITING },
-  { icon: Bell, label: 'Thông báo', count: NOTIFICATIONS_UNREAD },
+  { icon: SquareCheckBig, label: 'Phê duyệt' },
+  { icon: Bell, label: 'Thông báo' },
   { icon: ShieldCheck, label: 'Quản trị & ghi vết' },
 ]
 
@@ -287,7 +290,9 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
        One Plus xuống cuối vì chưa năng lực nào của nó được dựng. */
     apps: [...BRANCHES.map(branchApp), ...ONE_PLUS.map(plain(true))],
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
-    unread: NOTIFICATIONS_UNREAD > 0,
+    /* `unread` CỐ TÌNH vắng: nó thêm câu "có thông báo chưa đọc" cho trình đọc
+       màn hình, mà màn Thông báo chưa dựng nên chưa có gì để đọc. Nối E4 xong
+       thì bật lại, cùng lúc điền `path` cho mục 'Thông báo' của ONE_CORE. */
     assistantLabel: 'Trợ lý',
     search: {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
@@ -339,7 +344,9 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     header,
     activeNav,
     lockedNav: LOCKED_NAV,
-    approvalsCount: APPROVALS_WAITING,
+    /* `approvalsCount` CỐ TÌNH vắng, cùng lý do với `count` của ONE_CORE: mục
+       'approvals' của BottomNav đang khoá, đeo thêm số là hứa một hộp phê duyệt
+       có 7 phiếu chờ ở một màn chưa dựng. */
     onNavigate,
   }
 

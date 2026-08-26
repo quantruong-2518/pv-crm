@@ -17,10 +17,10 @@ import { ZoneTemplates } from '@/kit/zone-templates'
  *  mục lục của một styleguide mà nói sai số thì không còn ai tin phần còn lại. */
 const ZONES = [
   { id: 'zone-00', number: '00', label: 'Foundations', count: 9 },
-  { id: 'zone-01', number: '01', label: 'Atoms', count: 20 },
-  { id: 'zone-02', number: '02', label: 'Molecules', count: 12 },
+  { id: 'zone-01', number: '01', label: 'Atoms', count: 22 },
+  { id: 'zone-02', number: '02', label: 'Molecules', count: 18 },
   { id: 'zone-03', number: '03', label: 'Organisms', count: 6 },
-  { id: 'zone-04', number: '04', label: 'Templates', count: 5 },
+  { id: 'zone-04', number: '04', label: 'Templates', count: 6 },
 ]
 
 const CHECKLIST = [
@@ -50,7 +50,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
             <h1 className="font-display m-0 text-[40px] font-semibold leading-[1.15] tracking-[-.8px]">
               Theme kit
             </h1>
-            <p className="text-muted-foreground mt-4 text-pretty text-[13.5px] leading-[1.75]">
+            <p className="text-muted-foreground mt-4 text-pretty text-[13px] leading-[1.75]">
               Tổ chức theo atomic design:{' '}
               <b className="text-foreground">
                 Foundations → Atoms → Molecules → Organisms → Templates
@@ -68,7 +68,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
                 href={`#${zone.id}`}
                 className="motion-std flex w-[250px] items-center gap-3.5 rounded-md bg-white/5 px-4 py-[9px] hover:bg-white/10"
               >
-                <span className="font-num text-accent-foreground w-[22px] text-[14px] font-semibold">
+                <span className="font-num text-accent-foreground w-[22px] text-[13px] font-semibold">
                   {zone.number}
                 </span>
                 <span className="text-foreground flex-1 text-[12.5px]">{zone.label}</span>
@@ -88,7 +88,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
           <section className="pt-12">
             <div className="border-t-white/12 grid grid-cols-2 gap-4 border-t pt-9">
               <div className="glass-b-flat rounded-lg px-[26px] py-6">
-                <div className="font-display mb-4 text-[17px] font-semibold">
+                <div className="font-display mb-4 text-[15px] font-semibold">
                   Checklist nghiệm thu mỗi màn
                 </div>
                 <div className="text-muted-foreground text-[12.5px] leading-[2]">
@@ -99,7 +99,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
               </div>
 
               <div className="glass-b-flat rounded-lg px-[26px] py-6">
-                <div className="font-display mb-4 text-[17px] font-semibold">Bàn giao cho dev</div>
+                <div className="font-display mb-4 text-[15px] font-semibold">Bàn giao cho dev</div>
                 <div className="text-muted-foreground flex flex-col gap-4 text-[12.5px] leading-[1.9]">
                   <p>
                     Token nằm ở{' '}

@@ -73,7 +73,7 @@ export function AvatarGroup({
                 ? 'size-[38px] text-[12.5px]'
                 : size === 'md'
                   ? 'size-[30px] text-[11px]'
-                  : 'size-6 text-[9.5px]',
+                  : 'size-6 text-[10.5px]',
             )}
           >
             +{rest.length}

@@ -71,7 +71,7 @@ export type AppHeaderProps = {
  *  icon, một con số đứng cạnh sẽ đội chiều ngang của cả hàng lên. */
 function CountBadge({ count }: { count: number }) {
   return (
-    <span className="bg-destructive text-primary-foreground absolute -right-1 -top-1 min-w-[17px] rounded-full px-1 text-center text-[10px] font-semibold leading-[17px]">
+    <span className="bg-destructive text-primary-foreground absolute -right-1 -top-1 min-w-[17px] rounded-full px-1 text-center text-[10.5px] font-semibold leading-[17px]">
       {count > 99 ? '99+' : count}
     </span>
   )
@@ -210,7 +210,7 @@ export function AppHeader({
           {/* Tên sản phẩm ẩn dưới `md`: ở đó mỗi pixel ngang thuộc về ô tìm, và
               logo đã nói đủ đây là app nào. */}
           <div className="hidden md:block">
-            <b className="font-display block text-[13.5px] leading-tight">{product}</b>
+            <b className="font-display block text-[13px] leading-tight">{product}</b>
             <small className="text-muted-foreground block text-[10.5px] font-normal leading-tight">
               {org}
             </small>

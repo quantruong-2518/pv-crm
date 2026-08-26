@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
   Archive,
-  ArrowLeft,
   ArrowRight,
   CalendarDays,
   Eye,
@@ -29,11 +28,13 @@ import {
   EmptyState,
   GlassCard,
   Icon,
+  InsetPanel,
+  LoadingBlock,
   MetaPill,
   Money,
+  PageHeader,
   Progress,
   SectionTitle,
-  Skeleton,
   StatCard,
   Timeline,
   millions,
@@ -53,7 +54,15 @@ import { dm } from '@/lib/date'
 import { sourcesQuery } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { CampaignForm, NotDoing } from './campaign-parts'
-import { KIND_ICON, KIND_LABEL, KIND_TONE, draftOf, sendsViaE4 } from './campaign-model'
+import {
+  KHO_DANH_SACH_PATH,
+  KIND_ICON,
+  KIND_LABEL,
+  KIND_TONE,
+  PERIOD,
+  draftOf,
+  sendsViaE4,
+} from './campaign-model'
 
 /** Module 1 · hồ sơ MỘT nguồn — màn riêng từ 19/08.
  *
@@ -100,9 +109,11 @@ export function CampaignDetailPage() {
 
   if (isPending) {
     return shell(
+      /* Khung chờ cao xấp xỉ nội dung thật: một dòng tiêu đề rồi khối score
+         card. Hai chiều cao khác nhau là HAI khối, không phải một khối hai dải. */
       <div className="flex flex-col gap-4">
-        <Skeleton className="h-11 w-64" />
-        <Skeleton className="h-40 w-full" />
+        <LoadingBlock height={44} width="256px" label="Đang tải hồ sơ nguồn" />
+        <LoadingBlock height={160} label="Đang tải số của nguồn" />
       </div>,
     )
   }
@@ -122,6 +133,9 @@ export function CampaignDetailPage() {
 
   const now = followers ?? source.followers
   const following = me !== null && now.includes(me)
+  /* Đúng một lô đứng sau nguồn này thì lối sang kho đi thẳng vào lô ấy. Hai lô
+     (SK-0106) hoặc không lô nào thì `null` — nút lùi về nhãn chung. */
+  const onlyBatch = source.batchCodes.length === 1 ? (source.batchCodes[0] ?? null) : null
   const runnable = source.waves.length > 0
   const editable = source.kind !== 'tu-nhien'
 
@@ -186,9 +200,24 @@ export function CampaignDetailPage() {
     return shell(
       /* Luật 10 · rail có mặt ở CẢ hai chế độ, đúng như sổ nguồn làm với chế độ
          tạo mới. Sửa là một việc của cùng hồ sơ, không phải một màn khác —
-         chuỗi object không được biến mất chỉ vì người dùng bấm sang form. */
+         chuỗi object không được biến mất chỉ vì người dùng bấm sang form.
+
+         KHÔNG truyền `back`: lối ra của chế độ sửa là nút "Huỷ" của form, và
+         nút ấy hỏi lại trước khi bỏ bản nháp. Một lối về thứ hai đi vòng qua
+         câu hỏi đó là một đường làm mất việc người ta vừa gõ. */
       <div className="flex flex-col gap-4 lg:gap-6">
-        <ContextRail objects={rail} />
+        <PageHeader
+          icon={KIND_ICON[source.kind]}
+          title={source.label}
+          meta={<Badge tone={KIND_TONE[source.kind]}>{KIND_LABEL[source.kind]}</Badge>}
+          subtitle={
+            <>
+              DAS Vina · kỳ <span className="font-mono">{PERIOD}</span> · chủ màn {source.owner} ·
+              người gật {HEAD_OF_SALES}
+            </>
+          }
+          rail={<ContextRail objects={rail} />}
+        />
         <CampaignForm
           mode="edit"
           code={source.code}
@@ -206,28 +235,27 @@ export function CampaignDetailPage() {
 
   return shell(
     <div className="flex flex-col gap-4 lg:gap-6">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="self-start"
-        onClick={() => navigate('/sales/campaigns')}
-      >
-        <Icon icon={ArrowLeft} size={16} />
-        Sổ nguồn
-      </Button>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Icon icon={KIND_ICON[source.kind]} size={20} className="text-accent-foreground" />
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              {source.label}
-            </h2>
+      {/* Một `PageHeader` thay cho bốn khối chép tay: lối về sổ, tiêu đề, hai
+          badge, hàng MetaPill và rail. Rail xuống HÀNG RIÊNG (luật 10) thay vì
+          chen cạnh cụm nút như bản trước. */}
+      <PageHeader
+        back={{ label: 'Sổ nguồn', onBack: () => navigate('/sales/campaigns') }}
+        icon={KIND_ICON[source.kind]}
+        title={source.label}
+        meta={
+          <>
             <Badge tone={KIND_TONE[source.kind]}>{KIND_LABEL[source.kind]}</Badge>
             <Badge tone={status.tone}>{status.label}</Badge>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+          </>
+        }
+        subtitle={
+          <>
+            DAS Vina · kỳ <span className="font-mono">{PERIOD}</span> · chủ màn {source.owner} ·
+            người gật {HEAD_OF_SALES}
+          </>
+        }
+        tags={
+          <>
             <MetaPill mono>{source.code}</MetaPill>
             {/* Nguồn không đợt thì KHÔNG có khoảng: `lastDay` bằng chính
                 `startDay`, in ra "04/05 → 04/05" đọc như thể nguồn sống đúng
@@ -239,11 +267,10 @@ export function CampaignDetailPage() {
             </MetaPill>
             <MetaPill avatar={source.owner}>{source.owner}</MetaPill>
             {source.venue ? <MetaPill icon={MapPin}>{source.venue}</MetaPill> : null}
-          </div>
-        </div>
-
-        <ContextRail objects={rail} />
-      </div>
+          </>
+        }
+        rail={<ContextRail objects={rail} />}
+      />
 
       {/* Nút nghiệp vụ, không phải nút phụ: `md` (h-10) chứ không `sm` (h-8).
           iPad dọc 768px chạy đúng layout này bằng ngón tay. */}
@@ -378,11 +405,17 @@ export function CampaignDetailPage() {
               cho GT và TM, không phải chỗ thiếu dữ liệu, và một cái bảng rỗng
               đọc như một lỗi tải. Nó được một câu chữ thay chỗ. */}
           <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+            {/* KHAI PHẠM VI ngay ở nhãn, không để cụm "chi phí của nguồn" trần
+                (quyết định G · 20/08). Cụm ấy là chỗ hở cuối cùng của chuỗi hồ
+                sơ nguồn → kho danh sách: người đi hết chuỗi đọc "chi phí của
+                nguồn" ở đây rồi đọc "tiền mua dòng của lô" ở kho, hai số khác
+                nhau cho cùng một lần mua danh sách. Nhãn phải nói ra mẫu số của
+                chính nó thay vì để người xem tự đoán. */}
             <SectionTitle
               size="sm"
               hint={
                 source.costByKind.total > 0
-                  ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng chi phí của nguồn. Giờ người KHÔNG có ở đây: đây là tiền đã ra khỏi tài khoản.`
+                  ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng TIỀN MẶT CỦA RIÊNG NGUỒN ${source.code} trong kỳ. Giờ người KHÔNG có ở đây: đây là tiền đã ra khỏi tài khoản.`
                   : undefined
               }
             >
@@ -390,7 +423,7 @@ export function CampaignDetailPage() {
             </SectionTitle>
 
             {source.costByKind.rows.length === 0 ? (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+              <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                 Nguồn này không tốn đồng tiền mặt nào, nên không có dòng chi nào để phân rã — đó là
                 nội dung của nó, không phải chỗ thiếu dữ liệu. {source.leads} lead về từ đây vẫn tốn
                 giờ người, nhưng giờ người là một lớp chi phí khác và hệ chưa có bảng giờ nào để đo.
@@ -401,7 +434,10 @@ export function CampaignDetailPage() {
                     đọc ra là TỔNG CHI, không phải giá mỗi lead tốt. Trang kit
                     luôn kèm caption; màn phải kèm theo. */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground text-[12px]">Giá mỗi lead tốt</span>
+                  {/* 12,5px — bậc "thân" của thang chữ. 12px không có trong
+                      thang chín bậc (§8.3), và một caption lệch nửa điểm ảnh
+                      không đáng để đẻ bậc thứ mười. */}
+                  <span className="text-muted-foreground text-[12.5px]">Giá mỗi lead tốt</span>
                   <CostBand
                     variant="card"
                     point={source.band.point}
@@ -428,25 +464,55 @@ export function CampaignDetailPage() {
                   }))}
                 />
                 {source.costByKind.absent.length > 0 ? (
-                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                     Không có dòng nào thuộc {source.costByKind.absent.join(', ')} — nguồn này không
                     tiêu tiền ở {source.costByKind.absent.length > 1 ? 'những loại' : 'loại'} đó,
                     khác hẳn với chưa ai nhập số.
                   </p>
                 ) : null}
                 {source.enough ? null : (
-                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                     Dải giá ở trên chưa đủ chắc để so với nguồn khác — {source.why}. Con số vẫn hiện
                     vì tiền đã tiêu thật; thứ chưa đứng vững là câu so sánh, không phải chi phí.
                   </p>
                 )}
+
+                {/* Mỗi nhãn tiền khai phạm vi. Người đi theo chuỗi nguồn → lô sẽ
+                    đọc hai con số cho cùng một lần mua danh sách: dòng "Dữ liệu"
+                    ở đây và "Tiền mua dòng của lô" ở kho. Chúng trả lời hai câu
+                    hỏi khác nhau, nên màn phải nói ra thay vì để người xem tự
+                    ghép — và phải có lối đi sang chỗ kia. */}
+                <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+                  Dòng &quot;Dữ liệu&quot; đo CHI DỮ LIỆU CỦA NGUỒN, không phải tiền mua dòng của lô
+                  danh sách đứng sau nó — thước đó có mẫu số khác và nằm ở kho danh sách.
+                </p>
+                {/* Lối sang kho TRỎ ĐÍCH DANH khi truy được về đúng một lô:
+                    người đứng ở CD-0101 muốn xem lô đứng sau nó không phải dò
+                    lại tám dòng. Kho đọc `?lo=` sẵn, và chiều ngược lại (chip
+                    nguồn trong ngăn kéo của kho) đã trỏ thẳng từ trước.
+                    Nhiều lô thì nhãn lùi về tên chung — nút không được hứa một
+                    lô cụ thể khi có hai lô cùng nuôi nguồn này. */}
+                <div>
+                  <Button
+                    size="md"
+                    variant="ghost"
+                    onClick={() =>
+                      navigate(
+                        onlyBatch ? `${KHO_DANH_SACH_PATH}?lo=${onlyBatch}` : KHO_DANH_SACH_PATH,
+                      )
+                    }
+                  >
+                    <Icon icon={Archive} size={16} />
+                    {onlyBatch ? `Lô danh sách ${onlyBatch}` : 'Kho danh sách'}
+                  </Button>
+                </div>
               </>
             )}
           </GlassCard>
 
           <GlassCard variant="b" className="flex flex-col gap-4 p-5">
             {!runnable ? (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+              <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                 Nguồn tự nhiên — không ai chạy đợt nào. {source.leads} lead về từ đây là khách tự
                 tìm tới hoặc do người trong phòng tự mở, nên không có chuỗi đợt để vẽ và không có kỳ
                 vọng để chấm.
@@ -461,7 +527,7 @@ export function CampaignDetailPage() {
                 </SectionTitle>
                 <Timeline items={items} />
                 {closed ? (
-                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                     Chiến dịch đã đóng — chuỗi không nhận thêm đợt và nội dung không sửa được nữa.
                     Mở lại là một yêu cầu duyệt khác.
                   </p>
@@ -513,7 +579,7 @@ export function CampaignDetailPage() {
               }}
             />
             {drafted ? (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+              <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                 Bản nháp chưa rời màn này — chưa có ai nhận. Chưa có màn Hộp duyệt để gửi tới; khi
                 có backend, bản soạn đi tới {HEAD_OF_SALES} rồi mới có đợt nào được bung.
               </p>
@@ -522,11 +588,14 @@ export function CampaignDetailPage() {
 
           {/* Bảng lead không nằm ở đây — lý do ngay dưới, trong "Cố tình không
               làm". Còn lại đúng một con số và một lối đi. */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-white/5 p-4">
-            <span className="text-[11.5px] leading-[1.5]">
+          <InsetPanel className="flex flex-wrap items-center justify-between gap-3">
+            {/* Luật 14 · chữ trên màn là tiếng Việt, không viết tắt kỹ thuật.
+                "cổng init data" là tên trong tài liệu, không phải tên người dùng
+                gọi — trên màn nó là "bộ ô bắt buộc". */}
+            <span className="text-[12.5px] leading-[1.6]">
               <span className="tnum font-num">{source.good}</span>/
-              <span className="tnum font-num">{source.leads}</span> lead của nguồn này đã qua cổng
-              init data
+              <span className="tnum font-num">{source.leads}</span> lead của nguồn này đã moi đủ{' '}
+              {REQUIRED_SLOTS} ô bắt buộc
             </span>
             <Button
               size="md"
@@ -536,7 +605,7 @@ export function CampaignDetailPage() {
               <Icon icon={ArrowRight} size={16} />
               Mở Sổ lead
             </Button>
-          </div>
+          </InsetPanel>
 
           <NotDoing />
         </div>

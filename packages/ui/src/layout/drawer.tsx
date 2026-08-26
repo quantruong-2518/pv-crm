@@ -134,7 +134,7 @@ export function Drawer({
       >
         <header className="flex items-start gap-3 px-5 pb-4 pt-5 lg:px-6">
           <div className="min-w-0 flex-1">
-            <h2 className="font-display m-0 text-[16px] font-semibold">{title}</h2>
+            <h2 className="font-display m-0 text-[15px] font-semibold">{title}</h2>
             {subtitle && (
               <p className="text-muted-foreground m-0 mt-1 text-[11.5px] leading-[1.5]">
                 {subtitle}
@@ -146,7 +146,7 @@ export function Drawer({
             type="button"
             onClick={onClose}
             aria-label={closeLabel}
-            className="motion-std hover:bg-white/16 bg-white/9 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
+            className="motion-std bg-surface-control hover:bg-surface-control-hover -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
           >
             <Icon icon={X} size={16} />
           </button>

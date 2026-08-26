@@ -15,10 +15,13 @@ export * from './assets'
 export * from './layout/aurora-field'
 export * from './layout/glass-card'
 
-// ---- Zone 01 · Atoms (A-01 … A-20) ----
+// ---- Zone 01 · Atoms (A-01 … A-22) ----
 /** A-20 · AssistantFab là một atom — đúng một nút. File nằm ở `layout/` vì
  *  AppShell là chỗ duy nhất gắn nó, nhưng trên trang kit nó thuộc Zone 01. */
 export * from './layout/assistant-fab'
+/** A-22 · InsetPanel cũng ở `layout/` vì cùng họ với GlassCard (F-03) — nó là
+ *  mảng nền KHÔNG kính đứng cạnh mặt kính. Trên trang kit nó thuộc Zone 01. */
+export * from './layout/inset-panel'
 export * from './ui/avatar'
 export * from './ui/avatar-group'
 export * from './ui/badge'
@@ -41,18 +44,24 @@ export * from './ui/skeleton'
 export * from './ui/sparkline'
 export * from './ui/status-dot'
 
-// ---- Zone 02 · Molecules (M-01 … M-12) ----
+// ---- Zone 02 · Molecules (M-01 … M-18) ----
 export * from './patterns/ai-action'
 export * from './patterns/approval-chain'
 export * from './patterns/bar-chart'
+export * from './patterns/column-map'
 export * from './patterns/context-rail'
 export * from './patterns/data-table'
+export * from './patterns/dropzone'
 export * from './patterns/empty-state'
+export * from './patterns/loading-block'
 export * from './patterns/nav-item'
+export * from './patterns/not-doing'
 export * from './patterns/rich-text'
 export * from './patterns/scan-field'
 export * from './patterns/search-field'
 export * from './patterns/stat-card'
+export * from './patterns/step-strip'
+export * from './patterns/table-skeleton'
 export * from './patterns/timeline'
 
 // ---- Zone 03 · Organisms (O-02 … O-07) ----
@@ -67,6 +76,7 @@ export * from './organisms/brief-card'
 export * from './organisms/kiosk-tile'
 export * from './organisms/order-lifecycle-card'
 
-// ---- Zone 04 · Templates (T-04 · T-05) ----
+// ---- Zone 04 · Templates (T-04 · T-05 · T-06) ----
 export * from './layout/app-shell'
 export * from './layout/drawer'
+export * from './layout/page-header'

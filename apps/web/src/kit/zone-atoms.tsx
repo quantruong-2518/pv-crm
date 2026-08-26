@@ -14,7 +14,9 @@ import {
   Chip,
   CostBand,
   type CostBandProps,
+  GlassCard,
   Input,
+  InsetPanel,
   Kicker,
   MetaPill,
   Money,
@@ -206,7 +208,7 @@ export function ZoneAtoms() {
           {STATUS_DOTS.map((dot) => (
             <div key={dot.state} className="flex items-center gap-2.5">
               <StatusDot state={dot.state} />
-              <span className="text-muted-foreground text-[12px]">{dot.text}</span>
+              <span className="text-muted-foreground text-[12.5px]">{dot.text}</span>
             </div>
           ))}
         </SpecCard>
@@ -256,15 +258,15 @@ export function ZoneAtoms() {
           footer="Chuẩn VN: phẩy thập phân, chấm ngăn nghìn · luôn tabular-nums"
         >
           <div className="flex items-baseline justify-between">
-            <span className="text-muted-foreground text-[12px]">KPI hero</span>
+            <span className="text-muted-foreground text-[12.5px]">KPI hero</span>
             <Money value={1_840_000_000} scale="hero" />
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-muted-foreground text-[12px]">Trong thẻ</span>
+            <span className="text-muted-foreground text-[12.5px]">Trong thẻ</span>
             <Money value={128_500_000} />
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-muted-foreground text-[12px]">Trong bảng</span>
+            <span className="text-muted-foreground text-[12.5px]">Trong bảng</span>
             <Money value={1_840_000_000} scale="table" />
           </div>
         </SpecCard>
@@ -553,12 +555,79 @@ export function ZoneAtoms() {
               {COST_BANDS.map((row) => (
                 <div key={row.code} className="flex flex-col gap-2 rounded-lg bg-white/5 px-4 py-4">
                   <CostBand variant="card" {...row.band} />
-                  <span className="text-muted-foreground text-[12px]">
+                  <span className="text-muted-foreground text-[12.5px]">
                     Giá mỗi lead tốt · {row.code}
                   </span>
                 </div>
               ))}
             </div>
+          </div>
+        </SpecCard>
+
+        {/* A-22 */}
+        <SpecCard
+          className="col-span-3"
+          code="A-22"
+          name="InsetPanel"
+          note="một mức nền, không phải mặt kính"
+          noteAccent
+          bodyClassName="grid grid-cols-2 gap-8 px-4 py-5"
+          footer={
+            <>
+              Thu hai mươi chỗ gõ tay `rounded-md bg-white/5` — cùng với `bg-white/7`, `/9`, `/12`
+              đứng cạnh cùng vai — về một mức có tên: `--surface-inset` (§8.2). Không nhận nền,
+              không nhận đệm qua tham số: mở một prop `bg` là mức nền thứ mười hai quay lại tuần
+              sau.
+              <br />
+              Hai bậc đệm: `md` = p-4 (thẻ lồng) · `sm` = p-3 (ô lồng cấp hai). Bậc thứ ba là thẻ
+              cấp một `p-5 lg:p-6`, đó là việc của GlassCard.
+              <br />
+              KHÔNG có backdrop-blur, KHÔNG dùng class .glass-*: nó là mảng trắng vẽ TRÊN mặt kính
+              đang có. Vì vậy không bọc GlassCard bên trong, không lồng InsetPanel trong InsetPanel
+              — hai mảng chồng nhau đọc thành lớp nền thứ năm (luật 12). Bảng vẫn ra GlassCard
+              variant=&ldquo;b&rdquo; cấp một (luật 8).
+              <br />
+              Chữ phụ trong panel dùng text-glass-foreground: trên .glass-a đã nhuộm,
+              muted-foreground chỉ còn 3,8–4,4:1 (luật 13).
+            </>
+          }
+        >
+          <div className="flex flex-col gap-3">
+            <div className="text-muted-foreground font-mono text-[10.5px] uppercase tracking-[.1em]">
+              pad md · trong thẻ glass-a
+            </div>
+            <GlassCard className="flex flex-col gap-3 p-5">
+              <SectionTitle size="sm">Tiền đi đâu</SectionTitle>
+              <InsetPanel>
+                <div className="text-glass-foreground text-[11.5px] leading-[1.5]">
+                  Dòng &ldquo;Dữ liệu&rdquo; đo chi dữ liệu của nguồn, không phải tiền mua dòng của
+                  lô danh sách đứng sau nó.
+                </div>
+              </InsetPanel>
+            </GlassCard>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="text-muted-foreground font-mono text-[10.5px] uppercase tracking-[.1em]">
+              pad sm · ô lồng cấp hai
+            </div>
+            <GlassCard className="flex flex-col gap-3 p-5">
+              <SectionTitle size="sm">Ba bậc đệm, ba vai</SectionTitle>
+              {/* Ba ô ĐỨNG CẠNH nhau, không ô nào lồng trong ô nào — panel
+                  chồng panel là lớp nền thứ năm (luật 12). Ở đây không có số
+                  nào cả: kit là chỗ đo hình, số của màn nằm trong fixture. */}
+              <div className="grid grid-cols-3 gap-3">
+                <InsetPanel pad="sm">
+                  <span className="text-glass-foreground font-mono text-[10.5px]">p-3 · sm</span>
+                </InsetPanel>
+                <InsetPanel pad="sm">
+                  <span className="text-glass-foreground font-mono text-[10.5px]">ô lồng</span>
+                </InsetPanel>
+                <InsetPanel pad="sm">
+                  <span className="text-glass-foreground font-mono text-[10.5px]">cấp hai</span>
+                </InsetPanel>
+              </div>
+            </GlassCard>
           </div>
         </SpecCard>
       </ZoneBody>

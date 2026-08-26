@@ -1,8 +1,18 @@
 import { useState } from 'react'
-import { Bell, House, Package, SquareCheckBig, Users } from 'lucide-react'
+import { Bell, CalendarDays, House, Megaphone, Package, SquareCheckBig, Users } from 'lucide-react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { AppShell, Badge, Button, Drawer, GlassCard, cn } from '@pv/ui'
+import {
+  AppShell,
+  Badge,
+  Button,
+  ContextRail,
+  Drawer,
+  GlassCard,
+  MetaPill,
+  PageHeader,
+  cn,
+} from '@pv/ui'
 
 /** Zone 04 · Templates — ba thiết bị là ba vai, không phải một layout co giãn.
  *  T-01/02/03 là bản vẽ khung; T-04 và T-05 là component SỐNG. */
@@ -24,6 +34,18 @@ const SHELL_HEADER = {
   ],
 }
 
+/** Rail mẫu cho T-06 — chuỗi object của một câu chuyện, dựng thẳng từ E1 khi ở
+ *  màn thật. Ở đây là mã tĩnh, đủ để thấy rail đứng thành hàng riêng. */
+const RAIL_DEMO = [{ code: 'CD-0101', source: true }, { code: 'DS-0108' }, { code: 'L-2608-042' }]
+const RAIL_DETAIL = [{ code: 'CD-0101', source: true }, { code: 'Đợt 3' }, { code: 'DS-0108' }]
+
+/* T-01/02/03 là BẢN VẼ TỈ LỆ của ba khung màn, không phải màn thật. Chú thích
+   bên trong khung ("232", "topbar 64", "status 44") in ở 7,5 · 9 · 9,5px —
+   ngoài thang 9 bậc, và cố ý: đây là "cỡ ngoài thang có lý do" của §8.1 điều 14.
+   Lý do: chúng là số đo ghi trên một bản vẽ đã thu nhỏ, cùng vai với con số
+   ghi cạnh đường kích thước trong bản vẽ kỹ thuật. Kéo chúng lên bậc 9 (10,5px)
+   thì chữ to hơn cái ô nó đang chú thích, và bản vẽ hết đọc được.
+   Mọi chữ THẬT của trang này — tên thẻ, note, footer, nhãn — vẫn trong thang. */
 const frame =
   'h-[270px] rounded-md bg-[color-mix(in_srgb,var(--background)_70%,transparent)] shadow-[inset_0_0_0_1px_rgb(255_255_255/.07)]'
 const slot = 'rounded-[2px] bg-white/7'
@@ -53,7 +75,7 @@ export function ZoneTemplates() {
           code="T-01"
           name="Desktop"
           note={
-            <span className="font-num text-[14px] font-semibold tracking-[-.3px]">1440 × 900</span>
+            <span className="font-num text-[13px] font-semibold tracking-[-.3px]">1440 × 900</span>
           }
           bodyClassName="px-4 py-5"
           footer={
@@ -91,7 +113,7 @@ export function ZoneTemplates() {
           code="T-02"
           name="Tablet"
           note={
-            <span className="font-num text-[14px] font-semibold tracking-[-.3px]">1024 × 768</span>
+            <span className="font-num text-[13px] font-semibold tracking-[-.3px]">1024 × 768</span>
           }
           bodyClassName="px-4 py-5"
           footer={
@@ -121,7 +143,7 @@ export function ZoneTemplates() {
           code="T-03"
           name="Mobile"
           note={
-            <span className="font-num text-[14px] font-semibold tracking-[-.3px]">390 × 844</span>
+            <span className="font-num text-[13px] font-semibold tracking-[-.3px]">390 × 844</span>
           }
           bodyClassName="flex justify-center px-4 py-5"
           footer={
@@ -185,7 +207,7 @@ export function ZoneTemplates() {
             <div className="flex flex-col gap-4">
               <GlassCard className="p-5">
                 <div className="text-muted-foreground text-[11px]">Đã đạt trong kỳ</div>
-                <div className="tnum font-num mt-1 text-[30px] font-semibold tracking-[-1px]">
+                <div className="tnum font-num mt-1 text-[26px] font-semibold tracking-[-.8px]">
                   2 / 2
                 </div>
               </GlassCard>
@@ -239,6 +261,81 @@ export function ZoneTemplates() {
                 </div>
               </AppShell>
             </div>
+          </div>
+        </SpecCard>
+
+        {/* T-06 */}
+        <SpecCard
+          className="col-span-3"
+          code="T-06"
+          name="PageHeader"
+          note="đầu màn — không nhận size"
+          noteAccent
+          bodyClassName="flex flex-col gap-6 p-4"
+          footer={
+            <>
+              Chín màn đang chép tay cùng một khối tiêu đề, màn thứ mười dùng SectionTitle
+              size=&ldquo;lg&rdquo; 18px làm tiêu đề màn — đầu màn có hai cỡ chữ cho cùng một vai.
+              Cỡ ở đây render CỨNG 20px, `lg` 22px, và component KHÔNG nhận `size`: đó là thứ giữ
+              cho chỗ lệch không quay lại. Cần cỡ khác thì đó là tiêu đề của một khối, dùng
+              SectionTitle.
+              <br />
+              `rail` xuống HÀNG RIÊNG ngay dưới tiêu đề (luật 10). Trước đây rail bị nhét chung cụm
+              với nút bên phải nên ở màn nhiều nút nó trôi mất chỗ, ở chế độ sửa thì biến mất hẳn.
+              <br />
+              `back` đứng TRÊN tiêu đề, đúng quy ước “màn con của một sổ luôn có lối về sổ”. Nút
+              size=&ldquo;md&rdquo; (40px) — ngưỡng chạm 48px của luật 13 đang chờ người quyết (nâng
+              ở `md:` thì desktop 1440 cũng thành nút 48px), chưa tự sửa.
+              <br />
+              Thẻ tiêu đề là h1: mỗi màn đúng một tiêu đề cấp một, để h2 của SectionTitle nằm đúng
+              một bậc dưới. Không vẽ mặt kính, không bọc GlassCard — nó nằm trên nền màn, là lớp 3
+              của luật 12.
+            </>
+          }
+        >
+          <div className="rounded-md bg-black/20 p-5">
+            <PageHeader
+              title="Chiến dịch &amp; Sự kiện"
+              subtitle={
+                <>
+                  DAS Vina · kỳ <span className="font-mono">01/05 → 17/08</span> · chủ màn Marketing
+                  · người gật TP Kinh doanh
+                </>
+              }
+              rail={<ContextRail objects={RAIL_DEMO} />}
+              actions={
+                <>
+                  <Button size="md" variant="ghost">
+                    Kho danh sách
+                  </Button>
+                  <Button size="md">Chiến dịch mới</Button>
+                </>
+              }
+            />
+          </div>
+
+          <div className="rounded-md bg-black/20 p-5">
+            <PageHeader
+              back={{ label: 'Sổ nguồn', onBack: () => {} }}
+              icon={Megaphone}
+              title="Hội thảo nhà máy thông minh"
+              meta={
+                <>
+                  <Badge tone="running">Đang chạy</Badge>
+                  <Badge tone="draft">Sự kiện</Badge>
+                </>
+              }
+              subtitle="Màn con của sổ nguồn — lối về sổ đứng trên tiêu đề."
+              tags={
+                <>
+                  <MetaPill mono>CD-0101</MetaPill>
+                  <MetaPill mono icon={CalendarDays}>
+                    04/05 → 17/08
+                  </MetaPill>
+                </>
+              }
+              rail={<ContextRail objects={RAIL_DETAIL} />}
+            />
           </div>
         </SpecCard>
       </ZoneBody>

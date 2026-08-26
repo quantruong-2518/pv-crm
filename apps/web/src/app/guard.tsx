@@ -10,7 +10,8 @@ import { access, canEnter, useSession } from './session'
  *  Hai tầng, KHÔNG gộp làm một:
  *   1 · chưa đăng nhập  → đá về màn chọn vai, nhớ đường đang định vào;
  *   2 · đăng nhập rồi nhưng không có nhánh → KHÔNG đá đi đâu cả, hiện đúng câu
- *       "Bị ẩn theo quyền của bạn" kèm nút xin quyền.
+ *       "Bị ẩn theo quyền của bạn" và nói thẳng là bản này chưa có đường xin
+ *       quyền. Lối ra duy nhất có thật là đổi vai, nên đó là nút duy nhất.
  *
  *  Phân biệt này quan trọng: đá người đã đăng nhập về màn login khi họ chỉ
  *  thiếu quyền là nói dối họ về nguyên nhân, và họ sẽ đăng nhập lại vòng vo.
@@ -57,20 +58,20 @@ function BranchLocked({ branch }: { branch: Branch | null }) {
         <GlassCard className="flex max-w-md flex-col items-center gap-4 p-8 text-center">
           <Icon icon={Lock} size={26} className="text-muted-foreground" />
           <h1 className="font-display text-[20px] font-semibold">Bị ẩn theo quyền của bạn</h1>
+          {/* Câu này KHÔNG được hứa một đường xin quyền: bản POC chưa nối E3,
+              nên yêu cầu mở quyền chưa đi tới ai. Trước bản này màn có nút "Xin
+              quyền" với `onClick` rỗng — bấm không xảy ra gì và không chữ nào
+              nói ra điều đó. Bỏ nút, giữ câu, đúng cách `chrome.tsx` bỏ hẳn
+              `onOpenAssistant` để không vẽ ra một nút không đưa đi đâu. */}
           <p className="text-muted-foreground text-pretty text-[12.5px] leading-[1.65]">
-            Vai hiện tại không có nhánh {branch}. Xin quyền để mở, hoặc đổi sang vai khác.
+            Vai hiện tại không có nhánh {branch}. Bản này chưa có đường xin quyền — mở nhánh là việc
+            của quản trị, và chuỗi duyệt E3 chưa nối. Đổi sang vai có nhánh đó để xem.
           </p>
           <div className="flex gap-3">
+            {/* Nút DUY NHẤT của màn nên nó là nút chính, không phải `ghost`:
+                `ghost` là kiểu của lối phụ, mà ở đây không còn lối nào khác. */}
             <Button
-              onClick={() => {
-                /* Nối E3 khi có backend: yêu cầu mở quyền là một chuỗi duyệt,
-                   không phải email gửi tay. */
-              }}
-            >
-              Xin quyền
-            </Button>
-            <Button
-              variant="ghost"
+              size="md"
               onClick={() => {
                 signOut()
                 navigate('/dang-nhap', { replace: true })

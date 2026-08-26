@@ -1,13 +1,19 @@
+import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
 /** M-08 · EmptyState — LUÔN 1 icon + 1 câu hướng dẫn + 1 nút.
- *  Không bao giờ chỉ có chữ "Không có dữ liệu". */
+ *  Không bao giờ chỉ có chữ "Không có dữ liệu".
+ *
+ *  `message` nhận ReactNode chứ không chỉ chuỗi: câu rỗng hay phải nhắc lại một
+ *  MÃ (lead L-2608-042, lô DS-0108), mà mã thì in bằng `font-mono` — luật 6.
+ *  Ép chuỗi thì màn phải chép lại cả khối rỗng chỉ để mono hoá một cụm, và đó
+ *  đúng là lý do `lead-detail.tsx` còn giữ một bản `EmptyLead` viết tay. */
 export type EmptyStateProps = {
   icon: LucideIcon
-  message: string
+  message: ReactNode
   action: { label: string; onClick?: () => void }
   className?: string
 }

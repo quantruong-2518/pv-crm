@@ -76,8 +76,8 @@ export function OrderLifecycleCard({
     <GlassCard className={cn('flex flex-col gap-4 px-6 py-[22px]', className)}>
       <div className="flex items-center gap-[11px]">
         <StatusDot state={state} />
-        <b className="font-display flex-1 text-[17px] font-semibold">{title}</b>
-        <span className="tnum font-num text-[17px] font-semibold tracking-[-.4px]">{amount}</span>
+        <b className="font-display flex-1 text-[15px] font-semibold">{title}</b>
+        <span className="tnum font-num text-[15px] font-semibold tracking-[-.4px]">{amount}</span>
       </div>
 
       <p className="text-muted-foreground -mt-2.5 text-[12.5px]">{description}</p>

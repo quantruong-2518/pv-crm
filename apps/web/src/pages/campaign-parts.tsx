@@ -10,6 +10,7 @@ import {
   GlassCard,
   Icon,
   Input,
+  InsetPanel,
   RichText,
   RichTextView,
   SectionTitle,
@@ -20,11 +21,13 @@ import { dm } from '@/lib/date'
 import { DRAFT_TEMPLATE, type DraftWave, type SourceRow } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import {
+  AUDIENCE_BATCH,
   CHANNELS,
   KIND_ICON,
   KIND_LABEL,
   ROLE_OF,
   draftHtml,
+  grouped,
   nextWave,
   sendsViaE4,
   type CampaignDraft,
@@ -44,8 +47,8 @@ import {
  *  hỏi ngay trong buổi demo đầu tiên: "lead đâu", "sao không gửi luôn được",
  *  "sao không có biểu đồ". Trả lời một lần trên màn rẻ hơn trả lời mười lần.
  *
- *  Không dùng `GlassCard`: khối này nằm trong cột phải của hồ sơ nguồn, thêm
- *  một mặt kính nữa là thêm một lớp nền (luật 12). */
+ *  Dùng `InsetPanel`, KHÔNG dùng `GlassCard`: khối này nằm trong cột phải của hồ
+ *  sơ nguồn, thêm một mặt kính nữa là thêm một lớp nền (luật 12). */
 export function NotDoing() {
   const items = [
     {
@@ -63,17 +66,17 @@ export function NotDoing() {
   ]
 
   return (
-    <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
-      <h3 className="text-[12.5px] font-semibold">Cố tình không làm</h3>
+    <InsetPanel className="flex flex-col gap-3">
+      <h3 className="text-[13px] font-semibold">Cố tình không làm</h3>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {items.map((it) => (
           <li key={it.title} className="flex flex-col gap-1">
-            <b className="text-[11.5px] font-semibold">{it.title}</b>
-            <span className="text-muted-foreground text-[11.5px] leading-[1.5]">{it.body}</span>
+            <b className="text-[13px] font-semibold">{it.title}</b>
+            <span className="text-glass-foreground text-[12.5px] leading-[1.6]">{it.body}</span>
           </li>
         ))}
       </ul>
-    </div>
+    </InsetPanel>
   )
 }
 
@@ -109,7 +112,7 @@ function Field({
         {children}
       </label>
       {hint ? (
-        <span className="text-muted-foreground text-[11.5px] leading-[1.5]">{hint}</span>
+        <span className="text-muted-foreground text-[12.5px] leading-[1.6]">{hint}</span>
       ) : null}
     </div>
   )
@@ -164,6 +167,7 @@ export function CampaignForm({
   code,
   initial,
   seededWave,
+  fromImport,
   sources,
   onCancel,
 }: {
@@ -172,6 +176,10 @@ export function CampaignForm({
   initial: CampaignDraft
   /** Form mở bằng nút "Thêm đợt vào chuỗi": đợt cuối là đợt vừa thêm. */
   seededWave: boolean
+  /** Lô người dùng VỪA NHẬP ở kho danh sách, đi theo `?tao=1&lo=&dong=`. Có thì
+   *  ô "Khán giả" mở bằng số dòng hợp lệ của chính lô ấy và hint gọi tên nó —
+   *  không phải lô mẫu `AUDIENCE_BATCH`, vốn là lô của một nguồn khác hẳn. */
+  fromImport?: { code: string; rowsValid: number } | null
   sources: SourceRow[]
   onCancel: () => void
 }) {
@@ -296,7 +304,7 @@ export function CampaignForm({
         <div className="flex flex-wrap items-center gap-2">
           {askCancel ? (
             <>
-              <span className="text-warning text-[11.5px] leading-[1.5]">
+              <span className="text-warning text-[12.5px] leading-[1.6]">
                 Bỏ bản nháp đang soạn?
               </span>
               <Button size="md" variant="destructive" onClick={onCancel}>
@@ -350,7 +358,7 @@ export function CampaignForm({
         id={statusId}
         aria-live="polite"
         className={cn(
-          'text-[11.5px] leading-[1.5]',
+          'text-[12.5px] leading-[1.6]',
           !sent && !ready ? 'text-warning' : 'text-muted-foreground',
         )}
       >
@@ -398,9 +406,12 @@ export function CampaignForm({
                   </Button>
                 ))}
               </div>
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Sự kiện là buổi có mặt người thật — có chỗ, có đăng ký, có người điểm danh. Cả hai
-                đo bằng cùng một câu hỏi: đợt này ra bao nhiêu khách.
+              {/* Một khối một câu. Câu thứ hai của bản cũ ("cả hai đo bằng cùng
+                  một câu hỏi") đúng nhưng không giúp người đang chọn loại — nó
+                  về đây: chiến dịch và sự kiện chấm bằng cùng một thước, đợt này
+                  ra bao nhiêu khách. */}
+              <span className="text-muted-foreground text-[12.5px] leading-[1.6]">
+                Sự kiện là buổi có mặt người thật — có chỗ, có đăng ký, có người điểm danh.
               </span>
             </div>
 
@@ -416,9 +427,20 @@ export function CampaignForm({
               </Field>
             ) : null}
 
+            {/* Hint trỏ vào một LÔ CÓ TÊN, không vào một số trần: `draftOf` mở ô
+                này bằng `rowsValid` của lô đứng sau đợt mở màn nguồn mẫu, nên
+                người soạn phải đọc được số ấy từ đâu ra mà không rời màn. Nhánh
+                dưới chạy khi nguồn mẫu không truy được về đúng một lô — lúc đó
+                số là của ĐỢT, và câu chữ phải đổi theo chứ không nói bừa tên lô. */}
             <Field
               label="Khán giả · số người nhận"
-              hint={`Mở sẵn bằng số người nhận của đợt mở màn ${DRAFT_TEMPLATE.fromCode} — điểm xuất phát để sửa, không phải số đo của chiến dịch này.`}
+              hint={
+                fromImport
+                  ? `Mở sẵn bằng ${grouped(fromImport.rowsValid)} dòng hợp lệ của lô ${fromImport.code} bạn vừa nhập — điểm xuất phát để sửa, không phải số đo của chiến dịch này.`
+                  : AUDIENCE_BATCH
+                    ? `Mở sẵn bằng ${grouped(AUDIENCE_BATCH.rowsValid)} dòng hợp lệ của lô ${AUDIENCE_BATCH.code} · ${AUDIENCE_BATCH.supplier} — điểm xuất phát để sửa, không phải số đo của chiến dịch này.`
+                    : `Mở sẵn bằng số người nhận của đợt mở màn ${DRAFT_TEMPLATE.fromCode} — không lô danh sách nào truy về đúng đợt đó, nên đây là số của đợt chứ không của một lô.`
+              }
             >
               <Input
                 value={draft.audience}
@@ -433,9 +455,8 @@ export function CampaignForm({
             <div className="flex flex-col gap-2">
               <GroupLabel>Chạy trong bao nhiêu ngày</GroupLabel>
               <span className="tnum font-num text-[26px] font-semibold leading-none">{spread}</span>
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Suy từ nhịp các đợt — từ đợt mở màn tới đợt cuối. Đây là số ĐỌC, không phải ô nhập:
-                một ô "chạy bao nhiêu ngày" gõ tay sẽ chọi với chính chuỗi đợt ngay dưới nó.
+              <span className="text-muted-foreground text-[12.5px] leading-[1.6]">
+                Số ĐỌC, suy từ nhịp các đợt — không phải ô nhập.
               </span>
             </div>
 
@@ -444,9 +465,8 @@ export function CampaignForm({
               <span className="tnum font-num text-[26px] font-semibold leading-none">
                 {expected}
               </span>
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Cộng từ kỳ vọng của các đợt, không gõ thẳng. Đặt kỳ vọng ở từng đợt là cách duy nhất
-                sau này chấm được đợt nào đạt, đợt nào hụt.
+              <span className="text-muted-foreground text-[12.5px] leading-[1.6]">
+                Cộng từ kỳ vọng của từng đợt — đặt ở đợt mới chấm được đợt nào đạt, đợt nào hụt.
               </span>
             </div>
           </div>
@@ -462,7 +482,7 @@ export function CampaignForm({
           </SectionTitle>
 
           {mode === 'edit' ? (
-            <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+            <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
               Kịch bản không lưu nội dung đã soạn — ô nội dung của các đợt cũ để trống. Dựng lại một
               bài chưa từng có thì màn đang bịa.
             </p>
@@ -478,6 +498,12 @@ export function CampaignForm({
                    3 ô "Sau bao nhiêu ngày", 3 nút "Bỏ" và 21 nút kênh trùng tên
                    nhau — không có nhóm thì trình đọc màn hình không nói được nút
                    nào thuộc đợt nào. */
+                /* KHÔNG dùng `InsetPanel` ở đúng chỗ này: thẻ đợt phải nhận
+                   `ref` (để "Thêm đợt" cuộn tới và đặt tiêu điểm), `role`
+                   và `aria-labelledby`. `InsetPanel` chỉ nhận
+                   `children`/`pad`/`className`, không chuyển tiếp ref hay
+                   thuộc tính DOM — xem sharedRequests. Nền vẫn lấy đúng mức
+                   `--surface-inset`, tức cùng một mức với InsetPanel. */
                 <div
                   key={i}
                   role="group"
@@ -486,7 +512,7 @@ export function CampaignForm({
                   ref={(el) => {
                     waveRefs.current[i] = el
                   }}
-                  className="flex flex-col gap-3 rounded-md bg-white/5 p-4 outline-none"
+                  className="bg-surface-inset flex flex-col gap-3 rounded-md p-4 outline-none"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span id={titleId} className="text-[11.5px] font-semibold">
@@ -521,8 +547,10 @@ export function CampaignForm({
                     </GroupLabel>
                     {/* Đây là thao tác CHÍNH của Bước 2, và ở iPad dọc 768px nó
                         được bấm bằng ngón tay — `<button>` trần bọc một tag
-                        11px chỉ cao 24px. `min-h-8` đưa nó về đúng cỡ nút `sm`
-                        của cả màn (luật 13). */}
+                        11px chỉ cao 24px. `min-h-12` là 48px, ngưỡng chạm của
+                        luật 13. Nâng tại chỗ chứ không đụng `button.tsx`: ngưỡng
+                        48px áp cho điểm gãy nào là quyết định còn treo, mà cụm
+                        nút này thì cần đủ to ở MỌI bề rộng. */}
                     <div role="group" aria-labelledby={channelId} className="flex flex-wrap gap-1">
                       {CHANNELS.map((c) => (
                         <button
@@ -531,7 +559,7 @@ export function CampaignForm({
                           disabled={sent}
                           aria-pressed={w.channel === c}
                           onClick={() => setWave(i, { channel: c })}
-                          className="motion-std flex min-h-8 items-center rounded-md px-1"
+                          className="motion-std flex min-h-12 items-center rounded-md px-1"
                         >
                           <ChannelTag
                             icon={CHANNEL_ICON[c]}
@@ -612,14 +640,14 @@ export function CampaignForm({
               type="button"
               disabled={sent}
               onClick={addWave}
-              className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-md bg-white/5 p-4 text-[12.5px] font-semibold"
+              className="motion-std text-muted-foreground hover:text-foreground bg-surface-inset hover:bg-surface-control flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-md p-4 text-[12.5px] font-semibold"
             >
               <Icon icon={Plus} size={20} />
               Thêm đợt
             </button>
           </div>
 
-          <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
             Chuỗi {draft.waves.length} đợt · trải {spread} ngày · kỳ vọng {expected} lead.
           </p>
         </section>
@@ -634,7 +662,7 @@ export function CampaignForm({
           </SectionTitle>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+            <InsetPanel className="flex flex-col gap-3">
               <GroupLabel id={approverId} required>
                 Người duyệt
               </GroupLabel>
@@ -665,7 +693,7 @@ export function CampaignForm({
               </ul>
 
               {candidates.length === 0 ? (
-                <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                <span className="text-muted-foreground text-[12.5px] leading-[1.6]">
                   Cả phòng đã ở trong chuỗi — không còn ai để thêm.
                 </span>
               ) : (
@@ -706,15 +734,15 @@ export function CampaignForm({
                 }))}
               />
 
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+              <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                 Chuỗi đi từ trái sang phải, người đầu tiên nhận trước. {HEAD_OF_SALES} là mắt xích
                 không bỏ được — người gật cuối cùng vẫn là TP Kinh doanh; người thêm vào chỉ nối
                 phía sau.
               </p>
-            </div>
+            </InsetPanel>
 
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2 rounded-md bg-white/5 p-4">
+              <InsetPanel className="flex flex-col gap-2">
                 <GroupLabel id={stopId}>Điều kiện dừng</GroupLabel>
                 <div role="group" aria-labelledby={stopId} className="flex flex-wrap gap-2">
                   <Button
@@ -733,15 +761,17 @@ export function CampaignForm({
                     Khách trả lời thì ngưng nhắc
                   </Button>
                 </div>
-                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Điều kiện dừng do hệ giữ, và nó đi kèm bản gửi duyệt — câu tóm tắt ngay trên nút
-                  gửi nói rõ chuỗi này dừng theo cách nào. Chống trùng người nhận cũng do hệ giữ:
-                  một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.
+                {/* Một khối một câu. Chuyện "câu tóm tắt trên nút gửi nói rõ
+                    chuỗi dừng thế nào" đã có ngay trên nút ấy — nhắc lại ở đây
+                    là nói hai lần cùng một chuyện. */}
+                <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+                  Điều kiện dừng và luật chống trùng người nhận đều do hệ giữ: một người nằm trong
+                  hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.
                 </p>
-              </div>
+              </InsetPanel>
 
               {sent ? (
-                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                   Đã gửi duyệt — trợ lý không soạn thêm vào bản đã gửi.
                 </p>
               ) : (
@@ -779,7 +809,7 @@ export function CampaignForm({
                   />
 
                   {drafted ? (
-                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                    <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
                       Đã đổ nháp vào {draft.waves.length} đợt — bản nháp chờ người sửa và duyệt,
                       chưa gửi cho ai.
                     </p>

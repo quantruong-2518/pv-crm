@@ -89,7 +89,7 @@ export function StatCard({
         {icon && <Icon icon={icon} size={16} className="text-muted-foreground" />}
       </div>
 
-      <div className="text-muted-foreground mt-2 text-[12px]">{label}</div>
+      <div className="text-muted-foreground mt-2 text-[12.5px]">{label}</div>
 
       {hint && <div className="text-muted-foreground mt-1 text-[11px] leading-[1.5]">{hint}</div>}
 

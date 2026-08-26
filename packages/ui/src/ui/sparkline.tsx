@@ -50,7 +50,7 @@ export function Sparkline({
           className={strokeClass[tone]}
         />
       </svg>
-      <span className="text-muted-foreground font-mono text-[9.5px]">{source}</span>
+      <span className="text-muted-foreground font-mono text-[10.5px]">{source}</span>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { cn } from '../lib/cn'
 
 /** A-01 · Button — 4 variant · 3 size.
  *  default → h-10 px-[18px] rounded-md bg-primary text-primary-foreground shadow-primary
- *  ghost   → bg-white/9 · destructive → bg-destructive/20 text-destructive-foreground
+ *  ghost   → bg-surface-control · destructive → bg-destructive/20 text-destructive-foreground
  *  Nút tablet luôn size lg (≥48px) — luật 13 · docs/luat-thiet-ke.md.
  *
  *  Ghi chú: padding ngang 18/24px lấy đúng từ theme kit; thang spacing 8 bậc
@@ -16,14 +16,14 @@ const buttonVariants = cva(
       variant: {
         default: 'bg-primary text-primary-foreground shadow-primary hover:brightness-[1.12]',
         secondary: 'bg-secondary text-secondary-foreground shadow-control hover:bg-brand-blue/75',
-        ghost: 'bg-white/9 text-foreground shadow-control hover:bg-white/16',
+        ghost: 'bg-surface-control text-foreground shadow-control hover:bg-surface-control-hover',
         destructive:
           'bg-destructive/20 text-destructive-foreground shadow-control-soft hover:bg-destructive/32',
       },
       size: {
         sm: 'h-8 px-3 text-[11.5px]',
         md: 'h-10 px-[18px] text-[12.5px]',
-        lg: 'h-12 px-6 text-[14px]',
+        lg: 'h-12 px-6 text-[13px]',
       },
     },
     defaultVariants: { variant: 'default', size: 'md' },

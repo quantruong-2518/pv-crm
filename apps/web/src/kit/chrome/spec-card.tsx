@@ -33,12 +33,14 @@ export function SpecCard({
   return (
     <section className={cn('glass-b-flat overflow-hidden rounded-lg', className)}>
       <header className="flex items-center gap-2.5 bg-white/[4.5%] px-4 py-[11px]">
-        <span className="text-muted-foreground font-mono text-[10px] tracking-[.1em]">{code}</span>
-        <h3 className="font-display text-[13.5px] font-semibold">{name}</h3>
+        <span className="text-muted-foreground font-mono text-[10.5px] tracking-[.1em]">
+          {code}
+        </span>
+        <h3 className="font-display text-[13px] font-semibold">{name}</h3>
         {note && (
           <span
             className={cn(
-              'ml-auto font-mono text-[10px]',
+              'ml-auto font-mono text-[10.5px]',
               noteAccent ? 'text-accent-foreground' : 'text-muted-foreground',
             )}
           >
@@ -50,7 +52,7 @@ export function SpecCard({
       <div className={bodyClassName}>{children}</div>
 
       {footer && (
-        <footer className="text-muted-foreground bg-black/20 px-4 py-2.5 font-mono text-[10px] leading-[1.8]">
+        <footer className="text-muted-foreground bg-black/20 px-4 py-2.5 font-mono text-[10.5px] leading-[1.8]">
           {footer}
         </footer>
       )}

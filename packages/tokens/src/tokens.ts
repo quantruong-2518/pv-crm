@@ -46,6 +46,30 @@ export const SEMANTIC_TOKENS: Array<{ token: string; css: string; note: string }
   { token: '--warning', css: 'var(--warning)', note: 'Flag Yellow' },
   { token: '--destructive', css: 'var(--destructive)', note: 'Flag Red · chữ #FF6B5E' },
   { token: '--border', css: 'transparent', note: 'transparent · hệ borderless' },
+
+  /* Bốn mức nền có tên (§8.2). Đặt cuối bảng vì chúng không phải tên shadcn —
+     chúng là bốn `bg-white/N` đã có sẵn trên màn, nay có tên gọi. Trần chồng
+     lớp và lý do của nó nằm trong docblock ở globals.css. */
+  {
+    token: '--surface-inset',
+    css: 'var(--surface-inset)',
+    note: 'trắng 5% · ô lồng trong thẻ',
+  },
+  {
+    token: '--surface-control',
+    css: 'var(--surface-control)',
+    note: 'trắng 9% · nút ghost, chip object',
+  },
+  {
+    token: '--surface-control-hover',
+    css: 'var(--surface-control-hover)',
+    note: 'trắng 16% · hover của mức trên',
+  },
+  {
+    token: '--surface-active',
+    css: 'var(--surface-active)',
+    note: '= --accent · control đang chọn',
+  },
 ]
 
 /** F-05 · Spacing — chỉ 8 bậc, thang 4px */

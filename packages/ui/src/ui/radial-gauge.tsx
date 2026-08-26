@@ -92,7 +92,7 @@ export function RadialGauge({
         <span
           className={cn(
             'tnum font-num font-semibold leading-none',
-            size >= 140 ? 'text-[30px] tracking-[-1px]' : 'text-[18px] tracking-[-.5px]',
+            size >= 140 ? 'text-[26px] tracking-[-.8px]' : 'text-[15px] tracking-[-.5px]',
             empty ? 'text-warning text-[13px] tracking-normal' : centerClass[tone],
           )}
         >

@@ -5,10 +5,13 @@ import {
   LEADS,
   OPEN_DEALS,
   REQUIRED_SLOTS,
+  ROLE_KPI_MODEL,
   SOURCES,
   isRotting,
 } from '@pv/engines/fixtures/das-vina'
-import { renderScreen } from '@/test-utils'
+import { renderRoutes, renderScreen } from '@/test-utils'
+import { planTargets } from '@/data/plan'
+import { DATA_WINDOW, vn } from '@/data/period'
 import { costGap, rankSources } from '@/data/source-cost'
 import { PlanPage } from './plan'
 
@@ -173,6 +176,187 @@ describe('Module 4 · Số liệu & kế hoạch', () => {
     expect(thin.length).toBeGreaterThan(0)
     for (const r of thin) expect(screen.getByText(r.code)).toBeInTheDocument()
     expect(screen.getAllByText('chưa đủ để so').length).toBe(thin.length)
+  })
+
+  /* Bảy ca dưới đây gác CON SỐ KẾ HOẠCH — thứ cả đợt 20/08 xoay quanh. Trước
+     đợt này màn mang tên Kế hoạch không cầm một chỉ tiêu nào, và chỉ tiêu của kỳ
+     chỉ đọc được bên trong Drawer của màn Performance. */
+  it('chỉ tiêu lấy từ bảng thước của fixture, nhân đúng số người mang vai', () => {
+    const t = planTargets()
+    expect(t.rows.length).toBeGreaterThan(0)
+
+    for (const row of t.rows) {
+      const spec = ROLE_KPI_MODEL.find((r) => r.role === row.role)?.kpis.find(
+        (k) => k.key === row.key,
+      )
+      // Không dòng nào được đẻ ra ở tầng app: mỗi dòng phải soi ngược về fixture.
+      expect(spec).toBeDefined()
+      expect(spec?.monthlyTarget).toBe(row.monthlyTarget)
+      expect(spec?.formula).toBe(row.formula)
+      // Kỳ là một THÁNG trọn nên hệ số nhân thời gian bằng 1.
+      expect(row.target).toBeCloseTo(row.monthlyTarget * row.owners.length, 6)
+    }
+  })
+
+  it('bốn con số của một dòng khớp nhau, và số 0 ở "còn thiếu" là đã đủ chứ không phải chưa đo', () => {
+    const t = planTargets()
+
+    for (const row of t.rows) {
+      expect(row.missing).toBe(Math.max(0, row.target - row.done))
+      expect(row.ratio).toBeCloseTo(row.done / row.target, 6)
+      // `perDay` chỉ được vắng khi không còn gì phải chia cho ngày.
+      expect(row.perDay === null).toBe(row.missing === 0 || t.daysLeft === 0)
+      if (row.missing === 0) expect(row.pace).toBe('da-du')
+    }
+  })
+
+  it('hai đầu thời gian không bị trộn: đo tới lát cắt, chỉ tiêu tính tới hết kỳ', () => {
+    const t = planTargets()
+    expect(t.elapsed).toBeLessThan(t.days)
+    expect(t.daysLeft).toBe(t.days - t.elapsed)
+    expect(t.elapsedShare).toBeCloseTo(t.elapsed / t.days, 6)
+  })
+
+  it('bảng chỉ tiêu nói đủ bốn thứ, và cột "đã đạt" khai lát cắt', async () => {
+    renderScreen(<PlanPage />)
+    const t = planTargets()
+
+    expect(await screen.findByText('Điều phối bằng con số kế hoạch')).toBeInTheDocument()
+    expect(screen.getByText(`Đã đạt · tới ${t.cutoff}`)).toBeInTheDocument()
+    expect(screen.getByText('Còn thiếu')).toBeInTheDocument()
+    expect(screen.getByText(`Còn ${t.daysLeft} ngày`)).toBeInTheDocument()
+  })
+
+  it('mỗi thước khai mẫu số của chính nó, và khai nhịp cần có', async () => {
+    renderScreen(<PlanPage />)
+    const t = planTargets()
+    await screen.findByText('Điều phối bằng con số kế hoạch')
+
+    for (const row of t.rows) {
+      expect(screen.getByText(row.formula)).toBeInTheDocument()
+      expect(screen.getAllByText(row.perDayText).length).toBeGreaterThan(0)
+    }
+  })
+
+  it('vai không có dòng nào trên bảng thì màn nói ra, không im lặng bỏ đi', async () => {
+    renderScreen(<PlanPage />)
+    const t = planTargets()
+    await screen.findByText('Điều phối bằng con số kế hoạch')
+
+    expect(t.absentNote).not.toBe('')
+    expect(document.body.textContent ?? '').toContain(t.absentNote)
+  })
+
+  it('đề xuất đầu tiên bám khoảng cách tới chỉ tiêu, không bám một triệu chứng', async () => {
+    renderScreen(<PlanPage />)
+    const bases = await screen.findAllByText(/^Căn cứ:/)
+    const t = planTargets()
+
+    expect(t.worst).not.toBeNull()
+    const first = bases[0]?.textContent ?? ''
+    expect(first).toContain('Chỉ tiêu kỳ')
+    expect(first).toContain(`tính đến ${t.cutoff}`)
+    expect(first).toContain(t.worst!.formula)
+  })
+
+  /* Sáu ca dưới đây là vòng soát 21/08. Chúng gác những chỗ mắt người đọc qua
+     mà thấy đúng: một thước được chọn hộ bằng thứ tự mảng, một khối tự khai sai
+     chân trời, một hàng ô số không nói mình đo khoảng nào. */
+  it('hai thước hụt ngang nhau thì màn nói cả hai, không để thứ tự fixture chọn hộ', async () => {
+    const t = planTargets()
+
+    // Cụm hoà phải chứa chính `worst` và mọi thước có cùng tỉ lệ với nó.
+    expect(t.worst).not.toBeNull()
+    expect(t.worstTied.map((r) => r.key)).toContain(t.worst!.key)
+    const behind = t.rows.filter((r) => r.pace === 'hut-nhip')
+    const floor = Math.min(...behind.map((r) => r.ratio))
+    expect(t.worstTied.map((r) => r.key).sort()).toEqual(
+      behind
+        .filter((r) => Math.abs(r.ratio - floor) < 1e-9)
+        .map((r) => r.key)
+        .sort(),
+    )
+
+    renderScreen(<PlanPage />)
+    const bases = await screen.findAllByText(/^Căn cứ:/)
+    const first = bases[0]?.textContent ?? ''
+
+    // Hoà thì cả câu tóm lẫn căn cứ phải gọi tên ĐỦ cụm — bỏ sót một thước là
+    // dồn việc cho một người vì dòng của họ đứng trên trong ROLE_KPI_MODEL.
+    for (const row of t.worstTied) {
+      expect(t.headline).toContain(row.metric)
+      expect(first).toContain(row.metric)
+      expect(first).toContain(row.formula)
+    }
+  })
+
+  it('câu tóm không lặp lại con số của badge "Còn N ngày"', () => {
+    const t = planTargets()
+    expect(t.headline).not.toContain(`còn ${t.daysLeft} ngày`)
+  })
+
+  it('mỗi đề xuất khai chân trời của nó, và khối không tự nhận cả bốn là của tháng tới', async () => {
+    renderScreen(<PlanPage />)
+    await screen.findAllByRole('button', { name: 'Thêm vào kế hoạch' })
+    const t = planTargets()
+
+    // Việc đầu cứu chỉ tiêu của KỲ NÀY, nên nó phải nói ra là của kỳ này.
+    expect(
+      screen.getAllByText(`Phải xong trong: ${t.daysLeft} ngày cuối ${t.label}`).length,
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText('Đề xuất cho tháng tới')).not.toBeInTheDocument()
+
+    // Không đề xuất nào được vắng chân trời.
+    const horizons = screen.getAllByText(/^Phải xong trong:/)
+    const buttons = screen.getAllByRole('button', { name: 'Thêm vào kế hoạch' })
+    expect(horizons.length).toBe(buttons.length)
+  })
+
+  it('hàng bốn ô số khai kỳ của mình, để không lẫn với kỳ của bảng chỉ tiêu', async () => {
+    renderScreen(<PlanPage />)
+    const t = planTargets()
+    await screen.findByText('Điều phối bằng con số kế hoạch')
+
+    const page = document.body.textContent ?? ''
+    // Hai khối đo hai khoảng khác nhau, và màn phải nói ra chỗ đó bằng chữ.
+    expect(page).toContain(`không cắt theo ${t.label}`)
+    expect(page).toContain(`${vn(DATA_WINDOW.from)} → ${vn(DATA_WINDOW.cutoff)}`)
+    // Ô "Giá mỗi lead tốt" cũng phải khai mẫu số thời gian, không chỉ tập nguồn.
+    expect(page).toMatch(/nguồn có tiêu tiền, cả kỳ dữ liệu/)
+  })
+
+  it('mã nguồn trên bảng giá bấm được và mở đúng hồ sơ nguồn', async () => {
+    /* Vòng khép kín: đọc xong "SK-0106 đắt hơn ít nhất 6,6 lần" thì phải sang
+       được hồ sơ nguồn để cắt tiền. Trước 21/08 cả màn không có một `navigate`
+       nào và mọi chip là chữ, kể cả chip có màn thật đứng sau. */
+    renderRoutes(
+      [
+        { path: '/sales/plan', element: <PlanPage /> },
+        { path: '/sales/campaigns/:code', element: <p>đã sang hồ sơ nguồn</p> },
+      ],
+      { route: '/sales/plan' },
+    )
+    await screen.findByText('Giá mỗi lead tốt theo nguồn')
+
+    const code = rankSources().ranked[0]!.code
+    fireEvent.click(screen.getByRole('button', { name: code }))
+    expect(await screen.findByText('đã sang hồ sơ nguồn')).toBeInTheDocument()
+  })
+
+  /* Module 5 đứng ngoài vòng nhưng định hình cái vòng — cửa phải mở cả hai
+     chiều. Đây là chiều đi vào: chỗ đặt ra chỉ tiêu. */
+  it('câu "chỉ tiêu lấy từ module 5" có một lối đi thật, không chỉ là chữ', async () => {
+    renderRoutes(
+      [
+        { path: '/sales/plan', element: <PlanPage /> },
+        { path: '/sales/config', element: <p>đã sang Cấu hình</p> },
+      ],
+      { route: '/sales/plan' },
+    )
+    await screen.findByRole('button', { name: 'Sửa chỉ tiêu ở Cấu hình' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sửa chỉ tiêu ở Cấu hình' }))
+    expect(await screen.findByText('đã sang Cấu hình')).toBeInTheDocument()
   })
 
   it('nói thẳng thứ cố tình không làm, trước hết là dự báo doanh số', () => {

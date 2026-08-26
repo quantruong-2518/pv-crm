@@ -21,20 +21,32 @@ import {
   BarChart,
   Button,
   ChannelTag,
+  ColumnMap,
+  type ColumnMapRow,
+  type ColumnMapTarget,
   ContextRail,
   DataTable,
+  Dropzone,
   EmptyState,
+  GlassCard,
   Kicker,
+  LoadingBlock,
   MetaPill,
   millions,
   NavItem,
+  NotDoing,
+  type NotDoingItem,
   Progress,
   RichText,
   RichTextView,
   ScanField,
   SearchField,
+  SectionTitle,
   StatCard,
+  StepStrip,
+  type StepStripItem,
   type TableColumn,
+  TableSkeleton,
   type TableSort,
   Timeline,
   type TimelineItem,
@@ -206,6 +218,101 @@ function RichTextDemo() {
   )
 }
 
+/** Hai mục thật, chép từ khối "Cố tình không làm" của Hồ sơ nguồn — khối này
+ *  chứa quyết định chứ không chứa số, nên không neo vào kịch bản nào. */
+const NOT_DOING_DEMO: NotDoingItem[] = [
+  {
+    title: 'Không có bảng lead trên màn này',
+    body: 'Lead thuộc module 2. Cùng một dòng lead mà thao tác được ở hai màn thì không màn nào là nơi đúng để tra.',
+  },
+  {
+    title: 'Không có nút "Gửi ngay"',
+    body: 'Nút cuối của form là gửi duyệt. Chuỗi duyệt do hệ giữ, và không đợt nào bung ra trước khi có người gật.',
+  },
+]
+
+/** Năm bước của luồng nhập danh sách (module 1 · Chiến dịch & Sự kiện). */
+const IMPORT_STEPS: StepStripItem[] = [
+  { key: 'nguon', label: 'Chọn nguồn', hint: 'Apollo.io' },
+  { key: 'file', label: 'Tải mẫu / Upload', hint: 'apollo-bacninh.csv' },
+  { key: 'khop', label: 'Khớp cột' },
+  { key: 'soat', label: 'Soát & khử trùng' },
+  { key: 'nhap', label: 'Xác nhận nhập' },
+]
+
+/** Bước đang đứng là trạng thái của MÀN — kit giữ bằng useState để chứng minh
+ *  đúng hợp đồng đó, và để bấm lùi được về bước đã qua. */
+function StepStripDemo() {
+  const [current, setCurrent] = useState(2)
+  return <StepStrip steps={IMPORT_STEPS} current={current} onGo={setCurrent} />
+}
+
+function DropzoneDemo() {
+  const [name, setName] = useState<string | undefined>('apollo-bacninh.csv')
+  return (
+    <>
+      <Dropzone
+        accept=".csv,.txt"
+        fileName={name}
+        fileMeta="148 KB · 1.254 dòng · dấu phân tách: chấm phẩy"
+        onFile={(file) => setName(file.name)}
+        onClear={() => setName(undefined)}
+        hint="Kéo file CSV vào đây, hoặc bấm để chọn. Hệ đọc ngay tại máy, không gửi đi đâu."
+      />
+      <Dropzone
+        accept=".csv,.txt"
+        fileName="bao-cao-quy-3.xlsx"
+        error="File này không phải UTF-8. Mở lại bằng Excel, Lưu thành → CSV UTF-8."
+        onFile={() => {}}
+      />
+    </>
+  )
+}
+
+const MAP_TARGETS: ColumnMapTarget[] = [
+  { value: 'ten_cong_ty', label: 'Tên công ty' },
+  { value: 'ma_so_thue', label: 'Mã số thuế' },
+  { value: 'tinh', label: 'Tỉnh' },
+  { value: 'email', label: 'Email' },
+  { value: 'so_nguoi', label: 'Số người' },
+  { value: 'bo-qua', label: 'Bỏ qua cột này' },
+]
+
+const MAP_ROWS: ColumnMapRow[] = [
+  {
+    source: 'Company',
+    samples: ['DAS Vina', 'Linh kiện Trường Sơn', 'Bán dẫn Nam Sơn'],
+    value: 'ten_cong_ty',
+  },
+  { source: 'State', samples: ['Bắc Ninh', 'Bắc Giang', 'Bắc Ninh'], value: '' },
+  {
+    source: 'Email',
+    samples: ['(trống)', '(trống)', '(trống)'],
+    value: 'email',
+    warning: '0/3 mẫu có dấu “@” — kiểm lại cột này trước khi sang bước soát.',
+  },
+  {
+    source: '# Employees',
+    samples: ['1400', '620', '880'],
+    value: 'ten_cong_ty',
+    error: 'Ô “Tên công ty” đã có cột Company trỏ vào. Mỗi ô đích nhận đúng một cột.',
+  },
+]
+
+/** Ánh xạ là trạng thái của màn; ColumnMap chỉ báo người dùng vừa đổi dòng nào. */
+function ColumnMapDemo() {
+  const [rows, setRows] = useState(MAP_ROWS)
+  return (
+    <ColumnMap
+      rows={rows}
+      targets={MAP_TARGETS}
+      onChange={(source, value) =>
+        setRows((current) => current.map((r) => (r.source === source ? { ...r, value } : r)))
+      }
+    />
+  )
+}
+
 export function ZoneMolecules() {
   return (
     <section id="zone-02" className="pb-2 pt-12">
@@ -315,7 +422,7 @@ export function ZoneMolecules() {
           <NavItem icon={SquareCheckBig} label="Phê duyệt" count={7} />
           <div className="relative">
             <NavItem icon={Bell} label="Thông báo" className="bg-white/6" />
-            <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[9.5px]">
+            <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10.5px]">
               hover
             </span>
           </div>
@@ -498,6 +605,178 @@ export function ZoneMolecules() {
               },
             ]}
           />
+        </SpecCard>
+
+        {/* M-13 */}
+        <SpecCard
+          className="col-span-3"
+          code="M-13"
+          name="StepStrip"
+          note="đi lùi được · đi tới phải qua cửa"
+          noteAccent
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Dải bước ở đầu màn của một luồng nhiều bước. Bước đã qua là nút bấm lùi được; bước
+              chưa tới render bằng span, KHÔNG phải nút tắt — nút tắt vẫn hứa “sắp bấm được”.
+              <br />
+              Ô bấm min-h-12 (48px) cho ngưỡng chạm tablet · bước đang đứng bg-primary/16 +
+              text-accent-foreground + aria-current=&ldquo;step&rdquo;
+              <br />
+              Component không giữ bước đang đứng — `current` là trạng thái của màn.
+            </>
+          }
+        >
+          <StepStripDemo />
+        </SpecCard>
+
+        {/* M-14 */}
+        <SpecCard
+          code="M-14"
+          name="Dropzone"
+          note="4 trạng thái"
+          bodyClassName="flex flex-col gap-4 px-4 py-5"
+          footer={
+            <>
+              trống · đang kéo vào · đã có file · lỗi. Trạng thái “đang kéo vào” do component tự giữ
+              (chuyện của con trỏ), ba cái kia do màn truyền. Lỗi thắng mọi trạng thái khác.
+              <br />
+              POC không upload: component chỉ đưa File ra, màn tự đọc bằng FileReader tại máy.
+              <br />
+              Control thật là input file trong label (sr-only) — mặt nút là span aria-hidden, vì một
+              button thật nằm trong label sẽ nuốt cú bấm và hộp chọn file không mở.
+              <br />
+              Chữ phụ dùng text-glass-foreground chứ không phải màu chữ phụ — cả bốn mặt đều là nền
+              đã nhuộm trong glass-a, muted-foreground trên đó chỉ còn 3,82–4,46:1 (luật 13)
+            </>
+          }
+        >
+          <DropzoneDemo />
+        </SpecCard>
+
+        {/* M-15 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-15"
+          name="ColumnMap"
+          note="cột file → ô hệ"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Trái là cột như nó nằm trong file người dùng + ba giá trị mẫu thật; phải là Select
+              (A-15) trỏ vào ô đích của hệ. Danh mục ô đích do MÀN truyền — thư viện không biết 15
+              cột chuẩn của module nào.
+              <br />
+              “Chưa chọn” khác “Bỏ qua cột này”: ô rỗng là chưa ai quyết, bỏ qua là một lựa chọn.
+              <br />
+              Không chứa khối AI. Đề nghị ánh xạ cả bộ là một AiAction (M-09) đặt phía trên bảng, ở
+              đó “Căn cứ:” và nút xác nhận đã bị cưỡng chế ở tầng kiểu (luật 9).
+              <br />
+              Bảng nằm trên .glass-b, component không tự vẽ mặt kính — cùng hợp đồng với TableRow.
+            </>
+          }
+        >
+          <ColumnMapDemo />
+        </SpecCard>
+
+        {/* M-16 */}
+        <SpecCard
+          code="M-16"
+          name="LoadingBlock"
+          note="cao bằng nội dung thật"
+          noteAccent
+          bodyClassName="flex flex-col gap-4 px-4 py-5"
+          footer={
+            <>
+              `height` BẮT BUỘC, không có mặc định: không con số nào đoán đúng cho mọi khối, mà
+              khung chờ lệch chiều cao thì màn giật một nhịp lúc dữ liệu về.
+              <br />
+              `height` là cao của MỘT dải · `lines` xếp thêm dải cùng cỡ, cách nhau 12px. Hai khối
+              cao khác nhau là hai LoadingBlock.
+              <br />
+              Lệch pha 200ms mỗi dải — A-08 hứa nhịp đó từ bản chốt 10/08 mà chưa chỗ nào dùng: ba
+              dải nhấp nháy đồng loạt đọc như một khối chết.
+              <br />
+              role=&ldquo;status&rdquo; + một câu ẩn: dải là aria-hidden, không có câu đó thì lúc
+              chờ trình đọc màn hình ra im lặng, không phân biệt được với màn rỗng.
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2">
+            <Kicker>một dải · height 96</Kicker>
+            <LoadingBlock height={96} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Kicker>hai dải · height 40</Kicker>
+            <LoadingBlock height={40} lines={2} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Kicker>khung chờ của một tiêu đề · width 256px</Kicker>
+            <LoadingBlock height={44} width="256px" />
+          </div>
+        </SpecCard>
+
+        {/* M-17 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-17"
+          name="TableSkeleton"
+          note="rows × 44 + 19"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Ba màn đang gõ tay ba `Skeleton h-11` trong một flex-col gap-3 — cao hơn bảng thật
+              24px, và cả dòng tô kín đọc thành biểu đồ cột nằm ngang. Ở đây một dòng là hộp cao
+              `rowHeight` chứa một vạch chữ 11px, đúng cách DataTable đặt chữ trong ô `h-11`.
+              <br />
+              Tổng cao = rows × rowHeight, cộng 19px nếu có dải tiêu đề (vạch 11 + đệm 8, đúng
+              `pb-2` của header thật). Bảng nào đổi chiều cao dòng thì truyền `rowHeight` —
+              component không đọc được bảng đứng cạnh nó.
+              <br />
+              Không tự vẽ mặt kính: bảng và khung chờ của bảng đều nằm trong GlassCard
+              variant=&ldquo;b&rdquo; của màn (luật 8).
+            </>
+          }
+        >
+          <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+            <SectionTitle size="sm" kicker="Đang chờ" hint="Khung chờ đúng chỗ bảng sẽ mọc lên.">
+              Sổ nguồn
+            </SectionTitle>
+            <TableSkeleton header rows={3} />
+          </GlassCard>
+        </SpecCard>
+
+        {/* M-18 */}
+        <SpecCard
+          code="M-18"
+          name="NotDoing"
+          note="nền quyết màu chữ"
+          noteAccent
+          bodyClassName="flex flex-col gap-4 px-4 py-5"
+          footer={
+            <>
+              Khối &ldquo;Cố tình không làm&rdquo;: một mục là một quyết định, kèm lý do. Không nói
+              ra thì người soát đọc chúng thành nợ, và lần sau có người sửa đúng cái vừa được quyết.
+              <br />
+              `surface` quyết luôn màu chữ phụ, màn không chọn được. Trong InsetPanel là LỚP TRẮNG
+              THỨ HAI, ở đó --muted-foreground chỉ còn ~4,19:1 nên phải là --glass-foreground — luật
+              13, không phải gu. Đi trần hoặc trên GlassCard thì --muted-foreground đủ.
+              <br />
+              Quá 3 mục thì tự xếp hai cột từ lg. Gom từ ba bản rời trên màn: Hồ sơ nguồn 3 mục ·
+              Kho danh sách 6 mục · Kế hoạch 4 mục.
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2">
+            <Kicker>surface=&ldquo;inset&rdquo; · trong một thẻ</Kicker>
+            <GlassCard className="p-4">
+              <NotDoing surface="inset" items={NOT_DOING_DEMO} />
+            </GlassCard>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Kicker>surface=&ldquo;card&rdquo; · khối cuối màn</Kicker>
+            <NotDoing surface="card" items={NOT_DOING_DEMO} />
+          </div>
         </SpecCard>
       </ZoneBody>
     </section>

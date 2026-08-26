@@ -3,6 +3,8 @@ import {
   DAS_VINA_FROZEN_AT,
   dasVina,
   dayISO,
+  prospectBatchOfSource,
+  type ProspectBatch,
   type SourceKind,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
@@ -72,6 +74,15 @@ export const PERIOD = `${dm(dayISO(0))} → ${dm(DAS_VINA_FROZEN_AT)}`
  *  đẩy dòng cao lên — dòng bảng cao cố định 44px. */
 export const MAX_CHANNEL_TAGS = 3
 
+/** Đường sang kho danh sách (`prospect-lists.tsx`) — đoạn TĨNH cùng cha với
+ *  `/sales/campaigns/:code`, khai trong `routes.tsx`.
+ *
+ *  Ở đây chứ không chép hai lần trong hai màn: sổ nguồn và hồ sơ nguồn đều trỏ
+ *  sang kho, và hai bản sao của một đường dẫn thì sớm muộn lệch nhau.
+ *  `routes.tsx` không xuất hằng số đường dẫn nào nên chuỗi vẫn phải gõ một lần —
+ *  đúng một lần. */
+export const KHO_DANH_SACH_PATH = '/sales/campaigns/kho-danh-sach'
+
 /** Số nguyên có dấu chấm ngăn nghìn (luật 6). `millions`/`percent` của @pv/ui lo
  *  phần tiền và tỉ lệ; số người nhận không thuộc hai loại đó. */
 export const grouped = (n: number) => n.toLocaleString('vi-VN')
@@ -80,14 +91,6 @@ export const grouped = (n: number) => n.toLocaleString('vi-VN')
 export const channelsOf = (source: SourceRow): WaveChannel[] => [
   ...new Set(source.waves.map((w) => w.channel)),
 ]
-
-/** Cố tình không làm — ba thứ bị bỏ có chủ ý, kèm lý do.
- *
- *  Khối này ở lại trên màn (không phải trong comment) vì cả ba là câu người xem
- *  hỏi ngay trong buổi demo đầu tiên: "lead đâu", "sao không gửi luôn được",
- *  "sao không có biểu đồ". Trả lời một lần trên màn rẻ hơn trả lời mười lần.
- *
- *  Không dùng `GlassCard`: khối này nằm trong cột phải của hồ sơ nguồn, thêm
 
 /** Bản nháp đang soạn trong form. `waves` dùng đúng `DraftWave` của tầng data —
  *  form không đẻ ra một hình dữ liệu thứ hai cho cùng một thứ.
@@ -123,11 +126,29 @@ export function nextWave(waves: DraftWave[]): DraftWave {
   }
 }
 
+/** Lô prospect đứng sau đợt mở màn của nguồn mẫu — nếu truy được. Đa số nguồn
+ *  KHÔNG truy được về đúng một lô (`prospectBatchOfSource` trả `undefined` khi
+ *  nhiều lô chia nhau hay nguồn không có lô nào), và đó là câu trả lời đúng chứ
+ *  không phải chỗ thiếu dữ liệu.
+ *
+ *  Dùng để ô "Khán giả" của form tạo TRỎ VÀO một lô có tên, không phải một số
+ *  trần copy từ `Wave.sent`: `rowsValid` của lô này bằng đúng số người nhận của
+ *  đợt mở màn nguồn mẫu — bất biến đã khoá ở `scenario.test.ts` — nên đổi nguồn
+ *  gán không đổi con số hiện trên màn. */
+export const AUDIENCE_BATCH: ProspectBatch | undefined = prospectBatchOfSource(
+  DRAFT_TEMPLATE.fromCode,
+)
+
 /** Nguồn đang mở → bản nháp của form sửa; `null` → bản nháp của form tạo mới.
  *
  *  Bản nháp mở đầu của form tạo CHÉP NHỊP nguồn mẫu (`DRAFT_TEMPLATE`, suy từ
  *  fixture): tên gợi ý, số người nhận, nhịp đợt. Đó là điểm xuất phát để sửa,
  *  KHÔNG phải số đo của chiến dịch mới.
+ *
+ *  Số người nhận gợi ý ưu tiên đọc từ `AUDIENCE_BATCH.rowsValid` — lô prospect
+ *  đứng sau đợt mở màn — và chỉ rơi về `DRAFT_TEMPLATE.audience` (Wave.sent)
+ *  khi nguồn mẫu không truy được về đúng một lô. Hai số này bằng nhau theo bất
+ *  biến của module 5, nên câu trên màn không đổi, chỉ đổi CHỖ nó trỏ tới.
  *
  *  Nội dung đợt khi sửa để TRỐNG: kịch bản đóng băng không lưu bài đã soạn, và
  *  dựng lại một bài chưa từng có là bịa. */
@@ -150,7 +171,7 @@ export function draftOf(source: SourceRow | null, withEmptyWave: boolean): Campa
         name: '',
         kind: 'chien-dich',
         venue: '',
-        audience: String(DRAFT_TEMPLATE.audience),
+        audience: String(AUDIENCE_BATCH?.rowsValid ?? DRAFT_TEMPLATE.audience),
         waves: DRAFT_TEMPLATE.waves,
       }
 

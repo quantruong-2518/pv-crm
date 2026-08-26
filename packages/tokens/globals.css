@@ -77,6 +77,57 @@
   /* chữ body 11.5–12.5px nằm trên kính (chip, badge nháp) — AGENTS.md §2 */
   --glass-foreground: #b4becd;
 
+  /* ================================================================
+     BỐN MỨC NỀN CÓ TÊN (§8.2 · docs/plans/so-gap-giao-dien.md)
+
+     Không màu mới. Cả bốn giá trị đã nằm sẵn trong code dưới dạng
+     `bg-white/N`; đây chỉ là chỗ đặt tên cho chúng:
+
+       .05  `bg-white/5`   ô lồng trong thẻ — 23 lượt trên màn
+       .09  `bg-white/9`   nền nút ghost (ui/button.tsx), chip object
+                           (ui/chip.tsx), nút đóng Drawer (layout/drawer.tsx)
+       .16  `bg-white/16`  hover của đúng ba chỗ đó — cùng ba file
+
+     Ba chỗ ấy nay gõ `bg-surface-control` / `hover:bg-surface-control-hover`,
+     không gõ `bg-white/N` nữa. Đó là điều làm hai token này thành NGUỒN chứ
+     không phải bản sao chạy song song: đổi mức nền của control là đổi đúng
+     một dòng ở đây.
+
+     Còn `bg-white/9` ở ui/meta-pill.tsx và ui/channel-tag.tsx — CỐ TÌNH để
+     nguyên. Chúng là nhãn tĩnh, không bấm được; mượn tên "control" cho chúng
+     là làm hỏng nghĩa của token. Cùng độ sáng, khác vai.
+       active = `var(--accent)` — KHÔNG phải alpha mới. Sổ gap đề nghị .24 và
+                ghi "đã có --accent, đổi tên cho thống nhất"; thật ra --accent
+                đang là .22 và đang làm nền chip nguồn ở mọi màn. Ở đây dùng lại
+                đúng .22. Muốn .24 thì phải sửa --accent — quyết định riêng,
+                chưa ai ký.
+
+     ---- CÁCH ĐẾM, đọc trước khi định thêm mức thứ năm ----
+
+     Luật 12 đếm lớp nền của MÀN: đúng 4 lớp aurora (xem @layer components ở
+     dưới). Bốn mức này nằm ở trục khác — độ sâu của mặt phẳng đè lên màn —
+     nhưng cách đếm thì cùng một kiểu: thêm một mặt kính nữa là thêm một lớp
+     nền. Thứ phải đếm là LỚP TRẮNG chồng nhau tại một điểm:
+
+       nền màn → .glass-a (trắng 8,5% — lớp trắng 1)
+               → --surface-inset (lớp trắng 2)    --muted-foreground 5,03:1  ĐẠT
+               → --surface-control (lớp trắng 3)  --muted-foreground 4,19:1  TRƯỢT
+
+     Nên trần là HAI lớp trắng. Buộc phải có lớp thứ ba thì chữ phụ trong lớp
+     trong cùng đổi sang `--glass-foreground`, đừng để `--muted-foreground` —
+     đó là luật 13, không phải gu thẩm mỹ (số đo ở sổ gap §6.2).
+     `.glass-b` là navy đục, KHÔNG tính vào ba lớp trắng: glass-b → --input đo
+     được 5,98:1.
+
+     `--surface-control-hover` và `--surface-active` không phải mức thứ tư,
+     thứ năm: chúng THAY CHỖ `--surface-control` lúc rê chuột / lúc đang chọn,
+     không phủ chồng lên nó.
+     ================================================================ */
+  --surface-inset: rgba(255, 255, 255, 0.05);
+  --surface-control: rgba(255, 255, 255, 0.09);
+  --surface-control-hover: rgba(255, 255, 255, 0.16);
+  --surface-active: var(--accent);
+
   /* tấm che sau panel đè lên màn — nguyên văn màn 04 · Trợ lý AI
      (docs/luat-thiet-ke.md §7: "đè lên brief + scrim rgba(3,7,16,.52)").
      Không phải màu mới: cùng hệ với `--background` của nền aurora. */
@@ -161,6 +212,12 @@
 
   /* bổ sung */
   --color-glass-foreground: var(--glass-foreground);
+  /* bốn mức nền có tên — không có bốn dòng này thì Tailwind không sinh được
+     `bg-surface-inset`, và token khai ở trên thành token chết. */
+  --color-surface-inset: var(--surface-inset);
+  --color-surface-control: var(--surface-control);
+  --color-surface-control-hover: var(--surface-control-hover);
+  --color-surface-active: var(--surface-active);
   --color-hc-surface: var(--hc-surface);
   --color-brand-blue: var(--brand-blue);
   --color-brand-navy: var(--brand-navy);

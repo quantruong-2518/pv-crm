@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
+  Archive,
   CalendarDays,
   Inbox,
   Layers,
@@ -10,7 +11,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -22,11 +23,14 @@ import {
   EmptyState,
   GlassCard,
   Icon,
+  LoadingBlock,
   MetaPill,
+  PageHeader,
   SectionTitle,
-  Skeleton,
   StatCard,
+  TableSkeleton,
   cn,
+  dong,
   millions,
   percent,
   type TableSort,
@@ -43,8 +47,9 @@ import {
   type SourceSortKey,
 } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
-import { CampaignForm } from './campaign-parts'
+import { CampaignForm, NotDoing } from './campaign-parts'
 import {
+  KHO_DANH_SACH_PATH,
   KINDS,
   KIND_ICON,
   MAX_CHANNEL_TAGS,
@@ -97,7 +102,23 @@ export function CampaignsPage() {
   const { data: sources = [], isPending } = useQuery(sourcesQuery)
   const { data: totals } = useQuery(campaignTotalsQuery)
 
-  const [mode, setMode] = useState<'list' | 'create'>('list')
+  /* `?tao=1&lo=DS-0109&dong=180` — đường người vừa nhập xong một lô ở kho đi
+     sang đây để tạo đợt gửi cho CHÍNH lô đó. Không có ba tham số này thì nút
+     "Tạo đợt gửi cho lô này" chỉ đổ người dùng vào sổ tám dòng, và form mở ra
+     với khán giả của một lô KHÁC — nút hứa nhiều hơn nó làm.
+     Lô vừa nhập không nằm trong kịch bản đóng băng (nhập không ghi vào kho),
+     nên số dòng hợp lệ phải đi theo đường dẫn chứ không tra lại được. Chỉ đọc
+     lúc dựng, cùng khuôn với `?lo=` mà màn kho đã đọc. */
+  const [params] = useSearchParams()
+  const [fromImport] = useState(() => {
+    if (params.get('tao') !== '1') return null
+    const code = params.get('lo') ?? ''
+    const rowsValid = Number(params.get('dong'))
+    if (code === '' || !Number.isFinite(rowsValid) || rowsValid <= 0) return null
+    return { code, rowsValid }
+  })
+
+  const [mode, setMode] = useState<'list' | 'create'>(fromImport ? 'create' : 'list')
   const [kind, setKind] = useState<(typeof KINDS)[number]['key']>('all')
   /* Thứ tự bảng là state của MÀN, không phải của `DataTable` — bảng chỉ vẽ mũi
      tên và báo người dùng vừa bấm cột nào. Mặc định mới nhất lên trước. */
@@ -136,17 +157,51 @@ export function CampaignsPage() {
       ? story.map((o) => ({ code: o.code, source: o.code === anchor?.anchorDeal }))
       : [{ code: anchor?.code ?? ANCHOR_SOURCE, source: false }]
 
+  /* Phụ đề khai đúng bốn thứ của §8.1: kịch bản · kỳ · chủ màn · người gật. Một
+     câu, dùng chung cho cả hai chế độ — chế độ không đổi bốn thứ đó. */
+  const subtitle = (
+    <>
+      DAS Vina · kỳ <span className="font-mono">{PERIOD}</span> · chủ màn {MARKETING} · người gật{' '}
+      {HEAD_OF_SALES}
+    </>
+  )
+
+  /* Lối sang kho danh sách (module 1) — nơi lô prospect nuôi khán giả của các đợt
+     gửi được nhập vào hệ. Có mặt ở CẢ hai chế độ: ô "Khán giả" của form mở sẵn
+     bằng `rowsValid` của một lô, nên người soạn phải với tới được cái lô ấy. */
+  const khoButton = (
+    <Button size="md" variant="ghost" onClick={() => navigate(KHO_DANH_SACH_PATH)}>
+      <Icon icon={Archive} size={16} />
+      Kho danh sách
+    </Button>
+  )
+
   if (mode === 'create') {
     return (
       <AppShell {...chrome.shell}>
-        {/* Luật 10 · rail có mặt ở CẢ hai chế độ. Tạo mới là một việc của cùng
-            màn, không phải một màn khác — chuỗi object không được biến mất chỉ
-            vì người dùng bấm sang form. */}
+        {/* Luật 10 · rail có mặt ở CẢ hai chế độ, và `PageHeader` tự đặt nó thành
+            hàng riêng. Tạo mới là một việc của cùng màn, không phải một màn khác
+            — chuỗi object không được biến mất chỉ vì người dùng bấm sang form.
+
+            Dải "số người nhận lấy từ lô nào" của bản trước đã BỎ: câu ấy giờ nằm
+            trong hint của chính ô "Khán giả" (`campaign-parts.tsx`), tức ở chỗ
+            người ta đang nhìn, và nó nêu đích danh mã lô thay vì một số trần. */}
         <div className="flex flex-col gap-4 lg:gap-6">
-          <ContextRail objects={rail} />
+          <PageHeader
+            title="Chiến dịch & Sự kiện"
+            subtitle={subtitle}
+            rail={<ContextRail objects={rail} />}
+            actions={khoButton}
+          />
+
           <CampaignForm
             mode="create"
-            initial={draftOf(null, false)}
+            initial={
+              fromImport
+                ? { ...draftOf(null, false), audience: String(fromImport.rowsValid) }
+                : draftOf(null, false)
+            }
+            fromImport={fromImport}
             seededWave={false}
             sources={sources}
             onCancel={() => setMode('list')}
@@ -159,24 +214,20 @@ export function CampaignsPage() {
   return (
     <AppShell {...chrome.shell}>
       <div className="flex flex-col gap-4 lg:gap-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              Chiến dịch &amp; Sự kiện
-            </h2>
-            <p className="text-muted-foreground mt-1 text-[12px]">
-              DAS Vina · kỳ <span className="font-mono">{PERIOD}</span> · chủ màn {MARKETING} ·
-              người gật {HEAD_OF_SALES}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <ContextRail objects={rail} />
-            <Button size="md" onClick={() => setMode('create')}>
-              <Icon icon={Plus} size={16} />
-              Chiến dịch mới
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Chiến dịch & Sự kiện"
+          subtitle={subtitle}
+          rail={<ContextRail objects={rail} />}
+          actions={
+            <>
+              {khoButton}
+              <Button size="md" onClick={() => setMode('create')}>
+                <Icon icon={Plus} size={16} />
+                Chiến dịch mới
+              </Button>
+            </>
+          }
+        />
 
         {/* Sáu ô này đo CHIẾN DỊCH: bao nhiêu nguồn có người chạy, bao nhiêu đợt
             đã gửi, chạm được bao nhiêu lượt, và các tỉ lệ rút ra từ đó. Số lead
@@ -190,7 +241,9 @@ export function CampaignsPage() {
                 size="compact"
                 icon={Megaphone}
                 value={String(totals.running)}
-                label="Chiến dịch đã chạy đợt"
+                /* "Nguồn", không "Chiến dịch": ô này đếm cả ba sự kiện, và từ
+                   trùm cho chiến dịch lẫn sự kiện là NGUỒN (bảng từ vựng). */
+                label="Nguồn đã chạy đợt"
                 hint={`${totals.sources} nguồn cả kỳ · ${totals.events} sự kiện`}
               />
               <StatCard
@@ -234,13 +287,14 @@ export function CampaignsPage() {
 
             {/* Chỗ chênh giữa 88 và 100 nói thẳng ở đây. Không có dòng này thì
                 người đọc phải tự trừ hai con số nằm cách nhau nửa màn. */}
-            <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+            <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
               {totals.natural.count} nguồn tự nhiên kéo thêm {totals.natural.leads} lead, không đợt
               nào ghi công — cả sổ {totals.bookLeads} dòng nằm ở Sổ lead.
             </p>
           </div>
         ) : (
-          <Skeleton className="h-20 w-full" />
+          /* Khung chờ cao xấp xỉ hàng KPI thật: thẻ compact cao 80px. */
+          <LoadingBlock height={80} label="Đang tải số của kỳ" />
         )}
 
         {/* Bảng LUÔN nằm trên glass-b — luật 8. */}
@@ -273,11 +327,7 @@ export function CampaignsPage() {
           </SectionTitle>
 
           {isPending ? (
-            <div className="flex flex-col gap-3">
-              <Skeleton className="h-11 w-full" />
-              <Skeleton className="h-11 w-full" />
-              <Skeleton className="h-11 w-full" />
-            </div>
+            <TableSkeleton rows={3} label="Đang tải bảng nguồn" />
           ) : visible.length === 0 ? (
             <EmptyState
               icon={Inbox}
@@ -345,8 +395,13 @@ export function CampaignsPage() {
                     <span key="m" className="tnum font-num">
                       {percent(s.mqlRate)}
                     </span>,
+                    /* `0 ₫` chứ KHÔNG phải "—": CD-0105 và TM không có lead nào
+                       trỏ vào một đơn đang mở, tức 0 đồng ĐÃ ĐO, không phải ô
+                       còn thiếu. Dấu gạch trong bảng này chỉ còn một nghĩa —
+                       cột "Kênh" của nguồn không chạy đợt nào. Cùng luật với
+                       cột tiền của kho danh sách. */
                     <span key="v" className="tnum font-num">
-                      {s.value === 0 ? '—' : millions(s.value)}
+                      {s.value === 0 ? dong(0) : millions(s.value)}
                     </span>,
                   ],
                 }
@@ -354,6 +409,12 @@ export function CampaignsPage() {
             />
           )}
         </GlassCard>
+
+        {/* Cửa vào của cả module cũng phải trả lời "cái gì cố tình không có ở
+            đây" — ba mục của `NotDoing` (bảng lead · nút gửi ngay · đường theo
+            thời gian) đúng cho sổ nguồn y như cho hồ sơ nguồn, nên dùng chung
+            một khối chứ không viết bản thứ hai. */}
+        <NotDoing />
       </div>
     </AppShell>
   )

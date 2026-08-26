@@ -22,13 +22,18 @@ import { assigneeOptions, nextActions } from '@/data/leads'
  *      bảng có một ô "việc cần làm" chung ở dưới, lấy thẳng từ danh sách next
  *      action của chính lead đó — không ai gõ tay một cái tên việc mới.
  *
- *  3 · **Giao việc KHÔNG đổi người giữ lead.** Chủ lead đổi tay là đề nghị
+ *  3 · **Giao việc KHÔNG đổi người giữ lead.** Người giữ đổi tay là đề nghị
  *      riêng, vì `COMMISSION_SPLIT` chia lại phần chốt theo đó. Câu này nằm
  *      ngay cạnh nút chứ không nằm trong comment — người bấm nút không đọc
- *      source.
+ *      source. Đây là chỗ DUY NHẤT nói câu đó: hồ sơ lead từng nhắc lại nó một
+ *      lần nữa, và một luật nói hai chỗ là một luật sắp lệch.
  *
  *  4 · **Người gật vẫn là TP Kinh doanh.** Bấm xong màn ghi "đã đề nghị", đúng
  *      như mọi hành động khác của module 2. E3 chưa nối.
+ *
+ *  Phòng có đúng năm vai đã chốt ở docs — TP Kinh doanh · Marketing · BD · Sale
+ *  · Presales. Chưa có vai AM, và thêm vai là việc của module 5 · Cấu hình;
+ *  danh sách ở đây không bịa ra một nhóm rỗng cho đủ hình.
  *
  *  Thứ tự người trong danh sách do `assigneeOptions` quyết (tầng data), không
  *  do khối này — cùng một luật gợi ý dùng chung cho mọi màn. */
@@ -186,13 +191,6 @@ export function AssignMenu({ lead, size = 'md', className }: MenuProps) {
               )}
             </div>
 
-            {/* Vai phòng đang có là năm vai đã chốt ở docs. Nói thẳng ra chỗ
-                thiếu thay vì bày một nhóm rỗng tên AM cho đủ hình. */}
-            <p className="text-muted-foreground text-[11px] leading-[1.5]">
-              Phòng có năm vai đã chốt: TP Kinh doanh · Marketing · BD · Sale · Presales. Chưa có
-              vai AM — thêm vai là việc của module 5 · Cấu hình.
-            </p>
-
             <Select
               label="Việc"
               value={task}
@@ -207,7 +205,7 @@ export function AssignMenu({ lead, size = 'md', className }: MenuProps) {
                 {picked.map((id) => (
                   <span
                     key={id}
-                    className="bg-primary/24 text-accent-foreground flex items-center gap-2 rounded-sm py-1 pl-1 pr-2 text-[11px]"
+                    className="bg-surface-active text-accent-foreground flex items-center gap-2 rounded-sm py-1 pl-1 pr-2 text-[11px]"
                   >
                     <Avatar name={nameOf(id)} size="sm" />
                     {nameOf(id)}
@@ -224,9 +222,9 @@ export function AssignMenu({ lead, size = 'md', className }: MenuProps) {
               </div>
             )}
 
-            <p className="text-muted-foreground text-[11px] leading-[1.5]">
-              Giao việc không đổi người giữ lead — đổi tay là đề nghị riêng, vì phần chốt của hoa
-              hồng chia lại theo đó. Đề nghị này chờ {HEAD_OF_SALES} gật.
+            <p className="text-glass-foreground text-[12.5px] leading-[1.5]">
+              Giao việc KHÔNG đổi người giữ lead — đổi tay là đề nghị riêng, và đề nghị này chờ{' '}
+              {HEAD_OF_SALES} gật.
             </p>
 
             <div className="flex gap-2">

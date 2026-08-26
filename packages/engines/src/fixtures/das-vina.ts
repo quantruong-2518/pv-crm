@@ -552,7 +552,13 @@ export const ROLE_KPI_MODEL: { role: string; kpis: RoleKpiSpec[] }[] = [
       {
         key: 'win-rate',
         layer: 'chuyen-doi',
-        label: 'Win rate',
+        /* Luật 14 · chữ trên màn là tiếng Việt, và 'Win rate' KHÔNG nằm trong
+           danh sách viết tắt được miễn của §5.3 (MQL · SQL · SLA · BD · KPI).
+           Đổi được nhãn này mà không đụng test vì `win-rate` không có mặt trong
+           `CREDIT_RULES` (vai Sale ở đó chỉ có Đơn chốt · Giá trị đơn · Tốc độ
+           qua từng cột) — luật "chép ĐÚNG chữ ở CREDIT_RULES" chỉ ràng những
+           thước nằm trong bảng ấy. `key` giữ nguyên: nó là mã, không phải chữ. */
+        label: 'Tỷ lệ chốt',
         unit: 'ty-le',
         formula: '(Đơn chốt trong kỳ ÷ SQL nhận trong kỳ) × 100%',
         monthlyTarget: 0.31,
@@ -1278,6 +1284,833 @@ export const SOURCES: Source[] = [
 ]
 
 const sourceByCode = new Map(SOURCES.map((s) => [s.code, s]))
+
+// ---------------------------------------------------------------------------
+// Kho danh sách prospect — dòng CHƯA phải lead (module 1)
+//
+// Một dòng danh sách chỉ thành lead khi BÊN KIA TRẢ LỜI. Vì thế prospect đứng
+// NGOÀI phễu: nó không phải bậc thứ bảy, phễu vẫn 100·44·30·19·11·6. Nhập một lô
+// 1.200 dòng không sinh một đầu mối nào.
+//
+// Bốn thứ khối này CỐ TÌNH KHÔNG làm, viết ra để không ai đi tìm:
+//  - **không chép 5.753 dòng.** `ProspectRow` chỉ có KIỂU ở đây; mấy chục dòng
+//    mẫu để bày bước khớp cột và bước soát là dữ liệu của tầng app, không thuộc
+//    kịch bản đóng băng.
+//  - **không đẻ `Wave` nào.** `TOOL_POOL_WAVES = 20` bị khoá bằng tổng
+//    `waves.length` của tám nguồn; thêm một đợt là lệch `TOOL_PER_WAVE`, lệch mọi
+//    dòng `cong-cu`, và lệch 300 triệu.
+//  - **không thêm tiền.** `ProspectBatch.cost` là một PHẦN của `Source.cost` của
+//    nguồn lô nuôi, không cộng thêm vào đâu. Tổng chi cả kỳ vẫn 300 triệu.
+//  - **không thêm `ObjectKind` mới.** Lô mượn ContextRail của nguồn nó nuôi, y
+//    như chiến dịch đang mượn — E1 không phải sửa một dòng nào.
+//
+// Truy ngược tới đâu: `Lead` KHÔNG có `waveNo`, nên một dòng sổ chỉ truy được về
+// lô ở mức NGUỒN. Hệ quả đã lường trước, xem `prospectBatchOfSource`.
+// ---------------------------------------------------------------------------
+
+/** Danh sách này ở đâu ra. Quyết định luôn ba chuyện: có tốn tiền không, khử
+ *  trùng chặt tới đâu, căn cứ liên hệ mặc định là gì.
+ *
+ *  `noi-sinh` tách khỏi `tai-cho` có chủ ý: hai mức đồng ý khác nhau, và khi có
+ *  khiếu nại thì phải trưng hai loại bằng chứng khác nhau. */
+export type ProspectSupplierKind =
+  /** Mua của bên bán dữ liệu — Apollo.io, Sales Navigator, môi giới danh sách. */
+  | 'mua'
+  /** Xin hoặc được cấp — danh bạ KCN, danh sách hội viên, khách mời ban tổ chức. */
+  | 'hiep-hoi'
+  /** Xuất từ chính hệ mình — sổ cũ, khách im, danh sách đã thôi theo dõi. */
+  | 'noi-bo'
+  /** Người tự để lại thông tin trên trang đích của mình. */
+  | 'noi-sinh'
+  /** Thu tại chỗ — quét mã ở gian hàng, sổ ký tên ở cửa hội thảo. */
+  | 'tai-cho'
+
+/** Căn cứ được phép liên hệ (Nghị định 13/2023/NĐ-CP).
+ *
+ *  Luật mấu chốt: dữ liệu **pháp nhân** (tên công ty, mã số thuế, tổng đài, hòm
+ *  thư chung) KHÁC dữ liệu **cá nhân** (họ tên, chức danh, di động, hòm thư đích
+ *  danh). Lô chỉ có cột pháp nhân thì khai `cong-khai-phap-nhan`; hễ có một cột
+ *  cá nhân thì căn cứ thành ô BẮT BUỘC ở bước xác nhận nhập. */
+export type ProspectLegalBasis =
+  /** Chỉ dữ liệu pháp nhân công khai, liên hệ ở địa chỉ pháp nhân. */
+  | 'cong-khai-phap-nhan'
+  /** Người đó tự để lại thông tin, và có dấu vết đồng ý. */
+  | 'dong-y-truc-tiep'
+  /** Đã từng là khách, hoặc đã từng làm việc với nhau. */
+  | 'quan-he-cu'
+
+/** Năm trạng thái của một lô. */
+export type ProspectBatchState =
+  /** Đang giữa luồng năm bước, chưa vào kho. */
+  | 'nhap'
+  /** Có dòng đè lead đang có chủ, hoặc chi phí vượt ngưỡng → phải qua E3. */
+  | 'cho-duyet'
+  /** Đã vào kho, dùng làm khán giả đợt được. */
+  | 'da-nhap'
+  /** Người gật bác. */
+  | 'tu-choi'
+  /** Quá `retentionDays`: phần CHƯA vào sổ bị xoá thật, phần đã vào sổ và số
+   *  liệu tổng ở lại. */
+  | 'het-han-luu'
+
+/** Bảy lý do loại một dòng. Danh sách ĐÓNG, không có ô "khác" — cùng luật với
+ *  `EXIT_REASONS`. Một ô "khác" là chỗ mọi dòng khó phân loại chui vào, và sau
+ *  ba tháng nó thành lý do lớn nhất bảng.
+ *
+ *  Ba lý do đầu KHÔNG tắt được; bốn lý do sau tắt được ở module 5 — lô đường B
+ *  (BD gọi tay) đôi khi chỉ cần tên và tỉnh. */
+export type ProspectRejectReason =
+  /** Không có cả tên lẫn mã số thuế — không phải một dòng. KHÔNG tắt được. */
+  | 'khong-dinh-danh-duoc'
+  /** Đã từ chối nhận liên hệ. Chặn vĩnh viễn, KHÔNG tắt được: đó là lời hứa với
+   *  người đã từ chối. */
+  | 'nam-trong-danh-muc-chan'
+  /** Có cột cá nhân mà lô không khai căn cứ. Cổng Nghị định 13, KHÔNG tắt được. */
+  | 'thieu-can-cu-lien-he'
+  /** Không email, không điện thoại, không website. Tắt được. */
+  | 'khong-lien-he-duoc'
+  /** Tắt được. */
+  | 'email-sai-dinh-dang'
+  /** Không đưa được về `+84`. Tắt được. */
+  | 'dien-thoai-khong-chuan-hoa-duoc'
+  /** Không phải 10 hoặc 13 chữ số. Tắt được. */
+  | 'mst-sai-do-dai'
+
+/** Bảy trạng thái của một dòng sau khi soát.
+ *
+ *  Bốn giá trị đầu là **không nhập**. Hai giá trị kế là **nhập, nhưng biết mình
+ *  đang nhập cái gì**. Giá trị cuối là dòng sạch. */
+export type ProspectRowState =
+  /** Trùng một dòng khác trong chính file — giữ dòng đầu, bỏ dòng sau. */
+  | 'trung-trong-file'
+  /** Trùng một dòng của lô đã có trong kho. */
+  | 'trung-lo-cu'
+  /** Khớp một công ty đã ký hợp đồng — chặn cứng, khách đã mua thuộc kịch bản
+   *  khác. */
+  | 'da-ky'
+  /** Dính một `ProspectRejectReason`. */
+  | 'bi-loai'
+  /** Khớp lead đang chạy CÓ chủ — nhập, nhưng KHÔNG gửi: Sale đang chăm, thư
+   *  lạnh làm hỏng việc. */
+  | 'da-co-chu'
+  /** Khớp lead đã ra khỏi luồng — nhập, kèm lý do rơi cũ. */
+  | 'da-roi'
+  /** Dòng sạch. */
+  | 'hop-le'
+
+/** Một điều kiện lọc đã dùng khi lấy danh sách.
+ *
+ *  CỐ TÌNH không phải cấu trúc truy vấn: mỗi nhà cung cấp một ngôn ngữ lọc riêng,
+ *  ép chúng về một cây điều kiện là mất đúng thứ người mua cần đọc lại sáu tháng
+ *  sau — "lần trước mình lọc cái gì". */
+export type ProspectFilter = { label: string; value: string }
+
+export type ProspectBatch = {
+  /** `DS-01xx`, hệ cấp. Khoá truy ngược lead → danh sách. */
+  code: string
+  /** Chép đúng danh mục nhà cung cấp của module 5 · mục 5.8. */
+  supplier: string
+  supplierKind: ProspectSupplierKind
+  /** Giữ nguyên phần mở rộng: ".xlsx" là lời nhắc người dùng đã phải chuyển tay.
+   *
+   *  Tám lô của kịch bản đều bỏ trống — chưa ai ký tên tám file. Luồng nhập sinh
+   *  trường này cho lô mới. Bỏ trống ở đây nghĩa là **chưa ai ghi**, không phải
+   *  "nhập tay không có file". */
+  fileName?: string
+  /** SHA-256, 12 ký tự đầu — vân file, dùng để chặn nhập lại đúng một file lần
+   *  hai. Bỏ trống ở tám lô đóng băng vì lý do như `fileName`; hệ quả là bước
+   *  xác nhận chưa demo được câu chặn "file này đã nhập ngày … thành lô …". */
+  fileHash?: string
+  /** Ngày nhập, tính bằng ngày kể từ 01/05 — CÙNG THANG với `Source.startDay`.
+   *
+   *  Bất biến: lô phải nhập TRƯỚC đợt đầu tiên nó nuôi. Cả 8/8 lô thoả. */
+  importedDay: number
+  /** Phải có tên trong `dasVina.actors`. */
+  importedBy: string
+  /** Rỗng là hợp lệ với `noi-sinh` và `tai-cho` — người tự để lại thông tin thì
+   *  không ai lọc gì cả. */
+  filters: ProspectFilter[]
+  /** Số dòng trong file, KHÔNG kể hàng tiêu đề. */
+  rowsRaw: number
+  /** Trùng trong chính file HOẶC trùng với lô đã có. */
+  rowsDuplicate: number
+  /** Dính một `ProspectRejectReason`. */
+  rowsRejected: number
+  /** Dòng dùng được. Bằng ĐÚNG `Wave.sent` của đợt đầu tiên lô nuôi — bảy trên
+   *  tám lô thoả, lô thứ tám (DS-0108) không nuôi đợt nào.
+   *
+   *  Bất biến số học: `rowsRaw = rowsValid + rowsDuplicate + rowsRejected`. */
+  rowsValid: number
+  state: ProspectBatchState
+  /** Tiền danh sách, đồng. **LÀ MỘT PHẦN của `Source.cost` của nguồn lô nuôi,
+   *  KHÔNG cộng thêm.** Tổng chi cả kỳ vẫn 300 triệu.
+   *
+   *  0 đồng là câu trả lời THẬT với bốn lô cuối — sổ cũ của phòng, trang đích,
+   *  quét mã tại gian, và ghế Sales Navigator thuê tháng đã nằm trong
+   *  `TOOL_POOL`. Không phải ô còn thiếu. */
+  cost: number
+  legalBasis: ProspectLegalBasis
+  /** Lô có cột dữ liệu CÁ NHÂN hay không (người liên hệ · chức danh · hòm thư
+   *  đích danh · di động — bốn cột đánh dấu của bộ 15 cột). `true` thì
+   *  `legalBasis` là ô BẮT BUỘC ở bước xác nhận nhập. */
+  hasPersonalData: boolean
+  /** Số ngày giữ dòng CHƯA vào sổ, kể từ `importedDay`. Hết hạn thì xoá thật
+   *  phần chưa vào sổ; phần đã vào sổ và số liệu tổng ở lại. */
+  retentionDays: number
+  /** Quan hệ NHIỀU–NHIỀU với nguồn. `waves` là SỐ THỨ TỰ đợt (`Wave.no`), không
+   *  phải chỉ số mảng.
+   *
+   *  Rỗng = lô chưa nuôi đợt gửi nào. Với lô đường B (BD gọi tay) đó là chuyện
+   *  BÌNH THƯỜNG, không phải dữ liệu thiếu — xem `calledBy`. */
+  usedBy: { source: string; waves: number[] }[]
+  /** Nguồn dùng lô này bằng cách GỌI TAY, không qua một đợt gửi nào.
+   *
+   *  Có trường này vì `usedBy` chỉ nối được lô với ĐỢT, mà DS-0108 không đi qua
+   *  đợt nào: BD cầm 180 dòng và gọi điện. Thiếu nó thì năm lead của `TM` mất
+   *  đường về lô, và câu "gọi trực tiếp từ lô DS-0108" của `leadOrigin` phải gõ
+   *  tay một mã lô — đúng thứ hay lệch nhất khi số đổi. */
+  calledBy?: string
+  /** Một câu cho người đọc bảng. */
+  note: string
+}
+
+/** Một dòng của lô — thứ bảng soát bày ra ở bước khử trùng.
+ *
+ *  KIỂU thôi: kịch bản đóng băng KHÔNG chép 5.753 dòng, mọi con số tổng nằm ở
+ *  `ProspectBatch`. Dòng mẫu để dựng màn là dữ liệu của tầng app. */
+export type ProspectRow = {
+  /** `DS-0101/0007` = mã lô + số thứ tự dòng trong FILE GỐC. Số thứ tự giữ
+   *  nguyên kể cả khi dòng bị loại — người dùng mở file ra đối chiếu được. */
+  id: string
+  batch: string
+  /** GIỮ NGUYÊN DẤU — đây là chữ hiện lên màn. */
+  companyRaw: string
+  /** Bỏ dấu · hạ thường · bỏ tiền tố loại hình · nén khoảng trắng.
+   *  **Chỉ làm khoá khử trùng, KHÔNG BAO GIỜ hiện lên màn.** */
+  companyKey: string
+  /** Chỉ chữ số; 13 số viết `xxxxxxxxxx-xxx`. */
+  taxCode?: string
+  province?: string
+  /** Dữ liệu CÁ NHÂN. */
+  contactName?: string
+  /** Dữ liệu CÁ NHÂN. */
+  contactTitle?: string
+  /** Đã hạ thường và trim. */
+  email?: string
+  /** `undefined` khi là tên miền công cộng (gmail · yahoo · outlook…) — tên miền
+   *  công cộng KHÔNG làm khoá khử trùng được. */
+  emailDomain?: string
+  /** Đã chuẩn hoá `+84…`. Không chuẩn hoá được thì LOẠI DÒNG, không giữ bản gốc. */
+  phone?: string
+  website?: string
+  /** Chuỗi ngành nguyên văn của nhà cung cấp. */
+  industryRaw?: string
+  /** Khớp về `LEAD_CATEGORIES`. Không khớp thì `undefined` — KHÔNG ép về ngành
+   *  gần nhất. */
+  category?: LeadCategory
+  headcount?: number
+  plants?: number
+  /** Ghi chú của nhà cung cấp. **KHÔNG BAO GIỜ tự thành ô 6 của bộ 10 câu** —
+   *  "đau ở đâu" không nhà cung cấp nào bán. */
+  note?: string
+  state: ProspectRowState
+  rejectReason?: ProspectRejectReason
+  /** `DS-0101/0007` (trùng một dòng khác) hoặc `LD-0142` (khớp một dòng sổ). */
+  matchedWith?: string
+  /** Khoá nào bắt được — hiện thẳng lên bảng soát, người soát phải biết dòng này
+   *  bị gộp vì cái gì. */
+  matchedBy?: 'mst' | 'ten-mien' | 'ten-tinh'
+  /** Dòng đã qua cửa và thành một dòng sổ. **KHÔNG xoá khỏi kho khi vào sổ.** */
+  leadCode?: string
+}
+
+/** TÁM lô của kỳ 01/05 → 17/08 — nơi 5.753 dòng danh sách đi vào để cuối cùng
+ *  còn 100 dòng sổ (1,74%).
+ *
+ *  **Bốn phép cân của bảng này:**
+ *  1. Cân dòng — `rowsRaw − rowsDuplicate − rowsRejected = rowsValid`, đúng cả
+ *     tổng (6.818 − 424 − 641 = 5.753) lẫn từng lô.
+ *  2. Cân tiền — `cost` của lô ≤ `cost` của nguồn lô nuôi, và nằm TRONG số đó.
+ *  3. Cân thời gian — `importedDay` < ngày đợt đầu tiên lô nuôi, cả 8/8.
+ *  4. Giá một dòng của phần phải trả tiền — 31.000.000 ÷ 4.220 = 7.346 đ.
+ *
+ *  **Câu chuyện tự hiện ra khi đọc bốn cột giữa**: Apollo loại 18,6% (233/1.254,
+ *  cao nhất tám lô — mua theo dòng thì chất lượng đọc thẳng ra tiền); khách mời
+ *  triển lãm trùng 11,1% (188/1.700, cao nhất về trùng, vì là lô THỨ TƯ nhắm
+ *  cùng tệp nhà máy phía Bắc); hai lô nội bộ và nội sinh không một dòng rác nào.
+ *
+ *  ⚠ **CHỖ CHƯA AI GẬT, đọc trước khi bày `cost` lên màn.** Bốn con số 8 · 6 · 5
+ *  · 12 triệu dưới đây lấy đúng từ đặc tả §7.1. Nhưng `costLines` loại `du-lieu`
+ *  của chính bốn nguồn ấy chỉ có **4.580.000 đ** (1,56 + 0,64 + 0,98 + 1,4 tr), và
+ *  4,58 triệu đang bị `scenario.test.ts` khoá cùng ca "4.220 dòng Apollo ×
+ *  ROW_PRICE". Hai bảng đang nói hai số cho cùng một câu hỏi "tiền danh sách là
+ *  bao nhiêu". Bảng này KHÔNG làm test nào đỏ — phép cân số 2 chỉ kiểm `cost` của
+ *  lô ≤ `cost` của nguồn (8≤18 · 6≤84 · 5≤21 · 12≤145) nên đều qua — nghĩa là chỗ
+ *  lệch sẽ hiện ra ở MÀN chứ không ở CI. Đừng nới 4,58 triệu cho khớp: hỏi người
+ *  đặt số. */
+export const PROSPECT_BATCHES: ProspectBatch[] = [
+  {
+    code: 'DS-0101',
+    supplier: 'Ban quản lý các KCN Bắc Ninh — danh bạ doanh nghiệp',
+    supplierKind: 'hiep-hoi',
+    importedDay: 2,
+    importedBy: MARKETING,
+    /* Cặp lọc đọc thẳng từ nhãn nhà cung cấp của §7.1 — không thêm điều kiện nào
+       chưa ai ghi. Cùng luật cho cả tám lô. */
+    filters: [{ label: 'Địa bàn', value: 'Các KCN Bắc Ninh' }],
+    rowsRaw: 1_480,
+    rowsDuplicate: 96,
+    rowsRejected: 184,
+    rowsValid: 1_200,
+    state: 'da-nhap',
+    cost: 8_000_000,
+    legalBasis: 'cong-khai-phap-nhan',
+    hasPersonalData: false,
+    retentionDays: 365,
+    usedBy: [{ source: 'CD-0101', waves: [1, 2, 3] }],
+    note: 'Lô nền của chuỗi CD-0101 — 1.200 dòng nuôi cả ba đợt, đợt sau chỉ bớt đi người đã trả lời.',
+  },
+  {
+    code: 'DS-0102',
+    supplier: 'Hiệp hội Doanh nghiệp điện tử — danh sách hội viên',
+    supplierKind: 'hiep-hoi',
+    importedDay: 26,
+    importedBy: MARKETING,
+    filters: [{ label: 'Hội viên', value: 'Hiệp hội Doanh nghiệp điện tử' }],
+    rowsRaw: 775,
+    rowsDuplicate: 74,
+    rowsRejected: 61,
+    rowsValid: 640,
+    state: 'da-nhap',
+    cost: 6_000_000,
+    legalBasis: 'cong-khai-phap-nhan',
+    hasPersonalData: false,
+    retentionDays: 365,
+    usedBy: [{ source: 'SK-0103', waves: [1] }],
+    note: 'Thư mời hội thảo. 640 dòng ra 120 người đăng ký — ba đợt sau chạy trên 120 người đó, không chạy lại trên lô.',
+  },
+  {
+    code: 'DS-0103',
+    supplier: 'Apollo.io — nhà máy dược & thiết bị y tế miền Bắc',
+    supplierKind: 'mua',
+    importedDay: 55,
+    importedBy: MARKETING,
+    filters: [
+      { label: 'Ngành', value: 'Dược & thiết bị y tế' },
+      { label: 'Khu vực', value: 'Miền Bắc' },
+    ],
+    rowsRaw: 1_254,
+    rowsDuplicate: 41,
+    rowsRejected: 233,
+    rowsValid: 980,
+    state: 'da-nhap',
+    cost: 5_000_000,
+    /* ⚠ CHƯA AI GẬT. Lô Apollo là lô MỘT DÒNG MỘT NGƯỜI (có tên, có chức danh),
+       nên `hasPersonalData` phải là true; còn căn cứ thì §7.1 khai
+       `cong-khai-phap-nhan`, mà định nghĩa của căn cứ ấy là "CHỈ dữ liệu pháp
+       nhân". Hai câu chỉ đứng cùng nhau nếu hiểu căn cứ đó là "dữ liệu NGHỀ
+       NGHIỆP công khai của người đại diện pháp nhân, liên hệ ở địa chỉ công
+       việc". Chưa ai gật cách hiểu ấy — giữ nguyên số của §7.1 và hỏi. */
+    legalBasis: 'cong-khai-phap-nhan',
+    hasPersonalData: true,
+    retentionDays: 365,
+    usedBy: [{ source: 'SK-0104', waves: [1] }],
+    note: 'Loại 18,6% — cao nhất tám lô. Mua theo dòng thì chất lượng danh sách đọc thẳng ra tiền.',
+  },
+  {
+    code: 'DS-0104',
+    supplier: 'BTC Triển lãm công nghiệp hỗ trợ — danh sách khách mời',
+    supplierKind: 'mua',
+    importedDay: 87,
+    importedBy: MARKETING,
+    filters: [{ label: 'Danh sách', value: 'Khách mời Triển lãm công nghiệp hỗ trợ' }],
+    rowsRaw: 1_700,
+    rowsDuplicate: 188,
+    rowsRejected: 112,
+    rowsValid: 1_400,
+    state: 'da-nhap',
+    cost: 12_000_000,
+    legalBasis: 'cong-khai-phap-nhan',
+    hasPersonalData: false,
+    retentionDays: 365,
+    usedBy: [{ source: 'SK-0106', waves: [1] }],
+    note: 'Trùng 11,1% — cao nhất tám lô, vì là lô thứ tư nhắm cùng tệp nhà máy phía Bắc. Khử trùng chéo lô là bắt buộc, bằng chứng nằm ở đúng con số này.',
+  },
+  {
+    code: 'DS-0105',
+    supplier: 'Sổ cũ của phòng — khách im từ quý 1',
+    supplierKind: 'noi-bo',
+    importedDay: 17,
+    importedBy: MARKETING,
+    filters: [{ label: 'Kỳ', value: 'Khách im từ quý 1' }],
+    rowsRaw: 310,
+    rowsDuplicate: 0,
+    rowsRejected: 0,
+    rowsValid: 310,
+    state: 'da-nhap',
+    cost: 0,
+    legalBasis: 'quan-he-cu',
+    hasPersonalData: false,
+    retentionDays: 365,
+    usedBy: [{ source: 'CD-0105', waves: [1, 2, 3] }],
+    note: 'Sổ cũ của chính phòng: không một dòng rác nào, và cũng KHÔNG nhân lên được — chỉ có 310 người.',
+  },
+  {
+    code: 'DS-0106',
+    supplier: 'Trang đích — người bấm vào bài đăng',
+    supplierKind: 'noi-sinh',
+    importedDay: 53,
+    importedBy: MARKETING,
+    /* `noi-sinh`: người tự để lại thông tin, không ai lọc gì cả — rỗng là câu
+       trả lời ĐÚNG, không phải ô còn thiếu. */
+    filters: [],
+    rowsRaw: 900,
+    rowsDuplicate: 0,
+    rowsRejected: 0,
+    rowsValid: 900,
+    state: 'da-nhap',
+    cost: 0,
+    legalBasis: 'dong-y-truc-tiep',
+    hasPersonalData: true,
+    retentionDays: 365,
+    usedBy: [{ source: 'CD-0102', waves: [4] }],
+    note: 'Người tự bấm vào ba bài đăng của CD-0102, là khán giả của đợt 4. Ba đợt đầu là reach nền tảng — không có lô nào đứng sau.',
+  },
+  {
+    code: 'DS-0107',
+    supplier: 'Quét mã tại gian hàng — ba ngày hội chợ',
+    supplierKind: 'tai-cho',
+    importedDay: 98,
+    importedBy: MARKETING,
+    /* `tai-cho`: thu tại chỗ, không có bộ lọc nào. */
+    filters: [],
+    rowsRaw: 151,
+    rowsDuplicate: 3,
+    rowsRejected: 5,
+    rowsValid: 143,
+    state: 'da-nhap',
+    cost: 0,
+    legalBasis: 'dong-y-truc-tiep',
+    hasPersonalData: true,
+    retentionDays: 365,
+    /* Một lô nuôi HAI đợt của cùng một nguồn: 143 người quét mã là khán giả của
+       cả đợt 2 lẫn đợt 3, nên `rowsValid` bằng `sent` của đợt 2 chứ không bằng
+       tổng hai đợt. Cộng hai đợt lại là đếm cùng 143 người hai lần. */
+    usedBy: [{ source: 'SK-0106', waves: [2, 3] }],
+    note: 'Quét mã ba ngày hội chợ. 143 dòng này là khán giả của cả đợt 2 lẫn đợt 3 của SK-0106 — cùng một tệp người, gửi hai lần.',
+  },
+  {
+    code: 'DS-0108',
+    supplier: 'LinkedIn Sales Navigator — Quế Võ & Yên Phong',
+    supplierKind: 'mua',
+    importedDay: 0,
+    importedBy: BD,
+    filters: [{ label: 'Khu công nghiệp', value: 'Quế Võ, Yên Phong' }],
+    rowsRaw: 248,
+    rowsDuplicate: 22,
+    rowsRejected: 46,
+    /** 180 — số ĐẶT duy nhất của bảng không neo được vào một `Wave.sent`, vì
+     *  DS-0108 không nuôi đợt gửi nào. Nó neo bằng một CỬA SỔ đọc được nhân một
+     *  NHỊP đặt được:
+     *
+     *      9 ngày × 20 dòng gọi/ngày = 180
+     *
+     *  Cửa sổ đọc thẳng từ fixture: năm lead của `TM` vào sổ ở d1 · d6 · d6 · d8
+     *  · d9, sau đó `TM` không sinh thêm dòng nào trong 99 ngày còn lại của kỳ.
+     *  Cửa sổ ấy có lý do nghiệp vụ: đợt gửi sớm nhất của cả tám nguồn là CD-0101
+     *  đợt 1 ở d11, nên từ d1 đến d10 BD không có lead chiến dịch nào để chạm —
+     *  anh chỉ có một danh sách mua và một cái điện thoại. Cắt cửa sổ kiểu kia
+     *  (10 ngày × 18 dòng/ngày) cũng rơi vào đúng 180.
+     *
+     *  Tỉ lệ ra lead đứng đúng thứ hạng phải có: 5/180 = 2,78%, so với danh sách
+     *  ẤM CD-0105 đợt 1 (4/310 = 1,29%) và thư LẠNH CD-0101 đợt 1 (11/1.200 =
+     *  0,92%). Gọi điện ăn gấp 2,2 lần danh sách ấm và 3 lần danh sách lạnh.
+     *
+     *  CHỖ YẾU, nói thẳng: cửa sổ chín ngày là hệ quả của công thức `i % 9` trong
+     *  `buildBook` — MỌI nguồn đều trải chín ngày như thế, không riêng `TM`. Nó là
+     *  số thật đang nằm trong `LEADS[].createdAt`, nhưng không phải một phép đo
+     *  độc lập. Phần thật sự phải ĐẶT là **nhịp 20 dòng gọi được một ngày**, và
+     *  đặt một nhịp dễ ký hơn đặt một tổng: nhịp đối chiếu được với đời thật, còn
+     *  180 trần trụi thì không đối chiếu được với gì.
+     *
+     *  **Nhịp ĐẶT bởi Lê Hoàng Nam · 20/08.** Hệ không có thước nào đo nhịp gọi
+     *  một ngày: số theo ngày duy nhất trong hệ là chỉ tiêu CÒN THIẾU chia số
+     *  ngày còn lại — nhịp mục tiêu, không phải số đo. */
+    rowsValid: 180,
+    state: 'da-nhap',
+    /** 0 đồng, và KHÔNG phải ô còn thiếu dù lô mang kiểu `mua`: ghế Sales
+     *  Navigator là thuê THÁNG, đã nằm trọn trong `TOOL_POOL`, không mua theo
+     *  dòng. Cùng luật với hai nguồn tự nhiên `GT` và `TM`.
+     *
+     *  Chỗ lệch phải ghi lại để không rơi: `TM` có `waves: []` nên không nhận
+     *  đồng nào của `TOOL_PER_WAVE` — tiền ghế mà chính BD dùng để lấy lô này
+     *  đang bị sáu nguồn chiến dịch/sự kiện gánh trọn. Đúng theo khoá phân bổ
+     *  hiện tại (chia theo ĐỢT) và KHÔNG được tự sửa, vì nó động vào 300 triệu. */
+    cost: 0,
+    /* ⚠ Cùng chỗ chưa gật với DS-0103: lô Sales Navigator là lô một dòng một
+       người, và theo đặc tả thì không có email lẫn điện thoại — "lô không gửi
+       được, chỉ để BD gọi". */
+    legalBasis: 'cong-khai-phap-nhan',
+    hasPersonalData: true,
+    retentionDays: 365,
+    /* Rỗng, và đó là chuyện BÌNH THƯỜNG của đường B: lô này không nuôi đợt gửi
+       nào. Đường nối về nguồn nằm ở `calledBy`. */
+    usedBy: [],
+    calledBy: 'TM',
+    note: 'BD cầm 180 dòng và gọi tay, không qua đợt gửi nào — cày trong chín ngày đầu kỳ rồi thôi, ra 5 lead.',
+  },
+]
+
+const batchByCode = new Map(PROSPECT_BATCHES.map((b) => [b.code, b]))
+
+/** Nguồn → các lô đứng sau nó. Một nguồn có thể có hai lô (SK-0106) và một lô có
+ *  thể nuôi nhiều nguồn — quan hệ nhiều–nhiều. */
+const batchesBySource = new Map<string, ProspectBatch[]>()
+for (const b of PROSPECT_BATCHES) {
+  const codes = new Set(b.usedBy.map((u) => u.source))
+  if (b.calledBy) codes.add(b.calledBy)
+  for (const code of codes) {
+    const list = batchesBySource.get(code)
+    if (list) list.push(b)
+    else batchesBySource.set(code, [b])
+  }
+}
+
+/** Các lô đứng sau một nguồn. Rỗng = nguồn không có lô nào — `GT` là đúng trường
+ *  hợp đó, và đó là câu trả lời chứ không phải dữ liệu thiếu. */
+export function prospectBatchesOfSource(code: string): ProspectBatch[] {
+  return batchesBySource.get(code) ?? []
+}
+
+/** Số thứ tự các đợt của một nguồn mà lô này nuôi. */
+function wavesFed(batch: ProspectBatch, sourceCode: string): Set<number> {
+  return new Set(batch.usedBy.filter((u) => u.source === sourceCode).flatMap((u) => u.waves))
+}
+
+/** Lô truy được về từ MỘT DÒNG SỔ của nguồn này — `undefined` khi không truy được.
+ *
+ *  **Vì sao có hàm này thay vì đọc thẳng `usedBy`.** `Lead` cố tình KHÔNG có
+ *  `waveNo`, nên hệ biết lead về từ nguồn nào mà không biết về từ đợt nào. Một lô
+ *  chỉ gắn được cho một dòng sổ khi MỌI lead của nguồn đều về từ nó:
+ *
+ *  - nguồn có đúng một lô và lô nuôi HẾT các đợt — CD-0101, CD-0105;
+ *  - nguồn là SỰ KIỆN có đúng một lô nuôi đợt mời, các đợt sau chạy trên chính
+ *    người đã đăng ký từ đợt mời đó — SK-0103, SK-0104;
+ *  - nguồn không có đợt nào và lô được gọi tay — TM.
+ *
+ *  Ba nguồn còn lại KHÔNG truy được, và `undefined` là câu trả lời đúng chứ không
+ *  phải chỗ thiếu dữ liệu: `CD-0102` có 15 trên 18 lead về từ ba đợt reach nền
+ *  tảng (mua 8.400 địa chỉ nhà máy Bắc Ninh là chuyện không có thật); `SK-0106`
+ *  có hai lô chia nhau; `GT` là khách cũ giới thiệu, không có lô nào.
+ *
+ *  Hệ quả bằng số: **64** trên 100 dòng sổ mang được mã lô, trong khi **78** dòng
+ *  thật sự có lô đứng sau (61 trực tiếp + 17 qua một bước đăng ký). 14 dòng chênh
+ *  là cái giá của việc không thêm `Lead.waveNo`. Cần số theo LÔ thì đọc
+ *  `prospectStats`, đừng đếm bằng cách quét sổ lead. */
+export function prospectBatchOfSource(code: string): ProspectBatch | undefined {
+  const list = prospectBatchesOfSource(code)
+  const only = list.length === 1 ? list[0] : undefined
+  const src = sourceByCode.get(code)
+  if (!only || !src) return undefined
+
+  if (src.waves.length === 0) return only.calledBy === code ? only : undefined
+
+  const fed = wavesFed(only, code)
+  if (src.waves.every((w) => fed.has(w.no))) return only
+
+  /* Sự kiện: đợt mời chạy trên lô, các đợt sau chạy trên người đã đăng ký từ
+     chính đợt mời — cả chuỗi vẫn về đúng một lô. Chiến dịch không có
+     `registered` nên không đi được đường này. */
+  const opening = src.waves[0]
+  if (src.registered !== undefined && opening && fed.has(opening.no)) return only
+
+  return undefined
+}
+
+export type ProspectStats = {
+  /** `undefined` khi mã lô không có trong kho. */
+  batch: ProspectBatch | undefined
+  rowsRaw: number
+  rowsValid: number
+  rowsDuplicate: number
+  rowsRejected: number
+  /** Tỉ lệ loại trên dòng thô, 0–1. `null` khi lô không có dòng nào — không phải
+   *  0: "chưa đo được" khác "không loại dòng nào". */
+  rejectRate: number | null
+  /** Tỉ lệ trùng trên dòng thô, 0–1. `null` như trên. */
+  duplicateRate: number | null
+  /** Tiền danh sách của lô, đồng. 0 là kết quả THẬT với bốn lô không tốn tiền. */
+  cost: number
+  /** Đồng mỗi dòng hợp lệ. `null` khi lô chưa có dòng hợp lệ nào — không chia
+   *  cho 0. */
+  costPerValidRow: number | null
+  /** Mã các nguồn lô nuôi, kể cả nguồn gọi tay. */
+  sources: string[]
+  /** `Wave.sent` của đợt ĐẦU TIÊN lô nuôi — con số phải bằng đúng `rowsValid`.
+   *  `null` khi lô không nuôi đợt nào (DS-0108), và đó chính là lý do `rowsValid`
+   *  của lô ấy phải ĐẶT thay vì neo. */
+  openingSent: number | null
+  /** Lead về thẳng từ các đợt lô nuôi. Lô gọi tay thì là lead của nguồn gọi. */
+  leadsDirect: number
+  /** Lead về qua MỘT bước đăng ký: đợt mời chạy trên lô, người đăng ký ở lại và
+   *  các đợt sau chạy trên họ. Chỉ có ở sự kiện có đúng một lô. */
+  leadsIndirect: number
+  /** `leadsDirect + leadsIndirect`. */
+  leads: number
+  /** Đồng mỗi lead truy được về lô. `null` khi lô chưa ra lead nào. */
+  costPerLead: number | null
+}
+
+/** Số của MỘT lô. Mã lạ thì trả bảng rỗng với `batch: undefined`.
+ *
+ *  Hàm này KHÔNG đọc `LEADS`: mọi con số lead ở đây cộng từ `Wave.leads` của các
+ *  đợt lô nuôi, tức đếm ở mức ĐỢT chứ không quét sổ. Muốn "lead TỐT của lô" (qua
+ *  được cổng init data) thì phải quét sổ, mà sổ chỉ truy về tới mức NGUỒN — nên
+ *  chỉ năm lô là lô duy nhất của nguồn mới có con số đó, xem
+ *  `prospectBatchOfSource`. */
+export function prospectStats(code: string): ProspectStats {
+  const batch = batchByCode.get(code)
+  if (!batch) {
+    return {
+      batch: undefined,
+      rowsRaw: 0,
+      rowsValid: 0,
+      rowsDuplicate: 0,
+      rowsRejected: 0,
+      rejectRate: null,
+      duplicateRate: null,
+      cost: 0,
+      costPerValidRow: null,
+      sources: [],
+      openingSent: null,
+      leadsDirect: 0,
+      leadsIndirect: 0,
+      leads: 0,
+      costPerLead: null,
+    }
+  }
+
+  const sources = [...new Set(batch.usedBy.map((u) => u.source))]
+  if (batch.calledBy && !sources.includes(batch.calledBy)) sources.push(batch.calledBy)
+
+  let leadsDirect = 0
+  let leadsIndirect = 0
+  let openingSent: number | null = null
+  let openingDay = Infinity
+
+  for (const use of batch.usedBy) {
+    const src = sourceByCode.get(use.source)
+    if (!src) continue
+    for (const w of src.waves) {
+      if (!use.waves.includes(w.no)) continue
+      leadsDirect += w.leads
+      if (w.day < openingDay) {
+        openingDay = w.day
+        openingSent = w.sent
+      }
+    }
+  }
+
+  /* Nguồn gọi tay không có đợt nào, nên CẢ `leads` của nó về từ lô này. */
+  if (batch.calledBy) {
+    const src = sourceByCode.get(batch.calledBy)
+    if (src && src.waves.length === 0) leadsDirect += src.leads
+  }
+
+  for (const srcCode of sources) {
+    const src = sourceByCode.get(srcCode)
+    if (!src || src.registered === undefined) continue
+    if (prospectBatchOfSource(srcCode) !== batch) continue
+    const fed = wavesFed(batch, srcCode)
+    for (const w of src.waves) if (!fed.has(w.no)) leadsIndirect += w.leads
+  }
+
+  const leads = leadsDirect + leadsIndirect
+
+  return {
+    batch,
+    rowsRaw: batch.rowsRaw,
+    rowsValid: batch.rowsValid,
+    rowsDuplicate: batch.rowsDuplicate,
+    rowsRejected: batch.rowsRejected,
+    rejectRate: batch.rowsRaw > 0 ? batch.rowsRejected / batch.rowsRaw : null,
+    duplicateRate: batch.rowsRaw > 0 ? batch.rowsDuplicate / batch.rowsRaw : null,
+    cost: batch.cost,
+    costPerValidRow: batch.rowsValid > 0 ? Math.round(batch.cost / batch.rowsValid) : null,
+    sources,
+    openingSent,
+    leadsDirect,
+    leadsIndirect,
+    leads,
+    costPerLead: leads > 0 ? Math.round(batch.cost / leads) : null,
+  }
+}
+
+/** Số của CẢ KHO — phép cân của bảng tám lô, và phép cân 61 + 17 + 22 = 100.
+ *
+ *  Đây là chỗ duy nhất cộng tám lô lại. Màn nào cần tổng thì gọi hàm này, đừng
+ *  tự `reduce` — hai chỗ cộng là hai cơ hội lệch. */
+export function prospectTotals() {
+  const stats = PROSPECT_BATCHES.map((b) => prospectStats(b.code))
+  const sum = (pick: (s: ProspectStats) => number) => stats.reduce((n, s) => n + pick(s), 0)
+
+  /* Phần PHẢI TRẢ TIỀN: chỉ các lô có `cost > 0`. Chia tiền cho cả 5.753 dòng là
+     làm một dòng danh sách trông rẻ hơn thật, vì bốn lô kia không tốn đồng nào. */
+  const paidRows = stats.filter((s) => s.cost > 0).reduce((n, s) => n + s.rowsValid, 0)
+  const cost = sum((s) => s.cost)
+
+  const leadsDirect = sum((s) => s.leadsDirect)
+  const leadsIndirect = sum((s) => s.leadsIndirect)
+  /* Mẫu số là cả sổ: cộng `leads` của tám nguồn, đúng bậc đầu của phễu. */
+  const allLeads = SOURCES.reduce((n, s) => n + s.leads, 0)
+
+  /* Giá mỗi lead của tiền mua dòng — gọi hàm chung, KHÔNG chia lại ở đây. Hai
+     chỗ chia là hai cơ hội lệch, cùng luật với "hai chỗ cộng".
+     Truyền CẢ TÁM lô chứ không lọc trước: hàm tự bỏ lô 0 đồng khỏi phép chia và
+     đếm chúng riêng, nên tổng của kho đọc được cả phần bị để ngoài. */
+  const bought = costOfPaidBatchLead(PROSPECT_BATCHES)
+
+  return {
+    batches: PROSPECT_BATCHES.length,
+    rowsRaw: sum((s) => s.rowsRaw),
+    rowsDuplicate: sum((s) => s.rowsDuplicate),
+    rowsRejected: sum((s) => s.rowsRejected),
+    rowsValid: sum((s) => s.rowsValid),
+    /** Tiền danh sách cả kỳ, đồng — nằm TRONG 300 triệu, không cộng thêm. */
+    cost,
+    /** Dòng hợp lệ của riêng các lô phải trả tiền. */
+    paidRows,
+    /** Đồng một dòng hợp lệ của phần phải trả tiền. `null` khi chưa có dòng nào. */
+    costPerPaidRow: paidRows > 0 ? Math.round(cost / paidRows) : null,
+    /** Lead về thẳng từ một đợt do lô nuôi, hoặc từ lô gọi tay. */
+    leadsDirect,
+    /** Lead về qua một bước đăng ký. */
+    leadsIndirect,
+    /** Lead CÓ lô đứng sau. */
+    leadsWithBatch: leadsDirect + leadsIndirect,
+    /** Lead KHÔNG có lô nào đứng sau — 15 từ ba đợt reach nền tảng của CD-0102 và
+     *  7 của `GT`. Đây là lý do `LeadOrigin.batch` phải optional: điền một mã lô
+     *  cho đủ ô là phá đúng thứ trường ấy sinh ra để đo. */
+    leadsNoBatch: allLeads - leadsDirect - leadsIndirect,
+    allLeads,
+    /** Lead truy được về các lô PHẢI TRẢ TIỀN — mẫu số của `costPerPaidBatchLead`.
+     *  Không phải `leadsWithBatch`: bốn lô 0 đồng cũng có lô đứng sau. */
+    paidBatchLeads: bought.leads,
+    /** Đồng mỗi lead của phần tiền mua dòng — câu trả lời cho "31 triệu ra bao
+     *  nhiêu lead". Cùng một phép chia với `costOfPaidBatchLead`, không tính lại.
+     *  `null` khi kho chưa có lô phải trả tiền nào ra lead. */
+    costPerPaidBatchLead: bought.perLead,
+    /** Lead của các lô 0 đồng — CỐ TÌNH nằm ngoài `costPerPaidBatchLead`. Màn
+     *  nào hiện giá mỗi lead thì phải hiện kèm con số này, nếu không người đọc
+     *  tưởng kho chỉ có 53 lead. */
+    freeBatchLeads: bought.freeLeads,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Giá mỗi lead của lô PHẢI TRẢ TIỀN — một phép chia, ba phạm vi có tên
+//
+// Câu TP Kinh doanh hỏi đầu tiên khi mở kho danh sách: "31 triệu tiền mua dòng
+// ra bao nhiêu lead". Khối này là chỗ DUY NHẤT trả lời, và nó đi theo đúng tiền
+// lệ của `costOfGoodLead` ở dưới: phép chia một chỗ, phạm vi xin ở đây, nhãn
+// trên màn phải khai đang xem phạm vi nào.
+//
+// KHAI PHẠM VI, đọc trước khi đặt nhãn (quyết định G · 20/08):
+//  - TỬ SỐ là **tiền mua dòng của lô** (`ProspectBatch.cost`) — 31 triệu cả kỳ.
+//    KHÁC **chi dữ liệu của nguồn** (`Source.costLines` loại `du-lieu`) — 4,58
+//    triệu cả kỳ. Hai thước khác mẫu số, khác nguồn số, KHÔNG được đứng cạnh
+//    nhau như hai cách đọc của cùng một thứ, và không ô nào được ghi "Chi phí"
+//    trỏ trống không.
+//  - MẪU SỐ là **lead truy được về chính các lô ấy** (`prospectStats().leads` =
+//    trực tiếp + qua một bước đăng ký), đếm ở mức ĐỢT chứ không quét sổ. Không
+//    phải "lead tốt": sổ lead chỉ truy về tới mức NGUỒN, nên "lead tốt của một
+//    lô" là con số hệ chưa đo được — xem `prospectBatchOfSource`.
+//
+// CÁI BẪY, và vì sao phép lọc nằm TRONG hàm chứ không ở người gọi. Bốn lô 0
+// đồng (sổ cũ của phòng · trang đích · quét mã tại gian · ghế Sales Navigator
+// thuê tháng đã nằm trong `TOOL_POOL`) có lead thật nhưng không tốn đồng nào.
+// Thả chúng vào mẫu số là lấy 20 lead miễn phí đi trợ giá cho dòng đã mua:
+// SK-0106 hiện 12 triệu / 11 lead = 1,09 triệu, trong khi tiền ấy chỉ mua được
+// 3 lead — giá thật 4 triệu, đắt gần bốn lần. Cùng cái bẫy `costPerPaidRow` đã
+// tránh ở trên, chỉ khác mẫu số.
+//
+// Vì thế hàm tự bỏ lô 0 đồng khỏi CẢ HAI vế, và trả `freeBatches`/`freeLeads`
+// để màn nói ra phần bị để ngoài — bỏ ngoài phép chia thì được, giấu thì không.
+// ---------------------------------------------------------------------------
+
+/** Lô PHẢI TRẢ TIỀN — phạm vi của câu hỏi "tiền mua dòng ra được lead không".
+ *
+ *  Bốn lô hôm nay: DS-0101 · DS-0102 · DS-0103 · DS-0104, cộng đúng 31 triệu.
+ *  Bốn lô còn lại 0 đồng và đó là câu trả lời THẬT, không phải ô còn thiếu. */
+export function prospectBatchesPaid(): ProspectBatch[] {
+  return PROSPECT_BATCHES.filter((b) => b.cost > 0)
+}
+
+/** Lô của MỘT NGƯỜI NHẬP — phạm vi của câu hỏi "người này mua dòng có ra lead
+ *  không".
+ *
+ *  Đọc `importedBy`, tên truyền vào phải có trong `dasVina.actors` — dùng hằng
+ *  `MARKETING` · `BD`, đừng gõ lại chuỗi. Hôm nay Marketing nhập bảy lô (cả bốn
+ *  lô mất tiền), BD nhập một lô 0 đồng. */
+export function prospectBatchesImportedBy(actor: string): ProspectBatch[] {
+  return PROSPECT_BATCHES.filter((b) => b.importedBy === actor)
+}
+
+export type PaidBatchLeadCost = {
+  /** Số lô phải trả tiền trong phạm vi — cả tử số lẫn mẫu số chỉ đứng trên chúng. */
+  paidBatches: number
+  /** Số lô 0 đồng bị để NGOÀI cả hai vế. Màn phải nói ra con số này. */
+  freeBatches: number
+  /** Tiền mua dòng của phần phải trả tiền, đồng. Nằm TRONG 300 triệu. */
+  cost: number
+  /** Lead truy được về các lô phải trả tiền đó. */
+  leads: number
+  /** Lead của các lô 0 đồng — không vào mẫu số, nhưng không được giấu. */
+  freeLeads: number
+  /** Đồng mỗi lead, đã làm tròn. `null` khi phạm vi chưa có lô phải trả tiền nào
+   *  ra lead — KHÔNG phải 0 và không bao giờ là `Infinity`: "chưa đo được trong
+   *  kỳ" khác hẳn "không mất đồng nào". */
+  perLead: number | null
+}
+
+/** Giá mỗi lead của các lô PHẢI TRẢ TIỀN trong một phạm vi. **Nơi duy nhất phép
+ *  chia này tồn tại** — ba màn gọi cùng hàm với ba phạm vi của mình.
+ *
+ *  `cost ÷ leads`, cả hai vế chỉ lấy từ lô có `cost > 0`. Lô 0 đồng trong phạm
+ *  vi được đếm riêng ở `freeBatches`/`freeLeads`, không góp vào phép chia.
+ *
+ *  **Phạm vi THỜI GIAN.** `ProspectBatch.cost` là tiền CẢ KỲ 01/05 → 17/08, và
+ *  `leads` cộng từ `Wave.leads` cũng cả kỳ. Không cắt được theo tháng: lô không
+ *  có dòng chi theo ngày như `Source.costLines`. Màn nào đang xem một kỳ ngắn
+ *  hơn thì phải khai "cả kỳ dữ liệu", đừng ghép số này vào ô của kỳ đang chọn. */
+export function costOfPaidBatchLead(batches: readonly ProspectBatch[]): PaidBatchLeadCost {
+  let cost = 0
+  let leads = 0
+  let paidBatches = 0
+  let freeBatches = 0
+  let freeLeads = 0
+
+  for (const b of batches) {
+    const mine = prospectStats(b.code).leads
+    if (b.cost > 0) {
+      paidBatches += 1
+      cost += b.cost
+      leads += mine
+    } else {
+      freeBatches += 1
+      freeLeads += mine
+    }
+  }
+
+  return {
+    paidBatches,
+    freeBatches,
+    cost,
+    leads,
+    freeLeads,
+    perLead: leads > 0 ? Math.round(cost / leads) : null,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Bảng giá nhà cung cấp và phép quy đổi "1.000 dòng tốn bao nhiêu"
@@ -2344,6 +3177,19 @@ export type LeadOrigin = {
   registered?: number
   /** Ngày nguồn chạy lần đầu, ISO. */
   startedAt: string
+  /** Lô danh sách đứng sau lead này.
+   *
+   *  **TRỤC THỨ HAI, không phải kiểu xuất xứ thứ năm.** `OriginKind` vẫn đúng bốn
+   *  giá trị: "về từ chiến dịch" và "về từ lô DS-0103" là hai câu trả lời cho hai
+   *  câu hỏi khác nhau, và một lead trả lời được cả hai. Nhét lô thành giá trị
+   *  thứ năm là mất câu thứ nhất.
+   *
+   *  `undefined` là câu trả lời HỢP LỆ và hay gặp: 22 trên 100 dòng sổ không có
+   *  lô nào đứng sau (15 từ ba đợt reach nền tảng, 7 từ khách cũ giới thiệu), và
+   *  thêm 14 dòng nữa có lô nhưng không truy được tới mức dòng. Điền một mã lô
+   *  cho đủ ô là phá đúng thứ trường này sinh ra để đo — xem
+   *  `prospectBatchOfSource`. */
+  batch?: { code: string; supplier: string; importedAt: string }
   /** Một câu nói rõ lead này về bằng đường nào. */
   note: string
 }
@@ -2364,11 +3210,17 @@ export function leadOrigin(lead: Lead): LeadOrigin {
           ? 'gioi-thieu'
           : 'tu-mo'
 
+  const batch = prospectBatchOfSource(src.code)
+
   const note = {
     'chien-dich': `Về từ chiến dịch ${src.code} — ${src.waves.length} đợt đã chạy.`,
     'su-kien': `Về từ sự kiện ${src.code} tại ${src.venue ?? 'chưa ghi địa điểm'}.`,
     'gioi-thieu': 'Khách cũ giới thiệu thẳng vào công ty — không đi qua đợt nào.',
-    'tu-mo': `${src.owner} tự mở, tạo trực tiếp trong sổ — không đi qua đợt nào.`,
+    /* Mã lô đọc từ `calledBy`, không gõ tay: BD gọi thẳng từ danh sách chứ không
+       "tạo trực tiếp trong sổ", và câu này phải đổi theo nếu lô đổi. */
+    'tu-mo': batch
+      ? `${src.owner} tự mở — gọi trực tiếp từ lô ${batch.code}, không đi qua đợt gửi nào.`
+      : `${src.owner} tự mở, tạo trực tiếp trong sổ — không đi qua đợt nào.`,
   }[kind]
 
   return {
@@ -2381,6 +3233,9 @@ export function leadOrigin(lead: Lead): LeadOrigin {
     checkedIn: src.checkedIn,
     registered: src.registered,
     startedAt: dayISO(src.startDay),
+    batch: batch
+      ? { code: batch.code, supplier: batch.supplier, importedAt: dayISO(batch.importedDay) }
+      : undefined,
     note,
   }
 }

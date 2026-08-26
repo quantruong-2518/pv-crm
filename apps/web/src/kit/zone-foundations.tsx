@@ -25,9 +25,23 @@ const SHEENS = [
   { token: '--sheen-ai', css: 'var(--sheen-ai)' },
 ]
 
+/** F-04 · Thang chữ — ĐÚNG 9 BẬC (§8.3 · docs/plans/so-gap-giao-dien.md).
+ *
+ *  Bậc nào không có ở đây thì không được dùng trên màn. Cỡ ngoài thang phải có
+ *  comment ngay tại chỗ nêu lý do — đó là điều 14 của hợp đồng "mọi màn phải…".
+ *
+ *  Bảng này thay bản 8 bậc cũ. Ba thay đổi, ghi lại để không ai dựng lại bản cũ:
+ *    · 28px BỎ — nó là bậc hero thứ hai, mà hero chỉ cần một cỡ. Số thẻ compact
+ *      đã đứng ở 26px (patterns/stat-card.tsx) nên 28 gộp xuống 26.
+ *    · 11px và 10,5px THÊM — hai cỡ này đã dùng thật gần 120 lượt (nhãn ô nhập,
+ *      kicker, nhãn phụ trong bảng) mà bản cũ không thừa nhận.
+ *    · bậc 3 có hai giá trị theo bề rộng: 20px ở base, 22px từ `lg:`. Đó là một
+ *      bậc, không phải hai — tiêu đề màn viết `text-[20px] lg:text-[22px]`. */
 const TYPE_SCALE = [
   {
-    token: 'text-5xl',
+    step: '1',
+    token: 'text-[42px]',
+    role: 'hero · số lớn nhất màn',
     sample: (
       <span className="tnum font-num text-[42px] font-semibold leading-none tracking-[-1.5px]">
         1,84 tỷ
@@ -36,23 +50,31 @@ const TYPE_SCALE = [
     spec: ['Space Grotesk', '42 / 600 / −1.5'],
   },
   {
-    token: 'text-3xl',
+    step: '2',
+    token: 'text-[26px]',
+    role: 'số thẻ compact',
     sample: (
-      <span className="font-display text-[28px] font-semibold tracking-[-.4px]">
-        Đơn hàng Sao Đỏ
+      <span className="tnum font-num text-[26px] font-semibold leading-none tracking-[-.8px]">
+        128,5 tr
       </span>
     ),
-    spec: ['Archivo', '28 / 600'],
+    spec: ['Space Grotesk', '26 / 600 / −.8'],
   },
   {
-    token: 'text-2xl',
+    step: '3',
+    token: 'text-[20px] lg:text-[22px]',
+    role: 'tiêu đề màn',
     sample: (
-      <span className="font-display text-[22px] font-semibold">Chào buổi sáng, anh Thắng</span>
+      <span className="font-display text-[20px] font-semibold lg:text-[22px]">
+        Chào buổi sáng, anh Thắng
+      </span>
     ),
-    spec: ['Archivo', '22 / 600'],
+    spec: ['Archivo', '20 → 22 / 600'],
   },
   {
-    token: 'text-lg',
+    step: '4',
+    token: 'text-[15px]',
+    role: 'tiêu đề thẻ',
     sample: (
       <span className="font-display text-[15px] font-semibold">
         Lệnh sản xuất WO-1180 chậm 2 ngày
@@ -61,16 +83,20 @@ const TYPE_SCALE = [
     spec: ['Archivo', '15 / 600'],
   },
   {
-    token: 'text-base',
+    step: '5',
+    token: 'text-[13px]',
+    role: 'thân đậm · câu dẫn',
     sample: (
-      <span className="text-[13px] leading-[1.6]">
+      <span className="text-[13px] font-medium leading-[1.6]">
         Kho K1-A2 hết thép Ø40 từ 08/08. Đề nghị mua 500 kg từ Thép Nam Việt.
       </span>
     ),
-    spec: ['Plex Sans', '13 / 400 / 1.6'],
+    spec: ['Plex Sans', '13 / 500 / 1.6'],
   },
   {
-    token: 'text-sm',
+    step: '6',
+    token: 'text-[12.5px]',
+    role: 'thân',
     sample: (
       <span className="text-muted-foreground text-[12.5px] leading-[1.6]">
         Thiếu thép Ø40 tại K1-A2 · hạn giao khách 22/08 còn nguyên
@@ -79,16 +105,38 @@ const TYPE_SCALE = [
     spec: ['Plex Sans', '12.5 / 400'],
   },
   {
-    token: 'text-xs',
+    step: '7',
+    token: 'text-[11.5px]',
+    role: 'phụ · chú thích dưới khối',
     sample: (
-      <span className="text-muted-foreground text-[11.5px]">
+      <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
         Cập nhật 07:58 · hôm nay · nguồn ERP kho
       </span>
     ),
     spec: ['Plex Sans', '11.5 / 400'],
   },
   {
+    step: '8',
+    token: 'text-[11px]',
+    role: 'nhãn ô nhập',
+    sample: <span className="text-muted-foreground text-[11px]">Kho xuất hàng</span>,
+    spec: ['Plex Sans', '11 / 400'],
+  },
+  {
+    step: '9',
+    token: 'text-[10.5px]',
+    role: 'kicker · nhãn phụ trong bảng',
+    sample: (
+      <span className="text-muted-foreground font-mono text-[10.5px] uppercase tracking-[.12em]">
+        Đơn hàng · hôm nay
+      </span>
+    ),
+    spec: ['Plex Mono', '10.5 / in hoa'],
+  },
+  {
+    step: '6 mono',
     token: 'font-mono',
+    role: 'mã và số trong ô bảng',
     sample: (
       <span className="tnum font-mono text-[12.5px]">
         SO-0891 · WO-1180 · L-2608-042 · 128,5 tr
@@ -137,7 +185,7 @@ export function ZoneFoundations() {
               <div key={swatch.name}>
                 <div className="h-11 rounded-md" style={{ background: swatch.css }} />
                 <div className="mt-[7px] text-[11px]">{swatch.name}</div>
-                <div className="text-muted-foreground font-mono text-[10px]">{swatch.hex}</div>
+                <div className="text-muted-foreground font-mono text-[10.5px]">{swatch.hex}</div>
               </div>
             ))}
           </SpecCard>
@@ -148,7 +196,7 @@ export function ZoneFoundations() {
             name="Semantic tokens"
             note="shadcn/ui"
             bodyClassName="flex flex-col gap-2 p-4"
-            footer="bg-primary · text-accent-foreground · text-muted-foreground · bg-destructive/20"
+            footer="bg-primary · text-accent-foreground · text-muted-foreground · bg-destructive/20 · bg-surface-inset. Bốn mức --surface-* chồng tối đa hai lớp trắng trên một mặt kính; lớp thứ ba thì chữ phụ đổi sang --glass-foreground (luật 13)."
           >
             {SEMANTIC_TOKENS.map((row) => (
               <div key={row.token} className="flex items-center gap-3">
@@ -156,8 +204,12 @@ export function ZoneFoundations() {
                   className="h-5 w-[34px] shrink-0 rounded-sm"
                   style={{
                     background: row.css,
+                    /* Bốn mức --surface-* là trắng 5–16%, đặt lên mặt kính của
+                       thẻ spec thì gần như không thấy — cùng cảnh với
+                       --border. Viền mảnh để mắt bắt được ô, không phải để
+                       trang trí. */
                     boxShadow:
-                      row.token === '--border'
+                      row.token === '--border' || row.token.startsWith('--surface-')
                         ? 'inset 0 0 0 1px rgb(255 255 255 / .18)'
                         : undefined,
                   }}
@@ -201,7 +253,9 @@ export function ZoneFoundations() {
               {SHEENS.map((sheen) => (
                 <div key={sheen.token} className="flex items-center gap-[9px]">
                   <span className="h-[13px] w-6 rounded-[2px]" style={{ background: sheen.css }} />
-                  <span className="text-muted-foreground font-mono text-[10px]">{sheen.token}</span>
+                  <span className="text-muted-foreground font-mono text-[10.5px]">
+                    {sheen.token}
+                  </span>
                 </div>
               ))}
             </div>
@@ -212,23 +266,28 @@ export function ZoneFoundations() {
             className="col-span-2"
             code="F-04"
             name="Type scale"
-            note="4 họ chữ · 8 bậc"
+            note="4 họ chữ · 9 bậc"
             bodyClassName="px-4 pt-2 pb-4"
-            footer="font-display Archivo · font-sans IBM Plex Sans · font-num Space Grotesk · font-mono IBM Plex Mono — tất cả đủ dấu tiếng Việt."
+            footer="Đúng 9 bậc này. Cỡ ngoài thang phải có comment nêu lý do ngay tại chỗ. Bậc 3 là một bậc hai giá trị: 20px ở base, 22px từ lg."
           >
             {TYPE_SCALE.map((row, i) => (
               <div
-                key={row.token}
-                className={`grid grid-cols-[96px_1fr_128px] items-center gap-4 py-[11px] ${
+                key={row.step}
+                className={`grid grid-cols-[46px_1fr_128px] items-center gap-4 py-[11px] ${
                   i < TYPE_SCALE.length - 1 ? 'border-b border-b-white/[5.5%]' : ''
                 }`}
               >
-                <span className="text-accent-foreground font-mono text-[10.5px]">{row.token}</span>
-                {row.sample}
-                <span className="text-muted-foreground text-right font-mono text-[10px]">
+                <span className="text-accent-foreground font-mono text-[10.5px]">{row.step}</span>
+                <div className="min-w-0">
+                  {row.sample}
+                  <div className="text-muted-foreground mt-1 text-[11px]">{row.role}</div>
+                </div>
+                <span className="text-muted-foreground text-right font-mono text-[10.5px]">
                   {row.spec[0]}
                   <br />
                   {row.spec[1]}
+                  <br />
+                  <span className="text-accent-foreground">{row.token}</span>
                 </span>
               </div>
             ))}
@@ -250,7 +309,7 @@ export function ZoneFoundations() {
                   {row.step}
                 </span>
                 <span className="bg-primary h-3 rounded-[2px]" style={{ width: row.px }} />
-                <span className="text-muted-foreground font-mono text-[10px]">{row.use}</span>
+                <span className="text-muted-foreground font-mono text-[10.5px]">{row.use}</span>
               </div>
             ))}
           </SpecCard>

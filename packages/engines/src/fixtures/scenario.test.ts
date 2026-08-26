@@ -8,10 +8,12 @@ import {
   saoDo,
 } from './sao-do'
 import {
+  BD,
   BOOK_SPLIT,
   canPromoteToSql,
   COLD_ROW_LEAD_RATE,
   costOfGoodLead,
+  costOfPaidBatchLead,
   type CostKind,
   CREDIT_RULES,
   dasVina,
@@ -26,7 +28,15 @@ import {
   isRunning,
   LEADS,
   leadMilestones,
+  leadOrigin,
   MARKETING,
+  type OriginKind,
+  PROSPECT_BATCHES,
+  prospectBatchesImportedBy,
+  prospectBatchesOfSource,
+  prospectBatchesPaid,
+  prospectStats,
+  prospectTotals,
   ROLE_KPI_MODEL,
   OPEN_DEALS,
   PIPELINE_STAGES,
@@ -258,6 +268,438 @@ describe('Nguồn lead — module 1 Chiến dịch & Sự kiện', () => {
       expect(s.checkedIn ?? 0).toBeLessThanOrEqual(s.registered ?? 0)
       expect(s.venue).toBeTruthy()
     }
+  })
+})
+
+describe('Kho danh sách prospect — 5.753 dòng đứng NGOÀI phễu', () => {
+  /* VÌ SAO khối này tồn tại. Tám lô là bảng số duy nhất của repo nối được ba thứ
+     vốn nằm rời nhau: dòng danh sách mua về, khán giả của một đợt gửi, và tiền
+     đã tiêu. Ba dây nối ấy chỉ có giá trị khi CÂN — một bảng prospect không cân
+     còn tệ hơn không có bảng, vì nó làm màn kho trông như đã kiểm.
+
+     Ranh giới phải giữ: prospect KHÔNG phải bậc thứ bảy của phễu. Nhập 1.200
+     dòng không sinh một đầu mối nào; lead sinh khi bên kia trả lời. */
+
+  const T = prospectTotals()
+  const dayOf = (code: string, no: number) =>
+    SOURCES.find((s) => s.code === code)?.waves.find((w) => w.no === no)?.day ?? Infinity
+
+  /** Ngày đợt SỚM NHẤT lô nuôi. Lô gọi tay thì lấy ngày nguồn bắt đầu chạy. */
+  const firstUseDay = (b: (typeof PROSPECT_BATCHES)[number]) => {
+    const days = b.usedBy.flatMap((u) => u.waves.map((no) => dayOf(u.source, no)))
+    if (b.calledBy) days.push(SOURCES.find((s) => s.code === b.calledBy)?.startDay ?? Infinity)
+    return Math.min(...days)
+  }
+
+  it('tám lô, mã không trùng, người nhập có tên trong actors', () => {
+    const names = new Set(dasVina.actors.map((a) => a.name))
+    expect(PROSPECT_BATCHES).toHaveLength(T.batches)
+    expect(new Set(PROSPECT_BATCHES.map((b) => b.code)).size).toBe(PROSPECT_BATCHES.length)
+    for (const b of PROSPECT_BATCHES) {
+      expect(names.has(b.importedBy), `${b.code} · người nhập lạ`).toBe(true)
+      // Cả tám lô của kỳ đã vào kho: không lô nào còn dở ở giữa luồng năm bước.
+      expect(b.state, `${b.code} · trạng thái`).toBe('da-nhap')
+      expect(b.retentionDays, `${b.code} · hạn lưu`).toBe(365)
+    }
+  })
+
+  /** Phép cân 1 của bảng tám lô. */
+  it('cân dòng — thô trừ trùng trừ loại đúng bằng hợp lệ, ở cả tám lô lẫn ở tổng', () => {
+    for (const b of PROSPECT_BATCHES) {
+      expect(b.rowsRaw - b.rowsDuplicate - b.rowsRejected, `${b.code} lệch`).toBe(b.rowsValid)
+    }
+    expect([T.rowsRaw, T.rowsDuplicate, T.rowsRejected, T.rowsValid]).toEqual([
+      6_818, 424, 641, 5_753,
+    ])
+    expect(T.rowsRaw - T.rowsDuplicate - T.rowsRejected).toBe(T.rowsValid)
+
+    /* Hai con số kể câu chuyện của cả bảng, nên khoá thẳng: Apollo loại nhiều
+       nhất (mua theo dòng thì chất lượng đọc ra tiền), khách mời triển lãm trùng
+       nhiều nhất (lô THỨ TƯ nhắm cùng tệp nhà máy phía Bắc). */
+    expect(prospectStats('DS-0103').rejectRate ?? 0).toBeCloseTo(0.186, 3)
+    expect(prospectStats('DS-0104').duplicateRate ?? 0).toBeCloseTo(0.1106, 4)
+  })
+
+  /** Phép cân 2. Tiền danh sách nằm TRONG `Source.cost`, không cộng thêm. */
+  it('cân tiền — lô không đắt hơn nguồn nuôi nó, và 31 triệu nằm TRONG 300 triệu', () => {
+    for (const b of PROSPECT_BATCHES) {
+      for (const code of prospectStats(b.code).sources) {
+        const src = SOURCES.find((s) => s.code === code)
+        expect(b.cost, `${b.code} đắt hơn nguồn ${code}`).toBeLessThanOrEqual(src?.cost ?? 0)
+      }
+    }
+    /* Dạng mạnh hơn ở mức NGUỒN: SK-0106 có hai lô, và hai lô cộng lại vẫn phải
+       nằm trong 145 triệu của nó. */
+    for (const s of SOURCES) {
+      const of = PROSPECT_BATCHES.filter((b) => prospectStats(b.code).sources.includes(s.code))
+      const sum = of.reduce((n, b) => n + b.cost, 0)
+      expect(sum, `${s.code} · ${of.length} lô cộng lại vượt chi phí nguồn`).toBeLessThanOrEqual(
+        s.cost,
+      )
+    }
+
+    expect(T.cost).toBe(31_000_000)
+    /* Chốt chặn của cả phép cân: bảng lô KHÔNG được đẩy tổng chi kỳ lên. Cộng
+       thêm 31 triệu vào 300 là ra 331 — con số không được xuất hiện ở màn nào. */
+    expect(SOURCES.reduce((n, s) => n + s.cost, 0)).toBe(300_000_000)
+  })
+
+  /** ⚠ CA NÀY ĐANG SKIP, và skip là câu trả lời đúng cho tới khi có người gật.
+   *
+   *  Đây là dạng MẠNH của phép cân 2: nếu tiền danh sách của lô thật sự nằm
+   *  trong `Source.cost`, nó phải nằm trong đúng các dòng chi loại `du-lieu` của
+   *  nguồn ấy. Hôm nay không nằm: bốn lô phải trả tiền khai 8 + 6 + 5 + 12 = 31
+   *  triệu theo đặc tả §7.1, còn các dòng `du-lieu` của đúng bốn nguồn đó cộng
+   *  lại chỉ 4.580.000 đ (1,56 + 0,64 + 0,98 + 1,4) — và 4,58 triệu đang bị ca
+   *  "cộng ngang theo loại" cùng ca "4.220 dòng Apollo × ROW_PRICE" khoá chặt.
+   *
+   *  Gấp 6,8 lần. Hai bảng nói hai số cho cùng một câu hỏi "tiền danh sách là
+   *  bao nhiêu", và chỗ lệch sẽ hiện ra ở MÀN chứ không ở CI vì dạng YẾU ở trên
+   *  (8≤18 · 6≤84 · 5≤21 · 12≤145) đều qua.
+   *
+   *  ĐỪNG nới 4,58 triệu cho khớp 31 triệu, và cũng đừng sửa 31 xuống 4,58 ở
+   *  đây: cả hai con số đều do người đặt. Người đặt gật xong thì bỏ `.skip`. */
+  it.skip('cân tiền dạng mạnh — tiền lô nằm trong đúng dòng chi du-lieu của nguồn', () => {
+    for (const b of PROSPECT_BATCHES) {
+      if (b.cost === 0) continue
+      const src = SOURCES.find((s) => s.code === b.usedBy[0]?.source)
+      const data = (src?.costLines ?? [])
+        .filter((l) => l.kind === 'du-lieu')
+        .reduce((n, l) => n + l.amount, 0)
+      expect(b.cost, `${b.code} · tiền lô vượt dòng du-lieu của ${src?.code}`).toBeLessThanOrEqual(
+        data,
+      )
+    }
+  })
+
+  /** Phép cân 3. */
+  it('cân thời gian — lô nhập TRƯỚC đợt đầu tiên nó nuôi, cả 8/8', () => {
+    for (const b of PROSPECT_BATCHES) {
+      const first = firstUseDay(b)
+      expect(Number.isFinite(first), `${b.code} không nối được vào đợt nào`).toBe(true)
+      expect(b.importedDay, `${b.code} nhập sau khi đã gửi`).toBeLessThan(first)
+    }
+    // Lô sớm nhất là DS-0108 ở d0 — BD cầm danh sách từ ngày đầu tiên của kỳ.
+    expect(Math.min(...PROSPECT_BATCHES.map((b) => b.importedDay))).toBe(0)
+  })
+
+  /** Phép cân 4. */
+  it('giá một dòng của phần PHẢI TRẢ TIỀN — 4.220 dòng, 7.346 đ, không chia cho 5.753', () => {
+    expect(T.paidRows).toBe(4_220)
+    expect(T.costPerPaidRow).toBe(7_346)
+    /* Chia 31 triệu cho cả 5.753 dòng là làm một dòng danh sách trông rẻ hơn
+       thật: bốn lô kia không tốn đồng nào, gộp chúng vào mẫu số là lấy sổ cũ của
+       phòng đi trợ giá cho danh sách mua. */
+    expect(T.costPerPaidRow ?? 0).toBeGreaterThan(Math.round(T.cost / T.rowsValid))
+    expect(PROSPECT_BATCHES.filter((b) => b.cost > 0).map((b) => b.code)).toEqual([
+      'DS-0101',
+      'DS-0102',
+      'DS-0103',
+      'DS-0104',
+    ])
+  })
+
+  it('bảy lô neo rowsValid vào Wave.sent; lô thứ tám phải ĐẶT vì không nuôi đợt nào', () => {
+    /* Đây là dây nối đắt nhất của cả khối: "dòng hợp lệ" và "người nhận của đợt
+       mở màn" phải là CÙNG MỘT con số, nếu không thì hoặc lô rò dòng ra ngoài,
+       hoặc đợt gửi cho người không có trong lô nào. Hai trong bảy lô nuôi đợt
+       KHÔNG phải đợt mở màn của nguồn (DS-0106 → đợt 4 của CD-0102, DS-0107 →
+       đợt 2 của SK-0106), nên phép neo là "đợt đầu tiên LÔ nuôi", không phải
+       "đợt mở màn của NGUỒN". */
+    const anchored = PROSPECT_BATCHES.filter((b) => prospectStats(b.code).openingSent !== null)
+    expect(anchored.map((b) => b.code)).toEqual([
+      'DS-0101',
+      'DS-0102',
+      'DS-0103',
+      'DS-0104',
+      'DS-0105',
+      'DS-0106',
+      'DS-0107',
+    ])
+    for (const b of anchored) {
+      expect(prospectStats(b.code).openingSent, `${b.code} · khán giả lệch dòng hợp lệ`).toBe(
+        b.rowsValid,
+      )
+    }
+
+    const floating = PROSPECT_BATCHES.filter((b) => prospectStats(b.code).openingSent === null)
+    expect(floating.map((b) => b.code)).toEqual(['DS-0108'])
+    /* 180 = 9 ngày × 20 dòng gọi/ngày. Cửa sổ chín ngày đọc được từ `createdAt`
+       của năm lead TM; nhịp 20 dòng/ngày là phần ĐẶT bởi Lê Hoàng Nam · 20/08.
+       Đổi 180 thì phải đổi cả cột Thô và cột Hợp lệ ở dòng Tổng. */
+    expect(floating[0]?.rowsValid).toBe(180)
+    expect(floating[0]?.usedBy).toEqual([])
+    expect(floating[0]?.calledBy).toBe('TM')
+  })
+
+  it('bốn phép trừ — người trả lời rời khán giả, đúng bốn chỗ trong kỳ', () => {
+    /* `Wave[n+1].sent = Wave[n].sent − Wave[n].replied`. Luật này đã nằm sẵn
+       trong fixture từ trước mà chưa ai viết ra thành câu: một chiến dịch nuôi
+       bằng MỘT lô thì đợt sau chỉ bớt đi đúng số người đã trả lời ở đợt trước. */
+    const chains = PROSPECT_BATCHES.flatMap((b) =>
+      b.usedBy.flatMap((u) => {
+        const src = SOURCES.find((s) => s.code === u.source)
+        if (!src || src.kind !== 'chien-dich' || u.waves.length < 2) return []
+        const ws = src.waves.filter((w) => u.waves.includes(w.no)).sort((a, z) => a.day - z.day)
+        return ws.slice(1).map((w, i) => ({ code: src.code, prev: ws[i]!, next: w }))
+      }),
+    )
+    expect(chains.map((c) => `${c.code}/${c.prev.no}→${c.next.no}`)).toEqual([
+      'CD-0101/1→2',
+      'CD-0101/2→3',
+      'CD-0105/1→2',
+      'CD-0105/2→3',
+    ])
+    for (const c of chains) {
+      expect(c.prev.sent - c.prev.replied, `${c.code} · đợt ${c.next.no}`).toBe(c.next.sent)
+    }
+  })
+
+  it('hai đợt của SK-0106 CỐ TÌNH đứng ngoài phép trừ — cùng một tệp 143 người, gửi hai lần', () => {
+    /* Đừng "sửa cho đều": 143 người quét mã tại gian là khán giả của CẢ đợt 2
+       lẫn đợt 3, nên `sent` không co lại. Nếu áp phép trừ vào đây thì đợt 3 phải
+       gửi cho 0 người (đợt 2 có replied = sent = 143), và cộng hai đợt lại để ra
+       "286 người" là đếm cùng 143 người hai lần. */
+    const sk = SOURCES.find((s) => s.code === 'SK-0106')
+    const [w2, w3] = [sk?.waves.find((w) => w.no === 2), sk?.waves.find((w) => w.no === 3)]
+    expect([w2?.sent, w3?.sent]).toEqual([143, 143])
+    expect(w2?.replied).toBe(w2?.sent)
+    expect(prospectStats('DS-0107').rowsValid).toBe(143)
+    expect(PROSPECT_BATCHES.find((b) => b.code === 'DS-0107')?.usedBy).toEqual([
+      { source: 'SK-0106', waves: [2, 3] },
+    ])
+  })
+
+  it('61 + 17 + 22 = 100 — mọi dòng sổ trả lời được câu "có lô nào đứng sau không"', () => {
+    /* Phép cân này không đẻ con số mới: cả ba phần cộng từ `Wave.leads` đã có.
+       22 dòng ở nhóm ba là lý do `LeadOrigin.batch` phải optional — 15 dòng về
+       từ ba đợt reach nền tảng của CD-0102 (mua 8.400 địa chỉ nhà máy Bắc Ninh
+       là chuyện không có thật) và 7 dòng của GT là khách cũ giới thiệu. */
+    expect([T.leadsDirect, T.leadsIndirect, T.leadsNoBatch]).toEqual([61, 17, 22])
+    expect(T.leadsDirect + T.leadsIndirect + T.leadsNoBatch).toBe(FUNNEL[0].count)
+    expect(T.allLeads).toBe(LEADS.length)
+
+    // Từng lô về từ đâu — khoá cả cột trực tiếp lẫn cột qua một bước đăng ký.
+    const BY_BATCH = [
+      ['DS-0101', 22, 0],
+      ['DS-0102', 6, 10],
+      ['DS-0103', 5, 7],
+      ['DS-0104', 3, 0],
+      ['DS-0105', 9, 0],
+      ['DS-0106', 3, 0],
+      ['DS-0107', 8, 0],
+      ['DS-0108', 5, 0],
+    ]
+    expect(
+      PROSPECT_BATCHES.map((b) => {
+        const s = prospectStats(b.code)
+        return [b.code, s.leadsDirect, s.leadsIndirect]
+      }),
+    ).toEqual(BY_BATCH)
+
+    /* Con số đáng đọc nhất của cả khối: 5.753 dòng danh sách còn lại 100 dòng
+       sổ. Một phần trăm rưỡi — và đó là lý do màn nhập phải in thẳng câu "nhập
+       lô không sinh lead nào". */
+    expect(T.allLeads / T.rowsValid).toBeCloseTo(0.0174, 4)
+  })
+})
+
+describe('Lô đứng sau một dòng sổ — trục THỨ HAI, không phải kiểu xuất xứ thứ năm', () => {
+  it('OriginKind vẫn ĐÚNG BỐN giá trị — thêm giá trị thứ năm là đỏ ngay ở đây', () => {
+    /* "Về từ chiến dịch" và "về từ lô DS-0103" là hai câu trả lời cho hai câu
+       hỏi khác nhau, và một lead trả lời được cả hai. Nhét lô thành giá trị thứ
+       năm của `OriginKind` là mất câu thứ nhất — và mất luôn `ORIGIN_FACE` bốn
+       dòng ở tầng app.
+
+       Bảng dưới đây là `Record<OriginKind, …>`: thêm một giá trị vào kiểu mà
+       quên bảng này thì `pnpm typecheck` đỏ, còn bớt một giá trị thì ca này đỏ. */
+    const FACE: Record<OriginKind, string> = {
+      'chien-dich': 'Chiến dịch',
+      'su-kien': 'Sự kiện',
+      'gioi-thieu': 'Được giới thiệu',
+      'tu-mo': 'Tạo trực tiếp',
+    }
+    expect(Object.keys(FACE)).toHaveLength(4)
+    const seen = [...new Set(LEADS.map((l) => leadOrigin(l).kind))].sort()
+    expect(seen).toEqual(Object.keys(FACE).sort())
+  })
+
+  it('mã lô trên một dòng sổ phải có thật trong kho, và chép đúng nhà cung cấp lẫn ngày nhập', () => {
+    for (const lead of LEADS) {
+      const o = leadOrigin(lead)
+      if (!o.batch) continue
+      const b = PROSPECT_BATCHES.find((x) => x.code === o.batch?.code)
+      expect(b, `${lead.code} trỏ vào lô "${o.batch.code}" không có trong kho`).toBeDefined()
+      expect(o.batch.supplier, `${lead.code} · nhà cung cấp lệch`).toBe(b?.supplier)
+      expect(o.batch.importedAt, `${lead.code} · ngày nhập lệch`).toBe(dayISO(b?.importedDay ?? 0))
+    }
+  })
+
+  it('64 dòng sổ mang được mã lô, 78 dòng thật sự có lô — 14 dòng chênh là giá đã trả', () => {
+    /* `Lead` cố tình KHÔNG có `waveNo`, nên hệ biết lead về từ NGUỒN nào mà
+       không biết về từ ĐỢT nào: ba nguồn có hai lô chia nhau, hoặc có đợt không
+       đứng trên lô nào, thì không gắn mã lô cho một dòng sổ được.
+
+       Đừng "bù" 14 dòng bằng cách đoán — cần số theo LÔ thì đọc `prospectStats`,
+       nó đếm ở mức đợt và không quét sổ. */
+    const carried = LEADS.map(leadOrigin).filter((o) => o.batch).length
+    expect(carried).toBe(64)
+    expect(prospectTotals().leadsWithBatch).toBe(78)
+    expect(prospectTotals().leadsWithBatch - carried).toBe(14)
+  })
+})
+
+describe('Giá mỗi lead của lô phải trả tiền — một phép chia, ba phạm vi có tên', () => {
+  /* VÌ SAO khối này tồn tại. Câu TP Kinh doanh hỏi đầu tiên khi mở kho danh sách
+     là "31 triệu tiền mua dòng ra bao nhiêu lead". Trước 20/08 kho chỉ trả lời
+     được nửa câu: `costPerPaidRow` nói một DÒNG giá 7.346 đ, không nói một LEAD
+     giá bao nhiêu — mà tiền thì tiêu để lấy lead chứ không để lấy dòng.
+
+     Cái bẫy của nửa còn lại: bốn lô 0 đồng có 20 lead thật. Thả chúng vào mẫu số
+     là lấy sổ cũ của phòng đi trợ giá cho danh sách mua, y hệt cái bẫy
+     `costPerPaidRow` đã tránh ở mẫu số dòng. Ca "lô 0 đồng" dưới đây khoá đúng
+     chỗ đó: bỏ phép lọc trong `costOfPaidBatchLead` là ĐỎ ngay. */
+
+  const T = prospectTotals()
+  const codesOf = (xs: readonly { code: string }[]) => xs.map((x) => x.code)
+  const PAID = ['DS-0101', 'DS-0102', 'DS-0103', 'DS-0104']
+
+  it('ba phạm vi có tên, và bốn lô mất tiền cộng đúng 31 triệu', () => {
+    expect(codesOf(prospectBatchesPaid())).toEqual(PAID)
+    /* Phạm vi hai — người nhập. Marketing ôm cả bốn lô mất tiền; BD đúng một lô
+       0 đồng, và đó là chỗ hàm phải trả `null` chứ không trả 0. */
+    expect(codesOf(prospectBatchesImportedBy(MARKETING))).toEqual([
+      'DS-0101',
+      'DS-0102',
+      'DS-0103',
+      'DS-0104',
+      'DS-0105',
+      'DS-0106',
+      'DS-0107',
+    ])
+    expect(codesOf(prospectBatchesImportedBy(BD))).toEqual(['DS-0108'])
+    // Phạm vi ba — lô đứng sau một nguồn. SK-0106 là nguồn duy nhất có hai lô.
+    expect(codesOf(prospectBatchesOfSource('SK-0106'))).toEqual(['DS-0104', 'DS-0107'])
+    expect(prospectBatchesPaid().reduce((n, b) => n + b.cost, 0)).toBe(31_000_000)
+  })
+
+  it('31 triệu tiền mua dòng ra 53 lead — 584.906 đ một lead', () => {
+    expect(costOfPaidBatchLead(prospectBatchesPaid())).toEqual({
+      paidBatches: 4,
+      freeBatches: 0,
+      cost: 31_000_000,
+      leads: 53,
+      freeLeads: 0,
+      perLead: 584_906,
+    })
+
+    /* Lọc trước hay không lọc trước phải ra CÙNG một giá: phép bỏ lô 0 đồng nằm
+       TRONG hàm, không nằm ở người gọi. Đây là chỗ đỡ cho mọi màn gọi ẩu. */
+    const all = costOfPaidBatchLead(PROSPECT_BATCHES)
+    const paidOnly = costOfPaidBatchLead(prospectBatchesPaid())
+    expect([all.cost, all.leads, all.perLead]).toEqual([
+      paidOnly.cost,
+      paidOnly.leads,
+      paidOnly.perLead,
+    ])
+    expect([all.freeBatches, all.freeLeads]).toEqual([4, 25])
+
+    /* Hai thước tiền của kho phải cân với nhau qua đúng một tỉ lệ: 53 lead trên
+       4.220 dòng đã mua = 1,26%. Lệch một trong ba số là hai màn nói hai chuyện
+       về cùng 31 triệu. */
+    expect(T.paidBatchLeads).toBe(53)
+    expect(T.costPerPaidBatchLead).toBe(584_906)
+    expect(53 / (T.paidRows || 1)).toBeCloseTo(0.0126, 4)
+    /* Đi vòng: giá một DÒNG nhân số dòng trên mỗi lead phải quay về giá một
+       LEAD. Lệch 2 đ trên 584.906 là phần làm tròn của 7.346, không phải chỗ hở
+       — nhưng lệch quá 10 đ thì một trong hai thước đã đổi mẫu số. */
+    expect(Math.abs((T.costPerPaidRow ?? 0) * (T.paidRows / 53) - 584_906)).toBeLessThan(10)
+
+    /* Phần để ngoài phép chia cộng lại đúng 78 lead có lô đứng sau: 53 lead mua
+       bằng tiền + 25 lead không tốn đồng nào. Màn nào hiện 584.906 mà giấu 25
+       kia là để người đọc tưởng kho chỉ ra 53 lead. */
+    expect(T.freeBatchLeads).toBe(25)
+    expect(T.paidBatchLeads + T.freeBatchLeads).toBe(T.leadsWithBatch)
+  })
+
+  it('KHAI PHẠM VI — tiền mua dòng của lô KHÁC chi dữ liệu của nguồn, gấp 6,77 lần', () => {
+    /* Quyết định G · 20/08. Hai con số cùng có thể mang nhãn "chi phí dữ liệu"
+       mà chênh gần bảy lần: 31 triệu là tiền mua DÒNG của tám lô, 4,58 triệu là
+       dòng chi loại `du-lieu` của tám nguồn. Không ô nào được ghi "Chi phí" trỏ
+       trống không, và hai số này KHÔNG được đứng cạnh nhau như hai cách đọc của
+       cùng một thứ — xem ca `it.skip` "cân tiền dạng mạnh" ở khối kho. */
+    const dataLines = SOURCES.flatMap((s) => s.costLines).filter((l) => l.kind === 'du-lieu')
+    const dataSpend = dataLines.reduce((n, l) => n + l.amount, 0)
+    expect(dataSpend).toBe(4_580_000)
+    expect(costOfPaidBatchLead(prospectBatchesPaid()).cost / dataSpend).toBeCloseTo(6.77, 2)
+  })
+
+  it('lô 0 đồng KHÔNG được kéo mẫu số xuống — SK-0106 là 4 triệu, không phải 1,09', () => {
+    /* SK-0106 mua lô khách mời 12 triệu (ra 3 lead) và quét mã tại gian 0 đồng
+       (ra 8 lead). Cộng cả 11 lead vào mẫu số là báo giá 1,09 triệu cho thứ thật
+       ra 4 triệu — rẻ đi gần bốn lần, và rẻ đi bằng lead mà tiền ấy không mua. */
+    const scope = costOfPaidBatchLead(prospectBatchesOfSource('SK-0106'))
+    expect(scope).toEqual({
+      paidBatches: 1,
+      freeBatches: 1,
+      cost: 12_000_000,
+      leads: 3,
+      freeLeads: 8,
+      perLead: 4_000_000,
+    })
+    // Phần để ngoài phép chia phải ĐẾM ĐƯỢC: bỏ ngoài thì được, giấu thì không.
+    expect(scope.freeLeads).toBeGreaterThan(0)
+    expect(Math.round(scope.cost / (scope.leads + scope.freeLeads))).toBeLessThan(
+      scope.perLead ?? 0,
+    )
+
+    // Cùng phép lọc ở phạm vi người nhập: Marketing có 3 lô 0 đồng, 20 lead miễn phí.
+    const mkt = costOfPaidBatchLead(prospectBatchesImportedBy(MARKETING))
+    expect([mkt.paidBatches, mkt.freeBatches, mkt.freeLeads]).toEqual([4, 3, 20])
+    expect(mkt.perLead).toBe(584_906)
+  })
+
+  it('không có lô mất tiền nào thì trả null — không 0, không Infinity', () => {
+    /* Ràng buộc của cả repo: số 0 KHÔNG BAO GIỜ là "chưa có". BD nhập đúng một
+       lô 0 đồng và lô ấy ra 5 lead thật — "chưa đo được giá" là câu trả lời
+       đúng, "0 đồng một lead" là câu nói dối. */
+    const bd = costOfPaidBatchLead(prospectBatchesImportedBy(BD))
+    expect(bd).toEqual({
+      paidBatches: 0,
+      freeBatches: 1,
+      cost: 0,
+      leads: 0,
+      freeLeads: 5,
+      perLead: null,
+    })
+    expect(Number.isFinite(bd.perLead as number)).toBe(false)
+
+    // Phạm vi rỗng — GT là khách cũ giới thiệu, không có lô nào đứng sau.
+    expect(codesOf(prospectBatchesOfSource('GT'))).toEqual([])
+    expect(costOfPaidBatchLead([])).toEqual({
+      paidBatches: 0,
+      freeBatches: 0,
+      cost: 0,
+      leads: 0,
+      freeLeads: 0,
+      perLead: null,
+    })
+  })
+
+  it('giá của MỘT lô đi qua đúng hàm chung — hàng bảng và ô tổng không lệch nhau', () => {
+    /* `prospectStats().costPerLead` là thứ màn dùng cho TỪNG hàng của bảng tám
+       lô; nếu nó giữ phép chia riêng thì hàng bảng và ô tổng nói hai chuyện. */
+    for (const b of PROSPECT_BATCHES) {
+      const one = costOfPaidBatchLead([b])
+      expect(one.perLead, `${b.code} · giá lệch giữa hàng bảng và hàm chung`).toBe(
+        b.cost > 0 ? prospectStats(b.code).costPerLead : null,
+      )
+    }
+
+    // Bốn lô mất tiền, bốn giá khác nhau — 12 triệu của SK-0106 là đắt nhất bảng.
+    expect(prospectBatchesPaid().map((b) => costOfPaidBatchLead([b]).perLead)).toEqual([
+      363_636, 375_000, 416_667, 4_000_000,
+    ])
   })
 })
 

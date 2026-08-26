@@ -15,7 +15,7 @@ export type SearchFieldProps = {
 
 const sizeClass = {
   topbar: 'h-10 px-[14px] text-[12.5px] gap-2.5 bg-input',
-  page: 'h-13 px-4 text-[14px] gap-2.5 bg-popover shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_45%,transparent)]',
+  page: 'h-13 px-4 text-[13px] gap-2.5 bg-popover shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_45%,transparent)]',
   kiosk: 'h-16 px-4 text-[22px] gap-3 bg-popover',
 }
 

@@ -39,11 +39,6 @@
       "count": 7
     }
   },
-  "apps/web/src/pages/home.tsx": {
-    "aurora/spacing-scale": {
-      "count": 1
-    }
-  },
   "packages/ui/src/organisms/app-sidebar.tsx": {
     "aurora/spacing-scale": {
       "count": 5

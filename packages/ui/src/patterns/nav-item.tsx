@@ -46,7 +46,7 @@ export function NavItem({
       disabled={locked}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'motion-std flex h-[38px] w-full items-center gap-2.5 rounded-md px-3 text-left text-[13.5px]',
+        'motion-std flex h-[38px] w-full items-center gap-2.5 rounded-md px-3 text-left text-[13px]',
         depth === 1 && 'pl-8',
         locked
           ? 'text-muted-foreground cursor-not-allowed'

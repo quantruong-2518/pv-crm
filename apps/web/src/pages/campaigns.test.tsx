@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
-import { HEAD_OF_SALES, SOURCES, dasVina, sourceStats } from '@pv/engines/fixtures/das-vina'
+import { dong } from '@pv/ui'
+import {
+  HEAD_OF_SALES,
+  LEADS,
+  OPEN_DEALS,
+  SOURCES,
+  dasVina,
+  sourceStats,
+} from '@pv/engines/fixtures/das-vina'
 import { renderRoutes, renderScreen } from '@/test-utils'
 import { ANCHOR_SOURCE, DRAFT_TEMPLATE } from '@/data/campaigns'
 import { E4_CHANNELS } from '@/data/sales-config'
 import { CampaignDetailPage } from './campaign-detail'
+import { AUDIENCE_BATCH } from './campaign-model'
 import { CampaignsPage } from './campaigns'
 
 /** Test "màn dựng được" + khoá những thứ của module 1 mà mắt người hay bỏ sót.
@@ -44,6 +53,15 @@ function anchor() {
 async function openBook() {
   await screen.findAllByText(anchor().label)
 }
+
+/** Tiền của các đơn ĐANG MỞ mà lead của một nguồn trỏ tới — tính lại ở test
+ *  bằng đúng đường đi của tầng data (qua `dealCode`), không gõ số nào. */
+const DEAL_AMOUNT = new Map(OPEN_DEALS.map((d) => [d.code, d.amount]))
+const openValueOf = (code: string) =>
+  LEADS.filter((l) => l.source === code).reduce(
+    (n, l) => n + (l.dealCode ? (DEAL_AMOUNT.get(l.dealCode) ?? 0) : 0),
+    0,
+  )
 
 /** Mã của dòng đầu bảng. Dòng 0 là hàng header — `DataTable` đánh `role="row"`
  *  cho cả nó. */
@@ -110,6 +128,46 @@ describe('Module 1 · Chiến dịch & Sự kiện', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Tất cả' }))
     expect(screen.getAllByText(ANCHOR_SOURCE).length).toBeGreaterThan(0)
+  })
+
+  it('giá trị 0 đọc ra "0 ₫", KHÔNG đọc ra một dấu gạch — số 0 không bao giờ là "chưa có"', async () => {
+    renderScreen(<CampaignsPage />)
+    await openBook()
+
+    /* CD-0105 và TM không có lead nào trỏ vào một đơn đang mở: đó là 0 đồng ĐÃ
+       ĐO, không phải ô còn thiếu. Kho danh sách của cùng module đã theo luật này
+       cho cột tiền của nó — hai bảng một module không được trái nhau. */
+    const zero = SOURCES.filter((s) => openValueOf(s.code) === 0)
+    expect(zero.length).toBeGreaterThan(0)
+
+    for (const s of zero) {
+      const row = screen.getAllByText(s.code)[0]?.closest('[role="row"]')
+      if (!(row instanceof HTMLElement)) throw new Error('Mã nguồn không nằm trong một dòng bảng')
+      expect(within(row).getByText(dong(0))).toBeInTheDocument()
+    }
+  })
+
+  it('vào bằng "?tao=1&lo=&dong=" thì mở thẳng form tạo, khán giả là lô VỪA NHẬP', () => {
+    /* Đường của người vừa nhập xong một lô ở kho danh sách. Số dòng hợp lệ phải
+       đi theo đường dẫn: lô vừa nhập không nằm trong kịch bản đóng băng nên sổ
+       nguồn không tra lại được. Hai giá trị dưới đây là ĐẦU VÀO của ca test —
+       cố ý khác lô mẫu, để chứng minh lô vừa nhập thắng lô mẫu. */
+    const code = 'DS-0109'
+    const rows = 137
+    expect(rows).not.toBe(AUDIENCE_BATCH?.rowsValid)
+
+    renderRoutes([{ path: '/sales/campaigns', element: <CampaignsPage /> }], {
+      route: `/sales/campaigns?tao=1&lo=${code}&dong=${rows}`,
+    })
+
+    // Mở thẳng ở chế độ tạo: không còn nút "Chiến dịch mới" của sổ.
+    expect(screen.queryByRole('button', { name: 'Chiến dịch mới' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Tên' })).toBeInTheDocument()
+
+    expect(screen.getByLabelText('Khán giả · số người nhận')).toHaveValue(String(rows))
+    expect(
+      screen.getByText(new RegExp(`${rows} dòng hợp lệ của lô ${code} bạn vừa nhập`)),
+    ).toBeInTheDocument()
   })
 
   it('sắp xếp nằm ở header cột, và thứ tự là state của màn — bảng không tự sắp mảng', async () => {

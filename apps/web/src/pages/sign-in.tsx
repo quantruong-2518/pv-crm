@@ -42,10 +42,15 @@ export function SignInPage() {
                   signIn(actor)
                   navigate(from, { replace: true })
                 }}
-                className="motion-std flex items-center gap-3 rounded-md bg-white/5 px-4 py-3 text-left hover:bg-white/10"
+                /* Nền lấy từ hai mức có tên (§8.2), không gõ `bg-white/N`:
+                   `--surface-inset` là ô lồng trong thẻ, `--surface-control-hover`
+                   là mức thay chỗ nó lúc rê chuột — không phải một lớp chồng lên. */
+                className="motion-std bg-surface-inset hover:bg-surface-control-hover flex items-center gap-3 rounded-md px-4 py-3 text-left"
               >
                 <span className="flex-1">
-                  <b className="block text-[13.5px] font-semibold">{actor.name}</b>
+                  {/* 13px là bậc 5 · thân đậm của thang 9 bậc. 13,5px cũ không
+                      thuộc thang nào. */}
+                  <b className="block text-[13px] font-semibold">{actor.name}</b>
                   <small className="text-muted-foreground block text-[11px] font-normal">
                     {actor.role}
                   </small>

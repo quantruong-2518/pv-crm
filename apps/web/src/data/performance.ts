@@ -89,6 +89,18 @@ const BOOK: Row[] = LEADS.map((lead) => ({ lead, at: leadMilestones(lead) }))
 const MKT_SOURCES = sourcesOwnedBy(MARKETING)
 const MKT_CODES = new Set(MKT_SOURCES.map((s) => s.code))
 
+/** Cả sổ lead của kịch bản. Phễu của một kỳ phải nói được nó là phần nào của
+ *  sổ này — hai màn khác đếm 100 dòng, và một con số 16 đứng trần cạnh chữ "Sổ
+ *  lead" là hai màn nói hai số cho cùng một câu. */
+export const BOOK_TOTAL = BOOK.length
+
+/** Đơn đang mở → mã lead sinh ra nó. Bảng bằng chứng của Sale in mã đơn, mà
+ *  `routes.tsx` không có màn nào nhận mã đơn: đường mở được duy nhất là hồ sơ
+ *  lead. */
+const LEAD_OF_DEAL = new Map(
+  BOOK.filter((r) => r.lead.dealCode).map((r) => [r.lead.dealCode as string, r.lead.code]),
+)
+
 // ---------------------------------------------------------------------------
 // Kiểu
 // ---------------------------------------------------------------------------
@@ -117,6 +129,12 @@ export type KpiReading = {
   target: number | null
   /** value ÷ target, đã đảo chiều cho thước "càng thấp càng tốt" */
   ratio: number | null
+  /** Khoảng cách tới mục tiêu, ĐỌC THEO CHIỀU của thước. 0 = đã trong ngưỡng.
+   *  `null` = chưa đo được, hoặc thước không đặt mục tiêu. */
+  gap: number | null
+  /** `gap` nói điều gì: còn thiếu (thước càng cao càng tốt) hay đang vượt
+   *  (thước càng thấp càng tốt). Nhãn trên màn lấy từ đây, không tự đoán. */
+  gapKind: 'con-thieu' | 'dang-vuot' | null
   verdict: Verdict
   /** Số trên đến từ đâu, hoặc vì sao chưa đo được. */
   note: string
@@ -184,6 +202,10 @@ export type DealRow = {
   limitDays: number
   amount: number
   rotting: boolean
+  /** Lead sinh ra đơn này — mã để mở hồ sơ lead. `undefined` khi sổ lead không
+   *  có dòng nào trỏ vào đơn: lúc đó dòng KHÔNG bấm được, vì mã đơn không có
+   *  màn nào trong `routes.tsx` nhận. */
+  leadCode?: string
 }
 
 export type PersonCard = {
@@ -202,6 +224,11 @@ export type PersonCard = {
    *  thì một dòng "100%" đứng cạnh nhãn "Cần cải thiện" đọc ra như lỗi — sự thật
    *  là thước chính đạt còn một thước khác thì không. */
   scored: { ok: number; total: number }
+  /** Tên những thước ĐANG TRƯỢT trong tập chấm được. Bảng người in tên thước
+   *  khi chỉ có một cái trượt: "2/3 thước" nói CÓ trượt, không nói trượt ở đâu,
+   *  mà "tắc ở đâu" mới là câu hỏi kế tiếp của người đọc bảng. Danh sách dựng ở
+   *  đây chứ không ở màn, để nó không bao giờ lệch khỏi `scored`. */
+  failing: string[]
   pace: PaceRow[]
   /** Câu phải hiện khi vai này không chấm bằng số cá nhân. */
   note?: string
@@ -275,6 +302,11 @@ export type Performance = {
   /** Kỳ liền trước cùng loại; `null` khi nó nằm ngoài khoảng kịch bản. */
   previous: { label: string; overview: Overview } | null
   funnel: FunnelStep[]
+  /** Bậc rớt sâu nhất của phễu, gọi tên CẢ HAI đầu ("MQL → SQL"). `null` khi kỳ
+   *  chưa có bậc nào có tỷ lệ để so. */
+  worstStep: string | null
+  /** Bao nhiêu người đang dưới mục tiêu ở kỳ này. */
+  behind: number
   months: MonthPoint[]
   exits: ExitRow[]
   exitedTotal: number
@@ -287,10 +319,16 @@ export type Performance = {
 // Tổng quan — số của cả phòng trong kỳ
 // ---------------------------------------------------------------------------
 
+/** Đơn lớn nhất đang mở. Là số chụp tại lát cắt nên KHÔNG phụ thuộc kỳ đang
+ *  xem — cả khối tổng quan lẫn ContextRail của màn đều neo vào nó. */
+function biggestOpenDeal() {
+  const first = OPEN_DEALS[0]
+  if (!first) throw new Error('OPEN_DEALS rỗng — sổ cơ hội phải có ít nhất một đơn đang mở')
+  return OPEN_DEALS.reduce((a, d) => (d.amount > a.amount ? d : a), first)
+}
+
 function buildOverview(p: Period): Overview {
-  const firstDeal = OPEN_DEALS[0]
-  if (!firstDeal) throw new Error('OPEN_DEALS rỗng — sổ cơ hội phải có ít nhất một đơn đang mở')
-  const biggest = OPEN_DEALS.reduce((a, d) => (d.amount > a.amount ? d : a), firstDeal)
+  const biggest = biggestOpenDeal()
 
   /* LỨA của kỳ = lead VÀO SỔ trong kỳ. Phễu và ba tỷ lệ đọc trên lứa này, và
      đó là lý do phễu không bao giờ phình ra ở bậc dưới: mỗi bậc là một tập con
@@ -346,6 +384,21 @@ function buildFunnel(o: Overview): FunnelStep[] {
   })
 }
 
+/** Bậc rớt sâu nhất — chỗ phễu hẹp lại nhiều nhất so với bậc ngay trên.
+ *
+ *  Gọi tên CẢ HAI đầu vì "SQL" đứng một mình không nói được rớt từ đâu xuống.
+ *  Phép này ở tầng dữ liệu chứ không ở khối AI trên màn: nó là một kết luận về
+ *  số liệu, và nó phải giống nhau ở mọi chỗ đọc ra nó. */
+function worstDrop(funnel: FunnelStep[]): string | null {
+  let worst = -1
+  funnel.forEach((step, i) => {
+    if (step.ratio === null) return
+    if (worst === -1 || step.ratio < (funnel[worst]?.ratio ?? 1)) worst = i
+  })
+  if (worst <= 0) return null
+  return `${funnel[worst - 1]?.label} → ${funnel[worst]?.label}`
+}
+
 function buildMonths(p: Period): MonthPoint[] {
   return MONTHS.map((m) => ({
     key: m.key,
@@ -393,7 +446,10 @@ function buildSla(p: Period): SlaRow[] {
         actualDays: null,
         count: 0,
         verdict: 'chua-do' as const,
-        state: 'Chưa có bàn giao nào trong kỳ',
+        /* "Chưa đo được" là một trạng thái RIÊNG, không phải một lời chê: chặng
+           không có lần bàn giao nào trong kỳ thì nó chưa trượt hạn, nó chưa
+           được đo. Nhãn và tông màu phải khác Trễ hạn. */
+        state: 'Chưa đo được',
       }
     }
 
@@ -456,6 +512,8 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
   const { value } = measured
 
   let ratio: number | null = null
+  let gap: number | null = null
+  let gapKind: KpiReading['gapKind'] = null
   let verdict: Verdict = 'chua-do'
 
   if (value !== null && target !== null && target > 0) {
@@ -464,6 +522,13 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
        bằng một cách duy nhất. */
     ratio = def.higherIsBetter ? value / target : rate(target, value)
     verdict = ratio !== null && ratio >= 1 ? 'dat' : 'can-cai-thien'
+
+    /* Khoảng cách phải đọc theo ĐÚNG CHIỀU của thước. Lấy `target − value` cho
+       mọi thước thì một nguồn đắt gấp đôi ngưỡng ra số âm, bị cắt về 0, rồi
+       hiện lên màn thành "đã đạt" — một lời khen đặt đúng vào ca cần cảnh báo.
+       Phép này ở tầng dữ liệu để màn không phải nhớ chiều của từng thước. */
+    gapKind = def.higherIsBetter ? 'con-thieu' : 'dang-vuot'
+    gap = Math.max(0, def.higherIsBetter ? target - value : value - target)
 
     /* Kỳ chưa đóng + thước chốt muộn = hiện số, hoãn nhãn. Tiền của nguồn đang
        chạy đã ghi đủ vào kỳ, lead của nó thì chưa về hết, nên tỉ số đọc ra một
@@ -481,6 +546,8 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
     value,
     target,
     ratio,
+    gap,
+    gapKind,
     verdict,
     note: measured.note,
     snapshot: measured.snapshot ?? def.snapshot === true,
@@ -546,11 +613,20 @@ function marketingReadings(p: Period): {
 
   return {
     sources,
+    /* Nhãn tiền phải khai phạm vi: đây là CHI CỦA NGUỒN — tiền chạy chiến dịch
+       và sự kiện. Tiền mua dòng của lô danh sách nằm TRONG số này, không đứng
+       rời nó (`ProspectBatch.cost` là một phần của `Source.cost` — fixture chốt
+       như vậy), nhưng nó có mẫu số riêng và được đo ở kho danh sách. Câu cũ
+       viết "không phải tiền mua dòng" nên đọc ra thành hai thước rời nhau, và
+       người đi tìm 31 triệu ở ngoài 300 triệu sẽ không thấy nó ở đâu cả. */
     sourcesNote: [
-      `Cắt theo kỳ đang xem, cả lead lẫn tiền: ${millions(spend.cost)} tiêu trong kỳ trên ${good.length} lead tốt của kỳ.`,
+      `Cắt theo kỳ đang xem, cả lead lẫn tiền: ${millions(spend.cost)} chi của nguồn trong kỳ trên ${good.length} lead tốt của kỳ. Tiền mua dòng của lô danh sách là một phần nằm trong số này và có mẫu số riêng — đo ở kho danh sách.`,
       spend.lumped > 0
-        ? `Trong đó ${millions(spend.lumped)} là dòng chi GỘP cả chuỗi — gói gửi nhiều tháng, cả bộ nội dung, phần công cụ chia theo đợt — ghi ở ngày mở chuỗi, nên nó rơi trọn vào lát này dù chuỗi còn chạy sang kỳ sau. Chia mịn hơn cần chứng từ mịn hơn, hôm nay chưa có.`
-        : 'Không nguồn nào bị cắt ngang chuỗi trong kỳ này, nên không có phần chi phí nào rơi lệch lát.',
+        ? /* "GỘP" viết hoa có chủ ý, và `source-cost.test.ts` khoá đúng chữ hoa
+           đó: nó là cái tên của phần chi không tách ra được, nên câu nào nói
+           về nó cũng phải gọi đúng tên. */
+          `Trong đó ${millions(spend.lumped)} là dòng chi ghi GỘP cả chuỗi ở ngày mở chuỗi, nên rơi trọn vào lát này dù chuỗi còn chạy sang kỳ sau.`
+        : 'Kỳ này không nguồn nào bị cắt ngang chuỗi, nên không có phần chi nào rơi lệch lát.',
     ].join(' '),
     measured: {
       'lead-keo-ve': {
@@ -669,6 +745,7 @@ function saleReadings(
       limitDays: stage.limitDays,
       amount: d.amount,
       rotting: isRotting(d),
+      leadCode: LEAD_OF_DEAL.get(d.code),
     }
   })
 
@@ -736,6 +813,14 @@ function buildPace(def: RoleKpiSpec | undefined, measure: (p: Period) => number 
     ...(quarter ? [{ key: 'quy' as const, label: quarter.label, period: quarter }] : []),
   ]
 
+  /* Không có mẫu số thì không vẽ nhịp. `?? 0` ở đây từng biến "chưa đo được"
+     thành số 0 — và một mốc "đã có 0, còn thiếu cả mục tiêu" đọc y hệt một
+     người chưa làm gì, trong khi sự thật là thước chưa có nguồn số (ràng buộc
+     "số 0 không bao giờ là chưa có"). Hôm nay ba thước `paced` đều là phép đếm
+     nên nhánh này chưa chạm tới; nó đứng đây để ngày ai đó thêm một thước
+     `paced` có nguồn số rỗng thì khối nhịp im lặng biến mất, chứ không nói dối. */
+  if (rows.some(({ period }) => measure(period) === null)) return []
+
   return rows.map(({ key, label, period }) => {
     const target = monthly * period.months
     const done = measure(period) ?? 0
@@ -780,6 +865,20 @@ function dayPeriod(month: Period): Period {
 // Ghép thành thẻ người
 // ---------------------------------------------------------------------------
 
+/** Thứ tự đọc của bảng người: đang tắc trước, tắc nặng nhất lên đầu.
+ *
+ *  Giữ nguyên thứ tự `dasVina.actors` thì hàng đầu tiên của một bảng trả lời
+ *  "ai đang tắc" là người màn không chấm được thước nào — câu trả lời nằm rải
+ *  ở giữa bảng. Bộ lọc vai lọc trên mảng ĐÃ sắp nên nó không đụng gì. */
+const RANK: Record<Verdict, number> = { 'can-cai-thien': 0, dat: 1, 'chua-chot': 2, 'chua-do': 3 }
+
+/** Người tắc nặng hơn thì số này nhỏ hơn. Không có tỷ số thì xuống cuối nhóm —
+ *  số HỮU HẠN chứ không `Infinity`, vì `Infinity − Infinity` là `NaN` và một
+ *  comparator trả `NaN` thì thứ tự thành chuyện của engine. */
+const NO_RATIO = Number.MAX_SAFE_INTEGER
+
+const tightness = (p: PersonCard) => p.primary?.ratio ?? NO_RATIO
+
 function buildPeople(p: Period, overview: Overview): PersonCard[] {
   return dasVina.actors
     .filter((a) => a.branches.includes('Sales'))
@@ -805,7 +904,14 @@ function buildPeople(p: Period, overview: Overview): PersonCard[] {
          điểm chất lượng là một cột RIÊNG. Cho lớp chất lượng quyền đánh trượt
          thì một Sale chốt đủ đơn vẫn bị gắn "Cần cải thiện" chỉ vì một đơn cũ
          nằm quá hạn cột, và nhãn mất luôn khả năng phân biệt ai đang tắc. */
-      const scored = kpis.filter((k) => k.verdict !== 'chua-do' && k.layer !== 'chat-luong')
+      /* `snapshot` bị loại vì CÙNG một lý do với lớp chất lượng, chỉ khác trục:
+         một thước không đổi theo kỳ thì không được quyết một cái nhãn theo kỳ.
+         "Giá trị đơn" là tổng sổ cơ hội tại 17/08 — chọn tháng 5, màn in "Hợp
+         đồng ký trong kỳ = 0" mà vẫn chấm mỗi Sale bằng pipeline của tháng 8,
+         rồi nhãn ấy chảy thẳng vào `behind` và vào khối AI gửi Trưởng phòng. */
+      const scored = kpis.filter(
+        (k) => k.verdict !== 'chua-do' && k.layer !== 'chat-luong' && !k.snapshot,
+      )
       const verdict: Verdict =
         scored.length === 0
           ? 'chua-do'
@@ -819,11 +925,13 @@ function buildPeople(p: Period, overview: Overview): PersonCard[] {
         kpis,
         verdict,
         scored: { ok: scored.filter((k) => k.verdict === 'dat').length, total: scored.length },
+        failing: scored.filter((k) => k.verdict === 'can-cai-thien').map((k) => k.label),
         pace: pacer ? buildPace(primaryDef, pacer) : [],
         note: noteFor(role.kind, overview),
         ...extras,
       }
     })
+    .sort((a, b) => RANK[a.verdict] - RANK[b.verdict] || tightness(a) - tightness(b))
 }
 
 /** Đo một vai: bảng giá trị theo khoá thước, bảng bằng chứng, và cách đo lại
@@ -895,7 +1003,12 @@ function buildRoleFilters(people: PersonCard[]): RoleFilter[] {
 // ContextRail · luật 10
 // ---------------------------------------------------------------------------
 
-/** Một chip của ContextRail. `onOpen` là việc của màn, không của tầng dữ liệu. */
+/** Một chip của ContextRail.
+ *
+ *  KHÔNG có `onOpen`, và đó là kết luận chứ không phải chỗ còn thiếu: bốn mã
+ *  của chuỗi này là tài khoản · hợp đồng · cơ hội · báo giá, mà `routes.tsx`
+ *  chưa có màn nào nhận chúng. Vẽ nút bấm ở đây là hứa một màn không tồn tại.
+ *  Ngày nào bốn màn ấy có route thì thêm `onOpen` ở tầng màn, không ở đây. */
 export type RailChip = { code: string; source: boolean }
 
 /** Chuỗi E1 → danh sách chip.
@@ -908,6 +1021,16 @@ export function railChips(story: readonly { code: string }[], code: string): Rai
   if (story.length === 0) return [{ code, source: false }]
   return story.map((obj) => ({ code: obj.code, source: obj.code !== code }))
 }
+
+/** Chuỗi object của màn Performance, dựng một lần lúc nạp module.
+ *
+ *  Nó KHÔNG đi qua `useQuery`: rail phải có mặt ngay cả trong nhịp màn đang chờ
+ *  số (luật 10 — rail biến mất lúc tải cũng là rail biến mất). Dựng được sớm vì
+ *  sổ cơ hội là số chụp tại lát cắt, không cắt theo kỳ đang xem. */
+export const PERFORMANCE_RAIL: RailChip[] = (() => {
+  const biggest = biggestOpenDeal()
+  return railChips(dasVina.graph.story(biggest.code), biggest.code)
+})()
 
 // ---------------------------------------------------------------------------
 
@@ -922,12 +1045,15 @@ async function fetchPerformance(period: Period): Promise<Performance> {
   const prev = previousPeriod(period)
   const { exits, total } = buildExits(period)
   const people = buildPeople(period, overview)
+  const funnel = buildFunnel(overview)
 
   return {
     period,
     overview,
     previous: prev ? { label: prev.label, overview: buildOverview(prev) } : null,
-    funnel: buildFunnel(overview),
+    funnel,
+    worstStep: worstDrop(funnel),
+    behind: people.filter((p) => p.verdict === 'can-cai-thien').length,
     months: buildMonths(period),
     exits,
     exitedTotal: total,

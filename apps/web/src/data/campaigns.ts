@@ -10,6 +10,7 @@ import {
   costOfGoodLead,
   dasVina,
   dayISO,
+  prospectBatchesOfSource,
   sourceStats,
   sourcesRan,
   type Source,
@@ -169,6 +170,16 @@ export type SourceRow = Omit<Source, 'waves'> &
 
     /** Người theo dõi thêm, không kể chủ nguồn. Rỗng là câu trả lời hợp lệ. */
     followers: string[]
+
+    /** Mã các LÔ DANH SÁCH đứng sau nguồn này — lô nuôi khán giả của các đợt, và
+     *  lô mà BD cầm gọi tay (`calledBy`). Đọc thẳng `prospectBatchesOfSource`,
+     *  màn không tự lọc kho.
+     *
+     *  Có mặt ở đây để lối sang kho danh sách trỏ ĐÍCH DANH thay vì đổ người
+     *  dùng vào bảng tám lô tự dò: truy được đúng một lô thì nút đi thẳng
+     *  `?lo=`, nhiều lô thì nút giữ nhãn chung. Rỗng là câu trả lời hợp lệ —
+     *  ba đợt đầu của CD-0102 chạy bằng reach nền tảng, không lô nào đứng sau. */
+    batchCodes: string[]
   }
 
 /** Nguồn mồi mọi lần mở màn: nguồn đã kéo chính DAS Vina về.
@@ -289,6 +300,8 @@ function rowOf(s: Source): SourceRow {
     finished: s.waves.length > 0 && lastDay < DAY_FROZEN,
 
     followers: s.followers ?? [],
+
+    batchCodes: prospectBatchesOfSource(s.code).map((b) => b.code),
   }
 }
 

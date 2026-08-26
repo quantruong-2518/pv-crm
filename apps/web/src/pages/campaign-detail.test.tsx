@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { millions } from '@pv/ui'
-import { HEAD_OF_SALES, SOURCES } from '@pv/engines/fixtures/das-vina'
+import { HEAD_OF_SALES, SOURCES, prospectBatchesOfSource } from '@pv/engines/fixtures/das-vina'
 import { renderRoutes } from '@/test-utils'
 import { ANCHOR_SOURCE } from '@/data/campaigns'
 import { COST_KIND_LABEL } from '@/data/source-cost'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { CampaignDetailPage } from './campaign-detail'
 import { CampaignsPage } from './campaigns'
+import { ProspectListsPage } from './prospect-lists'
 
 /** Hồ sơ MỘT nguồn — màn tách ra từ module 1 ngày 19/08.
  *
@@ -163,6 +164,32 @@ describe('Module 1 · Hồ sơ nguồn', () => {
 
     expect(screen.getAllByText(/không tốn đồng tiền mặt nào/).length).toBeGreaterThan(0)
     expect(screen.queryByText('Loại chi')).not.toBeInTheDocument()
+  })
+
+  it('lối sang kho trỏ ĐÍCH DANH lô đứng sau nguồn, không bỏ người dùng ở bảng tám lô', async () => {
+    /* Chiều ngược lại (chip nguồn trong ngăn kéo của kho) đã trỏ thẳng từ trước;
+       chiều này thì không, nên người đứng ở CD-0101 phải tự dò lại lô 8 triệu
+       trong tám dòng. Nút chỉ hứa một lô khi truy được về ĐÚNG một lô. */
+    const one = SOURCES.find(
+      (s) => s.costLines.length > 0 && prospectBatchesOfSource(s.code).length === 1,
+    )
+    const batch = one ? prospectBatchesOfSource(one.code)[0] : undefined
+    if (!one || !batch) throw new Error('Kịch bản không có nguồn nào truy về đúng một lô')
+
+    renderRoutes(
+      [
+        { path: '/sales/campaigns/:code', element: <CampaignDetailPage /> },
+        { path: '/sales/campaigns/kho-danh-sach', element: <ProspectListsPage /> },
+      ],
+      { route: `/sales/campaigns/${one.code}` },
+    )
+    await openProfile(one.code)
+
+    fireEvent.click(screen.getByRole('button', { name: `Lô danh sách ${batch.code}` }))
+
+    // Kho mở SẴN ở đúng lô ấy — `?lo=` là đường duy nhất trỏ một lô cho người khác.
+    expect(screen.getByRole('heading', { name: 'Kho danh sách' })).toBeInTheDocument()
+    expect(screen.getAllByText(batch.note).length).toBeGreaterThan(0)
   })
 
   it('lối về trả đúng người dùng lại sổ nguồn', async () => {

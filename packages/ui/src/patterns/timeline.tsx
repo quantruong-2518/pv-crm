@@ -54,13 +54,15 @@ export function Timeline({ items, className }: { items: TimelineItem[]; classNam
                   tracking — hai bản đứng cạnh nhau trên cùng màn thì lệch đó
                   đọc ra như lỗi. Dùng thẳng Kicker, khỏi giữ bản sao. */}
               {item.marker && <Kicker tone="muted">{item.marker}</Kicker>}
-              <span className="font-display text-[13.5px] font-semibold">{item.title}</span>
+              <span className="font-display text-[13px] font-semibold">{item.title}</span>
             </div>
 
             {item.meta && <div className="flex flex-wrap items-center gap-2">{item.meta}</div>}
 
             {item.children && (
-              <div className="text-glass-foreground text-[12px] leading-[1.7]">{item.children}</div>
+              <div className="text-glass-foreground text-[12.5px] leading-[1.7]">
+                {item.children}
+              </div>
             )}
 
             {item.actions && (

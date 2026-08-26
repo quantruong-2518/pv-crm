@@ -35,7 +35,7 @@ export function ApprovalCard({
       <div className="flex items-start gap-3">
         <div className="flex-1">
           <div className="font-display text-[15px] font-semibold">{title}</div>
-          <div className="text-muted-foreground mt-[5px] text-[12px]">{subtitle}</div>
+          <div className="text-muted-foreground mt-[5px] text-[12.5px]">{subtitle}</div>
         </div>
         <Money value={amount} />
       </div>
