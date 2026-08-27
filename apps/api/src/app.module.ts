@@ -8,6 +8,7 @@ import { ConfigModule } from './platform/config/config.module'
 import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
 import { HealthModule } from './platform/health/health.module'
+import { MailModule } from './platform/mail/mail.module'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
 import { SessionModule } from './platform/session/session.module'
@@ -41,6 +42,11 @@ import { SessionModule } from './platform/session/session.module'
     SessionModule,
     AccessModule,
     HealthModule,
+    /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
+       là của platform, không được đi nhờ qua một nhánh mới có mặt trong cây;
+       và nó mang hai controller — cửa webhook của Resend và `/healthz/email` —
+       nên đọc danh sách này phải thấy được rằng máy chủ có hai đường đó. */
+    MailModule,
     SalesModule,
   ],
   providers: [

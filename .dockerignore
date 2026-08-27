@@ -21,11 +21,15 @@ coverage
 !**/.env.example
 
 # Không cần cho máy chủ.
+#
+# `packages/tokens/src` ĐÃ RỜI danh sách này: `@pv/mail-templates` đọc
+# `BRAND_PALETTE` từ đó để đặt màu vào HTML thư (mail client không hiểu
+# `var(--*)`), nên nay nó là mã máy chủ thật sự cần. `globals.css` thì vẫn ở
+# lại — không tầng nào của máy chủ nhập nó.
 apps/web/src
 apps/web/public
 apps/web/index.html
 packages/ui/src
-packages/tokens/src
 packages/tokens/globals.css
 docs
 chats

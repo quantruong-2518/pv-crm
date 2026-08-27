@@ -26,7 +26,9 @@
   "include": [
     "src/**/*.ts",
     "../../packages/engines/src/**/*.ts",
-    "../../packages/contracts/src/**/*.ts"
+    "../../packages/contracts/src/**/*.ts",
+    "../../packages/mail-templates/src/**/*.ts",
+    "../../packages/mail-templates/src/**/*.tsx"
   ],
 
   "exclude": ["dist", "node_modules", "**/*.test.ts"],
@@ -48,7 +50,10 @@
     "moduleTypes": {
       "src/**/*.ts": "cjs",
       "../../packages/engines/src/**/*.ts": "cjs",
-      "../../packages/contracts/src/**/*.ts": "cjs"
+      "../../packages/contracts/src/**/*.ts": "cjs",
+      "../../packages/tokens/src/**/*.ts": "cjs",
+      "../../packages/mail-templates/src/**/*.ts": "cjs",
+      "../../packages/mail-templates/src/**/*.tsx": "cjs"
     },
     "transpileOnly": true
   }

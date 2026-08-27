@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import { LeadIntakeResponse, type LeadIntakeBody, type LeadIntakeQuery } from '@pv/contracts'
+import { AUDIENCE_INTERNAL, LEAD_INTAKE_ACCEPTED, plan, type ObjectRef } from '@pv/engines'
+import { ENV, type Env } from '@api/platform/config/env'
+import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { isDbConstraint } from '@api/platform/http/db-error'
+import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
 import { fromIntake, refOf } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
@@ -14,6 +18,8 @@ export class LeadIntakeService {
     private readonly writes: LeadWriteRepository,
     private readonly leads: LeadRepository,
     private readonly mirror: ObjectMirror,
+    @Inject(ENV) private readonly env: Env,
+    @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
   ) {}
 
   async accept(
@@ -35,9 +41,11 @@ export class LeadIntakeService {
 
     try {
       await this.writes.run(async (tx) => {
-        await this.mirror.put(tx, refOf(code, write))
+        const ref = refOf(code, write)
+        await this.mirror.put(tx, ref)
         await this.writes.insertLandingLead(tx, { ...write.values, code })
         await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
+        await this.notify(tx, ref)
       })
     } catch (error) {
       if (!isDbConstraint(error, 'lead_email_live_idx')) throw error
@@ -53,5 +61,53 @@ export class LeadIntakeService {
     }
 
     return LeadIntakeResponse.parse({ accepted: true })
+  }
+
+  /** Queue the internal alert IN THE SAME UNIT OF WORK as the lead.
+   *
+   *  Inside `tx` on purpose, and it is the whole point of `MailEnqueue` taking
+   *  a transaction handle: a lead that exists without its alert is a lead
+   *  nobody is told about, and an alert that exists without its lead points at
+   *  a code that was rolled back. Both are only avoidable while the two writes
+   *  share a commit. Nothing leaves the process here — the row is a promise to
+   *  send, and the worker keeps it after the commit.
+   *
+   *  Only the ACCEPTED path reaches this. The honeypot and the duplicate paths
+   *  write their attempt row outside any transaction and stay that way: a bot
+   *  must not be able to make this system send mail, and a repeated submit is
+   *  the same lead — mailing it again is exactly the duplicate that
+   *  `UNIQUE(event_key)` exists to prevent.
+   *
+   *  The branch EMITS an event; it does not choose a channel or a template.
+   *  E4 owns that mapping, which is why `plan()` is asked rather than a
+   *  template name being written here. All this branch contributes is the one
+   *  thing an engine may not know: which mailbox this deployment sends to.
+   *  Blank mailbox = no intent, so a machine that was never told where to send
+   *  queues nothing (`PV_EMAIL_ENABLED` deliberately does NOT gate this — see
+   *  `env.ts`: a disabled sender still writes the ledger, it just never leaves
+   *  the machine). */
+  private async notify(tx: Db, ref: ObjectRef): Promise<void> {
+    const intents = plan({
+      name: LEAD_INTAKE_ACCEPTED,
+      ref,
+      audiences: { [AUDIENCE_INTERNAL]: this.env.PV_LEAD_NOTIFICATION_TO },
+    })
+
+    for (const intent of intents) {
+      /* Email is the only channel with a port today. A Zalo or Telegram intent
+         would need its own ledger, so it is skipped rather than silently
+         posted through the mail one. */
+      if (intent.channel !== 'email') continue
+
+      await this.mail.enqueue(tx, {
+        eventKey: intent.eventKey,
+        eventType: LEAD_INTAKE_ACCEPTED,
+        aggregateType: 'lead',
+        aggregateId: ref.code,
+        template: intent.template,
+        templateVersion: intent.templateVersion,
+        recipient: intent.to,
+      })
+    }
   }
 }

@@ -17,7 +17,16 @@
   "compilerOptions": {
     // Không `DOM`, không `DOM.Iterable`. Đây là lý do đầu tiên file này tồn tại.
     "lib": ["ES2022"],
-    "types": ["node"],
+    "types": ["node", "react"],
+
+    // `packages/mail-templates` là NGOẠI LỆ DUY NHẤT của dòng "không React" ở
+    // đầu file: thân email phải được dựng ra HTML, và một mail client không
+    // đọc `var(--token)` nên không có đường dùng lại tầng trình bày của web.
+    // Nó không kéo DOM vào — `lib` vẫn đúng ES2022 ở trên, và React Email
+    // biên dịch sạch dưới đó (đã thử, `skipLibCheck` của base lo phần .d.ts
+    // của mấy gói con). `apps/api` VẪN không được import react:
+    // eslint.config.js khối 3b giữ nguyên, máy chủ chỉ gọi một hàm thuần.
+    "jsx": "react-jsx",
 
     // ------------------------------------------------------------------
     // CJS + DECORATOR — bốn khoá phải khác `tsconfig.base.json`
@@ -48,7 +57,12 @@
     "emitDecoratorMetadata": true
   },
 
-  "include": ["packages/engines/**/*.ts", "packages/contracts/**/*.ts", "apps/api/**/*.ts"],
+  "include": [
+    "packages/engines/**/*.ts",
+    "packages/contracts/**/*.ts",
+    "packages/mail-templates/src/**/*.{ts,tsx}",
+    "apps/api/**/*.ts"
+  ],
 
   "exclude": [
     "**/dist",

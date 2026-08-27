@@ -21,6 +21,26 @@ async function bootstrap(): Promise<void> {
     /* Do not trust arbitrary X-Forwarded-For values. The public intake door
        reads Fly-Client-IP in production and req.ip only in local development. */
     new FastifyAdapter({ trustProxy: false }),
+    /* `rawBody: true` keeps the ORIGINAL bytes of every request on
+       `req.rawBody`, beside the parsed body. `mail-webhook.controller.ts`
+       needs them: Resend signs an HMAC over the exact bytes it sent, and
+       `JSON.stringify(req.body)` is not byte-identical to them — key order,
+       whitespace and number formatting all differ — so a re-serialised body
+       fails every signature.
+
+       Nest does this by registering its own `application/json` and
+       `x-www-form-urlencoded` content-type parsers with `parseAs: 'buffer'`
+       and stashing the buffer before parsing as usual (see
+       `@nestjs/platform-fastify` · `registerJsonContentParser`). It is the
+       supported route, and the reason not to hand-register a parser here: a
+       custom `addContentTypeParser('application/json', ...)` is GLOBAL in
+       Fastify, so scoping one to a single path would mean either parsing every
+       other route by hand or breaking them.
+
+       The cost is one extra reference to an already-received buffer per
+       request, for the life of that request. Bodies are bounded — Fastify's
+       1MB default, and 16KB on the public intake door. */
+    { rawBody: true },
   )
 
   /* Không bật thì `onApplicationShutdown` của `DbModule` không chạy và pool

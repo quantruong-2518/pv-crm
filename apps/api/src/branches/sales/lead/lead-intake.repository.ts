@@ -1,7 +1,8 @@
-import { sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { LeadIntakeQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { lead } from './lead.schema'
 import { leadIntake, type LeadIntakeStatus } from './lead-intake.schema'
 
 export type IntakeClient = {
@@ -9,6 +10,27 @@ export type IntakeClient = {
   origin?: string
   referrer?: string
   userAgent?: string
+}
+
+/** What the internal alert mail is written from.
+ *
+ *  Read at SEND time, not captured at enqueue time — see `MailIntent`: the job
+ *  carries two identifiers and nothing else, so nobody's name or mailbox sits
+ *  in a queue row waiting to be read by whoever can see the database. */
+export type LeadMailProfile = {
+  leadCode: string
+  company: string
+  contactName: string
+  email: string
+  phone: string | null
+  pain: string | null
+  landingPage: string
+  receivedAt: Date
+  utmSource: string | null
+  utmMedium: string | null
+  utmCampaign: string | null
+  utmContent: string | null
+  utmTerm: string | null
 }
 
 export type IntakeAttempt = IntakeClient & {
@@ -95,6 +117,40 @@ export class LeadIntakeRepository {
       utmContent: attempt.query.utm_content ?? null,
       utmTerm: attempt.query.utm_term ?? null,
     })
+  }
+
+  /** The lead as the landing page delivered it, joined to the submission that
+   *  brought it in.
+   *
+   *  `ORDER BY received_at DESC` because a lead can have several accepted rows
+   *  over its life — a mail about the submission that happened is worth more
+   *  than a mail about the first one ever. Returns null when there is no
+   *  accepted submission, which is the honest answer for a lead typed in by
+   *  hand: this template describes a form, and there was no form. */
+  async profileFor(leadCode: string): Promise<LeadMailProfile | null> {
+    const [row] = await this.db
+      .select({
+        leadCode: lead.code,
+        company: lead.company,
+        contactName: lead.contactName,
+        email: lead.email,
+        phone: lead.phone,
+        pain: lead.pain,
+        landingPage: leadIntake.landingPage,
+        receivedAt: leadIntake.receivedAt,
+        utmSource: leadIntake.utmSource,
+        utmMedium: leadIntake.utmMedium,
+        utmCampaign: leadIntake.utmCampaign,
+        utmContent: leadIntake.utmContent,
+        utmTerm: leadIntake.utmTerm,
+      })
+      .from(lead)
+      .innerJoin(leadIntake, eq(leadIntake.leadCode, lead.code))
+      .where(and(eq(lead.code, leadCode), eq(leadIntake.status, 'accepted')))
+      .orderBy(desc(leadIntake.receivedAt))
+      .limit(1)
+
+    return row ?? null
   }
 
   get handle(): Db {

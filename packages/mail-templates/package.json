@@ -1,0 +1,16 @@
+{
+  "name": "@pv/mail-templates",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PV One \u2014 mail bodies. The ONLY server-side package that knows React.",
+  "//why": "apps/api is forbidden from importing react (eslint.config.js block 3b). Email HTML still wants a component model, so React Email lives here and the server calls a plain async function. The boundary is the export: renderers in, {subject, html, text} out.",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@pv/tokens": "workspace:*",
+    "@react-email/components": "^1.0.12",
+    "@react-email/render": "^2.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

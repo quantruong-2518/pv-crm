@@ -9,6 +9,12 @@ tiếp.
 > `POST /sales/leads/intake`, migration `0003_futuristic_cerebro.sql`, limiter
 > Postgres theo IP + landing page, honeypot và origin allowlist. Cách tích hợp:
 > [`tich-hop-landing-page.md`](./tich-hop-landing-page.md).
+>
+> **Cập nhật 27/08 (2):** cụm B đã dựng phần giao dịch — `platform.email_delivery`
+> (sổ gửi dùng chung, có sẵn `campaign_run_id` cho MAS), `email_suppression`,
+> `email_webhook_event`, cộng hàng đợi pg-boss và cửa webhook Resend. Vì sao nó
+> có hình dạng đó: [`ban-giao-mail.md`](./ban-giao-mail.md) · cách vận hành:
+> [`van-hanh-mail.md`](./van-hanh-mail.md). `campaign*` và `touch` vẫn chưa dựng.
 
 ---
 

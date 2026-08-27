@@ -148,6 +148,33 @@ export default tseslint.config(
     },
   },
 
+  {
+    // `@pv/mail-templates` — chỗ DUY NHẤT ở tầng máy chủ được biết React.
+    // Nó dựng thân email và không biết gì khác: không engine, không app, không
+    // thư viện màn. Cửa ra là một hàm thuần trả {subject, html, text}, nên
+    // `apps/api` vẫn giữ nguyên rule cấm react ở khối 3b ngay dưới đây.
+    files: ['packages/mail-templates/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@pv/ui', '@pv/ui/*', '@pv/engines', '@pv/engines/*', '@api/*', '@/*'],
+              message:
+                '@pv/mail-templates chỉ dựng thân email từ props. Nó không đọc engine, không với sang máy chủ hay app web.',
+            },
+          ],
+        },
+      ],
+      // Thang 8 bậc là luật của MÀN (luật 7). Thân email đi bằng bảng và
+      // padding inline mà từng mail client tự diễn giải; ép thang ở đây là ép
+      // một luật vào nơi nó không có hiệu lực. Màu thì NGƯỢC LẠI — vẫn cấm hex
+      // thô, giá trị lấy từ `@pv/tokens` để mail không trôi khỏi bảng màu.
+      'aurora/spacing-scale': 'off',
+    },
+  },
+
   // ---- 3b · biên giới BÊN TRONG apps/api ----------------------------------
   // Ba luật, cùng cơ chế với biên giới package ở trên. Nest module KHÔNG tự ép
   // được chúng: `@Module({ imports })` chỉ nói ai dùng được provider của ai, nó

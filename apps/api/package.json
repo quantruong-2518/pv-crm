@@ -24,10 +24,13 @@
     "@nestjs/platform-fastify": "^11.0.0",
     "@pv/contracts": "workspace:*",
     "@pv/engines": "workspace:*",
+    "@pv/mail-templates": "workspace:*",
     "drizzle-orm": "^0.38.0",
     "fastify": "^5.2.0",
     "pg": "^8.13.0",
+    "pg-boss": "^12.28.0",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.24.0",
     "rxjs": "^7.8.1",
     "tsconfig-paths": "^4.2.0",
     "zod": "^4.1.0"
@@ -35,6 +38,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.7",
     "@types/pg": "^8.11.10",
+    "@types/react": "^19.2.18",
     "drizzle-kit": "^0.30.0",
     "ts-node": "^10.9.2"
   }

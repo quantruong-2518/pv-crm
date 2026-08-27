@@ -23,6 +23,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/engines/package.json packages/engines/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/mail-templates/package.json packages/mail-templates/
 COPY packages/ui/package.json packages/ui/
 COPY packages/tokens/package.json packages/tokens/
 COPY tools/eslint-plugin-aurora/package.json tools/eslint-plugin-aurora/
@@ -34,6 +35,8 @@ FROM deps AS build
 COPY tsconfig.base.json tsconfig.api.json ./
 COPY packages/engines packages/engines
 COPY packages/contracts packages/contracts
+COPY packages/tokens packages/tokens
+COPY packages/mail-templates packages/mail-templates
 COPY apps/api apps/api
 RUN pnpm --filter @pv/api build
 
@@ -56,6 +59,14 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts --filter @pv/api... \
 
 COPY --from=build --chown=pv:pv /repo/apps/api/dist apps/api/dist
 COPY --chown=pv:pv apps/api/tsconfig.runtime.json apps/api/
+
+# TypeScript compiles workspace sources into `apps/api/dist/packages/*`, but
+# pnpm keeps each workspace package's private runtime dependencies beside its
+# source package. Node resolves from the compiled file's directory, so expose
+# that same dependency tree at the compiled package root. Without this link,
+# `@pv/mail-templates` crashes on startup with `Cannot find module 'react'`.
+RUN ln -s /repo/packages/mail-templates/node_modules \
+    /repo/apps/api/dist/packages/mail-templates/node_modules
 
 USER pv
 WORKDIR /repo/apps/api

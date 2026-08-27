@@ -1,12 +1,18 @@
 import 'reflect-metadata'
-import { Logger } from '@nestjs/common'
+import { Logger, Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
+import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
+import { LeadModule } from './branches/sales/lead/lead.module'
+import { MailModule } from './platform/mail/mail.module'
+import { ENV, type Env } from './platform/config/env'
+import { EMAIL_QUEUE, type EmailJob } from './platform/mail/mail.contract'
+import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/queue.module'
 
 /** Entrypoint THỨ HAI, trên cùng một image với `main.ts`.
  *
  *  ------------------------------------------------------------------
- *  VÌ SAO CÓ FILE NÀY KHI CHƯA CÓ JOB NÀO
+ *  VÌ SAO CÓ FILE NÀY
  *  ------------------------------------------------------------------
  *  Việc nặng — E4 gửi Zalo/email theo lịch và chống trùng, nạp lead từ tệp
  *  hàng nghìn dòng — không được chung tiến trình với web request: một lần
@@ -24,19 +30,151 @@ import { AppModule } from './app.module'
  *
  *  `createApplicationContext` dựng cây DI mà KHÔNG mở cổng HTTP: worker dùng
  *  chung engine, repository, cấu hình với máy chủ web, nhưng không nhận
- *  request. Khi E4 lên, pg-boss được đăng ký ở đây và các consumer lấy
- *  service từ chính context này. */
+ *  request. pg-boss đã lên: `QueueModule.forWorker()` dựng instance, khởi
+ *  động nó và khai hai hàng đợi; consumer lấy sổ gửi, cửa ra Resend và bộ dựng
+ *  thân mail từ chính context này.
+ *
+ *  ------------------------------------------------------------------
+ *  ĐÂY LÀ TIẾN TRÌNH DUY NHẤT ĐƯỢC GỌI `boss.work`
+ *  ------------------------------------------------------------------
+ *  `main.ts` không nhập hàng đợi CHÚT NÀO: nhánh chỉ ghi một dòng sổ gửi
+ *  trong transaction của chính nó, và `MailRelay` dưới đây biến dòng đến hạn
+ *  thành job. Không phải quy ước phải nhớ — bên đó không có object nào biết
+ *  tiêu thụ, mà cũng không có instance pg-boss nào. Xem
+ *  `platform/queue/queue.module.ts`. */
+
+/** Cây DI của worker = cây của app + phần hàng đợi có consumer.
+ *
+ *  Dựng ở đây chứ không thêm vào `AppModule`, vì `AppModule` là thứ CẢ HAI
+ *  tiến trình dùng chung: nhét consumer vào đó là đưa nó vào luôn tiến trình
+ *  HTTP, đúng thứ việc tách tiến trình sinh ra để tránh. */
+@Module({
+  imports: [
+    AppModule,
+    /* `imports` của `forWorker` là chỗ nối module mail vào — nó cung cấp
+       `MAIL_LEDGER`, `MAIL_PORT` và `MAIL_COMPOSER` mà `MailConsumer` cần.
+       Bước wiring điền `MailModule` vào đây; tới lúc đó Nest báo thiếu token
+       ngay khi khởi động, không phải khi có lead đầu tiên. */
+    /* `imports` của `forWorker` là chỗ nối module mail vào — nó cung cấp
+       `MAIL_LEDGER` và `MAIL_PORT`. `LeadModule` vào cùng vì `MAIL_COMPOSER`
+       (thân mail) do nhánh Sales cung cấp: `platform/` không được biết bảng
+       của nhánh, nên chiều phụ thuộc chạy ngược lại — xem
+       `lead-mail.composer.ts`. Thiếu token nào thì Nest báo ngay lúc khởi
+       động, không phải lúc có lead đầu tiên. */
+    QueueModule.forWorker({ imports: [MailModule, LeadModule] }),
+  ],
+})
+class WorkerModule {}
+
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.createApplicationContext(AppModule, { bufferLogs: false })
-  app.enableShutdownHooks()
+  const app = await NestFactory.createApplicationContext(WorkerModule, { bufferLogs: false })
+
+  /* KHÔNG bật `enableShutdownHooks()` ở đây — khác `main.ts` một cách có chủ
+     ý. Nó tự đăng ký handler tín hiệu và gọi thẳng `app.close()`, mà
+     `app.close()` sẽ đóng pool Postgres theo thứ tự module Nest tự chọn —
+     nghĩa là có thể đóng trong lúc một job đang chạy dở. Ở đây thứ tự là toàn
+     bộ vấn đề, nên tự bắt tín hiệu (bên dưới) và tự xếp: rút hàng đợi xong
+     rồi mới đóng context. `app.close()` vẫn chạy đủ mọi
+     `onApplicationShutdown` — cờ kia chỉ thêm handler tín hiệu, không thêm
+     hook. */
 
   const log = new Logger('worker')
-  log.log('Worker đã lên. Chưa có consumer nào đăng ký — pg-boss lên cùng E4.')
+  const env = app.get<Env>(ENV)
+  const boss = app.get<PgBoss>(BOSS)
+  const consumer = app.get(MailConsumer)
+  const relay = app.get(MailRelay)
 
-  /* Giữ tiến trình sống. Khi có pg-boss, dòng này thay bằng `boss.start()` và
-     các `boss.work(...)`; tới lúc đó chính hàng đợi giữ tiến trình. */
-  process.on('SIGTERM', () => void app.close())
-  process.on('SIGINT', () => void app.close())
+  /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
+     trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
+     việc đó thuộc về chỗ dựng instance, không thuộc riêng worker. Ở đây chỉ
+     còn đúng phần worker mới được làm. */
+  await boss.work(
+    EMAIL_QUEUE,
+    {
+      /* Handler nhận một MẢNG job. Batch 1 vì nhịp gửi tính theo từng thư —
+         gom 10 thư vào một lượt chỉ để rồi xin 10 token là gom vô ích. */
+      batchSize: 1,
+      /* `retryCount` và `createdOn` là hai thứ quyết định lúc nào một delivery
+         thôi đáng thử lại — xem `exhausted()` trong `mail.consumer.ts`. */
+      includeMetadata: true,
+      /* Số job chạy song song TRÊN MÁY NÀY. Trần gửi thì nằm ở
+         `platform.mail_gate`, chia chung cho mọi máy — hai con số khác nhau,
+         và chỉ con số kia mới là thứ Resend đếm. */
+      localConcurrency: env.PV_EMAIL_WORKER_CONCURRENCY,
+      pollingIntervalSeconds: env.PV_QUEUE_POLL_SECONDS,
+      /* Khi LISTEN/NOTIFY đứng được, poll chỉ còn là lưới đỡ — thưa hơn thì rẻ
+         hơn mà không chậm hơn. Khi không đứng được, pg-boss dùng lại nhịp trên
+         và không có gì đổi. */
+      notifyPollingIntervalSeconds: Math.max(env.PV_QUEUE_POLL_SECONDS, 30),
+    },
+    (jobs: JobWithMetadata<EmailJob>[]) => consumer.handle(jobs),
+  )
+
+  /* ------------------------------------------------------------------
+     RELAY — chỗ một dòng sổ gửi trở thành một job
+     ------------------------------------------------------------------
+     Nhánh chỉ ghi bảng, nên phải có ai đó quét. Nhịp dùng lại chính
+     `PV_QUEUE_POLL_SECONDS`: hai vòng poll khác nhau trên cùng một hàng đợi
+     là hai con số phải giải thích, và không có gì để đổi lấy.
+
+     `void` chứ không `await`: một vòng quét hỏng (Neon ngắt kết nối chẳng
+     hạn) không được giết tiến trình — dòng vẫn `pending`, vòng sau nhặt lại.
+     Đó là toàn bộ lý do sổ gửi là nguồn sự thật chứ không phải hàng đợi. */
+  const sweep = setInterval(() => {
+    void relay.sweep().catch((error: unknown) => {
+      log.error(`Relay lỗi: ${error instanceof Error ? error.message : String(error)}`)
+    })
+  }, env.PV_QUEUE_POLL_SECONDS * 1_000)
+  /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
+  sweep.unref()
+
+  log.log(
+    `Worker đã lên · ${EMAIL_QUEUE} · ${env.PV_EMAIL_WORKER_CONCURRENCY} luồng · ` +
+      `poll ${env.PV_QUEUE_POLL_SECONDS}s · gửi thật: ${env.PV_EMAIL_ENABLED ? 'BẬT' : 'tắt'}`,
+  )
+
+  /* ------------------------------------------------------------------
+     TẮT MÁY ÊM — thứ tự này là lý do file tự bắt tín hiệu
+     ------------------------------------------------------------------
+     Fly gửi SIGTERM rồi đếm ngược trước khi SIGKILL. Trong khoảng đó:
+
+      1. `boss.stop({ graceful: true })` thôi nhận job mới và CHỜ job đang
+         chạy xong. Bỏ bước này thì tiến trình chết giữa lúc Resend đã nhận
+         thư còn sổ gửi chưa kịp ghi — chỗ duy nhất trong tính năng này mà
+         `idempotencyKey` phải một mình gánh, nên đừng bắt nó gánh vì một cái
+         `process.exit` vội.
+      2. `app.close()` chạy `onApplicationShutdown` của mọi module, tức đóng
+         pool Postgres — sau khi không còn ai dùng nó nữa.
+
+     Tín hiệu thứ hai không làm lại từ đầu: người vận hành gõ Ctrl-C hai lần
+     là chuyện thường, và lần thứ hai mà gọi `stop()` song song thì cái đang
+     rút bị cắt ngang. */
+  let closing = false
+  const close = (signal: NodeJS.Signals): void => {
+    if (closing) return
+    closing = true
+    log.log(`${signal} — đang rút hàng đợi…`)
+    /* Thôi nạp job mới TRƯỚC khi rút, kẻo vòng quét cuối cùng đẩy thêm việc
+       vào đúng lúc hàng đợi đang cố cạn. */
+    clearInterval(sweep)
+    void (async () => {
+      try {
+        await boss.stop({ graceful: true, close: true, timeout: SHUTDOWN_TIMEOUT_MS })
+      } catch (error) {
+        log.error(`Rút hàng đợi lỗi: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      await app.close()
+      log.log('Worker đã tắt.')
+    })()
+  }
+
+  process.on('SIGTERM', close)
+  process.on('SIGINT', close)
 }
+
+/** Dưới hạn đếm ngược của Fly (mặc định 5 phút), và trên `expireInSeconds` của
+ *  hàng đợi — một job quá mốc đó đã được coi là chết rồi, chờ thêm không đổi
+ *  được gì. */
+const SHUTDOWN_TIMEOUT_MS = 90_000
 
 void bootstrap()
