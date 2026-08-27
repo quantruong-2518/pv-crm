@@ -44,6 +44,16 @@ export type Sheet = {
   rows: string[][]
   /** Tên tệp gốc, để in lại trong báo cáo. */
   fileName: string
+  /** Tên sheet đang đọc, và tổng số sheet của cả workbook — CHỈ CÓ ở xlsx.
+   *
+   *  `readXlsxFile` (bản 9 trở lên, xem `readSheet()` bên dưới) trả về TOÀN BỘ
+   *  sheet của workbook, nên đây là chỗ duy nhất biết cả cuốn sổ có bao nhiêu
+   *  tab. CSV/TSV/ô dán không có khái niệm sheet nên hai trường này luôn
+   *  `undefined` ở đó. Một xlsx MỘT tab vẫn điền `sheetCount: 1` — quyết định
+   *  có nói ra hay không (chỉ nói khi > 1) là việc của panel, không phải của
+   *  tầng đọc tệp này. */
+  sheetName?: string
+  sheetCount?: number
 }
 
 /** Lỗi ĐỌC — tệp không mở ra được. Khác lỗi DÒNG ở tầng trên (dòng thiếu cột). */
@@ -211,22 +221,38 @@ export async function readSheet(file: File): Promise<Sheet> {
   }
 
   if (lower.endsWith('.xlsx')) {
-    /* `readSheet`, KHÔNG phải export mặc định: từ bản 9 thì `readXlsxFile` trả
-       về danh sách CÁC SHEET của cả workbook, còn `readSheet` trả về các DÒNG
-       của một sheet — mặc định là sheet đầu. Nạp một tệp nhiều sheet thì sheet
-       thứ hai trở đi bị bỏ qua, và đó là hành vi đúng ở đây: một lô nạp là một
-       bảng, không phải cả cuốn sổ. */
-    const { readSheet: readXlsxSheet } = await import('read-excel-file/browser')
-    let raw: unknown[][]
+    /* Export MẶC ĐỊNH (`readXlsxFile`), KHÔNG phải `readSheet`: từ bản 9,
+       `readXlsxFile` là API DUY NHẤT của thư viện trả về danh sách CÁC SHEET
+       của cả workbook — `[{ sheet: 'Tên', data: [...] }, ...]` — không có
+       đường nào chỉ lấy tên sheet mà không kèm dữ liệu (xem README §Use).
+       `readSheet` (export có tên) thì ngược lại: chỉ trả DÒNG của MỘT sheet,
+       mặc định sheet đầu, và không nói gì về những sheet còn lại.
+
+       Vẫn chỉ ĐỌC DỮ LIỆU của sheet ĐẦU (`sheets[0]`) — một lô nạp là một
+       bảng, không phải cả cuốn sổ, y như trước. Các sheet còn lại trong mảng
+       chỉ dùng để ĐẾM và LẤY TÊN cho panel báo, dữ liệu của chúng vẫn bị bỏ
+       qua. */
+    const { default: readXlsxFile } = await import('read-excel-file/browser')
+    let sheets: Awaited<ReturnType<typeof readXlsxFile>>
     try {
-      raw = await readXlsxSheet(file)
+      sheets = await readXlsxFile(file)
     } catch {
       throw new SheetError('Không mở được tệp xlsx — tệp hỏng, hoặc đang đặt mật khẩu.')
     }
-    return toSheet(
-      raw.map((r) => r.map(cellText)),
-      file.name,
-    )
+
+    const first = sheets[0]
+    if (!first) {
+      throw new SheetError('Tệp xlsx không có sheet nào đọc được.')
+    }
+
+    return {
+      ...toSheet(
+        first.data.map((r) => r.map(cellText)),
+        file.name,
+      ),
+      sheetName: first.sheet,
+      sheetCount: sheets.length,
+    }
   }
 
   const text = await file.text()

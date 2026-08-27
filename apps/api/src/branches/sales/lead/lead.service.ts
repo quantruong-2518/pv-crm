@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
-import { LeadBookResponse, type LeadBookQuery } from '@pv/contracts'
+import { LeadBookResponse, LeadProfile, type LeadBookQuery, type MaObject } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { toContract, toRef } from './lead.mapper'
+import { denied, notFound } from '@api/platform/http/problem'
+import { toContract, toProfile, toRef } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 
 /** Sổ lead — nơi DUY NHẤT biết cả repository lẫn engine.
@@ -44,5 +45,52 @@ export class LeadService {
       total: page.total,
       hidden: page.hidden + hidden,
     })
+  }
+
+  /** Hồ sơ một lead. Ba cách hỏng, và chúng KHÔNG gộp được vào nhau.
+   *
+   *  ------------------------------------------------------------------
+   *  404 IS "NO SUCH LEAD", 403 IS "NOT YOURS", AND THE SCREEN NEEDS BOTH
+   *  ------------------------------------------------------------------
+   *  The book answers a caller who is out of scope by showing fewer rows and
+   *  reporting `hidden`. A profile has exactly one row, so there is nothing to
+   *  thin out: it either hands the lead over or refuses. The refusal has to
+   *  name the right reason, because the four reasons are four different next
+   *  steps for the person reading the screen (`docs/tich-hop-be.md`):
+   *
+   *    404 `not-found`         mã gõ sai, hoặc lead chưa từng có
+   *    403 `out-of-scope`      CÓ quyền `lead.xem`, dòng này không của mình
+   *    403 `permission-denied` vai không có `lead.xem` — `AccessGuard` đã chặn
+   *
+   *  Collapsing the middle one into 404 is the tempting move ("don't confirm
+   *  the row exists"), and it is wrong here: the caller already holds a code
+   *  they got from OUR book or from a colleague, so 404 hides nothing and
+   *  sends them hunting for a row that is sitting right there. Collapsing it
+   *  into `permission-denied` is worse — it tells a Sale their role cannot read
+   *  leads, when their role reads leads all day. The one answer that leads
+   *  anywhere useful is "ask whoever holds it".
+   *
+   *  ------------------------------------------------------------------
+   *  ONE FENCE HERE, NOT TWO — AND THAT IS DELIBERATE
+   *  ------------------------------------------------------------------
+   *  `book()` above runs `E2.visible()` as a second net behind the SQL filter.
+   *  A second net on this path would be dead code, not safety: E2's scope axis
+   *  still compares `ref.owner` against `actor.name` (debt #2), which is a
+   *  WEAKER test than the `owner_id = actor.id` the query just performed — it
+   *  can never refuse a row the id comparison let through. Adding a check that
+   *  cannot fire is how a reader learns to trust a fence that is not holding
+   *  anything. When E2 compares by id, this is the place to hang it. */
+  async profile(who: Actor, code: MaObject): Promise<LeadProfile> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('lead', code)
+
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    /* Cùng lý do với `book()`: kiểm chính dữ liệu mình trả ra bằng hợp đồng.
+       Một cột đổi kiểu, một trường quên map — cả hai lọt qua `tsc` nếu mapper
+       sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
+    return LeadProfile.parse(toProfile(found))
   }
 }

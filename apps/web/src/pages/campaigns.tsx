@@ -44,7 +44,7 @@ import { useSession } from '@/app/auth'
 import { useIntakeDesk } from '@/app/intake-desk'
 import { toast } from '@/app/toast'
 import { RECIPIENT_SPEC, leadBookKeys, rowsToLeads } from '@/data/intake'
-import { leadBookQuery } from '@/data/leads'
+import { frozenLeadBookQuery } from '@/data/leads'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { CampaignForm } from './campaign-parts'
 import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from './campaign-model'
@@ -97,7 +97,7 @@ export function CampaignsPage() {
   /* Sổ lead đọc ở ĐÂY chỉ để chống trùng và cấp mã cho lô nạp — màn không vẽ
      dòng lead nào. Không có nó thì một danh sách người nhận nạp lần thứ hai sẽ
      đẻ ra bản sao của chính nó trong sổ lead. */
-  const { data: leadBook = [] } = useQuery(leadBookQuery)
+  const { data: leadBook = [] } = useQuery(frozenLeadBookQuery)
   const importedLeads = useIntakeDesk((s) => s.leads)
   const addLeads = useIntakeDesk((s) => s.addLeads)
   const me = useSession((s) => s.actor)

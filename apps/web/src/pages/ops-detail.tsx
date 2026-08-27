@@ -26,7 +26,6 @@ import {
   dasVina,
   leadContact,
   OPPORTUNITY_STATES,
-  staffEmail,
   toDong,
   type Lead,
   type Opportunity,
@@ -35,7 +34,7 @@ import {
 import { useAppChrome } from '@/app/chrome'
 import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
-import { leadBookQuery } from '@/data/leads'
+import { frozenLeadBookQuery } from '@/data/leads'
 import {
   actorNames,
   isLateClose,
@@ -123,7 +122,7 @@ export function OpsDetailPage() {
   const { code = '' } = useParams()
 
   const { data: fixtureBook = [], isPending } = useQuery(opsBookQuery)
-  const { data: leadBook = [] } = useQuery(leadBookQuery)
+  const { data: leadBook = [] } = useQuery(frozenLeadBookQuery)
   const deals = useLeadDesk((s) => s.deals)
   const patches = useLeadDesk((s) => s.ops)
 
@@ -500,9 +499,17 @@ function ToolsBar({
   lead: Lead | null
   onOpenLead: () => void
 }) {
+  /* `lead` ở đây đến từ `frozenLeadBookQuery` (sổ ĐÓNG BĂNG) — màn cơ hội chưa
+     cắt sang `GET /sales/leads/:code`, nên không có `LeadProfile` thật nào để
+     đọc. `leadContact(lead)` vẫn đúng kịch bản ở ĐÚNG chỗ này vì sổ đóng băng
+     không bao giờ chứa mã ngoài `LD-0101…LD-0200` (19 dòng Apollo thật không
+     có mặt trong sổ này, nên không có cơ hội nào của chúng để lộ ra đây) — nợ
+     này khác nợ đã vá ở `nextActions`, và chỉ hết khi màn cơ hội có endpoint
+     hồ sơ lead thật để đọc. */
   const contact = lead ? leadContact(lead) : null
   const owner = actorNames(op.saleOwners)[0]
-  const ownerRole = dasVina.actors.find((a) => a.name === owner)?.role
+  const ownerActor = dasVina.actors.find((a) => a.name === owner)
+  const ownerRole = ownerActor?.role
 
   return (
     <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
@@ -549,9 +556,12 @@ function ToolsBar({
                   )}
                 </span>
                 {/* Hòm thư công ty, cùng thứ hai cái sổ in ở cột người — ba màn
-                    nói về một người thì phải nói cùng một mã. */}
+                    nói về một người thì phải nói cùng một mã. Đọc THẲNG
+                    `ownerActor.email` — actor đã tra ở trên để lấy `ownerRole`
+                    có sẵn hòm thư thật của chính nó, không cần đoán lại bằng
+                    `staffEmail(name)`. */}
                 <span className="text-muted-foreground truncate font-mono text-[10.5px]">
-                  {staffEmail(owner)}
+                  {ownerActor?.email ?? '—'}
                 </span>
               </span>
             </span>

@@ -22,6 +22,7 @@ import {
   isRunning,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
+import type { ConfigBundle } from '@pv/contracts'
 import { api } from '@/app/api'
 
 /** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
@@ -183,5 +184,37 @@ export const salesConfigQuery = queryOptions({
     api.read('/sales/config', {
       need: { branch: 'Sales', permission: 'cấu-hình.xem' },
       load: fetchSalesConfig,
+    }),
+})
+
+// ---------------------------------------------------------------------------
+// Danh mục THẬT — sáu bảng từ `GET /sales/config`
+// ---------------------------------------------------------------------------
+
+/** Sáu danh mục như máy chủ đang giữ chúng: `{ id, name, ord, active }` cộng
+ *  ba thuộc tính riêng (`limitDays` · `ownerId` · `kind`).
+ *
+ *  ------------------------------------------------------------------
+ *  VÌ SAO ĐỨNG RIÊNG, KHÔNG THAY `salesConfigQuery` Ở TRÊN
+ *  ------------------------------------------------------------------
+ *  Hai query trả hai thứ khác nhau dù cùng tên "cấu hình". Cái ở trên chở
+ *  `usage` — bao nhiêu dòng dữ liệu đang bám vào từng mục — và màn Cấu hình
+ *  dựng cả bảng quanh con số đó, vì nó là thứ quyết định một thay đổi có phải
+ *  qua E3 hay không. Máy chủ KHÔNG trả `usage`. Đổi query cũ sang gọi mạng là
+ *  làm trắng một cột của màn Cấu hình để đổi lấy một bảng nhãn cho màn khác.
+ *
+ *  Nên đường thật mở ở đây, và màn Cấu hình đứng nguyên trên fixture cho tới
+ *  khi máy chủ đếm được `usage`.
+ *
+ *  Cache dài là mặc định của cả app (`staleTime: Infinity` ở
+ *  `app/query-client.ts`) và ở đây nó đúng theo nghĩa mạnh nhất: danh mục chỉ
+ *  đổi khi có người duyệt một đề nghị qua E3, tức là một biến cố có người
+ *  bấm nút — không phải thứ trôi sau lưng người dùng. */
+export const salesCatalogQuery = queryOptions({
+  queryKey: ['sales', 'config', 'catalog'] as const,
+  queryFn: ({ signal }) =>
+    api.read<ConfigBundle>('/sales/config', {
+      need: { branch: 'Sales', permission: 'cấu-hình.xem' },
+      signal,
     }),
 })

@@ -12,6 +12,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import { OWNER_NONE, type LeadBookQuery, type LeadStatus } from '@pv/contracts'
@@ -19,7 +20,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from './lead.schema'
-import type { LeadRead } from './lead.mapper'
+import type { LeadProfileRead, LeadRead } from './lead.mapper'
 
 export type LeadBookPage = {
   rows: LeadRead[]
@@ -30,6 +31,26 @@ export type LeadBookPage = {
    *  không đếm được thứ nó không nhận. */
   hidden: number
 }
+
+/** The `actor` table, joined twice more.
+ *
+ *  One query cannot join the same table three times under one name, and the
+ *  profile needs three different people out of it: the holder (the scope
+ *  axis), the BD credited on the row, and the marketing owner credited on it.
+ *  `alias()` is Drizzle's way of saying so; the SQL it prints is the ordinary
+ *  `LEFT JOIN platform.actor "bd_owner" ON …`.
+ *
+ *  The holder keeps the bare `actor` name so `book()` and `byCode()` spell that
+ *  join identically. */
+const bdOwner = alias(actor, 'bd_owner')
+const marketingOwner = alias(actor, 'marketing_owner')
+
+/** One profile row, plus the verdict of the scope axis on it.
+ *
+ *  `inScope` travels beside the data rather than deciding whether the data
+ *  comes back at all, and that is the whole difference between a book and a
+ *  profile — see the docblock on `byCode()`. */
+export type LeadProfileFound = LeadProfileRead & { inScope: boolean }
 
 /** Số ngày lead nằm ở chỗ hiện tại.
  *
@@ -96,9 +117,7 @@ export class LeadRepository {
   async book(who: Actor, q: LeadBookQuery, scoped: boolean): Promise<LeadBookPage> {
     const filters = this.filtersOf(q)
 
-    /* Trục 3 so bằng `id`, KHÔNG bằng tên hiển thị. Đây là chỗ nợ số 2 được
-       trả trước ở phía máy chủ: hai người trùng tên không thấy sổ của nhau. */
-    const scope = scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+    const scope = this.scopeOf(who, scoped)
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt. Với một actor nhìn
        được cả sổ, `hidden` luôn bằng 0 — chạy thêm một COUNT toàn bảng mỗi
@@ -124,6 +143,81 @@ export class LeadRepository {
       .offset((q.page - 1) * q.size)
 
     return { rows, total: scoped_, hidden: all === null ? 0 : all - scoped_ }
+  }
+
+  /** Một lead theo mã — CẢ DÒNG, kể cả khi trục phạm vi không cho người này
+   *  đọc nó.
+   *
+   *  ------------------------------------------------------------------
+   *  WHY THE SCOPE AXIS IS SELECTED HERE INSTEAD OF FILTERING
+   *  ------------------------------------------------------------------
+   *  `book()` puts the scope predicate in the WHERE clause, and that is right
+   *  for a book: a row the caller may not see must not leave the database at
+   *  all, because a hundred rows filtered in Node are a hundred rows already
+   *  leaked.
+   *
+   *  A profile is one row, and the same trick would answer the wrong question.
+   *  With the predicate in the WHERE clause, "this lead does not exist" and
+   *  "this lead is not yours" come back as the same empty result — so the
+   *  endpoint would have to answer 404 to both, and a Sale who opens a
+   *  colleague's lead would be told the lead is not in the book. That is a lie
+   *  with a cost: the four deny reasons exist precisely so the screen can say
+   *  "ask whoever holds it" instead of sending someone hunting for a row that
+   *  is right there.
+   *
+   *  So the same predicate is SELECTED rather than applied, `scopeOf()` builds
+   *  it exactly once for both callers, and the service turns `inScope: false`
+   *  into a 403 `out-of-scope`. One row crosses the process boundary and is
+   *  then dropped; nothing about it is ever serialised.
+   *
+   *  `COALESCE(…, false)` is not decoration. `owner_id = 'u-huy'` is NULL, not
+   *  false, for a lead nobody has taken — and NULL reaching JavaScript as
+   *  `null` would sail straight through an `if (!inScope)` written the obvious
+   *  way. It also states the rule the book already applies: an unclaimed lead
+   *  is out of scope for an `ownOnly` actor, which is why `u-huy` counts ten
+   *  rows and not ten plus the common pool. */
+  async byCode(who: Actor, code: string): Promise<LeadProfileFound | null> {
+    const scope = this.scopeOf(who, true)
+
+    const [row] = await this.db
+      .select({
+        row: lead,
+        ownerName: actor.name,
+        ownerEmail: actor.email,
+        bdOwnerName: bdOwner.name,
+        bdOwnerEmail: bdOwner.email,
+        marketingOwnerName: marketingOwner.name,
+        marketingOwnerEmail: marketingOwner.email,
+        daysHere: DAYS_HERE,
+        signed: this.signedValue(),
+        inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+      })
+      .from(lead)
+      .leftJoin(actor, eq(actor.id, lead.ownerId))
+      .leftJoin(bdOwner, eq(bdOwner.id, lead.bdOwnerId))
+      .leftJoin(marketingOwner, eq(marketingOwner.id, lead.marketingOwnerId))
+      .where(eq(lead.code, code))
+      .limit(1)
+
+    return row ?? null
+  }
+
+  /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.
+   *
+   *  So bằng `id`, KHÔNG bằng tên hiển thị. Đây là chỗ nợ số 2 được trả trước ở
+   *  phía máy chủ: hai người trùng tên không thấy sổ của nhau, và không mở được
+   *  hồ sơ của nhau.
+   *
+   *  Built here rather than spelled out at each call site because the book and
+   *  the profile MUST agree: a lead readable in one and refused in the other is
+   *  a bug nobody reports, they just stop trusting the screen. `book()` hands
+   *  it to `where()`, `byCode()` selects it as a value — same predicate, two
+   *  positions.
+   *
+   *  `undefined` means the axis is not cutting anything, which is what Drizzle
+   *  reads as "no condition" inside `and(...)`. */
+  private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
+    return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
   }
 
   private async count(where: SQL | undefined): Promise<number> {

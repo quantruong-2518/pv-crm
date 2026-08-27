@@ -79,9 +79,14 @@ export function notFound(kind: string, code?: string): PvError {
  *
  *  Trùng khoá, sửa đè lên bản mới hơn, xoá thứ nơi khác còn dùng. `title` phải
  *  nói được người dùng LÀM GÌ TIẾP; bên web nhánh `'xung-đột'` mặc định chỉ
- *  nói "tải lại rồi làm lại", câu cụ thể hơn là việc của chỗ ném. */
-export function conflict(title: string): PvError {
-  return new PvError({ kind: 'conflict', status: 409, title })
+ *  nói "tải lại rồi làm lại", câu cụ thể hơn là việc của chỗ ném.
+ *
+ *  `fields` cùng hình với `invalid()` bên dưới — xem docblock của
+ *  `Problem.errors` trong `@pv/contracts`: một 409 trùng email cũng phải chở
+ *  được tên ô `email`, không riêng gì 400, vì đó là chỗ DUY NHẤT màn biết tô
+ *  đỏ ô nào. Bỏ trống thì `Problem.errors` vắng mặt, đúng như trước đây. */
+export function conflict(title: string, fields?: Record<string, string[]>): PvError {
+  return new PvError({ kind: 'conflict', status: 409, title, fields })
 }
 
 /** 400 — dữ liệu gửi lên sai, và sai ở NHỮNG Ô NÀO.

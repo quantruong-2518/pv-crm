@@ -1,5 +1,16 @@
-import { useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Inbox, Mail, Phone, Pin, TriangleAlert } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Inbox,
+  Lock,
+  Mail,
+  Megaphone,
+  Phone,
+  Pin,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -19,24 +30,23 @@ import {
 } from '@pv/ui'
 import {
   dasVina,
-  isOverSla,
   LEAD_CATEGORIES,
   LEAD_TIERS,
-  leadContact,
-  leadOrigin,
   opportunityOfLead,
   PIPELINE_STAGES,
-  staffEmail,
   type ExitReason,
   type Lead,
   type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
+import type { ConfigEntry, IntakeChannel, LeadMotion, LeadProfile } from '@pv/contracts'
+import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
-import { dm, dmy } from '@/lib/date'
-import { leadBookQuery, ORIGIN_FACE, peopleOn } from '@/data/leads'
-import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { dmy } from '@/lib/date'
+import { EXIT_REASON_LABEL, peopleOn, UNKNOWN_SOURCE_FACE } from '@/data/leads'
+import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
+import { CHANNEL_ICON, CHANNEL_LABEL, salesCatalogQuery } from '@/data/sales-config'
 import { AssignedPills, AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog, ConvertedCard } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
@@ -81,7 +91,27 @@ import { ActivityCard, NextActionCard, NotesCard, ProfileCard } from './lead-par
  *    đúng chỗ người ta đi tìm chúng. Rail quay lại khi nào có màn thật để nó mở
  *    sang — không sớm hơn.
  *
- *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
+ *  ------------------------------------------------------------------
+ *  HỒ SƠ ĐỌC TỪ MÁY CHỦ · `GET /sales/leads/:code`
+ *  ------------------------------------------------------------------
+ *  Màn không còn tra lead trong sổ đóng băng. Đường tra cũ (`find()` trên 100
+ *  dòng fixture) trả `null` cho mọi mã ngoài `LD-0101…LD-0200`, nên sau khi sổ
+ *  cắt sang máy chủ thì bấm bất kỳ dòng nào của trang 1 cũng rơi vào nhánh
+ *  rỗng — một cái thẻ bé xíu trông như màn trắng.
+ *
+ *  Bốn ca, bốn câu khác nhau, vì bốn ca là bốn việc phải làm tiếp khác nhau:
+ *   · **đang tải** — khung xương, y như trước;
+ *   · **404** — không có lead nào mang mã đó (câu riêng của màn này, vì chỉ màn
+ *     này biết thứ không tìm thấy là một mã lead người dùng vừa bấm);
+ *   · **403 `ngoài-phạm-vi`** — lead CÓ THẬT, chỉ là không thuộc phạm vi người
+ *     đang xem. Câu chung ở `app/api/errors.ts` chỉ đúng một đường đi tiếp:
+ *     hỏi người đang giữ nó. Không phải đăng nhập lại, không phải xin thêm
+ *     quyền — họ đã có `lead.xem` rồi;
+ *   · **còn lại** (mạng · máy chủ · mã sai dạng) — câu chung của loại lỗi đó.
+ *
+ *  Sáu khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc ·
+ *  chuyển đổi · báo rơi) chưa có endpoint nào, nên chúng giữ nguyên và đọc một
+ *  bản `Lead` dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`. */
 
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
   'dau-moi': 'draft',
@@ -92,12 +122,58 @@ const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
+const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
+
+/** Vietnamese labels for the two intake fields `OriginCard` draws, keyed by
+ *  the exact UPPERCASE wire values from `@pv/contracts` — not looked up
+ *  through `MOTION_FACE` / `INTAKE_FACE` in `data/intake.ts`.
+ *
+ *  Those two tables are the wrong door for this:
+ *   · `MOTION_FACE` is keyed by `@pv/engines`'s `LEAD_MOTIONS`, the SAME six
+ *     motions spelled lower-case (`inbound`, …) — a second declaration of one
+ *     vocabulary, called out as known debt on `LeadMotion` in
+ *     `packages/contracts/src/sales/enums.ts`. Reading through it here would
+ *     open a third conversion site for that one enum, which is the exact
+ *     thing that docblock says must not happen.
+ *   · `INTAKE_FACE` is keyed by the older, five-value `LeadIntake` axis
+ *     (`dong-bo` / `tay` / `tep` / `quet` / `api`), not by `IntakeChannel`
+ *     (`MANUAL` / `IMPORT` / `LANDING`). The two axes are related but not a
+ *     1:1 map — `dong-bo` and `api` have no `IntakeChannel` counterpart —
+ *     so a lookup through it would either miss keys or fabricate a mapping
+ *     that isn't true.
+ *
+ *  `Record<…, string>` on the CONTRACT's own enum type, so a value the
+ *  contract adds later and this table forgets is a compile error, not a
+ *  silent fallback to the raw wire string. */
+const INTAKE_CHANNEL_LABEL: Record<IntakeChannel, string> = {
+  MANUAL: 'Gõ trực tiếp',
+  IMPORT: 'Nạp theo lô',
+  LANDING: 'Form công khai',
+}
+
+const LEAD_MOTION_LABEL: Record<LeadMotion, string> = {
+  INBOUND: 'Inbound',
+  OUTBOUND: 'Outbound',
+  EVENT: 'Sự kiện',
+  REFERRAL: 'Giới thiệu',
+  PARTNER: 'Đối tác',
+  RECYCLE: 'Đánh thức lại',
+}
+
+/** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
+ *  hồ sơ nay là `LeadProfile` và chỉ chở hai ô cần thiết — cùng phép tính,
+ *  cùng bảng hạn, không phải dựng một dòng sổ giả để hỏi một câu hai trường.
+ *  (Cùng nước đi `pages/leads.tsx` đã làm cho dòng sổ.) */
+function overSla(lead: LeadProfile): boolean {
+  if (!lead.stage) return false
+  return lead.daysHere > (STAGE_LIMIT.get(lead.stage) ?? Infinity)
+}
 
 export function LeadDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
   const { code = '' } = useParams()
-  const { data: book = [], isPending } = useQuery(leadBookQuery)
+  const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
 
   const me = useSession((s) => s.actor)
   const assigns = useLeadDesk((s) => s.assigns)
@@ -112,8 +188,6 @@ export function LeadDetailPage() {
      — và đó là điều đúng: một đề nghị chưa ai gật thì chưa phải sự thật của sổ. */
   const [reported, setReported] = useState<ExitReason | null>(null)
 
-  const lead = book.find((l) => l.code === code) ?? null
-
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
   if (isPending) {
@@ -127,20 +201,48 @@ export function LeadDetailPage() {
   }
 
   if (!lead) {
+    /* Một `kind`, một câu. Màn không đọc `status` số và không bắt chuỗi trong
+       `message` — `app/api/errors.ts` đã phân loại một lần cho cả app, và hai
+       màn tự đọc lấy một mã lỗi là hai câu khác nhau cho cùng một sự cố. */
+    const failure = isApiError(error) ? error : null
+    const missing = failure?.kind === 'không-thấy'
+    const denied = failure?.kind === 'thiếu-quyền'
+
     return shell(
       <GlassCard className="p-5 lg:p-6">
-        <EmptyLead code={code} onBack={() => navigate('/sales/leads')} />
+        <EmptyLead
+          icon={missing ? Inbox : denied ? Lock : TriangleAlert}
+          note={
+            missing ? (
+              <>
+                Không tìm thấy lead nào mang mã <span className="font-mono">{code}</span>. Kiểm tra
+                lại mã, hoặc mở lại từ sổ lead.
+              </>
+            ) : (
+              (failure && userMessage(failure)) || 'Không đọc được hồ sơ lead này.'
+            )
+          }
+          onBack={() => navigate('/sales/leads')}
+        />
       </GlassCard>,
     )
   }
 
-  const origin = leadOrigin(lead)
-  const people = peopleOn(lead, assigns, dasVina.actors)
+  /* Sáu khối trên `app/desk.ts` vẫn đọc hình `Lead` của fixture — dựng MỘT bản
+     ở đây thay vì để mỗi khối tự quy đổi lấy. */
+  const legacy = leadOf(lead)
+  /* Người liên hệ THẬT trên dây — KHÔNG phải `leadContact(legacy)`. Trước đây
+     `nextActions` tự gọi hàm sinh đó bên trong, và với một mã ngoài dải đóng
+     băng (Apollo) nó nặn ra một cái tên và một số điện thoại không có thật. */
+  const contact = realContact(lead)
+  const people = peopleOn(legacy, assigns, dasVina.actors)
   /* Tên account đọc từ bản hồ sơ ĐÃ LƯU: sửa tên trong form thì đầu trang phải
      đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
   const accountName = savedName ?? lead.company
 
-  const openSource = () => navigate(`/sales/campaigns?source=${origin.code}`)
+  const openSource = () => {
+    if (lead.source) navigate(`/sales/campaigns?source=${encodeURIComponent(lead.source)}`)
+  }
 
   /* Lead đã lên SQL thì nó ĐÃ có một dòng trong sổ cơ hội — mời đổi lần nữa là
      mời tạo đơn thứ hai cho cùng một khách, và sổ cơ hội cộng ra một con số
@@ -169,39 +271,49 @@ export function LeadDetailPage() {
           <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">{accountName}</h2>
           <StatusBadge lead={lead} reported={reported} />
         </div>
+        {/* Trường VẮNG nghĩa là chưa moi được, không phải rỗng — nên chỗ nào
+            chưa có thì in "—" chứ không bỏ pill đi: một hàng pill thiếu chỗ
+            này thừa chỗ kia không đọc ra được là "chưa biết" hay "không có". */}
         <div className="flex flex-wrap items-center gap-2">
           <Chip>{lead.code}</Chip>
-          <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
-          <MetaPill>{CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
-          <MetaPill>{lead.province}</MetaPill>
+          {lead.tier ? (
+            <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
+          ) : (
+            <Badge tone="draft">—</Badge>
+          )}
+          <MetaPill>
+            {lead.category ? (CATEGORY_LABEL.get(lead.category) ?? lead.category) : '—'}
+          </MetaPill>
+          <MetaPill>{lead.province ?? '—'}</MetaPill>
           <MetaPill mono>vào sổ {dmy(lead.createdAt)}</MetaPill>
           {lead.stage && (
-            <MetaPill tone={isOverSla(lead) ? 'warning' : 'accent'}>
+            <MetaPill tone={overSla(lead) ? 'warning' : 'accent'}>
               {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
             </MetaPill>
           )}
         </div>
       </div>
 
-      <AssignedPills lead={lead} />
-      <ConvertedCard lead={lead} />
+      <AssignedPills lead={legacy} />
+      <ConvertedCard lead={legacy} />
 
       <div className="grid items-start gap-4 lg:grid-cols-[3fr_1fr] lg:gap-6">
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <ProfileCard lead={lead} />
-          <NotesCard lead={lead} />
-          <NextActionCard lead={lead} />
+          <ProfileCard profile={lead} />
+          <NotesCard lead={legacy} />
+          <NextActionCard lead={legacy} contact={contact} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
           <OriginCard lead={lead} onOpen={openSource} />
           <PeopleCard lead={lead} people={people} />
-          <ActivityCard lead={lead} />
+          <ActivityCard lead={legacy} />
         </div>
       </div>
 
       <ToolsBar
         lead={lead}
+        legacy={legacy}
         pinned={pins.includes(lead.code)}
         converted={Boolean(deal)}
         opCode={existingOp?.code}
@@ -212,9 +324,9 @@ export function LeadDetailPage() {
         onConvert={() => setConverting(true)}
       />
 
-      <ConvertDialog lead={lead} open={converting} onClose={() => setConverting(false)} />
+      <ConvertDialog lead={legacy} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog
-        lead={lead}
+        lead={legacy}
         open={exiting}
         onClose={() => setExiting(false)}
         onReport={setReported}
@@ -225,14 +337,25 @@ export function LeadDetailPage() {
 
 // ---------------------------------------------------------------------------
 
-function EmptyLead({ code, onBack }: { code: string; onBack: () => void }) {
+/** Màn không mở được — MỘT khối, ba câu, và cái hình đổi theo câu.
+ *
+ *  Một component cho cả ba vì cả ba là cùng một trạng thái của màn ("không có
+ *  hồ sơ để vẽ") và cùng một đường đi tiếp ("về sổ lead"). Cái khác nhau là
+ *  CÂU, và câu là thứ được truyền vào — chứ không phải ba khối rỗng gần giống
+ *  nhau, thứ chắc chắn sẽ trôi khỏi nhau ở lần sửa thứ hai. */
+function EmptyLead({
+  icon,
+  note,
+  onBack,
+}: {
+  icon: LucideIcon
+  note: ReactNode
+  onBack: () => void
+}) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <Icon icon={Inbox} size={26} className="text-muted-foreground" />
-      <p className="text-muted-foreground text-[12.5px] leading-[1.65]">
-        Sổ không có dòng nào mang mã <span className="font-mono">{code}</span>. Sổ là 100 dòng của
-        kỳ 01/05 → 17/08; mã ngoài khoảng đó không tồn tại.
-      </p>
+      <Icon icon={icon} size={26} className="text-muted-foreground" />
+      <p className="text-muted-foreground text-[12.5px] leading-[1.65]">{note}</p>
       <Button size="sm" variant="ghost" onClick={onBack}>
         Về sổ lead
       </Button>
@@ -240,22 +363,51 @@ function EmptyLead({ code, onBack }: { code: string; onBack: () => void }) {
   )
 }
 
-function StatusBadge({ lead, reported }: { lead: Lead; reported: ExitReason | null }) {
-  if (lead.contractCode) return <Badge tone="success">Đã ký · {lead.contractCode}</Badge>
-  if (lead.exitReason) return <Badge tone="danger">Đã rơi · {lead.exitReason}</Badge>
+/** Trạng thái của lead — bốn nhánh, và nhánh đầu KHÔNG còn mã hợp đồng.
+ *
+ *  Trước đây badge in "Đã ký · HĐ-2711". Mã đó đến từ `lead.contractCode` của
+ *  fixture, và cột ấy không còn: lead → hợp đồng nay là 1-n nên không cột nào
+ *  gọi tên được "cái" hợp đồng. Thứ sống sót là `signed`, một boolean — nên
+ *  badge giữ TRẠNG THÁI và bỏ mã, thay vì bịa một mã hoặc kéo mã cũ của
+ *  fixture đi theo. Mã quay lại ngày hồ sơ chở một DANH SÁCH cơ hội. */
+function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReason | null }) {
+  if (lead.signed) return <Badge tone="success">Đã ký</Badge>
+  if (lead.exitReason) {
+    return (
+      <Badge tone="danger">Đã rơi · {EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason}</Badge>
+    )
+  }
   if (reported) return <Badge tone="warning">Đã báo · {reported}</Badge>
-  if (isOverSla(lead)) return <Badge tone="warning">Quá hạn cột</Badge>
+  if (overSla(lead)) return <Badge tone="warning">Quá hạn cột</Badge>
   return <Badge tone="running">Đang chạy</Badge>
 }
 
-/** Lead này từ đâu về — bốn kiểu, bốn cách kể.
+/** Lead này từ đâu về — TRA TỪ SỔ NGUỒN THẬT.
  *
- *  Chiến dịch và sự kiện mở được sang màn nguồn; hai kiểu tự nhiên vẫn mở được
- *  vì chúng CÓ mặt trong sổ nguồn — chỉ khác là chúng không có đợt nào để xem. */
-function OriginCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
-  const origin = leadOrigin(lead)
-  const face = ORIGIN_FACE[origin.kind]
-  const isEvent = origin.kind === 'su-kien'
+ *  ------------------------------------------------------------------
+ *  BỐN PILL ĐÃ RỤNG, VÀ VÌ SAO KHÔNG LẤP LẠI
+ *  ------------------------------------------------------------------
+ *  Bản cũ gọi `leadOrigin(lead)` của fixture: nó tra mã nguồn trong `SOURCES`
+ *  và **ném** khi không thấy — mà 119 dòng trên Neon trỏ vào mã của sổ nguồn
+ *  thật (`SR-…`), không phải mã fixture. Giữ nó là mở lead nào cũng vỡ màn.
+ *
+ *  Hồ sơ chỉ chở `source` — một MÃ — nên chỗ này là một phép tra `id` trong
+ *  danh mục `SOURCE` của `GET /sales/config`, đúng thứ cột Nguồn của sổ đang
+ *  làm. Cái gì tra được thì hiện: tên nguồn và mã. Cái gì KHÔNG có đường về
+ *  thì thôi, không đoán: chủ nguồn, ngày bắt đầu chạy, kênh của đợt, và khối
+ *  địa điểm/số người đến của sự kiện đều là dữ liệu của fixture chiến dịch,
+ *  không có trong `ConfigEntry`. Vẽ lại chúng bằng giá trị suy đoán là đúng
+ *  thứ một màn hồ sơ không được phép làm.
+ *
+ *  `UNKNOWN_SOURCE_FACE` là lưới đỡ chung với sổ: lead không có `source`, hoặc
+ *  trỏ vào một mã đã tắt, vẫn phải vẽ ra một cái gì đó thay vì một ô trống. */
+function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void }) {
+  const { data: catalog } = useQuery(salesCatalogQuery)
+  const sources = useMemo(
+    () => new Map((catalog?.SOURCE ?? []).map((e: ConfigEntry) => [e.id, e])),
+    [catalog],
+  )
+  const entry = lead.source ? sources.get(lead.source) : undefined
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead đến từ đâu">
@@ -263,51 +415,54 @@ function OriginCard({ lead, onOpen }: { lead: Lead; onOpen: () => void }) {
         kicker="Đến từ"
         size="md"
         actions={
-          <Button size="sm" variant="ghost" onClick={onOpen}>
-            {face.openLabel}
-          </Button>
+          lead.source ? (
+            <Button size="sm" variant="ghost" onClick={onOpen}>
+              Xem nguồn
+            </Button>
+          ) : undefined
         }
       >
         <span className="flex items-center gap-2">
-          <Icon icon={face.icon} size={18} className="text-accent-foreground" />
-          {origin.label}
+          <Icon
+            icon={entry ? Megaphone : UNKNOWN_SOURCE_FACE.icon}
+            size={18}
+            className="text-accent-foreground"
+          />
+          {entry?.name ?? UNKNOWN_SOURCE_FACE.label}
         </span>
       </SectionTitle>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Chip variant="source">{origin.code}</Chip>
-        <MetaPill tone="accent">{face.label}</MetaPill>
-        <MetaPill avatar={origin.owner}>{origin.owner}</MetaPill>
-        <MetaPill mono>chạy từ {dm(origin.startedAt)}</MetaPill>
-        {origin.channel && (
-          <MetaPill icon={CHANNEL_ICON[origin.channel]}>{CHANNEL_LABEL[origin.channel]}</MetaPill>
-        )}
+        <Chip variant="source">{lead.source ?? '—'}</Chip>
+        {/* Two independent axes on top of the source lookup above — never
+            joined into one pill (see `LeadMotion`'s docblock on why folding
+            axes together makes both unfilterable). Each renders only when
+            the field is present: the 100 legacy fixture codes predate the
+            server having an intake concept at all, so both are absent there,
+            while the Apollo import rows (`LD-0201…`) carry both. Absent means
+            "not dug out", not a value to guess at. */}
+        {lead.intakeChannel && <MetaPill>{INTAKE_CHANNEL_LABEL[lead.intakeChannel]}</MetaPill>}
+        {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
       </div>
-
-      {isEvent && (
-        <div className="flex flex-wrap gap-3 rounded-md bg-white/5 p-3 text-[11.5px]">
-          <span>{origin.venue}</span>
-          <span>
-            <span className="tnum font-num">{origin.checkedIn}</span>/
-            <span className="tnum font-num">{origin.registered}</span> người đến trên số đăng ký
-          </span>
-        </div>
-      )}
     </GlassCard>
   )
 }
 
 /** Ai đang làm việc trên lead này. Chủ lead và người được giao việc là HAI vai
- *  khác nhau — gộp vào một dòng là mất câu trả lời "ai chịu trách nhiệm". */
-function PeopleCard({ lead, people }: { lead: Lead; people: string[] }) {
+ *  khác nhau — gộp vào một dòng là mất câu trả lời "ai chịu trách nhiệm".
+ *
+ *  In `ownerName` — cái NHÃN. Không có ai đứng tên thì `ownerId` cũng vắng, và
+ *  hai thứ đó luôn vắng cùng nhau vì cả ba trường người giữ đến từ một phép
+ *  join duy nhất ở máy chủ. */
+function PeopleCard({ lead, people }: { lead: LeadProfile; people: string[] }) {
   return (
     <GlassCard className="flex flex-col gap-3 p-5 lg:p-6" aria-label="Người đang làm">
       <SectionTitle size="sm">Đang làm</SectionTitle>
       <AvatarGroup names={people} max={5} size="md" emptyLabel="chưa ai nhận" />
       <p className="text-[11.5px] leading-[1.5]">
         Người giữ:{' '}
-        {lead.owner ? (
-          <b className="font-semibold">{lead.owner}</b>
+        {lead.ownerName ? (
+          <b className="font-semibold">{lead.ownerName}</b>
         ) : (
           <span className="text-muted-foreground">còn ở kho chung, chưa ai nhận</span>
         )}
@@ -342,6 +497,7 @@ function PeopleCard({ lead, people }: { lead: Lead; people: string[] }) {
  *  đè lên sidebar, và dưới `lg` thì nhường chỗ cho BottomNav 84px của AppShell. */
 function ToolsBar({
   lead,
+  legacy,
   pinned,
   converted,
   opCode,
@@ -351,7 +507,10 @@ function ToolsBar({
   onConvert,
   onOpenOp,
 }: {
-  lead: Lead
+  lead: LeadProfile
+  /** Hình `Lead` của fixture, chỉ để đưa cho `AssignMenu` — khối giao việc còn
+   *  nằm trên `app/desk.ts` và chưa có endpoint nào để cắt sang. */
+  legacy: Lead
   pinned: boolean
   converted: boolean
   /** Mã cơ hội lead này ĐÃ có trong sổ, nếu có. */
@@ -362,8 +521,23 @@ function ToolsBar({
   onConvert: () => void
   onOpenOp: () => void
 }) {
-  const contact = leadContact(lead)
-  const ownerRole = dasVina.actors.find((a) => a.name === lead.owner)?.role
+  /* Người liên hệ đọc THẲNG từ hồ sơ. Bản cũ gọi `leadContact(lead)`, một hàm
+     SINH tên và số điện thoại từ mã lead — tất định, khớp với 100 dòng đóng
+     băng, và bịa ra một con người cho mọi mã ngoài khoảng đó. Bốn trường thật
+     đã có trên dây, nên không còn lý do gì để đoán. */
+  const contactLine = lead.contactTitle
+    ? `${lead.contactName} · ${lead.contactTitle}`
+    : lead.contactName
+  /* Vai của người giữ tra bằng ID, không bằng TÊN. Tên trùng nhau và đổi khi
+     người ta cưới xin; `ownerId` là thứ duy nhất được phép đem đi so. */
+  const ownerRole = dasVina.actors.find((a) => a.id === lead.ownerId)?.role
+  /* Máy chủ trả KHOÁ lý do rơi (`khong-goi-duoc`); màn in NHÃN. */
+  const exitLabel = lead.exitReason
+    ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
+    : undefined
+  /* Người liên hệ THẬT cho `AssignMenu` — cùng lý do đã ghi ở `contact` của
+     component cha; xem docblock của `nextActions` (`data/leads.ts`). */
+  const contact = realContact(lead)
 
   return (
     <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
@@ -378,20 +552,18 @@ function ToolsBar({
       >
         <div className="flex min-w-0 flex-col gap-1">
           <Kicker tone="muted">Khách</Kicker>
-          {contact ? (
+          {lead.contactName ? (
             <div className="flex flex-wrap items-center gap-2">
-              <MetaPill avatar={contact.name}>
-                {contact.name} · {contact.title}
-              </MetaPill>
-              {contact.phone && (
+              <MetaPill avatar={lead.contactName}>{contactLine}</MetaPill>
+              {lead.phone && (
                 <MetaPill icon={Phone} mono>
-                  {contact.phone}
+                  {lead.phone}
                 </MetaPill>
               )}
-              {contact.email && <MetaPill icon={Mail}>{contact.email}</MetaPill>}
-              {contact.channel && (
-                <MetaPill icon={CHANNEL_ICON[contact.channel]} tone="accent">
-                  {CHANNEL_LABEL[contact.channel]}
+              {lead.email && <MetaPill icon={Mail}>{lead.email}</MetaPill>}
+              {lead.contactChannel && (
+                <MetaPill icon={CHANNEL_ICON[lead.contactChannel]} tone="accent">
+                  {CHANNEL_LABEL[lead.contactChannel]}
                 </MetaPill>
               )}
             </div>
@@ -406,20 +578,23 @@ function ToolsBar({
 
         <div className="flex min-w-0 flex-col gap-1">
           <Kicker tone="muted">PIC của lead</Kicker>
-          {lead.owner ? (
+          {lead.ownerName ? (
             <span className="flex items-center gap-2">
-              <Avatar name={lead.owner} size="sm" />
+              <Avatar name={lead.ownerName} size="sm" />
               <span className="flex min-w-0 flex-col">
                 <span className="text-[12.5px] font-semibold">
-                  {lead.owner}
+                  {lead.ownerName}
                   {ownerRole && (
                     <span className="text-muted-foreground font-normal"> · {ownerRole}</span>
                   )}
                 </span>
                 {/* Hòm thư công ty, cùng thứ sổ lead in ở cột Lead PIC — hai màn
-                    nói về một người thì phải nói cùng một mã. */}
+                    nói về một người thì phải nói cùng một mã. Đọc `ownerEmail`
+                    của máy chủ chứ không suy từ tên: `staffEmail(name)` là một
+                    quy ước đặt tên của fixture, và đoán sai ở đây là một lá thư
+                    gửi vào một hòm không tồn tại. */}
                 <span className="text-muted-foreground truncate font-mono text-[10.5px]">
-                  {staffEmail(lead.owner)}
+                  {lead.ownerEmail ?? '—'}
                 </span>
               </span>
             </span>
@@ -440,22 +615,22 @@ function ToolsBar({
             <Icon icon={Pin} size={16} />
             {pinned ? 'Đã ghim' : 'Ghim'}
           </Button>
-          <AssignMenu lead={lead} placement="up" />
+          <AssignMenu lead={legacy} contact={contact} placement="up" />
 
           <Separator className="hidden h-8 w-px lg:block" />
 
           <Button
             size="md"
             variant="ghost"
-            disabled={!contact?.phone}
-            title={contact?.phone ?? 'Chưa moi được kênh gọi lại được'}
+            disabled={!lead.phone}
+            title={lead.phone ?? 'Chưa moi được kênh gọi lại được'}
           >
             <Icon icon={Phone} size={16} />
-            {contact ? `Gọi ${contact.name}` : 'Gọi PIC'}
+            {lead.contactName ? `Gọi ${lead.contactName}` : 'Gọi PIC'}
           </Button>
 
-          {(reported ?? lead.exitReason) ? (
-            <Badge tone="warning">Đã báo · {reported ?? lead.exitReason}</Badge>
+          {(reported ?? exitLabel) ? (
+            <Badge tone="warning">Đã báo · {reported ?? exitLabel}</Badge>
           ) : (
             <Button size="md" variant="destructive" onClick={onExit}>
               <Icon icon={TriangleAlert} size={16} />

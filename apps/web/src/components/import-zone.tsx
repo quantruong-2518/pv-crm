@@ -77,11 +77,16 @@ import {
  *  đúng hình này cho handler của mình — và một bản chép tay ở mỗi màn là ba chỗ
  *  để lệch khi thêm trường thứ năm. */
 export type ImportCommit = {
-  /** Dòng đã qua kiểm và đã loại trùng. */
-  rows: BuiltRow[]
+  /** Dòng đã qua kiểm và đã loại trùng, mỗi dòng kèm Ô ĐẦU TIÊN y như trong tệp.
+   *
+   *  `first` không nằm trên `BuiltRow`: `buildRows` tính nó cho mọi dòng nhưng
+   *  chỉ giữ lại ở dòng HỎNG (`RowError.first`). Cửa nạp của máy chủ thì đòi nó
+   *  cho MỌI dòng, nên panel đọc lại từ chính tệp — xem `firstCellOf`. */
+  rows: (BuiltRow & { first: string })[]
   motion: LeadMotion
   fileName: string
-  /** Bốn con số của lần nạp — màn dùng để dựng dòng phụ của toast. */
+  /** Bốn con số panel tự đếm trong trình duyệt — màn dùng để dựng dòng phụ của
+   *  toast, và là báo cáo panel vẽ khi `onCommit` không trả về báo cáo nào. */
   report: ImportReport
 }
 
@@ -102,8 +107,20 @@ export type ImportZoneProps = {
    *
    *  Panel KHÔNG tự ghi vào kho: ba sổ ghi vào ba chỗ khác nhau và dựng dòng
    *  bằng ba hàm khác nhau (`rowsToLeads` · `rowsToOps`). Nhét cả ba vào đây thì
-   *  panel phải biết cả ba sổ — đúng thứ nó được tách ra để khỏi phải biết. */
-  onCommit: (input: ImportCommit & { scope?: string }) => void
+   *  panel phải biết cả ba sổ — đúng thứ nó được tách ra để khỏi phải biết. Sổ
+   *  lead nay ghi lên máy chủ, hai sổ kia còn ghi cục bộ; đó chính là ba chỗ
+   *  ghi khác nhau mà cửa này giữ cho panel khỏi phải phân biệt.
+   *
+   *  TRẢ VỀ MỘT BÁO CÁO = BÁO CÁO CỦA BÊN ĐÃ GHI THẬT, và panel vẽ nó thay cho
+   *  bốn con số nó tự đếm. Đây là cửa cho màn ghi qua mạng: trình duyệt và máy
+   *  chủ chống trùng bằng hai khoá khác nhau, nên "5 dòng vào sổ" đếm ở đây
+   *  trong khi máy chủ ghi 3 là panel nói dối. Màn ghi cục bộ không trả gì và
+   *  panel dùng báo cáo cũ — y như trước, không sổ nào phải đổi theo.
+   *
+   *  KHÔNG ĐƯỢC NÉM. Panel không có chữ nào để nói về một lần ghi hỏng, và nó
+   *  cũng không biết dòng nào đã kịp vào sổ. Màn nào gọi mạng thì tự bắt lỗi
+   *  của mình và trả về một báo cáo nói đúng những gì đã vào sổ. */
+  onCommit: (input: ImportCommit & { scope?: string }) => void | Promise<ImportReport | void>
   /** Sau khi nạp xong, đưa người dùng đi đâu. Bỏ trống = toast không có nút. */
   onSeeResult?: () => void
   buttonLabel?: string
@@ -114,6 +131,20 @@ type Phase = 'pick' | 'map' | 'run' | 'done'
 
 /** Số dòng xem trước ở bước 2. Ba là đủ để thấy cột lệch mà chưa phải cuộn. */
 const PREVIEW = 3
+
+/** Ô đầu tiên của một dòng, đọc lại từ chính tệp theo số dòng.
+ *
+ *  `buildRows` tính đúng ô này cho mọi dòng — `(raw[0] ?? '').trim()` — nhưng
+ *  chỉ giữ nó lại ở dòng HỎNG, nên một dòng qua được cửa không mang nó theo.
+ *  Cửa nạp của máy chủ lại đòi nó cho mọi dòng: khớp cột xong là thứ tự cột gốc
+ *  mất, máy chủ dựng lại không được, và tệp lỗi tải về thiếu cột đó là mất thứ
+ *  duy nhất giúp người ta tìm lại dòng trong bảng tính của mình.
+ *
+ *  `-2` là phép nghịch của `line = i + 2` trong `buildRows` (một cho dòng tiêu
+ *  đề, một vì bảng tính đếm từ 1). Đọc lại từ `sheet` chứ KHÔNG lấy tạm
+ *  `values.company`: cột company chỉ trùng ô đầu khi bảng khớp cột tình cờ đặt
+ *  nó ở cột thứ nhất. */
+const firstCellOf = (sheet: Sheet, line: number) => (sheet.rows[line - 2]?.[0] ?? '').trim()
 
 export function ImportZone({
   spec,
@@ -203,18 +234,32 @@ export function ImportZone({
     setDone(0)
 
     const built = await buildRows(sheet, mapping, spec, existingKeys, (n) => setDone(n))
-    setReport(built)
-    setPhase('done')
 
+    /* Bước 3 đứng nguyên ở "Đang nạp" cho tới khi người ghi trả lời. Nhảy sang
+       bảng kết quả trước đó là vẽ bốn con số chưa ai xác nhận, rồi sửa chúng
+       dưới mắt người đang đọc. */
+    let final: ImportReport = built
     if (built.rows.length > 0) {
-      onCommit({
-        rows: built.rows,
-        motion,
-        fileName: sheet.fileName,
-        report: built,
-        scope: effectiveScope,
-      })
+      try {
+        const written = await onCommit({
+          rows: built.rows.map((row) => ({ ...row, first: firstCellOf(sheet, row.line) })),
+          motion,
+          fileName: sheet.fileName,
+          report: built,
+          scope: effectiveScope,
+        })
+        if (written) final = written
+      } catch {
+        /* Lưới an toàn cho một màn viết sai hợp đồng "không được ném" ở
+           `onCommit` — không có nó thì bước 3 treo ở thanh tiến độ mãi mãi.
+           Không dòng nào được tính là đã vào sổ: panel vừa mất người duy nhất
+           biết chuyện gì đã xảy ra, nên nó không được đoán hộ. */
+        final = { ...built, rows: [] }
+      }
     }
+
+    setReport(final)
+    setPhase('done')
   }
 
   const missing = sheet ? unmappedRequired(mapping, spec) : []
@@ -408,12 +453,22 @@ function StepMap({
   const preview = sheet.rows.slice(0, PREVIEW)
   const shown = spec.fields.filter((f) => (mapping[f.key] ?? -1) >= 0)
 
+  /* Chỉ nói khi tệp có NHIỀU HƠN MỘT tab — xlsx một tab (ca phổ biến nhất) và
+     CSV/ô dán (không có khái niệm tab) im lặng, không thêm nhiễu. Đặt ở ĐÂY,
+     trong hint của bước 2, vì đây là lúc người dùng còn kịp làm gì đó (đang
+     nhìn bảng khớp cột) — hiện SAU khi đã nạp xong thì vô ích, dữ liệu tab kia
+     vẫn bị bỏ qua mà không ai kịp đổi tệp. */
+  const tabNote =
+    sheet.sheetCount && sheet.sheetCount > 1
+      ? `Tệp có ${sheet.sheetCount} tab · đang đọc tab "${sheet.sheetName}". `
+      : ''
+
   return (
     <section className={cn('flex flex-col gap-4', locked && 'pointer-events-none opacity-55')}>
       <SectionTitle
         size="lg"
         kicker="Bước 2"
-        hint={`${sheet.rows.length} dòng trong "${sheet.fileName}". Cột đoán sai thì đổi ở đây — đổi xong xem lại ba dòng bên dưới.`}
+        hint={`${tabNote}${sheet.rows.length} dòng trong "${sheet.fileName}". Cột đoán sai thì đổi ở đây — đổi xong xem lại ba dòng bên dưới.`}
       >
         Khớp cột
       </SectionTitle>

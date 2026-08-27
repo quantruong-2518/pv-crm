@@ -82,9 +82,11 @@ Lỗi tầng bảng đã được dịch sẵn, **không trả 500 nữa**:
 | ---------------------------------- | ---------------------------- | ---------------------------------------------- |
 | `GET /healthz`                     | công khai                    | `{ status, db }`                               |
 | `GET /sales/leads`                 | `lead.xem` · **cắt phạm vi** | sổ, lọc + phân trang **ở server**              |
+| `GET /sales/leads/:code`           | `lead.xem` · **cắt phạm vi** | hồ sơ một lead — ngoài phạm vi là **403**      |
 | `POST /sales/leads`                | `lead.sửa`                   | nhập tay → `intake_channel = MANUAL`           |
 | `POST /sales/leads/import/preview` | `lead.sửa`                   | chạy khô, **không ghi gì**                     |
 | `POST /sales/leads/import`         | `lead.sửa`                   | chốt lô → `intake_channel = IMPORT`            |
+| `POST /sales/leads/intake`         | công khai · có rate limit    | landing page → `intake_channel = LANDING`      |
 | `GET /sales/config`                | `cấu-hình.xem`               | 6 danh mục, gọi **một lần** rồi cache          |
 | `GET /sales/config/:list`          | `cấu-hình.xem`               |                                                |
 | `POST · PATCH /sales/config/…`     | `cấu-hình.đề-nghị`           | **→ E3 duyệt · hôm nay trả 500, cửa chưa nối** |
@@ -107,7 +109,40 @@ hiện thành "Bị ẩn theo quyền của bạn" (luật 7). Máy chủ đếm
   khoá phá hoà — không có nó thì một dòng xuất hiện ở cả trang 1 lẫn trang 2.
 
 Một dòng chở đúng thứ bảng sổ cần. **20 trường hồ sơ cố tình vắng** — chúng
-thuộc `GET /sales/leads/:code`, chưa dựng.
+thuộc `GET /sales/leads/:code` ngay dưới đây.
+
+### `GET /sales/leads/:code`
+
+Trả **một hồ sơ**: đúng dòng sổ ở trên, cộng thêm bốn cụm mà sổ cố tình không
+chở — thông tin công ty (`legalName` · `taxCode` · `address` · `mainProduct` ·
+`headcount` · `plants`), nhu cầu (`pain` · `currentStack` · `decisionMaker` ·
+`approver` · `budget` · `currency` · `deadline`), hai người được **ghi công**
+(`bdOwnerId`/`Name`/`Email` · `marketingOwnerId`/`Name`/`Email`) và cửa vào
+(`intakeChannel` · `motion`).
+
+Hợp đồng là `LeadProfile`, và nó **mở rộng** `LeadRow` (`.extend()`): phần chung
+khai đúng một lần nên sổ và hồ sơ không lệch nhau được. Trường nào vắng nghĩa là
+**chưa moi được**, không phải `null` — khoá không có mặt trong JSON.
+
+**Ngoài phạm vi là 403, không phải 404.** Đây là chỗ hồ sơ khác hẳn sổ: sổ lọc
+bớt dòng rồi trả `hidden`, còn hồ sơ chỉ có một dòng nên không lọc được gì — nó
+phải TỪ CHỐI. Một Sale `ownOnly` mở lead của người khác nhận `403` +
+`out-of-scope`; họ **có** `lead.xem`, nên trả `permission-denied` là nói dối về
+nguyên nhân, và trả `404` là bắt họ đi tìm một dòng đang nằm ngay đó. Lead **chưa
+ai nhận** cũng ngoài phạm vi của họ — đúng bằng thứ sổ đang làm (`u-huy` thấy 10
+trên 119 dòng).
+
+| Tình huống                    | Mã      | `reason`          |
+| ----------------------------- | ------- | ----------------- |
+| mã sai dạng (`xyz`)           | **400** | —                 |
+| chưa đăng nhập                | **401** | `unauthenticated` |
+| có quyền, lead không của mình | **403** | `out-of-scope`    |
+| không có lead đó (`LD-9999`)  | **404** | —                 |
+
+Ba thứ hồ sơ **không** chở, và mỗi cái là một câu trả lời chứ không phải chỗ
+thiếu: `dealCode`/`contractCode` (lead → cơ hội nay 1-n, không cột nào gọi tên
+"cái" hợp đồng — dùng `signed`), lịch sử tương tác (bảng `touch` chưa có), và
+`stageSince` (`daysHere` đã chở đúng con số đó).
 
 ### Nạp tệp — hai bước, cùng một thân
 
@@ -144,9 +179,12 @@ thì đã là mã (`SR-09`). Đừng hàn cứng bảng nhãn cho năm cái kia 
 
 ## Chưa có — đừng chờ
 
-`GET /sales/leads/:code` (hồ sơ) · `PATCH` · promote · exit · assign · touch ·
-`GET /sales/leads/export` · landing page công khai · auth thật · E3 duyệt ·
+`PATCH` · promote · exit · assign · touch ·
+`GET /sales/leads/export` · auth thật · E3 duyệt ·
 bảng `touch` (nên `score` và `lastTouchAt` còn `0`/`NULL`) · bảng `suppression`.
+
+Hướng dẫn gọi cửa landing page, query param, payload và cấu hình chống lạm dụng:
+[`tich-hop-landing-page.md`](./tich-hop-landing-page.md).
 
 ---
 

@@ -841,7 +841,11 @@ function tierOfRow(asked: string | undefined, requiredFilled: number): LeadTier 
 export function rowsToLeads(
   rows: BuiltRow[],
   opts: {
-    book: readonly Lead[]
+    /** Sổ đang có, CHỈ để cấp mã kế tiếp — `nextLeadCode` đọc đúng một ô
+     *  `code`. Hình tối thiểu vì cùng lý do với `leadBookKeys` ngay trên: sổ
+     *  lead nay là `LeadRow` của máy chủ, sổ chiến dịch vẫn là `Lead` của
+     *  fixture, và cả hai đều cấp mã được. */
+    book: readonly { code: string }[]
     motion: LeadMotion
     intake: LeadIntake
     /** Mã nguồn của cả lô — mã chiến dịch khi nạp trong một hồ sơ. */
@@ -897,18 +901,24 @@ export function rowsToLeads(
  *  Sổ không mang mã số thuế (nó nằm trong hồ sơ, dựng riêng), nên khoá của dòng
  *  cũ luôn là cặp tên+tỉnh. Hệ quả phải biết: một tệp CÓ mã số thuế sẽ không bắt
  *  được trùng với dòng cũ nào — hai bên dùng hai loại khoá khác nhau. Vì thế
- *  hàm này dựng CẢ HAI khoá cho mỗi dòng cũ. */
-export function leadBookKeys(book: readonly Lead[]): Set<string> {
-  return new Set(book.flatMap((l) => dedupeKeys({ company: l.company, province: l.province })))
+ *  hàm này dựng CẢ HAI khoá cho mỗi dòng cũ.
+ *
+ *  Nhận HÌNH TỐI THIỂU chứ không nhận `Lead`: sổ lead đã cắt sang máy chủ và
+ *  dòng của nó là `LeadRow` (`@pv/contracts`) chứ không còn là `Lead` của
+ *  fixture, trong khi khoá chống trùng chỉ đọc đúng hai ô. Bó vào một trong
+ *  hai kiểu dòng là bắt bên kia ép kiểu — và một chỗ ép kiểu là chỗ ngày mai
+ *  ai đó ép nhầm. `province` để tuỳ chọn vì `LeadRow` khai nó tuỳ chọn: một
+ *  lead về từ landing page chưa có tỉnh nào. */
+export function leadBookKeys(book: readonly { company: string; province?: string }[]): Set<string> {
+  return new Set(
+    book.flatMap((l) => dedupeKeys({ company: l.company, province: l.province ?? '' })),
+  )
 }
 
-/** Sổ như người dùng thấy: dòng vừa nạp đứng TRƯỚC sổ cũ.
- *
- *  Trước chứ không sau, cùng lý do với `mergeOps` của module Ops: thứ vừa nạp
- *  xong mà phải lật sang trang tám mới thấy thì người dùng tưởng nút không ăn. */
-export function mergeLeadBook(book: Lead[], imported: readonly ImportedLead[]): Lead[] {
-  return imported.length === 0 ? book : [...imported, ...book]
-}
+/* `mergeLeadBook` đã XOÁ 27/08 cùng lượt cắt sổ lead sang máy chủ. Nó gộp kho
+   `intake-desk` vào sổ đang vẽ, và từ lúc sổ do máy chủ trả thì phép gộp đó in
+   mỗi dòng nạp hai lần. `mergeOps` của module Ops còn nguyên — sổ cơ hội chưa
+   cắt, nên ở đó phép gộp vẫn đúng. */
 
 // ---------------------------------------------------------------------------
 // Từ dòng đã dựng sang dòng SỔ CƠ HỘI

@@ -335,8 +335,14 @@ export const PROFILE_FIELDS: ProfileField[] = [
   },
   { key: 'source', label: 'Nguồn kéo về', kind: 'read', group: 'so', mono: true },
   { key: 'createdAt', label: 'Vào sổ ngày', kind: 'read', group: 'so' },
-  { key: 'dealCode', label: 'Mã cơ hội', kind: 'read', group: 'so', mono: true },
-  { key: 'contractCode', label: 'Mã hợp đồng', kind: 'read', group: 'so', mono: true },
+  /* `dealCode` và `contractCode` KHÔNG còn được vẽ. Lead → cơ hội nay là 1-n,
+     nên không cột nào gọi tên được "cái" cơ hội hay "cái" hợp đồng, và
+     `GET /sales/leads/:code` không chở trường nào cho chúng — thứ sống sót là
+     `signed`, một boolean, và badge trạng thái ở đầu trang đã in nó. Hai ô chỉ
+     đọc treo lại ở đây sẽ vĩnh viễn hiện "—", hoặc tệ hơn, in tiếp mã của
+     fixture cho một hợp đồng cơ sở dữ liệu chưa từng nghe tên. Hai trường vẫn
+     còn trong kiểu `LeadProfile` của fixture (`profileForm` để trống chúng);
+     chúng biến mất hẳn ngày form bỏ được hình đóng băng. */
   { key: 'exitReason', label: 'Lý do ra khỏi luồng', kind: 'read', group: 'so' },
 ]
 

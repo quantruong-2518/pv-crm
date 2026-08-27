@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Search, UserRoundPlus, X } from 'lucide-react'
 import { Avatar, AvatarGroup, Badge, Button, Checkbox, GlassCard, Icon, Select, cn } from '@pv/ui'
-import { dasVina, HEAD_OF_SALES, type Lead } from '@pv/engines/fixtures/das-vina'
+import { dasVina, HEAD_OF_SALES, type Lead, type LeadContact } from '@pv/engines/fixtures/das-vina'
 import { useSession } from '@/app/auth'
 import { useLeadDesk } from '@/app/desk'
 import { assigneeOptions, nextActions } from '@/data/leads'
@@ -35,6 +35,10 @@ import { assigneeOptions, nextActions } from '@/data/leads'
 
 type MenuProps = {
   lead: Lead
+  /** Người liên hệ THẬT trên dây (`realContact(profile)`) — chở vào đây để ô
+   *  "Việc" của bảng giao việc đọc đúng gợi ý "Gọi …" của `nextActions`, không
+   *  đọc lại tên/số sinh từ mã lead. */
+  contact: LeadContact | null
   /** Nút to cho màn chi tiết, nút nhỏ cho hàng bảng. */
   size?: 'sm' | 'md'
   /** Bảng xổ lên hay xuống. `up` cho nút nằm trên thanh dính đáy — xổ xuống ở
@@ -43,7 +47,13 @@ type MenuProps = {
   className?: string
 }
 
-export function AssignMenu({ lead, size = 'md', placement = 'down', className }: MenuProps) {
+export function AssignMenu({
+  lead,
+  contact,
+  size = 'md',
+  placement = 'down',
+  className,
+}: MenuProps) {
   const me = useSession((s) => s.actor)
   const assigns = useLeadDesk((s) => s.assigns)
   const assign = useLeadDesk((s) => s.assign)
@@ -56,8 +66,12 @@ export function AssignMenu({ lead, size = 'md', placement = 'down', className }:
   const current = assigns[lead.code]
 
   /* Việc chọn được = next action của chính lead này, trừ "giao việc" (giao việc
-     để giao chính nó thì thành vòng tròn). */
-  const tasks = useMemo(() => nextActions(lead).filter((a) => a.key !== 'giao-viec'), [lead])
+     để giao chính nó thì thành vòng tròn). `contact` là người liên hệ THẬT —
+     xem docblock của `nextActions`. */
+  const tasks = useMemo(
+    () => nextActions(lead, contact).filter((a) => a.key !== 'giao-viec'),
+    [lead, contact],
+  )
 
   const people = useMemo(() => assigneeOptions(lead, dasVina.actors, me?.id), [lead, me?.id])
 

@@ -38,22 +38,29 @@ import {
   dasVina,
   filledSlots,
   INIT_DATA_QUESTIONS,
-  leadProfile,
-  leadResearch,
   leadTranscript,
   REQUIRED_SLOTS,
   toDong,
   type CurrencyCode,
   type Lead,
+  type LeadContact,
   type LeadEventKind,
   type LeadProfile,
   type TranscriptTurn,
   type TurnKind,
 } from '@pv/engines/fixtures/das-vina'
+/* HAI kiểu cùng tên `LeadProfile` gặp nhau ở file này, và đó là chuyện hợp
+   đồng đã báo trước: cái của fixture là hình mà FORM đọc (mọi trường có mặt,
+   `''`/`null` nghĩa là chưa moi được), cái của `@pv/contracts` là hình MÁY CHỦ
+   gửi (trường vắng nghĩa là chưa moi được). `profileForm` là chỗ duy nhất đi
+   từ cái sau sang cái trước. Đặt bí danh chứ không import bừa: một cái tên
+   chọn nhầm ở đây là cả cái form đọc sai một hồ sơ. */
+import type { LeadProfile as WireLeadProfile } from '@pv/contracts'
 import { todosOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
 import { dm, dmy } from '@/lib/date'
 import { nextActions } from '@/data/leads'
+import { profileForm } from '@/data/lead-profile'
 import {
   changedFields,
   fieldsOf,
@@ -310,12 +317,15 @@ function GateStrip({ profile }: { profile: LeadProfile }) {
  *  Sửa xong phải bấm lưu. Tự lưu từng phím nghe tiện nhưng bỏ mất trạng thái
  *  "tôi đang sửa dở" — mà đó chính là lúc người dùng cần thấy còn bao nhiêu ô
  *  chưa lưu và có đường lùi. */
-export function ProfileCard({ lead }: { lead: Lead }) {
-  const saved = useLeadDesk((s) => s.profiles[lead.code])
+export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
+  const saved = useLeadDesk((s) => s.profiles[profile.code])
   const patchProfile = useLeadDesk((s) => s.patchProfile)
   const resetProfile = useLeadDesk((s) => s.resetProfile)
 
-  const base = useMemo(() => leadProfile(lead), [lead])
+  /* Bản gốc là HỒ SƠ THẬT của máy chủ, không còn là bản sinh từ mã lead. Trường
+     vắng trên dây = chưa moi được, và `profileForm` dịch nó thành `''`/`null` —
+     đúng thứ ô nhập, cổng init data và ô chỉ đọc đều đã hiểu là "chưa có". */
+  const base = useMemo(() => profileForm(profile), [profile])
   const stored = useMemo(() => ({ ...base, ...saved }), [base, saved])
   const [work, setWork] = useState<LeadProfile>(stored)
   const [openBook, setOpenBook] = useState(false)
@@ -324,7 +334,6 @@ export function ProfileCard({ lead }: { lead: Lead }) {
      bấm sang lead khác vẫn thấy hồ sơ của lead trước. */
   useEffect(() => setWork(stored), [stored])
 
-  const research = useMemo(() => leadResearch(lead), [lead])
   const dirty = useMemo(() => changedFields(stored, work), [stored, work])
   const edited = useMemo(() => changedFields(base, stored), [base, stored])
 
@@ -335,15 +344,16 @@ export function ProfileCard({ lead }: { lead: Lead }) {
     <GlassCard className="flex flex-col gap-6 p-5 lg:p-6" aria-label="Hồ sơ lead">
       <SectionTitle
         size="lg"
-        kicker={
-          research.version > 0
-            ? `Cập nhật lần thứ ${research.version} · ${dmy(research.updatedAt)} · ${research.updatedBy}`
-            : 'Chưa ai nói chuyện được với khách'
-        }
+        /* Kicker cũ đếm số lần cập nhật từ `leadResearch`, thứ đếm số lần chạm
+           trong `history`. Bảng `sales.touch` chưa dựng nên hồ sơ về không có
+           lần chạm nào — con số đó sẽ là 0 với MỌI lead, kể cả lead vừa nói
+           chuyện xong. Một con số luôn bằng 0 không phải thông tin, nên chỗ này
+           nói thẳng ra là chưa có sổ để đếm. */
+        kicker="Chưa nối sổ lần chạm — không rõ ai cập nhật lần cuối"
         hint="Mười ô init data, mở ra thành ô nhập. Dấu sao là ô bắt buộc."
         actions={
           edited.length > 0 ? (
-            <Button size="sm" variant="ghost" onClick={() => resetProfile(lead.code)}>
+            <Button size="sm" variant="ghost" onClick={() => resetProfile(profile.code)}>
               <Icon icon={RotateCcw} size={16} />
               Về bản gốc · {edited.length} ô
             </Button>
@@ -388,7 +398,7 @@ export function ProfileCard({ lead }: { lead: Lead }) {
         <Button
           size="md"
           disabled={dirty.length === 0}
-          onClick={() => patchProfile(lead.code, work)}
+          onClick={() => patchProfile(profile.code, work)}
         >
           <Icon icon={Check} size={16} />
           Lưu {dirty.length > 0 ? `${dirty.length} ô đã sửa` : 'hồ sơ'}
@@ -556,8 +566,12 @@ export function NotesCard({ lead }: { lead: Lead }) {
  *  hẹn được ngày và giao được cho ai.
  *
  *  Ngày hẹn để TRỐNG được. Ép chọn ngày cho mọi việc thì người ta chọn bừa một
- *  ngày, và cả cột hạn thành vô nghĩa. */
-export function NextActionCard({ lead }: { lead: Lead }) {
+ *  ngày, và cả cột hạn thành vô nghĩa.
+ *
+ *  `contact` đến từ `realContact(profile)` ở `data/lead-profile.ts` — người
+ *  liên hệ THẬT trên dây, không phải `leadContact(lead)` sinh từ mã. Xem
+ *  docblock của `nextActions` (`data/leads.ts`) cho lý do đầy đủ. */
+export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadContact | null }) {
   const me = useSession((s) => s.actor)
   const todos = useLeadDesk((s) => todosOf(s, lead.code))
   const addTodo = useLeadDesk((s) => s.addTodo)
@@ -568,7 +582,10 @@ export function NextActionCard({ lead }: { lead: Lead }) {
   const [due, setDue] = useState('')
   const [who, setWho] = useState('')
 
-  const suggestions = useMemo(() => nextActions(lead).filter((a) => a.key !== 'giao-viec'), [lead])
+  const suggestions = useMemo(
+    () => nextActions(lead, contact).filter((a) => a.key !== 'giao-viec'),
+    [lead, contact],
+  )
   const people = useMemo(() => dasVina.actors.filter((a) => a.branches.includes('Sales')), [])
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? me?.name ?? ''
 
@@ -741,7 +758,13 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
  *
  *  Nguyên văn vẫn ĐÓNG sẵn: docs chốt transcript tiếng Anh là dữ liệu lưu,
  *  không phải thứ hiển thị mặc định. Mở ra thì vẽ thành bong bóng hai phía —
- *  một cuộc nói chuyện đọc ra phải giống một cuộc nói chuyện. */
+ *  một cuộc nói chuyện đọc ra phải giống một cuộc nói chuyện.
+ *
+ *  HÔM NAY KHỐI NÀY LUÔN RỖNG, và đó là câu trả lời chứ không phải chỗ hỏng:
+ *  bảng `sales.touch` chưa dựng, nên `GET /sales/leads/:code` không chở mốc nào
+ *  (`history: []` ở `leadOf`) và `leadTranscript` rơi về câu trả lời rỗng của
+ *  chính nó. Khối ở lại nguyên hình để ngày có endpoint lần chạm chỉ còn là
+ *  việc đổ dữ liệu vào — không phải dựng lại một dòng thời gian. */
 export function ActivityCard({ lead }: { lead: Lead }) {
   const turns = useMemo(() => leadTranscript(lead), [lead])
   const [tab, setTab] = useState('all')
@@ -792,8 +815,8 @@ export function ActivityCard({ lead }: { lead: Lead }) {
 
       {shown.length === 0 ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa lần chạm nào moi được ô nào, nên chưa có gì để lưu. Gọi mà không hỏi ra gì thì không
-          sinh transcript.
+          Chưa có mốc nào để vẽ: sổ lần chạm chưa nối vào máy chủ, nên hồ sơ về không mang theo lịch
+          sử tương tác nào.
         </p>
       ) : (
         <ol className="flex flex-col">

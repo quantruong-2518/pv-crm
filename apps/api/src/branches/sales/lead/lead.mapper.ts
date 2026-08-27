@@ -1,5 +1,5 @@
 import type { ObjectRef } from '@pv/engines'
-import type { LeadRow } from '@pv/contracts'
+import type { LeadProfile, LeadRow } from '@pv/contracts'
 import type { LeadRowDb } from './lead.schema'
 
 /** Một dòng đã đọc xong từ bảng, kèm thứ không phải cột.
@@ -28,7 +28,8 @@ export type LeadRead = {
  *  đổi tên thì hợp đồng vỡ lặng lẽ. Ở đây `tsc` bắt được cả hai.
  *
  *  Hai mươi trường hồ sơ (`pain`, `budget`, `decision_maker`…) CỐ TÌNH vắng:
- *  chúng thuộc hợp đồng của `GET /sales/leads/:code`, không thuộc dòng sổ. */
+ *  chúng thuộc hợp đồng của `GET /sales/leads/:code`, không thuộc dòng sổ —
+ *  `toProfile` ở cuối file chở chúng, và nó GỌI hàm này chứ không chép lại. */
 export function toContract({ row, daysHere, ownerName, ownerEmail, signed }: LeadRead): LeadRow {
   return {
     code: row.code,
@@ -55,6 +56,80 @@ export function toContract({ row, daysHere, ownerName, ownerEmail, signed }: Lea
     createdAt: row.createdAt.toISOString(),
     ...(row.exitReason ? { exitReason: row.exitReason } : {}),
     ...(row.exitedAt ? { exitedAt: row.exitedAt.toISOString() } : {}),
+  }
+}
+
+/** Một hồ sơ đã đọc xong: dòng sổ, cộng hai người được ghi công.
+ *
+ *  Same rule as `LeadRead` above, one level wider. `bd_owner_id` and
+ *  `marketing_owner_id` ARE columns — they sit inside `row` — while the four
+ *  fields below are not: they come from two more `leftJoin(actor, …)`, exactly
+ *  the way `ownerName`/`ownerEmail` already do for the holder.
+ *
+ *  Intersection with `LeadRead` rather than a fresh type, for the reason
+ *  `LeadProfile` extends `LeadRow` on the contract side: one shape of the read
+ *  row, widened, never a second one written by hand. */
+export type LeadProfileRead = LeadRead & {
+  bdOwnerName: string | null
+  bdOwnerEmail: string | null
+  marketingOwnerName: string | null
+  marketingOwnerEmail: string | null
+}
+
+/** Hàng trong bảng → HỒ SƠ. Một lớp mỏng đặt trên `toContract`.
+ *
+ *  ------------------------------------------------------------------
+ *  IT SPREADS `toContract`, IT DOES NOT RE-MAP THE ROW
+ *  ------------------------------------------------------------------
+ *  Every field the book already carries is produced by exactly one function,
+ *  and this is that same function. Writing the twenty-odd shared assignments
+ *  out again here would compile, pass every check, and then quietly answer two
+ *  different things for one lead the first time `toContract` gains a rule the
+ *  copy never heard about — the failure mode `LeadProfile.extend()` removes on
+ *  the contract side, removed here on the mapping side by the same means.
+ *
+ *  So this function is allowed to know only what the book does NOT carry.
+ *
+ *  The `? { x } : {}` spread is the same convention `toContract` uses, and it is
+ *  about the WIRE: an absent key is what `JSON.stringify` drops, while
+ *  `x: undefined` and `x: null` both reach the screen as a value it has to
+ *  special-case. The contract spells every one of these fields `optional()`,
+ *  meaning "not dug out yet" — that is an absence, not a null. */
+export function toProfile(read: LeadProfileRead): LeadProfile {
+  const { row } = read
+  return {
+    ...toContract(read),
+
+    ...(row.legalName ? { legalName: row.legalName } : {}),
+    ...(row.taxCode ? { taxCode: row.taxCode } : {}),
+    ...(row.address ? { address: row.address } : {}),
+    ...(row.mainProduct ? { mainProduct: row.mainProduct } : {}),
+    /* `!== null` and not a truthiness test, unlike the strings above: `0` plants
+       is a fact somebody dug out, `null` is a question nobody has asked yet, and
+       `if (row.plants)` cannot tell those two apart. */
+    ...(row.headcount !== null ? { headcount: row.headcount } : {}),
+    ...(row.plants !== null ? { plants: row.plants } : {}),
+
+    ...(row.pain ? { pain: row.pain } : {}),
+    ...(row.currentStack ? { currentStack: row.currentStack } : {}),
+    ...(row.decisionMaker ? { decisionMaker: row.decisionMaker } : {}),
+    ...(row.approver ? { approver: row.approver } : {}),
+    /* Same `!== null` reasoning; `CHECK lead_money_pair` already guarantees the
+       two travel together, so the profile can never print a number whose unit
+       nobody knows. */
+    ...(row.budget !== null ? { budget: row.budget } : {}),
+    ...(row.currency ? { currency: row.currency } : {}),
+    ...(row.deadline ? { deadline: row.deadline } : {}),
+
+    ...(row.bdOwnerId ? { bdOwnerId: row.bdOwnerId } : {}),
+    ...(read.bdOwnerName ? { bdOwnerName: read.bdOwnerName } : {}),
+    ...(read.bdOwnerEmail ? { bdOwnerEmail: read.bdOwnerEmail } : {}),
+    ...(row.marketingOwnerId ? { marketingOwnerId: row.marketingOwnerId } : {}),
+    ...(read.marketingOwnerName ? { marketingOwnerName: read.marketingOwnerName } : {}),
+    ...(read.marketingOwnerEmail ? { marketingOwnerEmail: read.marketingOwnerEmail } : {}),
+
+    ...(row.intakeChannel ? { intakeChannel: row.intakeChannel } : {}),
+    ...(row.motion ? { motion: row.motion } : {}),
   }
 }
 

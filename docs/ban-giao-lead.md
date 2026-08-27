@@ -7,19 +7,20 @@ Lát cắt **27/08/2026**, nhánh `develop`, `pnpm check` **xanh**. Tiếp nối
 
 ---
 
-## Đã dựng — 10 đường dữ liệu, tất cả chạy thật trên Neon
+## Đã dựng — 11 đường dữ liệu, tất cả chạy thật trên Neon
 
 | Đường                                           | Quyền                    | Trạng thái                             |
 | ----------------------------------------------- | ------------------------ | -------------------------------------- |
 | `GET /healthz`                                  | công khai                | ✅                                     |
 | `GET /sales/leads`                              | `lead.xem` · cắt phạm vi | ✅ lọc + sắp + phân trang **ở server** |
+| `GET /sales/leads/:code`                        | `lead.xem` · cắt phạm vi | ✅ hồ sơ · ngoài phạm vi là **403**    |
 | `POST /sales/leads`                             | `lead.sửa`               | ✅ 201 · nhập tay                      |
 | `POST /sales/leads/import/preview`              | `lead.sửa`               | ✅ 200 · **không ghi gì**              |
 | `POST /sales/leads/import`                      | `lead.sửa`               | ✅ 201 · một transaction               |
 | `GET /sales/config` · `GET /sales/config/:list` | `cấu-hình.xem`           | ✅ 6 danh mục                          |
 | `POST · PATCH /sales/config/…` (3 đường)        | `cấu-hình.đề-nghị`       | ⚠️ **500 — cửa E3 chưa nối**           |
 
-`RouteAudit` lúc khởi động: _10 đường dữ liệu, đều đã khai quyền._
+`RouteAudit` lúc khởi động: _11 đường dữ liệu, đều đã khai quyền._
 
 ### Kiểm bằng số thật, không suy luận
 
@@ -248,7 +249,7 @@ cd apps/api && PORT=4123 pnpm dev
 curl -H 'X-PV-Actor-Id: u-ha' 'http://127.0.0.1:4123/sales/leads?status=all&size=3'
 ```
 
-Nhập `docs/pv-one.postman_collection.json` vào Postman là gọi được cả 12 request.
+Nhập `docs/pv-one.postman_collection.json` vào Postman là gọi được cả 14 request.
 Xác thực hôm nay là **cửa sau POC** (`X-PV-Actor-Id`), `env.ts` chặn ở production.
 
 ⚠️ `apps/api/.env` đang trỏ **thẳng Neon**, nên `pnpm db:seed` **xoá sạch Neon rồi

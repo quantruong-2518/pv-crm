@@ -166,7 +166,10 @@ export function fromDbError(raw: unknown): DbTranslation | null {
   const kind = note?.kind ?? fallback.kind ?? 'invalid'
 
   return {
-    error: kind === 'conflict' ? conflict(message) : invalid(fieldsOf(note, message), message),
+    error:
+      kind === 'conflict'
+        ? conflict(message, fieldsOf(note, message))
+        : invalid(fieldsOf(note, message), message),
     log: describe(pg),
   }
 }

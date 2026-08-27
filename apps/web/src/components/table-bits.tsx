@@ -1,6 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button, Icon } from '@pv/ui'
-import { staffEmail } from '@pv/engines/fixtures/das-vina'
 
 /** Ba mảnh dùng chung của MỌI SỔ — sổ lead (module Lead) và sổ cơ hội (module Ops).
  *
@@ -10,8 +9,8 @@ import { staffEmail } from '@pv/engines/fixtures/das-vina'
  *  nhau, và vẽ ô trống giống nhau. Chép sang màn thứ hai là mở đường cho hai
  *  cái sổ trôi khỏi nhau — bên này "Trước/Sau", bên kia "◀ ▶", cùng một app.
  *
- *  Chúng KHÔNG lên `@pv/ui`: `PicCell` biết quy ước hòm thư của công ty, đó là
- *  kiến thức của app chứ không của thư viện component (biên giới package ·
+ *  Chúng KHÔNG lên `@pv/ui`: cả ba biết cách phòng kinh doanh đọc một dòng sổ,
+ *  đó là kiến thức của app chứ không của thư viện component (biên giới package ·
  *  CLAUDE.md). Cần một Pager thật sự tổng quát thì đó là một atom mới, có mặt
  *  trên trang kit — việc riêng, không gộp vào đây. */
 
@@ -50,14 +49,17 @@ export function Pager({
 
 /** Cột người bên MÌNH — hòm thư công ty, không phải tên hiển thị.
  *
- *  Tên đọc đẹp nhưng TRÙNG ĐƯỢC; `huydq@pebblevina.com` thì không. Sổ là chỗ
- *  người ta đối chiếu với hệ khác (thư, lịch, bảng hoa hồng), và mọi hệ đó khoá
- *  theo hòm thư. Tên đầy đủ vẫn còn, ở `title`.
+ *  Tên đọc đẹp nhưng TRÙNG ĐƯỢC; một hòm thư thì không. Sổ là chỗ người ta đối
+ *  chiếu với hệ khác (thư, lịch, bảng hoa hồng), và mọi hệ đó khoá theo hòm
+ *  thư. Tên đầy đủ vẫn còn, ở `title`.
  *
- *  Cách dựng mã nằm ở fixture (`staffEmail`), không ở đây: đó là quy ước của
- *  công ty, không phải cách trình bày của một cái bảng. */
-export function PicCell({ owner, empty }: { owner?: string; empty: string }) {
-  if (!owner) {
+ *  Hòm thư ĐI VÀO bằng props, không dựng lại từ tên. Bản cũ gọi `staffEmail`
+ *  của fixture — một quy ước ghép chữ (`huydq@pebblevina.com`) đúng với 100
+ *  dòng đóng băng và là một phép ĐOÁN với bảng `platform.actor` thật, nơi hòm
+ *  thư là một cột người ta gõ vào. Đoán sai ở đây là một lá thư gửi tới địa chỉ
+ *  không tồn tại, và không ai biết cho tới lúc nó dội về. */
+export function PicCell({ email, name, empty }: { email?: string; name?: string; empty: string }) {
+  if (!email) {
     return (
       <span className="text-muted-foreground" title={empty}>
         —
@@ -65,8 +67,8 @@ export function PicCell({ owner, empty }: { owner?: string; empty: string }) {
     )
   }
   return (
-    <span className="block truncate font-mono text-[11px]" title={owner}>
-      {staffEmail(owner)}
+    <span className="block truncate font-mono text-[11px]" title={name ?? email}>
+      {email}
     </span>
   )
 }

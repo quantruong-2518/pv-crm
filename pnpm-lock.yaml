@@ -144,6 +144,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@pv/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@pv/engines':
         specifier: workspace:*
         version: link:../../packages/engines

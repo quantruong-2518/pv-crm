@@ -10,7 +10,16 @@ import {
   textNhapTuyChon,
 } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { ContactChannel, CurrencyCode, ExitReason, LeadCategory, LeadTier, StageKey } from './enums'
+import {
+  ContactChannel,
+  CurrencyCode,
+  ExitReason,
+  IntakeChannel,
+  LeadCategory,
+  LeadMotion,
+  LeadTier,
+  StageKey,
+} from './enums'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
@@ -238,6 +247,136 @@ export const LeadBookQuery = PageQuery.extend({
 export const LeadBookResponse = paged(LeadRow)
 
 // ---------------------------------------------------------------------------
+// One whole lead — `GET /sales/leads/:code`
+// ---------------------------------------------------------------------------
+
+/** The profile of ONE lead. `GET /sales/leads/:code`.
+ *
+ *  ------------------------------------------------------------------
+ *  AN EXTENSION OF `LeadRow`, NOT A SECOND SHAPE OF THE SAME TABLE
+ *  ------------------------------------------------------------------
+ *  `.extend()` rather than a fresh `z.object`, and that IS the design of this
+ *  schema. The book row and the profile describe one table, so everything they
+ *  share — `code`, `company`, `email`, `signed`, `daysHere`, the three owner
+ *  fields, the two slot counters — is declared exactly once, above, and cannot
+ *  drift here. A hand-written twin agrees on the day it is written and stops
+ *  agreeing the first time somebody adds a column to only one of them; the
+ *  screen then prints one value in the book and another on the profile of the
+ *  same lead, and neither is wrong enough for anyone to notice.
+ *
+ *  The server holds the same line: `toProfile` in `lead.mapper.ts` CALLS
+ *  `toContract` and adds to it, rather than mapping the row a second time.
+ *
+ *  ------------------------------------------------------------------
+ *  WHAT THIS ADDS — THE COLUMNS THE BOOK DELIBERATELY LEAVES BEHIND
+ *  ------------------------------------------------------------------
+ *  Four groups, and they are the table's own groups (`lead.schema.ts`): who
+ *  the company is, what it wants solved, who else is credited on it, and which
+ *  door it came through. A 100-row book carrying all of them ships a few
+ *  hundred KB for a table that shows eight columns — the reason stated at the
+ *  top of `LeadRow`, and the reason these live here.
+ *
+ *  ------------------------------------------------------------------
+ *  WHAT IS NOT HERE, AND WHY EACH ABSENCE IS AN ANSWER
+ *  ------------------------------------------------------------------
+ *   · `dealCode` / `contractCode` — the frozen fixture profile carries both;
+ *     the table carries neither. Lead -> opportunity became 1-n, so no single
+ *     column can name "the" deal or "the" contract. `signed`, inherited from
+ *     `LeadRow`, is the boolean that survived that change. The codes come back
+ *     the day the profile carries a LIST of opportunities, which is another
+ *     query and another contract, not a field added here.
+ *   · touches, the conversation record, `history` — `sales.touch` does not
+ *     exist yet, which is also why `score` is `0` and `lastTouchAt` is absent
+ *     on every row in the book today.
+ *   · `stageSince` — the timestamp `daysHere` is computed from, and `daysHere`
+ *     is already inherited. Two spellings of one fact is how the two start to
+ *     disagree.
+ *
+ *  NAME COLLISION, on purpose: `@pv/engines/fixtures/das-vina` exports a type
+ *  also called `LeadProfile` — the frozen shape the detail screen reads today,
+ *  built by a deterministic generator. This one describes the real table. A
+ *  file importing both gets a compile error instead of a silent pick, and that
+ *  error is the right moment to delete the other one. */
+export const LeadProfile = LeadRow.extend({
+  // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
+  //
+  // `province` and `category` are NOT repeated here: the book already carries
+  // them, because both are known the moment a lead enters the book rather than
+  // dug out of a conversation later.
+
+  /** The name on the paperwork, which is not the name the book calls them. */
+  legalName: z.string().min(1).optional(),
+  /** Free text, matching the column: 10 digits, or 13 with a branch suffix. */
+  taxCode: z.string().min(1).optional(),
+  address: z.string().min(1).optional(),
+  mainProduct: z.string().min(1).optional(),
+
+  /** Headcount and plants — `nonnegative`, not `positive`, and the difference
+   *  is deliberate. `LeadCreate` narrows both to `positive()` because a person
+   *  typing "0 employees" is typing a mistake. This is the READ side: it has
+   *  to describe every value the `integer` column can legally hold, including
+   *  the `0` that an imported file can carry, or a row already in the table
+   *  fails its own response contract and the profile answers 500 for a lead
+   *  the book lists happily. */
+  headcount: z.number().int().nonnegative().optional(),
+  plants: z.number().int().nonnegative().optional(),
+
+  // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
+
+  /** Slot 6 — the most valuable sentence in the whole profile. */
+  pain: z.string().min(1).optional(),
+  currentStack: z.string().min(1).optional(),
+  decisionMaker: z.string().min(1).optional(),
+  approver: z.string().min(1).optional(),
+  /** The budget the CUSTOMER named, not the price we quoted. Travels with its
+   *  unit or not at all — `CHECK lead_money_pair` guarantees the pair, so a
+   *  profile can never show a number whose currency nobody knows. */
+  budget: Dong.optional(),
+  currency: CurrencyCode.optional(),
+  deadline: Ngay.optional(),
+
+  // ── credit · the two holders that are NOT the scope axis ─────────────────
+  //
+  // Three id/name/email triples now, all built the same way and for the same
+  // three reasons `ownerId` · `ownerName` · `ownerEmail` are spelled out above:
+  // the id is the only thing anything may compare, the name is a label that
+  // changes and collides, the mailbox is what a person reconciles against mail
+  // and commission sheets. All six extra values come out of two more
+  // `leftJoin(actor, …)` in the query the profile already runs — two more
+  // joins, no extra round trip.
+  //
+  // Only `ownerId` is the scope axis. These two record CREDIT — BD is named
+  // when BD put a hand on the lead, marketing when the campaign brought it —
+  // and `CREDIT_RULES` reads them for commission. A Sale who owns nothing here
+  // but appears as `bdOwnerId` still does not see the lead, and that is the
+  // intended answer: credit is not custody.
+
+  bdOwnerId: z.string().min(1).optional(),
+  bdOwnerName: z.string().min(1).optional(),
+  bdOwnerEmail: z.string().min(1).optional(),
+
+  marketingOwnerId: z.string().min(1).optional(),
+  marketingOwnerName: z.string().min(1).optional(),
+  marketingOwnerEmail: z.string().min(1).optional(),
+
+  // ── intake · which door, and who moved first ─────────────────────────────
+  //
+  // Two axes, never one (`./lead-intake` has the long argument). Both are
+  // nullable in the table and stay optional here: the 100 frozen fixture rows
+  // predate the idea of an intake door entirely, so inventing a value for them
+  // would put made-up data on the Performance screen.
+
+  /** Which door the row came through. The system writes it, nobody types it —
+   *  which is what makes `CHANNEL_TRUST` worth reading: trust is DERIVED from
+   *  this, and a trust level the client asserted about itself is worth nothing. */
+  intakeChannel: IntakeChannel.optional(),
+  /** Who made the first move. Stored `UPPER_SNAKE`, same spelling on the wire;
+   *  `@pv/engines` still spells the same six values in lower case, and
+   *  `lead.mapper.ts` is the ONE place the two forms are allowed to meet. */
+  motion: LeadMotion.optional(),
+})
+
+// ---------------------------------------------------------------------------
 // Creating one lead by hand
 // ---------------------------------------------------------------------------
 
@@ -354,5 +493,6 @@ export type LeadStatus = z.infer<typeof LeadStatus>
 export type LeadSortKey = z.infer<typeof LeadSortKey>
 export type LeadBookQuery = z.infer<typeof LeadBookQuery>
 export type LeadBookResponse = z.infer<typeof LeadBookResponse>
+export type LeadProfile = z.infer<typeof LeadProfile>
 export type LeadCreate = z.infer<typeof LeadCreate>
 export type LeadCreateResponse = z.infer<typeof LeadCreateResponse>

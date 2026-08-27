@@ -47,7 +47,7 @@ import { useIntakeDesk } from '@/app/intake-desk'
 import { toast } from '@/app/toast'
 import { STATUS_LABEL, STATUS_TONE, sourcesQuery } from '@/data/campaigns'
 import { RECIPIENT_SPEC, leadBookKeys, rowsToLeads } from '@/data/intake'
-import { leadBookQuery } from '@/data/leads'
+import { frozenLeadBookQuery } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { CampaignForm, NotDoing } from './campaign-parts'
@@ -90,7 +90,7 @@ export function CampaignDetailPage() {
   /* Sổ lead đọc ở đây CHỈ để chống trùng và cấp mã cho lô nạp — màn không vẽ
      dòng lead nào (lý do ở "Cố tình không làm"). Hook nằm trên hai cửa thoát
      sớm bên dưới, vì thứ tự hook không được đổi giữa hai lượt vẽ. */
-  const { data: leadBook = [] } = useQuery(leadBookQuery)
+  const { data: leadBook = [] } = useQuery(frozenLeadBookQuery)
   const importedLeads = useIntakeDesk((s) => s.leads)
   const addLeads = useIntakeDesk((s) => s.addLeads)
 

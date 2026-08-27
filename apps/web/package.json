@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pv/contracts": "workspace:*",
     "@pv/engines": "workspace:*",
     "@pv/tokens": "workspace:*",
     "@pv/ui": "workspace:*",

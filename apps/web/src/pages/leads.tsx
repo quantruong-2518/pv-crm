@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck, FileCheck, Inbox, Pin, Target, Users } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { CalendarCheck, FileCheck, Inbox, PenLine, Pin, Target, Users } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -12,39 +12,48 @@ import {
   GlassCard,
   Icon,
   Kicker,
+  MetaPill,
   SearchField,
   Select,
   Skeleton,
   StatCard,
   cn,
   percent,
-  type TableSort,
 } from '@pv/ui'
 import {
   DAS_VINA_FROZEN_AT,
   dayISO,
   FIRST_MEETINGS,
   FUNNEL,
-  isOverSla,
-  isRunning,
   LEAD_CATEGORIES,
-  leadContact,
-  leadOrigin,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
-  SOURCES,
-  type Lead,
 } from '@pv/engines/fixtures/das-vina'
+import {
+  OWNER_NONE,
+  type ConfigEntry,
+  type LeadBookQuery,
+  type LeadRow,
+  type LeadStatus,
+} from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
+import {
+  DEFAULT_LEAD_BOOK_QUERY,
+  leadBookQueryToParams,
+  pageIndexFromQueryPage,
+  parseLeadBookQuery,
+  queryPageFromPageIndex,
+} from '@/app/url'
 import { dm } from '@/lib/date'
-import { leadBookQuery, ORIGIN_FACE } from '@/data/leads'
-import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
-import { useIntakeDesk } from '@/app/intake-desk'
+import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery, UNKNOWN_SOURCE_FACE } from '@/data/leads'
+import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
-import { LEAD_SPEC, leadBookKeys, mergeLeadBook, rowsToLeads } from '@/data/intake'
+import { LEAD_SPEC } from '@/data/intake'
+import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
+import { LeadCreateDialog } from '@/components/lead-create-dialog'
 import { Pager, PersonCell, PicCell } from '@/components/table-bits'
 
 /** Module 2 · Sổ lead.
@@ -101,41 +110,90 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *   · **Nguồn** — bỏ mã, còn một hình. `SK-0103` là sáu ký tự không ai đọc ra
  *     nghĩa khi lướt bảng; cái hình trả lời xong câu "về bằng đường nào". Cột
  *     rút từ `1fr` xuống 64px, chỗ dôi ra chia cho hai cột bên phải.
- *   · **Lead PIC** (trước là "Người giữ") — in hòm thư công ty
- *     (`huydq@pebblevina.com`) chứ không in tên. Tên trùng được, hòm thư thì
- *     không, và mọi hệ khác (thư, lịch, bảng hoa hồng) đều khoá theo nó.
+ *     — CẬP NHẬT 27/08: một icon không phân biệt nổi hai chiến dịch khác hẳn
+ *     nhau (cùng `kind`, chỉ bốn giá trị). Cột đổi sang pill icon + TÊN RÚT
+ *     GỌN của `config_entry.name` (cắt ở dấu `—`/`·` đầu tiên), tên đầy đủ
+ *     nằm ở `title`.
+ *     — CẬP NHẬT LẦN 2 (chủ dự án xem xong): bỏ hẳn icon trong pill — tên chữ
+ *     giờ đã là tín hiệu chính, icon chỉ chiếm chỗ (`Database` cho "mua dữ
+ *     liệu" từng bị đọc sai nghĩa). Loại `mua-du-lieu` tô pill tone `warning`
+ *     (vàng) thay vì `muted`, theo đúng `kind` chứ không theo `id` — xem lý do
+ *     ở `SourceMark`. Rộng thu 160px → 140px vì hết icon thì chữ cần ít chỗ
+ *     hơn — xem `SourceMark`.
+ *   · **Lead PIC** (trước là "Người giữ") — in hòm thư công ty chứ không in
+ *     tên. Tên trùng được, hòm thư thì không, và mọi hệ khác (thư, lịch, bảng
+ *     hoa hồng) đều khoá theo nó. Hòm thư ĐỌC TỪ dòng sổ (`ownerEmail`), không
+ *     suy từ tên nữa: suy ra là đoán, và một cái đoán ở đây là một lá thư gửi
+ *     tới địa chỉ không tồn tại.
  *
  *  Nhãn hai cột người lấy từ chính fixture chứ không dịch lại: câu số 4 của init
  *  data tên là "Người liên hệ và chức danh" (`INIT_DATA_QUESTIONS`).
  *
- *  58/100 lead CHƯA có người liên hệ — ô số 4 chưa moi được. Hai cột người vẽ
- *  "—" cho chúng và nói lý do ở `title`. `leadContact` đã dặn thẳng: điền một
- *  cái tên cho đủ ô là phá đúng thứ cổng init data sinh ra để đo.
+ *  58/119 dòng CHƯA có chức danh — ô số 4 chưa moi được. Hai cột người vẽ
+ *  "—" cho chúng và nói lý do ở `title`. Điền một cái tên cho đủ ô là phá đúng
+ *  thứ cổng init data sinh ra để đo.
  *
  *  Hàng lọc: ô tìm · Trạng thái · Nguồn · Lead PIC · Account — tên ô lọc đi
  *  theo tên cột, vì một trường mà hai chỗ gọi hai tên là chỗ để hiểu nhầm. Bỏ:
  *  Bậc · Ngành · Quá SLA.
  *
- *  Sổ là CẢ KỲ 01/05 → 17/08: 100 dòng, phân trang, không cuộn vô tận.
+ *  Sổ phân trang, không cuộn vô tận — và từ 27/08 nó là sổ THẬT của máy chủ,
+ *  không còn là 100 dòng đóng băng. Thẻ điểm phía trên vẫn là số của kỳ đóng
+ *  băng (xem mục ngay dưới), nên hai khối trên cùng một màn đang đếm hai sổ
+ *  khác nhau cho tới khi có endpoint trả thẻ điểm.
  *
- *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. Vào được màn này là vai có
- *  nhánh Sales — cửa ở `app/auth/guard.tsx`, không kiểm lại ở đây.
+ *  Vào được màn này là vai có nhánh Sales — cửa ở `app/auth/guard.tsx`, không
+ *  kiểm lại ở đây. Trục PHẠM VI thì máy chủ cắt: một Sale `ownOnly` chỉ nhận
+ *  dòng mình giữ, và số dòng bị cắt về trong `hidden`.
  *
  *  Ba mảnh `Pager` · `PicCell` · `PersonCell` đã chuyển sang
  *  `components/table-bits.tsx` (23/08) — sổ cơ hội của module Ops cần đúng ba thứ
  *  đó, và hai cái sổ của cùng một phòng phải phân trang giống nhau.
  *
- *  State: bộ lọc, trang và cột sắp xếp là chuyện RIÊNG của màn nên giữ ở đây
- *  bằng `useState`. Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và
- *  đi qua cả màn chi tiết — chúng nằm ở `app/desk.ts`. */
+ *  ------------------------------------------------------------------
+ *  SỔ ĐÃ CẮT SANG MÁY CHỦ — LỌC · SẮP · PHÂN TRANG KHÔNG CÒN Ở ĐÂY
+ *  ------------------------------------------------------------------
+ *  `GET /sales/leads` trả về đúng một trang đã lọc, đã sắp, kèm `total`. Bốn
+ *  đoạn đã XOÁ khỏi màn, không phải vô hiệu hoá: `book.filter(...)`, phép sắp
+ *  theo `company` ở trình duyệt (máy chủ còn nối thêm `code` làm khoá phá hoà,
+ *  thứ bản cũ không có nên một dòng lọt được vào cả hai trang), phép cắt trang
+ *  bằng `slice`, và phép gộp dòng nạp từ tệp — đợt 3 ghi thẳng lên máy chủ,
+ *  giữ phép gộp lại là hiện đôi dòng.
+ *
+ *  Bộ lọc sống trên ĐỊA CHỈ, không trong `useState`. Một bộ lọc chỉ nằm trong
+ *  state React thì F5 mất sạch, link không gửi được cho ai, và nút back không
+ *  còn nghĩa gì — ba thứ đó không phải tiện nghi, chúng là cách người ta thật
+ *  sự dùng một cái sổ. Dịch hai chiều nằm ở `app/url.ts`, màn chỉ nối dây.
+ *
+ *  Ba thứ VẪN đọc fixture, và mỗi thứ có lý do riêng: thẻ điểm (`FUNNEL`,
+ *  `FIRST_MEETINGS`) là số CẢ KỲ, cố tình không đổi theo bộ lọc và không
+ *  endpoint nào trả nó; nhãn của bậc, ngành và lý do rơi vì `LeadRow` còn chở
+ *  khoá chữ thường cũ chứ chưa phải ID cấu hình (nợ đã ghi ở
+ *  `docs/tich-hop-be.md`). Chỉ NGUỒN đã nối được vào sổ nguồn thật.
+ *
+ *  Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và đi qua cả màn chi
+ *  tiết — chúng nằm ở `app/desk.ts`. */
 
+/** Số dòng một trang. Máy chủ cắt trang, nhưng con số vẫn do màn quyết —
+ *  `size` đi kèm mọi lời gọi. */
 const PAGE_SIZE = 10
 
-/** Mục "chưa ai nhận" của ô lọc Người giữ. Phải là một giá trị KHÔNG trùng tên
- *  người nào trong sổ — `<select>` gốc chỉ mang được chuỗi. */
-const NO_OWNER = '\u0000chua-ai-nhan'
+/** Giá trị "không lọc trục này" của ba ô Select. Trên dây thì "không lọc" là
+ *  trường VẮNG MẶT, nhưng `<select>` gốc chỉ mang được chuỗi nên vẫn cần một
+ *  giá trị để đại diện. Đổi qua đổi lại đúng ở hai chỗ: `?? ANY` lúc đọc,
+ *  `=== ANY ? undefined` lúc ghi. */
+const ANY = 'all'
+
+/** Chờ bao lâu sau phím cuối rồi mới ghi ô tìm lên địa chỉ.
+ *
+ *  Ô tìm nay là một trục LỌC CỦA MÁY CHỦ, nên mỗi lần ghi là một vòng mạng và
+ *  một mục cache mới. Ghi thẳng từng phím thì gõ "Coreline" là tám lần gọi cho
+ *  một câu hỏi. Chữ trong ô vẫn đổi ngay từng phím — chỉ có địa chỉ là đợi. */
+const SEARCH_DELAY_MS = 300
 
 const NO_CONTACT = 'Chưa có người liên hệ — ô số 4 của init data chưa moi được'
+
+const NO_TITLE = 'Chưa có chức danh — ô số 4 của init data chưa moi được'
 
 const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
 
@@ -144,149 +202,206 @@ const PERIOD_FROM = dm(dayISO(0))
 const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
 
 /** Bốn trạng thái của một dòng trong sổ. "Đang chạy" là mặc định — lead đã rơi
- *  vẫn tra được, vì đó là nơi câu trả lời "vì sao mất" nằm. */
-const STATUSES = [
+ *  vẫn tra được, vì đó là nơi câu trả lời "vì sao mất" nằm.
+ *
+ *  Bốn khoá là bốn giá trị của `LeadStatus` trong hợp đồng, không phải một bản
+ *  liệt kê thứ hai: chúng đi thẳng lên địa chỉ rồi lên dây. */
+const STATUSES: { key: LeadStatus; label: string }[] = [
   { key: 'running', label: 'Đang chạy' },
   { key: 'signed', label: 'Đã ký' },
   { key: 'exited', label: 'Đã rơi' },
   { key: 'all', label: 'Cả kỳ' },
-] as const
-
-type StatusKey = (typeof STATUSES)[number]['key']
+]
 
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
+const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
 
-function matchStatus(lead: Lead, status: StatusKey): boolean {
-  if (status === 'all') return true
-  if (status === 'signed') return Boolean(lead.contractCode)
-  if (status === 'exited') return Boolean(lead.exitReason)
-  return isRunning(lead)
+/** Mảng rỗng dùng chung — một `?? []` viết thẳng trong thân component đẻ ra
+ *  một mảng MỚI mỗi lượt vẽ, và mọi `useMemo` phụ thuộc vào nó mất tác dụng. */
+const NO_SOURCES: ConfigEntry[] = []
+
+/** Panel nạp tệp KHÔNG chống trùng trong trình duyệt nữa — tập rỗng là một
+ *  quyết định, không phải một chỗ chưa nối.
+ *
+ *  Hai bên chống trùng bằng hai khoá khác nhau và trả lời hai câu khác nhau:
+ *  panel khoá theo `mst:` rồi `ten:company|tỉnh` ("có phải cùng một CÔNG TY"),
+ *  máy chủ khoá theo `email:lower(email)` trong các lead chưa rơi ("có phải
+ *  cùng một LEAD ĐANG SỐNG"). Giữ cả hai thì một dòng bị trình duyệt loại
+ *  không bao giờ tới được máy chủ, mà bốn con số panel vẽ lại là số của máy
+ *  chủ — bảng kết quả sẽ báo "0 dòng trùng" cho một lô vừa bị loại ba dòng.
+ *  Một cửa chống trùng, và đó là cửa có index đứng sau.
+ *
+ *  Hai sổ kia (người nhận, cơ hội) KHÔNG có endpoint nào, nên chúng vẫn tự
+ *  chống trùng bằng `leadBookKeys` — cùng một panel, hai cách dùng. */
+const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
+
+/** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
+ *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết. Hạn vẫn đọc từ
+ *  `PIPELINE_STAGES` — mục 5.2 của module Cấu hình, không chế ở đây. */
+function overSla(lead: LeadRow): boolean {
+  if (!lead.stage) return false
+  return lead.daysHere > (STAGE_LIMIT.get(lead.stage) ?? Infinity)
 }
 
 export function LeadsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
-  const { data: frozen = [], isPending } = useQuery(leadBookQuery)
+  const [params, setParams] = useSearchParams()
 
-  /* Sổ trên màn = 100 dòng đóng băng + dòng người dùng NẠP TỪ TỆP trong phiên
-     này. Gộp ở `mergeLeadBook` chứ không ở đây, cùng cách `mergeOps` gộp ba
-     nguồn của sổ cơ hội — hai bản gộp chép tay sẽ lệch ngay lần đầu ai đó thêm
-     nguồn thứ ba. */
-  const importedLeads = useIntakeDesk((s) => s.leads)
-  const addLeads = useIntakeDesk((s) => s.addLeads)
-  const book = useMemo(() => mergeLeadBook(frozen, importedLeads), [frozen, importedLeads])
+  /* ĐỊA CHỈ là nguồn sự thật của bộ lọc — dịch hai chiều ở `app/url.ts`.
+     `size` thì màn áp đè: `PAGE_SIZE` là số dòng bảng này vẽ, còn mặc định của
+     hợp đồng là 50 cho mọi sổ. Áp đè ở đây chứ không ghi lên địa chỉ, để một
+     link chia sẻ không mang theo một con số không ai chọn. */
+  const urlQuery = useMemo(() => parseLeadBookQuery(params), [params])
+  const query = useMemo<LeadBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
+
+  const { data: bookPage, isPending } = useQuery(leadBookQuery(query))
+  const rows = bookPage?.rows ?? []
+  const total = bookPage?.total ?? 0
+
+  /* Sổ ĐẦY ĐỦ, gọi riêng một lần và cache dài. Đây là chỗ CHẮP VÁ — cả lý do
+     lẫn ngày nó gãy nằm trong docblock của `leadFacetQuery`, đọc ở đó trước
+     khi bắt chước cách này. Ba chỗ dưới đây cần một câu trả lời về CẢ SỔ mà
+     một trang mười dòng không trả lời được: hai ô lọc người/công ty, dải ghim,
+     và khoá chống trùng của panel nạp. */
+  const { data: facets } = useQuery(leadFacetQuery)
+  const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
+
+  /* Sổ nguồn THẬT — chỉ danh mục `SOURCE`. Năm danh mục kia (bậc · hạng ·
+     ngành · lý do rơi · kênh) chưa nối được: `LeadRow` còn chở khoá chữ thường
+     cũ chứ chưa phải ID cấu hình, nên nhãn của chúng vẫn đọc từ fixture. */
+  const { data: catalog } = useQuery(salesCatalogQuery)
+  const sourceCatalog = catalog?.SOURCE ?? NO_SOURCES
+
+  /* Bảng tra giữ CẢ dòng đã tắt: một nguồn tắt đi vẫn còn lead cũ trỏ vào, và
+     dòng sổ của chúng phải đọc ra tên chứ không thành "không rõ". */
+  const sourceById = useMemo(
+    () => new Map(sourceCatalog.map((entry) => [entry.id, entry])),
+    [sourceCatalog],
+  )
+
+  /* Ô CHỌN thì ngược lại — chỉ dòng còn bật. Đây là toàn bộ hình thức "xoá" mà
+     danh mục có (`config.ts`, luật 3): tắt một nguồn nghĩa là không ai gắn nó
+     cho lead mới nữa, nên nó cũng không được đứng trong ô lọc. */
+  const sourceOptions = useMemo(
+    () => sourceCatalog.filter((entry) => entry.active),
+    [sourceCatalog],
+  )
 
   const me = useSession((s) => s.actor)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
 
-  const [query, setQuery] = useState('')
-  const [source, setSource] = useState<string>('all')
-  const [owner, setOwner] = useState<string>('all')
-  const [account, setAccount] = useState<string>('all')
-  const [status, setStatus] = useState<StatusKey>('running')
-  const [sort, setSort] = useState<TableSort | undefined>()
-  const [page, setPage] = useState(0)
-
   const open = (code: string) => navigate(`/sales/leads/${code}`)
 
-  const filtered = useMemo(
-    () =>
-      book.filter((l) => {
-        if (!matchStatus(l, status)) return false
-        if (source !== 'all' && l.source !== source) return false
-        if (owner !== 'all' && (owner === NO_OWNER ? Boolean(l.owner) : l.owner !== owner))
-          return false
-        if (account !== 'all' && l.company !== account) return false
-        if (query.trim() === '') return true
-        const needle = query.trim().toLowerCase()
-        return l.company.toLowerCase().includes(needle) || l.code.toLowerCase().includes(needle)
-      }),
-    [book, status, source, owner, account, query],
-  )
+  /* Ghi một phần bộ lọc lên địa chỉ. Đổi bộ lọc thì LUÔN về trang đầu — đứng ở
+     trang 7 rồi đổi trạng thái thì máy chủ trả một trang rỗng, và người dùng
+     đọc nó thành "không có kết quả". */
+  const patch = (next: Partial<LeadBookQuery>) =>
+    setParams(leadBookQueryToParams({ ...urlQuery, ...next, page: DEFAULT_LEAD_BOOK_QUERY.page }))
 
-  /* Sắp xếp nằm ở màn, không ở `DataTable`: thứ tự là trạng thái của màn, bảng
-     chỉ vẽ mũi tên. Không cột nào đang sắp thì giữ nguyên thứ tự sổ. */
-  const visible = useMemo(() => {
-    if (!sort) return filtered
-    const dir = sort.dir === 'asc' ? 1 : -1
-    return [...filtered].sort((a, b) => a.company.localeCompare(b.company, 'vi') * dir)
-  }, [filtered, sort])
+  /* Ô tìm giữ chữ trong state để gõ tới đâu thấy tới đó, rồi mới nhỏ giọt lên
+     địa chỉ (`SEARCH_DELAY_MS`). `replace` chứ không đẩy thêm mục lịch sử: một
+     câu tìm tám ký tự mà đẩy tám mục thì nút back thành nút xoá từng chữ. */
+  const [text, setText] = useState(urlQuery.q ?? '')
 
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
-  /* Đổi bộ lọc mà đang đứng ở trang 7 thì phải về trang đầu, nếu không người
-     dùng thấy một trang trắng và tưởng là không có kết quả. */
-  useEffect(() => setPage(0), [status, source, owner, account, query, sort])
-  /* `useEffect` trên chạy SAU lượt vẽ, nên chỉ dựa vào nó thì vẫn lọt đúng một
-     nhịp bảng trắng. Kẹp luôn lúc dựng để nhịp đó không bao giờ lên màn hình. */
-  const safePage = Math.min(page, pageCount - 1)
-  const rows = visible.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
+  /* Địa chỉ đổi từ BÊN NGOÀI — nút back, F5, một link ai đó gửi tới — thì ô tìm
+     phải đi theo, nếu không chữ trong ô nói một đằng còn bảng lọc một nẻo. */
+  useEffect(() => setText(urlQuery.q ?? ''), [urlQuery.q])
+
+  useEffect(() => {
+    const wanted = text.trim() === '' ? undefined : text.trim()
+    if (wanted === urlQuery.q) return
+    const timer = setTimeout(
+      () =>
+        setParams(
+          leadBookQueryToParams({ ...urlQuery, q: wanted, page: DEFAULT_LEAD_BOOK_QUERY.page }),
+          { replace: true },
+        ),
+      SEARCH_DELAY_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [text, urlQuery, setParams])
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
 
   const pinned = useMemo(
     () =>
-      pins.map((code) => book.find((l) => l.code === code)).filter((l): l is Lead => Boolean(l)),
-    [pins, book],
+      pins
+        .map((code) => wholeBook.find((l) => l.code === code))
+        .filter((l): l is LeadRow => Boolean(l)),
+    [pins, wholeBook],
   )
 
-  /* Hai danh sách lọc dựng TỪ SỔ chứ không khai tay: thêm một Sale hay một
-     công ty vào fixture là ô lọc tự có, không ai phải nhớ sửa thêm chỗ này. */
-  const owners = useMemo(
-    () =>
-      [...new Set(book.map((l) => l.owner).filter((o): o is string => Boolean(o)))].sort((a, b) =>
-        a.localeCompare(b, 'vi'),
-      ),
-    [book],
-  )
+  /* Hai danh sách lọc dựng TỪ CẢ SỔ chứ không khai tay: thêm một Sale hay một
+     công ty là ô lọc tự có, không ai phải nhớ sửa thêm chỗ này.
+
+     Giá trị là `ownerId`, NHÃN là tên. Đây là chỗ nợ số 2 được trả ở phía màn:
+     lọc theo tên thì hai người trùng tên là một bộ lọc, và ngày công ty tuyển
+     người thứ hai tên "Nguyễn Văn Nam" thì hai sổ dính vào nhau mà không ai
+     biết. Máy chủ cũng so bằng `owner_id`, nên hai đầu nói cùng một thứ. */
+  const owners = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const l of wholeBook) {
+      if (l.ownerId) byId.set(l.ownerId, l.ownerName ?? l.ownerId)
+    }
+    return [...byId]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+  }, [wholeBook])
 
   const accounts = useMemo(
-    () => [...new Set(book.map((l) => l.company))].sort((a, b) => a.localeCompare(b, 'vi')),
-    [book],
+    () => [...new Set(wholeBook.map((l) => l.company))].sort((a, b) => a.localeCompare(b, 'vi')),
+    [wholeBook],
   )
 
+  /* Ô tìm đọc `text` chứ không đọc `query.q`: nút "Bỏ hết bộ lọc" phải hiện ra
+     ngay từ phím đầu tiên, không đợi hết nhịp chờ 300ms. */
   const dirty =
-    query !== '' || source !== 'all' || owner !== 'all' || account !== 'all' || status !== 'running'
+    text.trim() !== '' ||
+    query.source !== undefined ||
+    query.owner !== undefined ||
+    query.account !== undefined ||
+    query.status !== DEFAULT_LEAD_BOOK_QUERY.status
 
-  const clearFilters = () => {
-    setQuery('')
-    setSource('all')
-    setOwner('all')
-    setAccount('all')
-    setStatus('running')
-  }
+  const clearFilters = () =>
+    patch({
+      q: undefined,
+      source: undefined,
+      owner: undefined,
+      account: undefined,
+      status: DEFAULT_LEAD_BOOK_QUERY.status,
+    })
 
-  /* Khoá chống trùng dựng từ sổ ĐANG THẤY (đã gộp cả dòng nạp trước đó), không
-     từ 100 dòng đóng băng: nạp cùng một tệp hai lần phải bị bắt ở lần thứ hai. */
-  const existingKeys = useMemo(() => leadBookKeys(book), [book])
+  /* Cửa gõ tay. Trạng thái CHẾT theo màn (mở/đóng một dialog), nên nó nằm ở
+     `useState` của màn chứ không ở `app/` — cùng luật với số trang và bộ lọc. */
+  const [typing, setTyping] = useState(false)
 
-  const commitLeads = ({ rows, motion, fileName, report }: ImportCommit) => {
-    const at = new Date().toISOString()
-    addLeads(
-      {
-        spec: 'lead',
-        fileName,
-        motion,
-        intake: LEAD_SPEC.intake,
-        at,
-        by: me?.name ?? 'Không rõ',
-        accepted: rows.length,
-        duplicates: report.duplicates,
-        dupInFile: report.dupInFile,
-        errors: report.errors.length,
-      },
-      (batchId) =>
-        rowsToLeads(rows, {
-          book,
-          motion,
-          intake: LEAD_SPEC.intake,
-          batchId,
-          at,
-          by: me?.name ?? 'Không rõ',
-        }),
-    )
+  const loadFile = useLeadImport()
 
-    toast(`${rows.length} lead đã vào sổ`, {
-      tone: 'success',
+  /* Lô nạp GHI THẲNG lên máy chủ — hai cửa, đúng vai từng cửa, cả hai nằm ở
+     `data/lead-import.ts`. Kho `intake-desk` không còn nhận lô của sổ lead:
+     dòng đã nằm trên máy chủ rồi, giữ thêm một bản cục bộ là mỗi dòng nạp hiện
+     hai lần mà không có gì nói cho người xem biết vì sao. Hai sổ kia còn dùng
+     kho đó, nên `app/intake-desk.ts` vẫn đứng nguyên.
+
+     Trả BÁO CÁO CỦA MÁY CHỦ về cho panel: bốn con số ở bước 3 phải là số của
+     bên đã ghi thật — xem docblock `onCommit` ở `components/import-zone.tsx`.
+     Hàm này không bao giờ ném, vì `runLeadImport` đã đổi mọi lời từ chối thành
+     một báo cáo nói đúng những gì đã vào sổ. */
+  const commitLeads = async ({
+    rows,
+    motion,
+    fileName,
+    scope,
+  }: ImportCommit & { scope?: string }) => {
+    const run = await loadFile({ rows, motion, fileName, source: scope })
+    const { report } = run
+
+    toast(run.failure ?? `${report.rows.length} lead đã vào sổ`, {
+      tone: run.failure ? 'danger' : 'success',
       detail: [
         report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, bỏ qua`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
@@ -295,6 +410,8 @@ export function LeadsPage() {
         .filter(Boolean)
         .join(' · '),
     })
+
+    return report
   }
 
   return (
@@ -304,13 +421,22 @@ export function LeadsPage() {
             cùng lúc là chỗ đứng của nút nạp — một hàng, hai việc. */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Sổ lead</h2>
-          <ImportZone
-            spec={LEAD_SPEC}
-            existingKeys={existingKeys}
-            buttonLabel="Nạp lead"
-            onCommit={commitLeads}
-            onSeeResult={clearFilters}
-          />
+          {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
+              vào. Cùng cỡ, cùng dáng — chúng là hai đường vào một chỗ, không
+              phải một nút chính và một nút phụ. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="md" variant="ghost" onClick={() => setTyping(true)}>
+              <Icon icon={PenLine} size={16} />
+              Gõ tay
+            </Button>
+            <ImportZone
+              spec={LEAD_SPEC}
+              existingKeys={NO_LOCAL_KEYS}
+              buttonLabel="Nạp lead"
+              onCommit={commitLeads}
+              onSeeResult={clearFilters}
+            />
+          </div>
         </div>
 
         <ScoreCards />
@@ -321,49 +447,54 @@ export function LeadsPage() {
           <SearchField
             size="topbar"
             placeholder="Tìm theo tên công ty hoặc mã lead…"
-            value={query}
-            onChange={setQuery}
+            value={text}
+            onChange={setText}
             className="min-w-[240px] flex-1"
           />
           <Select
             label="Trạng thái"
-            value={status}
-            neutralValue="running"
-            onChange={(v) => setStatus(v as StatusKey)}
+            value={query.status}
+            neutralValue={DEFAULT_LEAD_BOOK_QUERY.status}
+            onChange={(v) => patch({ status: v as LeadStatus })}
             options={STATUSES.map((s) => ({ value: s.key, label: s.label }))}
           />
           <Select
             label="Nguồn"
-            value={source}
-            onChange={setSource}
+            value={query.source ?? ANY}
+            onChange={(v) => patch({ source: v === ANY ? undefined : v })}
             /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
                dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
             className="max-w-[240px]"
             options={[
-              { value: 'all', label: 'Mọi nguồn' },
-              ...SOURCES.map((s) => ({ value: s.code, label: `${s.code} · ${s.label}` })),
+              { value: ANY, label: 'Mọi nguồn' },
+              ...sourceOptions.map((entry) => ({
+                value: entry.id,
+                label: `${entry.id} · ${entry.name}`,
+              })),
             ]}
           />
           <Select
             label="Lead PIC"
-            value={owner}
-            onChange={setOwner}
+            value={query.owner ?? ANY}
+            onChange={(v) => patch({ owner: v === ANY ? undefined : v })}
             className="max-w-[200px]"
             options={[
-              { value: 'all', label: 'Mọi người' },
-              /* 33/100 dòng chưa ai nhận. Không có mục này thì cách duy nhất
-                 tìm ra chúng là đọc hết sổ bằng mắt. */
-              { value: NO_OWNER, label: 'Chưa ai nhận' },
-              ...owners.map((o) => ({ value: o, label: o })),
+              { value: ANY, label: 'Mọi người' },
+              /* 52/119 dòng chưa ai nhận. Không có mục này thì cách duy nhất
+                 tìm ra chúng là đọc hết sổ bằng mắt. `OWNER_NONE` là cách viết
+                 của nó TRÊN DÂY (`@pv/contracts`), không phải một cờ riêng của
+                 màn: máy chủ đọc đúng chuỗi này thành `owner_id IS NULL`. */
+              { value: OWNER_NONE, label: 'Chưa ai nhận' },
+              ...owners.map((o) => ({ value: o.id, label: o.name })),
             ]}
           />
           <Select
             label="Account"
-            value={account}
-            onChange={setAccount}
+            value={query.account ?? ANY}
+            onChange={(v) => patch({ account: v === ANY ? undefined : v })}
             className="max-w-[220px]"
             options={[
-              { value: 'all', label: 'Mọi account' },
+              { value: ANY, label: 'Mọi account' },
               ...accounts.map((a) => ({ value: a, label: a })),
             ]}
           />
@@ -384,10 +515,18 @@ export function LeadsPage() {
 
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground text-[11.5px]">
-            <span className="tnum font-num">{visible.length}</span> dòng khớp bộ lọc
+            {/* `total` của máy chủ, không phải `rows.length`: một trang mười
+                dòng không biết sổ có bao nhiêu dòng khớp. */}
+            <span className="tnum font-num">{total}</span> dòng khớp bộ lọc
           </span>
-          {visible.length > PAGE_SIZE && (
-            <Pager page={safePage} pageCount={pageCount} onPage={setPage} />
+          {total > PAGE_SIZE && (
+            <Pager
+              page={pageIndex}
+              pageCount={pageCount}
+              onPage={(i) =>
+                setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
+              }
+            />
           )}
         </div>
 
@@ -399,7 +538,7 @@ export function LeadsPage() {
               <Skeleton className="h-11 w-full" />
               <Skeleton className="h-11 w-full" />
             </div>
-          ) : visible.length === 0 ? (
+          ) : rows.length === 0 ? (
             <EmptyState
               icon={Inbox}
               message="Không có lead nào khớp bộ lọc đang chọn."
@@ -408,61 +547,88 @@ export function LeadsPage() {
             />
           ) : (
             <DataTable
-              sort={sort}
-              onSort={(key) =>
-                setSort((s) =>
-                  s?.key === key
-                    ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
-                    : { key, dir: 'asc' },
+              /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định
+                 là `createdAt desc` — mới nhất trước — và đó không phải cột nào
+                 trên bảng, nên lúc đó không cột nào có mũi tên. */
+              sort={query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined}
+              onSort={(key) => {
+                /* Account là cột duy nhất có khoá sắp xếp (`sortKey` bên dưới).
+                   Khoá nào không nằm trong `LeadSortKey` sẽ chết ở cổng zod của
+                   máy chủ, nên chặn ngay ở đây thay vì gửi đi một 400. */
+                if (key !== 'company') return
+                patch(
+                  query.sort === 'company'
+                    ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+                    : { sort: 'company', dir: 'asc' },
                 )
-              }
+              }}
               columns={[
                 { header: 'Ghim', width: '52px' },
                 { header: 'Mã', width: '0.85fr' },
                 { header: 'Account', width: '1.6fr', sortKey: 'company' },
                 { header: 'Người liên hệ', width: '1.2fr' },
                 { header: 'Chức danh', width: '1.3fr' },
-                /* Cột nguồn còn đúng một hình, nên nó rộng bằng một hình. */
-                { header: 'Nguồn', width: '64px' },
+                /* 160px → 140px: bỏ icon (27/08 lần 2) trả lại ~22px (icon 14px +
+                   gap 8px của MetaPill) cho bảy cột kia — pill giờ chỉ còn
+                   padding (16px) + chữ. Vẫn đủ cho tên rút gọn dài nhất
+                   THƯỜNG GẶP ("Khách cũ giới thiệu", ~116px chữ ở IBM Plex Sans
+                   11px, ước theo tỉ lệ đo Arial rồi hiệu chỉnh về mốc 154px đã
+                   đo tay bản có icon — 132px pill + ~8px đệm). Tên rút gọn hiếm
+                   hoi còn dài hơn thế ("Triển lãm công nghiệp hỗ trợ", ~177px
+                   chữ) tự cắt bằng CSS truncate như cũ — xem `SourceMark`. */
+                { header: 'Nguồn', width: '140px' },
                 { header: 'Trạng thái', width: '1.5fr' },
                 { header: 'Lead PIC', width: '1.5fr' },
               ]}
-              rows={rows.map((l) => {
-                /* Gọi MỘT lần cho cả hai cột người: `leadContact` dựng lại tên
-                   và chức danh từ mã lead mỗi lần gọi. */
-                const contact = leadContact(l)
-
-                return {
-                  id: l.code,
-                  onOpen: () => open(l.code),
-                  cells: [
-                    <PinCell
-                      key="p"
-                      on={pins.includes(l.code)}
-                      company={l.company}
-                      onToggle={() => me && togglePin(me.id, l.code)}
-                    />,
-                    <Chip key="c">{l.code}</Chip>,
-                    <span key="n" className="block truncate" title={l.company}>
-                      {l.company}
-                    </span>,
-                    <PersonCell key="ct" value={contact?.name} missing={NO_CONTACT} />,
-                    <PersonCell key="ti" value={contact?.title} missing={NO_CONTACT} />,
-                    <SourceMark key="s" lead={l} />,
-                    <StatusCell key="w" lead={l} />,
-                    <PicCell key="o" owner={l.owner} empty={NO_OWNER_TITLE} />,
-                  ],
-                }
-              })}
+              rows={rows.map((l) => ({
+                id: l.code,
+                onOpen: () => open(l.code),
+                cells: [
+                  <PinCell
+                    key="p"
+                    on={pins.includes(l.code)}
+                    company={l.company}
+                    onToggle={() => me && togglePin(me.id, l.code)}
+                  />,
+                  <Chip key="c">{l.code}</Chip>,
+                  <span key="n" className="block truncate" title={l.company}>
+                    {l.company}
+                  </span>,
+                  /* Hai cột người đọc thẳng từ dòng sổ. Bản cũ dựng chúng bằng
+                     `leadContact(l)`, một hàm sinh của fixture — nó cho ra một
+                     cái tên cho mọi mã lead, kể cả mã mà bảng thật để trống. */
+                  <PersonCell key="ct" value={l.contactName} missing={NO_CONTACT} />,
+                  <PersonCell key="ti" value={l.contactTitle} missing={NO_TITLE} />,
+                  <SourceMark key="s" lead={l} sources={sourceById} />,
+                  <StatusCell key="w" lead={l} />,
+                  <PicCell
+                    key="o"
+                    email={l.ownerEmail}
+                    name={l.ownerName}
+                    empty={NO_OWNER_TITLE}
+                  />,
+                ],
+              }))}
             />
           )}
         </GlassCard>
 
-        {visible.length > PAGE_SIZE && (
+        {total > PAGE_SIZE && (
           <div className="flex justify-end">
-            <Pager page={safePage} pageCount={pageCount} onPage={setPage} />
+            <Pager
+              page={pageIndex}
+              pageCount={pageCount}
+              onPage={(i) =>
+                setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
+              }
+            />
           </div>
         )}
+        {/* Sổ tự làm mới sau khi tạo: `useCreateLead` invalidate tiền tố
+            `['sales','lead-book']`, tiền tố của CẢ trang đang vẽ lẫn
+            `leadFacetQuery` — nên lead mới có mặt trong bảng và trong hai ô lọc
+            người/công ty cùng một lúc. Dialog tự đóng khi 201 về. */}
+        <LeadCreateDialog open={typing} onClose={() => setTyping(false)} />
       </div>
     </AppShell>
   )
@@ -548,30 +714,85 @@ function ScoreCards() {
   )
 }
 
-/** Nguồn của một lead — MỘT HÌNH, không kèm mã.
+/** Shorten a source's full name to its lead-in clause, for the pill in the
+ *  Nguồn column. `config_entry.name` reads like "Apollo — danh sách mua" or
+ *  "Hội thảo · Số hoá nhà máy đóng gói": everything before the first `—` or
+ *  `·` is the short handle a person actually says out loud, the rest is a
+ *  free-text description. A name with no separator (e.g. "BD tự mở") has
+ *  nothing to cut, so it passes through unchanged.
  *
- *  Mã nguồn đã bỏ 22/08. Nó là chuỗi mono sáu ký tự (`SK-0103`) mà không ai đọc
- *  ra nghĩa khi lướt bảng: người quét sổ muốn biết "lead này về bằng đường nào",
- *  và câu đó cái hình trả lời xong rồi. Ai cần mã thì mở hồ sơ — ở đó nó có cả
- *  tên nguồn đi kèm, tức là có nghĩa.
+ *  Cuts at the separator's character position, not at a fixed string length
+ *  — slicing by length instead would risk landing mid-diacritic on Vietnamese
+ *  text. A short name still too long for the pill is left to CSS `truncate`
+ *  (see `SourceMark`), never hand-truncated with a manual "…". */
+const SOURCE_NAME_SEPARATOR = /[—·]/
+
+function shortSourceName(name: string): string {
+  const cut = name.search(SOURCE_NAME_SEPARATOR)
+  return cut === -1 ? name : name.slice(0, cut).trimEnd()
+}
+
+/** Nguồn của một lead — pill TÊN RÚT GỌN (không icon), tên đầy đủ nằm ở `title`.
  *
- *  Hình đầy đủ vẫn nằm ở `title`: kiểu xuất xứ và kênh, một dòng.
+ *  Mã nguồn đã bỏ 22/08 vì `SK-0103` là sáu ký tự không ai đọc ra nghĩa khi
+ *  lướt bảng — quyết định đó vẫn đúng, mã không quay lại. Nhưng thay mã bằng
+ *  một hình duy nhất hoá ra đổi một vấn đề đọc-không-ra thành một vấn đề khác:
+ *  `kind` chỉ có bốn giá trị, nên hai chiến dịch khác hẳn nhau (vd. "Apollo"
+ *  và "Chuỗi email") vẽ ra CÙNG một icon. Bản 27/08 thêm lại chữ — không phải
+ *  mã, mà TÊN, rút gọn bằng `shortSourceName` — nên "về bằng đường nào" giờ
+ *  đọc thẳng ra được, không phải suy từ hình.
  *
- *  Đây là dây nối sang module 1 nhìn từ phía sổ. Kênh nào là hình nào đọc từ
- *  module Cấu hình, không khai lại ở đây. Nguồn tự nhiên không đi qua kênh
- *  nào nên lấy hình của KIỂU xuất xứ — bắt tay cho "khách cũ giới thiệu", ngòi
- *  bút cho "BD tự mở". */
-function SourceMark({ lead }: { lead: Lead }) {
-  const origin = leadOrigin(lead)
-  const face = ORIGIN_FACE[origin.kind]
-  const icon = origin.channel ? CHANNEL_ICON[origin.channel] : face.icon
-  const title = origin.channel
-    ? `${origin.code} · ${origin.label} · ${CHANNEL_LABEL[origin.channel]}`
-    : `${origin.code} · ${origin.label} · ${face.label}`
+ *  — CẬP NHẬT LẦN 2 (chủ dự án xem xong): icon `Database` gán cho "mua dữ
+ *  liệu" bị đọc sai nghĩa, và giờ tên chữ đã là tín hiệu chính nên icon chỉ
+ *  chiếm chỗ — bỏ hẳn, cho cả bốn `kind`. `SOURCE_KIND_FACE` (bảng icon theo
+ *  `kind`) không còn ai đọc nữa sau đó — grep xác nhận không màn nào khác đọc
+ *  nó — nên cả bảng đã XOÁ khỏi `data/leads.ts`, không chỉ trường `icon`.
+ *
+ *  ------------------------------------------------------------------
+ *  VÀNG CHO "MUA DỮ LIỆU" — TÔ THEO `kind`, KHÔNG THEO `id`
+ *  ------------------------------------------------------------------
+ *  Danh sách mua (Apollo hôm nay, có thể thêm nữa mai sau) đáng chú ý hơn ba
+ *  loại nguồn tự sinh/tự mở — dữ liệu mua cần người kiểm chất lượng, nên tô
+ *  vàng (`tone="warning"` có sẵn của `MetaPill`) để mắt bắt được ngay khi lướt
+ *  bảng. So theo `entry.kind === 'mua-du-lieu'`, đúng thứ `config.ts` §luật 2
+ *  đòi: một danh sách mua khác thêm vào mai sau tự vàng theo, không ai sửa
+ *  màn này. Ba loại còn lại (`chien-dich` · `su-kien` · `tu-nhien`) giữ
+ *  `tone="muted"` như cũ. KHÔNG dùng `tone="accent"` — luật 3 dành nền azure
+ *  cho AI/nút chính/trạng thái active, không cho một pill lặp trên mọi dòng.
+ *
+ *  ------------------------------------------------------------------
+ *  TRA TỪ SỔ NGUỒN THẬT — SEED ĐÃ VÁ 27/08, KHÔNG CÒN DÒNG NÀO TRA KHÔNG RA
+ *  ------------------------------------------------------------------
+ *  `lead.source` là một mã, `GET /sales/config` giữ sổ nguồn, nên chỗ này là
+ *  một phép tra `id`. Từ 27/08 cả 119 dòng trên Neon đều trỏ vào một
+ *  `config_entry` tra được — món nợ seed ghi mã cũ của fixture xuống cột
+ *  `lead.source` đã vá. `UNKNOWN_SOURCE_FACE` vẫn giữ nguyên làm lưới đỡ: một
+ *  lead không có `source`, hoặc trỏ vào một mã đã xoá/chưa kịp seed, vẫn phải
+ *  vẽ ra một cái gì đó thay vì một ô trống hoặc một lỗi render — nhánh đó
+ *  KHÔNG phải pill nên vẫn vẽ icon như cũ, không đụng. */
+function SourceMark({ lead, sources }: { lead: LeadRow; sources: Map<string, ConfigEntry> }) {
+  const entry = lead.source ? sources.get(lead.source) : undefined
+
+  if (!entry) {
+    const title = `${lead.source ?? '—'} · ${UNKNOWN_SOURCE_FACE.label}`
+    return (
+      <span className="flex items-center" title={title} aria-label={title}>
+        <Icon
+          icon={UNKNOWN_SOURCE_FACE.icon}
+          size={16}
+          className="text-accent-foreground shrink-0"
+        />
+      </span>
+    )
+  }
+
+  const tone = entry.kind === 'mua-du-lieu' ? 'warning' : 'muted'
 
   return (
-    <span className="flex items-center" title={title} aria-label={title}>
-      <Icon icon={icon} size={16} className="text-accent-foreground shrink-0" />
+    <span className="block min-w-0" title={entry.name} aria-label={entry.name}>
+      <MetaPill tone={tone} className="flex min-w-0 max-w-full">
+        <span className="min-w-0 truncate">{shortSourceName(entry.name)}</span>
+      </MetaPill>
     </span>
   )
 }
@@ -597,20 +818,27 @@ function SourceMark({ lead }: { lead: Lead }) {
  *
  *  Màu vàng ở đây thay hẳn tam giác cảnh báo đã gỡ khỏi cột Account: cùng một
  *  tín hiệu, nhưng đứng ở cột nói về trạng thái thay vì cột nói về tên khách. */
-function StatusCell({ lead }: { lead: Lead }) {
-  if (lead.contractCode) return <Badge tone="success">Đã ký · {lead.contractCode}</Badge>
+function StatusCell({ lead }: { lead: LeadRow }) {
+  /* "Đã ký" KHÔNG kèm mã hợp đồng nữa, và mã đó không đi tìm lại được: lead →
+     hợp đồng nay là 1-n, cột `lead.contract_code` đã biến mất, và `signed` là
+     một `EXISTS(contract)` chứ không phải một mã. Một lead ký hai đơn thì không
+     mã nào vừa — in một trong hai là nói dối về cái còn lại. */
+  if (lead.signed) return <Badge tone="success">Đã ký</Badge>
 
   if (lead.exitReason) {
+    /* Máy chủ trả KHOÁ ASCII ('khong-goi-duoc'), fixture giữ NHÃN tiếng Việt.
+       Bảng tra ở `data/leads.ts`, cùng chỗ với lời giải thích vì sao nó tồn tại. */
+    const why = EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason
     return (
-      <Badge tone="danger" className="max-w-full" title={`Đã rơi · ${lead.exitReason}`}>
-        <span className="min-w-0 truncate">Đã rơi · {lead.exitReason}</span>
+      <Badge tone="danger" className="max-w-full" title={`Đã rơi · ${why}`}>
+        <span className="min-w-0 truncate">Đã rơi · {why}</span>
       </Badge>
     )
   }
 
   if (!lead.stage) return <Badge tone="draft">Chưa vào sổ cơ hội</Badge>
 
-  const over = isOverSla(lead)
+  const over = overSla(lead)
   return (
     <Badge
       tone={over ? 'warning' : 'running'}
@@ -662,7 +890,7 @@ function PinnedStrip({
   onOpen,
   onUnpin,
 }: {
-  leads: Lead[]
+  leads: LeadRow[]
   onOpen: (code: string) => void
   onUnpin: (code: string) => void
 }) {
@@ -680,8 +908,8 @@ function PinnedStrip({
               <span className="truncate text-[12.5px] font-semibold">{l.company}</span>
               <span className="text-muted-foreground truncate text-[11px]">
                 <span className="font-mono">{l.code}</span> ·{' '}
-                {CATEGORY_LABEL.get(l.category) ?? l.category} · {l.requiredFilled}/{REQUIRED_SLOTS}{' '}
-                ô
+                {l.category ? (CATEGORY_LABEL.get(l.category) ?? l.category) : '—'} ·{' '}
+                {l.requiredFilled}/{REQUIRED_SLOTS} ô
               </span>
             </button>
             <PinCell on company={l.company} onToggle={() => onUnpin(l.code)} />

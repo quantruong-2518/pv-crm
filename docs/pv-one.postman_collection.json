@@ -143,6 +143,54 @@
           }
         },
         {
+          "name": "Hồ sơ một lead",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads/LD-0219",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads", "LD-0219"]
+            },
+            "description": "**`lead.xem` · cắt theo phạm vi.** Trả nguyên hồ sơ: đúng dòng sổ (`GET /sales/leads`) cộng thêm cụm thông tin công ty, cụm nhu cầu, hai người được ghi công (BD · marketing) và cửa vào (`intakeChannel` · `motion`).\n\nHợp đồng là `LeadProfile`, và nó **mở rộng** `LeadRow` — phần chung khai đúng một lần, hai hình không lệch nhau được.\n\nBốn cách hỏng, mỗi cách một câu trả lời khác:\n\n| Tình huống | Mã | `reason` |\n| --- | --- | --- |\n| mã sai dạng (`xyz`) | 400 | — |\n| chưa đăng nhập | 401 | `unauthenticated` |\n| có quyền, lead không của mình | 403 | `out-of-scope` |\n| không có lead đó (`LD-9999`) | 404 | — |\n\n`LD-0219` là lead Apollo thật, **chưa ai nhận** — nên actor `ownOnly` (`u-huy`) nhận 403 chứ không phải 404: hồ sơ chỉ có một dòng, không thể lọc bớt như sổ, nên nó phải TỪ CHỐI. Trả 404 là bắt người ta đi tìm một dòng đang nằm ngay đó."
+          }
+        },
+        {
+          "name": "Lỗi · ngoài phạm vi (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads/LD-0102",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads", "LD-0102"]
+            },
+            "description": "Đặt `actorId` = `u-huy` (Sale `ownOnly`) rồi gọi. `LD-0102` đứng tên `u-binh`, nên phải ra **403 `out-of-scope`** — KHÔNG phải `permission-denied` (vai Sale CÓ `lead.xem`, họ đọc lead cả ngày) và KHÔNG phải 404 (dòng đó có thật). Ba câu này dẫn người dùng đi ba nơi khác nhau; chỉ câu thứ nhất dẫn tới chỗ đúng là hỏi người đang giữ lead."
+          }
+        },
+        {
           "name": "Tạo lead — nhập tay",
           "request": {
             "method": "POST",

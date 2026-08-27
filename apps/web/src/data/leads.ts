@@ -4,6 +4,7 @@ import {
   CalendarClock,
   ClipboardList,
   Handshake,
+  HelpCircle,
   Inbox,
   Megaphone,
   MessageSquare,
@@ -29,17 +30,31 @@ import {
   leadContact,
   saleOfCategory,
   type Lead,
+  type LeadContact,
   type OriginKind,
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
+import type { LeadBookQuery, LeadBookResponse } from '@pv/contracts'
 import type { LeadAssignment } from '@/app/desk'
 import { api } from '@/app/api'
+import { leadBookQueryToParams } from '@/app/url'
 
-/** Sổ lead — module 2. Kịch bản 2 · DAS Vina.
+/** Sổ lead — module 2.
  *
- *  Đây là chỗ DUY NHẤT màn lấy sổ lead. Khi có backend, đổi thân `fetchLeadBook`
- *  thành lời gọi HTTP; `leadBookQuery` và mọi màn đang dùng nó không phải sửa.
+ *  ------------------------------------------------------------------
+ *  ĐÃ CẮT SANG MÁY CHỦ — VÀ MỘT NỬA SỔ CŨ CÒN Ở LẠI
+ *  ------------------------------------------------------------------
+ *  `leadBookQuery` gọi thẳng `GET /sales/leads`: lọc, sắp và phân trang đều
+ *  làm ở máy chủ. Nó nhận THAM SỐ, vì một sổ đã phân trang ở máy chủ không
+ *  còn là một giá trị mà là một hàm của bộ lọc — và `queryKey` phải chở đúng
+ *  tham số đó, nếu không TanStack trả cache của bộ lọc trước cho bộ lọc sau.
+ *
+ *  `frozenLeadBookQuery` phía dưới vẫn là fixture, và đó KHÔNG phải chỗ quên:
+ *  bốn màn khác (`lead-detail`, `ops-detail`, `campaigns`, `campaign-detail`)
+ *  đọc cả sổ để tra chéo và để chống trùng lúc nạp tệp, còn
+ *  `GET /sales/leads/:code` thì chưa dựng. Cắt chúng cùng một đợt là làm vỡ
+ *  bốn màn cho một endpoint chưa tồn tại.
  *
  *  Ba thứ dưới query cũng ở đây chứ không ở tầng màn, vì cả bảng lẫn màn chi
  *  tiết đều cần và hai bản chép tay sẽ lệch nhau:
@@ -53,16 +68,95 @@ import { api } from '@/app/api'
 /** Dòng mồi: lead của chính DAS Vina, nối thẳng sang OP-0288 trong sổ cơ hội. */
 export const ANCHOR_CODE = DAS_VINA_LEAD
 
-async function fetchLeadBook(): Promise<Lead[]> {
+/** What the route asks for, in the SAME words `apps/api` uses on the other end
+ *  (`@Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })` on
+ *  `LeadController.book`).
+ *
+ *  `scoped: true` is the axis this query used to be missing. The three Sale
+ *  actors are `ownOnly`, so the server cuts their book down to the rows they
+ *  hold and reports the size of the cut in `hidden`; a query that declares only
+ *  branch and permission reads as if the whole book were coming back. Both
+ *  reads of one permission matrix have to say the same sentence — see `ApiNeed`
+ *  in `app/api/client.ts`. */
+const BOOK_NEED = { branch: 'Sales', permission: 'lead.xem', scoped: true } as const
+
+/** Sổ, một trang một lần. `{ rows, total, hidden }` — hình của `paged()`.
+ *
+ *  `hidden` đi tới đây và DỪNG ở đây: nó là số dòng phạm vi đã cắt đi, luật 7
+ *  đòi màn hiện nó, và chủ dự án đã chốt đợt này không đổi một pixel nào. Con
+ *  số có mặt trong `data.hidden` để ngày đổi ý chỉ còn là việc vẽ nó ra — chứ
+ *  không phải một chuyến đi lại xuống tận repository.
+ *
+ *  `signal` nối vào `AbortSignal` của TanStack: gõ nhanh trên ô tìm thì trang
+ *  đang bay bị huỷ thay vì về sau và ghi đè trang mới. */
+export const leadBookQuery = (query: LeadBookQuery) =>
+  queryOptions({
+    queryKey: ['sales', 'lead-book', 'page', query] as const,
+    queryFn: ({ signal }) =>
+      api.read<LeadBookResponse>(`/sales/leads?${leadBookQueryToParams(query)}`, {
+        need: BOOK_NEED,
+        signal,
+      }),
+  })
+
+/** Trần `size` của hợp đồng (`PageQuery.size.max(200)`). Đây là con số làm cho
+ *  `leadFacetQuery` bên dưới có hạn sử dụng, nên nó phải đọc được thành số
+ *  chứ không nấp trong một chuỗi. */
+export const FACET_SIZE = 200
+
+/** CHẮP VÁ — không phải một giải pháp. Đọc hết trước khi dùng lại kiểu này.
+ *
+ *  Hai ô lọc "Lead PIC" và "Account" là danh sách CHỌN, nên chúng cần mọi giá
+ *  trị có trong sổ, không phải mọi giá trị có trên trang đang mở. Khi sổ còn
+ *  nằm cả trong bộ nhớ thì `[...new Set(book.map(...))]` trả lời đúng; từ lúc
+ *  máy chủ chỉ gửi 10 dòng một trang thì đúng câu đó trả về 10 giá trị, và bộ
+ *  lọc HỎNG THẦM LẶNG — người dùng không tìm thấy người hoặc công ty mà họ
+ *  biết chắc là có, và không có gì trên màn nói cho họ biết vì sao.
+ *
+ *  Không có endpoint nào trả facet, nên đây là một lần gọi thứ hai vào chính
+ *  `GET /sales/leads` với `?status=all&size=200`, cache dài, chỉ để dựng danh
+ *  sách chọn.
+ *
+ *  **Nó gãy khi sổ vượt 200 lead.** Hôm nay sổ có 119 dòng nên vừa; ở dòng thứ
+ *  201 trang đầu vẫn đúng còn hai ô lọc lặng lẽ thiếu giá trị — cùng một kiểu
+ *  hỏng, chỉ chậm hơn. `size` không nâng lên được: 200 là trần của
+ *  `PageQuery` (`FACET_SIZE`), và nâng trần chỉ dời ngày gãy chứ không bỏ nó.
+ *
+ *  Cách sửa THẬT là một endpoint facet — `GET /sales/leads/facets` trả về
+ *  danh sách owner và account đã DISTINCT ở SQL, kèm số dòng mỗi giá trị. Một
+ *  câu `SELECT DISTINCT` trên một cột đã có index, thay cho việc kéo cả sổ về
+ *  trình duyệt để làm đúng việc đó bằng JavaScript.
+ *
+ *  Trong lúc chờ, cùng một lượt kéo về này còn nuôi hai chỗ khác mà trang
+ *  hiện tại cũng không trả lời được — dải "Ghim của tôi" (ghim trỏ vào mã ở
+ *  bất kỳ trang nào) và khoá chống trùng của panel nạp tệp. Ba chỗ dùng chung
+ *  MỘT lần gọi; ngày có endpoint facet thì hai chỗ sau chuyển sang đường của
+ *  chúng chứ không kéo cái chắp vá này đi theo. */
+export const leadFacetQuery = queryOptions({
+  queryKey: ['sales', 'lead-book', 'facets'] as const,
+  queryFn: ({ signal }) =>
+    api.read<LeadBookResponse>(`/sales/leads?status=all&size=${FACET_SIZE}`, {
+      need: BOOK_NEED,
+      signal,
+    }),
+})
+
+/** Sổ ĐÓNG BĂNG — fixture, và vẫn là sổ duy nhất của bốn màn chưa cắt.
+ *
+ *  Giữ `load` là giữ chúng sống: cả chuỗi interceptor vẫn chạy y hệt, chỉ có
+ *  nguồn dữ liệu là fixture thay vì mạng (xem docblock đầu `app/api/client.ts`).
+ *  Xoá dòng `load` ở đây là nghi thức cắt màn tiếp theo — không phải việc của
+ *  đợt này. */
+async function loadFrozenBook(): Promise<Lead[]> {
   return LEADS
 }
 
-export const leadBookQuery = queryOptions({
-  queryKey: ['sales', 'lead-book'] as const,
+export const frozenLeadBookQuery = queryOptions({
+  queryKey: ['sales', 'lead-book', 'frozen'] as const,
   queryFn: () =>
     api.read('/sales/leads', {
-      need: { branch: 'Sales', permission: 'lead.xem' },
-      load: fetchLeadBook,
+      need: BOOK_NEED,
+      load: loadFrozenBook,
     }),
 })
 
@@ -83,6 +177,45 @@ export const ORIGIN_FACE: Record<
      nên nhãn kiểu trùng chữ sẽ in ra hai lần cùng một câu trên một thẻ. */
   'gioi-thieu': { label: 'Được giới thiệu', icon: Handshake, openLabel: 'Xem nguồn' },
   'tu-mo': { label: 'Tạo trực tiếp', icon: PenLine, openLabel: 'Xem nguồn' },
+}
+
+/* `SOURCE_KIND_FACE` (khoá theo `kind` của một dòng SỔ NGUỒN, `GET
+   /sales/config`) đã XOÁ 27/08 lần 2: bảng chỉ tồn tại để cấp `icon` cho pill
+   cột Nguồn ở `leads.tsx`, chủ dự án yêu cầu bỏ icon khỏi pill đó (tên chữ đã
+   là tín hiệu chính), và sau khi bỏ thì không còn chỗ nào đọc bảng này nữa —
+   grep xác nhận. Tone vàng cho `mua-du-lieu` giờ so thẳng `entry.kind ===
+   'mua-du-lieu'` tại `SourceMark`, đúng thứ `config.ts` §luật 2 đòi (so THUỘC
+   TÍNH, không so `id`). `UNKNOWN_SOURCE_FACE` bên dưới không đụng — nhánh đó
+   không phải pill, vẫn vẽ icon như cũ. */
+
+/** Nguồn không tra được — mã trên dòng lead không có trong sổ nguồn.
+ *
+ *  Đây KHÔNG phải một trạng thái lý thuyết: hôm nay 100/119 dòng rơi vào đây.
+ *  `seed.ts` sinh danh mục `SOURCE` với mã mới (`SR-01`…) nhưng vẫn ghi mã cũ
+ *  của fixture (`CD-0101`, `SK-0103`, `GT`, `TM`) xuống cột `lead.source`, nên
+ *  hai bên không gặp nhau. Nợ đó thuộc phía máy chủ; màn không lấp nó bằng
+ *  cách đoán, vì đoán xong thì không còn ai thấy nó nữa. */
+export const UNKNOWN_SOURCE_FACE = { label: 'Không có trong sổ nguồn', icon: HelpCircle }
+
+/** Nhãn tiếng Việt của sáu lý do rơi.
+ *
+ *  Bảng này là bản ĐẢO của `EXIT_KEY` trong `apps/api/src/seed.ts`, và nó tồn
+ *  tại vì cùng một món nợ: fixture lưu thẳng nhãn hiển thị làm giá trị của
+ *  `Lead.exitReason`, còn hợp đồng đã đổi sang khoá ASCII. Máy chủ trả khoá,
+ *  màn phải in ra chữ.
+ *
+ *  Viết tay chứ không ghép theo `ord` của danh mục `EXIT_REASON` bên
+ *  `/sales/config`: ghép theo thứ tự là một phép nối ngầm gãy im lặng đúng
+ *  ngày ai đó kéo một dòng lên trên trong màn Cấu hình. Bảng biến mất khi
+ *  `exitReason` trên `LeadRow` đổi sang ID cấu hình — nợ đã ghi ở
+ *  `docs/tich-hop-be.md`. */
+export const EXIT_REASON_LABEL: Record<string, string> = {
+  'khong-goi-duoc': 'Không gọi được ai',
+  'khong-phai-khach-cua-minh': 'Không phải khách của mình',
+  'khong-co-ngan-sach': 'Năm nay không có tiền',
+  'nguoi-lien-he-nghi': 'Người liên hệ nghỉ việc',
+  'chon-ben-khac': 'Khách chọn bên khác',
+  'im-sau-bao-gia': 'Im sau báo giá',
 }
 
 // ---------------------------------------------------------------------------
@@ -116,12 +249,29 @@ export type NextAction = {
  *  Đây là hàm THUẦN trên một dòng lead: cùng một lead luôn ra cùng một danh
  *  sách, ở bảng cũng như ở màn chi tiết. Không có "gợi ý AI" nào ở đây — mọi
  *  dòng đều suy thẳng từ trạng thái của lead, nên không dòng nào cần nút xác
- *  nhận theo luật 9. */
-export function nextActions(lead: Lead): NextAction[] {
+ *  nhận theo luật 9.
+ *
+ *  ------------------------------------------------------------------
+ *  `contact` LÀ THAM SỐ RIÊNG, KHÔNG TỰ SUY TỪ `lead` — VÌ SAO
+ *  ------------------------------------------------------------------
+ *  Bản trước gọi thẳng `leadContact(lead)` bên trong hàm này — hàm SINH của
+ *  fixture, nặn tên và số điện thoại từ `seedOf(lead.code)`. Với 100 mã đóng
+ *  băng, giá trị sinh ra trùng seed nên không lộ; với một mã THẬT ngoài dải đó
+ *  (ví dụ 19 dòng Apollo `LD-0201…LD-0219` trên Neon) nó nặn ra một con người
+ *  không tồn tại, rồi nút "Gọi …" mời người dùng gọi một số điện thoại do thuật
+ *  toán nghĩ ra.
+ *
+ *  Bắt tham số này ở CHỮ KÝ hàm — không cho mặc định về `leadContact(lead)` —
+ *  để mỗi nơi gọi phải tự khai rõ nguồn: `myWork` (kịch bản đóng băng, sổ
+ *  `LEADS` không bao giờ chứa mã ngoài `LD-0101…LD-0200`) khai thẳng
+ *  `leadContact(lead)`; màn hồ sơ thật (`lead-detail.tsx`) khai
+ *  `realContact(profile)` ở `data/lead-profile.ts`, đọc `contactName` /
+ *  `phone` / `contactChannel` CÓ THẬT trên dây. Không có `phone` thì `contact`
+ *  không có `phone` — nút "Gọi" không xuất hiện, chứ không rơi về một số bịa. */
+export function nextActions(lead: Lead, contact: LeadContact | null): NextAction[] {
   const out: NextAction[] = []
   const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
   const gate = canPromoteToSql(lead)
-  const contact = leadContact(lead)
 
   if (lead.exitReason) {
     return [
@@ -204,8 +354,13 @@ export function nextActions(lead: Lead): NextAction[] {
     label: contact?.phone ? `Gọi ${contact.name}` : 'Nhắn trên kênh khách vừa dùng',
     icon: contact?.phone ? Phone : MessageSquare,
     primary: false,
+    /* `contact.title` có thể trống trên dữ liệu thật (ô 4 chưa moi hết) — nối
+       thẳng vào `` `${contact.title} · ${contact.phone}` `` sẽ in ra một dấu
+       chấm mồ côi ("· 0912…"). Bản sinh cũ luôn có title nên chưa từng lộ. */
     why: contact?.phone
-      ? `${contact.title} · ${contact.phone}`
+      ? contact.title
+        ? `${contact.title} · ${contact.phone}`
+        : contact.phone
       : 'Chưa có ô số 5 "kênh gọi lại được" — nhắn lại đúng chỗ khách vừa nhắn.',
   })
 
@@ -273,7 +428,11 @@ export function myWork(input: {
   const push = (lead: Lead, reason: string, fresh = false) => {
     if (seen.has(lead.code)) return
     seen.add(lead.code)
-    const action = nextActions(lead)[0]
+    /* `myWork` chưa cắt sang máy chủ — nó chạy trên sổ ĐÓNG BĂNG
+       (`frozenLeadBookQuery`/`LEADS`), thứ không bao giờ chứa một mã ngoài dải
+       `LD-0101…LD-0200`. `leadContact(lead)` ở đây vẫn đúng kịch bản: nó chỉ
+       từng thấy mã đã đóng băng, chưa từng thấy một mã Apollo thật. */
+    const action = nextActions(lead, leadContact(lead))[0]
     if (!action) return
     out.push({
       lead,

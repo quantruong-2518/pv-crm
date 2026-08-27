@@ -27,13 +27,13 @@ function isRealCalendarDate(s: string): boolean {
  *  driver, which surfaces as a 500 that cannot say which field was wrong.
  *  Checking here turns the same input into one 400 pointing at one field. */
 export const Ngay = z
-  .string()
+  .string('Ngày là bắt buộc')
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải dạng YYYY-MM-DD')
   .refine(isRealCalendarDate, 'Ngày không có trên lịch')
 
 /** Mốc thời gian tuyệt đối, ISO 8601 kèm múi. */
 export const Moc = z
-  .string()
+  .string('Mốc thời gian là bắt buộc')
   .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/, 'Mốc phải là ISO 8601 có múi giờ')
 
 /** Tiền, ĐƠN VỊ ĐỒNG, số nguyên.
@@ -43,10 +43,12 @@ export const Moc = z
  *  con số. Nợ số 7 của `docs/ban-giao-backend.md` (tiền không mang tiền tệ)
  *  sửa bằng cách bọc thành `{ amount, currency }` khi có đơn ngoại tệ thật;
  *  hôm nay khai rõ đơn vị ở tên là bước một. */
-export const Dong = z.number().int().nonnegative()
+export const Dong = z.number('Số tiền là bắt buộc').int().nonnegative()
 
 /** Mã object — 'LD-0042', 'OP-0301'. ASCII, không dấu (nợ số 1). */
-export const MaObject = z.string().regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã object sai dạng')
+export const MaObject = z
+  .string('Mã object là bắt buộc')
+  .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã object sai dạng')
 
 export type Ngay = z.infer<typeof Ngay>
 export type Moc = z.infer<typeof Moc>
@@ -93,7 +95,7 @@ export function gomKhoangTrang(s: string): string {
  *  nhất, không phải nếu mà là khi (cùng lý do với `Ngay` và `Moc` ở trên). */
 export const textNhap = (max = 200) =>
   z
-    .string()
+    .string('Không được để trống')
     .transform(gomKhoangTrang)
     .pipe(z.string().min(1, 'Không được để trống').max(max, `Tối đa ${max} ký tự`))
 
@@ -106,7 +108,7 @@ export const textNhap = (max = 200) =>
  *  ô là một lần CHECK ném 500 — xem đúng cảnh báo đó ở cuối `ban-giao-db.md`. */
 export const textNhapTuyChon = (max = 200) =>
   z
-    .string()
+    .string('Ô này phải là chữ')
     .max(max, `Tối đa ${max} ký tự`)
     .transform(gomKhoangTrang)
     .transform((s) => (s === '' ? undefined : s))
@@ -134,7 +136,7 @@ export const textNhapTuyChon = (max = 200) =>
  *  so at `lead.schema.ts`), so this is also what keeps the two tables speaking
  *  one convention instead of each remembering it separately. */
 export const email = z
-  .string()
+  .string('Hòm thư là bắt buộc')
   .max(254, 'Hòm thư tối đa 254 ký tự')
   .transform((s) => s.trim().toLowerCase())
   .pipe(z.email('Hòm thư sai dạng'))
@@ -164,7 +166,7 @@ export function normalisePhone(s: string): string {
  *  The 15-digit ceiling is E.164. Anything longer is not a number anyone can
  *  dial, and such a value in the book is a dead click-to-call on the profile. */
 export const phoneOptional = z
-  .string()
+  .string('Số điện thoại phải là chữ số')
   .max(32, 'Số điện thoại tối đa 32 ký tự')
   .transform(normalisePhone)
   .transform((s) => (s === '' || s === '+' ? undefined : s))
