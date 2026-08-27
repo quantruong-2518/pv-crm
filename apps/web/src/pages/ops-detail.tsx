@@ -25,9 +25,10 @@ import {
 import {
   dasVina,
   leadContact,
+  leadTranscript,
   OPPORTUNITY_STATES,
   toDong,
-  type Lead,
+  type FrozenLead,
   type Opportunity,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
@@ -35,6 +36,7 @@ import { useAppChrome } from '@/app/chrome'
 import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
 import { frozenLeadBookQuery } from '@/data/leads'
+import { NO_TRANSCRIPT } from '@/data/lead-profile'
 import {
   actorNames,
   isLateClose,
@@ -133,6 +135,12 @@ export function OpsDetailPage() {
   const op = book.find((o) => o.code === code) ?? null
   const base = raw.find((o) => o.code === code) ?? null
   const lead = op ? (leadBook.find((l) => l.code === op.leadCode) ?? null) : null
+  /* Màn này đứng trên sổ ĐÓNG BĂNG, nên nguyên văn hội thoại ở đây là dữ liệu
+     có thật của kịch bản — khác `lead-detail`, nơi máy chủ chưa có bảng lần
+     chạm. `ActivityCard` bắt mỗi người gọi tự khai mình đứng trên nền nào; đây
+     là lời khai của màn cơ hội. Kiểu `FrozenLead` của `leadBook` là thứ cho
+     phép gọi hàm sinh này. */
+  const turns = useMemo(() => (lead ? leadTranscript(lead) : NO_TRANSCRIPT), [lead])
 
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
@@ -204,7 +212,7 @@ export function OpsDetailPage() {
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
           <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
           <PeopleCard op={op} />
-          {lead && <ActivityCard lead={lead} />}
+          {lead && <ActivityCard code={lead.code} history={lead.history} turns={turns} />}
         </div>
       </div>
 
@@ -418,7 +426,7 @@ function LeadCard({
   onOpen,
 }: {
   op: Opportunity
-  lead: Lead | null
+  lead: FrozenLead | null
   onOpen: () => void
 }) {
   return (
@@ -496,7 +504,7 @@ function ToolsBar({
   onOpenLead,
 }: {
   op: Opportunity
-  lead: Lead | null
+  lead: FrozenLead | null
   onOpenLead: () => void
 }) {
   /* `lead` ở đây đến từ `frozenLeadBookQuery` (sổ ĐÓNG BĂNG) — màn cơ hội chưa

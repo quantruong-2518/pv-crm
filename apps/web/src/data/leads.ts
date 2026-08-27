@@ -29,6 +29,7 @@ import {
   REQUIRED_SLOTS,
   leadContact,
   saleOfCategory,
+  type FrozenLead,
   type Lead,
   type LeadContact,
   type OriginKind,
@@ -147,7 +148,7 @@ export const leadFacetQuery = queryOptions({
  *  nguồn dữ liệu là fixture thay vì mạng (xem docblock đầu `app/api/client.ts`).
  *  Xoá dòng `load` ở đây là nghi thức cắt màn tiếp theo — không phải việc của
  *  đợt này. */
-async function loadFrozenBook(): Promise<Lead[]> {
+async function loadFrozenBook(): Promise<FrozenLead[]> {
   return LEADS
 }
 
@@ -428,7 +429,10 @@ export type WorkItem = {
  *                    lead còn nằm kho chung. Vai này không giữ khách nào. */
 export function myWork(input: {
   actor: Actor | null
-  leads: Lead[]
+  /* `FrozenLead`, không phải `Lead`: đoạn dưới gọi `leadContact()` — hàm SINH
+     của fixture — và nhãn kiểu là thứ giữ cho lời hứa "sổ này đóng băng" ở
+     ngay dưới đây không lặng lẽ hết đúng ngày ai đó đổi query. */
+  leads: FrozenLead[]
   assigns: Record<string, LeadAssignment>
 }): WorkItem[] {
   const { actor, leads, assigns } = input
@@ -436,7 +440,7 @@ export function myWork(input: {
 
   const seen = new Set<string>()
   const out: WorkItem[] = []
-  const push = (lead: Lead, reason: string, fresh = false) => {
+  const push = (lead: FrozenLead, reason: string, fresh = false) => {
     if (seen.has(lead.code)) return
     seen.add(lead.code)
     /* `myWork` chưa cắt sang máy chủ — nó chạy trên sổ ĐÓNG BĂNG

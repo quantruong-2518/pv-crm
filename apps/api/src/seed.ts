@@ -10,6 +10,7 @@ import {
   OPEN_DEALS,
   PIPELINE_STAGES,
   SOURCES,
+  type FrozenLead,
   type Lead,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
@@ -97,8 +98,12 @@ function stageSinceOf(l: Lead): Date {
  *  sao thì mọi lead đều đủ ô 4 và ô 5, và cổng init data mất nghĩa. */
 const CONTACT_SLOTS: QuestionKey[] = ['nguoi-lien-he', 'kenh']
 
-function contactOf(l: Lead) {
-  const full: Lead = { ...l, filled: [...new Set([...l.filled, ...CONTACT_SLOTS])] }
+function contactOf(l: FrozenLead) {
+  /* `FrozenLead` chứ không `Lead`, và bản sao giữ nguyên nhãn: seed chạy trên
+     ĐÚNG 100 dòng của kịch bản, và `leadContact` là hàm SINH — nhãn kiểu là
+     thứ đảm bảo ngày seed đọc từ một nguồn khác thì chỗ này nổ lúc biên dịch
+     chứ không lặng lẽ nhét người bịa vào cột `NOT NULL`. */
+  const full: FrozenLead = { ...l, filled: [...new Set([...l.filled, ...CONTACT_SLOTS])] }
   const c = leadContact(full)
   /* Bản sao đã đánh dấu đủ hai ô nên `leadContact` luôn trả người VÀ email —
      nhưng chữ ký của nó vẫn cho phép vắng, nên kiểm ở đây thay vì ép kiểu. Ngày

@@ -4,10 +4,12 @@ import {
   type CurrencyCode,
   type ExitReason,
   type Lead,
+  type LeadEvent,
   type LeadCategory,
   type LeadContact,
   type LeadProfile as ProfileForm,
   type LeadTier,
+  type TranscriptTurn,
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
@@ -205,6 +207,24 @@ function exitLabel(key: string | undefined): ExitReason | '' {
  *   · `filled` is computed from the REAL profile (`filledSlots`), not from a
  *     positional guess off the two counters, so the init-data gate says the
  *     same thing here as it does inside the form.
+ *   · `source` is left EMPTY rather than carrying the server's `SR-…` id — see
+ *     the comment on the field.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THIS BRIDGE IS NOW SAFE TO KEEP — 28/08
+ *  ------------------------------------------------------------------
+ *  The bridge never lied about VALUES; what it could not say was that its
+ *  result is not a frozen row. Three separate bugs came out of that one gap —
+ *  `nextActions` reaching for `leadContact()`, `OriginCard` for `leadOrigin()`,
+ *  `draftOpportunity` for `leadProfile()` — each one an invented person or a
+ *  blank screen, each fixed on its own.
+ *
+ *  `@pv/engines` now brands the frozen rows (`FrozenLead`), and every GENERATOR
+ *  in the fixture demands that brand. Only `LEADS` carries it. So the `Lead`
+ *  built here is, by construction, accepted by everything that merely reads
+ *  fields and rejected AT COMPILE TIME by everything that would invent data
+ *  from a code. The prose warning became a type; the fourth bug of this family
+ *  cannot be written.
  *
  *  ------------------------------------------------------------------
  *  THE ONE THING THAT USED TO LIE — FIXED, `realContact` BELOW IS THE SEAM
@@ -238,17 +258,47 @@ export function leadOf(p: LeadProfile): Lead {
     owner: p.ownerName,
     stage: p.stage,
     daysHere: p.daysHere,
-    /* The legacy fixture shape models a source as ONE code, so it can only
-       carry the campaign half. The other half (`p.source.kind`) has no slot
-       here and is not forced into one: the blocks reading this shape ask
-       "which campaign", never "bought or typed". */
-    source: p.source.campaignId ?? '',
+    /* EMPTY on purpose, and this is the one field that must not be filled in.
+       `Lead.source` documents itself as "mã nguồn — trỏ vào `SOURCES`", the
+       frozen eight-row table. The wire carries `SR-…`, an id from the server's
+       own `config_entry`. Those are two different namespaces, and putting the
+       second one in a slot that promises the first is exactly the lie that
+       made `leadOrigin()` throw on every profile the screen opened.
+       Nothing on this side reads the field (the origin card reads
+       `p.source` — the real two-part object — directly), so the honest value
+       is "no frozen source code", which is what `''` means here. */
+    source: '',
     createdAt: p.createdAt,
     exitReason: p.exitReason ? exitLabelOrUndefined(p.exitReason) : undefined,
     exitedAt: p.exitedAt,
     history: [],
   }
 }
+
+// ---------------------------------------------------------------------------
+// What the touch endpoint will one day fill · TWO named constants, not `[]`
+// ---------------------------------------------------------------------------
+
+/** The lead's touches, and the verbatim conversation on them — EMPTY, because
+ *  `sales.touch` does not exist yet.
+ *
+ *  Two named constants rather than `[]` written inline at the call site, for
+ *  two reasons. The first is a fact about the screen: an empty timeline here is
+ *  a MISSING TABLE, not a lead nobody has spoken to, and a bare `[]` in JSX
+ *  cannot tell those apart — a reader six months from now has to go find out
+ *  which one it is. The second is where the seam has to be when the endpoint
+ *  lands: `GET /sales/leads/:code/touches` replaces exactly these two values
+ *  and nothing else, so the change is one file, not a hunt through the screen.
+ *
+ *  Frozen module-level values, so they keep the same identity across renders
+ *  and never make `ActivityCard`'s memo work for nothing.
+ *
+ *  Deliberately NOT filled by the fixture's generators: `leadTranscript()`
+ *  invents an English conversation out of the lead code, which for an imported
+ *  row is a conversation nobody ever had. `FrozenLead` in `@pv/engines` now
+ *  refuses that call at compile time — see its docblock. */
+export const NO_TOUCHES: readonly LeadEvent[] = []
+export const NO_TRANSCRIPT: readonly TranscriptTurn[] = []
 
 /** Same table as `exitLabel`, minus the `''` branch: a `Lead` spells "still
  *  running" as an ABSENT `exitReason`, and `''` there would read as "it exited

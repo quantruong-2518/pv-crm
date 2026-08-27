@@ -45,7 +45,13 @@ import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_CAMPAIGN_ICON, peopleOn } from '@/data/leads'
-import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
+import {
+  leadOf,
+  leadProfileQuery,
+  realContact,
+  NO_TOUCHES,
+  NO_TRANSCRIPT,
+} from '@/data/lead-profile'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { AssignedPills, AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog, ConvertedCard } from '@/components/convert-dialog'
@@ -307,7 +313,9 @@ export function LeadDetailPage() {
         <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
           <OriginCard lead={lead} onOpen={openSource} />
           <PeopleCard lead={lead} people={people} />
-          <ActivityCard lead={legacy} />
+          {/* Máy chủ chưa có bảng lần chạm — hai hằng NÓI RA điều đó, thay vì
+              một `[]` gõ tại chỗ đọc ra như "lead này chưa ai chạm". */}
+          <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />
         </div>
       </div>
 
@@ -324,7 +332,9 @@ export function LeadDetailPage() {
         onConvert={() => setConverting(true)}
       />
 
-      <ConvertDialog lead={legacy} open={converting} onClose={() => setConverting(false)} />
+      {/* Hồ sơ TRÊN DÂY, không phải `legacy`: phiếu đổi mồi từ hồ sơ thật chứ
+          không sinh lại hồ sơ từ mã lead — xem docblock của `ConvertDialog`. */}
+      <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog
         lead={legacy}
         open={exiting}

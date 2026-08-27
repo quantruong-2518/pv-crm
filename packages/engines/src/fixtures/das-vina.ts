@@ -1743,6 +1743,38 @@ export type Lead = {
   history: LeadEvent[]
 }
 
+/** Dòng của SỔ ĐÓNG BĂNG — không phải một dòng của máy chủ.
+ *
+ *  ------------------------------------------------------------------
+ *  VÌ SAO CẦN MỘT NHÃN KIỂU, KHÔNG PHẢI MỘT QUY ƯỚC
+ *  ------------------------------------------------------------------
+ *  Hình `Lead` mô tả một dòng sổ, và dữ liệu máy chủ mặc vừa hình đó — app web
+ *  có hẳn một cây cầu làm việc ấy (`leadOf` ở `apps/web/src/data/lead-profile.ts`)
+ *  để sáu khối chưa có endpoint vẫn chạy. Cây cầu không nói dối: nó chép đúng
+ *  giá trị trên dây. Thứ nói dối là KIỂU nó trả ra — một `Lead` dựng từ máy chủ
+ *  không phân biệt được với một dòng của kịch bản đóng băng.
+ *
+ *  Hậu quả không phải giả thiết, nó đã xảy ra BA lần, cùng một lỗ:
+ *   · `nextActions` tự gọi `leadContact()` → mã ngoài dải đóng băng ra một cái
+ *     tên và một số điện thoại không ai từng cho;
+ *   · `OriginCard` gọi `leadOrigin()` → mọi lead của máy chủ mang mã nguồn
+ *     `SR-…`, hàm ném, vỡ màn hồ sơ;
+ *   · `draftOpportunity` gọi `leadProfile()` → ném lại đúng chỗ đó, lần thứ ba.
+ *
+ *  Ba lần vá là ba vết rò của một lỗ. Nhãn này bịt lỗ: mọi hàm SINH dưới đây
+ *  đòi `FrozenLead`, mà chỉ `LEADS` mới mang được nhãn. Đưa một dòng dựng từ
+ *  máy chủ vào là **lỗi biên dịch**, không phải một màn trắng lúc chạy.
+ *
+ *  Nhãn chỉ tồn tại ở tầng kiểu — không có trường nào thêm lúc chạy, không tốn
+ *  byte nào. `Lead` vẫn là hình công khai cho mọi thứ chỉ CHỞ dữ liệu; các hàm
+ *  thuần tính toán (`isOverSla` · `isRunning` · `canPromoteToSql` ·
+ *  `opportunityStateOf`) vẫn nhận `Lead` vì chúng chỉ đọc trường có thật và
+ *  dòng máy chủ trả lời chúng đúng.
+ *
+ *  Luật 0 của CLAUDE.md: cưỡng chế được ở tầng kiểu thì đừng để lint làm hộ. */
+declare const FROZEN_ROW: unique symbol
+export type FrozenLead = Lead & { readonly [FROZEN_ROW]: true }
+
 /** Một dòng thô. Cột theo thứ tự:
  *  công ty · tỉnh · ngành · bậc · ô bắt buộc · ô tuỳ chọn · người giữ ·
  *  cột pipeline · số ngày ở đây · chỉ số lý do rơi (-1 = còn trong luồng). */
@@ -2118,7 +2150,7 @@ function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[]
   return out.sort((a, b) => a.at.localeCompare(b.at))
 }
 
-function buildBook(): Lead[] {
+function buildBook(): FrozenLead[] {
   if (ROWS.length !== SOURCE_PLAN.length) {
     throw new Error(`DAS Vina: ${ROWS.length} dòng nhưng ${SOURCE_PLAN.length} nguồn`)
   }
@@ -2155,12 +2187,15 @@ function buildBook(): Lead[] {
       exitedAt: exitIdx >= 0 ? dayISO(DAY_FROZEN - daysHere) : undefined,
     }
 
-    return { ...base, history: buildHistory(base, Math.max(bornDay, 0)) }
+    /* CHỖ DUY NHẤT nhãn `FrozenLead` được đóng, và nó đóng đúng chỗ: đây là
+       nơi 100 dòng của kịch bản ra đời. Không có đường nào khác cấp nhãn này,
+       nên không có đường nào khác đưa dữ liệu máy chủ vào các hàm sinh. */
+    return { ...base, history: buildHistory(base, Math.max(bornDay, 0)) } as FrozenLead
   })
 }
 
 /** 100 dòng — đúng bậc `dau-moi` của phễu. Không phải một trang, là cả kỳ. */
-export const LEADS: Lead[] = buildBook()
+export const LEADS: FrozenLead[] = buildBook()
 
 /** Lead của chính DAS Vina — dòng mồi mọi màn mở ra đầu tiên. */
 export const DAS_VINA_LEAD = 'LD-0103'
@@ -2431,7 +2466,7 @@ export type LeadContact = {
  *
  *  DAS Vina lấy người thật trong đồ thị object (CT-0391), không lấy tên suy ra —
  *  đây là dòng mồi của cả kịch bản, nó phải khớp với `objects`. */
-export function leadContact(lead: Lead): LeadContact | null {
+export function leadContact(lead: FrozenLead): LeadContact | null {
   if (!lead.filled.includes('nguoi-lien-he')) return null
 
   const i = seedOf(lead.code)
@@ -2503,7 +2538,7 @@ export type LeadOrigin = {
 }
 
 /** Lead này từ đâu về. Đây là dây nối module 2 → module 1. */
-export function leadOrigin(lead: Lead): LeadOrigin {
+export function leadOrigin(lead: FrozenLead): LeadOrigin {
   const src = sourceByCode.get(lead.source)
   if (!src) {
     throw new Error(`Lead ${lead.code} trỏ vào nguồn "${lead.source}" không có trong SOURCES`)
@@ -2561,7 +2596,7 @@ const ASK: Record<QuestionKey, string> = {
 
 /** Câu trả lời bên khách. Lấy dữ liệu từ chính dòng lead nên hai lead khác nhau
  *  ra hai transcript khác nhau mà vẫn tất định. */
-const REPLY: Record<QuestionKey, (l: Lead, category: string) => string> = {
+const REPLY: Record<QuestionKey, (l: FrozenLead, category: string) => string> = {
   'phap-nhan': (l) => `${l.company} JSC. The plant is in ${l.province}; I will send the tax code.`,
   nganh: (_l, c) => `${c}. One main line, plus a smaller line we started this year.`,
   'quy-mo': (l) => `About ${headcountOf(l)} people on site. One plant for now.`,
@@ -2607,7 +2642,7 @@ function turnKindOf(by: string): TurnKind {
  *  cho các lần chạm — ô số 1 lấy ở lần chạm đầu, ô cuối lấy ở lần gần nhất. Vì
  *  thế số turn không bao giờ vượt số mốc trong timeline, và lead chưa moi được ô
  *  nào thì KHÔNG có turn nào: gọi mà không hỏi ra gì thì không có gì để lưu. */
-export function leadTranscript(lead: Lead): TranscriptTurn[] {
+export function leadTranscript(lead: FrozenLead): TranscriptTurn[] {
   const keys = lead.filled
   if (keys.length === 0) return []
 
@@ -2641,7 +2676,7 @@ export function leadTranscript(lead: Lead): TranscriptTurn[] {
 // ---------------------------------------------------------------------------
 
 /** Một dòng của báo cáo. Chỉ ô ĐÃ điền mới có dòng; ô trống nằm ở `missing…`. */
-const DIGEST: Record<QuestionKey, (l: Lead, category: string) => string> = {
+const DIGEST: Record<QuestionKey, (l: FrozenLead, category: string) => string> = {
   'phap-nhan': (l) => `${l.company} — pháp nhân đã xác minh, nhà máy đặt tại ${l.province}.`,
   nganh: (_l, c) => `Ngành ${c.toLowerCase()}; một dây chuyền chính, một dây mới mở trong năm.`,
   'quy-mo': (l) => `Khoảng ${headcountOf(l)} người tại chỗ, một nhà máy.`,
@@ -2679,7 +2714,7 @@ export type LeadResearch = {
  *  Số lần cập nhật = số turn. Đây không phải cách đánh số cho đẹp: báo cáo là
  *  phần rút ra từ transcript, nên nó chỉ đổi khi có thêm một lần nói chuyện.
  *  Lead chưa có turn nào thì báo cáo ở phiên bản 0 — chưa ai tìm hiểu gì. */
-export function leadResearch(lead: Lead): LeadResearch {
+export function leadResearch(lead: FrozenLead): LeadResearch {
   const turns = leadTranscript(lead)
   const last = turns[turns.length - 1]
   const category = LEAD_CATEGORIES.find((c) => c.key === lead.category)?.label ?? lead.category
@@ -2759,7 +2794,7 @@ export type LeadMilestones = {
   bdCham?: string
 }
 
-export function leadMilestones(lead: Lead): LeadMilestones {
+export function leadMilestones(lead: FrozenLead): LeadMilestones {
   const at = (kind: LeadEventKind, by?: string) =>
     lead.history.find((e) => e.kind === kind && (by === undefined || e.by === by))?.at
 
@@ -2815,7 +2850,7 @@ export function daysBetween(from: string | undefined, to: string | undefined): n
  *
  *  DAS Vina lấy số THẬT của kịch bản (1.400 người, ghi ở `objects` · AC-0142),
  *  không lấy số suy ra — nó là dòng mồi, mọi chỗ nói về nó phải khớp nhau. */
-export function headcountOf(lead: Pick<Lead, 'code'>): number {
+export function headcountOf(lead: FrozenLead): number {
   if (lead.code === DAS_VINA_LEAD) return 1_400
   return 400 + (seedOf(lead.code) % 12) * 100
 }
@@ -2961,7 +2996,7 @@ const MAIN_PRODUCT: Record<LeadCategory, string> = {
  *  Nội dung tiếng Việt ở đây và bản rút ra của `DIGEST` nói cùng một chuyện: cả
  *  hai đều là phần rút ra từ transcript tiếng Anh, chỉ khác là bảng dưới cắt
  *  nhỏ ra thành từng ô để sửa được. */
-export function leadProfile(lead: Lead): LeadProfile {
+export function leadProfile(lead: FrozenLead): LeadProfile {
   const i = seedOf(lead.code)
   const has = (k: QuestionKey) => lead.filled.includes(k)
   const contact = leadContact(lead)
@@ -3170,7 +3205,7 @@ export function opportunityStateOf(lead: Lead): OpportunityState {
  *  (Chờ ký) không còn hạn nào phía sau để bù, nên nó đáng lẽ đã đóng rồi. Kẹp
  *  ngày đó về lát cắt là xoá đúng câu đáng nói nhất của dòng. Trong kịch bản
  *  đóng băng có đúng một đơn như vậy — OP-0252, `scenario.test.ts` khoá. */
-export function opportunityCloseDay(lead: Lead): number {
+export function opportunityCloseDay(lead: FrozenLead): number {
   if (lead.contractCode || lead.exitReason) return DAY_FROZEN - lead.daysHere
 
   const i = PIPELINE_STAGES.findIndex((s) => s.key === lead.stage)
@@ -3276,12 +3311,25 @@ export function opsFromSource(code: string): number {
  *
  *  `taken` là những mã đã cấp mà sổ CHƯA biết — phiếu người dùng vừa gửi trong
  *  phiên này. Không truyền nó vào thì đổi hai lead ra hai đơn TRÙNG MÃ, và hai
- *  đơn trùng mã là hai dòng sổ mà không ai phân biệt được. */
+ *  đơn trùng mã là hai dòng sổ mà không ai phân biệt được.
+ *
+ *  ------------------------------------------------------------------
+ *  MÃ LẠ BỊ BỎ QUA, KHÔNG ĐƯỢC PHÉP LÀM HỎNG PHÉP ĐẾM
+ *  ------------------------------------------------------------------
+ *  `taken` đến từ `localStorage` của người dùng (`app/desk.ts`), tức từ ngoài
+ *  tiến trình — một bản lưu cũ, một lần đổi cách đặt mã, một dòng sửa tay đều
+ *  cho ra chuỗi không đúng dạng `OP-NNNN`. `Number('P-01xx')` là `NaN`, và
+ *  `Math.max(bất_kỳ_gì, NaN)` cũng là `NaN`: một mã hỏng duy nhất trong sổ nháp
+ *  làm mọi phiếu sau đó mang mã **`OP-0NaN`**. Lọc theo hình dạng trước khi
+ *  cộng, và bỏ qua chứ không ném — mã lạ là dữ liệu cũ của người dùng, không
+ *  phải lỗi lập trình, còn phiếu đang mở thì vẫn phải cấp được mã. */
+const OPPORTUNITY_CODE = /^OP-(\d+)$/
+
 export function nextOpportunityCode(taken: readonly string[] = []): string {
-  const top = [...OPPORTUNITIES.map((o) => o.code), ...taken].reduce(
-    (max, code) => Math.max(max, Number(code.slice(3))),
-    0,
-  )
+  const top = [...OPPORTUNITIES.map((o) => o.code), ...taken].reduce((max, code) => {
+    const n = OPPORTUNITY_CODE.exec(code)?.[1]
+    return n === undefined ? max : Math.max(max, Number(n))
+  }, 0)
   return `OP-${String(top + 1).padStart(4, '0')}`
 }
 
@@ -3296,32 +3344,52 @@ export function nextOpportunityCode(taken: readonly string[] = []): string {
  *  — kịch bản đóng băng thì hai lần mở form phải ra đúng một ngày.
  *
  *  `taken` đi thẳng xuống `nextOpportunityCode`: màn phải nói ra những mã đã
- *  cấp trong phiên này, nếu không hai lần đổi ra hai đơn trùng mã. */
+ *  cấp trong phiên này, nếu không hai lần đổi ra hai đơn trùng mã.
+ *
+ *  ------------------------------------------------------------------
+ *  NHẬN HỒ SƠ, KHÔNG SINH HỒ SƠ — sửa 28/08
+ *  ------------------------------------------------------------------
+ *  Bản cũ nhận `Lead` rồi tự gọi `leadProfile(lead)` bên trong. Đó là hàm SINH
+ *  của fixture: nó tra mã nguồn trong `SOURCES` và **ném** khi không thấy, nên
+ *  mọi lead của sổ thật (`SR-…`, và cả dải nhập từ Apollo `LD-0201…`) làm vỡ
+ *  màn hồ sơ ngay lúc dựng phiếu — `ConvertDialog` nằm trong cây kể cả khi
+ *  chưa mở. Nó còn nặn ra người liên hệ, mã số thuế, địa chỉ từ chính mã lead.
+ *
+ *  Nên hồ sơ đi VÀO bằng tham số. Cùng một đường mà `nextActions` đã đi với
+ *  `contact`: chỗ nào có hồ sơ thật thì đưa hồ sơ thật, không hàm sinh nào
+ *  đứng giữa. `Lead` rụng khỏi chữ ký vì bốn thứ hàm này cần ở đó — tên công
+ *  ty, ngành, người giữ, mã đơn — đều đã nằm sẵn trong cụm "Sổ sách" của
+ *  `LeadProfile`; giữ cả hai tham số là mời hai nguồn sự thật cho một lead.
+ *
+ *  Đồng tiền lùi về VND khi hồ sơ chưa ghi: hợp đồng buộc tiền và đồng tiền
+ *  đi cùng nhau, nên vắng đồng tiền nghĩa là chưa có khoản tiền nào cả —
+ *  `amount` vẫn `null`, không con số nào bị gán nhãn sai. Đây là giá trị mở
+ *  sẵn của một Ô CHỌN người dùng sắp sửa, không phải một dữ kiện khai thay. */
 export function draftOpportunity(
-  lead: Lead,
+  profile: LeadProfile,
   actors: readonly Actor[],
   taken: readonly string[] = [],
 ): OpportunityDraft {
-  const profile = leadProfile(lead)
-  const saleName = lead.owner ?? saleOfCategory(lead.category)
+  const saleName = profile.owner !== '' ? profile.owner : saleOfCategory(profile.category)
   const idOf = (name: string | undefined) => actors.find((a) => a.name === name)?.id
   const sale = idOf(saleName)
-  const bd = profile.bdOwner ? idOf(profile.bdOwner) : undefined
-  const account = lead.dealCode
-    ? dasVina.graph.story(lead.dealCode).find((o) => o.kind === 'AC')
-    : undefined
+  const bd = profile.bdOwner !== '' ? idOf(profile.bdOwner) : undefined
+  const account =
+    profile.dealCode !== ''
+      ? dasVina.graph.story(profile.dealCode).find((o) => o.kind === 'AC')
+      : undefined
 
   return {
     code: nextOpportunityCode(taken),
     name: profile.mainProduct
-      ? `${lead.company} · ${profile.mainProduct}`
-      : `${lead.company} · chưa chốt phạm vi`,
-    account: lead.company,
+      ? `${profile.company} · ${profile.mainProduct}`
+      : `${profile.company} · chưa chốt phạm vi`,
+    account: profile.company,
     accountCode: account?.code ?? '',
     closedDate: dayISO(DAY_FROZEN + 45).slice(0, 10),
     state: 'gui-quotation',
     amount: profile.budget,
-    currency: profile.currency,
+    currency: CURRENCIES.some((c) => c.code === profile.currency) ? profile.currency : 'VND',
     saleOwners: sale ? [sale] : [],
     bdOwners: bd ? [bd] : [],
     description: profile.pain,

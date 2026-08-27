@@ -38,12 +38,12 @@ import {
   dasVina,
   filledSlots,
   INIT_DATA_QUESTIONS,
-  leadTranscript,
   REQUIRED_SLOTS,
   toDong,
   type CurrencyCode,
   type Lead,
   type LeadContact,
+  type LeadEvent,
   type LeadEventKind,
   type LeadProfile,
   type TranscriptTurn,
@@ -760,20 +760,39 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
  *  không phải thứ hiển thị mặc định. Mở ra thì vẽ thành bong bóng hai phía —
  *  một cuộc nói chuyện đọc ra phải giống một cuộc nói chuyện.
  *
- *  HÔM NAY KHỐI NÀY LUÔN RỖNG, và đó là câu trả lời chứ không phải chỗ hỏng:
- *  bảng `sales.touch` chưa dựng, nên `GET /sales/leads/:code` không chở mốc nào
- *  (`history: []` ở `leadOf`) và `leadTranscript` rơi về câu trả lời rỗng của
- *  chính nó. Khối ở lại nguyên hình để ngày có endpoint lần chạm chỉ còn là
- *  việc đổ dữ liệu vào — không phải dựng lại một dòng thời gian. */
-export function ActivityCard({ lead }: { lead: Lead }) {
-  const turns = useMemo(() => leadTranscript(lead), [lead])
+ *  ------------------------------------------------------------------
+ *  DỮ LIỆU ĐI VÀO BẰNG PROPS — KHỐI NÀY KHÔNG TỰ ĐI LẤY
+ *  ------------------------------------------------------------------
+ *  Khối có HAI người gọi đứng trên hai nền dữ liệu khác nhau, và đó là lý do
+ *  nó không được tự gọi `leadTranscript()`:
+ *   · `ops-detail` đứng trên sổ ĐÓNG BĂNG — mốc và nguyên văn đều có thật;
+ *   · `lead-detail` đứng trên máy chủ — `sales.touch` chưa dựng nên không có
+ *     mốc nào, và hàm sinh của fixture với một mã Apollo thì bịa ra một cuộc
+ *     hội thoại chưa từng xảy ra.
+ *
+ *  Nhãn `FrozenLead` bên `@pv/engines` đã chặn đường thứ hai ở tầng kiểu; khối
+ *  này nhận `history` và `turns` rời nhau để MỖI người gọi tự khai mình đứng
+ *  trên nền nào. Rỗng vẫn là một câu trả lời đúng, và câu ấy nằm ở nhánh
+ *  `shown.length === 0` bên dưới — không phải một chỗ hỏng.
+ *
+ *  Khối ở lại nguyên hình để ngày có endpoint lần chạm chỉ còn là việc đổ dữ
+ *  liệu vào — không phải dựng lại một dòng thời gian. */
+export function ActivityCard({
+  code,
+  history,
+  turns,
+}: {
+  code: string
+  history: readonly LeadEvent[]
+  turns: readonly TranscriptTurn[]
+}) {
   const [tab, setTab] = useState('all')
   const [open, setOpen] = useState<string | null>(null)
 
   useEffect(() => {
     setTab('all')
     setOpen(null)
-  }, [lead.code])
+  }, [code])
 
   /* Nối mốc với lần chạm bằng ĐÚNG mốc thời gian: `leadTranscript` lấy `at` của
      turn thẳng từ sự kiện timeline sinh ra nó, nên hai đầu luôn khớp chuỗi. */
@@ -783,7 +802,7 @@ export function ActivityCard({ lead }: { lead: Lead }) {
     return m
   }, [turns])
 
-  const rows = lead.history.map((e, i) => ({ ...e, id: `${e.at}-${i}`, turn: turnAt.get(e.at) }))
+  const rows = history.map((e, i) => ({ ...e, id: `${e.at}-${i}`, turn: turnAt.get(e.at) }))
   const withConvo = rows.filter((r) => r.turn)
   const shown = tab === 'convo' ? withConvo : rows
 

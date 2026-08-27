@@ -24,7 +24,9 @@ import {
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
+import type { LeadProfile } from '@pv/contracts'
 import { useLeadDesk } from '@/app/desk'
+import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/ops'
 import { dmy } from '@/lib/date'
 import {
@@ -52,11 +54,22 @@ import {
  *  là đẻ ra ngôn ngữ đè màn thứ hai trong cùng một app.
  *
  *  ------------------------------------------------------------------
- *  PHIẾU MỞ RA LÀ ĐÃ GẦN ĐỦ
+ *  PHIẾU MỞ RA LÀ ĐÃ GẦN ĐỦ — VÀ MỒI TỪ HỒ SƠ THẬT
  *  ------------------------------------------------------------------
  *  `draftOpportunity` mồi sẵn mã, tên, tiền, người bán, mô tả. Người dùng SỬA
  *  một bản nháp chứ không GÕ một tờ giấy trắng. Ba ô hệ không đoán được — ngày
  *  đóng, trạng thái, tệp đính kèm — là ba ô duy nhất thật sự phải nghĩ.
+ *
+ *  Phiếu nhận HỒ SƠ TRÊN DÂY, không nhận dòng sổ. Bản cũ nhận `Lead` và
+ *  `draftOpportunity` tự sinh hồ sơ từ mã lead — với một mã ngoài dải đóng
+ *  băng, hàm sinh đó tra nguồn `SR-…` trong `SOURCES` của fixture và NÉM, làm
+ *  vỡ cả màn hồ sơ chứ không riêng phiếu này (dialog nằm trong cây kể cả khi
+ *  chưa mở). `profileForm` là đường dịch duy nhất, dùng chung với `ProfileCard`
+ *  — cùng một hồ sơ thì thẻ đọc và phiếu điền không được đọc ra hai bản.
+ *
+ *  Đi qua `useMemo` cũng là để GIỮ NGUYÊN thứ đang gõ dở: `profile` từ
+ *  react-query giữ nguyên tham chiếu giữa các lần vẽ lại, nên bản nháp mồi
+ *  không đổi, nên `useEffect` bên dưới không nạp đè lên ô người dùng vừa gõ.
  *
  *  ------------------------------------------------------------------
  *  Ô NHẬP DÙNG CHUNG VỚI MÀN HỒ SƠ CƠ HỘI — sửa 23/08
@@ -75,19 +88,20 @@ import {
  *  đúng số tiền, nhưng không ai học được gì từ nó. */
 
 type Props = {
-  lead: Lead
+  profile: LeadProfile
   open: boolean
   onClose: () => void
 }
 
-export function ConvertDialog({ lead, open, onClose }: Props) {
+export function ConvertDialog({ profile, open, onClose }: Props) {
   const convert = useLeadDesk((s) => s.convert)
   const deals = useLeadDesk((s) => s.deals)
 
   /* Mã đã cấp trong phiên này. Không đưa vào thì phiếu thứ hai lấy lại đúng mã
      của phiếu thứ nhất — hai dòng sổ trùng mã, và không ai phân biệt được. */
   const taken = useMemo(() => Object.values(deals).map((d) => d.code), [deals])
-  const seed = useMemo(() => draftOpportunity(lead, dasVina.actors, taken), [lead, taken])
+  const form = useMemo(() => profileForm(profile), [profile])
+  const seed = useMemo(() => draftOpportunity(form, dasVina.actors, taken), [form, taken])
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
 
   /* Mở phiếu là một lần bắt đầu mới: nạp lại bản nháp. Không nạp lại thì đóng
@@ -114,8 +128,8 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
       title="Đổi lead thành cơ hội"
       subtitle={
         <>
-          <span className="font-mono">{lead.code}</span> · {lead.company} — phiếu này tạo một dòng
-          mới trong sổ cơ hội và nối nó vào đúng lead đang mở.
+          <span className="font-mono">{profile.code}</span> · {profile.company} — phiếu này tạo một
+          dòng mới trong sổ cơ hội và nối nó vào đúng lead đang mở.
         </>
       }
       meta={<Badge tone={lost ? 'danger' : 'running'}>{STATE_LABEL.get(draft.state)}</Badge>}
@@ -129,7 +143,7 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
             aria-live="polite"
           >
             {ready
-              ? `Đổi xong, ${lead.company} rời sổ lead và đứng ở sổ cơ hội dưới mã ${draft.code}. ${HEAD_OF_SALES} gật thì đơn vào cột thật.`
+              ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội dưới mã ${draft.code}. ${HEAD_OF_SALES} gật thì đơn vào cột thật.`
               : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
           </span>
           <div className="flex shrink-0 gap-2">
@@ -141,7 +155,7 @@ export function ConvertDialog({ lead, open, onClose }: Props) {
               size="md"
               disabled={!ready}
               onClick={() => {
-                convert(lead.code, draft)
+                convert(profile.code, draft)
                 onClose()
                 /* Nối E3 khi có backend: phiếu này thành đề nghị duyệt thật, và
                    E1 nối OP mới vào AC/CT đã có trong đồ thị. */
