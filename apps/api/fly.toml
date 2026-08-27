@@ -22,6 +22,21 @@ primary_region = "sin" # Singapore — gần VN nhất, Fly.io chưa có region 
 [env]
 NODE_ENV = "production"
 
+# Hộp thư nhận báo "có lead mới từ landing page". KHÔNG phải secret — địa chỉ
+# công ty thì ai đọc repo cũng nên thấy, đúng luật đã ghi ở
+# `docs/van-hanh-mail.md` § "Secret trên Fly": chỉ RESEND_API_KEY và
+# RESEND_WEBHOOK_SECRET mới đi qua `fly secrets set`.
+#
+# ĐỂ TRỐNG LÀ TẮT CẢ ĐƯỜNG ỐNG, không phải "gửi cho không ai": E4 bỏ luôn ý
+# định gửi khi audience rỗng (`plan()` trả `[]`), nên intake chấp nhận lead mà
+# KHÔNG sinh dòng nào trong `platform.email_delivery` — worker có chạy cũng
+# không có gì để nhặt. Đó đúng là trạng thái production đã nằm im từ 27/08.
+#
+# Đặt biến này KHÔNG làm thư bay ra ngoài: `PV_EMAIL_ENABLED` vẫn vắng nên
+# mặc định `false` và driver là console. Sổ gửi có dòng, thư dừng đúng một tấc
+# trước khi rời máy — chính là trạng thái doc yêu cầu phải có TRƯỚC bước canary.
+PV_LEAD_NOTIFICATION_TO = "contact@pebblevina.com"
+
 [build]
 dockerfile = "Dockerfile"
 
