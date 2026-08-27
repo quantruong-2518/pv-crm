@@ -1,6 +1,6 @@
 import type { PipeTransform } from '@nestjs/common'
 import type { ZodType } from 'zod'
-import { PvError } from './problem'
+import { invalid } from './problem'
 
 /** Kiểm dữ liệu vào bằng CHÍNH schema của hợp đồng.
  *
@@ -30,12 +30,10 @@ export class ZodPipe<T> implements PipeTransform<unknown, T> {
       ;(fields[key] ??= []).push(issue.message)
     }
 
-    throw new PvError({
-      kind: 'invalid',
-      status: 400,
-      title: 'Dữ liệu gửi lên không hợp lệ.',
-      fields,
-    })
+    /* Cùng xưởng lỗi với mọi chỗ ném khác của máy chủ (`problem.ts`) — kể cả
+       bộ dịch lỗi cơ sở dữ liệu. Một hình `invalid` duy nhất đi ra dây, dù lỗi
+       bị bắt ở cổng vào hay ở tầng bảng. */
+    throw invalid(fields)
   }
 }
 

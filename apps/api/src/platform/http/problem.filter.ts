@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { ProblemKind } from '@pv/contracts'
+import { fromDbError } from './db-error'
 import { PvError, STATUS_OF, toProblem } from './problem'
 
 /** Mọi lỗi ra khỏi máy chủ đều đi qua đây, và đều mang một hình.
@@ -42,6 +43,24 @@ export class ProblemFilter implements ExceptionFilter {
     if (raw instanceof HttpException) {
       const status = raw.getStatus()
       return new PvError({ kind: this.kindOf(status), status, title: raw.message })
+    }
+
+    /* Lỗi của CƠ SỞ DỮ LIỆU, và chỉ những mã nói về dữ liệu vừa gửi lên.
+       Trước bước này, một email trùng ở `lead_email_live_idx` rơi thẳng xuống
+       nhánh 500 dưới đây — mà nộp lại form landing là chuyện thường ngày nhất
+       của một landing page, và nó phải là 409 kèm câu nói được với người gửi.
+
+       Đứng SAU `PvError` và `HttpException`: hai thứ đó là lỗi hệ đã tự phân
+       loại xong, không việc gì phải đoán lại. Đứng TRƯỚC nhánh 500: mã nào bộ
+       dịch không nhận ra thì nó trả `null` và nhánh 500 nhận lại nguyên vẹn.
+
+       Câu ra ngoài không mang tên bảng, tên cột hay tên ràng buộc; nguyên nhân
+       thật đi vào log ở dòng ngay dưới, mức `warn` chứ không `error` — đây là
+       người dùng gửi sai, không phải máy chủ hỏng. */
+    const db = fromDbError(raw)
+    if (db) {
+      this.log.warn(`${req.method} ${req.url} · ${db.log}`)
+      return db.error
     }
 
     /* Lỗi không lường trước: ghi ĐỦ vào log, trả RẤT ÍT ra ngoài. Một stack

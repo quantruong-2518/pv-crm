@@ -48,7 +48,19 @@ export const Problem = z.object({
   instance: z.string(),
   /** Chỉ có khi `type === 'forbidden'` hoặc `'unauthenticated'`. */
   reason: DenyReason.optional(),
-  /** Chỉ có khi `type === 'invalid'` — lỗi theo từng trường, từ zod. */
+  /** Per-field errors. Key is the field name, value is every complaint about it.
+   *
+   *  NOT exclusive to `type === 'invalid'` any more, and that is the point of
+   *  this note. The Postgres error translator now answers a duplicate mailbox
+   *  with 409 `conflict`, and that 409 has to carry the field name `email` or
+   *  the landing form has nowhere to put the red outline — it would have to
+   *  read the sentence in `title` and guess, which is how a form ends up
+   *  highlighting the wrong field.
+   *
+   *  So the rule is: whenever the server can name the field that caused the
+   *  refusal, it fills this in — `invalid` from the zod pipe, `conflict` from a
+   *  unique index. Absent means "the failure is not about one field", not "this
+   *  status never carries fields". */
   errors: z.record(z.string(), z.array(z.string())).optional(),
   /** Nối một dòng log ở màn với một dòng log ở máy chủ. */
   traceId: z.string().optional(),
