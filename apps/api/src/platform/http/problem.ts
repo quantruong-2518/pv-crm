@@ -31,6 +31,7 @@ export const STATUS_OF: Record<ProblemKind, number> = {
   'not-found': 404,
   conflict: 409,
   invalid: 400,
+  'rate-limited': 429,
   server: 500,
 }
 
@@ -112,6 +113,11 @@ export function denied(reason: DenyReason, title?: string): PvError {
     title: title ?? DENY_TITLE[reason],
     reason,
   })
+}
+
+/** 429 — the public caller has exhausted a bounded intake budget. */
+export function rateLimited(title = 'Bạn gửi quá nhanh. Vui lòng thử lại sau.'): PvError {
+  return new PvError({ kind: 'rate-limited', status: 429, title })
 }
 
 const DENY_TITLE: Record<DenyReason, string> = {

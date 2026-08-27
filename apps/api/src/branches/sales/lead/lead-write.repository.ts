@@ -127,6 +127,15 @@ export class LeadWriteRepository {
       .returning()
   }
 
+  /** One public intake insert. A duplicate-email race is allowed to throw so
+   *  Postgres rolls back the mirror row; the service recognises exactly that
+   *  named constraint and returns the generic public acknowledgement. */
+  async insertLandingLead(tx: Db, row: LeadValues & { code: string }): Promise<LeadRowDb> {
+    const [written] = await tx.insert(lead).values(row).returning()
+    if (!written) throw new Error(`sales.lead: INSERT ${row.code} không trả về dòng nào`)
+    return written
+  }
+
   /** One row in `platform.audit` for one load. The batch record.
    *
    *  ------------------------------------------------------------------

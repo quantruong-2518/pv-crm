@@ -6,6 +6,10 @@ import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadWriteService } from './lead-write.service'
+import { LeadIntakeController } from './lead-intake.controller'
+import { LeadIntakeGuard } from './lead-intake.guard'
+import { LeadIntakeRepository } from './lead-intake.repository'
+import { LeadIntakeService } from './lead-intake.service'
 
 /** Module 2 · Sổ lead.
  *
@@ -29,8 +33,16 @@ import { LeadWriteService } from './lead-write.service'
  *  them. */
 @Module({
   imports: [EnginesModule, GraphModule],
-  controllers: [LeadController],
-  providers: [LeadService, LeadRepository, LeadWriteService, LeadWriteRepository],
+  controllers: [LeadController, LeadIntakeController],
+  providers: [
+    LeadService,
+    LeadRepository,
+    LeadWriteService,
+    LeadWriteRepository,
+    LeadIntakeService,
+    LeadIntakeRepository,
+    LeadIntakeGuard,
+  ],
   exports: [LeadService],
 })
 export class LeadModule {}

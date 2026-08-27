@@ -24,6 +24,7 @@ export const ProblemKind = z.enum([
   'not-found',
   'conflict',
   'invalid',
+  'rate-limited',
   'server',
 ])
 

@@ -18,7 +18,9 @@ import { ENV, type Env } from './platform/config/env'
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    /* Do not trust arbitrary X-Forwarded-For values. The public intake door
+       reads Fly-Client-IP in production and req.ip only in local development. */
+    new FastifyAdapter({ trustProxy: false }),
   )
 
   /* Không bật thì `onApplicationShutdown` của `DbModule` không chạy và pool
@@ -27,11 +29,14 @@ async function bootstrap(): Promise<void> {
 
   const env = app.get<Env>(ENV)
 
-  if (env.NODE_ENV === 'development') {
-    /* Vite chạy ở cổng khác nên trình duyệt coi đây là cross-origin.
-       `credentials` bật sẵn cho ngày cookie phiên thay chỗ header actor. */
-    app.enableCors({ origin: /^http:\/\/localhost:\d+$/, credentials: true })
-  }
+  const configuredOrigins = new Set(env.PV_CORS_ORIGINS)
+  app.enableCors({
+    origin(origin, done) {
+      const local = env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+$/.test(origin ?? '')
+      done(null, origin === undefined || local || configuredOrigins.has(origin))
+    },
+    credentials: true,
+  })
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' })
   new Logger('bootstrap').log(`PV One API · cổng ${env.PORT} · ${env.NODE_ENV}`)

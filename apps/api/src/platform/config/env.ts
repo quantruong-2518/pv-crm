@@ -8,6 +8,17 @@ import { z } from 'zod'
  *  nhận request đầu tiên. */
 
 const SCHEMES = ['postgres://', 'postgresql://', 'pglite://'] as const
+const csv = z
+  .string()
+  .default('')
+  .transform((value) => [
+    ...new Set(
+      value
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean),
+    ),
+  ])
 
 const Env = z
   .object({
@@ -31,6 +42,19 @@ const Env = z
       .enum(['true', 'false'])
       .default('false')
       .transform((v) => v === 'true'),
+
+    /** Browser origins allowed to call the API. CORS is not authentication;
+     *  the intake guard still applies origin checks, rate limits and traps. */
+    PV_CORS_ORIGINS: csv,
+    /** Slugs accepted by `?landingPage=...` on the public intake door. */
+    PV_INTAKE_LANDING_PAGES: csv,
+    /** HMAC key used before a client IP is persisted as a limiter key. */
+    PV_INTAKE_IP_HASH_SECRET: z.string().default('development-only-intake-secret'),
+    PV_INTAKE_RATE_PER_MINUTE: z.coerce.number().int().min(1).max(1_000).default(5),
+    PV_INTAKE_RATE_PER_DAY: z.coerce.number().int().min(1).max(100_000).default(30),
+    PV_INTAKE_PAGE_RATE_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(120),
+    PV_INTAKE_PAGE_RATE_PER_DAY: z.coerce.number().int().min(1).max(1_000_000).default(5_000),
+    PV_INTAKE_MAX_INFLIGHT: z.coerce.number().int().min(1).max(100).default(8),
   })
   /** PGlite nhận một kết nối tại một thời điểm và không có đủ extension. Nó là
    *  công cụ phát triển; để nó lọt vào production là một sự cố chờ sẵn. */
@@ -43,6 +67,24 @@ const Env = z
       'PV_TRUST_ACTOR_HEADER là cửa sau của POC — bật nó ở production nghĩa là ai cũng đóng vai được giám đốc.',
     path: ['PV_TRUST_ACTOR_HEADER'],
   })
+  .refine((e) => e.NODE_ENV !== 'production' || e.PV_CORS_ORIGINS.length > 0, {
+    message: 'Production phải khai ít nhất một origin được gọi API.',
+    path: ['PV_CORS_ORIGINS'],
+  })
+  .refine((e) => e.NODE_ENV !== 'production' || e.PV_INTAKE_LANDING_PAGES.length > 0, {
+    message: 'Production phải allowlist ít nhất một landingPage.',
+    path: ['PV_INTAKE_LANDING_PAGES'],
+  })
+  .refine(
+    (e) =>
+      e.NODE_ENV !== 'production' ||
+      (e.PV_INTAKE_IP_HASH_SECRET.length >= 32 &&
+        e.PV_INTAKE_IP_HASH_SECRET !== 'development-only-intake-secret'),
+    {
+      message: 'Production cần secret ngẫu nhiên ít nhất 32 ký tự.',
+      path: ['PV_INTAKE_IP_HASH_SECRET'],
+    },
+  )
 
 export type Env = z.infer<typeof Env>
 

@@ -1,5 +1,5 @@
 import type { ObjectRef } from '@pv/engines'
-import type { LeadCreate } from '@pv/contracts'
+import type { LeadCreate, LeadIntakeBody } from '@pv/contracts'
 import type { lead } from './lead.schema'
 
 /** Contract shapes → column values, for the THREE write doors of the book.
@@ -113,6 +113,24 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       intakeChannel: 'MANUAL',
       motion: body.motion,
       source: body.source ?? null,
+    },
+  }
+}
+
+/** Public landing form → the smallest valid lead row. Door and motion are
+ *  stamped by the server; anonymous callers cannot choose either. */
+export function fromIntake(body: LeadIntakeBody): LeadWrite {
+  return {
+    ownerName: null,
+    values: {
+      company: body.company,
+      contactName: body.contactName,
+      email: body.email,
+      phone: body.phone ?? null,
+      province: body.province ?? null,
+      pain: body.pain ?? null,
+      intakeChannel: 'LANDING',
+      motion: 'INBOUND',
     },
   }
 }

@@ -42,6 +42,14 @@ auto_stop_machines = false
 auto_start_machines = true
 min_machines_running = 1
 
+# Đo tải theo request HTTP. Khi một máy chạm hard_limit, Fly Proxy ngừng đưa
+# thêm request vào máy đó; limiter riêng của intake vẫn chặn chặt hơn ở route
+# công khai và dùng Postgres để đồng bộ giữa nhiều máy.
+[http_service.concurrency]
+type = "requests"
+soft_limit = 30
+hard_limit = 50
+
 [[http_service.checks]]
 grace_period = "20s"
 interval = "15s"

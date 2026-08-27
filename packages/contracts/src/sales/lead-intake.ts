@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { email, phoneOptional, textNhap, textNhapTuyChon } from '../primitives'
 import { type IntakeChannel, type LeadMotion } from './enums'
 
 /** How a lead entered the system — TWO axes, and what each door implies.
@@ -105,3 +106,61 @@ export function channelCarries(
 ): boolean {
   return (MOTION_BY_CHANNEL[channel] as readonly string[]).includes(motion)
 }
+
+// ---------------------------------------------------------------------------
+// Public landing-page door — POST /sales/leads/intake
+// ---------------------------------------------------------------------------
+
+const landingPage = z
+  .string('landingPage là bắt buộc')
+  .trim()
+  .min(1, 'landingPage là bắt buộc')
+  .max(64, 'landingPage tối đa 64 ký tự')
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'landingPage chỉ gồm chữ thường, số và dấu gạch ngang')
+
+const campaignParam = (max = 120) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Tối đa ${max} ký tự`)
+    .transform((value) => (value === '' ? undefined : value))
+    .optional()
+
+/** Query string is attribution, not authentication. `from=landingpage` is
+ *  required so a copied integration URL cannot silently become another write
+ *  door; `landingPage` names the concrete form for reporting and allowlisting. */
+export const LeadIntakeQuery = z
+  .object({
+    from: z.literal('landingpage', 'from phải là "landingpage"'),
+    landingPage,
+    utm_source: campaignParam(),
+    utm_medium: campaignParam(),
+    utm_campaign: campaignParam(),
+    utm_content: campaignParam(),
+    utm_term: campaignParam(),
+  })
+  .strict()
+
+/** The public form gets a deliberately small write surface. Ownership,
+ *  pipeline state, source codes, score and motion are server-owned and cannot
+ *  be asserted by an anonymous caller. `website` is the honeypot: humans leave
+ *  it empty; a non-empty value is acknowledged but never creates a lead. */
+export const LeadIntakeBody = z
+  .object({
+    company: textNhap(200),
+    contactName: textNhap(120),
+    email,
+    phone: phoneOptional,
+    province: textNhapTuyChon(64),
+    pain: textNhapTuyChon(1_000),
+    website: z.string().max(200, 'website tối đa 200 ký tự').optional().default(''),
+  })
+  .strict()
+
+/** Always generic: the public response must not reveal whether an email was
+ *  new, duplicated, or caught by the honeypot. */
+export const LeadIntakeResponse = z.object({ accepted: z.literal(true) })
+
+export type LeadIntakeQuery = z.infer<typeof LeadIntakeQuery>
+export type LeadIntakeBody = z.infer<typeof LeadIntakeBody>
+export type LeadIntakeResponse = z.infer<typeof LeadIntakeResponse>

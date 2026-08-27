@@ -213,6 +213,12 @@ function pgErrorOf(raw: unknown, depth = 0): PgErrorLike | null {
   return 'cause' in e ? pgErrorOf(e.cause, depth + 1) : null
 }
 
+/** Let a service collapse one known race without parsing driver messages or
+ *  exporting the database's internal error shape. */
+export function isDbConstraint(raw: unknown, constraint: string): boolean {
+  return pgErrorOf(raw)?.constraint === constraint
+}
+
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined)
 
 /** Một dòng log, đọc là biết chỗ hỏng. Chỉ vào log, không bao giờ ra response. */

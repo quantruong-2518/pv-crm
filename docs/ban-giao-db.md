@@ -5,6 +5,11 @@ file đó ghi khung `apps/api` đã dựng tới đâu, file này ghi **dữ li�
 nghiệp vụ đã chốt, bảng đã có, bảng chưa có, và bốn chỗ chặn đường endpoint kế
 tiếp.
 
+> **Cập nhật 27/08:** bốn chặn ở cuối tài liệu đã được trả bằng
+> `POST /sales/leads/intake`, migration `0003_futuristic_cerebro.sql`, limiter
+> Postgres theo IP + landing page, honeypot và origin allowlist. Cách tích hợp:
+> [`tich-hop-landing-page.md`](./tich-hop-landing-page.md).
+
 ---
 
 ## Luồng chính — đã chốt lại, KHÁC bản đầu
