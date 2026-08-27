@@ -1,0 +1,179 @@
+# Nợ đã biết — sửa sau
+
+Những thứ đã tìm ra nguyên nhân nhưng cố ý chưa sửa. Mỗi mục ghi đủ bốn thứ:
+**triệu chứng · nằm ở đâu · sửa thế nào · vì sao chưa sửa**. Sửa xong thì xoá mục
+đó khỏi file, đừng đánh dấu ✅ — danh sách này chỉ có nghĩa khi nó ngắn.
+
+Ghi ngày 28/08/2026, trong phiên nối máy chủ tại máy vào Neon.
+
+---
+
+## 1 · `leadFacetQuery` gãy khi sổ vượt 200 lead — Neon đang ở 121
+
+**Triệu chứng (chưa xảy ra, sẽ xảy ra):** hai ô lọc "Lead PIC" và "Account"
+lặng lẽ thiếu giá trị. Người dùng không tìm thấy người hoặc công ty họ biết
+chắc là có, và không có gì trên màn nói vì sao.
+
+**Ở đâu:** `apps/web/src/data/leads.ts` · `leadFacetQuery` — gọi
+`GET /sales/leads?status=all&size=200` chỉ để dựng danh sách chọn. `size=200`
+là trần cứng của `PageQuery` trong `@pv/contracts`, nâng trần chỉ dời ngày gãy.
+
+**Sửa thế nào:** thêm `GET /sales/leads/facets` trả owner và account đã
+`SELECT DISTINCT` ở SQL, kèm số dòng mỗi giá trị. Một câu truy vấn trên cột đã
+có index, thay cho việc kéo cả sổ về trình duyệt.
+
+**Vì sao chưa sửa:** hôm 22/08 sổ mới có 100 dòng nên chưa ai thấy. Nay Neon có
+**121** và mỗi lead nhập tay lại cộng một. Còn **79 dòng nữa là hỏng**, và nó
+hỏng thầm lặng — đây là mục gấp nhất trong file này.
+
+Cùng lượt gọi đó còn nuôi dải "Ghim của tôi" và khoá chống trùng của panel nạp
+tệp; ngày có endpoint facet thì hai chỗ đó chuyển sang đường riêng, đừng kéo
+chắp vá đi theo.
+
+---
+
+## 2 · Sổ lead nuốt lỗi mạng, báo nhầm thành "không có dữ liệu"
+
+**Triệu chứng:** tắt máy chủ rồi mở `/sales/leads` — màn hiện trạng thái rỗng
+_"Không có lead nào khớp bộ lọc đang chọn"_ kèm nút "Bỏ hết bộ lọc", và
+**console sạch trơn, không một dòng lỗi**. Người dùng sẽ đi sửa bộ lọc cho một
+sự cố hạ tầng. Đã dựng lại được y hệt trong phiên 28/08.
+
+**Ở đâu:** `apps/web/src/pages/leads.tsx:262`
+
+```ts
+const { data: bookPage, isPending } = useQuery(leadBookQuery(query))
+const rows = bookPage?.rows ?? [] // lỗi → [] → trạng thái rỗng
+```
+
+**Sửa thế nào:** lấy thêm `isError` và `error`, tách một trạng thái lỗi riêng
+có nút thử lại, phân biệt hẳn với trạng thái rỗng. `ApiError` ở
+`app/api/errors.ts` đã chở đủ `kind` và `path` để nói đúng câu.
+
+**Vì sao chưa sửa:** không nằm trong phạm vi buổi nối Neon. Sửa nhanh, nên làm sớm.
+
+---
+
+## 3 · Thẻ điểm Sổ lead đọc fixture — đã sai lộ liễu từ khi nối Neon
+
+**Triệu chứng:** bảng nói 121 dòng, bốn ô thẻ điểm vẫn đứng `100 · 38% · 30% · 6%`.
+
+**Ở đâu:** `apps/web/src/pages/leads.tsx` · `ScoreCards` đọc hằng `FUNNEL` và
+`FIRST_MEETINGS` import thẳng từ `@pv/engines/fixtures/das-vina`, không qua
+`useQuery` nào.
+
+**Sửa thế nào:** `GET /sales/leads/scorecard` đếm thật từ DB, rồi bỏ hai import
+kia khỏi màn.
+
+**Vì sao chưa sửa:** trước 28/08 DB được seed từ chính fixture đó nên hai số
+trùng nhau, không ai thấy. Nối Neon xong mới lệch. Cần chốt hình dạng endpoint
+trước — riêng `FIRST_MEETINGS` không suy ra được từ `LeadRow` hiện tại, nó đếm
+bằng điều kiện `hasFirstMeeting` trong fixture.
+
+---
+
+## 4 · Bốn màn còn ăn fixture vì máy chủ chưa có route
+
+**Ở đâu:** các query còn truyền `load:` trong `apps/web/src/data/`
+
+| Query                        | File                 | Route ở `apps/api` |
+| ---------------------------- | -------------------- | ------------------ |
+| `/sales/campaigns/sources`   | `campaigns.ts:620`   | chưa có            |
+| `/sales/campaigns/totals`    | `campaigns.ts:626`   | chưa có            |
+| `/sales/ops`                 | `ops.ts:41`          | chưa có            |
+| `/sales/plan`                | `plan.ts:360`        | chưa có            |
+| `/sales/performance/:period` | `performance.ts:946` | chưa có            |
+| `frozenLeadBookQuery`        | `leads.ts:158`       | dùng bởi 3 màn     |
+
+**Sửa thế nào:** dựng endpoint từng nhánh một, rồi bỏ dòng `load:` của query đó —
+đúng nghi thức đã ghi ở docblock đầu `app/api/client.ts`.
+
+**Vì sao chưa sửa:** đây là dựng backend, không phải dọn dẹp. Gỡ `load:` mà chưa
+có endpoint là năm màn chết trắng. Nên đi qua `sketch-first` trước khi chạm file.
+
+**Hệ quả đang sống chung:** màn chiến dịch và màn cơ hội đếm lead theo sổ đóng
+băng (100 dòng), Sổ lead đếm theo Neon (121). Hai số lệch nhau là **đúng thiết
+kế đợt này**, không phải bug.
+
+---
+
+## 5 · CORS khớp tuyệt đối — mỗi domain mới là một lần gãy
+
+**Triệu chứng:** landing page ở origin mới bị chặn ở preflight, thông báo
+_"No 'Access-Control-Allow-Origin' header is present"_. Gặp thật ngày 28/08 với
+`https://web-delta-lilac-19.vercel.app`.
+
+**Ở đâu:** hai cổng, đọc chung biến `PV_CORS_ORIGINS`, cùng so khớp nguyên chuỗi
+
+- `apps/api/src/main.ts` — `configuredOrigins.has(origin)`
+- `apps/api/src/branches/sales/lead/lead-intake.guard.ts:115` — `.includes(origin)`
+
+Nên `pebblevina.com` ≠ `www.pebblevina.com` ≠ `http://pebblevina.com`, và mỗi
+URL preview Vercel là một origin mới. Nhánh regex `localhost:<port>` chỉ sống
+khi `NODE_ENV=development`.
+
+**Sửa thế nào — ba đường, khuyên đường đầu:**
+
+1. Gắn **domain cố định** cho landing page (`landing.pebblevina.com`), khai một
+   lần rồi quên. Không sửa code, không nới cửa.
+2. Cứ khai thêm mỗi lần có domain mới. Ổn nếu danh sách ngắn và ít đổi.
+3. Sửa code cho khớp theo mẫu (`*.vercel.app`). **Phải sửa cả hai chỗ cùng lúc** —
+   sửa một chỗ thì qua được CORS rồi ăn 403 ở guard. Và phải cân nhắc: cửa
+   `intake` là cửa ẩn danh, mở cho cả dải `*.vercel.app` nghĩa là bất kỳ ai
+   deploy một trang lên Vercel cũng gửi lead vào CRM được.
+
+**Đừng tin CORS như một hàng rào:** curl không gửi header `Origin` thì
+`assertOrigin` cho qua thẳng (`lead-intake.guard.ts:111`), mọi client không phải
+trình duyệt đều đi lọt. Thứ thật sự giữ cửa là rate limit theo IP và theo trang,
+trần body 16 KB, và ô honeypot `website`.
+
+**Cách khai:** `fly secrets set` **ghi đè** cả biến chứ không cộng thêm — phải
+liệt kê lại mọi origin đang chạy, thiếu một cái là nó chết theo. Dò danh sách
+hiện tại bằng preflight (`OPTIONS` trả 204 kèm `access-control-allow-origin` =
+origin đó đang được phép); tính đến 28/08 chỉ có `https://pebblevina.com`.
+
+---
+
+## 6 · Hai dòng bản thử còn nằm trong Neon
+
+```
+LD-0233  Pebble Vina Mail Pipeline Check  ·  "Claude Pipeline Check 2026-08-28"
+LD-0232  Pebble Vina API Smoke Test       ·  "Codex Smoke Test 2026-08-27 15:34"
+```
+
+Hai bản thử đi qua cửa `intake` công khai và ở lại, đứng đầu Sổ lead vì mới nhất.
+
+**Sửa thế nào:** script `apps/api/scrub-smoke-rows.mjs` đã viết sẵn — chạy
+không cờ thì chỉ soi và ghi bản sao, `--apply` mới xoá, tất cả trong một
+transaction. Lượt soi cho thấy đúng 6 dòng dính: 2 `sales.lead` · 2
+`platform.object` · 2 `sales.lead_intake`; không dính opportunity, edge, audit.
+
+Thứ tự xoá không tuỳ tiện: `sales.lead.code` vừa là khoá chính vừa
+`references platform.object.code`, phải xoá con trước cha.
+
+**Vì sao chưa sửa:** phiên 28/08 bị harness chặn lệnh xoá dữ liệu production.
+Cần người chạy tay.
+
+**Lưu ý ngược dòng thiết kế:** `lead.schema.ts:132` viết rõ _"leads leave the
+funnel through `exit_reason`, they are not deleted"_ và cố ý không đặt
+`ON DELETE CASCADE`. Hard delete là ngoại lệ mở riêng cho hai dòng bản thử —
+**đừng dùng lại script này cho lead thường.**
+
+---
+
+## 7 · Nhãn bậc · ngành · lý do rơi vẫn đọc fixture
+
+`LeadRow` trên dây còn chở khoá chữ thường cũ (`cho-ky`, `chip`) chứ chưa phải
+ID cấu hình, nên màn phải tra nhãn từ fixture. Chỉ **Nguồn** đã nối được vào sổ
+nguồn thật qua `salesCatalogQuery`. Nợ này đã ghi ở `docs/tich-hop-be.md`; chép
+lại đây để danh sách đủ mặt.
+
+---
+
+## 8 · Vặt
+
+- `docs/tich-hop-landing-page.md:198` — ví dụ `curl` còn dùng `localhost:3000`,
+  trong khi cổng tại máy đã chốt **4123** ở `apps/api/.env`, `apps/web/.env`,
+  `.env.example` và hai doc còn lại. Copy nguyên dòng đó ra chạy sẽ trượt.
+- `apps/web/src/data/leads.ts` — docblock `leadFacetQuery` nói "sổ có 119 dòng";
+  Neon nay 121, fixture vẫn 100. Con số trong văn xuôi sẽ còn trôi, đừng dựa vào nó.
