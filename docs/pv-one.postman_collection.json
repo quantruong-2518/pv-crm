@@ -1,0 +1,484 @@
+{
+  "info": {
+    "name": "PV One · API v1 (Sales · Lead)",
+    "description": "Hợp đồng BE của module Lead, lát cắt 27/08/2026.\n\n**Xác thực hôm nay là cửa sau của POC**: gắn header `X-PV-Actor-Id`, máy chủ tin nó khi `PV_TRUST_ACTOR_HEADER=true`. `env.ts` từ chối khởi động với cờ này ở production. Auth thật (cookie + bảng `platform.session`) chưa dựng.\n\n**Mọi lỗi trả về theo RFC 9457** (`application/problem+json`): `{ type, title, status, instance, reason?, errors?, traceId? }`. `title` là câu nói được với người dùng, tiếng Việt. `errors` gom lỗi theo TỪNG Ô để màn tô đỏ đúng chỗ.\n\n**Hai cửa quyền, trả lời hai câu khác nhau** — `branch` hỏi công ty có mua nhánh này không (403 `branch-not-licensed`), `permission` hỏi vai này có được làm không (403 `permission-denied`). Chưa đăng nhập là 401 `unauthenticated`, KHÔNG lẫn với 403.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:4123",
+      "description": "Máy chủ tại máy. Production: https://pvone-crm-api.fly.dev"
+    },
+    {
+      "key": "actorId",
+      "value": "u-ha",
+      "description": "u-ha TP Kinh doanh (mọi quyền) · u-nam BD · u-huy Sale (ownOnly) · u-chau Marketing · u-anh Presales"
+    }
+  ],
+  "item": [
+    {
+      "name": "Platform",
+      "item": [
+        {
+          "name": "Healthz",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/healthz",
+              "host": ["{{baseUrl}}"],
+              "path": ["healthz"]
+            },
+            "description": "Công khai, không cần header. `{ status, db }` — `db:false` là máy chủ lên nhưng không nối được cơ sở dữ liệu."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sales · Lead",
+      "item": [
+        {
+          "name": "Sổ lead",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads?status=running&page=1&size=50&sort=createdAt&dir=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "running",
+                  "description": "running | signed | exited | all — mặc định running. 4 nhánh, KHÔNG phải cờ boolean."
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "size",
+                  "value": "50",
+                  "description": "tối đa 200"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt",
+                  "description": "company | createdAt | daysHere"
+                },
+                {
+                  "key": "dir",
+                  "value": "desc",
+                  "description": "asc | desc"
+                },
+                {
+                  "key": "q",
+                  "value": "Bán dẫn",
+                  "description": "tìm theo tên công ty, ILIKE",
+                  "disabled": true
+                },
+                {
+                  "key": "stage",
+                  "value": "moi",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tier",
+                  "value": "dau-moi",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "chip",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "source",
+                  "value": "SR-09",
+                  "description": "mã nguồn — xem GET /sales/config/SOURCE",
+                  "disabled": true
+                },
+                {
+                  "key": "owner",
+                  "value": "chua-ai-nhan",
+                  "description": "actor id, hoặc 'chua-ai-nhan' = còn ở kho chung",
+                  "disabled": true
+                },
+                {
+                  "key": "account",
+                  "value": "Fainders.AI",
+                  "description": "lọc đúng một công ty",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**`lead.xem` · cắt theo phạm vi.** Trả `{ rows, total, hidden }`.\n\n`hidden` = số dòng khớp bộ lọc nhưng bị trục phạm vi cắt đi. Đây là con số màn phải hiện thành \"Bị ẩn theo quyền của bạn\" (luật 7) — máy chủ đếm, vì màn không đếm được thứ nó không nhận.\n\n**Phân trang và lọc đều ở server.** Mọi ô lọc phải lên URL; lọc ở client trên trang hiện tại là lọc trên 50 dòng chứ không phải trên sổ.\n\nMột dòng chở đúng thứ bảng sổ cần — 20 trường hồ sơ KHÔNG có ở đây, chúng thuộc `GET /sales/leads/:code` (chưa dựng)."
+          }
+        },
+        {
+          "name": "Tạo lead — nhập tay",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": ""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads"]
+            },
+            "description": "**`lead.sửa`.** Ghi `intake_channel = MANUAL`. Trả `LeadRow` của dòng vừa tạo, 201.\n\nBắt buộc đúng ba: `company` · `contactName` · `email`.\n\nKHÔNG nhận từ client: `code` (sequence sinh) · `requiredFilled`/`optionalFilled` (cột sinh) · `score` · `stageSince` · `createdAt`.\n\n`motion` bị thu hẹp còn 5 thế — cửa `MANUAL` không chở `EVENT` (sự kiện về theo danh sách, không phải từng dòng gõ tay).\n\n**409** nếu email đã có một lead đang sống. So không phân biệt hoa thường.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"Công ty TNHH Cơ khí Đại Phát\",\n  \"contactName\": \"Nguyễn Văn A\",\n  \"email\": \"a.nguyen@daiphat.vn\",\n  \"contactTitle\": \"Giám đốc sản xuất\",\n  \"phone\": \"0912 345 678\",\n  \"contactChannel\": \"email\",\n  \"province\": \"Bình Dương\",\n  \"category\": \"co-khi\",\n  \"motion\": \"INBOUND\",\n  \"source\": \"SR-08\",\n  \"headcount\": 250,\n  \"pain\": \"Không biết giá thành thật của từng lệnh sản xuất\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Nạp tệp · bước 1 — xem trước",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": ""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads/import/preview",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads", "import", "preview"]
+            },
+            "description": "**`lead.sửa`. KHÔNG GHI GÌ** — không một dòng, không cả một số của sequence.\n\nTrả `{ rows, errors, duplicates, dupInFile, dupWithBook, dupWithinFile, total }`.\n\nKiểm từng dòng, khử trùng trong lô, đối chiếu với sổ theo `lower(email)`. Dùng CHUNG hàm kiểm với bước chốt — hai bản kiểm là chuyện \"xem trước bảo sạch, chốt lại báo lỗi\".\n\n`motion` thu hẹp còn 4 thế mà cửa `IMPORT` chở được. `source` là mã của cả lô, thắng ô `source` từng dòng.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"LEAD APOLLO.xlsx\",\n  \"motion\": \"OUTBOUND\",\n  \"source\": \"SR-09\",\n  \"rows\": [\n    {\n      \"line\": 2,\n      \"first\": \"Fainders.AI\",\n      \"values\": {\n        \"company\": \"Fainders.AI\",\n        \"contactName\": \"Myungwon Ham\",\n        \"email\": \"ham@fainders.ai\",\n        \"contactTitle\": \"Co-Founder, CEO\",\n        \"channel\": \"linkedin\",\n        \"address\": \"Seoul, South Korea, 06628\",\n        \"province\": \"Seoul\",\n        \"headcount\": \"27\",\n        \"tier\": \"dau-moi\"\n      }\n    },\n    {\n      \"line\": 3,\n      \"first\": \"FairLabs Co., Ltd.\",\n      \"values\": {\n        \"company\": \"FairLabs Co., Ltd.\",\n        \"contactName\": \"Jongjin Sohn\",\n        \"email\": \"jsohn@fairlabs.io\",\n        \"contactTitle\": \"CEO/Founder\",\n        \"channel\": \"linkedin\",\n        \"address\": \"Seoul, South Korea, 07325\",\n        \"province\": \"Seoul\",\n        \"headcount\": \"4\",\n        \"tier\": \"dau-moi\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Nạp tệp · bước 2 — chốt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": ""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads/import",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads", "import"]
+            },
+            "description": "**`lead.sửa`.** Cả lô vào hết hoặc không dòng nào vào — MỘT transaction. Nạp nửa tệp rồi chết là trạng thái không ai gỡ được bằng tay.\n\nTrả thêm `batchId` · `at` · `intake` · `motion` · `accepted` · `codes[]`. Lô được ghi vết vào `platform.audit`.\n\nMỗi lead tạo ra kèm một dòng gương trong `platform.object` **trong cùng transaction** — khoá ngoại `lead.code → object.code` từ chối insert nếu thiếu, nên ContextRail không thể trống lặng lẽ.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"LEAD APOLLO.xlsx\",\n  \"motion\": \"OUTBOUND\",\n  \"source\": \"SR-09\",\n  \"rows\": [\n    {\n      \"line\": 2,\n      \"first\": \"Fainders.AI\",\n      \"values\": {\n        \"company\": \"Fainders.AI\",\n        \"contactName\": \"Myungwon Ham\",\n        \"email\": \"ham@fainders.ai\",\n        \"contactTitle\": \"Co-Founder, CEO\",\n        \"channel\": \"linkedin\",\n        \"address\": \"Seoul, South Korea, 06628\",\n        \"province\": \"Seoul\",\n        \"headcount\": \"27\",\n        \"tier\": \"dau-moi\"\n      }\n    },\n    {\n      \"line\": 3,\n      \"first\": \"FairLabs Co., Ltd.\",\n      \"values\": {\n        \"company\": \"FairLabs Co., Ltd.\",\n        \"contactName\": \"Jongjin Sohn\",\n        \"email\": \"jsohn@fairlabs.io\",\n        \"contactTitle\": \"CEO/Founder\",\n        \"channel\": \"linkedin\",\n        \"address\": \"Seoul, South Korea, 07325\",\n        \"province\": \"Seoul\",\n        \"headcount\": \"4\",\n        \"tier\": \"dau-moi\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Lỗi · chưa đăng nhập (401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads"]
+            },
+            "description": "Xoá header `X-PV-Actor-Id` rồi gọi. Phải ra **401 `unauthenticated`**, KHÔNG phải 403 — trộn hai cái là đá một người đã đăng nhập về màn đăng nhập và họ đăng nhập vòng vo mà không bao giờ vào được."
+          }
+        },
+        {
+          "name": "Lỗi · sai ô lọc (400)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/leads?sort=xyz",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "leads"],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "xyz",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Ô sai trả **400** với `errors` gắn đúng tên ô:\n\n```json\n{ \"errors\": { \"sort\": [\"Invalid option: expected one of ...\"] } }\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sales · Cấu hình danh mục",
+      "item": [
+        {
+          "name": "Tất cả danh mục",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "config"]
+            },
+            "description": "**`cấu-hình.xem`.** Sáu danh mục trong một lần gọi: `STAGE · TIER · CATEGORY · EXIT_REASON · CHANNEL · SOURCE`.\n\n**Gọi MỘT lần lúc app khởi động rồi cache.** Sổ lead trả `stage`/`tier`/`source` là ID; màn tra tên từ cache. Sổ 100 dòng chở theo 100 lần chữ \"Đang tìm hiểu\" là chở thứ màn đã có."
+          }
+        },
+        {
+          "name": "Một danh mục",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/config/SOURCE",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "config", "SOURCE"]
+            },
+            "description": "**`cấu-hình.xem`.** `:list` ∈ `STAGE · TIER · CATEGORY · EXIT_REASON · CHANNEL · SOURCE`.\n\nMỗi dòng: `{ id, list, name, ord, active, … }` — **ID định danh, tên hiển thị, `ord` là thứ tự nhập**. Sửa tên không đụng một dòng dữ liệu nào."
+          }
+        },
+        {
+          "name": "Thêm dòng",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": ""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/config/SOURCE",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "config", "SOURCE"]
+            },
+            "description": "**`cấu-hình.đề-nghị` → E3 duyệt.** Ma trận E2 KHÔNG có `cấu-hình.sửa`, chỉ có `.đề-nghị` — nên mọi đường ghi ở đây là TẠO ĐỀ NGHỊ, TP gật thì mới đổi.\n\n⚠️ **Hôm nay trả 500**: cửa E3 chưa nối (bảng `sales.approval` chưa dựng). Nó từ chối tường minh kèm lý do chứ không giả vờ 202.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hội thảo Q4 · Đà Nẵng\",\n  \"kind\": \"su-kien\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Đổi thứ tự",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": ""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/config/STAGE/order",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "config", "STAGE", "order"]
+            },
+            "description": "**`cấu-hình.đề-nghị` → E3.** Gửi ĐỦ danh sách id theo thứ tự mới.\n\nRàng buộc `UNIQUE(list, ord)` là `DEFERRABLE INITIALLY DEFERRED` — hoán vị cả cụm chắc chắn có lúc hai dòng cùng `ord` giữa chừng; không hoãn thì thao tác kéo thả không bao giờ chạy được.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\n    \"ST-02\",\n    \"ST-01\",\n    \"ST-03\",\n    \"ST-04\",\n    \"ST-05\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sửa một dòng",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-PV-Actor-Id",
+                "value": "{{actorId}}",
+                "description": "Cửa sau của POC. Auth thật chưa dựng."
+              },
+              {
+                "key": "X-PV-Request-Id",
+                "value": "{{$guid}}",
+                "description": "Về lại trong body lỗi ở trường traceId."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "description": ""
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/sales/config/STAGE/ST-02",
+              "host": ["{{baseUrl}}"],
+              "path": ["sales", "config", "STAGE", "ST-02"]
+            },
+            "description": "**`cấu-hình.đề-nghị` → E3.** Đổi tên, thuộc tính, hoặc bật/tắt (`active`).\n\n**Không xoá cứng.** Dòng đã có lead trỏ vào chỉ tắt được — khoá ngoại chặn xoá.\n\n`limitDays` chỉ có nghĩa với `STAGE`; `CHECK config_limit_only_stage` ép điều đó ở tầng bảng.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Đang tìm hiểu\",\n  \"limitDays\": 14\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

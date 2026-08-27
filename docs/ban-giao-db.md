@@ -49,7 +49,12 @@ platform   actor · object · edge · audit          (có từ trước)
 sales      lead · opportunity · contract          (lead dựng LẠI 26/08, hai cái sau mới)
 ```
 
-### `sales.lead` — 37 cột, sáu nhóm
+### `sales.lead` — 38 cột, sáu nhóm
+
+> **Cập nhật 27/08** — migration `0002` thêm cột `motion`, đổi `intake_channel`
+> sang `MANUAL · IMPORT · LANDING`, đưa `code` thành khoá ngoại vào
+> `platform.object`, và đổi chỉ mục email sang `lower(email)`. Trạng thái mới
+> nhất của cả module: [`ban-giao-lead.md`](./ban-giao-lead.md).
 
 ```
 key        code · created_at
@@ -72,8 +77,10 @@ exit       exit_reason · exited_at
 lead_money_pair     ("budget" IS NULL) = ("currency" IS NULL)   -- nợ #7: tiền luôn mang đơn vị
 lead_exit_pair      ("exit_reason" IS NULL) = ("exited_at" IS NULL)
 lead_exit_no_stage  "exit_reason" IS NULL OR "stage" IS NULL    -- rơi rồi thì không ở cột nào
-lead_no_blank       15 cột text <> ''                           -- nợ #5: chỉ NULL, không bao giờ ''
-lead_email_live_idx UNIQUE(email) WHERE exit_reason IS NULL     -- một email = một lead ĐANG SỐNG
+lead_no_blank       16 cột text <> ''                           -- nợ #5: chỉ NULL, không bao giờ ''
+                                                                --        `contact_channel` vào ngày 27/08
+lead_email_live_idx UNIQUE(lower(email)) WHERE exit_reason IS NULL  -- một hộp thư = một lead ĐANG SỐNG
+lead_code_object_fk FOREIGN KEY (code) → platform.object(code)  -- dòng gương là bắt buộc, máy gác
 ```
 
 ### `sales.opportunity` · `sales.contract`
