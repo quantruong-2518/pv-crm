@@ -3,12 +3,18 @@ import {
   dasVina,
   leadContact,
   leadProfile,
+  EXIT_REASONS,
+  LEAD_CATEGORIES,
+  LEAD_TIERS,
   LEADS,
   OPEN_DEALS,
+  PIPELINE_STAGES,
+  SOURCES,
   type Lead,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
-import type { ContactChannel, ExitReason } from '@pv/contracts'
+import { CONFIG_PREFIX, ContactChannel, type ConfigList, type ExitReason } from '@pv/contracts'
+import { configEntry } from '@api/branches/sales/config/config.schema'
 import { contract } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
 import { opportunity } from '@api/branches/sales/opportunity/opportunity.schema'
@@ -102,6 +108,54 @@ function contactOf(l: Lead) {
   return { ...c, email: c.email }
 }
 
+/** Nhãn bảy kênh liên lạc — CHÉP NGUYÊN VĂN từ `CHANNEL_LABEL` bên
+ *  `apps/web/src/data/sales-config.ts`.
+ *
+ *  Chép chứ không nhập: máy chủ không được với sang app web (eslint chặn, và
+ *  đúng ra là thế). Chép chứ không đặt tên mới: bảy nhãn này đã chốt ở màn Cấu
+ *  hình, gõ lại theo ý mình ở đây là dựng bản thứ hai của cùng một quyết định.
+ *
+ *  Đây là bản chép CUỐI CÙNG của bảng đó. Sau lần seed này nguồn sự thật là
+ *  `sales.config_entry`; bảng bên `apps/web` phải rút về đọc từ API, cùng đường
+ *  mà `PIPELINE_STAGES`, `LEAD_CATEGORIES` và bốn danh mục kia đang đi.
+ *
+ *  Hai thuộc tính của kênh — `hasRoad` (E4 đã gửi thật được chưa) và "có địa
+ *  chỉ để dội hay không" — KHÔNG theo vào bảng: lược đồ đã chốt của
+ *  `config_entry` chỉ có ba cột thuộc tính (`limit_days`, `owner_id`, `kind`),
+ *  không cột nào chở được chúng. Chúng ở nguyên `E4_CHANNELS` và
+ *  `ADDRESSED_CHANNELS` bên `apps/web`. Ghi ra để không ai tưởng là chỗ quên. */
+const CHANNEL_NAME: Record<ContactChannel, string> = {
+  email: 'Email',
+  'zalo-oa': 'Zalo OA',
+  telegram: 'Telegram',
+  'in-app': 'Trong app',
+  linkedin: 'LinkedIn',
+  facebook: 'Facebook',
+  website: 'Website',
+}
+
+/** Một dòng danh mục trước khi có mã và số thứ tự. */
+type ConfigSeed = { name: string; limitDays?: number; ownerId?: string | null; kind?: string }
+
+/** Đánh mã và đánh số theo ĐÚNG thứ tự fixture đang có.
+ *
+ *  Thứ tự nhập là thứ tự nghiệp vụ, nên nó không được sắp lại theo bảng chữ cái
+ *  hay theo bất cứ thứ gì khác: 'Mới' phải là `ord` 1 và 'Chờ ký' phải là 5, vì
+ *  đó là hình dạng thật của cái phễu. Mã thì ngược lại — nó KHÔNG mang nghĩa,
+ *  nó chỉ cần bất biến. */
+function configRows(list: ConfigList, items: ConfigSeed[]) {
+  return items.map((it, i) => ({
+    id: `${CONFIG_PREFIX[list]}-${String(i + 1).padStart(2, '0')}`,
+    list,
+    name: it.name,
+    ord: i + 1,
+    active: true,
+    limitDays: it.limitDays ?? null,
+    ownerId: it.ownerId ?? null,
+    kind: it.kind ?? null,
+  }))
+}
+
 async function seed(): Promise<void> {
   const env = loadEnv()
   const { db, close, kind } = await createDb(env.DATABASE_URL)
@@ -117,6 +171,48 @@ async function seed(): Promise<void> {
     if (!id) throw new Error(`${code}: ${role} "${name}" không khớp actor nào`)
     return id
   }
+
+  /* ── Sáu danh mục cấu hình ─────────────────────────────────────────────────
+     Lấy ĐÚNG từ fixture: giữ nguyên thứ tự, giữ nguyên nhãn. Không dòng nào
+     được thêm, không `limitDays` nào được đoán — sáu danh mục này chính là thứ
+     hôm nay còn là `z.enum` và hằng số, nên một giá trị bịa ra ở đây sẽ được
+     đọc như luật đã chốt của phòng kinh doanh.
+
+     `CATEGORY` là danh mục duy nhất có khoá ngoại sang người: fixture ghi TÊN
+     Sale phụ trách ngành, bảng lưu `id` — `personId` dịch, và nổ nếu fixture
+     nhắc một người không có trong sổ nhân sự.
+
+     `SOURCE` là danh mục duy nhất số dòng không cố định: nó theo `SOURCES` của
+     kỳ, tám nguồn tính tới 17/08. */
+  const configSeed = [
+    ...configRows(
+      'STAGE',
+      PIPELINE_STAGES.map((s) => ({ name: s.label, limitDays: s.limitDays })),
+    ),
+    ...configRows(
+      'TIER',
+      LEAD_TIERS.map((t) => ({ name: t.label })),
+    ),
+    ...configRows(
+      'CATEGORY',
+      LEAD_CATEGORIES.map((c) => ({
+        name: c.label,
+        ownerId: personId(c.sale, `CATEGORY·${c.key}`, 'Sale phụ trách ngành'),
+      })),
+    ),
+    ...configRows(
+      'EXIT_REASON',
+      EXIT_REASONS.map((r) => ({ name: r.label })),
+    ),
+    ...configRows(
+      'CHANNEL',
+      ContactChannel.options.map((k) => ({ name: CHANNEL_NAME[k] })),
+    ),
+    ...configRows(
+      'SOURCE',
+      SOURCES.map((s) => ({ name: s.label, kind: s.kind })),
+    ),
+  ]
 
   const rows = LEADS.map((l, i) => {
     const p = leadProfile(l)
@@ -171,8 +267,39 @@ async function seed(): Promise<void> {
       exitReason: l.exitReason ? exitKeyOf(l.exitReason) : null,
       exitedAt: l.exitedAt ? new Date(l.exitedAt) : null,
       _i: i,
+      /* Display NAME, not id — `platform.object.owner` stores the label E2's
+         scope axis still compares against. Carried here rather than looked up
+         again so the mirror rows below read from the same source as the lead
+         row. Dropped before insert, like `_i`. */
+      _owner: l.owner ?? null,
     }
   })
+
+  /* ── E1 mirror rows, one per lead ──────────────────────────────────────────
+     `lead.code` is a FOREIGN KEY into `platform.object` since 27/08, so a lead
+     without a mirror row can no longer be written at all — that is the whole
+     point of the key (see the docblock on the column in `lead.schema.ts`).
+
+     The fixture's own `objects` list carries FOUR rows — account, contact,
+     opportunity, quote — and no leads, so these 100 are built here. Built, not
+     invented: same shape `lead.mapper.ts#toRef` produces when the API turns a
+     lead row into an E1 object, and every field is read off the lead row that
+     already exists. No new data enters the database.
+
+     `state` holds the STAGE KEY ('moi'), matching `toRef`. The four fixture
+     objects hold Vietnamese labels there instead ('Đang tìm hiểu') — that
+     mismatch predates this file and is not resolved here; resolving it means
+     deciding whether `object.state` is a key or a label, which is a decision
+     for the module that reads it. */
+  const leadObjects = rows.map((r) => ({
+    code: r.code,
+    kind: 'LD' as const,
+    branch: 'Sales' as const,
+    label: r.company,
+    owner: r._owner,
+    state: r.stage,
+    amount: null,
+  }))
 
   /* ── Cơ hội và hợp đồng ────────────────────────────────────────────────────
      Quan hệ lead → cơ hội nay là 1-n, nên `deal_code`/`contract_code` không
@@ -237,6 +364,10 @@ async function seed(): Promise<void> {
     await tx.delete(opportunity)
     await tx.delete(edge)
     await tx.delete(lead)
+    /* Sau `lead`: ngày sáu cột của lead thành khoá ngoại ghép trỏ vào
+       `config_entry`, thứ tự này là thứ tự BẮT BUỘC. Trước `actor`: cột
+       `owner_id` của `CATEGORY` trỏ sang sổ nhân sự. */
+    await tx.delete(configEntry)
     await tx.delete(objectRef)
     await tx.delete(actor)
 
@@ -252,9 +383,13 @@ async function seed(): Promise<void> {
       })),
     )
 
+    /* Ngay sau `actor` vì `CATEGORY.owner_id` trỏ vào đó, và trước `lead` vì
+       sáu cột từ vựng của lead sẽ trỏ vào đây. */
+    await tx.insert(configEntry).values(configSeed)
+
     /* E1 · đồ thị. Object trước, cạnh sau — cạnh có khoá ngoại hai đầu. */
-    await tx.insert(objectRef).values(
-      dasVina.objects.map((o) => ({
+    await tx.insert(objectRef).values([
+      ...dasVina.objects.map((o) => ({
         code: o.code,
         kind: o.kind,
         branch: o.branch,
@@ -263,20 +398,25 @@ async function seed(): Promise<void> {
         state: o.state ?? null,
         amount: o.amount ?? null,
       })),
-    )
+      /* BEFORE `lead` below, and that order is now mandatory rather than
+         tidy: the foreign key on `lead.code` rejects every one of the 100
+         rows if these are not already committed in the same transaction. */
+      ...leadObjects,
+    ])
     await tx
       .insert(edge)
       .values(dasVina.edges.map((e) => ({ fromCode: e.from, toCode: e.to, kind: e.kind })))
 
-    await tx.insert(lead).values(rows.map(({ _i, ...row }) => row))
+    await tx.insert(lead).values(rows.map(({ _i, _owner, ...row }) => row))
     await tx.insert(opportunity).values([...deals, ...won.map((w) => w.opportunity)])
     await tx.insert(contract).values(won.map((w) => w.contract))
   })
 
   console.log(
-    `Đã nạp ${actors.length} actor · ${dasVina.objects.length} object · ` +
+    `Đã nạp ${actors.length} actor · ${dasVina.objects.length + leadObjects.length} object · ` +
       `${dasVina.edges.length} cạnh · ${rows.length} lead · ` +
-      `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · driver ${kind}.`,
+      `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · ` +
+      `${configSeed.length} dòng cấu hình · driver ${kind}.`,
   )
   await close()
 }

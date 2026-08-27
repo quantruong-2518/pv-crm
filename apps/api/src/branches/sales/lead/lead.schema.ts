@@ -16,10 +16,11 @@ import type {
   ExitReason,
   IntakeChannel,
   LeadCategory,
+  LeadMotion,
   LeadTier,
   StageKey,
 } from '@pv/contracts'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 
 /** Chuỗi rỗng KHÔNG phải một giá trị — nợ số 5 của `docs/ban-giao-backend.md`.
@@ -34,6 +35,53 @@ import { sales } from '../sales.schema'
  *  được, chỉ không rỗng được. Mapper chuẩn hoá một chiều lúc ghi; đây là lưới
  *  thứ hai cho ngày mapper quên. */
 const noBlank = (...cols: string[]): SQL => sql.raw(cols.map((c) => `"${c}" <> ''`).join(' AND '))
+
+/** Lead code generator — the counter half of it.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY A SEQUENCE EXISTS AT ALL
+ *  ------------------------------------------------------------------
+ *  `code` is a `text` primary key with no DEFAULT, so until now nothing could
+ *  create a lead unless it already knew a free code — blocker #1 of the four
+ *  in `docs/ban-giao-db.md`. A sequence is the only counter that stays correct
+ *  with two writers at once: `SELECT max(code) + 1` hands the same code to
+ *  both of them, and the second one loses to the primary key.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY IT STARTS AT 201
+ *  ------------------------------------------------------------------
+ *  The frozen DAS Vina fixture OWNS `LD-0101` … `LD-0200`, and `pnpm db:seed`
+ *  writes those codes literally. Starting the counter past that block is what
+ *  keeps a seeded database and real intake from ever colliding on a key —
+ *  the sequence never hands out a code the fixture already claims.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THE FORMAT IS **NOT** A COLUMN DEFAULT
+ *  ------------------------------------------------------------------
+ *  `DEFAULT 'LD-' || lpad(nextval(…)::text, 4, '0')` reads well, and it is the
+ *  wrong shape here — because of the foreign key on `code` below. The mirror
+ *  row in `platform.object` has to exist BEFORE the lead row does. A column
+ *  default only reveals the code AFTER the insert (through `RETURNING`), by
+ *  which point the row that had to come first is already too late; the only
+ *  way to keep the default would be to make the foreign key `DEFERRABLE`,
+ *  i.e. weaken a constraint to work around a convenience.
+ *
+ *  So the counter lives here and the format lives one layer up, in
+ *  `LeadRepository.nextCode()`: take a number, format it, write
+ *  `platform.object` and then `sales.lead` in one transaction. Same division
+ *  `config_entry.id` already uses — codes there are built by the repository
+ *  too.
+ *
+ *  `LD-%04d` PADS to four digits, it does not cap: lead 10 000 is `LD-10000`,
+ *  five digits, still unique. Text order stops matching numeric order at that
+ *  point, which costs nothing as long as nothing sorts the book by `code` —
+ *  the book sorts by `created_at`. */
+export const leadCodeSeq = sales.sequence('lead_code_seq', {
+  startWith: 201,
+  increment: 1,
+  minValue: 1,
+  cache: 1,
+})
 
 /** Sổ lead — module 2 của nhánh Sales.
  *
@@ -62,7 +110,31 @@ export const lead = sales.table(
   'lead',
   {
     // ── key ────────────────────────────────────────────────────────────────
-    code: text('code').primaryKey(),
+    /** Primary key, and at the same time a foreign key into `platform.object`.
+     *
+     *  ------------------------------------------------------------------
+     *  THE MIRROR ROW IS FORCED, NOT REMEMBERED
+     *  ------------------------------------------------------------------
+     *  E1's object graph lives in `platform.object`, and `story()` can only
+     *  see a lead that has a row there. Without this key the two tables are
+     *  simply unrelated: an endpoint that writes the lead and forgets the
+     *  mirror row produces a lead that is valid, queryable, listed in the
+     *  book — and INVISIBLE to the graph. ContextRail comes up empty (luật
+     *  10) and nothing anywhere turns red. A rule that breaks silently is the
+     *  expensive kind, because it breaks for weeks before anyone looks.
+     *
+     *  So Postgres refuses the insert instead of the author of the next
+     *  intake endpoint having to remember. The price is an ordering
+     *  obligation that is now permanent, and it applies to every writer
+     *  including `seed.ts`: write `platform.object` FIRST, `sales.lead`
+     *  second, both in one transaction.
+     *
+     *  Not `ON DELETE CASCADE` on purpose. Removing an object row must not
+     *  silently take a lead with it; leads leave the funnel through
+     *  `exit_reason`, they are not deleted. */
+    code: text('code')
+      .primaryKey()
+      .references(() => objectRef.code),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 
     // ── info · khách là ai ─────────────────────────── ô 1 · 2 · 3 ─────────
@@ -126,6 +198,26 @@ export const lead = sales.table(
      *  lead đã rơi là số ngày nó nằm ở cột cuối trước khi rơi. */
     stageSince: timestamp('stage_since', { withTimezone: true }).notNull().defaultNow(),
     intakeChannel: text('intake_channel').$type<IntakeChannel>(),
+    /** Who made the first move — one of the six `LeadMotion` values.
+     *
+     *  A different axis from `intake_channel`, and both are needed: the
+     *  channel says which DOOR the row came through, this says who moved
+     *  first. An `EVENT` lead can arrive by `IMPORT` or by `MANUAL` — same
+     *  event, different trust in the row.
+     *
+     *  Nullable, and it stays nullable. The frozen fixture predates the idea
+     *  of an intake door entirely, so its 100 rows carry NULL here; guessing
+     *  a value for them would put invented data on the Performance screen
+     *  (debt #5, `docs/ban-giao-db.md`). Real doors fill it: the file-import
+     *  panel in `apps/web` already asks the user to pick one motion for a
+     *  whole batch, and until this column existed there was nowhere to put
+     *  the answer.
+     *
+     *  Stored `UPPER_SNAKE`. `packages/engines` spells the same six values in
+     *  lower case and `apps/web` reads that spelling — known debt, and
+     *  `lead.mapper.ts` is the ONE place the two forms meet. See the docblock
+     *  on `LeadMotion` in `packages/contracts/src/sales/enums.ts`. */
+    motion: text('motion').$type<LeadMotion>(),
     /** Mã nguồn — dây nối module 1 ↔ module 2. NULLABLE có chủ ý: lead gõ
      *  thẳng từ landing page không thuộc chiến dịch nào, và bịa ra một mã
      *  nguồn giả để lấp cột là dựng một nguồn không có trong sổ nguồn. Màn
@@ -203,9 +295,17 @@ export const lead = sales.table(
      *
      *  Landing page nộp hai lần là hai bản ghi thô ở `lead_intake`, không phải
      *  hai lead. Nhưng khách rơi khỏi luồng năm ngoái quay lại năm nay là một
-     *  lead MỚI hợp lệ — nên điều kiện chỉ áp cho dòng chưa rơi. */
+     *  lead MỚI hợp lệ — nên điều kiện chỉ áp cho dòng chưa rơi.
+     *
+     *  Indexed on `lower(email)`, not on the raw column — blocker #3 of the
+     *  four in `docs/ban-giao-db.md`. `An@x.vn` and `an@x.vn` are one mailbox,
+     *  so on a raw index they slip through as two live leads and the MAS mail
+     *  flow sends the same person the same campaign twice. The column comment
+     *  above already asks writers to store the address lowercased and
+     *  trimmed; this is what makes that a fact instead of a request, at the
+     *  one place no door can skip. Same technique `config_name_live` uses. */
     uniqueIndex('lead_email_live_idx')
-      .on(t.email)
+      .on(sql`lower("email")`)
       .where(sql`"exit_reason" IS NULL`),
 
     /** Tiền luôn mang đơn vị — nợ số 7. Một trong hai cột trống là cả hai
@@ -217,6 +317,13 @@ export const lead = sales.table(
     /** Rơi rồi thì không còn đứng ở cột nào của phễu. Không có ràng buộc này
      *  thì sổ cơ hội và sổ lead đếm ra hai con số khác nhau. */
     check('lead_exit_no_stage', sql`"exit_reason" IS NULL OR "stage" IS NULL`),
+    /** `contact_channel` joined this list on 27/08, and it is not cosmetic:
+     *  it is one of the two columns slot 5 of `required_filled` reads
+     *  (`phone IS NOT NULL OR contact_channel IS NOT NULL`). An empty string
+     *  is NOT NULL, so `contact_channel = ''` counts slot 5 as filled — the
+     *  generated column reports a lead as better qualified than it is, and
+     *  the MQL gate opens on nothing. Fourteen columns were already covered;
+     *  this was the one that got out. */
     check(
       'lead_no_blank',
       noBlank(
@@ -230,6 +337,7 @@ export const lead = sales.table(
         'contact_title',
         'email',
         'phone',
+        'contact_channel',
         'pain',
         'current_stack',
         'decision_maker',

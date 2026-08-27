@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
+import { GraphModule } from '@api/platform/graph/graph.module'
 import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
+import { LeadWriteRepository } from './lead-write.repository'
+import { LeadWriteService } from './lead-write.service'
 
 /** Module 2 · Sổ lead.
  *
@@ -10,14 +13,24 @@ import { LeadService } from './lead.service'
  *  dòng này là biết module lead có hỏi E2. Đó là thứ đồ thị module phải nói
  *  được, và là lý do chỉ `ConfigModule`/`DbModule` được global.
  *
+ *  `GraphModule` joined the list the day this module gained a write door, and
+ *  for one hard reason: `sales.lead.code` is a foreign key into
+ *  `platform.object(code)`, so nothing can create a lead without first writing
+ *  the mirror row that `ObjectMirror` owns. It is not an optional enrichment
+ *  the service may remember — Postgres refuses the insert without it. Reading
+ *  this line is how the next person learns that creating a lead touches the
+ *  object graph.
+ *
  *  `exports` cố tình chỉ có `LeadService`, KHÔNG có `LeadRepository`: module
  *  khác được hỏi "cho tôi sổ lead của người này", không được với thẳng vào
  *  bảng. Ngày nào cần tách service, thứ phải thay là một interface chứ không
- *  phải hai chục câu truy vấn rải khắp nơi. */
+ *  phải hai chục câu truy vấn rải khắp nơi. `LeadWriteService` stays inside for
+ *  the same reason: another branch may ask for leads, it does not get to make
+ *  them. */
 @Module({
-  imports: [EnginesModule],
+  imports: [EnginesModule, GraphModule],
   controllers: [LeadController],
-  providers: [LeadService, LeadRepository],
+  providers: [LeadService, LeadRepository, LeadWriteService, LeadWriteRepository],
   exports: [LeadService],
 })
 export class LeadModule {}

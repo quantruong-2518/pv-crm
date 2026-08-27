@@ -7,8 +7,19 @@ import type { LeadRowDb } from './lead.schema'
  *  `daysHere` KHÔNG có trong `LeadRowDb` vì nó không phải cột — máy chủ tính
  *  nó từ `stage_since` ngay trong câu truy vấn. Mang nó cạnh hàng thay vì nhét
  *  vào hàng để `tsc` vẫn phân biệt được "thứ bảng có" và "thứ câu hỏi tính
- *  ra". */
-export type LeadRead = { row: LeadRowDb; daysHere: number }
+ *  ra".
+ *
+ *  Same reasoning now covers three more fields the contract needs:
+ *  `ownerName` and `ownerEmail` come from the `actor` left join, `signed`
+ *  from the `EXISTS(contract …)` subquery — none of the three is a column on
+ *  `lead`, so none of them belongs inside `row` either. */
+export type LeadRead = {
+  row: LeadRowDb
+  daysHere: number
+  ownerName: string | null
+  ownerEmail: string | null
+  signed: boolean
+}
 
 /** Hàng trong bảng ↔ dòng trong hợp đồng. Chỗ DUY NHẤT biết cả hai hình.
  *
@@ -18,12 +29,13 @@ export type LeadRead = { row: LeadRowDb; daysHere: number }
  *
  *  Hai mươi trường hồ sơ (`pain`, `budget`, `decision_maker`…) CỐ TÌNH vắng:
  *  chúng thuộc hợp đồng của `GET /sales/leads/:code`, không thuộc dòng sổ. */
-export function toContract({ row, daysHere }: LeadRead): LeadRow {
+export function toContract({ row, daysHere, ownerName, ownerEmail, signed }: LeadRead): LeadRow {
   return {
     code: row.code,
     company: row.company,
     contactName: row.contactName,
     email: row.email,
+    ...(row.contactTitle ? { contactTitle: row.contactTitle } : {}),
     ...(row.province ? { province: row.province } : {}),
     ...(row.category ? { category: row.category } : {}),
     ...(row.tier ? { tier: row.tier } : {}),
@@ -32,9 +44,12 @@ export function toContract({ row, daysHere }: LeadRead): LeadRow {
     requiredFilled: row.requiredFilled,
     optionalFilled: row.optionalFilled,
     ...(row.ownerId ? { ownerId: row.ownerId } : {}),
+    ...(ownerName ? { ownerName } : {}),
+    ...(ownerEmail ? { ownerEmail } : {}),
     ...(row.stage ? { stage: row.stage } : {}),
     daysHere,
     ...(row.source ? { source: row.source } : {}),
+    signed,
     score: row.score,
     ...(row.lastTouchAt ? { lastTouchAt: row.lastTouchAt.toISOString() } : {}),
     createdAt: row.createdAt.toISOString(),

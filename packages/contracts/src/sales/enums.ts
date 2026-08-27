@@ -48,8 +48,55 @@ export type ExitReason = z.infer<typeof ExitReason>
  *
  *  Khác hẳn `source` — `source` nói lead về từ NGUỒN nào (một mã trong sổ
  *  nguồn của module 1), còn cái này nói nó đi qua CỬA nào để vào cơ sở dữ
- *  liệu. Một lead có thể tới từ nguồn 'hoi-thao-q3' mà vào bằng cửa 'import'. */
-export const IntakeChannel = z.enum(['landing', 'bd', 'import'])
+ *  liệu. Một lead có thể tới từ nguồn 'hoi-thao-q3' mà vào bằng cửa 'IMPORT'.
+ *
+ *  27/08 — the value set changed and the old `bd` is gone:
+ *
+ *   · `MANUAL`  — a person typed the row in. This is the old `bd` renamed: BD
+ *     is a TEAM, not a door, and Sales or an admin types into the same door.
+ *   · `IMPORT`  — a batch arrived from a file.
+ *   · `LANDING` — the public form posted it.
+ *
+ *  `UPPER_SNAKE` because that is the naming law for enum VALUES here. These
+ *  are keys — on the wire and in the column — not labels on a screen; labels
+ *  belong to the view layer, which is why none appear in this file. The table
+ *  was empty when this changed, so nothing had to be migrated. The next time
+ *  it changes there will be rows, and then it is a migration, not an edit. */
+export const IntakeChannel = z.enum(['MANUAL', 'IMPORT', 'LANDING'])
+
+/** Who made the first move — the six lead MOTIONS.
+ *
+ *  ------------------------------------------------------------------
+ *  A DIFFERENT AXIS FROM `IntakeChannel`, AND THE DIFFERENCE IS THE POINT
+ *  ------------------------------------------------------------------
+ *  `IntakeChannel` says which DOOR the row came through; this says WHO MOVED
+ *  FIRST. They are independent: an `EVENT` lead can arrive by `IMPORT` (the
+ *  registration list exported the next morning) or by `MANUAL` (a BD typing
+ *  up the badges that evening) — same event, two different rows. Folding the
+ *  two axes into one enum of thirty values is the reliable way to make both
+ *  of them unfilterable.
+ *
+ *  The list is CLOSED. There is no seventh motion and no "other" bucket: an
+ *  "other" here is where every hard-to-classify lead ends up, and one quarter
+ *  later it is the largest bucket in the table — at which point "which motion
+ *  brings customers" has stopped being answerable. A lead that genuinely fits
+ *  none of the six is a lead missing information, which is a PROBLEM, not a
+ *  category.
+ *
+ *  ------------------------------------------------------------------
+ *  KNOWN DEBT — THIS VOCABULARY IS DECLARED IN TWO PLACES
+ *  ------------------------------------------------------------------
+ *  `packages/engines/src/lead-intake.ts` holds `LEAD_MOTIONS`: the same six
+ *  values in lower case (`inbound`, …), and `apps/web` reads that one. This
+ *  copy is the stored/wire form. Two declarations of one vocabulary is the
+ *  "enum declared twice" debt recorded in `docs/ban-giao-api.md`, and it is
+ *  paid in its own sweep — not here, where it would drag `apps/web` into a
+ *  migration.
+ *
+ *  Until that sweep: the conversion between the two spellings happens in
+ *  `lead.mapper.ts`, in exactly ONE place. A second conversion site is how
+ *  two spellings start to drift, so there must not be one. */
+export const LeadMotion = z.enum(['INBOUND', 'OUTBOUND', 'EVENT', 'REFERRAL', 'PARTNER', 'RECYCLE'])
 
 /** Kênh gọi lại được khách — ô 5 của cổng init data.
  *
@@ -72,5 +119,6 @@ export const ContactChannel = z.enum([
 export const CurrencyCode = z.enum(['VND', 'USD'])
 
 export type IntakeChannel = z.infer<typeof IntakeChannel>
+export type LeadMotion = z.infer<typeof LeadMotion>
 export type ContactChannel = z.infer<typeof ContactChannel>
 export type CurrencyCode = z.infer<typeof CurrencyCode>
