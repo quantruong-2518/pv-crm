@@ -83,10 +83,10 @@ Lỗi tầng bảng đã được dịch sẵn, **không trả 500 nữa**:
 | `GET /healthz`                     | công khai                    | `{ status, db }`                               |
 | `GET /sales/leads`                 | `lead.xem` · **cắt phạm vi** | sổ, lọc + phân trang **ở server**              |
 | `GET /sales/leads/:code`           | `lead.xem` · **cắt phạm vi** | hồ sơ một lead — ngoài phạm vi là **403**      |
-| `POST /sales/leads`                | `lead.sửa`                   | nhập tay → `intake_channel = MANUAL`           |
+| `POST /sales/leads`                | `lead.sửa`                   | nhập tay → `source_kind = MANUAL`              |
 | `POST /sales/leads/import/preview` | `lead.sửa`                   | chạy khô, **không ghi gì**                     |
-| `POST /sales/leads/import`         | `lead.sửa`                   | chốt lô → `intake_channel = IMPORT`            |
-| `POST /sales/leads/intake`         | công khai · có rate limit    | landing page → `intake_channel = LANDING`      |
+| `POST /sales/leads/import`         | `lead.sửa`                   | chốt lô → `source_kind = IMPORT`               |
+| `POST /sales/leads/intake`         | công khai · có rate limit    | landing page → `source_kind = LANDING_PAGE`    |
 | `GET /sales/config`                | `cấu-hình.xem`               | 6 danh mục, gọi **một lần** rồi cache          |
 | `GET /sales/config/:list`          | `cấu-hình.xem`               |                                                |
 | `POST · PATCH /sales/config/…`     | `cấu-hình.đề-nghị`           | **→ E3 duyệt · hôm nay trả 500, cửa chưa nối** |
@@ -117,8 +117,9 @@ Trả **một hồ sơ**: đúng dòng sổ ở trên, cộng thêm bốn cụm 
 chở — thông tin công ty (`legalName` · `taxCode` · `address` · `mainProduct` ·
 `headcount` · `plants`), nhu cầu (`pain` · `currentStack` · `decisionMaker` ·
 `approver` · `budget` · `currency` · `deadline`), hai người được **ghi công**
-(`bdOwnerId`/`Name`/`Email` · `marketingOwnerId`/`Name`/`Email`) và cửa vào
-(`intakeChannel` · `motion`).
+(`bdOwnerId`/`Name`/`Email` · `marketingOwnerId`/`Name`/`Email`) và ai động
+trước (`motion`). Xuất xứ đi trong `source` — một object `{ kind, campaignId,
+campaignName }` mà chính dòng sổ đã chở.
 
 Hợp đồng là `LeadProfile`, và nó **mở rộng** `LeadRow` (`.extend()`): phần chung
 khai đúng một lần nên sổ và hồ sơ không lệch nhau được. Trường nào vắng nghĩa là
@@ -160,10 +161,10 @@ Khử trùng theo `lower(email)` — trong chính lô, và với sổ (chỉ dò
 
 **Đây là chỗ dễ sai nhất khi ghép FE.**
 
-| Nhóm                         | Ví dụ                                                                                                      | Ở đâu                                                    |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Enum trong code**          | `status` · `sort` · `dir` · `motion` (`INBOUND`…) · `intakeChannel` (`MANUAL·IMPORT·LANDING`) · `currency` | `@pv/contracts` — mỗi giá trị có một đường code phía sau |
-| **ID của danh mục cấu hình** | `SR-09` · `ST-02` · `TR-01`                                                                                | `GET /sales/config` — người dùng tự nhập, tự đổi thứ tự  |
+| Nhóm                         | Ví dụ                                                                                                                | Ở đâu                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Enum trong code**          | `status` · `sort` · `dir` · `motion` (`INBOUND`…) · `source.kind` (`MANUAL·IMPORT·APOLLO·LANDING_PAGE`) · `currency` | `@pv/contracts` — mỗi giá trị có một đường code phía sau, và một nhãn chung ở `SOURCE_KIND_LABEL` |
+| **ID của danh mục cấu hình** | `SR-09` · `ST-02` · `TR-01`                                                                                          | `GET /sales/config` — người dùng tự nhập, tự đổi thứ tự                                           |
 
 Danh mục cấu hình: **ID định danh · tên hiển thị · `ord` là thứ tự nhập.** Đổi
 tên không đụng một dòng dữ liệu nào; đổi thứ tự không đụng ID. Đừng bao giờ so

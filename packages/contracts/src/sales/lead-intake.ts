@@ -1,17 +1,21 @@
 import { z } from 'zod'
 import { email, phoneOptional, textNhap, textNhapTuyChon } from '../primitives'
-import { type IntakeChannel, type LeadMotion } from './enums'
+import { type LeadMotion, type LeadSourceKind } from './enums'
 
-/** How a lead entered the system — TWO axes, and what each door implies.
+/** How a lead entered the system — TWO axes, and what each origin implies.
  *
  *  ------------------------------------------------------------------
  *  THE TWO AXES THEMSELVES LIVE IN `./enums`
  *  ------------------------------------------------------------------
- *  `IntakeChannel` (which DOOR the row came through) and `LeadMotion` (WHO
- *  moved first) are declared there, next to the other stored vocabularies,
- *  because both are written into columns of `sales.lead`. This file holds only
- *  what is DERIVED from them: how far a door can be trusted, and which pairs of
- *  the two axes actually occur.
+ *  `LeadSourceKind` (WHERE the row came from) and `LeadMotion` (WHO moved
+ *  first) are declared there, next to the other stored vocabularies, because
+ *  both are written into columns of `sales.lead`. This file holds only what is
+ *  DERIVED from them: how far an origin can be trusted, and which pairs of the
+ *  two axes actually occur.
+ *
+ *  The OPEN half of the origin — which campaign the lead is attributed to —
+ *  is not an axis with rules like these. It is a catalogue row, and it lives
+ *  in `./lead-source` alongside the object that carries both halves.
  *
  *  It is deliberately not a third declaration of either list. The six motions
  *  were briefly declared in three places at once — the engine, this file, and
@@ -24,8 +28,8 @@ import { type IntakeChannel, type LeadMotion } from './enums'
  *  ------------------------------------------------------------------
  *  · MOTION answers "who moved first" — the customer reached out, or we did. It
  *    decides how you open the conversation.
- *  · CHANNEL answers "through which door did the row reach the table". It
- *    decides how much the row can be TRUSTED.
+ *  · SOURCE KIND answers "where did this row come from". It decides how much
+ *    the row can be TRUSTED.
  *
  *  They are independent, and that is the point: an `EVENT` lead arrives by
  *  `IMPORT` (the registration list exported the next morning) or by `MANUAL` (a
@@ -36,19 +40,21 @@ import { type IntakeChannel, type LeadMotion } from './enums'
  *  ------------------------------------------------------------------
  *  KNOWN DEBT — THE ENGINE STILL HOLDS AN OLDER SHAPE
  *  ------------------------------------------------------------------
- *  `packages/engines/src/lead-intake.ts` models the door axis with FIVE values
- *  (`dong-bo · tay · tep · quet · api`) in lower case, and `apps/web` reads
- *  that one. The stored vocabulary is the three above: every one of them has a
- *  code path behind it, whereas `dong-bo` and `quet` describe doors nothing has
- *  been built for yet. The tables below are that five-door table narrowed to
- *  the doors that exist, with `tay → MANUAL`, `tep → IMPORT`, `api → LANDING`.
- *  Reconciling the two copies is the "enum declared twice" debt in
- *  `docs/ban-giao-api.md`; the conversion happens in `lead.mapper.ts`, in
- *  exactly ONE place, until it is paid. */
+ *  `packages/engines/src/lead-intake.ts` models this axis with FIVE values
+ *  (`dong-bo · tay · tep · quet · api`) in lower case, and the import panel in
+ *  `apps/web` reads that one. The stored vocabulary is the four in `./enums`:
+ *  every one of them has a code path behind it, whereas `dong-bo` and `quet`
+ *  describe doors nothing has been built for yet. The tables below are that
+ *  five-door table narrowed to the origins that exist, with `tay → MANUAL`,
+ *  `tep → IMPORT`, `api → LANDING_PAGE`; `APOLLO` has no counterpart there at
+ *  all, because the engine copy has no notion of a named vendor. Reconciling
+ *  the two is the "enum declared twice" debt in `docs/ban-giao-api.md`; the
+ *  conversion happens in `lead.mapper.ts`, in exactly ONE place, until it is
+ *  paid. */
 
-/** How far a row that came through a given door can be trusted.
+/** How far a row of a given origin can be trusted.
  *
- *  Derived from the door rather than chosen, because it only asks one question:
+ *  Derived from the origin rather than chosen, because it only asks one question:
  *  is there someone who confirmed this row, and who was it.
  *
  *   · `XAC_MINH` — someone on the CUSTOMER side confirmed it.
@@ -62,22 +68,30 @@ export const IntakeTrust = z.enum(['XAC_MINH', 'KHAI_BAO', 'THO'])
 
 export type IntakeTrust = z.infer<typeof IntakeTrust>
 
-/** Trust is a CONSEQUENCE of the door, never a field anyone types.
+/** Trust is a CONSEQUENCE of where the row came from, never a field anyone
+ *  types.
  *
- *  `LANDING` is `XAC_MINH` because the customer filled the form and pressed
- *  send themselves; `MANUAL` is `KHAI_BAO` because a person here owns every
- *  cell they typed; `IMPORT` is `THO` because a file is a pile of rows until
- *  somebody has touched one. */
+ *  `LANDING_PAGE` is `XAC_MINH` because the customer filled the form and
+ *  pressed send themselves; `MANUAL` is `KHAI_BAO` because a person here owns
+ *  every cell they typed; `IMPORT` is `THO` because a file is a pile of rows
+ *  until somebody has touched one.
+ *
+ *  `APOLLO` is `THO` for the same reason as `IMPORT`, and it is worth saying
+ *  why it does not get its own level: paying for a row is not the same as
+ *  confirming it. A bought contact is exactly as unverified as a free one —
+ *  the invoice buys reach, not truth — and a vendor tier above `THO` would
+ *  quietly inflate every conversion rate computed over purchased data. */
 export const CHANNEL_TRUST = {
   MANUAL: 'KHAI_BAO',
   IMPORT: 'THO',
-  LANDING: 'XAC_MINH',
-} as const satisfies Record<z.infer<typeof IntakeChannel>, z.infer<typeof IntakeTrust>>
+  APOLLO: 'THO',
+  LANDING_PAGE: 'XAC_MINH',
+} as const satisfies Record<z.infer<typeof LeadSourceKind>, z.infer<typeof IntakeTrust>>
 
-/** Which door can carry which motion — the pairs that actually exist.
+/** Which origin can carry which motion — the pairs that actually exist.
  *
  *  Not every combination does, and this table says so instead of leaving each
- *  caller to guess: `LANDING` carries only `INBOUND` and `PARTNER`, because a
+ *  caller to guess: `LANDING_PAGE` carries only `INBOUND` and `PARTNER`, because a
  *  public form is something a stranger walks up to — nothing `OUTBOUND` ever
  *  falls out of it. `MANUAL` carries everything except `EVENT`, which arrives
  *  as a list rather than as one typed row.
@@ -96,12 +110,18 @@ export const CHANNEL_TRUST = {
 export const MOTION_BY_CHANNEL = {
   MANUAL: ['INBOUND', 'OUTBOUND', 'REFERRAL', 'PARTNER', 'RECYCLE'],
   IMPORT: ['OUTBOUND', 'EVENT', 'PARTNER', 'RECYCLE'],
-  LANDING: ['INBOUND', 'PARTNER'],
-} as const satisfies Record<z.infer<typeof IntakeChannel>, readonly z.infer<typeof LeadMotion>[]>
+  /* Narrower than `IMPORT`, and that is the point of naming the vendor: a
+     bought list is cold outbound, or the same list bought again to wake old
+     contacts. It never carries `EVENT` — nobody registered for anything — and
+     never `PARTNER`, because a partner who hands over contacts hands over a
+     file, not an Apollo invoice. */
+  APOLLO: ['OUTBOUND', 'RECYCLE'],
+  LANDING_PAGE: ['INBOUND', 'PARTNER'],
+} as const satisfies Record<z.infer<typeof LeadSourceKind>, readonly z.infer<typeof LeadMotion>[]>
 
 /** Does this pair exist. */
 export function channelCarries(
-  channel: z.infer<typeof IntakeChannel>,
+  channel: z.infer<typeof LeadSourceKind>,
   motion: z.infer<typeof LeadMotion>,
 ): boolean {
   return (MOTION_BY_CHANNEL[channel] as readonly string[]).includes(motion)
@@ -142,8 +162,8 @@ export const LeadIntakeQuery = z
   .strict()
 
 /** The public form gets a deliberately small write surface. Ownership,
- *  pipeline state, source codes, score and motion are server-owned and cannot
- *  be asserted by an anonymous caller. `website` is the honeypot: humans leave
+ *  pipeline state, campaign attribution, score and motion are server-owned and
+ *  cannot be asserted by an anonymous caller. `website` is the honeypot: humans leave
  *  it empty; a non-empty value is acknowledged but never creates a lead. */
 export const LeadIntakeBody = z
   .object({

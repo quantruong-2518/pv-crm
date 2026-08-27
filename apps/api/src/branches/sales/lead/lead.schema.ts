@@ -14,9 +14,9 @@ import type {
   ContactChannel,
   CurrencyCode,
   ExitReason,
-  IntakeChannel,
   LeadCategory,
   LeadMotion,
+  LeadSourceKind,
   LeadTier,
   StageKey,
 } from '@pv/contracts'
@@ -197,13 +197,13 @@ export const lead = sales.table(
      *  Lead rơi khỏi luồng thì cột này KHÔNG đặt lại, nên `days_here` của một
      *  lead đã rơi là số ngày nó nằm ở cột cuối trước khi rơi. */
     stageSince: timestamp('stage_since', { withTimezone: true }).notNull().defaultNow(),
-    intakeChannel: text('intake_channel').$type<IntakeChannel>(),
+    sourceKind: text('source_kind').$type<LeadSourceKind>(),
     /** Who made the first move — one of the six `LeadMotion` values.
      *
-     *  A different axis from `intake_channel`, and both are needed: the
-     *  channel says which DOOR the row came through, this says who moved
-     *  first. An `EVENT` lead can arrive by `IMPORT` or by `MANUAL` — same
-     *  event, different trust in the row.
+     *  A different axis from `source_kind`, and both are needed: that column
+     *  says WHERE the row came from, this says who moved first. An `EVENT`
+     *  lead can arrive by `IMPORT` or by `MANUAL` — same event, different
+     *  trust in the row.
      *
      *  Nullable, and it stays nullable. The frozen fixture predates the idea
      *  of an intake door entirely, so its 100 rows carry NULL here; guessing
@@ -218,11 +218,19 @@ export const lead = sales.table(
      *  `lead.mapper.ts` is the ONE place the two forms meet. See the docblock
      *  on `LeadMotion` in `packages/contracts/src/sales/enums.ts`. */
     motion: text('motion').$type<LeadMotion>(),
-    /** Mã nguồn — dây nối module 1 ↔ module 2. NULLABLE có chủ ý: lead gõ
-     *  thẳng từ landing page không thuộc chiến dịch nào, và bịa ra một mã
-     *  nguồn giả để lấp cột là dựng một nguồn không có trong sổ nguồn. Màn
-     *  Performance phải có nhóm "Không nguồn". */
-    source: text('source'),
+    /** Chiến dịch được quy công — dây nối module 1 ↔ module 2. Giá trị là `id`
+     *  của một dòng `sales.config_entry` trong danh mục `SOURCE`.
+     *
+     *  NULLABLE có chủ ý: lead gõ tay hoặc gõ thẳng từ landing page không
+     *  thuộc chiến dịch nào, và bịa ra một mã để lấp cột là dựng một chiến
+     *  dịch không có trong sổ. Màn Performance phải có nhóm "Không chiến dịch".
+     *
+     *  Tên cũ là `source`, đổi cùng lượt tách nguồn thành hai nửa: cột này giữ
+     *  nửa MỞ (chiến dịch nào — danh mục người dùng tự thêm), `source_kind`
+     *  giữ nửa ĐÓNG (loại xuất xứ — enum có migration). Một cột tên `source`
+     *  cạnh một cột tên `source_kind` thì không đọc ra được nửa nào là nửa
+     *  nào. */
+    campaignId: text('campaign_id'),
     /** Điểm khả quan. Tính ở ENGINE rồi ghi cùng transaction với `touch`,
      *  KHÔNG tính bằng trigger SQL: điểm là luật nghiệp vụ, mà luật nằm trong
      *  trigger là luật `@pv/engines` không với tới, và từ đó web với máy chủ
@@ -285,7 +293,7 @@ export const lead = sales.table(
     index('lead_owner_idx').on(t.ownerId),
     index('lead_stage_idx').on(t.stage),
     index('lead_exit_idx').on(t.exitReason),
-    index('lead_source_idx').on(t.source),
+    index('lead_campaign_idx').on(t.campaignId),
     /* Ô tìm theo tên công ty dùng `ILIKE '%…%'` — B-tree KHÔNG đỡ được kiểu
        này, mọi lần gõ là một seq scan. Với 100 dòng thì không ai thấy; khi có
        dữ liệu thật thì bật `pg_trgm` và thêm một GIN index trên `company`.
@@ -342,7 +350,7 @@ export const lead = sales.table(
         'current_stack',
         'decision_maker',
         'approver',
-        'source',
+        'campaign_id',
       ),
     ),
   ],

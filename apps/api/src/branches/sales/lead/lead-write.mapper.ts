@@ -72,11 +72,12 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
  *   · `tier`, `stage` — withheld by the contract. A hand-typed lead has passed
  *     no gate, so it stands at no rung of the funnel yet.
  *   · `exitReason`, `exitedAt` — a lead cannot be born already lost.
- *   · `intakeChannel` — set here, not accepted from the caller: the system
- *     records which door a row came through. `MANUAL` reads as `KHAI_BAO` in
- *     `CHANNEL_TRUST` (somebody here put their name on every cell they typed),
- *     and a trust level the client asserted about itself would be worth
- *     nothing. Trust is derived, never stored. */
+ *   · `sourceKind` — set here, not accepted from the caller: the system records
+ *     where a row came from. `MANUAL` reads as `KHAI_BAO` in `CHANNEL_TRUST`
+ *     (somebody here put their name on every cell they typed), and a trust
+ *     level the client asserted about itself would be worth nothing. Trust is
+ *     derived, never stored. The caller may still name a CAMPAIGN — that half
+ *     of the origin is attribution, not a trust claim. */
 export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrite {
   return {
     ownerName,
@@ -110,15 +111,21 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       bdOwnerId: body.bdOwnerId ?? null,
       marketingOwnerId: body.marketingOwnerId ?? null,
 
-      intakeChannel: 'MANUAL',
+      sourceKind: 'MANUAL',
       motion: body.motion,
-      source: body.source ?? null,
+      campaignId: body.campaignId ?? null,
     },
   }
 }
 
-/** Public landing form → the smallest valid lead row. Door and motion are
- *  stamped by the server; anonymous callers cannot choose either. */
+/** Public landing form → the smallest valid lead row. Origin and motion are
+ *  stamped by the server; anonymous callers cannot choose either.
+ *
+ *  No `campaignId`: the form posts UTM parameters, and a UTM string is not a
+ *  campaign id. Mapping one to the other needs a lookup table nobody has
+ *  agreed on yet, and guessing it would attribute real leads to the wrong
+ *  campaign — worse than attributing them to none. The raw UTMs are kept on
+ *  `sales.lead_intake`, so nothing is lost while that table is designed. */
 export function fromIntake(body: LeadIntakeBody): LeadWrite {
   return {
     ownerName: null,
@@ -129,7 +136,7 @@ export function fromIntake(body: LeadIntakeBody): LeadWrite {
       phone: body.phone ?? null,
       province: body.province ?? null,
       pain: body.pain ?? null,
-      intakeChannel: 'LANDING',
+      sourceKind: 'LANDING_PAGE',
       motion: 'INBOUND',
     },
   }

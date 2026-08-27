@@ -30,10 +30,13 @@ import {
   REQUIRED_SLOTS,
 } from '@pv/engines/fixtures/das-vina'
 import {
+  campaignLabel,
   OWNER_NONE,
+  sourceKindLabel,
   type ConfigEntry,
   type LeadBookQuery,
   type LeadRow,
+  type LeadSource,
   type LeadStatus,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
@@ -47,7 +50,7 @@ import {
   queryPageFromPageIndex,
 } from '@/app/url'
 import { dm } from '@/lib/date'
-import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery, UNKNOWN_SOURCE_FACE } from '@/data/leads'
+import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery } from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { LEAD_SPEC } from '@/data/intake'
@@ -274,12 +277,10 @@ export function LeadsPage() {
   const { data: catalog } = useQuery(salesCatalogQuery)
   const sourceCatalog = catalog?.SOURCE ?? NO_SOURCES
 
-  /* Bảng tra giữ CẢ dòng đã tắt: một nguồn tắt đi vẫn còn lead cũ trỏ vào, và
-     dòng sổ của chúng phải đọc ra tên chứ không thành "không rõ". */
-  const sourceById = useMemo(
-    () => new Map(sourceCatalog.map((entry) => [entry.id, entry])),
-    [sourceCatalog],
-  )
+  /* Bảng tra mã → tên ĐÃ BỎ. Nó tồn tại vì dòng sổ chỉ chở một mã trần và màn
+     phải tự đi tìm tên; nay `source.campaignName` về cùng dòng, nên không còn
+     gì để tra. Cũng mất theo là cả một lớp lỗi: một nguồn vừa bị tắt không còn
+     làm ô Nguồn của lead cũ thành "không rõ", vì tên nó đã ở trên dây rồi. */
 
   /* Ô CHỌN thì ngược lại — chỉ dòng còn bật. Đây là toàn bộ hình thức "xoá" mà
      danh mục có (`config.ts`, luật 3): tắt một nguồn nghĩa là không ai gắn nó
@@ -361,7 +362,7 @@ export function LeadsPage() {
      ngay từ phím đầu tiên, không đợi hết nhịp chờ 300ms. */
   const dirty =
     text.trim() !== '' ||
-    query.source !== undefined ||
+    query.campaign !== undefined ||
     query.owner !== undefined ||
     query.account !== undefined ||
     query.status !== DEFAULT_LEAD_BOOK_QUERY.status
@@ -369,7 +370,7 @@ export function LeadsPage() {
   const clearFilters = () =>
     patch({
       q: undefined,
-      source: undefined,
+      campaign: undefined,
       owner: undefined,
       account: undefined,
       status: DEFAULT_LEAD_BOOK_QUERY.status,
@@ -460,16 +461,20 @@ export function LeadsPage() {
           />
           <Select
             label="Nguồn"
-            value={query.source ?? ANY}
-            onChange={(v) => patch({ source: v === ANY ? undefined : v })}
+            value={query.campaign ?? ANY}
+            onChange={(v) => patch({ campaign: v === ANY ? undefined : v })}
             /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
                dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
             className="max-w-[240px]"
             options={[
               { value: ANY, label: 'Mọi nguồn' },
+              /* `value` là mã, `label` là TÊN — và chỉ tên. Bản trước in
+                 `${entry.id} · ${entry.name}`, tức dán 'SR-09' vào trước mỗi
+                 dòng của một ô chọn mà người dùng đọc bằng tên. Mã vẫn là thứ
+                 đi vào câu hỏi gửi máy chủ, nó chỉ không cần đi vào mắt ai. */
               ...sourceOptions.map((entry) => ({
                 value: entry.id,
-                label: `${entry.id} · ${entry.name}`,
+                label: entry.name,
               })),
             ]}
           />
@@ -599,7 +604,7 @@ export function LeadsPage() {
                      cái tên cho mọi mã lead, kể cả mã mà bảng thật để trống. */
                   <PersonCell key="ct" value={l.contactName} missing={NO_CONTACT} />,
                   <PersonCell key="ti" value={l.contactTitle} missing={NO_TITLE} />,
-                  <SourceMark key="s" lead={l} sources={sourceById} />,
+                  <SourceMark key="s" source={l.source} />,
                   <StatusCell key="w" lead={l} />,
                   <PicCell
                     key="o"
@@ -749,49 +754,57 @@ function shortSourceName(name: string): string {
  *  nó — nên cả bảng đã XOÁ khỏi `data/leads.ts`, không chỉ trường `icon`.
  *
  *  ------------------------------------------------------------------
- *  VÀNG CHO "MUA DỮ LIỆU" — TÔ THEO `kind`, KHÔNG THEO `id`
+ *  VÀNG CHO DỮ LIỆU MUA — VÀ VÌ SAO CÂU `if` CŨ KHÔNG BAO GIỜ ĐÚNG
  *  ------------------------------------------------------------------
- *  Danh sách mua (Apollo hôm nay, có thể thêm nữa mai sau) đáng chú ý hơn ba
- *  loại nguồn tự sinh/tự mở — dữ liệu mua cần người kiểm chất lượng, nên tô
- *  vàng (`tone="warning"` có sẵn của `MetaPill`) để mắt bắt được ngay khi lướt
- *  bảng. So theo `entry.kind === 'mua-du-lieu'`, đúng thứ `config.ts` §luật 2
- *  đòi: một danh sách mua khác thêm vào mai sau tự vàng theo, không ai sửa
- *  màn này. Ba loại còn lại (`chien-dich` · `su-kien` · `tu-nhien`) giữ
- *  `tone="muted"` như cũ. KHÔNG dùng `tone="accent"` — luật 3 dành nền azure
- *  cho AI/nút chính/trạng thái active, không cho một pill lặp trên mọi dòng.
+ *  Danh sách mua đáng chú ý hơn nguồn tự sinh/tự mở — dữ liệu mua cần người
+ *  kiểm chất lượng, nên tô vàng (`tone="warning"` có sẵn của `MetaPill`) để
+ *  mắt bắt được ngay khi lướt bảng. Phần đó vẫn đúng.
+ *
+ *  Câu `if` thì không. Bản trước so `entry.kind === 'mua-du-lieu'`, mà `kind`
+ *  của một dòng SỔ NGUỒN chỉ nhận `chien-dich · su-kien · tu-nhien` — nhánh
+ *  vàng là code chết kể từ dòng đầu tiên nó được viết, và không có gì bắt
+ *  được: cả hai vế đều là `string`, nên `tsc` cũng im. Nay nó so
+ *  `source.kind === 'APOLLO'`, một giá trị có thật của enum `LeadSourceKind`,
+ *  và `Record<…>` trên enum ấy ở `@pv/contracts` khiến lần đổi từ vựng sau
+ *  thành lỗi biên dịch chứ không thành một pill lặng lẽ hết vàng.
+ *
+ *  KHÔNG dùng `tone="accent"` — luật 3 dành nền azure cho AI/nút chính/trạng
+ *  thái active, không cho một pill lặp trên mọi dòng.
  *
  *  ------------------------------------------------------------------
- *  TRA TỪ SỔ NGUỒN THẬT — SEED ĐÃ VÁ 27/08, KHÔNG CÒN DÒNG NÀO TRA KHÔNG RA
+ *  KHÔNG CÒN PHÉP TRA NÀO Ở ĐÂY
  *  ------------------------------------------------------------------
- *  `lead.source` là một mã, `GET /sales/config` giữ sổ nguồn, nên chỗ này là
- *  một phép tra `id`. Từ 27/08 cả 119 dòng trên Neon đều trỏ vào một
- *  `config_entry` tra được — món nợ seed ghi mã cũ của fixture xuống cột
- *  `lead.source` đã vá. `UNKNOWN_SOURCE_FACE` vẫn giữ nguyên làm lưới đỡ: một
- *  lead không có `source`, hoặc trỏ vào một mã đã xoá/chưa kịp seed, vẫn phải
- *  vẽ ra một cái gì đó thay vì một ô trống hoặc một lỗi render — nhánh đó
- *  KHÔNG phải pill nên vẫn vẽ icon như cũ, không đụng. */
-function SourceMark({ lead, sources }: { lead: LeadRow; sources: Map<string, ConfigEntry> }) {
-  const entry = lead.source ? sources.get(lead.source) : undefined
+ *  Bản trước cầm một mã trần rồi tự tra tên trong `GET /sales/config`, nên nó
+ *  phải nhận cả một `Map` làm prop và phải có nhánh "tra không ra". Máy chủ
+ *  nay gửi `source.campaignName` ngay cạnh `campaignId` (cùng lối
+ *  `ownerId`/`ownerName` đã đi), nên component chỉ còn đọc thứ nó được đưa.
+ *  Mất theo phép tra là mất luôn cả một lớp lỗi — không còn chỗ nào để trượt,
+ *  và mã `SR-…` không còn đường nào ra tới mắt người dùng. */
+function SourceMark({ source }: { source: LeadSource }) {
+  /* Chiến dịch trước, loại xuất xứ sau. Một ô bảng in được ĐÚNG MỘT thứ, và
+     giữa hai nửa thì tên chiến dịch là nửa phân biệt được hai dòng cạnh nhau —
+     "Apollo" đúng cho một phần năm cuốn sổ, còn "Chuỗi email — nhà máy điện tử
+     Bắc Ninh" chỉ đúng cho hai mươi hai dòng. Nửa còn lại không mất: nó nằm
+     trong `title`, và nó là thứ quyết định màu pill ngay dưới đây. */
+  const kind = sourceKindLabel(source)
+  const text = source.campaignName ? shortSourceName(source.campaignName) : kind
+  /* `campaignLabel` chứ không phải `campaignName`: ô bảng chỉ đủ chỗ cho một
+     thứ, nhưng cái hover thì đủ chỗ cho cả ba trạng thái — và trạng thái đáng
+     nói nhất là "có mã mà tra không ra", thứ mà một pill in tên loại xuất xứ
+     sẽ che mất hoàn toàn. */
+  const title = `${campaignLabel(source)} · ${kind}`
 
-  if (!entry) {
-    const title = `${lead.source ?? '—'} · ${UNKNOWN_SOURCE_FACE.label}`
-    return (
-      <span className="flex items-center" title={title} aria-label={title}>
-        <Icon
-          icon={UNKNOWN_SOURCE_FACE.icon}
-          size={16}
-          className="text-accent-foreground shrink-0"
-        />
-      </span>
-    )
-  }
-
-  const tone = entry.kind === 'mua-du-lieu' ? 'warning' : 'muted'
+  /* Vàng cho dữ liệu MUA. Bản trước so `entry.kind === 'mua-du-lieu'`, một giá
+     trị `kind` của sổ nguồn không bao giờ nhận — nhánh chết từ lúc viết. Đây là
+     cùng ý định ấy hỏi đúng chỗ: `APOLLO` là một giá trị có thật của
+     `LeadSourceKind`, và "dòng này mua về" là thứ đáng cho một người lướt sổ
+     thấy trước khi họ gọi điện. */
+  const tone = source.kind === 'APOLLO' ? 'warning' : 'muted'
 
   return (
-    <span className="block min-w-0" title={entry.name} aria-label={entry.name}>
+    <span className="block min-w-0" title={title} aria-label={title}>
       <MetaPill tone={tone} className="flex min-w-0 max-w-full">
-        <span className="min-w-0 truncate">{shortSourceName(entry.name)}</span>
+        <span className="min-w-0 truncate">{text}</span>
       </MetaPill>
     </span>
   )

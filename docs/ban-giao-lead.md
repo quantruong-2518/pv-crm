@@ -49,7 +49,12 @@ Migration `0001` (config) và `0002` (nền ghi lead) **đã áp lên Neon**.
    dòng gương `platform.object` phải ghi TRƯỚC, nên người gọi phải biết mã trước
    khi INSERT; giữ DEFAULT thì phải làm khoá ngoại `DEFERRABLE`, tức làm yếu một
    ràng buộc để đổi lấy một tiện lợi.
-2. **`intake_channel` → `MANUAL · IMPORT · LANDING`** (`UPPER_SNAKE`).
+2. **`intake_channel` → `source_kind`** — migration `0004`, giá trị
+   `MANUAL · IMPORT · APOLLO · LANDING_PAGE` (`UPPER_SNAKE`). Đi cặp với
+   **`source` → `campaign_id`**: xuất xứ của một lead là HAI nửa — một nửa
+   enum (thêm giá trị là migration), một nửa là dòng danh mục người dùng tự
+   thêm. Trên dây chúng đi chung một object `source`, kèm cả `campaignName`
+   để không màn nào phải in mã `SR-…` ra cho người đọc.
 3. **Cột `motion`** — 6 thế, `UPPER_SNAKE`.
 4. **`lead_email_live_idx` → `lower(email)`**.
 5. **`lead.code` → khoá ngoại vào `platform.object(code)`.**
@@ -96,18 +101,18 @@ mua nào.
 
 ### 10 trường lấy được
 
-| Apollo                   | → cột                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| First Name + Last Name   | `contact_name` (phải nối)                                                     |
-| Title                    | `contact_title`                                                               |
-| Company Name             | `company`                                                                     |
-| Email                    | `email` (hạ hoa)                                                              |
-| Corporate Phone          | `phone` (7/19)                                                                |
-| Person Linkedin Url → có | `contact_channel = linkedin`                                                  |
-| Company Address          | `address`                                                                     |
-| Company State ?? City    | `province`                                                                    |
-| # Employees              | `headcount`                                                                   |
-| _(chọn lúc nạp)_         | `source=SR-09` · `intake_channel=IMPORT` · `motion=OUTBOUND` · `tier=dau-moi` |
+| Apollo                   | → cột                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| First Name + Last Name   | `contact_name` (phải nối)                                                       |
+| Title                    | `contact_title`                                                                 |
+| Company Name             | `company`                                                                       |
+| Email                    | `email` (hạ hoa)                                                                |
+| Corporate Phone          | `phone` (7/19)                                                                  |
+| Person Linkedin Url → có | `contact_channel = linkedin`                                                    |
+| Company Address          | `address`                                                                       |
+| Company State ?? City    | `province`                                                                      |
+| # Employees              | `headcount`                                                                     |
+| _(chọn lúc nạp)_         | `campaign_id=SR-09` · `source_kind=IMPORT` · `motion=OUTBOUND` · `tier=dau-moi` |
 
 ### 6 nhóm cột KHÔNG hiểu được — mỗi nhóm là một quyết định còn treo
 

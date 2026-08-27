@@ -44,32 +44,51 @@ export type LeadTier = z.infer<typeof LeadTier>
 export type StageKey = z.infer<typeof StageKey>
 export type ExitReason = z.infer<typeof ExitReason>
 
-/** Lead vào hệ bằng đường nào. Hệ tự ghi, không ai gõ tay.
+/** WHERE a lead originated — the closed half of `LeadSource`.
  *
- *  Khác hẳn `source` — `source` nói lead về từ NGUỒN nào (một mã trong sổ
- *  nguồn của module 1), còn cái này nói nó đi qua CỬA nào để vào cơ sở dữ
- *  liệu. Một lead có thể tới từ nguồn 'hoi-thao-q3' mà vào bằng cửa 'IMPORT'.
+ *  ------------------------------------------------------------------
+ *  ONE ENUM, NOT A CATALOGUE ROW — AND WHY THAT IS THE RIGHT SPLIT
+ *  ------------------------------------------------------------------
+ *  A lead's origin is TWO facts, and they have opposite lifetimes:
  *
- *  27/08 — the value set changed and the old `bd` is gone:
+ *   · WHICH CAMPAIGN it is attributed to — open-ended, renamed by the sales
+ *     team, new rows added every quarter. That belongs in `sales.config_entry`
+ *     and travels as `LeadSource.campaignId`. It is OPTIONAL: a lead typed in
+ *     by hand belongs to no campaign, and minting a fake code to fill the
+ *     column invents a campaign that is in no campaign book.
+ *   · WHICH KIND OF ORIGIN produced the row — this enum. Closed, small, and
+ *     every value has a code path behind it. Trust is derived from it
+ *     (`CHANNEL_TRUST`), so it cannot be a row someone adds at runtime: a new
+ *     catalogue entry would arrive with no trust level and no import path.
  *
- *   · `MANUAL`  — a person typed the row in. This is the old `bd` renamed: BD
- *     is a TEAM, not a door, and Sales or an admin types into the same door.
- *   · `IMPORT`  — a batch arrived from a file.
- *   · `LANDING` — the public form posted it.
+ *  The four values:
+ *
+ *   · `MANUAL`       — a person typed the row in. Somebody here owns every
+ *     cell of it.
+ *   · `IMPORT`       — a batch arrived from a file we did not name a vendor
+ *     for: an event registration list, a partner's spreadsheet.
+ *   · `APOLLO`       — a batch bought from Apollo. More specific than
+ *     `IMPORT` on purpose: "what did the purchased data actually convert at"
+ *     is a question with a budget attached, and it is unanswerable once
+ *     vendor rows are mixed into the generic file bucket.
+ *   · `LANDING_PAGE` — the public form posted it. The customer pressed send.
+ *
+ *  Adding a fifth vendor (ZoomInfo, Lusha) is a migration, not a config row,
+ *  and that is the intended cost: each one needs its own trust level, its own
+ *  importer column map, and its own line on the spend report.
  *
  *  `UPPER_SNAKE` because that is the naming law for enum VALUES here. These
- *  are keys — on the wire and in the column — not labels on a screen; labels
- *  belong to the view layer, which is why none appear in this file. The table
- *  was empty when this changed, so nothing had to be migrated. The next time
- *  it changes there will be rows, and then it is a migration, not an edit. */
-export const IntakeChannel = z.enum(['MANUAL', 'IMPORT', 'LANDING'])
+ *  are keys — on the wire and in the column. The Vietnamese labels live in
+ *  `./lead-source`, ONE table shared by the server and the screen; see the
+ *  docblock there for why they are no longer view-layer-only. */
+export const LeadSourceKind = z.enum(['MANUAL', 'IMPORT', 'APOLLO', 'LANDING_PAGE'])
 
 /** Who made the first move — the six lead MOTIONS.
  *
  *  ------------------------------------------------------------------
- *  A DIFFERENT AXIS FROM `IntakeChannel`, AND THE DIFFERENCE IS THE POINT
+ *  A DIFFERENT AXIS FROM `LeadSourceKind`, AND THE DIFFERENCE IS THE POINT
  *  ------------------------------------------------------------------
- *  `IntakeChannel` says which DOOR the row came through; this says WHO MOVED
+ *  `LeadSourceKind` says WHERE the row came from; this says WHO MOVED
  *  FIRST. They are independent: an `EVENT` lead can arrive by `IMPORT` (the
  *  registration list exported the next morning) or by `MANUAL` (a BD typing
  *  up the badges that evening) — same event, two different rows. Folding the
@@ -118,7 +137,7 @@ export const ContactChannel = z.enum([
  *  bảng bằng CHECK chứ không nhờ người nhớ. */
 export const CurrencyCode = z.enum(['VND', 'USD'])
 
-export type IntakeChannel = z.infer<typeof IntakeChannel>
+export type LeadSourceKind = z.infer<typeof LeadSourceKind>
 export type LeadMotion = z.infer<typeof LeadMotion>
 export type ContactChannel = z.infer<typeof ContactChannel>
 export type CurrencyCode = z.infer<typeof CurrencyCode>

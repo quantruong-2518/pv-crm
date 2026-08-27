@@ -144,7 +144,11 @@ export function profileForm(p: LeadProfile): ProfileForm {
     code: p.code,
     company: p.company,
     tier: (p.tier ?? '') as LeadTier,
-    source: p.source ?? '',
+    /* The legacy fixture shape models a source as ONE code, so it can only
+       carry the campaign half. The other half (`p.source.kind`) has no slot
+       here and is not forced into one: the blocks reading this shape ask
+       "which campaign", never "bought or typed". */
+    source: p.source.campaignId ?? '',
     /* NAMES, because these three are `select` controls whose options are
        spelled by name. The ids travel next to them on the wire and are what
        anything comparing people must read — see `leadOf` and the PIC block of
@@ -234,7 +238,11 @@ export function leadOf(p: LeadProfile): Lead {
     owner: p.ownerName,
     stage: p.stage,
     daysHere: p.daysHere,
-    source: p.source ?? '',
+    /* The legacy fixture shape models a source as ONE code, so it can only
+       carry the campaign half. The other half (`p.source.kind`) has no slot
+       here and is not forced into one: the blocks reading this shape ask
+       "which campaign", never "bought or typed". */
+    source: p.source.campaignId ?? '',
     createdAt: p.createdAt,
     exitReason: p.exitReason ? exitLabelOrUndefined(p.exitReason) : undefined,
     exitedAt: p.exitedAt,

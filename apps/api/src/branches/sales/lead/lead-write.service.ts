@@ -77,6 +77,11 @@ export class LeadWriteService {
     const owner = body.ownerId ? await this.repo.actorById(handle, body.ownerId) : null
 
     const write = fromCreate(body, owner?.name ?? null)
+    /* Read before the write, beside the owner lookup and for the same reason:
+       the response is a full book row, and a book row prints names, not ids. */
+    const campaignName = body.campaignId
+      ? await this.repo.campaignName(handle, body.campaignId)
+      : null
     const code = await this.leads.nextCode()
 
     const row = await this.repo.run(async (tx) => {
@@ -96,6 +101,7 @@ export class LeadWriteService {
         daysHere: 0,
         ownerName: owner?.name ?? null,
         ownerEmail: owner?.email ?? null,
+        campaignName,
         signed: false,
       }),
     )

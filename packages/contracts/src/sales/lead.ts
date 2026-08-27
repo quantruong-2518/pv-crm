@@ -10,17 +10,18 @@ import {
   textNhapTuyChon,
 } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
+import { MaConfig } from './config'
 import {
   ContactChannel,
   CurrencyCode,
   ExitReason,
-  IntakeChannel,
   LeadCategory,
   LeadMotion,
   LeadTier,
   StageKey,
 } from './enums'
 import { MOTION_BY_CHANNEL } from './lead-intake'
+import { LeadSource } from './lead-source'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
  *
@@ -110,10 +111,15 @@ export const LeadRow = z.object({
    *  clock even when nobody touches the row. */
   daysHere: z.number().int().nonnegative(),
 
-  /** Source code — the wire between module 1 (waves) and module 2 (leads).
-   *  Absent = the lead came in directly, through no campaign; the screen must
-   *  have a "no source" group. */
-  source: z.string().min(1).optional(),
+  /** Where this lead came from — origin KIND plus optional campaign, one
+   *  object. See `./lead-source` for why the two travel together and why the
+   *  campaign's NAME rides along with its id.
+   *
+   *  Always present, even when it is empty: an absent object and an object
+   *  with nothing dug out yet are the same fact, and one shape for it means
+   *  the screen writes `lead.source.kind` rather than `lead.source?.kind`
+   *  guarded three different ways in three different columns. */
+  source: LeadSource,
 
   /** Has this lead signed?
    *
@@ -203,8 +209,8 @@ export const OWNER_NONE = 'chua-ai-nhan'
  *  then a `PAGE_SIZE` slice. Once paging moves to the server, a filter that
  *  stayed behind on the client no longer filters the book — it filters the 50
  *  rows the server happened to send for page 1. There is no partial version of
- *  this move, which is why `source`, `owner` and `account` are here even though
- *  only `stage`/`tier`/`category` were before. */
+ *  this move, which is why `campaign`, `owner` and `account` are here even
+ *  though only `stage`/`tier`/`category` were before. */
 export const LeadBookQuery = PageQuery.extend({
   stage: StageKey.optional(),
   tier: LeadTier.optional(),
@@ -212,8 +218,12 @@ export const LeadBookQuery = PageQuery.extend({
 
   status: LeadStatus.default('running'),
 
-  /** Source code, exact match. Absent = every source, including none. */
-  source: z.string().min(1).max(64).optional(),
+  /** Campaign id, exact match. Absent = every campaign, including none.
+   *
+   *  Named for what it filters. The old spelling was `source`, from back when
+   *  the column held a bare code and nothing else; now that an origin is two
+   *  facts, a param called `source` would not say which of the two it means. */
+  campaign: MaConfig.optional(),
 
   /** Actor id of the holder, or `OWNER_NONE` for the unclaimed pile. One field
    *  for both because they are one control on screen, and because "unclaimed"
@@ -359,20 +369,21 @@ export const LeadProfile = LeadRow.extend({
   marketingOwnerName: z.string().min(1).optional(),
   marketingOwnerEmail: z.string().min(1).optional(),
 
-  // ── intake · which door, and who moved first ─────────────────────────────
+  // ── who moved first ──────────────────────────────────────────────────────
   //
-  // Two axes, never one (`./lead-intake` has the long argument). Both are
-  // nullable in the table and stay optional here: the 100 frozen fixture rows
-  // predate the idea of an intake door entirely, so inventing a value for them
-  // would put made-up data on the Performance screen.
+  // The other half of the intake pair — WHERE the row came from — is not here
+  // any more: it lives on `source.kind`, which the book already carries, and
+  // `LeadProfile` extends `LeadRow`. Two axes, never one (`./lead-intake` has
+  // the long argument); they are simply no longer two SIBLINGS, because the
+  // origin half belongs with the campaign half it is read beside.
 
-  /** Which door the row came through. The system writes it, nobody types it —
-   *  which is what makes `CHANNEL_TRUST` worth reading: trust is DERIVED from
-   *  this, and a trust level the client asserted about itself is worth nothing. */
-  intakeChannel: IntakeChannel.optional(),
   /** Who made the first move. Stored `UPPER_SNAKE`, same spelling on the wire;
    *  `@pv/engines` still spells the same six values in lower case, and
-   *  `lead.mapper.ts` is the ONE place the two forms are allowed to meet. */
+   *  `lead.mapper.ts` is the ONE place the two forms are allowed to meet.
+   *
+   *  Nullable in the table and optional here: the 100 frozen fixture rows
+   *  predate the idea of an intake pair entirely, so inventing a value for
+   *  them would put made-up data on the Performance screen. */
   motion: LeadMotion.optional(),
 })
 
@@ -414,8 +425,9 @@ export const LeadProfile = LeadRow.extend({
  *     its own tier can claim a gate it never went through.
  *   · `exitReason` / `exitedAt` — a lead cannot be born already lost, and
  *     `CHECK lead_exit_pair` would be the one to say so.
- *   · `intakeChannel` — the system records the door, nobody types it. For this
- *     endpoint the door is `tay`, which is why `motion` is narrowed below. */
+ *   · `source.kind` — the system records the origin, nobody types it. For this
+ *     endpoint the origin is `MANUAL`, which is why `motion` is narrowed below
+ *     to the motions that door can carry. Only `campaignId` is accepted. */
 export const LeadCreate = z
   .object({
     // ── the three required ones · exactly the three NOT NULL columns ─────────
@@ -466,9 +478,13 @@ export const LeadCreate = z
      *  five, and this follows the table rather than quietly widening it. */
     motion: z.enum(MOTION_BY_CHANNEL.MANUAL),
     /** Optional: a lead typed in directly belongs to no campaign, and inventing
-     *  a source code to fill the field creates a source that is in no source
-     *  book. */
-    source: textNhapTuyChon(64),
+     *  a campaign code to fill the field creates a campaign that is in no
+     *  campaign book.
+     *
+     *  Only the ID is accepted. `kind` is not a field here — this endpoint IS
+     *  the `MANUAL` origin, and a caller that can name its own origin can
+     *  claim `LANDING_PAGE`, which `CHANNEL_TRUST` reads as customer-verified. */
+    campaignId: MaConfig.optional(),
   })
   .refine((v) => (v.budget === undefined) === (v.currency === undefined), {
     /* Money always carries its unit. Enforced here rather than left to

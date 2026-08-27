@@ -120,9 +120,9 @@
                   "disabled": true
                 },
                 {
-                  "key": "source",
+                  "key": "campaign",
                   "value": "SR-09",
-                  "description": "mã nguồn — xem GET /sales/config/SOURCE",
+                  "description": "id chiến dịch — xem GET /sales/config/SOURCE",
                   "disabled": true
                 },
                 {
@@ -163,7 +163,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["sales", "leads", "LD-0219"]
             },
-            "description": "**`lead.xem` · cắt theo phạm vi.** Trả nguyên hồ sơ: đúng dòng sổ (`GET /sales/leads`) cộng thêm cụm thông tin công ty, cụm nhu cầu, hai người được ghi công (BD · marketing) và cửa vào (`intakeChannel` · `motion`).\n\nHợp đồng là `LeadProfile`, và nó **mở rộng** `LeadRow` — phần chung khai đúng một lần, hai hình không lệch nhau được.\n\nBốn cách hỏng, mỗi cách một câu trả lời khác:\n\n| Tình huống | Mã | `reason` |\n| --- | --- | --- |\n| mã sai dạng (`xyz`) | 400 | — |\n| chưa đăng nhập | 401 | `unauthenticated` |\n| có quyền, lead không của mình | 403 | `out-of-scope` |\n| không có lead đó (`LD-9999`) | 404 | — |\n\n`LD-0219` là lead Apollo thật, **chưa ai nhận** — nên actor `ownOnly` (`u-huy`) nhận 403 chứ không phải 404: hồ sơ chỉ có một dòng, không thể lọc bớt như sổ, nên nó phải TỪ CHỐI. Trả 404 là bắt người ta đi tìm một dòng đang nằm ngay đó."
+            "description": "**`lead.xem` · cắt theo phạm vi.** Trả nguyên hồ sơ: đúng dòng sổ (`GET /sales/leads`) cộng thêm cụm thông tin công ty, cụm nhu cầu, hai người được ghi công (BD · marketing) và ai động trước (`motion`); xuất xứ đi trong object `source` của chính dòng sổ.\n\nHợp đồng là `LeadProfile`, và nó **mở rộng** `LeadRow` — phần chung khai đúng một lần, hai hình không lệch nhau được.\n\nBốn cách hỏng, mỗi cách một câu trả lời khác:\n\n| Tình huống | Mã | `reason` |\n| --- | --- | --- |\n| mã sai dạng (`xyz`) | 400 | — |\n| chưa đăng nhập | 401 | `unauthenticated` |\n| có quyền, lead không của mình | 403 | `out-of-scope` |\n| không có lead đó (`LD-9999`) | 404 | — |\n\n`LD-0219` là lead Apollo thật, **chưa ai nhận** — nên actor `ownOnly` (`u-huy`) nhận 403 chứ không phải 404: hồ sơ chỉ có một dòng, không thể lọc bớt như sổ, nên nó phải TỪ CHỐI. Trả 404 là bắt người ta đi tìm một dòng đang nằm ngay đó."
           }
         },
         {
@@ -216,7 +216,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["sales", "leads"]
             },
-            "description": "**`lead.sửa`.** Ghi `intake_channel = MANUAL`. Trả `LeadRow` của dòng vừa tạo, 201.\n\nBắt buộc đúng ba: `company` · `contactName` · `email`.\n\nKHÔNG nhận từ client: `code` (sequence sinh) · `requiredFilled`/`optionalFilled` (cột sinh) · `score` · `stageSince` · `createdAt`.\n\n`motion` bị thu hẹp còn 5 thế — cửa `MANUAL` không chở `EVENT` (sự kiện về theo danh sách, không phải từng dòng gõ tay).\n\n**409** nếu email đã có một lead đang sống. So không phân biệt hoa thường.",
+            "description": "**`lead.sửa`.** Ghi `source_kind = MANUAL`. Trả `LeadRow` của dòng vừa tạo, 201.\n\nBắt buộc đúng ba: `company` · `contactName` · `email`.\n\nKHÔNG nhận từ client: `code` (sequence sinh) · `requiredFilled`/`optionalFilled` (cột sinh) · `score` · `stageSince` · `createdAt`.\n\n`motion` bị thu hẹp còn 5 thế — xuất xứ `MANUAL` không chở `EVENT` (sự kiện về theo danh sách, không phải từng dòng gõ tay).\n\n**409** nếu email đã có một lead đang sống. So không phân biệt hoa thường.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"company\": \"Công ty TNHH Cơ khí Đại Phát\",\n  \"contactName\": \"Nguyễn Văn A\",\n  \"email\": \"a.nguyen@daiphat.vn\",\n  \"contactTitle\": \"Giám đốc sản xuất\",\n  \"phone\": \"0912 345 678\",\n  \"contactChannel\": \"email\",\n  \"province\": \"Bình Dương\",\n  \"category\": \"co-khi\",\n  \"motion\": \"INBOUND\",\n  \"source\": \"SR-08\",\n  \"headcount\": 250,\n  \"pain\": \"Không biết giá thành thật của từng lệnh sản xuất\"\n}",

@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { lead, type LeadRowDb } from './lead.schema'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
@@ -76,6 +77,33 @@ export class LeadWriteRepository {
       .where(eq(actor.id, id))
       .limit(1)
     return row ?? null
+  }
+
+  /** The NAME of one campaign, for the manual door.
+   *
+   *  `POST /sales/leads` answers with a full book row, and a book row carries
+   *  `source.campaignName` beside `source.campaignId` so that nothing
+   *  downstream ever has a reason to print the raw `SR-…` code. Read after the
+   *  insert rather than derived from the body: the body only holds an id, and
+   *  an id is not a name.
+   *
+   *  `list = 'SOURCE'` for the same reason `CAMPAIGN_ON` spells it in
+   *  `lead.repository.ts` — a `campaignId` that names a pipeline stage must
+   *  come back with no name, not with the stage's name.
+   *
+   *  Null means the campaign does not exist, and this does NOT refuse the
+   *  write. The column has no foreign key yet (debt recorded on it in
+   *  `lead.schema.ts`), so refusing here would be one door checking what the
+   *  other three do not — the same half-fence `actorById` above deliberately
+   *  declines to build. The response then omits the name, which is exactly
+   *  what the read path does for the same row. */
+  async campaignName(tx: Db, id: string): Promise<string | null> {
+    const [row] = await tx
+      .select({ name: configEntry.name })
+      .from(configEntry)
+      .where(and(eq(configEntry.id, id), eq(configEntry.list, 'SOURCE')))
+      .limit(1)
+    return row?.name ?? null
   }
 
   /** Which of these mailboxes already belong to a LIVE lead.

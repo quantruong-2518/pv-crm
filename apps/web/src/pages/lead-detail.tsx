@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -38,15 +38,15 @@ import {
   type Lead,
   type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
-import type { ConfigEntry, IntakeChannel, LeadMotion, LeadProfile } from '@pv/contracts'
+import { campaignLabel, sourceKindLabel, type LeadMotion, type LeadProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
-import { EXIT_REASON_LABEL, peopleOn, UNKNOWN_SOURCE_FACE } from '@/data/leads'
+import { EXIT_REASON_LABEL, NO_CAMPAIGN_ICON, peopleOn } from '@/data/leads'
 import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
-import { CHANNEL_ICON, CHANNEL_LABEL, salesCatalogQuery } from '@/data/sales-config'
+import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { AssignedPills, AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog, ConvertedCard } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
@@ -136,21 +136,17 @@ const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
  *     open a third conversion site for that one enum, which is the exact
  *     thing that docblock says must not happen.
  *   · `INTAKE_FACE` is keyed by the older, five-value `LeadIntake` axis
- *     (`dong-bo` / `tay` / `tep` / `quet` / `api`), not by `IntakeChannel`
- *     (`MANUAL` / `IMPORT` / `LANDING`). The two axes are related but not a
- *     1:1 map — `dong-bo` and `api` have no `IntakeChannel` counterpart —
- *     so a lookup through it would either miss keys or fabricate a mapping
- *     that isn't true.
+ *     (`dong-bo` / `tay` / `tep` / `quet` / `api`), not by `LeadSourceKind`
+ *     (`MANUAL` / `IMPORT` / `APOLLO` / `LANDING_PAGE`). The two axes are
+ *     related but not a 1:1 map — `dong-bo` and `quet` have no counterpart in
+ *     the stored enum, and `APOLLO` has none in the engine copy — so a lookup
+ *     through it would either miss keys or fabricate a mapping that isn't
+ *     true. The origin half no longer needs a table on this page at all:
+ *     `sourceKindLabel` in `@pv/contracts` is the one both ends read.
  *
  *  `Record<…, string>` on the CONTRACT's own enum type, so a value the
  *  contract adds later and this table forgets is a compile error, not a
  *  silent fallback to the raw wire string. */
-const INTAKE_CHANNEL_LABEL: Record<IntakeChannel, string> = {
-  MANUAL: 'Gõ trực tiếp',
-  IMPORT: 'Nạp theo lô',
-  LANDING: 'Form công khai',
-}
-
 const LEAD_MOTION_LABEL: Record<LeadMotion, string> = {
   INBOUND: 'Inbound',
   OUTBOUND: 'Outbound',
@@ -240,8 +236,12 @@ export function LeadDetailPage() {
      đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
   const accountName = savedName ?? lead.company
 
+  /* Gated on the CAMPAIGN id, not on `source`: `source` is now an object and
+     is always present, so `if (lead.source)` would be true for every lead and
+     the button would offer to open a campaign that is not there. */
   const openSource = () => {
-    if (lead.source) navigate(`/sales/campaigns?source=${encodeURIComponent(lead.source)}`)
+    const id = lead.source.campaignId
+    if (id) navigate(`/sales/campaigns?campaign=${encodeURIComponent(id)}`)
   }
 
   /* Lead đã lên SQL thì nó ĐÃ có một dòng trong sổ cơ hội — mời đổi lần nữa là
@@ -391,23 +391,23 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *  và **ném** khi không thấy — mà 119 dòng trên Neon trỏ vào mã của sổ nguồn
  *  thật (`SR-…`), không phải mã fixture. Giữ nó là mở lead nào cũng vỡ màn.
  *
- *  Hồ sơ chỉ chở `source` — một MÃ — nên chỗ này là một phép tra `id` trong
- *  danh mục `SOURCE` của `GET /sales/config`, đúng thứ cột Nguồn của sổ đang
- *  làm. Cái gì tra được thì hiện: tên nguồn và mã. Cái gì KHÔNG có đường về
- *  thì thôi, không đoán: chủ nguồn, ngày bắt đầu chạy, kênh của đợt, và khối
- *  địa điểm/số người đến của sự kiện đều là dữ liệu của fixture chiến dịch,
- *  không có trong `ConfigEntry`. Vẽ lại chúng bằng giá trị suy đoán là đúng
- *  thứ một màn hồ sơ không được phép làm.
+ *  Hồ sơ chở `source` — một OBJECT hai nửa — nên chỗ này không còn tra cứu gì
+ *  nữa: tên chiến dịch đi kèm mã ngay trên dây (`campaignName`), nhãn của loại
+ *  xuất xứ lấy từ bảng dùng chung với máy chủ. Trước đây khối này phải tự gọi
+ *  `GET /sales/config` rồi dựng một `Map` để đổi mã lấy tên; cái `useQuery` đó
+ *  đã đi cùng với phép tra.
  *
- *  `UNKNOWN_SOURCE_FACE` là lưới đỡ chung với sổ: lead không có `source`, hoặc
- *  trỏ vào một mã đã tắt, vẫn phải vẽ ra một cái gì đó thay vì một ô trống. */
+ *  Cái gì KHÔNG có đường về thì vẫn thôi, không đoán: chủ nguồn, ngày bắt đầu
+ *  chạy, kênh của đợt, và khối địa điểm/số người đến của sự kiện đều là dữ
+ *  liệu của fixture chiến dịch, không có trong hợp đồng này. Vẽ lại chúng bằng
+ *  giá trị suy đoán là đúng thứ một màn hồ sơ không được phép làm.
+ *
+ *  `campaignLabel` chọn giữa BA trạng thái — có tên · không thuộc chiến dịch ·
+ *  có mã mà tra không ra. Hai cái sau trông giống nhau trên màn nếu gộp làm
+ *  một, mà chúng là hai vấn đề ngược nhau: một cái bình thường, một cái nghĩa
+ *  là có dòng đang trỏ vào chỗ trống. */
 function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void }) {
-  const { data: catalog } = useQuery(salesCatalogQuery)
-  const sources = useMemo(
-    () => new Map((catalog?.SOURCE ?? []).map((e: ConfigEntry) => [e.id, e])),
-    [catalog],
-  )
-  const entry = lead.source ? sources.get(lead.source) : undefined
+  const campaign = lead.source.campaignName
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead đến từ đâu">
@@ -415,7 +415,7 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
         kicker="Đến từ"
         size="md"
         actions={
-          lead.source ? (
+          lead.source.campaignId ? (
             <Button size="sm" variant="ghost" onClick={onOpen}>
               Xem nguồn
             </Button>
@@ -424,24 +424,28 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
       >
         <span className="flex items-center gap-2">
           <Icon
-            icon={entry ? Megaphone : UNKNOWN_SOURCE_FACE.icon}
+            icon={campaign ? Megaphone : NO_CAMPAIGN_ICON}
             size={18}
             className="text-accent-foreground"
           />
-          {entry?.name ?? UNKNOWN_SOURCE_FACE.label}
+          {campaignLabel(lead.source)}
         </span>
       </SectionTitle>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Chip variant="source">{lead.source ?? '—'}</Chip>
-        {/* Two independent axes on top of the source lookup above — never
-            joined into one pill (see `LeadMotion`'s docblock on why folding
-            axes together makes both unfilterable). Each renders only when
-            the field is present: the 100 legacy fixture codes predate the
-            server having an intake concept at all, so both are absent there,
-            while the Apollo import rows (`LD-0201…`) carry both. Absent means
-            "not dug out", not a value to guess at. */}
-        {lead.intakeChannel && <MetaPill>{INTAKE_CHANNEL_LABEL[lead.intakeChannel]}</MetaPill>}
+        {/* The origin KIND, in words. This chip used to print `lead.source`
+            raw — which was the bare `SR-09` catalogue key, because back then
+            the field held nothing else. Both halves now arrive named:
+            `campaignName` above, `sourceKindLabel` here, one table shared with
+            the server (`@pv/contracts`) so the book and this card cannot end
+            up calling one value two things. */}
+        <Chip variant="source">{sourceKindLabel(lead.source)}</Chip>
+        {/* The other axis, never folded into the chip beside it (see
+            `LeadMotion`'s docblock on why joining axes makes both
+            unfilterable). Renders only when present: the 100 legacy fixture
+            rows predate the server having an intake concept at all, so it is
+            absent there, while the Apollo import rows (`LD-0201…`) carry it.
+            Absent means "not dug out", not a value to guess at. */}
         {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
       </div>
     </GlassCard>

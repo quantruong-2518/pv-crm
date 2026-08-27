@@ -58,7 +58,13 @@ sales      lead · opportunity · contract          (lead dựng LẠI 26/08, ha
 
 > **Cập nhật 27/08** — migration `0002` thêm cột `motion`, đổi `intake_channel`
 > sang `MANUAL · IMPORT · LANDING`, đưa `code` thành khoá ngoại vào
-> `platform.object`, và đổi chỉ mục email sang `lower(email)`. Trạng thái mới
+> `platform.object`, và đổi chỉ mục email sang `lower(email)`.
+>
+> **Cập nhật 27/08 (sau đó)** — migration `0004` tách nguồn thành hai nửa:
+> `source` → `campaign_id` (id một dòng `config_entry` list `SOURCE`) và
+> `intake_channel` → `source_kind` (enum `MANUAL · IMPORT · APOLLO ·
+LANDING_PAGE`). RENAME chứ không drop/add, nên 119 dòng giữ nguyên dữ liệu;
+> chỉ mục `lead_source_idx` đổi tên thành `lead_campaign_idx`. Trạng thái mới
 > nhất của cả module: [`ban-giao-lead.md`](./ban-giao-lead.md).
 
 ```
@@ -69,7 +75,7 @@ contact    contact_name* · contact_title · email* · phone · contact_channel 
 need       pain · current_stack · decision_maker · approver
            · budget · currency · deadline                               ← ô 6…10
 owner      owner_id · bd_owner_id · marketing_owner_id
-pipeline   tier · stage · stage_since · intake_channel · source · score
+pipeline   tier · stage · stage_since · source_kind · campaign_id · score
            · last_touch_at · required_filled° · optional_filled°
 exit       exit_reason · exited_at
 ```
@@ -264,8 +270,9 @@ thành 500.
 4. **Chiến dịch không phải `ObjectKind`** → không vào được `platform.object`,
    nên `E1.story()` không đi ngược từ lead về chiến dịch đã chạm nó. Cần kind
    `CP` nếu ContextRail phải hiện dây đó.
-5. **`intake_channel` seed để NULL** — fixture chưa có khái niệm cửa vào. Đoán
-   một giá trị ở đó thì màn Performance sẽ đọc nó như dữ liệu thật.
+5. **`source_kind` seed để NULL** — fixture chưa có khái niệm loại xuất xứ.
+   Đoán một giá trị ở đó thì màn Performance sẽ đọc nó như dữ liệu thật. Nửa
+   kia — `campaign_id` — thì fixture CÓ, nên nó được điền đủ cho cả 100 dòng.
 6. **Mã hợp đồng còn dấu** (`HĐ-2711`) — nợ #1 của `ban-giao-backend.md`. Đổi ở
    engine trước, rồi một migration đổi dữ liệu.
 7. **Connection string Neon đã đi qua một phiên chat** ngày 26/08. Nếu cần chặt

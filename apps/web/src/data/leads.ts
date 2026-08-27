@@ -2,9 +2,9 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   ArrowRight,
   CalendarClock,
+  CircleDashed,
   ClipboardList,
   Handshake,
-  HelpCircle,
   Inbox,
   Megaphone,
   MessageSquare,
@@ -182,20 +182,31 @@ export const ORIGIN_FACE: Record<
 /* `SOURCE_KIND_FACE` (khoá theo `kind` của một dòng SỔ NGUỒN, `GET
    /sales/config`) đã XOÁ 27/08 lần 2: bảng chỉ tồn tại để cấp `icon` cho pill
    cột Nguồn ở `leads.tsx`, chủ dự án yêu cầu bỏ icon khỏi pill đó (tên chữ đã
-   là tín hiệu chính), và sau khi bỏ thì không còn chỗ nào đọc bảng này nữa —
-   grep xác nhận. Tone vàng cho `mua-du-lieu` giờ so thẳng `entry.kind ===
-   'mua-du-lieu'` tại `SourceMark`, đúng thứ `config.ts` §luật 2 đòi (so THUỘC
-   TÍNH, không so `id`). `UNKNOWN_SOURCE_FACE` bên dưới không đụng — nhánh đó
-   không phải pill, vẫn vẽ icon như cũ. */
+   là tín hiệu chính), và sau khi bỏ thì không còn chỗ nào đọc bảng này nữa.
 
-/** Nguồn không tra được — mã trên dòng lead không có trong sổ nguồn.
+   Tone vàng của pill từng so `entry.kind === 'mua-du-lieu'` — một câu KHÔNG
+   BAO GIỜ đúng: `kind` của một dòng sổ nguồn chỉ nhận `chien-dich · su-kien ·
+   tu-nhien`, nên nhánh đó là code chết kể từ lúc viết. Nay nó so
+   `source.kind === 'APOLLO'`, một giá trị có thật của `LeadSourceKind` và
+   đúng câu hỏi định hỏi từ đầu: dòng này có phải dữ liệu MUA không. */
+
+/** Lead không thuộc chiến dịch nào.
  *
- *  Đây KHÔNG phải một trạng thái lý thuyết: hôm nay 100/119 dòng rơi vào đây.
- *  `seed.ts` sinh danh mục `SOURCE` với mã mới (`SR-01`…) nhưng vẫn ghi mã cũ
- *  của fixture (`CD-0101`, `SK-0103`, `GT`, `TM`) xuống cột `lead.source`, nên
- *  hai bên không gặp nhau. Nợ đó thuộc phía máy chủ; màn không lấp nó bằng
- *  cách đoán, vì đoán xong thì không còn ai thấy nó nữa. */
-export const UNKNOWN_SOURCE_FACE = { label: 'Không có trong sổ nguồn', icon: HelpCircle }
+ *  KHÔNG phải "tra không ra" — đây là một câu trả lời đầy đủ. Lead gõ tay và
+ *  lead khách tự bấm gửi từ landing page đều không có chiến dịch, và bịa cho
+ *  chúng một cái là dựng một chiến dịch không có trong sổ.
+ *
+ *  CHỈ hình, không chữ: chữ nằm ở `CAMPAIGN_NONE` trong `@pv/contracts`, cùng
+ *  chỗ với `campaignLabel` đang chọn giữa ba trạng thái. Để nhãn ở cả hai nơi
+ *  là dựng đúng cái bản-thứ-hai-của-một-quyết-định mà file này đã ghi nợ hai
+ *  lần rồi (`EXIT_REASON_LABEL`, `SOURCE_KIND_FACE`).
+ *
+ *  Bản trước tên là `UNKNOWN_SOURCE_FACE` và nói "Không có trong sổ nguồn", vì
+ *  hồi đó nó thật sự là một lỗi tra cứu: màn cầm một mã trần rồi tự đi tìm tên
+ *  trong `GET /sales/config`, và tra trượt thì chỉ biết là trượt. Máy chủ nay
+ *  gửi thẳng `campaignName` cạnh `campaignId`, nên phép tra ấy không còn, và
+ *  cùng với nó là cả một lớp lỗi: không còn chỗ nào để trượt. */
+export const NO_CAMPAIGN_ICON = CircleDashed
 
 /** Nhãn tiếng Việt của sáu lý do rơi.
  *

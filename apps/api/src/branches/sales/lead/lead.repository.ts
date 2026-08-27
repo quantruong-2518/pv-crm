@@ -18,6 +18,7 @@ import type { Actor } from '@pv/engines'
 import { OWNER_NONE, type LeadBookQuery, type LeadStatus } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from './lead.schema'
 import type { LeadProfileRead, LeadRead } from './lead.mapper'
@@ -44,6 +45,20 @@ export type LeadBookPage = {
  *  join identically. */
 const bdOwner = alias(actor, 'bd_owner')
 const marketingOwner = alias(actor, 'marketing_owner')
+
+/** The campaign a lead is attributed to, joined for its NAME.
+ *
+ *  `list = 'SOURCE'` is in the ON clause even though `config_entry.id` is the
+ *  primary key and the six prefixes already keep the lists apart. It costs
+ *  nothing and it states the rule: a `campaign_id` holding `ST-01` must come
+ *  back with NO name rather than with a pipeline stage's name printed on the
+ *  screen where a campaign belongs. The column has no foreign key yet — that
+ *  debt is recorded on the column itself in `lead.schema.ts` — so this is the
+ *  only place that mismatch can be caught.
+ *
+ *  A LEFT join, never inner: most leads have no campaign at all, and an inner
+ *  join here would silently drop them out of the book. */
+const CAMPAIGN_ON = and(eq(configEntry.id, lead.campaignId), eq(configEntry.list, 'SOURCE'))
 
 /** One profile row, plus the verdict of the scope axis on it.
  *
@@ -132,11 +147,13 @@ export class LeadRepository {
         row: lead,
         ownerName: actor.name,
         ownerEmail: actor.email,
+        campaignName: configEntry.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
+      .leftJoin(configEntry, CAMPAIGN_ON)
       .where(and(...filters, scope))
       .orderBy(...this.orderBy(q))
       .limit(q.size)
@@ -188,6 +205,7 @@ export class LeadRepository {
         bdOwnerEmail: bdOwner.email,
         marketingOwnerName: marketingOwner.name,
         marketingOwnerEmail: marketingOwner.email,
+        campaignName: configEntry.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
         inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
@@ -196,6 +214,7 @@ export class LeadRepository {
       .leftJoin(actor, eq(actor.id, lead.ownerId))
       .leftJoin(bdOwner, eq(bdOwner.id, lead.bdOwnerId))
       .leftJoin(marketingOwner, eq(marketingOwner.id, lead.marketingOwnerId))
+      .leftJoin(configEntry, CAMPAIGN_ON)
       .where(eq(lead.code, code))
       .limit(1)
 
@@ -297,7 +316,7 @@ export class LeadRepository {
       q.tier ? eq(lead.tier, q.tier) : undefined,
       q.category ? eq(lead.category, q.category) : undefined,
       this.statusFilter(q.status),
-      q.source ? eq(lead.source, q.source) : undefined,
+      q.campaign ? eq(lead.campaignId, q.campaign) : undefined,
       /* `OWNER_NONE` is the wire spelling of "nobody has taken it" — see the
          constant's docblock in `@pv/contracts`. It carries no actor id of its
          own, so it maps to `owner_id IS NULL` rather than an equality check. */

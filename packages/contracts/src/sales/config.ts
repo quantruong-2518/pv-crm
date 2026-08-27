@@ -32,7 +32,8 @@ import { Moc, textNhap, textNhapTuyChon } from '../primitives'
 
 /** Sáu danh mục. Khoá ASCII viết hoa — chúng đi vào URL và vào cột `list`.
  *
- *  CỐ TÌNH để ngoài, đừng thêm vào: `IntakeChannel` (hệ tự ghi, không ai gõ),
+ *  CỐ TÌNH để ngoài, đừng thêm vào: `LeadSourceKind` (hệ tự ghi, không ai gõ;
+ *  thêm một nguồn mới là migration, không phải một dòng cấu hình),
  *  `CurrencyCode` (chuẩn ISO, không phải từ vựng của phòng kinh doanh), và
  *  `Permission`/`RoleId`/`Branch` (ma trận quyền là hợp đồng của platform —
  *  cho phòng kinh doanh tự thêm một quyền là mở một lỗ hổng, không phải mở một

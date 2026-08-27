@@ -185,12 +185,12 @@ async function seed(): Promise<void> {
      `SOURCE` là danh mục duy nhất số dòng không cố định: nó theo `SOURCES` của
      kỳ, tám nguồn tính tới 17/08. Tách riêng biến `sourceRows` bên dưới —
      không gộp thẳng vào mảng như năm danh mục kia — vì `rows` cần TRA NGƯỢC
-     lại đúng những id vừa sinh này khi ghi `lead.source` (xem `sourceIdOf`).
-     Bug thật đã xảy ra đúng ở chỗ thiếu bước tra ngược: bản trước ghi thẳng mã
-     CŨ của fixture (`Source.code`, kiểu `'CD-0101'`) xuống `lead.source`, mã
-     đó không hề tồn tại trong `config_entry` — chỉ mã máy chủ vừa sinh
-     (`sourceRows[i].id`, kiểu `'SR-01'`) mới tồn tại. Vì cột không có khoá
-     ngoại (nợ đã ghi ở docblock cột `source` trong `lead.schema.ts`), Postgres
+     lại đúng những id vừa sinh này khi ghi `lead.campaign_id` (xem
+     `campaignIdOf`). Bug thật đã xảy ra đúng ở chỗ thiếu bước tra ngược: bản
+     trước ghi thẳng mã CŨ của fixture (`Source.code`, kiểu `'CD-0101'`) xuống
+     cột đó, mã ấy không hề tồn tại trong `config_entry` — chỉ mã máy chủ vừa
+     sinh (`sourceRows[i].id`, kiểu `'SR-01'`) mới tồn tại. Vì cột không có khoá
+     ngoại (nợ đã ghi ở docblock cột `campaign_id` trong `lead.schema.ts`), Postgres
      nhận cả mã sai lẫn mã đúng mà không kêu — 100/119 dòng lệch trước khi sửa
      chỗ này. Tra qua CHÍNH mảng vừa sinh, không chép tay một bảng ánh xạ thứ
      hai, để hai bên không thể lệch lại theo cách khác. */
@@ -201,13 +201,13 @@ async function seed(): Promise<void> {
 
   /** `Source.code` cũ (`'CD-0101'`…) → id `config_entry` vừa sinh (`'SR-01'`…),
    *  theo đúng vị trí trong `SOURCES` — không đoán, không chép tay. */
-  const sourceIdByCode = new Map(SOURCES.map((s, i) => [s.code, sourceRows[i]?.id]))
+  const campaignIdByCode = new Map(SOURCES.map((s, i) => [s.code, sourceRows[i]?.id]))
 
-  /** Dịch mã nguồn cũ sang id mới, và NỔ nếu fixture nhắc một mã không có
-   *  trong `SOURCES` — cùng cách `personId`/`exitKeyOf` đang làm ở trên: seed
-   *  hỏng to còn hơn seed hỏng nhỏ mà im. */
-  function sourceIdOf(code: string): string {
-    const id = sourceIdByCode.get(code)
+  /** Dịch mã nguồn cũ sang id chiến dịch mới, và NỔ nếu fixture nhắc một mã
+   *  không có trong `SOURCES` — cùng cách `personId`/`exitKeyOf` đang làm ở
+   *  trên: seed hỏng to còn hơn seed hỏng nhỏ mà im. */
+  function campaignIdOf(code: string): string {
+    const id = campaignIdByCode.get(code)
     if (!id) throw new Error(`Lead trỏ vào nguồn "${code}" không có trong SOURCES`)
     return id
   }
@@ -238,6 +238,14 @@ async function seed(): Promise<void> {
     ),
     ...sourceRows,
   ]
+
+  /* `satisfies` chứ không để suy kiểu tự do: `rows` đi qua một `.map()` trước
+     khi tới `.values()`, và phép gán đó KHÔNG bị TypeScript kiểm thừa-thiếu
+     trường. Đúng lần đổi tên `source` → `campaign_id` này, seed vẫn biên dịch
+     xanh trong khi ghi `NULL` vào cột chiến dịch của cả 100 dòng — im lặng,
+     đúng kiểu hỏng mà file này đã ăn một lần rồi. Neo vào `$inferInsert` là
+     thứ biến lần sau thành lỗi biên dịch. */
+  type LeadSeedRow = typeof lead.$inferInsert & { _i: number; _owner: string | null }
 
   const rows = LEADS.map((l, i) => {
     const p = leadProfile(l)
@@ -281,11 +289,14 @@ async function seed(): Promise<void> {
       tier: l.tier,
       stage: l.stage ?? null,
       stageSince: stageSinceOf(l),
-      /* Fixture chưa có khái niệm CỬA VÀO (landing · bd · import) — nó có từ
-         luồng MAS mail trở đi. Để trống chứ không đoán: một giá trị đoán ở đây
-         sẽ được đọc như dữ liệu thật ở màn Performance. */
-      intakeChannel: null,
-      source: sourceIdOf(l.source),
+      /* Fixture chưa có khái niệm LOẠI XUẤT XỨ (`MANUAL · IMPORT · APOLLO ·
+         LANDING_PAGE`) — nó có từ luồng MAS mail trở đi. Để trống chứ không
+         đoán: một giá trị đoán ở đây sẽ được đọc như dữ liệu thật ở màn
+         Performance. Nửa còn lại của xuất xứ — chiến dịch — thì fixture CÓ,
+         nên nó được điền ngay bên dưới. Một nửa biết, một nửa không, và cột
+         nào cũng nói đúng phần của nó. */
+      sourceKind: null,
+      campaignId: campaignIdOf(l.source),
       score: 0,
       lastTouchAt: null,
 
@@ -297,7 +308,7 @@ async function seed(): Promise<void> {
          again so the mirror rows below read from the same source as the lead
          row. Dropped before insert, like `_i`. */
       _owner: l.owner ?? null,
-    }
+    } satisfies LeadSeedRow
   })
 
   /* ── E1 mirror rows, one per lead ──────────────────────────────────────────

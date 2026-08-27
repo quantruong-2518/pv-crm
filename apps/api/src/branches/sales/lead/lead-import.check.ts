@@ -378,9 +378,15 @@ function checkRow(
            `motion` is the other axis and it comes FROM the caller: the door is
            a fact about the request, who moved first is a fact about the deal,
            and only the person loading the file knows the second one. */
-        intakeChannel: 'IMPORT',
+        sourceKind: 'IMPORT',
         motion: batch.motion,
-        source: source ?? null,
+        /* The spreadsheet calls this column "Nguồn" and the panel calls the
+           batch-level override `source`, because that is the word the person
+           loading the file uses. The COLUMN it lands in is `campaign_id`: what
+           the cell actually holds is which campaign to attribute the rows to,
+           and the other half of the origin is stamped above. Translating here
+           keeps the file's vocabulary out of the table's. */
+        campaignId: source ?? null,
       },
     },
   }

@@ -9,16 +9,53 @@ import type { LeadRowDb } from './lead.schema'
  *  vào hàng để `tsc` vẫn phân biệt được "thứ bảng có" và "thứ câu hỏi tính
  *  ra".
  *
- *  Same reasoning now covers three more fields the contract needs:
- *  `ownerName` and `ownerEmail` come from the `actor` left join, `signed`
- *  from the `EXISTS(contract …)` subquery — none of the three is a column on
- *  `lead`, so none of them belongs inside `row` either. */
+ *  Same reasoning now covers four more fields the contract needs:
+ *  `ownerName` and `ownerEmail` come from the `actor` left join,
+ *  `campaignName` from the `config_entry` left join, `signed` from the
+ *  `EXISTS(contract …)` subquery — none of the four is a column on `lead`, so
+ *  none of them belongs inside `row` either. */
 export type LeadRead = {
   row: LeadRowDb
   daysHere: number
   ownerName: string | null
   ownerEmail: string | null
+  /** Name of the campaign `campaign_id` points at, or `null` when the lead has
+   *  no campaign OR the campaign row was turned off underneath it. The two
+   *  cases are told apart by whether `row.campaignId` is set — see `sourceOf`. */
+  campaignName: string | null
   signed: boolean
+}
+
+/** The two halves of an origin, assembled into the one object the wire carries.
+ *
+ *  ------------------------------------------------------------------
+ *  THE ID NEVER TRAVELS WITHOUT ITS NAME, AND THAT IS THE WHOLE POINT
+ *  ------------------------------------------------------------------
+ *  `campaign_id` holds `SR-09`. That code is a KEY: it is what a filter
+ *  compares and what a log line is worth reading for, and it is meaningless to
+ *  the person looking at the screen. Before this function existed the bare
+ *  code went out on the wire alone, and the profile card printed it — because
+ *  when a field's only content is an id, printing the id is the only thing a
+ *  screen CAN do with it.
+ *
+ *  So the name is looked up here, once, in the same query that reads the row,
+ *  and both travel together. `sourceKindLabel` on the contract side turns the
+ *  other half into words. Between them the screen never has a reason to render
+ *  either raw value, which is the structural version of "don't show users the
+ *  primary key" — a rule that holds because there is nothing left to break it
+ *  with, not because everyone remembered.
+ *
+ *  Absent keys, not nulls, for the same wire reason as everywhere else in this
+ *  file: `JSON.stringify` drops an absent key, while `null` reaches the screen
+ *  as a value it has to special-case. The object itself is always present even
+ *  when empty — the contract requires it, so the screen reads `source.kind`
+ *  rather than guarding one more level. */
+function sourceOf({ row, campaignName }: LeadRead) {
+  return {
+    ...(row.sourceKind ? { kind: row.sourceKind } : {}),
+    ...(row.campaignId ? { campaignId: row.campaignId } : {}),
+    ...(campaignName ? { campaignName } : {}),
+  }
 }
 
 /** Hàng trong bảng ↔ dòng trong hợp đồng. Chỗ DUY NHẤT biết cả hai hình.
@@ -30,7 +67,8 @@ export type LeadRead = {
  *  Hai mươi trường hồ sơ (`pain`, `budget`, `decision_maker`…) CỐ TÌNH vắng:
  *  chúng thuộc hợp đồng của `GET /sales/leads/:code`, không thuộc dòng sổ —
  *  `toProfile` ở cuối file chở chúng, và nó GỌI hàm này chứ không chép lại. */
-export function toContract({ row, daysHere, ownerName, ownerEmail, signed }: LeadRead): LeadRow {
+export function toContract(read: LeadRead): LeadRow {
+  const { row, daysHere, ownerName, ownerEmail, signed } = read
   return {
     code: row.code,
     company: row.company,
@@ -49,7 +87,7 @@ export function toContract({ row, daysHere, ownerName, ownerEmail, signed }: Lea
     ...(ownerEmail ? { ownerEmail } : {}),
     ...(row.stage ? { stage: row.stage } : {}),
     daysHere,
-    ...(row.source ? { source: row.source } : {}),
+    source: sourceOf(read),
     signed,
     score: row.score,
     ...(row.lastTouchAt ? { lastTouchAt: row.lastTouchAt.toISOString() } : {}),
@@ -128,7 +166,6 @@ export function toProfile(read: LeadProfileRead): LeadProfile {
     ...(read.marketingOwnerName ? { marketingOwnerName: read.marketingOwnerName } : {}),
     ...(read.marketingOwnerEmail ? { marketingOwnerEmail: read.marketingOwnerEmail } : {}),
 
-    ...(row.intakeChannel ? { intakeChannel: row.intakeChannel } : {}),
     ...(row.motion ? { motion: row.motion } : {}),
   }
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { MaObject, Moc, gomKhoangTrang, textNhap, textNhapTuyChon } from '../primitives'
-import { IntakeChannel } from './enums'
+import { LeadSourceKind } from './enums'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 
 /** Loading leads from a file — TWO endpoints, one body.
@@ -256,11 +256,17 @@ export const LeadImportCommitResponse = LeadImportReport.extend({
    *  the first and last row of a single load differ by seconds, and a table
    *  sorted by time renders one load as two. */
   at: Moc,
-  /** The door, stated by the server rather than assumed by the client. Always
+  /** The origin, stated by the server rather than assumed by the client. Always
    *  `IMPORT` for this endpoint, and it is what `CHANNEL_TRUST` reads to decide
    *  the batch is `THO` — a trust label the client asserting itself would be
-   *  worth nothing. */
-  intake: IntakeChannel,
+   *  worth nothing.
+   *
+   *  `APOLLO` does NOT come out of this endpoint even for an Apollo file: a
+   *  vendor is a fact about where the file was bought, not about the HTTP call
+   *  that carried it, and the panel has no field for it yet. Rows loaded here
+   *  are `IMPORT` until that field exists — an honest generic beats a vendor
+   *  name nobody actually confirmed. */
+  intake: LeadSourceKind,
   motion: z.enum(MOTION_BY_CHANNEL.IMPORT),
   /** Rows written. Equals `rows.length` and `codes.length`; carried because the
    *  screen's batch record has a field by this name. */

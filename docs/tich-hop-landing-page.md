@@ -30,8 +30,8 @@ duyệt không giữ bí mật được, và query string còn đi vào history/
 | `pain`        | không    | nhu cầu/vấn đề, tối đa 1.000 ký tự      |
 | `website`     | không    | honeypot; nên luôn gửi và phải để rỗng  |
 
-Backend tự đóng dấu `intakeChannel=LANDING`, `motion=INBOUND`; landing page
-không được gửi owner, stage, tier, score hay source nội bộ.
+Backend tự đóng dấu `source.kind=LANDING_PAGE`, `motion=INBOUND`; landing page
+không được gửi owner, stage, tier, score hay chiến dịch nội bộ.
 
 Có thể chuyển UTM qua query string với các tên chuẩn:
 
