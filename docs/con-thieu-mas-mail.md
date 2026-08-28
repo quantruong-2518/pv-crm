@@ -1,6 +1,6 @@
 # Còn thiếu — MAS mail
 
-Lát cắt **28/08/2026**, sau commit `ced17a7`. Đọc cùng
+Lát cắt **28/08/2026**, sau lượt A+C. Đọc cùng
 [`ban-giao-mas-mail.md`](./ban-giao-mas-mail.md) — file đó ghi **đã dựng gì và
 vì sao**, file này ghi **còn thiếu gì và ai phải làm**.
 
@@ -11,53 +11,36 @@ xong thì XOÁ mục đó, đừng đánh dấu ✅ — danh sách này chỉ c�
 
 ## Trạng thái một dòng
 
-Đường gửi **chạy thật** — một lô canary 4 địa chỉ đã đi qua Resend ngày 28/08,
-cả bốn `accepted`. Nhưng nó chạy trên **PGlite cục bộ**: Neon chưa chạy
-migration nào, Fly chưa deploy, và ba biến bắt buộc còn rỗng. Không có màn hình
-nào gọi được vào đó.
+Đường gửi **chạy thật và có mặt tiền**: Sổ lead soạn được một lô, xem trước
+được ai bị chặn, bấm gửi ra `mail_run` thật; chi tiết lead có thẻ timeline đọc
+`GET /sales/leads/:code/mail`. Nhưng tất cả vẫn chạy trên **PGlite cục bộ**:
+Neon chưa chạy migration nào, Fly chưa deploy, ba biến bắt buộc còn rỗng, và
+nội dung mẫu mail vẫn là một cái khung chưa duyệt.
 
-Nói gọn: **backend xong, dữ liệu mồi và mặt tiền thì chưa.**
+Nói gọn: **backend và mặt tiền xong, dữ liệu mồi và vận hành thì chưa.**
 
 ---
 
 ## A · BACKEND
 
-### A1 · `GET /sales/leads/:code/mail` — CHẶN yêu cầu 4
+### A2 · Mẫu `mas-edge-ai-intro` mới là KHUNG, chưa có nội dung thật
 
-**Cái gì.** Timeline mail của một lead: đã nhận đợt nào, mở lần nào, chưa mở thì
-lỗi hay bounce.
+**Cái gì.** Migration `0013_mas_template_seed.sql` đã nạp một mẫu vào
+`sales.mail_template`, nên ô chọn mẫu không còn rỗng. Nhưng nội dung của nó là
+một cái khung: mọi chỗ chưa biết nằm trong ngoặc vuông `[…]`.
 
-**Ở đâu.** Hợp đồng đã viết đủ — `LeadMailTimelineRow` và
-`LeadMailTimelineResponse` ở `packages/contracts/src/sales/mail.ts:562,629`.
-**Không route nào trả chúng.** `mas.controller.ts` chỉ có `preflight` · `runs` ·
-`GET runs` · `templates`.
+**Ở đâu.** `apps/api/drizzle/0013_mas_template_seed.sql`. Ba lớp chặn đang dựa
+vào chính ký hiệu ngoặc vuông đó — panel soạn mail **khoá nút gửi** khi tiêu đề
+hoặc thân còn `[…]` (`unfilledSlots` ở `components/mas-mail-drawer.tsx`).
 
-**Làm thế nào.** Một `@Get(':code/mail')` ở `lead.controller.ts` (hoặc một
-controller riêng), `@Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })`.
-SQL: `email_delivery` join `mail_run` theo `mail_run_id`, lọc
-`aggregate_id = :code`, left join `mail_event` gom `openCount`/`clickCount` và
-mốc cuối. Sắp `mail_run.created_at DESC`.
+**Làm thế nào.** Chủ dự án cấp bốn thứ: tên dòng sản phẩm · một câu định vị ·
+CTA dẫn đi đâu · số liệu nào được phép in. Rồi `UPDATE sales.mail_template SET
+subject = …, body = …, cta_url = … WHERE code = 'mas-edge-ai-intro'` — một
+migration nữa, hoặc một màn cấu hình mẫu mail nếu dựng.
 
-**Vì sao chưa.** Lát 4 làm cửa GHI (tạo lô, xếp hàng); cửa ĐỌC theo-lead nằm ở
-nhánh Lead chứ không nhánh Campaign, nên rơi giữa hai lát.
-
-### A2 · `sales.mail_template` RỖNG — CHẶN yêu cầu 1
-
-**Cái gì.** Ô "chọn mẫu mail" ở modal MAS sẽ **rỗng trơn**.
-
-**Ở đâu.** Bảng dựng ở `campaign.schema.ts`, endpoint `GET /sales/mail/templates`
-có, nhưng **không chỗ nào `INSERT`** — `seed.ts` không nhắc tới nó, grep toàn
-repo không ra dòng nào.
-
-**Làm thế nào.** Một migration nạp **một** mẫu `mas-edge-ai-intro`. Chọn
-migration chứ không `seed.ts` vì hai lý do: mẫu mail là dữ liệu **cấu hình**,
-không phải dữ liệu demo; và `pnpm db:seed` đang `TRUNCATE` sạch Neon nên không
-ai dám chạy nó trên production.
-
-**Vì sao chưa.** Nội dung thật của sản phẩm chip bán dẫn AI ngoại biên chưa
-được cung cấp, và bịa thông số một con chip vào thư gửi khách là loại sai đắt
-nhất có thể mắc ở đây. Cần bốn thứ từ chủ dự án: tên dòng sản phẩm · một câu
-định vị · CTA dẫn đi đâu · số liệu nào được phép in.
+**Vì sao chưa.** Bịa thông số một con chip bán dẫn AI ngoại biên vào thư gửi
+khách là loại sai đắt nhất có thể mắc ở đây: người nhận sẽ hỏi lại đúng con số
+đó.
 
 ### A3 · Không có cửa tạo chiến dịch — CHẶN yêu cầu 3
 
@@ -66,41 +49,22 @@ nhất có thể mắc ở đây. Cần bốn thứ từ chủ dự án: tên d�
 **Ở đâu.** `sales.campaign` + `campaign_code_seq` đã dựng và **đang rỗng**.
 
 **Làm thế nào.** Bốn file theo đúng khuôn `lead/`. Mã sinh từ sequence, format
-`CP-%04d` (CHECK `campaign_code_shape` đã gác).
+`CP-%04d` (CHECK `campaign_code_shape` đã gác). Panel soạn mail đã nhận sẵn
+`campaignCode` — nối vào là một dòng ở `pages/campaign-detail.tsx`.
 
-**Vì sao chưa.** Ngoài phạm vi bốn lát đã chạy. Xem thêm **D2** — có một quyết
-định mô hình phải chốt trước, không chỉ là viết endpoint.
+**Vì sao chưa.** Có một quyết định mô hình phải chốt trước — xem **D2**.
 
-### A4 · Hai trạng thái của lô không tới được
+### A6 · Cửa huỷ lô chưa có màn nào gọi
 
-`MailRunState` có `DRAFT` và `CANCELLED`, nhưng **không route nào** chuyển lô
-sang chúng. Người dùng không huỷ được một lô đã hẹn giờ — chỉ cầu dao tự động
-mới đặt `CANCELLED` được. Cần `PATCH /sales/mail/runs/:id` với `@Need('chiến-dịch.bắn')`.
+`PATCH /sales/mail/runs/:id` đã dựng và chạy đúng (403 khi thiếu
+`chiến-dịch.bắn`, 404 khi không có lô, `held` đếm số thư chưa gửi bị giữ lại,
+bấm lần hai là idempotent). Nhưng **không màn nào gọi nó**: chỗ duy nhất gọi
+được là một sổ lô gửi, mà chưa màn nào đọc `GET /sales/mail/runs`. Người dùng
+vì thế vẫn chưa huỷ được một lô đã hẹn giờ bằng giao diện.
 
-### A5 · `PV_MAS_ENABLED` chưa gác cửa gửi
-
-Docblock của nó (`env.ts`) nói nó "quyết định đường bulk có được dùng hay
-không", nhưng **chưa nối vào đâu**. Đặt `false` hôm nay không chặn gì cả. Sửa
-là hai dòng trong `MasService.send`, nhưng phải quyết trước: gác thì mọi máy dev
-ăn 403.
-
-### A6 · `PV_MAS_RESEND_API_KEY` bị bỏ qua lặng lẽ
-
-Có trong `apps/api/.env`, **không có trong `env.ts`**. Ngày ai đó điền khoá
-riêng cho MAS vào đấy, nó sẽ không có tác dụng gì và không có gì báo. Hoặc khai
-vào `env.ts` và cho `MailModule` chọn driver theo luồng, hoặc bỏ khỏi `.env`.
-
-### A7 · Bảy chỗ nhỏ hơn
-
-|     | Vấn đề                                                    | Hệ quả                                                                                                                                                   |
-| --- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a   | `MasSendRequest` không có trường CTA                      | Nút trong thư chép từ mẫu; người bấm Gửi chưa bao giờ xác nhận nó                                                                                        |
-| b   | Không lọc `exit_reason IS NOT NULL`                       | Lead đã rơi khỏi phễu vẫn nhận được mail chiến dịch                                                                                                      |
-| c   | `MasPreflightResponse` không có `hidden`                  | Lead ngoài phạm vi **biến mất** khỏi danh sách, `sendable + blocked < leadCodes.length` mà không ai giải thích                                           |
-| d   | `audienceCount` mâu thuẫn giữa hai file                   | Contracts nói "kể cả bị bỏ qua", schema nói "đã qua preflight". Code theo schema. Một trong hai docblock phải xoá                                        |
-| e   | Chưa có reaper cho dòng kẹt `sending`                     | Nợ cũ của `ban-giao-mail.md`, **nay gấp hơn**: một lô 200 dòng kẹt là 200 lá thư không ai biết                                                           |
-| f   | `packages/contracts` không có rào `no-restricted-imports` | `apps/**`, `packages/ui/**`, `packages/engines/**`, `packages/mail-templates/**` đều có rào; package này thì không, nên không gì chặn nó import `@api/*` |
-| g   | `email_suppression.reason` không có CHECK ở DB            | Khác `email_delivery.state`. Giá trị rác vào được bảng                                                                                                   |
+Dựng sổ lô gửi là việc tiếp theo, và nó cũng là chỗ duy nhất hiện được mười một
+con số của `MailRunRow` (bounce · phàn nàn · huỷ đăng ký) — thứ quyết định có
+được mở lô lớn hay không.
 
 ---
 
@@ -108,119 +72,63 @@ vào `env.ts` và cho `MailModule` chọn driver theo luồng, hoặc bỏ khỏ
 
 ### B1 · Neon CHƯA chạy migration nào — chặn mọi thứ
 
-`0007` … `0011` mới chỉ chạy trên PGlite dùng một lần. Production vẫn là lược đồ
+`0007` … `0013` mới chỉ chạy trên PGlite dùng một lần. Production vẫn là lược đồ
 của `0006`.
 
 **Cẩn thận:** `apps/api/.env` trỏ **thẳng Neon production**. Chạy `pnpm db:migrate`
-là chạy trên dữ liệu thật. `0007` và `0010` chỉ `CREATE`, không đụng bảng đang
-có — nhưng `0008`/`0009` (module cơ hội, của phiên khác) có `ALTER` và một bước
-chuyển dữ liệu, đọc kỹ trước khi chạy.
+là chạy trên dữ liệu thật. `0007` · `0010` · `0012` · `0013` chỉ `CREATE`/`ADD
+CONSTRAINT`/`INSERT`, không đụng bảng đang có — nhưng `0008`/`0009` (module cơ
+hội, của phiên khác) có `ALTER` và một bước chuyển dữ liệu, đọc kỹ trước khi
+chạy.
+
+Cả chuỗi `0000…0013` đã chạy trọn trên một PGlite sạch và `drizzle-kit generate`
+sau đó báo "no schema changes" — nên chuỗi lành, thứ còn thiếu là một người bấm
+nút trên máy trỏ Neon.
 
 ### B2 · Migration `0010` chưa commit
 
 Chuỗi đang đan xen giữa hai phiên: `0007` (MAS) → `0008`/`0009` (cơ hội) →
-`0010` (MAS) → `0011` (cơ hội). Commit `ced17a7` chỉ mang tới `0007`, vì snapshot
-của `0010` đã chứa cột của module cơ hội — commit nó mà không commit lược đồ cơ
-hội thì lần `drizzle-kit generate` sau sẽ đòi **DROP** những cột đó.
+`0010` (MAS) → `0011` (cơ hội) → `0012`/`0013` (MAS). Snapshot của `0010` đã
+chứa cột của module cơ hội, nên commit nó mà không commit lược đồ cơ hội thì
+lần `drizzle-kit generate` sau sẽ đòi **DROP** những cột đó.
 
-**Làm thế nào.** Đợi phiên cơ hội commit xong, rồi commit `0010` + `0011` +
-`_journal.json` đầy đủ trong một lượt phối hợp. Lược đồ TS đã mang chỉ mục
-`mail_event_unsub_once` rồi, nên sinh lại được nếu file thất lạc.
+**Làm thế nào.** Đợi phiên cơ hội commit xong, rồi commit `0010` → `0013` +
+`_journal.json` đầy đủ trong một lượt phối hợp.
 
-### B3 · Hai bảng rỗng
+**Lưu ý về `0013`.** Nó là migration DỮ LIỆU, viết tay, nên snapshot của nó là
+bản sao snapshot `0012` với `id`/`prevId` mới. Đó là cách đúng cho một migration
+không đổi lược đồ — đừng chạy `drizzle-kit generate` để "sinh lại" nó.
 
-`sales.mail_template` (xem **A2**) và `sales.campaign` (xem **A3**).
+### B3 · `sales.campaign` vẫn rỗng
+
+Xem **A3**.
 
 ### B4 · `sales.campaign` không phải `ObjectKind`
 
 Nên `E1.story()` không đi ngược từ lead về chiến dịch đã chạm nó, và ContextRail
 không vẽ được dây đó. Nợ #4 của `ban-giao-db.md`, chưa trả. Cần thêm kind `CP`
 vào `packages/engines/src/types.ts` và một dòng gương trong `platform.object`
-mỗi lần tạo chiến dịch.
+mỗi lần tạo chiến dịch. Đi sau **A3**.
 
 ---
 
-## C · FRONT-END — chưa động một dòng
+## C · FRONT-END
 
-Bản phác đã duyệt nằm trong lịch sử phiên 28/08; tóm tắt lại ở đây để không
-phải đọc ngược.
+### C1 · Sổ lô gửi chưa có màn
 
-### C1 · Tầng dữ liệu — `apps/web/src/data/mas.ts` (mới)
+`GET /sales/mail/runs` đã dựng, `MailRunRow` chở đủ mười một con số, nhưng
+không màn nào đọc. Hệ quả cụ thể: không ai nhìn được tỉ lệ bounce và tỉ lệ phàn
+nàn của một lô — hai con số quyết định tài khoản Resend còn sống hay không — và
+cửa huỷ lô (**A6**) không có chỗ để bấm.
 
-Bốn cửa, đi qua chuỗi interceptor `app/api` như mọi cửa khác, **màn không bao
-giờ gọi thẳng `api`**:
+`data/mas.ts` cố tình CHƯA khai query cho hai cửa này: một query không màn nào
+gọi là một khai báo quyền không ai bảo trì.
 
-```
-masTemplatesQuery              GET  /sales/mail/templates
-masPreflight(leadCodes)        POST /sales/mail/preflight
-useMasSend()                   POST /sales/mail/runs
-leadMailTimelineQuery(code)    GET  /sales/leads/:code/mail    ← chờ A1
-```
+### C2 · Chuỗi đợt của chiến dịch
 
-`need: { branch: 'Sales', permission: 'lead.gửi-mail' }`. **Không** truyền
-`load:` — bốn cửa này có route thật, khác năm query còn ăn fixture ở
-`fix-later.md` mục 4.
-
-### C2 · `components/mas-mail-drawer.tsx` (mới) — thay bản demo
-
-Thay `apps/web/src/components/quick-mail-dialog.tsx` (bản demo chưa commit, bấm
-Gửi chỉ hiện toast). `Drawer` + `Stepper`, ba bước cho gửi nhanh, bốn bước cho
-chiến dịch (chèn bước "Lịch gửi").
-
-```
-Bước 1 · Người nhận   preflight trả về, hiện nhãn chặn + cảnh báo Apollo
-Bước 2 · Nội dung     chọn mẫu → tự điền tiêu đề/nội dung, sửa tay được
-Bước 3 · Lịch gửi     CHỈ mode campaign
-Bước 4 · Xem lại      "thư đi ra ngoài và KHÔNG rút lại được"
-```
-
-Ba điều dễ làm sai:
-
-- **Gửi là BẤT ĐỒNG BỘ.** Worker poll 12 giây. Panel phải nói **"đã xếp hàng N
-  thư"**, không nói "đã gửi". Bản demo hiện đang nói sai.
-- **Mở lại là một lần soạn mới** — giữ nội dung cũ cho một lô người nhận khác là
-  cách chắc chắn nhất để gửi nhầm. Bản demo đã làm đúng chỗ này, giữ nguyên.
-- **Đừng tin danh sách client.** Máy chủ chạy lại preflight; số ở bước 4 chỉ là
-  ước lượng, con số thật nằm trong `MasSendResponse.queued`.
-
-### C3 · Nối ba chỗ gọi
-
-| Màn                         | Chỗ                            | Ghi chú                                                                 |
-| --------------------------- | ------------------------------ | ----------------------------------------------------------------------- |
-| `pages/leads.tsx`           | thay `QuickMailDialog`         | chế độ chọn + checkbox **đã có sẵn**, chỉ đổi component                 |
-| `pages/lead-detail.tsx`     | `ToolsBar`, cạnh nút "Gọi"     | lô một người; gác bằng `lead.email` như nút "Gọi" gác bằng `lead.phone` |
-| `pages/campaign-detail.tsx` | nút "Thêm đợt vào chuỗi" đã có | mode campaign — chờ **A3**                                              |
-
-Bọc nút bằng `Can` (`app/auth/guard.tsx`), **không** bằng `useCan` — `useCan`
-hiện không có call site nào trong repo, và `can.ts` tự ghi rõ ẩn nút không phải
-phân quyền. Hàng rào thật là `requireAccess` trong `app/api/client.ts`.
-
-### C4 · `MailTimelineCard` ở chi tiết lead
-
-Cột phụ (1fr) hiện có ba thẻ: `OriginCard` → `PeopleCard` → `ActivityCard`. Chèn
-thẻ mới **trước** `ActivityCard` — nó cụ thể hơn, `ActivityCard` là dòng chảy
-chung. Dựng bằng `Timeline` (M-10, đã có), mỗi mốc là **một `mail_run`**.
-
-Map trạng thái sang `StatusDotState` có sẵn: `ok` (đã mở/click) · `current` (đã
-tới) · `next` (đang xếp hàng) · `bad` (bounce/failed) · `warning` (bị chặn).
-
-**Chữ trên màn phải trung thực.** Không bao giờ viết "chưa đọc" — viết **"chưa
-có tín hiệu mở"**. Lý do dài ở docblock `mail_event` trong `mail.schema.ts`:
-Apple Mail Privacy Protection tự tải ảnh nên đếm dư, Gmail cache ảnh nên giấu
-lần mở sau, ai tắt ảnh thì đọc mà không đếm. `openCount` là **sàn dưới có
-nhiễu**; `clickCount` mới là thứ đáng tin.
-
-### C5 · `Stepper` + trang kit chưa commit
-
-`packages/ui/src/patterns/stepper.tsx` (M-14) đã dựng và đã có mục trên trang
-kit, nhưng **để ngoài commit `ced17a7`** vì trang kit đang bị phiên song song
-sửa cùng lúc (refactor icon). Commit cùng lượt FE.
-
-### C6 · Nhân tiện: `leads.tsx` nuốt lỗi mạng
-
-`fix-later.md` mục 2. Tắt máy chủ thì màn hiện "Không có lead nào khớp bộ lọc"
-kèm nút "Bỏ hết bộ lọc", console sạch trơn — người dùng sẽ đi sửa bộ lọc cho
-một sự cố hạ tầng. Sửa lúc động vào file này thì gần như miễn phí.
+Nút "Thêm đợt vào chuỗi" ở `pages/campaign-detail.tsx` chưa nối. Panel soạn mail
+đã dựng sẵn chế độ chiến dịch — thêm bước "Lịch gửi", nhận `campaignCode` — nên
+việc còn lại là một chỗ gọi. Chờ **A3** và **D2**.
 
 ---
 
@@ -243,15 +151,20 @@ chết lặng — và người nhận tưởng đã thoát sẽ báo spam lá th
 `PV_EMAIL_MAS_FROM` cũng đang rỗng. Quy cách đầy đủ nằm trong khối bình luận ở
 `apps/api/.env`.
 
+**Mới:** `PV_MAS_ENABLED` nay **thật sự gác** cửa gửi (`MasService.send` trả 409
+kèm câu nói rõ tên biến). Nghĩa là đặt `false` là dừng được chiến dịch mà không
+đụng tới mail giao dịch — nhưng cũng nghĩa là mọi máy dev phải khai đủ bốn biến
+trên mới bấm gửi được.
+
 ### D2 · "Chiến dịch" đang là hai thứ khác nhau
 
 Màn `/campaigns` đứng trên **SOURCE** (mã `SR-`/`SK-`, fixture đóng băng). Bảng
 `sales.campaign` mới dùng mã `CP-`. Hai khái niệm cùng gọi một tên trên giao
 diện.
 
-Phải chốt trước khi dựng FE cho yêu cầu 3: hợp nhất chúng, hay giữ hai thứ và
-đặt lại tên một cái. Đây **không phải việc FE** — đổi ở màn trước khi chốt mô
-hình là dựng lại hai lần.
+Phải chốt trước khi dựng **A3**: hợp nhất chúng, hay giữ hai thứ và đặt lại tên
+một cái. Đây **không phải việc FE** — đổi ở màn trước khi chốt mô hình là dựng
+lại hai lần.
 
 ### D3 · Subdomain marketing chưa có
 
@@ -263,37 +176,46 @@ không chấp nhận được cho một đợt thật**: một lần complaint c
 ### D4 · Nguồn nào tính là "đã đồng ý"
 
 Chưa quyết. Hôm nay `APOLLO` chỉ bị **cảnh báo**, không bị chặn — quyết định có
-ý thức của chủ dự án, ghi ở `ban-giao-mas-mail.md`. Nhưng `LANDING_PAGE` cũng
-chưa chắc: khách điền form liên hệ đồng ý _được trả lời_, chưa đồng ý _nhận
-chuỗi marketing_. Muốn chặt thì form cần ô tick riêng, và `IMPORT` cần một cột
-`consent_at` do người nạp khai — máy không phân biệt được file hội thảo với file
-mua.
+ý thức của chủ dự án, ghi ở `ban-giao-mas-mail.md`, và panel soạn mail in cảnh
+báo đó ra thành một đoạn đọc được. Nhưng `LANDING_PAGE` cũng chưa chắc: khách
+điền form liên hệ đồng ý _được trả lời_, chưa đồng ý _nhận chuỗi marketing_.
+Muốn chặt thì form cần ô tick riêng, và `IMPORT` cần một cột `consent_at` do
+người nạp khai — máy không phân biệt được file hội thảo với file mua.
 
 ### D5 · Tài khoản Resend thứ hai
 
-`PV_MAS_RESEND_API_KEY` đã để sẵn chỗ (xem **A6** — nó chưa được đọc). Chế tài
-của Resend là khoá **cấp tài khoản**: tách domain cứu reputation, chỉ tài khoản
-thứ hai mới cứu được đường transactional khỏi một lệnh khoá.
+`PV_MAS_RESEND_API_KEY` nay **đã được đọc thật**: khai vào `env.ts`, và
+`ResendMailDriver` chọn tài khoản theo `MailMessage.flow` (`transactional` vs
+`mas`). Để trống = dùng chung `RESEND_API_KEY`, và log lúc khởi động nói rõ hai
+đường đã tách hay chưa.
+
+Việc còn lại là **mở tài khoản Resend thứ hai và điền khoá**. Chế tài của Resend
+là khoá **cấp tài khoản**: tách domain cứu reputation, chỉ tài khoản thứ hai mới
+cứu được đường transactional khỏi một lệnh khoá.
 
 ### D6 · Webhook chưa nhận được gì trên production
 
 Cần `RESEND_WEBHOOK_SECRET` trong `fly secrets` **và** khai endpoint trên
-dashboard Resend. Chưa có thì `mail_event` mãi rỗng, và toàn bộ yêu cầu 4 không
-có dữ liệu dù code đã sẵn.
+dashboard Resend. Chưa có thì `mail_event` mãi rỗng, `openCount`/`clickCount`
+trên timeline của lead mãi bằng 0, và thẻ đó nói "chưa có tín hiệu mở" cho mọi
+lá thư — đúng về mặt dữ liệu, nhưng vì hạ tầng chứ không phải vì người nhận.
+
+Kèm theo: `applyWebhook` nay ghi lại **câu giải thích của nhà cung cấp** vào
+`email_delivery.last_error_summary` (trước đây nhận rồi vứt). Đó là thứ
+`LeadMailTimelineRow.failReason` in ra, nên trước khi webhook chạy thì mọi lá
+thư bounce vẫn chưa nói được vì sao.
 
 ---
 
 ## Thứ tự chặn nhau
 
 ```
-A2 nội dung mẫu ──┐
-                  ├──> FE C1+C2+C3 (gửi nhanh)  ── yêu cầu 1 · 2
-A1 endpoint ──────┴──> FE C4 (timeline)         ── yêu cầu 4
-                              ▲
-                              │ cần D6 mới có dữ liệu mở/click thật
-D2 chốt mô hình ──> A3 cửa chiến dịch ──> FE chuỗi đợt ── yêu cầu 3
+A2 nội dung mẫu ──> gửi được lô THẬT có nội dung duyệt rồi
+D2 chốt mô hình ──> A3 cửa chiến dịch ──> C2 chuỗi đợt ── yêu cầu 3
+C1 sổ lô gửi ──> A6 có chỗ bấm huỷ ──> đo được bounce/complaint của lô
 
 B1 migrate Neon ──> D1 khai biến ──> D3 subdomain ──> canary lô THẬT 20–30 địa chỉ
+                                     D6 webhook ────> timeline mới có số mở/click
 ```
 
 Canary của MAS **khác** canary của transactional: gửi vào hộp thư của chính mình
@@ -303,16 +225,16 @@ vượt là khoá tài khoản không báo trước.
 
 ---
 
-## Đường ngắn nhất tới "dùng được"
+## Đường ngắn nhất tới "dùng được ngoài đời"
 
-Nếu chỉ muốn Sale gửi được mail cho lead mình giữ và xem được kết quả — **bỏ
-hẳn yêu cầu 3** khỏi lượt này:
+Mặt tiền đã xong, nên phần còn lại là vận hành chứ không phải code:
 
-1. **A2** nạp một mẫu (cần nội dung từ chủ dự án)
-2. **A1** endpoint timeline
-3. **C1 + C2 + C3** hai chỗ gọi (Sổ lead, chi tiết lead) — bỏ chỗ thứ ba
-4. **C4** timeline
-5. **B1 + D1** migrate Neon, khai ba biến
-6. Lô canary thật
+1. **A2** — chủ dự án cấp nội dung, `UPDATE` một dòng
+2. **B1 + D1** — migrate Neon, khai bốn biến (`PV_MAS_ENABLED` nay gác thật)
+3. **D3** — verify subdomain marketing trên Resend
+4. **D6** — khai webhook, để có số mở/click thật
+5. Lô canary 20–30 địa chỉ thật, đọc số, rồi mới mở lô lớn
 
-Yêu cầu 3 tách ra lượt riêng, sau khi **D2** có câu trả lời.
+**C1 sổ lô gửi** nên chen vào trước bước 5: không có nó thì lô canary chạy xong
+mà không ai đọc được bounce rate của nó — tức là canary không đo được thứ nó
+sinh ra để đo.
