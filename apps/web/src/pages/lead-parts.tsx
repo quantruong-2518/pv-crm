@@ -22,12 +22,10 @@ import {
   Icon,
   Input,
   MetaPill,
-  Progress,
   RichText,
   SectionTitle,
   SegmentedControl,
   Select,
-  Separator,
   Skeleton,
   StatusDot,
   Textarea,
@@ -41,7 +39,6 @@ import {
   CURRENCIES,
   filledSlots,
   INIT_DATA_QUESTIONS,
-  REQUIRED_SLOTS,
   toDong,
   type CurrencyCode,
   type Lead,
@@ -127,7 +124,7 @@ function FieldShell({
   children: ReactNode
 }) {
   const head = (
-    <span className="text-muted-foreground text-[11px]">
+    <span className="text-glass-foreground text-[13px] font-semibold leading-[1.4]">
       {field.label}
       {isMandatory(field) && (
         <span className="text-warning" aria-hidden="true">
@@ -149,7 +146,7 @@ function FieldShell({
     <div className="flex min-w-0 flex-col gap-2">
       {plain ? body : <label className="flex flex-col gap-2">{body}</label>}
       {field.hint && (
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">{field.hint}</span>
+        <span className="text-muted-foreground text-[12px] leading-[1.6]">{field.hint}</span>
       )}
     </div>
   )
@@ -181,7 +178,7 @@ function FieldControl({
     return (
       <span
         className={cn(
-          'flex h-10 items-center text-[12.5px]',
+          'flex h-11 items-center text-[13px]',
           field.mono && 'font-mono',
           value === '' && 'text-muted-foreground',
         )}
@@ -200,7 +197,7 @@ function FieldControl({
         options={options}
         onChange={onChange}
         neutralValue={value}
-        className="w-full"
+        className="w-full [&_button]:h-11 [&_button]:text-[13px]"
       />
     )
   }
@@ -216,6 +213,7 @@ function FieldControl({
         placeholder={field.placeholder}
         aria-label={field.label}
         aria-required={required}
+        className="text-[13px]"
         onChange={(e) => onChange(e.target.value)}
       />
     )
@@ -228,6 +226,7 @@ function FieldControl({
         value={value.slice(0, 10)}
         aria-label={field.label}
         aria-required={required}
+        className="h-11 text-[13px]"
         onChange={(e) => onChange(e.target.value)}
       />
     )
@@ -241,11 +240,11 @@ function FieldControl({
           value={grouped(value)}
           aria-label={field.label}
           aria-required={required}
-          className="min-w-0 flex-1 font-mono"
+          className="h-11 min-w-0 flex-1 font-mono text-[13px]"
           onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
         />
         {field.unit && (
-          <span className="text-muted-foreground shrink-0 text-[11px]">{field.unit}</span>
+          <span className="text-muted-foreground shrink-0 text-[12.5px]">{field.unit}</span>
         )}
       </span>
     )
@@ -257,7 +256,7 @@ function FieldControl({
       placeholder={field.placeholder}
       aria-label={field.label}
       aria-required={required}
-      className={cn(field.mono && 'font-mono')}
+      className={cn('h-11 text-[13px]', field.mono && 'font-mono')}
       onChange={(e) => onChange(e.target.value)}
     />
   )
@@ -266,54 +265,6 @@ function FieldControl({
 // ---------------------------------------------------------------------------
 // 1 · Hồ sơ lead
 // ---------------------------------------------------------------------------
-
-/** Cổng init data, một dòng.
- *
- *  Chỉ ô CÒN THIẾU mới ra mặt; đủ rồi thì thanh xanh là hết chuyện. Đếm từ hồ
- *  sơ ĐANG SỬA (`filledSlots`), không đếm từ `lead.requiredFilled`: con số
- *  trong sổ là ảnh chụp lúc vào màn, còn cổng phải nhích theo từng chữ. */
-function GateStrip({ profile }: { profile: LeadProfile }) {
-  const live = useMemo(() => new Set(filledSlots(profile)), [profile])
-  const required = INIT_DATA_QUESTIONS.filter((q) => q.required)
-  const got = required.filter((q) => live.has(q.key)).length
-  const missing = INIT_DATA_QUESTIONS.filter((q) => !live.has(q.key))
-
-  return (
-    <div
-      className="flex flex-col gap-3 rounded-md bg-white/5 p-4"
-      role="group"
-      aria-label="Bộ 10 câu"
-    >
-      <Progress
-        value={got / REQUIRED_SLOTS}
-        label={`Ô bắt buộc · ${got}/${REQUIRED_SLOTS}`}
-        tone={got < REQUIRED_SLOTS ? 'warning' : 'primary'}
-      />
-
-      {missing.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-muted-foreground text-[11px]">Chưa moi được</span>
-          {missing.map((q) => (
-            <span
-              key={q.key}
-              className={cn(
-                'rounded-sm px-2 py-1 text-[11px]',
-                q.required ? 'bg-warning/20 text-warning' : 'bg-white/9 text-muted-foreground',
-              )}
-            >
-              {q.label}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <p className="text-muted-foreground text-[11px] leading-[1.5]">
-        Cổng là {REQUIRED_SLOTS} ô bắt buộc, không phải {INIT_DATA_QUESTIONS.length}/
-        {INIT_DATA_QUESTIONS.length}.
-      </p>
-    </div>
-  )
-}
 
 /** Hồ sơ lead — bộ 10 câu mở ra thành ô nhập.
  *
@@ -347,7 +298,6 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
   const base = useMemo(() => profileForm(profile), [profile])
   const stored = useMemo(() => ({ ...base, ...saved }), [base, saved])
   const [work, setWork] = useState<LeadProfile>(stored)
-  const [openBook, setOpenBook] = useState(false)
 
   /* Đổi lead (hoặc nhận bản đã lưu mới) thì nạp lại ô nhập. Không nạp lại thì
      bấm sang lead khác vẫn thấy hồ sơ của lead trước. */
@@ -360,7 +310,11 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
     setWork((w) => ({ ...w, [field.key]: writeField(field, raw) }) as LeadProfile)
 
   return (
-    <GlassCard className="flex flex-col gap-8 p-4 sm:p-5 lg:p-6" aria-label="Hồ sơ lead">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-6 p-4 sm:p-5 lg:p-6"
+      aria-label="Hồ sơ lead"
+    >
       <SectionTitle
         size="lg"
         /* Kicker cũ đếm số lần cập nhật từ `leadResearch`, thứ đếm số lần chạm
@@ -368,8 +322,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
            lần chạm nào — con số đó sẽ là 0 với MỌI lead, kể cả lead vừa nói
            chuyện xong. Một con số luôn bằng 0 không phải thông tin, nên chỗ này
            nói thẳng ra là chưa có sổ để đếm. */
-        kicker="Chưa nối sổ lần chạm — không rõ ai cập nhật lần cuối"
-        hint="Mười ô init data, mở ra thành ô nhập. Dấu sao là ô bắt buộc."
+        hint="Điền theo từng nhóm. Các trường có dấu * là thông tin bắt buộc."
         actions={
           edited.length > 0 ? (
             <Button size="sm" variant="ghost" onClick={() => resetProfile(profile.code)}>
@@ -382,45 +335,18 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
         Hồ sơ lead
       </SectionTitle>
 
-      <GateStrip profile={work} />
-
       {PROFILE_GROUPS.filter((g) => g.key !== 'so').map((group) => (
         <FieldGroup key={group.key} group={group} work={work} onSet={set} />
       ))}
 
-      <Separator />
-
-      <div className="flex flex-col gap-4">
-        <button
-          type="button"
-          aria-expanded={openBook}
-          onClick={() => setOpenBook((v) => !v)}
-          className="motion-std flex items-center gap-3 self-start rounded-md text-left"
-        >
-          <Icon
-            icon={ChevronDown}
-            size={16}
-            className={cn('text-muted-foreground', openBook && 'rotate-180')}
-          />
-          <span className="flex flex-col">
-            <span className="text-[12.5px] font-semibold">Sổ sách · {fieldsOf('so').length} ô</span>
-            <span className="text-muted-foreground text-[11px]">
-              {PROFILE_GROUPS.find((g) => g.key === 'so')?.purpose}
-            </span>
-          </span>
-        </button>
-
-        {openBook && <FieldRow fields={fieldsOf('so')} work={work} onSet={set} />}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="bg-popover shadow-panel flex flex-wrap items-center gap-3 rounded-md p-3 lg:sticky lg:bottom-24 lg:z-10">
         <Button
           size="md"
           disabled={dirty.length === 0}
           onClick={() => patchProfile(profile.code, work)}
         >
           <Icon icon={Check} size={16} />
-          Lưu {dirty.length > 0 ? `${dirty.length} ô đã sửa` : 'hồ sơ'}
+          Lưu {dirty.length > 0 ? `${dirty.length} thay đổi` : 'thay đổi'}
         </Button>
         <Button
           size="md"
@@ -430,10 +356,10 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
         >
           Bỏ sửa
         </Button>
-        <span className="text-muted-foreground text-[11.5px]">
+        <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
           {dirty.length > 0
-            ? `${dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-            : 'Chưa có backend: lưu là ghi vào bàn làm việc trên máy này.'}
+            ? `${dirty.length} thay đổi chưa lưu.`
+            : 'Dữ liệu được lưu trên thiết bị này.'}
         </span>
       </div>
     </GlassCard>
@@ -461,7 +387,7 @@ function FieldRow({
   const staffOptions = useMemo(() => peopleRoleOptions(people), [people])
 
   return (
-    <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
       {fields.map((field) => (
         <FieldShell
           key={field.key}
@@ -498,32 +424,21 @@ function FieldGroup({
   const live = useMemo(() => new Set(filledSlots(work)), [work])
   const slots = slotsOfGroup(group.key)
   const got = slots.filter((s) => live.has(s)).length
-  const no = PROFILE_GROUPS.findIndex((g) => g.key === group.key) + 1
-
   return (
-    <section className="flex flex-col gap-4">
-      <Separator />
-
+    <section className="flex flex-col gap-5 rounded-lg bg-white/5 p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <span className="flex min-w-0 items-start gap-3">
-          <span className="text-muted-foreground bg-white/6 flex size-6 shrink-0 items-center justify-center rounded-sm font-mono text-[10.5px]">
-            {no}
-          </span>
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="font-display text-[15px] font-semibold">{group.label}</span>
-            <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              {group.purpose}
-            </span>
-          </span>
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="font-display text-[16px] font-semibold">{group.label}</span>
+          <span className="text-muted-foreground text-[12.5px] leading-[1.6]">{group.purpose}</span>
         </span>
         {slots.length > 0 && (
           <span
             className={cn(
-              'tnum shrink-0 font-mono text-[11px]',
+              'tnum shrink-0 font-mono text-[12px]',
               got < slots.length ? 'text-warning' : 'text-muted-foreground',
             )}
           >
-            {got}/{slots.length} ô
+            {got}/{slots.length} trường
           </span>
         )}
       </div>
@@ -546,7 +461,7 @@ function MoneyRead({ work, value }: { work: LeadProfile; value: string }) {
   const symbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? ''
 
   return (
-    <span className="text-muted-foreground text-[11px] leading-[1.5]">
+    <span className="text-muted-foreground text-[12px] leading-[1.6]">
       {currency === 'VND'
         ? `${dong(amount)} · ${billions(amount)}`
         : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toDong(amount, currency))} quy ra đồng`}
@@ -573,17 +488,21 @@ export function NotesCard({ lead }: { lead: Lead }) {
   const setNote = useLeadDesk((s) => s.setNote)
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-4 sm:p-5 lg:p-6" aria-label="Thông tin quan trọng">
-      <SectionTitle size="md" hint="Thứ không ô nào chứa được. Không đếm vào cổng.">
-        Thông tin quan trọng
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-4 sm:p-5"
+      aria-label="Ghi chú quan trọng"
+    >
+      <SectionTitle size="lg" hint="Ghi lại điều cần nhớ khi liên hệ và xử lý lead.">
+        Ghi chú quan trọng
       </SectionTitle>
 
       <RichText
-        label="Thông tin quan trọng về lead này"
+        label="Ghi chú quan trọng về lead này"
         value={note}
         onChange={(html) => setNote(lead.code, html)}
         minHeight={132}
-        placeholder="Gọi trước 9h, sau 9h là vào xưởng. Sếp bên họ vừa đổi, người mới chưa gặp…"
+        placeholder="Ví dụ: chỉ gọi trước 9h; người duyệt mới chưa tham gia buổi trao đổi…"
       />
     </GlassCard>
   )
@@ -593,13 +512,14 @@ export function NotesCard({ lead }: { lead: Lead }) {
 // 3 · Next action
 // ---------------------------------------------------------------------------
 
-/** Việc tiếp theo — gợi ý của hệ ở trên, việc tự hẹn ở dưới.
+/** Việc tiếp theo — gợi ý của hệ ở trên, việc cá nhân tự hẹn ở dưới.
  *
  *  Hai tầng này KHÔNG thay nhau. Gợi ý của hệ suy từ trạng thái lead nên luôn
  *  đúng và luôn chung chung ("lấy 2 ô còn thiếu"); việc tự hẹn là câu hệ không
  *  đoán được ("gọi lại sau khi khách họp xong thứ Năm"). Bấm một gợi ý là nó
  *  rơi xuống ô soạn thành chữ sửa được — người dùng không phải gõ lại, mà vẫn
- *  hẹn được ngày và giao được cho ai.
+ *  hẹn được ngày. Việc giao người phụ trách nằm ở một luồng riêng trên thanh
+ *  công cụ, nên thẻ này không tạo thêm một nguồn phân công thứ hai.
  *
  *  Ngày hẹn để TRỐNG được. Ép chọn ngày cho mọi việc thì người ta chọn bừa một
  *  ngày, và cả cột hạn thành vô nghĩa.
@@ -616,7 +536,6 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
 
   const [text, setText] = useState('')
   const [due, setDue] = useState('')
-  const [who, setWho] = useState('')
 
   const suggestions = useMemo(
     () => nextActions(lead, contact).filter((a) => a.key !== 'giao-viec'),
@@ -627,22 +546,25 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
 
   const add = () => {
     if (text.trim() === '') return
-    addTodo(lead.code, { text: text.trim(), due, who })
+    addTodo(lead.code, { text: text.trim(), due, who: '' })
     setText('')
     setDue('')
-    setWho('')
   }
 
   const open = todos.filter((t) => !t.done).length
 
   return (
-    <GlassCard className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6" aria-label="Việc tiếp theo">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-4 sm:p-5"
+      aria-label="Việc tiếp theo của tôi"
+    >
       <SectionTitle
         size="md"
-        kicker={open > 0 ? `${open} việc chưa xong` : 'Chưa hẹn việc nào'}
-        hint="Bấm một gợi ý của hệ để mồi chữ, rồi hẹn ngày."
+        kicker={open > 0 ? `${open} việc đang mở` : 'Chưa có việc tiếp theo'}
+        hint="Ghi việc cá nhân cần làm trên lead này. Phân công người phụ trách ở nút Giao việc."
       >
-        Việc tiếp theo
+        Việc tiếp theo của tôi
       </SectionTitle>
 
       <div className="flex flex-wrap gap-2">
@@ -672,7 +594,7 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
         />
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
-            <span className="text-muted-foreground text-[11px]">Hạn</span>
+            <span className="text-muted-foreground text-[12.5px]">Hạn</span>
             <Input
               type="date"
               value={due}
@@ -681,17 +603,6 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
               onChange={(e) => setDue(e.target.value)}
             />
           </label>
-          <Select
-            label="Giao cho"
-            value={who}
-            neutralValue=""
-            onChange={setWho}
-            className="max-w-[248px]"
-            options={[
-              { value: '', label: 'Chính mình' },
-              ...people.map((p) => ({ value: p.id, label: `${p.name} · ${p.role}` })),
-            ]}
-          />
           <Button size="md" disabled={text.trim() === ''} onClick={add}>
             <Icon icon={Plus} size={16} />
             Thêm việc
@@ -700,9 +611,8 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
       </div>
 
       {todos.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Gợi ý phía trên là việc hệ suy ra từ trạng thái lead — nó không tự thành lịch của bạn cho
-          tới khi bạn hẹn ngày.
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+          Chọn một gợi ý phía trên để tạo việc và hẹn ngày thực hiện.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -844,11 +754,8 @@ export function ActivityCard({
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Dòng thời gian">
-      <SectionTitle
-        size="md"
-        hint="Lưu nguyên văn bằng tiếng Anh — một ngôn ngữ duy nhất để phân tích được cả sổ."
-      >
-        Dòng thời gian
+      <SectionTitle size="lg" hint="Các lần gọi, gặp và trao đổi đã được ghi nhận.">
+        Lịch sử tương tác
       </SectionTitle>
 
       <SegmentedControl
@@ -869,9 +776,8 @@ export function ActivityCard({
       />
 
       {shown.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa có mốc nào để vẽ: sổ lần chạm chưa nối vào máy chủ, nên hồ sơ về không mang theo lịch
-          sử tương tác nào.
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+          Chưa có lịch sử tương tác. Dữ liệu lần chạm chưa được kết nối.
         </p>
       ) : (
         <ol className="flex flex-col">
@@ -992,17 +898,18 @@ function Bubbles({ turn }: { turn: TranscriptTurn }) {
  *  thứ tự ưu tiên: người dùng cần biết "có tín hiệu gì không" trước, "thư có
  *  tới không" sau — trừ khi thư KHÔNG tới, lúc đó đó mới là tin quan trọng
  *  nhất trên mốc. Xem `dotOf`. */
-export function MailTimelineCard({ code }: { code: string }) {
+export function MailTimelineCard({ code, actions }: { code: string; actions?: ReactNode }) {
   const { data, isPending, error } = useQuery(leadMailTimelineQuery(code))
   const rows = data?.rows ?? []
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Sổ mail của lead">
       <SectionTitle
-        size="md"
-        hint="Mỗi mốc là một lô gửi. Số lượt mở là sàn dưới có nhiễu — click mới là tín hiệu đáng tin."
+        size="lg"
+        hint="Soạn email mới và theo dõi tín hiệu phản hồi từ người nhận."
+        actions={actions}
       >
-        Mail đã gửi
+        Email MAS
       </SectionTitle>
 
       {isPending ? (
@@ -1012,13 +919,13 @@ export function MailTimelineCard({ code }: { code: string }) {
            Một thẻ trống ở đây đọc ra là "chưa gửi lá thư nào", và đó là câu sai
            nguy hiểm nhất thẻ này có thể nói: nó dẫn người dùng đi gửi thêm một
            lá thư nữa cho người vừa nhận ba lá. */
-        <p className="text-warning text-[11.5px] leading-[1.6]">
-          Không đọc được sổ mail của lead này.{' '}
+        <p className="text-warning text-[12.5px] leading-[1.6]">
+          Không đọc được lịch sử email của lead này.{' '}
           {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.6]">
-          Chưa gửi lá thư nào cho lead này.
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+          Chưa gửi email nào cho lead này.
         </p>
       ) : (
         <Timeline

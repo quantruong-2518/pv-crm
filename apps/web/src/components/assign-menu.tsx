@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Search, UserRoundPlus, X } from '@pv/ui'
-import { Avatar, AvatarGroup, Badge, Button, Checkbox, GlassCard, Icon, Select, cn } from '@pv/ui'
+import { Check, UserRoundPlus } from '@pv/ui'
+import {
+  Avatar,
+  AvatarGroup,
+  Badge,
+  Button,
+  Checkbox,
+  Drawer,
+  Icon,
+  SearchField,
+  Select,
+  cn,
+} from '@pv/ui'
 import type { Lead, LeadContact } from '@pv/engines/fixtures/das-vina'
 import { useSession } from '@/app/auth'
 import { useLeadDesk } from '@/app/desk'
-import { personName, useApproverName, useDirectory } from '@/data/directory'
+import { useApproverName, useDirectory } from '@/data/directory'
 import { assigneeOptions, nextActions } from '@/data/leads'
 
 /** Giao việc trên một lead — nút + bảng chọn người.
@@ -42,19 +53,12 @@ type MenuProps = {
   contact: LeadContact | null
   /** Nút to cho màn chi tiết, nút nhỏ cho hàng bảng. */
   size?: 'sm' | 'md'
-  /** Bảng xổ lên hay xuống. `up` cho nút nằm trên thanh dính đáy — xổ xuống ở
-   *  đó thì bảng rơi ra ngoài cửa sổ và người dùng chỉ thấy một mép sáng. */
-  placement?: 'down' | 'up'
+  /** Màu của nút mở, để thanh hành động phân vai rõ mà không đổi panel. */
+  buttonVariant?: 'default' | 'secondary' | 'ghost'
   className?: string
 }
 
-export function AssignMenu({
-  lead,
-  contact,
-  size = 'md',
-  placement = 'down',
-  className,
-}: MenuProps) {
+export function AssignMenu({ lead, contact, size = 'md', buttonVariant, className }: MenuProps) {
   const me = useSession((s) => s.actor)
   const assigns = useLeadDesk((s) => s.assigns)
   const assign = useLeadDesk((s) => s.assign)
@@ -100,106 +104,135 @@ export function AssignMenu({
     setTask(current?.task ?? tasks[0]?.label ?? '')
   }, [open, current, tasks])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
-
   const toggle = (id: string) =>
     setPicked((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]))
 
-  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? id
+  const pickedNames = people
+    .filter((person) => picked.includes(person.id))
+    .map((person) => person.name)
 
   const groups = [
-    { key: 'toi' as const, label: 'Giao cho tôi' },
-    { key: 'goi-y' as const, label: `Nên giao · hợp với lead này` },
-    { key: 'con-lai' as const, label: 'Còn lại trong phòng' },
+    { key: 'toi' as const, label: 'Bạn' },
+    { key: 'goi-y' as const, label: 'Phù hợp với lead này' },
+    { key: 'con-lai' as const, label: 'Nhân sự khác' },
   ]
 
+  const submit = () => {
+    if (picked.length === 0 || task === '') return
+    assign(lead.code, picked, task)
+    setOpen(false)
+  }
+
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn(className)}>
       <Button
         size={size}
-        variant={current ? 'ghost' : 'default'}
-        onClick={() => setOpen((v) => !v)}
+        variant={buttonVariant ?? (current ? 'ghost' : 'default')}
+        onClick={() => setOpen(true)}
         aria-expanded={open}
       >
         <Icon icon={UserRoundPlus} size={16} />
         {current ? `Đã giao · ${current.actorIds.length} người` : 'Giao việc'}
       </Button>
 
-      {open && (
-        <>
-          {/* Nền bắt click ra ngoài. Nút thật chứ không phải div: bàn phím cũng
-              phải đóng được bảng, không chỉ chuột. */}
-          <button
-            type="button"
-            aria-label="Đóng bảng giao việc"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-20 cursor-default"
-          />
-
-          <GlassCard
-            variant="b"
-            /* `backdrop-blur` là ngoại lệ có lý do của glass-b: mặt kính b bỏ
-               blur vì nó nằm trên nền tĩnh, còn bảng này NỔI TRÊN nội dung —
-               16% lọt qua của --popover đủ để chữ bên dưới đội lên danh sách
-               người. */
-            className={cn(
-              'absolute right-0 z-30 flex max-h-[70vh] w-[360px] max-w-[calc(100vw-32px)] flex-col gap-3 p-4 backdrop-blur-xl',
-              placement === 'up' ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]',
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="text-[13px] font-semibold">Giao việc</h3>
-                <p className="text-muted-foreground truncate text-[11px]">
-                  <span className="font-mono">{lead.code}</span> · {lead.company}
-                </p>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
-                <Icon icon={X} size={16} />
-                Đóng
+      <Drawer
+        open={open}
+        onClose={() => setOpen(false)}
+        title={current ? 'Cập nhật giao việc' : 'Giao việc'}
+        subtitle={
+          <>
+            <span className="font-mono">{lead.code}</span> · {lead.company}
+          </>
+        }
+        meta={
+          <Badge tone={picked.length > 0 ? 'running' : 'draft'}>
+            {picked.length > 0 ? `${picked.length} người đã chọn` : 'Chưa chọn người'}
+          </Badge>
+        }
+        footer={
+          <div className="flex flex-col gap-3">
+            <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
+              Giao việc không thay đổi người phụ trách chính. Đề nghị sẽ chờ {approver} duyệt.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="md" variant="ghost" onClick={() => setOpen(false)}>
+                Huỷ
+              </Button>
+              <Button size="md" disabled={picked.length === 0 || task === ''} onClick={submit}>
+                <Icon icon={Check} size={16} />
+                {current ? 'Cập nhật đề nghị' : 'Gửi đề nghị giao việc'}
               </Button>
             </div>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-6">
+          <section className="flex flex-col gap-3 rounded-lg bg-white/5 p-4">
+            <div className="flex items-start gap-3">
+              <span className="bg-primary text-primary-foreground flex size-6 shrink-0 items-center justify-center rounded-sm font-mono text-[11px] font-semibold">
+                1
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="text-[14px] font-semibold">Việc cần giao</span>
+                <span className="text-muted-foreground text-[12px] leading-[1.5]">
+                  Chọn một việc cụ thể để mọi người cùng thực hiện.
+                </span>
+              </span>
+            </div>
 
-            <label className="bg-input flex h-10 items-center gap-2 rounded-md px-3">
-              <Icon icon={Search} size={16} className="text-muted-foreground" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm theo tên, vai hoặc ngành…"
-                className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-[12.5px] outline-none"
-              />
-            </label>
+            <Select
+              label="Việc cần giao"
+              hideLabel
+              value={task}
+              options={tasks.map((item) => ({ value: item.label, label: item.label }))}
+              onChange={setTask}
+              neutralValue=""
+              className="w-full"
+            />
+          </section>
 
-            <div className="-mx-1 flex flex-1 flex-col gap-3 overflow-y-auto px-1">
-              {groups.map((g) => {
-                const rows = shown.filter((p) => p.group === g.key)
+          <section className="flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <span className="bg-secondary text-secondary-foreground flex size-6 shrink-0 items-center justify-center rounded-sm font-mono text-[11px] font-semibold">
+                2
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="text-[14px] font-semibold">Người thực hiện</span>
+                <span className="text-muted-foreground text-[12px] leading-[1.5]">
+                  Có thể chọn nhiều người cho cùng một việc.
+                </span>
+              </span>
+            </div>
+
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Tìm theo tên, vai trò hoặc chuyên môn…"
+              className="w-full"
+            />
+
+            <div className="flex flex-col gap-4 rounded-lg bg-white/5 p-3">
+              {groups.map((group) => {
+                const rows = shown.filter((person) => person.group === group.key)
                 if (rows.length === 0) return null
                 return (
-                  <div key={g.key} className="flex flex-col gap-1">
-                    <span className="text-muted-foreground font-mono text-[10.5px] uppercase tracking-[.13em]">
-                      {g.label}
+                  <div key={group.key} className="flex flex-col gap-1">
+                    <span className="text-glass-foreground px-3 text-[12.5px] font-semibold">
+                      {group.label}
                     </span>
-                    {rows.map((p) => (
+                    {rows.map((person) => (
                       <Checkbox
-                        key={p.id}
-                        checked={picked.includes(p.id)}
-                        onChange={() => toggle(p.id)}
+                        key={person.id}
+                        checked={picked.includes(person.id)}
+                        onChange={() => toggle(person.id)}
                         label={
                           <span className="flex items-center gap-2">
-                            {p.name}
-                            {p.group === 'toi' && <Badge tone="running">bạn</Badge>}
+                            {person.name}
+                            {person.group === 'toi' && <Badge tone="running">Bạn</Badge>}
                           </span>
                         }
-                        hint={`${p.role} · ${p.why}`}
-                        trailing={<Avatar name={p.name} size="sm" />}
+                        hint={`${person.role} · ${person.why}`}
+                        trailing={<Avatar name={person.name} size="md" />}
                       />
                     ))}
                   </div>
@@ -207,76 +240,32 @@ export function AssignMenu({
               })}
 
               {shown.length === 0 && (
-                <p className="text-muted-foreground px-3 py-4 text-[11.5px] leading-[1.5]">
-                  Không ai trong phòng khớp &quot;{query}&quot;.
+                <p className="text-muted-foreground m-0 px-3 py-4 text-[12.5px] leading-[1.6]">
+                  Không tìm thấy người phù hợp với “{query}”.
                 </p>
               )}
             </div>
+          </section>
 
-            {/* Vai phòng đang có là năm vai đã chốt ở docs. Nói thẳng ra chỗ
-                thiếu thay vì bày một nhóm rỗng tên AM cho đủ hình. */}
-            <p className="text-muted-foreground text-[11px] leading-[1.5]">
-              Phòng có năm vai đã chốt: TP Kinh doanh · Marketing · BD · Sale · Presales. Chưa có
-              vai AM — thêm vai là việc của module Cấu hình.
-            </p>
-
-            <Select
-              label="Việc"
-              value={task}
-              options={tasks.map((t) => ({ value: t.label, label: t.label }))}
-              onChange={setTask}
-              neutralValue=""
-              className="w-full"
+          <div className="flex items-center justify-between gap-4 rounded-lg bg-white/5 p-4">
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="text-[13px] font-semibold">Đã chọn</span>
+              <span className="text-muted-foreground text-[12px]">
+                {picked.length > 0
+                  ? `${picked.length} người thực hiện`
+                  : 'Chưa chọn người thực hiện'}
+              </span>
+            </span>
+            <AvatarGroup
+              names={pickedNames}
+              max={6}
+              size="md"
+              emptyLabel="Chưa có người"
+              className="shrink-0"
             />
-
-            {picked.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {picked.map((id) => (
-                  <span
-                    key={id}
-                    className="bg-primary/24 text-accent-foreground flex items-center gap-2 rounded-sm py-1 pl-1 pr-2 text-[11px]"
-                  >
-                    <Avatar name={nameOf(id)} size="sm" />
-                    {nameOf(id)}
-                    <button
-                      type="button"
-                      aria-label={`Bỏ ${nameOf(id)}`}
-                      onClick={() => toggle(id)}
-                      className="motion-std hover:text-foreground"
-                    >
-                      <Icon icon={X} size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <p className="text-muted-foreground text-[11px] leading-[1.5]">
-              Giao việc không đổi người giữ lead — đổi tay là đề nghị riêng, vì phần chốt của hoa
-              hồng chia lại theo đó. Đề nghị này chờ {approver} gật.
-            </p>
-
-            <div className="flex gap-2">
-              <Button
-                size="md"
-                disabled={picked.length === 0 || task === ''}
-                onClick={() => {
-                  assign(lead.code, picked, task)
-                  setOpen(false)
-                  /* Nối E3 khi có backend: đề nghị này thành phiếu duyệt thật và
-                     người được giao nhận thông báo qua E4. */
-                }}
-              >
-                <Icon icon={Check} size={16} />
-                Giao cho {picked.length} người
-              </Button>
-              <Button size="md" variant="ghost" onClick={() => setOpen(false)}>
-                Huỷ
-              </Button>
-            </div>
-          </GlassCard>
-        </>
-      )}
+          </div>
+        </div>
+      </Drawer>
     </div>
   )
 }
@@ -290,9 +279,10 @@ export function AssignedPills({ lead }: { lead: Lead }) {
   const current = assigns[lead.code]
   if (!current) return null
 
-  /* Id lạ in ra chính id — người bị khoá sau khi được giao việc vẫn phải lần
-     ra được là ai; xem `personName`. */
-  const names = current.actorIds.map((id) => personName(staff, id))
+  const names = current.actorIds.flatMap((id) => {
+    const person = staff.find((actor) => actor.id === id)
+    return person ? [person.name] : []
+  })
 
   return (
     <div className="flex flex-wrap items-center gap-3">

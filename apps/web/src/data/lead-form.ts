@@ -75,23 +75,23 @@ import { CHANNEL_LABEL } from '@/data/sales-config'
 export const PROFILE_GROUPS = [
   {
     key: 'khach',
-    label: 'Khách là ai',
-    purpose: 'Ai đứng tên hợp đồng, làm gì, to cỡ nào.',
+    label: 'Thông tin doanh nghiệp',
+    purpose: 'Thông tin pháp lý, ngành và quy mô hoạt động.',
   },
   {
     key: 'nguoi',
-    label: 'Nói chuyện với ai',
-    purpose: 'Gọi cho ai, gọi bằng đường nào.',
+    label: 'Người liên hệ',
+    purpose: 'Thông tin để gọi và trao đổi với khách.',
   },
   {
     key: 'viec',
-    label: 'Việc khách muốn giải',
-    purpose: 'Bán cái gì, cho ai duyệt, bao nhiêu tiền, khi nào.',
+    label: 'Nhu cầu và quyết định',
+    purpose: 'Vấn đề, ngân sách, người duyệt và thời hạn.',
   },
   {
     key: 'so',
-    label: 'Sổ sách',
-    purpose: 'Hệ tự ghi. Đọc là chính, sửa là ngoại lệ.',
+    label: 'Thông tin hệ thống',
+    purpose: 'Dữ liệu hệ thống tự ghi, chỉ sửa khi cần thiết.',
   },
 ] as const
 
@@ -141,7 +141,7 @@ const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: c.label }))
 
 const CHANNEL_OPTIONS = [
-  { value: '', label: 'Chưa moi được kênh nào' },
+  { value: '', label: 'Chưa có kênh liên hệ' },
   ...Object.entries(CHANNEL_LABEL).map(([value, label]) => ({ value, label })),
 ]
 
@@ -189,7 +189,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     group: 'khach',
     slot: 'nganh',
     options: CATEGORY_OPTIONS,
-    hint: 'Đổi ngành là đổi Sale phụ trách mặc định.',
+    hint: 'Đổi ngành có thể thay đổi người phụ trách mặc định.',
   },
   {
     key: 'mainProduct',
@@ -246,47 +246,47 @@ export const PROFILE_FIELDS: ProfileField[] = [
     group: 'nguoi',
     slot: 'kenh',
     options: CHANNEL_OPTIONS,
-    hint: 'Kênh khách VỪA DÙNG, không phải kênh mình thích gửi.',
+    hint: 'Chọn kênh khách vừa sử dụng để phản hồi.',
   },
 
   // ── 3 · Việc khách muốn giải ─────────────────────────────────────────────
   {
     key: 'pain',
-    label: 'Đau ở đâu',
+    label: 'Vấn đề cần giải quyết',
     kind: 'long',
     group: 'viec',
     slot: 'dau',
     placeholder: 'Việc khách muốn giải, kể bằng lời của khách…',
-    hint: 'Phải là câu của khách, không phải câu mình đoán hộ.',
+    hint: 'Ghi lại vấn đề do khách xác nhận, không tự suy đoán.',
   },
   {
     key: 'currentStack',
-    label: 'Đang dùng gì',
+    label: 'Giải pháp đang sử dụng',
     kind: 'long',
     group: 'viec',
     slot: 'dang-dung',
   },
   {
     key: 'decisionMaker',
-    label: 'Ai ký cuối',
+    label: 'Người ký cuối',
     kind: 'text',
     group: 'viec',
     slot: 'nguoi-ky',
   },
   {
     key: 'approver',
-    label: 'Ai duyệt tiền',
+    label: 'Người duyệt ngân sách',
     kind: 'text',
     group: 'viec',
     slot: 'nguoi-ky',
   },
   {
     key: 'budget',
-    label: 'Khoảng tiền khách nói',
+    label: 'Ngân sách dự kiến',
     kind: 'money',
     group: 'viec',
     slot: 'tien',
-    hint: 'Tiền KHÁCH nói, không phải giá mình chào.',
+    hint: 'Ghi ngân sách khách đã chia sẻ, không dùng giá đang chào.',
   },
   {
     key: 'currency',
@@ -296,7 +296,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     slot: 'tien',
     options: CURRENCY_OPTIONS,
   },
-  { key: 'deadline', label: 'Khi nào cần xong', kind: 'date', group: 'viec', slot: 'moc' },
+  { key: 'deadline', label: 'Thời hạn mong muốn', kind: 'date', group: 'viec', slot: 'moc' },
 
   // ── 4 · Sổ sách ──────────────────────────────────────────────────────────
   { key: 'code', label: 'Mã lead', kind: 'read', group: 'so', mono: true },
@@ -311,15 +311,15 @@ export const PROFILE_FIELDS: ProfileField[] = [
   },
   {
     key: 'owner',
-    label: 'Người giữ lead',
+    label: 'Người phụ trách',
     kind: 'select',
     group: 'so',
     people: 'Còn ở kho chung, chưa ai nhận',
-    hint: 'Đổi tay chia lại phần chốt của hoa hồng.',
+    hint: 'Đổi người phụ trách có thể ảnh hưởng đến phân bổ hoa hồng.',
   },
   {
     key: 'bdOwner',
-    label: 'BD đã chạm',
+    label: 'BD đã liên hệ',
     kind: 'select',
     group: 'so',
     people: 'Chưa BD nào chạm',
@@ -331,8 +331,8 @@ export const PROFILE_FIELDS: ProfileField[] = [
     group: 'so',
     people: 'Không qua Marketing',
   },
-  { key: 'source', label: 'Nguồn kéo về', kind: 'read', group: 'so', mono: true },
-  { key: 'createdAt', label: 'Vào sổ ngày', kind: 'read', group: 'so' },
+  { key: 'source', label: 'Nguồn lead', kind: 'read', group: 'so', mono: true },
+  { key: 'createdAt', label: 'Ngày tạo', kind: 'read', group: 'so' },
   /* `dealCode` và `contractCode` KHÔNG còn được vẽ. Lead → cơ hội nay là 1-n,
      nên không cột nào gọi tên được "cái" cơ hội hay "cái" hợp đồng, và
      `GET /sales/leads/:code` không chở trường nào cho chúng — thứ sống sót là

@@ -90,7 +90,9 @@ function unfilledSlots(fields: readonly string[]): string[] {
  *  Bốn alias dưới đây cũng là bốn khoá `MasService.intentOf` ghi thật vào
  *  `email_delivery.merge`. Giao diện quảng bá hai tên theo ngôn ngữ sản phẩm
  *  (`account`, `contact_name`); hai tên cũ giữ template đã lưu không bị hỏng. */
-function renderFor(template: string, lead: LeadRow): string {
+type MasRecipient = Pick<LeadRow, 'code' | 'company' | 'contactName' | 'email'>
+
+function renderFor(template: string, lead: MasRecipient): string {
   const merge: Record<string, string> = {
     account: lead.company,
     company: lead.company,
@@ -107,7 +109,9 @@ export type MasMailDrawerProps = {
   open: boolean
   onClose: () => void
   /** Toàn bộ sổ thật, để người dùng tìm và thêm ngay trong Drawer. */
-  leads: LeadRow[]
+  leads: MasRecipient[]
+  /** Lead được chọn sẵn khi mở từ hồ sơ chi tiết. */
+  initialLeadCode?: string
   /** Tên gợi ý cho lô. Màn cha biết ngữ cảnh, panel thì không. Sửa được. */
   defaultLabel?: string
   /** Gọi sau khi lô đã VÀO HÀNG ĐỢI thành công. */
@@ -118,6 +122,7 @@ export function MasMailDrawer({
   open,
   onClose,
   leads,
+  initialLeadCode,
   defaultLabel,
   onQueued,
 }: MasMailDrawerProps) {
@@ -153,12 +158,12 @@ export function MasMailDrawer({
     setBody('')
     setCta(undefined)
     setQuery('')
-    setSelected(NO_SELECTION)
-    setPreviewCode('')
+    setSelected(initialLeadCode ? new Set([initialLeadCode]) : NO_SELECTION)
+    setPreviewCode(initialLeadCode ?? '')
     setPreflight(undefined)
     setChecking(false)
     setFailure('')
-  }, [open, defaultLabel])
+  }, [open, defaultLabel, initialLeadCode])
 
   /* Mẫu đã tắt vẫn về trên dây (một lô đã gửi phải in được tên mẫu của nó),
      nhưng KHÔNG đứng trong ô chọn: tắt một mẫu nghĩa là không ai soạn thư mới
@@ -189,7 +194,7 @@ export function MasMailDrawer({
   /* Đổi người nhận là vứt kết quả chạy thử. Giữ lại thì nút sẽ hứa "37 gửi
      được" cho một danh sách không còn là danh sách đã kiểm — và preflight tồn
      tại chính vì con số đó phải nói về đúng những người sắp nhận thư. */
-  const toggleRecipient = (lead: LeadRow) => {
+  const toggleRecipient = (lead: MasRecipient) => {
     setSelected((current) => {
       const next = new Set(current)
       if (next.has(lead.code)) next.delete(lead.code)

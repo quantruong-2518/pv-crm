@@ -14,20 +14,17 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Avatar,
   AvatarGroup,
   Badge,
   Button,
   Chip,
   GlassCard,
   Icon,
-  Kicker,
   MetaPill,
   ScreenDetailGrid,
   ScreenHeader,
   ScreenLayout,
   SectionTitle,
-  Separator,
   Skeleton,
 } from '@pv/ui'
 import {
@@ -47,24 +44,12 @@ import { useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { useDirectory } from '@/data/directory'
 import { EXIT_REASON_LABEL, NO_CAMPAIGN_ICON, peopleOn } from '@/data/leads'
-import {
-  leadOf,
-  leadProfileQuery,
-  realContact,
-  NO_TOUCHES,
-  NO_TRANSCRIPT,
-} from '@/data/lead-profile'
-import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
-import { AssignedPills, AssignMenu } from '@/components/assign-menu'
-import { ConvertDialog, ConvertedCard } from '@/components/convert-dialog'
+import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
+import { AssignMenu } from '@/components/assign-menu'
+import { ConvertDialog } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
-import {
-  ActivityCard,
-  MailTimelineCard,
-  NextActionCard,
-  NotesCard,
-  ProfileCard,
-} from './lead-parts'
+import { MasMailDrawer } from '@/components/mas-mail-drawer'
+import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
  *
@@ -198,6 +183,7 @@ export function LeadDetailPage() {
 
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
+  const [composing, setComposing] = useState(false)
   /* Lý do vừa báo trong phiên này. Chưa có backend nên nó chết cùng lần mở màn
      — và đó là điều đúng: một đề nghị chưa ai gật thì chưa phải sự thật của sổ. */
   const [reported, setReported] = useState<ExitReason | null>(null)
@@ -255,6 +241,22 @@ export function LeadDetailPage() {
   /* Tên account đọc từ bản hồ sơ ĐÃ LƯU: sửa tên trong form thì đầu trang phải
      đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
   const accountName = savedName ?? lead.company
+  const masRecipients =
+    lead.contactName && lead.email
+      ? [
+          {
+            code: lead.code,
+            company: accountName,
+            contactName: lead.contactName,
+            email: lead.email,
+          },
+        ]
+      : []
+  const masBlocker = !lead.email
+    ? 'Lead chưa có địa chỉ email.'
+    : !lead.contactName
+      ? 'Lead chưa có người liên hệ.'
+      : undefined
 
   /* Gated on the CAMPAIGN id, not on `source`: `source` is now an object and
      is always present, so `if (lead.source)` would be true for every lead and
@@ -268,10 +270,11 @@ export function LeadDetailPage() {
      mời tạo đơn thứ hai cho cùng một khách, và sổ cơ hội cộng ra một con số
      không có thật. Nút đổi vì thế thành đường sang đúng đơn đó. */
   const existingOp = opportunityOfLead(lead.code)
+  const openOpCode = existingOp?.code ?? deal?.code
 
   return shell(
     <ScreenLayout>
-      <GlassCard className="flex flex-col gap-4 p-4 sm:p-5 lg:p-6">
+      <GlassCard variant="b" className="p-4">
         {/* Dòng tên chỉ chở HAI thứ: tên account và trạng thái. Mọi nhãn phân
             loại — mã, bậc, ngành, tỉnh, cột — xuống hàng pill dưới. Bậc là một
             CÁCH XẾP LOẠI lead, trạng thái là lead ĐANG SỐNG HAY KHÔNG; để hai
@@ -281,22 +284,11 @@ export function LeadDetailPage() {
             này thừa chỗ kia không đọc ra được là "chưa biết" hay "không có". */}
         <ScreenHeader
           back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
-          kicker="Account"
           title={accountName}
-          meta={
+          className="gap-3 [&>div]:gap-3 [&_h2]:normal-case [&_h2]:tracking-[-.4px]"
+          actions={
             <>
               <StatusBadge lead={lead} reported={reported} />
-              <Chip>{lead.code}</Chip>
-              {lead.tier ? (
-                <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
-              ) : (
-                <Badge tone="draft">—</Badge>
-              )}
-              <MetaPill>
-                {lead.category ? (CATEGORY_LABEL.get(lead.category) ?? lead.category) : '—'}
-              </MetaPill>
-              <MetaPill>{lead.province ?? '—'}</MetaPill>
-              <MetaPill mono>vào sổ {dmy(lead.createdAt)}</MetaPill>
               {lead.stage && (
                 <MetaPill tone={overSla(lead) ? 'warning' : 'accent'}>
                   {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
@@ -304,34 +296,49 @@ export function LeadDetailPage() {
               )}
             </>
           }
+          meta={
+            <>
+              <Chip>{lead.code}</Chip>
+              {lead.tier ? (
+                <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
+              ) : (
+                <Badge tone="draft">—</Badge>
+              )}
+              <MetaPill>
+                Ngành: {lead.category ? (CATEGORY_LABEL.get(lead.category) ?? lead.category) : '—'}
+              </MetaPill>
+              <MetaPill>Khu vực: {lead.province ?? '—'}</MetaPill>
+              <MetaPill mono>Tạo ngày {dmy(lead.createdAt)}</MetaPill>
+            </>
+          }
         />
-
-        <AssignedPills lead={legacy} />
-        <ConvertedCard lead={legacy} />
       </GlassCard>
 
       <ScreenDetailGrid
-        sideLabel="Ngữ cảnh lead"
-        main={
-          <>
-            <ProfileCard profile={lead} />
-            <NextActionCard lead={legacy} contact={contact} />
-            <NotesCard lead={legacy} />
-          </>
-        }
+        sideLabel="Công việc và ngữ cảnh lead"
+        className="xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-6"
+        main={<ProfileCard profile={lead} />}
         side={
           <>
             <OriginCard lead={lead} onOpen={openSource} />
-            <PeopleCard lead={lead} people={people} />
-            {/* TRƯỚC `ActivityCard`, và thứ tự đó là một quyết định: thẻ này
-              cụ thể hơn — đúng những lá thư đã gửi cho đúng người này — còn
-              dòng thời gian bên dưới là dòng chảy chung của lead. Câu người mở
-              hồ sơ hỏi trước khi viết thêm một lá nữa là "mình đã viết cho họ
-              mấy lần rồi". */}
-            <MailTimelineCard code={lead.code} />
-            {/* Máy chủ chưa có bảng lần chạm — hai hằng NÓI RA điều đó, thay vì
-              một `[]` gõ tại chỗ đọc ra như "lead này chưa ai chạm". */}
-            <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />
+            <MailTimelineCard
+              code={lead.code}
+              actions={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={Boolean(masBlocker)}
+                  title={masBlocker}
+                  onClick={() => setComposing(true)}
+                >
+                  <Icon icon={Mail} size={16} />
+                  Soạn email MAS
+                </Button>
+              }
+            />
+            <NextActionCard lead={legacy} contact={contact} />
+            <NotesCard lead={legacy} />
+            <PeopleCard people={people} />
           </>
         }
       />
@@ -340,9 +347,8 @@ export function LeadDetailPage() {
         lead={lead}
         legacy={legacy}
         pinned={pins.includes(lead.code)}
-        converted={Boolean(deal)}
-        opCode={existingOp?.code}
-        onOpenOp={() => existingOp && navigate(`/sales/ops/${existingOp.code}`)}
+        opCode={openOpCode}
+        onOpenOp={() => openOpCode && navigate(`/sales/ops/${openOpCode}`)}
         reported={reported}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
@@ -357,6 +363,14 @@ export function LeadDetailPage() {
         open={exiting}
         onClose={() => setExiting(false)}
         onReport={setReported}
+      />
+      <MasMailDrawer
+        open={composing}
+        onClose={() => setComposing(false)}
+        leads={masRecipients}
+        initialLeadCode={masRecipients.length > 0 ? lead.code : undefined}
+        defaultLabel={`Quick MAS · ${accountName}`}
+        onQueued={() => setComposing(false)}
       />
     </ScreenLayout>,
   )
@@ -439,8 +453,7 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Lead đến từ đâu">
       <SectionTitle
-        kicker="Đến từ"
-        size="md"
+        size="lg"
         actions={
           lead.source.campaignId ? (
             <Button size="sm" variant="ghost" onClick={onOpen}>
@@ -449,15 +462,17 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
           ) : undefined
         }
       >
-        <span className="flex items-center gap-2">
-          <Icon
-            icon={campaign ? Megaphone : NO_CAMPAIGN_ICON}
-            size={18}
-            className="text-accent-foreground"
-          />
-          {campaignLabel(lead.source)}
-        </span>
+        Nguồn lead
       </SectionTitle>
+
+      <span className="flex items-center gap-2 text-[13px] font-semibold leading-[1.5]">
+        <Icon
+          icon={campaign ? Megaphone : NO_CAMPAIGN_ICON}
+          size={18}
+          className="text-accent-foreground"
+        />
+        {campaignLabel(lead.source)}
+      </span>
 
       <div className="flex flex-wrap items-center gap-2">
         {/* The origin KIND, in words. This chip used to print `lead.source`
@@ -485,19 +500,11 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
  *  In `ownerName` — cái NHÃN. Không có ai đứng tên thì `ownerId` cũng vắng, và
  *  hai thứ đó luôn vắng cùng nhau vì cả ba trường người giữ đến từ một phép
  *  join duy nhất ở máy chủ. */
-function PeopleCard({ lead, people }: { lead: LeadProfile; people: string[] }) {
+function PeopleCard({ people }: { people: string[] }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-5" aria-label="Người đang làm">
-      <SectionTitle size="sm">Đang làm</SectionTitle>
+      <SectionTitle size="lg">Người phụ trách</SectionTitle>
       <AvatarGroup names={people} max={5} size="md" emptyLabel="chưa ai nhận" />
-      <p className="text-[11.5px] leading-[1.5]">
-        Người giữ:{' '}
-        {lead.ownerName ? (
-          <b className="font-semibold">{lead.ownerName}</b>
-        ) : (
-          <span className="text-muted-foreground">còn ở kho chung, chưa ai nhận</span>
-        )}
-      </p>
     </GlassCard>
   )
 }
@@ -530,7 +537,6 @@ function ToolsBar({
   lead,
   legacy,
   pinned,
-  converted,
   opCode,
   reported,
   onPin,
@@ -543,7 +549,6 @@ function ToolsBar({
    *  nằm trên `app/desk.ts` và chưa có endpoint nào để cắt sang. */
   legacy: Lead
   pinned: boolean
-  converted: boolean
   /** Mã cơ hội lead này ĐÃ có trong sổ, nếu có. */
   opCode?: string
   reported: ExitReason | null
@@ -559,9 +564,6 @@ function ToolsBar({
   const contactLine = lead.contactTitle
     ? `${lead.contactName} · ${lead.contactTitle}`
     : lead.contactName
-  /* Vai của người giữ tra bằng ID, không bằng TÊN. Tên trùng nhau và đổi khi
-     người ta cưới xin; `ownerId` là thứ duy nhất được phép đem đi so. */
-  const ownerRole = useDirectory().find((a) => a.id === lead.ownerId)?.role
   /* Máy chủ trả KHOÁ lý do rơi (`khong-goi-duoc`); màn in NHÃN. */
   const exitLabel = lead.exitReason
     ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
@@ -574,114 +576,62 @@ function ToolsBar({
     <div className="z-10 lg:sticky lg:bottom-4">
       <GlassCard
         variant="b"
-        /* `backdrop-blur` là NGOẠI LỆ có lý do của glass-b: mặt kính b cố ý bỏ
-           blur vì nó nằm trên một cái nền tĩnh (xem globals.css). Thanh này thì
-           có NỘI DUNG TRÔI phía sau, và 16% lọt qua của --popover đủ để chữ bên
-           dưới đội lên chữ của thanh. */
-        className="shadow-panel grid gap-4 p-4 backdrop-blur-xl xl:grid-cols-[minmax(280px,1.4fr)_1px_minmax(180px,.6fr)_auto] xl:items-center"
+        className="bg-hc-surface shadow-panel grid gap-3 p-3 lg:grid-cols-[minmax(220px,1fr)_auto] lg:items-center"
         aria-label="Thanh công cụ"
       >
-        <div className="flex min-w-0 flex-col gap-1">
-          <Kicker tone="muted">Khách</Kicker>
-          {lead.contactName ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <MetaPill avatar={lead.contactName}>{contactLine}</MetaPill>
-              {lead.phone && (
-                <MetaPill icon={Phone} mono>
-                  {lead.phone}
-                </MetaPill>
-              )}
-              {lead.email && <MetaPill icon={Mail}>{lead.email}</MetaPill>}
-              {lead.contactChannel && (
-                <MetaPill icon={CHANNEL_ICON[lead.contactChannel]} tone="accent">
-                  {CHANNEL_LABEL[lead.contactChannel]}
-                </MetaPill>
-              )}
-            </div>
-          ) : (
-            <span className="text-warning text-[11.5px] leading-[1.5]">
-              Chưa moi được người liên hệ — chưa gọi được cho ai.
-            </span>
-          )}
+        <div className="hidden min-w-0 max-w-[320px] flex-col gap-1 lg:flex">
+          <span className="text-muted-foreground text-[12px]">Liên hệ</span>
+          <span className="truncate text-[13px] font-semibold">
+            {contactLine || 'Chưa có người liên hệ'}
+          </span>
         </div>
 
-        <Separator className="hidden h-8 w-px xl:block" />
-
-        <div className="flex min-w-0 flex-col gap-1">
-          <Kicker tone="muted">PIC của lead</Kicker>
-          {lead.ownerName ? (
-            <span className="flex items-center gap-2">
-              <Avatar name={lead.ownerName} size="sm" />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[12.5px] font-semibold">
-                  {lead.ownerName}
-                  {ownerRole && (
-                    <span className="text-muted-foreground font-normal"> · {ownerRole}</span>
-                  )}
-                </span>
-                {/* Hòm thư công ty, cùng thứ sổ lead in ở cột Lead PIC — hai màn
-                    nói về một người thì phải nói cùng một mã. Đọc `ownerEmail`
-                    của máy chủ chứ không suy từ tên: `staffEmail(name)` là một
-                    quy ước đặt tên của fixture, và đoán sai ở đây là một lá thư
-                    gửi vào một hòm không tồn tại. */}
-                <span className="text-muted-foreground truncate font-mono text-[10.5px]">
-                  {lead.ownerEmail ?? '—'}
-                </span>
-              </span>
-            </span>
-          ) : (
-            <span className="text-muted-foreground text-[11.5px]">
-              Còn ở kho chung, chưa ai nhận
-            </span>
-          )}
-        </div>
-
-        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
-          <Button
-            size="md"
-            variant={pinned ? 'default' : 'ghost'}
-            aria-pressed={pinned}
-            onClick={onPin}
-          >
-            <Icon icon={Pin} size={16} />
-            {pinned ? 'Đã ghim' : 'Ghim'}
-          </Button>
-          <AssignMenu lead={legacy} contact={contact} placement="up" />
-
-          <Separator className="hidden h-8 w-px lg:block" />
-
-          <Button
-            size="md"
-            variant="ghost"
-            disabled={!lead.phone}
-            title={lead.phone ?? 'Chưa moi được kênh gọi lại được'}
-          >
-            <Icon icon={Phone} size={16} />
-            {lead.contactName ? `Gọi ${lead.contactName}` : 'Gọi PIC'}
-          </Button>
-
-          {(reported ?? exitLabel) ? (
-            <Badge tone="warning">Đã báo · {reported ?? exitLabel}</Badge>
-          ) : (
-            <Button size="md" variant="destructive" onClick={onExit}>
-              <Icon icon={TriangleAlert} size={16} />
-              Lead có vấn đề
+        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+          <div className="flex flex-wrap items-center gap-1 rounded-md bg-white/5 p-1">
+            <Button
+              size="md"
+              variant={pinned ? 'default' : 'ghost'}
+              aria-pressed={pinned}
+              onClick={onPin}
+            >
+              <Icon icon={Pin} size={16} />
+              {pinned ? 'Đã ghim' : 'Ghim'}
             </Button>
-          )}
+            <AssignMenu lead={legacy} contact={contact} buttonVariant="secondary" />
+          </div>
 
-          {opCode ? (
-            <Button size="md" onClick={onOpenOp}>
-              <Icon icon={ArrowRight} size={16} />
-              Cơ hội {opCode}
+          <div className="flex flex-wrap items-center gap-1 rounded-md bg-white/5 p-1">
+            <Button
+              size="md"
+              variant="secondary"
+              disabled={!lead.phone}
+              title={lead.phone ?? 'Chưa có số điện thoại'}
+            >
+              <Icon icon={Phone} size={16} />
+              {lead.contactName ? `Gọi ${lead.contactName}` : 'Gọi khách'}
             </Button>
-          ) : converted ? (
-            <Badge tone="success">Đã đổi thành cơ hội</Badge>
-          ) : (
-            <Button size="md" onClick={onConvert}>
-              <Icon icon={ArrowRight} size={16} />
-              Chuyển thành cơ hội
-            </Button>
-          )}
+
+            {(reported ?? exitLabel) ? (
+              <Badge tone="warning">Đã báo · {reported ?? exitLabel}</Badge>
+            ) : (
+              <Button size="md" variant="destructive" onClick={onExit}>
+                <Icon icon={TriangleAlert} size={16} />
+                Báo không phù hợp
+              </Button>
+            )}
+
+            {opCode ? (
+              <Button size="md" onClick={onOpenOp}>
+                <Icon icon={ArrowRight} size={16} />
+                Cơ hội {opCode}
+              </Button>
+            ) : (
+              <Button size="md" onClick={onConvert}>
+                <Icon icon={ArrowRight} size={16} />
+                Chuyển thành cơ hội
+              </Button>
+            )}
+          </div>
 
           {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của
               AppShell). Thanh này chạm mép phải cùng chỗ với nút đó, nên không
