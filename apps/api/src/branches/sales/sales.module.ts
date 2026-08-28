@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { registerConstraints } from '@api/platform/http/db-error'
+import { CampaignModule } from './campaign/campaign.module'
 import { SalesConfigModule } from './config/config.module'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
@@ -17,8 +18,10 @@ registerConstraints(LEAD_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
- *  Bốn module còn lại (chiến dịch · cơ hội · performance · kế hoạch) thêm vào
- *  đây theo đúng hình của `lead/`. Thứ tự dựng bám theo mục B của
+ *  Ba module còn lại (cơ hội · performance · kế hoạch) thêm vào đây theo đúng hình của
+ *  `lead/`; `campaign/` vừa vào với nửa MAS mail của nó — sổ chiến dịch và tệp
+ *  thành viên là những bộ bốn file tiếp theo trong cùng module đó, không phải
+ *  module mới. Thứ tự dựng bám theo mục B của
  *  `docs/ban-giao-backend.md`: luật phải về đúng tầng trước, endpoint sau.
  *
  *  `config/` vào trước bốn cái kia có lý do: nó là chỗ sáu danh mục của nhánh
@@ -28,7 +31,7 @@ registerConstraints(LEAD_CONSTRAINTS)
  *  Nhánh này không nhập gì từ `branches/supply`, `branches/factory`,
  *  `branches/finance` — eslint chặn, xem `eslint.config.js`. */
 @Module({
-  imports: [LeadModule, SalesConfigModule],
-  exports: [LeadModule, SalesConfigModule],
+  imports: [LeadModule, SalesConfigModule, CampaignModule],
+  exports: [LeadModule, SalesConfigModule, CampaignModule],
 })
 export class SalesModule {}

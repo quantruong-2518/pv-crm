@@ -1,8 +1,10 @@
 import { createElement } from 'react'
 import { render } from '@react-email/render'
 import { LeadIntakeInternalEmail, type LeadIntakeInternalData } from './lead-intake-internal'
+import { MasShellEmail, type MasShellData } from './mas-shell'
 
 export type { LeadIntakeInternalData, LeadIntakeInternalUtm } from './lead-intake-internal'
+export type { MasShellData } from './mas-shell'
 
 /** Strips CRLF from a value before it goes into the Subject header.
  *
@@ -26,6 +28,22 @@ export async function renderLeadIntakeInternal(
 ): Promise<{ subject: string; html: string; text: string }> {
   const subject = `Lead landing page mới · ${sanitizeSubjectPart(data.company)} · ${sanitizeSubjectPart(data.contactName)}`
   const element = createElement(LeadIntakeInternalEmail, data)
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
+  return { subject, html, text }
+}
+
+/** The one door out of this package for the MAS marketing shell — same shape
+ *  as `renderLeadIntakeInternal`: props in, `{subject, html, text}` out,
+ *  `html`/`text` rendered from the SAME element so they can never drift.
+ *
+ *  `subject` is sanitized the same way: it ends up in bulk sends built from
+ *  campaign content, and a stray newline there is still a header-injection
+ *  vector even though it isn't public-form input like the lead intake case. */
+export async function renderMasShell(
+  data: MasShellData,
+): Promise<{ subject: string; html: string; text: string }> {
+  const subject = sanitizeSubjectPart(data.subject)
+  const element = createElement(MasShellEmail, data)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
   return { subject, html, text }
 }

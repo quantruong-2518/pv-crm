@@ -15,6 +15,13 @@ tiếp.
 > `email_webhook_event`, cộng hàng đợi pg-boss và cửa webhook Resend. Vì sao nó
 > có hình dạng đó: [`ban-giao-mail.md`](./ban-giao-mail.md) · cách vận hành:
 > [`van-hanh-mail.md`](./van-hanh-mail.md). `campaign*` và `touch` vẫn chưa dựng.
+>
+> **Cập nhật 28/08:** mục "Chưa dựng — 12 bảng" bên dưới liệt `mail_delivery`
+> là một bảng riêng cho cụm B — đã LỖI THỜI, xem cập nhật ngay trên: cụm B dùng
+> lại `email_delivery` + `campaign_run_id`, không tách bảng thứ hai. `suppression`
+> ở mục A cũng lỗi thời cùng lý do — đã dựng, đọc cập nhật 27/08 (2). Còn thiếu
+> gì để Quick MAS (Sổ lead) gửi được mail thật — không chỉ 12 bảng, còn endpoint,
+> composer, quyền: [`ban-giao-quick-mas.md`](./ban-giao-quick-mas.md).
 
 ---
 

@@ -17,14 +17,20 @@ import { LeadIntakeRepository } from './lead-intake.repository'
  *  branch answered, while the branch that owns the tables owns the body.
  *
  *  ------------------------------------------------------------------
- *  ONE TOKEN, ONE COMPOSER — AND THE DAY THAT STOPS BEING TRUE
+ *  ONE TOKEN, ONE COMPOSER — AND THE DAY THAT STOPPED BEING TRUE
  *  ------------------------------------------------------------------
- *  Today Sales is the only branch that sends anything, so a single provider
- *  under `MAIL_COMPOSER` is honest. The second branch that needs a template
- *  turns this into a registry keyed by `delivery.template`. Until then an
- *  unknown template must THROW rather than fall through to a default body: a
- *  mail sent with the wrong body cannot be recalled, and a job that fails is
- *  retried, parked, and eventually looked at by a person.
+ *  This file used to be the only provider under `MAIL_COMPOSER` and threw on
+ *  any template but its own, with a note saying the second sender would turn
+ *  the token into a registry keyed by `delivery.template`. MAS was that second
+ *  sender. The throw moved to `MailConsumer.composerFor()` — the one place that
+ *  can tell "no composer claims this" from "not mine" — and what is left here
+ *  is `supports()`, a pure predicate naming the single template this file
+ *  renders.
+ *
+ *  The rule the old throw protected is unchanged and now enforced one level up:
+ *  an unclaimed template must FAIL rather than fall through to a default body,
+ *  because a mail sent with the wrong body cannot be recalled, while a job that
+ *  fails is retried, parked, and eventually looked at by a person.
  *
  *  Nothing here knows Resend, and nothing here knows React — the template
  *  package renders, this file only supplies data and the envelope. */
@@ -35,11 +41,11 @@ export class LeadMailComposer implements MailComposer {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  async compose(delivery: DeliveryToSend): Promise<MailMessage> {
-    if (delivery.template !== 'lead-intake-internal') {
-      throw new Error(`Không có bộ dựng thân mail cho template "${delivery.template}".`)
-    }
+  supports(template: string): boolean {
+    return template === 'lead-intake-internal'
+  }
 
+  async compose(delivery: DeliveryToSend): Promise<MailMessage> {
     const profile = await this.intake.profileFor(delivery.aggregateId)
     if (!profile) {
       throw new Error(`Lead ${delivery.aggregateId} không có lượt nộp nào để báo.`)

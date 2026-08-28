@@ -4,12 +4,14 @@ import {
   type DynamicModule,
   type ModuleMetadata,
   type OnApplicationShutdown,
+  type Type,
 } from '@nestjs/common'
 import type { PgBoss } from 'pg-boss'
 import { ENV, type Env } from '../config/env'
 import { DB_HANDLE } from '../db/db.module'
 import type { DbHandle } from '../db/create-db'
 import { BOSS, createBoss, type QueueRole } from './boss.provider'
+import { MAIL_COMPOSER, type MailComposer } from './mail-composer'
 import { MailConsumer } from './mail.consumer'
 import { MailQueue } from './mail-queue'
 import { MailRateGate } from './mail-rate'
@@ -22,7 +24,19 @@ export { MailRateGate } from './mail-rate'
 export { MailRelay } from './mail-relay'
 export { MAIL_COMPOSER, type MailComposer } from './mail-composer'
 
-type Wiring = { imports?: ModuleMetadata['imports'] }
+/** What the composition root hands this module.
+ *
+ *  `composers` is a LIST OF CLASSES, not instances: each is resolved out of the
+ *  modules named in `imports`, so every one keeps its own dependencies — the
+ *  lead composer keeps its intake repository, the MAS composer keeps the run
+ *  repository — and a class whose module was forgotten is a resolution error at
+ *  boot rather than a template that turns out to be unrenderable the first time
+ *  somebody presses send. Order is the registry's order; first `supports()`
+ *  wins. */
+type Wiring = {
+  imports?: ModuleMetadata['imports']
+  composers?: Type<MailComposer>[]
+}
 
 /** THE QUEUE, IN TWO SHAPES THAT ARE NOT THE SAME MODULE.
  *
@@ -55,9 +69,20 @@ type Wiring = { imports?: ModuleMetadata['imports'] }
  *  lets the console driver stand in for Resend in development, and it keeps
  *  this file from having to change when the mail module is reorganised.
  *
- *      QueueModule.forWorker({ imports: [MailModule] })
+ *      QueueModule.forWorker({ imports: [MailModule], composers: [MasMailComposer] })
  *
- *  is the whole handover. */
+ *  is the whole handover.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THE COMPOSERS ARRIVE AS A PARAMETER TOO
+ *  ------------------------------------------------------------------
+ *  `MAIL_COMPOSER` is a registry now (see `mail-composer.ts`), and one of its
+ *  entries lives in the Sales branch while another lives in `platform/mail`.
+ *  Nest has no `multi: true`, so nothing merges two providers of one token
+ *  across two modules — and this module may not name a branch anyway. The
+ *  array is therefore assembled by a factory here from classes the composition
+ *  root passed in, exactly as `imports` already works: the queue depends on the
+ *  CONTRACT, and `worker.ts` is the one file that knows who satisfies it. */
 @Module({})
 export class QueueModule implements OnApplicationShutdown {
   constructor(@Inject(BOSS) private readonly boss: PgBoss) {}
@@ -101,6 +126,8 @@ function build(
   wiring: Wiring,
   consumers: NonNullable<ModuleMetadata['providers']>,
 ): DynamicModule {
+  const composers = wiring.composers ?? []
+
   return {
     module: QueueModule,
     imports: wiring.imports ?? [],
@@ -112,6 +139,14 @@ function build(
            driver underneath — see `boss.provider.ts`. */
         useFactory: (env: Env, handle: DbHandle) => createBoss(role, env, handle),
         inject: [ENV, DB_HANDLE],
+      },
+      {
+        /* The registry, in the order it was handed over. The factory's
+           parameters ARE the resolved composers — `inject` is the class list,
+           so Nest builds each one out of the imported modules first. */
+        provide: MAIL_COMPOSER,
+        useFactory: (...resolved: MailComposer[]): MailComposer[] => resolved,
+        inject: composers,
       },
       MailRateGate,
       MailQueue,

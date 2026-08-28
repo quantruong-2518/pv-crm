@@ -73,6 +73,20 @@ const Env = z
     PV_EMAIL_FROM: z.string().default('PV One CRM <leads@notify.pebblevina.com>'),
     PV_EMAIL_REPLY_TO: z.string().default(''),
     PV_LEAD_NOTIFICATION_TO: z.string().default(''),
+    /** Hộp thư nhận báo CƠ HỘI — mở đơn mới, và đơn thua.
+     *
+     *  Khoá riêng chứ không dùng lại `PV_LEAD_NOTIFICATION_TO`, vì hai luồng có
+     *  hai người đọc: báo lead mới là việc của người trực form landing page,
+     *  còn báo cơ hội là việc của người gật đơn. Cùng một hộp thư hôm nay
+     *  không có nghĩa là cùng một hộp thư mãi, và tách sau khi đã gộp thì phải
+     *  đi sửa cả rule table lẫn secret của Fly.
+     *
+     *  Bỏ trống = KHÔNG xếp hàng mail nào (E4 bỏ rule khi audience không có
+     *  địa chỉ). Đó là hành vi đúng của một máy chưa được bảo gửi đi đâu —
+     *  giống hệt `PV_LEAD_NOTIFICATION_TO`, và cũng vì thế nó KHÔNG nằm trong
+     *  `.refine` bắt buộc bên dưới: bật cửa gửi mà chưa dùng tới module Ops là
+     *  một trạng thái hợp lệ. */
+    PV_OPS_NOTIFICATION_TO: z.string().default(''),
     /** Gốc của app web — email nội bộ mang một liên kết mở thẳng lead. */
     PV_APP_URL: z.string().default('http://localhost:5173'),
 
@@ -84,6 +98,118 @@ const Env = z
     PV_EMAIL_RETRY_LIMIT: z.coerce.number().int().min(0).max(20).default(8),
     PV_EMAIL_RETRY_DELAY_SECONDS: z.coerce.number().int().min(1).max(600).default(5),
     PV_EMAIL_RETRY_DELAY_MAX_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+
+    // ------------------------------------------------------------------
+    // MAS — bulk marketing mail, a SECOND door with its own switch
+    // ------------------------------------------------------------------
+
+    /** `From` for a MAS batch, read ONCE when the run is created and copied
+     *  onto `mail_run.from_address`; the composer then sends from the run's
+     *  own snapshot, never from this variable. A batch reviewed under one
+     *  address has to keep going out from it even if this changes mid-send.
+     *
+     *  Kept apart from `PV_EMAIL_FROM` because the two carry different
+     *  reputations. A bounce or a complaint on a mass mail must not spend the
+     *  standing of the subdomain that delivers lead alerts and password mail;
+     *  separate sending identities are how one campaign going badly stops at
+     *  the campaign. */
+    PV_EMAIL_MAS_FROM: z.string().default(''),
+
+    /** `Reply-To` for a MAS batch — where an interested reader's answer lands,
+     *  which for marketing mail is a monitored human mailbox rather than the
+     *  no-reply sending domain. Snapshotted onto the run exactly like
+     *  `PV_EMAIL_MAS_FROM`. Empty = no `Reply-To` header at all, which is a
+     *  complete answer: replies then go to `From`. */
+    PV_EMAIL_MAS_REPLY_TO: z.string().default(''),
+
+    /** The MAS door itself, default CLOSED — and separate from
+     *  `PV_EMAIL_ENABLED` on purpose. That flag decides whether ANY mail leaves
+     *  the machine; this one decides whether the bulk path may be used at all.
+     *  A deployment that must keep sending lead alerts while marketing is
+     *  paused needs exactly this pair, and collapsing them into one switch
+     *  makes "stop the campaigns" mean "stop the alerts too". */
+    PV_MAS_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+
+    /** Ceiling on the recipients of ONE run, enforced server-side.
+     *
+     *  Mirrors `MAS_MAX_RECIPIENTS` in `@pv/contracts`, which the screen also
+     *  reads, and is deliberately configurable where that constant is not: the
+     *  contract's 200 is the reviewed default, this is the operator's brake for
+     *  the day a list, a provider quota or an incident says otherwise. Hard cap
+     *  1000 — past that the right tool is a campaign with an audience
+     *  definition, not a hand-picked list nobody can review before pressing
+     *  send. */
+    PV_MAS_BATCH_MAX: z.coerce.number().int().min(1).max(1_000).default(200),
+
+    /** THE BREAKER'S TRIP POINT, IN PERCENT OF LETTERS THAT LEFT.
+     *
+     *  4.0 is not a house rule — it is the ceiling Resend publishes, and the
+     *  sentence attached to it is that above it an "account may be shut down
+     *  without warning". The sanction is at ACCOUNT level, so a marketing batch
+     *  that crosses this takes the transactional pipeline down with it: lead
+     *  alerts, and everything operational added to that account later. That is
+     *  why a run stops itself here instead of waiting for a person to notice a
+     *  number on a screen.
+     *
+     *  A float, deliberately: the interesting region is between 2% and 4%, and
+     *  an integer would make "warn at 2.5%" unexpressible. Kept below Resend's
+     *  own figure by an operator who wants margin, never above it — this brake
+     *  can be loosened, but loosening it past 4.0 only moves where the failure
+     *  is noticed, not whether it happens. */
+    PV_MAS_BOUNCE_CEILING_PERCENT: z.coerce.number().min(0.1).max(100).default(4.0),
+
+    /** How many letters must have LEFT before the rate above means anything.
+     *
+     *  A rate is a fraction, and a fraction over a tiny denominator is noise
+     *  wearing a percent sign: two bounces out of the first three attempts is
+     *  67%, sixteen times the ceiling, and says nothing at all about the other
+     *  197 addresses — the first rows out of a batch are not a sample, they are
+     *  whatever the queue happened to reach first. Cancelling a run on that
+     *  reading throws away a healthy batch and teaches everyone to raise the
+     *  ceiling until the breaker stops firing, which is worse than having no
+     *  breaker.
+     *
+     *  20 because it is the smallest denominator on which a single bounce (5%)
+     *  is already over 4% — i.e. the smallest sample where the breaker can fire
+     *  at all — and because it matches the 20–30 address canary the MAS runbook
+     *  asks for before any large batch (`docs/ban-giao-mas-mail.md`). */
+    PV_MAS_BOUNCE_MIN_SAMPLE: z.coerce.number().int().min(1).max(10_000).default(20),
+
+    /** HMAC key behind every unsubscribe link — see `unsubscribe-token.ts`.
+     *
+     *  Without it the link would be a bare delivery id, i.e. an anonymous door
+     *  through which anyone who can count can unsubscribe anyone. Rotating this
+     *  invalidates every link in every letter already delivered, so it is
+     *  rotated on incident, not on schedule. Empty by default because a machine
+     *  that does not send MAS needs no key; `PV_MAS_ENABLED=true` refuses to
+     *  boot without one. */
+    PV_UNSUBSCRIBE_SECRET: z.string().default(''),
+
+    /** Public origin of THIS API, for links a machine follows rather than a
+     *  person.
+     *
+     *  Not `PV_APP_URL`, and the difference is load-bearing: one-click
+     *  unsubscribe (RFC 8058) is an unattended `POST` sent by the mail client
+     *  itself, with no session and no browser. It has to land on the API host.
+     *  Pointing it at the web origin makes every unsubscribe fail silently —
+     *  and a failing unsubscribe is worse than none, because the recipient
+     *  believes they opted out and reports the next letter as spam instead.
+     *
+     *  Empty falls back to `PV_APP_URL`, which is correct only where the API
+     *  is proxied under the app origin. `PV_MAS_ENABLED=true` refuses that
+     *  fallback rather than guessing. */
+    PV_API_PUBLIC_URL: z.string().default(''),
+
+    /** Postal address printed in the marketing footer.
+     *
+     *  A legal requirement for bulk mail, not decoration — CAN-SPAM §7704 and
+     *  the equivalent in most jurisdictions require a physical address in
+     *  every commercial message. Transactional mail does not need it, which is
+     *  why it appears here and not next to `PV_EMAIL_FROM`. */
+    PV_MAS_SENDER_POSTAL: z.string().default(''),
 
     /** Nhịp hỏi hàng đợi. Mỗi lần hỏi là một truy vấn — và Neon chỉ ngủ khi
      *  không ai hỏi, nên con số này là một khoản tiền chứ không chỉ là độ trễ. */
@@ -140,6 +266,36 @@ const Env = z
       path: ['PV_APP_URL'],
     },
   )
+  /** A MAS run snapshots its `From` at creation, so an empty one is not a
+   *  header a mail library fills in later — it is a batch of two hundred
+   *  letters written with no sender. Fail at boot, where it is one line. */
+  .refine((e) => !(e.PV_MAS_ENABLED && e.PV_EMAIL_MAS_FROM.length === 0), {
+    message: 'PV_MAS_ENABLED=true thì phải khai PV_EMAIL_MAS_FROM.',
+    path: ['PV_EMAIL_MAS_FROM'],
+  })
+  /** Bulk mail without a working unsubscribe link is mail Gmail and Yahoo
+   *  refuse — and an unsigned link is one anybody can use on anybody. Neither
+   *  failure shows up until the domain is already damaged. */
+  .refine((e) => !(e.PV_MAS_ENABLED && e.PV_UNSUBSCRIBE_SECRET.length === 0), {
+    message: 'PV_MAS_ENABLED=true thì phải có PV_UNSUBSCRIBE_SECRET để ký liên kết huỷ đăng ký.',
+    path: ['PV_UNSUBSCRIBE_SECRET'],
+  })
+  /* Một-chạm huỷ đăng ký là POST của máy, không phải của trình duyệt — nó phải
+     tới được cửa API. Đoán bằng PV_APP_URL chỉ đúng khi API nằm sau cùng một
+     origin, và đoán sai thì mọi lượt huỷ chết lặng: người nhận tưởng đã huỷ,
+     lá thư sau bị báo spam. */
+  .refine((e) => !(e.PV_MAS_ENABLED && e.PV_API_PUBLIC_URL.length === 0), {
+    message:
+      'PV_MAS_ENABLED=true thì phải khai PV_API_PUBLIC_URL — liên kết huỷ đăng ký đi tới API, không tới web.',
+    path: ['PV_API_PUBLIC_URL'],
+  })
+  /* Địa chỉ bưu chính trong chân thư marketing là yêu cầu luật, không phải
+     trang trí. Thiếu nó thì lá thư vi phạm ngay từ lần gửi đầu. */
+  .refine((e) => !(e.PV_MAS_ENABLED && e.PV_MAS_SENDER_POSTAL.length === 0), {
+    message:
+      'PV_MAS_ENABLED=true thì phải khai PV_MAS_SENDER_POSTAL — thư marketing bắt buộc có địa chỉ bưu chính.',
+    path: ['PV_MAS_SENDER_POSTAL'],
+  })
   .refine(
     (e) =>
       e.NODE_ENV !== 'production' ||

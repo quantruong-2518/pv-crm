@@ -4,7 +4,10 @@ import { NestFactory } from '@nestjs/core'
 import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
 import { LeadModule } from './branches/sales/lead/lead.module'
+import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
 import { MailModule } from './platform/mail/mail.module'
+import { MailRunSweeper } from './platform/mail/mail-run.sweeper'
+import { MasMailComposer } from './platform/mail/mas.composer'
 import { ENV, type Env } from './platform/config/env'
 import { EMAIL_QUEUE, type EmailJob } from './platform/mail/mail.contract'
 import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/queue.module'
@@ -52,16 +55,22 @@ import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/que
   imports: [
     AppModule,
     /* `imports` của `forWorker` là chỗ nối module mail vào — nó cung cấp
-       `MAIL_LEDGER`, `MAIL_PORT` và `MAIL_COMPOSER` mà `MailConsumer` cần.
-       Bước wiring điền `MailModule` vào đây; tới lúc đó Nest báo thiếu token
-       ngay khi khởi động, không phải khi có lead đầu tiên. */
-    /* `imports` của `forWorker` là chỗ nối module mail vào — nó cung cấp
-       `MAIL_LEDGER` và `MAIL_PORT`. `LeadModule` vào cùng vì `MAIL_COMPOSER`
-       (thân mail) do nhánh Sales cung cấp: `platform/` không được biết bảng
+       `MAIL_LEDGER` và `MAIL_PORT`. `LeadModule` vào cùng vì một trong hai bộ
+       dựng thân mail do nhánh Sales cung cấp: `platform/` không được biết bảng
        của nhánh, nên chiều phụ thuộc chạy ngược lại — xem
        `lead-mail.composer.ts`. Thiếu token nào thì Nest báo ngay lúc khởi
-       động, không phải lúc có lead đầu tiên. */
-    QueueModule.forWorker({ imports: [MailModule, LeadModule] }),
+       động, không phải lúc có lead đầu tiên.
+
+       `composers` là ĐĂNG BẠ, và đây là file duy nhất được biết cả hai vế của
+       nó: Nest không có `multi: true` nên không có gì gộp hai provider cùng
+       token ở hai module, còn `QueueModule` thì không được nhắc tên nhánh. Thứ
+       tự có nghĩa — `supports()` khớp đầu tiên thắng — và hai template hiện có
+       (`mas-v1`, `lead-intake-internal`) không giao nhau, nên thứ tự này chỉ
+       là thói quen: nền trước, nhánh sau. */
+    QueueModule.forWorker({
+      imports: [MailModule, LeadModule],
+      composers: [MasMailComposer, LeadMailComposer],
+    }),
   ],
 })
 class WorkerModule {}
@@ -83,6 +92,7 @@ async function bootstrap(): Promise<void> {
   const boss = app.get<PgBoss>(BOSS)
   const consumer = app.get(MailConsumer)
   const relay = app.get(MailRelay)
+  const runs = app.get(MailRunSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -111,18 +121,28 @@ async function bootstrap(): Promise<void> {
   )
 
   /* ------------------------------------------------------------------
-     RELAY — chỗ một dòng sổ gửi trở thành một job
+     HAI LƯỢT QUÉT, MỘT ĐỒNG HỒ
      ------------------------------------------------------------------
-     Nhánh chỉ ghi bảng, nên phải có ai đó quét. Nhịp dùng lại chính
-     `PV_QUEUE_POLL_SECONDS`: hai vòng poll khác nhau trên cùng một hàng đợi
-     là hai con số phải giải thích, và không có gì để đổi lấy.
+     `MailRelay` đi theo TỪNG LÁ THƯ — chỗ một dòng sổ gửi trở thành một job.
+     Nhánh chỉ ghi bảng, nên phải có ai đó quét.
 
-     `void` chứ không `await`: một vòng quét hỏng (Neon ngắt kết nối chẳng
-     hạn) không được giết tiến trình — dòng vẫn `pending`, vòng sau nhặt lại.
-     Đó là toàn bộ lý do sổ gửi là nguồn sự thật chứ không phải hàng đợi. */
+     `MailRunSweeper` đi theo CẢ LÔ: lô nào không còn thư nào chờ thì đóng, lô
+     nào bounce vượt trần thì cầu dao ngắt và giữ lại những thư chưa kịp rời
+     máy. Hai câu hỏi khác tầng, nhưng chung nhịp `PV_QUEUE_POLL_SECONDS`: hai
+     vòng poll khác nhau là hai con số phải giải thích, và không có gì để đổi
+     lấy.
+
+     `void` chứ không `await`, và mỗi lượt một `catch` riêng: một vòng quét
+     hỏng (Neon ngắt kết nối chẳng hạn) không được giết tiến trình, cũng không
+     được kéo theo lượt kia — dòng vẫn `pending`, lô vẫn `SENDING`, vòng sau
+     nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự thật chứ không phải hàng
+     đợi. */
   const sweep = setInterval(() => {
     void relay.sweep().catch((error: unknown) => {
       log.error(`Relay lỗi: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    void runs.sweep().catch((error: unknown) => {
+      log.error(`Quét lô mail lỗi: ${error instanceof Error ? error.message : String(error)}`)
     })
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */

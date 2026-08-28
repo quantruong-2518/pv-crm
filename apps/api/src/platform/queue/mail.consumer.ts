@@ -81,7 +81,7 @@ export class MailConsumer {
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
     @Inject(MAIL_PORT) private readonly port: MailPort,
-    @Inject(MAIL_COMPOSER) private readonly composer: MailComposer,
+    @Inject(MAIL_COMPOSER) private readonly composers: MailComposer[],
     private readonly gate: MailRateGate,
     private readonly queue: MailQueue,
   ) {}
@@ -165,7 +165,7 @@ export class MailConsumer {
       }
     }
 
-    const message = await this.composer.compose(delivery)
+    const message = await this.composerFor(delivery.template).compose(delivery)
     const result = await this.port.send(message, delivery.idempotencyKey)
 
     if (result.ok) {
@@ -180,6 +180,21 @@ export class MailConsumer {
     }
 
     return result
+  }
+
+  /** Step 5's lookup. FIRST match wins — see `mail-composer.ts`.
+   *
+   *  No match THROWS, and the message names the template, because the two ways
+   *  this can happen both need a person: a delivery row written with a typo in
+   *  `template`, or a composer whose provider was left out of the worker's
+   *  wiring. Falling back to any other composer would send a mass mail with the
+   *  wrong body, which cannot be recalled. The throw lands in `runOne`'s catch,
+   *  which settles the ledger row before letting it out — a delivery is never
+   *  abandoned in `sending`. */
+  private composerFor(template: string): MailComposer {
+    const found = this.composers.find((composer) => composer.supports(template))
+    if (!found) throw new Error(`Không có bộ dựng thân mail cho template "${template}".`)
+    return found
   }
 
   /** Steps 8–9. Writes the ledger and says whether pg-boss should try again. */

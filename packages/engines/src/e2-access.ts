@@ -62,8 +62,31 @@ export type AuditEntry = {
 export const PERMISSIONS = [
   'chiến-dịch.xem',
   'chiến-dịch.sửa',
+  /** Fire a MAS run — mail that actually leaves the company.
+   *
+   *  Split from `chiến-dịch.sửa` because editing a draft and sending a few
+   *  hundred letters to real customers are not the same risk: a wrong draft is
+   *  fixed by typing over it, a wrong send cannot be taken back, burns the
+   *  addresses it bounced on, and is visible to people outside the company. One
+   *  permission covering both means the button that is merely careless and the
+   *  button that is irreversible are granted by the same click. */
+  'chiến-dịch.bắn',
   'lead.xem',
   'lead.sửa',
+  /** Mail a batch picked by hand from the lead book — Quick MAS.
+   *
+   *  A SECOND send permission, next to `chiến-dịch.bắn`, and the pair is not a
+   *  duplication. They differ on the axis that actually carries the risk, which
+   *  is reach: this one rides trục 3 (`ownOnly`), so a Sale mailing ten leads
+   *  they already own reaches nobody they could not already phone. Firing a
+   *  campaign reaches the whole audience, including every lead belonging to
+   *  someone else, and repeats it wave after wave.
+   *
+   *  Collapsing them either way breaks a real screen. One permission for both
+   *  means granting a Sale the campaign blast in order to let them answer their
+   *  own lead; withholding it means the Quick MAS button sits on the lead book —
+   *  the screen Sale and BD live in — permanently greyed out for both. */
+  'lead.gửi-mail',
   /** Giao việc trên một lead — nhiều người cho một việc (`AssignMenu`). Không
    *  phải đổi chủ lead: đổi chủ chia lại hoa hồng nên là đề nghị riêng. */
   'lead.giao',
@@ -112,8 +135,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   marketing: [
     'chiến-dịch.xem',
     'chiến-dịch.sửa',
+    /* Granted by hand here, while `giám-đốc` and `trưởng-phòng` get it for free
+       by spelling their row as `PERMISSIONS`. Marketing owns the campaign, so
+       marketing is the role that fires it. */
+    'chiến-dịch.bắn',
     'lead.xem',
     'lead.sửa',
+    'lead.gửi-mail',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
     'cấu-hình.xem',
@@ -125,6 +153,9 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'chiến-dịch.xem',
     'lead.xem',
     'lead.sửa',
+    /* Reaching a lead they brought in is the job; `ownOnly` keeps the reach to
+       exactly that. `chiến-dịch.bắn` stays with marketing. */
+    'lead.gửi-mail',
     'lead.chuyển-đổi',
     'cơ-hội.xem',
     'cơ-hội.sửa',
@@ -151,6 +182,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'chiến-dịch.xem',
     'lead.xem',
     'lead.sửa',
+    'lead.gửi-mail',
     'lead.chuyển-đổi',
     'lead.loại',
     'cơ-hội.xem',

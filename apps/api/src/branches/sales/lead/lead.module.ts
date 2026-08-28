@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
-import { MAIL_COMPOSER } from '@api/platform/queue/mail-composer'
 import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
@@ -53,12 +52,13 @@ import { LeadMailComposer } from './lead-mail.composer'
     LeadIntakeService,
     LeadIntakeRepository,
     LeadIntakeGuard,
-    /* The worker asks for a body through `MAIL_COMPOSER` and gets this one.
-       Exported because the process that consumes the queue builds its DI tree
-       from `worker.ts`, not from here — see the note in that file. */
+    /* One entry of the `MAIL_COMPOSER` registry. Exported as the CLASS, not
+       under the token: the registry is an array assembled by
+       `QueueModule.forWorker({ composers: [...] })`, because Nest cannot merge
+       two providers of one token across two modules. `worker.ts` is the file
+       that names this class beside the platform's own composer. */
     LeadMailComposer,
-    { provide: MAIL_COMPOSER, useExisting: LeadMailComposer },
   ],
-  exports: [LeadService, MAIL_COMPOSER],
+  exports: [LeadService, LeadMailComposer],
 })
 export class LeadModule {}

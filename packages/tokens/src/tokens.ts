@@ -13,6 +13,8 @@ export type Swatch = {
 /** F-01 · Brand palette — bảng màu gốc Pebble Vina */
 export const BRAND_PALETTE: Swatch[] = [
   { name: 'Pebble Blue', hex: '#133A8A', css: 'var(--brand-blue)' },
+  // Azure resolves --primary (globals.css) for @pv/mail-templates — email HTML has no var() support.
+  { name: 'Azure', hex: '#2E63E6', css: 'var(--primary)' },
   { name: 'Deep Navy', hex: '#0F172A', css: 'var(--brand-navy)' },
   { name: 'Slate Gray', hex: '#5E6B80', css: 'var(--brand-slate)' },
   { name: 'Light Gray', hex: '#E5E7EB', css: 'var(--brand-gray)' },

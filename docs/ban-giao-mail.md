@@ -245,3 +245,7 @@ db:migrate lên branch CHÍNH ──> deploy Fly (hai process đã có sẵn tro
 5. **`touch` + `suppression` đã có nửa sau** — bảng suppression dựng rồi, còn
    `touch` thì chưa. Đó là chỗ nối sang cụm chiến dịch mà `ban-giao-db.md` đã
    vẽ, và cũng là lúc `lead.score`/`last_touch_at` hết là `0`/`NULL`.
+
+FE của cụm chiến dịch đã có một bản demo (Quick MAS ở Sổ lead, 28/08) trước cả
+DB — khoảng cách còn lại giữa demo đó và một cửa gửi thật:
+[`ban-giao-quick-mas.md`](./ban-giao-quick-mas.md).

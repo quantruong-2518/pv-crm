@@ -1,3 +1,4 @@
+import type { MailEngagementKind } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 
 /** THE SHARED VOCABULARY OF THE MAIL PATH.
@@ -72,7 +73,18 @@ export function advances(from: MailState, to: MailState): boolean {
   return MAIL_STATE_RANK[to] > MAIL_STATE_RANK[from]
 }
 
-export type SuppressionReason = 'hard_bounce' | 'complaint' | 'manual'
+/** Why an ADDRESS is blocked. Four reasons, and `unsubscribe` is not a polite
+ *  synonym for any of the other three.
+ *
+ *  A hard bounce is the receiving server saying the mailbox does not exist; a
+ *  complaint is a person pressing "spam"; `manual` is an operator's decision.
+ *  `unsubscribe` is the recipient using the link the letter was legally
+ *  required to carry, and it is the only one of the four that must never be
+ *  released without the person asking — which is exactly why it needs its own
+ *  value rather than arriving as `manual`. A list that cannot tell an operator's
+ *  block from a person's own request is a list somebody will eventually
+ *  "clean up". */
+export type SuppressionReason = 'hard_bounce' | 'complaint' | 'manual' | 'unsubscribe'
 
 // ---------------------------------------------------------------------------
 // The message and the provider
@@ -132,12 +144,51 @@ export type MailIntent = {
   template: string
   templateVersion: number
   recipient: string
+
+  /** The batch this letter is posted with, absent for a one-off such as the
+   *  lead-intake notification. A `platform.mail_run` id — the composer reads
+   *  the letter's subject/body/from off that row at send time. */
+  mailRunId?: string
+
+  /** Per-recipient substitution values — `{"company": "…"}`.
+   *
+   *  Carried on the INTENT rather than looked up later because the branch that
+   *  queues the batch is the only half allowed to read `sales.lead`; by the
+   *  time the worker composes, that door is shut. See `email_delivery.merge`. */
+  merge?: Record<string, string>
 }
 
 /** Written by the branch, inside `tx`. Implemented by the ledger repository;
- *  declared here so the branch never has to import the repository's file. */
+ *  declared here so the branch never has to import the repository's file.
+ *
+ *  `enqueueBatch` sits HERE and not on `MailLedger` alone, deliberately. It is
+ *  the same act as `enqueue` — "N mails are owed" — and a MAS send is exactly
+ *  a branch making that promise for two hundred recipients at once. Putting it
+ *  on the full ledger instead would force the Sales branch to inject
+ *  `MAIL_LEDGER`, which also carries `claim`/`markAccepted`/`suppress`; the
+ *  narrow `MAIL_ENQUEUE` token exists precisely so a branch cannot reach those.
+ *  A batch write is still a promise, not a send. */
 export interface MailEnqueue {
   enqueue(tx: Db, intent: MailIntent): Promise<void>
+
+  /** Many intents, ONE statement, inside the caller's transaction.
+   *
+   *  Returns HOW MANY ROWS WERE ACTUALLY INSERTED, which is rarely the length
+   *  of `intents` and must not be assumed to be: `event_key` is unique, so a
+   *  re-run of the same send — a retried request, a double-clicked button —
+   *  writes nothing the second time and the honest answer is zero. That number
+   *  is what `MasSendResponse.queued` reports, so guessing it here becomes a
+   *  lie on somebody's screen.
+   *
+   *  `opts.nextAttemptAt` is how a SCHEDULED run waits: every row is written
+   *  with the run's send time on its retry clock, and `pendingBatch()` already
+   *  refuses to sweep a row that is not due. Scheduling therefore needs no
+   *  second scanner — see `mail_run.scheduled_at`. */
+  enqueueBatch(
+    tx: Db,
+    intents: MailIntent[],
+    opts?: { nextAttemptAt?: Date | null },
+  ): Promise<number>
 }
 
 export const MAIL_ENQUEUE = Symbol('pv.mail.enqueue')
@@ -162,9 +213,62 @@ export type DeliveryToSend = {
   recipient: string
   idempotencyKey: string
   attemptCount: number
+
+  /** Which batch posted this letter, or `null` for a one-off. The MAS composer
+   *  reads the run to find the subject, the body and the sending address; a
+   *  `null` here on a `mas-v1` delivery is a row that cannot be composed, and
+   *  it fails loudly rather than going out with a default body. */
+  mailRunId: string | null
+
+  /** The substitution values for THIS recipient, or `null` when the template
+   *  needs none. Read off the delivery row rather than from the branch's
+   *  tables — that is the whole reason the column exists. */
+  merge: Record<string, string> | null
 }
 
 export type WebhookOutcome = 'applied' | 'ignored-duplicate' | 'ignored-stale' | 'unknown-delivery'
+
+/** WHAT THE RECIPIENT DID — a SECOND, WEAKER axis, deliberately kept off
+ *  `email_delivery.state`.
+ *
+ *  `MailState` above answers "did the letter arrive", is decided by receiving
+ *  servers, and only ever moves forward through `advances()`. An open or a
+ *  click answers "did a person do something with it" and answers it badly:
+ *  Apple Mail Privacy Protection invents opens, Gmail's image proxy hides all
+ *  but the first, images-off registers none. Letting either of them touch the
+ *  ladder would corrupt a hard signal with a soft one, in a column no screen
+ *  could then explain. So these land in `platform.mail_event` as additive rows
+ *  and `advances()` never sees them — see `mail.schema.ts`.
+ *
+ *  Two ways in, and the row is identical either way:
+ *   · `providerEmailId` — Resend's webhook names the mail, not the row;
+ *   · `deliveryId`      — our own unsubscribe route already holds the row id,
+ *                         because it read it out of a signed token.
+ *  Both are optional and at least one must be present; neither one present is
+ *  `unknown-delivery`, the same answer as an id that matches nothing. */
+export type MailEngagement = {
+  /** The webhook envelope this arrived in, or `null` for an event this system
+   *  raises itself. When present it is inserted as the replay shield FIRST,
+   *  before anything is looked up — same order, same reason, as
+   *  `applyWebhook`. */
+  svixId: string | null
+  kind: MailEngagementKind
+  providerEmailId?: string | null
+  deliveryId?: string | null
+  /** The provider's moment, not our receive time — part of the uniqueness key
+   *  `mail_event_once`, so a webhook retried an hour later still collapses
+   *  onto the row it already wrote. */
+  at: Date
+  /** CLICK only, and CLICK always. `mail_event_url_matches_kind` refuses both
+   *  a click with no destination and an open that carries one. */
+  url?: string | null
+}
+
+/** `recorded` — a new row exists. `ignored-duplicate` — this exact engagement
+ *  is already in the ledger, by envelope or by (delivery, kind, moment).
+ *  `unknown-delivery` — nothing here names a row this system sent. None of the
+ *  three is an error; all three are ordinary outcomes of a public door. */
+export type EngagementOutcome = 'recorded' | 'ignored-duplicate' | 'unknown-delivery'
 
 export interface MailLedger extends MailEnqueue {
   /** Move `pending`/`delayed` → `sending` and bump the attempt counter.
@@ -196,6 +300,20 @@ export interface MailLedger extends MailEnqueue {
     reason?: string
     at: Date
   }): Promise<WebhookOutcome>
+
+  /** Record an open, a click or an unsubscribe. NEVER touches
+   *  `email_delivery.state` — see `MailEngagement` for why that separation is
+   *  the whole design, and `applyWebhook` for the path that DOES move a row.
+   *  Idempotent twice over: by `svixId` when one is given, and by
+   *  `mail_event_once` always. */
+  recordEngagement(engagement: MailEngagement): Promise<EngagementOutcome>
+
+  /** The address one delivery was written to, or `null` when no such row
+   *  exists. The unsubscribe route needs it and has no other way in: a signed
+   *  token carries a delivery id, while `email_suppression` is keyed by
+   *  address. A read with no decision in it, so it belongs on the ledger
+   *  rather than in the controller. */
+  recipientOf(deliveryId: string): Promise<string | null>
 
   /** Rows owed a job, oldest first.
    *

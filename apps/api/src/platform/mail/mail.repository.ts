@@ -5,6 +5,8 @@ import {
   type EmailJob,
   advances,
   type DeliveryToSend,
+  type EngagementOutcome,
+  type MailEngagement,
   type MailFailure,
   type MailIntent,
   type MailLedger,
@@ -12,7 +14,7 @@ import {
   type SuppressionReason,
   type WebhookOutcome,
 } from './mail.contract'
-import { emailDelivery, emailSuppression, emailWebhookEvent } from './mail.schema'
+import { emailDelivery, emailSuppression, emailWebhookEvent, mailEvent } from './mail.schema'
 
 /** SQL only, per `apps/api/CLAUDE.md` — every branch below is a mechanical
  *  translation of a decision `mail.contract.ts` already wrote down
@@ -30,18 +32,58 @@ export class MailRepository implements MailLedger {
   async enqueue(tx: Db, intent: MailIntent): Promise<void> {
     await tx
       .insert(emailDelivery)
-      .values({
-        eventKey: intent.eventKey,
-        eventType: intent.eventType,
-        aggregateType: intent.aggregateType,
-        aggregateId: intent.aggregateId,
-        template: intent.template,
-        templateVersion: intent.templateVersion,
-        recipient: intent.recipient.trim().toLowerCase(),
-        state: 'pending',
-        idempotencyKey: intent.eventKey,
-      })
+      .values(rowOf(intent, null))
       .onConflictDoNothing({ target: emailDelivery.eventKey })
+  }
+
+  /** The same insert as `enqueue`, N rows at a time — and the return value is
+   *  the whole reason it is a separate method.
+   *
+   *  ------------------------------------------------------------------
+   *  TWO KINDS OF DUPLICATE, AND ONLY ONE OF THEM IS POSTGRES' JOB
+   *  ------------------------------------------------------------------
+   *  `ON CONFLICT (event_key) DO NOTHING` catches a key that is ALREADY IN THE
+   *  TABLE — the retried request, the double-pressed button. It is not the
+   *  right tool for two rows carrying the same key inside ONE statement: that
+   *  case rests on speculative-insertion behaviour that differs between
+   *  `DO NOTHING` and `DO UPDATE` and is not something a send count should
+   *  depend on. So the batch is deduplicated here first, first occurrence wins,
+   *  and the clause is left to do only the job it is good at.
+   *
+   *  `RETURNING` is what makes the count honest. Neither `intents.length` nor
+   *  the driver's `rowCount` answers "how many letters will actually be
+   *  attempted" — the first ignores conflicts entirely, the second is spelled
+   *  differently by node-postgres and PGlite. A returned row is a row that
+   *  exists.
+   *
+   *  Chunked because one statement carrying ten thousand rows is one statement
+   *  Postgres plans, parses and locks as a unit; `MAS_MAX_RECIPIENTS` is 200
+   *  today, so the chunk only ever matters for an import-sized batch, and it
+   *  costs nothing to already be right for one. Same `tx` throughout: the
+   *  chunks are not independent, they are one promise. */
+  async enqueueBatch(
+    tx: Db,
+    intents: MailIntent[],
+    opts: { nextAttemptAt?: Date | null } = {},
+  ): Promise<number> {
+    const unique = new Map<string, MailIntent>()
+    for (const intent of intents)
+      if (!unique.has(intent.eventKey)) unique.set(intent.eventKey, intent)
+
+    const rows = [...unique.values()].map((intent) => rowOf(intent, opts.nextAttemptAt ?? null))
+    if (rows.length === 0) return 0
+
+    let inserted = 0
+    for (let at = 0; at < rows.length; at += INSERT_CHUNK) {
+      const written = await tx
+        .insert(emailDelivery)
+        .values(rows.slice(at, at + INSERT_CHUNK))
+        .onConflictDoNothing({ target: emailDelivery.eventKey })
+        .returning({ id: emailDelivery.id })
+      inserted += written.length
+    }
+
+    return inserted
   }
 
   /** Due, unsent, oldest first — see `MailLedger.pendingBatch`.
@@ -224,6 +266,106 @@ export class MailRepository implements MailLedger {
     return 'applied'
   }
 
+  /** THE OTHER DOOR INTO THE LEDGER, AND IT WRITES A DIFFERENT TABLE.
+   *
+   *  Deliberately NOT a branch of `applyWebhook`, even though the first step is
+   *  the same insert. That method exists to move `email_delivery.state` and
+   *  every line in it is about `advances()`; this one must never reach that
+   *  column, and the cheapest way to guarantee "never" is that the statement
+   *  which could do it is not in this method. `mail_event` only ever grows.
+   *
+   *  Three exits, in order, and the order is the design:
+   *
+   *  (1) The envelope shield goes in FIRST and unconditionally, exactly as in
+   *      `applyWebhook` — a replayed `svix_id` has to be recognised before a
+   *      lookup, or a webhook redelivered after its effect landed gets
+   *      evaluated twice. It also means a row that fails BELOW this point is
+   *      not retried by Resend into a second attempt; that is the same trade
+   *      `applyWebhook` already makes, and the failure it protects against
+   *      (double counting) is the worse one here.
+   *  (2) The delivery is found by row id when the caller has one — our own
+   *      unsubscribe route does, out of a signed token — and otherwise by the
+   *      provider's mail id, which is all a webhook carries.
+   *  (3) `mail_event_once` is the second shield: two DIFFERENT envelopes can
+   *      still describe the same open. `onConflictDoNothing` on that exact
+   *      triple turns it into an answer instead of a thrown constraint, while
+   *      leaving `mail_event_url_matches_kind` free to throw — a CLICK with no
+   *      destination is a bug in the caller, not an ordinary input. */
+  async recordEngagement(engagement: MailEngagement): Promise<EngagementOutcome> {
+    if (engagement.svixId) {
+      const seen = await this.db
+        .insert(emailWebhookEvent)
+        .values({
+          svixId: engagement.svixId,
+          /* The KIND, not a Resend event name. This column is a diagnostic
+             beside a replay guard, and spelling `email.opened` here would be
+             this file inventing provider vocabulary for a row that may not
+             have come from a provider at all. */
+          type: engagement.kind,
+          emailId: engagement.providerEmailId ?? null,
+        })
+        .onConflictDoNothing({ target: emailWebhookEvent.svixId })
+        .returning({ svixId: emailWebhookEvent.svixId })
+
+      if (seen.length === 0) return 'ignored-duplicate'
+    }
+
+    const deliveryId = await this.deliveryIdFor(engagement)
+    if (!deliveryId) return 'unknown-delivery'
+
+    const written = await this.db
+      .insert(mailEvent)
+      .values({
+        deliveryId,
+        kind: engagement.kind,
+        at: engagement.at,
+        url: engagement.url ?? null,
+        svixId: engagement.svixId,
+      })
+      /* No `target`, deliberately. `mail_event` now carries TWO uniqueness
+         rules — `mail_event_once` on (delivery, kind, at) for provider events,
+         and the partial `mail_event_unsub_once` on (delivery) for unsubscribes,
+         which have no provider timestamp to dedupe on. Naming one of them here
+         would make a conflict on the OTHER throw instead of reporting
+         `ignored-duplicate`, turning the ordinary one-click-then-click-the-link
+         sequence into a 500. Any unique conflict on this table means the same
+         thing: this engagement is already recorded. */
+      .onConflictDoNothing()
+      .returning({ id: mailEvent.id })
+
+    return written.length === 0 ? 'ignored-duplicate' : 'recorded'
+  }
+
+  async recipientOf(deliveryId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ recipient: emailDelivery.recipient })
+      .from(emailDelivery)
+      .where(eq(emailDelivery.id, deliveryId))
+      .limit(1)
+    return row?.recipient ?? null
+  }
+
+  /** Row id by either road, or `null`. `deliveryId` is trusted only as far as
+   *  "a row with this id exists" — it is still read back rather than used
+   *  blind, so an id whose delivery was deleted cannot leave a `mail_event`
+   *  pointing at nothing. */
+  private async deliveryIdFor(engagement: MailEngagement): Promise<string | null> {
+    const where = engagement.deliveryId
+      ? eq(emailDelivery.id, engagement.deliveryId)
+      : engagement.providerEmailId
+        ? eq(emailDelivery.providerEmailId, engagement.providerEmailId)
+        : null
+
+    if (!where) return null
+
+    const [row] = await this.db
+      .select({ id: emailDelivery.id })
+      .from(emailDelivery)
+      .where(where)
+      .limit(1)
+    return row?.id ?? null
+  }
+
   /** One round trip, not three: `/healthz/email` and the runbook both want
    *  all three numbers together, and `FILTER` lets Postgres compute them off
    *  a single scan instead of the app issuing three separate counts.
@@ -264,6 +406,36 @@ export class MailRepository implements MailLedger {
       recipient: row.recipient,
       idempotencyKey: row.idempotencyKey,
       attemptCount: row.attemptCount,
+      mailRunId: row.mailRunId,
+      merge: row.merge,
     }
   }
 }
+
+/** One intent → one row, in the ONE spelling both enqueue paths use.
+ *
+ *  A module-level function rather than a private method so the single-row and
+ *  the batch path cannot drift: the day a column is added to the ledger, the
+ *  compiler points at one place. `recipient` is normalised here and only here —
+ *  `isSuppressed()` and `email_suppression.recipient` compare against this same
+ *  normal form, so a batch that skipped the lower-casing would be a batch the
+ *  block list silently fails to stop. */
+function rowOf(intent: MailIntent, nextAttemptAt: Date | null): typeof emailDelivery.$inferInsert {
+  return {
+    eventKey: intent.eventKey,
+    eventType: intent.eventType,
+    aggregateType: intent.aggregateType,
+    aggregateId: intent.aggregateId,
+    template: intent.template,
+    templateVersion: intent.templateVersion,
+    recipient: intent.recipient.trim().toLowerCase(),
+    state: 'pending',
+    idempotencyKey: intent.eventKey,
+    mailRunId: intent.mailRunId ?? null,
+    merge: intent.merge ?? null,
+    nextAttemptAt,
+  }
+}
+
+/** Rows per INSERT. See `enqueueBatch`. */
+const INSERT_CHUNK = 1_000

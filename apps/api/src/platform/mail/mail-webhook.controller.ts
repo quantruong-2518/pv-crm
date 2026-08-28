@@ -16,6 +16,7 @@ import { ENV, type Env } from '@api/platform/config/env'
 import { PvError } from '@api/platform/http/problem'
 import {
   MAIL_LEDGER,
+  type MailEngagement,
   type MailLedger,
   type MailState,
   type SuppressionReason,
@@ -60,11 +61,42 @@ import {
  *  to import the mail module — turning the check into a dependent of the thing
  *  it watches, and making a broken mail module take `/healthz` down with it.
  *  Registering this class from the mail module keeps that arrow pointing one
- *  way. */
+ *  way.
+ *
+ *  The sixth `@Public()` route — the unsubscribe door — is a third inbound door
+ *  of the same path and justifies itself in `unsubscribe.controller.ts`. It is
+ *  a separate file because it is authenticated by a DIFFERENT proof (our own
+ *  HMAC over a delivery id, not Resend's signature over a body) and answers to
+ *  a different caller.
+ *
+ *  ------------------------------------------------------------------
+ *  TWO ROADS OUT OF THIS DOOR, AND THEY MUST NOT MERGE
+ *  ------------------------------------------------------------------
+ *  A verified envelope is sorted once, into exactly one of two paths:
+ *
+ *   · `read()` → `applyWebhook()` — the DELIVERY road. "Did the letter get
+ *     there." Sent, delivered, delayed, bounced, complained, failed,
+ *     suppressed. These move `email_delivery.state`, forward only, through
+ *     `advances()`;
+ *   · `engagement()` → `recordEngagement()` — the RECIPIENT road. "Did a person
+ *     do something with it." `email.opened` and `email.clicked` land here.
+ *
+ *  The second road used to end in a shrug: both types were dropped on the floor
+ *  because the only place to put them would have been the state ladder, and an
+ *  open is far too weak a signal to be allowed to move it. That reason has not
+ *  changed and neither has the rule — nothing below writes `state` for an open
+ *  or a click, and neither type appears in `Signal`. What changed is that there
+ *  is now somewhere honest to put them: `platform.mail_event`, additive rows on
+ *  their own axis, invisible to `advances()`. So they are RECORDED, and the
+ *  delivery ledger still does not move. */
 
-/** Resend event type → the ledger state it proves. `email.opened`,
- *  `email.clicked`, `contact.*` and `domain.*` are deliberately absent: they
- *  say nothing about whether a mail arrived, and a row must not move for them. */
+/** Resend event type → the ledger state it proves.
+ *
+ *  `email.opened` and `email.clicked` are deliberately absent and must stay
+ *  absent — they say nothing about whether a mail arrived, so no row may move
+ *  for them; they take the engagement road above instead. `contact.*` and
+ *  `domain.*` are absent because they are about the account, not about a
+ *  letter, and this door has nothing to write for them at all. */
 type Signal = {
   state: MailState
   /** Structural subset of Resend's `BaseEmailEventData` — that interface is
@@ -98,6 +130,17 @@ export class MailWebhookController {
   async receive(@Req() req: RawBodyRequest<FastifyRequest>): Promise<{ ok: true }> {
     const svixId = this.headerOf(req, 'svix-id')
     const event = this.verified(req, svixId)
+
+    /* Sorted BEFORE `read()`, and returning here rather than falling through:
+       the engagement road never touches `applyWebhook()`, so the two can never
+       both run for one envelope. */
+    const engagement = this.engagement(event)
+    if (engagement) {
+      const recorded = await this.ledger.recordEngagement({ svixId, ...engagement })
+      this.log.log(`resend ${event.type} · ${engagement.providerEmailId ?? '—'} · ${recorded}`)
+      return { ok: true }
+    }
+
     const signal = this.read(event)
 
     /* Answer 200 for an event we do not act on. A 4xx tells Resend to retry
@@ -225,6 +268,43 @@ export class MailWebhookController {
           state: 'suppressed',
           data: event.data,
           reason: `${event.data.suppressed.type}: ${event.data.suppressed.message}`,
+        }
+      default:
+        return null
+    }
+  }
+
+  /** The engagement road. Two event types, and the shape they hand over is
+   *  `MailEngagement` minus its envelope id — the caller owns `svixId` because
+   *  it read it off the headers, not out of the body.
+   *
+   *  `data.click.link` is the SDK's own spelling (`EmailClick.link`), not a
+   *  guess; the same object also carries `ipAddress` and `userAgent`, and
+   *  neither is read here or anywhere else. Storing the reader's IP and browser
+   *  because a provider happened to send them is how a mail ledger turns into a
+   *  tracking database nobody agreed to.
+   *
+   *  Truncated for the same reason `signal.reason` is: a URL is free text from
+   *  outside this process, and this column is not the place for it to grow
+   *  unbounded. */
+  private engagement(event: WebhookEventPayload): Omit<MailEngagement, 'svixId'> | null {
+    switch (event.type) {
+      case 'email.opened':
+        return {
+          kind: 'OPEN',
+          providerEmailId: event.data.email_id || null,
+          at: this.timeOf(event.created_at),
+        }
+      case 'email.clicked':
+        return {
+          kind: 'CLICK',
+          providerEmailId: event.data.email_id || null,
+          /* `click.timestamp`, not the envelope's `created_at`: it names the
+             moment the PERSON clicked, so two different envelopes describing
+             one click collapse onto the same `mail_event_once` key instead of
+             counting twice. Falls back only if the provider omits it. */
+          at: this.timeOf(event.data.click.timestamp || event.created_at),
+          url: event.data.click.link.slice(0, 2_000),
         }
       default:
         return null

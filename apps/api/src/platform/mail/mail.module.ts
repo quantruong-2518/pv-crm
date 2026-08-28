@@ -4,7 +4,11 @@ import { ConsoleMailDriver } from './console.driver'
 import { MAIL_ENQUEUE, MAIL_LEDGER, MAIL_PORT, type MailPort } from './mail.contract'
 import { MailHealthController, MailWebhookController } from './mail-webhook.controller'
 import { MailRepository } from './mail.repository'
+import { MailRunRepository } from './mail-run.repository'
+import { MailRunSweeper } from './mail-run.sweeper'
+import { MasMailComposer } from './mas.composer'
 import { ResendMailDriver } from './resend.driver'
+import { UnsubscribeController } from './unsubscribe.controller'
 
 /** THE MAIL LEDGER AND THE ONE DOOR OUT.
  *
@@ -31,11 +35,35 @@ import { ResendMailDriver } from './resend.driver'
  *
  *  The console driver is not a stub: it walks the same ledger, the same queue,
  *  the same claim/suppress/pace path, and stops only at the last inch. That is
- *  what makes it possible to rehearse the whole feature without a key. */
+ *  what makes it possible to rehearse the whole feature without a key.
+ *
+ *  ------------------------------------------------------------------
+ *  THREE CLASSES ARE EXPORTED BY NAME, AND EACH IS AN EXCEPTION WITH A REASON
+ *  ------------------------------------------------------------------
+ *  `MailRunRepository` — a batch is a platform row (`platform.mail_run`) and
+ *  the Sales service that opens one has to write it inside the SAME
+ *  transaction as its `email_delivery` rows. There is no token narrow enough
+ *  to wrap that: `create(tx, …)` IS the narrow shape, and hiding it behind a
+ *  symbol would only rename it. What a branch still cannot do is send.
+ *
+ *  `MasMailComposer` — one entry of the `MAIL_COMPOSER` registry, exported as
+ *  a class because the registry array is assembled by
+ *  `QueueModule.forWorker({ composers: [...] })`; Nest cannot merge two
+ *  providers of one token across two modules, and this composer's sibling lives
+ *  in the Sales branch. See `mail-composer.ts`.
+ *
+ *  `MailRunSweeper` — the batch-level half of the worker's loop, resolved by
+ *  name in `worker.ts` exactly as `MailRelay` is. A token would buy nothing
+ *  here: there is one implementation, one caller, and no branch is ever meant
+ *  to hold it — cancelling a run because its bounce rate is over the ceiling is
+ *  a decision about the SENDING ACCOUNT, not about anybody's leads. */
 @Module({
-  controllers: [MailWebhookController, MailHealthController],
+  controllers: [MailWebhookController, MailHealthController, UnsubscribeController],
   providers: [
     MailRepository,
+    MailRunRepository,
+    MailRunSweeper,
+    MasMailComposer,
     { provide: MAIL_LEDGER, useExisting: MailRepository },
     { provide: MAIL_ENQUEUE, useExisting: MailRepository },
     {
@@ -45,6 +73,13 @@ import { ResendMailDriver } from './resend.driver'
         env.PV_EMAIL_ENABLED ? new ResendMailDriver(env) : new ConsoleMailDriver(),
     },
   ],
-  exports: [MAIL_LEDGER, MAIL_ENQUEUE, MAIL_PORT],
+  exports: [
+    MAIL_LEDGER,
+    MAIL_ENQUEUE,
+    MAIL_PORT,
+    MailRunRepository,
+    MailRunSweeper,
+    MasMailComposer,
+  ],
 })
 export class MailModule {}

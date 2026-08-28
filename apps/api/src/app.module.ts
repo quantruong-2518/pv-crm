@@ -44,8 +44,9 @@ import { SessionModule } from './platform/session/session.module'
     HealthModule,
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
        là của platform, không được đi nhờ qua một nhánh mới có mặt trong cây;
-       và nó mang hai controller — cửa webhook của Resend và `/healthz/email` —
-       nên đọc danh sách này phải thấy được rằng máy chủ có hai đường đó. */
+       và nó mang ba controller — cửa webhook của Resend, `/healthz/email` và
+       cửa huỷ đăng ký của người nhận — nên đọc danh sách này phải thấy được
+       rằng máy chủ có ba đường đó. */
     MailModule,
     SalesModule,
   ],
