@@ -13,11 +13,12 @@ xong thì XOÁ mục đó, đừng đánh dấu ✅ — danh sách này chỉ c�
 
 Đường gửi **chạy thật và có mặt tiền**: Sổ lead soạn được một lô, xem trước
 được ai bị chặn, bấm gửi ra `mail_run` thật; chi tiết lead có thẻ timeline đọc
-`GET /sales/leads/:code/mail`. Nhưng tất cả vẫn chạy trên **PGlite cục bộ**:
-Neon chưa chạy migration nào, Fly chưa deploy, ba biến bắt buộc còn rỗng, và
-nội dung mẫu mail vẫn là một cái khung chưa duyệt.
+`GET /sales/leads/:code/mail`. Lược đồ nay đã có trên Neon — `0000…0013` chạy
+xong 28/08. Nhưng Fly vẫn là image cũ, năm biến bắt buộc còn rỗng, và nội dung
+mẫu mail vẫn là một cái khung chưa duyệt, nên **chưa lá MAS nào rời khỏi máy**.
 
-Nói gọn: **backend và mặt tiền xong, dữ liệu mồi và vận hành thì chưa.**
+Nói gọn: **backend, mặt tiền và lược đồ xong; nội dung mồi và vận hành thì
+chưa.**
 
 ---
 
@@ -70,34 +71,18 @@ con số của `MailRunRow` (bounce · phàn nàn · huỷ đăng ký) — thứ
 
 ## B · CƠ SỞ DỮ LIỆU
 
-### B1 · Neon CHƯA chạy migration nào — chặn mọi thứ
-
-`0007` … `0013` mới chỉ chạy trên PGlite dùng một lần. Production vẫn là lược đồ
-của `0006`.
-
-**Cẩn thận:** `apps/api/.env` trỏ **thẳng Neon production**. Chạy `pnpm db:migrate`
-là chạy trên dữ liệu thật. `0007` · `0010` · `0012` · `0013` chỉ `CREATE`/`ADD
-CONSTRAINT`/`INSERT`, không đụng bảng đang có — nhưng `0008`/`0009` (module cơ
-hội, của phiên khác) có `ALTER` và một bước chuyển dữ liệu, đọc kỹ trước khi
-chạy.
-
-Cả chuỗi `0000…0013` đã chạy trọn trên một PGlite sạch và `drizzle-kit generate`
-sau đó báo "no schema changes" — nên chuỗi lành, thứ còn thiếu là một người bấm
-nút trên máy trỏ Neon.
-
-### B2 · Migration `0010` chưa commit
-
-Chuỗi đang đan xen giữa hai phiên: `0007` (MAS) → `0008`/`0009` (cơ hội) →
-`0010` (MAS) → `0011` (cơ hội) → `0012`/`0013` (MAS). Snapshot của `0010` đã
-chứa cột của module cơ hội, nên commit nó mà không commit lược đồ cơ hội thì
-lần `drizzle-kit generate` sau sẽ đòi **DROP** những cột đó.
-
-**Làm thế nào.** Đợi phiên cơ hội commit xong, rồi commit `0010` → `0013` +
-`_journal.json` đầy đủ trong một lượt phối hợp.
-
-**Lưu ý về `0013`.** Nó là migration DỮ LIỆU, viết tay, nên snapshot của nó là
-bản sao snapshot `0012` với `id`/`prevId` mới. Đó là cách đúng cho một migration
-không đổi lược đồ — đừng chạy `drizzle-kit generate` để "sinh lại" nó.
+> **B1 và B2 đã xong 28/08, xoá theo quy ước ở đầu file.** Cả chuỗi `0000…0013`
+> đã áp lên Neon, và `0010`…`0013` đã commit cùng lược đồ module cơ hội trong
+> `e210658` — hai phiên phối hợp trong một lượt, đúng như B2 đề nghị.
+>
+> Số liệu sau khi áp, đọc từ chính Neon: 16 cơ hội · 16 dòng `opportunity_owner`
+> · 122 lead · 6 hợp đồng; `email_suppression` rỗng nên hai CHECK của `0012`
+> không vướng dòng nào; `mail_template` nhận đúng một dòng `mas-edge-ai-intro`
+> ở `active=true`. Chi tiết: [`ban-giao-co-hoi.md`](./ban-giao-co-hoi.md).
+>
+> **Hệ quả cần nhớ:** lược đồ production nay ĐI TRƯỚC code production. Fly vẫn
+> chạy image cũ, chưa biết `sales.opportunity_owner` lẫn `sales.mail_template`.
+> Deploy là bước kế tiếp, không phải migrate.
 
 ### B3 · `sales.campaign` vẫn rỗng
 
@@ -214,8 +199,8 @@ A2 nội dung mẫu ──> gửi được lô THẬT có nội dung duyệt r�
 D2 chốt mô hình ──> A3 cửa chiến dịch ──> C2 chuỗi đợt ── yêu cầu 3
 C1 sổ lô gửi ──> A6 có chỗ bấm huỷ ──> đo được bounce/complaint của lô
 
-B1 migrate Neon ──> D1 khai biến ──> D3 subdomain ──> canary lô THẬT 20–30 địa chỉ
-                                     D6 webhook ────> timeline mới có số mở/click
+deploy Fly ──> D1 khai biến ──> D3 subdomain ──> canary lô THẬT 20–30 địa chỉ
+                                D6 webhook ────> timeline mới có số mở/click
 ```
 
 Canary của MAS **khác** canary của transactional: gửi vào hộp thư của chính mình
@@ -230,7 +215,8 @@ vượt là khoá tài khoản không báo trước.
 Mặt tiền đã xong, nên phần còn lại là vận hành chứ không phải code:
 
 1. **A2** — chủ dự án cấp nội dung, `UPDATE` một dòng
-2. **B1 + D1** — migrate Neon, khai bốn biến (`PV_MAS_ENABLED` nay gác thật)
+2. **Deploy Fly + D1** — lược đồ đã lên Neon rồi, còn thiếu image mới và năm
+   biến (`PV_MAS_ENABLED` nay gác thật)
 3. **D3** — verify subdomain marketing trên Resend
 4. **D6** — khai webhook, để có số mở/click thật
 5. Lô canary 20–30 địa chỉ thật, đọc số, rồi mới mở lô lớn
