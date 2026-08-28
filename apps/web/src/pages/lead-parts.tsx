@@ -39,7 +39,6 @@ import {
 } from '@pv/ui'
 import {
   CURRENCIES,
-  dasVina,
   filledSlots,
   INIT_DATA_QUESTIONS,
   REQUIRED_SLOTS,
@@ -68,6 +67,7 @@ import { todosOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
 import { dm, dmy } from '@/lib/date'
 import { nextActions } from '@/data/leads'
+import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import { leadMailTimelineQuery } from '@/data/mas'
 import { isApiError, userMessage } from '@/app/api'
 import { profileForm } from '@/data/lead-profile'
@@ -164,10 +164,15 @@ const grouped = (raw: string) => (raw === '' ? '' : Number(raw).toLocaleString('
 function FieldControl({
   field,
   value,
+  options,
   onChange,
 }: {
   field: ProfileField
   value: string
+  /** Danh sách của ô select. Truyền vào chứ không đọc `field.options`, vì ba ô
+   *  người của form lấy danh sách từ sổ người trên máy chủ — `FieldRow` dựng
+   *  nó một lần cho cả hàng thay vì ba chục ô cùng mở một observer query. */
+  options: { value: string; label: string }[]
   onChange: (raw: string) => void
 }) {
   const required = isMandatory(field) || undefined
@@ -192,7 +197,7 @@ function FieldControl({
         label={field.label}
         hideLabel
         value={value}
-        options={field.options ?? []}
+        options={options}
         onChange={onChange}
         neutralValue={value}
         className="w-full"
@@ -449,6 +454,12 @@ function FieldRow({
   work: LeadProfile
   onSet: (field: ProfileField, raw: string) => void
 }) {
+  /* Ba ô người của form đọc sổ người trên máy chủ. Dựng ở đây, một lần cho cả
+     hàng: ô nào khai `people` thì nhận dòng "chưa ai" của chính nó rồi tới tên
+     kèm vai, ô khác giữ nguyên danh sách đóng của bản vẽ. */
+  const people = useSalesPeople()
+  const staffOptions = useMemo(() => peopleRoleOptions(people), [people])
+
   return (
     <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
       {fields.map((field) => (
@@ -460,6 +471,11 @@ function FieldRow({
           <FieldControl
             field={field}
             value={readField(work, field.key)}
+            options={
+              field.people
+                ? [{ value: '', label: field.people }, ...staffOptions]
+                : (field.options ?? [])
+            }
             onChange={(raw) => onSet(field, raw)}
           />
           {field.kind === 'money' && <MoneyRead work={work} value={readField(work, field.key)} />}
@@ -606,7 +622,7 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
     () => nextActions(lead, contact).filter((a) => a.key !== 'giao-viec'),
     [lead, contact],
   )
-  const people = useMemo(() => dasVina.actors.filter((a) => a.branches.includes('Sales')), [])
+  const people = useSalesPeople()
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? me?.name ?? ''
 
   const add = () => {

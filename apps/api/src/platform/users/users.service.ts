@@ -6,13 +6,14 @@ import {
   type RoleId as EngineRoleId,
 } from '@pv/engines'
 import {
+  DirectoryResponse,
   InviteView,
   UserListResponse,
   UserRow,
   type UserCreate,
   type UserPatch,
 } from '@pv/contracts'
-import { toEngineRole } from '../auth/auth.mapper'
+import { toEngineRole, toSessionActor } from '../auth/auth.mapper'
 import { AuthService } from '../auth/auth.service'
 import { ENV, type Env } from '../config/env'
 import type { Db } from '../db/db.module'
@@ -132,6 +133,21 @@ export class UsersService {
        them — and neither survives this line. The cost is bounded by the size
        of the staff book, a few dozen rows. */
     return UserListResponse.parse({ rows: rows.map(toUserRow) })
+  }
+
+  /** The roster, for anybody holding a live session.
+   *
+   *  `toSessionActor` rather than `toUserRow` is the whole difference, and it
+   *  is not a trimming step applied after the fact: the mapper cannot put a
+   *  lock state or a password flag into the shape it builds, so this door has
+   *  nowhere to leak one even if the contract were loosened later. Same
+   *  property `toActor` gives the guard, and the reason both exist.
+   *
+   *  Validated on the way out for the reason `list` gives above — a column that
+   *  changed type and a mapper that drifted with it both compile. */
+  async directory(): Promise<DirectoryResponse> {
+    const rows = await this.repo.active()
+    return DirectoryResponse.parse({ rows: rows.map(toSessionActor) })
   }
 
   // -------------------------------------------------------------------------

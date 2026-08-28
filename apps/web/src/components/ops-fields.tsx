@@ -3,7 +3,6 @@ import { Paperclip, Trash2, TriangleAlert } from '@pv/ui'
 import { Avatar, Button, Icon, Input, Kicker, Select, Textarea, billions, cn, dong } from '@pv/ui'
 import {
   CURRENCIES,
-  dasVina,
   LOSS_REASONS,
   OPPORTUNITY_STATES,
   PIPELINE_STAGES,
@@ -11,6 +10,7 @@ import {
   type CurrencyCode,
   type OpportunityDraft,
 } from '@pv/engines/fixtures/das-vina'
+import { useSalesPeople } from '@/data/directory'
 
 /** Ô nhập dùng chung của PHIẾU CƠ HỘI.
  *
@@ -34,9 +34,9 @@ import {
  *  luật của phiếu chứ không phải cách vẽ một cái ô, nên chúng ở `data/ops.ts` —
  *  `react-refresh` cũng đòi đúng điều đó: một file component chỉ xuất component.
  *
- *  Nó cũng không nằm ở `@pv/ui`: bảy cái tên trong `PeopleRow` và năm trạng
- *  thái của phiếu là kiến thức của KỊCH BẢN, mà thư viện component thì không
- *  được biết kịch bản nào (biên giới package · CLAUDE.md). */
+ *  Nó cũng không nằm ở `@pv/ui`: `PeopleRow` gọi thẳng một query của app và năm
+ *  trạng thái của phiếu là kiến thức của NHÁNH Sales, mà thư viện component thì
+ *  không được biết nhánh nào (biên giới package · CLAUDE.md). */
 
 export type SetDraft = <K extends keyof OpportunityDraft>(
   key: K,
@@ -45,9 +45,6 @@ export type SetDraft = <K extends keyof OpportunityDraft>(
 
 export const STATE_LABEL = new Map(OPPORTUNITY_STATES.map((s) => [s.key, s.label]))
 export const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
-
-/** Người của phòng, dùng cho cả hai ô chủ sở hữu. */
-export const SALES_PEOPLE = dasVina.actors.filter((a) => a.branches.includes('Sales'))
 
 /** Khung một ô của phiếu. Cùng hình với ô của form hồ sơ lead — hai chỗ nhập
  *  trong cùng một app mà khác hình thì đọc ra như hai sản phẩm. */
@@ -169,10 +166,14 @@ export function PeopleRow({
   picked: string[]
   onToggle: (id: string) => void
 }) {
+  /* Người của phòng, đọc từ `GET /users/directory` chứ không từ một hằng số:
+     ai mới vào phòng phải bấm chọn được ngay trong ngày mở tài khoản. */
+  const people = useSalesPeople()
+
   return (
     <Field label={label} required={required} hint={hint} plain>
       <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
-        {SALES_PEOPLE.map((p) => {
+        {people.map((p) => {
           const on = picked.includes(p.id)
           return (
             <button

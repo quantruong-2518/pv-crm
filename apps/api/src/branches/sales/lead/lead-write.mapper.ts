@@ -47,6 +47,24 @@ export type LeadWrite = {
  *
  *  Same shape as `lead.mapper.ts#toRef` — see the note at the top of this
  *  file for why it cannot simply call it. */
+/** The sentence a lead's first timeline row carries.
+ *
+ *  Three doors, three sentences, one place. A lead entering the book is the
+ *  same EVENT through all three, but "which door" is the part worth recording —
+ *  a row typed by a person, a row that arrived from a landing page, and a row
+ *  that came out of a spreadsheet deserve different amounts of trust, and
+ *  `CHANNEL_TRUST` already says so about the data. This says so about the
+ *  history.
+ *
+ *  Together here rather than one string per service, for the reason `NOTE` in
+ *  `opportunity.mapper.ts` is together: these are LANGUAGE, and language spread
+ *  across three call sites is language that stops matching itself. */
+export const LEAD_NOTE = {
+  typed: 'Vào sổ · gõ tay',
+  landing: 'Vào sổ · form landing page',
+  imported: (fileName: string) => `Vào sổ · nạp từ tệp ${fileName}`,
+} as const
+
 export function refOf(code: string, write: LeadWrite): ObjectRef {
   return {
     code,

@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { renderOpportunityLost, renderOpportunityOpened } from '@pv/mail-templates'
-import type { OpportunityCreateState, StageKey } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { DeliveryToSend, MailMessage } from '@api/platform/mail/mail.contract'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
+import { STAGE_LABEL, STATE_LABEL } from './opportunity.labels'
 import { OpportunityRepository } from './opportunity.repository'
 
 /** THÂN CỦA HAI MAIL SỔ CƠ HỘI, DỰNG Ở NƠI CƠ HỘI SỐNG.
@@ -24,29 +24,14 @@ import { OpportunityRepository } from './opportunity.repository'
  *  thua, kể cả khi có ai đó xếp nhầm hàng.
  *
  *  ------------------------------------------------------------------
- *  NHÃN TIẾNG VIỆT NẰM Ở ĐÂY, KHÔNG Ở HỢP ĐỒNG
+ *  NHÃN TIẾNG VIỆT ĐÃ RỜI KHỎI FILE NÀY
  *  ------------------------------------------------------------------
  *  `@pv/contracts` cố tình chỉ giữ KHOÁ ('gui-quotation'), không giữ nhãn —
- *  nhãn là việc của tầng hiển thị, và một mail là một tầng hiển thị. Hai bảng
- *  dưới đây là bản của MAIL; bản của màn nằm ở `ops-fields.tsx`. Hai bản chép
- *  tay là một khoản nợ đã biết, và nó được trả cùng lúc với bước tách fixture
- *  của `docs/ban-giao-backend.md`, không phải sớm hơn: hôm nay nhãn màn còn
- *  nằm trong fixture, mà `apps/api` chỉ được nhập fixture ở `seed.ts`. */
-
-const STATE_LABEL: Record<OpportunityCreateState, string> = {
-  'gui-quotation': 'Gửi quotation',
-  nego: 'Nego',
-  'close-lost': 'Close lost',
-  pending: 'Pending',
-}
-
-const STAGE_LABEL: Record<StageKey, string> = {
-  moi: 'Mới',
-  'tim-hieu': 'Đang tìm hiểu',
-  'da-demo': 'Đã demo',
-  'da-bao-gia': 'Đã báo giá',
-  'cho-ky': 'Chờ ký',
-}
+ *  nhãn là việc của tầng hiển thị. Hai bảng nhãn từng nằm ngay đây; nay chúng ở
+ *  `opportunity.labels.ts`, vì dòng thời gian (`sales.touch`) cũng phải dựng
+ *  câu "đơn vừa sang cột Chờ ký" và một bản chép thứ hai trong cùng một thư mục
+ *  là bản sẽ bị quên. Bản của MÀN (`ops-fields.tsx`) vẫn còn và vẫn là khoản nợ
+ *  đã ghi ở `docs/ban-giao-co-hoi.md`. */
 
 @Injectable()
 export class OpportunityMailComposer implements MailComposer {

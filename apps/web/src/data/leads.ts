@@ -16,15 +16,12 @@ import {
   type IconGlyph,
 } from '@pv/ui'
 import {
-  BD,
   canPromoteToSql,
   DAS_VINA_LEAD,
   domainsOf,
-  HEAD_OF_SALES,
   isOverSla,
   isRunning,
   LEADS,
-  MARKETING,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
   leadContact,
@@ -40,6 +37,7 @@ import type { LeadBookQuery, LeadBookResponse } from '@pv/contracts'
 import type { LeadAssignment } from '@/app/desk'
 import { api } from '@/app/api'
 import { leadBookQueryToParams } from '@/app/url'
+import { APPROVER_ROLE_LABEL } from '@/data/directory'
 
 /** Sổ lead — module 2.
  *
@@ -330,7 +328,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: 'Đề nghị nhận vào pipeline',
       icon: ArrowRight,
       primary: out.length === 0,
-      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. Người gật là ${HEAD_OF_SALES}, Sale đề nghị chứ không tự chuyển bậc.`,
+      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. Người gật là ${APPROVER_ROLE_LABEL}, Sale đề nghị chứ không tự chuyển bậc.`,
     })
   }
 
@@ -468,7 +466,13 @@ export function myWork(input: {
   const running = leads.filter(isRunning)
   const mine = running.filter((l) => l.owner === actor.name)
 
-  if (actor.role.startsWith('Sale')) {
+  /* Bốn nhánh dưới đây so bằng `roleId`, KHÔNG bằng `name` hay nhãn `role`.
+     Bản trước so `actor.name === HEAD_OF_SALES` — một cái tên có thật trong
+     fixture và không có thật trong bảng người dùng, nên với tài khoản thật thì
+     bốn nhánh này im lặng không chạy nhánh nào. `roleId` là khoá của ma trận
+     quyền, thứ duy nhất ở đây không đổi khi người ta đổi tên hay đổi nhãn vai
+     (`Actor.role` mang cả ngành: "Sale · chip"). */
+  if (actor.roleId === 'sale') {
     for (const lead of mine) {
       push(
         lead,
@@ -479,7 +483,7 @@ export function myWork(input: {
     }
   }
 
-  if (actor.name === BD) {
+  if (actor.roleId === 'bd') {
     for (const lead of mine) {
       const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
       push(
@@ -489,11 +493,11 @@ export function myWork(input: {
     }
   }
 
-  if (actor.name === MARKETING) {
+  if (actor.roleId === 'marketing') {
     for (const lead of mine) push(lead, `Đang nuôi ở bậc đầu mối · ${lead.daysHere} ngày`)
   }
 
-  if (actor.role === 'Presales') {
+  if (actor.roleId === 'presales') {
     for (const lead of running) {
       if (lead.stage === 'tim-hieu' || lead.stage === 'da-demo') {
         push(lead, `Đơn ở cột có demo · chủ đơn ${lead.owner ?? 'chưa ai'}`)
@@ -501,7 +505,7 @@ export function myWork(input: {
     }
   }
 
-  if (actor.name === HEAD_OF_SALES) {
+  if (actor.roleId === 'trưởng-phòng') {
     for (const lead of running) {
       if (canPromoteToSql(lead).ok) push(lead, 'Đủ ô bắt buộc · chờ bạn gật cho vào pipeline')
     }
@@ -559,22 +563,25 @@ export function assigneeOptions(
       } else if (a.name === owner) {
         rank = 10
         why = `Sale phụ trách ngành ${domains.join(' · ')}`
-      } else if (a.name === BD && missing > 0) {
+      } else if (a.roleId === 'bd' && missing > 0) {
         rank = 20
         why = `Còn ${missing} ô bắt buộc — moi ô là việc của vai này`
-      } else if (a.role === 'Presales' && (lead.stage === 'tim-hieu' || lead.stage === 'da-demo')) {
+      } else if (
+        a.roleId === 'presales' &&
+        (lead.stage === 'tim-hieu' || lead.stage === 'da-demo')
+      ) {
         rank = 30
         why = 'Đơn đang ở cột có demo'
-      } else if (a.name === MARKETING && lead.tier === 'dau-moi') {
+      } else if (a.roleId === 'marketing' && lead.tier === 'dau-moi') {
         rank = 40
         why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'
-      } else if (a.name === HEAD_OF_SALES) {
+      } else if (a.roleId === 'trưởng-phòng') {
         rank = 50
         why = 'Người gật mọi đề nghị của phòng'
       } else if (domains.length > 0) {
         rank = 70
         why = `Sale ngành ${domains.join(' · ')}`
-      } else if (a.name === BD) {
+      } else if (a.roleId === 'bd') {
         rank = 60
         why = 'Mở khách mới, moi ô bắt buộc'
       }

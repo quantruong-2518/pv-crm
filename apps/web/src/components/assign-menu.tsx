@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Search, UserRoundPlus, X } from '@pv/ui'
 import { Avatar, AvatarGroup, Badge, Button, Checkbox, GlassCard, Icon, Select, cn } from '@pv/ui'
-import { dasVina, HEAD_OF_SALES, type Lead, type LeadContact } from '@pv/engines/fixtures/das-vina'
+import type { Lead, LeadContact } from '@pv/engines/fixtures/das-vina'
 import { useSession } from '@/app/auth'
 import { useLeadDesk } from '@/app/desk'
+import { personName, useApproverName, useDirectory } from '@/data/directory'
 import { assigneeOptions, nextActions } from '@/data/leads'
 
 /** Giao việc trên một lead — nút + bảng chọn người.
@@ -73,7 +74,13 @@ export function AssignMenu({
     [lead, contact],
   )
 
-  const people = useMemo(() => assigneeOptions(lead, dasVina.actors, me?.id), [lead, me?.id])
+  /* Sổ người từ máy chủ, KHÔNG phải bảy cái tên đóng băng. Rỗng trong lúc tải,
+     nên bảng chọn hiện ra trống một nhịp rồi đầy — thà thế còn hơn chặn cả nút
+     giao việc sau một spinner cho một danh sách vài chục dòng. */
+  const staff = useDirectory()
+  const approver = useApproverName()
+
+  const people = useMemo(() => assigneeOptions(lead, staff, me?.id), [lead, staff, me?.id])
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -246,7 +253,7 @@ export function AssignMenu({
 
             <p className="text-muted-foreground text-[11px] leading-[1.5]">
               Giao việc không đổi người giữ lead — đổi tay là đề nghị riêng, vì phần chốt của hoa
-              hồng chia lại theo đó. Đề nghị này chờ {HEAD_OF_SALES} gật.
+              hồng chia lại theo đó. Đề nghị này chờ {approver} gật.
             </p>
 
             <div className="flex gap-2">
@@ -278,16 +285,20 @@ export function AssignMenu({
 export function AssignedPills({ lead }: { lead: Lead }) {
   const assigns = useLeadDesk((s) => s.assigns)
   const clear = useLeadDesk((s) => s.clearAssign)
+  const staff = useDirectory()
+  const approver = useApproverName()
   const current = assigns[lead.code]
   if (!current) return null
 
-  const names = current.actorIds.map((id) => dasVina.actors.find((a) => a.id === id)?.name ?? id)
+  /* Id lạ in ra chính id — người bị khoá sau khi được giao việc vẫn phải lần
+     ra được là ai; xem `personName`. */
+  const names = current.actorIds.map((id) => personName(staff, id))
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       <AvatarGroup names={names} max={4} />
       <span className="text-[11.5px]">
-        Đã đề nghị giao <b className="font-semibold">{current.task}</b> · chờ {HEAD_OF_SALES} gật
+        Đã đề nghị giao <b className="font-semibold">{current.task}</b> · chờ {approver} gật
       </span>
       <Button size="sm" variant="ghost" onClick={() => clear(lead.code)}>
         Rút lại

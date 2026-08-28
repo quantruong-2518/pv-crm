@@ -131,16 +131,20 @@ export function daysFromToday(dateISO: string): number {
 
 /** Chiến dịch đang mở → bản nháp của form sửa; `null` → bản nháp của form tạo.
  *
- *  Bản nháp mở đầu của form tạo CHÉP NHỊP nguồn mẫu (`DRAFT_TEMPLATE`, suy từ
- *  fixture): tên gợi ý, nhịp đợt. Đó là điểm xuất phát để sửa, KHÔNG phải số đo
- *  của chiến dịch mới.
+ *  Bản nháp mở đầu của form tạo là `DRAFT_TEMPLATE` — MỘT đợt mở màn và một cái
+ *  tên ví dụ. Điểm xuất phát để sửa, không phải số đo của chiến dịch mới.
  *
  *  Ngày của đợt khi SỬA dời về tương lai theo đúng nhịp cũ: chuỗi đã chạy xong
  *  từ tháng trước, nên in lại ngày cũ vào ô hẹn gửi là mời người dùng bấm lưu
  *  một chuỗi hẹn gửi vào quá khứ.
  *
- *  Nội dung đợt khi sửa để TRỐNG: kịch bản đóng băng không lưu bài đã soạn, và
- *  dựng lại một bài chưa từng có là bịa. */
+ *  `expected` vắng (chưa ai đặt kỳ vọng cho đợt cũ) chép thành 0 chứ không chép
+ *  thành `null`: ô nhập của form là một ô số, và "chưa đặt" ở form mới đọc
+ *  thành 0 — người soạn gõ đè lên. Chỗ PHÂN BIỆT hai trạng thái đó là bảng đã
+ *  chạy, nơi `null` in ra "—", không phải form đang soạn.
+ *
+ *  Nội dung đợt khi sửa để TRỐNG: máy chủ không lưu bài đã soạn của lô cũ ở
+ *  đường này, và dựng lại một bài chưa từng có là bịa. */
 export function draftOf(source: SourceRow | null, withEmptyWave: boolean): CampaignDraft {
   const base: CampaignDraft = source
     ? {
@@ -152,7 +156,7 @@ export function draftOf(source: SourceRow | null, withEmptyWave: boolean): Campa
           sendNow: false,
           dateISO: dayAfterToday(w.day - source.startDay + 1),
           time: '09:00',
-          expected: w.expected,
+          expected: w.expected ?? 0,
           content: '',
         })),
         stopOnReply: true,

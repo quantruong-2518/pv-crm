@@ -1,12 +1,7 @@
 import { millions } from '@pv/ui'
 import { costBand, separableCost, wilson, type CostBandValue } from '@pv/engines'
-import {
-  sourceStats,
-  sourcesPaid,
-  SOURCES,
-  type CostKind,
-  type CostLine,
-} from '@pv/engines/fixtures/das-vina'
+import { CostKind, type SourceCostLine } from '@pv/contracts'
+import { sourceStats, sourcesPaid, SOURCES, type CostLine } from '@pv/engines/fixtures/das-vina'
 
 /** Tiền của một nguồn lead — dải giá, xếp hạng, phân rã theo loại, phép cắt kỳ.
  *  Kịch bản 2 · DAS Vina. Nền toán ở `@pv/engines` (`stats.ts`), số ở fixture;
@@ -42,24 +37,23 @@ import {
  *  `Record<CostKind, …>` là exhaustive: thêm loại thứ sáu vào fixture mà quên
  *  đặt nhãn thì `pnpm typecheck` đỏ, không phải một ô trống trên bảng. */
 export const COST_KIND_LABEL: Record<CostKind, string> = {
-  'du-lieu': 'Dữ liệu',
-  kenh: 'Kênh',
-  'noi-dung': 'Nội dung',
-  'su-kien': 'Sự kiện',
-  'cong-cu': 'Công cụ',
+  DATA: 'Dữ liệu',
+  CHANNEL: 'Kênh',
+  CONTENT: 'Nội dung',
+  EVENT: 'Sự kiện',
+  TOOL: 'Công cụ',
 }
 
 /** Thứ tự đọc L1…L5 — dữ liệu trước, công cụ sau.
- *  KHÔNG xếp theo bảng chữ cái và KHÔNG xếp theo số tiền: bảng của
- *  hai nguồn khác nhau phải đọc được cạnh nhau, mà thứ tự chạy theo tiền thì
- *  mỗi nguồn một kiểu. */
-export const COST_KINDS = [
-  'du-lieu',
-  'kenh',
-  'noi-dung',
-  'su-kien',
-  'cong-cu',
-] as const satisfies readonly CostKind[]
+ *
+ *  KHÔNG xếp theo bảng chữ cái và KHÔNG xếp theo số tiền: bảng của hai nguồn
+ *  khác nhau phải đọc được cạnh nhau, mà thứ tự chạy theo tiền thì mỗi nguồn
+ *  một kiểu.
+ *
+ *  Đọc thẳng `CostKind.options` chứ không chép lại năm khoá: thứ tự khai trong
+ *  hợp đồng ĐÃ LÀ thứ tự này, và một bản chép ở đây là chỗ để hai thứ tự lệch
+ *  nhau vào ngày ai đó chèn loại mới vào giữa. */
+export const COST_KINDS = CostKind.options
 
 /** Ba cổng chặn câu khẳng định. Vượt bất kỳ cổng nào
  *  thì dải vẫn HIỆN, nhưng nó không được đứng cạnh một câu khẳng định.
@@ -249,7 +243,7 @@ export type CostBreakdown = {
  *  Nguồn tự nhiên trả mảng rỗng và `total = 0`. Đó là NỘI DUNG chứ không phải
  *  lỗi: GT và TM không tốn đồng tiền mặt nào. Màn phải nói câu đó bằng chữ, đừng
  *  vẽ một cái bảng rỗng. */
-export function costBreakdown(lines: readonly CostLine[]): CostBreakdown {
+export function costBreakdown(lines: readonly SourceCostLine[]): CostBreakdown {
   const total = lines.reduce((sum, l) => sum + l.amount, 0)
 
   const rows: CostSlice[] = []

@@ -77,12 +77,28 @@ export class LeadController {
     return this.leads.mailTimeline(who, code)
   }
 
+  /** Dòng thời gian của một lead — `sales.touch`.
+   *
+   *  Đường thứ hai bên cạnh `:code/mail`, không thay nó: cái kia trả lời "mình
+   *  đã viết cho người này mấy lần", cái này trả lời "chuyện gì đã xảy ra với
+   *  khách này". Lý do đầy đủ ở `LeadService.touches`.
+   *
+   *  `lead.xem` chứ không `ghi-vết.xem` — cùng lý lẽ mà `:code/mail` đã dùng:
+   *  đây là dữ liệu CỦA MỘT LEAD, và một Sale mở hồ sơ khách của mình không cần
+   *  quyền của quản trị để đọc lịch sử chính khách đó. `ghi-vết.xem` là để đọc
+   *  `platform.audit`, một câu hỏi khác của một người khác. */
+  @Get(':code/touches')
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+    return this.leads.touches(who, code)
+  }
+
   /** Một lead, gõ tay. 201 kèm nguyên dòng sổ — màn chèn được ngay, không phải
    *  gọi lần thứ hai, và người gõ thấy luôn giá trị đã được chuẩn hoá. */
   @Post()
   @Need({ branch: 'Sales', permission: 'lead.sửa' })
-  create(@Body(zod(LeadCreate)) body: LeadCreate) {
-    return this.write.create(body)
+  create(@CurrentActor() who: Actor, @Body(zod(LeadCreate)) body: LeadCreate) {
+    return this.write.create(who, body)
   }
 
   /** Chạy thử. KHÔNG ghi gì — kể cả một con số của dãy mã. */

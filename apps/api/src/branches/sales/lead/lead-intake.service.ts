@@ -6,7 +6,8 @@ import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { isDbConstraint } from '@api/platform/http/db-error'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
-import { fromIntake, refOf } from './lead-write.mapper'
+import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
+import { fromIntake, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadIntakeRepository, type IntakeClient } from './lead-intake.repository'
@@ -17,6 +18,7 @@ export class LeadIntakeService {
     private readonly intake: LeadIntakeRepository,
     private readonly writes: LeadWriteRepository,
     private readonly leads: LeadRepository,
+    private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
@@ -45,6 +47,21 @@ export class LeadIntakeService {
         await this.mirror.put(tx, ref)
         await this.writes.insertLandingLead(tx, { ...write.values, code })
         await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
+
+        /* `SYSTEM_ACTOR` and no `actorId`, because this door is anonymous by
+           design — there is no session and there is nobody to credit. "Hệ
+           thống" is the true answer to "who did this", and inventing an actor
+           here would put a name on work no person did. */
+        await this.touch.record(tx, [
+          {
+            subjectCode: code,
+            subjectKind: 'lead',
+            kind: 'vao-so',
+            by: SYSTEM_ACTOR,
+            note: LEAD_NOTE.landing,
+          },
+        ])
+
         await this.notify(tx, ref)
       })
     } catch (error) {

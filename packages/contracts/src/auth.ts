@@ -206,6 +206,39 @@ export const UserRow = SessionActor.extend({
 
 export const UserListResponse = z.object({ rows: z.array(UserRow) })
 
+// ---------------------------------------------------------------------------
+// The directory — everybody with a live session
+// ---------------------------------------------------------------------------
+
+/** WHO WORKS HERE — the roster every screen that names a colleague reads.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THIS IS NOT `UserListResponse` WITH A SOFTER PERMISSION
+ *  ------------------------------------------------------------------
+ *  `GET /users` answers "who has an account, and what state is it in" — it
+ *  carries `passwordSet`, `disabledAt` and `createdAt`, which are facts about
+ *  ADMINISTERING a person, and it is gated on `người-dùng.quản-lý` for exactly
+ *  that reason. This answers a different question that every Sale asks a dozen
+ *  times a day: who can I hand this lead to, who owns that opportunity, whose
+ *  name goes in this select. Answering it with the admin shape would mean
+ *  either handing lock states to the whole company or hiding the roster from
+ *  the people whose screens are built out of it.
+ *
+ *  So the shape is `SessionActor` exactly — the same seven fields the browser
+ *  already holds for the signed-in person, no more. That is load-bearing on the
+ *  web side too: E2 and the assignment helpers take `Actor`, and a roster
+ *  missing a field would have every caller widening a signature to accept it.
+ *
+ *  ------------------------------------------------------------------
+ *  DISABLED ACCOUNTS ARE ABSENT, AND THAT IS A DECISION
+ *  ------------------------------------------------------------------
+ *  Every use of this list is a choice about the FUTURE — assign work, pick an
+ *  owner, name an approver. Offering somebody who cannot sign in is offering a
+ *  task that will never be picked up. Rows already carrying a locked person's
+ *  name still render that name (it is stored on the row, not looked up here),
+ *  so the past does not lose its author. */
+export const DirectoryResponse = z.object({ rows: z.array(SessionActor) })
+
 /** Creating a person. No password field, deliberately — a manager who types
  *  somebody's first password knows it, and from then on nothing that account
  *  does can be pinned on its owner alone. The invite link is the only way in. */
@@ -254,6 +287,7 @@ export const InviteView = z.object({
 
 export type UserRow = z.infer<typeof UserRow>
 export type UserListResponse = z.infer<typeof UserListResponse>
+export type DirectoryResponse = z.infer<typeof DirectoryResponse>
 export type UserCreate = z.infer<typeof UserCreate>
 export type UserPatch = z.infer<typeof UserPatch>
 export type InviteView = z.infer<typeof InviteView>

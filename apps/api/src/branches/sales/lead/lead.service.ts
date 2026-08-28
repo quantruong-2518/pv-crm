@@ -6,9 +6,11 @@ import {
   LeadProfile,
   type LeadBookQuery,
   type MaObject,
+  type TouchTimelineResponse,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
+import { TouchService } from '../touch/touch.service'
 import { toContract, toMailTimeline, toProfile, toRef } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 
@@ -29,6 +31,7 @@ import { LeadRepository } from './lead.repository'
 export class LeadService {
   constructor(
     private readonly repo: LeadRepository,
+    private readonly touch: TouchService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -138,5 +141,36 @@ export class LeadService {
     const rows = await this.repo.mailTimeline(code)
 
     return LeadMailTimelineResponse.parse({ rows: rows.map(toMailTimeline) })
+  }
+
+  /** `GET /sales/leads/:code/touches` — what has happened to this customer.
+   *
+   *  ------------------------------------------------------------------
+   *  A SECOND TIMELINE BESIDE `mailTimeline`, NOT A REPLACEMENT FOR IT
+   *  ------------------------------------------------------------------
+   *  The two answer different questions and neither subsumes the other. The
+   *  mail timeline is one row per BATCH the lead was written into, carrying
+   *  open and click counts that only `platform.mail_event` knows. This one is
+   *  one row per THING SOMEBODY DID — the lead entered the book, it was
+   *  promoted, a contract was signed — facts no delivery ledger can hold.
+   *
+   *  Writing a `cham` touch per delivery would put the same fact in two tables
+   *  that then disagree the first moment a queued letter fails to send: the
+   *  ledger would know, the timeline would not. Two streams, two questions, and
+   *  a screen free to draw them side by side.
+   *
+   *  Same two refusals, in the same order, for the reason spelled out on
+   *  `mailTimeline` above: an empty list is a REAL answer here — most leads
+   *  have exactly one row — so it cannot also mean "no such lead" or "not
+   *  yours" without answering three questions at once. */
+  async touches(who: Actor, code: MaObject): Promise<TouchTimelineResponse> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('lead', code)
+
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    return this.touch.timeline(code)
   }
 }

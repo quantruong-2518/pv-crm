@@ -11,6 +11,7 @@ import {
 import { sql, type SQL } from 'drizzle-orm'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { sales } from '../sales.schema'
+import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 
 /** Same second net as `lead_no_blank`: the mapper normalises `''` to NULL on
@@ -51,6 +52,21 @@ export const campaign = sales.table(
      *  assigned is a real state, and inventing an owner to fill the column is
      *  how a report grows a person who never ran anything. */
     ownerId: text('owner_id'),
+
+    /** Nguồn được quy công cho chiến dịch mail này — `config_entry.id` của một
+     *  dòng `SOURCE`, cùng thứ mà `lead.campaign_id` trỏ vào.
+     *
+     *  Đây là sợi dây làm cho module 1 có chuỗi đợt THẬT: đợt của một nguồn là
+     *  các lô (`campaign_run` → `platform.mail_run`) của những chiến dịch mang
+     *  mã nguồn này. Không có cột này thì hai nửa của cùng một câu chuyện —
+     *  "nguồn nào kéo lead về" và "đã gửi những gì" — không nối được với nhau,
+     *  và bảng nguồn phải tự bịa ra chuỗi đợt của mình.
+     *
+     *  NULLABLE có chủ ý: Quick MAS bắn từ sổ lead không thuộc chiến dịch nào,
+     *  và một chiến dịch mail dựng trước khi ai đó quyết nó thuộc nguồn nào là
+     *  một trạng thái có thật. Điền bừa để lấp cột là ghi công cho một nguồn
+     *  không làm gì. */
+    sourceId: text('source_id').references(() => configEntry.id),
 
     state: text('state').$type<'DRAFT' | 'RUNNING' | 'STOPPED' | 'DONE'>().notNull(),
 
@@ -112,9 +128,21 @@ export const campaignRun = sales.table(
       .unique()
       .references(() => mailRun.id),
     waveNo: integer('wave_no').notNull(),
+
+    /** Bao nhiêu lead ĐẶT TRƯỚC cho đợt này — con số nói ra trước khi bấm gửi.
+     *
+     *  Nullable, và vắng nghĩa là "không ai đặt kỳ vọng", KHÔNG phải 0: một đợt
+     *  đặt 0 lead là một đợt gửi để làm gì đó khác (nhắc lịch, gửi tài liệu),
+     *  còn một đợt không đặt gì là một đợt chưa ai chịu trách nhiệm về kết quả.
+     *  Màn phải phân biệt được hai chuyện đó, nên cột phải phân biệt được.
+     *
+     *  Nằm trên `campaign_run` chứ không trên `mail_run`: kỳ vọng là chuyện của
+     *  nhánh Sales, còn `platform.mail_run` không được biết chiến dịch là gì. */
+    expected: integer('expected'),
   },
   (t) => [
     check('campaign_run_wave_positive', sql`${t.waveNo} > 0`),
+    check('campaign_run_expected_nonneg', sql`${t.expected} IS NULL OR ${t.expected} >= 0`),
     primaryKey({ columns: [t.campaignCode, t.waveNo] }),
   ],
 )
@@ -145,7 +173,9 @@ export const mailTemplate = sales.table(
   ],
 )
 
-export type CampaignRow = typeof campaign.$inferSelect
+/** `Db` suffix to keep this apart from `CampaignRow` in `@pv/contracts` — the
+ *  wire shape, built by `campaign.mapper.ts` from this and never returned raw. */
+export type CampaignRowDb = typeof campaign.$inferSelect
 export type CampaignMemberRow = typeof campaignMember.$inferSelect
 export type CampaignRunRow = typeof campaignRun.$inferSelect
 export type MailTemplateRow = typeof mailTemplate.$inferSelect

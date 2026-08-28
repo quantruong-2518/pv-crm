@@ -29,7 +29,6 @@ import {
   Icon,
   MetaPill,
   Money,
-  Progress,
   ScreenDetailGrid,
   ScreenHeader,
   ScreenLayout,
@@ -42,7 +41,6 @@ import {
   percent,
   type TimelineItem,
 } from '@pv/ui'
-import { DAY_FROZEN, dasVina, dayISO } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
@@ -193,25 +191,28 @@ export function CampaignDetailPage() {
 
   const running = !stopped && source.status === 'dang-chay'
 
-  /* Luật 10 · ContextRail dựng thẳng từ E1, qua đơn tiêu biểu chiến dịch này đã
-     đẻ ra. Chiến dịch chưa đẻ đơn nào thì rail hiện đúng một chip của chính nó.
-     Rail ở LẠI màn này (đã bỏ khỏi sổ): đây là chỗ đúng một object đang mở. */
-  const story = source.anchorDeal ? dasVina.graph.story(source.anchorDeal) : []
-  const rail =
-    story.length > 0
-      ? story.map((o) => ({ code: o.code, source: o.code === source.anchorDeal }))
-      : [{ code: source.code, source: false }]
+  /* Luật 10 · ContextRail. MỘT chip — chính chiến dịch đang mở — và đó là tất
+     cả những gì E1 nói được hôm nay: một chiến dịch KHÔNG phải `platform.object`
+     (nợ #4 của `docs/ban-giao-db.md`), nên `story()` không có mã nào để leo từ
+     đây. Bản trước mượn một đơn mà chiến dịch đã đẻ ra để rail có chuỗi; mã đó
+     đến từ fixture, và mượn một đơn của người khác để vẽ chuỗi của mình là một
+     chuỗi nói sai chủ. Rail đầy đủ quay lại khi E1 có `ObjectKind` cho chiến
+     dịch — lúc đó chiến dịch tự có mã trong đồ thị. */
+  const rail = [{ code: source.code, source: true }]
 
   const items: TimelineItem[] = source.waves.map((w) => ({
     id: String(w.no),
-    /* Ba trạng thái thật: đạt kỳ vọng · hụt kỳ vọng · chưa tới ngày chạy. */
-    state: w.day > DAY_FROZEN ? 'next' : w.hit ? 'ok' : 'warning',
+    /* HAI trạng thái, không ba. Bản trước có "hụt kỳ vọng" (`warning`), một
+       phép so giữa lead của đợt và kỳ vọng của đợt — mà lead KHÔNG quy được về
+       từng đợt (xem `WaveRow` ở `data/campaigns.ts`). Còn lại đúng thứ đọc
+       được: lô đã rời máy chủ chưa. */
+    state: w.sentAt ? 'ok' : 'next',
     marker: `Đợt ${w.no}`,
     title: w.label,
     meta: (
       <>
         <MetaPill mono icon={CalendarDays}>
-          {dm(dayISO(w.day))}
+          {w.sentAt ? dm(w.sentAt) : 'chưa gửi'}
         </MetaPill>
         <ChannelTag
           icon={CHANNEL_ICON[w.channel]}
@@ -226,21 +227,15 @@ export function CampaignDetailPage() {
             cả số hỏng. Bỏ nó ở đây thì tổng nói 82 mà ba đợt cộng lại không ra. */}
         <span className="text-muted-foreground text-[11px]">
           gửi <span className="tnum font-num">{grouped(w.sent)}</span> · mở{' '}
-          <span className="tnum font-num">{grouped(w.opened)}</span> · trả lời{' '}
-          <span className="tnum font-num">{w.replied}</span> · hỏng{' '}
+          <span className="tnum font-num">{grouped(w.opened)}</span> · bấm{' '}
+          <span className="tnum font-num">{w.clicked}</span> · hỏng{' '}
           <span className="tnum font-num">{w.bounced}</span>
         </span>
-        {w.expected > 0 ? (
-          <Progress
-            value={w.hitRate}
-            label={`${w.leads} lead trên kỳ vọng ${w.expected}`}
-            tone={w.hit ? 'success' : 'warning'}
-          />
-        ) : (
-          <span className="text-muted-foreground text-[11px]">
-            {w.leads} lead · đợt này không đặt kỳ vọng nên không chấm đạt hay hụt
-          </span>
-        )}
+        <span className="text-muted-foreground text-[11px]">
+          {w.expected !== null
+            ? `kỳ vọng ${w.expected} lead — hệ không quy lead về từng đợt, phép so nằm ở cả chuỗi`
+            : 'đợt này không ai đặt kỳ vọng'}
+        </span>
         {sendsViaE4(w.channel) ? null : (
           <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
             <Icon icon={TriangleAlert} size={16} />
@@ -388,9 +383,9 @@ export function CampaignDetailPage() {
               <StatCard
                 size="compact"
                 icon={Reply}
-                value={source.sent > 0 ? percent(source.replyRate) : '—'}
-                label="Tỉ lệ trả lời"
-                hint={source.sent > 0 ? `${source.replied} người trả lời` : 'không đợt nào gửi đi'}
+                value={source.sent > 0 ? percent(source.clickRate) : '—'}
+                label="Tỉ lệ bấm vào thư"
+                hint={source.sent > 0 ? `${source.clicked} người bấm` : 'không đợt nào gửi đi'}
               />
               <StatCard
                 size="compact"

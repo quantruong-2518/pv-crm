@@ -1,39 +1,50 @@
 import { queryOptions } from '@tanstack/react-query'
 import { type CostBandValue } from '@pv/engines'
+import type {
+  CampaignSource,
+  CampaignSourceResponse,
+  CampaignTotals,
+  SourceKind,
+  SourceWave,
+} from '@pv/contracts'
 import {
-  DAS_VINA_LEAD,
-  DAY_FROZEN,
   LEADS,
   LEAD_CATEGORIES,
   LEAD_TIERS,
-  OPPORTUNITIES,
-  SOURCES,
-  WAVE_REPLY_WINDOW,
-  dasVina,
-  dayISO,
-  opsFromSource,
-  sourceStats,
-  sourcesRan,
   type Lead,
   type LeadCategory,
   type LeadTier,
-  type Source,
-  type Wave,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
-import { ADDRESSED_CHANNELS, E4_CHANNELS } from '@/data/sales-config'
 import { bandText, costBreakdown, costOf, type CostBreakdown } from '@/data/source-cost'
 import { api } from '@/app/api'
 
-/** Nguồn lead — module 1 · Chiến dịch & Sự kiện. Kịch bản 2 · DAS Vina.
+/** Nguồn lead — module 1 · Chiến dịch & Sự kiện. ĐỌC TỪ MÁY CHỦ.
  *
- *  Đây là chỗ DUY NHẤT màn lấy chiến dịch và số của nó. Khi có backend, đổi thân
- *  các hàm `fetch*` thành lời gọi HTTP; màn không phải sửa.
+ *  ------------------------------------------------------------------
+ *  ĐÃ CẮT KHỎI FIXTURE — 28/08
+ *  ------------------------------------------------------------------
+ *  `sourcesQuery` và `campaignTotalsQuery` không còn `load`, và theo nghi thức
+ *  của `app/api/client.ts` thì đó CHÍNH LÀ lượt cắt: có `load` nghĩa là query
+ *  còn ăn fixture, vắng `load` nghĩa là nó đi HTTP thật.
  *
- *  Số của một chiến dịch KHÔNG tính ở tầng màn — `sourceStats` nằm trong fixture
- *  vì "lead tốt" là khái niệm của cổng init data, không phải của giao diện. Mọi
- *  tỉ lệ cũng tính ở đây chứ không ở JSX: một phép chia viết trong màn là một
- *  phép chia không ai test được, và hai màn cùng chia sẽ chia lệch nhau. */
+ *  ------------------------------------------------------------------
+ *  MÁY CHỦ GỬI TỬ SỐ VÀ MẪU SỐ; TỈ LỆ TÍNH Ở ĐÂY
+ *  ------------------------------------------------------------------
+ *  `GET /sales/campaigns/sources` trả về thứ đếm được — lead, lead tốt, thư đã
+ *  gửi, người mở, hoá đơn từng dòng. Bốn thứ màn thật sự vẽ (`openRate`,
+ *  `costPerGood`, dải giá, "đang chạy hay đã xong") đều là phép tính trên
+ *  chúng, và chúng tính ở file này vì đó là chỗ DUY NHẤT cả bảng lẫn hàng tổng
+ *  cùng đọc. Một phép chia viết trong JSX là một phép chia không ai test được,
+ *  và hai màn cùng chia sẽ chia lệch nhau.
+ *
+ *  ------------------------------------------------------------------
+ *  "TRẢ LỜI" ĐÃ THÀNH "BẤM VÀO", VÀ ĐÓ KHÔNG PHẢI ĐỔI CHỮ
+ *  ------------------------------------------------------------------
+ *  Bản fixture có cột `replied`. Hệ thư thật ghi được `OPEN` · `CLICK` ·
+ *  `UNSUBSCRIBE` và KHÔNG ghi được "người ta có trả lời không" — thư trả lời đi
+ *  vào hộp thư của người gửi, nơi máy chủ này không đọc. Giữ nhãn "Trả lời" mà
+ *  đổ số click vào là đặt một cái nhãn sai lên một con số đúng. */
 
 /** Cộng một trường của mảng. Dùng lại ở cả hàng nguồn lẫn hàng tổng để hai chỗ
  *  không thể cộng khác nhau. */
@@ -42,18 +53,43 @@ function sum<T>(xs: readonly T[], pick: (x: T) => number): number {
 }
 
 /** Chia có gác mẫu số. Trả 0 khi mẫu bằng 0 — màn không có chỗ nào hiện được
- *  `NaN`, và "chưa gửi ai" đọc thành 0% là đúng nghĩa. */
-function rate(top: number, bottom: number): number {
+ *  `NaN`, và "chưa gửi ai" đọc thành 0% là đúng nghĩa.
+ *
+ *  Xuất ra vì hàng score card chia trên số của CẢ SỔ (`campaignTotalsQuery`),
+ *  còn bảng chia trên số của một dòng — hai lát cắt, và chúng phải chia bằng
+ *  đúng một phép. Màn tự viết `a / b` là chỗ `NaN` quay lại đúng vào ngày sổ
+ *  chưa gửi thư nào. */
+export function rate(top: number, bottom: number): number {
   return bottom > 0 ? top / bottom : 0
 }
 
-/** Đạt bao nhiêu phần kỳ vọng. Khác `rate` ở đúng một chỗ: KHÔNG đặt kỳ vọng
- *  thì mọi lead về đều là "đủ" — 0 trên 0 không phải là hụt, và trả 0% ở đó sẽ
- *  làm thanh tiến độ nói ngược với chấm trạng thái ngay bên cạnh. */
-function hitOf(leads: number, expected: number): number {
-  if (expected > 0) return leads / expected
-  return leads > 0 ? 1 : 0
+// ---------------------------------------------------------------------------
+// TRỤC NGÀY — một chỗ đổi ISO thành số ngày, không phải mỗi màn một phép trừ
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86_400_000
+
+/** Số ngày từ mốc đầu kỳ tới một mốc ISO, làm tròn xuống.
+ *
+ *  Cắt về nửa đêm UTC trước khi trừ: hai mốc cách nhau 20 giờ nhưng nằm ở hai
+ *  ngày lịch phải ra 1, không phải 0. Nếu không thì mốc timeline nhảy chỗ tuỳ
+ *  theo giờ trong ngày mà lô rời máy chủ. */
+function daysFrom(fromISO: string, atISO: string): number {
+  const a = Date.parse(fromISO.slice(0, 10))
+  const b = Date.parse(atISO.slice(0, 10))
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0
+  return Math.round((b - a) / DAY_MS)
 }
+
+/** Hôm nay dạng `YYYY-MM-DD` — mốc mà mọi đợt sắp gửi đếm từ đó.
+ *
+ *  Đồng hồ THẬT. Bản trước đọc `dayISO(DAY_FROZEN)` của kịch bản đóng băng, và
+ *  đó là thứ làm ô "gửi ngày nào" của một form mở hôm nay mặc định về một ngày
+ *  trong quá khứ. */
+export const TODAY = new Date().toISOString().slice(0, 10)
+
+export const dayAfterToday = (n: number): string =>
+  new Date(Date.parse(TODAY) + n * DAY_MS).toISOString().slice(0, 10)
 
 /** Ba trạng thái của một chiến dịch, đúng thứ tự đời của nó.
  *
@@ -94,138 +130,156 @@ export const STATUS_DOT: Record<CampaignStatus, 'next' | 'current' | 'ok'> = {
  *  đọc theo mốc "đợt cuối đã rời máy chủ".
  *
  *  Chuỗi vừa gửi hôm kia mà gọi là "đã xong" thì người chạy nó đóng sổ sớm mất
- *  hai tuần trả lời; cửa sổ đặt ở fixture (`WAVE_REPLY_WINDOW`) kèm test khoá,
- *  không phải một con số gõ trong màn. Đợt còn nằm ở tương lai cũng giữ chuỗi ở
- *  "đang chạy" — hôm nay kịch bản không có đợt nào như thế, nhưng chiến dịch
- *  người dùng vừa tạo thì có. */
-function statusOf(lastDay: number, hasWaves: boolean): CampaignStatus {
+ *  hai tuần trả lời. Đợt còn nằm ở tương lai cũng giữ chuỗi ở "đang chạy" —
+ *  `todayDay - lastDay` âm thì vế so vẫn đúng, và một chiến dịch đã hẹn giờ mà
+ *  đọc thành "đã xong" là đọc ngược hẳn.
+ *
+ *  `todayDay` truyền vào chứ không đọc đồng hồ ở đây: cả bảng lẫn hàng tổng
+ *  phải chấm trạng thái trên CÙNG một mốc hôm nay, và hai lời gọi `Date.now()`
+ *  cách nhau một nhịp render là hai mốc khác nhau. */
+function statusOf(lastDay: number, todayDay: number, hasWaves: boolean): CampaignStatus {
   if (!hasWaves) return 'nhap'
-  return DAY_FROZEN - lastDay <= WAVE_REPLY_WINDOW ? 'dang-chay' : 'da-xong'
+  return todayDay - lastDay <= WAVE_REPLY_WINDOW ? 'dang-chay' : 'da-xong'
 }
 
-/** Một đợt kèm phép chấm của chính nó.
+/** Chuỗi còn được coi là ĐANG CHẠY bao nhiêu ngày sau đợt cuối, ngày.
  *
- *  `hit` và `hitRate` nằm ở ĐÂY chứ không ở JSX vì hai thứ trên màn đọc cùng một
- *  phép so — chấm trạng thái của mốc timeline và màu thanh tiến độ ngay dưới nó.
- *  Viết phép so hai lần trong màn là cách chắc chắn nhất để một hôm nào đó chấm
- *  xanh nằm trên thanh vàng. */
-export type WaveRow = Wave & {
-  /** Đợt đã đạt kỳ vọng đặt trước hay chưa. */
-  hit: boolean
-  /** Đạt bao nhiêu phần kỳ vọng của ĐỢT này. Trên 1 là vượt. */
+ *  **Số ĐẶT, không phải số đo.** Đây là luật hiển thị — nó quyết định một chuỗi
+ *  vừa gửi hôm kia đọc thành "đang chạy" hay "đã xong" — nên nó ở tầng app cạnh
+ *  `ENOUGH_GATE`, không ở máy chủ và không ở fixture. Đo lại được khi có nhật ký
+ *  trả lời theo ngày; tới lúc đó 14 là hai tuần, nhịp nhắc thông thường của một
+ *  chuỗi email. */
+const WAVE_REPLY_WINDOW = 14
+
+/** Một đợt như màn đọc nó — hợp đồng của máy chủ cộng hai thứ tầng màn cần. */
+export type WaveRow = SourceWave & {
+  /** Kênh của đợt. Hôm nay LUÔN là `email`, và nói thẳng ra chứ không bỏ
+   *  trường đi: một đợt của hệ này là một lô `platform.mail_run`, tức là thư —
+   *  Zalo OA, Telegram và ba nền tảng đăng bài chưa có đường gửi nào. Giữ
+   *  trường để bộ lọc kênh của bảng còn hỏi được câu của nó, và để ngày E4 mở
+   *  kênh thứ hai thì chỗ phải sửa là đây chứ không phải cả màn. */
+  channel: WaveChannel
+  /** Ngày gửi, đếm bằng ngày kể từ đầu kỳ. Trục thời gian của màn đo bằng số
+   *  ngày (mốc timeline, bộ lọc "30 ngày qua", cột "kéo dài"), nên chỗ đổi từ
+   *  ISO sang số ngày phải là MỘT chỗ — ở đây — chứ không phải mỗi màn một phép
+   *  trừ ngày tự viết. Đợt chưa gửi thì bằng ngày cuối kỳ: nó chưa xảy ra, nên
+   *  nó đứng ở mép phải của trục chứ không rơi về đầu kỳ. */
+  day: number
+}
+
+/* KHÔNG có `hit`/`hitRate` trên một ĐỢT, và chỗ trống này là một câu trả lời.
+   Hai trường đó so "lead đợt này kéo về" với `expected`, mà vế đầu KHÔNG TỒN
+   TẠI: `lead.campaign_id` quy lead về một NGUỒN, không về một đợt của nguồn —
+   một người nhận cả ba đợt rồi mới điền form thì lead đó là của đợt nào cũng
+   không ai trả lời được. Bản fixture có `Wave.leads` vì fixture tự chia con số
+   ấy ra; hệ thật thì không có ai chia.
+   Kỳ vọng vẫn ở lại trên đợt (người soạn đặt nó cho từng đợt), và phép so duy
+   nhất đúng là ở tầng NGUỒN — `SourceRow.hitRate` cộng cả chuỗi. */
+
+/** Một dòng của bảng nguồn — hợp đồng máy chủ CỘNG những phép tính màn cần.
+ *
+ *  ------------------------------------------------------------------
+ *  VÌ SAO KHÔNG DÙNG THẲNG `CampaignSource` CỦA HỢP ĐỒNG
+ *  ------------------------------------------------------------------
+ *  Hợp đồng chở sự kiện (lead, thư, hoá đơn); bảng vẽ kết luận (tỉ lệ, dải giá,
+ *  trạng thái, số ngày). Nếu màn tự tính lấy thì bảng và hàng tổng phía trên nó
+ *  tính hai lần cùng một phép — và hai lần tính là hai chỗ để chúng lệch nhau.
+ *  Dòng này là chỗ phép tính xảy ra ĐÚNG MỘT LẦN.
+ *
+ *  Mọi trường thêm vào đây phải là hàm thuần của những trường máy chủ gửi. Cái
+ *  gì không suy ra được thì không có mặt — chứ không điền 0 cho đủ cột. */
+export type SourceRow = {
+  // ---- máy chủ gửi ---------------------------------------------------------
+  code: string
+  /** Tên hiển thị. Tên trường là `label` chứ không `name` vì cả bảng lẫn thẻ
+   *  ContextRail đọc nó như NHÃN của một dòng, và đổi tên trường ở đây là sửa
+   *  chín chỗ trong hai màn cho một chữ. */
+  label: string
+  kind?: SourceKind
+  active: boolean
+  owner: string
+  ownerId?: string
+  followers: string[]
+  leads: number
+  /** Lead đã qua cổng init data. */
+  good: number
+  ops: number
+  waves: WaveRow[]
+  costs: CampaignSource['costs']
+  event?: CampaignSource['event']
+
+  // ---- cộng từ các đợt -----------------------------------------------------
+  /** Người nhận mà lô NỢ khi mở — mẫu số thật của mọi tỉ lệ dưới đây nếu muốn
+   *  đo cái phễu từ lúc bấm gửi. Màn hiện đang chia trên `sent`; hai số đi cùng
+   *  nhau để chỗ chênh (thư không rời được máy) đọc ra được. */
+  audience: number
+  sent: number
+  delivered: number
+  opened: number
+  clicked: number
+  bounced: number
+  /** Tổng kỳ vọng lead mọi đợt — số đặt TRƯỚC khi chạy. Đợt không ai đặt kỳ
+   *  vọng cộng 0 vào đây, nên `expected = 0` nghĩa là cả chuỗi không ai đặt. */
+  expected: number
+
+  /** Lead của nguồn CHƯA qua cổng init data — `leads` trừ `good`. Phép trừ
+   *  nghiệp vụ, không phải phép trừ trang trí trong JSX. */
+  notGood: number
+
+  // ---- bốn tỉ lệ · mỗi cái trả lời đúng một câu ------------------------------
+  /** Mở trên số người nhận. */
+  openRate: number
+  /** Bấm trên số người nhận — KHÔNG phải "trả lời", xem docblock đầu file. */
+  clickRate: number
+  /** Hỏng trên số người nhận. Mẫu số ĐÚNG BẰNG mẫu số của hai tỉ lệ trên — ba
+   *  cột cạnh nhau mà chia trên ba mẫu số khác nhau là ba cột không so được với
+   *  nhau, và người đọc không có cách nào biết. */
+  bounceRate: number
+  /** Qua cổng init data ở mức nào — lead tốt trên lead. Tỉ lệ đắt nhất: một
+   *  nguồn kéo nhiều lead mà `mqlRate` thấp là nguồn đang làm bận cả BD. */
+  mqlRate: number
+  /** Đạt bao nhiêu phần kỳ vọng — lead trên `expected`. Trên 1 là vượt. */
   hitRate: number
+  /** Chỉ sự kiện: người đến trên người đăng ký. `null` = không phải sự kiện
+   *  hoặc chưa ai nhập số đăng ký, KHÔNG phải "chưa ai đến". */
+  attendRate: number | null
+
+  // ---- tiền · dải giá và phân rã --------------------------------------------
+  /** Tổng chi tiền mặt của nguồn, đồng. Cộng từ chính các dòng hoá đơn — không
+   *  có cột tổng nào ở máy chủ để hai số lệch nhau. */
+  cost: number
+  /** Dải giá mỗi lead tốt, 95%. `costPerGood` là `band.point` — cùng một số, và
+   *  màn KHÔNG được hiện điểm một mình. */
+  band: CostBandValue
+  /** Dải đủ chắc để đứng cạnh một câu khẳng định chưa. */
+  enough: boolean
+  /** Vì sao chưa đủ. Rỗng khi `enough`. */
+  why: string
+  /** Dải viết thành chữ, cho những chỗ chỉ nhận chuỗi (hint của thẻ số). */
+  bandText: string
+  /** Tiền của nguồn đi đâu — năm loại L1…L5, số và tỉ trọng. Nguồn chưa nhập
+   *  hoá đơn nào cho `rows` rỗng: 0 đồng là NỘI DUNG, không phải chỗ thiếu số. */
+  costByKind: CostBreakdown
+
+  // ---- trục thời gian --------------------------------------------------------
+  startISO: string
+  startDay: number
+  /** Ngày của đợt cuối. Nguồn chưa có đợt nào thì bằng chính `startDay`. */
+  lastDay: number
+  lastISO: string
+  /** Chuỗi kéo dài bao nhiêu ngày, từ mốc đầu tới mốc cuối. */
+  runDays: number
+  /** Nháp · đang chạy · đã xong — xem `statusOf`. */
+  status: CampaignStatus
 }
-
-export type SourceRow = Omit<Source, 'waves'> &
-  ReturnType<typeof sourceStats> & {
-    waves: WaveRow[]
-
-    /** Mã đơn của nguồn này ĐANG CÓ MẶT trong đồ thị E1, nếu có.
-     *
-     *  Đây là chỗ ContextRail bám vào (luật 10): chiến dịch chưa có `ObjectKind`
-     *  riêng trong E1 nên rail phải mượn một đơn mà nguồn đã kéo về. Tìm bằng
-     *  code trên fixture, KHÔNG gõ cặp mã nào ra tay.
-     *
-     *  Lọc thêm bằng `dasVina.graph.get` chứ không lấy đơn ĐẦU TIÊN có
-     *  `dealCode`: đồ thị của DAS Vina mới có bốn object (AC-0142 · CT-0391 ·
-     *  OP-0288 · BG-1077), nên một đơn ngoài đồ thị chỉ làm `story()` trả rỗng —
-     *  tức trường này nói "có chuỗi" trong khi không có.
-     *
-     *  Thực tế hôm nay: ĐÚNG MỘT trong tám nguồn ra được chuỗi thật — nguồn đã
-     *  kéo chính DAS Vina về. Bảy nguồn còn lại rail rút về một chip của chính
-     *  mã nguồn, giống hệt lead chưa vào pipeline ở module 2; đó là thiếu object
-     *  trong đồ thị chứ không phải rail hỏng. Khi E1 có `ObjectKind` cho chiến
-     *  dịch thì đưa thẳng chiến dịch vào đồ thị và bỏ đường vòng này. */
-    anchorDeal?: string
-
-    // ---- số của chuỗi đợt · cộng từ `waves`, nguồn tự nhiên thì bằng 0 -------
-    /** Tổng người nhận mọi đợt. */
-    sent: number
-    opened: number
-    replied: number
-    /** Địa chỉ không nhận được, cộng mọi đợt. Xem `Wave.bounced` ở fixture: đợt
-     *  đăng bài luôn 0 vì không có địa chỉ nào để dội. */
-    bounced: number
-    /** Tổng kỳ vọng lead mọi đợt — số đặt TRƯỚC khi chạy. */
-    expected: number
-
-    /** Lead của nguồn này đã thành cơ hội trong sổ module 3. Đây là cột cuối của
-     *  bảng và là câu trả lời thật cho "chiến dịch này có ra tiền không" — mọi
-     *  cột trước nó mới chỉ đo được cái phễu. */
-    ops: number
-
-    /** Lead của nguồn CHƯA qua cổng init data — `leads` trừ `good`. Đây là con
-     *  số khối AI nhắm tới khi đề xuất đợt tiếp theo, nên nó là một phép trừ
-     *  nghiệp vụ chứ không phải một phép trừ trang trí trong JSX. */
-    notGood: number
-
-    // ---- bốn tỉ lệ · mỗi cái trả lời đúng một câu ----------------------------
-    /** Mở trên số người nhận. */
-    openRate: number
-    /** Trả lời trên số người nhận. */
-    replyRate: number
-    /** Hỏng trên số người nhận. Mẫu số ĐÚNG BẰNG mẫu số của hai tỉ lệ trên —
-     *  ba cột cạnh nhau mà chia trên ba mẫu số khác nhau là ba cột không so được
-     *  với nhau, và người đọc không có cách nào biết. Hệ quả phải chấp nhận:
-     *  chiến dịch chạy bằng bài đăng có mẫu số phồng lên vì reach, nên tỉ lệ
-     *  hỏng của nó gần 0 — cột Kênh ngay cạnh nói ra lý do. */
-    bounceRate: number
-    /** Qua cổng init data ở mức nào — lead tốt trên lead. Đây là tỉ lệ đắt nhất:
-     *  một nguồn kéo nhiều lead mà `mqlRate` thấp là nguồn đang làm bận cả BD. */
-    mqlRate: number
-    /** Đạt bao nhiêu phần kỳ vọng — lead trên `expected`. Trên 1 là vượt. */
-    hitRate: number
-    /** Chỉ sự kiện: người đến trên người đăng ký. `null` = không phải sự kiện,
-     *  KHÔNG phải "chưa ai đến". */
-    attendRate: number | null
-
-    // ---- tiền · dải giá và phân rã ------------------------------------------
-    /** Dải giá mỗi lead tốt, 95%. `costPerGood` là `band.point` — cùng một số,
-     *  và màn KHÔNG được hiện điểm một mình. */
-    band: CostBandValue
-    /** Dải đủ chắc để đứng cạnh một câu khẳng định chưa. */
-    enough: boolean
-    /** Vì sao chưa đủ. Rỗng khi `enough`. */
-    why: string
-    /** Dải viết thành chữ, cho những chỗ chỉ nhận chuỗi (hint của thẻ số). */
-    bandText: string
-    /** Tiền của nguồn đi đâu — năm loại L1…L5, số và tỉ trọng. Nguồn tự nhiên
-     *  cho `rows` rỗng: 0 đồng tiền mặt là NỘI DUNG, không phải chỗ thiếu số. */
-    costByKind: CostBreakdown
-
-    // ---- trục thời gian của chuỗi -------------------------------------------
-    startISO: string
-    /** Ngày của đợt cuối. Nguồn không có đợt thì bằng chính `startDay`. */
-    lastDay: number
-    lastISO: string
-    /** Chuỗi kéo dài bao nhiêu ngày, từ đợt đầu tới đợt cuối. */
-    runDays: number
-    /** Nháp · đang chạy · đã xong — xem `statusOf`. Trong kịch bản đóng băng
-     *  đúng MỘT nguồn còn "đang chạy" (SK-0106, đợt cuối ngày 103), năm nguồn
-     *  kia đã ra khỏi cửa sổ trả lời. `campaigns.test.ts` khoá chỗ chia này. */
-    status: CampaignStatus
-
-    /** Người theo dõi thêm, không kể chủ nguồn. Rỗng là câu trả lời hợp lệ. */
-    followers: string[]
-  }
-
-/** Nguồn mồi mọi lần mở màn: nguồn đã kéo chính DAS Vina về.
- *  Suy từ `DAS_VINA_LEAD`, không gõ mã chiến dịch thẳng vào màn. */
-export const ANCHOR_SOURCE =
-  LEADS.find((l) => l.code === DAS_VINA_LEAD)?.source ?? SOURCES[0]?.code ?? ''
-
-/** Nguồn mẫu của tab "Tạo mới": nguồn ĐÃ CHẠY ĐỢT và ra nhiều lead nhất trong
- *  kỳ. Chọn bằng số chứ không chỉ tay vào một mã — đổi fixture thì mẫu tự đi
- *  theo. */
-const SAMPLE = [...sourcesRan()].sort((a, b) => b.leads - a.leads)[0]
-
-/** Hôm nay của kịch bản, dạng `YYYY-MM-DD` — mốc mà mọi đợt sắp gửi đếm từ đó.
+/** Nguồn mở sẵn khi vào màn chi tiết mà chưa chọn dòng nào.
  *
- *  KHÔNG gọi `new Date()`: kịch bản đóng băng, và một form dựng lại hai lần phải
- *  mở ra đúng một ngày. */
-export const TODAY = dayISO(DAY_FROZEN).slice(0, 10)
-
-export const dayAfterToday = (n: number) => dayISO(DAY_FROZEN + n).slice(0, 10)
+ *  Rỗng, và màn phải chịu được điều đó: bản trước trỏ vào nguồn đã kéo DAS Vina
+ *  về — một mã có thật trong kịch bản và không có thật trong sổ cấu hình. Với
+ *  dữ liệu thật thì "nguồn nào đáng mở đầu tiên" là câu chỉ trả lời được sau
+ *  khi bảng về, nên nó là việc của màn (dòng đầu của bảng đã sắp), không phải
+ *  của một hằng số tầng dữ liệu. */
+export const ANCHOR_SOURCE = ''
 
 export type DraftWave = {
   label: string
@@ -252,41 +306,42 @@ export type DraftWave = {
   content: string
 }
 
-/** Nhịp mặc định khi bấm "Thêm đợt": khoảng cách giữa hai đợt cuối của nguồn
- *  mẫu, không phải một con số tròn ai đó thấy đẹp. */
-export const DRAFT_STEP_DAYS = (() => {
-  const w = SAMPLE?.waves ?? []
-  const last = w[w.length - 1]?.day ?? 0
-  const prev = w[w.length - 2]?.day ?? 0
-  return Math.max(1, last - prev)
-})()
+/** Nhịp mặc định khi bấm "Thêm đợt", ngày.
+ *
+ *  **Số ĐẶT.** Bản trước đo khoảng cách hai đợt cuối của một nguồn mẫu trong
+ *  fixture — một phép đo thật trên dữ liệu giả. Trên dữ liệu thật thì nguồn mẫu
+ *  đó không tồn tại, và đo nhịp của chiến dịch đầu tiên có mặt là đo một mẫu
+ *  cỡ một. Mười bốn ngày là hai tuần, nhịp nhắc thông thường của một chuỗi
+ *  email, và người soạn sửa được ngay trên form. */
+export const DRAFT_STEP_DAYS = 14
 
-/** Bản nháp mở đầu của form "Chiến dịch mới" — CHÉP NHỊP của nguồn mẫu, không
- *  phải số đo của chiến dịch mới.
+/** Bản nháp mở đầu của form "Chiến dịch mới".
  *
- *  Mọi giá trị suy từ fixture. Gõ tay "sau 14 ngày" thì đổi fixture là ô nhập
- *  nói một đằng, chuỗi đợt đã chạy nói một nẻo, mà không ai biết — và trên màn
- *  con số gõ tay trông hệt như một số đo thật.
+ *  Chỉ MỘT đợt, và đó là chỗ khác hẳn bản trước: bản trước chép cả chuỗi của
+ *  một nguồn mẫu trong fixture, nên form mở ra đã có sẵn ba đợt mà người soạn
+ *  không đặt đợt nào. Một đợt mở màn là thứ ít nhất mà một chiến dịch phải có,
+ *  và "Thêm đợt" ngay bên cạnh.
  *
- *  Đợt MỞ MÀN mặc định "Gửi ngay": người mới soạn chiến dịch đầu tiên gần như
+ *  Đợt mở màn mặc định "Gửi ngay": người mới soạn chiến dịch đầu tiên gần như
  *  luôn muốn nó đi ngay khi bấm chạy, và bắt họ chọn một ngày trước khi hiểu
- *  chuỗi hoạt động ra sao là bắt chọn thứ chưa có gì để chọn. */
+ *  chuỗi hoạt động ra sao là bắt chọn thứ chưa có gì để chọn.
+ *
+ *  `name` là VÍ DỤ để làm placeholder, không phải dữ liệu — màn in nó sau chữ
+ *  "Ví dụ", và nó phải đọc ra như một cái tên người ta sẽ gõ. */
 export const DRAFT_TEMPLATE = {
-  /** Nguồn được chép, để màn nói thẳng bản nháp này từ đâu ra. */
-  fromCode: SAMPLE?.code ?? '',
-  name: SAMPLE?.label ?? '',
-  waves: (SAMPLE?.waves ?? []).map((w, i): DraftWave => {
-    const gap = w.day - (SAMPLE?.waves[0]?.day ?? w.day)
-    return {
-      label: w.label,
-      channel: w.channel,
-      sendNow: i === 0,
-      dateISO: dayAfterToday(gap),
+  fromCode: '',
+  name: 'Chuỗi email nhà máy chip Bắc Ninh',
+  waves: [
+    {
+      label: 'Đợt mở màn',
+      channel: 'email',
+      sendNow: true,
+      dateISO: TODAY,
       time: '09:00',
-      expected: w.expected,
+      expected: 0,
       content: '',
-    }
-  }),
+    },
+  ] satisfies DraftWave[],
 }
 
 // ---------------------------------------------------------------------------
@@ -358,156 +413,129 @@ export function groupText(g: LeadGroup): string {
   return parts.length === 0 ? 'cả sổ lead, chưa lọc chiều nào' : parts.join(' · ')
 }
 
-function rowOf(s: Source): SourceRow {
-  const stats = sourceStats(s.code)
-  const priced = costOf(s, s.cost, stats.leads, stats.good)
-  const sent = sum(s.waves, (w) => w.sent)
-  const opened = sum(s.waves, (w) => w.opened)
-  const replied = sum(s.waves, (w) => w.replied)
-  const bounced = sum(s.waves, (w) => w.bounced)
-  const expected = sum(s.waves, (w) => w.expected)
-  const lastDay = s.waves.length > 0 ? Math.max(...s.waves.map((w) => w.day)) : s.startDay
+// ---------------------------------------------------------------------------
+// Một dòng bảng, dựng từ một dòng máy chủ
+// ---------------------------------------------------------------------------
+
+/** Hợp đồng + kỳ → dòng bảng. Chỗ DUY NHẤT tính tỉ lệ, dải giá và trạng thái.
+ *
+ *  `period` vào cùng vì ba thứ của dòng đo bằng NGÀY KỂ TỪ ĐẦU KỲ (`startDay`,
+ *  `lastDay`, `runDays`) và một thứ đo bằng "cách hôm nay bao xa" (`status`).
+ *  Cả hai mốc đó thuộc về cả sổ, không thuộc về một dòng — nên chúng đi vào
+ *  chứ không được đọc lại trong đây. */
+function rowOf(s: CampaignSource, period: { fromISO: string; toISO: string }): SourceRow {
+  const todayDay = daysFrom(period.fromISO, new Date().toISOString())
+  const endDay = daysFrom(period.fromISO, period.toISO)
+
+  const waves: WaveRow[] = s.waves.map((w) => ({
+    ...w,
+    channel: 'email',
+    day: w.sentAt ? daysFrom(period.fromISO, w.sentAt) : endDay,
+  }))
+
+  const audience = sum(waves, (w) => w.audience)
+  const sent = sum(waves, (w) => w.sent)
+  const delivered = sum(waves, (w) => w.delivered)
+  const opened = sum(waves, (w) => w.opened)
+  const clicked = sum(waves, (w) => w.clicked)
+  const bounced = sum(waves, (w) => w.bounced)
+  const expected = sum(waves, (w) => w.expected ?? 0)
+  const cost = sum(s.costs, (c) => c.amount)
+
+  const startDay = s.firstAt ? daysFrom(period.fromISO, s.firstAt) : 0
+  const lastDay = waves.length > 0 ? Math.max(...waves.map((w) => w.day)) : startDay
+
+  const priced = costOf({ code: s.code, label: s.name }, cost, s.leads, s.goodLeads)
+  const registered = s.event?.registered
 
   return {
-    ...s,
-    ...stats,
-    waves: s.waves.map((w) => ({
-      ...w,
-      hit: w.leads >= w.expected,
-      hitRate: hitOf(w.leads, w.expected),
-    })),
-    anchorDeal: LEADS.find(
-      (l) => l.source === s.code && l.dealCode && dasVina.graph.get(l.dealCode),
-    )?.dealCode,
+    code: s.code,
+    label: s.name,
+    kind: s.kind,
+    active: s.active,
+    /* Nguồn chưa ai đứng tên in ra một câu, không in ra chuỗi rỗng: một ô
+       trống trên cột "PIC" đọc như lỗi tải, còn "chưa ai" là một câu trả lời. */
+    owner: s.ownerName ?? 'Chưa ai đứng tên',
+    ownerId: s.ownerId,
+    followers: s.followers.map((f) => f.name),
 
+    leads: s.leads,
+    good: s.goodLeads,
+    notGood: s.leads - s.goodLeads,
+    ops: s.ops,
+
+    waves,
+    costs: s.costs,
+    event: s.event,
+
+    audience,
     sent,
+    delivered,
     opened,
-    replied,
+    clicked,
     bounced,
     expected,
-    ops: opsFromSource(s.code),
-    notGood: stats.leads - stats.good,
 
     openRate: rate(opened, sent),
-    replyRate: rate(replied, sent),
+    clickRate: rate(clicked, sent),
     bounceRate: rate(bounced, sent),
-    mqlRate: rate(stats.good, stats.leads),
-    hitRate: rate(stats.leads, expected),
-    attendRate: typeof s.registered === 'number' ? rate(s.checkedIn ?? 0, s.registered) : null,
+    mqlRate: rate(s.goodLeads, s.leads),
+    hitRate: rate(s.leads, expected),
+    /* `null` khi không phải sự kiện HOẶC chưa ai nhập số đăng ký — cả hai đều
+       là "không có mẫu số", và 0% ở đó đọc thành "không ai đến". */
+    attendRate:
+      typeof registered === 'number' && registered > 0
+        ? rate(s.event?.checkedIn ?? 0, registered)
+        : null,
 
+    cost,
     band: priced.band,
     enough: priced.enough,
     why: priced.why,
     bandText: bandText(priced.band),
-    costByKind: costBreakdown(s.costLines),
+    costByKind: costBreakdown(s.costs),
 
-    startISO: dayISO(s.startDay),
+    startISO: s.firstAt ?? period.fromISO,
+    startDay,
     lastDay,
-    lastISO: dayISO(lastDay),
-    runDays: lastDay - s.startDay,
-    status: statusOf(lastDay, s.waves.length > 0),
-
-    followers: s.followers ?? [],
+    lastISO: s.lastAt ?? s.firstAt ?? period.fromISO,
+    runDays: Math.max(0, lastDay - startDay),
+    status: statusOf(lastDay, todayDay, waves.length > 0),
   }
 }
 
-/** Sổ chiến dịch — SÁU dòng, không phải tám.
- *
- *  Hai nguồn tự nhiên (GT · TM) đứng ngoài từ 23/08: không ai chạy đợt nào cho
- *  chúng, nên không có gì để gửi, để dừng, hay để nhân bản. Mọi cột của sổ mới —
- *  người nhận, mở, trả lời, hỏng — đều rỗng ở hai dòng đó, và một dòng rỗng
- *  toàn tập đọc như lỗi tải chứ không đọc như "khách tự tìm tới". 12 lead của
- *  chúng vẫn nằm nguyên ở Sổ lead, đúng chỗ của chúng.
- *
- *  Ba nguồn `su-kien` thì Ở LẠI và đọc thành chiến dịch: chúng có chuỗi đợt, có
- *  người nhận, có mail đi ra — tức chúng trả lời đúng câu mà sổ này hỏi. Cái bị
- *  bỏ là NHÃN "sự kiện" trên màn, không phải sáu dòng dữ liệu. */
-async function fetchSources(): Promise<SourceRow[]> {
-  return SOURCES.filter((s) => s.kind !== 'tu-nhien').map(rowOf)
-}
+// ---------------------------------------------------------------------------
+// Hai cửa
+// ---------------------------------------------------------------------------
 
-/** NĂM con số của hàng score card — hai ô đếm chiến dịch, ba ô đo cái phễu mail.
- *
- *  Hàng cũ có sáu ô và trộn ba câu hỏi khác nhau (nguồn · đợt · tiền). Hàng này
- *  hỏi đúng một câu và trả lời theo thứ tự người mới đọc từ trái sang: *bao
- *  nhiêu chiến dịch xong rồi · bao nhiêu còn đang chạy · gửi đi bao nhiêu · có
- *  ai mở không · có ai trả lời không.*
- *
- *  MẪU SỐ CỦA BA TỈ LỆ LÀ CÙNG MỘT SỐ (`sent`), và đó là lựa chọn phải nói ra:
- *  `sent` gộp cả reach của bài đăng LinkedIn/Facebook, nên tỉ lệ mở của cả kỳ
- *  thấp hơn tỉ lệ mở của riêng email khá nhiều. Ba tỉ lệ đứng cạnh nhau so được
- *  với nhau là thứ đáng giá hơn ba con số đẹp mà mỗi cái chia trên một tập khác.
- *  `addressed` in ra ngay dưới hàng để chỗ chênh đó không phải đoán. */
-async function fetchCampaignTotals() {
-  const ran = sourcesRan()
-  const waves = ran.flatMap((s) => s.waves)
-  /** Đợt nằm ngoài bốn kênh E4: hệ không gửi được, người tự đăng rồi nhập số về. */
-  const manual = waves.filter((w) => !E4_CHANNELS.includes(w.channel))
-  /** Đợt GỬI TỚI MỘT ĐỊA CHỈ — chỗ duy nhất chữ "mail" đúng nghĩa đen. */
-  const addressed = waves.filter((w) => ADDRESSED_CHANNELS.includes(w.channel))
+/** Hai query, MỘT mức quyền: cả hai đọc cùng một sổ nguồn, chỉ khác lát cắt.
+ *  Cho chúng hai mức khác nhau là mở đường cho một màn hiện tổng mà không hiện
+ *  được dòng nào. Máy chủ khai đúng chữ này ở `SourceController`. */
+const CAMPAIGN_ACCESS = { branch: 'Sales', permission: 'chiến-dịch.xem' } as const
 
-  const sent = sum(waves, (w) => w.sent)
-  const opened = sum(waves, (w) => w.opened)
-  const replied = sum(waves, (w) => w.replied)
-  const bounced = sum(waves, (w) => w.bounced)
+/** Bảng nguồn. Nguồn TỰ NHIÊN đứng ngoài — không ai chạy đợt nào cho chúng, nên
+ *  mọi cột của bảng (người nhận, mở, bấm, hỏng) đều rỗng ở những dòng đó, và
+ *  một dòng rỗng toàn tập đọc như lỗi tải chứ không đọc như "khách tự tìm tới".
+ *  Lead của chúng vẫn nằm nguyên ở sổ lead, và `campaignTotalsQuery.natural`
+ *  đếm chúng một lần cho cả màn. */
+export const sourcesQuery = queryOptions({
+  queryKey: ['sales', 'sources'] as const,
+  queryFn: ({ signal }) =>
+    api
+      .read<CampaignSourceResponse>('/sales/campaigns/sources', {
+        need: CAMPAIGN_ACCESS,
+        signal,
+      })
+      .then((r) => r.rows.filter((s) => s.kind !== 'tu-nhien').map((s) => rowOf(s, r.period))),
+})
 
-  /* Đếm trạng thái đi qua ĐÚNG hàm mà từng dòng bảng dùng. Đếm lại bằng một
-     phép so riêng ở đây là cách chắc chắn nhất để ô "Đang chạy" nói 2 trong khi
-     bảng dưới nó chỉ tô một dòng. */
-  const statuses = ran.map((s) => statusOf(Math.max(...s.waves.map((w) => w.day)), true))
-
-  return {
-    /** Chiến dịch đã ra khỏi cửa sổ trả lời — coi như chốt sổ. */
-    done: statuses.filter((s) => s === 'da-xong').length,
-    /** Còn trong cửa sổ trả lời, hoặc còn đợt chưa tới ngày. */
-    running: statuses.filter((s) => s === 'dang-chay').length,
-    /** Tổng số chiến dịch của sổ. */
-    campaigns: ran.length,
-    /** Tổng số đợt đã gửi trong kỳ. */
-    waves: waves.length,
-
-    sent,
-    opened,
-    replied,
-    bounced,
-
-    openRate: rate(opened, sent),
-    replyRate: rate(replied, sent),
-    bounceRate: rate(bounced, sent),
-
-    /** Phần gửi tới một địa chỉ thật, tách khỏi phần reach của bài đăng và số
-     *  người quét mã tại chỗ. Đây là chỗ chênh mà ba tỉ lệ ở trên đang gánh. */
-    addressed: {
-      sent: sum(addressed, (w) => w.sent),
-      waves: addressed.length,
-    },
-
-    /** Đợt nằm ngoài bốn kênh E4 — không có đường gửi thật, người phải tự đăng.
-     *  Đây là nợ treo số 2 hiện ra thành một con số đếm được. */
-    manualWaves: manual.length,
-    manualSent: sum(manual, (w) => w.sent),
-
-    /** Cơ hội sáu chiến dịch này đẻ ra, trên cả sổ cơ hội của kỳ. Chỗ chênh là
-     *  khách tự tìm tới — không chiến dịch nào được ghi công. */
-    ops: sum(ran, (s) => opsFromSource(s.code)),
-    opsBook: OPPORTUNITIES.length,
-
-    /** Hai nguồn tự nhiên đã ra khỏi sổ này (xem `fetchSources`) — số lead của
-     *  chúng vẫn phải nói ra một lần, không thì sáu dòng đọc như cả kỳ. */
-    natural: {
-      count: SOURCES.filter((s) => s.kind === 'tu-nhien').length,
-      leads: sum(
-        SOURCES.filter((s) => s.kind === 'tu-nhien'),
-        (s) => s.leads,
-      ),
-    },
-
-    /** Kỳ của kịch bản: 01/05 → ngày đóng băng. Suy từ `DAY_FROZEN`. */
-    period: { fromISO: dayISO(0), toISO: dayISO(DAY_FROZEN) },
-  }
-}
-
-export type CampaignTotals = Awaited<ReturnType<typeof fetchCampaignTotals>>
+/** Hàng score card. Trả nguyên hình của hợp đồng — mọi tỉ lệ của hàng này tính
+ *  ở màn bằng chính `rate()` mà bảng dùng, nên hai chỗ không thể chia lệch. */
+export const campaignTotalsQuery = queryOptions({
+  queryKey: ['sales', 'campaign-totals'] as const,
+  queryFn: ({ signal }) =>
+    api.read<CampaignTotals>('/sales/campaigns/totals', { need: CAMPAIGN_ACCESS, signal }),
+})
 
 export type SourceSort = {
   key: string
@@ -528,7 +556,7 @@ export const SOURCE_SORTS = [
   { key: 'ket-thuc', compare: (a: SourceRow, b: SourceRow) => a.lastDay - b.lastDay },
   { key: 'nguoi-nhan', compare: (a: SourceRow, b: SourceRow) => a.sent - b.sent },
   { key: 'mo', compare: (a: SourceRow, b: SourceRow) => a.openRate - b.openRate },
-  { key: 'tra-loi', compare: (a: SourceRow, b: SourceRow) => a.replyRate - b.replyRate },
+  { key: 'bam', compare: (a: SourceRow, b: SourceRow) => a.clickRate - b.clickRate },
   { key: 'hong', compare: (a: SourceRow, b: SourceRow) => a.bounceRate - b.bounceRate },
   { key: 'ops', compare: (a: SourceRow, b: SourceRow) => a.ops - b.ops },
 ] as const satisfies readonly SourceSort[]
@@ -584,7 +612,10 @@ export function filterSources(rows: SourceRow[], f: CampaignFilter): SourceRow[]
     if (f.owner && r.owner !== f.owner) return false
     if (f.channel && !r.waves.some((w) => w.channel === f.channel)) return false
     if (f.status && r.status !== f.status) return false
-    if (win !== null && DAY_FROZEN - r.startDay > win) return false
+    /* Khoảng cách tính từ HÔM NAY THẬT tới ngày mở nguồn, không từ mốc đóng
+       băng của một kịch bản. `daysFrom` cắt cả hai mốc về nửa đêm trước khi
+       trừ, nên một nguồn mở sáng nay không rơi ra ngoài cửa sổ "30 ngày". */
+    if (win !== null && daysFrom(r.startISO, TODAY) > win) return false
     return true
   })
 }
@@ -608,20 +639,3 @@ export const channelsInUse = (rows: SourceRow[]): WaveChannel[] => {
   }
   return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c)
 }
-
-/** Hai query, MỘT mức quyền: cả hai đọc cùng một sổ chiến dịch, chỉ khác lát
- *  cắt. Cho chúng hai mức khác nhau là mở đường cho một màn hiện tổng mà không
- *  hiện được dòng nào. */
-const CAMPAIGN_ACCESS = { branch: 'Sales', permission: 'chiến-dịch.xem' } as const
-
-export const sourcesQuery = queryOptions({
-  queryKey: ['sales', 'sources'] as const,
-  queryFn: () =>
-    api.read('/sales/campaigns/sources', { need: CAMPAIGN_ACCESS, load: fetchSources }),
-})
-
-export const campaignTotalsQuery = queryOptions({
-  queryKey: ['sales', 'campaign-totals'] as const,
-  queryFn: () =>
-    api.read('/sales/campaigns/totals', { need: CAMPAIGN_ACCESS, load: fetchCampaignTotals }),
-})

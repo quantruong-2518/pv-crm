@@ -31,7 +31,6 @@ import {
   Skeleton,
 } from '@pv/ui'
 import {
-  dasVina,
   LEAD_CATEGORIES,
   LEAD_TIERS,
   opportunityOfLead,
@@ -46,6 +45,7 @@ import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
+import { useDirectory } from '@/data/directory'
 import { EXIT_REASON_LABEL, NO_CAMPAIGN_ICON, peopleOn } from '@/data/leads'
 import {
   leadOf,
@@ -186,6 +186,10 @@ export function LeadDetailPage() {
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
 
   const me = useSession((s) => s.actor)
+  /* Sổ người của máy chủ. Gọi TRƯỚC mọi nhánh `return` sớm bên dưới — màn này
+     thoát ra ở ba chỗ (đang tải, lỗi, không thấy), và một hook nằm sau chúng
+     là một hook chạy khi có lead mà không chạy khi không. */
+  const staff = useDirectory()
   const assigns = useLeadDesk((s) => s.assigns)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
@@ -247,7 +251,7 @@ export function LeadDetailPage() {
      `nextActions` tự gọi hàm sinh đó bên trong, và với một mã ngoài dải đóng
      băng (Apollo) nó nặn ra một cái tên và một số điện thoại không có thật. */
   const contact = realContact(lead)
-  const people = peopleOn(legacy, assigns, dasVina.actors)
+  const people = peopleOn(legacy, assigns, staff)
   /* Tên account đọc từ bản hồ sơ ĐÃ LƯU: sửa tên trong form thì đầu trang phải
      đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
   const accountName = savedName ?? lead.company
@@ -557,7 +561,7 @@ function ToolsBar({
     : lead.contactName
   /* Vai của người giữ tra bằng ID, không bằng TÊN. Tên trùng nhau và đổi khi
      người ta cưới xin; `ownerId` là thứ duy nhất được phép đem đi so. */
-  const ownerRole = dasVina.actors.find((a) => a.id === lead.ownerId)?.role
+  const ownerRole = useDirectory().find((a) => a.id === lead.ownerId)?.role
   /* Máy chủ trả KHOÁ lý do rơi (`khong-goi-duoc`); màn in NHÃN. */
   const exitLabel = lead.exitReason
     ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)

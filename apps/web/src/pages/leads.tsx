@@ -69,7 +69,8 @@ import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery } from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
-import { LEAD_SPEC } from '@/data/intake'
+import { useDirectory } from '@/data/directory'
+import { LEAD_SPEC, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { LeadCreateDialog } from '@/components/lead-create-dialog'
@@ -412,6 +413,12 @@ export function LeadsPage() {
      một chỗ. Sổ không đổi cột hay chèn thêm section khi soạn mail. */
   const [composing, setComposing] = useState(false)
 
+  /* Bản vẽ nạp tệp + sổ người của máy chủ. Ô "Lead PIC" là danh sách đóng, và
+     danh sách đó là những người ĐANG làm ở đây — không phải bảy cái tên từng
+     nằm trong fixture. */
+  const staff = useDirectory()
+  const leadSpec = useMemo(() => withPeople(LEAD_SPEC, staff), [staff])
+
   const loadFile = useLeadImport()
 
   /* Lô nạp GHI THẲNG lên máy chủ — hai cửa, đúng vai từng cửa, cả hai nằm ở
@@ -472,7 +479,7 @@ export function LeadsPage() {
                 Tạo lead
               </Button>
               <ImportZone
-                spec={LEAD_SPEC}
+                spec={leadSpec}
                 existingKeys={NO_LOCAL_KEYS}
                 buttonLabel="Đẩy danh sách"
                 onCommit={commitLeads}

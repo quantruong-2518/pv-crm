@@ -8,24 +8,36 @@ import {
   type ObjectRef,
 } from '@pv/engines'
 import {
+  ContractSignResponse,
   OpportunityBookResponse,
   OpportunityCreateResponse,
+  OpportunityImportCommitResponse,
+  OpportunityImportPreviewResponse,
   OpportunityUpdateResponse,
+  type ContractSign,
   type MaObject,
+  type OpportunityBookQuery,
   type OpportunityCreate,
+  type OpportunityImportBody,
   type OpportunityUpdate,
-  type PageQuery,
+  type TouchTimelineResponse,
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, notFound } from '@api/platform/http/problem'
+import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
+import { ContractRepository } from '../contract/contract.repository'
+import { fromSign, toContract as toContractRow } from '../contract/contract.mapper'
+import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
+import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import {
+  closeForSign,
   fromCreate,
   fromUpdate,
   daysInStageOf,
+  NOTE,
   ownerRowsOf,
   refOf,
   toContract,
@@ -63,13 +75,15 @@ import { OpportunityRepository } from './opportunity.repository'
 export class OpportunityService {
   constructor(
     private readonly repo: OpportunityRepository,
+    private readonly contracts: ContractRepository,
+    private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  async book(who: Actor, q: PageQuery): Promise<OpportunityBookResponse> {
+  async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
     const page = await this.repo.book(who, q, true)
 
     /* Lưới thứ hai. SQL đã cắt theo phạm vi, nên bình thường E2 không cắt thêm
@@ -116,8 +130,23 @@ export class OpportunityService {
    *
    *  Không kiểm "actor này có thật không" ở đây: khoá ngoại của bảng nối làm
    *  việc đó cho MỌI cửa, kể cả cửa ai đó viết sau này và quên đoạn kiểm. Nửa
-   *  hàng rào ở tầng service là thứ ru ngủ người đọc tiếp theo. */
-  async create(body: OpportunityCreate): Promise<OpportunityCreateResponse> {
+   *  hàng rào ở tầng service là thứ ru ngủ người đọc tiếp theo.
+   *
+   *  ------------------------------------------------------------------
+   *  `who` ĐÃ QUAY LẠI, VÀ NÓ QUAY LẠI ĐÚNG NHƯ ĐÃ HẸN
+   *  ------------------------------------------------------------------
+   *  Bản trước của hàm này KHÔNG nhận `Actor`, và docblock lúc đó nói rõ lý do:
+   *  ai bấm nút đã là một dòng `platform.audit`, nên nhận thêm một tham số chỉ
+   *  để không dùng là mời người sau ghi bản thứ hai của cùng một sự thật. Nó
+   *  cũng nói trước điều kiện để tham số quay lại — "lúc đó tham số quay lại,
+   *  kèm CHỖ ĐỂ CẤT NÓ".
+   *
+   *  Chỗ đó nay có: `sales.touch.actor_id`. Và hai bảng không phải hai bản của
+   *  một sự thật — `audit` ghi AI GỌI ĐƯỜNG NÀO (vết bảo mật, khoá theo một
+   *  `action` của HTTP), `touch` ghi CHUYỆN GÌ ĐÃ XẢY RA VỚI KHÁCH NÀY (một
+   *  dòng người bán đọc trên thẻ hoạt động). Xoá một dòng audit là mất dấu vết
+   *  truy cập; xoá một dòng touch là mất một mẩu lịch sử bán hàng. */
+  async create(who: Actor, body: OpportunityCreate): Promise<OpportunityCreateResponse> {
     const handle = this.repo.readonlyHandle
 
     const [account, names] = await Promise.all([
@@ -136,6 +165,29 @@ export class OpportunityService {
       await this.mirror.put(tx, ref)
       const written = await this.repo.insertOpportunity(tx, { ...write.values, code })
       await this.repo.insertOwners(tx, ownerRowsOf(code, write))
+
+      /* HAI dòng thời gian, không một. Đơn mới cần dòng đầu tiên của chính nó
+         ("mở đơn từ lead nào"), còn hồ sơ lead cần biết khách này đã lên
+         pipeline — và hai câu đó đọc khác nhau vì chúng trả lời cho hai người
+         đang mở hai màn khác nhau. Gộp thành một dòng trên lead thì hồ sơ đơn
+         mở ra trống trơn ngay ngày nó ra đời. */
+      await this.touch.record(tx, [
+        {
+          subjectCode: code,
+          subjectKind: 'opportunity',
+          kind: 'vao-pipeline',
+          ...byOf(who),
+          note: NOTE.opened(body.leadCode, body.state),
+        },
+        {
+          subjectCode: body.leadCode,
+          subjectKind: 'lead',
+          kind: 'vao-pipeline',
+          ...byOf(who),
+          note: NOTE.promoted(code, write.values.name),
+        },
+      ])
+
       await this.notify(tx, ref, body.state === 'close-lost')
       return written
     })
@@ -181,11 +233,37 @@ export class OpportunityService {
    *  Dòng đọc ra cũng là thứ `fromUpdate` cần: đồng hồ của cột chỉ được dí lại
    *  khi cột THẬT SỰ đổi, mà "đổi so với cái gì" thì phải có dòng cũ mới biết.
    *
-   *  KHÔNG có mail nào ở đây. Cửa tạo báo "một cơ hội vừa mở"; sửa một ô không
-   *  phải một sự kiện đáng bắn thư — bắn thì mỗi lần ai đó sửa chính tả tên đơn
-   *  là một lá vào hộp thư chung, và hộp thư đó thôi được đọc sau tuần thứ hai.
-   *  Ngày "đơn vừa chuyển sang thua" đáng một lá riêng thì nó là một rule mới ở
-   *  E4, phát từ đây, không phải một lá gửi cho mọi lượt sửa. */
+   *  ------------------------------------------------------------------
+   *  ĐÚNG MỘT LƯỢT SỬA ĐƯỢC BẮN THƯ, VÀ NÓ LÀ LƯỢT CHUYỂN SANG THUA
+   *  ------------------------------------------------------------------
+   *  Bản trước không bắn thư nào từ đây, và ghi rõ điều kiện để có một lá: "sửa
+   *  một ô không phải một sự kiện đáng bắn thư — bắn thì mỗi lần ai đó sửa
+   *  chính tả tên đơn là một lá vào hộp thư chung, và hộp thư đó thôi được đọc
+   *  sau tuần thứ hai." Điều kiện đó vẫn nguyên; thứ đổi là nay có một lượt sửa
+   *  KHÔNG phải sửa một ô.
+   *
+   *  Vị từ là `becameLost`, không phải `lost`:
+   *
+   *      const becameLost = body.state === 'close-lost' && found.row.state !== 'close-lost'
+   *
+   *  `lost` một mình đúng ở MỌI lượt lưu một đơn đã thua — sửa lại câu lý do
+   *  thua, thêm một người đứng đơn — nên nó chính là cái bẫy "một lá mỗi lượt
+   *  sửa" mà đoạn trên cảnh báo, chỉ hẹp hơn một chút. Cùng hình với `moved` mà
+   *  `fromUpdate` dùng để quyết định đồng hồ cột: câu hỏi luôn là "đổi so với
+   *  dòng đang có", và đó là lý do dòng cũ phải được đọc trước.
+   *
+   *  KHÔNG có rule mới ở E4, và đó là điều đáng đọc: `opportunity-lost-internal`
+   *  đã có sẵn, nghe cùng `OPPORTUNITY_OPENED`, tách bằng `when(data.lost)`.
+   *  `flow` của nó (`opportunity-lost`) khác `flow` của lá "đơn mở"
+   *  (`opportunity-open`), nên khoá `UNIQUE(event_key)` KHÔNG coi lá thứ hai là
+   *  trùng — một đơn mở rồi thua sau này nhận đủ hai lá. Bảng rule đã tính
+   *  trước đường này; đây chỉ là đường đó được nối vào.
+   *
+   *  Hệ quả của khoá đó, nói ra để không ai phát hiện trên production: một đơn
+   *  thua → mở lại → thua lần nữa chỉ bắn ĐÚNG MỘT lá, mãi mãi. `event_key` là
+   *  `opportunity-lost/internal/v1/<mã>` và `enqueue` là `onConflictDoNothing`.
+   *  Đó là hành vi đúng — hộp thư chung không cần nghe cùng một đơn thua hai
+   *  lần — nhưng nó là một quyết định, không phải một tai nạn. */
   async update(
     who: Actor,
     code: MaObject,
@@ -203,13 +281,41 @@ export class OpportunityService {
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
+    const becameLost = body.state === 'close-lost' && found.row.state !== 'close-lost'
+    const stateChanged = body.state !== found.row.state
+
     const row = await this.repo.run(async (tx) => {
       /* Dòng gương cập nhật theo — `put` là upsert. Không cập nhật thì
          ContextRail vẫn in tên đơn cũ và cột cũ sau khi người dùng đã sửa, và
          không có gì đỏ để chỉ ra điều đó. */
-      await this.mirror.put(tx, refOf(code, write, { label: write.values.name, ownerName }))
+      const ref = refOf(code, write, { label: write.values.name, ownerName })
+      await this.mirror.put(tx, ref)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
+
+      /* Chỉ ghi vết khi TRẠNG THÁI đổi. Sửa tên đơn, thêm một tệp, đổi ngày
+         đóng — không cái nào là một mẩu lịch sử bán hàng, và ghi hết thì thẻ
+         hoạt động thành một sổ nhật ký chỉnh sửa mà không ai đọc tới dòng thứ
+         mười. Cùng ngưỡng mà `stage_since` dùng, và vì cùng lý do.
+
+         Cột đọc từ dòng ĐÃ GHI (`written.stage`) chứ không từ bản nháp: đó là
+         giá trị bảng thật sự đang giữ, và nó là thứ câu văn phải nói đúng. */
+      if (stateChanged) {
+        const moved = written.stage !== found.row.stage
+        await this.touch.record(tx, [
+          {
+            subjectCode: code,
+            subjectKind: 'opportunity',
+            kind: 'doi-cot',
+            ...byOf(who),
+            note: moved
+              ? NOTE.moved(found.row.stage, written.stage)
+              : NOTE.restated(found.row.state, body.state),
+          },
+        ])
+      }
+
+      if (becameLost) await this.notify(tx, ref, true)
       return written
     })
 
@@ -232,6 +338,297 @@ export class OpportunityService {
         daysInStage: daysInStageOf(row, new Date()),
       }),
     )
+  }
+
+  /** `GET /sales/ops/:code/touches` — dòng thời gian của một đơn.
+   *
+   *  Đi qua `byCode` trước rồi mới hỏi bảng lần chạm, và một danh sách rỗng
+   *  KHÔNG được dùng thay cho hai câu từ chối: rỗng là câu trả lời THẬT — một
+   *  đơn vừa mở có đúng một dòng, một đơn nạp từ tệp có đúng một dòng — nên nó
+   *  không được kiêm nghĩa "không có đơn này" hay "đơn không phải của bạn".
+   *  Cùng lý lẽ mà `LeadService.mailTimeline` đã viết ra đầy đủ, và cùng cái
+   *  giá: một câu truy vấn thừa trên một màn vốn đang tải sẵn hồ sơ. */
+  async touches(who: Actor, code: MaObject): Promise<TouchTimelineResponse> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('cơ hội', code)
+    if (!found.inScope) throw denied('out-of-scope')
+
+    return this.touch.timeline(code)
+  }
+
+  /** `POST /sales/ops/:code/contract` — ký.
+   *
+   *  ------------------------------------------------------------------
+   *  HAI CÂU TỪ CHỐI LÀ 409, KHÔNG PHẢI 400
+   *  ------------------------------------------------------------------
+   *  "Đơn này đã ký" và "đơn này đã thua" không nói về thân request — thân đó
+   *  hoàn toàn hợp lệ, và gửi lại y nguyên sau khi mở lại đơn thì nó chạy. Cái
+   *  sai là TRẠNG THÁI của tài nguyên, và đó đúng là định nghĩa của 409. Trả
+   *  400 sẽ bắt màn tô đỏ một ô, mà không ô nào sai.
+   *
+   *  Câu "đã ký" chở luôn mã hợp đồng đã có. Người bấm nút hai lần cần biết
+   *  cái đã tồn tại là cái nào, không phải chỉ biết mình bấm thừa.
+   *
+   *  ------------------------------------------------------------------
+   *  KHÔNG CÓ CỬA HUỶ KÝ, VÀ ĐÓ LÀ CHỦ Ý
+   *  ------------------------------------------------------------------
+   *  Ký là thứ đi ra khỏi phòng kinh doanh — hợp đồng đã sang tay kế toán và
+   *  sang tay khách. Một `DELETE` ở đây là một nút xoá doanh số, và nó phải là
+   *  một đề nghị có người duyệt (E3), không phải một lượt gọi của người vừa lỡ
+   *  tay. Cho tới lúc có E3, gỡ một chữ ký là việc của người có quyền vào
+   *  database, và điều đó đúng.
+   *
+   *  ------------------------------------------------------------------
+   *  BA LƯỢT GHI, MỘT COMMIT
+   *  ------------------------------------------------------------------
+   *  Dòng hợp đồng, cột của đơn (`stage`/`stage_since`/`closed_at`), và hai
+   *  dòng gương E1. Nửa vời thì sổ tự mâu thuẫn theo cách khó gỡ nhất: một đơn
+   *  `signed` mà vẫn đứng trong cột "Chờ ký", hoặc một hợp đồng trỏ vào một đơn
+   *  bảng vẫn coi là đang chạy. */
+  async sign(who: Actor, code: MaObject, body: ContractSign): Promise<ContractSignResponse> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('cơ hội', code)
+    if (!found.inScope) throw denied('out-of-scope')
+
+    if (found.signed) {
+      const existing = await this.contracts.byOpportunity(code, found.row.leadCode)
+      throw conflict(
+        existing
+          ? `Cơ hội ${code} đã ký — hợp đồng ${existing.row.code}.`
+          : `Cơ hội ${code} đã ký.`,
+      )
+    }
+    if (found.row.state === 'close-lost') {
+      throw conflict(`Cơ hội ${code} đã thua — mở lại đơn trước khi ký.`)
+    }
+
+    const saleOwner = found.owners.find((o) => o.role === 'SALE') ?? null
+    const contractCode = await this.contracts.nextCode()
+    const values = fromSign(body, contractCode, found.row, saleOwner?.id ?? null, new Date())
+    const signedAt = values.signedAt
+
+    /* Tên người ăn hoa hồng. Đọc chứ không suy: `ownerId` có thể đến từ thân
+       request và trỏ vào một người không nằm trong danh sách đứng đơn.
+       `?? null` gộp hai cách vắng mặt của cột — `undefined` (mapper bỏ trường)
+       và `null` (giá trị NULL) — thành một, vì ở đây chúng nói cùng một câu. */
+    const ownerId = values.ownerId ?? null
+    const names = await this.repo.actorNames(
+      this.repo.readonlyHandle,
+      ownerId === null ? [] : [ownerId],
+    )
+    const ownerName = ownerId === null ? null : (names.get(ownerId) ?? null)
+
+    const done = await this.repo.run(async (tx) => {
+      const row = await this.repo.updateOpportunity(tx, code, closeForSign(signedAt))
+      const contractRow = await this.contracts.insert(tx, values)
+
+      /* Đơn ra khỏi bảng năm cột, nên dòng gương của nó thôi chở `state` — và
+         `toRef` đọc `row.stage`, thứ vừa thành NULL. */
+      await this.mirror.put(tx, toRef(row, saleOwner?.name ?? null))
+
+      /* Hợp đồng là một object E1 của chính nó (`kind: 'HĐ'`). Không có nó thì
+         ContextRail đi hết chuỗi lead → cơ hội rồi dừng ngay trước mắt xích
+         người ta mở màn để tìm. Cạnh nối hai object thì CHƯA ghi: chưa cửa nào
+         trong `apps/api` ghi `platform.edge` — seed là chỗ duy nhất — nên dựng
+         một cạnh ở đây là mở một quy ước mới trong một cửa, không phải trong
+         `GraphModule` nơi nó thuộc về. */
+      await this.mirror.put(tx, {
+        code: contractCode,
+        kind: 'HĐ',
+        branch: 'Sales',
+        label: `${found.account} · ${row.name}`,
+        ...(ownerName ? { owner: ownerName } : {}),
+        ...(contractRow.amount === null ? {} : { amount: contractRow.amount }),
+      })
+
+      /* `at: signedAt` chứ không để `now()` mặc định: một hợp đồng vào sổ muộn
+         ba ngày phải nằm đúng chỗ của nó trên dòng thời gian, không nhảy lên
+         đầu. Đây là chỗ duy nhất trong nhánh đặt `at` bằng tay, và lý do là
+         cột `signed_at` mang một mốc thật do người nhập biết. */
+      await this.touch.record(tx, [
+        {
+          subjectCode: code,
+          subjectKind: 'opportunity',
+          kind: 'ky',
+          ...byOf(who),
+          note: NOTE.signed(contractCode),
+          at: signedAt,
+        },
+        {
+          subjectCode: row.leadCode,
+          subjectKind: 'lead',
+          kind: 'ky',
+          ...byOf(who),
+          note: NOTE.signed(contractCode),
+          at: signedAt,
+        },
+      ])
+
+      return { row, contractRow }
+    })
+
+    return ContractSignResponse.parse({
+      opportunity: toContract({
+        row: done.row,
+        account: found.account,
+        owners: found.owners,
+        /* Biết chứ không hỏi lại: dòng hợp đồng vừa được ghi trong chính
+           transaction vừa commit. `toContract` đọc cờ này để lắp trạng thái thứ
+           năm — cùng phép mà `create` dùng để nói `signed: false`. */
+        signed: true,
+        daysInStage: null,
+      }),
+      contract: toContractRow(done.contractRow, ownerName),
+    })
+  }
+
+  // ── nạp từ tệp ───────────────────────────────────────────────────────────
+
+  /** Chạy thử. KHÔNG ghi gì — kể cả một con số của dãy mã. */
+  async importPreview(body: OpportunityImportBody): Promise<OpportunityImportPreviewResponse> {
+    const { report } = await this.check(this.repo.readonlyHandle, body)
+    return OpportunityImportPreviewResponse.parse(report)
+  }
+
+  /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào.
+   *
+   *  Nửa lô đã ghi rồi máy chủ chết là trạng thái không ai gỡ được bằng tay —
+   *  người ta sẽ nạp lại cả tệp, và lần này nửa đầu thành trùng. Một
+   *  transaction, và bản báo cáo là thứ nói cho biết những gì KHÔNG vào. */
+  async importCommit(
+    who: Actor,
+    body: OpportunityImportBody,
+  ): Promise<OpportunityImportCommitResponse> {
+    const handle = this.repo.readonlyHandle
+    const { report, writes } = await this.check(handle, body)
+
+    /* Mã cấp TRƯỚC khi mở transaction, một câu cho cả lô — lý do đầy đủ ở
+       `nextCodes`. Dãy trả theo thứ tự tăng nên thứ tự của tệp cũng là thứ tự
+       của mã, không cần sắp lại như lô nạp lead phải làm. */
+    const codes = await this.repo.nextCodes(writes.length)
+    const now = new Date()
+
+    const names = await this.repo.actorNames(
+      handle,
+      writes.flatMap((w) => [...w.saleOwners, ...w.bdOwners]),
+    )
+
+    /* Dòng, dòng gương, bảng nối và lần chạm dựng CÙNG một lượt, từ cùng một
+       bản nháp và cùng một mã — bốn thứ không lệch nhau bằng một chỉ số được. */
+    const ready = writes.map((write, i) => {
+      const code = codes[i] ?? ''
+      const draft = fromCreate(write, now)
+      const ownerName =
+        write.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
+
+      return {
+        code,
+        row: { ...draft.values, code },
+        ref: refOf(code, draft, { label: draft.values.name, ownerName }),
+        owners: ownerRowsOf(code, draft),
+        touches: [
+          {
+            subjectCode: code,
+            subjectKind: 'opportunity' as const,
+            kind: 'vao-pipeline' as const,
+            ...byOf(who),
+            note: NOTE.opened(write.leadCode, write.state),
+          },
+          {
+            subjectCode: write.leadCode,
+            subjectKind: 'lead' as const,
+            kind: 'vao-pipeline' as const,
+            ...byOf(who),
+            note: NOTE.promoted(code, write.name),
+          },
+        ] satisfies TouchEntry[],
+      }
+    })
+
+    const batch = await this.repo.run(async (tx) => {
+      /* Cắt khúc, và vẫn nguyên tử — mọi câu dưới đây chạy trong đúng
+         transaction này. Cắt khúc là chuyện trần 65.535 tham số ràng buộc của
+         Postgres, không phải chuyện bền vững.
+
+         Dòng gương TRƯỚC trong mỗi khúc. Với lead thì khoá ngoại ép thứ tự đó;
+         với cơ hội thì `opportunity.code` chưa trỏ về `platform.object` nên
+         đây là kỷ luật — giữ đúng thứ tự để ngày khoá ngoại đó được thêm vào,
+         cửa này không phải sửa. */
+      const CHUNK = 500
+      for (let i = 0; i < ready.length; i += CHUNK) {
+        const slice = ready.slice(i, i + CHUNK)
+        if (slice.length === 0) continue
+        await this.mirror.putMany(
+          tx,
+          slice.map((p) => p.ref),
+        )
+        await this.repo.insertMany(
+          tx,
+          slice.map((p) => p.row),
+        )
+        await this.repo.insertOwners(
+          tx,
+          slice.flatMap((p) => p.owners),
+        )
+        await this.touch.record(
+          tx,
+          slice.flatMap((p) => p.touches),
+        )
+      }
+
+      /* Biên lai được ghi KỂ CẢ khi không dòng nào vào. Một lô toàn lỗi vẫn là
+         một việc đã xảy ra, và "tôi có bấm nạp mà chẳng thấy gì" là câu chỉ trả
+         lời được nếu có dòng này. */
+      return this.repo.writeBatchNote(tx, {
+        actorId: who.id,
+        note: JSON.stringify({
+          kind: 'opportunity-import',
+          file: body.fileName,
+          accepted: codes.length,
+          codes,
+        }),
+      })
+    })
+
+    return OpportunityImportCommitResponse.parse({
+      ...report,
+      batchId: batch.id,
+      at: batch.at.toISOString(),
+      accepted: codes.length,
+      codes,
+    })
+  }
+
+  /** Nửa dùng chung của hai cửa nạp — lý do "chạy thử nói sạch, nạp thật báo
+   *  lỗi" không xảy ra được.
+   *
+   *  Ba lượt đọc, và lượt thứ ba phụ thuộc hai lượt đầu: phải dịch xong tên
+   *  công ty sang mã lead mới biết hỏi đơn đang mở của những lead NÀO. Dịch
+   *  bằng đúng `fold` mà bộ kiểm dùng — không phải một bản chép, mà chính hàm
+   *  đó — nên tập mã hỏi ở đây và tập mã bộ kiểm phân giải không lệch nhau. */
+  private async check(handle: Db, body: OpportunityImportBody): Promise<ImportCheck> {
+    const [staff, leads] = await Promise.all([
+      this.repo.staff(handle),
+      this.repo.leadsByCompany(handle),
+    ])
+
+    const candidates = [
+      ...new Set(
+        body.rows
+          .map((r) => leads.byCompany.get(fold(r.values.company ?? '')))
+          .filter((c): c is string => c !== undefined),
+      ),
+    ]
+
+    const liveDealByLead = await this.repo.liveDealsByLead(handle, candidates)
+
+    return checkBatch({
+      rows: body.rows,
+      staff,
+      leadByCompany: leads.byCompany,
+      ambiguousCompany: leads.ambiguous,
+      liveDealByLead,
+    })
   }
 
   /** Xếp hàng mail báo TRONG CÙNG đơn vị công việc với chính cơ hội.

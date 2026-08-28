@@ -59,6 +59,35 @@ export class UsersController {
     return this.users.list()
   }
 
+  /** The roster — who works here, for anybody with a live session.
+   *
+   *  ------------------------------------------------------------------
+   *  `@Need({})` IS A DECLARATION, NOT A FORGOTTEN LINE
+   *  ------------------------------------------------------------------
+   *  An empty need means "a live session and nothing more": E2 reads no branch
+   *  and no permission from it, so the only rail left is the one every route
+   *  has — `check` refuses a null actor before it looks at anything else.
+   *  `AccessGuard` fails CLOSED on a MISSING `@Need`, so this line is what
+   *  separates a deliberate session-only door from an oversight, and
+   *  `RouteAudit` would not let the server start without it.
+   *
+   *  Session-only is the right rail because of who has to read this list: the
+   *  assign menu, the convert dialog and every owner select sit on screens a
+   *  Sale and a BD live in, and none of them hold `người-dùng.quản-lý`. Gating
+   *  the roster on that permission would mean the people who assign work are
+   *  the only ones who cannot see who to assign it to.
+   *
+   *  Declared BEFORE `@Patch(':id')` and beside `@Get()` for the reason the
+   *  lead and opportunity controllers state: a literal segment and a parameter
+   *  segment on one resource are read together or not at all. Nothing here
+   *  actually shadows — `users` has no `@Get(':id')` — and that is precisely
+   *  why the ordering has to be a habit rather than a reaction. */
+  @Get('directory')
+  @Need({})
+  directory() {
+    return this.users.directory()
+  }
+
   /** Open an account. 201 with the row, so the panel can show what it created
    *  without waiting for the list to come back.
    *

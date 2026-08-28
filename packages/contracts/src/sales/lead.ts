@@ -44,6 +44,18 @@ import { LeadSource } from './lead-source'
  *  page has only the three above, and the rest is what gets DUG OUT later.
  *  Requiring them in the contract forces the door to invent data to get in. */
 
+/** CỔNG INIT DATA CÓ BAO NHIÊU Ô BẮT BUỘC — một con số, ba chỗ đọc.
+ *
+ *  Cột sinh `lead.required_filled` cộng đúng sáu mệnh đề; `LeadRow` chặn trần ở
+ *  đúng số đó; và "lead tốt" ở mọi báo cáo là `required_filled >= REQUIRED_SLOTS`
+ *  — module 1 đếm nó theo nguồn, module 5 đếm nó theo kỳ.
+ *
+ *  Là hằng số chứ không phải số 6 gõ ba lần, vì cái sai khi ba chỗ lệch nhau
+ *  KHÔNG nổ: cổng bảy ô mà báo cáo còn hỏi ">= 6" thì mọi nguồn bỗng có thêm
+ *  lead tốt, và không dòng log nào nói vì sao. Đổi cổng là đổi cột sinh (một
+ *  migration) VÀ đổi dòng này, cùng một lượt. */
+export const REQUIRED_SLOTS = 6
+
 export const LeadRow = z.object({
   code: MaObject,
   company: z.string().min(1),
@@ -70,7 +82,7 @@ export const LeadRow = z.object({
   /** Number of REQUIRED slots dug out so far, 0…6. This is what the init-data
    *  gate looks at. Computed by the server as a generated column; nobody
    *  writes it by hand. */
-  requiredFilled: z.number().int().min(0).max(6),
+  requiredFilled: z.number().int().min(0).max(REQUIRED_SLOTS),
   /** Number of optional slots dug out, 0…4. */
   optionalFilled: z.number().int().min(0).max(4),
 

@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
 import { TriangleAlert, X } from '@pv/ui'
 import { Badge, Button, Drawer, Icon, Select, Textarea } from '@pv/ui'
-import {
-  EXIT_REASONS,
-  HEAD_OF_SALES,
-  type ExitReason,
-  type Lead,
-} from '@pv/engines/fixtures/das-vina'
+import { EXIT_REASONS, type ExitReason, type Lead } from '@pv/engines/fixtures/das-vina'
+import { useApproverName } from '@/data/directory'
 
 /** Đưa lead ra khỏi luồng — hộp thoại, không phải một thẻ nằm sẵn trên màn.
  *
@@ -44,6 +40,7 @@ export function ExitDialog({
 }) {
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
+  const approver = useApproverName()
 
   /* Mở lại là một lần bắt đầu mới — không giữ lựa chọn của lần trước, vì lần
      trước người ta đã bấm Huỷ và đó là một câu trả lời. */
@@ -71,7 +68,7 @@ export function ExitDialog({
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]" aria-live="polite">
             {reason === ''
               ? 'Chọn một trong sáu lý do để bật nút.'
-              : `Đề nghị này chờ ${HEAD_OF_SALES} gật. Công trạng của nguồn kéo lead về vẫn giữ.`}
+              : `Đề nghị này chờ ${approver} gật. Công trạng của nguồn kéo lead về vẫn giữ.`}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" onClick={onClose}>

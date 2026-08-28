@@ -1,8 +1,10 @@
 # Còn thiếu — MAS mail
 
-Lát cắt **28/08/2026**, sau lượt A+C. Đọc cùng
-[`ban-giao-mas-mail.md`](./ban-giao-mas-mail.md) — file đó ghi **đã dựng gì và
-vì sao**, file này ghi **còn thiếu gì và ai phải làm**.
+Lát cắt **28/08/2026**, sau lượt A+C+D (D = CRUD chiến dịch). Đọc cùng
+[`ban-giao-mas-mail.md`](./ban-giao-mas-mail.md) (đường gửi) và
+[`ban-giao-campaign.md`](./ban-giao-campaign.md) (CRUD `sales.campaign`, đóng
+A3+D2 bên dưới) — hai file đó ghi **đã dựng gì và vì sao**, file này ghi **còn
+thiếu gì và ai phải làm**.
 
 Mỗi mục ghi đủ bốn thứ: **cái gì · ở đâu · làm thế nào · vì sao chưa**. Làm
 xong thì XOÁ mục đó, đừng đánh dấu ✅ — danh sách này chỉ có nghĩa khi nó ngắn.
@@ -43,17 +45,13 @@ migration nữa, hoặc một màn cấu hình mẫu mail nếu dựng.
 khách là loại sai đắt nhất có thể mắc ở đây: người nhận sẽ hỏi lại đúng con số
 đó.
 
-### A3 · Không có cửa tạo chiến dịch — CHẶN yêu cầu 3
-
-**Cái gì.** `POST /sales/campaigns` và `GET /sales/campaigns`.
-
-**Ở đâu.** `sales.campaign` + `campaign_code_seq` đã dựng và **đang rỗng**.
-
-**Làm thế nào.** Bốn file theo đúng khuôn `lead/`. Mã sinh từ sequence, format
-`CP-%04d` (CHECK `campaign_code_shape` đã gác). Panel soạn mail đã nhận sẵn
-`campaignCode` — nối vào là một dòng ở `pages/campaign-detail.tsx`.
-
-**Vì sao chưa.** Có một quyết định mô hình phải chốt trước — xem **D2**.
+> **A3 đã xong 28/08 (lượt D).** `POST/GET /sales/campaigns`,
+> `GET/PATCH /sales/campaigns/:code`, `POST .../members`, `POST .../start`,
+> `POST .../stop` — bốn file theo khuôn `lead/`, kiểm tay qua PGlite (tạo →
+> thêm 2 thành viên → hẹn giờ một đợt → thấy ở `GET /sales/mail/runs?campaign=`
+> → huỷ trước giờ gửi). `sales.campaign` hết rỗng. Chi tiết và tám quyết định
+> đã chốt: [`ban-giao-campaign.md`](./ban-giao-campaign.md). Việc còn lại là
+> FE — xem **C2**.
 
 ### A6 · Cửa huỷ lô chưa có màn nào gọi
 
@@ -84,10 +82,6 @@ con số của `MailRunRow` (bounce · phàn nàn · huỷ đăng ký) — thứ
 > chạy image cũ, chưa biết `sales.opportunity_owner` lẫn `sales.mail_template`.
 > Deploy là bước kế tiếp, không phải migrate.
 
-### B3 · `sales.campaign` vẫn rỗng
-
-Xem **A3**.
-
 ### B4 · `sales.campaign` không phải `ObjectKind`
 
 Nên `E1.story()` không đi ngược từ lead về chiến dịch đã chạm nó, và ContextRail
@@ -109,11 +103,17 @@ cửa huỷ lô (**A6**) không có chỗ để bấm.
 `data/mas.ts` cố tình CHƯA khai query cho hai cửa này: một query không màn nào
 gọi là một khai báo quyền không ai bảo trì.
 
-### C2 · Chuỗi đợt của chiến dịch
+### C2 · Chuỗi đợt của chiến dịch — A3 và D2 đã xong, còn đúng phần FE
 
-Nút "Thêm đợt vào chuỗi" ở `pages/campaign-detail.tsx` chưa nối. Panel soạn mail
-đã dựng sẵn chế độ chiến dịch — thêm bước "Lịch gửi", nhận `campaignCode` — nên
-việc còn lại là một chỗ gọi. Chờ **A3** và **D2**.
+`pages/campaigns.tsx`/`campaign-detail.tsx`/`campaign-parts.tsx` vẫn đứng trên
+fixture `Source`/`Wave` (mã `SR-`/`SK-`), chưa đọc `sales.campaign` thật —
+mọi nút ghi (Lưu nháp, Bắt đầu chạy, Dừng, "Thêm đợt vào chuỗi") vẫn chỉ
+`setState` cục bộ. Backend (**A3**) và mô hình (**D2**) không còn là lý do
+chưa làm nữa — cái thiếu bây giờ đúng là ba việc FE độc lập: `data/campaign-book.ts`
+đọc CRUD thật, một Sổ chiến dịch mới (reclaim path `/sales/campaigns`), và một
+bước "Lịch gửi" trong `mas-mail-drawer.tsx` nhận `campaignCode`/`scheduledAt`
+(cả hai đã có sẵn ở `MasSendRequest`). Việc tiếp theo theo thứ tự:
+[`ban-giao-campaign.md`](./ban-giao-campaign.md).
 
 ---
 
@@ -141,15 +141,13 @@ kèm câu nói rõ tên biến). Nghĩa là đặt `false` là dừng được c
 đụng tới mail giao dịch — nhưng cũng nghĩa là mọi máy dev phải khai đủ bốn biến
 trên mới bấm gửi được.
 
-### D2 · "Chiến dịch" đang là hai thứ khác nhau
-
-Màn `/campaigns` đứng trên **SOURCE** (mã `SR-`/`SK-`, fixture đóng băng). Bảng
-`sales.campaign` mới dùng mã `CP-`. Hai khái niệm cùng gọi một tên trên giao
-diện.
-
-Phải chốt trước khi dựng **A3**: hợp nhất chúng, hay giữ hai thứ và đặt lại tên
-một cái. Đây **không phải việc FE** — đổi ở màn trước khi chốt mô hình là dựng
-lại hai lần.
+> **D2 đã chốt 28/08: tách riêng, đổi tên — không hợp nhất.** `sales.campaign`
+> (mã `CP-`) là chiến dịch GỬI thật (module 5, xem
+> [`ban-giao-campaign.md`](./ban-giao-campaign.md)); màn `/campaigns` cũ đứng
+> trên **SOURCE** (mã `SR-`/`SK-`) đổi tên "Nguồn dẫn" — quyết định đã chốt,
+> nhưng đổi `path`/nhãn trên UI CHƯA làm, xem **C2**. `campaign.source_id`
+> (cột thêm cùng lượt) là dây nối báo cáo giữa hai bên, không phải một bước
+> hợp nhất mô hình.
 
 ### D3 · Subdomain marketing chưa có
 
@@ -196,7 +194,7 @@ thư bounce vẫn chưa nói được vì sao.
 
 ```
 A2 nội dung mẫu ──> gửi được lô THẬT có nội dung duyệt rồi
-D2 chốt mô hình ──> A3 cửa chiến dịch ──> C2 chuỗi đợt ── yêu cầu 3
+C2 chuỗi đợt (D2 + A3 đã xong, chỉ còn ba việc FE) ── yêu cầu 3
 C1 sổ lô gửi ──> A6 có chỗ bấm huỷ ──> đo được bounce/complaint của lô
 
 deploy Fly ──> D1 khai biến ──> D3 subdomain ──> canary lô THẬT 20–30 địa chỉ

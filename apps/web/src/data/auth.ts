@@ -105,8 +105,13 @@ const ENGINE_ROLE: Record<WireRoleId, EngineRoleId> = {
 
 /** The wire's person → the person E1–E4 read. Seven fields either side, and the
  *  only one that changes spelling is the one the permission matrix is keyed
- *  by. */
-function toActor(wire: SessionActor): Actor {
+ *  by.
+ *
+ *  Exported for `data/directory.ts`, which receives a whole roster in the same
+ *  `SessionActor` shape and must translate every row the same way. A second
+ *  copy of the `roleId` translation is the one failure this table exists to
+ *  prevent — see the docblock above `ENGINE_ROLE`. */
+export function toActor(wire: SessionActor): Actor {
   return {
     id: wire.id,
     name: wire.name,

@@ -42,4 +42,33 @@ export const contract = sales.table(
   ],
 )
 
+/** Dãy cấp mã hợp đồng.
+ *
+ *  ------------------------------------------------------------------
+ *  BẢNG NÀY LÀ BẢNG CUỐI CÙNG CÓ MÃ MÀ KHÔNG CÓ DÃY, VÀ NAY THÌ CÓ
+ *  ------------------------------------------------------------------
+ *  `lead`, `opportunity` và `campaign` đều đã có dãy riêng; `contract` thì
+ *  chưa, vì tới hôm nay chưa cửa nào ghi vào nó — sáu dòng đang có đều do
+ *  `seed.ts` chép thẳng `contractCode` của fixture. Cửa `POST /sales/ops/:code/contract`
+ *  là lúc phải có: `SELECT max(code) + 1` phát cùng một mã cho hai người cùng
+ *  bấm "Chốt thắng", và người thứ hai thua khoá chính.
+ *
+ *  ------------------------------------------------------------------
+ *  BẮT ĐẦU Ở 5001, CÙNG LÝ DO VỚI `opportunity_code_seq`
+ *  ------------------------------------------------------------------
+ *  Fixture rải mã hợp đồng ở `HĐ-2711…2716`. Một dãy bắt đầu ở 1 không đụng gì
+ *  trong hai nghìn bảy trăm hợp đồng đầu, rồi hợp đồng thứ ~2711 thua khoá
+ *  chính của một dòng seed — đúng loại lỗi ngủ rất lâu rồi mới dậy mà dãy mã cơ
+ *  hội đã tránh bằng một con số. 5001 nằm trên khoảng đó.
+ *
+ *  Không cùng dãy với cơ hội, dù hai bảng sinh ra cùng lúc: mã hợp đồng là số
+ *  người ta đọc cho kế toán, và một dãy dùng chung làm nó nhảy cóc theo số đơn
+ *  không ký. */
+export const contractCodeSeq = sales.sequence('contract_code_seq', {
+  startWith: 5001,
+  increment: 1,
+  minValue: 1,
+  cache: 1,
+})
+
 export type ContractRowDb = typeof contract.$inferSelect

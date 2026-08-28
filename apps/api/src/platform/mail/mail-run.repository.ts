@@ -135,6 +135,22 @@ type EngagementCounts = {
   unsubscribed: number
 }
 
+/** Hai bảng đếm ở trên, gộp thành một dòng — thứ `tallies()` trả về.
+ *
+ *  KHÔNG mang `run_id`: người gọi nhận về một `Map` keyed sẵn theo id, nên một
+ *  trường id thứ hai bên trong giá trị chỉ là chỗ để hai cái id lệch nhau. */
+export type RunTally = {
+  sent: number
+  delivered: number
+  bounced: number
+  failed: number
+  suppressed: number
+  complained: number
+  opened: number
+  clicked: number
+  unsubscribed: number
+}
+
 /** ONE BATCH OF MAIL, AS SQL. Platform only — there is no campaign in this file.
  *
  *  `sales.campaign_run` is the row that joins a batch to a campaign, and it
@@ -519,6 +535,46 @@ export class MailRunRepository {
     `)) as { rows: DeliveryCounts[] }
 
     return new Map(r.rows.map((row) => [row.run_id, row]))
+  }
+
+  /** Số đếm của N lô, cho người gọi KHÔNG đi qua `list()`.
+   *
+   *  Module 1 vẽ chuỗi đợt của một nguồn: nó đã có sẵn danh sách id lô (đi từ
+   *  `sales.campaign_run`), nên `list()` — thứ tự phân trang, tự sắp, tự đếm
+   *  tổng — trả lời sai câu hỏi và tính thừa hai lượt quét. Cái nó cần là đúng
+   *  phần cộng số.
+   *
+   *  Mở ra thay vì để nhánh Sales tự viết lại hai câu `count(*) FILTER`: hai
+   *  bản chép của cùng một phép đếm sẽ lệch nhau ở đúng chỗ khó thấy nhất —
+   *  `opened` đếm theo NGƯỜI (`count(DISTINCT delivery_id)`) chứ không theo
+   *  lần mở, và một bản chép quên `DISTINCT` cho ra tỉ lệ mở trên 100%. Vẫn là
+   *  đường một chiều: nhánh gọi platform, platform không biết nhánh nào gọi. */
+  async tallies(ids: readonly string[]): Promise<Map<string, RunTally>> {
+    const list = [...ids]
+    const [deliveries, engagement] = await Promise.all([
+      this.deliveryCounts(list),
+      this.engagementCounts(list),
+    ])
+    return new Map(
+      list.map((id) => {
+        const d = deliveries.get(id)
+        const e = engagement.get(id)
+        return [
+          id,
+          {
+            sent: d?.sent ?? 0,
+            delivered: d?.delivered ?? 0,
+            bounced: d?.bounced ?? 0,
+            failed: d?.failed ?? 0,
+            suppressed: d?.suppressed ?? 0,
+            complained: d?.complained ?? 0,
+            opened: e?.opened ?? 0,
+            clicked: e?.clicked ?? 0,
+            unsubscribed: e?.unsubscribed ?? 0,
+          },
+        ]
+      }),
+    )
   }
 
   /** `opened`/`clicked`/`unsubscribed`, counted as PEOPLE and not as events.

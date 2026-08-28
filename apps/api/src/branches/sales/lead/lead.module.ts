@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { TouchModule } from '../touch/touch.module'
 import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
@@ -42,7 +43,7 @@ import { LeadMailComposer } from './lead-mail.composer'
  *  the same reason: another branch may ask for leads, it does not get to make
  *  them. */
 @Module({
-  imports: [EnginesModule, GraphModule, MailModule],
+  imports: [EnginesModule, GraphModule, MailModule, TouchModule],
   controllers: [LeadController, LeadIntakeController],
   providers: [
     LeadService,

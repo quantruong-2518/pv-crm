@@ -1,9 +1,15 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { CampaignController } from './campaign.controller'
+import { CampaignRepository } from './campaign.repository'
+import { CampaignService } from './campaign.service'
 import { MasController } from './mas.controller'
 import { MasRepository } from './mas.repository'
 import { MasService } from './mas.service'
+import { SourceController } from './source.controller'
+import { SourceRepository } from './source.repository'
+import { SourceService } from './source.service'
 
 /** Module 5 · Chiến dịch — hôm nay mới có nửa MAS mail của nó.
  *
@@ -38,7 +44,17 @@ import { MasService } from './mas.service'
  *  dịch cần biết "lô này thuộc đợt mấy" thì thêm `MasService`, không mở bảng. */
 @Module({
   imports: [EnginesModule, MailModule],
-  controllers: [MasController],
-  providers: [MasService, MasRepository],
+  controllers: [MasController, SourceController, CampaignController],
+  providers: [
+    MasService,
+    MasRepository,
+    SourceService,
+    SourceRepository,
+    /* Sổ chiến dịch (A3). `CampaignService` gọi thẳng `MasService.send()` và
+       `MasService.cancel()` — `/start` và `/stop` tái dùng nguyên đường gửi và
+       đường huỷ đã có, không viết lại; xem docblock đầu `campaign.service.ts`. */
+    CampaignService,
+    CampaignRepository,
+  ],
 })
 export class CampaignModule {}

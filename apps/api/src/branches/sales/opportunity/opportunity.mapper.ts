@@ -1,11 +1,14 @@
 import {
   stageOfState,
   type OpportunityCreate,
+  type OpportunityCreateState,
   type OpportunityOwner,
   type OpportunityRow,
   type OpportunityUpdate,
+  type StageKey,
 } from '@pv/contracts'
 import type { ObjectRef } from '@pv/engines'
+import { STATE_LABEL, stageLabel } from './opportunity.labels'
 import type { opportunity, OpportunityRowDb } from './opportunity.schema'
 
 /** Bảng ↔ dây. Không quyết định gì, không đọc gì.
@@ -165,6 +168,62 @@ export function fromUpdate(
     bdOwners: body.bdOwners,
   }
 }
+
+/** Cột đổi khi một đơn được KÝ.
+ *
+ *  ------------------------------------------------------------------
+ *  BA CỘT, VÀ `state` KHÔNG NẰM TRONG SỐ ĐÓ
+ *  ------------------------------------------------------------------
+ *  Ký không đổi `state`, vì bảng không có `'close-won'` để đổi sang — CHECK
+ *  `opportunity_state_known` chỉ nhận bốn giá trị, và trạng thái thứ năm được
+ *  `toContract` lắp vào từ câu hỏi "có dòng hợp đồng không". Đơn đã ký giữ
+ *  nguyên `state = 'nego'` (hoặc bất kỳ giá trị nào nó đang mang), đúng như sáu
+ *  dòng `seed.ts` đã nạp.
+ *
+ *   · `stage` + `stage_since` — cùng về NULL. Đơn đã ký ra khỏi bảng năm cột,
+ *     và `opportunity_stage_clock` đòi hai cột đó cùng vắng. Bỏ sót một cái là
+ *     một CHECK ném 500 chứ không phải một dòng sai lặng lẽ, nên đây là chỗ
+ *     Postgres đỡ hộ.
+ *   · `closed_at` — ngày ký. Không phải `now()`: một hợp đồng vào sổ muộn ba
+ *     ngày thì đơn đã đóng từ ba ngày trước, và `daysOpen` của mail đọc thẳng
+ *     cột này.
+ *
+ *  KHÔNG chạm `lost_reason`/`lost_note`: chúng đã là NULL trên một đơn đang mở,
+ *  và service từ chối ký một đơn đã thua trước khi tới đây. */
+export function closeForSign(
+  signedAt: Date,
+): Pick<OpportunityValues, 'stage' | 'stageSince' | 'closedAt'> {
+  return { stage: null, stageSince: null, closedAt: signedAt }
+}
+
+/** Câu của một dòng thời gian.
+ *
+ *  Gom về một chỗ vì chúng là NGÔN NGỮ, không phải logic: bốn câu dưới đây là
+ *  thứ người dùng đọc trên thẻ hoạt động, và rải chúng vào bốn nhánh `if` của
+ *  service là cách chắc chắn nhất để câu thứ tư đọc không giống ba câu kia.
+ *
+ *  Tiếng Việt, cùng lý do mọi `ConstraintNote.message` là tiếng Việt: đây là
+ *  chữ gửi cho người, không phải chữ gửi cho máy. */
+export const NOTE = {
+  /** Trên dòng thời gian của LEAD. */
+  promoted: (opCode: string, name: string) => `Lên cơ hội ${opCode} · ${name}`,
+
+  /** Trên dòng thời gian của ĐƠN. */
+  opened: (leadCode: string, state: OpportunityCreateState) =>
+    `Mở đơn từ lead ${leadCode} · ${STATE_LABEL[state]}`,
+
+  /** Đơn đổi chỗ. Hai câu chứ không một, vì hai chuyện khác nhau: đổi CỘT là
+   *  đơn đi tiếp trên bảng, đổi mỗi TRẠNG THÁI là người bán đổi việc đang làm
+   *  mà đơn vẫn đứng yên. Một câu chung ("đã cập nhật") không nói được cái nào,
+   *  và dòng thời gian tồn tại để nói đúng cái đó. */
+  moved: (from: StageKey | null, to: StageKey | null) =>
+    `Đổi cột: ${stageLabel(from)} → ${stageLabel(to)}`,
+
+  restated: (from: OpportunityCreateState, to: OpportunityCreateState) =>
+    `Đổi trạng thái: ${STATE_LABEL[from]} → ${STATE_LABEL[to]}`,
+
+  signed: (contractCode: string) => `Ký hợp đồng ${contractCode}`,
+} as const
 
 /** Dòng của bảng nối, cho một đơn vừa được cấp mã. */
 export function ownerRowsOf(

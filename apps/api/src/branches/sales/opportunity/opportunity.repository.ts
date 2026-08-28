@@ -1,12 +1,13 @@
-import { and, count, desc, eq, exists, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, exists, inArray, isNull, ne, not, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { OpportunityOwner, PageQuery } from '@pv/contracts'
+import type { OpportunityBookQuery, OpportunityOwner } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, audit } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportunity.schema'
+import type { ActorLite } from './opportunity-import.check'
 import type { OpportunityValues } from './opportunity.mapper'
 
 /** Một dòng sổ đã nạp đủ thứ nó cần để ra mặt. */
@@ -80,15 +81,23 @@ export class OpportunityRepository {
 
   // ── đọc ──────────────────────────────────────────────────────────────────
 
-  async book(who: Actor, q: PageQuery, scoped: boolean): Promise<OpportunityBookPage> {
+  async book(who: Actor, q: OpportunityBookQuery, scoped: boolean): Promise<OpportunityBookPage> {
     const scope = this.scopeOf(who, scoped)
+
+    /* Bộ lọc của người dùng và trục phạm vi ĐI RIÊNG, và phải đi riêng: `total`
+       đếm theo cả hai, còn `hidden` là hiệu của hai phép đếm CÙNG bộ lọc, khác
+       nhau đúng ở trục phạm vi. Gộp chúng làm một thì `hidden` của một lượt lọc
+       theo lead sẽ đọc ra "số đơn cả sổ bạn không thấy", tức một con số đúng
+       cho câu không ai hỏi. */
+    const filter = q.leadCode === undefined ? undefined : eq(opportunity.leadCode, q.leadCode)
+    const where = and(filter, scope)
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — với người nhìn được
        cả sổ thì `hidden` luôn bằng 0, và một COUNT toàn bảng để in ra số 0 là
        trả phí cho câu không ai hỏi. Cùng phép mà sổ lead đang dùng. */
     const [scopedTotal, all] = await Promise.all([
-      this.count(scope),
-      scope ? this.count(undefined) : Promise.resolve(null),
+      this.count(where),
+      scope ? this.count(filter) : Promise.resolve(null),
     ])
 
     const rows = await this.db
@@ -100,7 +109,7 @@ export class OpportunityRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(scope)
+      .where(where)
       /* Mới nhất trước: thứ vừa tạo mà phải lật sang trang ba mới thấy thì
          người dùng tưởng nút không ăn. `code` phá hoà vì hai đơn tạo trong cùng
          một mili giây vẫn phải ra một thứ tự cố định — không có nó thì hai lần
@@ -248,6 +257,81 @@ export class OpportunityRepository {
     return new Map(rows.map((r) => [r.id, r.name]))
   }
 
+  /** Cả sổ nhân sự, một lượt đọc. Lô nạp dịch TÊN sang id, và nó dịch cho tới
+   *  hai nghìn dòng — hỏi từng dòng là hai nghìn vòng tới Neon cho một bảng
+   *  bảy người. Cùng phép mà `LeadWriteRepository.staff` dùng. */
+  async staff(tx: Db): Promise<ActorLite[]> {
+    return tx.select({ id: actor.id, name: actor.name }).from(actor).where(isNull(actor.disabledAt))
+  }
+
+  /** Tên công ty → mã lead, cho cột "Account" của tệp.
+   *
+   *  ------------------------------------------------------------------
+   *  GẤP TÊN Ở POSTGRES, KHÔNG PHẢI Ở NODE
+   *  ------------------------------------------------------------------
+   *  `lower(company)` chạy trong câu truy vấn nên phép gấp của hai đầu khớp
+   *  nhau ở nửa quan trọng nhất — chữ hoa. Nửa còn lại (gộp khoảng trắng) làm ở
+   *  Node, vì `regexp_replace` cho một sổ trăm dòng là trả phí cho thứ vòng lặp
+   *  đã đi qua rồi.
+   *
+   *  Chỉ lead CÒN CHẠY (`exit_reason IS NULL`), cùng nửa điều kiện mà
+   *  `lead_email_live_idx` mang: một khách đã rơi khỏi luồng thì không mở đơn
+   *  mới cho họ bằng một dòng Excel được.
+   *
+   *  Trả về CẢ tập tên nhập nhằng, không lặng lẽ chọn dòng đầu. Hai lead cùng
+   *  tên công ty là chuyện có thật (hai chi nhánh, một lần nhập trùng), và đoán
+   *  ở đây là gán một đơn cho nhầm hồ sơ — đúng loại lỗi không lộ ra cho tới
+   *  lúc ai đó gọi điện cho sai người. */
+  async leadsByCompany(
+    tx: Db,
+  ): Promise<{ byCompany: Map<string, string>; ambiguous: Set<string> }> {
+    const rows = await tx
+      .select({ code: lead.code, folded: sql<string>`lower(${lead.company})` })
+      .from(lead)
+      .where(isNull(lead.exitReason))
+
+    const byCompany = new Map<string, string>()
+    const ambiguous = new Set<string>()
+
+    for (const r of rows) {
+      const key = r.folded.trim().replace(/\s+/g, ' ')
+      if (byCompany.has(key)) ambiguous.add(key)
+      else byCompany.set(key, r.code)
+    }
+
+    return { byCompany, ambiguous }
+  }
+
+  /** Mã lead → mã đơn ĐANG MỞ của nó, cho `dupWithBook` của lô nạp.
+   *
+   *  "Đang mở" loại cả hai đầu cuối: `state <> 'close-lost'` bỏ đơn thua, và
+   *  `NOT signed` bỏ đơn đã ký. Một khách quay lại quý sau là một đơn MỚI, không
+   *  phải bản trùng của một đơn đã xong — nên chỉ đơn còn sống mới làm một dòng
+   *  trong tệp thành trùng.
+   *
+   *  Đọc theo danh sách mã chứ không quét cả bảng: lô đã dịch xong tên công ty
+   *  nên nó biết chính xác hỏi về những lead nào. `IN` đi đúng
+   *  `opportunity_lead_idx`. */
+  async liveDealsByLead(tx: Db, leadCodes: readonly string[]): Promise<Map<string, string>> {
+    if (leadCodes.length === 0) return new Map()
+
+    const rows = await tx
+      .select({ leadCode: opportunity.leadCode, code: opportunity.code })
+      .from(opportunity)
+      .where(
+        and(
+          inArray(opportunity.leadCode, [...leadCodes]),
+          ne(opportunity.state, 'close-lost'),
+          not(this.signed()),
+        ),
+      )
+      .orderBy(opportunity.code)
+
+    const byLead = new Map<string, string>()
+    for (const r of rows) if (!byLead.has(r.leadCode)) byLead.set(r.leadCode, r.code)
+    return byLead
+  }
+
   // ── ghi ──────────────────────────────────────────────────────────────────
 
   /** Ghi đơn. Dòng gương phải đã nằm trong CHÍNH transaction này.
@@ -261,6 +345,50 @@ export class OpportunityRepository {
   ): Promise<OpportunityRowDb> {
     const [written] = await tx.insert(opportunity).values(row).returning()
     if (!written) throw new Error(`sales.opportunity: INSERT ${row.code} không trả về dòng nào`)
+    return written
+  }
+
+  /** `n` mã một lượt, cho lô nạp.
+   *
+   *  MỘT câu truy vấn chứ không `n` lần `nextCode()`: hai nghìn dòng là hai
+   *  nghìn vòng tới Neon trước khi transaction kịp mở, và `generate_series` gọi
+   *  `nextval` đúng `n` lần trong một lượt — cùng bảo đảm về tính duy nhất, một
+   *  phần nghìn số vòng mạng.
+   *
+   *  Ngoài transaction, cùng lý do `nextCode()` ghi ở trên. Số bị đốt khi lô bị
+   *  rollback; dãy mã thủng là bình thường, hai đơn trùng mã thì không. */
+  async nextCodes(n: number): Promise<string[]> {
+    if (n <= 0) return []
+    const r = (await this.db.execute(
+      sql`SELECT 'OP-' || lpad(nextval('sales.opportunity_code_seq')::text, 4, '0') AS code
+          FROM generate_series(1, ${n})`,
+    )) as { rows: { code: string }[] }
+
+    if (r.rows.length !== n) {
+      throw new Error(`sales.opportunity_code_seq cấp ${r.rows.length}/${n} mã`)
+    }
+    return r.rows.map((x) => x.code)
+  }
+
+  /** Ghi cả lô đơn, cắt khúc.
+   *
+   *  `CHUNK` là trần 65.535 tham số ràng buộc của Postgres chia cho số cột, làm
+   *  tròn xuống cho dễ đọc — KHÔNG phải một ranh giới bền vững. Cả lô vẫn nằm
+   *  trong một transaction; cắt khúc chỉ để một câu INSERT không vượt trần tham
+   *  số, không phải để commit từng phần. Cùng con số mà lô nạp lead dùng. */
+  async insertMany(
+    tx: Db,
+    rows: readonly (OpportunityValues & { code: string })[],
+  ): Promise<OpportunityRowDb[]> {
+    const CHUNK = 500
+    const written: OpportunityRowDb[] = []
+
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK)
+      if (slice.length === 0) continue
+      written.push(...(await tx.insert(opportunity).values(slice).returning()))
+    }
+
     return written
   }
 
@@ -286,6 +414,29 @@ export class OpportunityRepository {
       .returning()
     if (!written) throw new Error(`sales.opportunity: UPDATE ${code} không trả về dòng nào`)
     return written
+  }
+
+  /** Một dòng `platform.audit` làm BIÊN LAI của lô nạp.
+   *
+   *  Không gọi `AuditRepository.write` vì hai lý do đã ghi ở bản của lô nạp
+   *  lead và vẫn đúng ở đây: hàm đó ghi qua pool nên không vào được transaction
+   *  này, và nó không trả về gì — mà `batchId` CHÍNH LÀ id của dòng vừa ghi.
+   *
+   *  Đây là chỗ duy nhất nối một lô với những mã nó đã cấp: `sales.opportunity`
+   *  không có cột `batch_id`. Cùng khoản nợ mà lô nạp lead đang mang, và cùng
+   *  cách trả — một cột `batch_id` thật, ngày ai đó cần hỏi "lô hôm qua nạp
+   *  những đơn nào" bằng SQL thay vì bằng cách đọc JSON trong một dòng audit. */
+  async writeBatchNote(
+    tx: Db,
+    entry: { actorId: string; note: string },
+  ): Promise<{ id: string; at: Date }> {
+    const [row] = await tx
+      .insert(audit)
+      .values({ actorId: entry.actorId, action: 'sửa', note: entry.note })
+      .returning({ id: audit.id, at: audit.at })
+
+    if (!row) throw new Error('platform.audit: INSERT không trả về dòng nào')
+    return row
   }
 
   /** Thay TOÀN BỘ danh sách người đứng đơn: xoá hết rồi ghi lại.

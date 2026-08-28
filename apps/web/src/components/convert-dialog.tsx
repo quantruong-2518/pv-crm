@@ -15,9 +15,7 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  dasVina,
   draftOpportunity,
-  HEAD_OF_SALES,
   OPPORTUNITY_STATES,
   toDong,
   type Lead,
@@ -27,6 +25,7 @@ import {
 import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useLeadDesk } from '@/app/desk'
+import { personName, useApproverName, useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/ops'
 import { createBodyOf, CREATE_STATES, usePromoteLead } from '@/data/ops-write'
@@ -102,8 +101,10 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
   /* Mã đã cấp trong phiên này. Không đưa vào thì phiếu thứ hai lấy lại đúng mã
      của phiếu thứ nhất — hai dòng sổ trùng mã, và không ai phân biệt được. */
   const taken = useMemo(() => Object.values(deals).map((d) => d.code), [deals])
+  const staff = useDirectory()
+  const approver = useApproverName()
   const form = useMemo(() => profileForm(profile), [profile])
-  const seed = useMemo(() => draftOpportunity(form, dasVina.actors, taken), [form, taken])
+  const seed = useMemo(() => draftOpportunity(form, staff, taken), [form, staff, taken])
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
 
   /* Mở phiếu là một lần bắt đầu mới: nạp lại bản nháp. Không nạp lại thì đóng
@@ -155,7 +156,7 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
               : promote.isPending
                 ? 'Đang gửi phiếu…'
                 : ready
-                  ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${HEAD_OF_SALES} gật thì đơn vào cột thật.`
+                  ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${approver} gật thì đơn vào cột thật.`
                   : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
           </span>
           <div className="flex shrink-0 gap-2">
@@ -312,12 +313,12 @@ export function ConvertedCard({ lead }: { lead: Lead }) {
   const deal = useLeadDesk((s) => s.deals[lead.code])
   const undo = useLeadDesk((s) => s.undoConvert)
   const navigate = useNavigate()
+  const staff = useDirectory()
+  const approver = useApproverName()
   if (!deal) return null
 
   const lost = deal.state === 'close-lost'
-  const names = [...deal.saleOwners, ...deal.bdOwners].map(
-    (id) => dasVina.actors.find((a) => a.id === id)?.name ?? id,
-  )
+  const names = [...deal.saleOwners, ...deal.bdOwners].map((id) => personName(staff, id))
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-md bg-white/5 p-4">
@@ -338,7 +339,7 @@ export function ConvertedCard({ lead }: { lead: Lead }) {
           Thua · {deal.lossReason !== '' ? deal.lossReason : deal.lossNote}
         </span>
       )}
-      <span className="text-muted-foreground text-[11.5px]">chờ {HEAD_OF_SALES} gật</span>
+      <span className="text-muted-foreground text-[11.5px]">chờ {approver} gật</span>
       <Button size="sm" onClick={() => navigate(`/sales/ops/${deal.code}`)}>
         <Icon icon={ArrowRight} size={16} />
         Mở hồ sơ cơ hội

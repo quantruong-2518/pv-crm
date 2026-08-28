@@ -16,12 +16,12 @@ import {
   INTAKE_TRUST,
   LEAD_INTAKES,
   LEAD_MOTIONS,
+  type Actor,
   type IntakeTrust,
   type LeadIntake,
   type LeadMotion,
 } from '@pv/engines'
 import {
-  dasVina,
   LEAD_CATEGORIES,
   LEAD_TIERS,
   REQUIRED_SLOTS,
@@ -33,6 +33,7 @@ import {
   type OriginKind,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
+import { peopleIdOptions, peopleNameOptions } from '@/data/directory'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { MAX_ROWS, type Sheet } from '@/data/intake-file'
 
@@ -220,6 +221,17 @@ export type ImportField = {
   aliases: string[]
   /** Danh sách đóng. Có thì giá trị phải khớp một `value` hoặc một `label`. */
   options?: { value: string; label: string }[]
+  /** Ô này liệt kê NGƯỜI, và danh sách chỉ có sau khi sổ người dùng về.
+   *
+   *  Bản vẽ không giữ nổi một danh sách người: bảy cái tên đóng băng trong
+   *  fixture là thứ vừa bị bỏ, và một `const` đọc query thì không tồn tại. Nên
+   *  bản vẽ chỉ nói ô này hỏi ai, còn `withPeople` đổ tên vào lúc màn đã có sổ.
+   *
+   *  `'name'` hay `'id'` KHÔNG thay nhau được: sổ lead giữ TÊN ở `Lead.owner`,
+   *  sổ cơ hội giữ ID ở `saleOwners`/`bdOwners`. Dùng nhầm thì tệp nạp xong
+   *  trông vẫn đúng trên bảng mà mọi phép lọc theo người đều trượt — kiểu sai
+   *  không compiler nào bắt được vì cả hai đều là `string`. */
+  people?: 'name' | 'id'
   /** Một ô mẫu, dùng dựng tệp mẫu tải về. */
   sample: string
 }
@@ -248,14 +260,26 @@ const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.la
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const SOURCE_OPTIONS = SOURCES.map((s) => ({ value: s.code, label: s.label }))
 const CHANNEL_OPTIONS = Object.entries(CHANNEL_LABEL).map(([value, label]) => ({ value, label }))
-/** Hai bảng người, và chúng KHÔNG thay nhau được.
+
+/** Bản vẽ + sổ người = bản vẽ dùng được.
  *
- *  Sổ lead giữ TÊN ở `Lead.owner`; sổ cơ hội giữ ID ở `saleOwners`/`bdOwners`
- *  ("tên đổi được, id thì không" — docblock của `OpportunityDraft`). Dùng nhầm
- *  bảng thì tệp nạp xong trông vẫn đúng trên bảng, mà mọi phép lọc theo người
- *  đều trượt — kiểu sai không compiler nào bắt được vì cả hai đều là `string`. */
-const OWNER_NAME_OPTIONS = dasVina.actors.map((a) => ({ value: a.name, label: a.name }))
-const OWNER_ID_OPTIONS = dasVina.actors.map((a) => ({ value: a.id, label: a.name }))
+ *  Trả về một spec MỚI thay vì sửa tại chỗ: `LEAD_SPEC` là hằng số tầng module,
+ *  và một hàm ghi đè lên nó sẽ ghi đè cho cả những màn đang mở panel khác.
+ *
+ *  Chưa có người thì `options` vắng, và ô nhập thành ô chữ tự do đúng như mọi
+ *  ô không có danh sách đóng — KHÔNG phải danh sách rỗng, thứ sẽ từ chối sạch
+ *  mọi dòng của một tệp 5.000 dòng chỉ vì sổ người về chậm hơn tệp. */
+export function withPeople(spec: ImportSpec, people: readonly Actor[]): ImportSpec {
+  if (people.length === 0) return spec
+  const byName = peopleNameOptions(people)
+  const byId = peopleIdOptions(people)
+  return {
+    ...spec,
+    fields: spec.fields.map((f) =>
+      f.people ? { ...f, options: f.people === 'name' ? byName : byId } : f,
+    ),
+  }
+}
 
 /** Spec của sổ lead — luồng nạp chính.
  *
@@ -306,7 +330,7 @@ export const LEAD_SPEC: ImportSpec = {
       key: 'owner',
       label: 'Lead PIC',
       aliases: ['lead pic', 'pic', 'nguoi giu', 'phu trach', 'owner', 'sale'],
-      options: OWNER_NAME_OPTIONS,
+      people: 'name',
       sample: 'Lê Hoàng Nam',
     },
     {
@@ -484,14 +508,14 @@ export const OP_SPEC: ImportSpec = {
       label: 'Sale đứng đơn',
       required: true,
       aliases: ['sale', 'sale owner', 'nguoi ban', 'owner'],
-      options: OWNER_ID_OPTIONS,
+      people: 'id',
       sample: 'Đỗ Quang Huy',
     },
     {
       key: 'bdOwner',
       label: 'BD đứng đơn',
       aliases: ['bd', 'bd owner', 'business development'],
-      options: OWNER_ID_OPTIONS,
+      people: 'id',
       sample: 'Lê Hoàng Nam',
     },
   ],

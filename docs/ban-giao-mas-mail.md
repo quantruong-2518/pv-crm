@@ -190,9 +190,12 @@ trong file ghi rõ: thay trước khi `PV_MAS_ENABLED=true`.
    gì chặn package này import `@api/*`. Nên đóng lại.
 4. **`sales.campaign` không phải `ObjectKind`** nên `E1.story()` không đi ngược
    từ lead về chiến dịch — nợ #4 của `ban-giao-db.md`, chưa trả.
-5. **Màn `/campaigns` hiện đứng trên SOURCE (`SR-nn`), không phải `campaign`.**
-   Bảng `sales.campaign` mới dùng mã `CP-nnnn`. Hai khái niệm khác nhau đang
-   cùng gọi là "chiến dịch" trên giao diện; hợp nhất là việc riêng, chưa làm.
+5. **Màn `/campaigns` vẫn đứng trên SOURCE (`SR-nn`), không phải `sales.campaign`.**
+   Mô hình đã CHỐT 28/08 — tách riêng, không hợp nhất (D2 ở
+   `con-thieu-mas-mail.md`) — và `sales.campaign` (`CP-nnnn`) đã có CRUD thật,
+   xem [`ban-giao-campaign.md`](./ban-giao-campaign.md). Việc còn lại là FE:
+   đổi tên màn cũ thành "Nguồn dẫn" và dựng Sổ chiến dịch mới đọc bảng thật —
+   chưa làm.
 6. **Reaper cho dòng kẹt `sending`** — nợ cũ của `ban-giao-mail.md`, MAS làm nó
    gấp hơn vì một lô 200 dòng kẹt là 200 lá thư không ai biết.
 

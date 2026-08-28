@@ -36,6 +36,7 @@ import {
   channelsInUse,
   filterSources,
   ownersOf,
+  rate,
   sourcesQuery,
   type CampaignFilter,
   type CampaignStatus,
@@ -116,6 +117,18 @@ export function CampaignsPage() {
 
   const owners = useMemo(() => ownersOf(sources), [sources])
   const channels = useMemo(() => channelsInUse(sources), [sources])
+
+  /* Đếm trạng thái đi qua ĐÚNG những dòng bảng đang cầm, không qua một con số
+     riêng của máy chủ. "Đang chạy" là một phép so với đồng hồ của trình duyệt
+     (`statusOf`), nên một con số đếm ở máy chủ sẽ chấm theo đồng hồ khác và ô
+     tổng nói 2 trong khi bảng dưới nó tô một dòng. */
+  const byStatus = useMemo(
+    () => ({
+      done: sources.filter((r) => r.status === 'da-xong').length,
+      running: sources.filter((r) => r.status === 'dang-chay').length,
+    }),
+    [sources],
+  )
 
   /* Số đếm trên bộ chọn trạng thái tính trên tập ĐÃ LỌC BA CHIỀU KIA. Đếm trên
      cả sáu dòng thì lọc kênh email xong vẫn thấy "Đang chạy · 1" trong khi bảng
@@ -261,14 +274,14 @@ export function CampaignsPage() {
               <StatCard
                 size="compact"
                 icon={CheckCircle2}
-                value={String(totals.done)}
+                value={String(byStatus.done)}
                 label="Chiến dịch đã hoàn thành"
-                hint={`trên ${totals.campaigns} chiến dịch của kỳ`}
+                hint={`trên ${totals.sources} chiến dịch của kỳ`}
               />
               <StatCard
                 size="compact"
                 icon={Zap}
-                value={String(totals.running)}
+                value={String(byStatus.running)}
                 label="Chiến dịch đang chạy"
                 hint="đợt cuối còn trong 14 ngày — trả lời vẫn về"
               />
@@ -277,33 +290,33 @@ export function CampaignsPage() {
                 icon={Mail}
                 value={grouped(totals.sent)}
                 label="Số mail đã gửi"
-                hint={`${totals.waves} đợt · ${grouped(totals.addressed.sent)} lượt gửi tới một địa chỉ thật`}
+                hint={`${totals.waves} đợt · ${grouped(totals.audience)} thư lô đã nợ khi mở`}
               />
               <StatCard
                 size="compact"
                 icon={MailOpen}
-                value={percent(totals.openRate)}
+                value={percent(rate(totals.opened, totals.sent))}
                 label="Tỉ lệ mở mail"
-                hint={`${grouped(totals.opened)} lượt mở`}
+                hint={`${grouped(totals.opened)} người mở`}
               />
               <StatCard
                 size="compact"
                 icon={Reply}
-                value={percent(totals.replyRate)}
-                label="Tỉ lệ trả lời"
-                hint={`${grouped(totals.replied)} người trả lời`}
+                value={percent(rate(totals.clicked, totals.sent))}
+                label="Tỉ lệ bấm vào thư"
+                hint={`${grouped(totals.clicked)} người bấm`}
               />
             </ScreenScoreGrid>
 
-            {/* Hai chỗ chênh nói thẳng ở đây, không bắt ai tự trừ: mẫu số của ba
-                tỉ lệ trên gồm cả reach bài đăng, và sổ này chỉ có sáu dòng chứ
-                không phải cả kỳ. */}
+            {/* Ba chỗ chênh nói thẳng ở đây, không bắt ai tự trừ: thư nợ mà
+                không đi được, nguồn tự nhiên đứng ngoài sổ này, và phần cơ hội
+                không chiến dịch nào được ghi công. */}
             <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Ba tỉ lệ trên chia cho cùng một mẫu số là {grouped(totals.sent)} lượt gửi, trong đó{' '}
-              {grouped(totals.sent - totals.addressed.sent)} lượt là reach bài đăng và số người quét
-              mã tại chỗ — không phải mail. {totals.natural.count} nguồn tự nhiên (
+              Hai tỉ lệ trên chia cho cùng một mẫu số là {grouped(totals.sent)} thư đã gửi; các lô
+              nợ {grouped(totals.audience)} thư khi mở, chỗ chênh là thư không rời được máy (bị
+              chặn, dội, hoặc hết lượt thử). {totals.natural.count} nguồn tự nhiên (
               {totals.natural.leads} lead, không ai chạy đợt nào) không nằm trong sổ này; chúng ở Sổ
-              lead. {totals.ops}/{totals.opsBook} cơ hội của kỳ đến từ sáu chiến dịch dưới đây.
+              lead. {totals.ops}/{totals.opsBook} cơ hội của kỳ đến từ những chiến dịch dưới đây.
             </p>
           </div>
         ) : (
@@ -429,7 +442,7 @@ export function CampaignsPage() {
                 { header: 'Kết thúc', width: '0.75fr', sortKey: 'ket-thuc' },
                 { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'nguoi-nhan' },
                 { header: 'Mở mail', width: '0.7fr', align: 'right', sortKey: 'mo' },
-                { header: 'Trả lời', width: '0.7fr', align: 'right', sortKey: 'tra-loi' },
+                { header: 'Bấm', width: '0.7fr', align: 'right', sortKey: 'bam' },
                 { header: 'Mail hỏng', width: '0.75fr', align: 'right', sortKey: 'hong' },
                 { header: '→ Ops', width: '0.7fr', align: 'right', sortKey: 'ops' },
               ]}
@@ -487,7 +500,7 @@ export function CampaignsPage() {
                       {percent(s.openRate)}
                     </span>,
                     <span key="t" className="tnum font-num">
-                      {percent(s.replyRate)}
+                      {percent(s.clickRate)}
                     </span>,
                     <span key="h" className="tnum font-num">
                       {percent(s.bounceRate)}

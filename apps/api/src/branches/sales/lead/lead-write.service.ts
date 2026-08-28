@@ -9,8 +9,9 @@ import {
 } from '@pv/contracts'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import type { Db } from '@api/platform/db/db.module'
+import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
-import { fromCreate, refOf } from './lead-write.mapper'
+import { fromCreate, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { toContract } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
@@ -59,6 +60,7 @@ export class LeadWriteService {
   constructor(
     private readonly repo: LeadWriteRepository,
     private readonly leads: LeadRepository,
+    private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
   ) {}
 
@@ -72,7 +74,7 @@ export class LeadWriteService {
    *  refused here: the insert dies on `lead_owner_id_actor_id_fk` a moment
    *  later, and that fence holds for every door at once rather than only for
    *  the ones that remembered to check. */
-  async create(body: LeadCreate): Promise<LeadCreateResponse> {
+  async create(who: Actor, body: LeadCreate): Promise<LeadCreateResponse> {
     const handle = this.repo.readonlyHandle
     const owner = body.ownerId ? await this.repo.actorById(handle, body.ownerId) : null
 
@@ -88,6 +90,21 @@ export class LeadWriteService {
       await this.mirror.put(tx, refOf(code, write))
       const [written] = await this.repo.insertLeads(tx, [{ ...write.values, code }])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
+
+      /* The lead's first timeline row, written in the same commit as the lead.
+         A customer whose history starts at the day somebody happened to open
+         the profile is a customer with no history — and the row costs one
+         INSERT on a path that is already writing two. */
+      await this.touch.record(tx, [
+        {
+          subjectCode: code,
+          subjectKind: 'lead',
+          kind: 'vao-so',
+          ...byOf(who),
+          note: LEAD_NOTE.typed,
+        },
+      ])
+
       return written
     })
 
@@ -184,6 +201,28 @@ export class LeadWriteService {
         await this.repo.insertLeads(
           tx,
           slice.map((p) => p.row),
+        )
+        /* One timeline row per lead, in the same chunk as the lead itself. The
+           file name goes into the sentence rather than into a column, because
+           the batch receipt in `platform.audit` already holds the authoritative
+           link and a second copy that can disagree with it is worse than a
+           sentence that cannot. */
+        await this.touch.record(
+          tx,
+          slice.map((p): TouchEntry => ({
+            subjectCode: p.row.code,
+            subjectKind: 'lead',
+            kind: 'vao-so',
+            /* Đọc off chính dòng sắp ghi, không chép lại `IMPORTED_TIER`: hai
+               chỗ cùng nói một luật là hai chỗ để nó lệch nhau, và chỗ lệch sẽ
+               là chỗ này — nó không có test, còn kia thì có docblock dài.
+               Lead gõ tay và lead từ landing page KHÔNG có dòng tương ứng, vì
+               hợp đồng cố tình giữ lại `tier` ở hai cửa đó: bậc của chúng là
+               NULL, và ghi ra một bậc không tồn tại thì tệ hơn không ghi. */
+            ...(p.row.tier ? { toTier: p.row.tier } : {}),
+            ...byOf(who),
+            note: LEAD_NOTE.imported(body.fileName),
+          })),
         )
       }
 

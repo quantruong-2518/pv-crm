@@ -91,6 +91,17 @@ export class UsersRepository {
     return this.db.select().from(actor).orderBy(actor.name)
   }
 
+  /** The roster — people who can still sign in, by name.
+   *
+   *  Same statement as `all()` minus the locked rows, and it stays a separate
+   *  method rather than `all(includeDisabled?: boolean)`: the two callers ask
+   *  different questions with different permissions behind them, and a boolean
+   *  argument is how the wrong one eventually gets passed. `DirectoryResponse`
+   *  in `@pv/contracts` carries the reasoning for the filter itself. */
+  async active(): Promise<ActorRow[]> {
+    return this.db.select().from(actor).where(isNull(actor.disabledAt)).orderBy(actor.name)
+  }
+
   /** One person, WITH the row locked for the rest of the transaction.
    *
    *  Everything the service decides about this row — may it be demoted, may it

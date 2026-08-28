@@ -1,6 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { MaObject, OpportunityCreate, OpportunityUpdate, PageQuery } from '@pv/contracts'
+import {
+  ContractSign,
+  MaObject,
+  OpportunityBookQuery,
+  OpportunityCreate,
+  OpportunityImportBody,
+  OpportunityUpdate,
+} from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -38,7 +45,7 @@ export class OpportunityController {
 
   @Get()
   @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
-  book(@CurrentActor() who: Actor, @Query(zod(PageQuery)) q: PageQuery) {
+  book(@CurrentActor() who: Actor, @Query(zod(OpportunityBookQuery)) q: OpportunityBookQuery) {
     return this.ops.book(who, q)
   }
 
@@ -54,12 +61,94 @@ export class OpportunityController {
     return this.ops.profile(who, code)
   }
 
+  /** Dòng thời gian của một đơn — `sales.touch`.
+   *
+   *  Đứng ở đây chứ không ở một `@Controller('sales/touches')` dùng chung, và
+   *  đó là quyết định chứ không phải chỗ trống: đường lần chạm của lead đòi
+   *  `lead.xem`, đường này đòi `cơ-hội.xem`, mà `@Need` là metadata TĨNH trên
+   *  một phương thức — không route nào khai được "quyền này nếu mã bắt đầu
+   *  bằng LD, quyền kia nếu bắt đầu bằng OP". Lý do đầy đủ ở `touch.module.ts`.
+   *
+   *  `cơ-hội.xem` chứ không `ghi-vết.xem`: quyền kia là để đọc `platform.audit`
+   *  — ai đã gọi đường nào — và đó là câu hỏi của người quản trị. Câu hỏi ở đây
+   *  là "đơn của tôi đã đi qua những gì", và người bán mở hồ sơ đơn mình đứng
+   *  tên không cần quyền của quản trị để đọc lịch sử chính đơn đó. */
+  @Get(':code/touches')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
+  touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+    return this.ops.touches(who, code)
+  }
+
   /** Đổi một lead thành cơ hội. 201 kèm nguyên dòng sổ — màn chèn được ngay,
-   *  không phải gọi lần thứ hai, và người điền thấy luôn mã hệ vừa cấp. */
+   *  không phải gọi lần thứ hai, và người điền thấy luôn mã hệ vừa cấp.
+   *
+   *  Nhận `@CurrentActor()` kể từ khi có `sales.touch`: dòng đầu tiên của một
+   *  đơn phải ghi được ai mở nó. Docblock của `OpportunityService.create` nói
+   *  đầy đủ vì sao tham số này từng KHÔNG có mặt và điều gì đã đổi. */
   @Post()
   @Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })
-  create(@Body(zod(OpportunityCreate)) body: OpportunityCreate) {
-    return this.ops.create(body)
+  create(@CurrentActor() who: Actor, @Body(zod(OpportunityCreate)) body: OpportunityCreate) {
+    return this.ops.create(who, body)
+  }
+
+  /** Chạy thử một lô nạp. KHÔNG ghi gì — kể cả một con số của dãy mã.
+   *
+   *  `@HttpCode(200)` vì 201 sẽ nói dối rằng có thứ gì đó vừa được tạo.
+   *
+   *  Đòi `cơ-hội.sửa` y như cửa nạp thật, và bản chạy thử KHÔNG được rẻ hơn:
+   *  nó đọc cả sổ lead để trả lời "công ty này có trong sổ không" và "khách này
+   *  đã có đơn đang mở chưa", mà hai câu trả lời đó đáng giá với người đang dò
+   *  đúng bằng chính những dòng dữ liệu. Cùng lý lẽ mà lô nạp lead đã ghi. */
+  @Post('import/preview')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })
+  importPreview(@Body(zod(OpportunityImportBody)) body: OpportunityImportBody) {
+    return this.ops.importPreview(body)
+  }
+
+  /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào. */
+  @Post('import')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })
+  import(
+    @CurrentActor() who: Actor,
+    @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
+  ) {
+    return this.ops.importCommit(who, body)
+  }
+
+  /** Ký — cửa DUY NHẤT làm một đơn thành `close-won`.
+   *
+   *  ------------------------------------------------------------------
+   *  QUYỀN LÀ `cơ-hội.chốt`, VÀ ĐÂY LÀ ĐƯỜNG ĐẦU TIÊN DÙNG NÓ
+   *  ------------------------------------------------------------------
+   *  Quyền đó đã có trong E2 từ đầu, đã có test khoá ở `actors.test.ts`, và tới
+   *  hôm nay chưa gác đường nào. Docblock ở đầu controller này đã vạch sẵn
+   *  ranh giới: xem là đọc, sửa là mở một đơn và động vào nó, chốt là ký — và
+   *  ký là thứ đi ra khỏi phòng kinh doanh. Đây là đường ranh giới đó được vẽ
+   *  cho.
+   *
+   *  Hệ quả cụ thể: `presales` mở và sửa được đơn nhưng KHÔNG bấm được nút này,
+   *  còn `sale` thì được. Đó đúng là hàng của hai vai trong `e2-access.ts`, và
+   *  nếu nó sai thì chỗ sửa là ma trận vai, không phải dòng dưới đây.
+   *
+   *  `scoped: true` — ký được đơn của mình. Người `ownOnly` bấm nút này trên
+   *  đơn người khác nhận 403 gọi tên phạm vi, không phải một 404 giả vờ đơn
+   *  không tồn tại; service phân biệt được vì `byCode` chở `inScope` về cùng dữ
+   *  liệu.
+   *
+   *  Tài nguyên con của đơn (`:code/contract`) chứ không phải `/sales/contracts`
+   *  cấp một: một hợp đồng KHÔNG tồn tại độc lập — khoá ngoại ghép của nó neo
+   *  vào đúng một cặp `(cơ hội, lead)`, và đường dẫn nói lại đúng điều đó. Ngày
+   *  có màn đọc sổ hợp đồng thì `GET /sales/contracts` là một tài nguyên khác,
+   *  với gốc của nó. */
+  @Post(':code/contract')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.chốt', scoped: true })
+  sign(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(ContractSign)) body: ContractSign,
+  ) {
+    return this.ops.sign(who, code, body)
   }
 
   /** Lưu phiếu ở hồ sơ cơ hội.

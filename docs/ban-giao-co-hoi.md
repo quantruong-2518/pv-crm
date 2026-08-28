@@ -60,13 +60,22 @@ người trực form landing page, báo cơ hội là việc của người gậ
 thư hôm nay không có nghĩa là cùng một hộp thư mãi. Nếu hai luồng cùng về
 `contact@pebblevina.com` thì đặt bằng nhau — vẫn là hai khoá.
 
-### 5 · Ba câu trả lời còn thiếu
+### 5 · Câu trả lời còn thiếu
 
-| Câu hỏi                                                              | Vì sao cần bạn quyết                                                                                                                                                                                                                                                                                                   |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Nút "Nạp cơ hội từ tệp" có quay lại không?**                       | Tôi đã gỡ khỏi sổ. Nó ghi vào `useIntakeDesk` — chỉ sống trong trình duyệt; trên một cái bảng nay là dữ liệu thật, những dòng đó trông y hệt dòng máy chủ nhưng không ai khác thấy và vẫn được cộng vào thẻ điểm. Bộ đọc CSV (`OP_SPEC`, `rowsToOps` ở `data/intake.ts`) tôi giữ nguyên, chờ `POST /sales/ops/import`. |
-| **`opportunity.code` có nên khoá ngoại về `platform.object` không?** | `lead.code` có, `opportunity.code` thì chưa — nên dòng gương E1 là kỷ luật của service chứ không phải hàng rào. Quên là ContextRail của đơn mới mở ra trống mà không có gì đỏ (luật 10 gãy im lặng). Thêm khoá cần kiểm 16 dòng production có đủ object row không.                                                     |
-| **Đơn thắng ghi ở đâu?**                                             | Hôm nay "đã thắng" = có dòng trong `sales.contract`, suy ra chứ không lưu. Chưa có cửa nào tạo `contract`, nên chốt thắng chưa làm được từ giao diện.                                                                                                                                                                  |
+Hai trong ba câu của bản 28/08 nay đã có code trả lời — xem mục
+["Vòng hai"](#vòng-hai--28082026-chiều) ở cuối file. Còn lại một:
+
+| Câu hỏi                                                              | Vì sao cần bạn quyết                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`opportunity.code` có nên khoá ngoại về `platform.object` không?** | `lead.code` có, `opportunity.code` thì chưa — nên dòng gương E1 là kỷ luật của service chứ không phải hàng rào. Quên là ContextRail của đơn mới mở ra trống mà không có gì đỏ (luật 10 gãy im lặng). Thêm khoá cần kiểm 16 dòng production có đủ object row không. |
+
+Hai câu đã trả lời, ghi lại để không ai đi hỏi lần nữa:
+
+- **"Nạp cơ hội từ tệp" có quay lại không** — cửa máy chủ đã dựng
+  (`POST /sales/ops/import` + `/import/preview`). Nút trên màn thì CHƯA gắn lại;
+  đó là việc của `apps/web`, và `OP_SPEC`/`ImportZone` vẫn nguyên chờ nó.
+- **Đơn thắng ghi ở đâu** — `POST /sales/ops/:code/contract`, quyền `cơ-hội.chốt`.
+  Vẫn đúng nguyên tắc cũ: "đã thắng" là dòng bên `contract`, suy ra chứ không lưu.
 
 ---
 
@@ -251,3 +260,210 @@ Muốn xem mail thật thì thêm `PV_EMAIL_ENABLED=true`, `RESEND_API_KEY=…`,
 - **`expected_close` của 16 dòng đó là NULL** — fixture chưa bao giờ có dữ liệu
   này. Hệ quả nhìn thấy được: cột "Close date" của chúng vẽ "—", và **không lưu
   được phiếu cho tới khi điền ngày** (hợp đồng đòi ô đó).
+
+---
+
+## Vòng hai · 28/08/2026 chiều
+
+Bốn cửa máy chủ còn thiếu đã dựng xong, `pnpm check` xanh, và cả bốn đã bấm thử
+thật trên pglite tại máy (migrate → seed → boot → curl). **Chưa deploy, chưa nối
+màn nào.**
+
+### Endpoint mới
+
+|                                  | quyền                  |                                                  |
+| -------------------------------- | ---------------------- | ------------------------------------------------ |
+| `GET /sales/ops?leadCode=`       | `cơ-hội.xem` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần     |
+| `GET /sales/ops/:code/touches`   | `cơ-hội.xem` · scoped  | dòng thời gian của một đơn                       |
+| `GET /sales/leads/:code/touches` | `lead.xem` · scoped    | dòng thời gian của một lead                      |
+| `POST /sales/ops/import/preview` | `cơ-hội.sửa`           | chạy thử, không ghi gì                           |
+| `POST /sales/ops/import`         | `cơ-hội.sửa`           | nạp thật, cả lô hoặc không dòng nào              |
+| `POST /sales/ops/:code/contract` | `cơ-hội.chốt` · scoped | **ký** — đường ĐẦU TIÊN dùng quyền `cơ-hội.chốt` |
+
+### Bảng mới · `sales.touch`
+
+Migration `0016_contract_touch_sign`, kèm dãy `sales.contract_code_seq`
+(bắt đầu 5001, cùng lý do với dãy mã cơ hội — fixture đã chiếm `HĐ-2711…2716`).
+
+`subject_code` + `subject_kind` chứ không hai cột khoá ngoại: Postgres không có
+khoá ngoại đa hình, và câu đọc duy nhất của bảng là "dòng thời gian của mã X".
+Cái mất — một lần chạm trỏ vào mã không có thật thì bảng nhận — được đỡ bằng
+việc MỌI chỗ ghi đều nằm trong transaction đã ghi chính dòng đó. Chi tiết ở
+docblock của `touch.schema.ts`.
+
+Ai ghi, hôm nay: mở đơn · đổi trạng thái đơn · ký · nạp lô cơ hội · lead vào sổ
+(gõ tay, landing page, nạp tệp). `cham`, `giao`, `gap-lan-dau` có trong enum
+nhưng **chưa cửa nào ghi** — chúng ở đó vì màn đã vẽ, và vì nới một CHECK sau
+này là một migration.
+
+**Mail KHÔNG đẻ dòng touch.** `GET /sales/leads/:code/mail` đã trả lời "đã viết
+cho người này mấy lần" kèm số mở/click mà một dòng touch không chở nổi; ghi cả
+hai là dựng hai nguồn sẽ lệch ngay lần đầu một lá xếp hàng rồi gửi hỏng.
+
+### Thư "đơn thua" nay bắn từ đường sửa
+
+Trước: chỉ cửa TẠO bắn thư, nên một đơn mở bình thường rồi thua sau đó không ai
+được báo. Nay `PATCH` bắn khi `becameLost` — `state` MỚI là `close-lost` và
+`state` CŨ thì không. `lost` một mình là sai: nó đúng ở mọi lượt lưu một đơn đã
+thua, tức đúng cái bẫy "một lá mỗi lượt sửa".
+
+**Không rule E4 nào được thêm.** `opportunity-lost-internal` đã có sẵn và
+docblock của nó đã tính trước đường này; `flow` của nó khác `flow` của lá "đơn
+mở" nên `UNIQUE(event_key)` không coi lá thứ hai là trùng.
+
+Hệ quả cần biết: thua → mở lại → thua lần nữa chỉ bắn **đúng một lá, mãi mãi**
+(`event_key` là `opportunity-lost/internal/v1/<mã>`, `enqueue` là
+`onConflictDoNothing`). Đó là hành vi đúng, nhưng là một quyết định.
+
+### Nhãn gộp còn hai bản
+
+`STATE_LABEL`/`STAGE_LABEL` từng nằm trong `opportunity-mail.composer.ts`; nay ở
+`opportunity.labels.ts`, dùng chung cho mail và cho câu của dòng thời gian. Bản
+của MÀN (`ops-fields.tsx`) vẫn còn — vẫn là khoản nợ cũ, trả cùng bước tách
+fixture. Hai bản là nợ; ba bản là một bản sẽ bị quên.
+
+---
+
+## Bàn giao phần FE — chưa làm, đã phác
+
+**Trạng thái:** máy chủ xong và đã bấm thử thật; `apps/web` chưa gọi cửa nào
+trong sáu cửa mới. Bản phác dưới đây đã dựng xong nhưng **chưa ai gật** — đọc
+mục "Năm quyết định" trước khi chạm file.
+
+### ⚠ Hai cảnh báo đọc trước
+
+1. **Toàn bộ phần máy chủ đang NẰM TRONG CÂY LÀM VIỆC, chưa commit.** Gồm cả
+   migration `0016_contract_touch_sign` và thư mục `branches/sales/touch/`.
+   Mất cây làm việc là mất hết. Commit trước khi làm gì khác.
+2. **Có phiên thứ hai sửa cùng repo hôm 28/08** — nó đụng `lead-detail.tsx`,
+   `lead-parts.tsx`, `convert-dialog.tsx`, `ops-fields.tsx`, `assign-menu.tsx`,
+   `leads.tsx`, `data/intake.ts`, và nhóm `campaign/`. Hai việc số 3 và 4 dưới
+   đây nằm gọn trong `ops.tsx`/`ops-detail.tsx` nên an toàn; hai việc số 1 và 2
+   đụng đúng nhóm file kia — **đọc lại file ngay trước khi sửa.**
+
+### Bốn việc, theo đúng thứ tự chặn nhau
+
+**1 · Bỏ `opportunityOfLead` của fixture** — `pages/lead-detail.tsx:270`
+
+Đây là LỖI THẬT đang sống, không phải nợ thẩm mỹ: lead tạo sau khi fixture đóng
+băng luôn trả `undefined`, nên nút "Đổi thành cơ hội" vẫn sáng và mở được đơn
+thứ hai cho cùng một khách. Chống đỡ duy nhất hôm nay là `desk.deals` trong
+localStorage — đổi máy là hết.
+
+Đổi sang `opsBookQuery` có `leadCode`, rồi `desk.deals`/`convert`/`undoConvert`
+xoá khỏi `app/desk.ts` cùng thẻ `ConvertedCard` ở `convert-dialog.tsx:312`.
+
+**2 · Nối `ActivityCard`** — `pages/lead-detail.tsx`, `pages/ops-detail.tsx:221`
+
+Cả hai đang nhận `NO_TOUCHES`/`NO_TRANSCRIPT` (hằng số rỗng ở
+`data/lead-profile.ts:300`). Thêm `data/touches.ts` với hai query, và một hàm
+dịch `TouchRow[]` → `LeadEvent[]`. Hình gần khớp sẵn: `TouchKind` cố tình được
+đặt trùng mười giá trị của `LeadEventKind`, nên phép dịch là đổi tên trường
+(`note` → `note`, `by` → `by`, `at` → `at`), không phải một bảng tra.
+
+`turns` (transcript) vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có.
+
+**3 · Gắn lại nút nạp tệp** — `pages/ops.tsx:213`
+
+`<ScreenHeader title="Sổ cơ hội" />` hôm nay không có `actions`. Thêm
+`actions={<ImportZone spec={OP_SPEC} existingKeys={NO_LOCAL_KEYS} … />}`, đúng
+hình mà `leads.tsx:481` đang dùng. Cần thêm `data/opportunity-import-wire.ts`
+(dịch thuần, đối xứng `lead-import-wire.ts`) và `data/opportunity-import.ts`
+(hai lượt gọi, `preview` trước, dừng nếu `rows.length === 0`).
+
+`existingKeys` để RỖNG: máy chủ dedupe theo mã lead, trình duyệt không biết mã
+đó. `rowsToOps` ở `data/intake.ts` **không dùng lại** — bộ kiểm máy chủ thay nó.
+
+**4 · Nút "Chốt thắng"** — `pages/ops-detail.tsx`, trong `ToolsBar`
+
+Cửa `POST /sales/ops/:code/contract` chưa có ai bấm. Ba ô đều tuỳ chọn ở hợp
+đồng, nên drawer chỉ để xác nhận + cho sửa: số tiền (mồi từ đơn), ngày ký (mồi
+hôm nay), người ăn hoa hồng (mồi Sale đứng đơn đầu, chọn từ `/users/directory`).
+
+### Sơ đồ đã phác
+
+```
+/sales/ops  — ĐỔI ĐÚNG MỘT HÀNG
+┌─ ScreenHeader "Sổ cơ hội" ───────────────[ Nạp cơ hội từ tệp ]─┐  ← MỚI
+├─ ScreenScoreGrid · 4 thẻ điểm ────────────────────────────────┤  giữ nguyên
+├─ ScreenToolbar · ô tìm + 4 select ────────────────────────────┤  giữ nguyên
+├─ "N dòng khớp · M bị ẩn"                          [ Pager ]   ┤  giữ nguyên
+└─ GlassCard variant=b · DataTable 8 cột ───────────────────────┘  giữ nguyên
+
+/sales/ops/:code  — ĐỔI ĐÚNG MỘT NÚT + MỘT DRAWER
+┌─ ScreenHeader · tên đơn + hàng pill ──────────────────────────┐
+├─ main (DealCard · phiếu 14 ô)  ─┬─ side ─────────────────────┤
+│   … Lưu / Bỏ sửa                │ LeadCard · PeopleCard       │
+│                                  │ ActivityCard ← việc 2       │
+├──────────────────────────────────┴──────────────────────────────┤
+│ ToolsBar  Ngày mở │ Sale │ [Gọi] [Hồ sơ lead] [Chốt thắng]     │  ← MỚI
+└──────────────────────────────────────────────────────────────────┘
+      đơn đã ký  → nút thành pill tĩnh "Đã ký · HĐ-5001"
+      đơn đã thua → nút biến mất (máy chủ trả 409)
+
+      [Chốt thắng] mở Drawer đè lên, cùng dáng ConvertDialog:
+      ┌─ Chốt thắng · OP-5001 ─────────────────────────┐
+      │ Số tiền ký   [1.800.000.000] [VND]  mồi từ đơn │
+      │ Ngày ký      [2026-08-28]           mồi hôm nay│
+      │ Hoa hồng về  [Đỗ Quang Huy ▾]       mồi Sale đầu│
+      │ ⚠ Ký xong không gỡ được từ giao diện.          │
+      │                        [Huỷ]  [Ký hợp đồng]    │
+      └────────────────────────────────────────────────┘
+```
+
+| Khối                 | Câu nó trả lời                     | Nguồn dữ liệu                             | Sửa được? |
+| -------------------- | ---------------------------------- | ----------------------------------------- | --------- |
+| Nút nạp tệp (header) | "đưa pipeline Excel vào bằng gì"   | `POST /sales/ops/import[/preview]`        | —         |
+| Nút Chốt thắng       | "đơn này kết thúc thắng"           | `POST /sales/ops/:code/contract`          | —         |
+| Drawer ký            | "ký bao nhiêu, ngày nào, ai hưởng" | `OpportunityRow` + `GET /users/directory` | 3 ô       |
+| ActivityCard         | "đơn/khách này đã đi qua những gì" | `GET /sales/{ops,leads}/:code/touches`    | không     |
+
+### Năm quyết định còn treo
+
+Mỗi mục kèm mặc định tôi sẽ lấy nếu không ai nói khác:
+
+1. **Nút Chốt thắng đặt ở `ToolsBar`**, không cạnh nút "Lưu" của phiếu — ký
+   không phải lưu form. _(mặc định: ToolsBar)_
+2. **`OP_SPEC` còn ô chọn `motion`** mà máy chủ bỏ qua (deal không có cột đó).
+   Gỡ `motions` khỏi `OP_SPEC` để không bày một ô không làm gì. _(mặc định: gỡ)_
+3. **Đơn đã ký cần in mã hợp đồng**, mà `OpportunityRow` chưa chở nó. Cần một
+   sửa BE nhỏ: thêm `contractCode` vào hợp đồng, đổi `EXISTS` thành `LEFT JOIN`
+   ở `OpportunityRepository.signed()`. _(mặc định: thêm)_ — **đây là việc BE duy
+   nhất còn thiếu; mọi thứ khác đã xong.**
+4. **Nút ký chỉ hiện với vai có `cơ-hội.chốt`** — ẩn hẳn với presales, không
+   hiện rồi mờ. _(mặc định: ẩn hẳn)_
+5. **ActivityCard ở hồ sơ đơn đọc touches của ĐƠN**, ở hồ sơ lead đọc của LEAD,
+   không trộn hai dòng thời gian. _(mặc định: như vậy)_
+
+### Dựng lại môi trường để bấm thử
+
+Không đụng Neon — pglite trong chính tiến trình Node:
+
+```bash
+cd apps/api
+rm -rf /tmp/pgl-ops
+DATABASE_URL="pglite:///tmp/pgl-ops" npx drizzle-kit migrate
+DATABASE_URL="pglite:///tmp/pgl-ops" node -r ts-node/register -r tsconfig-paths/register src/seed.ts
+
+DATABASE_URL="pglite:///tmp/pgl-ops" PORT=4123 PV_TRUST_ACTOR_HEADER=true \
+  PV_OPS_NOTIFICATION_TO=ops@pebblevina.com \
+  node -r ts-node/register -r tsconfig-paths/register src/main.ts
+```
+
+`PV_TRUST_ACTOR_HEADER=true` cho phép đóng vai bằng header — `u-ha`
+(trưởng phòng, thấy cả sổ), `u-huy` (sale, `ownOnly`), `u-anh` (presales, KHÔNG
+có `cơ-hội.chốt` — dùng để kiểm nút ký phải ẩn).
+
+pglite chỉ một kết nối: **tắt máy chủ trước khi mở cùng thư mục đó bằng script
+khác**, nếu không câu truy vấn thứ hai treo.
+
+### Vẫn chưa có, và cố ý
+
+- **Đính kèm thật** — vẫn chỉ tên + cỡ. `apps/api` không có S3/R2/multer nào,
+  Fly thì đĩa ephemeral. Chủ dự án chốt 28/08: chưa phát triển.
+- **Huỷ ký** — không có `DELETE`. Ký là thứ đã sang tay kế toán và sang tay
+  khách; gỡ nó phải là một đề nghị có người duyệt (E3), không phải một lượt gọi
+  của người vừa lỡ tay.
+- **Cạnh E1 giữa cơ hội và hợp đồng** — dòng gương `HĐ` đã ghi, cạnh thì chưa:
+  chưa cửa nào trong `apps/api` ghi `platform.edge` (seed là chỗ duy nhất), nên
+  mở quy ước đó phải mở ở `GraphModule`, không phải trong một cửa ký.

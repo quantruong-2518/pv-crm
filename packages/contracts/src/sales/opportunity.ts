@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { paged } from '../pagination'
+import { PageQuery, paged } from '../pagination'
 import { Dong, MaObject, Moc, Ngay, textNhap, textNhapTuyChon } from '../primitives'
 import { CurrencyCode, StageKey } from './enums'
 
@@ -267,6 +267,39 @@ export const OpportunityRow = z.object({
   closedAt: Moc.nullable(),
 })
 
+// ---------------------------------------------------------------------------
+// ASKING THE BOOK A NARROWER QUESTION
+// ---------------------------------------------------------------------------
+
+/** What `GET /sales/ops` accepts. Paging, plus one filter.
+ *
+ *  ------------------------------------------------------------------
+ *  ONE FILTER, AND IT EXISTS TO KILL A SPECIFIC BUG
+ *  ------------------------------------------------------------------
+ *  `leadCode` is not here to round out a filter set — the Ops screen filters in
+ *  the browser today and says so. It is here because the lead profile has to
+ *  answer "has this customer already been promoted?" before it offers the
+ *  button that promotes them, and until now it answered by looking the lead up
+ *  in a frozen fixture array. A lead created after that array was written
+ *  always came back "no", so the button stayed lit and a second deal opened for
+ *  a customer who already had one — the exact double-count `desk.deals` was
+ *  invented to prevent, from a source of truth that cannot see the database.
+ *
+ *  A filter on the book rather than a field on `LeadProfile`: one lead may hold
+ *  several deals (that is the whole point of `lead_code` living on this table),
+ *  so the answer is a LIST, and a list of deals is what this endpoint already
+ *  returns. Hanging a single `opportunityCode` off the lead would re-assert the
+ *  1-1 relation the schema was changed to remove.
+ *
+ *  Absent = no filter, the convention every optional filter on `LeadBookQuery`
+ *  follows. Deliberately NOT extended further here: the screen's score cards,
+ *  its selects and its paging all read the whole book, and moving one of the
+ *  three server-side while the other two still pull `size=200` would leave the
+ *  page disagreeing with itself. That move is a real change, not a field. */
+export const OpportunityBookQuery = PageQuery.extend({
+  leadCode: MaObject.optional(),
+})
+
 export const OpportunityBookResponse = paged(OpportunityRow)
 
 export const OpportunityCreateResponse = OpportunityRow
@@ -289,5 +322,6 @@ export type OpportunityUpdate = z.infer<typeof OpportunityUpdate>
 export type OpportunityUpdateResponse = z.infer<typeof OpportunityUpdateResponse>
 export type OpportunityOwner = z.infer<typeof OpportunityOwner>
 export type OpportunityRow = z.infer<typeof OpportunityRow>
+export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>

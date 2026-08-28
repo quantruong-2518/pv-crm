@@ -1,6 +1,5 @@
 import {
   CURRENCIES,
-  dasVina,
   INIT_DATA_QUESTIONS,
   LEAD_CATEGORIES,
   LEAD_TIERS,
@@ -123,6 +122,16 @@ export type ProfileField = {
   /** Đơn vị in cạnh ô — "người", "nhà máy". */
   unit?: string
   options?: { value: string; label: string }[]
+  /** Ô này liệt kê NGƯỜI của phòng, và chuỗi này là dòng "chưa ai" của nó.
+   *
+   *  Bản vẽ không giữ được danh sách người nữa: sổ người nằm trên máy chủ
+   *  (`GET /users/directory`), còn đây là một hằng số tầng module. Nên bản vẽ
+   *  chỉ nói ô này hỏi ai và gọi trống là gì; `FieldRow` đổ tên vào lúc vẽ.
+   *
+   *  Dòng trống KHÔNG dùng chung một chữ cho cả ba ô: "Còn ở kho chung, chưa ai
+   *  nhận" và "Chưa BD nào chạm" nói hai chuyện khác nhau về cùng một khoảng
+   *  trắng, và đó là chỗ người dùng đọc để biết ô này bỏ trống có sao không. */
+  people?: string
   /** Chữ mono: mã, số thuế, số điện thoại — thứ người ta đọc từng ký tự. */
   mono?: boolean
 }
@@ -139,17 +148,6 @@ const CHANNEL_OPTIONS = [
 const STAGE_OPTIONS = [
   { value: '', label: 'Chưa vào sổ cơ hội' },
   ...PIPELINE_STAGES.map((s) => ({ value: s.key, label: `${s.label} · hạn ${s.limitDays} ngày` })),
-]
-
-/** Người trong phòng, cho ba ô chủ sở hữu.
- *
- *  Lọc theo nhánh Sales chứ không khai tay bảy cái tên: thêm một người vào
- *  `actors` là ba ô select tự có, không ai phải nhớ sửa thêm chỗ này. */
-const peopleOptions = (empty: string) => [
-  { value: '', label: empty },
-  ...dasVina.actors
-    .filter((a) => a.branches.includes('Sales'))
-    .map((a) => ({ value: a.name, label: `${a.name} · ${a.role}` })),
 ]
 
 /** BẢN VẼ. Thứ tự dòng ở đây là thứ tự trên màn.
@@ -316,7 +314,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     label: 'Người giữ lead',
     kind: 'select',
     group: 'so',
-    options: peopleOptions('Còn ở kho chung, chưa ai nhận'),
+    people: 'Còn ở kho chung, chưa ai nhận',
     hint: 'Đổi tay chia lại phần chốt của hoa hồng.',
   },
   {
@@ -324,14 +322,14 @@ export const PROFILE_FIELDS: ProfileField[] = [
     label: 'BD đã chạm',
     kind: 'select',
     group: 'so',
-    options: peopleOptions('Chưa BD nào chạm'),
+    people: 'Chưa BD nào chạm',
   },
   {
     key: 'marketingOwner',
     label: 'Marketing phụ trách',
     kind: 'select',
     group: 'so',
-    options: peopleOptions('Không qua Marketing'),
+    people: 'Không qua Marketing',
   },
   { key: 'source', label: 'Nguồn kéo về', kind: 'read', group: 'so', mono: true },
   { key: 'createdAt', label: 'Vào sổ ngày', kind: 'read', group: 'so' },
