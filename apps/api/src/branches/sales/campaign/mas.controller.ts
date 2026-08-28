@@ -1,6 +1,12 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { MailRunListQuery, MasPreflightRequest, MasSendRequest } from '@pv/contracts'
+import {
+  MailRunId,
+  MailRunListQuery,
+  MailRunPatch,
+  MasPreflightRequest,
+  MasSendRequest,
+} from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -15,12 +21,20 @@ import { MasService } from './mas.service'
  *  ------------------------------------------------------------------
  *  BA QUYỀN, VÀ CỬA GỬI KHAI QUYỀN THẤP HƠN NÓ THẬT SỰ ĐÒI
  *  ------------------------------------------------------------------
- *  | Đường                       | `@Need`                        |
- *  | --------------------------- | ------------------------------ |
- *  | `POST /sales/mail/preflight`| `lead.gửi-mail` · scoped       |
- *  | `POST /sales/mail/runs`     | `lead.gửi-mail` · scoped (†)   |
- *  | `GET  /sales/mail/runs`     | `chiến-dịch.xem` · scoped      |
- *  | `GET  /sales/mail/templates`| `chiến-dịch.xem`               |
+ *  | Đường                        | `@Need`                        |
+ *  | ---------------------------- | ------------------------------ |
+ *  | `POST  /sales/mail/preflight`| `lead.gửi-mail` · scoped       |
+ *  | `POST  /sales/mail/runs`     | `lead.gửi-mail` · scoped (†)   |
+ *  | `GET   /sales/mail/runs`     | `chiến-dịch.xem` · scoped      |
+ *  | `PATCH /sales/mail/runs/:id` | `chiến-dịch.bắn` · scoped (‡)  |
+ *  | `GET   /sales/mail/templates`| `chiến-dịch.xem`               |
+ *
+ *  (‡) HUỶ ĐÒI QUYỀN CAO HƠN GỬI, và đó không phải sơ suất. Một lô Quick MAS đi
+ *  hết trong vài chục giây, nên thứ người ta thật sự huỷ được là một lô ĐÃ HẸN
+ *  GIỜ hoặc một đợt của chiến dịch — cả hai đều là việc của người bắn chiến
+ *  dịch, không phải của người gửi cho lead mình giữ. Trục phạm vi vẫn bật:
+ *  `MasService.cancel` so `mail_run.created_by`, nên một người `ownOnly` dừng
+ *  được lô của chính mình chứ không dừng được lô của người khác.
  *
  *  (†) Một `@Need` chỉ khai được MỘT quyền tĩnh, mà cửa gửi đòi quyền nào lại
  *  phụ thuộc `campaignCode` trong THÂN yêu cầu — thứ decorator chạy trước khi
@@ -66,6 +80,23 @@ export class MasController {
   @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
   runs(@CurrentActor() who: Actor, @Query(zod(MailRunListQuery)) q: MailRunListQuery) {
     return this.mas.list(who, q)
+  }
+
+  /** Dừng một lô. Khai SAU `@Get('runs')` để hai đường của cùng một tài nguyên
+   *  nằm cạnh nhau, đọc trước rồi ghi.
+   *
+   *  `MailRunId` gác ở `ZodPipe`: một `:id` không phải UUID chết bằng 400 gọi
+   *  tên ô, không đi tới câu `WHERE id = $1::uuid` để chết bằng 500 của driver.
+   *  Có lô đó không, có phải của người này không, còn dừng được không — ba câu
+   *  cần dữ liệu, nên là việc của service. */
+  @Patch('runs/:id')
+  @Need({ branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true })
+  cancel(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(MailRunId)) id: MailRunId,
+    @Body(zod(MailRunPatch)) body: MailRunPatch,
+  ) {
+    return this.mas.cancel(who, id, body)
   }
 
   /** Danh mục mẫu. Không `scoped`: mẫu là tài sản chung của phòng, không đứng

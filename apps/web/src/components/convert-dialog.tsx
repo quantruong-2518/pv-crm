@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, X } from 'lucide-react'
+import { ArrowRight, X } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import {
   Badge,
@@ -25,9 +25,11 @@ import {
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
+import { userMessage } from '@/app/api'
 import { useLeadDesk } from '@/app/desk'
 import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/ops'
+import { createBodyOf, CREATE_STATES, usePromoteLead } from '@/data/ops-write'
 import { dmy } from '@/lib/date'
 import {
   AmountRow,
@@ -117,8 +119,10 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
   const lost = draft.state === 'close-lost'
   const stage = OPPORTUNITY_STATES.find((s) => s.key === draft.state)?.stage ?? null
 
+  const promote = usePromoteLead()
+
   const missing = missingOf(draft)
-  const ready = missing.length === 0
+  const ready = missing.length === 0 && !promote.isPending
 
   return (
     <Drawer
@@ -142,9 +146,17 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
             )}
             aria-live="polite"
           >
-            {ready
-              ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội dưới mã ${draft.code}. ${HEAD_OF_SALES} gật thì đơn vào cột thật.`
-              : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
+            {/* Ba câu, và câu lỗi thắng hai câu kia: người vừa bấm mà bị từ
+                chối cần biết vì sao TRƯỚC khi biết chuyện gì lẽ ra đã xảy ra.
+                `userMessage` dịch Problem của máy chủ; ô nào sai thì chính nó
+                gọi tên ô đó. */}
+            {promote.error
+              ? userMessage(promote.error)
+              : promote.isPending
+                ? 'Đang gửi phiếu…'
+                : ready
+                  ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${HEAD_OF_SALES} gật thì đơn vào cột thật.`
+                  : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" onClick={onClose}>
@@ -155,14 +167,28 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
               size="md"
               disabled={!ready}
               onClick={() => {
-                convert(profile.code, draft)
-                onClose()
-                /* Nối E3 khi có backend: phiếu này thành đề nghị duyệt thật, và
-                   E1 nối OP mới vào AC/CT đã có trong đồ thị. */
+                promote.mutate(createBodyOf(profile.code, draft), {
+                  /* Đóng phiếu CHỈ khi máy chủ đã nhận. Đóng trước rồi mới gửi
+                     là cách chắc chắn nhất để một phiếu bị từ chối biến mất
+                     không dấu vết, và người dùng tin là đã xong.
+
+                     `convert` vẫn ghi vào desk, nhưng nay CHỈ còn một người
+                     đọc: thẻ `ConvertedCard` ngay dưới thanh đáy của hồ sơ
+                     lead, thứ trả lời "rồi, xong" cho người vừa bấm. Sổ cơ hội
+                     KHÔNG đọc nó nữa — nó đã đọc thẳng máy chủ, và gộp thêm
+                     bản desk vào đó là để một đơn hiện hai lần.
+
+                     Ngày hồ sơ lead hỏi được máy chủ "lead này có cơ hội nào
+                     chưa", dòng này biến mất cùng cả `desk.deals`. */
+                  onSuccess: (row) => {
+                    convert(profile.code, { ...draft, code: row.code })
+                    onClose()
+                  },
+                })
               }}
             >
               <Icon icon={ArrowRight} size={16} />
-              Đổi thành cơ hội
+              {promote.isPending ? 'Đang đổi…' : 'Đổi thành cơ hội'}
             </Button>
           </div>
         </div>
@@ -170,9 +196,16 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
     >
       <div className="flex flex-col gap-6">
         <section className="grid gap-4 sm:grid-cols-2">
-          <Field label="Mã cơ hội" hint="Hệ cấp, tiếp nối mã lớn nhất đang có trong sổ.">
-            <span className="flex h-10 items-center">
-              <Chip>{draft.code}</Chip>
+          {/* KHÔNG in mã ở đây nữa — 28/08.
+              Ô này từng bày `draft.code`, một mã do trình duyệt tự đoán bằng
+              cách đếm trên sổ nó đang thấy. Bấm thử mới lộ ra hậu quả: phiếu
+              hiện "OP-0305", máy chủ cấp "OP-5001", và người vừa bấm đi tìm một
+              mã không tồn tại. Dãy mã nằm ở `sales.opportunity_code_seq` và chỉ
+              máy chủ đọc được nó — trình duyệt không có cách nào biết trước.
+              Hứa một con số mình không cấp được thì thà đừng hứa. */}
+          <Field label="Mã cơ hội" hint="Máy chủ cấp lúc lưu, theo dãy mã của sổ.">
+            <span className="text-muted-foreground flex h-10 items-center text-[12.5px]">
+              cấp khi lưu
             </span>
           </Field>
 
@@ -215,7 +248,7 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
             hint={
               stage
                 ? `Vào cột "${STAGE_LABEL.get(stage)}" của sổ cơ hội.`
-                : 'Hai kết cục đóng sổ — đơn ra khỏi năm cột, không nằm cột nào.'
+                : 'Đóng sổ ngay — đơn ra khỏi năm cột, không nằm cột nào. Chốt THẮNG không đặt ở đây: đơn thắng là đơn có hợp đồng, ký ở hồ sơ cơ hội.'
             }
           >
             <Select
@@ -224,7 +257,7 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
               value={draft.state}
               neutralValue={draft.state}
               onChange={(v) => set('state', v as OpportunityState)}
-              options={OPPORTUNITY_STATES.map((s) => ({ value: s.key, label: s.label }))}
+              options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
               className="w-full"
             />
           </Field>

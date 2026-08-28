@@ -1,5 +1,5 @@
 import { forwardRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff } from '@pv/ui'
 import { Link } from 'react-router-dom'
 import { cn, GlassCard, Icon, Input, Separator, wordmarkLight, type InputProps } from '@pv/ui'
 

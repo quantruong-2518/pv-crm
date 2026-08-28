@@ -1,6 +1,6 @@
 import * as React from 'react'
-import type { LucideIcon } from 'lucide-react'
-import { Bold, Code, ImagePlus, Italic, List } from 'lucide-react'
+import type { IconGlyph } from '../icons'
+import { Bold, Code, ImagePlus, Italic, List } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
@@ -35,7 +35,7 @@ function ToolButton({
   disabled,
   onClick,
 }: {
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
   active?: boolean
   disabled?: boolean

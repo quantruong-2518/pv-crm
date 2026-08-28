@@ -57,6 +57,48 @@
       "when": 1787867222554,
       "tag": "0007_mas_mail_run",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787867539892,
+      "tag": "0008_opportunity_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787867600124,
+      "tag": "0009_opportunity_drop_owner_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787870094708,
+      "tag": "0010_mas_unsub_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787882252808,
+      "tag": "0011_opportunity_stage_clock",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787886108660,
+      "tag": "0012_mas_suppression_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787886168660,
+      "tag": "0013_mas_template_seed",
+      "breakpoints": true
     }
   ]
 }

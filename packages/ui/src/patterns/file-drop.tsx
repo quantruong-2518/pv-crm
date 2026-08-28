@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { FileSpreadsheet, FileUp, TriangleAlert } from 'lucide-react'
+import { FileSpreadsheet, FileUp, TriangleAlert } from '../icons'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'

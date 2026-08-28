@@ -15,7 +15,6 @@
     "@pv/tokens": "workspace:*",
     "@pv/ui": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
-    "lucide-react": "^0.460.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.18.2",

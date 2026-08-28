@@ -10,8 +10,8 @@ import {
   Plug,
   RefreshCw,
   ScanLine,
-  type LucideIcon,
-} from 'lucide-react'
+  type IconGlyph,
+} from '@pv/ui'
 import {
   INTAKE_TRUST,
   LEAD_INTAKES,
@@ -54,7 +54,7 @@ import { MAX_ROWS, type Sheet } from '@/data/intake-file'
 
 export type MotionFace = {
   label: string
-  icon: LucideIcon
+  icon: IconGlyph
   /** Một câu định nghĩa — ai chủ động. */
   blurb: string
   /** Ví dụ thật, để người đọc tự xếp lead của mình vào đúng chỗ. */
@@ -110,7 +110,7 @@ export const MOTION_ORDER = LEAD_MOTIONS
 
 export type IntakeFace = {
   label: string
-  icon: LucideIcon
+  icon: IconGlyph
   blurb: string
   /** Đường này đã dựng chưa. Nói thẳng ra chứ không giấu: một bảng phân loại
    *  vẽ đủ năm đường mà ba cái không bấm được là một bảng nói dối. */

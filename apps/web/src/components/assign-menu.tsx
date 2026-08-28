@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Search, UserRoundPlus, X } from 'lucide-react'
+import { Check, Search, UserRoundPlus, X } from '@pv/ui'
 import { Avatar, AvatarGroup, Badge, Button, Checkbox, GlassCard, Icon, Select, cn } from '@pv/ui'
 import { dasVina, HEAD_OF_SALES, type Lead, type LeadContact } from '@pv/engines/fixtures/das-vina'
 import { useSession } from '@/app/auth'

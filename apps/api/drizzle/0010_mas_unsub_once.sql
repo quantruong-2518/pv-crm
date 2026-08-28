@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "mail_event_unsub_once" ON "platform"."mail_event" USING btree ("delivery_id") WHERE "platform"."mail_event"."kind" = 'UNSUBSCRIBE';

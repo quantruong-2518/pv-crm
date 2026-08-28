@@ -2,10 +2,12 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   MailRunListResponse,
+  MailRunPatchResponse,
   MailTemplateListResponse,
   MasPreflightResponse,
   MasSendResponse,
   type MailRunListQuery,
+  type MailRunPatch,
   type MailRunState,
   type MasPreflightRequest,
   type MasRecipient,
@@ -14,7 +16,7 @@ import {
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, invalid, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { MasRepository, type MasLeadRow } from './mas.repository'
@@ -122,7 +124,7 @@ export class MasService {
     const codes = dedupe(body.leadCodes)
     const rows = await this.repo.audience(this.repo.readonlyHandle, who, true, codes)
 
-    return MasPreflightResponse.parse(this.report(this.decide(codes, rows)))
+    return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
   }
 
   /** Open one batch and hand it to the queue. Nothing is sent inside this call.
@@ -163,6 +165,28 @@ export class MasService {
    *  wave 2 at a different set of people than wave 1 — the exact drift
    *  `campaign_member` freezes membership to prevent. Quick MAS keeps the axis. */
   async send(who: Actor, body: MasSendRequest): Promise<MasSendResponse> {
+    /* THE MAS SWITCH, and it is checked HERE rather than on the four routes.
+       `PV_MAS_ENABLED` promises to decide "whether the bulk path may be used at
+       all" (env.ts), and until this line existed it decided nothing — setting
+       it to `false` stopped no send on any machine, which is the worst state a
+       switch can be in: an operator who turns it off believes the campaigns
+       have stopped.
+
+       Only the WRITE door. `preflight`, the run list and the template list
+       write nothing and post nothing, and closing them too would blank the
+       screen a person uses to see WHY a batch is not going out. What has to be
+       impossible is a letter leaving.
+
+       `conflict` (409) and not `denied` (403), deliberately: this is not about
+       the caller. A 403 puts "Bạn không có quyền" on screen and sends somebody
+       to ask for a permission that would change nothing — the answer is a
+       variable on the server, so the message names the variable. */
+    if (!this.env.PV_MAS_ENABLED) {
+      throw conflict(
+        'Đường gửi hàng loạt đang tắt trên máy chủ này — cần bật PV_MAS_ENABLED. Mail giao dịch không bị ảnh hưởng.',
+      )
+    }
+
     if (body.campaignCode !== undefined && !this.access.allows(who, 'chiến-dịch.bắn')) {
       throw denied(
         'permission-denied',
@@ -214,7 +238,16 @@ export class MasService {
         templateCode: body.templateCode ?? null,
         subject: body.subject,
         body: body.body,
-        cta: body.templateCode ? await this.repo.templateCta(tx, body.templateCode) : null,
+        /* WHAT THE SENDER REVIEWED, not what the template happens to say today.
+           This used to read `templateCta(tx, body.templateCode)` — the run
+           copied the button straight out of `sales.mail_template`, so the
+           person who pressed send had never seen the link that went into two
+           hundred letters, and editing the template afterwards changed the
+           destination of every batch composed from it since. The run snapshots
+           `subject` and `body` for exactly that reason; the button is part of
+           the letter and belongs in the same snapshot. The template's pair now
+           pre-fills the panel instead — see `MasSendRequest.cta`. */
+        cta: body.cta ?? null,
         /* Snapshotted at creation, never re-resolved at send time — see
            `mail_run.from_address`. The fallback is not a nicety: a machine
            with no marketing identity configured must still be able to rehearse
@@ -292,6 +325,73 @@ export class MasService {
     return MailRunListResponse.parse({ ...page, hidden: page.hidden + scope.hidden })
   }
 
+  /** STOP A BATCH. The one state transition a person may ask for.
+   *
+   *  ------------------------------------------------------------------
+   *  THE SCOPE AXIS IS CHECKED HERE, IN NODE, AND THAT IS THE EXCEPTION
+   *  ------------------------------------------------------------------
+   *  Everywhere else in this feature the axis is cut in SQL, because letting a
+   *  row out of the database and then discarding it is a leak rather than a
+   *  waste (`MasRepository.audience`). A run is the one object where that
+   *  argument does not apply: what is read here is `created_by` — an actor id
+   *  the caller either matches or does not — and nothing about anybody else's
+   *  batch is loaded to reach that verdict. Pushing it into the UPDATE instead
+   *  would collapse "no such run" and "not your run" into one non-answer, and
+   *  those are the two refusals `LeadService.profile` argues at length must
+   *  stay apart: 404 sends somebody to check the id, 403 sends them to whoever
+   *  holds it.
+   *
+   *  ------------------------------------------------------------------
+   *  ALREADY CANCELLED IS A SUCCESS, NOT A CONFLICT
+   *  ------------------------------------------------------------------
+   *  Two people watching a bad batch both press stop; the second request must
+   *  not paint an error over a screen that is showing the correct outcome.
+   *  `held: 0` is the honest number for it — there was nothing left to withhold
+   *  — and the state on the way back is the receipt. `SENT` is the one refusal:
+   *  the letters are gone, and answering "đã huỷ" to that would be the single
+   *  most misleading sentence this endpoint could produce. */
+  async cancel(who: Actor, id: string, patch: MailRunPatch): Promise<MailRunPatchResponse> {
+    const run = await this.runs.byId(id)
+    if (!run) throw notFound('lô gửi', id)
+
+    if (who.ownOnly && run.createdBy !== who.id) {
+      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+    }
+
+    if (run.state === 'SENT') {
+      throw conflict('Lô này đã gửi xong — không còn thư nào để giữ lại.')
+    }
+
+    if (run.state === patch.state) {
+      return MailRunPatchResponse.parse({ id: run.id, state: run.state, held: 0 })
+    }
+
+    /* The cancel and its audit line are ONE unit of work. A run stopped with
+       no record of who stopped it is the half that gets asked about later, and
+       `AuditRepository.write` goes through the pool — the same reason
+       `LeadWriteRepository.writeBatchNote` exists rather than calling it. */
+    const stopped = await this.repo.run(async (tx) => {
+      const result = await this.runs.cancel(tx, id)
+      if (result) await this.repo.writeCancelNote(tx, { actorId: who.id, runId: id })
+      return result
+    })
+
+    /* `null` means the row moved out from under the read above — another
+       request cancelled it, or the sweeper filed it `SENT` — in the fraction of
+       a second between. Report what is actually in the table now rather than
+       re-deciding: a second read is cheap and a guess is not. */
+    if (!stopped) {
+      const now = await this.runs.byId(id)
+      if (!now) throw notFound('lô gửi', id)
+      if (now.state === 'SENT') {
+        throw conflict('Lô này vừa gửi xong — không còn thư nào để giữ lại.')
+      }
+      return MailRunPatchResponse.parse({ id, state: now.state, held: 0 })
+    }
+
+    return MailRunPatchResponse.parse({ id, state: patch.state, held: stopped.held })
+  }
+
   async templates(): Promise<MailTemplateListResponse> {
     return MailTemplateListResponse.parse({ rows: await this.repo.templates() })
   }
@@ -299,13 +399,19 @@ export class MasService {
   /** WHO GETS A LETTER — the whole decision, in one pass over the picks.
    *
    *  ------------------------------------------------------------------
-   *  THE ORDER OF THE THREE REASONS IS THE DECISION
+   *  THE ORDER OF THE FOUR REASONS IS THE DECISION
    *  ------------------------------------------------------------------
    *  A lead can fail more than one test, and `MasRecipient.block` holds one
    *  answer, so the order below is what the person reads:
    *
-   *   1 · `NO_EMAIL`   — there is no address, so no other test even applies.
-   *   2 · `SUPPRESSED` — the address is refused, and nothing the sender does
+   *   1 · `EXITED`     — this lead left the funnel, so the question "can we
+   *                      write to it" does not arise. It outranks `NO_EMAIL`
+   *                      because the two lead to opposite actions: `NO_EMAIL`
+   *                      sends somebody off to find a mailbox, and finding one
+   *                      for a lead we stopped pursuing is work spent to reach
+   *                      a person we decided not to reach.
+   *   2 · `NO_EMAIL`   — there is no address, so no other test even applies.
+   *   3 · `SUPPRESSED` — the address is refused, and nothing the sender does
    *                      changes that. It has to outrank `DUPLICATE`, because
    *                      `DUPLICATE` means "folded into a letter that IS going
    *                      out" — and telling someone their lead was folded into
@@ -313,8 +419,17 @@ export class MasService {
    *                      them looking for a mail nobody received. Two leads
    *                      sharing one suppressed address therefore BOTH read
    *                      `SUPPRESSED`, which is what actually happened.
-   *   3 · `DUPLICATE`  — a letter is going to this address; this pick was
+   *   4 · `DUPLICATE`  — a letter is going to this address; this pick was
    *                      folded into it.
+   *
+   *  ------------------------------------------------------------------
+   *  AN EXITED LEAD DOES NOT CLAIM ITS ADDRESS EITHER
+   *  ------------------------------------------------------------------
+   *  `spokenFor` is only ever added to on the sendable branch, so a pick
+   *  blocked for ANY of the four reasons leaves the address free for the next
+   *  pick that shares it. That matters most here: a dead lead and a live lead
+   *  at the same company mailbox must not end with the live one reading
+   *  `DUPLICATE` of a letter that was never written.
    *
    *  ------------------------------------------------------------------
    *  FIRST PICK WINS, AND "FIRST" MEANS THE ORDER THE USER SENT
@@ -342,13 +457,15 @@ export class MasService {
       if (!row) continue
 
       const address = row.email?.toLowerCase()
-      const block: MasRecipientBlock | undefined = !address
-        ? 'NO_EMAIL'
-        : row.suppressed
-          ? 'SUPPRESSED'
-          : spokenFor.has(address)
-            ? 'DUPLICATE'
-            : undefined
+      const block: MasRecipientBlock | undefined = row.exitReason
+        ? 'EXITED'
+        : !address
+          ? 'NO_EMAIL'
+          : row.suppressed
+            ? 'SUPPRESSED'
+            : spokenFor.has(address)
+              ? 'DUPLICATE'
+              : undefined
 
       if (block === undefined && address) spokenFor.add(address)
       out.push({ row, block })
@@ -359,8 +476,15 @@ export class MasService {
 
   /** Rows AND counts — the redundancy `MasPreflightResponse` asks for on
    *  purpose: the counts are what the send button prints, the rows are what the
-   *  expandable list shows when somebody asks which three. */
-  private report(decided: readonly Decided[]): MasPreflightResponse {
+   *  expandable list shows when somebody asks which three.
+   *
+   *  `codes` is here for exactly one number. `decided` holds one entry per pick
+   *  the query COULD return, so the picks it could not — a code naming no lead,
+   *  a code the scope axis cut — are simply missing, and the difference between
+   *  the two lengths is the only place that count exists. Without it the panel
+   *  prints `sendable + blocked` and quietly loses the rest of what somebody
+   *  ticked; see `MasPreflightResponse.hidden`. */
+  private report(codes: readonly string[], decided: readonly Decided[]): MasPreflightResponse {
     const recipients: MasRecipient[] = decided.map((d) => ({
       leadCode: d.row.code,
       company: d.row.company,
@@ -373,6 +497,10 @@ export class MasService {
       recipients,
       sendable: decided.filter((d) => d.block === undefined).length,
       blocked: decided.filter((d) => d.block !== undefined).length,
+      /* Picks that came back in no row at all — see the field and `report`'s
+         own docblock. Never negative: `audience()` filters by `IN (codes)`, so
+         it cannot return a row for a code nobody asked about. */
+      hidden: codes.length - decided.length,
       /* Counted over every pick, blocked ones included — see the field's
          docblock in `@pv/contracts`. It answers "where did this list come
          from", not "how many letters go out", so it can exceed `sendable`. */

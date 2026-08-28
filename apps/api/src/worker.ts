@@ -5,6 +5,8 @@ import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
+import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
+import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { MailModule } from './platform/mail/mail.module'
 import { MailRunSweeper } from './platform/mail/mail-run.sweeper'
 import { MasMailComposer } from './platform/mail/mas.composer'
@@ -68,8 +70,8 @@ import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/que
        (`mas-v1`, `lead-intake-internal`) không giao nhau, nên thứ tự này chỉ
        là thói quen: nền trước, nhánh sau. */
     QueueModule.forWorker({
-      imports: [MailModule, LeadModule],
-      composers: [MasMailComposer, LeadMailComposer],
+      imports: [MailModule, LeadModule, OpportunityModule],
+      composers: [MasMailComposer, LeadMailComposer, OpportunityMailComposer],
     }),
   ],
 })

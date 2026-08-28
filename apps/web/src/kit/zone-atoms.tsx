@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from 'lucide-react'
+import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -348,7 +348,7 @@ export function ZoneAtoms() {
           note="ô lọc một dòng"
           noteAccent
           bodyClassName="flex flex-wrap items-center gap-3 px-4 py-4"
-          footer="select gốc — bàn phím, chạm, tìm theo chữ cái là của trình duyệt · popup lấy màu từ color-scheme: dark · khác mặc định thì ô SÁNG lên"
+          footer="listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên"
         >
           <Select
             label="Bậc"

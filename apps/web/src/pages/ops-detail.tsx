@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, Check, Inbox, Mail, Phone, RotateCcw, Users } from 'lucide-react'
+import { Check, Inbox, Mail, Phone, RotateCcw, Users } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -15,6 +15,9 @@ import {
   Kicker,
   MetaPill,
   SectionTitle,
+  ScreenDetailGrid,
+  ScreenHeader,
+  ScreenLayout,
   Select,
   Separator,
   Skeleton,
@@ -23,31 +26,28 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  dasVina,
-  leadContact,
-  leadTranscript,
-  OPPORTUNITY_STATES,
-  toDong,
-  type FrozenLead,
-  type Opportunity,
+  campaignLabel,
+  type LeadProfile,
+  type OpportunityRow,
   type OpportunityState,
-} from '@pv/engines/fixtures/das-vina'
+} from '@pv/contracts'
+import { toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
-import { frozenLeadBookQuery } from '@/data/leads'
-import { NO_TRANSCRIPT } from '@/data/lead-profile'
+import { leadProfileQuery, realContact, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
 import {
-  actorNames,
+  bdOwnersOf,
   isLateClose,
   isRottingOp,
-  mergeOps,
   missingOf,
-  opsBookQuery,
-  stageOfState,
+  namesOf,
+  opsProfileQuery,
+  saleOwnersOf,
   STATE_TONE,
   toggled,
 } from '@/data/ops'
+import { CREATE_STATES, draftOf, updateBodyOf, useSaveOpportunity } from '@/data/ops-write'
 import {
   AmountRow,
   AttachmentsField,
@@ -85,11 +85,23 @@ import { ActivityCard } from './lead-parts'
  *  tự lưu từng phím bỏ mất trạng thái "tôi đang sửa dở", mà đó chính là lúc
  *  người dùng cần thấy còn bao nhiêu ô chưa lưu và có đường lùi.
  *
- *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
+ *  ------------------------------------------------------------------
+ *  ĐÃ CẮT SANG MÁY CHỦ — 28/08
+ *  ------------------------------------------------------------------
+ *  Hai lượt đọc thật (`GET /sales/ops/:code` và `GET /sales/leads/:code`) và
+ *  một lượt ghi thật (`PATCH /sales/ops/:code`). Bàn làm việc trên máy
+ *  (`desk.ops`) rời khỏi màn này hoàn toàn: nó từng là chỗ giữ bản sửa vì chưa
+ *  có cửa ghi, và giữ lại bên cạnh một cửa ghi thật là dựng hai nguồn cho cùng
+ *  một phiếu — người dùng lưu, rồi thấy bản cũ của desk đè lên bản vừa lưu.
+ *
+ *  Nút "Về bản gốc" cũng đi theo, và đó là mất mát THẬT chứ không phải dọn
+ *  dẹp: "bản gốc" của một dòng máy chủ là một phiên bản trước, thứ chỉ có
+ *  nghĩa khi có lịch sử phiên bản để lùi về. Cho tới lúc đó, đường lùi là "Bỏ
+ *  sửa" — huỷ những ô chưa lưu, thứ duy nhất màn thật sự lùi được. */
 
-/** Ô nào của phiếu người dùng sửa được. `code` · `account` · `accountCode` ·
- *  `leadCode` không có mặt: một cơ hội không đổi được sang khách khác, và mã
- *  thì hệ cấp. `stage` cũng không — nó đi theo `state`, không sửa rời. */
+/** Ô nào của phiếu người dùng sửa được. `code` · `account` · `accountCode`
+ *  không có mặt: một cơ hội không đổi được sang khách khác, và mã thì hệ cấp.
+ *  Đúng bằng bộ trường của `OpportunityUpdate` — đổi một bên thì đổi cả hai. */
 const EDITABLE = [
   'name',
   'closedDate',
@@ -102,14 +114,14 @@ const EDITABLE = [
   'attachments',
   'lossReason',
   'lossNote',
-] as const satisfies readonly (keyof Opportunity)[]
+] as const satisfies readonly (keyof OpportunityDraft)[]
 
 /** Ô nào đã đổi giữa hai bản phiếu.
  *
  *  So từng ô chứ không so cả object: hai object luôn khác nhau về tham chiếu,
  *  và một dirty state luôn bật là một dirty state vô dụng. Ba ô chở MẢNG nên so
  *  bằng nội dung — chọn rồi bỏ chọn đúng một người phải ra "không đổi gì". */
-function changedFields(base: Opportunity, work: Opportunity): string[] {
+function changedFields(base: OpportunityDraft, work: OpportunityDraft): string[] {
   return EDITABLE.filter((key) => {
     const a = base[key]
     const b = work[key]
@@ -123,42 +135,40 @@ export function OpsDetailPage() {
   const navigate = useNavigate()
   const { code = '' } = useParams()
 
-  const { data: fixtureBook = [], isPending } = useQuery(opsBookQuery)
-  const { data: leadBook = [] } = useQuery(frozenLeadBookQuery)
-  const deals = useLeadDesk((s) => s.deals)
-  const patches = useLeadDesk((s) => s.ops)
+  const { data: op, isPending, error } = useQuery(opsProfileQuery(code))
 
-  const book = useMemo(() => mergeOps(fixtureBook, deals, patches), [fixtureBook, deals, patches])
-  /* Sổ CHƯA đè bản sửa — thẻ phiếu cần nó để đếm "mấy ô khác bản gốc". Dựng
-     bằng chính `mergeOps` với patch rỗng, không dựng bằng một đường thứ hai. */
-  const raw = useMemo(() => mergeOps(fixtureBook, deals, {}), [fixtureBook, deals])
-  const op = book.find((o) => o.code === code) ?? null
-  const base = raw.find((o) => o.code === code) ?? null
-  const lead = op ? (leadBook.find((l) => l.code === op.leadCode) ?? null) : null
-  /* Màn này đứng trên sổ ĐÓNG BĂNG, nên nguyên văn hội thoại ở đây là dữ liệu
-     có thật của kịch bản — khác `lead-detail`, nơi máy chủ chưa có bảng lần
-     chạm. `ActivityCard` bắt mỗi người gọi tự khai mình đứng trên nền nào; đây
-     là lời khai của màn cơ hội. Kiểu `FrozenLead` của `leadBook` là thứ cho
-     phép gọi hàm sinh này. */
-  const turns = useMemo(() => (lead ? leadTranscript(lead) : NO_TRANSCRIPT), [lead])
+  /* Hồ sơ lead gốc, đọc THẬT. `enabled` chờ đơn về trước vì mã lead nằm trên
+     chính dòng đó — không có nó thì không biết hỏi lead nào. Lỗi của lượt này
+     KHÔNG làm hỏng màn: một cơ hội vẫn đọc được khi lead của nó ngoài phạm vi
+     người đang xem, và thẻ bên phải nói ra điều đó thay vì để trống. */
+  const { data: lead = null } = useQuery({
+    ...leadProfileQuery(op?.leadCode ?? ''),
+    enabled: Boolean(op?.leadCode),
+  })
 
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
   if (isPending) {
     return shell(
-      <div className="flex flex-col gap-4">
+      <ScreenLayout>
         <Skeleton className="h-11 w-64" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
-      </div>,
+      </ScreenLayout>,
     )
   }
 
   if (!op) {
     return shell(
-      <GlassCard className="p-5 lg:p-6">
-        <EmptyOp code={code} onBack={() => navigate('/sales/ops')} />
-      </GlassCard>,
+      <ScreenLayout>
+        <GlassCard className="p-5 lg:p-6">
+          <EmptyOp
+            code={code}
+            message={isApiError(error) ? userMessage(error) : undefined}
+            onBack={() => navigate('/sales/ops')}
+          />
+        </GlassCard>
+      </ScreenLayout>,
     )
   }
 
@@ -166,70 +176,78 @@ export function OpsDetailPage() {
   const rotting = isRottingOp(op)
 
   return shell(
-    <div className="flex flex-col gap-4 lg:gap-6">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => navigate('/sales/ops')}
-        className="self-start"
-      >
-        <Icon icon={ArrowLeft} size={16} />
-        Sổ cơ hội
-      </Button>
-
+    <ScreenLayout>
       {/* Dòng tên chỉ chở HAI thứ: tên cơ hội và trạng thái. Mọi nhãn phân loại
           — mã, account, cột, tiền, ngày đóng — xuống hàng pill dưới. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <Kicker>Cơ hội</Kicker>
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">{op.name}</h2>
-          <Badge tone={STATE_TONE[op.state]}>{STATE_LABEL.get(op.state)}</Badge>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip>{op.code}</Chip>
-          <MetaPill>{op.account}</MetaPill>
-          {op.accountCode !== '' && <Chip variant="source">{op.accountCode}</Chip>}
-          {op.stage && (
-            <MetaPill tone={rotting ? 'warning' : 'accent'}>
-              {STAGE_LABEL.get(op.stage)}
-              {rotting && ' · quá hạn cột'}
-            </MetaPill>
-          )}
-          {op.amount !== null && (
-            <MetaPill mono>{billions(toDong(op.amount, op.currency))}</MetaPill>
-          )}
-          <MetaPill mono tone={late ? 'warning' : undefined}>
-            {op.stage === null ? 'đóng' : 'đóng dự kiến'} {dmy(op.closedDate)}
-          </MetaPill>
-        </div>
-      </div>
+      <ScreenHeader
+        back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/ops') }}
+        kicker="Cơ hội"
+        title={op.name}
+        meta={
+          <>
+            <Badge tone={STATE_TONE[op.state]}>{STATE_LABEL.get(op.state)}</Badge>
+            <Chip>{op.code}</Chip>
+            <MetaPill>{op.account}</MetaPill>
+            {op.accountCode && <Chip variant="source">{op.accountCode}</Chip>}
+            {op.stage && (
+              <MetaPill tone={rotting ? 'warning' : 'accent'}>
+                {STAGE_LABEL.get(op.stage)}
+                {op.daysInStage !== null && ` · ${op.daysInStage} ngày`}
+                {rotting && ' · quá hạn cột'}
+              </MetaPill>
+            )}
+            {op.amount !== null && op.currency !== null && (
+              <MetaPill mono>{billions(toDong(op.amount, op.currency))}</MetaPill>
+            )}
+            {op.expectedClose !== null && (
+              <MetaPill mono tone={late ? 'warning' : undefined}>
+                {op.stage === null ? 'đóng' : 'đóng dự kiến'} {dmy(op.expectedClose)}
+              </MetaPill>
+            )}
+          </>
+        }
+      />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[3fr_1fr] lg:gap-6">
-        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <DealCard op={op} base={base ?? op} />
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
-          <PeopleCard op={op} />
-          {lead && <ActivityCard code={lead.code} history={lead.history} turns={turns} />}
-        </div>
-      </div>
+      <ScreenDetailGrid
+        sideLabel="Ngữ cảnh cơ hội"
+        main={<DealCard op={op} />}
+        side={
+          <>
+            <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
+            <PeopleCard op={op} />
+            {/* Máy chủ chưa có bảng lần chạm nào cho lead, nên dòng thời gian mở
+              ra rỗng — cùng lời khai mà `lead-detail.tsx` đang dùng, và cùng
+              một cặp hằng số, chứ không phải hai bản "chưa có gì" khác nhau. */}
+            {lead && <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />}
+          </>
+        }
+      />
 
       <ToolsBar op={op} lead={lead} onOpenLead={() => navigate(`/sales/leads/${op.leadCode}`)} />
-    </div>,
+    </ScreenLayout>,
   )
 }
 
 // ---------------------------------------------------------------------------
 
-function EmptyOp({ code, onBack }: { code: string; onBack: () => void }) {
+function EmptyOp({
+  code,
+  message,
+  onBack,
+}: {
+  code: string
+  message?: string
+  onBack: () => void
+}) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
       <Icon icon={Inbox} size={26} className="text-muted-foreground" />
       <p className="text-muted-foreground text-[12.5px] leading-[1.65]">
-        Sổ không có đơn nào mang mã <span className="font-mono">{code}</span>. Sổ cơ hội là 30 dòng
-        của kỳ 01/05 → 17/08, cộng những phiếu vừa đổi trong phiên này.
+        {message ?? (
+          <>
+            Sổ không có đơn nào mang mã <span className="font-mono">{code}</span>.
+          </>
+        )}
       </p>
       <Button size="sm" variant="ghost" onClick={onBack}>
         Về sổ cơ hội
@@ -244,27 +262,28 @@ function EmptyOp({ code, onBack }: { code: string; onBack: () => void }) {
  *  đơn → mô tả và giấy tờ. Khối lý do thua chỉ mở khi trạng thái là Close lost,
  *  và nó CHẶN nút lưu cho tới khi có lý do — một đơn thua không ghi lý do là
  *  một bài học mất trắng. */
-function DealCard({ op, base }: { op: Opportunity; base: Opportunity }) {
-  const patchOp = useLeadDesk((s) => s.patchOp)
-  const resetOp = useLeadDesk((s) => s.resetOp)
+function DealCard({ op }: { op: OpportunityRow }) {
+  const save = useSaveOpportunity(op.code)
 
-  const [work, setWork] = useState<Opportunity>(op)
+  /* Dòng máy chủ → hình phiếu. Qua `useMemo` để `work` không bị nạp lại mỗi
+     lần vẽ: `op` giữ nguyên tham chiếu giữa các lần render của react-query, nên
+     bản nháp mồi cũng vậy, nên `useEffect` bên dưới không đè lên ô đang gõ. */
+  const saved = useMemo(() => draftOf(op), [op])
+  const [work, setWork] = useState<OpportunityDraft>(saved)
 
-  /* Đổi đơn (hoặc nhận bản đã lưu mới) thì nạp lại ô nhập. Không nạp lại thì
-     bấm sang đơn khác vẫn thấy phiếu của đơn trước. */
-  useEffect(() => setWork(op), [op])
+  /* Đổi đơn (hoặc nhận bản vừa lưu từ máy chủ) thì nạp lại ô nhập. Không nạp
+     lại thì bấm sang đơn khác vẫn thấy phiếu của đơn trước. */
+  useEffect(() => setWork(saved), [saved])
 
   /* Mọi ô sửa được đều là ô của `OpportunityDraft`, nên hàm ghi mang đúng kiểu
      mà bộ ô dùng chung đòi — không phải ép kiểu chỗ nào. */
   const set: SetDraft = (key, value) => setWork((w) => ({ ...w, [key]: value }))
 
-  /* Hai con số khác nhau, và khác ở chỗ quan trọng: `dirty` là "chưa lưu",
-     `edited` là "đã lưu nhưng khác bản dựng từ fixture". */
-  const dirty = changedFields(op, work)
-  const edited = changedFields(base, op)
+  const dirty = changedFields(saved, work)
   const missing = missingOf(work)
   const lost = work.state === 'close-lost'
-  const stage = stageOfState(work.state)
+  const stage = CREATE_STATES.find((s) => s.key === work.state)?.stage ?? null
+  const blocked = dirty.length === 0 || missing.length > 0 || save.isPending
 
   return (
     <GlassCard className="flex flex-col gap-6 p-5 lg:p-6" aria-label="Phiếu cơ hội">
@@ -273,10 +292,10 @@ function DealCard({ op, base }: { op: Opportunity; base: Opportunity }) {
         kicker={`Lead gốc ${op.leadCode}`}
         hint="Đúng những ô của phiếu đổi lead thành cơ hội. Dấu sao là ô bắt buộc."
         actions={
-          edited.length > 0 ? (
-            <Button size="sm" variant="ghost" onClick={() => resetOp(op.code)}>
+          dirty.length > 0 ? (
+            <Button size="sm" variant="ghost" onClick={() => setWork(saved)}>
               <Icon icon={RotateCcw} size={16} />
-              Về bản gốc · {edited.length} ô
+              Bỏ sửa · {dirty.length} ô
             </Button>
           ) : undefined
         }
@@ -285,16 +304,16 @@ function DealCard({ op, base }: { op: Opportunity; base: Opportunity }) {
       </SectionTitle>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Field label="Mã cơ hội" hint="Hệ cấp, tiếp nối mã lớn nhất đang có trong sổ.">
+        <Field label="Mã cơ hội" hint="Máy chủ cấp lúc đổi lead, không sửa được.">
           <span className="flex h-10 items-center">
-            <Chip>{work.code}</Chip>
+            <Chip>{op.code}</Chip>
           </span>
         </Field>
 
         <Field label="Account" hint="Đi thẳng từ lead — một cơ hội không đổi được sang khách khác.">
           <span className="flex h-10 flex-wrap items-center gap-2">
-            <span className="text-[12.5px] font-semibold">{work.account}</span>
-            {work.accountCode !== '' && <Chip variant="source">{work.accountCode}</Chip>}
+            <span className="text-[12.5px] font-semibold">{op.account}</span>
+            {op.accountCode && <Chip variant="source">{op.accountCode}</Chip>}
           </span>
         </Field>
 
@@ -321,13 +340,23 @@ function DealCard({ op, base }: { op: Opportunity; base: Opportunity }) {
           />
         </Field>
 
+        {/* Gợi ý nói ba câu KHÁC NHAU, vì ba tình huống khác nhau — và câu thứ
+            nhất là bản vá cho một chỗ đọc sai: bản trước luôn in "Vào cột X"
+            suy từ trạng thái, nên một đơn đang đứng ở "Đã demo" (cột không có
+            trạng thái nào trỏ tới) đọc ra "Vào cột Đang tìm hiểu" ngay bên dưới
+            cái pill ghi "Đã demo". Trạng thái chưa đổi thì lưu KHÔNG dời cột,
+            và câu chữ phải nói đúng thế. */}
         <Field
           label="Trạng thái"
           plain
           hint={
-            stage
-              ? `Vào cột "${STAGE_LABEL.get(stage)}" của sổ cơ hội.`
-              : 'Hai kết cục đóng sổ — đơn ra khỏi năm cột, không nằm cột nào.'
+            work.state === saved.state
+              ? op.stage
+                ? `Đang ở cột "${STAGE_LABEL.get(op.stage)}". Lưu không dời cột — đổi trạng thái mới dời.`
+                : 'Đơn đã đóng sổ, không nằm cột nào.'
+              : stage
+                ? `Lưu sẽ chuyển đơn sang cột "${STAGE_LABEL.get(stage)}".`
+                : 'Đóng sổ ngay — đơn ra khỏi năm cột. Chốt THẮNG không đặt ở đây: đơn thắng là đơn có hợp đồng.'
           }
         >
           <Select
@@ -336,7 +365,7 @@ function DealCard({ op, base }: { op: Opportunity; base: Opportunity }) {
             value={work.state}
             neutralValue={work.state}
             onChange={(v) => set('state', v as OpportunityState)}
-            options={OPPORTUNITY_STATES.map((s) => ({ value: s.key, label: s.label }))}
+            options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
             className="w-full"
           />
         </Field>
@@ -379,41 +408,40 @@ function DealCard({ op, base }: { op: Opportunity; base: Opportunity }) {
       <Separator />
 
       <div className="flex flex-wrap items-center gap-4">
+        <Button size="md" disabled={blocked} onClick={() => save.mutate(updateBodyOf(work))}>
+          <Icon icon={Check} size={16} />
+          {save.isPending
+            ? 'Đang lưu…'
+            : `Lưu ${dirty.length > 0 ? `${dirty.length} ô đã sửa` : 'phiếu'}`}
+        </Button>
         <Button
           size="md"
-          disabled={dirty.length === 0 || missing.length > 0}
-          onClick={() =>
-            /* Ghi đúng những ô vừa đổi, không ghi cả phiếu: patch là bản so với
-               fixture, và chép cả phiếu vào đó làm mọi ô trông như đã sửa. */
-            patchOp(op.code, { ...pick(work, dirty), stage })
-          }
+          variant="ghost"
+          disabled={dirty.length === 0 || save.isPending}
+          onClick={() => setWork(saved)}
         >
-          <Icon icon={Check} size={16} />
-          Lưu {dirty.length > 0 ? `${dirty.length} ô đã sửa` : 'phiếu'}
-        </Button>
-        <Button size="md" variant="ghost" disabled={dirty.length === 0} onClick={() => setWork(op)}>
           Bỏ sửa
         </Button>
         <span
-          className={cn('text-[11.5px] leading-[1.5]', missing.length > 0 && 'text-warning')}
+          className={cn(
+            'text-[11.5px] leading-[1.5]',
+            (missing.length > 0 || save.error) && 'text-warning',
+          )}
           aria-live="polite"
         >
-          {missing.length > 0
-            ? `Chưa lưu được — còn thiếu ${missing.join(' · ')}.`
-            : dirty.length > 0
-              ? `${dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-              : 'Chưa có backend: lưu là ghi vào bàn làm việc trên máy này.'}
+          {/* Lỗi máy chủ thắng mọi câu khác: người vừa bấm Lưu mà không thấy gì
+              đổi cần biết vì sao, trước cả "còn mấy ô chưa lưu". */}
+          {save.error
+            ? userMessage(save.error)
+            : missing.length > 0
+              ? `Chưa lưu được — còn thiếu ${missing.join(' · ')}.`
+              : dirty.length > 0
+                ? `${dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
+                : 'Phiếu đã khớp với bản trên máy chủ.'}
         </span>
       </div>
     </GlassCard>
   )
-}
-
-/** Đúng những ô có tên trong `keys`, cắt ra khỏi một phiếu. */
-function pick(op: Opportunity, keys: string[]): Partial<Opportunity> {
-  return Object.fromEntries(
-    keys.map((k) => [k, op[k as keyof Opportunity]]),
-  ) as Partial<Opportunity>
 }
 
 /** Lead sinh ra đơn này — dây nối ngược về module 2.
@@ -425,8 +453,8 @@ function LeadCard({
   lead,
   onOpen,
 }: {
-  op: Opportunity
-  lead: FrozenLead | null
+  op: OpportunityRow
+  lead: LeadProfile | null
   onOpen: () => void
 }) {
   return (
@@ -448,14 +476,14 @@ function LeadCard({
       {lead ? (
         <div className="flex flex-wrap items-center gap-2">
           <Chip>{lead.code}</Chip>
-          <MetaPill>{lead.province}</MetaPill>
+          <MetaPill>{lead.province ?? '—'}</MetaPill>
           <MetaPill mono>vào sổ {dm(lead.createdAt)}</MetaPill>
-          <MetaPill mono>nguồn {lead.source}</MetaPill>
+          <MetaPill>{campaignLabel(lead.source)}</MetaPill>
         </div>
       ) : (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Không tra được dòng lead <span className="font-mono">{op.leadCode}</span> trong sổ của kỳ
-          này.
+          Chưa đọc được hồ sơ lead <span className="font-mono">{op.leadCode}</span> — có thể nó nằm
+          ngoài phạm vi quyền của bạn.
         </p>
       )}
     </GlassCard>
@@ -464,22 +492,24 @@ function LeadCard({
 
 /** Ai đứng đơn. Sale chốt và BD mở cửa là HAI vai khác nhau — gộp vào một dòng
  *  là mất câu trả lời "hoa hồng chia cho ai". */
-function PeopleCard({ op }: { op: Opportunity }) {
-  const sales = actorNames(op.saleOwners)
-  const bds = actorNames(op.bdOwners)
-
+function PeopleCard({ op }: { op: OpportunityRow }) {
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Người đứng đơn">
       <SectionTitle size="sm">Đứng đơn</SectionTitle>
 
       <div className="flex flex-col gap-2">
         <Kicker tone="muted">Sale đứng đơn</Kicker>
-        <AvatarGroup names={sales} max={5} size="md" emptyLabel="chưa ai đứng đơn" />
+        <AvatarGroup
+          names={namesOf(saleOwnersOf(op))}
+          max={5}
+          size="md"
+          emptyLabel="chưa ai đứng đơn"
+        />
       </div>
 
       <div className="flex flex-col gap-2">
         <Kicker tone="muted">BD mở cửa</Kicker>
-        <AvatarGroup names={bds} max={5} size="md" emptyLabel="chưa ghi BD" />
+        <AvatarGroup names={namesOf(bdOwnersOf(op))} max={5} size="md" emptyLabel="chưa ghi BD" />
       </div>
 
       <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
@@ -503,21 +533,15 @@ function ToolsBar({
   lead,
   onOpenLead,
 }: {
-  op: Opportunity
-  lead: FrozenLead | null
+  op: OpportunityRow
+  lead: LeadProfile | null
   onOpenLead: () => void
 }) {
-  /* `lead` ở đây đến từ `frozenLeadBookQuery` (sổ ĐÓNG BĂNG) — màn cơ hội chưa
-     cắt sang `GET /sales/leads/:code`, nên không có `LeadProfile` thật nào để
-     đọc. `leadContact(lead)` vẫn đúng kịch bản ở ĐÚNG chỗ này vì sổ đóng băng
-     không bao giờ chứa mã ngoài `LD-0101…LD-0200` (19 dòng Apollo thật không
-     có mặt trong sổ này, nên không có cơ hội nào của chúng để lộ ra đây) — nợ
-     này khác nợ đã vá ở `nextActions`, và chỉ hết khi màn cơ hội có endpoint
-     hồ sơ lead thật để đọc. */
-  const contact = lead ? leadContact(lead) : null
-  const owner = actorNames(op.saleOwners)[0]
-  const ownerActor = dasVina.actors.find((a) => a.name === owner)
-  const ownerRole = ownerActor?.role
+  /* Người liên hệ đọc từ HỒ SƠ THẬT, cùng hàm dịch mà `lead-detail` dùng —
+     màn này không còn tra `leadContact` của fixture, nên không còn nợ "sổ đóng
+     băng không chứa mã ngoài dải" nào để ghi ở đây. */
+  const contact = lead ? realContact(lead) : null
+  const owner = saleOwnersOf(op)[0]
 
   return (
     <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
@@ -533,7 +557,8 @@ function ToolsBar({
           {contact ? (
             <div className="flex flex-wrap items-center gap-2">
               <MetaPill avatar={contact.name}>
-                {contact.name} · {contact.title}
+                {contact.name}
+                {contact.title && ` · ${contact.title}`}
               </MetaPill>
               {contact.phone && (
                 <MetaPill icon={Phone} mono>
@@ -544,7 +569,7 @@ function ToolsBar({
             </div>
           ) : (
             <span className="text-warning text-[11.5px] leading-[1.5]">
-              Chưa moi được người liên hệ — chưa gọi được cho ai.
+              Chưa đọc được người liên hệ — chưa gọi được cho ai.
             </span>
           )}
         </div>
@@ -555,23 +580,8 @@ function ToolsBar({
           <Kicker tone="muted">Sale đứng đơn</Kicker>
           {owner ? (
             <span className="flex items-center gap-2">
-              <Avatar name={owner} size="sm" />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[12.5px] font-semibold">
-                  {owner}
-                  {ownerRole && (
-                    <span className="text-muted-foreground font-normal"> · {ownerRole}</span>
-                  )}
-                </span>
-                {/* Hòm thư công ty, cùng thứ hai cái sổ in ở cột người — ba màn
-                    nói về một người thì phải nói cùng một mã. Đọc THẲNG
-                    `ownerActor.email` — actor đã tra ở trên để lấy `ownerRole`
-                    có sẵn hòm thư thật của chính nó, không cần đoán lại bằng
-                    `staffEmail(name)`. */}
-                <span className="text-muted-foreground truncate font-mono text-[10.5px]">
-                  {ownerActor?.email ?? '—'}
-                </span>
-              </span>
+              <Avatar name={owner.name} size="sm" />
+              <span className="text-[12.5px] font-semibold">{owner.name}</span>
             </span>
           ) : (
             <span className="text-muted-foreground text-[11.5px]">Chưa ai đứng đơn</span>
@@ -589,7 +599,7 @@ function ToolsBar({
             {contact ? `Gọi ${contact.name}` : 'Gọi khách'}
           </Button>
 
-          <Button size="md" onClick={onOpenLead} disabled={!lead}>
+          <Button size="md" onClick={onOpenLead}>
             <Icon icon={Users} size={16} />
             Hồ sơ lead · {op.leadCode}
           </Button>

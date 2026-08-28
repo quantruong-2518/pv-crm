@@ -90,7 +90,32 @@ export type SuppressionReason = 'hard_bounce' | 'complaint' | 'manual' | 'unsubs
 // The message and the provider
 // ---------------------------------------------------------------------------
 
+/** Which pipeline a letter belongs to. TWO values, and the split is about
+ *  BLAST RADIUS rather than about content.
+ *
+ *  `transactional` is a letter one person's action caused and one person
+ *  expects — a lead alert, a password reset. `mas` is one letter of a batch
+ *  aimed at an audience.
+ *
+ *  They are named apart because Resend enforces its bounce and complaint
+ *  ceilings at ACCOUNT level and terminates without warning, so a bad campaign
+ *  does not merely burn the marketing subdomain — it takes the password mail
+ *  with it, if both ride the same account. `PV_MAS_RESEND_API_KEY` is the
+ *  second account that prevents exactly that, and this field is what tells the
+ *  driver which one is paying. See `ResendMailDriver.clientFor`.
+ *
+ *  Declared on the MESSAGE and not derived from `delivery.mailRunId`: a run id
+ *  is a batching fact, and the day a transactional letter is grouped into a run
+ *  (a digest, a nightly summary) that inference would silently start posting it
+ *  through the marketing account. The composer knows which kind of letter it
+ *  just built and is the only thing that knows it for certain. */
+export type MailFlow = 'transactional' | 'mas'
+
 export type MailMessage = {
+  /** Required, never defaulted. A composer that forgets to say which pipeline
+   *  it belongs to would otherwise default into the shared key, which is the
+   *  failure this field exists to make impossible. */
+  flow: MailFlow
   from: string
   to: string
   replyTo?: string
@@ -314,6 +339,58 @@ export interface MailLedger extends MailEnqueue {
    *  address. A read with no decision in it, so it belongs on the ledger
    *  rather than in the controller. */
   recipientOf(deliveryId: string): Promise<string | null>
+
+  /** RESCUE ROWS THAT DIED IN A WORKER'S HANDS — the one state nothing else
+   *  in this system ever revisits.
+   *
+   *  ------------------------------------------------------------------
+   *  `sending` IS A DEAD END, AND THAT IS NOT OBVIOUS FROM ANY ONE FILE
+   *  ------------------------------------------------------------------
+   *  `claim()` writes `sending` and the consumer writes the next state a
+   *  moment later. If the process dies in between — Fly moving the machine,
+   *  OOM, a `SIGKILL` after the graceful window — nothing ever looks at that
+   *  row again: `pendingBatch()` reads only `pending`, `claim()` refuses
+   *  `sending`, and pg-boss redelivering the job is precisely the case
+   *  `claim()` is built to no-op on. The letter is never sent and no error is
+   *  ever recorded.
+   *
+   *  It is worse one level up. `sweepStates()` counts `sending` as in-flight,
+   *  so the RUN never reaches `SENT` either: a batch of two hundred sits at
+   *  "Đang gửi" forever with a hole in it, and every counter on the run list
+   *  is honest about numbers that will never change again.
+   *
+   *  ------------------------------------------------------------------
+   *  BACK TO `pending` IS SAFE, AND THE IDEMPOTENCY KEY IS WHY
+   *  ------------------------------------------------------------------
+   *  The dangerous case is a crash AFTER Resend accepted the mail and before
+   *  `markAccepted` ran — retrying then would look like sending twice. It is
+   *  not: the retry reuses `idempotency_key` (= `event_key`), which is the
+   *  whole reason that column exists, and Resend collapses the second request
+   *  onto the first. So the correct move is to hand the row back to the relay
+   *  rather than to guess at what happened.
+   *
+   *  What must NOT happen is an endless loop: `claim()` increments
+   *  `attempt_count` every time, and a row reaped over and over on a machine
+   *  that keeps dying would be claimed forever. So this applies the SAME
+   *  ceiling the consumer applies (`PV_EMAIL_RETRY_LIMIT`, compared the same
+   *  way `exhausted()` compares it) and parks the exhausted ones as `dead`,
+   *  where a person owns them.
+   *
+   *  `olderThanSeconds` must be comfortably above the longest legitimate time
+   *  a row spends in `sending` — one provider round trip, `SEND_TIMEOUT_MS`
+   *  15s — because a row reaped while a worker is still holding it would be
+   *  claimed by a second worker and genuinely sent twice at the provider's
+   *  door, idempotency key or not (two different keys are not involved, but
+   *  two concurrent requests with the same key are not what that guarantee
+   *  covers). Minutes, not seconds.
+   *
+   *  Returns what it did, split by outcome, because the two mean different
+   *  things to whoever reads the log: `requeued` is a worker that died and
+   *  recovered, `parked` is mail that will never go out. */
+  reapStuckSending(opts: {
+    olderThanSeconds: number
+    retryLimit: number
+  }): Promise<{ requeued: number; parked: number }>
 
   /** Rows owed a job, oldest first.
    *

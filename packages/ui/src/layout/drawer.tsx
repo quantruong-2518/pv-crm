@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { X } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 

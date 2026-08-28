@@ -1,15 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import {
-  CircleCheckBig,
-  ClipboardList,
-  Coins,
-  Orbit,
-  Send,
-  Timer,
-  TriangleAlert,
-  X,
-} from 'lucide-react'
+import type { IconGlyph } from '@pv/ui'
+import { CircleCheckBig, ClipboardList, Coins, Orbit, Send, Timer, TriangleAlert, X } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
@@ -23,6 +14,9 @@ import {
   EmptyState,
   GlassCard,
   Icon,
+  ScreenHeader,
+  ScreenLayout,
+  ScreenScoreGrid,
   SectionTitle,
   Skeleton,
   StatCard,
@@ -65,7 +59,7 @@ import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
  *  còn file dữ liệu chỉ được biết con số và câu chữ của nó. Khoá lạ thì tra ra
  *  `undefined` và thẻ đơn giản là không có icon — thiếu một hình trang trí không
  *  đáng để làm hỏng cả màn. */
-const STAT_ICON: Record<string, LucideIcon> = {
+const STAT_ICON: Record<string, IconGlyph> = {
   'dang-muc': TriangleAlert,
   'qua-sla': Timer,
   'lead-tot': CircleCheckBig,
@@ -115,24 +109,24 @@ export function PlanPage() {
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-5 lg:gap-6">
-        <div className="flex flex-col gap-3">
-          <div>
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              Số liệu &amp; kế hoạch
-            </h2>
-            <p className="text-muted-foreground mt-1 text-[12px]">
+      <ScreenLayout>
+        <ScreenHeader
+          title="Số liệu & kế hoạch"
+          description={
+            <>
               DAS Vina · lát cắt chốt lúc{' '}
               <span className="font-mono">{DAS_VINA_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
               <span className="font-mono">{dm(DAS_VINA_FROZEN_AT)}</span> · module 4 ăn đầu ra của
               module 1 + 2 + 3, không đẻ số mới
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-muted-foreground text-[11px]">Đơn lớn nhất đang chạy</span>
-            <ContextRail objects={rail} />
-          </div>
-        </div>
+            </>
+          }
+          context={
+            <>
+              <span className="text-muted-foreground text-[11px]">Đơn lớn nhất đang chạy</span>
+              <ContextRail objects={rail} />
+            </>
+          }
+        />
 
         {!board ? (
           <div className="flex flex-col gap-4 lg:gap-6">
@@ -157,7 +151,7 @@ export function PlanPage() {
                 lần ai đó sửa câu chữ ở tầng dữ liệu. */}
             <section className="flex flex-col gap-3">
               <h3 className="text-[13px] font-semibold">Phòng đang đứng ở đâu</h3>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <ScreenScoreGrid>
                 {board.stats.map((s) => (
                   <StatCard
                     key={s.key}
@@ -168,7 +162,7 @@ export function PlanPage() {
                     hint={s.hint}
                   />
                 ))}
-              </div>
+              </ScreenScoreGrid>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">{board.statsNote}</p>
             </section>
 
@@ -364,7 +358,7 @@ export function PlanPage() {
         )}
 
         <NotDoing />
-      </div>
+      </ScreenLayout>
     </AppShell>
   )
 }

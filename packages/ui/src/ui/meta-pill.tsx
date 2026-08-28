@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+import type { IconGlyph } from '../icons'
 import type { ReactNode } from 'react'
 import { cva } from 'class-variance-authority'
 import { Avatar } from './avatar'
@@ -31,7 +31,7 @@ const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-
 })
 
 export type MetaPillProps = {
-  icon?: LucideIcon
+  icon?: IconGlyph
   /** tên người → hiện <Avatar size="sm"> thay cho icon; `icon` bị bỏ qua */
   avatar?: string
   tone?: 'muted' | 'accent' | 'warning' | 'success'

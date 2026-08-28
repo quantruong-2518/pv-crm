@@ -1,8 +1,19 @@
 import { useState } from 'react'
-import { Bell, House, Package, SquareCheckBig, Users } from 'lucide-react'
+import { Bell, House, Package, SquareCheckBig, Users } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { AppShell, Badge, Button, Drawer, GlassCard, cn } from '@pv/ui'
+import {
+  AppShell,
+  Badge,
+  Button,
+  Drawer,
+  GlassCard,
+  ScreenHeader,
+  ScreenLayout,
+  ScreenScoreGrid,
+  StatCard,
+  cn,
+} from '@pv/ui'
 
 /** Zone 04 · Templates — ba thiết bị là ba vai, không phải một layout co giãn.
  *  T-01/02/03 là bản vẽ khung; T-04 và T-05 là component SỐNG. */
@@ -240,6 +251,33 @@ export function ZoneTemplates() {
               </AppShell>
             </div>
           </div>
+        </SpecCard>
+
+        {/* T-06 */}
+        <SpecCard
+          className="col-span-3"
+          code="T-06"
+          name="ScreenLayout"
+          note="khung nội dung chuẩn"
+          bodyClassName="p-4"
+          footer="Đầu màn → chỉ số → công cụ → nội dung · title luôn uppercase · detail dùng ScreenDetailGrid 3:1 từ xl"
+        >
+          <ScreenLayout>
+            <ScreenHeader
+              title="Sổ lead"
+              description="Theo dõi đầu vào và tiến độ xử lý lead trong kỳ."
+              actions={<Button size="md">Tạo lead</Button>}
+            />
+            <ScreenScoreGrid>
+              <StatCard size="compact" value="100" label="Tổng số lead" source="Sổ lead toàn kỳ" />
+              <StatCard
+                size="compact"
+                value="30%"
+                label="Cơ hội / lead"
+                source="30 trên 100 lead"
+              />
+            </ScreenScoreGrid>
+          </ScreenLayout>
         </SpecCard>
       </ZoneBody>
     </section>

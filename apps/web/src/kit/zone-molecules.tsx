@@ -11,7 +11,7 @@ import {
   SquareCheckBig,
   Target,
   Users,
-} from 'lucide-react'
+} from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -35,6 +35,7 @@ import {
   ScanField,
   SearchField,
   StatCard,
+  Stepper,
   type TableColumn,
   type TableSort,
   Timeline,
@@ -207,6 +208,24 @@ function RichTextDemo() {
   )
 }
 
+/** Bấm một chip đã qua (Đức/Liên hệ) để lùi lại — chứng minh `onGo` đổi state
+ *  của MÀN, Stepper chỉ vẽ lại theo `current` nó nhận vào. */
+function StepperDemo() {
+  const [current, setCurrent] = useState(2)
+  return (
+    <Stepper
+      steps={[
+        { key: 'info', label: 'Thông tin' },
+        { key: 'contact', label: 'Liên hệ' },
+        { key: 'content', label: 'Nội dung' },
+        { key: 'confirm', label: 'Xác nhận' },
+      ]}
+      current={current}
+      onGo={setCurrent}
+    />
+  )
+}
+
 export function ZoneMolecules() {
   return (
     <section id="zone-02" className="pb-2 pt-12">
@@ -231,7 +250,7 @@ export function ZoneMolecules() {
               hero → font-num 42px, h-[150px] CHỈ khi có sparkline (sparkline được mt-auto ghim
               đáy); không có thì cao theo nội dung, không chừa khoảng trắng chết
               <br />
-              compact → px-4 py-3, số 26px, thêm dòng hint 11px — cho bảng chỉ số dày
+              compact → nhãn uppercase · số 30px · nguồn, icon 64px chìm dưới nền
             </>
           }
         >
@@ -250,7 +269,7 @@ export function ZoneMolecules() {
             icon={Target}
             value="34%"
             label="Tỉ lệ MQL"
-            hint="21 / 61 lead của đợt đang chạy"
+            source="21 / 61 lead · Sổ lead đợt đang chạy"
           />
         </SpecCard>
 
@@ -528,6 +547,27 @@ export function ZoneMolecules() {
             onPasteText={() => {}}
             hint="Tải tệp mẫu — một dòng tiêu đề, một dòng ví dụ"
           />
+        </SpecCard>
+
+        {/* M-14 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-14"
+          name="Stepper"
+          note="điều hướng form nhiều bước"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Khác ApprovalChain (M-03): chuỗi đó đọc trạng thái duyệt do E3 giữ, còn Stepper điều
+              hướng — bước đã qua bấm được (tick success), bước đang mở nền accent, bước chưa tới
+              không bao giờ bấm được.
+              <br />
+              Dưới 640px rút gọn còn một dòng &ldquo;Bước n/N · nhãn&rdquo;, không bấm lùi được ở
+              dạng rút gọn.
+            </>
+          }
+        >
+          <StepperDemo />
         </SpecCard>
       </ZoneBody>
     </section>

@@ -133,6 +133,40 @@ const Env = z
       .default('false')
       .transform((v) => v === 'true'),
 
+    /** A SECOND Resend account for the bulk path. Empty = share `RESEND_API_KEY`.
+     *
+     *  ------------------------------------------------------------------
+     *  WHAT A SEPARATE KEY BUYS THAT A SEPARATE SUBDOMAIN DOES NOT
+     *  ------------------------------------------------------------------
+     *  `PV_EMAIL_MAS_FROM` already splits the sending IDENTITY, which protects
+     *  the reputation of the transactional subdomain. It does not protect the
+     *  ACCOUNT: Resend terminates above a 4% bounce rate or a 0.08% complaint
+     *  rate, and it does so account-wide "without warning". One bought list can
+     *  cross that in a single send, and when it does, the lead alerts and the
+     *  password mail go down with the campaign — they ride the same key.
+     *
+     *  So this is the only variable that keeps a bad MAS batch from taking the
+     *  transactional pipeline with it, and it is worth a key in `fly secrets`
+     *  even while everything else about MAS is shared.
+     *
+     *  ------------------------------------------------------------------
+     *  READ AT SEND TIME, PER LETTER, BY FLOW — NOT SNAPSHOTTED ON THE RUN
+     *  ------------------------------------------------------------------
+     *  Opposite call to `PV_EMAIL_MAS_FROM`, which IS snapshotted onto
+     *  `mail_run.from_address` because a batch reviewed under one address must
+     *  keep going out from it. A key is not part of what anyone reviewed; it is
+     *  which account pays for the request. Rotating it must take effect on the
+     *  next letter, including letters of a run opened before the rotation —
+     *  a snapshotted key would keep a batch posting through a revoked account.
+     *  `ResendMailDriver` therefore picks the client by `MailMessage.flow`.
+     *
+     *  Empty is the ORDINARY state and is not a warning: one account is a
+     *  perfectly good configuration until the first real campaign, which is why
+     *  no `.refine` below demands it. `RESEND_API_KEY` is already required
+     *  whenever the outbound door is open, so an empty value here can only ever
+     *  fall back to a key that exists. */
+    PV_MAS_RESEND_API_KEY: z.string().default(''),
+
     /** Ceiling on the recipients of ONE run, enforced server-side.
      *
      *  Mirrors `MAS_MAX_RECIPIENTS` in `@pv/contracts`, which the screen also

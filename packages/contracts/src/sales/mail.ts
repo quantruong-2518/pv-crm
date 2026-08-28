@@ -149,12 +149,53 @@ export const MailTemplateCode = z
  *  `active: false` is the only form of deletion, matching `ConfigEntry` in
  *  `./config`: a run already sent points at its template, and a row that
  *  vanishes underneath it leaves the run unable to say what it sent. */
+/** The button inside a letter — label and destination, together or not at all.
+ *
+ *  ------------------------------------------------------------------
+ *  ONE OBJECT, BECAUSE HALF A CTA IS NOT A STATE
+ *  ------------------------------------------------------------------
+ *  `mail_run_cta_pair` and `mail_template_cta_pair` both accept the two columns
+ *  or neither, and a wire shape able to express "label without url" is a shape
+ *  that reaches Postgres and fails there instead of at the zod gate. Same
+ *  argument `MailRunCreate.cta` already makes on the repository side.
+ *
+ *  ------------------------------------------------------------------
+ *  `http`/`https` ONLY, AND THAT IS NOT PARANOIA ABOUT MAIL CLIENTS
+ *  ------------------------------------------------------------------
+ *  `z.url()` alone accepts `javascript:`, `data:` and `file:`. Mail clients
+ *  strip those, so the risk is not really the letter — it is everything else
+ *  that ends up rendering the same string: the review step of the compose
+ *  panel, the run detail screen, any future web view of what was sent. A
+ *  destination that is not a web address is not a call to action, and the one
+ *  place to refuse it is the gate both ends share.
+ *
+ *  Declared once and used by BOTH the template row below and `MasSendRequest`,
+ *  because the panel's whole job is to carry one into the other. */
+export const MailCta = z.object({
+  label: textNhap(80),
+  url: z
+    .url('Địa chỉ nút phải là một URL đầy đủ')
+    .refine(
+      (u) => /^https?:$/.test(new URL(u).protocol),
+      'Địa chỉ nút phải bắt đầu bằng http/https',
+    ),
+})
+
 export const MailTemplateRow = z.object({
   code: MailTemplateCode,
   /** NAME shown in the picker. A label — never a key. */
   name: z.string().min(1),
   subject: z.string().min(1),
   body: z.string().min(1),
+  /** The template's suggested button, when it has one.
+   *
+   *  It travels with the row for the same reason `subject` and `body` do: the
+   *  panel PRE-FILLS from it and the person then edits or clears it, and what
+   *  finally goes out is what they posted back (`MasSendRequest.cta`). Before
+   *  this field existed the server read the pair straight off the template at
+   *  send time, which meant nobody ever reviewed the link in their own letter.
+   *  A template with no CTA is ordinary — most letters are prose. */
+  cta: MailCta.optional(),
   active: z.boolean(),
 })
 
@@ -164,9 +205,12 @@ export const MailTemplateRow = z.object({
 
 /** Why a picked lead will NOT receive this run.
  *
- *  Three reasons, kept apart because they need three different actions from the
+ *  Four reasons, kept apart because they need four different actions from the
  *  person about to press send:
  *
+ *   · `EXITED`     — the lead has left the funnel (`sales.lead.exit_reason`).
+ *     Nothing to do: this is not a gap to fill or a block to appeal, it is a
+ *     person we decided to stop pursuing.
  *   · `SUPPRESSED` — the address is in `platform.email_suppression`: it hard
  *     bounced, complained, or unsubscribed. Nobody may send there again, and
  *     nothing the sender does changes that.
@@ -176,14 +220,15 @@ export const MailTemplateRow = z.object({
  *     this says which pick was folded into which, so a person is not left
  *     wondering why 40 leads produced 39 mails.
  *
- *  One combined "blocked" flag would leave all three looking identical on
- *  screen while only one of them is anybody's problem. */
-export const MasRecipientBlock = z.enum(['SUPPRESSED', 'NO_EMAIL', 'DUPLICATE'])
+ *  One combined "blocked" flag would leave all four looking identical on
+ *  screen while only two of them are anybody's problem. */
+export const MasRecipientBlock = z.enum(['EXITED', 'SUPPRESSED', 'NO_EMAIL', 'DUPLICATE'])
 
 /** What each block reason is called. Same shared-label rule as
  *  `MAIL_RUN_STATE_LABEL` above — the preflight panel prints these, and so does
  *  the server-side send report. */
 export const MAS_RECIPIENT_BLOCK_LABEL = {
+  EXITED: 'Đã rơi khỏi phễu',
   SUPPRESSED: 'Đã chặn',
   NO_EMAIL: 'Thiếu email',
   DUPLICATE: 'Trùng địa chỉ',
@@ -257,6 +302,32 @@ export const MasPreflightResponse = z.object({
   sendable: z.number().int().nonnegative(),
   /** How many picks will produce no letter. */
   blocked: z.number().int().nonnegative(),
+
+  /** Picks that came back in NO row at all — luật 7, the same word the lead
+   *  book and the run list already use.
+   *
+   *  ------------------------------------------------------------------
+   *  WITHOUT THIS NUMBER THE PANEL'S OWN ARITHMETIC LIES
+   *  ------------------------------------------------------------------
+   *  `recipients` carries one entry per pick the server could see, and a lead
+   *  the scope axis cut is deliberately not one of them: `MasRecipient` requires
+   *  `company` and `contactName`, so the only way to list it would be to print
+   *  two fields this caller is not allowed to read (see `MasRepository.audience`).
+   *  So it vanishes — and a person who ticked 40 rows reads "37 gửi được · 0 bị
+   *  chặn" with no account of the other three.
+   *
+   *  `sendable + blocked + hidden` therefore equals the number of DISTINCT codes
+   *  posted, which is the identity the panel prints. It absorbs both reasons a
+   *  pick can produce no row, and they are not separable from here: a code the
+   *  scope axis cut and a code naming no lead at all look identical to the
+   *  query, and telling them apart on screen would itself confirm that a row
+   *  exists — the enumeration this cut exists to prevent.
+   *
+   *  Note the word DISTINCT: the same code posted twice is one pick, folded
+   *  before any of the three counters is computed. `MasSendResponse.skipped`
+   *  measures against the raw list instead and absorbs the repeat there — the
+   *  two identities answer two different questions and are not the same sum. */
+  hidden: z.number().int().nonnegative(),
 
   /** How many of the picked leads came from `source_kind = 'APOLLO'` — a
    *  WARNING, and deliberately not a fourth `MasRecipientBlock`.
@@ -367,6 +438,18 @@ export const MasSendRequest = z.object({
    *  around 70 characters, so anything past that is written for nobody. */
   subject: textNhap(200),
   body: mailBody,
+  /** The button in the letter — ABSENT MEANS NO BUTTON, it does not mean
+   *  "whatever the template says".
+   *
+   *  The template's own CTA pre-fills this field in the panel exactly the way
+   *  it pre-fills `subject` and `body`, and the panel then posts what is on
+   *  screen. Falling back to `mail_template.cta_url` on the server instead —
+   *  which is what this endpoint did before the field existed — puts a link in
+   *  two hundred letters that the person who pressed send never saw and never
+   *  agreed to, and it keeps doing so after somebody edits the template. The
+   *  run snapshots subject and body for that exact reason; the button is part
+   *  of the letter and belongs in the same snapshot. */
+  cta: MailCta.optional(),
   /** Absent = send now. Present = hold the run at `SCHEDULED` until then.
    *
    *  Not validated as "in the future" here: the client's clock and the
@@ -456,9 +539,21 @@ export const MailRunRow = z.object({
   startedAt: Moc.optional(),
   finishedAt: Moc.optional(),
 
-  /** Leads the run was aimed at — the size of the pick, INCLUDING the ones that
-   *  were skipped. `audienceCount - sent` is what was dropped, and losing that
-   *  difference is losing the only on-screen sign that a list is decaying. */
+  /** Letters this run OWED when it was opened — the picks that survived
+   *  preflight, not the size of the pick.
+   *
+   *  Blocked picks are already gone by the time this number is written
+   *  (`mail_run.audience_count`, filled from the sendable list): a run aimed at
+   *  40 ticked rows of which 3 were suppressed reports 37 here, and the 3 live
+   *  in the preflight the sender read, not on the batch. Stored rather than
+   *  counted, so a run can still say how big it was meant to be after its rows
+   *  are pruned by retention.
+   *
+   *  `audienceCount - sent` is therefore what was written to the ledger and
+   *  never left the building — held by the bounce breaker, suppressed between
+   *  the send and its turn, or out of retries. It is the on-screen sign that
+   *  something went wrong INSIDE the run, which is a different question from
+   *  how many picks were rejected before it opened. */
   audienceCount: z.number().int().nonnegative(),
 
   /** Handed to the provider and accepted by it. */
@@ -543,6 +638,57 @@ export const MailRunListQuery = PageQuery.extend({
 })
 
 export const MailRunListResponse = paged(MailRunRow)
+
+// ---------------------------------------------------------------------------
+// Stopping a batch — `PATCH /sales/mail/runs/:id`
+// ---------------------------------------------------------------------------
+
+/** THE ONLY DOOR A PERSON HAS INTO `MailRunState`, AND IT LEADS ONE WAY.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY `CANCELLED` IS THE WHOLE VOCABULARY OF THIS REQUEST
+ *  ------------------------------------------------------------------
+ *  Four of the five run states are reached by the machine and must stay that
+ *  way: `SENDING` and `SENT` are conclusions the sweeper draws from the ledger
+ *  (`sweepStates()` — "no attempt is outstanding"), `SCHEDULED` is set at
+ *  creation by the presence of `scheduledAt`, and `DRAFT` is written by nothing
+ *  today. Letting a request assert any of those would let a screen claim a
+ *  batch had finished while its letters were still in a worker's hands, and
+ *  every counter on the run list is computed on the assumption that never
+ *  happens.
+ *
+ *  `CANCELLED` is the one state that is a DECISION rather than an observation —
+ *  a person saying "do not post the rest of these" — so it is the one a person
+ *  may write. Before this door existed only the bounce breaker could reach it
+ *  (`tripBounced`), which meant a batch scheduled for 9am with the wrong body
+ *  in it could be watched but not stopped.
+ *
+ *  An enum of one rather than a bare boolean `cancel: true`: the field is a
+ *  `MailRunState` and reads as one on both ends, and the day a second reachable
+ *  state exists it is one more value here instead of a second flag beside the
+ *  first. */
+export const MailRunPatch = z.object({
+  state: z.enum(['CANCELLED']),
+})
+
+/** What the cancel answers with — and `held` is the reason it is not a 204.
+ *
+ *  Cancelling a run is not only a column change: the letters it had not posted
+ *  yet are killed in the same statement, because a "cancelled" batch whose two
+ *  hundred `pending` rows are still sitting there for the worker is a batch
+ *  that goes out anyway. `held` is how many of those this call stopped, and it
+ *  is the sentence the panel prints — "đã huỷ · giữ lại 42 thư chưa gửi".
+ *
+ *  It is legitimately `0`: a `SCHEDULED` run cancelled after the sweeper moved
+ *  it, a run every letter of which had already left, or the second click on a
+ *  cancel button. Zero means "nothing left to stop", never "nothing happened" —
+ *  the state below is the receipt for that. */
+export const MailRunPatchResponse = z.object({
+  id: MailRunId,
+  state: MailRunState,
+  /** Letters that were still owed and will now never be attempted. */
+  held: z.number().int().nonnegative(),
+})
 
 // ---------------------------------------------------------------------------
 // One lead's mail history — what the lead detail screen draws as a timeline
@@ -645,6 +791,8 @@ export type MailRunRow = z.infer<typeof MailRunRow>
 export type MailRunListQuery = z.infer<typeof MailRunListQuery>
 export type MailRunListResponse = z.infer<typeof MailRunListResponse>
 export type MailRunSortKey = z.infer<typeof MailRunSortKey>
+export type MailRunPatch = z.infer<typeof MailRunPatch>
+export type MailRunPatchResponse = z.infer<typeof MailRunPatchResponse>
 export type MailTemplateListResponse = z.infer<typeof MailTemplateListResponse>
 export type LeadMailTimelineRow = z.infer<typeof LeadMailTimelineRow>
 export type LeadMailTimelineResponse = z.infer<typeof LeadMailTimelineResponse>

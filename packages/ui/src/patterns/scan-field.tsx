@@ -1,4 +1,4 @@
-import { ScanLine } from 'lucide-react'
+import { ScanLine } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 

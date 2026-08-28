@@ -26,19 +26,16 @@ import { cn } from '../lib/cn'
 /** Nhịp của khung — sửa ở đây là sửa mọi màn. Màn KHÔNG tự đặt lại mấy giá trị
  *  này; gõ `p-8` trong một màn là màn đó tự tách khỏi hệ. */
 const SHELL = {
+  /** Header và main cùng một trục. 1600px giữ bảng nghiệp vụ không nở thành một
+   *  dải quá dài trên màn lớn; dưới ngưỡng đó khung co theo viewport. */
+  frame: 'mx-auto w-full max-w-[1600px]',
   /** lề ngoài của cả khung */
   pad: 'p-4 lg:p-6',
   /** khoảng giữa nav và nội dung */
   gap: 'gap-4 lg:gap-6',
   /** chừa chỗ cho BottomNav (84px + safe-area) — chỉ dưới `lg` */
   bottomNavPad: 'pb-[calc(84px+env(safe-area-inset-bottom)+16px)] lg:pb-6',
-  /** Nav dán SÁT đỉnh cửa sổ, không cách một quãng.
-   *
-   *  `top-0` chứ không `top-6`: lúc dính, nav nở ngang ra ăn hết lề (xem
-   *  `AppHeader`), mà nở ngang trong khi vẫn treo cách đỉnh 24px thì hở ra một
-   *  dải nền phía trên và nội dung chạy qua dải đó. Ở trạng thái thường nav
-   *  vẫn nằm trong lề như mọi thẻ khác — `top-0` chỉ quyết định chỗ nó DỪNG
-   *  khi cuộn, không đổi chỗ nó đứng lúc chưa cuộn. */
+  /** Nav dán sát đỉnh; chiều rộng vẫn theo `frame`, không nở khỏi trục main. */
   stick: 'sticky top-0 z-40',
 } as const
 
@@ -75,8 +72,12 @@ export function AppShell({
           SHELL.bottomNavPad,
         )}
       >
-        <AppHeader {...header} onOpenAssistant={onOpenAssistant} className={SHELL.stick} />
-        <main className="min-w-0 flex-1">{children}</main>
+        <AppHeader
+          {...header}
+          onOpenAssistant={onOpenAssistant}
+          className={cn(SHELL.frame, SHELL.stick)}
+        />
+        <main className={cn(SHELL.frame, 'min-w-0 flex-1')}>{children}</main>
       </div>
 
       {/* Nút Trợ lý nổi CHỈ khi có người nhận cú bấm.

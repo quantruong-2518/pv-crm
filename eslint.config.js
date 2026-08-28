@@ -66,7 +66,7 @@ export default tseslint.config(
     rules: { 'aurora/no-raw-hex': 'off' },
   },
   {
-    // icon.tsx LÀ cái cửa — nó phải chạm lucide trực tiếp.
+    // icon.tsx LÀ cái cửa — nó phải chạm Hugeicons renderer trực tiếp.
     files: ['packages/ui/src/ui/icon.tsx'],
     rules: { 'aurora/icon-through-gate': 'off' },
   },

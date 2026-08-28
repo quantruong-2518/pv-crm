@@ -39,16 +39,6 @@
       "count": 7
     }
   },
-  "apps/web/src/pages/home.tsx": {
-    "aurora/spacing-scale": {
-      "count": 1
-    }
-  },
-  "packages/ui/src/organisms/app-sidebar.tsx": {
-    "aurora/spacing-scale": {
-      "count": 5
-    }
-  },
   "packages/ui/src/organisms/approval-card.tsx": {
     "aurora/spacing-scale": {
       "count": 3
@@ -72,11 +62,6 @@
   "packages/ui/src/organisms/order-lifecycle-card.tsx": {
     "aurora/spacing-scale": {
       "count": 6
-    }
-  },
-  "packages/ui/src/organisms/top-bar.tsx": {
-    "aurora/spacing-scale": {
-      "count": 1
     }
   },
   "packages/ui/src/patterns/ai-action.tsx": {

@@ -61,6 +61,22 @@ export class LeadController {
     return this.leads.profile(who, code)
   }
 
+  /** Sổ mail của một lead — mỗi mốc là một LÔ đã gửi tới người này.
+   *
+   *  Đứng ở nhánh Lead chứ không nhánh Campaign, và đó là quyết định chứ không
+   *  phải chỗ trống: `GET /sales/mail/runs` trả về LÔ, mọi con số của nó nói về
+   *  cả tệp người nhận; đường này trả lời "mình đã viết cho NGƯỜI NÀY mấy lần",
+   *  nên nó đứng cạnh hồ sơ của người đó và ăn cùng ba trục quyền.
+   *
+   *  `lead.xem` chứ không `chiến-dịch.xem`, cùng lý do: đây là dữ liệu của một
+   *  lead, và một Sale mở hồ sơ khách của mình không cần quyền của phòng
+   *  marketing để biết khách đã nhận thư nào. */
+  @Get(':code/mail')
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  mail(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+    return this.leads.mailTimeline(who, code)
+  }
+
   /** Một lead, gõ tay. 201 kèm nguyên dòng sổ — màn chèn được ngay, không phải
    *  gọi lần thứ hai, và người gõ thấy luôn giá trị đã được chuẩn hoá. */
   @Post()

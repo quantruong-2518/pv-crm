@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { LeadSourceKind, MailRunListQuery, MailTemplateRow } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { audit } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
@@ -24,6 +25,21 @@ export type MasLeadRow = {
   email: string | null
   sourceKind: LeadSourceKind | null
   suppressed: boolean
+  /** Why this lead left the funnel, or `null` while it is still running.
+   *
+   *  A FACT and not a filter, which is the whole reason it is a column here
+   *  rather than a `WHERE` clause: a lead cut in SQL comes back in no row at
+   *  all, and the preflight would then report "40 picked, 37 sendable" with
+   *  three that vanished for a reason the screen never names (the same failure
+   *  `MasPreflightResponse.hidden` exists to describe for the picks this
+   *  repository genuinely may not return). An exited lead is one this caller is
+   *  fully entitled to see; it just must not be written to. So it comes back
+   *  whole, and `MasService.decide` turns it into `EXITED`.
+   *
+   *  The reason string travels rather than a bare boolean because it costs the
+   *  same and it is the difference between "đã rơi khỏi phễu" and being able to
+   *  say WHY on a screen that one day wants to. */
+  exitReason: string | null
 }
 
 /** Which runs this caller may see, and how many the scope axis took away. */
@@ -122,6 +138,7 @@ export class MasRepository {
         email: sql<string | null>`NULLIF(trim(${lead.email}), '')`,
         sourceKind: lead.sourceKind,
         suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,
+        exitReason: lead.exitReason,
       })
       .from(lead)
       .leftJoin(
@@ -148,33 +165,28 @@ export class MasRepository {
         name: mailTemplate.name,
         subject: mailTemplate.subject,
         body: mailTemplate.body,
+        ctaLabel: mailTemplate.ctaLabel,
+        ctaUrl: mailTemplate.ctaUrl,
         active: mailTemplate.active,
       })
       .from(mailTemplate)
       .orderBy(sql`${mailTemplate.active} DESC`, asc(mailTemplate.name))
 
-    return rows
-  }
-
-  /** One template's call-to-action pair, or `null` when the run names no
-   *  template — or names one that no longer exists.
-   *
-   *  A missing row is NOT an error here, and that follows from
-   *  `mail_run.template_code` deliberately carrying no foreign key: a template
-   *  retired next year must not orphan a batch already sent, so the code is
-   *  RECORDED whether or not a row answers to it. What is lost in that case is
-   *  only the button. */
-  async templateCta(handle: Db, code: string): Promise<{ label: string; url: string } | null> {
-    const [row] = await handle
-      .select({ label: mailTemplate.ctaLabel, url: mailTemplate.ctaUrl })
-      .from(mailTemplate)
-      .where(eq(mailTemplate.code, code))
-      .limit(1)
-
-    /* `mail_template_cta_pair` guarantees both columns or neither, so one
-       check would do — both are tested because a CHECK is a promise about the
-       table, not about this function's arguments. */
-    return row?.label && row.url ? { label: row.label, url: row.url } : null
+    /* Two nullable columns become one optional object, because that is the
+       shape the CHECK already guarantees (`mail_template_cta_pair`: both or
+       neither) and the shape the panel needs. Both halves are tested rather
+       than just one — a CHECK is a promise about the TABLE, not about what this
+       query selected, and the day someone reads these two columns through a
+       LEFT JOIN the promise no longer covers the result.
+       There used to be a second method here, `templateCta`, which the SEND path
+       called to copy the button out of the template at the last moment. It is
+       gone: the sender must review the link that goes out in their name, so the
+       pair travels to the panel with the rest of the row and comes back on
+       `MasSendRequest.cta`. */
+    return rows.map(({ ctaLabel, ctaUrl, ...row }) => ({
+      ...row,
+      ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
+    }))
   }
 
   /** Does this campaign exist? Asked before the run is written rather than left
@@ -214,6 +226,29 @@ export class MasRepository {
     link: { campaignCode: string; mailRunId: string; waveNo: number },
   ): Promise<void> {
     await tx.insert(campaignRun).values(link)
+  }
+
+  /** WHO STOPPED THIS BATCH — one append-only line in `platform.audit`.
+   *
+   *  Inside `tx`, not through `AuditRepository.write`, and for the first of the
+   *  two reasons `LeadWriteRepository.writeBatchNote` gives: that repository
+   *  writes through the pool, so it cannot join the transaction that is
+   *  cancelling the run, and a rollback would leave a record of a cancellation
+   *  that did not happen. The mirror failure is worse and is the one this
+   *  guards: two hundred letters withheld with nothing saying who withheld
+   *  them. `mail_run` has only `created_by`; there is no `cancelled_by` column,
+   *  so this row is the whole answer.
+   *
+   *  `action: 'sửa'` because the vocabulary is E2's five verbs and stopping a
+   *  batch is a change to it, not a new object and not a reading. The run id
+   *  goes in `code`, which is what makes the line findable from the run. */
+  async writeCancelNote(tx: Db, entry: { actorId: string; runId: string }): Promise<void> {
+    await tx.insert(audit).values({
+      actorId: entry.actorId,
+      action: 'sửa',
+      code: entry.runId,
+      note: 'huỷ lô gửi MAS — thư chưa gửi bị giữ lại',
+    })
   }
 
   /** Which batches belong to one campaign.

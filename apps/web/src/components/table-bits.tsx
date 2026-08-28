@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 
 /** Ba mảnh dùng chung của MỌI SỔ — sổ lead (module Lead) và sổ cơ hội (module Ops).

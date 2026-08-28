@@ -13,8 +13,8 @@ import {
   TriangleAlert,
   UserPlus,
   Users,
-  type LucideIcon,
-} from 'lucide-react'
+  type IconGlyph,
+} from '@pv/ui'
 import {
   BD,
   canPromoteToSql,
@@ -170,7 +170,7 @@ export const frozenLeadBookQuery = queryOptions({
  *  fixture (biên giới package · CLAUDE.md). */
 export const ORIGIN_FACE: Record<
   OriginKind,
-  { label: string; icon: LucideIcon; openLabel: string }
+  { label: string; icon: IconGlyph; openLabel: string }
 > = {
   'chien-dich': { label: 'Chiến dịch', icon: Megaphone, openLabel: 'Xem chiến dịch' },
   'su-kien': { label: 'Sự kiện', icon: CalendarClock, openLabel: 'Xem sự kiện' },
@@ -249,7 +249,7 @@ export type NextActionKey =
 export type NextAction = {
   key: NextActionKey
   label: string
-  icon: LucideIcon
+  icon: IconGlyph
   /** Việc đáng làm nhất đứng đầu và là nút đặc; phần còn lại là nút mờ. */
   primary: boolean
   /** Vì sao đề xuất việc này — hiện ngay dưới nút, không giấu trong code. */

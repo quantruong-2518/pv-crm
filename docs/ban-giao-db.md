@@ -22,6 +22,14 @@ tiếp.
 > ở mục A cũng lỗi thời cùng lý do — đã dựng, đọc cập nhật 27/08 (2). Còn thiếu
 > gì để Quick MAS (Sổ lead) gửi được mail thật — không chỉ 12 bảng, còn endpoint,
 > composer, quyền: [`ban-giao-quick-mas.md`](./ban-giao-quick-mas.md).
+>
+> **Cập nhật 28/08 (2):** mục `sales.opportunity` bên dưới mô tả bảng TỐI THIỂU —
+> đã LỖI THỜI. Bảng đã bồi cột (`state` · `name` · `account_code` · `description`
+> · `attachments` · `lost_note` · `stage_since`), `owner_id` đã bỏ và người đứng
+> đơn chuyển sang bảng nối `sales.opportunity_owner`. Module 3 đi hết một vòng —
+> bốn endpoint, hai màn, hai mail. Neon đã áp tới `0011`.
+> Chi tiết, và **việc còn phải làm để deploy**:
+> [`ban-giao-co-hoi.md`](./ban-giao-co-hoi.md).
 
 ---
 

@@ -18,7 +18,7 @@ import { CONFIG_PREFIX, ContactChannel, type ConfigList, type ExitReason } from 
 import { configEntry } from '@api/branches/sales/config/config.schema'
 import { contract } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
-import { opportunity } from '@api/branches/sales/opportunity/opportunity.schema'
+import { opportunity, opportunityOwner } from '@api/branches/sales/opportunity/opportunity.schema'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
 import { loadEnv } from '@api/platform/config/env'
 
@@ -352,6 +352,19 @@ async function seed(): Promise<void> {
      thêm 6 cơ hội tương ứng, mã suy thẳng từ mã hợp đồng. Đó là suy ra theo mô
      hình, không phải bịa dữ liệu: hợp đồng đã tồn tại thì cơ hội sinh ra nó
      cũng đã tồn tại. */
+  /* Trạng thái suy NGƯỢC từ cột, và bảng tra này chỉ dùng cho seed.
+     `stageOfState` đi một chiều state → stage; chiều ngược lại không phải hàm
+     (hai cột 'moi'/'da-demo' không có trạng thái nào trỏ tới), nên nó chỉ đúng
+     ở đây, nơi dữ liệu là mười đơn đóng băng đã biết trước. Đơn đang mở ở ba
+     cột đầu đều là "Pending" — chưa báo giá thì chưa có gì để nego. */
+  const STATE_OF_STAGE = {
+    moi: 'pending',
+    'tim-hieu': 'pending',
+    'da-demo': 'pending',
+    'da-bao-gia': 'gui-quotation',
+    'cho-ky': 'nego',
+  } as const
+
   const deals = rows
     .filter((r) => r._i < OPEN_DEALS.length)
     .map((r) => {
@@ -360,13 +373,29 @@ async function seed(): Promise<void> {
       return {
         code: d.code,
         leadCode: r.code,
+        state: STATE_OF_STAGE[d.stage],
         stage: d.stage,
+        /* Đồng hồ cột đọc THẲNG `daysInStage` của fixture, không lấy `created_at`
+           như migration phải làm cho dữ liệu cũ. Ở đây con số có thật: sổ đóng
+           băng khai đúng đơn nào đã nằm bao nhiêu ngày trong cột, và đó là thứ
+           `isRotting` của fixture đang dùng để chấm một đơn là mục. Lấy ngày mở
+           đơn thay vào là làm lệch tín hiệu mục của cả mười đơn đang mở.
+
+           Đếm ngược từ `Date.now()` chứ không từ một mốc đóng băng — cùng phép
+           `stageSinceOf` dùng cho lead, và cùng hệ quả đã ghi ở đó: con số khớp
+           fixture ngay sau khi seed rồi trôi theo ngày thật, vì kịch bản "hôm
+           nay" phải chạy theo hôm nay. */
+        stageSince: new Date(Date.now() - d.daysInStage * DAY),
+        /* Tên đơn = tên khách. Fixture không khai tên cho mười đơn đang mở
+           (`OpenDeal` không có trường đó), và ghép thêm " · <sản phẩm>" ở đây
+           là bịa một con số demo mới — thứ CLAUDE.md cấm ngoài fixture. */
+        name: r.company,
         amount: d.amount,
         currency: 'VND' as const,
-        ownerId: personId(d.owner, d.code, 'người giữ cơ hội'),
         closedAt: null,
         lostReason: null,
         createdAt: r.createdAt,
+        _ownerId: personId(d.owner, d.code, 'người giữ cơ hội'),
       }
     })
 
@@ -378,13 +407,19 @@ async function seed(): Promise<void> {
       opportunity: {
         code: code.replace(/^[^-]+/, 'OP'),
         leadCode: r.code,
+        /* Đơn đã ký: cột là NULL (ra khỏi bảng năm cột), còn trạng thái cuối
+           cùng trước khi ký là Nego. 'close-won' KHÔNG phải một giá trị của cột
+           `state` — "đã thắng" là dòng bên `contract`, xem docblock của
+           `opportunity.schema.ts`. */
+        state: 'nego' as const,
         stage: null,
+        name: r.company,
         amount: null,
         currency: null,
-        ownerId: r.ownerId,
         closedAt: r.stageSince,
         lostReason: null,
         createdAt: r.createdAt,
+        _ownerId: r.ownerId,
       },
       contract: {
         code,
@@ -402,6 +437,11 @@ async function seed(): Promise<void> {
     /* Xoá theo thứ tự NGƯỢC khoá ngoại. Seed là thao tác dựng LẠI, không phải
        thêm chồng — chạy hai lần phải ra cùng một cơ sở dữ liệu. */
     await tx.delete(contract)
+    /* Trước `opportunity`: bảng nối có khoá ngoại về nó. `ON DELETE CASCADE`
+       cũng dọn được, nhưng seed xoá tường minh theo đúng thứ tự ngược khoá
+       ngoại — dựa vào cascade là để một dòng biến mất mà không ai đọc thấy ở
+       đây. */
+    await tx.delete(opportunityOwner)
     await tx.delete(opportunity)
     await tx.delete(edge)
     await tx.delete(lead)
@@ -449,7 +489,21 @@ async function seed(): Promise<void> {
       .values(dasVina.edges.map((e) => ({ fromCode: e.from, toCode: e.to, kind: e.kind })))
 
     await tx.insert(lead).values(rows.map(({ _i, _owner, ...row }) => row))
-    await tx.insert(opportunity).values([...deals, ...won.map((w) => w.opportunity)])
+
+    /* Người đứng đơn rời sang bảng nối 28/08 — cột `owner_id` không còn. Seed
+       chỉ dựng được vai SALE: fixture khai đúng một người cho mỗi đơn
+       (`OpenDeal.owner`), và gán bừa ai đó vào vai BD là bịa công trạng mở cửa
+       cho một người thật. Đơn nào có BD thật thì đó là dữ liệu người dùng nhập
+       qua `POST /sales/ops`, không phải thứ seed biết. */
+    const ops = [...deals, ...won.map((w) => w.opportunity)]
+    await tx.insert(opportunity).values(ops.map(({ _ownerId, ...row }) => row))
+    await tx
+      .insert(opportunityOwner)
+      .values(
+        ops
+          .filter((o) => o._ownerId !== null)
+          .map((o) => ({ opportunityCode: o.code, actorId: o._ownerId!, role: 'SALE' as const })),
+      )
     await tx.insert(contract).values(won.map((w) => w.contract))
   })
 

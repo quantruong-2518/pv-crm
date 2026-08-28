@@ -11,7 +11,7 @@ import {
   TriangleAlert,
   Users,
   Zap,
-} from 'lucide-react'
+} from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import { Icon } from '@pv/ui'
@@ -303,7 +303,7 @@ export function ZoneFoundations() {
           <SpecCard
             code="F-08"
             name="Iconography"
-            note="lucide-react"
+            note="Hugeicons Stroke Rounded"
             bodyClassName="flex flex-wrap items-center gap-5 px-4 py-[18px]"
             footer="size 16 trong nút · 20 trong nav · stroke-width 1.75 · không icon fill, không emoji"
           >

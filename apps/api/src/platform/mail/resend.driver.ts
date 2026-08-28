@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { Resend, type CreateEmailOptions, type CreateEmailRequestOptions } from 'resend'
 import { ENV, type Env } from '@api/platform/config/env'
-import type { MailFailure, MailMessage, MailPort, MailSendResult } from './mail.contract'
+import type { MailFailure, MailFlow, MailMessage, MailPort, MailSendResult } from './mail.contract'
 
 const SEND_TIMEOUT_MS = 15_000
 /** Resend's own default for `rate_limit_exceeded` responses (2 req/s on most
@@ -32,10 +32,41 @@ type SendOptions = CreateEmailRequestOptions & { signal?: AbortSignal }
 @Injectable()
 export class ResendMailDriver implements MailPort {
   private readonly log = new Logger('mail')
+
+  /** The shared account — every `transactional` letter, and every `mas` letter
+   *  on a deployment that has not split the two. */
   private readonly resend: Resend
+
+  /** The MAS account, present only when `PV_MAS_RESEND_API_KEY` is set.
+   *
+   *  Built ONCE in the constructor rather than per send: `new Resend(key)`
+   *  throws on an empty string, so the empty case has to be decided somewhere,
+   *  and deciding it here means the send path is a lookup instead of a
+   *  try/catch. `null` is the ordinary configuration — see the variable's own
+   *  docblock in `env.ts`. */
+  private readonly resendMas: Resend | null
 
   constructor(@Inject(ENV) env: Env) {
     this.resend = new Resend(env.RESEND_API_KEY)
+    this.resendMas = env.PV_MAS_RESEND_API_KEY ? new Resend(env.PV_MAS_RESEND_API_KEY) : null
+
+    if (this.resendMas) {
+      this.log.log('[resend] MAS đi bằng tài khoản riêng — bulk và transactional tách khoá.')
+    }
+  }
+
+  /** Which account pays for this letter.
+   *
+   *  Falling back to the shared client when no MAS key is configured is the
+   *  right failure direction and the only one: refusing to send would take the
+   *  bulk path down over a variable that is legitimately empty on every machine
+   *  that has not bought a second account, while sending on the shared key is
+   *  exactly what happened before this split existed. What the fallback costs
+   *  is the protection — which is why the constructor logs a line when the
+   *  split IS on, so "did we actually separate them" is answerable from the
+   *  boot log rather than from someone's memory. */
+  private clientFor(flow: MailFlow): Resend {
+    return flow === 'mas' && this.resendMas ? this.resendMas : this.resend
   }
 
   async send(message: MailMessage, idempotencyKey: string): Promise<MailSendResult> {
@@ -53,7 +84,7 @@ export class ResendMailDriver implements MailPort {
 
     let response: Awaited<ReturnType<Resend['emails']['send']>>
     try {
-      response = await this.resend.emails.send(payload, options)
+      response = await this.clientFor(message.flow).emails.send(payload, options)
     } catch {
       // Defense only — the SDK's own `fetchRequest()` catches every network
       // and abort error and resolves `{ data: null, error }` instead of

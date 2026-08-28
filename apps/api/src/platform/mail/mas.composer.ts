@@ -130,6 +130,9 @@ export class MasMailComposer implements MailComposer {
     })
 
     return {
+      /* `mas`, and this one line is what keeps a bad batch from taking the
+         transactional pipeline down with it — see `MailFlow`. */
+      flow: 'mas',
       from: header(run.fromAddress),
       to: delivery.recipient,
       replyTo: run.replyTo ? header(run.replyTo) : undefined,

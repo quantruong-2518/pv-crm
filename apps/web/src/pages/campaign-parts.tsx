@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CalendarClock, Plus, Save, Send, Trash2, TriangleAlert, UserPlus, Zap } from 'lucide-react'
+import { CalendarClock, Plus, Save, Send, Trash2, TriangleAlert, UserPlus, Zap } from '@pv/ui'
 import {
   ApprovalChain,
   Avatar,

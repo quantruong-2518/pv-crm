@@ -1,4 +1,4 @@
-import { Bell, Factory, FileText, House, Package, SquareCheckBig, Users } from 'lucide-react'
+import { Bell, Factory, FileText, House, Package, SquareCheckBig, Users } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {

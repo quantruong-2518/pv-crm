@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { Lock } from 'lucide-react'
+import { Lock } from '@pv/ui'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuroraField, Button, GlassCard, Icon } from '@pv/ui'
 import type { AccessNeed, Branch, Permission, Verdict } from '@pv/engines'

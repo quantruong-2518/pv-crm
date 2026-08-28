@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+import type { IconGlyph } from '../icons'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
@@ -6,7 +6,7 @@ import { cn } from '../lib/cn'
 /** M-08 · EmptyState — LUÔN 1 icon + 1 câu hướng dẫn + 1 nút.
  *  Không bao giờ chỉ có chữ "Không có dữ liệu". */
 export type EmptyStateProps = {
-  icon: LucideIcon
+  icon: IconGlyph
   message: string
   action: { label: string; onClick?: () => void }
   className?: string

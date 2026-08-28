@@ -2,7 +2,7 @@
  *
  *  Ba thứ bị chặn, đều lấy thẳng từ docs/luat-thiet-ke.md:
  *   · emoji — không có chỗ nào trên giao diện dùng emoji;
- *   · ▲▼▬ và họ hàng — delta số dùng icon Lucide trending-up/down/minus;
+ *   · ▲▼▬ và họ hàng — delta số dùng icon Hugeicons trending-up/down/minus;
  *   · icon `sparkles` / `bot` / `wand` — Trợ lý AI dùng `orbit`, không có ngoại lệ. */
 const EMOJI = /\p{Extended_Pictographic}/u
 const GLYPH = /[▲▼▬△▽▴▾►◄◀▶⯅⯆]/
@@ -26,7 +26,7 @@ export default {
     messages: {
       emoji: 'Emoji "{{ch}}" không dùng trên giao diện (luật 11 · docs/luat-thiet-ke.md).',
       glyph:
-        'Ký tự "{{ch}}" không dùng để chỉ hướng. Delta số dùng icon Lucide trending-up / trending-down / minus (luật 15).',
+        'Ký tự "{{ch}}" không dùng để chỉ hướng. Delta số dùng icon Hugeicons trending-up / trending-down / minus (luật 15).',
       icon: 'Icon "{{name}}" là AI slop. Trợ lý AI dùng `orbit` — không `sparkles`, không `bot` (luật 15).',
     },
   },
@@ -50,7 +50,7 @@ export default {
         checkText(node, node.value)
       },
       ImportDeclaration(node) {
-        if (node.source.value !== 'lucide-react') return
+        if (!['@hugeicons/core-free-icons', '@pv/ui'].includes(node.source.value)) return
         for (const spec of node.specifiers) {
           const name = spec.imported?.name
           if (name && BANNED_ICONS.has(name)) {

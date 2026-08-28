@@ -11,6 +11,9 @@ export * from './lib/format'
 // ---- assets (logo bản nền tối) ----
 export * from './assets'
 
+// ---- icon registry ----
+export * from './icons'
+
 // ---- Zone 00 · Foundations ----
 export * from './layout/aurora-field'
 export * from './layout/glass-card'
@@ -55,6 +58,7 @@ export * from './patterns/rich-text'
 export * from './patterns/scan-field'
 export * from './patterns/search-field'
 export * from './patterns/stat-card'
+export * from './patterns/stepper'
 export * from './patterns/timeline'
 
 // ---- Zone 03 · Organisms (O-02 … O-07) ----
@@ -70,6 +74,7 @@ export * from './organisms/kiosk-tile'
 export * from './organisms/order-lifecycle-card'
 export * from './organisms/toast'
 
-// ---- Zone 04 · Templates (T-04 · T-05) ----
+// ---- Zone 04 · Templates (T-04 · T-06) ----
 export * from './layout/app-shell'
 export * from './layout/drawer'
+export * from './layout/screen-layout'

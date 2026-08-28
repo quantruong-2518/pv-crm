@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CircleAlert, Send, ShieldCheck } from 'lucide-react'
+import { CircleAlert, Send, ShieldCheck } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -11,6 +11,8 @@ import {
   Icon,
   Input,
   Kicker,
+  ScreenHeader,
+  ScreenLayout,
   Skeleton,
   StatusDot,
 } from '@pv/ui'
@@ -99,16 +101,16 @@ export function SalesConfigPage() {
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-5 lg:gap-6">
-        <div>
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-            Cấu hình phòng kinh doanh
-          </h2>
-          <p className="text-muted-foreground mt-1 text-[12px]">
-            Hình dạng của dữ liệu — bộ mười câu, cột sổ cơ hội, ngành, lý do rơi, hoa hồng, công
-            trạng, kênh gửi. Bốn module kia đọc hình từ đây, không màn nào giữ bản sao.
-          </p>
-        </div>
+      <ScreenLayout>
+        <ScreenHeader
+          title="Cấu hình phòng kinh doanh"
+          description={
+            <>
+              Hình dạng của dữ liệu — bộ mười câu, cột sổ cơ hội, ngành, lý do rơi, hoa hồng, công
+              trạng, kênh gửi. Bốn module kia đọc hình từ đây, không màn nào giữ bản sao.
+            </>
+          }
+        />
 
         <GlassCard className="flex items-start gap-3 p-5 lg:p-6">
           <Icon icon={ShieldCheck} size={20} className="text-accent-foreground mt-1" />
@@ -513,7 +515,7 @@ export function SalesConfigPage() {
             </GlassCard>
           </div>
         )}
-      </div>
+      </ScreenLayout>
     </AppShell>
   )
 }

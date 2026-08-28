@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CircleCheck, CircleX, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { CircleCheck, CircleX, Info, TriangleAlert, X, type IconGlyph } from '../icons'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
@@ -52,7 +52,7 @@ export type ToastItem = {
   ttlMs?: number
 }
 
-const TONE_ICON: Record<ToastTone, LucideIcon> = {
+const TONE_ICON: Record<ToastTone, IconGlyph> = {
   success: CircleCheck,
   danger: CircleX,
   warning: TriangleAlert,

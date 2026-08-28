@@ -1,6 +1,38 @@
 import type { ObjectRef } from '@pv/engines'
-import type { LeadProfile, LeadRow } from '@pv/contracts'
+import type { LeadMailTimelineRow, LeadProfile, LeadRow, MailRunState } from '@pv/contracts'
 import type { LeadRowDb } from './lead.schema'
+
+/** One row of `LeadRepository.mailTimeline()`, in the DRIVER's own spelling.
+ *
+ *  `snake_case` and `Date | null`, because that query is a raw `db.execute()`
+ *  and Postgres hands back whatever the statement named — there is no Drizzle
+ *  mapper on a raw statement to rename or convert anything. `toMailTimeline`
+ *  below is the conversion, and keeping the two shapes apart is what stops an
+ *  ISO string from being invented inside the repository, where the only honest
+ *  value is the timestamp the driver returned.
+ *
+ *  Declared HERE rather than beside the query, exactly like `LeadRead` and
+ *  `LeadProfileRead`: the repository imports its read-shapes from the mapper,
+ *  and reversing that for one of the three would be a cycle between the two
+ *  files — harmless today because both imports are type-only, and a real one
+ *  the day either side needs a value.
+ *
+ *  `delivery_state` is typed `string` on purpose and travels to the wire that
+ *  way — see `LeadMailTimelineRow.deliveryState` for the whole argument. The
+ *  ten values live in `apps/api/src/platform/mail/mail.contract.ts`, and a
+ *  branch re-declaring them is the second copy of one vocabulary. */
+export type LeadMailTimelineRead = {
+  run_id: string
+  label: string
+  run_state: MailRunState
+  scheduled_at: Date | null
+  delivery_state: string
+  fail_reason: string | null
+  open_count: number
+  last_open_at: Date | null
+  click_count: number
+  last_click_at: Date | null
+}
 
 /** Một dòng đã đọc xong từ bảng, kèm thứ không phải cột.
  *
@@ -186,4 +218,50 @@ export function toRef(row: LeadRowDb, ownerName: string | null): ObjectRef {
     ...(ownerName ? { owner: ownerName } : {}),
     ...(row.stage ? { state: row.stage } : {}),
   }
+}
+
+/** Một mốc mail của lead: hình của driver → hình của hợp đồng.
+ *
+ *  ------------------------------------------------------------------
+ *  VẮNG LÀ VẮNG — KHÔNG CÓ GIÁ TRỊ MẶC ĐỊNH NÀO Ở ĐÂY
+ *  ------------------------------------------------------------------
+ *  Bốn mốc thời gian và `failReason` đều là `optional` bên hợp đồng, và chúng
+ *  được BỎ HẲN khỏi object chứ không gán `null` hay chuỗi rỗng — cùng luật
+ *  `toProfile` ở trên đang theo. Một lô chưa tới giờ không có `scheduledAt`
+ *  bằng epoch, một lá thư chưa ai mở không có `lastOpenAt` bằng "chưa mở".
+ *
+ *  `failReason` chỉ đi cùng những trạng thái đã hỏng. `last_error_summary` là
+ *  cột dùng chung: bộ vớt dòng kẹt và cầu dao bounce cũng ghi vào đó, nên một
+ *  dòng đã `pending` trở lại sau khi được vớt vẫn còn câu chữ của lần hỏng
+ *  trước. In nó cạnh một lá thư đang chờ gửi là nói với người xem rằng thư đã
+ *  hỏng, trong khi nó sắp đi. */
+export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow {
+  return {
+    runId: read.run_id,
+    label: read.label,
+    runState: read.run_state,
+    ...(read.scheduled_at ? { scheduledAt: read.scheduled_at.toISOString() } : {}),
+    deliveryState: read.delivery_state,
+    openCount: read.open_count,
+    ...(read.last_open_at ? { lastOpenAt: read.last_open_at.toISOString() } : {}),
+    clickCount: read.click_count,
+    ...(read.last_click_at ? { lastClickAt: read.last_click_at.toISOString() } : {}),
+    ...(read.fail_reason && FAILED_DELIVERY[read.delivery_state]
+      ? { failReason: read.fail_reason }
+      : {}),
+  }
+}
+
+/** Những trạng thái giao mà một câu giải thích là ĐÚNG NGHĨA.
+ *
+ *  Viết ra bằng chữ chứ không suy từ `MAIL_STATE_RANK`: bảng thứ hạng đó nằm
+ *  trong `platform/`, và nhánh đọc nó là nhánh phụ thuộc vào một chi tiết của
+ *  nền để trả lời một câu hỏi của màn. Bốn giá trị này là hợp đồng của chính
+ *  hàm trên — thêm một trạng thái hỏng mới ở nền thì dòng này phải được đọc
+ *  lại, và đó là điều đúng. */
+const FAILED_DELIVERY: Record<string, true | undefined> = {
+  bounced: true,
+  complained: true,
+  failed_permanent: true,
+  dead: true,
 }

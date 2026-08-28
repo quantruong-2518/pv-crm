@@ -1,4 +1,4 @@
-import { Orbit } from 'lucide-react'
+import { Orbit } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 

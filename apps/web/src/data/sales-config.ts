@@ -7,8 +7,8 @@ import {
   MessageCircle,
   Send,
   Smartphone,
-  type LucideIcon,
-} from 'lucide-react'
+  type IconGlyph,
+} from '@pv/ui'
 import {
   COMMISSION_SPLIT,
   CREDIT_RULES,
@@ -62,7 +62,7 @@ export const CHANNEL_LABEL: Record<WaveChannel, string> = {
  *
  *  Bảng nằm ở tầng `data/` của app chứ không ở `@pv/ui`: "kênh nào là kênh gì"
  *  là kiến thức nghiệp vụ của phòng kinh doanh, còn thư viện chỉ biết nhận một
- *  `LucideIcon` qua props. Đẩy bảng này vào `@pv/ui` là bắt thư viện biết Zalo
+ *  `IconGlyph` qua props. Đẩy bảng này vào `@pv/ui` là bắt thư viện biết Zalo
  *  OA tồn tại (luật biên giới package · CLAUDE.md).
  *
  *  Truyền tên icon làm dữ liệu là hợp lệ với luật 11 — chỗ render vẫn phải đi
@@ -71,7 +71,7 @@ export const CHANNEL_LABEL: Record<WaveChannel, string> = {
  *  Bốn kênh E4 lấy hình của chính công cụ gửi (thư · tin nhắn · Telegram · app
  *  trên máy khách); ba kênh còn lại lấy logo nền tảng, vì chúng là chỗ ĐĂNG chứ
  *  không phải chỗ gửi — khác biệt đó là nợ treo số 2, đừng làm mờ nó đi. */
-export const CHANNEL_ICON: Record<WaveChannel, LucideIcon> = {
+export const CHANNEL_ICON: Record<WaveChannel, IconGlyph> = {
   email: Mail,
   'zalo-oa': MessageCircle,
   telegram: Send,

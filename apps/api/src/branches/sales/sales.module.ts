@@ -4,6 +4,8 @@ import { CampaignModule } from './campaign/campaign.module'
 import { SalesConfigModule } from './config/config.module'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
+import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
+import { OpportunityModule } from './opportunity/opportunity.module'
 
 /** Nhánh tự cắm sổ ràng buộc của mình vào bộ dịch lỗi cơ sở dữ liệu.
  *
@@ -15,10 +17,11 @@ import { LeadModule } from './lead/lead.module'
  *  trước khi máy chủ mở cổng — không có request nào thấy sổ còn trống. Module
  *  mới thêm đúng một dòng ở đây, không mở lại file dùng chung. */
 registerConstraints(LEAD_CONSTRAINTS)
+registerConstraints(OPPORTUNITY_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
- *  Ba module còn lại (cơ hội · performance · kế hoạch) thêm vào đây theo đúng hình của
+ *  Hai module còn lại (performance · kế hoạch) thêm vào đây theo đúng hình của
  *  `lead/`; `campaign/` vừa vào với nửa MAS mail của nó — sổ chiến dịch và tệp
  *  thành viên là những bộ bốn file tiếp theo trong cùng module đó, không phải
  *  module mới. Thứ tự dựng bám theo mục B của
@@ -31,7 +34,7 @@ registerConstraints(LEAD_CONSTRAINTS)
  *  Nhánh này không nhập gì từ `branches/supply`, `branches/factory`,
  *  `branches/finance` — eslint chặn, xem `eslint.config.js`. */
 @Module({
-  imports: [LeadModule, SalesConfigModule, CampaignModule],
-  exports: [LeadModule, SalesConfigModule, CampaignModule],
+  imports: [LeadModule, OpportunityModule, SalesConfigModule, CampaignModule],
+  exports: [LeadModule, OpportunityModule, SalesConfigModule, CampaignModule],
 })
 export class SalesModule {}

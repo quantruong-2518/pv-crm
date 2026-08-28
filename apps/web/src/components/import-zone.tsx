@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CircleCheck, Download, FileUp, TriangleAlert, Upload } from 'lucide-react'
+import { CircleCheck, Download, FileUp, TriangleAlert, Upload } from '@pv/ui'
 import {
   Badge,
   Button,

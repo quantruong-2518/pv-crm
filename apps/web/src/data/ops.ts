@@ -1,83 +1,115 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
-  dasVina,
-  DAY_FROZEN,
-  dayISO,
-  isRotting,
-  OPEN_DEALS,
-  OPPORTUNITIES,
-  OPPORTUNITY_STATES,
-  type Opportunity,
-  type OpportunityDraft,
+  type OpportunityBookResponse,
+  type OpportunityOwner,
+  type OpportunityRow,
   type OpportunityState,
-} from '@pv/engines/fixtures/das-vina'
+} from '@pv/contracts'
+import { PIPELINE_STAGES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api } from '@/app/api'
 
-/** Sổ cơ hội — module 3. Kịch bản 2 · DAS Vina.
- *
- *  Đây là chỗ DUY NHẤT màn lấy sổ cơ hội. Khi có backend, đổi thân `fetchOps`
- *  thành lời gọi HTTP; `opsBookQuery` và cả hai màn dùng nó không phải sửa —
- *  cùng hình với `data/leads.ts` của module 2.
+/** Sổ cơ hội — module 3. Đọc từ máy chủ.
  *
  *  ------------------------------------------------------------------
- *  SỔ TRÊN MÀN = SỔ FIXTURE + PHIẾU VỪA GỬI + BẢN SỬA TẠI CHỖ
+ *  ĐÃ CẮT KHỎI FIXTURE — 28/08
  *  ------------------------------------------------------------------
- *  Ba nguồn, gộp ở `mergeOps` chứ không gộp ở màn:
+ *  `opsBookQuery` không còn `load`, và theo nghi thức của
+ *  `app/api/client.ts` thì đó CHÍNH LÀ lượt cắt: có `load` nghĩa là query còn
+ *  đọc fixture, vắng `load` nghĩa là nó đi HTTP thật. Không có cờ nào khác để
+ *  bật, không có nhánh nào để đọc.
  *
- *   1 · `OPPORTUNITIES` — 30 dòng của kỳ, suy ra từ sổ lead (fixture);
- *   2 · `desk.deals`    — phiếu người dùng vừa đổi từ một lead trong phiên này;
- *   3 · `desk.ops`      — những ô đã sửa trên một dòng đã có.
+ *  Ba thứ biến mất cùng lượt cắt này, và cả ba đều là hệ quả chứ không phải
+ *  dọn dẹp tuỳ hứng:
  *
- *  Gộp ở một hàm THUẦN vì cả bảng lẫn màn hồ sơ đều cần đúng danh sách đó, và
- *  hai bản gộp chép tay sẽ lệch nhau ngay lần đầu ai đó thêm nguồn thứ tư. */
+ *   · `mergeOps` — sổ trên màn từng là "fixture + phiếu vừa gửi + bản sửa tại
+ *     chỗ". Cả ba nguồn phụ nay đều nằm ở máy chủ: phiếu gửi đi qua
+ *     `POST /sales/ops`, bản sửa qua `PATCH /sales/ops/:code`. Giữ lại phép gộp
+ *     là để một dòng xuất hiện hai lần — một bản của máy chủ, một bản của desk.
+ *   · `nameOfActor` — dòng sổ nay chở `owners[]` có sẵn TÊN. Tra ngược id sang
+ *     tên bằng danh sách actor của fixture là đọc tên khách hàng ra từ một kịch
+ *     bản đóng băng, cho dữ liệu không thuộc kịch bản đó.
+ *   · `stageOfState` — chuyển sang `@pv/contracts`, nơi máy chủ cũng đọc nó.
+ *     Một bảng nối, hai đầu dây.
+ *
+ *  Thứ KHÔNG biến mất: `missingOf` và `toggled`. Chúng là luật của PHIẾU, và
+ *  phiếu vẫn là phiếu — người dùng vẫn điền `OpportunityDraft` ở cả popup lẫn
+ *  hồ sơ, `data/ops-create.ts` dịch nó sang thân request. */
 
-async function fetchOps(): Promise<Opportunity[]> {
-  return OPPORTUNITIES
-}
+export const OPS_BOOK_KEY = ['sales', 'ops-book'] as const
 
+/** Cả sổ, một trang.
+ *
+ *  `size: 200` là trần của `PageQuery`, và ở đây nó là một lựa chọn có hạn
+ *  dùng: cả ba việc màn làm — thẻ điểm, ba ô lọc dựng từ chính sổ, và phân
+ *  trang tại máy — đều cần TOÀN BỘ sổ trong tay. Sổ hôm nay là mười mấy dòng.
+ *  Ngày nó vượt 200, ba việc đó phải chuyển sang máy chủ (một endpoint thống
+ *  kê, một endpoint danh sách lọc, và `page`/`size` đi theo bảng) — đó là một
+ *  thay đổi có thật, không phải một con số cần nống lên. */
 export const opsBookQuery = queryOptions({
-  queryKey: ['sales', 'ops-book'] as const,
+  queryKey: OPS_BOOK_KEY,
   queryFn: () =>
-    api.read('/sales/ops', {
+    api.read<OpportunityBookResponse>('/sales/ops?size=200', {
       need: { branch: 'Sales', permission: 'cơ-hội.xem' },
-      load: fetchOps,
     }),
 })
 
-/** Cột mà một trạng thái rơi vào. Hai kết cục đóng sổ không có cột nào. */
-const STATE_STAGE = new Map(OPPORTUNITY_STATES.map((s) => [s.key, s.stage]))
+export const opsProfileQuery = (code: string) =>
+  queryOptions({
+    queryKey: ['sales', 'ops', code] as const,
+    queryFn: () =>
+      api.read<OpportunityRow>(`/sales/ops/${code}`, {
+        need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      }),
+  })
 
-/** Cột mà một trạng thái rơi vào — dây nối `OPPORTUNITY_STATES` → cột.
+// ---------------------------------------------------------------------------
+// Đọc một dòng sổ
+// ---------------------------------------------------------------------------
+
+/** Hai vai, tách ra khỏi một danh sách người.
  *
- *  Đổi trạng thái trên hồ sơ là đơn ĐỔI CỘT, và cột phải đi theo ngay: để
- *  `stage` cũ nằm lại thì bảng tô "Close won" mà `title` vẫn nói "cột Chờ ký". */
-export function stageOfState(state: OpportunityState) {
-  return STATE_STAGE.get(state) ?? null
+ *  Máy chủ trả MỘT mảng `owners` có `role`, không trả hai mảng: một danh sách
+ *  người kèm vai là hình của bảng nối, và dây thì đi theo hình của dữ liệu.
+ *  Màn cần hai danh sách vì nó bày ra hai hàng avatar, nên phép tách nằm ở
+ *  đây — một chỗ, không phải mỗi màn một lần. */
+export const ownersOf = (op: OpportunityRow, role: OpportunityOwner['role']) =>
+  op.owners.filter((o) => o.role === role)
+
+export const saleOwnersOf = (op: OpportunityRow) => ownersOf(op, 'SALE')
+export const bdOwnersOf = (op: OpportunityRow) => ownersOf(op, 'BD')
+
+export const namesOf = (owners: OpportunityOwner[]) => owners.map((o) => o.name)
+export const idsOf = (owners: OpportunityOwner[]) => owners.map((o) => o.id)
+
+/** Hạn của mỗi cột, tra theo khoá. */
+const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
+
+/** Đơn đang MỤC — nằm trong cột lâu hơn hạn của cột.
+ *
+ *  Máy chủ gửi SỐ NGÀY, màn áp HẠN. Chia thế vì hai vế có hai đời sống khác
+ *  nhau: số ngày là một phép trừ trên `stage_since`, chỉ database biết; còn hạn
+ *  mỗi cột là dòng cấu hình của phòng kinh doanh, thứ người ta sửa được và màn
+ *  đã cầm sẵn.
+ *
+ *  `daysInStage === null` = đơn đã ra khỏi năm cột, và đơn đã đóng sổ thì không
+ *  còn cột nào để mà mục. Đây cũng là chỗ bản cũ hay sai: kiểm `stage` trước
+ *  rồi mới tra, nếu không thì một đơn vừa chuyển sang Close won vẫn bị tô vàng
+ *  "mục" vì mã của nó còn trong bảng đơn đang mở. */
+export function isRottingOp(op: OpportunityRow): boolean {
+  if (op.daysInStage === null || op.stage === null) return false
+  return op.daysInStage > (STAGE_LIMIT.get(op.stage) ?? Infinity)
 }
 
-/** Phiếu vừa gửi, nâng thành một dòng sổ đầy đủ.
- *
- *  Phiếu thiếu đúng hai thứ so với một dòng sổ: lead nó sinh ra từ đâu (người
- *  gọi biết, phiếu thì không mang) và cột nó rơi vào (suy từ trạng thái đã
- *  chọn — cùng bảng nối mà popup đang in ra ở câu dẫn dưới ô Trạng thái). */
-export function rowOfDraft(leadCode: string, draft: OpportunityDraft): Opportunity {
-  return { ...draft, leadCode, stage: stageOfState(draft.state) }
-}
+/** Hôm nay, dạng ISO ngày. Sổ nay là dữ liệu SỐNG nên mốc so sánh là hôm nay,
+ *  không còn là lát cắt đóng băng của kịch bản. */
+const today = () => new Date().toISOString().slice(0, 10)
 
-/** Sổ như người dùng đang thấy nó.
+/** Đơn đang mở mà ngày đóng dự kiến đã trôi qua — "đáng lẽ đóng rồi".
  *
- *  Phiếu mới đứng TRƯỚC 30 dòng cũ: thứ vừa tạo xong mà phải lật sang trang ba
- *  mới thấy thì người dùng tưởng nút không ăn.
- *
- *  Bản sửa đè lên dòng gốc bằng `...patch` chứ không thay cả dòng — patch chỉ
- *  chở những ô đã đổi, và `leadCode` thì không bao giờ đổi được. */
-export function mergeOps(
-  book: Opportunity[],
-  deals: Record<string, OpportunityDraft>,
-  patches: Record<string, Partial<Opportunity>>,
-): Opportunity[] {
-  const fresh = Object.entries(deals).map(([leadCode, draft]) => rowOfDraft(leadCode, draft))
-  return [...fresh, ...book].map((op) => ({ ...op, ...patches[op.code] }))
+ *  Đơn chưa đặt ngày đóng thì KHÔNG trễ: không có hạn thì không có gì để quá.
+ *  Hai chục dòng của sổ đóng băng rơi vào đúng nhánh đó. */
+export function isLateClose(op: OpportunityRow): boolean {
+  return op.stage !== null && op.expectedClose !== null && op.expectedClose <= today()
 }
 
 // ---------------------------------------------------------------------------
@@ -90,9 +122,11 @@ export function mergeOps(
  *  Một nút mờ không lý do là một ngõ cụt — người dùng không biết phải sửa ô nào
  *  để nó sáng lại.
  *
- *  Nằm ở đây chứ không cạnh bộ ô nhập vì `react-refresh` đòi một file component
- *  chỉ xuất component — và vì bản kiểm này là LUẬT của phiếu, không phải cách
- *  vẽ một cái ô. */
+ *  Đây là bản của MÀN, và nó cố tình soi cùng những điều kiện mà
+ *  `OpportunityCreate`/`OpportunityUpdate` soi ở máy chủ. Hai bản không phải
+ *  thừa: bản này bật/tắt một cái nút trước khi có request nào, bản kia là hàng
+ *  rào thật cho mọi cửa gọi. Bản này lệch thì người dùng thấy một nút sáng rồi
+ *  ăn 400; bản kia lệch thì dữ liệu sai vào bảng. */
 export function missingOf(draft: OpportunityDraft): string[] {
   const missing: string[] = []
   if (draft.name.trim() === '') missing.push('tên cơ hội')
@@ -115,9 +149,9 @@ export const toggled = (list: string[], id: string) =>
 
 /** Màu của trạng thái — năm trạng thái, năm tone, không trùng nhau.
  *
- *  Bảng nằm ở tầng app chứ không ở fixture: "close-won màu gì" là cách trình
- *  bày của phòng kinh doanh, không phải kiến thức của kịch bản (cùng cách chia
- *  với `ORIGIN_FACE` ở `data/leads.ts`).
+ *  Bảng nằm ở tầng app chứ không ở hợp đồng: "close-won màu gì" là cách trình
+ *  bày của phòng kinh doanh, không phải hình của dữ liệu (cùng cách chia với
+ *  `ORIGIN_FACE` ở `data/leads.ts`).
  *
  *  Ba trạng thái đang chạy KHÔNG tô ba màu khác nhau: bảng token có năm tone
  *  semantic, và tô hết cho ba bậc của cùng một việc thì màu chỉ còn nói lại
@@ -130,39 +164,3 @@ export const STATE_TONE: Record<OpportunityState, 'success' | 'danger' | 'runnin
   'gui-quotation': 'running',
   pending: 'draft',
 }
-
-/** Ngày lát cắt, dạng ISO ngày — mốc để nói một ngày là quá khứ hay tương lai. */
-export const CUT_DAY = dayISO(DAY_FROZEN).slice(0, 10)
-
-/** Đơn đang mở mà ngày đóng dự kiến đã trôi qua.
- *
- *  Trong kịch bản đóng băng có đúng một đơn như vậy (OP-0252, nằm cột cuối 14
- *  ngày trên hạn 10) — `scenario.test.ts` khoá con số đó. Đây là tín hiệu
- *  "đáng lẽ đóng rồi", không phải lỗi tính ngày. */
-export function isLateClose(op: Opportunity): boolean {
-  return op.stage !== null && op.closedDate <= CUT_DAY
-}
-
-/** Đơn đang mục — nằm trong cột lâu hơn hạn của cột.
- *
- *  Đọc `OPEN_DEALS` chứ không tự đếm lại: số ngày trong cột là dữ liệu của sổ
- *  10 đơn đang mở, và `isRotting` là phép của chính fixture. Phiếu người dùng
- *  vừa tạo chưa nằm trong cột nào đủ lâu để mục.
- *
- *  Kiểm `stage` TRƯỚC khi tra mã, và đây không phải phép thừa: người dùng sửa
- *  một đơn đang mục sang Close won thì nó ra khỏi năm cột, nhưng mã của nó vẫn
- *  còn trong `OPEN_DEALS` — thiếu vế này thì màn vẽ ra "Close won · mục" tô
- *  vàng, tức một đơn vừa thắng vừa quá hạn. Đơn đã đóng sổ thì không còn cột
- *  nào để mà mục. */
-export function isRottingOp(op: Opportunity): boolean {
-  if (op.stage === null) return false
-  const deal = OPEN_DEALS.find((d) => d.code === op.code)
-  return deal ? isRotting(deal) : false
-}
-
-/** Tên người từ id actor. Sổ giữ id vì tên đổi được, màn thì phải in tên. */
-export function nameOfActor(id: string): string {
-  return dasVina.actors.find((a) => a.id === id)?.name ?? id
-}
-
-export const actorNames = (ids: string[]): string[] => ids.map(nameOfActor)

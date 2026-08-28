@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, Inbox, Mail, MailOpen, Plus, Reply, Zap } from 'lucide-react'
+import { CheckCircle2, Inbox, Mail, MailOpen, Plus, Reply, Zap } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -12,6 +12,9 @@ import {
   GlassCard,
   Icon,
   SectionTitle,
+  ScreenHeader,
+  ScreenLayout,
+  ScreenScoreGrid,
   Select,
   SegmentedControl,
   Skeleton,
@@ -205,44 +208,48 @@ export function CampaignsPage() {
   if (mode === 'create') {
     return (
       <AppShell {...chrome.shell}>
-        <CampaignForm
-          mode="create"
-          initial={draftOf(null, false)}
-          onClose={() => setMode('list')}
-        />
+        <ScreenLayout>
+          <CampaignForm
+            mode="create"
+            initial={draftOf(null, false)}
+            onClose={() => setMode('list')}
+          />
+        </ScreenLayout>
       </AppShell>
     )
   }
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-4 lg:gap-6">
+      <ScreenLayout>
         {/* Tiêu đề và MỘT nút. Dòng phụ "DAS Vina · kỳ … · chủ màn …" đã bỏ:
             kỳ và vai không đổi được gì từ màn này, và ba mẩu chữ mờ dưới tiêu
             đề là ba thứ mắt phải bỏ qua trước khi tới hàng số. */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Chiến dịch</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Nạp danh sách người nhận cho MỘT chiến dịch đã có. Ở sổ thì
+        <ScreenHeader
+          title="Chiến dịch"
+          actions={
+            <>
+              {/* Nạp danh sách người nhận cho MỘT chiến dịch đã có. Ở sổ thì
                 chiến dịch phải chọn (`scopeOptions`); trong hồ sơ một chiến
                 dịch thì mã của nó cố định, không chọn lại. */}
-            <ImportZone
-              spec={RECIPIENT_SPEC}
-              existingKeys={recipientKeys}
-              scopeOptions={sources.map((s) => ({
-                value: s.code,
-                label: `${s.code} · ${s.label}`,
-              }))}
-              buttonLabel="Nạp danh sách"
-              onCommit={commitRecipients}
-              onSeeResult={() => navigate('/sales/leads')}
-            />
-            <Button size="md" onClick={() => setMode('create')}>
-              <Icon icon={Plus} size={16} />
-              Chiến dịch mới
-            </Button>
-          </div>
-        </div>
+              <ImportZone
+                spec={RECIPIENT_SPEC}
+                existingKeys={recipientKeys}
+                scopeOptions={sources.map((s) => ({
+                  value: s.code,
+                  label: `${s.code} · ${s.label}`,
+                }))}
+                buttonLabel="Nạp danh sách"
+                onCommit={commitRecipients}
+                onSeeResult={() => navigate('/sales/leads')}
+              />
+              <Button size="md" onClick={() => setMode('create')}>
+                <Icon icon={Plus} size={16} />
+                Chiến dịch mới
+              </Button>
+            </>
+          }
+        />
 
         {/* NĂM ô, đọc từ trái sang là một câu: bao nhiêu chiến dịch xong · bao
             nhiêu còn chạy · gửi đi bao nhiêu · có ai mở · có ai trả lời.
@@ -250,7 +257,7 @@ export function CampaignsPage() {
             Điểm gãy là `lg`: ba thiết bị của luật 3, không đẻ điểm gãy thứ tư. */}
         {totals ? (
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+            <ScreenScoreGrid className="xl:grid-cols-5">
               <StatCard
                 size="compact"
                 icon={CheckCircle2}
@@ -286,7 +293,7 @@ export function CampaignsPage() {
                 label="Tỉ lệ trả lời"
                 hint={`${grouped(totals.replied)} người trả lời`}
               />
-            </div>
+            </ScreenScoreGrid>
 
             {/* Hai chỗ chênh nói thẳng ở đây, không bắt ai tự trừ: mẫu số của ba
                 tỉ lệ trên gồm cả reach bài đăng, và sổ này chỉ có sáu dòng chứ
@@ -501,7 +508,7 @@ export function CampaignsPage() {
             </p>
           ) : null}
         </GlassCard>
-      </div>
+      </ScreenLayout>
     </AppShell>
   )
 }

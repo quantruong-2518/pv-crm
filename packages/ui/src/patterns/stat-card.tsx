@@ -1,5 +1,5 @@
-import type { LucideIcon } from 'lucide-react'
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react'
+import type { IconGlyph } from '../icons'
+import { Minus, TrendingDown, TrendingUp } from '../icons'
 import { GlassCard } from '../layout/glass-card'
 import { Icon } from '../ui/icon'
 import { Sparkline, type SparklineProps, type SparklineTone } from '../ui/sparkline'
@@ -7,7 +7,7 @@ import { cn } from '../lib/cn'
 
 /** M-01 · StatCard — Card + font-num + label + delta + Sparkline.
  *
- *  Delta dùng icon Lucide trending-up / trending-down / minus.
+ *  Delta dùng icon Hugeicons trending-up / trending-down / minus.
  *  Theme kit gốc còn ký tự "▲" ở ô này; luật 15 (docs/luat-thiet-ke.md §1)
  *  cấm ▲▼▬ nên bản dựng theo luật, không theo ký tự cũ.
  *
@@ -24,8 +24,9 @@ import { cn } from '../lib/cn'
  *  cao cứng để các thẻ trong một hàng bằng nhau: ô của CSS grid mặc định
  *  `align-items: stretch`, hàng tự cao bằng thẻ cao nhất.
  *
- *  `compact` là bản cho bảng chỉ số dày (5–6 thẻ một hàng): số 26px, padding
- *  16/12, cao theo nội dung — không `mt-auto`, không khe trống chờ lấp. */
+ *  `compact` là bản cho bảng chỉ số dày (5–6 thẻ một hàng): nhãn → số → nguồn,
+ *  padding 16/12, cao theo nội dung — không `mt-auto`, không khe trống chờ lấp. */
+
 export type StatCardProps = {
   /** đã format sẵn: "890 tr", "1,84 tỷ", "86%" */
   value: string
@@ -34,8 +35,10 @@ export type StatCardProps = {
   size?: 'hero' | 'compact'
   /** dòng thứ ba, 11px muted — chỗ để tỉ lệ / ngữ cảnh, thay vì nhồi vào label */
   hint?: string
-  /** icon nhận dạng chỉ số — 16px, muted, cùng hàng với số, sát mép phải */
-  icon?: LucideIcon
+  /** Con số được tính từ tập dữ liệu nào — viết cho người dùng, không viết tên biến. */
+  source?: string
+  /** icon nhận dạng chỉ số — compact dùng như watermark nền, hero đặt cạnh số */
+  icon?: IconGlyph
   delta?: {
     direction: 'up' | 'down' | 'flat'
     text: string
@@ -62,14 +65,16 @@ export function StatCard({
   icon,
   delta,
   sparkline,
+  source,
   className,
 }: StatCardProps) {
   const compact = size === 'compact'
+  const compactContext = source ?? hint
 
   return (
     <GlassCard
       className={cn(
-        'flex flex-col',
+        'relative isolate flex flex-col overflow-hidden',
         // px-5 py-[18px] của bản vẽ gốc không thuộc thang 8 bậc (luật 7) —
         // trả nợ luôn ở đây: p-5 = 20px, bậc gần nhất.
         compact ? 'px-4 py-3' : 'p-5',
@@ -77,21 +82,45 @@ export function StatCard({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      {compact && icon && (
+        <Icon
+          icon={icon}
+          size={64}
+          className="text-muted-foreground pointer-events-none absolute -bottom-3 -right-2 opacity-10"
+        />
+      )}
+
+      {compact && (
+        <div className="text-muted-foreground relative z-10 font-mono text-[10px] font-semibold uppercase tracking-[.1em]">
+          {label}
+        </div>
+      )}
+
+      <div
+        className={cn('relative z-10 flex items-start justify-between gap-2', compact && 'mt-2')}
+      >
         <div
           className={cn(
             'tnum font-num min-w-0 font-semibold leading-none',
-            compact ? 'text-[26px] tracking-[-.8px]' : 'text-[42px] tracking-[-1.5px]',
+            compact ? 'text-[30px] tracking-[-1px]' : 'text-[42px] tracking-[-1.5px]',
           )}
         >
           {value}
         </div>
-        {icon && <Icon icon={icon} size={16} className="text-muted-foreground" />}
+        {!compact && icon && <Icon icon={icon} size={16} className="text-muted-foreground" />}
       </div>
 
-      <div className="text-muted-foreground mt-2 text-[12px]">{label}</div>
+      {!compact && <div className="text-muted-foreground mt-2 text-[12px]">{label}</div>}
 
-      {hint && <div className="text-muted-foreground mt-1 text-[11px] leading-[1.5]">{hint}</div>}
+      {!compact && hint && (
+        <div className="text-muted-foreground mt-1 text-[11px] leading-[1.5]">{hint}</div>
+      )}
+
+      {compact && compactContext && (
+        <div className="text-glass-foreground relative z-10 mt-2 pr-8 text-[11px] leading-[1.5]">
+          {compactContext}
+        </div>
+      )}
 
       {delta && (
         <div

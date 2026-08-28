@@ -1,65 +1,37 @@
-import type { LucideIcon } from 'lucide-react'
+import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
-  Calculator,
-  ChartColumn,
-  Factory,
-  FolderOpen,
   Gauge,
   Handshake,
   House,
-  ListChecks,
   Megaphone,
-  Orbit,
-  Package,
   ShieldCheck,
   SlidersHorizontal,
   SquareCheckBig,
   Target,
   Users,
-  UsersRound,
-} from 'lucide-react'
+} from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import { Button } from '@pv/ui'
-import type { Branch, Permission } from '@pv/engines'
+import type { Permission } from '@pv/engines'
 import { access, useSession } from './auth'
 
-/** Khung app dùng chung: sidebar + topbar cho MỌI màn.
+/** Khung app dùng chung cho MỌI màn.
  *
  *  ------------------------------------------------------------------
- *  CẤP BẬC — phần quan trọng nhất của file này
+ *  NAVBAR LÀ BẢN ĐỒ CÔNG VIỆC CỦA SẢN PHẨM
  *  ------------------------------------------------------------------
- *  Nav chia theo thứ người dùng cảm nhận được, không theo sơ đồ thương mại:
+ *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
+ *  Chiến dịch · Sổ lead · Cơ hội · Hiệu suất · Kế hoạch · Thiết lập. Chúng đi
+ *  thẳng tới sáu màn đang tồn tại, không nấp dưới một mục "Kinh doanh" và
+ *  không đứng cạnh roadmap Cung ứng/Sản xuất/Tài chính/One Plus chưa mở.
  *
- *    ONE CORE    thứ LUÔN có, không phải mua                    (nhóm 1)
- *    TÍNH NĂNG   thứ mua thêm mới có                            (nhóm 2)
- *                ├─ Kinh doanh ─┬─ Thị trường          ┐
- *                │              ├─ Lead                │ bốn MODULE của
- *                │              ├─ Performance         │ riêng nhánh này
- *                │              └─ Số liệu & kế hoạch  ┘
- *                ├─ Cung ứng · Sản xuất · Tài chính     ← ba nhánh còn lại
- *                └─ Nhân sự · Hồ sơ · Công việc · Báo cáo · Trợ lý AI  ← One Plus
- *
- *  Bốn nhánh vệ tinh và năm năng lực One Plus ĐỒNG CẤP trong nhóm này. Về mặt
- *  thương mại chúng khác nhau — nhánh là sản phẩm rời, One Plus là tầng license
- *  bên trong One (docs · "Hai tầng license") — nhưng với người ngồi trước màn
- *  thì cả hai là cùng một câu hỏi: "cái này công ty mình có chưa?". Chốt xếp
- *  theo câu hỏi đó, One Plus nằm cuối vì chưa nhánh nào của nó được dựng.
- *
- *  Cấp bậc BÊN TRONG mỗi mục vẫn phải đúng cấu trúc sản phẩm —
- *  module nằm dưới nhánh của nó, không ngang hàng nhánh.
- *
- *  Hai lỗi cấp bậc đã sửa ở bản trước:
- *   · bốn module Sales từng đứng thành một NHÓM ngang hàng với nhóm chứa các
- *     nhánh — tức module trông ngang cấp nhánh. Giờ chúng thụt vào dưới đúng
- *     nhánh của mình (`depth: 1`);
- *   · "Quản trị & ghi vết" từng nằm ở footer, trong khi bốn năng lực Core anh em
- *     của nó nằm trên nav. Giờ nó về đúng nhóm One Core. Footer trả lại cho thứ
- *     KHÔNG phải điều hướng: ai đang đăng nhập.
- *
- *  One Core và One Plus giờ đều có kicker. Trước đây Core không có nhãn nên
- *  trông như gốc cây chứ không như một trong hai tầng license.
+ *  Navbar không phải brochure hệ sinh thái. Đưa module chưa có vào đây dưới
+ *  dạng một dãy ổ khoá làm sản phẩm đang dùng trông như một bản demo chưa
+ *  hoàn tất, đồng thời bắt người dùng đi qua hai lần bấm để tới việc hàng ngày.
+ *  Phạm vi license vẫn được guard và `access.check` giữ; nó không cần chiếm
+ *  chỗ trong nội dung điều hướng chính.
  *
  *  @pv/ui vẫn không biết router: nav ở đây tự tính `active` từ `useLocation` và
  *  tự truyền `onClick` xuống. Thư viện chỉ nhận props.
@@ -81,7 +53,7 @@ import { access, useSession } from './auth'
  *  và nút tầng 1 của `AppHeader` vào trạng thái khoá. Không cửa nào hứa màn 04. */
 
 type NavEntry = {
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
   /** Chưa có màn thì bỏ trống — mục TỰ KHOÁ (ổ khoá, nút tắt). Một nút trông
    *  bấm được rồi không đi đâu tệ hơn hẳn một nút nói thẳng là chưa mở. */
@@ -123,23 +95,10 @@ const BOTTOM_NAV: { key: BottomNavKey; path?: string }[] = [
 
 const LOCKED_NAV: BottomNavKey[] = BOTTOM_NAV.filter((i) => !i.path).map((i) => i.key)
 
-/** One Plus — tầng thu tiền theo đầu người. Nằm CUỐI nhóm "Tính năng", sau bốn
- *  nhánh vệ tinh. Khoá cứng cho tới khi có mô hình license thật: kiểu `Branch`
- *  không mô tả được tầng, nó chỉ có năm nhánh. */
-const ONE_PLUS: NavEntry[] = [
-  { icon: UsersRound, label: 'Nhân sự' },
-  { icon: FolderOpen, label: 'Hồ sơ & quy trình' },
-  { icon: ListChecks, label: 'Công việc' },
-  { icon: ChartColumn, label: 'Báo cáo' },
-  /** Icon `orbit` là icon Trợ lý AI theo luật 15 — không `sparkles`, không
-   *  `bot`. Nút tròn nổi của AppShell là lối tắt vào đây, không phải cấp riêng. */
-  { icon: Orbit, label: 'Trợ lý AI' },
-]
-
 export type SalesModule = {
   /** Số thứ tự trong docs — giữ nguyên, đừng đánh lại. */
   no: number
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
   path: string
   /** Quyền cần để VÀO module — phải khớp `permission` của cùng `path` trong
@@ -183,15 +142,15 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'Chiến dịch',
     path: '/sales/campaigns',
     permission: 'chiến-dịch.xem',
-    question: 'Khách ở đâu ra, đợt nào ra khách',
+    question: 'Tạo và đo lường các chiến dịch thu hút khách hàng',
   },
   {
     no: 2,
     icon: Users,
-    label: 'Lead',
+    label: 'Sổ lead',
     path: '/sales/leads',
     permission: 'lead.xem',
-    question: 'Ai đang trong tay ai',
+    question: 'Thu nhận, phân loại và phân công khách tiềm năng',
   },
   {
     /** Đứng ngay sau Lead vì đó là bước kế tiếp của cùng một khách: qua cổng
@@ -199,57 +158,37 @@ export const SALES_MODULES: SalesModule[] = [
      *  mảnh bảng (`components/table-bits.tsx`). */
     no: 3,
     icon: Handshake,
-    label: 'Ops',
+    label: 'Cơ hội',
     path: '/sales/ops',
     permission: 'cơ-hội.xem',
-    question: 'Đơn nào đang chạy, đáng bao nhiêu tiền',
+    question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },
   {
     no: 4,
     icon: Gauge,
-    label: 'Performance',
+    label: 'Hiệu suất',
     path: '/sales/performance',
     permission: 'hiệu-suất.xem',
-    question: 'Ai đang làm được, ai đang tắc',
+    question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
   },
   {
     no: 5,
     icon: Target,
-    label: 'Số liệu & kế hoạch',
+    label: 'Kế hoạch',
     path: '/sales/plan',
     permission: 'kế-hoạch.xem',
-    question: 'Tháng tới phòng nên làm gì',
+    question: 'Lập mục tiêu và kế hoạch cho kỳ tiếp theo',
   },
   {
     /** Cấu hình KHÔNG nằm trong vòng khép kín của năm module trên — nó là thứ
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
     no: 6,
     icon: SlidersHorizontal,
-    label: 'Cấu hình',
+    label: 'Thiết lập',
     path: '/sales/config',
     permission: 'cấu-hình.xem',
-    question: 'Dữ liệu của phòng có hình dạng gì',
+    question: 'Quản lý danh mục và quy tắc bán hàng',
   },
-]
-
-type BranchEntry = {
-  icon: LucideIcon
-  label: string
-  branch: Branch
-  /** Module của nhánh. Nhánh chưa dựng module nào thì bỏ trống. */
-  modules?: SalesModule[]
-}
-
-/** BỐN nhánh vệ tinh — đồng cấp với nhau, không nhánh nào là con của nhánh nào.
- *  Nội dung từng nhánh (docs · "Năm nhánh"): Cung ứng có ERP·Kho · Purchasing ·
- *  Logistics, Sản xuất có MES · Quality · Maintenance, Tài chính có Giá thành ·
- *  Công nợ · eSign · Hoá đơn điện tử. Chưa nhánh nào ngoài Sales được dựng nên
- *  chưa liệt kê module của chúng — liệt kê ra mà không bấm được thì tệ hơn. */
-const BRANCHES: BranchEntry[] = [
-  { icon: Users, label: 'Kinh doanh', branch: 'Sales', modules: SALES_MODULES },
-  { icon: Package, label: 'Cung ứng', branch: 'Supply' },
-  { icon: Factory, label: 'Sản xuất', branch: 'Factory' },
-  { icon: Calculator, label: 'Tài chính', branch: 'Finance' },
 ]
 
 export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
@@ -258,88 +197,42 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
 
-  /** `groupLocked` là khoá theo TẦNG LICENSE (One Plus chưa mua). Mục không có
-   *  đường dẫn cũng khoá, dù tầng của nó đã mở: "Phê duyệt", "Thông báo" và
-   *  "Quản trị & ghi vết" là ba năng lực Core thật nhưng màn chưa dựng, và tới
-   *  20/08 chúng vẫn hiện ra như nút bình thường rồi bấm không đi đâu. */
-  const plain =
-    (groupLocked: boolean) =>
-    (entry: NavEntry): HeaderAction => {
-      const locked = groupLocked || !entry.path
-      return {
-        icon: entry.icon,
-        label: entry.label,
-        count: entry.count,
-        locked,
-        active: entry.path ? pathname === entry.path : false,
-        onClick: entry.path && !locked ? () => navigate(entry.path!) : undefined,
-      }
-    }
-
-  /** Một nhánh + các module của nó, phẳng ra thành danh sách có cấp.
-   *
-   *  HAI ổ khoá khác nhau, đúng như hai cửa của `routes.tsx`:
-   *   · **nhánh** khoá khi công ty chưa mua — hỏi trục license;
-   *   · **module** khoá khi vai không có quyền vào — hỏi trục vai.
-   *
-   *  Cả hai đều hỏi `access.check`, cùng một hàm mà guard hỏi, nên ổ khoá trên
-   *  nav và cửa chặn ở route không bao giờ nói ngược nhau. Trước 23/08 nav tự
-   *  đọc `actor.branches` — đúng cùng một câu hỏi hỏi ở hai chỗ, và hai chỗ đó
-   *  lệch nhau ngay khi luật quyền mọc thêm trục thứ hai. */
-  const inModule = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
-
-  const branchApp = (b: BranchEntry): HeaderApp => {
-    const locked = !access.check(actor, { branch: b.branch }).ok
-    const opensFor = (m: SalesModule) =>
-      access.check(actor, { branch: b.branch, permission: m.permission }).ok
-    /* Mục hạ cánh của nhánh là module ĐẦU TIÊN người này vào được, không phải
-       module số 1 cứng. Một Presales bấm "Kinh doanh" mà rơi vào màn Chiến dịch
-       khoá thì cái nút đó nói dối. */
-    const landing = b.modules?.find(opensFor)?.path
-
+  /** Mục Core không có đường dẫn thì khoá. "Phê duyệt", "Thông báo" và
+   *  "Quản trị & ghi vết" là năng lực thật nhưng màn chưa dựng; trạng thái khoá
+   *  nói đúng điều đó thay vì để một nút bấm không đi đâu. */
+  const plain = (entry: NavEntry): HeaderAction => {
+    const locked = !entry.path
     return {
-      icon: b.icon,
-      label: b.label,
+      icon: entry.icon,
+      label: entry.label,
+      count: entry.count,
       locked,
-      /* Nhánh sáng khi người dùng đang ở BẤT KỲ module nào của nó. Ở nav dọc
-         thì không: cha và con cùng nằm trên màn nên sáng cả hai là thừa. Ở nav
-         hai tầng thì con nằm trong dropdown ĐANG ĐÓNG — cha không sáng thì cả
-         thanh nav không chỉ ra được người dùng đang đứng ở đâu. */
-      active: Boolean(b.modules?.some((m) => inModule(m.path))),
-      onClick: landing && !locked ? () => navigate(landing) : undefined,
-      /* Nhánh khoá thì không trải module: chưa mua thì biết bên trong có gì
-         cũng không vào được. */
-      items:
-        locked || !b.modules
-          ? undefined
-          : b.modules.map((m): HeaderAction => {
-              /* Module thiếu quyền vẫn HIỆN, chỉ khoá — không ẩn. Danh sách
-                 module là bản đồ của nhánh: ẩn bớt thì hai người cùng phòng mô
-                 tả sản phẩm bằng hai bản đồ khác nhau, và người ít quyền hơn
-                 không biết mình đang thiếu gì để mà đi xin. Cùng luật với mục
-                 chưa dựng màn ở One Core. */
-              const open = opensFor(m)
-              return {
-                icon: m.icon,
-                label: m.label,
-                locked: !open,
-                /* Màn con của module (hồ sơ một lead ở `/sales/leads/:code`) vẫn
-                   phải để mục cha sáng: người dùng đứng trong module đó, chỉ là
-                   sâu hơn một tầng. */
-                active: inModule(m.path),
-                onClick: open ? () => navigate(m.path) : undefined,
-              }
-            }),
+      active: entry.path ? pathname === entry.path : false,
+      onClick: entry.path && !locked ? () => navigate(entry.path!) : undefined,
+    }
+  }
+
+  /** Module thật đi thẳng lên hàng điều hướng. Quyền vẫn hỏi cùng `access.check`
+   *  với route guard: người thiếu quyền thấy bản đồ sản phẩm nhưng mục tương ứng
+   *  khoá; người có quyền tới màn chỉ bằng một lần bấm. */
+  const inModule = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
+  const moduleApp = (module: SalesModule): HeaderApp => {
+    const open = access.check(actor, { branch: 'Sales', permission: module.permission }).ok
+    return {
+      icon: module.icon,
+      label: module.label,
+      description: module.question,
+      locked: !open,
+      active: inModule(module.path),
+      onClick: open ? () => navigate(module.path) : undefined,
     }
   }
 
   const header: AppShellProps['header'] = {
     product: 'PV One',
     org: 'Pebble Vina',
-    core: ONE_CORE.map(plain(false)),
-    /* Nhánh vệ tinh trước, One Plus sau — cùng một nhóm "mua thêm mới có".
-       One Plus xuống cuối vì chưa năng lực nào của nó được dựng. */
-    apps: [...BRANCHES.map(branchApp), ...ONE_PLUS.map(plain(true))],
+    core: ONE_CORE.map(plain),
+    apps: SALES_MODULES.map(moduleApp),
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
     unread: NOTIFICATIONS_UNREAD > 0,
     assistantLabel: 'Trợ lý',

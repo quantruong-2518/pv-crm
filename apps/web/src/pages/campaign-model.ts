@@ -1,4 +1,4 @@
-import { Megaphone } from 'lucide-react'
+import { Megaphone } from '@pv/ui'
 import {
   DAS_VINA_FROZEN_AT,
   dasVina,

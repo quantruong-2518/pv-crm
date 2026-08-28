@@ -42,6 +42,24 @@ const MAIL_ENGAGEMENT_KIND_LIST = sql.raw(
  *  added there. */
 const MAIL_STATE_LIST = sql.raw(MAIL_STATES.map((s) => `'${s}'`).join(', '))
 
+/** Why an address is blocked, as a value list for the CHECK below. Same
+ *  `satisfies Record<…, true>` trick as `MAIL_ENGAGEMENT_KIND_SET`, and for the
+ *  same reason: `SuppressionReason` is a bare union with no runtime array
+ *  behind it, so this object is what makes the compiler complain when a fifth
+ *  reason is added to the union and not to the constraint. */
+const SUPPRESSION_REASON_SET = {
+  hard_bounce: true,
+  complaint: true,
+  manual: true,
+  unsubscribe: true,
+} as const satisfies Record<SuppressionReason, true>
+
+const SUPPRESSION_REASON_LIST = sql.raw(
+  Object.keys(SUPPRESSION_REASON_SET)
+    .map((s) => `'${s}'`)
+    .join(', '),
+)
+
 /** The one send ledger — transactional mail today, MAS campaign mail later.
  *  One table rather than two because both need the exact same lifecycle
  *  (`MAIL_STATES`), the exact same replay protection (`idempotency_key`), and
@@ -121,15 +139,36 @@ export const emailDelivery = platform.table(
  *  `a@b.com` must stop every future mail to that address regardless of which
  *  lead or campaign run is asking — that is the whole reason this is a
  *  separate table instead of a flag on `email_delivery`. */
-export const emailSuppression = platform.table('email_suppression', {
-  recipient: text('recipient').primaryKey(),
-  reason: text('reason').$type<SuppressionReason>().notNull(),
-  source: text('source').$type<'resend' | 'operator'>().notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  /** NULL = currently suppressed. A value here means a human deliberately let
-   *  this address back in — `isSuppressed()` reads exactly this column. */
-  releasedAt: timestamp('released_at', { withTimezone: true }),
-})
+export const emailSuppression = platform.table(
+  'email_suppression',
+  {
+    recipient: text('recipient').primaryKey(),
+    reason: text('reason').$type<SuppressionReason>().notNull(),
+    source: text('source').$type<'resend' | 'operator'>().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** NULL = currently suppressed. A value here means a human deliberately let
+     *  this address back in — `isSuppressed()` reads exactly this column. */
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+  },
+  (t) => [
+    /** The same guard `email_delivery.state` has, and this table was missing it.
+     *
+     *  `$type<SuppressionReason>()` is a TypeScript annotation and nothing more
+     *  — Postgres sees a bare `text` column, so anything at all could be
+     *  written by a migration, a psql session, or a future writer that widened
+     *  the union on one side only. That matters more here than almost anywhere
+     *  else in the schema: `unsubscribe` is the one reason that must never be
+     *  released without the person asking (see `SuppressionReason`), and a list
+     *  that cannot tell an operator's block from a person's own request is a
+     *  list somebody will eventually "clean up". A value the union does not
+     *  name would be invisible to every branch of that decision.
+     *
+     *  `source` gets the same treatment for the same reason — two values, both
+     *  meaningful, neither enforced until now. */
+    check('email_suppression_reason_valid', sql`${t.reason} IN (${SUPPRESSION_REASON_LIST})`),
+    check('email_suppression_source_valid', sql`${t.source} IN ('resend', 'operator')`),
+  ],
+)
 
 /** Svix replay guard, nothing else. `svix_id` is the whole defence: Resend
  *  retries a webhook it never got a 2xx for, and the primary key is what

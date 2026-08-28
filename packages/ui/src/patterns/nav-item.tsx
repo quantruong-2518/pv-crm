@@ -1,5 +1,5 @@
-import type { LucideIcon } from 'lucide-react'
-import { Lock } from 'lucide-react'
+import type { IconGlyph } from '../icons'
+import { Lock } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
@@ -11,7 +11,7 @@ import { cn } from '../lib/cn'
  *  mức với hàng ẩn-vì-quyền của DataTable). Không dìm chữ vì luật 13 đòi tương
  *  phản ≥ 4.5:1 trên `.glass-a`; dấu hiệu "khoá" nằm ở ổ khoá, không ở độ mờ. */
 export type NavItemProps = {
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
   active?: boolean
   /** số việc chờ — 0 hoặc undefined thì không vẽ badge */

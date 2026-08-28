@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Zap } from 'lucide-react'
+import { Zap } from '../icons'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Plus, X } from '@pv/ui'
 import { Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
 import type { LeadCreateResponse } from '@pv/contracts'
 import { isApiError, type FieldErrors } from '@/app/api'

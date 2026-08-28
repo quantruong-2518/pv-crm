@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { X } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { Button, GlassCard, Icon } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'

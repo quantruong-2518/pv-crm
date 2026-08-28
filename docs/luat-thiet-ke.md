@@ -41,8 +41,9 @@ Vi phạm là reject PR.
 10. **ContextRail bắt buộc trên mọi màn** — dãy chip mã mono nối các object của
     cùng một câu chuyện (`HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042`).
     Chip azure = object của câu chuyện đang mở, chip trắng mờ = object liên quan.
-11. **Icon** Lucide outline, stroke 1.75, size 16 trong nút / 20 trong nav. Không
-    icon fill, không emoji.
+11. **Icon** Hugeicons Stroke Rounded, stroke 1.75, size 16 trong nút / 20 trong
+    nav. Mọi glyph đi qua `Icon` gateway của `@pv/ui`; không icon fill, không
+    emoji.
 12. **Nền màn** đúng 4 lớp: quầng aurora (2 blob blur 90px) → lưới 32px → lưới
     160px → hạt nhiễu SVG `soft-light` opacity .11. Không thêm lớp thứ 5. Đặt ở
     khung ngoài cùng của màn, `pointer-events: none`.
@@ -53,7 +54,7 @@ Vi phạm là reject PR.
     lực bên trong luôn tiếng Việt — Nhân sự · Tài liệu & quy trình · Công việc ·
     Báo cáo · Hiệu suất thiết bị. Không viết tắt HR, DMS, BI, OEE trên giao diện.
 15. **Không AI slop**: icon Trợ lý AI dùng `orbit` (không `sparkles`, không
-    `bot`). Delta số dùng icon Lucide `trending-up/down/minus`, không dùng ▲▼▬.
+    `bot`). Delta số dùng icon Hugeicons `trending-up/down/minus`, không dùng ▲▼▬.
     Không emoji, không gradient trang trí ngoài 4 lớp nền và nền khối AI, không
     rounded-card-with-left-border-accent.
 

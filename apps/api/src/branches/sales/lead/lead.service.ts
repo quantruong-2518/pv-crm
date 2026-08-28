@@ -1,9 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
-import { LeadBookResponse, LeadProfile, type LeadBookQuery, type MaObject } from '@pv/contracts'
+import {
+  LeadBookResponse,
+  LeadMailTimelineResponse,
+  LeadProfile,
+  type LeadBookQuery,
+  type MaObject,
+} from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
-import { toContract, toProfile, toRef } from './lead.mapper'
+import { toContract, toMailTimeline, toProfile, toRef } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 
 /** Sổ lead — nơi DUY NHẤT biết cả repository lẫn engine.
@@ -92,5 +98,45 @@ export class LeadService {
        Một cột đổi kiểu, một trường quên map — cả hai lọt qua `tsc` nếu mapper
        sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
     return LeadProfile.parse(toProfile(found))
+  }
+
+  /** Every batch this lead was posted in. `GET /sales/leads/:code/mail`.
+   *
+   *  ------------------------------------------------------------------
+   *  THE SAME TWO REFUSALS AS THE PROFILE, AND FOR THE SAME REASONS
+   *  ------------------------------------------------------------------
+   *  This reads `byCode()` first and lets 404/403 happen there, rather than
+   *  running the timeline query and letting an empty list stand in for both.
+   *  An empty timeline is a REAL answer — most leads have never been mailed —
+   *  so it cannot also mean "no such lead" or "not yours" without becoming the
+   *  answer to three questions at once. The full argument is on `profile()`
+   *  above; this endpoint inherits it because it is the same row, asked a
+   *  narrower question.
+   *
+   *  It costs one extra query on a screen that is already loading the profile.
+   *  The alternative — filtering the timeline by `owner_id` — would hand a
+   *  Sale looking at somebody else's lead a blank card that reads "chưa gửi lá
+   *  thư nào", and blank is exactly what a leak looks like when it is doing
+   *  its job, so nobody would ever notice it was the wrong answer.
+   *
+   *  ------------------------------------------------------------------
+   *  NO PAGING, DELIBERATELY
+   *  ------------------------------------------------------------------
+   *  `LeadMailTimelineResponse` is not `paged()`: the list is bounded by how
+   *  many campaigns one lead has been in, and a timeline that hides its own
+   *  tail behind "load more" lies about how often we have written to this
+   *  person — which is the one question a timeline exists to answer before
+   *  somebody writes to them again. */
+  async mailTimeline(who: Actor, code: MaObject): Promise<LeadMailTimelineResponse> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('lead', code)
+
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    const rows = await this.repo.mailTimeline(code)
+
+    return LeadMailTimelineResponse.parse({ rows: rows.map(toMailTimeline) })
   }
 }

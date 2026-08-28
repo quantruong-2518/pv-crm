@@ -9,7 +9,7 @@ import {
   UserMinus,
   Users,
   Wallet,
-} from 'lucide-react'
+} from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
@@ -33,6 +33,8 @@ import {
   percent,
   Progress,
   RadialGauge,
+  ScreenHeader,
+  ScreenLayout,
   SectionTitle,
   SegmentedControl,
   Separator,
@@ -165,11 +167,11 @@ export function PerformancePage() {
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-5 lg:gap-6">
-        <SectionTitle
-          size="lg"
+      <ScreenLayout>
+        <ScreenHeader
+          title="Performance"
           kicker="Kinh doanh · Module 4"
-          hint={
+          description={
             <>
               Kỳ cắt theo ngày xảy ra của từng mốc — lead vào sổ, lên MQL, vào sổ cơ hội, ký. Kịch
               bản DAS Vina đóng băng lúc{' '}
@@ -178,9 +180,7 @@ export function PerformancePage() {
               nào.
             </>
           }
-        >
-          Performance
-        </SectionTitle>
+        />
 
         <PeriodBar choice={choice} onChange={setChoice} data={data} />
 
@@ -203,7 +203,7 @@ export function PerformancePage() {
             <AssistantBlock data={data} />
           </>
         )}
-      </div>
+      </ScreenLayout>
 
       <PersonDrawer person={picked} data={data} onClose={() => setOpenId(null)} />
     </AppShell>

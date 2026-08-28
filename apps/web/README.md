@@ -73,15 +73,15 @@ kit giữ đúng 1:1 với bản thiết kế.
 
 ## Luật được cưỡng chế ở tầng kiểu, không phải bằng thiện chí
 
-| Luật                             | Cưỡng chế thế nào                                                                                                          |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 9 · AI không bao giờ tự làm      | `AiActionProps.basis` và `.onConfirm` là **bắt buộc** — không compile được một khối AI thiếu dòng “Căn cứ:” hoặc thiếu nút |
-| 11 · Lucide outline, stroke 1.75 | `<Icon>` là cửa duy nhất vào lucide; `size` và `strokeWidth` là union hẹp                                                  |
-| 4 · Borderless                   | `globals.css` đặt `* { border-color: transparent }`; chỗ duy nhất có `border-2` là `KioskTile highContrast`                |
-| 6 · Số luôn tabular              | `.tnum` nằm sẵn trong `Money`, `Progress`, `KioskTile`, `StatCard`                                                         |
-| 8 · Bảng nằm trên `.glass-b`     | `DataTable` không tự vẽ mặt kính — khối cha buộc phải là `<GlassCard variant="b">`                                         |
-| 10 · ContextRail bấm được        | `RailObject.onOpen` biến chip thành `<button>` thật                                                                        |
-| A-11 · Sparkline luôn có nguồn   | `source` là prop bắt buộc                                                                                                  |
+| Luật                                       | Cưỡng chế thế nào                                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| 9 · AI không bao giờ tự làm                | `AiActionProps.basis` và `.onConfirm` là **bắt buộc** — không compile được một khối AI thiếu dòng “Căn cứ:” hoặc thiếu nút |
+| 11 · Hugeicons Stroke Rounded, stroke 1.75 | `<Icon>` là cửa duy nhất vào Hugeicons; `size` và `strokeWidth` là union hẹp                                               |
+| 4 · Borderless                             | `globals.css` đặt `* { border-color: transparent }`; chỗ duy nhất có `border-2` là `KioskTile highContrast`                |
+| 6 · Số luôn tabular                        | `.tnum` nằm sẵn trong `Money`, `Progress`, `KioskTile`, `StatCard`                                                         |
+| 8 · Bảng nằm trên `.glass-b`               | `DataTable` không tự vẽ mặt kính — khối cha buộc phải là `<GlassCard variant="b">`                                         |
+| 10 · ContextRail bấm được                  | `RailObject.onOpen` biến chip thành `<button>` thật                                                                        |
+| A-11 · Sparkline luôn có nguồn             | `source` là prop bắt buộc                                                                                                  |
 
 ---
 

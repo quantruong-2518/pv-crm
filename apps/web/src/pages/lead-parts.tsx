@@ -10,8 +10,8 @@ import {
   RotateCcw,
   Trash2,
   Users,
-  type LucideIcon,
-} from 'lucide-react'
+  type IconGlyph,
+} from '@pv/ui'
 import {
   Avatar,
   Button,
@@ -264,7 +264,11 @@ function GateStrip({ profile }: { profile: LeadProfile }) {
   const missing = INIT_DATA_QUESTIONS.filter((q) => !live.has(q.key))
 
   return (
-    <div className="flex flex-col gap-3" role="group" aria-label="Bộ 10 câu">
+    <div
+      className="flex flex-col gap-3 rounded-md bg-white/5 p-4"
+      role="group"
+      aria-label="Bộ 10 câu"
+    >
       <Progress
         value={got / REQUIRED_SLOTS}
         label={`Ô bắt buộc · ${got}/${REQUIRED_SLOTS}`}
@@ -341,7 +345,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
     setWork((w) => ({ ...w, [field.key]: writeField(field, raw) }) as LeadProfile)
 
   return (
-    <GlassCard className="flex flex-col gap-6 p-5 lg:p-6" aria-label="Hồ sơ lead">
+    <GlassCard className="flex flex-col gap-8 p-4 sm:p-5 lg:p-6" aria-label="Hồ sơ lead">
       <SectionTitle
         size="lg"
         /* Kicker cũ đếm số lần cập nhật từ `leadResearch`, thứ đếm số lần chạm
@@ -436,7 +440,7 @@ function FieldRow({
   onSet: (field: ProfileField, raw: string) => void
 }) {
   return (
-    <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
       {fields.map((field) => (
         <FieldShell
           key={field.key}
@@ -474,11 +478,17 @@ function FieldGroup({
     <section className="flex flex-col gap-4">
       <Separator />
 
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="flex items-baseline gap-3">
-          <span className="text-muted-foreground font-mono text-[11px]">{no}</span>
-          <span className="font-display text-[14px] font-semibold">{group.label}</span>
-          <span className="text-muted-foreground text-[11.5px]">{group.purpose}</span>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <span className="flex min-w-0 items-start gap-3">
+          <span className="text-muted-foreground bg-white/6 flex size-6 shrink-0 items-center justify-center rounded-sm font-mono text-[10.5px]">
+            {no}
+          </span>
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="font-display text-[15px] font-semibold">{group.label}</span>
+            <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+              {group.purpose}
+            </span>
+          </span>
         </span>
         {slots.length > 0 && (
           <span
@@ -537,7 +547,7 @@ export function NotesCard({ lead }: { lead: Lead }) {
   const setNote = useLeadDesk((s) => s.setNote)
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Thông tin quan trọng">
+    <GlassCard className="flex flex-col gap-4 p-4 sm:p-5 lg:p-6" aria-label="Thông tin quan trọng">
       <SectionTitle size="md" hint="Thứ không ô nào chứa được. Không đếm vào cổng.">
         Thông tin quan trọng
       </SectionTitle>
@@ -600,7 +610,7 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
   const open = todos.filter((t) => !t.done).length
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Việc tiếp theo">
+    <GlassCard className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6" aria-label="Việc tiếp theo">
       <SectionTitle
         size="md"
         kicker={open > 0 ? `${open} việc chưa xong` : 'Chưa hẹn việc nào'}
@@ -718,7 +728,7 @@ export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadCon
 
 /** Bốn kiểu lần chạm. Hình lấy từ chính công cụ đã dùng — nhìn là biết lần đó
  *  gặp mặt hay chỉ nhắn một câu. */
-const TURN_FACE: Record<TurnKind, { label: string; icon: LucideIcon }> = {
+const TURN_FACE: Record<TurnKind, { label: string; icon: IconGlyph }> = {
   gap: { label: 'Gặp mặt', icon: Users },
   goi: { label: 'Gọi điện', icon: Phone },
   chat: { label: 'Nhắn tin', icon: MessageSquare },
@@ -807,7 +817,7 @@ export function ActivityCard({
   const shown = tab === 'convo' ? withConvo : rows
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Dòng thời gian">
+    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Dòng thời gian">
       <SectionTitle
         size="md"
         hint="Lưu nguyên văn bằng tiếng Anh — một ngôn ngữ duy nhất để phân tích được cả sổ."

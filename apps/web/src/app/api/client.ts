@@ -355,9 +355,9 @@ export type ReadOptions<T> = {
 }
 
 export type WriteOptions = {
-  /** `POST` mặc định. Lưu ý CORS của máy chủ hôm nay mở `GET · HEAD · POST` —
-   *  `PATCH` khai được ở đây nhưng trình duyệt còn chặn ở preflight cho tới khi
-   *  máy chủ mở thêm. */
+  /** `POST` mặc định. `PATCH` đã đi được từ 28/08 — `main.ts` khai tường minh
+   *  `methods` trong `enableCors`, thứ trước đó thiếu và làm mọi `PATCH` chết ở
+   *  preflight mà không để lại dòng log nào bên máy chủ. */
   method?: 'POST' | 'PATCH'
   /** Serialize thành JSON. `undefined` = không gửi thân, và cũng không gắn
    *  `Content-Type` — một preflight thừa cho một request rỗng. */

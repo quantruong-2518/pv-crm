@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MailCheck } from 'lucide-react'
+import { MailCheck } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Icon, Input } from '@pv/ui'
 import { AuthCard, AuthField } from '@/components/auth-card'

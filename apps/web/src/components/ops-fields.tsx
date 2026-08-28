@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react'
-import { Paperclip, Trash2, TriangleAlert } from 'lucide-react'
+import { Paperclip, Trash2, TriangleAlert } from '@pv/ui'
 import { Avatar, Button, Icon, Input, Kicker, Select, Textarea, billions, cn, dong } from '@pv/ui'
 import {
   CURRENCIES,

@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import {
-  ArrowLeft,
   ArrowRight,
   CalendarDays,
   Copy,
@@ -13,7 +12,7 @@ import {
   Plus,
   Reply,
   TriangleAlert,
-} from 'lucide-react'
+} from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -31,6 +30,10 @@ import {
   MetaPill,
   Money,
   Progress,
+  ScreenDetailGrid,
+  ScreenHeader,
+  ScreenLayout,
+  ScreenScoreGrid,
   SectionTitle,
   Skeleton,
   StatCard,
@@ -107,23 +110,25 @@ export function CampaignDetailPage() {
 
   if (isPending) {
     return shell(
-      <div className="flex flex-col gap-4">
+      <ScreenLayout>
         <Skeleton className="h-11 w-64" />
         <Skeleton className="h-40 w-full" />
-      </div>,
+      </ScreenLayout>,
     )
   }
 
   if (!source) {
     return shell(
-      <GlassCard className="p-5 lg:p-6">
-        <EmptyState
-          icon={TriangleAlert}
-          message={`Không có chiến dịch nào mang mã ${code} trong kỳ này.`}
-          action={{ label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
-          className="py-12"
-        />
-      </GlassCard>,
+      <ScreenLayout>
+        <GlassCard className="p-5 lg:p-6">
+          <EmptyState
+            icon={TriangleAlert}
+            message={`Không có chiến dịch nào mang mã ${code} trong kỳ này.`}
+            action={{ label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
+            className="py-12"
+          />
+        </GlassCard>
+      </ScreenLayout>,
     )
   }
 
@@ -252,7 +257,7 @@ export function CampaignDetailPage() {
       /* Luật 10 · rail có mặt ở CẢ ba chế độ. Sửa và nhân bản là việc của cùng
          hồ sơ, không phải một màn khác — chuỗi object không được biến mất chỉ vì
          người dùng bấm sang form. */
-      <div className="flex flex-col gap-4 lg:gap-6">
+      <ScreenLayout>
         <ContextRail objects={rail} />
         <CampaignForm
           mode={mode}
@@ -264,43 +269,32 @@ export function CampaignDetailPage() {
             setMode('view')
           }}
         />
-      </div>,
+      </ScreenLayout>,
     )
   }
 
   return shell(
-    <div className="flex flex-col gap-4 lg:gap-6">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="self-start"
-        onClick={() => navigate('/sales/campaigns')}
-      >
-        <Icon icon={ArrowLeft} size={16} />
-        Sổ chiến dịch
-      </Button>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+    <ScreenLayout>
+      <ScreenHeader
+        back={{ label: 'Sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
             <Icon icon={CAMPAIGN_ICON} size={20} className="text-accent-foreground" />
-            <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-              {source.label}
-            </h2>
+            <span>{source.label}</span>
             <Badge tone={status.tone}>{status.label}</Badge>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+          </span>
+        }
+        meta={
+          <>
             <MetaPill mono>{source.code}</MetaPill>
             <MetaPill mono icon={CalendarDays}>
               {`${dm(source.startISO)} → ${dm(source.lastISO)}`}
             </MetaPill>
             <MetaPill avatar={source.owner}>{source.owner}</MetaPill>
-          </div>
-        </div>
-
-        <ContextRail objects={rail} />
-      </div>
+          </>
+        }
+        context={<ContextRail objects={rail} />}
+      />
 
       {/* Nút nghiệp vụ, không phải nút phụ: `md` (h-10) chứ không `sm` (h-8).
           iPad dọc 768px chạy đúng layout này bằng ngón tay. */}
@@ -365,221 +359,226 @@ export function CampaignDetailPage() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
-        <div className="flex flex-col gap-4 lg:gap-6">
-          {/* BỐN ô, đúng bốn cột của sổ và đúng thứ tự cái phễu: gửi → mở → trả
+      <ScreenDetailGrid
+        sideLabel="Ngữ cảnh chiến dịch"
+        main={
+          <>
+            {/* BỐN ô, đúng bốn cột của sổ và đúng thứ tự cái phễu: gửi → mở → trả
               lời → hỏng. Hai màn đọc cùng một bộ số thì không màn nào nói khác
               màn nào. */}
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <StatCard
-              size="compact"
-              icon={Mail}
-              value={grouped(source.sent)}
-              label="Người nhận"
-              hint={`${source.waves.length} đợt · chuỗi trải ${source.runDays} ngày`}
-            />
-            <StatCard
-              size="compact"
-              icon={MailOpen}
-              value={source.sent > 0 ? percent(source.openRate) : '—'}
-              label="Tỉ lệ mở mail"
-              hint={
-                source.sent > 0
-                  ? `${grouped(source.opened)} lượt mở trên ${grouped(source.sent)} lượt gửi`
-                  : 'không đợt nào gửi đi'
-              }
-            />
-            <StatCard
-              size="compact"
-              icon={Reply}
-              value={source.sent > 0 ? percent(source.replyRate) : '—'}
-              label="Tỉ lệ trả lời"
-              hint={source.sent > 0 ? `${source.replied} người trả lời` : 'không đợt nào gửi đi'}
-            />
-            <StatCard
-              size="compact"
-              icon={MailX}
-              value={source.sent > 0 ? percent(source.bounceRate) : '—'}
-              label="Tỉ lệ mail hỏng"
-              hint={
-                source.bounced === 0
-                  ? 'không đợt nào gửi tới một địa chỉ — bài đăng không dội được'
-                  : `${source.bounced} địa chỉ không nhận được`
-              }
-            />
-          </div>
+            <ScreenScoreGrid>
+              <StatCard
+                size="compact"
+                icon={Mail}
+                value={grouped(source.sent)}
+                label="Người nhận"
+                hint={`${source.waves.length} đợt · chuỗi trải ${source.runDays} ngày`}
+              />
+              <StatCard
+                size="compact"
+                icon={MailOpen}
+                value={source.sent > 0 ? percent(source.openRate) : '—'}
+                label="Tỉ lệ mở mail"
+                hint={
+                  source.sent > 0
+                    ? `${grouped(source.opened)} lượt mở trên ${grouped(source.sent)} lượt gửi`
+                    : 'không đợt nào gửi đi'
+                }
+              />
+              <StatCard
+                size="compact"
+                icon={Reply}
+                value={source.sent > 0 ? percent(source.replyRate) : '—'}
+                label="Tỉ lệ trả lời"
+                hint={source.sent > 0 ? `${source.replied} người trả lời` : 'không đợt nào gửi đi'}
+              />
+              <StatCard
+                size="compact"
+                icon={MailX}
+                value={source.sent > 0 ? percent(source.bounceRate) : '—'}
+                label="Tỉ lệ mail hỏng"
+                hint={
+                  source.bounced === 0
+                    ? 'không đợt nào gửi tới một địa chỉ — bài đăng không dội được'
+                    : `${source.bounced} địa chỉ không nhận được`
+                }
+              />
+            </ScreenScoreGrid>
 
-          {/* Tiền của chiến dịch này đi đâu — năm loại L1…L5, số và tỉ trọng.
+            {/* Tiền của chiến dịch này đi đâu — năm loại L1…L5, số và tỉ trọng.
               Bảng nằm trên glass-b (luật 8). */}
-          <GlassCard variant="b" className="flex flex-col gap-4 p-5">
-            <SectionTitle
-              size="sm"
-              hint={
-                source.costByKind.total > 0
-                  ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng chi phí của chiến dịch. Giờ người KHÔNG có ở đây: đây là tiền đã ra khỏi tài khoản.`
-                  : undefined
-              }
-            >
-              Tiền đi đâu
-            </SectionTitle>
-
-            {source.costByKind.rows.length === 0 ? (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chiến dịch này không tốn đồng tiền mặt nào, nên không có dòng chi nào để phân rã —
-                đó là nội dung của nó, không phải chỗ thiếu dữ liệu.
-              </p>
-            ) : (
-              <>
-                {/* Một số 20px đứng dưới chữ "Tiền đi đâu" mà không có nhãn thì
-                    đọc ra là TỔNG CHI, không phải giá mỗi lead tốt. */}
-                <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground text-[12px]">Giá mỗi lead tốt</span>
-                  <CostBand
-                    variant="card"
-                    point={source.band.point}
-                    lo={source.band.lo}
-                    hi={source.band.hi}
-                    enough={source.enough}
-                  />
-                </div>
-                <DataTable
-                  columns={[
-                    { header: 'Loại chi', width: '1.4fr' },
-                    { header: 'Số tiền', width: '1fr', align: 'right' },
-                    { header: 'Tỉ trọng', width: '0.7fr', align: 'right' },
-                  ]}
-                  rows={source.costByKind.rows.map((r) => ({
-                    id: r.kind,
-                    cells: [
-                      <span key="k">{r.label}</span>,
-                      <Money key="a" value={r.amount} scale="table" />,
-                      <span key="s" className="tnum font-num">
-                        {percent(r.share)}
-                      </span>,
-                    ],
-                  }))}
-                />
-                {source.costByKind.absent.length > 0 ? (
-                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                    Không có dòng nào thuộc {source.costByKind.absent.join(', ')} — chiến dịch này
-                    không tiêu tiền ở {source.costByKind.absent.length > 1 ? 'những loại' : 'loại'}{' '}
-                    đó, khác hẳn với chưa ai nhập số.
-                  </p>
-                ) : null}
-                {source.enough ? null : (
-                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                    Dải giá ở trên chưa đủ chắc để so với chiến dịch khác — {source.why}. Con số vẫn
-                    hiện vì tiền đã tiêu thật; thứ chưa đứng vững là câu so sánh, không phải chi
-                    phí.
-                  </p>
-                )}
-              </>
-            )}
-          </GlassCard>
-
-          <GlassCard variant="b" className="flex flex-col gap-4 p-5">
-            <SectionTitle
-              size="sm"
-              hint={`${source.waves.length} đợt · mọi lần gửi đi qua hệ gửi chung, màn không tự gọi nền tảng nào`}
-            >
-              Chuỗi đợt
-            </SectionTitle>
-            <Timeline items={items} />
-            {stopped ? (
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chiến dịch đã dừng — các đợt chưa gửi đã rút khỏi hàng đợi và chuỗi không nhận thêm
-                đợt. Chạy lại thì dùng nút Nhân bản.
-              </p>
-            ) : (
-              <Button
-                size="md"
-                variant="ghost"
-                className="self-start"
-                onClick={() => {
-                  setSeedWave(true)
-                  setMode('edit')
-                }}
+            <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+              <SectionTitle
+                size="sm"
+                hint={
+                  source.costByKind.total > 0
+                    ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng chi phí của chiến dịch. Giờ người KHÔNG có ở đây: đây là tiền đã ra khỏi tài khoản.`
+                    : undefined
+                }
               >
-                <Icon icon={Plus} size={16} />
-                Thêm đợt vào chuỗi
-              </Button>
-            )}
-          </GlassCard>
-        </div>
+                Tiền đi đâu
+              </SectionTitle>
 
-        <div className="flex flex-col gap-4 lg:gap-6">
-          {/* GỬI CHO AI. Kịch bản đóng băng không lưu nhóm người nhận của sáu
+              {source.costByKind.rows.length === 0 ? (
+                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  Chiến dịch này không tốn đồng tiền mặt nào, nên không có dòng chi nào để phân rã —
+                  đó là nội dung của nó, không phải chỗ thiếu dữ liệu.
+                </p>
+              ) : (
+                <>
+                  {/* Một số 20px đứng dưới chữ "Tiền đi đâu" mà không có nhãn thì
+                    đọc ra là TỔNG CHI, không phải giá mỗi lead tốt. */}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-muted-foreground text-[12px]">Giá mỗi lead tốt</span>
+                    <CostBand
+                      variant="card"
+                      point={source.band.point}
+                      lo={source.band.lo}
+                      hi={source.band.hi}
+                      enough={source.enough}
+                    />
+                  </div>
+                  <DataTable
+                    columns={[
+                      { header: 'Loại chi', width: '1.4fr' },
+                      { header: 'Số tiền', width: '1fr', align: 'right' },
+                      { header: 'Tỉ trọng', width: '0.7fr', align: 'right' },
+                    ]}
+                    rows={source.costByKind.rows.map((r) => ({
+                      id: r.kind,
+                      cells: [
+                        <span key="k">{r.label}</span>,
+                        <Money key="a" value={r.amount} scale="table" />,
+                        <span key="s" className="tnum font-num">
+                          {percent(r.share)}
+                        </span>,
+                      ],
+                    }))}
+                  />
+                  {source.costByKind.absent.length > 0 ? (
+                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                      Không có dòng nào thuộc {source.costByKind.absent.join(', ')} — chiến dịch này
+                      không tiêu tiền ở{' '}
+                      {source.costByKind.absent.length > 1 ? 'những loại' : 'loại'} đó, khác hẳn với
+                      chưa ai nhập số.
+                    </p>
+                  ) : null}
+                  {source.enough ? null : (
+                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                      Dải giá ở trên chưa đủ chắc để so với chiến dịch khác — {source.why}. Con số
+                      vẫn hiện vì tiền đã tiêu thật; thứ chưa đứng vững là câu so sánh, không phải
+                      chi phí.
+                    </p>
+                  )}
+                </>
+              )}
+            </GlassCard>
+
+            <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+              <SectionTitle
+                size="sm"
+                hint={`${source.waves.length} đợt · mọi lần gửi đi qua hệ gửi chung, màn không tự gọi nền tảng nào`}
+              >
+                Chuỗi đợt
+              </SectionTitle>
+              <Timeline items={items} />
+              {stopped ? (
+                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  Chiến dịch đã dừng — các đợt chưa gửi đã rút khỏi hàng đợi và chuỗi không nhận
+                  thêm đợt. Chạy lại thì dùng nút Nhân bản.
+                </p>
+              ) : (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="self-start"
+                  onClick={() => {
+                    setSeedWave(true)
+                    setMode('edit')
+                  }}
+                >
+                  <Icon icon={Plus} size={16} />
+                  Thêm đợt vào chuỗi
+                </Button>
+              )}
+            </GlassCard>
+          </>
+        }
+        side={
+          <>
+            {/* GỬI CHO AI. Kịch bản đóng băng không lưu nhóm người nhận của sáu
               chiến dịch cũ — nó chỉ có số người nhận của từng đợt. Khối này nói
               thẳng chỗ thiếu đó thay vì dựng lại một nhóm chưa từng có; nhóm
               thật chỉ có ở chiến dịch soạn bằng form mới. */}
-          <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
-            <h3 className="text-[12.5px] font-semibold">Gửi cho ai</h3>
-            <span className="flex items-baseline gap-2">
-              <span className="tnum font-num text-[26px] font-semibold leading-none">
-                {grouped(source.waves[0]?.sent ?? 0)}
+            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+              <h3 className="text-[12.5px] font-semibold">Gửi cho ai</h3>
+              <span className="flex items-baseline gap-2">
+                <span className="tnum font-num text-[26px] font-semibold leading-none">
+                  {grouped(source.waves[0]?.sent ?? 0)}
+                </span>
+                <span className="text-muted-foreground text-[11.5px]">người ở đợt mở màn</span>
               </span>
-              <span className="text-muted-foreground text-[11.5px]">người ở đợt mở màn</span>
-            </span>
-            <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Chiến dịch này chạy trước khi hệ có nhóm người nhận, nên chỉ còn số đếm của từng đợt —
-              không dựng lại được danh sách. Bấm <b className="text-foreground">Nhân bản</b> để chọn
-              nhóm mới bằng bộ lọc trên sổ lead.
-            </p>
-            {/* Đường thứ hai cho đúng chỗ thiếu vừa thú nhận ở trên: nếu danh
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Chiến dịch này chạy trước khi hệ có nhóm người nhận, nên chỉ còn số đếm của từng đợt
+                — không dựng lại được danh sách. Bấm <b className="text-foreground">Nhân bản</b> để
+                chọn nhóm mới bằng bộ lọc trên sổ lead.
+              </p>
+              {/* Đường thứ hai cho đúng chỗ thiếu vừa thú nhận ở trên: nếu danh
                 sách còn nằm trong một tệp ở máy ai đó, nạp thẳng vào đây và nó
                 thành lead mang mã nguồn của CHÍNH chiến dịch này — không phải
                 nhân bản chiến dịch rồi lọc lại từ sổ. */}
-            <ImportZone
-              spec={RECIPIENT_SPEC}
-              existingKeys={recipientKeys}
-              scope={source.code}
-              scopeLabel={`${source.code} · ${source.label}`}
-              buttonLabel="Nạp danh sách từ tệp"
-              onCommit={commitRecipients}
-              onSeeResult={() => navigate(`/sales/leads?source=${source.code}`)}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2 rounded-md bg-white/5 p-4">
-            <h3 className="text-[12.5px] font-semibold">Điều kiện dừng</h3>
-            <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              {stopped
-                ? 'Đã dừng tay. Các đợt chưa gửi không còn trong hàng đợi.'
-                : running
-                  ? 'Chuỗi chạy hết các đợt đã soạn, trừ khi có người bấm Dừng. Chống trùng người nhận do hệ giữ: một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.'
-                  : 'Chuỗi đã chạy hết — không còn đợt nào trong hàng đợi để dừng.'}
-            </p>
-          </div>
-
-          {/* Bảng lead không nằm ở đây — lý do ngay dưới, trong "Cố tình không
-              làm". Còn lại hai con số và hai lối đi. */}
-          <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
-            <span className="text-[11.5px] leading-[1.5]">
-              <span className="tnum font-num">{source.good}</span>/
-              <span className="tnum font-num">{source.leads}</span> lead của chiến dịch này đã qua
-              cổng init data, và <span className="tnum font-num">{source.ops}</span> trong số đó đã
-              thành cơ hội.
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() => navigate(`/sales/leads?source=${source.code}`)}
-              >
-                <Icon icon={ArrowRight} size={16} />
-                Mở Sổ lead
-              </Button>
-              <Button size="md" variant="ghost" onClick={() => navigate('/sales/ops')}>
-                <Icon icon={ArrowRight} size={16} />
-                Mở Sổ cơ hội
-              </Button>
+              <ImportZone
+                spec={RECIPIENT_SPEC}
+                existingKeys={recipientKeys}
+                scope={source.code}
+                scopeLabel={`${source.code} · ${source.label}`}
+                buttonLabel="Nạp danh sách từ tệp"
+                onCommit={commitRecipients}
+                onSeeResult={() => navigate(`/sales/leads?source=${source.code}`)}
+              />
             </div>
-          </div>
 
-          <NotDoing />
-        </div>
-      </div>
-    </div>,
+            <div className="flex flex-col gap-2 rounded-md bg-white/5 p-4">
+              <h3 className="text-[12.5px] font-semibold">Điều kiện dừng</h3>
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                {stopped
+                  ? 'Đã dừng tay. Các đợt chưa gửi không còn trong hàng đợi.'
+                  : running
+                    ? 'Chuỗi chạy hết các đợt đã soạn, trừ khi có người bấm Dừng. Chống trùng người nhận do hệ giữ: một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.'
+                    : 'Chuỗi đã chạy hết — không còn đợt nào trong hàng đợi để dừng.'}
+              </p>
+            </div>
+
+            {/* Bảng lead không nằm ở đây — lý do ngay dưới, trong "Cố tình không
+              làm". Còn lại hai con số và hai lối đi. */}
+            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+              <span className="text-[11.5px] leading-[1.5]">
+                <span className="tnum font-num">{source.good}</span>/
+                <span className="tnum font-num">{source.leads}</span> lead của chiến dịch này đã qua
+                cổng init data, và <span className="tnum font-num">{source.ops}</span> trong số đó
+                đã thành cơ hội.
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={() => navigate(`/sales/leads?source=${source.code}`)}
+                >
+                  <Icon icon={ArrowRight} size={16} />
+                  Mở Sổ lead
+                </Button>
+                <Button size="md" variant="ghost" onClick={() => navigate('/sales/ops')}>
+                  <Icon icon={ArrowRight} size={16} />
+                  Mở Sổ cơ hội
+                </Button>
+              </div>
+            </div>
+
+            <NotDoing />
+          </>
+        }
+      />
+    </ScreenLayout>,
   )
 }
 

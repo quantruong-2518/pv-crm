@@ -6,6 +6,7 @@ Lát cắt **28/08/2026**, nhánh `develop`. Tiếp nối
 thiếu). File này ghi **kiến trúc đã chốt và vì sao**, cộng phần đã dựng thật.
 
 Cách vận hành và cách kiểm tay: [`van-hanh-mail.md`](./van-hanh-mail.md).
+**Còn thiếu gì và ai phải làm**: [`con-thieu-mas-mail.md`](./con-thieu-mas-mail.md).
 
 > **Sửa một chỗ lệch trong chính bộ docs này.** `ban-giao-quick-mas.md` mục
 > "Chưa có" vẽ `campaign_run` là ĐƠN VỊ GỬI, và `email_delivery.campaign_run_id`
@@ -60,15 +61,15 @@ chết lúc 3 giờ sáng.
 
 ## Bảy quyết định đã chốt
 
-| #   | Quyết định                                                                 | Lý do                                                                                                                                                                                                    |
-| --- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Đơn vị gửi là `platform.mail_run`**, không phải `sales.campaign_run`     | `email_delivery` ở `platform` và cần khoá ngoại tới thứ gom nhóm nó. Trỏ sang bảng `sales` là đảo đúng chiều phụ thuộc repo giữ chặt nhất. Lint bắt được ở TypeScript, **không** bắt được ở DDL           |
-| 2   | `sales.campaign_run` chỉ là **dây nối** campaign ↔ mail_run                | Nó trỏ sales → platform, chiều được phép. Quick MAS không có dòng nào ở đây                                                                                                                              |
-| 3   | **Mọi lần gửi đều tạo `mail_run`**, kể cả Quick MAS                        | Timeline ở chi tiết lead đọc ĐÚNG MỘT bảng. Hai nguồn cho một câu hỏi là hai câu trả lời lệch nhau sau một quý                                                                                          |
-| 4   | **`mail_event` riêng; open/click KHÔNG đụng `email_delivery.state`**       | Thang `advances()` trả lời "thư có tới không". Mở trả lời câu khác và trả lời yếu hơn nhiều. Gộp là vừa hỏng thang vừa để tín hiệu mềm đè tín hiệu cứng. `mail-webhook.controller.ts:65` đã từ chối sẵn |
-| 5   | **Nội dung snapshot trên `mail_run`; biến trộn trên từng dòng gửi**        | Sửa mẫu không được viết lại thư đã gửi tuần trước. Còn `merge` phải nằm trên dòng vì composer ở `platform` không được đọc `sales.lead` — nhánh Sales điền sẵn lúc xếp hàng                              |
-| 6   | **Hai quyền gửi**, không phải một                                          | `lead.gửi-mail` đi kèm `ownOnly` (Sale gửi cho lead mình giữ) · `chiến-dịch.bắn` là bắn cả tệp, nhiều đợt. Gộp lại thì hoặc Sale được bắn chiến dịch, hoặc nút ở Sổ lead xám vĩnh viễn với Sale và BD  |
-| 7   | **`satisfies Record<…, true>` cho danh sách CHECK**, không đọc `.options`  | `drizzle-kit generate` nạp `*.schema.ts` bằng bộ nạp CJS riêng, và barrel ESM của `@pv/contracts` không sống sót — import về `undefined`. Xem "Ma sát" #1                                                |
+| #   | Quyết định                                                                | Lý do                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Đơn vị gửi là `platform.mail_run`**, không phải `sales.campaign_run`    | `email_delivery` ở `platform` và cần khoá ngoại tới thứ gom nhóm nó. Trỏ sang bảng `sales` là đảo đúng chiều phụ thuộc repo giữ chặt nhất. Lint bắt được ở TypeScript, **không** bắt được ở DDL         |
+| 2   | `sales.campaign_run` chỉ là **dây nối** campaign ↔ mail_run               | Nó trỏ sales → platform, chiều được phép. Quick MAS không có dòng nào ở đây                                                                                                                             |
+| 3   | **Mọi lần gửi đều tạo `mail_run`**, kể cả Quick MAS                       | Timeline ở chi tiết lead đọc ĐÚNG MỘT bảng. Hai nguồn cho một câu hỏi là hai câu trả lời lệch nhau sau một quý                                                                                          |
+| 4   | **`mail_event` riêng; open/click KHÔNG đụng `email_delivery.state`**      | Thang `advances()` trả lời "thư có tới không". Mở trả lời câu khác và trả lời yếu hơn nhiều. Gộp là vừa hỏng thang vừa để tín hiệu mềm đè tín hiệu cứng. `mail-webhook.controller.ts:65` đã từ chối sẵn |
+| 5   | **Nội dung snapshot trên `mail_run`; biến trộn trên từng dòng gửi**       | Sửa mẫu không được viết lại thư đã gửi tuần trước. Còn `merge` phải nằm trên dòng vì composer ở `platform` không được đọc `sales.lead` — nhánh Sales điền sẵn lúc xếp hàng                              |
+| 6   | **Hai quyền gửi**, không phải một                                         | `lead.gửi-mail` đi kèm `ownOnly` (Sale gửi cho lead mình giữ) · `chiến-dịch.bắn` là bắn cả tệp, nhiều đợt. Gộp lại thì hoặc Sale được bắn chiến dịch, hoặc nút ở Sổ lead xám vĩnh viễn với Sale và BD   |
+| 7   | **`satisfies Record<…, true>` cho danh sách CHECK**, không đọc `.options` | `drizzle-kit generate` nạp `*.schema.ts` bằng bộ nạp CJS riêng, và barrel ESM của `@pv/contracts` không sống sót — import về `undefined`. Xem "Ma sát" #1                                               |
 
 ---
 
@@ -96,19 +97,19 @@ tự nói ra sau đúng một lô**.
 
 Nên thay vì cấm, dựng bốn hàng rào bằng máy:
 
-| Hàng rào                    | Làm gì                                                                    |
-| --------------------------- | ------------------------------------------------------------------------- |
-| Preflight **cảnh báo**      | Hiện "N/M lead nguồn Apollo". Không cấm bấm — quyết định là của người      |
-| **Cầu dao** trong lúc chạy  | Bounce vượt `PV_MAS_BOUNCE_CEILING_PERCENT` (mặc định 4,0) → run TỰ DỪNG   |
-| `PV_MAS_RESEND_API_KEY`     | Để trống = dùng chung khoá hiện tại. Điền vào là tách tài khoản, không sửa code |
-| Trần lô `PV_MAS_BATCH_MAX`  | Mặc định 200                                                              |
+| Hàng rào                   | Làm gì                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| Preflight **cảnh báo**     | Hiện "N/M lead nguồn Apollo". Không cấm bấm — quyết định là của người           |
+| **Cầu dao** trong lúc chạy | Bounce vượt `PV_MAS_BOUNCE_CEILING_PERCENT` (mặc định 4,0) → run TỰ DỪNG        |
+| `PV_MAS_RESEND_API_KEY`    | Để trống = dùng chung khoá hiện tại. Điền vào là tách tài khoản, không sửa code |
+| Trần lô `PV_MAS_BATCH_MAX` | Mặc định 200                                                                    |
 
 Cầu dao là cái quan trọng nhất khi còn dùng **một** tài khoản: nó là thứ duy
 nhất chặn một danh sách xấu bắn hết 200 dòng trước khi có người nhìn màn hình.
 
 **Còn treo, chưa quyết:** nguồn nào tính là đã đồng ý. `LANDING_PAGE` hôm nay
-được coi là có — nhưng khách điền form liên hệ chỉ đồng ý *được trả lời*, chưa
-đồng ý *nhận chuỗi marketing*; muốn chặt thì form phải có ô tick riêng. Và
+được coi là có — nhưng khách điền form liên hệ chỉ đồng ý _được trả lời_, chưa
+đồng ý _nhận chuỗi marketing_; muốn chặt thì form phải có ô tick riêng. Và
 `IMPORT` thì máy không phân biệt được file hội thảo với file mua — chặt thì cần
 một cột `consent_at` trên `lead` do người nạp khai.
 

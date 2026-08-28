@@ -202,9 +202,9 @@
 }
 
 @layer base {
-  /* Hệ này dark-only. Control gốc của trình duyệt — popup <select>, thanh cuộn,
-     ô ngày — đọc màu từ `color-scheme`, KHÔNG đọc từ token. Thiếu dòng này thì
-     danh sách xổ xuống của mọi bộ lọc ra nền trắng chữ đen giữa một màn tối. */
+  /* Hệ này dark-only. Control gốc còn lại của trình duyệt — thanh cuộn, ô
+     ngày — đọc màu từ `color-scheme`, KHÔNG đọc từ token. Select của hệ đã có
+     listbox riêng để kiểm soát độ tương phản và kích thước hàng. */
   :root {
     color-scheme: dark;
     /* Chỗ của thanh cuộn dọc LUÔN được giữ, kể cả khi trang không cuộn.

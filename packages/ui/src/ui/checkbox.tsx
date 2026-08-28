@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Check } from 'lucide-react'
+import { Check } from '../icons'
 import { Icon } from './icon'
 import { cn } from '../lib/cn'
 

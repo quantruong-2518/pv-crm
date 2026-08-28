@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, Lock, Orbit, type LucideIcon } from 'lucide-react'
+import { ChevronDown, Lock, Orbit, type IconGlyph } from '../icons'
 import { SearchField, type SearchFieldProps } from '../patterns/search-field'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
@@ -28,7 +28,7 @@ import markLight from '../assets/mark-light.webp'
  *  @pv/ui không biết router: `active` và `onClick` do app tính rồi truyền vào. */
 
 export type HeaderAction = {
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
   /** số việc đang chờ — hiện thành huy hiệu trên icon */
   count?: number
@@ -39,8 +39,10 @@ export type HeaderAction = {
 }
 
 export type HeaderApp = {
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
+  /** Một câu nói đúng việc khu vực này làm; hiện trong tooltip và tên hỗ trợ. */
+  description?: string
   active?: boolean
   locked?: boolean
   onClick?: () => void
@@ -132,15 +134,16 @@ export function AppHeader({
 
   /** Nav đã dính đỉnh màn chưa.
    *
-   *  Ở trạng thái thường nav là một THẺ: nằm trong lề khung, bo góc, có bóng —
-   *  cùng một mặt kính với mọi thẻ khác trên trang. Khi trang cuộn tới đúng
-   *  đỉnh của nó, nó đổi vai: không còn là một thẻ trong trang mà là thanh
-   *  công cụ của cả cửa sổ. Lúc đó nó nở ngang ra ăn hết phần lề hai bên, bỏ bo
-   *  góc trên, và ngồi sát mép — hình dạng nói đúng vai trò mới.
+   *  Ở trạng thái thường nav là một THẺ nền đặc: nằm trong cùng trục với main,
+   *  bo góc, có bóng. Khi trang cuộn tới đúng đỉnh, nó chỉ bỏ bo góc trên; bề
+   *  rộng, logo, ô tìm và các nút đều đứng nguyên chỗ.
    *
    *  Đo bằng `IntersectionObserver` trên CHÍNH nav, không bằng `scroll` +
    *  `getBoundingClientRect`: một `scroll` listener chạy mọi khung hình và mỗi
-   *  lần đọc `rect` là ép trình duyệt tính lại bố cục giữa lúc đang cuộn.
+   *  lần đọc `rect` là ép trình duyệt tính lại bố cục giữa lúc đang cuộn. Phần
+   *  tử được đo cũng giữ nguyên hình học ở cả hai state: bản trước animate
+   *  `margin`, khiến chính header đổi bề rộng trong lúc observer đang đo nó và
+   *  toàn bộ control bên trong phải layout lại từng frame — nguồn của nhịp giật.
    *
    *  Mẹo ở `rootMargin` âm 1px trên cạnh trên cộng `threshold: 1`: chừng nào
    *  nav còn nằm trọn trong vùng nhìn đã thu hẹp thì tỉ lệ giao bằng 1; lúc nó
@@ -191,20 +194,26 @@ export function AppHeader({
     <header
       ref={headerRef}
       className={cn(
-        'glass-a flex flex-col',
-        /* `--shell-pad-lg` (24px) là lề khung ở `lg`. Nở ngang đúng bằng hai
-             lần lề đó, bằng margin âm, nên nav trùm hết bề ngang cửa sổ mà
-             KHÔNG cần biết gì về khung chứa nó.
-             `transition` chỉ chạy trên margin/bo góc — không `transform`:
-             `scale` sẽ kéo giãn cả chữ và icon bên trong, còn ở đây chỉ có
-             mặt kính nở ra. */
-        'motion-std lg:transition-[margin,border-radius]',
-        stuck ? 'rounded-b-lg lg:-mx-6 lg:rounded-t-none' : 'rounded-lg',
+        /* Header không tự mang mặt kính. Mặt nền là một layer riêng ngay dưới
+           đây để nó có thể nở mà không đổi box đang chứa nội dung và không làm
+           IntersectionObserver tự kích lại giữa animation. */
+        'relative isolate flex flex-col',
         className,
       )}
     >
+      {/* `glass-overlay` đục hẳn: chữ của nội dung đang cuộn không lọt qua nav.
+          Layer tuyệt đối giữ nền tách khỏi layout; khi sticky chỉ radius đổi,
+          không có bề rộng hay control nào bị kéo theo. */}
+      <div
+        aria-hidden
+        className={cn(
+          'glass-overlay pointer-events-none absolute inset-0 z-0 transition-[border-radius] duration-[var(--motion-duration)] ease-[var(--motion-ease)]',
+          stuck ? 'rounded-b-lg rounded-t-none' : 'rounded-lg',
+        )}
+      />
+
       {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ---- */}
-      <div className="flex h-16 items-center gap-3 px-4">
+      <div className="relative z-[1] flex h-16 items-center gap-3 px-4">
         <div className="flex shrink-0 items-center gap-2">
           <img src={markLight} alt="" className="size-8 shrink-0 object-contain" />
           {/* Tên sản phẩm ẩn dưới `md`: ở đó mỗi pixel ngang thuộc về ô tìm, và
@@ -271,7 +280,7 @@ export function AppHeader({
           mục đầu bị đẩy khuất khỏi mép trái. */}
       <div
         ref={barRef}
-        className="relative flex h-12 items-center gap-1 overflow-x-auto px-4 lg:justify-center lg:overflow-x-visible"
+        className="relative z-[1] flex h-12 items-center gap-1 overflow-x-auto px-4 lg:justify-center lg:overflow-x-visible"
       >
         {apps.map((app) => {
           const open = openApp === app.label
@@ -285,6 +294,8 @@ export function AppHeader({
             <div key={app.label} className="relative shrink-0">
               <button
                 type="button"
+                title={app.description ?? app.label}
+                aria-label={app.description ? `${app.label}. ${app.description}` : undefined}
                 disabled={app.locked}
                 aria-expanded={hasItems ? open : undefined}
                 aria-haspopup={hasItems ? 'menu' : undefined}

@@ -73,6 +73,17 @@ const INFLIGHT_STATES = ['pending', 'sending', 'delayed'] as const satisfies rea
 
 const FAILED_STATES = ['failed_permanent', 'dead'] as const satisfies readonly MailState[]
 
+/** Run states a person may still stop. The other two are terminal: a `SENT`
+ *  run has nothing left to withhold, and cancelling a `CANCELLED` one would
+ *  rewrite `finished_at` — moving the moment a batch was stopped every time
+ *  somebody clicks the button again. `satisfies` so a state renamed in the
+ *  contract fails here rather than silently dropping out of the list. */
+const CANCELLABLE_STATES = [
+  'DRAFT',
+  'SCHEDULED',
+  'SENDING',
+] as const satisfies readonly MailRunState[]
+
 /** A value list for `IN (…)`, as BIND PARAMETERS.
  *
  *  Opposite call to the one `MAIL_STATE_LIST` makes in `mail.schema.ts`: that
@@ -261,6 +272,72 @@ export class MailRunRepository {
         }
       }),
     }
+  }
+
+  /** STOP ONE BATCH BY HAND — the human half of what `tripBounced` does by
+   *  itself, and the only way `CANCELLED` is reachable from a request.
+   *
+   *  ------------------------------------------------------------------
+   *  CANCELLING A RUN IS TWO WRITES, AND ONLY ONE OF THEM IS THE COLUMN
+   *  ------------------------------------------------------------------
+   *  Flipping `state` alone changes a word on a screen and nothing else: the
+   *  relay walks `email_delivery`, not `mail_run`, so two hundred `pending`
+   *  rows would keep being handed to the provider under a batch labelled
+   *  "Đã huỷ". The rows have to die in the same breath, exactly as the bounce
+   *  breaker kills them, and for the same reason they become `dead` rather than
+   *  `suppressed`: nothing is wrong with these addresses, the decision was on
+   *  this side of the wire. `dead` is in `NEVER_LEFT`, so a cancelled run can
+   *  never count them as `sent`.
+   *
+   *  `pending` only — the same three-way split the breaker states. A row
+   *  already `sending` is in a worker's hands and past recall; `delayed` is the
+   *  provider asking for more time on a letter it has accepted. Neither is
+   *  still on this machine, so neither is this method's to stop, and a cancel
+   *  that claimed otherwise would be a cancel somebody trusted.
+   *
+   *  ------------------------------------------------------------------
+   *  `started_at` IS LEFT ALONE, WHICH IS WHERE THIS DIFFERS FROM THE BREAKER
+   *  ------------------------------------------------------------------
+   *  `tripBounced` writes `COALESCE(started_at, now())` because it only ever
+   *  fires on runs that are already `SENDING` — a run whose letters bounced has
+   *  by definition started. This door also accepts `SCHEDULED` and `DRAFT`, and
+   *  stamping `started_at` on a batch cancelled the night before it was due
+   *  would erase the one field that distinguishes "will fire at 9am" from
+   *  "fired at 9am" (`MailRunRow.startedAt`). `finished_at` IS set in every
+   *  case, because it means "no attempt is outstanding" and that is now true.
+   *
+   *  Returns `null` when no row moved — either there is no such run, or it is
+   *  already `SENT`/`CANCELLED`. The service turns the first into a 404 and the
+   *  second into an idempotent answer; this method deliberately cannot tell
+   *  them apart in one statement and does not pretend to. */
+  async cancel(handle: Db, id: string): Promise<{ held: number } | null> {
+    const r = (await handle.execute(sql`
+      WITH stopped AS (
+        UPDATE "platform"."mail_run" r
+           SET "state" = 'CANCELLED',
+               "finished_at" = now(),
+               "updated_at" = now()
+         WHERE r."id" = ${id}::uuid
+           AND r."state" IN (${params(CANCELLABLE_STATES)})
+        RETURNING r."id"
+      ),
+      held AS (
+        UPDATE "platform"."email_delivery" d
+           SET "state" = 'dead',
+               "next_attempt_at" = NULL,
+               "last_error_code" = 'mas-cancelled',
+               "last_error_summary" = 'lô bị huỷ bằng tay: thư chưa gửi đã bị giữ lại',
+               "updated_at" = now()
+         WHERE d."state" = 'pending'
+           AND d."mail_run_id" IN (SELECT "id" FROM stopped)
+        RETURNING d."id"
+      )
+      SELECT (SELECT count(*) FROM stopped)::int AS runs,
+             (SELECT count(*) FROM held)::int    AS held
+    `)) as { rows: { runs: number; held: number }[] }
+
+    const row = r.rows[0]
+    return row && row.runs > 0 ? { held: row.held } : null
   }
 
   /** Move runs to the state their own letters have already reached.

@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+import type { IconGlyph } from '../icons'
 import { cva } from 'class-variance-authority'
 import { Icon } from './icon'
 import { cn } from '../lib/cn'
@@ -30,7 +30,7 @@ const channelTagVariants = cva(
 )
 
 export type ChannelTagProps = {
-  icon: LucideIcon
+  icon: IconGlyph
   label: string
   /** kênh chưa có đường gửi thật → tone warning */
   tone?: 'default' | 'warning' | 'accent'

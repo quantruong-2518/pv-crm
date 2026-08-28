@@ -21,7 +21,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from './lead.schema'
-import type { LeadProfileRead, LeadRead } from './lead.mapper'
+import type { LeadMailTimelineRead, LeadProfileRead, LeadRead } from './lead.mapper'
 
 export type LeadBookPage = {
   rows: LeadRead[]
@@ -242,6 +242,81 @@ export class LeadRepository {
   private async count(where: SQL | undefined): Promise<number> {
     const [r] = await this.db.select({ n: count() }).from(lead).where(where)
     return r?.n ?? 0
+  }
+
+  /** EVERY BATCH THIS LEAD WAS POSTED IN, newest first — the lead side of MAS.
+   *
+   *  ------------------------------------------------------------------
+   *  THE SCOPE AXIS IS NOT HERE, AND THAT IS NOT AN OMISSION
+   *  ------------------------------------------------------------------
+   *  No `scopeOf` in this query, unlike `book()` and `byCode()`. The reason is
+   *  that the caller has already been through `byCode()` on this same request:
+   *  `LeadService.mailTimeline` refuses with 404 or 403 before this runs, so
+   *  by the time these rows are read the entitlement is settled. Repeating the
+   *  join would cut on `owner_id` a second time and produce an EMPTY timeline
+   *  where the correct answer is a refusal — a lead somebody else holds would
+   *  read "chưa gửi lá thư nào", which is the failure `hidden` exists to
+   *  prevent everywhere else in this file.
+   *
+   *  ------------------------------------------------------------------
+   *  `mail_run_id IS NOT NULL` IS A FILTER ON WHO THE LETTER WAS FOR
+   *  ------------------------------------------------------------------
+   *  `email_delivery` is one ledger for both flows, and the lead-intake alert
+   *  writes `aggregate_type='lead'` with this same code — but it is a letter
+   *  ABOUT the lead, sent to our own inbox, not a letter TO them. It carries no
+   *  run (`mail_run_id` is NULL for every one-off), which is exactly the
+   *  distinction needed, and it is also what `LeadMailTimelineRow` requires:
+   *  the row is built around a run's identity and there is none to report.
+   *  Putting an internal alert on a customer's timeline would have somebody
+   *  ask the customer about a mail they were never sent.
+   *
+   *  ------------------------------------------------------------------
+   *  ONE ROW PER RUN, WITHOUT A GROUP BY OVER THE DELIVERY
+   *  ------------------------------------------------------------------
+   *  A lead can appear at most once in a run: `event_key` is
+   *  `mas/lead/v1/<runId>:<leadCode>` and it is UNIQUE, so the join to
+   *  `mail_run` cannot multiply rows. Only `mail_event` is many-per-delivery,
+   *  and it is aggregated in a correlated subquery rather than a second join
+   *  for the reason `MailRunRepository.list` states about its two passes:
+   *  joining events into the same statement multiplies the delivery row by its
+   *  events and quietly inflates anything counted beside them.
+   *
+   *  `count(*)` and NOT `count(DISTINCT …)`, opposite to the run list. There
+   *  the question is "how many of the audience opened it" and one person
+   *  opening six times must not read as six people; here the question is
+   *  `LeadMailTimelineRow.openCount` — how many times THIS person opened it —
+   *  and the six is the answer. Read that field's docblock before putting the
+   *  number next to a word like "quan tâm": at single-lead scale the Apple MPP
+   *  noise is proportionally far worse. */
+  async mailTimeline(code: string): Promise<LeadMailTimelineRead[]> {
+    const r = (await this.db.execute(sql`
+      SELECT r."id"                                          AS run_id,
+             r."label"                                       AS label,
+             r."state"                                       AS run_state,
+             r."scheduled_at"                                AS scheduled_at,
+             d."state"                                       AS delivery_state,
+             d."last_error_summary"                          AS fail_reason,
+             COALESCE(e.open_count, 0)::int                  AS open_count,
+             e.last_open_at                                  AS last_open_at,
+             COALESCE(e.click_count, 0)::int                 AS click_count,
+             e.last_click_at                                 AS last_click_at
+        FROM "platform"."email_delivery" d
+        JOIN "platform"."mail_run" r ON r."id" = d."mail_run_id"
+        LEFT JOIN LATERAL (
+              SELECT count(*) FILTER (WHERE m."kind" = 'OPEN')::int   AS open_count,
+                     max(m."at") FILTER (WHERE m."kind" = 'OPEN')     AS last_open_at,
+                     count(*) FILTER (WHERE m."kind" = 'CLICK')::int  AS click_count,
+                     max(m."at") FILTER (WHERE m."kind" = 'CLICK')    AS last_click_at
+                FROM "platform"."mail_event" m
+               WHERE m."delivery_id" = d."id"
+             ) e ON true
+       WHERE d."aggregate_type" = 'lead'
+         AND d."aggregate_id" = ${code}
+         AND d."mail_run_id" IS NOT NULL
+       ORDER BY r."created_at" DESC, r."id" DESC
+    `)) as { rows: LeadMailTimelineRead[] }
+
+    return r.rows
   }
 
   /** Has this lead been signed — one hop on one index, asked of `contract`

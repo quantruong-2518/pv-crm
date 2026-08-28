@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import {
-  ArrowLeft,
   ArrowRight,
   Inbox,
   Lock,
@@ -9,8 +8,8 @@ import {
   Phone,
   Pin,
   TriangleAlert,
-  type LucideIcon,
-} from 'lucide-react'
+  type IconGlyph,
+} from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -24,6 +23,9 @@ import {
   Icon,
   Kicker,
   MetaPill,
+  ScreenDetailGrid,
+  ScreenHeader,
+  ScreenLayout,
   SectionTitle,
   Separator,
   Skeleton,
@@ -194,11 +196,11 @@ export function LeadDetailPage() {
 
   if (isPending) {
     return shell(
-      <div className="flex flex-col gap-4">
+      <ScreenLayout>
         <Skeleton className="h-11 w-64" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
-      </div>,
+      </ScreenLayout>,
     )
   }
 
@@ -211,22 +213,24 @@ export function LeadDetailPage() {
     const denied = failure?.kind === 'thiếu-quyền'
 
     return shell(
-      <GlassCard className="p-5 lg:p-6">
-        <EmptyLead
-          icon={missing ? Inbox : denied ? Lock : TriangleAlert}
-          note={
-            missing ? (
-              <>
-                Không tìm thấy lead nào mang mã <span className="font-mono">{code}</span>. Kiểm tra
-                lại mã, hoặc mở lại từ sổ lead.
-              </>
-            ) : (
-              (failure && userMessage(failure)) || 'Không đọc được hồ sơ lead này.'
-            )
-          }
-          onBack={() => navigate('/sales/leads')}
-        />
-      </GlassCard>,
+      <ScreenLayout>
+        <GlassCard className="p-5 lg:p-6">
+          <EmptyLead
+            icon={missing ? Inbox : denied ? Lock : TriangleAlert}
+            note={
+              missing ? (
+                <>
+                  Không tìm thấy lead nào mang mã <span className="font-mono">{code}</span>. Kiểm
+                  tra lại mã, hoặc mở lại từ sổ lead.
+                </>
+              ) : (
+                (failure && userMessage(failure)) || 'Không đọc được hồ sơ lead này.'
+              )
+            }
+            onBack={() => navigate('/sales/leads')}
+          />
+        </GlassCard>
+      </ScreenLayout>,
     )
   }
 
@@ -256,68 +260,65 @@ export function LeadDetailPage() {
   const existingOp = opportunityOfLead(lead.code)
 
   return shell(
-    <div className="flex flex-col gap-4 lg:gap-6">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => navigate('/sales/leads')}
-        className="self-start"
-      >
-        <Icon icon={ArrowLeft} size={16} />
-        Sổ lead
-      </Button>
-
-      {/* Dòng tên chỉ chở HAI thứ: tên account và trạng thái. Mọi nhãn phân
-          loại — mã, bậc, ngành, tỉnh, cột — xuống hàng pill dưới. Bậc là một
-          CÁCH XẾP LOẠI lead, trạng thái là lead ĐANG SỐNG HAY KHÔNG; để hai
-          badge cạnh nhau trên dòng tên thì chúng đọc ra như một cặp cùng loại. */}
-      <div className="flex min-w-0 flex-col gap-2">
-        <Kicker>Account</Kicker>
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">{accountName}</h2>
-          <StatusBadge lead={lead} reported={reported} />
-        </div>
+    <ScreenLayout>
+      <GlassCard className="flex flex-col gap-4 p-4 sm:p-5 lg:p-6">
+        {/* Dòng tên chỉ chở HAI thứ: tên account và trạng thái. Mọi nhãn phân
+            loại — mã, bậc, ngành, tỉnh, cột — xuống hàng pill dưới. Bậc là một
+            CÁCH XẾP LOẠI lead, trạng thái là lead ĐANG SỐNG HAY KHÔNG; để hai
+            badge cạnh nhau trên dòng tên thì chúng đọc ra như một cặp cùng loại. */}
         {/* Trường VẮNG nghĩa là chưa moi được, không phải rỗng — nên chỗ nào
             chưa có thì in "—" chứ không bỏ pill đi: một hàng pill thiếu chỗ
             này thừa chỗ kia không đọc ra được là "chưa biết" hay "không có". */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip>{lead.code}</Chip>
-          {lead.tier ? (
-            <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
-          ) : (
-            <Badge tone="draft">—</Badge>
-          )}
-          <MetaPill>
-            {lead.category ? (CATEGORY_LABEL.get(lead.category) ?? lead.category) : '—'}
-          </MetaPill>
-          <MetaPill>{lead.province ?? '—'}</MetaPill>
-          <MetaPill mono>vào sổ {dmy(lead.createdAt)}</MetaPill>
-          {lead.stage && (
-            <MetaPill tone={overSla(lead) ? 'warning' : 'accent'}>
-              {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
-            </MetaPill>
-          )}
-        </div>
-      </div>
+        <ScreenHeader
+          back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
+          kicker="Account"
+          title={accountName}
+          meta={
+            <>
+              <StatusBadge lead={lead} reported={reported} />
+              <Chip>{lead.code}</Chip>
+              {lead.tier ? (
+                <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
+              ) : (
+                <Badge tone="draft">—</Badge>
+              )}
+              <MetaPill>
+                {lead.category ? (CATEGORY_LABEL.get(lead.category) ?? lead.category) : '—'}
+              </MetaPill>
+              <MetaPill>{lead.province ?? '—'}</MetaPill>
+              <MetaPill mono>vào sổ {dmy(lead.createdAt)}</MetaPill>
+              {lead.stage && (
+                <MetaPill tone={overSla(lead) ? 'warning' : 'accent'}>
+                  {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
+                </MetaPill>
+              )}
+            </>
+          }
+        />
 
-      <AssignedPills lead={legacy} />
-      <ConvertedCard lead={legacy} />
+        <AssignedPills lead={legacy} />
+        <ConvertedCard lead={legacy} />
+      </GlassCard>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[3fr_1fr] lg:gap-6">
-        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <ProfileCard profile={lead} />
-          <NotesCard lead={legacy} />
-          <NextActionCard lead={legacy} contact={contact} />
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
-          <OriginCard lead={lead} onOpen={openSource} />
-          <PeopleCard lead={lead} people={people} />
-          {/* Máy chủ chưa có bảng lần chạm — hai hằng NÓI RA điều đó, thay vì
+      <ScreenDetailGrid
+        sideLabel="Ngữ cảnh lead"
+        main={
+          <>
+            <ProfileCard profile={lead} />
+            <NextActionCard lead={legacy} contact={contact} />
+            <NotesCard lead={legacy} />
+          </>
+        }
+        side={
+          <>
+            <OriginCard lead={lead} onOpen={openSource} />
+            <PeopleCard lead={lead} people={people} />
+            {/* Máy chủ chưa có bảng lần chạm — hai hằng NÓI RA điều đó, thay vì
               một `[]` gõ tại chỗ đọc ra như "lead này chưa ai chạm". */}
-          <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />
-        </div>
-      </div>
+            <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />
+          </>
+        }
+      />
 
       <ToolsBar
         lead={lead}
@@ -341,7 +342,7 @@ export function LeadDetailPage() {
         onClose={() => setExiting(false)}
         onReport={setReported}
       />
-    </div>,
+    </ScreenLayout>,
   )
 }
 
@@ -358,7 +359,7 @@ function EmptyLead({
   note,
   onBack,
 }: {
-  icon: LucideIcon
+  icon: IconGlyph
   note: ReactNode
   onBack: () => void
 }) {
@@ -420,7 +421,7 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
   const campaign = lead.source.campaignName
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead đến từ đâu">
+    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Lead đến từ đâu">
       <SectionTitle
         kicker="Đến từ"
         size="md"
@@ -470,7 +471,7 @@ function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void })
  *  join duy nhất ở máy chủ. */
 function PeopleCard({ lead, people }: { lead: LeadProfile; people: string[] }) {
   return (
-    <GlassCard className="flex flex-col gap-3 p-5 lg:p-6" aria-label="Người đang làm">
+    <GlassCard variant="b" className="flex flex-col gap-3 p-5" aria-label="Người đang làm">
       <SectionTitle size="sm">Đang làm</SectionTitle>
       <AvatarGroup names={people} max={5} size="md" emptyLabel="chưa ai nhận" />
       <p className="text-[11.5px] leading-[1.5]">
@@ -554,14 +555,14 @@ function ToolsBar({
   const contact = realContact(lead)
 
   return (
-    <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
+    <div className="z-10 lg:sticky lg:bottom-4">
       <GlassCard
         variant="b"
         /* `backdrop-blur` là NGOẠI LỆ có lý do của glass-b: mặt kính b cố ý bỏ
            blur vì nó nằm trên một cái nền tĩnh (xem globals.css). Thanh này thì
            có NỘI DUNG TRÔI phía sau, và 16% lọt qua của --popover đủ để chữ bên
            dưới đội lên chữ của thanh. */
-        className="shadow-panel flex flex-wrap items-center gap-4 p-4 backdrop-blur-xl"
+        className="shadow-panel grid gap-4 p-4 backdrop-blur-xl xl:grid-cols-[minmax(280px,1.4fr)_1px_minmax(180px,.6fr)_auto] xl:items-center"
         aria-label="Thanh công cụ"
       >
         <div className="flex min-w-0 flex-col gap-1">
@@ -588,7 +589,7 @@ function ToolsBar({
           )}
         </div>
 
-        <Separator className="hidden h-8 w-px lg:block" />
+        <Separator className="hidden h-8 w-px xl:block" />
 
         <div className="flex min-w-0 flex-col gap-1">
           <Kicker tone="muted">PIC của lead</Kicker>
@@ -619,7 +620,7 @@ function ToolsBar({
           )}
         </div>
 
-        <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
           <Button
             size="md"
             variant={pinned ? 'default' : 'ghost'}

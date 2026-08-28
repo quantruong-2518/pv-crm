@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck, FileCheck, Inbox, PenLine, Pin, Target, Users } from 'lucide-react'
+import { CalendarCheck, Check, FileCheck, Inbox, Mail, PenLine, Pin, Target, Users } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -16,6 +16,10 @@ import {
   SearchField,
   Select,
   Skeleton,
+  ScreenHeader,
+  ScreenLayout,
+  ScreenScoreGrid,
+  ScreenToolbar,
   StatCard,
   cn,
   percent,
@@ -37,6 +41,7 @@ import {
   type LeadBookQuery,
   type LeadRow,
   type LeadSource,
+  type LeadSourceKind,
   type LeadStatus,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
@@ -57,6 +62,7 @@ import { LEAD_SPEC } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { LeadCreateDialog } from '@/components/lead-create-dialog'
+import { QuickMailDialog } from '@/components/quick-mail-dialog'
 import { Pager, PersonCell, PicCell } from '@/components/table-bits'
 
 /** Module 2 · Sổ lead.
@@ -239,6 +245,13 @@ const NO_SOURCES: ConfigEntry[] = []
  *  chống trùng bằng `leadBookKeys` — cùng một panel, hai cách dùng. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
+/** Tập chọn rỗng của Quick MAS — hằng dùng chung để tránh mỗi lượt vẽ tạo một
+ *  `Set` mới, cùng lý do với `NO_LOCAL_KEYS` ngay trên nhưng KHÔNG dùng chung
+ *  hằng đó: hai tập rỗng trả lời hai câu khác nhau (chống trùng cục bộ của
+ *  panel nạp · lựa chọn của Quick MAS), gộp lại là một hằng tên sai ý ở một
+ *  trong hai chỗ dùng nó. */
+const NO_SELECTION: ReadonlySet<string> = new Set()
+
 /** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
  *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết. Hạn vẫn đọc từ
  *  `PIPELINE_STAGES` — mục 5.2 của module Cấu hình, không chế ở đây. */
@@ -380,6 +393,40 @@ export function LeadsPage() {
      `useState` của màn chứ không ở `app/` — cùng luật với số trang và bộ lọc. */
   const [typing, setTyping] = useState(false)
 
+  /* Quick MAS · chế độ chọn dòng để gửi mail hàng loạt (demo, xem docblock của
+     `QuickMailDialog`). CHẾT theo màn, không lên `app/desk.ts`: khác ghim, một
+     lượt chọn ở đây chỉ có nghĩa cho tới khi mail được soạn xong, không phải
+     thứ sống qua nhiều lần mở màn.
+     `selected` giữ MÃ lead chứ không giữ cả dòng, và giữ nguyên khi đổi trang —
+     một lô gửi thường rải trên nhiều trang 10 dòng, tắt lựa chọn mỗi lần lật
+     trang là bắt người dùng chọn lại từ đầu. */
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION)
+  const [composing, setComposing] = useState(false)
+
+  const toggleSelectMode = () => {
+    setSelectMode((on) => !on)
+    setSelected(NO_SELECTION)
+  }
+
+  const toggleSelected = (code: string) =>
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(code)) next.delete(code)
+      else next.add(code)
+      return next
+    })
+
+  /* Đọc từ `wholeBook` chứ không từ `rows` của trang đang xem: lựa chọn rải
+     trên nhiều trang, và panel soạn mail cần đủ tên + hòm thư của CẢ lô. */
+  const selectedLeads = useMemo(
+    () =>
+      [...selected]
+        .map((code) => wholeBook.find((l) => l.code === code))
+        .filter((l): l is LeadRow => Boolean(l)),
+    [selected, wholeBook],
+  )
+
   const loadFile = useLeadImport()
 
   /* Lô nạp GHI THẲNG lên máy chủ — hai cửa, đúng vai từng cửa, cả hai nằm ở
@@ -417,40 +464,62 @@ export function LeadsPage() {
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-4 lg:gap-6">
+      <ScreenLayout>
         {/* Tiêu đề trả lại (nợ ghi ở docblock đầu file: màn đang HẾT `<h2>`) và
             cùng lúc là chỗ đứng của nút nạp — một hàng, hai việc. */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">Sổ lead</h2>
-          {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
+        <ScreenHeader
+          title="Sổ lead"
+          actions={
+            <>
+              {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
               vào. Cùng cỡ, cùng dáng — chúng là hai đường vào một chỗ, không
-              phải một nút chính và một nút phụ. */}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button size="md" variant="ghost" onClick={() => setTyping(true)}>
-              <Icon icon={PenLine} size={16} />
-              Gõ tay
-            </Button>
-            <ImportZone
-              spec={LEAD_SPEC}
-              existingKeys={NO_LOCAL_KEYS}
-              buttonLabel="Nạp lead"
-              onCommit={commitLeads}
-              onSeeResult={clearFilters}
-            />
-          </div>
-        </div>
+              phải một nút chính và một nút phụ. Quick MAS đứng riêng bên phải:
+              nó không ghi lead mới, nó chọn lead CÓ SẴN để gửi mail — sáng lên
+              (variant default) khi chế độ chọn đang bật, cùng ngôn ngữ với
+              Select đang lọc. */}
+              <Button
+                size="md"
+                variant="ghost"
+                onClick={() => setTyping(true)}
+                className="max-sm:flex-1"
+              >
+                <Icon icon={PenLine} size={16} />
+                Tạo lead
+              </Button>
+              <ImportZone
+                spec={LEAD_SPEC}
+                existingKeys={NO_LOCAL_KEYS}
+                buttonLabel="Đẩy danh sách"
+                onCommit={commitLeads}
+                onSeeResult={clearFilters}
+              />
+              <Button
+                size="md"
+                variant={selectMode ? 'default' : 'ghost'}
+                onClick={toggleSelectMode}
+                className="max-sm:flex-1"
+              >
+                <Icon icon={Mail} size={16} />
+                Quick MAS
+              </Button>
+            </>
+          }
+        />
 
         <ScoreCards />
 
         {/* Một hàng lọc. Ô tìm nở hết chỗ còn lại, bốn select cùng cao 40px
             đứng cạnh nó — không còn ba dòng nút pill để mắt phải quét. */}
-        <div className="flex flex-wrap items-center gap-3">
+        <ScreenToolbar
+          label="Bộ lọc sổ lead"
+          className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(160px,1fr))_auto] xl:items-center"
+        >
           <SearchField
             size="topbar"
             placeholder="Tìm theo tên công ty hoặc mã lead…"
             value={text}
             onChange={setText}
-            className="min-w-[240px] flex-1"
+            className="w-full md:col-span-2 xl:col-span-1"
           />
           <Select
             label="Trạng thái"
@@ -465,7 +534,7 @@ export function LeadsPage() {
             onChange={(v) => patch({ campaign: v === ANY ? undefined : v })}
             /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
                dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
-            className="max-w-[240px]"
+            className="w-full max-w-none"
             options={[
               { value: ANY, label: 'Mọi nguồn' },
               /* `value` là mã, `label` là TÊN — và chỉ tên. Bản trước in
@@ -482,7 +551,7 @@ export function LeadsPage() {
             label="Lead PIC"
             value={query.owner ?? ANY}
             onChange={(v) => patch({ owner: v === ANY ? undefined : v })}
-            className="max-w-[200px]"
+            className="w-full max-w-none"
             options={[
               { value: ANY, label: 'Mọi người' },
               /* 52/119 dòng chưa ai nhận. Không có mục này thì cách duy nhất
@@ -497,18 +566,33 @@ export function LeadsPage() {
             label="Account"
             value={query.account ?? ANY}
             onChange={(v) => patch({ account: v === ANY ? undefined : v })}
-            className="max-w-[220px]"
+            className="w-full max-w-none"
             options={[
               { value: ANY, label: 'Mọi account' },
               ...accounts.map((a) => ({ value: a, label: a })),
             ]}
           />
           {dirty && (
-            <Button size="md" variant="ghost" onClick={clearFilters}>
+            <Button size="md" variant="ghost" onClick={clearFilters} className="w-full xl:w-auto">
               Bỏ hết bộ lọc
             </Button>
           )}
-        </div>
+        </ScreenToolbar>
+
+        {selectMode && (
+          <GlassCard
+            variant="b"
+            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+          >
+            <span className="text-[12.5px]">
+              Đã chọn <span className="tnum font-num font-semibold">{selected.size}</span> lead
+            </span>
+            <Button size="md" disabled={selected.size === 0} onClick={() => setComposing(true)}>
+              <Icon icon={Mail} size={16} />
+              Soạn mail
+            </Button>
+          </GlassCard>
+        )}
 
         {pinned.length > 0 && (
           <PinnedStrip
@@ -518,62 +602,73 @@ export function LeadsPage() {
           />
         )}
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground text-[11.5px]">
-            {/* `total` của máy chủ, không phải `rows.length`: một trang mười
-                dòng không biết sổ có bao nhiêu dòng khớp. */}
-            <span className="tnum font-num">{total}</span> dòng khớp bộ lọc
-          </span>
-          {total > PAGE_SIZE && (
-            <Pager
-              page={pageIndex}
-              pageCount={pageCount}
-              onPage={(i) =>
-                setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
-              }
-            />
-          )}
-        </div>
-
         {/* Bảng LUÔN nằm trên glass-b — luật 8. */}
-        <GlassCard variant="b" className="p-4 lg:p-5">
-          {isPending ? (
-            <div className="flex flex-col gap-3">
-              <Skeleton className="h-11 w-full" />
-              <Skeleton className="h-11 w-full" />
-              <Skeleton className="h-11 w-full" />
-            </div>
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={Inbox}
-              message="Không có lead nào khớp bộ lọc đang chọn."
-              action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
-              className="py-12"
-            />
-          ) : (
-            <DataTable
-              /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định
+        <GlassCard variant="b" className="overflow-hidden">
+          <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-5">
+            <span className="text-muted-foreground text-[11.5px]">
+              {/* `total` của máy chủ, không phải `rows.length`: một trang mười
+                  dòng không biết sổ có bao nhiêu dòng khớp. */}
+              <span className="tnum text-foreground font-num text-[15px] font-semibold">
+                {total}
+              </span>{' '}
+              dữ liệu
+            </span>
+            {total > PAGE_SIZE && (
+              <Pager
+                page={pageIndex}
+                pageCount={pageCount}
+                onPage={(i) =>
+                  setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
+                }
+              />
+            )}
+          </div>
+
+          <div aria-hidden className="bg-white/6 h-px" />
+
+          <div className="overflow-x-auto p-4 pt-3 lg:p-5 lg:pt-4">
+            {isPending ? (
+              <div className="flex flex-col gap-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : rows.length === 0 ? (
+              <EmptyState
+                icon={Inbox}
+                message="Không có lead nào khớp bộ lọc đang chọn."
+                action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
+                className="py-12"
+              />
+            ) : (
+              <DataTable
+                className="min-w-[1180px]"
+                /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định
                  là `createdAt desc` — mới nhất trước — và đó không phải cột nào
                  trên bảng, nên lúc đó không cột nào có mũi tên. */
-              sort={query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined}
-              onSort={(key) => {
-                /* Account là cột duy nhất có khoá sắp xếp (`sortKey` bên dưới).
+                sort={query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined}
+                onSort={(key) => {
+                  /* Account là cột duy nhất có khoá sắp xếp (`sortKey` bên dưới).
                    Khoá nào không nằm trong `LeadSortKey` sẽ chết ở cổng zod của
                    máy chủ, nên chặn ngay ở đây thay vì gửi đi một 400. */
-                if (key !== 'company') return
-                patch(
-                  query.sort === 'company'
-                    ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                    : { sort: 'company', dir: 'asc' },
-                )
-              }}
-              columns={[
-                { header: 'Ghim', width: '52px' },
-                { header: 'Mã', width: '0.85fr' },
-                { header: 'Account', width: '1.6fr', sortKey: 'company' },
-                { header: 'Người liên hệ', width: '1.2fr' },
-                { header: 'Chức danh', width: '1.3fr' },
-                /* 160px → 140px: bỏ icon (27/08 lần 2) trả lại ~22px (icon 14px +
+                  if (key !== 'company') return
+                  patch(
+                    query.sort === 'company'
+                      ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+                      : { sort: 'company', dir: 'asc' },
+                  )
+                }}
+                columns={[
+                  /* Cột chọn dòng của Quick MAS — chỉ có mặt khi chế độ chọn
+                   đang bật, đứng trước cả Ghim vì đây là thao tác đang diễn ra,
+                   ghim là trạng thái đã có sẵn. */
+                  ...(selectMode ? [{ header: '', width: '36px' }] : []),
+                  { header: 'Ghim', width: '52px' },
+                  { header: 'Mã', width: '0.85fr' },
+                  { header: 'Account', width: '1.6fr', sortKey: 'company' },
+                  { header: 'Người liên hệ', width: '1.2fr' },
+                  { header: 'Chức danh', width: '1.3fr' },
+                  /* 160px → 140px: bỏ icon (27/08 lần 2) trả lại ~22px (icon 14px +
                    gap 8px của MetaPill) cho bảy cột kia — pill giờ chỉ còn
                    padding (16px) + chữ. Vẫn đủ cho tên rút gọn dài nhất
                    THƯỜNG GẶP ("Khách cũ giới thiệu", ~116px chữ ở IBM Plex Sans
@@ -581,41 +676,52 @@ export function LeadsPage() {
                    đo tay bản có icon — 132px pill + ~8px đệm). Tên rút gọn hiếm
                    hoi còn dài hơn thế ("Triển lãm công nghiệp hỗ trợ", ~177px
                    chữ) tự cắt bằng CSS truncate như cũ — xem `SourceMark`. */
-                { header: 'Nguồn', width: '140px' },
-                { header: 'Trạng thái', width: '1.5fr' },
-                { header: 'Lead PIC', width: '1.5fr' },
-              ]}
-              rows={rows.map((l) => ({
-                id: l.code,
-                onOpen: () => open(l.code),
-                cells: [
-                  <PinCell
-                    key="p"
-                    on={pins.includes(l.code)}
-                    company={l.company}
-                    onToggle={() => me && togglePin(me.id, l.code)}
-                  />,
-                  <Chip key="c">{l.code}</Chip>,
-                  <span key="n" className="block truncate" title={l.company}>
-                    {l.company}
-                  </span>,
-                  /* Hai cột người đọc thẳng từ dòng sổ. Bản cũ dựng chúng bằng
+                  { header: 'Nguồn', width: '140px' },
+                  { header: 'Trạng thái', width: '1.5fr' },
+                  { header: 'Lead PIC', width: '1.5fr' },
+                ]}
+                rows={rows.map((l) => ({
+                  id: l.code,
+                  onOpen: () => open(l.code),
+                  cells: [
+                    ...(selectMode
+                      ? [
+                          <SelectCell
+                            key="sel"
+                            on={selected.has(l.code)}
+                            company={l.company}
+                            onToggle={() => toggleSelected(l.code)}
+                          />,
+                        ]
+                      : []),
+                    <PinCell
+                      key="p"
+                      on={pins.includes(l.code)}
+                      company={l.company}
+                      onToggle={() => me && togglePin(me.id, l.code)}
+                    />,
+                    <Chip key="c">{l.code}</Chip>,
+                    <span key="n" className="block truncate" title={l.company}>
+                      {l.company}
+                    </span>,
+                    /* Hai cột người đọc thẳng từ dòng sổ. Bản cũ dựng chúng bằng
                      `leadContact(l)`, một hàm sinh của fixture — nó cho ra một
                      cái tên cho mọi mã lead, kể cả mã mà bảng thật để trống. */
-                  <PersonCell key="ct" value={l.contactName} missing={NO_CONTACT} />,
-                  <PersonCell key="ti" value={l.contactTitle} missing={NO_TITLE} />,
-                  <SourceMark key="s" source={l.source} />,
-                  <StatusCell key="w" lead={l} />,
-                  <PicCell
-                    key="o"
-                    email={l.ownerEmail}
-                    name={l.ownerName}
-                    empty={NO_OWNER_TITLE}
-                  />,
-                ],
-              }))}
-            />
-          )}
+                    <PersonCell key="ct" value={l.contactName} missing={NO_CONTACT} />,
+                    <PersonCell key="ti" value={l.contactTitle} missing={NO_TITLE} />,
+                    <SourceMark key="s" source={l.source} />,
+                    <StatusCell key="w" lead={l} />,
+                    <PicCell
+                      key="o"
+                      email={l.ownerEmail}
+                      name={l.ownerName}
+                      empty={NO_OWNER_TITLE}
+                    />,
+                  ],
+                }))}
+              />
+            )}
+          </div>
         </GlassCard>
 
         {total > PAGE_SIZE && (
@@ -634,7 +740,13 @@ export function LeadsPage() {
             `leadFacetQuery` — nên lead mới có mặt trong bảng và trong hai ô lọc
             người/công ty cùng một lúc. Dialog tự đóng khi 201 về. */}
         <LeadCreateDialog open={typing} onClose={() => setTyping(false)} />
-      </div>
+        <QuickMailDialog
+          open={composing}
+          onClose={() => setComposing(false)}
+          leads={selectedLeads}
+          onSent={toggleSelectMode}
+        />
+      </ScreenLayout>
     </AppShell>
   )
 }
@@ -670,8 +782,36 @@ function ScoreCards() {
   const ops = funnelCount('co-hoi')
   const deals = funnelCount('hop-dong')
 
-  /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
+  /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". Phân số
+     thô đi xuống dòng Nguồn; value chỉ giữ đúng con số người dùng cần quét. */
   const per = (n: number) => (total === 0 ? '—' : percent(n / total))
+
+  const metrics = [
+    {
+      icon: Users,
+      value: String(total),
+      label: 'Tổng số lead',
+      source: `Sổ lead toàn kỳ · ${PERIOD_FROM}–${PERIOD_TO}`,
+    },
+    {
+      icon: CalendarCheck,
+      value: per(FIRST_MEETINGS),
+      label: 'First meeting / lead',
+      source: `${FIRST_MEETINGS} lead có first meeting trên ${total} lead`,
+    },
+    {
+      icon: Target,
+      value: per(ops),
+      label: 'Cơ hội / lead',
+      source: `${ops} cơ hội trên ${total} lead`,
+    },
+    {
+      icon: FileCheck,
+      value: per(deals),
+      label: 'Hợp đồng / lead',
+      source: `${deals} hợp đồng trên ${total} lead`,
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-3">
@@ -679,42 +819,11 @@ function ScoreCards() {
         Thẻ điểm {PERIOD_FROM} → {PERIOD_TO}
       </Kicker>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          size="compact"
-          icon={Users}
-          value={String(total)}
-          label="Tổng số lead"
-          hint={`đầu mối vào sổ cả kỳ ${PERIOD_FROM} → ${PERIOD_TO}`}
-        />
-        <StatCard
-          size="compact"
-          icon={CalendarCheck}
-          value={per(FIRST_MEETINGS)}
-          label="First meeting / lead"
-          hint={`${FIRST_MEETINGS} buổi gặp đầu tiên trên ${total} đầu mối`}
-        />
-        <StatCard
-          size="compact"
-          icon={Target}
-          value={per(ops)}
-          label="Ops / lead"
-          hint={`${ops} cơ hội trên ${total} đầu mối`}
-        />
-        <StatCard
-          size="compact"
-          icon={FileCheck}
-          value={per(deals)}
-          label="Deal / lead"
-          hint={`${deals} hợp đồng đã ký trên ${total} đầu mối`}
-        />
-      </div>
-
-      <p className="text-muted-foreground text-[11px] leading-[1.5]">
-        Ba tỉ lệ đều LUỸ KẾ cả kỳ: lead đã lên SQL vẫn được tính ở mọi bậc nó đi qua. Ô lọc
-        &quot;Bậc&quot; đếm bậc lead ĐANG đứng, nên hai chỗ ra số khác nhau — đúng như vậy, không
-        phải lệch số.
-      </p>
+      <ScreenScoreGrid>
+        {metrics.map((metric) => (
+          <StatCard key={metric.label} size="compact" {...metric} />
+        ))}
+      </ScreenScoreGrid>
     </div>
   )
 }
@@ -779,7 +888,32 @@ function shortSourceName(name: string): string {
  *  nay gửi `source.campaignName` ngay cạnh `campaignId` (cùng lối
  *  `ownerId`/`ownerName` đã đi), nên component chỉ còn đọc thứ nó được đưa.
  *  Mất theo phép tra là mất luôn cả một lớp lỗi — không còn chỗ nào để trượt,
- *  và mã `SR-…` không còn đường nào ra tới mắt người dùng. */
+ *  và mã `SR-…` không còn đường nào ra tới mắt người dùng.
+ *
+ *  ------------------------------------------------------------------
+ *  BA TONE CHO BỐN `KIND` — CẬP NHẬT 28/08
+ *  ------------------------------------------------------------------
+ *  `MetaPill` chỉ cho bốn tone và `accent` bị cấm dùng lặp trên mọi dòng (lý
+ *  do ở trên), nên còn đúng ba: muted · warning · success cho bốn `kind`.
+ *  MANUAL · IMPORT tô xám — người trong nhà tự gõ hoặc tự nạp, không có gì
+ *  đặc biệt để báo. APOLLO giữ vàng — dữ liệu MUA cần người kiểm chất lượng
+ *  trước khi gọi, ý cũ không đổi. LANDING_PAGE tô xanh — khách TỰ tìm đến,
+ *  một tín hiệu đáng phân biệt với ba loại còn lại.
+ *
+ *  `Record<LeadSourceKind, …>` bắt khai đủ bốn nhánh — thêm một `kind` mới mà
+ *  quên gán tone là lỗi biên dịch, không phải một pill lặng lẽ im màu, cùng lý
+ *  lẽ đã áp cho câu `if` cũ ở trên.
+ *
+ *  100 dòng fixture đóng băng (`das-vina`) không mang `kind` — xem docblock
+ *  của `LeadSource` ở `@pv/contracts` — nên phần lớn sổ vẫn ra `muted` như
+ *  trước; màu chỉ thật sự đổi cho lead vào qua cửa server thật (có `kind`). */
+const SOURCE_KIND_TONE = {
+  MANUAL: 'muted',
+  IMPORT: 'muted',
+  APOLLO: 'warning',
+  LANDING_PAGE: 'success',
+} as const satisfies Record<LeadSourceKind, 'muted' | 'warning' | 'success'>
+
 function SourceMark({ source }: { source: LeadSource }) {
   /* Chiến dịch trước, loại xuất xứ sau. Một ô bảng in được ĐÚNG MỘT thứ, và
      giữa hai nửa thì tên chiến dịch là nửa phân biệt được hai dòng cạnh nhau —
@@ -794,12 +928,7 @@ function SourceMark({ source }: { source: LeadSource }) {
      sẽ che mất hoàn toàn. */
   const title = `${campaignLabel(source)} · ${kind}`
 
-  /* Vàng cho dữ liệu MUA. Bản trước so `entry.kind === 'mua-du-lieu'`, một giá
-     trị `kind` của sổ nguồn không bao giờ nhận — nhánh chết từ lúc viết. Đây là
-     cùng ý định ấy hỏi đúng chỗ: `APOLLO` là một giá trị có thật của
-     `LeadSourceKind`, và "dòng này mua về" là thứ đáng cho một người lướt sổ
-     thấy trước khi họ gọi điện. */
-  const tone = source.kind === 'APOLLO' ? 'warning' : 'muted'
+  const tone = source.kind ? SOURCE_KIND_TONE[source.kind] : 'muted'
 
   return (
     <span className="block min-w-0" title={title} aria-label={title}>
@@ -849,16 +978,23 @@ function StatusCell({ lead }: { lead: LeadRow }) {
     )
   }
 
-  if (!lead.stage) return <Badge tone="draft">Chưa vào sổ cơ hội</Badge>
+  /* "Chưa xử lý" — trước là "Chưa vào sổ cơ hội", chữ "sổ cơ hội" là từ nội bộ
+     (tên module Ops), một intern mới vào không biết sổ nào. Đổi 28/08 theo
+     yêu cầu: nhãn ngắn, ai đọc cũng hiểu ngay không cần giải nghĩa. */
+  if (!lead.stage) return <Badge tone="draft">Chưa xử lý</Badge>
 
   const over = overSla(lead)
+  const stage = STAGE_LABEL.get(lead.stage) ?? lead.stage
   return (
     <Badge
       tone={over ? 'warning' : 'running'}
       title={over ? `Quá hạn cột · nằm đây ${lead.daysHere} ngày` : undefined}
     >
-      {STAGE_LABEL.get(lead.stage) ?? lead.stage}
-      {over && ` · quá hạn`}
+      {/* "Quá hạn" đứng trước tên bậc, không sau — đây là tín hiệu CẦN LÀM
+         NGAY, và mắt phải đọc được nó trước khi đọc lead đang ở bậc nào. Bản
+         cũ ghép "{bậc} · quá hạn" (v.d. "Mới · quá hạn") đọc như một cụm lạ,
+         phải đọc hết mới hiểu ý chính nằm ở nửa sau. */}
+      {over ? `Quá hạn · ${stage}` : stage}
     </Badge>
   )
 }
@@ -891,6 +1027,51 @@ function PinCell({
     >
       <Icon icon={Pin} size={16} />
     </button>
+  )
+}
+
+/** Ô chọn dòng của Quick MAS — cùng khuôn với `PinCell` ngay trên (size-8,
+ *  chặn click nổi bọt) nhưng KHÔNG dùng chung component: Pin là một nút bật/tắt
+ *  một trạng thái đã có sẵn của lead, còn đây là một lựa chọn CHẾT theo phiên
+ *  soạn mail hiện tại — hai thứ tình cờ trông giống nhau, không phải cùng một
+ *  khái niệm. Vẽ tay `<input type="checkbox">` thay vì gọi atom `Checkbox`
+ *  (A-16): atom đó bọc sẵn nhãn hiển thị + `px-3 py-2` cho một dòng trong danh
+ *  sách chọn, phồng hơn khuôn ô bảng size-8 mà cột này cần khớp với `Ghim`. */
+function SelectCell({
+  on,
+  company,
+  onToggle,
+}: {
+  on: boolean
+  company: string
+  onToggle: () => void
+}) {
+  return (
+    <label
+      className={cn(
+        'motion-std flex size-8 cursor-pointer items-center justify-center rounded-md',
+        on ? 'bg-primary/24' : 'hover:bg-white/9',
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="checkbox"
+        checked={on}
+        aria-label={on ? `Bỏ chọn ${company}` : `Chọn ${company}`}
+        onChange={onToggle}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden
+        className={cn(
+          'motion-std flex size-4 items-center justify-center rounded-sm',
+          on ? 'bg-primary text-primary-foreground' : 'bg-white/12',
+          'peer-focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_60%,transparent)]',
+        )}
+      >
+        {on && <Icon icon={Check} size={14} strokeWidth={1.9} />}
+      </span>
+    </label>
   )
 }
 

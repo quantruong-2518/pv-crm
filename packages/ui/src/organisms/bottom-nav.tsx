@@ -1,5 +1,5 @@
-import type { LucideIcon } from 'lucide-react'
-import { House, Lock, Orbit, Search, SquareCheckBig } from 'lucide-react'
+import type { IconGlyph } from '../icons'
+import { House, Lock, Orbit, Search, SquareCheckBig } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
@@ -12,7 +12,7 @@ import { cn } from '../lib/cn'
  *  chưa dựng, mà một mục bấm không ra gì tệ hơn một mục nói thẳng là chưa mở. */
 export type BottomNavKey = 'home' | 'approvals' | 'search' | 'assistant'
 
-const ITEMS: { key: BottomNavKey; icon: LucideIcon; label: string }[] = [
+const ITEMS: { key: BottomNavKey; icon: IconGlyph; label: string }[] = [
   /* Luật 14: năng lực bên trong luôn tiếng Việt — chỉ TÊN NHÁNH (Sales ·
      Supply · Factory · Finance) mới giữ tiếng Anh. Bốn mục này là One Core. */
   { key: 'home', icon: House, label: 'Trang chủ' },

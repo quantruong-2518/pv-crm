@@ -1,5 +1,5 @@
 import type { KeyboardEvent, ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
@@ -74,7 +74,7 @@ export function DataTable({
     <div className={cn('overflow-x-hidden', className)} role="table">
       <div
         role="row"
-        className="border-b-white/6 text-muted-foreground grid gap-3 border-b pb-2 text-[11px]"
+        className="border-b-white/6 text-muted-foreground grid min-h-10 items-center gap-3 border-b py-2 font-medium tracking-[.01em]"
         style={{ gridTemplateColumns: template }}
       >
         {columns.map((col) => {
@@ -154,10 +154,10 @@ export function DataTable({
                  phải chạm sát ô kế bên và hai giá trị dính liền nhau thành một
                  chuỗi vô nghĩa ("6/6Mới · 4 ngày"). Header dùng cùng khe để hai
                  lưới không lệch. */
-              'motion-std grid h-11 items-center gap-3 text-[12.5px]',
+              'motion-std grid h-12 items-center gap-3 text-[12.5px]',
               i < rows.length - 1 && 'border-b-white/6 border-b',
               openable &&
-                'hover:bg-white/8 focus-visible:bg-white/8 cursor-pointer outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
+                'hover:bg-white/8 focus-visible:bg-white/8 cursor-pointer outline-none focus-visible:shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
               /* Bóng nổi CHỈ cho dòng chưa được chọn. Dòng `selected` đọc bằng
                  vệt azure `inset 2px 0 0` bên trái, mà `box-shadow` không cộng
                  dồn giữa hai class — `hover:shadow-card` sẽ thay chỗ vệt đó và

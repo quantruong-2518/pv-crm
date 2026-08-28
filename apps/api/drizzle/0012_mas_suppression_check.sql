@@ -1,0 +1,2 @@
+ALTER TABLE "platform"."email_suppression" ADD CONSTRAINT "email_suppression_reason_valid" CHECK ("platform"."email_suppression"."reason" IN ('hard_bounce', 'complaint', 'manual', 'unsubscribe'));--> statement-breakpoint
+ALTER TABLE "platform"."email_suppression" ADD CONSTRAINT "email_suppression_source_valid" CHECK ("platform"."email_suppression"."source" IN ('resend', 'operator'));

@@ -2,9 +2,13 @@ import { createElement } from 'react'
 import { render } from '@react-email/render'
 import { LeadIntakeInternalEmail, type LeadIntakeInternalData } from './lead-intake-internal'
 import { MasShellEmail, type MasShellData } from './mas-shell'
+import { OpportunityLostEmail, type OpportunityLostData } from './opportunity-lost'
+import { OpportunityOpenedEmail, type OpportunityOpenedData } from './opportunity-opened'
 
 export type { LeadIntakeInternalData, LeadIntakeInternalUtm } from './lead-intake-internal'
 export type { MasShellData } from './mas-shell'
+export type { OpportunityLostData } from './opportunity-lost'
+export type { OpportunityOpenedData } from './opportunity-opened'
 
 /** Strips CRLF from a value before it goes into the Subject header.
  *
@@ -44,6 +48,32 @@ export async function renderMasShell(
 ): Promise<{ subject: string; html: string; text: string }> {
   const subject = sanitizeSubjectPart(data.subject)
   const element = createElement(MasShellEmail, data)
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
+  return { subject, html, text }
+}
+
+/** Module 3 · hai mail của sổ cơ hội. Cùng hình với hai hàm trên — props vào,
+ *  `{subject, html, text}` ra, và `html`/`text` dựng từ CÙNG một element nên
+ *  không có đường nào cho hai bản lệch nhau.
+ *
+ *  Tiêu đề đi qua `sanitizeSubjectPart` như mọi tiêu đề khác. Ở đây tên khách
+ *  KHÔNG tới từ form công khai — nó đọc từ `sales.lead` — nhưng chính cột đó
+ *  nhận được dữ liệu từ cửa landing page, nên chuỗi vẫn là chuỗi người ngoài
+ *  gõ, chỉ đi vòng một bảng. Lọc theo nguồn gốc chứ không theo đường đi. */
+export async function renderOpportunityOpened(
+  data: OpportunityOpenedData,
+): Promise<{ subject: string; html: string; text: string }> {
+  const subject = `Cơ hội mới · ${sanitizeSubjectPart(data.account)} · ${data.opCode}`
+  const element = createElement(OpportunityOpenedEmail, data)
+  const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
+  return { subject, html, text }
+}
+
+export async function renderOpportunityLost(
+  data: OpportunityLostData,
+): Promise<{ subject: string; html: string; text: string }> {
+  const subject = `Đơn thua · ${sanitizeSubjectPart(data.account)} · ${data.opCode}`
+  const element = createElement(OpportunityLostEmail, data)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
   return { subject, html, text }
 }

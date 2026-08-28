@@ -34,6 +34,17 @@ export type Channel = 'zalo-oa' | 'telegram' | 'email' | 'in-app'
  *  silently matches no rule. */
 export const LEAD_INTAKE_ACCEPTED = 'sales.lead.intake.accepted'
 
+/** Event name emitted by the Sales branch when a lead has been promoted into an
+ *  opportunity — `POST /sales/ops`.
+ *
+ *  ONE event, not two, and the difference between "a deal just opened" and "a
+ *  deal was booked already lost" is a `when` predicate on two rules below. The
+ *  branch reports WHAT HAPPENED — an opportunity came into existence — and E4
+ *  decides which letter that is worth. A branch choosing between two event
+ *  names is a branch making a routing decision, which is the thing this engine
+ *  exists to take off it. */
+export const OPPORTUNITY_OPENED = 'sales.opportunity.opened'
+
 /** Audience key: the company's own mailbox, not the customer's. */
 export const AUDIENCE_INTERNAL = 'internal'
 
@@ -107,6 +118,40 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
     flow: 'lead-intake',
     audience: AUDIENCE_INTERNAL,
     template: 'lead-intake-internal',
+    templateVersion: 1,
+    timing: 'ngay',
+    role: 'Sales',
+  },
+
+  /* Hai rule dưới đây nghe CÙNG một event và loại trừ nhau bằng `when`, đọc
+     đúng một trường: `data.lost`. Nhánh đặt trường đó từ `state === 'close-lost'`
+     của chính dòng vừa ghi — nó là một sự thật về đơn, không phải một lựa chọn
+     về mail.
+
+     `flow` khác nhau nên khoá event cũng khác nhau: một đơn mở rồi thua sau
+     này vẫn nhận được lá thứ hai, trong khi `UNIQUE(event_key)` vẫn chặn hai lá
+     cùng loại cho cùng một mã. Gộp chung một `flow` thì lá thứ hai bị coi là
+     trùng và im lặng biến mất — đúng loại lỗi mà bảng này khó nhìn ra nhất. */
+  {
+    id: 'opportunity-opened-internal',
+    event: OPPORTUNITY_OPENED,
+    when: (payload) => payload.data?.lost !== true,
+    channel: 'email',
+    flow: 'opportunity-open',
+    audience: AUDIENCE_INTERNAL,
+    template: 'opportunity-opened',
+    templateVersion: 1,
+    timing: 'ngay',
+    role: 'Sales',
+  },
+  {
+    id: 'opportunity-lost-internal',
+    event: OPPORTUNITY_OPENED,
+    when: (payload) => payload.data?.lost === true,
+    channel: 'email',
+    flow: 'opportunity-lost',
+    audience: AUDIENCE_INTERNAL,
+    template: 'opportunity-lost',
     templateVersion: 1,
     timing: 'ngay',
     role: 'Sales',

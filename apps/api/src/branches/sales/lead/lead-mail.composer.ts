@@ -71,6 +71,10 @@ export class LeadMailComposer implements MailComposer {
     })
 
     return {
+      /* A lead alert is one letter one submission caused — `transactional`, so
+         it keeps riding `RESEND_API_KEY` on the day MAS moves onto a second
+         account. See `MailFlow`. */
+      flow: 'transactional',
       from: this.env.PV_EMAIL_FROM,
       to: delivery.recipient,
       /* Reply-To is the LEAD's mailbox, so a salesperson answering the alert

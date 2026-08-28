@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react'
+import { Search } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 

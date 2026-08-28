@@ -1,5 +1,14 @@
 import { useState } from 'react'
-import { AiAction, AppShell, BriefCard, ContextRail, OrderLifecycleCard, StatCard } from '@pv/ui'
+import {
+  AiAction,
+  AppShell,
+  BriefCard,
+  ContextRail,
+  OrderLifecycleCard,
+  ScreenHeader,
+  ScreenLayout,
+  StatCard,
+} from '@pv/ui'
 import { saoDo } from '@pv/engines/fixtures/sao-do'
 import { useAppChrome } from '@/app/chrome'
 
@@ -47,18 +56,17 @@ export function HomePage() {
 
   return (
     <AppShell {...chrome.shell}>
-      <div className="flex flex-col gap-5 lg:gap-6">
-        <div>
-          <h2 className="font-display text-[20px] font-semibold lg:text-[22px]">
-            Chào buổi sáng, anh Thắng
-          </h2>
-          <p className="text-muted-foreground mt-1.5 text-[12px]">
-            Thứ Hai 10/08 · gộp Sales, Supply, Factory, Finance · cập nhật{' '}
-            <span className="font-mono">07:58</span> · 4 việc cần anh nhìn
-          </p>
-        </div>
-
-        <ContextRail objects={rail} />
+      <ScreenLayout>
+        <ScreenHeader
+          title="Chào buổi sáng, anh Thắng"
+          description={
+            <>
+              Thứ Hai 10/08 · gộp Sales, Supply, Factory, Finance · cập nhật{' '}
+              <span className="font-mono">07:58</span> · 4 việc cần anh nhìn
+            </>
+          }
+          context={<ContextRail objects={rail} />}
+        />
 
         <div className="grid grid-cols-2 gap-3 lg:auto-rows-[150px] lg:grid-cols-4 lg:gap-4">
           <OrderLifecycleCard
@@ -146,7 +154,7 @@ export function HomePage() {
           done={done}
           onConfirm={() => setDone(true)}
         />
-      </div>
+      </ScreenLayout>
     </AppShell>
   )
 }

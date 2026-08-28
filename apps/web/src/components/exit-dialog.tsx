@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TriangleAlert, X } from 'lucide-react'
+import { TriangleAlert, X } from '@pv/ui'
 import { Badge, Button, Drawer, Icon, Select, Textarea } from '@pv/ui'
 import {
   EXIT_REASONS,

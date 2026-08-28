@@ -259,6 +259,22 @@ export class MailRepository implements MailLedger {
       .set({
         state: event.state,
         deliveredAt: event.state === 'delivered' ? event.at : undefined,
+        /* THE PROVIDER'S OWN SENTENCE, KEPT — it used to be accepted as a
+           parameter and then thrown away here.
+           `mail-webhook.controller.ts` builds it carefully ("Permanent/General:
+           mailbox does not exist"), and it is the only thing in the system that
+           can tell "mailbox full" from "domain does not exist" — two words that
+           call for opposite actions. Without this line `email_delivery` held a
+           `bounced` row with a NULL summary, so `LeadMailTimelineRow.failReason`
+           had nothing to print on precisely the rows it exists for, and the
+           screen could only say "hỏng" to someone who needed to know why.
+           Written only when the event carries a reason, so a `delivered`
+           webhook cannot blank a summary a bounce left behind — and it never
+           happens the other way round anyway, since `advances()` refuses any
+           transition back down the ladder. */
+        ...(event.reason
+          ? { lastErrorCode: event.type, lastErrorSummary: event.reason.slice(0, 500) }
+          : {}),
         updatedAt: sql`now()`,
       })
       .where(eq(emailDelivery.id, delivery.id))
@@ -343,6 +359,54 @@ export class MailRepository implements MailLedger {
       .where(eq(emailDelivery.id, deliveryId))
       .limit(1)
     return row?.recipient ?? null
+  }
+
+  /** The whole decision is in `MailLedger.reapStuckSending` — this is its SQL.
+   *
+   *  ONE statement, two branches of the same `CASE`, for the reason
+   *  `sweepStates()` already states: selecting the stuck rows and then updating
+   *  them leaves a window in which a worker that was merely slow finishes its
+   *  send between the read and the write, and the reaper then drags a row that
+   *  is already `accepted` back to `pending`. The WHERE clause pins `sending`,
+   *  so a row that moved on in the meantime simply does not match.
+   *
+   *  `updated_at` is the clock, and it is the right one: every writer of this
+   *  table stamps it, so it means "when did anything last happen to this row",
+   *  which is exactly the question. `next_attempt_at` is cleared on the
+   *  requeued branch rather than set — the row is due NOW, and a retry clock
+   *  copied from before the crash would park it for another backoff window it
+   *  has already served.
+   *
+   *  The comparison is `attempt_count - 1`, not `attempt_count`, matching
+   *  `MailConsumer.exhausted()` exactly: `claim()` increments BEFORE the
+   *  attempt, so a row that has been claimed once has made zero completed
+   *  attempts. Spelling it differently here would park mail one retry early or
+   *  one retry late, and nothing would say which. */
+  async reapStuckSending(opts: {
+    olderThanSeconds: number
+    retryLimit: number
+  }): Promise<{ requeued: number; parked: number }> {
+    const r = (await this.db.execute(sql`
+      WITH reaped AS (
+        UPDATE "platform"."email_delivery" d
+           SET "state" = CASE
+                           WHEN d."attempt_count" - 1 >= ${opts.retryLimit}::int THEN 'dead'
+                           ELSE 'pending'
+                         END,
+               "next_attempt_at" = NULL,
+               "last_error_code" = 'worker-stalled',
+               "last_error_summary" = 'dòng kẹt ở sending: tiến trình gửi chết giữa chừng',
+               "updated_at" = now()
+         WHERE d."state" = 'sending'
+           AND d."updated_at" < now() - make_interval(secs => ${opts.olderThanSeconds}::int)
+        RETURNING d."state" AS new_state
+      )
+      SELECT count(*) FILTER (WHERE new_state = 'pending')::int AS requeued,
+             count(*) FILTER (WHERE new_state = 'dead')::int    AS parked
+        FROM reaped
+    `)) as { rows: { requeued: number; parked: number }[] }
+
+    return r.rows[0] ?? { requeued: 0, parked: 0 }
   }
 
   /** Row id by either road, or `null`. `deliveryId` is trusted only as far as
