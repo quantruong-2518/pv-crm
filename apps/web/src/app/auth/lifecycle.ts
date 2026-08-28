@@ -142,9 +142,13 @@ export function startAuthLifecycle(): () => void {
   // 3 · đồng bộ đa tab
   // -------------------------------------------------------------------------
 
+  /* `clearSession`, KHÔNG phải `signOut`: tab kia vừa gọi `/auth/sign-out` rồi.
+     Gọi lại ở đây là mỗi tab đang mở bắn thêm một request đóng một phiên đã
+     đóng — bốn tab thành bốn lời gọi, và cái thứ hai trở đi chỉ có thể trả lỗi.
+     Việc của tab này là dọn màn của chính nó. */
   const onMessage = (ev: MessageEvent<AuthSignal>) => {
     if (ev.data.kiểu === 'ra') {
-      applyRemote(() => useSession.getState().signOut())
+      applyRemote(() => useSession.getState().clearSession())
       return
     }
     applyRemote(() => void useSession.persist.rehydrate())
@@ -155,7 +159,7 @@ export function startAuthLifecycle(): () => void {
    *  xoá tay localStorage trong DevTools — thứ BroadcastChannel không thấy. */
   const onStorage = (ev: StorageEvent) => {
     if (ev.key !== null && ev.key !== 'pv-session') return
-    if (ev.newValue === null) applyRemote(() => useSession.getState().signOut())
+    if (ev.newValue === null) applyRemote(() => useSession.getState().clearSession())
     else applyRemote(() => void useSession.persist.rehydrate())
   }
   window.addEventListener('storage', onStorage)
@@ -178,9 +182,14 @@ export function startAuthLifecycle(): () => void {
    *  'khởi-động' và guard đợi mãi: cả app là một màn trắng, không lỗi, không
    *  log. Hỏng kiểu đó tốn hàng giờ để tìm, nên đây là ba dòng đáng giá.
    *
-   *  Gọi hai lần vô hại: `bootstrap` chỉ đọc vé rồi kết luận, không đổi vé. */
-  if (useSession.persist.hasHydrated()) useSession.getState().bootstrap()
-  else useSession.persist.onFinishHydration(() => useSession.getState().bootstrap())
+   *  Gọi hai lần vẫn vô hại, dù `bootstrap` nay là một vòng mạng: nó tự gộp
+   *  lời gọi trùng — lời hứa `/auth/me` đang bay được trả lại cho người gọi thứ
+   *  hai thay vì bắn thêm một request. Chi tiết ở docblock của `bootstrap`.
+   *
+   *  `void` vì ở đây không có gì để đợi: guard đọc `status`, và `status` đổi
+   *  khi lời hứa đó xong. */
+  if (useSession.persist.hasHydrated()) void useSession.getState().bootstrap()
+  else useSession.persist.onFinishHydration(() => void useSession.getState().bootstrap())
 
   rearm()
   checkNow()

@@ -97,7 +97,7 @@ const scenario: Scenario = {
     {
       id: 'u-thang',
       name: 'Nguyễn Văn Thắng',
-      email: 'thang@pebblevina.vn',
+      email: 'thang@pebblevina.com',
       role: 'Giám đốc',
       roleId: 'giám-đốc',
       branches: ['One', 'Sales', 'Supply', 'Factory', 'Finance'],
@@ -108,7 +108,7 @@ const scenario: Scenario = {
        *  Hai TP Kinh doanh có quyền khác nhau là hai hệ thống khác nhau. */
       id: 'u-ha',
       name: 'Trần Thu Hà',
-      email: 'ha@pebblevina.vn',
+      email: 'sales@pebblevina.com',
       role: 'Trưởng phòng Kinh doanh',
       roleId: 'trưởng-phòng',
       branches: ['One', 'Sales'],
@@ -116,7 +116,7 @@ const scenario: Scenario = {
     {
       id: 'u-huy',
       name: 'Đỗ Quang Huy',
-      email: 'huy@pebblevina.vn',
+      email: 'huy@pebblevina.com',
       role: 'Sale · ngành chip',
       roleId: 'sale',
       branches: ['One', 'Sales'],

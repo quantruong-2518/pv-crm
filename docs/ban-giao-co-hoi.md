@@ -226,7 +226,7 @@ DATABASE_URL="pglite:///tmp/pgl-ui" PORT=4123 PV_TRUST_ACTOR_HEADER=true \
 cd ../web && npx vite --port 5175
 ```
 
-Đăng nhập bằng bất kỳ email nào trong sổ nhân sự fixture (`ha@pebblevina.vn`) và
+Đăng nhập bằng bất kỳ email nào trong sổ nhân sự fixture (`sales@pebblevina.com`) và
 một mật khẩu ≥ 6 ký tự — `data/auth.ts` cố tình không giữ mật khẩu ở đâu cả.
 
 Muốn xem mail thật thì thêm `PV_EMAIL_ENABLED=true`, `RESEND_API_KEY=…`,

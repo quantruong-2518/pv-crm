@@ -99,6 +99,13 @@
       "when": 1787886168660,
       "tag": "0013_mas_template_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787887876683,
+      "tag": "0014_auth_credentials",
+      "breakpoints": true
     }
   ]
 }

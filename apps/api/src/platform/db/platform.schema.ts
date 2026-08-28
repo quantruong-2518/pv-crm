@@ -42,6 +42,33 @@ export const actor = platform.table('actor', {
 
   /** Trục 3 · PHẠM VI — chỉ thấy object mình đứng tên. */
   ownOnly: boolean('own_only').notNull().default(false),
+
+  // ── xác thực ───────────────────────────────────────────────────────────
+  // Ba cột dưới đây KHÔNG thuộc ba trục quyền ở trên, và đó là lý do chúng
+  // đứng thành cụm riêng: ba trục kia trả lời "người này được làm gì", ba cột
+  // này trả lời "người này có vào được không". Một người có đủ quyền nhưng
+  // đang bị khoá thì không vào; một người vào được nhưng sai vai thì vào rồi
+  // không thấy gì. Hai câu hỏi, hai cụm.
+
+  /** Mật khẩu đã băm, dạng `scrypt$N,r,p$salt$hash` — xem `password.ts`.
+   *
+   *  `null` KHÔNG phải lỗi dữ liệu: đó là tài khoản quản lý vừa mở mà chủ nó
+   *  chưa đặt mật khẩu. Trạng thái đó có thật, kéo dài từ lúc mở tài khoản tới
+   *  lúc người ta bấm link trong thư, và nó phải phân biệt được với "có mật
+   *  khẩu nhưng gõ sai". Một cột `NOT NULL DEFAULT ''` gộp hai thứ đó lại và
+   *  biến chuỗi rỗng thành một mật khẩu hợp lệ với đúng một người: người quên
+   *  kiểm nó. */
+  passwordHash: text('password_hash'),
+
+  /** Bị khoá từ LÚC NÀO. `null` = đang hoạt động.
+   *
+   *  Mốc thời gian chứ không phải `boolean`, vì câu người ta thật sự hỏi về
+   *  một tài khoản bị khoá là "khoá từ bao giờ" — và `disabled = true` trả lời
+   *  câu đó bằng một cái nhún vai. Cùng quy ước với `closed_at`, `exited_at`,
+   *  `revoked_at` ở khắp repo này. */
+  disabledAt: timestamp('disabled_at', { withTimezone: true }),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 // ---------------------------------------------------------------------------

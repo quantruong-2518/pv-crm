@@ -4,6 +4,7 @@ import { SalesModule } from './branches/sales/sales.module'
 import { AccessGuard } from './platform/access/access.guard'
 import { AccessModule } from './platform/access/access.module'
 import { AuditModule } from './platform/audit/audit.module'
+import { AuthModule } from './platform/auth/auth.module'
 import { ConfigModule } from './platform/config/config.module'
 import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
@@ -12,6 +13,7 @@ import { MailModule } from './platform/mail/mail.module'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
 import { SessionModule } from './platform/session/session.module'
+import { UsersModule } from './platform/users/users.module'
 
 /** Gốc của app. Hai nhóm import, và ranh giới giữa chúng là luật:
  *
@@ -40,6 +42,21 @@ import { SessionModule } from './platform/session/session.module'
     EnginesModule,
     AuditModule,
     SessionModule,
+    /* SAU `SessionModule`, và không phải vì thẩm mỹ: `ActorGuard` bên dưới
+       nhận CẢ HAI — `ActorRepository` của `SessionModule` cho cửa sau header,
+       và `AuthService` của module này cho đường cookie thật. Module này cũng
+       mang `/auth`, bảy cửa của luồng đăng nhập, nên đọc danh sách này phải
+       thấy được rằng máy chủ có chúng — cùng lý do `MailModule` được nhập
+       tường minh ngay bên dưới. */
+    AuthModule,
+    /* Right after `AuthModule`, and for the same two reasons that module is
+       listed at all. It DEPENDS on it — `/users` mints invite tickets and
+       revokes a locked person's sessions through `AuthService`, the only door
+       `AuthModule` exports — and it carries `/users`, the four doors of the
+       people book, so reading this list has to show that the server has them.
+       Filed under `platform/` rather than a branch because `platform.actor`
+       belongs to no product line; `users.module.ts` writes that out in full. */
+    UsersModule,
     AccessModule,
     HealthModule,
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`

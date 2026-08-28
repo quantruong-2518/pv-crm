@@ -17,10 +17,13 @@ import { useSession } from '@/app/auth'
  *  của vai kia. Một cửa sau bỏ qua mật khẩu ngay trên màn đăng nhập thì màn này
  *  không còn chứng minh được điều nó sinh ra để chứng minh.
  *
- *  Email của bảy vai nằm trong fixture `das-vina` (`actors[].email`) — chỗ tra
- *  khi demo, không phải một nút trên màn.
- *
- *  Kịch bản: DAS Vina. Luật mật khẩu ở `data/auth.ts`, không nằm trong màn. */
+ *  The accounts are rows in `platform.actor` now, not entries in a fixture, so
+ *  there is nowhere on this screen to look one up and nothing to demo with but
+ *  a real mailbox and a real password. The screen itself barely changed for
+ *  that: it still asks `data/auth.ts` one question and hands the answer to the
+ *  session store. What it hands over is now a PAIR — the person, and the window
+ *  the server stamped on their session — because the browser no longer decides
+ *  when a session ends. */
 export function SignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -29,19 +32,31 @@ export function SignInPage() {
   const signIn = useSession((s) => s.signIn)
   const remembered = useSession((s) => s.remember)
 
-  const [email, setEmail] = useState('')
+  /** Ai gửi người ta tới đây, và kèm theo cái gì.
+   *
+   *  Guard gửi kèm hai thứ khi nó đá người ta về: đường đang định vào, và phiên
+   *  vừa chết hay chưa từng có. Cả hai đều phải dùng — quay lại đúng chỗ cũ, và
+   *  nói đúng lý do.
+   *
+   *  Màn đặt lại mật khẩu gửi thêm hai thứ nữa (`email`, `reset`). Nó KHÔNG
+   *  được tự đăng nhập hộ — máy chủ vừa thu hồi mọi phiên của tài khoản đó — nên
+   *  người dùng hạ cánh ở đây ngay sau khi vừa gõ mật khẩu mới hai lần. Không
+   *  nói gì thì cú nhảy ấy trông y như thao tác vừa rồi đã hỏng. */
+  const sent = location.state as {
+    from?: string
+    expired?: boolean
+    email?: string
+    reset?: boolean
+  } | null
+  const from = sent?.from ?? '/'
+
+  const [email, setEmail] = useState(sent?.email ?? '')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(remembered)
   const [error, setError] = useState<AuthError | null>(null)
 
   const emailRef = useRef<HTMLInputElement>(null)
   useEffect(() => emailRef.current?.focus(), [])
-
-  /** Guard gửi kèm hai thứ khi nó đá người ta về đây: đường đang định vào, và
-   *  phiên vừa chết hay chưa từng có. Cả hai đều phải dùng — quay lại đúng chỗ
-   *  cũ, và nói đúng lý do. */
-  const sent = location.state as { from?: string; expired?: boolean } | null
-  const from = sent?.from ?? '/'
 
   /* Đã có phiên mà vẫn vào màn này (gõ tay `/dang-nhap`, hoặc tab khác vừa đăng
      nhập hộ) thì đi tiếp, đừng bắt đăng nhập lần hai. */
@@ -53,9 +68,11 @@ export function SignInPage() {
     <AuthCard
       title="Đăng nhập"
       lead={
-        sent?.expired
-          ? 'Phiên trước đã hết hạn. Đăng nhập lại để quay về đúng chỗ bạn đang làm dở.'
-          : undefined
+        sent?.reset
+          ? 'Mật khẩu đã đổi. Đăng nhập lại bằng mật khẩu mới — mọi phiên cũ của tài khoản này đã bị đóng.'
+          : sent?.expired
+            ? 'Phiên trước đã hết hạn. Đăng nhập lại để quay về đúng chỗ bạn đang làm dở.'
+            : undefined
       }
     >
       <form
@@ -64,15 +81,20 @@ export function SignInPage() {
           e.preventDefault()
           if (sending) return
           beginSignIn()
-          const result = await signInWithEmail(email, password)
+          const result = await signInWithEmail(email, password, remember)
           if (!result.ok) {
-            /* Về lại 'khách' qua `signOut`: một form đã có kết luận mà máy trạng
-               thái còn kẹt ở 'đang-vào' thì nút khoá vĩnh viễn. */
-            useSession.getState().signOut()
+            /* Về lại 'khách' qua `clearSession`, KHÔNG qua `signOut`: một form
+               đã có kết luận mà máy trạng thái còn kẹt ở 'đang-vào' thì nút khoá
+               vĩnh viễn — nhưng ở đây chưa từng có phiên nào để đóng, nên gọi
+               `/auth/sign-out` là bắn một request vô nghĩa cho mỗi lần gõ sai
+               mật khẩu, đúng vào cửa dễ bị dò nhất của hệ. */
+            useSession.getState().clearSession()
             setError(result.error)
             return
           }
-          signIn(result.actor, { remember })
+          /* Cả người LẪN cửa sổ phiên đều là câu trả lời của máy chủ. Kho chỉ
+             soi lại đúng những gì vừa nhận — nó không tự đặt hạn cho phiên. */
+          signIn(result.actor, { session: result.session, remember })
           navigate(from, { replace: true })
         }}
         className="flex flex-col gap-5"
@@ -134,6 +156,16 @@ export function SignInPage() {
           label="Nhớ tôi trên máy này"
           className="-mx-3"
         />
+
+        {/* Lỗi KHÔNG thuộc về ô nào: hết lượt thử, hoặc không nối được máy chủ.
+            Treo nó dưới ô mật khẩu thì người dùng đọc thành "mật khẩu sai" và
+            ngồi gõ lại một chuỗi vốn đã đúng. Cùng cỡ chữ, cùng token màu với
+            lỗi của ô (`AuthField`) để mắt không phải học quy ước thứ hai. */}
+        {error?.field === 'form' && (
+          <p role="alert" className="text-destructive-foreground m-0 text-[11px] leading-[1.5]">
+            {error.message}
+          </p>
+        )}
 
         <Button type="submit" size="lg" disabled={sending}>
           {sending ? 'Đang vào…' : 'Đăng nhập'}

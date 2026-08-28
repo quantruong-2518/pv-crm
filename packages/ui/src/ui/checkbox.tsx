@@ -39,7 +39,19 @@ export function Checkbox({
     <label
       className={cn(
         'motion-std flex items-center gap-3 rounded-md px-3 py-2',
-        disabled ? 'cursor-not-allowed opacity-55' : 'hover:bg-white/8 cursor-pointer',
+        /* Ô khoá chỉ đổi CON TRỎ, không dìm cả nhãn — luật 13.
+         *
+         *  Bản trước để `opacity-55` ở đây, tức phủ lên cả `label` lẫn `hint`.
+         *  Đo trên mặt Drawer thì `--muted-foreground` @55% ra `#575F77`, tức
+         *  **2,95:1** — dưới hẳn ngưỡng 4,5:1. Trớ trêu là `hint` chỉ xuất hiện
+         *  đúng trên ô bị khoá, nên câu DUY NHẤT giải thích vì sao control chết
+         *  lại là câu đọc không ra.
+         *
+         *  Cùng lỗi này repo đã bác một lần ở `app-header.tsx` (`opacity-45`
+         *  lên cả nút, đo được 2,29:1) và chốt cách sửa ở `nav-item.tsx`: chữ
+         *  giữ nguyên màu, chỉ phần đồ hoạ mờ đi. Ô vuông ở dưới nhận
+         *  `opacity-55`; chữ không. */
+        disabled ? 'cursor-not-allowed' : 'hover:bg-white/8 cursor-pointer',
         checked && !disabled && 'bg-primary/16',
         className,
       )}
@@ -56,6 +68,9 @@ export function Checkbox({
         className={cn(
           'motion-std flex size-4 shrink-0 items-center justify-center rounded-sm',
           checked ? 'bg-primary text-primary-foreground' : 'bg-white/12',
+          /* Toàn bộ tín hiệu "khoá" nằm ở đây — một hình vuông, không phải chữ.
+             Mờ một mảng màu không làm ai đọc khó hơn; mờ một dòng chữ thì có. */
+          disabled && 'opacity-55',
           'peer-focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_60%,transparent)]',
         )}
       >

@@ -246,7 +246,7 @@ export default tseslint.config(
             {
               group: ['@pv/engines/fixtures', '@pv/engines/fixtures/*'],
               message:
-                'Fixture là dữ liệu kịch bản, không phải nguồn dữ liệu của máy chủ. Chỉ `seed.ts` được nhập — chỗ khác nhập là đưa tên khách hàng vào đường chạy thật.',
+                'Fixture là dữ liệu kịch bản, không phải nguồn dữ liệu của máy chủ. Chỉ hai script `seed*.ts` được nhập — chỗ khác nhập là đưa tên khách hàng vào đường chạy thật.',
             },
           ],
         },
@@ -254,9 +254,19 @@ export default tseslint.config(
     },
   },
   {
-    // Seed nạp CHÍNH kịch bản đóng băng vào Postgres tại máy — đó là việc của
-    // nó, và là ngoại lệ duy nhất của luật fixture ở trên.
-    files: ['apps/api/src/seed.ts'],
+    // Hai script seed nạp CHÍNH kịch bản đóng băng vào Postgres — đó là việc
+    // của chúng, và là ngoại lệ duy nhất của luật fixture ở trên.
+    //
+    // Ngoại lệ bám vào MỘT tính chất, không phải vào tên file: đây là lệnh
+    // CLI chạy tay, không phải đường chạy của máy chủ. Luật fixture sinh ra để
+    // chặn tên khách hàng lọt vào thứ phục vụ request thật; một script người ta
+    // gõ tay rồi đọc kết quả không phải thứ đó. `no-console` tắt cùng lý do —
+    // đầu ra của một script CLI LÀ giao diện của nó.
+    //
+    // `seed.ts` dựng lại cả sổ; `seed-accounts.ts` chỉ UPDATE email và mật khẩu
+    // của actor đã có nên chạy được trên database thật. Thêm file thứ ba vào
+    // đây thì dừng lại và hỏi trước — danh sách này ngắn là có chủ ý.
+    files: ['apps/api/src/seed.ts', 'apps/api/src/seed-accounts.ts'],
     rules: { 'no-restricted-imports': 'off', 'no-console': 'off' },
   },
   {

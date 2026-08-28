@@ -56,6 +56,26 @@ type ScreenDef = {
 export const SCREENS: ScreenDef[] = [
   { path: '/', name: 'Trang chủ · Morning brief', load: () => import('@/pages/home') },
   {
+    /** One Core · Quản trị — the `platform.actor` people book.
+     *
+     *  NO `branch`, and that absence is the load-bearing half of this entry: the
+     *  people book belongs to no product line (Sales reads it, Supply will read
+     *  it), so hanging it off a Sales licence would shut the open-an-account
+     *  screen for a company that bought only Supply — and the person shut out is
+     *  the one who opens accounts for everybody else.
+     *
+     *  `permission` is present, and it is NOT a `.xem` permission like the eight
+     *  branch screens below. `người-dùng.quản-lý` is the widest key in the
+     *  matrix: whoever reaches this screen can edit their own `roleId` and
+     *  thereby grant themselves every other permission. So there is deliberately
+     *  no "read the people book" gate separate from "write the people book" —
+     *  splitting them would build a door whose far side is the whole matrix. */
+    path: '/quan-tri/nguoi-dung',
+    name: 'One Core · Quản trị · Người dùng',
+    permission: 'người-dùng.quản-lý',
+    load: () => import('@/pages/users'),
+  },
+  {
     path: '/sales/campaigns',
     name: 'Kinh doanh · Module 1 · Chiến dịch',
     branch: 'Sales',

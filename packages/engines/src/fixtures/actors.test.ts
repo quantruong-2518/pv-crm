@@ -16,18 +16,18 @@ import { saoDo } from './sao-do'
  *
  *  Đổi email nào ở đây thì phải sửa fixture trước — test đỏ là lời nhắc đúng lúc. */
 
-const DOMAIN = '@pebblevina.vn'
+const DOMAIN = '@pebblevina.com'
 
 describe('Email đăng nhập · kịch bản 2 · DAS Vina', () => {
   it('bảy vai, đúng bảy email đã chốt', () => {
     expect(dasVina.actors.map((a) => a.email)).toEqual([
-      'ha@pebblevina.vn',
-      'chau@pebblevina.vn',
-      'nam@pebblevina.vn',
-      'huy@pebblevina.vn',
-      'binh@pebblevina.vn',
-      'linh@pebblevina.vn',
-      'anh@pebblevina.vn',
+      'sales@pebblevina.com',
+      'chau@pebblevina.com',
+      'nam@pebblevina.com',
+      'huy@pebblevina.com',
+      'binh@pebblevina.com',
+      'linh@pebblevina.com',
+      'anh@pebblevina.com',
     ])
   })
 })
@@ -35,9 +35,9 @@ describe('Email đăng nhập · kịch bản 2 · DAS Vina', () => {
 describe('Email đăng nhập · kịch bản 1 · Sao Đỏ', () => {
   it('ba vai, đúng ba email đã chốt', () => {
     expect(saoDo.actors.map((a) => a.email)).toEqual([
-      'thang@pebblevina.vn',
-      'ha@pebblevina.vn',
-      'huy@pebblevina.vn',
+      'thang@pebblevina.com',
+      'sales@pebblevina.com',
+      'huy@pebblevina.com',
     ])
   })
 })
@@ -52,10 +52,26 @@ describe('Luật chung của email, áp cho cả hai kịch bản', () => {
     }
   })
 
-  it('phần trước @ khớp đuôi của id — u-ha thì phải là ha@', () => {
+  /** Đúng MỘT hòm thư không theo tên riêng, và nó được khoá tên ở đây chứ không
+   *  được miễn trừ: `u-ha` giữ hòm thư CHỨC DANH của trưởng phòng kinh doanh.
+   *
+   *  Người đổi, chức danh thì không. Ngày Trần Thu Hà chuyển việc, thư gửi tới
+   *  `sales@` phải rơi vào tay người kế nhiệm mà không ai phải đi sửa danh
+   *  thiếp, chữ ký mail và bảy chỗ khác. Đó là lý do nó tồn tại, và cũng là lý
+   *  do nó phải là ngoại lệ DUY NHẤT — hòm thư chức danh thứ hai nghĩa là hai
+   *  người cùng đăng nhập vào một tài khoản, và nhật ký `platform.audit` không
+   *  còn trả lời được câu nó sinh ra để trả lời. */
+  const TITLE_MAILBOX: Record<string, string> = { 'u-ha': 'sales' }
+
+  it('phần trước @ khớp đuôi của id — u-huy thì phải là huy@', () => {
     for (const a of everyone) {
-      expect(a.email).toBe(`${a.id.replace(/^u-/, '')}${DOMAIN}`)
+      const local = TITLE_MAILBOX[a.id] ?? a.id.replace(/^u-/, '')
+      expect(a.email).toBe(`${local}${DOMAIN}`)
     }
+  })
+
+  it('chỉ có đúng một hòm thư chức danh', () => {
+    expect(Object.keys(TITLE_MAILBOX)).toEqual(['u-ha'])
   })
 
   it('trong một kịch bản không có hai người chung email', () => {

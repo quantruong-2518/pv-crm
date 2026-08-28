@@ -398,6 +398,17 @@ export function ZoneAtoms() {
               trailing={<Avatar name={name} size="sm" />}
             />
           ))}
+          {/* Trạng thái khoá — vẽ ở đây vì nó là chỗ DUY NHẤT nhìn thấy được
+              rằng ô vuông mờ đi còn chữ thì không. Kit thiếu ô này suốt, nên
+              `opacity-55` phủ lên cả nhãn sống được tới lúc màn Quản trị trở
+              thành consumer `disabled` đầu tiên và đo ra 2,95:1. */}
+          <Checkbox
+            checked
+            disabled
+            onChange={() => {}}
+            label="One"
+            hint="Bắt buộc — không có One thì không mở được màn nào"
+          />
         </SpecCard>
 
         {/* A-17 */}

@@ -135,7 +135,7 @@ mua nào.
 
 Thêm ba chỗ: `Stage = "Cold"` là phễu của **Apollo**, không phải 5 cột sổ của ta —
 **không map**. `Contact Owner = vannt@pebblevina.com` là địa chỉ Pebble Vina thật
-nhưng actor trong hệ dùng đuôi `@pebblevina.vn` ⇒ cả 19 lead **chưa ai nhận**.
+nhưng actor trong hệ dùng đuôi `@pebblevina.com` ⇒ cả 19 lead **chưa ai nhận**.
 Không có cột quốc gia ⇒ "Seoul" nằm trong cột tên là `province`.
 
 ### Luật rút ra: CHỌN NGUỒN TRƯỚC

@@ -170,10 +170,86 @@ lại đây để danh sách đủ mặt.
 
 ---
 
-## 8 · Vặt
+## 8 · Hàng rào chống dò mật khẩu chỉ sống trong RAM của một tiến trình
+
+**Triệu chứng (chưa xảy ra):** ai đó dò mật khẩu một hòm thư đã biết. Sau 5 lần
+sai, tiến trình đang phục vụ họ bắt đầu chờ 30 giây rồi nhân đôi. Nhưng phanh
+đó là một `Map` trong RAM — thêm một máy API là thêm một ngân sách 5 lần nữa,
+và một lần deploy là bộ đếm về không.
+
+**Ở đâu:** `apps/api/src/platform/auth/attempt-throttle.ts`, dùng ở
+`auth.service.ts` cho cả `/auth/sign-in` lẫn `/auth/forgot-password`.
+
+**Sửa thế nào:** chuyển sang Postgres, đúng hình `sales.lead_intake_rate` đang
+dùng cho cửa intake công khai — cùng vấn đề, đã có lời giải trong repo.
+
+**Vì sao chưa sửa:** Fly đang chạy `min_machines_running = 1` cho process `api`,
+nên hôm nay một tiến trình đúng là toàn bộ hệ. Ngày `fly scale count` lên 2 là
+ngày con số 5 thành 10 mà không ai đổi dòng nào — **scale trước, sửa mục này
+trước.** scrypt (~100 ms mỗi lần thử) vẫn là tầng phanh dưới cùng và nó không
+phụ thuộc tiến trình.
+
+---
+
+## 9 · Thư đặt mật khẩu không hỏi sổ chặn
+
+**Triệu chứng:** một địa chỉ đã hard-bounce hoặc đã huỷ đăng ký vẫn được gửi
+thư đặt mật khẩu. Thư trượt, và ngoài một dòng log thì không ai biết.
+
+**Ở đâu:** `apps/api/src/platform/auth/password-reset.mailer.ts` — gửi thẳng
+qua `MAIL_PORT`, không đi qua `MailLedger.isSuppressed` như mọi lá thư khác.
+
+**Sửa thế nào:** không hiển nhiên, và đó là lý do mục này là một câu hỏi chứ
+không phải một việc. Chặn thật thì một người có địa chỉ trong sổ chặn **không
+bao giờ đặt lại được mật khẩu** — tệ hơn hẳn cái đang có. Đường đúng nhiều khả
+năng là vẫn gửi, nhưng báo cho màn Quản trị biết địa chỉ đó đang bị chặn để
+người quản lý đưa link tận tay.
+
+**Vì sao chưa sửa:** tiêm `MAIL_LEDGER` vào module xác thực là trao luôn cả
+`claim`/`markAccepted`/`suppress` — một quyền rộng hơn hẳn thứ cần dùng. Cần
+quyết hình dạng trước, không phải viết code trước.
+
+---
+
+## 10 · Cây có HAI bản `fastify`
+
+**Triệu chứng:** `app.register(cookie)` không biên dịch được — TS so một
+`FastifyInstance` đã được plugin augment với một bản chưa augment.
+
+**Ở đâu:** `@nestjs/platform-fastify` kéo `fastify` 5.11.3, `apps/api` khai
+5.12.1. `declare module 'fastify'` của `@fastify/cookie` chỉ bám vào 5.12.1.
+
+**Sửa thế nào:** một bản duy nhất — khớp version, hoặc `pnpm.overrides`.
+
+**Vì sao chưa sửa:** đã đi vòng bằng `adapter.getInstance<FastifyInstance>()`
+nên cookie chạy đúng. Sửa thật là đụng lockfile, và bất kỳ plugin Fastify nào
+sau này cũng vấp lại đúng chỗ này — nên nó là bẫy còn nằm đó, không phải lỗi
+đang cháy.
+
+---
+
+## 11 · Vặt
 
 - `docs/tich-hop-landing-page.md:198` — ví dụ `curl` còn dùng `localhost:3000`,
   trong khi cổng tại máy đã chốt **4123** ở `apps/api/.env`, `apps/web/.env`,
   `.env.example` và hai doc còn lại. Copy nguyên dòng đó ra chạy sẽ trượt.
 - `apps/web/src/data/leads.ts` — docblock `leadFacetQuery` nói "sổ có 119 dòng";
   Neon nay 121, fixture vẫn 100. Con số trong văn xuôi sẽ còn trôi, đừng dựa vào nó.
+- **Khối "một ô form" đã có NĂM bản**: `components/ops-fields.tsx:54` (đã export),
+  `mas-mail-drawer.tsx:600`, `campaign-parts.tsx:92`, `auth-card.tsx:79`
+  (`AuthField`), `pages/users-parts.tsx:652`. Nó KHÔNG thuộc `@pv/ui` — không
+  phải atom, và `ops-fields.tsx:37-39` đã lập luận đúng biên giới package —
+  nhưng nó nên là một bản ở `apps/web/src/components/`, có nhận `errors`.
+- **Nút trong drawer là 40px, luật 13 đòi ≥ 48px trên tablet.** `size="lg"` tồn
+  tại và các màn auth đang dùng đúng; drawer nghiệp vụ (`mas-mail-drawer`,
+  `users-parts`) thì chưa. Kèm theo: `Drawer` footer
+  (`packages/ui/src/layout/drawer.tsx:157`) chưa chừa `env(safe-area-inset-bottom)`,
+  nên dưới `sm` nút "Lưu" nằm chồng vạch home indicator 34px của iPhone —
+  `AppShell` đã chừa đúng chỗ này, `Drawer` thì chưa.
+- **`Skeleton` bỏ qua class chiều cao**: nó ghi `height` vào `style` nên `h-12`
+  không có tác dụng, và `leads.tsx:602` · `ops.tsx:295` đang render thanh 11px
+  thay cho dòng bảng 48px. `pages/users.tsx` đã dùng `height={48}`; hai màn kia
+  chưa. Sửa gốc là bỏ `height` khỏi `style` trong atom rồi dọn cả ba.
+- **Ô email trong dòng sổ bị chép sang màn thứ ba**: `pages/users.tsx` in lại
+  đúng chuỗi class của `components/table-bits.tsx:70` (`PicCell`) thay vì gọi
+  nó — đúng thứ docblock của `table-bits.tsx:4-15` viết ra để ngăn.

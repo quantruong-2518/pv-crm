@@ -10,5 +10,6 @@
 
 export * from './primitives'
 export * from './problem'
+export * from './auth'
 export * from './pagination'
 export * from './sales'

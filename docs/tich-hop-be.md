@@ -12,29 +12,79 @@ Postman là gọi được ngay, không phải gõ lại gì.
 
 ---
 
-## Xác thực — hôm nay là CỬA SAU, phải biết trước khi dựng
+## Xác thực — cookie phiên, đã dựng thật (28/08)
 
-Chưa có auth thật. Máy chủ tin header:
+Đăng nhập bằng email + mật khẩu, phiên là **cookie HttpOnly** tra vào bảng
+`platform.session`. Không có token nào trong thân trả lời và không có token nào
+trong `localStorage` — script không đọc được vé, và đó là điểm chính.
 
 ```
-X-PV-Actor-Id: u-ha
+POST /auth/sign-in   {email, password, remember}  → 200 SessionView + Set-Cookie: pv_session
+POST /auth/sign-out                               → 204, xoá cookie
+GET  /auth/me                                     → 200 SessionView · 401 nếu vé chết
+POST /auth/renew                                  → 200 {session}   đẩy mốc ngồi không
+POST /auth/forgot-password  {email}               → 204 LUÔN LUÔN
+GET  /auth/reset-password/:token                  → 200 {email} · 404
+POST /auth/reset-password   {token, password}     → 204
 ```
 
-và chỉ tin khi `PV_TRUST_ACTOR_HEADER=true`; `env.ts` **từ chối khởi động** với
-cờ này ở production. Auth thật (cookie + bảng `platform.session`) chưa dựng —
-đừng xây tầng gọi API bám vào header này như một thứ vĩnh viễn. Chỗ nó sẽ biến
-mất là interceptor `stampSession` bên `apps/web/src/app/api/client.ts`, đúng một
-chỗ.
+Mọi cửa đều `@Public()`. Client phải gửi `credentials: 'include'` — đã bật sẵn
+ở `apps/web/src/app/api/client.ts`.
 
-Bảy actor có sẵn để thử:
+**`X-PV-Actor-Id` vẫn còn, nhưng đã tụt xuống hàng dự phòng** cho Postman/curl:
+guard đọc cookie TRƯỚC, chỉ khi không có cookie mới ngó header, và chỉ khi
+`PV_TRUST_ACTOR_HEADER=true`. `.env.example` để `false` để bản clone mới đi đúng
+đường thật. `env.ts` vẫn từ chối khởi động với cờ đó ở production.
 
-| id                            | Tên           | Vai          | Phạm vi                                   |
-| ----------------------------- | ------------- | ------------ | ----------------------------------------- |
-| `u-ha`                        | Trần Thu Hà   | trưởng-phòng | cả sổ · mọi quyền Sales                   |
-| `u-nam`                       | Lê Hoàng Nam  | bd           | cả sổ                                     |
-| `u-chau`                      | Vũ Minh Châu  | marketing    | cả sổ · không `lead.giao/chuyển-đổi/loại` |
-| `u-anh`                       | Phạm Diệu Anh | presales     | cả sổ · chỉ đọc lead                      |
-| `u-huy` · `u-binh` · `u-linh` | ba Sale       | sale         | **chỉ lead của mình**                     |
+**Bẫy cookie ở máy phát triển, đọc trước khi mất một buổi chiều:** với cookie
+thì `localhost` và `127.0.0.1` là HAI SITE khác nhau, nên một cookie `SameSite=Lax`
+do API đặt ở `127.0.0.1` sẽ KHÔNG được gửi kèm từ trang chạy ở `localhost:5173` —
+đăng nhập trông như thành công còn mọi lời gọi sau đó là vô danh. Cùng host khác
+cổng thì cùng site (SameSite không nhìn cổng). Vì thế `VITE_API_URL` là
+`http://localhost:4123`. Ở production hai đầu khác domain nên cookie chuyển sang
+`SameSite=None; Secure`, tự đổi theo `NODE_ENV`.
+
+`roleId` **đi trên dây bằng ASCII** (`director` · `head-of-sales` · `marketing` ·
+`bd` · `presales` · `sale`) trong khi `@pv/engines` viết tiếng Việt. Hai đầu đều
+giữ một bảng `Record<>` đầy đủ nên thêm vai thứ bảy ở một bên là build đỏ. Cột
+`platform.actor.role_id` giữ nguyên bản tiếng Việt — không có migration dữ liệu.
+
+Bảy actor có sẵn để thử (mật khẩu nạp bằng `pnpm db:seed:accounts`, không nằm
+trong repo):
+
+| id                            | Email                  | Vai          | Phạm vi                                   |
+| ----------------------------- | ---------------------- | ------------ | ----------------------------------------- |
+| `u-ha`                        | `sales@pebblevina.com` | trưởng-phòng | cả sổ · mọi quyền Sales · quản lý người   |
+| `u-nam`                       | `nam@pebblevina.com`   | bd           | cả sổ                                     |
+| `u-chau`                      | `chau@pebblevina.com`  | marketing    | cả sổ · không `lead.giao/chuyển-đổi/loại` |
+| `u-anh`                       | `anh@pebblevina.com`   | presales     | cả sổ · chỉ đọc lead                      |
+| `u-huy` · `u-binh` · `u-linh` | `<tên>@pebblevina.com` | sale         | **chỉ lead của mình**                     |
+
+`sales@` là hòm thư CHỨC DANH, không phải tên riêng — người đổi thì chức danh
+không đổi. Đó là ngoại lệ duy nhất của luật đặt hòm thư, và `actors.test.ts`
+khoá cả ngoại lệ lẫn việc chỉ có một ngoại lệ.
+
+## Sổ người dùng — chỉ quản lý
+
+Không có màn đăng ký công khai: tài khoản do người có quyền
+`người-dùng.quản-lý` mở (hôm nay là `giám-đốc` và `trưởng-phòng`), rồi hệ gửi
+thư đặt mật khẩu. Tài khoản mới có `password_hash = NULL` cho tới khi chủ nó bấm
+link — trạng thái bình thường, màn hiện là "chờ đặt mật khẩu".
+
+```
+GET   /users             → {rows: UserRow[]}
+POST  /users             UserCreate  → 201 UserRow
+PATCH /users/:id         UserPatch   → 200 UserRow
+POST  /users/:id/invite              → 200 {sent, link?}
+```
+
+Cả bốn khai `@Need({ permission: 'người-dùng.quản-lý' })` và **không khai
+`branch`** — One Core cấp cho mọi công ty; treo sổ người vào license Sales thì
+công ty chỉ mua Supply không mở được tài khoản cho ai.
+
+`link` chỉ trả về khi `PV_EMAIL_ENABLED=false`. Cửa mail mở thì link chỉ nằm
+trong thư, vì một link tới được màn là một link nằm trong log, ảnh chụp và cửa
+sổ hỗ trợ — mà link này đặt được mật khẩu.
 
 ---
 

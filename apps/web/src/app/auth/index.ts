@@ -2,7 +2,7 @@
  *
  *  | File           | Giữ cái gì                                              |
  *  |----------------|---------------------------------------------------------|
- *  | `session.ts`   | máy trạng thái phiên, vé và hạn của vé, kho lưu          |
+ *  | `session.ts`   | máy trạng thái phiên, vé (bản sao cửa sổ máy chủ), kho   |
  *  | `lifecycle.ts` | đồng hồ hết hạn · bắt hoạt động · đồng bộ đa tab         |
  *  | `renew.ts`     | gia hạn vé, chống bay đàn                               |
  *  | `guard.tsx`    | hai cổng: `RequireAccess` cho MÀN, `Can` cho NÚT        |
@@ -17,6 +17,7 @@ export {
   sessionSnapshot,
   useSession,
   ticketDeath,
+  ticketOf,
   SESSION_LIMITS,
   type AuthStatus,
   type ExpiryReason,

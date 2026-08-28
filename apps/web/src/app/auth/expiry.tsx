@@ -117,6 +117,11 @@ export function SessionLocked() {
   const expiredBy = useSession((s) => s.expiredBy)
   const signIn = useSession((s) => s.signIn)
   const signOut = useSession((s) => s.signOut)
+  /* Ô "Nhớ tôi" không có mặt trên lớp khoá, cùng lý do ô email không có mặt:
+     đây là cửa mở lại ĐÚNG phiên vừa đứt, không phải cửa đổi lựa chọn. Nên gửi
+     lại lựa chọn cũ cho máy chủ — người đã tick "Nhớ tôi" sáng nay không bị hạ
+     xuống một phiên chết theo tab chỉ vì họ đi họp một tiếng. */
+  const remember = useSession((s) => s.remember)
 
   const [password, setPassword] = useState('')
   const [error, setError] = useState<AuthError | null>(null)
@@ -144,11 +149,14 @@ export function SessionLocked() {
             e.preventDefault()
             if (busy) return
             setBusy(true)
-            const result = await signInWithEmail(actor.email, password)
+            const result = await signInWithEmail(actor.email, password, remember)
             setBusy(false)
             if (!result.ok) return setError(result.error)
             setPassword('')
-            signIn(result.actor)
+            /* Cửa sổ phiên đi thẳng từ câu trả lời của máy chủ vào kho, y như ở
+               màn đăng nhập. Tự tính lại hạn ở đây là dựng một cái đếm ngược
+               thứ hai bên cạnh cái máy chủ vừa đóng dấu, và chúng sẽ lệch. */
+            signIn(result.actor, { session: result.session, remember })
           }}
           className="flex flex-col gap-5"
         >
@@ -180,7 +188,10 @@ export function SessionLocked() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              signOut()
+              /* `void`: đóng phiên ở máy chủ là việc phải làm, không phải việc
+                 phải đợi. `signOut` dọn máy này ngay trong nhịp đầu tiên (xem
+                 `session.ts`), nên điều hướng ở dòng sau không đua với nó. */
+              void signOut()
               navigate('/dang-nhap', { replace: true })
             }}
           >

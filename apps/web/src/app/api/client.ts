@@ -1,6 +1,7 @@
 import type { Problem } from '@pv/contracts'
 import type { AccessNeed } from '@pv/engines'
 import { access, renewSession, sessionIsLive, useSession } from '@/app/auth'
+import { API_BASE_URL } from './base-url'
 import { ApiError, denyReasonOf, failureOf } from './errors'
 
 /** Tầng gọi dữ liệu — có INTERCEPTOR, và interceptor là toàn bộ lý do nó tồn tại.
@@ -8,11 +9,31 @@ import { ApiError, denyReasonOf, failureOf } from './errors'
  *  ------------------------------------------------------------------
  *  VÌ SAO KHÔNG PHẢI MỖI QUERY TỰ LO
  *  ------------------------------------------------------------------
- *  Bảy query của app đều cần đúng bốn thứ giống nhau trước và sau mỗi lần gọi:
- *  gắn danh tính phiên, chặn khi phiên đã chết, kiểm quyền, và dịch lỗi thô
- *  thành một câu nói được với người dùng. Để mỗi query tự lo thì bảy bản sao sẽ
- *  lệch nhau ngay ở query thứ ba, và cái lệch đó là lỗ hổng quyền chứ không
- *  phải lỗi hiển thị.
+ *  Bảy query của app đều cần đúng ba thứ giống nhau trước và sau mỗi lần gọi:
+ *  chặn khi phiên đã chết, kiểm quyền, và dịch lỗi thô thành một câu nói được
+ *  với người dùng. Để mỗi query tự lo thì bảy bản sao sẽ lệch nhau ngay ở query
+ *  thứ ba, và cái lệch đó là lỗ hổng quyền chứ không phải lỗi hiển thị.
+ *
+ *  ------------------------------------------------------------------
+ *  IDENTITY IS NO LONGER ONE OF THOSE THINGS — IT RIDES ON A COOKIE
+ *  ------------------------------------------------------------------
+ *  There used to be a fourth job here: an interceptor that stamped
+ *  `X-PV-Actor-Id` on every request, trusted by the server only while
+ *  `PV_TRUST_ACTOR_HEADER=true`. Real auth landed, so that door is shut and the
+ *  interceptor is gone. What carries identity now is the HttpOnly session
+ *  cookie, and the one line that puts it on the wire is `credentials:
+ *  'include'` inside `send` — read the block there before adding any header
+ *  that claims to say who the caller is.
+ *
+ *  The promise the old interceptor made is still in force, only the address
+ *  changed: identity is attached in exactly ONE place. Anything that reaches
+ *  around it — a token in a body, an actor id in a query string, a second
+ *  `fetch` somewhere in `data/` — is an identity the server has no reason to
+ *  believe, and it will have to be found by hand later.
+ *
+ *  The three auth doors (`sign-in`, `/auth/me`, `/auth/renew`) deliberately do
+ *  NOT come through here: see `data/auth.ts` for why requiring a live session
+ *  in order to create one cannot work, and `renew.ts` for the 401 loop.
  *
  *  ------------------------------------------------------------------
  *  QUYỀN ĐƯỢC CƯỠNG CHẾ Ở ĐÂY, KHÔNG CHỈ Ở CÁI NÚT
@@ -51,28 +72,11 @@ export type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
  *  the cut really happened comes back in `hidden` on the response. */
 export type ApiNeed = AccessNeed & { scoped?: boolean }
 
-/** Where the real backend lives, read from the environment in EXACTLY one
- *  place — this line. Pointing the app at another API is then one variable, not
- *  a hunt through seven query files.
- *
- *  The fallback is the LOCAL `apps/api` port documented in
- *  `docs/tich-hop-be.md`, deliberately not production: someone who never copied
- *  `.env.example` should hit their own machine and see a connection error, not
- *  quietly read and write the Fly.io database. Trailing slashes are trimmed
- *  because every `path` already opens with one, and `//sales/leads` is a 404
- *  that reads like a routing bug. */
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://127.0.0.1:4123'
-).replace(/\/+$/, '')
-
 /** Số hiệu yêu cầu. Máy chủ đọc đúng tên này (`problem.filter.ts`) và trả lại
  *  nguyên văn trong `traceId` của Problem — đó là sợi chỉ nối một dòng log ở
  *  màn với một dòng log ở máy chủ. Tên header phải là ASCII: `fetch` từ chối
  *  thẳng một tên có dấu, nên đây không phải chuyện thẩm mỹ. */
 const TRACE_HEADER = 'X-PV-Request-Id'
-
-/** Danh tính người gọi — CỬA SAU của POC. Xem `stampSession`. */
-const ACTOR_HEADER = 'X-PV-Actor-Id'
 
 export type ApiRequest = {
   path: string
@@ -115,36 +119,22 @@ const stampTrace: BeforeSend = (req) => ({
   headers: { ...req.headers, [TRACE_HEADER]: `${++traceSeq}` },
 })
 
-/** Session identity — and today this is the POC BACK DOOR, not authentication.
- *
- *  There is no `Authorization` header because there is no real token yet, and a
- *  fake one here would be believed by the next person to read this file (same
- *  reason `app/auth/session.ts` keeps no token). What the server trusts instead
- *  is `X-PV-Actor-Id`, and only while `PV_TRUST_ACTOR_HEADER=true` — `env.ts`
- *  refuses to boot with that flag in production, so this door cannot be left
- *  open by accident.
- *
- *  THIS FUNCTION IS THE ONE PLACE THAT CHANGES the day real auth lands.
- *  `docs/tich-hop-be.md` promises exactly that, so keep the promise: the actor
- *  header disappears from here, a cookie or an `Authorization` line takes its
- *  place, and nothing else in the app — no query, no screen — is touched.
- *  Anything that reaches around this function for identity breaks that promise
- *  and will have to be found by hand later. */
-const stampSession: BeforeSend = (req) => {
-  const { actor, ticket } = useSession.getState()
-  if (!actor || !ticket) return req
-  return {
-    ...req,
-    headers: { ...req.headers, [ACTOR_HEADER]: actor.id },
-  }
-}
-
 /** Phiên chết thì KHÔNG bắn request.
  *
  *  Bắn rồi đợi 401 cũng ra cùng kết quả, chỉ chậm hơn một vòng mạng và ồn hơn
  *  một dòng lỗi đỏ trong console. Quan trọng hơn: lúc màn khoá vì hết hạn,
  *  người dùng vẫn cuộn và vẫn mở tab — không chặn ở đây thì mỗi cú cuộn là một
- *  request chắc chắn hỏng. */
+ *  request chắc chắn hỏng.
+ *
+ *  This is a PRE-CHECK on the browser's copy of the session window, not the
+ *  fence. `sessionIsLive` reads the `Ticket`, which is a mirror of the
+ *  `SessionWindow` the server sent (`app/auth/session.ts`) — the server holds
+ *  the authoritative marks on the session row and re-checks them on every
+ *  request. So a clock skewed forward costs a needless trip to the lock screen,
+ *  and a clock skewed backward costs one wasted round trip that comes back 401;
+ *  neither one can buy a minute of access that the server did not grant. Keep
+ *  it precisely because it is cheap: it turns a burst of doomed requests into
+ *  no requests at all. */
 const requireLiveSession: BeforeSend = (req) => {
   if (sessionIsLive()) return req
   throw new ApiError({
@@ -155,7 +145,15 @@ const requireLiveSession: BeforeSend = (req) => {
 }
 
 /** Hàng rào quyền. Hỏi E2, và giữ nguyên LÝ DO bị chặn — màn cần phân biệt
- *  "công ty chưa mua nhánh" với "vai của bạn không có quyền". */
+ *  "công ty chưa mua nhánh" với "vai của bạn không có quyền".
+ *
+ *  The `actor` it asks about is now the one the SERVER sent, at sign-in or at
+ *  `/auth/me` — not one this app picked out of a fixture. That makes the two
+ *  ends agree by construction rather than by luck, and it moves the whole
+ *  weight of this check onto one translation: `data/auth.ts` maps the wire's
+ *  ASCII `roleId` onto the Vietnamese key `ROLE_PERMISSIONS` is written in. Get
+ *  that map wrong and `access.check` fails closed on every call — read the
+ *  warning at that table before touching either spelling. */
 const requireAccess: BeforeSend = (req) => {
   const verdict = access.check(useSession.getState().actor, req.need)
   if (verdict.ok) return req
@@ -168,7 +166,7 @@ const requireAccess: BeforeSend = (req) => {
   })
 }
 
-const BEFORE: BeforeSend[] = [stampTrace, stampSession, requireLiveSession, requireAccess]
+const BEFORE: BeforeSend[] = [stampTrace, requireLiveSession, requireAccess]
 
 // ---------------------------------------------------------------------------
 // Khi hỏng
@@ -294,10 +292,20 @@ async function send<T>(req: ApiRequest): Promise<T> {
     headers: req.headers,
     body: req.body === undefined ? undefined : JSON.stringify(req.body),
     signal: req.signal,
-    /* Cookie là đích đến của auth thật (`platform.session`), và một cookie
-       cross-origin chỉ đi khi cả hai đầu cùng bật. Máy chủ đã bật
-       `access-control-allow-credentials` rồi; bật nốt đầu này ngay hôm nay để
-       ngày đổi cửa không phải nhớ ra còn một nửa. */
+    /* THIS is where identity rides. One line, no interceptor, nothing for a
+       caller to pass in or forget.
+
+       The session token is an HttpOnly cookie on `platform.session`: script
+       cannot read it, so there is nothing for this app to copy into a header
+       and nothing for XSS to steal out of storage. The price of that is that
+       the cookie only travels when both ends opt in — the server sends
+       `access-control-allow-credentials`, and this flag is the other half. Drop
+       it and every call goes out anonymous while sign-in still looks like it
+       worked, which is the same symptom as the `127.0.0.1` mix-up documented in
+       `base-url.ts` and just as slow to find.
+
+       Do not add a header here that names the caller. A second, script-readable
+       copy of identity is the one thing HttpOnly was bought to prevent. */
     credentials: 'include',
   })
   /* Ném nguyên `Response` chứ không tự đọc thân ở đây: `toApiError` là chỗ duy

@@ -37,7 +37,19 @@ const Env = z
     }),
 
     /** Xem giải thích dài ở `.env.example`. Mặc định TẮT — cửa sau phải được
-     *  bật có chủ ý, không được mở ra vì ai đó quên khai biến. */
+     *  bật có chủ ý, không được mở ra vì ai đó quên khai biến.
+     *
+     *  Từ khi có phiên thật, cờ này chỉ còn mở một ĐƯỜNG LÙI: `ActorGuard` đọc
+     *  cookie `pv_session` trước, và chỉ hỏi tới `X-PV-Actor-Id` khi không có
+     *  cookie nào. Nó sống tiếp vì `curl`/Postman không có màn đăng nhập, chứ
+     *  không còn là cách app web nhận diện người dùng.
+     *
+     *  KHÔNG có biến nào khác được thêm cho luồng xác thực, và đó là một quyết
+     *  định: tên cookie, hạn phiên, nhịp quét phiên chết và ngưỡng hãm đăng
+     *  nhập đều là hằng số trong `platform/auth/`. Hạn phiên đã có đúng một
+     *  nguồn là `SESSION_LIMITS` của `@pv/contracts` — cả hai đầu dây cùng đọc
+     *  — nên một biến môi trường ở đây sẽ là bản thứ hai của con số đó, tức
+     *  đúng thứ hằng số kia sinh ra để chặn. */
     PV_TRUST_ACTOR_HEADER: z
       .enum(['true', 'false'])
       .default('false')
@@ -72,6 +84,30 @@ const Env = z
     /** Phải thuộc domain đã verify trên Resend. Nhìn thấy được nên để trong repo. */
     PV_EMAIL_FROM: z.string().default('PV One CRM <leads@notify.pebblevina.com>'),
     PV_EMAIL_REPLY_TO: z.string().default(''),
+
+    /** `From` for the two letters that carry a password link — lời mời và đặt
+     *  lại mật khẩu. Bỏ trống = dùng `PV_EMAIL_FROM`.
+     *
+     *  ------------------------------------------------------------------
+     *  VÌ SAO TÁCH, TRONG KHI CẢ HAI ĐỀU LÀ `transactional`
+     *  ------------------------------------------------------------------
+     *  `PV_EMAIL_FROM` mặc định là `leads@notify.pebblevina.com`, và một lá thư
+     *  bảo "bấm vào đây để đặt mật khẩu" đến từ hộp thư LEAD là đúng hình dạng
+     *  của một cú lừa. Thứ chúng ta đang dạy người trong công ty là: thư đặt
+     *  mật khẩu đến từ địa chỉ nào cũng được, miễn có logo. Sáu tháng sau, một
+     *  lá thư thật sự giả mạo sẽ vượt qua đúng bài kiểm tra đó.
+     *
+     *  Đây KHÔNG cùng lý do với `PV_EMAIL_MAS_FROM`. Cái kia tách để một chiến
+     *  dịch bounce hỏng không tiêu mất uy tín của tên miền giao dịch — chuyện
+     *  của nhà cung cấp. Cái này tách để người NHẬN nhận ra được thư nào là
+     *  thư mở cửa tài khoản của họ — chuyện của con người, và nó không sửa
+     *  được bằng cách chọn nhà cung cấp khác.
+     *
+     *  Bỏ trống là trạng thái BÌNH THƯỜNG, không phải cảnh báo: một tên miền
+     *  gửi là một cấu hình hoàn toàn hợp lệ cho tới ngày công ty muốn tách, nên
+     *  không có `.refine` nào đòi biến này. Nó chỉ phải thuộc domain đã verify
+     *  trên Resend, y như `PV_EMAIL_FROM`. */
+    PV_AUTH_EMAIL_FROM: z.string().default(''),
     PV_LEAD_NOTIFICATION_TO: z.string().default(''),
     /** Hộp thư nhận báo CƠ HỘI — mở đơn mới, và đơn thua.
      *

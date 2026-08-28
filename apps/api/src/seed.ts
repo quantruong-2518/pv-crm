@@ -19,6 +19,7 @@ import { configEntry } from '@api/branches/sales/config/config.schema'
 import { contract } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
 import { opportunity, opportunityOwner } from '@api/branches/sales/opportunity/opportunity.schema'
+import { passwordReset, session } from '@api/platform/auth/auth.schema'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
 import { loadEnv } from '@api/platform/config/env'
 
@@ -450,6 +451,20 @@ async function seed(): Promise<void> {
        `owner_id` của `CATEGORY` trỏ sang sổ nhân sự. */
     await tx.delete(configEntry)
     await tx.delete(objectRef)
+    /* Hai bảng xác thực, ngay trước `actor` vì cả hai trỏ vào nó.
+     *
+     *  Seed dựng lại sổ nhân sự từ fixture, mà fixture KHÔNG mang mật khẩu —
+     *  nên sau một lần seed, mọi tài khoản đều về trạng thái "chưa đặt mật
+     *  khẩu" và mọi phiên đang mở đều chết. Đó là hành vi ĐÚNG của một lệnh
+     *  dựng lại, không phải tác dụng phụ: giữ lại phiên của một sổ nhân sự vừa
+     *  bị xoá và nạp lại là giữ một vé trỏ vào người có thể không còn nữa.
+     *
+     *  Mật khẩu nạp bằng `seed-accounts.ts`, chạy SAU `db:seed`. Tách ra vì
+     *  một cái là dữ liệu demo đóng băng, cái kia là bí mật của một môi trường
+     *  cụ thể — trộn hai thứ đó vào một lệnh là cách để mật khẩu của máy này
+     *  đi lạc sang máy khác. */
+    await tx.delete(session)
+    await tx.delete(passwordReset)
     await tx.delete(actor)
 
     await tx.insert(actor).values(

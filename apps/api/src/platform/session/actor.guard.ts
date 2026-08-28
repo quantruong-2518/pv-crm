@@ -1,5 +1,7 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
+import { AuthService } from '../auth/auth.service'
+import { readSessionToken } from '../auth/cookie'
 import { ENV, type Env } from '../config/env'
 import { ActorRepository } from './actor.repository'
 
@@ -14,19 +16,39 @@ import { ActorRepository } from './actor.repository'
  *  cục theo đúng thứ tự khai báo, và `AccessGuard` cần `req.actor` đã có.
  *
  *  ------------------------------------------------------------------
- *  ĐÂY LÀ MỐI NỐI, KHÔNG PHẢI XÁC THỰC
+ *  THE SEAM IS NOW FILLED IN — COOKIE FIRST, HEADER ONLY AS A FALLBACK
  *  ------------------------------------------------------------------
- *  Hôm nay app web chưa có token thật — `app/auth/session.ts` cố tình không
- *  giữ token giả, nó chỉ gắn header `X-PV-Actor-Id`. Guard này tin header đó,
- *  và CHỈ khi `PV_TRUST_ACTOR_HEADER=true`; `env.ts` từ chối khởi động nếu cờ
- *  đó bật ở production. Khi có phiên thật, thân hàm `resolve` đổi thành đọc
- *  cookie đã ký rồi tra bảng `platform.session` — phần còn lại của app không
- *  đụng một dòng. */
+ *  This docblock used to say that when real sessions arrived, `resolve` would
+ *  become "read the cookie, then look up `platform.session`". That is what it
+ *  now does, and the ORDER is the part worth stating: the cookie is tried
+ *  first, and `X-PV-Actor-Id` is consulted only when there is no cookie at all.
+ *
+ *  Reversing that would be a live impersonation hole rather than a style
+ *  choice: on a machine with `PV_TRUST_ACTOR_HEADER=true`, a header wins over a
+ *  real signed-in session, so anything able to add a header to a request —
+ *  a browser extension, a proxy, a piece of test tooling somebody forgot to
+ *  remove — silently becomes whoever it names. Cookie first means the header
+ *  can only ever answer a question nobody else answered.
+ *
+ *  The header survives at all because `curl` and Postman have no sign-in
+ *  screen, and because `env.ts` refuses to boot with the flag on in production.
+ *  `.env` now ships with it OFF, so the real path is the one exercised on a
+ *  development machine; flip it on deliberately for a session with a terminal.
+ *
+ *  ------------------------------------------------------------------
+ *  STILL `return true`, ALWAYS
+ *  ------------------------------------------------------------------
+ *  Unchanged, and now load-bearing in a second way: `/auth/sign-in` and
+ *  `/auth/forgot-password` are reached by people who by definition have no
+ *  session, so a guard that refused unauthenticated requests here would wall
+ *  off the only doors that can produce a session. "Anh là ai" and "anh được
+ *  làm gì" stay two questions; the second is `AccessGuard`'s. */
 @Injectable()
 export class ActorGuard implements CanActivate {
   constructor(
     @Inject(ENV) private readonly env: Env,
     private readonly actors: ActorRepository,
+    private readonly auth: AuthService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -39,6 +61,12 @@ export class ActorGuard implements CanActivate {
   }
 
   private async resolve(req: FastifyRequest) {
+    const token = readSessionToken(req)
+    /* `AuthService.resolve` also pushes the sitting-still mark forward when it
+       has fallen more than a minute behind — that write belongs to reading the
+       session, not to the guard, so it is on the far side of this call. */
+    if (token) return await this.auth.resolve(token)
+
     if (!this.env.PV_TRUST_ACTOR_HEADER) return null
     const id = req.headers['x-pv-actor-id']
     return typeof id === 'string' && id ? await this.actors.byId(id) : null

@@ -67,7 +67,7 @@ const scenario: Scenario = {
     {
       id: 'u-ha',
       name: 'Trần Thu Hà',
-      email: 'ha@pebblevina.vn',
+      email: 'sales@pebblevina.com',
       role: 'Trưởng phòng Kinh doanh',
       roleId: 'trưởng-phòng',
       branches: ['One', 'Sales'],
@@ -75,7 +75,7 @@ const scenario: Scenario = {
     {
       id: 'u-chau',
       name: 'Vũ Minh Châu',
-      email: 'chau@pebblevina.vn',
+      email: 'chau@pebblevina.com',
       role: 'Marketing',
       roleId: 'marketing',
       branches: ['One', 'Sales'],
@@ -83,7 +83,7 @@ const scenario: Scenario = {
     {
       id: 'u-nam',
       name: 'Lê Hoàng Nam',
-      email: 'nam@pebblevina.vn',
+      email: 'nam@pebblevina.com',
       role: 'BD',
       roleId: 'bd',
       branches: ['One', 'Sales'],
@@ -94,7 +94,7 @@ const scenario: Scenario = {
        *  quyền không nhúc nhích. */
       id: 'u-huy',
       name: 'Đỗ Quang Huy',
-      email: 'huy@pebblevina.vn',
+      email: 'huy@pebblevina.com',
       role: 'Sale · chip',
       roleId: 'sale',
       branches: ['One', 'Sales'],
@@ -103,7 +103,7 @@ const scenario: Scenario = {
     {
       id: 'u-binh',
       name: 'Đặng Thanh Bình',
-      email: 'binh@pebblevina.vn',
+      email: 'binh@pebblevina.com',
       role: 'Sale · cơ khí, ô tô',
       roleId: 'sale',
       branches: ['One', 'Sales'],
@@ -112,7 +112,7 @@ const scenario: Scenario = {
     {
       id: 'u-linh',
       name: 'Nguyễn Khánh Linh',
-      email: 'linh@pebblevina.vn',
+      email: 'linh@pebblevina.com',
       role: 'Sale · dược',
       roleId: 'sale',
       branches: ['One', 'Sales'],
@@ -121,7 +121,7 @@ const scenario: Scenario = {
     {
       id: 'u-anh',
       name: 'Phạm Diệu Anh',
-      email: 'anh@pebblevina.vn',
+      email: 'anh@pebblevina.com',
       role: 'Presales',
       roleId: 'presales',
       branches: ['One', 'Sales'],

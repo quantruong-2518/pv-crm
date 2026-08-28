@@ -102,6 +102,23 @@ export const PERMISSIONS = [
   'cấu-hình.xem',
   'cấu-hình.đề-nghị',
   'ghi-vết.xem',
+  /** Mở tài khoản, gán vai, khoá người — màn Quản trị · Người dùng.
+   *
+   *  Quyền RỘNG NHẤT trong bảng này, và nó rộng theo một kiểu khác hẳn mọi
+   *  quyền còn lại: ai có nó thì tự cấp được cho mình mọi quyền khác, chỉ bằng
+   *  cách sửa `roleId` của chính mình. Vì thế nó không nằm trong hàng của
+   *  `marketing` · `bd` · `presales` · `sale` — không phải vì bốn vai đó không
+   *  cần, mà vì cấp nó cho họ là cấp luôn cả bảng.
+   *
+   *  Hai vai duy nhất có nó (`giám-đốc`, `trưởng-phòng`) nhận tự động vì hàng
+   *  của họ viết là `PERMISSIONS` chứ không liệt kê tay — đúng lý do docblock
+   *  của `giám-đốc` đã nói: thêm quyền mới mà quên thêm cho họ là lỗi vô hình.
+   *
+   *  Máy chủ còn chặn thêm một tầng nữa mà bảng này không biết và không cần
+   *  biết: người có quyền vẫn KHÔNG tự hạ vai hay tự khoá mình được. Đó là luật
+   *  về một dòng cụ thể (chính mình), nên nó thuộc service, không thuộc ma trận
+   *  vai — cùng lý do trục 3 không nằm ở đây. */
+  'người-dùng.quản-lý',
   'phê-duyệt.duyệt',
   'dữ-liệu.xuất',
 ] as const

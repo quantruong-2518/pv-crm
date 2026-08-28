@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/auth'
+import { SESSION_LIMITS, useSession } from '@/app/auth'
 
 /** Dựng một màn trong test với đúng ba thứ màn thật có: router, query client,
  *  và một phiên đăng nhập.
@@ -43,7 +43,19 @@ function wrap(children: ReactNode, route: string) {
 function signIn(actorId = 'u-ha') {
   const actor = dasVina.actors.find((a) => a.id === actorId)
   if (!actor) throw new Error(`Không có vai ${actorId} trong kịch bản`)
-  useSession.getState().signIn(actor)
+  /* Cửa sổ phiên dựng tại chỗ vì trong test không có máy chủ để hỏi. Đây là
+     bản sao đúng hình dạng của thứ `/auth/sign-in` trả về, không phải một hình
+     dạng riêng cho test: `signIn` chỉ nhận `SessionWindow`, nên một ngày nào đó
+     hợp đồng đổi thì dòng này đỏ cùng lúc với app. Hạn lấy từ `SESSION_LIMITS`
+     để vé sống suốt ca test thay vì chết giữa chừng vì một con số gõ tay. */
+  const now = Date.now()
+  useSession.getState().signIn(actor, {
+    session: {
+      issuedAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + SESSION_LIMITS.absolute).toISOString(),
+      idleUntil: new Date(now + SESSION_LIMITS.idle).toISOString(),
+    },
+  })
   useLeadDesk.getState().reset()
 }
 

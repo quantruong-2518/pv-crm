@@ -59,6 +59,17 @@ type NavEntry = {
    *  bấm được rồi không đi đâu tệ hơn hẳn một nút nói thẳng là chưa mở. */
   path?: string
   count?: number
+  /** Role permission the screen behind this entry asks for — must match the
+   *  `permission` of the same `path` in `routes.tsx`, for the reason
+   *  `SalesModule.permission` gives just below: the two tables cannot be merged
+   *  without an import cycle, so they sit next to matching paths instead.
+   *
+   *  Absent means the entry is open to anyone with a live session, which is
+   *  true of `/` and will be true of most Core screens. Present means a role
+   *  without it sees the entry LOCKED rather than sees a button that leads
+   *  straight to a refusal — the same treatment the six Sales modules get, on
+   *  One Core's own terms: no branch, because Core is licensed to everybody. */
+  permission?: Permission
 }
 
 /** Hai con số này mang nguyên từ màn 01 sang, CHƯA có fixture nào đỡ. Lúc dựng
@@ -76,7 +87,17 @@ const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/' },
   { icon: SquareCheckBig, label: 'Phê duyệt', count: APPROVALS_WAITING },
   { icon: Bell, label: 'Thông báo', count: NOTIFICATIONS_UNREAD },
-  { icon: ShieldCheck, label: 'Quản trị & ghi vết' },
+  {
+    /** Renamed from "Quản trị & ghi vết" the day it got a screen: the entry now
+     *  leads to the people book, and the audit log is a screen that does not
+     *  exist yet. A label promising two things where one is behind it teaches
+     *  people to look for a trail that is not there. "& ghi vết" comes back with
+     *  the audit screen, or the entry grows a second child. */
+    icon: ShieldCheck,
+    label: 'Quản trị',
+    path: '/quan-tri/nguoi-dung',
+    permission: 'người-dùng.quản-lý',
+  },
 ]
 
 /** BottomNav (< lg) — bốn mục CHỐT theo docs/luat-thiet-ke.md §3, không cấu hình
@@ -197,11 +218,25 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
 
-  /** Mục Core không có đường dẫn thì khoá. "Phê duyệt", "Thông báo" và
-   *  "Quản trị & ghi vết" là năng lực thật nhưng màn chưa dựng; trạng thái khoá
-   *  nói đúng điều đó thay vì để một nút bấm không đi đâu. */
+  /** A Core entry locks on either of TWO axes, and they say different things.
+   *
+   *   · **No `path`** — the screen does not exist yet. "Phê duyệt" and "Thông
+   *     báo" are real capabilities with nothing built behind them, and a locked
+   *     entry says so honestly instead of offering a button that goes nowhere.
+   *     Filling in the path is the whole ritual for unlocking one.
+   *   · **No `permission`** — the screen exists and this role may not open it.
+   *     Asked through the same `access.check` the route guard uses, so nav and
+   *     door never disagree; asked with `branch: null` because One Core is
+   *     licensed to everybody, and passing a branch here would deny a Sales-only
+   *     account a screen that has nothing to do with Sales.
+   *
+   *  Without the second axis a `sale` would see "Quản trị" sitting in the top
+   *  bar, click it, and be bounced by `RequireAccess` — a nav item whose only
+   *  destination is a refusal. */
   const plain = (entry: NavEntry): HeaderAction => {
-    const locked = !entry.path
+    const granted =
+      !entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok
+    const locked = !entry.path || !granted
     return {
       icon: entry.icon,
       label: entry.label,
