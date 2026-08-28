@@ -140,11 +140,11 @@ export const MailTemplateCode = z
  *  hand. A second round trip per pick would make choosing a template feel like
  *  loading a page, for two strings totalling a few hundred bytes.
  *
- *  And that is all a template is at this stage: pre-filled TEXT. It is not a
- *  renderer, has no variables, and holds no React — the free-text MAS composer
- *  wraps whatever the user finally typed. The day templates gain substitution
- *  variables, that is a field added here and a renderer registered against
- *  `MAIL_COMPOSER`, not a change to how a run is sent.
+ *  Template vẫn là TEXT, không giữ React hay renderer, nhưng text được phép
+ *  mang biến trộn `{{account}}` và `{{contact_name}}`. Panel preview bằng dữ
+ *  liệu một lead; worker thay biến lại cho TỪNG delivery từ snapshot `merge`.
+ *  Hai alias cũ `company`/`contactName` vẫn được giữ để template đã lưu không
+ *  hỏng khi tên hiển thị được chuẩn hóa theo ngôn ngữ sản phẩm.
  *
  *  `active: false` is the only form of deletion, matching `ConfigEntry` in
  *  `./config`: a run already sent points at its template, and a row that

@@ -24,12 +24,11 @@ import { cn } from '../lib/cn'
  *   6 · trình duyệt không có kéo-thả thì bốn đường trên vẫn nguyên.
  *
  *  ------------------------------------------------------------------
- *  KHÔNG VIỀN ĐỨT — LUẬT 4
+ *  DẢI CHẤM KHÔNG PHẢI BOX BORDER — LUẬT 4
  *  ------------------------------------------------------------------
- *  Vùng thả ở mọi nơi khác đều vẽ bằng viền đứt. Hệ này borderless
- *  (`--border: transparent`), nên mép đọc bằng MẶT: nghỉ thì là mặt tối phẳng,
- *  đang kéo vào thì đổi sang mặt azure của khối AI (`.glass-ai`) — cùng thứ
- *  ngôn ngữ mà `NavItem` active đang dùng để nói "chỗ này đang nhận".
+ *  Mép chấm người dùng yêu cầu được vẽ bằng bốn dải radial-gradient trong
+ *  `.drop-dots`, không dùng `border`. Vì vậy vùng vẫn borderless; lúc kéo vào,
+ *  mặt đổi sang azure của `.glass-ai` còn dải chấm vẫn đứng yên làm mốc thả.
  *
  *  ------------------------------------------------------------------
  *  LỖI HIỆN TRONG KHUNG, KHÔNG BẮN TOAST
@@ -216,7 +215,7 @@ export function FileDrop({
         }}
         onClick={openPicker}
         className={cn(
-          'motion-std flex flex-col items-center gap-4 rounded-lg px-4 py-8 text-center',
+          'drop-dots motion-std relative flex flex-col items-center gap-4 rounded-lg px-4 py-8 text-center',
           busy ? 'cursor-progress bg-white/[3%]' : 'cursor-pointer',
           !busy && over && 'glass-ai',
           !busy && !over && (fileName ? 'bg-primary/12' : 'hover:bg-white/8 bg-white/[4.5%]'),
@@ -224,9 +223,13 @@ export function FileDrop({
       >
         <Icon
           icon={fileName ? FileSpreadsheet : FileUp}
-          size={26}
+          size={64}
           strokeWidth={over ? 1.9 : 1.75}
-          className={over || fileName ? 'text-accent-foreground' : 'text-muted-foreground'}
+          className={
+            over || fileName
+              ? 'text-accent-foreground opacity-80'
+              : 'text-muted-foreground opacity-60'
+          }
         />
 
         <div className="flex flex-col gap-2">
@@ -237,7 +240,7 @@ export function FileDrop({
                 ? 'Thả ra là nhận'
                 : fileName
                   ? fileName
-                  : 'Kéo tệp vào đây'}
+                  : 'Kéo và thả tệp dữ liệu vào đây'}
           </p>
           <p id={describedBy} className="text-muted-foreground text-[11.5px]">
             {accept.join(' · ')} · tối đa {sizeText(maxBytes)}
@@ -266,7 +269,7 @@ export function FileDrop({
             openPicker()
           }}
         >
-          {fileName ? 'Chọn tệp khác' : 'Chọn tệp'}
+          {fileName ? 'Chọn tệp khác' : 'Chọn tệp từ máy'}
         </Button>
 
         {hint && (

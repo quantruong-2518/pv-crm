@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   CalendarClock,
   Check,
@@ -27,8 +28,11 @@ import {
   SegmentedControl,
   Select,
   Separator,
+  Skeleton,
   StatusDot,
   Textarea,
+  Timeline,
+  type StatusDotState,
   billions,
   cn,
   dong,
@@ -55,11 +59,17 @@ import {
    gửi (trường vắng nghĩa là chưa moi được). `profileForm` là chỗ duy nhất đi
    từ cái sau sang cái trước. Đặt bí danh chứ không import bừa: một cái tên
    chọn nhầm ở đây là cả cái form đọc sai một hồ sơ. */
-import type { LeadProfile as WireLeadProfile } from '@pv/contracts'
+import {
+  MAIL_RUN_STATE_LABEL,
+  type LeadMailTimelineRow,
+  type LeadProfile as WireLeadProfile,
+} from '@pv/contracts'
 import { todosOf, useLeadDesk } from '@/app/desk'
 import { useSession } from '@/app/auth'
 import { dm, dmy } from '@/lib/date'
 import { nextActions } from '@/data/leads'
+import { leadMailTimelineQuery } from '@/data/mas'
+import { isApiError, userMessage } from '@/app/api'
 import { profileForm } from '@/data/lead-profile'
 import {
   changedFields,
@@ -929,4 +939,140 @@ function Bubbles({ turn }: { turn: TranscriptTurn }) {
       ))}
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Sổ mail của lead — GET /sales/leads/:code/mail
+// ---------------------------------------------------------------------------
+
+/** Mình đã viết cho người này mấy lần, và có tín hiệu gì không.
+ *
+ *  ------------------------------------------------------------------
+ *  KHÔNG BAO GIỜ VIẾT "CHƯA ĐỌC". VIẾT "CHƯA CÓ TÍN HIỆU MỞ".
+ *  ------------------------------------------------------------------
+ *  Đếm lượt mở là một cái ảnh 1×1, và nó hỏng theo CẢ HAI chiều cùng lúc:
+ *
+ *   · Apple Mail Privacy Protection tự tải mọi ảnh trên máy chủ của Apple, cho
+ *     mọi người bật nó — sinh ra lượt mở KHÔNG AI thực hiện. Trên một tệp B2B
+ *     Việt Nam đây không phải trường hợp hiếm, nó là phần lớn người dùng
+ *     iPhone.
+ *   · Gmail cache ảnh đó, nên mọi lần mở sau lần đầu KHÔNG được đếm.
+ *   · Ai đọc thư với chế độ tắt ảnh thì đọc mà không đếm gì cả.
+ *
+ *  Nên `openCount` là một SÀN DƯỚI CÓ NHIỄU, và ở quy mô một lead thì nhiễu đó
+ *  nặng hơn nhiều so với cả lô: một lượt mở ma biến một khách phớt lờ mình
+ *  thành một khách "đọc hai lần". Màn này vì thế không có chữ "chưa đọc" và
+ *  không có tỉ lệ phần trăm nào — nó nói "chưa có tín hiệu mở", là đúng thứ dữ
+ *  liệu này chở được. `clickCount` mới là thứ đáng tin: một cú click là một
+ *  hành động người ta chủ động làm, không có proxy ảnh nào bịa ra được.
+ *
+ *  ------------------------------------------------------------------
+ *  MỘT MỐC LÀ MỘT `mail_run`, KHÔNG PHẢI MỘT SỰ KIỆN
+ *  ------------------------------------------------------------------
+ *  Thẻ này chèn TRƯỚC `ActivityCard`: nó cụ thể hơn — đây là những lá thư đã
+ *  gửi cho đúng người này — còn dòng thời gian kia là dòng chảy chung của lead.
+ *
+ *  Trạng thái của một mốc gộp HAI trục lại thành một chấm, và thứ tự đọc là
+ *  thứ tự ưu tiên: người dùng cần biết "có tín hiệu gì không" trước, "thư có
+ *  tới không" sau — trừ khi thư KHÔNG tới, lúc đó đó mới là tin quan trọng
+ *  nhất trên mốc. Xem `dotOf`. */
+export function MailTimelineCard({ code }: { code: string }) {
+  const { data, isPending, error } = useQuery(leadMailTimelineQuery(code))
+  const rows = data?.rows ?? []
+
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Sổ mail của lead">
+      <SectionTitle
+        size="md"
+        hint="Mỗi mốc là một lô gửi. Số lượt mở là sàn dưới có nhiễu — click mới là tín hiệu đáng tin."
+      >
+        Mail đã gửi
+      </SectionTitle>
+
+      {isPending ? (
+        <Skeleton className="h-16 w-full" />
+      ) : error ? (
+        /* Hỏi không được thì nói là hỏi không được — cùng luật với sổ lead.
+           Một thẻ trống ở đây đọc ra là "chưa gửi lá thư nào", và đó là câu sai
+           nguy hiểm nhất thẻ này có thể nói: nó dẫn người dùng đi gửi thêm một
+           lá thư nữa cho người vừa nhận ba lá. */
+        <p className="text-warning text-[11.5px] leading-[1.6]">
+          Không đọc được sổ mail của lead này.{' '}
+          {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.6]">
+          Chưa gửi lá thư nào cho lead này.
+        </p>
+      ) : (
+        <Timeline
+          items={rows.map((row) => ({
+            id: row.runId,
+            state: dotOf(row),
+            marker: MAIL_RUN_STATE_LABEL[row.runState],
+            title: row.label,
+            meta: (
+              <>
+                <MetaPill mono>{dmy(row.scheduledAt ?? '')}</MetaPill>
+                <MetaPill tone={row.clickCount > 0 ? 'accent' : undefined}>
+                  {signalOf(row)}
+                </MetaPill>
+              </>
+            ),
+            children: row.failReason ? (
+              <span className="text-warning">Không tới được: {row.failReason}</span>
+            ) : undefined,
+          }))}
+        />
+      )}
+    </GlassCard>
+  )
+}
+
+/** Hai trục → một chấm, theo thứ tự đọc của người dùng.
+ *
+ *  `bad` đứng trước mọi thứ: một lá thư bounce hoặc hỏng là tin quan trọng
+ *  nhất trên mốc, và nó cũng là thứ duy nhất đòi một hành động (sửa địa chỉ,
+ *  hoặc thôi đuổi theo). `warning` cho lá thư bị GIỮ LẠI — địa chỉ đã nằm
+ *  trong sổ chặn lúc tới lượt nó — vì đó không phải lỗi đường ống mà là dấu
+ *  hiệu tệp danh sách đang mục.
+ *
+ *  Rồi mới tới tín hiệu: `ok` khi người ta ĐÃ CLICK hoặc đã mở, `current` khi
+ *  thư đã tới mà chưa có tín hiệu gì, `next` khi còn đang xếp hàng. */
+function dotOf(row: LeadMailTimelineRow): StatusDotState {
+  if (FAILED_MAIL[row.deliveryState]) return 'bad'
+  if (row.deliveryState === 'suppressed') return 'warning'
+  if (row.clickCount > 0 || row.openCount > 0) return 'ok'
+  if (DELIVERED_MAIL[row.deliveryState]) return 'current'
+  return 'next'
+}
+
+/** Một câu về tín hiệu — và câu "chưa có tín hiệu mở" là câu quan trọng nhất
+ *  trong file này. Xem docblock của `MailTimelineCard`. */
+function signalOf(row: LeadMailTimelineRow): string {
+  if (row.clickCount > 0) {
+    return row.clickCount === 1 ? 'đã bấm liên kết' : `đã bấm liên kết ${row.clickCount} lần`
+  }
+  if (row.openCount > 0) return `có ${row.openCount} tín hiệu mở`
+  if (FAILED_MAIL[row.deliveryState]) return 'không tới được'
+  if (row.deliveryState === 'suppressed') return 'bị giữ lại — địa chỉ đã chặn'
+  if (DELIVERED_MAIL[row.deliveryState]) return 'chưa có tín hiệu mở'
+  return 'đang trên đường'
+}
+
+/* Hai bảng tra thay cho hai chuỗi `||`: mười giá trị của `MAIL_STATES` nằm bên
+   `apps/api`, không import sang đây được (`LeadMailTimelineRow.deliveryState`
+   giải thích vì sao trường này là `string` trần), nên thứ duy nhất đúng là kể
+   tên đúng những giá trị màn này biết xử. Giá trị lạ rơi vào nhánh cuối cùng —
+   "đang trên đường" — là hướng hỏng an toàn: nói ít hơn sự thật, không nói sai. */
+const FAILED_MAIL: Record<string, true | undefined> = {
+  bounced: true,
+  complained: true,
+  failed_permanent: true,
+  dead: true,
+}
+
+const DELIVERED_MAIL: Record<string, true | undefined> = {
+  accepted: true,
+  delivered: true,
 }

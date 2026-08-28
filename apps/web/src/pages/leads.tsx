@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck, Check, FileCheck, Inbox, Mail, PenLine, Pin, Target, Users } from '@pv/ui'
+import {
+  CalendarCheck,
+  FileCheck,
+  Inbox,
+  Mail,
+  PenLine,
+  Pin,
+  Target,
+  TriangleAlert,
+  Users,
+} from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -58,11 +68,12 @@ import { dm } from '@/lib/date'
 import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery } from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
+import { isApiError, userMessage } from '@/app/api'
 import { LEAD_SPEC } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { LeadCreateDialog } from '@/components/lead-create-dialog'
-import { QuickMailDialog } from '@/components/quick-mail-dialog'
+import { MasMailDrawer } from '@/components/mas-mail-drawer'
 import { Pager, PersonCell, PicCell } from '@/components/table-bits'
 
 /** Module 2 · Sổ lead.
@@ -245,13 +256,6 @@ const NO_SOURCES: ConfigEntry[] = []
  *  chống trùng bằng `leadBookKeys` — cùng một panel, hai cách dùng. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
-/** Tập chọn rỗng của Quick MAS — hằng dùng chung để tránh mỗi lượt vẽ tạo một
- *  `Set` mới, cùng lý do với `NO_LOCAL_KEYS` ngay trên nhưng KHÔNG dùng chung
- *  hằng đó: hai tập rỗng trả lời hai câu khác nhau (chống trùng cục bộ của
- *  panel nạp · lựa chọn của Quick MAS), gộp lại là một hằng tên sai ý ở một
- *  trong hai chỗ dùng nó. */
-const NO_SELECTION: ReadonlySet<string> = new Set()
-
 /** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
  *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết. Hạn vẫn đọc từ
  *  `PIPELINE_STAGES` — mục 5.2 của module Cấu hình, không chế ở đây. */
@@ -272,7 +276,18 @@ export function LeadsPage() {
   const urlQuery = useMemo(() => parseLeadBookQuery(params), [params])
   const query = useMemo<LeadBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
 
-  const { data: bookPage, isPending } = useQuery(leadBookQuery(query))
+  /* `error` đọc ra, KHÔNG bỏ — `fix-later.md` mục 2.
+     Bỏ nó đi thì một máy chủ chết hiện ra thành "Không có lead nào khớp bộ lọc
+     đang chọn" kèm nút "Bỏ hết bộ lọc", console sạch trơn: người dùng đi sửa
+     bộ lọc cho một sự cố hạ tầng, và chỉ dừng lại khi đã bỏ hết bộ lọc mà sổ
+     vẫn trống. "Không có dòng nào" và "không hỏi được" là hai câu khác nhau và
+     dẫn tới hai việc khác nhau — xem nhánh `bookError` ở chỗ vẽ bảng. */
+  const {
+    data: bookPage,
+    isPending,
+    error: bookError,
+    refetch: refetchBook,
+  } = useQuery(leadBookQuery(query))
   const rows = bookPage?.rows ?? []
   const total = bookPage?.total ?? 0
 
@@ -393,39 +408,9 @@ export function LeadsPage() {
      `useState` của màn chứ không ở `app/` — cùng luật với số trang và bộ lọc. */
   const [typing, setTyping] = useState(false)
 
-  /* Quick MAS · chế độ chọn dòng để gửi mail hàng loạt (demo, xem docblock của
-     `QuickMailDialog`). CHẾT theo màn, không lên `app/desk.ts`: khác ghim, một
-     lượt chọn ở đây chỉ có nghĩa cho tới khi mail được soạn xong, không phải
-     thứ sống qua nhiều lần mở màn.
-     `selected` giữ MÃ lead chứ không giữ cả dòng, và giữ nguyên khi đổi trang —
-     một lô gửi thường rải trên nhiều trang 10 dòng, tắt lựa chọn mỗi lần lật
-     trang là bắt người dùng chọn lại từ đầu. */
-  const [selectMode, setSelectMode] = useState(false)
-  const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION)
+  /* Quick MAS sống trọn trong Drawer: người nhận, mẫu, tiêu đề và preview cùng
+     một chỗ. Sổ không đổi cột hay chèn thêm section khi soạn mail. */
   const [composing, setComposing] = useState(false)
-
-  const toggleSelectMode = () => {
-    setSelectMode((on) => !on)
-    setSelected(NO_SELECTION)
-  }
-
-  const toggleSelected = (code: string) =>
-    setSelected((current) => {
-      const next = new Set(current)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
-      return next
-    })
-
-  /* Đọc từ `wholeBook` chứ không từ `rows` của trang đang xem: lựa chọn rải
-     trên nhiều trang, và panel soạn mail cần đủ tên + hòm thư của CẢ lô. */
-  const selectedLeads = useMemo(
-    () =>
-      [...selected]
-        .map((code) => wholeBook.find((l) => l.code === code))
-        .filter((l): l is LeadRow => Boolean(l)),
-    [selected, wholeBook],
-  )
 
   const loadFile = useLeadImport()
 
@@ -495,8 +480,8 @@ export function LeadsPage() {
               />
               <Button
                 size="md"
-                variant={selectMode ? 'default' : 'ghost'}
-                onClick={toggleSelectMode}
+                variant="ghost"
+                onClick={() => setComposing(true)}
                 className="max-sm:flex-1"
               >
                 <Icon icon={Mail} size={16} />
@@ -512,7 +497,7 @@ export function LeadsPage() {
             đứng cạnh nó — không còn ba dòng nút pill để mắt phải quét. */}
         <ScreenToolbar
           label="Bộ lọc sổ lead"
-          className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(160px,1fr))_auto] xl:items-center"
+          className="grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-3 xl:items-center min-[1440px]:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(150px,1fr))_auto]"
         >
           <SearchField
             size="topbar"
@@ -579,21 +564,6 @@ export function LeadsPage() {
           )}
         </ScreenToolbar>
 
-        {selectMode && (
-          <GlassCard
-            variant="b"
-            className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-          >
-            <span className="text-[12.5px]">
-              Đã chọn <span className="tnum font-num font-semibold">{selected.size}</span> lead
-            </span>
-            <Button size="md" disabled={selected.size === 0} onClick={() => setComposing(true)}>
-              <Icon icon={Mail} size={16} />
-              Soạn mail
-            </Button>
-          </GlassCard>
-        )}
-
         {pinned.length > 0 && (
           <PinnedStrip
             leads={pinned}
@@ -633,6 +603,20 @@ export function LeadsPage() {
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
               </div>
+            ) : bookError ? (
+              /* Hỏi không được thì nói là hỏi không được. Nút mời THỬ LẠI chứ
+                 không mời bỏ bộ lọc: bộ lọc không phải thứ đang hỏng, và một
+                 nút sửa nhầm chỗ tốn của người dùng nhiều thời gian hơn là
+                 không có nút nào. `userMessage` trả câu máy chủ tự viết khi có,
+                 nên "mất mạng" và "phiên hết hạn" đọc ra khác nhau. */
+              <EmptyState
+                icon={TriangleAlert}
+                message={`Không lấy được sổ lead. ${
+                  isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+                }`}
+                action={{ label: 'Thử lại', onClick: () => void refetchBook() }}
+                className="py-12"
+              />
             ) : rows.length === 0 ? (
               <EmptyState
                 icon={Inbox}
@@ -659,10 +643,6 @@ export function LeadsPage() {
                   )
                 }}
                 columns={[
-                  /* Cột chọn dòng của Quick MAS — chỉ có mặt khi chế độ chọn
-                   đang bật, đứng trước cả Ghim vì đây là thao tác đang diễn ra,
-                   ghim là trạng thái đã có sẵn. */
-                  ...(selectMode ? [{ header: '', width: '36px' }] : []),
                   { header: 'Ghim', width: '52px' },
                   { header: 'Mã', width: '0.85fr' },
                   { header: 'Account', width: '1.6fr', sortKey: 'company' },
@@ -684,16 +664,6 @@ export function LeadsPage() {
                   id: l.code,
                   onOpen: () => open(l.code),
                   cells: [
-                    ...(selectMode
-                      ? [
-                          <SelectCell
-                            key="sel"
-                            on={selected.has(l.code)}
-                            company={l.company}
-                            onToggle={() => toggleSelected(l.code)}
-                          />,
-                        ]
-                      : []),
                     <PinCell
                       key="p"
                       on={pins.includes(l.code)}
@@ -740,11 +710,12 @@ export function LeadsPage() {
             `leadFacetQuery` — nên lead mới có mặt trong bảng và trong hai ô lọc
             người/công ty cùng một lúc. Dialog tự đóng khi 201 về. */}
         <LeadCreateDialog open={typing} onClose={() => setTyping(false)} />
-        <QuickMailDialog
+        <MasMailDrawer
           open={composing}
           onClose={() => setComposing(false)}
-          leads={selectedLeads}
-          onSent={toggleSelectMode}
+          leads={wholeBook}
+          defaultLabel="Quick MAS · Sổ lead"
+          onQueued={() => setComposing(false)}
         />
       </ScreenLayout>
     </AppShell>
@@ -1027,51 +998,6 @@ function PinCell({
     >
       <Icon icon={Pin} size={16} />
     </button>
-  )
-}
-
-/** Ô chọn dòng của Quick MAS — cùng khuôn với `PinCell` ngay trên (size-8,
- *  chặn click nổi bọt) nhưng KHÔNG dùng chung component: Pin là một nút bật/tắt
- *  một trạng thái đã có sẵn của lead, còn đây là một lựa chọn CHẾT theo phiên
- *  soạn mail hiện tại — hai thứ tình cờ trông giống nhau, không phải cùng một
- *  khái niệm. Vẽ tay `<input type="checkbox">` thay vì gọi atom `Checkbox`
- *  (A-16): atom đó bọc sẵn nhãn hiển thị + `px-3 py-2` cho một dòng trong danh
- *  sách chọn, phồng hơn khuôn ô bảng size-8 mà cột này cần khớp với `Ghim`. */
-function SelectCell({
-  on,
-  company,
-  onToggle,
-}: {
-  on: boolean
-  company: string
-  onToggle: () => void
-}) {
-  return (
-    <label
-      className={cn(
-        'motion-std flex size-8 cursor-pointer items-center justify-center rounded-md',
-        on ? 'bg-primary/24' : 'hover:bg-white/9',
-      )}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <input
-        type="checkbox"
-        checked={on}
-        aria-label={on ? `Bỏ chọn ${company}` : `Chọn ${company}`}
-        onChange={onToggle}
-        className="peer sr-only"
-      />
-      <span
-        aria-hidden
-        className={cn(
-          'motion-std flex size-4 items-center justify-center rounded-sm',
-          on ? 'bg-primary text-primary-foreground' : 'bg-white/12',
-          'peer-focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_60%,transparent)]',
-        )}
-      >
-        {on && <Icon icon={Check} size={14} strokeWidth={1.9} />}
-      </span>
-    </label>
   )
 }
 

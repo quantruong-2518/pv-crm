@@ -510,8 +510,8 @@ export class MasService {
 
   /** One recipient's promise to send.
    *
-   *  `merge` carries `company` and `contactName` across the platform boundary
-   *  ONCE, here, at enqueue time — that is the entire reason
+   *  `merge` carries account/company and contact-name aliases across the
+   *  platform boundary ONCE, here, at enqueue time — that is the entire reason
    *  `email_delivery.merge` exists. The composer runs in the worker, in
    *  `platform/`, where `sales.lead` is unreadable; a letter that had to look
    *  its own recipient up would drag the platform across the line at every
@@ -526,7 +526,12 @@ export class MasService {
       templateVersion: TEMPLATE_VERSION,
       recipient: row.email,
       mailRunId,
-      merge: { company: row.company, contactName: row.contactName },
+      merge: {
+        company: row.company,
+        account: row.company,
+        contactName: row.contactName,
+        contact_name: row.contactName,
+      },
     }
   }
 }

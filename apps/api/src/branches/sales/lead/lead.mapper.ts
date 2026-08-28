@@ -4,12 +4,27 @@ import type { LeadRowDb } from './lead.schema'
 
 /** One row of `LeadRepository.mailTimeline()`, in the DRIVER's own spelling.
  *
- *  `snake_case` and `Date | null`, because that query is a raw `db.execute()`
- *  and Postgres hands back whatever the statement named — there is no Drizzle
- *  mapper on a raw statement to rename or convert anything. `toMailTimeline`
- *  below is the conversion, and keeping the two shapes apart is what stops an
- *  ISO string from being invented inside the repository, where the only honest
- *  value is the timestamp the driver returned.
+ *  `snake_case`, because that query is a raw `db.execute()` and Postgres hands
+ *  back whatever the statement named — there is no Drizzle mapper on a raw
+ *  statement to rename or convert anything. `toMailTimeline` below is the
+ *  conversion, and keeping the two shapes apart is what stops an ISO string
+ *  from being invented inside the repository, where the only honest value is
+ *  whatever the driver returned.
+ *
+ *  ------------------------------------------------------------------
+ *  `Date | string` ON EVERY TIMESTAMP, AND THAT UNION IS NOT DEFENSIVE
+ *  ------------------------------------------------------------------
+ *  It is what the two drivers actually do. `Db` is driver-agnostic
+ *  (`create-db.ts`), and on a RAW statement the two disagree about
+ *  `timestamptz`: node-postgres parses it into a `Date`, PGlite hands back the
+ *  text Postgres printed. Drizzle's typed `select()` normalises that; a raw
+ *  `execute()` is precisely the path where it does not.
+ *
+ *  Typing this as `Date` alone compiles perfectly and then throws
+ *  `read.scheduled_at.toISOString is not a function` — on ONE of the two
+ *  drivers. Which means the version that ships is green on the developer's
+ *  machine and 500s in production, or the reverse, and neither is caught by
+ *  `tsc`. `isoOf` below is the one place the two are reconciled.
  *
  *  Declared HERE rather than beside the query, exactly like `LeadRead` and
  *  `LeadProfileRead`: the repository imports its read-shapes from the mapper,
@@ -25,13 +40,13 @@ export type LeadMailTimelineRead = {
   run_id: string
   label: string
   run_state: MailRunState
-  scheduled_at: Date | null
+  scheduled_at: Date | string | null
   delivery_state: string
   fail_reason: string | null
   open_count: number
-  last_open_at: Date | null
+  last_open_at: Date | string | null
   click_count: number
-  last_click_at: Date | null
+  last_click_at: Date | string | null
 }
 
 /** Một dòng đã đọc xong từ bảng, kèm thứ không phải cột.
@@ -236,20 +251,42 @@ export function toRef(row: LeadRowDb, ownerName: string | null): ObjectRef {
  *  trước. In nó cạnh một lá thư đang chờ gửi là nói với người xem rằng thư đã
  *  hỏng, trong khi nó sắp đi. */
 export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow {
+  const scheduledAt = isoOf(read.scheduled_at)
+  const lastOpenAt = isoOf(read.last_open_at)
+  const lastClickAt = isoOf(read.last_click_at)
+
   return {
     runId: read.run_id,
     label: read.label,
     runState: read.run_state,
-    ...(read.scheduled_at ? { scheduledAt: read.scheduled_at.toISOString() } : {}),
+    ...(scheduledAt ? { scheduledAt } : {}),
     deliveryState: read.delivery_state,
     openCount: read.open_count,
-    ...(read.last_open_at ? { lastOpenAt: read.last_open_at.toISOString() } : {}),
+    ...(lastOpenAt ? { lastOpenAt } : {}),
     clickCount: read.click_count,
-    ...(read.last_click_at ? { lastClickAt: read.last_click_at.toISOString() } : {}),
+    ...(lastClickAt ? { lastClickAt } : {}),
     ...(read.fail_reason && FAILED_DELIVERY[read.delivery_state]
       ? { failReason: read.fail_reason }
       : {}),
   }
+}
+
+/** Mốc thời gian của driver → `Moc` của hợp đồng (ISO 8601 CÓ múi).
+ *
+ *  Nhận cả `Date` lẫn chuỗi vì hai driver trả hai kiểu trên một câu SQL thô —
+ *  lý do đầy đủ ở `LeadMailTimelineRead`. Chuỗi vẫn đi qua `new Date(...)` chứ
+ *  không được trả thẳng: PGlite in ra `2027-01-01 02:00:00+00`, dạng của
+ *  Postgres chứ không phải ISO 8601, và `Moc` sẽ từ chối nó ở `.parse()` — một
+ *  500 ngay trên đường trả về, đúng thứ mà lớp `.parse()` sinh ra để bắt.
+ *
+ *  Chuỗi không đọc được thì trả `undefined` chứ không trả `Invalid Date`:
+ *  `toISOString()` trên một Date hỏng NÉM, và một mốc không đọc được không đáng
+ *  làm cả cái timeline chết. Vắng mốc là một câu trả lời hợp lệ ở mọi trường
+ *  của `LeadMailTimelineRow`. */
+function isoOf(at: Date | string | null): string | undefined {
+  if (!at) return undefined
+  const date = at instanceof Date ? at : new Date(at)
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
 }
 
 /** Những trạng thái giao mà một câu giải thích là ĐÚNG NGHĨA.

@@ -13,7 +13,8 @@ import { sign } from './unsubscribe-token'
  *  row already queued still finds the renderer it was written against. */
 const TEMPLATE = 'mas-v1'
 
-/** `{{company}}`, `{{ contact_name }}` — a key, optionally padded.
+/** `{{account}}`, `{{contact_name}}` (và hai alias cũ) — một key có thể có
+ *  khoảng trắng quanh tên.
  *
  *  Deliberately narrow: letters, digits and underscore. A pattern that accepted
  *  dots or brackets would be a small expression language, and an expression

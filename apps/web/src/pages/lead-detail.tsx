@@ -58,7 +58,13 @@ import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { AssignedPills, AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog, ConvertedCard } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
-import { ActivityCard, NextActionCard, NotesCard, ProfileCard } from './lead-parts'
+import {
+  ActivityCard,
+  MailTimelineCard,
+  NextActionCard,
+  NotesCard,
+  ProfileCard,
+} from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
  *
@@ -313,6 +319,12 @@ export function LeadDetailPage() {
           <>
             <OriginCard lead={lead} onOpen={openSource} />
             <PeopleCard lead={lead} people={people} />
+            {/* TRƯỚC `ActivityCard`, và thứ tự đó là một quyết định: thẻ này
+              cụ thể hơn — đúng những lá thư đã gửi cho đúng người này — còn
+              dòng thời gian bên dưới là dòng chảy chung của lead. Câu người mở
+              hồ sơ hỏi trước khi viết thêm một lá nữa là "mình đã viết cho họ
+              mấy lần rồi". */}
+            <MailTimelineCard code={lead.code} />
             {/* Máy chủ chưa có bảng lần chạm — hai hằng NÓI RA điều đó, thay vì
               một `[]` gõ tại chỗ đọc ra như "lead này chưa ai chạm". */}
             <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />

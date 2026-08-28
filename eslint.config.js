@@ -149,6 +149,49 @@ export default tseslint.config(
   },
 
   {
+    // `@pv/contracts` — HỢP ĐỒNG DỮ LIỆU, và là package bị import rộng nhất.
+    //
+    // Nó nằm trong bundle của TRÌNH DUYỆT (mọi `data/*.ts` của apps/web đọc
+    // kiểu từ đây) và cũng nằm trong máy chủ. Một dòng `import … from '@api/…'`
+    // ở đây vì thế không chỉ đảo chiều phụ thuộc — nó kéo mã nguồn máy chủ,
+    // và mọi thứ mã đó kéo theo, vào tệp người dùng tải về.
+    //
+    // Rào này là chỗ trống đã được ghi tên trong docblock của
+    // `LeadMailTimelineRow.deliveryState`: ba package kia đều có rào, package
+    // này thì không, nên biên giới của nó do người soát giữ. Nay máy giữ.
+    //
+    // `zod` là phụ thuộc DUY NHẤT đúng của nó (xem `package.json`), nên danh
+    // sách cấm ở đây rộng hơn ba khối trên: không React, không thư viện màn,
+    // không engine, không máy chủ, không app.
+    files: ['packages/contracts/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@api/*',
+                '@/*',
+                '@pv/ui',
+                '@pv/ui/*',
+                '@pv/engines',
+                '@pv/engines/*',
+                'react',
+                'react-dom',
+                '**/apps/*/src/**',
+                '**/packages/*/src/**',
+              ],
+              message:
+                '@pv/contracts là hợp đồng dữ liệu thuần zod, và nó đi vào CẢ bundle trình duyệt. Nhập từ @api/* là kéo mã máy chủ vào tệp người dùng tải về; nhập engine hay thư viện màn là biến một file kiểu thành một phụ thuộc. Cần một danh sách giá trị dùng chung (ví dụ MAIL_STATES) thì hạ nó xuống package này, đừng với lên chỗ đang giữ nó.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     // `@pv/mail-templates` — chỗ DUY NHẤT ở tầng máy chủ được biết React.
     // Nó dựng thân email và không biết gì khác: không engine, không app, không
     // thư viện màn. Cửa ra là một hàm thuần trả {subject, html, text}, nên

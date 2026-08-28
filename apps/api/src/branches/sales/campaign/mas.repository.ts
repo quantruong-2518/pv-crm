@@ -121,7 +121,19 @@ export class MasRepository {
    *  than merely mirrored" (see `@pv/contracts`), against the day a lead
    *  reaches the book without a mailbox. `NULLIF(trim(…), '')` is what keeps
    *  that door honest at a cost of one function call: a column that loosens
-   *  later produces a blocked recipient, not a letter addressed to `''`. */
+   *  later produces a blocked recipient, not a letter addressed to `''`.
+   *
+   *  ------------------------------------------------------------------
+   *  `exit_reason` IS SELECTED, NOT FILTERED — AND THAT IS THE POINT
+   *  ------------------------------------------------------------------
+   *  A lead that left the funnel must not be written to, and the obvious fix is
+   *  `AND exit_reason IS NULL` in the WHERE clause. It is the wrong one: the
+   *  row would then be absent exactly like a row the scope axis cut, the
+   *  preflight would say "40 picked · 37 sendable" and account for none of the
+   *  other three, and the sender would go looking for a data problem that is
+   *  not there. The column comes back as a FACT and `MasService.decide` turns
+   *  it into `EXITED`, so the panel can name it. Same rule as `suppressed`
+   *  right above it — see the note on `MasLeadRow.exitReason`. */
   async audience(
     handle: Db,
     who: Actor,

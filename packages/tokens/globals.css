@@ -313,6 +313,49 @@
       inset 0 1px 0 var(--sheen-ai);
   }
 
+  /* Mép chấm của vùng kéo-thả — bốn dải gradient, không phải box border.
+     Dùng token chữ accent pha trong suốt để đọc được trên cả mặt nghỉ và mặt
+     `.glass-ai`; pseudo-element giữ pattern không bị lớp background đè mất. */
+  .drop-dots::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image:
+      radial-gradient(
+        circle,
+        color-mix(in srgb, var(--accent-foreground) 44%, transparent) 1px,
+        transparent 1.5px
+      ),
+      radial-gradient(
+        circle,
+        color-mix(in srgb, var(--accent-foreground) 44%, transparent) 1px,
+        transparent 1.5px
+      ),
+      radial-gradient(
+        circle,
+        color-mix(in srgb, var(--accent-foreground) 44%, transparent) 1px,
+        transparent 1.5px
+      ),
+      radial-gradient(
+        circle,
+        color-mix(in srgb, var(--accent-foreground) 44%, transparent) 1px,
+        transparent 1.5px
+      );
+    background-position:
+      top left,
+      bottom left,
+      top left,
+      top right;
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-size:
+      8px 2px,
+      8px 2px,
+      2px 8px,
+      2px 8px;
+  }
+
   /* ---- nền màn: đúng 4 lớp, không lớp thứ 5 (luật 12 · CLAUDE.md) ----
      1 quầng aurora → 2 lưới 32px → 3 lưới 160px → 4 hạt nhiễu */
   .aurora-field {
