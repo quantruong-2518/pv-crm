@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarCheck, FileText, Globe, Handshake, Plus, Trash2, X } from '@pv/ui'
+import { CalendarCheck, FileText, Handshake, Link, Plus, Trash2, X } from '@pv/ui'
 import {
   Badge,
   Button,
@@ -70,7 +70,7 @@ export function MeetingsCard({ code, canEdit }: { code: string; canEdit: boolean
           canEdit ? (
             <Button size="sm" variant="secondary" onClick={() => setRecording(true)}>
               <Icon icon={Plus} size={16} />
-              Ghi buổi họp
+              Thêm lịch họp
             </Button>
           ) : undefined
         }
@@ -86,15 +86,15 @@ export function MeetingsCard({ code, canEdit }: { code: string; canEdit: boolean
       ) : rows.length === 0 ? (
         <EmptyState
           icon={CalendarCheck}
-          message="Chưa ghi buổi họp nào với khách này."
+          message="Chưa có lịch họp với khách này."
           /* `action` là BẮT BUỘC ở `EmptyState` (M-08: luôn 1 icon + 1 câu + 1
              nút). Người chỉ có quyền xem vẫn thấy nút, nhưng nó không làm gì —
              `onClick` vắng mặt. Đó là hình dạng component cho phép, và nó thành
              thật hơn một nút mở ra biểu mẫu chắc chắn trả 403. */
           action={
             canEdit
-              ? { label: 'Ghi buổi đầu tiên', onClick: () => setRecording(true) }
-              : { label: 'Cần quyền sửa lead để ghi' }
+              ? { label: 'Thêm lịch họp đầu tiên', onClick: () => setRecording(true) }
+              : { label: 'Cần quyền sửa lead để thêm lịch' }
           }
         />
       ) : (
@@ -135,7 +135,7 @@ export function MeetingsCard({ code, canEdit }: { code: string; canEdit: boolean
   )
 }
 
-/** Một dòng buổi họp. Gập lại: ngày · tiêu đề · ai dự · hai nút. */
+/** Một lịch họp: thời gian → nội dung → người tham gia → thao tác. */
 function MeetingLine({
   code,
   row,
@@ -149,32 +149,34 @@ function MeetingLine({
 }) {
   const drop = useDropMeeting()
 
-  /* Các dòng cách nhau bằng KHOẢNG TRỐNG, không bằng đường kẻ — luật 4, hệ là
-     borderless. Bản đầu dùng `border-b` cho từng dòng và `aurora/no-box-border`
-     chặn đúng chỗ đó. */
   return (
-    <li className="flex flex-col gap-2 py-1">
+    <li className="flex flex-col gap-3 rounded-md bg-white/5 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-fg-1 text-sm font-medium">{row.title}</span>
+        <MetaPill mono>{dt(row.at)}</MetaPill>
         {row.isFirst && (
           <Badge tone="success">
             <Icon icon={Handshake} size={14} />
             Lần gặp đầu
           </Badge>
         )}
-        <MetaPill mono>{dt(row.at)}</MetaPill>
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        <span className="text-muted-foreground">
-          Chủ trì: <span className="text-fg-1">{names(row.hosts) || '—'}</span>
-        </span>
-        <span className="text-muted-foreground">
-          Khách: <span className="text-fg-1">{names(row.guests) || '—'}</span>
-        </span>
+      <p className="text-fg-1 text-[13.5px] font-semibold leading-[1.5]">{row.title}</p>
+
+      <div className="grid gap-2 text-[12.5px] leading-[1.55]">
+        <p className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
+          <span className="text-muted-foreground">Chủ trì</span>
+          <span className="text-fg-1">{names(row.hosts)}</span>
+        </p>
+        {row.guests.length > 0 && (
+          <p className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
+            <span className="text-muted-foreground">Khách mời</span>
+            <span className="text-fg-1">{names(row.guests)}</span>
+          </p>
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
         {row.link && (
           /* `rel="noreferrer"`: link do người dùng dán vào, và một tab mở bằng
              `target="_blank"` không có thuộc tính này thì trang đích với được
@@ -183,9 +185,9 @@ function MeetingLine({
             href={row.link}
             target="_blank"
             rel="noreferrer"
-            className="text-accent inline-flex items-center gap-1 text-xs underline"
+            className="text-accent-foreground inline-flex items-center gap-1 text-xs font-medium"
           >
-            <Icon icon={Globe} size={14} />
+            <Icon icon={Link} size={14} />
             Mở link họp
           </a>
         )}
@@ -193,15 +195,16 @@ function MeetingLine({
           <button
             type="button"
             onClick={onRead}
-            className="text-accent inline-flex items-center gap-1 text-xs underline"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs font-medium"
           >
             <Icon icon={FileText} size={14} />
             Xem transcript
           </button>
         )}
-        {canEdit && (
+        {canEdit && Number.isFinite(Date.parse(row.at)) && Date.parse(row.at) > Date.now() && (
           <button
             type="button"
+            aria-label={`Xoá lịch họp ${row.title}`}
             disabled={drop.isPending}
             onClick={() => {
               /* Không `confirm()`: một dialog của trình duyệt CHẶN mọi sự kiện
@@ -219,7 +222,7 @@ function MeetingLine({
                 },
               )
             }}
-            className="text-muted-foreground hover:text-danger inline-flex items-center gap-1 text-xs"
+            className="text-muted-foreground hover:text-danger ml-auto inline-flex items-center gap-1 text-xs"
           >
             <Icon icon={Trash2} size={14} />
             Xoá
@@ -315,7 +318,7 @@ function RecordMeetingDrawer({
       { code, body },
       {
         onSuccess: (row) => {
-          toast(row.isFirst ? 'Đã ghi buổi họp — đây là lần gặp đầu' : 'Đã ghi buổi họp', {
+          toast(row.isFirst ? 'Đã thêm lịch họp — đây là lần gặp đầu' : 'Đã thêm lịch họp', {
             tone: 'success',
             ...(row.isFirst
               ? { detail: 'Dòng thời gian của lead có thêm một mốc "gặp lần đầu".' }
@@ -325,7 +328,7 @@ function RecordMeetingDrawer({
         },
         onError: (error) =>
           setFailure(
-            isApiError(error) ? userMessage(error) : 'Không ghi được buổi họp. Thử lại giúp tôi.',
+            isApiError(error) ? userMessage(error) : 'Không thêm được lịch họp. Vui lòng thử lại.',
           ),
       },
     )
@@ -335,11 +338,11 @@ function RecordMeetingDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Ghi buổi họp"
+      title="Thêm lịch họp"
       subtitle={
         firstOne
-          ? 'Buổi đầu tiên của lead này — nó sẽ được đánh dấu là lần gặp đầu.'
-          : 'Ghi bù được: chọn đúng thời điểm buổi họp đã diễn ra.'
+          ? 'Lịch đầu tiên sẽ được đánh dấu là lần gặp đầu.'
+          : 'Chọn đúng thời gian cuộc họp đã hoặc sẽ diễn ra.'
       }
       width="lg"
       footer={
@@ -350,7 +353,7 @@ function RecordMeetingDrawer({
               Huỷ
             </Button>
             <Button type="submit" form="ghi-buoi-hop" disabled={Boolean(blocker) || add.isPending}>
-              {add.isPending ? 'Đang ghi…' : 'Ghi buổi họp'}
+              {add.isPending ? 'Đang thêm…' : 'Thêm lịch họp'}
             </Button>
           </div>
         </div>
@@ -358,7 +361,7 @@ function RecordMeetingDrawer({
     >
       <form id="ghi-buoi-hop" onSubmit={submit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-[11px]">Thời điểm họp</span>
+          <span className="text-muted-foreground text-[11px]">Thời gian</span>
           <Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
         </label>
 

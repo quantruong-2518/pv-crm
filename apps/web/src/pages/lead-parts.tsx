@@ -18,7 +18,6 @@ import {
   Icon,
   Input,
   MetaPill,
-  RichText,
   SectionTitle,
   SegmentedControl,
   Select,
@@ -563,11 +562,12 @@ function MoneyRead({ work, value }: { work: LeadProfile; value: string }) {
  *  họ". Trộn hai loại vào một chỗ thì hoặc cổng đếm nhầm, hoặc người ta ngại gõ
  *  vì sợ ảnh hưởng tới cổng.
  *
- *  Dùng `RichText` chứ không `Textarea` vì đây là thứ NGƯỜI đọc: gạch đầu dòng
- *  và chữ đậm làm được việc thật ở một khối ghi chú dài. */
+ *  Dùng `Textarea` vì ghi chú của lead là nội dung ngắn, thuần văn bản. Toolbar
+ *  định dạng làm card nặng hơn mà không giúp người bán hàng ghi nhanh hơn. */
 export function NotesCard({ lead }: { lead: Lead }) {
   const note = useLeadDesk((s) => s.notes[lead.code] ?? '')
   const setNote = useLeadDesk((s) => s.setNote)
+  const text = plainNote(note)
 
   return (
     <GlassCard
@@ -579,15 +579,27 @@ export function NotesCard({ lead }: { lead: Lead }) {
         Ghi chú
       </SectionTitle>
 
-      <RichText
-        label="Ghi chú quan trọng về lead này"
-        value={note}
-        onChange={(html) => setNote(lead.code, html)}
-        minHeight={132}
+      <Textarea
+        value={text}
+        rows={4}
+        autoGrow
+        aria-label="Ghi chú về lead"
+        onChange={(event) => setNote(lead.code, event.target.value)}
         placeholder="Ví dụ: chỉ gọi trước 9h; người duyệt mới chưa tham gia buổi trao đổi…"
       />
     </GlassCard>
   )
+}
+
+/** Ghi chú cũ có thể là HTML do RichText lưu. Chỉ chuyển ở lớp hiển thị; lần
+ *  gõ tiếp theo sẽ lưu lại chuỗi thuần và hoàn tất việc chuyển đổi tự nhiên. */
+function plainNote(value: string): string {
+  if (!/<[a-z][\s\S]*>/i.test(value)) return value
+  const node = document.createElement('div')
+  node.innerHTML = value
+  node.querySelectorAll('br').forEach((lineBreak) => lineBreak.replaceWith('\n'))
+  node.querySelectorAll('p, div, li').forEach((block) => block.append('\n'))
+  return (node.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
 // ---------------------------------------------------------------------------

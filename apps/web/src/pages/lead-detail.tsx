@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, Inbox, Lock, Mail, Phone, Pin, TriangleAlert, type IconGlyph } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -350,13 +350,13 @@ export function LeadDetailPage() {
       <ScreenDetailGrid
         sideLabel="Việc cần làm với lead này"
         className="w-full"
-        sideClassName="xl:self-stretch"
+        sideClassName="relative xl:self-stretch"
         /* Dưới xl về một cột và TÁC VỤ lên trước: trên tablet người ta mở một
            khách ra để làm việc, không phải để điền form. */
         sideFirst
         main={<ProfileCard profile={lead} />}
         side={
-          <div className="flex w-full min-w-0 flex-col gap-6 xl:sticky xl:top-[128px] xl:self-start">
+          <LeadSidePanel>
             {/* Đọc dữ kiện trước khi quyết định: đã họp gì → email đang ở đâu →
                 bước tiếp theo là gì. Ghi chú nằm sau luồng chính. */}
             <MeetingsCard code={lead.code} canEdit={canWrite} />
@@ -377,7 +377,7 @@ export function LeadDetailPage() {
             />
             <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
-          </div>
+          </LeadSidePanel>
         }
       />
 
@@ -423,6 +423,40 @@ export function LeadDetailPage() {
  *  hồ sơ để vẽ") và cùng một đường đi tiếp ("về sổ lead"). Cái khác nhau là
  *  CÂU, và câu là thứ được truyền vào — chứ không phải ba khối rỗng gần giống
  *  nhau, thứ chắc chắn sẽ trôi khỏi nhau ở lần sửa thứ hai. */
+function LeadSidePanel({ children }: { children: ReactNode }) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [stickyTop, setStickyTop] = useState(128)
+
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+
+    const syncStickyTop = () => {
+      const top = Math.min(128, window.innerHeight - panel.offsetHeight - 16)
+      setStickyTop(top)
+    }
+    const observer = new ResizeObserver(syncStickyTop)
+    observer.observe(panel)
+    window.addEventListener('resize', syncStickyTop)
+    syncStickyTop()
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', syncStickyTop)
+    }
+  }, [])
+
+  return (
+    <div
+      ref={panelRef}
+      className="flex w-full min-w-0 flex-col gap-6 xl:sticky xl:self-start"
+      style={{ top: stickyTop }}
+    >
+      {children}
+    </div>
+  )
+}
+
 function EmptyLead({
   icon,
   note,

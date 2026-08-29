@@ -49,6 +49,7 @@ export {
   Filter,
   FolderOpen,
   Globe,
+  Link01Icon as Link,
   Handshake,
   Hash,
   House,

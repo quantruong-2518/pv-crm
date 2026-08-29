@@ -6,11 +6,11 @@ import {
   type MeetingCreate,
   type MeetingPatch,
 } from '@pv/contracts'
-import { notFound } from '@api/platform/http/problem'
+import { conflict, notFound } from '@api/platform/http/problem'
 import { TouchService, byOf } from '../touch/touch.service'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, toContract } from './meeting.mapper'
-import type { MeetingAttendeeValues } from './meeting.schema'
+import type { MeetingAttendeeValues, MeetingRowDb } from './meeting.schema'
 
 /** Sổ cuộc họp — một facility, đúng hình `TouchService`.
  *
@@ -152,7 +152,10 @@ export class MeetingService {
   }
 
   async drop(code: string, id: string): Promise<void> {
-    await this.mine(code, id)
+    const row = await this.mine(code, id)
+    if (row.at.getTime() <= Date.now()) {
+      throw conflict('Lịch họp đã diễn ra nên không thể xoá.')
+    }
     await this.repo.run((tx) => this.repo.remove(tx, id))
   }
 
@@ -162,9 +165,10 @@ export class MeetingService {
    *  theo `:code`, nên một `:id` của lead khác lọt qua đây sẽ là một người sửa
    *  được buổi họp nằm ngoài phạm vi của mình. Trả 404 chứ không 403 — người
    *  gọi không được biết buổi họp đó có tồn tại ở đâu đó hay không. */
-  private async mine(code: string, id: string): Promise<void> {
+  private async mine(code: string, id: string): Promise<MeetingRowDb> {
     const row = await this.repo.byId(id)
     if (!row || row.leadCode !== code) throw notFound('cuộc họp', id)
+    return row
   }
 
   private async one(code: string, id: string): Promise<MeetingRow> {

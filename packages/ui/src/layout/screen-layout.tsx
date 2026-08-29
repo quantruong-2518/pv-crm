@@ -139,6 +139,8 @@ export type ScreenDetailGridProps = {
    *  nghĩa cho trình đọc màn hình để lấy một thứ tự hiển thị. `order` chỉ đổi
    *  thứ tự VẼ, và chỉ ở dải hẹp. */
   sideFirst?: boolean
+  /** Bổ sung layout cho chính `<aside>` mà không phải bọc thêm một lớp. */
+  sideClassName?: string
   className?: string
 }
 
@@ -149,6 +151,7 @@ export function ScreenDetailGrid({
   side,
   sideLabel,
   sideFirst = false,
+  sideClassName,
   className,
 }: ScreenDetailGridProps) {
   return (
@@ -162,7 +165,11 @@ export function ScreenDetailGrid({
         {main}
       </div>
       <aside
-        className={cn('flex min-w-0 flex-col gap-6', sideFirst && 'order-1 xl:order-2')}
+        className={cn(
+          'flex min-w-0 flex-col gap-6',
+          sideFirst && 'order-1 xl:order-2',
+          sideClassName,
+        )}
         aria-label={sideLabel}
       >
         {side}
