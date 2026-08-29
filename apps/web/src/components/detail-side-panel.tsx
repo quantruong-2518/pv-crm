@@ -10,19 +10,23 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
  *  biết được sau khi vẽ, tức phải đo bằng `ResizeObserver` chứ không tính được
  *  ở tầng class.
  *
- *  Hai màn từng khác nhau ở chỗ này: lead đo động, cơ hội ghim tĩnh — giống
- *  nhau về số đo mà khác nhau về hành vi, thứ người dùng cảm thấy ngay khi đi
- *  từ hồ sơ này sang hồ sơ kia. Gộp về một component để lần chỉnh sau chỉ có
+ *  Hai màn từng khác nhau ở chỗ này: lead đo động, còn cơ hội KHÔNG DÍNH GÌ CẢ
+ *  — cột phụ của nó là một fragment trần. Người đi từ hồ sơ này sang hồ sơ kia
+ *  cảm thấy ngay: một bên ba thẻ tra cứu theo mắt xuống hết trang, bên kia
+ *  chúng trôi mất từ nửa đường. Gộp về một component để lần chỉnh sau chỉ có
  *  một chỗ để chỉnh.
  *
- *  KHÔNG lên `@pv/ui`, và không phải vì nó "chưa đủ chín": `128` là chiều cao
+ *  KHÔNG lên `@pv/ui`, và không phải vì nó "chưa đủ chín": `TOP_BAR_OFFSET` đo
  *  thanh trên của CHÍNH APP NÀY. Một layout primitive của thư viện thì phải
  *  nhận offset bằng prop và tuyệt đối không được tự biết con số đó — đem nó lên
  *  `@pv/ui` là đem một hằng số của app vào thư viện, đúng thứ biên giới package
  *  trong CLAUDE.md cấm (`no-restricted-imports`: `@pv/ui` không biết app). */
 
-/** Thanh trên của app cao 128px ở dải xl — cột dính neo ngay dưới nó. */
-const TOP_BAR_OFFSET = 128
+/** Cột dính neo ngay dưới thanh trên của app: `AppHeader` là hai tầng, 64 + 48
+ *  = 112px, cộng 16px thở để thẻ đầu không dán vào mép nav. Ghi ra cơ sở chứ
+ *  không chỉ ghi tổng — file này tồn tại để lần chỉnh sau chỉ có MỘT chỗ để
+ *  chỉnh, mà một con số không nói ra nó cộng từ đâu thì lần sau sẽ chỉnh sai. */
+const TOP_BAR_OFFSET = 112 + 16
 
 /** Chừa lại một mẩu dưới đáy khi phải kéo cột lên, để thẻ cuối không dán mép. */
 const BOTTOM_GAP = 16

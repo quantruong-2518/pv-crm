@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { CampaignBookQuery, CampaignState } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { campaign, campaignMember, campaignRun, type CampaignRowDb } from './campaign.schema'
@@ -235,7 +236,7 @@ export class CampaignRepository {
     return [
       q.state ? eq(campaign.state, q.state) : undefined,
       q.owner ? eq(campaign.ownerId, q.owner) : undefined,
-      q.q ? ilike(campaign.name, `%${q.q}%`) : undefined,
+      q.q ? ilike(campaign.name, contains(q.q)) : undefined,
     ]
   }
 }

@@ -80,6 +80,18 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *  không thêm câu trả lời nào.
  *
  *  ------------------------------------------------------------------
+ *  NỢ LUẬT 10 — ContextRail, ghi ra chứ không im lặng
+ *  ------------------------------------------------------------------
+ *  Luật 10 đòi rail trên mọi màn, và màn này KHÔNG có. Đây là NỢ có ý thức chứ
+ *  không phải quên, và lý do đúng bằng lý do đã ghi ở `pages/leads.tsx`: một sổ
+ *  không có object nào ĐANG MỞ. Rail dựng từ một dòng mồi cứng là treo bốn chip
+ *  mã lên đầu một trang mười dòng, nói về một đơn người dùng không hề chọn —
+ *  tệ hơn không có rail, vì nó trông như một chuỗi thật.
+ *
+ *  Trả nợ khi nào rail dựng được từ DÒNG ĐANG ĐƯỢC CHỌN — không sớm hơn. Nợ
+ *  của `pages/opportunity-detail.tsx` thì khác và nặng hơn; đọc ở đó.
+ *
+ *  ------------------------------------------------------------------
  *  ĐÃ CẮT SANG MÁY CHỦ — 28/08. BA THỨ ĐI THEO.
  *  ------------------------------------------------------------------
  *  Sổ đọc thẳng `GET /sales/opportunities`. Ba thứ của bản fixture biến mất, và không cái
@@ -142,6 +154,14 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *  sổ) chứ không ghi nó lên địa chỉ — một link chia sẻ không nên mang theo một
  *  con số không ai chọn. */
 const PAGE_SIZE = 10
+
+/** Bề rộng tối thiểu của bảng — thứ làm cho `overflow-x-auto` bọc ngoài có
+ *  việc để làm. Không có nó thì con của khối cuộn không bao giờ rộng hơn chính
+ *  khối cuộn, nên thanh cuộn ngang KHÔNG BAO GIỜ hiện và tám track `fr` bị bóp
+ *  thay vì cuộn: ở 1024px cột "Mã" còn ~73px trong khi một `<Chip>` mã đơn cần
+ *  ~90px, ở 390px nó còn ~21px. Cùng con số với sổ lead vì cùng tám cột và hai
+ *  sổ phải bắt đầu cuộn ở cùng một bề rộng màn hình. */
+const TABLE_MIN_WIDTH = 'min-w-[1180px]'
 
 /** Giá trị "không lọc trục này" của bốn ô Select. `<select>` gốc chỉ chở được
  *  chuỗi, nên trạng thái "mọi giá trị" phải có một chuỗi đại diện; trên dây thì
@@ -247,6 +267,34 @@ export function OpportunitiesPage() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
 
+  /* Trang ngoài tầm thì SỬA ĐỊA CHỈ, không chỉ kẹp con số đem đi vẽ.
+
+     Kẹp `pageIndex` ở trên mới chỉ chữa cái `Pager`; câu hỏi gửi máy chủ vẫn
+     mang `page` cũ, nên `OFFSET` vẫn vượt sổ và trang về rỗng. Và rỗng ở đây
+     đọc ra một câu SAI hẳn: `total` nhỏ hơn một trang nên không `Pager` nào
+     được vẽ, bộ lọc thì chưa ai chạm nên màn rơi vào nhánh "Sổ cơ hội chưa có
+     đơn nào" kèm đúng một nút "Về sổ lead" — người dùng có tám đơn trong sổ mà
+     không nút nào trên màn đưa họ về được trang 1.
+
+     Xảy ra thật với một link ai đó gửi (`?page=3`) sau khi sổ co lại, hoặc khi
+     trục phạm vi cắt sổ của người mở link ngắn hơn sổ của người gửi.
+
+     `replace` chứ không đẩy mục lịch sử: người dùng không tự đi tới trang này,
+     nên nút Back phải lùi về chỗ họ thật sự đến từ đó. Chờ `data` về mới sửa —
+     `total` lúc chưa có dữ liệu là 0, sửa sớm là đá mọi người về trang 1 ngay
+     giữa lượt đọc đầu tiên. */
+  useEffect(() => {
+    if (!data) return
+    if (pageIndexFromQueryPage(query.page) <= pageCount - 1) return
+    setParams(
+      opportunityBookQueryToParams({
+        ...urlQuery,
+        page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
+      }),
+      { replace: true },
+    )
+  }, [data, query.page, pageCount, urlQuery, setParams])
+
   /* Một chỗ duy nhất đổi số trang của `Pager` (đếm từ 0) sang số trang của hợp
      đồng (đếm từ 1) — hai đầu cầu nằm ở `app/url.ts`, cùng cầu sổ lead đi. */
   const goPage = (index: number) =>
@@ -351,7 +399,7 @@ export function OpportunitiesPage() {
             className="w-full md:col-span-2 xl:col-span-1"
           />
           <Select
-            label="State"
+            label="Trạng thái"
             value={query.state ?? ANY}
             onChange={(v) => patch({ state: v === ANY ? undefined : (v as OpportunityState) })}
             className="w-full max-w-none"
@@ -361,14 +409,14 @@ export function OpportunitiesPage() {
             ]}
           />
           <Select
-            label="Sale owner"
+            label="Sale đứng đơn"
             value={query.sale ?? ANY}
             onChange={(v) => patch({ sale: v === ANY ? undefined : v })}
             className="w-full max-w-none"
             options={[{ value: ANY, label: 'Mọi Sale' }, ...saleOptions]}
           />
           <Select
-            label="BD owner"
+            label="BD mở cửa"
             value={query.bd ?? ANY}
             onChange={(v) => patch({ bd: v === ANY ? undefined : v })}
             className="w-full max-w-none"
@@ -409,7 +457,13 @@ export function OpportunitiesPage() {
             <span className="text-muted-foreground text-[11.5px]">
               {/* `total` của MÁY CHỦ, không phải `rows.length`: một trang mười
                   dòng không biết sổ có bao nhiêu dòng khớp bộ lọc. */}
-              <span className="tnum font-num">{total}</span> dòng khớp bộ lọc
+              {/* Cỡ chữ của con số lấy ĐÚNG bản của sổ lead: hai sổ đặt dòng
+                  đếm ở cùng chỗ thì con số cũng phải cùng cỡ, không thì mắt
+                  đọc ra hai mức quan trọng khác nhau cho cùng một câu trả lời. */}
+              <span className="tnum text-foreground font-num text-[15px] font-semibold">
+                {total}
+              </span>{' '}
+              dòng khớp bộ lọc
               {/* Luật 7 — con số này cũng do máy chủ đếm, vì màn không đếm được
                   thứ nó không nhận. Chỉ hiện khi thật sự có dòng bị cắt. */}
               {hidden > 0 && (
@@ -428,10 +482,13 @@ export function OpportunitiesPage() {
 
           <div className="overflow-x-auto p-4 pt-3 lg:p-5 lg:pt-4">
             {isPending ? (
+              /* `h-12` là ĐÚNG chiều cao dòng `DataTable` vẽ. Lệch một bậc là
+                 mỗi dòng nhảy 4px đúng lúc dữ liệu về — một cú giật mà người
+                 dùng đọc thành "màn vẽ lại", không phải "dữ liệu đã tới". */
               <div className="flex flex-col gap-3">
-                <Skeleton className="h-11 w-full" />
-                <Skeleton className="h-11 w-full" />
-                <Skeleton className="h-11 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
               </div>
             ) : bookError ? (
               /* Hỏi không được thì nói là hỏi không được. Nút mời THỬ LẠI chứ
@@ -468,6 +525,7 @@ export function OpportunitiesPage() {
               />
             ) : (
               <DataTable
+                className={TABLE_MIN_WIDTH}
                 sort={tableSort}
                 onSort={(key) => {
                   /* Bốn cột có `sortKey` bên dưới đều là khoá máy chủ nhận. Khoá

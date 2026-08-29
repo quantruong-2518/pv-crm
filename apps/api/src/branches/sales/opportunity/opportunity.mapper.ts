@@ -279,7 +279,15 @@ export function refOf(
  *  Cùng hình với `refOf` ở trên và phải giữ cho khớp: đổi một bên thì đổi cả
  *  hai. Hai hàm chứ không một vì `refOf` dựng từ bản nháp lúc CHƯA có dòng
  *  nào, còn hàm này đọc từ dòng đã ghi — cùng nút thắt mà
- *  `lead-write.mapper.ts` giải thích ở đầu file. */
+ *  `lead-write.mapper.ts` giải thích ở đầu file.
+ *
+ *  `ownerName` là THAM SỐ chứ không moi từ `row`, và người gọi chọn nó theo
+ *  việc mình đang làm — bảng nối chở người, dòng đơn thì không. Chỗ dựng ref
+ *  để E2 KIỂM PHẠM VI (`OpportunityService.book`) phải đưa vào tên của chính
+ *  người đang hỏi khi họ có đứng tên, nếu không lưới E2 hỏi một câu khác câu
+ *  `scopeOf` của repository đã hỏi; chỗ dựng ref để LƯU GƯƠNG thì đưa người
+ *  đầu danh sách, vì rail là một dòng tóm tắt cho bất kỳ ai mở nó. Lập luận
+ *  đầy đủ nằm ở chính chỗ gọi trong `book()`. */
 export function toRef(row: OpportunityRowDb, ownerName: string | null): ObjectRef {
   return {
     code: row.code,

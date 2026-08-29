@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'dr
 import { Inject, Injectable } from '@nestjs/common'
 import type { MailRunListQuery, MailRunListResponse, MailRunState } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
 import { MAIL_STATE_RANK, MAIL_STATES, type MailState } from './mail.contract'
 import { mailRun, type MailRunRow } from './mail-run.schema'
 
@@ -237,7 +238,7 @@ export class MailRunRepository {
     const where = and(
       query.state ? eq(mailRun.state, query.state) : undefined,
       query.q
-        ? or(ilike(mailRun.label, `%${query.q}%`), ilike(mailRun.subject, `%${query.q}%`))
+        ? or(ilike(mailRun.label, contains(query.q)), ilike(mailRun.subject, contains(query.q)))
         : undefined,
       onlyIds ? (onlyIds.length > 0 ? inArray(mailRun.id, [...onlyIds]) : sql`false`) : undefined,
     )

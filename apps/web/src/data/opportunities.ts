@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   OpportunityBookQuery,
   type OpportunityBookResponse,
+  type OpportunityLiveDeal,
   type OpportunityOwner,
   type OpportunityRow,
   type OpportunityScorecard,
@@ -61,8 +62,13 @@ import { api, type ApiNeed } from '@/app/api'
 export const OPPORTUNITY_BOOK_KEY = ['sales', 'ops-book'] as const
 
 /** Ba trục mà `OpportunityController.book` khai bằng `@Need({ …, permission:
- *  'cơ-hội.xem', scoped: true })` — viết MỘT lần cho cả ba lượt đọc sổ: trang
- *  đang xem, lượt đọc dựng ô lọc, và đơn của một lead.
+ *  'cơ-hội.xem', scoped: true })` — viết MỘT lần cho cả hai lượt đọc SỔ: trang
+ *  đang xem và lượt đọc dựng ô lọc.
+ *
+ *  Lượt đọc thứ ba từng dùng chung hằng này — "lead này đã có đơn chưa" — đã
+ *  rời đi, và nó rời đi vì `scoped` là thứ làm nó sai: một chốt chặn trùng đơn
+ *  cắt theo phạm vi sẽ giấu đi đúng cái đơn nó cần tìm. Nay nó gọi cửa riêng,
+ *  khai `@Need` riêng — xem `opportunitiesOfLeadQuery` ở cuối file.
  *
  *  `scoped` ở phía này KHÔNG tự cắt gì — trình duyệt không cầm dòng nào để mà
  *  cắt và không bao giờ được là nơi quyết định. Nó là LỜI KHAI, để hai đầu của
@@ -240,44 +246,65 @@ export const opportunityProfileQuery = (code: string) =>
       }),
   })
 
-/** Đơn của MỘT lead — `GET /sales/opportunities?leadCode=…`.
+/** Đơn CÒN SỐNG của một lead — `GET /sales/opportunities/live-deal?leadCode=…`.
  *
  *  ------------------------------------------------------------------
  *  QUERY NÀY TỒN TẠI ĐỂ GIẾT MỘT LỖI CỤ THỂ
  *  ------------------------------------------------------------------
  *  Hồ sơ lead phải trả lời "khách này đã được đổi thành cơ hội chưa" TRƯỚC khi
- *  bày cái nút đổi. Cho tới hôm nay nó trả lời bằng `opportunityOfLead()` —
- *  một phép tra trong mảng fixture đóng băng — nên mọi lead tạo sau lát cắt đó
- *  luôn nhận `undefined`, nút vẫn sáng, và bấm thêm lần nữa là mở đơn thứ hai
- *  cho cùng một khách. Đó chính là con số không có thật mà `desk.deals` được
- *  đẻ ra để chặn, chặn bằng localStorage — đổi máy là hết.
+ *  bày cái nút đổi. Có một thời nó trả lời bằng `opportunityOfLead()` — một
+ *  phép tra trong mảng fixture đóng băng — nên mọi lead tạo sau lát cắt đó luôn
+ *  nhận `undefined`, nút vẫn sáng, và bấm thêm lần nữa là mở đơn thứ hai cho
+ *  cùng một khách. Đó chính là con số không có thật mà `desk.deals` được đẻ ra
+ *  để chặn, chặn bằng localStorage — đổi máy là hết.
  *
- *  LỌC TRÊN SỔ chứ không phải một trường trên `LeadProfile`: một lead giữ được
- *  NHIỀU đơn (đó là lý do `lead_code` nằm bên bảng cơ hội), nên câu trả lời là
- *  một DANH SÁCH, và danh sách đơn thì cửa này đã trả sẵn. Treo một
- *  `opportunityCode` lên hồ sơ lead là dựng lại đúng quan hệ 1-1 mà lược đồ đã
- *  bỏ đi. Đầy đủ ở docblock của `OpportunityBookQuery` (`@pv/contracts`).
+ *  ------------------------------------------------------------------
+ *  BỎ CỬA SỔ VÌ CỬA SỔ CẮT THEO PHẠM VI — 29/08
+ *  ------------------------------------------------------------------
+ *  Bản trước hỏi câu này bằng chính cửa sổ, `GET /sales/opportunities?leadCode=…`
+ *  với `BOOK_NEED` (`scoped: true`), và nó thủng với MỌI Sale `ownOnly`: Sale A
+ *  đổi LD-0042 thành OP-5001; Sale B mở LD-0042, máy chủ cắt mất OP-5001 vì đơn
+ *  không đứng tên B, `rows` về rỗng, và màn đọc rỗng thành "chưa ai đổi". Nút
+ *  sáng, cửa `POST` chỉ đòi `cơ-hội.sửa` và không kiểm trùng — đúng con lỗi mà
+ *  đoạn trên nói query này sinh ra để giết, quay lại bằng đường khác.
  *
- *  `select` trả thẳng `rows`: người gọi hỏi "có đơn nào chưa", không hỏi tổng
- *  số trang. Vỏ `total`/`hidden` là chuyện của cái sổ, và TanStack còn giữ hộ
- *  kết quả đã cắt giữa các lần vẽ lại.
+ *  Cửa mới bỏ trục phạm vi có chủ ý và trả đúng một mã đơn để bù lại (đọc
+ *  `OpportunityLiveDeal` ở `@pv/contracts` trước khi mở rộng nó — hình hẹp đó
+ *  LÀ cái giá của việc bỏ trục phạm vi, không phải chỗ trống chưa ai điền).
+ *  Vì thế lượt đọc này KHÔNG dùng `BOOK_NEED`: nó khai đúng `@Need` của cửa nó
+ *  gọi, và cửa đó không `scoped`.
  *
- *  Khoá NỐI DÀI `OPPORTUNITY_BOOK_KEY` chứ không đứng riêng, và đó là phần làm cho nút
- *  tự lật: `usePromoteLead` vô hiệu hoá `['sales','ops-book']` sau khi máy chủ
- *  nhận phiếu, mà TanStack vô hiệu hoá theo TIỀN TỐ — nên lượt đọc này chạy
- *  lại ngay trong cùng nhịp, không cần ai nhớ thêm một dòng invalidate. */
+ *  ------------------------------------------------------------------
+ *  "CÒN SỐNG", KHÔNG PHẢI "TỪNG TỒN TẠI"
+ *  ------------------------------------------------------------------
+ *  Máy chủ chỉ trả đơn chưa thua và chưa ký. Trước đây màn chặn theo bất kỳ đơn
+ *  nào từng tồn tại, nên một lead có đúng một đơn đã thua quý I thì quý III
+ *  khách quay lại vẫn thấy nút "Cơ hội OP-5001" thay cho nút đổi — vĩnh viễn —
+ *  trong khi cửa nạp tệp lại nhận đúng dòng đó vì nó chỉ soi đơn còn sống. Hai
+ *  cửa của một sổ nay trả lời bằng cùng một vị từ.
+ *
+ *  `select` gói lại thành MẢNG, và đó là chủ ý chứ không phải di sản: người gọi
+ *  hỏi "có đơn nào chưa" rồi lấy `[0]?.code`, mà một lead giữ được nhiều đơn —
+ *  ngày cửa này trả về cả danh sách thì chỗ gọi không phải đổi một dòng. Mảng
+ *  RỖNG là câu trả lời "chưa có", và nó khác `undefined` (chưa đọc xong) đúng ở
+ *  chỗ màn cần: rỗng thì mời đổi, `undefined` thì tắt nút và nói đang kiểm tra.
+ *
+ *  Khoá NỐI DÀI `OPPORTUNITY_BOOK_KEY` chứ không đứng riêng, và đó là phần làm
+ *  cho nút tự lật: `usePromoteLead` vô hiệu hoá `['sales','ops-book']` sau khi
+ *  máy chủ nhận phiếu, mà TanStack vô hiệu hoá theo TIỀN TỐ — nên lượt đọc này
+ *  chạy lại ngay trong cùng nhịp, không cần ai nhớ thêm một dòng invalidate. */
 export const opportunitiesOfLeadQuery = (leadCode: string) =>
   queryOptions({
     queryKey: [...OPPORTUNITY_BOOK_KEY, 'of-lead', leadCode] as const,
     queryFn: ({ signal }) =>
-      api.read<OpportunityBookResponse>(
-        `/sales/opportunities?leadCode=${encodeURIComponent(leadCode)}`,
+      api.read<OpportunityLiveDeal>(
+        `/sales/opportunities/live-deal?leadCode=${encodeURIComponent(leadCode)}`,
         {
-          need: BOOK_NEED,
+          need: { branch: 'Sales', permission: 'cơ-hội.xem' },
           signal,
         },
       ),
-    select: (d: OpportunityBookResponse) => d.rows,
+    select: (d: OpportunityLiveDeal) => (d.code === null ? [] : [{ code: d.code }]),
   })
 
 // ---------------------------------------------------------------------------

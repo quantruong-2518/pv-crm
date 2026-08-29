@@ -115,6 +115,24 @@ import { ActivityCard } from './lead-parts'
  *  rồi bắt họ cuộn qua chúng mỗi lần muốn sửa một ô.
  *
  *  ------------------------------------------------------------------
+ *  NỢ LUẬT 10 — ContextRail, và ở đây nợ NẶNG HƠN bên lead
+ *  ------------------------------------------------------------------
+ *  Luật 10 đòi rail trên mọi màn, và màn này KHÔNG có. Ghi ra vì im lặng thì
+ *  lần soát sau đọc thành "chưa ai nhìn tới".
+ *
+ *  Nhưng đừng chép lý do của `pages/lead-detail.tsx` sang đây — nó KHÔNG che
+ *  được chỗ này. Bên lead, rail thiếu vì bốn chip mã đã nằm sẵn trong cụm Sổ
+ *  sách của chính form, và vì chưa có màn thật để nó mở sang. Hồ sơ cơ hội thì
+ *  ĐỦ ĐIỀU KIỆN dựng rail ngay: nó đã cầm sẵn chuỗi THẬT của đúng object đang
+ *  mở (`op.leadCode` → `op.code` → `op.contractCode`), và đã có một đường đi
+ *  thật sang `/sales/leads/:code` — thứ nút "Hồ sơ lead" ở thanh công cụ đang
+ *  làm bằng tay. Tức thứ còn thiếu không phải dữ liệu, mà là chỗ đặt.
+ *
+ *  Nên điều kiện trả nợ ở đây là CÓ NGƯỜI GẬT BỐ CỤC, không phải "chờ có màn
+ *  để mở sang": dựng rail là đổi bố cục, phải đi qua `/sketch-first` trước khi
+ *  chạm file.
+ *
+ *  ------------------------------------------------------------------
  *  NỘI DUNG PHIẾU LÀ ĐÚNG NỘI DUNG POPUP
  *  ------------------------------------------------------------------
  *  Popup "Đổi lead thành cơ hội" và thẻ phiếu ở đây dùng CHUNG một bộ ô nhập
@@ -648,7 +666,19 @@ function PeopleCard({ op }: { op: OpportunityRow }) {
  *  nào mới thật sự lưu".
  *
  *  Thanh DÍNH chứ không cố định tuyệt đối: nó ở trong luồng nội dung nên không
- *  đè lên sidebar, và dưới `lg` thì nhường chỗ cho BottomNav 84px của AppShell. */
+ *  đè lên sidebar. Nhưng chỉ dính TỪ `lg` TRỞ LÊN, và khối "Khách" cũng chỉ
+ *  hiện từ đó: ở 390×844 thanh này chở ba pill liên hệ + avatar + ba nút, xuống
+ *  dòng thành 200–260px, lại dính ngay sát nóc BottomNav 84px — còn chừng 500px
+ *  để đọc cả cái phiếu. Một thanh công cụ ăn một phần ba màn không còn là công
+ *  cụ. Dưới `lg` nó trôi theo nội dung, ở cuối trang, chỗ nó vốn thuộc về.
+ *
+ *  Nền ĐẶC (`bg-hc-surface`), KHÔNG `backdrop-blur`. `packages/tokens/globals.css`
+ *  chỗ định nghĩa `.glass-b` nói thẳng là không dùng `backdrop-filter`: `--popover`
+ *  ở alpha .84 nên chỉ 16% nền lọt qua, blur một nền tĩnh ở 16% cường độ là thứ
+ *  mắt không thấy nhưng trình duyệt vẫn phải chụp lại vùng nền rồi lọc mỗi lần
+ *  vẽ — mà đây là phần tử `sticky`, tức vẽ lại mỗi frame cuộn. Thanh của hồ sơ
+ *  lead cũng dùng nền đặc; bản trước ở đây ghi là blur "cùng lý do với thanh
+ *  của hồ sơ lead", và câu đó sai sự thật. */
 function ToolsBar({
   op,
   lead,
@@ -690,15 +720,13 @@ function ToolsBar({
   const lost = op.state === 'close-lost'
 
   return (
-    <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
+    <div className="z-10 lg:sticky lg:bottom-4">
       <GlassCard
         variant="b"
-        /* `backdrop-blur` là NGOẠI LỆ có lý do của glass-b — cùng lý do với
-           thanh của hồ sơ lead: có NỘI DUNG TRÔI phía sau. */
-        className="shadow-panel flex flex-wrap items-center gap-4 p-4 backdrop-blur-xl"
+        className="bg-hc-surface shadow-panel flex flex-wrap items-center gap-3 p-3"
         aria-label="Thanh công cụ"
       >
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="hidden min-w-0 flex-col gap-1 lg:flex">
           <Kicker tone="muted">Khách</Kicker>
           {contact ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -735,11 +763,18 @@ function ToolsBar({
         </div>
 
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+          {/* `tel:` chứ không phải một nút chỉ để sáng lên — cùng nước đi với
+              thanh của hồ sơ lead. Bản trước có `disabled` mà không có
+              `onClick`: có số thì nút bật, bấm không ra gì, và người dùng đọc
+              cái đó thành màn hỏng chứ không thành "chức năng chưa có". */}
           <Button
             size="md"
-            variant="ghost"
+            variant="secondary"
             disabled={!contact?.phone}
             title={contact?.phone ?? 'Chưa moi được kênh gọi lại được'}
+            onClick={() => {
+              if (contact?.phone) window.location.href = `tel:${contact.phone}`
+            }}
           >
             <Icon icon={Phone} size={16} />
             {contact ? `Gọi ${contact.name}` : 'Gọi khách'}

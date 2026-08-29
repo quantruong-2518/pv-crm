@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { LeadSourceKind, MailRunListQuery, MailTemplateRow } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
 import { audit } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
@@ -346,7 +347,7 @@ export class MasRepository {
     return and(
       query.state ? eq(mailRun.state, query.state) : undefined,
       query.q
-        ? or(ilike(mailRun.label, `%${query.q}%`), ilike(mailRun.subject, `%${query.q}%`))
+        ? or(ilike(mailRun.label, contains(query.q)), ilike(mailRun.subject, contains(query.q)))
         : undefined,
       campaignIds
         ? campaignIds.length > 0

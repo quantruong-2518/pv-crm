@@ -13,6 +13,7 @@ import {
   OpportunityCreateResponse,
   OpportunityImportCommitResponse,
   OpportunityImportPreviewResponse,
+  OpportunityLiveDeal,
   OpportunityScorecard,
   OpportunityUpdateResponse,
   type ContractSign,
@@ -90,10 +91,34 @@ export class OpportunityService {
     /* Lưới thứ hai. SQL đã cắt theo phạm vi, nên bình thường E2 không cắt thêm
        gì — và đó là điều đúng: hai hàng rào đọc CÙNG một trục, hàng rào trong
        chỉ có việc khi hàng rào ngoài bị viết sai. Bỏ nó đi thì ngày ai đó thêm
-       một endpoint quên `scoped: true`, không còn gì đỡ. */
+       một endpoint quên `scoped: true`, không còn gì đỡ.
+
+       ------------------------------------------------------------------
+       `ref.owner` LÀ CHÍNH NGƯỜI ĐANG HỎI, KHI HỌ CÓ ĐỨNG TÊN
+       ------------------------------------------------------------------
+       Hai hàng rào chỉ đỡ được cho nhau khi chúng hỏi CÙNG MỘT CÂU, và bản
+       trước thì không: `scopeOf` của repository hỏi "actor có nằm trong
+       `opportunity_owner` của đơn này không" (cả `SALE` lẫn `BD`), còn E2 so
+       `ref.owner !== actor.name` trên MỘT cái tên. Cái tên đó là `owners[0]`,
+       mà `ownersOf` sắp theo `role` rồi `name` — `'BD' < 'SALE'` nên người BD
+       luôn đứng đầu danh sách.
+
+       Hệ quả: một Sale `ownOnly` đứng đơn có ghi thêm BD thì dòng của họ qua
+       được `WHERE` của SQL rồi bị `visible` cắt ngay sau đó, vì `ref.owner` là
+       tên người BD. Trang mười dòng ra chín, `hidden` cộng thêm 1 và màn in
+       "1 bị ẩn theo quyền của bạn" cho đơn của CHÍNH người đọc, còn `total`
+       vẫn đếm nó nên trang cuối hụt dòng. Mở thẳng `GET /:code` thì lại vào
+       được vì cửa đó đi bằng vị từ SQL — hai định nghĩa "đơn của tôi" cùng
+       chạy và nói ngược nhau.
+
+       Cách chữa nhỏ nhất là để `ref.owner` chở người đang hỏi khi họ có mặt
+       trong `owners`: E2 vẫn kiểm đúng một cái tên (hình của `ObjectRef` không
+       đổi, và ContextRail vẫn đọc được nó), nhưng câu nó hỏi trở thành đúng
+       câu SQL đã hỏi. Ngoài ra mới rơi về `owners[0]` — dòng tóm tắt cho một
+       người ngoài đọc, đúng như `refOf` khai. */
     const items = page.rows.map((r) => ({
       ...r,
-      ref: toRef(r.row, r.owners[0]?.name ?? null),
+      ref: toRef(r.row, (r.owners.find((o) => o.id === who.id) ?? r.owners[0])?.name ?? null),
     }))
     const { visible, hidden } = this.access.visible(who, items)
 
@@ -123,6 +148,45 @@ export class OpportunityService {
    *  lời hai câu khác nhau, và màn in chúng dưới hai nhãn khác nhau. */
   async scorecard(): Promise<OpportunityScorecard> {
     return OpportunityScorecard.parse(await this.repo.scorecard())
+  }
+
+  /** "Lead này đã có đơn CÒN SỐNG chưa" — `GET /sales/opportunities/live-deal`.
+   *
+   *  ------------------------------------------------------------------
+   *  CỬA NÀY CỐ Ý BỎ TRỤC PHẠM VI, VÀ NÓ TRẢ GIÁ BẰNG CÁCH TRẢ RẤT ÍT
+   *  ------------------------------------------------------------------
+   *  Hồ sơ lead phải trả lời câu này TRƯỚC khi bày nút "Chuyển thành cơ hội",
+   *  và cho tới hôm nay nó hỏi bằng chính cửa sổ — `GET /sales/opportunities?
+   *  leadCode=…`, thứ khai `scoped: true`. `scoped` đúng cho một cái SỔ và sai
+   *  chí mạng cho một CHỐT CHẶN: Sale A đổi LD-0042 thành OP-5001, Sale B (cũng
+   *  `ownOnly`) mở LD-0042, trục phạm vi cắt mất OP-5001, màn đọc danh sách
+   *  rỗng đó thành "chưa ai đổi lead này". Nút sáng, `POST /sales/opportunities`
+   *  chỉ đòi `cơ-hội.sửa` và KHÔNG kiểm trùng, và một khách có hai đơn. Một
+   *  chốt chặn giấu đi đúng cái dòng nó sinh ra để tìm thì không phải chốt chặn.
+   *
+   *  Nên cửa này KHÔNG nhận `Actor` và không cắt theo phạm vi. Giá của việc đó
+   *  trả bằng hình dữ liệu: nó rò đúng MỘT mã đơn, không rò tên người đứng đơn
+   *  (thứ mà trục phạm vi vốn để che), không rò tiền, không rò trạng thái,
+   *  không rò khách. Đủ để tắt một cái nút và để đi tới đúng đơn đó — hết. Cửa
+   *  vẫn đòi `cơ-hội.xem`: ai không được vào sổ thì cũng không hỏi được câu này.
+   *  Lập luận đầy đủ ở docblock của `OpportunityLiveDeal` (`@pv/contracts`).
+   *
+   *  ------------------------------------------------------------------
+   *  "CÒN SỐNG", KHÔNG PHẢI "TỪNG TỒN TẠI"
+   *  ------------------------------------------------------------------
+   *  Đi thẳng qua `liveDealsByLead` — CHÍNH vị từ mà cửa nạp tệp gọi là trùng:
+   *  `state <> 'close-lost'` và chưa ký. Dùng lại nó chứ không viết vị từ thứ
+   *  hai, vì hai vị từ là hai câu trả lời sẽ lệch nhau, và chúng ĐANG lệch: màn
+   *  chặn theo bất kỳ đơn nào từng tồn tại, nên một lead có đúng một đơn đã thua
+   *  quý I thì quý III khách quay lại vẫn không đổi được nữa — vĩnh viễn — trong
+   *  khi lô nạp lại nhận đúng dòng ấy. Một khách quay lại là một đơn MỚI.
+   *
+   *  Nhiều đơn sống cùng lúc thì lấy mã NHỎ NHẤT, vì `liveDealsByLead` đã
+   *  `ORDER BY code` và giữ dòng đầu: nút chỉ có một chỗ để đi tới, và thứ tự
+   *  đó ổn định giữa hai lần đọc. */
+  async liveDeal(leadCode: MaObject): Promise<OpportunityLiveDeal> {
+    const byLead = await this.repo.liveDealsByLead(this.repo.readonlyHandle, [leadCode])
+    return OpportunityLiveDeal.parse({ code: byLead.get(leadCode) ?? null })
   }
 
   /** Một đơn theo mã. Hai cách hỏng, và chúng không gộp được.
@@ -180,6 +244,43 @@ export class OpportunityService {
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
     const row = await this.repo.run(async (tx) => {
+      /* MỘT LEAD, MỘT ĐƠN CÒN SỐNG — chốt ở CỬA GHI, không chỉ ở cái nút.
+         ------------------------------------------------------------------
+         Màn đã tắt nút khi `liveDeal` trả về một mã, nhưng một cái nút tắt
+         không phải là một hàng rào: double-click, một tab mở từ sáng, hay một
+         lượt gọi thẳng API đều đi vòng qua nó, và cái sinh ra là hai đơn cho
+         cùng một khách — sổ cộng ra một con số không có thật, hoa hồng chia
+         hai lần.
+
+         Cửa NẠP TỆP đã từ chối đúng ca này từ đầu (`dupWithBook`), nên tới
+         hôm nay hai đường vào cùng một bảng trả lời ngược nhau: lô nạp nói
+         "khách này đã có đơn đang mở", phiếu tay nói "được". Một bảng thì một
+         luật.
+
+         Dùng lại CHÍNH `liveDealsByLead` mà cả `liveDeal` lẫn cửa nạp tệp gọi
+         — ba chỗ, một vị từ. Viết vị từ thứ hai ở đây là dựng chỗ để chúng
+         lệch nhau, và lệch kiểu này thì không ai thấy cho tới lúc sổ sai.
+
+         TRONG transaction, không phải trước nó: kiểm ngoài rồi ghi trong để
+         hở đúng cái khe mà double-click rơi vào.
+
+         Nói thẳng phần CÒN HỞ: đây vẫn không phải hàng rào ở tầng bảng. Hai
+         transaction đồng thời ở READ COMMITTED đều có thể thấy "chưa có đơn
+         sống" rồi cùng ghi. Một unique index bộ phận trên `lead_code` sẽ đóng
+         hẳn khe đó, nhưng nó KHÔNG diễn đạt được vế "chưa ký" — vế ấy nằm ở
+         `sales.contract`, một bảng khác, mà index bộ phận thì không với sang
+         bảng khác được. Đóng nốt khe này là một quyết định về lược đồ (dựng
+         cột phi chuẩn hoá `signed`, hoặc khoá theo lead), không phải một dòng
+         thêm vào đây. */
+      const live = await this.repo.liveDealsByLead(tx, [body.leadCode])
+      const opened = live.get(body.leadCode)
+      if (opened !== undefined) {
+        throw conflict(
+          `Lead ${body.leadCode} đã có cơ hội đang mở (${opened}) — đóng đơn đó trước khi mở đơn mới.`,
+          { leadCode: [`Đơn đang mở: ${opened}`] },
+        )
+      }
+
       const ref = refOf(code, write, { label: write.values.name, ownerName })
       await this.mirror.put(tx, ref)
       const written = await this.repo.insertOpportunity(tx, { ...write.values, code })

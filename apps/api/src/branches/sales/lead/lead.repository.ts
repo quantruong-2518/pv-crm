@@ -17,6 +17,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import { OWNER_NONE, type LeadBookQuery, type LeadStatus } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
@@ -403,7 +404,11 @@ export class LeadRepository {
           : eq(lead.ownerId, q.owner)
         : undefined,
       q.account ? eq(lead.company, q.account) : undefined,
-      q.q ? ilike(lead.company, `%${q.q}%`) : undefined,
+      /* Pattern built by `contains()`, never string-concatenated: `%` and `_`
+         typed into the search box are LETTERS, not wildcards — see that
+         function's docblock. Shared with the Ops book so the two search boxes
+         cannot drift apart. */
+      q.q ? ilike(lead.company, contains(q.q)) : undefined,
     ]
   }
 

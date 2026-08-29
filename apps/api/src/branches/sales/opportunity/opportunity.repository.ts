@@ -22,6 +22,7 @@ import {
   type OpportunityState,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
@@ -635,12 +636,15 @@ export class OpportunityRepository {
       /* Một ô gõ, ba cột. Người ta dán vào đây một mã đơn lấy từ email, nửa cái
          tên công ty, hoặc một chữ trong tên đơn — hỏi cả ba là cách duy nhất ô
          đó trả lời được cả ba mà không bắt người dùng chọn trước mình đang tìm
-         theo kiểu gì. */
+         theo kiểu gì.
+
+         Mẫu dựng bằng `contains()` chứ không ghép chuỗi: `%` và `_` người dùng
+         gõ là CHỮ, không phải ký tự đại diện — xem docblock của hàm đó. */
       q.q
         ? or(
-            ilike(opportunity.name, `%${q.q}%`),
-            ilike(opportunity.code, `%${q.q}%`),
-            ilike(lead.company, `%${q.q}%`),
+            ilike(opportunity.name, contains(q.q)),
+            ilike(opportunity.code, contains(q.q)),
+            ilike(lead.company, contains(q.q)),
           )
         : undefined,
     ]

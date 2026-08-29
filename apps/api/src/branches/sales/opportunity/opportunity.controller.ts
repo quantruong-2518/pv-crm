@@ -6,6 +6,7 @@ import {
   OpportunityBookQuery,
   OpportunityCreate,
   OpportunityImportBody,
+  OpportunityLiveDealQuery,
   OpportunityUpdate,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
@@ -64,6 +65,28 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
   scorecard() {
     return this.ops.scorecard()
+  }
+
+  /** Chốt chặn trùng đơn — "lead này đã có đơn CÒN SỐNG chưa".
+   *
+   *  PHẢI đứng trước `@Get(':code')` vì cùng lý do `scorecard` ghi ở trên:
+   *  Fastify khớp theo thứ tự khai, nên khai sau thì chuỗi `live-deal` rơi vào
+   *  `:code` và chết ở `zod(MaObject)` bằng một 400 vô nghĩa.
+   *
+   *  KHÔNG `scoped`, và đó là TOÀN BỘ lý do cửa này tồn tại thay vì hồ sơ lead
+   *  đi lọc cái sổ: một chốt chặn cắt theo phạm vi sẽ giấu đi đúng cái đơn nó
+   *  cần tìm, rồi trả lời "chưa ai đổi lead này" cho người thứ hai và mời họ mở
+   *  đơn trùng. Đánh đổi được trả bằng hình dữ liệu hẹp nhất có thể — một mã
+   *  đơn hoặc `null`, không tên người, không tiền. Lập luận đầy đủ ở
+   *  `OpportunityService.liveDeal` và ở `OpportunityLiveDeal` của hợp đồng.
+   *
+   *  `leadCode` đi trong query chứ không trong đường dẫn: tài nguyên của cửa
+   *  này là cơ hội, lead chỉ là câu hỏi — cùng lý do `POST` nhận `leadCode`
+   *  trong thân request (xem docblock đầu controller). */
+  @Get('live-deal')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
+  liveDeal(@Query(zod(OpportunityLiveDealQuery)) q: OpportunityLiveDealQuery) {
+    return this.ops.liveDeal(q.leadCode)
   }
 
   /** Hồ sơ một đơn.
