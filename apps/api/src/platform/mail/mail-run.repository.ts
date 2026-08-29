@@ -371,9 +371,40 @@ export class MailRunRepository {
    *  a delivery still in flight.
    *
    *  SCHEDULED → SENDING needs BOTH conditions. The clock alone is not enough:
-   *  a batch whose hour has come but whose first letter has not been accepted
-   *  yet has not started sending, and `started_at` is what the run list uses to
-   *  tell "will fire at 9am" from "fired at 9am and is still going".
+   *  a batch whose hour has come but whose letters are all still `pending` has
+   *  not started sending, and `started_at` is what the run list uses to tell
+   *  "will fire at 9am" from "fired at 9am and is still going".
+   *
+   *  ------------------------------------------------------------------
+   *  "STARTED" IS ONE ROW OFF `pending`, NOT ONE ROW POSTED
+   *  ------------------------------------------------------------------
+   *  This pass used to demand a delivery in `SENT_STATES`, and that is a
+   *  strictly stronger claim than the one it needs. Three states mean the
+   *  worker reached the letter and NOTHING left the machine — `suppressed`
+   *  (the address was on the block list when its turn came, which
+   *  `MailConsumer` writes without an error), `failed_permanent`, `dead` — and
+   *  a run whose every recipient landed in one of them therefore never
+   *  qualified. It stayed `SCHEDULED` for ever: the finishing pass below only
+   *  looks at `SENDING`, so nothing else was positioned to close it, and the
+   *  screen kept reporting "will fire at" an hour already past. A wave sent
+   *  days after its campaign was built is precisely where a whole small
+   *  audience can unsubscribe in the gap between queueing and sending.
+   *
+   *  So the question is "has the worker touched this batch", and any state
+   *  other than `pending` answers it — `sending` included, which also hands
+   *  the bounce breaker its runs a tick earlier, since the breaker only ever
+   *  considers `SENDING`.
+   *
+   *  The second arm covers the batch with no rows at all: every recipient
+   *  blocked at preflight, so `audience_count` is 0 and there is nothing to
+   *  touch. It is finished the moment its hour arrives, and without this it
+   *  would be the one shape that can still stick.
+   *
+   *  `COALESCE(scheduled_at, created_at)` rather than `scheduled_at IS NOT
+   *  NULL`: no CHECK ties `SCHEDULED` to a stamped hour, and a run that
+   *  reached this state without one must still be able to leave it. Treating
+   *  the missing hour as "due since creation" is the only reading that cannot
+   *  strand a row.
    *
    *  SENDING → SENT is the absence of work, not the presence of success: a run
    *  whose letters all bounced is finished, and so is one whose recipients were
@@ -385,7 +416,11 @@ export class MailRunRepository {
    *  service stamped, and one that never got a stamp still gets a plausible
    *  one rather than a NULL under a `finished_at`.
    *
-   *  Returns how many runs moved, summed over both passes. */
+   *  Returns how many DISTINCT runs moved, not how many rows the two passes
+   *  updated between them. A batch that becomes due and finishes inside the
+   *  same tick is legitimately touched twice — the empty run and the wholly
+   *  suppressed one always are — and summing the passes would report two runs
+   *  where there is one. */
   async sweepStates(): Promise<number> {
     const started = (await this.db.execute(sql`
       UPDATE "platform"."mail_run" AS r
@@ -393,15 +428,20 @@ export class MailRunRepository {
              "started_at" = COALESCE(r."started_at", now()),
              "updated_at" = now()
        WHERE r."state" = 'SCHEDULED'
-         AND r."scheduled_at" IS NOT NULL
-         AND r."scheduled_at" <= now()
-         AND EXISTS (
-               SELECT 1 FROM "platform"."email_delivery" d
-                WHERE d."mail_run_id" = r."id"
-                  AND d."state" IN (${params(SENT_STATES)})
+         AND COALESCE(r."scheduled_at", r."created_at") <= now()
+         AND (
+               EXISTS (
+                 SELECT 1 FROM "platform"."email_delivery" d
+                  WHERE d."mail_run_id" = r."id"
+                    AND d."state" <> 'pending'
+               )
+               OR NOT EXISTS (
+                 SELECT 1 FROM "platform"."email_delivery" d
+                  WHERE d."mail_run_id" = r."id"
+               )
              )
       RETURNING r."id"
-    `)) as { rows: unknown[] }
+    `)) as { rows: { id: string }[] }
 
     const finished = (await this.db.execute(sql`
       UPDATE "platform"."mail_run" AS r
@@ -416,9 +456,9 @@ export class MailRunRepository {
                   AND d."state" IN (${params(INFLIGHT_STATES)})
              )
       RETURNING r."id"
-    `)) as { rows: unknown[] }
+    `)) as { rows: { id: string }[] }
 
-    return started.rows.length + finished.rows.length
+    return new Set([...started.rows, ...finished.rows].map((r) => r.id)).size
   }
 
   /** THE BOUNCE BREAKER, AS ONE STATEMENT. Cancels a run its own numbers have
@@ -445,6 +485,23 @@ export class MailRunRepository {
    *  primary query reads it.)
    *
    *  ------------------------------------------------------------------
+   *  `live` COMES FIRST, AND THAT IS A COST DECISION
+   *  ------------------------------------------------------------------
+   *  `stats` used to aggregate `email_delivery` WHOLE — every row ever
+   *  written, grouped by run — and only then join `mail_run` to keep the
+   *  `SENDING` ones. Postgres cannot push a join qualifier into a grouped
+   *  subquery, so the ledger was scanned end to end on EVERY tick of the
+   *  worker's clock: at the default twelve seconds that is five full scans a
+   *  minute, seven thousand a day, growing with the table and paid for by the
+   *  minute on a serverless Postgres that also never gets to idle.
+   *
+   *  Naming the live runs first turns it into an index lookup per run —
+   *  `email_delivery_run_state_idx` — over a set that is empty most of the
+   *  time, because a batch is only `SENDING` for the minutes it is actually
+   *  going out. Same rows decided, same answer; the difference is entirely in
+   *  what gets read to reach it.
+   *
+   *  ------------------------------------------------------------------
    *  WHY THE HELD ROWS BECOME `dead` AND NOT `suppressed`
    *  ------------------------------------------------------------------
    *  `suppressed` means the ADDRESS was blocked when its turn came — a fact
@@ -466,20 +523,21 @@ export class MailRunRepository {
    *  line at a time. */
   async tripBounced(opts: { ceilingPercent: number; minSample: number }): Promise<BounceTrip[]> {
     const r = (await this.db.execute(sql`
-      WITH stats AS (
+      WITH live AS (
+        SELECT r."id" FROM "platform"."mail_run" r WHERE r."state" = 'SENDING'
+      ),
+      stats AS (
         SELECT d."mail_run_id" AS run_id,
                count(*) FILTER (WHERE d."state" IN (${params(SENT_STATES)}))::int AS sent,
                count(*) FILTER (WHERE d."state" = 'bounced')::int                  AS bounced
           FROM "platform"."email_delivery" d
-         WHERE d."mail_run_id" IS NOT NULL
+         WHERE d."mail_run_id" IN (SELECT "id" FROM live)
          GROUP BY d."mail_run_id"
       ),
       tripped AS (
         SELECT s.run_id, s.sent, s.bounced
           FROM stats s
-          JOIN "platform"."mail_run" r ON r."id" = s.run_id
-         WHERE r."state" = 'SENDING'
-           AND s.sent >= ${opts.minSample}::int
+         WHERE s.sent >= ${opts.minSample}::int
            AND s.bounced * 100.0 > ${opts.ceilingPercent}::float8 * s.sent
       ),
       held AS (

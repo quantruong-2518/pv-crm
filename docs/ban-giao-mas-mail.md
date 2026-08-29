@@ -57,6 +57,12 @@ Chi tiết ┘                                      └─ mail_run + campaign_r
 `next_attempt_at <= now`. Thêm một scheduler riêng là thêm một thứ nữa có thể
 chết lúc 3 giờ sáng.
 
+Nhưng **trạng thái của LÔ** thì vẫn cần người nâng, và đó là việc của
+`MailRunSweeper` — chung nhịp với relay, không phải một đồng hồ thứ hai. Hai
+chỗ sai trong lượt nâng đó đã bịt 29/08 (lô kẹt `SCHEDULED`, cầu dao gộp toàn
+bảng), cùng bậc thứ ba `CampaignSweeper` đóng chiến dịch khi mọi đợt đã ngã
+ngũ; xem `ban-giao-campaign.md` § "Lượt 29/08".
+
 ---
 
 ## Bảy quyết định đã chốt
@@ -196,8 +202,17 @@ trong file ghi rõ: thay trước khi `PV_MAS_ENABLED=true`.
    xem [`ban-giao-campaign.md`](./ban-giao-campaign.md). Việc còn lại là FE:
    đổi tên màn cũ thành "Nguồn dẫn" và dựng Sổ chiến dịch mới đọc bảng thật —
    chưa làm.
-6. **Reaper cho dòng kẹt `sending`** — nợ cũ của `ban-giao-mail.md`, MAS làm nó
-   gấp hơn vì một lô 200 dòng kẹt là 200 lá thư không ai biết.
+6. ~~**Reaper cho dòng kẹt `sending`**~~ — **ĐÃ TRẢ.** `MailRelay.sweep()` gọi
+   `reapStuckSending()` ở đầu mỗi nhịp: dòng `sending` quá 300s được trả lại
+   hàng đợi, hết lượt thử thì parking. Doc này ghi thiếu, sửa 29/08.
+7. **Đường lịch: bốn chỗ sai đã bịt 29/08** — lô `SCHEDULED` kẹt vĩnh viễn khi
+   mọi thư đều bị chặn · `sales.campaign` không bao giờ thành `DONE` · cầu dao
+   gộp toàn bảng mỗi 12 giây · `email_delivery.mail_run_id` không có index.
+   Chi tiết, lý lẽ và bản ghi kiểm tay ở
+   [`ban-giao-campaign.md`](./ban-giao-campaign.md) § "Lượt 29/08". Kèm ba
+   hàng rào `env.ts` chặn bắn bulk từ domain transactional, chặn liên kết huỷ
+   đăng ký trỏ localhost, chặn địa chỉ bưu chính giữ chỗ — đọc mục đó trước
+   khi bật `PV_MAS_ENABLED` ở bất kỳ máy nào.
 
 ---
 

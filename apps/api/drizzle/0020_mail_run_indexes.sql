@@ -1,0 +1,2 @@
+CREATE INDEX "email_delivery_run_state_idx" ON "platform"."email_delivery" USING btree ("mail_run_id","state");--> statement-breakpoint
+CREATE INDEX "email_delivery_due_idx" ON "platform"."email_delivery" USING btree ("next_attempt_at","created_at") WHERE "platform"."email_delivery"."state" = 'pending';

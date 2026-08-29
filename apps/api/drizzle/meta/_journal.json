@@ -134,6 +134,13 @@
       "when": 1787966400000,
       "tag": "0019_mas_touch_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787968569270,
+      "tag": "0020_mail_run_indexes",
+      "breakpoints": true
     }
   ]
 }

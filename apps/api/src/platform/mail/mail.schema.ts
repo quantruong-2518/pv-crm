@@ -131,6 +131,42 @@ export const emailDelivery = platform.table(
     index('email_delivery_next_attempt_idx').on(t.nextAttemptAt),
     index('email_delivery_aggregate_idx').on(t.aggregateId),
     index('email_delivery_recipient_idx').on(t.recipient),
+
+    /** THE INDEX THE WHOLE MAS PATH LEANS ON. `mail_run_id` carried a foreign
+     *  key and no index for its first month, which means every question asked
+     *  about a BATCH — and all of them are asked on the worker's clock, not on
+     *  a request's — was a sequential scan of the ledger:
+     *
+     *   · `sweepStates()`   one EXISTS / NOT EXISTS per `SENDING` run, per tick
+     *   · `tripBounced()`   the breaker's per-run tally, per tick
+     *   · `cancelUnsent()`  the held-rows UPDATE, on every stop
+     *   · `deliveryCounts()`/`engagementCounts()` the eleven numbers of a page
+     *
+     *  `state` is the second column rather than a second index because every
+     *  one of those also filters or FILTERs on it, so the pair answers them
+     *  from the index alone and a bitmap AND of two separate indexes is not
+     *  needed. Order matters: `mail_run_id` is the selective half, and no
+     *  query here asks about `state` without naming a run. */
+    index('email_delivery_run_state_idx').on(t.mailRunId, t.state),
+
+    /** The relay's own question — `pendingBatch()` — and nothing else.
+     *
+     *  PARTIAL on purpose. `pending` is a transient state: a row leaves it
+     *  within seconds of becoming due and never returns except through a
+     *  retry, so this index stays small no matter how large the ledger grows,
+     *  while `email_delivery_state_idx` above grows with every letter ever
+     *  sent and would still hand the planner every scheduled row before the
+     *  due filter could cut it.
+     *
+     *  Scheduling is exactly what makes that difference bite: a campaign
+     *  hour-stamped a week out leaves its whole audience sitting `pending` and
+     *  NOT due, i.e. matching the old index and failing the WHERE. Leading on
+     *  `next_attempt_at` cuts them before they are read; `created_at` trails
+     *  it so the ORDER BY has something to walk. */
+    index('email_delivery_due_idx')
+      .on(t.nextAttemptAt, t.createdAt)
+      .where(sql`${t.state} = 'pending'`),
+
     check('email_delivery_state_valid', sql`${t.state} IN (${MAIL_STATE_LIST})`),
   ],
 )

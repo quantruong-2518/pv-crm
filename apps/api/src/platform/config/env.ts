@@ -398,6 +398,83 @@ const Env = z
       'PV_MAS_ENABLED=true thì phải khai PV_MAS_SENDER_POSTAL — thư marketing bắt buộc có địa chỉ bưu chính.',
     path: ['PV_MAS_SENDER_POSTAL'],
   })
+  /* Rỗng đã bị chặn ở trên, nhưng chỗ thủng thật không phải rỗng — mà là một
+     chuỗi giữ chỗ trông như đã khai. `.env` từng mang
+     `Pebble Vina · [địa chỉ bưu chính chưa khai]`, và nó ĐI THẲNG vào chân
+     thư: `.refine` cũ đếm ký tự nên thấy đủ, mắt người thì chỉ thấy khi thư đã
+     nằm trong hộp của khách. Dấu ngoặc vuông không xuất hiện trong địa chỉ
+     bưu chính thật ở bất kỳ nước nào, nên nó là dấu hiệu đủ chắc. */
+  .refine((e) => !(e.PV_MAS_ENABLED && /[[\]]/.test(e.PV_MAS_SENDER_POSTAL)), {
+    message:
+      'PV_MAS_SENDER_POSTAL còn là chuỗi giữ chỗ — nó in ra ở chân MỌI thư marketing, khai địa chỉ thật hoặc bỏ hẳn biến này để rơi về mặc định.',
+    path: ['PV_MAS_SENDER_POSTAL'],
+  })
+  /* ------------------------------------------------------------------
+     BULK KHÔNG ĐƯỢC MƯỢN DOMAIN CỦA MAIL GIAO DỊCH
+     ------------------------------------------------------------------
+     Docblock của `PV_EMAIL_MAS_FROM` đã nói vì sao hai địa chỉ tách nhau: một
+     lượt bounce của thư hàng loạt không được tiêu uy tín của subdomain đang
+     chở báo lead và thư đặt lại mật khẩu. Nhưng "hai biến khác nhau" không
+     bằng "hai domain khác nhau" — điền cùng một domain vào cả hai là dựng đủ
+     hình thức mà bỏ hết tác dụng, và đó đúng là trạng thái `.env` đã nằm im
+     một thời gian: `noreply@notify.` cho giao dịch, `hello@notify.` cho MAS.
+
+     Chỉ bắt khi CẢ HAI cửa cùng mở, vì chỉ khi đó mới có thư thật rời máy.
+     Máy chỉ dựng màn hay chỉ chạy thử thì không có uy tín nào để mất. */
+  .refine(
+    (e) =>
+      !(
+        e.PV_MAS_ENABLED &&
+        e.PV_EMAIL_ENABLED &&
+        domainOf(e.PV_EMAIL_MAS_FROM) !== '' &&
+        domainOf(e.PV_EMAIL_MAS_FROM) === domainOf(e.PV_EMAIL_FROM)
+      ),
+    {
+      message:
+        'PV_EMAIL_MAS_FROM đang dùng CHUNG domain với PV_EMAIL_FROM — bắn hàng loạt từ subdomain của mail giao dịch là đem uy tín của báo lead và thư mật khẩu ra thế chấp. Dùng subdomain marketing riêng (go.<domain>), verify riêng trên Resend.',
+      path: ['PV_EMAIL_MAS_FROM'],
+    },
+  )
+  /* `PV_API_PUBLIC_URL` đã có `.refine` chặn rỗng ở trên, nhưng localhost thì
+     lọt — và localhost trong một liên kết huỷ đăng ký còn tệ hơn rỗng: thư vẫn
+     bay, người nhận vẫn thấy nút "huỷ đăng ký", bấm vào thì trình duyệt của họ
+     đi tìm cổng 4123 trên MÁY CỦA CHÍNH HỌ. Một lượt huỷ chết lặng đổi thành
+     một lượt báo spam, và trần complaint của Resend là 0,08%.
+
+     Không gác theo `NODE_ENV` như `PV_APP_URL` phía trên: sự cố đã xảy ra
+     đúng ở `NODE_ENV=development` trỏ vào database production với cả hai cửa
+     gửi mở. Thứ quyết định là "thư có rời máy không", không phải nhãn môi
+     trường. */
+  .refine(
+    (e) =>
+      !(
+        e.PV_MAS_ENABLED &&
+        e.PV_EMAIL_ENABLED &&
+        /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(e.PV_API_PUBLIC_URL)
+      ),
+    {
+      message:
+        'PV_API_PUBLIC_URL đang trỏ localhost — liên kết huỷ đăng ký trong thư thật phải mở được từ máy của người nhận, nếu không họ báo spam thay vì huỷ.',
+      path: ['PV_API_PUBLIC_URL'],
+    },
+  )
+  /* ------------------------------------------------------------------
+     NHỊP GỬI PHẢI RỘNG HƠN SỐ LUỒNG, KHÔNG THÌ THƯ CHẾT VÌ LÝ DO NỘI BỘ
+     ------------------------------------------------------------------
+     Thua cửa nhịp, `MailConsumer` trả `kind: 'retry'` — và `exhausted()` đếm
+     lượt đó chung ngân sách với lỗi thật của nhà cung cấp. Hết
+     `PV_EMAIL_RETRY_LIMIT` lượt là dòng bị parking `dead`: một lá thư không hề
+     bị ai từ chối, chết vì hai con số cấu hình không khớp nhau.
+
+     Cấu hình mặc định (2 luồng, 4 thư/giây) an toàn. Cái bẫy là người vận hành
+     nâng số luồng lên để "chạy nhanh hơn" — số luồng KHÔNG phải thứ quyết định
+     tốc độ, `PV_EMAIL_RATE_PER_SECOND` mới là, và nâng vế sai làm hỏng thư chứ
+     không làm nhanh hơn. Bắt ở đây vì đó là chỗ hai con số cùng đứng. */
+  .refine((e) => e.PV_EMAIL_WORKER_CONCURRENCY <= e.PV_EMAIL_RATE_PER_SECOND, {
+    message:
+      'PV_EMAIL_WORKER_CONCURRENCY vượt PV_EMAIL_RATE_PER_SECOND — số luồng nhiều hơn token mỗi giây thì thư thua cửa nhịp, và mỗi lần thua tiêu một lượt trong ngân sách thử lại cho tới khi bị parking. Nâng nhịp gửi, đừng nâng số luồng.',
+    path: ['PV_EMAIL_WORKER_CONCURRENCY'],
+  })
   .refine(
     (e) =>
       e.NODE_ENV !== 'production' ||
@@ -408,6 +485,25 @@ const Env = z
       path: ['PV_INTAKE_IP_HASH_SECRET'],
     },
   )
+
+/** Domain của một địa chỉ gửi, cho `.refine` so hai đường thư với nhau.
+ *
+ *  Nhận cả hai dạng mà `PV_EMAIL_FROM`/`PV_EMAIL_MAS_FROM` cho phép —
+ *  `a@b.com` trần và `Tên Người <a@b.com>` — nên phải cắt từ `@` CUỐI CÙNG:
+ *  phần tên hiển thị là chữ tự do và hoàn toàn có thể chứa một dấu `@`.
+ *
+ *  Không phải bộ phân tích địa chỉ mail đầy đủ, và không cần là: nó chỉ trả
+ *  lời "hai địa chỉ này có cùng domain không". Chuỗi không có `@` trả về rỗng,
+ *  và bên gọi bỏ qua ca đó — địa chỉ dị dạng là việc của Resend, không phải
+ *  việc của một hàng rào uy tín. */
+function domainOf(address: string): string {
+  const at = address.lastIndexOf('@')
+  if (at < 0) return ''
+  return address
+    .slice(at + 1)
+    .replace(/[>\s]/g, '')
+    .toLowerCase()
+}
 
 export type Env = z.infer<typeof Env>
 
