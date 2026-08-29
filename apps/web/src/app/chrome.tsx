@@ -1,6 +1,7 @@
 import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
+  FileCheck,
   Gauge,
   Handshake,
   House,
@@ -185,7 +186,27 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },
   {
+    /** The contract book takes slot 4, pushing the three entries after it down
+     *  by one.
+     *
+     *  The numbers follow the sales journey, so contracts sit right after deals
+     *  — signing is what a deal is for. Section 1 of
+     *  `docs/tam-nhin-bao-gia-hop-dong.md` decides the shift, and `SCREENS` in
+     *  `routes.tsx` carries the same one: two lists, one numbering, and a screen
+     *  numbered differently in each is a screen the user cannot find twice in a
+     *  row.
+     *
+     *  READ ONLY, and the nav says nothing about that — a menu entry promises a
+     *  screen, not a set of buttons. The screen itself is where that shows. */
     no: 4,
+    icon: FileCheck,
+    label: 'Hợp đồng',
+    path: '/sales/contracts',
+    permission: 'hợp-đồng.xem',
+    question: 'Đọc hợp đồng đã ký và kế hoạch thu của từng tờ',
+  },
+  {
+    no: 5,
     icon: Gauge,
     label: 'Hiệu suất',
     path: '/sales/performance',
@@ -193,7 +214,7 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
   },
   {
-    no: 5,
+    no: 6,
     icon: Target,
     label: 'Kế hoạch',
     path: '/sales/plan',
@@ -203,7 +224,7 @@ export const SALES_MODULES: SalesModule[] = [
   {
     /** Cấu hình KHÔNG nằm trong vòng khép kín của năm module trên — nó là thứ
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
-    no: 6,
+    no: 7,
     icon: SlidersHorizontal,
     label: 'Thiết lập',
     path: '/sales/config',
