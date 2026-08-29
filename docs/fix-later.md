@@ -78,7 +78,7 @@ Hai dòng đã RỤNG khỏi bảng này vì endpoint đã lên và `load:` đã
 **Sửa thế nào:** dựng endpoint từng nhánh một, rồi bỏ dòng `load:` của query đó.
 
 **Vì sao chưa sửa:** đây là dựng backend, không phải dọn dẹp. Gỡ `load:` mà chưa
-có endpoint là màn chết trắng. Nên đi qua `sketch-first` trước khi chạm file.
+có endpoint là màn chết trắng.
 
 **Hệ quả đang sống chung:** ba màn còn lại đếm theo sổ đóng băng (100 dòng),
 Sổ lead đếm theo Neon (121). Hai số lệch nhau là **đúng thiết kế đợt này**,

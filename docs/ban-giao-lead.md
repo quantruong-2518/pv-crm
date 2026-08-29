@@ -219,7 +219,7 @@ của fixture. Nhớ nợ #1.
 hợp đồng đã hứa tên nó). Cột đổi theo: `contactTitle` từ API thay `leadContact()`,
 `ownerName`/`ownerEmail`, `signed` thay `contractCode`.
 
-**Hai thứ là đổi bố cục → phải qua `sketch-first`:**
+**Hai thứ là đổi bố cục — cần người gật bố cục trước:**
 
 - Badge "Đã ký · **HĐ-2711**" mất mã (`signed` là boolean, và lead→hợp đồng nay 1-n).
 - Dải "lead nạp trong phiên này" (`mergeLeadBook` + `useIntakeDesk`) phải **bỏ** —
@@ -230,7 +230,7 @@ hợp đồng đã hứa tên nó). Cột đổi theo: `contactTitle` từ API t
 Panel nạp tệp: bước 2 gọi `preview` thật, bước 3 gọi `import` · form nhập tay gọi
 `POST /sales/leads` · **hồ sơ ánh xạ theo nguồn** (Apollo 71 cột là hồ sơ đầu tiên).
 
-### Đợt 5 · Soát — `aurora-reviewer` · Opus · high
+### Đợt 5 · Soát — Opus · high
 
 Luật 12 (nền 4 lớp) và 13 (tương phản ≥ 4.5:1, nút tablet ≥ 48px) — phần CI không gác.
 

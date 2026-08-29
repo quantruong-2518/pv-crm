@@ -138,14 +138,13 @@ báo là **dựng mới** ở backend, không phải port.
 
 ## Công cụ đã thêm cho phiên sau
 
-Bốn agent trong `.claude/agents/`, gọi thẳng bằng tên:
+Ba agent trong `.claude/agents/`, gọi thẳng bằng tên:
 
-| Agent                 | Dùng khi                                                       |
-| --------------------- | -------------------------------------------------------------- |
-| `schema-cartographer` | Cần kiểm kê lại thực thể sau khi fixture đổi                   |
-| `dataflow-tracer`     | Thiết kế endpoint mới, hoặc soát lỗ hổng quyền                 |
-| `rule-locator`        | Một file trong `data/` phình nhanh, hoặc trước khi chuyển luật |
-| `contract-drafter`    | Thêm endpoint, hoặc đổi hình dạng dữ liệu — nó viết zod        |
+| Agent              | Dùng khi                                                       |
+| ------------------ | -------------------------------------------------------------- |
+| `dataflow-tracer`  | Thiết kế endpoint mới, hoặc soát lỗ hổng quyền                 |
+| `rule-locator`     | Một file trong `data/` phình nhanh, hoặc trước khi chuyển luật |
+| `contract-drafter` | Thêm endpoint, hoặc đổi hình dạng dữ liệu — nó viết zod        |
 
-Cả bốn đọc bằng cách grep khung khai báo trước rồi mới cắt vào vùng code, để
+Cả ba đọc bằng cách grep khung khai báo trước rồi mới cắt vào vùng code, để
 không cày qua khối comment dài của repo.

@@ -17,7 +17,7 @@ tools/                  eslint-plugin-aurora + script gác token/CSS
 Ba file `CLAUDE.md` con nói zone nào chứa gì và mở file nào theo việc — không
 liệt kê danh sách file cụ thể để khỏi lệch khi cấu trúc đổi. Viết bằng tiếng
 Anh vì đây là bản đồ cho agent đọc, không phải tài liệu sản phẩm cho người
-trong nhóm (cùng lý do skill `sketch-first` viết tiếng Anh).
+trong nhóm.
 
 Mọi trích dẫn `luật N` trong code trỏ vào `docs/luat-thiet-ke.md §1`.
 **Thiếu token thì HỎI, đừng bịa hex mới.**
@@ -29,19 +29,50 @@ pnpm install
 pnpm dev            # http://localhost:5173  ·  /kit là theme kit
 pnpm mail:preview   # http://localhost:5175 — mọi mẫu mail, render lại mỗi lần F5
 pnpm check          # cổng duy nhất: format · kiểu · lint · token · test · build · css
+pnpm check:fast     # tầng nhanh: format · kiểu · lint (bỏ test + build)
 pnpm lint:debt      # còn nợ bao nhiêu vi phạm cũ, ở file nào
 ```
 
 Node 22 (`.nvmrc`), pnpm 10. `pnpm check` là thứ CI chạy — xanh ở máy thì qua CI.
 
-## Đổi bố cục thì PHÁC TRƯỚC
+## Skill và agent — mở cái nào theo việc
 
-Mọi yêu cầu dựng màn mới, đổi bố cục, thêm/bớt/gộp khối đều đi qua skill
-`.claude/skills/sketch-first` — sơ đồ ASCII + bảng khối + danh sách quyết định
-cần gật, **trước khi** chạm file. Bác một sơ đồ 20 dòng rẻ hơn bác một màn đã
-dựng khoảng ba mươi lần; số đo cụ thể nằm trong chính skill đó.
+| Gọi                                                                         | Khi nào                                                                                               |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `/wsl`                                                                      | Trước MỌI lệnh `pnpm`/`git`/dev server. Repo ở WSL, Claude Code ở Windows — gọi thẳng hỏng im lặng.   |
+| `/preflight`                                                                | Sắp commit, sắp push, hoặc vừa đụng tầng dùng chung. Ba tầng kiểm, dừng ở tầng đủ dùng.               |
+| `/dispatch`                                                                 | Đầu một việc nhiều bước: ai làm, model nào, cái gì phải đẩy sang subagent.                            |
+| `/cat-mock`                                                                 | Cắt một query khỏi fixture sang endpoint thật — hàng chờ ở `docs/fix-later.md` §3.                    |
+| `dataflow-tracer` · `contract-drafter` · `rule-locator` · `deploy-guardian` | Bốn agent trong `.claude/agents/`, gọi thẳng bằng tên. Model và effort đã khai sẵn trong frontmatter. |
 
-Skill tự kích hoạt khi yêu cầu khớp, hoặc gọi thẳng bằng `/sketch-first`.
+## Luật khi sinh code
+
+Ba luật này áp cho **mọi dòng viết ra**, không phải chỉ khi được nhắc.
+
+**1 · Comment mang cái VÌ SAO, `docs/` chỉ trỏ đường.** Code đã nói _cái gì_ rồi —
+comment nói vì sao chọn thế này thay vì thế kia, đặt ngay tại chỗ khai báo, ngắn.
+Docblock ba mươi dòng cho vài dòng code là **nợ đang có, không phải mẫu để theo**:
+`apps/web/src/data/` hiện 28% là comment và chính mật độ đó khiến mọi lượt khảo
+sát phải grep khung trước mới đọc nổi. `docs/` giữ mức tổng quát — zone nào chứa
+gì, mở file nào theo việc — và không chép lại thứ code đã nói.
+
+**2 · Comment viết bằng tiếng Anh.** Comment, JSDoc, định danh và chuỗi log đi ra
+ngoài: vào stack trace, vào JSON, vào tay dev không đọc tiếng Việt. `aurora/comments-in-english`
+gác phần này ở mức `error`.
+
+Hai ngoại lệ, cố ý: **nhãn hiển thị** (`'Đang chạy'`) và **dữ liệu fixture** (tên
+người, tên công ty) giữ tiếng Việt — đó là _nội dung_, không phải khoá. Rule chỉ
+đọc comment, không đọc chuỗi, vì một chuỗi không tự nói nó là nhãn hay là câu văn.
+
+Thứ máy **không** thấy: định danh tiếng Việt viết không dấu (`textNhapTuyChon`).
+Không regex nào tách nó khỏi tiếng Anh — đó là việc của mắt người.
+
+**3 · Ít code nhất giải được bài.** Không trừu tượng hoá cho thứ dùng một lần,
+không cấu hình không ai xin, không bắt lỗi cho tình huống không xảy ra được. Tên
+biến và tên hàm nói đúng việc chúng làm. Sửa đúng thứ được yêu cầu — đừng "cải
+thiện" code bên cạnh, đừng đổi format vùng không liên quan; mỗi dòng đổi phải
+truy được về yêu cầu. Bản đầy đủ nằm ở skill `karpathy-guidelines` (plugin đang
+bật), gọi khi cần soát kỹ.
 
 ## Cái gì máy gác, cái gì người gác
 
@@ -60,6 +91,7 @@ Máy gác — sai là không merge được:
 | 11 · icon qua `<Icon>`   | `aurora/icon-through-gate`                                                |
 | 15 · không AI slop       | `aurora/no-ai-slop`                                                       |
 | kịch bản không trộn      | `aurora/no-scenario-mix`                                                  |
+| comment tiếng Anh        | `aurora/comments-in-english`                                              |
 
 Người gác — CI **không** biết, phải tự nhìn:
 
@@ -112,6 +144,7 @@ chốt nằm trong fixture. Cần số mới thì thêm vào fixture kèm một 
 
 ## Nợ lint đang có
 
-`eslint-suppressions.json` khoá **115 vi phạm `aurora/spacing-scale`** trong 27
-file. Rule vẫn là `error`: **thêm mới là CI đỏ**. Dọn xong file nào thì
-`pnpm lint:prune`.
+`eslint-suppressions.json` khoá **3.183 vi phạm trong 298 file** — 3.078
+`aurora/comments-in-english` (một dòng mỗi khối comment, không phải mỗi dòng) và
+105 `aurora/spacing-scale`. Cả hai vẫn là `error`: **thêm mới ở bất kỳ đâu là CI
+đỏ**. Xem chi tiết bằng `pnpm lint:debt`; dọn xong file nào thì `pnpm lint:prune`.

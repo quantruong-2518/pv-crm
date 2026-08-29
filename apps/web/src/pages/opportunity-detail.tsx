@@ -128,8 +128,7 @@ import { ActivityCard } from './lead-parts'
  *  làm bằng tay. Tức thứ còn thiếu không phải dữ liệu, mà là chỗ đặt.
  *
  *  Nên điều kiện trả nợ ở đây là CÓ NGƯỜI GẬT BỐ CỤC, không phải "chờ có màn
- *  để mở sang": dựng rail là đổi bố cục, phải đi qua `/sketch-first` trước khi
- *  chạm file.
+ *  để mở sang": dựng rail là đổi bố cục, cần người gật trước khi chạm file.
  *
  *  ------------------------------------------------------------------
  *  NỘI DUNG PHIẾU LÀ ĐÚNG NỘI DUNG POPUP

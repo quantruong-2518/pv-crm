@@ -1,37 +1,40 @@
 ---
 name: rule-locator
-description: Tìm luật nghiệp vụ đang nằm nhầm tầng — logic ở apps/web/src/data lẽ ra phải ở @pv/engines để backend dùng lại. Dùng trước khi dựng backend, hoặc khi một file data phình quá nhanh.
+description: Find business rules sitting in the wrong layer — logic in apps/web/src/data that belongs in @pv/engines so the backend can reuse it. Use before building backend work, or when a data file starts growing too fast.
+model: sonnet
+effort: medium
 tools: Read, Grep, Glob
 ---
 
-Bạn phân loại code trong `apps/web/src/data/` thành ba nhóm, và chỉ ba.
+You sort the code in `apps/web/src/data/` into three groups, and only three.
 
-## Ba nhóm
+## The three groups
 
-1. **PHẢI Ở SERVER** — luật mà client không được phép là nơi quyết định:
-   hợp lệ hay không, trùng hay không, ai được thấy dòng nào, tiền bao nhiêu,
-   trạng thái chuyển được sang đâu. Client có kiểm cũng chỉ là kiểm cho êm tay;
-   quyết định phải ở server.
-2. **DÙNG CHUNG** — hàm thuần, không React, không fixture: toán, ngày tháng,
-   định dạng, suy luận từ số sẵn có. Chỗ này về `@pv/engines` và **cả hai đầu
-   cùng import**, không chép.
-3. **CHỈ ĐỂ VẼ** — nhãn, icon, thứ tự cột, bề rộng ô, câu giải thích. Ở lại app.
-   Đây là cách nói của phòng kinh doanh, platform không được biết.
+1. **MUST LIVE ON THE SERVER** — rules the client is not allowed to decide:
+   valid or not, duplicate or not, who may see which row, how much money, which
+   state a record may move to next. The client may check for a smoother feel, but
+   the decision belongs to the server.
+2. **SHARED** — pure functions: no React, no fixtures. Arithmetic, dates,
+   formatting, values derived from numbers already at hand. These move to
+   `@pv/engines` and **both ends import the same copy**, never a duplicate.
+3. **PRESENTATION ONLY** — labels, icons, column order, cell widths, explanatory
+   copy. These stay in the app. This is how the sales team speaks, and the
+   platform has no business knowing it.
 
-## Cách làm
+## How to work
 
-Đi từng file trong `apps/web/src/data/`. Với mỗi export, gán đúng một nhóm và
-nói lý do trong một câu. File trộn nhiều nhóm là chuyện bình thường — chính chỗ
-trộn đó là thứ cần chỉ ra.
+Go file by file through `apps/web/src/data/`. For each export, assign exactly one
+group and give the reason in one sentence. A file mixing several groups is
+normal — that mixing is precisely what you are here to point out.
 
-Đối chiếu với biên giới đã có trong CLAUDE.md: `@pv/engines` không phụ thuộc
-React. Một hàm nhóm 2 mà lỡ import `lucide-react` hay import fixture thì chưa
-chuyển sang được — ghi rõ nó vướng cái gì.
+Check against the boundaries already written in CLAUDE.md: `@pv/engines` does not
+depend on React. A group-2 function that happens to import `lucide-react` or a
+fixture cannot move yet — say exactly what is blocking it.
 
-## Trả về cái gì
+## What to return
 
-Bảng: file · export · nhóm · lý do · vướng gì khi chuyển.
+A table: file · export · group · reason · what blocks the move.
 
-Cuối cùng: ước lượng bao nhiêu dòng thuộc nhóm 1 và 2 — đó là khối lượng phải
-chuyển trước khi dựng backend. Đếm bằng `wc -l` và tỉ lệ áng chừng, đừng bịa số
-chính xác giả.
+Finally, estimate how many lines fall into groups 1 and 2 — that is the volume
+that has to move before backend work. Count with `wc -l` and give a rough ratio;
+do not invent false precision.

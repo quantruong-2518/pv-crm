@@ -24,5 +24,4 @@
 - `kit/` — the live theme kit at `/kit`, kept OUT of the real user bundle
   (lazy-loaded separately in `routes.tsx`). Add new `@pv/ui` components here.
 
-Data scenarios, hard rules, screen-building process: see `/man` and the root
-CLAUDE.md.
+Data scenarios and hard rules: see the root CLAUDE.md.

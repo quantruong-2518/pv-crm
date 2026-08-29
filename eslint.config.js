@@ -56,6 +56,7 @@ export default tseslint.config(
       'aurora/no-ai-slop': 'error',
       'aurora/icon-through-gate': 'error',
       'aurora/no-scenario-mix': 'error',
+      'aurora/comments-in-english': 'error',
     },
   },
 

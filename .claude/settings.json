@@ -1,5 +1,20 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; pnpm check:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; pnpm check:fast:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; pnpm typecheck:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; pnpm lint:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; pnpm format:check:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; pnpm lint:debt:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; git status:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; git diff:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; git log:*)",
+      "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; git show:*)"
+    ],
+    "deny": ["Bash(pnpm db:push:*)", "Bash(pnpm db:seed:*)"]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -15,6 +30,9 @@
     ]
   },
   "enabledPlugins": {
-    "andrej-karpathy-skills@karpathy-skills": true
+    "andrej-karpathy-skills@karpathy-skills": true,
+    "context7@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
   }
 }
