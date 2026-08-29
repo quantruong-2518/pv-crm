@@ -129,13 +129,6 @@
       "breakpoints": true
     },
     {
-      "idx": 18,
-      "version": "7",
-      "when": 1787938428391,
-      "tag": "0018_contact_book",
-      "breakpoints": true
-    },
-    {
       "idx": 19,
       "version": "7",
       "when": 1787966400000,
