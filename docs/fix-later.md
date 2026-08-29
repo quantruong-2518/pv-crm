@@ -250,14 +250,15 @@ chừng, và câu đếm đó chưa ai chạy.
   `.env.example` và hai doc còn lại. Copy nguyên dòng đó ra chạy sẽ trượt.
 - `apps/web/src/data/leads.ts` — docblock `leadFacetQuery` nói "sổ có 119 dòng";
   Neon nay 121, fixture vẫn 100. Con số trong văn xuôi sẽ còn trôi, đừng dựa vào nó.
-- **Khối "một ô form" đã có NĂM bản**: `components/ops-fields.tsx:54` (đã export),
-  `mas-mail-drawer.tsx:600`, `campaign-parts.tsx:92`, `auth-card.tsx:79`
-  (`AuthField`), `pages/users-parts.tsx:652`. Nó KHÔNG thuộc `@pv/ui` — không
-  phải atom, và `ops-fields.tsx:37-39` đã lập luận đúng biên giới package —
-  nhưng nó nên là một bản ở `apps/web/src/components/`, có nhận `errors`.
-- **Nút trong drawer là 40px, luật 13 đòi ≥ 48px trên tablet.** `size="lg"` tồn
-  tại và các màn auth đang dùng đúng; drawer nghiệp vụ (`mas-mail-drawer`,
-  `users-parts`) thì chưa. Kèm theo: `Drawer` footer
+- **Khối "một ô form" đã có NĂM bản**: `components/ops-fields.tsx:51` (đã export),
+  `mas-mail-modal.tsx:699`, `pages/source-parts.tsx:92`, `auth-card.tsx:79`
+  (`AuthField`), `pages/users-parts.tsx:655` (`FormField`). Nó KHÔNG thuộc
+  `@pv/ui` — không phải atom, và `ops-fields.tsx:37-39` đã lập luận đúng biên
+  giới package — nhưng nó nên là một bản ở `apps/web/src/components/`, có nhận
+  `errors`.
+- **Nút trong drawer · modal nghiệp vụ là 40px, luật 13 đòi ≥ 48px trên tablet.**
+  `size="lg"` tồn tại và các màn auth đang dùng đúng; `mas-mail-modal` và
+  `users-parts` thì chưa. Kèm theo: `Drawer` footer
   (`packages/ui/src/layout/drawer.tsx:157`) chưa chừa `env(safe-area-inset-bottom)`,
   nên dưới `sm` nút "Lưu" nằm chồng vạch home indicator 34px của iPhone —
   `AppShell` đã chừa đúng chỗ này, `Drawer` thì chưa.
@@ -268,3 +269,54 @@ chừng, và câu đếm đó chưa ai chạy.
 - **Ô email trong dòng sổ bị chép sang màn thứ ba**: `pages/users.tsx` in lại
   đúng chuỗi class của `components/table-bits.tsx:70` (`PicCell`) thay vì gọi
   nó — đúng thứ docblock của `table-bits.tsx:4-15` viết ra để ngăn.
+
+---
+
+## 12 · Mail cho lead không có file đính kèm — tạm đi bằng link Drive
+
+**Triệu chứng:** BD cần gửi kèm hồ sơ năng lực công ty và không có chỗ nào để
+đính tệp. Cách đang dùng: tự tải file lên Google Drive rồi dán link chia sẻ vào
+ô **"Nút trong email"** của modal soạn mail.
+
+**Ở đâu:** không tầng nào của đường gửi có đính kèm, và thiếu ở đây là cả tầng
+chứa bytes chứ không phải một ô input:
+
+- `packages/contracts/src/sales/mail.ts` · `MasSendRequest` — chỉ có
+  `label` · `templateCode` · `subject` · `body` · `cta` · `scheduledAt` · `campaignCode`.
+- `apps/api/src/platform/mail/mail.contract.ts` · `MailMessage` — `from` · `to`
+  · `replyTo` · `subject` · `html` · `text` · `headers`.
+- `platform.mail_run` không có cột nào cho tệp; `apps/api` không có nơi nhận
+  upload nào (`multer` · `@aws-sdk` · presigned đều không tồn tại trong cây).
+
+Đây cũng là lý do đính kèm ở form cơ hội (`apps/web/src/components/ops-fields.tsx`
+· `AttachmentsField`) chỉ giữ `{ name, size }` — cùng một chỗ trống, hai màn.
+
+**Sửa thế nào:** bốn tầng, theo thứ tự — chỗ chứa file trên S3 + endpoint phát
+presigned URL → trường `attachments` trên `MasSendRequest` và cột trên
+`mail_run` → `MailMessage`/`MailPort` + `resend.driver.ts` truyền attachments
+xuống Resend → ô chọn tệp trong `mas-mail-modal.tsx`. Cân nhắc chỉ mở đính kèm
+cho thư 1-1 từ màn lead và giữ link cho lô MAS: một lô tới 200 người
+(`PV_MAS_BATCH_MAX`), nhân một PDF vài MB vào đó vừa tốn quota vừa đẩy
+spam-score, mà trần bounce đang đặt 4% (`PV_MAS_BOUNCE_CEILING_PERCENT`) và
+vượt là chặn lô.
+
+**Vì sao chưa sửa:** AWS chưa setup xong, và không có nó thì ba tầng đầu không
+có chỗ đứng. Chốt 30/08/2026: chờ AWS, không dựng kho tạm.
+
+**Trong lúc chờ, ba điều đường vòng bắt buộc phải biết:**
+
+- **Link phải nằm ở ô CTA, không nằm trong thân thư.** `MailCta.url` nhận mọi
+  URL `http/https`, không allowlist. Còn thân thư thì `splitParagraphs`
+  (`apps/api/src/platform/mail/mas.composer.ts`) cắt thành các `<Text>` đã
+  escape — URL trần **không** thành `<a>`. Gmail thường tự bắt link, Outlook
+  desktop thì không.
+- **Mỗi lá chỉ có một nút.** Mẫu nào đã dùng CTA cho việc khác thì hồ sơ không
+  còn chỗ. Nếu chuyện này thành thường xuyên, việc rẻ nhất **không phải** chờ
+  AWS mà là cho autolink URL trong thân thư ở composer — hàng chục dòng, độc
+  lập hoàn toàn với đính kèm thật.
+- **Link Drive phải để "Bất kỳ ai có đường liên kết".** Để `Restricted` là
+  khách bấm vào gặp màn xin quyền, mà thư đã đi thì không sửa lại được.
+
+Bù lại, đặt ở CTA thì đo được: webhook `email.clicked` vào
+`mail-webhook.controller.ts` và cộng vào cột `clicked` của lô — link trong thân
+thư mất luôn số này.

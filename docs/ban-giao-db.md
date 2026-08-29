@@ -19,9 +19,9 @@ tiếp.
 > **Cập nhật 28/08:** mục "Chưa dựng — 12 bảng" bên dưới liệt `mail_delivery`
 > là một bảng riêng cho cụm B — đã LỖI THỜI, xem cập nhật ngay trên: cụm B dùng
 > lại `email_delivery` + `campaign_run_id`, không tách bảng thứ hai. `suppression`
-> ở mục A cũng lỗi thời cùng lý do — đã dựng, đọc cập nhật 27/08 (2). Còn thiếu
-> gì để Quick MAS (Sổ lead) gửi được mail thật — không chỉ 12 bảng, còn endpoint,
-> composer, quyền: [`ban-giao-quick-mas.md`](./ban-giao-quick-mas.md).
+> ở mục A cũng lỗi thời cùng lý do — đã dựng, đọc cập nhật 27/08 (2). Đường gửi
+> MAS — endpoint, composer, quyền — nay đã dựng thật:
+> [`ban-giao-mas-mail.md`](./ban-giao-mas-mail.md).
 >
 > **Cập nhật 28/08 (2):** mục `sales.opportunity` bên dưới mô tả bảng TỐI THIỂU —
 > đã LỖI THỜI. Bảng đã bồi cột (`state` · `name` · `account_code` · `description`

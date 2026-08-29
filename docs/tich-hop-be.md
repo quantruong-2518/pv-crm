@@ -1,8 +1,6 @@
 # Tích hợp API — v1 · module Lead
 
-Lát cắt **27/08/2026**, nhánh `develop`. Đi kèm
-[`pv-one.postman_collection.json`](./pv-one.postman_collection.json) — nhập vào
-Postman là gọi được ngay, không phải gõ lại gì.
+Lát cắt **27/08/2026**, nhánh `develop`.
 
 |               |                                                                  |
 | ------------- | ---------------------------------------------------------------- |

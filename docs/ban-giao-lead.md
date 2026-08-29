@@ -3,7 +3,7 @@
 Lát cắt **27/08/2026**, nhánh `develop`, `pnpm check` **xanh**. Tiếp nối
 [`ban-giao-db.md`](./ban-giao-db.md) (lược đồ) và [`ban-giao-api.md`](./ban-giao-api.md)
 (khung `apps/api`). Hợp đồng gọi API để ghép FE nằm ở
-[`tich-hop-be.md`](./tich-hop-be.md) + [`pv-one.postman_collection.json`](./pv-one.postman_collection.json).
+[`tich-hop-be.md`](./tich-hop-be.md).
 
 ---
 
@@ -254,7 +254,6 @@ cd apps/api && PORT=4123 pnpm dev
 curl -H 'X-PV-Actor-Id: u-ha' 'http://127.0.0.1:4123/sales/leads?status=all&size=3'
 ```
 
-Nhập `docs/pv-one.postman_collection.json` vào Postman là gọi được cả 14 request.
 Xác thực hôm nay là **cửa sau POC** (`X-PV-Actor-Id`), `env.ts` chặn ở production.
 
 ⚠️ `apps/api/.env` đang trỏ **thẳng Neon**, nên `pnpm db:seed` **xoá sạch Neon rồi

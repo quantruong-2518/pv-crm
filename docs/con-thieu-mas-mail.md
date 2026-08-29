@@ -34,7 +34,7 @@ một cái khung: mọi chỗ chưa biết nằm trong ngoặc vuông `[…]`.
 
 **Ở đâu.** `apps/api/drizzle/0013_mas_template_seed.sql`. Ba lớp chặn đang dựa
 vào chính ký hiệu ngoặc vuông đó — panel soạn mail **khoá nút gửi** khi tiêu đề
-hoặc thân còn `[…]` (`unfilledSlots` ở `components/mas-mail-drawer.tsx`).
+hoặc thân còn `[…]` (`unfilledSlots` ở `components/mas-mail-modal.tsx`).
 
 **Làm thế nào.** Chủ dự án cấp bốn thứ: tên dòng sản phẩm · một câu định vị ·
 CTA dẫn đi đâu · số liệu nào được phép in. Rồi `UPDATE sales.mail_template SET
@@ -103,17 +103,26 @@ cửa huỷ lô (**A6**) không có chỗ để bấm.
 `data/mas.ts` cố tình CHƯA khai query cho hai cửa này: một query không màn nào
 gọi là một khai báo quyền không ai bảo trì.
 
-### C2 · Chuỗi đợt của chiến dịch — A3 và D2 đã xong, còn đúng phần FE
+### C2 · Nút ghi của sổ Nguồn dẫn chưa nối máy chủ
 
-`pages/campaigns.tsx`/`campaign-detail.tsx`/`campaign-parts.tsx` vẫn đứng trên
-fixture `Source`/`Wave` (mã `SR-`/`SK-`), chưa đọc `sales.campaign` thật —
-mọi nút ghi (Lưu nháp, Bắt đầu chạy, Dừng, "Thêm đợt vào chuỗi") vẫn chỉ
-`setState` cục bộ. Backend (**A3**) và mô hình (**D2**) không còn là lý do
-chưa làm nữa — cái thiếu bây giờ đúng là ba việc FE độc lập: `data/campaign-book.ts`
-đọc CRUD thật, một Sổ chiến dịch mới (reclaim path `/sales/campaigns`), và một
-bước "Lịch gửi" trong `mas-mail-drawer.tsx` nhận `campaignCode`/`scheduledAt`
-(cả hai đã có sẵn ở `MasSendRequest`). Việc tiếp theo theo thứ tự:
-[`ban-giao-campaign.md`](./ban-giao-campaign.md).
+**Cái gì.** Sổ Nguồn dẫn (`Source`/`Wave`, mã `SR-`/`SK-`) đọc thật nhưng ghi
+giả: bấm "Thêm đợt" · "Lưu nháp" · "Bắt đầu chạy" rồi F5 là mất sạch.
+
+**Ở đâu.** Phần ĐỌC đã cắt khỏi fixture 28/08 — `sourcesQuery` và
+`campaignTotalsQuery` (`data/campaigns.ts`) không còn `load:`, đi thẳng
+`GET /sales/campaigns/sources` và `/totals`. Phần GHI thì chưa có gì để nối:
+`source.controller.ts` chỉ khai đúng hai cửa `@Get` đó. Nên ba màn
+`pages/sources.tsx` · `source-detail.tsx` · `source-parts.tsx` không có lấy một
+`useMutation` nào, và ba nút trên (`source-parts.tsx:759` · `:936` · `:952`)
+chỉ `setState` cục bộ.
+
+**Làm thế nào.** Backend trước — chỗ chứa `Source`/`Wave` trong `sales`, rồi
+`POST`/`PATCH` đặt cạnh hai cửa đọc đã có. FE nối sau theo đúng nghi thức của
+`data/campaign-book.ts`.
+
+**Vì sao chưa.** Đây là dựng nhánh backend mới chứ không phải dọn FE — cùng
+loại việc với mục 3 của [`fix-later.md`](./fix-later.md), và sổ Chiến dịch
+(`sales.campaign`) được ưu tiên đi trước.
 
 ---
 

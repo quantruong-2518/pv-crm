@@ -260,12 +260,9 @@ dùng đứng trên nó, hoặc phải đẻ module thứ 7 cho một sổ vốn
 apps/web/src/data/campaign-book.ts          MỚI — query/mutation CP
 apps/web/src/data/mail-runs.ts              MỚI — sổ lô gửi + huỷ lô
 apps/web/src/pages/campaigns.tsx            MỚI — Sổ chiến dịch
-apps/web/src/pages/campaign-detail.tsx      MỚI — Hồ sơ chiến dịch
+apps/web/src/pages/campaign-form.tsx        MỚI — stepper: tạo · sửa · xem
 apps/web/src/pages/mail-runs.tsx            MỚI — Sổ lô gửi
 apps/web/src/components/module1-books.tsx   MỚI — dải ba sổ
-apps/web/src/components/campaign-create-dialog.tsx    MỚI
-apps/web/src/components/campaign-audience-dialog.tsx  MỚI — gom lead vào tệp
-apps/web/src/components/campaign-wave-dialog.tsx      MỚI — soạn và bắn đợt đầu
 
 apps/web/src/pages/campaigns.tsx      → sources.tsx        (git mv)
 apps/web/src/pages/campaign-detail.tsx → source-detail.tsx (git mv)

@@ -1,17 +1,11 @@
 # Bàn giao — MAS mail (gửi hàng loạt)
 
 Lát cắt **28/08/2026**, nhánh `develop`. Tiếp nối
-[`ban-giao-mail.md`](./ban-giao-mail.md) (đường ống giao dịch đã dựng thật) và
-[`ban-giao-quick-mas.md`](./ban-giao-quick-mas.md) (bản demo FE + danh sách
-thiếu). File này ghi **kiến trúc đã chốt và vì sao**, cộng phần đã dựng thật.
+[`ban-giao-mail.md`](./ban-giao-mail.md) (đường ống giao dịch đã dựng thật).
+File này ghi **kiến trúc đã chốt và vì sao**, cộng phần đã dựng thật.
 
 Cách vận hành và cách kiểm tay: [`van-hanh-mail.md`](./van-hanh-mail.md).
 **Còn thiếu gì và ai phải làm**: [`con-thieu-mas-mail.md`](./con-thieu-mas-mail.md).
-
-> **Sửa một chỗ lệch trong chính bộ docs này.** `ban-giao-quick-mas.md` mục
-> "Chưa có" vẽ `campaign_run` là ĐƠN VỊ GỬI, và `email_delivery.campaign_run_id`
-> trỏ vào đó. Bản dựng thật **không** làm vậy — lý do ở quyết định #1 bên dưới.
-> Cột đó nay tên `mail_run_id` và trỏ `platform.mail_run`.
 
 ---
 
