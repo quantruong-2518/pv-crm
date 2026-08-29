@@ -15,47 +15,57 @@ import {
 import type { ReactNode } from 'react'
 import { BRAND, markUrl } from './brand'
 import {
+  COLOR_ALERT,
   COLOR_BG,
   COLOR_INK,
   COLOR_MUTED,
   COLOR_PRIMARY,
   COLOR_SURFACE,
+  FONT_HREF,
   FONT_STACK,
   NUMERIC,
 } from './ops-mail-style'
 
-/** KHUNG CHUNG CỦA THƯ GIAO DỊCH — dải nhận diện trên, chân thư đầy đủ dưới,
+/** KHUNG CHUNG CỦA MỌI LÁ THƯ PV — dải nhận diện trên, chân thư đầy đủ dưới,
  *  nội dung ở giữa là `children`.
  *
  *  ==================================================================
- *  BA KHUNG, VÀ VÌ SAO KHÔNG GỘP ĐƯỢC THÀNH MỘT
+ *  MỘT KHUNG CHO CẢ NỘI BỘ LẪN GỬI KHÁCH — VÀ VÌ SAO ĐỔI Ý
  *  ==================================================================
- *  Gói này có ba khung, chia theo NGƯỜI NHẬN chứ không theo hình dạng:
+ *  Bản đầu của file này lập luận rằng ba loại người đọc cần ba khung. Lập
+ *  luận đó sai ở một chỗ: nó nhầm BỐ CỤC với MẬT ĐỘ. Cái mà thư nội bộ thật
+ *  sự cần khác đi là phần THÂN — danh sách trường dày để quét mười dòng một
+ *  lúc, thay vì đoạn văn thưa. Còn dải nhận diện, chân thư và một nút hành
+ *  động thì cả ba loại đều cần như nhau, và ba bản sao của chúng là ba chỗ để
+ *  địa chỉ công ty, logo và câu chân thư trôi khỏi nhau.
  *
- *   · `ops-mail-bits.tsx` — thư nội bộ. Người đọc là nhân viên kinh doanh
- *     đang lướt hộp thư: dày đặc trường, không lời chào, không CTA to. Đẹp ở
- *     đây nghĩa là quét nhanh được.
- *   · `mas-shell.tsx` — thư tiếp thị hàng loạt. Bắt buộc mang liên kết huỷ
- *     đăng ký, và nội dung tới từ `sales.mail_template` chứ không từ code.
- *   · file này — thư giao dịch gửi RA NGOÀI: đặt mật khẩu, xác nhận đã nhận
- *     thông tin, lời mời họp, bản hợp đồng. Một người, một việc, một nút.
+ *  Nên bây giờ: MỘT khung, ba kiểu thân.
  *
- *  Mặc `mas-shell` cho thư giao dịch sẽ gắn vào đó một liên kết huỷ đăng ký
- *  cho thứ người ta KHÔNG đăng ký và KHÔNG được phép tắt — dạy người nhận một
- *  điều sai về chính hệ thống. Mặc `ops-mail-bits` thì gửi cho khách một lá
- *  thư trông như log nội bộ. Ba khung là ba người đọc, không phải ba khẩu vị.
+ *   · nội bộ — `Field` của `ops-mail-bits.tsx` xếp dày trong `children`
+ *   · giao dịch — `ShellHeading` + `Para` + `FactBox`
+ *   · MAS — đoạn văn từ `sales.mail_template`, chân thư mang liên kết huỷ
+ *
+ *  Hai chỗ khung phải nhường cho lá thư, và cả hai đều là slot chứ không phải
+ *  cờ boolean: `footerNote` (thư tiếp thị bắt buộc có liên kết huỷ đăng ký) và
+ *  `postal` (một lô MAS in địa chỉ đã chụp lúc tạo lô, không phải địa chỉ
+ *  hôm nay).
  *
  *  ------------------------------------------------------------------
  *  MỌI KIỂU DÁNG ĐI INLINE TRÊN CHÍNH THẺ
  *  ------------------------------------------------------------------
- *  Không có `<style>`, không có class, không có `var(--*)`. Gmail bản web bóc
- *  khối `<style>` khỏi `<head>`, phần lớn cổng thư doanh nghiệp cũng vậy, nên
- *  thứ duy nhất chắc chắn còn lại là thuộc tính `style` trên từng thẻ. Xấu khi
- *  đọc code, nhưng đây là ràng buộc của môi trường chứ không phải lựa chọn.
+ *  Không có class, không có `var(--*)`. Gmail bản web bóc khối `<style>` khỏi
+ *  `<head>`, phần lớn cổng thư doanh nghiệp cũng vậy, nên thứ duy nhất chắc
+ *  chắn còn lại là thuộc tính `style` trên từng thẻ. Xấu khi đọc code, nhưng
+ *  đây là ràng buộc của môi trường chứ không phải lựa chọn.
  *
- *  Bố cục ngang dựng bằng `Row`/`Column` (tức `<table>`) chứ không flexbox:
- *  Outlook trên Windows render bằng engine của Word, thứ không biết flex và
- *  sẽ xếp mọi thứ thành một cột dọc.
+ *  Đặc biệt `fontFamily`: nó nằm trên TỪNG thẻ chữ (`TEXT` bên dưới) chứ
+ *  không chỉ trên `<body>`. Engine Word của Outlook không cho `font-family`
+ *  thừa kế đáng tin vào trong `<table>`, mà `Row`/`Column`/`Section` của
+ *  React Email đều dựng ra bảng — thiếu nó thì đúng những khối quan trọng
+ *  nhất rơi về phông mặc định của Word.
+ *
+ *  Bố cục ngang cũng dựng bằng `Row`/`Column` chứ không flexbox, cùng lý do:
+ *  Word không biết flex và sẽ xếp mọi thứ thành một cột dọc.
  *
  *  ------------------------------------------------------------------
  *  THƯ PHẢI ĐỌC ĐƯỢC KHI ẢNH BỊ CHẶN
@@ -82,13 +92,27 @@ export type BrandShellProps = {
    *  buộc đặt liên kết huỷ đăng ký. Một boolean sẽ phải mọc thêm nhánh mỗi
    *  lần có loại thư mới. */
   footerNote?: ReactNode
+  /** Danh tính in ở chân thư. Bỏ trống = `BRAND.legalName` + `BRAND.postal`.
+   *
+   *  Ghi đè được vì một lô MAS CHỤP danh tính người gửi lúc tạo lô và phải
+   *  giữ nguyên nó tới lúc gửi xong — cùng lý do `mail_run.from_address` là
+   *  một cột chứ không phải một lần đọc biến môi trường. Một lô đã duyệt dưới
+   *  một danh tính mà đi ra dưới danh tính khác là một lô khác.
+   *
+   *  Cả cặp cùng vào hoặc cùng không, không tách lẻ: một chân thư mang tên
+   *  công ty hôm nay cạnh địa chỉ của năm ngoái sai hơn cả hai bản thuần. */
+  sender?: { name: string; address: string }
 }
+
+/** Phông gắn trên từng thẻ chữ. Xem đoạn "MỌI KIỂU DÁNG ĐI INLINE" ở trên —
+ *  đây là thứ đứng giữa lá thư và Times New Roman của Outlook. */
+const TEXT = { fontFamily: FONT_STACK } as const
 
 const PAGE_STYLE = {
   backgroundColor: COLOR_SURFACE,
   margin: 0,
   padding: '32px 0',
-  fontFamily: FONT_STACK,
+  ...TEXT,
 } as const
 
 /** Tấm thẻ trắng nổi trên nền lõm. 560px là bề ngang quen thuộc của thư — hẹp
@@ -109,10 +133,21 @@ const HEADER_STYLE = {
 
 const CONTENT_STYLE = { padding: '32px' } as const
 
-export function BrandShell({ preview, assetBaseUrl, children, footerNote }: BrandShellProps) {
+export function BrandShell({
+  preview,
+  assetBaseUrl,
+  children,
+  footerNote,
+  postal,
+}: BrandShellProps) {
   return (
     <Html lang="vi">
-      <Head />
+      <Head>
+        {/* Webfont là phép nâng cấp cơ hội — xem `FONT_HREF`. Client nào bóc
+            thẻ này thì đọc bằng phông hệ thống, và `FONT_STACK` được dựng để
+            việc đó không nhìn ra là một sự cố. */}
+        <link rel="stylesheet" href={FONT_HREF} />
+      </Head>
       <Preview>{preview}</Preview>
       <Body style={PAGE_STYLE}>
         <Container style={CARD_STYLE}>
@@ -139,6 +174,7 @@ export function BrandShell({ preview, assetBaseUrl, children, footerNote }: Bran
                     fontWeight: 700,
                     letterSpacing: '-0.01em',
                     color: COLOR_BG,
+                    ...TEXT,
                   }}
                 >
                   {BRAND.product}
@@ -152,6 +188,7 @@ export function BrandShell({ preview, assetBaseUrl, children, footerNote }: Bran
                     fontWeight: 500,
                     letterSpacing: '0.04em',
                     color: COLOR_SURFACE,
+                    ...TEXT,
                   }}
                 >
                   {BRAND.org}
@@ -164,7 +201,7 @@ export function BrandShell({ preview, assetBaseUrl, children, footerNote }: Bran
 
           <Hr style={{ borderColor: COLOR_SURFACE, margin: '0 32px' }} />
 
-          <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} />
+          <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} postal={postal} />
         </Container>
       </Body>
     </Html>
@@ -180,7 +217,15 @@ export function BrandShell({ preview, assetBaseUrl, children, footerNote }: Bran
  *  phần phụ), hoặc giữ nền trắng để `Slate Gray` đạt 5.38:1 và chân thư mờ đi
  *  đúng như vai trò của nó. Chọn đường thứ hai; phần "lùi lại một bậc" do
  *  đường kẻ và cỡ chữ gánh, không cần tới màu nền. */
-function BrandFooter({ assetBaseUrl, note }: { assetBaseUrl: string; note?: ReactNode }) {
+function BrandFooter({
+  assetBaseUrl,
+  note,
+  postal,
+}: {
+  assetBaseUrl: string
+  note?: ReactNode
+  postal?: string
+}) {
   return (
     <Section style={{ padding: '24px 32px 28px' }}>
       <Row>
@@ -194,16 +239,28 @@ function BrandFooter({ assetBaseUrl, note }: { assetBaseUrl: string; note?: Reac
           />
         </Column>
         <Column style={{ verticalAlign: 'top' }}>
-          <Text style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: COLOR_INK }}>
+          <Text
+            style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: COLOR_INK, ...TEXT }}
+          >
             {BRAND.legalName}
           </Text>
           {/* `lineHeight` rộng hơn thường lệ vì đây là địa chỉ: nó gãy dòng ở
               chỗ không đoán trước được, và hai dòng địa chỉ dính nhau đọc ra
               thành một dòng dài vô nghĩa. */}
-          <Text style={{ margin: '0 0 6px', fontSize: 12, lineHeight: '19px', color: COLOR_MUTED }}>
-            {BRAND.postal}
+          <Text
+            style={{
+              margin: '0 0 6px',
+              fontSize: 12,
+              lineHeight: '19px',
+              color: COLOR_MUTED,
+              ...TEXT,
+            }}
+          >
+            {postal ?? BRAND.postal}
           </Text>
-          <Text style={{ margin: 0, fontSize: 12, lineHeight: '19px', color: COLOR_MUTED }}>
+          <Text
+            style={{ margin: 0, fontSize: 12, lineHeight: '19px', color: COLOR_MUTED, ...TEXT }}
+          >
             <Link href={`mailto:${BRAND.contactEmail}`} style={{ color: COLOR_PRIMARY }}>
               {BRAND.contactEmail}
             </Link>
@@ -217,7 +274,7 @@ function BrandFooter({ assetBaseUrl, note }: { assetBaseUrl: string; note?: Reac
 
       <Hr style={{ borderColor: COLOR_SURFACE, margin: '18px 0 12px' }} />
 
-      <Text style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: COLOR_MUTED }}>
+      <Text style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: COLOR_MUTED, ...TEXT }}>
         {note ?? `Thư này do hệ thống ${BRAND.product} gửi tự động, không cần trả lời.`}
       </Text>
     </Section>
@@ -225,19 +282,36 @@ function BrandFooter({ assetBaseUrl, note }: { assetBaseUrl: string; note?: Reac
 }
 
 /** Tiêu đề thân thư. Một lá thư có ĐÚNG MỘT cái — nó là câu trả lời cho "thư
- *  này về chuyện gì", và hai câu trả lời nghĩa là hai lá thư. */
-export function ShellHeading({ children }: { children: ReactNode }) {
+ *  này về chuyện gì", và hai câu trả lời nghĩa là hai lá thư.
+ *
+ *  `tone="alert"` cho tin xấu (đơn thua). Là một `<Text>` làm việc của tiêu đề
+ *  chứ không phải `<h1>`, và lý do nằm ở bản plain-text: bộ dựng mặc định
+ *  VIẾT HOA toàn bộ tiêu đề thật, đọc ra thành đúng thứ "chữ in hoa nhồi" mà
+ *  luật 15 cấm. */
+export function ShellHeading({ children, tone }: { children: ReactNode; tone?: 'alert' }) {
   return (
     <Text
       style={{
-        margin: '0 0 8px',
+        margin: '0 0 6px',
         fontSize: 22,
         lineHeight: '29px',
         fontWeight: 700,
         letterSpacing: '-0.015em',
-        color: COLOR_INK,
+        color: tone === 'alert' ? COLOR_ALERT : COLOR_INK,
+        ...TEXT,
       }}
     >
+      {children}
+    </Text>
+  )
+}
+
+/** Dòng định danh ngay dưới tiêu đề — mã đối tượng, nguồn, quan hệ. Ba lá thư
+ *  nội bộ đều mở bằng đúng hình này ("OP-0231 · từ lead LD-0847"), nên nó là
+ *  một component chứ không phải ba `<Text>` chép tay. */
+export function Eyebrow({ children }: { children: ReactNode }) {
+  return (
+    <Text style={{ margin: '0 0 22px', fontSize: 12, color: COLOR_MUTED, ...NUMERIC, ...TEXT }}>
       {children}
     </Text>
   )
@@ -249,7 +323,14 @@ export function ShellHeading({ children }: { children: ReactNode }) {
 export function Para({ children }: { children: ReactNode }) {
   return (
     <Text
-      style={{ margin: '0 0 14px', fontSize: 15, lineHeight: '25px', color: COLOR_INK, ...NUMERIC }}
+      style={{
+        margin: '0 0 14px',
+        fontSize: 15,
+        lineHeight: '25px',
+        color: COLOR_INK,
+        ...NUMERIC,
+        ...TEXT,
+      }}
     >
       {children}
     </Text>
@@ -267,6 +348,7 @@ export function Note({ children }: { children: ReactNode }) {
         lineHeight: '21px',
         color: COLOR_MUTED,
         ...NUMERIC,
+        ...TEXT,
       }}
     >
       {children}
@@ -294,9 +376,9 @@ export function FactBox({ children }: { children: ReactNode }) {
 
 /** Một dòng dữ kiện: nhãn nhỏ in hoa ở trên, giá trị ở dưới.
  *
- *  Nhãn và giá trị nằm ở HAI `<Text>` xếp dọc, khác với `Field` của khung nội
- *  bộ vốn nhét cả hai vào một dòng: thư nội bộ tối ưu cho việc quét mười dòng
- *  một lúc, còn ở đây có ba bốn dữ kiện và mỗi cái đáng được nhìn.
+ *  Nhãn và giá trị nằm ở HAI `<Text>` xếp dọc, khác với `Field` của thư nội bộ
+ *  vốn nhét cả hai vào một dòng: thư nội bộ tối ưu cho việc quét mười dòng một
+ *  lúc, còn ở đây có ba bốn dữ kiện và mỗi cái đáng được nhìn.
  *
  *  Không có giá trị thì KHÔNG vẽ gì — cùng luật "bỏ hẳn dòng, đừng in N/A"
  *  mà `Field` bên `ops-mail-bits.tsx` đang giữ. Một dòng "N/A" là một câu
@@ -323,6 +405,7 @@ export function Fact({ label, value }: { label: string; value?: string }) {
           letterSpacing: '0.06em',
           textTransform: 'uppercase',
           color: COLOR_INK,
+          ...TEXT,
         }}
       >
         {label}
@@ -335,6 +418,7 @@ export function Fact({ label, value }: { label: string; value?: string }) {
           fontWeight: 500,
           color: COLOR_INK,
           ...NUMERIC,
+          ...TEXT,
         }}
       >
         {value}
@@ -345,20 +429,22 @@ export function Fact({ label, value }: { label: string; value?: string }) {
 
 /** Đường dẫn dự phòng dưới nút — in NGUYÊN URL làm chữ hiển thị.
  *
- *  Không giấu sau một chữ "bấm vào đây", và lý do khác với lý do của
- *  `OpenLink` bên khung nội bộ (ở đó là để người được chuyển tiếp thư biết nó
- *  trỏ đâu). Ở đây người nhận là khách: một lá thư bảo họ bấm vào một chữ
- *  không cho biết đích đến chính là hình dạng của thư lừa đảo, và thói quen
- *  đúng — nhìn địa chỉ trước khi bấm — là thứ ta muốn củng cố chứ không phá.
- *
- *  Tồn tại riêng thay vì dùng lại `OpenLink` vì màu: `OpenLink` dùng
- *  `COLOR_ACCENT`, và trong khung này màu của hành động là `COLOR_PRIMARY`.
- *  Một lá thư có hai sắc xanh cho hai liên kết là một lá thư trông như ghép
- *  từ hai nơi. */
+ *  Không giấu sau một chữ "bấm vào đây". Với thư gửi khách: một lá thư bảo họ
+ *  bấm vào một chữ không cho biết đích đến chính là hình dạng của thư lừa
+ *  đảo, và thói quen đúng — nhìn địa chỉ trước khi bấm — là thứ ta muốn củng
+ *  cố chứ không phá. Với thư nội bộ: mail hay được chuyển tiếp, và người nhận
+ *  thứ hai cần thấy nó trỏ vào đâu trước khi bấm. */
 export function FallbackLink({ url }: { url: string }) {
   return (
     <Text
-      style={{ margin: 0, fontSize: 13, lineHeight: '20px', wordBreak: 'break-all', ...NUMERIC }}
+      style={{
+        margin: 0,
+        fontSize: 13,
+        lineHeight: '20px',
+        wordBreak: 'break-all',
+        ...NUMERIC,
+        ...TEXT,
+      }}
     >
       <Link href={url} style={{ color: COLOR_PRIMARY }}>
         {url}
@@ -388,6 +474,7 @@ export function CtaButton({ href, children }: { href: string; children: ReactNod
           textDecoration: 'none',
           padding: '14px 28px',
           borderRadius: 8,
+          ...TEXT,
         }}
       >
         {children}

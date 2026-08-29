@@ -296,39 +296,47 @@ export function LeadDetailPage() {
         {/* Trường VẮNG nghĩa là chưa moi được, không phải rỗng — nên chỗ nào
             chưa có thì in "—" chứ không bỏ pill đi: một hàng pill thiếu chỗ
             này thừa chỗ kia không đọc ra được là "chưa biết" hay "không có". */}
-        <ScreenHeader
-          back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
-          title={accountName}
-          className="gap-3 [&>div]:gap-3 [&_h2]:normal-case [&_h2]:tracking-[-.4px]"
-          actions={
-            <>
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] lg:gap-6">
+          <ScreenHeader
+            back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
+            title={accountName}
+            className="gap-3 [&>div]:gap-3 [&_h2]:normal-case [&_h2]:tracking-[-.4px]"
+            meta={
+              <>
+                <Chip>{lead.code}</Chip>
+                {lead.tier && (
+                  <Badge tone={TIER_TONE[lead.tier]}>
+                    {TIER_LABEL.get(lead.tier) ?? lead.tier}
+                  </Badge>
+                )}
+                {lead.category && (
+                  <MetaPill>Ngành: {CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
+                )}
+                {lead.province && <MetaPill>Khu vực: {lead.province}</MetaPill>}
+                <MetaPill mono>Tạo ngày {dmy(lead.createdAt)}</MetaPill>
+              </>
+            }
+          />
+
+          <div className="flex min-w-0 flex-col justify-end gap-4 border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+            <div className="flex flex-wrap items-center gap-2">
               <StatusBadge lead={lead} reported={reported} />
               {lead.stage && (
                 <MetaPill tone={overSla(lead) ? 'warning' : 'accent'}>
                   {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
                 </MetaPill>
               )}
-            </>
-          }
-          meta={
-            <>
-              <Chip>{lead.code}</Chip>
-              {lead.tier && (
-                <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
-              )}
-              {lead.category && (
-                <MetaPill>Ngành: {CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
-              )}
-              {lead.province && <MetaPill>Khu vực: {lead.province}</MetaPill>}
-              <MetaPill mono>Tạo ngày {dmy(lead.createdAt)}</MetaPill>
-            </>
-          }
-        />
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-          <span className="text-muted-foreground mr-1 text-[12.5px] font-medium">Nguồn lead</span>
-          <MetaPill>{campaignLabel(lead.source)}</MetaPill>
-          <Chip variant="source">{sourceKindLabel(lead.source)}</Chip>
-          {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="text-muted-foreground text-[12.5px] font-semibold">Nguồn lead</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <MetaPill>{campaignLabel(lead.source)}</MetaPill>
+                <Chip variant="source">{sourceKindLabel(lead.source)}</Chip>
+                {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
+              </div>
+            </div>
+          </div>
         </div>
       </GlassCard>
 
@@ -342,6 +350,7 @@ export function LeadDetailPage() {
       <ScreenDetailGrid
         sideLabel="Việc cần làm với lead này"
         className="w-full"
+        sideClassName="xl:self-stretch"
         /* Dưới xl về một cột và TÁC VỤ lên trước: trên tablet người ta mở một
            khách ra để làm việc, không phải để điền form. */
         sideFirst
