@@ -96,6 +96,19 @@ export const PERMISSIONS = [
   'cơ-hội.xem',
   'cơ-hội.sửa',
   'cơ-hội.chốt',
+  'báo-giá.xem',
+  'báo-giá.sửa',
+  /** Send a quote out to the customer — the paper leaves the company.
+   *
+   *  Split from the quote-edit permission on the same axis that already splits
+   *  editing a campaign from firing one: a wrong draft is fixed by typing over
+   *  it, a sent quote is a number the customer now holds and reads back to you.
+   *  The line is not "who may compute" but "who may talk to the customer" —
+   *  which is why presales holds the edit and not this, exactly mirroring how
+   *  they hold the deal-edit permission and not the deal-closing one. */
+  'báo-giá.gửi',
+  'hợp-đồng.xem',
+  'hợp-đồng.sửa',
   'hiệu-suất.xem',
   'kế-hoạch.xem',
   'kế-hoạch.gửi',
@@ -188,6 +201,12 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'lead.xem',
     'cơ-hội.xem',
     'cơ-hội.sửa',
+    /* Building the numbers IS the presales job, so the quote draft is theirs.
+       Sending it is not, and neither is anything on the contract: the signature
+       and the paper that goes out both belong to whoever stands on the deal.
+       Same shape as holding the deal-edit permission without the closing one. */
+    'báo-giá.xem',
+    'báo-giá.sửa',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
   ],
@@ -205,6 +224,11 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'cơ-hội.xem',
     'cơ-hội.sửa',
     'cơ-hội.chốt',
+    'báo-giá.xem',
+    'báo-giá.sửa',
+    'báo-giá.gửi',
+    'hợp-đồng.xem',
+    'hợp-đồng.sửa',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
     'cấu-hình.xem',
@@ -215,10 +239,20 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
  *
  *  Kiểu chưa có màn (SO · WO · PO · L · BT · CNC…) CỐ TÌNH vắng: gán bừa một
  *  miền cho chúng là phát minh ra luật quyền cho nhánh chưa ai dựng. Với những
- *  kiểu đó `can()` chỉ kiểm license và phạm vi — nói rõ hơn ở `check()`. */
-const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội'>> = {
+ *  kiểu đó `can()` chỉ kiểm license và phạm vi — nói rõ hơn ở `check()`.
+ *
+ *  `BG` and `HĐ` are here because module 4 gives both a screen, and until they
+ *  were the map had a hole with money in it: no domain means `permissionFor()`
+ *  returns `null`, `can()` falls back to the licence axis alone, and the ROLE
+ *  axis is skipped entirely for contract objects — while the signing door has
+ *  been writing `amount` into the `platform.object` mirror row since 26/08.
+ *  Nobody could reach it yet only because `GraphService` is wired to no
+ *  controller; the contract book is the screen that would have wired it. */
+const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'báo-giá' | 'hợp-đồng'>> = {
   LD: 'lead',
   OP: 'cơ-hội',
+  BG: 'báo-giá',
+  HĐ: 'hợp-đồng',
 }
 
 /** Hành động trên một object cần quyền nào. `null` = kiểu này chưa có miền
