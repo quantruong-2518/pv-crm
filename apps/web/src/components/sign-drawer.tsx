@@ -5,8 +5,8 @@ import { CURRENCIES, toDong, type CurrencyCode } from '@pv/engines/fixtures/das-
 import type { ContractSign, OpportunityRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { peopleIdOptions, useSalesPeople } from '@/data/directory'
-import { saleOwnersOf } from '@/data/ops'
-import { useSignContract } from '@/data/ops-write'
+import { saleOwnersOf } from '@/data/opportunities'
+import { useSignContract } from '@/data/opportunities-write'
 import { Field } from './ops-fields'
 import { dmy } from '@/lib/date'
 

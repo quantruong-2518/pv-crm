@@ -7,8 +7,8 @@ import { TouchService } from './touch.service'
  *  KHÔNG có controller, và đó là điểm đáng đọc nhất của file này. Hai đường đọc
  *  lần chạm sống trên `LeadController` và `OpportunityController`:
  *
- *      GET /sales/leads/:code/touches     `lead.xem`   · scoped
- *      GET /sales/ops/:code/touches       `cơ-hội.xem` · scoped
+ *      GET /sales/leads/:code/touches           `lead.xem`   · scoped
+ *      GET /sales/opportunities/:code/touches   `cơ-hội.xem` · scoped
  *
  *  Một `@Controller('sales/touches')` với `?subject=` sẽ gọn hơn và sai: hai
  *  đường đó đòi HAI quyền khác nhau, mà `@Need` là metadata tĩnh trên một

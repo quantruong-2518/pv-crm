@@ -12,7 +12,7 @@ import {
 } from '@pv/contracts'
 import { OPPORTUNITY_STATES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { idsOf, OPS_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/ops'
+import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 
 /** Module 3 · ba cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
  *
@@ -39,19 +39,19 @@ import { idsOf, OPS_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/ops'
  *  phải học hai hình dữ liệu, và cùng một cái ô sẽ đọc `closedDate` ở một chỗ
  *  còn `expectedClose` ở chỗ kia. */
 
-const BOOK_PATH = '/sales/ops'
+const BOOK_PATH = '/sales/opportunities'
 
 /** Cùng ba trục mà `OpportunityController` khai bằng `@Need`.
  *
  *  `cơ-hội.sửa` chứ không phải `cơ-hội.chốt`: mở một đơn thì đóng lại được, ký
  *  thì không — đọc docblock của controller cho phần đầy đủ. Khai ở đây để nút
  *  tắt đi TRƯỚC khi người dùng bấm, thay vì để họ điền hết phiếu rồi ăn 403. */
-export const OPS_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.sửa' }
+export const OPPORTUNITY_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.sửa' }
 
 /** Cửa KÝ đòi một quyền khác hẳn — `@Need({ …, permission: 'cơ-hội.chốt',
  *  scoped: true })` ở `opportunity.controller.ts`.
  *
- *  Khai HẰNG RIÊNG chứ không mượn `OPS_WRITE_NEED` ngay trên, và không phải vì
+ *  Khai HẰNG RIÊNG chứ không mượn `OPPORTUNITY_WRITE_NEED` ngay trên, và không phải vì
  *  gõ thêm bốn dòng cho vui: hai quyền cố ý không gộp. Sửa một đơn thì sửa
  *  ngược lại được, ký thì không — chữ ký đã sang tay kế toán và sang tay khách,
  *  gỡ nó phải là một đề nghị có người duyệt chứ không phải một lượt gọi của
@@ -60,7 +60,7 @@ export const OPS_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội
  *
  *  `scoped: true` vì máy chủ khai đúng chữ đó: người chỉ thấy đơn của mình thì
  *  cũng chỉ ký được đơn của mình. */
-export const OPS_SIGN_NEED: ApiNeed = {
+export const OPPORTUNITY_SIGN_NEED: ApiNeed = {
   branch: 'Sales',
   permission: 'cơ-hội.chốt',
   scoped: true,
@@ -171,7 +171,7 @@ export function promoteLead(
   return api.write<OpportunityCreateResponse>(BOOK_PATH, {
     method: 'POST',
     body,
-    need: OPS_WRITE_NEED,
+    need: OPPORTUNITY_WRITE_NEED,
     signal,
   })
 }
@@ -184,7 +184,7 @@ export function saveOpportunity(
   return api.write<OpportunityUpdateResponse>(`${BOOK_PATH}/${code}`, {
     method: 'PATCH',
     body,
-    need: OPS_WRITE_NEED,
+    need: OPPORTUNITY_WRITE_NEED,
     signal,
   })
 }
@@ -208,7 +208,7 @@ export function signContract(
   return api.write<ContractSignResponse>(`${BOOK_PATH}/${code}/contract`, {
     method: 'POST',
     body,
-    need: OPS_SIGN_NEED,
+    need: OPPORTUNITY_SIGN_NEED,
     signal,
   })
 }
@@ -224,7 +224,7 @@ export function usePromoteLead() {
   return useMutation<OpportunityCreateResponse, ApiError, OpportunityCreate>({
     mutationFn: (body) => promoteLead(body),
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: OPS_BOOK_KEY })
+      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     },
   })
 }
@@ -243,7 +243,7 @@ export function useSaveOpportunity(code: MaObject) {
     mutationFn: (body) => saveOpportunity(code, body),
     onSuccess: (row) => {
       client.setQueryData(['sales', 'ops', code], row)
-      void client.invalidateQueries({ queryKey: OPS_BOOK_KEY })
+      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     },
   })
 }
@@ -269,7 +269,7 @@ export function useSignContract(code: MaObject) {
     mutationFn: (body) => signContract(code, body),
     onSuccess: (res) => {
       client.setQueryData(['sales', 'ops', code], res.opportunity)
-      void client.invalidateQueries({ queryKey: OPS_BOOK_KEY })
+      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     },
   })
 }

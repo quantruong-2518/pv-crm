@@ -4,8 +4,8 @@ import type {
   OpportunityImportPreviewResponse,
 } from '@pv/contracts'
 import { api, isApiError, userMessage } from '@/app/api'
-import { OPS_BOOK_KEY } from '@/data/ops'
-import { OPS_WRITE_NEED } from '@/data/ops-write'
+import { OPPORTUNITY_BOOK_KEY } from '@/data/opportunities'
+import { OPPORTUNITY_WRITE_NEED } from '@/data/opportunities-write'
 import {
   buildOpportunityImportBody,
   toPanelReport,
@@ -13,7 +13,7 @@ import {
   type OpportunityImportPanelReport,
 } from '@/data/opportunity-import-wire'
 
-/** Module 3 · the FILE door of the deal book — `POST /sales/ops/import`.
+/** Module 3 · the FILE door of the deal book — `POST /sales/opportunities/import`.
  *
  *  ------------------------------------------------------------------
  *  TWO FILES, AND THE SPLIT IS THE POINT
@@ -49,8 +49,8 @@ import {
  *  reporting "5 deals opened" over a server that wrote 3 is a screen telling a
  *  lie. */
 
-const PREVIEW_PATH = '/sales/ops/import/preview'
-const COMMIT_PATH = '/sales/ops/import'
+const PREVIEW_PATH = '/sales/opportunities/import/preview'
+const COMMIT_PATH = '/sales/opportunities/import'
 
 /** What both routes ask for, in the SAME words `apps/api` uses on the other end
  *  (`@Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })` on
@@ -63,7 +63,7 @@ const COMMIT_PATH = '/sales/ops/import'
  *  standing on it. Presales holds `cơ-hội.xem` and not `cơ-hội.sửa`, so the call
  *  is refused at `requireAccess` before a byte moves — same fence, one round
  *  trip earlier. */
-const IMPORT_NEED = OPS_WRITE_NEED
+const IMPORT_NEED = OPPORTUNITY_WRITE_NEED
 
 export type OpportunityImportInput = {
   /** Rows the panel already built, each carrying its first cell verbatim. */
@@ -166,7 +166,7 @@ export function useOpportunityImport() {
 
   return async (input: OpportunityImportInput): Promise<OpportunityImportRun> => {
     const run = await runOpportunityImport(input)
-    void client.invalidateQueries({ queryKey: OPS_BOOK_KEY })
+    void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     return run
   }
 }

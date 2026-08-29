@@ -562,7 +562,7 @@ export function CampaignDetailPage() {
                   <Icon icon={ArrowRight} size={16} />
                   Mở Sổ lead
                 </Button>
-                <Button size="md" variant="ghost" onClick={() => navigate('/sales/ops')}>
+                <Button size="md" variant="ghost" onClick={() => navigate('/sales/opportunities')}>
                   <Icon icon={ArrowRight} size={16} />
                   Mở Sổ cơ hội
                 </Button>

@@ -5,7 +5,7 @@ import { OpportunityRow } from './opportunity'
 
 /** Signing a deal — the door that makes `close-won` true.
  *
- *      POST /sales/ops/:code/contract     permission `cơ-hội.chốt`
+ *      POST /sales/opportunities/:code/contract     permission `cơ-hội.chốt`
  *
  *  ------------------------------------------------------------------
  *  WHY THIS IS A CONTRACT DOOR AND NOT A STATE ON THE DEAL

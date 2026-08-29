@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ArrowRight, Inbox, Lock, Mail, Phone, Pin, TriangleAlert, type IconGlyph } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -31,9 +31,10 @@ import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL } from '@/data/leads'
 import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
-import { opsOfLeadQuery } from '@/data/ops'
+import { opportunitiesOfLeadQuery } from '@/data/opportunities'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
+import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
 import { MeetingsCard } from '@/components/meetings-card'
 import { MasMailDrawer } from '@/components/mas-mail-drawer'
@@ -117,7 +118,7 @@ import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead
  *  dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`.
  *
  *  "Đã đổi thành cơ hội chưa" thì KHÔNG còn ở đó nữa (29/08): nó đọc
- *  `opsOfLeadQuery` — `GET /sales/ops?leadCode=…` — thay cho `opportunityOfLead`
+ *  `opportunitiesOfLeadQuery` — `GET /sales/opportunities?leadCode=…` — thay cho `opportunityOfLead`
  *  của fixture và cho `desk.deals`. Cả hai chống đỡ cũ đều mù: một cái không
  *  thấy lead tạo sau lát cắt đóng băng, một cái không thấy máy nào khác. */
 
@@ -188,8 +189,8 @@ export function LeadDetailPage() {
   const togglePin = useLeadDesk((s) => s.togglePin)
   const savedName = useLeadDesk((s) => s.profiles[code]?.company)
   /* "Khách này đã được đổi thành cơ hội chưa" — hỏi MÁY CHỦ, cùng lý do hook
-     phải nằm trên ba nhánh `return` sớm. Xem `opsOfLeadQuery`. */
-  const priorOps = useQuery(opsOfLeadQuery(code))
+     phải nằm trên ba nhánh `return` sớm. Xem `opportunitiesOfLeadQuery`. */
+  const priorOps = useQuery(opportunitiesOfLeadQuery(code))
 
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -356,7 +357,7 @@ export function LeadDetailPage() {
         sideFirst
         main={<ProfileCard profile={lead} />}
         side={
-          <LeadSidePanel>
+          <DetailSidePanel>
             {/* Đọc dữ kiện trước khi quyết định: đã họp gì → email đang ở đâu →
                 bước tiếp theo là gì. Ghi chú nằm sau luồng chính. */}
             <MeetingsCard code={lead.code} canEdit={canWrite} />
@@ -377,7 +378,7 @@ export function LeadDetailPage() {
             />
             <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
-          </LeadSidePanel>
+          </DetailSidePanel>
         }
       />
 
@@ -387,7 +388,7 @@ export function LeadDetailPage() {
         pinned={pins.includes(lead.code)}
         opCode={openOpCode}
         opBlocker={opBlocker}
-        onOpenOp={() => openOpCode && navigate(`/sales/ops/${openOpCode}`)}
+        onOpenOp={() => openOpCode && navigate(`/sales/opportunities/${openOpCode}`)}
         reported={reported}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
@@ -423,40 +424,6 @@ export function LeadDetailPage() {
  *  hồ sơ để vẽ") và cùng một đường đi tiếp ("về sổ lead"). Cái khác nhau là
  *  CÂU, và câu là thứ được truyền vào — chứ không phải ba khối rỗng gần giống
  *  nhau, thứ chắc chắn sẽ trôi khỏi nhau ở lần sửa thứ hai. */
-function LeadSidePanel({ children }: { children: ReactNode }) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [stickyTop, setStickyTop] = useState(128)
-
-  useEffect(() => {
-    const panel = panelRef.current
-    if (!panel) return
-
-    const syncStickyTop = () => {
-      const top = Math.min(128, window.innerHeight - panel.offsetHeight - 16)
-      setStickyTop(top)
-    }
-    const observer = new ResizeObserver(syncStickyTop)
-    observer.observe(panel)
-    window.addEventListener('resize', syncStickyTop)
-    syncStickyTop()
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', syncStickyTop)
-    }
-  }, [])
-
-  return (
-    <div
-      ref={panelRef}
-      className="flex w-full min-w-0 flex-col gap-6 xl:sticky xl:self-start"
-      style={{ top: stickyTop }}
-    >
-      {children}
-    </div>
-  )
-}
-
 function EmptyLead({
   icon,
   note,

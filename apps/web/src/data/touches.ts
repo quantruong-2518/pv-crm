@@ -6,7 +6,7 @@ import { api, type ApiNeed } from '@/app/api'
 /** Dòng thời gian của một mã — hai cửa, một phép dịch.
  *
  *      GET /sales/leads/:code/touches   quyền `lead.xem`    · scoped
- *      GET /sales/ops/:code/touches     quyền `cơ-hội.xem`  · scoped
+ *      GET /sales/opportunities/:code/touches     quyền `cơ-hội.xem`  · scoped
  *
  *  Đây là thứ thay hai hằng số `NO_TOUCHES`/`NO_TRANSCRIPT` ở
  *  `data/lead-profile.ts:300`. Docblock của chúng đã hẹn sẵn đường này: "khi
@@ -28,14 +28,17 @@ import { api, type ApiNeed } from '@/app/api'
  *  gian của đơn vừa xem cho đơn mở kế tiếp.
  *
  *  ------------------------------------------------------------------
- *  `scoped: true` KHAI Ở CẢ HAI, KHÁC `data/ops.ts`
+ *  `scoped: true` KHAI Ở CẢ HAI
  *  ------------------------------------------------------------------
  *  Hai route này khai `@Need({ …, scoped: true })` ở máy chủ
- *  (`opportunity.controller.ts:77`, `lead.controller.ts:115`), nên trục thứ ba
- *  phải có mặt ở đây. `opsBookQuery`/`opsProfileQuery` hôm nay khai thiếu trục
- *  đó — chúng vẫn chạy đúng vì máy chủ mới là nơi cưỡng chế, nhưng một `need`
- *  thiếu trục đọc ra như thể mã nào cũng xem được. Không sửa hai cái kia ở đây
- *  (khác việc), nhưng cũng không nhân bản chỗ thiếu sang file mới. */
+ *  (`opportunity.controller.ts`, `lead.controller.ts`), nên trục thứ ba phải
+ *  có mặt ở đây.
+ *
+ *  Ghi chú cũ ở chỗ này nói `opportunityBookQuery` cũng thiếu trục đó — KHÔNG
+ *  còn đúng từ 29/08: sổ cơ hội nay hiện con số `hidden`, mà `hidden` chính là
+ *  thứ trục phạm vi cắt ra, nên hai đầu buộc phải đọc ra cùng một câu.
+ *  `opportunityProfileQuery` thì vẫn để thiếu, và có lý do riêng ghi tại chỗ:
+ *  một lượt đọc MỘT dòng không có gì để `hidden` nói. */
 
 const LEAD_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
 const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.xem', scoped: true }
@@ -83,11 +86,11 @@ export const leadTouchesQuery = (code: string) =>
 
 /** Lần chạm của một ĐƠN. Cùng hình, khác quyền và khác đường — xem docblock
  *  đầu file về việc vì sao không gộp làm một query có tham số `kind`. */
-export const opsTouchesQuery = (code: string) =>
+export const opportunityTouchesQuery = (code: string) =>
   queryOptions({
     queryKey: ['sales', 'ops-touches', code] as const,
     queryFn: ({ signal }) =>
-      api.read<TouchTimelineResponse>(`/sales/ops/${encodeURIComponent(code)}/touches`, {
+      api.read<TouchTimelineResponse>(`/sales/opportunities/${encodeURIComponent(code)}/touches`, {
         need: OPS_TOUCH_NEED,
         signal,
       }),

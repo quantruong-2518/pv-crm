@@ -708,7 +708,7 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
  *  ------------------------------------------------------------------
  *  Khối có HAI người gọi đứng trên hai nền dữ liệu khác nhau, và đó là lý do
  *  nó không được tự gọi `leadTranscript()`:
- *   · `ops-detail` đứng trên sổ ĐÓNG BĂNG — mốc và nguyên văn đều có thật;
+ *   · `opportunity-detail` đứng trên sổ ĐÓNG BĂNG — mốc và nguyên văn đều có thật;
  *   · `lead-detail` đứng trên máy chủ — `sales.touch` chưa dựng nên không có
  *     mốc nào, và hàm sinh của fixture với một mã Apollo thì bịa ra một cuộc
  *     hội thoại chưa từng xảy ra.

@@ -35,7 +35,7 @@ export type Channel = 'zalo-oa' | 'telegram' | 'email' | 'in-app'
 export const LEAD_INTAKE_ACCEPTED = 'sales.lead.intake.accepted'
 
 /** Event name emitted by the Sales branch when a lead has been promoted into an
- *  opportunity — `POST /sales/ops`.
+ *  opportunity — `POST /sales/opportunities`.
  *
  *  ONE event, not two, and the difference between "a deal just opened" and "a
  *  deal was booked already lost" is a `when` predicate on two rules below. The

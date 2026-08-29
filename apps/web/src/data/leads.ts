@@ -50,7 +50,7 @@ import { APPROVER_ROLE_LABEL } from '@/data/directory'
  *  tham số đó, nếu không TanStack trả cache của bộ lọc trước cho bộ lọc sau.
  *
  *  `frozenLeadBookQuery` phía dưới vẫn là fixture, và đó KHÔNG phải chỗ quên:
- *  bốn màn khác (`lead-detail`, `ops-detail`, `campaigns`, `campaign-detail`)
+ *  bốn màn khác (`lead-detail`, `opportunity-detail`, `campaigns`, `campaign-detail`)
  *  đọc cả sổ để tra chéo và để chống trùng lúc nạp tệp, còn
  *  `GET /sales/leads/:code` thì chưa dựng. Cắt chúng cùng một đợt là làm vỡ
  *  bốn màn cho một endpoint chưa tồn tại.

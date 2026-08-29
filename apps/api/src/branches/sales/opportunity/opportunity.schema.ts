@@ -47,9 +47,9 @@ import { sales } from '../sales.schema'
  *  BỒI CỘT 28/08 — bảng thôi tối thiểu, vì phiếu đã có người điền
  *  ------------------------------------------------------------------
  *  Bản đầu dựng TỐI THIỂU, đủ để `running` của sổ lead có nghĩa và để
- *  `contract` có đích khoá ngoại. Cửa `POST /sales/ops` là lúc phải bồi: phiếu
- *  đổi lead → cơ hội hỏi 14 ô, và mọi ô không có cột là một ô người dùng gõ
- *  xong rồi mất. Ba thứ đáng đọc trong đợt bồi này:
+ *  `contract` có đích khoá ngoại. Cửa `POST /sales/opportunities` là lúc phải
+ *  bồi: phiếu đổi lead → cơ hội hỏi 14 ô, và mọi ô không có cột là một ô người
+ *  dùng gõ xong rồi mất. Ba thứ đáng đọc trong đợt bồi này:
  *
  *   · `state` LÀ MỘT CỘT MỚI, ĐỨNG CẠNH `stage` chứ không thay nó. Trước đây
  *     bảng chỉ giữ `stage`, và thế là mất thông tin: năm trạng thái chỉ ánh xạ
@@ -92,8 +92,8 @@ export const opportunity = sales.table(
 
     /** Cột đơn đang đứng. NULL = đã ra khỏi bảng năm cột (thắng hoặc thua).
      *
-     *  Cửa `POST /sales/ops` ghi cột này bằng `stageOfState(state)` — mở phiếu
-     *  ra chọn trạng thái là đủ, không ai phải chọn cột. Sau đó hai cột rời
+     *  Cửa `POST /sales/opportunities` ghi cột này bằng `stageOfState(state)` —
+     *  mở phiếu ra chọn trạng thái là đủ, không ai phải chọn cột. Sau đó hai cột rời
      *  nhau được, và đó là tính năng chứ không phải rò rỉ: xem mục "BỒI CỘT" ở
      *  docblock trên. */
     stage: text('stage').$type<StageKey>(),

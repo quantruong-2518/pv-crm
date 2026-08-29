@@ -509,7 +509,7 @@ async function seed(): Promise<void> {
        chỉ dựng được vai SALE: fixture khai đúng một người cho mỗi đơn
        (`OpenDeal.owner`), và gán bừa ai đó vào vai BD là bịa công trạng mở cửa
        cho một người thật. Đơn nào có BD thật thì đó là dữ liệu người dùng nhập
-       qua `POST /sales/ops`, không phải thứ seed biết. */
+       qua `POST /sales/opportunities`, không phải thứ seed biết. */
     const ops = [...deals, ...won.map((w) => w.opportunity)]
     await tx.insert(opportunity).values(ops.map(({ _ownerId, ...row }) => row))
     await tx

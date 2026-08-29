@@ -13,6 +13,7 @@ import {
   OpportunityCreateResponse,
   OpportunityImportCommitResponse,
   OpportunityImportPreviewResponse,
+  OpportunityScorecard,
   OpportunityUpdateResponse,
   type ContractSign,
   type MaObject,
@@ -106,6 +107,24 @@ export class OpportunityService {
     })
   }
 
+  /** Thẻ điểm Sổ cơ hội. `GET /sales/opportunities/scorecard`.
+   *
+   *  KHÔNG nhận `Actor`, KHÔNG cắt theo phạm vi — và đó là quyết định đã chốt ở
+   *  sổ lead, chép sang đây vì nhất quán giữa hai sổ của cùng một phòng quan
+   *  trọng hơn việc chọn lại: thẻ điểm là điểm của CẢ KỲ, tức của cả phòng. Cắt
+   *  nó theo đơn ai đang đứng tên thì mỗi người mở màn thấy một con số khác
+   *  nhau dưới cùng một dòng chữ, và không con số nào trong đó là con số người
+   *  ta định hỏi — "pipeline đang mở bao nhiêu tiền" không có phiên bản riêng
+   *  cho từng người. Cửa vẫn đòi `cơ-hội.xem`; ai không được vào sổ thì cũng
+   *  không thấy thẻ. Lập luận đầy đủ ở `LeadService.scorecard`.
+   *
+   *  Hệ quả phải nói ra: con số ở đây KHÔNG khớp `total` của sổ mà một người
+   *  `ownOnly` đang nhìn, vì sổ của họ đã bị trục phạm vi cắt. Hai con số trả
+   *  lời hai câu khác nhau, và màn in chúng dưới hai nhãn khác nhau. */
+  async scorecard(): Promise<OpportunityScorecard> {
+    return OpportunityScorecard.parse(await this.repo.scorecard())
+  }
+
   /** Một đơn theo mã. Hai cách hỏng, và chúng không gộp được.
    *
    *  404 là "không có đơn này", 403 là "đơn không phải của bạn" — hai câu dẫn
@@ -120,7 +139,7 @@ export class OpportunityService {
     return OpportunityCreateResponse.parse(toContract(found))
   }
 
-  /** `POST /sales/ops` — đổi một lead thành cơ hội.
+  /** `POST /sales/opportunities` — đổi một lead thành cơ hội.
    *
    *  Lead được đọc TRƯỚC khi ghi vì hai lý do khác nhau, và chỉ một trong hai
    *  là hàng rào: câu trả lời là một dòng sổ đầy đủ, mà dòng sổ in TÊN khách
@@ -220,7 +239,7 @@ export class OpportunityService {
     )
   }
 
-  /** `PATCH /sales/ops/:code` — lưu phiếu ở hồ sơ cơ hội.
+  /** `PATCH /sales/opportunities/:code` — lưu phiếu ở hồ sơ cơ hội.
    *
    *  ------------------------------------------------------------------
    *  ĐỌC QUA `byCode` ĐỂ CÓ CẢ HAI CÂU TỪ CHỐI, RỒI MỚI GHI
@@ -340,7 +359,7 @@ export class OpportunityService {
     )
   }
 
-  /** `GET /sales/ops/:code/touches` — dòng thời gian của một đơn.
+  /** `GET /sales/opportunities/:code/touches` — dòng thời gian của một đơn.
    *
    *  Đi qua `byCode` trước rồi mới hỏi bảng lần chạm, và một danh sách rỗng
    *  KHÔNG được dùng thay cho hai câu từ chối: rỗng là câu trả lời THẬT — một
@@ -356,7 +375,7 @@ export class OpportunityService {
     return this.touch.timeline(code)
   }
 
-  /** `POST /sales/ops/:code/contract` — ký.
+  /** `POST /sales/opportunities/:code/contract` — ký.
    *
    *  ------------------------------------------------------------------
    *  HAI CÂU TỪ CHỐI LÀ 409, KHÔNG PHẢI 400

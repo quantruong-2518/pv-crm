@@ -11,8 +11,8 @@ import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useApproverName, useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
-import { missingOf, toggled } from '@/data/ops'
-import { createBodyOf, CREATE_STATES, usePromoteLead } from '@/data/ops-write'
+import { missingOf, toggled } from '@/data/opportunities'
+import { createBodyOf, CREATE_STATES, usePromoteLead } from '@/data/opportunities-write'
 import { dmy } from '@/lib/date'
 import {
   AmountRow,
@@ -61,7 +61,7 @@ import {
  *  ------------------------------------------------------------------
  *  Bốn khối ô (`Field` · `AmountRow` · `PeopleRow` · `LossBlock`) đã chuyển sang
  *  `components/ops-fields.tsx`, và bản kiểm "còn thiếu gì" (`missingOf`) sang
- *  `data/ops.ts` — cả hai dùng chung với `pages/ops-detail.tsx`. Cùng một phiếu
+ *  `data/opportunities.ts` — cả hai dùng chung với `pages/opportunity-detail.tsx`. Cùng một phiếu
  *  điền ở hai chỗ thì phải là một bộ ô và một bản kiểm, không phải hai bản
  *  chép — lý do đầy đủ ở docblock của hai file đó.
  *
@@ -160,7 +160,7 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
                      Không ghi gì vào `app/desk.ts` nữa (29/08). Bản cũ gọi
                      `convert()` để hồ sơ lead nhớ "đã đổi rồi"; câu đó nay hỏi
                      máy chủ, và `usePromoteLead` đã vô hiệu hoá sổ cơ hội —
-                     `opsOfLeadQuery` nối dài khoá của sổ nên nó chạy lại theo,
+                     `opportunitiesOfLeadQuery` nối dài khoá của sổ nên nó chạy lại theo,
                      và nút dưới thanh đáy tự lật sang "Cơ hội OP-…". */
                   onSuccess: () => onClose(),
                 })

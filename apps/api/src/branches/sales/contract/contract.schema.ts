@@ -49,9 +49,10 @@ export const contract = sales.table(
  *  ------------------------------------------------------------------
  *  `lead`, `opportunity` và `campaign` đều đã có dãy riêng; `contract` thì
  *  chưa, vì tới hôm nay chưa cửa nào ghi vào nó — sáu dòng đang có đều do
- *  `seed.ts` chép thẳng `contractCode` của fixture. Cửa `POST /sales/ops/:code/contract`
- *  là lúc phải có: `SELECT max(code) + 1` phát cùng một mã cho hai người cùng
- *  bấm "Chốt thắng", và người thứ hai thua khoá chính.
+ *  `seed.ts` chép thẳng `contractCode` của fixture. Cửa
+ *  `POST /sales/opportunities/:code/contract` là lúc phải có: `SELECT max(code)
+ *  + 1` phát cùng một mã cho hai người cùng bấm "Chốt thắng", và người thứ hai
+ *  thua khoá chính.
  *
  *  ------------------------------------------------------------------
  *  BẮT ĐẦU Ở 5001, CÙNG LÝ DO VỚI `opportunity_code_seq`

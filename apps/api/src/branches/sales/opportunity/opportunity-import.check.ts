@@ -34,9 +34,9 @@ import {
  *  Mỗi ô được soi bằng tay trước để câu lỗi gọi được tên cột tiếng Việt, rồi
  *  bản nháp hoàn chỉnh mới đi qua `OpportunityCreate.safeParse`. Vòng thứ hai
  *  không thừa: nó là thứ ĐẢM BẢO một dòng nạp từ tệp không tạo ra được thứ gì
- *  mà cửa `POST /sales/ops` sẽ từ chối. Hai đường vào một bảng phải chấp nhận
- *  đúng một tập giá trị, và cách rẻ nhất để không lệch là để cả hai đi qua cùng
- *  một schema. */
+ *  mà cửa `POST /sales/opportunities` sẽ từ chối. Hai đường vào một bảng phải
+ *  chấp nhận đúng một tập giá trị, và cách rẻ nhất để không lệch là để cả hai
+ *  đi qua cùng một schema. */
 
 export type ActorLite = { id: string; name: string }
 

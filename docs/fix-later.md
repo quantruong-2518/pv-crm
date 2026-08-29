@@ -32,29 +32,7 @@ chắp vá đi theo.
 
 ---
 
-## 2 · Sổ lead nuốt lỗi mạng, báo nhầm thành "không có dữ liệu"
-
-**Triệu chứng:** tắt máy chủ rồi mở `/sales/leads` — màn hiện trạng thái rỗng
-_"Không có lead nào khớp bộ lọc đang chọn"_ kèm nút "Bỏ hết bộ lọc", và
-**console sạch trơn, không một dòng lỗi**. Người dùng sẽ đi sửa bộ lọc cho một
-sự cố hạ tầng. Đã dựng lại được y hệt trong phiên 28/08.
-
-**Ở đâu:** `apps/web/src/pages/leads.tsx:262`
-
-```ts
-const { data: bookPage, isPending } = useQuery(leadBookQuery(query))
-const rows = bookPage?.rows ?? [] // lỗi → [] → trạng thái rỗng
-```
-
-**Sửa thế nào:** lấy thêm `isError` và `error`, tách một trạng thái lỗi riêng
-có nút thử lại, phân biệt hẳn với trạng thái rỗng. `ApiError` ở
-`app/api/errors.ts` đã chở đủ `kind` và `path` để nói đúng câu.
-
-**Vì sao chưa sửa:** không nằm trong phạm vi buổi nối Neon. Sửa nhanh, nên làm sớm.
-
----
-
-## 3 · Sổ cuộc họp còn thiếu ba việc
+## 2 · Sổ cuộc họp còn thiếu ba việc
 
 Mục "thẻ điểm đọc fixture" đã trả ngày 29/08 và xoá theo quy ước ở đầu file:
 `GET /sales/leads/scorecard` đếm thật, `ScoreCards` hết import `FUNNEL` và
@@ -80,32 +58,36 @@ cùng một người sẽ hết là hai chuỗi tên rời nhau.
 
 ---
 
-## 4 · Bốn màn còn ăn fixture vì máy chủ chưa có route
+## 3 · Ba màn còn ăn fixture vì máy chủ chưa có route
 
-**Ở đâu:** các query còn truyền `load:` trong `apps/web/src/data/`
+**Ở đâu:** các query còn truyền `load:` trong `apps/web/src/data/` — và `load:`
+CHÍNH LÀ dấu hiệu, theo nghi thức ở docblock đầu `app/api/client.ts`: còn `load`
+là còn đọc fixture, vắng `load` là đã đi HTTP thật. Không có cờ nào khác.
 
-| Query                        | File                 | Route ở `apps/api` |
-| ---------------------------- | -------------------- | ------------------ |
-| `/sales/campaigns/sources`   | `campaigns.ts:620`   | chưa có            |
-| `/sales/campaigns/totals`    | `campaigns.ts:626`   | chưa có            |
-| `/sales/ops`                 | `ops.ts:41`          | chưa có            |
-| `/sales/plan`                | `plan.ts:360`        | chưa có            |
-| `/sales/performance/:period` | `performance.ts:946` | chưa có            |
-| `frozenLeadBookQuery`        | `leads.ts:158`       | dùng bởi 3 màn     |
+| Query                        | File                  | Route ở `apps/api` |
+| ---------------------------- | --------------------- | ------------------ |
+| `/sales/plan`                | `plan.ts:362`         | chưa có            |
+| `/sales/config`              | `sales-config.ts:186` | chưa có            |
+| `/sales/performance/:period` | `performance.ts:948`  | chưa có            |
+| `frozenLeadBookQuery`        | `leads.ts:196`        | dùng bởi 3 màn     |
 
-**Sửa thế nào:** dựng endpoint từng nhánh một, rồi bỏ dòng `load:` của query đó —
-đúng nghi thức đã ghi ở docblock đầu `app/api/client.ts`.
+Hai dòng đã RỤNG khỏi bảng này vì endpoint đã lên và `load:` đã bỏ: chiến dịch
+(`/sales/campaigns/{sources,totals}`, lượt 2 của đợt bỏ mock) và sổ cơ hội
+(`/sales/opportunities`, cắt 28/08 rồi mở rộng lọc/sắp/thẻ điểm 29/08).
+
+**Sửa thế nào:** dựng endpoint từng nhánh một, rồi bỏ dòng `load:` của query đó.
 
 **Vì sao chưa sửa:** đây là dựng backend, không phải dọn dẹp. Gỡ `load:` mà chưa
-có endpoint là năm màn chết trắng. Nên đi qua `sketch-first` trước khi chạm file.
+có endpoint là màn chết trắng. Nên đi qua `sketch-first` trước khi chạm file.
 
-**Hệ quả đang sống chung:** màn chiến dịch và màn cơ hội đếm lead theo sổ đóng
-băng (100 dòng), Sổ lead đếm theo Neon (121). Hai số lệch nhau là **đúng thiết
-kế đợt này**, không phải bug.
+**Hệ quả đang sống chung:** ba màn còn lại đếm theo sổ đóng băng (100 dòng),
+Sổ lead đếm theo Neon (121). Hai số lệch nhau là **đúng thiết kế đợt này**,
+không phải bug. Màn chiến dịch và sổ cơ hội đã ra khỏi diện này — cả hai đếm
+theo Neon.
 
 ---
 
-## 5 · CORS khớp tuyệt đối — mỗi domain mới là một lần gãy
+## 4 · CORS khớp tuyệt đối — mỗi domain mới là một lần gãy
 
 **Triệu chứng:** landing page ở origin mới bị chặn ở preflight, thông báo
 _"No 'Access-Control-Allow-Origin' header is present"_. Gặp thật ngày 28/08 với
@@ -142,7 +124,7 @@ origin đó đang được phép); tính đến 28/08 chỉ có `https://pebblev
 
 ---
 
-## 6 · Hai dòng bản thử còn nằm trong Neon
+## 5 · Hai dòng bản thử còn nằm trong Neon
 
 ```
 LD-0233  Pebble Vina Mail Pipeline Check  ·  "Claude Pipeline Check 2026-08-28"
@@ -169,7 +151,7 @@ funnel through `exit_reason`, they are not deleted"_ và cố ý không đặt
 
 ---
 
-## 7 · Nhãn bậc · ngành · lý do rơi vẫn đọc fixture
+## 6 · Nhãn bậc · ngành · lý do rơi vẫn đọc fixture
 
 `LeadRow` trên dây còn chở khoá chữ thường cũ (`cho-ky`, `chip`) chứ chưa phải
 ID cấu hình, nên màn phải tra nhãn từ fixture. Chỉ **Nguồn** đã nối được vào sổ
@@ -178,7 +160,7 @@ lại đây để danh sách đủ mặt.
 
 ---
 
-## 8 · Hàng rào chống dò mật khẩu chỉ sống trong RAM của một tiến trình
+## 7 · Hàng rào chống dò mật khẩu chỉ sống trong RAM của một tiến trình
 
 **Triệu chứng (chưa xảy ra):** ai đó dò mật khẩu một hòm thư đã biết. Sau 5 lần
 sai, tiến trình đang phục vụ họ bắt đầu chờ 30 giây rồi nhân đôi. Nhưng phanh
@@ -199,7 +181,7 @@ phụ thuộc tiến trình.
 
 ---
 
-## 9 · Thư đặt mật khẩu không hỏi sổ chặn
+## 8 · Thư đặt mật khẩu không hỏi sổ chặn
 
 **Triệu chứng:** một địa chỉ đã hard-bounce hoặc đã huỷ đăng ký vẫn được gửi
 thư đặt mật khẩu. Thư trượt, và ngoài một dòng log thì không ai biết.
@@ -219,7 +201,7 @@ quyết hình dạng trước, không phải viết code trước.
 
 ---
 
-## 10 · Cây có HAI bản `fastify`
+## 9 · Cây có HAI bản `fastify`
 
 **Triệu chứng:** `app.register(cookie)` không biên dịch được — TS so một
 `FastifyInstance` đã được plugin augment với một bản chưa augment.
@@ -236,10 +218,10 @@ sau này cũng vấp lại đúng chỗ này — nên nó là bẫy còn nằm �
 
 ---
 
-## 11 · `sales.contract` không gác "một đơn một hợp đồng" ở tầng bảng
+## 10 · `sales.contract` không gác "một đơn một hợp đồng" ở tầng bảng
 
 **Triệu chứng:** chưa thấy được, và đó là lý do nó nằm đây. Bất biến "mỗi cơ hội
-nhiều nhất một hợp đồng" hôm nay chỉ do cửa `POST /sales/ops/:code/contract`
+nhiều nhất một hợp đồng" hôm nay chỉ do cửa `POST /sales/opportunities/:code/contract`
 giữ, bằng cách trả 409 khi đơn đã ký. Không có ràng buộc nào ở bảng.
 
 **Nằm ở đâu:** `apps/api/src/branches/sales/contract/contract.schema.ts` —
@@ -261,7 +243,7 @@ chừng, và câu đếm đó chưa ai chạy.
 
 ---
 
-## 12 · Vặt
+## 11 · Vặt
 
 - `docs/tich-hop-landing-page.md:198` — ví dụ `curl` còn dùng `localhost:3000`,
   trong khi cổng tại máy đã chốt **4123** ở `apps/api/.env`, `apps/web/.env`,

@@ -161,7 +161,7 @@ export function UsersPage() {
                 {/* `height`, not `h-12`: `Skeleton` writes its height into an
                     inline `style`, which beats the class — so `h-12` renders an
                     11px bar standing in for a 48px row. `leads.tsx` and
-                    `ops.tsx` both carry that bug; this screen does not copy it. */}
+                    `opportunities.tsx` both carry that bug; this screen does not copy it. */}
                 <Skeleton height={48} className="w-full" />
                 <Skeleton height={48} className="w-full" />
                 <Skeleton height={48} className="w-full" />

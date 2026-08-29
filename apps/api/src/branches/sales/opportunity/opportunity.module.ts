@@ -39,9 +39,9 @@ import { OpportunityService } from './opportunity.service'
  *  ------------------------------------------------------------------
  *  `sales.contract` không có module của riêng nó, và nó không cần: bảng đó
  *  không có màn, không có sổ, và cửa DUY NHẤT ghi vào nó là
- *  `POST /sales/ops/:code/contract` — một hành động trên một cơ hội. Dựng
- *  `ContractModule` chỉ để `OpportunityModule` nhập lại là thêm một tầng mà
- *  không thêm một ranh giới nào.
+ *  `POST /sales/opportunities/:code/contract` — một hành động trên một cơ hội.
+ *  Dựng `ContractModule` chỉ để `OpportunityModule` nhập lại là thêm một tầng
+ *  mà không thêm một ranh giới nào.
  *
  *  Ranh giới thật vẫn còn và nằm ở chỗ khác: `contract/` sở hữu bảng, khoá,
  *  mapper và sổ ràng buộc của nó; module này chỉ được cầm cái repository. Và

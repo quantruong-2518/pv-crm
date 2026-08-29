@@ -13,7 +13,7 @@ import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { OpportunityService } from './opportunity.service'
 
-/** `/sales/ops` — sổ cơ hội, module 3 của nhánh Sales.
+/** `/sales/opportunities` — sổ cơ hội, module 3 của nhánh Sales.
  *
  *  Controller mỏng có chủ ý: nhận, kiểm, gọi, trả. Không `if` nghiệp vụ, không
  *  SQL, không `req`/`res` — mọi thứ đáng đọc nằm ở mấy dòng khai báo.
@@ -37,9 +37,9 @@ import { OpportunityService } from './opportunity.service'
  *  `POST /sales/leads/:code/opportunities` đọc cũng xuôi, và nó nói sai một
  *  điều: nó dựng cơ hội thành tài nguyên CON của lead. Quan hệ thật nằm ở cột
  *  `lead_code` của chính bảng cơ hội, một lead sinh được nhiều đơn, và đơn sống
- *  tiếp đời của nó ở `/sales/ops/:code` chứ không dưới lead. Một tài nguyên thì
- *  một gốc. */
-@Controller('sales/ops')
+ *  tiếp đời của nó ở `/sales/opportunities/:code` chứ không dưới lead. Một tài
+ *  nguyên thì một gốc. */
+@Controller('sales/opportunities')
 export class OpportunityController {
   constructor(private readonly ops: OpportunityService) {}
 
@@ -49,9 +49,26 @@ export class OpportunityController {
     return this.ops.book(who, q)
   }
 
+  /** Thẻ điểm cả sổ — sáu con số ĐẾM, màn tự chia thành tỉ lệ và tự in tiền.
+   *
+   *  PHẢI đứng trước `@Get(':code')`, và đây là một luật của bộ định tuyến chứ
+   *  không phải thẩm mỹ: Fastify khớp theo thứ tự khai, nên nếu `:code` khai
+   *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(MaObject)` bằng một
+   *  400 nói "Mã object sai dạng" — đúng về mặt kỹ thuật và vô nghĩa với người
+   *  đọc log. Sổ lead đã vấp đúng chỗ này và ghi lại ở `lead.controller.ts`.
+   *
+   *  KHÔNG `scoped`: đây là điểm của cả phòng, không của riêng ai. Xem
+   *  `OpportunityService.scorecard` cho lập luận đầy đủ, và nó là lập luận đã
+   *  chốt cho sổ lead chứ không phải một lựa chọn mới ở đây. */
+  @Get('scorecard')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
+  scorecard() {
+    return this.ops.scorecard()
+  }
+
   /** Hồ sơ một đơn.
    *
-   *  Khai SAU `@Get()` và cùng ba trục quyền y hệt. `MaObject` là hàng rào thứ
+   *  Khai SAU `@Get()` và `@Get('scorecard')`, cùng ba trục quyền y hệt cửa sổ. `MaObject` là hàng rào thứ
    *  nhất: mã sai dạng chết ở `ZodPipe` với một 400 gọi tên ô, không đi tới câu
    *  truy vấn. Hàng rào thứ hai — có đơn đó không, có phải của người này không
    *  — là việc của service, vì nó cần dữ liệu mới trả lời được. */

@@ -73,7 +73,7 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
   return Math.max(0, Math.floor((now.getTime() - row.stageSince.getTime()) / 86_400_000))
 }
 
-/** `POST /sales/ops` body → cột.
+/** `POST /sales/opportunities` body → cột.
  *
  *  Không chuẩn hoá lại gì: `OpportunityCreate` đã gộp khoảng trắng và đã đổi
  *  mọi `''` thành `undefined`. Làm lại lần thứ hai ở đây là dựng quy ước thứ
@@ -116,7 +116,7 @@ export function fromCreate(body: OpportunityCreate, now: Date): OpportunityWrite
   }
 }
 
-/** `PATCH /sales/ops/:code` body + dòng đang có → cột mới.
+/** `PATCH /sales/opportunities/:code` body + dòng đang có → cột mới.
  *
  *  ------------------------------------------------------------------
  *  BA CỘT KHÔNG NẰM TRONG THÂN REQUEST, VÀ CẢ BA ĐỀU SUY TỪ CÙNG MỘT Ô

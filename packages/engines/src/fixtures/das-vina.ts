@@ -1,3 +1,4 @@
+import { CURRENCIES, USD_VND, toDong, type CurrencyCode } from '@pv/contracts'
 import { loadScenario, type Scenario } from './scenario'
 import type { Actor } from '../types'
 
@@ -1406,12 +1407,13 @@ const sourceByCode = new Map(SOURCES.map((s) => [s.code, s]))
 // toán nửa hoá đơn vẫn cộng ra một con số đẹp, và không ai biết nó là số nào.
 // ---------------------------------------------------------------------------
 
-/** Tỷ giá quy đổi, đồng/USD. Vietcombank bán ra 18/08/2026 — là số ĐO, nhưng
- *  vẫn phải khoá một mốc, nếu không mọi đơn giá USD trôi theo ngày chạy và hai
- *  lần mở màn ra hai con số.
+/** Tỷ giá quy đổi, đồng/USD — nay ĐỨNG Ở `@pv/contracts`, xuất lại ở đây.
  *
- *  **Mốc ĐẶT bởi Trần Thu Hà · 20/08.** */
-export const USD_VND = 26_400
+ *  Nó đi cùng `CURRENCIES` và phải đi cùng: rời hai thứ ra hai package là dựng
+ *  hai bản của một con số. Vì sao cả cụm rời khỏi fixture thì đọc docblock đầu
+ *  `packages/contracts/src/sales/currency.ts` — nửa câu ngắn: máy chủ cũng cộng
+ *  tiền, và nó không được cộng bằng bảng tỉ giá của một kịch bản demo. */
+export { USD_VND }
 
 /** Vì sao một dòng giá đứng được — hoặc vì sao nó không đứng được.
  *
@@ -2855,23 +2857,15 @@ export function headcountOf(lead: FrozenLead): number {
   return 400 + (seedOf(lead.code) % 12) * 100
 }
 
-/** Hai đồng tiền, không hơn.
+/** Bảng đồng tiền và phép quy về đồng — nay ĐỨNG Ở `@pv/contracts`.
  *
- *  Thêm EUR hay JPY thì phải bịa tỷ giá — mà `USD_VND` là mốc ĐẶT có người chịu
- *  trách nhiệm (Trần Thu Hà · 20/08), không phải một con số tiện tay. Cần đồng
- *  thứ ba thì thêm mốc tỷ giá trước, đừng thêm dòng select trước. */
-export type CurrencyCode = 'VND' | 'USD'
-
-export const CURRENCIES = [
-  { code: 'VND', label: 'VND · Việt Nam đồng', symbol: '₫', rate: 1 },
-  { code: 'USD', label: 'USD · đô la Mỹ', symbol: '$', rate: USD_VND },
-] as const satisfies readonly { code: CurrencyCode; label: string; symbol: string; rate: number }[]
-
-/** Quy về đồng. Mọi chỗ CỘNG tiền phải đi qua đây — sổ cơ hội cộng bằng đồng,
- *  cộng thẳng số USD vào đó là sai 26.400 lần. */
-export function toDong(amount: number, currency: CurrencyCode): number {
-  return amount * (CURRENCIES.find((c) => c.code === currency)?.rate ?? 1)
-}
+ *  Xuất lại nguyên tên ở đây vì mọi màn đang đọc chúng từ đường này, và một
+ *  bảng tỉ giá không đáng để đổi mười dòng import. Vì sao nó rời khỏi fixture:
+ *  kể từ `GET /sales/opportunities/scorecard`, MÁY CHỦ cũng cộng tiền — nó quy
+ *  ra đồng ngay trong SQL — nên hai đầu dây phải đọc CÙNG một bảng, và bảng
+ *  chung của hai đầu là hợp đồng dữ liệu, không phải fixture của một kịch bản.
+ *  Câu chuyện đầy đủ ở `packages/contracts/src/sales/currency.ts`. */
+export { CURRENCIES, toDong, type CurrencyCode }
 
 /** Hồ sơ đầy đủ của một lead.
  *

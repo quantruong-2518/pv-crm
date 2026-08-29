@@ -180,7 +180,7 @@ export const SALES_MODULES: SalesModule[] = [
     no: 3,
     icon: Handshake,
     label: 'Cơ hội',
-    path: '/sales/ops',
+    path: '/sales/opportunities',
     permission: 'cơ-hội.xem',
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },

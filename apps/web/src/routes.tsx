@@ -108,20 +108,20 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/lead-detail'),
   },
   {
-    path: '/sales/ops',
+    path: '/sales/opportunities',
     name: 'Kinh doanh · Module 3 · Sổ cơ hội',
     branch: 'Sales',
     permission: 'cơ-hội.xem',
-    load: () => import('@/pages/ops'),
+    load: () => import('@/pages/opportunities'),
   },
   {
     /** Hồ sơ một cơ hội. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
      *  là một dòng của sổ, và nav bên trái vẫn sáng ở mục Ops. */
-    path: '/sales/ops/:code',
+    path: '/sales/opportunities/:code',
     name: 'Kinh doanh · Module 3 · Hồ sơ cơ hội',
     branch: 'Sales',
     permission: 'cơ-hội.xem',
-    load: () => import('@/pages/ops-detail'),
+    load: () => import('@/pages/opportunity-detail'),
   },
   {
     path: '/sales/performance',

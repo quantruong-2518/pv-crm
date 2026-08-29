@@ -144,7 +144,7 @@ async function bootstrap(): Promise<void> {
      *  ghi được dòng log nào vì nó chưa từng nhận request nào; `curl` thì chạy
      *  ngon vì `curl` không làm preflight. Đó là hình dạng của một lỗi chỉ lộ
      *  ra khi có người BẤM, và nó đã lộ ra đúng như thế ở nút Lưu của hồ sơ cơ
-     *  hội (`PATCH /sales/ops/:code`, 28/08).
+     *  hội (`PATCH /sales/opportunities/:code`, 28/08).
      *
      *  Danh sách này là ĐỦ ĐỘNG TỪ ĐANG DÙNG, không phải mọi động từ có thể có.
      *

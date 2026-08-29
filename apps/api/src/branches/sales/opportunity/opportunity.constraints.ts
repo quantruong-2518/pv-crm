@@ -15,8 +15,8 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  Tên ô ở `fields` là tên theo HỢP ĐỒNG (`saleOwners`, `expectedClose`), không
  *  phải tên cột — màn tô đỏ theo tên nó biết. */
 export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
-  /** Tiền luôn mang đơn vị. Cửa `POST /sales/ops` đòi cả hai nên zod chặn
-   *  trước; đây là lưới cho cửa ghi thứ hai của ngày mai. */
+  /** Tiền luôn mang đơn vị. Cửa `POST /sales/opportunities` đòi cả hai nên zod
+   *  chặn trước; đây là lưới cho cửa ghi thứ hai của ngày mai. */
   opportunity_money_pair: {
     kind: 'invalid',
     fields: ['amount', 'currency'],

@@ -4,8 +4,8 @@ import { LeadTier } from './enums'
 
 /** The activity trail — what happened to a lead or a deal, in order.
  *
- *      GET /sales/leads/:code/touches     permission `lead.xem`  · scoped
- *      GET /sales/ops/:code/touches       permission `cơ-hội.xem` · scoped
+ *      GET /sales/leads/:code/touches           permission `lead.xem`   · scoped
+ *      GET /sales/opportunities/:code/touches   permission `cơ-hội.xem` · scoped
  *
  *  ------------------------------------------------------------------
  *  WHY A TABLE AND NOT A DERIVED VIEW

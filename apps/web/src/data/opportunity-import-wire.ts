@@ -9,7 +9,7 @@ import type { BuiltRow, RowError } from '@/data/intake'
 
 /** Pure translator between the file-import panel's browser-only shapes and
  *  `OpportunityImportBody` / `OpportunityImportReport`, the one contract shared
- *  by `POST /sales/ops/import/preview` and `POST /sales/ops/import`.
+ *  by `POST /sales/opportunities/import/preview` and `POST /sales/opportunities/import`.
  *
  *  No `fetch`, no hook, no React — the same split `lead-import-wire.ts` keeps
  *  against `lead-import.ts`, and this file is deliberately the twin of that one.

@@ -1,7 +1,26 @@
-import { and, count, desc, eq, exists, inArray, isNull, ne, not, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  count,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  not,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { OpportunityBookQuery, OpportunityOwner } from '@pv/contracts'
+import {
+  CURRENCIES,
+  OWNER_NONE,
+  type OpportunityBookQuery,
+  type OpportunityOwner,
+  type OpportunityState,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
@@ -36,12 +55,56 @@ export type OpportunityRead = {
 const DAYS_IN_STAGE = sql<number | null>`CASE WHEN ${opportunity.stageSince} IS NULL THEN NULL ELSE
   GREATEST(0, FLOOR(EXTRACT(epoch FROM now() - ${opportunity.stageSince}) / 86400))::int END`
 
+/** Giá trị đơn QUY RA ĐỒNG, tính trong SQL.
+ *
+ *  ------------------------------------------------------------------
+ *  VÌ SAO PHÉP QUY ĐỔI PHẢI Ở TRONG CÂU TRUY VẤN
+ *  ------------------------------------------------------------------
+ *  Hai chỗ cần nó và cả hai đều nằm dưới `LIMIT`: sắp sổ theo tiền, và cộng
+ *  tổng cho thẻ điểm. Sắp theo số THÔ là để một đơn 5.000 USD nằm dưới một đơn
+ *  10.000.000 VND — sai ngay ở trang một, và không có chỗ nào trên màn nói ra.
+ *  Quy ở Node thì chỉ quy được những dòng đã về, tức quy sau khi đã sắp và đã
+ *  cắt trang, tức không quy gì cả.
+ *
+ *  Bảng tỉ giá đọc từ `CURRENCIES` của `@pv/contracts` — CHÍNH bảng màn dùng để
+ *  in ra. Đó là lý do bảng đó rời khỏi fixture DAS Vina (xem
+ *  `packages/contracts/src/sales/currency.ts`): thêm một đồng tiền ở đó là câu
+ *  `CASE` này biết luôn, không có bản chép tay thứ hai để quên.
+ *
+ *  `sql.raw` cho `rate` chứ không tham số ràng buộc: `"amount" * $1` để Postgres
+ *  không suy được kiểu của `$1` trong một nhánh `CASE`, và mấy con số này là
+ *  hằng của chính chúng ta, không phải thứ người dùng gõ vào. `code` thì ngược
+ *  lại — nó so với một cột `text` nên tham số ràng buộc suy kiểu được, và đó là
+ *  chỗ đúng để dùng nó.
+ *
+ *  Đồng tiền lạ hoặc đơn chưa có tiền rơi vào nhánh ELSE ngầm và ra NULL —
+ *  không phải 0. `opportunity_money_pair` đã ép `amount` và `currency` cùng có
+ *  hoặc cùng vắng, nên NULL ở đây đọc đúng một câu: "đơn này chưa moi được
+ *  tiền", câu mà thẻ điểm đếm riêng thành `openBlank`. */
+const AMOUNT_VND = sql<number | null>`CASE ${opportunity.currency} ${sql.join(
+  CURRENCIES.map(
+    (c) => sql`WHEN ${c.code} THEN ${opportunity.amount} * ${sql.raw(String(c.rate))}`,
+  ),
+  sql` `,
+)} END`
+
 export type OpportunityBookPage = {
   rows: OpportunityRead[]
   total: number
   /** Số dòng trục phạm vi cắt đi — luật 7, và máy chủ phải đếm vì màn không
    *  đếm được thứ nó không nhận. */
   hidden: number
+}
+
+/** Sáu con số của thẻ điểm, đúng như `OpportunityScorecard` của hợp đồng gọi
+ *  tên chúng. Repository trả số thô; service mới là chỗ dán hợp đồng lên. */
+export type OpportunityScorecardRow = {
+  total: number
+  open: number
+  openAmountVnd: number
+  openBlank: number
+  won: number
+  lost: number
 }
 
 /** Một số từ `sales.opportunity_code_seq`, in ra dạng `OP-%04d`.
@@ -91,16 +154,17 @@ export class OpportunityRepository {
        đếm theo cả hai, còn `hidden` là hiệu của hai phép đếm CÙNG bộ lọc, khác
        nhau đúng ở trục phạm vi. Gộp chúng làm một thì `hidden` của một lượt lọc
        theo lead sẽ đọc ra "số đơn cả sổ bạn không thấy", tức một con số đúng
-       cho câu không ai hỏi. */
-    const filter = q.leadCode === undefined ? undefined : eq(opportunity.leadCode, q.leadCode)
-    const where = and(filter, scope)
+       cho câu không ai hỏi. Tính chất đó không đổi khi bộ lọc mọc từ một ô lên
+       sáu — `filtersOf` trả về một MẢNG, và trục phạm vi vẫn đứng ngoài nó. */
+    const filters = this.filtersOf(q)
+    const where = and(...filters, scope)
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — với người nhìn được
        cả sổ thì `hidden` luôn bằng 0, và một COUNT toàn bảng để in ra số 0 là
        trả phí cho câu không ai hỏi. Cùng phép mà sổ lead đang dùng. */
     const [scopedTotal, all] = await Promise.all([
       this.count(where),
-      scope ? this.count(filter) : Promise.resolve(null),
+      scope ? this.count(and(...filters)) : Promise.resolve(null),
     ])
 
     const rows = await this.db
@@ -114,11 +178,7 @@ export class OpportunityRepository {
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
       .leftJoin(contract, this.signedOn())
       .where(where)
-      /* Mới nhất trước: thứ vừa tạo mà phải lật sang trang ba mới thấy thì
-         người dùng tưởng nút không ăn. `code` phá hoà vì hai đơn tạo trong cùng
-         một mili giây vẫn phải ra một thứ tự cố định — không có nó thì hai lần
-         gọi cùng một trang trả về hai thứ tự khác nhau và dòng cuối trang nhảy. */
-      .orderBy(desc(opportunity.createdAt), desc(opportunity.code))
+      .orderBy(...this.orderBy(q))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
 
@@ -222,9 +282,9 @@ export class OpportunityRepository {
    *  như có chặn.
    *
    *  Hàng rào thật nằm ở chỗ khác và đã đứng rồi: dòng sổ gửi chỉ tồn tại nếu
-   *  `POST /sales/ops` đi qua `@Need({ permission: 'cơ-hội.sửa' })`, và địa chỉ
-   *  nhận là hộp thư của chính công ty, khai trong env — không phải thứ ai gọi
-   *  được cũng đặt được. */
+   *  `POST /sales/opportunities` đi qua `@Need({ permission: 'cơ-hội.sửa' })`,
+   *  và địa chỉ nhận là hộp thư của chính công ty, khai trong env — không phải
+   *  thứ ai gọi được cũng đặt được. */
   async forMail(code: string): Promise<(OpportunityRead & { daysOpen: number }) | null> {
     const [found] = await this.db
       .select({
@@ -503,9 +563,183 @@ export class OpportunityRepository {
     return (scope ? sql`COALESCE(${scope}, false)` : sql`true`) as SQL<boolean>
   }
 
+  /** Đếm dòng sổ theo cùng bộ lọc mà `book()` dùng.
+   *
+   *  NỐI `lead` dù không chọn cột nào của nó, và đó không phải thừa: hai bộ lọc
+   *  (`account`, `q`) đọc `lead.company`, nên một câu đếm không nối sẽ chết ở
+   *  Postgres với "missing FROM-clause entry". Nối trong (`innerJoin`) trên một
+   *  khoá ngoại NOT NULL không đổi số dòng, nên `total` vẫn là con số cũ. */
   private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db.select({ n: count() }).from(opportunity).where(where)
+    const [r] = await this.db
+      .select({ n: count() })
+      .from(opportunity)
+      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .where(where)
     return r?.n ?? 0
+  }
+
+  /** Thứ tự sổ. Cột chính theo `sort`, rồi LUÔN LUÔN `code`.
+   *
+   *  Mặc định vẫn là mới nhất trước: thứ vừa tạo mà phải lật sang trang ba mới
+   *  thấy thì người dùng tưởng nút không ăn.
+   *
+   *  `code` phá hoà ở MỌI kiểu sắp, không riêng `createdAt` — cột nào cũng hoà
+   *  được, và không có mốc phá hoà thì Postgres tự do trả về hai thứ tự khác
+   *  nhau cho hai lượt gọi cùng một trang: một dòng hiện ở cả trang 1 lẫn trang
+   *  2, hoặc không ở trang nào. `OpportunityBookQuery.sort` ghi đúng cảnh báo
+   *  này trong hợp đồng.
+   *
+   *  `NULLS LAST` ở HAI cột nhận NULL, và ở CẢ HAI CHIỀU: mặc định của Postgres
+   *  là `NULLS FIRST` khi `DESC`, tức một đơn chưa moi được tiền sẽ đứng đầu
+   *  bảng "đơn to nhất" và một đơn chưa đặt ngày đóng sẽ đứng đầu bảng "sắp
+   *  đóng nhất". Ô trống không phải một giá trị cực trị — nó là câu "chưa
+   *  biết", và chỗ của câu đó là cuối sổ dù sắp chiều nào. Màn đang làm đúng
+   *  thế khi còn sắp trong trình duyệt; đây là chính tính chất ấy, viết lại
+   *  bằng SQL.
+   *
+   *  `amount` sắp theo `AMOUNT_VND` chứ không theo cột — xem docblock của biểu
+   *  thức đó. */
+  private orderBy(q: OpportunityBookQuery): SQL[] {
+    const dir = q.dir === 'asc' ? 'asc' : 'desc'
+    const nullable = q.sort === 'amount' || q.sort === 'expectedClose'
+
+    const primary =
+      q.sort === 'name'
+        ? opportunity.name
+        : q.sort === 'account'
+          ? lead.company
+          : q.sort === 'amount'
+            ? AMOUNT_VND
+            : q.sort === 'expectedClose'
+              ? opportunity.expectedClose
+              : opportunity.createdAt
+
+    return [
+      sql`${primary} ${sql.raw(nullable ? `${dir} nulls last` : dir)}`,
+      sql`${opportunity.code} ${sql.raw(dir)}`,
+    ]
+  }
+
+  /** Bộ lọc của NGƯỜI DÙNG. Trục phạm vi không có mặt ở đây — xem `book()`.
+   *
+   *  Mỗi ô vắng mặt trả `undefined`, và `and()` của Drizzle bỏ qua chúng: "ô
+   *  trống nghĩa là không lọc" là quy ước của cả hai sổ, và nó nằm ở đúng một
+   *  chỗ thay vì một `if` mỗi ô. */
+  private filtersOf(q: OpportunityBookQuery): (SQL | undefined)[] {
+    return [
+      q.leadCode ? eq(opportunity.leadCode, q.leadCode) : undefined,
+      this.stateFilter(q.state),
+      this.ownerFilter('SALE', q.sale),
+      this.ownerFilter('BD', q.bd),
+      q.account ? eq(lead.company, q.account) : undefined,
+      /* Một ô gõ, ba cột. Người ta dán vào đây một mã đơn lấy từ email, nửa cái
+         tên công ty, hoặc một chữ trong tên đơn — hỏi cả ba là cách duy nhất ô
+         đó trả lời được cả ba mà không bắt người dùng chọn trước mình đang tìm
+         theo kiểu gì. */
+      q.q
+        ? or(
+            ilike(opportunity.name, `%${q.q}%`),
+            ilike(opportunity.code, `%${q.q}%`),
+            ilike(lead.company, `%${q.q}%`),
+          )
+        : undefined,
+    ]
+  }
+
+  /** Lọc theo trạng thái, và trạng thái thứ NĂM không có cột.
+   *
+   *  `close-won` là SỰ TỒN TẠI của một dòng `sales.contract` — cột `state` chỉ
+   *  chở bốn giá trị, đúng như `opportunity_state_known` ép. Nên lọc "đơn đã
+   *  thắng" là hỏi `EXISTS`, và lọc bốn giá trị kia phải kèm `NOT EXISTS`: một
+   *  đơn đã ký mà cột `state` còn ghi `nego` ra sổ dưới nhãn `close-won` (đường
+   *  đọc gấp lại như thế ở `opportunity.mapper.ts#toContract`), nên để nó lọt
+   *  vào lượt lọc `nego` là in ra một dòng mang nhãn người dùng vừa bảo đừng
+   *  hiện. Bộ lọc phải gấp giống hệt đường đọc, nếu không sổ tự cãi mình. */
+  private stateFilter(state: OpportunityState | undefined): SQL | undefined {
+    if (!state) return undefined
+    if (state === 'close-won') return this.signed()
+    return and(eq(opportunity.state, state), not(this.signed()))
+  }
+
+  /** Lọc theo người đứng đơn, MỘT vai mỗi lượt.
+   *
+   *  `OWNER_NONE` là cách dây nói "chưa ai" (docblock của hằng đó ở
+   *  `@pv/contracts`). Nó không mang id của ai nên nó thành `NOT EXISTS` chứ
+   *  không thành một phép so bằng — "đơn chưa có Sale nào đứng" là vắng một
+   *  dòng trong bảng nối, không phải một dòng mang giá trị đặc biệt.
+   *
+   *  `EXISTS` chứ không `JOIN`, cùng lý do `scopeOf` ghi: một đơn ba người thì
+   *  join nhân dòng đó lên ba, và `COUNT` sau đó đếm ba. */
+  private ownerFilter(role: 'SALE' | 'BD', id: string | undefined): SQL | undefined {
+    if (!id) return undefined
+
+    const held = (extra?: SQL) =>
+      exists(
+        this.db
+          .select({ one: sql`1` })
+          .from(opportunityOwner)
+          .where(
+            and(
+              eq(opportunityOwner.opportunityCode, opportunity.code),
+              eq(opportunityOwner.role, role),
+              extra,
+            ),
+          ),
+      )
+
+    return id === OWNER_NONE ? not(held()) : held(eq(opportunityOwner.actorId, id))
+  }
+
+  /** Sáu con số của thẻ điểm, MỘT lượt đi tới database.
+   *
+   *  Sáu `SELECT count(*)` rời nhau là sáu vòng tới Neon cho một tấm thẻ, và
+   *  Neon tính tiền theo lượt hỏi. `FILTER (WHERE …)` cho phép sáu phép gộp
+   *  khác điều kiện chạy trên MỘT lượt quét bảng — cùng thứ mà sổ lead làm bằng
+   *  bốn truy vấn con vô hướng, hình khác vì ở đây sáu câu hỏi đều hỏi về cùng
+   *  một bảng.
+   *
+   *  KHÔNG nhận `Actor` và không nhận bộ lọc: thẻ điểm là điểm của CẢ SỔ. Lý do
+   *  đầy đủ ở `OpportunityService.scorecard`.
+   *
+   *  ------------------------------------------------------------------
+   *  "ĐANG MỞ" ĐỌC TỪ `stage`, KHÔNG ĐỌC TỪ `state`
+   *  ------------------------------------------------------------------
+   *  `stage IS NOT NULL` là định nghĩa của "còn đứng trong năm cột", và nó đúng
+   *  cho cả hai đầu cuối: `stageOfState('close-lost')` trả NULL, còn cửa ký gọi
+   *  `closeForSign` đặt `stage` về NULL. Đọc `state` thay vào đó sẽ đếm nhầm
+   *  một đơn đã ký mà cột `state` còn ghi `nego`.
+   *
+   *  `SUM` ra kiểu `bigint`, mà `bigint` về tới Node là CHUỖI với node-postgres
+   *  (PGlite thì trả số). `Number()` ở dưới nuốt cả hai; ép `::int` ở đây thì
+   *  một pipeline vài nghìn tỷ đồng tràn `int4` và câu truy vấn nổ. */
+  async scorecard(): Promise<OpportunityScorecardRow> {
+    const open = sql`${opportunity.stage} IS NOT NULL`
+
+    const [r] = await this.db
+      .select({
+        total: count(),
+        open: sql<number>`count(*) FILTER (WHERE ${open})::int`,
+        openAmountVnd: sql<
+          number | string
+        >`COALESCE(SUM(${AMOUNT_VND}) FILTER (WHERE ${open} AND ${opportunity.amount} IS NOT NULL), 0)::bigint`,
+        openBlank: sql<number>`count(*) FILTER (WHERE ${open} AND ${opportunity.amount} IS NULL)::int`,
+        won: sql<number>`count(*) FILTER (WHERE ${this.signed()})::int`,
+        /* Thua = cột `state` nói thua VÀ chưa ký. Vế thứ hai giữ cho `won` và
+           `lost` không cùng đếm một dòng — đường đọc gấp `signed` đè lên
+           `state`, nên một đơn vừa ghi thua vừa có hợp đồng ra sổ là đơn THẮNG,
+           và thẻ điểm phải đếm nó đúng một lần, ở đúng ô đó. */
+        lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'close-lost' AND NOT ${this.signed()})::int`,
+      })
+      .from(opportunity)
+
+    return {
+      total: r?.total ?? 0,
+      open: r?.open ?? 0,
+      openAmountVnd: Number(r?.openAmountVnd ?? 0),
+      openBlank: r?.openBlank ?? 0,
+      won: r?.won ?? 0,
+      lost: r?.lost ?? 0,
+    }
   }
 
   /* ------------------------------------------------------------------
@@ -548,7 +782,11 @@ export class OpportunityRepository {
     ) as SQL
   }
 
-  /** Cùng câu hỏi, hình VỊ TỪ. Chỉ `liveDealsByLead` dùng. */
+  /** Cùng câu hỏi, hình VỊ TỪ — thứ đứng được trong `WHERE` và trong `FILTER`.
+   *
+   *  Ba chỗ dùng, và cả ba đều CẦN hình vị từ chứ không cần mã hợp đồng:
+   *  `liveDealsByLead` (đơn nào còn sống), `stateFilter` (lọc trạng thái thứ
+   *  năm) và `scorecard` (đếm đơn thắng). */
   private signed(): SQL {
     return exists(
       this.db

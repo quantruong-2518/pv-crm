@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PageQuery, paged } from '../pagination'
+import { PageQuery, SortDir, paged } from '../pagination'
 import { Dong, MaHopDong, MaObject, Moc, Ngay, textNhap, textNhapTuyChon } from '../primitives'
 import { CurrencyCode, StageKey } from './enums'
 
@@ -147,7 +147,7 @@ const dealFields = {
    sai lệch làm hai form hỏi hai bộ câu khác nhau) và chép phần LUẬT (ba dòng,
    đọc tại chỗ) là đánh đổi đúng chiều. */
 
-/** `POST /sales/ops` — promote a lead into an opportunity.
+/** `POST /sales/opportunities` — promote a lead into an opportunity.
  *
  *  `code` is absent: the only legal source is the server's sequence. A body
  *  that could name its own code could land on somebody else's deal, and two
@@ -177,7 +177,7 @@ export const OpportunityCreate = z
     { error: 'Chỉ đơn thua mới ghi được lý do thua', path: ['lossReason'] },
   )
 
-/** `PATCH /sales/ops/:code` — the opportunity profile's save button.
+/** `PATCH /sales/opportunities/:code` — the opportunity profile's save button.
  *
  *  ------------------------------------------------------------------
  *  THE WHOLE EDITABLE SET, NOT THE CHANGED FIELDS
@@ -285,33 +285,98 @@ export const OpportunityRow = z.object({
 // ASKING THE BOOK A NARROWER QUESTION
 // ---------------------------------------------------------------------------
 
-/** What `GET /sales/ops` accepts. Paging, plus one filter.
+/** Columns the book can be sorted by. A closed list for the same reason
+ *  `LeadSortKey` is one: a sort key with no column behind it must die at the
+ *  zod gate, not inside the query builder.
+ *
+ *  `amount` is the one that is NOT a column. Ordering by the raw number would
+ *  file a 5,000 USD deal below a 10,000,000 VND one, so the server orders by
+ *  the amount CONVERTED TO DONG, using the rate table in `./currency` — the
+ *  same table the screen converts with. Two sums of one pipeline have to come
+ *  from one rate table or the page disagrees with itself.
+ *
+ *  `stage` is deliberately not a key: the five columns are an ORDER the screen
+ *  already knows how to draw, and "sort by stage" is the board, not the book. */
+export const OpportunitySortKey = z.enum([
+  'name',
+  'account',
+  'amount',
+  'expectedClose',
+  'createdAt',
+])
+
+/** What `GET /sales/opportunities` accepts. Paging, filtering, sorting — all of
+ *  it, and all of it on the server.
  *
  *  ------------------------------------------------------------------
- *  ONE FILTER, AND IT EXISTS TO KILL A SPECIFIC BUG
+ *  WHY EVERY CONTROL ON THE FILTER ROW IS IN HERE
  *  ------------------------------------------------------------------
- *  `leadCode` is not here to round out a filter set — the Ops screen filters in
- *  the browser today and says so. It is here because the lead profile has to
- *  answer "has this customer already been promoted?" before it offers the
- *  button that promotes them, and until now it answered by looking the lead up
- *  in a frozen fixture array. A lead created after that array was written
- *  always came back "no", so the button stayed lit and a second deal opened for
- *  a customer who already had one — the exact double-count `desk.deals` was
- *  invented to prevent, from a source of truth that cannot see the database.
+ *  Same move `LeadBookQuery` made, and forced by the same arithmetic: the Ops
+ *  screen used to pull `size=200` and then filter, sort and page in the browser,
+ *  which means it stopped telling the truth at row 201 — silently, with a page
+ *  that still looked complete. A filter left behind on the client no longer
+ *  filters the book; it filters whatever the server happened to send for page 1.
+ *  There is no partial version of this move, which is why the whole filter row
+ *  landed here in one go rather than a field at a time.
  *
- *  A filter on the book rather than a field on `LeadProfile`: one lead may hold
- *  several deals (that is the whole point of `lead_code` living on this table),
- *  so the answer is a LIST, and a list of deals is what this endpoint already
- *  returns. Hanging a single `opportunityCode` off the lead would re-assert the
- *  1-1 relation the schema was changed to remove.
+ *  `leadCode` is the one that predates the move, and it is here for a narrower
+ *  reason worth keeping written down: the lead profile has to answer "has this
+ *  customer already been promoted?" before it offers the button that promotes
+ *  them, and it once answered by looking the lead up in a frozen fixture array.
+ *  A lead created after that array was written always came back "no", so the
+ *  button stayed lit and a second deal opened for a customer who already had
+ *  one. A filter on the book rather than a field on `LeadProfile`, because one
+ *  lead may hold several deals — the answer is a LIST.
  *
  *  Absent = no filter, the convention every optional filter on `LeadBookQuery`
- *  follows. Deliberately NOT extended further here: the screen's score cards,
- *  its selects and its paging all read the whole book, and moving one of the
- *  three server-side while the other two still pull `size=200` would leave the
- *  page disagreeing with itself. That move is a real change, not a field. */
+ *  follows. */
 export const OpportunityBookQuery = PageQuery.extend({
   leadCode: MaObject.optional(),
+
+  /** One of the five the book may CONTAIN, not one of the four a body may
+   *  claim — `close-won` filters too, and it has to: it is the state the deal
+   *  board's rightmost card is counted in. The server resolves it the same way
+   *  every read path does, by the existence of a `sales.contract` row, because
+   *  no column spells it (see the docblock at the top of this file). */
+  state: OpportunityState.optional(),
+
+  /** Actor id of a Sale on the deal, or `OWNER_NONE` for "nobody is closing it
+   *  yet". Two fields rather than one `owner`, unlike the lead book: the two
+   *  roles are two selects on screen because commission splits along that seam,
+   *  and a single owner filter could not answer "which deals has this BD opened
+   *  that somebody else is now closing" — the question the split exists for. */
+  sale: z.string().min(1).max(64).optional(),
+  /** Actor id of a BD on the deal, or `OWNER_NONE` for "no BD recorded". */
+  bd: z.string().min(1).max(64).optional(),
+
+  /** Account filter — exact company name, from the "Account" select. Distinct
+   *  from `q`: `q` is a substring the user types, this is a pick from a closed
+   *  list. Matching on the NAME carries the same known weakness `LeadBookQuery`
+   *  records, and it is paid off in the same sweep — the day accounts are rows
+   *  with codes of their own. */
+  account: z.string().min(1).max(200).optional(),
+
+  /** Free text, matched against the deal name, the deal code and the customer.
+   *  Three fields rather than one because the box above the book is one box and
+   *  people type all three into it — a deal code out of an email, half a
+   *  company name, the word "MES". */
+  q: z.string().trim().min(1).max(120).optional(),
+
+  /** Default order is the book's own: newest first. That is both what the
+   *  screen shows when no header is active and what the repository already did,
+   *  so turning sorting on changes nothing until the user asks.
+   *
+   *  Two implementation notes that belong in the contract because they are
+   *  correctness issues, not details:
+   *
+   *   · `code` is appended as a final tiebreaker on EVERY sort. Ties make paging
+   *     unstable — the same row lands on page 1 and page 2, or on neither.
+   *   · `amount` and `expectedClose` are nullable, and their blanks sort LAST in
+   *     BOTH directions. A deal nobody has priced is not the cheapest one, and a
+   *     deal with no close date is not the nearest one; Postgres' default
+   *     (`NULLS FIRST` on `DESC`) would say both. */
+  sort: OpportunitySortKey.default('createdAt'),
+  dir: SortDir.default('desc'),
 })
 
 export const OpportunityBookResponse = paged(OpportunityRow)
@@ -327,6 +392,52 @@ export const OpportunityCreateResponse = OpportunityRow
  *  đoán. */
 export const OpportunityUpdateResponse = OpportunityRow
 
+// ---------------------------------------------------------------------------
+// THE SCORECARD — `GET /sales/opportunities/scorecard`
+// ---------------------------------------------------------------------------
+
+/** The four cards above the Ops book, counted by SQL over the WHOLE book.
+ *
+ *  ------------------------------------------------------------------
+ *  IT EXISTS BECAUSE THE SCREEN'S OWN COUNT WAS A LIE WITH A CEILING
+ *  ------------------------------------------------------------------
+ *  The cards used to be counted in the browser over whatever the book had
+ *  fetched — `size=200`. That is right until deal 201 and quietly wrong after,
+ *  and nothing on the page says which of the two you are looking at. Same
+ *  argument, same fix, and the same shape as `LeadScorecard`.
+ *
+ *  NOT scoped, deliberately, and for the reason `LeadService.scorecard` states
+ *  in full: these are the numbers of the KY — of the whole desk. Cutting them
+ *  by who holds what means everybody reads a different figure under one label,
+ *  and none of those figures is the one being asked for. The door still demands
+ *  `cơ-hội.xem`; whoever cannot open the book does not see the cards.
+ *
+ *  ------------------------------------------------------------------
+ *  MONEY IS A SUM IN DONG, AND THE BLANKS ARE COUNTED BESIDE IT
+ *  ------------------------------------------------------------------
+ *  `openAmountVnd` converts through the rate table in `./currency`, in SQL —
+ *  the same table the screen prints with, because two sums of one pipeline from
+ *  two rate tables is exactly the drift nobody notices.
+ *
+ *  A deal with no amount cannot be added, so it is not added — and then it MUST
+ *  be reported, which is what `openBlank` is for ("N đơn chưa có tiền, không
+ *  cộng vào"). Dropping it silently would make the pipeline read smaller than
+ *  it is with nothing on screen to say why; counting it as zero would do the
+ *  same thing while looking like a real number. */
+export const OpportunityScorecard = z.object({
+  /** Every deal in the book, whatever its state — the denominator. */
+  total: z.number().int().nonnegative(),
+  /** Deals still standing in one of the five columns (`stage IS NOT NULL`).
+   *  Won and lost have left the board, so neither is counted here. */
+  open: z.number().int().nonnegative(),
+  /** Sum of the open deals that HAVE an amount, converted to dong. */
+  openAmountVnd: Dong,
+  /** How many open deals carry no amount — the ones missing from the sum. */
+  openBlank: z.number().int().nonnegative(),
+  won: z.number().int().nonnegative(),
+  lost: z.number().int().nonnegative(),
+})
+
 export type OpportunityState = z.infer<typeof OpportunityState>
 export type OpportunityCreateState = z.infer<typeof OpportunityCreateState>
 export type OpportunityOwnerRole = z.infer<typeof OpportunityOwnerRole>
@@ -336,6 +447,8 @@ export type OpportunityUpdate = z.infer<typeof OpportunityUpdate>
 export type OpportunityUpdateResponse = z.infer<typeof OpportunityUpdateResponse>
 export type OpportunityOwner = z.infer<typeof OpportunityOwner>
 export type OpportunityRow = z.infer<typeof OpportunityRow>
+export type OpportunitySortKey = z.infer<typeof OpportunitySortKey>
 export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>
+export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>

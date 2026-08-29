@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Handshake, Inbox, Mail, Phone, RotateCcw, Users } from '@pv/ui'
+import {
+  Check,
+  Handshake,
+  Inbox,
+  Lock,
+  Mail,
+  Phone,
+  RotateCcw,
+  TriangleAlert,
+  Users,
+  type IconGlyph,
+} from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -37,19 +48,24 @@ import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
 import { leadProfileQuery, realContact, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
-import { opsTouchesQuery } from '@/data/touches'
+import { opportunityTouchesQuery } from '@/data/touches'
 import {
   bdOwnersOf,
   isLateClose,
   isRottingOp,
   missingOf,
   namesOf,
-  opsProfileQuery,
+  opportunityProfileQuery,
   saleOwnersOf,
   STATE_TONE,
   toggled,
-} from '@/data/ops'
-import { CREATE_STATES, draftOf, updateBodyOf, useSaveOpportunity } from '@/data/ops-write'
+} from '@/data/opportunities'
+import {
+  CREATE_STATES,
+  draftOf,
+  updateBodyOf,
+  useSaveOpportunity,
+} from '@/data/opportunities-write'
 import {
   AmountRow,
   AttachmentsField,
@@ -60,21 +76,43 @@ import {
   STATE_LABEL,
   type SetDraft,
 } from '@/components/ops-fields'
+import { DetailSidePanel } from '@/components/detail-side-panel'
 import { SignDrawer } from '@/components/sign-drawer'
 import { ActivityCard } from './lead-parts'
 
-/** Module 3 · Hồ sơ một cơ hội — `/sales/ops/:code`.
+/** Module 3 · Hồ sơ một cơ hội — `/sales/opportunities/:code`.
  *
  *  ------------------------------------------------------------------
- *  CÙNG BỐ CỤC VỚI HỒ SƠ LEAD
+ *  CÙNG BỐ CỤC VỚI HỒ SƠ LEAD (chốt 29/08)
  *  ------------------------------------------------------------------
- *   0 · ĐẦU TRANG — tên cơ hội và trạng thái, rồi một hàng pill phân loại.
+ *  Người dùng đi qua lại giữa hai hồ sơ cả ngày, nên hai màn phải THẲNG HÀNG
+ *  thật chứ không chỉ "trông giống": cùng thẻ glass-b bọc đầu trang, cùng lưới
+ *  chia cột, cùng đường kẻ dọc, cùng bề rộng lưới chi tiết. Lệch vài pixel giữa
+ *  hai màn đọc ra như hai sản phẩm khác nhau.
+ *
+ *   0 · ĐẦU TRANG — MỘT thẻ glass-b chia hai: trái là NHẬN DIỆN (tên đơn · mã ·
+ *       account), phải là TÌNH TRẠNG (trạng thái · cột đang đứng · giá trị đơn
+ *       và ngày đóng). Bản trước nhồi cả bảy thứ vào một hàng pill của
+ *       `ScreenHeader` trần, và một hàng pill bảy món thì không món nào đọc được.
  *   1 · CỘT CHÍNH (3 phần) — thứ người dùng SỬA: cả phiếu cơ hội, một thẻ.
  *   2 · CỘT PHỤ (1 phần) — thứ người dùng TRA: lead gốc, ai đứng đơn, và dòng
  *       thời gian (dùng lại nguyên `ActivityCard` của module 2 — đời của đơn
  *       CHÍNH LÀ đời của lead sinh ra nó, dựng một dòng thời gian thứ hai chỉ
  *       để kể lại cùng chuỗi sự kiện là tự mâu thuẫn).
  *   3 · THANH CÔNG CỤ dính đáy — ai gọi cho ai bên trái, đi đâu bên phải.
+ *
+ *  ------------------------------------------------------------------
+ *  MỘT CHỖ CỐ Ý KHÁC HỒ SƠ LEAD: KHÔNG `sideFirst`
+ *  ------------------------------------------------------------------
+ *  Hồ sơ lead bật `sideFirst` để dưới `xl` cột phụ lên trước, và đúng: ở đó cột
+ *  chính là form ba mươi ô để TRA, còn cột phụ chở VIỆC PHẢI LÀM (ghi buổi họp,
+ *  soạn mail, bước tiếp theo) — trên tablet người ta mở một khách ra để làm
+ *  việc chứ không để điền form.
+ *
+ *  Ở đây thì ngược hẳn. Cột chính CHÍNH LÀ phiếu người ta mở màn ra để sửa;
+ *  cột phụ chỉ tra cứu (lead gốc · ai đứng đơn · dòng thời gian). Bật
+ *  `sideFirst` là đẩy ba thẻ tra cứu lên trên đúng thứ người dùng đến để làm,
+ *  rồi bắt họ cuộn qua chúng mỗi lần muốn sửa một ô.
  *
  *  ------------------------------------------------------------------
  *  NỘI DUNG PHIẾU LÀ ĐÚNG NỘI DUNG POPUP
@@ -91,8 +129,8 @@ import { ActivityCard } from './lead-parts'
  *  ------------------------------------------------------------------
  *  ĐÃ CẮT SANG MÁY CHỦ — 28/08
  *  ------------------------------------------------------------------
- *  Hai lượt đọc thật (`GET /sales/ops/:code` và `GET /sales/leads/:code`) và
- *  một lượt ghi thật (`PATCH /sales/ops/:code`). Bàn làm việc trên máy
+ *  Hai lượt đọc thật (`GET /sales/opportunities/:code` và `GET /sales/leads/:code`) và
+ *  một lượt ghi thật (`PATCH /sales/opportunities/:code`). Bàn làm việc trên máy
  *  (`desk.ops`) rời khỏi màn này hoàn toàn: nó từng là chỗ giữ bản sửa vì chưa
  *  có cửa ghi, và giữ lại bên cạnh một cửa ghi thật là dựng hai nguồn cho cùng
  *  một phiếu — người dùng lưu, rồi thấy bản cũ của desk đè lên bản vừa lưu.
@@ -133,12 +171,12 @@ function changedFields(base: OpportunityDraft, work: OpportunityDraft): string[]
   })
 }
 
-export function OpsDetailPage() {
+export function OpportunityDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
   const { code = '' } = useParams()
 
-  const { data: op, isPending, error } = useQuery(opsProfileQuery(code))
+  const { data: op, isPending, error } = useQuery(opportunityProfileQuery(code))
 
   /* Hồ sơ lead gốc, đọc THẬT. `enabled` chờ đơn về trước vì mã lead nằm trên
      chính dòng đó — không có nó thì không biết hỏi lead nào. Lỗi của lượt này
@@ -158,7 +196,7 @@ export function OpsDetailPage() {
      chính dòng đó. Hỏng lượt này KHÔNG làm hỏng màn — `?? NO_TOUCHES` giữ
      nguyên lời khai cũ, và một dòng thời gian rỗng vẫn là một thẻ đọc được. */
   const { data: touches = NO_TOUCHES } = useQuery({
-    ...opsTouchesQuery(op?.code ?? ''),
+    ...opportunityTouchesQuery(op?.code ?? ''),
     enabled: Boolean(op?.code),
   })
 
@@ -175,13 +213,31 @@ export function OpsDetailPage() {
   }
 
   if (!op) {
+    /* Một `kind`, một câu — y hệt hồ sơ lead, và giống vì cùng một lý do: màn
+       không đọc `status` số và không bắt chuỗi trong `message`, vì
+       `app/api/errors.ts` đã phân loại một lần cho cả app. Ba ca là ba việc
+       phải làm tiếp khác nhau, nên một `EmptyOp` chung cho cả ba là bảo người
+       dùng "hỏng rồi" mà không nói hỏng kiểu gì. */
+    const failure = isApiError(error) ? error : null
+    const missing = failure?.kind === 'không-thấy'
+    const denied = failure?.kind === 'thiếu-quyền'
+
     return shell(
       <ScreenLayout>
         <GlassCard className="p-5 lg:p-6">
           <EmptyOp
-            code={code}
-            message={isApiError(error) ? userMessage(error) : undefined}
-            onBack={() => navigate('/sales/ops')}
+            icon={missing ? Inbox : denied ? Lock : TriangleAlert}
+            note={
+              missing ? (
+                <>
+                  Sổ không có đơn nào mang mã <span className="font-mono">{code}</span>. Kiểm tra
+                  lại mã, hoặc mở lại từ sổ cơ hội.
+                </>
+              ) : (
+                (failure && userMessage(failure)) || 'Không đọc được hồ sơ cơ hội này.'
+              )
+            }
+            onBack={() => navigate('/sales/opportunities')}
           />
         </GlassCard>
       </ScreenLayout>,
@@ -193,45 +249,94 @@ export function OpsDetailPage() {
 
   return shell(
     <ScreenLayout>
-      {/* Dòng tên chỉ chở HAI thứ: tên cơ hội và trạng thái. Mọi nhãn phân loại
-          — mã, account, cột, tiền, ngày đóng — xuống hàng pill dưới. */}
-      <ScreenHeader
-        back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/ops') }}
-        kicker="Cơ hội"
-        title={op.name}
-        meta={
-          <>
-            <Badge tone={STATE_TONE[op.state]}>{STATE_LABEL.get(op.state)}</Badge>
-            <Chip>{op.code}</Chip>
-            <MetaPill>{op.account}</MetaPill>
-            {op.accountCode && <Chip variant="source">{op.accountCode}</Chip>}
-            {op.stage && (
-              <MetaPill tone={rotting ? 'warning' : 'accent'}>
-                {STAGE_LABEL.get(op.stage)}
-                {op.daysInStage !== null && ` · ${op.daysInStage} ngày`}
-                {rotting && ' · quá hạn cột'}
-              </MetaPill>
-            )}
-            {op.amount !== null && op.currency !== null && (
-              <MetaPill mono>{billions(toDong(op.amount, op.currency))}</MetaPill>
-            )}
-            {op.expectedClose !== null && (
-              <MetaPill mono tone={late ? 'warning' : undefined}>
-                {op.stage === null ? 'đóng' : 'đóng dự kiến'} {dmy(op.expectedClose)}
-              </MetaPill>
-            )}
-          </>
-        }
-      />
+      <GlassCard variant="b" className="p-4">
+        {/* HAI NỬA, HAI CÂU HỎI — cùng lưới với đầu trang hồ sơ lead.
+            Trái là NHẬN DIỆN ("đơn nào, của khách nào"), phải là TÌNH TRẠNG
+            ("đơn đang ở đâu, đáng bao nhiêu, bao giờ đóng"). Bản trước dồn cả
+            bảy nhãn vào một hàng pill: trạng thái đứng lẫn giữa mã và account,
+            còn tiền — thứ đắt nhất của màn này — nằm áp chót.
 
+            Bọc glass-b và KHÔNG lồng thêm mặt kính nào bên trong: luật 12, nền
+            đúng 4 lớp. Hai nửa chia bằng một đường kẻ dọc, không bằng thẻ con. */}
+        {/* Trường VẮNG nghĩa là chưa moi được, không phải rỗng — nên chỗ nào
+            chưa có thì in "—" chứ không bỏ pill đi: một hàng pill thiếu chỗ
+            này thừa chỗ kia không đọc ra được là "chưa biết" hay "không có".
+            Câu giải thích lấy đúng chữ của cột tương ứng bên `pages/opportunities.tsx`
+            — cùng một ô trống thì cùng một lời khai, ở sổ hay ở hồ sơ. */}
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] lg:gap-6">
+          <ScreenHeader
+            back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
+            kicker="Cơ hội"
+            title={op.name}
+            meta={
+              <>
+                <Chip>{op.code}</Chip>
+                <MetaPill>{op.account}</MetaPill>
+                {op.accountCode && <Chip variant="source">{op.accountCode}</Chip>}
+              </>
+            }
+          />
+
+          <div className="flex min-w-0 flex-col justify-end gap-4 border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={STATE_TONE[op.state]}>{STATE_LABEL.get(op.state)}</Badge>
+              {op.stage && (
+                <MetaPill tone={rotting ? 'warning' : 'accent'}>
+                  {STAGE_LABEL.get(op.stage)}
+                  {op.daysInStage !== null && ` · ${op.daysInStage} ngày`}
+                  {rotting && ' · quá hạn cột'}
+                </MetaPill>
+              )}
+            </div>
+
+            {/* Nhãn nhóm, giống cách hồ sơ lead gắn nhãn "Nguồn lead": hai pill
+                dưới đây là số của ĐƠN, không phải nhãn phân loại, nên chúng
+                cần một cái tên chứ không thể đứng trần cạnh pill cột. */}
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="text-muted-foreground text-[12.5px] font-semibold">Giá trị đơn</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <MetaPill
+                  mono
+                  title={
+                    op.amount !== null && op.currency !== null
+                      ? undefined
+                      : 'Chưa moi được ô 9 — khoảng tiền khách nói'
+                  }
+                >
+                  {op.amount !== null && op.currency !== null
+                    ? billions(toDong(op.amount, op.currency))
+                    : '—'}
+                </MetaPill>
+                <MetaPill
+                  mono
+                  tone={late ? 'warning' : undefined}
+                  title={op.expectedClose !== null ? undefined : 'Chưa đặt ngày đóng dự kiến'}
+                >
+                  {op.stage === null ? 'đóng' : 'đóng dự kiến'}{' '}
+                  {op.expectedClose !== null ? dmy(op.expectedClose) : '—'}
+                </MetaPill>
+              </div>
+            </div>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Cùng lưới chi tiết với hồ sơ lead — `w-full` để mép card hai màn thẳng
+          hàng, `xl:self-stretch` + cột phụ DÍNH để ba thẻ tra cứu còn trong tầm
+          mắt khi cuộn hết phiếu.
+
+          KHÔNG `sideFirst`, và đó là chỗ duy nhất hai màn cố ý khác nhau — lý
+          do đầy đủ ở docblock đầu file. */}
       <ScreenDetailGrid
         sideLabel="Ngữ cảnh cơ hội"
+        className="w-full"
+        sideClassName="relative xl:self-stretch"
         main={<DealCard op={op} />}
         side={
-          <>
+          <DetailSidePanel>
             <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
             <PeopleCard op={op} />
-            {/* Đọc THẬT từ `GET /sales/ops/:code/touches`. Khoá bằng mã ĐƠN chứ
+            {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches`. Khoá bằng mã ĐƠN chứ
               không mã lead: `code` là thứ `ActivityCard` dùng để dựng lại tab
               và mục đang mở, nên nó phải đổi đúng lúc dòng thời gian đổi.
 
@@ -243,7 +348,7 @@ export function OpsDetailPage() {
               `turns` vẫn `NO_TRANSCRIPT`, cố ý: máy chủ không có transcript và
               sẽ chưa có. Hằng số nói ra điều đó, một `[]` trần thì không. */}
             <ActivityCard code={op.code} history={touches} turns={NO_TRANSCRIPT} />
-          </>
+          </DetailSidePanel>
         }
       />
 
@@ -254,25 +359,17 @@ export function OpsDetailPage() {
 
 // ---------------------------------------------------------------------------
 
-function EmptyOp({
-  code,
-  message,
-  onBack,
-}: {
-  code: string
-  message?: string
-  onBack: () => void
-}) {
+/** Màn không mở được — MỘT khối, ba câu, và cái hình đổi theo câu.
+ *
+ *  Một component cho cả ba vì cả ba là cùng một trạng thái của màn ("không có
+ *  đơn để vẽ") và cùng một đường đi tiếp ("về sổ cơ hội"). Cái khác nhau là
+ *  CÂU, và câu là thứ được truyền vào — chứ không phải ba khối rỗng gần giống
+ *  nhau, thứ chắc chắn sẽ trôi khỏi nhau ở lần sửa thứ hai. */
+function EmptyOp({ icon, note, onBack }: { icon: IconGlyph; note: ReactNode; onBack: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <Icon icon={Inbox} size={26} className="text-muted-foreground" />
-      <p className="text-muted-foreground text-[12.5px] leading-[1.65]">
-        {message ?? (
-          <>
-            Sổ không có đơn nào mang mã <span className="font-mono">{code}</span>.
-          </>
-        )}
-      </p>
+      <Icon icon={icon} size={26} className="text-muted-foreground" />
+      <p className="text-muted-foreground text-[12.5px] leading-[1.65]">{note}</p>
       <Button size="sm" variant="ghost" onClick={onBack}>
         Về sổ cơ hội
       </Button>
@@ -675,4 +772,4 @@ function ToolsBar({
   )
 }
 
-export default OpsDetailPage
+export default OpportunityDetailPage

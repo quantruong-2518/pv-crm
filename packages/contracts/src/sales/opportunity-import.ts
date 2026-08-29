@@ -3,8 +3,8 @@ import { MaObject, Moc, gomKhoangTrang, textNhap, textNhapTuyChon } from '../pri
 
 /** Loading deals from a file — TWO endpoints, one body.
  *
- *      POST /sales/ops/import/preview    dry run, writes NOTHING
- *      POST /sales/ops/import            same body, writes and reports
+ *      POST /sales/opportunities/import/preview   dry run, writes NOTHING
+ *      POST /sales/opportunities/import           same body, writes and reports
  *
  *  The shape mirrors `lead-import.ts` deliberately, down to the field names, so
  *  that the panel driving both (`ImportZone`) needs one translator rather than
@@ -48,7 +48,7 @@ import { MaObject, Moc, gomKhoangTrang, textNhap, textNhapTuyChon } from '../pri
  *  already has a deal that is still open. Loading it again is usually a file
  *  being replayed, and the commit skips those rows — but a second live deal for
  *  one customer is legal, and the day somebody genuinely wants one they will
- *  open it through `POST /sales/ops`, where there is a person to ask.
+ *  open it through `POST /sales/opportunities`, where there is a person to ask.
  *
  *  "Still open" excludes both terminal ends: a lost deal and a signed one are
  *  finished, and a customer coming back next quarter is a new deal, not a

@@ -18,7 +18,7 @@ import { useSalesPeople } from '@/data/directory'
  *  VÌ SAO TÁCH RA KHỎI `convert-dialog.tsx`
  *  ------------------------------------------------------------------
  *  Cùng một phiếu được điền ở HAI chỗ: popup đổi lead thành cơ hội
- *  (`components/convert-dialog.tsx`) và hồ sơ cơ hội (`pages/ops-detail.tsx`).
+ *  (`components/convert-dialog.tsx`) và hồ sơ cơ hội (`pages/opportunity-detail.tsx`).
  *  Hai chỗ đó phải hỏi đúng những câu như nhau, kiểm đúng những điều kiện như
  *  nhau, và đọc lại số tiền theo đúng một cách — nếu không thì đơn vừa tạo ở
  *  popup mở ra ở hồ sơ đã là một tờ giấy khác.
@@ -31,7 +31,7 @@ import { useSalesPeople } from '@/data/directory'
  *  `draft` và một hàm ghi, trả lại ô nhập — chỗ đặt là chuyện của người gọi.
  *
  *  Ở đây chỉ có COMPONENT. Bản kiểm "còn thiếu gì" và phép bật/tắt một người là
- *  luật của phiếu chứ không phải cách vẽ một cái ô, nên chúng ở `data/ops.ts` —
+ *  luật của phiếu chứ không phải cách vẽ một cái ô, nên chúng ở `data/opportunities.ts` —
  *  `react-refresh` cũng đòi đúng điều đó: một file component chỉ xuất component.
  *
  *  Nó cũng không nằm ở `@pv/ui`: `PeopleRow` gọi thẳng một query của app và năm

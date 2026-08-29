@@ -72,9 +72,9 @@ Hai trong ba câu của bản 28/08 nay đã có code trả lời — xem mục
 Hai câu đã trả lời, ghi lại để không ai đi hỏi lần nữa:
 
 - **"Nạp cơ hội từ tệp" có quay lại không** — cửa máy chủ đã dựng
-  (`POST /sales/ops/import` + `/import/preview`). Nút trên màn thì CHƯA gắn lại;
+  (`POST /sales/opportunities/import` + `/import/preview`). Nút trên màn thì CHƯA gắn lại;
   đó là việc của `apps/web`, và `OP_SPEC`/`ImportZone` vẫn nguyên chờ nó.
-- **Đơn thắng ghi ở đâu** — `POST /sales/ops/:code/contract`, quyền `cơ-hội.chốt`.
+- **Đơn thắng ghi ở đâu** — `POST /sales/opportunities/:code/contract`, quyền `cơ-hội.chốt`.
   Vẫn đúng nguyên tắc cũ: "đã thắng" là dòng bên `contract`, suy ra chứ không lưu.
 
 ---
@@ -158,12 +158,12 @@ hồ thì mọi đơn đều "vừa mới vào cột" và tín hiệu mục khô
 
 ### Endpoint
 
-|                          | quyền                 |                                       |
-| ------------------------ | --------------------- | ------------------------------------- |
-| `GET /sales/ops`         | `cơ-hội.xem` · scoped | sổ, phân trang, trả `hidden` (luật 7) |
-| `GET /sales/ops/:code`   | `cơ-hội.xem` · scoped | 404 và 403 là hai câu khác nhau       |
-| `POST /sales/ops`        | `cơ-hội.sửa`          | đổi lead thành cơ hội                 |
-| `PATCH /sales/ops/:code` | `cơ-hội.sửa` · scoped | lưu phiếu ở hồ sơ                     |
+|                                    | quyền                 |                                       |
+| ---------------------------------- | --------------------- | ------------------------------------- |
+| `GET /sales/opportunities`         | `cơ-hội.xem` · scoped | sổ, phân trang, trả `hidden` (luật 7) |
+| `GET /sales/opportunities/:code`   | `cơ-hội.xem` · scoped | 404 và 403 là hai câu khác nhau       |
+| `POST /sales/opportunities`        | `cơ-hội.sửa`          | đổi lead thành cơ hội                 |
+| `PATCH /sales/opportunities/:code` | `cơ-hội.sửa` · scoped | lưu phiếu ở hồ sơ                     |
 
 Cửa ghi đòi `cơ-hội.sửa` chứ **không** `cơ-hội.chốt`: mở một đơn thì đóng lại
 được, ký thì không. Gộp vào `chốt` nghĩa là muốn cho BD mở đơn thì phải cho họ
@@ -271,14 +271,14 @@ màn nào.**
 
 ### Endpoint mới
 
-|                                  | quyền                  |                                                  |
-| -------------------------------- | ---------------------- | ------------------------------------------------ |
-| `GET /sales/ops?leadCode=`       | `cơ-hội.xem` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần     |
-| `GET /sales/ops/:code/touches`   | `cơ-hội.xem` · scoped  | dòng thời gian của một đơn                       |
-| `GET /sales/leads/:code/touches` | `lead.xem` · scoped    | dòng thời gian của một lead                      |
-| `POST /sales/ops/import/preview` | `cơ-hội.sửa`           | chạy thử, không ghi gì                           |
-| `POST /sales/ops/import`         | `cơ-hội.sửa`           | nạp thật, cả lô hoặc không dòng nào              |
-| `POST /sales/ops/:code/contract` | `cơ-hội.chốt` · scoped | **ký** — đường ĐẦU TIÊN dùng quyền `cơ-hội.chốt` |
+|                                            | quyền                  |                                                  |
+| ------------------------------------------ | ---------------------- | ------------------------------------------------ |
+| `GET /sales/opportunities?leadCode=`       | `cơ-hội.xem` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần     |
+| `GET /sales/opportunities/:code/touches`   | `cơ-hội.xem` · scoped  | dòng thời gian của một đơn                       |
+| `GET /sales/leads/:code/touches`           | `lead.xem` · scoped    | dòng thời gian của một lead                      |
+| `POST /sales/opportunities/import/preview` | `cơ-hội.sửa`           | chạy thử, không ghi gì                           |
+| `POST /sales/opportunities/import`         | `cơ-hội.sửa`           | nạp thật, cả lô hoặc không dòng nào              |
+| `POST /sales/opportunities/:code/contract` | `cơ-hội.chốt` · scoped | **ký** — đường ĐẦU TIÊN dùng quyền `cơ-hội.chốt` |
 
 ### Bảng mới · `sales.touch`
 
@@ -376,21 +376,21 @@ hình mà `leads.tsx:481` đang dùng. Cần thêm `data/opportunity-import-wire
 
 **4 · Nút "Chốt thắng"** — `pages/ops-detail.tsx`, trong `ToolsBar`
 
-Cửa `POST /sales/ops/:code/contract` chưa có ai bấm. Ba ô đều tuỳ chọn ở hợp
+Cửa `POST /sales/opportunities/:code/contract` chưa có ai bấm. Ba ô đều tuỳ chọn ở hợp
 đồng, nên drawer chỉ để xác nhận + cho sửa: số tiền (mồi từ đơn), ngày ký (mồi
 hôm nay), người ăn hoa hồng (mồi Sale đứng đơn đầu, chọn từ `/users/directory`).
 
 ### Sơ đồ đã phác
 
 ```
-/sales/ops  — ĐỔI ĐÚNG MỘT HÀNG
+/sales/opportunities  — ĐỔI ĐÚNG MỘT HÀNG
 ┌─ ScreenHeader "Sổ cơ hội" ───────────────[ Nạp cơ hội từ tệp ]─┐  ← MỚI
 ├─ ScreenScoreGrid · 4 thẻ điểm ────────────────────────────────┤  giữ nguyên
 ├─ ScreenToolbar · ô tìm + 4 select ────────────────────────────┤  giữ nguyên
 ├─ "N dòng khớp · M bị ẩn"                          [ Pager ]   ┤  giữ nguyên
 └─ GlassCard variant=b · DataTable 8 cột ───────────────────────┘  giữ nguyên
 
-/sales/ops/:code  — ĐỔI ĐÚNG MỘT NÚT + MỘT DRAWER
+/sales/opportunities/:code  — ĐỔI ĐÚNG MỘT NÚT + MỘT DRAWER
 ┌─ ScreenHeader · tên đơn + hàng pill ──────────────────────────┐
 ├─ main (DealCard · phiếu 14 ô)  ─┬─ side ─────────────────────┤
 │   … Lưu / Bỏ sửa                │ LeadCard · PeopleCard       │
@@ -411,12 +411,12 @@ hôm nay), người ăn hoa hồng (mồi Sale đứng đơn đầu, chọn từ
       └────────────────────────────────────────────────┘
 ```
 
-| Khối                 | Câu nó trả lời                     | Nguồn dữ liệu                             | Sửa được? |
-| -------------------- | ---------------------------------- | ----------------------------------------- | --------- |
-| Nút nạp tệp (header) | "đưa pipeline Excel vào bằng gì"   | `POST /sales/ops/import[/preview]`        | —         |
-| Nút Chốt thắng       | "đơn này kết thúc thắng"           | `POST /sales/ops/:code/contract`          | —         |
-| Drawer ký            | "ký bao nhiêu, ngày nào, ai hưởng" | `OpportunityRow` + `GET /users/directory` | 3 ô       |
-| ActivityCard         | "đơn/khách này đã đi qua những gì" | `GET /sales/{ops,leads}/:code/touches`    | không     |
+| Khối                 | Câu nó trả lời                     | Nguồn dữ liệu                                | Sửa được? |
+| -------------------- | ---------------------------------- | -------------------------------------------- | --------- |
+| Nút nạp tệp (header) | "đưa pipeline Excel vào bằng gì"   | `POST /sales/opportunities/import[/preview]` | —         |
+| Nút Chốt thắng       | "đơn này kết thúc thắng"           | `POST /sales/opportunities/:code/contract`   | —         |
+| Drawer ký            | "ký bao nhiêu, ngày nào, ai hưởng" | `OpportunityRow` + `GET /users/directory`    | 3 ô       |
+| ActivityCard         | "đơn/khách này đã đi qua những gì" | `GET /sales/{ops,leads}/:code/touches`       | không     |
 
 ### Năm quyết định còn treo
 
@@ -496,7 +496,7 @@ migration `0016` đã vào `7aa12de`.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: MaHopDong`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                           |
 | **Việc 3** · nạp tệp    | `ops.tsx` có `ImportZone`; thêm `data/opportunity-import-wire.ts` (dịch thuần) + `data/opportunity-import.ts` (preview → dừng nếu 0 dòng → import). `motions` đã gỡ khỏi `OP_SPEC` theo quyết định #2                                             |
-| **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/ops/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                                     |
+| **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/opportunities/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                           |
 | **Việc 4** · Chốt thắng | `components/sign-drawer.tsx` mới + nút trong `ToolsBar` + `useSignContract` ở `ops-write.ts`. Ba mặt: đã ký → pill tĩnh `Đã ký · HĐ-…`; đã thua → không vẽ gì; còn lại → nút, **ẩn hẳn** với vai không có `cơ-hội.chốt` (`useCan`, quyết định #4) |
 
 ### Bốn thứ phát hiện khi dựng, không có trong bản phác

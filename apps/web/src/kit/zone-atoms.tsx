@@ -287,7 +287,7 @@ export function ZoneAtoms() {
           name="MetaPill"
           note="ngày · mã · người"
           bodyClassName="flex flex-wrap items-center gap-2 px-4 py-4"
-          footer="rounded-sm px-2 py-1 text-[11px] bg-white/9 · mono cho ngày và mã · không bấm được, cần bấm thì dùng Chip"
+          footer="rounded-sm px-2 py-1 text-[11px] bg-white/9 · mono cho ngày và mã · không bấm được, cần bấm thì dùng Chip · title cho ô trống, đặt trên chính pill chứ không bọc span bên trong"
         >
           <MetaPill icon={CalendarDays} mono>
             18/08 · 09:10
@@ -298,6 +298,11 @@ export function ZoneAtoms() {
           <MetaPill avatar="Trần Thu Hà">Trần Thu Hà</MetaPill>
           <MetaPill tone="warning">Còn 3 ngày</MetaPill>
           <MetaPill tone="success">Đạt kỳ vọng</MetaPill>
+          {/* Ô trống thì con số không tự khai được vì sao nó trống — câu đó dài
+              hơn cái pill nên nó đi vào title, và title thuộc về CẢ pill. */}
+          <MetaPill mono title="Chưa đặt ngày đóng dự kiến">
+            đóng dự kiến —
+          </MetaPill>
         </SpecCard>
 
         {/* A-13 */}

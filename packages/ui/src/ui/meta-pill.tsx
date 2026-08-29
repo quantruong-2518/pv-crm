@@ -38,12 +38,20 @@ export type MetaPillProps = {
   /** chữ mono — dùng cho ngày và mã */
   mono?: boolean
   children: ReactNode
+  /** Câu giải thích khi bản thân nội dung pill không nói hết — điển hình là ô
+   *  trống in "—": người đọc cần biết VÌ SAO trống, nhưng câu đó dài hơn cái
+   *  pill nên nó phải nằm ở tooltip.
+   *
+   *  Có mặt ở đây thay vì để chỗ gọi bọc `<span title="…">` bên trong: lớp bọc
+   *  đó chỉ chở đúng một thuộc tính, và nó phủ một phần pill chứ không phải cả
+   *  pill — rê chuột lên icon hoặc lên khoảng đệm là mất tooltip. */
+  title?: string
   className?: string
 }
 
-export function MetaPill({ icon, avatar, tone, mono, children, className }: MetaPillProps) {
+export function MetaPill({ icon, avatar, tone, mono, children, title, className }: MetaPillProps) {
   return (
-    <span className={cn(metaPillVariants({ tone, mono }), className)}>
+    <span className={cn(metaPillVariants({ tone, mono }), className)} title={title}>
       {avatar ? <Avatar name={avatar} size="sm" /> : icon ? <Icon icon={icon} size={14} /> : null}
       {children}
     </span>
