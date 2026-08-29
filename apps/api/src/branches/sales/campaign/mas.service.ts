@@ -489,6 +489,7 @@ export class MasService {
       leadCode: d.row.code,
       company: d.row.company,
       contactName: d.row.contactName,
+      contactTitle: d.row.contactTitle ?? undefined,
       email: d.row.email ?? undefined,
       block: d.block,
     }))

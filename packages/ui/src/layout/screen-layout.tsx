@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { Children, useId, type ReactNode } from 'react'
 import { ArrowLeft } from '../icons'
 import { cn } from '../lib/cn'
 import { Button } from '../ui/button'
@@ -91,13 +91,29 @@ export type ScreenScoreGridProps = {
   className?: string
 }
 
-/** Một card trên mobile, 2 card trên tablet/Mac hẹp, 4 card từ desktop rộng. */
+/** Một card trên mobile, 2 card trên tablet/Mac hẹp, tới 4 card từ desktop
+ *  rộng — nhưng KHÔNG QUÁ SỐ CARD THẬT SỰ CÓ. `xl:grid-cols-4` cứng từng làm
+ *  một sổ 3 card (Sổ chiến dịch) để trống hẳn một ô bên trái: lưới 4 cột chia
+ *  đều dù chỉ có 3 đứa con, và Tailwind không tự co cột theo nội dung.
+ *
+ *  Bảng tra tĩnh — không ghép chuỗi `xl:grid-cols-${n}` — vì Tailwind quét
+ *  MÃ NGUỒN để sinh CSS, không quét giá trị runtime; một chuỗi ghép ở JS sẽ
+ *  không sinh ra class nào. Màn cần hơn 4 (`sources.tsx` dùng 5) vẫn ghi đè
+ *  bằng `className`, và `cn()` (twMerge) để lớp truyền vào thắng lớp tính ở
+ *  đây — hành vi không đổi so với trước. */
+const XL_COLS: Record<number, string> = {
+  1: 'xl:grid-cols-1',
+  2: 'xl:grid-cols-2',
+  3: 'xl:grid-cols-3',
+  4: 'xl:grid-cols-4',
+}
+
 export function ScreenScoreGrid({ children, className }: ScreenScoreGridProps) {
-  return (
-    <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4', className)}>
-      {children}
-    </div>
-  )
+  const count = Children.count(children)
+  const xlCols = XL_COLS[Math.min(Math.max(count, 1), 4)] ?? XL_COLS[4]
+  const smCols = count <= 1 ? 'sm:grid-cols-1' : 'sm:grid-cols-2'
+
+  return <div className={cn('grid grid-cols-1 gap-3', smCols, xlCols, className)}>{children}</div>
 }
 
 export type ScreenToolbarProps = {

@@ -23,6 +23,7 @@ export type MasLeadRow = {
   code: string
   company: string
   contactName: string
+  contactTitle: string | null
   email: string | null
   sourceKind: LeadSourceKind | null
   suppressed: boolean
@@ -148,6 +149,7 @@ export class MasRepository {
         code: lead.code,
         company: lead.company,
         contactName: lead.contactName,
+        contactTitle: lead.contactTitle,
         email: sql<string | null>`NULLIF(trim(${lead.email}), '')`,
         sourceKind: lead.sourceKind,
         suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,

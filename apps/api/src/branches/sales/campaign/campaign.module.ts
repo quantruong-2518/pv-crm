@@ -4,6 +4,7 @@ import { MailModule } from '@api/platform/mail/mail.module'
 import { CampaignController } from './campaign.controller'
 import { CampaignRepository } from './campaign.repository'
 import { CampaignService } from './campaign.service'
+import { CampaignSweeper } from './campaign.sweeper'
 import { MasController } from './mas.controller'
 import { MasRepository } from './mas.repository'
 import { MasService } from './mas.service'
@@ -55,6 +56,11 @@ import { SourceService } from './source.service'
        đường huỷ đã có, không viết lại; xem docblock đầu `campaign.service.ts`. */
     CampaignService,
     CampaignRepository,
+    /* Chỉ `worker.ts` lấy ra — tiến trình HTTP dựng nó cùng cây DI nhưng không
+       ai gọi, đúng như `MailRunSweeper` nằm sẵn trong `MailModule`. Export vì
+       `worker.ts` `app.get()` nó từ ngoài module này. */
+    CampaignSweeper,
   ],
+  exports: [CampaignSweeper],
 })
 export class CampaignModule {}

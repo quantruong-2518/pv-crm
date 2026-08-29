@@ -77,6 +77,8 @@ export class CampaignRepository {
     name: string
     ownerId: string | null
     sourceId: string | null
+    slogan: string | null
+    thumbnailUrl: string | null
   }): Promise<CampaignRowDb> {
     const [row] = await this.db
       .insert(campaign)
@@ -88,7 +90,13 @@ export class CampaignRepository {
 
   async patch(
     code: string,
-    input: { name?: string; ownerId?: string; sourceId?: string },
+    input: {
+      name?: string
+      ownerId?: string
+      sourceId?: string
+      slogan?: string
+      thumbnailUrl?: string
+    },
   ): Promise<void> {
     await this.db
       .update(campaign)
@@ -101,6 +109,60 @@ export class CampaignRepository {
       .update(campaign)
       .set({ state, updatedAt: new Date() })
       .where(eq(campaign.code, code))
+  }
+
+  /** ĐANG CHẠY → XONG, cho chiến dịch mà mọi đợt của nó đã ngã ngũ.
+   *
+   *  ------------------------------------------------------------------
+   *  VÌ SAO PHẢI CÓ MỘT LƯỢT QUÉT, KHÔNG PHẢI MỘT DÒNG TRONG `start()`
+   *  ------------------------------------------------------------------
+   *  `DONE` có trong `CampaignState`, có trong CHECK của bảng, và cho tới
+   *  lượt này KHÔNG AI GHI NÓ: `start()` nâng `RUNNING`, `stop()` hạ
+   *  `STOPPED`, hết. Một chiến dịch bắn xong đủ ba đợt đứng `RUNNING` vĩnh
+   *  viễn — sai trên mọi bộ lọc và mọi báo cáo đếm "đang chạy".
+   *
+   *  Nó không thể là một dòng trong `start()` vì lúc đó chưa có gì xong: đợt
+   *  cuối có thể hẹn tuần sau. Nó cũng không thể sống trong `MailRunSweeper`
+   *  — `platform` không được biết `sales.campaign` tồn tại. Nên nó ở đây, và
+   *  chạy trên nhịp của worker qua [`CampaignSweeper`].
+   *
+   *  ------------------------------------------------------------------
+   *  MỘT CÂU, VÀ ĐIỀU KIỆN "CÓ ÍT NHẤT MỘT ĐỢT" LÀ BẮT BUỘC
+   *  ------------------------------------------------------------------
+   *  Cùng lý lẽ với `sweepStates()`: vị ngữ nằm trọn trong WHERE nên Postgres
+   *  đọc nó trên đúng một ảnh chụp, không có khe giữa lượt đọc và lượt ghi để
+   *  một đợt mới chen vào.
+   *
+   *  `EXISTS` một đợt là hàng rào chống ca xấu nhất: `/start` nâng `RUNNING`
+   *  TRƯỚC vòng lặp gửi (quyết định #5 của `ban-giao-campaign.md`), nên có
+   *  một khoảnh khắc chiến dịch đã `RUNNING` mà chưa đợt nào kịp ghi. Thiếu
+   *  `EXISTS`, lượt quét chạy đúng vào khoảnh khắc đó sẽ đóng ngay một chiến
+   *  dịch chưa gửi lá thư nào — và `DONE` không có đường quay lại `RUNNING`.
+   *
+   *  Terminal của một đợt là `SENT` hoặc `CANCELLED`. `DRAFT` không nằm trong
+   *  đó dù `MasService` không bao giờ tạo ra nó: một đợt nháp là một đợt còn
+   *  chờ người, và chờ người thì chiến dịch chưa xong. */
+  async closeFinished(): Promise<string[]> {
+    const r = (await this.db.execute(sql`
+      UPDATE "sales"."campaign" c
+         SET "state" = 'DONE',
+             "updated_at" = now()
+       WHERE c."state" = 'RUNNING'
+         AND EXISTS (
+               SELECT 1 FROM "sales"."campaign_run" cr
+                WHERE cr."campaign_code" = c."code"
+             )
+         AND NOT EXISTS (
+               SELECT 1
+                 FROM "sales"."campaign_run" cr
+                 JOIN "platform"."mail_run" r ON r."id" = cr."mail_run_id"
+                WHERE cr."campaign_code" = c."code"
+                  AND r."state" NOT IN ('SENT', 'CANCELLED')
+             )
+      RETURNING c."code"
+    `)) as { rows: { code: string }[] }
+
+    return r.rows.map((row) => row.code)
   }
 
   async book(who: Actor, q: CampaignBookQuery, scoped: boolean): Promise<CampaignBookPage> {

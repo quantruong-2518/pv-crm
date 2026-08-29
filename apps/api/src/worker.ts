@@ -3,6 +3,7 @@ import { Logger, Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
+import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
@@ -95,6 +96,7 @@ async function bootstrap(): Promise<void> {
   const consumer = app.get(MailConsumer)
   const relay = app.get(MailRelay)
   const runs = app.get(MailRunSweeper)
+  const campaigns = app.get(CampaignSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -123,28 +125,38 @@ async function bootstrap(): Promise<void> {
   )
 
   /* ------------------------------------------------------------------
-     HAI LƯỢT QUÉT, MỘT ĐỒNG HỒ
+     BA LƯỢT QUÉT, MỘT ĐỒNG HỒ
      ------------------------------------------------------------------
-     `MailRelay` đi theo TỪNG LÁ THƯ — chỗ một dòng sổ gửi trở thành một job.
-     Nhánh chỉ ghi bảng, nên phải có ai đó quét.
+     Ba tầng của cùng một câu hỏi "còn gì chưa ngã ngũ không", mỗi tầng trên
+     một bảng khác:
 
-     `MailRunSweeper` đi theo CẢ LÔ: lô nào không còn thư nào chờ thì đóng, lô
-     nào bounce vượt trần thì cầu dao ngắt và giữ lại những thư chưa kịp rời
-     máy. Hai câu hỏi khác tầng, nhưng chung nhịp `PV_QUEUE_POLL_SECONDS`: hai
-     vòng poll khác nhau là hai con số phải giải thích, và không có gì để đổi
-     lấy.
+       `MailRelay`        TỪNG LÁ THƯ — chỗ một dòng sổ gửi trở thành một job.
+                          Nhánh chỉ ghi bảng, nên phải có ai đó quét.
+       `MailRunSweeper`   CẢ LÔ — lô nào không còn thư nào chờ thì đóng, lô nào
+                          bounce vượt trần thì cầu dao ngắt và giữ lại những
+                          thư chưa kịp rời máy.
+       `CampaignSweeper`  CẢ CHIẾN DỊCH — mọi đợt đã ngã ngũ thì chuyển XONG.
+                          Phải hỏi từ phía nhánh: dây `sales.campaign_run` chạy
+                          một chiều, `platform` không biết chiến dịch nào đang
+                          chờ lô của nó.
+
+     Chung nhịp `PV_QUEUE_POLL_SECONDS`: ba vòng poll khác nhau là ba con số
+     phải giải thích, và không có gì để đổi lấy.
 
      `void` chứ không `await`, và mỗi lượt một `catch` riêng: một vòng quét
      hỏng (Neon ngắt kết nối chẳng hạn) không được giết tiến trình, cũng không
-     được kéo theo lượt kia — dòng vẫn `pending`, lô vẫn `SENDING`, vòng sau
-     nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự thật chứ không phải hàng
-     đợi. */
+     được kéo theo lượt kia — dòng vẫn `pending`, lô vẫn `SENDING`, chiến dịch
+     vẫn `RUNNING`, vòng sau nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự
+     thật chứ không phải hàng đợi. */
   const sweep = setInterval(() => {
     void relay.sweep().catch((error: unknown) => {
       log.error(`Relay lỗi: ${error instanceof Error ? error.message : String(error)}`)
     })
     void runs.sweep().catch((error: unknown) => {
       log.error(`Quét lô mail lỗi: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    void campaigns.sweep().catch((error: unknown) => {
+      log.error(`Quét chiến dịch lỗi: ${error instanceof Error ? error.message : String(error)}`)
     })
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */

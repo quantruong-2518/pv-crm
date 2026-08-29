@@ -76,11 +76,68 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/users'),
   },
   {
+    /** BA SỔ, MỘT TIỀN TỐ — và thứ tự khai ở đây không quyết định gì.
+     *
+     *  React Router xếp hạng route theo độ cụ thể chứ không theo thứ tự mảng,
+     *  nên `/sales/campaigns/nguon-dan` (đoạn tĩnh) luôn thắng
+     *  `/sales/campaigns/:code` (đoạn động) dù đứng sau nó. Ba sổ đứng chung
+     *  một tiền tố vì `useAppChrome` sáng mục nav bằng `inModule()`, tức khớp
+     *  theo tiền tố: tách Nguồn dẫn ra `/sales/sources` là làm mục nav tắt
+     *  ngóm đúng lúc người dùng đang đứng trên nó, hoặc phải đẻ module thứ 7
+     *  cho một sổ vốn thuộc module 1. Xem `components/module1-books.tsx`. */
     path: '/sales/campaigns',
-    name: 'Kinh doanh · Module 1 · Chiến dịch',
+    name: 'Kinh doanh · Module 1 · Sổ chiến dịch',
     branch: 'Sales',
     permission: 'chiến-dịch.xem',
     load: () => import('@/pages/campaigns'),
+  },
+  {
+    /** Sổ NGUỒN DẪN — `SR-nn`, nơi lead SINH RA. Đây là màn từng đứng ở
+     *  `/sales/campaigns` cho tới 29/08; nó nhường chỗ cho `sales.campaign`
+     *  thật (`CP-nnnn`, đơn vị GỬI) theo quyết định D2 ngày 28/08. Hai bảng,
+     *  hai định nghĩa đối lập, không hợp nhất được. */
+    path: '/sales/campaigns/nguon-dan',
+    name: 'Kinh doanh · Module 1 · Nguồn dẫn',
+    branch: 'Sales',
+    permission: 'chiến-dịch.xem',
+    load: () => import('@/pages/sources'),
+  },
+  {
+    path: '/sales/campaigns/nguon-dan/:code',
+    name: 'Kinh doanh · Module 1 · Hồ sơ nguồn dẫn',
+    branch: 'Sales',
+    permission: 'chiến-dịch.xem',
+    load: () => import('@/pages/source-detail'),
+  },
+  {
+    /** Sổ LÔ GỬI — `platform.mail_run`, mọi lô thư kể cả lô đi lẻ từ Sổ lead.
+     *  `chiến-dịch.xem` để đọc, `chiến-dịch.bắn` để dừng một lô; cửa thứ hai
+     *  gác ở `data/mail-runs.ts`, không gác ở đây. */
+    path: '/sales/campaigns/lo-gui',
+    name: 'Kinh doanh · Module 1 · Sổ lô gửi',
+    branch: 'Sales',
+    permission: 'chiến-dịch.xem',
+    load: () => import('@/pages/mail-runs'),
+  },
+  {
+    /** Tạo chiến dịch — đoạn tĩnh `moi`, đứng TRƯỚC `:code` trong mảng nhưng
+     *  thứ tự đó không quyết định gì (React Router xếp theo độ cụ thể, đúng
+     *  lý do `nguon-dan` ở trên thắng `:code`). Cùng file `campaign-form.tsx`
+     *  với hai route dưới — ba cửa vào MỘT khung, xem docblock đầu file đó. */
+    path: '/sales/campaigns/moi',
+    name: 'Kinh doanh · Module 1 · Chiến dịch mới',
+    branch: 'Sales',
+    permission: 'chiến-dịch.xem',
+    load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignCreatePage })),
+  },
+  {
+    /** Sửa hồ sơ một chiến dịch — cùng khung với hồ sơ, mở thẳng vào bước Hồ
+     *  sơ thay vì bước Tổng quan. */
+    path: '/sales/campaigns/:code/sua',
+    name: 'Kinh doanh · Module 1 · Sửa chiến dịch',
+    branch: 'Sales',
+    permission: 'chiến-dịch.xem',
+    load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignEditPage })),
   },
   {
     /** Hồ sơ một chiến dịch. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì
@@ -89,7 +146,7 @@ export const SCREENS: ScreenDef[] = [
     name: 'Kinh doanh · Module 1 · Hồ sơ chiến dịch',
     branch: 'Sales',
     permission: 'chiến-dịch.xem',
-    load: () => import('@/pages/campaign-detail'),
+    load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignViewPage })),
   },
   {
     path: '/sales/leads',

@@ -69,6 +69,8 @@ export class CampaignService {
       name: body.name,
       ownerId: body.ownerId ?? null,
       sourceId: body.sourceId ?? null,
+      slogan: body.slogan ?? null,
+      thumbnailUrl: body.thumbnailUrl ?? null,
     })
     return CampaignCreateResponse.parse(
       toContract({
@@ -93,6 +95,8 @@ export class CampaignService {
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.ownerId !== undefined ? { ownerId: body.ownerId } : {}),
       ...(body.sourceId !== undefined ? { sourceId: body.sourceId } : {}),
+      ...(body.slogan !== undefined ? { slogan: body.slogan } : {}),
+      ...(body.thumbnailUrl !== undefined ? { thumbnailUrl: body.thumbnailUrl } : {}),
     })
 
     const after = await this.repo.byCode(who, code, true)

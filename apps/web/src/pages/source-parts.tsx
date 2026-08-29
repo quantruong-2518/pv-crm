@@ -35,7 +35,7 @@ import {
   sendsViaE4,
   whenText,
   type CampaignDraft,
-} from './campaign-model'
+} from './source-model'
 
 /** Module 1 · các KHỐI GIAO DIỆN dùng chung của hai màn.
  *
@@ -665,11 +665,7 @@ export function CampaignForm({
   const stopId = `${uid}-stop`
 
   const title =
-    mode === 'edit'
-      ? `Sửa ${code}`
-      : mode === 'duplicate'
-        ? 'Nhân bản chiến dịch'
-        : 'Chiến dịch mới'
+    mode === 'edit' ? `Sửa ${code}` : mode === 'duplicate' ? 'Nhân bản nguồn dẫn' : 'Nguồn dẫn mới'
 
   const kicker = mode === 'edit' ? 'Sửa' : mode === 'duplicate' ? 'Nhân bản' : 'Tạo mới'
 

@@ -51,8 +51,8 @@ import { RECIPIENT_SPEC, leadBookKeys, rowsToLeads } from '@/data/intake'
 import { frozenLeadBookQuery } from '@/data/leads'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
-import { CampaignForm, NotDoing } from './campaign-parts'
-import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './campaign-model'
+import { CampaignForm, NotDoing } from './source-parts'
+import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './source-model'
 
 /** Module 1 · hồ sơ MỘT chiến dịch — màn riêng từ 19/08.
  *
@@ -81,7 +81,7 @@ import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './camp
  *  hồ sơ — không đẻ màn thứ ba.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
-export function CampaignDetailPage() {
+export function SourceDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
   const navigate = useNavigate()
   const { code = '' } = useParams()
@@ -121,8 +121,11 @@ export function CampaignDetailPage() {
         <GlassCard className="p-5 lg:p-6">
           <EmptyState
             icon={TriangleAlert}
-            message={`Không có chiến dịch nào mang mã ${code} trong kỳ này.`}
-            action={{ label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
+            message={`Không có nguồn dẫn nào mang mã ${code} trong kỳ này.`}
+            action={{
+              label: 'Về sổ nguồn dẫn',
+              onClick: () => navigate('/sales/campaigns/nguon-dan'),
+            }}
             className="py-12"
           />
         </GlassCard>
@@ -271,7 +274,7 @@ export function CampaignDetailPage() {
   return shell(
     <ScreenLayout>
       <ScreenHeader
-        back={{ label: 'Sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
+        back={{ label: 'Sổ nguồn dẫn', onClick: () => navigate('/sales/campaigns/nguon-dan') }}
         title={
           <span className="flex flex-wrap items-center gap-2">
             <Icon icon={CAMPAIGN_ICON} size={20} className="text-accent-foreground" />
@@ -577,4 +580,4 @@ export function CampaignDetailPage() {
   )
 }
 
-export default CampaignDetailPage
+export default SourceDetailPage

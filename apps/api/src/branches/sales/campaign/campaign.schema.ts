@@ -48,6 +48,13 @@ export const campaign = sales.table(
     code: text('code').primaryKey(),
     name: text('name').notNull(),
 
+    /** Câu mở đầu ngắn hiện trên bước Hồ sơ của màn tạo/sửa — trang trí,
+     *  không phải nghiệp vụ. Nullable, cùng lý do mọi cột "tuỳ chọn" ở đây. */
+    slogan: text('slogan'),
+    /** URL ảnh thumbnail — hệ chưa có kho file, nên đây là ô dán URL, không
+     *  phải cột lưu file. */
+    thumbnailUrl: text('thumbnail_url'),
+
     /** Who owns the campaign. Nullable — a campaign drafted before anyone is
      *  assigned is a real state, and inventing an owner to fill the column is
      *  how a report grows a person who never ran anything. */
@@ -77,7 +84,7 @@ export const campaign = sales.table(
     index('campaign_owner_idx').on(t.ownerId),
     check('campaign_code_shape', sql`${t.code} ~ '^CP-[0-9]{4}$'`),
     check('campaign_state_valid', sql`${t.state} IN ('DRAFT', 'RUNNING', 'STOPPED', 'DONE')`),
-    check('campaign_no_blank', noBlank('name', 'owner_id')),
+    check('campaign_no_blank', noBlank('name', 'owner_id', 'slogan', 'thumbnail_url')),
   ],
 )
 

@@ -35,6 +35,13 @@ export const CampaignBookRow = z.object({
   sourceId: MaConfig.optional(),
   sourceName: z.string().min(1).optional(),
 
+  /** Câu mở đầu ngắn hiện dưới tên chiến dịch trên bước Hồ sơ. Trang trí,
+   *  không phải dữ liệu nghiệp vụ — vắng là bình thường. */
+  slogan: z.string().min(1).optional(),
+  /** URL ảnh thumbnail, không phải file lưu ở máy chủ — kho file chưa có nên
+   *  đây là ô dán URL, giống `MailCta.url`. */
+  thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
+
   /** Số lead đang `ACTIVE` trong `campaign_member`. Máy chủ tính, không phải
    *  cột — giống `LeadRow.daysHere`. */
   audienceCount: z.number().int().nonnegative(),
@@ -74,6 +81,8 @@ export const CampaignCreate = z.object({
   name: textNhap(200),
   ownerId: textNhapTuyChon(64),
   sourceId: MaConfig.optional(),
+  slogan: textNhapTuyChon(200),
+  thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
 })
 
 export const CampaignCreateResponse = CampaignBookRow
@@ -86,10 +95,18 @@ export const CampaignPatch = z
     name: textNhap(200).optional(),
     ownerId: textNhapTuyChon(64),
     sourceId: MaConfig.optional(),
+    slogan: textNhapTuyChon(200),
+    thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
   })
-  .refine((v) => v.name !== undefined || v.ownerId !== undefined || v.sourceId !== undefined, {
-    message: 'Cần sửa ít nhất một trường',
-  })
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.ownerId !== undefined ||
+      v.sourceId !== undefined ||
+      v.slogan !== undefined ||
+      v.thumbnailUrl !== undefined,
+    { message: 'Cần sửa ít nhất một trường' },
+  )
 
 export const CampaignPatchResponse = CampaignBookRow
 
