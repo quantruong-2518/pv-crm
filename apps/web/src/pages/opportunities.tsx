@@ -389,7 +389,7 @@ export function OpportunitiesPage() {
             lại ô tìm bằng mắt. */}
         <ScreenToolbar
           label="Bộ lọc sổ cơ hội"
-          className="grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-3 xl:items-center min-[1440px]:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(150px,1fr))_auto]"
+          className="wide:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(150px,1fr))_auto] grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-3 xl:items-center"
         >
           <SearchField
             size="topbar"

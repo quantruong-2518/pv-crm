@@ -74,7 +74,8 @@ export * from './organisms/kiosk-tile'
 export * from './organisms/order-lifecycle-card'
 export * from './organisms/toast'
 
-// ---- Zone 04 · Templates (T-04 · T-06) ----
+// ---- Zone 04 · Templates (T-04 · T-07) ----
 export * from './layout/app-shell'
 export * from './layout/drawer'
+export * from './layout/modal'
 export * from './layout/screen-layout'

@@ -8,6 +8,7 @@ import {
   Button,
   Drawer,
   GlassCard,
+  Modal,
   ScreenHeader,
   ScreenLayout,
   ScreenScoreGrid,
@@ -46,6 +47,7 @@ export function ZoneTemplates() {
   /* T-04 là component SỐNG, không phải bản vẽ khung như ba cái trên: panel đóng
      thì không có gì để nhìn, nên nó phải mở được ngay trên trang kit. */
   const [open, setOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
 
   return (
     <section id="zone-04" className="pb-2 pt-12">
@@ -208,6 +210,33 @@ export function ZoneTemplates() {
               </GlassCard>
             </div>
           </Drawer>
+        </SpecCard>
+
+        {/* T-07 */}
+        <SpecCard
+          className="col-span-3"
+          code="T-07"
+          name="Modal"
+          note="phiếu giữa · lg 920 / xl 1120"
+          bodyClassName="flex flex-wrap items-center gap-4 px-4 py-5"
+          footer="Dùng khi một tác vụ có nhiều phần cần nhìn và kiểm cùng lúc. Đầu và chân đứng yên, thân tự cuộn; mobile chiếm toàn màn."
+        >
+          <Button onClick={() => setModalOpen(true)}>Mở phiếu đầy đủ</Button>
+          <span className="text-muted-foreground text-[11.5px]">
+            Phù hợp với form soạn mail có nội dung, lịch gửi và danh sách người nhận.
+          </span>
+          <Modal
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            title="Kiểm tra trước khi gửi"
+            subtitle="Nội dung, thời điểm và người nhận nằm trong cùng một phiếu."
+          >
+            <GlassCard variant="b" className="p-5">
+              <p className="text-glass-foreground text-[12px] leading-[1.6]">
+                Modal giữ đủ bề ngang để người dùng đối chiếu nhiều phần mà không phải mở qua lại.
+              </p>
+            </GlassCard>
+          </Modal>
         </SpecCard>
 
         {/* T-05 */}

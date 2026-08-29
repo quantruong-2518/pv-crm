@@ -213,6 +213,15 @@
   --animate-drawer-out: drawer-out var(--motion-duration) var(--motion-ease) forwards;
   --animate-scrim-in: scrim-in var(--motion-duration) var(--motion-ease);
   --animate-scrim-out: scrim-out var(--motion-duration) var(--motion-ease) forwards;
+
+  /* Breakpoint thứ sáu — hàng lọc của sổ lead và sổ cơ hội co về MỘT dòng ở
+     đây. KHÔNG viết `min-[1440px]:` thẳng trong JSX: Tailwind v4 xếp một biến
+     thể ngoặc vuông vào một lớp cascade không tên, đứng DƯỚI mọi breakpoint
+     có tên (`sm`…`xl`) — nên `xl:grid-cols-3` (1280px) luôn thắng nó ở mọi bề
+     rộng ≥ 1440px, kể cả 1920px, bất kể trị số ai lớn hơn ai. Khai thành một
+     breakpoint có tên thì Tailwind xếp đúng chỗ theo trị số, và `wide:` thắng
+     `xl:` đúng như JSX viết ra trông như vậy. */
+  --breakpoint-wide: 90rem;
 }
 
 @layer base {

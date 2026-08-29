@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { Check } from '../icons'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { Check, Minus } from '../icons'
 import { Icon } from './icon'
 import { cn } from '../lib/cn'
 
@@ -15,6 +15,8 @@ import { cn } from '../lib/cn'
  *  bằng bàn phím. */
 export type CheckboxProps = {
   checked: boolean
+  /** Một phần danh sách đã chọn — ô vẽ dấu gạch và lần bấm kế tiếp chọn hết. */
+  indeterminate?: boolean
   onChange: (checked: boolean) => void
   /** Dòng chính. Bấm vào chữ cũng tick — nhãn bọc cả ô. */
   label: ReactNode
@@ -28,6 +30,7 @@ export type CheckboxProps = {
 
 export function Checkbox({
   checked,
+  indeterminate = false,
   onChange,
   label,
   hint,
@@ -35,6 +38,12 @@ export function Checkbox({
   disabled = false,
   className,
 }: CheckboxProps) {
+  const input = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (input.current) input.current.indeterminate = indeterminate
+  }, [indeterminate])
+
   return (
     <label
       className={cn(
@@ -57,6 +66,7 @@ export function Checkbox({
       )}
     >
       <input
+        ref={input}
         type="checkbox"
         checked={checked}
         disabled={disabled}
@@ -67,14 +77,18 @@ export function Checkbox({
         aria-hidden
         className={cn(
           'motion-std flex size-4 shrink-0 items-center justify-center rounded-sm',
-          checked ? 'bg-primary text-primary-foreground' : 'bg-white/12',
+          checked || indeterminate ? 'bg-primary text-primary-foreground' : 'bg-white/12',
           /* Toàn bộ tín hiệu "khoá" nằm ở đây — một hình vuông, không phải chữ.
              Mờ một mảng màu không làm ai đọc khó hơn; mờ một dòng chữ thì có. */
           disabled && 'opacity-55',
           'peer-focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_60%,transparent)]',
         )}
       >
-        {checked && <Icon icon={Check} size={14} strokeWidth={1.9} />}
+        {indeterminate ? (
+          <Icon icon={Minus} size={14} strokeWidth={1.9} />
+        ) : (
+          checked && <Icon icon={Check} size={14} strokeWidth={1.9} />
+        )}
       </span>
 
       <span className="flex min-w-0 flex-1 flex-col">

@@ -1,4 +1,4 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { KeyboardEvent, PointerEventHandler, ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
@@ -37,6 +37,10 @@ export type TableRowModel = {
   /** cả dòng mở object. Nút riêng nằm trong ô thì màn tự `stopPropagation`
    *  ở nút đó — ở đây chỉ bắt click nổi bọt lên dòng, không nuốt gì cả. */
   onOpen?: () => void
+  /** Pointer hooks cho các bảng có thao tác kéo qua nhiều dòng. DataTable chỉ
+   *  chuyển sự kiện; ý nghĩa chọn/bỏ chọn vẫn thuộc màn giữ dữ liệu. */
+  onPointerDown?: PointerEventHandler<HTMLDivElement>
+  onPointerEnter?: PointerEventHandler<HTMLDivElement>
 }
 
 export type TableSort = {
@@ -149,6 +153,8 @@ export function DataTable({
             aria-current={row.state === 'selected' ? true : undefined}
             onClick={openable ? open : undefined}
             onKeyDown={openable ? onKeyDown : undefined}
+            onPointerDown={row.onPointerDown}
+            onPointerEnter={row.onPointerEnter}
             className={cn(
               /* `gap-3` giữa các cột là bắt buộc, không phải trang trí: ô căn
                  phải chạm sát ô kế bên và hai giá trị dính liền nhau thành một
