@@ -148,6 +148,13 @@
       "when": 1787973312044,
       "tag": "0021_faithful_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788026806360,
+      "tag": "0022_clammy_banshee",
+      "breakpoints": true
     }
   ]
 }

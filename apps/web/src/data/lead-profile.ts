@@ -132,6 +132,7 @@ export function profileForm(p: LeadProfile): ProfileForm {
        values on purpose (see the contract) — one campaign channel out, the
        same channel back — so this one needs no cast. */
     channel: p.contactChannel ?? '',
+    channelUrl: p.contactChannelUrl ?? '',
 
     // ── 3 · what the customer wants solved ──────────────────────────────────
     pain: p.pain ?? '',

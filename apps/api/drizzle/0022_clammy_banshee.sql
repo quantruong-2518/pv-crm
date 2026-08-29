@@ -1,0 +1,3 @@
+ALTER TABLE "sales"."lead" DROP CONSTRAINT "lead_no_blank";--> statement-breakpoint
+ALTER TABLE "sales"."lead" ADD COLUMN "contact_channel_url" text;--> statement-breakpoint
+ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_no_blank" CHECK ("company" <> '' AND "legal_name" <> '' AND "tax_code" <> '' AND "address" <> '' AND "province" <> '' AND "main_product" <> '' AND "contact_name" <> '' AND "contact_title" <> '' AND "email" <> '' AND "phone" <> '' AND "contact_channel" <> '' AND "contact_channel_url" <> '' AND "pain" <> '' AND "current_stack" <> '' AND "decision_maker" <> '' AND "approver" <> '' AND "campaign_id" <> '');

@@ -5,9 +5,11 @@ import {
   LeadImportCommitResponse,
   LeadImportPreviewResponse,
   LeadOwnerResponse,
+  LeadPatchResponse,
   type LeadCreate,
   type LeadImportBody,
   type LeadOwnerWrite,
+  type LeadPatch,
   type MaObject,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
@@ -16,8 +18,8 @@ import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
-import { fromCreate, LEAD_NOTE, refOf } from './lead-write.mapper'
-import { toContract } from './lead.mapper'
+import { fromCreate, fromPatch, LEAD_NOTE, refOf } from './lead-write.mapper'
+import { toContract, toProfile } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 
@@ -257,6 +259,91 @@ export class LeadWriteService {
     if (!after) throw notFound('lead', code)
 
     return LeadOwnerResponse.parse(toContract(after))
+  }
+
+  // ── door 1c · correct what is already in the book ────────────────────────
+
+  /** `PATCH /sales/leads/:code` — the profile card's save button.
+   *
+   *  ------------------------------------------------------------------
+   *  THE SAME TWO REFUSALS AS `GET :code`, IN THE SAME ORDER AND WORDS
+   *  ------------------------------------------------------------------
+   *  You may correct exactly the leads you may read. `LeadService.profile`
+   *  already draws that line — 404 for a code that is in no book, 403
+   *  `out-of-scope` for a lead standing in somebody else's name — and this door
+   *  asks `byCode` the same question and repeats the same sentence rather than
+   *  inventing a second rule. That includes the common pool: `scopeOf` counts
+   *  an unclaimed lead as OUT of scope for an `ownOnly` actor, so a Sale cannot
+   *  edit a lead they cannot open. Same rule, one place, no surprise.
+   *
+   *  `setOwner` deliberately ignores `inScope` at the END of its work, and that
+   *  is not a contradiction: a Sale who just handed a lead away is out of scope
+   *  a millisecond later, and answering their successful write with a 403 would
+   *  read as failure. Nothing here changes who holds the lead, so the check
+   *  holds for the whole call.
+   *
+   *  ------------------------------------------------------------------
+   *  NO MIRROR ROW, AND THAT IS A PROPERTY OF THE CONTRACT
+   *  ------------------------------------------------------------------
+   *  Every other write door updates `platform.object` because it moves one of
+   *  the four values a ref carries — `label` (company), `owner`, `state`
+   *  (stage). `LeadPatch` accepts none of those three: the book group is not
+   *  patchable, the holder has its own door, the funnel column is a gate. So
+   *  the ref this lead already has is still true afterwards, and an UPSERT here
+   *  would be a write that cannot change anything.
+   *
+   *  Add a field to `LeadPatch` that a ref reads and this stops being true.
+   *  That is the moment to write the mirror row, and this paragraph is the
+   *  reason it is missing today rather than an oversight to copy.
+   *
+   *  ------------------------------------------------------------------
+   *  ONE TOUCH ROW PER SAVE, COUNTING BOXES
+   *  ------------------------------------------------------------------
+   *  `dien-o` has been in `TouchKind` since the timeline was drawn, described
+   *  as "fields on the profile were filled in or corrected", with no door
+   *  writing it. This is that door. One row per save rather than per field:
+   *  somebody working through the ten questions fills six boxes in one sitting,
+   *  and six timeline rows for one sitting is a timeline nobody can read.
+   *
+   *  `values` is never empty, so the UPDATE is never a `set({})` — `LeadPatch`
+   *  refuses a body in which every field is absent, and that refusal is the
+   *  only reason this method needs no empty check of its own. */
+  async patch(who: Actor, code: MaObject, body: LeadPatch): Promise<LeadPatchResponse> {
+    const before = await this.leads.byCode(who, code)
+    if (!before) throw notFound('lead', code)
+
+    if (!before.inScope) {
+      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    const values = fromPatch(body)
+
+    await this.repo.run(async (tx) => {
+      /* The row was read a moment ago and outside this transaction, so it can
+         have been deleted since. `patchLead` answers that and nothing else. */
+      const written = await this.repo.patchLead(tx, code, values)
+      if (!written) throw notFound('lead', code)
+
+      await this.touch.record(tx, [
+        {
+          subjectCode: code,
+          subjectKind: 'lead',
+          kind: 'dien-o',
+          ...byOf(who),
+          note: LEAD_NOTE.corrected(Object.keys(values).length),
+        },
+      ])
+    })
+
+    /* Read back through the ordinary read path, same reason as `setOwner`:
+       `requiredFilled` is a GENERATED column, so filling in a phone number
+       moves the init-data gate without this door touching it. An answer
+       assembled from the patch body would carry the old count and the gate bar
+       would sit one notch behind what was just saved. */
+    const after = await this.leads.byCode(who, code)
+    if (!after) throw notFound('lead', code)
+
+    return LeadPatchResponse.parse(toProfile(after))
   }
 
   // ── door 2 · the dry run ─────────────────────────────────────────────────

@@ -141,8 +141,19 @@ const requiredOnWire = (key: CreateKey) => !SHAPE[key].safeParse(undefined).succ
  *  while the table has a `contact_channel` column and a `contact_*` family
  *  around it. Kept as a one-entry table rather than renamed on either side:
  *  renaming the profile field touches the fixture, the gate (`SLOT_FIELDS`)
- *  and four screens for a cosmetic win. */
-const RENAMED: Partial<Record<ProfileField['key'], CreateKey>> = { channel: 'contactChannel' }
+ *  and four screens for a cosmetic win.
+ *
+ *  Exported because `lead-patch.ts` needs the same two lines: both write doors
+ *  of this book take a profile-shaped draft and address contract-shaped fields,
+ *  so a second copy of the table would be a second answer to "what is `channel`
+ *  called on the wire" — and the copies would drift on the day a third field
+ *  gains a second name. Typed against `LeadCreate` and read by the patch door
+ *  through a widening cast, because `LeadPatch` spells its fields identically:
+ *  the two contracts share every name they share at all. */
+export const PROFILE_TO_WIRE: Partial<Record<ProfileField['key'], CreateKey>> = {
+  channel: 'contactChannel',
+  channelUrl: 'contactChannelUrl',
+}
 
 /** Which `LeadCreate` field a drawn profile field writes into — `undefined`
  *  when the contract has no such field, which is how the create form drops
@@ -166,7 +177,7 @@ const RENAMED: Partial<Record<ProfileField['key'], CreateKey>> = { channel: 'con
  *     the contract agrees: a lead typed in by hand belongs to no campaign, and
  *     inventing a source code creates a source that is in no source book. */
 function wireKeyOf(key: ProfileField['key']): CreateKey | undefined {
-  const renamed = RENAMED[key]
+  const renamed = PROFILE_TO_WIRE[key]
   if (renamed) return renamed
   return key in SHAPE ? (key as CreateKey) : undefined
 }
@@ -177,7 +188,7 @@ function wireKeyOf(key: ProfileField['key']): CreateKey | undefined {
  *  makes per-field errors work: `ApiError.errors` arrives keyed by contract
  *  field (`{ email: […] }`, `{ currency: […] }`), so a draft keyed the same way
  *  needs no translation table between "what the server complained about" and
- *  "which box to outline". One rename lives in `RENAMED`; nothing else has two
+ *  "which box to outline". One rename lives in `PROFILE_TO_WIRE`; nothing else has two
  *  names anywhere in this file. */
 export type CreateField = {
   wire: CreateKey

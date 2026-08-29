@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Check,
-  ChevronDown,
-  Mail,
-  MessageSquare,
-  Phone,
-  RotateCcw,
-  Users,
-  type IconGlyph,
-} from '@pv/ui'
+import { Check, ChevronDown, Mail, MessageSquare, Phone, Users, type IconGlyph } from '@pv/ui'
 import {
   Badge,
   Button,
@@ -54,10 +45,13 @@ import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import { leadMailTimelineQuery } from '@/data/mas'
-import { isApiError, userMessage } from '@/app/api'
+import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { ROOT_FIELD } from '@/data/lead-create'
+import { buildLeadPatch, patchFieldLabel, useUpdateLeadProfile } from '@/data/lead-patch'
 import { profileForm } from '@/data/lead-profile'
 import {
   changedFields,
+  channelUrlLabel,
   fieldsOf,
   isMandatory,
   PROFILE_GROUPS,
@@ -277,23 +271,44 @@ function FieldControl({
  *  "tôi đang sửa dở" — mà đó chính là lúc người dùng cần thấy còn bao nhiêu ô
  *  chưa lưu và có đường lùi. */
 export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
-  const saved = useLeadDesk((s) => s.profiles[profile.code])
-  const patchProfile = useLeadDesk((s) => s.patchProfile)
-  const resetProfile = useLeadDesk((s) => s.resetProfile)
+  const save = useUpdateLeadProfile()
+  const [failed, setFailed] = useState<FieldErrors | null>(null)
 
   /* Bản gốc là HỒ SƠ THẬT của máy chủ, không còn là bản sinh từ mã lead. Trường
      vắng trên dây = chưa moi được, và `profileForm` dịch nó thành `''`/`null` —
-     đúng thứ ô nhập, cổng init data và ô chỉ đọc đều đã hiểu là "chưa có". */
+     đúng thứ ô nhập, cổng init data và ô chỉ đọc đều đã hiểu là "chưa có".
+
+     Không còn lớp đè `desk.profiles` ở giữa. Cho tới 30/08 nút Lưu ghi vào một
+     kho zustand, và bản đã "lưu" đó phủ lên bản của máy chủ — nghĩa là sau khi
+     có `PATCH` thật, một patch cũ còn nằm trong trình duyệt sẽ che mất chính
+     giá trị vừa ghi xuống. Một nguồn sự thật, và nó ở phía máy chủ. */
   const base = useMemo(() => profileForm(profile), [profile])
-  const stored = useMemo(() => ({ ...base, ...saved }), [base, saved])
-  const [work, setWork] = useState<LeadProfile>(stored)
+  const [work, setWork] = useState<LeadProfile>(base)
 
-  /* Đổi lead (hoặc nhận bản đã lưu mới) thì nạp lại ô nhập. Không nạp lại thì
-     bấm sang lead khác vẫn thấy hồ sơ của lead trước. */
-  useEffect(() => setWork(stored), [stored])
+  /* Đổi lead — hoặc nhận bản mới sau một lượt lưu — thì nạp lại ô nhập. Không
+     nạp lại thì bấm sang lead khác vẫn thấy hồ sơ của lead trước. */
+  useEffect(() => setWork(base), [base])
 
-  const dirty = useMemo(() => changedFields(stored, work), [stored, work])
-  const edited = useMemo(() => changedFields(base, stored), [base, stored])
+  const dirty = useMemo(() => changedFields(base, work), [base, work])
+
+  /* Two human clicks are two real writes, and the second one lands a second
+     `dien-o` row on the timeline — one sitting reading as two. `isPending`
+     guards it here; the client only refuses to replay a write automatically. */
+  const submit = () => {
+    if (save.isPending) return
+
+    const built = buildLeadPatch(base, work)
+    if (!built.ok) {
+      setFailed(built.errors)
+      return
+    }
+
+    setFailed(null)
+    save.mutate(
+      { code: profile.code, body: built.body },
+      { onError: (error) => setFailed(error.errors ?? {}) },
+    )
+  }
 
   /* GẬP THEO Ô CÒN THIẾU, KHÔNG THEO THỨ TỰ.
    *
@@ -305,7 +320,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
    *  lead 2/6 ô chỉ nhìn thấy đúng phần phải điền; một lead đã đầy đủ mở ra là
    *  ba dòng tiêu đề, không phải ba mươi ô.
    *
-   *  Tính từ `stored` chứ không từ `work`, và đây là chỗ dễ sai nhất: `work` là
+   *  Tính từ `base` chứ không từ `work`, và đây là chỗ dễ sai nhất: `work` là
    *  thứ đang gõ dở, nên lấy nó làm mốc thì ô cuối cùng của một nhóm vừa được
    *  điền xong sẽ TỰ GẬP CẢ NHÓM ngay dưới con trỏ đang gõ. Trạng thái gập chỉ
    *  được tính lại khi đổi sang LEAD khác.
@@ -316,24 +331,34 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
    *   · `useEffect` chạy SAU khi trình duyệt đã vẽ, nên bấm sang lead khác sẽ
    *     loé một nhịp accordion của lead cũ rồi mới gập lại đúng. Gán trong lúc
    *     vẽ thì React bỏ luôn lượt vẽ dở và vẽ lại trước khi có gì lên màn.
-   *   · Không còn mảng phụ thuộc để mà khai thiếu. Bản trước bỏ `stored` ra
+   *   · Không còn mảng phụ thuộc để mà khai thiếu. Bản trước bỏ `base` ra
    *     khỏi `[profile.code]` một cách cố ý, và `react-hooks/exhaustive-deps`
-   *     cảnh báo đúng — nhưng thêm `stored` vào lại chính là con bọ "tự gập
+   *     cảnh báo đúng — nhưng thêm `base` vào lại chính là con bọ "tự gập
    *     dưới con trỏ" ở trên. Hình dạng này không phải chọn giữa hai cái sai.
    *
    *  Đây là mẫu chính thức của React cho "đặt lại state khi prop đổi". */
   const [openGroups, setOpenGroups] = useState<ReadonlySet<GroupKey>>(
-    () => new Set(incompleteGroups(stored)),
+    () => new Set(incompleteGroups(base)),
   )
   const [seededFor, setSeededFor] = useState(profile.code)
 
   if (seededFor !== profile.code) {
     setSeededFor(profile.code)
-    setOpenGroups(new Set(incompleteGroups(stored)))
+    setOpenGroups(new Set(incompleteGroups(base)))
   }
 
-  const set = (field: ProfileField, raw: string) =>
+  /* Typing anywhere drops the complaint from the last attempt. A red sentence
+     that survives the very edit it asked for reads as "still wrong", and after
+     that the user stops believing any of them. Dropped wholesale rather than
+     per field because this note names boxes, not outlines them: keeping the
+     other half of a stale sentence on screen is the same lie, shorter. */
+  const set = (field: ProfileField, raw: string) => {
+    setFailed(null)
+    /* Guarded, not called on every keystroke: `reset` dispatches a state update
+       of its own, and the note has nothing to clear while the mutation is idle. */
+    if (save.isError) save.reset()
     setWork((w) => ({ ...w, [field.key]: writeField(field, raw) }) as LeadProfile)
+  }
 
   return (
     <GlassCard
@@ -349,14 +374,10 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
            chuyện xong. Một con số luôn bằng 0 không phải thông tin, nên chỗ này
            nói thẳng ra là chưa có sổ để đếm. */
         hint="Điền theo từng nhóm. Các trường có dấu * là thông tin bắt buộc."
-        actions={
-          edited.length > 0 ? (
-            <Button size="sm" variant="ghost" onClick={() => resetProfile(profile.code)}>
-              <Icon icon={RotateCcw} size={16} />
-              Về bản gốc · {edited.length} ô
-            </Button>
-          ) : undefined
-        }
+        /* The "back to the original" button is gone. It stepped from the copy
+           saved ON THIS MACHINE back to the server's, and those two are now one
+           and the same. Stepping back from something already written into the
+           book is editing it again and saving again, not a button. */
       >
         Chi tiết lead
       </SectionTitle>
@@ -380,29 +401,78 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
       ))}
 
       <div className="bg-popover shadow-panel flex flex-wrap items-center gap-3 rounded-md p-3 lg:sticky lg:bottom-24 lg:z-10">
-        <Button
-          size="md"
-          disabled={dirty.length === 0}
-          onClick={() => patchProfile(profile.code, work)}
-        >
+        <Button size="md" disabled={dirty.length === 0 || save.isPending} onClick={submit}>
           <Icon icon={Check} size={16} />
-          Lưu {dirty.length > 0 ? `${dirty.length} thay đổi` : 'thay đổi'}
+          {save.isPending
+            ? 'Đang lưu…'
+            : `Lưu ${dirty.length > 0 ? `${dirty.length} thay đổi` : 'thay đổi'}`}
         </Button>
         <Button
           size="md"
           variant="ghost"
-          disabled={dirty.length === 0}
-          onClick={() => setWork(stored)}
+          disabled={dirty.length === 0 || save.isPending}
+          onClick={() => {
+            setFailed(null)
+            setWork(base)
+          }}
         >
           Bỏ sửa
         </Button>
-        <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
-          {dirty.length > 0
-            ? `${dirty.length} thay đổi chưa lưu.`
-            : 'Dữ liệu được lưu trên thiết bị này.'}
-        </span>
+        <SaveNote dirty={dirty.length} failed={failed} error={save.error} />
       </div>
     </GlassCard>
+  )
+}
+
+/** The one sentence beside the save button — three states, never mixed.
+ *
+ *  ------------------------------------------------------------------
+ *  A SENTENCE, NOT AN OUTLINE ROUND EACH BOX
+ *  ------------------------------------------------------------------
+ *  The hand-typing drawer outlines the box the server disliked, and there that
+ *  is cheap: one `errors` map handed straight down one loop. This card COLLAPSES
+ *  by group, so the box being complained about may well be inside a group that
+ *  is shut — an outline would then mark something nobody can see, and it would
+ *  still cost threading the map through four components to draw it.
+ *
+ *  So this prints the box's NAME beside its complaint, right next to the button
+ *  just pressed. The trade is stated rather than hidden: the user opens the
+ *  group and finds the box themselves. The day outlining is worth it, the fix
+ *  is to OPEN the group holding the bad box first — outlining without opening
+ *  is half the job.
+ *
+ *  `patchFieldLabel` does the naming: the server answers keyed by CONTRACT
+ *  field (`currency`), and a reader knows only the label on screen. */
+function SaveNote({
+  dirty,
+  failed,
+  error,
+}: {
+  dirty: number
+  failed: FieldErrors | null
+  error: ApiError | null
+}) {
+  const complaints = failed
+    ? Object.entries(failed).flatMap(([wire, messages]) =>
+        messages.map((m) => (wire === ROOT_FIELD ? m : `${patchFieldLabel(wire)}: ${m}`)),
+      )
+    : []
+
+  if (complaints.length > 0 || error) {
+    return (
+      <span
+        role="alert"
+        className="text-destructive-foreground max-w-[520px] text-[12.5px] leading-[1.5]"
+      >
+        {[error ? userMessage(error) : null, ...complaints].filter(Boolean).join(' · ')}
+      </span>
+    )
+  }
+
+  return (
+    <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
+      {dirty > 0 ? `${dirty} thay đổi chưa lưu.` : 'Hồ sơ đang khớp với bản trên máy chủ.'}
+    </span>
   )
 }
 
@@ -428,25 +498,38 @@ function FieldRow({
 
   return (
     <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
-      {fields.map((field) => (
-        <FieldShell
-          key={field.key}
-          field={field}
-          plain={field.kind === 'select' || field.kind === 'read'}
-        >
-          <FieldControl
-            field={field}
-            value={readField(work, field.key)}
-            options={
-              field.people
-                ? [{ value: '', label: field.people }, ...staffOptions]
-                : (field.options ?? [])
-            }
-            onChange={(raw) => onSet(field, raw)}
-          />
-          {field.kind === 'money' && <MoneyRead work={work} value={readField(work, field.key)} />}
-        </FieldShell>
-      ))}
+      {fields.map((field) => {
+        /* The URL box takes its label from the channel picked — "URL LinkedIn"
+           rather than a bare "URL". Swapped at draw time instead of mutating
+           `PROFILE_FIELDS`, which is a module-level constant: writing into it
+           would relabel every open profile after whichever lead drew last.
+           `onSet` still receives the ORIGINAL field — a label is a matter for
+           the eye, not for where the value is written. */
+        const drawn =
+          field.key === 'channelUrl'
+            ? { ...field, label: channelUrlLabel(readField(work, 'channel')) }
+            : field
+
+        return (
+          <FieldShell
+            key={field.key}
+            field={drawn}
+            plain={field.kind === 'select' || field.kind === 'read'}
+          >
+            <FieldControl
+              field={drawn}
+              value={readField(work, field.key)}
+              options={
+                field.people
+                  ? [{ value: '', label: field.people }, ...staffOptions]
+                  : (field.options ?? [])
+              }
+              onChange={(raw) => onSet(field, raw)}
+            />
+            {field.kind === 'money' && <MoneyRead work={work} value={readField(work, field.key)} />}
+          </FieldShell>
+        )
+      })}
     </div>
   )
 }

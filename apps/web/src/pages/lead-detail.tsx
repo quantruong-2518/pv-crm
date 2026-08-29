@@ -187,7 +187,6 @@ export function LeadDetailPage() {
      là một hook chạy khi có lead mà không chạy khi không. */
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
-  const savedName = useLeadDesk((s) => s.profiles[code]?.company)
   /* "Khách này đã được đổi thành cơ hội chưa" — hỏi MÁY CHỦ, cùng lý do hook
      phải nằm trên ba nhánh `return` sớm. Xem `opportunitiesOfLeadQuery`. */
   const priorOps = useQuery(opportunitiesOfLeadQuery(code))
@@ -247,9 +246,11 @@ export function LeadDetailPage() {
   /* Người liên hệ THẬT trên dây — KHÔNG phải `leadContact(legacy)`. Trước đây
      `nextActions` tự gọi hàm sinh đó bên trong, và với một mã ngoài dải đóng
      băng (Apollo) nó nặn ra một cái tên và một số điện thoại không có thật. */
-  /* Tên account đọc từ bản hồ sơ ĐÃ LƯU: sửa tên trong form thì đầu trang phải
-     đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
-  const accountName = savedName ?? lead.company
+  /* Tên account đọc thẳng từ hồ sơ máy chủ. Trước 30/08 chỗ này còn phải hỏi
+     `desk.profiles` trước, vì nút Lưu của thẻ hồ sơ chỉ ghi vào trình duyệt và
+     đầu trang sẽ mâu thuẫn với ô nhập ngay bên dưới. Có `PATCH` thật thì lượt
+     lưu vứt `lead-profile` và câu truy vấn này trả về tên mới — một nguồn. */
+  const accountName = lead.company
   const masRecipients =
     lead.contactName && lead.email
       ? [

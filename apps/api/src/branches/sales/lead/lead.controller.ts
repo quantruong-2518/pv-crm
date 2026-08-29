@@ -5,6 +5,7 @@ import {
   LeadCreate,
   LeadImportBody,
   LeadOwnerWrite,
+  LeadPatch,
   MaObject,
   MeetingCreate,
   MeetingId,
@@ -220,6 +221,30 @@ export class LeadController {
     @Body(zod(LeadOwnerWrite)) body: LeadOwnerWrite,
   ) {
     return this.write.setOwner(who, code, body)
+  }
+
+  /** Correct one lead's profile — the save button of the detail screen's card.
+   *
+   *  Declared AFTER `:code/owner` and `:code/meetings/:id` so a reader meets the
+   *  narrow paths before the wide one. The router does not need that order — it
+   *  already prefers a static segment over a parameter, the same reason written
+   *  out on `@Get(':code')`.
+   *
+   *  `scoped: true` here while the two write doors beside it declare no scope
+   *  axis at all, and the difference is real rather than an omission: `setOwner`
+   *  ignores the axis on purpose because it CHANGES who holds the lead, while
+   *  this door changes nobody's custody — so "you may correct exactly the leads
+   *  you may open" holds for the whole call. The comparison itself lives in
+   *  `LeadWriteService.patch`, which has `inScope` in hand, exactly as
+   *  `@Get(':code')` declares the axis and leaves the verdict to its service. */
+  @Patch(':code')
+  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  patch(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(LeadPatch)) body: LeadPatch,
+  ) {
+    return this.write.patch(who, code, body)
   }
 
   /** Một lead, gõ tay. 201 kèm nguyên dòng sổ — màn chèn được ngay, không phải

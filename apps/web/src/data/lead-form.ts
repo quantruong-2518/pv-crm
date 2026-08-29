@@ -145,6 +145,25 @@ const CHANNEL_OPTIONS = [
   ...Object.entries(CHANNEL_LABEL).map(([value, label]) => ({ value, label })),
 ]
 
+/** What the URL box is called when no channel is picked yet — and the static
+ *  label in the field table, which the hand-typing drawer uses as it stands. */
+const CHANNEL_URL_LABEL = 'URL kênh liên hệ'
+
+/** The URL box's label, naming the channel currently picked: "URL LinkedIn".
+ *
+ *  A bare "URL" next to the channel select reads as the URL of something else —
+ *  of the lead, of the company, of the campaign. A label that follows the
+ *  channel states what it is asking for, instead of making the person infer it
+ *  from the control beside it.
+ *
+ *  Only the detail screen can call this, because only there is a profile being
+ *  edited in hand. `CREATE_FIELDS` is built once at module level, so the create
+ *  drawer keeps the static label. */
+export function channelUrlLabel(channel: string): string {
+  const name = (CHANNEL_LABEL as Record<string, string | undefined>)[channel]
+  return name ? `URL ${name}` : CHANNEL_URL_LABEL
+}
+
 const STAGE_OPTIONS = [
   { value: '', label: 'Chưa vào sổ cơ hội' },
   ...PIPELINE_STAGES.map((s) => ({ value: s.key, label: `${s.label} · hạn ${s.limitDays} ngày` })),
@@ -247,6 +266,20 @@ export const PROFILE_FIELDS: ProfileField[] = [
     slot: 'kenh',
     options: CHANNEL_OPTIONS,
     hint: 'Chọn kênh khách vừa sử dụng để phản hồi.',
+  },
+  {
+    key: 'channelUrl',
+    label: CHANNEL_URL_LABEL,
+    kind: 'text',
+    group: 'nguoi',
+    /* NO `slot`, and this is the easiest line in the table to get wrong. Slot 5
+       of the ten questions asks "which way can we call them back" —
+       `SLOT_FIELDS.kenh` measures phone · email · channel, and the server
+       measures those same three columns in a generated column. A link is not a
+       way to call somebody back. Declaring a slot here would also make
+       `isMandatory` put a star on a box nobody requires. */
+    mono: true,
+    placeholder: 'linkedin.com/in/…',
   },
 
   // ── 3 · Việc khách muốn giải ─────────────────────────────────────────────

@@ -160,6 +160,10 @@ export const lead = sales.table(
     email: text('email').notNull(),
     phone: text('phone'),
     contactChannel: text('contact_channel').$type<ContactChannel>(),
+    /** The customer's page on that channel. DELIBERATELY out of slot 5 of
+     *  `required_filled`: a link is not a way to call somebody back, and
+     *  counting it would open the MQL gate for a lead holding only a URL. */
+    contactChannelUrl: text('contact_channel_url'),
 
     // ── need · việc khách muốn giải ────────────────── ô 6…10 ──────────────
     /** Ô 6 — câu quan trọng nhất của cả hồ sơ. */
@@ -346,6 +350,7 @@ export const lead = sales.table(
         'email',
         'phone',
         'contact_channel',
+        'contact_channel_url',
         'pain',
         'current_stack',
         'decision_maker',

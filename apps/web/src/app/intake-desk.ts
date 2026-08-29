@@ -19,10 +19,10 @@ import type { ImportedLead, ImportedOpportunity } from '@/data/intake'
  *  ------------------------------------------------------------------
  *  GIỮ CẢ DÒNG, KHÔNG GIỮ PATCH
  *  ------------------------------------------------------------------
- *  Khác `desk.profiles` một bậc quan trọng và có lý do: patch hồ sơ dựng lại
- *  được từ fixture nên chỉ cần chở phần đã đổi. Dòng nạp thì KHÔNG có bản gốc
- *  nào để dựng lại — nó chỉ tồn tại trong tệp mà người dùng đã đóng từ lâu.
- *  Không giữ cả dòng thì tải lại trang là mất sạch.
+ *  Khác `desk.ops` một bậc quan trọng và có lý do: patch một dòng sổ cơ hội
+ *  dựng lại được từ fixture nên chỉ cần chở phần đã đổi. Dòng nạp thì KHÔNG có
+ *  bản gốc nào để dựng lại — nó chỉ tồn tại trong tệp mà người dùng đã đóng từ
+ *  lâu. Không giữ cả dòng thì tải lại trang là mất sạch.
  *
  *  ------------------------------------------------------------------
  *  HOÀN TÁC ĐƯỢC, VÀ ĐÓ LÀ ĐIỂM CHÍNH CỦA CẤU TRÚC NÀY

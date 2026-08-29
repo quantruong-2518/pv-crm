@@ -211,6 +211,27 @@ export class LeadWriteRepository {
     await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
   }
 
+  /** Write the columns one patch named. `false` = no row carries that code.
+   *
+   *  The row is NOT locked first, unlike `setOwner`, because there is nothing
+   *  to decide from its current state: the service has already settled "does it
+   *  exist" and "is it yours" off the read path, and every column here is
+   *  written blind to what it held. A lock would only serialise two people
+   *  editing different halves of one profile, which is a thing they may do.
+   *
+   *  `returning` rather than `rowCount`: it answers the one question the
+   *  service still has — whether the row was deleted between the read and this
+   *  statement — and a zero-row UPDATE otherwise reads exactly like success. */
+  async patchLead(tx: Db, code: string, values: Partial<LeadValues>): Promise<boolean> {
+    const rows = await tx
+      .update(lead)
+      .set(values)
+      .where(eq(lead.code, code))
+      .returning({ code: lead.code })
+
+    return rows.length > 0
+  }
+
   /** One public intake insert. A duplicate-email race is allowed to throw so
    *  Postgres rolls back the mirror row; the service recognises exactly that
    *  named constraint and returns the generic public acknowledgement. */

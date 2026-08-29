@@ -197,6 +197,10 @@ export function toProfile(read: LeadProfileRead): LeadProfile {
     ...(row.headcount !== null ? { headcount: row.headcount } : {}),
     ...(row.plants !== null ? { plants: row.plants } : {}),
 
+    /* Here and not in `toContract`: the book lists WHICH channel, the profile
+       is the only screen that needs the address on it. */
+    ...(row.contactChannelUrl ? { contactChannelUrl: row.contactChannelUrl } : {}),
+
     ...(row.pain ? { pain: row.pain } : {}),
     ...(row.currentStack ? { currentStack: row.currentStack } : {}),
     ...(row.decisionMaker ? { decisionMaker: row.decisionMaker } : {}),

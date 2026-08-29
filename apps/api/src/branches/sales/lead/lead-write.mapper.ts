@@ -1,5 +1,5 @@
 import type { ObjectRef } from '@pv/engines'
-import type { LeadCreate, LeadIntakeBody } from '@pv/contracts'
+import type { LeadCreate, LeadIntakeBody, LeadPatch } from '@pv/contracts'
 import type { lead } from './lead.schema'
 
 /** Contract shapes → column values, for the THREE write doors of the book.
@@ -68,6 +68,12 @@ export const LEAD_NOTE = {
    *  không phải tra thêm bảng nào: "Giao cho Đỗ Quang Huy", "Trả về kho chung". */
   handedTo: 'Giao cho',
   released: 'Trả về kho chung — chưa ai nhận',
+  /** How many boxes one save touched. A function like `imported` and for the
+   *  same reason: the number belongs INSIDE the sentence, not concatenated at
+   *  the call site where the next caller will space it differently. It counts
+   *  boxes rather than naming them — twenty-one field names would make a
+   *  timeline row nobody reads to the end. */
+  corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
 } as const
 
 export function refOf(code: string, write: LeadWrite): ObjectRef {
@@ -121,6 +127,7 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       contactTitle: body.contactTitle ?? null,
       phone: body.phone ?? null,
       contactChannel: body.contactChannel ?? null,
+      contactChannelUrl: body.contactChannelUrl ?? null,
 
       pain: body.pain ?? null,
       currentStack: body.currentStack ?? null,
@@ -139,6 +146,38 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       campaignId: body.campaignId ?? null,
     },
   }
+}
+
+/** One patch body → the columns it actually names, and no others.
+ *
+ *  ------------------------------------------------------------------
+ *  IT WALKS THE BODY, IT DOES NOT LIST THE COLUMNS
+ *  ------------------------------------------------------------------
+ *  `fromCreate` above lists every column because a create writes every column.
+ *  A patch must write ONLY what the caller named: a `set()` that also carried
+ *  the twenty untouched fields would overwrite a colleague's edit with values
+ *  the sender read before that edit existed, and nothing on either screen would
+ *  ever show that it happened.
+ *
+ *  So absence is the mechanism, and `undefined` — the one value `LeadPatch`
+ *  leaves behind for "not sent" — is the only thing dropped. `null` survives:
+ *  on this door it is an instruction, not a gap.
+ *
+ *  Walking a body is only safe because zod STRIPS keys the shape does not
+ *  declare, so nothing reaches here that `LeadPatch` did not accept, and
+ *  `LeadPatch` accepts nothing that is not a patchable column. Widen that shape
+ *  with a field the profile must not carry and this quietly writes it — which
+ *  is why the withheld list is spelled out on the contract rather than here.
+ *
+ *  The two sides already share their spelling (`contactChannelUrl` is
+ *  `contact_channel_url` on the Drizzle side), so there is no rename table to
+ *  keep in step — the one thing this function would otherwise have to own. */
+export function fromPatch(body: LeadPatch): Partial<LeadValues> {
+  const values: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(body)) {
+    if (value !== undefined) values[key] = value
+  }
+  return values as Partial<LeadValues>
 }
 
 /** Public landing form → the smallest valid lead row. Origin and motion are

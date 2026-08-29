@@ -5,6 +5,7 @@ import {
   Moc,
   Ngay,
   email,
+  gomKhoangTrang,
   phoneOptional,
   textNhap,
   textNhapTuyChon,
@@ -362,6 +363,20 @@ export const LeadProfile = LeadRow.extend({
   headcount: z.number().int().nonnegative().optional(),
   plants: z.number().int().nonnegative().optional(),
 
+  // ── contact · how to reach the person on the channel ─────── slot 5 ──────
+
+  /** The customer's page on `contactChannel` — a LinkedIn profile, a Facebook
+   *  page, the company site. Detail only, deliberately not on `LeadRow`: the
+   *  book lists and filters by WHICH channel, never by the address on it.
+   *
+   *  Free text, not `z.url()`, and that is a decision rather than an omission.
+   *  What people actually paste is `linkedin.com/in/abc` off the address bar or
+   *  out of a Zalo message, and refusing that is refusing the one gesture this
+   *  box exists for. The cost is stated where it lands: nothing may build an
+   *  `<a href>` out of this value, because a string that is not a URL becomes a
+   *  link to somewhere nobody chose. It is drawn as text and copied by hand. */
+  contactChannelUrl: z.string().min(1).optional(),
+
   // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
 
   /** Slot 6 — the most valuable sentence in the whole profile. */
@@ -484,6 +499,8 @@ export const LeadCreate = z
     contactTitle: textNhapTuyChon(120),
     phone: phoneOptional,
     contactChannel: ContactChannel.optional(),
+    /** The customer's page on that channel. Free text — see `LeadProfile`. */
+    contactChannelUrl: textNhapTuyChon(500),
 
     // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
     pain: textNhapTuyChon(1_000),
@@ -534,6 +551,125 @@ export const LeadCreate = z
  *  as NORMALISED, which is the only way to notice that what was typed and what
  *  was stored are not always the same string. */
 export const LeadCreateResponse = LeadRow
+
+// ---------------------------------------------------------------------------
+// CORRECTING A PROFILE — `PATCH /sales/leads/:code`
+// ---------------------------------------------------------------------------
+
+/** An optional text box on a door where CLEARING is something a person does.
+ *
+ *  ------------------------------------------------------------------
+ *  `''` MEANS CLEAR HERE, WHILE ON `LeadCreate` IT MEANS ABSENT
+ *  ------------------------------------------------------------------
+ *  Not an inconsistency — the two doors are asked different questions. A create
+ *  form has no stored value to remove, so a blank box is a field nobody filled
+ *  in, and `textNhapTuyChon` folding `''` into `undefined` is exactly right.
+ *  On a patch that same `''` is somebody DELETING what was in the box, and
+ *  folding it into `undefined` makes the field quietly un-clearable: the user
+ *  empties it, presses save, and the old value comes straight back with no
+ *  refusal to explain why.
+ *
+ *  So this door needs three inputs carrying three meanings, and it has them:
+ *
+ *   · key absent    — leave the column exactly as it is
+ *   · `''` or `null`— write NULL
+ *   · a value       — write it, normalised the way every other door normalises
+ *
+ *  Absence is the only "no change", which is why the form sends CHANGED fields
+ *  and nothing else: a body carrying all twenty-one is a body that overwrites a
+ *  colleague's edit with values read before they made it. */
+const clearableText = (max: number) =>
+  z
+    .string('Ô này phải là chữ')
+    .max(max, `Tối đa ${max} ký tự`)
+    .transform(gomKhoangTrang)
+    .transform((s): string | null => (s === '' ? null : s))
+    .nullish()
+
+/** What a person may correct on the profile screen, and nothing else.
+ *
+ *  ------------------------------------------------------------------
+ *  EXACTLY THE THREE GROUPS THE PROFILE CARD DRAWS
+ *  ------------------------------------------------------------------
+ *  `ProfileCard` renders `khach` · `nguoi` · `viec` and filters `so` out —
+ *  the book group is what the system writes about itself. This shape is those
+ *  three groups and stops there, so everything withheld is withheld for a
+ *  reason already written down somewhere:
+ *
+ *   · `code` · `createdAt` · `score` · `requiredFilled` — the system's own
+ *     bookkeeping, two of them generated columns Postgres computes.
+ *   · `tier` · `stage` — gates, not fields. A client that can name its own
+ *     tier can claim a gate it never went through (`LeadCreate` says the same).
+ *   · `ownerId` · `bdOwnerId` · `marketingOwnerId` — `PATCH :code/owner` is
+ *     their door, and it holds a rule this one does not (who may hand a lead
+ *     to somebody else) that would have to be copied here to stay true.
+ *   · `exitReason` · `exitedAt` — `CHECK lead_exit_pair` and `lead_exit_no_stage`
+ *     tie them to `stage`, so they move together through their own door.
+ *   · `motion` · `campaignId` — where the lead CAME FROM. That is history, and
+ *     history is not a thing you correct on a form six weeks later.
+ *
+ *  ------------------------------------------------------------------
+ *  NO MONEY-PAIR REFINE, UNLIKE `LeadCreate`
+ *  ------------------------------------------------------------------
+ *  `LeadCreate` can check "budget and currency travel together" because it sees
+ *  the whole row. A patch sees a FRAGMENT: sending only `budget` is perfectly
+ *  legal when the row already holds a currency, and a refine here would refuse
+ *  it while knowing nothing about what is stored. So the pair is left to
+ *  `CHECK lead_money_pair`, which is the only party that can see both halves —
+ *  and `lead.constraints.ts` already turns it into a 400 naming both boxes,
+ *  not the 500 the `LeadCreate` docblock warns about. */
+export const LeadPatch = z
+  .object({
+    // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
+    legalName: clearableText(200),
+    taxCode: clearableText(20),
+    address: clearableText(255),
+    province: clearableText(64),
+    category: LeadCategory.nullish(),
+    mainProduct: clearableText(200),
+    headcount: z.number().int().positive().max(1_000_000).nullish(),
+    plants: z.number().int().positive().max(1_000).nullish(),
+
+    // ── contact · who we talk to ──────────────────────── slots 4 · 5 ────────
+    //
+    // `contactName` and `email` are the two NOT NULL columns this door can
+    // touch, so they are optional but NOT nullable: correcting a typo is the
+    // point, deleting the only way to reach a customer is not — and the column
+    // would refuse it anyway, one layer later and in worse words.
+    contactName: textNhap(120).optional(),
+    contactTitle: clearableText(120),
+    email: email.optional(),
+    phone: phoneOptional.nullish(),
+    contactChannel: ContactChannel.nullish(),
+    contactChannelUrl: clearableText(500),
+
+    // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
+    pain: clearableText(1_000),
+    currentStack: clearableText(500),
+    decisionMaker: clearableText(120),
+    approver: clearableText(120),
+    budget: Dong.nullish(),
+    currency: CurrencyCode.nullish(),
+    deadline: Ngay.nullish(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    /* An empty body is a request that cannot be answered honestly: 200 claims a
+       write that never happened, and the row's `updated_at` would move for
+       nobody. Refusing names the real mistake — the caller built the body from
+       a diff that turned out to be empty, and the button should have been
+       disabled. */
+    message: 'Không có ô nào để sửa — thân bài rỗng.',
+  })
+
+/** What `PATCH /sales/leads/:code` answers with: the profile, re-read.
+ *
+ *  The whole profile rather than the fields that changed, and read back through
+ *  the ordinary read path rather than assembled from what was just written —
+ *  same reason `setOwner` gives. `requiredFilled` is a GENERATED column, so
+ *  filling in a phone number moves the init-data gate without this door
+ *  touching it; a response built from the patch body would carry the old count
+ *  and the gate bar on screen would sit one notch behind the truth. */
+export const LeadPatchResponse = LeadProfile
 
 // ---------------------------------------------------------------------------
 // HANDING A LEAD OVER — `PATCH /sales/leads/:code/owner`
@@ -637,6 +773,8 @@ export type LeadFacets = z.infer<typeof LeadFacets>
 export type LeadProfile = z.infer<typeof LeadProfile>
 export type LeadCreate = z.infer<typeof LeadCreate>
 export type LeadCreateResponse = z.infer<typeof LeadCreateResponse>
+export type LeadPatch = z.infer<typeof LeadPatch>
+export type LeadPatchResponse = z.infer<typeof LeadPatchResponse>
 export type LeadOwnerWrite = z.infer<typeof LeadOwnerWrite>
 export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
 export type LeadScorecard = z.infer<typeof LeadScorecard>

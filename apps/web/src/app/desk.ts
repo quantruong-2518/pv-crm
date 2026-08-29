@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LeadProfile, Opportunity } from '@pv/engines/fixtures/das-vina'
+import type { Opportunity } from '@pv/engines/fixtures/das-vina'
 
 /** Bàn làm việc của một người trên sổ lead — ghim, và mọi thứ người dùng GÕ
  *  VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, bước tiếp theo).
@@ -88,14 +88,6 @@ type DeskState = {
    *  ở màn kia là cách chắc chắn để người dùng bấm hai lần. */
   acted: Record<string, string[]>
 
-  /** mã lead → những trường hồ sơ ĐÃ SỬA so với bản dựng từ fixture.
-   *
-   *  Giữ PATCH chứ không giữ cả hồ sơ. Hai lý do: bản gốc vẫn dựng lại được từ
-   *  `leadProfile()` nên chép cả hồ sơ vào localStorage là chép thừa; và quan
-   *  trọng hơn — có patch thì màn nói được "ba trường đã sửa, hoàn tác được",
-   *  còn chép đè cả hồ sơ thì không còn gì để so. */
-  profiles: Record<string, Partial<LeadProfile>>
-
   /** mã lead → thông tin quan trọng, HTML của RichText.
    *
    *  Đây là ô TỰ DO duy nhất của hồ sơ và nó cố ý tách khỏi bộ 10 câu: mười ô
@@ -116,9 +108,14 @@ type DeskState = {
 
   /** MÃ CƠ HỘI → những trường hồ sơ ĐÃ SỬA so với dòng dựng từ fixture.
    *
-   *  Cùng cách giữ với `profiles` của lead — giữ PATCH chứ không giữ cả hồ sơ —
-   *  và cùng lý do: bản gốc vẫn dựng lại được từ `OPPORTUNITIES`, còn có patch
-   *  thì màn nói được "ba ô đã sửa, hoàn tác được".
+   *  Giữ PATCH chứ không giữ cả dòng: bản gốc vẫn dựng lại được từ
+   *  `OPPORTUNITIES`, còn có patch thì màn nói được "ba ô đã sửa, hoàn tác
+   *  được".
+   *
+   *  Kho `profiles` của lead từng nằm ngay trên đây và đã bị gỡ 30/08, khi
+   *  `PATCH /sales/leads/:code` ra đời: một lớp đè tại máy nằm trên một hồ sơ
+   *  máy chủ ghi được là một lớp che mất chính giá trị vừa ghi. Sổ cơ hội chưa
+   *  có cửa ghi nào nên nó còn ở đây — và đó cũng là hạn dùng của nó.
    *
    *  Khoá bằng MÃ CƠ HỘI chứ không mã lead: một phiếu người dùng tự tạo cũng là
    *  một dòng sổ cơ hội sửa được, mà nó chưa chắc đã có lead nào đứng sau. */
@@ -130,8 +127,6 @@ type DeskState = {
 
   togglePin: (actorId: string, code: string) => void
   act: (code: string, actionKey: string) => void
-  patchProfile: (code: string, patch: Partial<LeadProfile>) => void
-  resetProfile: (code: string) => void
   setNote: (code: string, html: string) => void
   setNextStep: (code: string, text: string) => void
   addTodo: (code: string, todo: Omit<LeadTodo, 'id' | 'done'>) => void
@@ -152,7 +147,6 @@ export const useLeadDesk = create<DeskState>()(
     (set) => ({
       pins: {},
       acted: {},
-      profiles: {},
       notes: {},
       todos: {},
       nextSteps: {},
@@ -171,16 +165,6 @@ export const useLeadDesk = create<DeskState>()(
           const done = s.acted[code] ?? NONE
           if (done.includes(actionKey)) return s
           return { acted: { ...s.acted, [code]: [...done, actionKey] } }
-        }),
-
-      patchProfile: (code, patch) =>
-        set((s) => ({ profiles: { ...s.profiles, [code]: { ...s.profiles[code], ...patch } } })),
-
-      resetProfile: (code) =>
-        set((s) => {
-          const next = { ...s.profiles }
-          delete next[code]
-          return { profiles: next }
         }),
 
       setNote: (code, html) => set((s) => ({ notes: { ...s.notes, [code]: html } })),
@@ -224,7 +208,6 @@ export const useLeadDesk = create<DeskState>()(
         set({
           pins: {},
           acted: {},
-          profiles: {},
           notes: {},
           todos: {},
           nextSteps: {},

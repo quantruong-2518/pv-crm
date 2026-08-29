@@ -2908,6 +2908,10 @@ export type LeadProfile = {
   email: string
   /** ô 5 — kênh khách gọi lại được, cùng bộ kênh với module 1. */
   channel: WaveChannel | ''
+  /** The customer's page on that channel. ABSENT from `SLOT_FIELDS.kenh`: a
+   *  link is not a way to call somebody back, and letting it count for slot 5
+   *  opens the init-data gate for a profile holding only a URL. */
+  channelUrl: string
 
   // ── 3 · Việc khách muốn giải ─────────────────────────────────────────────
   /** ô 6 — câu quan trọng nhất của cả hồ sơ, nên là ô DÀI. */
@@ -3025,6 +3029,9 @@ export function leadProfile(lead: FrozenLead): LeadProfile {
     phone: contact?.phone ?? '',
     email: contact?.email ?? '',
     channel: contact?.channel ?? '',
+    /* The book frozen on 10/08 holds no channel URL, and inventing a LinkedIn
+       page for 100 companies that do not exist is made-up data on a screen. */
+    channelUrl: '',
 
     pain: has('dau')
       ? `Không biết một lô ${category.toLowerCase()} đang nằm ở đâu cho tới lúc hết ca. Muốn nhìn được tiến độ ngay trong ca, không phải sau ca.`
