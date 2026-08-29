@@ -51,7 +51,7 @@ type ScreenDef = {
   public?: boolean
 }
 
-/** Sáu module Sales đều có màn thật — không còn mục nào trỏ vào màn "chưa
+/** Bảy module Sales đều có màn thật — không còn mục nào trỏ vào màn "chưa
  *  dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
 export const SCREENS: ScreenDef[] = [
   { path: '/', name: 'Trang chủ · Morning brief', load: () => import('@/pages/home') },
@@ -184,22 +184,41 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/opportunity-detail'),
   },
   {
+    /** The quotation book — module 4, which pushes the three after it up one.
+     *
+     *  The numbering follows the SELLING JOURNEY: campaign, lead, deal, PAPER. A
+     *  quote grows out of a deal, so it slots in there rather than being tacked
+     *  onto the end. The number IDENTIFIES a screen; cross-references in comments
+     *  call modules by NAME, so renumbering does not drag twenty other edits with
+     *  it.
+     *
+     *  There is deliberately NO quote profile route. A row of this book opens the
+     *  DEAL profile, where the quote card lives beside the contract card — a
+     *  second route would be a screen built only to reprint what that one already
+     *  prints, and two screens to fix every time a column changes. */
+    path: '/sales/quotes',
+    name: 'Kinh doanh · Module 4 · Sổ báo giá',
+    branch: 'Sales',
+    permission: 'báo-giá.xem',
+    load: () => import('@/pages/quotes'),
+  },
+  {
     path: '/sales/performance',
-    name: 'Kinh doanh · Module 4 · Performance',
+    name: 'Kinh doanh · Module 5 · Performance',
     branch: 'Sales',
     permission: 'hiệu-suất.xem',
     load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
-    name: 'Kinh doanh · Module 5 · Số liệu & kế hoạch',
+    name: 'Kinh doanh · Module 6 · Số liệu & kế hoạch',
     branch: 'Sales',
     permission: 'kế-hoạch.xem',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
-    name: 'Kinh doanh · Module 6 · Cấu hình',
+    name: 'Kinh doanh · Module 7 · Cấu hình',
     branch: 'Sales',
     permission: 'cấu-hình.xem',
     load: () => import('@/pages/sales-config'),

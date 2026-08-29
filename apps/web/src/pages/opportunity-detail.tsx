@@ -76,6 +76,7 @@ import {
   type SetDraft,
 } from '@/components/ops-fields'
 import { DetailSidePanel } from '@/components/detail-side-panel'
+import { QuoteCard } from '@/components/quote-card'
 import { SignDrawer } from '@/components/sign-drawer'
 import { ActivityCard } from './lead-parts'
 
@@ -351,6 +352,13 @@ export function OpportunityDetailPage() {
         side={
           <DetailSidePanel>
             <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
+            {/* Module 4 — the deal's paperwork. Directly after the lead card
+                because it answers the next question in the same thread: where
+                this customer came from, then what we quoted them. The card reads
+                `GET /sales/quotes?opportunityCode=` itself, so this profile
+                carries no extra data — and that door IS the quote book asked a
+                narrower question, not a second endpoint. */}
+            <QuoteCard op={op} />
             <PeopleCard op={op} />
             {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches`. Khoá bằng mã ĐƠN chứ
               không mã lead: `code` là thứ `ActivityCard` dùng để dựng lại tab

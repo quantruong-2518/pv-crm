@@ -1,6 +1,7 @@
 import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
+  FileText,
   Gauge,
   Handshake,
   House,
@@ -185,7 +186,24 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },
   {
+    /* Slots in at 4 because the numbers follow the SELLING JOURNEY — campaign,
+       lead, deal — and the paper comes out of a deal. The three modules after it
+       each move up one; the number identifies a screen, and cross-references in
+       comments call modules by NAME, so renumbering does not ripple.
+
+       The contract book is the other half of this module and lives at
+       `/sales/contracts`. `inModule()` lights a nav item by PATH PREFIX, so two
+       prefixes cannot share one entry — which is why this entry names the quote
+       book alone. */
     no: 4,
+    icon: FileText,
+    label: 'Báo giá',
+    path: '/sales/quotes',
+    permission: 'báo-giá.xem',
+    question: 'Soạn, gửi và theo dấu báo giá tới lúc khách chốt',
+  },
+  {
+    no: 5,
     icon: Gauge,
     label: 'Hiệu suất',
     path: '/sales/performance',
@@ -193,7 +211,7 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
   },
   {
-    no: 5,
+    no: 6,
     icon: Target,
     label: 'Kế hoạch',
     path: '/sales/plan',
@@ -203,7 +221,7 @@ export const SALES_MODULES: SalesModule[] = [
   {
     /** Cấu hình KHÔNG nằm trong vòng khép kín của năm module trên — nó là thứ
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
-    no: 6,
+    no: 7,
     icon: SlidersHorizontal,
     label: 'Thiết lập',
     path: '/sales/config',
