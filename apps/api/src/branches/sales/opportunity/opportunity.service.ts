@@ -610,6 +610,69 @@ export class OpportunityService {
     })
   }
 
+  /** Guarantee the deal has its E1 mirror row, before anything links TO it.
+   *
+   *  ------------------------------------------------------------------
+   *  THIS PAYS A DEBT THAT ONLY BECAME VISIBLE WHEN EDGES STARTED BEING WRITTEN
+   *  ------------------------------------------------------------------
+   *  `platform.edge` carries a foreign key at each end, so an edge into a deal
+   *  with no mirror row is a `23503`. Deals opened through this module have had
+   *  one since day one — but the sixteen loaded by `seed.ts` do NOT: that script
+   *  writes mirror rows for the fixture's own object list and for leads, and
+   *  nothing else. `opportunity.code` has no foreign key into `platform.object`
+   *  to have caught it, which is exactly the open question the module 3 handover
+   *  left standing.
+   *
+   *  It went unnoticed because nothing in `apps/api` wrote an edge until module
+   *  4. The first door that does would otherwise fail on every deal that
+   *  predates it, and fail with a constraint name rather than a sentence.
+   *
+   *  Upsert, not insert: `put` refreshes the snapshot when the row is already
+   *  there, so calling this on a healthy deal costs one statement and changes
+   *  nothing. Silent on a missing deal rather than throwing — the caller has
+   *  already decided what a missing deal means, and answering that question
+   *  twice in two places is how the two answers start to differ. */
+  async ensureMirror(tx: Db, who: Actor, code: MaObject): Promise<void> {
+    /* Read through `tx`, never the pool. PGlite serves ONE connection, so a read
+       sent to the pool while the caller's transaction holds it waits forever —
+       and waits silently, with no error and no log line. */
+    const found = await this.repo.byCode(who, code, tx)
+    if (!found) return
+
+    const owner = found.owners.find((o) => o.role === 'SALE') ?? found.owners[0]
+    await this.mirror.put(tx, toRef(found.row, owner?.name ?? null))
+  }
+
+  /** A quote just left the building — carry the deal onto the quotation step.
+   *
+   *  ------------------------------------------------------------------
+   *  THE QUOTE MODULE CALLS THIS INSTEAD OF WRITING `sales.opportunity` ITSELF
+   *  ------------------------------------------------------------------
+   *  One table, one owner. The three columns this touches carry rules that are
+   *  spelled out in this module and nowhere else — chiefly that the stage clock
+   *  moves only when the stage does — and a second write path into them is a
+   *  second copy of those rules, which is how a deal starts reading as "just
+   *  arrived in this column" every time somebody sends paperwork about it.
+   *
+   *  `tx` rather than a fresh transaction, the same contract `ObjectMirror` and
+   *  `TouchService` follow: a quote marked sent while its deal stayed behind is
+   *  the kanban board lying, and the two writes only avoid that by sharing a
+   *  commit. The caller owns the unit of work because only the caller knows what
+   *  else is in it.
+   *
+   *  Deliberately returns nothing. The deal is not what the send door answers
+   *  with, and handing back a row here would invite a screen to patch its cached
+   *  deal from a half-view — the same failure the sign door's response shape
+   *  exists to avoid.
+   *
+   *  Manual typing of `state` stays legal, and this does not change that: a
+   *  quotation given over the phone is a real thing, and the design keeps both
+   *  writers pointed at ONE column. Two writers into one column cannot
+   *  disagree; two columns answering one question is what does. */
+  async markQuotationSent(tx: Db, code: MaObject, now: Date): Promise<void> {
+    await this.repo.markQuotationSent(tx, code, now)
+  }
+
   // ── nạp từ tệp ───────────────────────────────────────────────────────────
 
   /** Chạy thử. KHÔNG ghi gì — kể cả một con số của dãy mã. */

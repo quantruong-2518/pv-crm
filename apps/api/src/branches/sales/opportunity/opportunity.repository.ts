@@ -205,8 +205,20 @@ export class OpportunityRepository {
    *  cùng hình với `LeadRepository.byCode`, và vì cùng lý do: 404 "không có đơn
    *  này" và 403 "đơn không phải của bạn" là hai câu khác nhau, mà một truy vấn
    *  đã lọc theo phạm vi thì chỉ trả lời được câu thứ nhất. */
-  async byCode(who: Actor, code: string): Promise<(OpportunityRead & { inScope: boolean }) | null> {
-    const [found] = await this.db
+  /* `tx` defaults to the pool, so every existing caller reads exactly as before.
+     It exists for the one caller that reads from INSIDE a transaction, and that
+     is not a convenience: PGlite serves a single connection, so a query sent to
+     the pool while this request's own transaction holds it waits for a
+     connection that transaction will not release until the query answers. The
+     result is not an error — the request simply never comes back, which is the
+     hardest shape of failure to attribute. Neon's pool hides it behind ten
+     connections until ten requests arrive at once. */
+  async byCode(
+    who: Actor,
+    code: string,
+    tx: Db = this.db,
+  ): Promise<(OpportunityRead & { inScope: boolean }) | null> {
+    const [found] = await tx
       .select({
         row: opportunity,
         account: lead.company,
@@ -222,7 +234,8 @@ export class OpportunityRepository {
 
     if (!found) return null
 
-    const owners = await this.ownersOf(this.db, [code])
+    /* Same handle as the row above, not `this.db` — see the note on `tx`. */
+    const owners = await this.ownersOf(tx, [code])
     return { ...found, signed: found.contractCode !== null, owners: owners.get(code) ?? [] }
   }
 
@@ -470,6 +483,47 @@ export class OpportunityRepository {
   ): Promise<void> {
     if (rows.length === 0) return
     await tx.insert(opportunityOwner).values([...rows])
+  }
+
+  /** Move a deal onto the quotation step, because a quote just went out.
+   *
+   *  ------------------------------------------------------------------
+   *  ONE STATEMENT, BECAUSE THE THREE COLUMNS ARE ONE RULE
+   *  ------------------------------------------------------------------
+   *  The `WHERE` and the `CASE` between them say exactly what module 3 learned
+   *  the hard way, and neither half is optional:
+   *
+   *   · `state <> 'gui-quotation'` — a deal already on that step is left alone.
+   *     Re-writing it would be a no-op on `state` and a lie on the clock.
+   *   · `closed_at IS NULL` — a deal that is signed or lost has left the five
+   *     columns. Sending paperwork about it must not drag it back onto the
+   *     board.
+   *   · the `CASE` on `stage_since` — the clock moves only when the COLUMN
+   *     moves. A deal somebody already dragged to "da-bao-gia" by hand keeps its
+   *     clock, exactly as `fromUpdate` decides for the profile form. Reset it on
+   *     every write and every deal reads as "just arrived", and the rotting
+   *     signal never fires again — a silent failure that only shows up weeks
+   *     later as an absence of warnings.
+   *
+   *  Not a read-then-write: the current row is only needed to answer the two
+   *  questions above, and both are answerable in the predicate. Reading first
+   *  would leave a window for the two to disagree, and buy nothing. */
+  async markQuotationSent(tx: Db, code: string, now: Date): Promise<void> {
+    await tx
+      .update(opportunity)
+      .set({
+        state: 'gui-quotation',
+        stage: 'da-bao-gia',
+        stageSince: sql`CASE WHEN ${opportunity.stage} IS DISTINCT FROM 'da-bao-gia'
+          THEN ${now.toISOString()}::timestamptz ELSE ${opportunity.stageSince} END`,
+      })
+      .where(
+        and(
+          eq(opportunity.code, code),
+          ne(opportunity.state, 'gui-quotation'),
+          isNull(opportunity.closedAt),
+        ),
+      )
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */

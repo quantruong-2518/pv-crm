@@ -8,6 +8,8 @@ import { LeadModule } from './lead/lead.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
+import { QUOTE_CONSTRAINTS } from './quote/quote.constraints'
+import { QuoteModule } from './quote/quote.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
 
 /** Nhánh tự cắm sổ ràng buộc của mình vào bộ dịch lỗi cơ sở dữ liệu.
@@ -24,6 +26,7 @@ registerConstraints(OPPORTUNITY_CONSTRAINTS)
 registerConstraints(CONTRACT_CONSTRAINTS)
 registerConstraints(TOUCH_CONSTRAINTS)
 registerConstraints(MEETING_CONSTRAINTS)
+registerConstraints(QUOTE_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
@@ -40,7 +43,7 @@ registerConstraints(MEETING_CONSTRAINTS)
  *  Nhánh này không nhập gì từ `branches/supply`, `branches/factory`,
  *  `branches/finance` — eslint chặn, xem `eslint.config.js`. */
 @Module({
-  imports: [LeadModule, OpportunityModule, SalesConfigModule, CampaignModule],
-  exports: [LeadModule, OpportunityModule, SalesConfigModule, CampaignModule],
+  imports: [LeadModule, OpportunityModule, QuoteModule, SalesConfigModule, CampaignModule],
+  exports: [LeadModule, OpportunityModule, QuoteModule, SalesConfigModule, CampaignModule],
 })
 export class SalesModule {}

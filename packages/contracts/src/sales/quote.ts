@@ -275,11 +275,16 @@ export const QuoteReplace = QuoteUpdate
  *  Guarded by the DEAL-CLOSING permission rather than a quote permission of its
  *  own. The hand that marks a version accepted is the hand that decides the
  *  number a contract will be signed for, so binding the two to one permission
- *  describes what actually happens and saves a row in the matrix. */
+ *  describes what actually happens and saves a row in the matrix.
+ *
+ *  ONE field, and the missing one is deliberate: there is nowhere honest to put
+ *  a free-text reason today. The row's `note` column is the text PRINTED for the
+ *  customer, so writing their answer into it would rewrite the paper; a touch
+ *  row would need a `TouchKind` that does not exist yet, and widening that CHECK
+ *  is a migration this round did not ask for. The day the reason has a column,
+ *  it is one field here. */
 export const QuoteDecision = z.object({
   outcome: QuoteOutcome,
-  /** What the customer said, when they said anything worth keeping. */
-  note: textNhapTuyChon(1_000),
 })
 
 // ---------------------------------------------------------------------------
