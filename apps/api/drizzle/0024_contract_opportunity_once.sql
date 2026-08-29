@@ -1,0 +1,1 @@
+ALTER TABLE "sales"."contract" ADD CONSTRAINT "contract_opportunity_once" UNIQUE("opportunity_code");

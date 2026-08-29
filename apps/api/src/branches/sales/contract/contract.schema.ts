@@ -1,4 +1,4 @@
-import { bigint, check, foreignKey, index, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, check, foreignKey, index, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { CurrencyCode } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
@@ -39,6 +39,28 @@ export const contract = sales.table(
     /** Chỉ mục của câu hỏi hay nhất: "lead này đã ký chưa". */
     index('contract_lead_idx').on(t.leadCode),
     check('contract_money_pair', sql`("amount" IS NULL) = ("currency" IS NULL)`),
+    /** One opportunity, at most one contract — debt #10 of `docs/fix-later.md`,
+     *  paid at the table instead of in a service.
+     *
+     *  Until now the invariant lived only in `POST /sales/opportunities/:code/contract`,
+     *  which answers 409 when the deal is already signed. That guard is real but
+     *  it is one door: the day a second row appears, `OpportunityRepository`'s
+     *  three read paths (`book` · `byCode` · `forMail`) join `contract` and
+     *  DOUBLE the deal's row, while `total` — counted on `opportunity` alone —
+     *  still says one. The book then prints 17 rows under a caption saying 16,
+     *  and nothing anywhere is red.
+     *
+     *  On `opportunity_code` alone, not on the `(opportunity_code, lead_code)`
+     *  pair the foreign key anchors: the pair is unique the moment either half
+     *  is, and a unique index over both would still let two contracts share one
+     *  deal if their `lead_code` differed — which `contract_opportunity_fk`
+     *  already makes impossible, so the wider index buys nothing and hides
+     *  which column carries the rule.
+     *
+     *  READ `docs/ban-giao-hop-dong.md` BEFORE APPLYING THIS TO PRODUCTION: the
+     *  duplicate count has to be run first, and a duplicate is a business
+     *  cleanup, not something a migration may decide. */
+    unique('contract_opportunity_once').on(t.opportunityCode),
   ],
 )
 
@@ -73,3 +95,20 @@ export const contractCodeSeq = sales.sequence('contract_code_seq', {
 })
 
 export type ContractRowDb = typeof contract.$inferSelect
+
+/* ------------------------------------------------------------------
+   TWO COLUMNS OF MODULE 4 ARE MISSING HERE, ON PURPOSE
+   ------------------------------------------------------------------
+   `quote_code` and `quote_status` — the pinned pair that makes "a contract can
+   only point at a quote the customer accepted, and that quote cannot be pulled
+   back" a job for Postgres (§3 of `docs/tam-nhin-bao-gia-hop-dong.md`) — are
+   NOT declared here, because their composite foreign key references
+   `sales.quote`, a table this branch does not have: it is being built in
+   parallel on `feat/module-4-bao-gia`.
+
+   Declaring the columns here without the key would put a shape in the snapshot
+   that the migration folder cannot express, and re-creating `quote` locally to
+   make it compile would fork a table that has one owner. So the whole step
+   lives in a hand-written file OUTSIDE the journal —
+   `drizzle/sau-merge/contract_quote_link.sql` — which is applied once the two
+   branches meet. `docs/ban-giao-hop-dong.md` carries the checklist. */
