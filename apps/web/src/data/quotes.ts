@@ -2,7 +2,6 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   QuoteBookQuery,
   type QuoteBookResponse,
-  type QuoteDetail,
   type QuoteRow,
   type QuoteStatus,
 } from '@pv/contracts'
@@ -117,13 +116,12 @@ export const quotesOfOpportunityQuery = (opportunityCode: string) =>
     select: (d: QuoteBookResponse) => d.rows,
   })
 
-/** One version, plus every version of the same deal. */
-export const quoteProfileQuery = (code: string) =>
-  queryOptions({
-    queryKey: [...QUOTE_BOOK_KEY, 'one', code] as const,
-    queryFn: ({ signal }) =>
-      api.read<QuoteDetail>(`/sales/quotes/${code}`, { need: BOOK_NEED, signal }),
-  })
+/* No `quoteProfileQuery` here, deliberately. `GET /sales/quotes/:code` exists
+   and is tested — it is one of the doors the design specifies — but no screen
+   asks it yet: the quote card gets every version of a deal from the book with
+   `?opportunityCode=`, and there is no quote profile route to need the rest. A
+   wrapper for a call nobody makes is a wrapper that rots. It comes back the day
+   something opens a single quote on its own. */
 
 // ---------------------------------------------------------------------------
 // How a row shows itself
