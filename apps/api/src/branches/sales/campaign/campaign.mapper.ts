@@ -1,4 +1,10 @@
-import type { CampaignBookRow, CampaignProfile, CampaignWaveRow } from '@pv/contracts'
+import type {
+  CampaignBookRow,
+  CampaignMemberRow,
+  CampaignMemberState,
+  CampaignProfile,
+  CampaignWaveRow,
+} from '@pv/contracts'
 import type { CampaignRowDb } from './campaign.schema'
 
 /** Một dòng đã đọc xong, kèm thứ không phải cột — cùng khuôn `LeadRead` ở
@@ -40,4 +46,28 @@ export function toContract(read: CampaignRead): CampaignBookRow {
  *  `toProfile` gọi `toContract` bên `lead.mapper.ts`. */
 export function toProfile(read: CampaignRead, waves: CampaignWaveRow[]): CampaignProfile {
   return { ...toContract(read), waves }
+}
+
+/** One `campaign_member` row joined to the lead behind it. */
+export type CampaignMemberRead = {
+  leadCode: string
+  company: string
+  contactName: string
+  email: string | null
+  state: CampaignMemberState
+  addedAt: Date
+}
+
+/** A blank address is dropped rather than sent as `''`: the contract leaves
+ *  `email` optional so the screen can mark, up front, a member the send is
+ *  certain to skip — instead of the sender finding it afterwards in `skipped`. */
+export function toMemberRow(read: CampaignMemberRead): CampaignMemberRow {
+  return {
+    leadCode: read.leadCode,
+    company: read.company,
+    contactName: read.contactName,
+    ...(read.email ? { email: read.email } : {}),
+    state: read.state,
+    addedAt: read.addedAt.toISOString(),
+  }
 }

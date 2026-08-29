@@ -199,6 +199,33 @@ export const MailTemplateRow = z.object({
   active: z.boolean(),
 })
 
+/** EVERY `{{key}}` A MAS LETTER MAY NAME. Four names, two values.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THE LIST LIVES IN THE CONTRACT AND NOT BESIDE THE SUBSTITUTION
+ *  ------------------------------------------------------------------
+ *  Three places need to agree on it and they are in three packages:
+ *
+ *   · the server builds the merge map (`MasService.mergeOf`);
+ *   · the server substitutes it (`platform/mail/mas-letter.ts`), where an
+ *     unknown key becomes THE EMPTY STRING — the slot disappears without a
+ *     trace, in a letter that cannot be recalled;
+ *   · the compose panel warns about a typed key that is not on this list,
+ *     which is the only moment a human can still fix it.
+ *
+ *  The third only became possible once the list was somewhere the browser can
+ *  read. Before that the panel had no way to tell `{{contactName}}` from
+ *  `{{contact-name}}`, and the second one is a blank space in two hundred
+ *  letters. `mergeOf`'s return type is keyed off this array, so adding a name
+ *  here without supplying its value is a compile error rather than a silent gap.
+ *
+ *  Two spellings per value on purpose: the seeded templates use one pair, the
+ *  compose box's own hint text uses the other, and both are already in letters
+ *  people have written. Accepting both costs two properties. */
+export const MAIL_MERGE_KEYS = ['account', 'company', 'contactName', 'contact_name'] as const
+
+export type MailMergeKey = (typeof MAIL_MERGE_KEYS)[number]
+
 // ---------------------------------------------------------------------------
 // Preflight — who would actually receive this, asked BEFORE anything is sent
 // ---------------------------------------------------------------------------
@@ -489,6 +516,69 @@ export const MasSendResponse = z.object({
    *  Returned rather than assumed so the panel does not have to re-derive from
    *  whether it sent a `scheduledAt`. */
   state: MailRunState,
+})
+
+// ---------------------------------------------------------------------------
+// The preview — `POST /sales/mail/preview`
+// ---------------------------------------------------------------------------
+
+/** `POST /sales/mail/preview` — render this letter, send nothing.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THE SERVER RENDERS A PREVIEW THE BROWSER COULD FAKE
+ *  ------------------------------------------------------------------
+ *  The panel used to draw its own approximation: the body in a `<p>`, the CTA
+ *  as a styled `<span>`. That preview agreed with the letter on the words and
+ *  on nothing else — no logo, no footer, no unsubscribe line, no button, and
+ *  none of the width and colour decisions `BrandShell` makes. A person reading
+ *  it had reviewed a paraphrase and pressed send on a letter they had not seen.
+ *
+ *  So this door runs the SAME `renderMasShell` the worker runs, over the SAME
+ *  merge substitution, and hands back the exact HTML. `@pv/mail-templates` is
+ *  server-side (it pulls React and `@react-email/render`), which settles where
+ *  this has to happen: rendering it in the browser would put a second copy of
+ *  the letter's markup in the bundle, and a second copy is a copy that drifts.
+ *
+ *  ------------------------------------------------------------------
+ *  IT TAKES THE TEXT ON SCREEN, NOT A TEMPLATE CODE
+ *  ------------------------------------------------------------------
+ *  Same reason `MasSendRequest` carries `subject`/`body` rather than reading
+ *  them off `mail_template`: what goes out is what the person edited, so what
+ *  they preview must be what they edited too. A preview that re-read the
+ *  template would show the letter they started from.
+ *
+ *  ------------------------------------------------------------------
+ *  NOTHING IS WRITTEN, AND NOTHING IS SENT
+ *  ------------------------------------------------------------------
+ *  No `mail_run`, no `email_delivery`, no queue row. The unsubscribe link in
+ *  the rendered footer is a dead sample — there is no delivery id to sign yet,
+ *  and minting one to make a preview look complete would be minting a token
+ *  that unsubscribes somebody. It is `POST` for the same reason `preflight` is:
+ *  a 20.000-character body does not fit in a query string. */
+export const MasPreviewRequest = z.object({
+  subject: textNhap(200),
+  body: mailBody,
+  cta: MailCta.optional(),
+  /** Whose name and company fill the `{{…}}` slots. Optional, and the fallback
+   *  is not a blank letter: with no lead the server substitutes visible sample
+   *  values, so somebody previewing before picking recipients still sees the
+   *  shape of a real letter rather than a greeting with a hole in it. */
+  leadCode: MaObject.optional(),
+})
+
+/** What the preview answers with — the three strings a send would carry.
+ *
+ *  `text` travels with the HTML although the panel shows the HTML: it is the
+ *  half of every letter that nobody ever looks at until a recipient's client
+ *  refuses images, and the only place it can be looked at is here. */
+export const MasPreviewResponse = z.object({
+  subject: z.string().min(1),
+  html: z.string().min(1),
+  text: z.string(),
+  /** Merge keys named in the letter that the chosen lead had no value for.
+   *  The composer turns these into one hint rather than a silent empty string —
+   *  the exact failure `mas.composer.ts` can only log after the fact. */
+  missing: z.array(z.string()),
 })
 
 // ---------------------------------------------------------------------------
@@ -796,6 +886,8 @@ export type MasPreflightRequest = z.infer<typeof MasPreflightRequest>
 export type MasPreflightResponse = z.infer<typeof MasPreflightResponse>
 export type MasSendRequest = z.infer<typeof MasSendRequest>
 export type MasSendResponse = z.infer<typeof MasSendResponse>
+export type MasPreviewRequest = z.infer<typeof MasPreviewRequest>
+export type MasPreviewResponse = z.infer<typeof MasPreviewResponse>
 export type MailRunRow = z.infer<typeof MailRunRow>
 export type MailRunListQuery = z.infer<typeof MailRunListQuery>
 export type MailRunListResponse = z.infer<typeof MailRunListResponse>

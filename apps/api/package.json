@@ -7,6 +7,8 @@
   "type": "commonjs",
   "scripts": {
     "dev": "node --watch --enable-source-maps --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/main.ts",
+    "//dev:worker": "Own process, not a thread of the API: worker.ts turns MailRelay, MailRunSweeper and CampaignSweeper, so without it mail sits pending, batches stay SCHEDULED and no campaign ever reaches DONE. fly.toml already declares it as a separate process group in production.",
+    "dev:worker": "node --watch --enable-source-maps --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/worker.ts",
     "build": "tsc -p tsconfig.json",
     "start": "TS_NODE_PROJECT=tsconfig.runtime.json node --enable-source-maps --env-file-if-exists=.env -r tsconfig-paths/register dist/apps/api/src/main.js",
     "db:up": "docker compose up -d",

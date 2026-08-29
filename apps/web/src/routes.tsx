@@ -127,7 +127,10 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/moi',
     name: 'Kinh doanh · Module 1 · Chiến dịch mới',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    /* Write permission, not read — this route and `:code/sua` below only exist
+       to WRITE. Reading was the wrong gate: a Sale opened the form, filled all
+       four steps, and ate a 403 on the last click. Refuse at the door. */
+    permission: 'chiến-dịch.sửa',
     load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignCreatePage })),
   },
   {
@@ -136,7 +139,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/:code/sua',
     name: 'Kinh doanh · Module 1 · Sửa chiến dịch',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'chiến-dịch.sửa',
     load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignEditPage })),
   },
   {

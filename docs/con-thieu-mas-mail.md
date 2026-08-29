@@ -16,34 +16,54 @@ xong thì XOÁ mục đó, đừng đánh dấu ✅ — danh sách này chỉ c�
 Đường gửi **chạy thật và có mặt tiền**: Sổ lead soạn được một lô, xem trước
 được ai bị chặn, bấm gửi ra `mail_run` thật; chi tiết lead có thẻ timeline đọc
 `GET /sales/leads/:code/mail`. Lược đồ nay đã có trên Neon — `0000…0013` chạy
-xong 28/08. Nhưng Fly vẫn là image cũ, năm biến bắt buộc còn rỗng, và nội dung
-mẫu mail vẫn là một cái khung chưa duyệt, nên **chưa lá MAS nào rời khỏi máy**.
+xong 28/08. Nhưng Fly vẫn là image cũ và năm biến bắt buộc còn rỗng, nên **chưa
+lá MAS nào rời khỏi máy**.
 
-Nói gọn: **backend, mặt tiền và lược đồ xong; nội dung mồi và vận hành thì
+Từ 30/08, hai chỗ soạn mail (`MasMailModal` và `WaveComposer`) xem trước bằng
+**thư thật**: `POST /sales/mail/preview` chạy đúng `renderMasLetter` mà worker
+chạy lúc gửi, và trả về HTML để panel dựng trong iframe. Ba mẫu thư cũng đã
+viết trọn — xem **A2**, phần còn thiếu nay chỉ là bốn thông số sản phẩm.
+
+Nói gọn: **backend, mặt tiền, lược đồ và nội dung mồi xong; vận hành thì
 chưa.**
 
 ---
 
 ## A · BACKEND
 
-### A2 · Mẫu `mas-edge-ai-intro` mới là KHUNG, chưa có nội dung thật
+### A2 · Bốn thông số sản phẩm vẫn chưa được cấp
 
-**Cái gì.** Migration `0013_mas_template_seed.sql` đã nạp một mẫu vào
-`sales.mail_template`, nên ô chọn mẫu không còn rỗng. Nhưng nội dung của nó là
-một cái khung: mọi chỗ chưa biết nằm trong ngoặc vuông `[…]`.
+**Cái gì.** Ba mẫu thư nay đã viết trọn — `mas-edge-ai-intro` (chào lần đầu),
+`mas-follow-up` (chưa hồi âm), `mas-meeting-invite` (chốt lịch) — ở
+`0023_mas_template_copy.sql`, và cả ba **không chứa một con số nào**. Chúng
+viết quanh đúng thứ đã biết chắc: Pebble Vina làm chip AI biên, và "chạy mô
+hình ngay trên thiết bị thay vì gửi lên đám mây" là định nghĩa của edge AI chứ
+không phải một tuyên bố về sản phẩm.
 
-**Ở đâu.** `apps/api/drizzle/0013_mas_template_seed.sql`. Ba lớp chặn đang dựa
-vào chính ký hiệu ngoặc vuông đó — panel soạn mail **khoá nút gửi** khi tiêu đề
-hoặc thân còn `[…]` (`unfilledSlots` ở `components/mas-mail-modal.tsx`).
+Nên phần **còn thiếu** hẹp lại đúng bốn thứ, và chúng chỉ chặn việc viết một lá
+thư MẠNH HƠN, không còn chặn việc gửi: tên dòng sản phẩm · một câu định vị ·
+CTA nên dẫn tới trang nào cụ thể hơn `pebblevina.com` · số liệu nào được phép
+in.
 
-**Làm thế nào.** Chủ dự án cấp bốn thứ: tên dòng sản phẩm · một câu định vị ·
-CTA dẫn đi đâu · số liệu nào được phép in. Rồi `UPDATE sales.mail_template SET
-subject = …, body = …, cta_url = … WHERE code = 'mas-edge-ai-intro'` — một
-migration nữa, hoặc một màn cấu hình mẫu mail nếu dựng.
+**Ở đâu.** `apps/api/drizzle/0023_mas_template_copy.sql`. Chỗ trống duy nhất
+còn lại trong cả ba lá là `[tên và chức danh người gửi]` ở dòng ký tên — thứ
+không ai điền hộ được, vì không có khoá trộn nào cho người gửi
+(`MAIL_MERGE_KEYS` chỉ có company/contactName và hai alias).
+
+**Làm thế nào.** Chủ dự án cấp bốn thứ trên, rồi một migration nữa viết đè lên
+đúng ba hàng đó.
 
 **Vì sao chưa.** Bịa thông số một con chip bán dẫn AI ngoại biên vào thư gửi
 khách là loại sai đắt nhất có thể mắc ở đây: người nhận sẽ hỏi lại đúng con số
 đó.
+
+> **`[…]` KHÔNG CÒN KHOÁ NÚT GỬI.** Bản trước, panel soạn mail chặn cứng khi
+> tiêu đề hay thân còn một `[…]`. Cơ chế đó đã gỡ 30/08: nó bắt cả người tự
+> soạn thư của mình phải điền một chỗ trống của mẫu mà họ chưa từng thấy. Nay
+> ký hiệu đó thành **một dòng trong danh sách nhắc** (`data/mail-hints.ts`),
+> đọc được và bỏ qua được. Cổng cứng còn lại đúng năm điều kiện, đều là thứ
+> KHÔNG gửi được: chưa chọn người nhận · vượt trần lô · thiếu tiêu đề hoặc thân
+> · nút trỏ vào chỗ không phải http · giờ hẹn nằm trong quá khứ.
 
 > **A3 đã xong 28/08 (lượt D).** `POST/GET /sales/campaigns`,
 > `GET/PATCH /sales/campaigns/:code`, `POST .../members`, `POST .../start`,

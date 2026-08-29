@@ -4,6 +4,7 @@ import type {
   CampaignBookResponse,
   CampaignCreate,
   CampaignCreateResponse,
+  CampaignMemberListResponse,
   CampaignMemberPatch,
   CampaignMemberPatchResponse,
   CampaignPatch,
@@ -13,6 +14,8 @@ import type {
   CampaignStartResponse,
   CampaignState,
   CampaignStopResponse,
+  CampaignWaveAdd,
+  CampaignWaveAddResponse,
   CampaignWaveInput,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
@@ -204,6 +207,33 @@ export const campaignProfileQuery = (code: string) =>
       query.state.data?.waves.some((w) => w.run.state === 'SENDING') ? 5_000 : false,
   })
 
+/** One page holds a whole audience: a wave cannot go to more than
+ *  `MAS_MAX_RECIPIENTS` (200) recipients, which is also the ceiling of
+ *  `PageQuery.size`. A campaign holding more than that still reports the truth
+ *  in `total`, and the screen reads that number rather than counting rows. */
+const MEMBER_PAGE_SIZE = 200
+
+/** WHO IS IN THE AUDIENCE — `GET /sales/campaigns/:code/members`, `ACTIVE` by
+ *  default (the server's own default for `CampaignMemberQuery.state`).
+ *
+ *  Without this door `CampaignMemberPatch.remove` is half an API nobody can
+ *  reach: the screen knows who it just added, not who is already in, so a
+ *  "remove" button would have to guess.
+ *
+ *  The key extends `CAMPAIGN_BOOK_KEY` like every other query here, so the
+ *  write doors below sweep this list along with the rest of the cluster —
+ *  removing a member changes both this list and `audienceCount` on the book
+ *  row, and two keys to remember is one key to forget. */
+export const campaignMembersQuery = (code: string) =>
+  queryOptions({
+    queryKey: [...CAMPAIGN_BOOK_KEY, 'members', code] as const,
+    queryFn: ({ signal }) =>
+      api.read<CampaignMemberListResponse>(
+        `/sales/campaigns/${encodeURIComponent(code)}/members?size=${MEMBER_PAGE_SIZE}`,
+        { need: READ_NEED, signal },
+      ),
+  })
+
 /** Mọi mutation dưới đây dọn CẢ cụm khoá, không dọn đúng một dòng.
  *
  *  Thêm một thành viên đổi `audienceCount` của dòng trong sổ; bắn một đợt đổi
@@ -335,6 +365,31 @@ export function useCampaignStart(code: string) {
   return useMutation<CampaignStartResponse, ApiError, CampaignStart>({
     mutationFn: (body) =>
       api.write<CampaignStartResponse>(`/sales/campaigns/${encodeURIComponent(code)}/start`, {
+        method: 'POST',
+        body,
+        need: FIRE_NEED,
+      }),
+    onSuccess: invalidate,
+  })
+}
+
+/** WAVE TWO ONWARDS — `POST /sales/campaigns/:code/waves`, ONE wave per call.
+ *
+ *  `/start` fires the first wave and locks the campaign `RUNNING`; every wave
+ *  after that used to detour through the MAS modal on the lead book, where the
+ *  sender re-picks the audience BY HAND — which is exactly what
+ *  `campaign_member` exists to make unnecessary, and picking again by hand
+ *  picks a DIFFERENT set. So the body carries no `leadCodes`: the server reads
+ *  the campaign's own frozen audience.
+ *
+ *  `FIRE_NEED`, not `WRITE_NEED` — this is the same act as `/start`, real mail
+ *  leaving the machine. */
+export function useCampaignWaveAdd(code: string) {
+  const invalidate = useInvalidateBook()
+
+  return useMutation<CampaignWaveAddResponse, ApiError, CampaignWaveAdd>({
+    mutationFn: (body) =>
+      api.write<CampaignWaveAddResponse>(`/sales/campaigns/${encodeURIComponent(code)}/waves`, {
         method: 'POST',
         body,
         need: FIRE_NEED,

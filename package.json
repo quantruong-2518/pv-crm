@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "pnpm --filter @pv/web dev",
     "dev:api": "pnpm --filter @pv/api dev",
+    "dev:worker": "pnpm --filter @pv/api dev:worker",
     "build": "pnpm build:web && pnpm build:api",
     "build:web": "pnpm --filter @pv/web build",
     "build:api": "pnpm --filter @pv/api build",

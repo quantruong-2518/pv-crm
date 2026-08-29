@@ -25,7 +25,6 @@ import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import { toast } from '@/app/toast'
-import { dm } from '@/lib/date'
 import {
   CANCELLABLE,
   DEFAULT_MAIL_RUN_QUERY,
@@ -36,6 +35,7 @@ import {
   useMailRunCancel,
 } from '@/data/mail-runs'
 import { Module1Books } from '@/components/module1-books'
+import { RunWhen } from '@/components/run-when'
 import { Pager } from '@/components/table-bits'
 
 /** Module 1 · Sổ lô gửi — `GET /sales/mail/runs`.
@@ -115,6 +115,7 @@ export function MailRunsPage() {
      không có dòng nào đổi. */
   const rows = useMemo(() => data?.rows ?? [], [data])
   const total = data?.total ?? 0
+  const hidden = data?.hidden ?? 0
 
   /* Bốn con số của TRANG ĐANG MỞ, và nhãn nói đúng như vậy.
      `campaignFacetQuery` bên sổ chiến dịch kéo cả sổ về để đếm; ở đây không
@@ -301,7 +302,7 @@ export function MailRunsPage() {
                     <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
                       {MAIL_RUN_STATE_LABEL[r.state]}
                     </Badge>,
-                    <WhenCell key="w" run={r} />,
+                    <RunWhen key="w" run={r} />,
                     <span key="a">{r.audienceCount.toLocaleString('vi-VN')}</span>,
                     <span key="sent">{r.sent.toLocaleString('vi-VN')}</span>,
                     <span key="d">{r.delivered.toLocaleString('vi-VN')}</span>,
@@ -333,27 +334,24 @@ export function MailRunsPage() {
           </div>
         </GlassCard>
 
-        {total > PAGE_SIZE && (
-          <div className="flex justify-end">
-            <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />
+        {(hidden > 0 || total > PAGE_SIZE) && (
+          <div className="flex items-center justify-between gap-3">
+            {/* Rule 7 — this count also comes from the server, since the screen
+                cannot count what it never received. Only shown when rows were
+                actually cut. */}
+            <span className="text-muted-foreground text-[11.5px]">
+              {hidden > 0 && (
+                <span className="text-warning">
+                  <span className="tnum font-num">{hidden}</span> bị ẩn theo quyền của bạn
+                </span>
+              )}
+            </span>
+            {total > PAGE_SIZE && <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />}
           </div>
         )}
       </ScreenLayout>
     </AppShell>
   )
-}
-
-/** Một lô có tới ba cái mốc, và chỉ MỘT cái trả lời được câu đang hỏi.
- *
- *  `finishedAt` là câu trả lời cuối cùng nên nó thắng; `startedAt` trả lời
- *  "đang chạy từ bao giờ"; `scheduledAt` là lời hứa cho tương lai. Hiện cả ba
- *  cùng lúc là ba con số trên một ô, và người đọc phải tự chọn — mà họ chọn
- *  đúng cái đầu tiên nhìn thấy. */
-function WhenCell({ run }: { run: MailRunRow }) {
-  if (run.finishedAt) return <span title="Kết thúc">Xong · {dm(run.finishedAt)}</span>
-  if (run.startedAt) return <span title="Bắt đầu">Chạy · {dm(run.startedAt)}</span>
-  if (run.scheduledAt) return <span title="Hẹn giờ">Hẹn · {dm(run.scheduledAt)}</span>
-  return <span className="text-muted-foreground">—</span>
 }
 
 export default MailRunsPage

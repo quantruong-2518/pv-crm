@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarClock, Check, Eye, Mail, Plus, Send, TriangleAlert, X } from '@pv/ui'
+import { CalendarClock, Check, Eye, Plus, Send, TriangleAlert, X } from '@pv/ui'
 import {
   Badge,
   Button,
@@ -24,7 +24,10 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
-import { masPreflight, masTemplatesQuery, useMasSend } from '@/data/mas'
+import { localSlot } from '@/lib/date'
+import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
+import { masPreflight, masTemplatesQuery, useMailPreview, useMasSend } from '@/data/mas'
+import { mailHints } from '@/data/mail-hints'
 import { campaignFacetQuery } from '@/data/campaign-book'
 
 /** Một phiếu gửi mail đầy đủ, dùng chung cho hai ngữ cảnh:
@@ -47,7 +50,6 @@ const NO_TEMPLATE = 'none'
 const NO_CAMPAIGN = 'none'
 const NO_SELECTION: ReadonlySet<string> = new Set()
 const CANDIDATE_LIMIT = 12
-const SLOT = /\[[^\]\n]{3,}\]/g
 const FORM_ID = 'mas-mail-form'
 
 type MasRecipient = Pick<LeadRow, 'code' | 'company' | 'contactName' | 'contactTitle' | 'email'>
@@ -108,7 +110,7 @@ export function MasMailModal({
     setPreviewCode(seeded[0] ?? '')
     setPreviewOpen(false)
     setSendTiming('now')
-    setScheduledAt(nextLocalSlot())
+    setScheduledAt(localSlot())
     setCampaignCode(NO_CAMPAIGN)
     setPreflight(undefined)
     setChecking(false)
@@ -119,10 +121,16 @@ export function MasMailModal({
     () => (catalogue?.rows ?? []).filter((item) => item.active),
     [catalogue],
   )
-  /* Chỉ chiến dịch còn nhận thêm đợt. Một chiến dịch ĐÃ DỪNG hay XONG mà nhận
-     thêm một lô là chạy tiếp sau lưng người đã dừng nó. */
+  /* RUNNING only. Hanging a wave off a DRAFT campaign from here is a
+     double-send trap: the mail really flies and `campaign_run` gets its row
+     while `campaign.state` stays DRAFT, so the start button on the campaign
+     profile still passes its `state === 'DRAFT'` guard and blasts the whole
+     audience a second time. `CampaignSweeper` only closes RUNNING campaigns, so
+     that campaign is then stuck DRAFT forever. A draft is started from its own
+     profile and shows up in this list once it runs. Stopped and done campaigns
+     stay out for the older reason: a new wave runs on behind whoever stopped it. */
   const openCampaigns = useMemo(
-    () => (campaignBook?.rows ?? []).filter((c) => c.state === 'DRAFT' || c.state === 'RUNNING'),
+    () => (campaignBook?.rows ?? []).filter((c) => c.state === 'RUNNING'),
     [campaignBook],
   )
   const selectedLeads = useMemo(
@@ -166,7 +174,6 @@ export function MasMailModal({
     setFailure('')
   }
 
-  const slots = unfilledSlots([subject, body, cta?.label ?? ''])
   const scheduleInvalid =
     sendTiming === 'later' &&
     (!scheduledAt ||
@@ -174,19 +181,40 @@ export function MasMailModal({
       new Date(scheduledAt) <= new Date())
   const ctaInvalid = Boolean(cta && (!cta.label.trim() || !isHttpUrl(cta.url)))
   const overCeiling = selectedLeads.length > MAS_MAX_RECIPIENTS
+
+  /* THE HARD GATE, AND IT IS DELIBERATELY SHORT.
+     Five conditions, and every one of them is a send that CANNOT happen: no
+     audience, an audience over the ceiling the contract enforces, an empty
+     letter, a button that points nowhere, a schedule in the past.
+
+     What used to be a sixth is now advice. A body still holding a `[…]` slot
+     from the seeded template locked this button, and that was wrong for the
+     reason `mail-hints.ts` sets out at length: the template is a starting
+     point, not a form to complete. Somebody writing their own letter was
+     refused a send over a placeholder they had never seen. It is the first
+     row of the checklist instead, where it can be read and overruled. */
   const blocker: string | null = overCeiling
     ? `Một lượt tối đa ${MAS_MAX_RECIPIENTS} lead — đang chọn ${selectedLeads.length}.`
     : selectedLeads.length === 0
       ? 'Chưa chọn người nhận.'
       : !subject.trim() || !body.trim()
         ? 'Chọn mẫu hoặc điền đủ tiêu đề và nội dung email.'
-        : slots.length > 0
-          ? `Còn chỗ trống chưa điền: ${slots.join(' · ')}`
-          : ctaInvalid
-            ? 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
-            : scheduleInvalid
-              ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
-              : null
+        : ctaInvalid
+          ? 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
+          : scheduleInvalid
+            ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
+            : null
+
+  const preview = useMailPreview(
+    {
+      subject,
+      body,
+      ...(cta && !ctaInvalid ? { cta } : {}),
+      ...(previewLead ? { leadCode: previewLead.code } : {}),
+    },
+    previewOpen,
+  )
+  const hints = mailHints({ subject, body, missing: preview.letter?.missing })
 
   const checkRecipients = async () => {
     if (blocker) return
@@ -337,7 +365,11 @@ export function MasMailModal({
                 type="button"
                 size="md"
                 variant="secondary"
-                disabled={!previewLead || !subject.trim() || !body.trim()}
+                /* No longer gated on a picked recipient: the server renders
+                   sample merge values when none is given, and somebody who has
+                   just written a letter is exactly who wants to look at it
+                   before going to choose who gets it. */
+                disabled={!subject.trim() || !body.trim()}
                 aria-expanded={previewOpen}
                 onClick={() => setPreviewOpen((current) => !current)}
               >
@@ -374,13 +406,6 @@ export function MasMailModal({
               />
             </Field>
 
-            {slots.length > 0 && (
-              <p className="text-warning rounded-sm bg-white/5 px-3 py-2 text-[11.5px] leading-[1.6]">
-                <Icon icon={TriangleAlert} size={14} className="mr-2 inline align-middle" />
-                Điền các chỗ còn trống trong mẫu: {slots.join(' · ')}
-              </p>
-            )}
-
             <Field
               label="Nút trong email (không bắt buộc)"
               hint="Để trống cả hai ô nếu email không cần nút."
@@ -401,14 +426,19 @@ export function MasMailModal({
               </div>
             </Field>
 
-            {previewOpen && previewLead && (
-              <MailPreview
-                lead={previewLead}
-                leads={selectedLeads}
-                subject={subject}
-                body={body}
-                cta={cta}
-                onLead={setPreviewCode}
+            <MailHintList hints={hints} />
+
+            {previewOpen && (
+              <MailPreviewCard
+                letter={preview.letter}
+                pending={preview.pending}
+                error={preview.error}
+                recipients={selectedLeads.map((lead) => ({
+                  code: lead.code,
+                  label: `${lead.contactName} · ${lead.company}`,
+                }))}
+                recipientCode={previewLead?.code}
+                onRecipient={setPreviewCode}
               />
             )}
           </section>
@@ -437,7 +467,7 @@ export function MasMailModal({
                 <Input
                   type="datetime-local"
                   value={scheduledAt}
-                  min={nextLocalSlot(1)}
+                  min={localSlot(1)}
                   onChange={(event) => setScheduledAt(event.target.value)}
                 />
               </Field>
@@ -452,12 +482,14 @@ export function MasMailModal({
                 đường mà `ban-giao-campaign.md` chỉ cho đợt thứ hai trở đi, thay
                 vì gọi lại `/start`.
 
-                Chỉ hiện chiến dịch NHÁP và ĐANG CHẠY: gắn thêm một đợt vào một
-                chiến dịch đã DỪNG hay XONG là làm nó chạy tiếp sau lưng người
+                Chỉ hiện chiến dịch ĐANG CHẠY. Chiến dịch còn NHÁP bắt đầu từ hồ
+                sơ của nó, không gắn từ đây — gắn từ đây thì thư bay mà state vẫn
+                NHÁP, và cú bấm chạy sau đó bắn lại toàn bộ người nhận. Chiến dịch
+                đã DỪNG hay XONG mà nhận thêm một đợt là chạy tiếp sau lưng người
                 đã dừng nó. */}
             <Field
               label="Gắn vào chiến dịch (không bắt buộc)"
-              hint="Để trống thì lô này đi lẻ, vẫn xem được ở Sổ lô gửi."
+              hint="Để trống thì lô này đi lẻ, vẫn xem được ở Sổ lô gửi. Chiến dịch còn nháp thì bắt đầu từ hồ sơ chiến dịch, không gắn ở đây."
             >
               <Select
                 label="Chiến dịch"
@@ -601,58 +633,6 @@ function SectionTitle({ number, title, note }: { number: string; title: string; 
   )
 }
 
-function MailPreview({
-  lead,
-  leads,
-  subject,
-  body,
-  cta,
-  onLead,
-}: {
-  lead: MasRecipient
-  leads: MasRecipient[]
-  subject: string
-  body: string
-  cta: MailTemplateRow['cta']
-  onLead: (code: string) => void
-}) {
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-[12.5px] font-semibold">
-          <Icon icon={Mail} size={16} />
-          Email mẫu cho {lead.contactName}
-        </span>
-        {leads.length > 1 && (
-          <Select
-            label="Người dùng để xem trước"
-            hideLabel
-            size="sm"
-            value={lead.code}
-            onChange={onLead}
-            options={leads.map((item) => ({ value: item.code, label: item.contactName }))}
-          />
-        )}
-      </div>
-      <div className="rounded-sm bg-white/5 p-4">
-        <p className="m-0 text-[13px] font-semibold">{renderFor(subject, lead)}</p>
-        <p className="text-glass-foreground mb-0 mt-4 whitespace-pre-wrap text-[12px] leading-[1.7]">
-          {renderFor(body, lead)}
-        </p>
-        {cta?.label && cta.url && (
-          <span className="bg-primary text-primary-foreground mt-4 inline-flex min-h-8 items-center rounded-md px-3 text-[11.5px] font-semibold">
-            {cta.label}
-          </span>
-        )}
-      </div>
-      <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
-        Đây là bản xem trước với dữ liệu của một lead. Khi gửi, hệ thống thay tên riêng cho từng
-        người.
-      </p>
-    </GlassCard>
-  )
-}
-
 function PreflightReport({ report }: { report: MasPreflightResponse }) {
   return (
     <ul className="m-0 grid list-none gap-2 p-0 md:grid-cols-2">
@@ -718,24 +698,6 @@ function Field({
     </div>
   )
 }
-
-function renderFor(template: string, lead: MasRecipient): string {
-  const merge: Record<string, string> = {
-    account: lead.company,
-    company: lead.company,
-    contact_name: lead.contactName,
-    contactName: lead.contactName,
-  }
-  return template.replace(
-    /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g,
-    (whole, key: string) => merge[key] ?? whole,
-  )
-}
-
-function unfilledSlots(fields: readonly string[]): string[] {
-  return [...new Set(fields.flatMap((field) => field.match(SLOT) ?? []))]
-}
-
 function ctaWith(
   current: MailTemplateRow['cta'],
   patch: { label?: string; url?: string },
@@ -752,12 +714,9 @@ function isHttpUrl(raw: string): boolean {
   }
 }
 
-function nextLocalSlot(minutes = 10): string {
-  const date = new Date(Date.now() + minutes * 60_000)
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
+/** Keeps the YEAR, so NOT `dmhm` from `@/lib/date`. This prints back the moment
+ *  the user just typed into a `datetime-local` field that shows a year, and a
+ *  mistyped year is the one scheduling slip nothing else on the screen catches. */
 function mailMoment(iso: string): string {
   return new Date(iso).toLocaleString('vi-VN', {
     day: '2-digit',

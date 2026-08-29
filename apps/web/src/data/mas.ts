@@ -1,18 +1,21 @@
+import { useEffect, useState } from 'react'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
   LeadMailTimelineResponse,
   MailTemplateListResponse,
   MasPreflightResponse,
+  MasPreviewRequest,
+  MasPreviewResponse,
   MasSendRequest,
   MasSendResponse,
 } from '@pv/contracts'
-import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 
-/** Module 5 · MAS mail — the four doors the compose panel and the lead
+/** Module 5 · MAS mail — the five doors the compose panel and the lead
  *  timeline call. `/sales/mail/*` plus one lead-side read.
  *
  *  ------------------------------------------------------------------
- *  NO `load:` ON ANY OF THE FOUR — THESE ARE CUT OVER
+ *  NO `load:` ON ANY OF THE FIVE — THESE ARE CUT OVER
  *  ------------------------------------------------------------------
  *  Every door here has a real route on `apps/api`, so none of them carries a
  *  frozen fixture. Dropping `load` IS the ritual that cuts a query to the
@@ -23,11 +26,11 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  ------------------------------------------------------------------
  *  THREE PERMISSIONS, ONE PER QUESTION THE DOOR ACTUALLY ASKS
  *  ------------------------------------------------------------------
- *  | Door                | `need`                                   |
- *  | ------------------- | ---------------------------------------- |
- *  | templates           | `chiến-dịch.xem`                         |
- *  | preflight · send    | `lead.gửi-mail` · scoped                 |
- *  | lead timeline       | `lead.xem` · scoped                      |
+ *  | Door                       | `need`                            |
+ *  | -------------------------- | --------------------------------- |
+ *  | templates                  | `chiến-dịch.xem`                  |
+ *  | preflight · preview · send | `lead.gửi-mail` · scoped          |
+ *  | lead timeline              | `lead.xem` · scoped               |
  *
  *  The server also carries `PATCH /sales/mail/runs/:id` (cancel a batch, needs
  *  `chiến-dịch.bắn`). It is deliberately NOT wired here: the only screen that
@@ -115,6 +118,110 @@ export function masPreflight(
     need: SEND_NEED,
     signal,
   })
+}
+
+/** The letter as it will really look. `POST /sales/mail/preview`.
+ *
+ *  ------------------------------------------------------------------
+ *  A FUNCTION, NOT A QUERY, FOR ONE OF `masPreflight`'s THREE REASONS
+ *  ------------------------------------------------------------------
+ *  Only the key argument applies here: the key would be the whole letter, so
+ *  every keystroke in the subject would mint a cache entry and leave the
+ *  previous one behind. The other two do not — this answer does not perish,
+ *  and re-rendering the same text twice is harmless.
+ *
+ *  The panel debounces instead, and holds the result in its own state for the
+ *  same reason the preflight is held there: it lives as long as the panel.
+ *
+ *  `signal` is not optional in practice even though the type says so. The
+ *  preview fires while somebody types, so a slow render for the text of three
+ *  keystrokes ago can land AFTER the fresh one and paint a stale letter under
+ *  a heading that promises the current one. The caller aborts the previous
+ *  request; see `useMailPreview`. */
+export function masPreview(
+  body: MasPreviewRequest,
+  signal?: AbortSignal,
+): Promise<MasPreviewResponse> {
+  return api.write<MasPreviewResponse>('/sales/mail/preview', {
+    method: 'POST',
+    body,
+    need: SEND_NEED,
+    signal,
+  })
+}
+
+/** The preview, wired to a compose box that is being typed into.
+ *
+ *  ------------------------------------------------------------------
+ *  THREE THINGS, AND EACH ONE IS A BUG THAT HAPPENS WITHOUT IT
+ *  ------------------------------------------------------------------
+ *   · DEBOUNCE. Without it every keystroke is a render on the server and a
+ *     round trip. `DEBOUNCE_MS` is long enough to sit through a typed word and
+ *     short enough that pausing to read feels immediate.
+ *   · ABORT. Renders do not necessarily come back in the order they were sent,
+ *     so the answer for three keystrokes ago can land after the current one and
+ *     leave a stale letter on screen under a heading that promises the live
+ *     one. The previous request is cancelled before the next goes out.
+ *   · A `ready` GATE. An empty subject or body fails `MasPreviewRequest` at the
+ *     zod pipe, which would paint an error banner over somebody who has simply
+ *     not finished typing. The hook holds still instead.
+ *
+ *  `error` is a string and not the `ApiError`: the only thing the panel can do
+ *  with it is print a line, and the preview is the one surface where a failure
+ *  must not look like a fault in the letter. */
+const DEBOUNCE_MS = 500
+
+export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
+  const [letter, setLetter] = useState<MasPreviewResponse>()
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+
+  const { subject, body, leadCode } = draft
+  const ctaLabel = draft.cta?.label
+  const ctaUrl = draft.cta?.url
+  const ready = enabled && subject.trim() !== '' && body.trim() !== ''
+
+  useEffect(() => {
+    if (!ready) {
+      setPending(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setPending(true)
+    const timer = setTimeout(() => {
+      masPreview(
+        {
+          subject,
+          body,
+          ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
+          ...(leadCode ? { leadCode } : {}),
+        },
+        controller.signal,
+      )
+        .then((next) => {
+          setLetter(next)
+          setError('')
+        })
+        .catch((cause: unknown) => {
+          /* An abort is this hook's own doing — the caller typed another
+             letter — and printing it would report a failure to somebody who
+             caused none. Only a real refusal reaches the screen. */
+          if (controller.signal.aborted) return
+          setError(isApiError(cause) ? userMessage(cause) : 'Không dựng được bản xem trước.')
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setPending(false)
+        })
+    }, DEBOUNCE_MS)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [ready, subject, body, ctaLabel, ctaUrl, leadCode])
+
+  return { letter, error, pending }
 }
 
 /** Open a batch and hand it to the queue. `POST /sales/mail/runs`.

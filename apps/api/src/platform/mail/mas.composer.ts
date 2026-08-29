@@ -1,9 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { renderMasShell } from '@pv/mail-templates'
 import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
 import type { DeliveryToSend, MailMessage } from './mail.contract'
-import type { MailRunRow } from './mail-run.schema'
+import { renderMasLetter, senderOf } from './mas-letter'
 import { MailRunRepository } from './mail-run.repository'
 import { sign } from './unsubscribe-token'
 
@@ -12,15 +11,6 @@ import { sign } from './unsubscribe-token'
  *  day the shell changes shape, `mas-v2` renders the new letters while every
  *  row already queued still finds the renderer it was written against. */
 const TEMPLATE = 'mas-v1'
-
-/** `{{account}}`, `{{contact_name}}` (và hai alias cũ) — một key có thể có
- *  khoảng trắng quanh tên.
- *
- *  Deliberately narrow: letters, digits and underscore. A pattern that accepted
- *  dots or brackets would be a small expression language, and an expression
- *  language in a mail body is a place for a sender to put things nobody
- *  reviewed. */
-const PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g
 
 /** THE BODY OF A MASS MAIL, BUILT WITHOUT KNOWING WHOSE IT IS.
  *
@@ -87,49 +77,37 @@ export class MasMailComposer implements MailComposer {
       throw new Error(`Không tìm thấy mail_run ${delivery.mailRunId} của delivery ${delivery.id}.`)
     }
 
-    const missing = new Set<string>()
-    const merge = delivery.merge ?? {}
-    const fill = (value: string): string => substitute(value, merge, missing)
-
-    const subject = fill(run.subject)
-    const paragraphs = splitParagraphs(fill(run.body))
-    /* The CTA URL is the one field where a merge value lands in a DIFFERENT
-       grammar, so it gets a different escape: `?c={{company}}` with a company
-       called "Sao Đỏ" is not a link with a space in it, it is a broken link.
-       `encodeURIComponent` per value, never over the whole URL — encoding the
-       template itself would eat the `?` and the `=` the author wrote. */
-    const cta =
-      run.ctaLabel && run.ctaUrl
-        ? {
-            label: fill(run.ctaLabel),
-            url: substitute(run.ctaUrl, merge, missing, encodeURIComponent),
-          }
-        : undefined
-
-    if (missing.size > 0) {
-      /* One line, keys only. The recipient's address never reaches a log: this
-         line is about a template that names a variable the batch did not
-         supply, and printing who it happened to would put a mailing list into
-         the log stream one entry at a time. `delivery.id` is enough to find
-         the row. */
-      this.log.warn(
-        `Thiếu biến trộn ${[...missing].join(', ')} ở delivery ${delivery.id} · run ${run.id}.`,
-      )
-    }
-
     const unsubscribeUrl = this.unsubscribeUrl(delivery.id)
     const {
       subject: finalSubject,
       html,
       text,
-    } = await renderMasShell({
-      subject,
-      paragraphs,
-      cta,
+      missing,
+    } = await renderMasLetter({
+      subject: run.subject,
+      body: run.body,
+      cta: run.ctaLabel && run.ctaUrl ? { label: run.ctaLabel, url: run.ctaUrl } : undefined,
+      merge: delivery.merge ?? {},
       unsubscribeUrl,
-      sender: senderOf(run, this.env.PV_MAS_SENDER_POSTAL),
+      sender: senderOf(run.fromAddress, this.env.PV_MAS_SENDER_POSTAL),
       assetBaseUrl: brandAssetUrl(this.env),
     })
+
+    if (missing.length > 0) {
+      /* One line, keys only. The recipient's address never reaches a log: this
+         line is about a template that names a variable the batch did not
+         supply, and printing who it happened to would put a mailing list into
+         the log stream one entry at a time. `delivery.id` is enough to find
+         the row.
+
+         The compose panel now warns about the same keys BEFORE the send
+         (`POST /sales/mail/preview` returns them), so reaching this line means
+         the warning was ignored or the run was built by something other than
+         the panel. It stays: a log is the only witness left at this point. */
+      this.log.warn(
+        `Thiếu biến trộn ${missing.join(', ')} ở delivery ${delivery.id} · run ${run.id}.`,
+      )
+    }
 
     return {
       /* `mas`, and this one line is what keeps a bad batch from taking the
@@ -168,86 +146,6 @@ export class MasMailComposer implements MailComposer {
     const base = origin.replace(/\/+$/, '')
     return `${base}/mail/unsubscribe/${sign(deliveryId, this.env.PV_UNSUBSCRIBE_SECRET)}`
   }
-}
-
-/** ONE PASS, LEFT TO RIGHT, AND NEVER OVER ITS OWN OUTPUT.
- *
- *  `String.replace` with a FUNCTION is what makes this safe, in two ways that
- *  a naive loop of `split`/`join` gets wrong:
- *
- *   · The replacement is not rescanned. A merge value that happens to contain
- *     `{{price}}` — a customer whose company name is written that way, a body
- *     pasted from another tool — stays literal instead of being substituted a
- *     second time from a key the sender never intended. Nested and adjacent
- *     braces (`{{{{a}}}}`) resolve to exactly one match each and cannot cascade.
- *   · `$&`, `$1` and `$'` in a value are inert. They are only special in the
- *     STRING form of `replace`; a function's return value is inserted verbatim.
- *     A value arriving from a lead's company name is untrusted text, and this
- *     is the difference between it being text and it being a pattern.
- *
- *  A missing key becomes the empty string rather than being left as `{{key}}`:
- *  a letter that goes out reading "Chào {{contactName}}," is worse than one
- *  reading "Chào ,". The caller collects the names and logs them once.
- *
- *  `escape` is how the same substitution serves two grammars: prose takes the
- *  value as it is, a URL takes it percent-encoded. It escapes the VALUE only —
- *  the surrounding text is the author's and is never touched. */
-function substitute(
-  value: string,
-  merge: Record<string, string>,
-  missing: Set<string>,
-  escape: (raw: string) => string = (raw) => raw,
-): string {
-  return value.replace(PLACEHOLDER, (_match, key: string) => {
-    const found = merge[key]
-    if (found === undefined) {
-      missing.add(key)
-      return ''
-    }
-    return escape(found)
-  })
-}
-
-/** A blank line ends a paragraph — the same rule the compose box shows the
- *  writer, and the reason `mailBody` in `@pv/contracts` refuses to run the body
- *  through `textNhap`: collapsing whitespace would turn every paragraph break
- *  in every mass mail into a space. Single newlines inside a paragraph are kept
- *  as they were typed; the shell renders each element as one `<Text>`. */
-function splitParagraphs(body: string): string[] {
-  return body
-    .split(/\n[ \t]*\n+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-}
-
-/** The footer's identity line, read off the run's own `From`.
- *
- *  `From` is stored the way a mail header spells it — `Tên <hộp@thư>` — so the
- *  display name and the mailbox are both already there and neither is invented.
- *
- *  KNOWN GAP, stated rather than filled: `MasShellData.sender.address` is meant
- *  to be the company's POSTAL address, which commercial mail is legally required
- *  to carry in its footer (CAN-SPAM §7704 and its equivalents elsewhere).
- *
- *  `PV_MAS_SENDER_POSTAL` is that address, and `PV_MAS_ENABLED=true` refuses to
- *  boot without it — so on any machine allowed to send a real batch, this is
- *  always the configured street. The mailbox fallback below is for the
- *  unconfigured case only: it keeps a preview renderable on a dev box, and it
- *  prints something true rather than a fabricated address. It is never what
- *  goes out in production, because production cannot start in that state. */
-function senderOf(run: MailRunRow, postal: string): { name: string; address: string } {
-  const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(run.fromAddress)
-  const mailbox = match?.[2]?.trim()
-  const street = postal.trim()
-  if (!mailbox) {
-    const bare = run.fromAddress.trim()
-    return { name: bare, address: street || bare }
-  }
-
-  /* A quoted display name is how a header carries a comma or a dot — the
-     quotes belong to the header grammar, not to the company's name. */
-  const name = (match?.[1] ?? '').replace(/^"|"$/g, '').trim()
-  return { name: name || mailbox, address: street || mailbox }
 }
 
 /** A mail header ends at the first newline; anything after one would become a

@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,7 @@ import {
   CircleAlert,
   DataTable,
   EmptyState,
+  Eye,
   GlassCard,
   Icon,
   ImagePlus,
@@ -49,11 +51,11 @@ import {
   type StepperStep,
 } from '@pv/ui'
 import type { Actor } from '@pv/engines'
+import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import type {
   CampaignPatch,
   CampaignProfile,
   CampaignWaveInput,
-  CampaignWaveRow,
   LeadBookQuery,
   LeadCategory,
   LeadTier,
@@ -63,23 +65,29 @@ import { LEAD_CATEGORIES, LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
-import { dm } from '@/lib/date'
+import { useCan } from '@/app/auth'
+import { dm, dmhm, localSlot } from '@/lib/date'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { leadBookQuery } from '@/data/leads'
-import { masTemplatesQuery } from '@/data/mas'
+import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
+import { mailHints } from '@/data/mail-hints'
+import { masTemplatesQuery, useMailPreview } from '@/data/mas'
 import {
   CAMPAIGN_STATE_LABEL,
   CAMPAIGN_STATE_TONE,
   CampaignCreateFullError,
+  campaignMembersQuery,
   campaignProfileQuery,
   useCampaignCreateFull,
   useCampaignMembers,
   useCampaignPatch,
   useCampaignStart,
   useCampaignStop,
+  useCampaignWaveAdd,
 } from '@/data/campaign-book'
 import { MAIL_RUN_STATE_LABEL, MAIL_RUN_STATE_TONE } from '@/data/mail-runs'
+import { RunWhen } from '@/components/run-when'
 
 /** Module 1 · MỘT KHUNG, BA CỬA — tạo / sửa / xem một chiến dịch.
  *
@@ -127,14 +135,14 @@ type Mode = 'create' | 'existing'
 const CREATE_STEPS: StepperStep[] = [
   { key: 'profile', label: 'Hồ sơ' },
   { key: 'audience', label: 'Người nhận' },
-  { key: 'events', label: 'Luồng sự kiện' },
+  { key: 'events', label: 'Đợt gửi' },
   { key: 'review', label: 'Soát lại' },
 ]
 
 const EXISTING_STEPS: StepperStep[] = [
   { key: 'profile', label: 'Hồ sơ' },
   { key: 'audience', label: 'Người nhận' },
-  { key: 'events', label: 'Luồng sự kiện' },
+  { key: 'events', label: 'Đợt gửi' },
   { key: 'review', label: 'Tổng quan' },
 ]
 
@@ -238,6 +246,19 @@ function effectiveWaves(s: ComposerState): CampaignWaveInput[] {
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 
+/** THE CEILING NOBODY WAS TOLD ABOUT, said out loud with both numbers.
+ *
+ *  One wave is one MAS batch, and `MasService.send()` refuses a batch over
+ *  `MAS_MAX_RECIPIENTS` with a 422. Neither `/start` nor `/waves` carries
+ *  `leadCodes` — the server reads the audience itself — so nothing on the way
+ *  in passes through the zod door that would have caught the size. Meanwhile
+ *  `CampaignMemberPatch.add` accepts up to 500, so an audience of 201 is easy
+ *  to build and impossible to fire, and until now the only news of that was the
+ *  422 after the send button. */
+function ceilingNote(count: number): string {
+  return `Đang có ${count} người nhận, vượt trần ${MAS_MAX_RECIPIENTS} của một đợt gửi — bớt xuống rồi hãy bắn.`
+}
+
 export function CampaignCreatePage() {
   return <CampaignForm mode="create" />
 }
@@ -291,6 +312,20 @@ function CampaignForm({
   const members = useCampaignMembers(code ?? '')
   const start = useCampaignStart(code ?? '')
   const stop = useCampaignStop(code ?? '')
+  const waveAdd = useCampaignWaveAdd(code ?? '')
+
+  /* HIDE, do not grey out — same call `opportunity-detail.tsx` makes and for the
+     same reason: a greyed button promises "this works, just not now", and for
+     sale/bd/presales it is never now. Those three roles carry the campaign READ
+     permission alone, so until today they were looking at four buttons that
+     could only ever answer 403.
+
+     `useCan` asks the same E2 function `app/api/client.ts` asks before letting a
+     byte out, so the screen and the barrier cannot say opposite things — and
+     hiding a button is not access control: the real gate stays at the api layer
+     and the server doors still declare their own `@Need`. */
+  const canEdit = useCan('chiến-dịch.sửa')
+  const canFire = useCan('chiến-dịch.bắn')
 
   const submitCreate = () => {
     if (!draftProfile.name.trim() || submitting) return
@@ -380,28 +415,36 @@ function CampaignForm({
     </Button>
   ) : (
     <>
-      <Button size="md" variant="ghost" onClick={() => setStep(0)}>
-        <Icon icon={PenLine} size={16} />
-        Sửa hồ sơ
-      </Button>
-      <Button size="md" variant="ghost" onClick={() => setStep(1)}>
-        <Icon icon={UserPlus} size={16} />
-        Thêm người nhận
-      </Button>
-      {campaign?.state === 'DRAFT' && (
+      {canEdit && (
+        <Button size="md" variant="ghost" onClick={() => setStep(0)}>
+          <Icon icon={PenLine} size={16} />
+          Sửa hồ sơ
+        </Button>
+      )}
+      {canEdit && (
+        <Button size="md" variant="ghost" onClick={() => setStep(1)}>
+          <Icon icon={UserPlus} size={16} />
+          Thêm người nhận
+        </Button>
+      )}
+      {canFire && campaign?.state === 'DRAFT' && (
         <Button
           size="md"
           onClick={() => setStep(2)}
-          disabled={campaign.audienceCount === 0}
+          disabled={campaign.audienceCount === 0 || campaign.audienceCount > MAS_MAX_RECIPIENTS}
           title={
-            campaign.audienceCount === 0 ? 'Thêm người nhận trước khi bắt đầu chạy' : undefined
+            campaign.audienceCount === 0
+              ? 'Thêm người nhận trước khi bắt đầu chạy'
+              : campaign.audienceCount > MAS_MAX_RECIPIENTS
+                ? ceilingNote(campaign.audienceCount)
+                : undefined
           }
         >
           <Icon icon={Send} size={16} />
           Bắt đầu chạy
         </Button>
       )}
-      {campaign?.state === 'RUNNING' && (
+      {canFire && campaign?.state === 'RUNNING' && (
         <Button
           size="md"
           variant="ghost"
@@ -475,6 +518,7 @@ function CampaignForm({
                 people={people}
                 sources={sources}
                 patch={patch}
+                canEdit={canEdit}
                 onDone={goOverview}
                 onCancel={goOverview}
               />
@@ -490,7 +534,13 @@ function CampaignForm({
               onNext={() => setStep(2)}
             />
           ) : (
-            <AudienceEditStep members={members} onDone={goOverview} onCancel={goOverview} />
+            <AudienceEditStep
+              code={code ?? ''}
+              members={members}
+              canEdit={canEdit}
+              onDone={goOverview}
+              onCancel={goOverview}
+            />
           ))}
 
         {step === 2 &&
@@ -508,6 +558,17 @@ function CampaignForm({
               <EventsEditStep
                 templates={templates}
                 start={start}
+                audienceCount={campaign.audienceCount}
+                canFire={canFire}
+                onDone={goOverview}
+                onCancel={goOverview}
+              />
+            ) : campaign.state === 'RUNNING' ? (
+              <WaveAddStep
+                campaign={campaign}
+                templates={templates}
+                waveAdd={waveAdd}
+                canFire={canFire}
                 onDone={goOverview}
                 onCancel={goOverview}
               />
@@ -524,6 +585,7 @@ function CampaignForm({
               waves={effectiveWaves(composer)}
               people={people}
               sources={sources}
+              canEdit={canEdit}
               onBack={() => setStep(2)}
               onSubmit={submitCreate}
               submitting={submitting}
@@ -692,11 +754,23 @@ function ProfileCreateStep({
   )
 }
 
+/** One field's contribution to the PATCH body, in the contract's three states.
+ *
+ *  Absent = leave it, `null` = CLEAR it, a value = set it. So `''` only means
+ *  "clear" when something was there to clear; `''` over an already-empty field
+ *  is nobody touching anything, and sending `null` for it would be a write with
+ *  no edit behind it. */
+function patchField(next: string, original: string): string | null | undefined {
+  if (next === original) return undefined
+  return next === '' ? null : next
+}
+
 function ProfileEditStep({
   campaign,
   people,
   sources,
   patch,
+  canEdit,
   onDone,
   onCancel,
 }: {
@@ -704,6 +778,7 @@ function ProfileEditStep({
   people: Actor[]
   sources: { id: string; name: string; active: boolean }[]
   patch: ReturnType<typeof useCampaignPatch>
+  canEdit: boolean
   onDone: () => void
   onCancel: () => void
 }) {
@@ -721,18 +796,16 @@ function ProfileEditStep({
 
   const submit = () => {
     if (!canSave) return
+    const slogan = patchField(draft.slogan.trim(), original.slogan)
+    const thumbnailUrl = patchField(draft.thumbnailUrl.trim(), original.thumbnailUrl)
+    const ownerId = patchField(draft.ownerId, original.ownerId)
+    const sourceId = patchField(draft.sourceId, original.sourceId)
     const body: CampaignPatch = {
       ...(draft.name.trim() === original.name ? {} : { name: draft.name.trim() }),
-      ...(draft.slogan.trim() === original.slogan ? {} : { slogan: draft.slogan.trim() }),
-      ...(draft.thumbnailUrl.trim() === original.thumbnailUrl
-        ? {}
-        : { thumbnailUrl: draft.thumbnailUrl.trim() }),
-      ...(draft.ownerId === original.ownerId || draft.ownerId === ''
-        ? {}
-        : { ownerId: draft.ownerId }),
-      ...(draft.sourceId === original.sourceId || draft.sourceId === ''
-        ? {}
-        : { sourceId: draft.sourceId }),
+      ...(slogan === undefined ? {} : { slogan }),
+      ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
+      ...(ownerId === undefined ? {} : { ownerId }),
+      ...(sourceId === undefined ? {} : { sourceId }),
     }
     patch.mutate(body, {
       onSuccess: () => {
@@ -764,17 +837,15 @@ function ProfileEditStep({
         people={people}
         sources={sources}
       />
-      <p className="text-muted-foreground text-[11px]">
-        Chọn “Chưa gán” không gỡ được chủ hoặc nguồn đã gán — hợp đồng đọc trường vắng là “giữ
-        nguyên”. Cần gỡ thì đổi sang người hoặc nguồn khác.
-      </p>
       <div className="flex justify-end gap-2">
         <Button size="md" variant="ghost" onClick={onCancel}>
           Huỷ
         </Button>
-        <Button size="md" onClick={submit} disabled={!canSave}>
-          {patch.isPending ? 'Đang lưu…' : 'Lưu'}
-        </Button>
+        {canEdit && (
+          <Button size="md" onClick={submit} disabled={!canSave}>
+            {patch.isPending ? 'Đang lưu…' : 'Lưu'}
+          </Button>
+        )}
       </div>
     </GlassCard>
   )
@@ -786,6 +857,13 @@ function ProfileEditStep({
 
 const AUDIENCE_PAGE_SIZE = 100
 
+/** Same 300ms the lead and opportunity books use. The query object below IS the
+ *  `queryKey`, so one keystroke would otherwise be one new key and one round
+ *  trip: eight characters, eight requests, and the answer to the first seven
+ *  arriving after the eighth. No address bar to keep in step here, so the letters
+ *  stay in state (typing shows up at once) and only drip into the query. */
+const SEARCH_DELAY_MS = 300
+
 function AudiencePicker({
   selected,
   onSetOne,
@@ -796,8 +874,14 @@ function AudiencePicker({
   onSetMany: (codes: string[], on: boolean) => void
 }) {
   const [text, setText] = useState('')
+  const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [tier, setTier] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(text.trim()), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [text])
 
   const query: LeadBookQuery = useMemo(
     () => ({
@@ -806,11 +890,11 @@ function AudiencePicker({
       status: 'running',
       sort: 'createdAt',
       dir: 'desc',
-      ...(text.trim() === '' ? {} : { q: text.trim() }),
+      ...(search === '' ? {} : { q: search }),
       ...(category === '' ? {} : { category: category as LeadCategory }),
       ...(tier === '' ? {} : { tier: tier as LeadTier }),
     }),
-    [text, category, tier],
+    [search, category, tier],
   )
 
   const { data, isPending } = useQuery(leadBookQuery(query))
@@ -953,8 +1037,8 @@ function AudiencePicker({
         )}
       </GlassCard>
       <p className="text-muted-foreground text-[11px]">
-        Hiện tới {AUDIENCE_PAGE_SIZE} lead khớp lọc, mới nhất trước. Rê chuột qua nhiều dòng để bôi
-        đen chọn hàng loạt, hoặc bấm từng dòng.
+        Hiện tới {AUDIENCE_PAGE_SIZE} lead khớp lọc, mới nhất trước. Bấm từng dòng để chọn — chạm
+        cũng vậy. Riêng với chuột, giữ nút trái rồi rê qua nhiều dòng để bôi đen hàng loạt.
       </p>
     </div>
   )
@@ -988,6 +1072,8 @@ function AudienceCreateStep({
       return next
     })
 
+  const overCeiling = selected.size > MAS_MAX_RECIPIENTS
+
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
       <div className="flex items-center justify-between gap-2">
@@ -995,12 +1081,13 @@ function AudienceCreateStep({
         {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
       </div>
       <AudiencePicker selected={selected} onSetOne={setOne} onSetMany={setMany} />
+      {overCeiling && <p className="text-warning text-[12px]">{ceilingNote(selected.size)}</p>}
       <div className="flex justify-between gap-2">
         <Button size="md" variant="ghost" onClick={onBack}>
           <Icon icon={ArrowLeft} size={16} />
           Lùi
         </Button>
-        <Button size="md" onClick={onNext}>
+        <Button size="md" onClick={onNext} disabled={overCeiling}>
           Tiếp
           <Icon icon={ArrowRight} size={16} />
         </Button>
@@ -1009,12 +1096,134 @@ function AudienceCreateStep({
   )
 }
 
-function AudienceEditStep({
+/** WHO IS ALREADY IN, and who among them cannot be written to.
+ *
+ *  The missing-address count is read from the member list itself, not from
+ *  `masPreflight`: that door runs `audience(..., scoped = true)`, so on a
+ *  campaign holding somebody else's leads it reports them MISSING when they are
+ *  merely out of this reader's scope. Counting absent `email` here answers the
+ *  real question — which rows are certain to be skipped at send time — and needs
+ *  no new endpoint. Until now that number only showed up as `skipped`, after the
+ *  mail had gone. */
+function CampaignMemberList({
+  code,
   members,
+  canEdit,
+}: {
+  code: string
+  members: ReturnType<typeof useCampaignMembers>
+  canEdit: boolean
+}) {
+  const { data, isPending } = useQuery(campaignMembersQuery(code))
+  const rows = data?.rows ?? []
+  const noEmail = rows.filter((m) => !m.email).length
+
+  const removeOne = (leadCode: string) =>
+    members.mutate(
+      { remove: [leadCode] },
+      {
+        onSuccess: (res) =>
+          toast('Đã gỡ khỏi tệp nhận', {
+            tone: 'success',
+            detail: `Tệp nhận nay có ${res.audienceCount} người.`,
+          }),
+        onError: (err) =>
+          toast('Không gỡ được người nhận', {
+            tone: 'danger',
+            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+          }),
+      },
+    )
+
+  return (
+    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SectionTitle>Đang trong tệp nhận</SectionTitle>
+        <Chip>{data?.total ?? 0} người</Chip>
+      </div>
+
+      {noEmail > 0 && (
+        <p className="text-warning text-[12px]">
+          {noEmail} người trong tệp chưa có email — những dòng này chắc chắn bị bỏ qua lúc bắn.
+        </p>
+      )}
+
+      <GlassCard variant="b" className="max-h-[40vh] overflow-y-auto p-0">
+        {isPending ? (
+          <div className="flex flex-col gap-2 p-3">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <Icon icon={Users} size={26} className="text-muted-foreground" />
+            <p className="text-muted-foreground text-pretty text-[12.5px] leading-[1.65]">
+              Tệp nhận còn rỗng — chọn lead ở bảng dưới rồi bấm thêm.
+            </p>
+          </div>
+        ) : (
+          <DataTable
+            columns={[
+              { header: 'Mã', width: '0.8fr' },
+              { header: 'Account', width: '1.7fr' },
+              { header: 'Người liên hệ', width: '1.3fr' },
+              { header: 'Email', width: '1.6fr' },
+              { header: 'Gỡ', width: '96px', align: 'right' },
+            ]}
+            rows={rows.map((m) => ({
+              id: m.leadCode,
+              cells: [
+                <Chip key="c">{m.leadCode}</Chip>,
+                <span key="n" className="block truncate" title={m.company}>
+                  {m.company}
+                </span>,
+                <span key="ct" className="block truncate">
+                  {m.contactName}
+                </span>,
+                m.email ? (
+                  <span key="e" className="block truncate" title={m.email}>
+                    {m.email}
+                  </span>
+                ) : (
+                  <span key="e" className="text-warning">
+                    Chưa có email
+                  </span>
+                ),
+                canEdit ? (
+                  <Button
+                    key="rm"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => removeOne(m.leadCode)}
+                    disabled={members.isPending}
+                  >
+                    <Icon icon={Trash2} size={14} />
+                    Gỡ
+                  </Button>
+                ) : (
+                  <span key="rm" className="text-muted-foreground">
+                    —
+                  </span>
+                ),
+              ],
+            }))}
+          />
+        )}
+      </GlassCard>
+    </GlassCard>
+  )
+}
+
+function AudienceEditStep({
+  code,
+  members,
+  canEdit,
   onDone,
   onCancel,
 }: {
+  code: string
   members: ReturnType<typeof useCampaignMembers>
+  canEdit: boolean
   onDone: () => void
   onCancel: () => void
 }) {
@@ -1058,21 +1267,27 @@ function AudienceEditStep({
   }
 
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
-      <div className="flex items-center justify-between gap-2">
-        <SectionTitle>Thêm người nhận</SectionTitle>
-        {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
-      </div>
-      <AudiencePicker selected={selected} onSetOne={setOne} onSetMany={setMany} />
-      <div className="flex justify-end gap-2">
-        <Button size="md" variant="ghost" onClick={onCancel}>
-          Huỷ
-        </Button>
-        <Button size="md" onClick={submit} disabled={selected.size === 0 || members.isPending}>
-          {members.isPending ? 'Đang thêm…' : `Thêm ${selected.size || ''} người nhận`}
-        </Button>
-      </div>
-    </GlassCard>
+    <div className="flex flex-col gap-4">
+      <CampaignMemberList code={code} members={members} canEdit={canEdit} />
+
+      <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
+        <div className="flex items-center justify-between gap-2">
+          <SectionTitle>Thêm người nhận</SectionTitle>
+          {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
+        </div>
+        <AudiencePicker selected={selected} onSetOne={setOne} onSetMany={setMany} />
+        <div className="flex justify-end gap-2">
+          <Button size="md" variant="ghost" onClick={onCancel}>
+            Huỷ
+          </Button>
+          {canEdit && (
+            <Button size="md" onClick={submit} disabled={selected.size === 0 || members.isPending}>
+              {members.isPending ? 'Đang thêm…' : `Thêm ${selected.size || ''} người nhận`}
+            </Button>
+          )}
+        </div>
+      </GlassCard>
+    </div>
   )
 }
 
@@ -1084,10 +1299,13 @@ function WaveComposer({
   state,
   setState,
   templates,
+  showAdd = true,
 }: {
   state: ComposerState
   setState: Dispatch<SetStateAction<ComposerState>>
   templates: MailTemplateRow[]
+  /** Off for a running campaign: see `WaveAddStep`, one wave per round. */
+  showAdd?: boolean
 }) {
   const pickTemplate = (value: string) => {
     const found = templates.find((t) => t.code === value)
@@ -1099,6 +1317,26 @@ function WaveComposer({
       ...(found?.cta ? { ctaLabel: found.cta.label, ctaUrl: found.cta.url } : {}),
     }))
   }
+
+  const [previewOpen, setPreviewOpen] = useState(false)
+  /* The button travels only when the pair is COMPLETE and the URL parses —
+     `MailCta` in the contract refuses a half-typed address, and somebody in the
+     middle of typing `https://` has a half-typed address on every keystroke.
+     Without the pair the letter renders with no button, exactly as it would be
+     sent. */
+  const previewCta =
+    state.ctaLabel.trim() !== '' && /^https?:\/\/\S+$/.test(state.ctaUrl.trim())
+      ? { label: state.ctaLabel.trim(), url: state.ctaUrl.trim() }
+      : undefined
+  const preview = useMailPreview(
+    { subject: state.subject, body: state.body, ...(previewCta ? { cta: previewCta } : {}) },
+    previewOpen,
+  )
+  const hints = mailHints({
+    subject: state.subject,
+    body: state.body,
+    missing: preview.letter?.missing,
+  })
 
   const draftValid = composerDraftValid(state)
   const canAdd = draftValid && state.committed.length < 20
@@ -1205,7 +1443,17 @@ function WaveComposer({
           <SegmentedControl
             label="Thời điểm gửi"
             value={state.timing}
-            onChange={(v) => setState((s) => ({ ...s, timing: v as 'now' | 'later' }))}
+            /* Switching to the scheduled option fills the field with a real slot.
+               An empty `<input type="datetime-local">` is not a neutral start:
+               the send button stays locked and the reason is written nowhere, so
+               the user faces a control that refuses without a word. */
+            onChange={(v) =>
+              setState((s) => ({
+                ...s,
+                timing: v as 'now' | 'later',
+                ...(v === 'later' && s.at === '' ? { at: localSlot() } : {}),
+              }))
+            }
             options={[
               { value: 'now', label: 'Gửi ngay' },
               { value: 'later', label: 'Đặt lịch gửi' },
@@ -1222,15 +1470,52 @@ function WaveComposer({
             </label>
           )}
         </div>
+
+        {/* THE SAME TWO BLOCKS THE MAS COMPOSE PANEL SHOWS, and the same
+            components rather than a second pair: a campaign wave leaves through
+            the identical send path (`mail_run` → `mas-v1`), so a preview built
+            separately here would be a second rendering of one letter, and two
+            renderings are two things that drift apart.
+
+            No lead to merge against — a campaign's audience is
+            `campaign_member`, frozen when it starts running rather than while
+            it is being written — so the preview goes without `leadCode` and the
+            server fills in sample values. The shell, footer and button are the
+            real ones either way. */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground text-[11px]">Kiểm lại thư trước khi thêm đợt</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={state.subject.trim() === '' || state.body.trim() === ''}
+            aria-expanded={previewOpen}
+            onClick={() => setPreviewOpen((current) => !current)}
+          >
+            <Icon icon={Eye} size={14} />
+            {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
+          </Button>
+        </div>
+
+        <MailHintList hints={hints} />
+
+        {previewOpen && (
+          <MailPreviewCard
+            letter={preview.letter}
+            pending={preview.pending}
+            error={preview.error}
+          />
+        )}
       </GlassCard>
 
       <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6">
         <div className="flex items-center justify-between gap-2">
           <SectionTitle>Chuỗi đợt · {totalCount}/20</SectionTitle>
-          <Button size="sm" variant="ghost" onClick={addEvent} disabled={!canAdd}>
-            <Icon icon={Plus} size={14} />
-            Thêm sự kiện
-          </Button>
+          {showAdd && (
+            <Button size="sm" variant="ghost" onClick={addEvent} disabled={!canAdd}>
+              <Icon icon={Plus} size={14} />
+              Thêm đợt
+            </Button>
+          )}
         </div>
 
         <Timeline
@@ -1242,7 +1527,7 @@ function WaveComposer({
               title: w.label,
               meta: (
                 <MetaPill>
-                  {w.scheduledAt ? `Hẹn · ${dm(w.scheduledAt)}` : 'Gửi ngay khi bắt đầu chạy'}
+                  {w.scheduledAt ? `Hẹn · ${dmhm(w.scheduledAt)}` : 'Gửi ngay khi bắt đầu chạy'}
                 </MetaPill>
               ),
               children: <span className="line-clamp-1">{w.subject}</span>,
@@ -1317,19 +1602,24 @@ function EventsCreateStep({
 function EventsEditStep({
   templates,
   start,
+  audienceCount,
+  canFire,
   onDone,
   onCancel,
 }: {
   templates: MailTemplateRow[]
   start: ReturnType<typeof useCampaignStart>
+  audienceCount: number
+  canFire: boolean
   onDone: () => void
   onCancel: () => void
 }) {
   const [composer, setComposer] = useState<ComposerState>(emptyComposerState)
   const waves = effectiveWaves(composer)
+  const overCeiling = audienceCount > MAS_MAX_RECIPIENTS
 
   const submit = () => {
-    if (waves.length === 0) return
+    if (waves.length === 0 || overCeiling) return
     start.mutate(
       { waves },
       {
@@ -1355,13 +1645,101 @@ function EventsEditStep({
   return (
     <div className="flex flex-col gap-4">
       <WaveComposer state={composer} setState={setComposer} templates={templates} />
+      {overCeiling && <p className="text-warning text-[12px]">{ceilingNote(audienceCount)}</p>}
       <div className="flex justify-end gap-2">
         <Button size="md" variant="ghost" onClick={onCancel}>
           Huỷ
         </Button>
-        <Button size="md" onClick={submit} disabled={waves.length === 0 || start.isPending}>
-          {start.isPending ? 'Đang bắn…' : `Bắt đầu chạy · ${waves.length} đợt`}
+        {canFire && (
+          <Button
+            size="md"
+            onClick={submit}
+            disabled={waves.length === 0 || overCeiling || start.isPending}
+          >
+            {start.isPending ? 'Đang bắn…' : `Bắt đầu chạy · ${waves.length} đợt`}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** WAVE TWO ONWARDS — composed on top, the waves already fired sit below.
+ *
+ *  A running campaign used to be a dead end here: a read-only table and a Stop
+ *  button. Adding wave two meant leaving for the lead book and re-picking the
+ *  whole audience by hand through the MAS modal — the exact work
+ *  `campaign_member` was frozen to avoid, and a hand-picked set is a DIFFERENT
+ *  set. `POST /sales/campaigns/:code/waves` reads the campaign's own audience,
+ *  so nothing is picked twice.
+ *
+ *  ONE WAVE PER ROUND, and that is why the add-wave button is hidden here rather
+ *  than merely unused: every add is a real, unrecallable send. A loop over
+ *  several waves that dies halfway leaves no honest sentence about which went —
+ *  `CampaignStartResponse` can say it because the server runs that loop and
+ *  reports each result; a loop in the browser cannot. Sending the one wave on
+ *  screen is a thing the sender can see before pressing, and read afterwards in
+ *  the table below. */
+function WaveAddStep({
+  campaign,
+  templates,
+  waveAdd,
+  canFire,
+  onDone,
+  onCancel,
+}: {
+  campaign: CampaignProfile
+  templates: MailTemplateRow[]
+  waveAdd: ReturnType<typeof useCampaignWaveAdd>
+  canFire: boolean
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [composer, setComposer] = useState<ComposerState>(emptyComposerState)
+  const ready = composerDraftValid(composer)
+  const overCeiling = campaign.audienceCount > MAS_MAX_RECIPIENTS
+
+  const submit = () => {
+    if (!ready || overCeiling) return
+    waveAdd.mutate(
+      { wave: composerDraftInput(composer) },
+      {
+        onSuccess: (res) => {
+          toast(`Đã thêm đợt ${campaign.waveCount + 1}`, {
+            tone: 'success',
+            detail: `${res.queued} thư vào hàng đợi${res.skipped > 0 ? `, ${res.skipped} bị bỏ qua` : ''}.`,
+          })
+          onDone()
+        },
+        onError: (err) =>
+          toast('Không thêm được đợt', {
+            tone: 'danger',
+            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+          }),
+      },
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <WaveComposer state={composer} setState={setComposer} templates={templates} showAdd={false} />
+      {overCeiling && (
+        <p className="text-warning text-[12px]">{ceilingNote(campaign.audienceCount)}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button size="md" variant="ghost" onClick={onCancel}>
+          Huỷ
         </Button>
+        {canFire && (
+          <Button size="md" onClick={submit} disabled={!ready || overCeiling || waveAdd.isPending}>
+            {waveAdd.isPending ? 'Đang bắn…' : `Bắn đợt ${campaign.waveCount + 1}`}
+          </Button>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <SectionTitle>Đợt đã bắn</SectionTitle>
+        <WaveTable campaign={campaign} />
       </div>
     </div>
   )
@@ -1371,14 +1749,6 @@ function EventsEditStep({
 // Bảng đợt đã bắn — dùng chung giữa bước 3 (khi đã RUNNING/STOPPED/DONE) và
 // Tổng quan, cùng khuôn với `campaign-detail.tsx` cũ.
 // ---------------------------------------------------------------------------
-
-function WaveWhen({ wave }: { wave: CampaignWaveRow }) {
-  const run = wave.run
-  if (run.finishedAt) return <span title="Kết thúc">Xong · {dm(run.finishedAt)}</span>
-  if (run.startedAt) return <span title="Bắt đầu">Chạy · {dm(run.startedAt)}</span>
-  if (run.scheduledAt) return <span title="Hẹn giờ">Hẹn · {dm(run.scheduledAt)}</span>
-  return <span className="text-muted-foreground">—</span>
-}
 
 function WaveTable({ campaign }: { campaign: CampaignProfile }) {
   return (
@@ -1424,7 +1794,7 @@ function WaveTable({ campaign }: { campaign: CampaignProfile }) {
                 <Badge key="s" tone={MAIL_RUN_STATE_TONE[w.run.state]}>
                   {MAIL_RUN_STATE_LABEL[w.run.state]}
                 </Badge>,
-                <WaveWhen key="w" wave={w} />,
+                <RunWhen key="w" run={w.run} />,
                 <span key="sent">{w.run.sent.toLocaleString('vi-VN')}</span>,
                 <span key="d">{w.run.delivered.toLocaleString('vi-VN')}</span>,
                 <span key="o">{w.run.opened.toLocaleString('vi-VN')}</span>,
@@ -1450,6 +1820,7 @@ function ReviewCreateStep({
   waves,
   people,
   sources,
+  canEdit,
   onBack,
   onSubmit,
   submitting,
@@ -1459,12 +1830,14 @@ function ReviewCreateStep({
   waves: CampaignWaveInput[]
   people: Actor[]
   sources: { id: string; name: string }[]
+  canEdit: boolean
   onBack: () => void
   onSubmit: () => void
   submitting: boolean
 }) {
   const ownerName = people.find((p) => p.id === draft.ownerId)?.name
   const sourceName = sources.find((s) => s.id === draft.sourceId)?.name
+  const overCeiling = audienceCount > MAS_MAX_RECIPIENTS
 
   return (
     <div className="flex flex-col gap-4">
@@ -1494,6 +1867,8 @@ function ReviewCreateStep({
         </span>
       </GlassCard>
 
+      {overCeiling && <p className="text-warning text-[12px]">{ceilingNote(audienceCount)}</p>}
+
       <GlassCard variant="b" className="flex flex-col gap-3 p-5 lg:p-6">
         <SectionTitle>{waves.length} đợt sẽ vào hàng đợi ngay sau khi tạo</SectionTitle>
         {waves.length === 0 ? (
@@ -1508,7 +1883,7 @@ function ReviewCreateStep({
                   Đợt {i + 1} · {w.label}
                 </span>
                 <span className="text-muted-foreground">
-                  {w.scheduledAt ? `Hẹn ${dm(w.scheduledAt)}` : 'Gửi ngay'}
+                  {w.scheduledAt ? `Hẹn ${dmhm(w.scheduledAt)}` : 'Gửi ngay'}
                 </span>
               </li>
             ))}
@@ -1521,9 +1896,15 @@ function ReviewCreateStep({
           <Icon icon={ArrowLeft} size={16} />
           Lùi
         </Button>
-        <Button size="md" onClick={onSubmit} disabled={submitting || !draft.name.trim()}>
-          {submitting ? 'Đang tạo…' : 'Tạo chiến dịch'}
-        </Button>
+        {canEdit && (
+          <Button
+            size="md"
+            onClick={onSubmit}
+            disabled={submitting || overCeiling || !draft.name.trim()}
+          >
+            {submitting ? 'Đang tạo…' : 'Tạo chiến dịch'}
+          </Button>
+        )}
       </div>
     </div>
   )

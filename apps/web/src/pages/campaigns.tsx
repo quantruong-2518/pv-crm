@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Inbox, Megaphone, Plus, CircleAlert, Zap } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -23,6 +23,7 @@ import {
 } from '@pv/ui'
 import { CampaignBookSortKey, type CampaignBookQuery, type CampaignState } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import { dm } from '@/lib/date'
@@ -67,12 +68,25 @@ const PAGE_SIZE = 10
 
 const TABLE_MIN_WIDTH = 'min-w-[980px]'
 
+/** How long after the last keystroke the search box writes to the address. Same
+ *  value as the opportunity book because it is the same box: typing stays
+ *  instant in local state, only the URL waits. */
+const SEARCH_DELAY_MS = 300
+
 const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
 
 export function CampaignsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+
+  /* HIDDEN, not greyed out — same call `opportunity-detail` makes for its sign
+     button. A greyed button promises "you could do this, just not now", and for
+     a read-only role it is never now. `useCan` asks the very E2 function
+     `app/api/client.ts` asks before letting a byte out, so the button and the
+     fence never disagree; the real fence stays at the api layer and on the
+     route. */
+  const canWrite = useCan('chiến-dịch.sửa')
 
   const urlQuery = useMemo(() => parseCampaignBookQuery(params), [params])
   const query = useMemo<CampaignBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
@@ -87,6 +101,7 @@ export function CampaignsPage() {
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
+  const hidden = data?.hidden ?? 0
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
 
   /* Ba con số của CẢ SỔ, không của trang đang mở — `campaignFacetQuery` giải
@@ -96,6 +111,7 @@ export function CampaignsPage() {
      "bao nhiêu người trong sổ". */
   const score = useMemo(
     () => ({
+      drafts: wholeBook.filter((c) => c.state === 'DRAFT').length,
       running: wholeBook.filter((c) => c.state === 'RUNNING').length,
       audience: wholeBook.reduce((sum, c) => sum + c.audienceCount, 0),
     }),
@@ -127,7 +143,33 @@ export function CampaignsPage() {
   const goPage = (index: number) =>
     setParams(campaignBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
 
+  /* The box keeps the text in state so typing shows up at once, then drips onto
+     the address after `SEARCH_DELAY_MS` with `replace`: one eight-letter query
+     pushing eight history entries turns Back into a backspace key. */
   const [text, setText] = useState(urlQuery.q ?? '')
+
+  /* Address changed from OUTSIDE — Back, F5, a link someone sent — so the box
+     has to follow, or the text says one thing while the table filters another. */
+  useEffect(() => setText(urlQuery.q ?? ''), [urlQuery.q])
+
+  useEffect(() => {
+    const wanted = text.trim() === '' ? undefined : text.trim()
+    if (wanted === urlQuery.q) return
+    const timer = setTimeout(
+      () =>
+        setParams(
+          campaignBookQueryToParams({
+            ...urlQuery,
+            q: wanted,
+            page: DEFAULT_CAMPAIGN_BOOK_QUERY.page,
+          }),
+          { replace: true },
+        ),
+      SEARCH_DELAY_MS,
+    )
+    return () => clearTimeout(timer)
+  }, [text, urlQuery, setParams])
+
   const dirty = text.trim() !== '' || query.state !== undefined || query.owner !== undefined
   const clearFilters = () => {
     setText('')
@@ -145,10 +187,12 @@ export function CampaignsPage() {
         <ScreenHeader
           title="Sổ chiến dịch"
           actions={
-            <Button size="md" onClick={() => navigate('/sales/campaigns/moi')}>
-              <Icon icon={Plus} size={16} />
-              Chiến dịch mới
-            </Button>
+            canWrite && (
+              <Button size="md" onClick={() => navigate('/sales/campaigns/moi')}>
+                <Icon icon={Plus} size={16} />
+                Chiến dịch mới
+              </Button>
+            )
           }
         />
 
@@ -158,9 +202,9 @@ export function CampaignsPage() {
           <StatCard
             size="compact"
             icon={Megaphone}
-            value={String(wholeBook.length)}
-            label="Chiến dịch trong sổ"
-            hint={`${score.running} đang chạy · ${wholeBook.length - score.running} nháp/đã dừng/xong`}
+            value={String(score.drafts)}
+            label="Nháp chờ bắn"
+            hint="đã dựng xong nhưng chưa gửi"
           />
           <StatCard
             size="compact"
@@ -174,7 +218,7 @@ export function CampaignsPage() {
             icon={Inbox}
             value={score.audience.toLocaleString('vi-VN')}
             label="Lượt gửi đã gom"
-            hint={`tổng người nhận của ${wholeBook.length} chiến dịch · một lead ở 2 chiến dịch tính 2 lượt`}
+            hint="cộng dồn, không trừ trùng"
           />
         </ScreenScoreGrid>
 
@@ -186,10 +230,7 @@ export function CampaignsPage() {
             size="topbar"
             placeholder="Tìm theo tên hoặc mã chiến dịch…"
             value={text}
-            onChange={(v) => {
-              setText(v)
-              patch({ q: v.trim() === '' ? undefined : v.trim() })
-            }}
+            onChange={setText}
             className="w-full md:col-span-2 xl:col-span-1"
           />
           <Select
@@ -215,6 +256,31 @@ export function CampaignsPage() {
         </ScreenToolbar>
 
         <GlassCard variant="b" className="p-0">
+          {/* The count line belongs INSIDE the card: it talks about the table
+              right below it. `total` and `hidden` are both counted by the
+              server — a ten-row page cannot know how many rows match the filter,
+              and no screen can count what it was never sent. Rule 7 asks for the
+              hidden line; without it a Sale whose scope cut the whole book reads
+              an empty table as "the book is empty". */}
+          <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <span className="text-muted-foreground text-[11.5px]">
+              <span className="tnum text-foreground font-num text-[15px] font-semibold">
+                {total}
+              </span>{' '}
+              dòng khớp bộ lọc
+              {hidden > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-warning">
+                    <span className="tnum font-num">{hidden}</span> bị ẩn theo quyền của bạn
+                  </span>
+                </>
+              )}
+            </span>
+          </div>
+
+          <div aria-hidden className="bg-white/6 h-px" />
+
           <div className="overflow-x-auto">
             {isPending ? (
               <div className="flex flex-col gap-2 p-4">
@@ -237,12 +303,22 @@ export function CampaignsPage() {
                 message={
                   dirty
                     ? 'Không có chiến dịch nào khớp bộ lọc đang chọn.'
-                    : 'Sổ chiến dịch chưa có gì. Tạo một chiến dịch rồi gom người nhận từ Sổ lead.'
+                    : canWrite
+                      ? 'Sổ chiến dịch chưa có gì. Tạo một chiến dịch rồi gom người nhận từ Sổ lead.'
+                      : 'Sổ chiến dịch chưa có gì mở cho bạn. Chiến dịch do Marketing hoặc quản lý tạo.'
                 }
                 action={
                   dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
-                    : { label: 'Chiến dịch mới', onClick: () => navigate('/sales/campaigns/moi') }
+                    : canWrite
+                      ? {
+                          label: 'Chiến dịch mới',
+                          onClick: () => navigate('/sales/campaigns/moi'),
+                        }
+                      : {
+                          label: 'Xem Sổ lô gửi',
+                          onClick: () => navigate('/sales/campaigns/lo-gui'),
+                        }
                 }
                 className="py-12"
               />

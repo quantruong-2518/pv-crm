@@ -1,13 +1,14 @@
-import { and, asc, count, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { CampaignBookQuery, CampaignState } from '@pv/contracts'
+import type { CampaignBookQuery, CampaignMemberQuery, CampaignState } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
+import { lead } from '../lead/lead.schema'
 import { campaign, campaignMember, campaignRun, type CampaignRowDb } from './campaign.schema'
-import type { CampaignRead } from './campaign.mapper'
+import type { CampaignMemberRead, CampaignRead } from './campaign.mapper'
 
 export type CampaignBookPage = {
   rows: CampaignRead[]
@@ -92,16 +93,38 @@ export class CampaignRepository {
     code: string,
     input: {
       name?: string
-      ownerId?: string
-      sourceId?: string
-      slogan?: string
-      thumbnailUrl?: string
+      /* `null` is a value here, not "leave it": `CampaignPatch` tells absent
+         from cleared, and all four columns are nullable. */
+      ownerId?: string | null
+      sourceId?: string | null
+      slogan?: string | null
+      thumbnailUrl?: string | null
     },
   ): Promise<void> {
     await this.db
       .update(campaign)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(campaign.code, code))
+  }
+
+  /** `DRAFT` → `RUNNING` in ONE statement, and why `setState` will not do.
+   *
+   *  Reading the state and then writing it leaves a window in which two
+   *  overlapping `/start` calls both see `DRAFT` and both go on to send. MAS
+   *  dedupes by `eventKey` only INSIDE one `mailRunId`, and the second pass
+   *  opens a new run — so the duplicate is real mail, to the same audience.
+   *  The predicate sits in the WHERE, so Postgres settles the race for us.
+   *
+   *  Only the DRAFT gate belongs here: "already has a wave" is checked
+   *  separately in the service, because 0 rows from this statement must mean
+   *  exactly one thing if the message it produces is to point anywhere. */
+  async startIfDraft(code: string): Promise<boolean> {
+    const rows = await this.db
+      .update(campaign)
+      .set({ state: 'RUNNING', updatedAt: new Date() })
+      .where(and(eq(campaign.code, code), eq(campaign.state, 'DRAFT')))
+      .returning({ code: campaign.code })
+    return rows.length === 1
   }
 
   async setState(code: string, state: CampaignState): Promise<void> {
@@ -223,6 +246,41 @@ export class CampaignRepository {
     return rows.map((r) => r.leadCode)
   }
 
+  /** WHO is in the audience, one page at a time.
+   *
+   *  Joined to `sales.lead` because this list is read by a person deciding who
+   *  to leave out of the next wave, and a bare column of lead codes does not
+   *  answer that. Ordered by `added_at` then `lead_code`: `added_at` alone is
+   *  not unique — one `POST members` writes a whole batch on the same clock
+   *  tick — so page 2 could repeat or skip rows without the tiebreaker. */
+  async members(
+    code: string,
+    q: CampaignMemberQuery,
+  ): Promise<{ rows: CampaignMemberRead[]; total: number }> {
+    const where = and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, q.state))
+
+    const [[counted], rows] = await Promise.all([
+      this.db.select({ n: count() }).from(campaignMember).where(where),
+      this.db
+        .select({
+          leadCode: campaignMember.leadCode,
+          company: lead.company,
+          contactName: lead.contactName,
+          email: lead.email,
+          state: campaignMember.state,
+          addedAt: campaignMember.addedAt,
+        })
+        .from(campaignMember)
+        .innerJoin(lead, eq(lead.code, campaignMember.leadCode))
+        .where(where)
+        .orderBy(asc(campaignMember.addedAt), asc(campaignMember.leadCode))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size),
+    ])
+
+    return { rows, total: counted?.n ?? 0 }
+  }
+
   async activeMemberCount(code: string): Promise<number> {
     const [row] = await this.db
       .select({ n: count() })
@@ -298,7 +356,11 @@ export class CampaignRepository {
     return [
       q.state ? eq(campaign.state, q.state) : undefined,
       q.owner ? eq(campaign.ownerId, q.owner) : undefined,
-      q.q ? ilike(campaign.name, contains(q.q)) : undefined,
+      /* Code as well as name — the search box on the book offers both, and
+         typing `CP-0001` into a name-only ilike returns nothing. */
+      q.q
+        ? or(ilike(campaign.name, contains(q.q)), ilike(campaign.code, contains(q.q)))
+        : undefined,
     ]
   }
 }

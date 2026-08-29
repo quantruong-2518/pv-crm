@@ -5,19 +5,23 @@ import {
   MailRunPatchResponse,
   MailTemplateListResponse,
   MasPreflightResponse,
+  MasPreviewResponse,
   MasSendResponse,
+  type MailMergeKey,
   type MailRunListQuery,
   type MailRunPatch,
   type MailRunState,
   type MasPreflightRequest,
+  type MasPreviewRequest,
   type MasRecipient,
   type MasRecipientBlock,
   type MasSendRequest,
 } from '@pv/contracts'
-import { ENV, type Env } from '@api/platform/config/env'
+import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
+import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { MasRepository, type MasLeadRow } from './mas.repository'
 
@@ -125,6 +129,61 @@ export class MasService {
     const rows = await this.repo.audience(this.repo.readonlyHandle, who, true, codes)
 
     return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
+  }
+
+  /** The letter as it will actually look, rendered through the worker's own
+   *  renderer. Writes nothing and sends nothing.
+   *
+   *  ------------------------------------------------------------------
+   *  THE MERGE COMES FROM `mergeOf`, THE SAME CALL THE SEND USES
+   *  ------------------------------------------------------------------
+   *  `intentOf` builds a recipient's substitution values with that helper and
+   *  so does this. Spelling the four keys out again here would be a second list
+   *  to keep in step, and the day they disagree the preview fills a slot the
+   *  send leaves blank — a difference nobody can see until the letter is gone.
+   *
+   *  ------------------------------------------------------------------
+   *  NO LEAD IS A VALID REQUEST, AND SO IS A LEAD THIS ACTOR CANNOT SEE
+   *  ------------------------------------------------------------------
+   *  Both fall back to `SAMPLE_MERGE` rather than failing. Somebody who has
+   *  typed a subject but not yet picked recipients is precisely who most needs
+   *  to see the shape of the letter, and a 404 in the middle of writing is a
+   *  dead end that teaches people to skip the preview. The scope axis stays on
+   *  the read — a name this actor may not see never reaches the render — it
+   *  just degrades to sample values instead of to an error. */
+  async preview(who: Actor, body: MasPreviewRequest): Promise<MasPreviewResponse> {
+    const rows = body.leadCode
+      ? await this.repo.audience(this.repo.readonlyHandle, who, true, [body.leadCode])
+      : []
+    const row = rows[0]
+
+    const letter = await renderMasLetter({
+      subject: body.subject,
+      body: body.body,
+      cta: body.cta,
+      merge: row ? mergeOf(row) : SAMPLE_MERGE,
+      unsubscribeUrl: this.previewUnsubscribeUrl(),
+      sender: senderOf(
+        this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM,
+        this.env.PV_MAS_SENDER_POSTAL,
+      ),
+      assetBaseUrl: brandAssetUrl(this.env),
+    })
+
+    return MasPreviewResponse.parse(letter)
+  }
+
+  /** A footer link that goes to the unsubscribe page and unsubscribes nobody.
+   *
+   *  The real link signs a `email_delivery.id`, and a preview has no delivery.
+   *  Minting one to make the footer look finished would mint a token that
+   *  cancels somebody's mail; leaving the footer out would hide the one line
+   *  the sender is legally answerable for. So the link is real in shape and
+   *  inert in effect: the token does not verify, and `UnsubscribeController`
+   *  answers it the way it answers any bad token. */
+  private previewUnsubscribeUrl(): string {
+    const origin = this.env.PV_API_PUBLIC_URL || this.env.PV_APP_URL
+    return `${origin.replace(/\/+$/, '')}/mail/unsubscribe/xem-truoc`
   }
 
   /** Open one batch and hand it to the queue. Nothing is sent inside this call.
@@ -527,15 +586,41 @@ export class MasService {
       templateVersion: TEMPLATE_VERSION,
       recipient: row.email,
       mailRunId,
-      merge: {
-        company: row.company,
-        account: row.company,
-        contactName: row.contactName,
-        contact_name: row.contactName,
-      },
+      merge: mergeOf(row),
     }
   }
 }
+
+/** The four keys a MAS letter may name, and the ONE place they are listed.
+ *
+ *  Two aliases per value, and both spellings are load-bearing rather than
+ *  sloppy: `{{account}}`/`{{company}}` and `{{contactName}}`/`{{contact_name}}`
+ *  are all in circulation — the seeded templates use one pair, hand-written
+ *  letters and the compose box's hint text use the other — and a key the merge
+ *  does not carry becomes an empty string in a letter that has already left.
+ *  Accepting both costs two properties; picking one costs a wrong letter.
+ *
+ *  Called by `intentOf` for every real recipient and by `preview` for the one
+ *  on screen, so what a person reviews substitutes exactly what the send will. */
+function mergeOf(row: Pick<MasLeadRow, 'company' | 'contactName'>): Record<MailMergeKey, string> {
+  return {
+    company: row.company,
+    account: row.company,
+    contactName: row.contactName,
+    contact_name: row.contactName,
+  }
+}
+
+/** Substitution values for a preview with no lead picked yet.
+ *
+ *  Visibly a stand-in, and deliberately not a real company from either
+ *  scenario fixture: a preview is the one screen whose only job is to be
+ *  believed, and a real customer's name sitting in it is a name somebody will
+ *  eventually read as the actual recipient. */
+const SAMPLE_MERGE: Record<MailMergeKey, string> = mergeOf({
+  company: 'Công ty mẫu',
+  contactName: 'anh/chị',
+})
 
 /** The same code twice in one pick is one recipient, not two letters.
  *

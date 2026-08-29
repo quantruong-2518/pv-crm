@@ -4,8 +4,10 @@ import {
   CampaignBookQuery,
   CampaignCreate,
   CampaignMemberPatch,
+  CampaignMemberQuery,
   CampaignPatch,
   CampaignStart,
+  CampaignWaveAdd,
   MaObject,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
@@ -50,8 +52,8 @@ export class CampaignController {
    *  `LeadController.create` không khai `scoped`. */
   @Post()
   @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa' })
-  create(@Body(zod(CampaignCreate)) body: CampaignCreate) {
-    return this.campaigns.create(body)
+  create(@CurrentActor() who: Actor, @Body(zod(CampaignCreate)) body: CampaignCreate) {
+    return this.campaigns.create(who, body)
   }
 
   @Patch(':code')
@@ -62,6 +64,18 @@ export class CampaignController {
     @Body(zod(CampaignPatch)) body: CampaignPatch,
   ) {
     return this.campaigns.patch(who, code, body)
+  }
+
+  /** The READ permission, not the write one: listing the audience is reading,
+   *  and the remove button beside each row goes through `POST :code/members`. */
+  @Get(':code/members')
+  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  memberList(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Query(zod(CampaignMemberQuery)) q: CampaignMemberQuery,
+  ) {
+    return this.campaigns.memberList(who, code, q)
   }
 
   @Post(':code/members')
@@ -82,6 +96,18 @@ export class CampaignController {
     @Body(zod(CampaignStart)) body: CampaignStart,
   ) {
     return this.campaigns.start(who, code, body)
+  }
+
+  /** Wave two onwards — the same FIRE permission `/start` declares, because it
+   *  is the same act: real mail to the campaign's own audience. */
+  @Post(':code/waves')
+  @Need({ branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true })
+  addWave(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(CampaignWaveAdd)) body: CampaignWaveAdd,
+  ) {
+    return this.campaigns.addWave(who, code, body)
   }
 
   @Post(':code/stop')

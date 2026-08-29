@@ -3,23 +3,27 @@ import type { Actor } from '@pv/engines'
 import {
   CampaignBookResponse,
   CampaignCreateResponse,
+  CampaignMemberListResponse,
   CampaignMemberPatchResponse,
   CampaignPatchResponse,
   CampaignProfile,
   CampaignStartResponse,
   CampaignStopResponse,
+  CampaignWaveAddResponse,
   type CampaignBookQuery,
   type CampaignCreate,
   type CampaignMemberPatch,
+  type CampaignMemberQuery,
   type CampaignPatch,
   type CampaignStart,
+  type CampaignWaveAdd,
   type CampaignWaveRow,
   type MailRunPatchResponse,
   type MasSendResponse,
 } from '@pv/contracts'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
-import { conflict, denied, notFound } from '@api/platform/http/problem'
-import { toContract, toProfile } from './campaign.mapper'
+import { PvError, conflict, denied, notFound } from '@api/platform/http/problem'
+import { toContract, toMemberRow, toProfile } from './campaign.mapper'
 import { CampaignRepository } from './campaign.repository'
 import { MasService } from './mas.service'
 
@@ -62,26 +66,30 @@ export class CampaignService {
     return CampaignProfile.parse(toProfile(found, waves))
   }
 
-  async create(body: CampaignCreate): Promise<CampaignCreateResponse> {
+  /** The creator owns it unless the form says otherwise.
+   *
+   *  Falling back to `null` left almost every campaign ownerless, because the
+   *  form defaults to unassigned: the owner column read as a dash, its filter
+   *  had nothing to offer, and for an `ownOnly` actor the scope axis
+   *  (`ownerId = who.id`) then cut away the very rows they had just made.
+   *
+   *  Read back rather than hand-building the response: with an owner now
+   *  attached, `ownerName` has to be the real name, and only the join inside
+   *  `byCode` knows it. Unscoped read — this is the row the caller just wrote. */
+  async create(who: Actor, body: CampaignCreate): Promise<CampaignCreateResponse> {
     const code = await this.repo.nextCode()
-    const row = await this.repo.create({
+    await this.repo.create({
       code,
       name: body.name,
-      ownerId: body.ownerId ?? null,
+      ownerId: body.ownerId ?? who.id,
       sourceId: body.sourceId ?? null,
       slogan: body.slogan ?? null,
       thumbnailUrl: body.thumbnailUrl ?? null,
     })
-    return CampaignCreateResponse.parse(
-      toContract({
-        row,
-        ownerName: null,
-        ownerEmail: null,
-        sourceName: null,
-        audienceCount: 0,
-        waveCount: 0,
-      }),
-    )
+
+    const created = await this.repo.byCode(who, code, false)
+    if (!created) throw notFound('chiến dịch', code)
+    return CampaignCreateResponse.parse(toContract(created))
   }
 
   async patch(who: Actor, code: string, body: CampaignPatch): Promise<CampaignPatchResponse> {
@@ -125,6 +133,31 @@ export class CampaignService {
     return CampaignMemberPatchResponse.parse({ added, removed, audienceCount })
   }
 
+  /** Who is in the audience — the read half of `CampaignMemberPatch`.
+   *
+   *  `hidden` is 0 by construction, and that is not laziness: the campaign is
+   *  the object the scope axis cuts, and it was already cut two lines up. A
+   *  member of a campaign you are allowed to read is never itself out of
+   *  scope, so there is no row here for the hidden-by-permission line to count. */
+  async memberList(
+    who: Actor,
+    code: string,
+    q: CampaignMemberQuery,
+  ): Promise<CampaignMemberListResponse> {
+    const found = await this.repo.byCode(who, code, true)
+    if (!found) throw notFound('chiến dịch', code)
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    const page = await this.repo.members(code, q)
+    return CampaignMemberListResponse.parse({
+      rows: page.rows.map(toMemberRow),
+      total: page.total,
+      hidden: 0,
+    })
+  }
+
   /** Chuyển `DRAFT` → `RUNNING` và bắn đợt đầu.
    *
    *  Trạng thái được nâng TRƯỚC vòng lặp gửi, không phải sau: một đợt lỗi
@@ -146,12 +179,30 @@ export class CampaignService {
       )
     }
 
+    /* A DRAFT can already have waves: the MAS modal on the lead book can pin a
+       batch to one, which writes `campaign_run` and sends real mail while
+       `state` stays DRAFT. Without this the DRAFT gate above waves `/start`
+       through and the whole audience is mailed a second time. Kept out of the
+       UPDATE below on purpose — merged in, 0 rows could not tell "no longer a
+       draft" from "already has a wave", and the two send the user elsewhere. */
+    if (found.waveCount > 0) {
+      throw conflict(
+        `Chiến dịch ${code} đã có đợt đi rồi — thêm đợt tiếp theo qua POST /sales/campaigns/${code}/waves, đừng bắt đầu chạy lại.`,
+      )
+    }
+
     const leadCodes = await this.repo.activeMemberCodes(code)
     if (leadCodes.length === 0) {
       throw conflict('Chiến dịch chưa có người nhận nào — thêm thành viên trước khi chạy.')
     }
 
-    await this.repo.setState(code, 'RUNNING')
+    /* Conditional write, not `setState`: the DRAFT check above is a read, and
+       two overlapping requests both pass it. See `startIfDraft`. */
+    if (!(await this.repo.startIfDraft(code))) {
+      throw conflict(
+        `Chiến dịch ${code} vừa rời trạng thái NHÁP ở một lượt khác — tải lại để xem trạng thái hiện tại trước khi bắn.`,
+      )
+    }
 
     const waves: MasSendResponse[] = []
     for (const wave of body.waves) {
@@ -159,6 +210,39 @@ export class CampaignService {
     }
 
     return CampaignStartResponse.parse({ state: 'RUNNING', waves })
+  }
+
+  /** Wave two onwards, on the audience the campaign already froze.
+   *
+   *  Until this door existed every later wave detoured through the MAS modal
+   *  on the lead book, where the sender RE-PICKS the recipients by hand —
+   *  exactly what `campaign_member` exists to make unnecessary, and a hand
+   *  pick is a DIFFERENT set. Nothing of the send path is rewritten here:
+   *  `MasService.send()` still owns suppression, the queue, the bounce
+   *  breaker, `PV_MAS_BATCH_MAX`, and the `campaign_run` row with the next
+   *  `waveNo`. */
+  async addWave(who: Actor, code: string, body: CampaignWaveAdd): Promise<CampaignWaveAddResponse> {
+    const found = await this.repo.byCode(who, code, true)
+    if (!found) throw notFound('chiến dịch', code)
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+    if (found.row.state !== 'RUNNING') {
+      throw conflict(
+        found.row.state === 'DRAFT'
+          ? `Chiến dịch ${code} còn là NHÁP — bấm "Bắt đầu chạy" để bắn đợt đầu tiên.`
+          : `Chiến dịch ${code} đã đóng (${found.row.state}) — không thêm đợt được nữa.`,
+      )
+    }
+
+    const leadCodes = await this.repo.activeMemberCodes(code)
+    if (leadCodes.length === 0) {
+      throw conflict('Chiến dịch chưa có người nhận nào — thêm thành viên trước khi bắn đợt mới.')
+    }
+
+    return CampaignWaveAddResponse.parse(
+      await this.mas.send(who, { ...body.wave, leadCodes, campaignCode: code }),
+    )
   }
 
   /** Dừng: RÚT các đợt CHƯA GỬI khỏi hàng đợi. Tái dùng nguyên
@@ -176,11 +260,12 @@ export class CampaignService {
       )
     }
 
-    const waveRows = await this.repo.waves(code)
     const cancelled: MailRunPatchResponse[] = []
-    for (const w of waveRows) {
-      const run = await this.runs.byId(w.mailRunId)
-      if (!run || run.state === 'SENT' || run.state === 'CANCELLED') continue
+    /* One read for the whole chain, through the same `wavesOf` the profile
+       uses — the old loop asked `runs.byId` once per wave, two lanes for one
+       question with the N+1 on the lane nobody looked at. */
+    for (const { run } of await this.wavesOf(code)) {
+      if (run.state === 'SENT' || run.state === 'CANCELLED') continue
 
       /* Một lô do người KHÁC đứng tên (`created_by`) có thể bị `MasService.cancel`
          từ chối bằng out-of-scope khi `who.ownOnly` — bỏ qua lô đó thay vì làm
@@ -188,8 +273,12 @@ export class CampaignService {
          người đã bắn nó. */
       try {
         cancelled.push(await this.mas.cancel(who, run.id, { state: 'CANCELLED' }))
-      } catch {
-        continue
+      } catch (e) {
+        /* Only THAT refusal is skippable. A bare `catch` also swallowed DB and
+           network failures and then filed the campaign STOPPED anyway — the
+           screen reported a clean stop while a batch was still in the air. */
+        if (e instanceof PvError && e.reason === 'out-of-scope') continue
+        throw e
       }
     }
 

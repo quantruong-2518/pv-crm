@@ -93,10 +93,19 @@ export const CampaignCreateResponse = CampaignBookRow
 export const CampaignPatch = z
   .object({
     name: textNhap(200).optional(),
-    ownerId: textNhapTuyChon(64),
-    sourceId: MaConfig.optional(),
-    slogan: textNhapTuyChon(200),
-    thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
+    /** THREE states, not two — absent is "leave it", `null` is "CLEAR it".
+     *
+     *  Until 30/08 there were only two: `textNhapTuyChon` turns `''` into
+     *  `undefined`, so a Select returning its unassigned option looked exactly like
+     *  a field nobody touched, and an owner once assigned had no API that could
+     *  remove it (debt #6 in `ban-giao-campaign.md`). The screen had to print an
+     *  apology where a button belonged. `null` goes straight to the column — all
+     *  four are nullable, and the `campaign_no_blank` CHECK compares `<> ''`, so
+     *  `NULL` passes it by design rather than by luck. */
+    ownerId: textNhapTuyChon(64).nullable(),
+    sourceId: MaConfig.nullable().optional(),
+    slogan: textNhapTuyChon(200).nullable(),
+    thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').nullable().optional(),
   })
   .refine(
     (v) =>
@@ -128,6 +137,33 @@ export const CampaignMemberPatchResponse = z.object({
   audienceCount: z.number().int().nonnegative(),
 })
 
+/** `GET /sales/campaigns/:code/members` — WHO IS IN THE AUDIENCE.
+ *
+ *  Without this door `CampaignMemberPatch.remove` is half an API nobody can
+ *  reach: the screen knows who it just added but not who is already in, so a
+ *  "remove" button would have to guess. `company`/`contactName` ride along
+ *  because this list is read by a PERSON — a bare column of lead codes does not
+ *  answer "who should be left out of the next wave". */
+export const CampaignMemberState = z.enum(['ACTIVE', 'REMOVED'])
+
+export const CampaignMemberRow = z.object({
+  leadCode: MaObject,
+  company: z.string().min(1),
+  contactName: z.string().min(1),
+  /** Absent = the lead has no address, so this row is certain to be skipped at
+   *  send time. The screen marks it up front rather than letting the sender
+   *  discover it afterwards in `skipped`. */
+  email: z.email().optional(),
+  state: CampaignMemberState,
+  addedAt: Moc,
+})
+
+export const CampaignMemberQuery = PageQuery.extend({
+  state: CampaignMemberState.default('ACTIVE'),
+})
+
+export const CampaignMemberListResponse = paged(CampaignMemberRow)
+
 /** Một đợt trong kế hoạch bắt đầu chạy — CÙNG HÌNH `MasSendRequest`, trừ hai
  *  trường `/start` tự điền: `leadCodes` (toàn bộ audience đang ACTIVE của
  *  chiến dịch, máy chủ đọc chứ không nhận từ client) và `campaignCode` (đã có
@@ -148,6 +184,24 @@ export const CampaignStartResponse = z.object({
   state: CampaignState,
   waves: z.array(MasSendResponse),
 })
+
+/** `POST /sales/campaigns/:code/waves` — WAVE TWO ONWARDS, and why it is not
+ *  `POST /sales/mail/runs`.
+ *
+ *  `/start` fires the first wave and locks the campaign `RUNNING`; until 30/08
+ *  every wave after that had to detour through the MAS modal on the lead book,
+ *  which means the sender RE-PICKS the whole audience BY HAND. That is precisely
+ *  what `campaign_member` exists to make unnecessary: the audience was frozen at
+ *  wave 1, and picking again by hand picks a DIFFERENT set.
+ *
+ *  So the request body carries no `leadCodes`, exactly like `CampaignStart`: the
+ *  server reads the campaign's own audience. One shape, one source of truth, and
+ *  the recipient ceiling enforced in exactly one place. */
+export const CampaignWaveAdd = z.object({
+  wave: CampaignWaveInput,
+})
+
+export const CampaignWaveAddResponse = MasSendResponse
 
 /** `POST /sales/campaigns/:code/stop` — không thân yêu cầu: dừng là RÚT các
  *  đợt CHƯA GỬI khỏi hàng đợi, không phải một cờ. `cancelled` là receipt, một
@@ -170,7 +224,13 @@ export type CampaignPatch = z.infer<typeof CampaignPatch>
 export type CampaignPatchResponse = z.infer<typeof CampaignPatchResponse>
 export type CampaignMemberPatch = z.infer<typeof CampaignMemberPatch>
 export type CampaignMemberPatchResponse = z.infer<typeof CampaignMemberPatchResponse>
+export type CampaignMemberState = z.infer<typeof CampaignMemberState>
+export type CampaignMemberRow = z.infer<typeof CampaignMemberRow>
+export type CampaignMemberQuery = z.infer<typeof CampaignMemberQuery>
+export type CampaignMemberListResponse = z.infer<typeof CampaignMemberListResponse>
 export type CampaignWaveInput = z.infer<typeof CampaignWaveInput>
 export type CampaignStart = z.infer<typeof CampaignStart>
 export type CampaignStartResponse = z.infer<typeof CampaignStartResponse>
+export type CampaignWaveAdd = z.infer<typeof CampaignWaveAdd>
+export type CampaignWaveAddResponse = z.infer<typeof CampaignWaveAddResponse>
 export type CampaignStopResponse = z.infer<typeof CampaignStopResponse>

@@ -5,6 +5,7 @@ import {
   MailRunListQuery,
   MailRunPatch,
   MasPreflightRequest,
+  MasPreviewRequest,
   MasSendRequest,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
@@ -15,7 +16,7 @@ import { MasService } from './mas.service'
 /** `/sales/mail` — MAS mail, cửa HTTP của nhánh Sales.
  *
  *  Controller mỏng đúng như `lead.controller.ts`: nhận, kiểm, gọi, trả. Không
- *  `if` nghiệp vụ, không SQL, không `req`/`res`. Mọi thứ đáng đọc của bốn
+ *  `if` nghiệp vụ, không SQL, không `req`/`res`. Mọi thứ đáng đọc của sáu
  *  endpoint này nằm ở mấy dòng khai báo — đường dẫn, quyền, hình dữ liệu vào.
  *
  *  ------------------------------------------------------------------
@@ -24,6 +25,7 @@ import { MasService } from './mas.service'
  *  | Đường                        | `@Need`                        |
  *  | ---------------------------- | ------------------------------ |
  *  | `POST  /sales/mail/preflight`| `lead.gửi-mail` · scoped       |
+ *  | `POST  /sales/mail/preview`  | `lead.gửi-mail` · scoped       |
  *  | `POST  /sales/mail/runs`     | `lead.gửi-mail` · scoped (†)   |
  *  | `GET   /sales/mail/runs`     | `chiến-dịch.xem` · scoped      |
  *  | `PATCH /sales/mail/runs/:id` | `chiến-dịch.bắn` · scoped (‡)  |
@@ -43,11 +45,12 @@ import { MasService } from './mas.service'
  *  lập luận đầy đủ, kể cả vì sao thứ tự ấy hỏng theo hướng đóng.
  *
  *  ------------------------------------------------------------------
- *  `preflight` KHAI `@HttpCode(200)`, VÀ ĐÓ KHÔNG PHẢI TRANG TRÍ
+ *  HAI CỬA ĐỌC KHAI `@HttpCode(200)`, VÀ ĐÓ KHÔNG PHẢI TRANG TRÍ
  *  ------------------------------------------------------------------
  *  Cùng lý do với `POST /sales/leads/import/preview`: 201 nghĩa là "có thứ vừa
- *  được tạo", mà đường này không tạo gì — kể cả một con số của dãy mã. Nó là
- *  `POST` chỉ vì danh sách 200 mã lead không nhét vừa một query string.
+ *  được tạo", mà `preflight` và `preview` không tạo gì — kể cả một con số của
+ *  dãy mã. Cả hai là `POST` chỉ vì thứ chúng nhận không nhét vừa một query
+ *  string: một bên là 200 mã lead, bên kia là thân thư 20.000 ký tự.
  *
  *  Danh sách mẫu mail nằm ở controller này chứ không ở một module riêng: nó là
  *  ô chọn của chính panel soạn mail, và `sales.mail_template` cố tình không
@@ -63,6 +66,21 @@ export class MasController {
   @Need({ branch: 'Sales', permission: 'lead.gửi-mail', scoped: true })
   preflight(@CurrentActor() who: Actor, @Body(zod(MasPreflightRequest)) body: MasPreflightRequest) {
     return this.mas.preflight(who, body)
+  }
+
+  /** Render the letter so a person can look at it. Writes nothing, sends
+   *  nothing.
+   *
+   *  The permission is the SEND one and not the read one, and the scope axis is
+   *  on: this door renders a letter for ONE named lead, so previewing somebody
+   *  else's lead means reading that lead's name and company. It never needs the
+   *  campaign permission the send can escalate to — a campaign batch is still
+   *  previewed one letter at a time. */
+  @Post('preview')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.gửi-mail', scoped: true })
+  preview(@CurrentActor() who: Actor, @Body(zod(MasPreviewRequest)) body: MasPreviewRequest) {
+    return this.mas.preview(who, body)
   }
 
   /** Mở một lô và đưa vào hàng đợi. 201 kèm `mailRunId` — panel đổi sang "đã

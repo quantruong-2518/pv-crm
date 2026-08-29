@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from '@react-email/components'
 import { BrandShell, CtaButton, Para } from './brand-shell'
 import { COLOR_PRIMARY } from './ops-mail-style'
@@ -66,10 +67,36 @@ export function MasShellEmail(data: MasShellData) {
       }
     >
       {data.paragraphs.map((paragraph, index) => (
-        <Para key={`paragraph-${index}`}>{paragraph}</Para>
+        <Para key={`paragraph-${index}`}>{withLineBreaks(paragraph)}</Para>
       ))}
 
       {data.cta ? <CtaButton href={data.cta.url}>{data.cta.label}</CtaButton> : null}
     </BrandShell>
   )
+}
+
+/** A SINGLE NEWLINE HAS TO BECOME A `<br />` OR IT SIMPLY DISAPPEARS.
+ *
+ *  The composer splits paragraphs on BLANK lines, so every element of
+ *  `paragraphs` still carries whatever single newlines the writer typed inside
+ *  it. Handing that string straight to `<Text>` lets HTML collapse each of them
+ *  into a space — and the worst casualty is not a bullet list, it is the
+ *  SIGN-OFF, which nearly every letter has. Two lines typed as a greeting and a
+ *  name go out welded into one line.
+ *
+ *  No compiler catches it, no test renders a mail template, and the first
+ *  person to see it is the customer. Found by reading the new server-rendered
+ *  preview, which is the entire argument for that preview existing.
+ *
+ *  `<br />` and NOT `white-space: pre-line`: Outlook for Windows lays HTML out
+ *  with Word's engine and ignores that property, and Outlook is exactly where
+ *  Vietnamese B2B mail gets opened. Every client understands a `<br>`.
+ *
+ *  The string has already been through `substitute`, so it is data and not
+ *  markup: React inserts each piece as a text node, and the `<br />` here is
+ *  the only tag this function produces. */
+function withLineBreaks(paragraph: string): ReactNode[] {
+  return paragraph
+    .split('\n')
+    .flatMap((line, index) => (index === 0 ? [line] : [<br key={`br-${index}`} />, line]))
 }
