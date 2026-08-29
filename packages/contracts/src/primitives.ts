@@ -50,10 +50,29 @@ export const MaObject = z
   .string('Mã object là bắt buộc')
   .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã object sai dạng')
 
+/** Mã hợp đồng — 'HĐ-2711', 'HĐ-5001'. KHÔNG khớp `MaObject` và không được
+ *  ép cho khớp: `MaObject` là `^[A-Z]{1,3}-\d{3,6}$`, còn 'Đ' không nằm trong
+ *  `A-Z`. Tiền tố đó là DỮ LIỆU đã có trong sổ đóng băng, không phải một lựa
+ *  chọn đặt tên còn mở — câu chuyện đầy đủ ở docblock của `ContractRow`.
+ *
+ *  Đặt ở `primitives.ts` chứ không ở `sales/contract.ts` vì HAI hợp đồng cùng
+ *  cần nó — `ContractRow` và `OpportunityRow` (đơn đã ký in mã hợp đồng ngay
+ *  trên dòng sổ). Mà `sales/contract.ts` đã import `sales/opportunity.ts` để
+ *  dựng `ContractSignResponse`, nên để nguyên chỗ cũ rồi import ngược lại là
+ *  một VÒNG TRÒN chết ngay lúc nạp module: hai file dùng hằng của nhau ngay
+ *  trong thân file, nên bên nào chạy sau cũng đọc phải một hằng chưa khởi tạo.
+ *  `primitives.ts` không import gì từ `sales/`, nên nó là chỗ duy nhất giữ
+ *  được ĐÚNG MỘT bản của cái regex này. */
+export const MaHopDong = z
+  .string()
+  .trim()
+  .regex(/^HĐ-\d{3,6}$/, 'Mã hợp đồng sai dạng')
+
 export type Ngay = z.infer<typeof Ngay>
 export type Moc = z.infer<typeof Moc>
 export type Dong = z.infer<typeof Dong>
 export type MaObject = z.infer<typeof MaObject>
+export type MaHopDong = z.infer<typeof MaHopDong>
 
 /** Cờ bật/tắt ĐI QUA QUERY STRING.
  *

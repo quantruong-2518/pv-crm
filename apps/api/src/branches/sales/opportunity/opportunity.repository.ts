@@ -15,6 +15,9 @@ export type OpportunityRead = {
   row: OpportunityRowDb
   account: string
   owners: OpportunityOwner[]
+  /** Mã hợp đồng đã ký, `null` khi chưa ký. Đọc từ chính lượt nối đã trả lời
+   *  `signed` — hai trường, MỘT nguồn, nên chúng không lệch nhau được. */
+  contractCode: string | null
   signed: boolean
   /** Số ngày đơn đã đứng trong cột hiện tại. `null` = đơn đã ra khỏi bảng. */
   daysInStage: number | null
@@ -104,11 +107,12 @@ export class OpportunityRepository {
       .select({
         row: opportunity,
         account: lead.company,
-        signed: this.signedValue(),
+        contractCode: contract.code,
         daysInStage: DAYS_IN_STAGE,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .leftJoin(contract, this.signedOn())
       .where(where)
       /* Mới nhất trước: thứ vừa tạo mà phải lật sang trang ba mới thấy thì
          người dùng tưởng nút không ăn. `code` phá hoà vì hai đơn tạo trong cùng
@@ -124,7 +128,11 @@ export class OpportunityRepository {
     )
 
     return {
-      rows: rows.map((r) => ({ ...r, owners: owners.get(r.row.code) ?? [] })),
+      rows: rows.map((r) => ({
+        ...r,
+        signed: r.contractCode !== null,
+        owners: owners.get(r.row.code) ?? [],
+      })),
       total: scopedTotal,
       hidden: all === null ? 0 : all - scopedTotal,
     }
@@ -141,19 +149,20 @@ export class OpportunityRepository {
       .select({
         row: opportunity,
         account: lead.company,
-        signed: this.signedValue(),
+        contractCode: contract.code,
         daysInStage: DAYS_IN_STAGE,
         inScope: this.inScopeValue(who),
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .leftJoin(contract, this.signedOn())
       .where(eq(opportunity.code, code))
       .limit(1)
 
     if (!found) return null
 
     const owners = await this.ownersOf(this.db, [code])
-    return { ...found, owners: owners.get(code) ?? [] }
+    return { ...found, signed: found.contractCode !== null, owners: owners.get(code) ?? [] }
   }
 
   /** Người đứng đơn của một loạt đơn, đọc MỘT lần cho cả trang.
@@ -221,7 +230,7 @@ export class OpportunityRepository {
       .select({
         row: opportunity,
         account: lead.company,
-        signed: this.signedValue(),
+        contractCode: contract.code,
         /* Số ngày đơn sống. Tính trong câu truy vấn chứ không đọc từ cột: đây
            là con số đổi theo thời gian ngay cả khi không ai chạm vào dòng. Qua
            `epoch` để không phụ thuộc cách Postgres cắt interval. */
@@ -232,13 +241,14 @@ export class OpportunityRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .leftJoin(contract, this.signedOn())
       .where(eq(opportunity.code, code))
       .limit(1)
 
     if (!found) return null
 
     const owners = await this.ownersOf(this.db, [code])
-    return { ...found, owners: owners.get(code) ?? [] }
+    return { ...found, signed: found.contractCode !== null, owners: owners.get(code) ?? [] }
   }
 
   /** Tên hiển thị của một loạt actor, cho dòng gương E1 và cho câu trả lời.
@@ -498,26 +508,53 @@ export class OpportunityRepository {
     return r?.n ?? 0
   }
 
-  /** "Đã thắng" — hỏi thẳng `contract` qua khoá ngoại GHÉP.
+  /* ------------------------------------------------------------------
+     "ĐÃ THẮNG" CÓ HAI HÌNH, VÀ HAI HÌNH LÀ CỐ Ý
+     ------------------------------------------------------------------
+     Câu hỏi thì một — "đơn này có dòng nào trong `sales.contract` không" —
+     nhưng nó được hỏi ở hai VAI khác nhau, và mỗi vai có một hình đúng:
+
+      · ĐỌC RA (`signedOn`, một `LEFT JOIN`) — đường đọc không chỉ cần biết có
+        hay không, nó còn phải IN RA MÃ hợp đồng. Một `EXISTS` trả về boolean và
+        không có chỗ nào để lấy `contract.code` ra; muốn cả hai thì hoặc nối,
+        hoặc chạy `EXISTS` rồi thêm một truy vấn con thứ hai cho cái mã — hai
+        lần quét cùng một bảng cho cùng một dòng.
+      · ĐEM ĐI LỌC (`signed`, vẫn là `EXISTS`) — xem `liveDealsByLead`.
+
+     Vì sao KHÔNG ép vị từ dùng luôn `LEFT JOIN`: `not(exists(...))` là một
+     điều kiện đứng trong `WHERE`, còn phản-nối là một `LEFT JOIN … WHERE
+     contract.code IS NULL` — cùng kết quả, nhưng nó đòi câu truy vấn mọc thêm
+     một mệnh đề nối mà `liveDealsByLead` không chọn cột nào của nó, và nghĩa
+     của câu ("lead này chưa có đơn nào đang mở") lúc đó nằm rải ở hai chỗ thay
+     vì một. Một vị từ sai ở đó không hỏng màn nào — nó lặng lẽ cho phép mở đơn
+     thứ hai cho một khách đã có đơn, đúng thứ `dupWithBook` sinh ra để chặn.
+
+     Cả hai khớp CẢ HAI cột (`opportunity_code` và `lead_code`) chứ không riêng
+     mã đơn: cặp đó chính là thứ `contract_opportunity_fk` neo, và đọc bằng cả
+     cặp là cách câu truy vấn nói lại đúng bất biến mà bảng đang giữ. */
+
+  /** Mệnh đề nối `contract` cho ĐƯỜNG ĐỌC.
    *
-   *  Khớp CẢ HAI cột (`opportunity_code` và `lead_code`) chứ không riêng mã đơn.
-   *  Cặp đó chính là thứ `opportunity_code_lead_key` tồn tại để neo, và đọc
-   *  bằng cả cặp là cách câu truy vấn nói lại đúng bất biến mà bảng đang giữ. */
+   *  Nối chứ không nhân dòng: một cơ hội có tối đa một hợp đồng, và cửa ký giữ
+   *  điều đó — `sign` từ chối bằng 409 khi `signed` đã đúng, trước khi ghi. Bảng
+   *  chưa có UNIQUE trên `(opportunity_code, lead_code)` để nói hộ, nên nếu một
+   *  ngày sổ có hai hợp đồng cho một đơn thì dòng đó ra bảng HAI lần trong khi
+   *  `total` — đếm trên `opportunity` một mình — vẫn nói một. Chỗ trả khoản nợ
+   *  đó là một unique index, không phải một `DISTINCT` ở đây. */
+  private signedOn(): SQL {
+    return and(
+      eq(contract.opportunityCode, opportunity.code),
+      eq(contract.leadCode, opportunity.leadCode),
+    ) as SQL
+  }
+
+  /** Cùng câu hỏi, hình VỊ TỪ. Chỉ `liveDealsByLead` dùng. */
   private signed(): SQL {
     return exists(
       this.db
         .select({ one: sql`1` })
         .from(contract)
-        .where(
-          and(
-            eq(contract.opportunityCode, opportunity.code),
-            eq(contract.leadCode, opportunity.leadCode),
-          ),
-        ),
+        .where(this.signedOn()),
     )
-  }
-
-  private signedValue(): SQL<boolean> {
-    return this.signed() as SQL<boolean>
   }
 }

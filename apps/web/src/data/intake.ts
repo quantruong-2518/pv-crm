@@ -247,9 +247,16 @@ export type ImportSpec = {
   intake: LeadIntake
   /** Thế được phép chọn cho cả lô. Cắt theo `MOTION_BY_INTAKE` của engine rồi
    *  cắt tiếp theo chỗ người dùng đang đứng — nạp trong hồ sơ một buổi hội thảo
-   *  thì không có lý do gì để chọn `partner`. */
-  motions: readonly LeadMotion[]
-  /** Thế chọn sẵn khi mở panel. */
+   *  thì không có lý do gì để chọn `partner`.
+   *
+   *  VẮNG MẶT nghĩa là luồng này không có thế để chọn, và panel giấu hẳn ô đó
+   *  thay vì bày một danh sách rỗng: cửa nạp cơ hội ghi vào một bảng không có
+   *  cột `motion`, nên một ô chọn ở đó là một ô không làm gì. Danh sách RỖNG
+   *  không phải cách nói điều này — nó vẫn vẽ ra một ô select trắng. */
+  motions?: readonly LeadMotion[]
+  /** Thế chọn sẵn khi mở panel, và là thế `ImportCommit` chở về cho màn. Vẫn bắt
+   *  buộc kể cả khi `motions` vắng: một luồng không cho chọn vẫn phải trả về một
+   *  giá trị, và màn nào không dùng tới thì bỏ nó ở đường dịch của mình. */
   defaultMotion: LeadMotion
   fields: ImportField[]
   /** Tên tệp mẫu tải về, không có đuôi. */
@@ -463,15 +470,33 @@ export const RECIPIENT_SPEC: ImportSpec = {
  *
  *  Đơn bình thường sinh ra từ một lead qua phiếu đổi, và đó vẫn là đường chính.
  *  Nạp tệp ở đây trả lời đúng một tình huống: phòng đang giữ pipeline trong một
- *  file Excel và muốn mang nó vào hệ trong một lần. Vì thế nó KHÔNG đòi
- *  `leadCode` — đơn di trú thường không có lead nào đứng sau, và bịa ra một cái
- *  để cho đủ ô là đẻ ra 30 lead ma trong sổ lead. */
+ *  file Excel và muốn mang nó vào hệ trong một lần.
+ *
+ *  Cột `Account` là một PHÉP TRA, không phải một ô tạo khách: `lead_code` của
+ *  bảng đơn là `NOT NULL` và có khoá ngoại, nên mỗi dòng phải tìm ra một lead
+ *  ĐÃ CÓ trong sổ; không có thì máy chủ từ chối đúng dòng đó và nói ra lý do.
+ *  Cửa tệp lặng lẽ đẻ lead cho đủ ô sẽ là một cửa nạp lead thứ hai, không mang
+ *  `sourceKind` cũng không mang thế — xem `packages/contracts/src/sales/
+ *  opportunity-import.ts`, khác biệt 1.
+ *
+ *  KHÔNG có `motions`, và đó là một quyết định đã gật (`docs/ban-giao-co-hoi.md`
+ *  · "Năm quyết định còn treo" số 2): thế nói một LEAD đến bằng đường nào và nó
+ *  rơi vào một cột của bảng lead. Đơn không có cột đó, `OpportunityImportBody`
+ *  vì thế không hỏi, và bày một ô chọn mà máy chủ bỏ qua là nói dối người dùng.
+ *  `defaultMotion` ở lại vì `ImportCommit` chở một thế cho cả ba luồng — cửa này
+ *  bỏ nó ở `data/opportunity-import-wire.ts`, không ai chọn nó.
+ *
+ *  ĐỪNG đổ spec này qua `withPeople`. Hai ô người đi lên máy chủ dưới dạng TÊN
+ *  và chính máy chủ tra sang id (`personOf` ở `opportunity-import.check.ts`:
+ *  không thấy là hỏng, thấy hai người trùng tên cũng hỏng, không bao giờ đoán).
+ *  `people: 'id'` bên dưới vì thế đang nằm im — nó chỉ có tác dụng khi có ai gọi
+ *  `withPeople`, và ngày đó phải đổi sang `'name'` trước, nếu không ô chọn đổ id
+ *  vào tệp và mọi dòng đều trượt ở phép tra theo tên. */
 export const OP_SPEC: ImportSpec = {
   key: 'op',
   title: 'Nạp cơ hội vào sổ',
   blurb: 'Mang pipeline đang giữ trong Excel vào sổ cơ hội, mỗi dòng một đơn.',
   intake: 'tep',
-  motions: ['outbound', 'partner', 'recycle'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-co-hoi',
   fields: [

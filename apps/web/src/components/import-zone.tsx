@@ -263,7 +263,11 @@ export function ImportZone({
   }
 
   const missing = sheet ? unmappedRequired(mapping, spec) : []
-  const motions = spec.motions.filter((m) => MOTION_BY_INTAKE[spec.intake].includes(m))
+  /* Không có `motions` = luồng này không hỏi thế, và bước 2 giấu hẳn ô đó —
+     xem docblock của `ImportSpec.motions`. `motion` vẫn giữ `defaultMotion` để
+     `onCommit` luôn chở một giá trị; cửa nào không có cột thế thì bỏ nó ở
+     đường dịch của mình, không phải ở đây. */
+  const motions = (spec.motions ?? []).filter((m) => MOTION_BY_INTAKE[spec.intake].includes(m))
   const trust = trustOf(spec.intake)
 
   return (
@@ -453,6 +457,10 @@ function StepMap({
   const preview = sheet.rows.slice(0, PREVIEW)
   const shown = spec.fields.filter((f) => (mapping[f.key] ?? -1) >= 0)
 
+  /** Có gì để gán cho cả lô không — thế, hoặc một nguồn. Không có cái nào thì
+   *  thẻ "Gán cho cả lô" không được vẽ ra. */
+  const assigns = motions.length > 0 || scope !== undefined || scopeOptions !== undefined
+
   /* Chỉ nói khi tệp có NHIỀU HƠN MỘT tab — xlsx một tab (ca phổ biến nhất) và
      CSV/ô dán (không có khái niệm tab) im lặng, không thêm nhiễu. Đặt ở ĐÂY,
      trong hint của bước 2, vì đây là lúc người dùng còn kịp làm gì đó (đang
@@ -495,42 +503,53 @@ function StepMap({
           Thế thì tệp không bao giờ mang: không ai xuất một cột "inbound hay
           outbound" từ Apollo. Nguồn thì có mang được, nhưng khi nạp từ trong
           một hồ sơ chiến dịch thì mã của hồ sơ đó thắng — người dùng đang đứng
-          trong nó, và để họ chọn lại là mời một lần chọn nhầm. */}
-      <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
-        <div className="min-w-[200px] flex-1">
-          <Kicker className="mb-2">Gán cho cả lô</Kicker>
-          <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-            {MOTION_FACE[motion].blurb}{' '}
-            <span className="opacity-70">{MOTION_FACE[motion].example}</span>
-          </p>
-        </div>
-        <Select
-          label="Thế"
-          value={motion}
-          neutralValue={spec.defaultMotion}
-          options={motions.map((m) => ({ value: m, label: MOTION_FACE[m].label }))}
-          onChange={(v) => onMotion(v as LeadMotion)}
-        />
-        {scope ? (
-          <div className="flex flex-col gap-2">
-            <Kicker>Nguồn</Kicker>
-            <span className="font-mono text-[12.5px] font-semibold">{scope}</span>
+          trong nó, và để họ chọn lại là mời một lần chọn nhầm.
+
+          Cả khối BIẾN MẤT khi luồng không gán gì cho cả lô — cửa nạp cơ hội ghi
+          vào một bảng không có cột thế, và không nạp từ trong hồ sơ nào. Một
+          tấm thẻ chỉ còn cái tiêu đề "Gán cho cả lô" là một khoảng trống người
+          đọc phải tự hiểu là "chỗ này không có gì". */}
+      {assigns && (
+        <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
+          <div className="min-w-[200px] flex-1">
+            <Kicker className="mb-2">Gán cho cả lô</Kicker>
+            {motions.length > 0 && (
+              <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
+                {MOTION_FACE[motion].blurb}{' '}
+                <span className="opacity-70">{MOTION_FACE[motion].example}</span>
+              </p>
+            )}
           </div>
-        ) : (
-          scopeOptions && (
+          {motions.length > 0 && (
             <Select
-              label="Nguồn"
-              value={picked}
-              neutralValue=""
-              options={scopeOptions}
-              onChange={onPick}
-              /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
-                 dài nhất — không kẹp thì một ô nuốt cả hàng. */
-              className="max-w-[240px]"
+              label="Thế"
+              value={motion}
+              neutralValue={spec.defaultMotion}
+              options={motions.map((m) => ({ value: m, label: MOTION_FACE[m].label }))}
+              onChange={(v) => onMotion(v as LeadMotion)}
             />
-          )
-        )}
-      </GlassCard>
+          )}
+          {scope ? (
+            <div className="flex flex-col gap-2">
+              <Kicker>Nguồn</Kicker>
+              <span className="font-mono text-[12.5px] font-semibold">{scope}</span>
+            </div>
+          ) : (
+            scopeOptions && (
+              <Select
+                label="Nguồn"
+                value={picked}
+                neutralValue=""
+                options={scopeOptions}
+                onChange={onPick}
+                /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo
+                   option dài nhất — không kẹp thì một ô nuốt cả hàng. */
+                className="max-w-[240px]"
+              />
+            )
+          )}
+        </GlassCard>
+      )}
 
       {/* Bảng xem trước nằm trên `.glass-b` — luật 8. */}
       <GlassCard variant="b" className="flex flex-col gap-3 p-4">

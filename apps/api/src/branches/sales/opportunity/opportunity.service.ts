@@ -476,6 +476,14 @@ export class OpportunityService {
            transaction vừa commit. `toContract` đọc cờ này để lắp trạng thái thứ
            năm — cùng phép mà `create` dùng để nói `signed: false`. */
         signed: true,
+        /* Đi CÙNG `signed`, không để một mình. Ba đường đọc (`book`, `byCode`,
+           `forMail`) lấy cả hai từ một `LEFT JOIN`, nên chúng không lệch được;
+           câu trả lời của cửa ký thì lắp tay, và bỏ trường này ở đây là dựng ra
+           một đơn `close-won` KHÔNG có mã hợp đồng — hình mà không lượt đọc nào
+           sinh ra nổi. Màn nào tin vào bất biến "đã ký thì có mã" sẽ vỡ đúng
+           một lần, ngay sau cú bấm ký, rồi tự lành ở lượt đọc kế tiếp: đúng
+           loại lỗi không ai tái hiện được. */
+        contractCode: done.contractRow.code,
         daysInStage: null,
       }),
       contract: toContractRow(done.contractRow, ownerName),

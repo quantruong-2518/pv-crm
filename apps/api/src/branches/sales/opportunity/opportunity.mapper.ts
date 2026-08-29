@@ -21,6 +21,10 @@ import type { opportunity, OpportunityRowDb } from './opportunity.schema'
  *  đưa xuống đây thành một `boolean`, nên chỗ duy nhất biết ghép hai nửa lại
  *  là hàm này — không phải năm màn, mỗi màn một bản ghép.
  *
+ *  Mã hợp đồng đi CÙNG cái boolean đó, từ cùng một lượt nối. Đơn đã ký phải in
+ *  được số của nó, và một màn phải hỏi lần thứ hai để lấy số đó là một màn có
+ *  hai nguồn cho một sự thật.
+ *
  *  Đơn đã thắng thì `stage` cũng là NULL. Cột sinh trong bảng đã trả NULL cho
  *  mọi dòng có `closed_at`, nên hai đường ra cùng một kết quả; dòng dưới là để
  *  một đơn được đánh dấu thắng mà chưa kịp đóng ngày cũng không rơi lại vào
@@ -296,6 +300,14 @@ export function toContract(input: {
   /** Có dòng nào trong `sales.contract` cho lead này không. Đây là toàn bộ
    *  định nghĩa của "đã thắng" — xem docblock của `opportunity.schema.ts`. */
   signed: boolean
+  /** Mã của chính dòng hợp đồng đó, khi người gọi đã có nó trong tay.
+   *
+   *  Tuỳ chọn vì không phải đường nào cũng đọc được nó: ba đường ĐỌC lấy mã
+   *  bằng cùng lượt nối đã trả lời `signed`, còn hai cửa GHI tự biết câu trả
+   *  lời từ việc chúng vừa làm (`create` biết là `false`, `sign` biết là `true`
+   *  và trả mã hợp đồng ở nửa kia của câu trả lời). Vắng mặt nghĩa là "người
+   *  gọi không cầm mã", KHÔNG phải "đơn chưa ký" — câu đó là việc của `signed`. */
+  contractCode?: string | null
   /** Số ngày đơn đứng ở cột hiện tại, repository đếm. */
   daysInStage: number | null
 }): OpportunityRow {
@@ -309,6 +321,12 @@ export function toContract(input: {
 
     name: row.name,
     state: signed ? 'close-won' : row.state,
+    /* Đi CÙNG trạng thái thứ năm và chỉ đi cùng nó: mã hợp đồng trên một đơn
+       chưa ký là một tờ giấy không tồn tại, nên `signed` gác cả hai vế chứ
+       không riêng vế `state`. Vắng mặt chứ không phải chuỗi rỗng — hợp đồng
+       khai `contractCode` là tuỳ chọn, và một `''` ở đó là cách thứ ba để nói
+       "chưa ký", tức thêm một nhánh cho mọi màn đọc nó. */
+    ...(signed && input.contractCode ? { contractCode: input.contractCode } : {}),
     stage: signed ? null : (row.stage ?? null),
     /* Đơn đã thắng ra khỏi bảng năm cột, nên đồng hồ cột của nó cũng thôi có
        nghĩa — cùng một câu với dòng trên, và phải nói ở cả hai chỗ vì `signed`

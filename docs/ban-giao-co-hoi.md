@@ -467,3 +467,79 @@ khác**, nếu không câu truy vấn thứ hai treo.
 - **Cạnh E1 giữa cơ hội và hợp đồng** — dòng gương `HĐ` đã ghi, cạnh thì chưa:
   chưa cửa nào trong `apps/api` ghi `platform.edge` (seed là chỗ duy nhất), nên
   mở quy ước đó phải mở ở `GraphModule`, không phải trong một cửa ký.
+
+---
+
+## Vòng ba · 29/08/2026 — bản phác đã được gật, và lượt A đã đóng
+
+Chủ dự án **gật cả sơ đồ lẫn năm mặc định** ở mục "Năm quyết định còn treo".
+Không mục nào bị đổi, nên đọc lại mục đó là đọc được thứ đã dựng.
+
+### Thứ tự làm bị ĐẢO so với "bốn việc chặn nhau" — vì va chạm, không vì kỹ thuật
+
+Cảnh báo #2 của mục trên ("có phiên thứ hai sửa cùng repo") **vẫn đúng và đang
+xảy ra**: phiên đó giữ `lead-detail.tsx`, `lead-parts.tsx`, `assign-menu.tsx`,
+`packages/ui/src/layout/drawer.tsx`, và đang dựng module `meeting`
+(`sales.meeting` + `meeting_attendee`, migration `0017`) kèm
+`components/meetings-card.tsx`. Việc 1 và nửa-lead của việc 2 đụng đúng nhóm
+file đó; việc 3 và 4 thì không.
+
+Nên bốn việc chia lại làm hai lượt theo TRỤC VA CHẠM chứ không theo thứ tự
+chặn nhau ban đầu. Lượt A đã xong; lượt B chờ phiên kia commit.
+
+Cảnh báo #1 ("phần máy chủ chưa commit") thì **hết hạn** — module `touch` và
+migration `0016` đã vào `7aa12de`.
+
+### Lượt A — xong
+
+| Việc                    | Đã làm gì                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: MaHopDong`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                           |
+| **Việc 3** · nạp tệp    | `ops.tsx` có `ImportZone`; thêm `data/opportunity-import-wire.ts` (dịch thuần) + `data/opportunity-import.ts` (preview → dừng nếu 0 dòng → import). `motions` đã gỡ khỏi `OP_SPEC` theo quyết định #2                                             |
+| **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/ops/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                                     |
+| **Việc 4** · Chốt thắng | `components/sign-drawer.tsx` mới + nút trong `ToolsBar` + `useSignContract` ở `ops-write.ts`. Ba mặt: đã ký → pill tĩnh `Đã ký · HĐ-…`; đã thua → không vẽ gì; còn lại → nút, **ẩn hẳn** với vai không có `cơ-hội.chốt` (`useCan`, quyết định #4) |
+
+### Bốn thứ phát hiện khi dựng, không có trong bản phác
+
+1. **`MaHopDong` phải dời sang `primitives.ts`.** `sales/contract.ts` đã import
+   `OpportunityRow` từ `./opportunity`; để `opportunity.ts` import ngược lại là
+   **vòng tròn chết lúc nạp module** — CommonJS của `apps/api` cho ra
+   `undefined.optional()` khi boot. Vẫn đúng một bản regex, `@pv/contracts` vẫn
+   export như cũ.
+2. **Cửa ký từng trả một đơn `close-won` KHÔNG có mã.** `opportunity.service.ts`
+   lắp tay nửa `opportunity` của `ContractSignResponse` với `signed: true` mà
+   thiếu `contractCode` — hình mà không lượt đọc nào sinh ra nổi. Màn nào tin
+   vào bất biến "đã ký thì có mã" sẽ vỡ đúng một lần ngay sau cú bấm, rồi tự
+   lành ở lượt đọc kế tiếp: đúng loại lỗi không ai tái hiện được. Đã vá.
+3. **`sales.contract` không có `UNIQUE(opportunity_code, lead_code)`.** Bất biến
+   "một đơn một hợp đồng" hôm nay chỉ do cửa `sign` giữ bằng 409. Ngày có hai
+   dòng cho một đơn, `LEFT JOIN` nhân dòng trong `book()` trong khi `total`
+   (đếm riêng trên `opportunity`) vẫn nói một. Chỗ trả nợ là một unique index,
+   **không phải `DISTINCT`** — `DISTINCT` giấu triệu chứng và để lại hai dòng.
+4. **`signedAt` không được gửi chuỗi ngày trần.** Cột là `timestamptz` và hợp
+   đồng đòi `Moc`. Drawer gửi mốc thật khi ngày chọn là hôm nay, và **12:00 giờ
+   địa phương** cho ngày khác — mốc duy nhất còn đọc ra đúng ngày đó ở mọi múi
+   giờ từ UTC-11 tới UTC+12. Cắt ngày từ `toISOString()` thì ai bấm sau 17:00
+   giờ Hà Nội mở ô ngày ra thấy ngày mai.
+
+### Lượt B — chưa làm, chờ phiên `meeting` buông file
+
+- **Việc 1** · bỏ `opportunityOfLead` của fixture (`lead-detail.tsx`), rồi xoá
+  `desk.deals`/`convert`/`undoConvert` khỏi `app/desk.ts` cùng thẻ
+  `ConvertedCard` ở `convert-dialog.tsx`. Đây là LỖI THẬT đang sống, không phải
+  nợ thẩm mỹ — đọc lại mô tả ở mục "Bốn việc".
+- **Việc 2** · nửa LEAD: `ActivityCard` ở `lead-detail.tsx` đọc
+  `leadTouchesQuery`. Hàm và query **đã có sẵn** trong `data/touches.ts`; việc
+  còn lại đúng bằng ba dòng ở màn.
+
+Lưu ý khi làm lượt B: module `meeting` của phiên kia ghi dòng `gap-lan-dau` vào
+`sales.touch`, tức nó đang lấp một trong ba loại mà mục "Vòng hai" ghi là "chưa
+cửa nào ghi". Dòng thời gian của lead sau lượt B sẽ có loại đó — không phải lỗi.
+
+### Một nợ CŨ mà nút ký chạm vào, cố ý không sửa lệch
+
+Nút "Chốt thắng" dùng `size="md"` (40px) chứ không `lg` (48px), vì cả hàng nút
+của `ToolsBar` đều `md` và một nút cao hơn hẳn giữa hàng đọc ra như lỗi bố cục.
+Luật 13 đòi ≥ 48px trên tablet, và chỗ lệch này **đã có tên** trong
+[`fix-later.md`](./fix-later.md) như một khoản nợ toàn app, không riêng nút này.
+Trả nó là một đợt quét, không phải một nút.

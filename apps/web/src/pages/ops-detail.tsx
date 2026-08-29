@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, Inbox, Mail, Phone, RotateCcw, Users } from '@pv/ui'
+import { Check, Handshake, Inbox, Mail, Phone, RotateCcw, Users } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -33,9 +33,11 @@ import {
 } from '@pv/contracts'
 import { toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
 import { leadProfileQuery, realContact, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
+import { opsTouchesQuery } from '@/data/touches'
 import {
   bdOwnersOf,
   isLateClose,
@@ -58,6 +60,7 @@ import {
   STATE_LABEL,
   type SetDraft,
 } from '@/components/ops-fields'
+import { SignDrawer } from '@/components/sign-drawer'
 import { ActivityCard } from './lead-parts'
 
 /** Module 3 · Hồ sơ một cơ hội — `/sales/ops/:code`.
@@ -146,6 +149,19 @@ export function OpsDetailPage() {
     enabled: Boolean(op?.leadCode),
   })
 
+  /* Dòng thời gian của ĐƠN, không phải của lead — quyết định #5 của
+     `docs/ban-giao-co-hoi.md`. Đơn sinh ra SAU khi lead đã đi được một đoạn,
+     nên trộn hai chuỗi thì câu "đơn này đã đi qua những gì" trả lời lẫn cả
+     những việc xảy ra trước khi đơn tồn tại.
+
+     `enabled` chờ đơn về, cùng lý do với hồ sơ lead ngay trên: mã nằm trên
+     chính dòng đó. Hỏng lượt này KHÔNG làm hỏng màn — `?? NO_TOUCHES` giữ
+     nguyên lời khai cũ, và một dòng thời gian rỗng vẫn là một thẻ đọc được. */
+  const { data: touches = NO_TOUCHES } = useQuery({
+    ...opsTouchesQuery(op?.code ?? ''),
+    enabled: Boolean(op?.code),
+  })
+
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
   if (isPending) {
@@ -215,10 +231,18 @@ export function OpsDetailPage() {
           <>
             <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
             <PeopleCard op={op} />
-            {/* Máy chủ chưa có bảng lần chạm nào cho lead, nên dòng thời gian mở
-              ra rỗng — cùng lời khai mà `lead-detail.tsx` đang dùng, và cùng
-              một cặp hằng số, chứ không phải hai bản "chưa có gì" khác nhau. */}
-            {lead && <ActivityCard code={lead.code} history={NO_TOUCHES} turns={NO_TRANSCRIPT} />}
+            {/* Đọc THẬT từ `GET /sales/ops/:code/touches`. Khoá bằng mã ĐƠN chứ
+              không mã lead: `code` là thứ `ActivityCard` dùng để dựng lại tab
+              và mục đang mở, nên nó phải đổi đúng lúc dòng thời gian đổi.
+
+              Thẻ không còn treo vào `lead` nữa. Trước đây nó gác như vậy vì
+              `code` phải mượn mã lead; giờ đơn tự có dòng thời gian của mình,
+              và một đơn mà lead nằm ngoài phạm vi người xem vẫn phải kể được
+              đời của chính nó.
+
+              `turns` vẫn `NO_TRANSCRIPT`, cố ý: máy chủ không có transcript và
+              sẽ chưa có. Hằng số nói ra điều đó, một `[]` trần thì không. */}
+            <ActivityCard code={op.code} history={touches} turns={NO_TRANSCRIPT} />
           </>
         }
       />
@@ -543,6 +567,31 @@ function ToolsBar({
   const contact = lead ? realContact(lead) : null
   const owner = saleOwnersOf(op)[0]
 
+  /* ẨN HẲN, không hiện rồi làm mờ — quyết định #4 của `docs/ban-giao-co-hoi.md`.
+     Một nút mờ là một lời hứa: "cái này làm được, chỉ chưa lúc này". Với
+     `presales` thì không bao giờ là lúc — vai đó dựng số và chạy demo, chữ ký
+     thuộc về người đứng tên đơn — nên nút mờ ở đó chỉ dạy người dùng đi tìm
+     điều kiện không tồn tại.
+
+     `useCan` hỏi ĐÚNG hàm E2 mà `app/api/client.ts` hỏi trước khi thả một byte
+     nào ra dây (`access.allows`), nên giao diện và hàng rào không nói ngược
+     nhau. Ẩn nút KHÔNG phải là phân quyền: hàng rào thật vẫn ở tầng api, và cửa
+     máy chủ vẫn khai `@Need({ permission: 'cơ-hội.chốt' })`. */
+  const canSign = useCan('cơ-hội.chốt')
+  const [signing, setSigning] = useState(false)
+
+  /* Ba trạng thái, và chúng loại nhau theo đúng thứ tự này:
+
+      đã ký  → pill tĩnh mang số hợp đồng. Hiện với MỌI vai, kể cả vai không ký
+               được: "đơn này đã xong" là thông tin, không phải hành động.
+               `contractCode` chỉ có mặt khi `state === 'close-won'`, nên nó vừa
+               là điều kiện vừa là nội dung — không cần hỏi hai câu.
+      đã thua → không vẽ gì. Máy chủ trả 409 cho một đơn đã thua, và một nút chỉ
+               để ăn 409 thì thà đừng có.
+      còn lại → nút mở panel ký, cho vai có quyền. */
+  const signed = op.contractCode !== undefined
+  const lost = op.state === 'close-lost'
+
   return (
     <div className="sticky bottom-[calc(84px+env(safe-area-inset-bottom))] z-10 lg:bottom-0">
       <GlassCard
@@ -604,10 +653,23 @@ function ToolsBar({
             Hồ sơ lead · {op.leadCode}
           </Button>
 
+          {signed ? (
+            <MetaPill icon={Handshake} tone="success" mono>
+              Đã ký · {op.contractCode}
+            </MetaPill>
+          ) : lost || !canSign ? null : (
+            <Button size="md" onClick={() => setSigning(true)}>
+              <Icon icon={Handshake} size={16} />
+              Chốt thắng
+            </Button>
+          )}
+
           {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của
               AppShell) — không chừa thì nút đè lên đúng hành động cuối. */}
           <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
         </div>
+
+        <SignDrawer op={op} open={signing} onClose={() => setSigning(false)} />
       </GlassCard>
     </div>
   )

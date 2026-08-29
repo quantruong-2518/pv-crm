@@ -228,7 +228,32 @@ sau này cũng vấp lại đúng chỗ này — nên nó là bẫy còn nằm �
 
 ---
 
-## 11 · Vặt
+## 11 · `sales.contract` không gác "một đơn một hợp đồng" ở tầng bảng
+
+**Triệu chứng:** chưa thấy được, và đó là lý do nó nằm đây. Bất biến "mỗi cơ hội
+nhiều nhất một hợp đồng" hôm nay chỉ do cửa `POST /sales/ops/:code/contract`
+giữ, bằng cách trả 409 khi đơn đã ký. Không có ràng buộc nào ở bảng.
+
+**Nằm ở đâu:** `apps/api/src/branches/sales/contract/contract.schema.ts` —
+không có `uniqueIndex` nào trên `(opportunity_code, lead_code)`. Chỗ bị đau là
+`OpportunityRepository`: từ 29/08 ba đường đọc (`book` · `byCode` · `forMail`)
+lấy `signed` và `contractCode` bằng `LEFT JOIN` sang `contract`. Hai dòng hợp
+đồng cho một đơn thì `book()` **nhân đôi dòng đó**, trong khi `total` đếm riêng
+trên `opportunity` vẫn nói một — sổ hiện 17 dòng và chú thích bảo 16.
+
+**Sửa thế nào:** một unique index. **KHÔNG phải `DISTINCT`** ở câu truy vấn:
+`DISTINCT` làm triệu chứng biến mất và để nguyên hai dòng trong bảng, tức lần
+sau nó lộ ra ở một câu khác mà không ai nối được về đây.
+
+**Vì sao chưa sửa:** thêm unique index là một migration, mà `.env` đang trỏ
+thẳng Neon production và luật hiện hành chỉ cho `db:migrate` khi file SQL không
+có `DROP`. Index thì không `DROP` gì, nên việc này **làm được** — nhưng phải
+đếm trước: nếu production đã lỡ có một đơn hai hợp đồng thì migration gãy giữa
+chừng, và câu đếm đó chưa ai chạy.
+
+---
+
+## 12 · Vặt
 
 - `docs/tich-hop-landing-page.md:198` — ví dụ `curl` còn dùng `localhost:3000`,
   trong khi cổng tại máy đã chốt **4123** ở `apps/api/.env`, `apps/web/.env`,

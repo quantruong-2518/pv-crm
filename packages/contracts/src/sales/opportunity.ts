@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { PageQuery, paged } from '../pagination'
-import { Dong, MaObject, Moc, Ngay, textNhap, textNhapTuyChon } from '../primitives'
+import { Dong, MaHopDong, MaObject, Moc, Ngay, textNhap, textNhapTuyChon } from '../primitives'
 import { CurrencyCode, StageKey } from './enums'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
@@ -235,6 +235,20 @@ export const OpportunityRow = z.object({
 
   name: textNhap(200),
   state: OpportunityState,
+  /** The number on the paper that made `state` read `close-won`.
+   *
+   *  Present ONLY on a signed deal, and absent — not `''` — on every other one.
+   *  The two facts are one fact: `close-won` IS the existence of a row in
+   *  `sales.contract` (see the docblock at the top of this file), so a row
+   *  carrying the fifth state without a number, or a number without the fifth
+   *  state, would be the server disagreeing with itself. An empty string would
+   *  be a third way of saying "no contract" beside `state` and absence, and the
+   *  screen would have to test for all three before printing.
+   *
+   *  `MaHopDong`, not `MaObject`: `Đ` is not in `A-Z`. The primitive lives in
+   *  `primitives.ts` and its docblock says why it cannot be reused from
+   *  `./contract` — that module imports this one. */
+  contractCode: MaHopDong.optional(),
   /** Which of the five columns the deal stands in. `null` = it has left the
    *  board (won or lost). Written from `state` at create time, then free to
    *  move on its own — see the schema's docblock. */

@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   OpportunityCreateState,
+  type ContractSign,
+  type ContractSignResponse,
   type MaObject,
   type OpportunityCreate,
   type OpportunityCreateResponse,
@@ -12,7 +14,7 @@ import { OPPORTUNITY_STATES, type OpportunityDraft } from '@pv/engines/fixtures/
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { idsOf, OPS_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/ops'
 
-/** Module 3 · hai cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
+/** Module 3 · ba cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
  *
  *  ------------------------------------------------------------------
  *  PHIẾU GIỮ NGUYÊN HÌNH CỦA NÓ, DÂY LÀ MỘT HÌNH KHÁC
@@ -45,6 +47,24 @@ const BOOK_PATH = '/sales/ops'
  *  thì không — đọc docblock của controller cho phần đầy đủ. Khai ở đây để nút
  *  tắt đi TRƯỚC khi người dùng bấm, thay vì để họ điền hết phiếu rồi ăn 403. */
 export const OPS_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.sửa' }
+
+/** Cửa KÝ đòi một quyền khác hẳn — `@Need({ …, permission: 'cơ-hội.chốt',
+ *  scoped: true })` ở `opportunity.controller.ts`.
+ *
+ *  Khai HẰNG RIÊNG chứ không mượn `OPS_WRITE_NEED` ngay trên, và không phải vì
+ *  gõ thêm bốn dòng cho vui: hai quyền cố ý không gộp. Sửa một đơn thì sửa
+ *  ngược lại được, ký thì không — chữ ký đã sang tay kế toán và sang tay khách,
+ *  gỡ nó phải là một đề nghị có người duyệt chứ không phải một lượt gọi của
+ *  người vừa lỡ tay. Gộp hai quyền nghĩa là muốn cho BD mở đơn thì phải cho họ
+ *  luôn quyền ký, và `presales` — vai dựng số và chạy demo — sẽ ký được.
+ *
+ *  `scoped: true` vì máy chủ khai đúng chữ đó: người chỉ thấy đơn của mình thì
+ *  cũng chỉ ký được đơn của mình. */
+export const OPS_SIGN_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'cơ-hội.chốt',
+  scoped: true,
+}
 
 /** Bốn trạng thái hai phiếu nhận, lọc từ năm trạng thái của sổ.
  *
@@ -136,7 +156,7 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
 }
 
 // ---------------------------------------------------------------------------
-// Hai cửa
+// Ba cửa
 // ---------------------------------------------------------------------------
 
 /** `api.write` chứ không `fetch`: cửa ghi đi qua ĐÚNG chuỗi interceptor của mọi
@@ -165,6 +185,30 @@ export function saveOpportunity(
     method: 'PATCH',
     body,
     need: OPS_WRITE_NEED,
+    signal,
+  })
+}
+
+/** Ký hợp đồng — cửa duy nhất làm một đơn thành `close-won`.
+ *
+ *  Không có `PATCH state: 'close-won'` nào đứng cạnh nó, và đó là cố ý ở tầng
+ *  hợp đồng: "đã thắng" là SỰ TỒN TẠI của một dòng bên `sales.contract`, suy ra
+ *  chứ không lưu. Một cửa sửa nhận `close-won` sẽ phải có chỗ để cất con số và
+ *  cái ngày, mà chỗ duy nhất là chính bảng đó.
+ *
+ *  Cả ba ô của thân request đều tuỳ chọn — vắng thì máy chủ lấy theo đơn — nên
+ *  một lượt ký đúng bằng số đã chào, hôm nay, bởi Sale đang đứng đơn là một
+ *  `{}`. Drawer vẫn bày ba ô ra vì người bấm cần XÁC NHẬN cái mình sắp ký, chứ
+ *  không phải vì máy chủ đòi. */
+export function signContract(
+  code: MaObject,
+  body: ContractSign,
+  signal?: AbortSignal,
+): Promise<ContractSignResponse> {
+  return api.write<ContractSignResponse>(`${BOOK_PATH}/${code}/contract`, {
+    method: 'POST',
+    body,
+    need: OPS_SIGN_NEED,
     signal,
   })
 }
@@ -199,6 +243,32 @@ export function useSaveOpportunity(code: MaObject) {
     mutationFn: (body) => saveOpportunity(code, body),
     onSuccess: (row) => {
       client.setQueryData(['sales', 'ops', code], row)
+      void client.invalidateQueries({ queryKey: OPS_BOOK_KEY })
+    },
+  })
+}
+
+/** Mutation của nút "Chốt thắng".
+ *
+ *  Cùng khuôn hai bước với `useSaveOpportunity` ngay trên — ghi thẳng dòng vừa
+ *  nhận vào cache của hồ sơ, rồi mới đánh dấu sổ cần nạp lại — nhưng lấy nửa
+ *  `opportunity` của phản hồi chứ không lấy cả phản hồi: 201 chở HAI nửa, và
+ *  cache của hồ sơ giữ một `OpportunityRow`.
+ *
+ *  Nửa đơn đó là thứ BẮT BUỘC phải nhận lại, không phải tiện thì lấy. Ký làm
+ *  đổi bốn thứ mà mọi thứ đều TÍNH RA: `state` lật sang `close-won`, `stage` và
+ *  `daysInStage` thành null, `contractCode` mọc lên. Một màn tự vá dòng cache
+ *  của mình sẽ đọc ra khác hẳn lượt `GET` kế tiếp.
+ *
+ *  Và vì nửa `contract` cũng về trong cùng lượt, nút bấm xong KHÔNG phải gọi
+ *  lại lần nào để biết số hợp đồng máy chủ vừa cấp. */
+export function useSignContract(code: MaObject) {
+  const client = useQueryClient()
+
+  return useMutation<ContractSignResponse, ApiError, ContractSign>({
+    mutationFn: (body) => signContract(code, body),
+    onSuccess: (res) => {
+      client.setQueryData(['sales', 'ops', code], res.opportunity)
       void client.invalidateQueries({ queryKey: OPS_BOOK_KEY })
     },
   })

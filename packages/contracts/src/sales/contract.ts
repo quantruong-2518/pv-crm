@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Dong, MaObject, Moc, textNhap } from '../primitives'
+import { Dong, MaHopDong, MaObject, Moc, textNhap } from '../primitives'
 import { CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
@@ -70,13 +70,13 @@ import { OpportunityRow } from './opportunity'
  *  The consequence worth knowing: a contract code does NOT satisfy `MaObject`,
  *  so it cannot be passed to any route that validates a path param with it.
  *  Nothing does today, and this comment is here so the day something wants to
- *  it gets a widened `MaObject` rather than a quietly renamed prefix. */
-export const MaHopDong = z
-  .string()
-  .trim()
-  .regex(/^HĐ-\d{3,6}$/, 'Mã hợp đồng sai dạng')
-
-export type MaHopDong = z.infer<typeof MaHopDong>
+ *  it gets a widened `MaObject` rather than a quietly renamed prefix.
+ *
+ *  The declaration itself lives in `primitives.ts`, one directory up. It moved
+ *  the day `OpportunityRow` grew a `contractCode`: this module already imports
+ *  `./opportunity` to build `ContractSignResponse`, so importing back would
+ *  close a module cycle that dies on load. The reasoning is written out where
+ *  the declaration now stands. */
 
 // ---------------------------------------------------------------------------
 // THE REQUEST

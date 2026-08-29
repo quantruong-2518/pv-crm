@@ -27,6 +27,7 @@ import {
 import type { OpportunityOwner, OpportunityRow } from '@pv/contracts'
 import { OPPORTUNITY_STATES, toDong } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
+import { toast } from '@/app/toast'
 import { dm } from '@/lib/date'
 import {
   bdOwnersOf,
@@ -37,6 +38,9 @@ import {
   saleOwnersOf,
   STATE_TONE,
 } from '@/data/ops'
+import { OP_SPEC } from '@/data/intake'
+import { useOpportunityImport } from '@/data/opportunity-import'
+import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { Pager, PersonCell } from '@/components/table-bits'
 import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
 
@@ -66,12 +70,13 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *  Sổ đọc thẳng `GET /sales/ops`. Ba thứ của bản fixture biến mất, và không cái
  *  nào là dọn dẹp tuỳ hứng:
  *
- *   · **Nạp cơ hội từ tệp.** `ImportZone` ở màn này ghi vào `useIntakeDesk`,
+ *   · **Nạp cơ hội từ tệp.** `ImportZone` ở màn này từng ghi vào `useIntakeDesk`,
  *     một sổ chỉ sống trong trình duyệt. Trên một cái bảng nay là dữ liệu thật,
  *     những dòng đó đọc y hệt dòng máy chủ nhưng không ai khác thấy, không nằm
- *     trong thẻ điểm của người bên cạnh, và biến mất khi đổi máy. Cửa nạp thật
- *     là `POST /sales/ops/import`, chưa dựng — nút quay lại cùng ngày endpoint
- *     đó lên, không sớm hơn.
+ *     trong thẻ điểm của người bên cạnh, và biến mất khi đổi máy. Nút đã QUAY
+ *     LẠI (29/08) đúng cái ngày `POST /sales/ops/import[/preview]` lên: nay nó
+ *     ghi thẳng lên máy chủ qua `data/opportunity-import.ts`, và `rowsToOps` của
+ *     `data/intake.ts` không còn người gọi — bộ kiểm của máy chủ thay nó.
  *   · **Hòm thư suy từ tên** (`staffEmail`). Dòng sổ nay chở `owners[]` có sẵn
  *     TÊN thật; cột người in tên, không in một địa chỉ ghép theo quy ước.
  *   · **Gộp ba nguồn** (`mergeOps`). Phiếu vừa gửi và bản sửa tại chỗ đều đã đi
@@ -103,6 +108,17 @@ const NO_BD = ' chua-ghi-bd'
 
 const NO_BD_TITLE = 'Chưa ghi BD mở cửa — công trạng mở cửa chưa ai nhận'
 const NO_SALE_TITLE = 'Chưa có Sale đứng đơn'
+
+/** Panel nạp tệp KHÔNG chống trùng trong trình duyệt — tập rỗng là một quyết
+ *  định, không phải một chỗ chưa nối.
+ *
+ *  Máy chủ chống trùng theo MÃ LEAD (`lead:<mã>` — "khách này đã có đơn đang mở
+ *  chưa"), và trình duyệt không biết mã đó: nó chỉ cầm một ô "Account" chưa được
+ *  dịch sang hồ sơ nào. Một tập khoá dựng phía trình duyệt vì thế trả lời một
+ *  câu khác (`ten:công-ty|tỉnh`) và sẽ báo sạch trong khi máy chủ vẫn từ chối —
+ *  tệ hơn nữa là nó loại dòng TRƯỚC khi máy chủ được nhìn, mà bốn con số panel
+ *  vẽ lại là số của máy chủ. Một cửa chống trùng, và đó là cửa biết mã lead. */
+const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
 /** Tiền quy về đồng — mọi phép SO SÁNH và CỘNG đi qua đây, không cộng thẳng số
  *  ngoại tệ. Đơn chưa có tiền trả `null`, và `null` không phải 0. */
@@ -207,10 +223,57 @@ export function OpsPage() {
     setAccount('all')
   }
 
+  const loadFile = useOpportunityImport()
+
+  /* Lô nạp GHI THẲNG lên máy chủ — hai cửa, `preview` rồi `import`, cả hai nằm
+     ở `data/opportunity-import.ts`. Kho `intake-desk` không nhận lô của sổ này
+     nữa: dòng đã nằm trên máy chủ rồi, giữ thêm một bản cục bộ là mỗi đơn nạp
+     hiện hai lần mà không có gì nói cho người xem biết vì sao.
+
+     Trả BÁO CÁO CỦA MÁY CHỦ về cho panel: bốn con số ở bước 3 phải là số của
+     bên đã ghi thật — xem docblock `onCommit` ở `components/import-zone.tsx`.
+     Hàm này không bao giờ ném, vì `runOpportunityImport` đã đổi mọi lời từ chối
+     thành một báo cáo nói đúng những gì đã vào sổ.
+
+     `motion` của `ImportCommit` rơi ở đây và rơi có chủ ý: đơn không có cột thế,
+     và `OP_SPEC` cũng không còn hỏi. */
+  const commitOps = async ({ rows, fileName }: ImportCommit & { scope?: string }) => {
+    const run = await loadFile({ rows, fileName })
+    const { report } = run
+
+    toast(run.failure ?? `${report.rows.length} cơ hội đã vào sổ`, {
+      tone: run.failure ? 'danger' : 'success',
+      detail: [
+        report.duplicates > 0 && `${report.duplicates} khách đã có đơn đang mở, bỏ qua`,
+        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
+        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    })
+
+    return report
+  }
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader title="Sổ cơ hội" />
+        {/* Một hàng, hai việc: tiêu đề sổ và cửa nạp cả một tệp. Cùng hình với
+            sổ lead (`pages/leads.tsx`) — hai sổ của cùng một phòng thì nút nạp
+            phải đứng cùng một chỗ. Không có nút "Tạo cơ hội" cạnh nó: đơn sinh
+            ra từ hồ sơ một lead, không từ một phiếu trắng ở đây. */}
+        <ScreenHeader
+          title="Sổ cơ hội"
+          actions={
+            <ImportZone
+              spec={OP_SPEC}
+              existingKeys={NO_LOCAL_KEYS}
+              buttonLabel="Nạp cơ hội từ tệp"
+              onCommit={commitOps}
+              onSeeResult={clearFilters}
+            />
+          }
+        />
 
         <ScoreCards book={book} />
 
