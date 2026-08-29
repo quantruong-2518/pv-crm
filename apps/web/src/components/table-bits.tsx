@@ -47,19 +47,32 @@ export function Pager({
   )
 }
 
-/** Cột người bên MÌNH — hòm thư công ty, không phải tên hiển thị.
+/** Cột người bên MÌNH — TÊN trên bảng, hòm thư ở `title`.
  *
- *  Tên đọc đẹp nhưng TRÙNG ĐƯỢC; một hòm thư thì không. Sổ là chỗ người ta đối
- *  chiếu với hệ khác (thư, lịch, bảng hoa hồng), và mọi hệ đó khoá theo hòm
- *  thư. Tên đầy đủ vẫn còn, ở `title`.
+ *  Bản trước in ngược lại: hòm thư trên bảng, tên ở tooltip. Lý do khi đó —
+ *  tên trùng được, hòm thư thì không — vẫn đúng, nhưng nó là lý do để KHOÁ
+ *  theo hòm thư chứ không phải để IN nó. Người quét cột này đang hỏi "ai đang
+ *  giữ", và `huydq@pebblevina.com` bắt mắt tự dịch lại thành "Đỗ Quang Huy" ở
+ *  từng dòng một. Sổ cơ hội in tên ở hai cột người của nó (`PersonCell` trong
+ *  `pages/opportunities.tsx`), nên in hòm thư ở đây còn làm hai sổ của cùng
+ *  một phòng đọc ra hai kiểu.
  *
- *  Hòm thư ĐI VÀO bằng props, không dựng lại từ tên. Bản cũ gọi `staffEmail`
- *  của fixture — một quy ước ghép chữ (`huydq@pebblevina.com`) đúng với 100
- *  dòng đóng băng và là một phép ĐOÁN với bảng `platform.actor` thật, nơi hòm
- *  thư là một cột người ta gõ vào. Đoán sai ở đây là một lá thư gửi tới địa chỉ
- *  không tồn tại, và không ai biết cho tới lúc nó dội về. */
+ *  Hòm thư KHÔNG mất, nó lui về `title` — đúng chỗ của thứ chỉ cần khi đối
+ *  chiếu với thư hoặc bảng hoa hồng.
+ *
+ *  Cả hai ĐI VÀO bằng props, không dựng lại từ tên. Bản cũ gọi `staffEmail`
+ *  của fixture — một quy ước ghép chữ đúng với 100 dòng đóng băng và là một
+ *  phép ĐOÁN với bảng `platform.actor` thật, nơi hòm thư là một cột người ta
+ *  gõ vào. Đoán sai ở đây là một lá thư gửi tới địa chỉ không tồn tại, và
+ *  không ai biết cho tới lúc nó dội về.
+ *
+ *  Có hòm thư mà thiếu tên thì in hòm thư, và in bằng mono để đọc ra ngay là
+ *  một dạng khác. Hai trường về từ CÙNG một phép join nên ca đó gần như không
+ *  xảy ra; nếu xảy ra thì "có người giữ, chưa biết tên" phải đọc khác hẳn
+ *  "chưa ai nhận" — dòng "—" bên dưới. */
 export function PicCell({ email, name, empty }: { email?: string; name?: string; empty: string }) {
-  if (!email) {
+  const shown = name ?? email
+  if (!shown) {
     return (
       <span className="text-muted-foreground" title={empty}>
         —
@@ -67,8 +80,11 @@ export function PicCell({ email, name, empty }: { email?: string; name?: string;
     )
   }
   return (
-    <span className="block truncate font-mono text-[11px]" title={name ?? email}>
-      {email}
+    <span
+      className={name ? 'block truncate' : 'block truncate font-mono text-[11px]'}
+      title={email ?? name}
+    >
+      {shown}
     </span>
   )
 }

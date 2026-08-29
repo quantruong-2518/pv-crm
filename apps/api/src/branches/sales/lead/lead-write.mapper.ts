@@ -63,6 +63,11 @@ export const LEAD_NOTE = {
   typed: 'Vào sổ · gõ tay',
   landing: 'Vào sổ · form landing page',
   imported: (fileName: string) => `Vào sổ · nạp từ tệp ${fileName}`,
+  /** Hai đầu của một lần đổi tay. Tên người nhận nối vào sau `handedTo` ở
+   *  `LeadWriteService.setOwner` — dòng thời gian phải đọc được thành câu mà
+   *  không phải tra thêm bảng nào: "Giao cho Đỗ Quang Huy", "Trả về kho chung". */
+  handedTo: 'Giao cho',
+  released: 'Trả về kho chung — chưa ai nhận',
 } as const
 
 export function refOf(code: string, write: LeadWrite): ObjectRef {

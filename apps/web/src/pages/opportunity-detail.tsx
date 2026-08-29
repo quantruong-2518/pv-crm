@@ -16,7 +16,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Avatar,
-  AvatarGroup,
   Badge,
   Button,
   Chip,
@@ -630,7 +629,18 @@ function LeadCard({
 }
 
 /** Ai đứng đơn. Sale chốt và BD mở cửa là HAI vai khác nhau — gộp vào một dòng
- *  là mất câu trả lời "hoa hồng chia cho ai". */
+ *  là mất câu trả lời "hoa hồng chia cho ai".
+ *
+ *  IN TÊN, KHÔNG CHỈ AVATAR. Thẻ này từng dùng `AvatarGroup` — đúng thứ nó
+ *  sinh ra để làm, nhưng docblock của chính nó nói rõ chỗ dùng: một Ô BẢNG,
+ *  nơi xếp tên thành chữ sẽ vỡ ô ở người thứ hai. Trong một thẻ ở cột phải thì
+ *  ngược lại: một đĩa tròn hai chữ cái bắt người đọc rê chuột lên mới biết
+ *  "ĐB" là ai, trong khi thẻ có cả chiều rộng để nói thẳng.
+ *
+ *  Và nó phải giống hồ sơ lead. Khối "Lead PIC" ở `pages/lead-detail.tsx` in
+ *  avatar KÈM tên bằng đúng `MetaPill` này; hai màn chi tiết của cùng một
+ *  phòng mà một bên in tên còn một bên bắt rê chuột là hai câu trả lời khác
+ *  nhau cho cùng một câu hỏi "ai đang giữ việc này". */
 function PeopleCard({ op }: { op: OpportunityRow }) {
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Người đứng đơn">
@@ -638,23 +648,39 @@ function PeopleCard({ op }: { op: OpportunityRow }) {
 
       <div className="flex flex-col gap-2">
         <Kicker tone="muted">Sale đứng đơn</Kicker>
-        <AvatarGroup
-          names={namesOf(saleOwnersOf(op))}
-          max={5}
-          size="md"
-          emptyLabel="chưa ai đứng đơn"
-        />
+        <PeopleLine names={namesOf(saleOwnersOf(op))} empty="chưa ai đứng đơn" />
       </div>
 
       <div className="flex flex-col gap-2">
         <Kicker tone="muted">BD mở cửa</Kicker>
-        <AvatarGroup names={namesOf(bdOwnersOf(op))} max={5} size="md" emptyLabel="chưa ghi BD" />
+        <PeopleLine names={namesOf(bdOwnersOf(op))} empty="chưa ghi BD" />
       </div>
 
       <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
         Phần chốt của hoa hồng chia theo danh sách trên, công trạng mở cửa theo danh sách dưới.
       </p>
     </GlassCard>
+  )
+}
+
+/** Một danh sách người, mỗi người một pill avatar + tên — hoặc câu "chưa ai".
+ *
+ *  Câu rỗng đi vào bằng props chứ không mặc định một câu chung: "chưa ai đứng
+ *  đơn" và "chưa ghi BD" là hai sự thật khác nhau — một cái là đơn chưa có
+ *  người chốt, một cái là đơn không đi qua BD — và một câu dùng chung sẽ xoá
+ *  mất sự khác nhau đó ở đúng thẻ người ta đọc để chia hoa hồng. */
+function PeopleLine({ names, empty }: { names: string[]; empty: string }) {
+  if (names.length === 0) {
+    return <span className="text-muted-foreground text-[11.5px]">{empty}</span>
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {names.map((name) => (
+        <MetaPill key={name} avatar={name}>
+          {name}
+        </MetaPill>
+      ))}
+    </div>
   )
 }
 

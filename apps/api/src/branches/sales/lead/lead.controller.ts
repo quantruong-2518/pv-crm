@@ -4,6 +4,7 @@ import {
   LeadBookQuery,
   LeadCreate,
   LeadImportBody,
+  LeadOwnerWrite,
   MaObject,
   MeetingCreate,
   MeetingId,
@@ -172,6 +173,38 @@ export class LeadController {
     @Param('id', zod(MeetingId)) id: MeetingId,
   ) {
     return this.leads.meetingDrop(who, code, id)
+  }
+
+  /** Giao lead cho một người, hoặc trả về kho chung. Trả nguyên dòng sổ.
+   *
+   *  ------------------------------------------------------------------
+   *  KHAI `lead.sửa`, KHÔNG KHAI `lead.giao` — VÀ KHÔNG BẬT `scoped`
+   *  ------------------------------------------------------------------
+   *  Hai chỗ lệch với phần còn lại của file này, cùng một lý do: luật của cửa
+   *  này ĐỌC dữ liệu mới quyết được, mà `@Need` là metadata TĨNH.
+   *
+   *   · `lead.giao` là quyền GIAO CHO NGƯỜI KHÁC, và Sale không có nó. Khai ở
+   *     đây thì Sale mất luôn quyền tự nhận một lead chưa ai giữ — việc chẳng
+   *     lấy của ai cái gì. Nên cổng tĩnh dừng ở `lead.sửa`, còn phép so
+   *     "giao hay nhận" nằm ở `LeadWriteService.setOwner`, chỗ đã cầm trên tay
+   *     `owner_id` hiện tại.
+   *   · `scoped: true` cắt theo `owner_id = mình`, mà lead trong kho chung có
+   *     `owner_id IS NULL` — bật lên là không ai nhận được gì từ kho chung.
+   *
+   *  Thân bài nói TRỌN trạng thái mới của `owner_id` — trường bắt buộc và
+   *  nullable — nên gọi lại lần hai để lead y nguyên chỗ lần một đặt nó. Đó là
+   *  ngữ nghĩa của `PUT` trên động từ `PATCH`, và động từ mới là phần cố ý:
+   *  `apps/web/src/app/api/client.ts` mới chở ba động từ ghi, thêm động từ thứ
+   *  tư mà quên `enableCors` trong `main.ts` là mọi lượt gọi chết ở preflight
+   *  không để lại dòng log nào — chính cái bẫy file đó đã ghi lại. */
+  @Patch(':code/owner')
+  @Need({ branch: 'Sales', permission: 'lead.sửa' })
+  setOwner(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(LeadOwnerWrite)) body: LeadOwnerWrite,
+  ) {
+    return this.write.setOwner(who, code, body)
   }
 
   /** Một lead, gõ tay. 201 kèm nguyên dòng sổ — màn chèn được ngay, không phải

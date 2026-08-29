@@ -34,7 +34,6 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
 import type { LeadBookQuery, LeadBookResponse, LeadScorecard } from '@pv/contracts'
-import type { LeadAssignment } from '@/app/desk'
 import { api } from '@/app/api'
 import { leadBookQueryToParams } from '@/app/url'
 import { APPROVER_ROLE_LABEL } from '@/data/directory'
@@ -266,6 +265,18 @@ export const EXIT_REASON_LABEL: Record<string, string> = {
   'im-sau-bao-gia': 'Im sau báo giá',
 }
 
+/** Câu giải thích ô PIC trống — MỘT bản, dùng ở cả sổ lẫn hồ sơ.
+ *
+ *  `owner_id` để trống là DỮ LIỆU, không phải lỗi tải: cột nullable, và 100
+ *  dòng seed có 33 dòng cố ý không ai giữ. Nhưng "—" trơ trọi thì đọc giống
+ *  hệt một ô hỏng, nên chỗ nào in nó cũng phải nói được VÌ SAO.
+ *
+ *  Nằm ở đây chứ không khai lại ở mỗi màn vì đó chính là cách hai màn của cùng
+ *  một dòng dữ liệu bắt đầu nói hai câu khác nhau về cùng một trạng thái — sổ
+ *  bảo "chưa ai nhận", hồ sơ bảo "không có", và người đọc phải tự đoán hai câu
+ *  đó có cùng nghĩa không. */
+export const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
+
 // ---------------------------------------------------------------------------
 // Next action — việc nên làm tiếp trên một lead
 // ---------------------------------------------------------------------------
@@ -469,9 +480,8 @@ export function myWork(input: {
      của fixture — và nhãn kiểu là thứ giữ cho lời hứa "sổ này đóng băng" ở
      ngay dưới đây không lặng lẽ hết đúng ngày ai đó đổi query. */
   leads: FrozenLead[]
-  assigns: Record<string, LeadAssignment>
 }): WorkItem[] {
-  const { actor, leads, assigns } = input
+  const { actor, leads } = input
   if (!actor) return []
 
   const seen = new Set<string>()
@@ -495,11 +505,11 @@ export function myWork(input: {
     })
   }
 
-  // 1 · việc vừa được giao — đứng trước mọi thứ, ở mọi vai.
-  for (const lead of leads) {
-    const a = assigns[lead.code]
-    if (a?.actorIds.includes(actor.id)) push(lead, `Vừa được giao · ${a.task}`, true)
-  }
+  /* Nhánh "việc vừa được giao" ĐÃ BỎ cùng `assigns` (29/08). Nó đọc kho đề
+     nghị trong trình duyệt, thứ không ai khác thấy — nên một người mở máy của
+     mình lên không bao giờ có dòng nào ở đây, kể cả khi vừa được giao thật.
+     Giao lead nay đổi thẳng `owner_id`, và lead mới nhận rơi vào đúng nhánh
+     "lead mình đang giữ" ngay bên dưới, ở mọi máy. */
 
   const running = leads.filter(isRunning)
   const mine = running.filter((l) => l.owner === actor.name)
@@ -615,7 +625,11 @@ export function assigneeOptions(
         why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'
       } else if (a.roleId === 'trưởng-phòng') {
         rank = 50
-        why = 'Người gật mọi đề nghị của phòng'
+        /* Không còn "người gật mọi đề nghị" — không còn đề nghị nào để gật.
+           Vai này đứng cao vì nó là vai DUY NHẤT giao được lead cho người
+           khác (`lead.giao`), nên nó cũng là người nhận lại được một lead
+           đang không biết đưa cho ai. */
+        why = 'Trưởng phòng — điều phối lead cho cả phòng'
       } else if (domains.length > 0) {
         rank = 70
         why = `Sale ngành ${domains.join(' · ')}`
@@ -638,23 +652,11 @@ export function assigneeOptions(
   }))
 }
 
-/** Ai đang làm việc trên một lead: chủ lead trước, rồi người được giao.
- *
- *  Trả về TÊN chứ không trả id, vì cụm avatar đọc tên. Trùng thì bỏ — một người
- *  vừa giữ lead vừa được giao thêm việc vẫn chỉ là một cái đầu. */
-export function peopleOn(
-  lead: Lead,
-  assigns: Record<string, LeadAssignment>,
-  actors: readonly Actor[],
-): string[] {
-  const names = new Set<string>()
-  if (lead.owner) names.add(lead.owner)
-  for (const id of assigns[lead.code]?.actorIds ?? []) {
-    const a = actors.find((x) => x.id === id)
-    if (a) names.add(a.name)
-  }
-  return [...names]
-}
+/* `peopleOn` ĐÃ BỎ (29/08). Nó gộp "chủ lead" với "người được giao thêm việc"
+   thành một cụm avatar, và vế thứ hai vừa hết tồn tại: giao lead nay LÀ đổi
+   chủ lead (`data/lead-owner.ts`), nên cụm đó chỉ còn đúng một cái đầu — thứ
+   `PicCell` và khối Lead PIC đã in sẵn, bằng tên, ở cả sổ lẫn hồ sơ. Hàm cũng
+   đã không còn ai gọi từ trước lượt này. */
 
 /** Icon của cột trống trong bảng việc — dùng chung để EmptyState của mọi tab
  *  nói cùng một hình. */

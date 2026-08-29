@@ -2,29 +2,24 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LeadProfile, Opportunity } from '@pv/engines/fixtures/das-vina'
 
-/** Bàn làm việc của một người trên sổ lead — ghim, giao việc, và mọi thứ người
- *  dùng GÕ VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, bước tiếp theo).
+/** Bàn làm việc của một người trên sổ lead — ghim, và mọi thứ người dùng GÕ
+ *  VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, bước tiếp theo).
  *
  *  ------------------------------------------------------------------
  *  VÌ SAO NẰM Ở ĐÂY CHỨ KHÔNG NẰM TRONG MÀN
  *  ------------------------------------------------------------------
- *  Hai thứ này sống lâu hơn một lần mở màn và đi qua NHIỀU màn: ghim ở bảng thì
- *  màn chi tiết phải thấy, giao việc ở màn chi tiết thì tab "Việc của tôi" ở
- *  bảng phải thấy. Bộ lọc và trang thì ngược lại — chúng chết cùng lần mở màn
- *  nên vẫn nằm trong `useState` của màn (xem `app/auth/session.ts`).
+ *  Những thứ này sống lâu hơn một lần mở màn và đi qua NHIỀU màn: ghim ở bảng
+ *  thì màn chi tiết phải thấy, và ngược lại. Bộ lọc và trang thì ngược lại —
+ *  chúng chết cùng lần mở màn nên vẫn nằm trong `useState` của màn (xem
+ *  `app/auth/session.ts`).
  *
  *  **Ghim theo NGƯỜI, không theo sổ.** `pins` khoá bằng `actorId`: hai người
  *  cùng mở sổ thấy hai bộ ghim khác nhau. Ghim chung là ghim của người bấm cuối
  *  cùng — vô dụng với mọi người còn lại.
  *
- *  **Giao việc là ĐỀ NGHỊ, không phải lệnh.** Người gật vẫn là TP Kinh doanh.
- *  Store này giữ đề nghị để màn hiện
- *  đúng trạng thái "đã đề nghị"; khi E3 nối vào thì chỗ này đổi thành phiếu
- *  duyệt thật và màn không phải sửa.
- *
- *  **Giao việc KHÔNG đổi người giữ lead.** Chủ lead là `Lead.owner` trong sổ và
- *  chỉ đổi qua đề nghị đổi tay — vì `COMMISSION_SPLIT` chia lại phần chốt theo
- *  đó. Trộn hai thứ vào một nút là cách nhanh nhất để hoa hồng tính sai.
+ *  **Giao lead KHÔNG còn ở đây.** Nó là một phép ghi thật lên `lead.owner_id`
+ *  (`data/lead-owner.ts`), không phải một đề nghị nằm trong trình duyệt — lý do
+ *  đầy đủ ở khối ghi chú ngay dưới `LeadTodo`.
  *
  *  ------------------------------------------------------------------
  *  `deals` ĐÃ RỜI HÌNH — VÀ BẢN LƯU CŨ CÒN MANG NÓ (29/08)
@@ -50,13 +45,18 @@ import type { LeadProfile, Opportunity } from '@pv/engines/fixtures/das-vina'
  *  Ngày store này thật sự cần đổi hình dữ liệu (không phải bỏ bớt một khoá chết)
  *  thì `version`+`migrate` vào cùng lượt đó, và dọn luôn khoá này. */
 
-export type LeadAssignment = {
-  /** Ai được giao. Nhiều người cùng một việc là chuyện thường: một người gọi,
-   *  một người dựng số, một người đi cùng demo. */
-  actorIds: string[]
-  /** Việc gì — lấy từ danh sách next action của chính lead đó, không gõ tay. */
-  task: string
-}
+/* `assigns`/`assign`/`clearAssign` ĐÃ RỜI HÌNH (29/08) — cùng đường `deals` đã
+   đi và vì cùng một lý do, chỉ nặng hơn một bậc.
+   Ba thứ đó giữ "đề nghị giao việc": một danh sách người cộng một câu việc,
+   nằm trong localStorage của đúng một trình duyệt, kèm dòng chữ "chờ trưởng
+   phòng gật" mà không màn nào gật được. Người được giao mở máy của họ lên thì
+   không có gì, và `lead.owner_id` đứng nguyên — tức sổ, ô lọc theo người, trục
+   phạm vi của E2 và `CREDIT_RULES` đều trả lời như chưa ai giao gì.
+   Giao lead nay là `PATCH /sales/leads/:code/owner` (`data/lead-owner.ts`), ghi
+   thẳng vào cột. Cái mất theo là khái niệm "một việc, nhiều người": không có
+   bảng nào chở nó, nên nó không được giả vờ tồn tại ở đây nữa.
+   Khoá `assigns` trong bản lưu cũ vẫn mồ côi lại như `deals` — cùng lý lẽ đã
+   ghi ngay bên trên, dọn cả hai trong lượt `version`+`migrate` đầu tiên. */
 
 /** Một việc NGƯỜI DÙNG tự ghi trên hồ sơ lead.
  *
@@ -81,8 +81,6 @@ export type LeadTodo = {
 type DeskState = {
   /** actorId → mã lead đã ghim. */
   pins: Record<string, string[]>
-  /** mã lead → đề nghị giao việc đang treo. */
-  assigns: Record<string, LeadAssignment>
   /** mã lead → next action đã bấm trong phiên này.
    *
    *  Giữ ở đây chứ không trong màn vì cùng một việc bấm ở bảng phải hiện "đã đề
@@ -131,8 +129,6 @@ type DeskState = {
   seq: number
 
   togglePin: (actorId: string, code: string) => void
-  assign: (code: string, actorIds: string[], task: string) => void
-  clearAssign: (code: string) => void
   act: (code: string, actionKey: string) => void
   patchProfile: (code: string, patch: Partial<LeadProfile>) => void
   resetProfile: (code: string) => void
@@ -155,7 +151,6 @@ export const useLeadDesk = create<DeskState>()(
   persist(
     (set) => ({
       pins: {},
-      assigns: {},
       acted: {},
       profiles: {},
       notes: {},
@@ -169,16 +164,6 @@ export const useLeadDesk = create<DeskState>()(
           const mine = s.pins[actorId] ?? NONE
           const next = mine.includes(code) ? mine.filter((c) => c !== code) : [...mine, code]
           return { pins: { ...s.pins, [actorId]: next } }
-        }),
-
-      assign: (code, actorIds, task) =>
-        set((s) => ({ assigns: { ...s.assigns, [code]: { actorIds, task } } })),
-
-      clearAssign: (code) =>
-        set((s) => {
-          const next = { ...s.assigns }
-          delete next[code]
-          return { assigns: next }
         }),
 
       act: (code, actionKey) =>
@@ -238,7 +223,6 @@ export const useLeadDesk = create<DeskState>()(
       reset: () =>
         set({
           pins: {},
-          assigns: {},
           acted: {},
           profiles: {},
           notes: {},

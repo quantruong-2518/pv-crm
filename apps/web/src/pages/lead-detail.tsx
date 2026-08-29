@@ -29,8 +29,8 @@ import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
-import { EXIT_REASON_LABEL } from '@/data/leads'
-import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
+import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
+import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { opportunitiesOfLeadQuery } from '@/data/opportunities'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
@@ -257,6 +257,7 @@ export function LeadDetailPage() {
             code: lead.code,
             company: accountName,
             contactName: lead.contactName,
+            contactTitle: lead.contactTitle,
             email: lead.email,
           },
         ]
@@ -329,6 +330,33 @@ export function LeadDetailPage() {
               )}
             </div>
 
+            {/* PIC ĐỨNG TRÊN NGUỒN, và thứ tự đó là một quyết định.
+                "Ai đang giữ" được hỏi mỗi lần mở hồ sơ — trước khi bấm gọi,
+                người ta liếc xem lead này có phải của mình không, vì nếu không
+                thì cuộc gọi đó là chen ngang. "Về bằng đường nào" thì tra một
+                lần rồi thôi. Khối đọc nhiều hơn đứng trên.
+
+                In `ownerName` — cái NHÃN. Hòm thư lui về `title` của pill,
+                đúng như cột PIC của sổ lead (`components/table-bits.tsx`): hai
+                màn của cùng một dòng dữ liệu phải in ra cùng một thứ, nếu
+                không thì bảng nói một đằng hồ sơ nói một nẻo.
+
+                Cả ba trường người giữ đến từ MỘT phép join ở máy chủ
+                (`lead.repository.ts` · `leftJoin(actor, …)`), nên chúng luôn
+                vắng cùng nhau — chỉ cần một nhánh trống, không cần ba. */}
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="text-muted-foreground text-[12.5px] font-semibold">Lead PIC</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {lead.ownerName ? (
+                  <MetaPill avatar={lead.ownerName} title={lead.ownerEmail}>
+                    {lead.ownerName}
+                  </MetaPill>
+                ) : (
+                  <MetaPill title={NO_OWNER_TITLE}>Chưa ai nhận</MetaPill>
+                )}
+              </div>
+            </div>
+
             <div className="flex min-w-0 flex-col gap-2">
               <span className="text-muted-foreground text-[12.5px] font-semibold">Nguồn lead</span>
               <div className="flex flex-wrap items-center gap-2">
@@ -372,7 +400,7 @@ export function LeadDetailPage() {
                   onClick={() => setComposing(true)}
                 >
                   <Icon icon={Mail} size={16} />
-                  Soạn email MAS
+                  Gửi mail
                 </Button>
               }
             />
@@ -487,32 +515,6 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *  có mã mà tra không ra. Hai cái sau trông giống nhau trên màn nếu gộp làm
  *  một, mà chúng là hai vấn đề ngược nhau: một cái bình thường, một cái nghĩa
  *  là có dòng đang trỏ vào chỗ trống. */
-/** Ai đang làm việc trên lead này. Chủ lead và người được giao việc là HAI vai
- *  khác nhau — gộp vào một dòng là mất câu trả lời "ai chịu trách nhiệm".
- *
- *  In `ownerName` — cái NHÃN. Không có ai đứng tên thì `ownerId` cũng vắng, và
- *  hai thứ đó luôn vắng cùng nhau vì cả ba trường người giữ đến từ một phép
- *  join duy nhất ở máy chủ. */
-/** TRA CỨU — nguồn và người phụ trách, gộp một khối và gập sẵn.
- *
- *  ------------------------------------------------------------------
- *  VÌ SAO HAI THẺ NÀY BỊ GỘP VÀ ĐẨY XUỐNG ĐÁY
- *  ------------------------------------------------------------------
- *  Cột phải nay là cột TÁC VỤ, xếp theo thứ tự người ta hỏi khi mở một lead.
- *  Hai thẻ này không trả lời câu nào trong số đó: không ai tác động vào chúng,
- *  chúng chỉ trả lời "lead này về bằng đường nào" và "ai đang giữ" — hai câu
- *  tra một lần rồi thôi.
- *
- *  Để nguyên hai thẻ mở là hai khối chiếm chỗ của việc phải làm, ở đúng phần
- *  màn đắt nhất. Gộp và gập trả lại chỗ đó, và không mất gì: một cú bấm là ra,
- *  còn dòng tóm tắt trên nút đã nói sẵn tên chiến dịch và số người phụ trách —
- *  tức phần lớn lượt tra xong ngay ở trạng thái gập.
- *
- *  MẶC ĐỊNH GẬP, kể cả khi chưa ai đứng tên lead. Cân nhắc mở sẵn cho ca đó —
- *  "chưa ai nhận" là một tín hiệu đáng thấy — nhưng nó đã có chỗ nói to hơn
- *  nhiều: cột PIC của Sổ lead, ô lọc "chưa ai nhận", và chính thanh công cụ
- *  dưới đáy màn này. Một khối tự bung ra vì trạng thái dữ liệu là một khối
- *  người dùng không đoán được chiều cao, và đó là giá đắt hơn phần được. */
 /** Thanh công cụ dính đáy — AI ở trái, LÀM GÌ ở phải.
  *
  *  ------------------------------------------------------------------
@@ -521,8 +523,7 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *  Thanh này chia làm hai nửa theo câu hỏi nó trả lời, không theo loại
  *  component:
  *
- *   · nửa trái = **AI** — khách là ai (công ty + người liên hệ + số gọi được)
- *     và PIC bên mình là ai;
+ *   · nửa trái = **AI** — khách là ai (người liên hệ + chức danh);
  *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
  *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
  *
@@ -531,11 +532,13 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *  chưa trả lời thì nó TẮT kèm lý do. Mặt thứ ba mới là mặt quan trọng — mời
  *  đổi khi chưa biết là đúng cách mở đơn thứ hai cho một khách đã có đơn.
  *
- *  PIC nằm ngay sau khối khách, TRƯỚC vạch ngăn, vì hai thứ đó là một cặp đọc
- *  cùng nhau: trước khi bấm gọi, người ta liếc "mình đang gọi cho ai" và "lead
- *  này đang đứng tên ai" — nếu không phải tên mình thì cuộc gọi đó là chen
- *  ngang. Đẩy PIC sang nửa phải là trộn một thông tin vào giữa các nút; đẩy
- *  xuống một khối riêng trong trang là bắt cuộn đi tìm đúng lúc sắp gọi.
+ *  PIC KHÔNG nằm ở đây, nó nằm trên khối nhận diện ở đầu trang. Bản cũ định
+ *  đặt nó cạnh khối khách trong chính thanh này, với lý do đúng — trước khi
+ *  bấm gọi người ta liếc "mình gọi cho ai" và "lead này của ai", vì nếu không
+ *  phải tên mình thì cuộc gọi đó là chen ngang. Cái sai là CHỖ: nửa trái của
+ *  thanh này `hidden lg:flex`, nên đặt PIC vào đây là giấu nó khỏi tablet và
+ *  điện thoại, đúng hai thiết bị luật 3 bắt phải chạy được. Khối đầu trang
+ *  hiện ở cả ba cỡ và vẫn nằm trong tầm mắt lúc quyết định gọi.
  *
  *  Thanh DÍNH chứ không cố định tuyệt đối: nó ở trong luồng nội dung nên không
  *  đè lên sidebar, và dưới `lg` thì nhường chỗ cho BottomNav 84px của AppShell. */
@@ -552,8 +555,9 @@ function ToolsBar({
   onOpenOp,
 }: {
   lead: LeadProfile
-  /** Hình `Lead` của fixture, chỉ để đưa cho `AssignMenu` — khối giao việc còn
-   *  nằm trên `app/desk.ts` và chưa có endpoint nào để cắt sang. */
+  /** Hình `Lead` của fixture. `AssignMenu` nhận nó CHỈ để `assigneeOptions`
+   *  xếp thứ tự gợi ý người nhận — phép ghi của khối đó đã cắt sang máy chủ và
+   *  đọc mọi giá trị từ `lead` (hồ sơ trên dây), không từ hình này. */
   legacy: Lead
   pinned: boolean
   /** Mã cơ hội lead này ĐÃ có trong sổ, nếu có. */
@@ -578,10 +582,6 @@ function ToolsBar({
   const exitLabel = lead.exitReason
     ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
     : undefined
-  /* Người liên hệ THẬT cho `AssignMenu` — cùng lý do đã ghi ở `contact` của
-     component cha; xem docblock của `nextActions` (`data/leads.ts`). */
-  const contact = realContact(lead)
-
   return (
     <div className="z-10 lg:sticky lg:bottom-4">
       <GlassCard
@@ -607,7 +607,7 @@ function ToolsBar({
               <Icon icon={Pin} size={16} />
               {pinned ? 'Đã ghim' : 'Ghim'}
             </Button>
-            <AssignMenu lead={legacy} contact={contact} buttonVariant="secondary" />
+            <AssignMenu lead={legacy} profile={lead} buttonVariant="secondary" />
           </div>
 
           <div className="flex flex-wrap items-center gap-1 rounded-md bg-white/5 p-1">

@@ -63,7 +63,13 @@ import {
   queryPageFromPageIndex,
 } from '@/app/url'
 import { dm } from '@/lib/date'
-import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery, leadScorecardQuery } from '@/data/leads'
+import {
+  EXIT_REASON_LABEL,
+  leadBookQuery,
+  leadFacetQuery,
+  leadScorecardQuery,
+  NO_OWNER_TITLE,
+} from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -215,8 +221,6 @@ const SEARCH_DELAY_MS = 300
 const NO_CONTACT = 'Chưa có người liên hệ — ô số 4 của init data chưa moi được'
 
 const NO_TITLE = 'Chưa có chức danh — ô số 4 của init data chưa moi được'
-
-const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
 
 /* Mốc kỳ suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
 const PERIOD_FROM = dm(dayISO(0))

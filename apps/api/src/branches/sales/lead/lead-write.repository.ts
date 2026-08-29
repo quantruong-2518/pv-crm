@@ -155,6 +155,62 @@ export class LeadWriteRepository {
       .returning()
   }
 
+  /** The four things a hand-over needs to know about the lead it is moving,
+   *  read under a row lock.
+   *
+   *  ------------------------------------------------------------------
+   *  `FOR UPDATE`, AND IT IS NOT DEFENSIVE PROGRAMMING
+   *  ------------------------------------------------------------------
+   *  Claiming a lead out of the common pool is a read ("is it still free?")
+   *  followed by a write, and two Sales pressing "Nhận lead" on the same row
+   *  within the same second BOTH read `owner_id IS NULL`. Without the lock the
+   *  second write silently wins and the first person keeps a screen saying the
+   *  lead is theirs. With it, the second transaction waits, re-reads a row that
+   *  now has an owner, and gets told who took it.
+   *
+   *  This is the one place in the branch that needs it, because it is the one
+   *  place where what the caller is allowed to do depends on a column the
+   *  caller is about to change.
+   *
+   *  `company` and `stage` come back because the mirror row in
+   *  `platform.object` is written by UPSERT of the WHOLE ref — see
+   *  `ObjectMirror.putMany`, where `state` is set from `excluded` and would be
+   *  cleared by a ref that simply left it out. */
+  async lockForOwnerChange(
+    tx: Db,
+    code: string,
+  ): Promise<{
+    code: string
+    company: string
+    stage: string | null
+    ownerId: string | null
+  } | null> {
+    const [row] = await tx
+      .select({
+        code: lead.code,
+        company: lead.company,
+        stage: lead.stage,
+        ownerId: lead.ownerId,
+      })
+      .from(lead)
+      .where(eq(lead.code, code))
+      .limit(1)
+      .for('update')
+
+    return row ?? null
+  }
+
+  /** Move `owner_id`. `null` puts the lead back in the common pool.
+   *
+   *  No `where owner_id = <expected>` guard on the statement: the caller has
+   *  already locked the row with `lockForOwnerChange` inside this same
+   *  transaction, so nothing can have moved underneath it. A second guard here
+   *  would fail SILENTLY — zero rows updated reads the same as success unless
+   *  every call site remembers to count — while the lock fails loudly. */
+  async setOwner(tx: Db, code: string, ownerId: string | null): Promise<void> {
+    await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
+  }
+
   /** One public intake insert. A duplicate-email race is allowed to throw so
    *  Postgres rolls back the mirror row; the service recognises exactly that
    *  named constraint and returns the generic public acknowledgement. */

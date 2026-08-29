@@ -517,6 +517,58 @@ export const LeadCreate = z
 export const LeadCreateResponse = LeadRow
 
 // ---------------------------------------------------------------------------
+// HANDING A LEAD OVER — `PATCH /sales/leads/:code/owner`
+// ---------------------------------------------------------------------------
+
+/** Who holds this lead from now on. `null` puts it back in the common pool.
+ *
+ *  ------------------------------------------------------------------
+ *  ONE FIELD, AND NO `task` BESIDE IT
+ *  ------------------------------------------------------------------
+ *  The screen this replaces sent a list of people plus a sentence naming the
+ *  work ("Gọi lần 2"). Neither had a column to land in: assignment lived in
+ *  browser storage, so the list could hold five people no table knew about and
+ *  the sentence was picked from a list the screen derived on the fly. What the
+ *  database actually models is `lead.owner_id` — ONE actor, the person the
+ *  scope axis reads and `CREDIT_RULES` pays. So the door writes exactly that,
+ *  and a "task" with nowhere to go is not accepted rather than accepted and
+ *  dropped.
+ *
+ *  ------------------------------------------------------------------
+ *  NULLABLE, NOT OPTIONAL — AND THE VERB IS `PATCH`
+ *  ------------------------------------------------------------------
+ *  `null` has to be spellable: releasing a lead back to the pool is a real
+ *  move a holder makes when they go on leave, and `{}` — the shape an optional
+ *  field allows — cannot say it. Optional would also give two spellings for
+ *  "no owner", absent and null, where the column has exactly one.
+ *
+ *  So the field is REQUIRED and nullable, which makes the body name the whole
+ *  new state of `owner_id`: sending it twice leaves the lead exactly where the
+ *  first call put it. That is `PUT` semantics on a `PATCH` verb, and the verb
+ *  is the deliberate half. `apps/web/src/app/api/client.ts` carries `POST`,
+ *  `PATCH` and `DELETE` end to end — through `enableCors`, the replay rule and
+ *  the interceptor chain — and its own docblock records what adding a fourth
+ *  verb costs: a `main.ts` that forgets it makes every call die at preflight
+ *  with no server log at all. One field's idempotency is not worth a new verb
+ *  in four files.
+ *
+ *  An id, never a name: two people can share a name, and `lead_owner_id_actor_id_fk`
+ *  is the fence that actually holds. The importer takes names because a
+ *  spreadsheet is typed by a human; a screen holds the id it already read. */
+export const LeadOwnerWrite = z.object({
+  ownerId: z.string().min(1).max(64).nullable(),
+})
+
+/** The row as the book would show it — same answer shape as `POST /sales/leads`.
+ *
+ *  The whole row rather than `{ ok: true }`, and for a reason that shows up on
+ *  screen: the caller sent an ID and the book prints a NAME and a mailbox, both
+ *  of which live on `platform.actor` rather than in the request. Answering with
+ *  the row means the cell updates from what the server stored, not from what
+ *  the client hoped it stored. */
+export const LeadOwnerResponse = LeadRow
+
+// ---------------------------------------------------------------------------
 // The scorecard — `GET /sales/leads/scorecard`
 // ---------------------------------------------------------------------------
 
@@ -565,4 +617,6 @@ export type LeadBookResponse = z.infer<typeof LeadBookResponse>
 export type LeadProfile = z.infer<typeof LeadProfile>
 export type LeadCreate = z.infer<typeof LeadCreate>
 export type LeadCreateResponse = z.infer<typeof LeadCreateResponse>
+export type LeadOwnerWrite = z.infer<typeof LeadOwnerWrite>
+export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
 export type LeadScorecard = z.infer<typeof LeadScorecard>

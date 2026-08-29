@@ -1,12 +1,17 @@
-import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { Inject, Injectable } from '@nestjs/common'
+import type { AccessControl, Actor } from '@pv/engines'
 import {
   LeadCreateResponse,
   LeadImportCommitResponse,
   LeadImportPreviewResponse,
+  LeadOwnerResponse,
   type LeadCreate,
   type LeadImportBody,
+  type LeadOwnerWrite,
+  type MaObject,
 } from '@pv/contracts'
+import { ACCESS } from '@api/platform/engines/tokens'
+import { denied, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
@@ -62,6 +67,12 @@ export class LeadWriteService {
     private readonly leads: LeadRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
+    /* The first engine this service holds. `setOwner` asks it one question —
+       "does this role hold `lead.giao`" — and that question is trục 1 alone,
+       which is why it calls `allows()` and not `check()`: the route guard has
+       already settled licence and session, and there is no `ref` yet whose
+       owner could be compared. */
+    @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   // ── door 1 · one lead, typed by a person ─────────────────────────────────
@@ -122,6 +133,130 @@ export class LeadWriteService {
         signed: false,
       }),
     )
+  }
+
+  // ── door 1b · hand the lead over ─────────────────────────────────────────
+
+  /** `PUT /sales/leads/:code/owner` — the whole of "giao" and "nhận".
+   *
+   *  ------------------------------------------------------------------
+   *  THE RULE, AND WHY IT IS TWO SENTENCES RATHER THAN ONE PERMISSION
+   *  ------------------------------------------------------------------
+   *  `lead.giao` is held by `trưởng-phòng` and `giám-đốc` only — Sale and BD
+   *  deliberately do not have it, because handing somebody else's customer to a
+   *  third person re-cuts the commission (`COMMISSION_SPLIT`). Declaring the
+   *  route as `@Need({ permission: 'lead.giao' })` and stopping there would
+   *  therefore be correct AND useless: it would also block a Sale from picking
+   *  up a lead nobody holds, which is the single most common move on this
+   *  screen and takes nothing from anyone.
+   *
+   *  So the door reads:
+   *
+   *   · holder of `lead.giao` → may put any lead on anybody, or release it;
+   *   · anybody else with `lead.sửa` → may take a lead THAT NOBODY HOLDS, and
+   *     only for themselves.
+   *
+   *  Everything else is 403 `out-of-scope`, with a sentence naming who to ask.
+   *  Note what is NOT in the list: releasing a lead you hold. It looks
+   *  harmless, but a lead put back in the pool leaves the pipeline of the
+   *  person who had it, and the person who notices is their manager at the end
+   *  of the month — so it stays with the role that already owns re-cutting
+   *  credit.
+   *
+   *  ------------------------------------------------------------------
+   *  NO PROPOSAL, NO APPROVAL — AND E3 IS NOT BEING BYPASSED
+   *  ------------------------------------------------------------------
+   *  The screen this replaces wrote a "đề nghị giao việc" into browser storage
+   *  and printed "chờ trưởng phòng gật". Nothing ever gasped: E3 was never
+   *  wired to it, so the pending state was a sentence, not a state — and the
+   *  lead's owner never changed no matter how many times somebody assigned it.
+   *  A promise the system cannot keep is worse than no promise, so the promise
+   *  is gone and the write is real. What replaces the approval is the fence
+   *  above: the person who could have approved is now the only person who can
+   *  do the part that needed approving.
+   *
+   *  ------------------------------------------------------------------
+   *  FOUR WRITES, ONE TRANSACTION
+   *  ------------------------------------------------------------------
+   *  The column, the mirror row in `platform.object` (or the ContextRail keeps
+   *  showing the old holder — rule 10), and one `sales.touch` row of kind
+   *  `giao`, which until today no door in the branch wrote. The lock is taken
+   *  first; see `lockForOwnerChange`. */
+  async setOwner(who: Actor, code: MaObject, body: LeadOwnerWrite): Promise<LeadOwnerResponse> {
+    const mayAssign = this.access.allows(who, 'lead.giao')
+
+    /* Looked up BEFORE the transaction, like `create()` does and for the same
+       reason: the mirror row carries a display NAME while the column carries
+       an id, and the touch row records the name too. A `null` here means no
+       such actor, and the UPDATE then dies on `lead_owner_id_actor_id_fk` —
+       the fence that holds for every door rather than only the checked ones. */
+    const next = body.ownerId
+      ? await this.repo.actorById(this.repo.readonlyHandle, body.ownerId)
+      : null
+
+    await this.repo.run(async (tx) => {
+      const found = await this.repo.lockForOwnerChange(tx, code)
+      if (!found) throw notFound('lead', code)
+
+      if (!mayAssign) {
+        if (found.ownerId !== null) {
+          throw denied(
+            'out-of-scope',
+            found.ownerId === who.id
+              ? `Lead ${code} đang đứng tên bạn. Trả lead về kho chung là việc của trưởng phòng.`
+              : `Lead ${code} đã có người nhận — hỏi trưởng phòng nếu cần chuyển tay.`,
+          )
+        }
+        if (body.ownerId !== who.id) {
+          throw denied(
+            'out-of-scope',
+            'Bạn chỉ nhận lead trong kho chung về cho mình được. Giao cho người khác là việc của trưởng phòng.',
+          )
+        }
+      }
+
+      /* Nothing to do is not an error: two clicks on "Nhận lead" is one lead
+         held once. Returning early skips a touch row that would read as a
+         second hand-over on the timeline. */
+      if (found.ownerId === (body.ownerId ?? null)) return
+
+      await this.repo.setOwner(tx, code, body.ownerId ?? null)
+
+      await this.mirror.put(tx, {
+        code: found.code,
+        kind: 'LD',
+        branch: 'Sales',
+        label: found.company,
+        ...(next ? { owner: next.name } : {}),
+        ...(found.stage ? { state: found.stage } : {}),
+      })
+
+      await this.touch.record(tx, [
+        {
+          subjectCode: code,
+          subjectKind: 'lead',
+          kind: 'giao',
+          /* `by`/`actorId` is who PRESSED the button, never who received the
+             lead — the timeline answers "who did this", and the recipient is
+             named in the note. `byOf` is the only way to build that pair. */
+          ...byOf(who),
+          note: next ? `${LEAD_NOTE.handedTo} ${next.name}` : LEAD_NOTE.released,
+        },
+      ])
+    })
+
+    /* Read the row back through the ordinary read path rather than assembling
+       an answer from what was just written. The book prints `daysHere`, the
+       campaign NAME and `signed`, and all three come out of joins and a
+       subquery this service does not run — building them here would be a
+       second, quieter implementation of the book row.
+       `inScope` is deliberately ignored: a Sale who just handed their lead to
+       somebody else is out of scope for it a millisecond later, and answering
+       their successful write with a 403 would read as a failure. */
+    const after = await this.leads.byCode(who, code)
+    if (!after) throw notFound('lead', code)
+
+    return LeadOwnerResponse.parse(toContract(after))
   }
 
   // ── door 2 · the dry run ─────────────────────────────────────────────────
