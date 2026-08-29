@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   CalendarCheck,
   FileCheck,
   Inbox,
+  ListChecks,
   Mail,
   PenLine,
   Pin,
   Target,
   TriangleAlert,
   Users,
+  X,
 } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -16,6 +18,7 @@ import {
   AppShell,
   Badge,
   Button,
+  Checkbox,
   Chip,
   DataTable,
   EmptyState,
@@ -43,7 +46,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import {
   campaignLabel,
-  OWNER_NONE,
+  SOURCE_KIND_LABEL,
   sourceKindLabel,
   type ConfigEntry,
   type LeadBookQuery,
@@ -68,6 +71,7 @@ import {
   leadBookQuery,
   leadFacetQuery,
   leadScorecardQuery,
+  leadSourceKindFacetQuery,
   NO_OWNER_TITLE,
 } from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
@@ -78,7 +82,7 @@ import { LEAD_SPEC, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { LeadCreateDialog } from '@/components/lead-create-dialog'
-import { MasMailDrawer } from '@/components/mas-mail-drawer'
+import { MasMailModal } from '@/components/mas-mail-modal'
 import { Pager, PersonCell, PicCell } from '@/components/table-bits'
 
 /** Module 2 · Sổ lead.
@@ -158,9 +162,10 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *  "—" cho chúng và nói lý do ở `title`. Điền một cái tên cho đủ ô là phá đúng
  *  thứ cổng init data sinh ra để đo.
  *
- *  Hàng lọc: ô tìm · Trạng thái · Nguồn · Lead PIC · Account — tên ô lọc đi
- *  theo tên cột, vì một trường mà hai chỗ gọi hai tên là chỗ để hiểu nhầm. Bỏ:
- *  Bậc · Ngành · Quá SLA.
+ *  Hàng lọc: ô tìm · Trạng thái · Nguồn — tên ô lọc đi theo tên cột, vì một
+ *  trường mà hai chỗ gọi hai tên là chỗ để hiểu nhầm. Bỏ: Bậc · Ngành · Quá
+ *  SLA (từ đầu) và Lead PIC · Account (29/08 — đọc comment trên khối
+ *  `ScreenToolbar` cho lý do; cả hai vẫn còn nguyên là CỘT trên bảng).
  *
  *  Sổ phân trang, không cuộn vô tận — và từ 27/08 nó là sổ THẬT của máy chủ,
  *  không còn là 100 dòng đóng băng. Từ 29/08 thẻ điểm cũng vậy
@@ -205,11 +210,18 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *  `size` đi kèm mọi lời gọi. */
 const PAGE_SIZE = 10
 
-/** Giá trị "không lọc trục này" của ba ô Select. Trên dây thì "không lọc" là
- *  trường VẮNG MẶT, nhưng `<select>` gốc chỉ mang được chuỗi nên vẫn cần một
- *  giá trị để đại diện. Đổi qua đổi lại đúng ở hai chỗ: `?? ANY` lúc đọc,
- *  `=== ANY ? undefined` lúc ghi. */
+/** Giá trị "không lọc trục này" của hai ô Select (Trạng thái, Nguồn). Trên dây
+ *  thì "không lọc" là trường VẮNG MẶT, nhưng `<select>` gốc chỉ mang được
+ *  chuỗi nên vẫn cần một giá trị để đại diện. Đổi qua đổi lại đúng ở hai chỗ:
+ *  `?? ANY` lúc đọc, `=== ANY ? undefined` lúc ghi. */
 const ANY = 'all'
+
+/** Tiền tố đánh dấu một giá trị ô lọc Nguồn là `sourceKind` chứ không phải id
+ *  chiến dịch — xem docblock `nguonOptions` cho lý do một ô cần phân biệt hai
+ *  loại giá trị. An toàn vì hai bảng mã không bao giờ đụng nhau: id chiến dịch
+ *  luôn có tiền tố `SR-` (`MaConfig`, sáu prefix theo danh mục), `LeadSourceKind`
+ *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
+const KIND_PREFIX = 'kind:'
 
 /** Chờ bao lâu sau phím cuối rồi mới ghi ô tìm lên địa chỉ.
  *
@@ -226,13 +238,33 @@ const NO_TITLE = 'Chưa có chức danh — ô số 4 của init data chưa moi 
 const PERIOD_FROM = dm(dayISO(0))
 const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
 
-/** Bốn trạng thái của một dòng trong sổ. "Đang chạy" là mặc định — lead đã rơi
+/** Bốn trạng thái của một dòng trong sổ. "Chưa chốt" là mặc định — lead đã rơi
  *  vẫn tra được, vì đó là nơi câu trả lời "vì sao mất" nằm.
  *
  *  Bốn khoá là bốn giá trị của `LeadStatus` trong hợp đồng, không phải một bản
- *  liệt kê thứ hai: chúng đi thẳng lên địa chỉ rồi lên dây. */
+ *  liệt kê thứ hai: chúng đi thẳng lên địa chỉ rồi lên dây.
+ *
+ *  ------------------------------------------------------------------
+ *  NHÃN CỦA `running` ĐỔI TỪ "Đang chạy" (29/08) — CỘT VÀ Ô LỌC PHẢI NÓI CÙNG MỘT CHUYỆN
+ *  ------------------------------------------------------------------
+ *  `running` = chưa ký, chưa rơi (`statusFilter` ở `lead.repository.ts`) — và
+ *  55/65 dòng khớp điều kiện đó chưa hề có `stage`, nên cột Trạng thái của
+ *  chúng vẽ "Chưa xử lý" (`StatusCell`), không phải bất cứ thứ gì đọc ra như
+ *  "đang chạy". Một người lọc "Đang chạy" rồi thấy phần lớn dòng ghi "Chưa xử
+ *  lý" đọc như hai câu trả lời cho hai câu hỏi khác nhau.
+ *
+ *  "Chưa chốt" đúng cho CẢ hai nhánh cột vẽ ra ở bucket này — "Chưa xử lý" lẫn
+ *  tên bậc pipeline (kể cả "Quá hạn · …") — vì cả hai đều là "chưa tới kết cục
+ *  cuối" (đã ký hoặc đã rơi), đúng bằng định nghĩa SQL của `running`. Không
+ *  đổi thành lọc theo TỪNG bậc: đó là quyết định đã chốt riêng, đọc phần "GỠ
+ *  22/08" ở docblock đầu file — nhãn sai, không phải độ mịn của bộ lọc, mới là
+ *  thứ đang được sửa ở đây.
+ *
+ *  `lead-detail.tsx#StatusBadge` vẫn in "Đang chạy" cho đúng bucket này — đó
+ *  là một mặt khác của CÙNG một sự lệch pha, chưa sửa trong đợt này vì nó là
+ *  một badge khác, ở một màn khác, không phải ô lọc đang được hỏi tới. */
 const STATUSES: { key: LeadStatus; label: string }[] = [
-  { key: 'running', label: 'Đang chạy' },
+  { key: 'running', label: 'Chưa chốt' },
   { key: 'signed', label: 'Đã ký' },
   { key: 'exited', label: 'Đã rơi' },
   { key: 'all', label: 'Cả kỳ' },
@@ -260,6 +292,7 @@ const NO_SOURCES: ConfigEntry[] = []
  *  Hai sổ kia (người nhận, cơ hội) KHÔNG có endpoint nào, nên chúng vẫn tự
  *  chống trùng bằng `leadBookKeys` — cùng một panel, hai cách dùng. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
+const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
 
 /** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
  *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết. Hạn vẫn đọc từ
@@ -298,9 +331,9 @@ export function LeadsPage() {
 
   /* Sổ ĐẦY ĐỦ, gọi riêng một lần và cache dài. Đây là chỗ CHẮP VÁ — cả lý do
      lẫn ngày nó gãy nằm trong docblock của `leadFacetQuery`, đọc ở đó trước
-     khi bắt chước cách này. Ba chỗ dưới đây cần một câu trả lời về CẢ SỔ mà
-     một trang mười dòng không trả lời được: hai ô lọc người/công ty, dải ghim,
-     và khoá chống trùng của panel nạp. */
+     khi bắt chước cách này. Hai chỗ dưới đây cần một câu trả lời về CẢ SỔ mà
+     một trang mười dòng không trả lời được: dải ghim, và khoá chống trùng của
+     panel nạp. */
   const { data: facets } = useQuery(leadFacetQuery)
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
 
@@ -321,6 +354,24 @@ export function LeadsPage() {
   const sourceOptions = useMemo(
     () => sourceCatalog.filter((entry) => entry.active),
     [sourceCatalog],
+  )
+
+  /* Cùng danh mục, khác câu hỏi — nên khác danh sách. Ô lọc hỏi "xem nguồn
+     nào", ô này hỏi "gán nguồn nào cho cả lô vừa nạp", và câu trả lời hợp lệ
+     cho câu thứ hai gồm cả "không gán": một tệp mang về từ hội chợ không thuộc
+     chiến dịch nào.
+
+     Mục rỗng đứng ĐẦU vì `ImportZone` lấy option đầu làm giá trị mở panel, và
+     `neutralValue=""` của ô chọn khớp đúng nó — lô không bấm gì thì
+     `campaign_id` nhận NULL. Mặc định vào nguồn đầu danh sách thì mọi lô quên
+     bấm đều bị gán vào một chiến dịch không liên quan, và không ai thấy cho
+     tới lúc đọc báo cáo theo nguồn. */
+  const importSourceOptions = useMemo(
+    () => [
+      { value: '', label: '— chưa gán nguồn —' },
+      ...sourceOptions.map((entry) => ({ value: entry.id, label: entry.name })),
+    ],
+    [sourceOptions],
   )
 
   const me = useSession((s) => s.actor)
@@ -369,43 +420,60 @@ export function LeadsPage() {
     [pins, wholeBook],
   )
 
-  /* Hai danh sách lọc dựng TỪ CẢ SỔ chứ không khai tay: thêm một Sale hay một
-     công ty là ô lọc tự có, không ai phải nhớ sửa thêm chỗ này.
+  /* Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`, real
+     `sourceKind` nào đang đứng không kèm chiến dịch trong sổ. Đọc docblock
+     `LeadFacets` (`@pv/contracts`) trước khi đụng vào chỗ này: nửa "có chiến
+     dịch" đã có nguồn thật rồi (`sourceOptions` ở trên, từ `GET /sales/config`)
+     — cái CÒN THIẾU trước bản sửa này là nửa kia, và thiếu nó nghĩa là một
+     lead `LANDING_PAGE` không chiến dịch (cột Nguồn in "Web landing") không có
+     lấy MỘT lựa chọn trong ô lọc trỏ được tới nó. */
+  const { data: sourceKindFacets } = useQuery(leadSourceKindFacetQuery)
 
-     Giá trị là `ownerId`, NHÃN là tên. Đây là chỗ nợ số 2 được trả ở phía màn:
-     lọc theo tên thì hai người trùng tên là một bộ lọc, và ngày công ty tuyển
-     người thứ hai tên "Nguyễn Văn Nam" thì hai sổ dính vào nhau mà không ai
-     biết. Máy chủ cũng so bằng `owner_id`, nên hai đầu nói cùng một thứ. */
-  const owners = useMemo(() => {
-    const byId = new Map<string, string>()
-    for (const l of wholeBook) {
-      if (l.ownerId) byId.set(l.ownerId, l.ownerName ?? l.ownerId)
-    }
-    return [...byId]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-  }, [wholeBook])
-
-  const accounts = useMemo(
-    () => [...new Set(wholeBook.map((l) => l.company))].sort((a, b) => a.localeCompare(b, 'vi')),
-    [wholeBook],
+  /* Một ô, hai trục hợp đồng (`campaign` và `sourceKind`) — xem docblock
+     `sourceKind` trong `LeadBookQuery` cho lý do hai trục không gộp làm một
+     tham số. `value` mã hoá bằng tiền tố `KIND_PREFIX` để `<Select>` phân biệt
+     được "SR-09" (một id chiến dịch) với "LANDING_PAGE" (một kind) mà không
+     cần đi tra lại — hai bảng mã không bao giờ đụng nhau (chiến dịch luôn có
+     tiền tố `SR-`, kind luôn viết hoa không dấu gạch), nên ghép an toàn. */
+  const nguonOptions = useMemo(
+    () => [
+      ...sourceOptions.map((entry) => ({ value: entry.id, label: entry.name })),
+      ...(sourceKindFacets?.sourceKinds ?? []).map((kind) => ({
+        value: `${KIND_PREFIX}${kind}`,
+        label: SOURCE_KIND_LABEL[kind],
+      })),
+    ],
+    [sourceOptions, sourceKindFacets],
   )
+
+  const nguonValue = query.sourceKind
+    ? `${KIND_PREFIX}${query.sourceKind}`
+    : (query.campaign ?? ANY)
+
+  const patchNguon = (value: string) => {
+    if (value === ANY) return patch({ campaign: undefined, sourceKind: undefined })
+    if (value.startsWith(KIND_PREFIX)) {
+      return patch({
+        sourceKind: value.slice(KIND_PREFIX.length) as LeadSourceKind,
+        campaign: undefined,
+      })
+    }
+    return patch({ campaign: value, sourceKind: undefined })
+  }
 
   /* Ô tìm đọc `text` chứ không đọc `query.q`: nút "Bỏ hết bộ lọc" phải hiện ra
      ngay từ phím đầu tiên, không đợi hết nhịp chờ 300ms. */
   const dirty =
     text.trim() !== '' ||
     query.campaign !== undefined ||
-    query.owner !== undefined ||
-    query.account !== undefined ||
+    query.sourceKind !== undefined ||
     query.status !== DEFAULT_LEAD_BOOK_QUERY.status
 
   const clearFilters = () =>
     patch({
       q: undefined,
       campaign: undefined,
-      owner: undefined,
-      account: undefined,
+      sourceKind: undefined,
       status: DEFAULT_LEAD_BOOK_QUERY.status,
     })
 
@@ -413,9 +481,92 @@ export function LeadsPage() {
      `useState` của màn chứ không ở `app/` — cùng luật với số trang và bộ lọc. */
   const [typing, setTyping] = useState(false)
 
-  /* Quick MAS sống trọn trong Drawer: người nhận, mẫu, tiêu đề và preview cùng
-     một chỗ. Sổ không đổi cột hay chèn thêm section khi soạn mail. */
+  /* Phiếu MAS sống trọn trong Modal: nội dung, lịch và người nhận cùng một chỗ.
+     Sổ không đổi cột hay chèn thêm section khi soạn mail. */
   const [composing, setComposing] = useState(false)
+
+  /* Chế độ chọn nhiều sống qua phân trang vì tập mã nằm ở MÀN, không nằm trong
+     mười dòng `rows` của trang hiện tại. Modal nhận tập này làm mồi rồi vẫn cho
+     thêm/bớt tiếp — chọn ngoài sổ không biến thành một vòng chọn lại bên trong. */
+  const [selecting, setSelecting] = useState(false)
+  const [selectedCodes, setSelectedCodes] = useState<ReadonlySet<string>>(NO_SELECTED_CODES)
+  const dragIntent = useRef<'select' | 'deselect' | null>(null)
+  const suppressClick = useRef<string | null>(null)
+
+  const selectedLeads = useMemo(
+    () => wholeBook.filter((lead) => selectedCodes.has(lead.code)),
+    [wholeBook, selectedCodes],
+  )
+  const selectedCodeList = useMemo(() => [...selectedCodes], [selectedCodes])
+  const selectedEmailCount = selectedLeads.filter((lead) => Boolean(lead.email)).length
+  const pageSelected = rows.filter((lead) => selectedCodes.has(lead.code)).length
+  const allPageSelected = rows.length > 0 && pageSelected === rows.length
+
+  const setCodeSelected = (code: string, on: boolean) => {
+    setSelectedCodes((current) => {
+      const next = new Set(current)
+      if (on) next.add(code)
+      else next.delete(code)
+      return next
+    })
+  }
+
+  const activateSelection = (code: string) => {
+    if (suppressClick.current === code) return
+    setCodeSelected(code, !selectedCodes.has(code))
+  }
+
+  const beginDrag = (code: string, event: ReactPointerEvent<HTMLDivElement>) => {
+    /* Touch giữ thao tác cuộn tự nhiên; một lần chạm được xử lý bằng click sau
+       đó. Chuột và bút mới dùng động tác "bôi" qua nhiều dòng. */
+    if (event.pointerType === 'touch' || event.button !== 0) return
+    event.preventDefault()
+    const intent = selectedCodes.has(code) ? 'deselect' : 'select'
+    dragIntent.current = intent
+    suppressClick.current = code
+    setCodeSelected(code, intent === 'select')
+  }
+
+  const paintSelection = (code: string, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch' || event.buttons !== 1 || dragIntent.current === null) return
+    setCodeSelected(code, dragIntent.current === 'select')
+  }
+
+  const selectPage = (on: boolean) => {
+    setSelectedCodes((current) => {
+      const next = new Set(current)
+      for (const lead of rows) {
+        if (on) next.add(lead.code)
+        else next.delete(lead.code)
+      }
+      return next
+    })
+  }
+
+  const exitSelection = () => {
+    setSelecting(false)
+    setSelectedCodes(NO_SELECTED_CODES)
+    dragIntent.current = null
+    suppressClick.current = null
+  }
+
+  useEffect(() => {
+    if (!selecting) return
+    const finish = () => {
+      dragIntent.current = null
+      /* `click` của lần nhấn đầu bắn ngay sau `pointerup`. Xoá ở macrotask kế
+         tiếp để click đó không đảo ngược lựa chọn vừa tô bằng pointerdown. */
+      window.setTimeout(() => {
+        suppressClick.current = null
+      }, 0)
+    }
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+    return () => {
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+    }
+  }, [selecting])
 
   /* Bản vẽ nạp tệp + sổ người của máy chủ. Ô "Lead PIC" là danh sách đóng, và
      danh sách đó là những người ĐANG làm ở đây — không phải bảy cái tên từng
@@ -466,49 +617,70 @@ export function LeadsPage() {
         <ScreenHeader
           title="Sổ lead"
           actions={
-            <>
-              {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
+            selecting ? (
+              <>
+                <Badge tone="running">{selectedCodes.size} lead đã chọn</Badge>
+                <Button size="md" variant="ghost" onClick={exitSelection}>
+                  <Icon icon={X} size={16} />
+                  Thoát chọn
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
               vào. Cùng cỡ, cùng dáng — chúng là hai đường vào một chỗ, không
-              phải một nút chính và một nút phụ. Quick MAS đứng riêng bên phải:
+              phải một nút chính và một nút phụ. Gửi MAS mail đứng riêng bên phải:
               nó không ghi lead mới, nó chọn lead CÓ SẴN để gửi mail — sáng lên
               (variant default) khi chế độ chọn đang bật, cùng ngôn ngữ với
               Select đang lọc. */}
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() => setTyping(true)}
-                className="max-sm:flex-1"
-              >
-                <Icon icon={PenLine} size={16} />
-                Tạo lead
-              </Button>
-              <ImportZone
-                spec={leadSpec}
-                existingKeys={NO_LOCAL_KEYS}
-                buttonLabel="Đẩy danh sách"
-                onCommit={commitLeads}
-                onSeeResult={clearFilters}
-              />
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() => setComposing(true)}
-                className="max-sm:flex-1"
-              >
-                <Icon icon={Mail} size={16} />
-                Quick MAS
-              </Button>
-            </>
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={() => setTyping(true)}
+                  className="max-sm:flex-1"
+                >
+                  <Icon icon={PenLine} size={16} />
+                  Tạo lead
+                </Button>
+                <ImportZone
+                  spec={leadSpec}
+                  existingKeys={NO_LOCAL_KEYS}
+                  scopeOptions={importSourceOptions}
+                  buttonLabel="Đẩy danh sách"
+                  onCommit={commitLeads}
+                  onSeeResult={clearFilters}
+                />
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedCodes(NO_SELECTED_CODES)
+                    setSelecting(true)
+                  }}
+                  className="max-sm:flex-1"
+                >
+                  <Icon icon={ListChecks} size={16} />
+                  Chọn nhiều lead
+                </Button>
+              </>
+            )
           }
         />
 
         <ScoreCards />
 
-        {/* Một hàng lọc. Ô tìm nở hết chỗ còn lại, bốn select cùng cao 40px
-            đứng cạnh nó — không còn ba dòng nút pill để mắt phải quét. */}
+        {/* Một hàng lọc — ô tìm + hai select (Trạng thái, Nguồn). Bỏ "Lead PIC"
+            và "Account" (29/08, theo yêu cầu): cả hai từng chọn từ một danh
+            sách dựng bằng tay ở trình duyệt (`[...new Set(...)]` trên 200 dòng
+            đầu sổ) — không phải "không real", nhưng là một filter trúng-trật:
+            đúng khi owner/account cần tìm còn nằm trong 200 dòng kéo về, sai
+            thầm lặng khi không. Xoá hẳn thay vì vá tiếp, vì hai trục đó ít
+            việc hơn Trạng thái/Nguồn: "của tôi" đã có ở dải Ghim, và tìm theo
+            account đã có ở chính ô tìm (khớp `company`). Hai cột "Lead PIC" /
+            "Account" trên bảng KHÔNG mất — chỉ mất Ô LỌC theo chúng. */}
         <ScreenToolbar
           label="Bộ lọc sổ lead"
-          className="grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-3 xl:items-center min-[1440px]:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(150px,1fr))_auto]"
+          className="grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-[minmax(280px,2fr)_repeat(2,minmax(180px,1fr))_auto] xl:items-center"
         >
           <SearchField
             size="topbar"
@@ -526,8 +698,8 @@ export function LeadsPage() {
           />
           <Select
             label="Nguồn"
-            value={query.campaign ?? ANY}
-            onChange={(v) => patch({ campaign: v === ANY ? undefined : v })}
+            value={nguonValue}
+            onChange={patchNguon}
             /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
                dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
             className="w-full max-w-none"
@@ -537,35 +709,7 @@ export function LeadsPage() {
                  `${entry.id} · ${entry.name}`, tức dán 'SR-09' vào trước mỗi
                  dòng của một ô chọn mà người dùng đọc bằng tên. Mã vẫn là thứ
                  đi vào câu hỏi gửi máy chủ, nó chỉ không cần đi vào mắt ai. */
-              ...sourceOptions.map((entry) => ({
-                value: entry.id,
-                label: entry.name,
-              })),
-            ]}
-          />
-          <Select
-            label="Lead PIC"
-            value={query.owner ?? ANY}
-            onChange={(v) => patch({ owner: v === ANY ? undefined : v })}
-            className="w-full max-w-none"
-            options={[
-              { value: ANY, label: 'Mọi người' },
-              /* 52/119 dòng chưa ai nhận. Không có mục này thì cách duy nhất
-                 tìm ra chúng là đọc hết sổ bằng mắt. `OWNER_NONE` là cách viết
-                 của nó TRÊN DÂY (`@pv/contracts`), không phải một cờ riêng của
-                 màn: máy chủ đọc đúng chuỗi này thành `owner_id IS NULL`. */
-              { value: OWNER_NONE, label: 'Chưa ai nhận' },
-              ...owners.map((o) => ({ value: o.id, label: o.name })),
-            ]}
-          />
-          <Select
-            label="Account"
-            value={query.account ?? ANY}
-            onChange={(v) => patch({ account: v === ANY ? undefined : v })}
-            className="w-full max-w-none"
-            options={[
-              { value: ANY, label: 'Mọi account' },
-              ...accounts.map((a) => ({ value: a, label: a })),
+              ...nguonOptions,
             ]}
           />
           {dirty && (
@@ -594,15 +738,29 @@ export function LeadsPage() {
               </span>{' '}
               dữ liệu
             </span>
-            {total > PAGE_SIZE && (
-              <Pager
-                page={pageIndex}
-                pageCount={pageCount}
-                onPage={(i) =>
-                  setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
-                }
-              />
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {selecting && rows.length > 0 && (
+                <Checkbox
+                  checked={allPageSelected}
+                  indeterminate={pageSelected > 0 && !allPageSelected}
+                  onChange={selectPage}
+                  label="Chọn trang này"
+                  hint={`${pageSelected}/${rows.length} lead trên trang`}
+                  className="py-1"
+                />
+              )}
+              {total > PAGE_SIZE && (
+                <Pager
+                  page={pageIndex}
+                  pageCount={pageCount}
+                  onPage={(i) =>
+                    setParams(
+                      leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }),
+                    )
+                  }
+                />
+              )}
+            </div>
           </div>
 
           <div aria-hidden className="bg-white/6 h-px" />
@@ -637,7 +795,7 @@ export function LeadsPage() {
               />
             ) : (
               <DataTable
-                className="min-w-[1180px]"
+                className={cn('min-w-[1180px]', selecting && 'select-none')}
                 /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định
                  là `createdAt desc` — mới nhất trước — và đó không phải cột nào
                  trên bảng, nên lúc đó không cột nào có mũi tên. */
@@ -654,7 +812,7 @@ export function LeadsPage() {
                   )
                 }}
                 columns={[
-                  { header: 'Ghim', width: '52px' },
+                  { header: selecting ? 'Chọn' : 'Ghim', width: '52px' },
                   { header: 'Mã', width: '0.85fr' },
                   { header: 'Account', width: '1.6fr', sortKey: 'company' },
                   { header: 'Người liên hệ', width: '1.2fr' },
@@ -673,14 +831,32 @@ export function LeadsPage() {
                 ]}
                 rows={rows.map((l) => ({
                   id: l.code,
-                  onOpen: () => open(l.code),
+                  state: selecting && selectedCodes.has(l.code) ? ('selected' as const) : undefined,
+                  onOpen: () => (selecting ? activateSelection(l.code) : open(l.code)),
+                  ...(selecting
+                    ? {
+                        onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) =>
+                          beginDrag(l.code, event),
+                        onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) =>
+                          paintSelection(l.code, event),
+                      }
+                    : {}),
                   cells: [
-                    <PinCell
-                      key="p"
-                      on={pins.includes(l.code)}
-                      company={l.company}
-                      onToggle={() => me && togglePin(me.id, l.code)}
-                    />,
+                    selecting ? (
+                      <SelectionCell
+                        key="select"
+                        checked={selectedCodes.has(l.code)}
+                        lead={l}
+                        onChange={(on) => setCodeSelected(l.code, on)}
+                      />
+                    ) : (
+                      <PinCell
+                        key="p"
+                        on={pins.includes(l.code)}
+                        company={l.company}
+                        onToggle={() => me && togglePin(me.id, l.code)}
+                      />
+                    ),
                     <Chip key="c">{l.code}</Chip>,
                     <span key="n" className="block truncate" title={l.company}>
                       {l.company}
@@ -716,20 +892,101 @@ export function LeadsPage() {
             />
           </div>
         )}
+        {selecting && <div aria-hidden className="h-24" />}
         {/* Sổ tự làm mới sau khi tạo: `useCreateLead` invalidate tiền tố
             `['sales','lead-book']`, tiền tố của CẢ trang đang vẽ lẫn
             `leadFacetQuery` — nên lead mới có mặt trong bảng và trong hai ô lọc
             người/công ty cùng một lúc. Dialog tự đóng khi 201 về. */}
         <LeadCreateDialog open={typing} onClose={() => setTyping(false)} />
-        <MasMailDrawer
+        <MasMailModal
           open={composing}
           onClose={() => setComposing(false)}
           leads={wholeBook}
-          defaultLabel="Quick MAS · Sổ lead"
-          onQueued={() => setComposing(false)}
+          initialLeadCodes={selectedCodeList}
+          defaultLabel="Gửi MAS mail · Sổ lead"
+          onQueued={() => {
+            setComposing(false)
+            exitSelection()
+          }}
         />
+        {selecting && (
+          <LeadSelectionBar
+            leads={selectedCodes.size}
+            emails={selectedEmailCount}
+            onClear={() => setSelectedCodes(NO_SELECTED_CODES)}
+            onSend={() => setComposing(true)}
+          />
+        )}
       </ScreenLayout>
     </AppShell>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+function SelectionCell({
+  checked,
+  lead,
+  onChange,
+}: {
+  checked: boolean
+  lead: LeadRow
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <span
+      className="flex w-full justify-center"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <Checkbox
+        checked={checked}
+        onChange={onChange}
+        label={<span className="sr-only">Chọn {lead.company}</span>}
+        className="w-full justify-center gap-0 p-0"
+      />
+    </span>
+  )
+}
+
+function LeadSelectionBar({
+  leads,
+  emails,
+  onClear,
+  onSend,
+}: {
+  leads: number
+  emails: number
+  onClear: () => void
+  onSend: () => void
+}) {
+  return (
+    <div
+      className="glass-overlay shadow-panel fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
+      role="region"
+      aria-label="Các lead đang chọn"
+    >
+      <div className="flex min-w-0 items-center gap-3" aria-live="polite">
+        <span className="bg-accent text-accent-foreground font-num tnum flex size-10 shrink-0 items-center justify-center rounded-md text-[16px] font-semibold">
+          {leads}
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[13px] font-semibold">{leads} lead đã chọn</span>
+          <span className="text-muted-foreground text-[11.5px]">
+            {emails} địa chỉ email · Kéo qua dòng để chọn nhanh
+          </span>
+        </span>
+      </div>
+      <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
+        <Button size="lg" variant="ghost" disabled={leads === 0} onClick={onClear}>
+          Bỏ chọn hết
+        </Button>
+        <Button size="lg" disabled={leads === 0} onClick={onSend}>
+          <Icon icon={Mail} size={16} />
+          Gửi MAS mail
+        </Button>
+      </div>
+    </div>
   )
 }
 

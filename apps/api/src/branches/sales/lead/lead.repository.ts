@@ -9,13 +9,14 @@ import {
   isNotNull,
   isNull,
   not,
+  or,
   sql,
   type SQL,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { OWNER_NONE, type LeadBookQuery, type LeadStatus } from '@pv/contracts'
+import { type LeadBookQuery, type LeadSourceKind, type LeadStatus } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
@@ -161,6 +162,29 @@ export class LeadRepository {
       .offset((q.page - 1) * q.size)
 
     return { rows, total: scoped_, hidden: all === null ? 0 : all - scoped_ }
+  }
+
+  /** Nửa "không chiến dịch" của ô lọc Nguồn — bốn `LeadSourceKind` nào đang
+   *  THẬT SỰ đứng không kèm chiến dịch trong sổ, không phải cả bốn giá trị
+   *  enum liệt kê sẵn. Đọc docblock `LeadFacets` (`@pv/contracts`) trước khi
+   *  đụng vào chỗ này — nó nói lý do nửa chiến dịch KHÔNG nằm ở đây.
+   *
+   *  Cùng trục PHẠM VI với `book()`, cùng `scopeOf()`: một Sale `ownOnly` chỉ
+   *  thấy sourceKind trong LEAD MÌNH GIỮ.
+   *
+   *  `isNull(campaignId)`: một lead CÓ chiến dịch không bao giờ in `kind` ra
+   *  cột Nguồn (`SourceMark` ưu tiên tên chiến dịch), nên kind của nó không
+   *  phải một lựa chọn lọc có ý nghĩa — liệt kê nó ra là vẽ thêm một mục ô lọc
+   *  không khớp dòng nào khi chọn. */
+  async sourceKindFacets(who: Actor): Promise<LeadSourceKind[]> {
+    const scope = this.scopeOf(who, true)
+
+    const rows = await this.db
+      .selectDistinct({ kind: lead.sourceKind })
+      .from(lead)
+      .where(and(isNull(lead.campaignId), isNotNull(lead.sourceKind), scope))
+
+    return rows.map((r) => r.kind as LeadSourceKind)
   }
 
   /** Một lead theo mã — CẢ DÒNG, kể cả khi trục phạm vi không cho người này
@@ -395,20 +419,23 @@ export class LeadRepository {
       q.category ? eq(lead.category, q.category) : undefined,
       this.statusFilter(q.status),
       q.campaign ? eq(lead.campaignId, q.campaign) : undefined,
-      /* `OWNER_NONE` is the wire spelling of "nobody has taken it" — see the
-         constant's docblock in `@pv/contracts`. It carries no actor id of its
-         own, so it maps to `owner_id IS NULL` rather than an equality check. */
-      q.owner
-        ? q.owner === OWNER_NONE
-          ? isNull(lead.ownerId)
-          : eq(lead.ownerId, q.owner)
-        : undefined,
-      q.account ? eq(lead.company, q.account) : undefined,
-      /* Pattern built by `contains()`, never string-concatenated: `%` and `_`
-         typed into the search box are LETTERS, not wildcards — see that
-         function's docblock. Shared with the Ops book so the two search boxes
-         cannot drift apart. */
-      q.q ? ilike(lead.company, contains(q.q)) : undefined,
+      /* `sourceKind` là nửa "không chiến dịch" của ô lọc Nguồn — đọc docblock
+         `LeadFacets` (`@pv/contracts`) trước khi sửa. `isNull(campaignId)` bắt
+         buộc đi kèm: một lead CÓ chiến dịch vẫn có thể mang một `sourceKind`
+         cũ trong cột, nhưng cột Nguồn không bao giờ IN nó ra (`SourceMark` ưu
+         tiên tên chiến dịch) — thiếu điều kiện này thì chọn "Web landing" sẽ
+         kéo về cả những dòng đang hiện tên chiến dịch, không hiện "Web
+         landing" ở đâu cả. */
+      q.sourceKind ? and(isNull(lead.campaignId), eq(lead.sourceKind, q.sourceKind)) : undefined,
+      /* Ô tìm hứa "tên công ty hoặc mã lead" (placeholder ở `pages/leads.tsx`)
+         nên phải hỏi CẢ HAI cột, không riêng company — trước bản sửa này gõ
+         `LD-0235` trả về rỗng dù dòng đó tồn tại, đúng nghĩa "search chưa gọi
+         đúng API" mà lời hứa trên ô tìm đặt ra. Mẫu dựng bằng `contains()`,
+         không ghép chuỗi: `%` và `_` gõ vào ô tìm là CHỮ, không phải ký tự
+         đại diện — xem docblock hàm đó. Cùng mẫu với Ops book
+         (`opportunity.repository.ts#filtersOf`) nên hai ô tìm không lệch
+         nhau. */
+      q.q ? or(ilike(lead.company, contains(q.q)), ilike(lead.code, contains(q.q))) : undefined,
     ]
   }
 

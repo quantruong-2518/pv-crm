@@ -70,6 +70,21 @@ export class LeadController {
     return this.leads.scorecard()
   }
 
+  /** Nửa "không chiến dịch" của ô lọc Nguồn trên sổ — đọc docblock `LeadFacets`
+   *  (`@pv/contracts`) trước khi đụng vào chỗ này.
+   *
+   *  PHẢI đứng trước `@Get(':code')`, cùng lý do `scorecard` đã ghi: chuỗi
+   *  `facets` mà rơi vào `:code` thì chết ở `zod(MaObject)` bằng một 400 vô
+   *  nghĩa với người đọc log.
+   *
+   *  `scoped: true`, cùng ba trục với `book()`: ô lọc phải chỉ chào những giá
+   *  trị nằm TRONG sổ mà actor này đang thấy, không phải cả sổ của phòng. */
+  @Get('facets')
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  facets(@CurrentActor() who: Actor) {
+    return this.leads.facets(who)
+  }
+
   /** Hồ sơ một lead — mọi thứ dòng sổ cố tình không chở.
    *
    *  Khai `@Get(':code')` SAU `@Get()`, và cùng ba trục quyền y hệt. Bộ định

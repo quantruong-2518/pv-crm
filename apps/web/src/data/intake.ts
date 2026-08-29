@@ -232,6 +232,20 @@ export type ImportField = {
    *  trông vẫn đúng trên bảng mà mọi phép lọc theo người đều trượt — kiểu sai
    *  không compiler nào bắt được vì cả hai đều là `string`. */
   people?: 'name' | 'id'
+  /** Ô này KHÔNG phải một cột của sổ: giá trị của nó ghép vào TRƯỚC trường
+   *  `mergeBefore` (cách một dấu cách) rồi biến mất khỏi dòng.
+   *
+   *  Sinh ra cho đúng một ca, và nói thẳng ca đó ra: mọi bản xuất kiểu Apollo
+   *  hay ZoomInfo tách tên người thành 'First Name' và 'Last Name', mà một
+   *  trường chỉ nhận được MỘT cột — `ColumnMapping` là một chỉ số. Không có
+   *  cửa này thì nửa còn lại của cái tên nằm lại trong tệp, và người nạp phải
+   *  đi sửa tệp trước khi nạp — đúng thứ luồng này tồn tại để khỏi phải làm.
+   *
+   *  Hướng ghép nằm trong TÊN: TRƯỚC, không phải sau. Ở tên Việt và tên Hàn —
+   *  hai nhóm chiếm gần hết mọi tệp chạy qua cửa này — 'Last Name' chính là
+   *  HỌ, và "Trịnh Phùng" mới là thứ người ta gọi nhau. Tệp xếp kiểu Tây thì
+   *  đổi hai ô cho nhau ở bước 2, chỗ vẫn bày ra để sửa. */
+  mergeBefore?: string
   /** Một ô mẫu, dùng dựng tệp mẫu tải về. */
   sample: string
 }
@@ -290,11 +304,30 @@ export function withPeople(spec: ImportSpec, people: readonly Actor[]): ImportSp
 
 /** Spec của sổ lead — luồng nạp chính.
  *
- *  Ba cột sao là mức tối thiểu để một dòng thành lead có nghĩa. Phần còn lại
- *  rơi thẳng vào bộ 10 câu (`LeadProfile`) và ĐẾM luôn vào cổng init data: nạp
- *  một tệp đầy đủ thì lead vào sổ đã qua sẵn cổng, không phải moi lại từ đầu.
- *  Đó là lý do danh sách này dài hơn ba cột — cắt ngắn cho gọn là bắt BD gõ lại
- *  bằng tay đúng những ô tệp đã có sẵn. */
+ *  ------------------------------------------------------------------
+ *  BA CỘT SAO LÀ ĐÚNG BA CỘT MÁY CHỦ ĐÒI, KHÔNG PHẢI BA CỘT KHÁC
+ *  ------------------------------------------------------------------
+ *  `company` · `contactName` · `email` — cùng ba ô `checkRow` của
+ *  `apps/api/.../lead-import.check.ts` chặn, và cùng ba ô hợp đồng gọi là tối
+ *  thiểu (`packages/contracts/src/sales/lead.ts`: một lead vào bằng landing
+ *  page chỉ có bấy nhiêu, phần còn lại là thứ MOI RA sau).
+ *
+ *  Bản trước đánh sao vào `province` và `category`, và đó là một cửa chặn
+ *  KHÔNG ai bên kia dây yêu cầu: trình duyệt từ chối đúng những dòng máy chủ
+ *  sẵn sàng nhận. Tệ hơn, `category` là danh sách ĐÓNG bốn giá trị, nên mọi
+ *  tệp mua về — Apollo, ZoomInfo, danh sách hội chợ — chết sạch ở dòng đầu
+ *  tiên vì "aviation & aerospace" không phải Chip/Cơ khí/Ô tô/Dược. Hai cột ấy
+ *  nay là tuỳ chọn: ô sai danh sách đóng khi KHÔNG bắt buộc thì bị bỏ và dòng
+ *  vẫn vào sổ (xem `buildRows`) — mất một ô nhẹ hơn mất cả một khách.
+ *
+ *  Đổi cửa chặn ở đây KHÔNG hạ chuẩn dữ liệu: ô nào tệp không lấp thì cổng
+ *  init data không tính, lead vào sổ ở bậc Đầu mối và nằm chờ người moi tiếp.
+ *  Đó đúng là chỗ một dòng mua về phải nằm.
+ *
+ *  Phần còn lại của danh sách rơi thẳng vào bộ 10 câu (`LeadProfile`) và ĐẾM
+ *  vào cổng init data: nạp một tệp đầy đủ thì lead vào sổ đã qua sẵn cổng,
+ *  không phải moi lại từ đầu. Đó là lý do danh sách này dài hơn ba cột — cắt
+ *  ngắn cho gọn là bắt BD gõ lại bằng tay đúng những ô tệp đã có sẵn. */
 export const LEAD_SPEC: ImportSpec = {
   key: 'lead',
   title: 'Nạp lead vào sổ',
@@ -314,14 +347,36 @@ export const LEAD_SPEC: ImportSpec = {
     {
       key: 'province',
       label: 'Tỉnh',
-      required: true,
-      aliases: ['tinh', 'tinh thanh', 'dia phuong', 'province', 'city'],
+      /* 'company city' và 'company state' có mặt vì tệp Apollo — bản xuất
+         phổ biến nhất của khối outbound — chở BỐN cột địa danh: 'City' và
+         'State' của NGƯỜI, 'Company City' và 'Company State' của CÔNG TY. Sổ
+         lead hỏi tỉnh của công ty, và ở bản Việt Nam thì đúng cột là
+         'Company State' ("Ho Chi Minh", "Da Nang") — 'Company City' giữ tên
+         quận/phường.
+
+         Bốn cột cùng khớp thì bộ đoán chọn cột ĐẦY nhất, không chọn cột đứng
+         trước (xem `guessMapping`): 'City' đứng trước trong tệp mà rỗng ở
+         năm trên tám dòng, và một cột rỗng thắng là cả lô chết vì "Thiếu
+         Tỉnh". */
+      aliases: [
+        'tinh',
+        'tinh thanh',
+        'dia phuong',
+        'province',
+        'city',
+        'company city',
+        'company state',
+      ],
       sample: 'Hải Phòng',
     },
     {
       key: 'category',
       label: 'Ngành',
-      required: true,
+      /* KHÔNG bắt buộc, và danh sách đóng là chính lý do: bốn ngành của
+         `LEAD_CATEGORIES` là cách PV One chia thị trường, không phải cách
+         Apollo hay ZoomInfo chia. Bắt buộc + danh sách đóng nghĩa là mọi tệp
+         mua về chết ở dòng đầu tiên. Nay ô lệch danh sách bị bỏ, ngành để
+         trống, và ô số 2 của cổng init data đơn giản là chưa điền. */
       aliases: ['nganh', 'linh vuc', 'nhom nganh', 'category', 'industry'],
       options: CATEGORY_OPTIONS,
       sample: 'Chip',
@@ -368,8 +423,43 @@ export const LEAD_SPEC: ImportSpec = {
     {
       key: 'contactName',
       label: 'Người liên hệ',
-      aliases: ['nguoi lien he', 'lien he', 'ten lien he', 'contact', 'contact name'],
+      required: true,
+      /* 'contact' TRẦN đã bỏ: vòng dò thứ hai khớp theo CHỨA, và
+         "Last Contacted" của Apollo chứa nó — cột ngày liên hệ gần nhất giành
+         mất ô Người liên hệ, rồi mọi dòng chết ở máy chủ vì thiếu tên. Giữ
+         'contact name' là đủ: một cột tên đúng "Contact" vẫn khớp được ở vòng
+         hai theo chiều ngược (`'contact name'.includes('contact')`).
+
+         'first name' vào danh sách vì mọi bản xuất kiểu Apollo TÁCH họ và tên
+         thành hai cột. Nửa còn lại KHÔNG bị bỏ lại trong tệp: trường 'Họ' ngay
+         dưới nhặt nó rồi ghép vào đây (`mergeBefore`). */
+      aliases: [
+        'nguoi lien he',
+        'lien he',
+        'ten lien he',
+        'contact name',
+        'first name',
+        'ho ten',
+        'ho va ten',
+        'full name',
+      ],
       sample: 'Nguyễn Văn Thành',
+    },
+    {
+      key: 'contactSurname',
+      /* Nhãn nói rõ "nếu tách cột" chứ không chỉ "Họ", và không phải để cho
+         đẹp: nhãn cũng là một bí danh dò cột (`guessMapping` ghép nó vào đầu
+         danh sách targets), và một target hai ký tự như 'ho' thì ở vòng dò
+         THEO CHỨA sẽ khớp trúng "Home Phone" của chính tệp Apollo. Nhãn dài
+         hơn ba chữ là cách rẻ nhất để chuyện đó không xảy ra — mà một cột tên
+         đúng "Họ" vẫn khớp được ở vòng hai theo chiều ngược. */
+      label: 'Họ (nếu tách cột)',
+      aliases: ['last name', 'surname', 'family name', 'ho lot', 'ho va ten dem'],
+      mergeBefore: 'contactName',
+      /* Ô mẫu RỖNG có chủ ý: tệp mẫu tải về là tệp gõ tay, và người gõ tay
+         điền cả họ tên vào một ô "Người liên hệ". Cột này chỉ có nghĩa với tệp
+         MÁY xuất ra, nên để trống là câu trả lời đúng cho "ô này điền gì". */
+      sample: '',
     },
     {
       key: 'contactTitle',
@@ -386,6 +476,11 @@ export const LEAD_SPEC: ImportSpec = {
     {
       key: 'email',
       label: 'Email',
+      /* Bắt buộc vì hai cửa dưới nó đều bắt buộc: máy chủ khoá chống trùng
+         theo `email:lower(email)`, và cả sổ lead sinh ra là để gửi được MAS
+         mail. Một dòng không hòm thư vừa không so trùng được vừa không làm
+         được việc nó được nạp vào để làm. */
+      required: true,
       aliases: ['email', 'thu dien tu', 'mail', 'e-mail'],
       sample: 'thanh.nv@kyanh.vn',
     },
@@ -575,8 +670,37 @@ export function normalise(text: string): string {
  *  lại thì cột "Email người ký" cướp mất trường Email của cột "Email". */
 export type ColumnMapping = Record<string, number>
 
-export function guessMapping(headers: string[], spec: ImportSpec): ColumnMapping {
+/** Số dòng bộ đoán đọc thử để đếm ô có chữ. Đọc hết 5.000 dòng chỉ để xếp
+ *  hạng vài cột là trả giá cho một việc mà 200 dòng đã trả lời xong: một cột
+ *  rỗng ở 200 dòng đầu thì gần như chắc chắn rỗng, và nếu không thì bước 2 vẫn
+ *  đang bày ra để người sửa. */
+const SNIFF_ROWS = 200
+
+/** Đếm ô CÓ CHỮ của từng cột, trong `SNIFF_ROWS` dòng đầu. */
+function fillOf(rows: readonly string[][], width: number): number[] {
+  const count = new Array<number>(width).fill(0)
+  const seen = Math.min(rows.length, SNIFF_ROWS)
+
+  for (let r = 0; r < seen; r += 1) {
+    const row = rows[r] ?? []
+    for (let c = 0; c < width; c += 1) {
+      if ((row[c] ?? '').trim() !== '') count[c] = (count[c] ?? 0) + 1
+    }
+  }
+
+  return count
+}
+
+export function guessMapping(
+  headers: string[],
+  spec: ImportSpec,
+  /** Dòng dữ liệu để phân xử khi NHIỀU cột cùng khớp một trường. Vắng mặt thì
+   *  bộ đoán quay về luật cũ — cột đứng trước thắng — nên mọi chỗ gọi cũ vẫn
+   *  chạy y như trước. */
+  rows: readonly string[][] = [],
+): ColumnMapping {
   const norm = headers.map(normalise)
+  const fill = fillOf(rows, headers.length)
   const used = new Set<number>()
   const out: ColumnMapping = {}
 
@@ -585,19 +709,39 @@ export function guessMapping(headers: string[], spec: ImportSpec): ColumnMapping
     used.add(index)
   }
 
+  /** Trong các cột cùng khớp, lấy cột NHIỀU Ô CÓ CHỮ nhất; hoà thì cột đứng
+   *  trước thắng.
+   *
+   *  Tên cột một mình không đủ để chọn, và tệp thật chứng minh điều đó: bản
+   *  xuất Apollo có 'City', 'Company City', 'Company State' cùng khớp trường
+   *  Tỉnh, cột đứng đầu thì rỗng ở phần lớn dòng. Luật cũ — cột đầu tiên khớp
+   *  thắng — biến một tệp dùng được thành một tệp mà MỌI dòng báo "Thiếu Tỉnh",
+   *  và người nạp không có cách nào biết vì sao ngoài mở tệp ra đếm bằng mắt.
+   *
+   *  Đây vẫn KHÔNG phải một đề xuất của AI (luật 9 không áp): cùng một tệp luôn
+   *  ra cùng một bảng khớp, và mọi ô vẫn sửa được ở bước 2 trước khi bấm. */
+  const fullest = (hits: number[]): number | undefined => {
+    let best: number | undefined
+    for (const i of hits) {
+      if (best === undefined || (fill[i] ?? 0) > (fill[best] ?? 0)) best = i
+    }
+    return best
+  }
+
+  const matches = (ok: (h: string) => boolean) =>
+    norm.flatMap((h, i) => (!used.has(i) && h !== '' && ok(h) ? [i] : []))
+
   for (const field of spec.fields) {
     const targets = [normalise(field.label), ...field.aliases.map(normalise)]
-    const hit = norm.findIndex((h, i) => !used.has(i) && h !== '' && targets.includes(h))
-    if (hit >= 0) claim(field.key, hit)
+    const hit = fullest(matches((h) => targets.includes(h)))
+    if (hit !== undefined) claim(field.key, hit)
   }
 
   for (const field of spec.fields) {
     if (out[field.key] !== undefined) continue
     const targets = [normalise(field.label), ...field.aliases.map(normalise)]
-    const hit = norm.findIndex(
-      (h, i) => !used.has(i) && h !== '' && targets.some((t) => h.includes(t) || t.includes(h)),
-    )
-    if (hit >= 0) claim(field.key, hit)
+    const hit = fullest(matches((h) => targets.some((t) => h.includes(t) || t.includes(h))))
+    if (hit !== undefined) claim(field.key, hit)
   }
 
   for (const field of spec.fields) {
@@ -752,6 +896,23 @@ export async function buildRows(
       values[field.key] = cell
     }
 
+    /* Ô ghép đi vào chỗ của nó rồi biến mất — xem `mergeBefore`. Chạy SAU
+       vòng trên vì nó đọc kết quả của vòng đó, và xoá vô điều kiện vì cửa ra
+       (`pickImportValues`) chỉ nhận đúng mười sáu khoá của hợp đồng: một khoá
+       lạ còn sót lại không nổ ở đây, nó im lặng rơi trên dây.
+
+       Dòng thiếu ô CHÍNH vẫn hỏng ở vòng trên dù ô ghép có chữ. Đó là câu trả
+       lời đúng: một tệp chỉ có cột Họ mà không có cột Tên là tệp thiếu tên
+       người, không phải tệp đặt tên ở chỗ khác. */
+    for (const field of spec.fields) {
+      if (field.mergeBefore === undefined) continue
+      const part = values[field.key]
+      delete values[field.key]
+      if (part === undefined) continue
+      const head = values[field.mergeBefore]
+      values[field.mergeBefore] = head === undefined ? part : `${part} ${head}`
+    }
+
     if (bad) {
       errors.push({ line, first, reason: bad })
     } else {
@@ -831,7 +992,9 @@ export type ImportedLead = Lead & {
  *
  *   · ô 1 Pháp nhân   ← MÃ SỐ THUẾ, không phải tên pháp nhân. Tên thì ai cũng
  *     gõ được; mã số thuế là thứ phải tra, và là thứ hợp đồng cần.
- *   · ô 2 Ngành       ← cột Ngành (bắt buộc của tệp) — luôn có.
+ *   · ô 2 Ngành       ← cột Ngành. KHÔNG còn "luôn có": cột này thôi bắt
+ *     buộc, và giá trị lệch bốn ngành của PV One thì bị bỏ. Một tệp mua về
+ *     thường trống ô này, và lead vào sổ ở bậc Đầu mối là đúng.
  *   · ô 3 Quy mô      ← số người.
  *   · ô 4 Liên hệ     ← tên người, không tính chức danh đứng một mình.
  *   · ô 5 Kênh        ← có ÍT NHẤT một đường gọi lại được.

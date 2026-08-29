@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   LeadBookResponse,
+  LeadFacets,
   LeadMailTimelineResponse,
   LeadProfile,
   LeadScorecard,
@@ -61,6 +62,17 @@ export class LeadService {
       total: page.total,
       hidden: page.hidden + hidden,
     })
+  }
+
+  /** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`. Đọc
+   *  docblock `LeadFacets` (`@pv/contracts`) trước khi đụng vào chỗ này.
+   *
+   *  KHÔNG chạy `access.visible()` lần hai như `book()`: lưới đó xét TỪNG lead
+   *  qua `ref.owner`, còn đây là một danh sách đã DISTINCT — không còn một
+   *  lead nào để gắn `ref` mà xét lại. Hàng rào duy nhất là `scopeOf()` trong
+   *  SQL, đúng hàng rào `book()` dùng để cắt xuống cùng một tập lead. */
+  async facets(who: Actor): Promise<LeadFacets> {
+    return LeadFacets.parse({ sourceKinds: await this.repo.sourceKindFacets(who) })
   }
 
   /** Hồ sơ một lead. Ba cách hỏng, và chúng KHÔNG gộp được vào nhau.

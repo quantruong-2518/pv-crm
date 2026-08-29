@@ -17,6 +17,7 @@ import {
   ExitReason,
   LeadCategory,
   LeadMotion,
+  LeadSourceKind,
   LeadTier,
   StageKey,
 } from './enums'
@@ -237,19 +238,15 @@ export const LeadBookQuery = PageQuery.extend({
    *  facts, a param called `source` would not say which of the two it means. */
   campaign: MaConfig.optional(),
 
-  /** Actor id of the holder, or `OWNER_NONE` for the unclaimed pile. One field
-   *  for both because they are one control on screen, and because "unclaimed"
-   *  is a value of the owner axis rather than a separate axis. */
-  owner: z.string().min(1).max(64).optional(),
-
-  /** Account filter — exact company name, from the "Account" select.
-   *
-   *  Distinct from `q`: `q` is a substring search the user types, this is a
-   *  pick from a closed list. Matching on the NAME is a known weakness that
-   *  travels with the current data model — the day accounts become rows with
-   *  codes of their own, this becomes `accountCode` and stops being sensitive
-   *  to how somebody spelled the company. */
-  account: z.string().min(1).max(200).optional(),
+  /** The OTHER half of an origin — see `LeadSource` for why the two facts
+   *  cannot share one param. `campaign` picks one named campaign; this picks
+   *  a lead that has NO campaign at all and came in through one of the four
+   *  raw doors (`LeadSourceKind`). The two are mutually exclusive on a row —
+   *  a lead with a campaign never shows its kind on screen (`SourceMark`
+   *  prints the campaign name, not the kind) — so the repository ANDs this
+   *  with "campaign is null" rather than trusting the caller not to send
+   *  both. */
+  sourceKind: LeadSourceKind.optional(),
 
   q: z.string().trim().min(1).max(120).optional(),
 
@@ -267,6 +264,28 @@ export const LeadBookQuery = PageQuery.extend({
 })
 
 export const LeadBookResponse = paged(LeadRow)
+
+/** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`.
+ *
+ *  ------------------------------------------------------------------
+ *  TẠI SAO CHỈ CÓ `sourceKind`, KHÔNG CÓ DANH SÁCH CHIẾN DỊCH Ở ĐÂY
+ *  ------------------------------------------------------------------
+ *  Nửa chiến dịch của ô lọc đã có nguồn THẬT rồi — `GET /sales/config` (danh
+ *  mục `SOURCE`, `salesCatalogQuery` ở `apps/web/src/data/sales-config.ts`).
+ *  Việc còn thiếu là nửa kia: một lead KHÔNG gắn chiến dịch nào vẫn có một
+ *  `sourceKind` thật (`LeadSourceKind`) và cột Nguồn vẫn in nó ra
+ *  (`SourceMark` → "Web landing", "Apollo"…) — nhưng trước bản sửa này, ô lọc
+ *  không có lấy MỘT lựa chọn nào trỏ tới những dòng đó. Chọn "Mọi nguồn" là
+ *  cách duy nhất một lead `LANDING_PAGE` không chiến dịch còn tìm lại được.
+ *
+ *  Đây là DANH SÁCH THẬT bốn giá trị `LeadSourceKind` nào đang thật sự xuất
+ *  hiện KHÔNG kèm chiến dịch trong sổ — không phải cả bốn giá trị enum lúc
+ *  nào cũng liệt kê đủ: một sổ mà mọi lead đều có chiến dịch thì mảng này
+ *  rỗng, và ô lọc không vẽ ra một lựa chọn chết. Cùng trục phạm vi với
+ *  `book()`. */
+export const LeadFacets = z.object({
+  sourceKinds: z.array(LeadSourceKind),
+})
 
 // ---------------------------------------------------------------------------
 // One whole lead — `GET /sales/leads/:code`
@@ -614,6 +633,7 @@ export type LeadStatus = z.infer<typeof LeadStatus>
 export type LeadSortKey = z.infer<typeof LeadSortKey>
 export type LeadBookQuery = z.infer<typeof LeadBookQuery>
 export type LeadBookResponse = z.infer<typeof LeadBookResponse>
+export type LeadFacets = z.infer<typeof LeadFacets>
 export type LeadProfile = z.infer<typeof LeadProfile>
 export type LeadCreate = z.infer<typeof LeadCreate>
 export type LeadCreateResponse = z.infer<typeof LeadCreateResponse>

@@ -54,6 +54,8 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
 
 const TEMPLATES_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.xem' }
 const SEND_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.gửi-mail', scoped: true }
+/** Cửa của cùng endpoint khi lô được gắn vào một chiến dịch — xem `useMasSend`. */
+const CAMPAIGN_SEND_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true }
 const TIMELINE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
 
 /** Prefix of every mail-timeline key, so one send can invalidate all of them
@@ -150,10 +152,25 @@ export function useMasSend() {
       api.write<MasSendResponse>('/sales/mail/runs', {
         method: 'POST',
         body,
-        need: SEND_NEED,
+        /* HAI QUYỀN CHO MỘT CỬA, chọn theo THÂN — đúng như `MasService.send()`
+           làm ở đầu bên kia.
+
+           `lead.gửi-mail` đi kèm `ownOnly`: một Sale gửi cho lead mình giữ.
+           Gắn lô vào một chiến dịch là bắn cả tệp, nhiều đợt, và máy chủ đòi
+           `chiến-dịch.bắn` cho đúng ca đó. Khai cứng một quyền ở đây thì hoặc
+           Sale bị chặn oan lúc gửi lẻ, hoặc cửa client mở rộng hơn cửa thật và
+           người dùng chỉ biết mình không đủ quyền sau khi đã soạn xong thư và
+           bấm gửi. */
+        need: body.campaignCode === undefined ? SEND_NEED : CAMPAIGN_SEND_NEED,
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
+      /* Một lô gắn chiến dịch đổi `waveCount` của dòng đó trong Sổ chiến dịch
+         và thêm một dòng vào Sổ lô gửi. Dọn theo TIỀN TỐ chuỗi, không import
+         hằng khoá của hai file kia — `data/mas.ts` là tầng dưới của cả hai và
+         không được phụ thuộc ngược lên chúng. */
+      void client.invalidateQueries({ queryKey: ['sales', 'campaign-book'] })
+      void client.invalidateQueries({ queryKey: ['sales', 'mail-runs'] })
     },
   })
 }

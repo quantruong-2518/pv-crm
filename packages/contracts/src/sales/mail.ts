@@ -250,6 +250,8 @@ export const MasRecipient = z.object({
   leadCode: MaObject,
   company: z.string().min(1),
   contactName: z.string().min(1),
+  /** Chức danh để người gửi phân biệt đúng người trước khi bấm gửi. */
+  contactTitle: z.string().min(1).optional(),
   email: z.email().optional(),
   /** Absent = this one will be sent. Present = it will not, for this reason. */
   block: MasRecipientBlock.optional(),

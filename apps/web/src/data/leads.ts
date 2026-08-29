@@ -33,7 +33,7 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import type { LeadBookQuery, LeadBookResponse, LeadScorecard } from '@pv/contracts'
+import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadScorecard } from '@pv/contracts'
 import { api } from '@/app/api'
 import { leadBookQueryToParams } from '@/app/url'
 import { APPROVER_ROLE_LABEL } from '@/data/directory'
@@ -142,36 +142,37 @@ export const FACET_SIZE = 200
 
 /** CHẮP VÁ — không phải một giải pháp. Đọc hết trước khi dùng lại kiểu này.
  *
- *  Hai ô lọc "Lead PIC" và "Account" là danh sách CHỌN, nên chúng cần mọi giá
- *  trị có trong sổ, không phải mọi giá trị có trên trang đang mở. Khi sổ còn
- *  nằm cả trong bộ nhớ thì `[...new Set(book.map(...))]` trả lời đúng; từ lúc
- *  máy chủ chỉ gửi 10 dòng một trang thì đúng câu đó trả về 10 giá trị, và bộ
- *  lọc HỎNG THẦM LẶNG — người dùng không tìm thấy người hoặc công ty mà họ
- *  biết chắc là có, và không có gì trên màn nói cho họ biết vì sao.
+ *  KHÔNG còn nuôi ô lọc nào nữa (29/08, đợt bỏ ô lọc "Lead PIC"/"Account" —
+ *  hai ô đó gỡ hẳn khỏi màn, không phải sửa: chọn một owner/account từ 200
+ *  dòng đầu của sổ không phải là filter "thật", nó là filter trúng-trật tuỳ
+ *  owner/account đó có nằm trong 200 dòng may mắn được kéo về hay không).
  *
- *  Không có endpoint nào trả facet, nên đây là một lần gọi thứ hai vào chính
- *  `GET /sales/leads` với `?status=all&size=200`, cache dài, chỉ để dựng danh
- *  sách chọn.
- *
- *  **Nó gãy khi sổ vượt 200 lead.** Hôm nay sổ có 119 dòng nên vừa; ở dòng thứ
- *  201 trang đầu vẫn đúng còn hai ô lọc lặng lẽ thiếu giá trị — cùng một kiểu
- *  hỏng, chỉ chậm hơn. `size` không nâng lên được: 200 là trần của
- *  `PageQuery` (`FACET_SIZE`), và nâng trần chỉ dời ngày gãy chứ không bỏ nó.
- *
- *  Cách sửa THẬT là một endpoint facet — `GET /sales/leads/facets` trả về
- *  danh sách owner và account đã DISTINCT ở SQL, kèm số dòng mỗi giá trị. Một
- *  câu `SELECT DISTINCT` trên một cột đã có index, thay cho việc kéo cả sổ về
- *  trình duyệt để làm đúng việc đó bằng JavaScript.
- *
- *  Trong lúc chờ, cùng một lượt kéo về này còn nuôi hai chỗ khác mà trang
- *  hiện tại cũng không trả lời được — dải "Ghim của tôi" (ghim trỏ vào mã ở
- *  bất kỳ trang nào) và khoá chống trùng của panel nạp tệp. Ba chỗ dùng chung
- *  MỘT lần gọi; ngày có endpoint facet thì hai chỗ sau chuyển sang đường của
- *  chúng chứ không kéo cái chắp vá này đi theo. */
+ *  Lượt gọi này vẫn còn việc: dải "Ghim của tôi" (ghim trỏ vào mã ở bất kỳ
+ *  trang nào) và khoá chống trùng của panel nạp tệp — cả hai cần CẢ SỔ, không
+ *  phải một trang mười dòng, và chưa có endpoint nào trả lời đúng câu đó cho
+ *  chúng. Vẫn gãy ở lead thứ 201, chỉ là gãy chậm hơn hai ô lọc đã bỏ vì hai
+ *  chỗ này ít khi chạm tới lead cũ. Cách sửa THẬT: một endpoint tra theo mã
+ *  (`GET /sales/leads/:code`, xem docblock đầu file) cho ghim, và bộ kiểm
+ *  trùng đã có sẵn ở máy chủ (`POST /sales/leads/import/preview`) cho panel
+ *  nạp — cả hai không phải việc của đợt sửa ô lọc này. */
 export const leadFacetQuery = queryOptions({
   queryKey: ['sales', 'lead-book', 'facets'] as const,
   queryFn: ({ signal }) =>
     api.read<LeadBookResponse>(`/sales/leads?status=all&size=${FACET_SIZE}`, {
+      need: BOOK_NEED,
+      signal,
+    }),
+})
+
+/** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`. Đọc
+ *  docblock `LeadFacets` (`@pv/contracts`) trước khi dùng lại query này.
+ *
+ *  `SELECT DISTINCT` ở máy chủ, cùng trục phạm vi với sổ — không có trần 200
+ *  như `leadFacetQuery` phía trên. */
+export const leadSourceKindFacetQuery = queryOptions({
+  queryKey: ['sales', 'lead-book', 'facets', 'source-kind'] as const,
+  queryFn: ({ signal }) =>
+    api.read<LeadFacets>('/sales/leads/facets', {
       need: BOOK_NEED,
       signal,
     }),

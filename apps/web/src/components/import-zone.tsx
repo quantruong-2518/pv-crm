@@ -194,7 +194,10 @@ export function ImportZone({
     try {
       const read = await readSheet(file)
       setSheet(read)
-      setMapping(guessMapping(read.headers, spec))
+      /* Dòng dữ liệu đi cùng tiêu đề: khi nhiều cột cùng khớp một trường, bộ
+         đoán lấy cột ĐẦY nhất thay vì cột đứng trước. Tệp Apollo là ca mẫu —
+         'City' đứng trước 'Company State' mà rỗng ở phần lớn dòng. */
+      setMapping(guessMapping(read.headers, spec, read.rows))
       setPhase('map')
     } catch (e) {
       setError(e instanceof SheetError ? e.message : 'Không đọc được tệp này.')
@@ -210,7 +213,7 @@ export function ImportZone({
     try {
       const read = sheetFromPaste(text)
       setSheet(read)
-      setMapping(guessMapping(read.headers, spec))
+      setMapping(guessMapping(read.headers, spec, read.rows))
       setPhase('map')
     } catch (e) {
       setError(e instanceof SheetError ? e.message : 'Không đọc được phần vừa dán.')

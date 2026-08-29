@@ -37,7 +37,7 @@ import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
 import { MeetingsCard } from '@/components/meetings-card'
-import { MasMailDrawer } from '@/components/mas-mail-drawer'
+import { MasMailModal } from '@/components/mas-mail-modal'
 import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
@@ -432,12 +432,12 @@ export function LeadDetailPage() {
         onClose={() => setExiting(false)}
         onReport={setReported}
       />
-      <MasMailDrawer
+      <MasMailModal
         open={composing}
         onClose={() => setComposing(false)}
         leads={masRecipients}
         initialLeadCode={masRecipients.length > 0 ? lead.code : undefined}
-        defaultLabel={`Quick MAS · ${accountName}`}
+        defaultLabel={`Gửi mail · ${accountName}`}
         onQueued={() => setComposing(false)}
       />
     </ScreenLayout>,
