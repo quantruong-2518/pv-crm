@@ -61,6 +61,12 @@ export function toContract(row: ContractRowDb, ownerName: string | null): Contra
     code: row.code,
     opportunityCode: row.opportunityCode,
     leadCode: row.leadCode,
+    /* Hard `null` because the column does not exist yet, not because contracts
+       have no quotes: `quote_code` arrives with
+       `drizzle/sau-merge/contract_quote_link.sql`, which waits on `sales.quote`
+       from the parallel branch. Read the column here in the merge pass — the
+       docblock on `ContractRow.quoteCode` names this line. */
+    quoteCode: null,
     amount: row.amount,
     currency: row.currency,
     signedAt: row.signedAt.toISOString(),
