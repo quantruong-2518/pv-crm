@@ -195,10 +195,24 @@
   /* Drawer trượt vào từ mép phải, tấm che mờ dần theo. Dùng đúng nhịp chuẩn
      của hệ (F-09 · 180ms ease-out) — panel không được có nhịp riêng, nếu
      không mỗi khối trên màn lại chuyển động theo một tốc độ khác. */
+  /* `forwards` trên hai hoạt cảnh ĐI RA, và đây là con số đo được chứ không
+     phải cho chắc. Không có nó thì lúc hoạt cảnh kết thúc, phần tử rơi về kiểu
+     nền của nó — panel về `transform: none` (tức x=0, NẰM GIỮA MÀN) và tấm che
+     về `opacity: 1` — rồi mới bị gỡ ở lượt render sau. Đo trên Chrome, một lần
+     đóng drawer:
+
+       t=195ms  translateX(757px)   panel gần khuất hẳn
+       t=221ms  transform: none     panel NHẢY VỀ GIỮA MÀN, tấm che đen lại
+       t=250ms  gỡ khỏi DOM
+
+     Hai khung hình đó là cú "giật" người dùng thấy: drawer trượt ra, loé lại
+     nguyên vẹn một cái, rồi mới biến mất. `animationend` → `setState` → render
+     → commit luôn tốn ít nhất một khung, nên khoảng hở này KHÔNG đóng được ở
+     phía JS; phải giữ khung hình cuối bằng `forwards`. */
   --animate-drawer-in: drawer-in var(--motion-duration) var(--motion-ease);
-  --animate-drawer-out: drawer-out var(--motion-duration) var(--motion-ease);
+  --animate-drawer-out: drawer-out var(--motion-duration) var(--motion-ease) forwards;
   --animate-scrim-in: scrim-in var(--motion-duration) var(--motion-ease);
-  --animate-scrim-out: scrim-out var(--motion-duration) var(--motion-ease);
+  --animate-scrim-out: scrim-out var(--motion-duration) var(--motion-ease) forwards;
 }
 
 @layer base {
@@ -220,6 +234,18 @@
        15px). Ép rãnh cuộn luôn có mặt. Màn `fill` không cuộn thật nên rãnh
        này chỉ là một vệt trống — đổi lại, mọi màn rộng bằng nhau. */
     overflow-y: scroll;
+  }
+  /* Vệt bôi đen — token, không phải màu mặc định của hệ điều hành.
+     Không có luật nào cấm bôi đen chữ, và người dùng CẦN bôi để chép mã đơn,
+     nên chỗ này không khoá `user-select`. Nhưng chưa khai báo thì Chrome lấy
+     `Highlight` của HĐH: một mảng xanh đặc, tông ngoài bảng brand, đè thẳng lên
+     mặt kính. Giữ nhấn rồi nhích chuột một pixel là bôi trúng — nên thẻ "thỉnh
+     thoảng" trông như hỏng, mà thỉnh thoảng là vì cú bấm sạch thì không bôi.
+     `--secondary` là navy 55%: đọc ra vệt chọn ngay, và `--foreground` trên nó
+     vẫn qua ngưỡng 4,5:1 của luật 13 trên cả `.glass-a` lẫn `.glass-b`. */
+  ::selection {
+    background: var(--secondary);
+    color: var(--foreground);
   }
   * {
     border-color: transparent;
