@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { renderOpportunityLost, renderOpportunityOpened } from '@pv/mail-templates'
-import { ENV, type Env } from '@api/platform/config/env'
+import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import type { DeliveryToSend, MailMessage } from '@api/platform/mail/mail.contract'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
 import { STAGE_LABEL, STATE_LABEL } from './opportunity.labels'
@@ -53,7 +53,7 @@ export class OpportunityMailComposer implements MailComposer {
     const { row, account, owners } = deal
     const saleOwners = owners.filter((o) => o.role === 'SALE').map((o) => o.name)
     const bdOwners = owners.filter((o) => o.role === 'BD').map((o) => o.name)
-    const opUrl = `${this.env.PV_APP_URL.replace(/\/+$/, '')}/sales/ops/${row.code}`
+    const opUrl = `${this.env.PV_APP_URL.replace(/\/+$/, '')}/sales/opportunities/${row.code}`
 
     const { subject, html, text } =
       row.state === 'close-lost'
@@ -75,6 +75,7 @@ export class OpportunityMailComposer implements MailComposer {
             closedAt: (row.closedAt ?? row.createdAt).toISOString(),
             daysOpen: deal.daysOpen,
             opUrl,
+            assetBaseUrl: brandAssetUrl(this.env),
           })
         : await renderOpportunityOpened({
             opCode: row.code,
@@ -91,6 +92,7 @@ export class OpportunityMailComposer implements MailComposer {
             ...(row.description ? { description: row.description } : {}),
             openedAt: row.createdAt.toISOString(),
             opUrl,
+            assetBaseUrl: brandAssetUrl(this.env),
           })
 
     return {

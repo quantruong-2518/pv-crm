@@ -138,7 +138,7 @@ export function BrandShell({
   assetBaseUrl,
   children,
   footerNote,
-  postal,
+  sender,
 }: BrandShellProps) {
   return (
     <Html lang="vi">
@@ -201,7 +201,7 @@ export function BrandShell({
 
           <Hr style={{ borderColor: COLOR_SURFACE, margin: '0 32px' }} />
 
-          <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} postal={postal} />
+          <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} sender={sender} />
         </Container>
       </Body>
     </Html>
@@ -220,11 +220,11 @@ export function BrandShell({
 function BrandFooter({
   assetBaseUrl,
   note,
-  postal,
+  sender,
 }: {
   assetBaseUrl: string
   note?: ReactNode
-  postal?: string
+  sender?: { name: string; address: string }
 }) {
   return (
     <Section style={{ padding: '24px 32px 28px' }}>
@@ -242,7 +242,7 @@ function BrandFooter({
           <Text
             style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: COLOR_INK, ...TEXT }}
           >
-            {BRAND.legalName}
+            {sender?.name ?? BRAND.legalName}
           </Text>
           {/* `lineHeight` rộng hơn thường lệ vì đây là địa chỉ: nó gãy dòng ở
               chỗ không đoán trước được, và hai dòng địa chỉ dính nhau đọc ra
@@ -256,7 +256,7 @@ function BrandFooter({
               ...TEXT,
             }}
           >
-            {postal ?? BRAND.postal}
+            {sender?.address ?? BRAND.postal}
           </Text>
           <Text
             style={{ margin: 0, fontSize: 12, lineHeight: '19px', color: COLOR_MUTED, ...TEXT }}

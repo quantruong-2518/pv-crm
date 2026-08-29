@@ -99,7 +99,7 @@ const SAMPLES = [
     slug: 'lead-intake-internal',
     title: 'Lead landing page · nội bộ',
     note: 'Khung nội bộ (ops), KHÔNG dùng brand-shell. Mọi trường tuỳ chọn đều có mặt.',
-    render: (m) =>
+    render: (m, assetBaseUrl) =>
       m.renderLeadIntakeInternal({
         leadCode: 'LD-0847',
         company: 'Công ty TNHH Cơ khí chính xác Đông Thành',
@@ -115,6 +115,7 @@ const SAMPLES = [
           content: 'bien-the-b',
           term: 'máy đo 3 chiều',
         },
+        assetBaseUrl,
         receivedAt: agoHours(2),
         leadUrl: `${ORIGIN}/leads/LD-0847`,
       }),
@@ -123,13 +124,14 @@ const SAMPLES = [
     slug: 'lead-intake-internal-toi-thieu',
     title: 'Lead landing page · chỉ trường bắt buộc',
     note: 'Cùng mẫu, bỏ hết trường tuỳ chọn — để kiểm luật "bỏ hẳn dòng, đừng in N/A".',
-    render: (m) =>
+    render: (m, assetBaseUrl) =>
       m.renderLeadIntakeInternal({
         leadCode: 'LD-0848',
         company: 'Sao Mai JSC',
         contactName: 'Lê Vân',
         email: 'van.le@saomai.vn',
         landingPage: 'https://pebblevina.com/lien-he',
+        assetBaseUrl,
         receivedAt: agoHours(1),
         leadUrl: `${ORIGIN}/leads/LD-0848`,
       }),
@@ -138,7 +140,7 @@ const SAMPLES = [
     slug: 'opportunity-opened',
     title: 'Cơ hội mới mở',
     note: 'Khung nội bộ. Có tiền, có ngày đóng dự kiến, hai phía chủ sở hữu.',
-    render: (m) =>
+    render: (m, assetBaseUrl) =>
       m.renderOpportunityOpened({
         opCode: 'OP-0231',
         leadCode: 'LD-0847',
@@ -152,6 +154,7 @@ const SAMPLES = [
         saleOwners: ['Trần Huy Đức', 'Nguyễn Thị Minh Hằng'],
         bdOwners: ['Hà Trần'],
         description: 'Khách đã xem demo tại nhà máy, đang chờ báo giá kèm phương án lắp đặt.',
+        assetBaseUrl,
         openedAt: agoHours(30),
         opUrl: `${ORIGIN}/co-hoi/OP-0231`,
       }),
@@ -160,7 +163,7 @@ const SAMPLES = [
     slug: 'opportunity-lost',
     title: 'Đơn thua',
     note: 'Khung nội bộ, giọng cảnh báo. Không có tiền — để kiểm nhánh `amount: null`.',
-    render: (m) =>
+    render: (m, assetBaseUrl) =>
       m.renderOpportunityLost({
         opCode: 'OP-0198',
         leadCode: 'LD-0712',
@@ -172,6 +175,7 @@ const SAMPLES = [
         lossNote: 'Khách chốt với nhà cung cấp cũ vì đã có sẵn hợp đồng bảo trì tới hết 2027.',
         saleOwners: ['Trần Huy Đức'],
         bdOwners: [],
+        assetBaseUrl,
         closedAt: agoHours(6),
         daysOpen: 64,
         opUrl: `${ORIGIN}/co-hoi/OP-0198`,
@@ -181,7 +185,7 @@ const SAMPLES = [
     slug: 'mas-shell',
     title: 'MAS · khung tiếp thị',
     note: 'Khung thứ ba. Nội dung thật tới từ `sales.mail_template`, đây chỉ là chỗ đổ vào.',
-    render: (m) =>
+    render: (m, assetBaseUrl) =>
       m.renderMasShell({
         subject: 'Bốn cách rút ngắn vòng kiểm tra chất lượng trong xưởng cơ khí',
         paragraphs: [
@@ -190,6 +194,7 @@ const SAMPLES = [
           'Chúng tôi gom lại thành một bản ghi chép ngắn — bốn cách các xưởng đó đã rút ngắn vòng kiểm tra, kèm con số trước và sau ở từng nơi.',
         ],
         cta: { label: 'Đọc bản ghi chép', url: 'https://pebblevina.com/ghi-chep/do-kiem' },
+        assetBaseUrl,
         unsubscribeUrl: `${ORIGIN}/unsubscribe?token=mau-xem-truoc`,
         sender: {
           name: 'Pebble Vina Technology',

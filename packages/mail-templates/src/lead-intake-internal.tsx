@@ -1,44 +1,32 @@
-import {
-  Body,
-  Container,
-  Head,
-  Hr,
-  Html,
-  Link,
-  Preview,
-  Section,
-  Text,
-} from '@react-email/components'
-import { BRAND_PALETTE } from '@pv/tokens'
+import { Section, Text } from '@react-email/components'
+import { BrandShell, CtaButton, Eyebrow, FallbackLink, ShellHeading } from './brand-shell'
+import { Divider, Field } from './ops-mail-bits'
+import { COLOR_INK, COLOR_MUTED, FONT_STACK } from './ops-mail-style'
 
-/** Looks up a brand hex value by name in the token table.
+/** THƯ NỘI BỘ — "một lead vừa gửi form trên landing page".
  *
- *  Email HTML has no `var(--*)` support — most mail clients strip `<style>`
- *  custom properties, some strip `<style>` entirely — so this file is the one
- *  place server-side allowed to hold a RESOLVED hex string. It never types one
- *  itself, though: the literal lives in `@pv/tokens`, read here by name, which
- *  is what keeps `aurora/no-raw-hex` clean on this file. Missing a color is a
- *  thrown error, not a made-up hex — same rule as everywhere else in the repo. */
-function paletteHex(name: string): string {
-  const swatch = BRAND_PALETTE.find((entry) => entry.name === name)
-  if (!swatch) {
-    throw new Error(`Thiếu token màu "${name}" trong BRAND_PALETTE — báo lại, đừng bịa hex mới.`)
-  }
-  return swatch.hex
-}
-
-const COLOR_INK = paletteHex('Deep Navy')
-const COLOR_MUTED = paletteHex('Slate Gray')
-const COLOR_BORDER = paletteHex('Light Gray')
-const COLOR_ACCENT = paletteHex('Pebble Blue')
-const COLOR_BG = paletteHex('White')
-
-/** System font stack, not a webfont link — several corporate mail clients
- *  (Outlook desktop chief among them) strip `<link>`/`@import` from email
- *  `<head>`, so a webfont would silently fall back anyway. */
-const FONT_STACK =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-
+ *  ==================================================================
+ *  FILE NÀY CHẠY PRODUCTION TỪ 26/08; ĐÂY LÀ LẦN ĐẦU NÓ ĐỔI HÌNH
+ *  ==================================================================
+ *  Trước đây nó cố tình đứng ngoài `ops-mail-bits.tsx` — bản in của nó là thứ
+ *  hộp thư kinh doanh đang nhận, nên dời nó phải là một thay đổi riêng chứ
+ *  không phải tác dụng phụ của việc thêm template khác. Lần này chính là thay
+ *  đổi riêng đó, và nó gộp luôn ba việc đã tách được:
+ *
+ *   · bỏ `paletteHex` + bảng màu + `FONT_STACK` chép tay, đọc từ
+ *     `ops-mail-style.ts` như mọi mẫu khác — ba bản sao của cùng một bảng màu
+ *     là ba chỗ để nó trôi, và mẫu mail thì trôi trong im lặng;
+ *   · bỏ `Field` cục bộ, dùng bản ở `ops-mail-bits.tsx` (giống hệt nhau tới
+ *     từng thuộc tính, kể cả luật "bỏ hẳn dòng, đừng in N/A");
+ *   · ngồi lên `BrandShell` để có dải nhận diện, chân thư đầy đủ và một nút.
+ *
+ *  ------------------------------------------------------------------
+ *  THÂN VẪN LÀ DANH SÁCH `Field` DÀY, KHÔNG PHẢI `FactBox`
+ *  ------------------------------------------------------------------
+ *  Người đọc là sale đang lướt hộp thư và cần quét mười dòng một lúc.
+ *  `FactBox` thưa hơn và đẹp hơn, nhưng mỗi dữ kiện chiếm ba dòng — với mười
+ *  hai trường thì lá thư dài gấp ba và không còn quét được. Khung lo phần
+ *  nhận diện; mật độ là việc của thân. */
 export type LeadIntakeInternalUtm = {
   source?: string
   medium?: string
@@ -48,8 +36,8 @@ export type LeadIntakeInternalUtm = {
 }
 
 /** Everything `renderLeadIntakeInternal` needs. Every optional field here is
- *  OMITTED from the mail body when empty (see `Field` below) rather than
- *  printed as "N/A" — a blank UTM set is a direct visit, not a data gap. */
+ *  OMITTED from the mail body when empty (see `Field`) rather than printed as
+ *  "N/A" — a blank UTM set is a direct visit, not a data gap. */
 export type LeadIntakeInternalData = {
   leadCode: string
   company: string
@@ -61,6 +49,8 @@ export type LeadIntakeInternalData = {
   utm?: LeadIntakeInternalUtm
   receivedAt: string
   leadUrl: string
+  /** Gốc URL công khai của ảnh nhận diện — xem `PV_BRAND_ASSET_URL`. */
+  assetBaseUrl: string
 }
 
 function formatReceivedAt(iso: string): string {
@@ -73,26 +63,15 @@ function formatReceivedAt(iso: string): string {
   }).format(date)
 }
 
-/** One labeled line. Renders nothing at all for an empty/whitespace value —
- *  the "drop the row, never print N/A" rule lives in exactly this one place.
- *
- *  Label and value share one `<Text>` with a literal ": " between them rather
- *  than a stacked `display: block` span: the plain-text fallback is built
- *  from HTML tag structure, not computed CSS, so a `display: block` span
- *  reads back as "LabelValue" glued together with no separator at all. */
-function Field({ label, value }: { label: string; value?: string }) {
-  if (!value || !value.trim()) return null
+/** Nhãn của một khối trường — nhỏ, mờ, không phải tiêu đề. */
+function BlockLabel({ children }: { children: string }) {
   return (
-    <Text style={{ margin: '0 0 8px', fontSize: 14, lineHeight: '20px', color: COLOR_INK }}>
-      <span style={{ color: COLOR_MUTED }}>{label}: </span>
-      {value}
+    <Text style={{ margin: '0 0 2px', fontSize: 12, color: COLOR_MUTED, fontFamily: FONT_STACK }}>
+      {children}
     </Text>
   )
 }
 
-/** Mail body for "a new lead landed on a landing page", sent to the internal
- *  sales inbox. Single column, light background, dark text — legible in the
- *  narrow preview pane most inboxes use by default, not just full-width. */
 export function LeadIntakeInternalEmail(data: LeadIntakeInternalData) {
   const painLines = data.pain
     ? data.pain.split(/\r?\n/).filter((line) => line.trim().length > 0)
@@ -108,67 +87,58 @@ export function LeadIntakeInternalEmail(data: LeadIntakeInternalData) {
   const hasUtm = utmRows.some(([, value]) => Boolean(value && value.trim()))
 
   return (
-    <Html lang="vi">
-      <Head />
-      <Preview>{`${data.company} · ${data.contactName} vừa gửi form trên ${data.landingPage}`}</Preview>
-      <Body
-        style={{ backgroundColor: COLOR_BG, margin: 0, padding: '24px 0', fontFamily: FONT_STACK }}
-      >
-        <Container style={{ maxWidth: 560, margin: '0 auto', padding: '0 24px' }}>
-          {/* A `<Text>` doing a heading's visual job, not an `<h2>`: the plain-text
-              fallback's default formatter uppercases real headings, which reads as
-              the exact "chữ in hoa nhồi" this mail is required to avoid. */}
-          <Text style={{ fontSize: 20, fontWeight: 700, color: COLOR_ACCENT, margin: '0 0 4px' }}>
-            Lead landing page mới
-          </Text>
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 24px' }}>
-            Mã lead {data.leadCode}
-          </Text>
+    <BrandShell
+      preview={`${data.company} · ${data.contactName} vừa gửi form trên ${data.landingPage}`}
+      assetBaseUrl={data.assetBaseUrl}
+    >
+      <ShellHeading>Lead landing page mới</ShellHeading>
+      {/* Mã và giờ nhận đứng chung một dòng: cả hai đều là "lá thư này nói về
+          cái gì, lúc nào", và tách ra hai dòng chỉ đẩy phần trường xuống sâu
+          hơn trong khung xem trước. */}
+      <Eyebrow>
+        Mã lead {data.leadCode} · nhận lúc {formatReceivedAt(data.receivedAt)}
+      </Eyebrow>
 
-          <Section>
-            <Field label="Công ty" value={data.company} />
-            <Field label="Người liên hệ" value={data.contactName} />
-            <Field label="Email" value={data.email} />
-            <Field label="Điện thoại" value={data.phone} />
-          </Section>
+      <Section>
+        <Field label="Công ty" value={data.company} />
+        <Field label="Người liên hệ" value={data.contactName} />
+        <Field label="Email" value={data.email} />
+        <Field label="Điện thoại" value={data.phone} />
+      </Section>
 
-          {painLines.length > 0 ? (
-            <Section style={{ marginTop: 4 }}>
-              <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px' }}>
-                Vấn đề khách gặp phải
-              </Text>
-              {painLines.map((line, index) => (
-                <Text
-                  key={`pain-${index}`}
-                  style={{ margin: '0 0 4px', fontSize: 14, lineHeight: '20px', color: COLOR_INK }}
-                >
-                  {line}
-                </Text>
-              ))}
-            </Section>
-          ) : null}
+      {painLines.length > 0 ? (
+        <Section style={{ marginTop: 4 }}>
+          <BlockLabel>Vấn đề khách gặp phải</BlockLabel>
+          {painLines.map((line, index) => (
+            <Text
+              key={`pain-${index}`}
+              style={{
+                margin: '0 0 4px',
+                fontSize: 14,
+                lineHeight: '20px',
+                color: COLOR_INK,
+                fontFamily: FONT_STACK,
+              }}
+            >
+              {line}
+            </Text>
+          ))}
+        </Section>
+      ) : null}
 
-          <Hr style={{ borderColor: COLOR_BORDER, margin: '20px 0' }} />
+      <Divider />
 
-          <Section>
-            <Field label="Landing page" value={data.landingPage} />
-            {hasUtm
-              ? utmRows.map(([label, value]) => <Field key={label} label={label} value={value} />)
-              : null}
-          </Section>
+      <Section>
+        <Field label="Landing page" value={data.landingPage} />
+        {hasUtm
+          ? utmRows.map(([label, value]) => <Field key={label} label={label} value={value} />)
+          : null}
+      </Section>
 
-          <Hr style={{ borderColor: COLOR_BORDER, margin: '20px 0' }} />
+      <Divider />
 
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 12px' }}>
-            Nhận lúc {formatReceivedAt(data.receivedAt)}
-          </Text>
-          <Text style={{ fontSize: 14, margin: 0, wordBreak: 'break-all' }}>
-            <Link href={data.leadUrl} style={{ color: COLOR_ACCENT }}>
-              {data.leadUrl}
-            </Link>
-          </Text>
-        </Container>
-      </Body>
-    </Html>
+      <CtaButton href={data.leadUrl}>Mở lead {data.leadCode}</CtaButton>
+      <FallbackLink url={data.leadUrl} />
+    </BrandShell>
   )
 }

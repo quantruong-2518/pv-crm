@@ -1,14 +1,7 @@
-import { Body, Container, Head, Html, Preview, Section, Text } from '@react-email/components'
-import { Divider, Field, Heading, OpenLink, Paragraphs } from './ops-mail-bits'
-import {
-  BODY_STYLE,
-  COLOR_INK,
-  COLOR_MUTED,
-  CONTAINER_STYLE,
-  formatDay,
-  formatMoment,
-  formatMoney,
-} from './ops-mail-style'
+import { Section, Text } from '@react-email/components'
+import { BrandShell, CtaButton, Eyebrow, FallbackLink, Para, ShellHeading } from './brand-shell'
+import { Divider, Field, Paragraphs } from './ops-mail-bits'
+import { COLOR_MUTED, FONT_STACK, formatDay, formatMoment, formatMoney } from './ops-mail-style'
 
 /** Template 1 · "Một lead vừa lên cơ hội" — gửi hộp thư nội bộ.
  *
@@ -54,61 +47,61 @@ export type OpportunityOpenedData = {
   /** ISO có múi giờ. */
   openedAt: string
   opUrl: string
+  /** Gốc URL công khai của ảnh nhận diện — xem `PV_BRAND_ASSET_URL`. */
+  assetBaseUrl: string
 }
 
 export function OpportunityOpenedEmail(data: OpportunityOpenedData) {
   const money = formatMoney(data.amount, data.currency)
 
   return (
-    <Html lang="vi">
-      <Head />
-      <Preview>{`${data.account} · ${money ?? 'chưa có giá trị'} · đóng dự kiến ${data.expectedClose ? formatDay(data.expectedClose) : 'chưa đặt'}`}</Preview>
-      <Body style={BODY_STYLE}>
-        <Container style={CONTAINER_STYLE}>
-          <Heading>Cơ hội mới mở</Heading>
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 24px' }}>
-            {data.opCode} · từ lead {data.leadCode}
+    <BrandShell
+      preview={`${data.account} · ${money ?? 'chưa có giá trị'} · đóng dự kiến ${data.expectedClose ? formatDay(data.expectedClose) : 'chưa đặt'}`}
+      assetBaseUrl={data.assetBaseUrl}
+    >
+      <ShellHeading>Cơ hội mới mở</ShellHeading>
+      {/* Mã đơn, lead gốc và giờ mở gộp một dòng. Giờ mở trước đây nằm ở cuối
+          thư, ngay trên đường dẫn — chỗ không ai đọc. Nó thuộc về câu "thư này
+          nói về cái gì", nên nó lên đây cùng hai mã. */}
+      <Eyebrow>
+        {data.opCode} · từ lead {data.leadCode} · mở lúc {formatMoment(data.openedAt)}
+      </Eyebrow>
+
+      <Section>
+        <Field label="Khách" value={data.account} />
+        <Field label="Giá trị đơn" value={money} />
+        <Field
+          label="Đóng dự kiến"
+          value={data.expectedClose ? formatDay(data.expectedClose) : undefined}
+        />
+        <Field label="Tên đơn" value={data.name} />
+        <Field label="Trạng thái" value={data.stateLabel} />
+        <Field label="Đang ở cột" value={data.stageLabel} />
+      </Section>
+
+      <Divider />
+
+      <Section>
+        <Field label="Sale đứng đơn" value={data.saleOwners.join(' · ')} />
+        <Field label="BD mở cửa" value={data.bdOwners.join(' · ')} />
+      </Section>
+
+      {data.description && data.description.trim() ? (
+        <Section style={{ marginTop: 4 }}>
+          <Text
+            style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px', fontFamily: FONT_STACK }}
+          >
+            Phạm vi đang chào
           </Text>
+          <Paragraphs text={data.description} keyPrefix="desc" />
+        </Section>
+      ) : null}
 
-          <Section>
-            <Field label="Khách" value={data.account} />
-            <Field label="Giá trị đơn" value={money} />
-            <Field
-              label="Đóng dự kiến"
-              value={data.expectedClose ? formatDay(data.expectedClose) : undefined}
-            />
-            <Field label="Tên đơn" value={data.name} />
-            <Field label="Trạng thái" value={data.stateLabel} />
-            <Field label="Đang ở cột" value={data.stageLabel} />
-          </Section>
+      <Divider />
 
-          <Divider />
-
-          <Section>
-            <Field label="Sale đứng đơn" value={data.saleOwners.join(' · ')} />
-            <Field label="BD mở cửa" value={data.bdOwners.join(' · ')} />
-          </Section>
-
-          {data.description && data.description.trim() ? (
-            <Section style={{ marginTop: 4 }}>
-              <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px' }}>
-                Phạm vi đang chào
-              </Text>
-              <Paragraphs text={data.description} keyPrefix="desc" />
-            </Section>
-          ) : null}
-
-          <Divider />
-
-          <Text style={{ fontSize: 14, lineHeight: '20px', color: COLOR_INK, margin: '0 0 12px' }}>
-            Đơn đang chờ gật. Mở đơn để xem hồ sơ đầy đủ hoặc đổi trạng thái.
-          </Text>
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 12px' }}>
-            Mở lúc {formatMoment(data.openedAt)}
-          </Text>
-          <OpenLink url={data.opUrl} />
-        </Container>
-      </Body>
-    </Html>
+      <Para>Đơn đang chờ gật. Mở đơn để xem hồ sơ đầy đủ hoặc đổi trạng thái.</Para>
+      <CtaButton href={data.opUrl}>Mở cơ hội {data.opCode}</CtaButton>
+      <FallbackLink url={data.opUrl} />
+    </BrandShell>
   )
 }

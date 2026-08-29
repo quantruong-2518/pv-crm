@@ -1,13 +1,7 @@
-import { Body, Container, Head, Html, Preview, Section, Text } from '@react-email/components'
-import { Divider, Field, Heading, OpenLink, Paragraphs } from './ops-mail-bits'
-import {
-  BODY_STYLE,
-  COLOR_INK,
-  COLOR_MUTED,
-  CONTAINER_STYLE,
-  formatMoment,
-  formatMoney,
-} from './ops-mail-style'
+import { Section, Text } from '@react-email/components'
+import { BrandShell, CtaButton, Eyebrow, FallbackLink, Para, ShellHeading } from './brand-shell'
+import { Divider, Field, Paragraphs } from './ops-mail-bits'
+import { COLOR_MUTED, FONT_STACK, formatMoment, formatMoney } from './ops-mail-style'
 
 /** Template 2 · "Một đơn vừa thua" — gửi hộp thư nội bộ.
  *
@@ -19,9 +13,22 @@ import {
  *  bộ lý do mail này được gửi. Nên LÝ DO đứng trên cùng, trước cả số tiền: mở
  *  preview trong hộp thư là đọc được ngay, không phải bấm vào.
  *
- *  Cùng lý do đó quyết định luôn hình của nó: KHÔNG có nút, không có việc phải
- *  làm, không có đường "gật". Đơn đã đóng rồi. Một CTA ở đây chỉ tạo cảm giác
- *  còn cứu được, và người đọc sẽ bấm vào để phát hiện là không.
+ *  ------------------------------------------------------------------
+ *  LÁ NÀY TỪNG CỐ Ý KHÔNG CÓ NÚT. GIỜ CÓ — VÀ ĐÂY LÀ CHỖ GHI VÌ SAO
+ *  ------------------------------------------------------------------
+ *  Lập luận cũ: đơn đã đóng, không còn việc phải làm, nên một CTA chỉ tạo cảm
+ *  giác còn cứu được và người đọc sẽ bấm vào để phát hiện là không.
+ *
+ *  Lập luận đó đúng về ĐƠN nhưng sai về LÁ THƯ. Việc còn phải làm không phải
+ *  là cứu đơn — nó là đọc lại lý do trước lần chào tiếp theo, đúng câu mà
+ *  chính khối chú thích trên vừa nói là toàn bộ lý do lá thư này được gửi. Bỏ
+ *  nút không làm người ta thôi muốn xem hồ sơ; nó chỉ bắt họ tự đi tìm, và
+ *  một lá thư nói "hãy đọc lại lý do" mà không mở được hồ sơ là một lá thư
+ *  giao việc rồi giấu công cụ.
+ *
+ *  Nhãn nút vì thế là "Xem hồ sơ đơn", không phải "Mở đơn": nó hứa đọc, không
+ *  hứa sửa. Cảnh báo cũ vẫn còn giá trị ở đúng chỗ đó — nút không được phép
+ *  trông như một đường cứu đơn.
  *
  *  ------------------------------------------------------------------
  *  HAI Ô LÝ DO, VÀ CẢ HAI ĐỀU TUỲ CHỌN — nhưng không cùng lúc
@@ -52,6 +59,8 @@ export type OpportunityLostData = {
   /** Số ngày đơn sống, từ lúc mở tới lúc đóng. Chưa tính được thì bỏ. */
   daysOpen?: number
   opUrl: string
+  /** Gốc URL công khai của ảnh nhận diện — xem `PV_BRAND_ASSET_URL`. */
+  assetBaseUrl: string
 }
 
 export function OpportunityLostEmail(data: OpportunityLostData) {
@@ -59,54 +68,51 @@ export function OpportunityLostEmail(data: OpportunityLostData) {
   const headline = data.lossReason ?? data.lossNote ?? 'chưa ghi lý do'
 
   return (
-    <Html lang="vi">
-      <Head />
-      <Preview>{`${data.account} · thua · ${headline}`}</Preview>
-      <Body style={BODY_STYLE}>
-        <Container style={CONTAINER_STYLE}>
-          <Heading tone="alert">Đơn đã thua</Heading>
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 24px' }}>
-            {data.opCode} · từ lead {data.leadCode}
-          </Text>
+    <BrandShell preview={`${data.account} · thua · ${headline}`} assetBaseUrl={data.assetBaseUrl}>
+      <ShellHeading tone="alert">Đơn đã thua</ShellHeading>
+      <Eyebrow>
+        {data.opCode} · từ lead {data.leadCode} · đóng lúc {formatMoment(data.closedAt)}
+      </Eyebrow>
 
-          <Section>
-            <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px' }}>Vì sao thua</Text>
-            <Field label="Lý do" value={data.lossReason} />
-            {data.lossNote && data.lossNote.trim() ? (
-              <Paragraphs text={data.lossNote} keyPrefix="note" />
-            ) : null}
-          </Section>
+      <Section>
+        <Text
+          style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px', fontFamily: FONT_STACK }}
+        >
+          Vì sao thua
+        </Text>
+        <Field label="Lý do" value={data.lossReason} />
+        {data.lossNote && data.lossNote.trim() ? (
+          <Paragraphs text={data.lossNote} keyPrefix="note" />
+        ) : null}
+      </Section>
 
-          <Divider />
+      <Divider />
 
-          <Section>
-            <Field label="Khách" value={data.account} />
-            <Field label="Tên đơn" value={data.name} />
-            <Field label="Giá trị đơn" value={money} />
-            <Field
-              label="Đơn sống được"
-              value={data.daysOpen === undefined ? undefined : `${data.daysOpen} ngày`}
-            />
-          </Section>
+      <Section>
+        <Field label="Khách" value={data.account} />
+        <Field label="Tên đơn" value={data.name} />
+        <Field label="Giá trị đơn" value={money} />
+        <Field
+          label="Đơn sống được"
+          value={data.daysOpen === undefined ? undefined : `${data.daysOpen} ngày`}
+        />
+      </Section>
 
-          <Divider />
+      <Divider />
 
-          <Section>
-            <Field label="Sale đứng đơn" value={data.saleOwners.join(' · ')} />
-            <Field label="BD mở cửa" value={data.bdOwners.join(' · ')} />
-          </Section>
+      <Section>
+        <Field label="Sale đứng đơn" value={data.saleOwners.join(' · ')} />
+        <Field label="BD mở cửa" value={data.bdOwners.join(' · ')} />
+      </Section>
 
-          <Divider />
+      <Divider />
 
-          <Text style={{ fontSize: 14, lineHeight: '20px', color: COLOR_INK, margin: '0 0 12px' }}>
-            Khách vẫn còn trong sổ. Lý do trên là thứ cần đọc lại trước lần chào tiếp theo.
-          </Text>
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 12px' }}>
-            Đóng lúc {formatMoment(data.closedAt)}
-          </Text>
-          <OpenLink url={data.opUrl} />
-        </Container>
-      </Body>
-    </Html>
+      <Para>Khách vẫn còn trong sổ. Lý do trên là thứ cần đọc lại trước lần chào tiếp theo.</Para>
+      {/* Nút dẫn tới hồ sơ đơn chứ không tới sổ khách, dù câu trên nói về
+          khách: thứ người đọc cần làm ngay là đọc lại lý do trong ngữ cảnh
+          đầy đủ của đơn, và từ đó mới sang khách. Một nút, một việc. */}
+      <CtaButton href={data.opUrl}>Xem hồ sơ đơn {data.opCode}</CtaButton>
+      <FallbackLink url={data.opUrl} />
+    </BrandShell>
   )
 }

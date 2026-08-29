@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { renderLeadIntakeInternal } from '@pv/mail-templates'
-import { ENV, type Env } from '@api/platform/config/env'
+import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import type { DeliveryToSend, MailMessage } from '@api/platform/mail/mail.contract'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
 import { LeadIntakeRepository } from './lead-intake.repository'
@@ -60,6 +60,7 @@ export class LeadMailComposer implements MailComposer {
       pain: profile.pain ?? undefined,
       landingPage: profile.landingPage,
       receivedAt: profile.receivedAt.toISOString(),
+      assetBaseUrl: brandAssetUrl(this.env),
       leadUrl: `${this.env.PV_APP_URL.replace(/\/+$/, '')}/sales/leads/${profile.leadCode}`,
       utm: {
         source: profile.utmSource ?? undefined,

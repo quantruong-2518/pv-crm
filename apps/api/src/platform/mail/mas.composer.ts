@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { renderMasShell } from '@pv/mail-templates'
-import { ENV, type Env } from '@api/platform/config/env'
+import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
 import type { DeliveryToSend, MailMessage } from './mail.contract'
 import type { MailRunRow } from './mail-run.schema'
@@ -128,6 +128,7 @@ export class MasMailComposer implements MailComposer {
       cta,
       unsubscribeUrl,
       sender: senderOf(run, this.env.PV_MAS_SENDER_POSTAL),
+      assetBaseUrl: brandAssetUrl(this.env),
     })
 
     return {
