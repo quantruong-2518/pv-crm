@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { renderPasswordReset } from '@pv/mail-templates'
-import { ENV, type Env } from '../config/env'
+import { brandAssetUrl, ENV, type Env } from '../config/env'
 import { MAIL_PORT, type MailMessage, type MailPort } from '../mail/mail.contract'
 import type { ResetMailer, ResetTicketIssued } from './reset-mailer'
 
@@ -99,6 +99,10 @@ export class PasswordResetMailer implements ResetMailer {
         name: issued.name,
         email: issued.email,
         link: issued.link,
+        /* Gốc ảnh nhận diện. Đi qua props chứ không phải hằng số của gói
+           template vì nó là sự thật của bản triển khai — dev, staging và Fly
+           có ba gốc khác nhau, và gói template không được biết cái nào. */
+        assetBaseUrl: brandAssetUrl(this.env),
         expiresAt: issued.expiresAt.toISOString(),
       })
 

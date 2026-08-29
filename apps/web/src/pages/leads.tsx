@@ -37,8 +37,6 @@ import {
 import {
   DAS_VINA_FROZEN_AT,
   dayISO,
-  FIRST_MEETINGS,
-  FUNNEL,
   LEAD_CATEGORIES,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
@@ -65,7 +63,7 @@ import {
   queryPageFromPageIndex,
 } from '@/app/url'
 import { dm } from '@/lib/date'
-import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery } from '@/data/leads'
+import { EXIT_REASON_LABEL, leadBookQuery, leadFacetQuery, leadScorecardQuery } from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -159,9 +157,9 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *  Bậc · Ngành · Quá SLA.
  *
  *  Sổ phân trang, không cuộn vô tận — và từ 27/08 nó là sổ THẬT của máy chủ,
- *  không còn là 100 dòng đóng băng. Thẻ điểm phía trên vẫn là số của kỳ đóng
- *  băng (xem mục ngay dưới), nên hai khối trên cùng một màn đang đếm hai sổ
- *  khác nhau cho tới khi có endpoint trả thẻ điểm.
+ *  không còn là 100 dòng đóng băng. Từ 29/08 thẻ điểm cũng vậy
+ *  (`GET /sales/leads/scorecard`), nên hai khối trên màn không còn đếm hai sổ
+ *  khác nhau — thứ đã đúng suốt hai ngày kể từ lúc nối Neon.
  *
  *  Vào được màn này là vai có nhánh Sales — cửa ở `app/auth/guard.tsx`, không
  *  kiểm lại ở đây. Trục PHẠM VI thì máy chủ cắt: một Sale `ownOnly` chỉ nhận
@@ -186,9 +184,11 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *  còn nghĩa gì — ba thứ đó không phải tiện nghi, chúng là cách người ta thật
  *  sự dùng một cái sổ. Dịch hai chiều nằm ở `app/url.ts`, màn chỉ nối dây.
  *
- *  Ba thứ VẪN đọc fixture, và mỗi thứ có lý do riêng: thẻ điểm (`FUNNEL`,
- *  `FIRST_MEETINGS`) là số CẢ KỲ, cố tình không đổi theo bộ lọc và không
- *  endpoint nào trả nó; nhãn của bậc, ngành và lý do rơi vì `LeadRow` còn chở
+ *  Thẻ điểm ĐÃ CẮT khỏi fixture (29/08): `GET /sales/leads/scorecard` đếm thật,
+ *  nên bảng và thẻ điểm không còn đếm hai sổ khác nhau. Nó vẫn là số CẢ KỲ và
+ *  cố tình không đổi theo bộ lọc — xem `ScoreCards`.
+ *
+ *  Thứ CÒN đọc fixture: nhãn của bậc, ngành và lý do rơi, vì `LeadRow` còn chở
  *  khoá chữ thường cũ chứ chưa phải ID cấu hình (nợ đã ghi ở
  *  `docs/tich-hop-be.md`). Chỉ NGUỒN đã nối được vào sổ nguồn thật.
  *
@@ -742,23 +742,35 @@ export function LeadsPage() {
  *  rơi). Không mất chức năng nào — hai ô Select "Trạng thái" và "Bậc" ở hàng lọc
  *  ngay dưới lọc y hệt.
  *
- *  Số đọc từ `FUNNEL` chứ KHÔNG từ `book` đã lọc: thẻ điểm là điểm của CẢ KỲ.
+ *  Số đọc từ MÁY CHỦ chứ KHÔNG từ `book` đã lọc: thẻ điểm là điểm của CẢ KỲ.
  *  Điểm mà đổi theo bộ lọc thì nó không còn là điểm — dòng "42 dòng khớp bộ lọc"
  *  ngay dưới bảng mới là chỗ trả lời cho bộ lọc.
  *
- *  Ô "First meeting / lead" có số thật từ 22/08: `FIRST_MEETINGS` = 38, nằm
- *  trong fixture chứ không gõ ở đây. Nó ĐẾM RA từ 100 dòng sổ chứ không khai
- *  tay — `hasFirstMeeting`: lead đã lên MQL và đã có kênh gọi lại được (ô số 5
- *  của init data). Và nó KHÔNG phải bậc thứ bảy của phễu: 38 nằm giữa 44 công ty
- *  thật và 30 cơ hội, `scenario.test.ts` khoá đúng chỗ đó. */
-type FunnelKey = (typeof FUNNEL)[number]['key']
-
-const funnelCount = (key: FunnelKey) => FUNNEL.find((s) => s.key === key)?.count ?? 0
-
+ *  ------------------------------------------------------------------
+ *  ĐÃ CẮT KHỎI FIXTURE — MỤC #3 CỦA `docs/fix-later.md`
+ *  ------------------------------------------------------------------
+ *  Bốn ô này từng đọc thẳng hằng `FUNNEL` và `FIRST_MEETINGS` của
+ *  `@pv/engines/fixtures/das-vina`, không qua một `useQuery` nào, nên từ ngày
+ *  nối Neon thì bảng nói 122 dòng còn thẻ điểm đứng nguyên `100 · 38% · 30% ·
+ *  6%`. Nay là `GET /sales/leads/scorecard`, đếm thật.
+ *
+ *  Ô "First meeting / lead" ĐỔI ĐỊNH NGHĨA cùng lượt này, và đó là thứ đáng
+ *  đọc nhất ở đây. Fixture đếm bằng `hasFirstMeeting` — lead đã lên MQL và có
+ *  kênh gọi lại được — một điều kiện không suy ra được từ cột thật nào, và
+ *  chính nó là lý do món nợ treo lâu thế. Nay nó đếm số lead có ít nhất một
+ *  dòng trong `sales.meeting`, tức đúng bằng thứ ngôi sao "lần gặp đầu" trên
+ *  màn hồ sơ lead đang hiện. Hai con số không cãi nhau được nữa vì chúng là
+ *  một câu truy vấn.
+ *
+ *  Hệ quả phải nói ra: cho tới khi có người ghi buổi họp, ô này là 0%. Đó là
+ *  sự thật của dữ liệu, không phải màn hỏng. */
 function ScoreCards() {
-  const total = funnelCount('dau-moi')
-  const ops = funnelCount('co-hoi')
-  const deals = funnelCount('hop-dong')
+  const { data } = useQuery(leadScorecardQuery)
+
+  const total = data?.leads ?? 0
+  const ops = data?.opportunities ?? 0
+  const deals = data?.contracts ?? 0
+  const firstMeetings = data?.firstMeetings ?? 0
 
   /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". Phân số
      thô đi xuống dòng Nguồn; value chỉ giữ đúng con số người dùng cần quét. */
@@ -773,9 +785,9 @@ function ScoreCards() {
     },
     {
       icon: CalendarCheck,
-      value: per(FIRST_MEETINGS),
+      value: per(firstMeetings),
       label: 'First meeting / lead',
-      source: `${FIRST_MEETINGS} lead có first meeting trên ${total} lead`,
+      source: `${firstMeetings} lead đã gặp mặt trên ${total} lead`,
     },
     {
       icon: Target,

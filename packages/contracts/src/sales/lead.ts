@@ -516,6 +516,47 @@ export const LeadCreate = z
  *  was stored are not always the same string. */
 export const LeadCreateResponse = LeadRow
 
+// ---------------------------------------------------------------------------
+// The scorecard — `GET /sales/leads/scorecard`
+// ---------------------------------------------------------------------------
+
+/** Four counts on ONE denominator, which is the whole point of the card: the
+ *  screen turns three of them into percentages of the first, so they have to
+ *  be counted over the same population or the percentages are of nothing.
+ *
+ *  ------------------------------------------------------------------
+ *  COUNTS, NOT PERCENTAGES, AND NOT A PERIOD
+ *  ------------------------------------------------------------------
+ *  Percentages are computed by the screen because the screen already owns how
+ *  a ratio is spelled (`percent()`, and `—` rather than `0%` on an empty
+ *  denominator). Sending `38%` would move that decision to the server and
+ *  leave the raw pair unavailable for the "38 trên 100" line underneath.
+ *
+ *  No date range either, deliberately. The card is labelled "cả kỳ" and reads
+ *  the whole book — the same thing the frozen `FUNNEL` constant it replaces
+ *  did. A period filter is a real feature, but it is one where somebody has to
+ *  answer "which date puts a lead in the period" — created, entered pipeline,
+ *  signed? — and inventing an answer here would bake it in unread.
+ *
+ *  ------------------------------------------------------------------
+ *  `firstMeetings` IS A DEFINITION CHANGE, ON PURPOSE
+ *  ------------------------------------------------------------------
+ *  It counts leads with AT LEAST ONE meeting (`sales.meeting`). The frozen
+ *  fixture computed something else — MQL plus a reachable channel — which was
+ *  never derivable from real columns, and that gap is exactly why the scorecard
+ *  sat on frozen constants for two days after the book was cut over to Neon.
+ *  The new definition is one the meeting book can actually answer, and it is
+ *  the same fact the "Lần gặp đầu" label on the lead detail screen shows — so
+ *  the number on the card and the label on the row cannot disagree. */
+export const LeadScorecard = z.object({
+  /** Every lead in the book, whatever its status — the denominator. */
+  leads: z.number().int().nonnegative(),
+  /** Leads with at least one recorded meeting. */
+  firstMeetings: z.number().int().nonnegative(),
+  opportunities: z.number().int().nonnegative(),
+  contracts: z.number().int().nonnegative(),
+})
+
 export type LeadRow = z.infer<typeof LeadRow>
 export type LeadStatus = z.infer<typeof LeadStatus>
 export type LeadSortKey = z.infer<typeof LeadSortKey>
@@ -524,3 +565,4 @@ export type LeadBookResponse = z.infer<typeof LeadBookResponse>
 export type LeadProfile = z.infer<typeof LeadProfile>
 export type LeadCreate = z.infer<typeof LeadCreate>
 export type LeadCreateResponse = z.infer<typeof LeadCreateResponse>
+export type LeadScorecard = z.infer<typeof LeadScorecard>

@@ -120,6 +120,20 @@
       "when": 1787930770526,
       "tag": "0016_contract_touch_sign",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787937942723,
+      "tag": "0017_white_bromley",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787938428391,
+      "tag": "0018_contact_book",
+      "breakpoints": true
     }
   ]
 }

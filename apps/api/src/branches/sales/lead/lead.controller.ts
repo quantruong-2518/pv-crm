@@ -1,6 +1,14 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { LeadBookQuery, LeadCreate, LeadImportBody, MaObject } from '@pv/contracts'
+import {
+  LeadBookQuery,
+  LeadCreate,
+  LeadImportBody,
+  MaObject,
+  MeetingCreate,
+  MeetingId,
+  MeetingPatch,
+} from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -43,6 +51,22 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(LeadBookQuery)) q: LeadBookQuery) {
     return this.leads.book(who, q)
+  }
+
+  /** Thẻ điểm cả kỳ — bốn con số ĐẾM, màn tự chia thành tỉ lệ.
+   *
+   *  PHẢI đứng trước `@Get(':code')`, và đây là một luật của bộ định tuyến chứ
+   *  không phải thẩm mỹ: Fastify khớp theo thứ tự khai, nên nếu `:code` khai
+   *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(MaObject)` bằng một
+   *  400 nói "Mã object sai dạng" — đúng về mặt kỹ thuật và vô nghĩa với người
+   *  đọc log.
+   *
+   *  KHÔNG `scoped`: đây là điểm của cả phòng, không của riêng ai. Xem
+   *  `LeadService.scorecard` cho lập luận đầy đủ. */
+  @Get('scorecard')
+  @Need({ branch: 'Sales', permission: 'lead.xem' })
+  scorecard() {
+    return this.leads.scorecard()
   }
 
   /** Hồ sơ một lead — mọi thứ dòng sổ cố tình không chở.
@@ -91,6 +115,63 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
   touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.touches(who, code)
+  }
+
+  // ── Cuộc họp · bốn cửa dưới `:code` ─────────────────────────────────────
+  //
+  // Cả bốn nằm dưới `:code` chứ không dưới một `@Controller('sales/meetings')`
+  // riêng, và lý do là trục phạm vi: `@Need` là metadata TĨNH, nên một cửa
+  // `/sales/meetings/:id` phải đọc dữ liệu rồi mới biết cắt theo phạm vi của
+  // ai — tức quyền quyết định sau khi đã đọc. Có `:code` trên đường thì trục ấy
+  // có mặt trước, và `MeetingService.mine()` chỉ còn phải xác nhận buổi họp
+  // đúng là của lead đó (404 nếu không, không phải 403: người gọi không được
+  // biết buổi họp ấy có tồn tại ở lead nào khác hay không).
+  //
+  // Đọc đòi `lead.xem`, ghi đòi `lead.sửa` — cùng cặp mà hồ sơ lead đang dùng.
+  // Ghi một buổi họp vào lead của người khác LÀ sửa hồ sơ người khác, nên trục
+  // phạm vi bật ở cả bốn.
+
+  @Get(':code/meetings')
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  meetings(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+    return this.leads.meetingList(who, code)
+  }
+
+  /** 201 kèm nguyên dòng buổi họp — kể cả cờ `isFirst`, thứ người gọi KHÔNG tự
+   *  suy được: nó là thuộc tính của cả tập, và một buổi ghi bù có thể vừa cướp
+   *  ngôi của buổi đang giữ. */
+  @Post(':code/meetings')
+  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  meetingAdd(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(MeetingCreate)) body: MeetingCreate,
+  ) {
+    return this.leads.meetingAdd(who, code, body)
+  }
+
+  @Patch(':code/meetings/:id')
+  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  meetingEdit(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('id', zod(MeetingId)) id: MeetingId,
+    @Body(zod(MeetingPatch)) body: MeetingPatch,
+  ) {
+    return this.leads.meetingEdit(who, code, id, body)
+  }
+
+  /** 204: xoá xong thì không còn gì để trả, và một thân rỗng kèm 200 là hai
+   *  cách nói cùng một chuyện. */
+  @Delete(':code/meetings/:id')
+  @HttpCode(204)
+  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  meetingDrop(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('id', zod(MeetingId)) id: MeetingId,
+  ) {
+    return this.leads.meetingDrop(who, code, id)
   }
 
   /** Một lead, gõ tay. 201 kèm nguyên dòng sổ — màn chèn được ngay, không phải

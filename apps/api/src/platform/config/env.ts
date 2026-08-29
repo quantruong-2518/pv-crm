@@ -126,6 +126,26 @@ const Env = z
     /** Gốc của app web — email nội bộ mang một liên kết mở thẳng lead. */
     PV_APP_URL: z.string().default('http://localhost:5173'),
 
+    /** Gốc URL của thư mục ảnh nhận diện dùng trong thân thư — dấu hiệu ở dải
+     *  đầu thư và ở chân thư (`mark-light.png`, `mark-blue.png`).
+     *
+     *  Ảnh trong email BẮT BUỘC là URL tuyệt đối công khai: `data:` URI bị
+     *  Gmail và Outlook chặn thẳng, `cid:` thì phải đính kèm và làm mọi lá thư
+     *  nặng thêm, còn đường dẫn tương đối không có gốc nào để nối vì thư không
+     *  được mở từ một trang nào cả.
+     *
+     *  Bỏ trống = `${PV_APP_URL}/brand`, đúng cho mọi bản triển khai phục vụ
+     *  `apps/web/public/` ở gốc app — tức là tất cả cho tới khi có CDN riêng.
+     *  Dùng `brandAssetUrl()` bên dưới chứ đừng tự ghép, để phép rơi về mặc
+     *  định chỉ nằm ở một chỗ.
+     *
+     *  KHÔNG có `.refine` bắt buộc, dù ảnh trỏ vào localhost trên máy dev là
+     *  hai ô trống trong thư thật. Đó là chủ ý: `PV_APP_URL` đã có một
+     *  `.refine` chặn localhost khi `PV_EMAIL_ENABLED` bật ở production, nên
+     *  đường mặc định đã được gác một lần rồi; thêm một luật thứ hai cho cùng
+     *  một sự thật chỉ tạo chỗ cho hai luật lệch nhau. */
+    PV_BRAND_ASSET_URL: z.string().default(''),
+
     /** Trần tự đặt, thấp hơn trần của Resend để chừa chỗ cho thứ khác cùng
      *  tài khoản. Khi có nhiều worker, nhịp phải chia sẻ qua Postgres —
      *  token bucket trong RAM của từng tiến trình là ba worker ba ngân sách. */
@@ -278,8 +298,20 @@ const Env = z
      *  A legal requirement for bulk mail, not decoration — CAN-SPAM §7704 and
      *  the equivalent in most jurisdictions require a physical address in
      *  every commercial message. Transactional mail does not need it, which is
-     *  why it appears here and not next to `PV_EMAIL_FROM`. */
-    PV_MAS_SENDER_POSTAL: z.string().default(''),
+     *  why it appears here and not next to `PV_EMAIL_FROM`.
+     *
+     *  Mặc định là địa chỉ thật của văn phòng, không phải chuỗi rỗng: một bản
+     *  triển khai quên khai biến này mà vẫn bật MAS thì thà in đúng địa chỉ
+     *  công ty còn hơn dừng ở một `.refine`. Giữ nguyên bản sao ở
+     *  `BRAND.postal` (`packages/mail-templates/src/brand.ts`), nơi chân thư
+     *  giao dịch đọc nó — hai chỗ vì hai đường không được phép nhập khẩu lẫn
+     *  nhau, sửa thì sửa cả hai. */
+    PV_MAS_SENDER_POSTAL: z
+      .string()
+      .default(
+        'Văn phòng O1912, Tầng 19, Landmark 72 Tower, Khu E6, ' +
+          'Khu đô thị mới Cầu Giấy, P. Yên Hoà, Hà Nội',
+      ),
 
     /** Nhịp hỏi hàng đợi. Mỗi lần hỏi là một truy vấn — và Neon chỉ ngủ khi
      *  không ai hỏi, nên con số này là một khoản tiền chứ không chỉ là độ trễ. */
@@ -388,3 +420,19 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
 }
 
 export const ENV = Symbol('pv.env')
+
+/** Gốc ảnh nhận diện cho thân thư, đã giải xong phép rơi về mặc định.
+ *
+ *  Một hàm chứ không phải một trường suy ra sẵn trong schema: `Env` là kết quả
+ *  của `z.infer`, và mọi trường tính toán thêm vào đó sẽ phải sống trong một
+ *  `.transform` chạy trước toàn bộ chuỗi `.refine` — tức là phép rơi về mặc
+ *  định sẽ diễn ra TRƯỚC khi `PV_APP_URL` được kiểm. Ở đây thì mỗi lần gọi đều
+ *  đọc một `Env` đã hợp lệ.
+ *
+ *  Cắt dấu `/` cuối vì `markUrl` bên `@pv/mail-templates` sẽ nối tiếp — hai
+ *  bên cùng cắt là thừa nhưng vô hại, một bên quên cắt là `//mark-light.png`
+ *  và một ô ảnh vỡ. */
+export function brandAssetUrl(env: Env): string {
+  const base = env.PV_BRAND_ASSET_URL || `${env.PV_APP_URL.replace(/\/+$/, '')}/brand`
+  return base.replace(/\/+$/, '')
+}

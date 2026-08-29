@@ -175,4 +175,15 @@ export const leadMailTimelineQuery = (code: string) =>
         need: TIMELINE_NEED,
         signal,
       }),
+    /* Chỉ theo dõi sát khi worker đang thực sự xử lý đợt gửi. Một đợt hẹn cho
+       ngày mai không được đánh thức trình duyệt mỗi 5 giây suốt một ngày. */
+    refetchInterval: (query) =>
+      query.state.data?.rows.some(
+        (row) =>
+          row.runState === 'SENDING' ||
+          row.deliveryState === 'sending' ||
+          row.deliveryState === 'delayed',
+      )
+        ? 5_000
+        : false,
   })

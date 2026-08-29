@@ -54,21 +54,29 @@ có nút thử lại, phân biệt hẳn với trạng thái rỗng. `ApiError` 
 
 ---
 
-## 3 · Thẻ điểm Sổ lead đọc fixture — đã sai lộ liễu từ khi nối Neon
+## 3 · Sổ cuộc họp còn thiếu ba việc
 
-**Triệu chứng:** bảng nói 121 dòng, bốn ô thẻ điểm vẫn đứng `100 · 38% · 30% · 6%`.
+Mục "thẻ điểm đọc fixture" đã trả ngày 29/08 và xoá theo quy ước ở đầu file:
+`GET /sales/leads/scorecard` đếm thật, `ScoreCards` hết import `FUNNEL` và
+`FIRST_MEETINGS`. Thứ mở khoá được nó là `sales.meeting` — `FIRST_MEETINGS` nay
+là "số lead có ít nhất một buổi họp", định nghĩa duy nhất suy được từ cột thật.
 
-**Ở đâu:** `apps/web/src/pages/leads.tsx` · `ScoreCards` đọc hằng `FUNNEL` và
-`FIRST_MEETINGS` import thẳng từ `@pv/engines/fixtures/das-vina`, không qua
-`useQuery` nào.
+Ba việc còn lại của chính lượt đó:
 
-**Sửa thế nào:** `GET /sales/leads/scorecard` đếm thật từ DB, rồi bỏ hai import
-kia khỏi màn.
+**a · `PATCH` chưa có mặt tiền.** `useEditMeeting` đã viết, cửa
+`PATCH /sales/leads/:code/meetings/:id` đã chạy, nhưng không nút nào gọi — thẻ
+mới chỉ có ghi và xoá. Sửa một buổi ghi nhầm giờ phải xoá rồi ghi lại, và thao
+tác đó mất luôn dòng `touch` cũ.
 
-**Vì sao chưa sửa:** trước 28/08 DB được seed từ chính fixture đó nên hai số
-trùng nhau, không ai thấy. Nối Neon xong mới lệch. Cần chốt hình dạng endpoint
-trước — riêng `FIRST_MEETINGS` không suy ra được từ `LeadRow` hiện tại, nó đếm
-bằng điều kiện `hasFirstMeeting` trong fixture.
+**b · Không xoá được `link` bằng `PATCH`.** `textNhapTuyChon` biến chuỗi rỗng
+thành vắng mặt, mà vắng mặt nghĩa là "không đụng tới" — nên không có đường nào
+gỡ một link dán nhầm. Cần một quy ước cho "xoá ô này" (`null` tường minh trên
+dây) trước khi làm **a**.
+
+**c · Khách vẫn là chữ gõ tay.** `meeting_attendee.actor_id` NULL với mọi khách
+vì phía khách chưa có bảng nào — `LeadContact` còn sinh từ fixture. Ngày có sổ
+liên hệ thật thì đây là chỗ đầu tiên mọc thêm khoá ngoại, và hai buổi họp với
+cùng một người sẽ hết là hai chuỗi tên rời nhau.
 
 ---
 

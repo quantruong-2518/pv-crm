@@ -124,12 +124,33 @@ export type ScreenDetailGridProps = {
   main: ReactNode
   side: ReactNode
   sideLabel: string
+  /** MỘT CỘT thì cột phụ lên TRƯỚC.
+   *
+   *  Mặc định `false` — thứ tự DOM là main rồi side, và với hầu hết màn chi
+   *  tiết thì đó đúng: cột chính là thứ người ta mở màn để đọc.
+   *
+   *  Bật lên cho màn mà cột phụ chở VIỆC PHẢI LÀM còn cột chính chở hồ sơ để
+   *  tra. Trên tablet người ta mở một khách hàng ra để làm việc, không để điền
+   *  form, và bắt họ cuộn qua ba mươi ô mới tới nút "Ghi buổi họp" là đặt thứ
+   *  tự ưu tiên ngược.
+   *
+   *  Làm bằng `order` chứ không bằng cách đảo `main`/`side` ở chỗ gọi: đảo hai
+   *  tham số cũng đảo luôn tỉ lệ cột và cái nào là `<aside>` — tức đổi cả ngữ
+   *  nghĩa cho trình đọc màn hình để lấy một thứ tự hiển thị. `order` chỉ đổi
+   *  thứ tự VẼ, và chỉ ở dải hẹp. */
+  sideFirst?: boolean
   className?: string
 }
 
 /** Màn chi tiết giữ một trục đến hết `lg`; từ `xl` mới chia main–side 3:1 để
  * Mac 13 inch không bị hai cột hẹp, màn lớn vẫn quét được ngữ cảnh bên phải. */
-export function ScreenDetailGrid({ main, side, sideLabel, className }: ScreenDetailGridProps) {
+export function ScreenDetailGrid({
+  main,
+  side,
+  sideLabel,
+  sideFirst = false,
+  className,
+}: ScreenDetailGridProps) {
   return (
     <div
       className={cn(
@@ -137,8 +158,13 @@ export function ScreenDetailGrid({ main, side, sideLabel, className }: ScreenDet
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col gap-6">{main}</div>
-      <aside className="flex min-w-0 flex-col gap-6" aria-label={sideLabel}>
+      <div className={cn('flex min-w-0 flex-col gap-6', sideFirst && 'order-2 xl:order-1')}>
+        {main}
+      </div>
+      <aside
+        className={cn('flex min-w-0 flex-col gap-6', sideFirst && 'order-1 xl:order-2')}
+        aria-label={sideLabel}
+      >
         {side}
       </aside>
     </div>

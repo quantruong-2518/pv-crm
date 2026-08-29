@@ -15,6 +15,7 @@ const sectionTitleVariants = cva('m-0', {
   variants: {
     size: {
       lg: 'font-display text-[18px] font-semibold tracking-[-.2px]',
+      detail: 'font-display text-[16px] font-semibold tracking-[-.1px]',
       md: 'font-display text-[14px] font-semibold',
       sm: 'text-[12.5px] font-semibold',
     },
@@ -30,8 +31,8 @@ export type SectionTitleProps = {
   hint?: ReactNode
   /** nút bên phải cùng hàng */
   actions?: ReactNode
-  /** lg = 18px (section của form) · md = 14px · sm = 12.5px (tiêu đề thẻ) */
-  size?: 'lg' | 'md' | 'sm'
+  /** lg = 18px · detail = 16px (khối chính màn chi tiết) · md = 14px · sm = 12.5px */
+  size?: 'lg' | 'detail' | 'md' | 'sm'
   className?: string
 }
 

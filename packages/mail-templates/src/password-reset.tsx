@@ -1,23 +1,15 @@
+import { Section } from '@react-email/components'
 import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Html,
-  Preview,
-  Section,
-  Text,
-} from '@react-email/components'
-import { Divider, Heading, OpenLink } from './ops-mail-bits'
-import {
-  BODY_STYLE,
-  COLOR_ACCENT,
-  COLOR_BG,
-  COLOR_INK,
-  COLOR_MUTED,
-  CONTAINER_STYLE,
-  formatMoment,
-} from './ops-mail-style'
+  BrandShell,
+  CtaButton,
+  Fact,
+  FactBox,
+  FallbackLink,
+  Note,
+  Para,
+  ShellHeading,
+} from './brand-shell'
+import { formatMoment } from './ops-mail-style'
 
 /** THE LETTER THAT CARRIES A SET-PASSWORD LINK — one template, two greetings.
  *
@@ -86,6 +78,10 @@ export type PasswordResetData = {
    *  put a second copy of the credential in a header, a preview line or a log
    *  by way of this template. */
   link: string
+  /** Gốc URL công khai của ảnh nhận diện, cho `BrandShell`. Đi qua dữ liệu
+   *  chứ không phải hằng số của gói vì nó là sự thật của bản triển khai —
+   *  máy dev, staging và Fly có ba gốc khác nhau. Xem `PV_BRAND_ASSET_URL`. */
+  assetBaseUrl: string
   /** ISO-8601 with an offset — `Date#toISOString()` on the ticket's own
    *  `expires_at`. */
   expiresAt: string
@@ -158,29 +154,20 @@ function remainingPhrase(expiresAtIso: string, now: number): string | null {
   return `${Math.round(hours / 24)} ngày`
 }
 
-const PARAGRAPH_STYLE = {
-  margin: '0 0 12px',
-  fontSize: 14,
-  lineHeight: '22px',
-  color: COLOR_INK,
-} as const
-
-const NOTE_STYLE = { margin: '0 0 8px', fontSize: 12, lineHeight: '18px', color: COLOR_MUTED }
-
-/** The button. Padding and the `display: inline-block` are stated inline
- *  because that is the only styling a mail client is reliably left holding —
- *  `<style>` blocks are stripped by Gmail's web client and by most corporate
- *  gateways, so anything that matters has to travel on the element itself. */
-const BUTTON_STYLE = {
-  backgroundColor: COLOR_ACCENT,
-  color: COLOR_BG,
-  borderRadius: 6,
-  display: 'inline-block',
-  fontSize: 15,
-  fontWeight: 700,
-  padding: '12px 22px',
-  textDecoration: 'none',
-} as const
+/** Hạn dùng đứng ở HỘP SỐ LIỆU, không trộn vào câu văn.
+ *
+ *  Đây là dữ kiện người nhận phải đối chiếu với đồng hồ của họ — cùng loại
+ *  với địa chỉ hộp thư ngay trên nó — chứ không phải một mệnh đề để đọc lướt.
+ *  Bản cũ in nó thành một câu giữa hai đoạn văn và nó chìm đúng vào lúc cần
+ *  nổi nhất: khi người ta mở lại lá thư sau vài tiếng để xem còn kịp không.
+ *
+ *  Giữ CẢ khoảng cách lẫn mốc tuyệt đối: "còn 60 phút" là thứ hành động được
+ *  ngay, còn "15:20 ngày 29/08" là thứ vẫn đúng khi lá thư được đọc lại lần
+ *  thứ hai, lúc con số kia đã sai. Không có khoảng cách — đồng hồ lệch, hoặc
+ *  vé đã quá hạn — thì chỉ còn mốc tuyệt đối, thứ luôn luôn thật. */
+function expiryValue(remaining: string | null, moment: string): string {
+  return remaining ? `Còn ${remaining} · ${moment}` : moment
+}
 
 export function PasswordResetEmail(data: PasswordResetData) {
   const copy = copyFor(data.purpose)
@@ -189,51 +176,31 @@ export function PasswordResetEmail(data: PasswordResetData) {
   const moment = formatMoment(data.expiresAt)
 
   return (
-    <Html lang="vi">
-      <Head />
-      <Preview>{copy.preview}</Preview>
-      <Body style={BODY_STYLE}>
-        <Container style={CONTAINER_STYLE}>
-          <Heading>{copy.heading}</Heading>
-          <Text style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 24px' }}>
-            Tài khoản {data.email}
-          </Text>
+    <BrandShell preview={copy.preview} assetBaseUrl={data.assetBaseUrl}>
+      <ShellHeading>{copy.heading}</ShellHeading>
+      <Para>Chào {greeting},</Para>
+      <Para>{copy.lead}</Para>
 
-          <Section>
-            <Text style={PARAGRAPH_STYLE}>Chào {greeting},</Text>
-            <Text style={PARAGRAPH_STYLE}>{copy.lead}</Text>
-          </Section>
+      <CtaButton href={data.link}>{copy.cta}</CtaButton>
 
-          <Section style={{ margin: '4px 0 20px' }}>
-            <Button href={data.link} style={BUTTON_STYLE}>
-              {copy.cta}
-            </Button>
-          </Section>
+      <FactBox>
+        <Fact label="Tài khoản" value={data.email} />
+        <Fact label="Liên kết hết hạn" value={expiryValue(remaining, moment)} />
+      </FactBox>
 
-          <Section>
-            <Text style={NOTE_STYLE}>
-              Nút không bấm được thì chép nguyên đường dẫn này vào thanh địa chỉ trình duyệt:
-            </Text>
-            <OpenLink url={data.link} />
-          </Section>
+      {/* `FallbackLink` mang `margin: 0`, nên khoảng cách với đoạn kế tiếp
+          phải do chỗ này giữ — không có nó thì lời trấn an dính liền vào một
+          dòng URL dài đang ngắt giữa chữ. */}
+      <Section style={{ margin: '0 0 20px' }}>
+        <Note>Nút không bấm được thì chép nguyên đường dẫn này vào thanh địa chỉ trình duyệt:</Note>
+        <FallbackLink url={data.link} />
+      </Section>
 
-          <Divider />
-
-          <Section>
-            <Text style={PARAGRAPH_STYLE}>
-              {remaining
-                ? `Liên kết này hết hạn sau ${remaining}, tức lúc ${moment}. Mỗi liên kết chỉ dùng được một lần.`
-                : `Liên kết này hết hạn lúc ${moment}. Mỗi liên kết chỉ dùng được một lần.`}
-            </Text>
-            <Text style={PARAGRAPH_STYLE}>{copy.reassurance}</Text>
-            <Text style={NOTE_STYLE}>
-              Đừng chuyển tiếp thư này cho ai: người giữ liên kết là người đặt được mật khẩu cho tài
-              khoản.
-            </Text>
-            <Text style={NOTE_STYLE}>Thư này do hệ thống gửi tự động, không cần trả lời.</Text>
-          </Section>
-        </Container>
-      </Body>
-    </Html>
+      <Note>Mỗi liên kết chỉ dùng được một lần. {copy.reassurance}</Note>
+      <Note>
+        Đừng chuyển tiếp thư này cho ai: người giữ liên kết là người đặt được mật khẩu cho tài
+        khoản.
+      </Note>
+    </BrandShell>
   )
 }

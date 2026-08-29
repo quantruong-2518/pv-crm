@@ -1,20 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import {
-  ArrowRight,
-  Inbox,
-  Lock,
-  Mail,
-  Megaphone,
-  Phone,
-  Pin,
-  TriangleAlert,
-  type IconGlyph,
-} from '@pv/ui'
+import { ArrowRight, Inbox, Lock, Mail, Phone, Pin, TriangleAlert, type IconGlyph } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  AvatarGroup,
   Badge,
   Button,
   Chip,
@@ -24,13 +13,11 @@ import {
   ScreenDetailGrid,
   ScreenHeader,
   ScreenLayout,
-  SectionTitle,
   Skeleton,
 } from '@pv/ui'
 import {
   LEAD_CATEGORIES,
   LEAD_TIERS,
-  opportunityOfLead,
   PIPELINE_STAGES,
   type ExitReason,
   type Lead,
@@ -40,14 +27,15 @@ import { campaignLabel, sourceKindLabel, type LeadMotion, type LeadProfile } fro
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
-import { useDirectory } from '@/data/directory'
-import { EXIT_REASON_LABEL, NO_CAMPAIGN_ICON, peopleOn } from '@/data/leads'
+import { EXIT_REASON_LABEL } from '@/data/leads'
 import { leadOf, leadProfileQuery, realContact } from '@/data/lead-profile'
+import { opsOfLeadQuery } from '@/data/ops'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
+import { MeetingsCard } from '@/components/meetings-card'
 import { MasMailDrawer } from '@/components/mas-mail-drawer'
 import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead-parts'
 
@@ -63,18 +51,34 @@ import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead
  *  giữ đường quay lại ở góc trái trên.
  *
  *  ------------------------------------------------------------------
- *  BỐ CỤC — hai cột 3:1 (chốt 22/08, bản 3)
+ *  BỐ CỤC — hai cột 3:2, HỒ SƠ trái · TÁC VỤ phải (chốt 29/08, bản 4)
  *  ------------------------------------------------------------------
+ *  Bản 3 chia theo "sửa được / chỉ đọc". Sai trục: người mở một lead ra không
+ *  hỏi "cái nào sửa được", họ hỏi "khách này là ai" rồi "giờ tôi làm gì". Nên
+ *  bản 4 chia theo đúng hai câu đó: cuộc họp sang phải, còn nguồn lead nằm
+ *  ngay dưới thông tin nhận diện để không tạo thêm một section tra cứu.
+ *
  *   0 · ĐẦU TRANG — tên account và trạng thái, rồi một hàng pill phân loại.
  *       Không còn nút nào ở đây: ghim và giao việc đã xuống thanh công cụ.
  *
- *   1 · CỘT CHÍNH (3 phần) — thứ người dùng SỬA, xếp theo thứ tự điền:
- *       hồ sơ lead → thông tin quan trọng → việc tiếp theo.
+ *   1 · CỘT TRÁI (3 phần) — HỒ SƠ. Đúng một khối, và nó GẬP theo nhóm: nhóm
+ *       nào còn ô bắt buộc trống thì mở, nhóm đã đủ thì gập kèm ✓. Ba mươi ô
+ *       mở sẵn là lý do màn này bị kêu "nhiều quá"; xem `FieldGroup`.
  *
- *   2 · CỘT PHỤ (1 phần) — thứ người dùng TRA: lead từ đâu về, ai đang cầm, và
- *       dòng thời gian đã gộp cả transcript vào trong.
+ *   2 · CỘT PHẢI (2 phần) — TÁC VỤ, xếp theo dòng quyết định:
+ *       cuộc họp → mail MAS → đề xuất bước tiếp theo → ghi chú → tra cứu.
+ *       Cột đi theo luồng cuộn của trang và chỉ bám đáy khi đã hiện trọn vẹn;
+ *       không tạo thêm một thanh cuộn lồng khó điều khiển.
  *
  *   3 · THANH CÔNG CỤ dính đáy — ai gọi cho ai bên trái, làm gì bên phải.
+ *
+ *  Dưới `xl` về MỘT cột và cột phải lên TRƯỚC (`sideFirst`): trên tablet người
+ *  ta mở một khách ra để làm việc, không phải để điền form.
+ *
+ *  Nợ phải biết: hai khối đứng ở vị trí trang trọng nhất cột phải — việc tiếp
+ *  theo và ghi chú — vẫn đọc `app/desk.ts`, tức state trong trình duyệt, chưa
+ *  có endpoint. Bố cục mới làm chúng trông như dữ liệu thật hơn trước, trong
+ *  khi mở ở máy khác là mất. Chủ dự án đã được báo và chốt giữ nguyên vị trí.
  *
  *  ------------------------------------------------------------------
  *  HAI THỨ ĐÃ GỠ, VÀ CÁI GIÁ CỦA CHÚNG
@@ -108,9 +112,14 @@ import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead
  *     quyền — họ đã có `lead.xem` rồi;
  *   · **còn lại** (mạng · máy chủ · mã sai dạng) — câu chung của loại lỗi đó.
  *
- *  Sáu khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc ·
- *  chuyển đổi · báo rơi) chưa có endpoint nào, nên chúng giữ nguyên và đọc một
- *  bản `Lead` dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`. */
+ *  Năm khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc ·
+ *  báo rơi) chưa có endpoint nào, nên chúng giữ nguyên và đọc một bản `Lead`
+ *  dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`.
+ *
+ *  "Đã đổi thành cơ hội chưa" thì KHÔNG còn ở đó nữa (29/08): nó đọc
+ *  `opsOfLeadQuery` — `GET /sales/ops?leadCode=…` — thay cho `opportunityOfLead`
+ *  của fixture và cho `desk.deals`. Cả hai chống đỡ cũ đều mù: một cái không
+ *  thấy lead tạo sau lát cắt đóng băng, một cái không thấy máy nào khác. */
 
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
   'dau-moi': 'draft',
@@ -171,15 +180,16 @@ export function LeadDetailPage() {
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
 
   const me = useSession((s) => s.actor)
+  const canWrite = useCan('lead.sửa')
   /* Sổ người của máy chủ. Gọi TRƯỚC mọi nhánh `return` sớm bên dưới — màn này
      thoát ra ở ba chỗ (đang tải, lỗi, không thấy), và một hook nằm sau chúng
      là một hook chạy khi có lead mà không chạy khi không. */
-  const staff = useDirectory()
-  const assigns = useLeadDesk((s) => s.assigns)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
   const savedName = useLeadDesk((s) => s.profiles[code]?.company)
-  const deal = useLeadDesk((s) => s.deals[code])
+  /* "Khách này đã được đổi thành cơ hội chưa" — hỏi MÁY CHỦ, cùng lý do hook
+     phải nằm trên ba nhánh `return` sớm. Xem `opsOfLeadQuery`. */
+  const priorOps = useQuery(opsOfLeadQuery(code))
 
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -236,8 +246,6 @@ export function LeadDetailPage() {
   /* Người liên hệ THẬT trên dây — KHÔNG phải `leadContact(legacy)`. Trước đây
      `nextActions` tự gọi hàm sinh đó bên trong, và với một mã ngoài dải đóng
      băng (Apollo) nó nặn ra một cái tên và một số điện thoại không có thật. */
-  const contact = realContact(lead)
-  const people = peopleOn(legacy, assigns, staff)
   /* Tên account đọc từ bản hồ sơ ĐÃ LƯU: sửa tên trong form thì đầu trang phải
      đổi theo, nếu không màn tự mâu thuẫn với chính ô nhập của nó. */
   const accountName = savedName ?? lead.company
@@ -258,19 +266,25 @@ export function LeadDetailPage() {
       ? 'Lead chưa có người liên hệ.'
       : undefined
 
-  /* Gated on the CAMPAIGN id, not on `source`: `source` is now an object and
-     is always present, so `if (lead.source)` would be true for every lead and
-     the button would offer to open a campaign that is not there. */
-  const openSource = () => {
-    const id = lead.source.campaignId
-    if (id) navigate(`/sales/campaigns?campaign=${encodeURIComponent(id)}`)
-  }
+  /* Lead đã có một dòng trong sổ cơ hội thì mời đổi lần nữa là mời tạo đơn thứ
+     hai cho cùng một khách, và sổ cơ hội cộng ra một con số không có thật. Nút
+     đổi vì thế thành đường sang đúng đơn đó.
 
-  /* Lead đã lên SQL thì nó ĐÃ có một dòng trong sổ cơ hội — mời đổi lần nữa là
-     mời tạo đơn thứ hai cho cùng một khách, và sổ cơ hội cộng ra một con số
-     không có thật. Nút đổi vì thế thành đường sang đúng đơn đó. */
-  const existingOp = opportunityOfLead(lead.code)
-  const openOpCode = existingOp?.code ?? deal?.code
+     Lấy dòng ĐẦU TIÊN máy chủ trả: một lead giữ được nhiều đơn, nhưng nút này
+     chỉ có một chỗ để đi tới, và thứ tự của sổ là thứ tự máy chủ đã sắp — màn
+     không sắp lại lần hai. */
+  const existingOp = priorOps.data?.[0]
+  const openOpCode = existingOp?.code
+
+  /* CHƯA BIẾT thì KHÔNG MỜI ĐỔI. Lượt đọc chưa về — hoặc về bằng một lỗi — là
+     đúng cái trạng thái mà bản cũ đọc nhầm thành "chưa có đơn nào", rồi mở đơn
+     thứ hai. Nút vẫn đứng nguyên chỗ, chỉ tắt và nói vì sao; hai câu khác nhau
+     vì hai đường đi tiếp khác nhau: một cái chờ là xong, một cái phải tải lại. */
+  const opBlocker = priorOps.data
+    ? undefined
+    : priorOps.isPending
+      ? 'Đang kiểm tra lead này đã có cơ hội chưa…'
+      : 'Chưa đọc được sổ cơ hội nên chưa biết lead này đã có đơn chưa. Tải lại trang rồi thử lại.'
 
   return shell(
     <ScreenLayout>
@@ -299,28 +313,44 @@ export function LeadDetailPage() {
           meta={
             <>
               <Chip>{lead.code}</Chip>
-              {lead.tier ? (
+              {lead.tier && (
                 <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier) ?? lead.tier}</Badge>
-              ) : (
-                <Badge tone="draft">—</Badge>
               )}
-              <MetaPill>
-                Ngành: {lead.category ? (CATEGORY_LABEL.get(lead.category) ?? lead.category) : '—'}
-              </MetaPill>
-              <MetaPill>Khu vực: {lead.province ?? '—'}</MetaPill>
+              {lead.category && (
+                <MetaPill>Ngành: {CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
+              )}
+              {lead.province && <MetaPill>Khu vực: {lead.province}</MetaPill>}
               <MetaPill mono>Tạo ngày {dmy(lead.createdAt)}</MetaPill>
             </>
           }
         />
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
+          <span className="text-muted-foreground mr-1 text-[12.5px] font-medium">Nguồn lead</span>
+          <MetaPill>{campaignLabel(lead.source)}</MetaPill>
+          <Chip variant="source">{sourceKindLabel(lead.source)}</Chip>
+          {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
+        </div>
       </GlassCard>
 
+      {/* HAI CỘT, HAI CÂU HỎI — bố cục chốt 29/08.
+          Trái là HỒ SƠ ("khách này là ai"), phải là TÁC VỤ ("giờ tôi làm gì").
+          Bản trước trộn hai thứ: hồ sơ và cuộc họp cùng bên trái, còn cột phải
+          xếp lẫn thẻ tra cứu với thẻ thao tác.
+
+          Giữ đúng grid chuẩn 3:1 của màn chi tiết. Grid và hai cột đều chiếm
+          trọn chiều ngang khả dụng để các mép card luôn thẳng hàng. */}
       <ScreenDetailGrid
-        sideLabel="Công việc và ngữ cảnh lead"
-        className="xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:gap-6"
+        sideLabel="Việc cần làm với lead này"
+        className="w-full"
+        /* Dưới xl về một cột và TÁC VỤ lên trước: trên tablet người ta mở một
+           khách ra để làm việc, không phải để điền form. */
+        sideFirst
         main={<ProfileCard profile={lead} />}
         side={
-          <>
-            <OriginCard lead={lead} onOpen={openSource} />
+          <div className="flex w-full min-w-0 flex-col gap-6 xl:sticky xl:top-[128px] xl:self-start">
+            {/* Đọc dữ kiện trước khi quyết định: đã họp gì → email đang ở đâu →
+                bước tiếp theo là gì. Ghi chú nằm sau luồng chính. */}
+            <MeetingsCard code={lead.code} canEdit={canWrite} />
             <MailTimelineCard
               code={lead.code}
               actions={
@@ -336,10 +366,9 @@ export function LeadDetailPage() {
                 </Button>
               }
             />
-            <NextActionCard lead={legacy} contact={contact} />
+            <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
-            <PeopleCard people={people} />
-          </>
+          </div>
         }
       />
 
@@ -348,6 +377,7 @@ export function LeadDetailPage() {
         legacy={legacy}
         pinned={pins.includes(lead.code)}
         opCode={openOpCode}
+        opBlocker={opBlocker}
         onOpenOp={() => openOpCode && navigate(`/sales/ops/${openOpCode}`)}
         reported={reported}
         onPin={() => me && togglePin(me.id, lead.code)}
@@ -447,68 +477,32 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *  có mã mà tra không ra. Hai cái sau trông giống nhau trên màn nếu gộp làm
  *  một, mà chúng là hai vấn đề ngược nhau: một cái bình thường, một cái nghĩa
  *  là có dòng đang trỏ vào chỗ trống. */
-function OriginCard({ lead, onOpen }: { lead: LeadProfile; onOpen: () => void }) {
-  const campaign = lead.source.campaignName
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Lead đến từ đâu">
-      <SectionTitle
-        size="lg"
-        actions={
-          lead.source.campaignId ? (
-            <Button size="sm" variant="ghost" onClick={onOpen}>
-              Xem nguồn
-            </Button>
-          ) : undefined
-        }
-      >
-        Nguồn lead
-      </SectionTitle>
-
-      <span className="flex items-center gap-2 text-[13px] font-semibold leading-[1.5]">
-        <Icon
-          icon={campaign ? Megaphone : NO_CAMPAIGN_ICON}
-          size={18}
-          className="text-accent-foreground"
-        />
-        {campaignLabel(lead.source)}
-      </span>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {/* The origin KIND, in words. This chip used to print `lead.source`
-            raw — which was the bare `SR-09` catalogue key, because back then
-            the field held nothing else. Both halves now arrive named:
-            `campaignName` above, `sourceKindLabel` here, one table shared with
-            the server (`@pv/contracts`) so the book and this card cannot end
-            up calling one value two things. */}
-        <Chip variant="source">{sourceKindLabel(lead.source)}</Chip>
-        {/* The other axis, never folded into the chip beside it (see
-            `LeadMotion`'s docblock on why joining axes makes both
-            unfilterable). Renders only when present: the 100 legacy fixture
-            rows predate the server having an intake concept at all, so it is
-            absent there, while the Apollo import rows (`LD-0201…`) carry it.
-            Absent means "not dug out", not a value to guess at. */}
-        {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
-      </div>
-    </GlassCard>
-  )
-}
-
 /** Ai đang làm việc trên lead này. Chủ lead và người được giao việc là HAI vai
  *  khác nhau — gộp vào một dòng là mất câu trả lời "ai chịu trách nhiệm".
  *
  *  In `ownerName` — cái NHÃN. Không có ai đứng tên thì `ownerId` cũng vắng, và
  *  hai thứ đó luôn vắng cùng nhau vì cả ba trường người giữ đến từ một phép
  *  join duy nhất ở máy chủ. */
-function PeopleCard({ people }: { people: string[] }) {
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-3 p-5" aria-label="Người đang làm">
-      <SectionTitle size="lg">Người phụ trách</SectionTitle>
-      <AvatarGroup names={people} max={5} size="md" emptyLabel="chưa ai nhận" />
-    </GlassCard>
-  )
-}
-
+/** TRA CỨU — nguồn và người phụ trách, gộp một khối và gập sẵn.
+ *
+ *  ------------------------------------------------------------------
+ *  VÌ SAO HAI THẺ NÀY BỊ GỘP VÀ ĐẨY XUỐNG ĐÁY
+ *  ------------------------------------------------------------------
+ *  Cột phải nay là cột TÁC VỤ, xếp theo thứ tự người ta hỏi khi mở một lead.
+ *  Hai thẻ này không trả lời câu nào trong số đó: không ai tác động vào chúng,
+ *  chúng chỉ trả lời "lead này về bằng đường nào" và "ai đang giữ" — hai câu
+ *  tra một lần rồi thôi.
+ *
+ *  Để nguyên hai thẻ mở là hai khối chiếm chỗ của việc phải làm, ở đúng phần
+ *  màn đắt nhất. Gộp và gập trả lại chỗ đó, và không mất gì: một cú bấm là ra,
+ *  còn dòng tóm tắt trên nút đã nói sẵn tên chiến dịch và số người phụ trách —
+ *  tức phần lớn lượt tra xong ngay ở trạng thái gập.
+ *
+ *  MẶC ĐỊNH GẬP, kể cả khi chưa ai đứng tên lead. Cân nhắc mở sẵn cho ca đó —
+ *  "chưa ai nhận" là một tín hiệu đáng thấy — nhưng nó đã có chỗ nói to hơn
+ *  nhiều: cột PIC của Sổ lead, ô lọc "chưa ai nhận", và chính thanh công cụ
+ *  dưới đáy màn này. Một khối tự bung ra vì trạng thái dữ liệu là một khối
+ *  người dùng không đoán được chiều cao, và đó là giá đắt hơn phần được. */
 /** Thanh công cụ dính đáy — AI ở trái, LÀM GÌ ở phải.
  *
  *  ------------------------------------------------------------------
@@ -522,8 +516,10 @@ function PeopleCard({ people }: { people: string[] }) {
  *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
  *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
  *
- *  Nút cuối đổi mặt theo trạng thái: lead đã có đơn trong sổ cơ hội thì nó là
- *  đường SANG đơn đó, không phải lời mời đổi lần nữa (23/08).
+ *  Nút cuối có BA mặt, không phải hai: lead đã có đơn trong sổ cơ hội thì nó là
+ *  đường SANG đơn đó, không phải lời mời đổi lần nữa (23/08); và trong lúc sổ
+ *  chưa trả lời thì nó TẮT kèm lý do. Mặt thứ ba mới là mặt quan trọng — mời
+ *  đổi khi chưa biết là đúng cách mở đơn thứ hai cho một khách đã có đơn.
  *
  *  PIC nằm ngay sau khối khách, TRƯỚC vạch ngăn, vì hai thứ đó là một cặp đọc
  *  cùng nhau: trước khi bấm gọi, người ta liếc "mình đang gọi cho ai" và "lead
@@ -538,6 +534,7 @@ function ToolsBar({
   legacy,
   pinned,
   opCode,
+  opBlocker,
   reported,
   onPin,
   onExit,
@@ -551,6 +548,9 @@ function ToolsBar({
   pinned: boolean
   /** Mã cơ hội lead này ĐÃ có trong sổ, nếu có. */
   opCode?: string
+  /** Vì sao CHƯA mời đổi được — sổ cơ hội chưa trả lời. Vắng = đã biết chắc
+   *  lead này chưa có đơn nào. */
+  opBlocker?: string
   reported: ExitReason | null
   onPin: () => void
   onExit: () => void
@@ -606,6 +606,9 @@ function ToolsBar({
               variant="secondary"
               disabled={!lead.phone}
               title={lead.phone ?? 'Chưa có số điện thoại'}
+              onClick={() => {
+                if (lead.phone) window.location.href = `tel:${lead.phone}`
+              }}
             >
               <Icon icon={Phone} size={16} />
               {lead.contactName ? `Gọi ${lead.contactName}` : 'Gọi khách'}
@@ -626,7 +629,7 @@ function ToolsBar({
                 Cơ hội {opCode}
               </Button>
             ) : (
-              <Button size="md" onClick={onConvert}>
+              <Button size="md" disabled={Boolean(opBlocker)} title={opBlocker} onClick={onConvert}>
                 <Icon icon={ArrowRight} size={16} />
                 Chuyển thành cơ hội
               </Button>

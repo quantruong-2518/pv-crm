@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
@@ -93,9 +94,21 @@ export function Drawer({
     return () => document.removeEventListener('keydown', onKey)
   }, [mounted, leaving, onClose])
 
-  if (!mounted) return null
+  /* Drawer phải là lớp tương tác duy nhất khi đang mở. Khóa cuộn nền để bánh
+     xe/trackpad không làm trang phía sau trôi khỏi vị trí trong lúc người dùng
+     đang đọc một phiếu dài. Trả lại đúng giá trị cũ khi panel được gỡ. */
+  useEffect(() => {
+    if (!mounted) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [mounted])
 
-  return (
+  if (!mounted || typeof document === 'undefined') return null
+
+  return createPortal(
     /* z-50 — PHẢI cao hơn nav (z-40 ở AppShell). Drawer từng là z-20 vì hồi
        nav còn là cột dọc thì không có gì tranh tầng với nó; nav hai tầng dán
        đỉnh có z-index thật, nên z-20 làm nav chọc thủng cả tấm che lẫn panel.
@@ -126,7 +139,7 @@ export function Drawer({
              `glass-b` để lọt 16% nền — dưới nó lại là tấm scrim tối 52%, nên
              chữ trong panel đọc trên một lớp bùn và cả drawer trông như bị
              làm mờ. Thứ nổi lên trên thì phải che được thứ ở dưới. */
-          'glass-overlay relative flex h-full w-full flex-col outline-none',
+          'glass-overlay relative flex h-dvh w-full flex-col outline-none',
           width === 'lg' ? 'sm:w-[760px]' : 'sm:w-[560px]',
           leaving ? 'animate-drawer-out' : 'animate-drawer-in',
           className,
@@ -156,6 +169,7 @@ export function Drawer({
 
         {footer && <div className="bg-black/20 px-5 py-4 lg:px-6">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

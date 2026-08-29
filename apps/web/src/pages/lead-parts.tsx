@@ -1,22 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  CalendarClock,
   Check,
   ChevronDown,
   Mail,
   MessageSquare,
   Phone,
-  Plus,
   RotateCcw,
-  Trash2,
   Users,
   type IconGlyph,
 } from '@pv/ui'
 import {
-  Avatar,
+  Badge,
   Button,
-  Checkbox,
   Chip,
   GlassCard,
   Icon,
@@ -42,7 +38,6 @@ import {
   toDong,
   type CurrencyCode,
   type Lead,
-  type LeadContact,
   type LeadEvent,
   type LeadEventKind,
   type LeadProfile,
@@ -55,15 +50,9 @@ import {
    gửi (trường vắng nghĩa là chưa moi được). `profileForm` là chỗ duy nhất đi
    từ cái sau sang cái trước. Đặt bí danh chứ không import bừa: một cái tên
    chọn nhầm ở đây là cả cái form đọc sai một hồ sơ. */
-import {
-  MAIL_RUN_STATE_LABEL,
-  type LeadMailTimelineRow,
-  type LeadProfile as WireLeadProfile,
-} from '@pv/contracts'
-import { todosOf, useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/auth'
+import type { LeadMailTimelineRow, LeadProfile as WireLeadProfile } from '@pv/contracts'
+import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
-import { nextActions } from '@/data/leads'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import { leadMailTimelineQuery } from '@/data/mas'
 import { isApiError, userMessage } from '@/app/api'
@@ -76,6 +65,7 @@ import {
   readField,
   slotsOfGroup,
   writeField,
+  type GroupKey,
   type ProfileField,
 } from '@/data/lead-form'
 
@@ -87,7 +77,7 @@ import {
  *
  *   · `ProfileCard`   — hồ sơ sửa được, có cổng init data sống;
  *   · `NotesCard`     — thông tin quan trọng, ô soạn tự do;
- *   · `NextActionCard`— gợi ý của hệ + việc người dùng tự hẹn;
+ *   · `NextActionCard`— một đề xuất ngắn về bước nên làm tiếp theo;
  *   · `ActivityCard`  — timeline và transcript, GỘP làm một.
  *
  *  ------------------------------------------------------------------
@@ -306,6 +296,43 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
   const dirty = useMemo(() => changedFields(stored, work), [stored, work])
   const edited = useMemo(() => changedFields(base, stored), [base, stored])
 
+  /* GẬP THEO Ô CÒN THIẾU, KHÔNG THEO THỨ TỰ.
+   *
+   *  Ba mươi ô mở sẵn là lý do màn này bị kêu "nhiều quá", và cách gập rẻ tiền
+   *  — mở nhóm đầu, gập hai nhóm sau — không giảm được gì: nhóm đầu vẫn là
+   *  nhóm dài nhất và vẫn không phải nhóm đang thiếu.
+   *
+   *  Nên nhóm nào CÒN Ô TRỐNG thì mở, nhóm nào đã đủ thì gập kèm dấu ✓. Một
+   *  lead 2/6 ô chỉ nhìn thấy đúng phần phải điền; một lead đã đầy đủ mở ra là
+   *  ba dòng tiêu đề, không phải ba mươi ô.
+   *
+   *  Tính từ `stored` chứ không từ `work`, và đây là chỗ dễ sai nhất: `work` là
+   *  thứ đang gõ dở, nên lấy nó làm mốc thì ô cuối cùng của một nhóm vừa được
+   *  điền xong sẽ TỰ GẬP CẢ NHÓM ngay dưới con trỏ đang gõ. Trạng thái gập chỉ
+   *  được tính lại khi đổi sang LEAD khác.
+   *
+   *  Đặt lại NGAY TRONG LÚC VẼ, không bằng `useEffect`, và đó là hai cái được
+   *  chứ không phải một mẹo lách lint:
+   *
+   *   · `useEffect` chạy SAU khi trình duyệt đã vẽ, nên bấm sang lead khác sẽ
+   *     loé một nhịp accordion của lead cũ rồi mới gập lại đúng. Gán trong lúc
+   *     vẽ thì React bỏ luôn lượt vẽ dở và vẽ lại trước khi có gì lên màn.
+   *   · Không còn mảng phụ thuộc để mà khai thiếu. Bản trước bỏ `stored` ra
+   *     khỏi `[profile.code]` một cách cố ý, và `react-hooks/exhaustive-deps`
+   *     cảnh báo đúng — nhưng thêm `stored` vào lại chính là con bọ "tự gập
+   *     dưới con trỏ" ở trên. Hình dạng này không phải chọn giữa hai cái sai.
+   *
+   *  Đây là mẫu chính thức của React cho "đặt lại state khi prop đổi". */
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<GroupKey>>(
+    () => new Set(incompleteGroups(stored)),
+  )
+  const [seededFor, setSeededFor] = useState(profile.code)
+
+  if (seededFor !== profile.code) {
+    setSeededFor(profile.code)
+    setOpenGroups(new Set(incompleteGroups(stored)))
+  }
+
   const set = (field: ProfileField, raw: string) =>
     setWork((w) => ({ ...w, [field.key]: writeField(field, raw) }) as LeadProfile)
 
@@ -316,7 +343,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
       aria-label="Hồ sơ lead"
     >
       <SectionTitle
-        size="lg"
+        size="detail"
         /* Kicker cũ đếm số lần cập nhật từ `leadResearch`, thứ đếm số lần chạm
            trong `history`. Bảng `sales.touch` chưa dựng nên hồ sơ về không có
            lần chạm nào — con số đó sẽ là 0 với MỌI lead, kể cả lead vừa nói
@@ -332,11 +359,25 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
           ) : undefined
         }
       >
-        Hồ sơ lead
+        Chi tiết lead
       </SectionTitle>
 
       {PROFILE_GROUPS.filter((g) => g.key !== 'so').map((group) => (
-        <FieldGroup key={group.key} group={group} work={work} onSet={set} />
+        <FieldGroup
+          key={group.key}
+          group={group}
+          work={work}
+          onSet={set}
+          open={openGroups.has(group.key)}
+          onToggle={() =>
+            setOpenGroups((cur) => {
+              const next = new Set(cur)
+              if (next.has(group.key)) next.delete(group.key)
+              else next.add(group.key)
+              return next
+            })
+          }
+        />
       ))}
 
       <div className="bg-popover shadow-panel flex flex-wrap items-center gap-3 rounded-md p-3 lg:sticky lg:bottom-24 lg:z-10">
@@ -411,39 +452,80 @@ function FieldRow({
   )
 }
 
-/** Một cụm: số thứ tự · tên · mục đích · đã moi được mấy ô. */
+/** Nhóm nào còn ô bắt buộc chưa moi được — dùng để quyết định mở hay gập.
+ *
+ *  Nhóm `so` ("Thông tin hệ thống") không nằm trong danh sách vì chính
+ *  `ProfileCard` đã lọc nó ra khỏi màn: máy tự ghi, người không điền. */
+function incompleteGroups(profile: LeadProfile): GroupKey[] {
+  const live = new Set(filledSlots(profile))
+  return PROFILE_GROUPS.filter((g) => g.key !== 'so')
+    .filter((g) => {
+      const slots = slotsOfGroup(g.key)
+      return slots.length > 0 && slots.some((s) => !live.has(s))
+    })
+    .map((g) => g.key)
+}
+
+/** Một cụm: tên · mục đích · đã moi được mấy ô — gập được.
+ *
+ *  Cả tiêu đề là MỘT `<button>`, không phải một cái nhãn cạnh một mũi tên bé
+ *  tí: vùng chạm phải đủ 48px cho tablet (luật 13), và một hàng dài 600px mà
+ *  chỉ bấm được vào 16px cuối là cái bẫy thiết kế kinh điển.
+ *
+ *  `aria-expanded` chứ không chỉ xoay mũi tên — trình đọc màn hình phải biết
+ *  ba mươi ô kia còn tồn tại và đang đóng, nếu không thì với họ cái form vừa
+ *  mất một nửa. */
 function FieldGroup({
   group,
   work,
   onSet,
+  open,
+  onToggle,
 }: {
   group: (typeof PROFILE_GROUPS)[number]
   work: LeadProfile
   onSet: (field: ProfileField, raw: string) => void
+  open: boolean
+  onToggle: () => void
 }) {
   const live = useMemo(() => new Set(filledSlots(work)), [work])
   const slots = slotsOfGroup(group.key)
   const got = slots.filter((s) => live.has(s)).length
+  const done = slots.length > 0 && got === slots.length
+
   return (
     <section className="flex flex-col gap-5 rounded-lg bg-white/5 p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex min-h-12 flex-wrap items-start justify-between gap-3 text-left"
+      >
         <span className="flex min-w-0 flex-col gap-1">
-          <span className="font-display text-[16px] font-semibold">{group.label}</span>
+          <span className="font-display flex items-center gap-2 text-[16px] font-semibold">
+            <Icon
+              icon={ChevronDown}
+              size={16}
+              className={cn('transition-transform', open ? '' : '-rotate-90')}
+            />
+            {group.label}
+          </span>
           <span className="text-muted-foreground text-[12.5px] leading-[1.6]">{group.purpose}</span>
         </span>
         {slots.length > 0 && (
           <span
             className={cn(
-              'tnum shrink-0 font-mono text-[12px]',
-              got < slots.length ? 'text-warning' : 'text-muted-foreground',
+              'tnum flex shrink-0 items-center gap-1 font-mono text-[12px]',
+              done ? 'text-muted-foreground' : 'text-warning',
             )}
           >
+            {done && <Icon icon={Check} size={14} />}
             {got}/{slots.length} trường
           </span>
         )}
-      </div>
+      </button>
 
-      <FieldRow fields={fieldsOf(group.key)} work={work} onSet={onSet} />
+      {open && <FieldRow fields={fieldsOf(group.key)} work={work} onSet={onSet} />}
     </section>
   )
 }
@@ -493,8 +575,8 @@ export function NotesCard({ lead }: { lead: Lead }) {
       className="flex flex-col gap-4 p-4 sm:p-5"
       aria-label="Ghi chú quan trọng"
     >
-      <SectionTitle size="lg" hint="Ghi lại điều cần nhớ khi liên hệ và xử lý lead.">
-        Ghi chú quan trọng
+      <SectionTitle size="detail" hint="Lưu điều cần nhớ khi liên hệ và xử lý lead.">
+        Ghi chú
       </SectionTitle>
 
       <RichText
@@ -512,148 +594,51 @@ export function NotesCard({ lead }: { lead: Lead }) {
 // 3 · Next action
 // ---------------------------------------------------------------------------
 
-/** Việc tiếp theo — gợi ý của hệ ở trên, việc cá nhân tự hẹn ở dưới.
+/** Một đề xuất duy nhất cho bước tiếp theo của lead.
  *
- *  Hai tầng này KHÔNG thay nhau. Gợi ý của hệ suy từ trạng thái lead nên luôn
- *  đúng và luôn chung chung ("lấy 2 ô còn thiếu"); việc tự hẹn là câu hệ không
- *  đoán được ("gọi lại sau khi khách họp xong thứ Năm"). Bấm một gợi ý là nó
- *  rơi xuống ô soạn thành chữ sửa được — người dùng không phải gõ lại, mà vẫn
- *  hẹn được ngày. Việc giao người phụ trách nằm ở một luồng riêng trên thanh
- *  công cụ, nên thẻ này không tạo thêm một nguồn phân công thứ hai.
- *
- *  Ngày hẹn để TRỐNG được. Ép chọn ngày cho mọi việc thì người ta chọn bừa một
- *  ngày, và cả cột hạn thành vô nghĩa.
- *
- *  `contact` đến từ `realContact(profile)` ở `data/lead-profile.ts` — người
- *  liên hệ THẬT trên dây, không phải `leadContact(lead)` sinh từ mã. Xem
- *  docblock của `nextActions` (`data/leads.ts`) cho lý do đầy đủ. */
-export function NextActionCard({ lead, contact }: { lead: Lead; contact: LeadContact | null }) {
-  const me = useSession((s) => s.actor)
-  const todos = useLeadDesk((s) => todosOf(s, lead.code))
-  const addTodo = useLeadDesk((s) => s.addTodo)
-  const toggleTodo = useLeadDesk((s) => s.toggleTodo)
-  const removeTodo = useLeadDesk((s) => s.removeTodo)
+ *  Khối này cố ý không phải todo list: không hạn, không người nhận và không
+ *  gợi ý tự động. Họp và email phía trên cung cấp bối cảnh; người phụ trách chỉ
+ *  cần chốt lại một câu hành động rõ ràng. Phân công vẫn thuộc luồng Giao việc. */
+export function NextActionCard({ lead }: { lead: Lead }) {
+  const saved = useLeadDesk((s) => s.nextSteps[lead.code] ?? '')
+  const setNextStep = useLeadDesk((s) => s.setNextStep)
+  const [text, setText] = useState(saved)
+  const normalized = text.trim()
+  const changed = normalized !== saved
 
-  const [text, setText] = useState('')
-  const [due, setDue] = useState('')
-
-  const suggestions = useMemo(
-    () => nextActions(lead, contact).filter((a) => a.key !== 'giao-viec'),
-    [lead, contact],
-  )
-  const people = useSalesPeople()
-  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? me?.name ?? ''
-
-  const add = () => {
-    if (text.trim() === '') return
-    addTodo(lead.code, { text: text.trim(), due, who: '' })
-    setText('')
-    setDue('')
+  const save = () => {
+    setNextStep(lead.code, normalized)
+    setText(normalized)
   }
-
-  const open = todos.filter((t) => !t.done).length
 
   return (
     <GlassCard
       variant="b"
       className="flex flex-col gap-4 p-4 sm:p-5"
-      aria-label="Việc tiếp theo của tôi"
+      aria-label="Đề xuất việc tiếp theo"
     >
-      <SectionTitle
-        size="md"
-        kicker={open > 0 ? `${open} việc đang mở` : 'Chưa có việc tiếp theo'}
-        hint="Ghi việc cá nhân cần làm trên lead này. Phân công người phụ trách ở nút Giao việc."
-      >
-        Việc tiếp theo của tôi
+      <SectionTitle size="detail" hint="Ghi một bước cụ thể cần làm sau khi xem lịch họp và email.">
+        Đề xuất việc tiếp theo
       </SectionTitle>
 
-      <div className="flex flex-wrap gap-2">
-        {suggestions.map((a) => (
-          <Button
-            key={a.key}
-            size="sm"
-            variant="ghost"
-            title={a.why}
-            onClick={() => setText(a.label)}
-          >
-            <Icon icon={a.icon} size={16} />
-            {a.label}
-          </Button>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-md bg-white/5 p-3">
-        <Input
+      <div className="flex flex-col gap-3">
+        <Textarea
           value={text}
-          placeholder="Việc cần làm tiếp trên lead này…"
-          aria-label="Việc cần làm"
+          rows={2}
+          autoGrow
+          placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát vào chiều thứ Năm."
+          aria-label="Bước nên thực hiện tiếp theo"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') add()
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && changed) save()
           }}
         />
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2">
-            <span className="text-muted-foreground text-[12.5px]">Hạn</span>
-            <Input
-              type="date"
-              value={due}
-              aria-label="Hạn của việc"
-              className="w-[168px]"
-              onChange={(e) => setDue(e.target.value)}
-            />
-          </label>
-          <Button size="md" disabled={text.trim() === ''} onClick={add}>
-            <Icon icon={Plus} size={16} />
-            Thêm việc
+        <div className="flex justify-end">
+          <Button size="md" disabled={!changed} onClick={save}>
+            {changed ? 'Lưu đề xuất' : saved === '' ? 'Lưu đề xuất' : 'Đã lưu'}
           </Button>
         </div>
       </div>
-
-      {todos.length === 0 ? (
-        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          Chọn một gợi ý phía trên để tạo việc và hẹn ngày thực hiện.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {todos.map((t) => (
-            <li key={t.id} className="flex items-center gap-3 rounded-md bg-white/5 pr-3">
-              <Checkbox
-                checked={t.done}
-                onChange={() => toggleTodo(lead.code, t.id)}
-                className="min-w-0 flex-1"
-                label={
-                  <span className={cn(t.done && 'text-muted-foreground line-through')}>
-                    {t.text}
-                  </span>
-                }
-                hint={
-                  <span className="flex flex-wrap items-center gap-2">
-                    {t.due !== '' && (
-                      <span className="flex items-center gap-1">
-                        <Icon icon={CalendarClock} size={14} />
-                        {dmy(t.due)}
-                      </span>
-                    )}
-                    <span>{t.who === '' ? 'chính mình' : nameOf(t.who)}</span>
-                  </span>
-                }
-                trailing={
-                  <Avatar name={t.who === '' ? (me?.name ?? '?') : nameOf(t.who)} size="sm" />
-                }
-              />
-              <button
-                type="button"
-                aria-label={`Xoá việc ${t.text}`}
-                onClick={() => removeTodo(lead.code, t.id)}
-                className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex size-8 shrink-0 items-center justify-center rounded-md"
-              >
-                <Icon icon={Trash2} size={16} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </GlassCard>
   )
 }
@@ -905,8 +890,8 @@ export function MailTimelineCard({ code, actions }: { code: string; actions?: Re
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Sổ mail của lead">
       <SectionTitle
-        size="lg"
-        hint="Soạn email mới và theo dõi tín hiệu phản hồi từ người nhận."
+        size="detail"
+        hint="Theo dõi trạng thái gửi và tín hiệu tương tác của từng email."
         actions={actions}
       >
         Email MAS
@@ -929,23 +914,33 @@ export function MailTimelineCard({ code, actions }: { code: string; actions?: Re
         </p>
       ) : (
         <Timeline
-          items={rows.map((row) => ({
-            id: row.runId,
-            state: dotOf(row),
-            marker: MAIL_RUN_STATE_LABEL[row.runState],
-            title: row.label,
-            meta: (
-              <>
-                <MetaPill mono>{dmy(row.scheduledAt ?? '')}</MetaPill>
-                <MetaPill tone={row.clickCount > 0 ? 'accent' : undefined}>
-                  {signalOf(row)}
-                </MetaPill>
-              </>
-            ),
-            children: row.failReason ? (
-              <span className="text-warning">Không tới được: {row.failReason}</span>
-            ) : undefined,
-          }))}
+          items={rows.map((row) => {
+            const face = deliveryFace(row)
+            const signal = signalOf(row)
+            return {
+              id: row.runId,
+              state: face.dot,
+              title: row.label,
+              meta: (
+                <>
+                  <Badge tone={face.tone}>{face.label}</Badge>
+                  {face.at && <MetaPill mono>{face.at}</MetaPill>}
+                  {signal && (
+                    <MetaPill tone={row.clickCount > 0 ? 'accent' : undefined}>{signal}</MetaPill>
+                  )}
+                </>
+              ),
+              children: row.failReason ? (
+                <span className="text-destructive-foreground">
+                  Không gửi được: {row.failReason}
+                </span>
+              ) : face.tone === 'danger' ? (
+                <span className="text-destructive-foreground">
+                  Không gửi được. Kiểm tra lại địa chỉ email trước khi thử lại.
+                </span>
+              ) : undefined,
+            }
+          })}
         />
       )}
     </GlassCard>
@@ -962,25 +957,74 @@ export function MailTimelineCard({ code, actions }: { code: string; actions?: Re
  *
  *  Rồi mới tới tín hiệu: `ok` khi người ta ĐÃ CLICK hoặc đã mở, `current` khi
  *  thư đã tới mà chưa có tín hiệu gì, `next` khi còn đang xếp hàng. */
-function dotOf(row: LeadMailTimelineRow): StatusDotState {
-  if (FAILED_MAIL[row.deliveryState]) return 'bad'
-  if (row.deliveryState === 'suppressed') return 'warning'
-  if (row.clickCount > 0 || row.openCount > 0) return 'ok'
-  if (DELIVERED_MAIL[row.deliveryState]) return 'current'
-  return 'next'
+type MailDeliveryFace = {
+  label: string
+  tone: 'draft' | 'warning' | 'success' | 'danger'
+  dot: StatusDotState
+  at?: string
+}
+
+/** Trạng thái của LÁ THƯ, không phải trạng thái chung của cả đợt gửi. */
+function deliveryFace(row: LeadMailTimelineRow): MailDeliveryFace {
+  if (FAILED_MAIL[row.deliveryState]) {
+    return { label: 'Gửi lỗi', tone: 'danger', dot: 'bad' }
+  }
+  if (row.runState === 'CANCELLED') {
+    return { label: 'Đã huỷ', tone: 'draft', dot: 'next' }
+  }
+  if (DELIVERED_MAIL[row.deliveryState]) {
+    const moment = row.deliveredAt ?? row.sentAt
+    return {
+      label: 'Đã gửi',
+      tone: 'success',
+      dot: 'ok',
+      ...(moment
+        ? { at: `${row.deliveredAt ? 'Đã tới hộp thư' : 'Gửi thành công'} · ${mailMoment(moment)}` }
+        : {}),
+    }
+  }
+  if (row.runState === 'SCHEDULED') {
+    return {
+      label: 'Đã hẹn gửi',
+      tone: 'warning',
+      dot: 'next',
+      ...(row.scheduledAt ? { at: `Dự kiến · ${mailMoment(row.scheduledAt)}` } : {}),
+    }
+  }
+  return {
+    label: 'Đang gửi',
+    tone: 'warning',
+    dot: 'current',
+    ...(row.scheduledAt ? { at: `Bắt đầu · ${mailMoment(row.scheduledAt)}` } : {}),
+  }
 }
 
 /** Một câu về tín hiệu — và câu "chưa có tín hiệu mở" là câu quan trọng nhất
  *  trong file này. Xem docblock của `MailTimelineCard`. */
-function signalOf(row: LeadMailTimelineRow): string {
+function signalOf(row: LeadMailTimelineRow): string | null {
   if (row.clickCount > 0) {
-    return row.clickCount === 1 ? 'đã bấm liên kết' : `đã bấm liên kết ${row.clickCount} lần`
+    const count = row.clickCount === 1 ? 'Đã bấm liên kết' : `Đã bấm ${row.clickCount} lần`
+    return row.lastClickAt ? `${count} · ${mailMoment(row.lastClickAt)}` : count
   }
-  if (row.openCount > 0) return `có ${row.openCount} tín hiệu mở`
-  if (FAILED_MAIL[row.deliveryState]) return 'không tới được'
-  if (row.deliveryState === 'suppressed') return 'bị giữ lại — địa chỉ đã chặn'
-  if (DELIVERED_MAIL[row.deliveryState]) return 'chưa có tín hiệu mở'
-  return 'đang trên đường'
+  if (row.openCount > 0) {
+    const count = `${row.openCount} tín hiệu mở`
+    return row.lastOpenAt ? `${count} · gần nhất ${mailMoment(row.lastOpenAt)}` : count
+  }
+  if (DELIVERED_MAIL[row.deliveryState]) return 'Chưa ghi nhận lượt mở'
+  return null
+}
+
+function mailMoment(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return dmy(iso)
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
+  }).format(date)
 }
 
 /* Hai bảng tra thay cho hai chuỗi `||`: mười giá trị của `MAIL_STATES` nằm bên
@@ -991,6 +1035,7 @@ function signalOf(row: LeadMailTimelineRow): string {
 const FAILED_MAIL: Record<string, true | undefined> = {
   bounced: true,
   complained: true,
+  suppressed: true,
   failed_permanent: true,
   dead: true,
 }

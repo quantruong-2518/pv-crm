@@ -1,31 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, X } from '@pv/ui'
-import { useNavigate } from 'react-router-dom'
-import {
-  Badge,
-  Button,
-  Chip,
-  Drawer,
-  Icon,
-  Input,
-  MetaPill,
-  Select,
-  Textarea,
-  billions,
-  cn,
-} from '@pv/ui'
+import { Badge, Button, Chip, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
 import {
   draftOpportunity,
   OPPORTUNITY_STATES,
-  toDong,
-  type Lead,
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
-import { useLeadDesk } from '@/app/desk'
-import { personName, useApproverName, useDirectory } from '@/data/directory'
+import { useApproverName, useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/ops'
 import { createBodyOf, CREATE_STATES, usePromoteLead } from '@/data/ops-write'
@@ -95,16 +79,16 @@ type Props = {
 }
 
 export function ConvertDialog({ profile, open, onClose }: Props) {
-  const convert = useLeadDesk((s) => s.convert)
-  const deals = useLeadDesk((s) => s.deals)
-
-  /* Mã đã cấp trong phiên này. Không đưa vào thì phiếu thứ hai lấy lại đúng mã
-     của phiếu thứ nhất — hai dòng sổ trùng mã, và không ai phân biệt được. */
-  const taken = useMemo(() => Object.values(deals).map((d) => d.code), [deals])
   const staff = useDirectory()
   const approver = useApproverName()
   const form = useMemo(() => profileForm(profile), [profile])
-  const seed = useMemo(() => draftOpportunity(form, staff, taken), [form, staff, taken])
+  /* Gọi KHÔNG kèm danh sách mã đã cấp — tham số thứ ba của `draftOpportunity`
+     mặc định rỗng. Danh sách đó từng đọc `desk.deals` để phiếu thứ hai không
+     lấy lại mã của phiếu thứ nhất; nay dãy mã nằm ở `sales.opportunity_code_seq`
+     và chỉ máy chủ cấp, nên `draft.code` không còn được bày ra ở đâu và không
+     có gì để tránh trùng. Chữ ký của hàm thì giữ nguyên — nó là của
+     `@pv/engines`, và sổ cơ hội đóng băng vẫn dùng tham số đó. */
+  const seed = useMemo(() => draftOpportunity(form, staff), [form, staff])
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
 
   /* Mở phiếu là một lần bắt đầu mới: nạp lại bản nháp. Không nạp lại thì đóng
@@ -173,18 +157,12 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
                      là cách chắc chắn nhất để một phiếu bị từ chối biến mất
                      không dấu vết, và người dùng tin là đã xong.
 
-                     `convert` vẫn ghi vào desk, nhưng nay CHỈ còn một người
-                     đọc: thẻ `ConvertedCard` ngay dưới thanh đáy của hồ sơ
-                     lead, thứ trả lời "rồi, xong" cho người vừa bấm. Sổ cơ hội
-                     KHÔNG đọc nó nữa — nó đã đọc thẳng máy chủ, và gộp thêm
-                     bản desk vào đó là để một đơn hiện hai lần.
-
-                     Ngày hồ sơ lead hỏi được máy chủ "lead này có cơ hội nào
-                     chưa", dòng này biến mất cùng cả `desk.deals`. */
-                  onSuccess: (row) => {
-                    convert(profile.code, { ...draft, code: row.code })
-                    onClose()
-                  },
+                     Không ghi gì vào `app/desk.ts` nữa (29/08). Bản cũ gọi
+                     `convert()` để hồ sơ lead nhớ "đã đổi rồi"; câu đó nay hỏi
+                     máy chủ, và `usePromoteLead` đã vô hiệu hoá sổ cơ hội —
+                     `opsOfLeadQuery` nối dài khoá của sổ nên nó chạy lại theo,
+                     và nút dưới thanh đáy tự lật sang "Cơ hội OP-…". */
+                  onSuccess: () => onClose(),
                 })
               }}
             >
@@ -299,54 +277,5 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
         {lost && <LossBlock draft={draft} onSet={set} />}
       </div>
     </Drawer>
-  )
-}
-
-// ---------------------------------------------------------------------------
-
-/** Thẻ đọc của một phiếu đã gửi — dùng ở màn hồ sơ lead, ngay dưới thanh đáy.
- *
- *  Đổi xong mà màn không đổi gì thì người dùng bấm lại lần nữa. Thẻ này là câu
- *  trả lời "rồi, xong": mã mới, trạng thái, tiền, người đứng đơn, đường sang
- *  hồ sơ cơ hội vừa tạo, và đường lùi vì chưa có backend nào để rút phiếu về. */
-export function ConvertedCard({ lead }: { lead: Lead }) {
-  const deal = useLeadDesk((s) => s.deals[lead.code])
-  const undo = useLeadDesk((s) => s.undoConvert)
-  const navigate = useNavigate()
-  const staff = useDirectory()
-  const approver = useApproverName()
-  if (!deal) return null
-
-  const lost = deal.state === 'close-lost'
-  const names = [...deal.saleOwners, ...deal.bdOwners].map((id) => personName(staff, id))
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-md bg-white/5 p-4">
-      <Chip variant="source">{deal.code}</Chip>
-      <Badge tone={lost ? 'danger' : 'running'}>{STATE_LABEL.get(deal.state)}</Badge>
-      <span className="min-w-0 truncate text-[12.5px] font-semibold">{deal.name}</span>
-      {deal.amount !== null && (
-        <MetaPill mono>{billions(toDong(deal.amount, deal.currency))}</MetaPill>
-      )}
-      <MetaPill mono>đóng dự kiến {dmy(deal.closedDate)}</MetaPill>
-      {names.map((n) => (
-        <MetaPill key={n} avatar={n}>
-          {n}
-        </MetaPill>
-      ))}
-      {lost && (deal.lossReason !== '' || deal.lossNote !== '') && (
-        <span className="text-warning text-[11.5px]">
-          Thua · {deal.lossReason !== '' ? deal.lossReason : deal.lossNote}
-        </span>
-      )}
-      <span className="text-muted-foreground text-[11.5px]">chờ {approver} gật</span>
-      <Button size="sm" onClick={() => navigate(`/sales/ops/${deal.code}`)}>
-        <Icon icon={ArrowRight} size={16} />
-        Mở hồ sơ cơ hội
-      </Button>
-      <Button size="sm" variant="ghost" onClick={() => undo(lead.code)}>
-        Rút phiếu
-      </Button>
-    </div>
   )
 }

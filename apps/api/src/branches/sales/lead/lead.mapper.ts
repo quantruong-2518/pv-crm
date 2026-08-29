@@ -41,6 +41,8 @@ export type LeadMailTimelineRead = {
   label: string
   run_state: MailRunState
   scheduled_at: Date | string | null
+  sent_at: Date | string | null
+  delivered_at: Date | string | null
   delivery_state: string
   fail_reason: string | null
   open_count: number
@@ -252,6 +254,8 @@ export function toRef(row: LeadRowDb, ownerName: string | null): ObjectRef {
  *  hỏng, trong khi nó sắp đi. */
 export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow {
   const scheduledAt = isoOf(read.scheduled_at)
+  const sentAt = isoOf(read.sent_at)
+  const deliveredAt = isoOf(read.delivered_at)
   const lastOpenAt = isoOf(read.last_open_at)
   const lastClickAt = isoOf(read.last_click_at)
 
@@ -260,6 +264,8 @@ export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow 
     label: read.label,
     runState: read.run_state,
     ...(scheduledAt ? { scheduledAt } : {}),
+    ...(sentAt ? { sentAt } : {}),
+    ...(deliveredAt ? { deliveredAt } : {}),
     deliveryState: read.delivery_state,
     openCount: read.open_count,
     ...(lastOpenAt ? { lastOpenAt } : {}),

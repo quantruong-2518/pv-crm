@@ -146,17 +146,20 @@ async function bootstrap(): Promise<void> {
      *  ra khi có người BẤM, và nó đã lộ ra đúng như thế ở nút Lưu của hồ sơ cơ
      *  hội (`PATCH /sales/ops/:code`, 28/08).
      *
-     *  Danh sách này là ĐỦ ĐỘNG TỪ ĐANG DÙNG, không phải mọi động từ có thể có:
-     *  thêm `DELETE` vào đây trước khi có một cửa xoá nào là mở một cánh cửa
-     *  không ai canh.
+     *  Danh sách này là ĐỦ ĐỘNG TỪ ĐANG DÙNG, không phải mọi động từ có thể có.
      *
-     *  Luồng đăng nhập KHÔNG thêm động từ nào — đã soát: bảy cửa của `/auth`
-     *  chỉ dùng `GET` và `POST`, kể cả đăng xuất. `POST /auth/sign-out` chứ
-     *  không `DELETE /auth/session`, và đó là một quyết định chứ không phải
-     *  thói quen: `DELETE` ở đây chỉ để mở đúng một cửa, mà cửa đó lại là cửa
-     *  ai cũng gọi được (`@Public`) — trả một động từ mới cho toàn bộ API để
-     *  đổi lấy một chút REST đẹp mắt là món lỗ. */
-    methods: ['GET', 'HEAD', 'POST', 'PATCH'],
+     *  `DELETE` vào ngày 29/08 và chỉ vì có cửa thật cần nó:
+     *  `DELETE /sales/leads/:code/meetings/:id` — xoá một buổi họp ghi nhầm.
+     *  Trước đó nó CỐ TÌNH vắng mặt, và ghi chú cũ ở đây nói đúng lý do: mở một
+     *  động từ trước khi có cửa dùng nó là mở một cánh cửa không ai canh.
+     *
+     *  Luồng đăng nhập vẫn KHÔNG dùng động từ này — đã soát: bảy cửa của
+     *  `/auth` chỉ `GET` và `POST`, kể cả đăng xuất. `POST /auth/sign-out` chứ
+     *  không `DELETE /auth/session`, vì cửa đó ai cũng gọi được (`@Public`) và
+     *  hồi ấy đổi một động từ mới cho toàn bộ API lấy một chút REST đẹp mắt là
+     *  món lỗ. Nay động từ đã mở cho một cửa CÓ quyền canh (`lead.sửa`, trục
+     *  phạm vi bật), lập luận đó không đổi: cửa đăng xuất vẫn không cần nó. */
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
     /* PHẢI đủ MỌI header app web gắn, không chỉ những header handler đọc.
      *
      *  Ba cái, và cả ba đều khai ở `apps/web/src/app/api/client.ts`:

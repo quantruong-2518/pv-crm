@@ -85,11 +85,13 @@ export function AssignMenu({ lead, contact, size = 'md', buttonVariant, classNam
   const approver = useApproverName()
 
   const people = useMemo(() => assigneeOptions(lead, staff, me?.id), [lead, staff, me?.id])
+  const self = people.find((person) => person.group === 'toi')
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    if (needle === '') return people
-    return people.filter((p) =>
+    const teammates = people.filter((person) => person.group !== 'toi')
+    if (needle === '') return teammates
+    return teammates.filter((p) =>
       [p.name, p.role, ...p.domains].some((s) => s.toLowerCase().includes(needle)),
     )
   }, [people, query])
@@ -112,9 +114,20 @@ export function AssignMenu({ lead, contact, size = 'md', buttonVariant, classNam
     .map((person) => person.name)
 
   const groups = [
-    { key: 'toi' as const, label: 'Bạn' },
-    { key: 'goi-y' as const, label: 'Phù hợp với lead này' },
-    { key: 'con-lai' as const, label: 'Nhân sự khác' },
+    {
+      key: 'goi-y' as const,
+      priority: 'Ưu tiên cao',
+      label: 'Phù hợp trực tiếp với lead',
+      note: 'Khớp ngành, vai trò hoặc trạng thái hiện tại của lead.',
+      tone: 'running' as const,
+    },
+    {
+      key: 'con-lai' as const,
+      priority: 'Ưu tiên thường',
+      label: 'Có thể phối hợp',
+      note: 'Không có tín hiệu khớp trực tiếp, nhưng vẫn thuộc phòng kinh doanh.',
+      tone: 'draft' as const,
+    },
   ]
 
   const submit = () => {
@@ -204,6 +217,30 @@ export function AssignMenu({ lead, contact, size = 'md', buttonVariant, classNam
               </span>
             </div>
 
+            {self && (
+              <div className="bg-primary/12 flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
+                <span className="flex min-w-0 items-center gap-3">
+                  <Avatar name={self.name} size="md" />
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[13.5px] font-semibold">Giao cho tôi</span>
+                    <span className="text-muted-foreground text-[12px] leading-[1.5]">
+                      {self.name} · {self.role}
+                    </span>
+                  </span>
+                </span>
+                <Button
+                  size="md"
+                  variant={picked.includes(self.id) ? 'secondary' : 'default'}
+                  aria-pressed={picked.includes(self.id)}
+                  onClick={() => toggle(self.id)}
+                  className="shrink-0"
+                >
+                  <Icon icon={picked.includes(self.id) ? Check : UserRoundPlus} size={16} />
+                  {picked.includes(self.id) ? 'Đã chọn tôi' : 'Giao cho tôi'}
+                </Button>
+              </div>
+            )}
+
             <SearchField
               value={query}
               onChange={setQuery}
@@ -216,22 +253,30 @@ export function AssignMenu({ lead, contact, size = 'md', buttonVariant, classNam
                 const rows = shown.filter((person) => person.group === group.key)
                 if (rows.length === 0) return null
                 return (
-                  <div key={group.key} className="flex flex-col gap-1">
-                    <span className="text-glass-foreground px-3 text-[12.5px] font-semibold">
-                      {group.label}
-                    </span>
+                  <div key={group.key} className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1 px-3">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Badge tone={group.tone}>{group.priority}</Badge>
+                        <span className="text-glass-foreground text-[12.5px] font-semibold">
+                          {group.label}
+                        </span>
+                      </span>
+                      <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                        {group.note}
+                      </span>
+                    </div>
                     {rows.map((person) => (
                       <Checkbox
                         key={person.id}
                         checked={picked.includes(person.id)}
                         onChange={() => toggle(person.id)}
-                        label={
-                          <span className="flex items-center gap-2">
-                            {person.name}
-                            {person.group === 'toi' && <Badge tone="running">Bạn</Badge>}
+                        label={<span className="text-[13px] font-semibold">{person.name}</span>}
+                        hint={
+                          <span className="flex flex-col gap-1">
+                            <span>{person.role}</span>
+                            <span>Lý do ưu tiên: {person.why}</span>
                           </span>
                         }
-                        hint={`${person.role} · ${person.why}`}
                         trailing={<Avatar name={person.name} size="md" />}
                       />
                     ))}
@@ -241,7 +286,9 @@ export function AssignMenu({ lead, contact, size = 'md', buttonVariant, classNam
 
               {shown.length === 0 && (
                 <p className="text-muted-foreground m-0 px-3 py-4 text-[12.5px] leading-[1.6]">
-                  Không tìm thấy người phù hợp với “{query}”.
+                  {query.trim() === ''
+                    ? 'Chưa có nhân sự khác trong danh sách giao việc.'
+                    : `Không tìm thấy người phù hợp với “${query}”.`}
                 </p>
               )}
             </div>

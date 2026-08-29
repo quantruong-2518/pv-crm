@@ -33,7 +33,7 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import type { LeadBookQuery, LeadBookResponse } from '@pv/contracts'
+import type { LeadBookQuery, LeadBookResponse, LeadScorecard } from '@pv/contracts'
 import type { LeadAssignment } from '@/app/desk'
 import { api } from '@/app/api'
 import { leadBookQueryToParams } from '@/app/url'
@@ -97,6 +97,44 @@ export const leadBookQuery = (query: LeadBookQuery) =>
         signal,
       }),
   })
+
+/** Thẻ điểm cả kỳ — bốn con số ĐẾM, `GET /sales/leads/scorecard`.
+ *
+ *  ------------------------------------------------------------------
+ *  ĐÂY LÀ THỨ THAY HAI HẰNG SỐ FIXTURE, VÀ NÓ TRẢ MỘT MÓN NỢ CÓ TÊN
+ *  ------------------------------------------------------------------
+ *  `ScoreCards` trong `pages/leads.tsx` từng đọc thẳng `FUNNEL` và
+ *  `FIRST_MEETINGS` từ `@pv/engines/fixtures/das-vina`, không qua một
+ *  `useQuery` nào — nên bảng nói 122 dòng trong khi thẻ điểm đứng nguyên
+ *  `100 · 38% · 30% · 6%` — món nợ "thẻ điểm đọc fixture" của
+ *  `docs/fix-later.md`, đã trả và đã xoá khỏi file đó ngày 29/08.
+ *
+ *  Món nợ ấy treo được lâu vì `FIRST_MEETINGS` của fixture đếm bằng một điều
+ *  kiện KHÔNG suy ra được từ dữ liệu thật (đã lên MQL và có kênh gọi lại).
+ *  `sales.meeting` là thứ làm nó suy ra được: một lead "đã gặp lần đầu" khi nó
+ *  có ít nhất một buổi họp được ghi. Định nghĩa mới đúng bằng thứ ngôi sao
+ *  trên màn chi tiết đang hiện, nên con số trên thẻ và ngôi sao trên dòng
+ *  không bao giờ cãi nhau được.
+ *
+ *  ------------------------------------------------------------------
+ *  KHÔNG `scoped`, VÀ ĐÓ LÀ CHỦ Ý
+ *  ------------------------------------------------------------------
+ *  Chép đúng `@Need` của `LeadController.scorecard`, cửa duy nhất của sổ lead
+ *  không bật trục phạm vi: thẻ điểm là điểm của cả phòng. Cắt nó theo lead ai
+ *  đang giữ thì mỗi người mở màn thấy một con số khác nhau dưới cùng một dòng
+ *  chữ "Thẻ điểm 10/08 → 28/08".
+ *
+ *  `staleTime` một phút: bốn con số của cả kỳ không đổi giữa hai cú bấm, và
+ *  màn này gắn/gỡ mỗi lần người dùng đi ra rồi quay lại từ hồ sơ lead. */
+export const leadScorecardQuery = queryOptions({
+  queryKey: ['sales', 'lead-scorecard'] as const,
+  queryFn: ({ signal }) =>
+    api.read<LeadScorecard>('/sales/leads/scorecard', {
+      need: { branch: 'Sales', permission: 'lead.xem' },
+      signal,
+    }),
+  staleTime: 60 * 1000,
+})
 
 /** Trần `size` của hợp đồng (`PageQuery.size.max(200)`). Đây là con số làm cho
  *  `leadFacetQuery` bên dưới có hạn sử dụng, nên nó phải đọc được thành số

@@ -6,7 +6,7 @@ import {
   type OpportunityState,
 } from '@pv/contracts'
 import { PIPELINE_STAGES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
-import { api } from '@/app/api'
+import { api, type ApiNeed } from '@/app/api'
 
 /** Sổ cơ hội — module 3. Đọc từ máy chủ.
  *
@@ -60,6 +60,53 @@ export const opsProfileQuery = (code: string) =>
       api.read<OpportunityRow>(`/sales/ops/${code}`, {
         need: { branch: 'Sales', permission: 'cơ-hội.xem' },
       }),
+  })
+
+/** Cùng ba trục mà `OpportunityController.book` khai bằng `@Need({ …,
+ *  permission: 'cơ-hội.xem', scoped: true })`.
+ *
+ *  Khai `scoped` ở đây và KHÔNG khai ở hai query ngay trên là một sự lệch có ý
+ *  thức, không phải quên: hai cái kia thiếu trục đó từ trước, sửa chúng là việc
+ *  khác (chúng vẫn chạy đúng vì máy chủ mới là nơi cưỡng chế). Nhưng một `need`
+ *  thiếu trục đọc ra như thể mã nào cũng xem được, nên chỗ mới thì khai đủ —
+ *  cùng nước đi `data/touches.ts` đã ghi. */
+const OPS_OF_LEAD_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.xem', scoped: true }
+
+/** Đơn của MỘT lead — `GET /sales/ops?leadCode=…`.
+ *
+ *  ------------------------------------------------------------------
+ *  QUERY NÀY TỒN TẠI ĐỂ GIẾT MỘT LỖI CỤ THỂ
+ *  ------------------------------------------------------------------
+ *  Hồ sơ lead phải trả lời "khách này đã được đổi thành cơ hội chưa" TRƯỚC khi
+ *  bày cái nút đổi. Cho tới hôm nay nó trả lời bằng `opportunityOfLead()` —
+ *  một phép tra trong mảng fixture đóng băng — nên mọi lead tạo sau lát cắt đó
+ *  luôn nhận `undefined`, nút vẫn sáng, và bấm thêm lần nữa là mở đơn thứ hai
+ *  cho cùng một khách. Đó chính là con số không có thật mà `desk.deals` được
+ *  đẻ ra để chặn, chặn bằng localStorage — đổi máy là hết.
+ *
+ *  LỌC TRÊN SỔ chứ không phải một trường trên `LeadProfile`: một lead giữ được
+ *  NHIỀU đơn (đó là lý do `lead_code` nằm bên bảng cơ hội), nên câu trả lời là
+ *  một DANH SÁCH, và danh sách đơn thì cửa này đã trả sẵn. Treo một
+ *  `opportunityCode` lên hồ sơ lead là dựng lại đúng quan hệ 1-1 mà lược đồ đã
+ *  bỏ đi. Đầy đủ ở docblock của `OpportunityBookQuery` (`@pv/contracts`).
+ *
+ *  `select` trả thẳng `rows`: người gọi hỏi "có đơn nào chưa", không hỏi tổng
+ *  số trang. Vỏ `total`/`hidden` là chuyện của cái sổ, và TanStack còn giữ hộ
+ *  kết quả đã cắt giữa các lần vẽ lại.
+ *
+ *  Khoá NỐI DÀI `OPS_BOOK_KEY` chứ không đứng riêng, và đó là phần làm cho nút
+ *  tự lật: `usePromoteLead` vô hiệu hoá `['sales','ops-book']` sau khi máy chủ
+ *  nhận phiếu, mà TanStack vô hiệu hoá theo TIỀN TỐ — nên lượt đọc này chạy
+ *  lại ngay trong cùng nhịp, không cần ai nhớ thêm một dòng invalidate. */
+export const opsOfLeadQuery = (leadCode: string) =>
+  queryOptions({
+    queryKey: [...OPS_BOOK_KEY, 'of-lead', leadCode] as const,
+    queryFn: ({ signal }) =>
+      api.read<OpportunityBookResponse>(`/sales/ops?leadCode=${encodeURIComponent(leadCode)}`, {
+        need: OPS_OF_LEAD_NEED,
+        signal,
+      }),
+    select: (d: OpportunityBookResponse) => d.rows,
   })
 
 // ---------------------------------------------------------------------------

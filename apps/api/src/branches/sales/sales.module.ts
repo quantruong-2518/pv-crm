@@ -5,6 +5,7 @@ import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
+import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
@@ -22,6 +23,7 @@ registerConstraints(LEAD_CONSTRAINTS)
 registerConstraints(OPPORTUNITY_CONSTRAINTS)
 registerConstraints(CONTRACT_CONSTRAINTS)
 registerConstraints(TOUCH_CONSTRAINTS)
+registerConstraints(MEETING_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *

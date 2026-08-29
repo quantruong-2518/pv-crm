@@ -363,10 +363,17 @@ export type ReadOptions<T> = {
 }
 
 export type WriteOptions = {
-  /** `POST` mặc định. `PATCH` đã đi được từ 28/08 — `main.ts` khai tường minh
-   *  `methods` trong `enableCors`, thứ trước đó thiếu và làm mọi `PATCH` chết ở
-   *  preflight mà không để lại dòng log nào bên máy chủ. */
-  method?: 'POST' | 'PATCH'
+  /** `POST` mặc định. `PATCH` đã đi được từ 28/08 và `DELETE` từ 29/08 —
+   *  `main.ts` khai tường minh `methods` trong `enableCors`, thứ trước đó thiếu
+   *  và làm mọi `PATCH` chết ở preflight mà không để lại dòng log nào bên máy
+   *  chủ. Thêm một động từ ở đây mà quên dòng đó bên kia là đúng cái bẫy ấy
+   *  lặp lại: request không bao giờ rời trình duyệt, và máy chủ im lặng vì nó
+   *  chưa từng nhận được gì.
+   *
+   *  `DELETE` KHÔNG vào `REPLAYABLE` dù nó idempotent theo nghĩa của HTTP: lần
+   *  xoá thứ hai trả 404, và 404 đó hiện lên màn thành "không xoá được" cho
+   *  một thao tác vừa thành công. */
+  method?: 'POST' | 'PATCH' | 'DELETE'
   /** Serialize thành JSON. `undefined` = không gửi thân, và cũng không gắn
    *  `Content-Type` — một preflight thừa cho một request rỗng. */
   body?: unknown

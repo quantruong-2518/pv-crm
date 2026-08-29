@@ -714,6 +714,13 @@ export const LeadMailTimelineRow = z.object({
   runState: MailRunState,
   scheduledAt: Moc.optional(),
 
+  /** When the provider accepted this recipient's letter. This is the first
+   *  honest moment the lead screen may call it "sent"; scheduling or queueing
+   *  a row is not a successful send. */
+  sentAt: Moc.optional(),
+  /** When the receiving server confirmed delivery, when that webhook exists. */
+  deliveredAt: Moc.optional(),
+
   /** State of THIS lead's letter — one value of `MAIL_STATES`, declared in
    *  `apps/api/src/platform/mail/mail.contract.ts`.
    *

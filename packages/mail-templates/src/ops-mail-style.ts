@@ -34,11 +34,78 @@ export const COLOR_ACCENT = paletteHex('Pebble Blue')
 export const COLOR_BG = paletteHex('White')
 export const COLOR_ALERT = paletteHex('Flag Red')
 
-/** Phông hệ thống, KHÔNG phải link webfont — Outlook desktop và vài client
- *  doanh nghiệp khác bóc `<link>`/`@import` khỏi `<head>` của email, nên một
- *  webfont cũng sẽ rơi về phông hệ thống, chỉ là rơi khó đoán hơn. */
+/** Mặt phẳng LÕM — nền chân thư và nền hộp số liệu, để một khối lùi lại một
+ *  bậc so với nền trắng mà không cần vẽ viền (luật 4).
+ *
+ *  Cùng hex với `COLOR_BORDER` hôm nay, và vẫn là hai hằng số: một cái là
+ *  đường kẻ, một cái là mặt phẳng. Bảng token chưa có ô "surface" riêng, nên
+ *  cả hai cùng đọc `Light Gray` — ngày nào bảng có thì đúng một dòng dưới đây
+ *  đổi, thay vì phải đi tìm xem chỗ nào trong bốn template đang dùng
+ *  `COLOR_BORDER` với nghĩa nào. */
+export const COLOR_SURFACE = paletteHex('Light Gray')
+
+/** MÀU CỦA HÀNH ĐỘNG — nền nút, màu liên kết. Khác `COLOR_ACCENT` một cách
+ *  cố ý, và bảng token đã nói trước điều đó: ô `Azure` mang ghi chú "resolves
+ *  --primary for @pv/mail-templates", tức nó sinh ra chính cho chỗ này, còn
+ *  `Pebble Blue` là màu nhận diện.
+ *
+ *  Khác biệt không phải là khẩu vị. Dải đầu thư dùng `Deep Navy`, và một nút
+ *  `Pebble Blue` đặt dưới đó là xanh đậm trên xanh đậm — mắt không tách được
+ *  "đây là chỗ bấm" khỏi "đây là logo". Hai vai, hai màu: navy là ai gửi,
+ *  azure là bấm vào đâu. Trắng trên `Azure` đo 5.14:1, qua ngưỡng 4.5:1. */
+export const COLOR_PRIMARY = paletteHex('Azure')
+
+/** Bảng kiểu Google Fonts cho `Be Vietnam Pro`.
+ *
+ *  Nạp bằng `<link>` trong `<head>`, và ĐÓ LÀ MỘT PHÉP NÂNG CẤP CƠ HỘI chứ
+ *  không phải một yêu cầu. Outlook desktop và Gmail — cả web lẫn app — bóc
+ *  `<link>`/`@import` khỏi `<head>`, nên với phần lớn hộp thư doanh nghiệp
+ *  dòng này không tồn tại. Chỗ nó thật sự hiện là Apple Mail và iOS Mail.
+ *
+ *  Vì thế `FONT_STACK` bên dưới phải tự đứng vững khi không có gì tải về, và
+ *  phải được gắn INLINE trên từng thẻ chữ chứ không chỉ trên `<body>`: engine
+ *  Word của Outlook không cho `font-family` thừa kế đáng tin vào trong
+ *  `<table>`, mà `Row`/`Column`/`Section` đều là bảng. */
+export const FONT_HREF =
+  'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap'
+
+/** Phông thân thư.
+ *
+ *  `Be Vietnam Pro` đứng đầu vì nó được vẽ riêng cho tiếng Việt: dấu hỏi, dấu
+ *  ngã và dấu mũ chồng nhau được tính từ đầu chứ không phải ghép thêm vào một
+ *  phông Latin, nên ở cỡ 15px với `lineHeight` 25px thì dấu của dòng dưới
+ *  không chạm chân dòng trên. Đây là khác biệt thật giữa nó và Poppins, thứ
+ *  đẹp ở tiêu đề tiếng Anh nhưng nặng mắt ở đoạn văn tiếng Việt dài.
+ *
+ *  `Inter` đứng thứ hai — phông của chính app (`globals.css`), nên máy nào có
+ *  sẵn thì thư và màn hình trông cùng một nhà.
+ *
+ *  `Segoe UI Variable Text` chèn trước `Segoe UI` vì Windows 11 đặt tên khác
+ *  cho bản mới, và bản mới có chữ số dễ đọc hơn hẳn ở cỡ 12–13px — đúng cỡ
+ *  của chân thư.
+ *
+ *  KẾT THÚC BẰNG `Arial, sans-serif`, và đó không phải thói quen: engine Word
+ *  của Outlook rơi về Times New Roman khi không phân giải được cả chuỗi, và
+ *  một lá thư Times New Roman là dấu hiệu rõ nhất của "ai đó vừa thêm webfont
+ *  vào email". Một họ chung ở cuối chuỗi là thứ chặn điều đó. */
 export const FONT_STACK =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+  "'Be Vietnam Pro', Inter, -apple-system, BlinkMacSystemFont, " +
+  "'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+
+/** CHỮ SỐ ĐỀU CỘT. Rải lên mọi chỗ in số — mã lead, tiền, ngày giờ, số đếm.
+ *
+ *  Phông tỉ lệ mặc định vẽ `1` hẹp hơn `8`, nên hai dòng số xếp trên nhau
+ *  không thẳng cột và mắt phải đọc lại từng chữ số thay vì so theo hình. Đây
+ *  là khác biệt lớn nhất giữa "một bảng số" và "một đống số".
+ *
+ *  Hai thuộc tính cho cùng một việc: `fontVariantNumeric` là cách hiện đại,
+ *  `fontFeatureSettings` là cách các engine cũ hơn hiểu — trong đó có WebKit
+ *  bản cũ mà một số client mail trên máy tính vẫn nhúng. Client nào không
+ *  hiểu cả hai thì bỏ qua cả hai và chữ số vẫn hiện bình thường. */
+export const NUMERIC = {
+  fontVariantNumeric: 'tabular-nums',
+  fontFeatureSettings: "'tnum' 1",
+} as const
 
 export const BODY_STYLE = {
   backgroundColor: COLOR_BG,

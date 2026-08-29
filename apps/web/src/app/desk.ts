@@ -1,10 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { LeadProfile, Opportunity, OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import type { LeadProfile, Opportunity } from '@pv/engines/fixtures/das-vina'
 
 /** Bàn làm việc của một người trên sổ lead — ghim, giao việc, và mọi thứ người
- *  dùng GÕ VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, việc tự hẹn, phiếu đổi
- *  thành cơ hội).
+ *  dùng GÕ VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, bước tiếp theo).
  *
  *  ------------------------------------------------------------------
  *  VÌ SAO NẰM Ở ĐÂY CHỨ KHÔNG NẰM TRONG MÀN
@@ -25,7 +24,31 @@ import type { LeadProfile, Opportunity, OpportunityDraft } from '@pv/engines/fix
  *
  *  **Giao việc KHÔNG đổi người giữ lead.** Chủ lead là `Lead.owner` trong sổ và
  *  chỉ đổi qua đề nghị đổi tay — vì `COMMISSION_SPLIT` chia lại phần chốt theo
- *  đó. Trộn hai thứ vào một nút là cách nhanh nhất để hoa hồng tính sai. */
+ *  đó. Trộn hai thứ vào một nút là cách nhanh nhất để hoa hồng tính sai.
+ *
+ *  ------------------------------------------------------------------
+ *  `deals` ĐÃ RỜI HÌNH — VÀ BẢN LƯU CŨ CÒN MANG NÓ (29/08)
+ *  ------------------------------------------------------------------
+ *  `deals`/`convert`/`undoConvert` từng là chống đỡ duy nhất cho "lead này đổi
+ *  thành cơ hội chưa". Câu đó nay hỏi máy chủ — `opsOfLeadQuery` ở `data/ops.ts`
+ *  gọi `GET /sales/ops?leadCode=…` — nên ba thứ trên đã ra khỏi store. Chống đỡ
+ *  cũ vốn đã chết trước đó: `convert` không còn ai gọi từ lượt cắt sổ cơ hội
+ *  sang máy chủ, nên `deals` luôn rỗng dù nút vẫn hỏi nó.
+ *
+ *  Store này persist xuống localStorage và **không có `version`/`migrate`**.
+ *  Nên nói thẳng cái giá: máy nào đã từng chạy bản cũ vẫn còn khoá `deals` nằm
+ *  trong `pv-lead-desk`, và `persist` mặc định GỘP NÔNG bản đã lưu lên state
+ *  khởi tạo — khoá đó sẽ sống lại ở runtime như một thuộc tính mồ côi, không có
+ *  trong `DeskState`, không ai đọc, và `reset()` cũng không xoá vì nó không còn
+ *  trong danh sách khoá được đặt lại.
+ *
+ *  Chấp nhận được, và không phải vì lười: nó không đổi hành vi (không nhánh nào
+ *  đọc nó nữa), không lớn (một object rỗng ở gần như mọi máy, vì `convert` đã
+ *  ngừng ghi từ trước), và đánh số `version: 1` để dọn nó thì mọi bản lưu cũ
+ *  phải đi qua một `migrate` — mà một `migrate` viết sai sẽ thổi bay cả ghim,
+ *  ghi chú và việc tự ghi của người dùng, thứ chưa có endpoint nào để dựng lại.
+ *  Ngày store này thật sự cần đổi hình dữ liệu (không phải bỏ bớt một khoá chết)
+ *  thì `version`+`migrate` vào cùng lượt đó, và dọn luôn khoá này. */
 
 export type LeadAssignment = {
   /** Ai được giao. Nhiều người cùng một việc là chuyện thường: một người gọi,
@@ -86,6 +109,13 @@ type DeskState = {
   /** mã lead → việc tự ghi. */
   todos: Record<string, LeadTodo[]>
 
+  /** mã lead → một đề xuất ngắn về bước nên làm tiếp theo.
+   *
+   *  Đây là định hướng hiện tại, không phải danh sách công việc hay một lần
+   *  phân công. Mỗi lead chỉ giữ một câu để người mở hồ sơ biết ngay nên tiếp
+   *  tục từ đâu; lần lưu sau thay thế lần trước. */
+  nextSteps: Record<string, string>
+
   /** MÃ CƠ HỘI → những trường hồ sơ ĐÃ SỬA so với dòng dựng từ fixture.
    *
    *  Cùng cách giữ với `profiles` của lead — giữ PATCH chứ không giữ cả hồ sơ —
@@ -95,13 +125,6 @@ type DeskState = {
    *  Khoá bằng MÃ CƠ HỘI chứ không mã lead: một phiếu người dùng tự tạo cũng là
    *  một dòng sổ cơ hội sửa được, mà nó chưa chắc đã có lead nào đứng sau. */
   ops: Record<string, Partial<Opportunity>>
-
-  /** mã lead → phiếu đổi thành cơ hội đã gửi.
-   *
-   *  Một lead đổi ĐÚNG MỘT LẦN: có phiếu rồi thì nút đổi tắt và màn hiện mã cơ
-   *  hội. Đổi hai lần là hai đơn cho một khách, và đó là cách nhanh nhất để sổ
-   *  cơ hội cộng ra một con số không có thật. */
-  deals: Record<string, OpportunityDraft>
 
   /** Bộ đếm sinh id cho việc tự ghi. Đếm chứ không `Date.now()`: cùng một chuỗi
    *  thao tác phải ra cùng một chuỗi id, nếu không test không khoá được gì. */
@@ -114,11 +137,10 @@ type DeskState = {
   patchProfile: (code: string, patch: Partial<LeadProfile>) => void
   resetProfile: (code: string) => void
   setNote: (code: string, html: string) => void
+  setNextStep: (code: string, text: string) => void
   addTodo: (code: string, todo: Omit<LeadTodo, 'id' | 'done'>) => void
   toggleTodo: (code: string, id: string) => void
   removeTodo: (code: string, id: string) => void
-  convert: (code: string, draft: OpportunityDraft) => void
-  undoConvert: (code: string) => void
   patchOp: (code: string, patch: Partial<Opportunity>) => void
   resetOp: (code: string) => void
   /** Dọn sạch — dùng ở test và ở nút "bỏ hết ghim". */
@@ -138,7 +160,7 @@ export const useLeadDesk = create<DeskState>()(
       profiles: {},
       notes: {},
       todos: {},
-      deals: {},
+      nextSteps: {},
       ops: {},
       seq: 0,
 
@@ -178,6 +200,8 @@ export const useLeadDesk = create<DeskState>()(
 
       setNote: (code, html) => set((s) => ({ notes: { ...s.notes, [code]: html } })),
 
+      setNextStep: (code, text) => set((s) => ({ nextSteps: { ...s.nextSteps, [code]: text } })),
+
       addTodo: (code, todo) =>
         set((s) => {
           const id = `todo-${s.seq + 1}`
@@ -201,15 +225,6 @@ export const useLeadDesk = create<DeskState>()(
           todos: { ...s.todos, [code]: (s.todos[code] ?? []).filter((t) => t.id !== id) },
         })),
 
-      convert: (code, draft) => set((s) => ({ deals: { ...s.deals, [code]: draft } })),
-
-      undoConvert: (code) =>
-        set((s) => {
-          const next = { ...s.deals }
-          delete next[code]
-          return { deals: next }
-        }),
-
       patchOp: (code, patch) =>
         set((s) => ({ ops: { ...s.ops, [code]: { ...s.ops[code], ...patch } } })),
 
@@ -228,7 +243,7 @@ export const useLeadDesk = create<DeskState>()(
           profiles: {},
           notes: {},
           todos: {},
-          deals: {},
+          nextSteps: {},
           ops: {},
           seq: 0,
         }),

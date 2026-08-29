@@ -27,6 +27,7 @@ Mọi trích dẫn `luật N` trong code trỏ vào `docs/luat-thiet-ke.md §1`.
 ```bash
 pnpm install
 pnpm dev            # http://localhost:5173  ·  /kit là theme kit
+pnpm mail:preview   # http://localhost:5175 — mọi mẫu mail, render lại mỗi lần F5
 pnpm check          # cổng duy nhất: format · kiểu · lint · token · test · build · css
 pnpm lint:debt      # còn nợ bao nhiêu vi phạm cũ, ở file nào
 ```
@@ -64,6 +65,9 @@ Người gác — CI **không** biết, phải tự nhìn:
 
 - **Luật 12** — nền đúng 4 lớp, không lớp thứ 5
 - **Luật 13** — tương phản ≥ 4.5:1 trên cả `.glass-a` và `.glass-b`; nút tablet ≥ 48px
+- **Mẫu mail** — không compiler nào render chúng và không test nào chạy chúng, nên
+  đổi gì trong `packages/mail-templates` thì mở `pnpm mail:preview` mà nhìn. Luật 13
+  áp ở đây như mọi nơi khác, và email không có token nên phải tự đo hex.
 
 ## Test — không tự sinh, trừ một ngoại lệ
 

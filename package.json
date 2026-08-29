@@ -40,6 +40,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
+    "mail:preview": "node tools/scripts/mail-preview.mjs",
     "tokens:check": "node tools/scripts/check-token-drift.mjs",
     "css:check": "node tools/scripts/check-css-coverage.mjs",
     "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm tokens:check && pnpm test && pnpm build && pnpm css:check",

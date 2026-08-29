@@ -294,6 +294,8 @@ export class LeadRepository {
              r."label"                                       AS label,
              r."state"                                       AS run_state,
              r."scheduled_at"                                AS scheduled_at,
+             d."accepted_at"                                 AS sent_at,
+             d."delivered_at"                                AS delivered_at,
              d."state"                                       AS delivery_state,
              d."last_error_summary"                          AS fail_reason,
              COALESCE(e.open_count, 0)::int                  AS open_count,
@@ -403,5 +405,49 @@ export class LeadRepository {
       q.account ? eq(lead.company, q.account) : undefined,
       q.q ? ilike(lead.company, `%${q.q}%`) : undefined,
     ]
+  }
+
+  /** Bốn con số của thẻ điểm, MỘT lượt đi tới database.
+   *
+   *  Bốn `SELECT count(*)` rời nhau là bốn vòng tới Neon cho một tấm thẻ, và
+   *  Neon tính tiền theo lượt hỏi. Bốn truy vấn con vô hướng trong một câu thì
+   *  planner chạy mỗi cái đúng một lần và trả về một dòng bốn cột.
+   *
+   *  `count(DISTINCT lead_code)` ở cột thứ hai là chỗ dễ viết sai nhất cả câu:
+   *  một lead họp bốn lần vẫn là MỘT lead đã gặp. Bỏ `DISTINCT` thì tỉ lệ
+   *  "first meeting / lead" vượt 100% ngay tuần đầu có người chăm ghi họp, và
+   *  nó sai theo hướng trông như một tin tốt.
+   *
+   *  Đếm THÔ, không lọc `exit_reason`: mẫu số là mọi lead từng vào sổ, đúng như
+   *  hằng `FUNNEL` đóng băng mà nó thay thế. Một lead đã rơi vẫn là một lead
+   *  từng được đầu tư — bỏ nó ra khỏi mẫu số là tự nâng mọi tỉ lệ. */
+  async scorecard(): Promise<{
+    leads: number
+    firstMeetings: number
+    opportunities: number
+    contracts: number
+  }> {
+    const r = (await this.db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM "sales"."lead")                              AS leads,
+        (SELECT count(DISTINCT "lead_code")::int FROM "sales"."meeting")        AS first_meetings,
+        (SELECT count(*)::int FROM "sales"."opportunity")                       AS opportunities,
+        (SELECT count(*)::int FROM "sales"."contract")                          AS contracts
+    `)) as {
+      rows: {
+        leads: number
+        first_meetings: number
+        opportunities: number
+        contracts: number
+      }[]
+    }
+
+    const row = r.rows[0]
+    return {
+      leads: row?.leads ?? 0,
+      firstMeetings: row?.first_meetings ?? 0,
+      opportunities: row?.opportunities ?? 0,
+      contracts: row?.contracts ?? 0,
+    }
   }
 }

@@ -4,12 +4,18 @@ import {
   LeadBookResponse,
   LeadMailTimelineResponse,
   LeadProfile,
+  LeadScorecard,
   type LeadBookQuery,
   type MaObject,
+  type MeetingCreate,
+  type MeetingListResponse,
+  type MeetingPatch,
+  type MeetingRow,
   type TouchTimelineResponse,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
+import { MeetingService } from '../meeting/meeting.service'
 import { TouchService } from '../touch/touch.service'
 import { toContract, toMailTimeline, toProfile, toRef } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
@@ -32,6 +38,7 @@ export class LeadService {
   constructor(
     private readonly repo: LeadRepository,
     private readonly touch: TouchService,
+    private readonly meetings: MeetingService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -172,5 +179,68 @@ export class LeadService {
     }
 
     return this.touch.timeline(code)
+  }
+
+  // ── Cuộc họp · bốn cửa, một hàng rào ────────────────────────────────────
+  //
+  // Cả bốn mở đầu bằng đúng `guard()` bên dưới, và đó là lý do `MeetingService`
+  // không biết gì về quyền: câu "lead này có thật không, có đứng tên bạn không"
+  // được hỏi MỘT lần, ở đây, đúng như `touches` và `mailTimeline` đã làm.
+  //
+  // Hai cửa ghi đòi `lead.sửa`, khai trên controller. Trục phạm vi vẫn bật ở cả
+  // bốn: ghi một buổi họp vào lead của người khác là sửa hồ sơ của người khác.
+
+  async meetingList(who: Actor, code: MaObject): Promise<MeetingListResponse> {
+    await this.guard(who, code)
+    return this.meetings.timeline(code)
+  }
+
+  async meetingAdd(who: Actor, code: MaObject, body: MeetingCreate): Promise<MeetingRow> {
+    await this.guard(who, code)
+    return this.meetings.record(who, code, body)
+  }
+
+  async meetingEdit(
+    who: Actor,
+    code: MaObject,
+    id: string,
+    body: MeetingPatch,
+  ): Promise<MeetingRow> {
+    await this.guard(who, code)
+    return this.meetings.amend(code, id, body)
+  }
+
+  async meetingDrop(who: Actor, code: MaObject, id: string): Promise<void> {
+    await this.guard(who, code)
+    await this.meetings.drop(code, id)
+  }
+
+  /** Thẻ điểm Sổ lead. `GET /sales/leads/scorecard`.
+   *
+   *  KHÔNG cắt theo phạm vi, và đó là quyết định chứ không phải sót: thẻ điểm
+   *  là điểm của CẢ KỲ, tức của cả phòng. Cắt nó theo lead ai đang giữ thì mỗi
+   *  người mở màn thấy một con số khác nhau dưới cùng một dòng chữ "Thẻ điểm
+   *  10/08 → 28/08" — và không con số nào trong đó là con số người ta định
+   *  hỏi. Cửa vẫn đòi `lead.xem`; ai không được vào sổ thì cũng không thấy thẻ.
+   *
+   *  Bốn con số ĐẾM, không phải tỉ lệ — xem `LeadScorecard`. */
+  async scorecard(): Promise<LeadScorecard> {
+    return LeadScorecard.parse(await this.repo.scorecard())
+  }
+
+  /** Lead có thật, và người này được đọc nó. Hai câu, một chỗ.
+   *
+   *  Rút ra thành hàm sau khi cửa thứ tư lặp lại đúng sáu dòng này — bốn bản
+   *  sao của một câu 403 là bốn chỗ để câu đó trôi khỏi nhau. `profile`,
+   *  `mailTimeline` và `touches` giữ nguyên bản của chúng: đổi cả ba trong
+   *  cùng lượt này là trộn một đợt dựng tính năng với một đợt dọn dẹp, và
+   *  người review sẽ phải đọc cả hai cùng lúc. */
+  private async guard(who: Actor, code: MaObject): Promise<void> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('lead', code)
+
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
   }
 }
