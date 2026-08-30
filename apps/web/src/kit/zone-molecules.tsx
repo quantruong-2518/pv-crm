@@ -78,6 +78,10 @@ function TableDemo() {
         : { key, dir: 'asc' },
     )
 
+  /* Which row is open is the SCREEN's state too — `details` is present or it is
+     not, and the table has no `expanded` flag of its own to disagree with. */
+  const [open, setOpen] = useState<string | null>('HD-2214')
+
   return (
     <DataTable
       columns={TABLE_COLUMNS}
@@ -86,7 +90,17 @@ function TableDemo() {
       rows={[
         {
           id: 'HD-2214',
-          onOpen: () => {},
+          onOpen: () => setOpen((cur) => (cur === 'HD-2214' ? null : 'HD-2214')),
+          ...(open === 'HD-2214'
+            ? {
+                details: (
+                  <p className="text-muted-foreground px-1 text-[12px] leading-[1.65]">
+                    Khối bung ra chiếm trọn bề ngang bảng, nằm ngoài lưới cột — chỗ cho một danh
+                    sách con, một đoạn giải thích, hay bảng người nhận của một đợt gửi.
+                  </p>
+                ),
+              }
+            : {}),
           cells: [
             mono('HD-2214'),
             'Cơ khí Minh Quang',
@@ -208,10 +222,21 @@ function RichTextDemo() {
   )
 }
 
-/** Bấm một chip đã qua (Đức/Liên hệ) để lùi lại — chứng minh `onGo` đổi state
- *  của MÀN, Stepper chỉ vẽ lại theo `current` nó nhận vào. */
+/** Bấm một chip đã qua để lùi lại — chứng minh `onGo` đổi state của MÀN,
+ *  Stepper chỉ vẽ lại theo `current` nó nhận vào.
+ *
+ *  Two pieces of state, not one, and the second is the whole point of the demo:
+ *  press back to step 2 and step 3 stays clickable, because `reached` remembers
+ *  that it was opened. Holding only `current` here would reproduce on the kit
+ *  page the exact dead end the prop exists to end — see `StepperProps.reached`. */
 function StepperDemo() {
   const [current, setCurrent] = useState(2)
+  const [reached, setReached] = useState(2)
+  const go = (next: number) => {
+    setCurrent(next)
+    setReached((furthest) => Math.max(furthest, next))
+  }
+
   return (
     <Stepper
       steps={[
@@ -221,7 +246,8 @@ function StepperDemo() {
         { key: 'confirm', label: 'Xác nhận' },
       ]}
       current={current}
-      onGo={setCurrent}
+      reached={reached}
+      onGo={go}
     />
   )
 }

@@ -3,6 +3,7 @@ import type { AccessControl, Actor } from '@pv/engines'
 import {
   MailRunListResponse,
   MailRunPatchResponse,
+  MailRunRecipientsResponse,
   MailTemplateListResponse,
   MasPreflightResponse,
   MasPreviewResponse,
@@ -15,6 +16,7 @@ import {
   type MasPreviewRequest,
   type MasRecipient,
   type MasRecipientBlock,
+  type MailRunRecipientRow,
   type MasSendRequest,
 } from '@pv/contracts'
 import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
@@ -23,7 +25,7 @@ import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
-import { MasRepository, type MasLeadRow } from './mas.repository'
+import { MasRepository, type MasLeadRow, type MasRecipientRead } from './mas.repository'
 
 /** The template this feature composes against — `platform/mail/mas.composer.ts`
  *  answers for exactly this string, and the version is in the name because
@@ -451,6 +453,33 @@ export class MasService {
     return MailRunPatchResponse.parse({ id, state: patch.state, held: stopped.held })
   }
 
+  /** WHO this run went to and what became of each letter.
+   *
+   *  ------------------------------------------------------------------
+   *  THE ENTITLEMENT IS SETTLED ON THE RUN, EXACTLY AS `cancel` SETTLES IT
+   *  ------------------------------------------------------------------
+   *  Same two refusals in the same order and for the reasons written out at
+   *  `cancel`: 404 sends somebody to check the id, 403 sends them to whoever
+   *  pressed send. Reading `created_by` loads nothing about anybody else's
+   *  batch, so this is the one object where deciding in Node rather than in the
+   *  WHERE clause leaks nothing — and it is what lets the repository skip a
+   *  second cut on `lead.owner_id` that would answer a refusal with an empty
+   *  list.
+   *
+   *  A run with no rows yet is an ordinary answer, not a 404: a `SCHEDULED`
+   *  batch has a run and no letters until its hour comes. */
+  async recipients(who: Actor, id: string): Promise<MailRunRecipientsResponse> {
+    const run = await this.runs.byId(id)
+    if (!run) throw notFound('lô gửi', id)
+
+    if (who.ownOnly && run.createdBy !== who.id) {
+      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+    }
+
+    const rows = await this.repo.recipients(id)
+    return MailRunRecipientsResponse.parse({ rows: rows.map(toRunRecipient) })
+  }
+
   async templates(): Promise<MailTemplateListResponse> {
     return MailTemplateListResponse.parse({ rows: await this.repo.templates() })
   }
@@ -632,4 +661,64 @@ const SAMPLE_MERGE: Record<MailMergeKey, string> = mergeOf({
  *  first occurrence is the one kept. */
 function dedupe(codes: readonly string[]): string[] {
   return [...new Set(codes)]
+}
+
+/** One ledger row → one `MailRunRecipientRow`.
+ *
+ *  Twin of `toMailTimeline` in `lead.mapper.ts`, and every decision in it is
+ *  that function's decision — read there first. The two that are this one's own:
+ *
+ *   · Both names fall back to `'—'` rather than to the empty string. They are
+ *     `.min(1)` in the contract, so a lead deleted out from under a sent run
+ *     whose ledger snapshot never carried a merge would otherwise take the
+ *     whole list out with a 500 on the way back. A dash is the honest reading
+ *     of "we no longer know who this was", and the address beside it still is.
+ *   · `failReason` travels only for a state where a reason is MEANINGFUL.
+ *     `last_error_summary` is a shared column the retry sweeper also writes, so
+ *     a row back in `pending` after being rescued still carries the sentence
+ *     from the attempt before — printing it next to a letter that is about to
+ *     go out tells the reader it failed. */
+function toRunRecipient(read: MasRecipientRead): MailRunRecipientRow {
+  const sentAt = isoOf(read.sent_at)
+  const deliveredAt = isoOf(read.delivered_at)
+  const lastOpenAt = isoOf(read.last_open_at)
+  const lastClickAt = isoOf(read.last_click_at)
+
+  return {
+    leadCode: read.lead_code,
+    company: read.company ?? '—',
+    contactName: read.contact_name ?? '—',
+    email: read.email,
+    deliveryState: read.delivery_state,
+    ...(sentAt ? { sentAt } : {}),
+    ...(deliveredAt ? { deliveredAt } : {}),
+    openCount: read.open_count,
+    ...(lastOpenAt ? { lastOpenAt } : {}),
+    clickCount: read.click_count,
+    ...(lastClickAt ? { lastClickAt } : {}),
+    ...(read.fail_reason && FAILED_DELIVERY[read.delivery_state]
+      ? { failReason: read.fail_reason }
+      : {}),
+  }
+}
+
+/** Driver moment → the contract's `Moc` (ISO 8601 WITH a zone). Same shape and
+ *  same reasoning as `isoOf` in `lead.mapper.ts`: PGlite prints
+ *  `2027-01-01 02:00:00+00`, which `Moc` refuses, and an unreadable moment is
+ *  dropped rather than allowed to throw out of `toISOString()`. */
+function isoOf(at: Date | string | null): string | undefined {
+  if (!at) return undefined
+  const date = at instanceof Date ? at : new Date(at)
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+}
+
+/** Delivery states for which an error sentence is the truth. Spelled out
+ *  rather than derived from `MAIL_STATE_RANK` — same call `lead.mapper.ts`
+ *  makes, same reason: a branch reading the platform's rank table to answer a
+ *  screen's question is a dependency on a detail that may move. */
+const FAILED_DELIVERY: Record<string, true | undefined> = {
+  bounced: true,
+  complained: true,
+  failed_permanent: true,
+  dead: true,
 }

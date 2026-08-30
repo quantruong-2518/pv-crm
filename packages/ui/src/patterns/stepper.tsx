@@ -25,6 +25,18 @@ export type StepperProps = {
   steps: StepperStep[]
   /** Chỉ số bước đang mở, 0-based. */
   current: number
+  /** DONE MEANS VISITED, not "lower than the open step".
+   *
+   *  The furthest step the user has opened, 0-based. Absent, "done" falls back
+   *  to `i < current` — the old shape, and that shape has a hole: walk to step
+   *  4, press back to step 3, and step 4 instantly becomes "not reached" and
+   *  cannot be clicked forward again, while its data is still sitting in the
+   *  screen's state. What the user meets is a not-allowed cursor on the thing
+   *  they just came from.
+   *
+   *  The tick therefore reads "been here", not "finished" — a review step whose
+   *  button has not been pressed still carries one once it has been opened. */
+  reached?: number
   /** Cho phép bấm quay lại một bước ĐÃ QUA. Bước chưa tới không bao giờ bấm được. */
   onGo?: (index: number) => void
   className?: string
@@ -92,12 +104,17 @@ function StepControl({
   )
 }
 
-export function Stepper({ steps, current, onGo, className }: StepperProps) {
+export function Stepper({ steps, current, reached, onGo, className }: StepperProps) {
+  /* `Math.max`: a `reached` staler than `current` — the screen jumped forward
+     before its high-water mark caught up — must not turn the OPEN step into an
+     unreached one. */
+  const furthest = Math.max(reached ?? 0, current)
+
   return (
     <div className={className}>
       <ol aria-label="Các bước" className="hidden items-center gap-2 sm:flex">
         {steps.map((step, i) => {
-          const status: StepStatus = i < current ? 'done' : i === current ? 'current' : 'upcoming'
+          const status: StepStatus = i === current ? 'current' : i <= furthest ? 'done' : 'upcoming'
           return (
             <li key={step.key} className="contents">
               {i > 0 && <span aria-hidden="true" className="bg-white/14 h-[1.5px] w-4 shrink-0" />}

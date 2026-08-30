@@ -5,6 +5,7 @@ import {
   useState,
   type Dispatch,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type SetStateAction,
 } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -16,6 +17,8 @@ import {
   Badge,
   Button,
   Checkbox,
+  ChevronDown,
+  ChevronRight,
   Chip,
   CircleAlert,
   DataTable,
@@ -47,8 +50,10 @@ import {
   Trash2,
   UserPlus,
   Users,
+  cn,
   percent,
   type StepperStep,
+  type TableColumn,
 } from '@pv/ui'
 import type { Actor } from '@pv/engines'
 import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
@@ -88,6 +93,7 @@ import {
 } from '@/data/campaign-book'
 import { MAIL_RUN_STATE_LABEL, MAIL_RUN_STATE_TONE } from '@/data/mail-runs'
 import { RunWhen } from '@/components/run-when'
+import { WaveRecipients } from '@/components/wave-recipients'
 
 /** Module 1 · MỘT KHUNG, BA CỬA — tạo / sửa / xem một chiến dịch.
  *
@@ -292,7 +298,21 @@ function CampaignForm({
     error,
   } = useQuery({ ...campaignProfileQuery(code ?? ''), enabled: !isNew })
 
-  const [step, setStep] = useState(initialStep)
+  /* THE STEP, AND THE FURTHEST STEP — two numbers, because one cannot answer
+     both questions the Stepper asks.
+
+     `Stepper` decided "a step not reached yet is never clickable" from
+     `i < current` alone, which reads a walk forward correctly and a walk BACK
+     as if the later steps had never existed: fill in step 3, press back to
+     step 2, and step 3 is suddenly locked behind a not-allowed cursor while
+     its draft is still sitting in `composer`. The draft never went anywhere,
+     so neither should the way back to it — see `StepperProps.reached`. */
+  const [step, setStepRaw] = useState(initialStep)
+  const [reached, setReached] = useState(initialStep)
+  const setStep = (next: number) => {
+    setStepRaw(next)
+    setReached((furthest) => Math.max(furthest, next))
+  }
   const goOverview = () => setStep(3)
 
   const people = useSalesPeople()
@@ -517,7 +537,7 @@ function CampaignForm({
           </div>
         )}
 
-        <Stepper steps={steps} current={step} onGo={setStep} />
+        <Stepper steps={steps} current={step} reached={reached} onGo={setStep} />
 
         {step === 0 &&
           (isNew ? (
@@ -606,7 +626,12 @@ function CampaignForm({
               submitting={submitting}
             />
           ) : (
-            campaign && <OverviewStep campaign={campaign} />
+            campaign && (
+              <OverviewStep
+                campaign={campaign}
+                {...(canEdit ? { onEdit: () => setStep(0) } : {})}
+              />
+            )
           ))}
       </ScreenLayout>
     </AppShell>
@@ -645,7 +670,7 @@ function ProfileFields({
   sources: { id: string; name: string; active: boolean }[]
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">Tên chiến dịch</span>
@@ -696,34 +721,191 @@ function ProfileFields({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-muted-foreground text-[11px]">
-          Thumbnail — dán URL ảnh (không bắt buộc)
-        </span>
-        <Input
-          value={thumbnailUrl}
-          onChange={(e) => setThumbnailUrl(e.target.value)}
-          placeholder="https://…"
-        />
-        <GlassCard
-          variant="a"
-          className="flex aspect-video items-center justify-center overflow-hidden p-0"
-        >
-          {thumbnailUrl.trim() ? (
-            <img
-              src={thumbnailUrl.trim()}
-              alt=""
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).style.visibility = 'hidden'
-              }}
-            />
-          ) : (
-            <Icon icon={ImagePlus} size={24} className="text-muted-foreground" />
-          )}
-        </GlassCard>
-      </div>
+      <ThumbnailField value={thumbnailUrl} onChange={setThumbnailUrl} />
     </div>
+  )
+}
+
+/** How long a half-typed address is left alone before the browser tries to
+ *  fetch it. Long enough to paste and stop; short enough that the picture
+ *  appears while the pasting hand is still on the mouse. */
+const THUMBNAIL_SETTLE_MS = 500
+
+/** THE URL BOX AND ITS PICTURE — and the bug that made every URL look broken.
+ *
+ *  ------------------------------------------------------------------
+ *  THE OLD FAILURE HID A GOOD URL BEHIND A BAD KEYSTROKE
+ *  ------------------------------------------------------------------
+ *  The previous version pointed `<img src>` straight at the box and, on error,
+ *  wrote `style.visibility = 'hidden'` onto the element. Both halves fail
+ *  together: typing an address means the browser tries `h`, `ht`, `htt`… and
+ *  every one of those fires `onError`; React then keeps the SAME `<img>` node
+ *  and only swaps `src`, so the inline `visibility: hidden` from the first bad
+ *  keystroke survives every later one. The finished, perfectly valid URL loads
+ *  and stays invisible — which is exactly what "the thumbnail URL doesn't
+ *  work" looked like from the outside.
+ *
+ *  So the failure now lives in React state keyed on the settled address, and
+ *  the address only settles once typing stops.
+ *
+ *  ------------------------------------------------------------------
+ *  A BROKEN PICTURE IS SAID OUT LOUD, NOT LEFT AS AN EMPTY BOX
+ *  ------------------------------------------------------------------
+ *  There is no file store yet — the field is a URL box (see
+ *  `CampaignBookRow.thumbnailUrl`) — so a link the browser cannot load is a
+ *  normal thing to type: a share page rather than an image, or a host that
+ *  refuses hotlinks. An empty grey rectangle reads as "still loading"; a line
+ *  of text is what sends somebody to copy a different link. The frame itself,
+ *  and the verdict on one address, belong to `ThumbnailPreview` — this field
+ *  owns only the settling. */
+function ThumbnailField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [settled, setSettled] = useState(value.trim())
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value.trim()), THUMBNAIL_SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [value])
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-muted-foreground text-[11px]">
+        Thumbnail — dán URL ảnh (không bắt buộc)
+      </span>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://…/anh.jpg"
+      />
+
+      <ThumbnailPreview
+        url={settled}
+        empty="Chưa có ảnh. Dán link ảnh trực tiếp để xem trước ngay tại đây."
+        broken="Không tải được ảnh từ địa chỉ này — cần link ẢNH trực tiếp (kết thúc .jpg, .png, .webp), không phải link trang chia sẻ."
+      />
+    </div>
+  )
+}
+
+/** THE PICTURE FRAME, SHARED BY THE THREE SCREENS THAT SHOW ONE.
+ *
+ *  The compose step, the review step and the overview all draw the same
+ *  16:9 frame over the same URL, and all three need the same two things said
+ *  when there is nothing to draw: no address yet, versus an address the browser
+ *  refused. Three copies would be three chances for one of them to keep the
+ *  old `visibility: hidden` bug this component was written to end.
+ *
+ *  `broken` is state and not a DOM mutation, and it is reset whenever `url`
+ *  changes — a verdict belongs to ONE address. `referrerPolicy="no-referrer"`
+ *  earns its line: a number of image hosts answer 403 to a request carrying
+ *  somebody else's page as referrer, and sending none is what loads them. */
+function ThumbnailPreview({
+  url,
+  empty,
+  broken: brokenNote,
+}: {
+  url: string
+  empty: string
+  broken: string
+}) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [url])
+
+  return (
+    <GlassCard
+      variant="a"
+      className="flex aspect-video items-center justify-center overflow-hidden p-0"
+    >
+      {url === '' || broken ? (
+        <div className="flex flex-col items-center gap-2 px-6 text-center">
+          <Icon
+            icon={broken ? CircleAlert : ImagePlus}
+            size={24}
+            className={broken ? 'text-warning' : 'text-muted-foreground'}
+          />
+          <p className="text-muted-foreground text-pretty text-[11.5px] leading-[1.6]">
+            {broken ? brokenNote : empty}
+          </p>
+        </div>
+      ) : (
+        <img
+          src={url}
+          alt=""
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          className="h-full w-full object-cover"
+          onError={() => setBroken(true)}
+        />
+      )}
+    </GlassCard>
+  )
+}
+
+/** One fact of the campaign profile — label above, value below. A `<dl>` pair
+ *  rather than two `<span>`s because that is what these are: a term and its
+ *  definition, and a screen reader reads the pair as one. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <dt className="text-muted-foreground text-[11px]">{label}</dt>
+      <dd className="truncate text-[13px]">{children}</dd>
+    </div>
+  )
+}
+
+/** EVERYTHING THE CAMPAIGN IS, on the screen that is meant to be the answer.
+ *
+ *  The overview used to open on four counters and a wave table — every number
+ *  about the SENDING and nothing about the campaign itself, so the one screen
+ *  whose whole name promises an overview was the one screen that could not say
+ *  who owns this campaign or what its picture is. The picture especially: it is
+ *  typed on step 1 and, until now, was never shown anywhere afterwards.
+ *
+ *  Name and slogan are NOT repeated here — `ScreenHeader` is already carrying
+ *  them two rows above, and a title printed twice on one screen reads as two
+ *  different things at a glance. */
+function CampaignFacts({ campaign, onEdit }: { campaign: CampaignProfile; onEdit?: () => void }) {
+  return (
+    <GlassCard className="grid gap-5 p-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-6 lg:p-6">
+      <ThumbnailPreview
+        url={campaign.thumbnailUrl ?? ''}
+        empty="Chiến dịch chưa gắn ảnh."
+        broken="Ảnh của chiến dịch không tải được — địa chỉ có thể đã hỏng."
+      />
+
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <SectionTitle>Hồ sơ chiến dịch</SectionTitle>
+          {onEdit && (
+            <Button size="sm" variant="ghost" onClick={onEdit}>
+              <Icon icon={PenLine} size={14} />
+              Sửa
+            </Button>
+          )}
+        </div>
+
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Fact label="Mã chiến dịch">
+            <Chip>{campaign.code}</Chip>
+          </Fact>
+          <Fact label="Trạng thái">
+            <Badge tone={CAMPAIGN_STATE_TONE[campaign.state]}>
+              {CAMPAIGN_STATE_LABEL[campaign.state]}
+            </Badge>
+          </Fact>
+          <Fact label="Chủ chiến dịch">{campaign.ownerName ?? 'Chưa gán'}</Fact>
+          <Fact label="Nguồn dẫn">{campaign.sourceName ?? 'Chưa gán'}</Fact>
+          <Fact label="Người nhận trong tệp">
+            <span className="tnum">{campaign.audienceCount.toLocaleString('vi-VN')}</span> người
+          </Fact>
+          <Fact label="Đợt đã bắn">
+            <span className="tnum">{campaign.waveCount.toLocaleString('vi-VN')}</span> đợt
+          </Fact>
+          <Fact label="Mở lúc">{dmhm(campaign.createdAt)}</Fact>
+          <Fact label="Sửa gần nhất">{dmhm(campaign.updatedAt)}</Fact>
+          <Fact label="Slogan">{campaign.slogan ?? '—'}</Fact>
+        </dl>
+      </div>
+    </GlassCard>
   )
 }
 
@@ -879,14 +1061,24 @@ const AUDIENCE_PAGE_SIZE = 100
  *  stay in state (typing shows up at once) and only drip into the query. */
 const SEARCH_DELAY_MS = 300
 
+/** THE PICKER, AND THE ROWS IT MUST NOT OFFER AGAIN.
+ *
+ *  `alreadyIn` is the audience as it stands. A lead already in the campaign has
+ *  nothing left for this table to do with it: ticking it a second time posts an
+ *  `add` the server answers with `added: 0`, and the reader — who is looking at
+ *  that same name in the list right above — reasonably reads the repeat as the
+ *  screen having lost track of what it already holds. Absent for a campaign
+ *  being CREATED, where the audience is exactly what this table is building. */
 function AudiencePicker({
   selected,
   onSetOne,
   onSetMany,
+  alreadyIn,
 }: {
   selected: ReadonlySet<string>
   onSetOne: (code: string, on: boolean) => void
   onSetMany: (codes: string[], on: boolean) => void
+  alreadyIn?: ReadonlySet<string>
 }) {
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
@@ -913,7 +1105,14 @@ function AudiencePicker({
   )
 
   const { data, isPending } = useQuery(leadBookQuery(query))
-  const rows = data?.rows ?? []
+  /* Filtered on the CLIENT, and the sentence below owns up to it: the server
+     pages the lead book and knows nothing about this campaign's audience, so a
+     page of 100 that holds 3 members shows 97 rows rather than fetching a 98th.
+     Saying how many were left out is what keeps a page of 97 from reading like
+     a miscount. */
+  const page = data?.rows ?? []
+  const rows = alreadyIn ? page.filter((l) => !alreadyIn.has(l.code)) : page
+  const alreadyOnPage = page.length - rows.length
   /* Read the DEBOUNCED word, not the live one: the table is answering `search`,
      so asking `text` makes the empty-state describe a query the rows are not
      from — clearing the box would flip this to false 300ms before the rows come
@@ -991,9 +1190,13 @@ function AudiencePicker({
         </Button>
       </div>
 
-      <GlassCard variant="b" className="max-h-[50vh] select-none overflow-y-auto p-0">
+      {/* `px-4` and not `p-0`: a table flush against the pane's edge puts the
+          first chip and the last button hard against the glass, which is what
+          `leads.tsx` already avoids by padding the box its table sits in. The
+          padding belongs to the SCROLL box so it travels with the rows. */}
+      <GlassCard variant="b" className="max-h-[50vh] select-none overflow-y-auto px-4 py-3 lg:px-5">
         {isPending ? (
-          <div className="flex flex-col gap-2 p-3">
+          <div className="flex flex-col gap-2">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
@@ -1002,9 +1205,11 @@ function AudiencePicker({
           <EmptyState
             icon={Inbox}
             message={
-              filtered
-                ? 'Không có lead nào khớp bộ lọc đang chọn.'
-                : 'Sổ lead đang mở (trạng thái ĐANG CHẠY) hiện chưa có dòng nào.'
+              alreadyOnPage > 0
+                ? 'Mọi lead khớp bộ lọc đều đã có trong tệp nhận rồi.'
+                : filtered
+                  ? 'Không có lead nào khớp bộ lọc đang chọn.'
+                  : 'Sổ lead đang mở (trạng thái ĐANG CHẠY) hiện chưa có dòng nào.'
             }
             action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
             className="py-8"
@@ -1056,8 +1261,10 @@ function AudiencePicker({
         )}
       </GlassCard>
       <p className="text-muted-foreground text-[11px]">
-        Hiện tới {AUDIENCE_PAGE_SIZE} lead khớp lọc, mới nhất trước. Bấm từng dòng để chọn — chạm
-        cũng vậy. Riêng với chuột, giữ nút trái rồi rê qua nhiều dòng để bôi đen hàng loạt.
+        Hiện tới {AUDIENCE_PAGE_SIZE} lead khớp lọc, mới nhất trước
+        {alreadyOnPage > 0 ? `, bỏ ${alreadyOnPage} lead đã có trong tệp nhận` : ''}. Bấm từng dòng
+        để chọn — chạm cũng vậy. Riêng với chuột, giữ nút trái rồi rê qua nhiều dòng để bôi đen hàng
+        loạt.
       </p>
     </div>
   )
@@ -1180,9 +1387,9 @@ function CampaignMemberList({
         </p>
       )}
 
-      <GlassCard variant="b" className="max-h-[40vh] overflow-y-auto p-0">
+      <GlassCard variant="b" className="max-h-[40vh] overflow-y-auto px-4 py-3 lg:px-5">
         {isPending ? (
-          <div className="flex flex-col gap-2 p-3">
+          <div className="flex flex-col gap-2">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
@@ -1277,6 +1484,16 @@ function AudienceEditStep({
       return next
     })
 
+  /* The SAME query `CampaignMemberList` right below is drawing — one key, one
+     round trip, and no second definition of "who is already in" that could
+     disagree with the list the reader is looking at. Every row of it is ACTIVE:
+     that is the server's own default for `CampaignMemberQuery.state`. */
+  const { data: audience } = useQuery(campaignMembersQuery(code))
+  const alreadyIn = useMemo(
+    () => new Set((audience?.rows ?? []).map((m) => m.leadCode)),
+    [audience],
+  )
+
   const submit = () => {
     if (selected.size === 0) return
     members.mutate(
@@ -1312,7 +1529,12 @@ function AudienceEditStep({
             <SectionTitle>Thêm người nhận</SectionTitle>
             {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
           </div>
-          <AudiencePicker selected={selected} onSetOne={setOne} onSetMany={setMany} />
+          <AudiencePicker
+            selected={selected}
+            onSetOne={setOne}
+            onSetMany={setMany}
+            alreadyIn={alreadyIn}
+          />
           <div className="flex justify-end gap-2">
             <Button size="md" variant="ghost" onClick={onCancel}>
               Huỷ
@@ -1801,9 +2023,42 @@ function WaveAddStep({
 // Tổng quan, cùng khuôn với `campaign-detail.tsx` cũ.
 // ---------------------------------------------------------------------------
 
+/** THE FOUR COUNTERS ARE A BLOCK, NOT FOUR STRETCHY COLUMNS.
+ *
+ *  They were `0.8fr · 0.8fr · 0.7fr · 0.8fr`, so on a wide screen four
+ *  one-digit numbers drifted a couple of hundred pixels apart from each other
+ *  and from the headers naming them — right-aligned inside columns wide enough
+ *  that being right-aligned had stopped meaning anything. Fixed widths keep
+ *  them a readable block at the right edge and hand the slack to the one
+ *  column that can use it, the label. */
+const WAVE_COLUMNS: TableColumn[] = [
+  { header: 'Đợt', width: '104px' },
+  { header: 'Tên · tiêu đề', width: 'minmax(220px,1.8fr)' },
+  { header: 'Trạng thái', width: '124px' },
+  { header: 'Lúc', width: 'minmax(140px,1fr)' },
+  { header: 'Đã gửi', width: '84px', align: 'right' },
+  { header: 'Tới nơi', width: '84px', align: 'right' },
+  { header: 'Mở', width: '68px', align: 'right' },
+  { header: 'Bounce', width: '84px', align: 'right' },
+]
+
+/** THE WAVE LIST — and, one click down, the letters behind each of its numbers.
+ *
+ *  A row here sums a whole batch. WHICH of the three recipients bounced, who
+ *  never opened it, which address is wrong — none of that had a door before
+ *  30/08. `WaveRecipients` is the panel, `GET /sales/mail/runs/:id/recipients`
+ *  is the data, and the row itself is the handle.
+ *
+ *  ONE wave open at a time, and that is not a limitation to apologise for: two
+ *  open panels push the third wave off the screen, and the question this
+ *  answers — what happened to THIS wave — is asked one wave at a time. Which
+ *  one is open is the SCREEN's state; `DataTable` draws what it is handed,
+ *  exactly as it does with the sort order. */
 function WaveTable({ campaign }: { campaign: CampaignProfile }) {
+  const [openWave, setOpenWave] = useState<number | null>(null)
+
   return (
-    <GlassCard variant="b" className="p-0">
+    <GlassCard variant="b" className="overflow-hidden px-4 py-3 lg:px-5">
       <div className="overflow-x-auto">
         {campaign.waves.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -1817,43 +2072,69 @@ function WaveTable({ campaign }: { campaign: CampaignProfile }) {
         ) : (
           <DataTable
             className="min-w-[940px]"
-            columns={[
-              { header: 'Đợt', width: '0.5fr' },
-              { header: 'Tên · tiêu đề', width: '2.2fr' },
-              { header: 'Trạng thái', width: '1fr' },
-              { header: 'Lúc', width: '1.1fr' },
-              { header: 'Đã gửi', width: '0.8fr', align: 'right' },
-              { header: 'Tới nơi', width: '0.8fr', align: 'right' },
-              { header: 'Mở', width: '0.7fr', align: 'right' },
-              { header: 'Bounce', width: '0.8fr', align: 'right' },
-            ]}
-            rows={campaign.waves.map((w) => ({
-              id: String(w.waveNo),
-              cells: [
-                <Chip key="n">#{w.waveNo}</Chip>,
-                <div key="l" className="min-w-0">
-                  <span className="block truncate" title={w.run.label}>
-                    {w.run.label}
-                  </span>
+            columns={WAVE_COLUMNS}
+            rows={campaign.waves.map((w) => {
+              const open = openWave === w.waveNo
+              const toggle = () => setOpenWave(open ? null : w.waveNo)
+
+              return {
+                id: String(w.waveNo),
+                onOpen: toggle,
+                ...(open ? { details: <WaveRecipients runId={w.run.id} /> } : {}),
+                cells: [
+                  <span key="n" className="flex items-center gap-1">
+                    {/* A real button BESIDE the row's own click target, not
+                        instead of it: the whole row opens the panel because
+                        that is what a reader aims at, while `aria-expanded`
+                        needs an element able to carry it. `stopPropagation` is
+                        what keeps one press from toggling twice. */}
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      aria-label={`Người nhận đợt ${w.waveNo}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggle()
+                      }}
+                      className="motion-std text-muted-foreground hover:text-foreground -m-1 rounded-md p-1"
+                    >
+                      <Icon icon={open ? ChevronDown : ChevronRight} size={14} />
+                    </button>
+                    <Chip>#{w.waveNo}</Chip>
+                  </span>,
+                  <div key="l" className="min-w-0">
+                    <span className="block truncate" title={w.run.label}>
+                      {w.run.label}
+                    </span>
+                    <span
+                      className="text-muted-foreground block truncate text-[11px]"
+                      title={w.run.subject}
+                    >
+                      {w.run.subject}
+                    </span>
+                  </div>,
+                  <Badge key="s" tone={MAIL_RUN_STATE_TONE[w.run.state]}>
+                    {MAIL_RUN_STATE_LABEL[w.run.state]}
+                  </Badge>,
+                  <RunWhen key="w" run={w.run} />,
+                  <span key="sent" className="tnum">
+                    {w.run.sent.toLocaleString('vi-VN')}
+                  </span>,
+                  <span key="d" className="tnum">
+                    {w.run.delivered.toLocaleString('vi-VN')}
+                  </span>,
+                  <span key="o" className="tnum">
+                    {w.run.opened.toLocaleString('vi-VN')}
+                  </span>,
                   <span
-                    className="text-muted-foreground block truncate text-[11px]"
-                    title={w.run.subject}
+                    key="b"
+                    className={cn('tnum', w.run.bounced > 0 && 'text-warning font-semibold')}
                   >
-                    {w.run.subject}
-                  </span>
-                </div>,
-                <Badge key="s" tone={MAIL_RUN_STATE_TONE[w.run.state]}>
-                  {MAIL_RUN_STATE_LABEL[w.run.state]}
-                </Badge>,
-                <RunWhen key="w" run={w.run} />,
-                <span key="sent">{w.run.sent.toLocaleString('vi-VN')}</span>,
-                <span key="d">{w.run.delivered.toLocaleString('vi-VN')}</span>,
-                <span key="o">{w.run.opened.toLocaleString('vi-VN')}</span>,
-                <span key="b" className={w.run.bounced > 0 ? 'text-warning' : undefined}>
-                  {w.run.bounced.toLocaleString('vi-VN')}
-                </span>,
-              ],
-            }))}
+                    {w.run.bounced.toLocaleString('vi-VN')}
+                  </span>,
+                ],
+              }
+            })}
           />
         )}
       </div>
@@ -1892,26 +2173,31 @@ function ReviewCreateStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
-        <SectionTitle>Soát lại trước khi tạo</SectionTitle>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-[11px]">Tên chiến dịch</span>
-            <span className="font-display text-[15px] font-semibold">{draft.name || '—'}</span>
-            {draft.slogan.trim() && (
-              <span className="text-muted-foreground text-[12px]">{draft.slogan}</span>
-            )}
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-muted-foreground text-[11px]">Chủ · Nguồn dẫn</span>
+      <GlassCard className="grid gap-5 p-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-6 lg:p-6">
+        {/* The picture is reviewed HERE or nowhere: it is typed on step 1 and
+            the campaign it ends up on is read from a different screen, so this
+            is the last moment anybody sees it before it is saved. */}
+        <ThumbnailPreview
+          url={draft.thumbnailUrl.trim()}
+          empty="Chưa gắn ảnh — chiến dịch vẫn tạo được."
+          broken="Không tải được ảnh từ địa chỉ này — lùi lại bước Hồ sơ để sửa link."
+        />
+
+        <div className="flex min-w-0 flex-col gap-4">
+          <SectionTitle>Soát lại trước khi tạo</SectionTitle>
+          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <Fact label="Tên chiến dịch">
+              <span className="font-display text-[15px] font-semibold">{draft.name || '—'}</span>
+            </Fact>
+            <Fact label="Slogan">{draft.slogan.trim() || '—'}</Fact>
             {/* An empty owner box is not an unowned campaign: the server falls
                 back to the caller, so leaving it blank signs the campaign over
                 to whoever is creating it. */}
-            <span className="text-[13px]">
-              {draft.ownerId === '' ? 'Bạn — mặc định' : (ownerName ?? 'Chưa gán')} ·{' '}
-              {sourceName ?? 'Chưa gán nguồn'}
-            </span>
-          </div>
+            <Fact label="Chủ chiến dịch">
+              {draft.ownerId === '' ? 'Bạn — mặc định' : (ownerName ?? 'Chưa gán')}
+            </Fact>
+            <Fact label="Nguồn dẫn">{sourceName ?? 'Chưa gán nguồn'}</Fact>
+          </dl>
         </div>
       </GlassCard>
 
@@ -1965,7 +2251,7 @@ function ReviewCreateStep({
   )
 }
 
-function OverviewStep({ campaign }: { campaign: CampaignProfile }) {
+function OverviewStep({ campaign, onEdit }: { campaign: CampaignProfile; onEdit?: () => void }) {
   const totals = campaign.waves.reduce(
     (acc, w) => ({
       sent: acc.sent + w.run.sent,
@@ -1978,6 +2264,8 @@ function OverviewStep({ campaign }: { campaign: CampaignProfile }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <CampaignFacts campaign={campaign} {...(onEdit ? { onEdit } : {})} />
+
       <ScreenScoreGrid>
         <StatCard
           size="compact"
@@ -2010,7 +2298,12 @@ function OverviewStep({ campaign }: { campaign: CampaignProfile }) {
       </ScreenScoreGrid>
 
       <div className="flex flex-col gap-3">
-        <SectionTitle>Chuỗi đợt</SectionTitle>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle>Chuỗi đợt</SectionTitle>
+          <span className="text-muted-foreground text-[11px]">
+            Bấm một đợt để xem thư của từng người nhận đi tới đâu.
+          </span>
+        </div>
         <WaveTable campaign={campaign} />
       </div>
     </div>

@@ -45,6 +45,11 @@ import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import { leadMailTimelineQuery } from '@/data/mas'
+/* Two lookup tables shared with a wave's recipient list — their docblock is in
+   `data/mail-runs.ts`. Until 30/08 they were two private constants at the foot
+   of this file, and a second copy of them was about to be written the moment
+   the campaign screen needed to ask the same question. */
+import { DELIVERED_MAIL, FAILED_MAIL } from '@/data/mail-runs'
 import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { ROOT_FIELD } from '@/data/lead-create'
 import { buildLeadPatch, patchFieldLabel, useUpdateLeadProfile } from '@/data/lead-patch'
@@ -1120,22 +1125,4 @@ function mailMoment(iso: string): string {
     year: 'numeric',
     hour12: false,
   }).format(date)
-}
-
-/* Hai bảng tra thay cho hai chuỗi `||`: mười giá trị của `MAIL_STATES` nằm bên
-   `apps/api`, không import sang đây được (`LeadMailTimelineRow.deliveryState`
-   giải thích vì sao trường này là `string` trần), nên thứ duy nhất đúng là kể
-   tên đúng những giá trị màn này biết xử. Giá trị lạ rơi vào nhánh cuối cùng —
-   "đang trên đường" — là hướng hỏng an toàn: nói ít hơn sự thật, không nói sai. */
-const FAILED_MAIL: Record<string, true | undefined> = {
-  bounced: true,
-  complained: true,
-  suppressed: true,
-  failed_permanent: true,
-  dead: true,
-}
-
-const DELIVERED_MAIL: Record<string, true | undefined> = {
-  accepted: true,
-  delivered: true,
 }

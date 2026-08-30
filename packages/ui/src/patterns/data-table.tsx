@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { KeyboardEvent, PointerEventHandler, ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from '../icons'
 import { Icon } from '../ui/icon'
@@ -41,6 +42,19 @@ export type TableRowModel = {
    *  chuyển sự kiện; ý nghĩa chọn/bỏ chọn vẫn thuộc màn giữ dữ liệu. */
   onPointerDown?: PointerEventHandler<HTMLDivElement>
   onPointerEnter?: PointerEventHandler<HTMLDivElement>
+  /** The panel that OPENS under the row, spanning the whole table width.
+   *
+   *  Present = expanded. There is no second `expanded` flag, because two things
+   *  saying one thing are two things that will one day disagree — and a
+   *  `details` tree built but not shown is render work thrown away. Which row
+   *  is open is the screen's state, exactly as the sort order is: the table
+   *  only draws.
+   *
+   *  Outside the column grid on purpose: what opens is a free block (a
+   *  sub-list, a paragraph, a status panel), and forcing it into the parent
+   *  row's `gridTemplateColumns` would make every expansion carry exactly that
+   *  many columns. */
+  details?: ReactNode
 }
 
 export type TableSort = {
@@ -133,9 +147,8 @@ export function DataTable({
           open()
         }
 
-        return (
+        const body = (
           <div
-            key={row.id}
             role="row"
             tabIndex={openable ? 0 : undefined}
             /* Hai thuộc tính nói CÙNG một điều, và đó là chủ ý.
@@ -161,7 +174,10 @@ export function DataTable({
                  chuỗi vô nghĩa ("6/6Mới · 4 ngày"). Header dùng cùng khe để hai
                  lưới không lệch. */
               'motion-std grid h-12 items-center gap-3 text-[12.5px]',
-              i < rows.length - 1 && 'border-b-white/6 border-b',
+              /* An OPEN row always carries a bottom rule, last row included:
+                 that rule separates the row from its own detail panel, not
+                 from the row after it. */
+              (i < rows.length - 1 || row.details) && 'border-b-white/6 border-b',
               openable &&
                 'hover:bg-white/8 focus-visible:bg-white/8 cursor-pointer outline-none focus-visible:shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
               /* Bóng nổi CHỈ cho dòng chưa được chọn. Dòng `selected` đọc bằng
@@ -186,6 +202,24 @@ export function DataTable({
               </span>
             ))}
           </div>
+        )
+
+        /* `Fragment`, not a wrapping `<div>`: `role="table"` only owns direct
+           children carrying `role="row"`, and a bare element in between severs
+           that — the table still draws correctly and a screen reader loses the
+           rows entirely. The panel is therefore a `row` of its own holding one
+           full-width `cell`, rather than a `<div>` stranded between two rows. */
+        return (
+          <Fragment key={row.id}>
+            {body}
+            {row.details && (
+              <div role="row" className={cn(i < rows.length - 1 && 'border-b-white/6 border-b')}>
+                <div role="cell" className="px-1 pb-4 pt-1">
+                  {row.details}
+                </div>
+              </div>
+            )}
+          </Fragment>
         )
       })}
     </div>

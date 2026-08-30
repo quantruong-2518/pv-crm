@@ -28,6 +28,7 @@ import { MasService } from './mas.service'
  *  | `POST  /sales/mail/preview`  | `lead.gửi-mail` · scoped       |
  *  | `POST  /sales/mail/runs`     | `lead.gửi-mail` · scoped (†)   |
  *  | `GET   /sales/mail/runs`     | `chiến-dịch.xem` · scoped      |
+ *  | `GET   /sales/mail/runs/:id/recipients` | `chiến-dịch.xem` · scoped |
  *  | `PATCH /sales/mail/runs/:id` | `chiến-dịch.bắn` · scoped (‡)  |
  *  | `GET   /sales/mail/templates`| `chiến-dịch.xem`               |
  *
@@ -98,6 +99,22 @@ export class MasController {
   @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
   runs(@CurrentActor() who: Actor, @Query(zod(MailRunListQuery)) q: MailRunListQuery) {
     return this.mas.list(who, q)
+  }
+
+  /** Who this batch went to, and where each letter got to. The READ permission
+   *  of the run list, because this is the detail of exactly one row of that
+   *  list — nothing here that `GET /sales/mail/runs` has not already summed
+   *  into a number.
+   *
+   *  Declared BEFORE `@Patch('runs/:id')` so both doors of one resource sit
+   *  together, read first then write. `MailRunId` guards `:id` at the
+   *  `ZodPipe`, same as the cancel door: an `:id` that is not a UUID dies as a
+   *  400 naming the field rather than reaching `WHERE mail_run_id = $1::uuid`
+   *  and dying as a driver 500. */
+  @Get('runs/:id/recipients')
+  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  recipients(@CurrentActor() who: Actor, @Param('id', zod(MailRunId)) id: MailRunId) {
+    return this.mas.recipients(who, id)
   }
 
   /** Dừng một lô. Khai SAU `@Get('runs')` để hai đường của cùng một tài nguyên

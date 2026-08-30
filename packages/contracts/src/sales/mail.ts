@@ -783,6 +783,64 @@ export const MailRunPatchResponse = z.object({
 })
 
 // ---------------------------------------------------------------------------
+// One run's recipients — the other half of every number on `MailRunRow`
+// ---------------------------------------------------------------------------
+
+/** WHO exactly got this batch, and what happened to each letter.
+ *  `GET /sales/mail/runs/:id/recipients`.
+ *
+ *  ------------------------------------------------------------------
+ *  THE ROW `MailRunRow` COUNTS BUT CANNOT NAME
+ *  ------------------------------------------------------------------
+ *  A run row says `sent 3 · delivered 1 · bounced 1`. Every question that
+ *  follows from those numbers — WHICH one bounced, whose address to fix, who
+ *  never opened it — has no door to go through. This is that door: one row per
+ *  letter, the same aggregate `LeadMailTimelineRow` carries for one lead, read
+ *  from the run's side instead.
+ *
+ *  ------------------------------------------------------------------
+ *  `deliveryState` IS A BARE STRING HERE FOR THE SAME REASON
+ *  ------------------------------------------------------------------
+ *  The ten values of `MAIL_STATES` live in `apps/api`, which the browser must
+ *  not import — the whole argument is at `LeadMailTimelineRow.deliveryState`
+ *  and is not repeated. Screens read it through their own lookup table and
+ *  fall back to "on its way" for a value they do not know, which is the safe
+ *  direction to be wrong in.
+ *
+ *  Not paged, and that is a decision the ceiling makes for us: one wave is one
+ *  MAS batch, and a batch cannot exceed `MAS_MAX_RECIPIENTS`. A list bounded
+ *  at two hundred rows that hides its tail behind "load more" is a list that
+ *  cannot answer "did everyone get it". */
+export const MailRunRecipientRow = z.object({
+  leadCode: MaObject,
+  company: z.string().min(1),
+  contactName: z.string().min(1),
+  /** The address the letter was POSTED to, off the ledger — not the lead's
+   *  address as it reads today. The two differ exactly when somebody corrected
+   *  a typo after the send, and it is the old one that explains the bounce. */
+  email: z.string().min(1),
+
+  /** State of THIS letter — one value of `MAIL_STATES`. See the docblock. */
+  deliveryState: z.string().min(1),
+  sentAt: Moc.optional(),
+  deliveredAt: Moc.optional(),
+
+  openCount: z.number().int().nonnegative(),
+  lastOpenAt: Moc.optional(),
+  clickCount: z.number().int().nonnegative(),
+  lastClickAt: Moc.optional(),
+
+  /** The provider's own sentence about why it did not arrive. Free text for
+   *  the reason `LeadMailTimelineRow.failReason` gives: "mailbox full" and
+   *  "domain does not exist" call for opposite actions. */
+  failReason: z.string().optional(),
+})
+
+export const MailRunRecipientsResponse = z.object({
+  rows: z.array(MailRunRecipientRow),
+})
+
+// ---------------------------------------------------------------------------
 // One lead's mail history — what the lead detail screen draws as a timeline
 // ---------------------------------------------------------------------------
 
@@ -893,6 +951,8 @@ export type MailRunListQuery = z.infer<typeof MailRunListQuery>
 export type MailRunListResponse = z.infer<typeof MailRunListResponse>
 export type MailRunSortKey = z.infer<typeof MailRunSortKey>
 export type MailRunPatch = z.infer<typeof MailRunPatch>
+export type MailRunRecipientRow = z.infer<typeof MailRunRecipientRow>
+export type MailRunRecipientsResponse = z.infer<typeof MailRunRecipientsResponse>
 export type MailRunPatchResponse = z.infer<typeof MailRunPatchResponse>
 export type MailTemplateListResponse = z.infer<typeof MailTemplateListResponse>
 export type LeadMailTimelineRow = z.infer<typeof LeadMailTimelineRow>

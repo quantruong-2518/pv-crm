@@ -44,6 +44,28 @@ export type MasLeadRow = {
   exitReason: string | null
 }
 
+/** One letter of a run, in the DRIVER's own spelling — `snake_case` keys and
+ *  `Date` objects, because `db.execute` hands back what postgres sent without a
+ *  select list to rename anything. `toRunRecipient` in `mas.service.ts` is the
+ *  one place that turns it into the contract's shape. */
+export type MasRecipientRead = {
+  lead_code: string
+  company: string | null
+  contact_name: string | null
+  email: string
+  delivery_state: string
+  /** `Date | string` on every moment, not `Date`: the two drivers behind this
+   *  one raw statement disagree — pg hands back a `Date`, PGlite a postgres
+   *  string. Same declaration and same reason as `LeadMailTimelineRead`. */
+  sent_at: Date | string | null
+  delivered_at: Date | string | null
+  fail_reason: string | null
+  open_count: number
+  last_open_at: Date | string | null
+  click_count: number
+  last_click_at: Date | string | null
+}
+
 /** Which runs this caller may see, and how many the scope axis took away. */
 export type RunScope = {
   /** Ids to hand `MailRunRepository.list()`. `undefined` = no id filter at all
@@ -280,6 +302,80 @@ export class MasRepository {
       .where(eq(campaignRun.campaignCode, campaignCode))
 
     return rows.map((r) => r.id)
+  }
+
+  /** WHO this run went to, one row per letter — the named half of the counters
+   *  on `MailRunRow`.
+   *
+   *  ------------------------------------------------------------------
+   *  THE SAME AGGREGATE AS THE LEAD TIMELINE, READ FROM THE RUN'S SIDE
+   *  ------------------------------------------------------------------
+   *  `LeadRepository.mailTimeline` asks "every run this lead was in"; this asks
+   *  "every lead this run went to". One statement is the transpose of the
+   *  other, down to the correlated subquery over `mail_event` — kept a LATERAL
+   *  rather than a second join for the reason stated there and at
+   *  `MailRunRepository.list`: joining events beside the delivery multiplies the
+   *  delivery row by its events and inflates anything counted next to them.
+   *
+   *  `count(*)` and not `count(DISTINCT …)`: the question here is per PERSON —
+   *  how many times did THIS recipient open it — so six opens is a six. The run
+   *  list counts the same events per audience and must not, which is why the
+   *  two live in different statements.
+   *
+   *  ------------------------------------------------------------------
+   *  THE JOIN TO `sales.lead` IS LEFT, AND THE LEDGER WINS ON `email`
+   *  ------------------------------------------------------------------
+   *  `email` comes off `email_delivery.recipient` — the address the letter was
+   *  actually posted to — while the two names come off the lead as it reads
+   *  today. That split is deliberate: a corrected typo is exactly the case
+   *  somebody opens this screen for, and it is the OLD address that explains
+   *  the bounce, while the current company name is what the reader recognises.
+   *  The join is LEFT so a lead deleted out from under a sent run still reports
+   *  its letter; `merge` is the ledger's own snapshot of the two names and
+   *  covers that case without a second query.
+   *
+   *  `aggregate_type = 'lead'` is not belt-and-braces either. `email_delivery`
+   *  is ONE ledger for every flow, and `MailRunRecipientRow.leadCode` is a
+   *  `MaObject` — so the day something other than a MAS letter is filed against
+   *  a run, an aggregate id not shaped like `LD-0042` would fail the contract's
+   *  own `.parse()` and take the whole list out with a 500. Today every row
+   *  here is written by `MasService.intentOf`, which sets exactly this type.
+   *
+   *  No scope axis in this SQL, matching `mailTimeline` and for the same
+   *  reason: `MasService.recipients` settles the entitlement on the RUN before
+   *  this runs, and cutting a second time on `lead.owner_id` would answer a
+   *  refusal with an empty list — a run somebody else's leads are in would read
+   *  "sent to nobody". */
+  async recipients(runId: string): Promise<MasRecipientRead[]> {
+    const r = (await this.db.execute(sql`
+      SELECT d."aggregate_id"                                AS lead_code,
+             COALESCE(l."company", d."merge"->>'account')    AS company,
+             COALESCE(l."contact_name", d."merge"->>'contact_name') AS contact_name,
+             d."recipient"                                   AS email,
+             d."state"                                       AS delivery_state,
+             d."accepted_at"                                 AS sent_at,
+             d."delivered_at"                                AS delivered_at,
+             d."last_error_summary"                          AS fail_reason,
+             COALESCE(e.open_count, 0)::int                  AS open_count,
+             e.last_open_at                                  AS last_open_at,
+             COALESCE(e.click_count, 0)::int                 AS click_count,
+             e.last_click_at                                 AS last_click_at
+        FROM "platform"."email_delivery" d
+        LEFT JOIN "sales"."lead" l ON l."code" = d."aggregate_id"
+        LEFT JOIN LATERAL (
+              SELECT count(*) FILTER (WHERE m."kind" = 'OPEN')::int   AS open_count,
+                     max(m."at") FILTER (WHERE m."kind" = 'OPEN')     AS last_open_at,
+                     count(*) FILTER (WHERE m."kind" = 'CLICK')::int  AS click_count,
+                     max(m."at") FILTER (WHERE m."kind" = 'CLICK')    AS last_click_at
+                FROM "platform"."mail_event" m
+               WHERE m."delivery_id" = d."id"
+             ) e ON true
+       WHERE d."mail_run_id" = ${runId}
+         AND d."aggregate_type" = 'lead'
+       ORDER BY d."created_at" ASC, d."aggregate_id" ASC
+    `)) as { rows: MasRecipientRead[] }
+
+    return r.rows
   }
 
   /** THE SCOPE AXIS OF THE RUN LIST — resolved here, because `hidden` is not a
