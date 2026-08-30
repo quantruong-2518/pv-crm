@@ -169,6 +169,13 @@
       "when": 1788041440673,
       "tag": "0024_quote_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788057787954,
+      "tag": "0025_contract_book",
+      "breakpoints": true
     }
   ]
 }

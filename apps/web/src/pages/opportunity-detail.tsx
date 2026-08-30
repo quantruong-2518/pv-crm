@@ -48,6 +48,7 @@ import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
 import { leadProfileQuery, realContact, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
 import { opportunityTouchesQuery } from '@/data/touches'
+import { contractDong, contractProfileQuery, isTermOverdue, termsTotal } from '@/data/contracts'
 import {
   bdOwnersOf,
   isLateClose,
@@ -359,6 +360,10 @@ export function OpportunityDetailPage() {
                 carries no extra data — and that door IS the quote book asked a
                 narrower question, not a second endpoint. */}
             <QuoteCard op={op} />
+            {/* Only after signing, and the card decides that itself from
+                `op.contractCode` — see its docblock. Between the lead card and
+                the owners card, the slot the design's sketch gives it. */}
+            <ContractCard op={op} />
             <PeopleCard op={op} />
             {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches`. Khoá bằng mã ĐƠN chứ
               không mã lead: `code` là thứ `ActivityCard` dùng để dựng lại tab
@@ -630,6 +635,114 @@ function LeadCard({
           Chưa đọc được hồ sơ lead <span className="font-mono">{op.leadCode}</span> — có thể nó nằm
           ngoài phạm vi quyền của bạn.
         </p>
+      )}
+    </GlassCard>
+  )
+}
+
+/** The signed contract behind this deal, with its collection plan.
+ *
+ *  ------------------------------------------------------------------
+ *  DRAWS NOTHING UNTIL THE DEAL IS SIGNED
+ *  ------------------------------------------------------------------
+ *  `op.contractCode` is present exactly when a `sales.contract` row exists —
+ *  the same single `LEFT JOIN` that answers `signed`, so the two cannot
+ *  disagree. An empty card saying "not signed yet" would add a block to every
+ *  open deal's sidebar to report the absence of something nobody asked about;
+ *  the sign button in `ToolsBar` is where an unsigned deal has its say.
+ *
+ *  ------------------------------------------------------------------
+ *  READ ONLY, INCLUDING THE PLAN
+ *  ------------------------------------------------------------------
+ *  Pass 4 of the design gives contracts no write door on any screen, and the
+ *  server's two instalment doors have no caller yet. This card prints the plan
+ *  as it stands. The place that will edit it is a screen of its own, not a
+ *  pencil hidden in a sidebar card.
+ *
+ *  ------------------------------------------------------------------
+ *  IT PRINTS BOTH TOTALS WHEN THEY DISAGREE
+ *  ------------------------------------------------------------------
+ *  Nothing enforces `SUM(term.amount) = contract.amount`: a `CHECK` cannot see
+ *  other rows, so the design names that as a debt the service carries rather
+ *  than a place someone forgot. A card that showed only one of the two numbers
+ *  would make the gap invisible on the one screen where somebody reading the
+ *  contract could catch it, so when they differ, both are shown and the
+ *  difference is said out loud.
+ *
+ *  A failed read draws nothing rather than an error block. The contract is
+ *  context beside the deal, not the answer the screen exists to give — and a
+ *  reader whose scope excludes it gets a 403 that is correct and not worth a
+ *  red panel on somebody else's profile. */
+function ContractCard({ op }: { op: OpportunityRow }) {
+  const { data: contract } = useQuery(contractProfileQuery(op.contractCode))
+  if (!contract) return null
+
+  const inDong = contractDong(contract)
+  const planned = termsTotal(contract.terms)
+  const paid = contract.terms.filter((t) => t.status === 'da-thu')
+  const overdue = contract.terms.filter((t) => isTermOverdue(t))
+  const mismatch = contract.terms.length > 0 && inDong !== null && planned !== inDong
+
+  return (
+    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Hợp đồng đã ký">
+      <SectionTitle kicker="Đã ký" size="md">
+        {contract.code}
+      </SectionTitle>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <MetaPill mono>{inDong === null ? 'chưa có giá trị' : billions(inDong)}</MetaPill>
+        <MetaPill mono>ký {dmy(contract.signedAt)}</MetaPill>
+        {contract.ownerName ? <MetaPill>hoa hồng · {contract.ownerName}</MetaPill> : null}
+      </div>
+
+      {contract.terms.length === 0 ? (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          Chưa lập kế hoạch thu cho hợp đồng này.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Kicker>
+              {paid.length}/{contract.terms.length} đợt đã thu
+            </Kicker>
+            {overdue.length > 0 && <Badge tone="danger">{overdue.length} đợt quá hạn</Badge>}
+          </div>
+
+          <ul className="flex flex-col gap-2">
+            {contract.terms.map((t) => (
+              <li
+                key={t.termNo}
+                className="flex items-center justify-between gap-3 text-[11.5px] leading-[1.5]"
+              >
+                <span className="min-w-0 truncate" title={t.label}>
+                  {t.label}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="tnum font-num">{billions(t.amount)}</span>
+                  {t.status === 'da-thu' ? (
+                    <Badge tone="success">đã thu</Badge>
+                  ) : isTermOverdue(t) ? (
+                    <Badge tone="danger">quá hạn {t.dueDate === null ? '' : dmy(t.dueDate)}</Badge>
+                  ) : (
+                    <span className="text-muted-foreground tnum font-num">
+                      {t.dueDate === null ? 'chưa hẹn' : dmy(t.dueDate)}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {mismatch && (
+            /* Rule 13 wants this legible on glass, so it rides `text-warning`
+               rather than a dimmed muted tone: it is the one line on the card a
+               reader must not skim past. */
+            <p className="text-warning text-[11px] leading-[1.5]">
+              Kế hoạch thu {billions(planned)} không khớp giá trị hợp đồng {billions(inDong ?? 0)} —
+              chưa có ràng buộc nào ở bảng bắt hai số này bằng nhau.
+            </p>
+          )}
+        </div>
       )}
     </GlassCard>
   )

@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { Dong, MaHopDong, MaObject, Moc, textNhap } from '../primitives'
+import { PageQuery, SortDir, paged } from '../pagination'
+import { Dong, MaHopDong, MaObject, Moc, Ngay, textNhap } from '../primitives'
 import { CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
@@ -82,6 +83,18 @@ import { OpportunityRow } from './opportunity'
 // THE REQUEST
 // ---------------------------------------------------------------------------
 
+/** STILL CARRIES `amount`/`currency`, and that is a deliberate hold.
+ *
+ *  §2.2 of `docs/tam-nhin-bao-gia-hop-dong.md` removes both: signing becomes
+ *  picking an accepted quote, and the money is read from it, so that "what is
+ *  this contract worth" has exactly one source. That cut cannot happen on this
+ *  branch — it needs a quote to point at, and `sales.quote` is being built in
+ *  parallel. Cutting the fields now would leave the sign door with no way to
+ *  record a number at all.
+ *
+ *  So it happens in the merge pass, and it is BREAKING by design: `pnpm check`
+ *  must go red at every import of this shape. Green with nothing edited means a
+ *  cast is hiding it — grep again. */
 export const ContractSign = z
   .object({
     /** Final signed value. Absent = whatever the opportunity carried. */
@@ -113,6 +126,20 @@ export const ContractRow = z.object({
   code: MaHopDong,
   opportunityCode: MaObject,
   leadCode: MaObject,
+  /** The accepted quote this contract's money was copied from.
+   *
+   *  `null` on the six contracts that predate module 4 and, TODAY, on every
+   *  row: the column behind it lands with `drizzle/sau-merge/contract_quote_link.sql`,
+   *  which cannot be applied until `sales.quote` exists — that table is being
+   *  built in parallel on `feat/module-4-bao-gia`. The field is declared now so
+   *  the wire shape does not change under the screens a second time; the mapper
+   *  answers `null` until the column is there, and `contract.mapper.ts` says so
+   *  at the line that does it.
+   *
+   *  Nullable rather than optional, unlike `ownerId`: "this contract has no
+   *  quote behind it" is a fact about the row that a reader has to be able to
+   *  see, not a field that happens to be missing. */
+  quoteCode: MaObject.nullable(),
   amount: Dong.nullable(),
   currency: CurrencyCode.nullable(),
   signedAt: Moc,
@@ -135,6 +162,118 @@ export const ContractSignResponse = z.object({
   contract: ContractRow,
 })
 
+// ---------------------------------------------------------------------------
+// PAYMENT TERMS — `sales.contract_payment_term`
+// ---------------------------------------------------------------------------
+
+/** Where one instalment stands. Two values, and there is no third on purpose.
+ *
+ *  There is no "overdue": overdue is `dueDate` earlier than today, computed
+ *  when the screen draws. A value that moves with the clock does not belong in
+ *  a stored field — the mistake `docs/ban-giao-db.md` fixed once already. */
+export const ContractTermStatus = z.enum(['cho-thu', 'da-thu'])
+
+/** One instalment on the contract paper. */
+export const ContractTermRow = z.object({
+  /** Which instalment, as printed. Assigned by the server, never sent up: two
+   *  tabs both claiming to add "instalment 2" is the primary-key race that
+   *  `OpportunityCreate` avoids by not carrying its own code either. */
+  termNo: z.number().int().positive(),
+  label: textNhap(120),
+  amount: Dong,
+  dueDate: Ngay.nullable(),
+  paidAt: Moc.nullable(),
+  status: ContractTermStatus,
+})
+
+/** Adding an instalment to the plan.
+ *
+ *  No `status` and no `paidAt`, and the absence is the design rather than a
+ *  short form: the table pins the pair with
+ *  `CHECK ("paid_at" IS NULL) = ("status" = 'cho-thu')`, so a body carrying
+ *  either one is a body that can disagree with the other. A plan is written
+ *  unpaid, and money arriving is the PATCH below. */
+export const ContractTermDraft = z.object({
+  label: textNhap(120),
+  amount: Dong,
+  /** Absent = no date yet. "The last instalment, on acceptance" is a real
+   *  instalment with no date, and demanding one invites an invented date that
+   *  the whole book then chases money by. */
+  dueDate: Ngay.optional(),
+})
+
+/** Changing one instalment. `termNo` says which; everything else is optional.
+ *
+ *  In the BODY rather than the path, so the route stays `.../contracts/:code/terms`
+ *  for both doors: an instalment is not addressable on its own — it exists only
+ *  as a line of one contract, and its key is the pair.
+ *
+ *  `status` is absent here too, and `paidAt` carries the whole answer:
+ *  `null` clears the payment, a moment records it, absent leaves it alone. The
+ *  server derives `status` from it, which is the only way the pinned pair
+ *  cannot be handed two conflicting halves. */
+export const ContractTermPatch = z.object({
+  termNo: z.number().int().positive(),
+  label: textNhap(120).optional(),
+  amount: Dong.optional(),
+  dueDate: Ngay.nullable().optional(),
+  paidAt: Moc.nullable().optional(),
+})
+
+// ---------------------------------------------------------------------------
+// THE CONTRACT BOOK — `GET /sales/contracts`
+// ---------------------------------------------------------------------------
+
+/** A row of the contract book, and of the contract card on a deal profile.
+ *
+ *  ONE shape for both, carrying the instalments inline rather than a summary
+ *  ("3 instalments, 30% collected") plus a second endpoint for the detail. The
+ *  summary is three fields the server would have to aggregate in SQL and the
+ *  screen would have to re-derive anyway to draw the list; the list itself is
+ *  one extra query per PAGE, read the way `OpportunityRepository.ownersOf`
+ *  reads owners, and it answers both of the book's questions — what was signed
+ *  this month, and which instalment falls due next — without a second shape
+ *  that can disagree with the first.
+ *
+ *  `account` rides along because the book prints the CUSTOMER, not the lead
+ *  code. Same reason `OpportunityRead` carries it. */
+export const ContractBookRow = ContractRow.extend({
+  account: textNhap(200),
+  terms: z.array(ContractTermRow),
+})
+
+export const ContractSortKey = z.enum(['signedAt', 'amount', 'code'])
+
+/** What `GET /sales/contracts` accepts.
+ *
+ *  Deliberately narrower than `OpportunityBookQuery`: this book is READ ONLY
+ *  and it is new, so it starts with the controls the screen actually draws — a
+ *  search box and a sortable header — rather than a filter row copied over from
+ *  a screen that earned each of its filters. Adding one later is one field
+ *  here and one branch in the repository; shipping five nobody uses is five
+ *  code paths nobody tests.
+ *
+ *  `amount` is nullable on six old rows, so its blanks sort LAST in BOTH
+ *  directions, for the reason `OpportunityBookQuery` writes out: a contract
+ *  nobody priced is not the cheapest one. */
+export const ContractBookQuery = PageQuery.extend({
+  /** Free text over the contract code, the deal code and the customer name —
+   *  the three things somebody pastes into one box. */
+  q: z.string().trim().min(1).max(120).optional(),
+  sort: ContractSortKey.default('signedAt'),
+  dir: SortDir.default('desc'),
+})
+
+export const ContractBookResponse = paged(ContractBookRow)
+
 export type ContractSign = z.infer<typeof ContractSign>
 export type ContractRow = z.infer<typeof ContractRow>
 export type ContractSignResponse = z.infer<typeof ContractSignResponse>
+export type ContractTermStatus = z.infer<typeof ContractTermStatus>
+export type ContractTermRow = z.infer<typeof ContractTermRow>
+export type ContractTermDraft = z.infer<typeof ContractTermDraft>
+export type ContractTermPatch = z.infer<typeof ContractTermPatch>
+export type ContractBookRow = z.infer<typeof ContractBookRow>
+export type ContractSortKey = z.infer<typeof ContractSortKey>
+export type ContractBookQuery = z.infer<typeof ContractBookQuery>
+export type ContractBookResponse = z.infer<typeof ContractBookResponse>

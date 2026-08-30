@@ -184,7 +184,8 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/opportunity-detail'),
   },
   {
-    /** The quotation book — module 4, which pushes the three after it up one.
+    /** The quotation book — module 4. It and the contract book at 5 push the three
+     *  modules after them up by two.
      *
      *  The numbering follows the SELLING JOURNEY: campaign, lead, deal, PAPER. A
      *  quote grows out of a deal, so it slots in there rather than being tacked
@@ -203,22 +204,45 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/quotes'),
   },
   {
+    /** The contract book — module 5, and it is INSERTED into the sequence
+     *  rather than appended to the end.
+     *
+     *  The numbers follow the sales journey (1 campaigns, 2 leads, 3 deals), so
+     *  quotes belong at 4 and contracts at 5, so everything after them shifts by
+     *  two: Performance to 6, Plan to 7, Config to 8. Section 1 of
+     *  `docs/tam-nhin-bao-gia-hop-dong.md` decides this, and the same shift has
+     *  to happen in `SALES_MODULES` of `app/chrome.tsx` — two lists, one
+     *  numbering, and a screen numbered differently in the two of them is a
+     *  screen the user cannot find twice in a row.
+     *
+     *  No `/sales/contracts/:code` beside it, deliberately: rows of this book
+     *  open the DEAL profile, where the contract card lives. A contract gets a
+     *  route of its own the day it has something to go on living for — sales
+     *  orders, delivery, collection — which is module 5 of the roadmap, not
+     *  this pass. */
+    path: '/sales/contracts',
+    name: 'Kinh doanh · Module 5 · Sổ hợp đồng',
+    branch: 'Sales',
+    permission: 'hợp-đồng.xem',
+    load: () => import('@/pages/contracts'),
+  },
+  {
     path: '/sales/performance',
-    name: 'Kinh doanh · Module 5 · Performance',
+    name: 'Kinh doanh · Module 6 · Performance',
     branch: 'Sales',
     permission: 'hiệu-suất.xem',
     load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
-    name: 'Kinh doanh · Module 6 · Số liệu & kế hoạch',
+    name: 'Kinh doanh · Module 7 · Số liệu & kế hoạch',
     branch: 'Sales',
     permission: 'kế-hoạch.xem',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
-    name: 'Kinh doanh · Module 7 · Cấu hình',
+    name: 'Kinh doanh · Module 8 · Cấu hình',
     branch: 'Sales',
     permission: 'cấu-hình.xem',
     load: () => import('@/pages/sales-config'),
