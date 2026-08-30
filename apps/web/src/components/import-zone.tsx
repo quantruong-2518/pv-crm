@@ -729,7 +729,14 @@ function useWindowFileDrag(enabled: boolean, onFile: (file: File) => void): bool
     const onOver = (e: DragEvent) => {
       if (!hasFiles(e)) return
       e.preventDefault()
-      if (e.dataTransfer) e.dataTransfer.dropEffect = enabled ? 'copy' : 'none'
+      /* Only claim the drop while this catcher is the one that will handle it.
+         When the panel is open, the FileDrop inside it has already set
+         dropEffect to 'copy'; this listener runs LAST (window is the end of the
+         bubble path), so writing 'none' here overrode it, the browser cancelled
+         the drag, and no `drop` event ever reached the panel — the file picker
+         worked, dragging did nothing. Leaving dropEffect alone still blocks
+         navigation, because onDrop below preventDefaults either way. */
+      if (enabled && e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
     }
 
     const onLeave = () => {
