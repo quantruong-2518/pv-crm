@@ -550,3 +550,114 @@ Nó thành lượt riêng vì nó là **quyết định bố cục xuyên màn**
 năng của module 4: rail phải sáng cùng lúc ở hồ sơ lead, hồ sơ cơ hội, sổ báo giá
 và sổ hợp đồng, hoặc không sáng ở đâu cả. Nhét nó vào lượt 4 là để một màn có rail
 còn ba màn kia không — luật 10 nói "bắt buộc trên mọi màn", nửa vời còn tệ hơn chưa làm.
+
+---
+
+## §12 · Đối chiếu sáu CRM lớn — soát 31/08/2026
+
+Mục này trả lời câu sẽ bị hỏi lại mỗi lần có người cãi về phạm vi module 4:
+"sau cơ hội thì thị trường còn những màn gì, mình bỏ cái nào và vì sao".
+
+### Chuỗi sau Opportunity
+
+| CRM                          | Chuỗi                                                                               | Hình đáng chú ý                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Dynamics 365 Sales**       | Opportunity → **Quote → Order → Invoice**                                           | "Revise" đẻ bản mới có revision number, bản cũ đóng băng             |
+| **Zoho CRM**                 | Deal → **Quote → Sales Order → Invoice**                                            | Y hệt Dynamics, thêm Purchase Order phía mua                         |
+| **Salesforce** (CPQ/Revenue) | Opportunity → **Quote → Contract → Order → Asset/Subscription → Invoice → Renewal** | Chuỗi dài nhất; Contract là object riêng CÓ KỲ HẠN, Order sinh Asset |
+| **SugarCRM**                 | Opportunity → **Quote → Contract → Invoice**                                        | Contract đứng riêng, giống Salesforce                                |
+| **HubSpot**                  | Deal → **Quote (ký điện tử + link thanh toán) → Invoice → Subscription**            | KHÔNG có Contract lẫn Order — quote gánh cả vai chứng từ             |
+| **Odoo**                     | Opportunity → **Quotation → Sales Order → Delivery → Invoice**                      | Quotation và Sales Order là MỘT record đổi state, không phải hai     |
+
+### PV One thuộc trường phái ERP sản xuất, không phải CRM nhẹ
+
+Ba trường phái: **nhẹ** (HubSpot · Pipedrive — dừng ở quote rồi đẩy sang kế toán),
+**B2B cổ điển** (Dynamics · Zoho · Sugar — quote → order → invoice trong cùng CRM),
+**ERP sản xuất** (Odoo · SAP — đi tiếp tới sản xuất và giao hàng).
+
+Dữ liệu tự khai chúng ta ở nhóm ba: `sao-do.ts` đã có
+`LD-0334 → HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042`, và `ObjectKind`
+trong `packages/engines/src/types.ts` đã đặt chỗ cho `SO`·`WO`·`PO`.
+
+**Hệ quả cụ thể: đừng lấy HubSpot làm chuẩn.** Nó không có Contract lẫn Order —
+đúng hai thứ chuỗi của chúng ta cần — nên mọi so sánh "HubSpot làm gọn hơn" là so
+với một sản phẩm giải bài khác.
+
+### Hai quyết định của bản này được thị trường xác nhận
+
+- **Mỗi bản báo giá một mã riêng** (§2.1) trùng đúng cơ chế "Revise" của Dynamics,
+  và ngược Odoo (một record đổi state). Cả hai trường phái đều tồn tại trong sản
+  phẩm thật, nên đây là lựa chọn có tiền lệ chứ không phải sáng tạo riêng.
+- **Module 4 không đẻ SO** (§1) là đúng ranh giới Odoo đặt: bên bán chốt chứng từ,
+  bên cung ứng nhặt lấy.
+
+### Sáu khối thị trường có mà bản này chưa nhắc
+
+Xếp theo mức đáng làm với PV One, không theo mức phổ biến.
+
+| #   | Khối              | Ai có                         | Quyết định                     |
+| --- | ----------------- | ----------------------------- | ------------------------------ |
+| 1   | Duyệt chiết khấu  | Salesforce · Dynamics · Zoho  | **Nhận — vào lượt 3**          |
+| 2   | Kỳ hạn hợp đồng   | Salesforce · Dynamics · Sugar | **Nhận — bồi cột ở lượt 0**    |
+| 3   | Ký điện tử        | HubSpot · Salesforce+DocuSign | Hoãn — chờ nợ #12              |
+| 4   | Hoá đơn · công nợ | tất cả trừ Pipedrive          | Ngoài phạm vi — Finance        |
+| 5   | Tài sản đã lắp    | Salesforce Asset · Odoo       | Ngoài phạm vi — module dịch vụ |
+| 6   | Ticket sau bán    | Service Cloud · Zoho Desk     | Ngoài phạm vi — module dịch vụ |
+
+**1 · Duyệt chiết khấu — đáng nhất, vì hạ tầng đã nằm sẵn không dùng.**
+Approval Process trên Quote là ca dùng kinh điển nhất của Salesforce: giảm quá X%
+thì tờ báo giá không gửi được cho tới khi có người gật. **E3 đã dựng xong và đang
+ngồi không.** §11.3 đã chạm đúng ranh giới này rồi nhưng giải bằng phân quyền
+tĩnh (presales `sửa` được, `gửi` thì không) thay vì bằng một lượt duyệt — mà phân
+quyền tĩnh không phân biệt được "giảm 5%" với "giảm 40%". Ô `CK%` đã có trong
+modal soạn báo giá (§7) mà không ai gác nó.
+
+**2 · Kỳ hạn hợp đồng — `ContractRow` hôm nay chỉ biết ngày ký.**
+Đủ trường hiện có: `code · opportunityCode · leadCode · amount · currency ·
+signedAt · owner`. Không ngày hiệu lực, không ngày hết hạn, không kỳ hạn.
+Salesforce Contract có `StartDate`·`EndDate`·`ContractTerm`·`OwnerExpirationNotice`.
+Với MES bán kèm bảo trì hàng năm thì "hợp đồng nào sắp hết hạn" là câu có thật, và
+hôm nay không cột nào trả lời được: sổ hợp đồng ở lượt 4 in được "tháng này ký bao
+nhiêu" nhưng không in được "tháng sau hết hạn cái nào".
+
+**3 · Ký điện tử.** Đường vòng in → PDF → Drive link đã chốt có ý thức ở §7 vì nợ
+#12 chờ AWS. Không phải thiếu sót, nhưng đây là chỗ khoảng cách với thị trường rõ
+nhất và là chỗ đầu tiên đáng đóng khi hạ tầng tệp về.
+
+**4 · Hoá đơn và công nợ.** Ranh giới sang Finance là hợp lý. Chỉ cần đừng để ai
+hiểu nhầm lượt 5: **"Đợt thanh toán" là mốc theo hợp đồng, KHÔNG phải hoá đơn.**
+
+**5 · Tài sản đã lắp.** Với MES cài tại nhà máy khách thì "hệ thống nào đang chạy
+ở đâu, phiên bản nào, hết bảo hành khi nào" là dữ liệu có thật và là cửa vào của
+mảng dịch vụ sau bán. `ObjectKind` chưa đặt chỗ cho nó — ngày mở phải mở ở
+`packages/engines/src/types.ts` trước.
+
+**6 · Ticket sau bán.** Đứng cuối chuỗi, chưa ai vẽ. Module riêng, không phải việc
+của module 4.
+
+### Một khối cố ý bỏ và vẫn đúng sau khi đối chiếu
+
+**Danh mục sản phẩm + bảng giá.** Mọi CRM đều bắt có Product/Price Book trước khi
+quote được. §9 từ chối với lý do bán giải pháp theo dự án, không SKU — với
+"Factory MES + One Plus" thì đó là lý do đứng vững, không phải né việc.
+
+### Hai thay đổi đề xuất — và lộ trình §8 đã chạy trước chúng
+
+**Đọc mục này cùng nhánh `feat/module-4`, đừng đọc cùng `develop`.** Câu "chưa
+dòng code nào" ở đầu file chỉ còn đúng với `develop`: worktree
+`../pv-crm-m4` đã đi hết lượt 0 · 1 · 2 · 4 · 5 — bảng `quote`/`quote_line`, bảy
+cửa báo giá, sổ báo giá, modal soạn, sổ hợp đồng chỉ đọc, bảng `contract_term`.
+Nên hai đề xuất dưới đây không còn chèn vào chỗ trống được.
+
+- **Duyệt chiết khấu.** Vẫn chưa có trên nhánh đó: `quote.service.ts:342` mới chỉ
+  có một dòng comment nói việc này "phải là một lượt duyệt", không có E3 nào được
+  gọi. Đề xuất cũ là gộp vào lượt 3 cùng cửa `send`; lượt 3 chưa chạy nên chỗ đặt
+  vẫn còn nguyên, và đây là lý do để làm lượt 3 trước khi gộp nhánh về `develop`.
+- **Kỳ hạn hợp đồng.** Đề xuất cũ là bồi cột ở lượt 0 — **lỡ rồi**, lượt 0 đã ra
+  ở `2f085e5`. Bảng `contract` trên nhánh đó vẫn đúng bảy cột cũ cộng `quoteCode`,
+  không ngày hiệu lực, không ngày hết hạn, không kỳ hạn. Cái đã có là
+  `contract_term` (đợt thanh toán, lượt 5) — trả lời "thu tiền đợt nào", KHÔNG
+  trả lời "hợp đồng hết hạn khi nào". Giờ nó là một migration riêng, và càng để
+  lâu càng đắt vì sổ hợp đồng đã có màn đọc bảng.
+
+Bốn khối còn lại để nguyên ngoài module 4.
