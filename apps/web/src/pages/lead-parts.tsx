@@ -794,20 +794,18 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
  *  ------------------------------------------------------------------
  *  DỮ LIỆU ĐI VÀO BẰNG PROPS — KHỐI NÀY KHÔNG TỰ ĐI LẤY
  *  ------------------------------------------------------------------
- *  Khối có HAI người gọi đứng trên hai nền dữ liệu khác nhau, và đó là lý do
- *  nó không được tự gọi `leadTranscript()`:
- *   · `opportunity-detail` đứng trên sổ ĐÓNG BĂNG — mốc và nguyên văn đều có thật;
- *   · `lead-detail` đứng trên máy chủ — `sales.touch` chưa dựng nên không có
- *     mốc nào, và hàm sinh của fixture với một mã Apollo thì bịa ra một cuộc
- *     hội thoại chưa từng xảy ra.
+ *  Khối có HAI người gọi, cả hai nay đọc `sales.touch` THẬT qua `data/touches.ts`
+ *   · `opportunity-detail` — lần chạm của ĐƠN;
+ *   · `lead-detail` — lần chạm của LEAD.
+ *  Hai dòng thời gian không trộn (quyết định #5, `docs/ban-giao-co-hoi.md`).
  *
- *  Nhãn `FrozenLead` bên `@pv/engines` đã chặn đường thứ hai ở tầng kiểu; khối
- *  này nhận `history` và `turns` rời nhau để MỖI người gọi tự khai mình đứng
- *  trên nền nào. Rỗng vẫn là một câu trả lời đúng, và câu ấy nằm ở nhánh
- *  `shown.length === 0` bên dưới — không phải một chỗ hỏng.
- *
- *  Khối ở lại nguyên hình để ngày có endpoint lần chạm chỉ còn là việc đổ dữ
- *  liệu vào — không phải dựng lại một dòng thời gian. */
+ *  Nhưng `turns` thì cả hai đều truyền `NO_TRANSCRIPT`, và đó là lý do khối này
+ *  vẫn KHÔNG được tự gọi `leadTranscript()`: hàm sinh của fixture với một mã
+ *  Apollo bịa ra một cuộc hội thoại chưa từng xảy ra, và máy chủ không có
+ *  transcript để thay. Nhãn `FrozenLead` bên `@pv/engines` chặn đường đó ở tầng
+ *  kiểu; khối nhận `history` và `turns` rời nhau để MỖI người gọi tự khai mình
+ *  đứng trên nền nào. Rỗng vẫn là một câu trả lời đúng, và câu ấy nằm ở nhánh
+ *  `shown.length === 0` bên dưới — không phải một chỗ hỏng. */
 export function ActivityCard({
   code,
   history,

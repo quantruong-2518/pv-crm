@@ -30,15 +30,22 @@ import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
-import { leadOf, leadProfileQuery } from '@/data/lead-profile'
+import { leadOf, leadProfileQuery, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
 import { opportunitiesOfLeadQuery } from '@/data/opportunities'
+import { leadTouchesQuery } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
 import { MeetingsCard } from '@/components/meetings-card'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead-parts'
+import {
+  ActivityCard,
+  MailTimelineCard,
+  NextActionCard,
+  NotesCard,
+  ProfileCard,
+} from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
  *
@@ -67,7 +74,7 @@ import { MailTimelineCard, NextActionCard, NotesCard, ProfileCard } from './lead
  *       mở sẵn là lý do màn này bị kêu "nhiều quá"; xem `FieldGroup`.
  *
  *   2 · CỘT PHẢI (2 phần) — TÁC VỤ, xếp theo dòng quyết định:
- *       cuộc họp → mail MAS → đề xuất bước tiếp theo → ghi chú → tra cứu.
+ *       cuộc họp → mail MAS → dòng thời gian → đề xuất bước tiếp theo → ghi chú.
  *       Cột đi theo luồng cuộn của trang và chỉ bám đáy khi đã hiện trọn vẹn;
  *       không tạo thêm một thanh cuộn lồng khó điều khiển.
  *
@@ -190,6 +197,11 @@ export function LeadDetailPage() {
   /* "Khách này đã được đổi thành cơ hội chưa" — hỏi MÁY CHỦ, cùng lý do hook
      phải nằm trên ba nhánh `return` sớm. Xem `opportunitiesOfLeadQuery`. */
   const priorOps = useQuery(opportunitiesOfLeadQuery(code))
+  /* The LEAD's timeline, not the opportunity's — decision #5 in
+     `docs/ban-giao-co-hoi.md`. Above the three early `return`s, same reason as
+     the hooks right above. A failed fetch does NOT break the screen:
+     `= NO_TOUCHES` keeps the old wording, and an empty timeline still reads. */
+  const { data: touches = NO_TOUCHES } = useQuery(leadTouchesQuery(code))
 
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -405,6 +417,15 @@ export function LeadDetailPage() {
                 </Button>
               }
             />
+            {/* Real rows from `GET /sales/leads/:code/touches`. It sits AFTER the
+                mail card because the mail card is the more specific one — the
+                letters sent to this exact person — while this is the lead's
+                general flow; see `MailTimelineCard`'s docblock.
+
+                `turns` stays `NO_TRANSCRIPT` on purpose: the server has no
+                transcript and will not. The constant says so; a bare `[]` does
+                not. */}
+            <ActivityCard code={lead.code} history={touches} turns={NO_TRANSCRIPT} />
             <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
           </DetailSidePanel>

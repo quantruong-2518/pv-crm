@@ -522,19 +522,24 @@ migration `0016` đã vào `7aa12de`.
    giờ từ UTC-11 tới UTC+12. Cắt ngày từ `toISOString()` thì ai bấm sau 17:00
    giờ Hà Nội mở ô ngày ra thấy ngày mai.
 
-### Lượt B — chưa làm, chờ phiên `meeting` buông file
+### Lượt B — xong
 
-- **Việc 1** · bỏ `opportunityOfLead` của fixture (`lead-detail.tsx`), rồi xoá
-  `desk.deals`/`convert`/`undoConvert` khỏi `app/desk.ts` cùng thẻ
-  `ConvertedCard` ở `convert-dialog.tsx`. Đây là LỖI THẬT đang sống, không phải
-  nợ thẩm mỹ — đọc lại mô tả ở mục "Bốn việc".
+- **Việc 1** · `lead-detail.tsx` hỏi `opportunitiesOfLeadQuery` thay cho
+  `opportunityOfLead` của fixture; `desk.deals`/`convert`/`undoConvert` và thẻ
+  `ConvertedCard` đã rời hình. Lỗi "mở được đơn thứ hai cho cùng một khách" hết.
 - **Việc 2** · nửa LEAD: `ActivityCard` ở `lead-detail.tsx` đọc
-  `leadTouchesQuery`. Hàm và query **đã có sẵn** trong `data/touches.ts`; việc
-  còn lại đúng bằng ba dòng ở màn.
+  `leadTouchesQuery` thật, đứng ngay sau `MailTimelineCard` trong cột tác vụ.
+  `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có transcript và sẽ chưa có.
 
-Lưu ý khi làm lượt B: module `meeting` của phiên kia ghi dòng `gap-lan-dau` vào
-`sales.touch`, tức nó đang lấp một trong ba loại mà mục "Vòng hai" ghi là "chưa
-cửa nào ghi". Dòng thời gian của lead sau lượt B sẽ có loại đó — không phải lỗi.
+Module `meeting` của phiên kia ghi dòng `gap-lan-dau` vào `sales.touch`, tức nó
+đã lấp một trong ba loại mà mục "Vòng hai" ghi là "chưa cửa nào ghi". Dòng thời
+gian của lead nay có loại đó — không phải lỗi.
+
+**Sau lượt B, module Cơ hội hết việc FE.** Ba khoản còn treo đều nằm ở tầng
+khác, ghi ở mục "Nợ đã biết" và "Bốn thứ phát hiện khi dựng":
+`UNIQUE(opportunity_code, lead_code)` trên `sales.contract` · khoá ngoại
+`opportunity.code` → `platform.object` (câu hỏi CHƯA ai quyết) · hai bản nhãn
+tiếng Việt.
 
 ### Một nợ CŨ mà nút ký chạm vào, cố ý không sửa lệch
 

@@ -283,13 +283,15 @@ export function leadOf(p: LeadProfile): Lead {
 /** The lead's touches, and the verbatim conversation on them — EMPTY, because
  *  `sales.touch` does not exist yet.
  *
- *  Two named constants rather than `[]` written inline at the call site, for
- *  two reasons. The first is a fact about the screen: an empty timeline here is
- *  a MISSING TABLE, not a lead nobody has spoken to, and a bare `[]` in JSX
- *  cannot tell those apart — a reader six months from now has to go find out
- *  which one it is. The second is where the seam has to be when the endpoint
- *  lands: `GET /sales/leads/:code/touches` replaces exactly these two values
- *  and nothing else, so the change is one file, not a hunt through the screen.
+ *  `NO_TOUCHES` is no longer what the screens render: both detail screens read
+ *  `sales.touch` through `data/touches.ts`, and it survives only as the fallback
+ *  for a query that has not answered yet or failed. `NO_TRANSCRIPT` is still the
+ *  real value at both call sites — the server has no transcript and will not.
+ *
+ *  Named constants rather than `[]` written inline, because a bare `[]` in JSX
+ *  cannot say WHICH empty it is: nobody has spoken to this lead, or this screen
+ *  has no such data to begin with. A reader six months from now would have to go
+ *  find out.
  *
  *  Frozen module-level values, so they keep the same identity across renders
  *  and never make `ActivityCard`'s memo work for nothing.
