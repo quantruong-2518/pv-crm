@@ -57,3 +57,9 @@ export type MarkVariant = 'light' | 'blue'
 export function markUrl(assetBaseUrl: string, variant: MarkVariant): string {
   return `${assetBaseUrl.replace(/\/+$/, '')}/mark-${variant}.png`
 }
+
+/** The long lockup is reserved for placements wide enough to keep its custom
+ *  lettering legible. Email uses PNG because Outlook does not decode WebP. */
+export function wordmarkUrl(assetBaseUrl: string, variant: MarkVariant): string {
+  return `${assetBaseUrl.replace(/\/+$/, '')}/wordmark-${variant}.png`
+}

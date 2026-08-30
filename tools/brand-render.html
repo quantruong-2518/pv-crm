@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brand asset renderer</title>
+    <style>
+      html,
+      body,
+      canvas {
+        display: block;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="output"></canvas>
+    <script type="module">
+      const query = new URLSearchParams(location.search)
+      const width = Number(query.get('width'))
+      const height = Number(query.get('height'))
+      const padding = Number(query.get('padding') ?? 0)
+      const tone = query.get('tone') ?? 'blue'
+      const colorSource = query.get('color')
+      const maskSource = query.get('mask') ?? colorSource
+
+      if (!width || !height || !colorSource || !maskSource) {
+        throw new Error('width, height, color and mask are required')
+      }
+
+      const load = (src) =>
+        new Promise((resolve, reject) => {
+          const image = new Image()
+          image.onload = () => resolve(image)
+          image.onerror = () => reject(new Error(`Cannot load ${src}`))
+          image.src = src
+        })
+
+      const [colorImage, maskImage] = await Promise.all([load(colorSource), load(maskSource)])
+      if (colorImage.width !== maskImage.width || colorImage.height !== maskImage.height) {
+        throw new Error('Color and mask sources must have identical dimensions')
+      }
+      const source = document.createElement('canvas')
+      source.width = colorImage.width
+      source.height = colorImage.height
+      const sourceContext = source.getContext('2d', { willReadFrequently: true })
+      sourceContext.drawImage(colorImage, 0, 0)
+      const colorPixels = sourceContext.getImageData(0, 0, source.width, source.height)
+
+      const maskCanvas = document.createElement('canvas')
+      maskCanvas.width = source.width
+      maskCanvas.height = source.height
+      const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true })
+      maskContext.drawImage(maskImage, 0, 0)
+      const maskPixels = maskContext.getImageData(0, 0, source.width, source.height)
+
+      let redLeft = source.width
+      let redTop = source.height
+      let redRight = -1
+      let redBottom = -1
+
+      for (let y = 0; y < source.height; y += 1) {
+        for (let x = 0; x < source.width; x += 1) {
+          const offset = (y * source.width + x) * 4
+          const red = maskPixels.data[offset]
+          const green = maskPixels.data[offset + 1]
+          const blue = maskPixels.data[offset + 2]
+          if (red < 140 || red < green * 1.8 || red < blue * 1.8) continue
+          redLeft = Math.min(redLeft, x)
+          redTop = Math.min(redTop, y)
+          redRight = Math.max(redRight, x)
+          redBottom = Math.max(redBottom, y)
+        }
+      }
+
+      const redCenterX = (redLeft + redRight) / 2
+      const redCenterY = (redTop + redBottom) / 2
+      const redRadius = Math.max(redRight - redLeft, redBottom - redTop) / 2
+      const ringOuterRadius = redRadius * 1.14
+
+      let left = source.width
+      let top = source.height
+      let right = -1
+      let bottom = -1
+
+      for (let y = 0; y < source.height; y += 1) {
+        for (let x = 0; x < source.width; x += 1) {
+          const offset = (y * source.width + x) * 4
+          const red = maskPixels.data[offset]
+          const green = maskPixels.data[offset + 1]
+          const blue = maskPixels.data[offset + 2]
+          const saturation = Math.max(red, green, blue) - Math.min(red, green, blue)
+          let alpha = Math.max(0, Math.min(255, Math.round(((saturation - 6) * 255) / 34)))
+
+          const distance = Math.hypot(x - redCenterX, y - redCenterY)
+          if (redRadius > 0 && distance >= redRadius * 0.98 && distance <= ringOuterRadius) {
+            const edge = Math.min(1, (ringOuterRadius - distance) / 1.5)
+            alpha = Math.max(alpha, Math.round(edge * 255))
+            colorPixels.data[offset] = 255
+            colorPixels.data[offset + 1] = 255
+            colorPixels.data[offset + 2] = 255
+          }
+          if (tone === 'light' && blue > red * 1.3 && blue > green * 1.15) {
+            colorPixels.data[offset] = 229
+            colorPixels.data[offset + 1] = 231
+            colorPixels.data[offset + 2] = 235
+          }
+          colorPixels.data[offset + 3] = alpha
+          if (alpha === 0) continue
+          left = Math.min(left, x)
+          top = Math.min(top, y)
+          right = Math.max(right, x)
+          bottom = Math.max(bottom, y)
+        }
+      }
+
+      const cleanPixels = new Uint8ClampedArray(colorPixels.data)
+      for (let y = 0; y < source.height; y += 1) {
+        for (let x = 0; x < source.width; x += 1) {
+          const offset = (y * source.width + x) * 4
+          const alpha = colorPixels.data[offset + 3]
+          if (alpha === 0 || alpha >= 250) continue
+
+          let found = false
+          for (let radius = 1; radius <= 4 && !found; radius += 1) {
+            for (let dy = -radius; dy <= radius && !found; dy += 1) {
+              for (let dx = -radius; dx <= radius; dx += 1) {
+                if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue
+                const sampleX = x + dx
+                const sampleY = y + dy
+                if (
+                  sampleX < 0 ||
+                  sampleY < 0 ||
+                  sampleX >= source.width ||
+                  sampleY >= source.height
+                )
+                  continue
+                const sampleOffset = (sampleY * source.width + sampleX) * 4
+                if (colorPixels.data[sampleOffset + 3] < 250) continue
+                cleanPixels[offset] = colorPixels.data[sampleOffset]
+                cleanPixels[offset + 1] = colorPixels.data[sampleOffset + 1]
+                cleanPixels[offset + 2] = colorPixels.data[sampleOffset + 2]
+                found = true
+                break
+              }
+            }
+          }
+        }
+      }
+      colorPixels.data.set(cleanPixels)
+
+      if (right < left || bottom < top) throw new Error('Alpha source is empty')
+      sourceContext.putImageData(colorPixels, 0, 0)
+
+      const output = document.querySelector('#output')
+      output.width = width
+      output.height = height
+      const context = output.getContext('2d')
+      context.imageSmoothingEnabled = true
+      context.imageSmoothingQuality = 'high'
+
+      const cropWidth = right - left + 1
+      const cropHeight = bottom - top + 1
+      const availableWidth = width - padding * 2
+      const availableHeight = height - padding * 2
+      const scale = Math.min(availableWidth / cropWidth, availableHeight / cropHeight)
+      const drawWidth = cropWidth * scale
+      const drawHeight = cropHeight * scale
+      const drawX = (width - drawWidth) / 2
+      const drawY = (height - drawHeight) / 2
+      context.drawImage(
+        source,
+        left,
+        top,
+        cropWidth,
+        cropHeight,
+        drawX,
+        drawY,
+        drawWidth,
+        drawHeight,
+      )
+      document.documentElement.dataset.ready = 'true'
+    </script>
+  </body>
+</html>

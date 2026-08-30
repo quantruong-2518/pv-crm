@@ -13,7 +13,7 @@ import {
   Text,
 } from '@react-email/components'
 import type { ReactNode } from 'react'
-import { BRAND, markUrl } from './brand'
+import { BRAND, markUrl, wordmarkUrl } from './brand'
 import {
   COLOR_ALERT,
   COLOR_BG,
@@ -72,9 +72,9 @@ import {
  *  ------------------------------------------------------------------
  *  Rất nhiều client tắt ảnh mặc định ở lần đầu nhận thư từ một địa chỉ lạ —
  *  đúng cái lần mà lá thư này quan trọng nhất. Nên chữ "PV One" nằm cạnh dấu
- *  hiệu dưới dạng CHỮ THẬT, và ảnh mang `alt=""`: nó là trang trí, phần thông
- *  tin đã có người khác gánh. Đặt `alt="PV One"` sẽ thành đọc hai lần khi có
- *  trình đọc màn hình, và thành hai chữ "PV One" chồng nhau khi ảnh bị chặn. */
+ *  hiệu dưới dạng CHỮ THẬT. Wordmark mang tên tổ chức trong `alt`, còn tên sản
+ *  phẩm "PV One" vẫn là chữ thật bên cạnh nên đầu thư giữ đủ danh tính khi ảnh
+ *  bị chặn mà trình đọc màn hình không phải nghe cùng một tên hai lần. */
 export type BrandShellProps = {
   /** Dòng xem trước trong danh sách hộp thư — sau tiêu đề, đây là thứ quyết
    *  định thư có được mở hay không. Không bỏ trống. */
@@ -153,20 +153,18 @@ export function BrandShell({
         <Container style={CARD_STYLE}>
           <Section style={HEADER_STYLE}>
             <Row>
-              {/* Bề ngang cột nêu bằng THUỘC TÍNH `width` của ô, không chỉ
-                  bằng CSS: Outlook đọc thuộc tính của bảng và bỏ qua một phần
-                  CSS, nên thiếu nó thì cột logo co lại còn bằng đúng ảnh và
-                  chữ dính vào dấu hiệu. */}
-              <Column style={{ width: 44, verticalAlign: 'middle' }} width={44}>
+              {/* The long lockup identifies the company; the live text at right
+                  identifies the product and survives image blocking. */}
+              <Column style={{ width: 176, verticalAlign: 'middle' }} width={176}>
                 <Img
-                  src={markUrl(assetBaseUrl, 'light')}
-                  width="32"
-                  height="32"
-                  alt=""
+                  src={wordmarkUrl(assetBaseUrl, 'light')}
+                  width="160"
+                  height="30"
+                  alt={BRAND.org}
                   style={{ display: 'block', border: 0 }}
                 />
               </Column>
-              <Column style={{ verticalAlign: 'middle' }}>
+              <Column style={{ verticalAlign: 'middle', textAlign: 'right' }}>
                 <Text
                   style={{
                     margin: 0,
@@ -178,20 +176,6 @@ export function BrandShell({
                   }}
                 >
                   {BRAND.product}
-                </Text>
-              </Column>
-              <Column style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                <Text
-                  style={{
-                    margin: 0,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    letterSpacing: '0.04em',
-                    color: COLOR_SURFACE,
-                    ...TEXT,
-                  }}
-                >
-                  {BRAND.org}
                 </Text>
               </Column>
             </Row>

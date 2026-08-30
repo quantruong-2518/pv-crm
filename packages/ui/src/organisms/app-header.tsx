@@ -4,7 +4,7 @@ import { SearchField, type SearchFieldProps } from '../patterns/search-field'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
-import markLight from '../assets/mark-light.webp'
+import { markLight } from '../assets'
 
 /** O-06 · AppHeader — nav hai tầng, thay AppSidebar từ 19/08.
  *
@@ -213,63 +213,68 @@ export function AppHeader({
       />
 
       {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ---- */}
-      <div className="relative z-[1] flex h-16 items-center gap-3 px-4">
-        <div className="flex shrink-0 items-center gap-2">
-          <img src={markLight} alt="" className="size-8 shrink-0 object-contain" />
+      <div className="relative z-[1] flex h-16 items-center gap-4 px-4">
+        <div className="flex shrink-0 items-center gap-3">
+          <img src={markLight} alt="" className="size-9 shrink-0 object-contain md:size-11" />
           {/* Tên sản phẩm ẩn dưới `md`: ở đó mỗi pixel ngang thuộc về ô tìm, và
               logo đã nói đủ đây là app nào. */}
           <div className="hidden md:block">
-            <b className="font-display block text-[13.5px] leading-tight">{product}</b>
-            <small className="text-muted-foreground block text-[10.5px] font-normal leading-tight">
+            <b className="font-display block text-[15px] leading-tight">{product}</b>
+            <small className="text-muted-foreground block text-[11px] font-normal leading-tight">
               {org}
             </small>
           </div>
         </div>
 
-        <SearchField className="min-w-0 flex-1" {...search} />
+        {/* Search is an entry point, not the top bar's visual background. Its
+            cap keeps the query legible without overpowering the brand and
+            pending-work controls. */}
+        <SearchField className="min-w-0 flex-1 md:max-w-[520px]" {...search} />
 
-        {/* Việc chờ ẩn dưới `lg` — BottomNav đã giữ đúng bộ này ở điện thoại,
-            bày hai lần là hai chỗ phải cùng đúng. */}
-        <div className="hidden items-center gap-1 lg:flex">
-          {core.map((action) => (
-            <CoreButton key={action.label} action={action} />
-          ))}
-        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* Việc chờ ẩn dưới `lg` — BottomNav đã giữ đúng bộ này ở điện thoại,
+              bày hai lần là hai chỗ phải cùng đúng. */}
+          <div className="hidden items-center gap-1 lg:flex">
+            {core.map((action) => (
+              <CoreButton key={action.label} action={action} />
+            ))}
+          </div>
 
-        {/* Không có `onOpenAssistant` = màn 04 chưa dựng. Nút vẫn đứng đây
-            nhưng ở trạng thái KHOÁ, không biến mất: BottomNav dưới `lg` đang
-            khoá đúng mục này, và một năng lực hiện ở điện thoại mà bốc hơi ở
-            desktop là hai màn kể hai câu chuyện. Khoá thì bỏ luôn nền azure —
-            luật 3 để azure cho AI đang dùng được, không cho AI đang đóng. */}
-        <button
-          type="button"
-          disabled={!onOpenAssistant}
-          onClick={onOpenAssistant}
-          className={cn(
-            'motion-std hidden h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[12.5px] font-semibold lg:flex',
-            onOpenAssistant
-              ? 'text-accent-foreground bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_30%,transparent),color-mix(in_srgb,var(--primary)_12%,transparent))] shadow-[var(--shadow-assistant),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12]'
-              : /* KHÔNG nền trắng: nó làm SÁNG chỗ đặt một nhãn vốn đã mờ,
-                   tức đẩy tương phản đi sai chiều. Khoá đọc bằng ổ khoá + con
-                   trỏ, không bằng một mặt nền. */
-                'text-muted-foreground cursor-not-allowed',
-          )}
-        >
-          {/* Chỉ ICON mờ, chữ ở lại `--muted-foreground` — luật 13. */}
-          <Icon icon={Orbit} size={16} className={cn(!onOpenAssistant && 'opacity-55')} />
-          {assistantLabel}
-          {onOpenAssistant ? null : (
-            <>
-              <Icon icon={Lock} size={14} className="opacity-55" />
-              <span className="sr-only">chưa mở</span>
-            </>
-          )}
-        </button>
+          {/* Không có `onOpenAssistant` = màn 04 chưa dựng. Nút vẫn đứng đây
+              nhưng ở trạng thái KHOÁ, không biến mất: BottomNav dưới `lg` đang
+              khoá đúng mục này, và một năng lực hiện ở điện thoại mà bốc hơi ở
+              desktop là hai màn kể hai câu chuyện. Khoá thì bỏ luôn nền azure —
+              luật 3 để azure cho AI đang dùng được, không cho AI đang đóng. */}
+          <button
+            type="button"
+            disabled={!onOpenAssistant}
+            onClick={onOpenAssistant}
+            className={cn(
+              'motion-std hidden h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[12.5px] font-semibold lg:flex',
+              onOpenAssistant
+                ? 'text-accent-foreground bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_30%,transparent),color-mix(in_srgb,var(--primary)_12%,transparent))] shadow-[var(--shadow-assistant),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12]'
+                : /* KHÔNG nền trắng: nó làm SÁNG chỗ đặt một nhãn vốn đã mờ,
+                     tức đẩy tương phản đi sai chiều. Khoá đọc bằng ổ khoá + con
+                     trỏ, không bằng một mặt nền. */
+                  'text-muted-foreground cursor-not-allowed',
+            )}
+          >
+            {/* Chỉ ICON mờ, chữ ở lại `--muted-foreground` — luật 13. */}
+            <Icon icon={Orbit} size={16} className={cn(!onOpenAssistant && 'opacity-55')} />
+            {assistantLabel}
+            {onOpenAssistant ? null : (
+              <>
+                <Icon icon={Lock} size={14} className="opacity-55" />
+                <span className="sr-only">chưa mở</span>
+              </>
+            )}
+          </button>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <Avatar name={user.name} initials={user.initials} />
-          {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
-          {userAction}
+          <div className="flex shrink-0 items-center gap-2">
+            <Avatar name={user.name} initials={user.initials} />
+            {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
+            {userAction}
+          </div>
         </div>
       </div>
 
