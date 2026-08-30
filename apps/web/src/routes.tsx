@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react'
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, matchPath } from 'react-router-dom'
 import { AuroraField } from '@pv/ui'
 import type { Branch, Permission } from '@pv/engines'
 import { RequireAccess } from '@/app/auth'
@@ -236,3 +236,32 @@ export const router = createBrowserRouter(
     ),
   })),
 )
+
+/** Head metadata per screen — SCREENS already carries a human name, index.html
+ *  otherwise leaves every route stuck on the same static title/description/
+ *  og/twitter tags (a link preview for a specific lead's URL shared in Slack
+ *  would just read "PV One · Pebble Vina" like every other route). Lives on
+ *  the router itself (not a component) because `router.subscribe` covers
+ *  every navigation without adding a sync component to each screen. Site
+ *  stays `noindex` (see index.html) — this is for internal link previews,
+ *  not search engines. */
+const setMetaContent = (selector: string, content: string) => {
+  document.querySelector(selector)?.setAttribute('content', content)
+}
+
+const syncHeadMetadata = (pathname: string) => {
+  const screen = SCREENS.find((s) => matchPath({ path: s.path, end: true }, pathname))
+  const title = screen ? `${screen.name} · PV One` : 'PV One · Pebble Vina'
+  const description = screen
+    ? `${screen.name} — Hệ thống CRM của Pebble Vina.`
+    : 'PV One — Hệ thống CRM của Pebble Vina.'
+
+  document.title = title
+  setMetaContent('meta[name="description"]', description)
+  setMetaContent('meta[property="og:title"]', title)
+  setMetaContent('meta[property="og:description"]', description)
+  setMetaContent('meta[name="twitter:title"]', title)
+  setMetaContent('meta[name="twitter:description"]', description)
+}
+syncHeadMetadata(router.state.location.pathname)
+router.subscribe((state) => syncHeadMetadata(state.location.pathname))
