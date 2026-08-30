@@ -546,7 +546,7 @@
   },
   "apps/api/src/worker.ts": {
     "aurora/comments-in-english": {
-      "count": 14
+      "count": 13
     }
   },
   "apps/web/src/app/api/client.ts": {

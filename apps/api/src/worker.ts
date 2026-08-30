@@ -105,9 +105,25 @@ async function bootstrap(): Promise<void> {
   await boss.work(
     EMAIL_QUEUE,
     {
-      /* Handler nhận một MẢNG job. Batch 1 vì nhịp gửi tính theo từng thư —
-         gom 10 thư vào một lượt chỉ để rồi xin 10 token là gom vô ích. */
-      batchSize: 1,
+      /* TWO, and the number is the whole point rather than a guess.
+         `batchSize: 1` read as harmless — pacing is per letter, so batching
+         buys no tokens — but it silently made the poll interval the throughput
+         ceiling: pg-boss IGNORES `burstWhenBatchFull` at batch size 1 (every
+         fetch would count as "full", see `manager.js#resolveInterval`), so a
+         worker sent one letter and then slept a whole interval. Two workers ·
+         12s meant 10 letters a minute against a gate that allows 240.
+
+         Two is the smallest batch that turns the burst trigger back on, and
+         smallest is what keeps one handler's worst case — `batchSize` ×
+         `SEND_TIMEOUT_MS` (15s) — inside the queue's `expireInSeconds` of 60.
+         The pace itself does not move: every letter still takes its own token
+         from `platform.mail_gate`, which is the number Resend counts. This
+         only decides how long a worker idles between letters it already owes. */
+      batchSize: 2,
+      /* Keep fetching with no delay while batches come back full; the first
+         short fetch drops back to the poll interval. This is what drains a
+         200-letter run at the gate's pace instead of the clock's. */
+      burstWhenBatchFull: true,
       /* `retryCount` và `createdOn` là hai thứ quyết định lúc nào một delivery
          thôi đáng thử lại — xem `exhausted()` trong `mail.consumer.ts`. */
       includeMetadata: true,

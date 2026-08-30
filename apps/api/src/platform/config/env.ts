@@ -314,8 +314,21 @@ const Env = z
       ),
 
     /** Nhịp hỏi hàng đợi. Mỗi lần hỏi là một truy vấn — và Neon chỉ ngủ khi
-     *  không ai hỏi, nên con số này là một khoản tiền chứ không chỉ là độ trễ. */
-    PV_QUEUE_POLL_SECONDS: z.coerce.number().int().min(1).max(120).default(12),
+     *  không ai hỏi, nên con số này là một khoản tiền chứ không chỉ là độ trễ.
+     *
+     *  Four, down from twelve. What this number actually buys is the wait
+     *  before `MailRelay` notices a ledger row somebody just wrote: it is the
+     *  delay a person feels between pressing send and the letter reaching the
+     *  provider, and twelve seconds of it read as "the mail is broken". It is
+     *  no longer the THROUGHPUT ceiling — that was `batchSize: 1` in
+     *  `worker.ts`, fixed there — so this is now paid once per send rather than
+     *  once per letter, which is what makes the lower number affordable.
+     *
+     *  Not lower than that: the same tick also runs `MailRunSweeper` and
+     *  `CampaignSweeper`, so every second shaved off is three more queries a
+     *  minute on a database that bills for being awake, and nobody is watching
+     *  a campaign close in under four seconds. */
+    PV_QUEUE_POLL_SECONDS: z.coerce.number().int().min(1).max(120).default(4),
     /** Worker nên đi đường KHÔNG qua pooler (Neon "direct connection"):
      *  pgbouncer ở chế độ transaction không đưa LISTEN/NOTIFY qua, và trạng
      *  thái mức phiên không còn đáng tin. Bỏ trống = dùng chung DATABASE_URL. */
