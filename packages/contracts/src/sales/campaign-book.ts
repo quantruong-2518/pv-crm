@@ -172,10 +172,10 @@ export const CampaignMemberListResponse = paged(CampaignMemberRow)
 export const CampaignWaveInput = MasSendRequest.omit({ leadCodes: true, campaignCode: true })
 
 /** `POST /sales/campaigns/:code/start` — chuyển `DRAFT` → `RUNNING` và bắn đợt
- *  đầu (có thể nhiều đợt cùng lúc nếu đã soạn sẵn). Đợt sau này thêm được từng
- *  cái một qua `POST /sales/mail/runs` với `campaignCode` — không cần gọi lại
- *  `/start`. Trần 20 đợt là để chặn một request khổng lồ, không phải trần thật
- *  của một chiến dịch. */
+ *  đầu (có thể nhiều đợt cùng lúc nếu đã soạn sẵn). Chỉ nhận chiến dịch NHÁP
+ *  CHƯA có đợt nào; đợt thứ hai trở đi đi qua `CampaignWaveAdd` bên dưới, nơi
+ *  máy chủ tự đọc audience đã đóng băng. Trần 20 đợt là để chặn một request
+ *  khổng lồ, không phải trần thật của một chiến dịch. */
 export const CampaignStart = z.object({
   waves: z.array(CampaignWaveInput).min(1).max(20),
 })

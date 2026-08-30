@@ -255,7 +255,10 @@ export function CampaignsPage() {
           )}
         </ScreenToolbar>
 
-        <GlassCard variant="b" className="p-0">
+        {/* `overflow-hidden` is not decoration: the divider below is a
+            full-bleed `h-px`, and without a clip it runs straight past the
+            rounded corner. Same pairing the opportunity book already uses. */}
+        <GlassCard variant="b" className="overflow-hidden p-0">
           {/* The count line belongs INSIDE the card: it talks about the table
               right below it. `total` and `hidden` are both counted by the
               server — a ten-row page cannot know how many rows match the filter,

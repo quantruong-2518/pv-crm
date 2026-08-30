@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   CampaignBookResponse,
@@ -21,6 +21,7 @@ import {
   type MailRunPatchResponse,
   type MasSendResponse,
 } from '@pv/contracts'
+import { ENV, type Env } from '@api/platform/config/env'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { PvError, conflict, denied, notFound } from '@api/platform/http/problem'
 import { toContract, toMemberRow, toProfile } from './campaign.mapper'
@@ -40,6 +41,7 @@ export class CampaignService {
     private readonly repo: CampaignRepository,
     private readonly runs: MailRunRepository,
     private readonly mas: MasService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   /** Không chạy `E2.visible()` như lưới thứ hai của `LeadService.book()`: đó
@@ -187,13 +189,23 @@ export class CampaignService {
        draft" from "already has a wave", and the two send the user elsewhere. */
     if (found.waveCount > 0) {
       throw conflict(
-        `Chiến dịch ${code} đã có đợt đi rồi — thêm đợt tiếp theo qua POST /sales/campaigns/${code}/waves, đừng bắt đầu chạy lại.`,
+        `Chiến dịch ${code} đã có đợt đi rồi — mở hồ sơ chiến dịch và thêm đợt mới ở đó, đừng bắt đầu chạy lại.`,
       )
     }
 
     const leadCodes = await this.repo.activeMemberCodes(code)
     if (leadCodes.length === 0) {
       throw conflict('Chiến dịch chưa có người nhận nào — thêm thành viên trước khi chạy.')
+    }
+
+    /* Early gate, NOT a second fence: `MasService.send()` keeps enforcing
+       `PV_MAS_BATCH_MAX`. The audience is built here on the server, so the zod
+       recipient cap never sees it and the fence downstream would surface as a
+       400 pinned to a `leadCodes` field this screen has no box for. */
+    if (leadCodes.length > this.env.PV_MAS_BATCH_MAX) {
+      throw conflict(
+        `Tệp người nhận có ${leadCodes.length} lead, vượt trần ${this.env.PV_MAS_BATCH_MAX} lead mỗi đợt — bớt thành viên rồi bắt đầu chạy lại.`,
+      )
     }
 
     /* Conditional write, not `setState`: the DRAFT check above is a read, and
@@ -227,11 +239,26 @@ export class CampaignService {
     if (!found.inScope) {
       throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
-    if (found.row.state !== 'RUNNING') {
+    /* DONE gets through because RUNNING is a passing state, not a resting one:
+       `CampaignSweeper` runs `closeFinished()` on a timer and drops a campaign
+       to DONE the moment its every batch settles, so a one-wave campaign is
+       DONE within minutes and demanding RUNNING here would shut the door this
+       endpoint exists to open. A new wave reopens the campaign; the sweeper
+       closes it again by itself once that wave settles.
+
+       STOPPED does not get through: stopping is a deliberate act that pulled
+       queued mail back out, so resuming has to be its own decision rather than
+       a side effect of adding a wave. A DRAFT that already carries waves is the
+       legacy shape the MAS modal used to write, and this door is its only way
+       back to a normal life cycle. */
+    if (found.row.state === 'STOPPED') {
       throw conflict(
-        found.row.state === 'DRAFT'
-          ? `Chiến dịch ${code} còn là NHÁP — bấm "Bắt đầu chạy" để bắn đợt đầu tiên.`
-          : `Chiến dịch ${code} đã đóng (${found.row.state}) — không thêm đợt được nữa.`,
+        `Chiến dịch ${code} đã dừng — không nối đợt vào chiến dịch đã dừng; tạo chiến dịch mới nếu muốn gửi tiếp.`,
+      )
+    }
+    if (found.row.state === 'DRAFT' && found.waveCount === 0) {
+      throw conflict(
+        `Chiến dịch ${code} chưa bắn đợt nào — bấm "Bắt đầu chạy" trong hồ sơ để gửi đợt đầu tiên.`,
       )
     }
 
@@ -239,6 +266,18 @@ export class CampaignService {
     if (leadCodes.length === 0) {
       throw conflict('Chiến dịch chưa có người nhận nào — thêm thành viên trước khi bắn đợt mới.')
     }
+
+    /* Same early gate as `start()` — `MasService.send()` stays the real fence. */
+    if (leadCodes.length > this.env.PV_MAS_BATCH_MAX) {
+      throw conflict(
+        `Tệp người nhận có ${leadCodes.length} lead, vượt trần ${this.env.PV_MAS_BATCH_MAX} lead mỗi đợt — bớt thành viên rồi bắn lại.`,
+      )
+    }
+
+    /* Raised BEFORE the send, on the reasoning `start()` already spells out: a
+       wave that fails halfway still leaves a campaign that truly is running,
+       with its batch already in the queue. */
+    if (found.row.state !== 'RUNNING') await this.repo.setState(code, 'RUNNING')
 
     return CampaignWaveAddResponse.parse(
       await this.mas.send(who, { ...body.wave, leadCodes, campaignCode: code }),

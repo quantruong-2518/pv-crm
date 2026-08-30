@@ -409,6 +409,14 @@ function CampaignForm({
 
   const steps = isNew ? CREATE_STEPS : EXISTING_STEPS
 
+  /* Step 2 mirrors the server rule for POST /waves. A DRAFT with no wave yet is
+     the only case that still has to go through /start; every other live state
+     takes one more wave (adding one to a finished campaign reopens it, and the
+     server raises it back to RUNNING by itself). A stopped campaign takes none,
+     so it gets the read-only table. */
+  const firstRun = !isNew && campaign?.state === 'DRAFT' && campaign.waveCount === 0
+  const moreWaves = !isNew && !!campaign && campaign.state !== 'STOPPED' && !firstRun
+
   const headerActions = isNew ? undefined : step !== 3 ? (
     <Button size="md" variant="ghost" onClick={goOverview}>
       Về tổng quan
@@ -427,7 +435,7 @@ function CampaignForm({
           Thêm người nhận
         </Button>
       )}
-      {canFire && campaign?.state === 'DRAFT' && (
+      {canFire && campaign && firstRun && (
         <Button
           size="md"
           onClick={() => setStep(2)}
@@ -442,6 +450,15 @@ function CampaignForm({
         >
           <Icon icon={Send} size={16} />
           Bắt đầu chạy
+        </Button>
+      )}
+      {/* The only visible door to step 2 for a campaign already running: the
+          Stepper chip is the other one and nobody finds it, which is how the MAS
+          modal detour survived this long. */}
+      {canFire && moreWaves && (
+        <Button size="md" onClick={() => setStep(2)}>
+          <Icon icon={Plus} size={16} />
+          Thêm đợt
         </Button>
       )}
       {canFire && campaign?.state === 'RUNNING' && (
@@ -554,26 +571,24 @@ function CampaignForm({
             />
           ) : (
             campaign &&
-            (campaign.state === 'DRAFT' ? (
+            (!canFire || campaign.state === 'STOPPED' ? (
+              <WaveTable campaign={campaign} />
+            ) : firstRun ? (
               <EventsEditStep
                 templates={templates}
                 start={start}
                 audienceCount={campaign.audienceCount}
-                canFire={canFire}
-                onDone={goOverview}
-                onCancel={goOverview}
-              />
-            ) : campaign.state === 'RUNNING' ? (
-              <WaveAddStep
-                campaign={campaign}
-                templates={templates}
-                waveAdd={waveAdd}
-                canFire={canFire}
                 onDone={goOverview}
                 onCancel={goOverview}
               />
             ) : (
-              <WaveTable campaign={campaign} />
+              <WaveAddStep
+                campaign={campaign}
+                templates={templates}
+                waveAdd={waveAdd}
+                onDone={goOverview}
+                onCancel={goOverview}
+              />
             ))
           ))}
 
@@ -899,7 +914,11 @@ function AudiencePicker({
 
   const { data, isPending } = useQuery(leadBookQuery(query))
   const rows = data?.rows ?? []
-  const filtered = text.trim() !== '' || category !== '' || tier !== ''
+  /* Read the DEBOUNCED word, not the live one: the table is answering `search`,
+     so asking `text` makes the empty-state describe a query the rows are not
+     from — clearing the box would flip this to false 300ms before the rows come
+     back, and the reader would be told the whole book is empty. */
+  const filtered = search !== '' || category !== '' || tier !== ''
   const clearFilters = () => {
     setText('')
     setCategory('')
@@ -1116,6 +1135,11 @@ function CampaignMemberList({
 }) {
   const { data, isPending } = useQuery(campaignMembersQuery(code))
   const rows = data?.rows ?? []
+  const total = data?.total ?? 0
+  /* Counted over the rows ON SCREEN, and the sentence says so. The query asks
+     for one page while `add` takes 500 a round, so an audience past that page is
+     ordinary — a count worded as if it covered the whole audience would be
+     wrong exactly on the screens built to prevent surprises at send time. */
   const noEmail = rows.filter((m) => !m.email).length
 
   const removeOne = (leadCode: string) =>
@@ -1139,12 +1163,20 @@ function CampaignMemberList({
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionTitle>Đang trong tệp nhận</SectionTitle>
-        <Chip>{data?.total ?? 0} người</Chip>
+        <Chip>{total} người</Chip>
       </div>
 
       {noEmail > 0 && (
         <p className="text-warning text-[12px]">
-          {noEmail} người trong tệp chưa có email — những dòng này chắc chắn bị bỏ qua lúc bắn.
+          {noEmail} trong {rows.length} dòng đang hiện chưa có email — những dòng này chắc chắn bị
+          bỏ qua lúc bắn.
+        </p>
+      )}
+
+      {rows.length < total && (
+        <p className="text-muted-foreground text-[12px]">
+          Đang hiện {rows.length} trên {total} người trong tệp — {total - rows.length} dòng còn lại
+          chưa nạp ở màn này.
         </p>
       )}
 
@@ -1270,23 +1302,27 @@ function AudienceEditStep({
     <div className="flex flex-col gap-4">
       <CampaignMemberList code={code} members={members} canEdit={canEdit} />
 
-      <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
-        <div className="flex items-center justify-between gap-2">
-          <SectionTitle>Thêm người nhận</SectionTitle>
-          {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
-        </div>
-        <AudiencePicker selected={selected} onSetOne={setOne} onSetMany={setMany} />
-        <div className="flex justify-end gap-2">
-          <Button size="md" variant="ghost" onClick={onCancel}>
-            Huỷ
-          </Button>
-          {canEdit && (
+      {/* The whole picker goes, not just the send button: a reader who may only
+          look can still search, tick forty leads and drag-paint over the table
+          before finding out there is nothing to press. The list above stays —
+          seeing who is in the audience is what the read permission buys. */}
+      {canEdit && (
+        <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
+          <div className="flex items-center justify-between gap-2">
+            <SectionTitle>Thêm người nhận</SectionTitle>
+            {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
+          </div>
+          <AudiencePicker selected={selected} onSetOne={setOne} onSetMany={setMany} />
+          <div className="flex justify-end gap-2">
+            <Button size="md" variant="ghost" onClick={onCancel}>
+              Huỷ
+            </Button>
             <Button size="md" onClick={submit} disabled={selected.size === 0 || members.isPending}>
               {members.isPending ? 'Đang thêm…' : `Thêm ${selected.size || ''} người nhận`}
             </Button>
-          )}
-        </div>
-      </GlassCard>
+          </div>
+        </GlassCard>
+      )}
     </div>
   )
 }
@@ -1603,23 +1639,25 @@ function EventsEditStep({
   templates,
   start,
   audienceCount,
-  canFire,
   onDone,
   onCancel,
 }: {
   templates: MailTemplateRow[]
   start: ReturnType<typeof useCampaignStart>
   audienceCount: number
-  canFire: boolean
   onDone: () => void
   onCancel: () => void
 }) {
   const [composer, setComposer] = useState<ComposerState>(emptyComposerState)
   const waves = effectiveWaves(composer)
   const overCeiling = audienceCount > MAS_MAX_RECIPIENTS
+  /* The same bar the header button holds. Steps 0-1-2 are all reachable on an
+     existing campaign, so a draft with an empty audience can be composed for
+     here; without this the button lights up and /start answers 409. */
+  const noAudience = audienceCount === 0
 
   const submit = () => {
-    if (waves.length === 0 || overCeiling) return
+    if (waves.length === 0 || overCeiling || noAudience) return
     start.mutate(
       { waves },
       {
@@ -1646,19 +1684,22 @@ function EventsEditStep({
     <div className="flex flex-col gap-4">
       <WaveComposer state={composer} setState={setComposer} templates={templates} />
       {overCeiling && <p className="text-warning text-[12px]">{ceilingNote(audienceCount)}</p>}
+      {noAudience && (
+        <p className="text-warning text-[12px]">
+          Tệp nhận còn rỗng — thêm người nhận trước khi bắt đầu chạy.
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <Button size="md" variant="ghost" onClick={onCancel}>
           Huỷ
         </Button>
-        {canFire && (
-          <Button
-            size="md"
-            onClick={submit}
-            disabled={waves.length === 0 || overCeiling || start.isPending}
-          >
-            {start.isPending ? 'Đang bắn…' : `Bắt đầu chạy · ${waves.length} đợt`}
-          </Button>
-        )}
+        <Button
+          size="md"
+          onClick={submit}
+          disabled={waves.length === 0 || overCeiling || noAudience || start.isPending}
+        >
+          {start.isPending ? 'Đang bắn…' : `Bắt đầu chạy · ${waves.length} đợt`}
+        </Button>
       </div>
     </div>
   )
@@ -1684,23 +1725,26 @@ function WaveAddStep({
   campaign,
   templates,
   waveAdd,
-  canFire,
   onDone,
   onCancel,
 }: {
   campaign: CampaignProfile
   templates: MailTemplateRow[]
   waveAdd: ReturnType<typeof useCampaignWaveAdd>
-  canFire: boolean
   onDone: () => void
   onCancel: () => void
 }) {
   const [composer, setComposer] = useState<ComposerState>(emptyComposerState)
   const ready = composerDraftValid(composer)
   const overCeiling = campaign.audienceCount > MAS_MAX_RECIPIENTS
+  /* An emptied audience reaches this button too: a DRAFT that already fired,
+     or a campaign whose members were all removed after the last wave. The
+     server answers 409 either way, so ask here instead of spending a composed
+     letter to find out. */
+  const noAudience = campaign.audienceCount === 0
 
   const submit = () => {
-    if (!ready || overCeiling) return
+    if (!ready || overCeiling || noAudience) return
     waveAdd.mutate(
       { wave: composerDraftInput(composer) },
       {
@@ -1726,15 +1770,22 @@ function WaveAddStep({
       {overCeiling && (
         <p className="text-warning text-[12px]">{ceilingNote(campaign.audienceCount)}</p>
       )}
+      {noAudience && (
+        <p className="text-warning text-[12px]">
+          Tệp nhận còn rỗng — thêm người nhận trước khi bắn đợt mới.
+        </p>
+      )}
       <div className="flex justify-end gap-2">
         <Button size="md" variant="ghost" onClick={onCancel}>
           Huỷ
         </Button>
-        {canFire && (
-          <Button size="md" onClick={submit} disabled={!ready || overCeiling || waveAdd.isPending}>
-            {waveAdd.isPending ? 'Đang bắn…' : `Bắn đợt ${campaign.waveCount + 1}`}
-          </Button>
-        )}
+        <Button
+          size="md"
+          onClick={submit}
+          disabled={!ready || overCeiling || noAudience || waveAdd.isPending}
+        >
+          {waveAdd.isPending ? 'Đang bắn…' : `Bắn đợt ${campaign.waveCount + 1}`}
+        </Button>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -1853,8 +1904,12 @@ function ReviewCreateStep({
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-muted-foreground text-[11px]">Chủ · Nguồn dẫn</span>
+            {/* An empty owner box is not an unowned campaign: the server falls
+                back to the caller, so leaving it blank signs the campaign over
+                to whoever is creating it. */}
             <span className="text-[13px]">
-              {ownerName ?? 'Chưa gán'} · {sourceName ?? 'Chưa gán nguồn'}
+              {draft.ownerId === '' ? 'Bạn — mặc định' : (ownerName ?? 'Chưa gán')} ·{' '}
+              {sourceName ?? 'Chưa gán nguồn'}
             </span>
           </div>
         </div>

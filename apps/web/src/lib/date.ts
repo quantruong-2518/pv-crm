@@ -34,10 +34,21 @@ const HM = new Intl.DateTimeFormat('vi-VN', {
   hour12: false,
 })
 
+/** A DATE with no time and no zone is a calendar day, not an instant.
+ *
+ *  `Ngay` in the contract is a bare `YYYY-MM-DD`, and the spec makes `new Date`
+ *  read exactly that shape as midnight UTC — so west of Greenwich the formatter
+ *  renders the day BEFORE the one the user typed. It shows up hardest under a
+ *  `<input type="date">`, where the screen echoes the choice straight back.
+ *  Appending a wall-clock time flips the parse to local, which is what a
+ *  calendar day means to the person reading it. Anything carrying a zone
+ *  already (`Moc`, always) is untouched by this branch. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
 /** A broken string comes back as itself — never 'Invalid Date', never a throw.
  *  One bad timestamp does not get to blank a whole screen. */
 function moment(iso: string): Date | null {
-  const date = new Date(iso)
+  const date = new Date(DATE_ONLY.test(iso) ? `${iso}T00:00:00` : iso)
   return Number.isNaN(date.getTime()) ? null : date
 }
 

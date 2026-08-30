@@ -68,7 +68,9 @@ Không có migration mới — bảng `sales.campaign`/`campaign_member`/`campai
 | `GET /sales/campaigns/:code`          | `chiến-dịch.xem` · scoped                                        |
 | `PATCH /sales/campaigns/:code`        | `chiến-dịch.sửa` · scoped (tên/chủ/nguồn — KHÔNG đổi trạng thái) |
 | `POST /sales/campaigns/:code/members` | `chiến-dịch.sửa` · scoped                                        |
-| `POST /sales/campaigns/:code/start`   | `chiến-dịch.bắn` · scoped                                        |
+| `GET /sales/campaigns/:code/members`  | `chiến-dịch.xem` · scoped — 30/08                                |
+| `POST /sales/campaigns/:code/start`   | `chiến-dịch.bắn` · scoped — chỉ NHÁP chưa có đợt                 |
+| `POST /sales/campaigns/:code/waves`   | `chiến-dịch.bắn` · scoped — đợt thứ hai trở đi, 30/08            |
 | `POST /sales/campaigns/:code/stop`    | `chiến-dịch.bắn` · scoped                                        |
 
 ---
@@ -307,15 +309,104 @@ song song, không phải của lượt này).
 
 ---
 
+## Lượt 30/08 — soát lại toàn cụm, và ba thứ bịt được nhờ soát chéo
+
+Lượt này không thêm màn nào. Nó soát cụm đã dựng, rồi vá. Bốn nhánh dựng song
+song trên bốn tập file rời, sau đó **hai lượt soát độc lập đọc code của người
+khác** — và chính hai lượt đó tìm ra ba lỗi mà `pnpm check` xanh vẫn không thấy.
+
+### 1 · `RUNNING` là trạng thái THOÁNG QUA — luật của `/waves` đã sai từ đầu
+
+Bản đầu của `POST :code/waves` đòi `state === 'RUNNING'`. Nghe hợp lý cho tới
+khi đọc `CampaignSweeper` cạnh nó: `closeFinished()` hạ `RUNNING → DONE` ngay
+khi mọi `mail_run` đã ngã ngũ, trên nhịp `PV_QUEUE_POLL_SECONDS`. Một chiến
+dịch một đợt, bắn ngay, vài phút sau đã `DONE` — **hôm sau không thêm đợt được
+nữa**, tức cửa này không làm nổi đúng việc nó sinh ra để làm.
+
+Cùng lúc, chiến dịch `DRAFT` đã có đợt (di sản của lỗ modal cũ) là ngõ cụt kín:
+`/start` chỉ sang `/waves`, `/waves` chỉ về `/start`, `PATCH` không đổi state,
+sweeper không chạm `DRAFT`.
+
+Luật mới, và nó là **một** luật cho cả hai ca:
+
+| `state`   | `waveCount` | `/waves`                                             |
+| --------- | ----------- | ---------------------------------------------------- |
+| `STOPPED` | bất kỳ      | 409 — dừng là quyết định có chủ ý                    |
+| `DRAFT`   | `0`         | 409 — đợt ĐẦU đi qua `/start`, để log phân biệt được |
+| `DRAFT`   | `> 0`       | CHO — đường duy nhất đưa ca di sản về bình thường    |
+| `RUNNING` | bất kỳ      | CHO                                                  |
+| `DONE`    | bất kỳ      | CHO — thêm đợt là MỞ LẠI chiến dịch                  |
+
+Khi cho phép mà chưa `RUNNING` thì nâng lên `RUNNING` **trước** `mas.send()` —
+cùng lý lẽ quyết định #5. Sweeper tự đóng lại về `DONE` khi đợt mới ngã ngũ;
+vòng đời tự khép, không thêm cơ chế nào.
+
+### 2 · `/start` nay là một câu lệnh, không phải đọc-rồi-ghi
+
+`byCode()` → kiểm `state` → `setState('RUNNING')` là hai lệnh rời. Hai request
+chồng nhau cùng thấy `DRAFT` và **cùng bắn thư thật**; `eventKey` chỉ chống
+trùng TRONG một `mailRunId`, còn lượt hai sinh run mới nên sinh key mới.
+
+`startIfDraft(code)` là `UPDATE … WHERE code = $1 AND state = 'DRAFT' RETURNING
+code`; 0 dòng ⇒ 409. Cộng một hàng rào đọc trước đó: `waveCount > 0` thì từ
+chối, vì chiến dịch đã bắn rồi mà vẫn `DRAFT` là đúng ca ngõ cụt ở mục 1.
+
+### 3 · Trần người nhận nổ muộn, và báo bằng ngôn ngữ của máy
+
+`/start` và `/waves` dựng `leadCodes` ở máy chủ nên **không đi qua cổng zod**
+`MAS_MAX_RECIPIENTS`; trần thật là `PV_MAS_BATCH_MAX` bên trong `MasService`,
+ném `invalid({ leadCodes })` = 400 gắn vào một ô không có trên màn chiến dịch.
+Trong khi `POST :code/members` cho thêm 500 mỗi lượt và không có trần tổng —
+nên dựng được chiến dịch 250 người rồi **không bao giờ bắn được**.
+
+Nay cả hai cửa kiểm sớm ngay sau khi đọc tệp và ném 409 nói cả hai con số.
+`MasService` vẫn giữ hàng rào cuối — đây là lượt kiểm sớm, không phải bản chép.
+
+### 4 · Ngày tháng: `dm()` từng in sai NGÀY trên dữ liệu thật
+
+`lib/date.ts` cắt `iso.slice(0, 10)`. Đúng hồi mọi mốc còn tới từ fixture viết
+sẵn `+07:00`; máy chủ thật trả `toISOString()` tức UTC, nên ở +07 **mọi mốc
+00:00–06:59 giờ VN in ra ngày hôm trước**. Hẹn đợt 31/08 06:00 thì chuỗi đợt ở
+bước Soát lại hiện "Hẹn · 30/08".
+
+Nay đọc bằng `Intl` theo múi giờ trình duyệt, thêm `dmhm` (có GIỜ — màn hẹn giờ
+mà chỉ hiện ngày thì hai đợt cùng ngày không phân biệt được) và `localSlot` cho
+ô `datetime-local`. Một cái bẫy đi kèm, đã bịt: ngày TRẦN `YYYY-MM-DD` (`Ngay`
+trong contract) bị `new Date` đọc là nửa đêm UTC, nên phía tây UTC lệch một
+ngày — `moment()` ép nó về nửa đêm giờ máy.
+
+### 5 · Hai món BÀN GIAO, cố ý không tự sửa
+
+Cả hai nằm trong file mà một phiên khác đang mở; sửa chồng là hỏng lượt của họ.
+
+- **`POST /sales/mail/runs` không kiểm `campaign.state`.** `campaignExists()`
+  chỉ hỏi có tồn tại không. Nên vẫn gắn được đợt vào chiến dịch `DRAFT` /
+  `STOPPED` / `DONE` bằng một lệnh `curl` — hàng rào hiện tại chỉ là bộ lọc
+  phía client trong modal MAS. Đây là **nửa còn lại** của lỗ gửi trùng mà lượt
+  này đã bịt ở cửa mới.
+- **`masPreview` khai `lead.gửi-mail`.** Nút "Xem trước" nay đứng trên màn
+  chiến dịch vốn chỉ đòi `chiến-dịch.bắn`, nên một vai bắn được chiến dịch mà
+  không có quyền gửi lẻ sẽ thấy lỗi ở chỗ đáng lẽ là lá thư. `useMasSend` đã
+  tách quyền theo thân yêu cầu; `masPreview` cần tách y hệt.
+
+### 6 · Đã ghi nhận, cố ý ĐỂ LẠI
+
+- `stop()` bỏ sót lô từ đợt thứ 201 (`wavesOf` chặn `size: 200`) mà vẫn ghi
+  `STOPPED`; và một lô bị bỏ qua vì out-of-scope cũng không hiện lên phản hồi.
+  Ngưỡng xa thực tế, nhưng là lỗ thật.
+- `POST :code/members` vẫn không có trần tổng — mới chỉ chặn ở lúc bắn.
+- Danh sách thành viên chưa có pager (xem nợ #1).
+
 ## Nợ đang có
 
 Năm mục đầu của bản 28/08 (`data/campaign-book.ts` · Sổ chiến dịch · đổi tên
 màn cũ · bước Lịch gửi · Sổ lô gửi) đã TRẢ ở lượt hai ngày 29/08 — xem mục
 trên. Còn lại:
 
-1. **Chưa gỡ được người khỏi tệp nhận** — `CampaignProfile` không trả danh
-   sách thành viên, nên hộp gom chỉ THÊM. Cần
-   `GET /sales/campaigns/:code/members` trước khi mở nút gỡ.
+1. ~~**Chưa gỡ được người khỏi tệp nhận**~~ — TRẢ 30/08:
+   `GET /sales/campaigns/:code/members` đã có, hộp gom nay THÊM và GỠ được.
+   Còn thiếu **pager**: danh sách nạp tối đa 200 dòng và chỉ nói ra điều đó
+   bằng một dòng chữ, nên tệp lớn hơn 200 thì phần đuôi chưa gỡ được.
 2. **Sổ chiến dịch đếm ba ô số bằng cách kéo 200 dòng về trình duyệt**
    (`campaignFacetQuery`) — cùng chắp vá với `opportunityFacetQuery`, và gãy ở
    chiến dịch thứ 201. Cách sửa thật là `GET /sales/campaigns/scorecard` đếm
@@ -330,9 +421,9 @@ trên. Còn lại:
    ContextRail chưa đi ngược được từ lead về chiến dịch đã chạm nó. Cần thêm
    kind `CP` vào `packages/engines/src/types.ts` + ghi dòng gương vào
    `platform.object` mỗi lần tạo chiến dịch. Đi sau việc FE, không chặn nó.
-6. **`CampaignPatch.ownerId`/`sourceId` không có cách CLEAR** — trường vắng =
-   "không đổi", nên hiện không có API để gỡ chủ/nguồn đã gán về rỗng. Chưa gặp
-   nhu cầu thật, ghi lại để không quên nếu có.
+6. ~~**`CampaignPatch.ownerId`/`sourceId` không có cách CLEAR**~~ — TRẢ 30/08:
+   bốn trường tuỳ chọn nay `.nullable()`, và ba trạng thái tách bạch — VẮNG là
+   "giữ nguyên", `null` là "GỠ về NULL", có giá trị là "đặt".
 
 ---
 
