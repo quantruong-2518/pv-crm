@@ -1,14 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  Badge,
-  Chip,
-  CircleAlert,
-  Icon,
-  Inbox,
-  Skeleton,
-  StatusDot,
-  type StatusDotState,
-} from '@pv/ui'
+import { Badge, Check, Chip, CircleAlert, Icon, Inbox, Skeleton, cn } from '@pv/ui'
 import type { MailRunRecipientRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dmhm } from '@/lib/date'
@@ -26,6 +17,21 @@ import { DELIVERED_MAIL, FAILED_MAIL, mailRunRecipientsQuery } from '@/data/mail
  *  lead to open.
  *
  *  ------------------------------------------------------------------
+ *  THE PANEL BORROWS THE PARENT ROW'S COLUMNS — `template`
+ *  ------------------------------------------------------------------
+ *  This used to be a grid of its own (`1.4fr 1.5fr 1fr auto`), so a company
+ *  name began where no header stood, a badge floated between two columns, and
+ *  the four counters the parent row right-aligns had nothing under them at
+ *  all. Handing the SAME `grid-template-columns` string down puts every child
+ *  cell under the header that names it — the four counters included, and that
+ *  is where this panel stops being a list and becomes the arithmetic: one tick
+ *  per recipient under sent · delivered · opened · bounced, and the ticks in a
+ *  column add up to the number the parent row prints above them.
+ *
+ *  `-mx-1` cancels the `px-1` `DataTable` puts on the panel cell — 4px nobody
+ *  can see on its own, and fatal to a column meant to line up.
+ *
+ *  ------------------------------------------------------------------
  *  NOT A `DataTable`, THOUGH IT IS A LIST
  *  ------------------------------------------------------------------
  *  Law 8 (`docs/luat-thiet-ke.md` §1) puts every table on `.glass-b`, and this
@@ -41,7 +47,7 @@ import { DELIVERED_MAIL, FAILED_MAIL, mailRunRecipientsQuery } from '@/data/mail
  *  campaign costs one round trip instead of ten. The poll beat lives in
  *  `mailRunRecipientsQuery` and follows the state of the LETTERS, not of the
  *  batch. */
-export function WaveRecipients({ runId }: { runId: string }) {
+export function WaveRecipients({ runId, template }: { runId: string; template: string }) {
   const { data, isPending, error } = useQuery(mailRunRecipientsQuery(runId))
   const rows = data?.rows ?? []
 
@@ -76,75 +82,119 @@ export function WaveRecipients({ runId }: { runId: string }) {
   const opened = rows.filter((r) => r.openCount > 0).length
 
   return (
-    <div className="flex flex-col gap-2 px-3">
-      <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-        <span className="text-foreground font-medium">{rows.length} người nhận</span>
-        <span aria-hidden="true">·</span>
-        <span>{opened} đã mở</span>
-        {failed > 0 && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span className="text-warning">{failed} không tới nơi</span>
-          </>
-        )}
+    <div className="-mx-1">
+      {/* The caption rides the same grid, so it starts under the name column —
+          above the names it is counting, not adrift in the left margin. */}
+      <div
+        className="text-muted-foreground grid items-center gap-3 py-1 text-[11px]"
+        style={{ gridTemplateColumns: template }}
+      >
+        <span />
+        <span className="min-w-0 truncate">
+          <span className="text-foreground font-medium">{rows.length} người nhận</span> · {opened}{' '}
+          đã mở
+          {failed > 0 && <span className="text-warning"> · {failed} không tới nơi</span>}
+        </span>
       </div>
 
       <ul className="divide-white/6 divide-y">
         {rows.map((row) => (
-          <RecipientLine key={row.leadCode} row={row} />
+          <RecipientLine key={row.leadCode} row={row} template={template} />
         ))}
       </ul>
     </div>
   )
 }
 
-function RecipientLine({ row }: { row: MailRunRecipientRow }) {
+function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: string }) {
   const face = deliveryFace(row)
 
   return (
-    <li className="grid items-center gap-x-3 gap-y-1 py-2 text-[12px] md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto]">
-      <div className="flex min-w-0 items-center gap-2">
-        <StatusDot state={face.dot} label={face.label} />
-        <span className="truncate" title={row.company}>
-          {row.company}
-        </span>
-        <Chip className="hidden shrink-0 xl:inline-flex">{row.leadCode}</Chip>
-      </div>
+    <li
+      className="grid min-h-11 items-center gap-3 py-2 text-[12px]"
+      style={{ gridTemplateColumns: template }}
+    >
+      {/* `pl-6` lands the lead code under the parent's `#N` chip rather than
+          under its disclosure arrow — an indent that says "this belongs to the
+          row above" without a rule having to say it. */}
+      <span className="flex min-w-0 pl-6">
+        <Chip className="truncate">{row.leadCode}</Chip>
+      </span>
 
       <div className="min-w-0">
-        <span className="block truncate" title={row.email}>
-          {row.email}
+        <span className="block truncate" title={row.company}>
+          {row.company}
         </span>
-        <span className="text-muted-foreground block truncate text-[11px]">{row.contactName}</span>
+        <span
+          className="text-muted-foreground block truncate text-[11px]"
+          title={`${row.email} · ${row.contactName}`}
+        >
+          {row.email} · {row.contactName}
+        </span>
       </div>
 
-      {/* The most important sentence on the line: "no open recorded" is an
-          answer, an empty cell is not — see `signalOf`. */}
-      <span className="text-muted-foreground min-w-0 truncate text-[11px]">{signalOf(row)}</span>
-
-      <div className="flex items-center justify-start gap-2 md:justify-end">
+      <span className="min-w-0">
         <Badge tone={face.tone}>{face.label}</Badge>
-        {face.at && (
-          <span className="text-muted-foreground whitespace-nowrap text-[11px]">{face.at}</span>
-        )}
-        {row.failReason && (
-          <span
-            className="text-warning inline-flex items-center gap-1 text-[11px]"
-            title={row.failReason}
-          >
-            <Icon icon={CircleAlert} size={14} />
-            <span className="hidden max-w-[220px] truncate lg:inline">{row.failReason}</span>
-          </span>
-        )}
+      </span>
+
+      {/* Two lines under the time column, and the second is never both at
+          once: a letter that failed has no open signal to report, and a letter
+          still reporting signals has no failure to explain. */}
+      <div className="min-w-0">
+        <span className="block truncate">{face.at ?? '—'}</span>
+        <span
+          className={cn(
+            'block truncate text-[11px]',
+            row.failReason ? 'text-warning' : 'text-muted-foreground',
+          )}
+          title={row.failReason}
+        >
+          {row.failReason ? (
+            <>
+              <Icon icon={CircleAlert} size={14} className="mr-1 align-[-2px]" />
+              {row.failReason}
+            </>
+          ) : (
+            signalOf(row)
+          )}
+        </span>
       </div>
+
+      {/* The parent's four counters, one recipient at a time. Each test is the
+          one the parent SUMS rather than the nearest-looking one: the arrival
+          tick is `deliveredAt`, not `DELIVERED_MAIL` — a letter merely accepted
+          by the provider counts as sent and not yet as arrived, and that gap is
+          what a reader opens this panel to see. */}
+      <Mark on={row.sentAt !== undefined} label="đã gửi" />
+      <Mark on={row.deliveredAt !== undefined} label="tới nơi" />
+      <Mark on={row.openCount > 0} label="đã mở" />
+      <Mark on={Boolean(FAILED_MAIL[row.deliveryState])} label="bounce" warn />
     </li>
+  )
+}
+
+/** One cell of the tick columns. A middle dot rather than an empty cell, for
+ *  the reason `signalOf` writes a sentence: nothing at all reads as data that
+ *  has not loaded. `Icon` is `aria-hidden`, so the word reaches a screen reader
+ *  through `sr-only` instead. */
+function Mark({ on, label, warn }: { on: boolean; label: string; warn?: boolean }) {
+  return (
+    <span className="flex justify-end">
+      <span className="sr-only">{on ? label : `không ${label}`}</span>
+      {on ? (
+        <Icon icon={Check} size={14} className={warn ? 'text-warning' : 'text-success'} />
+      ) : (
+        <span aria-hidden="true" className="text-muted-foreground/40">
+          ·
+        </span>
+      )}
+    </span>
   )
 }
 
 type DeliveryFace = {
   label: string
   tone: 'draft' | 'warning' | 'success' | 'danger'
-  dot: StatusDotState
   at?: string
 }
 
@@ -159,18 +209,17 @@ type DeliveryFace = {
  *  screen. */
 function deliveryFace(row: MailRunRecipientRow): DeliveryFace {
   if (FAILED_MAIL[row.deliveryState]) {
-    return { label: 'Không tới nơi', tone: 'danger', dot: 'bad' }
+    return { label: 'Không tới nơi', tone: 'danger' }
   }
   if (DELIVERED_MAIL[row.deliveryState]) {
     const at = row.deliveredAt ?? row.sentAt
     return {
       label: row.deliveredAt ? 'Đã tới hộp thư' : 'Đã gửi',
       tone: 'success',
-      dot: 'ok',
       ...(at ? { at: dmhm(at) } : {}),
     }
   }
-  return { label: 'Đang gửi', tone: 'warning', dot: 'current' }
+  return { label: 'Đang gửi', tone: 'warning' }
 }
 
 /** The recipient's signal, or the sentence saying there is not one yet.

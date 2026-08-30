@@ -289,8 +289,9 @@ const NO_SOURCES: ConfigEntry[] = []
  *  chủ — bảng kết quả sẽ báo "0 dòng trùng" cho một lô vừa bị loại ba dòng.
  *  Một cửa chống trùng, và đó là cửa có index đứng sau.
  *
- *  Hai sổ kia (người nhận, cơ hội) KHÔNG có endpoint nào, nên chúng vẫn tự
- *  chống trùng bằng `leadBookKeys` — cùng một panel, hai cách dùng. */
+ *  Cả ba sổ nay đi đường này: cơ hội qua `/sales/opportunities/import`, và sổ
+ *  người nhận của hai màn Nguồn dẫn qua chính hai cửa trên (31/08). `leadBookKeys`
+ *  không còn chỗ gọi nào — nó ở lại `data/intake.ts` cho tới lượt dọn. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
 

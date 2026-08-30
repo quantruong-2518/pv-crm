@@ -27,6 +27,11 @@ export type ConfigPatchDb = {
   kind?: string
 }
 
+/** One row of the merged tally query — see `usage()`. Three flat columns rather
+ *  than fourteen different shapes, so `UNION ALL` can weld them together and the
+ *  mapper can pour them out. */
+export type UsageTally = { bucket: string; key: string; n: number }
+
 /** Không gian khoá tư vấn của riêng bảng này. Con số không mang nghĩa gì, chỉ
  *  cần cố định và không đụng bảng khác — xem `create`. */
 const LOCK_SPACE = 61_001
@@ -52,6 +57,87 @@ export class SalesConfigRepository {
    *  việc đổ vào sáu ô, không phải sắp lại lần nữa. */
   async all(): Promise<ConfigRowDb[]> {
     return this.db.select().from(configEntry).orderBy(configEntry.list, configEntry.ord)
+  }
+
+  /** HOW MANY ROWS LEAN ON EACH CONFIGURATION ENTRY — the key rule lives at
+   *  `ConfigUsage` in `@pv/contracts` and is deliberately not repeated here.
+   *
+   *  ------------------------------------------------------------------
+   *  ONE `UNION ALL`, NOT FOURTEEN ROUND TRIPS
+   *  ------------------------------------------------------------------
+   *  Fourteen counts across four tables would be fourteen trips to Neon written
+   *  separately, for a screen that needs all fourteen the moment it opens.
+   *  Welded into `(bucket, key, n)` Postgres still scans `sales.lead` once per
+   *  branch but answers once — and the mapper pours those three columns into the
+   *  contract shape without having to know which branch counted what.
+   *
+   *  ------------------------------------------------------------------
+   *  RAW SQL, AND THAT IS A CHOICE
+   *  ------------------------------------------------------------------
+   *  Drizzle's builder can express each branch, but a fourteen-branch
+   *  `UNION ALL` over fourteen different `GROUP BY` shapes written through the
+   *  builder is three times as long and nobody can read what it counts. Same
+   *  reason `graph.repository.ts` writes its recursive CTE by hand.
+   *
+   *  The six `slots` branches copy the six summands of the generated column
+   *  `sales.lead.required_filled` (`lead.schema.ts`) EXACTLY — not for
+   *  resemblance, but because that column IS the definition of "this slot was
+   *  filled". Change one side and forget the other and these six numbers stop
+   *  matching that column's own distribution; the column's docblock already says
+   *  not to edit one side alone.
+   *
+   *  `CHANNEL` has no branch: no column in the database records a send channel.
+   *  The mapper hands back an empty table for it. */
+  async usage(): Promise<UsageTally[]> {
+    /* `Db` is the driver-agnostic type, so `execute()` cannot know the result
+       shape in advance — the same spot that has to be said by hand in
+       `graph.repository.ts`. */
+    const result = (await this.db.execute(sql`
+      SELECT 'STAGE' AS bucket, stage AS key, count(*)::int AS n
+        FROM sales.lead WHERE stage IS NOT NULL GROUP BY stage
+      UNION ALL
+      SELECT 'TIER', tier, count(*)::int
+        FROM sales.lead WHERE tier IS NOT NULL GROUP BY tier
+      UNION ALL
+      SELECT 'CATEGORY', category, count(*)::int
+        FROM sales.lead WHERE category IS NOT NULL GROUP BY category
+      UNION ALL
+      SELECT 'EXIT_REASON', exit_reason, count(*)::int
+        FROM sales.lead WHERE exit_reason IS NOT NULL GROUP BY exit_reason
+      UNION ALL
+      SELECT 'SOURCE', campaign_id, count(*)::int
+        FROM sales.lead WHERE campaign_id IS NOT NULL GROUP BY campaign_id
+      UNION ALL
+      SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
+        FROM platform.actor GROUP BY split_part(role, ' · ', 1)
+      UNION ALL
+      SELECT 'slots', '1', count(*)::int FROM sales.lead
+       WHERE legal_name IS NOT NULL OR tax_code IS NOT NULL OR address IS NOT NULL
+      UNION ALL
+      SELECT 'slots', '2', count(*)::int FROM sales.lead WHERE main_product IS NOT NULL
+      UNION ALL
+      SELECT 'slots', '3', count(*)::int FROM sales.lead
+       WHERE headcount IS NOT NULL OR plants IS NOT NULL
+      UNION ALL
+      SELECT 'slots', '4', count(*)::int FROM sales.lead WHERE contact_title IS NOT NULL
+      UNION ALL
+      SELECT 'slots', '5', count(*)::int FROM sales.lead
+       WHERE phone IS NOT NULL OR contact_channel IS NOT NULL
+      UNION ALL
+      SELECT 'slots', '6', count(*)::int FROM sales.lead WHERE pain IS NOT NULL
+      UNION ALL
+      SELECT 'signedDeals', '', count(DISTINCT lead_code)::int FROM sales.contract
+      UNION ALL
+      /* "Still running" = not exited AND not signed, the same branch as
+         lead.repository.ts#statusFilter. Early tiers = every tier but 'sql'.
+         No backticks inside this block: one would close the template literal. */
+      SELECT 'earlyStageLeads', '', count(*)::int FROM sales.lead l
+       WHERE l.exit_reason IS NULL
+         AND l.tier IS DISTINCT FROM 'sql'
+         AND NOT EXISTS (SELECT 1 FROM sales.contract c WHERE c.lead_code = l.code)
+    `)) as unknown as { rows: UsageTally[] }
+
+    return result.rows
   }
 
   /** Một danh mục, kể cả dòng đã tắt.

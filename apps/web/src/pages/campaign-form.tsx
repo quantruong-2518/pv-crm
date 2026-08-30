@@ -36,7 +36,6 @@ import {
   Plus,
   ScreenHeader,
   ScreenLayout,
-  ScreenScoreGrid,
   SearchField,
   SectionTitle,
   Select,
@@ -56,7 +55,7 @@ import {
   type TableColumn,
 } from '@pv/ui'
 import type { Actor } from '@pv/engines'
-import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
+import { CAMPAIGN_START_MAX_WAVES, MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import type {
   CampaignPatch,
   CampaignProfile,
@@ -626,12 +625,7 @@ function CampaignForm({
               submitting={submitting}
             />
           ) : (
-            campaign && (
-              <OverviewStep
-                campaign={campaign}
-                {...(canEdit ? { onEdit: () => setStep(0) } : {})}
-              />
-            )
+            campaign && <OverviewStep campaign={campaign} />
           ))}
       </ScreenLayout>
     </AppShell>
@@ -802,10 +796,15 @@ function ThumbnailPreview({
   url,
   empty,
   broken: brokenNote,
+  className,
 }: {
   url: string
   empty: string
   broken: string
+  /** The overview lays this out as a bento tile whose height comes from the
+   *  tiles beside it, so it hands in `aspect-auto` — 16:9 stays the default
+   *  everywhere the frame stands on its own. */
+  className?: string
 }) {
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [url])
@@ -813,7 +812,7 @@ function ThumbnailPreview({
   return (
     <GlassCard
       variant="a"
-      className="flex aspect-video items-center justify-center overflow-hidden p-0"
+      className={cn('flex aspect-video items-center justify-center overflow-hidden p-0', className)}
     >
       {url === '' || broken ? (
         <div className="flex flex-col items-center gap-2 px-6 text-center">
@@ -852,38 +851,72 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** EVERYTHING THE CAMPAIGN IS, on the screen that is meant to be the answer.
+/** EVERYTHING THE CAMPAIGN IS, on the screen that is meant to be the answer —
+ *  one bento band instead of a profile card stacked on a counter strip.
  *
- *  The overview used to open on four counters and a wave table — every number
- *  about the SENDING and nothing about the campaign itself, so the one screen
- *  whose whole name promises an overview was the one screen that could not say
- *  who owns this campaign or what its picture is. The picture especially: it is
- *  typed on step 1 and, until now, was never shown anywhere afterwards.
+ *  ------------------------------------------------------------------
+ *  WHY ONE GRID AND NOT TWO BLOCKS
+ *  ------------------------------------------------------------------
+ *  The profile card ran the full width and the four counters ran the full
+ *  width under it, so on a 1800px screen the overview opened on ~380px of
+ *  chrome carrying nine short facts and four one-digit numbers — and the wave
+ *  table, the thing a reader actually came for, started below the fold.
  *
- *  Name and slogan are NOT repeated here — `ScreenHeader` is already carrying
- *  them two rows above, and a title printed twice on one screen reads as two
- *  different things at a glance. */
-function CampaignFacts({ campaign, onEdit }: { campaign: CampaignProfile; onEdit?: () => void }) {
+ *  ------------------------------------------------------------------
+ *  ONE ROW, AND THE COUNTER TILE IS WHAT SETS ITS HEIGHT
+ *  ------------------------------------------------------------------
+ *  A compact `StatCard` is ~100px of content and cannot be told to be less, so
+ *  ANY band taller than that is dead space inside four tiles at once. Stacking
+ *  the counters two deep made the band 212px and paid for it twice: 112px of
+ *  air in the counters, and a profile tile spreading six facts over a height it
+ *  never asked for. Six tracks side by side instead — picture · profile · four
+ *  counters — puts the whole band at the height of its tallest natural tile,
+ *  ~115px.
+ *
+ *  The picture takes `aspect-auto` here for the same reason: a 16:9 frame in
+ *  this row would be the tallest thing in it and would set the band height
+ *  itself. It fills whatever the row turns out to be, cropping from the centre.
+ *
+ *  Sibling tiles, never nested: a `GlassCard` inside a `GlassCard` is the fifth
+ *  background layer law 12 forbids, which is also why the counters keep their
+ *  own glass rather than moving inside the profile tile.
+ *
+ *  ------------------------------------------------------------------
+ *  WHAT WAS DROPPED — ALL OF IT WAS ALREADY ON THE SCREEN
+ *  ------------------------------------------------------------------
+ *  Audience size and wave count are the first counter tile and its own hint,
+ *  two tracks to the right and ten times the size; the slogan is the
+ *  `ScreenHeader` description one row above — which the old docblock here
+ *  already claimed was the rule, while printing it anyway. Name is absent for
+ *  the same reason: a title printed twice on one screen reads as two different
+ *  things at a glance.
+ *
+ *  The tile's own heading and its edit button went with them. `headerActions`
+ *  carries a bigger, always-visible edit-profile button running the same
+ *  `setStep(0)`, and the heading was 30px of the band — a quarter of it —
+ *  spent naming six facts that already carry their own labels. */
+function CampaignBento({ campaign }: { campaign: CampaignProfile }) {
+  const totals = campaign.waves.reduce(
+    (acc, w) => ({
+      sent: acc.sent + w.run.sent,
+      delivered: acc.delivered + w.run.delivered,
+      opened: acc.opened + w.run.opened,
+      bounced: acc.bounced + w.run.bounced,
+    }),
+    { sent: 0, delivered: 0, opened: 0, bounced: 0 },
+  )
+
   return (
-    <GlassCard className="grid gap-5 p-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-6 lg:p-6">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,3.2fr)_repeat(4,minmax(0,1fr))]">
       <ThumbnailPreview
         url={campaign.thumbnailUrl ?? ''}
         empty="Chiến dịch chưa gắn ảnh."
         broken="Ảnh của chiến dịch không tải được — địa chỉ có thể đã hỏng."
+        className="sm:col-span-2 xl:col-span-1 xl:aspect-auto"
       />
 
-      <div className="flex min-w-0 flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <SectionTitle>Hồ sơ chiến dịch</SectionTitle>
-          {onEdit && (
-            <Button size="sm" variant="ghost" onClick={onEdit}>
-              <Icon icon={PenLine} size={14} />
-              Sửa
-            </Button>
-          )}
-        </div>
-
-        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+      <GlassCard className="flex min-w-0 flex-col justify-center p-4 sm:col-span-2 xl:col-span-1">
+        <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
           <Fact label="Mã chiến dịch">
             <Chip>{campaign.code}</Chip>
           </Fact>
@@ -894,18 +927,40 @@ function CampaignFacts({ campaign, onEdit }: { campaign: CampaignProfile; onEdit
           </Fact>
           <Fact label="Chủ chiến dịch">{campaign.ownerName ?? 'Chưa gán'}</Fact>
           <Fact label="Nguồn dẫn">{campaign.sourceName ?? 'Chưa gán'}</Fact>
-          <Fact label="Người nhận trong tệp">
-            <span className="tnum">{campaign.audienceCount.toLocaleString('vi-VN')}</span> người
-          </Fact>
-          <Fact label="Đợt đã bắn">
-            <span className="tnum">{campaign.waveCount.toLocaleString('vi-VN')}</span> đợt
-          </Fact>
           <Fact label="Mở lúc">{dmhm(campaign.createdAt)}</Fact>
           <Fact label="Sửa gần nhất">{dmhm(campaign.updatedAt)}</Fact>
-          <Fact label="Slogan">{campaign.slogan ?? '—'}</Fact>
         </dl>
-      </div>
-    </GlassCard>
+      </GlassCard>
+
+      <StatCard
+        size="compact"
+        icon={Inbox}
+        value={campaign.audienceCount.toLocaleString('vi-VN')}
+        label="Người nhận trong tệp"
+        hint={`${campaign.waveCount} đợt đã bắn`}
+      />
+      <StatCard
+        size="compact"
+        icon={Send}
+        value={totals.sent.toLocaleString('vi-VN')}
+        label="Thư đã rời máy"
+        hint="cộng mọi đợt"
+      />
+      <StatCard
+        size="compact"
+        icon={UserPlus}
+        value={totals.opened.toLocaleString('vi-VN')}
+        label="Có người mở"
+        hint={totals.delivered > 0 ? percent(totals.opened / totals.delivered) : '—'}
+      />
+      <StatCard
+        size="compact"
+        icon={CircleAlert}
+        value={totals.bounced.toLocaleString('vi-VN')}
+        label="Bounce"
+        hint={totals.sent > 0 ? `${percent(totals.bounced / totals.sent)} · trần 4%` : 'trần 4%'}
+      />
+    </div>
   )
 }
 
@@ -1558,12 +1613,24 @@ function WaveComposer({
   setState,
   templates,
   showAdd = true,
+  alreadyFired = 0,
 }: {
   state: ComposerState
   setState: Dispatch<SetStateAction<ComposerState>>
   templates: MailTemplateRow[]
   /** Off for a running campaign: see `WaveAddStep`, one wave per round. */
   showAdd?: boolean
+  /** WAVES THIS CAMPAIGN HAS ALREADY FIRED — the number the composer counts up
+   *  FROM.
+   *
+   *  `ComposerState` is a local draft and knows nothing of the server, so
+   *  numbering off `committed.length` alone made every composer open at wave
+   *  one. On `WaveAddStep` that put three labels on one screen contradicting
+   *  the two beside them: a compose heading and a timeline marker both reading
+   *  wave 1, over a send button reading wave 5, above a table listing the four
+   *  waves already gone. The button was right — it reads `campaign.waveCount` —
+   *  so the count now comes in from that same place. */
+  alreadyFired?: number
 }) {
   const pickTemplate = (value: string) => {
     const found = templates.find((t) => t.code === value)
@@ -1597,8 +1664,8 @@ function WaveComposer({
   })
 
   const draftValid = composerDraftValid(state)
-  const canAdd = draftValid && state.committed.length < 20
-  const nextIndex = state.committed.length + 1
+  const canAdd = draftValid && state.committed.length < CAMPAIGN_START_MAX_WAVES
+  const nextIndex = alreadyFired + state.committed.length + 1
   const totalCount = effectiveWaves(state).length
   const draftTouched =
     state.label.trim() !== '' || state.subject.trim() !== '' || state.body.trim() !== ''
@@ -1767,7 +1834,15 @@ function WaveComposer({
 
       <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6">
         <div className="flex items-center justify-between gap-2">
-          <SectionTitle>Chuỗi đợt · {totalCount}/20</SectionTitle>
+          {/* Two panels, two honest titles. Stacking waves into one `/start`
+              body is the only mode where a chain and a ceiling exist — the
+              ceiling bounds THAT body. `WaveAddStep` sends one wave per round
+              against an endpoint that has no such cap, so printing `1/20`
+              there invented both a chain of one and a limit that is not the
+              campaign's. */}
+          <SectionTitle>
+            {showAdd ? `Chuỗi đợt · ${totalCount}/${CAMPAIGN_START_MAX_WAVES}` : `Đợt ${nextIndex}`}
+          </SectionTitle>
           {showAdd && (
             <Button size="sm" variant="ghost" onClick={addEvent} disabled={!canAdd}>
               <Icon icon={Plus} size={14} />
@@ -1781,7 +1856,7 @@ function WaveComposer({
             ...state.committed.map((w, i) => ({
               id: w.localId,
               state: 'next' as const,
-              marker: `Đợt ${i + 1}`,
+              marker: `Đợt ${alreadyFired + i + 1}`,
               title: w.label,
               meta: (
                 <MetaPill>
@@ -1988,7 +2063,13 @@ function WaveAddStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <WaveComposer state={composer} setState={setComposer} templates={templates} showAdd={false} />
+      <WaveComposer
+        state={composer}
+        setState={setComposer}
+        templates={templates}
+        showAdd={false}
+        alreadyFired={campaign.waveCount}
+      />
       {overCeiling && (
         <p className="text-warning text-[12px]">{ceilingNote(campaign.audienceCount)}</p>
       )}
@@ -2042,6 +2123,12 @@ const WAVE_COLUMNS: TableColumn[] = [
   { header: 'Bounce', width: '84px', align: 'right' },
 ]
 
+/** The same track list the rows are drawn on, handed to the panel that opens
+ *  UNDER a row so its cells land under the headers that name them — see
+ *  `WaveRecipients`. Derived, never retyped: two column lists claiming to be
+ *  one is the drift this string exists to prevent. */
+const WAVE_TEMPLATE = WAVE_COLUMNS.map((c) => c.width).join(' ')
+
 /** THE WAVE LIST — and, one click down, the letters behind each of its numbers.
  *
  *  A row here sums a whole batch. WHICH of the three recipients bounced, who
@@ -2080,7 +2167,9 @@ function WaveTable({ campaign }: { campaign: CampaignProfile }) {
               return {
                 id: String(w.waveNo),
                 onOpen: toggle,
-                ...(open ? { details: <WaveRecipients runId={w.run.id} /> } : {}),
+                ...(open
+                  ? { details: <WaveRecipients runId={w.run.id} template={WAVE_TEMPLATE} /> }
+                  : {}),
                 cells: [
                   <span key="n" className="flex items-center gap-1">
                     {/* A real button BESIDE the row's own click target, not
@@ -2251,54 +2340,17 @@ function ReviewCreateStep({
   )
 }
 
-function OverviewStep({ campaign, onEdit }: { campaign: CampaignProfile; onEdit?: () => void }) {
-  const totals = campaign.waves.reduce(
-    (acc, w) => ({
-      sent: acc.sent + w.run.sent,
-      delivered: acc.delivered + w.run.delivered,
-      opened: acc.opened + w.run.opened,
-      bounced: acc.bounced + w.run.bounced,
-    }),
-    { sent: 0, delivered: 0, opened: 0, bounced: 0 },
-  )
-
+function OverviewStep({ campaign }: { campaign: CampaignProfile }) {
   return (
-    <div className="flex flex-col gap-6">
-      <CampaignFacts campaign={campaign} {...(onEdit ? { onEdit } : {})} />
-
-      <ScreenScoreGrid>
-        <StatCard
-          size="compact"
-          icon={Inbox}
-          value={campaign.audienceCount.toLocaleString('vi-VN')}
-          label="Người nhận trong tệp"
-          hint={`${campaign.waveCount} đợt đã bắn`}
-        />
-        <StatCard
-          size="compact"
-          icon={Send}
-          value={totals.sent.toLocaleString('vi-VN')}
-          label="Thư đã rời máy"
-          hint="cộng mọi đợt"
-        />
-        <StatCard
-          size="compact"
-          icon={UserPlus}
-          value={totals.opened.toLocaleString('vi-VN')}
-          label="Có người mở"
-          hint={totals.delivered > 0 ? percent(totals.opened / totals.delivered) : '—'}
-        />
-        <StatCard
-          size="compact"
-          icon={CircleAlert}
-          value={totals.bounced.toLocaleString('vi-VN')}
-          label="Bounce"
-          hint={totals.sent > 0 ? `${percent(totals.bounced / totals.sent)} · trần 4%` : 'trần 4%'}
-        />
-      </ScreenScoreGrid>
+    <div className="flex flex-col gap-5">
+      <CampaignBento campaign={campaign} />
 
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+        {/* Title and hint stack rather than sitting at opposite ends of a
+            `justify-between` row: on a wide screen that put the sentence
+            explaining the table a thousand pixels from the table's name, where
+            it read as an unrelated note. */}
+        <div className="flex flex-col gap-1">
           <SectionTitle>Chuỗi đợt</SectionTitle>
           <span className="text-muted-foreground text-[11px]">
             Bấm một đợt để xem thư của từng người nhận đi tới đâu.

@@ -21,7 +21,6 @@ import {
   domainsOf,
   isOverSla,
   isRunning,
-  LEADS,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
   leadContact,
@@ -178,24 +177,15 @@ export const leadSourceKindFacetQuery = queryOptions({
     }),
 })
 
-/** Sổ ĐÓNG BĂNG — fixture, và vẫn là sổ duy nhất của bốn màn chưa cắt.
- *
- *  Giữ `load` là giữ chúng sống: cả chuỗi interceptor vẫn chạy y hệt, chỉ có
- *  nguồn dữ liệu là fixture thay vì mạng (xem docblock đầu `app/api/client.ts`).
- *  Xoá dòng `load` ở đây là nghi thức cắt màn tiếp theo — không phải việc của
- *  đợt này. */
-async function loadFrozenBook(): Promise<FrozenLead[]> {
-  return LEADS
-}
+/* `frozenLeadBookQuery` XOÁ 31/08 cùng `loadFrozenBook`. Nó là sổ fixture 100
+   dòng mà hai màn Nguồn dẫn đọc để chống trùng và cấp mã cho lô nạp; cả hai
+   việc đó nay do máy chủ làm (`data/lead-import.ts` · `POST /sales/leads/import`),
+   nên nó hết chỗ gọi cuối cùng. Docblock cũ của nó chờ `GET /sales/leads/:code`
+   — cửa đó đã lên từ trước, không ai quay lại gỡ.
 
-export const frozenLeadBookQuery = queryOptions({
-  queryKey: ['sales', 'lead-book', 'frozen'] as const,
-  queryFn: () =>
-    api.read('/sales/leads', {
-      need: BOOK_NEED,
-      load: loadFrozenBook,
-    }),
-})
+   `myWork` bên dưới vẫn nhận `FrozenLead[]` và vẫn không có màn nào gọi. Ngày
+   dựng lại màn việc, nó đọc `leadBookQuery` — sổ thật, phân trang ở máy chủ —
+   chứ không phải một sổ đóng băng khác. */
 
 // ---------------------------------------------------------------------------
 // Xuất xứ — bốn kiểu, bốn cách nói và bốn hình

@@ -95,6 +95,73 @@ export const ConfigEntry = z.object({
   kind: z.string().min(1).optional(),
 })
 
+/** One tally table: key -> how many rows currently hold that value. */
+const Tally = z.record(z.string(), z.number().int().nonnegative())
+
+/** HOW MANY ROWS ARE LEANING ON EACH CONFIGURATION ENTRY.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THIS RIDES WITH THE CATALOG RATHER THAN A DOOR OF ITS OWN
+ *  ------------------------------------------------------------------
+ *  These are not decorative numbers: they are what decides whether a change has
+ *  to go through E3. Dropping an exit reason that 21 leads are standing on
+ *  leaves those 21 rows with nowhere to stand, which is not a call one person
+ *  makes alone. A catalog served without its counts is a screen that asks the
+ *  approver to guess, so the two travel together.
+ *
+ *  ------------------------------------------------------------------
+ *  THE KEY IS WHAT THE COLUMN HOLDS, NOT THE ENTRY'S `id`
+ *  ------------------------------------------------------------------
+ *  One rule for all six tables, and it is not pretty because the data is not
+ *  pretty yet:
+ *
+ *   · `SOURCE` — the key IS the config id ('SR-03'), because
+ *     `sales.lead.campaign_id` references `config_entry.id`. This is the ONLY
+ *     list with a real relation today.
+ *   · `STAGE` · `TIER` · `CATEGORY` · `EXIT_REASON` — the key is the lower-case
+ *     slug the column holds ('cho-ky', 'chip'), because `sales.lead` does not
+ *     carry config ids yet. That debt is written down at `docs/fix-later.md` §6;
+ *     the server does NOT invent a name-to-slug join to paper over it, because a
+ *     join that has to be guessed is a join that goes wrong silently the day
+ *     somebody edits a label.
+ *   · `CHANNEL` — always empty: no column in the database records a send
+ *     channel. Empty is the correct answer, not an oversight.
+ *
+ *  The reader joins on the key it already holds. The day §6 is paid this rule
+ *  does not change a word — only the keys change, from the old strings to ids,
+ *  and the reader drops its fixture lookup table.
+ *
+ *  An entry nothing points at is ABSENT from the table rather than present with
+ *  a zero. The reader writes `?? 0` once instead of the server shipping sixty
+ *  zeroes down the wire. */
+export const ConfigUsage = z.object({
+  STAGE: Tally,
+  TIER: Tally,
+  CATEGORY: Tally,
+  EXIT_REASON: Tally,
+  CHANNEL: Tally,
+  SOURCE: Tally,
+
+  /** Required profile slots, keyed by SLOT NUMBER ('1'…'6') — the same numbering
+   *  the generated column `sales.lead.required_filled` sums over and the config
+   *  screen prints (`INIT_DATA_QUESTIONS[].no`). Not a position in an array:
+   *  reordering the questions on screen does not move the numbers. */
+  slots: Tally,
+
+  /** People in the department by ROLE, keyed by `platform.actor.role` with the
+   *  category suffix cut off ('Sale · chip' -> 'Sale'). Cut on the server
+   *  because that is where the column's shape is known; three screens cutting it
+   *  themselves is three ways of cutting it. */
+  roles: Tally,
+
+  /** Leads with a signed contract — the deals the commission split applies to. */
+  signedDeals: z.number().int().nonnegative(),
+
+  /** Leads still running in the two early tiers, i.e. rows no SLA limit applies
+   *  to at all. This is the price of leaving 5.5 unset, said as a number. */
+  earlyStageLeads: z.number().int().nonnegative(),
+})
+
 /** Cả sáu danh mục, trả MỘT lần.
  *
  *  Màn Cấu hình hiện cả sáu cùng lúc, và mọi màn khác cần bảng tra nhãn cũng
@@ -107,6 +174,7 @@ export const ConfigBundle = z.object({
   EXIT_REASON: z.array(ConfigEntry),
   CHANNEL: z.array(ConfigEntry),
   SOURCE: z.array(ConfigEntry),
+  usage: ConfigUsage,
 })
 
 /** Một danh mục. Mang theo `list` chứ không trả mảng trần: một mảng rời khỏi
@@ -175,6 +243,7 @@ export const ConfigOrderPatch = z
   })
 
 export type ConfigEntry = z.infer<typeof ConfigEntry>
+export type ConfigUsage = z.infer<typeof ConfigUsage>
 export type ConfigBundle = z.infer<typeof ConfigBundle>
 export type ConfigListResponse = z.infer<typeof ConfigListResponse>
 export type ConfigEntryCreate = z.infer<typeof ConfigEntryCreate>

@@ -176,8 +176,15 @@ export const CampaignWaveInput = MasSendRequest.omit({ leadCodes: true, campaign
  *  CHƯA có đợt nào; đợt thứ hai trở đi đi qua `CampaignWaveAdd` bên dưới, nơi
  *  máy chủ tự đọc audience đã đóng băng. Trần 20 đợt là để chặn một request
  *  khổng lồ, không phải trần thật của một chiến dịch. */
+/** The cap on ONE `/start` body, exported because the composer prints it as
+ *  `n/20` and a ceiling the screen retypes is a ceiling that drifts from the
+ *  one the server enforces. Read the paragraph above before reusing it: this
+ *  bounds a REQUEST, not a campaign — `POST /waves` adds wave 21 without ever
+ *  seeing this number. */
+export const CAMPAIGN_START_MAX_WAVES = 20
+
 export const CampaignStart = z.object({
-  waves: z.array(CampaignWaveInput).min(1).max(20),
+  waves: z.array(CampaignWaveInput).min(1).max(CAMPAIGN_START_MAX_WAVES),
 })
 
 export const CampaignStartResponse = z.object({

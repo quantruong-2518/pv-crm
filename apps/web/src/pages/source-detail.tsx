@@ -44,11 +44,10 @@ import {
 import { useAppChrome } from '@/app/chrome'
 import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
-import { useIntakeDesk } from '@/app/intake-desk'
 import { toast } from '@/app/toast'
 import { STATUS_LABEL, STATUS_TONE, sourcesQuery } from '@/data/campaigns'
-import { RECIPIENT_SPEC, leadBookKeys, rowsToLeads } from '@/data/intake'
-import { frozenLeadBookQuery } from '@/data/leads'
+import { RECIPIENT_SPEC } from '@/data/intake'
+import { useLeadImport } from '@/data/lead-import'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { CampaignForm, NotDoing } from './source-parts'
@@ -81,6 +80,10 @@ import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './sour
  *  hồ sơ — không đẻ màn thứ ba.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
+/** The import panel drops NOTHING before the server has seen the batch — full
+ *  reasoning at `NO_LOCAL_KEYS` in `pages/leads.tsx`. */
+const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
+
 export function SourceDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
   const navigate = useNavigate()
@@ -88,12 +91,9 @@ export function SourceDetailPage() {
   const { data: sources = [], isPending } = useQuery(sourcesQuery)
   const me = useSession((s) => s.actor?.name ?? null)
 
-  /* Sổ lead đọc ở đây CHỈ để chống trùng và cấp mã cho lô nạp — màn không vẽ
-     dòng lead nào (lý do ở "Cố tình không làm"). Hook nằm trên hai cửa thoát
-     sớm bên dưới, vì thứ tự hook không được đổi giữa hai lượt vẽ. */
-  const { data: leadBook = [] } = useQuery(frozenLeadBookQuery)
-  const importedLeads = useIntakeDesk((s) => s.leads)
-  const addLeads = useIntakeDesk((s) => s.addLeads)
+  /* This hook sits ABOVE the two early returns below — hook order must not
+     change between renders. */
+  const loadFile = useLeadImport()
 
   /* Bốn state POC — màn CHỈ có một chiến dịch nên chúng là state phẳng: đổi
      chiến dịch là đổi đường dẫn, tức component dựng lại từ đầu. */
@@ -136,53 +136,31 @@ export function SourceDetailPage() {
   const now = followers ?? source.followers
   const following = me !== null && now.includes(me)
 
-  /* Danh sách người nhận nạp vào ĐÂY mang mã nguồn của chính chiến dịch này.
-     Khoá chống trùng dựng trên cả sổ lead lẫn dòng đã nạp — cùng một tệp nạp
-     hai lần không được đẻ ra hai bộ lead. */
-  const seen = [...importedLeads, ...leadBook]
-  const recipientKeys = leadBookKeys(seen)
+  /* A recipient list loaded HERE carries this campaign's own source code, and
+     goes straight to the server through the two doors the lead book already
+     uses (`data/lead-import.ts`). Before 31/08 it wrote into `useIntakeDesk` —
+     a zustand store in the browser — and then toasted "into the lead book"
+     while Neon received nothing. */
+  const commitRecipients = async ({ rows, motion, fileName }: ImportCommit) => {
+    const run = await loadFile({ rows, motion, fileName, source: source.code })
+    const { report } = run
 
-  const commitRecipients = ({ rows, motion, fileName, report }: ImportCommit) => {
-    const at = new Date().toISOString()
-    const by = me ?? 'Không rõ'
-
-    addLeads(
-      {
-        spec: 'recipient',
-        scope: source.code,
-        fileName,
-        motion,
-        intake: RECIPIENT_SPEC.intake,
-        at,
-        by,
-        accepted: rows.length,
-        duplicates: report.duplicates,
-        dupInFile: report.dupInFile,
-        errors: report.errors.length,
-      },
-      (batchId) =>
-        rowsToLeads(rows, {
-          book: seen,
-          motion,
-          intake: RECIPIENT_SPEC.intake,
-          source: source.code,
-          batchId,
-          at,
-          by,
-        }),
-    )
-
-    toast(`${rows.length} người nhận vào sổ lead, gắn nguồn ${source.code}`, {
-      tone: 'success',
-      detail:
-        report.duplicates > 0
-          ? `${report.duplicates} dòng đã có trong sổ nên bỏ qua — không nạp trùng.`
-          : undefined,
+    toast(run.failure ?? `${report.rows.length} người nhận vào sổ lead, gắn nguồn ${source.code}`, {
+      tone: run.failure ? 'danger' : 'success',
+      detail: [
+        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, bỏ qua`,
+        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
+        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       action: {
         label: 'Mở sổ lead',
         onClick: () => navigate(`/sales/leads?source=${source.code}`),
       },
     })
+
+    return report
   }
 
   /* "Đã dừng" là state của phiên này, đè lên trạng thái suy từ dữ liệu. Một
@@ -527,7 +505,7 @@ export function SourceDetailPage() {
                 nhân bản chiến dịch rồi lọc lại từ sổ. */}
               <ImportZone
                 spec={RECIPIENT_SPEC}
-                existingKeys={recipientKeys}
+                existingKeys={NO_LOCAL_KEYS}
                 scope={source.code}
                 scopeLabel={`${source.code} · ${source.label}`}
                 buttonLabel="Nạp danh sách từ tệp"

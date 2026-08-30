@@ -20,7 +20,13 @@ import { MOTION_BY_INTAKE } from '@pv/engines'
 import { HEAD_OF_SALES, dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
-import { ANCHOR_CODE, salesConfigQuery } from '@/data/sales-config'
+import {
+  ANCHOR_CODE,
+  exitReasonRows,
+  naturalSources,
+  salesCatalogQuery,
+  salesConfigQuery,
+} from '@/data/sales-config'
 
 /** Module 6 · Cấu hình.
  *
@@ -63,6 +69,22 @@ import { ANCHOR_CODE, salesConfigQuery } from '@/data/sales-config'
 export function SalesConfigPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm mục cấu hình…' })
   const { data: cfg, isPending } = useQuery(salesConfigQuery)
+
+  /* TWO QUERIES, AND THE LINE BETWEEN THEM IS THE LINE BETWEEN RULES AND COUNTS.
+     `salesConfigQuery` carries the department's RULES — profile questions,
+     commission split, channel table — things `config_entry` cannot hold yet, so
+     it still reads a fixture through `load:`. `salesCatalogQuery` carries the
+     REAL catalog and EVERY number (`usage`), counted in SQL against Neon. Before
+     31/08 the counts on this screen ran over a frozen 100-row fixture while the
+     lead book next door counted 121 — two answers to one question.
+
+     `usage` is absent until that query lands: every read is `?? 0`, so the
+     screen draws with zeroes and corrects itself, rather than blocking the whole
+     page behind a second wait. */
+  const { data: catalog } = useQuery(salesCatalogQuery)
+  const usage = catalog?.usage
+  const exitReasons = exitReasonRows(catalog)
+  const natural = naturalSources(catalog)
 
   /** Mọi thay đổi gom vào đây rồi gửi một lần (luật 2 của module). */
   const [changes, setChanges] = useState<string[]>([])
@@ -170,7 +192,7 @@ export function SalesConfigPage() {
                           <span className="font-mono">{q.no}.</span> {q.label}
                         </span>
                         <span className="text-muted-foreground tnum font-num text-[11px]">
-                          {q.usage} lead đã điền
+                          {usage?.slots[String(q.no)] ?? 0} lead đã điền
                         </span>
                         <Button
                           size="sm"
@@ -226,7 +248,7 @@ export function SalesConfigPage() {
                         }
                       />,
                       <span key="u" className="tnum font-num">
-                        {s.usage} đơn
+                        {usage?.STAGE[s.key] ?? 0} đơn
                       </span>,
                     ],
                   }))}
@@ -258,7 +280,7 @@ export function SalesConfigPage() {
                       c.label,
                       c.sale,
                       <span key="u" className="tnum font-num">
-                        {c.usage} lead
+                        {usage?.CATEGORY[c.key] ?? 0} lead
                       </span>,
                     ],
                   }))}
@@ -283,8 +305,8 @@ export function SalesConfigPage() {
                     { header: 'Lý do', width: '2fr' },
                     { header: 'Lead đã rơi', width: '1fr', align: 'right' },
                   ]}
-                  rows={cfg.exitReasons.map((r) => ({
-                    id: r.label,
+                  rows={exitReasons.map((r) => ({
+                    id: r.key,
                     cells: [
                       r.label,
                       <span key="u" className="tnum font-num">
@@ -331,7 +353,8 @@ export function SalesConfigPage() {
                 </div>
               </div>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Đang có <span className="tnum font-num">{cfg.earlyStageLeads} lead đang chạy</span>{' '}
+                Đang có{' '}
+                <span className="tnum font-num">{usage?.earlyStageLeads ?? 0} lead đang chạy</span>{' '}
                 ở hai bậc đó, và không dòng nào có hạn để quá. Đó là cái giá của ô trống, nói thẳng
                 ra.
               </p>
@@ -360,9 +383,10 @@ export function SalesConfigPage() {
                 <span className="tnum font-num">
                   {cfg.commission.moCua + cfg.commission.chot + cfg.commission.diCungDemo}
                 </span>
-                , và đang áp cho <span className="tnum font-num">{cfg.signedDeals} hợp đồng</span>{' '}
-                đã ký trong kỳ. Đơn đổi tay giữa hai Sale thì chia lại phần chốt theo số lần chạm;
-                phần của BD không đụng tới.
+                , và đang áp cho{' '}
+                <span className="tnum font-num">{usage?.signedDeals ?? 0} hợp đồng</span> đã ký
+                trong kỳ. Đơn đổi tay giữa hai Sale thì chia lại phần chốt theo số lần chạm; phần
+                của BD không đụng tới.
               </p>
 
               <GlassCard variant="b" className="p-4">
@@ -384,7 +408,7 @@ export function SalesConfigPage() {
                         </span>
                       ),
                       <span key="u" className="tnum font-num">
-                        {r.usage} người
+                        {usage?.roles[r.role] ?? 0} người
                       </span>,
                     ],
                   }))}
@@ -403,8 +427,6 @@ export function SalesConfigPage() {
                   columns={[
                     { header: 'Kênh', width: '1fr' },
                     { header: 'Đường gửi', width: '1.4fr' },
-                    { header: 'Mẫu đợt', width: '0.8fr', align: 'right' },
-                    { header: 'Lead đã về', width: '0.8fr', align: 'right' },
                   ]}
                   rows={cfg.channels.map((c) => ({
                     id: c.key,
@@ -419,12 +441,6 @@ export function SalesConfigPage() {
                           Chưa có đường
                         </Badge>
                       ),
-                      <span key="w" className="tnum font-num">
-                        {c.usage}
-                      </span>,
-                      <span key="l" className="tnum font-num">
-                        {c.leads}
-                      </span>,
                     ],
                   }))}
                 />
@@ -434,16 +450,18 @@ export function SalesConfigPage() {
                 dung vẫn soạn được ở module 1, nhưng gửi thật thì chưa — giấu chúng đi thì người
                 dùng tưởng đợt đã chạy.
               </p>
-              {/* Sổ lead phải cân: cột "Lead đã về" cộng lại không ra 100, và chỗ
-                  chênh có tên. Nói ra ở đây rẻ hơn nhiều so với một người ngồi
-                  cộng cột rồi ngờ cả bảng. Số suy từ fixture, không gõ tay. */}
+              {/* This table's two number columns went on 31/08 — full reasoning
+                  at `channels` in `data/sales-config.ts`: no column in the
+                  database records a send channel, so the only number that could
+                  be built was the fixture's, and printing it beside five
+                  sections just cut over to Neon hides one fake number among five
+                  real ones. Say what is missing instead of filling it in. */}
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Cột &quot;Lead đã về&quot; cộng lại ít hơn 100 đầu mối:{' '}
-                <span className="tnum font-num">{cfg.naturalSources.leads} lead</span> đến từ{' '}
-                <span className="tnum font-num">{cfg.naturalSources.count} nguồn tự nhiên</span>,
-                không đi qua kênh nào cả. Và &quot;mẫu nội dung&quot; ở đây mới đếm được tên đợt —
-                dữ liệu chưa có thân mẫu nào, nên phần đó chưa đo được; soạn mẫu vẫn là việc của
-                module 1.
+                Bảng này chưa đếm được đợt hay lead theo kênh: chưa cột nào trong cơ sở dữ liệu ghi
+                kênh gửi, mọi đợt thật đang đi đường email mà không dòng nào nói ra điều đó. Thứ đếm
+                được là nguồn: <span className="tnum font-num">{natural.leads} lead</span> đến từ{' '}
+                <span className="tnum font-num">{natural.count} nguồn tự nhiên</span>, không đi qua
+                đợt gửi nào cả.
               </p>
             </Section>
 

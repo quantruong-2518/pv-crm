@@ -10,7 +10,7 @@ import {
 } from '@pv/contracts'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { SalesConfigGate, type ConfigChange, type ConfigReceipt } from './config.approval'
-import { toBundle, toContract } from './config.mapper'
+import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository } from './config.repository'
 import type { ConfigRowDb } from './config.schema'
 
@@ -46,7 +46,10 @@ export class SalesConfigService {
        `LeadBookResponse.parse`: một cột đổi kiểu hoặc một trường quên map đều
        lọt qua `tsc` nếu mapper sai theo, nhưng không lọt qua đây. Giá phải trả
        bị chặn trên bởi kích thước của chính sáu danh mục, vài chục dòng. */
-    return ConfigBundle.parse(toBundle(await this.repo.all()))
+    /* The two queries run side by side, not in sequence: neither depends on the
+       other, and the config screen waits on both before it can draw a row. */
+    const [rows, tallies] = await Promise.all([this.repo.all(), this.repo.usage()])
+    return ConfigBundle.parse(toBundle(rows, toUsage(tallies)))
   }
 
   async list(list: ConfigList): Promise<ConfigListResponse> {
