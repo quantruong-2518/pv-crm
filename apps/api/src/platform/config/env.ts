@@ -20,6 +20,17 @@ const csv = z
     ),
   ])
 
+/** A browser's `Origin` header is scheme + host + port and NEVER a trailing
+ *  slash (RFC 6454 §6.1), but a URL pasted from the address bar carries one.
+ *  Both readers compare exact strings — `main.ts` for CORS, `lead-intake.guard`
+ *  for the public door — so one stray slash silently allows nothing at all.
+ *  That is not hypothetical: on 31/08 `PV_CORS_ORIGINS=https://crm.pebblevina.com/`
+ *  matched no origin and every sign-in died at preflight. Normalising here fixes
+ *  both readers at once, because both read this parsed value. */
+const origins = csv.transform((list) => [
+  ...new Set(list.map((origin) => origin.replace(/\/+$/, ''))),
+])
+
 const Env = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -57,7 +68,7 @@ const Env = z
 
     /** Browser origins allowed to call the API. CORS is not authentication;
      *  the intake guard still applies origin checks, rate limits and traps. */
-    PV_CORS_ORIGINS: csv,
+    PV_CORS_ORIGINS: origins,
     /** Slugs accepted by `?landingPage=...` on the public intake door. */
     PV_INTAKE_LANDING_PAGES: csv,
     /** HMAC key used before a client IP is persisted as a limiter key. */
