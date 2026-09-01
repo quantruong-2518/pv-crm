@@ -594,7 +594,12 @@ export function LeadsPage() {
     scope,
   }: ImportCommit & { scope?: string }) => {
     const run = await loadFile({ rows, motion, fileName, source: scope })
-    const { report } = run
+    /* The codes ride ALONG with the report rather than inside it, because
+       `runLeadImport` has to answer for the preview-only path too — where rows
+       survived and nothing was written. Joining them here is what lets step 3
+       print the lead code beside each row it actually created; an empty list
+       stays absent, and the panel then draws no code column at all. */
+    const report = { ...run.report, ...(run.codes.length > 0 ? { codes: run.codes } : {}) }
 
     toast(run.failure ?? `${report.rows.length} lead đã vào sổ`, {
       tone: run.failure ? 'danger' : 'success',

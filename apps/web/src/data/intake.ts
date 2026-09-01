@@ -33,6 +33,7 @@ import {
   type OriginKind,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
+import { EMAIL_MAX, LEAD_MAX, MAX_IMPORT_CELL, PHONE_MAX } from '@pv/contracts'
 import { peopleIdOptions, peopleNameOptions } from '@/data/directory'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { MAX_ROWS, type Sheet } from '@/data/intake-file'
@@ -221,6 +222,16 @@ export type ImportField = {
   aliases: string[]
   /** Danh sách đóng. Có thì giá trị phải khớp một `value` hoặc một `label`. */
   options?: { value: string; label: string }[]
+  /** Character ceiling for ONE cell, taken from the contract rather than
+   *  chosen here. Absent falls back to `ImportSpec.cellMax`.
+   *
+   *  An over-long cell breaks THAT ROW and not the batch, and the difference is
+   *  the whole point of checking here at all: the same ceiling also sits on the
+   *  request body (`importCell`, `LeadImportRow.first`), where crossing it
+   *  fails `safeParse` and the panel reports every row of the file as broken
+   *  because of one. Stopping the cell in the browser means the server never
+   *  sees one, so that branch stops being reachable. */
+  max?: number
   /** Ô này liệt kê NGƯỜI, và danh sách chỉ có sau khi sổ người dùng về.
    *
    *  Bản vẽ không giữ nổi một danh sách người: bảy cái tên đóng băng trong
@@ -273,6 +284,10 @@ export type ImportSpec = {
    *  giá trị, và màn nào không dùng tới thì bỏ nó ở đường dịch của mình. */
   defaultMotion: LeadMotion
   fields: ImportField[]
+  /** Default ceiling for a cell with no `max` of its own — the body-level
+   *  ceiling of whatever contract this loader posts to. Absent means no check,
+   *  exactly as before. */
+  cellMax?: number
   /** Tên tệp mẫu tải về, không có đuôi. */
   sampleStem: string
 }
@@ -336,17 +351,25 @@ export const LEAD_SPEC: ImportSpec = {
   motions: ['outbound', 'event', 'partner', 'recycle'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-lead',
+  /* `importCell`'s ceiling in the contract. The columns with no `max` of their
+     own — industry, campaign, tier, channel, headcount — still have to stay
+     under it, because it is a ceiling on the BODY: one cell over it fails
+     `LeadImportBody.safeParse`, which reports 5.000 rows broken because of
+     one. */
+  cellMax: MAX_IMPORT_CELL,
   fields: [
     {
       key: 'company',
       label: 'Account',
       required: true,
+      max: LEAD_MAX.company,
       aliases: ['account', 'cong ty', 'ten cong ty', 'ten khach hang', 'khach hang', 'company'],
       sample: 'Điện tử Kỳ Anh',
     },
     {
       key: 'province',
       label: 'Tỉnh',
+      max: LEAD_MAX.province,
       /* 'company city' và 'company state' có mặt vì tệp Apollo — bản xuất
          phổ biến nhất của khối outbound — chở BỐN cột địa danh: 'City' và
          'State' của NGƯỜI, 'Company City' và 'Company State' của CÔNG TY. Sổ
@@ -392,6 +415,7 @@ export const LEAD_SPEC: ImportSpec = {
       key: 'owner',
       label: 'Lead PIC',
       aliases: ['lead pic', 'pic', 'nguoi giu', 'phu trach', 'owner', 'sale'],
+      max: LEAD_MAX.contactName,
       people: 'name',
       sample: 'Lê Hoàng Nam',
     },
@@ -406,24 +430,28 @@ export const LEAD_SPEC: ImportSpec = {
       key: 'legalName',
       label: 'Tên pháp nhân',
       aliases: ['ten phap nhan', 'phap nhan', 'ten dang ky', 'legal name'],
+      max: LEAD_MAX.legalName,
       sample: 'Công ty CP Điện tử Kỳ Anh',
     },
     {
       key: 'taxCode',
       label: 'Mã số thuế',
       aliases: ['ma so thue', 'mst', 'tax code', 'tax'],
+      max: LEAD_MAX.taxCode,
       sample: '0201234567',
     },
     {
       key: 'address',
       label: 'Địa chỉ',
       aliases: ['dia chi', 'address', 'dia chi nha may'],
+      max: LEAD_MAX.address,
       sample: 'KCN Nomura, Hải Phòng',
     },
     {
       key: 'contactName',
       label: 'Người liên hệ',
       required: true,
+      max: LEAD_MAX.contactName,
       /* 'contact' TRẦN đã bỏ: vòng dò thứ hai khớp theo CHỨA, và
          "Last Contacted" của Apollo chứa nó — cột ngày liên hệ gần nhất giành
          mất ô Người liên hệ, rồi mọi dòng chết ở máy chủ vì thiếu tên. Giữ
@@ -456,6 +484,7 @@ export const LEAD_SPEC: ImportSpec = {
       label: 'Họ (nếu tách cột)',
       aliases: ['last name', 'surname', 'family name', 'ho lot', 'ho va ten dem'],
       mergeBefore: 'contactName',
+      max: LEAD_MAX.contactName,
       /* Ô mẫu RỖNG có chủ ý: tệp mẫu tải về là tệp gõ tay, và người gõ tay
          điền cả họ tên vào một ô "Người liên hệ". Cột này chỉ có nghĩa với tệp
          MÁY xuất ra, nên để trống là câu trả lời đúng cho "ô này điền gì". */
@@ -465,12 +494,14 @@ export const LEAD_SPEC: ImportSpec = {
       key: 'contactTitle',
       label: 'Chức danh',
       aliases: ['chuc danh', 'chuc vu', 'title', 'position'],
+      max: LEAD_MAX.contactTitle,
       sample: 'Giám đốc nhà máy',
     },
     {
       key: 'phone',
       label: 'Điện thoại',
       aliases: ['dien thoai', 'sdt', 'so dien thoai', 'phone', 'mobile', 'tel'],
+      max: PHONE_MAX,
       sample: '0912345678',
     },
     {
@@ -482,6 +513,7 @@ export const LEAD_SPEC: ImportSpec = {
          được việc nó được nạp vào để làm. */
       required: true,
       aliases: ['email', 'thu dien tu', 'mail', 'e-mail'],
+      max: EMAIL_MAX,
       sample: 'thanh.nv@kyanh.vn',
     },
     {
@@ -501,6 +533,7 @@ export const LEAD_SPEC: ImportSpec = {
       key: 'pain',
       label: 'Vấn đề đang gặp',
       aliases: ['van de', 'nhu cau', 'pain', 'ghi chu', 'note'],
+      max: LEAD_MAX.pain,
       sample: 'Theo dõi tiến độ chuyền bằng Excel, cuối tháng mới biết trễ',
     },
   ],
@@ -787,7 +820,29 @@ export type RowError = {
   line: number
   /** Nhắc lại ô đầu tiên của dòng để người dùng tìm được nó trong tệp. */
   first: string
+  /** Which column is wrong — the field key, matching `ImportSpec.fields[].key`.
+   *
+   *  Absent means the row failed as a WHOLE and not at one column, which is a
+   *  real answer rather than a missing one. Only the server fills it in
+   *  (`LeadImportError.field`); rows the browser refuses carry the column in
+   *  the sentence already, and the panel prints whichever it has. */
+  field?: string
   reason: string
+}
+
+/** A row dropped for being a duplicate — the ROW, not just a place in a count.
+ *
+ *  Optional on `ImportReport` because only the lead door has them: it reads the
+ *  arrays the server returns (`LeadImportReport.dupWithBook` /
+ *  `dupWithinFile`), while the two browser-only loaders still report duplicates
+ *  as numbers. A panel that draws a list when it has one and a number when it
+ *  does not is honest about both. */
+export type DupRow = {
+  line: number
+  first: string
+  /** The lead already holding the key. Only on a collision with the BOOK — a
+   *  collision inside the file has no lead behind it yet. */
+  code?: string
 }
 
 /** Khoá chống trùng: mã số thuế trước, không có thì tên + tỉnh.
@@ -829,6 +884,15 @@ export type ImportReport = {
    *  thứ hai. Gộp một số thì người nạp không biết nên đi sửa tệp hay kệ nó. */
   dupInFile: number
   total: number
+  /** WHICH rows were dropped as duplicates, when the loader knows. See
+   *  `DupRow`: a count answers "how many" and the question people actually have
+   *  is "which ones, and is that right". */
+  dupWithBook?: DupRow[]
+  dupWithinFile?: DupRow[]
+  /** Codes minted for `rows`, in the same order, when the write has happened.
+   *  Absent on a browser-only report and on a preview — a row that went nowhere
+   *  has no code, and inventing a blank column for it would suggest it does. */
+  codes?: string[]
 }
 
 /** Nhường lại một nhịp vẽ cho trình duyệt.
@@ -890,6 +954,21 @@ export async function buildRows(
           continue
         }
         values[field.key] = ok
+        continue
+      }
+
+      /* An over-long cell breaks THIS ROW. The same ceiling also sits on the
+         request body, and there it breaks the WHOLE batch with one sentence at
+         the root — so checking here is not a second copy of the server's rule,
+         it is the only place left that can still name a line.
+
+         AFTER the closed lists, deliberately. Whatever `readOption` stores came
+         out of the option list, so it is short by construction; running the
+         check first would turn a 1.001-character industry cell into a lost
+         customer where the line above only loses the industry. */
+      const limit = field.max ?? spec.cellMax
+      if (limit !== undefined && cell.length > limit) {
+        bad ??= `${field.label} dài ${cell.length} ký tự, trần là ${limit}`
         continue
       }
 
@@ -961,10 +1040,18 @@ export function sampleRows(spec: ImportSpec): string[][] {
  *  Đây là thứ biến "17 dòng lỗi" từ một lời than thành một việc làm được: mở
  *  tệp lỗi cạnh tệp gốc, sửa 17 dòng đó, nạp lại. Không có nó thì cách duy nhất
  *  tìm ra 17 dòng ấy trong 500 là dò bằng mắt. */
-export function errorRows(errors: RowError[]): string[][] {
+export function errorRows(errors: RowError[], spec?: ImportSpec): string[][] {
+  /* The column, spelled the way the header of the user's own file spells it.
+     A reason is a sentence and a sentence cannot be sorted or filtered; the
+     column is what turns "17 rows failed" into "seventeen rows, all of them
+     the Email column". Blank when the row failed as a whole rather than at one
+     field — see `RowError.field`. */
+  const labelOf = (key: string | undefined) =>
+    key === undefined ? '' : (spec?.fields.find((f) => f.key === key)?.label ?? key)
+
   return [
-    ['Dòng trong tệp', 'Ô đầu dòng', 'Vì sao không nạp được'],
-    ...errors.map((e) => [String(e.line), e.first, e.reason]),
+    ['Dòng trong tệp', 'Ô đầu dòng', 'Cột sai', 'Vì sao không nạp được'],
+    ...errors.map((e) => [String(e.line), e.first, labelOf(e.field), e.reason]),
   ]
 }
 

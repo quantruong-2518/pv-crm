@@ -22,6 +22,16 @@ import {
   LeadTier,
   StageKey,
 } from './enums'
+import {
+  LEAD_MAX,
+  LEAD_NUM,
+  channelUrlClearable,
+  counted,
+  channelUrlOptional,
+  deadlineDay,
+  taxCodeClearable,
+  taxCodeOptional,
+} from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadSource } from './lead-source'
 
@@ -477,45 +487,48 @@ export const LeadProfile = LeadRow.extend({
 export const LeadCreate = z
   .object({
     // ── the three required ones · exactly the three NOT NULL columns ─────────
-    company: textNhap(200),
-    contactName: textNhap(120),
+    company: textNhap(LEAD_MAX.company),
+    contactName: textNhap(LEAD_MAX.contactName),
     email,
 
     // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
-    legalName: textNhapTuyChon(200),
-    /** Tax code. Left as free text here because the column is `text` and the
-     *  shape varies (10 digits, or 13 with a branch suffix). Worth knowing: the
-     *  importer's dedupe key strips it down to digits, so two spellings of one
-     *  code are one key there and two values in the column. */
-    taxCode: textNhapTuyChon(20),
-    address: textNhapTuyChon(255),
-    province: textNhapTuyChon(64),
+    legalName: textNhapTuyChon(LEAD_MAX.legalName),
+    /** Tax code, SHAPE-CHECKED — see `taxCodeOptional` for why it stopped being
+     *  free text. Worth knowing: the importer's dedupe key strips it down to
+     *  digits, so two spellings of one code are one key there. */
+    taxCode: taxCodeOptional,
+    address: textNhapTuyChon(LEAD_MAX.address),
+    province: textNhapTuyChon(LEAD_MAX.province),
     category: LeadCategory.optional(),
-    mainProduct: textNhapTuyChon(200),
-    headcount: z.number().int().positive().max(1_000_000).optional(),
-    plants: z.number().int().positive().max(1_000).optional(),
+    mainProduct: textNhapTuyChon(LEAD_MAX.mainProduct),
+    headcount: counted('Số người', LEAD_NUM.headcountMax).optional(),
+    plants: counted('Số nhà máy', LEAD_NUM.plantsMax).optional(),
 
     // ── contact · who we talk to ──────────────────────── slots 4 · 5 ────────
-    contactTitle: textNhapTuyChon(120),
+    contactTitle: textNhapTuyChon(LEAD_MAX.contactTitle),
     phone: phoneOptional,
     contactChannel: ContactChannel.optional(),
-    /** The customer's page on that channel. Free text — see `LeadProfile`. */
-    contactChannelUrl: textNhapTuyChon(500),
+    /** The customer's page on that channel — shape-checked, still not a URL.
+     *  See `channelUrlOptional`; `LeadProfile` explains why nothing may turn
+     *  the value into a link. */
+    contactChannelUrl: channelUrlOptional,
 
     // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
-    pain: textNhapTuyChon(1_000),
-    currentStack: textNhapTuyChon(500),
-    decisionMaker: textNhapTuyChon(120),
-    approver: textNhapTuyChon(120),
-    /** The budget the CUSTOMER named, not the price we quoted. */
-    budget: Dong.optional(),
+    pain: textNhapTuyChon(LEAD_MAX.pain),
+    currentStack: textNhapTuyChon(LEAD_MAX.currentStack),
+    decisionMaker: textNhapTuyChon(LEAD_MAX.decisionMaker),
+    approver: textNhapTuyChon(LEAD_MAX.approver),
+    /** The budget the CUSTOMER named, not the price we quoted. Bounded so a
+     *  mistyped figure gets a Vietnamese sentence instead of zod's English one
+     *  about `MAX_SAFE_INTEGER` — see `LEAD_NUM`. */
+    budget: Dong.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').optional(),
     currency: CurrencyCode.optional(),
-    deadline: Ngay.optional(),
+    deadline: deadlineDay.optional(),
 
     // ── owner · actor ids, never names ───────────────────────────────────────
-    ownerId: textNhapTuyChon(64),
-    bdOwnerId: textNhapTuyChon(64),
-    marketingOwnerId: textNhapTuyChon(64),
+    ownerId: textNhapTuyChon(LEAD_MAX.actorId),
+    bdOwnerId: textNhapTuyChon(LEAD_MAX.actorId),
+    marketingOwnerId: textNhapTuyChon(LEAD_MAX.actorId),
 
     // ── where it came from ───────────────────────────────────────────────────
     /** Narrowed to the motions the `MANUAL` door can carry, so `EVENT` is
@@ -524,7 +537,14 @@ export const LeadCreate = z
      *
      *  See the handover — the brief asked for all six, `MOTION_BY_CHANNEL` says
      *  five, and this follows the table rather than quietly widening it. */
-    motion: z.enum(MOTION_BY_CHANNEL.MANUAL),
+    motion: z.enum(MOTION_BY_CHANNEL.MANUAL, {
+      /* Two different mistakes, two sentences. A missing motion is a control
+         nobody touched; a motion outside the five is a caller claiming a door
+         it did not come through, and "not chosen" would be the wrong thing to
+         tell them. */
+      error: (issue) =>
+        issue.input === undefined ? 'Chưa chọn thế' : 'Thế này không đi qua cửa gõ tay được',
+    }),
     /** Optional: a lead typed in directly belongs to no campaign, and inventing
      *  a campaign code to fill the field creates a campaign that is in no
      *  campaign book.
@@ -621,14 +641,17 @@ const clearableText = (max: number) =>
 export const LeadPatch = z
   .object({
     // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
-    legalName: clearableText(200),
-    taxCode: clearableText(20),
-    address: clearableText(255),
-    province: clearableText(64),
+    legalName: clearableText(LEAD_MAX.legalName),
+    /** Shape-checked like the create door, and `null` still clears it: one rule
+     *  for a value, both doors — a tax code the form refuses must not be
+     *  reachable by editing the profile afterwards. */
+    taxCode: taxCodeClearable,
+    address: clearableText(LEAD_MAX.address),
+    province: clearableText(LEAD_MAX.province),
     category: LeadCategory.nullish(),
-    mainProduct: clearableText(200),
-    headcount: z.number().int().positive().max(1_000_000).nullish(),
-    plants: z.number().int().positive().max(1_000).nullish(),
+    mainProduct: clearableText(LEAD_MAX.mainProduct),
+    headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),
+    plants: counted('Số nhà máy', LEAD_NUM.plantsMax).nullish(),
 
     // ── contact · who we talk to ──────────────────────── slots 4 · 5 ────────
     //
@@ -636,21 +659,24 @@ export const LeadPatch = z
     // touch, so they are optional but NOT nullable: correcting a typo is the
     // point, deleting the only way to reach a customer is not — and the column
     // would refuse it anyway, one layer later and in worse words.
-    contactName: textNhap(120).optional(),
-    contactTitle: clearableText(120),
+    contactName: textNhap(LEAD_MAX.contactName).optional(),
+    contactTitle: clearableText(LEAD_MAX.contactTitle),
     email: email.optional(),
     phone: phoneOptional.nullish(),
     contactChannel: ContactChannel.nullish(),
-    contactChannelUrl: clearableText(500),
+    contactChannelUrl: channelUrlClearable,
 
     // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
-    pain: clearableText(1_000),
-    currentStack: clearableText(500),
-    decisionMaker: clearableText(120),
-    approver: clearableText(120),
-    budget: Dong.nullish(),
+    pain: clearableText(LEAD_MAX.pain),
+    currentStack: clearableText(LEAD_MAX.currentStack),
+    decisionMaker: clearableText(LEAD_MAX.decisionMaker),
+    approver: clearableText(LEAD_MAX.approver),
+    /* Bounded exactly as on the create door. A ceiling one door holds and the
+       other does not is a ceiling: the value simply arrives through the door
+       that lets it in, and the book ends up holding what the form refuses. */
+    budget: Dong.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').nullish(),
     currency: CurrencyCode.nullish(),
-    deadline: Ngay.nullish(),
+    deadline: deadlineDay.nullish(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
     /* An empty body is a request that cannot be answered honestly: 200 claims a

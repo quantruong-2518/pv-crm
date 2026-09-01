@@ -16,6 +16,14 @@ function isRealCalendarDate(s: string): boolean {
   const m = Number(s.slice(5, 7))
   const d = Number(s.slice(8, 10))
   const at = new Date(Date.UTC(y, m - 1, d))
+  /* `Date.UTC` maps a year of 0…99 onto 1900…1999 — a rule kept for code
+     written before 2000, and one that made this function answer "that day does
+     not exist" for '0026-10-15': it built 1926 and then compared 1926 to 26.
+     The year 26 does exist; a four-digit year typed as two digits is a
+     different complaint, and the field that cares says so itself (`deadlineDay`
+     in `./sales/lead-fields`). Undoing the mapping is what keeps this function
+     answering only the question it asks. */
+  at.setUTCFullYear(y)
   return at.getUTCFullYear() === y && at.getUTCMonth() === m - 1 && at.getUTCDate() === d
 }
 
@@ -28,8 +36,14 @@ function isRealCalendarDate(s: string): boolean {
  *  Checking here turns the same input into one 400 pointing at one field. */
 export const Ngay = z
   .string('Ngày là bắt buộc')
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày phải dạng YYYY-MM-DD')
-  .refine(isRealCalendarDate, 'Ngày không có trên lịch')
+  /* `abort` on both checks, and it is what keeps ONE mistake to ONE sentence.
+     Without it '15/10/2026' fails the regex AND `isRealCalendarDate` (which
+     slices NaN out of a string shaped some other way), so the form prints two
+     complaints about one typo — and any check chained on top of `Ngay`, such as
+     `deadlineDay`, adds a third. A string that is not a date has nothing more
+     to say about itself. */
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Ngày phải dạng YYYY-MM-DD', abort: true })
+  .refine(isRealCalendarDate, { error: 'Ngày không có trên lịch', abort: true })
 
 /** Mốc thời gian tuyệt đối, ISO 8601 kèm múi. */
 export const Moc = z
@@ -43,7 +57,16 @@ export const Moc = z
  *  con số. Nợ số 7 của `docs/ban-giao-backend.md` (tiền không mang tiền tệ)
  *  sửa bằng cách bọc thành `{ amount, currency }` khi có đơn ngoại tệ thật;
  *  hôm nay khai rõ đơn vị ở tên là bước một. */
-export const Dong = z.number('Số tiền là bắt buộc').int().nonnegative()
+export const Dong = z
+  .number('Số tiền là bắt buộc')
+  /* One sentence for both halves of what `.int()` checks — whole number, and
+     inside the range JavaScript can still count exactly. Left to zod they are
+     two English sentences ("Not an integer" · "Too big: expected int to be
+     <=9007199254740991") appearing in the middle of a Vietnamese form, and a
+     figure past the safe range produces BOTH plus whatever ceiling the field
+     adds on top. `abort` cuts it to the first thing that is actually wrong. */
+  .int({ error: 'Số tiền phải là số nguyên, trong khoảng ghi nhận được', abort: true })
+  .nonnegative('Số tiền không được âm')
 
 /** Mã object — 'LD-0042', 'OP-0301'. ASCII, không dấu (nợ số 1). */
 export const MaObject = z
@@ -141,6 +164,14 @@ export const textNhapTuyChon = (max = 200) =>
 // Whitespace collapsing alone is not enough for either: a mailbox also has a
 // case, and a phone number also has decoration.
 
+/** RFC 5321 caps a mailbox at 254 octets; nothing longer is deliverable.
+ *
+ *  Exported because a `<input maxLength>` needs the same number: a ceiling only
+ *  the schema knows is a ceiling the person types past and hears about after
+ *  pressing the button. Same reason `LEAD_MAX` in `./sales/lead-fields` exists,
+ *  one layer up. */
+export const EMAIL_MAX = 254
+
 /** Mailbox. trim, then LOWERCASE, then check the shape — in that order.
  *
  *  Lowercasing is mandatory, not a courtesy. `lead_email_live_idx` in
@@ -156,9 +187,21 @@ export const textNhapTuyChon = (max = 200) =>
  *  one convention instead of each remembering it separately. */
 export const email = z
   .string('Hòm thư là bắt buộc')
-  .max(254, 'Hòm thư tối đa 254 ký tự')
+  .max(EMAIL_MAX, `Hòm thư tối đa ${EMAIL_MAX} ký tự`)
   .transform((s) => s.trim().toLowerCase())
+  /* An EMPTY box is a box nobody filled in, and it has to say so. Without this
+     line `''` fell through to `z.email` and came back as the malformed-mailbox
+     complaint — the form telling somebody their address is wrong when what they
+     did was skip it. `lead-patch.ts` recorded the wart in its own docblock; the
+     fix belongs here, where every door reads it, not in one of them. */
+  .refine((s) => s !== '', { error: 'Hòm thư là bắt buộc', abort: true })
   .pipe(z.email('Hòm thư sai dạng'))
+
+/** Ceiling on the RAW cell — decoration included, so it is wider than the 15
+ *  digits E.164 allows: '+84 (024) 3456 7890' is eleven digits wearing eight
+ *  characters of punctuation. Exported for the same reason as `EMAIL_MAX`: the
+ *  control has to stop where the schema stops. */
+export const PHONE_MAX = 32
 
 /** Strip decoration off a phone number: keep the digits, and keep a `+` only
  *  when it leads.
@@ -183,10 +226,22 @@ export function normalisePhone(s: string): string {
  *  more 500 thrown by that CHECK.
  *
  *  The 15-digit ceiling is E.164. Anything longer is not a number anyone can
- *  dial, and such a value in the book is a dead click-to-call on the profile. */
+ *  dial, and such a value in the book is a dead click-to-call on the profile.
+ *  `PHONE_MAX` above bounds what is typed, decoration and all; the 8…15 rule
+ *  applies to what is left once the decoration comes off. */
 export const phoneOptional = z
   .string('Số điện thoại phải là chữ số')
-  .max(32, 'Số điện thoại tối đa 32 ký tự')
+  .max(PHONE_MAX, { error: `Số điện thoại tối đa ${PHONE_MAX} ký tự`, abort: true })
+  /* Letters are REFUSED rather than stripped, and the difference is a whole
+     class of silent wrong data. `normalisePhone` keeps only digits, so before
+     this line a cell reading 'goi 0912345678' or '0912345678 (di dong)' parsed
+     cleanly into `0912345678` — the schema quietly deciding which part of the
+     cell the person meant. That is exactly the guess `readHeadcount` in
+     `apps/api/.../lead-import.check.ts` refuses to make about a number, and a
+     phone number typed with a note beside it is the same situation: what got
+     thrown away might have been a second number, or an extension.
+     Punctuation stays welcome — that is decoration, not content. */
+  .refine((s) => !/[^\d\s+\-().]/.test(s), 'Số điện thoại chỉ gồm chữ số và dấu ngăn')
   .transform(normalisePhone)
   .transform((s) => (s === '' || s === '+' ? undefined : s))
   .pipe(

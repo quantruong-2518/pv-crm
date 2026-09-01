@@ -1,10 +1,13 @@
 import type { ZodType } from 'zod'
 import {
   ContactChannel,
+  LEAD_MAX,
+  LEAD_NUM,
   LeadCategory,
   LeadTier,
   email as emailField,
   phoneOptional,
+  taxCodeOptional,
   textNhap,
   textNhapTuyChon,
   type LeadImportDup,
@@ -73,6 +76,17 @@ export type ImportCheckInput = {
   source?: string
   /** Everybody in the staff book, for turning the `owner` NAME into an id. */
   staff: readonly ActorLite[]
+  /** The campaign codes that actually exist and are actually campaigns —
+   *  `list = 'SOURCE'` rows of `config_entry`, loaded for exactly the codes
+   *  this batch mentions.
+   *
+   *  Checked HERE and not left to `lead_campaign_fk`, even though the key would
+   *  refuse the same values: the commit writes the whole batch in ONE
+   *  transaction, so a constraint firing on row 340 takes the other 499 rows
+   *  with it. A row error names the row, the column and the code — which is
+   *  what makes the difference between "fix one cell" and "the import is
+   *  broken". */
+  campaigns: ReadonlySet<string>
   /** `lower(email)` → code, over leads that have NOT exited. Exactly the rows
    *  `lead_email_live_idx` covers, so what this map says and what the unique
    *  index will say are the same answer. */
@@ -111,23 +125,31 @@ const LABEL: Record<LeadImportField, string> = {
   pain: 'Vấn đề đang gặp',
 }
 
-/** Text bounds, taken from `LeadCreate` field by field.
+/** Text bounds, read off `LEAD_MAX` — the SAME table `LeadCreate` is built
+ *  from, not a second copy of its numbers.
  *
- *  Reused rather than re-chosen so both doors accept the same data: a company
- *  name refused when a person types it has to be refused when a file carries
- *  it too, otherwise the book ends up holding values the form could never have
- *  produced. Built once at module scope — these are schemas, and rebuilding
- *  nine of them per row across a 5.000-row file is work nobody asked for. */
+ *  Both doors have to accept the same data: a company name refused when a
+ *  person types it has to be refused when a file carries it too, otherwise the
+ *  book ends up holding values the form could never have produced. This block
+ *  used to promise exactly that while re-typing all nine ceilings by hand, so
+ *  the promise held only until somebody moved one of them. Built once at module
+ *  scope — these are schemas, and rebuilding nine of them per row across a
+ *  5.000-row file is work nobody asked for.
+ *
+ *  `taxCode` is the contract's own shape-checked field rather than free text:
+ *  a spreadsheet is exactly where a "none yet" note, or a code with its own
+ *  label glued on, comes from — and the column that holds them is the one the
+ *  panel's dedupe key reads. */
 const TEXT = {
-  company: textNhap(200),
-  contactName: textNhap(120),
-  province: textNhapTuyChon(64),
-  legalName: textNhapTuyChon(200),
-  taxCode: textNhapTuyChon(20),
-  address: textNhapTuyChon(255),
-  contactTitle: textNhapTuyChon(120),
-  pain: textNhapTuyChon(1_000),
-  source: textNhapTuyChon(64),
+  company: textNhap(LEAD_MAX.company),
+  contactName: textNhap(LEAD_MAX.contactName),
+  province: textNhapTuyChon(LEAD_MAX.province),
+  legalName: textNhapTuyChon(LEAD_MAX.legalName),
+  taxCode: taxCodeOptional,
+  address: textNhapTuyChon(LEAD_MAX.address),
+  contactTitle: textNhapTuyChon(LEAD_MAX.contactTitle),
+  pain: textNhapTuyChon(LEAD_MAX.pain),
+  source: textNhapTuyChon(LEAD_MAX.campaignCode),
 }
 
 /** Headcount as a spreadsheet writes it: digits, optionally grouped.
@@ -198,7 +220,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
   const seen = new Set<string>()
 
   for (const row of input.rows) {
-    const outcome = checkRow(row, input, staff)
+    const outcome = checkRow(row, input, staff, input.campaigns)
     if (!outcome.ok) {
       errors.push(outcome.error)
       continue
@@ -259,6 +281,7 @@ function checkRow(
   row: LeadImportRow,
   batch: Pick<ImportCheckInput, 'motion' | 'source'>,
   staff: Map<string, ActorLite[]>,
+  campaigns: ReadonlySet<string>,
 ): Outcome {
   const cells = row.values
   const out: Cells = {}
@@ -342,6 +365,13 @@ function checkRow(
   const rowSource = optional(cells, 'source', TEXT.source)
   if (!rowSource.ok) return fail('source', rowSource.reason)
   const source = batch.source ?? rowSource.value
+  /* A code that names no live campaign fails the ROW. The batch-level code is
+     checked too and fails every row alike, which is the honest report: the
+     person picked one campaign for the whole file and that campaign is not in
+     the book, so no row of the file has a home. */
+  if (source !== undefined && !campaigns.has(source)) {
+    return fail('source', `${LABEL.source} "${source}" không có trong sổ chiến dịch`)
+  }
   if (source !== undefined) out.source = source
 
   return {
@@ -443,10 +473,14 @@ function readHeadcount(cell: string | undefined): Read<number | undefined> {
     return { ok: false, reason: `${LABEL.headcount} "${cell}" không phải một số` }
   }
   const n = Number(cell.replace(/\D/g, ''))
-  /* Same bounds as `LeadCreate.headcount`: a positive integer, and a ceiling
-     that keeps a mistyped cell out of a column people read as a company size. */
-  if (!Number.isSafeInteger(n) || n <= 0 || n > 1_000_000) {
-    return { ok: false, reason: `${LABEL.headcount} "${cell}" nằm ngoài khoảng 1…1.000.000` }
+  /* Same bounds as `LeadCreate.headcount` — read from the same table, so the
+     two doors cannot drift apart. A ceiling keeps a mistyped cell out of a
+     column people read as a company size. */
+  if (!Number.isSafeInteger(n) || n <= 0 || n > LEAD_NUM.headcountMax) {
+    return {
+      ok: false,
+      reason: `${LABEL.headcount} "${cell}" nằm ngoài khoảng 1…${LEAD_NUM.headcountMax.toLocaleString('vi-VN')}`,
+    }
   }
   return { ok: true, value: n }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CircleCheck, Download, FileUp, TriangleAlert, Upload } from '@pv/ui'
 import {
   Badge,
@@ -33,8 +33,10 @@ import {
   unmappedRequired,
   type BuiltRow,
   type ColumnMapping,
+  type DupRow,
   type ImportReport,
   type ImportSpec,
+  type RowError,
 } from '@/data/intake'
 
 /** Luồng nạp tệp — MỘT component cho cả ba sổ.
@@ -640,13 +642,19 @@ function StepRun({
               <Button
                 size="md"
                 variant="ghost"
-                onClick={() => downloadCsv(`${spec.sampleStem}-loi.csv`, errorRows(report.errors))}
+                onClick={() =>
+                  downloadCsv(`${spec.sampleStem}-loi.csv`, errorRows(report.errors, spec))
+                }
               >
                 <Icon icon={Download} size={16} />
                 Tải tệp lỗi
               </Button>
             </GlassCard>
           )}
+
+          <DoneRows rows={report.rows} codes={report.codes} spec={spec} />
+          <FailedRows errors={report.errors} spec={spec} />
+          <DroppedRows withBook={report.dupWithBook} withinFile={report.dupWithinFile} />
 
           {report.rows.length > 0 && onSeeResult && (
             <div>
@@ -665,6 +673,175 @@ function StepRun({
         </>
       )}
     </section>
+  )
+}
+
+/** THE THREE LISTS OF STEP 3 — which rows went in, which did not, which were
+ *  dropped for being duplicates.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THE FOUR TALLIES WERE NOT ENOUGH
+ *  ------------------------------------------------------------------
+ *  A number answers "how many" and the question the person loading a file
+ *  actually has is "which ones". "17 rows could not be loaded" leaves them with
+ *  a file of 500 rows and no idea where to look; "312 duplicates" gets either
+ *  trusted blindly or treated as a broken import. The counts stay — they are
+ *  the summary — and each one now has the rows behind it printed underneath.
+ *
+ *  ------------------------------------------------------------------
+ *  THREE LISTS AND NOT ONE TABLE WITH A STATUS COLUMN
+ *  ------------------------------------------------------------------
+ *  The three outcomes need different columns and lead to different actions: a
+ *  row that went in has a code to follow, a row that failed has a column to fix
+ *  and a file to re-load, and a duplicate needs deciding about rather than
+ *  fixing. One table would carry the union of those columns with two thirds of
+ *  every row blank.
+ *
+ *  ------------------------------------------------------------------
+ *  CAPPED, AND SAYING SO
+ *  ------------------------------------------------------------------
+ *  A 5.000-row batch is 5.000 table rows in the DOM and a drawer nobody can
+ *  scroll. Each list stops at `LIST_CAP` and prints how many it is not showing,
+ *  next to the way to see the rest — the error file for the failures, the book
+ *  itself for what went in. A silent cut would be the panel lying about the
+ *  size of what just happened. */
+const LIST_CAP = 50
+
+function ResultList({
+  kicker,
+  head,
+  count,
+  children,
+}: {
+  kicker: string
+  head: string[]
+  count: number
+  children: ReactNode
+}) {
+  if (count === 0) return null
+
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-3 p-4">
+      <Kicker>
+        {kicker} · {count}
+      </Kicker>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-left text-[11.5px]">
+          <thead>
+            <tr className="text-muted-foreground">
+              {head.map((h) => (
+                <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="text-glass-foreground">{children}</tbody>
+        </table>
+      </div>
+      {count > LIST_CAP && (
+        <p className="text-muted-foreground text-[11px] leading-[1.6]">
+          Đang hiện {LIST_CAP} dòng đầu trên tổng số {count}.
+        </p>
+      )}
+    </GlassCard>
+  )
+}
+
+/** Line number, in the file's own numbering. Mono because it is read digit by
+ *  digit against the left margin of a spreadsheet, and `text-glass-foreground`
+ *  like every other cell — this is the column somebody copies out to go and
+ *  find the row, so it is not the one to mute (rule 13). */
+function Line({ n }: { n: number }) {
+  return <td className="text-glass-foreground w-[92px] px-3 py-2 font-mono">{n}</td>
+}
+
+function DoneRows({ rows, codes, spec }: { rows: BuiltRow[]; codes?: string[]; spec: ImportSpec }) {
+  /* The column that identifies a row is the spec's FIRST field, not a hardcoded
+     `company`: this panel loads three different books, and the opportunity one
+     leads with the deal name. Reading it off the spec is also what keeps the
+     header and the value naming the same thing. */
+  const id = spec.fields[0]
+
+  /* The code column only appears after a real write. On a run that never
+     committed there is no code, and an empty column would read as "this row
+     went in and lost its code" rather than "nothing was written". */
+  const head = ['Dòng trong tệp', id?.label ?? '', ...(codes ? ['Mã lead'] : [])]
+
+  return (
+    <ResultList kicker="Đã vào sổ" head={head} count={rows.length}>
+      {rows.slice(0, LIST_CAP).map((row, i) => (
+        <tr key={row.line} className="bg-white/[3%]">
+          <Line n={row.line} />
+          <td className="max-w-[280px] truncate px-3 py-2">
+            {(id ? row.values[id.key] : undefined) ?? '—'}
+          </td>
+          {codes && <td className="w-[120px] px-3 py-2 font-mono">{codes[i] ?? '—'}</td>}
+        </tr>
+      ))}
+    </ResultList>
+  )
+}
+
+function FailedRows({ errors, spec }: { errors: RowError[]; spec: ImportSpec }) {
+  /* The column the user is looking at, not the wire name: the contract calls it
+     `contactName`, and what is printed above the cell they have to go and fix
+     is the spec's own Vietnamese header. Falls back to the key, then to a dash
+     — a row can fail as a WHOLE rather than at one column, and that is an
+     answer rather than a missing one. */
+  const labelOf = (key: string | undefined) =>
+    key === undefined ? '—' : (spec.fields.find((f) => f.key === key)?.label ?? key)
+
+  return (
+    <ResultList
+      kicker="Không nạp được"
+      head={['Dòng trong tệp', 'Ô đầu dòng', 'Cột sai', 'Vì sao']}
+      count={errors.length}
+    >
+      {errors.slice(0, LIST_CAP).map((e) => (
+        <tr key={e.line} className="bg-white/[3%]">
+          <Line n={e.line} />
+          <td className="max-w-[200px] truncate px-3 py-2">{e.first || '—'}</td>
+          <td className="text-warning w-[140px] whitespace-nowrap px-3 py-2">{labelOf(e.field)}</td>
+          <td className="text-destructive-foreground px-3 py-2 leading-[1.6]">{e.reason}</td>
+        </tr>
+      ))}
+    </ResultList>
+  )
+}
+
+/** Duplicates are neither done nor broken, so they get their own list.
+ *
+ *  The two kinds stay apart in one table, via the column naming what each row
+ *  collided with, rather than in two tables: a collision with the book is the
+ *  ordinary outcome of loading
+ *  a list twice, a collision inside the file is a defect in the file, and the
+ *  reader needs to tell them apart — but they are one decision, taken in one
+ *  sitting, over one list.
+ *
+ *  Absent arrays mean this loader reports duplicates as counts only (the
+ *  recipient and opportunity doors still do), and then nothing is drawn — a
+ *  list that cannot be filled must not appear as an empty one. */
+function DroppedRows({ withBook, withinFile }: { withBook?: DupRow[]; withinFile?: DupRow[] }) {
+  const rows = [
+    ...(withBook ?? []).map((d) => ({ ...d, why: d.code ? `Lead ${d.code}` : 'Một lead đã có' })),
+    ...(withinFile ?? []).map((d) => ({ ...d, why: 'Một dòng khác trong chính tệp này' })),
+  ].sort((a, b) => a.line - b.line)
+
+  return (
+    <ResultList
+      kicker="Bỏ vì trùng"
+      head={['Dòng trong tệp', 'Ô đầu dòng', 'Trùng với']}
+      count={rows.length}
+    >
+      {rows.slice(0, LIST_CAP).map((d) => (
+        <tr key={`${d.line}-${d.why}`} className="bg-white/[3%]">
+          <Line n={d.line} />
+          <td className="max-w-[240px] truncate px-3 py-2">{d.first || '—'}</td>
+          <td className="px-3 py-2">{d.why}</td>
+        </tr>
+      ))}
+    </ResultList>
   )
 }
 

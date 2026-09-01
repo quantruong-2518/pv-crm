@@ -91,12 +91,35 @@ export class LeadWriteRepository {
    *  `lead.repository.ts` — a `campaignId` that names a pipeline stage must
    *  come back with no name, not with the stage's name.
    *
-   *  Null means the campaign does not exist, and this does NOT refuse the
-   *  write. The column has no foreign key yet (debt recorded on it in
-   *  `lead.schema.ts`), so refusing here would be one door checking what the
-   *  other three do not — the same half-fence `actorById` above deliberately
-   *  declines to build. The response then omits the name, which is exactly
-   *  what the read path does for the same row. */
+   *  Null means the campaign does not exist, and the caller REFUSES the write on
+   *  it — `assertCampaign` in `lead-write.service.ts`. That reversed on 01/09,
+   *  when `lead_campaign_fk` went on the column: the objection to refusing here
+   *  used to be that it would be one door checking what the other three do not,
+   *  and a composite foreign key into `config_entry(id, list)` is the other
+   *  three. What this lookup adds on top of the key is the SENTENCE — a fence
+   *  in the table can only answer with a constraint name. */
+  /** Which of these codes are LIVE campaigns — the file door's lookup.
+   *
+   *  A set rather than one-by-one, and rather than letting the foreign key
+   *  catch it: the commit inserts the whole batch in ONE transaction, so a
+   *  single bad code there takes all 500 good rows down with it. Asking first
+   *  turns that into one row error naming one column, which is the promise
+   *  `checkBatch` makes about every other field.
+   *
+   *  Same `list = 'SOURCE'` filter as `campaignName` below, and for the same
+   *  reason: the six catalogues share one table, so a pipeline-stage code is a
+   *  row that exists and is still not a campaign. */
+  async campaignCodes(tx: Db, ids: readonly string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set()
+
+    const rows = await tx
+      .select({ id: configEntry.id })
+      .from(configEntry)
+      .where(and(eq(configEntry.list, 'SOURCE'), inArray(configEntry.id, [...ids])))
+
+    return new Set(rows.map((r) => r.id))
+  }
+
   async campaignName(tx: Db, id: string): Promise<string | null> {
     const [row] = await tx
       .select({ name: configEntry.name })

@@ -8,6 +8,15 @@ import {
   type LeadProfile,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
+import {
+  DEADLINE_YEARS,
+  EMAIL_MAX,
+  LEAD_MAX,
+  LEAD_NUM,
+  LeadPatch,
+  PHONE_MAX,
+  type LeadCreate,
+} from '@pv/contracts'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 
 /** Module 2 · BẢN VẼ CỦA FORM HỒ SƠ LEAD.
@@ -45,8 +54,9 @@ import { CHANNEL_LABEL } from '@/data/sales-config'
  *  phải bỏ qua, và người điền form không quan tâm câu đó đánh số mấy — họ quan
  *  tâm ô nào bắt buộc.
  *
- *  Giờ chỉ còn **dấu sao cho ô bắt buộc** (`isMandatory`), đúng quy ước form mà
- *  ai cũng đọc được. Cổng vẫn đếm y như cũ ở dải trên đầu thẻ.
+ *  Giờ chỉ còn **dấu sao cho ô không được để trống** (`isRequiredOnSave`), hỏi
+ *  thẳng hợp đồng chứ không hỏi cổng init data — xem docblock của hàm đó. Cổng
+ *  vẫn đếm y như cũ ở dải trên đầu thẻ.
  *
  *  ------------------------------------------------------------------
  *  BIÊN GIỚI: CÁI GÌ Ở ĐÂY, CÁI GÌ Ở FIXTURE
@@ -277,7 +287,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
        `SLOT_FIELDS.kenh` measures phone · email · channel, and the server
        measures those same three columns in a generated column. A link is not a
        way to call somebody back. Declaring a slot here would also make
-       `isMandatory` put a star on a box nobody requires. */
+       `isRequiredOnSave` put a star on a box nobody requires. */
     mono: true,
     placeholder: 'linkedin.com/in/…',
   },
@@ -377,18 +387,138 @@ export const PROFILE_FIELDS: ProfileField[] = [
   { key: 'exitReason', label: 'Lý do ra khỏi luồng', kind: 'read', group: 'so' },
 ]
 
+// ---------------------------------------------------------------------------
+// How many characters one box takes — ONE table, both write doors read it
+// ---------------------------------------------------------------------------
+
+/** The profile fields that answer to a different name on the wire.
+ *
+ *  `LeadProfile.channel` is `LeadCreate.contactChannel` — same value set
+ *  (`ContactChannel`), two names, because the profile calls it "the channel"
+ *  while the table has a `contact_channel` column and a `contact_*` family
+ *  around it. Kept as a two-entry table rather than renamed on either side:
+ *  renaming the profile field touches the fixture, the gate (`SLOT_FIELDS`) and
+ *  four screens for a cosmetic win.
+ *
+ *  It lives HERE rather than in `data/lead-create.ts`, where it used to, and
+ *  the move is the point: BOTH write doors need it, and the edit door borrowing
+ *  it from the create door made two peers into a dependency. The blueprint is
+ *  what both of them already read.
+ *
+ *  Typed against `LeadCreate` so a typo does not compile; `LeadPatch` spells
+ *  every name it shares identically, which is why the patch door can read the
+ *  same table through a widening cast. */
+export const PROFILE_TO_WIRE: Partial<Record<ProfileField['key'], keyof LeadCreate>> = {
+  channel: 'contactChannel',
+  channelUrl: 'contactChannelUrl',
+}
+
+/** Narrowed to the one method these lookups ask a schema for, same reason
+ *  `data/lead-create.ts` narrows it: `apps/web` does not depend on zod. */
+type FieldProbe = { safeParse: (value: unknown) => { success: boolean } }
+
+/** `LEAD_MAX` widened to a plain lookup. Every text field it names is spelled
+ *  the same on both sides, so the wire name IS the key. */
+const TEXT_MAX: Record<string, number | undefined> = LEAD_MAX
+
+/** A numeric box holds DIGITS, so its ceiling is how many digits the largest
+ *  legal value has — `1.000.000` is seven. Derived rather than counted by hand,
+ *  so raising a bound in the contract widens the box in the same commit. */
+const digitsOf = (n: number) => String(n).length
+
+const NUM_MAX: Record<string, number | undefined> = {
+  headcount: digitsOf(LEAD_NUM.headcountMax),
+  plants: digitsOf(LEAD_NUM.plantsMax),
+  budget: digitsOf(LEAD_NUM.budgetMax),
+}
+
+/** How many characters this box accepts — `maxLength` on the control, and never
+ *  a second opinion about the rule: it is the contract's own ceiling, read off
+ *  the same table `LeadCreate` and `LeadPatch` are built from.
+ *
+ *  Absent means the field has no character ceiling of its own — a select, a
+ *  date, a read-only line. Everything else has one, and the box has to stop
+ *  where the schema stops: a person who pastes 900 characters into a box that
+ *  takes them happily learns about the 1.000-character rule after pressing the
+ *  button, at the bottom of a thirty-field form.
+ *
+ *  Two fields carry a ceiling of their own rather than one from `LEAD_MAX`: a
+ *  mailbox and a phone number are bounded by what is deliverable and what is
+ *  dialable, not by what this book chose to store. */
+export function maxCharsOf(field: ProfileField): number | undefined {
+  if (field.kind === 'read' || field.kind === 'select' || field.kind === 'date') return undefined
+  const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
+  if (field.kind === 'num' || field.kind === 'money') return NUM_MAX[wire]
+  if (wire === 'email') return EMAIL_MAX
+  if (wire === 'phone') return PHONE_MAX
+  return TEXT_MAX[wire]
+}
+
+/** The window `deadlineDay` accepts, spelled the way `<input type="date">`
+ *  wants it. Given to the control so the year spinner cannot leave the range in
+ *  the first place — `min`/`max` on a date box is the one native constraint
+ *  that stops the two-key typo (`26` → the year 26) before it is a value.
+ *
+ *  Both write doors draw a date box, so the pair is computed here rather than
+ *  twice: two copies of a boundary is two places for it to stop matching the
+ *  schema that actually enforces it. */
+export const DEADLINE_MIN = `${DEADLINE_YEARS.from}-01-01`
+export const DEADLINE_MAX = `${DEADLINE_YEARS.to}-12-31`
+
+/** Which soft keyboard this box asks for on the tablet — rule 3 of
+ *  `docs/luat-thiet-ke.md` puts the tablet on the same footing as the desktop.
+ *
+ *  Only the three boxes where the default alphabetic keyboard is the wrong one.
+ *  A phone number typed on a letter keyboard is four taps of mode-switching per
+ *  digit, and a mailbox without the `@` key in reach is where this book's typos
+ *  come from. `taxCode` is digits and a dash, which is what `numeric` offers;
+ *  `tel` would be wrong there — it hands over a dial pad carrying `*` and `#`. */
+export function inputModeOf(field: ProfileField): 'email' | 'tel' | 'numeric' | undefined {
+  const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
+  if (wire === 'email') return 'email'
+  if (wire === 'phone') return 'tel'
+  if (wire === 'taxCode') return 'numeric'
+  return undefined
+}
+
 /** Ô đã chọn, gom theo cụm — màn lặp qua đây thay vì lọc lại ở bốn chỗ. */
 export const fieldsOf = (group: GroupKey) => PROFILE_FIELDS.filter((f) => f.group === group)
 
-/** Ô này có bắt buộc không — thứ duy nhất còn được đánh dấu trên nhãn.
+/** Is this box one the SAVE will refuse to leave empty?
  *
- *  Bắt buộc = trường chở một ô BẮT BUỘC của bộ 10 câu. Trường của cụm Sổ sách
- *  không chở ô nào nên không bao giờ bắt buộc: hệ tự ghi chúng, không ai phải
- *  đi moi.
+ *  ------------------------------------------------------------------
+ *  THE STAR MEANS ONE THING, AND IT IS THIS ONE
+ *  ------------------------------------------------------------------
+ *  It used to mean something else on this screen: "this box carries a REQUIRED
+ *  question of the ten", read off `INIT_DATA_QUESTIONS`. That put a star on
+ *  thirteen boxes while the patch door refuses exactly two of them — so eleven
+ *  stars marked boxes a person could clear and save without a word of
+ *  complaint. Meanwhile the create drawer, built later, used the same glyph for
+ *  "the contract will not take this empty". One symbol, two meanings, two
+ *  screens: whichever one somebody learned first, they read the other wrong.
  *
- *  Đọc thẳng từ `INIT_DATA_QUESTIONS` chứ không khai lại ở bảng trên: ô nào bắt
- *  buộc là CẤU HÌNH sửa được ở module Cấu hình, và một bản chép tay ở đây sẽ trôi khỏi
- *  cấu hình ngay lần đầu ai đó đổi. */
+ *  So the star now asks the CONTRACT, on both screens, and means the same
+ *  thing on both: leave it blank and the write is refused.
+ *
+ *  The init-data gate did not go anywhere — it is what the progress strip at
+ *  the head of each group counts, and a strip that says "4 of 6" is a better
+ *  account of it than a glyph that also has to mean something else.
+ *
+ *  `LeadPatch` is the door this screen posts through. A field it does not carry
+ *  at all cannot be required BY it, so those come back false. */
+const PATCH_SHAPE = LeadPatch.shape as Record<string, FieldProbe>
+
+export function isRequiredOnSave(field: ProfileField): boolean {
+  const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
+  const probe = PATCH_SHAPE[wire]
+  /* Refuses `null` = the column is NOT NULL and this door may not empty it.
+     Asked of the schema, never listed: the day the contract makes a third field
+     unclearable, the star follows in the same commit. */
+  return probe !== undefined && !probe.safeParse(null).success
+}
+
+/** Which of the ten questions a box carries — kept for the gate strip, and NOT
+ *  for the star any more. See `isRequiredOnSave` for why they parted ways. */
 export function isMandatory(field: ProfileField): boolean {
   if (!field.slot) return false
   return INIT_DATA_QUESTIONS.find((q) => q.key === field.slot)?.required ?? false

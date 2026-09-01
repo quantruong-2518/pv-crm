@@ -1,0 +1,26 @@
+-- Chiến dịch của một lead phải CÓ THẬT, và phải là một dòng của danh mục nguồn.
+--
+-- Trước file này `campaign_id` chỉ được kiểm DẠNG mã (`MaConfig` ở tầng hợp
+-- đồng). Gõ 'SR-9999' không tồn tại thì lead vẫn vào sổ mang một chiến dịch
+-- không có trong sổ chiến dịch, và mọi báo cáo theo chiến dịch gom nó vào một
+-- nhóm không ai mở ra được. `lead-write.repository.ts` ghi rõ vì sao chưa chặn:
+-- chặn ở một cửa trong khi ba cửa kia không chặn là dựng nửa hàng rào. Khoá
+-- ngoại là nửa còn lại — nó đứng dưới mọi cửa cùng lúc, kể cả cửa chưa ai viết.
+--
+-- VÌ SAO PHẢI THÊM MỘT CỘT CHỈ ĐỂ CHỨA MỘT CHỮ
+-- `config_entry` gộp sáu danh mục vào một bảng, nên một khoá ngoại đơn vào
+-- `config_entry(id)` sẽ nhận cả một mã cột phễu hay một lý do rơi làm chiến
+-- dịch. Bảng đó đã dựng sẵn `UNIQUE (id, list)` cho đúng lúc này; ghép `list`
+-- vào khoá ngoại là cách duy nhất để Postgres từ chối.
+--
+-- `CASE` chứ không phải hằng 'SOURCE' trần: khoá ngoại MATCH SIMPLE bỏ qua khi
+-- MỘT cột là NULL, nên một cột luôn có chữ sẽ khiến lead không thuộc chiến dịch
+-- nào vẫn lọt — đúng kết quả, sai lý do. Hai cột trống cùng nhau thì "không
+-- thuộc chiến dịch nào" là một trạng thái chứ không phải một kẽ hở.
+--
+-- KHÔNG có câu dọn dữ liệu, và đó là một sự thật đã kiểm chứ không phải một giả
+-- định: 01/09 trên Neon production có 119/125 lead mang `campaign_id`, và cả
+-- 119 dòng đều trỏ đúng vào một dòng `list = 'SOURCE'` đang tồn tại. Không dòng
+-- nào phải bỏ đi để ràng buộc này gắn được.
+ALTER TABLE "sales"."lead" ADD COLUMN "campaign_list" text GENERATED ALWAYS AS (CASE WHEN "campaign_id" IS NULL THEN NULL ELSE 'SOURCE' END) STORED;--> statement-breakpoint
+ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_campaign_fk" FOREIGN KEY ("campaign_id","campaign_list") REFERENCES "sales"."config_entry"("id","list") ON DELETE no action ON UPDATE no action;
