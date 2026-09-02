@@ -7,7 +7,7 @@ import {
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
-import type { LeadProfile } from '@pv/contracts'
+import type { LeadProfile, OpportunityCreateResponse } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useApproverName, useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
@@ -76,9 +76,15 @@ type Props = {
   profile: LeadProfile
   open: boolean
   onClose: () => void
+  /** The row the server just wrote. Optional because the two screens that open
+   *  this form want two different endings: the lead profile stays where it is
+   *  (its bottom-bar button flips to the new deal by itself), while the
+   *  opportunity book jumps to the deal — the only place that can show the CODE
+   *  this form deliberately refuses to promise. */
+  onCreated?: (row: OpportunityCreateResponse) => void
 }
 
-export function ConvertDialog({ profile, open, onClose }: Props) {
+export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
   const staff = useDirectory()
   const approver = useApproverName()
   const form = useMemo(() => profileForm(profile), [profile])
@@ -162,7 +168,10 @@ export function ConvertDialog({ profile, open, onClose }: Props) {
                      máy chủ, và `usePromoteLead` đã vô hiệu hoá sổ cơ hội —
                      `opportunitiesOfLeadQuery` nối dài khoá của sổ nên nó chạy lại theo,
                      và nút dưới thanh đáy tự lật sang "Cơ hội OP-…". */
-                  onSuccess: () => onClose(),
+                  onSuccess: (row) => {
+                    onCreated?.(row)
+                    onClose()
+                  },
                 })
               }}
             >

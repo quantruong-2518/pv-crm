@@ -915,6 +915,41 @@ export const LeadMailTimelineRow = z.object({
    *  value of the field ("mailbox full" and "domain does not exist" call for
    *  opposite actions). */
   failReason: z.string().optional(),
+
+  /** Which campaign this run belongs to, if any. Both present together or
+   *  both absent — a run is joined to at most one campaign (`campaign_run`)
+   *  or none at all. Absent means Quick MAS, sent straight from the lead
+   *  book — a real state, not a missing value; the screen must label this
+   *  case as a manual send, never leave a blank where a campaign name would
+   *  go. */
+  campaignCode: z.string().optional(),
+  campaignName: z.string().optional(),
+
+  /** How many times THIS lead replied, and when they last did. Same shape as
+   *  `openCount`/`clickCount` but without their noise problem — a reply is an
+   *  inbound letter the lead's own mail client sent, not an image fetch a
+   *  privacy proxy invented. Zero when reply tracking is off or this run
+   *  predates it — a real "no" for those cases, not "unknown". */
+  replyCount: z.number().int().nonnegative(),
+  lastReplyAt: Moc.optional(),
+})
+
+/** One engagement moment on a single run, for the lead-timeline detail panel.
+ *  Deliberately a SEPARATE door from `LeadMailTimelineRow` (`GET
+ *  /sales/leads/:code/mail/:runId/events`) rather than an array embedded in
+ *  the summary row: the summary is not paged and a lead can rack up dozens of
+ *  opens, so folding the full event list into every row of an unpaged
+ *  response would make the common case pay for the rare one. */
+export const LeadMailEventRow = z.object({
+  kind: z.enum(['OPEN', 'CLICK', 'REPLY']),
+  at: Moc,
+  /** CLICK carries the (truncated) URL, REPLY carries "from · subject". OPEN
+   *  has nothing more to say than the moment itself. */
+  detail: z.string().optional(),
+})
+
+export const LeadMailEventsResponse = z.object({
+  rows: z.array(LeadMailEventRow),
 })
 
 /** The picker's list. Not paged: the catalogue is a handful of rows a human
@@ -957,3 +992,5 @@ export type MailRunPatchResponse = z.infer<typeof MailRunPatchResponse>
 export type MailTemplateListResponse = z.infer<typeof MailTemplateListResponse>
 export type LeadMailTimelineRow = z.infer<typeof LeadMailTimelineRow>
 export type LeadMailTimelineResponse = z.infer<typeof LeadMailTimelineResponse>
+export type LeadMailEventRow = z.infer<typeof LeadMailEventRow>
+export type LeadMailEventsResponse = z.infer<typeof LeadMailEventsResponse>

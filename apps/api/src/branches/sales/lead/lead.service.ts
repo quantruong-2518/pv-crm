@@ -3,11 +3,13 @@ import type { AccessControl, Actor } from '@pv/engines'
 import {
   LeadBookResponse,
   LeadFacets,
+  LeadMailEventsResponse,
   LeadMailTimelineResponse,
   LeadProfile,
   LeadScorecard,
   type LeadBookQuery,
   type MaObject,
+  type MailRunId,
   type MeetingCreate,
   type MeetingListResponse,
   type MeetingPatch,
@@ -18,7 +20,7 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
 import { MeetingService } from '../meeting/meeting.service'
 import { TouchService } from '../touch/touch.service'
-import { toContract, toMailTimeline, toProfile, toRef } from './lead.mapper'
+import { toContract, toMailEvent, toMailTimeline, toProfile, toRef } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 
 /** Sổ lead — nơi DUY NHẤT biết cả repository lẫn engine.
@@ -160,6 +162,23 @@ export class LeadService {
     const rows = await this.repo.mailTimeline(code)
 
     return LeadMailTimelineResponse.parse({ rows: rows.map(toMailTimeline) })
+  }
+
+  /** `GET /sales/leads/:code/mail/:runId/events` — the detail panel behind one
+   *  row of `mailTimeline`. Same guard, same two refusals, same reasoning as
+   *  `mailTimeline` above; an empty list here is a real answer too (nobody has
+   *  opened, clicked or replied to this run yet), so it cannot also stand in
+   *  for "no such lead" or "not yours". */
+  async mailEvents(who: Actor, code: MaObject, runId: MailRunId): Promise<LeadMailEventsResponse> {
+    const found = await this.repo.byCode(who, code)
+    if (!found) throw notFound('lead', code)
+
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    const rows = await this.repo.mailEvents(code, runId)
+    return LeadMailEventsResponse.parse({ rows: rows.map(toMailEvent) })
   }
 
   /** `GET /sales/leads/:code/touches` — what has happened to this customer.

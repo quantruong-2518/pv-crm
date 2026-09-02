@@ -295,6 +295,36 @@ export type MailEngagement = {
  *  three is an error; all three are ordinary outcomes of a public door. */
 export type EngagementOutcome = 'recorded' | 'ignored-duplicate' | 'unknown-delivery'
 
+/** A LEAD REPLYING TO US, read off the `email.received` webhook. Deliberately
+ *  not a `MailEngagementKind` — see `mail_reply` in `mail.schema.ts` for the
+ *  full reasoning; this type is the inbound mirror of `MailEngagement`, not a
+ *  variant of it.
+ *
+ *  `deliveryId` is required, unlike `MailEngagement`'s optional pair: a reply
+ *  arrives with no provider identity for the ORIGINAL letter to look up by
+ *  (Resend's inbound event names the INCOMING message, not the outgoing one),
+ *  so the plus-addressed `Reply-To` is the only correlation this system has —
+ *  see `mas.composer.ts`'s `replyToFor`. No delivery id in the address means
+ *  no row to write, which the webhook door treats as `unknown-delivery`
+ *  before this type is ever constructed. */
+export type MailReply = {
+  svixId: string | null
+  deliveryId: string
+  fromAddress: string
+  subject: string | null
+  /** The provider's moment the letter arrived, not our receive time — same
+   *  reasoning as `MailEngagement.at`. */
+  at: Date
+  /** Resend's id for the INBOUND message — the row's own replay guard,
+   *  `mail_reply.provider_email_id`. */
+  providerEmailId: string
+}
+
+/** `recorded` — a new row exists. `ignored-duplicate` — this `providerEmailId`
+ *  is already in the ledger. `unknown-delivery` — the plus-address named no
+ *  delivery this system sent. */
+export type ReplyOutcome = 'recorded' | 'ignored-duplicate' | 'unknown-delivery'
+
 export interface MailLedger extends MailEnqueue {
   /** Move `pending`/`delayed` → `sending` and bump the attempt counter.
    *  Returns null when the row is gone or already past sending, which is what
@@ -332,6 +362,11 @@ export interface MailLedger extends MailEnqueue {
    *  Idempotent twice over: by `svixId` when one is given, and by
    *  `mail_event_once` always. */
   recordEngagement(engagement: MailEngagement): Promise<EngagementOutcome>
+
+  /** Record a reply. Idempotent by `providerEmailId` — see `MailReply`'s own
+   *  docblock for why that alone is enough here, unlike the three-column key
+   *  `recordEngagement` needs. */
+  recordReply(reply: MailReply): Promise<ReplyOutcome>
 
   /** The address one delivery was written to, or `null` when no such row
    *  exists. The unsubscribe route needs it and has no other way in: a signed

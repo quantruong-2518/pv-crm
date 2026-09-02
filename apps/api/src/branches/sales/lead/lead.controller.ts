@@ -7,6 +7,7 @@ import {
   LeadOwnerWrite,
   LeadPatch,
   MaObject,
+  MailRunId,
   MeetingCreate,
   MeetingId,
   MeetingPatch,
@@ -116,6 +117,18 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
   mail(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.mailTimeline(who, code)
+  }
+
+  /** Detail behind one row of `:code/mail` — every open/click/reply, in order.
+   *  Same `lead.xem`, same scope: still one lead's own data, not a new door. */
+  @Get(':code/mail/:runId/events')
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  mailEvents(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('runId', zod(MailRunId)) runId: MailRunId,
+  ) {
+    return this.leads.mailEvents(who, code, runId)
   }
 
   /** Dòng thời gian của một lead — `sales.touch`.

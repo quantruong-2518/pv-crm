@@ -10,11 +10,19 @@ import {
   type MailFailure,
   type MailIntent,
   type MailLedger,
+  type MailReply,
   type MailState,
+  type ReplyOutcome,
   type SuppressionReason,
   type WebhookOutcome,
 } from './mail.contract'
-import { emailDelivery, emailSuppression, emailWebhookEvent, mailEvent } from './mail.schema'
+import {
+  emailDelivery,
+  emailSuppression,
+  emailWebhookEvent,
+  mailEvent,
+  mailReply,
+} from './mail.schema'
 
 /** SQL only, per `apps/api/CLAUDE.md` — every branch below is a mechanical
  *  translation of a decision `mail.contract.ts` already wrote down
@@ -348,6 +356,39 @@ export class MailRepository implements MailLedger {
          thing: this engagement is already recorded. */
       .onConflictDoNothing()
       .returning({ id: mailEvent.id })
+
+    return written.length === 0 ? 'ignored-duplicate' : 'recorded'
+  }
+
+  /** A THIRD DOOR, WRITING A THIRD TABLE — see `mail_reply` in `mail.schema.ts`
+   *  for why this is not a branch of `recordEngagement`.
+   *
+   *  No envelope shield here: `mail_reply.provider_email_id` is unique and
+   *  named the INBOUND message, one row per reply by construction, so the
+   *  `onConflictDoNothing` below is the only replay guard this needs — a
+   *  second `email_webhook_event` insert keyed by the SAME `svixId` column
+   *  used for outbound events would conflate two different envelope streams
+   *  under one guard for no benefit. */
+  async recordReply(reply: MailReply): Promise<ReplyOutcome> {
+    const [delivery] = await this.db
+      .select({ id: emailDelivery.id })
+      .from(emailDelivery)
+      .where(eq(emailDelivery.id, reply.deliveryId))
+      .limit(1)
+    if (!delivery) return 'unknown-delivery'
+
+    const written = await this.db
+      .insert(mailReply)
+      .values({
+        deliveryId: reply.deliveryId,
+        fromAddress: reply.fromAddress,
+        subject: reply.subject,
+        receivedAt: reply.at,
+        providerEmailId: reply.providerEmailId,
+        svixId: reply.svixId,
+      })
+      .onConflictDoNothing({ target: mailReply.providerEmailId })
+      .returning({ id: mailReply.id })
 
     return written.length === 0 ? 'ignored-duplicate' : 'recorded'
   }

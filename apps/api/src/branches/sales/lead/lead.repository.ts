@@ -23,7 +23,12 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from './lead.schema'
-import type { LeadMailTimelineRead, LeadProfileRead, LeadRead } from './lead.mapper'
+import type {
+  LeadMailEventRead,
+  LeadMailTimelineRead,
+  LeadProfileRead,
+  LeadRead,
+} from './lead.mapper'
 
 export type LeadBookPage = {
   rows: LeadRead[]
@@ -312,7 +317,15 @@ export class LeadRepository {
    *  `LeadMailTimelineRow.openCount` — how many times THIS person opened it —
    *  and the six is the answer. Read that field's docblock before putting the
    *  number next to a word like "quan tâm": at single-lead scale the Apple MPP
-   *  noise is proportionally far worse. */
+   *  noise is proportionally far worse.
+   *
+   *  ------------------------------------------------------------------
+   *  `campaign_run`/`campaign` ARE LEFT JOINS, AND NULL IS A REAL ANSWER
+   *  ------------------------------------------------------------------
+   *  Quick MAS fires straight from the lead book with no campaign attached —
+   *  `campaign_run.mailRunId` is unique but not required, so a run may match
+   *  zero rows here. NULL on `campaign_code`/`campaign_name` means "sent on
+   *  its own", not "data missing", and the mapper must read it that way. */
   async mailTimeline(code: string): Promise<LeadMailTimelineRead[]> {
     const r = (await this.db.execute(sql`
       SELECT r."id"                                          AS run_id,
@@ -326,7 +339,11 @@ export class LeadRepository {
              COALESCE(e.open_count, 0)::int                  AS open_count,
              e.last_open_at                                  AS last_open_at,
              COALESCE(e.click_count, 0)::int                 AS click_count,
-             e.last_click_at                                 AS last_click_at
+             e.last_click_at                                 AS last_click_at,
+             COALESCE(p.reply_count, 0)::int                 AS reply_count,
+             p.last_reply_at                                 AS last_reply_at,
+             c."code"                                        AS campaign_code,
+             c."name"                                        AS campaign_name
         FROM "platform"."email_delivery" d
         JOIN "platform"."mail_run" r ON r."id" = d."mail_run_id"
         LEFT JOIN LATERAL (
@@ -337,11 +354,61 @@ export class LeadRepository {
                 FROM "platform"."mail_event" m
                WHERE m."delivery_id" = d."id"
              ) e ON true
+        LEFT JOIN LATERAL (
+              SELECT count(*)::int      AS reply_count,
+                     max(p."received_at") AS last_reply_at
+                FROM "platform"."mail_reply" p
+               WHERE p."delivery_id" = d."id"
+             ) p ON true
+        LEFT JOIN "sales"."campaign_run" cr ON cr."mail_run_id" = r."id"
+        LEFT JOIN "sales"."campaign" c ON c."code" = cr."campaign_code"
        WHERE d."aggregate_type" = 'lead'
          AND d."aggregate_id" = ${code}
          AND d."mail_run_id" IS NOT NULL
        ORDER BY r."created_at" DESC, r."id" DESC
     `)) as { rows: LeadMailTimelineRead[] }
+
+    return r.rows
+  }
+
+  /** The full engagement history of ONE run's letter to this lead — opens,
+   *  clicks, replies, in the order they happened. A second door beside
+   *  `mailTimeline()` for the reason spelled out at `LeadMailEventRow` in
+   *  `@pv/contracts`: the summary row is unpaged, and embedding every open a
+   *  lead ever racked up into it would make the common case pay for the rare
+   *  one.
+   *
+   *  Same scope discipline as `mailTimeline()`: the caller has already been
+   *  through `LeadService`'s `byCode`/`inScope` guard for this request, so no
+   *  `owner_id` cut repeats here — and this method additionally pins the
+   *  delivery to BOTH `code` and `runId`, so a run id that belongs to some
+   *  OTHER lead's letter returns an empty list rather than someone else's
+   *  events. */
+  async mailEvents(code: string, runId: string): Promise<LeadMailEventRead[]> {
+    const r = (await this.db.execute(sql`
+      WITH target AS (
+        SELECT d."id"
+          FROM "platform"."email_delivery" d
+         WHERE d."aggregate_type" = 'lead'
+           AND d."aggregate_id" = ${code}
+           AND d."mail_run_id" = ${runId}
+         LIMIT 1
+      )
+      SELECT 'OPEN'  AS kind, m."at" AS at, NULL::text AS detail, NULL::text AS from_address
+        FROM "platform"."mail_event" m
+        JOIN target t ON t."id" = m."delivery_id"
+       WHERE m."kind" = 'OPEN'
+      UNION ALL
+      SELECT 'CLICK' AS kind, m."at" AS at, m."url" AS detail, NULL::text AS from_address
+        FROM "platform"."mail_event" m
+        JOIN target t ON t."id" = m."delivery_id"
+       WHERE m."kind" = 'CLICK'
+      UNION ALL
+      SELECT 'REPLY' AS kind, p."received_at" AS at, p."subject" AS detail, p."from_address" AS from_address
+        FROM "platform"."mail_reply" p
+        JOIN target t ON t."id" = p."delivery_id"
+      ORDER BY at ASC
+    `)) as { rows: LeadMailEventRead[] }
 
     return r.rows
   }

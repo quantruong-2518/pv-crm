@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
+import { brandAssetUrl, domainOf, ENV, type Env } from '@api/platform/config/env'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
 import type { DeliveryToSend, MailMessage } from './mail.contract'
 import { renderMasLetter, senderOf } from './mas-letter'
@@ -115,7 +115,7 @@ export class MasMailComposer implements MailComposer {
       flow: 'mas',
       from: header(run.fromAddress),
       to: delivery.recipient,
-      replyTo: run.replyTo ? header(run.replyTo) : undefined,
+      replyTo: this.replyToFor(run.replyTo, delivery.id),
       subject: finalSubject,
       html,
       text,
@@ -145,6 +145,23 @@ export class MasMailComposer implements MailComposer {
     const origin = this.env.PV_API_PUBLIC_URL || this.env.PV_APP_URL
     const base = origin.replace(/\/+$/, '')
     return `${base}/mail/unsubscribe/${sign(deliveryId, this.env.PV_UNSUBSCRIBE_SECRET)}`
+  }
+
+  /** Per-delivery plus-address when reply tracking is on, the run's static
+   *  snapshot otherwise. Both are `Reply-To`, not `From` — a lead answering
+   *  looks the same either way; the plus-address is only how THIS system
+   *  tells two replies apart once `mail-webhook.controller.ts` reads one back.
+   *
+   *  Falls back to the static address when `PV_EMAIL_MAS_FROM` carries no
+   *  domain to build on — `env.ts` already refuses to boot with
+   *  `PV_MAS_ENABLED=true` and that variable empty, but a send should not
+   *  crash over reply tracking specifically; it should just not get it. */
+  private replyToFor(staticReplyTo: string | null, deliveryId: string): string | undefined {
+    if (this.env.PV_MAS_REPLY_TRACKING_ENABLED) {
+      const domain = domainOf(this.env.PV_EMAIL_MAS_FROM)
+      if (domain) return `reply+${deliveryId}@${domain}`
+    }
+    return staticReplyTo ? header(staticReplyTo) : undefined
   }
 }
 

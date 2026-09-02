@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Chip,
+  Drawer,
   GlassCard,
   Icon,
   Input,
@@ -44,7 +45,7 @@ import type { LeadMailTimelineRow, LeadProfile as WireLeadProfile } from '@pv/co
 import { useLeadDesk } from '@/app/desk'
 import { dm, dmy } from '@/lib/date'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
-import { leadMailTimelineQuery } from '@/data/mas'
+import { leadMailEventsQuery, leadMailTimelineQuery } from '@/data/mas'
 /* Two lookup tables shared with a wave's recipient list — their docblock is in
    `data/mail-runs.ts`. Until 30/08 they were two private constants at the foot
    of this file, and a second copy of them was about to be written the moment
@@ -984,6 +985,7 @@ function Bubbles({ turn }: { turn: TranscriptTurn }) {
 export function MailTimelineCard({ code, actions }: { code: string; actions?: ReactNode }) {
   const { data, isPending, error } = useQuery(leadMailTimelineQuery(code))
   const rows = data?.rows ?? []
+  const [openRow, setOpenRow] = useState<LeadMailTimelineRow | null>(null)
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Sổ mail của lead">
@@ -992,7 +994,7 @@ export function MailTimelineCard({ code, actions }: { code: string; actions?: Re
         hint="Theo dõi trạng thái gửi và tín hiệu tương tác của từng email."
         actions={actions}
       >
-        Email MAS
+        Hành trình email
       </SectionTitle>
 
       {isPending ? (
@@ -1021,6 +1023,9 @@ export function MailTimelineCard({ code, actions }: { code: string; actions?: Re
               title: row.label,
               meta: (
                 <>
+                  <MetaPill>
+                    {row.campaignName ? `Chiến dịch · ${row.campaignName}` : 'Gửi riêng'}
+                  </MetaPill>
                   <Badge tone={face.tone}>{face.label}</Badge>
                   {face.at && <MetaPill mono>{face.at}</MetaPill>}
                   {signal && (
@@ -1037,11 +1042,118 @@ export function MailTimelineCard({ code, actions }: { code: string; actions?: Re
                   Không gửi được. Kiểm tra lại địa chỉ email trước khi thử lại.
                 </span>
               ) : undefined,
+              actions: (
+                <Button size="sm" variant="ghost" onClick={() => setOpenRow(row)}>
+                  Xem chi tiết
+                </Button>
+              ),
             }
           })}
         />
       )}
+
+      <MailTimelineDetailDrawer code={code} row={openRow} onClose={() => setOpenRow(null)} />
     </GlassCard>
+  )
+}
+
+const MAIL_EVENT_LABEL: Record<'OPEN' | 'CLICK' | 'REPLY', string> = {
+  OPEN: 'Mở thư',
+  CLICK: 'Bấm liên kết',
+  REPLY: 'Trả lời',
+}
+
+/** One run's full detail — a right-side panel, keeping the timeline in place
+ *  (see `Drawer`'s own docblock for why). The header fields come straight off
+ *  `row`, already loaded for the whole card; the event sub-timeline is its own
+ *  lazy request (`leadMailEventsQuery`, `enabled` only while the panel is
+ *  open) — see that query's docblock for why it is not folded into `row`. */
+function MailTimelineDetailDrawer({
+  code,
+  row,
+  onClose,
+}: {
+  code: string
+  row: LeadMailTimelineRow | null
+  onClose: () => void
+}) {
+  const face = row ? deliveryFace(row) : null
+  const signal = row ? signalOf(row) : null
+  const { data: events, isPending: eventsPending } = useQuery(
+    leadMailEventsQuery(code, row?.runId ?? null),
+  )
+
+  return (
+    <Drawer
+      open={row !== null}
+      onClose={onClose}
+      title={row?.label ?? ''}
+      meta={face && <Badge tone={face.tone}>{face.label}</Badge>}
+    >
+      {row && (
+        <div className="flex flex-col gap-5 text-[12.5px] leading-[1.7]">
+          <div className="flex flex-col gap-4">
+            <DetailRow
+              label="Nguồn gửi"
+              value={
+                row.campaignName ? `Chiến dịch · ${row.campaignName}` : 'Gửi riêng (Quick MAS)'
+              }
+            />
+            {row.scheduledAt && <DetailRow label="Hẹn gửi" value={mailMoment(row.scheduledAt)} />}
+            {row.sentAt && <DetailRow label="Đã gửi" value={mailMoment(row.sentAt)} />}
+            {row.deliveredAt && (
+              <DetailRow label="Đã tới hộp thư" value={mailMoment(row.deliveredAt)} />
+            )}
+            <DetailRow label="Tín hiệu tương tác" value={signal ?? 'Chưa có tín hiệu'} />
+            {row.replyCount > 0 && (
+              <DetailRow
+                label="Đã trả lời"
+                value={
+                  row.lastReplyAt
+                    ? `${row.replyCount} lần · gần nhất ${mailMoment(row.lastReplyAt)}`
+                    : `${row.replyCount} lần`
+                }
+              />
+            )}
+            {row.failReason && (
+              <DetailRow label="Không gửi được" value={row.failReason} tone="danger" />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">
+              Diễn biến
+            </span>
+            {eventsPending ? (
+              <Skeleton className="h-10 w-full" />
+            ) : !events || events.rows.length === 0 ? (
+              <p className="text-muted-foreground">Chưa có tín hiệu mở, bấm hay trả lời nào.</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {events.rows.map((event, i) => (
+                  <li key={`${event.kind}-${event.at}-${i}`} className="flex flex-wrap gap-2">
+                    <MetaPill mono>{mailMoment(event.at)}</MetaPill>
+                    <span className="font-medium">{MAIL_EVENT_LABEL[event.kind]}</span>
+                    {event.detail && (
+                      <span className="text-muted-foreground truncate">{event.detail}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </Drawer>
+  )
+}
+
+function DetailRow({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-muted-foreground text-[11px] uppercase tracking-wide">{label}</span>
+      <span className={tone === 'danger' ? 'text-destructive-foreground' : undefined}>{value}</span>
+    </div>
   )
 }
 

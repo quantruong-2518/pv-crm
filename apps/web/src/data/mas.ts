@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
+  LeadMailEventsResponse,
   LeadMailTimelineResponse,
   MailTemplateListResponse,
   MasPreflightResponse,
@@ -310,4 +311,23 @@ export const leadMailTimelineQuery = (code: string) =>
       )
         ? 5_000
         : false,
+  })
+
+/** One run's full engagement history for one lead — opens, clicks, replies, in
+ *  order. `GET /sales/leads/:code/mail/:runId/events`, the detail panel behind
+ *  one row of `leadMailTimelineQuery`.
+ *
+ *  `enabled: runId !== null` rather than a conditional call to this function —
+ *  hooks cannot be called conditionally, so the drawer that opens this always
+ *  calls the hook and this flag is what turns the request off while the panel
+ *  is closed. See `MailTimelineDetailDrawer` in `lead-parts.tsx`. */
+export const leadMailEventsQuery = (code: string, runId: string | null) =>
+  queryOptions({
+    queryKey: [...LEAD_MAIL_KEY, code, 'events', runId] as const,
+    queryFn: ({ signal }) =>
+      api.read<LeadMailEventsResponse>(
+        `/sales/leads/${encodeURIComponent(code)}/mail/${encodeURIComponent(runId ?? '')}/events`,
+        { need: TIMELINE_NEED, signal },
+      ),
+    enabled: runId !== null,
   })

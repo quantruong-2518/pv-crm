@@ -88,6 +88,14 @@ const Env = z
     // trạng thái đúng của mọi máy phát triển.
     RESEND_API_KEY: z.string().default(''),
     RESEND_WEBHOOK_SECRET: z.string().default(''),
+    /** Signing secret for the SEPARATE inbound webhook subscription
+     *  (`email.received`), configured only when `PV_MAS_REPLY_TRACKING_ENABLED`
+     *  is turned on. Kept apart from `RESEND_WEBHOOK_SECRET`: Resend hands out
+     *  one secret per webhook subscription, and the delivery-events webhook and
+     *  the inbound-mail webhook are two different subscriptions in the
+     *  dashboard, so assuming they share a secret would refuse every genuine
+     *  inbound event the day someone actually wires this up. */
+    RESEND_INBOUND_WEBHOOK_SECRET: z.string().default(''),
     PV_EMAIL_ENABLED: z
       .enum(['true', 'false'])
       .default('false')
@@ -188,6 +196,19 @@ const Env = z
      *  `PV_EMAIL_MAS_FROM`. Empty = no `Reply-To` header at all, which is a
      *  complete answer: replies then go to `From`. */
     PV_EMAIL_MAS_REPLY_TO: z.string().default(''),
+
+    /** Turns a MAS letter's `Reply-To` from the static mailbox above into a
+     *  per-delivery address (`reply+<deliveryId>@<domain of PV_EMAIL_MAS_FROM>`)
+     *  that this system can correlate back to a lead's mail timeline. Default
+     *  CLOSED and must stay that way until the receiving domain is actually
+     *  verified on Resend (MX record) and an `email.received` webhook
+     *  subscription points at this deployment — turning it on earlier sends
+     *  replies into a mailbox nobody is receiving, silently losing them where
+     *  `PV_EMAIL_MAS_REPLY_TO` alone would at least have reached a human. */
+    PV_MAS_REPLY_TRACKING_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
 
     /** The MAS door itself, default CLOSED — and separate from
      *  `PV_EMAIL_ENABLED` on purpose. That flag decides whether ANY mail leaves
@@ -433,6 +454,25 @@ const Env = z
       'PV_MAS_SENDER_POSTAL còn là chuỗi giữ chỗ — nó in ra ở chân MỌI thư marketing, khai địa chỉ thật hoặc bỏ hẳn biến này để rơi về mặc định.',
     path: ['PV_MAS_SENDER_POSTAL'],
   })
+  // Reply tracking rewrites the Reply-To that a MAS run snapshots at
+  // creation, so it makes no sense with the MAS door itself closed.
+  .refine((e) => !(e.PV_MAS_REPLY_TRACKING_ENABLED && !e.PV_MAS_ENABLED), {
+    message: 'PV_MAS_REPLY_TRACKING_ENABLED=true thì PV_MAS_ENABLED cũng phải bật.',
+    path: ['PV_MAS_REPLY_TRACKING_ENABLED'],
+  })
+  // Same failure shape as the RESEND_WEBHOOK_SECRET refine above: an inbound
+  // webhook nobody can verify is a door either closed or open to anyone.
+  .refine(
+    (e) =>
+      e.NODE_ENV !== 'production' ||
+      !e.PV_MAS_REPLY_TRACKING_ENABLED ||
+      e.RESEND_INBOUND_WEBHOOK_SECRET.length > 0,
+    {
+      message:
+        'PV_MAS_REPLY_TRACKING_ENABLED=true ở production thì phải có RESEND_INBOUND_WEBHOOK_SECRET.',
+      path: ['RESEND_INBOUND_WEBHOOK_SECRET'],
+    },
+  )
   /* ------------------------------------------------------------------
      BULK KHÔNG ĐƯỢC MƯỢN DOMAIN CỦA MAIL GIAO DỊCH
      ------------------------------------------------------------------
@@ -520,7 +560,7 @@ const Env = z
  *  lời "hai địa chỉ này có cùng domain không". Chuỗi không có `@` trả về rỗng,
  *  và bên gọi bỏ qua ca đó — địa chỉ dị dạng là việc của Resend, không phải
  *  việc của một hàng rào uy tín. */
-function domainOf(address: string): string {
+export function domainOf(address: string): string {
   const at = address.lastIndexOf('@')
   if (at < 0) return ''
   return address

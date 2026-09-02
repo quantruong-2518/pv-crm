@@ -22,8 +22,8 @@ import {
   type SuppressionReason,
 } from './mail.contract'
 
-/** THE TWO INBOUND DOORS OF THE MAIL PATH. Both only READ or RECORD; neither
- *  can cause a byte to leave this company.
+/** THE INBOUND DOORS OF THE MAIL PATH. All of them only READ or RECORD;
+ *  none can cause a byte to leave this company.
  *
  *  ------------------------------------------------------------------
  *  WHY A FOURTH `@Public()` ROUTE IS STILL SAFE
@@ -68,6 +68,21 @@ import {
  *  a separate file because it is authenticated by a DIFFERENT proof (our own
  *  HMAC over a delivery id, not Resend's signature over a body) and answers to
  *  a different caller.
+ *
+ *  The SEVENTH — `receiveInbound()` below — is a fourth inbound door of THIS
+ *  path, guarded by the same shape of proof as `receive()` (svix signature),
+ *  but over a SEPARATE Resend webhook subscription with its own secret
+ *  (`RESEND_INBOUND_WEBHOOK_SECRET`, not `RESEND_WEBHOOK_SECRET`) — Resend
+ *  issues one signing secret per subscription, and the delivery-events
+ *  subscription and the inbound-mail subscription are two different ones in
+ *  the dashboard. It answers `email.received`: a lead replying to a MAS
+ *  letter. Same never-sends fence as the rest of this file, and it goes
+ *  further than metadata-only — it never fetches the reply's body or headers
+ *  either, correlating to the original letter purely from the plus-addressed
+ *  `Reply-To` this system itself generated (see `mas.composer.ts`). Default
+ *  OFF (`PV_MAS_REPLY_TRACKING_ENABLED=false`): until the receiving domain is
+ *  verified on Resend, no letter carries that address, so this door simply
+ *  never receives anything meaningful to route.
  *
  *  ------------------------------------------------------------------
  *  TWO ROADS OUT OF THIS DOOR, AND THEY MUST NOT MERGE
@@ -129,7 +144,7 @@ export class MailWebhookController {
   @Public()
   async receive(@Req() req: RawBodyRequest<FastifyRequest>): Promise<{ ok: true }> {
     const svixId = this.headerOf(req, 'svix-id')
-    const event = this.verified(req, svixId)
+    const event = this.verified(req, svixId, this.env.RESEND_WEBHOOK_SECRET)
 
     /* Sorted BEFORE `read()`, and returning here rather than falling through:
        the engagement road never touches `applyWebhook()`, so the two can never
@@ -181,14 +196,79 @@ export class MailWebhookController {
     return { ok: true }
   }
 
+  /** The reply road — see this file's own docblock for why it is the seventh
+   *  `@Public()` route and why it is safe. Reads exactly one thing off the
+   *  envelope beyond the signature: the plus-addressed `Reply-To` this system
+   *  generated for the ORIGINAL letter, out of `to`/`received_for`. Never
+   *  fetches the reply's headers or body — `resend.emails.receiving.get()`
+   *  exists and is deliberately not called here. */
+  @Post('webhooks/inbound')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @Public()
+  async receiveInbound(@Req() req: RawBodyRequest<FastifyRequest>): Promise<{ ok: true }> {
+    const svixId = this.headerOf(req, 'svix-id')
+    const event = this.verified(req, svixId, this.env.RESEND_INBOUND_WEBHOOK_SECRET)
+
+    if (event.type !== 'email.received') {
+      this.log.debug(`resend inbound ${event.type} · ngoài phạm vi`)
+      return { ok: true }
+    }
+
+    const deliveryId = this.deliveryIdFromReplyAddress([
+      ...event.data.to,
+      ...event.data.received_for,
+    ])
+    if (!deliveryId) {
+      this.log.debug(`resend inbound email.received · ${event.data.email_id} · unknown-delivery`)
+      return { ok: true }
+    }
+
+    const outcome = await this.ledger.recordReply({
+      svixId,
+      deliveryId,
+      fromAddress: event.data.from,
+      subject: event.data.subject ? event.data.subject.slice(0, 500) : null,
+      at: this.timeOf(event.data.created_at),
+      providerEmailId: event.data.email_id,
+    })
+
+    this.log.log(`resend inbound email.received · ${deliveryId} · ${outcome}`)
+    return { ok: true }
+  }
+
+  /** Pulls the `deliveryId` a MAS send embedded in its `Reply-To`
+   *  (`reply+<deliveryId>@go.<domain>`, see `mas.composer.ts`) out of the
+   *  addresses an inbound envelope names. Neither array is trusted content —
+   *  a stray plus-address that matches the shape but names no real delivery
+   *  is indistinguishable from garbage here, and `MailLedger.recordReply`
+   *  is where that gets sorted into `unknown-delivery`. */
+  private deliveryIdFromReplyAddress(addresses: string[]): string | null {
+    for (const address of addresses) {
+      const match = /^reply\+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@/i.exec(
+        address,
+      )
+      if (match) return match[1] ?? null
+    }
+    return null
+  }
+
   /** Verify the signature over the RAW bytes, or refuse without writing.
    *
    *  `req.rawBody` exists because `main.ts` boots Nest with `rawBody: true`;
    *  re-serialising `req.body` would not work, because `JSON.stringify` of a
    *  parsed object is not byte-identical to what was signed (key order,
-   *  whitespace, number formatting), so every signature would fail. */
-  private verified(req: RawBodyRequest<FastifyRequest>, svixId: string): WebhookEventPayload {
-    const secret = this.env.RESEND_WEBHOOK_SECRET
+   *  whitespace, number formatting), so every signature would fail.
+   *
+   *  `secret` is a parameter, not read from `env` inside this method: `receive()`
+   *  and `receiveInbound()` verify against two DIFFERENT Resend webhook
+   *  subscriptions, each with its own signing secret, and a method that reached
+   *  into `env` itself could only ever check one of them. */
+  private verified(
+    req: RawBodyRequest<FastifyRequest>,
+    svixId: string,
+    secret: string,
+  ): WebhookEventPayload {
     /* No secret configured = the door is CLOSED, not open. An unverifiable
        webhook is an unauthenticated write to the delivery ledger. */
     if (secret === '') throw this.refuse()

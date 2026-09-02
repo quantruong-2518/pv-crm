@@ -1,5 +1,11 @@
 import type { ObjectRef } from '@pv/engines'
-import type { LeadMailTimelineRow, LeadProfile, LeadRow, MailRunState } from '@pv/contracts'
+import type {
+  LeadMailEventRow,
+  LeadMailTimelineRow,
+  LeadProfile,
+  LeadRow,
+  MailRunState,
+} from '@pv/contracts'
 import type { LeadRowDb } from './lead.schema'
 
 /** One row of `LeadRepository.mailTimeline()`, in the DRIVER's own spelling.
@@ -49,6 +55,20 @@ export type LeadMailTimelineRead = {
   last_open_at: Date | string | null
   click_count: number
   last_click_at: Date | string | null
+  reply_count: number
+  last_reply_at: Date | string | null
+  campaign_code: string | null
+  campaign_name: string | null
+}
+
+/** One row of `LeadRepository.mailEvents()`, same driver-spelling reasoning as
+ *  `LeadMailTimelineRead` above. `from_address` is set only on a `REPLY` row —
+ *  `toMailEvent` is what folds it into `detail` alongside `subject`. */
+export type LeadMailEventRead = {
+  kind: 'OPEN' | 'CLICK' | 'REPLY'
+  at: Date | string
+  detail: string | null
+  from_address: string | null
 }
 
 /** Một dòng đã đọc xong từ bảng, kèm thứ không phải cột.
@@ -262,6 +282,7 @@ export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow 
   const deliveredAt = isoOf(read.delivered_at)
   const lastOpenAt = isoOf(read.last_open_at)
   const lastClickAt = isoOf(read.last_click_at)
+  const lastReplyAt = isoOf(read.last_reply_at)
 
   return {
     runId: read.run_id,
@@ -278,7 +299,36 @@ export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow 
     ...(read.fail_reason && FAILED_DELIVERY[read.delivery_state]
       ? { failReason: read.fail_reason }
       : {}),
+    ...(read.campaign_code && read.campaign_name
+      ? { campaignCode: read.campaign_code, campaignName: read.campaign_name }
+      : {}),
+    replyCount: read.reply_count,
+    ...(lastReplyAt ? { lastReplyAt } : {}),
   }
+}
+
+/** `subject`/`from_address` are Postgres `NULL` for OPEN and CLICK, and never
+ *  both absent for REPLY — `LeadRepository.mailEvents()` always writes
+ *  `from_address` alongside `subject` for that kind. A reply with no subject
+ *  line still says who sent it; a subject with no line of text under it would
+ *  be a message this screen invented. */
+export function toMailEvent(read: LeadMailEventRead): LeadMailEventRow {
+  return {
+    kind: read.kind,
+    /* `at` is NOT NULL on both source tables (`mail_event.at`,
+       `mail_reply.received_at`), so this is a straight format conversion, not
+       the null-swallowing `isoOf()` does for the OPTIONAL moments on
+       `LeadMailTimelineRow`. */
+    at: new Date(read.at).toISOString(),
+    ...(detailOf(read) ? { detail: detailOf(read) } : {}),
+  }
+}
+
+function detailOf(read: LeadMailEventRead): string | undefined {
+  if (read.kind === 'REPLY') {
+    return read.detail ? `${read.from_address} · ${read.detail}` : (read.from_address ?? undefined)
+  }
+  return read.detail ?? undefined
 }
 
 /** Mốc thời gian của driver → `Moc` của hợp đồng (ISO 8601 CÓ múi).

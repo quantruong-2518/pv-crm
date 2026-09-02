@@ -312,7 +312,66 @@ export const mailEvent = platform.table(
   ],
 )
 
+/** A LEAD REPLYING TO US — deliberately its own table, not a fourth
+ *  `MailEngagementKind`.
+ *
+ *  `mail_event` is additive rows about a letter WE sent — an open, a click, an
+ *  unsubscribe, all raised by something that happened to an outbound message
+ *  this ledger already knows about. A reply is the opposite direction: it is
+ *  inbound mail with its own provider identity, its own sender, its own
+ *  subject, arriving through a webhook (`email.received`) that has nothing to
+ *  do with `applyWebhook()`'s delivery ladder or `recordEngagement()`'s
+ *  `MailEngagement` shape. Folding it into `mail_event` would mean stretching
+ *  that table's columns to carry a sender address and a subject line that
+ *  make sense for exactly one `kind` and nothing else — the same smell that
+ *  keeps `email_delivery.state` and this engagement axis apart in the first
+ *  place.
+ *
+ *  Correlation to the ORIGINAL letter is by delivery id, not by Message-ID
+ *  threading: every MAS send that opts into reply tracking carries a
+ *  `Reply-To` of `reply+<deliveryId>@go.<domain>` (see `resend.driver.ts`),
+ *  so the inbound webhook only has to read the plus-address out of `to` — no
+ *  second API call to fetch headers, no mail body ever touched. See
+ *  `mail-webhook.controller.ts` for the door this table is written from. */
+export const mailReply = platform.table(
+  'mail_reply',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    /** Cascade for the same reason `mail_event.deliveryId` does: a reply
+     *  describes a letter and means nothing once that letter's row is gone. */
+    deliveryId: uuid('delivery_id')
+      .notNull()
+      .references(() => emailDelivery.id, { onDelete: 'cascade' }),
+
+    /** The lead's own address, as Resend saw it on the inbound envelope —
+     *  not necessarily the address the letter was sent to, if they replied
+     *  from a colleague's inbox. */
+    fromAddress: text('from_address').notNull(),
+
+    /** Truncated at write time, same bound as `email_delivery.lastErrorSummary`
+     *  — free text from outside this process, never allowed to grow
+     *  unbounded. The mail body itself is never fetched or stored. */
+    subject: text('subject'),
+
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+
+    /** Resend's id for the INBOUND message — the replay guard. One inbound
+     *  webhook always names exactly one letter, unlike `mail_event`, which
+     *  needs the three-column `mail_event_once` key because OPEN/CLICK can
+     *  legitimately repeat at the same moment from different envelopes. */
+    providerEmailId: text('provider_email_id').notNull().unique(),
+
+    /** Which webhook envelope carried this — same role as `mail_event.svixId`. */
+    svixId: text('svix_id'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mail_reply_delivery_idx').on(t.deliveryId)],
+)
+
 export type EmailDeliveryRow = typeof emailDelivery.$inferSelect
 export type EmailSuppressionRow = typeof emailSuppression.$inferSelect
 export type EmailWebhookEventRow = typeof emailWebhookEvent.$inferSelect
 export type MailEventRow = typeof mailEvent.$inferSelect
+export type MailReplyRow = typeof mailReply.$inferSelect

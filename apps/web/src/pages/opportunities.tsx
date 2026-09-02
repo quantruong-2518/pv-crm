@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Ban, FileCheck, Inbox, Target, TriangleAlert, Wallet } from '@pv/ui'
+import { Ban, FileCheck, Inbox, PenLine, Target, TriangleAlert, Wallet } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -10,6 +10,7 @@ import {
   DataTable,
   EmptyState,
   GlassCard,
+  Icon,
   Kicker,
   SearchField,
   Select,
@@ -56,6 +57,7 @@ import {
 import { OP_SPEC } from '@/data/intake'
 import { useOpportunityImport } from '@/data/opportunity-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
+import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import { Pager, PersonCell } from '@/components/table-bits'
 import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
 
@@ -329,6 +331,8 @@ export function OpportunitiesPage() {
       ? undefined
       : { key: query.sort, dir: query.dir }
 
+  const [creating, setCreating] = useState(false)
+
   const loadFile = useOpportunityImport()
 
   /* Lô nạp GHI THẲNG lên máy chủ — hai cửa, `preview` rồi `import`, cả hai nằm
@@ -364,20 +368,35 @@ export function OpportunitiesPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        {/* Một hàng, hai việc: tiêu đề sổ và cửa nạp cả một tệp. Cùng hình với
-            sổ lead (`pages/leads.tsx`) — hai sổ của cùng một phòng thì nút nạp
-            phải đứng cùng một chỗ. Không có nút "Tạo cơ hội" cạnh nó: đơn sinh
-            ra từ hồ sơ một lead, không từ một phiếu trắng ở đây. */}
+        {/* Hai cửa ghi của sổ, cạnh nhau — cùng hình với sổ lead
+            (`pages/leads.tsx`), nên nút nạp của hai sổ đứng cùng một chỗ.
+
+            Nút "Tạo cơ hội" KHÔNG mở một phiếu trắng, và câu "đơn sinh ra từ
+            hồ sơ một lead" mà chỗ này từng ghi vẫn đúng nguyên: nó mở một ô
+            chọn lead trước, rồi giao cho ĐÚNG `ConvertDialog` mà hồ sơ lead
+            vẫn dùng. Thứ đổi là chỗ ĐỨNG để bắt đầu, không phải luật — ai đang
+            đọc sổ cơ hội không phải đi vòng qua sổ lead để mở một đơn. */}
         <ScreenHeader
           title="Sổ cơ hội"
           actions={
-            <ImportZone
-              spec={OP_SPEC}
-              existingKeys={NO_LOCAL_KEYS}
-              buttonLabel="Nạp cơ hội từ tệp"
-              onCommit={commitOps}
-              onSeeResult={clearFilters}
-            />
+            <>
+              <Button
+                size="md"
+                variant="ghost"
+                onClick={() => setCreating(true)}
+                className="max-sm:flex-1"
+              >
+                <Icon icon={PenLine} size={16} />
+                Tạo cơ hội
+              </Button>
+              <ImportZone
+                spec={OP_SPEC}
+                existingKeys={NO_LOCAL_KEYS}
+                buttonLabel="Nạp cơ hội từ tệp"
+                onCommit={commitOps}
+                onSeeResult={clearFilters}
+              />
+            </>
           }
         />
 
@@ -585,6 +604,17 @@ export function OpportunitiesPage() {
             <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />
           </div>
         )}
+
+        {/* Written, then STRAIGHT to the new deal's profile rather than back to
+            the book. Staying leaves the user in front of a table whose filters
+            may hide the very row they just made, and the code the server minted
+            on save — the one thing the form refuses to guess in advance — would
+            still be nowhere on screen. */}
+        <OpportunityCreateDialog
+          open={creating}
+          onClose={() => setCreating(false)}
+          onCreated={(row) => open(row.code)}
+        />
       </ScreenLayout>
     </AppShell>
   )
