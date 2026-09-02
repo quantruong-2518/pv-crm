@@ -17,8 +17,15 @@
 app = "pvone-crm-api"
 primary_region = "sin" # Singapore — gần VN nhất, Fly.io chưa có region tại VN
 
-# Biến KHÔNG phải secret thì khai ở đây (theo repo, ai đọc cũng thấy) — chỉ
-# `DATABASE_URL` mới qua `fly secrets set` vì đó là thứ thật sự nhạy cảm.
+# Biến KHÔNG phải secret thì khai ở đây (theo repo, ai đọc cũng thấy).
+#
+# Danh sách secret KHÔNG chép vào đây. Nó sống trên Fly và đổi mà file này
+# không đổi theo — đó chính là cách khối comment dưới từng nói dối suốt một
+# tuần. Muốn biết app đang mang gì thì hỏi thẳng nguồn:
+#
+#     fly secrets list --app pvone-crm-api
+#
+# (chỉ ra TÊN và digest, không ra giá trị).
 [env]
 NODE_ENV = "production"
 
@@ -30,11 +37,23 @@ NODE_ENV = "production"
 # ĐỂ TRỐNG LÀ TẮT CẢ ĐƯỜNG ỐNG, không phải "gửi cho không ai": E4 bỏ luôn ý
 # định gửi khi audience rỗng (`plan()` trả `[]`), nên intake chấp nhận lead mà
 # KHÔNG sinh dòng nào trong `platform.email_delivery` — worker có chạy cũng
-# không có gì để nhặt. Đó đúng là trạng thái production đã nằm im từ 27/08.
+# không có gì để nhặt.
 #
-# Đặt biến này KHÔNG làm thư bay ra ngoài: `PV_EMAIL_ENABLED` vẫn vắng nên
-# mặc định `false` và driver là console. Sổ gửi có dòng, thư dừng đúng một tấc
-# trước khi rời máy — chính là trạng thái doc yêu cầu phải có TRƯỚC bước canary.
+# ------------------------------------------------------------------
+# THƯ BAY RA NGOÀI THẬT. Sửa 03/09/2026.
+# ------------------------------------------------------------------
+# Chỗ này từng viết rằng `PV_EMAIL_ENABLED` vắng nên driver là console và
+# "thư dừng đúng một tấc trước khi rời máy". Đó là trạng thái trước canary,
+# và nó đã hết đúng: cả `PV_EMAIL_ENABLED` lẫn `PV_MAS_ENABLED` đều đang
+# `Deployed` trên app, cùng một digest tức cùng một giá trị. Worker log
+# `gửi thật: BẬT` lúc khởi động.
+#
+# Nghĩa là: transactional VÀ mail chiến dịch đều tới hộp thư người thật.
+# Một comment nói ngược lại nguy hiểm hơn không có comment nào, vì người đọc
+# nó để quyết định có dám bấm gửi hay không.
+#
+# Muốn tắt: `fly secrets unset PV_EMAIL_ENABLED PV_MAS_ENABLED` — hai biến
+# tách nhau nên tắt được chiến dịch mà vẫn giữ thư giao dịch.
 PV_LEAD_NOTIFICATION_TO = "contact@pebblevina.com"
 
 [build]
