@@ -1,6 +1,6 @@
 {
-  "id": "d4ef4072-8c2b-495d-8e3a-43172fb7765c",
-  "prevId": "3a7daa80-af7f-4d5a-8e74-a78c48d4d1b7",
+  "id": "090cd80c-c7ce-4a58-a8de-0cd83cbb8568",
+  "prevId": "2b755aa9-3a17-4f68-a2f3-043c81a0d54f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -825,6 +825,473 @@
       },
       "isRLSEnabled": false
     },
+    "sales.contract_condition": {
+      "name": "contract_condition",
+      "schema": "sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "contract_code": {
+          "name": "contract_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installment_no": {
+          "name": "installment_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "side": {
+          "name": "side",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "what": {
+          "name": "what",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due": {
+          "name": "due",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "who": {
+          "name": "who",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "contract_condition_installment_idx": {
+          "name": "contract_condition_installment_idx",
+          "columns": [
+            {
+              "expression": "contract_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installment_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_condition_installment_fk": {
+          "name": "contract_condition_installment_fk",
+          "tableFrom": "contract_condition",
+          "tableTo": "contract_installment",
+          "schemaTo": "sales",
+          "columnsFrom": ["contract_code", "installment_no"],
+          "columnsTo": ["contract_code", "no"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_condition_side_known": {
+          "name": "contract_condition_side_known",
+          "value": "\"side\" IN ('ta', 'khách')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.contract_document": {
+      "name": "contract_document",
+      "schema": "sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "contract_code": {
+          "name": "contract_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installment_no": {
+          "name": "installment_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hint": {
+          "name": "hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "contract_document_installment_idx": {
+          "name": "contract_document_installment_idx",
+          "columns": [
+            {
+              "expression": "contract_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installment_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_document_installment_fk": {
+          "name": "contract_document_installment_fk",
+          "tableFrom": "contract_document",
+          "tableTo": "contract_installment",
+          "schemaTo": "sales",
+          "columnsFrom": ["contract_code", "installment_no"],
+          "columnsTo": ["contract_code", "no"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_document_state_known": {
+          "name": "contract_document_state_known",
+          "value": "\"state\" IN ('đủ', 'chờ-ký', 'chưa-có')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.contract_installment": {
+      "name": "contract_installment",
+      "schema": "sales",
+      "columns": {
+        "contract_code": {
+          "name": "contract_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "no": {
+          "name": "no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "share": {
+          "name": "share",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due": {
+          "name": "due",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "contract_installment_contract_code_contract_code_fk": {
+          "name": "contract_installment_contract_code_contract_code_fk",
+          "tableFrom": "contract_installment",
+          "tableTo": "contract",
+          "schemaTo": "sales",
+          "columnsFrom": ["contract_code"],
+          "columnsTo": ["code"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "contract_installment_pk": {
+          "name": "contract_installment_pk",
+          "columns": ["contract_code", "no"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_installment_no_positive": {
+          "name": "contract_installment_no_positive",
+          "value": "\"no\" > 0"
+        },
+        "contract_installment_share_range": {
+          "name": "contract_installment_share_range",
+          "value": "\"share\" BETWEEN 0 AND 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.contract_note": {
+      "name": "contract_note",
+      "schema": "sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "contract_code": {
+          "name": "contract_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installment_no": {
+          "name": "installment_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "who": {
+          "name": "who",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "contract_note_installment_idx": {
+          "name": "contract_note_installment_idx",
+          "columns": [
+            {
+              "expression": "contract_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installment_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_note_installment_fk": {
+          "name": "contract_note_installment_fk",
+          "tableFrom": "contract_note",
+          "tableTo": "contract_installment",
+          "schemaTo": "sales",
+          "columnsFrom": ["contract_code", "installment_no"],
+          "columnsTo": ["contract_code", "no"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "sales.contract_record": {
+      "name": "contract_record",
+      "schema": "sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "contract_code": {
+          "name": "contract_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installment_no": {
+          "name": "installment_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "what": {
+          "name": "what",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "detail": {
+          "name": "detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "contract_record_installment_idx": {
+          "name": "contract_record_installment_idx",
+          "columns": [
+            {
+              "expression": "contract_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installment_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_record_installment_fk": {
+          "name": "contract_record_installment_fk",
+          "tableFrom": "contract_record",
+          "tableTo": "contract_installment",
+          "schemaTo": "sales",
+          "columnsFrom": ["contract_code", "installment_no"],
+          "columnsTo": ["contract_code", "no"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_record_channel_known": {
+          "name": "contract_record_channel_known",
+          "value": "\"channel\" IN ('email', 'zalo-oa', 'trong-app', 'gọi')"
+        },
+        "contract_record_state_known": {
+          "name": "contract_record_state_known",
+          "value": "\"state\" IN ('xong', 'chờ-trả-lời', 'đã-xếp', 'chưa-tới')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "sales.lead_intake": {
       "name": "lead_intake",
       "schema": "sales",
@@ -1272,16 +1739,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "campaign_list": {
-          "name": "campaign_list",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "generated": {
-            "as": "CASE WHEN \"campaign_id\" IS NULL THEN NULL ELSE 'SOURCE' END",
-            "type": "stored"
-          }
-        },
         "score": {
           "name": "score",
           "type": "integer",
@@ -1444,16 +1901,6 @@
           "schemaTo": "platform",
           "columnsFrom": ["marketing_owner_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "lead_campaign_fk": {
-          "name": "lead_campaign_fk",
-          "tableFrom": "lead",
-          "tableTo": "config_entry",
-          "schemaTo": "sales",
-          "columnsFrom": ["campaign_id", "campaign_list"],
-          "columnsTo": ["id", "list"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3284,6 +3731,102 @@
           "value": "(\"platform\".\"mail_event\".\"kind\" = 'CLICK') = (\"platform\".\"mail_event\".\"url\" IS NOT NULL)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "platform.mail_reply": {
+      "name": "mail_reply",
+      "schema": "platform",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "delivery_id": {
+          "name": "delivery_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_address": {
+          "name": "from_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_email_id": {
+          "name": "provider_email_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "svix_id": {
+          "name": "svix_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mail_reply_delivery_idx": {
+          "name": "mail_reply_delivery_idx",
+          "columns": [
+            {
+              "expression": "delivery_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mail_reply_delivery_id_email_delivery_id_fk": {
+          "name": "mail_reply_delivery_id_email_delivery_id_fk",
+          "tableFrom": "mail_reply",
+          "tableTo": "email_delivery",
+          "schemaTo": "platform",
+          "columnsFrom": ["delivery_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mail_reply_provider_email_id_unique": {
+          "name": "mail_reply_provider_email_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["provider_email_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "platform.mail_gate": {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { email, phoneOptional, textNhap, textNhapTuyChon } from '../primitives'
 import { type LeadMotion, type LeadSourceKind } from './enums'
+import { LEAD_MAX } from './lead-fields'
 
 /** How a lead entered the system — TWO axes, and what each origin implies.
  *
@@ -167,12 +168,12 @@ export const LeadIntakeQuery = z
  *  it empty; a non-empty value is acknowledged but never creates a lead. */
 export const LeadIntakeBody = z
   .object({
-    company: textNhap(200),
-    contactName: textNhap(120),
+    company: textNhap(LEAD_MAX.company),
+    contactName: textNhap(LEAD_MAX.contactName),
     email,
     phone: phoneOptional,
-    province: textNhapTuyChon(64),
-    pain: textNhapTuyChon(1_000),
+    province: textNhapTuyChon(LEAD_MAX.province),
+    pain: textNhapTuyChon(LEAD_MAX.pain),
     website: z.string().max(200, 'website tối đa 200 ký tự').optional().default(''),
   })
   .strict()

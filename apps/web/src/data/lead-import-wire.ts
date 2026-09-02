@@ -1,5 +1,6 @@
 import {
   LEAD_IMPORT_FIELDS,
+  LEAD_MAX,
   LeadImportBody,
   type LeadImportDup,
   type LeadImportField,
@@ -122,6 +123,22 @@ function pickImportValues(
  *  not currently kept on `BuiltRow` itself. */
 export type ImportableRow = BuiltRow & { first: string }
 
+/** Cut a value that is only ECHOED back down to what the contract accepts.
+ *
+ *  Two fields, and neither is data: `fileName` is printed in the batch record,
+ *  `first` is the column that helps somebody find the row in their own
+ *  spreadsheet. Both have a ceiling on the body, and a body that fails its
+ *  schema takes the WHOLE batch with it — so a file whose first column happens
+ *  to be a long note would report five thousand rows broken because of a label
+ *  nobody reads as a value. Cutting is the honest answer here precisely because
+ *  the value is decoration: truncating a lead's actual company name would not
+ *  be, which is why the CELLS are refused row by row instead (`buildRows`).
+ *
+ *  An ellipsis rather than a hard cut, so a truncated echo cannot be mistaken
+ *  for what the file said. */
+const clip = (value: string, max: number) =>
+  value.length <= max ? value : `${value.slice(0, max - 1)}…`
+
 /** Build the body BOTH import endpoints accept, from the rows the panel has
  *  already mapped and the choices made for the batch — and validate it with
  *  the contract's own schema.
@@ -149,12 +166,12 @@ export function buildLeadImportBody(
   choices: ImportBatchChoices,
 ): ReturnType<typeof LeadImportBody.safeParse> {
   const candidate = {
-    fileName: choices.fileName,
+    fileName: clip(choices.fileName, LEAD_MAX.fileName),
     motion: choices.motion,
     source: choices.source,
     rows: rows.map((row) => ({
       line: row.line,
-      first: row.first,
+      first: clip(row.first, LEAD_MAX.company),
       values: pickImportValues(row.values),
     })),
   }
@@ -185,6 +202,8 @@ export type LeadImportPanelReport = {
   total: number
   dupWithBook: LeadImportDup[]
   dupWithinFile: LeadImportDup[]
+  /** Codes minted for `rows`, in the same order — only after a commit. */
+  codes?: string[]
 }
 
 /** Translate a server `LeadImportReport` — returned by BOTH the preview and

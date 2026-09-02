@@ -97,4 +97,22 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
     fields: ['marketingOwnerId'],
     message: 'Người marketing được ghi công không có trong sổ nhân sự.',
   },
+
+  /** The campaign has to exist, and has to be a row of the source catalogue.
+   *
+   *  The key is COMPOSITE on `(campaign_id, campaign_list)`, so it catches two
+   *  things with one sentence: a code that names nothing, and a code that names
+   *  a row of some other catalogue (a pipeline stage, an exit reason). The
+   *  sentence covers both because the sender cannot tell them apart — to them
+   *  "not a campaign" is one fact.
+   *
+   *  This is the LAST net. Both write doors ask the campaign book first
+   *  (`assertCampaign` in `lead-write.service.ts`, the `campaigns` set in
+   *  `lead-import.check.ts`), so the ordinary path never reaches it; it is here
+   *  for the third door nobody has written. */
+  lead_campaign_fk: {
+    kind: 'invalid',
+    fields: ['campaignId'],
+    message: 'Chiến dịch không có trong sổ chiến dịch.',
+  },
 }

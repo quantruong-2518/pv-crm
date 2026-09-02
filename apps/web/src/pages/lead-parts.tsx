@@ -58,8 +58,12 @@ import { profileForm } from '@/data/lead-profile'
 import {
   changedFields,
   channelUrlLabel,
+  DEADLINE_MAX,
+  DEADLINE_MIN,
   fieldsOf,
-  isMandatory,
+  inputModeOf,
+  isRequiredOnSave,
+  maxCharsOf,
   PROFILE_GROUPS,
   readField,
   slotsOfGroup,
@@ -94,7 +98,7 @@ import {
 // Khung chung của một ô
 // ---------------------------------------------------------------------------
 
-/** Một ô: nhãn (kèm dấu sao nếu bắt buộc) · control · câu dẫn nếu ô có bẫy.
+/** Một ô: nhãn (kèm dấu sao nếu ô không được để trống) · control · câu dẫn.
  *
  *  Không còn nhãn `ô N`: xem docblock `data/lead-form.ts`. Bề rộng cũng không
  *  còn ở đây — mọi ô chiếm đúng một ô lưới, lưới quyết định bề rộng.
@@ -115,7 +119,7 @@ function FieldShell({
   const head = (
     <span className="text-glass-foreground text-[13px] font-semibold leading-[1.4]">
       {field.label}
-      {isMandatory(field) && (
+      {isRequiredOnSave(field) && (
         <span className="text-warning" aria-hidden="true">
           {' '}
           *
@@ -161,7 +165,7 @@ function FieldControl({
   options: { value: string; label: string }[]
   onChange: (raw: string) => void
 }) {
-  const required = isMandatory(field) || undefined
+  const required = isRequiredOnSave(field) || undefined
 
   if (field.kind === 'read') {
     return (
@@ -199,6 +203,7 @@ function FieldControl({
         autoGrow
         rows={3}
         value={value}
+        maxLength={maxCharsOf(field)}
         placeholder={field.placeholder}
         aria-label={field.label}
         aria-required={required}
@@ -213,6 +218,8 @@ function FieldControl({
       <Input
         type="date"
         value={value.slice(0, 10)}
+        min={DEADLINE_MIN}
+        max={DEADLINE_MAX}
         aria-label={field.label}
         aria-required={required}
         className="h-11 text-[13px]"
@@ -230,7 +237,11 @@ function FieldControl({
           aria-label={field.label}
           aria-required={required}
           className="h-11 min-w-0 flex-1 font-mono text-[13px]"
-          onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+          /* Clamped by DIGITS, not by `maxLength`: the box shows `1.000.000`
+             while the value behind it is `1000000`, so a character ceiling on
+             the control would cut the number short by however many separators
+             it happens to be wearing. */
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, maxCharsOf(field)))}
         />
         {field.unit && (
           <span className="text-muted-foreground shrink-0 text-[12.5px]">{field.unit}</span>
@@ -241,7 +252,14 @@ function FieldControl({
 
   return (
     <Input
+      type={field.key === 'email' ? 'email' : 'text'}
+      inputMode={inputModeOf(field)}
+      /* Nothing on this card benefits from the browser's own suggestions, and
+         one of them actively harms: a box asking for the contact person invites
+         the autofill of whoever is TYPING, not of the customer being recorded. */
+      autoComplete="off"
       value={value}
+      maxLength={maxCharsOf(field)}
       placeholder={field.placeholder}
       aria-label={field.label}
       aria-required={required}
@@ -379,7 +397,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
            lần chạm nào — con số đó sẽ là 0 với MỌI lead, kể cả lead vừa nói
            chuyện xong. Một con số luôn bằng 0 không phải thông tin, nên chỗ này
            nói thẳng ra là chưa có sổ để đếm. */
-        hint="Điền theo từng nhóm. Các trường có dấu * là thông tin bắt buộc."
+        hint="Điền theo từng nhóm. Ô có dấu * không được để trống khi lưu."
         /* The "back to the original" button is gone. It stepped from the copy
            saved ON THIS MACHINE back to the server's, and those two are now one
            and the same. Stepping back from something already written into the

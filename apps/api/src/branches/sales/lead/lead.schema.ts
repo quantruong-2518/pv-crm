@@ -2,6 +2,7 @@ import {
   bigint,
   check,
   date,
+  foreignKey,
   index,
   integer,
   smallint,
@@ -21,6 +22,7 @@ import type {
   StageKey,
 } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
 
 /** Chuỗi rỗng KHÔNG phải một giá trị — nợ số 5 của `docs/ban-giao-backend.md`.
@@ -235,6 +237,25 @@ export const lead = sales.table(
      *  cạnh một cột tên `source_kind` thì không đọc ra được nửa nào là nửa
      *  nào. */
     campaignId: text('campaign_id'),
+    /** The second half of the COMPOSITE foreign key into
+     *  `config_entry(id, list)` — written by the machine, never sent by a door.
+     *
+     *  Why a column exists just to hold one word: `config_entry` packs six
+     *  catalogues into one table, so `campaign_id -> config_entry(id)` alone
+     *  only says "points at some config row" — it would accept a pipeline-stage
+     *  code or an exit reason as a campaign. That table already declares
+     *  `UNIQUE (id, list)` for exactly this moment (read the docblock on
+     *  `config_id_list`), and folding `list` into the key is the only way to
+     *  have Postgres refuse instead of asking every door to remember.
+     *
+     *  A `CASE` rather than a bare `'SOURCE'` constant: a MATCH SIMPLE foreign
+     *  key skips the check when ONE of its columns is NULL, so a column that
+     *  always carries a word would let a lead belonging to no campaign through
+     *  — the right outcome for the wrong reason. Letting both columns be empty
+     *  together makes "belongs to no campaign" a state rather than a loophole. */
+    campaignList: text('campaign_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "campaign_id" IS NULL THEN NULL ELSE 'SOURCE' END`,
+    ),
     /** Điểm khả quan. Tính ở ENGINE rồi ghi cùng transaction với `touch`,
      *  KHÔNG tính bằng trigger SQL: điểm là luật nghiệp vụ, mà luật nằm trong
      *  trigger là luật `@pv/engines` không với tới, và từ đó web với máy chủ
@@ -319,6 +340,21 @@ export const lead = sales.table(
     uniqueIndex('lead_email_live_idx')
       .on(sql`lower("email")`)
       .where(sql`"exit_reason" IS NULL`),
+
+    /** The campaign has to EXIST, and has to be a row of the source catalogue.
+     *
+     *  Before this key `campaign_id` was only shape-checked: a code like
+     *  'SR-9999' that names nothing still put the lead in the book carrying a
+     *  campaign that is in no campaign book, and every report by campaign filed
+     *  it under a group nobody can open. `lead-write.repository.ts` used to
+     *  state why it was not fenced: checking at one door while three others do
+     *  not is half a fence. This key is the other half — it stands under every
+     *  door at once, including the one nobody has written yet. */
+    foreignKey({
+      name: 'lead_campaign_fk',
+      columns: [t.campaignId, t.campaignList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
 
     /** Tiền luôn mang đơn vị — nợ số 7. Một trong hai cột trống là cả hai
      *  trống; `250000000` không đơn vị là con số không cộng được với dòng bên

@@ -13,7 +13,7 @@ import {
   type MaObject,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, notFound } from '@api/platform/http/problem'
+import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
@@ -94,9 +94,7 @@ export class LeadWriteService {
     const write = fromCreate(body, owner?.name ?? null)
     /* Read before the write, beside the owner lookup and for the same reason:
        the response is a full book row, and a book row prints names, not ids. */
-    const campaignName = body.campaignId
-      ? await this.repo.campaignName(handle, body.campaignId)
-      : null
+    const campaignName = body.campaignId ? await this.assertCampaign(handle, body.campaignId) : null
     const code = await this.leads.nextCode()
 
     const row = await this.repo.run(async (tx) => {
@@ -467,6 +465,24 @@ export class LeadWriteService {
 
   // ── the shared half ──────────────────────────────────────────────────────
 
+  /** The campaign has to be a campaign, and this is where that gets SAID.
+   *
+   *  `lead_campaign_fk` already makes it impossible to store a code that names
+   *  no live campaign, so nothing gets through either way. What the constraint
+   *  cannot do is talk: it fires inside the INSERT, and the best `db-error.ts`
+   *  can make of it is one sentence keyed off a constraint name. Asking first
+   *  produces a 400 on the `campaignId` field before a transaction is opened,
+   *  which is the same shape every other refusal on this door has.
+   *
+   *  The read is not extra work either — the response is a full book row and a
+   *  book row prints the campaign's NAME, so this query was already running. It
+   *  only stopped throwing away the answer. */
+  private async assertCampaign(handle: Db, id: string): Promise<string> {
+    const name = await this.repo.campaignName(handle, id)
+    if (name === null) throw invalid({ campaignId: ['Chiến dịch không có trong sổ chiến dịch.'] })
+    return name
+  }
+
   /** Load what the check needs, then run THE check.
    *
    *  Both import doors come through here, which is the whole reason "the
@@ -478,9 +494,22 @@ export class LeadWriteService {
       .map((r) => r.values.email?.trim().toLowerCase())
       .filter((e): e is string => e !== undefined && e !== '')
 
-    const [staff, book] = await Promise.all([
+    /* Every campaign code the batch could land on: the one chosen for the
+       whole file, plus whatever the source column carries per row. Asked in ONE
+       query rather than per row — 5.000 rows is 5.000 round trips otherwise,
+       and the answer is the same small set every time. */
+    const campaigns = [
+      ...new Set(
+        [body.source, ...body.rows.map((r) => r.values.source)].filter(
+          (c): c is string => c !== undefined && c.trim() !== '',
+        ),
+      ),
+    ]
+
+    const [staff, book, live] = await Promise.all([
       this.repo.staff(handle),
       this.repo.liveByEmail(handle, [...new Set(mailboxes)]),
+      this.repo.campaignCodes(handle, campaigns),
     ])
 
     return checkBatch({
@@ -488,6 +517,7 @@ export class LeadWriteService {
       motion: body.motion,
       ...(body.source === undefined ? {} : { source: body.source }),
       staff,
+      campaigns: live,
       /* The check speaks in dedupe keys, the table speaks in mailboxes. One
          `keyOf` on both sides is what keeps the two vocabularies from needing
          a translation nobody maintains. */

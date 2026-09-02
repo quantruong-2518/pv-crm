@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { MaObject, Moc, gomKhoangTrang, textNhap, textNhapTuyChon } from '../primitives'
 import { LeadSourceKind } from './enums'
+import { LEAD_MAX } from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 
 /** Loading leads from a file — TWO endpoints, one body.
@@ -101,8 +102,20 @@ export const MAX_IMPORT_ROWS = 5_000
  *
  *  Whitespace is still collapsed on the way in: leading and trailing spaces
  *  from a spreadsheet are invisible to the person who made the file and very
- *  visible to `=`, to `UNIQUE`, and to `CHECK lead_no_blank`. */
-const importCell = z.string().max(1_000, 'Ô dài quá 1.000 ký tự').transform(gomKhoangTrang)
+ *  visible to `=`, to `UNIQUE`, and to `CHECK lead_no_blank`.
+ *
+ *  `MAX_IMPORT_CELL` is EXPORTED, and the reason is a failure the panel used to
+ *  have: this ceiling sits on the body, so one 1.001-character cell in a
+ *  5.000-row file failed `LeadImportBody.safeParse` and the screen reported the
+ *  whole batch refused — five thousand rows marked broken because of one. The
+ *  panel now stops the same cell in the browser as ONE ROW, which is only
+ *  possible if it can read the number rather than guess it. */
+export const MAX_IMPORT_CELL = 1_000
+
+const importCell = z
+  .string()
+  .max(MAX_IMPORT_CELL, `Ô dài quá ${MAX_IMPORT_CELL.toLocaleString('vi-VN')} ký tự`)
+  .transform(gomKhoangTrang)
 
 /** One row of the file after the columns have been mapped.
  *
@@ -124,7 +137,7 @@ export const LeadImportRow = z.object({
    *  columns are mapped, the raw row order is gone. Without it the downloadable
    *  error file loses the column that lets someone find the row in their own
    *  spreadsheet. When absent the server falls back to `values.company`. */
-  first: textNhapTuyChon(200),
+  first: textNhapTuyChon(LEAD_MAX.company),
   values: z.partialRecord(LeadImportField, importCell),
 })
 
@@ -135,13 +148,13 @@ export const LeadImportRow = z.object({
 export const LeadImportBody = z.object({
   /** Shown in the batch record and in the lead's history line, so six months
    *  later "where did this row come from" has an answer. */
-  fileName: textNhap(255),
+  fileName: textNhap(LEAD_MAX.fileName),
   /** Narrowed to the motions the `tep` door can carry — the same four the
    *  screen offers (`LEAD_SPEC.motions`). A pair outside `MOTION_BY_CHANNEL`
    *  does not mean "not supported"; it means it does not happen, so it fails at
    *  the gate on the `motion` field rather than being stored and then
    *  disbelieved by every report that reads it. */
-  motion: z.enum(MOTION_BY_CHANNEL.IMPORT),
+  motion: z.enum(MOTION_BY_CHANNEL.IMPORT, 'Thế này không đi qua cửa nạp tệp được'),
   /** Source code for the WHOLE batch — the campaign's code when the load is
    *  started from inside a campaign profile. Optional: a file brought in on its
    *  own belongs to no campaign.
@@ -150,7 +163,7 @@ export const LeadImportBody = z.object({
    *  wins over the per-row `source` cell. The person clicking the button is
    *  saying something about the whole file, and a stale code in a column should
    *  not quietly overrule them. */
-  source: textNhapTuyChon(64),
+  source: textNhapTuyChon(LEAD_MAX.campaignCode),
   rows: z
     .array(LeadImportRow)
     .min(1, 'Không có dòng nào để nạp')

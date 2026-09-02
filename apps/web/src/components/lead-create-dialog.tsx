@@ -3,6 +3,7 @@ import { Plus, X } from '@pv/ui'
 import { Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
 import type { LeadCreateResponse } from '@pv/contracts'
 import { isApiError, type FieldErrors } from '@/app/api'
+import { DEADLINE_MAX, DEADLINE_MIN } from '@/data/lead-form'
 import {
   buildLeadCreate,
   createFailureMessage,
@@ -287,6 +288,7 @@ function FieldControl({
         rows={3}
         value={value}
         invalid={invalid}
+        maxLength={field.max}
         placeholder={field.placeholder}
         aria-label={field.label}
         aria-required={required}
@@ -301,6 +303,8 @@ function FieldControl({
         type="date"
         value={value}
         invalid={invalid}
+        min={DEADLINE_MIN}
+        max={DEADLINE_MAX}
         aria-label={field.label}
         aria-required={required}
         onChange={(event) => onChange(event.target.value)}
@@ -318,7 +322,11 @@ function FieldControl({
           aria-label={field.label}
           aria-required={required}
           className="min-w-0 flex-1 font-mono"
-          onChange={(event) => onChange(event.target.value.replace(/\D/g, ''))}
+          /* Clamped by DIGITS, not by `maxLength`: the box shows `1.000.000`
+             while the draft holds `1000000`, so a character ceiling on the
+             control would cut the number short by however many separators it
+             happens to be wearing. */
+          onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, field.max))}
         />
         {field.unit && (
           <span className="text-muted-foreground shrink-0 text-[11px]">{field.unit}</span>
@@ -329,8 +337,15 @@ function FieldControl({
 
   return (
     <Input
+      type={field.wire === 'email' ? 'email' : 'text'}
+      inputMode={field.inputMode}
+      /* Nothing on this form benefits from the browser's own suggestions, and
+         one of them actively harms: a box asking for the contact person invites
+         the autofill of whoever is TYPING, not of the customer being recorded. */
+      autoComplete="off"
       value={value}
       invalid={invalid}
+      maxLength={field.max}
       placeholder={field.placeholder}
       aria-label={field.label}
       aria-required={required}

@@ -2,8 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LeadCreate, MOTION_BY_CHANNEL, type LeadCreateResponse } from '@pv/contracts'
 import { api, userMessage, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import {
+  inputModeOf,
+  maxCharsOf,
   PROFILE_FIELDS,
   PROFILE_GROUPS,
+  PROFILE_TO_WIRE,
   type FieldKind,
   type GroupKey,
   type ProfileField,
@@ -134,27 +137,6 @@ const SHAPE = LeadCreate.shape as Record<CreateKey, FieldProbe>
  *  carried no mark. */
 const requiredOnWire = (key: CreateKey) => !SHAPE[key].safeParse(undefined).success
 
-/** The one field the two books spell differently.
- *
- *  `LeadProfile.channel` is `LeadCreate.contactChannel` — same value set
- *  (`ContactChannel`), two names, because the profile calls it "the channel"
- *  while the table has a `contact_channel` column and a `contact_*` family
- *  around it. Kept as a one-entry table rather than renamed on either side:
- *  renaming the profile field touches the fixture, the gate (`SLOT_FIELDS`)
- *  and four screens for a cosmetic win.
- *
- *  Exported because `lead-patch.ts` needs the same two lines: both write doors
- *  of this book take a profile-shaped draft and address contract-shaped fields,
- *  so a second copy of the table would be a second answer to "what is `channel`
- *  called on the wire" — and the copies would drift on the day a third field
- *  gains a second name. Typed against `LeadCreate` and read by the patch door
- *  through a widening cast, because `LeadPatch` spells its fields identically:
- *  the two contracts share every name they share at all. */
-export const PROFILE_TO_WIRE: Partial<Record<ProfileField['key'], CreateKey>> = {
-  channel: 'contactChannel',
-  channelUrl: 'contactChannelUrl',
-}
-
 /** Which `LeadCreate` field a drawn profile field writes into — `undefined`
  *  when the contract has no such field, which is how the create form drops
  *  what it must not send.
@@ -196,6 +178,14 @@ export type CreateField = {
   kind: FieldKind
   group: GroupKey
   required: boolean
+  /** How many characters the control accepts — `maxCharsOf` in
+   *  `data/lead-form.ts` decides it, off the contract's own table, and the
+   *  profile card reads the same function. */
+  max?: number
+  /** Soft keyboard for the tablet, from the same blueprint. Derived once here
+   *  rather than looked up while drawing, because this table is built once at
+   *  module level and the drawer is not. */
+  inputMode?: 'email' | 'tel' | 'numeric'
   hint?: string
   placeholder?: string
   unit?: string
@@ -283,6 +273,8 @@ export const CREATE_FIELDS: CreateField[] = [
         kind: field.kind,
         group: field.group,
         required,
+        max: maxCharsOf(field),
+        inputMode: inputModeOf(field),
         hint: field.hint,
         placeholder: field.placeholder,
         unit: field.unit,

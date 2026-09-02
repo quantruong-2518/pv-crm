@@ -15,9 +15,25 @@ import { z } from 'zod'
  *  Trong lúc chưa tách, hai bên còn là hai bản chép tay — chốt chặn duy nhất là
  *  test khoá số của fixture. Đây là nợ ĐÃ BIẾT, không phải chỗ quên. */
 
-export const LeadCategory = z.enum(['chip', 'co-khi', 'o-to', 'duoc'])
+/** EVERY enum below carries a Vietnamese sentence, and it is not decoration.
+ *
+ *  zod writes its own sentence for a value outside the list, and that sentence
+ *  LISTS the list: `Invalid option: expected one of "email"|"zalo-oa"|…` — a
+ *  seven-clause English line dropped into a Vietnamese form, underneath the very
+ *  control the user picked from. `closedList` in
+ *  `apps/api/.../lead-import.check.ts` already had to write its own sentence for
+ *  exactly this reason; declaring one here pays that debt for every door at once
+ *  instead of leaving each to fend for itself.
+ *
+ *  The sentence names the FIELD and does not repeat the allowed values: the
+ *  screen is already showing them, and a value outside the list means a column
+ *  was mapped wrong, not that somebody failed to choose. */
+export const LeadCategory = z.enum(
+  ['chip', 'co-khi', 'o-to', 'duoc'],
+  'Ngành không có trong danh sách',
+)
 
-export const LeadTier = z.enum(['dau-moi', 'mql', 'sql'])
+export const LeadTier = z.enum(['dau-moi', 'mql', 'sql'], 'Bậc không có trong danh sách')
 
 /** Năm cột của sổ cơ hội. Không có cột thứ sáu. */
 export const StageKey = z.enum(['moi', 'tim-hieu', 'da-demo', 'da-bao-gia', 'cho-ky'])
@@ -81,7 +97,10 @@ export type ExitReason = z.infer<typeof ExitReason>
  *  are keys — on the wire and in the column. The Vietnamese labels live in
  *  `./lead-source`, ONE table shared by the server and the screen; see the
  *  docblock there for why they are no longer view-layer-only. */
-export const LeadSourceKind = z.enum(['MANUAL', 'IMPORT', 'APOLLO', 'LANDING_PAGE'])
+export const LeadSourceKind = z.enum(
+  ['MANUAL', 'IMPORT', 'APOLLO', 'LANDING_PAGE'],
+  'Đường vào không có trong danh sách',
+)
 
 /** Who made the first move — the six lead MOTIONS.
  *
@@ -115,27 +134,25 @@ export const LeadSourceKind = z.enum(['MANUAL', 'IMPORT', 'APOLLO', 'LANDING_PAG
  *  Until that sweep: the conversion between the two spellings happens in
  *  `lead.mapper.ts`, in exactly ONE place. A second conversion site is how
  *  two spellings start to drift, so there must not be one. */
-export const LeadMotion = z.enum(['INBOUND', 'OUTBOUND', 'EVENT', 'REFERRAL', 'PARTNER', 'RECYCLE'])
+export const LeadMotion = z.enum(
+  ['INBOUND', 'OUTBOUND', 'EVENT', 'REFERRAL', 'PARTNER', 'RECYCLE'],
+  'Thế không có trong danh sách',
+)
 
 /** Kênh gọi lại được khách — ô 5 của cổng init data.
  *
  *  Cùng bộ với kênh của module 1 (`WaveChannel` bên fixture): một chiến dịch
  *  bắn qua kênh nào thì khách trả lời qua đúng kênh đó, nên hai bảng phải là
  *  MỘT. Ngày bước B tách domain khỏi fixture, fixture nhập từ đây. */
-export const ContactChannel = z.enum([
-  'email',
-  'zalo-oa',
-  'telegram',
-  'in-app',
-  'linkedin',
-  'facebook',
-  'website',
-])
+export const ContactChannel = z.enum(
+  ['email', 'zalo-oa', 'telegram', 'in-app', 'linkedin', 'facebook', 'website'],
+  'Kênh liên hệ không có trong danh sách',
+)
 
 /** Đơn vị tiền. Nợ số 7 của `docs/ban-giao-backend.md`: mọi cột tiền phải đi
  *  kèm một cột này, và ràng buộc "có tiền thì phải có đơn vị" được ép ở tầng
  *  bảng bằng CHECK chứ không nhờ người nhớ. */
-export const CurrencyCode = z.enum(['VND', 'USD'])
+export const CurrencyCode = z.enum(['VND', 'USD'], 'Đơn vị tiền không có trong danh sách')
 
 export type LeadSourceKind = z.infer<typeof LeadSourceKind>
 export type LeadMotion = z.infer<typeof LeadMotion>
