@@ -1,6 +1,6 @@
 {
-  "id": "090cd80c-c7ce-4a58-a8de-0cd83cbb8568",
-  "prevId": "2b755aa9-3a17-4f68-a2f3-043c81a0d54f",
+  "id": "1b09e5c4-dccb-40a0-9b0b-98e03c1e65ab",
+  "prevId": "090cd80c-c7ce-4a58-a8de-0cd83cbb8568",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1739,6 +1739,16 @@
           "primaryKey": false,
           "notNull": false
         },
+        "campaign_list": {
+          "name": "campaign_list",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "CASE WHEN \"campaign_id\" IS NULL THEN NULL ELSE 'SOURCE' END",
+            "type": "stored"
+          }
+        },
         "score": {
           "name": "score",
           "type": "integer",
@@ -1901,6 +1911,16 @@
           "schemaTo": "platform",
           "columnsFrom": ["marketing_owner_id"],
           "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lead_campaign_fk": {
+          "name": "lead_campaign_fk",
+          "tableFrom": "lead",
+          "tableTo": "config_entry",
+          "schemaTo": "sales",
+          "columnsFrom": ["campaign_id", "campaign_list"],
+          "columnsTo": ["id", "list"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
