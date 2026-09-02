@@ -7,7 +7,7 @@ import {
   type PageQuery,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, notFound } from '@api/platform/http/problem'
+import { notFound } from '@api/platform/http/problem'
 import { toBookRow, toDetail, toRef } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
 
@@ -50,17 +50,27 @@ export class ContractService {
     })
   }
 
-  /** One contract. Two ways to fail, and they do not merge.
+  /** One contract. Two ways to fail, and they answer with the SAME 404.
    *
-   *  404 is "no such contract", 403 is "not your contract" — two different
-   *  next steps for whoever is reading the screen, so the server has to tell
-   *  them apart. The book answers someone out of scope by dropping rows and
-   *  reporting `hidden`; a profile has exactly one row, so there is nothing to
-   *  drop. */
+   *  Not because the difference does not matter — E2 keeps the two axes apart
+   *  precisely because they need different next steps — but because a door
+   *  addressed BY CODE cannot say them apart without leaking. Answer 403 for a
+   *  colleague's contract and 404 for a code that never existed, and anyone
+   *  holding a session can walk the code space and read off which customers
+   *  the company has. The scope axis is worth less than the customer list.
+   *
+   *  Aggregate scope is still disclosed, and deliberately: the book reports
+   *  `hidden`, so a reader learns HOW MANY rows are out of reach and can ask
+   *  for the owner to hand one over. What they never learn is WHICH codes.
+   *  That split — counts yes, codes no — is the whole policy.
+   *
+   *  This diverges from the sibling opportunity door on purpose; the screen
+   *  copy in `apps/web/src/data/contracts.ts` already collapses both to null
+   *  and says out loud that the merge is intentional. Two answers to one
+   *  question was the bug. */
   async profile(who: Actor, code: MaHopDong): Promise<ContractDetailResponse> {
     const found = await this.repo.byCode(who, code)
-    if (!found) throw notFound('hợp đồng', code)
-    if (!found.inScope) throw denied('out-of-scope')
+    if (!found || !found.inScope) throw notFound('hợp đồng', code)
 
     return ContractDetailResponse.parse(toDetail(found))
   }
