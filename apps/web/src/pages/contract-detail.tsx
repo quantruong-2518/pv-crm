@@ -196,7 +196,7 @@ export function ContractDetailPage() {
         <ScreenLayout>
           <ScreenHeader
             title="Không mở được hợp đồng này"
-            description="Mã không tồn tại, hoặc nó không đứng tên bạn — hai câu trả lời gộp làm một là cố ý, vì tách ra là để lộ danh sách khách."
+            description="Có thể mã sai, hoặc hợp đồng không đứng tên bạn — hỏi người giữ nó, hoặc mở lại từ sổ."
             back={{ label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') }}
           />
         </ScreenLayout>

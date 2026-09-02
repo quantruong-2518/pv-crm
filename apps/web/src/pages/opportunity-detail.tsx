@@ -246,8 +246,8 @@ export function OpportunityDetailPage() {
             note={
               missing ? (
                 <>
-                  Sổ không có đơn nào mang mã <span className="font-mono">{code}</span>. Kiểm tra
-                  lại mã, hoặc mở lại từ sổ cơ hội.
+                  Sổ của bạn không có đơn nào mang mã <span className="font-mono">{code}</span>. Có
+                  thể mã sai, hoặc đơn không đứng tên bạn — hỏi người giữ đơn, hoặc mở lại từ sổ.
                 </>
               ) : (
                 (failure && userMessage(failure)) || 'Không đọc được hồ sơ cơ hội này.'

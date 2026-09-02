@@ -27,7 +27,7 @@ import {
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { conflict, denied, notFound } from '@api/platform/http/problem'
+import { conflict, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
 import { ContractRepository } from '../contract/contract.repository'
@@ -189,16 +189,23 @@ export class OpportunityService {
     return OpportunityLiveDeal.parse({ code: byLead.get(leadCode) ?? null })
   }
 
-  /** Một đơn theo mã. Hai cách hỏng, và chúng không gộp được.
+  /** Một đơn theo mã. Hai cách hỏng, và cả hai trả về CÙNG một 404.
    *
-   *  404 là "không có đơn này", 403 là "đơn không phải của bạn" — hai câu dẫn
-   *  tới hai việc khác nhau cho người đang đọc màn, nên máy chủ phải phân biệt
-   *  được. Sổ trả lời người ngoài phạm vi bằng cách bớt dòng và báo `hidden`;
-   *  một hồ sơ chỉ có đúng một dòng nên không có gì để bớt. */
+   *  Bản trước tách 404 "không có đơn này" khỏi 403 "đơn không phải của bạn",
+   *  vì hai câu dẫn tới hai việc khác nhau. Lý lẽ đó đúng ở chỗ khác nhưng sai
+   *  ở một cửa đánh địa chỉ BẰNG MÃ: hai câu trả lời khác nhau là một cách
+   *  đếm. Ai có phiên cũng đi dọc được không gian mã và đọc ra phòng đang giữ
+   *  những đơn nào — trục phạm vi đáng giá thấp hơn danh sách khách.
+   *
+   *  Phạm vi ở mức TỔNG vẫn nói ra, và cố ý: sổ bớt dòng rồi báo `hidden`, nên
+   *  người đọc biết còn bao nhiêu đơn ngoài tầm với và đi xin đổi chủ. Cái họ
+   *  không được biết là MÃ NÀO. Đếm thì có, mã thì không.
+   *
+   *  Ba cửa dưới (`update`, `touches`, `sign`) gộp theo cùng lý do. Sửa mỗi
+   *  cửa đọc mà để `PATCH` trả 403 thì lỗ đếm vẫn còn nguyên, chỉ ồn hơn. */
   async profile(who: Actor, code: MaObject): Promise<OpportunityCreateResponse> {
     const found = await this.repo.byCode(who, code)
-    if (!found) throw notFound('cơ hội', code)
-    if (!found.inScope) throw denied('out-of-scope')
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
 
     return OpportunityCreateResponse.parse(toContract(found))
   }
@@ -390,8 +397,7 @@ export class OpportunityService {
     body: OpportunityUpdate,
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
-    if (!found) throw notFound('cơ hội', code)
-    if (!found.inScope) throw denied('out-of-scope')
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
 
     const names = await this.repo.actorNames(this.repo.readonlyHandle, [
       ...body.saleOwners,
@@ -465,13 +471,12 @@ export class OpportunityService {
    *  Đi qua `byCode` trước rồi mới hỏi bảng lần chạm, và một danh sách rỗng
    *  KHÔNG được dùng thay cho hai câu từ chối: rỗng là câu trả lời THẬT — một
    *  đơn vừa mở có đúng một dòng, một đơn nạp từ tệp có đúng một dòng — nên nó
-   *  không được kiêm nghĩa "không có đơn này" hay "đơn không phải của bạn".
+   *  không được kiêm nghĩa "không có đơn này, hoặc không phải của bạn".
    *  Cùng lý lẽ mà `LeadService.mailTimeline` đã viết ra đầy đủ, và cùng cái
    *  giá: một câu truy vấn thừa trên một màn vốn đang tải sẵn hồ sơ. */
   async touches(who: Actor, code: MaObject): Promise<TouchTimelineResponse> {
     const found = await this.repo.byCode(who, code)
-    if (!found) throw notFound('cơ hội', code)
-    if (!found.inScope) throw denied('out-of-scope')
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
 
     return this.touch.timeline(code)
   }
@@ -507,8 +512,7 @@ export class OpportunityService {
    *  bảng vẫn coi là đang chạy. */
   async sign(who: Actor, code: MaObject, body: ContractSign): Promise<ContractSignResponse> {
     const found = await this.repo.byCode(who, code)
-    if (!found) throw notFound('cơ hội', code)
-    if (!found.inScope) throw denied('out-of-scope')
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
 
     if (found.signed) {
       const existing = await this.contracts.byOpportunity(code, found.row.leadCode)
