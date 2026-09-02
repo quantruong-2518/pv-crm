@@ -162,6 +162,20 @@
       "when": 1788026866360,
       "tag": "0023_mas_template_copy",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788145760549,
+      "tag": "0024_red_rhino",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788368663769,
+      "tag": "0025_aberrant_beyonder",
+      "breakpoints": true
     }
   ]
 }

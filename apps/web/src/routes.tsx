@@ -184,6 +184,32 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/opportunity-detail'),
   },
   {
+    path: '/sales/contracts',
+    name: 'Kinh doanh · Module 4 · Hợp đồng',
+    branch: 'Sales',
+    permission: 'hợp-đồng.xem',
+    load: () => import('@/pages/contracts'),
+  },
+  {
+    /* Same shape as the lead and opportunity books: a contract is a row of the
+       book, so its path sits under it and the nav stays lit on the same entry. */
+    path: '/sales/contracts/:code',
+    name: 'Kinh doanh · Module 4 · Hồ sơ hợp đồng',
+    branch: 'Sales',
+    permission: 'hợp-đồng.xem',
+    load: () => import('@/pages/contract-detail'),
+  },
+  {
+    /* One level deeper than any other Sales screen, and it earns the depth: an
+       installment carries its own checklist, paperwork, chase log and notes, and
+       none of that fits beside three sibling installments on one page. */
+    path: '/sales/contracts/:code/dot/:no',
+    name: 'Kinh doanh · Module 4 · Đợt thanh toán',
+    branch: 'Sales',
+    permission: 'hợp-đồng.xem',
+    load: () => import('@/pages/installment-detail'),
+  },
+  {
     path: '/sales/performance',
     name: 'Kinh doanh · Module 4 · Performance',
     branch: 'Sales',

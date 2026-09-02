@@ -201,3 +201,8 @@ export const SAO_DO_TIMELINE = [
   { at: '09:40', what: 'Tìm toàn cục' },
   { at: '16:30', what: 'Sửa quy tắc thông báo' },
 ] as const
+
+/** The contract half of this same scenario, split out for length. Re-exported
+ *  here so `@pv/engines/fixtures/sao-do` stays the only door — a screen should
+ *  not have to know how many files the scenario is cut into. */
+export * from './sao-do-contracts'

@@ -1,6 +1,7 @@
 import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
+  FileCheck,
   Gauge,
   Handshake,
   House,
@@ -134,7 +135,7 @@ export type SalesModule = {
   question: string
 }
 
-/** SÁU module Pebble Sales — bảng CHỐT.
+/** BẢY module Pebble Sales — bảng CHỐT.
  *
  *  Bảng này là nguồn duy nhất của nav: thêm hay đổi module thì sửa đúng một
  *  chỗ, không có chuyện nav nói sáu mà route có năm.
@@ -185,7 +186,19 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },
   {
+    /* Sits right after Ops because it is the next step for the same customer:
+       an opportunity that closes won becomes a contract. Renumbering the three
+       modules below it is cheap — cross references in comments name modules, not
+       numbers. */
     no: 4,
+    icon: FileCheck,
+    label: 'Hợp đồng',
+    path: '/sales/contracts',
+    permission: 'hợp-đồng.xem',
+    question: 'Theo dõi tiền về và nghĩa vụ hai bên sau khi ký',
+  },
+  {
+    no: 5,
     icon: Gauge,
     label: 'Hiệu suất',
     path: '/sales/performance',
@@ -193,7 +206,7 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
   },
   {
-    no: 5,
+    no: 6,
     icon: Target,
     label: 'Kế hoạch',
     path: '/sales/plan',
@@ -203,7 +216,7 @@ export const SALES_MODULES: SalesModule[] = [
   {
     /** Cấu hình KHÔNG nằm trong vòng khép kín của năm module trên — nó là thứ
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
-    no: 6,
+    no: 7,
     icon: SlidersHorizontal,
     label: 'Thiết lập',
     path: '/sales/config',

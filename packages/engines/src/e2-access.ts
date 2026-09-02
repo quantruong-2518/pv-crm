@@ -96,6 +96,14 @@ export const PERMISSIONS = [
   'cơ-hội.xem',
   'cơ-hội.sửa',
   'cơ-hội.chốt',
+  'hợp-đồng.xem',
+  'hợp-đồng.sửa',
+  /** Record that an installment's money landed, and tick an unlock condition as
+   *  met. Kept apart from the plain edit permission above because the two are of
+   *  different weight: editing changes a note, recording tells the whole system
+   *  the money is in — receivables, performance and commission all read it. A
+   *  Sale does NOT get this one: a seller does not confirm their own payment. */
+  'hợp-đồng.ghi-nhận-thu',
   'hiệu-suất.xem',
   'kế-hoạch.xem',
   'kế-hoạch.gửi',
@@ -176,6 +184,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'lead.chuyển-đổi',
     'cơ-hội.xem',
     'cơ-hội.sửa',
+    'hợp-đồng.xem',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
     'cấu-hình.xem',
@@ -188,6 +197,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'lead.xem',
     'cơ-hội.xem',
     'cơ-hội.sửa',
+    'hợp-đồng.xem',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
   ],
@@ -205,6 +215,12 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'cơ-hội.xem',
     'cơ-hội.sửa',
     'cơ-hội.chốt',
+    /* A contract is what this person's own closing move produced, so without
+       these two a Sale signs a deal and then loses sight of it. `ownOnly` keeps
+       the reach to exactly their own. The record-payment permission is
+       deliberately absent — see the reason where it is declared. */
+    'hợp-đồng.xem',
+    'hợp-đồng.sửa',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
     'cấu-hình.xem',
@@ -216,9 +232,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
  *  Kiểu chưa có màn (SO · WO · PO · L · BT · CNC…) CỐ TÌNH vắng: gán bừa một
  *  miền cho chúng là phát minh ra luật quyền cho nhánh chưa ai dựng. Với những
  *  kiểu đó `can()` chỉ kiểm license và phạm vi — nói rõ hơn ở `check()`. */
-const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội'>> = {
+const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'hợp-đồng'>> = {
   LD: 'lead',
   OP: 'cơ-hội',
+  /** Until 02/09 this kind had no domain, so `permissionFor` returned `null` for
+   *  EVERY question about a contract — E2 waved them through instead of checking.
+   *  The contract book is the first screen that needs a real answer. */
+  HĐ: 'hợp-đồng',
 }
 
 /** Hành động trên một object cần quyền nào. `null` = kiểu này chưa có miền

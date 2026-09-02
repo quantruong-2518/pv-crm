@@ -1,5 +1,25 @@
-import type { ContractRow, ContractSign, CurrencyCode } from '@pv/contracts'
-import type { contract, ContractRowDb } from './contract.schema'
+import type { ObjectRef } from '@pv/engines'
+import type {
+  ContractDetailRow,
+  ContractRow,
+  ContractSign,
+  CurrencyCode,
+  InstallmentConditionRow,
+  InstallmentDocRow,
+  InstallmentNoteRow,
+  InstallmentRecordRow,
+  InstallmentRow,
+  InstallmentSummaryRow,
+} from '@pv/contracts'
+import type {
+  contract,
+  ContractConditionRowDb,
+  ContractDocumentRowDb,
+  ContractInstallmentRowDb,
+  ContractNoteRowDb,
+  ContractRecordRowDb,
+  ContractRowDb,
+} from './contract.schema'
 
 /** Cột của một dòng `sales.contract`, kèm khoá — khác `OpportunityValues` ở
  *  chỗ đó, và khác có lý do: mã hợp đồng KHÔNG suy được từ dòng, nó do dãy cấp,
@@ -69,4 +89,128 @@ export function toContract(row: ContractRowDb, ownerName: string | null): Contra
        kèm `ownerName` rỗng là bày ra một người không có. */
     ...(row.ownerId && ownerName ? { ownerId: row.ownerId, ownerName } : {}),
   }
+}
+
+/** Mirror row of a contract, for the service's second E2 grid.
+ *
+ *  `label` is the customer name rather than the code: the code is already
+ *  `ref.code`, and an audit line naming a company is the one a human can act
+ *  on. `owner` carries the commission holder's NAME because that is what E2
+ *  compares against `actor.name` — the id lives on the row, the label lives
+ *  here (debt 2 of the backend handover). No owner means no scope check, and
+ *  that is right for a contract nobody has been assigned yet. */
+export function toRef(
+  row: ContractRowDb,
+  opts: { label: string; ownerName: string | null },
+): ObjectRef {
+  return {
+    code: row.code,
+    kind: 'HĐ',
+    branch: 'Sales',
+    label: opts.label,
+    ...(opts.ownerName ? { owner: opts.ownerName } : {}),
+  }
+}
+
+/** One book line — the row plus the lean schedule.
+ *
+ *  Built on `toContract` instead of beside it: the sign door answers with a
+ *  contract that has no schedule yet, and two functions writing the same six
+ *  fields is two places for one of them to start lying. */
+export function toBookRow(read: {
+  row: ContractRowDb
+  ownerName: string | null
+  installments: ContractInstallmentRowDb[]
+}): ContractRow {
+  return {
+    ...toContract(read.row, read.ownerName),
+    installments: read.installments.map(toInstallmentSummary),
+  }
+}
+
+/** One contract profile — the header the book never prints, plus the full
+ *  schedule. */
+export function toDetail(read: {
+  row: ContractRowDb
+  ownerName: string | null
+  customer: string
+  contact: string
+  contactRole: string | null
+  installments: {
+    row: ContractInstallmentRowDb
+    conditions: ContractConditionRowDb[]
+    docs: ContractDocumentRowDb[]
+    records: ContractRecordRowDb[]
+    notes: ContractNoteRowDb[]
+  }[]
+}): ContractDetailRow {
+  return {
+    ...toContract(read.row, read.ownerName),
+    customer: read.customer,
+    contact: read.contact,
+    /* The lead may carry no job title, and the wire field is required because
+       the header prints the contact and the role as one phrase. Falling back
+       to the label the frozen book already uses for a contact that is a desk
+       rather than a person keeps that phrase readable; an empty string would
+       leave a dangling separator on screen. */
+    contactRole: read.contactRole ?? 'đầu mối chung',
+    installments: read.installments.map(toInstallment),
+  }
+}
+
+function toInstallmentSummary(row: ContractInstallmentRowDb): InstallmentSummaryRow {
+  return {
+    no: row.no,
+    label: row.label,
+    share: row.share,
+    amount: row.amount,
+    due: row.due.toISOString(),
+    ...(row.paidAt ? { paidAt: row.paidAt.toISOString() } : {}),
+  }
+}
+
+function toInstallment(read: {
+  row: ContractInstallmentRowDb
+  conditions: ContractConditionRowDb[]
+  docs: ContractDocumentRowDb[]
+  records: ContractRecordRowDb[]
+  notes: ContractNoteRowDb[]
+}): InstallmentRow {
+  return {
+    ...toInstallmentSummary(read.row),
+    conditions: read.conditions.map(toCondition),
+    docs: read.docs.map(toDoc),
+    records: read.records.map(toRecord),
+    notes: read.notes.map(toNote),
+  }
+}
+
+function toCondition(row: ContractConditionRowDb): InstallmentConditionRow {
+  return {
+    id: row.id,
+    side: row.side,
+    what: row.what,
+    due: row.due.toISOString(),
+    ...(row.doneAt ? { doneAt: row.doneAt.toISOString() } : {}),
+    who: row.who,
+  }
+}
+
+function toDoc(row: ContractDocumentRowDb): InstallmentDocRow {
+  return { id: row.id, name: row.name, state: row.state, hint: row.hint }
+}
+
+function toRecord(row: ContractRecordRowDb): InstallmentRecordRow {
+  return {
+    id: row.id,
+    at: row.at.toISOString(),
+    channel: row.channel,
+    what: row.what,
+    detail: row.detail,
+    state: row.state,
+  }
+}
+
+function toNote(row: ContractNoteRowDb): InstallmentNoteRow {
+  return { id: row.id, at: row.at.toISOString(), who: row.who, text: row.text }
 }

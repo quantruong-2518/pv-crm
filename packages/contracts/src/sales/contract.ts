@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Dong, MaHopDong, MaObject, Moc, textNhap } from '../primitives'
+import { paged } from '../pagination'
 import { CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
@@ -105,10 +106,105 @@ export const ContractSign = z
   })
 
 // ---------------------------------------------------------------------------
+// INSTALLMENTS — a signed contract's payment schedule, mirroring
+// `packages/engines/src/fixtures/sao-do-contracts.ts` (the source of truth for
+// this shape) and using `DueLevel`'s six-step ladder from
+// `packages/engines/src/contract-due.ts` to read urgency, never a copy of it.
+// ---------------------------------------------------------------------------
+
+/** Which side owes the work. Two values, so "which side is this stuck on"
+ *  always has an answer. */
+export const ConditionSide = z.enum(['ta', 'khách'])
+
+/** One unlock line inside an installment's checklist. */
+export const InstallmentConditionRow = z.object({
+  id: z.string().min(1).max(64),
+  side: ConditionSide,
+  what: textNhap(500),
+  due: Moc,
+  /** Absent = not done. For a customer-side line, "done" means the CUSTOMER
+   *  did it, not that we chased them. */
+  doneAt: Moc.optional(),
+  who: textNhap(120),
+})
+
+/** "Not there yet" is a real state, not an empty slot — see the docblock on
+ *  the fixture's own `DocState`. */
+export const DocState = z.enum(['đủ', 'chờ-ký', 'chưa-có'])
+
+export const InstallmentDocRow = z.object({
+  id: z.string().min(1).max(64),
+  name: textNhap(300),
+  state: DocState,
+  hint: textNhap(300),
+})
+
+export const RecordState = z.enum(['xong', 'chờ-trả-lời', 'đã-xếp', 'chưa-tới'])
+
+/** Channel of one touch on an installment — already sent, or queued to send.
+ *  A different closed set from `ContactChannel` in `./enums`: that one lists
+ *  where a LEAD can be reached, this one lists how the DESK chases money, and
+ *  the two vocabularies do not line up (the phone-call value here has no
+ *  analogue on the lead side, and telegram/linkedin/facebook/website have
+ *  none here). */
+export const RecordChannel = z.enum(['email', 'zalo-oa', 'trong-app', 'gọi'])
+
+export const InstallmentRecordRow = z.object({
+  id: z.string().min(1).max(64),
+  at: Moc,
+  channel: RecordChannel,
+  what: textNhap(300),
+  detail: textNhap(300),
+  state: RecordState,
+})
+
+/** Free-hand note — the place for what no field can hold. */
+export const InstallmentNoteRow = z.object({
+  id: z.string().min(1).max(64),
+  at: Moc,
+  who: textNhap(120),
+  text: textNhap(2_000),
+})
+
+/** One installment, FULL — every checklist line, document and touch nested
+ *  in. Only `ContractDetailResponse` carries this shape; the book carries
+ *  `InstallmentSummaryRow` instead (see there for why the two must not
+ *  merge). */
+export const InstallmentRow = z.object({
+  no: z.number().int().positive(),
+  label: textNhap(200),
+  /** Share of the contract value, whole percent. */
+  share: z.number().int().min(0).max(100),
+  amount: Dong,
+  due: Moc,
+  /** Day the money landed. Absent = not collected. */
+  paidAt: Moc.optional(),
+  conditions: z.array(InstallmentConditionRow),
+  docs: z.array(InstallmentDocRow),
+  records: z.array(InstallmentRecordRow),
+  notes: z.array(InstallmentNoteRow),
+})
+
+/** One installment, LEAN — just what the book's table paints: the money row
+ *  and its own due date. No checklist, no docs, no touch history — a book of
+ *  three contracts pulling six installments times (four conditions + four
+ *  docs + six records) each is a payload nobody reads. */
+export const InstallmentSummaryRow = InstallmentRow.pick({
+  no: true,
+  label: true,
+  share: true,
+  amount: true,
+  due: true,
+  paidAt: true,
+})
+
+// ---------------------------------------------------------------------------
 // THE READ SHAPE
 // ---------------------------------------------------------------------------
 
-/** One signed contract, as a screen prints it. */
+/** One signed contract, as the book prints it — LEAN installments only.
+ *  `ContractDetailRow` below extends this same row with the full nested
+ *  schedule for the one-contract screen. */
 export const ContractRow = z.object({
   code: MaHopDong,
   opportunityCode: MaObject,
@@ -119,7 +215,33 @@ export const ContractRow = z.object({
   /** Present together or not at all — an unassigned contract has neither. */
   ownerId: z.string().min(1).max(64).optional(),
   ownerName: textNhap(120).optional(),
+  /** Absent on a just-signed contract with no schedule drafted yet — the
+   *  sign door (`ContractSignResponse`) returns a row before any installment
+   *  exists. */
+  /* Optional with NO default. A default would make the OUTPUT type required and
+     force every mapper to invent an empty array — including the sign door, which
+     answers before any schedule exists. Absent means "this response did not load
+     the schedule"; an empty array would claim "this contract has none". */
+  installments: z.array(InstallmentSummaryRow).optional(),
 })
+
+/** One contract, FULL — `GET /sales/contracts/:code`. Adds the customer-side
+ *  contact (needed to print the header, absent from the book row because the
+ *  book's own columns never show it) and swaps in the full installment
+ *  schedule. */
+export const ContractDetailRow = ContractRow.extend({
+  customer: textNhap(200),
+  /** The customer-side contact — the person who signs acceptance. */
+  contact: textNhap(120),
+  contactRole: textNhap(120),
+  installments: z.array(InstallmentRow),
+})
+
+/** `GET /sales/contracts` — the book. */
+export const ContractBookResponse = paged(ContractRow)
+
+/** `GET /sales/contracts/:code` — one contract, fully nested. */
+export const ContractDetailResponse = ContractDetailRow
 
 /** What the sign door answers with.
  *
@@ -136,5 +258,19 @@ export const ContractSignResponse = z.object({
 })
 
 export type ContractSign = z.infer<typeof ContractSign>
-export type ContractRow = z.infer<typeof ContractRow>
 export type ContractSignResponse = z.infer<typeof ContractSignResponse>
+
+export type ConditionSide = z.infer<typeof ConditionSide>
+export type InstallmentConditionRow = z.infer<typeof InstallmentConditionRow>
+export type DocState = z.infer<typeof DocState>
+export type InstallmentDocRow = z.infer<typeof InstallmentDocRow>
+export type RecordState = z.infer<typeof RecordState>
+export type RecordChannel = z.infer<typeof RecordChannel>
+export type InstallmentRecordRow = z.infer<typeof InstallmentRecordRow>
+export type InstallmentNoteRow = z.infer<typeof InstallmentNoteRow>
+export type InstallmentRow = z.infer<typeof InstallmentRow>
+export type InstallmentSummaryRow = z.infer<typeof InstallmentSummaryRow>
+export type ContractRow = z.infer<typeof ContractRow>
+export type ContractDetailRow = z.infer<typeof ContractDetailRow>
+export type ContractBookResponse = z.infer<typeof ContractBookResponse>
+export type ContractDetailResponse = z.infer<typeof ContractDetailResponse>

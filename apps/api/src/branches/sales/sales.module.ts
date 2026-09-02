@@ -3,6 +3,7 @@ import { registerConstraints } from '@api/platform/http/db-error'
 import { CampaignModule } from './campaign/campaign.module'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
+import { ContractModule } from './contract/contract.module'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
@@ -40,7 +41,7 @@ registerConstraints(MEETING_CONSTRAINTS)
  *  Nhánh này không nhập gì từ `branches/supply`, `branches/factory`,
  *  `branches/finance` — eslint chặn, xem `eslint.config.js`. */
 @Module({
-  imports: [LeadModule, OpportunityModule, SalesConfigModule, CampaignModule],
-  exports: [LeadModule, OpportunityModule, SalesConfigModule, CampaignModule],
+  imports: [LeadModule, OpportunityModule, ContractModule, SalesConfigModule, CampaignModule],
+  exports: [LeadModule, OpportunityModule, ContractModule, SalesConfigModule, CampaignModule],
 })
 export class SalesModule {}
