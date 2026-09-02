@@ -97,7 +97,23 @@ export const OpportunityFile = z.object({
 /** At most this many files on one deal. A bound rather than a hope: the column
  *  is `jsonb`, and an unbounded array inside a row is a row that grows past
  *  what every read of the book expects to carry. */
-const MAX_FILES = 20
+export const OPPORTUNITY_FILES_MAX = 20
+
+/** The four length caps of `dealFields`, named and EXPORTED rather than left as
+ *  literals in the shapes below.
+ *
+ *  The form that fills this contract in has to stop the typist at the same
+ *  number, and a `maxLength={200}` copied by hand into a screen is a number
+ *  with no way of hearing that the contract moved. `MEETING_TITLE_MAX` next
+ *  door already works this way; these follow it.
+ *
+ *  What they are NOT is validation moving to the browser. The refusal still
+ *  lives here, on the server side of the wire; these only let the box refuse
+ *  the 201st character before the request rather than after it. */
+export const OPPORTUNITY_NAME_MAX = 200
+export const OPPORTUNITY_DESCRIPTION_MAX = 2_000
+export const OPPORTUNITY_LOSS_REASON_MAX = 120
+export const OPPORTUNITY_LOSS_NOTE_MAX = 1_000
 
 /** Actor ids on one side of a deal. Deduped, so the join table is never handed
  *  the same pair twice and never dies on its own primary key. */
@@ -118,7 +134,7 @@ const ownerIds = z
  *  that spelled the eleven fields twice would be the place the two forms first
  *  drift apart. */
 const dealFields = {
-  name: textNhap(200),
+  name: textNhap(OPPORTUNITY_NAME_MAX),
 
   expectedClose: Ngay,
   state: OpportunityCreateState,
@@ -132,12 +148,12 @@ const dealFields = {
   saleOwners: ownerIds,
   bdOwners: ownerIds.optional().default([]),
 
-  description: textNhapTuyChon(2_000),
-  attachments: z.array(OpportunityFile).max(MAX_FILES).optional().default([]),
+  description: textNhapTuyChon(OPPORTUNITY_DESCRIPTION_MAX),
+  attachments: z.array(OpportunityFile).max(OPPORTUNITY_FILES_MAX).optional().default([]),
 
   /** Only meaningful when `state === 'close-lost'`; refused otherwise. */
-  lossReason: textNhapTuyChon(120),
-  lossNote: textNhapTuyChon(1_000),
+  lossReason: textNhapTuyChon(OPPORTUNITY_LOSS_REASON_MAX),
+  lossNote: textNhapTuyChon(OPPORTUNITY_LOSS_NOTE_MAX),
 }
 
 /* Ba luật LIÊN Ô dưới đây lặp lại ở cả hai cửa, và lặp có chủ ý. Zod 4 không

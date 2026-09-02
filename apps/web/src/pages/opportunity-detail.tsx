@@ -37,12 +37,14 @@ import {
 } from '@pv/ui'
 import {
   campaignLabel,
+  OPPORTUNITY_DESCRIPTION_MAX,
+  OPPORTUNITY_NAME_MAX,
   type LeadProfile,
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
 import { toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
-import { isApiError, userMessage } from '@/app/api'
+import { isApiError, userMessage, type FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
@@ -61,6 +63,7 @@ import {
 } from '@/data/opportunities'
 import {
   CREATE_STATES,
+  draftErrorsOf,
   draftOf,
   updateBodyOf,
   useSaveOpportunity,
@@ -407,14 +410,31 @@ function DealCard({ op }: { op: OpportunityRow }) {
      bản nháp mồi cũng vậy, nên `useEffect` bên dưới không đè lên ô đang gõ. */
   const saved = useMemo(() => draftOf(op), [op])
   const [work, setWork] = useState<OpportunityDraft>(saved)
+  const [errors, setErrors] = useState<FieldErrors>({})
 
   /* Đổi đơn (hoặc nhận bản vừa lưu từ máy chủ) thì nạp lại ô nhập. Không nạp
-     lại thì bấm sang đơn khác vẫn thấy phiếu của đơn trước. */
-  useEffect(() => setWork(saved), [saved])
+     lại thì bấm sang đơn khác vẫn thấy phiếu của đơn trước.
+
+     Câu từ chối đi cùng: nó nói về bản nháp vừa bị thay, nên giữ lại là tô đỏ
+     một ô của đơn khác. */
+  useEffect(() => {
+    setWork(saved)
+    setErrors({})
+  }, [saved])
 
   /* Mọi ô sửa được đều là ô của `OpportunityDraft`, nên hàm ghi mang đúng kiểu
-     mà bộ ô dùng chung đòi — không phải ép kiểu chỗ nào. */
-  const set: SetDraft = (key, value) => setWork((w) => ({ ...w, [key]: value }))
+     mà bộ ô dùng chung đòi — không phải ép kiểu chỗ nào.
+
+     Gõ vào ô máy chủ vừa chê là xoá lời chê đó — cùng luật `ConvertDialog` áp:
+     một vệt đỏ sống sót qua lượt sửa đọc ra "vẫn còn sai". */
+  const set: SetDraft = (key, value) => {
+    setWork((w) => ({ ...w, [key]: value }))
+    setErrors((current) => {
+      if (!current[key]) return current
+      const { [key]: _fixed, ...rest } = current
+      return rest
+    })
+  }
 
   const dirty = changedFields(saved, work)
   const missing = missingOf(work)
@@ -454,11 +474,13 @@ function DealCard({ op }: { op: OpportunityRow }) {
           </span>
         </Field>
 
-        <Field label="Tên cơ hội" required className="sm:col-span-2">
+        <Field label="Tên cơ hội" required errors={errors.name} className="sm:col-span-2">
           <Input
             value={work.name}
             aria-label="Tên cơ hội"
             aria-required
+            maxLength={OPPORTUNITY_NAME_MAX}
+            invalid={Boolean(errors.name)}
             onChange={(e) => set('name', e.target.value)}
           />
         </Field>
@@ -466,6 +488,7 @@ function DealCard({ op }: { op: OpportunityRow }) {
         <Field
           label="Ngày đóng dự kiến"
           required
+          errors={errors.closedDate}
           hint={work.closedDate !== '' ? `Đọc là ${dmy(work.closedDate)}.` : undefined}
         >
           <Input
@@ -473,6 +496,7 @@ function DealCard({ op }: { op: OpportunityRow }) {
             value={work.closedDate}
             aria-label="Ngày đóng dự kiến"
             aria-required
+            invalid={Boolean(errors.closedDate)}
             onChange={(e) => set('closedDate', e.target.value)}
           />
         </Field>
@@ -486,6 +510,7 @@ function DealCard({ op }: { op: OpportunityRow }) {
         <Field
           label="Trạng thái"
           plain
+          errors={errors.state}
           hint={
             work.state === saved.state
               ? op.stage
@@ -508,13 +533,14 @@ function DealCard({ op }: { op: OpportunityRow }) {
         </Field>
       </section>
 
-      <AmountRow draft={work} onSet={set} />
+      <AmountRow draft={work} onSet={set} errors={errors} />
 
       <PeopleRow
         label="Sale đứng đơn"
         required
         hint="Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong."
         picked={work.saleOwners}
+        errors={errors.saleOwners}
         onToggle={(id) => set('saleOwners', toggled(work.saleOwners, id))}
       />
 
@@ -522,30 +548,46 @@ function DealCard({ op }: { op: OpportunityRow }) {
         label="BD mở cửa"
         hint="Người moi được ô bắt buộc và mở được khách. Công trạng mở cửa ghi cho danh sách này, tách khỏi phần chốt."
         picked={work.bdOwners}
+        errors={errors.bdOwners}
         onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
       />
 
       <Field
         label="Mô tả"
+        errors={errors.description}
         hint="Mở sẵn bằng ô 6 của init data — việc khách muốn giải. Sửa lại cho đúng phạm vi đang chào."
       >
         <Textarea
           autoGrow
           rows={3}
+          maxLength={OPPORTUNITY_DESCRIPTION_MAX}
+          invalid={Boolean(errors.description)}
           value={work.description}
           aria-label="Mô tả cơ hội"
           onChange={(e) => set('description', e.target.value)}
         />
       </Field>
 
-      <AttachmentsField draft={work} onSet={set} />
+      <AttachmentsField draft={work} onSet={set} errors={errors.attachments} />
 
-      {lost && <LossBlock draft={work} onSet={set} />}
+      {lost && <LossBlock draft={work} onSet={set} errors={errors} />}
 
       <Separator />
 
       <div className="flex flex-wrap items-center gap-4">
-        <Button size="md" disabled={blocked} onClick={() => save.mutate(updateBodyOf(work))}>
+        <Button
+          size="md"
+          disabled={blocked}
+          onClick={() =>
+            save.mutate(updateBodyOf(work), {
+              /* The server names the box it refused, and `draftErrorsOf` turns
+                 its spelling into the form's. An EMPTY map is not "no
+                 complaint" — it is a complaint about no one field, and the
+                 sentence to the right carries those. */
+              onError: (error) => setErrors(draftErrorsOf(error.errors)),
+            })
+          }
+        >
           <Icon icon={Check} size={16} />
           {save.isPending
             ? 'Đang lưu…'
@@ -555,7 +597,10 @@ function DealCard({ op }: { op: OpportunityRow }) {
           size="md"
           variant="ghost"
           disabled={dirty.length === 0 || save.isPending}
-          onClick={() => setWork(saved)}
+          onClick={() => {
+            setWork(saved)
+            setErrors({})
+          }}
         >
           Bỏ sửa
         </Button>

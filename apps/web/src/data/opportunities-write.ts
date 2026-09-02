@@ -11,7 +11,7 @@ import {
   type OpportunityUpdateResponse,
 } from '@pv/contracts'
 import { OPPORTUNITY_STATES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
-import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 
 /** Module 3 · ba cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
@@ -153,6 +153,49 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
     lossReason: op.lossReason ?? '',
     lossNote: op.lossNote ?? '',
   }
+}
+
+/** Wire field names → the form's field names, for what the server refused.
+ *
+ *  ------------------------------------------------------------------
+ *  ONE CELL IS SPELLED DIFFERENTLY ON EACH SIDE, AND THAT IS THE WHOLE JOB
+ *  ------------------------------------------------------------------
+ *  Eleven of the twelve names match, so this looks like it could be skipped —
+ *  right up to `expectedClose`, which the form calls `closedDate` (see
+ *  `draftOf`). Handed straight through, zod's complaint about a date that is
+ *  not on the calendar lands under a key no box on either screen is listening
+ *  for: it is fetched, parsed, and then silently dropped, and the user reads a
+ *  footer saying something is wrong with a form where nothing is marked.
+ *
+ *  Translating HERE and not in each screen is the same call `createBodyOf` and
+ *  `draftOf` already made: this file owns the boundary between the two
+ *  spellings, and a second place that knows about it is the place they drift.
+ *
+ *  Keys with no box on screen — `leadCode` above all, which is what a 409
+ *  duplicate arrives under — are dropped rather than renamed. They are not
+ *  lost: they never had a cell to sit in, so the footer sentence carries them,
+ *  and for a 409 that sentence is the server's own. */
+const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft> = {
+  name: 'name',
+  expectedClose: 'closedDate',
+  state: 'state',
+  amount: 'amount',
+  currency: 'currency',
+  saleOwners: 'saleOwners',
+  bdOwners: 'bdOwners',
+  description: 'description',
+  attachments: 'attachments',
+  lossReason: 'lossReason',
+  lossNote: 'lossNote',
+}
+
+export function draftErrorsOf(errors: FieldErrors | undefined): FieldErrors {
+  const out: FieldErrors = {}
+  for (const [wire, messages] of Object.entries(errors ?? {})) {
+    const field = DRAFT_FIELD_OF_WIRE[wire]
+    if (field !== undefined) out[field] = messages
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------

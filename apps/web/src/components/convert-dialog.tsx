@@ -7,12 +7,22 @@ import {
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
-import type { LeadProfile, OpportunityCreateResponse } from '@pv/contracts'
-import { userMessage } from '@/app/api'
+import {
+  OPPORTUNITY_DESCRIPTION_MAX,
+  OPPORTUNITY_NAME_MAX,
+  type LeadProfile,
+  type OpportunityCreateResponse,
+} from '@pv/contracts'
+import { userMessage, type FieldErrors } from '@/app/api'
 import { useApproverName, useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/opportunities'
-import { createBodyOf, CREATE_STATES, usePromoteLead } from '@/data/opportunities-write'
+import {
+  createBodyOf,
+  CREATE_STATES,
+  draftErrorsOf,
+  usePromoteLead,
+} from '@/data/opportunities-write'
 import { dmy } from '@/lib/date'
 import {
   AmountRow,
@@ -96,21 +106,40 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
      `@pv/engines`, và sổ cơ hội đóng băng vẫn dùng tham số đó. */
   const seed = useMemo(() => draftOpportunity(form, staff), [form, staff])
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
+  const [errors, setErrors] = useState<FieldErrors>({})
+
+  const promote = usePromoteLead()
+  const { reset } = promote
 
   /* Mở phiếu là một lần bắt đầu mới: nạp lại bản nháp. Không nạp lại thì đóng
      rồi mở lại vẫn thấy thứ mình vừa gõ dở của lần trước — hoặc tệ hơn, của
-     một lead khác. */
-  useEffect(() => {
-    if (open) setDraft(seed)
-  }, [open, seed])
+     một lead khác.
 
-  const set = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) =>
+     Câu từ chối của lần trước đi cùng bản nháp, và cả `promote.reset()` nữa:
+     giữ lại thì phiếu mới mở ra đã đỏ sẵn mấy ô, nói về một lượt gửi của một
+     lead khác. */
+  useEffect(() => {
+    if (!open) return
+    setDraft(seed)
+    setErrors({})
+    reset()
+  }, [open, seed, reset])
+
+  /* Typing into a box the server just complained about clears that complaint.
+     A red mark that survives the fix reads as "still wrong", and the user
+     stops believing any of the other red marks. Same rule the lead form runs
+     on — see `set` in `components/lead-create-dialog.tsx`. */
+  const set = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => {
     setDraft((d) => ({ ...d, [key]: value }))
+    setErrors((current) => {
+      if (!current[key]) return current
+      const { [key]: _fixed, ...rest } = current
+      return rest
+    })
+  }
 
   const lost = draft.state === 'close-lost'
   const stage = OPPORTUNITY_STATES.find((s) => s.key === draft.state)?.stage ?? null
-
-  const promote = usePromoteLead()
 
   const missing = missingOf(draft)
   const ready = missing.length === 0 && !promote.isPending
@@ -172,6 +201,12 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
                     onCreated?.(row)
                     onClose()
                   },
+                  /* The server has the last word, and when it refuses it names
+                     the box; `draftErrorsOf` turns its spelling into the
+                     form's. An EMPTY map is not "no complaint" — it is a
+                     complaint about no one field, and the duplicate-deal 409
+                     is the common case. The footer sentence carries those. */
+                  onError: (error) => setErrors(draftErrorsOf(error.errors)),
                 })
               }}
             >
@@ -207,11 +242,13 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
             </span>
           </Field>
 
-          <Field label="Tên cơ hội" required className="sm:col-span-2">
+          <Field label="Tên cơ hội" required errors={errors.name} className="sm:col-span-2">
             <Input
               value={draft.name}
               aria-label="Tên cơ hội"
               aria-required
+              maxLength={OPPORTUNITY_NAME_MAX}
+              invalid={Boolean(errors.name)}
               onChange={(e) => set('name', e.target.value)}
             />
           </Field>
@@ -219,6 +256,7 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
           <Field
             label="Ngày đóng dự kiến"
             required
+            errors={errors.closedDate}
             hint={draft.closedDate !== '' ? `Đọc là ${dmy(draft.closedDate)}.` : undefined}
           >
             <Input
@@ -226,6 +264,7 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
               value={draft.closedDate}
               aria-label="Ngày đóng dự kiến"
               aria-required
+              invalid={Boolean(errors.closedDate)}
               onChange={(e) => set('closedDate', e.target.value)}
             />
           </Field>
@@ -233,6 +272,7 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
           <Field
             label="Trạng thái"
             plain
+            errors={errors.state}
             hint={
               stage
                 ? `Vào cột "${STAGE_LABEL.get(stage)}" của sổ cơ hội.`
@@ -251,13 +291,14 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
           </Field>
         </section>
 
-        <AmountRow draft={draft} onSet={set} />
+        <AmountRow draft={draft} onSet={set} errors={errors} />
 
         <PeopleRow
           label="Sale đứng đơn"
           required
           hint="Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong."
           picked={draft.saleOwners}
+          errors={errors.saleOwners}
           onToggle={(id) => set('saleOwners', toggled(draft.saleOwners, id))}
         />
 
@@ -265,25 +306,29 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
           label="BD mở cửa"
           hint="Người moi được ô bắt buộc và mở được khách. Công trạng mở cửa ghi cho danh sách này, tách khỏi phần chốt."
           picked={draft.bdOwners}
+          errors={errors.bdOwners}
           onToggle={(id) => set('bdOwners', toggled(draft.bdOwners, id))}
         />
 
         <Field
           label="Mô tả"
+          errors={errors.description}
           hint="Mở sẵn bằng ô 6 của init data — việc khách muốn giải. Sửa lại cho đúng phạm vi đang chào."
         >
           <Textarea
             autoGrow
             rows={3}
+            maxLength={OPPORTUNITY_DESCRIPTION_MAX}
+            invalid={Boolean(errors.description)}
             value={draft.description}
             aria-label="Mô tả cơ hội"
             onChange={(e) => set('description', e.target.value)}
           />
         </Field>
 
-        <AttachmentsField draft={draft} onSet={set} />
+        <AttachmentsField draft={draft} onSet={set} errors={errors.attachments} />
 
-        {lost && <LossBlock draft={draft} onSet={set} />}
+        {lost && <LossBlock draft={draft} onSet={set} errors={errors} />}
       </div>
     </Drawer>
   )
