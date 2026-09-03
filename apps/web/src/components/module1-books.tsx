@@ -28,6 +28,12 @@ const BOOKS = [
   { value: '/sales/campaigns', label: 'Chiến dịch' },
   { value: '/sales/campaigns/nguon-dan', label: 'Nguồn dẫn' },
   { value: '/sales/campaigns/lo-gui', label: 'Lô gửi' },
+  /* The fourth book, and the only one that measures nothing: the three above
+     answer "what happened", this one holds the RAW MATERIAL of the next send.
+     It stands here because people ask it in the same sitting as the other three
+     (which template works, which campaign to put it in), and because
+     `sales.mail_template` has no other nav entry to belong to. */
+  { value: '/sales/campaigns/mau-thu', label: 'Mẫu thư' },
 ] as const
 
 /** Sổ nào đang mở, tính theo đường dẫn ĐẦY ĐỦ chứ không theo tiền tố.

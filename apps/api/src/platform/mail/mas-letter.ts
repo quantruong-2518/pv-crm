@@ -1,4 +1,4 @@
-import { renderMasShell } from '@pv/mail-templates'
+import { mapMailText, parseMailBody, renderMasShell } from '@pv/mail-templates'
 
 /** BUILDING THE BODY OF ONE MAS LETTER — the step both the worker and the
  *  preview run, so that neither can show the other's letter.
@@ -73,9 +73,16 @@ export async function renderMasLetter(input: MasLetterInput): Promise<MasLetter>
       }
     : undefined
 
+  /* PARSE FIRST, FILL SECOND — and that order is the security-relevant half of
+     this line. `{{account}}` carries a lead's own company name, which is
+     untrusted text this system did not write; filling it into the body BEFORE
+     parsing would let a name holding `**` decide where the letter goes bold,
+     and one starting with `- ` decide where a list begins. Parsing first means
+     merge values land inside runs whose structure is already fixed, which is
+     the same rule `substitute` states about never rescanning its own output. */
   const rendered = await renderMasShell({
     subject: fill(input.subject),
-    paragraphs: splitParagraphs(fill(input.body)),
+    blocks: mapMailText(parseMailBody(input.body), fill),
     cta,
     unsubscribeUrl: input.unsubscribeUrl,
     sender: input.sender,
@@ -122,18 +129,6 @@ function substitute(
     }
     return escape(found)
   })
-}
-
-/** A blank line ends a paragraph — the same rule the compose box shows the
- *  writer, and the reason `mailBody` in `@pv/contracts` refuses to run the body
- *  through `textNhap`: collapsing whitespace would turn every paragraph break
- *  in every mass mail into a space. Single newlines inside a paragraph are kept
- *  as they were typed; the shell renders each element as one `<Text>`. */
-function splitParagraphs(body: string): string[] {
-  return body
-    .split(/\n[ \t]*\n+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
 }
 
 /** The footer's identity line, read off the run's own `From`.

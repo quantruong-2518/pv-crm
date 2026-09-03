@@ -8,6 +8,12 @@ import { PasswordResetEmail, type PasswordResetData } from './password-reset'
 
 export type { LeadIntakeInternalData, LeadIntakeInternalUtm } from './lead-intake-internal'
 export type { MasShellData } from './mas-shell'
+/** The body format itself is part of this package's door, not just the render:
+ *  `apps/api` has to parse a body BEFORE it fills `{{key}}` into it, so that a
+ *  merge value can never be read back as syntax. One package owns how body text
+ *  becomes letter markup — parsing here and rendering here cannot drift. */
+export { mailBlocksPreview, mapMailText, parseMailBody } from './mail-markup'
+export type { MailBlock, MailRun } from './mail-markup'
 export type { OpportunityLostData } from './opportunity-lost'
 export type { OpportunityOpenedData } from './opportunity-opened'
 export type { PasswordResetData } from './password-reset'

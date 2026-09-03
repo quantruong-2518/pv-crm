@@ -226,6 +226,60 @@ export class MasRepository {
     }))
   }
 
+  /** One template by its code, in the same wire shape `templates()` returns —
+   *  the read every write below finishes with, so the screen is handed the row
+   *  as it now stands rather than the row it asked for. */
+  async templateByCode(code: string): Promise<MailTemplateRow | undefined> {
+    const [row] = await this.db
+      .select({
+        code: mailTemplate.code,
+        name: mailTemplate.name,
+        subject: mailTemplate.subject,
+        body: mailTemplate.body,
+        ctaLabel: mailTemplate.ctaLabel,
+        ctaUrl: mailTemplate.ctaUrl,
+        active: mailTemplate.active,
+      })
+      .from(mailTemplate)
+      .where(eq(mailTemplate.code, code))
+
+    if (!row) return undefined
+    const { ctaLabel, ctaUrl, ...rest } = row
+    return { ...rest, ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}) }
+  }
+
+  async createTemplate(input: {
+    code: string
+    name: string
+    subject: string
+    body: string
+    ctaLabel: string | null
+    ctaUrl: string | null
+  }): Promise<void> {
+    await this.db.insert(mailTemplate).values(input)
+  }
+
+  /** `undefined` leaves a column alone, `null` clears it — the three states
+   *  `MailTemplatePatch` carries, passed straight through. Drizzle omits keys
+   *  whose value is `undefined`, so spreading the input is what makes "absent"
+   *  mean "absent" instead of "write NULL". */
+  async patchTemplate(
+    code: string,
+    input: {
+      name?: string
+      subject?: string
+      body?: string
+      ctaLabel?: string | null
+      ctaUrl?: string | null
+      active?: boolean
+    },
+  ): Promise<void> {
+    await this.db
+      .update(mailTemplate)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(mailTemplate.code, code))
+  }
+
   /** Does this campaign exist? Asked before the run is written rather than left
    *  to the foreign key: `campaign_run.campaign_code` would refuse the insert
    *  anyway, but it would do it as a constraint violation halfway through a

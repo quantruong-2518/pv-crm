@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from '../icons'
 import { cn } from '../lib/cn'
 import { Icon } from '../ui/icon'
+import { useOverlayLayer } from './overlay-stack'
 
 /** T-07 · Modal — phiếu rộng cần nhìn trọn vẹn nhiều phần cùng lúc.
  *
@@ -40,6 +41,11 @@ export function Modal({
   const [mounted, setMounted] = useState(open)
   const [leaving, setLeaving] = useState(false)
 
+  /** Escape closes the TOP overlay only — see `overlay-stack.ts`. A Drawer
+   *  opened from inside this panel (the mail syntax guide does exactly that)
+   *  must take the keypress and leave the half-written form standing. */
+  const isTop = useOverlayLayer(mounted && !leaving)
+
   const shown = useRef({ title, subtitle, meta, footer, children })
   if (open) shown.current = { title, subtitle, meta, footer, children }
   const view = leaving ? shown.current : { title, subtitle, meta, footer, children }
@@ -67,12 +73,12 @@ export function Modal({
     if (active instanceof HTMLElement && !panel.current?.contains(active)) opener.current = active
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && isTop()) onClose()
     }
     document.addEventListener('keydown', onKey)
     panel.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
-  }, [mounted, leaving, onClose])
+  }, [mounted, leaving, onClose, isTop])
 
   useEffect(() => {
     if (mounted) return

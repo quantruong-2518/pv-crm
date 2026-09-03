@@ -120,6 +120,18 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/mail-runs'),
   },
   {
+    /** The MAIL-TEMPLATE book — `sales.mail_template`, the copy library that
+     *  marketing edits itself. Read with the view permission, write with the
+     *  edit one; the second gate lives in `data/mas.ts` and on the buttons, not
+     *  here — reading this screen is useful to a view-only role too, because it
+     *  answers what our letters currently say. */
+    path: '/sales/campaigns/mau-thu',
+    name: 'Kinh doanh · Module 1 · Sổ mẫu thư',
+    branch: 'Sales',
+    permission: 'chiến-dịch.xem',
+    load: () => import('@/pages/mail-templates'),
+  },
+  {
     /** Tạo chiến dịch — đoạn tĩnh `moi`, đứng TRƯỚC `:code` trong mảng nhưng
      *  thứ tự đó không quyết định gì (React Router xếp theo độ cụ thể, đúng
      *  lý do `nguon-dan` ở trên thắng `:code`). Cùng file `campaign-form.tsx`

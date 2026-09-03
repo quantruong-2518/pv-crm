@@ -960,6 +960,62 @@ export const MailTemplateListResponse = z.object({
   rows: z.array(MailTemplateRow),
 })
 
+/** `POST /sales/mail/templates` — a new piece of ready-made copy.
+ *
+ *  `body` is `mailBody`, THE SAME schema a real send uses, and that is the
+ *  point of writing it here rather than the bare `z.string()` `MailTemplateRow`
+ *  carries: until this door existed a template could only arrive through a
+ *  hand-written SQL migration, so nothing normalised its CRLF or capped its
+ *  length, and a template written on Windows would have gone out carrying `\r`
+ *  in every paragraph break the day somebody sent it. A template is a draft of
+ *  a letter; it should not be allowed to be a shape a letter cannot be.
+ *
+ *  `code` is typed by a person and is the row's identity forever — it is what
+ *  `mail_run.template_code` records to answer "which of our templates works".
+ *  There is no rename: changing it would orphan every run that names it. */
+export const MailTemplateCreate = z.object({
+  code: MailTemplateCode,
+  name: textNhap(200),
+  subject: textNhap(200),
+  body: mailBody,
+  cta: MailCta.optional(),
+})
+
+export const MailTemplateCreateResponse = MailTemplateRow
+
+/** `PATCH /sales/mail/templates/:code` — edit the copy, or retire the row.
+ *
+ *  THREE states for `cta`, not two, the same distinction `CampaignPatch` draws
+ *  and for the same reason: absent means "leave the button alone", `null` means
+ *  "remove the button". Without the third state a template that once had a CTA
+ *  could never lose it, and the `mail_template_cta_pair` CHECK means the pair
+ *  has to move together — which is exactly what one nullable object expresses
+ *  and two loose nullable strings do not.
+ *
+ *  `code` is absent on purpose: see `MailTemplateCreate`. `active` is here
+ *  rather than on a door of its own because retiring a template is an edit like
+ *  any other — no mail moves, so it does not earn the separate permission that
+ *  `/start` and `/stop` earn on a campaign. */
+export const MailTemplatePatch = z
+  .object({
+    name: textNhap(200).optional(),
+    subject: textNhap(200).optional(),
+    body: mailBody.optional(),
+    cta: MailCta.nullable().optional(),
+    active: z.boolean().optional(),
+  })
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.subject !== undefined ||
+      v.body !== undefined ||
+      v.cta !== undefined ||
+      v.active !== undefined,
+    { message: 'Cần sửa ít nhất một trường' },
+  )
+
+export const MailTemplatePatchResponse = MailTemplateRow
+
 /** One lead's whole mail history, newest run first. Not paged either: it is
  *  bounded by how many campaigns one lead has been in, and a timeline that
  *  hides its own tail behind a "load more" is a timeline that lies about how
@@ -990,6 +1046,10 @@ export type MailRunRecipientRow = z.infer<typeof MailRunRecipientRow>
 export type MailRunRecipientsResponse = z.infer<typeof MailRunRecipientsResponse>
 export type MailRunPatchResponse = z.infer<typeof MailRunPatchResponse>
 export type MailTemplateListResponse = z.infer<typeof MailTemplateListResponse>
+export type MailTemplateCreate = z.infer<typeof MailTemplateCreate>
+export type MailTemplateCreateResponse = z.infer<typeof MailTemplateCreateResponse>
+export type MailTemplatePatch = z.infer<typeof MailTemplatePatch>
+export type MailTemplatePatchResponse = z.infer<typeof MailTemplatePatchResponse>
 export type LeadMailTimelineRow = z.infer<typeof LeadMailTimelineRow>
 export type LeadMailTimelineResponse = z.infer<typeof LeadMailTimelineResponse>
 export type LeadMailEventRow = z.infer<typeof LeadMailEventRow>

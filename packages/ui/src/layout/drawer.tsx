@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
+import { useOverlayLayer } from './overlay-stack'
 
 /** T-04 · Drawer — panel phải đè lên màn, có tấm che phía sau.
  *
@@ -64,6 +65,9 @@ export function Drawer({
   const [mounted, setMounted] = useState(open)
   const [leaving, setLeaving] = useState(false)
 
+  /** Escape closes the TOP overlay only — see `overlay-stack.ts`. */
+  const isTop = useOverlayLayer(mounted && !leaving)
+
   /** Nội dung của lần mở gần nhất.
    *
    *  Phần lớn màn gọi Drawer viết `title={row?.title ?? ''}` với `row` về null
@@ -102,7 +106,9 @@ export function Drawer({
   useEffect(() => {
     if (!mounted || leaving) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      /* Only the top layer closes — a guide opened over this panel must take
+         the keypress, leaving whatever is typed here untouched. */
+      if (e.key === 'Escape' && isTop()) onClose()
     }
     document.addEventListener('keydown', onKey)
     /* Đưa tiêu điểm vào panel: mở bằng bàn phím từ một dòng bảng thì tiêu điểm
@@ -117,7 +123,7 @@ export function Drawer({
     if (active instanceof HTMLElement && !panel.current?.contains(active)) opener.current = active
     panel.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
-  }, [mounted, leaving, onClose])
+  }, [mounted, leaving, onClose, isTop])
 
   /* Trả tiêu điểm về chỗ cũ khi panel đã rời DOM hẳn. Trả lúc `leaving` thì
      tiêu điểm nhảy ra sau lưng panel trong khi panel còn đang trượt. */

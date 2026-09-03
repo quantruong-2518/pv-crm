@@ -321,6 +321,37 @@ export function Para({ children }: { children: ReactNode }) {
   )
 }
 
+/** A bullet list in the letter body — the list half of what `mail-markup.ts`
+ *  parses, sharing `Para`'s type so a list reads as the paragraph it is.
+ *
+ *  Every text property sits on the `<li>` rather than on the `<ul>`, for the
+ *  reason this file's header gives about `fontFamily`: Outlook lays HTML out
+ *  with Word's engine and does not reliably inherit type down into list items,
+ *  so a list styled only at the `<ul>` comes out in Times New Roman while the
+ *  paragraph above it does not. `paddingLeft` is stated for the same reason —
+ *  the default indent is a client-by-client guess. */
+export function Bullets({ items }: { items: ReactNode[] }) {
+  return (
+    <ul style={{ margin: '0 0 14px', paddingLeft: 22 }}>
+      {items.map((item, index) => (
+        <li
+          key={`item-${index}`}
+          style={{
+            margin: '0 0 6px',
+            fontSize: 15,
+            lineHeight: '25px',
+            color: COLOR_INK,
+            ...NUMERIC,
+            ...TEXT,
+          }}
+        >
+          {item}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /** Câu phụ — điều kiện, hạn dùng, lời trấn an. Nhỏ hơn và mờ hơn `Para` để
  *  mắt biết bỏ qua được ở lượt đọc đầu. */
 export function Note({ children }: { children: ReactNode }) {

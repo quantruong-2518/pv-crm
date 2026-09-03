@@ -188,11 +188,23 @@ const SAMPLES = [
     render: (m, assetBaseUrl) =>
       m.renderMasShell({
         subject: 'Bốn cách rút ngắn vòng kiểm tra chất lượng trong xưởng cơ khí',
-        paragraphs: [
-          'Chào anh/chị,',
-          'Trong ba tháng vừa rồi chúng tôi làm việc với chín xưởng cơ khí chính xác ở miền Bắc, và cả chín đều dừng ở cùng một chỗ: khâu đo kiểm vẫn làm tay trong khi mọi khâu trước nó đã tự động.',
-          'Chúng tôi gom lại thành một bản ghi chép ngắn — bốn cách các xưởng đó đã rút ngắn vòng kiểm tra, kèm con số trước và sau ở từng nơi.',
-        ],
+        // Cố tình dùng cả ba cấu trúc `mail-markup.ts` hiểu — đậm, nghiêng,
+        // danh sách — vì đây là chỗ DUY NHẤT nhìn được chúng bằng mắt.
+        blocks: m.parseMailBody(
+          [
+            'Chào anh/chị,',
+            '',
+            'Trong ba tháng vừa rồi chúng tôi làm việc với **chín xưởng cơ khí chính xác** ở miền Bắc, và cả chín đều dừng ở cùng một chỗ: khâu đo kiểm vẫn làm tay trong khi mọi khâu trước nó đã tự động.',
+            '',
+            'Bốn cách các xưởng đó đã rút ngắn vòng kiểm tra:',
+            '- Đo mẫu đầu chuyền thay vì đo toàn lô',
+            '- Chuyển thước cặp tay sang đầu đo gắn máy',
+            '- Ghi số thẳng vào phiếu điện tử, _không chép lại_',
+            '- Đặt ngưỡng cảnh báo trước khi hàng ra khỏi chuyền',
+            '',
+            'Kèm con số trước và sau ở từng nơi.',
+          ].join('\n'),
+        ),
         cta: { label: 'Đọc bản ghi chép', url: 'https://pebblevina.com/ghi-chep/do-kiem' },
         assetBaseUrl,
         unsubscribeUrl: `${ORIGIN}/unsubscribe?token=mau-xem-truoc`,

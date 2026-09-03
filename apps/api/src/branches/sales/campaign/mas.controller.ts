@@ -4,6 +4,9 @@ import {
   MailRunId,
   MailRunListQuery,
   MailRunPatch,
+  MailTemplateCode,
+  MailTemplateCreate,
+  MailTemplatePatch,
   MasPreflightRequest,
   MasPreviewRequest,
   MasSendRequest,
@@ -140,5 +143,32 @@ export class MasController {
   @Need({ branch: 'Sales', permission: 'chiến-dịch.xem' })
   templates() {
     return this.mas.templates()
+  }
+
+  /** The library's two write doors — the EDIT permission, not the one that
+   *  fires mail.
+   *
+   *  Editing a template sends no letter: `mail_run` snapshots subject and body
+   *  when the batch is created, so a template is only a starting point. Asking
+   *  for the fire permission here would make whoever writes the copy hold the
+   *  right to mail everybody — exactly what splitting those two roles avoids.
+   *
+   *  Not `scoped`, for the same reason the read door above is not: a template
+   *  is nobody's property, so there is no scope axis to cut on. There is no
+   *  DELETE door either — retiring a template is `active: false`, because a
+   *  batch already run still names it (see `campaign.schema.ts`). */
+  @Post('templates')
+  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa' })
+  createTemplate(@Body(zod(MailTemplateCreate)) body: MailTemplateCreate) {
+    return this.mas.createTemplate(body)
+  }
+
+  @Patch('templates/:code')
+  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa' })
+  patchTemplate(
+    @Param('code', zod(MailTemplateCode)) code: MailTemplateCode,
+    @Body(zod(MailTemplatePatch)) body: MailTemplatePatch,
+  ) {
+    return this.mas.patchTemplate(code, body)
   }
 }

@@ -28,6 +28,7 @@ import {
   Icon,
   ImagePlus,
   Inbox,
+  Info,
   Input,
   Kicker,
   MetaPill,
@@ -75,6 +76,7 @@ import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { leadBookQuery } from '@/data/leads'
 import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
+import { MailSyntaxGuide } from '@/components/mail-syntax-guide'
 import { mailHints } from '@/data/mail-hints'
 import { masTemplatesQuery, useMailPreview } from '@/data/mas'
 import {
@@ -1644,6 +1646,7 @@ function WaveComposer({
   }
 
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   /* The button travels only when the pair is COMPLETE and the URL parses —
      `MailCta` in the contract refuses a half-typed address, and somebody in the
      middle of typing `https://` has a half-typed address on every keystroke.
@@ -1733,13 +1736,23 @@ function WaveComposer({
           />
         </label>
 
-        <label className="flex flex-col gap-2">
+        {/* The label row carries the guide button, so it sits OUTSIDE the
+            `<label>`: a button inside a label re-focuses the textarea on every
+            click. The guide is a Drawer over this page — no other overlay is
+            open here, so there is nothing for Escape to close by mistake. */}
+        <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground text-[11px]">Nội dung</span>
+          <Button size="sm" variant="ghost" type="button" onClick={() => setGuideOpen(true)}>
+            <Icon icon={Info} size={14} />
+            Cách viết nội dung
+          </Button>
+        </div>
+        <label className="flex flex-col gap-2">
           <Textarea
             value={state.body}
             onChange={(e) => setState((s) => ({ ...s, body: e.target.value }))}
             rows={6}
-            placeholder="Thân thư. Dùng {{company}} và {{contactName}} để điền tên từng người nhận."
+            placeholder="Thân thư. **đậm**, _nghiêng_, đầu dòng `- ` thành danh sách. Dùng {{company}} và {{contactName}} để điền tên từng người nhận."
           />
         </label>
 
@@ -1796,17 +1809,9 @@ function WaveComposer({
           )}
         </div>
 
-        {/* THE SAME TWO BLOCKS THE MAS COMPOSE PANEL SHOWS, and the same
-            components rather than a second pair: a campaign wave leaves through
-            the identical send path (`mail_run` → `mas-v1`), so a preview built
-            separately here would be a second rendering of one letter, and two
-            renderings are two things that drift apart.
-
-            No lead to merge against — a campaign's audience is
-            `campaign_member`, frozen when it starts running rather than while
-            it is being written — so the preview goes without `leadCode` and the
-            server fills in sample values. The shell, footer and button are the
-            real ones either way. */}
+        {/* The toggle stays here, next to the field being typed into — but the
+            letter itself is DRAWN in the sibling column, so opening it never
+            pushes the rest of this card down. */}
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground text-[11px]">Kiểm lại thư trước khi thêm đợt</span>
           <Button
@@ -1820,7 +1825,21 @@ function WaveComposer({
             {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
           </Button>
         </div>
+      </GlassCard>
 
+      <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5 lg:p-6">
+        {/* THE SAME TWO BLOCKS THE MAS COMPOSE PANEL SHOWS, and the same
+            components rather than a second pair: a campaign wave leaves through
+            the identical send path (`mail_run` → `mas-v1`), so a preview built
+            separately here would be a second rendering of one letter, and two
+            renderings are two things that drift apart.
+
+            No lead to merge against — a campaign's audience is
+            `campaign_member`, frozen when it starts running rather than while
+            it is being written — so the preview goes without `leadCode` and the
+            server fills in sample values. The shell, footer and button are the
+            real ones either way. Sits in this column, beside the compose card
+            instead of under it, so the letter is visible while typing. */}
         <MailHintList hints={hints} />
 
         {previewOpen && (
@@ -1830,9 +1849,7 @@ function WaveComposer({
             error={preview.error}
           />
         )}
-      </GlassCard>
 
-      <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6">
         <div className="flex items-center justify-between gap-2">
           {/* Two panels, two honest titles. Stacking waves into one `/start`
               body is the only mode where a chain and a ceiling exist — the
@@ -1898,6 +1915,8 @@ function WaveComposer({
           ]}
         />
       </GlassCard>
+
+      <MailSyntaxGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   )
 }

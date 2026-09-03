@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@react-email/components'
-import { BrandShell, CtaButton, Para } from './brand-shell'
+import { BrandShell, Bullets, CtaButton, Para } from './brand-shell'
+import { mailBlocksPreview, type MailBlock, type MailRun } from './mail-markup'
 import { COLOR_PRIMARY } from './ops-mail-style'
 
 // Sample copy for local preview only — see `mas-shell-placeholder.ts` for why
@@ -40,8 +41,10 @@ export { PLACEHOLDER_PARAGRAPHS } from './mas-shell-placeholder'
  *  đây. */
 export type MasShellData = {
   subject: string
-  /** Đoạn văn, mỗi phần tử một <Text>. Đã thay biến trộn xong trước khi vào đây. */
-  paragraphs: string[]
+  /** Thân thư đã phân tích thành khối — xem `mail-markup.ts`. Biến trộn đã thay
+   *  xong TRƯỚC khi vào đây, và thay vào text của từng run chứ không thay vào
+   *  một chuỗi rồi đọc lại: giá trị trộn không đổi được cấu trúc lá thư. */
+  blocks: MailBlock[]
   cta?: { label: string; url: string }
   /** Bắt buộc với mail marketing — link huỷ đăng ký. */
   unsubscribeUrl: string
@@ -54,7 +57,7 @@ export type MasShellData = {
 export function MasShellEmail(data: MasShellData) {
   return (
     <BrandShell
-      preview={data.paragraphs[0] ?? data.subject}
+      preview={mailBlocksPreview(data.blocks) || data.subject}
       assetBaseUrl={data.assetBaseUrl}
       sender={data.sender}
       footerNote={
@@ -66,9 +69,13 @@ export function MasShellEmail(data: MasShellData) {
         </>
       }
     >
-      {data.paragraphs.map((paragraph, index) => (
-        <Para key={`paragraph-${index}`}>{withLineBreaks(paragraph)}</Para>
-      ))}
+      {data.blocks.map((block, index) =>
+        block.kind === 'list' ? (
+          <Bullets key={`block-${index}`} items={block.items.map(renderRuns)} />
+        ) : (
+          <Para key={`block-${index}`}>{withLineBreaks(block.lines)}</Para>
+        ),
+      )}
 
       {data.cta ? <CtaButton href={data.cta.url}>{data.cta.label}</CtaButton> : null}
     </BrandShell>
@@ -77,12 +84,11 @@ export function MasShellEmail(data: MasShellData) {
 
 /** A SINGLE NEWLINE HAS TO BECOME A `<br />` OR IT SIMPLY DISAPPEARS.
  *
- *  The composer splits paragraphs on BLANK lines, so every element of
- *  `paragraphs` still carries whatever single newlines the writer typed inside
- *  it. Handing that string straight to `<Text>` lets HTML collapse each of them
- *  into a space — and the worst casualty is not a bullet list, it is the
- *  SIGN-OFF, which nearly every letter has. Two lines typed as a greeting and a
- *  name go out welded into one line.
+ *  The parser splits blocks on BLANK lines, so a paragraph block still carries
+ *  whatever single newlines the writer typed inside it. Handing those straight
+ *  to `<Text>` lets HTML collapse each into a space — and the worst casualty is
+ *  not a bullet list, it is the SIGN-OFF, which nearly every letter has. Two
+ *  lines typed as a greeting and a name go out welded into one line.
  *
  *  No compiler catches it, no test renders a mail template, and the first
  *  person to see it is the customer. Found by reading the new server-rendered
@@ -90,13 +96,23 @@ export function MasShellEmail(data: MasShellData) {
  *
  *  `<br />` and NOT `white-space: pre-line`: Outlook for Windows lays HTML out
  *  with Word's engine and ignores that property, and Outlook is exactly where
- *  Vietnamese B2B mail gets opened. Every client understands a `<br>`.
+ *  Vietnamese B2B mail gets opened. Every client understands a `<br>`. */
+function withLineBreaks(lines: readonly MailRun[][]): ReactNode[] {
+  return lines.flatMap((runs, index) =>
+    index === 0 ? renderRuns(runs) : [<br key={`br-${index}`} />, ...renderRuns(runs)],
+  )
+}
+
+/** Emphasis as real tags, and the text of every run as a React CHILD.
  *
- *  The string has already been through `substitute`, so it is data and not
- *  markup: React inserts each piece as a text node, and the `<br />` here is
- *  the only tag this function produces. */
-function withLineBreaks(paragraph: string): ReactNode[] {
-  return paragraph
-    .split('\n')
-    .flatMap((line, index) => (index === 0 ? [line] : [<br key={`br-${index}`} />, line]))
+ *  That last part is the whole safety property of this path: React escapes
+ *  children, so the only tags in the output are the ones written literally
+ *  here. Nothing a salesperson typed, and nothing `substitute` pasted in from a
+ *  lead's own record, can add one — see the header of `mail-markup.ts`. */
+function renderRuns(runs: readonly MailRun[]): ReactNode[] {
+  return runs.map((run, index) => {
+    if (run.kind === 'bold') return <strong key={`run-${index}`}>{run.text}</strong>
+    if (run.kind === 'italic') return <em key={`run-${index}`}>{run.text}</em>
+    return run.text
+  })
 }

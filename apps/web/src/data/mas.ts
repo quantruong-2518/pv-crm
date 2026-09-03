@@ -3,7 +3,11 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import type {
   LeadMailEventsResponse,
   LeadMailTimelineResponse,
+  MailTemplateCreate,
+  MailTemplateCreateResponse,
   MailTemplateListResponse,
+  MailTemplatePatch,
+  MailTemplatePatchResponse,
   MasPreflightResponse,
   MasPreviewRequest,
   MasPreviewResponse,
@@ -85,6 +89,58 @@ export const masTemplatesQuery = queryOptions({
     }),
   staleTime: 10 * 60 * 1000,
 })
+
+/** The template book writes with the EDIT permission, not the one that fires
+ *  mail: editing a template sends no letter, because a run snapshots subject and
+ *  body when it is created. Copied verbatim from `@Need` in
+ *  `mas.controller.ts`. */
+const TEMPLATE_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.sửa' }
+
+/** Clears exactly the key `masTemplatesQuery` holds — which is also the key both
+ *  compose screens read to fill their template picker, so editing a template in
+ *  the book shows up in the picker straight away. */
+function useInvalidateTemplates() {
+  const client = useQueryClient()
+  return () => void client.invalidateQueries({ queryKey: masTemplatesQuery.queryKey })
+}
+
+/** A new template. `POST /sales/mail/templates`. */
+export function useMailTemplateCreate() {
+  const invalidate = useInvalidateTemplates()
+
+  return useMutation<MailTemplateCreateResponse, ApiError, MailTemplateCreate>({
+    mutationFn: (body) =>
+      api.write<MailTemplateCreateResponse>('/sales/mail/templates', {
+        method: 'POST',
+        body,
+        need: TEMPLATE_WRITE_NEED,
+      }),
+    onSuccess: invalidate,
+  })
+}
+
+/** Edit a template, or retire it. `PATCH /sales/mail/templates/:code`.
+ *
+ *  `code` travels outside the body because it is the row's ADDRESS, not part of
+ *  the edit — `MailTemplatePatch` deliberately has no such field: renaming the
+ *  code of a template already in use orphans every run that names it. */
+export function useMailTemplatePatch() {
+  const invalidate = useInvalidateTemplates()
+
+  return useMutation<
+    MailTemplatePatchResponse,
+    ApiError,
+    { code: string; patch: MailTemplatePatch }
+  >({
+    mutationFn: ({ code, patch }) =>
+      api.write<MailTemplatePatchResponse>(`/sales/mail/templates/${code}`, {
+        method: 'PATCH',
+        body: patch,
+        need: TEMPLATE_WRITE_NEED,
+      }),
+    onSuccess: invalidate,
+  })
+}
 
 /** Who would actually receive this. `POST /sales/mail/preflight`.
  *

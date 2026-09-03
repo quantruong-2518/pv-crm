@@ -4,7 +4,9 @@ import {
   MailRunListResponse,
   MailRunPatchResponse,
   MailRunRecipientsResponse,
+  MailTemplateCreateResponse,
   MailTemplateListResponse,
+  MailTemplatePatchResponse,
   MasPreflightResponse,
   MasPreviewResponse,
   MasSendResponse,
@@ -12,6 +14,8 @@ import {
   type MailRunListQuery,
   type MailRunPatch,
   type MailRunState,
+  type MailTemplateCreate,
+  type MailTemplatePatch,
   type MasPreflightRequest,
   type MasPreviewRequest,
   type MasRecipient,
@@ -482,6 +486,61 @@ export class MasService {
 
   async templates(): Promise<MailTemplateListResponse> {
     return MailTemplateListResponse.parse({ rows: await this.repo.templates() })
+  }
+
+  /** A NEW TEMPLATE. The duplicate check is asked here rather than left to the
+   *  primary key for the reason `campaignExists` gives: the constraint would
+   *  refuse the insert anyway, but as a 500 where the honest answer names the
+   *  code the person typed and points at the field they typed it into.
+   *
+   *  It is a race the check does not close — two creates of the same code can
+   *  both read "free" — and it does not need to: the PK still refuses the
+   *  second one, so the outcome is one row either way. This only decides which
+   *  of the two failures a person reads. */
+  async createTemplate(input: MailTemplateCreate): Promise<MailTemplateCreateResponse> {
+    if (await this.repo.templateByCode(input.code)) {
+      throw conflict(`Mã mẫu ${input.code} đã có rồi — chọn mã khác.`, {
+        code: ['Mã này đã được dùng cho một mẫu khác.'],
+      })
+    }
+
+    await this.repo.createTemplate({
+      code: input.code,
+      name: input.name,
+      subject: input.subject,
+      body: input.body,
+      ctaLabel: input.cta?.label ?? null,
+      ctaUrl: input.cta?.url ?? null,
+    })
+
+    return MailTemplateCreateResponse.parse(await this.repo.templateByCode(input.code))
+  }
+
+  /** EDIT, RETIRE, OR BOTH — and nothing here touches a letter already sent.
+   *
+   *  That is a property of the table, not of this method: `mail_run` snapshots
+   *  subject and body when the batch is created (`mail-run.schema.ts`), so a
+   *  template is only ever a starting point. Editing one changes what the next
+   *  person starts from and nothing else.
+   *
+   *  `cta` carries the three states `MailTemplatePatch` documents. The pair is
+   *  split back into two columns HERE rather than in the repository because the
+   *  `mail_template_cta_pair` CHECK is about columns while the contract is
+   *  about a button — this line is where one becomes the other. */
+  async patchTemplate(code: string, input: MailTemplatePatch): Promise<MailTemplatePatchResponse> {
+    if (!(await this.repo.templateByCode(code))) throw notFound('mẫu thư', code)
+
+    await this.repo.patchTemplate(code, {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.subject !== undefined ? { subject: input.subject } : {}),
+      ...(input.body !== undefined ? { body: input.body } : {}),
+      ...(input.active !== undefined ? { active: input.active } : {}),
+      ...(input.cta !== undefined
+        ? { ctaLabel: input.cta?.label ?? null, ctaUrl: input.cta?.url ?? null }
+        : {}),
+    })
+
+    return MailTemplatePatchResponse.parse(await this.repo.templateByCode(code))
   }
 
   /** WHO GETS A LETTER — the whole decision, in one pass over the picks.
