@@ -1,4 +1,4 @@
-import type { Problem } from '@pv/contracts'
+import type { Problem, ZodType } from '@pv/contracts'
 import type { AccessNeed } from '@pv/engines'
 import { access, renewSession, sessionIsLive, useSession } from '@/app/auth'
 import { API_BASE_URL } from './base-url'
@@ -286,7 +286,7 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
 
 /** Một lần bay thật. Đây là điểm cắt sang backend đã nói trong docblock đầu
  *  file, và giờ nó đã cắt xong. */
-async function send<T>(req: ApiRequest): Promise<T> {
+async function send<T>(req: ApiRequest, schema?: ZodType<T>): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${req.path}`, {
     method: req.method,
     headers: req.headers,
@@ -314,10 +314,57 @@ async function send<T>(req: ApiRequest): Promise<T> {
   /* 204 không có thân — `res.json()` trên thân rỗng ném SyntaxError, và một
      lệnh ghi thành công không được phép hiện ra như lỗi mạng. */
   if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+  return parsed<T>(await res.json(), req, schema)
 }
 
-async function dispatch<T>(req: ApiRequest, load?: Fetcher<T>): Promise<T> {
+/** Body in hand → the contract's shape, or one sentence naming where it broke.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THIS EXISTS, AND WHAT IT IS PAYING FOR
+ *  ------------------------------------------------------------------
+ *  Before 03/09 this layer did not check response bodies at all: the zod
+ *  contracts lived only in the type system, and `as T` lied at runtime with
+ *  complete confidence. The bill arrived as a production white screen — the web
+ *  shipped with `OpportunityRow.products` as a REQUIRED array, the Fly API was
+ *  still on a build that never sent it, and `op.products.map` threw inside a
+ *  `useMemo` on the opportunity profile: four call frames from the real fault,
+ *  in a message that named no field at all.
+ *
+ *  Checking HERE, at `res.json()`, because this is the boundary. Past this line
+ *  the body enters the TanStack cache and then a component, and both are worse
+ *  places to discover that half of it is missing.
+ *
+ *  The `load` branch (frozen fixtures) is NOT checked: fixtures never reach
+ *  `send`, and the three screens still reading them have not been re-checked
+ *  against their contracts. Turning the check on for them in this same pass
+ *  would trade one known bug for three unknown dead screens.
+ *
+ *  `schema` is OPTIONAL, and that is a deliberate concession rather than a door
+ *  left open: making it required means editing more than thirty query
+ *  declarations at once, many in files another session currently holds. A query
+ *  that passes `schema` is a query that is guarded. Every query is the target.
+ */
+function parsed<T>(body: unknown, req: ApiRequest, schema?: ZodType<T>): T {
+  if (schema === undefined) return body as T
+
+  const check = schema.safeParse(body)
+  if (check.success) return check.data
+
+  /* One mismatch, named by its path. Dumping every issue is longer without
+     saying more: two ends a version apart usually disagree in a cluster, and
+     the reader only needs one name to go and look. */
+  const first = check.error.issues[0]
+  const at = first === undefined || first.path.length === 0 ? 'thân trả về' : first.path.join('.')
+
+  throw new ApiError({
+    kind: 'lệch-hợp-đồng',
+    path: req.path,
+    message: `Máy chủ trả về không khớp hợp đồng ở \`${at}\`: ${first?.message ?? 'sai hình'}.`,
+    traceId: req.headers[TRACE_HEADER],
+  })
+}
+
+async function dispatch<T>(req: ApiRequest, load?: Fetcher<T>, schema?: ZodType<T>): Promise<T> {
   let current = req
 
   for (;;) {
@@ -332,7 +379,7 @@ async function dispatch<T>(req: ApiRequest, load?: Fetcher<T>): Promise<T> {
       prepared = BEFORE.reduce((r, step) => step(r), current)
       if (load) return await load(prepared)
       onTheWire = true
-      return await send<T>(prepared)
+      return await send<T>(prepared, schema)
     } catch (raw) {
       const error = await toApiError(raw, prepared)
 
@@ -359,10 +406,14 @@ export type ReadOptions<T> = {
    *  bảy cùng cắt trong một đợt là bảy màn cùng vỡ trong một buổi chiều. Xoá
    *  `load` khỏi một query là nghi thức duy nhất để cắt query đó. */
   load?: Fetcher<T>
+  /** The response body's zod contract. Pass it and the body is checked at the
+   *  boundary; leave it out and behaviour is unchanged (`as T`, no check).
+   *  See `parsed`. */
+  schema?: ZodType<T>
   signal?: AbortSignal
 }
 
-export type WriteOptions = {
+export type WriteOptions<T = unknown> = {
   /** `POST` mặc định. `PATCH` đã đi được từ 28/08 và `DELETE` từ 29/08 —
    *  `main.ts` khai tường minh `methods` trong `enableCors`, thứ trước đó thiếu
    *  và làm mọi `PATCH` chết ở preflight mà không để lại dòng log nào bên máy
@@ -381,6 +432,8 @@ export type WriteOptions = {
    *  (`lead.xem` để xem, `lead.sửa` để ghi), nên khai lại ở đây chứ đừng chép
    *  của query đọc. */
   need?: ApiNeed
+  /** The response body's zod contract — same rule as `ReadOptions.schema`. */
+  schema?: ZodType<T>
   signal?: AbortSignal
 }
 
@@ -396,6 +449,7 @@ export const api = {
         signal: opts.signal,
       },
       opts.load,
+      opts.schema,
     )
   },
 
@@ -405,7 +459,7 @@ export const api = {
    *  TanStack Query lo cache, dedupe và refetch — nó không biết gì về quyền, và
    *  một `fetch` trần trong `mutationFn` là một đường dữ liệu đi vòng qua
    *  `requireAccess`. Cả tầng này dựng lên để chuyện đó không xảy ra được. */
-  write<T>(path: string, opts: WriteOptions = {}): Promise<T> {
+  write<T>(path: string, opts: WriteOptions<T> = {}): Promise<T> {
     return dispatch<T>({
       path,
       method: opts.method ?? 'POST',

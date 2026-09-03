@@ -32,7 +32,8 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadScorecard } from '@pv/contracts'
+import { LeadScorecard } from '@pv/contracts'
+import type { LeadBookQuery, LeadBookResponse, LeadFacets } from '@pv/contracts'
 import { api } from '@/app/api'
 import { leadBookQueryToParams } from '@/app/url'
 import { APPROVER_ROLE_LABEL } from '@/data/directory'
@@ -129,6 +130,7 @@ export const leadScorecardQuery = queryOptions({
   queryFn: ({ signal }) =>
     api.read<LeadScorecard>('/sales/leads/scorecard', {
       need: { branch: 'Sales', permission: 'lead.xem' },
+      schema: LeadScorecard,
       signal,
     }),
   staleTime: 60 * 1000,

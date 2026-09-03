@@ -2,10 +2,10 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   PageQuery,
   type ConditionSide,
-  type ContractBookResponse,
-  type ContractDetailResponse,
+  ContractBookResponse,
+  ContractDetailResponse,
+  ContractSummary,
   type ContractRow,
-  type ContractSummary,
   type InstallmentConditionRow,
   type InstallmentRow,
   type InstallmentSummaryRow,
@@ -163,6 +163,7 @@ export const contractBookQuery = (page: PageQuery = DEFAULT_CONTRACT_PAGE) =>
     queryFn: ({ signal }) =>
       api.read<ContractBookResponse>(`/sales/contracts?page=${page.page}&size=${page.size}`, {
         need: BOOK_NEED,
+        schema: ContractBookResponse,
         signal,
       }),
   })
@@ -175,6 +176,7 @@ export const contractDetailQuery = (code: string) =>
     queryFn: ({ signal }) =>
       api.read<ContractDetailResponse>(`/sales/contracts/${encodeURIComponent(code)}`, {
         need: BOOK_NEED,
+        schema: ContractDetailResponse,
         signal,
       }),
   })
@@ -192,6 +194,7 @@ export const contractSummaryQuery = queryOptions({
   queryFn: ({ signal }) =>
     api.read<ContractSummary>('/sales/contracts/summary', {
       need: { branch: 'Sales', permission: 'hợp-đồng.xem' },
+      schema: ContractSummary,
       signal,
     }),
   staleTime: 60 * 1000,

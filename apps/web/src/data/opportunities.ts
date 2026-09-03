@@ -1,12 +1,12 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
   OpportunityBookQuery,
-  type OpportunityBookResponse,
+  OpportunityBookResponse,
+  OpportunityHistogram,
+  OpportunityScorecard,
   type OpportunityLiveDeal,
   type OpportunityOwner,
   type OpportunityRow,
-  type OpportunityHistogram,
-  type OpportunityScorecard,
   type OpportunityState,
 } from '@pv/contracts'
 import { PIPELINE_STAGES, toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
@@ -160,7 +160,7 @@ export const opportunityBookQuery = (query: OpportunityBookQuery) =>
     queryFn: ({ signal }) =>
       api.read<OpportunityBookResponse>(
         `/sales/opportunities?${opportunityBookQueryToParams(query)}`,
-        { need: BOOK_NEED, signal },
+        { need: BOOK_NEED, schema: OpportunityBookResponse, signal },
       ),
   })
 
@@ -191,6 +191,7 @@ export const opportunityScorecardQuery = queryOptions({
   queryFn: ({ signal }) =>
     api.read<OpportunityScorecard>('/sales/opportunities/scorecard', {
       need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      schema: OpportunityScorecard,
       signal,
     }),
   staleTime: 60 * 1000,
@@ -210,6 +211,7 @@ export const opportunityHistogramQuery = queryOptions({
   queryFn: ({ signal }) =>
     api.read<OpportunityHistogram>('/sales/opportunities/histogram', {
       need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      schema: OpportunityHistogram,
       signal,
     }),
   staleTime: 60 * 1000,

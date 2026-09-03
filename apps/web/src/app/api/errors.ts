@@ -18,6 +18,13 @@ export type ApiFailure =
   | 'không-thấy'
   /** Dữ liệu đã đổi dưới tay người dùng (409) — sửa đè lên bản mới hơn. */
   | 'xung-đột'
+  /** The response body does not match the endpoint's zod contract.
+   *
+   *  Neither a server fault nor bad user input — the two ends are running two
+   *  versions of one contract. It earns its own kind because it sends the
+   *  reader somewhere completely different: waiting and retrying fixes nothing,
+   *  someone has to deploy until both ends agree. */
+  | 'lệch-hợp-đồng'
   /** Máy chủ từ chối vì dữ liệu người dùng gửi lên sai (400/422) — không phải
    *  máy chủ trục trặc. Khác với các `kind` ở trên, đây LÀ việc của màn: màn tự
    *  hiện lỗi này, không đẩy lên tầng phiên. `error.errors` thường nêu tên ô sai
@@ -165,6 +172,11 @@ export function userMessage(error: ApiError): string {
       return 'Bạn thao tác quá nhanh. Chờ một lát rồi thử lại.'
     case 'huỷ':
       return ''
+    /* Name the action that actually helps. "Try again in a few minutes" is the
+       wrong sentence here: a contract skew does not heal with time, and that
+       line leaves someone pressing F5 at a screen that will never come back. */
+    case 'lệch-hợp-đồng':
+      return 'Màn và máy chủ đang lệch phiên bản dữ liệu. Báo người trực deploy — tải lại trang không chữa được.'
     case 'máy-chủ':
       return 'Máy chủ đang trục trặc. Thử lại sau ít phút.'
   }

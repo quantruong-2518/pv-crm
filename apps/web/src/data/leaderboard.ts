@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { SalesLeaderboard } from '@pv/contracts'
+import { SalesLeaderboard } from '@pv/contracts'
 import { api } from '@/app/api'
 
 /** The sales desk side by side — `GET /sales/leaderboard`.
@@ -20,6 +20,7 @@ export const leaderboardQuery = queryOptions({
   queryFn: ({ signal }) =>
     api.read<SalesLeaderboard>('/sales/leaderboard', {
       need: { branch: 'Sales', permission: 'hiệu-suất.xem' },
+      schema: SalesLeaderboard,
       signal,
     }),
   staleTime: 60 * 1000,
