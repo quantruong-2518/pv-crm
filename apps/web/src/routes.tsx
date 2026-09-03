@@ -54,7 +54,7 @@ type ScreenDef = {
 /** Sáu module Sales đều có màn thật — không còn mục nào trỏ vào màn "chưa
  *  dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
 export const SCREENS: ScreenDef[] = [
-  { path: '/', name: 'Trang chủ · Morning brief', load: () => import('@/pages/home') },
+  { path: '/', name: 'Trang chủ · Tổng quan', load: () => import('@/pages/home') },
   {
     /** One Core · Quản trị — the `platform.actor` people book.
      *

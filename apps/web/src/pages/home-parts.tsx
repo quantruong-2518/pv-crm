@@ -493,7 +493,11 @@ export function Alerts({
             ? 'Mọi đơn đang mở còn nằm trong hạn của cột nó đứng.'
             : `${money(rottingAmount)} đang treo quá hạn${worst === undefined ? '' : `, đọng nhiều nhất ở cột ${worst.label}`}. Hạn mỗi cột lấy từ Thiết lập.`
         }
-        objects={buckets.slice(0, 3).map((b) => ({ code: b.stage }))}
+        /* No objects: a stage key is not an object code, and `RailObject`
+           renders it in the same mono chip ContextRail uses for real lead, deal
+           and contract codes. The histogram carries no deal codes to put here,
+           and the sentence above already names the column. */
+        objects={[]}
       />
       <BriefCard
         className="col-span-2"

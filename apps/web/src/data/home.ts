@@ -301,10 +301,20 @@ const KIND_OF: Record<WorkKind, ObjectRef['kind']> = {
  *  rows the server just returned and `story()` walks it exactly as it walks the
  *  frozen one. Taking its objects as an argument is the whole point of E1.
  *
- *  Empty desk, empty rail — the screen then has nothing to anchor on and says
- *  so, rather than inventing a code to fill the row. */
+ *  A head of sales owns no leads or deals of their own, so `top` is undefined
+ *  for exactly the people who open this screen most — and rule 10 does not have
+ *  an exception for them. When the personal queue is empty the rail falls back
+ *  to the desk's newest contract, which still draws a true chain. Only a desk
+ *  with no contracts at all has nothing to anchor on, and then the row is
+ *  genuinely absent rather than filled with an invented code. */
 export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
-  if (top === undefined) return []
+  const first = contracts[0]
+  const anchor =
+    top ??
+    (first === undefined
+      ? undefined
+      : { id: first.code, kind: 'thu-tien' as const, code: first.code, title: first.customer })
+  if (anchor === undefined) return []
 
   const objects: ObjectRef[] = []
   const edges: Edge[] = []
@@ -318,9 +328,9 @@ export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
   /* A contract carries both codes above it, so a collection row draws the whole
      chain lead to deal to contract. The other two kinds only know themselves,
      and a one-chip rail is honest about that. */
-  const contract = contracts.find((c) => c.code === top.code)
+  const contract = contracts.find((c) => c.code === anchor.code)
   if (contract === undefined) {
-    add({ code: top.code, kind: KIND_OF[top.kind], branch: 'Sales', label: top.title })
+    add({ code: anchor.code, kind: KIND_OF[anchor.kind], branch: 'Sales', label: anchor.title })
   } else {
     add({ code: contract.leadCode, kind: 'LD', branch: 'Sales', label: contract.leadCode })
     add({
@@ -343,6 +353,6 @@ export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
   }
 
   return createObjectGraph(objects, edges)
-    .story(top.code)
-    .map((o) => ({ code: o.code, source: o.code === top.code }))
+    .story(anchor.code)
+    .map((o) => ({ code: o.code, source: o.code === anchor.code }))
 }
