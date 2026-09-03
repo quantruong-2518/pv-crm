@@ -320,3 +320,57 @@ có chỗ đứng. Chốt 30/08/2026: chờ AWS, không dựng kho tạm.
 Bù lại, đặt ở CTA thì đo được: webhook `email.clicked` vào
 `mail-webhook.controller.ts` và cộng vào cột `clicked` của lô — link trong thân
 thư mất luôn số này.
+
+---
+
+## 13 · File migration 0018 không còn trong cây, nhưng bảng nó tạo vẫn sống
+
+**Triệu chứng:** `sales.contact` có thật trên Neon với 123 dòng — mọi dòng mang
+`by = 'backfill 0018'` — trong khi không migration nào trong `apps/api/drizzle/`
+tạo bảng đó. Snapshot của drizzle vì thế không biết bảng tồn tại, nên lượt
+`pnpm db:generate` ngày 03/09 sinh ra một migration tạo lại nó lần thứ hai; chạy
+nguyên bản ấy thì Postgres từ chối "already exists" và cả migration rollback.
+
+Bảng `drizzle.__drizzle_migrations` đếm 27 dòng đã chạy trong khi cây có 27 file,
+và đúng một hash không khớp file nào:
+
+```
+5051232f806237b168f38946cc872f32c7d8c8e21cbd722a2fa4db952c1de4a3
+   đã chạy 2026-08-28T17:33:48Z
+```
+
+**Ở đâu:** file rụng lúc gỡ va chạm hai migration cùng số 0024 trong lượt gộp
+master vào develop (`91bd9a0`). Ba chỗ còn dấu vết:
+
+- `apps/api/drizzle/meta/_journal.json` — không có mục nào cho 0018.
+- `apps/api/src/branches/sales/contact/contact.schema.ts` — khai lại BẰNG TAY
+  theo hình đang sống, kể cả tên ràng buộc (`contact_no_blank`,
+  `contact_channel_known`, `contact_primary_idx`) và index trên `lower(email)`.
+  Đổi một tên ở đây là lượt `db:generate` sau phát ra một câu `ALTER` lên bảng
+  thật mà chẳng để làm gì.
+- `apps/api/drizzle/0026_crazy_mariko_yashida.sql` — khối contact bọc trong
+  `DO $$ IF to_regclass('sales.contact') IS NULL THEN … END IF $$`.
+
+**Sửa thế nào:** dựng lại file `0018_*.sql` từ hình đang sống rồi chèn vào
+journal đúng vị trí cũ. Cái không làm được là khớp lại HASH — drizzle băm nội
+dung file, nên chỉ một byte lệch là dòng cũ vẫn mồ côi và bản dựng lại bị coi là
+migration chưa chạy. Muốn sạch hẳn thì phải sửa thẳng
+`drizzle.__drizzle_migrations` trên Neon, tức viết lại lịch sử của một bảng đang
+chạy.
+
+**Vì sao chưa sửa:** hậu quả thực tế đã bị vô hiệu hoá. Database sạch dựng từ
+migration nay vẫn có `sales.contact` — khối idempotent trong 0026 dựng nó ở
+nhánh "chưa có" (đã chạy thử trên pglite trống, cả 27 migration xanh), còn Neon
+đi nhánh "đã có" và không bị chạm. Thứ còn lại chỉ là một dòng mồ côi trong bảng
+migration và một khoảng trống trong lịch sử — không cản gì, nhưng đủ để lần soát
+sau mất một buổi điều tra nếu không có mục này.
+
+**Hai điều phải biết khi đụng vào contact:**
+
+- **Đừng chạy `pnpm db:generate` rồi commit thẳng bản sinh ra.** Bản sinh luôn
+  chứa `CREATE TABLE "sales"."contact"` cho tới khi có ai đó vá journal; khối
+  idempotent trong 0026 phải được chép lại bằng tay, cùng khoản nợ mà
+  `config_ord_uniq` (DEFERRABLE) đã ghi ở `config.schema.ts`.
+- **`created_by` rỗng ở cả 123 dòng cũ**, và đó là câu trả lời đúng chứ không
+  phải dữ liệu thiếu: lượt backfill không có người nào để ghi công. Cột đó
+  nullable vĩnh viễn vì lý do ấy, còn `by` chở tên chụp lại.
