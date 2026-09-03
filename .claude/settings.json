@@ -16,6 +16,18 @@
     "deny": ["Bash(pnpm db:push:*)", "Bash(pnpm db:seed:*)"]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node tools/scripts/guard-db.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
