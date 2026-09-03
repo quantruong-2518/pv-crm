@@ -16,7 +16,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { type LeadBookQuery, type LeadSourceKind, type LeadStatus } from '@pv/contracts'
+import { OWNER_NONE, type LeadBookQuery, type LeadSourceKind, type LeadStatus } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
@@ -485,6 +485,18 @@ export class LeadRepository {
       q.tier ? eq(lead.tier, q.tier) : undefined,
       q.category ? eq(lead.category, q.category) : undefined,
       this.statusFilter(q.status),
+      /* Lead PIC. `OWNER_NONE` is the wire's word for "nobody has taken it" —
+         the screen's own sentinel carries a NUL byte and must not travel, see
+         the constant's docblock — so it asks the column for NULL rather than
+         for an actor whose id is that word. ANDed with the rest like every
+         other filter, and independent of the scope axis: for an `ownOnly`
+         reader scope has already narrowed the book to them, which makes this a
+         no-op, while for a head of sales it is the whole question. */
+      q.owner
+        ? q.owner === OWNER_NONE
+          ? isNull(lead.ownerId)
+          : eq(lead.ownerId, q.owner)
+        : undefined,
       q.campaign ? eq(lead.campaignId, q.campaign) : undefined,
       /* `sourceKind` là nửa "không chiến dịch" của ô lọc Nguồn — đọc docblock
          `LeadFacets` (`@pv/contracts`) trước khi sửa. `isNull(campaignId)` bắt

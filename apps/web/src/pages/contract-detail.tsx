@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
   AppShell,
@@ -8,11 +9,11 @@ import {
   FileCheck,
   GlassCard,
   Icon,
-  Kicker,
   MetaPill,
   ScreenHeader,
   ScreenLayout,
   SectionTitle,
+  Skeleton,
   StatCard,
   StatusDot,
   billions,
@@ -21,16 +22,17 @@ import {
   millions,
 } from '@pv/ui'
 import { daysUntil, needsAttention } from '@pv/engines'
+import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { dm, dmy } from '@/lib/date'
 import {
-  TODAY,
-  contractOf,
+  contractDetailQuery,
   daysPhrase,
+  today,
   viewInstallment,
   type Contract,
+  type Installment,
   type InstallmentView,
 } from '@/data/contracts'
 import { ConditionBar, DueBadge, MoneySplit } from '@/components/contract-bits'
@@ -44,12 +46,15 @@ import { ConditionBar, DueBadge, MoneySplit } from '@/components/contract-bits'
  *  The obligations did not disappear — they live inside each installment as its
  *  unlock checklist, which is also how the contract itself words them. */
 
-function moneyOf(contract: Contract) {
+function moneyOf(contract: Contract, now: string) {
   const collected = contract.installments.filter((d) => d.paidAt).reduce((n, d) => n + d.amount, 0)
   const overdue = contract.installments
-    .filter((d) => !d.paidAt && daysUntil(d.due, TODAY) <= 0)
+    .filter((d) => !d.paidAt && daysUntil(d.due, now) <= 0)
     .reduce((n, d) => n + d.amount, 0)
-  return { collected, overdue, remaining: contract.amount - collected }
+  /* `amount` is nullable on the wire — a contract can be signed before anyone
+     has typed the number. Zero keeps the bar drawable; the tile above prints
+     the null as it is. */
+  return { collected, overdue, remaining: (contract.amount ?? 0) - collected }
 }
 
 /** Bars in installment order, not on a time axis.
@@ -58,7 +63,7 @@ function moneyOf(contract: Contract) {
  *  and stretch the retention one across half the width — a shape that says
  *  something true about the calendar and nothing about the money. The caption
  *  under the chart says so, so nobody reads spacing as duration. */
-function InstallmentChart({ views }: { views: InstallmentView[] }) {
+function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) {
   const tallest = Math.max(...views.map((v) => v.installment.amount))
   const fill: Record<string, string> = {
     'đã-xong': 'bg-success',
@@ -112,12 +117,18 @@ function InstallmentChart({ views }: { views: InstallmentView[] }) {
   )
 }
 
-function InstallmentRow({ view, onOpen }: { view: InstallmentView; onOpen: () => void }) {
+function InstallmentRow({
+  view,
+  onOpen,
+}: {
+  view: InstallmentView<Installment>
+  onOpen: () => void
+}) {
   const { installment: d } = view
   const lateIds = useMemo(
     () =>
       new Set(
-        d.conditions.filter((c) => !c.doneAt && daysUntil(c.due, TODAY) <= 0).map((c) => c.id),
+        d.conditions.filter((c) => !c.doneAt && daysUntil(c.due, today()) <= 0).map((c) => c.id),
       ),
     [d.conditions],
   )
@@ -182,21 +193,44 @@ export function ContractDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
   const navigate = useNavigate()
   const { code = '' } = useParams()
-  const actor = useSession((s) => s.actor)
 
-  const contract = useMemo(() => contractOf(code, actor), [code, actor])
+  const { data: contract, isPending, error } = useQuery(contractDetailQuery(code))
+
+  /* One clock read for the whole screen. Two reads either side of midnight give
+     two levels for one contract, on one render. */
+  const now = useMemo(() => today(), [])
   const views = useMemo(
-    () => contract?.installments.map((d) => viewInstallment(d)) ?? [],
-    [contract],
+    () => contract?.installments.map((d) => viewInstallment(d, now)) ?? [],
+    [contract, now],
   )
 
+  if (isPending) {
+    return (
+      <AppShell {...chrome.shell}>
+        <ScreenLayout>
+          <Skeleton className="h-11 w-64" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </ScreenLayout>
+      </AppShell>
+    )
+  }
+
   if (!contract) {
+    /* Missing and out-of-scope collapse into ONE answer, and the server picked
+       that on purpose: telling a caller a contract exists but is not theirs
+       leaks the customer list. */
+    const failure = isApiError(error) ? error : null
     return (
       <AppShell {...chrome.shell}>
         <ScreenLayout>
           <ScreenHeader
             title="Không mở được hợp đồng này"
-            description="Có thể mã sai, hoặc hợp đồng không đứng tên bạn — hỏi người giữ nó, hoặc mở lại từ sổ."
+            description={
+              failure?.kind === 'không-thấy' || failure === null
+                ? 'Có thể mã sai, hoặc hợp đồng không đứng tên bạn — hỏi người giữ nó, hoặc mở lại từ sổ.'
+                : userMessage(failure)
+            }
             back={{ label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') }}
           />
         </ScreenLayout>
@@ -204,7 +238,7 @@ export function ContractDetailPage() {
     )
   }
 
-  const money = moneyOf(contract)
+  const money = moneyOf(contract, now)
   const next = views.find((v) => !v.installment.paidAt)
 
   return (
@@ -218,7 +252,11 @@ export function ContractDetailPage() {
           meta={
             <div className="flex flex-wrap gap-2">
               <MetaPill icon={FileCheck}>{contract.installments.length} đợt thanh toán</MetaPill>
-              <MetaPill avatar={contract.ownerName}>{contract.ownerName}</MetaPill>
+              {/* Id and name arrive together or not at all — an unassigned
+                  contract has neither, so there is no pill to draw. */}
+              {contract.ownerName && (
+                <MetaPill avatar={contract.ownerName}>{contract.ownerName}</MetaPill>
+              )}
               <MetaPill>
                 {contract.contact} · {contract.contactRole}
               </MetaPill>
@@ -237,14 +275,18 @@ export function ContractDetailPage() {
             <StatCard
               size="compact"
               label="Giá trị hợp đồng"
-              value={billions(contract.amount)}
-              source={dong(contract.amount)}
+              value={contract.amount === null ? '—' : billions(contract.amount)}
+              source={contract.amount === null ? 'chưa có số tiền' : dong(contract.amount)}
             />
             <StatCard
               size="compact"
               label="Đã thu"
               value={millions(money.collected, 0)}
-              source={`${Math.round((money.collected / contract.amount) * 100)}% giá trị`}
+              source={
+                contract.amount
+                  ? `${Math.round((money.collected / contract.amount) * 100)}% giá trị`
+                  : 'chưa có số tiền để so'
+              }
             />
             <StatCard
               size="compact"
@@ -320,7 +362,7 @@ export function ContractDetailPage() {
                 luôn câu xin ngày chuyển tiền đợt {next.installment.no}?
               </>
             }
-            basis={`đợt ${next.installment.no} ${daysPhrase(next.daysLeft)} · điều kiện "${next.blocking.what}" trễ ${-daysUntil(next.blocking.due, TODAY)} ngày · lượt nhắc gần nhất chưa có trả lời`}
+            basis={`đợt ${next.installment.no} ${daysPhrase(next.daysLeft)} · điều kiện "${next.blocking.what}" trễ ${-daysUntil(next.blocking.due, now)} ngày · lượt nhắc gần nhất chưa có trả lời`}
             empty="Chưa tạo gì cả — trợ lý chờ bạn bấm."
             confirmLabel="Soạn thư"
             onConfirm={() => toast('Bản nháp thư nhắc sẽ mở khi thư viện mail nối vào màn này.')}
@@ -330,10 +372,6 @@ export function ContractDetailPage() {
             inspectLabel="Mở đợt"
           />
         )}
-
-        <Kicker tone="muted">
-          Số liệu đóng băng tại {dmy(TODAY)} — kịch bản Sao Đỏ, chưa nối máy chủ
-        </Kicker>
       </ScreenLayout>
     </AppShell>
   )

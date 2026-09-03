@@ -3,6 +3,7 @@ import type { AccessControl, Actor } from '@pv/engines'
 import {
   ContractBookResponse,
   ContractDetailResponse,
+  ContractSummary,
   type MaHopDong,
   type PageQuery,
 } from '@pv/contracts'
@@ -48,6 +49,15 @@ export class ContractService {
       total: page.total,
       hidden: page.hidden + hidden,
     })
+  }
+
+  /** The book folded to one row of numbers — `GET /sales/contracts/summary`.
+   *
+   *  Takes no `Actor` and cuts nothing: sums over EVERY contract, so the tile
+   *  does not shrink when somebody turns to page 2. The door still demands the
+   *  book's own permission. */
+  async summary(): Promise<ContractSummary> {
+    return ContractSummary.parse(await this.repo.summary())
   }
 
   /** One contract. Two ways to fail, and they answer with the SAME 404.

@@ -1,159 +1,196 @@
-import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AiAction,
   AppShell,
-  BriefCard,
   ContextRail,
-  OrderLifecycleCard,
+  EmptyState,
+  Inbox,
   ScreenHeader,
   ScreenLayout,
-  StatCard,
+  billions,
 } from '@pv/ui'
-import { saoDo } from '@pv/engines/fixtures/sao-do'
+import { systemClock } from '@pv/engines'
+import { useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { deskStory, labelsOf, limitsOf, useDesk, useMyWork } from '@/data/home'
+import { dmy } from '@/lib/date'
+import {
+  Alerts,
+  DeskSkeleton,
+  DeskTiles,
+  Funnel,
+  MoneyLine,
+  PeopleBoard,
+  PipelineBoard,
+  WorkQueue,
+} from './home-parts'
 
-/** Màn 01 · Trang chủ / Morning brief (docs/luat-thiet-ke.md §7).
- *  Kịch bản 1 · Sao Đỏ, đóng băng 10/08 · 07:58.
+/** Màn 01 · Trang chủ — the desk, then your own work on it.
  *
- *  Nav KHÔNG khai ở đây: cả gói props của khung lấy từ `app/chrome.tsx` bằng
- *  `{...chrome.shell}`, nên thêm màn mới là nav của mọi màn biết ngay và không
- *  màn nào nối thiếu dây điều hướng.
+ *  ------------------------------------------------------------------
+ *  WHAT THIS SCREEN USED TO BE, AND WHY NONE OF IT SURVIVED
+ *  ------------------------------------------------------------------
+ *  Until now this was a morning brief for a manufacturing story: a Supply sales
+ *  order, a Factory work order, a machine breakdown, an OEE figure. Every one of
+ *  those numbers was typed into JSX — the old file said so itself — and none of
+ *  them had a table, an endpoint or a screen behind it. `apps/api` has ONE
+ *  branch, `sales`; `routes.tsx` has no Supply, Factory or Finance route. Each
+ *  tile pointed at a product that does not exist here, and no click on this page
+ *  could go anywhere.
  *
- *  TIẾNG VIỆT từ 20/08. Bản vẽ gốc của màn này là bản EN và thân màn giữ nguyên
- *  tiếng Anh suốt trong khi tám màn kia đã tiếng Việt — luật 14. Bản vẽ đã xoá
- *  nên không còn gì để trung thành với nữa; hai chỗ dịch KHÔNG theo chữ:
- *   · "Equipment effectiveness" → "Hiệu suất thiết bị" (luật 14 cấm viết tắt
- *     OEE trên giao diện, và fixture đã gọi đúng tên đó);
- *   · "contract SO-0891" → "đơn bán SO-0891" — SO-0891 là đơn bán bên Supply,
- *     hợp đồng của câu chuyện này là HĐ-2607 (`fixtures/sao-do.ts`).
+ *  What replaced it reads the three books this product actually has. Nothing
+ *  here is hand-typed: every number arrives from a server aggregate, or is
+ *  derived from returned rows by `@pv/engines`.
  *
- *  CÒN NỢ: bốn ô KPI và dải sparkline vẫn gõ số thẳng vào JSX, trong khi
- *  `SAO_DO_KPI` đã giữ đúng bộ số đó. Trả nợ ở vòng dọn dữ liệu, không lẫn vào
- *  lượt dịch này. */
+ *  ------------------------------------------------------------------
+ *  TWO TIERS, AND THE HEADINGS HAVE TO SAY WHICH IS WHICH
+ *  ------------------------------------------------------------------
+ *  The top half is the department, unscoped — everyone who may see a block reads
+ *  the same figure in it. The bottom half is the signed-in person's own late
+ *  work. Stacked rather than merged because "pipeline" means two different
+ *  things in the two halves, and the only thing stopping a reader conflating
+ *  them is that each section says whose numbers it is showing.
+ *
+ *  Blocks a role may not read are dropped and NAMED, not hidden — the gating
+ *  itself is explained at the top of `data/home.ts`. */
 
-/** Mỏ neo của ContextRail — chính là đơn ô hero đang nói tới. `E1.story()` leo
- *  từ nó ra cả chuỗi (LD-0334 → HĐ-2607 → SO-0891 → WO-1180 → PO-0455 →
- *  L-2608-042), nên màn không gõ một mã nào bằng tay. */
-const HOME_ANCHOR = 'SO-0891'
+/** Time of day, from the same clock the work queue measures lateness with. */
+function greeting(iso: string): string {
+  const hour = new Date(iso).getHours()
+  if (hour < 11) return 'Chào buổi sáng'
+  if (hour < 14) return 'Chào buổi trưa'
+  if (hour < 18) return 'Chào buổi chiều'
+  return 'Chào buổi tối'
+}
+
+/** The books this actor may not open, named. Empty = they see everything. */
+function closedDoors(can: {
+  ops: boolean
+  lead: boolean
+  contract: boolean
+  people: boolean
+}): string[] {
+  const out: string[] = []
+  if (!can.ops) out.push('cơ hội')
+  if (!can.contract) out.push('hợp đồng')
+  if (!can.lead) out.push('lead')
+  if (!can.people) out.push('nhân sự')
+  return out
+}
 
 export function HomePage() {
   const chrome = useAppChrome({
-    searchPlaceholder: 'Tìm khách hàng, đơn hàng, lệnh sản xuất, hồ sơ…',
+    searchPlaceholder: 'Tìm khách hàng, lead, cơ hội, hợp đồng…',
   })
+  const navigate = useNavigate()
+  const actor = useSession((s) => s.actor)
 
-  /* Luật 9 · trợ lý chờ nút. Chưa bấm thì khối AI nói ra hệ quả của việc chưa
-     bấm; bấm rồi thì nó nói "Đã thực hiện" và thôi nhắc. */
-  const [done, setDone] = useState(false)
+  const desk = useDesk()
+  const limits = limitsOf(desk.histogram?.buckets)
+  const labelOf = labelsOf(desk.histogram?.buckets)
+  const work = useMyWork(limits, labelOf)
 
-  /* Luật 10 · ContextRail dựng thẳng từ E1, một hàng riêng ngay dưới tiêu đề
-     màn. `source` bật cho ĐÚNG object đang mở — chip azure phải đếm được
-     (luật 3), không phải cả chuỗi cùng sáng. */
-  const story = saoDo.graph.story(HOME_ANCHOR)
-  const rail =
-    story.length > 0
-      ? story.map((o) => ({ code: o.code, source: o.code === HOME_ANCHOR }))
-      : [{ code: HOME_ANCHOR, source: true }]
+  const today = systemClock()
+  const name = actor?.name ?? 'bạn'
+  const top = work.items[0]
+
+  /* Luật 10 · the rail is built by E1 from rows the server just sent, never from
+     a hand-written chip list. Anchored on the most urgent thing on this desk,
+     because that is the story the person opened the screen to find. */
+  const rail = deskStory(top, work.contractRows)
+
+  const overdueCount = desk.contracts?.overdueCount ?? 0
+  const overdueAmount = desk.contracts?.overdueVnd ?? 0
+  const rotting = (desk.histogram?.buckets ?? []).reduce((n, b) => n + b.rotting, 0)
+  const attention = overdueCount + rotting
+  const hidden = closedDoors(desk.can)
+
+  const quiet = !desk.isPending && attention === 0 && work.items.length === 0
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Chào buổi sáng, anh Thắng"
+          kicker="One Core · Tổng quan"
+          title={`${greeting(today)}, ${name}`}
           description={
             <>
-              Thứ Hai 10/08 · gộp Sales, Supply, Factory, Finance · cập nhật{' '}
-              <span className="font-mono">07:58</span> · 4 việc cần anh nhìn
+              {dmy(today)} · Kinh doanh ·{' '}
+              {desk.isPending
+                ? 'đang đọc sổ…'
+                : attention === 0
+                  ? 'không có việc nào quá hạn'
+                  : `${attention} việc quá hạn cần nhìn`}
             </>
           }
-          context={<ContextRail objects={rail} />}
+          context={rail.length === 0 ? undefined : <ContextRail objects={rail} />}
         />
 
-        <div className="grid grid-cols-2 gap-3 lg:auto-rows-[150px] lg:grid-cols-4 lg:gap-4">
-          <OrderLifecycleCard
-            className="col-span-2 lg:row-span-2"
-            state="bad"
-            title="Đơn Sao Đỏ — SO-0891"
-            amount="1,84 tỷ"
-            description="trễ 2 ngày · thiếu thép Ø40 · khách chốt hạn 22/08"
-            progress={{ label: 'Lệnh sản xuất WO-1180', value: 0.68 }}
-            milestones={['ok', 'ok', 'ok', 'ok', 'ok', 'current', 'next', 'next', 'next', 'next']}
-            milestoneLabels={['08/07 đầu mối', 'hôm nay 10/08', '25/08 xuất hoá đơn']}
-            objects={[
-              { code: 'HĐ-2607' },
-              { code: 'Supply · SO-0891', source: true },
-              { code: 'Factory · WO-1180', source: true },
-              { code: 'Supply · PO-0455', source: true },
-            ]}
+        {desk.error === null ? null : (
+          <EmptyState
+            icon={Inbox}
+            message="Không đọc được số liệu của phòng. Thử tải lại trang."
+            action={{ label: 'Tải lại', onClick: () => navigate(0) }}
           />
+        )}
 
-          <StatCard
-            value="4,2 tỷ"
-            label="Doanh thu tháng 8"
-            delta={{ direction: 'up', text: 'vượt kế hoạch 12%', tone: 'success' }}
-            sparkline={{
-              points: [22, 18, 20, 13, 15, 8, 9, 3],
-              source: 'tháng 8 · Sales',
-              tone: 'success',
-            }}
-          />
-          <StatCard
-            value="86%"
-            label="Giao đúng hạn"
-            delta={{ direction: 'flat', text: 'đi ngang · mục tiêu 90%', tone: 'warning' }}
-            sparkline={{
-              points: [12, 11, 13, 12, 12, 13, 11, 12],
-              source: '90 ngày · Supply',
-              tone: 'warning',
-            }}
-          />
-          <StatCard
-            value="890 tr"
-            label="Công nợ quá hạn"
-            delta={{ direction: 'up', text: '2 hoá đơn · quá hạn 12 ngày', tone: 'danger' }}
-            sparkline={{
-              points: [20, 19, 16, 17, 11, 10, 6, 4],
-              source: '30 ngày · Finance',
-              tone: 'danger',
-            }}
-          />
-          <StatCard
-            value="91,4%"
-            label="Hiệu suất thiết bị · xưởng X1"
-            delta={{ direction: 'down', text: 'CNC-03 dừng 37 phút', tone: 'warning' }}
-            sparkline={{
-              points: [6, 5, 8, 7, 6, 14, 19, 11],
-              source: '24 giờ · Factory',
-              tone: 'warning',
-            }}
-          />
+        {/* ---------------- TẦNG 1 · PHÒNG ---------------- */}
 
-          <BriefCard
-            className="col-span-2"
-            state="warning"
-            title="3 cơ hội đang rủi ro"
-            badge={{ label: 'Sales', tone: 'warning' }}
-            description="Sao Đỏ im 6 ngày với báo giá gia hạn BG-0512 · Trường Thịnh xin giảm 8% · Hoà Phong ngưng trả lời."
-            objects={[{ code: 'Sales · BG-0512', source: true }, { code: 'LD-0334' }]}
-          />
-          <BriefCard
-            className="col-span-2"
-            state="bad"
-            title="CNC-03 dừng lần thứ ba trong tuần"
-            badge={{ label: 'Factory', tone: 'danger' }}
-            description="Lỗi E-214, tổng 37 phút sáng nay. Lệnh bảo trì BT-0310 đã giao anh Hải, chưa thấy nhận."
-            objects={[{ code: 'Factory · CNC-03', source: true }, { code: 'BT-0310' }]}
-          />
-        </div>
+        {desk.isPending ? (
+          <DeskSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 lg:auto-rows-[150px] lg:grid-cols-4 lg:gap-4">
+            <MoneyLine scorecard={desk.scorecard} contracts={desk.contracts} />
+            <DeskTiles scorecard={desk.scorecard} contracts={desk.contracts} />
+            <Alerts histogram={desk.histogram} contracts={desk.contracts} />
+          </div>
+        )}
 
-        <AiAction
-          suggestion="Trợ lý đề xuất: duyệt PO-0455 hôm nay và chuyển 30% WO-1180 sang CNC-05 → giao hàng vẫn kịp 22/08, còn dư một ngày."
-          basis="tồn kho K1-A2 · công suất xưởng X1 · đơn bán SO-0891 · lịch bảo trì CNC-03."
-          /* Luật 9 · state "Chưa tạo gì cả" phải nói ra HỆ QUẢ, không nói suông:
-             ba object đứng im và một cái hạn trượt. */
-          empty="Chưa tạo gì cả. Chưa bấm thì PO-0455 nằm nguyên ở chờ duyệt, WO-1180 chạy trọn trên CNC-03, và SO-0891 giữ nguyên mức trễ 2 ngày — hạn 22/08 hết phần dư."
-          done={done}
-          onConfirm={() => setDone(true)}
-        />
+        {desk.can.ops || desk.can.lead ? (
+          <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+            {desk.can.ops ? <PipelineBoard histogram={desk.histogram} /> : null}
+            {desk.can.lead ? <Funnel funnel={desk.funnel} /> : null}
+          </div>
+        ) : null}
+
+        {desk.can.people ? <PeopleBoard rows={desk.people} /> : null}
+
+        {/* ---------------- TẦNG 2 · VIỆC CỦA TÔI ---------------- */}
+
+        <WorkQueue items={work.items} isPending={work.isPending} name={name} />
+
+        {/* Luật 9 · the assistant proposes and waits for a button. It creates
+            nothing — it points at work that already exists — so it deliberately
+            does NOT go through `E3.proposeFromAi`: that door mints an approval
+            request, and minting one for "go and read this row" would drop a
+            phantom into the approval box that nobody can ever approve. The
+            `basis` line still names every figure it read. */}
+        {quiet ? (
+          <EmptyState
+            icon={Inbox}
+            message="Không có gì quá hạn trên bàn của bạn hay của phòng hôm nay."
+            action={{ label: 'Mở sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
+          />
+        ) : top === undefined ? null : (
+          <AiAction
+            suggestion={
+              overdueCount > 0
+                ? `Trợ lý đề xuất: gọi thu ${billions(overdueAmount, 1)} đang quá hạn trước khi mở việc mới — bắt đầu ở ${top.code}, trễ ${top.daysLate} ngày.`
+                : `Trợ lý đề xuất: mở ${top.code} trước — đây là việc trễ lâu nhất trên bàn của bạn, ${top.daysLate} ngày quá hạn.`
+            }
+            basis={`${overdueCount} đợt thanh toán quá hạn · ${rotting} đơn quá hạn cột · hạn mỗi cột đọc từ Thiết lập · ${work.items.length} việc trên bàn của bạn.`}
+            empty={`Chưa mở gì cả. Chưa bấm thì ${top.code} đứng nguyên ở mức trễ ${top.daysLate} ngày, và ${overdueCount} đợt thu quá hạn vẫn chưa ai gọi.`}
+            confirmLabel="Mở việc này"
+            onConfirm={() => navigate(top.href)}
+          />
+        )}
+
+        {hidden.length === 0 ? null : (
+          <p className="text-muted-foreground text-[11px] leading-[1.5]">
+            Bị ẩn theo quyền của bạn: {hidden.join(' · ')}. Vai của bạn không mở những sổ này, nên
+            màn bỏ hẳn khối của chúng thay vì vẽ một khối rỗng.
+          </p>
+        )}
       </ScreenLayout>
     </AppShell>
   )

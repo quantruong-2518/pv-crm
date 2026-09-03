@@ -11,6 +11,7 @@ import {
   ContractSignResponse,
   OpportunityBookResponse,
   OpportunityCreateResponse,
+  OpportunityHistogram,
   OpportunityImportCommitResponse,
   OpportunityImportPreviewResponse,
   OpportunityLiveDeal,
@@ -153,6 +154,14 @@ export class OpportunityService {
    *  lời hai câu khác nhau, và màn in chúng dưới hai nhãn khác nhau. */
   async scorecard(): Promise<OpportunityScorecard> {
     return OpportunityScorecard.parse(await this.repo.scorecard())
+  }
+
+  /** The board weighed column by column — `GET /sales/opportunities/histogram`.
+   *
+   *  Same open pipeline the scorecard totals, split rather than re-counted, and
+   *  unscoped for the same reason: one board, one set of figures. */
+  async histogram(): Promise<OpportunityHistogram> {
+    return OpportunityHistogram.parse({ buckets: await this.repo.histogram() })
   }
 
   /** "Lead này đã có đơn CÒN SỐNG chưa" — `GET /sales/opportunities/live-deal`.
@@ -821,7 +830,10 @@ export class OpportunityService {
            second time. */
         products: found.products,
       }),
-      contract: toContractRow(done.contractRow, ownerName),
+      /* The deal's account IS the customer company — the contract row has no
+         column for it, and re-reading the lead here would be a second question
+         with the same answer. */
+      contract: toContractRow(done.contractRow, ownerName, found.account),
     })
   }
 

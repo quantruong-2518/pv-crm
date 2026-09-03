@@ -1,10 +1,11 @@
-import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
-import type { PageQuery } from '@pv/contracts'
+import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
+import type { ContractMonthPoint, ContractSummary, PageQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
+import { dongOf } from '../money'
 import {
   contract,
   contractCondition,
@@ -76,6 +77,14 @@ export type ContractDetailRead = ContractRead & {
  *  người dùng — nhưng nó cũng chính là lý do `MaHopDong` phải là một primitive
  *  riêng thay vì `MaObject`, và lý do đó đã ghi ở hợp đồng. */
 const NEXT_CODE = sql`SELECT 'HĐ-' || lpad(nextval('sales.contract_code_seq')::text, 4, '0') AS code`
+
+/** The signed value of a contract in dong. Shared expression, one rate table —
+ *  see `../money.ts`. */
+const CONTRACT_VND = dongOf(contract.amount, contract.currency)
+
+/** How far back the trend strip reaches. Twelve points including the current
+ *  month, which is what `ContractSummary.byMonth` promises. */
+const TREND_MONTHS = 12
 
 /** Chỗ DUY NHẤT có SQL của module hợp đồng — cả đường ghi lẫn đường đọc.
  *
@@ -244,6 +253,118 @@ export class ContractRepository {
         notes: byNo.notes.get(row.no) ?? [],
       })),
     }
+  }
+
+  /** The whole book folded to one row — `GET /sales/contracts/summary`.
+   *
+   *  Four queries rather than one welded statement: they scan three different
+   *  tables and the last groups a series, so joining them would only push the
+   *  same four scans into the planner behind a shape nobody can read.
+   *
+   *  No `Actor` and no scope axis, the same call both scorecards made: these
+   *  are the desk's numbers, and cutting them by who owns what makes everyone
+   *  read a different figure under one label.
+   *
+   *  `SUM` returns `bigint`, which node-postgres hands back as a STRING while
+   *  PGlite gives a number. `Number()` below takes both; casting to `int` in
+   *  SQL would blow up on a book worth a few thousand billion dong. */
+  async summary(): Promise<ContractSummary> {
+    const due = contractInstallment.due
+    const money = contractInstallment.amount
+    const unpaid = sql`${contractInstallment.paidAt} IS NULL`
+    const overdue = sql`${unpaid} AND ${due} < now()`
+    /* Bounded on BOTH sides so an installment already late is counted as late
+       and not a second time as near. `DUE_NEAR_DAYS` comes from the same
+       `@pv/engines` ladder the contract book paints urgency with. */
+    const dueSoon = sql`${unpaid} AND ${due} >= now()
+      AND ${due} < now() + ${sql.raw(String(DUE_NEAR_DAYS))} * interval '1 day'`
+
+    const [signed, schedule, late, byMonth] = await Promise.all([
+      this.db
+        .select({
+          signedCount: count(),
+          signedAmountVnd: sql<number | string>`COALESCE(SUM(${CONTRACT_VND}), 0)::bigint`,
+          blankAmount: sql<number>`count(*) FILTER (WHERE ${contract.amount} IS NULL)::int`,
+        })
+        .from(contract),
+      /* Installments carry no currency column — the schedule is drafted in
+         dong — so these four sums add the column itself. */
+      this.db
+        .select({
+          scheduledVnd: sql<number | string>`COALESCE(SUM(${money}), 0)::bigint`,
+          collectedVnd: sql<
+            number | string
+          >`COALESCE(SUM(${money}) FILTER (WHERE ${contractInstallment.paidAt} IS NOT NULL), 0)::bigint`,
+          overdueVnd: sql<
+            number | string
+          >`COALESCE(SUM(${money}) FILTER (WHERE ${overdue}), 0)::bigint`,
+          overdueCount: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
+          dueSoonVnd: sql<
+            number | string
+          >`COALESCE(SUM(${money}) FILTER (WHERE ${dueSoon}), 0)::bigint`,
+          dueSoonCount: sql<number>`count(*) FILTER (WHERE ${dueSoon})::int`,
+        })
+        .from(contractInstallment),
+      /* Late PAPERWORK, counted per CONDITION and not per contract: two unmet
+         lines on one contract are two things to chase, which is what the tile
+         has always printed. A separate question from `overdueCount` above —
+         that one is money that did not land. */
+      this.db
+        .select({
+          ours: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'ta')::int`,
+          theirs: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'khách')::int`,
+        })
+        .from(contractCondition)
+        .where(and(isNull(contractCondition.doneAt), sql`${contractCondition.due} < now()`)),
+      this.trend(),
+    ])
+
+    const a = signed[0]
+    const b = schedule[0]
+    const c = late[0]
+
+    return {
+      signedCount: a?.signedCount ?? 0,
+      signedAmountVnd: Number(a?.signedAmountVnd ?? 0),
+      blankAmount: a?.blankAmount ?? 0,
+      scheduledVnd: Number(b?.scheduledVnd ?? 0),
+      collectedVnd: Number(b?.collectedVnd ?? 0),
+      overdueVnd: Number(b?.overdueVnd ?? 0),
+      overdueCount: b?.overdueCount ?? 0,
+      dueSoonVnd: Number(b?.dueSoonVnd ?? 0),
+      dueSoonCount: b?.dueSoonCount ?? 0,
+      lateConditionsOurs: c?.ours ?? 0,
+      lateConditionsTheirs: c?.theirs ?? 0,
+      byMonth,
+    }
+  }
+
+  /** Signing by month, oldest first, with the empty months present as zeros.
+   *
+   *  The months come out of `generate_series` and the contracts LEFT JOIN onto
+   *  them, rather than being filled in afterwards: a month with no signature is
+   *  a gap the sparkline has to draw, and a list built in Node would bucket by
+   *  Node's clock while `date_trunc` buckets by the database session's. */
+  private async trend(): Promise<ContractMonthPoint[]> {
+    const back = sql.raw(String(TREND_MONTHS - 1))
+
+    const r = (await this.db.execute(sql`
+      SELECT to_char(m.at, 'YYYY-MM')                      AS month,
+             count(${contract.code})::int                  AS signed_count,
+             COALESCE(SUM(${CONTRACT_VND}), 0)::bigint     AS signed_amount_vnd
+        FROM generate_series(date_trunc('month', now()) - ${back} * interval '1 month',
+                             date_trunc('month', now()),
+                             interval '1 month') AS m(at)
+        LEFT JOIN ${contract} ON date_trunc('month', ${contract.signedAt}) = m.at
+       GROUP BY m.at
+       ORDER BY m.at
+    `)) as { rows: { month: string; signed_count: number; signed_amount_vnd: number | string }[] }
+
+    return r.rows.map((row) => ({
+      month: row.month,
+      signedCount: row.signed_count,
+      signedAmountVnd: Number(row.signed_amount_vnd),
+    }))
   }
 
   private async installmentsOf(codes: string[]): Promise<Map<string, ContractInstallmentRowDb[]>> {

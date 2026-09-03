@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   DataTable,
@@ -7,33 +8,34 @@ import {
   FileCheck,
   GlassCard,
   Icon,
+  Inbox,
+  Kicker,
   Lock,
   ScreenHeader,
   ScreenLayout,
+  Skeleton,
   StatCard,
+  TriangleAlert,
   billions,
   dong,
   millions,
 } from '@pv/ui'
-import { daysUntil } from '@pv/engines'
+import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { useSession } from '@/app/auth'
 import { dm } from '@/lib/date'
 import {
-  TODAY,
-  contractBook,
+  bookRowsOf,
+  contractBookQuery,
+  contractSummaryQuery,
   daysPhrase,
-  type ContractRow,
+  type ContractBookRow,
   type InstallmentView,
 } from '@/data/contracts'
-import { MoneySplit, SideTag } from '@/components/contract-bits'
+import { MoneySplit } from '@/components/contract-bits'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
  *  installment. This screen answers one question and refuses the others: which
- *  of my contracts wants something from me today.
- *
- *  Sorted by urgency, not by signing date. A book sorted by date makes the
- *  reader scan for red; a book sorted by urgency has already scanned for them. */
+ *  of my contracts wants something from me today. */
 
 const COLUMNS = [
   { header: 'Mã', width: '104px' },
@@ -41,7 +43,6 @@ const COLUMNS = [
   { header: 'Giá trị', width: '148px', align: 'right' as const },
   { header: 'Đã thu', width: '184px' },
   { header: 'Đợt kế tiếp', width: '176px' },
-  { header: 'Đang chặn', width: '236px' },
 ]
 
 function NextCell({ next }: { next: InstallmentView | null }) {
@@ -60,29 +61,14 @@ function NextCell({ next }: { next: InstallmentView | null }) {
   )
 }
 
-/** The blocking cell is the only column the opportunity book does not have. It
- *  answers "who do I call today" with a side plus a sentence — not with a status
- *  word that still needs decoding. */
-function BlockingCell({ next }: { next: InstallmentView | null }) {
-  if (!next?.blocking) {
-    return <span className="text-muted-foreground text-[11.5px]">Không tắc việc nào</span>
-  }
-  const late = -daysUntil(next.blocking.due, TODAY)
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <SideTag side={next.blocking.side} />
-      <span className="min-w-0">
-        <span className="text-on-tint-destructive block truncate text-[11.5px]">
-          {next.blocking.what}
-        </span>
-        <span className="text-destructive-foreground font-mono text-[10.5px]">trễ {late} ngày</span>
-      </span>
-    </span>
-  )
-}
+function rowCells(row: ContractBookRow) {
+  const amount = row.contract.amount ?? 0
+  /* At risk = the next installment when it wants attention today. It used to be
+     "the next installment has a blocker", which a book row can no longer
+     answer: `GET /sales/contracts` ships the lean installment, checklist left
+     out. The level is derived from the due date, which the row does carry. */
+  const atRisk = row.urgent ? (row.next?.installment.amount ?? 0) : 0
 
-function rowCells(row: ContractRow) {
-  const atRisk = row.next && !row.next.blocking ? 0 : (row.next?.installment.amount ?? 0)
   return [
     <span key="ma" className="text-accent-foreground font-mono text-[11.5px]">
       {row.contract.code}
@@ -90,11 +76,11 @@ function rowCells(row: ContractRow) {
     <span key="khach" className="flex min-w-0 flex-col gap-1">
       <span className="truncate text-[12.5px]">{row.contract.customer}</span>
       <span className="text-muted-foreground text-[10.5px]">
-        {row.contract.ownerName} · ký {dm(row.contract.signedAt)}
+        {row.contract.ownerName ?? 'chưa gán người'} · ký {dm(row.contract.signedAt)}
       </span>
     </span>,
     <span key="gia-tri" className="tnum font-num text-right text-[13px] font-semibold">
-      {dong(row.contract.amount)}
+      {dong(amount)}
     </span>,
     <span key="da-thu" className="flex min-w-0 flex-col gap-1">
       <MoneySplit
@@ -104,21 +90,106 @@ function rowCells(row: ContractRow) {
         className="h-1.5"
       />
       <span className="text-muted-foreground tnum font-mono text-[10.5px]">
-        {millions(row.collected, 0)} · {Math.round((row.collected / row.contract.amount) * 100)}%
+        {millions(row.collected, 0)} ·{' '}
+        {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
       </span>
     </span>,
     <NextCell key="ke-tiep" next={row.next} />,
-    <BlockingCell key="chan" next={row.next} />,
   ]
+}
+
+/** Numbers of the WHOLE book, counted in SQL.
+ *
+ *  The summary door drops the scope axis on purpose, so these three do not
+ *  shrink to what the reader owns — which is exactly why the kicker says so.
+ *  Someone who only sees their own contracts reads a signed count here larger
+ *  than the table below, and they only know that if something tells them. */
+function ContractScore() {
+  const { data } = useQuery(contractSummaryQuery)
+
+  const signedCount = data?.signedCount ?? 0
+  const signed = data?.signedAmountVnd ?? 0
+  const blank = data?.blankAmount ?? 0
+  const scheduled = data?.scheduledVnd ?? 0
+  const collected = data?.collectedVnd ?? 0
+  const overdue = data?.overdueVnd ?? 0
+  const overdueCount = data?.overdueCount ?? 0
+  const lateOurs = data?.lateConditionsOurs ?? 0
+  const lateTheirs = data?.lateConditionsTheirs ?? 0
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Kicker>Số của cả sổ · không theo phạm vi của bạn</Kicker>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          size="compact"
+          icon={FileCheck}
+          label="Giá trị đang chạy"
+          value={billions(signed)}
+          /* Contracts carrying no amount are reported beside the sum rather than
+             counted as zero: a total that quietly swallows them reads smaller
+             than the truth with nothing on screen saying why. */
+          source={
+            blank === 0
+              ? `${signedCount} hợp đồng · ${dong(signed)}`
+              : `${signedCount} hợp đồng · ${blank} chưa có tiền, không cộng vào`
+          }
+        />
+        <StatCard
+          size="compact"
+          label="Đã thu"
+          value={millions(collected, 0)}
+          /* Denominator is the SCHEDULE, not the signed value: collected money
+             is summed from installments, so that is the only apples-to-apples
+             ratio. */
+          source={
+            scheduled === 0
+              ? 'chưa đợt nào lên lịch'
+              : `${Math.round((collected / scheduled) * 100)}% tiền đã lên lịch`
+          }
+        />
+        <StatCard
+          size="compact"
+          label="Quá hạn thu"
+          value={millions(overdue, 0)}
+          source={
+            overdueCount > 0 ? `${overdueCount} đợt · phải gọi hôm nay` : 'không có đồng nào trễ'
+          }
+          delta={
+            overdueCount > 0 ? { direction: 'down', text: 'đang trễ', tone: 'danger' } : undefined
+          }
+        />
+        <StatCard
+          size="compact"
+          label="Việc đang trễ"
+          value={String(lateOurs + lateTheirs)}
+          /* Counts CONDITIONS, not contracts — two late conditions on one
+             contract are two phone calls. Kept split by side because one side
+             is a call to the customer and the other is a call down the hall. */
+          source={
+            lateOurs + lateTheirs === 0
+              ? 'không việc nào tắc'
+              : `${lateTheirs} bên khách · ${lateOurs} bên ta`
+          }
+        />
+      </div>
+    </div>
+  )
 }
 
 export function ContractsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
   const navigate = useNavigate()
-  const actor = useSession((s) => s.actor)
-  const book = useMemo(() => contractBook(actor), [actor])
 
-  const rows = book.rows.map((row) => ({
+  /* `error` is read, not dropped. Without it a dead server renders as the empty
+     book, and the reader goes off looking for a deal to sign. */
+  const { data, isPending, error, refetch } = useQuery(contractBookQuery())
+
+  const rows = useMemo(() => (data ? bookRowsOf(data) : []), [data])
+  const hidden = data?.hidden ?? 0
+
+  const tableRows = rows.map((row) => ({
     id: row.contract.code,
     cells: rowCells(row),
     onOpen: () => navigate(`/sales/contracts/${row.contract.code}`),
@@ -133,60 +204,46 @@ export function ContractsPage() {
           description="Hợp đồng đã ký · tiền còn phải thu · việc còn thiếu của cả hai bên."
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            size="compact"
-            icon={FileCheck}
-            label="Giá trị đang chạy"
-            value={billions(book.totals.value)}
-            source={`${book.rows.length} hợp đồng · ${dong(book.totals.value)}`}
-          />
-          <StatCard
-            size="compact"
-            label="Đã thu"
-            value={millions(book.totals.collected, 0)}
-            source={`${Math.round((book.totals.collected / (book.totals.value || 1)) * 100)}% sổ của bạn`}
-          />
-          <StatCard
-            size="compact"
-            label="Quá hạn thu"
-            value={millions(book.totals.overdue, 0)}
-            source={book.totals.overdue > 0 ? 'phải gọi hôm nay' : 'không có đồng nào trễ'}
-            delta={
-              book.totals.overdue > 0
-                ? { direction: 'down', text: 'đang trễ', tone: 'danger' }
-                : undefined
-            }
-          />
-          <StatCard
-            size="compact"
-            label="Việc đang trễ"
-            value={String(book.totals.lateOurs + book.totals.lateTheirs)}
-            source={`${book.totals.lateTheirs} bên khách · ${book.totals.lateOurs} bên ta`}
-          />
-        </div>
+        <ContractScore />
 
         {/* Rule 8 — a long table always sits on `.glass-b`, and `DataTable` draws no glass of its own. */}
         <GlassCard variant="b" className="p-5">
-          {rows.length === 0 ? (
+          {isPending ? (
+            /* `h-12` is the row height `DataTable` draws. Off by a step and every
+               row jumps 4px the moment data lands. */
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : error ? (
             <EmptyState
-              icon={FileCheck}
+              icon={TriangleAlert}
+              message={`Không lấy được sổ hợp đồng. ${
+                isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+              }`}
+              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              className="py-12"
+            />
+          ) : tableRows.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
               message="Chưa có hợp đồng nào đứng tên bạn — một cơ hội chốt thắng sẽ sinh ra hợp đồng và nó xuất hiện ở đây."
               action={{ label: 'Mở sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
             />
           ) : (
-            <DataTable columns={COLUMNS} rows={rows} />
+            <DataTable columns={COLUMNS} rows={tableRows} />
           )}
         </GlassCard>
 
-        {/* E2 returns a REASON rather than `false`, so the screen names the axis
-            that stopped them: a wider role will not open this row, only a change
-            of owner will. */}
-        {book.hiddenByScope > 0 && (
+        {/* `hidden` is the server's receipt for the scope cut, so the screen can
+            name the axis that stopped them: a wider role will not open this row,
+            only a change of owner will. */}
+        {hidden > 0 && (
           <div className="text-muted-foreground flex items-center gap-3 text-[11.5px]">
             <Icon icon={Lock} size={16} />
             <span>
-              {book.hiddenByScope} hợp đồng của phòng không hiện ở đây —{' '}
+              {hidden} hợp đồng của phòng không hiện ở đây —{' '}
               <strong className="text-glass-foreground font-semibold">
                 chúng không đứng tên bạn
               </strong>

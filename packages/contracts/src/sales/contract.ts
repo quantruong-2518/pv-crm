@@ -209,6 +209,14 @@ export const ContractRow = z.object({
   code: MaHopDong,
   opportunityCode: MaObject,
   leadCode: MaObject,
+  /** Customer company name, joined from the lead.
+   *
+   *  On the ROW rather than only on the detail, because the book's own customer
+   *  column has to print something a human recognises. It used to print
+   *  `leadCode`, which is the one string on that line nobody at the desk says
+   *  out loud. The repository already selects it for the book (the E2 second
+   *  net needs it for `toRef`); only the mapper was dropping it. */
+  customer: textNhap(200),
   amount: Dong.nullable(),
   currency: CurrencyCode.nullable(),
   signedAt: Moc,
@@ -230,7 +238,6 @@ export const ContractRow = z.object({
  *  book's own columns never show it) and swaps in the full installment
  *  schedule. */
 export const ContractDetailRow = ContractRow.extend({
-  customer: textNhap(200),
   /** The customer-side contact — the person who signs acceptance. */
   contact: textNhap(120),
   contactRole: textNhap(120),
@@ -274,3 +281,63 @@ export type ContractRow = z.infer<typeof ContractRow>
 export type ContractDetailRow = z.infer<typeof ContractDetailRow>
 export type ContractBookResponse = z.infer<typeof ContractBookResponse>
 export type ContractDetailResponse = z.infer<typeof ContractDetailResponse>
+
+// ---------------------------------------------------------------------------
+// THE SUMMARY — `GET /sales/contracts/summary`
+// ---------------------------------------------------------------------------
+
+/** One month of signing, for the trend strip. `month` is 'YYYY-MM'. */
+export const ContractMonthPoint = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, 'Tháng phải dạng YYYY-MM'),
+  signedCount: z.number().int().nonnegative(),
+  signedAmountVnd: Dong,
+})
+
+/** The contract book folded to one row of numbers.
+ *
+ *  Separate from `GET /sales/contracts` because the overview needs sums over
+ *  EVERY contract while the book hands back one page — summing a page gives a
+ *  figure that shrinks when someone turns to page 2.
+ *
+ *  Not scoped, same reason as the two scorecards: these are the desk's numbers,
+ *  and cutting them by who holds what makes everyone read a different figure
+ *  under one label. The contract read permission still guards the door.
+ *
+ *  `collectedVnd`/`overdueVnd` are summed from `contract_installment`, not from
+ *  `contract.amount` — signed money and landed money are different questions,
+ *  and the tile exists because they disagree. */
+export const ContractSummary = z.object({
+  signedCount: z.number().int().nonnegative(),
+  signedAmountVnd: Dong,
+  /** Contracts carrying no amount — the ones missing from `signedAmountVnd`,
+   *  reported beside it rather than counted as zero. */
+  blankAmount: z.number().int().nonnegative(),
+
+  /** Sum of every installment ever scheduled. Differs from `signedAmountVnd`
+   *  when a contract has been signed with no schedule drafted yet. */
+  scheduledVnd: Dong,
+  collectedVnd: Dong,
+  /** Unpaid and past its date, as of the server's today. */
+  overdueVnd: Dong,
+  overdueCount: z.number().int().nonnegative(),
+  /** Unpaid, not yet late, inside `DUE_NEAR_DAYS` of `@pv/engines`. */
+  dueSoonVnd: Dong,
+  dueSoonCount: z.number().int().nonnegative(),
+
+  /** Unlock conditions past their date and not ticked, split by who owes them.
+   *
+   *  A different question from `overdueCount`, not a finer cut of it: an
+   *  installment is late MONEY, a condition is late PAPERWORK — an acceptance
+   *  minute nobody signed, a drawing nobody sent. The contract book has printed
+   *  the split since it was built, as a count on each side,
+   *  and the two sides stay separate because one is a phone call to the
+   *  customer and the other is a phone call down the hall. */
+  lateConditionsOurs: z.number().int().nonnegative(),
+  lateConditionsTheirs: z.number().int().nonnegative(),
+
+  /** Newest LAST, so the array feeds a sparkline without being reversed. */
+  byMonth: z.array(ContractMonthPoint),
+})
+
+export type ContractMonthPoint = z.infer<typeof ContractMonthPoint>
+export type ContractSummary = z.infer<typeof ContractSummary>

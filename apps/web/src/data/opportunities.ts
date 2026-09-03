@@ -5,6 +5,7 @@ import {
   type OpportunityLiveDeal,
   type OpportunityOwner,
   type OpportunityRow,
+  type OpportunityHistogram,
   type OpportunityScorecard,
   type OpportunityState,
 } from '@pv/contracts'
@@ -189,6 +190,25 @@ export const opportunityScorecardQuery = queryOptions({
   queryKey: [...OPPORTUNITY_BOOK_KEY, 'scorecard'] as const,
   queryFn: ({ signal }) =>
     api.read<OpportunityScorecard>('/sales/opportunities/scorecard', {
+      need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      signal,
+    }),
+  staleTime: 60 * 1000,
+})
+
+/** The same open pipeline as the scorecard, split across the columns it stands in.
+ *
+ *  The scorecard answers "how much is open"; this answers "standing where, and
+ *  how much of it has gone stale". Two calls rather than one because the Ops
+ *  book only needs the first — folding them together would make that book pull
+ *  down a chart it never draws.
+ *
+ *  Unscoped, copying both scorecards: this is the shape of the whole desk, not
+ *  of any one person's. */
+export const opportunityHistogramQuery = queryOptions({
+  queryKey: [...OPPORTUNITY_BOOK_KEY, 'histogram'] as const,
+  queryFn: ({ signal }) =>
+    api.read<OpportunityHistogram>('/sales/opportunities/histogram', {
       need: { branch: 'Sales', permission: 'cơ-hội.xem' },
       signal,
     }),

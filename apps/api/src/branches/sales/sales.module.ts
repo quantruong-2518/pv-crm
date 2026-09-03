@@ -7,6 +7,7 @@ import { CONTACT_CONSTRAINTS } from './contact/contact.constraints'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { ContractModule } from './contract/contract.module'
+import { LeaderboardModule } from './leaderboard/leaderboard.module'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
@@ -58,6 +59,9 @@ registerConstraints(CONTACT_CONSTRAINTS)
        here — it is a facility of the lead module, exactly where `MeetingModule`
        sits. */
     AccountModule,
+    /* Not in `exports`, unlike the others: it belongs to no book, and no module
+       has anything to ask it. */
+    LeaderboardModule,
   ],
   exports: [
     LeadModule,

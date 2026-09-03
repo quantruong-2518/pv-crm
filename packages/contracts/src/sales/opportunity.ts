@@ -675,3 +675,42 @@ export type OpportunityProduct = z.infer<typeof OpportunityProduct>
 export type OpportunityStageMove = z.infer<typeof OpportunityStageMove>
 export type OpportunityStageEvent = z.infer<typeof OpportunityStageEvent>
 export type OpportunityStageHistory = z.infer<typeof OpportunityStageHistory>
+// THE HISTOGRAM — `GET /sales/opportunities/histogram`
+// ---------------------------------------------------------------------------
+
+/** One column of the board, weighed. */
+export const OpportunityStageBucket = z.object({
+  stage: StageKey,
+  /** The column's display name, from `config_entry.name`. Carried on the wire
+   *  so the overview can draw the board without importing a fixture for its
+   *  labels — the five web files that read `PIPELINE_STAGES` for this today are
+   *  reading a customer scenario to find out what a column is called. */
+  label: z.string().min(1),
+  count: z.number().int().nonnegative(),
+  amountVnd: Dong,
+  /** Deals in this column with no amount — missing from `amountVnd`, counted
+   *  here rather than added as zero. Same rule as `OpportunityScorecard`. */
+  blank: z.number().int().nonnegative(),
+  /** Past the column's `limitDays` (`config_entry`, list `STAGE`). Zero when
+   *  the column has no limit configured — not "nothing is late" but "nothing
+   *  can be late here yet", which `limitDays` below lets the screen tell. */
+  rotting: z.number().int().nonnegative(),
+  rottingAmountVnd: Dong,
+  /** The configured limit, echoed so the screen prints the rule it is judging
+   *  by instead of keeping a second copy of it. Null = no limit set. */
+  limitDays: z.number().int().positive().nullable(),
+})
+
+/** The Ops board as a shape rather than as rows — what the overview draws its
+ *  bar chart from. `OpportunityScorecard` already gives the totals; this splits
+ *  the same open pipeline across the columns it is standing in.
+ *
+ *  Unscoped like both scorecards: one board, one set of figures. */
+export const OpportunityHistogram = z.object({
+  /** One entry per column that HAS a deal — an empty column is absent, so the
+   *  screen decides whether to draw a zero bar or leave the gap. */
+  buckets: z.array(OpportunityStageBucket),
+})
+
+export type OpportunityStageBucket = z.infer<typeof OpportunityStageBucket>
+export type OpportunityHistogram = z.infer<typeof OpportunityHistogram>

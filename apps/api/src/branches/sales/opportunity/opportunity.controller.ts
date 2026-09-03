@@ -68,6 +68,17 @@ export class OpportunityController {
     return this.ops.scorecard()
   }
 
+  /** The same open pipeline the scorecard totals, split across the five
+   *  columns — what the overview draws its bar chart from.
+   *
+   *  Before `@Get(':code')` and NOT `scoped`, both for the reasons already
+   *  written on `scorecard` right above: one board, one set of figures. */
+  @Get('histogram')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
+  histogram() {
+    return this.ops.histogram()
+  }
+
   /** Chốt chặn trùng đơn — "lead này đã có đơn CÒN SỐNG chưa".
    *
    *  PHẢI đứng trước `@Get(':code')` vì cùng lý do `scorecard` ghi ở trên:

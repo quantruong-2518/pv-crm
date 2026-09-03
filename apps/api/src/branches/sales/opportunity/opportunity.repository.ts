@@ -1,11 +1,13 @@
 import {
   and,
+  asc,
   count,
   desc,
   eq,
   exists,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   ne,
   not,
@@ -18,9 +20,11 @@ import type { Actor } from '@pv/engines'
 import {
   CURRENCIES,
   OWNER_NONE,
+  StageKey,
   type OpportunityBookQuery,
   type OpportunityOwner,
   type OpportunityProduct,
+  type OpportunityStageBucket,
   type OpportunityState,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -37,6 +41,7 @@ import {
   type OpportunityRowDb,
   type OpportunityStageEventRowDb,
 } from './opportunity.schema'
+import { stageConfigOf, type StageConfig } from './stage-config'
 import type { ActorLite } from './opportunity-import.check'
 import type { OpportunityValues } from './opportunity.mapper'
 
@@ -110,6 +115,30 @@ const AMOUNT_VND = sql<number | null>`CASE ${opportunity.currency} ${sql.join(
   ),
   sql` `,
 )} END`
+
+/** "This deal has stood in its column longer than that column allows."
+ *
+ *  Built from limits ALREADY resolved by `stageConfigOf` rather than joined in
+ *  the query, because the pairing between a stage key and a configuration row
+ *  is by ordinal position and has to pass a fence SQL cannot apply.
+ *
+ *  A stage with no configured limit falls through the CASE to NULL and is never
+ *  counted, which is what the contract asks for: `rotting: 0` standing beside
+ *  `limitDays: null` reads as "nothing can be late here yet". */
+function rottingIn(config: Map<StageKey, StageConfig>): SQL {
+  const limits: [StageKey, number][] = []
+  for (const [key, c] of config) if (c.limitDays !== null) limits.push([key, c.limitDays])
+
+  /* Nothing configured anywhere — and an empty CASE is not valid SQL. */
+  if (limits.length === 0) return sql`false`
+
+  const days = sql`CASE ${opportunity.stage} ${sql.join(
+    limits.map(([key, n]) => sql`WHEN ${key} THEN ${sql.raw(String(n))}`),
+    sql` `,
+  )} END`
+
+  return sql`now() - ${opportunity.stageSince} > ${days} * interval '1 day'`
+}
 
 export type OpportunityBookPage = {
   rows: OpportunityRead[]
@@ -870,6 +899,70 @@ export class OpportunityRepository {
       won: r?.won ?? 0,
       lost: r?.lost ?? 0,
     }
+  }
+
+  /** The open pipeline split across the columns it is standing in —
+   *  `GET /sales/opportunities/histogram`.
+   *
+   *  Two queries, and the order matters: the configured limits are read FIRST
+   *  because the "rotting" predicate is built out of them. They cannot be
+   *  joined in SQL — `config_entry` stores no stage key, so the pairing is by
+   *  ordinal position and that lives in `stage-config.ts` behind its fence.
+   *
+   *  Unscoped like the scorecard, and open reads from `stage IS NOT NULL` for
+   *  the same reason stated there: won and lost have left the board. */
+  async histogram(): Promise<OpportunityStageBucket[]> {
+    const config = stageConfigOf(await this.stageRows())
+    const rotting = rottingIn(config)
+
+    const rows = await this.db
+      .select({
+        stage: opportunity.stage,
+        count: count(),
+        amountVnd: sql<number | string>`COALESCE(SUM(${AMOUNT_VND}), 0)::bigint`,
+        blank: sql<number>`count(*) FILTER (WHERE ${opportunity.amount} IS NULL)::int`,
+        rotting: sql<number>`count(*) FILTER (WHERE ${rotting})::int`,
+        rottingAmountVnd: sql<
+          number | string
+        >`COALESCE(SUM(${AMOUNT_VND}) FILTER (WHERE ${rotting}), 0)::bigint`,
+      })
+      .from(opportunity)
+      .where(isNotNull(opportunity.stage))
+      .groupBy(opportunity.stage)
+
+    const tally = new Map(rows.map((r) => [r.stage, r]))
+
+    /* Emitted in the board's own column order rather than the order Postgres
+       grouped them in, and an empty column is left out entirely — the screen
+       decides whether to draw a zero bar or a gap. */
+    return StageKey.options.flatMap((stage) => {
+      const r = tally.get(stage)
+      if (!r) return []
+      const c = config.get(stage)
+
+      return [
+        {
+          stage,
+          label: c?.label ?? stage,
+          count: r.count,
+          amountVnd: Number(r.amountVnd),
+          blank: r.blank,
+          rotting: r.rotting,
+          rottingAmountVnd: Number(r.rottingAmountVnd),
+          limitDays: c?.limitDays ?? null,
+        },
+      ]
+    })
+  }
+
+  /** The STAGE list as configured, ACTIVE ONLY and in `ord` order — the two
+   *  conditions `stageConfigOf` reads positions under. */
+  private stageRows(): Promise<{ name: string; limitDays: number | null }[]> {
+    return this.db
+      .select({ name: configEntry.name, limitDays: configEntry.limitDays })
+      .from(configEntry)
+      .where(and(eq(configEntry.list, 'STAGE'), eq(configEntry.active, true)))
+      .orderBy(asc(configEntry.ord))
   }
 
   /* ------------------------------------------------------------------

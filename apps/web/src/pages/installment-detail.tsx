@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
@@ -16,6 +17,7 @@ import {
   ScreenHeader,
   ScreenLayout,
   SectionTitle,
+  Skeleton,
   StatCard,
   StatusDot,
   Timeline,
@@ -25,16 +27,16 @@ import {
   type StatusDotState,
 } from '@pv/ui'
 import { daysUntil } from '@pv/engines'
+import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { useSession } from '@/app/auth'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
-import { dm, dmhm, dmy } from '@/lib/date'
+import { dm, dmhm } from '@/lib/date'
 import {
-  TODAY,
-  contractOf,
+  contractDetailQuery,
   daysPhrase,
   installmentOf,
+  today,
   viewInstallment,
   type InstallmentCondition,
 } from '@/data/contracts'
@@ -70,12 +72,14 @@ function ConditionLine({
   condition,
   blocking,
   canAct,
+  now,
 }: {
   condition: InstallmentCondition
   blocking: boolean
   canAct: boolean
+  now: string
 }) {
-  const late = !condition.doneAt && daysUntil(condition.due, TODAY) <= 0
+  const late = !condition.doneAt && daysUntil(condition.due, now) <= 0
 
   return (
     <div
@@ -112,7 +116,7 @@ function ConditionLine({
           hạn {dm(condition.due)}
           {condition.doneAt
             ? ` · xong ${dm(condition.doneAt)}`
-            : ` · ${daysPhrase(daysUntil(condition.due, TODAY))}`}
+            : ` · ${daysPhrase(daysUntil(condition.due, now))}`}
           {' · '}
           {condition.who}
         </span>
@@ -154,22 +158,43 @@ export function InstallmentDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
   const navigate = useNavigate()
   const { code = '', no = '' } = useParams()
-  const actor = useSession((s) => s.actor)
   const canRecord = useCan('hợp-đồng.ghi-nhận-thu')
 
-  const contract = useMemo(() => contractOf(code, actor), [code, actor])
+  /* The installment lives inside the contract, so there is one read for both
+     screens — and the cache is shared with level 1, which is why stepping in
+     and back out does not refetch. */
+  const { data: contract, isPending, error } = useQuery(contractDetailQuery(code))
+
+  const now = useMemo(() => today(), [])
   const installment = useMemo(
     () => (contract ? installmentOf(contract, Number(no)) : null),
     [contract, no],
   )
 
+  if (isPending) {
+    return (
+      <AppShell {...chrome.shell}>
+        <ScreenLayout>
+          <Skeleton className="h-11 w-64" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </ScreenLayout>
+      </AppShell>
+    )
+  }
+
   if (!contract || !installment) {
+    const failure = isApiError(error) ? error : null
     return (
       <AppShell {...chrome.shell}>
         <ScreenLayout>
           <ScreenHeader
             title="Không mở được đợt này"
-            description="Hợp đồng không tồn tại, không đứng tên bạn, hoặc số đợt sai."
+            description={
+              failure && failure.kind !== 'không-thấy'
+                ? userMessage(failure)
+                : 'Hợp đồng không tồn tại, không đứng tên bạn, hoặc số đợt sai.'
+            }
             back={{ label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') }}
           />
         </ScreenLayout>
@@ -177,7 +202,7 @@ export function InstallmentDetailPage() {
     )
   }
 
-  const view = viewInstallment(installment)
+  const view = viewInstallment(installment, now)
   const invoice = installment.docs.find((d) => d.name.includes('Hoá đơn'))
 
   return (
@@ -252,6 +277,7 @@ export function InstallmentDetailPage() {
                   condition={c}
                   blocking={view.blocking?.id === c.id}
                   canAct={canRecord}
+                  now={now}
                 />
               ))}
             </div>
@@ -384,10 +410,6 @@ export function InstallmentDetailPage() {
             </button>
           </GlassCard>
         </div>
-
-        <p className="text-muted-foreground text-[11px]">
-          Số liệu đóng băng tại {dmy(TODAY)} — kịch bản Sao Đỏ, chưa nối máy chủ.
-        </p>
       </ScreenLayout>
     </AppShell>
   )

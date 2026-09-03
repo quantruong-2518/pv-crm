@@ -71,9 +71,11 @@ là còn đọc fixture, vắng `load` là đã đi HTTP thật. Không có cờ
 | `/sales/performance/:period` | `performance.ts:948`  | chưa có            |
 | `frozenLeadBookQuery`        | `leads.ts:196`        | dùng bởi 3 màn     |
 
-Hai dòng đã RỤNG khỏi bảng này vì endpoint đã lên và `load:` đã bỏ: chiến dịch
-(`/sales/campaigns/{sources,totals}`, lượt 2 của đợt bỏ mock) và sổ cơ hội
-(`/sales/opportunities`, cắt 28/08 rồi mở rộng lọc/sắp/thẻ điểm 29/08).
+Ba dòng đã RỤNG khỏi bảng này vì endpoint đã lên và `load:` đã bỏ: chiến dịch
+(`/sales/campaigns/{sources,totals}`, lượt 2 của đợt bỏ mock), sổ cơ hội
+(`/sales/opportunities`, cắt 28/08 rồi mở rộng lọc/sắp/thẻ điểm 29/08) và sổ
+hợp đồng (`/sales/contracts{,/:code,/summary}`, cắt 03/09 — cả ba màn của chuỗi
+drill, và `TODAY` đóng băng theo đó mà đi).
 
 **Sửa thế nào:** dựng endpoint từng nhánh một, rồi bỏ dòng `load:` của query đó.
 
@@ -82,8 +84,20 @@ có endpoint là màn chết trắng.
 
 **Hệ quả đang sống chung:** ba màn còn lại đếm theo sổ đóng băng (100 dòng),
 Sổ lead đếm theo Neon (121). Hai số lệch nhau là **đúng thiết kế đợt này**,
-không phải bug. Màn chiến dịch và sổ cơ hội đã ra khỏi diện này — cả hai đếm
-theo Neon.
+không phải bug. Màn chiến dịch, sổ cơ hội và sổ hợp đồng đã ra khỏi diện này —
+cả ba đếm theo Neon.
+
+**Nợ còn lại của lượt cắt hợp đồng (03/09):** cột "Đang chặn" đã gỡ khỏi sổ và
+chưa có đường trả lại. `GET /sales/contracts` gửi `InstallmentSummaryRow` — bản
+gọn, CỐ Ý không chở `conditions` — nên `blocking` trên một dòng sổ luôn là `null`
+về mặt cấu trúc. Giữ cột lại là in "Không tắc việc nào" cho mọi hợp đồng, tức là
+một lời khẳng định chứ không phải một ô trống. Trả lại được bằng hai cách, cả hai
+đều ở máy chủ: bồi `conditions` vào dòng sổ (đắt, và đúng thứ bản gọn tránh), hoặc
+thêm một phép đếm điều kiện trễ theo từng hợp đồng vào chính lượt đọc sổ.
+
+Hai nợ kia của lượt đó đã trả trong ngày: `ContractRow` nay chở `customer`
+(repository vốn đã select `lead.company`, chỉ mapper vứt đi), và `ContractSummary`
+nay đếm điều kiện trễ theo bên nên thẻ "Việc đang trễ" đã về lại hàng KPI.
 
 ---
 

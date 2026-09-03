@@ -41,6 +41,23 @@ export class ContractController {
     return this.contracts.book(who, q)
   }
 
+  /** The whole book as one row of numbers.
+   *
+   *  MUST stand before `@Get(':code')`: Fastify matches in declaration order,
+   *  so the other way round the word `summary` falls into the path param and
+   *  dies in `zod(MaHopDong)` with a 400 about a malformed code — technically
+   *  right and meaningless to whoever reads the log.
+   *
+   *  NOT `scoped`, unlike the two doors around it. Same call both scorecards
+   *  made: these are the desk's figures, and cutting them by who owns what
+   *  makes everyone read a different number under one label. Whoever cannot
+   *  open the book still cannot see them. */
+  @Get('summary')
+  @Need({ branch: 'Sales', permission: 'hợp-đồng.xem' })
+  summary() {
+    return this.contracts.summary()
+  }
+
   /** One contract, fully nested.
    *
    *  `MaHopDong` rather than `MaObject` is the first fence, and it is not

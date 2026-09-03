@@ -75,12 +75,22 @@ export function fromSign(
   }
 }
 
-/** Dòng bảng → dây. */
-export function toContract(row: ContractRowDb, ownerName: string | null): ContractRow {
+/** Dòng bảng → dây.
+ *
+ *  `customer` arrives as an argument rather than off `row`: it lives on the
+ *  lead, not on `sales.contract`, so every caller has to say where it got it.
+ *  The two read paths join it; the sign door hands over the deal's account name,
+ *  which is the same company by construction. */
+export function toContract(
+  row: ContractRowDb,
+  ownerName: string | null,
+  customer: string,
+): ContractRow {
   return {
     code: row.code,
     opportunityCode: row.opportunityCode,
     leadCode: row.leadCode,
+    customer,
     amount: row.amount,
     currency: row.currency,
     signedAt: row.signedAt.toISOString(),
@@ -120,10 +130,11 @@ export function toRef(
 export function toBookRow(read: {
   row: ContractRowDb
   ownerName: string | null
+  customer: string
   installments: ContractInstallmentRowDb[]
 }): ContractRow {
   return {
-    ...toContract(read.row, read.ownerName),
+    ...toContract(read.row, read.ownerName, read.customer),
     installments: read.installments.map(toInstallmentSummary),
   }
 }
@@ -145,8 +156,7 @@ export function toDetail(read: {
   }[]
 }): ContractDetailRow {
   return {
-    ...toContract(read.row, read.ownerName),
-    customer: read.customer,
+    ...toContract(read.row, read.ownerName, read.customer),
     contact: read.contact,
     /* The lead may carry no job title, and the wire field is required because
        the header prints the contact and the role as one phrase. Falling back

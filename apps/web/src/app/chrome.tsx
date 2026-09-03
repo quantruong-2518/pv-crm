@@ -75,21 +75,29 @@ type NavEntry = {
   permission?: Permission
 }
 
-/** Hai con số này mang nguyên từ màn 01 sang, CHƯA có fixture nào đỡ. Lúc dựng
- *  màn Hộp phê duyệt và màn Thông báo thì lấy từ E3/E4, đừng nhân bản thêm. */
-const APPROVALS_WAITING = 7
-const NOTIFICATIONS_UNREAD = 12
-
 /** One Core — nền bắt buộc, mọi nhánh đều cần (docs · "Hai tầng license").
  *  Bốn mục đầu là bốn màn One trong luat-thiet-ke.md §7.
  *
  *  "Tìm toàn cục" KHÔNG còn là một mục ở đây: nó đã thành ô tìm của tầng 1,
  *  chiếm nguyên khoảng giữa nav. Giữ thêm một nút mở cùng việc đó là hai lối
- *  vào một chỗ, và cái nút bao giờ cũng là lối tệ hơn. */
+ *  vào một chỗ, và cái nút bao giờ cũng là lối tệ hơn.
+ *
+ *  NO COUNT ON ANY ENTRY, and that is the point. Two badges used to hang here —
+ *  seven waiting approvals, twelve unread — carried over from the old screen 01
+ *  with no fixture and no table behind either of them. They were dropped on
+ *  03/09 when the home screen stopped inventing numbers; a red badge is a
+ *  claim, and neither of these two could be checked against anything.
+ *
+ *  Do NOT wire them to E3/E4 to bring them back. `createApprovalEngine` keeps
+ *  its requests in a per-process `Map`, so a single deploy empties it, and
+ *  `docs/tam-nhin-pipeline.md` section 4 calls answering a user from that
+ *  storage a lie in as many words. The count comes back when
+ *  `platform.approval` is a real table. `NavEntry.count` stays on the type for
+ *  that day. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/' },
-  { icon: SquareCheckBig, label: 'Phê duyệt', count: APPROVALS_WAITING },
-  { icon: Bell, label: 'Thông báo', count: NOTIFICATIONS_UNREAD },
+  { icon: SquareCheckBig, label: 'Phê duyệt' },
+  { icon: Bell, label: 'Thông báo' },
   {
     /** Renamed from "Quản trị & ghi vết" the day it got a screen: the entry now
      *  leads to the people book, and the audit log is a screen that does not
@@ -325,7 +333,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     core: ONE_CORE.map(plain),
     apps: SALES_MODULES.map(moduleApp),
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
-    unread: NOTIFICATIONS_UNREAD > 0,
     assistantLabel: 'Trợ lý',
     search: {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
@@ -380,7 +387,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     header,
     activeNav,
     lockedNav: LOCKED_NAV,
-    approvalsCount: APPROVALS_WAITING,
     onNavigate,
   }
 

@@ -259,6 +259,16 @@ export const LeadBookQuery = PageQuery.extend({
    *  both. */
   sourceKind: LeadSourceKind.optional(),
 
+  /** Lead PIC, exact `actor.id`. Absent = every owner, including none.
+   *
+   *  The docblock above has promised this param since the filter row moved to
+   *  the server; it was the one of the three named there that never landed.
+   *  The overview needs it for "leads on MY desk", and a `ownOnly` actor cannot
+   *  express that through the scope axis — scope already narrows their book to
+   *  themselves, so for them this param is a no-op, while for a head of sales
+   *  it is the whole question. */
+  owner: z.string().min(1).max(64).optional(),
+
   q: z.string().trim().min(1).max(120).optional(),
 
   /** Default order is the book's own: newest first. That is both what the

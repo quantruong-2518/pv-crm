@@ -134,15 +134,36 @@ buộc của từng cái khi dựng thêm.
 
 Bản vẽ đã xoá; đây là phần đặc tả còn giữ để dựng lại.
 
-| #   | Màn                           | Trạng thái bắt buộc code                                                                                                                                        |
-| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 01  | **Trang chủ / Morning brief** | 1 hero 2×2 (order lifecycle 10 mốc) + 4 KPI + 2 alert card + AI strip. Empty state khi không có việc cần chú ý.                                                 |
-| 02  | **Hộp phê duyệt**             | list nhóm theo loại · detail 3 khối (vì sao / bảng báo giá AI / ảnh hưởng nếu duyệt hôm nay) · chuỗi duyệt E3 · ghi vết E2. State: `waiting` ↔ `approved`.      |
-| 03  | **Tìm toàn cục**              | 1 query → 4 nguồn, 1 list trộn theo liên quan. Bắt buộc có hàng **"Bị ẩn theo quyền của bạn"** + nút xin quyền. Đổi theo người xem (TP Kinh doanh vs Giám đốc). |
-| 04  | **Trợ lý AI**                 | panel phải 420px ↔ 760px, đè lên brief + scrim `rgba(3,7,16,.52)`. Suggestion card sticky đáy, collapse được. State: `pending` ↔ `done`.                        |
-| 05  | **Thông báo & kênh**          | bảng quy tắc (sự kiện → ngưỡng → kênh → nhịp → vai) · nhật ký gửi có 1 dòng **`blocked-duplicate`** · preview thật Zalo OA ↔ Email · dirty state "chưa lưu".    |
+| #   | Màn                       | Trạng thái bắt buộc code                                                                                                                                                                                                         |
+| --- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01  | **Trang chủ / Tổng quan** | HAI TẦNG. Tầng phòng: 1 hero 2×2 (đường tiền) + 4 KPI + 2 alert card + pipeline theo chặng + phễu + bảng nhân sự. Tầng cá nhân: hàng việc quá hạn của chính người đăng nhập + AI strip. Empty state khi không có việc cần chú ý. |
+| 02  | **Hộp phê duyệt**         | list nhóm theo loại · detail 3 khối (vì sao / bảng báo giá AI / ảnh hưởng nếu duyệt hôm nay) · chuỗi duyệt E3 · ghi vết E2. State: `waiting` ↔ `approved`.                                                                       |
+| 03  | **Tìm toàn cục**          | 1 query → 4 nguồn, 1 list trộn theo liên quan. Bắt buộc có hàng **"Bị ẩn theo quyền của bạn"** + nút xin quyền. Đổi theo người xem (TP Kinh doanh vs Giám đốc).                                                                  |
+| 04  | **Trợ lý AI**             | panel phải 420px ↔ 760px, đè lên brief + scrim `rgba(3,7,16,.52)`. Suggestion card sticky đáy, collapse được. State: `pending` ↔ `done`.                                                                                         |
+| 05  | **Thông báo & kênh**      | bảng quy tắc (sự kiện → ngưỡng → kênh → nhịp → vai) · nhật ký gửi có 1 dòng **`blocked-duplicate`** · preview thật Zalo OA ↔ Email · dirty state "chưa lưu".                                                                     |
 
 Màn 01 đã dựng (`apps/web/src/pages/home.tsx`). Bốn màn còn lại chưa.
+
+> **Màn 01 đổi hình 03/09.** Bản cũ là morning brief của một câu chuyện sản xuất:
+> hero là vòng đời đơn bán `SO-0891`, bốn KPI gồm hiệu suất thiết bị và công nợ,
+> hai alert card nói về máy CNC. Không thứ nào trong số đó có bảng, endpoint hay
+> màn đứng sau — `apps/api` chỉ có nhánh `sales`, `routes.tsx` không có route
+> Supply/Factory/Finance nào — và mọi con số đều gõ thẳng vào JSX.
+>
+> Bản mới đọc ba sổ có thật (lead · cơ hội · hợp đồng) và tách làm hai tầng vì
+> hai tầng trả lời hai câu khác nhau: tầng trên là số của cả phòng, **không**
+> theo phạm vi người xem; tầng dưới là việc quá hạn của riêng người đang đăng
+> nhập. Gộp chúng lại là để chữ "pipeline" mang hai nghĩa dưới cùng một nhãn.
+>
+> Hero vẫn đúng MỘT ô 2×2 (luật §3 · desktop), nhưng nội dung là **đường tiền**
+> — đang mở · đã ký · đã thu · quá hạn thu — chứ không phải vòng đời một đơn.
+> Bốn cái đó không phải bốn bậc của một phễu và nhãn không được gọi chúng là
+> phễu: chúng chung đơn vị, không chung mẫu số.
+>
+> `/` là route DUY NHẤT không khai `permission`, nên mỗi khối tự hỏi E2 quyền
+> của nó (`enabled` trên từng query) và màn nói ra khối nào bị ẩn. Một tài khoản
+> marketing không có `cơ-hội.xem` lẫn `hợp-đồng.xem`; bắn query vô điều kiện là
+> biến trang chủ của họ thành một dải báo lỗi.
 
 ---
 
