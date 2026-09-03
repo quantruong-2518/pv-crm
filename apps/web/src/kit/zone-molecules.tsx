@@ -34,6 +34,7 @@ import {
   RichTextView,
   ScanField,
   SearchField,
+  StageTrack,
   StatCard,
   Stepper,
   type TableColumn,
@@ -229,6 +230,17 @@ function RichTextDemo() {
  *  press back to step 2 and step 3 stays clickable, because `reached` remembers
  *  that it was opened. Holding only `current` here would reproduce on the kit
  *  page the exact dead end the prop exists to end — see `StepperProps.reached`. */
+/** The five pipeline columns, names copied rather than imported from
+ *  `PIPELINE_STAGES`: the kit page draws COMPONENTS and stands on no scenario.
+ *  The hint here is sample text, not a real deal's numbers. */
+const KIT_STAGES = [
+  { key: 'moi', label: 'Mới' },
+  { key: 'tim-hieu', label: 'Đang tìm hiểu' },
+  { key: 'da-demo', label: 'Đã demo', hint: '9 ngày · hạn 21' },
+  { key: 'da-bao-gia', label: 'Đã báo giá' },
+  { key: 'cho-ky', label: 'Chờ ký' },
+]
+
 function StepperDemo() {
   const [current, setCurrent] = useState(2)
   const [reached, setReached] = useState(2)
@@ -594,6 +606,33 @@ export function ZoneMolecules() {
           }
         >
           <StepperDemo />
+        </SpecCard>
+
+        {/* M-15 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-15"
+          name="StageTrack"
+          note="đơn đã đi tới cột nào"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Ba màu, không chữ nào trên thanh: đã qua success · đang đứng primary · chưa tới
+              white/24. Nhãn cột nằm ở <code>title</code> từng đoạn, cả thanh có aria-label
+              &ldquo;Cột n/N · tên cột&rdquo; — luật 13, màu không bao giờ là thứ duy nhất chở
+              nghĩa.
+              <br />
+              Khác Stepper (M-14): thanh này KHÔNG bấm được, vì cột của một đơn không phải điều
+              hướng. Đoạn xanh nghĩa là &ldquo;đơn đã qua chỗ này&rdquo;, không phải &ldquo;đơn đã
+              đứng ở chỗ này&rdquo; — các cột bị nhảy cóc do lịch sử cột kể, không phải thanh này.
+            </>
+          }
+        >
+          <div className="flex flex-col gap-5">
+            <StageTrack steps={KIT_STAGES} current={2} caption />
+            {/* The table-cell shape: no caption, 4px tall, sits under a badge. */}
+            <StageTrack steps={KIT_STAGES} current={0} />
+          </div>
         </SpecCard>
       </ZoneBody>
     </section>

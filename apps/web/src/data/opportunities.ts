@@ -358,6 +358,45 @@ export function isRottingOp(op: OpportunityRow): boolean {
   return op.daysInStage > (STAGE_LIMIT.get(op.stage) ?? Infinity)
 }
 
+/** The five columns plus where this deal stands, shaped for `StageTrack`.
+ *  `null` means the deal stands in no column (signed or lost) and there is no
+ *  bar to draw at all.
+ *
+ *  ONE function for both callers — the book grid and the deal profile. Two
+ *  screens each building their own step array is two screens painting the same
+ *  deal differently the day somebody adds a column on the Settings screen; the
+ *  same reason `STAGE_LIMIT` above exists only once.
+ *
+ *  The hint hangs on the STANDING column only, and it carries what a rotting
+ *  deal needs: days here against the column's limit. `isRottingOp` deliberately
+ *  does NOT recolour the bar — the rot warning already has its place (an amber
+ *  badge in the book, a line on the profile), and a bar saying both position
+ *  and health says neither legibly. */
+export function stageTrackOf(
+  op: Pick<OpportunityRow, 'stage' | 'daysInStage'>,
+): { steps: { key: string; label: string; hint?: string }[]; current: number } | null {
+  const stage = op.stage
+  if (stage === null) return null
+
+  const current = PIPELINE_STAGES.findIndex((s) => s.key === stage)
+  /* A column the server returned that the constant does not know: the deal
+     stands somewhere this screen cannot draw. Return `null` so the caller falls
+     back to its badge, rather than painting five grey segments — that bar reads
+     as "this deal has not moved anywhere", which is a false sentence. */
+  if (current === -1) return null
+
+  return {
+    current,
+    steps: PIPELINE_STAGES.map((s, i) => ({
+      key: s.key,
+      label: s.label,
+      ...(i === current && op.daysInStage !== null
+        ? { hint: `${op.daysInStage} ngày · hạn ${s.limitDays}` }
+        : {}),
+    })),
+  }
+}
+
 /** Hôm nay, dạng ISO ngày. Sổ nay là dữ liệu SỐNG nên mốc so sánh là hôm nay,
  *  không còn là lát cắt đóng băng của kịch bản. */
 const today = () => new Date().toISOString().slice(0, 10)

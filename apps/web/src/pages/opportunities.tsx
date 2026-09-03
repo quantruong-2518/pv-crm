@@ -19,6 +19,7 @@ import {
   ScreenLayout,
   ScreenScoreGrid,
   ScreenToolbar,
+  StageTrack,
   StatCard,
   billions,
   cn,
@@ -52,6 +53,7 @@ import {
   opportunityScorecardQuery,
   parseOpportunityBookQuery,
   saleOwnersOf,
+  stageTrackOf,
   STATE_TONE,
 } from '@/data/opportunities'
 import { OP_SPEC } from '@/data/intake'
@@ -568,7 +570,13 @@ export function OpportunitiesPage() {
                   { header: 'Account', width: '1.4fr', sortKey: 'account' },
                   { header: 'Amount', width: '1fr', align: 'right', sortKey: 'amount' },
                   { header: 'Close date', width: '0.9fr', sortKey: 'expectedClose' },
-                  { header: 'State', width: '1.2fr' },
+                  /* 1.5fr, not the 1.2fr it was: this cell now stacks two
+                     things, a badge over a flow bar. Five segments in a narrow
+                     cell shrink into five ticks that no longer read as a
+                     position, and the longest badge truncates. The extra width
+                     comes out of the `fr` grid itself, so `TABLE_MIN_WIDTH`
+                     stays where it is. */
+                  { header: 'State', width: '1.5fr' },
                   { header: 'Sale owner', width: '1.3fr' },
                   { header: 'BD owner', width: '1.3fr' },
                 ]}
@@ -793,33 +801,54 @@ function CloseCell({ op }: { op: OpportunityRow }) {
   )
 }
 
-/** Cột trạng thái — một PILL, và màu của pill là câu trả lời thứ hai.
+/** The state cell — a PILL, and under it the flow the deal is walking.
  *
- *  Màu nói "đơn này còn sống không" (xanh đã ký · đỏ đã thua · azure đang chạy
- *  · xám chưa gửi giá), chữ nói "đang ở bậc nào". Cột pipeline đi vào `title`
- *  chứ không ra mặt: nó là câu trả lời thứ ba, và ba câu trong một ô bảng thì
- *  không câu nào đọc được. */
+ *  The pill's colour says whether the deal is still alive (green signed · red
+ *  lost · azure running · grey no quote sent yet), its text says which state.
+ *
+ *  ------------------------------------------------------------------
+ *  THE PIPELINE COLUMN COMES OUT OF THE TOOLTIP — REVERSED 03/09
+ *  ------------------------------------------------------------------
+ *  It used to live in `title`, and the argument then was "three sentences in
+ *  one table cell and none of them get read". That holds for three LINES OF
+ *  TEXT and fails for what stands here now: `StageTrack` is not a sentence to
+ *  read, it is a shape to glance at — five segments, three colours, no words.
+ *  Someone scanning the whole page sees at once which deals are near a contract
+ *  and which are still sitting in the first column, which a tooltip can never
+ *  do: it shows for ONE row, and only after the reader already knows which row
+ *  is worth hovering.
+ *
+ *  `title` stays and still carries its full sentence: it is the only place that
+ *  names the DAY COUNT and the fact that the deal is past its column limit —
+ *  the bar deliberately carries neither (see `stageTrackOf`). A closed deal has
+ *  no bar, and the pill alone is the right answer for a deal standing in no
+ *  column. */
 function StateCell({ op }: { op: OpportunityRow }) {
   const rotting = isRottingOp(op)
   const stage = op.stage ? STAGE_LABEL.get(op.stage) : null
+  const track = stageTrackOf(op)
 
   return (
-    <Badge
-      tone={rotting ? 'warning' : STATE_TONE[op.state]}
-      className="max-w-full"
-      title={
-        stage
-          ? rotting
-            ? `Cột "${stage}" · ${op.daysInStage} ngày, đã quá hạn cột`
-            : `Cột "${stage}" · ${op.daysInStage} ngày`
-          : 'Đã đóng sổ — đơn ra khỏi năm cột'
-      }
-    >
-      <span className="min-w-0 truncate">
-        {STATE_LABEL.get(op.state)}
-        {rotting && ' · mục'}
-      </span>
-    </Badge>
+    <div className="flex min-w-0 flex-col gap-1">
+      <Badge
+        tone={rotting ? 'warning' : STATE_TONE[op.state]}
+        className="max-w-full"
+        title={
+          stage
+            ? rotting
+              ? `Cột "${stage}" · ${op.daysInStage} ngày, đã quá hạn cột`
+              : `Cột "${stage}" · ${op.daysInStage} ngày`
+            : 'Đã đóng sổ — đơn ra khỏi năm cột'
+        }
+      >
+        <span className="min-w-0 truncate">
+          {STATE_LABEL.get(op.state)}
+          {rotting && ' · mục'}
+        </span>
+      </Badge>
+
+      {track && <StageTrack steps={track.steps} current={track.current} />}
+    </div>
   )
 }
 
