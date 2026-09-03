@@ -30,6 +30,8 @@ import {
   Field,
   LossBlock,
   PeopleRow,
+  ProbabilityField,
+  ProductsField,
   STAGE_LABEL,
   STATE_LABEL,
 } from './ops-fields'
@@ -308,6 +310,18 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
           picked={draft.bdOwners}
           errors={errors.bdOwners}
           onToggle={(id) => set('bdOwners', toggled(draft.bdOwners, id))}
+        />
+
+        <ProbabilityField
+          value={draft.probability}
+          errors={errors.probability}
+          onSet={(next) => set('probability', next)}
+        />
+
+        <ProductsField
+          picked={draft.products}
+          errors={errors.products}
+          onToggle={(id) => set('products', toggled(draft.products, id))}
         />
 
         <Field

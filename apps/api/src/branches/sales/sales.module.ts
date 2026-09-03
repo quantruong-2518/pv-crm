@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common'
 import { registerConstraints } from '@api/platform/http/db-error'
+import { ACCOUNT_CONSTRAINTS } from './account/account.constraints'
+import { AccountModule } from './account/account.module'
 import { CampaignModule } from './campaign/campaign.module'
+import { CONTACT_CONSTRAINTS } from './contact/contact.constraints'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { ContractModule } from './contract/contract.module'
@@ -25,6 +28,8 @@ registerConstraints(OPPORTUNITY_CONSTRAINTS)
 registerConstraints(CONTRACT_CONSTRAINTS)
 registerConstraints(TOUCH_CONSTRAINTS)
 registerConstraints(MEETING_CONSTRAINTS)
+registerConstraints(ACCOUNT_CONSTRAINTS)
+registerConstraints(CONTACT_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
@@ -41,7 +46,26 @@ registerConstraints(MEETING_CONSTRAINTS)
  *  Nhánh này không nhập gì từ `branches/supply`, `branches/factory`,
  *  `branches/finance` — eslint chặn, xem `eslint.config.js`. */
 @Module({
-  imports: [LeadModule, OpportunityModule, ContractModule, SalesConfigModule, CampaignModule],
-  exports: [LeadModule, OpportunityModule, ContractModule, SalesConfigModule, CampaignModule],
+  imports: [
+    LeadModule,
+    OpportunityModule,
+    ContractModule,
+    SalesConfigModule,
+    CampaignModule,
+    /* The customer company book. It stands beside the six modules rather than
+       under `lead/`, because it outlives every enquiry: one company gathers many
+       leads, many deals, many contracts. `ContactModule` is deliberately NOT
+       here — it is a facility of the lead module, exactly where `MeetingModule`
+       sits. */
+    AccountModule,
+  ],
+  exports: [
+    LeadModule,
+    OpportunityModule,
+    ContractModule,
+    SalesConfigModule,
+    CampaignModule,
+    AccountModule,
+  ],
 })
 export class SalesModule {}

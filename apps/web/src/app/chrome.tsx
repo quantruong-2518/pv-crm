@@ -1,6 +1,7 @@
 import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
+  Factory,
   FileCheck,
   Gauge,
   Handshake,
@@ -11,6 +12,7 @@ import {
   SquareCheckBig,
   Target,
   Users,
+  UsersRound,
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
@@ -173,6 +175,47 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/leads',
     permission: 'lead.xem',
     question: 'Thu nhận, phân loại và phân công khách tiềm năng',
+  },
+  {
+    /** THE CUSTOMER COMPANY BOOK — `no: 0`, and that zero is a statement rather
+     *  than a blank.
+     *
+     *  The branch's six modules are numbered 1–6 in the docs, and the docblock
+     *  on `no` just above says it plainly: keep them, do not renumber. This book
+     *  is not a seventh module — it stands ABOVE the six, because one company
+     *  gathers many leads, many deals, many contracts. Inserting it in the
+     *  middle and shifting the four below would break every "module 3" citation
+     *  in this repo and in the docs.
+     *
+     *  Its place in the nav comes from ARRAY ORDER, not from `no`: it sits right
+     *  after the lead book, because that is where a user goes when the question
+     *  changes from "how is this enquiry going" to "how many times has this
+     *  customer bought". */
+    no: 0,
+    icon: Factory,
+    label: 'Khách hàng',
+    path: '/sales/accounts',
+    permission: 'khách-hàng.xem',
+    question: 'Một dòng một công ty — khách này đã hỏi mấy lần và mua mấy lần',
+  },
+  {
+    /** THE CONTACT BOOK. Also `no: 0` — same reason as the entry above, and two
+     *  entries sharing a number collide with nothing because `no` is not a key
+     *  of anything: the nav orders by array position and `routes.tsx` matches on
+     *  `path`.
+     *
+     *  It sits right after the company book because the two screens answer two
+     *  halves of one question — "which company" and "who is at that company" —
+     *  but they do NOT share a permission: this entry asks for the lead read
+     *  permission, the one above asks for the company one. A role that can only
+     *  read leads sees this entry open and that one locked, which is exactly
+     *  what should happen. */
+    no: 0,
+    icon: UsersRound,
+    label: 'Người liên hệ',
+    path: '/sales/contacts',
+    permission: 'lead.xem',
+    question: 'Đã gặp người này bao giờ chưa, và gọi họ thế nào',
   },
   {
     /** Đứng ngay sau Lead vì đó là bước kế tiếp của cùng một khách: qua cổng

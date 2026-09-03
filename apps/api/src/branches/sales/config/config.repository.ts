@@ -108,6 +108,22 @@ export class SalesConfigRepository {
       SELECT 'SOURCE', campaign_id, count(*)::int
         FROM sales.lead WHERE campaign_id IS NOT NULL GROUP BY campaign_id
       UNION ALL
+      /* PRODUCT is the only branch here keyed by a REAL foreign key rather than
+         by a slug the lead happens to hold: sales.opportunity_product.product_id
+         references config_entry.id. So this count is exact, and switching an
+         entry off while deals point at it is a decision an approver can see the
+         weight of — which is what the whole usage table is for. */
+      SELECT 'PRODUCT', product_id, count(*)::int
+        FROM sales.opportunity_product GROUP BY product_id
+      UNION ALL
+      /* LOSS_REASON is keyed by the lower-cased NAME, joining the §6 debt of
+         docs/fix-later.md rather than inventing a different rule for one list:
+         sales.opportunity.lost_reason stores what the seller picked as text.
+         Lower-cased on both sides so a label edited to change only its casing
+         does not split one reason into two rows on the config screen. */
+      SELECT 'LOSS_REASON', lower(lost_reason), count(*)::int
+        FROM sales.opportunity WHERE lost_reason IS NOT NULL GROUP BY lower(lost_reason)
+      UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL

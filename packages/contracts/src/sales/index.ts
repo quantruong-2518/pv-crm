@@ -1,3 +1,4 @@
+export * from './account'
 export * from './campaign'
 export * from './campaign-book'
 export * from './config'

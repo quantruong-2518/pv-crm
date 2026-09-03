@@ -1,9 +1,158 @@
 {
-  "id": "1b09e5c4-dccb-40a0-9b0b-98e03c1e65ab",
-  "prevId": "090cd80c-c7ce-4a58-a8de-0cd83cbb8568",
+  "id": "8dd7e510-227a-4f99-8ef8-daf0d0344778",
+  "prevId": "1b09e5c4-dccb-40a0-9b0b-98e03c1e65ab",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "sales.account": {
+      "name": "account",
+      "schema": "sales",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_name": {
+          "name": "legal_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_code": {
+          "name": "tax_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "province": {
+          "name": "province",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "headcount": {
+          "name": "headcount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plants": {
+          "name": "plants",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "account_identity_uniq": {
+          "name": "account_identity_uniq",
+          "columns": [
+            {
+              "expression": "coalesce(nullif(btrim(\"tax_code\"), ''), lower(btrim(\"name\")))",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "account_province_idx": {
+          "name": "account_province_idx",
+          "columns": [
+            {
+              "expression": "province",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "account_category_idx": {
+          "name": "account_category_idx",
+          "columns": [
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "account_code_object_code_fk": {
+          "name": "account_code_object_code_fk",
+          "tableFrom": "account",
+          "tableTo": "object",
+          "schemaTo": "platform",
+          "columnsFrom": ["code"],
+          "columnsTo": ["code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "account_name_not_blank": {
+          "name": "account_name_not_blank",
+          "value": "\"name\" <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "sales.campaign": {
       "name": "campaign",
       "schema": "sales",
@@ -724,6 +873,187 @@
         "config_limit_only_stage": {
           "name": "config_limit_only_stage",
           "value": "(\"list\" = 'STAGE') = (\"limit_days\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.contact": {
+      "name": "contact",
+      "schema": "sales",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lead_code": {
+          "name": "lead_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_primary": {
+          "name": "is_primary",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "by": {
+          "name": "by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contact_lead_idx": {
+          "name": "contact_lead_idx",
+          "columns": [
+            {
+              "expression": "lead_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contact_email_idx": {
+          "name": "contact_email_idx",
+          "columns": [
+            {
+              "expression": "lower(\"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contact_primary_idx": {
+          "name": "contact_primary_idx",
+          "columns": [
+            {
+              "expression": "lead_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"is_primary\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contact_code_object_code_fk": {
+          "name": "contact_code_object_code_fk",
+          "tableFrom": "contact",
+          "tableTo": "object",
+          "schemaTo": "platform",
+          "columnsFrom": ["code"],
+          "columnsTo": ["code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "contact_lead_code_lead_code_fk": {
+          "name": "contact_lead_code_lead_code_fk",
+          "tableFrom": "contact",
+          "tableTo": "lead",
+          "schemaTo": "sales",
+          "columnsFrom": ["lead_code"],
+          "columnsTo": ["code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "contact_created_by_actor_id_fk": {
+          "name": "contact_created_by_actor_id_fk",
+          "tableFrom": "contact",
+          "tableTo": "actor",
+          "schemaTo": "platform",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contact_no_blank": {
+          "name": "contact_no_blank",
+          "value": "\"lead_code\" <> '' AND \"name\" <> '' AND \"by\" <> '' AND \"title\" <> '' AND \"email\" <> '' AND \"phone\" <> '' AND \"channel\" <> '' AND \"note\" <> ''"
+        },
+        "contact_channel_known": {
+          "name": "contact_channel_known",
+          "value": "\"channel\" IS NULL OR \"channel\" IN ('email', 'zalo-oa', 'telegram', 'in-app', 'linkedin', 'facebook', 'website')"
         }
       },
       "isRLSEnabled": false
@@ -1552,6 +1882,12 @@
           "notNull": true,
           "default": "now()"
         },
+        "account_code": {
+          "name": "account_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "company": {
           "name": "company",
           "type": "text",
@@ -1880,6 +2216,16 @@
           "tableTo": "object",
           "schemaTo": "platform",
           "columnsFrom": ["code"],
+          "columnsTo": ["code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lead_account_code_account_code_fk": {
+          "name": "lead_account_code_account_code_fk",
+          "tableFrom": "lead",
+          "tableTo": "account",
+          "schemaTo": "sales",
+          "columnsFrom": ["account_code"],
           "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -2240,6 +2586,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "probability": {
+          "name": "probability",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "description": {
           "name": "description",
           "type": "text",
@@ -2306,6 +2658,16 @@
           "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "opportunity_account_code_account_code_fk": {
+          "name": "opportunity_account_code_account_code_fk",
+          "tableFrom": "opportunity",
+          "tableTo": "account",
+          "schemaTo": "sales",
+          "columnsFrom": ["account_code"],
+          "columnsTo": ["code"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2337,6 +2699,10 @@
         "opportunity_state_known": {
           "name": "opportunity_state_known",
           "value": "\"state\" IN ('gui-quotation', 'nego', 'close-lost', 'pending')"
+        },
+        "opportunity_probability_range": {
+          "name": "opportunity_probability_range",
+          "value": "\"probability\" BETWEEN 0 AND 100"
         }
       },
       "isRLSEnabled": false
@@ -2415,6 +2781,206 @@
         "opportunity_owner_role_known": {
           "name": "opportunity_owner_role_known",
           "value": "\"role\" IN ('SALE', 'BD')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.opportunity_product": {
+      "name": "opportunity_product",
+      "schema": "sales",
+      "columns": {
+        "opportunity_code": {
+          "name": "opportunity_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "list": {
+          "name": "list",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PRODUCT'"
+        }
+      },
+      "indexes": {
+        "opportunity_product_product_idx": {
+          "name": "opportunity_product_product_idx",
+          "columns": [
+            {
+              "expression": "product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "opportunity_product_opportunity_code_opportunity_code_fk": {
+          "name": "opportunity_product_opportunity_code_opportunity_code_fk",
+          "tableFrom": "opportunity_product",
+          "tableTo": "opportunity",
+          "schemaTo": "sales",
+          "columnsFrom": ["opportunity_code"],
+          "columnsTo": ["code"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "opportunity_product_config_fk": {
+          "name": "opportunity_product_config_fk",
+          "tableFrom": "opportunity_product",
+          "tableTo": "config_entry",
+          "schemaTo": "sales",
+          "columnsFrom": ["product_id", "list"],
+          "columnsTo": ["id", "list"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "opportunity_product_pk": {
+          "name": "opportunity_product_pk",
+          "columns": ["opportunity_code", "product_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "opportunity_product_list": {
+          "name": "opportunity_product_list",
+          "value": "\"list\" = 'PRODUCT'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "sales.opportunity_stage_event": {
+      "name": "opportunity_stage_event",
+      "schema": "sales",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "opportunity_code": {
+          "name": "opportunity_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "from_stage": {
+          "name": "from_stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_stage": {
+          "name": "to_stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "days_in_from": {
+          "name": "days_in_from",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "by_id": {
+          "name": "by_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "by": {
+          "name": "by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "opportunity_stage_event_idx": {
+          "name": "opportunity_stage_event_idx",
+          "columns": [
+            {
+              "expression": "opportunity_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "opportunity_stage_event_opportunity_code_opportunity_code_fk": {
+          "name": "opportunity_stage_event_opportunity_code_opportunity_code_fk",
+          "tableFrom": "opportunity_stage_event",
+          "tableTo": "opportunity",
+          "schemaTo": "sales",
+          "columnsFrom": ["opportunity_code"],
+          "columnsTo": ["code"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "opportunity_stage_event_by_id_actor_id_fk": {
+          "name": "opportunity_stage_event_by_id_actor_id_fk",
+          "tableFrom": "opportunity_stage_event",
+          "tableTo": "actor",
+          "schemaTo": "platform",
+          "columnsFrom": ["by_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "opportunity_stage_event_moved": {
+          "name": "opportunity_stage_event_moved",
+          "value": "\"from_stage\" IS DISTINCT FROM \"to_stage\""
+        },
+        "opportunity_stage_event_clock": {
+          "name": "opportunity_stage_event_clock",
+          "value": "(\"from_stage\" IS NULL) = (\"days_in_from\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -3926,11 +4492,31 @@
     "platform": "platform"
   },
   "sequences": {
+    "sales.account_code_seq": {
+      "name": "account_code_seq",
+      "schema": "sales",
+      "increment": "1",
+      "startWith": "201",
+      "minValue": "1",
+      "maxValue": "9223372036854775807",
+      "cache": "1",
+      "cycle": false
+    },
     "sales.campaign_code_seq": {
       "name": "campaign_code_seq",
       "schema": "sales",
       "increment": "1",
       "startWith": "1",
+      "minValue": "1",
+      "maxValue": "9223372036854775807",
+      "cache": "1",
+      "cycle": false
+    },
+    "sales.contact_code_seq": {
+      "name": "contact_code_seq",
+      "schema": "sales",
+      "increment": "1",
+      "startWith": "1001",
       "minValue": "1",
       "maxValue": "9223372036854775807",
       "cache": "1",

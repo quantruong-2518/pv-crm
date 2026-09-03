@@ -2,15 +2,19 @@ import {
   bigint,
   check,
   date,
+  foreignKey,
   index,
+  integer,
   jsonb,
   primaryKey,
   text,
   timestamp,
   unique,
+  uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type {
+  ConfigList,
   CurrencyCode,
   OpportunityCreateState,
   OpportunityFile,
@@ -18,6 +22,8 @@ import type {
   StageKey,
 } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
+import { account } from '../account/account.schema'
+import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { sales } from '../sales.schema'
 
@@ -125,15 +131,44 @@ export const opportunity = sales.table(
      *  một khách mua hai lần có hai đơn khác tên trên cùng một dòng lead. */
     name: text('name').notNull(),
 
-    /** Mã object account trong đồ thị E1, nếu lead đã có. Chưa khoá ngoại về
-     *  `platform.object` — cùng khoản nợ với `lead.campaign_id`, ghi ra ở đây
-     *  để không ai tưởng là đã có hàng rào. */
-    accountCode: text('account_code'),
+    /** The customer company this deal belongs to.
+     *
+     *  FENCED SINCE THE ACCOUNT SWEEP. Until `sales.account` existed this was a
+     *  bare `text` with a note saying nobody should mistake it for a guarded
+     *  column. It is guarded now — a code that names no company is refused by
+     *  Postgres rather than surfacing later as a blank cell on the deal.
+     *
+     *  Still nullable, and deliberately: the account is resolved from the lead,
+     *  and a lead imported before the backfill may not have one yet. The value
+     *  is always the lead's account, never a second opinion about it. */
+    accountCode: text('account_code').references(() => account.code),
 
     amount: bigint('amount', { mode: 'number' }),
     currency: text('currency').$type<CurrencyCode>(),
 
     expectedClose: date('expected_close'),
+
+    /** How likely this deal is to close, 0–100, as the seller judges it.
+     *
+     *  ------------------------------------------------------------------
+     *  TYPED IN, NOT DERIVED FROM `stage` — AND NOT BOTH
+     *  ------------------------------------------------------------------
+     *  A percentage per column (the last one worth 80%) is the other way to build
+     *  this, and it was rejected: it produces a number that moves only when the
+     *  column moves, which is a slower and less honest signal than the person
+     *  who spoke to the customer this morning. It also makes the weighted
+     *  forecast a restatement of the column counts rather than new information.
+     *
+     *  What the two designs share is a failure mode this column avoids by being
+     *  the only one: had a stage default been stored alongside a manual
+     *  override, the forecast would depend on which of the two a given screen
+     *  happened to read.
+     *
+     *  NULL means "nobody has judged it yet" and must stay distinct from 0,
+     *  which means "this is not happening". The forecast on the plan screen
+     *  skips NULL rather than treating it as zero — an unjudged deal is missing
+     *  from the estimate, not worth nothing. */
+    probability: integer('probability'),
 
     description: text('description'),
 
@@ -179,6 +214,142 @@ export const opportunity = sales.table(
       'opportunity_state_known',
       sql`"state" IN ('gui-quotation', 'nego', 'close-lost', 'pending')`,
     ),
+    /** A percentage is a percentage. Written `BETWEEN` rather than left to zod
+     *  because the forecast on the plan screen multiplies by this number, and a
+     *  110 that slipped in through an import would not look wrong on the row it
+     *  sits on — only in the total, three screens away. */
+    check('opportunity_probability_range', sql`"probability" BETWEEN 0 AND 100`),
+  ],
+)
+
+/** What the customer is asking about — the deal's line of interest.
+ *
+ *  ------------------------------------------------------------------
+ *  A JOIN TABLE, NOT A `jsonb` ARRAY OF IDS
+ *  ------------------------------------------------------------------
+ *  An array column is one migration and no new table, and it loses the one
+ *  thing this data is FOR: "how many deals this quarter asked about moulds" is
+ *  a `GROUP BY` here and a `jsonb_array_elements` scan there. It also cannot be
+ *  fenced — a product id with a typo in it is accepted by an array column and
+ *  surfaces later as a chip with no label.
+ *
+ *  ------------------------------------------------------------------
+ *  THE FOREIGN KEY IS COMPOSITE, AND THAT IS THE WHOLE TRICK
+ *  ------------------------------------------------------------------
+ *  `product_id` alone would only promise "points at some configuration row" —
+ *  it would happily accept `EX-03`, an exit reason, and the deal would then
+ *  claim the customer is interested in a reason for losing. Carrying `list` and
+ *  pointing the key at `config_id_list` makes Postgres refuse it, and no door
+ *  has to remember the rule.
+ *
+ *  `list` is therefore a stored column that is always `'PRODUCT'` — the CHECK
+ *  below pins it. That is not redundancy: it is the second column the composite
+ *  key needs in order to exist. Same technique `contract` uses to anchor
+ *  `(opportunity_code, lead_code)`, and the reason `config_id_list` was
+ *  declared unique long before anything pointed at it. */
+export const opportunityProduct = sales.table(
+  'opportunity_product',
+  {
+    opportunityCode: text('opportunity_code')
+      .notNull()
+      .references(() => opportunity.code, { onDelete: 'cascade' }),
+    productId: text('product_id').notNull(),
+    /** Always `'PRODUCT'` — see the docblock. Not a discriminator, a key half. */
+    list: text('list').$type<ConfigList>().notNull().default('PRODUCT'),
+  },
+  (t) => [
+    primaryKey({
+      name: 'opportunity_product_pk',
+      columns: [t.opportunityCode, t.productId],
+    }),
+    /** "Which deals want this product" — the question the whole table exists to
+     *  answer, and the one that would be a sequential scan without this. */
+    index('opportunity_product_product_idx').on(t.productId),
+    foreignKey({
+      name: 'opportunity_product_config_fk',
+      columns: [t.productId, t.list],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
+    check('opportunity_product_list', sql`"list" = 'PRODUCT'`),
+  ],
+)
+
+/** Every column change a deal has ever made.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THIS IS NOT JUST THE `doi-cot` TOUCH ROWS
+ *  ------------------------------------------------------------------
+ *  `sales.touch` already records that a deal changed column, and it will keep
+ *  doing so — that row is what the activity card on the profile reads, written
+ *  as a sentence a person reads. This table answers a different kind of
+ *  question, and the difference is that a sentence cannot be aggregated:
+ *
+ *      "which columns has this deal been through"   -> either table
+ *      "average days spent in the third column"     -> ONLY here
+ *      "how many deals slid back from the last one" -> ONLY here
+ *
+ *  The touch row carries a sentence naming two columns; parsing that string
+ *  back into two columns to build a funnel report is the kind of code that works
+ *  until somebody edits a stage label. So: two rows written in one transaction,
+ *  one for the human and one for the query, and neither pretending to be the
+ *  other.
+ *
+ *  ------------------------------------------------------------------
+ *  `days_in_from` IS STORED, NOT COMPUTED ON READ
+ *  ------------------------------------------------------------------
+ *  It is derivable — subtract this row's `at` from the previous row's `at` with
+ *  a window function — and it is stored anyway, for two reasons. The first
+ *  event of a deal has no previous row to subtract from, so the window would
+ *  have to reach into `opportunity.created_at` and get the answer differently
+ *  for row one than for every other row. And the value the writer holds is the
+ *  exact `stage_since` the clock was actually reset from, which is the truth
+ *  the report wants; a recomputation would instead measure the gap between two
+ *  writes, which is the same number only as long as nothing ever backdates. */
+export const opportunityStageEvent = sales.table(
+  'opportunity_stage_event',
+  {
+    /** `uuid` for the same reason `platform.audit` uses one: 16 bytes instead
+     *  of 36, and `defaultRandom()` saves the application a `randomUUID()`. */
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    opportunityCode: text('opportunity_code')
+      .notNull()
+      .references(() => opportunity.code, { onDelete: 'cascade' }),
+
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+
+    /** NULL on the way in (the deal had no column before it was opened) and on
+     *  the way out (it left the five columns by being signed or lost). Both
+     *  ends of a deal's life are legitimate NULLs here, which is why there is
+     *  no `NOT NULL` on either side. */
+    fromStage: text('from_stage').$type<StageKey>(),
+    toStage: text('to_stage').$type<StageKey>(),
+
+    /** How long the deal stood in `from_stage`. NULL exactly when
+     *  `from_stage` is. */
+    daysInFrom: integer('days_in_from'),
+
+    /** Both the id and the name, and the pair is not a duplication: the id is
+     *  the fence (a report can group by a real person), the name is the
+     *  snapshot (an old row does not adopt somebody's new name, and still
+     *  renders for a person who has left the book). */
+    byId: text('by_id')
+      .notNull()
+      .references(() => actor.id),
+    by: text('by').notNull(),
+
+    /** Free text the mover typed, when they typed one. */
+    note: text('note'),
+  },
+  (t) => [
+    /** The profile reads one deal's events newest first; the funnel report
+     *  reads a date range. Both are served by leading with the code. */
+    index('opportunity_stage_event_idx').on(t.opportunityCode, t.at),
+    /** An event that moved nothing is not an event. `IS DISTINCT FROM` rather
+     *  than `<>` so a NULL on either side still counts as a move — going from
+     *  no column into the first one is exactly the row the funnel starts from. */
+    check('opportunity_stage_event_moved', sql`"from_stage" IS DISTINCT FROM "to_stage"`),
+    check('opportunity_stage_event_clock', sql`("from_stage" IS NULL) = ("days_in_from" IS NULL)`),
   ],
 )
 
@@ -255,3 +426,5 @@ export const opportunityOwner = sales.table(
 
 export type OpportunityRowDb = typeof opportunity.$inferSelect
 export type OpportunityOwnerRowDb = typeof opportunityOwner.$inferSelect
+export type OpportunityProductRowDb = typeof opportunityProduct.$inferSelect
+export type OpportunityStageEventRowDb = typeof opportunityStageEvent.$inferSelect

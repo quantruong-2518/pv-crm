@@ -1,6 +1,7 @@
 import {
   and,
   count,
+  desc,
   eq,
   exists,
   ilike,
@@ -19,14 +20,23 @@ import {
   OWNER_NONE,
   type OpportunityBookQuery,
   type OpportunityOwner,
+  type OpportunityProduct,
   type OpportunityState,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor, audit } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
-import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportunity.schema'
+import {
+  opportunity,
+  opportunityOwner,
+  opportunityProduct,
+  opportunityStageEvent,
+  type OpportunityRowDb,
+  type OpportunityStageEventRowDb,
+} from './opportunity.schema'
 import type { ActorLite } from './opportunity-import.check'
 import type { OpportunityValues } from './opportunity.mapper'
 
@@ -41,7 +51,19 @@ export type OpportunityRead = {
   signed: boolean
   /** Số ngày đơn đã đứng trong cột hiện tại. `null` = đơn đã ra khỏi bảng. */
   daysInStage: number | null
+  /** What the deal is asking about, with labels already resolved from
+   *  `config_entry`. */
+  products: OpportunityProduct[]
 }
+
+/** One row about to be written to the column-history table.
+ *
+ *  `id` is absent because the table mints it. `at` is NOT absent even though
+ *  the table also defaults it: writing the deal row and the history row has to
+ *  carry exactly ONE instant, and letting `defaultNow()` run a second time
+ *  gives two instants a few milliseconds apart — enough for the next row's
+ *  `days_in_from` to be off by a day when the write lands on midnight. */
+export type OpportunityStageEventInsert = Omit<typeof opportunityStageEvent.$inferInsert, 'id'>
 
 /** Số ngày đơn đã đứng trong cột hiện tại.
  *
@@ -183,16 +205,21 @@ export class OpportunityRepository {
       .limit(q.size)
       .offset((q.page - 1) * q.size)
 
-    const owners = await this.ownersOf(
-      this.db,
-      rows.map((r) => r.row.code),
-    )
+    /* Two follow-up reads, in PARALLEL: they read two different join tables
+       with the same list of codes, and neither needs the other's result.
+       Queueing them adds a network round trip to every page turn. */
+    const codes = rows.map((r) => r.row.code)
+    const [owners, products] = await Promise.all([
+      this.ownersOf(this.db, codes),
+      this.productsOf(this.db, codes),
+    ])
 
     return {
       rows: rows.map((r) => ({
         ...r,
         signed: r.contractCode !== null,
         owners: owners.get(r.row.code) ?? [],
+        products: products.get(r.row.code) ?? [],
       })),
       total: scopedTotal,
       hidden: all === null ? 0 : all - scopedTotal,
@@ -222,8 +249,16 @@ export class OpportunityRepository {
 
     if (!found) return null
 
-    const owners = await this.ownersOf(this.db, [code])
-    return { ...found, signed: found.contractCode !== null, owners: owners.get(code) ?? [] }
+    const [owners, products] = await Promise.all([
+      this.ownersOf(this.db, [code]),
+      this.productsOf(this.db, [code]),
+    ])
+    return {
+      ...found,
+      signed: found.contractCode !== null,
+      owners: owners.get(code) ?? [],
+      products: products.get(code) ?? [],
+    }
   }
 
   /** Người đứng đơn của một loạt đơn, đọc MỘT lần cho cả trang.
@@ -308,8 +343,16 @@ export class OpportunityRepository {
 
     if (!found) return null
 
-    const owners = await this.ownersOf(this.db, [code])
-    return { ...found, signed: found.contractCode !== null, owners: owners.get(code) ?? [] }
+    const [owners, products] = await Promise.all([
+      this.ownersOf(this.db, [code]),
+      this.productsOf(this.db, [code]),
+    ])
+    return {
+      ...found,
+      signed: found.contractCode !== null,
+      owners: owners.get(code) ?? [],
+      products: products.get(code) ?? [],
+    }
   }
 
   /** Tên hiển thị của một loạt actor, cho dòng gương E1 và cho câu trả lời.
@@ -531,6 +574,89 @@ export class OpportunityRepository {
   ): Promise<void> {
     await tx.delete(opportunityOwner).where(eq(opportunityOwner.opportunityCode, code))
     await this.insertOwners(tx, rows)
+  }
+
+  async insertProducts(
+    tx: Db,
+    rows: readonly { opportunityCode: string; productId: string; list: 'PRODUCT' }[],
+  ): Promise<void> {
+    if (rows.length === 0) return
+    await tx.insert(opportunityProduct).values([...rows])
+  }
+
+  /** Delete then re-insert — the same reasoning as `replaceOwners` above, and
+   *  cheaper here: the table has only two meaningful columns, so diffing the
+   *  two sets would save nothing beyond a few rows rewritten identically. */
+  async replaceProducts(
+    tx: Db,
+    code: string,
+    rows: readonly { opportunityCode: string; productId: string; list: 'PRODUCT' }[],
+  ): Promise<void> {
+    await tx.delete(opportunityProduct).where(eq(opportunityProduct.opportunityCode, code))
+    await this.insertProducts(tx, rows)
+  }
+
+  async insertStageEvent(tx: Db, row: OpportunityStageEventInsert): Promise<void> {
+    await tx.insert(opportunityStageEvent).values(row)
+  }
+
+  /** Same rows, one statement per import chunk.
+   *
+   *  The caller already slices at 500 to stay under Postgres' bind-parameter
+   *  ceiling, so this one does not slice again — it inserts exactly what it is
+   *  handed. Empty is a real case (a whole chunk of deals opened straight into
+   *  'close-lost' stands in no column) and returns without a statement. */
+  async insertStageEvents(tx: Db, rows: readonly OpportunityStageEventInsert[]): Promise<void> {
+    if (rows.length === 0) return
+    await tx.insert(opportunityStageEvent).values([...rows])
+  }
+
+  /** One deal's column history, newest first.
+   *
+   *  NOT paged — see `OpportunityStageHistory` in the contract. `at` descending
+   *  then `id` descending: two column moves inside one millisecond is something
+   *  an import run can produce, and without a tiebreaker their order flips
+   *  between two opens of the same profile. */
+  async stageEventsOf(code: string): Promise<OpportunityStageEventRowDb[]> {
+    return this.db
+      .select()
+      .from(opportunityStageEvent)
+      .where(eq(opportunityStageEvent.opportunityCode, code))
+      .orderBy(desc(opportunityStageEvent.at), desc(opportunityStageEvent.id))
+  }
+
+  /** The products of a set of deals, ONE query for the whole page.
+   *
+   *  Same shape as `ownersOf` and for the same reason: one `IN` for fifty rows
+   *  instead of fifty round trips. Labels come from `config_entry` right here,
+   *  so no screen has to consult a second table to turn 'PD-02' into a name.
+   *
+   *  Ordered by the catalog's `ord` rather than by name: entry order IS
+   *  business order (rule 1 of `config.ts`), so two deals that picked the same
+   *  three products print the same three chips in the same order. */
+  async productsOf(tx: Db, codes: string[]): Promise<Map<string, OpportunityProduct[]>> {
+    if (codes.length === 0) return new Map()
+
+    const rows = await tx
+      .select({
+        code: opportunityProduct.opportunityCode,
+        id: opportunityProduct.productId,
+        name: configEntry.name,
+        ord: configEntry.ord,
+      })
+      .from(opportunityProduct)
+      .innerJoin(configEntry, eq(configEntry.id, opportunityProduct.productId))
+      .where(inArray(opportunityProduct.opportunityCode, codes))
+      .orderBy(configEntry.ord)
+
+    const byCode = new Map<string, OpportunityProduct[]>()
+    for (const r of rows) {
+      const list = byCode.get(r.code)
+      const item = { id: r.id, name: r.name }
+      if (list) list.push(item)
+      else byCode.set(r.code, [item])
+    }
+    return byCode
   }
 
   // ── trục phạm vi và câu hỏi "đã thắng chưa" ──────────────────────────────

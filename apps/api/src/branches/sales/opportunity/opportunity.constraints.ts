@@ -65,4 +65,42 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     fields: ['saleOwners', 'bdOwners'],
     message: 'Vai trên đơn chỉ có Sale đứng đơn hoặc BD mở cửa.',
   },
+
+  opportunity_probability_range: {
+    kind: 'invalid',
+    fields: ['probability'],
+    message: 'Xác suất thắng là một số từ 0 đến 100.',
+  },
+
+  /** The COMPOSITE foreign key `(product_id, list)` into `config_id_list`. It
+   *  catches both kinds of mistake with one constraint, which is why the key is
+   *  composite at all: an id that does not exist, and an id that exists but
+   *  belongs to another list ('EX-03' is an exit reason, not a product). */
+  opportunity_product_config_fk: {
+    kind: 'invalid',
+    fields: ['products'],
+    message: 'Có mục không nằm trong danh mục Sản phẩm/dịch vụ — chọn lại từ danh sách.',
+  },
+
+  opportunity_product_pk: {
+    kind: 'invalid',
+    fields: ['products'],
+    message: 'Một sản phẩm chỉ chọn được một lần trên cùng một đơn.',
+  },
+
+  /** A user should never see the two sentences below: the stage-move door
+   *  refuses a drag back onto the column the deal already stands in before it
+   *  touches the table, and the other two doors only write history when the
+   *  column really changed. They exist so that a write door added later can read
+   *  what it got wrong, instead of getting a 500 naming a constraint. */
+  opportunity_stage_event_moved: {
+    kind: 'invalid',
+    message:
+      'Một dòng lịch sử phải ghi một lượt đổi cột thật — cột đi và cột đến không được trùng.',
+  },
+
+  opportunity_stage_event_clock: {
+    kind: 'invalid',
+    message: 'Dòng lịch sử có cột đi thì phải có số ngày đứng ở cột đó, và ngược lại.',
+  },
 }

@@ -7,6 +7,7 @@ import {
   OpportunityCreate,
   OpportunityImportBody,
   OpportunityLiveDealQuery,
+  OpportunityStageMove,
   OpportunityUpdate,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
@@ -208,5 +209,31 @@ export class OpportunityController {
     @Body(zod(OpportunityUpdate)) body: OpportunityUpdate,
   ) {
     return this.ops.update(who, code, body)
+  }
+
+  /** Drag a deal to another column — a board gesture, not a form save.
+   *
+   *  Same write permission as the door above, and the same scope axis. Two doors
+   *  because they say two different things, not because they need two levels of
+   *  trust — see the docblock on `OpportunityStageMove`.
+   *
+   *  Declaration order settles nothing here: `:code/stage` has a static segment
+   *  after the dynamic one, so it cannot collide with bare `:code`, exactly as
+   *  `:code/contract` already does. */
+  @Patch(':code/stage')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa', scoped: true })
+  moveStage(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(OpportunityStageMove)) body: OpportunityStageMove,
+  ) {
+    return this.ops.moveStage(who, code, body)
+  }
+
+  /** Which columns the deal has passed through, and how long it stood in each. */
+  @Get(':code/stage-history')
+  @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
+  stageHistory(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+    return this.ops.stageHistory(who, code)
   }
 }

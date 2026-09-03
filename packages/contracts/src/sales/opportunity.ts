@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { Dong, MaHopDong, MaObject, Moc, Ngay, textNhap, textNhapTuyChon } from '../primitives'
+import { MaConfig } from './config'
 import { CurrencyCode, StageKey } from './enums'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
@@ -114,6 +115,12 @@ export const OPPORTUNITY_NAME_MAX = 200
 export const OPPORTUNITY_DESCRIPTION_MAX = 2_000
 export const OPPORTUNITY_LOSS_REASON_MAX = 120
 export const OPPORTUNITY_LOSS_NOTE_MAX = 1_000
+/** A deal asking about more than a dozen product lines is a deal nobody has
+ *  qualified yet. The cap is generous rather than tight because refusing a
+ *  legitimate form is worse than storing one that is too broad — it exists to
+ *  stop a script, not to argue with a seller. */
+export const OPPORTUNITY_PRODUCTS_MAX = 12
+export const OPPORTUNITY_STAGE_NOTE_MAX = 500
 
 /** Actor ids on one side of a deal. Deduped, so the join table is never handed
  *  the same pair twice and never dies on its own primary key. */
@@ -147,6 +154,37 @@ const dealFields = {
 
   saleOwners: ownerIds,
   bdOwners: ownerIds.optional().default([]),
+
+  /** How likely the seller thinks this is to close, 0–100.
+   *
+   *  OPTIONAL, and the absence has to stay tellable from a zero. "Nobody has
+   *  judged this yet" and "this is not happening" are opposite facts about a
+   *  deal, and the weighted forecast treats them oppositely: the first is
+   *  excluded from the estimate, the second drags it down. A `.default(0)` here
+   *  would erase that distinction at the door, before any screen could show it.
+   *
+   *  Not derived from `state` or `stage` — the schema's docblock says why the
+   *  per-column percentage was rejected, and why storing both a derived default
+   *  and an override would make the forecast depend on which one a screen read. */
+  probability: z.number().int().min(0).max(100).optional(),
+
+  /** What the customer is asking about — ids from the `PRODUCT` catalog.
+   *
+   *  `MaConfig`, not free text and not `z.string()`: the ids go into
+   *  `sales.opportunity_product`, whose composite foreign key refuses anything
+   *  that is not a live catalog row. Typing the wire the same way means a bad
+   *  id is refused at the door with a field name on it, rather than at the
+   *  database with a constraint name on it.
+   *
+   *  Deduplicated rather than refused on repeat, exactly like `ownerIds` above:
+   *  the same chip clicked twice is a slip of the hand, not a request the
+   *  server should reject a whole form over. */
+  products: z
+    .array(MaConfig)
+    .max(OPPORTUNITY_PRODUCTS_MAX, `Tối đa ${OPPORTUNITY_PRODUCTS_MAX} sản phẩm`)
+    .optional()
+    .default([])
+    .transform((ids) => [...new Set(ids)]),
 
   description: textNhapTuyChon(OPPORTUNITY_DESCRIPTION_MAX),
   attachments: z.array(OpportunityFile).max(OPPORTUNITY_FILES_MAX).optional().default([]),
@@ -234,6 +272,18 @@ export const OpportunityUpdate = z
  *  Carries the display name beside the id for the same reason `LeadRow` carries
  *  the owner's mailbox: a screen renders people, and nothing downstream should
  *  need a second call to turn an id into a human being. */
+/** One product line a deal is asking about, as the book prints it.
+ *
+ *  Two fields and no more: the catalog row also carries `ord` and `active`, and
+ *  neither belongs on a deal. A deal that named a product line last quarter
+ *  keeps naming it after the line is switched off — that is the whole point of
+ *  `active: false` being the only form of deletion — so shipping the flag here
+ *  would invite a screen to hide a chip describing a real historical fact. */
+export const OpportunityProduct = z.object({
+  id: MaConfig,
+  name: textNhap(120),
+})
+
 export const OpportunityOwner = z.object({
   id: textNhap(64),
   name: textNhap(120),
@@ -284,6 +334,19 @@ export const OpportunityRow = z.object({
   expectedClose: Ngay.nullable(),
   amount: Dong.nullable(),
   currency: CurrencyCode.nullable(),
+
+  /** Nullable in the READ shape while optional in the write shape, and the two
+   *  spellings mean the same thing: nobody has judged this deal. `null` on the
+   *  wire rather than an absent key because every deal in the book has an
+   *  answer to "how likely is this", even when the answer is "unknown" — a
+   *  missing key would make the book's rows a different shape from each other. */
+  probability: z.number().int().min(0).max(100).nullable(),
+
+  /** What the customer is asking about, carrying the LABEL beside the id for
+   *  the same reason `OpportunityOwner` carries a name: a screen renders chips,
+   *  and nothing downstream should need a second call to turn 'PD-02' into a
+   *  readable product name. */
+  products: z.array(OpportunityProduct),
 
   owners: z.array(OpportunityOwner),
 
@@ -533,3 +596,82 @@ export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
+
+// ---------------------------------------------------------------------------
+// MOVING A DEAL BETWEEN COLUMNS — AND REMEMBERING THAT IT MOVED
+// ---------------------------------------------------------------------------
+
+/** `PATCH /sales/opportunities/:code/stage` — drag a deal to another column.
+ *
+ *  ------------------------------------------------------------------
+ *  A DOOR OF ITS OWN, NEXT TO `PATCH /:code` THAT ALREADY WRITES `stage`
+ *  ------------------------------------------------------------------
+ *  Two doors reaching the same column looks like a duplication and is not,
+ *  because until now there was NO door that could reach it. `PATCH /:code`
+ *  writes `stage` only as a consequence of `state` — through `STAGE_OF_STATE` —
+ *  which leaves two of the five columns unreachable: no state maps to 'moi' or
+ *  'da-demo', so a deal could never be put into either one from any screen. The
+ *  board had five columns and three of them were writable.
+ *
+ *  The two doors also mean different things, and that is the durable reason to
+ *  keep them apart rather than widen the first:
+ *
+ *      PATCH /:code         "what is the seller DOING"   -> state, and stage follows
+ *      PATCH /:code/stage   "where does the card SIT"    -> stage, and state does not move
+ *
+ *  Moving a card between two of the early columns does not change what the
+ *  seller is doing, and forcing it through `state` would either invent two
+ *  states nobody works in, or silently rewrite the work state to reach the
+ *  column. It also keeps the reach honest: this body cannot touch money,
+ *  owners or the close date, so the drag gesture on a board — the cheapest
+ *  gesture in the product — cannot be the one that overwrites a deal's value.
+ *
+ *  `stage` is NOT nullable here. Leaving the board is winning (a contract) or
+ *  losing (`state`), and both already have doors that do more than move a card.
+ *  A null through this one would close a deal without a reason or a signature. */
+export const OpportunityStageMove = z.object({
+  stage: StageKey,
+  /** What the mover typed, when they typed anything. Optional because demanding
+   *  a sentence for every move is how a team learns to type 'x'. */
+  note: textNhapTuyChon(OPPORTUNITY_STAGE_NOTE_MAX),
+})
+
+/** One line of a deal's column history.
+ *
+ *  Read-only, always: no door writes one of these directly. Every row is a
+ *  by-product of a move that happened somewhere else — the create door, the
+ *  state change, the stage move, the signature — which is what makes the
+ *  history trustworthy as a record rather than a second thing to maintain.
+ *
+ *  `from` and `to` are both nullable, and each null is a real event rather than
+ *  missing data: `from: null` is the deal entering the board when it was
+ *  opened, `to: null` is it leaving by being signed or lost. A funnel report
+ *  reads the first as "entered" and the second as "exited"; dropping either
+ *  would make the first and last step of every deal invisible. */
+export const OpportunityStageEvent = z.object({
+  id: z.string().min(1),
+  at: Moc,
+  from: StageKey.nullable(),
+  to: StageKey.nullable(),
+  /** Days the deal stood in `from`. Null exactly when `from` is. */
+  daysInFrom: z.number().int().nonnegative().nullable(),
+  /** The mover's name as it read on the day — snapshotted, not joined. Same
+   *  rule as `TouchRow.by`: a record is a record of what was true THEN. */
+  by: textNhap(120),
+  note: z.string().optional(),
+})
+
+/** `GET /sales/opportunities/:code/stage-history`.
+ *
+ *  Not `paged()`, for the same reason `ContactListResponse` is not: the list is
+ *  bounded by how many times one deal changed column, which is a number that
+ *  fits on a screen. A deal with fifty moves is a deal worth reading all fifty
+ *  of, not one worth hiding behind "load more". */
+export const OpportunityStageHistory = z.object({
+  rows: z.array(OpportunityStageEvent),
+})
+
+export type OpportunityProduct = z.infer<typeof OpportunityProduct>
+export type OpportunityStageMove = z.infer<typeof OpportunityStageMove>
+export type OpportunityStageEvent = z.infer<typeof OpportunityStageEvent>
+export type OpportunityStageHistory = z.infer<typeof OpportunityStageHistory>

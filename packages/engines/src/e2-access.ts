@@ -93,6 +93,24 @@ export const PERMISSIONS = [
   'lead.chuyển-đổi',
   /** Đưa lead ra khỏi luồng (`ExitDialog`). Hiếm và không quay lại được. */
   'lead.loại',
+  /** The customer COMPANY book — `/sales/accounts`.
+   *
+   *  A DOMAIN OF ITS OWN rather than a reuse of the lead domain, and
+   *  deliberately unlike the contact book beside it: a contact is part of ONE
+   *  lead's profile, so it runs on the lead read/write pair (see `contact.ts`).
+   *  An account sits ABOVE the lead book and outlives every enquiry — renaming
+   *  it, correcting its tax code, merging it with another company changes what
+   *  every lead, deal and contract underneath is about. Folding it into the
+   *  lead write permission would mean every Sale who can edit their own lead
+   *  can also rename the customer for the whole department.
+   *
+   *  The read half carries NO scope axis (`ownOnly`) on any endpoint, and that is the
+   *  other half of the same decision: a company is owned by no seller. Scoping
+   *  it would mean a Sale opening a new enquiry cannot see that the company is
+   *  already a customer of the person at the next desk — the single most
+   *  expensive thing this book exists to prevent. */
+  'khách-hàng.xem',
+  'khách-hàng.sửa',
   'cơ-hội.xem',
   'cơ-hội.sửa',
   'cơ-hội.chốt',
@@ -167,6 +185,10 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'lead.xem',
     'lead.sửa',
     'lead.gửi-mail',
+    /* Read, not write. Marketing asks "which source produces customers", which
+       needs the company book in view; renaming a customer for the whole
+       department is not the job of the person who brings customers in. */
+    'khách-hàng.xem',
     'hiệu-suất.xem',
     'kế-hoạch.xem',
     'cấu-hình.xem',
@@ -182,6 +204,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
        exactly that. `chiến-dịch.bắn` stays with marketing. */
     'lead.gửi-mail',
     'lead.chuyển-đổi',
+    /* BD is the person who OPENS the door at a company, so also the first to
+       learn what that company is called on paper. Read without write would make
+       the company row wait for another role to type it in, and while it waits a
+       second enquiry from that same factory enters the book as a brand new
+       customer. */
+    'khách-hàng.xem',
+    'khách-hàng.sửa',
     'cơ-hội.xem',
     'cơ-hội.sửa',
     'hợp-đồng.xem',
@@ -195,6 +224,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   presales: [
     'chiến-dịch.xem',
     'lead.xem',
+    'khách-hàng.xem',
     'cơ-hội.xem',
     'cơ-hội.sửa',
     'hợp-đồng.xem',
@@ -212,6 +242,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'lead.gửi-mail',
     'lead.chuyển-đổi',
     'lead.loại',
+    /* Write, because correcting the address or tax code of the customer one is
+       actively selling to is daily work. Axis 3 cannot narrow this permission —
+       a company is owned by no seller — so this is precisely where the `sale`
+       row reaches wider than the rest of itself, and it reaches wider on
+       purpose rather than by oversight. */
+    'khách-hàng.xem',
+    'khách-hàng.sửa',
     'cơ-hội.xem',
     'cơ-hội.sửa',
     'cơ-hội.chốt',
@@ -232,13 +269,25 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
  *  Kiểu chưa có màn (SO · WO · PO · L · BT · CNC…) CỐ TÌNH vắng: gán bừa một
  *  miền cho chúng là phát minh ra luật quyền cho nhánh chưa ai dựng. Với những
  *  kiểu đó `can()` chỉ kiểm license và phạm vi — nói rõ hơn ở `check()`. */
-const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'hợp-đồng'>> = {
+const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'hợp-đồng' | 'khách-hàng'>> = {
   LD: 'lead',
   OP: 'cơ-hội',
   /** Until 02/09 this kind had no domain, so `permissionFor` returned `null` for
    *  EVERY question about a contract — E2 waved them through instead of checking.
    *  The contract book is the first screen that needs a real answer. */
   HĐ: 'hợp-đồng',
+  /** Both arrive with the account sweep, and they arrive pointing at DIFFERENT
+   *  domains on purpose — this table is where that decision becomes something
+   *  `can()` enforces rather than something two docblocks assert.
+   *
+   *  A contact is a part of one lead's profile, so a question about a `CT-…`
+   *  is a question about that lead and is answered by the lead domain. A
+   *  company sits above the lead book and has its own domain. Had `CT` been
+   *  left out, every write check on a contact ref would return `null` and E2
+   *  would wave it through — the exact hole the contract kind sat in until it
+   *  was filled. */
+  AC: 'khách-hàng',
+  CT: 'lead',
 }
 
 /** Hành động trên một object cần quyền nào. `null` = kiểu này chưa có miền

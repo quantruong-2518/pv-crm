@@ -24,6 +24,7 @@ import {
   ANCHOR_CODE,
   exitReasonRows,
   naturalSources,
+  lossReasonRows,
   salesCatalogQuery,
   salesConfigQuery,
 } from '@/data/sales-config'
@@ -84,6 +85,12 @@ export function SalesConfigPage() {
   const { data: catalog } = useQuery(salesCatalogQuery)
   const usage = catalog?.usage
   const exitReasons = exitReasonRows(catalog)
+  const lossReasons = lossReasonRows(catalog)
+  /* The product catalog is NOT filtered by `active` here, unlike the picker on
+     the deal form: the configuration screen has to show switched-off rows —
+     that is the only form of deletion this system has, and hiding it would make
+     an administrator think the row had vanished. */
+  const products = catalog?.PRODUCT ?? []
   const natural = naturalSources(catalog)
 
   /** Mọi thay đổi gom vào đây rồi gửi một lần (luật 2 của module). */
@@ -320,6 +327,85 @@ export function SalesConfigPage() {
                 Mọi lý do đang có lead đứng — bỏ bất kỳ dòng nào cũng phải qua {HEAD_OF_SALES} gật,
                 vì ngần ấy dòng sổ mất chỗ đứng ngay lúc đó.
               </p>
+            </Section>
+
+            {/* 5.4b — DEAL-LOSS REASONS. Placed right after 5.4 on purpose: the
+                two catalogs are easy to mistake for one, so they sit side by
+                side where a reader sees the difference instead of guessing. */}
+            <Section
+              no="5.4b"
+              title="Lý do thua đơn"
+              hint="Danh sách MỞ — khác hẳn 5.4 ngay trên. Lý do một LEAD ra khỏi luồng và lý do một ĐƠN bị thua là hai câu hỏi về hai thứ, ở hai chỗ khác nhau của phễu."
+            >
+              <GlassCard variant="b" className="p-4">
+                <DataTable
+                  columns={[
+                    { header: 'Lý do', width: '2fr' },
+                    { header: 'Đơn đã thua', width: '1fr', align: 'right' },
+                  ]}
+                  rows={lossReasons.map((r) => ({
+                    id: r.id,
+                    cells: [
+                      r.label,
+                      <span key="u" className="tnum font-num">
+                        {r.usage} đơn
+                      </span>,
+                    ],
+                  }))}
+                />
+              </GlassCard>
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Phép đếm nối bằng NHÃN chứ chưa bằng mã: cột{' '}
+                <code>sales.opportunity.lost_reason</code> đang chở đúng chuỗi người bán đã bấm. Sửa
+                một nhãn ở đây làm số của dòng đó về 0 cho tới khi đơn cũ được sửa theo — nợ §6 của{' '}
+                <code>docs/fix-later.md</code>, nhìn từ chỗ nó đau.
+              </p>
+            </Section>
+
+            {/* 5.4c — PRODUCTS AND SERVICES. The ONLY catalog with a real foreign
+                key pointing at it, and therefore the only one where switching a
+                row off has teeth. */}
+            <Section
+              no="5.4c"
+              title="Sản phẩm/dịch vụ phòng đang chào"
+              hint="Phiếu cơ hội chọn từ đúng danh sách này. Đây là danh mục duy nhất có khoá ngoại thật từ bảng đơn trỏ vào — một mã sai bị Postgres từ chối, không lặng lẽ thành con chip không nhãn."
+            >
+              {products.length === 0 ? (
+                <div className="bg-warning/12 flex items-start gap-3 rounded-md p-4">
+                  <Icon icon={CircleAlert} size={20} className="text-warning mt-1" />
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11.5px] font-semibold">Chưa có mục nào</span>
+                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                      Migration CỐ TÌNH không mồi sẵn danh sách này. Bảy lý do thua ở mục trên là dữ
+                      liệu đã có thật trong sổ nên chuyển được nguyên văn; còn công ty bán gì thì
+                      không dòng nào trong cơ sở dữ liệu nói ra, và bịa một danh sách sản phẩm là
+                      bịa dữ liệu nghiệp vụ. Nhập ở đây, rồi ô &quot;Sản phẩm/dịch vụ quan tâm&quot;
+                      trên phiếu cơ hội sẽ có thứ để chọn.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <GlassCard variant="b" className="p-4">
+                  <DataTable
+                    columns={[
+                      { header: 'Sản phẩm/dịch vụ', width: '2fr' },
+                      { header: 'Đơn đang hỏi', width: '1fr', align: 'right' },
+                    ]}
+                    rows={products.map((p) => ({
+                      id: p.id,
+                      cells: [
+                        <span key="n" className={p.active ? undefined : 'opacity-60'}>
+                          {p.name}
+                          {!p.active && ' · đã tắt'}
+                        </span>,
+                        <span key="u" className="tnum font-num">
+                          {catalog?.usage.PRODUCT[p.id] ?? 0} đơn
+                        </span>,
+                      ],
+                    }))}
+                  />
+                </GlassCard>
+              )}
             </Section>
 
             {/* 5.5 — nợ treo thật. KHÔNG lấp bằng số bịa: xem khối "Cố tình không

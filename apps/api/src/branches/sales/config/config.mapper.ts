@@ -51,6 +51,8 @@ export function toUsage(tallies: UsageTally[]): ConfigUsage {
     EXIT_REASON: {},
     CHANNEL: {},
     SOURCE: {},
+    PRODUCT: {},
+    LOSS_REASON: {},
     slots: {},
     roles: {},
     signedDeals: 0,
@@ -79,6 +81,8 @@ export function toBundle(rows: ConfigRowDb[], usage: ConfigUsage): ConfigBundle 
     EXIT_REASON: [],
     CHANNEL: [],
     SOURCE: [],
+    PRODUCT: [],
+    LOSS_REASON: [],
     usage,
   }
   for (const row of rows) bundle[row.list].push(toContract(row))

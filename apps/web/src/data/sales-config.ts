@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import {
   Facebook,
   Globe,
@@ -14,6 +14,7 @@ import {
   CREDIT_RULES,
   INIT_DATA_QUESTIONS,
   LEAD_CATEGORIES,
+  LOSS_REASONS,
   PIPELINE_STAGES,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
@@ -239,4 +240,67 @@ export function naturalSources(catalog: ConfigBundle | undefined) {
     count: nat.length,
     leads: nat.reduce((sum, s) => sum + (catalog?.usage.SOURCE[s.id] ?? 0), 0),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Two new catalogs — PRODUCTS and DEAL-LOSS REASONS
+// ---------------------------------------------------------------------------
+
+/** The `PRODUCT` catalog, for the picker on the deal form.
+ *
+ *  ------------------------------------------------------------------
+ *  THE FIRST CATALOG WITH A REAL FOREIGN KEY POINTING AT IT
+ *  ------------------------------------------------------------------
+ *  The other five still join to the book by a lower-cased string (debt §6).
+ *  This one does not: `sales.opportunity_product.product_id` is a COMPOSITE
+ *  foreign key into `config_id_list`, so a wrong id is refused by Postgres
+ *  rather than quietly becoming a chip with no label. That is why
+ *  `usage.PRODUCT` is keyed by `id` — usable directly, with none of the
+ *  positional matching `exitReasonRows` has to do.
+ *
+ *  Returns an EMPTY ARRAY before the query lands, never `undefined`: the picker
+ *  maps over it, and an `undefined` branch is a branch every call site has to
+ *  remember. A screen that needs to tell "loading" apart reads the query's own
+ *  `isPending`. */
+export function useProductCatalog() {
+  const { data } = useQuery(salesCatalogQuery)
+  return data?.PRODUCT ?? []
+}
+
+/** The `LOSS_REASON` catalog — why a DEAL was lost.
+ *
+ *  DIFFERENT from `exitReasonRows` just above: that one is why a LEAD left the
+ *  funnel, a CLOSED list that will never grow an "other" box. This one is open,
+ *  because the next reason a deal is lost is usually a sentence nobody had
+ *  written down before.
+ *
+ *  Joined by LABEL rather than by id, and that is debt §6 rather than a new
+ *  rule: `sales.opportunity.lost_reason` carries the exact string the seller
+ *  clicked. The day that column carries a configuration id, this function
+ *  shrinks to a single `map`. */
+export function lossReasonRows(catalog: ConfigBundle | undefined) {
+  return (catalog?.LOSS_REASON ?? [])
+    .filter((r) => r.active)
+    .map((r) => ({
+      id: r.id,
+      label: r.name,
+      usage: catalog?.usage.LOSS_REASON[r.name.toLowerCase()] ?? 0,
+    }))
+}
+
+/** The loss reasons, for the button group on the deal form.
+ *
+ *  Replaces the fixture's `LOSS_REASONS` constant, which is exactly what
+ *  `config_entry` exists to do: changing a reason is an editable row on the
+ *  configuration screen, not a build.
+ *
+ *  Falls back to the fixture while the query is IN FLIGHT rather than to an
+ *  empty array: a lost-deal form that opens with no buttons to press is a form
+ *  the user cannot submit, and that state lasts exactly one network round trip.
+ *  The fixture's strings are the same strings the migration wrote into the
+ *  table, so the fallback does not say anything different from the truth. */
+export function useLossReasons(): string[] {
+  const { data } = useQuery(salesCatalogQuery)
+  const rows = lossReasonRows(data)
+  return rows.length > 0 ? rows.map((r) => r.label) : [...LOSS_REASONS]
 }

@@ -38,7 +38,33 @@ import { Moc, textNhap, textNhapTuyChon } from '../primitives'
  *  `Permission`/`RoleId`/`Branch` (ma trận quyền là hợp đồng của platform —
  *  cho phòng kinh doanh tự thêm một quyền là mở một lỗ hổng, không phải mở một
  *  ô cấu hình). */
-export const ConfigList = z.enum(['STAGE', 'TIER', 'CATEGORY', 'EXIT_REASON', 'CHANNEL', 'SOURCE'])
+export const ConfigList = z.enum([
+  'STAGE',
+  'TIER',
+  'CATEGORY',
+  'EXIT_REASON',
+  'CHANNEL',
+  'SOURCE',
+  /** What the company sells, as a deal may ask about it.
+   *
+   *  The one list here with a REAL foreign key pointing at it:
+   *  `sales.opportunity_product` anchors `(product_id, list)` on
+   *  `config_id_list`, so a deal cannot claim interest in an exit reason. That
+   *  makes it the first list where "turn off an entry" has teeth — the counts
+   *  in `usage.PRODUCT` are rows Postgres will refuse to orphan. */
+  'PRODUCT',
+  /** Why a DEAL was lost — distinct from `EXIT_REASON`, which is why a LEAD
+   *  left the funnel, and the two must not be merged.
+   *
+   *  They answer different questions about different objects at different
+   *  points of the pipeline: "nobody ever picked up" loses a lead, "a rival
+   *  quoted lower" loses a deal, and a report that mixed them would count a
+   *  lead that never spoke to us against a quotation we lost on price.
+   *  `EXIT_REASON` is also a CLOSED list by decision — it has no catch-all
+   *  entry and never will — while this one is open, because the next reason a
+   *  deal was lost is usually a sentence nobody had written down before. */
+  'LOSS_REASON',
+])
 
 export type ConfigList = z.infer<typeof ConfigList>
 
@@ -55,6 +81,8 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
   EXIT_REASON: 'EX',
   CHANNEL: 'CH',
   SOURCE: 'SR',
+  PRODUCT: 'PD',
+  LOSS_REASON: 'LR',
 }
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
@@ -63,7 +91,9 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  liệt kê thẳng ra nên một mã sai danh mục bị chặn ngay ở cổng zod, không phải
  *  đợi tới câu truy vấn. Cũng vì thế `PATCH /sales/config/:list/order` không bị
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
-export const MaConfig = z.string().regex(/^(ST|TR|CT|EX|CH|SR)-\d{2,4}$/, 'Mã cấu hình sai dạng')
+export const MaConfig = z
+  .string()
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR)-\d{2,4}$/, 'Mã cấu hình sai dạng')
 
 export type MaConfig = z.infer<typeof MaConfig>
 
@@ -141,6 +171,17 @@ export const ConfigUsage = z.object({
   EXIT_REASON: Tally,
   CHANNEL: Tally,
   SOURCE: Tally,
+  /** Keyed by CONFIG ID ('PD-02') — the second list after `SOURCE` able to say
+   *  that, and for a better reason: `sales.opportunity_product.product_id` is a
+   *  foreign key into this very table, so the count is a `GROUP BY` over a real
+   *  relation rather than a string match hoping two spellings agree. */
+  PRODUCT: Tally,
+  /** Keyed by the lower-case NAME, like `STAGE` and `TIER` — see the rule
+   *  above. `sales.opportunity.lost_reason` stores what the seller picked as
+   *  text, so this list joins the §6 debt rather than inventing a different
+   *  rule for one column. The day §6 is paid, the key becomes 'LR-03' and this
+   *  comment goes away with the rest. */
+  LOSS_REASON: Tally,
 
   /** Required profile slots, keyed by SLOT NUMBER ('1'…'6') — the same numbering
    *  the generated column `sales.lead.required_filled` sums over and the config
@@ -174,6 +215,8 @@ export const ConfigBundle = z.object({
   EXIT_REASON: z.array(ConfigEntry),
   CHANNEL: z.array(ConfigEntry),
   SOURCE: z.array(ConfigEntry),
+  PRODUCT: z.array(ConfigEntry),
+  LOSS_REASON: z.array(ConfigEntry),
   usage: ConfigUsage,
 })
 

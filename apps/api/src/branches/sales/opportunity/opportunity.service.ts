@@ -15,12 +15,14 @@ import {
   OpportunityImportPreviewResponse,
   OpportunityLiveDeal,
   OpportunityScorecard,
+  OpportunityStageHistory,
   OpportunityUpdateResponse,
   type ContractSign,
   type MaObject,
   type OpportunityBookQuery,
   type OpportunityCreate,
   type OpportunityImportBody,
+  type OpportunityStageMove,
   type OpportunityUpdate,
   type TouchTimelineResponse,
 } from '@pv/contracts'
@@ -41,9 +43,12 @@ import {
   daysInStageOf,
   NOTE,
   ownerRowsOf,
+  productRowsOf,
   refOf,
+  stageEventOf,
   toContract,
   toRef,
+  toStageEvent,
 } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 
@@ -245,7 +250,13 @@ export class OpportunityService {
     ])
     if (account === null) throw notFound('lead', body.leadCode)
 
-    const write = fromCreate(body, new Date())
+    /* ONE instant for the whole write. `new Date()` used to sit inline in the
+       `fromCreate` call, which was enough while one place needed it; the column
+       history row now needs that same instant, and two `new Date()` a few
+       milliseconds apart are two answers to "when did this deal enter the
+       column". */
+    const now = new Date()
+    const write = fromCreate(body, now)
     const code = await this.repo.nextCode()
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
@@ -292,6 +303,30 @@ export class OpportunityService {
       await this.mirror.put(tx, ref)
       const written = await this.repo.insertOpportunity(tx, { ...write.values, code })
       await this.repo.insertOwners(tx, ownerRowsOf(code, write))
+      await this.repo.insertProducts(tx, productRowsOf(code, write))
+
+      /* THE FIRST HISTORY ROW — `from: null`, i.e. the deal entering the board.
+         Written at the create door rather than waiting for the first column
+         move, because a funnel missing its ENTRY step counts nothing: every
+         conversion rate has "deals that entered the first column" as its
+         denominator. A deal opened straight into the lost state stands in no
+         column, and a `null -> null` row is refused by
+         `opportunity_stage_event_moved` — exactly right, because that deal was
+         never on the board. */
+      if (written.stage !== null) {
+        await this.repo.insertStageEvent(
+          tx,
+          stageEventOf({
+            code,
+            from: null,
+            to: written.stage,
+            stageSince: null,
+            at: now,
+            by: { id: who.id, name: who.name },
+            note: NOTE.opened(body.leadCode, body.state),
+          }),
+        )
+      }
 
       /* HAI dòng thời gian, không một. Đơn mới cần dòng đầu tiên của chính nó
          ("mở đơn từ lead nào"), còn hồ sơ lead cần biết khách này đã lên
@@ -329,6 +364,12 @@ export class OpportunityService {
        thứ hai của cùng một sự thật. Ngày nối E3, phiếu này thành một đề nghị
        thật và NGƯỜI ĐỨNG đề nghị mới là dữ liệu — lúc đó tham số quay lại, kèm
        chỗ để cất nó. */
+    /* Labels looked up AFTER the write, outside the transaction: the body only
+       carries ids, and the answer has to print names. One extra read per write
+       is the right price — building labels from the draft would show the screen
+       a name the server guessed rather than the one the catalog holds. */
+    const productNames = (await this.repo.productsOf(handle, [code])).get(code) ?? []
+
     return OpportunityCreateResponse.parse(
       toContract({
         row,
@@ -343,6 +384,10 @@ export class OpportunityService {
         ],
         signed: false,
         daysInStage: daysInStageOf(row, row.createdAt),
+        /* Labels read from the catalog after the write rather than rebuilt from
+           the ids in the body: the body only carries ids, and the answer has to
+           print names. */
+        products: productNames,
       }),
     )
   }
@@ -403,7 +448,8 @@ export class OpportunityService {
       ...body.saleOwners,
       ...body.bdOwners,
     ])
-    const write = fromUpdate(body, found.row, new Date())
+    const now = new Date()
+    const write = fromUpdate(body, found.row, now)
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
@@ -418,6 +464,7 @@ export class OpportunityService {
       await this.mirror.put(tx, ref)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
+      await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
 
       /* Chỉ ghi vết khi TRẠNG THÁI đổi. Sửa tên đơn, thêm một tệp, đổi ngày
          đóng — không cái nào là một mẩu lịch sử bán hàng, và ghi hết thì thẻ
@@ -439,11 +486,36 @@ export class OpportunityService {
               : NOTE.restated(found.row.state, body.state),
           },
         ])
+
+        /* A NARROWER threshold than the timeline row just above, and the gap is
+           deliberate: the activity card records a state change that did not move
+           the column too (a sentence a seller reads with meaning), while the
+           history table records only a deal that REALLY left a column. Writing
+           both here would ruin the very number this table exists to answer —
+           "average days spent in a column" would start counting moves that went
+           nowhere. */
+        if (moved) {
+          await this.repo.insertStageEvent(
+            tx,
+            stageEventOf({
+              code,
+              from: found.row.stage,
+              to: written.stage,
+              stageSince: found.row.stageSince,
+              at: now,
+              by: { id: who.id, name: who.name },
+              note: NOTE.moved(found.row.stage, written.stage),
+            }),
+          )
+        }
       }
 
       if (becameLost) await this.notify(tx, ref, true)
       return written
     })
+
+    const productNames =
+      (await this.repo.productsOf(this.repo.readonlyHandle, [code])).get(code) ?? []
 
     return OpportunityUpdateResponse.parse(
       toContract({
@@ -462,8 +534,120 @@ export class OpportunityService {
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */
         signed: found.signed,
         daysInStage: daysInStageOf(row, new Date()),
+        products: productNames,
       }),
     )
+  }
+
+  /** `PATCH /sales/opportunities/:code/stage` — drag a deal to another column.
+   *
+   *  ------------------------------------------------------------------
+   *  THIS DOOR IS WHAT OPENS THE TWO COLUMNS NOBODY COULD REACH
+   *  ------------------------------------------------------------------
+   *  Before it, `stage` could only be written INDIRECTLY, through `state` and
+   *  the `STAGE_OF_STATE` table. That table covers three of the five columns —
+   *  no state maps to 'moi' or 'da-demo' — so the board had five columns and
+   *  only three of them writable. Full reasoning is in the docblock of
+   *  `OpportunityStageMove` in the contract.
+   *
+   *  It does NOT touch `state`, and that is the important half: dragging a card
+   *  between the first two columns does not change what the seller is doing.
+   *  This door also touches neither money, nor owners, nor the close date — the
+   *  cheapest gesture in the product must not be the one that overwrites a
+   *  deal's value.
+   *
+   *  A DEAL THAT HAS LEFT THE BOARD IS REFUSED. A signed or lost deal stands in
+   *  no column (`stage` NULL), and dragging it back onto the board through this
+   *  door would reopen a closed deal without any signature being withdrawn —
+   *  making the book lie about a contract that exists. Reopening is a different
+   *  operation, and nobody has asked for it. */
+  async moveStage(
+    who: Actor,
+    code: MaObject,
+    body: OpportunityStageMove,
+  ): Promise<OpportunityUpdateResponse> {
+    const found = await this.repo.byCode(who, code)
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
+
+    if (found.signed || found.row.closedAt !== null) {
+      throw conflict(
+        `Cơ hội ${code} đã đóng sổ nên không còn đứng ở cột nào — mở lại đơn trước khi chuyển cột.`,
+        { stage: ['Đơn đã đóng'] },
+      )
+    }
+
+    /* Dragging back onto the column the deal already stands in is a no-op.
+       Return the current row rather than write an empty history entry:
+       `opportunity_stage_event_moved` would refuse it, and a 500 for a card
+       dropped back where it was is the wrong answer. */
+    if (found.row.stage === body.stage) {
+      return OpportunityUpdateResponse.parse(toContract(found))
+    }
+
+    const now = new Date()
+
+    const row = await this.repo.run(async (tx) => {
+      const written = await this.repo.updateOpportunity(tx, code, {
+        stage: body.stage,
+        /* The column clock is reset — this IS a column move, exactly what
+           `stage_since` exists to measure. */
+        stageSince: now,
+      })
+
+      await this.repo.insertStageEvent(
+        tx,
+        stageEventOf({
+          code,
+          from: found.row.stage,
+          to: body.stage,
+          stageSince: found.row.stageSince,
+          at: now,
+          by: { id: who.id, name: who.name },
+          note: body.note ?? NOTE.moved(found.row.stage, body.stage),
+        }),
+      )
+
+      await this.touch.record(tx, [
+        {
+          subjectCode: code,
+          subjectKind: 'opportunity',
+          kind: 'doi-cot',
+          ...byOf(who),
+          note: body.note ?? NOTE.moved(found.row.stage, body.stage),
+        },
+      ])
+
+      /* The mirror row carries E1's `state`, and `toRef` builds it from the
+         column — so moving the column moves what the ContextRail prints. */
+      await this.mirror.put(tx, toRef(written, found.owners[0]?.name ?? null))
+      return written
+    })
+
+    return OpportunityUpdateResponse.parse(
+      toContract({
+        row,
+        account: found.account,
+        owners: found.owners,
+        signed: false,
+        daysInStage: daysInStageOf(row, now),
+        products: found.products,
+      }),
+    )
+  }
+
+  /** `GET /sales/opportunities/:code/stage-history` — which columns a deal has
+   *  been through.
+   *
+   *  SEPARATE from `touches`, even though the two tell one story. The activity
+   *  card reads `sales.touch` and prints a sentence a person reads; this table
+   *  returns from-column, to-column and days spent, which is the shape you can
+   *  average. Full reasoning is in the docblock of `opportunity_stage_event`. */
+  async stageHistory(who: Actor, code: MaObject): Promise<OpportunityStageHistory> {
+    const found = await this.repo.byCode(who, code)
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
+
+    const rows = await this.repo.stageEventsOf(code)
+    return OpportunityStageHistory.parse({ rows: rows.map(toStageEvent) })
   }
 
   /** `GET /sales/opportunities/:code/touches` — dòng thời gian của một đơn.
@@ -546,6 +730,29 @@ export class OpportunityService {
       const row = await this.repo.updateOpportunity(tx, code, closeForSign(signedAt))
       const contractRow = await this.contracts.insert(tx, values)
 
+      /* THE LAST HISTORY ROW — `to: null`, the deal leaving the board because
+         it was signed. Without it the funnel has an entry step and no exit
+         step: every won deal vanishes from the final column with no row saying
+         where it went, and "how many deals turned into contracts" — the one
+         question the funnel exists to answer — cannot be computed. A deal
+         standing in no column (`stage` NULL, e.g. one opened straight into the
+         lost state and signed anyway) is skipped: a `null -> null` row is
+         refused by `opportunity_stage_event_moved`, exactly as it should be. */
+      if (found.row.stage !== null) {
+        await this.repo.insertStageEvent(
+          tx,
+          stageEventOf({
+            code,
+            from: found.row.stage,
+            to: null,
+            stageSince: found.row.stageSince,
+            at: signedAt,
+            by: { id: who.id, name: who.name },
+            note: NOTE.signed(contractCode),
+          }),
+        )
+      }
+
       /* Đơn ra khỏi bảng năm cột, nên dòng gương của nó thôi chở `state` — và
          `toRef` đọc `row.stage`, thứ vừa thành NULL. */
       await this.mirror.put(tx, toRef(row, saleOwner?.name ?? null))
@@ -609,6 +816,10 @@ export class OpportunityService {
            loại lỗi không ai tái hiện được. */
         contractCode: done.contractRow.code,
         daysInStage: null,
+        /* Signing does not touch the product join table, so the list read
+           alongside the row is still correct — carry it back rather than ask a
+           second time. */
+        products: found.products,
       }),
       contract: toContractRow(done.contractRow, ownerName),
     })
@@ -658,6 +869,37 @@ export class OpportunityService {
         row: { ...draft.values, code },
         ref: refOf(code, draft, { label: draft.values.name, ownerName }),
         owners: ownerRowsOf(code, draft),
+        /* THE "ENTERED THE BOARD" ROW — the same row the single-deal create
+           door writes, for the same reason. This door forgot it until 03/09,
+           and the omission was invisible on every screen: an imported deal
+           shows up in the book, moves column, signs. Only the funnel counts
+           short, because the denominator of every conversion rate is how many
+           deals STEPPED INTO the first column. A 300-line file was 300 deals
+           the report could not see, and nothing surfaces that until somebody
+           compares two numbers.
+
+           `stageSince: null`, not `now`: this row leaves no column, so
+           `days_in_from` must be NULL — `opportunity_stage_event_clock` pins
+           that pair. A deal opened straight into 'close-lost' stands in no
+           column and gets no history row at all, exactly as at the create
+           door. */
+        /* `?? null` rather than an `=== null` test: `OpportunityValues` is
+           inferred from `$inferInsert`, so a nullable column there is
+           `StageKey | undefined` and not `| null` — skip this and `undefined`
+           reaches `stageEventOf`, writing a history row for a column that does
+           not exist. */
+        stageEvent:
+          (draft.values.stage ?? null) === null
+            ? null
+            : stageEventOf({
+                code,
+                from: null,
+                to: draft.values.stage ?? null,
+                stageSince: null,
+                at: now,
+                by: { id: who.id, name: who.name },
+                note: NOTE.opened(write.leadCode, write.state),
+              }),
         touches: [
           {
             subjectCode: code,
@@ -701,6 +943,14 @@ export class OpportunityService {
         await this.repo.insertOwners(
           tx,
           slice.flatMap((p) => p.owners),
+        )
+        /* AFTER `insertMany` — the `opportunity_code` foreign key demands the
+           deal row first, and both statements sit in one transaction, so the
+           order written here is the order Postgres enforces rather than a
+           convention someone could reorder. */
+        await this.repo.insertStageEvents(
+          tx,
+          slice.flatMap((p) => (p.stageEvent === null ? [] : [p.stageEvent])),
         )
         await this.touch.record(
           tx,

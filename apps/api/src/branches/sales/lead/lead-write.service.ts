@@ -15,6 +15,8 @@ import {
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { AccountService } from '../account/account.service'
+import { identityOfLead } from '../account/account.mapper'
 import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
@@ -69,6 +71,7 @@ export class LeadWriteService {
     private readonly leads: LeadRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
+    private readonly accounts: AccountService,
     /* The first engine this service holds. `setOwner` asks it one question —
        "does this role hold `lead.giao`" — and that question is trục 1 alone,
        which is why it calls `allows()` and not `check()`: the route guard has
@@ -99,7 +102,11 @@ export class LeadWriteService {
 
     const row = await this.repo.run(async (tx) => {
       await this.mirror.put(tx, refOf(code, write))
-      const [written] = await this.repo.insertLeads(tx, [{ ...write.values, code }])
+      /* The company is resolved BEFORE the lead row, in the same transaction:
+         `lead.account_code` is a foreign key into `sales.account`, so the other
+         order kills the lead insert because its target does not exist yet. */
+      const accountCode = await this.accounts.resolveForLead(tx, write.values)
+      const [written] = await this.repo.insertLeads(tx, [{ ...write.values, accountCode, code }])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
 
       /* The lead's first timeline row, written in the same commit as the lead.
@@ -418,10 +425,27 @@ export class LeadWriteService {
           tx,
           slice.map((p) => p.ref),
         )
-        await this.repo.insertLeads(
-          tx,
-          slice.map((p) => p.row),
-        )
+
+        /* One company per row, SEQUENTIALLY and with a memo for the batch.
+           Sequential because `resolveForLead` is a read-then-write on one
+           transaction: `Promise.all` over a single connection only queues them,
+           and here it is worse — two rows of the same company both read "not
+           there" and both insert, and the second dies on
+           `account_identity_uniq`.
+           Memoised because a five thousand row import file is usually thirty
+           companies: without `seen`, every row is a read that returns a code
+           this loop already knew. */
+        const seen = new Map<string, string>()
+        const rows: (typeof slice)[number]['row'][] = []
+        for (const p of slice) {
+          const key = identityOfLead(p.row)
+          const known = seen.get(key)
+          const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row))
+          if (!known) seen.set(key, accountCode)
+          rows.push({ ...p.row, accountCode })
+        }
+
+        await this.repo.insertLeads(tx, rows)
         /* One timeline row per lead, in the same chunk as the lead itself. The
            file name goes into the sentence rather than into a column, because
            the batch receipt in `platform.audit` already holds the authoritative

@@ -3,13 +3,19 @@ import {
   type OpportunityCreate,
   type OpportunityCreateState,
   type OpportunityOwner,
+  type OpportunityProduct,
   type OpportunityRow,
+  type OpportunityStageEvent,
   type OpportunityUpdate,
   type StageKey,
 } from '@pv/contracts'
 import type { ObjectRef } from '@pv/engines'
 import { STATE_LABEL, stageLabel } from './opportunity.labels'
-import type { opportunity, OpportunityRowDb } from './opportunity.schema'
+import type {
+  opportunity,
+  OpportunityRowDb,
+  OpportunityStageEventRowDb,
+} from './opportunity.schema'
 
 /** Bảng ↔ dây. Không quyết định gì, không đọc gì.
  *
@@ -46,6 +52,10 @@ export type OpportunityWrite = {
   values: OpportunityValues
   saleOwners: readonly string[]
   bdOwners: readonly string[]
+  /** Ids of the `PRODUCT` catalog. Outside `values` for exactly the reason the
+   *  two owner lists are: they are rows of `opportunity_product`, and that
+   *  table needs the `code` the draft does not have yet. */
+  products: readonly string[]
 }
 
 /** Một cơ hội sắp được SỬA.
@@ -58,6 +68,7 @@ export type OpportunityEdit = {
   values: Omit<OpportunityValues, 'leadCode'>
   saleOwners: readonly string[]
   bdOwners: readonly string[]
+  products: readonly string[]
 }
 
 /** Số ngày đơn đứng ở cột hiện tại, tính từ một dòng đã ghi.
@@ -105,6 +116,11 @@ export function fromCreate(body: OpportunityCreate, now: Date): OpportunityWrite
       amount: body.amount,
       currency: body.currency,
       expectedClose: body.expectedClose,
+      /* Conditional spread rather than `?? null`, like every other optional
+         field on the CREATE door: absent here means "the column takes the
+         table's default", while an explicit `null` only means something on the
+         UPDATE door, where it says "clear what is there". */
+      ...(body.probability === undefined ? {} : { probability: body.probability }),
       ...(body.description === undefined ? {} : { description: body.description }),
       attachments: [...body.attachments],
       closedAt: lost ? now : null,
@@ -113,6 +129,7 @@ export function fromCreate(body: OpportunityCreate, now: Date): OpportunityWrite
     },
     saleOwners: body.saleOwners,
     bdOwners: body.bdOwners,
+    products: body.products,
   }
 }
 
@@ -162,6 +179,12 @@ export function fromUpdate(
       amount: body.amount,
       currency: body.currency,
       expectedClose: body.expectedClose,
+      /* `?? null` rather than a conditional spread, per the UPDATE door's rule:
+         the body carries the WHOLE editable set, so a missing field means the
+         user just cleared it. For this column that means something real — "I
+         withdraw my estimate" is not "I estimate 0%", and both have to be
+         sayable. */
+      probability: body.probability ?? null,
       description: body.description ?? null,
       attachments: [...body.attachments],
       closedAt: lost ? (current.closedAt ?? now) : null,
@@ -170,6 +193,7 @@ export function fromUpdate(
     },
     saleOwners: body.saleOwners,
     bdOwners: body.bdOwners,
+    products: body.products,
   }
 }
 
@@ -242,6 +266,79 @@ export function ownerRowsOf(
     })),
     ...write.bdOwners.map((actorId) => ({ opportunityCode: code, actorId, role: 'BD' as const })),
   ]
+}
+
+/** Product join rows for a deal that has just been given a code.
+ *
+ *  `list: 'PRODUCT'` is written out even though the column has a `DEFAULT`:
+ *  this is the second half of the composite foreign key into `config_id_list`,
+ *  not a discriminator flag. Letting Postgres fill it in would make this
+ *  function read as though it writes two columns when it is really writing one
+ *  key pair — see the table's docblock. */
+export function productRowsOf(
+  code: string,
+  write: Pick<OpportunityWrite, 'products'>,
+): { opportunityCode: string; productId: string; list: 'PRODUCT' }[] {
+  return write.products.map((productId) => ({
+    opportunityCode: code,
+    productId,
+    list: 'PRODUCT' as const,
+  }))
+}
+
+/** One column-history row, built from the write that just happened.
+ *
+ *  `daysInFrom` is measured from the OLD `stage_since`, not from `created_at`
+ *  and not from the previous history row: that is exactly the clock which was
+ *  just reset, so it is the span the deal really stood in the column it left.
+ *  Returns `null` when there was no previous column —
+ *  `opportunity_stage_event_clock` enforces that pair, so one of the two
+ *  drifting is a refusal from Postgres rather than a quietly skewed report. */
+export function stageEventOf(input: {
+  code: string
+  from: StageKey | null
+  to: StageKey | null
+  stageSince: Date | null
+  at: Date
+  by: { id: string; name: string }
+  note?: string | undefined
+}): {
+  opportunityCode: string
+  at: Date
+  fromStage: StageKey | null
+  toStage: StageKey | null
+  daysInFrom: number | null
+  byId: string
+  by: string
+  note: string | null
+} {
+  const days =
+    input.from === null || input.stageSince === null
+      ? null
+      : Math.max(0, Math.floor((input.at.getTime() - input.stageSince.getTime()) / 86_400_000))
+
+  return {
+    opportunityCode: input.code,
+    at: input.at,
+    fromStage: input.from,
+    toStage: input.to,
+    daysInFrom: days,
+    byId: input.by.id,
+    by: input.by.name,
+    note: input.note ?? null,
+  }
+}
+
+export function toStageEvent(row: OpportunityStageEventRowDb): OpportunityStageEvent {
+  return {
+    id: row.id,
+    at: row.at.toISOString(),
+    from: row.fromStage,
+    to: row.toStage,
+    daysInFrom: row.daysInFrom,
+    by: row.by,
+    ...(row.note ? { note: row.note } : {}),
+  }
 }
 
 /** Dòng gương trong `platform.object` cho một đơn mới.
@@ -318,6 +415,11 @@ export function toContract(input: {
   contractCode?: string | null
   /** Số ngày đơn đứng ở cột hiện tại, repository đếm. */
   daysInStage: number | null
+  /** What the deal is asking about, with labels. Defaults to empty so the two
+   *  WRITE doors do not have to build an array just to say "nothing picked" —
+   *  they re-read the row after writing, and the read path is the one that
+   *  always holds this list. */
+  products?: OpportunityProduct[]
 }): OpportunityRow {
   const { row, account, owners, signed } = input
 
@@ -344,6 +446,8 @@ export function toContract(input: {
     expectedClose: row.expectedClose,
     amount: row.amount,
     currency: row.currency,
+    probability: row.probability,
+    products: input.products ?? [],
 
     owners,
 

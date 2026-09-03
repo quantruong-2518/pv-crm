@@ -29,6 +29,7 @@ import {
   ScreenHeader,
   ScreenLayout,
   Select,
+  StageTrack,
   Separator,
   Skeleton,
   Textarea,
@@ -43,7 +44,7 @@ import {
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
-import { toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import { PIPELINE_STAGES, toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage, type FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -58,6 +59,7 @@ import {
   namesOf,
   opportunityProfileQuery,
   saleOwnersOf,
+  stageTrackOf,
   STATE_TONE,
   toggled,
 } from '@/data/opportunities'
@@ -65,7 +67,9 @@ import {
   CREATE_STATES,
   draftErrorsOf,
   draftOf,
+  opportunityStageHistoryQuery,
   updateBodyOf,
+  useMoveStage,
   useSaveOpportunity,
 } from '@/data/opportunities-write'
 import {
@@ -74,6 +78,8 @@ import {
   Field,
   LossBlock,
   PeopleRow,
+  ProbabilityField,
+  ProductsField,
   STAGE_LABEL,
   STATE_LABEL,
   type SetDraft,
@@ -170,6 +176,8 @@ const EDITABLE = [
   'currency',
   'saleOwners',
   'bdOwners',
+  'probability',
+  'products',
   'description',
   'attachments',
   'lossReason',
@@ -353,6 +361,7 @@ export function OpportunityDetailPage() {
         main={<DealCard op={op} />}
         side={
           <DetailSidePanel>
+            <StageCard op={op} />
             <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
             <PeopleCard op={op} />
             {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches`. Khoá bằng mã ĐƠN chứ
@@ -552,6 +561,25 @@ function DealCard({ op }: { op: OpportunityRow }) {
         onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
       />
 
+      <ProbabilityField
+        value={work.probability}
+        errors={errors.probability}
+        onSet={(next) => set('probability', next)}
+      />
+
+      <ProductsField
+        picked={work.products}
+        errors={errors.products}
+        onToggle={(id) =>
+          set(
+            'products',
+            work.products.includes(id)
+              ? work.products.filter((p) => p !== id)
+              : [...work.products, id],
+          )
+        }
+      />
+
       <Field
         label="Mô tả"
         errors={errors.description}
@@ -685,6 +713,144 @@ function LeadCard({
  *  avatar KÈM tên bằng đúng `MetaPill` này; hai màn chi tiết của cùng một
  *  phòng mà một bên in tên còn một bên bắt rê chuột là hai câu trả lời khác
  *  nhau cho cùng một câu hỏi "ai đang giữ việc này". */
+/** Which column the deal stands in, how to move it, and where it has been.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY MOVING A COLUMN IS NOT PART OF THE FORM IN THE MAIN COLUMN
+ *  ------------------------------------------------------------------
+ *  The form on the left sends ALL thirteen fields on every Save, and the Save
+ *  button only lights up when something is dirty. Putting the column picker in
+ *  there would mean dragging a card to another column also sends money, owners
+ *  and the close date — including fields the user is half-editing and does not
+ *  want saved yet. The `PATCH :code/stage` door carries exactly one field, and
+ *  this card is the only place that calls it.
+ *
+ *  A column move takes effect IMMEDIATELY, with no Save button, and that is
+ *  deliberate rather than an inconsistency with the form beside it: a one-field
+ *  gesture has no half-edited state to hold on to.
+ *
+ *  ------------------------------------------------------------------
+ *  A CLOSED DEAL STANDS IN NO COLUMN
+ *  ------------------------------------------------------------------
+ *  Winning or losing takes a deal off the five-column board. The server refuses
+ *  a column move for such a deal; the screen locks the picker FIRST, so nobody
+ *  clicks and only then reads a refusal. */
+/** A column's label, falling back to the key itself when the label table has
+ *  no entry for it.
+ *
+ *  Falling back to the key rather than to a dash: `PIPELINE_STAGES` is a
+ *  fixture constant, so a column added on the configuration screen but not yet
+ *  in that constant has no label — and printing the raw key is ugly but TRUE,
+ *  while printing a dash hides a column that really exists. The same reasoning
+ *  `exitReasonRows` applies when the row counts disagree. */
+const stageName = (key: NonNullable<OpportunityRow['stage']>) => STAGE_LABEL.get(key) ?? key
+
+function StageCard({ op }: { op: OpportunityRow }) {
+  const move = useMoveStage(op.code)
+  const canEdit = useCan('cơ-hội.sửa')
+  const history = useQuery(opportunityStageHistoryQuery(op.code))
+
+  const stage = op.stage
+  const track = stageTrackOf(op)
+  /* Two reasons to lock, one sentence for each. The shared `Select` has no
+     `disabled` prop, and adding one to the shared layer for a single screen
+     would change the library's API to suit one call site — so locking here
+     means NOT drawing the picker at all, and drawing a read-only pill with the
+     reason instead. The user reads why, rather than clicking a grey box that
+     says nothing. */
+  const lockedBecause =
+    stage === null
+      ? 'Đơn đã đóng sổ — thắng hoặc thua thì không đứng ở cột nào.'
+      : !canEdit
+        ? 'Vai của bạn không sửa được cơ hội.'
+        : null
+
+  return (
+    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Cột và lịch sử">
+      <SectionTitle
+        size="sm"
+        hint={
+          lockedBecause ??
+          'Đổi cột ăn ngay, không cần bấm Lưu. Không đụng tới trạng thái, tiền hay người đứng đơn.'
+        }
+      >
+        Cột của đơn
+      </SectionTitle>
+
+      {lockedBecause !== null || stage === null ? (
+        <MetaPill>
+          {stage === null ? 'Không đứng cột nào' : (STAGE_LABEL.get(stage) ?? stage)}
+        </MetaPill>
+      ) : (
+        <Select
+          label="Cột đang đứng"
+          value={stage}
+          neutralValue={stage}
+          onChange={(v) => {
+            /* Re-picking the column the deal already stands in is a no-op. The
+               server also returns the old row rather than writing an empty
+               history entry, but stopping here saves a round trip on the most
+               common gesture of all: opening the menu and changing one's mind. */
+            if (v === stage || move.isPending) return
+            move.mutate({ stage: v as NonNullable<OpportunityRow['stage']> })
+          }}
+          options={PIPELINE_STAGES.map((s) => ({ value: s.key, label: s.label }))}
+          className="w-full"
+        />
+      )}
+
+      {/* The bar sits UNDER the select, it does not replace it: the bar answers
+          "how far has this deal got" in one glance, the select is where a
+          column changes. A closed deal has no bar — `stageTrackOf` returns
+          `null` and the pill above already says why. */}
+      {track && <StageTrack steps={track.steps} current={track.current} caption />}
+
+      {move.isError && (
+        <p role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
+          {userMessage(move.error)}
+        </p>
+      )}
+
+      <Separator />
+
+      <Kicker tone="muted">Đã đi qua</Kicker>
+
+      {history.isPending ? (
+        <Skeleton className="h-16 w-full" />
+      ) : (history.data?.rows.length ?? 0) === 0 ? (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          Chưa có lượt đổi cột nào được ghi. Đơn mở trước ngày sổ lịch sử chạy thì bắt đầu từ lượt
+          chuyển tiếp theo — số cũ không suy ngược lại được.
+        </p>
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {history.data?.rows.map((e) => (
+            <li key={e.id} className="flex flex-col gap-1">
+              <span className="text-[12px] leading-[1.5]">
+                {/* A  at either end is a real event, not missing data:
+                    entering the board when the deal opened, leaving it when the
+                    deal was signed or lost. */}
+                {e.from === null
+                  ? `Vào bảng ở ${e.to === null ? '—' : stageName(e.to)}`
+                  : e.to === null
+                    ? `Ra khỏi bảng từ ${stageName(e.from)}`
+                    : `${stageName(e.from)} → ${stageName(e.to)}`}
+              </span>
+              <span className="text-muted-foreground text-[11px] leading-[1.5]">
+                {dm(e.at)} · {e.by}
+                {e.daysInFrom !== null && ` · đứng ${e.daysInFrom} ngày`}
+              </span>
+              {e.note !== undefined && (
+                <span className="text-muted-foreground text-[11px] leading-[1.5]">{e.note}</span>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </GlassCard>
+  )
+}
+
 function PeopleCard({ op }: { op: OpportunityRow }) {
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Người đứng đơn">

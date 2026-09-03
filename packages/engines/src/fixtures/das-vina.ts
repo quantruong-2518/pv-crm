@@ -3136,6 +3136,15 @@ export type OpportunityDraft = {
   /** id của actor, không phải tên: tên đổi được, id thì không. */
   saleOwners: string[]
   bdOwners: string[]
+  /** Win probability, 0–100. `null` = nobody has judged it, which is the
+   *  OPPOSITE of 0 = not happening — two contradictory statements about one
+   *  deal, and the forecast reads them in opposite directions. An empty box
+   *  returns `null`, never 0. */
+  probability: number | null
+  /** `PRODUCT` catalog ids (`PD-02`), not labels: a label is editable on the
+   *  configuration screen while an id is immutable — the same rule that makes
+   *  `saleOwners` carry ids rather than names. */
+  products: string[]
   description: string
   attachments: OpportunityFile[]
   /** Chỉ có nghĩa khi `state === 'close-lost'`. */
@@ -3272,6 +3281,13 @@ function buildOpportunities(): Opportunity[] {
          nhãn của bảng này vào trường của bảng kia làm bảy nút chọn không nút
          nào sáng mà người dùng tưởng đã chọn rồi. Câu thật đi vào ô ghi thêm,
          chỗ nó là chữ tự do; chọn lý do thua là việc còn phải làm. */
+      /* The two fields added by the customer-book sweep on 03/09. The frozen
+         book does NOT invent values for them: no row of this scenario ever
+         recorded a win probability or a product line, and filling them in would
+         be demo data no test can pin. `null` and an empty array read as exactly
+         what is true — nobody has filled these in. */
+      probability: null,
+      products: [],
       lossReason: '',
       lossNote: lead.exitReason ?? '',
     }
@@ -3395,6 +3411,8 @@ export function draftOpportunity(
     bdOwners: bd ? [bd] : [],
     description: profile.pain,
     attachments: [],
+    probability: null,
+    products: [],
     lossReason: '',
     lossNote: '',
   }

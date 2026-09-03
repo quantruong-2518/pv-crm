@@ -1298,6 +1298,8 @@ export function rowsToOps(
       bdOwners: v.bdOwner === undefined || v.bdOwner === '' ? [] : [v.bdOwner],
       description: `Nạp từ tệp · dòng ${row.line} · ${MOTION_FACE[opts.motion].label}`,
       attachments: [],
+      probability: null,
+      products: [],
       lossReason: '',
       lossNote: '',
       leadCode: '',

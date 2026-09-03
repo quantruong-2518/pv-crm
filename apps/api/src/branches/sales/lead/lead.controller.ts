@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  ContactCreate,
+  LeadAccountAttach,
   LeadBookQuery,
   LeadCreate,
   LeadImportBody,
@@ -202,6 +204,50 @@ export class LeadController {
     @Param('id', zod(MeetingId)) id: MeetingId,
   ) {
     return this.leads.meetingDrop(who, code, id)
+  }
+
+  // ── Contacts · two doors under `:code` ──────────────────────────────────
+  //
+  // Only TWO, not five: the rest address a `CT-…` code and live in
+  // `lead-contact.controller.ts`. These two speak about the WHOLE SET of a
+  // lead's contacts ("show me the list", "add somebody"), so the lead code is
+  // naturally on the path and the scope axis is already there — exactly like
+  // the meeting doors above.
+
+  @Get(':code/contacts')
+  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  contacts(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+    return this.leads.contactList(who, code)
+  }
+
+  /** 201 with the whole row — including the `isPrimary` flag, which the caller
+   *  CANNOT work out on its own: the first contact of a lead always becomes the
+   *  primary one whatever the body says, because a lead with contacts and no
+   *  primary leaves the profile with no name to print. */
+  @Post(':code/contacts')
+  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  contactAdd(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(ContactCreate)) body: ContactCreate,
+  ) {
+    return this.leads.contactAdd(who, code, body)
+  }
+
+  /** Attach a lead to a company, or detach it.
+   *
+   *  The lead WRITE permission, not the company one: what changes is one cell
+   *  on a lead's profile, and no company row is touched. Full reasoning lives
+   *  in `LeadService`. */
+  @Patch(':code/account')
+  @HttpCode(204)
+  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  accountAttach(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(MaObject)) code: MaObject,
+    @Body(zod(LeadAccountAttach)) body: LeadAccountAttach,
+  ) {
+    return this.leads.attachAccount(who, code, body)
   }
 
   /** Giao lead cho một người, hoặc trả về kho chung. Trả nguyên dòng sổ.

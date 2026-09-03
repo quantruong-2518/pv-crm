@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   OpportunityCreateState,
   type ContractSign,
@@ -7,6 +7,8 @@ import {
   type OpportunityCreate,
   type OpportunityCreateResponse,
   type OpportunityRow,
+  type OpportunityStageHistory,
+  type OpportunityStageMove,
   type OpportunityUpdate,
   type OpportunityUpdateResponse,
 } from '@pv/contracts'
@@ -98,6 +100,11 @@ function dealBody(draft: OpportunityDraft) {
     currency: draft.currency,
     saleOwners: draft.saleOwners,
     bdOwners: draft.bdOwners,
+    /* The form's `null` must NOT become 0 on the wire. The contract marks this
+       field `.optional()` precisely so "nobody has judged it" stays tellable
+       from "judged at 0%", and absence is the only way to say the first. */
+    ...(draft.probability === null ? {} : { probability: draft.probability }),
+    products: draft.products,
     ...(some(draft.description) === undefined ? {} : { description: draft.description }),
     attachments: draft.attachments,
     /* Lý do thua CHỈ đi kèm đơn thua. Hợp đồng từ chối một lý do trên đơn còn
@@ -148,6 +155,14 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
     currency: op.currency ?? 'VND',
     saleOwners: idsOf(saleOwnersOf(op)),
     bdOwners: idsOf(bdOwnersOf(op)),
+    /* `null` is copied straight through, NOT turned into `''` like the text
+       fields below: this box is numeric, and a number input takes `null` by
+       rendering empty. Turning it into 0 "for tidiness" would erase the
+       statement "nobody has judged this". */
+    probability: op.probability,
+    /* The wire carries `{ id, name }` so the screen can print a label; the form
+       only needs ids, exactly like `saleOwners` above. */
+    products: op.products.map((p) => p.id),
     description: op.description ?? '',
     attachments: op.attachments,
     lossReason: op.lossReason ?? '',
@@ -183,6 +198,8 @@ const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft> = {
   currency: 'currency',
   saleOwners: 'saleOwners',
   bdOwners: 'bdOwners',
+  probability: 'probability',
+  products: 'products',
   description: 'description',
   attachments: 'attachments',
   lossReason: 'lossReason',
@@ -314,5 +331,74 @@ export function useSignContract(code: MaObject) {
       client.setQueryData(['sales', 'ops', code], res.opportunity)
       void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// A deal's column — moving it, and reading its history back
+// ---------------------------------------------------------------------------
+
+/** Drag a deal to another column.
+ *
+ *  A DOOR OF ITS OWN rather than an ordinary `PATCH`, and at the screen layer
+ *  that difference earns its keep: `saveOpportunity` sends all thirteen fields,
+ *  so calling it just to change the column would send money, owners and the
+ *  close date along with it — every field the user may be half-editing in
+ *  another tab. This door carries exactly one field.
+ *
+ *  Full reasoning is in the docblock of `OpportunityStageMove` in
+ *  `@pv/contracts`. */
+export function moveOpportunityStage(
+  code: MaObject,
+  body: OpportunityStageMove,
+  signal?: AbortSignal,
+): Promise<OpportunityUpdateResponse> {
+  return api.write<OpportunityUpdateResponse>(`${BOOK_PATH}/${code}/stage`, {
+    method: 'PATCH',
+    body,
+    need: OPPORTUNITY_WRITE_NEED,
+    signal,
+  })
+}
+
+/** The mutation behind the column picker on a deal's profile.
+ *
+ *  Same two-step shape as `useSaveOpportunity`, plus ONE more invalidation: a
+ *  column move produces a history row, so the history card open right beside it
+ *  has to reload. Without that, whoever just dragged the card sees the new
+ *  column at the top and a history that says nothing about the move they just
+ *  made — exactly the kind of mismatch that makes people click twice. */
+export function useMoveStage(code: MaObject) {
+  const client = useQueryClient()
+
+  return useMutation<OpportunityUpdateResponse, ApiError, OpportunityStageMove>({
+    mutationFn: (body) => moveOpportunityStage(code, body),
+    onSuccess: (row) => {
+      client.setQueryData(['sales', 'ops', code], row)
+      void client.invalidateQueries({ queryKey: ['sales', 'ops', code, 'stage-history'] })
+      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+    },
+  })
+}
+
+/** Which columns a deal has been through, and how long it stood in each.
+ *
+ *  A SEPARATE query from the profile rather than folded into `GET /:code`: the
+ *  deal profile is opened dozens of times a day, while the column history is
+ *  what somebody scrolls to when asking one specific question. Folding it in
+ *  would make every profile open pay for a table most people never look at.
+ *
+ *  The cache key extends the profile's key (`['sales','ops',code]`) by one
+ *  segment — which is why a column move's `invalidateQueries` reaches it
+ *  without a second key constant that two places could forget to keep in
+ *  sync. */
+export function opportunityStageHistoryQuery(code: MaObject) {
+  return queryOptions({
+    queryKey: ['sales', 'ops', code, 'stage-history'] as const,
+    queryFn: ({ signal }) =>
+      api.read<OpportunityStageHistory>(`${BOOK_PATH}/${code}/stage-history`, {
+        need: { branch: 'Sales', permission: 'cơ-hội.xem', scoped: true },
+        signal,
+      }),
   })
 }

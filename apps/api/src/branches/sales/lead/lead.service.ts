@@ -7,6 +7,11 @@ import {
   LeadMailTimelineResponse,
   LeadProfile,
   LeadScorecard,
+  type ContactCreate,
+  type ContactListResponse,
+  type ContactPatch,
+  type ContactRow,
+  type LeadAccountAttach,
   type LeadBookQuery,
   type MaObject,
   type MailRunId,
@@ -18,6 +23,8 @@ import {
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
+import { AccountService } from '../account/account.service'
+import { ContactService } from '../contact/contact.service'
 import { MeetingService } from '../meeting/meeting.service'
 import { TouchService } from '../touch/touch.service'
 import { toContract, toMailEvent, toMailTimeline, toProfile, toRef } from './lead.mapper'
@@ -42,6 +49,8 @@ export class LeadService {
     private readonly repo: LeadRepository,
     private readonly touch: TouchService,
     private readonly meetings: MeetingService,
+    private readonly contacts: ContactService,
+    private readonly accounts: AccountService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -246,6 +255,56 @@ export class LeadService {
     await this.meetings.drop(code, id)
   }
 
+  // ── Contacts · five doors, TWO shapes of path ───────────────────────────
+  //
+  // The first two go through the lead's `:code` and reuse `guard()` exactly as
+  // the meeting doors do. The other three address a `CT-…` code, so the scope
+  // axis has to be resolved one hop further: read the contact to learn which
+  // lead it hangs off, THEN guard. That price is deliberate and is written down
+  // at `packages/contracts/src/sales/contact.ts` — a contact is a first-class
+  // object with a code people read out loud, so it gets a path of its own.
+  //
+  // NO new permission: a contact is part of a lead's profile, so reading one
+  // takes the lead READ permission and touching one takes the lead WRITE one.
+
+  async contactList(who: Actor, code: MaObject): Promise<ContactListResponse> {
+    await this.guard(who, code)
+    return this.contacts.list(code)
+  }
+
+  async contactAdd(who: Actor, code: MaObject, body: ContactCreate): Promise<ContactRow> {
+    await this.guard(who, code)
+    return this.contacts.add(who, code, body)
+  }
+
+  async contactEdit(who: Actor, code: MaObject, body: ContactPatch): Promise<ContactRow> {
+    const leadCode = await this.guardByContact(who, code)
+    return this.contacts.edit(leadCode, code, body)
+  }
+
+  async contactDrop(who: Actor, code: MaObject): Promise<void> {
+    const leadCode = await this.guardByContact(who, code)
+    await this.contacts.drop(leadCode, code)
+  }
+
+  async contactPrimary(who: Actor, code: MaObject): Promise<ContactRow> {
+    const leadCode = await this.guardByContact(who, code)
+    return this.contacts.setPrimary(leadCode, code)
+  }
+
+  /** Attach a lead to a company, or detach it.
+   *  `PATCH /sales/leads/:code/account`.
+   *
+   *  The lead WRITE permission rather than the company one, and the scope axis
+   *  is ON: what changes is a lead row — no company row is touched. Somebody
+   *  who may edit their own lead may also say which company it belongs to;
+   *  demanding the company-book permission here would send a Sale to ask for a
+   *  department-wide grant in order to fix one cell on their own profile. */
+  async attachAccount(who: Actor, code: MaObject, body: LeadAccountAttach): Promise<void> {
+    await this.guard(who, code)
+    await this.accounts.attachLead(code, body.accountCode)
+  }
+
   /** Thẻ điểm Sổ lead. `GET /sales/leads/scorecard`.
    *
    *  KHÔNG cắt theo phạm vi, và đó là quyết định chứ không phải sót: thẻ điểm
@@ -273,5 +332,32 @@ export class LeadService {
     if (!found.inScope) {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
+  }
+
+  /** The same fence, entered from a CONTACT code.
+   *
+   *  The three `CT-…` doors carry no lead code on the path, so `@Need` cannot
+   *  see the scope axis and the service has to resolve it: read the contact to
+   *  learn which lead it belongs to, then guard that lead.
+   *
+   *  A code that DOES NOT EXIST and a code belonging to somebody else's lead
+   *  both come back as the same 404, and that is not laziness: `guard()` above
+   *  throws 403 for an out-of-scope lead because by then the caller has typed
+   *  the lead code themselves — they already know it exists. Here they do not,
+   *  so telling the two apart would tell the caller that `CT-0412` is real on a
+   *  lead they may not read, leaking exactly what the scope axis is hiding.
+   *
+   *  Returns the lead code because all three callers need it immediately after:
+   *  `ContactService` takes `leadCode` and re-checks it, and that second check
+   *  is what keeps that service correct even if a fourth door ever forgets to
+   *  call this fence. */
+  private async guardByContact(who: Actor, code: MaObject): Promise<MaObject> {
+    const leadCode = await this.contacts.leadOf(code)
+    if (leadCode === null) throw notFound('người liên hệ', code)
+
+    const found = await this.repo.byCode(who, leadCode)
+    if (!found || !found.inScope) throw notFound('người liên hệ', code)
+
+    return leadCode
   }
 }

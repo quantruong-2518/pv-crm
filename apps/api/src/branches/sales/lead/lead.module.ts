@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { AccountModule } from '../account/account.module'
+import { ContactModule } from '../contact/contact.module'
 import { MeetingModule } from '../meeting/meeting.module'
 import { TouchModule } from '../touch/touch.module'
+import { LeadContactController } from './lead-contact.controller'
 import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
@@ -44,8 +47,20 @@ import { LeadMailComposer } from './lead-mail.composer'
  *  the same reason: another branch may ask for leads, it does not get to make
  *  them. */
 @Module({
-  imports: [EnginesModule, GraphModule, MailModule, TouchModule, MeetingModule],
-  controllers: [LeadController, LeadIntakeController],
+  imports: [
+    EnginesModule,
+    GraphModule,
+    MailModule,
+    TouchModule,
+    MeetingModule,
+    ContactModule,
+    /* `PATCH /sales/leads/:code/account` attaches a lead to a company, and the
+       lead write paths call `resolveForLead` inside their own transaction. Both
+       go through the exported service rather than reaching into the
+       `sales.account` table — the branch rule in `apps/api/CLAUDE.md`. */
+    AccountModule,
+  ],
+  controllers: [LeadController, LeadIntakeController, LeadContactController],
   providers: [
     LeadService,
     LeadRepository,

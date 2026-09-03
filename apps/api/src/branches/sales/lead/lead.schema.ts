@@ -22,6 +22,7 @@ import type {
   StageKey,
 } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
+import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
 
@@ -140,6 +141,19 @@ export const lead = sales.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 
     // ── info · khách là ai ─────────────────────────── ô 1 · 2 · 3 ─────────
+    /** The company this enquiry belongs to, once one has been written down.
+     *
+     *  NULLABLE, AND IT HAS TO BE. A lead arrives through the landing page and
+     *  the import door before anybody has decided whether it is a new customer
+     *  or the third enquiry from one we already have. Making this `NOT NULL`
+     *  would put that decision on the intake path, which is the one path that
+     *  must never be able to refuse a row.
+     *
+     *  The eight columns below are NOT superseded by it — see the docblock of
+     *  `account.schema.ts` for why they stay and which of the two wins when they
+     *  disagree. */
+    accountCode: text('account_code').references(() => account.code),
+
     company: text('company').notNull(),
     /** Tên trên giấy tờ, khác tên gọi trong sổ. */
     legalName: text('legal_name'),

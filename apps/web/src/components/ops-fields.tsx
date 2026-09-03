@@ -5,7 +5,6 @@ import { OPPORTUNITY_FILES_MAX, OPPORTUNITY_LOSS_NOTE_MAX } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
 import {
   CURRENCIES,
-  LOSS_REASONS,
   OPPORTUNITY_STATES,
   PIPELINE_STAGES,
   toDong,
@@ -13,6 +12,7 @@ import {
   type OpportunityDraft,
 } from '@pv/engines/fixtures/das-vina'
 import { useSalesPeople } from '@/data/directory'
+import { useLossReasons, useProductCatalog } from '@/data/sales-config'
 
 /** Ô nhập dùng chung của PHIẾU CƠ HỘI.
  *
@@ -251,6 +251,128 @@ export function PeopleRow({
   )
 }
 
+/** Win probability — 0 to 100, or LEFT EMPTY.
+ *
+ *  ------------------------------------------------------------------
+ *  AN EMPTY BOX AND A ZERO ARE OPPOSITE STATEMENTS
+ *  ------------------------------------------------------------------
+ *  Empty = nobody has judged this deal. `0` = the seller looked and said it is
+ *  not happening. The forecast reads the two in opposite directions — the first
+ *  is excluded from the sum, the second drags it down — so this box must NOT
+ *  have a default value, and clearing it has to return `null` rather than 0.
+ *
+ *  `type="number"` with `min`/`max` only makes the browser show a numeric
+ *  keypad and a pair of arrows. The real fence is the contract's bound on
+ *  `probability` and `opportunity_probability_range` at the table layer — the
+ *  100 typed in here is a third copy, so it is a hint and nothing more. */
+export function ProbabilityField({
+  value,
+  errors,
+  onSet,
+}: {
+  value: number | null
+  errors?: string[]
+  onSet: (next: number | null) => void
+}) {
+  return (
+    <Field
+      label="Xác suất thắng"
+      errors={errors}
+      hint={
+        value === null
+          ? 'Bỏ trống = chưa ai đánh giá. Khác hẳn 0% — bản dự báo loại đơn chưa đánh giá ra ngoài, còn 0% thì kéo tổng xuống.'
+          : `Đơn này được đánh giá ${value}% khả năng chốt.`
+      }
+    >
+      <div className="flex items-center gap-3">
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          step={5}
+          className="w-28"
+          aria-label="Xác suất thắng, phần trăm"
+          invalid={Boolean(errors)}
+          value={value === null ? '' : String(value)}
+          onChange={(e) => {
+            const raw = e.target.value.trim()
+            /* An empty string becomes `null`, NOT 0 — see the docblock.
+               `Number('')` returns 0, so this branch has to come before any
+               coercion. */
+            if (raw === '') return onSet(null)
+            const n = Number(raw)
+            onSet(Number.isFinite(n) ? Math.trunc(n) : null)
+          }}
+        />
+        <span className="text-muted-foreground text-[12px]">%</span>
+      </div>
+    </Field>
+  )
+}
+
+/** What the customer is asking about — multi-select from the `PRODUCT` catalog.
+ *
+ *  The catalog is read from the server (`salesCatalogQuery`) rather than from a
+ *  constant: adding a product line is a row in `sales.config_entry`, not a
+ *  build. An entry that has been switched OFF (`active: false`) is not offered
+ *  for new picks, but still shows if this deal already holds it — a deal that
+ *  asked about a line we have since stopped selling is still a fact, and hiding
+ *  the chip would be editing history.
+ *
+ *  An empty catalog says so and points the way, rather than showing a blank the
+ *  user reads as a broken screen. */
+export function ProductsField({
+  picked,
+  errors,
+  onToggle,
+}: {
+  picked: string[]
+  errors?: string[]
+  onToggle: (id: string) => void
+}) {
+  const products = useProductCatalog()
+  const shown = products.filter((p) => p.active || picked.includes(p.id))
+
+  return (
+    <Field
+      label="Sản phẩm/dịch vụ quan tâm"
+      errors={errors}
+      hint="Chọn từ danh mục của phòng. Sửa danh mục ở Thiết lập · Sản phẩm/dịch vụ."
+      plain
+    >
+      {shown.length === 0 ? (
+        <p className="text-muted-foreground text-[12px] leading-[1.6]">
+          Danh mục Sản phẩm/dịch vụ chưa có mục nào — vào Thiết lập để nhập, rồi quay lại chọn.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Sản phẩm/dịch vụ quan tâm">
+          {shown.map((p) => {
+            const on = picked.includes(p.id)
+            return (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={on}
+                title={p.active ? undefined : 'Mục này đã tắt — giữ lại vì đơn đang chọn nó'}
+                onClick={() => onToggle(p.id)}
+                className={cn(
+                  'motion-std flex h-10 items-center rounded-md px-3 text-[12px]',
+                  on
+                    ? 'bg-primary/24 text-accent-foreground font-semibold'
+                    : 'bg-white/9 hover:bg-white/16',
+                  p.active ? '' : 'opacity-60',
+                )}
+              >
+                {p.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </Field>
+  )
+}
+
 /** Tệp đính kèm. POC giữ đúng tên và cỡ tệp, không tải nội dung lên. */
 export function AttachmentsField({
   draft,
@@ -358,6 +480,11 @@ export function LossBlock({
   onSet: SetDraft
   errors?: FieldErrors
 }) {
+  /* The buttons read from the server's `LOSS_REASON` catalog, not from a
+     fixture constant: changing a reason is the sales team's job on the
+     configuration screen, not a build. */
+  const reasons = useLossReasons()
+
   return (
     <section className="flex flex-col gap-4 rounded-md bg-white/5 p-4" aria-label="Lý do thua">
       <div className="flex flex-col gap-2">
@@ -368,14 +495,14 @@ export function LossBlock({
           </span>
         </Kicker>
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Bảy lý do hay gặp, không phải danh sách đóng — khác sáu lý do lead ra khỏi luồng. Một đơn
-          thua không ghi lý do là một bài học mất trắng.
+          Danh sách MỞ, sửa được ở Thiết lập — khác sáu lý do lead ra khỏi luồng, vốn là danh sách
+          đóng. Một đơn thua không ghi lý do là một bài học mất trắng.
         </span>
       </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-2">
-          {LOSS_REASONS.map((r) => (
+          {reasons.map((r) => (
             <Button
               key={r}
               size="sm"

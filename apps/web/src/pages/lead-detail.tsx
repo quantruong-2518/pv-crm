@@ -36,6 +36,7 @@ import { leadTouchesQuery } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
+import { ContactsCard } from '@/components/contacts-card'
 import { ExitDialog } from '@/components/exit-dialog'
 import { MeetingsCard } from '@/components/meetings-card'
 import { MasMailModal } from '@/components/mas-mail-modal'
@@ -401,6 +402,10 @@ export function LeadDetailPage() {
           <DetailSidePanel>
             {/* Đọc dữ kiện trước khi quyết định: đã họp gì → email đang ở đâu →
                 bước tiếp theo là gì. Ghi chú nằm sau luồng chính. */}
+            {/* Contacts come BEFORE meetings: "who do I call" is asked before
+                "how many times have we met", and this card is what writes the
+                lead's own five contact columns — see its docblock. */}
+            <ContactsCard code={lead.code} canEdit={canWrite} />
             <MeetingsCard code={lead.code} canEdit={canWrite} />
             <MailTimelineCard
               code={lead.code}

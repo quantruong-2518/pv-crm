@@ -168,6 +168,52 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/lead-detail'),
   },
   {
+    /** THE CUSTOMER COMPANY BOOK — a permission domain of its own, not borrowed
+     *  from the lead book.
+     *
+     *  The company-book read permission rather than the lead one, and that
+     *  difference is the whole reason the domain exists: a company stands ABOVE
+     *  the lead book and outlives every enquiry, so editing it changes what
+     *  every lead, deal and contract underneath is about. Full reasoning sits
+     *  where the permission is declared in `packages/engines/src/e2-access.ts`.
+     *
+     *  The CONTACT book is the opposite, deliberately: it runs on the lead
+     *  read/write pair, because a contact is part of ONE lead's profile. */
+    path: '/sales/accounts',
+    name: 'Kinh doanh · Khách hàng · Sổ công ty',
+    branch: 'Sales',
+    permission: 'khách-hàng.xem',
+    load: () => import('@/pages/accounts'),
+  },
+  {
+    path: '/sales/accounts/:code',
+    name: 'Kinh doanh · Khách hàng · Hồ sơ công ty',
+    branch: 'Sales',
+    permission: 'khách-hàng.xem',
+    load: () => import('@/pages/account-detail'),
+  },
+  {
+    /** THE CONTACT BOOK — the lead read permission, NOT the company one.
+     *
+     *  Two screens side by side, two different permissions, and the difference
+     *  is deliberate: a company is a fact about the market, so the company book
+     *  is open to the whole department; a person with a name and a phone number
+     *  is a fact about ONE PERSON'S customer, so this book runs on the lead's
+     *  permission and is cut by the lead's scope axis. */
+    path: '/sales/contacts',
+    name: 'Kinh doanh · Khách hàng · Sổ người liên hệ',
+    branch: 'Sales',
+    permission: 'lead.xem',
+    load: () => import('@/pages/contacts'),
+  },
+  {
+    path: '/sales/contacts/:code',
+    name: 'Kinh doanh · Khách hàng · Hồ sơ người liên hệ',
+    branch: 'Sales',
+    permission: 'lead.xem',
+    load: () => import('@/pages/contact-detail'),
+  },
+  {
     path: '/sales/opportunities',
     name: 'Kinh doanh · Module 3 · Sổ cơ hội',
     branch: 'Sales',

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PageQuery, SortDir, paged } from '../pagination'
 import { MaObject, Moc, email, phoneOptional, textNhap, textNhapTuyChon } from '../primitives'
 import { ContactChannel } from './enums'
 
@@ -236,3 +237,68 @@ export type ContactRow = z.infer<typeof ContactRow>
 export type ContactListResponse = z.infer<typeof ContactListResponse>
 export type ContactCreate = z.infer<typeof ContactCreate>
 export type ContactPatch = z.infer<typeof ContactPatch>
+
+// ---------------------------------------------------------------------------
+// THE BOOK — every person we know, across every lead
+// ---------------------------------------------------------------------------
+
+/** `GET /sales/contacts` — permission `lead.xem`, scoped.
+ *
+ *  ------------------------------------------------------------------
+ *  A SECOND SHAPE OF LIST, AND IT ANSWERS A DIFFERENT QUESTION
+ *  ------------------------------------------------------------------
+ *  `ContactListResponse` above is "who do we know at THIS lead" — bounded by
+ *  one company, unpaged, and read on a profile that already knows the lead. This
+ *  one is "have we met this person before", asked without knowing which lead
+ *  they belong to. It is the question `meeting_attendee` could not ask while the
+ *  customer side was a typed-in string, and it is why the contact table earned
+ *  a code of its own.
+ *
+ *  Paged, therefore, where the other is not: this list grows with the whole
+ *  book, not with one customer.
+ *
+ *  ------------------------------------------------------------------
+ *  SCOPED THROUGH THE LEAD, NOT THROUGH THE PERSON
+ *  ------------------------------------------------------------------
+ *  A contact has no owner — people do not belong to sellers. What a `ownOnly`
+ *  actor may see here is exactly the set of contacts hanging off leads they may
+ *  see, which is the same rule `guardByContact` applies to the three
+ *  single-row doors. The alternative — an unscoped people book — would hand
+ *  every seller the mailbox of every customer in the department, through a
+ *  screen nobody thought of as a data export.
+ *
+ *  This is the seam where the contact book differs from the ACCOUNT book, which
+ *  is deliberately unscoped: a company is a fact about the market, a named
+ *  person with a phone number is a fact about somebody's customer. */
+export const ContactBookRow = ContactRow.extend({
+  /** The company this person works at, carried so the book prints a name rather
+   *  than a lead code. Read through `lead.account_code`; absent for a lead that
+   *  has not been attached to a company yet. */
+  accountCode: MaObject.optional(),
+  accountName: textNhapTuyChon(200),
+  /** The lead's company column, which is always present — the fallback the row
+   *  prints when `accountName` is not there yet. */
+  company: textNhap(200),
+})
+
+export const ContactBookResponse = paged(ContactBookRow)
+
+export const ContactSortKey = z.enum(['name', 'company', 'createdAt'])
+
+export const ContactBookQuery = PageQuery.extend({
+  sort: ContactSortKey.default('name'),
+  dir: SortDir.default('asc'),
+  /** Name, mailbox or phone — one box, because somebody looking for a person
+   *  types whichever of the three they remember. */
+  q: z.string().trim().min(1).max(120).optional(),
+  /** Only the primary contact of each lead. The switch a person flips when the
+   *  question is "who do I call at each customer" rather than "who do we know". */
+  primary: z.enum(['1']).optional(),
+  /** Everyone at one company, by account code. */
+  account: MaObject.optional(),
+})
+
+export type ContactBookRow = z.infer<typeof ContactBookRow>
+export type ContactBookResponse = z.infer<typeof ContactBookResponse>
+export type ContactBookQuery = z.infer<typeof ContactBookQuery>
+export type ContactSortKey = z.infer<typeof ContactSortKey>

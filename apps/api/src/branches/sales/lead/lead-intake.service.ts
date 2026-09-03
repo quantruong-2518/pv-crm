@@ -4,6 +4,7 @@ import { AUDIENCE_INTERNAL, LEAD_INTAKE_ACCEPTED, plan, type ObjectRef } from '@
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { AccountService } from '../account/account.service'
 import { isDbConstraint } from '@api/platform/http/db-error'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
 import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
@@ -20,6 +21,7 @@ export class LeadIntakeService {
     private readonly leads: LeadRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
+    private readonly accounts: AccountService,
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
   ) {}
@@ -45,7 +47,13 @@ export class LeadIntakeService {
       await this.writes.run(async (tx) => {
         const ref = refOf(code, write)
         await this.mirror.put(tx, ref)
-        await this.writes.insertLandingLead(tx, { ...write.values, code })
+        /* Same transaction and same order as the other two lead write paths:
+           the foreign key on `lead.account_code` wants the company row to exist
+           first. This door is anonymous, but the company is not — somebody
+           filling in the landing page form has to land on the company row that
+           already exists, or every repeat submission opens a new customer. */
+        const accountCode = await this.accounts.resolveForLead(tx, write.values)
+        await this.writes.insertLandingLead(tx, { ...write.values, accountCode, code })
         await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
 
         /* `SYSTEM_ACTOR` and no `actorId`, because this door is anonymous by
