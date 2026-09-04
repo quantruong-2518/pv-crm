@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { ServerDown } from '@/app/api'
 import { startAuthLifecycle } from '@/app/auth'
 import { queryClient } from '@/app/query-client'
 import { AppToasts } from '@/components/app-toasts'
@@ -25,6 +26,9 @@ createRoot(host).render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
       <AppToasts />
+      {/* Above every screen and every other layer: when the server is gone, the
+          session lock cannot let anyone back in either. See `server-down.tsx`. */}
+      <ServerDown />
     </QueryClientProvider>
   </StrictMode>,
 )

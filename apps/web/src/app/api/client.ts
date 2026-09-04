@@ -3,6 +3,7 @@ import type { AccessNeed } from '@pv/engines'
 import { access, renewSession, sessionIsLive, useSession } from '@/app/auth'
 import { API_BASE_URL } from './base-url'
 import { ApiError, denyReasonOf, failureOf } from './errors'
+import { isGatewayDown, reportAnswering, reportUnreachable } from './server-health'
 
 /** Tầng gọi dữ liệu — có INTERCEPTOR, và interceptor là toàn bộ lý do nó tồn tại.
  *
@@ -204,7 +205,20 @@ const logDenied: OnFailure = async (error, req) => {
   return 'chịu'
 }
 
-const AFTER: OnFailure[] = [renewOnUnauthorized, logDenied]
+/** Nothing came back at all -> tell `server-health`, which owns the takeover.
+ *
+ *  Reports rather than recovers, and asks for no retry on purpose: replaying
+ *  the request here would race the backoff that store already runs, and the call
+ *  that just failed is not the one worth saving — the person watching the
+ *  screen is. Two shapes count, and only two: `fetch` itself threw, or the
+ *  gateway answered for a machine that did not. A plain 500 is one endpoint
+ *  falling over on a server that is plainly alive. */
+const watchServer: OnFailure = async (error) => {
+  if (error.kind === 'mạng' || isGatewayDown(error.status)) reportUnreachable()
+  return 'chịu'
+}
+
+const AFTER: OnFailure[] = [renewOnUnauthorized, logDenied, watchServer]
 
 // ---------------------------------------------------------------------------
 // Vòng gọi
@@ -308,6 +322,11 @@ async function send<T>(req: ApiRequest, schema?: ZodType<T>): Promise<T> {
        copy of identity is the one thing HttpOnly was bought to prevent. */
     credentials: 'include',
   })
+  /* Somebody is home. A 403 or a 404 proves it just as well as a 200 — the
+     server formed an opinion — so the recovery signal is read HERE, off the
+     bare response, and not from the success path further down where a refused
+     call never reaches. */
+  if (!isGatewayDown(res.status)) reportAnswering()
   /* Ném nguyên `Response` chứ không tự đọc thân ở đây: `toApiError` là chỗ duy
      nhất biết Problem trông như thế nào, và nó cần cả `status` lẫn thân. */
   if (!res.ok) throw res

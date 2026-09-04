@@ -18,3 +18,4 @@ export {
   type WriteOptions,
 } from './client'
 export { ApiError, isApiError, userMessage, type ApiFailure, type FieldErrors } from './errors'
+export { ServerDown } from './server-down'
