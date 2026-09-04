@@ -204,6 +204,7 @@ export class MasRepository {
         body: mailTemplate.body,
         ctaLabel: mailTemplate.ctaLabel,
         ctaUrl: mailTemplate.ctaUrl,
+        bookingUrl: mailTemplate.bookingUrl,
         active: mailTemplate.active,
       })
       .from(mailTemplate)
@@ -220,9 +221,10 @@ export class MasRepository {
        gone: the sender must review the link that goes out in their name, so the
        pair travels to the panel with the rest of the row and comes back on
        `MasSendRequest.cta`. */
-    return rows.map(({ ctaLabel, ctaUrl, ...row }) => ({
+    return rows.map(({ ctaLabel, ctaUrl, bookingUrl, ...row }) => ({
       ...row,
       ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
+      ...(bookingUrl ? { bookingUrl } : {}),
     }))
   }
 
@@ -238,14 +240,19 @@ export class MasRepository {
         body: mailTemplate.body,
         ctaLabel: mailTemplate.ctaLabel,
         ctaUrl: mailTemplate.ctaUrl,
+        bookingUrl: mailTemplate.bookingUrl,
         active: mailTemplate.active,
       })
       .from(mailTemplate)
       .where(eq(mailTemplate.code, code))
 
     if (!row) return undefined
-    const { ctaLabel, ctaUrl, ...rest } = row
-    return { ...rest, ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}) }
+    const { ctaLabel, ctaUrl, bookingUrl, ...rest } = row
+    return {
+      ...rest,
+      ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
+      ...(bookingUrl ? { bookingUrl } : {}),
+    }
   }
 
   async createTemplate(input: {
@@ -255,6 +262,7 @@ export class MasRepository {
     body: string
     ctaLabel: string | null
     ctaUrl: string | null
+    bookingUrl: string | null
   }): Promise<void> {
     await this.db.insert(mailTemplate).values(input)
   }
@@ -271,6 +279,7 @@ export class MasRepository {
       body?: string
       ctaLabel?: string | null
       ctaUrl?: string | null
+      bookingUrl?: string | null
       active?: boolean
     },
   ): Promise<void> {

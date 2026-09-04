@@ -87,6 +87,7 @@ export class MasMailComposer implements MailComposer {
       subject: run.subject,
       body: run.body,
       cta: run.ctaLabel && run.ctaUrl ? { label: run.ctaLabel, url: run.ctaUrl } : undefined,
+      ...(run.bookingUrl ? { bookingUrl: run.bookingUrl } : {}),
       merge: delivery.merge ?? {},
       unsubscribeUrl,
       sender: senderOf(run.fromAddress, this.env.PV_MAS_SENDER_POSTAL),

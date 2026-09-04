@@ -54,6 +54,14 @@ export type MailHint = {
 export type MailDraft = {
   subject: string
   body: string
+  /** The CTA button's destination, exactly as typed. Optional because a letter
+   *  without a button is ordinary, and because the field is half-typed on most
+   *  keystrokes — the checks below parse it and stay silent when they cannot. */
+  ctaUrl?: string
+  /** The booking button's destination — a field of its own since the letter
+   *  grew a second button. Checked separately from `ctaUrl` because the advice
+   *  differs: only this one is worth telling somebody to prefill. */
+  bookingUrl?: string
   /** Merge keys the SERVER reported it had no value for, from the last preview.
    *  Empty until a preview has run — this file never guesses at them, because
    *  whether a key resolves depends on the lead, which only the server has. */
@@ -74,6 +82,14 @@ const SLOT = /\[[^\]\n]{3,}\]/g
 /** `{{key}}`, spelled exactly as `mas-letter.ts` spells it, because the whole
  *  value of this check is catching a key that file would silently blank. */
 const PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g
+
+/** Booking pages whose form prefills from the query string.
+ *
+ *  Named hosts and not a guess at "looks like a scheduler": the hint below
+ *  tells the writer the EXACT parameters to add, and the parameter names are a
+ *  fact about each tool. A host nobody listed gets no hint rather than advice
+ *  that quietly does nothing. */
+const BOOKING_HOSTS = ['calendly.com', 'cal.com']
 
 /** Most clients stop drawing a subject somewhere around here. Past it a person
  *  is writing for the archive, not for the inbox row. */
@@ -132,6 +148,28 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       tone: 'warn',
       text: 'Còn chỗ trống của mẫu chưa điền',
       detail: `${slots.join(' · ')} — mẫu chỉ là gợi ý, xoá hoặc thay bằng câu của bạn đều được.`,
+    })
+  }
+
+  /* A SLOT LEFT IN THE LINK IS NOT THE SAME MISTAKE AS ONE LEFT IN THE PROSE,
+     so it is a second hint and not two more entries in the list above.
+     An unfilled slot in a sentence embarrasses; an unfilled slot in the button's
+     address sends every recipient to a page that does not exist, and "delete it
+     if you don't need it" — the advice the hint above gives — is exactly the
+     wrong move here. The template seeded for booking links carries one of these
+     on purpose, because the Calendly address is the one thing the system cannot
+     know and must not invent. */
+  const linkSlots = unique(
+    [...(draft.ctaUrl ?? '').matchAll(SLOT), ...(draft.bookingUrl ?? '').matchAll(SLOT)].map(
+      (m) => m[0],
+    ),
+  )
+  if (linkSlots.length > 0) {
+    hints.push({
+      id: 'link-slot',
+      tone: 'warn',
+      text: 'Link của nút còn chỗ trống chưa điền',
+      detail: `${linkSlots.join(' · ')} — phải thay bằng địa chỉ thật, để nguyên thì nút dẫn tới trang không tồn tại.`,
     })
   }
 
@@ -247,6 +285,40 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
     })
   }
 
+  /* Both buttons, one check: the letter has two links now and `http` is the
+     same mistake in either. Not a mail-client problem — the letter renders
+     either way. The cost lands on the reader: a form opened over http is one a
+     browser marks unsafe, and whatever they type into it travels in the clear. */
+  const cta = parseUrl(draft.ctaUrl)
+  const booking = parseUrl(draft.bookingUrl)
+  const insecure = [cta, booking].filter((url) => url?.protocol === 'http:')
+  if (insecure.length > 0) {
+    hints.push({
+      id: 'link-insecure',
+      tone: 'warn',
+      text: 'Link của nút đi qua http, không phải https',
+      detail: 'Trang mở ra bị trình duyệt gắn cảnh báo, và thứ khách gõ vào đó đi không mã hoá.',
+    })
+  }
+
+  /* Only fires on a host whose prefill parameters this hint can actually NAME.
+     A booking tool nobody listed gets no hint rather than two parameter names
+     that its form ignores — advice that quietly does nothing is worse than
+     silence, because it looks like the job is done. */
+  if (
+    booking &&
+    BOOKING_HOSTS.some((host) => hostMatches(booking.hostname, host)) &&
+    !booking.search
+  ) {
+    hints.push({
+      id: 'booking-no-prefill',
+      tone: 'tip',
+      text: 'Link đặt lịch chưa điền sẵn thông tin khách',
+      detail:
+        'Thêm ?name={{contact_name}}&email={{email}} vào cuối link — khách bấm là chọn giờ luôn, không phải gõ lại tên và email.',
+    })
+  }
+
   if (body.length > WALL && !body.includes('\n\n')) {
     hints.push({
       id: 'wall',
@@ -272,4 +344,23 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
 
 function unique(values: readonly string[]): string[] {
   return [...new Set(values)]
+}
+
+/** `undefined` while the field is still being typed, which is most keystrokes.
+ *  A hint that fires on `https:/` would be advice about a URL nobody has
+ *  finished writing. */
+function parseUrl(value: string | undefined): URL | undefined {
+  const raw = value?.trim()
+  if (!raw) return undefined
+  try {
+    return new URL(raw)
+  } catch {
+    return undefined
+  }
+}
+
+/** The host itself or a subdomain of it — never a suffix match on the string,
+ *  which would read `evil-calendly.com` as Calendly. */
+function hostMatches(hostname: string, host: string): boolean {
+  return hostname === host || hostname.endsWith(`.${host}`)
 }

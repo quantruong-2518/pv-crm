@@ -105,6 +105,15 @@ export const mailRun = platform.table(
     ctaLabel: text('cta_label'),
     ctaUrl: text('cta_url'),
 
+    /** The booking link — the letter's SECOND button, snapshotted with the rest
+     *  of the copy for the same reason the CTA is: editing the template must
+     *  never rewrite a batch already posted.
+     *
+     *  One column and no pair CHECK, unlike the two above: the button's label
+     *  is a constant in `@pv/mail-templates`, so there is no second half that
+     *  can go missing. */
+    bookingUrl: text('booking_url'),
+
     /** Resolved at creation, not at send time. The marketing subdomain is a
      *  deployment fact that can change between the click and the send, and a
      *  batch has to keep going out from the address it was reviewed under. */

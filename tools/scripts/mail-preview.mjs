@@ -206,6 +206,11 @@ const SAMPLES = [
           ].join('\n'),
         ),
         cta: { label: 'Đọc bản ghi chép', url: 'https://pebblevina.com/ghi-chep/do-kiem' },
+        // Both buttons at once, because the pair is the only thing worth
+        // looking at here: the filled CTA over the outlined booking button is a
+        // contrast judgement no test can make, and rule 13 applies to email
+        // with no token layer to lean on.
+        bookingUrl: 'https://calendly.com/pebblevina/tu-van-30p?name=Ho%C3%A0ng&email=a%40b.vn',
         assetBaseUrl,
         unsubscribeUrl: `${ORIGIN}/unsubscribe?token=mau-xem-truoc`,
         sender: {

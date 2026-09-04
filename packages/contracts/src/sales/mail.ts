@@ -171,15 +171,40 @@ export const MailTemplateCode = z
  *
  *  Declared once and used by BOTH the template row below and `MasSendRequest`,
  *  because the panel's whole job is to carry one into the other. */
+function webUrl(what: string) {
+  return z
+    .url(`${what} phải là một URL đầy đủ`)
+    .refine((u) => /^https?:$/.test(new URL(u).protocol), `${what} phải bắt đầu bằng http/https`)
+}
+
 export const MailCta = z.object({
   label: textNhap(80),
-  url: z
-    .url('Địa chỉ nút phải là một URL đầy đủ')
-    .refine(
-      (u) => /^https?:$/.test(new URL(u).protocol),
-      'Địa chỉ nút phải bắt đầu bằng http/https',
-    ),
+  url: webUrl('Địa chỉ nút'),
 })
+
+/** THE BOOKING LINK — a SECOND button, and a field of its own rather than a
+ *  second `MailCta`.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY IT IS NOT JUST "CTA NUMBER TWO"
+ *  ------------------------------------------------------------------
+ *  A CTA is a pair because its label is the writer's own argument — a capability
+ *  deck, a price list, whatever this letter is really about — and only they know
+ *  what the destination is. A booking link has exactly one thing to say, and
+ *  every letter this company sends should say it identically: a recipient who
+ *  gets three letters should recognise the same button each time. So the label
+ *  is a constant in `@pv/mail-templates`, not a column, and this field is a
+ *  bare URL.
+ *
+ *  That also removes the half-filled state the CTA pair has to defend against
+ *  with `mail_run_cta_pair`: one nullable column cannot disagree with itself,
+ *  so there is no CHECK to write and no way to store a button with no address.
+ *
+ *  `{{contact_name}}`/`{{email}}` belong in this URL — the whole point is that
+ *  the booking page opens with the form already filled. `mas-letter.ts`
+ *  percent-encodes every merge value that lands here, the same as it does for
+ *  the CTA url. */
+export const MailBookingUrl = webUrl('Link đặt lịch')
 
 export const MailTemplateRow = z.object({
   code: MailTemplateCode,
@@ -196,10 +221,14 @@ export const MailTemplateRow = z.object({
    *  send time, which meant nobody ever reviewed the link in their own letter.
    *  A template with no CTA is ordinary — most letters are prose. */
   cta: MailCta.optional(),
+  /** The template's booking link, when it has one. Pre-fills the panel the
+   *  same way `cta` does, and is absent on most templates — a letter that
+   *  simply makes an argument has nothing to book. */
+  bookingUrl: MailBookingUrl.optional(),
   active: z.boolean(),
 })
 
-/** EVERY `{{key}}` A MAS LETTER MAY NAME. Four names, two values.
+/** EVERY `{{key}}` A MAS LETTER MAY NAME. Five names, three values.
  *
  *  ------------------------------------------------------------------
  *  WHY THE LIST LIVES IN THE CONTRACT AND NOT BESIDE THE SUBSTITUTION
@@ -221,8 +250,29 @@ export const MailTemplateRow = z.object({
  *
  *  Two spellings per value on purpose: the seeded templates use one pair, the
  *  compose box's own hint text uses the other, and both are already in letters
- *  people have written. Accepting both costs two properties. */
-export const MAIL_MERGE_KEYS = ['account', 'company', 'contactName', 'contact_name'] as const
+ *  people have written. Accepting both costs two properties.
+ *
+ *  ------------------------------------------------------------------
+ *  `email` HAS ONE SPELLING AND EARNS ITS PLACE IN THE CTA URL
+ *  ------------------------------------------------------------------
+ *  It is here for the LINK, not for the prose: a booking page (Calendly and
+ *  every tool like it) prefills its form from the query string, so a CTA
+ *  written `…?email={{email}}&name={{contact_name}}` turns "click, retype your
+ *  address, pick a slot" into "click, pick a slot". That is the whole
+ *  difference between a booking link people use and one they abandon.
+ *
+ *  `mas-letter.ts` percent-encodes every value that lands in the CTA url, so
+ *  an address with a `+` in it stays one address and cannot grow a second
+ *  query parameter. One spelling only — the alias pairs above exist because
+ *  two were already in circulation before the list did, and a new key starts
+ *  with no such debt. */
+export const MAIL_MERGE_KEYS = [
+  'account',
+  'company',
+  'contactName',
+  'contact_name',
+  'email',
+] as const
 
 export type MailMergeKey = (typeof MAIL_MERGE_KEYS)[number]
 
@@ -479,6 +529,9 @@ export const MasSendRequest = z.object({
    *  run snapshots subject and body for that exact reason; the button is part
    *  of the letter and belongs in the same snapshot. */
   cta: MailCta.optional(),
+  /** The booking button, snapshotted for the same reason `cta` is: what goes
+   *  out is what the person had on screen, never what the template says now. */
+  bookingUrl: MailBookingUrl.optional(),
   /** Absent = send now. Present = hold the run at `SCHEDULED` until then.
    *
    *  Not validated as "in the future" here: the client's clock and the
@@ -559,6 +612,7 @@ export const MasPreviewRequest = z.object({
   subject: textNhap(200),
   body: mailBody,
   cta: MailCta.optional(),
+  bookingUrl: MailBookingUrl.optional(),
   /** Whose name and company fill the `{{…}}` slots. Optional, and the fallback
    *  is not a blank letter: with no lead the server substitutes visible sample
    *  values, so somebody previewing before picking recipients still sees the
@@ -979,6 +1033,7 @@ export const MailTemplateCreate = z.object({
   subject: textNhap(200),
   body: mailBody,
   cta: MailCta.optional(),
+  bookingUrl: MailBookingUrl.optional(),
 })
 
 export const MailTemplateCreateResponse = MailTemplateRow
@@ -1002,6 +1057,9 @@ export const MailTemplatePatch = z
     subject: textNhap(200).optional(),
     body: mailBody.optional(),
     cta: MailCta.nullable().optional(),
+    /** Three states like `cta`: absent leaves it alone, `null` removes the
+     *  booking button, a string replaces it. */
+    bookingUrl: MailBookingUrl.nullable().optional(),
     active: z.boolean().optional(),
   })
   .refine(
@@ -1010,6 +1068,7 @@ export const MailTemplatePatch = z
       v.subject !== undefined ||
       v.body !== undefined ||
       v.cta !== undefined ||
+      v.bookingUrl !== undefined ||
       v.active !== undefined,
     { message: 'Cần sửa ít nhất một trường' },
   )

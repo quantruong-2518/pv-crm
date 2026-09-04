@@ -168,6 +168,10 @@ export const mailTemplate = sales.table(
     body: text('body').notNull(),
     ctaLabel: text('cta_label'),
     ctaUrl: text('cta_url'),
+    /** The booking link — the letter's second button. ONE column and not a
+     *  pair: the button's label is a constant in `@pv/mail-templates`, so there
+     *  is no second half to fall out of step and no CHECK to write. */
+    bookingUrl: text('booking_url'),
     /** Same "no delete, only switch off" rule the config catalogue uses: a
      *  retired template must stay readable, because runs still name it. */
     active: boolean('active').notNull().default(true),
@@ -176,7 +180,10 @@ export const mailTemplate = sales.table(
   },
   (t) => [
     check('mail_template_cta_pair', sql`(${t.ctaLabel} IS NULL) = (${t.ctaUrl} IS NULL)`),
-    check('mail_template_no_blank', noBlank('name', 'subject', 'body', 'cta_label', 'cta_url')),
+    check(
+      'mail_template_no_blank',
+      noBlank('name', 'subject', 'body', 'cta_label', 'cta_url', 'booking_url'),
+    ),
   ],
 )
 

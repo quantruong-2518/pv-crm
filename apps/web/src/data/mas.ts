@@ -236,6 +236,7 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
   const { subject, body, leadCode } = draft
   const ctaLabel = draft.cta?.label
   const ctaUrl = draft.cta?.url
+  const bookingUrl = draft.bookingUrl
   const ready = enabled && subject.trim() !== '' && body.trim() !== ''
 
   useEffect(() => {
@@ -252,6 +253,7 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
           subject,
           body,
           ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
+          ...(bookingUrl ? { bookingUrl } : {}),
           ...(leadCode ? { leadCode } : {}),
         },
         controller.signal,
@@ -276,7 +278,7 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [ready, subject, body, ctaLabel, ctaUrl, leadCode])
+  }, [ready, subject, body, ctaLabel, ctaUrl, bookingUrl, leadCode])
 
   return { letter, error, pending }
 }

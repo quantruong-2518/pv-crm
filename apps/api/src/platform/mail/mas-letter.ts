@@ -39,6 +39,9 @@ export type MasLetterInput = {
   subject: string
   body: string
   cta?: { label: string; url: string }
+  /** The booking link, still carrying its `{{…}}` slots. Escaped exactly like
+   *  the CTA url below — it is the same grammar and the same danger. */
+  bookingUrl?: string
   /** This recipient's substitution values. Keys absent here become the empty
    *  string and are reported back in `missing` — see `substitute`. */
   merge: Record<string, string>
@@ -80,10 +83,15 @@ export async function renderMasLetter(input: MasLetterInput): Promise<MasLetter>
      and one starting with `- ` decide where a list begins. Parsing first means
      merge values land inside runs whose structure is already fixed, which is
      the same rule `substitute` states about never rescanning its own output. */
+  const bookingUrl = input.bookingUrl
+    ? substitute(input.bookingUrl, input.merge, missing, encodeURIComponent)
+    : undefined
+
   const rendered = await renderMasShell({
     subject: fill(input.subject),
     blocks: mapMailText(parseMailBody(input.body), fill),
     cta,
+    ...(bookingUrl ? { bookingUrl } : {}),
     unsubscribeUrl: input.unsubscribeUrl,
     sender: input.sender,
     assetBaseUrl: input.assetBaseUrl,

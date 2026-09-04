@@ -468,7 +468,12 @@ export function FallbackLink({ url }: { url: string }) {
   )
 }
 
-/** Nút hành động. Một lá thư có đúng một nút, cùng lý do như `ShellHeading`.
+/** NÚT CHÍNH — nền đặc, một lá thư có đúng một cái.
+ *
+ *  "Một cái" nay nói về nút CHÍNH, không phải về mọi nút: `BookingButton` bên
+ *  dưới là nút thứ hai và cố ý trông khác hẳn. Hai nút cùng nền đặc là hai lời
+ *  kêu gọi ngang nhau, và một lá thư có hai lời kêu gọi ngang nhau thì không
+ *  có lời nào — nên thứ bậc phải nhìn thấy được, không phải thứ tự trên dưới.
  *
  *  Là `<a>` đội lốt nút chứ không phải `<button>` — client mail không render
  *  `<button>` một cách đáng tin, và một nút không bấm được là một lá thư
@@ -488,6 +493,48 @@ export function CtaButton({ href, children }: { href: string; children: ReactNod
           letterSpacing: '0.01em',
           textDecoration: 'none',
           padding: '14px 28px',
+          borderRadius: 8,
+          ...TEXT,
+        }}
+      >
+        {children}
+      </Link>
+    </Section>
+  )
+}
+
+/** THE SECONDARY BUTTON — outlined, for a booking invitation sitting under a CTA.
+ *
+ *  ------------------------------------------------------------------
+ *  A BORDER AND NOT A RECESSED SURFACE, BECAUSE THE NUMBERS SAID SO
+ *  ------------------------------------------------------------------
+ *  The reading that fits rule 4 better is no border and a `COLOR_SURFACE` fill.
+ *  Measured and rejected: `COLOR_PRIMARY` on `COLOR_SURFACE` is **4.19:1**,
+ *  under rule 13's 4.5:1 floor. Switching the text to `COLOR_INK` clears it
+ *  (14.42:1) but throws away the only "this is a link" signal a letter has —
+ *  email has no hover cursor, so text colour is the whole affordance.
+ *
+ *  So: white ground, `COLOR_PRIMARY` text and border, **5.19:1**. Rule 4 is a
+ *  law about the app's surfaces, where depth is built from glass; email has no
+ *  glass, and a button with no boundary there is just a blue line of text.
+ *
+ *  Exactly as tall as `CtaButton` (13px padding + 1px border = 14px a side) so
+ *  the two do not step out of line when stacked. */
+export function BookingButton({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Section style={{ margin: '0 0 22px' }}>
+      <Link
+        href={href}
+        style={{
+          display: 'inline-block',
+          backgroundColor: COLOR_BG,
+          color: COLOR_PRIMARY,
+          border: `1px solid ${COLOR_PRIMARY}`,
+          fontSize: 15,
+          fontWeight: 600,
+          letterSpacing: '0.01em',
+          textDecoration: 'none',
+          padding: '13px 27px',
           borderRadius: 8,
           ...TEXT,
         }}

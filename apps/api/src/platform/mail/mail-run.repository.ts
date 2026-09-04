@@ -24,6 +24,8 @@ export type MailRunCreate = {
   subject: string
   body: string
   cta?: { label: string; url: string } | null
+  /** The letter's second button. One string, no pair — see `mail_run.booking_url`. */
+  bookingUrl?: string | null
   fromAddress: string
   replyTo?: string | null
   state: MailRunState
@@ -177,6 +179,7 @@ export class MailRunRepository {
         body: input.body,
         ctaLabel: input.cta?.label ?? null,
         ctaUrl: input.cta?.url ?? null,
+        bookingUrl: input.bookingUrl ?? null,
         fromAddress: input.fromAddress,
         replyTo: input.replyTo ?? null,
         state: input.state,

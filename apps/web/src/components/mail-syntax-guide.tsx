@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CircleAlert, Link, Paperclip } from '@pv/ui'
+import { CalendarClock, CircleAlert, Link, Paperclip } from '@pv/ui'
 import { Badge, DataTable, Drawer, GlassCard, Icon } from '@pv/ui'
 
 /** WHAT A LETTER BODY CAN DO, WRITTEN FOR THE PERSON WRITING THE LETTER.
@@ -70,7 +70,7 @@ export function MailSyntaxGuide({ open, onClose }: { open: boolean; onClose: () 
         <div className="flex flex-col gap-3">
           <span className="flex items-center gap-2 text-[12.5px] font-semibold">
             <Icon icon={CircleAlert} size={16} />
-            Hai thứ KHÔNG làm được trong thân thư
+            Ba thứ KHÔNG làm được trong thân thư
           </span>
 
           <Note
@@ -82,7 +82,14 @@ export function MailSyntaxGuide({ open, onClose }: { open: boolean; onClose: () 
           <Note
             icon={Paperclip}
             title="Chưa đính kèm được tệp"
-            body="Hệ thống chưa có chỗ chứa tệp cho thư đi hàng loạt, nên phiếu này không có ô chọn tệp. Cách đang dùng: tải tài liệu lên Google Drive, mở quyền xem cho người ngoài, rồi dán link đó vào ô “Nút trong email”. Mỗi thư chỉ có một nút, nên chọn giữa hồ sơ năng lực và lời mời — đừng nhét cả hai."
+            body="Hệ thống chưa có chỗ chứa tệp cho thư đi hàng loạt, nên phiếu này không có ô chọn tệp. Cách đang dùng: tải tài liệu lên Google Drive, mở quyền xem cho người ngoài, rồi dán link đó vào ô “Nút trong email”. Ô đó chỉ có một đích đến, nên chọn một thứ đáng bấm nhất — lời mời đặt lịch không phải tranh chỗ ở đây nữa, nó có ô riêng."
+          />
+
+          <Note
+            icon={CalendarClock}
+            title="Không nhúng được lịch đặt hẹn vào thư"
+            body="Khung chọn giờ của Calendly chạy bằng JavaScript, mà Gmail, Outlook và Apple Mail đều bóc script khỏi thư — không có hòm thư nào cho khách bấm chọn giờ ngay trong email, dù hướng dẫn của Calendly có nói gì. Cách thay: dán link Calendly vào ô “Link đặt lịch” ở cuối phiếu. Nó thành nút viền “Chọn khung giờ” nằm dưới nút chính, nên một lá thư mang được cả hai lời mời. Thêm hai tham số dưới đây thì tên và email khách được điền sẵn — khách bấm là chọn giờ luôn, không phải gõ lại, và đó là chỗ phần lớn người bỏ dở."
+            sample="https://calendly.com/<lịch-của-bạn>?name={{contact_name}}&email={{email}}"
           />
         </div>
       </div>
@@ -101,13 +108,34 @@ function Sample({ children }: { children: ReactNode }) {
   )
 }
 
-function Note({ icon, title, body }: { icon: typeof Link; title: string; body: string }) {
+/** `sample` only where the answer IS a string to copy. The other two cards tell
+ *  the writer where to put something they already have; the booking card hands
+ *  them a line they have to reproduce character for character, and a URL buried
+ *  in a paragraph is a URL somebody retypes with a typo in it. */
+function Note({
+  icon,
+  title,
+  body,
+  sample,
+}: {
+  icon: typeof Link
+  title: string
+  body: string
+  sample?: string
+}) {
   return (
     <GlassCard variant="b" className="flex items-start gap-3 p-4">
       <Icon icon={icon} size={16} className="text-warning mt-1 shrink-0" />
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="text-[12.5px] font-semibold leading-[1.45]">{title}</span>
-        <span className="text-muted-foreground text-[11.5px] leading-[1.65]">{body}</span>
+      <span className="flex min-w-0 flex-col gap-2">
+        <span className="flex flex-col gap-1">
+          <span className="text-[12.5px] font-semibold leading-[1.45]">{title}</span>
+          <span className="text-muted-foreground text-[11.5px] leading-[1.65]">{body}</span>
+        </span>
+        {sample ? (
+          <span className="overflow-x-auto">
+            <Sample>{sample}</Sample>
+          </span>
+        ) : null}
       </span>
     </GlassCard>
   )
@@ -117,11 +145,16 @@ function Note({ icon, title, body }: { icon: typeof Link; title: string; body: s
  *  explaining — so the first column reads "bold a phrase", never "double
  *  asterisk".
  *
- *  Four variable names, two values: two spellings resolve to the company name
+ *  Five variable names, three values: two spellings resolve to the company name
  *  and two to the contact's, all four in circulation and all four accepted by
  *  the contract (`MAIL_MERGE_KEYS`). This table teaches exactly ONE spelling per
  *  value; teaching four would make somebody choose between two identical
- *  things. */
+ *  things.
+ *
+ *  The fifth — `{{email}}` — is deliberately NOT a row here. It exists for the
+ *  BOOKING LINK, where it saves the reader from retyping their own address; in
+ *  the prose of a letter it would only print the recipient's address back at
+ *  them. It is taught in the card that needs it, next to the URL it goes into. */
 const ROWS: { id: string; want: string; type: ReactNode; result: ReactNode }[] = [
   {
     id: 'bold',

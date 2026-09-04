@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@react-email/components'
-import { BrandShell, Bullets, CtaButton, Para } from './brand-shell'
+import { BookingButton, BrandShell, Bullets, CtaButton, Para } from './brand-shell'
 import { mailBlocksPreview, type MailBlock, type MailRun } from './mail-markup'
 import { COLOR_PRIMARY } from './ops-mail-style'
 
@@ -46,6 +46,13 @@ export type MasShellData = {
    *  một chuỗi rồi đọc lại: giá trị trộn không đổi được cấu trúc lá thư. */
   blocks: MailBlock[]
   cta?: { label: string; url: string }
+  /** The booking link — the SECOND button, an address with no label of its own.
+   *
+   *  The label is `BOOKING_LABEL` below rather than a column: every letter this
+   *  company sends should word this button identically, so a recipient on their
+   *  third letter recognises it without reading it. Merge values inside the URL
+   *  were substituted and percent-encoded in `mas-letter.ts` before arriving. */
+  bookingUrl?: string
   /** Bắt buộc với mail marketing — link huỷ đăng ký. */
   unsubscribeUrl: string
   /** Chân thư: tên và địa chỉ công ty, bản đã chụp của lô. */
@@ -53,6 +60,13 @@ export type MasShellData = {
   /** Gốc URL công khai của ảnh nhận diện — xem `PV_BRAND_ASSET_URL`. */
   assetBaseUrl: string
 }
+
+/** The one sentence the booking button says, in every letter.
+ *
+ *  A constant rather than a field the writer fills in — `MailBookingUrl` in
+ *  `@pv/contracts` carries the full argument. Changing the wording here changes
+ *  it system-wide, which is exactly the property wanted. */
+const BOOKING_LABEL = 'Chọn khung giờ'
 
 export function MasShellEmail(data: MasShellData) {
   return (
@@ -77,7 +91,21 @@ export function MasShellEmail(data: MasShellData) {
         ),
       )}
 
-      {data.cta ? <CtaButton href={data.cta.url}>{data.cta.label}</CtaButton> : null}
+      {/* HIERARCHY FOLLOWS WHAT IS PRESENT, NOT WHAT KIND OF BUTTON IT IS.
+          The outlined button is the SECONDARY one, and secondary only means
+          anything with a primary beside it. A letter whose only invitation is
+          to book, drawn as the faintest thing on the page, is a letter talking
+          itself down — so with no CTA the booking link becomes the primary. */}
+      {data.cta ? (
+        <>
+          <CtaButton href={data.cta.url}>{data.cta.label}</CtaButton>
+          {data.bookingUrl ? (
+            <BookingButton href={data.bookingUrl}>{BOOKING_LABEL}</BookingButton>
+          ) : null}
+        </>
+      ) : data.bookingUrl ? (
+        <CtaButton href={data.bookingUrl}>{BOOKING_LABEL}</CtaButton>
+      ) : null}
     </BrandShell>
   )
 }

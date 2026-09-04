@@ -167,6 +167,7 @@ export class MasService {
       subject: body.subject,
       body: body.body,
       cta: body.cta,
+      ...(body.bookingUrl ? { bookingUrl: body.bookingUrl } : {}),
       merge: row ? mergeOf(row) : SAMPLE_MERGE,
       unsubscribeUrl: this.previewUnsubscribeUrl(),
       sender: senderOf(
@@ -313,6 +314,9 @@ export class MasService {
            the letter and belongs in the same snapshot. The template's pair now
            pre-fills the panel instead — see `MasSendRequest.cta`. */
         cta: body.cta ?? null,
+        /* Same snapshot, same argument as the CTA above: the booking link the
+           sender saw is the one that goes out. */
+        bookingUrl: body.bookingUrl ?? null,
         /* Snapshotted at creation, never re-resolved at send time — see
            `mail_run.from_address`. The fallback is not a nicety: a machine
            with no marketing identity configured must still be able to rehearse
@@ -511,6 +515,7 @@ export class MasService {
       body: input.body,
       ctaLabel: input.cta?.label ?? null,
       ctaUrl: input.cta?.url ?? null,
+      bookingUrl: input.bookingUrl ?? null,
     })
 
     return MailTemplateCreateResponse.parse(await this.repo.templateByCode(input.code))
@@ -538,6 +543,7 @@ export class MasService {
       ...(input.cta !== undefined
         ? { ctaLabel: input.cta?.label ?? null, ctaUrl: input.cta?.url ?? null }
         : {}),
+      ...(input.bookingUrl !== undefined ? { bookingUrl: input.bookingUrl } : {}),
     })
 
     return MailTemplatePatchResponse.parse(await this.repo.templateByCode(code))
@@ -679,7 +685,7 @@ export class MasService {
   }
 }
 
-/** The four keys a MAS letter may name, and the ONE place they are listed.
+/** The five keys a MAS letter may name, and the ONE place they are listed.
  *
  *  Two aliases per value, and both spellings are load-bearing rather than
  *  sloppy: `{{account}}`/`{{company}}` and `{{contactName}}`/`{{contact_name}}`
@@ -688,14 +694,27 @@ export class MasService {
  *  does not carry becomes an empty string in a letter that has already left.
  *  Accepting both costs two properties; picking one costs a wrong letter.
  *
+ *  `email` is the recipient's own address, and it is here for the CTA url —
+ *  a booking page prefills its form from the query string, so `{{email}}` in
+ *  the link is what saves the reader from retyping what we already know. See
+ *  `MAIL_MERGE_KEYS` in `@pv/contracts`.
+ *
+ *  The `?? ''` cannot reach a sent letter: `intentOf` takes a row already
+ *  narrowed to `email: string`, and a lead without an address is blocked in
+ *  `decide` before any delivery exists. It is for `preview`, which renders any
+ *  lead the actor can read — including one nobody could send to.
+ *
  *  Called by `intentOf` for every real recipient and by `preview` for the one
  *  on screen, so what a person reviews substitutes exactly what the send will. */
-function mergeOf(row: Pick<MasLeadRow, 'company' | 'contactName'>): Record<MailMergeKey, string> {
+function mergeOf(
+  row: Pick<MasLeadRow, 'company' | 'contactName' | 'email'>,
+): Record<MailMergeKey, string> {
   return {
     company: row.company,
     account: row.company,
     contactName: row.contactName,
     contact_name: row.contactName,
+    email: row.email ?? '',
   }
 }
 
@@ -708,6 +727,7 @@ function mergeOf(row: Pick<MasLeadRow, 'company' | 'contactName'>): Record<MailM
 const SAMPLE_MERGE: Record<MailMergeKey, string> = mergeOf({
   company: 'Công ty mẫu',
   contactName: 'anh/chị',
+  email: 'nguoi.nhan@congty-mau.vn',
 })
 
 /** The same code twice in one pick is one recipient, not two letters.

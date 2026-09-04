@@ -88,6 +88,7 @@ export function MasMailModal({
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [cta, setCta] = useState<MailTemplateRow['cta']>()
+  const [bookingUrl, setBookingUrl] = useState('')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION)
   const [previewCode, setPreviewCode] = useState('')
@@ -111,6 +112,7 @@ export function MasMailModal({
     setSubject('')
     setBody('')
     setCta(undefined)
+    setBookingUrl('')
     setQuery('')
     const seeded = initialLeadCode ? [initialLeadCode] : (initialLeadCodes ?? [])
     setSelected(seeded.length > 0 ? new Set(seeded) : NO_SELECTION)
@@ -177,6 +179,7 @@ export function MasMailModal({
     setSubject(found?.subject ?? '')
     setBody(found?.body ?? '')
     setCta(found?.cta)
+    setBookingUrl(found?.bookingUrl ?? '')
     setPreviewOpen(false)
     setFailure('')
   }
@@ -187,6 +190,9 @@ export function MasMailModal({
       Number.isNaN(new Date(scheduledAt).getTime()) ||
       new Date(scheduledAt) <= new Date())
   const ctaInvalid = Boolean(cta && (!cta.label.trim() || !isHttpUrl(cta.url)))
+  /* Trimmed-empty is "no booking button", not a broken one — the field starts
+     empty on every letter and most letters keep it that way. */
+  const bookingInvalid = Boolean(bookingUrl.trim() && !isHttpUrl(bookingUrl.trim()))
   const overCeiling = selectedLeads.length > MAS_MAX_RECIPIENTS
 
   /* THE HARD GATE, AND IT IS DELIBERATELY SHORT.
@@ -208,20 +214,29 @@ export function MasMailModal({
         ? 'Chọn mẫu hoặc điền đủ tiêu đề và nội dung email.'
         : ctaInvalid
           ? 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
-          : scheduleInvalid
-            ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
-            : null
+          : bookingInvalid
+            ? 'Link đặt lịch phải bắt đầu bằng http/https.'
+            : scheduleInvalid
+              ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
+              : null
 
   const preview = useMailPreview(
     {
       subject,
       body,
       ...(cta && !ctaInvalid ? { cta } : {}),
+      ...(bookingUrl.trim() && !bookingInvalid ? { bookingUrl: bookingUrl.trim() } : {}),
       ...(previewLead ? { leadCode: previewLead.code } : {}),
     },
     previewOpen,
   )
-  const hints = mailHints({ subject, body, missing: preview.letter?.missing })
+  const hints = mailHints({
+    subject,
+    body,
+    ctaUrl: cta?.url,
+    bookingUrl,
+    missing: preview.letter?.missing,
+  })
 
   const checkRecipients = async () => {
     if (blocker) return
@@ -252,6 +267,7 @@ export function MasMailModal({
       body,
       ...(template === NO_TEMPLATE ? {} : { templateCode: template }),
       ...(cta ? { cta } : {}),
+      ...(bookingUrl.trim() ? { bookingUrl: bookingUrl.trim() } : {}),
       ...(sendTiming === 'later' ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
       ...(campaignCode === NO_CAMPAIGN ? {} : { campaignCode }),
     }
@@ -446,6 +462,23 @@ export function MasMailModal({
                     onChange={(event) => setCta(ctaWith(cta, { url: event.target.value }))}
                   />
                 </div>
+              </Field>
+
+              {/* Its own field, under the CTA, because it is its own button in
+                the letter — an outlined one below the filled CTA. No label box
+                beside it: the wording is `BOOKING_LABEL` in
+                `@pv/mail-templates`, so every letter this company sends words
+                that button the same way. */}
+              <Field
+                label="Link đặt lịch (không bắt buộc)"
+                hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
+              >
+                <Input
+                  value={bookingUrl}
+                  placeholder="https://calendly.com/…"
+                  aria-label="Link đặt lịch trong email"
+                  onChange={(event) => setBookingUrl(event.target.value)}
+                />
               </Field>
             </section>
 

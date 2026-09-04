@@ -193,6 +193,7 @@ type ComposerState = {
   body: string
   ctaLabel: string
   ctaUrl: string
+  bookingUrl: string
   timing: 'now' | 'later'
   at: string
 }
@@ -206,6 +207,7 @@ function emptyComposerState(): ComposerState {
     body: '',
     ctaLabel: '',
     ctaUrl: '',
+    bookingUrl: '',
     timing: 'now',
     at: '',
   }
@@ -236,6 +238,7 @@ function composerDraftInput(s: ComposerState): CampaignWaveInput {
     ...(s.ctaLabel.trim() !== '' && s.ctaUrl.trim() !== ''
       ? { cta: { label: s.ctaLabel.trim(), url: s.ctaUrl.trim() } }
       : {}),
+    ...(s.bookingUrl.trim() !== '' ? { bookingUrl: s.bookingUrl.trim() } : {}),
     ...(s.timing === 'later' ? { scheduledAt: new Date(s.at).toISOString() } : {}),
   }
 }
@@ -1642,6 +1645,7 @@ function WaveComposer({
       ...(found ? { subject: found.subject, body: found.body } : {}),
       ...(found && s.label.trim() === '' ? { label: found.name } : {}),
       ...(found?.cta ? { ctaLabel: found.cta.label, ctaUrl: found.cta.url } : {}),
+      ...(found?.bookingUrl ? { bookingUrl: found.bookingUrl } : {}),
     }))
   }
 
@@ -1656,13 +1660,26 @@ function WaveComposer({
     state.ctaLabel.trim() !== '' && /^https?:\/\/\S+$/.test(state.ctaUrl.trim())
       ? { label: state.ctaLabel.trim(), url: state.ctaUrl.trim() }
       : undefined
+  /* Same gate as the CTA above and for the same reason: `MailBookingUrl` refuses
+     a half-typed address, and somebody mid-way through `https://` has one on
+     every keystroke. */
+  const previewBooking = /^https?:\/\/\S+$/.test(state.bookingUrl.trim())
+    ? state.bookingUrl.trim()
+    : undefined
   const preview = useMailPreview(
-    { subject: state.subject, body: state.body, ...(previewCta ? { cta: previewCta } : {}) },
+    {
+      subject: state.subject,
+      body: state.body,
+      ...(previewCta ? { cta: previewCta } : {}),
+      ...(previewBooking ? { bookingUrl: previewBooking } : {}),
+    },
     previewOpen,
   )
   const hints = mailHints({
     subject: state.subject,
     body: state.body,
+    ctaUrl: state.ctaUrl,
+    bookingUrl: state.bookingUrl,
     missing: preview.letter?.missing,
   })
 
@@ -1691,6 +1708,7 @@ function WaveComposer({
       body: '',
       ctaLabel: '',
       ctaUrl: '',
+      bookingUrl: '',
       timing: 'now',
       at: '',
     }))
@@ -1776,6 +1794,18 @@ function WaveComposer({
             />
           </label>
         </div>
+
+        {/* Full width and on its own row, not a third cell beside the CTA pair:
+          it is the letter's SECOND button, not a third piece of the first one.
+          No label field — the wording is a constant, see `BOOKING_LABEL`. */}
+        <label className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-[11px]">Link đặt lịch (không bắt buộc)</span>
+          <Input
+            value={state.bookingUrl}
+            onChange={(e) => setState((s) => ({ ...s, bookingUrl: e.target.value }))}
+            placeholder="https://calendly.com/…"
+          />
+        </label>
 
         <div className="flex flex-col gap-2">
           <SegmentedControl

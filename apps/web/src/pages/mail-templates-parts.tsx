@@ -28,6 +28,7 @@ export function MailTemplateDrawer({
   const [body, setBody] = useState('')
   const [ctaLabel, setCtaLabel] = useState('')
   const [ctaUrl, setCtaUrl] = useState('')
+  const [bookingUrl, setBookingUrl] = useState('')
   const [active, setActive] = useState(true)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [failure, setFailure] = useState('')
@@ -48,6 +49,7 @@ export function MailTemplateDrawer({
     setBody(template?.body ?? '')
     setCtaLabel(template?.cta?.label ?? '')
     setCtaUrl(template?.cta?.url ?? '')
+    setBookingUrl(template?.bookingUrl ?? '')
     setActive(template?.active ?? true)
     setErrors({})
     setFailure('')
@@ -83,17 +85,29 @@ export function MailTemplateDrawer({
        not `undefined` on the patch: the contract reads absent as "leave it".
        On create there is nothing to leave, so absent is the honest shape. */
     const cta = ctaLabel.trim() && ctaUrl.trim() ? { label: ctaLabel, url: ctaUrl } : null
+    /* Same `null` vs absent split as the CTA above, one field instead of two. */
+    const booking = bookingUrl.trim() ? bookingUrl.trim() : null
 
     if (template) {
       patch.mutate(
-        { code: template.code, patch: { name, subject, body, cta, active } },
+        {
+          code: template.code,
+          patch: { name, subject, body, cta, bookingUrl: booking, active },
+        },
         { onSuccess: onClose, onError: onRefusal },
       )
       return
     }
 
     create.mutate(
-      { code, name, subject, body, ...(cta ? { cta } : {}) },
+      {
+        code,
+        name,
+        subject,
+        body,
+        ...(cta ? { cta } : {}),
+        ...(booking ? { bookingUrl: booking } : {}),
+      },
       { onSuccess: onClose, onError: onRefusal },
     )
   }
@@ -260,6 +274,27 @@ export function MailTemplateDrawer({
                 }}
               />
             </div>
+          </Field>
+
+          {/* The letter's SECOND button, so its own field rather than a third
+            box in the row above. One input only — the wording is a constant
+            (`BOOKING_LABEL` in `@pv/mail-templates`), so every letter the
+            company sends names that button the same way. */}
+          <Field
+            label="Link đặt lịch (không bắt buộc)"
+            errors={errors['bookingUrl']}
+            hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
+          >
+            <Input
+              value={bookingUrl}
+              aria-label="Link đặt lịch trong email"
+              invalid={Boolean(errors['bookingUrl']?.length)}
+              placeholder="https://calendly.com/…"
+              onChange={(event) => {
+                setBookingUrl(event.target.value)
+                clearError('bookingUrl')
+              }}
+            />
           </Field>
 
           {/* Only while EDITING: a template just created is in use, and a control
