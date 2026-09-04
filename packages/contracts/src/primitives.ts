@@ -203,19 +203,73 @@ export const email = z
  *  control has to stop where the schema stops. */
 export const PHONE_MAX = 32
 
-/** Strip decoration off a phone number: keep the digits, and keep a `+` only
- *  when it leads.
+/** Country code every number with no `+` of its own is read as belonging to.
+ *  A national number does not carry one: '0912 345 678' names a Vietnamese
+ *  subscriber only because everybody filling in these files is in Vietnam.
  *
- *  Real files carry '0912 345 678', '(024) 3456 7890', '+84-912-345-678'.
- *  Unnormalised, three spellings of ONE number are three different values to
- *  `=`, and a search by phone never returns a row — the user concludes the
- *  book does not have the number, not that they typed it differently from
- *  whoever entered it.
+ *  Written down as a constant so the assumption is visible and changeable,
+ *  rather than sitting unstated inside a regex. A number from anywhere else
+ *  MUST bring its own `+` — `normalisePhone` never guesses a country. */
+const DEFAULT_CC = '84'
+
+/** Shortest national number under `DEFAULT_CC` — nine digits once the trunk
+ *  zero is off (0912 345 678 · 024 3456 7890). Used to tell a leading country
+ *  code apart from an operator prefix that merely starts with the same two
+ *  digits; see `withoutDefaultCc`. */
+const NATIONAL_MIN = 9
+
+/** Normalise a phone number to E.164: `+`, country code, subscriber, digits
+ *  only. THE one spelling this system stores.
  *
- *  A `+` in the middle is dropped rather than kept: '84+912' is not a number. */
+ *  Real files carry '0912 345 678', '(024) 3456 7890', '+84-912-345-678',
+ *  '84 912 345 678', and — because a spreadsheet turns a phone number into a
+ *  NUMBER and eats the leading zero unless stopped — "'0912345678". Left as
+ *  typed, five spellings of ONE number are five different values to `=`: a
+ *  search by phone comes back empty and the user concludes the book does not
+ *  hold the number, not that they spelled it differently from whoever entered
+ *  it. Two doors writing two spellings is the same lead saved twice.
+ *
+ *  How the country gets decided, in order. Only the first line is the person
+ *  SAYING which country, and it is the only line believed unconditionally:
+ *
+ *      '+…' · '00…'    a country was named. Kept exactly as named.
+ *      '84…' + long    the code is there, the `+` merely was not typed.
+ *      anything else   `DEFAULT_CC`, national number, trunk zero dropped. */
 export function normalisePhone(s: string): string {
-  const t = s.trim()
-  return (t.startsWith('+') ? '+' : '') + t.replace(/\D/g, '')
+  /* A spreadsheet writes a leading apostrophe to hold the cell as TEXT, which
+     is precisely how the leading zero survives export. It is the file's mark,
+     never part of the number — both the straight quote and the curly one an
+     autocorrect leaves behind. */
+  const raw = s.trim().replace(/^['\u2019]\s*/, '')
+  const digits = raw.replace(/\D/g, '')
+  if (digits === '') return ''
+
+  /* `+`, or the '00' that stands in for it abroad. A country that is not ours
+     is passed through untouched on purpose: we know the trunk-prefix rule of
+     ONE country, and applying it to the other two hundred is how '+39 06…'
+     (Rome, where the zero is part of the number) loses a digit. */
+  const named = raw.startsWith('+') ? digits : digits.startsWith('00') ? digits.slice(2) : ''
+  if (named !== '' && !named.startsWith(DEFAULT_CC)) return `+${named}`
+
+  /* What is left is one of ours, wearing the country code, the trunk zero, or
+     neither. '+84 0912 345 678' wears BOTH — a spelling that exists nowhere
+     but is typed constantly — so the zero comes off after the code does. */
+  const body = named !== '' ? named.slice(DEFAULT_CC.length) : withoutDefaultCc(digits)
+  return `+${DEFAULT_CC}${body.replace(/^0+/, '')}`
+}
+
+/** Drop a leading `DEFAULT_CC` — but only when a whole national number is left
+ *  standing behind it.
+ *
+ *  '84912345678' is the code plus nine digits. '846123456' is 0846 123 456, a
+ *  Vinaphone number whose zero a spreadsheet ate, and its '84' is an operator
+ *  prefix: cutting it would turn a real subscriber into a seven-digit stump.
+ *  Length is what tells the two apart, and it is the only thing that can. */
+function withoutDefaultCc(digits: string): string {
+  const rest = digits.slice(DEFAULT_CC.length)
+  const isCountryCode =
+    digits.startsWith(DEFAULT_CC) && rest.replace(/^0+/, '').length >= NATIONAL_MIN
+  return isCountryCode ? rest : digits
 }
 
 /** Phone field, optional. Empty after normalising means ABSENT.
@@ -228,7 +282,8 @@ export function normalisePhone(s: string): string {
  *  The 15-digit ceiling is E.164. Anything longer is not a number anyone can
  *  dial, and such a value in the book is a dead click-to-call on the profile.
  *  `PHONE_MAX` above bounds what is typed, decoration and all; the 8…15 rule
- *  applies to what is left once the decoration comes off. */
+ *  applies to what is left once the decoration comes off and the country code
+ *  goes on. */
 export const phoneOptional = z
   .string('Số điện thoại phải là chữ số')
   .max(PHONE_MAX, { error: `Số điện thoại tối đa ${PHONE_MAX} ký tự`, abort: true })
@@ -240,14 +295,16 @@ export const phoneOptional = z
      `apps/api/.../lead-import.check.ts` refuses to make about a number, and a
      phone number typed with a note beside it is the same situation: what got
      thrown away might have been a second number, or an extension.
-     Punctuation stays welcome — that is decoration, not content. */
-  .refine((s) => !/[^\d\s+\-().]/.test(s), 'Số điện thoại chỉ gồm chữ số và dấu ngăn')
+     Punctuation stays welcome — that is decoration, not content, and the
+     apostrophe a spreadsheet glues on front is decoration the file added by
+     itself, without anybody typing it. */
+  .refine((s) => !/[^\d\s+\-().'\u2019]/.test(s), 'Số điện thoại chỉ gồm chữ số và dấu ngăn')
   .transform(normalisePhone)
-  .transform((s) => (s === '' || s === '+' ? undefined : s))
+  .transform((s) => (s === '' ? undefined : s))
   .pipe(
     z
       .string()
-      .regex(/^\+?\d{8,15}$/, 'Số điện thoại phải có 8…15 chữ số')
+      .regex(/^\+\d{8,15}$/, 'Số điện thoại phải có 8…15 chữ số')
       .optional(),
   )
   .optional()

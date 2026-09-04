@@ -14,7 +14,13 @@ import {
   type Lead,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
-import { CONFIG_PREFIX, ContactChannel, type ConfigList, type ExitReason } from '@pv/contracts'
+import {
+  CONFIG_PREFIX,
+  ContactChannel,
+  normalisePhone,
+  type ConfigList,
+  type ExitReason,
+} from '@pv/contracts'
 import { configEntry } from '@api/branches/sales/config/config.schema'
 import { contract } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
@@ -276,7 +282,12 @@ async function seed(): Promise<void> {
       contactName: c.name,
       contactTitle: hasContactSlot ? blank(c.title) : null,
       email: c.email.trim().toLowerCase(),
-      phone: reachable ? blank(c.phone) : null,
+      /* Through the same normaliser the four write doors use, not straight
+         from the fixture: the fixture writes numbers the way a person types
+         them ('0912 300 391'), and a seeded book spelling its phones one way
+         while every saved lead spells them another is a column with two
+         conventions in it. Same reason `email` is lowercased a line above. */
+      phone: reachable ? blank(normalisePhone(c.phone ?? '')) : null,
       contactChannel: reachable ? blank(c.channel as ContactChannel) : null,
 
       pain: blank(p.pain),
