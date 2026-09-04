@@ -133,12 +133,12 @@ export const PERMISSIONS = [
    *  Quyền RỘNG NHẤT trong bảng này, và nó rộng theo một kiểu khác hẳn mọi
    *  quyền còn lại: ai có nó thì tự cấp được cho mình mọi quyền khác, chỉ bằng
    *  cách sửa `roleId` của chính mình. Vì thế nó không nằm trong hàng của
-   *  `marketing` · `bd` · `presales` · `sale` — không phải vì bốn vai đó không
-   *  cần, mà vì cấp nó cho họ là cấp luôn cả bảng.
+   *  `marketing` · `bd` · `presales` · `sale` · `account-executive` — không
+   *  phải vì năm vai đó không cần, mà vì cấp nó cho họ là cấp luôn cả bảng.
    *
-   *  Hai vai duy nhất có nó (`giám-đốc`, `trưởng-phòng`) nhận tự động vì hàng
+   *  Hai vai duy nhất có nó (`director`, `head-of-sales`) nhận tự động vì hàng
    *  của họ viết là `PERMISSIONS` chứ không liệt kê tay — đúng lý do docblock
-   *  của `giám-đốc` đã nói: thêm quyền mới mà quên thêm cho họ là lỗi vô hình.
+   *  của `director` đã nói: thêm quyền mới mà quên thêm cho họ là lỗi vô hình.
    *
    *  Máy chủ còn chặn thêm một tầng nữa mà bảng này không biết và không cần
    *  biết: người có quyền vẫn KHÔNG tự hạ vai hay tự khoá mình được. Đó là luật
@@ -160,7 +160,7 @@ export type Permission = (typeof PERMISSIONS)[number]
 export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   /** Giám đốc — nhìn cả năm nhánh, gật mọi thứ. Viết `PERMISSIONS` chứ không
    *  liệt kê lại: thêm quyền mới mà quên thêm cho Giám đốc là lỗi vô hình. */
-  'giám-đốc': PERMISSIONS,
+  director: PERMISSIONS,
 
   /** TP Kinh doanh — người gật của cả phòng: mọi màn Sales đều ghi "người gật
    *  là TP Kinh doanh".
@@ -170,7 +170,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  có cả năm nhánh, TP chỉ có One + Sales, nên cùng một ma trận vai vẫn ra hai
    *  hệ màn khác hẳn nhau. Nhét khác biệt đó vào ma trận vai là đặt nó nhầm
    *  trục, và sẽ sai ngay khi công ty mua thêm nhánh thứ hai cho phòng. */
-  'trưởng-phòng': PERMISSIONS,
+  'head-of-sales': PERMISSIONS,
 
   /** Marketing — sở hữu chiến dịch, đọc lead để biết nguồn nào ra khách. Không
    *  giao việc, không chuyển đổi, không loại lead: đó là quyết định của người
@@ -178,7 +178,7 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   marketing: [
     'chiến-dịch.xem',
     'chiến-dịch.sửa',
-    /* Granted by hand here, while `giám-đốc` and `trưởng-phòng` get it for free
+    /* Granted by hand here, while `director` and `head-of-sales` get it for free
        by spelling their row as `PERMISSIONS`. Marketing owns the campaign, so
        marketing is the role that fires it. */
     'chiến-dịch.bắn',
@@ -261,6 +261,42 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'hiệu-suất.xem',
     'kế-hoạch.xem',
     'cấu-hình.xem',
+  ],
+
+  /** Account executive — the combined Marketer + BD + AM seat. One person runs
+   *  the whole customer lifecycle, so the row is "every Sales-side job" rather
+   *  than a slice of the funnel, and there is no `ownOnly`: covering leads and
+   *  opportunities somebody else brought in is the point of the seat.
+   *
+   *  Three permissions are held back, for two different reasons. `cấu-hình.*`
+   *  and `hiệu-suất.xem` are withheld because those two screens stay with the
+   *  head of department — a decision about who reads them, not about what this
+   *  seat can do. `người-dùng.quản-lý` is withheld because keeping it would
+   *  UNDO the other two: whoever edits their own `roleId` can hand themselves
+   *  any row in this table, including one that has all three back. */
+  'account-executive': [
+    'chiến-dịch.xem',
+    'chiến-dịch.sửa',
+    'chiến-dịch.bắn',
+    'lead.xem',
+    'lead.sửa',
+    'lead.gửi-mail',
+    'lead.giao',
+    'lead.chuyển-đổi',
+    'lead.loại',
+    'khách-hàng.xem',
+    'khách-hàng.sửa',
+    'cơ-hội.xem',
+    'cơ-hội.sửa',
+    'cơ-hội.chốt',
+    'hợp-đồng.xem',
+    'hợp-đồng.sửa',
+    'hợp-đồng.ghi-nhận-thu',
+    'kế-hoạch.xem',
+    'kế-hoạch.gửi',
+    'ghi-vết.xem',
+    'phê-duyệt.duyệt',
+    'dữ-liệu.xuất',
   ],
 }
 

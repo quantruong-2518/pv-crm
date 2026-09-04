@@ -7,14 +7,21 @@
 /** Năm nhánh sản phẩm. */
 export type Branch = 'One' | 'Sales' | 'Supply' | 'Factory' | 'Finance'
 
-/** Vai CHUẨN HOÁ — khoá của ma trận quyền. Sáu vai, đúng bằng số vai có người
- *  thật trong hai kịch bản; vai không ai mang là vai không ai kiểm được.
+/** Vai CHUẨN HOÁ — khoá của ma trận quyền.
  *
  *  Nằm ở đây chứ không ở `e2-access.ts` cùng ma trận, vì `Actor` cần nó và
  *  `Actor` là kiểu dùng chung của cả bốn engine — để bên kia thì `types.ts`
  *  phải import ngược E2. Ma trận vẫn thuộc E2: kiểu là hình dạng, ma trận là
- *  luật, và luật quyền là của E2. */
-export type RoleId = 'giám-đốc' | 'trưởng-phòng' | 'marketing' | 'bd' | 'presales' | 'sale'
+ *  luật, và luật quyền là của E2.
+ *
+ *  Role keys are English, and `@pv/contracts` re-declares these exact strings
+ *  rather than translating them. Two spellings used to mean two exhaustive
+ *  `Record<>` tables whose only job was to stay in step, and a role reaching
+ *  one but not the other failed SILENTLY: E2 fails closed on a key it cannot
+ *  read, so the person signs in and every screen says "hidden by your
+ *  permissions". One spelling removes that halfway point. */
+export type RoleId =
+  'director' | 'head-of-sales' | 'marketing' | 'bd' | 'presales' | 'sale' | 'account-executive'
 
 /** Tiền tố mã object. Mã đọc được trên UI và là khoá của E1. */
 export type ObjectKind =

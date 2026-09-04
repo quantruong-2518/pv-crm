@@ -1,0 +1,21 @@
+-- Tên vai trong `platform.actor.role_id` chuyển sang tiếng Anh.
+--
+-- VÌ SAO ĐÂY LÀ MIGRATION CHỨ KHÔNG PHẢI MỘT LẦN ĐỔI TÊN TRONG CODE
+-- Cột này KHÔNG phải chỗ chứa nhãn — nó là khoá tra vào `ROLE_PERMISSIONS` của
+-- E2. Đổi hằng trong `packages/engines` mà không đổi dữ liệu thì mọi dòng còn
+-- mang chữ cũ tra ra `undefined`, và `allows` fail-closed: người đó vẫn đăng
+-- nhập được, tên vẫn hiện ở góc màn, còn mọi nút đều báo "Bị ẩn theo quyền của
+-- bạn". Không có lỗi, không 403, không dòng log nào gọi tên vai. Hai câu dưới
+-- đây là thứ duy nhất đứng giữa bản đổi tên và một buổi chiều đi tìm bug quyền.
+--
+-- Trước file này engine viết tiếng Việt còn hợp đồng viết ASCII, và hai bảng
+-- `Record<>` (`auth.mapper.ts`, `data/auth.ts`) giữ hai cách viết khớp nhau.
+-- Một tên cho mỗi vai thì hai bảng đó biến mất, và chỗ duy nhất một vai có thể
+-- lọt qua nửa đường cũng biến mất theo.
+--
+-- Bốn vai còn lại (`marketing`, `bd`, `presales`, `sale`) đã trùng nhau sẵn ở
+-- cả hai bên nên không có câu nào cho chúng — không phải bỏ sót.
+--
+-- Chạy lại được: `WHERE` lọc theo chữ cũ nên lần thứ hai không đụng dòng nào.
+UPDATE "platform"."actor" SET "role_id" = 'director' WHERE "role_id" = 'giám-đốc';--> statement-breakpoint
+UPDATE "platform"."actor" SET "role_id" = 'head-of-sales' WHERE "role_id" = 'trưởng-phòng';

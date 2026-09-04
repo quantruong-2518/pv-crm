@@ -37,7 +37,7 @@ import { UsersService } from './users.service'
  *
  *  The permission itself is the widest one in E2 — whoever holds it can grant
  *  themselves every other permission by editing their own `roleId` — which is
- *  why only `giám-đốc` and `trưởng-phòng` have it. That reasoning lives beside
+ *  why only `director` and `head-of-sales` have it. That reasoning lives beside
  *  the entry in `packages/engines/src/e2-access.ts` and is not repeated here.
  *  The two fences E2 cannot express, because they are about one specific row
  *  rather than about a role, are in the service: nobody edits their own role or

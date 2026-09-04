@@ -44,7 +44,7 @@ export const DIRECTORY_KEY = ['platform', 'directory'] as const
  *  dây là ASCII còn `roleId` mà ma trận quyền tra là tiếng Việt. Để chỗ gọi tự
  *  dịch là mười hai bản dịch, và bản quên dịch không hỏng ra lỗi — nó chỉ làm
  *  một người mất sạch quyền mà không có dòng log nào nói vì sao (xem
- *  `ENGINE_ROLE` trong `data/auth.ts`).
+ *  `toActor` trong `data/auth.ts`).
  *
  *  KHÔNG có `load` — cửa này có route thật, và theo nghi thức của
  *  `app/api/client.ts` thì vắng `load` chính là dấu hiệu duy nhất cho biết nó
@@ -88,7 +88,7 @@ export function useSalesPeople(): Actor[] {
 export const APPROVER_ROLE_LABEL = 'trưởng phòng kinh doanh'
 
 export function useApproverName(): string {
-  const head = useDirectory().find((a) => a.roleId === 'trưởng-phòng')
+  const head = useDirectory().find((a) => a.roleId === 'head-of-sales')
   return head?.name ?? APPROVER_ROLE_LABEL
 }
 

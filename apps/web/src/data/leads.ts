@@ -546,7 +546,7 @@ export function myWork(input: {
     }
   }
 
-  if (actor.roleId === 'trưởng-phòng') {
+  if (actor.roleId === 'head-of-sales') {
     for (const lead of running) {
       if (canPromoteToSql(lead).ok) push(lead, 'Đủ ô bắt buộc · chờ bạn gật cho vào pipeline')
     }
@@ -616,7 +616,7 @@ export function assigneeOptions(
       } else if (a.roleId === 'marketing' && lead.tier === 'dau-moi') {
         rank = 40
         why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'
-      } else if (a.roleId === 'trưởng-phòng') {
+      } else if (a.roleId === 'head-of-sales') {
         rank = 50
         /* Không còn "người gật mọi đề nghị" — không còn đề nghị nào để gật.
            Vai này đứng cao vì nó là vai DUY NHẤT giao được lead cho người

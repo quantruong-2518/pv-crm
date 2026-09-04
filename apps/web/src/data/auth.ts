@@ -1,11 +1,5 @@
-import {
-  PASSWORD_MIN,
-  SessionView,
-  SessionWindow,
-  type RoleId as WireRoleId,
-  type SessionActor,
-} from '@pv/contracts'
-import type { Actor, RoleId as EngineRoleId } from '@pv/engines'
+import { PASSWORD_MIN, SessionView, SessionWindow, type SessionActor } from '@pv/contracts'
+import type { Actor } from '@pv/engines'
 import { API_BASE_URL } from '@/app/api/base-url'
 
 /** The auth doors — the ONLY module in the app that knows what they are.
@@ -73,51 +67,30 @@ export const EMAIL_HINT = 'ten@pebblevina.com'
 // Wire role → engine role
 // ---------------------------------------------------------------------------
 
-/** THE TRANSLATION THAT DECIDES WHETHER ANYONE HAS ANY PERMISSION AT ALL.
+/** THE LINE THAT DECIDES WHETHER ANYONE HAS ANY PERMISSION AT ALL.
  *
- *  `@pv/contracts` spells roles in ASCII (`'head-of-sales'`) because that is
- *  what survives a JSON body, a URL and a proxy log. `@pv/engines` spells them
- *  in Vietnamese (`'trưởng-phòng'`) because that is what a person reading
- *  `ROLE_PERMISSIONS` should see. Both are right; this table is the only place
- *  they meet on this side of the wire (the API keeps the mirror image of it).
+ *  `@pv/contracts` and `@pv/engines` spell roles identically, so this was a
+ *  `Record<WireRoleId, EngineRoleId>` and is now an assignment the compiler
+ *  checks. The check still matters, and it fails the same way it always would:
+ *  a role missing from one side does not throw. E2's `allows` fails closed on a
+ *  `roleId` it does not recognise, so the actor sails through sign-in, the
+ *  shell paints, their name is in the corner, and every screen and button then
+ *  reports "Bị ẩn theo quyền của bạn" — no error, no 403, no log line naming a
+ *  role, just a person apparently granted nothing.
  *
- *  Get one row wrong — or forget a row — and NOTHING VISIBLY BREAKS. E2's
- *  `allows` fails closed on a `roleId` it does not recognise, so the actor
- *  sails through sign-in, the shell paints, their name is in the corner, and
- *  every single screen and button then reports "Bị ẩn theo quyền của bạn".
- *  There is no error, no 403, no log line naming a role: the app simply behaves
- *  as though this person were granted nothing. That is a very expensive
- *  afternoon, and it looks like a permissions bug rather than a typo.
- *
- *  Written as an exhaustive `Record` over the wire enum for exactly that
- *  reason: the day a seventh role is added to one side and not the other, this
- *  line stops compiling instead of quietly locking someone out of the product.
- *  Same trade, same shape, same failure mode as `DENY_REASON` in
- *  `app/api/errors.ts`. */
-const ENGINE_ROLE: Record<WireRoleId, EngineRoleId> = {
-  director: 'giám-đốc',
-  'head-of-sales': 'trưởng-phòng',
-  marketing: 'marketing',
-  bd: 'bd',
-  presales: 'presales',
-  sale: 'sale',
-}
-
-/** The wire's person → the person E1–E4 read. Seven fields either side, and the
- *  only one that changes spelling is the one the permission matrix is keyed
- *  by.
+ *  Keeping the two unions identical is what makes `roleId: wire.roleId` legal;
+ *  the day they diverge, this line stops compiling instead of quietly locking
+ *  somebody out of the product.
  *
  *  Exported for `data/directory.ts`, which receives a whole roster in the same
- *  `SessionActor` shape and must translate every row the same way. A second
- *  copy of the `roleId` translation is the one failure this table exists to
- *  prevent — see the docblock above `ENGINE_ROLE`. */
+ *  `SessionActor` shape. */
 export function toActor(wire: SessionActor): Actor {
   return {
     id: wire.id,
     name: wire.name,
     email: wire.email,
     role: wire.role,
-    roleId: ENGINE_ROLE[wire.roleId],
+    roleId: wire.roleId,
     branches: wire.branches,
     ownOnly: wire.ownOnly,
   }
@@ -183,7 +156,7 @@ const SERVER_TROUBLE: AuthError = {
  *
  *  Treated as a hard failure rather than waved through, because the field most
  *  likely to be missing or renamed is `roleId` — and an actor with no readable
- *  role is the silent "granted nothing" state described at `ENGINE_ROLE`. Being
+ *  role is the silent "granted nothing" state described at `toActor`. Being
  *  sent back to the sign-in screen is annoying; being let in as a person the
  *  permission matrix cannot classify is a day of debugging. */
 const UNREADABLE: AuthError = {

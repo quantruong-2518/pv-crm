@@ -8,69 +8,35 @@ import type {
 import type { ActorRow } from '../db/platform.schema'
 import type { SessionRow } from './auth.schema'
 
-/** THE ONE PLACE THE TWO SPELLINGS OF A ROLE MEET.
+/** THE ONE PLACE THE CONTRACT'S ROLE UNION MEETS THE ENGINE'S.
  *
- *  ------------------------------------------------------------------
- *  WHY THERE ARE TWO SPELLINGS AT ALL
- *  ------------------------------------------------------------------
- *  `@pv/engines` spells roles in Vietnamese (`'trưởng-phòng'`) because a person
- *  reading `ROLE_PERMISSIONS` should read the role, not a translation of it.
- *  `@pv/contracts` re-declares the same six in ASCII because a key that crosses
- *  HTTP, a URL and a log line must not depend on everyone's encoding being
- *  right — the same trade `problem.ts` makes for `DenyReason`, and the contract
- *  says so in its own docblock.
+ *  The two used to be spelled differently — Vietnamese in E2, ASCII on the wire
+ *  — and two exhaustive `Record<>`s translated between them. They are one
+ *  spelling now, and `platform.actor.role_id` stores that value verbatim, so
+ *  the translation collapses into the two SIGNATURES below.
  *
- *  `platform.actor.role_id` keeps the VIETNAMESE value. That is not an
- *  accident of seeding: the column is what E2 reads through `Actor.roleId`, and
- *  E2 is the half that must run identically on the server and in the browser.
- *  Storing ASCII would mean translating on every read on the hot path instead
- *  of at the two edges where a wire format is actually involved.
+ *  Those signatures are still the check, and it is the same check: assigning an
+ *  `EngineRoleId` where a `ContractRoleId` is wanted only compiles while every
+ *  role exists on both sides, and the other direction closes the loop. A role
+ *  added to `@pv/engines` and forgotten in `@pv/contracts` is a RED BUILD here.
  *
- *  ------------------------------------------------------------------
- *  TWO EXHAUSTIVE `Record<>`s, AND THAT IS THE WHOLE POINT
- *  ------------------------------------------------------------------
- *  Exactly the pattern `access.guard.ts` uses for `DenyReason`, for exactly the
- *  same failure. A `Record<EngineRoleId, …>` has no valid value with a key
- *  missing, so adding a seventh role to E2 and forgetting it here is a RED
- *  BUILD — not a screen that receives a role string it cannot read, weeks
- *  later, in front of a customer. Both directions are declared because both
- *  directions are travelled: rows come out ASCII-side for the browser, and the
- *  `/users` door will write them back Vietnamese-side into the column.
- *
- *  A `Record` and not a `switch`: a switch with a `default` is exactly the
- *  shape that swallows the new value silently. */
-const CONTRACT_ROLE: Record<EngineRoleId, ContractRoleId> = {
-  'giám-đốc': 'director',
-  'trưởng-phòng': 'head-of-sales',
-  marketing: 'marketing',
-  bd: 'bd',
-  presales: 'presales',
-  sale: 'sale',
-}
-
-const ENGINE_ROLE: Record<ContractRoleId, EngineRoleId> = {
-  director: 'giám-đốc',
-  'head-of-sales': 'trưởng-phòng',
-  marketing: 'marketing',
-  bd: 'bd',
-  presales: 'presales',
-  sale: 'sale',
-}
-
-/** DB/engine spelling → wire spelling. */
-export const toContractRole = (r: EngineRoleId): ContractRoleId => CONTRACT_ROLE[r]
+ *  Letting one through fails nowhere visible, which is why the check is worth a
+ *  function that returns its argument: E2's `allows` answers false for a key
+ *  missing from `ROLE_PERMISSIONS`, so the person signs in, their name is in
+ *  the corner, and every screen reports "hidden by your permissions" — a
+ *  permission bug in appearance, a missing enum member in fact. */
+export const toContractRole = (r: EngineRoleId): ContractRoleId => r
 
 /** Wire spelling → DB/engine spelling.
  *
  *  The only supported way to turn a `RoleId` that arrived over HTTP into a
- *  value fit for `platform.actor.role_id`. It has no caller in this module —
- *  the sign-in flow only ever reads people — and exists because the `/users`
- *  door creates and edits them. Writing that column from a raw request string
- *  instead would put a role E2 cannot read into the permission matrix, where it
- *  reads as "no permissions at all" and looks like a bug in the matrix. */
-export const toEngineRole = (r: ContractRoleId): EngineRoleId => ENGINE_ROLE[r]
+ *  value fit for `platform.actor.role_id`. Identity like its mirror, and kept
+ *  for the same two reasons: it is half of the compile-time equality above, and
+ *  it marks the `/users` write path as having gone through the contract's enum
+ *  rather than straight from a request body. */
+export const toEngineRole = (r: ContractRoleId): EngineRoleId => r
 
-/** The row as E2 wants it — Vietnamese `roleId`, seven fields, no credentials.
+/** The row as E2 wants it — seven fields, no credentials.
  *
  *  This is what `req.actor` must hold. `password_hash` and `disabled_at` are
  *  dropped here and that is the point of the function existing: everything

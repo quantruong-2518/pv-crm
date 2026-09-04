@@ -29,19 +29,26 @@ import { email, Moc, textNhap, textNhapTuyChon } from './primitives'
 // The two axes that identify a person — mirrored from E2, in ASCII
 // ---------------------------------------------------------------------------
 
-/** Permission-matrix key. ASCII, and that is the whole point.
+/** Permission-matrix key — the SAME strings `@pv/engines` uses, re-declared
+ *  here rather than imported.
  *
- *  `@pv/engines` spells these in Vietnamese (`'trưởng-phòng'`) because that is
- *  what a person reading `ROLE_PERMISSIONS` should see. This package re-declares
- *  them in ASCII for exactly the reason `problem.ts` re-declares `DenyReason`:
- *  a contract must not drag the engine in behind it, and a key that crosses
- *  HTTP, a URL and a log line should not depend on anyone's encoding being
- *  right. Same trade, same shape, same place the drift gets caught — the API
- *  keeps a `Record<EngineRoleId, RoleId>` table, so adding a seventh role to
- *  E2 without adding it here is a red build, not a runtime surprise.
+ *  Re-declared for the reason `problem.ts` re-declares `DenyReason`: a contract
+ *  must not drag the engine in behind it. The two lists are now spelled
+ *  identically, so `auth.mapper.ts` ASSERTS they are one union instead of
+ *  translating between them — drift is still a red build, with no lookup table
+ *  left to keep in step. These strings also go into `platform.actor.role_id`
+ *  verbatim, so changing one is a migration, not a rename.
  *
  *  Order matches `ROLE_PERMISSIONS` top to bottom: widest reach first. */
-export const RoleId = z.enum(['director', 'head-of-sales', 'marketing', 'bd', 'presales', 'sale'])
+export const RoleId = z.enum([
+  'director',
+  'head-of-sales',
+  'marketing',
+  'bd',
+  'presales',
+  'sale',
+  'account-executive',
+])
 
 /** Licensed product lines. NOT translated, and not an oversight — luật 14 fixes
  *  branch names as English product names on every screen, so the wire key and

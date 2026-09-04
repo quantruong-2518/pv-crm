@@ -45,18 +45,19 @@ cổng thì cùng site (SameSite không nhìn cổng). Vì thế `VITE_API_URL` 
 `roleId` **đi trên dây bằng ASCII** (`director` · `head-of-sales` · `marketing` ·
 `bd` · `presales` · `sale`) trong khi `@pv/engines` viết tiếng Việt. Hai đầu đều
 giữ một bảng `Record<>` đầy đủ nên thêm vai thứ bảy ở một bên là build đỏ. Cột
-`platform.actor.role_id` giữ nguyên bản tiếng Việt — không có migration dữ liệu.
+`platform.actor.role_id` giữ đúng chuỗi cả hai package cùng dùng; bản đổi
+tên sang tiếng Anh là `drizzle/0025_role_id_english.sql`.
 
 Bảy actor có sẵn để thử (mật khẩu nạp bằng `pnpm db:seed:accounts`, không nằm
 trong repo):
 
-| id                            | Email                  | Vai          | Phạm vi                                   |
-| ----------------------------- | ---------------------- | ------------ | ----------------------------------------- |
-| `u-ha`                        | `sales@pebblevina.com` | trưởng-phòng | cả sổ · mọi quyền Sales · quản lý người   |
-| `u-nam`                       | `nam@pebblevina.com`   | bd           | cả sổ                                     |
-| `u-chau`                      | `chau@pebblevina.com`  | marketing    | cả sổ · không `lead.giao/chuyển-đổi/loại` |
-| `u-anh`                       | `anh@pebblevina.com`   | presales     | cả sổ · chỉ đọc lead                      |
-| `u-huy` · `u-binh` · `u-linh` | `<tên>@pebblevina.com` | sale         | **chỉ lead của mình**                     |
+| id                            | Email                  | Vai           | Phạm vi                                   |
+| ----------------------------- | ---------------------- | ------------- | ----------------------------------------- |
+| `u-ha`                        | `sales@pebblevina.com` | head-of-sales | cả sổ · mọi quyền Sales · quản lý người   |
+| `u-nam`                       | `nam@pebblevina.com`   | bd            | cả sổ                                     |
+| `u-chau`                      | `chau@pebblevina.com`  | marketing     | cả sổ · không `lead.giao/chuyển-đổi/loại` |
+| `u-anh`                       | `anh@pebblevina.com`   | presales      | cả sổ · chỉ đọc lead                      |
+| `u-huy` · `u-binh` · `u-linh` | `<tên>@pebblevina.com` | sale          | **chỉ lead của mình**                     |
 
 `sales@` là hòm thư CHỨC DANH, không phải tên riêng — người đổi thì chức danh
 không đổi. Đó là ngoại lệ duy nhất của luật đặt hòm thư, và `actors.test.ts`
@@ -65,7 +66,7 @@ khoá cả ngoại lệ lẫn việc chỉ có một ngoại lệ.
 ## Sổ người dùng — chỉ quản lý
 
 Không có màn đăng ký công khai: tài khoản do người có quyền
-`người-dùng.quản-lý` mở (hôm nay là `giám-đốc` và `trưởng-phòng`), rồi hệ gửi
+`người-dùng.quản-lý` mở (hôm nay là `director` và `head-of-sales`), rồi hệ gửi
 thư đặt mật khẩu. Tài khoản mới có `password_hash = NULL` cho tới khi chủ nó bấm
 link — trạng thái bình thường, màn hiện là "chờ đặt mật khẩu".
 
