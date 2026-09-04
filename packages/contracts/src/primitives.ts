@@ -238,9 +238,11 @@ const NATIONAL_MIN = 9
 export function normalisePhone(s: string): string {
   /* A spreadsheet writes a leading apostrophe to hold the cell as TEXT, which
      is precisely how the leading zero survives export. It is the file's mark,
-     never part of the number — both the straight quote and the curly one an
-     autocorrect leaves behind. */
-  const raw = s.trim().replace(/^['\u2019]\s*/, '')
+     never part of the number — the straight quote and BOTH curly ones.
+     Both, because autocorrect picks its curly quote by position: at the front
+     of a cell it writes the OPENING one (\u2018), never the closing \u2019 that
+     was listed here alone. */
+  const raw = s.trim().replace(/^['\u2018\u2019]\s*/, '')
   const digits = raw.replace(/\D/g, '')
   if (digits === '') return ''
 
@@ -297,8 +299,13 @@ export const phoneOptional = z
      thrown away might have been a second number, or an extension.
      Punctuation stays welcome — that is decoration, not content, and the
      apostrophe a spreadsheet glues on front is decoration the file added by
-     itself, without anybody typing it. */
-  .refine((s) => !/[^\d\s+\-().'\u2019]/.test(s), 'Số điện thoại chỉ gồm chữ số và dấu ngăn')
+     itself, without anybody typing it. The Unicode dashes are here for the
+     same reason: nobody types \u2013, an editor's autocorrect turns the hyphen
+     between two digit groups into one. */
+  .refine(
+    (s) => !/[^\d\s+\-().'\u2018\u2019\u2010-\u2015\u2212]/.test(s),
+    'Số điện thoại chỉ gồm chữ số và dấu ngăn',
+  )
   .transform(normalisePhone)
   .transform((s) => (s === '' ? undefined : s))
   .pipe(
