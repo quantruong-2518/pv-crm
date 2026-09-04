@@ -1650,6 +1650,9 @@ function WaveComposer({
   }
 
   const [previewOpen, setPreviewOpen] = useState(false)
+  /* Has the person CLOSED the preview themselves? Auto-opening is a suggestion,
+     and a suggestion that comes back after being refused is a nag. */
+  const [previewDismissed, setPreviewDismissed] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   /* The button travels only when the pair is COMPLETE and the URL parses —
      `MailCta` in the contract refuses a half-typed address, and somebody in the
@@ -1682,6 +1685,25 @@ function WaveComposer({
     bookingUrl: state.bookingUrl,
     missing: preview.letter?.missing,
   })
+
+  /* THE LETTER SHOWS ITSELF ONCE THERE IS A LETTER TO SHOW — same change and
+     same reason as the quick MAS panel: the compose box is a plain textarea, so
+     bold, bullet lists and both buttons exist ONLY in the rendered preview.
+     Behind a button, that made them findable only by someone who already knew.
+     Still just a suggestion: closing it keeps it closed for this draft, and
+     starting a new wave (which empties the box) offers it again. */
+  const canPreview = state.subject.trim() !== '' && state.body.trim() !== ''
+  useEffect(() => {
+    if (!canPreview) {
+      setPreviewOpen(false)
+      setPreviewDismissed(false)
+    } else if (!previewDismissed) setPreviewOpen(true)
+  }, [canPreview, previewDismissed])
+
+  const togglePreview = () => {
+    setPreviewDismissed(previewOpen)
+    setPreviewOpen(!previewOpen)
+  }
 
   const draftValid = composerDraftValid(state)
   const canAdd = draftValid && state.committed.length < CAMPAIGN_START_MAX_WAVES
@@ -1849,7 +1871,7 @@ function WaveComposer({
             variant="secondary"
             disabled={state.subject.trim() === '' || state.body.trim() === ''}
             aria-expanded={previewOpen}
-            onClick={() => setPreviewOpen((current) => !current)}
+            onClick={togglePreview}
           >
             <Icon icon={Eye} size={14} />
             {previewOpen ? 'Đóng xem trước' : 'Xem trước'}

@@ -93,6 +93,9 @@ export function MasMailModal({
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION)
   const [previewCode, setPreviewCode] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
+  /* Has the person CLOSED the preview themselves? Auto-opening is a suggestion,
+     and a suggestion that comes back after being refused is a nag. */
+  const [previewDismissed, setPreviewDismissed] = useState(false)
   const [sendTiming, setSendTiming] = useState<'now' | 'later'>('now')
   const [scheduledAt, setScheduledAt] = useState('')
   const [campaignCode, setCampaignCode] = useState(NO_CAMPAIGN)
@@ -113,6 +116,7 @@ export function MasMailModal({
     setBody('')
     setCta(undefined)
     setBookingUrl('')
+    setPreviewDismissed(false)
     setQuery('')
     const seeded = initialLeadCode ? [initialLeadCode] : (initialLeadCodes ?? [])
     setSelected(seeded.length > 0 ? new Set(seeded) : NO_SELECTION)
@@ -180,7 +184,6 @@ export function MasMailModal({
     setBody(found?.body ?? '')
     setCta(found?.cta)
     setBookingUrl(found?.bookingUrl ?? '')
-    setPreviewOpen(false)
     setFailure('')
   }
 
@@ -219,6 +222,28 @@ export function MasMailModal({
             : scheduleInvalid
               ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
               : null
+
+  /* THE LETTER SHOWS ITSELF ONCE THERE IS A LETTER TO SHOW.
+     The compose box is a plain textarea — `**bold**` stays two asterisks in it
+     and no button is drawn there — so everything this panel does to a letter is
+     invisible until the preview is open. Behind a button, that made the
+     rendered letter a thing you had to already know about: the person who
+     specified the second button looked for it in the compose box, and a
+     salesperson will look in the same wrong place.
+     Opening it is still only a SUGGESTION — close it once and it stays closed
+     for this letter. */
+  const canPreview = subject.trim() !== '' && body.trim() !== ''
+  useEffect(() => {
+    if (!canPreview) {
+      setPreviewOpen(false)
+      setPreviewDismissed(false)
+    } else if (!previewDismissed) setPreviewOpen(true)
+  }, [canPreview, previewDismissed])
+
+  const togglePreview = () => {
+    setPreviewDismissed(previewOpen)
+    setPreviewOpen(!previewOpen)
+  }
 
   const preview = useMailPreview(
     {
@@ -395,7 +420,7 @@ export function MasMailModal({
                    before going to choose who gets it. */
                   disabled={!subject.trim() || !body.trim()}
                   aria-expanded={previewOpen}
-                  onClick={() => setPreviewOpen((current) => !current)}
+                  onClick={togglePreview}
                 >
                   <Icon icon={Eye} size={16} />
                   {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
