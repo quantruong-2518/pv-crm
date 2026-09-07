@@ -822,10 +822,15 @@ export type RowError = {
   first: string
   /** Which column is wrong — the field key, matching `ImportSpec.fields[].key`.
    *
-   *  Absent means the row failed as a WHOLE and not at one column, which is a
-   *  real answer rather than a missing one. Only the server fills it in
-   *  (`LeadImportError.field`); rows the browser refuses carry the column in
-   *  the sentence already, and the panel prints whichever it has. */
+   *  BOTH sides fill it in: the server on `LeadImportError.field`, the browser
+   *  in `buildRows`. It used to be server-only, on the argument that a browser
+   *  refusal already names the column inside `reason` — but a sentence cannot
+   *  be sorted or filtered, so the panel left its own column-name cell blank
+   *  for exactly the errors a person is most likely to be able to fix.
+   *
+   *  Still optional, because it is still allowed to be absent: a row can fail
+   *  as a WHOLE rather than at one column, and "no single column" is a real
+   *  answer rather than a missing one. */
   field?: string
   reason: string
 }
@@ -934,14 +939,18 @@ export async function buildRows(
     const line = i + 2
     const first = (raw[0] ?? '').trim()
     const values: Record<string, string> = {}
-    let bad: string | undefined
+    /* The COLUMN travels with the sentence. A reason is prose and prose
+       cannot be sorted or filtered; `RowError.field` is what lets the
+       result table and the error file group "17 rows, all of them Email".
+       Set together with `reason` so the two can never drift apart. */
+    let bad: { field: string; reason: string } | undefined
 
     for (const field of spec.fields) {
       const at = mapping[field.key] ?? -1
       const cell = at < 0 ? '' : (raw[at] ?? '').trim()
 
       if (cell === '') {
-        if (field.required) bad ??= `Thiếu ${field.label}`
+        if (field.required) bad ??= { field: field.key, reason: `Thiếu ${field.label}` }
         continue
       }
 
@@ -950,7 +959,11 @@ export async function buildRows(
         if (ok === undefined) {
           /* Ô sai danh sách đóng làm hỏng CẢ DÒNG khi nó bắt buộc, còn không thì
              bỏ ô đó và giữ dòng: mất một ô tuỳ chọn nhẹ hơn mất cả một khách. */
-          if (field.required) bad ??= `${field.label} "${cell}" không có trong danh sách`
+          if (field.required)
+            bad ??= {
+              field: field.key,
+              reason: `${field.label} "${cell}" không có trong danh sách`,
+            }
           continue
         }
         values[field.key] = ok
@@ -968,7 +981,10 @@ export async function buildRows(
          customer where the line above only loses the industry. */
       const limit = field.max ?? spec.cellMax
       if (limit !== undefined && cell.length > limit) {
-        bad ??= `${field.label} dài ${cell.length} ký tự, trần là ${limit}`
+        bad ??= {
+          field: field.key,
+          reason: `${field.label} dài ${cell.length} ký tự, trần là ${limit}`,
+        }
         continue
       }
 
@@ -993,7 +1009,7 @@ export async function buildRows(
     }
 
     if (bad) {
-      errors.push({ line, first, reason: bad })
+      errors.push({ line, first, field: bad.field, reason: bad.reason })
     } else {
       /* So bằng CẢ HAI khoá, không chỉ khoá chính: một dòng mang mã số thuế
          vẫn phải đụng được dòng cũ chỉ có tên+tỉnh, và ngược lại. Chỉ so khoá

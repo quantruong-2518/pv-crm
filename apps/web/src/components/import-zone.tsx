@@ -253,7 +253,19 @@ export function ImportZone({
           report: built,
           scope: effectiveScope,
         })
-        if (written) final = written
+        /* The server's four numbers win — that is what `onCommit` is for —
+           but its error LIST only covers rows it was actually sent. Rows this
+           browser refused never left the machine, so replacing the list drops
+           them: the panel would report 6 rows refused for a file where 9
+           failed, and the three it forgot are the ones whose column is named.
+           The two lists are disjoint by construction (a row is either in
+           `built.rows` or in `built.errors`), so joining them cannot double
+           count. */
+        if (written)
+          final = {
+            ...written,
+            errors: [...built.errors, ...written.errors].sort((a, b) => a.line - b.line),
+          }
       } catch {
         /* Lưới an toàn cho một màn viết sai hợp đồng "không được ném" ở
            `onCommit` — không có nó thì bước 3 treo ở thanh tiến độ mãi mãi.
