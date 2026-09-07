@@ -48,6 +48,18 @@ const NO_ROWS: MailTemplateRow[] = []
 const EMPTY_MESSAGE =
   'Chưa có mẫu thư nào. Mẫu là chỗ bắt đầu của một lá thư — người soạn vẫn sửa được trước khi gửi.'
 
+/** What buttons the letter carries — not just the CTA's label.
+ *
+ *  A template holding only a booking link still sends a button, and printing
+ *  `—` for it says the letter has none. The booking button is NAMED here
+ *  rather than quoted: its wording is `BOOKING_LABEL`, a constant inside
+ *  `@pv/mail-templates`, a package this bundle deliberately does not carry —
+ *  and the column asks which buttons exist, not what one of them says. */
+function buttonSummary(row: MailTemplateRow): string {
+  if (row.cta) return row.bookingUrl ? `${row.cta.label} · Đặt lịch` : row.cta.label
+  return row.bookingUrl ? 'Đặt lịch' : '—'
+}
+
 export function MailTemplatesPage() {
   const chrome = useAppChrome()
   const canWrite = useCan('chiến-dịch.sửa')
@@ -139,12 +151,12 @@ export function MailTemplatesPage() {
               />
             ) : (
               <DataTable
-                className="min-w-[860px]"
+                className="min-w-[890px]"
                 columns={[
                   { header: 'Mã', width: '1fr' },
                   { header: 'Tên mẫu', width: '1.4fr' },
                   { header: 'Tiêu đề email', width: '1.9fr' },
-                  { header: 'Nút', width: '150px' },
+                  { header: 'Nút', width: '180px' },
                   { header: 'Trạng thái', width: '128px' },
                 ]}
                 rows={rows.map((row) => ({
@@ -168,8 +180,8 @@ export function MailTemplatesPage() {
                     >
                       {row.subject}
                     </span>,
-                    <span key="b" className="block truncate">
-                      {row.cta ? row.cta.label : '—'}
+                    <span key="b" className="block truncate" title={buttonSummary(row)}>
+                      {buttonSummary(row)}
                     </span>,
                     <Badge key="t" tone={row.active ? 'success' : 'draft'}>
                       {row.active ? 'Đang dùng' : 'Ngừng dùng'}

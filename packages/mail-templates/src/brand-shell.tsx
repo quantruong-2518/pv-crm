@@ -71,10 +71,11 @@ import {
  *  THƯ PHẢI ĐỌC ĐƯỢC KHI ẢNH BỊ CHẶN
  *  ------------------------------------------------------------------
  *  Rất nhiều client tắt ảnh mặc định ở lần đầu nhận thư từ một địa chỉ lạ —
- *  đúng cái lần mà lá thư này quan trọng nhất. Nên chữ "PV One" nằm cạnh dấu
- *  hiệu dưới dạng CHỮ THẬT. Wordmark mang tên tổ chức trong `alt`, còn tên sản
- *  phẩm "PV One" vẫn là chữ thật bên cạnh nên đầu thư giữ đủ danh tính khi ảnh
- *  bị chặn mà trình đọc màn hình không phải nghe cùng một tên hai lần. */
+ *  đúng cái lần mà lá thư này quan trọng nhất. Đầu thư giờ chỉ còn wordmark,
+ *  nên `alt` của nó là toàn bộ danh tính còn lại khi ảnh bị chặn: nó mang tên
+ *  TỔ CHỨC, không phải tên sản phẩm. Chân thư vẫn in tên công ty và địa chỉ
+ *  bằng chữ thật, nên không có lá thư nào ra ngoài mà người nhận không đọc
+ *  được là ai gửi. */
 export type BrandShellProps = {
   /** Dòng xem trước trong danh sách hộp thư — sau tiêu đề, đây là thứ quyết
    *  định thư có được mở hay không. Không bỏ trống. */
@@ -109,29 +110,42 @@ export type BrandShellProps = {
 const TEXT = { fontFamily: FONT_STACK } as const
 
 const PAGE_STYLE = {
-  backgroundColor: COLOR_SURFACE,
+  backgroundColor: COLOR_BG,
   margin: 0,
-  padding: '32px 0',
+  padding: '24px 0',
   ...TEXT,
 } as const
 
-/** Tấm thẻ trắng nổi trên nền lõm. 560px là bề ngang quen thuộc của thư — hẹp
- *  hơn thì dòng gãy vụn trên máy tính, rộng hơn thì vượt khung xem trước dọc
- *  mà phần lớn hộp thư mở mặc định. */
-const CARD_STYLE = {
+/** MEASURE, NOT A CARD — width and nothing else.
+ *
+ *  This used to be a white rounded panel floating on the recessed ground, and
+ *  the rounding is what made it read as a widget dropped into a mail client
+ *  rather than as a letter. What was actually load-bearing is the 560px: any
+ *  wider and lines break badly on a desktop client, any narrower and they
+ *  splinter. So the measure stays and the panel goes — the page underneath is
+ *  now white, which the footer already depended on (`COLOR_MUTED` on
+ *  `COLOR_SURFACE` measures 4.19:1, under rule 13's floor; on white it is
+ *  5.38:1). A card removed without that background change would have taken the
+ *  footer under the line. */
+const COLUMN_STYLE = {
   maxWidth: 560,
   margin: '0 auto',
-  backgroundColor: COLOR_BG,
-  borderRadius: 12,
 } as const
 
+/** ONE 24px GUTTER, SHARED BY ALL THREE BLOCKS.
+ *
+ *  Header, body and footer take the same horizontal padding so the mark, the
+ *  first letter of the first paragraph and the company name below sit on one
+ *  vertical line. That alignment is what the card's edge used to supply for
+ *  free; with no edge to draw it, the padding has to. Vertical values differ
+ *  because the blocks differ in weight — the body carries the letter and gets
+ *  the most air — and no corner is rounded any more. */
 const HEADER_STYLE = {
   backgroundColor: COLOR_INK,
-  padding: '24px 32px',
-  borderRadius: '12px 12px 0 0',
+  padding: '20px 24px',
 } as const
 
-const CONTENT_STYLE = { padding: '32px' } as const
+const CONTENT_STYLE = { padding: '28px 24px' } as const
 
 export function BrandShell({
   preview,
@@ -150,40 +164,20 @@ export function BrandShell({
       </Head>
       <Preview>{preview}</Preview>
       <Body style={PAGE_STYLE}>
-        <Container style={CARD_STYLE}>
+        <Container style={COLUMN_STYLE}>
           <Section style={HEADER_STYLE}>
-            <Row>
-              {/* The long lockup identifies the company; the live text at right
-                  identifies the product and survives image blocking. */}
-              <Column style={{ width: 176, verticalAlign: 'middle' }} width={176}>
-                <Img
-                  src={wordmarkUrl(assetBaseUrl, 'light')}
-                  width="160"
-                  height="30"
-                  alt={BRAND.org}
-                  style={{ display: 'block', border: 0 }}
-                />
-              </Column>
-              <Column style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                <Text
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                    fontWeight: 700,
-                    letterSpacing: '-0.01em',
-                    color: COLOR_BG,
-                    ...TEXT,
-                  }}
-                >
-                  {BRAND.product}
-                </Text>
-              </Column>
-            </Row>
+            <Img
+              src={wordmarkUrl(assetBaseUrl, 'light')}
+              width="160"
+              height="30"
+              alt={BRAND.org}
+              style={{ display: 'block', border: 0 }}
+            />
           </Section>
 
           <Section style={CONTENT_STYLE}>{children}</Section>
 
-          <Hr style={{ borderColor: COLOR_SURFACE, margin: '0 32px' }} />
+          <Hr style={{ borderColor: COLOR_SURFACE, margin: '0 24px' }} />
 
           <BrandFooter assetBaseUrl={assetBaseUrl} note={footerNote} sender={sender} />
         </Container>
@@ -211,7 +205,7 @@ function BrandFooter({
   sender?: { name: string; address: string }
 }) {
   return (
-    <Section style={{ padding: '24px 32px 28px' }}>
+    <Section style={{ padding: '20px 24px 24px' }}>
       <Row>
         <Column style={{ width: 30, verticalAlign: 'top' }} width={30}>
           <Img

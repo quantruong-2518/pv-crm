@@ -210,7 +210,7 @@ const SAMPLES = [
         // looking at here: the filled CTA over the outlined booking button is a
         // contrast judgement no test can make, and rule 13 applies to email
         // with no token layer to lean on.
-        bookingUrl: 'https://calendly.com/pebblevina/tu-van-30p?name=Ho%C3%A0ng&email=a%40b.vn',
+        bookingUrl: 'https://calendly.com/vivian-pebblevina/30min',
         assetBaseUrl,
         unsubscribeUrl: `${ORIGIN}/unsubscribe?token=mau-xem-truoc`,
         sender: {
