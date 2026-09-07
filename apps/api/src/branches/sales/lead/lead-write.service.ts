@@ -149,9 +149,10 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  THE RULE, AND WHY IT IS TWO SENTENCES RATHER THAN ONE PERMISSION
    *  ------------------------------------------------------------------
-   *  `lead.giao` is held by `trưởng-phòng` and `giám-đốc` only — Sale and BD
-   *  deliberately do not have it, because handing somebody else's customer to a
-   *  third person re-cuts the commission (`COMMISSION_SPLIT`). Declaring the
+   *  `lead.giao` is held by `director`, `head-of-sales` and `account-executive`
+   *  only — Sale and BD deliberately do not have it, because handing somebody
+   *  else's customer to a third person re-cuts the commission
+   *  (`COMMISSION_SPLIT`). Declaring the
    *  route as `@Need({ permission: 'lead.giao' })` and stopping there would
    *  therefore be correct AND useless: it would also block a Sale from picking
    *  up a lead nobody holds, which is the single most common move on this

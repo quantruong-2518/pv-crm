@@ -107,7 +107,7 @@ function slug(text: string): string {
  *  `KEYHOLDER_ROLES` below is derived from `ROLE_PERMISSIONS`, so the day a
  *  seventh role is added to E2 with `người-dùng.quản-lý` in its row, the
  *  sole-administrator rule counts it without anybody remembering to come here.
- *  Writing `['giám-đốc', 'trưởng-phòng']` by hand is the same class of mistake
+ *  Writing `['director', 'head-of-sales']` by hand is the same class of mistake
  *  the matrix itself avoids by spelling those two rows as `PERMISSIONS` rather
  *  than enumerating them: a permission added in one place and forgotten in the
  *  other is invisible until it matters. */

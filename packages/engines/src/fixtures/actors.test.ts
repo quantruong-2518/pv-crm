@@ -92,14 +92,14 @@ describe('Luật chung của email, áp cho cả hai kịch bản', () => {
 /** Khoá VAI — cùng lý do với email, và nặng hơn một bậc.
  *
  *  Gõ nhầm `roleId` không làm hỏng màn nào: app vẫn dựng, người vẫn đăng nhập
- *  được, chỉ là họ mang quyền của người khác. Một Sale gắn nhầm `trưởng-phòng`
+ *  được, chỉ là họ mang quyền của người khác. Một Sale gắn nhầm `head-of-sales`
  *  thì nhìn được sổ của cả phòng và gật được phê duyệt — không compiler nào bắt
  *  được, không ai nhìn màn mà thấy, và đó đúng là loại lỗi ngoại lệ "test khoá
  *  dữ liệu fixture" (CLAUDE.md · mục Test) sinh ra để chặn. */
 describe('Vai chuẩn hoá của người đăng nhập', () => {
   it('bảy vai DAS Vina — đúng bảng đã chốt', () => {
     expect(dasVina.actors.map((a) => [a.id, a.roleId])).toEqual([
-      ['u-ha', 'trưởng-phòng'],
+      ['u-ha', 'head-of-sales'],
       ['u-chau', 'marketing'],
       ['u-nam', 'bd'],
       ['u-huy', 'sale'],
@@ -111,8 +111,8 @@ describe('Vai chuẩn hoá của người đăng nhập', () => {
 
   it('ba vai Sao Đỏ — đúng bảng đã chốt', () => {
     expect(saoDo.actors.map((a) => [a.id, a.roleId])).toEqual([
-      ['u-thang', 'giám-đốc'],
-      ['u-ha', 'trưởng-phòng'],
+      ['u-thang', 'director'],
+      ['u-ha', 'head-of-sales'],
       ['u-huy', 'sale'],
     ])
   })
@@ -140,7 +140,7 @@ describe('Ma trận vai → quyền', () => {
   const has = (role: RoleId, p: Permission) => ROLE_PERMISSIONS[role].includes(p)
 
   it('giao việc và gật phê duyệt chỉ thuộc về người quản lý', () => {
-    for (const role of ['giám-đốc', 'trưởng-phòng'] as const) {
+    for (const role of ['director', 'head-of-sales'] as const) {
       expect(has(role, 'lead.giao')).toBe(true)
       expect(has(role, 'phê-duyệt.duyệt')).toBe(true)
       expect(has(role, 'ghi-vết.xem')).toBe(true)

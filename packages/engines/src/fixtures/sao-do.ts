@@ -99,7 +99,7 @@ const scenario: Scenario = {
       name: 'Nguyễn Văn Thắng',
       email: 'thang@pebblevina.com',
       role: 'Giám đốc',
-      roleId: 'giám-đốc',
+      roleId: 'director',
       branches: ['One', 'Sales', 'Supply', 'Factory', 'Finance'],
     },
     {
@@ -110,7 +110,7 @@ const scenario: Scenario = {
       name: 'Trần Thu Hà',
       email: 'sales@pebblevina.com',
       role: 'Trưởng phòng Kinh doanh',
-      roleId: 'trưởng-phòng',
+      roleId: 'head-of-sales',
       branches: ['One', 'Sales'],
     },
     {

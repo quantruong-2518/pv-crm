@@ -32,20 +32,17 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *
  *  The permission itself is the widest one in the matrix — whoever holds it can
  *  grant themselves every other permission by editing their own `roleId` — so
- *  only `giám-đốc` and `trưởng-phòng` have it. The reasoning lives beside the
+ *  only `director` and `head-of-sales` have it. The reasoning lives beside the
  *  entry in `packages/engines/src/e2-access.ts`; it is not repeated here.
  *
  *  ------------------------------------------------------------------
- *  `roleId` IS ASCII HERE, AND IT NEVER MEETS E2
+ *  `roleId` NEVER MEETS E2 ON THIS SCREEN
  *  ------------------------------------------------------------------
- *  `@pv/engines` spells role keys in Vietnamese (`'trưởng-phòng'`) because that
- *  is what a person reading `ROLE_PERMISSIONS` should see; `@pv/contracts`
- *  re-declares them in ASCII because that is what survives a URL, a proxy log
- *  and an OpenAPI document. `UserRow.roleId` is the ASCII one, and this screen
- *  only ever PRINTS it (via `ROLE_LABEL`) or sends it back unchanged. Nothing
- *  here translates between the two vocabularies — the API keeps the one
- *  `Record<EngineRoleId, RoleId>` table, and a second copy on this side would
- *  be the drift that table exists to prevent. */
+ *  `@pv/contracts` and `@pv/engines` spell roles identically, so `UserRow.roleId`
+ *  needs no translation at all — this screen only ever PRINTS it (via
+ *  `ROLE_LABEL`) or sends it back unchanged. `ROLE_LABEL` is `satisfies
+ *  Record<RoleId, string>` so a role added to the contract without a Vietnamese
+ *  label here is a red build rather than a blank cell in the people book. */
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -200,6 +197,7 @@ export const ROLE_LABEL = {
   bd: 'BD',
   presales: 'Presales',
   sale: 'Sale',
+  'account-executive': 'Account Executive',
 } as const satisfies Record<RoleId, string>
 
 /** The role picker's list, built FROM the label table so the two can never
