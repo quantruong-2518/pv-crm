@@ -183,10 +183,14 @@ export function SessionLocked() {
             {busy ? 'Đang vào…' : 'Vào lại'}
           </Button>
 
+          {/* Same `lg` as the submit above it, not a smaller one: two buttons
+              stacked full width in the same card are one control stack, and a
+              stack that steps down in height reads as a hierarchy the card does
+              not have — leaving is a real choice here, not a footnote. */}
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="lg"
             onClick={() => {
               /* `void`: đóng phiên ở máy chủ là việc phải làm, không phải việc
                  phải đợi. `signOut` dọn máy này ngay trong nhịp đầu tiên (xem

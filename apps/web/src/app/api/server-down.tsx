@@ -108,7 +108,7 @@ function Waiting() {
         </p>
       </div>
 
-      <Button variant="ghost" onClick={() => void probeServer()} disabled={probing}>
+      <Button variant="ghost" size="lg" onClick={() => void probeServer()} disabled={probing}>
         <Icon icon={RefreshCw} />
         Kiểm tra ngay
       </Button>

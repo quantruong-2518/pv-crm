@@ -4,7 +4,7 @@ import { SearchField, type SearchFieldProps } from '../patterns/search-field'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
-import { markLight } from '../assets'
+import { markLight, wordmarkLight } from '../assets'
 
 /** O-06 · AppHeader — nav hai tầng, thay AppSidebar từ 19/08.
  *
@@ -215,7 +215,12 @@ export function AppHeader({
       {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ---- */}
       <div className="relative z-[1] flex h-16 items-center gap-4 px-4">
         <div className="flex shrink-0 items-center gap-3">
-          <img src={markLight} alt="" className="size-9 shrink-0 object-contain md:size-11" />
+          {/* One brand read at two widths, not two logos: the wordmark already
+              contains the square mark, so the short one is only what is left
+              when there is no room for the name. Same breakpoint as the product
+              text below — under `md` every horizontal pixel belongs to search. */}
+          <img src={markLight} alt="" className="size-9 shrink-0 object-contain md:hidden" />
+          <img src={wordmarkLight} alt="" className="hidden h-7 shrink-0 object-contain md:block" />
           {/* Tên sản phẩm ẩn dưới `md`: ở đó mỗi pixel ngang thuộc về ô tìm, và
               logo đã nói đủ đây là app nào. */}
           <div className="hidden md:block">
