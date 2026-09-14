@@ -290,7 +290,7 @@ chỉ 8 phase của Sales.
 
 ---
 
-## §8 · Năm câu còn treo
+## §8 · Tám câu còn treo
 
 1. **Finance có thật trong phạm vi không?** `tam-nhin-bao-gia-hop-dong.md` §12
    xếp "hoá đơn · công nợ" là _ngoài phạm vi_, nhưng `Branch` đã khai `Finance`
@@ -311,7 +311,17 @@ chỉ 8 phase của Sales.
    phải đầu nào cả — trưởng phòng chuyển tay giữa hai Sale là người thứ ba.
    Lý do đầy đủ nằm cạnh cột, ở `touch.schema.ts`.
 5. **SLA chạm đầu của từng luồng, và luật giao việc.** Chưa có con số, và không
-   được bịa.
+   được bịa. **Đây là thứ đang chặn lượt 5** — màn thiết lập luồng chính là chỗ
+   nhập chúng, nên nó không dựng được trước khi có số.
+6. **`BG` là pipeline riêng hay một chặng của cơ hội?** §3 xếp nó là pipeline #4;
+   `tam-nhin-pipeline.md` §6 lại đặt báo giá ở P5 của chuỗi Sales. Hai bản mâu
+   thuẫn nhau, và `pipelinePosition` hiện theo §3.
+7. **Ai khai thang chặng cho `HĐ`?** §3 #5 nói pipeline hợp đồng còn thiếu kỳ
+   hạn, nên hôm nay `phases` của nó rỗng và hàm trả `null` — tức theo luật 1 của
+   §2, hợp đồng "không tồn tại trong hệ". Hoặc khai thang, hoặc sửa luật 1.
+8. **`SO`/`WO` chung một thang hay mỗi kind một thang?** Hiện đang chung
+   (`production`), `PR`/`PO`/`L` cũng chung (`purchasing`). Nếu mỗi kind một
+   thang thì bảng tra phải khoá theo kind, không theo pipeline.
 
 ---
 
@@ -320,18 +330,32 @@ chỉ 8 phase của Sales.
 `tam-nhin-pipeline.md` §9 đặt "rút 3 cột" ở lượt 1 và E3 ở lượt 2–3. Bản này đề
 nghị **đảo**, và chen tầng 0 lên trước:
 
-| Lượt | Việc                                                                  | Vì sao                                                                                             |
-| ---- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 0    | ~~Ghi `giao` + `cham` vào `sales.touch`~~ — **xong 14/09**            | cửa ghi đã có sẵn từ 29/08; phần còn thiếu là hai đầu của lần giao, nay là cột. Nửa trái vector mở |
-| 1    | Component Vector, chỉ vẽ nửa trái, lên `/kit`, nhúng hồ sơ lead       | kiểm xem hình này có thật sự trả lời "ai trước tôi"                                                |
-| 2    | `platform.approval` + `approval_link`, `APPROVALS` thành provider     | tầng 1 — chín pipeline kia đều hưởng                                                               |
-| 3    | Nối `config.approval.ts`, Hộp duyệt lên                               | chặn bởi lượt 2                                                                                    |
-| 4    | E1 ghi cạnh lúc chạy — `ObjectMirror` + `GraphService` vào controller | tầng 0 thật sự                                                                                     |
-| 5    | Màn A định nghĩa luồng (qua E3) → mở nửa phải vector                  | chặn bởi 2, 3                                                                                      |
-| 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry`      | chặn bởi 4                                                                                         |
+| Lượt | Việc                                                             | Vì sao                                                                                                                  |
+| ---- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 0    | ~~Ghi `giao` + `cham` vào `sales.touch`~~ — **xong 14/09**       | cửa ghi đã có sẵn từ 29/08; phần còn thiếu là hai đầu của lần giao, nay là cột. Nửa trái vector mở                      |
+| 1    | ~~Component Vector nửa trái~~ — **xong 14/09**                   | `FlowVector` (M-16) · `/kit` · nhúng hồ sơ lead. Chưa in vai, chưa bấm được — xem dưới                                  |
+| 2    | ~~`platform.approval` + `approval_link`~~ — **xong 14/09**       | migration `0035`, hai bảng ở `platform`, luật E3 tách thành hàm thuần dùng chung hai đầu                                |
+| 3    | ~~Nối `config.approval.ts`, Hộp duyệt~~ — **xong 14/09**         | cửa `/approvals`, màn `/duyet`, mục nav "Phê duyệt" hết trống đường                                                     |
+| 4    | ~~E1 ghi cạnh lúc chạy~~ — **xong 14/09**                        | `ObjectMirror.link/linkMany` + 6 cửa ghi cạnh trong đúng transaction đang có                                            |
+| 5    | Màn A định nghĩa luồng (qua E3) → mở nửa phải vector             | **chưa** — hết bị chặn, nhưng §8.5 (SLA từng luồng) phải có số trước                                                    |
+| 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry` | **một nửa**: hàm thuần đã có (`packages/engines/src/pipeline-position.ts`), chưa ai gọi; `limitDays` vẫn khoá ở `STAGE` |
 
-Lượt 1 làm được **ngay**, không chặn bởi gì — và nó là cách rẻ nhất để biết
-hình vector có đúng không trước khi bỏ công dựng màn thiết lập.
+Còn lại đúng **lượt 5 và nửa sau của lượt 6**. Lượt 5 hết bị chặn về kỹ thuật —
+E3 đã có bảng, cửa và màn — nhưng nó là màn NHẬP SỐ cho §8.5, mà §8.5 chưa có
+số và doc này cấm bịa. Nửa sau lượt 6 là nối `pipelinePosition` vào chỗ thật và
+mở `config_limit_only_stage` cho mọi pipeline, không chỉ 8 phase của Sales.
+
+**Ba chỗ lượt 0–4 cố ý để lại, nói ra chứ không giấu:**
+
+- Vector chưa in **vai** từng người — `sales.touch` không chở vai lúc đó, và
+  join `actor` để lấy vai hôm nay là đúng thứ luật chép-tên-lúc-ghi cấm. Muốn có
+  thì phải bồi một cột nữa.
+- Mắt vector chưa **bấm được**: `ActivityCard` khoá dòng bằng `at` chứ không
+  bằng id, nên chưa có gì để nhảy tới. Nối được, nhưng phải đổi hợp đồng của
+  `ActivityCard`.
+- Hộp duyệt chưa dùng `ApprovalCard` (O-04) vì tổ chức đó đòi `amount` và in số
+  tiền lên nút chính — đúng cho chiết khấu và đơn mua, sai cho một thay đổi từ
+  vựng vốn không có số nào.
 
 **Sửa lại một chỗ bản này đọc sai code (14/09).** `giao` và `cham` KHÔNG thiếu
 cửa ghi: `setOwner` ghi `giao` từ `cf97f78` (29/08) và sổ cuộc họp ghi
