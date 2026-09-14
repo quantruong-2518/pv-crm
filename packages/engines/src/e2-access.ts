@@ -228,11 +228,20 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   ],
 }
 
-/** Object thuộc miền quyền nào. Chỉ hai kiểu đã có màn thật có mặt ở đây.
+/** Which permission domain an object kind belongs to. Only the kinds that have
+ *  a real screen are here.
  *
- *  Kiểu chưa có màn (SO · WO · PO · L · BT · CNC…) CỐ TÌNH vắng: gán bừa một
- *  miền cho chúng là phát minh ra luật quyền cho nhánh chưa ai dựng. Với những
- *  kiểu đó `can()` chỉ kiểm license và phạm vi — nói rõ hơn ở `check()`. */
+ *  The eight without one — `BG · SO · WO · PR · PO · L · BT · CNC` — are absent
+ *  DELIBERATELY: handing them a domain would invent permission rules for
+ *  branches nobody has built, and the matrix holds no `purchase.*` or
+ *  `production.*` to hand them anyway.
+ *
+ *  What their absence must NOT mean is "anything goes". Until 14/09 a missing
+ *  domain made `permissionFor` answer `null`, and `check()` then skipped the
+ *  role axis entirely — so an actor licensed for Factory could edit a `WO`
+ *  whatever their role, and nothing turned red. `check()` now refuses a WRITE
+ *  on a kind with no declared domain, and keeps READ open; the reasoning is
+ *  written where the refusal is. */
 const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'opportunity' | 'contract' | 'account'>> = {
   LD: 'lead',
   OP: 'opportunity',
@@ -254,13 +263,21 @@ const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'opportunity' | 'contract
   CT: 'lead',
 }
 
-/** Hành động trên một object cần quyền nào. `null` = kiểu này chưa có miền
- *  quyền, đừng bịa ra một quyền để chặn. */
+/** Which permission an action on an object needs. `null` = this kind has no
+ *  declared domain; see `check()` for what happens then.
+ *
+ *  Two of the four actions are answered BEFORE the domain is looked up, because
+ *  their permission does not depend on the object at all: taking data out of the
+ *  system is `data.export` whatever it is data about, and saying yes to a
+ *  request is `approval.decide` whatever the request touches. Looking the domain
+ *  up first — as this did until 14/09 — meant a kind with no domain slipped past
+ *  BOTH of them: an export of a work order asked for no permission whatsoever. */
 function permissionFor(action: Action, ref: ObjectRef): Permission | null {
-  const domain = KIND_DOMAIN[ref.kind]
-  if (!domain) return null
   if (action === 'export') return 'data.export'
   if (action === 'approve') return 'approval.decide'
+
+  const domain = KIND_DOMAIN[ref.kind]
+  if (!domain) return null
   return `${domain}.${action}` as Permission
 }
 
@@ -377,6 +394,31 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
         ok: false,
         reason: 'permission-denied',
         note: `Vai ${actor.role} không có ${permission}.`,
+      }
+    }
+
+    /* A kind with no declared domain may be READ and may not be CHANGED.
+       
+       Read stays open because the branch axis above already answers it: a `WO`
+       belongs to Factory, so only somebody licensed for Factory ever sees one,
+       and the object rail (rule 10) exists precisely to show them the chain
+       their deal turned into. Closing read here would empty that rail for the
+       one person entitled to it.
+
+       Write closes because there is no permission that could authorise it —
+       none of the 27 names a purchase or a work order — so "allowed" would mean
+       "allowed for every role at once". That is the hole this paragraph exists
+       to fill, and it is also the forcing function: the day a branch builds its
+       first write door, it declares its domain and its permission FIRST, which
+       is what §7 of `tam-nhin-pipeline-toan-he.md` asks for in as many words.
+
+       Skipped when the caller named a permission by hand: a door that knows
+       exactly what it needs has already been checked against it above. */
+    if (!need.permission && need.action === 'edit' && need.ref && !KIND_DOMAIN[need.ref.kind]) {
+      return {
+        ok: false,
+        reason: 'permission-denied',
+        note: `Kiểu ${need.ref.kind} chưa khai miền quyền — chưa ai được sửa nó.`,
       }
     }
 
