@@ -957,7 +957,11 @@ export class OpportunityRepository {
 
   /** The STAGE list as configured, ACTIVE ONLY and in `ord` order — the two
    *  conditions `stageConfigOf` reads positions under. */
-  private stageRows(): Promise<{ name: string; limitDays: number | null }[]> {
+  /** The STAGE list as `stageConfigOf` needs it. Public since the profile door
+   *  reads the ladder too: `pipelinePosition` is given the phases and their
+   *  clocks, and a second loader would be a second chance to read the list in a
+   *  different order — which is the one thing `stage-config.ts` fences. */
+  stageRows(): Promise<{ name: string; limitDays: number | null }[]> {
     return this.db
       .select({ name: configEntry.name, limitDays: configEntry.limitDays })
       .from(configEntry)

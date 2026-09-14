@@ -6,6 +6,7 @@ import {
   OpportunityScorecard,
   type OpportunityLiveDeal,
   type OpportunityOwner,
+  type OpportunityProfileResponse,
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
@@ -259,11 +260,18 @@ export const opportunityFacetQuery = queryOptions({
     }),
 })
 
+/** One deal, plus WHERE IT STANDS.
+ *
+ *  `OpportunityProfileResponse` rather than `OpportunityRow`: this door carries
+ *  `position` — the phase, who is being waited on, and how many days of the
+ *  column's limit are left or gone. The book does not, and deliberately: a
+ *  position costs the ladder and the open approvals read beside the row, which
+ *  is worth it once and not once per page of a book. */
 export const opportunityProfileQuery = (code: string) =>
   queryOptions({
     queryKey: ['sales', 'ops', code] as const,
     queryFn: () =>
-      api.read<OpportunityRow>(`/sales/opportunities/${code}`, {
+      api.read<OpportunityProfileResponse>(`/sales/opportunities/${code}`, {
         need: { branch: 'Sales', permission: 'opportunity.view' },
       }),
   })

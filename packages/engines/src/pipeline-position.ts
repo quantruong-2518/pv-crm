@@ -108,8 +108,16 @@ export type PositionInput = {
    *  counts is the caller's knowledge, and it has to be: only the caller knows
    *  what it loaded. */
   reached: readonly string[]
-  /** When the object entered the phase it is in now (`stage_since`). */
-  since: string
+  /** When the object entered the phase it is in now (`stage_since`).
+   *
+   *  NULLABLE, and the null is not laziness: a row can carry a phase and no
+   *  mark of when it got there, and the two honest answers to that are
+   *  different. Where it stands is still known; how long it has stood there is
+   *  not. Falling back to `created_at` would quietly answer §8.1 of
+   *  `tam-nhin-pipeline.md` — still open — and it would answer it wrong for
+   *  every object that has moved at least once. So: no mark, no clock, and
+   *  `overdueBy` comes back `null`. */
+  since: string | null
   /** Approval requests already loaded for this object. */
   approvals: readonly Decidable[]
 }
@@ -136,7 +144,7 @@ export function pipelinePosition(input: PositionInput, now: string): PipelinePos
      far side gives the days spent here. Reused rather than written again: the
      rule that both sides truncate to a date before subtracting — without which
      one afternoon yields two different answers — already has a home. */
-  const daysHere = daysUntil(now, input.since)
+  const daysHere = input.since === null ? null : daysUntil(now, input.since)
 
   return {
     branch: input.ref.branch,
@@ -144,7 +152,11 @@ export function pipelinePosition(input: PositionInput, now: string): PipelinePos
     state: input.ref.state ?? null,
     holder: input.ref.owner ?? null,
     waitingOn: link ? { person: link.person, role: link.role, due: link.due ?? null } : null,
-    overdueBy: phase.limitDays === null ? null : daysHere - phase.limitDays,
+    /* Two different nulls, one field: no limit configured for this phase, or no
+       mark of when the object entered it. Both mean the same thing to a screen
+       — nothing can be said about lateness here — and neither may be printed as
+       a zero, which would read as "right on time". */
+    overdueBy: phase.limitDays === null || daysHere === null ? null : daysHere - phase.limitDays,
   }
 }
 

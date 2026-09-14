@@ -163,6 +163,16 @@ export class ApprovalService {
     })
   }
 
+  /** What is still waiting on one object — the `approvals` input every caller of
+   *  `pipelinePosition` has to supply.
+   *
+   *  Rows rather than views: the engine reads `state` and `chain` and nothing
+   *  else, and a branch asking "who is this waiting on" has no business being
+   *  handed the payload of a request it did not raise. */
+  pendingOn(objectCode: string): Promise<ApprovalRowDb[]> {
+    return this.repo.waitingOnObject(objectCode)
+  }
+
   /** One person's yes or no — and, on the last yes, the change itself.
    *
    *  The order matters and is not arrangeable any other way: load, ask the

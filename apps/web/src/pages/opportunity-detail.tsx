@@ -54,7 +54,6 @@ import { opportunityTouchesQuery } from '@/data/touches'
 import {
   bdOwnersOf,
   isLateClose,
-  isRottingOp,
   missingOf,
   namesOf,
   opportunityProfileQuery,
@@ -272,7 +271,14 @@ export function OpportunityDetailPage() {
   }
 
   const late = isLateClose(op)
-  const rotting = isRottingOp(op)
+  /* The column clock now comes from the SERVER's position, which reads
+     `config_entry` — the limits somebody can actually edit on the Settings
+     screen. `isRottingOp` answers the same question from `STAGE_LIMIT`, a
+     constant copied out of the frozen fixture, and it still serves the book
+     grid because a book row carries no position. On this screen the two would
+     be two answers to one question, and the configured one is the true one. */
+  const overdueBy = op.position?.overdueBy ?? null
+  const rotting = overdueBy !== null && overdueBy > 0
 
   return shell(
     <ScreenLayout>
@@ -311,7 +317,20 @@ export function OpportunityDetailPage() {
                 <MetaPill tone={rotting ? 'warning' : 'accent'}>
                   {STAGE_LABEL.get(op.stage)}
                   {op.daysInStage !== null && ` · ${op.daysInStage} ngày`}
-                  {rotting && ' · quá hạn cột'}
+                  {/* One number, both readings: negative is time still in hand,
+                      positive is time gone. `null` means the column has no
+                      limit configured — nothing can be late here yet, which is
+                      not the same as nothing being late, so it says neither. */}
+                  {overdueBy !== null &&
+                    (overdueBy > 0 ? ` · trễ ${overdueBy} ngày` : ` · còn ${-overdueBy} ngày`)}
+                </MetaPill>
+              )}
+              {/* Who the deal is waiting ON, which is a different question from
+                  who HOLDS it: an approval sitting with somebody else is the
+                  reason a deal stops moving while its owner looks idle. */}
+              {op.position?.waitingOn && (
+                <MetaPill tone="warning">
+                  chờ {op.position.waitingOn.person} · {op.position.waitingOn.role}
                 </MetaPill>
               )}
             </div>

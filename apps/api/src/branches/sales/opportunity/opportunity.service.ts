@@ -2,15 +2,18 @@ import { Inject, Injectable } from '@nestjs/common'
 import {
   AUDIENCE_INTERNAL,
   OPPORTUNITY_OPENED,
+  pipelinePosition,
   plan,
   type AccessControl,
   type Actor,
+  type Decidable,
   type ObjectRef,
 } from '@pv/engines'
 import {
   ContractSignResponse,
   OpportunityBookResponse,
   OpportunityCreateResponse,
+  OpportunityProfileResponse,
   OpportunityHistogram,
   OpportunityImportCommitResponse,
   OpportunityImportPreviewResponse,
@@ -18,6 +21,8 @@ import {
   OpportunityScorecard,
   OpportunityStageHistory,
   OpportunityUpdateResponse,
+  PipelinePositionView,
+  StageKey,
   type ContractSign,
   type ObjectCode,
   type OpportunityBookQuery,
@@ -32,6 +37,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { ApprovalService } from '@api/platform/approval/approval.service'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
 import { ContractRepository } from '../contract/contract.repository'
 import { fromSign, toContract as toContractRow } from '../contract/contract.mapper'
@@ -52,6 +58,8 @@ import {
   toStageEvent,
 } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
+import type { OpportunityRowDb } from './opportunity.schema'
+import { stageConfigOf } from './stage-config'
 
 /** Module 3 · Sổ cơ hội — chỗ duy nhất biết cả repository lẫn engine.
  *
@@ -86,6 +94,10 @@ export class OpportunityService {
     private readonly contracts: ContractRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
+    /* E3's durable half, asked one question by this module: what is still
+       waiting on a deal. Registering an applier is somebody else's job — a
+       branch may read the inbox without having anything to apply. */
+    private readonly approvals: ApprovalService,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ENV) private readonly env: Env,
@@ -217,11 +229,22 @@ export class OpportunityService {
    *
    *  Ba cửa dưới (`update`, `touches`, `sign`) gộp theo cùng lý do. Sửa mỗi
    *  cửa đọc mà để `PATCH` trả 403 thì lỗ đếm vẫn còn nguyên, chỉ ồn hơn. */
-  async profile(who: Actor, code: ObjectCode): Promise<OpportunityCreateResponse> {
+  async profile(who: Actor, code: ObjectCode): Promise<OpportunityProfileResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
-    return OpportunityCreateResponse.parse(toContract(found))
+    /* The ladder and the open approvals, side by side: neither depends on the
+       other and the screen waits on both. Read only on this door — see
+       `OpportunityProfileResponse` for why the book does not pay for them. */
+    const [stageRows, approvals] = await Promise.all([
+      this.repo.stageRows(),
+      this.approvals.pendingOn(code),
+    ])
+
+    return OpportunityProfileResponse.parse({
+      ...toContract(found),
+      position: positionOf(found.row, stageRows, approvals),
+    })
   }
 
   /** `POST /sales/opportunities` — đổi một lead thành cơ hội.
@@ -1087,4 +1110,47 @@ export class OpportunityService {
       })
     }
   }
+}
+
+/** Where one deal stands, for the profile door.
+ *
+ *  Everything the engine needs is already in hand by the time this is called;
+ *  the function itself is pure and synchronous, which is the whole reason it
+ *  can also run in a browser. What this adds is the two translations only the
+ *  branch can make:
+ *
+ *   · the LADDER — `config_entry` stores a label and an ord, never a stage key,
+ *     so the pairing is by ordinal position and `stageConfigOf` is the one
+ *     place allowed to make it;
+ *   · the EVIDENCE — for a deal, its own column IS the evidence. A lead would
+ *     pass "a quote exists, a contract exists"; a deal has nothing to infer,
+ *     which is why `reached` is one entry rather than a walk through stage
+ *     history. When it moved is a different question, and `:code/stage-history`
+ *     already answers that one.
+ *
+ *  `null` comes back for a deal with no column — won and lost have left the
+ *  board — and that is the honest answer rather than a phase invented for them. */
+function positionOf(
+  row: OpportunityRowDb,
+  stageRows: { name: string; limitDays: number | null }[],
+  approvals: readonly Decidable[],
+): PipelinePositionView | null {
+  if (!row.stage) return null
+
+  const config = stageConfigOf(stageRows)
+  const position = pipelinePosition(
+    {
+      ref: toRef(row, null),
+      phases: StageKey.options.map((key) => ({
+        key,
+        limitDays: config.get(key)?.limitDays ?? null,
+      })),
+      reached: [row.stage],
+      since: row.stageSince?.toISOString() ?? null,
+      approvals,
+    },
+    new Date().toISOString(),
+  )
+
+  return position === null ? null : PipelinePositionView.parse(position)
 }

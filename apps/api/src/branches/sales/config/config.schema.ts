@@ -17,7 +17,7 @@ import { sales } from '../sales.schema'
  *
  *  Giá phải trả là ba cột thuộc tính riêng nằm chung một hàng và chỉ có nghĩa
  *  với đúng một `list`. Giá đó được trả bằng CHECK ở tầng bảng, không bằng lời
- *  hứa của tầng ứng dụng — xem `config_limit_only_stage` bên dưới.
+ *  hứa của tầng ứng dụng — xem `config_limit_only_ladder` bên dưới.
  *
  *  ------------------------------------------------------------------
  *  ID BẤT BIẾN · TÊN SỬA ĐƯỢC · THỨ TỰ LÀ NGHIỆP VỤ
@@ -76,12 +76,23 @@ export const configEntry = sales.table(
     /** Trống là `NULL`, không bao giờ là `''` — cùng quy ước với `lead`. */
     check('config_name_not_blank', sql`"name" <> ''`),
 
-    /** Hạn cột CHỈ thuộc về `STAGE`, và mọi `STAGE` đều phải có hạn.
+    /** A per-phase clock belongs to a LADDER list, and every phase of a ladder
+     *  must carry one.
      *
-     *  Viết bằng dấu bằng giữa hai mệnh đề chứ không bằng hai `CHECK` rời: một
-     *  biểu thức thì không có cách nào thoả nửa này mà hụt nửa kia. Đây là chỗ
-     *  ép cái giá của quyết định "sáu danh mục một bảng". */
-    check('config_limit_only_stage', sql`("list" = 'STAGE') = ("limit_days" IS NOT NULL)`),
+     *  Written as an equality between two clauses rather than two separate
+     *  CHECKs: one expression has no way to satisfy half and miss the other.
+     *  This is where the price of "six lists in one table" is paid.
+     *
+     *  The set comes from `LADDER_LISTS` in `@pv/contracts` and holds one entry
+     *  today (`STAGE`). Spelling the set rather than the single value is luật 2
+     *  of `docs/tam-nhin-pipeline-toan-he.md` §2 taken seriously: the rule is
+     *  "a ladder has clocks", not "Sales has clocks", and the day a second
+     *  pipeline brings a ladder this is one more value here — not a rewrite of
+     *  a constraint that was only ever true of one branch.
+     *
+     *  Copied rather than generated, the same call every other CHECK in this
+     *  codebase makes: widening it must be a migration somebody reads. */
+    check('config_limit_only_ladder', sql`("list" IN ('STAGE')) = ("limit_days" IS NOT NULL)`),
 
     /** ĐÍCH của khoá ngoại GHÉP mà `sales.lead` sẽ trỏ vào.
      *

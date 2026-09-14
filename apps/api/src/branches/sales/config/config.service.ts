@@ -4,6 +4,7 @@ import {
   ConfigBundle,
   ConfigListResponse,
   ConfigProposalReceipt,
+  isLadder,
   MotionPolicyResponse,
   type LeadMotion,
   type MotionPolicyPatch,
@@ -254,7 +255,7 @@ export class SalesConfigService implements ApprovalApplier {
    *
    *  zod kiểm được HÌNH của thân yêu cầu, nhưng `list` nằm ở ĐƯỜNG DẪN — nên
    *  quan hệ "chỉ `STAGE` mới có `limitDays`" không nằm trong tầm nhìn của nó.
-   *  Ở đây là chỗ duy nhất thấy đủ cả hai. `CHECK config_limit_only_stage` ở
+   *  Ở đây là chỗ duy nhất thấy đủ cả hai. `CHECK config_limit_only_ladder` ở
    *  tầng bảng là lưới thứ hai; nó bắt được chuyện tương tự nhưng chỉ nói được
    *  bằng tiếng của Postgres. */
   private assertAttrs(
@@ -267,13 +268,18 @@ export class SalesConfigService implements ApprovalApplier {
       if (given && list !== owner) wrong[field] = [`Chỉ danh mục ${owner} mới có ô này.`]
     }
 
-    only('limitDays', 'STAGE', v.limitDays !== undefined)
+    /* `limitDays` is the one attribute whose owner is a SET rather than a single
+       list — every ladder has a clock per phase. The other two still belong to
+       exactly one list each, so they keep the single-owner form. */
+    if (v.limitDays !== undefined && !isLadder(list)) {
+      wrong.limitDays = ['Chỉ danh mục có thang chặng mới có ô này.']
+    }
     only('ownerId', 'CATEGORY', v.ownerId !== undefined)
     only('kind', 'SOURCE', v.kind !== undefined)
 
     /* Chỉ đòi lúc TẠO. Lúc sửa, vắng mặt nghĩa là "giữ nguyên hạn cũ", còn
        xoá hạn của một cột phễu thì không có đường nào — đúng như CHECK ở bảng. */
-    if (requireLimit && list === 'STAGE' && v.limitDays === undefined) {
+    if (requireLimit && isLadder(list) && v.limitDays === undefined) {
       wrong.limitDays = ['Cột của phễu bắt buộc có hạn, tính bằng ngày.']
     }
 

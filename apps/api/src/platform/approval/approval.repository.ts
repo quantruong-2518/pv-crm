@@ -94,6 +94,24 @@ export class ApprovalRepository {
       .orderBy(desc(approval.raisedAt))
   }
 
+  /** Requests still waiting that hang off ONE object.
+   *
+   *  The join goes through `approval_link`, which is why that is a table: an
+   *  object can have several requests pending on it and a request can touch
+   *  several objects. `approval_link_object_idx` is the index this reads.
+   *
+   *  Only `waiting` rows: a decided request is not waiting on anybody, and the
+   *  caller — `pipelinePosition` — asks exactly one question of this list. */
+  async waitingOnObject(objectCode: string): Promise<ApprovalRowDb[]> {
+    return this.db
+      .select({ approval })
+      .from(approval)
+      .innerJoin(approvalLink, eq(approvalLink.requestId, approval.id))
+      .where(and(eq(approvalLink.objectCode, objectCode), eq(approval.state, 'waiting')))
+      .orderBy(desc(approval.raisedAt))
+      .then((rows) => rows.map((r) => r.approval))
+  }
+
   async linksOf(requestIds: readonly string[]): Promise<ApprovalLinkRowDb[]> {
     if (requestIds.length === 0) return []
     return this.db

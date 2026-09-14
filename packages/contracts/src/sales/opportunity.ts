@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { PipelinePositionView } from '../position'
 import { PageQuery, SortDir, paged } from '../pagination'
 import {
   MoneyVnd,
@@ -468,6 +469,20 @@ export const OpportunityBookQuery = PageQuery.extend({
 
 export const OpportunityBookResponse = paged(OpportunityRow)
 
+/** `GET /sales/opportunities/:code` — the book row, plus where the deal stands.
+ *
+ *  A shape of its own rather than a field added to `OpportunityRow`, and the
+ *  difference is the cost: a position needs the ladder and the open approvals
+ *  loaded beside the row, which is two extra reads. Worth it for ONE deal on a
+ *  profile; multiplied by a book page it is a second query per row for a column
+ *  nobody is reading yet. The book gets it the day a screen asks.
+ *
+ *  `null` means this kind has no ladder — the honest answer rule 1 of §2 wants
+ *  visible rather than defaulted away. */
+export const OpportunityProfileResponse = OpportunityRow.extend({
+  position: PipelinePositionView.nullable(),
+})
+
 export const OpportunityCreateResponse = OpportunityRow
 
 /** Cả hai cửa ghi trả về NGUYÊN dòng sổ, cùng một hình với lượt đọc.
@@ -603,6 +618,7 @@ export type OpportunitySortKey = z.infer<typeof OpportunitySortKey>
 export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>
+export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileResponse>
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 
 // ---------------------------------------------------------------------------

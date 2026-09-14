@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
@@ -54,7 +55,11 @@ import { OpportunityService } from './opportunity.service'
  *  repository: module khác được hỏi "cho tôi sổ cơ hội của người này", không
  *  được với thẳng vào bảng. */
 @Module({
-  imports: [EnginesModule, GraphModule, MailModule, TouchModule],
+  /* `ApprovalModule` for one question only: what is still waiting on a deal,
+     which `pipelinePosition` needs to answer "who is it waiting on". This
+     module registers no applier — reading the inbox and having something to
+     apply are separate things, and only the config module has the second. */
+  imports: [ApprovalModule, EnginesModule, GraphModule, MailModule, TouchModule],
   controllers: [OpportunityController],
   providers: [
     OpportunityService,

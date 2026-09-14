@@ -19,6 +19,7 @@
 export type { ZodType } from 'zod'
 
 export * from './primitives'
+export * from './position'
 export * from './problem'
 export * from './auth'
 export * from './roles'

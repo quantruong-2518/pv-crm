@@ -289,9 +289,18 @@ lại, đúng thứ §6 sinh ra để cấm.
 4**, và `phase` là khoá của **pipeline**, không phải hằng số của Sales. Thêm một ô
 bây giờ rẻ hơn nhiều so với sửa sau khi bốn màn đều đã đọc nó.
 
-Kèm theo: `CHECK config_limit_only_stage` (`config.schema.ts:84`) buộc "chỉ
-`STAGE` mới có `limitDays`". Luật 2 của §2 cần nó mở cho **mọi pipeline**, không
-chỉ 8 phase của Sales.
+**Đã làm xong 14/09**, đúng sáu ô ấy: `pipelinePosition()` ở `@pv/engines` (thuần,
+đồng bộ, không con số ngày nào trong code — thang chặng đi vào bằng tham số), và
+hồ sơ đơn là màn đầu tiên đọc nó. `since` nhận `null` được: một dòng có chặng mà
+không có mốc vào chặng thì vị trí vẫn biết, còn đồng hồ thì không — trả `null`
+chứ không lấy `created_at` thay, vì đó là §8.1 của bản kia và nó còn treo.
+
+~~Kèm theo: `CHECK config_limit_only_stage` buộc "chỉ `STAGE` mới có
+`limitDays`".~~ **Xong 14/09**: ràng buộc nay tên là `config_limit_only_ladder`
+và nói về một TẬP — `LADDER_LISTS` ở `@pv/contracts`, hôm nay đúng một thành
+viên. Cùng những dòng ấy vẫn qua, cùng những dòng ấy vẫn hỏng; cái đổi là luật
+thôi mang tên Sales, nên thang chặng của Supply chỉ tốn một dòng chứ không tốn
+một lượt viết lại.
 
 ---
 
@@ -338,20 +347,30 @@ chỉ 8 phase của Sales.
 `tam-nhin-pipeline.md` §9 đặt "rút 3 cột" ở lượt 1 và E3 ở lượt 2–3. Bản này đề
 nghị **đảo**, và chen tầng 0 lên trước:
 
-| Lượt | Việc                                                             | Vì sao                                                                                                                  |
-| ---- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 0    | ~~Ghi `giao` + `cham` vào `sales.touch`~~ — **xong 14/09**       | cửa ghi đã có sẵn từ 29/08; phần còn thiếu là hai đầu của lần giao, nay là cột. Nửa trái vector mở                      |
-| 1    | ~~Component Vector nửa trái~~ — **xong 14/09**                   | `FlowVector` (M-16) · `/kit` · nhúng hồ sơ lead. Chưa in vai, chưa bấm được — xem dưới                                  |
-| 2    | ~~`platform.approval` + `approval_link`~~ — **xong 14/09**       | migration `0035`, hai bảng ở `platform`, luật E3 tách thành hàm thuần dùng chung hai đầu                                |
-| 3    | ~~Nối `config.approval.ts`, Hộp duyệt~~ — **xong 14/09**         | cửa `/approvals`, màn `/duyet`, mục nav "Phê duyệt" hết trống đường                                                     |
-| 4    | ~~E1 ghi cạnh lúc chạy~~ — **xong 14/09**                        | `ObjectMirror.link/linkMany` + 6 cửa ghi cạnh trong đúng transaction đang có                                            |
-| 5    | ~~Màn A định nghĩa luồng (qua E3)~~ — **xong 14/09**             | mục 5.9 + bảng `motion_policy` (`0036`); sáu luồng × bốn ô, **mọi ô trống chờ §8.5**                                    |
-| 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry` | **một nửa**: hàm thuần đã có (`packages/engines/src/pipeline-position.ts`), chưa ai gọi; `limitDays` vẫn khoá ở `STAGE` |
+| Lượt | Việc                                                                                  | Vì sao                                                                                             |
+| ---- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 0    | ~~Ghi `giao` + `cham` vào `sales.touch`~~ — **xong 14/09**                            | cửa ghi đã có sẵn từ 29/08; phần còn thiếu là hai đầu của lần giao, nay là cột. Nửa trái vector mở |
+| 1    | ~~Component Vector nửa trái~~ — **xong 14/09**                                        | `FlowVector` (M-16) · `/kit` · nhúng hồ sơ lead. Chưa in vai, chưa bấm được — xem dưới             |
+| 2    | ~~`platform.approval` + `approval_link`~~ — **xong 14/09**                            | migration `0035`, hai bảng ở `platform`, luật E3 tách thành hàm thuần dùng chung hai đầu           |
+| 3    | ~~Nối `config.approval.ts`, Hộp duyệt~~ — **xong 14/09**                              | cửa `/approvals`, màn `/duyet`, mục nav "Phê duyệt" hết trống đường                                |
+| 4    | ~~E1 ghi cạnh lúc chạy~~ — **xong 14/09**                                             | `ObjectMirror.link/linkMany` + 6 cửa ghi cạnh trong đúng transaction đang có                       |
+| 5    | ~~Màn A định nghĩa luồng (qua E3)~~ — **xong 14/09**                                  | mục 5.9 + bảng `motion_policy` (`0036`); sáu luồng × bốn ô, **mọi ô trống chờ §8.5**               |
+| 6    | ~~`pipeline_position` có `branch`; `limitDays` sang `config_entry`~~ — **xong 14/09** | hàm thuần + hồ sơ đơn đọc nó thật; `limitDays` hết đóng đinh vào `STAGE` (`0037`)                  |
 
-Còn lại **nửa sau của lượt 6**: nối `pipelinePosition` vào chỗ thật và mở
-`config_limit_only_stage` cho mọi pipeline, không chỉ 8 phase của Sales. Cộng
-một việc không nằm trong bảy lượt: nối tám mục còn lại của `/sales/config` vào
-cửa đề nghị vốn đã sống.
+**Bảy lượt đã xong cả bảy.** Thứ còn lại không phải lượt nào trong bảng, mà là
+ba việc lộ ra trong lúc làm:
+
+- Tám mục còn lại của `/sales/config` vẫn diễn hình propose-rồi-duyệt. Cửa đề
+  nghị nay sống thật nên nối chúng là việc rẻ — kèm sửa câu "Gửi TP Kinh doanh
+  duyệt" ở nút cũ, vì chuỗi duyệt đã chốt là Giám đốc.
+- `pipelinePosition` mới được đọc ở **hồ sơ đơn**. Sổ đơn, hồ sơ lead và Trang
+  chủ vẫn tự suy vị trí theo cách riêng — `isRottingOp` ở `apps/web` còn đọc
+  `STAGE_LIMIT` chép từ fixture, trong khi hồ sơ đơn nay đọc hạn cột thật từ
+  `config_entry`. Hai câu trả lời cho một câu hỏi, và bản cấu hình mới là bản
+  đúng.
+- `LADDER_LISTS` có đúng một thành viên (`STAGE`), vì mười pipeline kia chưa có
+  thang chặng nào trong `config_entry`. Ngày Supply có thang, đó là một dòng ở
+  đó cộng một migration — không phải đi tìm ba chỗ từng gõ `'STAGE'`.
 
 Thứ chặn nửa phải của vector nay **không còn là kỹ thuật**. Màn A có đủ ô, bảng
 có đủ cột, đường duyệt chạy trọn vòng — thiếu đúng con số của §8.5. Ngày có số,

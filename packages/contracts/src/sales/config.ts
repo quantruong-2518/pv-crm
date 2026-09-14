@@ -243,6 +243,30 @@ export const ConfigListResponse = z.object({
  *  là cho người gọi tự chọn khoá chính, thứ mà một lần gõ trùng là một lần hai
  *  danh mục đè lên nhau. */
 
+/** The config lists that are LADDERS — an ordered run of phases an object walks
+ *  through, each phase with a clock on it.
+ *
+ *  A ladder is the only kind of list where `limitDays` means anything, and rule
+ *  2 of `docs/tam-nhin-pipeline-toan-he.md` §2 says every phase of every
+ *  pipeline must carry one: a phase with no clock is a phase people park in.
+ *
+ *  ONE member today, and that is the honest count: `STAGE` is the Sales funnel,
+ *  and the other ten pipelines have no ladder in this table yet. What changed is
+ *  the SHAPE of the rule — until now "only STAGE may have limitDays" was typed
+ *  out three times (the CHECK on the table, the service's field guard, and the
+ *  screen), each one naming Sales. The day Supply's ladder arrives it is one
+ *  entry here plus one migration, not a hunt for the three places that spell
+ *  `'STAGE'`.
+ *
+ *  `readonly` and derived from `ConfigList` so a typo cannot name a list that
+ *  does not exist. */
+export const LADDER_LISTS = ['STAGE'] as const satisfies readonly ConfigList[]
+
+/** Does this list carry a per-phase clock. */
+export function isLadder(list: ConfigList): boolean {
+  return (LADDER_LISTS as readonly ConfigList[]).includes(list)
+}
+
 /** What every write door on this module answers: a receipt, not a row.
  *
  *  There is no `config.edit` in the permission matrix — only `config.propose` —
@@ -268,7 +292,7 @@ export const ConfigEntryCreate = z.object({
   /** Bắt buộc với `STAGE`, cấm với năm danh mục còn lại — ràng buộc đó là
    *  QUAN HỆ giữa `list` (nằm ở đường dẫn) và trường này, nên zod của thân yêu
    *  cầu không nhìn thấy đủ để kiểm. Service kiểm, và `CHECK
-   *  config_limit_only_stage` ở tầng bảng là lưới thứ hai. */
+   *  config_limit_only_ladder` ở tầng bảng là lưới thứ hai. */
   limitDays: z.number().int().nonnegative().max(365).optional(),
   ownerId: textInputOptional(64),
   kind: textInputOptional(32),
