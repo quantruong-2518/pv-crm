@@ -24,7 +24,9 @@ import {
 import { configEntry } from '@api/branches/sales/config/config.schema'
 import { contract } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
+import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
 import { opportunity, opportunityOwner } from '@api/branches/sales/opportunity/opportunity.schema'
+import { touch } from '@api/branches/sales/touch/touch.schema'
 import { passwordReset, session } from '@api/platform/auth/auth.schema'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
 import { loadEnv } from '@api/platform/config/env'
@@ -411,6 +413,59 @@ async function seed(): Promise<void> {
       }
     })
 
+  /* ── The timeline ─────────────────────────────────────────────────────────
+     The source is the `history` that `buildHistory` already built for every
+     lead — NOT a chain of milestones invented here. Two screens read one
+     lead's life, and they can only agree while exactly one place decides what
+     happened.
+
+     Until 15/09 this table was EMPTY after every seed, so the activity card
+     printed its no-history line on all 100 leads and `FlowVector` drew no node
+     at all — a book of a hundred rows where none of them had a past. */
+  const roleOf = new Map(actors.map((a) => [a.name, a.roleId]))
+
+  /** One end of a hand-over: name → `{ id, name, role }`, THROWS on a miss.
+   *
+   *  Stricter than `by` right beside it, deliberately. `by` is a snapshot of a
+   *  name and is allowed to be somebody outside the staff book (the AI
+   *  assistant — agent 1 is not an actor); `from_actor_id`/`to_actor_id` are real foreign
+   *  keys, and `touch_hand_over_sides` demands the id travel with the name. An
+   *  end that does not resolve means the fixture is naming a person who does
+   *  not exist, and that is the fixture's bug. */
+  const handOf = (name: string, code: string) => {
+    const id = personId(name, code, 'đầu của lần giao')
+    const role = roleOf.get(name)
+    if (!id || !role) throw new Error(`${code}: "${name}" không có vai trong sổ nhân sự`)
+    return { id, name, role }
+  }
+
+  const touchRows: (typeof touch.$inferInsert)[] = LEADS.flatMap((l) =>
+    l.history.map((e) => {
+      const from = e.fromName ? handOf(e.fromName, l.code) : null
+      const to = e.toName ? handOf(e.toName, l.code) : null
+
+      return {
+        subjectCode: l.code,
+        subjectKind: 'lead' as const,
+        kind: e.kind,
+        at: new Date(e.at),
+        by: e.by,
+        /* SOFT lookup: `by` carries the name of whoever pressed the button, and
+           the AI assistant is not a row in the staff book. An absent
+           `actor_id` reads as exactly that. */
+        actorId: idOf.get(e.by) ?? null,
+        note: e.note,
+        ...(e.toTier ? { toTier: e.toTier } : {}),
+        ...(from ? { fromActorId: from.id, fromName: from.name } : {}),
+        /* `to_role` freezes the role held AT THE TIME. Reading it from the
+           staff book is correct here — the scenario is frozen, so "then" and
+           "now" are the same instant — but the column must still be written,
+           because the day the book changes this row must not change with it. */
+        ...(to ? { toActorId: to.id, toName: to.name, toRole: to.role } : {}),
+      }
+    }),
+  )
+
   const signedRows = rows.filter((r) => LEADS[r._i]?.contractCode)
   const won = signedRows.map((r) => {
     const code = LEADS[r._i]?.contractCode
@@ -531,13 +586,45 @@ async function seed(): Promise<void> {
           .map((o) => ({ opportunityCode: o.code, actorId: o._ownerId!, role: 'SALE' as const })),
       )
     await tx.insert(contract).values(won.map((w) => w.contract))
+
+    /* THE FIRST LINE OF EVERY DEAL, and it has to exist because the real door
+       writes it too. `POST /sales/opportunities` writes TWO rows in one
+       transaction — one on the lead ("promoted to a deal"), one on the deal
+       ("opened from which lead") — because those two sentences are read by two
+       people looking at two different screens. The lead already has its half in
+       `history`; this is the other half, and without it a deal profile opens
+       blank exactly as that door's docblock warns.
+
+       The instant comes from the lead's own `vao-pipeline` event: one act, one
+       moment, two ledgers. Using the deal's `createdAt` would give two
+       different dates for one press of one button. */
+    const dealOpened = ops.flatMap((o) => {
+      const event = LEADS.find((l) => l.code === o.leadCode)?.history.find(
+        (e) => e.kind === 'vao-pipeline',
+      )
+      if (!event) return []
+
+      return [
+        {
+          subjectCode: o.code,
+          subjectKind: 'opportunity' as const,
+          kind: 'vao-pipeline' as const,
+          at: new Date(event.at),
+          by: event.by,
+          actorId: idOf.get(event.by) ?? null,
+          note: NOTE.opened(o.leadCode, o.state),
+        },
+      ]
+    })
+
+    await tx.insert(touch).values([...touchRows, ...dealOpened])
   })
 
   console.log(
     `Đã nạp ${actors.length} actor · ${dasVina.objects.length + leadObjects.length} object · ` +
       `${dasVina.edges.length} cạnh · ${rows.length} lead · ` +
       `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · ` +
-      `${configSeed.length} dòng cấu hình · driver ${kind}.`,
+      `${touchRows.length} lần chạm · ${configSeed.length} dòng cấu hình · driver ${kind}.`,
   )
   await close()
 }

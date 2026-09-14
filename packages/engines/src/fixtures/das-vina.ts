@@ -1717,6 +1717,31 @@ export type LeadEvent = {
   /** Ai làm. 'Trợ lý AI' là agent 1 — vẫn phải có người bấm (luật 9). */
   by: string
   note: string
+
+  /** The rung reached AFTER this step. Only `len-bac` carries it, and it MUST.
+   *
+   *  Added 15/09, when this timeline started being carried into `sales.touch`.
+   *  Not decoration: `touch_len_bac_co_bac` refuses a `len-bac` row with no
+   *  rung, and the only other way to know is to COUNT — a lead's first
+   *  `len-bac` is `mql`, its second is `sql`. That count is right today and
+   *  breaks silently the day somebody inserts a step, which is precisely what
+   *  the docblock on `touch.toTier` forbids. A row that states its own rung
+   *  needs no assumption at all. */
+  toTier?: LeadTier
+
+  /** Both ends of one hand-over. `giao` carries both; `vao-so` carries
+   *  `toName` for a lead that entered the book already held.
+   *
+   *  NAMES rather than ids, because `by` beside them is a name too — all three
+   *  are SNAPSHOTS taken at write time (`touch.schema.ts` says why). The seed
+   *  resolves them against the staff book and throws if the fixture names
+   *  somebody who is not in it.
+   *
+   *  Why columns rather than prose inside `note`: `FlowVector` draws one node
+   *  per holder, and digging names back out of a Vietnamese sentence is
+   *  inventing history — the exact thing `stepsOf` refuses to do. */
+  fromName?: string
+  toName?: string
 }
 
 export type Lead = {
@@ -2087,16 +2112,31 @@ function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[]
      này lại. */
   const closeDay = lead.contractCode || lead.exitReason ? DAY_FROZEN - lead.daysHere : DAY_FROZEN
 
-  const push = (day: number, kind: LeadEventKind, by: string, note: string) =>
-    out.push({ at: dayISO(Math.min(day, closeDay)), kind, by, note })
+  const push = (
+    day: number,
+    kind: LeadEventKind,
+    by: string,
+    note: string,
+    hand?: Pick<LeadEvent, 'toTier' | 'fromName' | 'toName'>,
+  ) => out.push({ at: dayISO(Math.min(day, closeDay)), kind, by, note, ...hand })
+
+  /* THE FIRST HOLDER, written as a column rather than left to be inferred.
+     A lead arriving from a source sits with whoever opened that source until
+     somebody hands it on — and the scenario already says so, it just says it
+     through an action: the day-four `len-bac` is pressed by Marketing. Stating
+     it here makes explicit what the scenario already asserts rather than
+     adding a new fact; without it the vector's left half starts mid-chain and
+     the first node reads as if BD picked the lead up off the floor. */
+  const firstHolder = src?.owner ?? MARKETING
 
   push(
     bornDay,
     'vao-so',
-    src?.owner ?? MARKETING,
+    firstHolder,
     src
       ? `Vào sổ từ ${src.kind === 'tu-nhien' ? 'nguồn' : 'chiến dịch'} ${src.code} · ${src.label}`
       : 'Vào sổ',
+    { toName: firstHolder },
   )
 
   if (lead.requiredFilled > 0) {
@@ -2109,8 +2149,16 @@ function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[]
   }
 
   if (lead.tier !== 'dau-moi') {
-    push(bornDay + 4, 'len-bac', MARKETING, 'Xác minh công ty có thật · lên bậc MQL')
-    push(bornDay + 5, 'giao', HEAD_OF_SALES, `Giao cho ${BD} đi lấy nốt ô bắt buộc`)
+    push(bornDay + 4, 'len-bac', MARKETING, 'Xác minh công ty có thật · lên bậc MQL', {
+      toTier: 'mql',
+    })
+    /* The head of sales presses the button but is NEITHER end: the lead leaves
+       the source owner's hands for BD's. Exactly the case `touch.by` exists to
+       keep separate — a third person moving it between two others. */
+    push(bornDay + 5, 'giao', HEAD_OF_SALES, `Giao cho ${BD} đi lấy nốt ô bắt buộc`, {
+      fromName: firstHolder,
+      toName: BD,
+    })
   }
 
   /* Buổi gặp đầu tiên và lần điền ô của BD là CÙNG một chuyến, không phải hai:
@@ -2133,7 +2181,9 @@ function buildHistory(lead: Omit<Lead, 'history'>, bornDay: number): LeadEvent[]
   }
 
   if (lead.tier === 'sql' && lead.owner) {
-    push(bornDay + 9, 'len-bac', HEAD_OF_SALES, 'Đủ ô bắt buộc · qua cổng init data')
+    push(bornDay + 9, 'len-bac', HEAD_OF_SALES, 'Đủ ô bắt buộc · qua cổng init data', {
+      toTier: 'sql',
+    })
     push(bornDay + 10, 'vao-pipeline', lead.owner, `Nhận vào sổ cơ hội · ${lead.owner} đứng tên`)
     if (lead.stage) {
       push(
