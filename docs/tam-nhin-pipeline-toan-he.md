@@ -276,11 +276,17 @@ thứ cho Supply nhặt (một cạnh `platform.edge` và một sự kiện
 
 Làm Supply/Factory trước khi đóng tầng 0 là dựng nhà không móng.
 
-Kèm theo, một lỗ quyền sẽ mở đúng lúc đó: `KIND_DOMAIN` **cố ý vắng** tám kind —
-`BG · SO · WO · PR · PO · L · BT · CNC` (đếm lại 14/09; bản đầu quên `PR`) — nên
-`can()` với chúng chỉ kiểm license + phạm vi, **bỏ qua vai hoàn toàn**. Hàm thả
-trục vai là `permissionFor()` trả `null` (`e2-access.ts`). Ngày mở màn Supply đầu tiên phải vá
-`KIND_DOMAIN` TRƯỚC, không phải sau.
+~~Kèm theo, một lỗ quyền sẽ mở đúng lúc đó~~ — **vá 14/09**. `KIND_DOMAIN` vẫn
+cố ý vắng tám kind (`BG · SO · WO · PR · PO · L · BT · CNC`; bản đầu đếm 7, quên
+`PR`), vì gán miền cho chúng là phát minh luật quyền cho nhánh chưa ai dựng —
+ma trận cũng không có `purchase.*` nào để gán. Nhưng sự vắng mặt đó **hết nghĩa
+là "muốn làm gì thì làm"**: `check()` nay từ chối lượt GHI trên kiểu chưa khai
+miền và giữ lượt ĐỌC (trục license đã trả lời câu đọc, và rail của luật 10 cần
+nó). `export`/`approve` cũng hết lọt: chúng không phụ thuộc object nên được tra
+trước bảng miền. Lập luận đầy đủ nằm tại chỗ từ chối ở `e2-access.ts`.
+
+Vì thế ngày mở màn Supply đầu tiên, việc khai `KIND_DOMAIN` + khai quyền là
+**điều kiện để cửa ghi chạy được**, không còn là một việc dễ quên.
 
 ### Cảnh báo về `pipeline_position`
 
@@ -361,24 +367,72 @@ nghị **đảo**, và chen tầng 0 lên trước:
 | 5    | ~~Màn A định nghĩa luồng (qua E3)~~ — **xong 14/09**                                  | mục 5.9 + bảng `motion_policy` (`0036`); sáu luồng × bốn ô, **mọi ô trống chờ §8.5**               |
 | 6    | ~~`pipeline_position` có `branch`; `limitDays` sang `config_entry`~~ — **xong 14/09** | hàm thuần + hồ sơ đơn đọc nó thật; `limitDays` hết đóng đinh vào `STAGE` (`0037`)                  |
 
-**Bảy lượt đã xong cả bảy.** Thứ còn lại không phải lượt nào trong bảng, mà là
-ba việc lộ ra trong lúc làm:
+**Bảy lượt đã xong cả bảy** (14/09). Bốn lượt tiếp theo dưới đây không mở tính
+năng mới — cả bốn đều là **dọn chỗ hệ đang nói hai câu khác nhau về một sự thật**,
+xếp theo thứ tự chỗ nào nói dối to nhất trước.
 
-- Tám mục còn lại của `/sales/config` vẫn diễn hình propose-rồi-duyệt. Cửa đề
-  nghị nay sống thật nên nối chúng là việc rẻ — kèm sửa câu "Gửi TP Kinh doanh
-  duyệt" ở nút cũ, vì chuỗi duyệt đã chốt là Giám đốc.
-- `pipelinePosition` mới được đọc ở **hồ sơ đơn**. Sổ đơn, hồ sơ lead và Trang
-  chủ vẫn tự suy vị trí theo cách riêng — `isRottingOp` ở `apps/web` còn đọc
-  `STAGE_LIMIT` chép từ fixture, trong khi hồ sơ đơn nay đọc hạn cột thật từ
-  `config_entry`. Hai câu trả lời cho một câu hỏi, và bản cấu hình mới là bản
-  đúng.
-- `LADDER_LISTS` có đúng một thành viên (`STAGE`), vì mười pipeline kia chưa có
-  thang chặng nào trong `config_entry`. Ngày Supply có thang, đó là một dòng ở
-  đó cộng một migration — không phải đi tìm ba chỗ từng gõ `'STAGE'`.
+| Lượt | Việc                                           | Chặn bởi                 | Đụng vào                                                         |
+| ---- | ---------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
+| 7    | Nối tám mục còn lại của `/sales/config` vào E3 | một quyết định, xem dưới | `sales-config.tsx` · `data/sales-config.ts`                      |
+| 8    | `pipelinePosition` thay mọi chỗ tự suy vị trí  | lượt 7 (thang bậc lead)  | `opportunity.*` · `lead.*` · `home.ts` · `data/opportunities.ts` |
+| 9    | Vector đủ ba thứ còn thiếu                     | không                    | `sales.touch` + migration · `ActivityCard` · hồ sơ cơ hội        |
+| 10   | Dọn cạnh sắc của `seed-accounts.ts`            | một quyết định, xem dưới | `seed-accounts.ts`                                               |
 
-Thứ chặn nửa phải của vector nay **không còn là kỹ thuật**. Màn A có đủ ô, bảng
-có đủ cột, đường duyệt chạy trọn vòng — thiếu đúng con số của §8.5. Ngày có số,
-nhập vào mục 5.9 là xong, không phải dựng thêm gì.
+### Lượt 7 · Tám mục config hết diễn
+
+Hôm nay chúng gom câu mô tả vào một mảng local rồi bấm gửi là xoá mảng. Cửa thật
+đã sống (`POST /sales/config/:list` · `PATCH /:list/:id` · `PATCH /:list/order`),
+mục 5.9 đã đi đường đó, nên việc còn lại là nối.
+
+Ba thứ phải làm cùng lượt, bỏ cái nào cũng để lại một câu nói dối:
+
+1. Mỗi mục gọi cửa thật và nhận biên lai; **không vẽ lại dòng** sau khi gửi.
+2. Nút cũ còn ghi "Gửi TP Kinh doanh duyệt" — chuỗi duyệt đã chốt là **Giám đốc**.
+3. `data/sales-config.ts` còn `load: fetchSalesConfig` cho tám mục — cắt sang
+   `salesCatalogQuery` (đường `/cat-mock`), không thì màn sửa một sổ và đọc một sổ khác.
+
+**Quyết định cần bạn chốt trước:** nút gửi hiện gom NHIỀU thay đổi rồi gửi một
+lần, còn `ConfigChange` là MỘT thay đổi một yêu cầu. Gửi năm ô đã sửa thì thành
+**năm dòng trong Hộp duyệt** (gật từng cái, từ chối từng cái) hay **một dòng
+mang cả năm** (gật là gật cả gói)? Cái sau cần một `ApprovalKind` thứ hai và một
+hình payload mới; cái trước không cần gì thêm nhưng làm hộp duyệt dài ra.
+
+### Lượt 8 · Một câu trả lời cho "đang ở đâu, trễ bao nhiêu"
+
+`isRottingOp` ở `apps/web` đọc `STAGE_LIMIT` — hằng số chép từ fixture đóng băng
+— trong khi hồ sơ đơn đã đọc hạn thật từ `config_entry`. Hai câu trả lời cho một
+câu hỏi, và bản cấu hình mới là bản đúng.
+
+- **Sổ đơn**: nạp thang chặng MỘT lần cho cả trang, cộng một câu `IN (…)` lấy
+  yêu cầu duyệt đang treo của các mã trong trang — rẻ hơn nghe nhiều, vì cả hai
+  đều là một truy vấn cho cả trang chứ không phải một truy vấn mỗi dòng. Xong
+  thì `isRottingOp` và `STAGE_LIMIT` xoá được.
+- **Trang chủ**: `deskStory` đang tự dựng cạnh bằng tay trên trình duyệt rồi gọi
+  `E1.story()` — nay `platform.edge` có cạnh thật, nên nó đọc được từ máy chủ.
+- **Hồ sơ lead**: chặn thật. Lead đi theo thang BẬC (`dau-moi → mql → sql`), mà
+  danh mục `TIER` chưa phải thang — `LADDER_LISTS` chỉ có `STAGE`. Muốn lead có
+  vị trí và có đồng hồ thì phải thêm `TIER` vào `LADDER_LISTS`, một migration mở
+  `limit_days` cho nó, **và những con số §8.5 chưa có**. Nên phần lead nằm sau
+  lượt 7 và sau khi bạn cho số.
+
+### Lượt 9 · Vector đủ ba thứ
+
+- **Vai từng người**: `sales.touch` không chở vai lúc đó, mà join `actor` lúc đọc
+  là lấy vai HÔM NAY — đúng thứ luật chép-tên-lúc-ghi cấm. Cần một cột nữa
+  (`to_role`, chụp lúc ghi) + migration + cửa `setOwner` điền nó.
+- **Bấm được**: `ActivityCard` khoá dòng bằng `at` chứ không bằng id, nên chưa có
+  gì để nhảy tới. Phải đổi hợp đồng của nó để chở `touchId` — một component dùng
+  chung, nên đọc kỹ chỗ gọi trước.
+- **Hồ sơ cơ hội**: §6·B nói nhúng cả lead lẫn cơ hội, mới làm lead.
+  `opportunityTouchesQuery` đã có và `stepsOf` không quan tâm subject là gì —
+  đây là phần rẻ nhất trong ba.
+
+### Lượt 10 · Hai cạnh sắc của `seed-accounts.ts`
+
+Gõ không kèm `--password=` thì nó dùng mật khẩu nằm trong repo. `mustChangePasswordAt`
+đã làm cùn chuyện đó (vé một lần), nhưng lượt cập nhật vẫn **xoá `disabledAt`** —
+tức bật lại tài khoản ai đó cố ý khoá. **Quyết định cần bạn chốt:** đòi
+`--password=` khi đích không phải pglite, hay giữ mặc định và thôi xoá `disabledAt`?
 
 **Ba chỗ lượt 0–4 cố ý để lại, nói ra chứ không giấu:**
 
