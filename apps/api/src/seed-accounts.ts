@@ -15,12 +15,21 @@ import { STAFF } from './staff'
  *  the Neon database loses whatever came in through the import door and exists
  *  in no fixture.
  *
- *  This script only ever runs `UPDATE … WHERE id = …` against actors that
- *  already exist. It creates nothing, deletes nothing, and touches no table
+ *  This script only ever ADDS: it updates the seats that exist and plants the
+ *  ones that do not. It deletes no actor, no lead, no deal, and touches no table
  *  outside `platform.actor` (plus revoking sessions, see below). That is what
  *  makes it safe to point at a live database, and it is why it is a separate
  *  command instead of a flag on the other ones — a flag would be one typo away
  *  from the destructive path.
+ *
+ *  It plants rather than skips BECAUSE the two rebuild commands cannot both be
+ *  run. `db:seed` writes the demo cast (`u-ha`, `u-chau`, …) and `reset-staff`
+ *  writes the real seven, and each wipes what the other left. Before today this
+ *  script matched by id against a book that had none of its ids, so every row
+ *  fell through to "not in the database, skipped" and it wrote nothing at all —
+ *  a command whose whole purpose was putting the real seats on a live database
+ *  without destroying it. Now it does that: load the demo data, then run this,
+ *  and both casts stand in the same book.
  *
  *  ------------------------------------------------------------------
  *  `STAFF` IS THE SOURCE OF IDENTITY, `password.ts` OF THE DEFAULT SECRET
@@ -80,24 +89,40 @@ async function main(): Promise<void> {
     const plan = STAFF.map((a) => {
       const row = byId.get(a.id)
       return {
-        id: a.id,
-        name: a.name,
+        member: a,
         emailFrom: row?.email ?? null,
-        emailTo: a.email,
-        missing: !row,
+        fresh: !row,
         hadPassword: Boolean(row?.passwordHash),
+        /* A mailbox is UNIQUE on `actor`, so a seat cannot be planted while
+           somebody else holds its address. Caught here rather than mid-INSERT:
+           an aborted transaction says the same thing in Postgres' words, a few
+           seconds later, and leaves the operator guessing which row it meant. */
+        takenBy: rows.find((r) => r.email === a.email && r.id !== a.id)?.id ?? null,
       }
     })
 
     for (const p of plan) {
-      if (p.missing) {
-        console.log(`  ✗ ${p.id.padEnd(8)} không có trong DB — bỏ qua`)
+      const { id, name, email } = p.member
+      if (p.takenBy) {
+        console.log(`  ! ${id.padEnd(8)} ${name.padEnd(20)} email đang là của ${p.takenBy} — DỪNG`)
         continue
       }
-      const moved = p.emailFrom !== p.emailTo ? `${p.emailFrom} → ${p.emailTo}` : p.emailTo
+      if (p.fresh) {
+        console.log(`  + ${id.padEnd(8)} ${name.padEnd(20)} ${email}  (trồng mới)`)
+        continue
+      }
+      const moved = p.emailFrom !== email ? `${p.emailFrom} → ${email}` : email
       console.log(
-        `  · ${p.id.padEnd(8)} ${p.name.padEnd(20)} ${moved}` +
+        `  · ${id.padEnd(8)} ${name.padEnd(20)} ${moved}` +
           (p.hadPassword ? '  (ghi đè mật khẩu cũ)' : '  (đặt mật khẩu lần đầu)'),
+      )
+    }
+
+    const clash = plan.filter((p) => p.takenBy)
+    if (clash.length > 0) {
+      throw new Error(
+        `${clash.length} ghế có email đang thuộc về người khác. ` +
+          'Sửa `staff.ts` hoặc dọn dòng kia trước — không ghi gì cả.',
       )
     }
 
@@ -120,7 +145,25 @@ async function main(): Promise<void> {
 
     await db.transaction(async (tx) => {
       for (const p of plan) {
-        if (p.missing) continue
+        if (p.fresh) {
+          /* Everything `actor` demands is already in `staff.ts` — the book is
+             the source of identity, and this is the one place it becomes rows.
+             `mustChangePasswordAt` is set here for the same reason it is set on
+             an update: the operator typed this password, so it is a ticket. */
+          await tx.insert(actor).values({
+            id: p.member.id,
+            name: p.member.name,
+            email: p.member.email,
+            role: p.member.role,
+            roleId: p.member.roleId,
+            branches: p.member.branches,
+            ...(p.member.ownOnly === undefined ? {} : { ownOnly: p.member.ownOnly }),
+            passwordHash: hash,
+            mustChangePasswordAt: new Date(),
+          })
+          continue
+        }
+
         await tx
           .update(actor)
           /* `mustChangePasswordAt` rides along because this command hands out a
@@ -128,12 +171,12 @@ async function main(): Promise<void> {
              a string somebody else chose, which is the one thing
              `PasswordChangeGuard` exists to prevent. */
           .set({
-            email: p.emailTo,
+            email: p.member.email,
             passwordHash: hash,
             disabledAt: null,
             mustChangePasswordAt: new Date(),
           })
-          .where(eq(actor.id, p.id))
+          .where(eq(actor.id, p.member.id))
 
         /* Every password change kills that person's live sessions. The usual
            reason somebody's password is being reset is that somebody else has
@@ -141,13 +184,14 @@ async function main(): Promise<void> {
            password is being set for everyone at once, which makes it doubly
            true: whatever was signed in before was signed in under the old
            rules. */
-        await tx.delete(session).where(eq(session.actorId, p.id))
+        await tx.delete(session).where(eq(session.actorId, p.member.id))
       }
     })
 
-    const written = plan.filter((p) => !p.missing).length
+    const planted = plan.filter((p) => p.fresh).length
     console.log(
-      `\n✓ ${written} tài khoản đã có email .com và mật khẩu; mọi phiên cũ đã bị thu hồi.`,
+      `\n✓ ${plan.length - planted} tài khoản đã cập nhật, ${planted} trồng mới; ` +
+        'mọi phiên cũ của người đã có đều bị thu hồi.',
     )
   } finally {
     await close()
