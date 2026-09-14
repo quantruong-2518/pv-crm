@@ -7,16 +7,16 @@ import { TouchService } from './touch.service'
  *  KHÔNG có controller, và đó là điểm đáng đọc nhất của file này. Hai đường đọc
  *  lần chạm sống trên `LeadController` và `OpportunityController`:
  *
- *      GET /sales/leads/:code/touches           `lead.xem`   · scoped
- *      GET /sales/opportunities/:code/touches   `cơ-hội.xem` · scoped
+ *      GET /sales/leads/:code/touches           `lead.view`   · scoped
+ *      GET /sales/opportunities/:code/touches   `opportunity.view` · scoped
  *
  *  Một `@Controller('sales/touches')` với `?subject=` sẽ gọn hơn và sai: hai
  *  đường đó đòi HAI quyền khác nhau, mà `@Need` là metadata tĩnh trên một
- *  phương thức — một route không khai được "lead.xem nếu mã bắt đầu bằng LD,
- *  cơ-hội.xem nếu bắt đầu bằng OP". Nhét cả hai vào một cửa nghĩa là chọn một
- *  quyền cho cả hai, và cách nào cũng hỏng: chọn `lead.xem` thì presales — vai
+ *  phương thức — một route không khai được "lead.view nếu mã bắt đầu bằng LD,
+ *  opportunity.view nếu bắt đầu bằng OP". Nhét cả hai vào một cửa nghĩa là chọn một
+ *  quyền cho cả hai, và cách nào cũng hỏng: chọn `lead.view` thì presales — vai
  *  làm việc trên cơ hội mà không có quyền lead — mất dòng thời gian của chính
- *  đơn mình đang làm; chọn `cơ-hội.xem` thì marketing mất dòng thời gian của
+ *  đơn mình đang làm; chọn `opportunity.view` thì marketing mất dòng thời gian của
  *  lead mình vừa mang về.
  *
  *  Đường đọc vì thế đứng cạnh chính dòng nó nói tới, ăn đúng ba trục quyền của

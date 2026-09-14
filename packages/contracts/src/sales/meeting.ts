@@ -3,10 +3,10 @@ import { MaObject, Moc, textNhap, textNhapTuyChon } from '../primitives'
 
 /** Meetings held with one lead — the record behind "we have met them before".
  *
- *      GET    /sales/leads/:code/meetings       permission `lead.xem` · scoped
- *      POST   /sales/leads/:code/meetings       permission `lead.sửa` · scoped
- *      PATCH  /sales/leads/:code/meetings/:id   permission `lead.sửa` · scoped
- *      DELETE /sales/leads/:code/meetings/:id   permission `lead.sửa` · scoped
+ *      GET    /sales/leads/:code/meetings       permission `lead.view` · scoped
+ *      POST   /sales/leads/:code/meetings       permission `lead.edit` · scoped
+ *      PATCH  /sales/leads/:code/meetings/:id   permission `lead.edit` · scoped
+ *      DELETE /sales/leads/:code/meetings/:id   permission `lead.edit` · scoped
  *
  *  All four hang off `:code` rather than a flat `/sales/meetings/:id`, because
  *  `@Need` is static metadata: a flat route would have to READ the meeting to

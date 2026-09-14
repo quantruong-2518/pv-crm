@@ -5,8 +5,8 @@ import { api, type ApiNeed } from '@/app/api'
 
 /** Dòng thời gian của một mã — hai cửa, một phép dịch.
  *
- *      GET /sales/leads/:code/touches   quyền `lead.xem`    · scoped
- *      GET /sales/opportunities/:code/touches     quyền `cơ-hội.xem`  · scoped
+ *      GET /sales/leads/:code/touches   quyền `lead.view`    · scoped
+ *      GET /sales/opportunities/:code/touches     quyền `opportunity.view`  · scoped
  *
  *  Đây là thứ thay hai hằng số `NO_TOUCHES`/`NO_TRANSCRIPT` ở
  *  `data/lead-profile.ts:300`. Docblock của chúng đã hẹn sẵn đường này: "khi
@@ -40,8 +40,8 @@ import { api, type ApiNeed } from '@/app/api'
  *  `opportunityProfileQuery` thì vẫn để thiếu, và có lý do riêng ghi tại chỗ:
  *  một lượt đọc MỘT dòng không có gì để `hidden` nói. */
 
-const LEAD_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
-const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.xem', scoped: true }
+const LEAD_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
+const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view', scoped: true }
 
 /** `TouchRow[]` → `LeadEvent[]`.
  *

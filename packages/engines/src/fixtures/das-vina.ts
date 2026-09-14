@@ -1,3 +1,4 @@
+import { DEFAULT_ROLE_PERMISSIONS } from '../e2-access'
 import { CURRENCIES, USD_VND, toDong, type CurrencyCode } from '@pv/contracts'
 import { loadScenario, type Scenario } from './scenario'
 import type { Actor } from '../types'
@@ -71,6 +72,7 @@ const scenario: Scenario = {
       email: 'sales@pebblevina.com',
       role: 'Trưởng phòng Kinh doanh',
       roleId: 'head-of-sales',
+      permissions: DEFAULT_ROLE_PERMISSIONS['head-of-sales'],
       branches: ['One', 'Sales'],
     },
     {
@@ -79,6 +81,7 @@ const scenario: Scenario = {
       email: 'chau@pebblevina.com',
       role: 'Marketing',
       roleId: 'marketing',
+      permissions: DEFAULT_ROLE_PERMISSIONS['marketing'],
       branches: ['One', 'Sales'],
     },
     {
@@ -87,6 +90,7 @@ const scenario: Scenario = {
       email: 'nam@pebblevina.com',
       role: 'BD',
       roleId: 'bd',
+      permissions: DEFAULT_ROLE_PERMISSIONS['bd'],
       branches: ['One', 'Sales'],
     },
     {
@@ -98,6 +102,7 @@ const scenario: Scenario = {
       email: 'huy@pebblevina.com',
       role: 'Sale · chip',
       roleId: 'sale',
+      permissions: DEFAULT_ROLE_PERMISSIONS['sale'],
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
@@ -107,6 +112,7 @@ const scenario: Scenario = {
       email: 'binh@pebblevina.com',
       role: 'Sale · cơ khí, ô tô',
       roleId: 'sale',
+      permissions: DEFAULT_ROLE_PERMISSIONS['sale'],
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
@@ -116,6 +122,7 @@ const scenario: Scenario = {
       email: 'linh@pebblevina.com',
       role: 'Sale · dược',
       roleId: 'sale',
+      permissions: DEFAULT_ROLE_PERMISSIONS['sale'],
       branches: ['One', 'Sales'],
       ownOnly: true,
     },
@@ -125,6 +132,7 @@ const scenario: Scenario = {
       email: 'anh@pebblevina.com',
       role: 'Presales',
       roleId: 'presales',
+      permissions: DEFAULT_ROLE_PERMISSIONS['presales'],
       branches: ['One', 'Sales'],
     },
   ],

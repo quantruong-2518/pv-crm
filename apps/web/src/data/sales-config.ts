@@ -155,7 +155,7 @@ export const salesConfigQuery = queryOptions({
   queryKey: ['sales', 'config'] as const,
   queryFn: () =>
     api.read('/sales/config', {
-      need: { branch: 'Sales', permission: 'cấu-hình.xem' },
+      need: { branch: 'Sales', permission: 'config.view' },
       load: fetchSalesConfig,
     }),
 })
@@ -191,7 +191,7 @@ export const salesCatalogQuery = queryOptions({
   queryKey: ['sales', 'config', 'catalog'] as const,
   queryFn: ({ signal }) =>
     api.read<ConfigBundle>('/sales/config', {
-      need: { branch: 'Sales', permission: 'cấu-hình.xem' },
+      need: { branch: 'Sales', permission: 'config.view' },
       signal,
     }),
 })

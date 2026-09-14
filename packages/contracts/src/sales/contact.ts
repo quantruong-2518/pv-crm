@@ -5,14 +5,14 @@ import { ContactChannel } from './enums'
 
 /** People on the CUSTOMER'S side — the book that did not exist until now.
  *
- *      GET    /sales/leads/:code/contacts   permission `lead.xem` · scoped
- *      POST   /sales/leads/:code/contacts   permission `lead.sửa` · scoped
- *      PATCH  /sales/contacts/:code         permission `lead.sửa` · scoped
- *      DELETE /sales/contacts/:code         permission `lead.sửa` · scoped
- *      POST   /sales/contacts/:code/primary permission `lead.sửa` · scoped
+ *      GET    /sales/leads/:code/contacts   permission `lead.view` · scoped
+ *      POST   /sales/leads/:code/contacts   permission `lead.edit` · scoped
+ *      PATCH  /sales/contacts/:code         permission `lead.edit` · scoped
+ *      DELETE /sales/contacts/:code         permission `lead.edit` · scoped
+ *      POST   /sales/contacts/:code/primary permission `lead.edit` · scoped
  *
  *  No new permission: a contact is a part of the lead's profile, so seeing one
- *  is `lead.xem` and touching one is `lead.sửa`. Decision #6 of
+ *  is `lead.view` and touching one is `lead.edit`. Decision #6 of
  *  `docs/ban-giao-db.md` keeps the E2 matrix as it stands, and "a book of
  *  people" is not a new axis of trust — it is the same lead, described more
  *  precisely.
@@ -242,7 +242,7 @@ export type ContactPatch = z.infer<typeof ContactPatch>
 // THE BOOK — every person we know, across every lead
 // ---------------------------------------------------------------------------
 
-/** `GET /sales/contacts` — permission `lead.xem`, scoped.
+/** `GET /sales/contacts` — permission `lead.view`, scoped.
  *
  *  ------------------------------------------------------------------
  *  A SECOND SHAPE OF LIST, AND IT ANSWERS A DIFFERENT QUESTION

@@ -98,8 +98,8 @@ export class LeadService {
    *  steps for the person reading the screen (`docs/tich-hop-be.md`):
    *
    *    404 `not-found`         mã gõ sai, hoặc lead chưa từng có
-   *    403 `out-of-scope`      CÓ quyền `lead.xem`, dòng này không của mình
-   *    403 `permission-denied` vai không có `lead.xem` — `AccessGuard` đã chặn
+   *    403 `out-of-scope`      CÓ quyền `lead.view`, dòng này không của mình
+   *    403 `permission-denied` vai không có `lead.view` — `AccessGuard` đã chặn
    *
    *  Collapsing the middle one into 404 is the tempting move ("don't confirm
    *  the row exists"), and it is wrong here: the caller already holds a code
@@ -227,7 +227,7 @@ export class LeadService {
   // không biết gì về quyền: câu "lead này có thật không, có đứng tên bạn không"
   // được hỏi MỘT lần, ở đây, đúng như `touches` và `mailTimeline` đã làm.
   //
-  // Hai cửa ghi đòi `lead.sửa`, khai trên controller. Trục phạm vi vẫn bật ở cả
+  // Hai cửa ghi đòi `lead.edit`, khai trên controller. Trục phạm vi vẫn bật ở cả
   // bốn: ghi một buổi họp vào lead của người khác là sửa hồ sơ của người khác.
 
   async meetingList(who: Actor, code: MaObject): Promise<MeetingListResponse> {
@@ -311,7 +311,7 @@ export class LeadService {
    *  là điểm của CẢ KỲ, tức của cả phòng. Cắt nó theo lead ai đang giữ thì mỗi
    *  người mở màn thấy một con số khác nhau dưới cùng một dòng chữ "Thẻ điểm
    *  10/08 → 28/08" — và không con số nào trong đó là con số người ta định
-   *  hỏi. Cửa vẫn đòi `lead.xem`; ai không được vào sổ thì cũng không thấy thẻ.
+   *  hỏi. Cửa vẫn đòi `lead.view`; ai không được vào sổ thì cũng không thấy thẻ.
    *
    *  Bốn con số ĐẾM, không phải tỉ lệ — xem `LeadScorecard`. */
   async scorecard(): Promise<LeadScorecard> {

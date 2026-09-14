@@ -134,7 +134,7 @@ export class UsersRepository {
    *  of how many. It is bounded by the number of administrators, which is two.
    *
    *  `roleIds` arrives as a parameter rather than being spelled out here: WHICH
-   *  roles can administer people is a fact of `ROLE_PERMISSIONS` in
+   *  roles can administer people is a fact of `DEFAULT_ROLE_PERMISSIONS` in
    *  `@pv/engines`, and a repository that knew it would be a second copy of the
    *  permission matrix written in SQL. This file only knows how to ask.
    *

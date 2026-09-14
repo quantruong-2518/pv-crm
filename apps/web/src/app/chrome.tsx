@@ -6,6 +6,7 @@ import {
   Gauge,
   Handshake,
   House,
+  ListChecks,
   Megaphone,
   ShieldCheck,
   SlidersHorizontal,
@@ -107,7 +108,21 @@ const ONE_CORE: NavEntry[] = [
     icon: ShieldCheck,
     label: 'Quản trị',
     path: '/quan-tri/nguoi-dung',
-    permission: 'người-dùng.quản-lý',
+    permission: 'user.manage',
+  },
+  {
+    /** A SIBLING of the entry above, not a child of it — the header has one
+     *  level of Core entries and no submenu, and the docblock above already
+     *  named growing a second child as the way this section extends.
+     *
+     *  Its own permission, because the two screens are gated apart: somebody
+     *  who opens accounts for the company does not thereby get to rewrite what
+     *  every role may do. A role without `role.manage` sees this entry locked
+     *  rather than sees a button that leads straight to a refusal. */
+    icon: ListChecks,
+    label: 'Vai trò',
+    path: '/quan-tri/vai-tro',
+    permission: 'role.manage',
   },
 ]
 
@@ -173,7 +188,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Megaphone,
     label: 'Chiến dịch',
     path: '/sales/campaigns',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     question: 'Tạo và đo lường các chiến dịch thu hút khách hàng',
   },
   {
@@ -181,7 +196,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Users,
     label: 'Sổ lead',
     path: '/sales/leads',
-    permission: 'lead.xem',
+    permission: 'lead.view',
     question: 'Thu nhận, phân loại và phân công khách tiềm năng',
   },
   {
@@ -203,7 +218,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Factory,
     label: 'Khách hàng',
     path: '/sales/accounts',
-    permission: 'khách-hàng.xem',
+    permission: 'account.view',
     question: 'Một dòng một công ty — khách này đã hỏi mấy lần và mua mấy lần',
   },
   {
@@ -222,7 +237,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: UsersRound,
     label: 'Người liên hệ',
     path: '/sales/contacts',
-    permission: 'lead.xem',
+    permission: 'lead.view',
     question: 'Đã gặp người này bao giờ chưa, và gọi họ thế nào',
   },
   {
@@ -233,7 +248,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Handshake,
     label: 'Cơ hội',
     path: '/sales/opportunities',
-    permission: 'cơ-hội.xem',
+    permission: 'opportunity.view',
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },
   {
@@ -245,7 +260,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: FileCheck,
     label: 'Hợp đồng',
     path: '/sales/contracts',
-    permission: 'hợp-đồng.xem',
+    permission: 'contract.view',
     question: 'Theo dõi tiền về và nghĩa vụ hai bên sau khi ký',
   },
   {
@@ -253,7 +268,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Gauge,
     label: 'Hiệu suất',
     path: '/sales/performance',
-    permission: 'hiệu-suất.xem',
+    permission: 'performance.view',
     question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
   },
   {
@@ -261,7 +276,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: Target,
     label: 'Kế hoạch',
     path: '/sales/plan',
-    permission: 'kế-hoạch.xem',
+    permission: 'plan.view',
     question: 'Lập mục tiêu và kế hoạch cho kỳ tiếp theo',
   },
   {
@@ -271,7 +286,7 @@ export const SALES_MODULES: SalesModule[] = [
     icon: SlidersHorizontal,
     label: 'Thiết lập',
     path: '/sales/config',
-    permission: 'cấu-hình.xem',
+    permission: 'config.view',
     question: 'Quản lý danh mục và quy tắc bán hàng',
   },
 ]

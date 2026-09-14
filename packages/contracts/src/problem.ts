@@ -25,6 +25,18 @@ export const ProblemKind = z.enum([
   'conflict',
   'invalid',
   'rate-limited',
+  /** A 403 that CAN be opened: the caller has the permission, they just have
+   *  not retyped their password inside the sudo window.
+   *
+   *  Its own `type` rather than a fifth `DenyReason`. `DenyReason` is E2's
+   *  vocabulary — four verdicts about roles, licences and scope — and
+   *  `apps/web/src/app/api/errors.ts` translates those four straight into the
+   *  engine's words. "Not re-authenticated" is not an E2 verdict: it says
+   *  nothing about a role, and the way out is a password rather than a grant.
+   *  Filing it under `DenyReason` would teach the engine a concept it does not
+   *  have, and the screen would show its permission-hidden sentence for
+   *  something the user can in fact do. */
+  'reauth-required',
   'server',
 ])
 

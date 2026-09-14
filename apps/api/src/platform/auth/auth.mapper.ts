@@ -1,4 +1,4 @@
-import type { Actor, RoleId as EngineRoleId } from '@pv/engines'
+import type { Actor, Permission, RoleId as EngineRoleId } from '@pv/engines'
 import type {
   RoleId as ContractRoleId,
   SessionActor,
@@ -22,7 +22,7 @@ import type { SessionRow } from './auth.schema'
  *
  *  Letting one through fails nowhere visible, which is why the check is worth a
  *  function that returns its argument: E2's `allows` answers false for a key
- *  missing from `ROLE_PERMISSIONS`, so the person signs in, their name is in
+ *  missing from `DEFAULT_ROLE_PERMISSIONS`, so the person signs in, their name is in
  *  the corner, and every screen reports "hidden by your permissions" — a
  *  permission bug in appearance, a missing enum member in fact. */
 export const toContractRole = (r: EngineRoleId): ContractRoleId => r
@@ -42,13 +42,14 @@ export const toEngineRole = (r: ContractRoleId): EngineRoleId => r
  *  dropped here and that is the point of the function existing: everything
  *  downstream of the guard receives an object that CANNOT leak a credential,
  *  because the shape has nowhere to put one. */
-export function toActor(row: ActorRow): Actor {
+export function toActor(row: ActorRow, permissions: readonly Permission[]): Actor {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     role: row.role,
     roleId: row.roleId,
+    permissions,
     branches: row.branches,
     ownOnly: row.ownOnly,
   }
@@ -81,6 +82,14 @@ export function toWindow(row: SessionRow): SessionWindow {
   }
 }
 
-export function toSessionView(actorRow: ActorRow, sessionRow: SessionRow): SessionView {
-  return { actor: toSessionActor(actorRow), session: toWindow(sessionRow) }
+export function toSessionView(
+  actorRow: ActorRow,
+  sessionRow: SessionRow,
+  permissions: readonly Permission[],
+): SessionView {
+  return {
+    actor: toSessionActor(actorRow),
+    permissions: [...permissions],
+    session: toWindow(sessionRow),
+  }
 }

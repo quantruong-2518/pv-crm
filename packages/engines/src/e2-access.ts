@@ -1,10 +1,12 @@
 import {
+  PERMISSIONS,
   systemClock,
   type Actor,
   type Branch,
   type Clock,
   type ObjectKind,
   type ObjectRef,
+  type Permission,
   type RoleId,
 } from './types'
 
@@ -25,9 +27,16 @@ import {
  *   1 · **License — công ty CÓ MUA nhánh này không** (`Actor.branches`).
  *       Câu trả lời giống nhau cho mọi người cùng công ty. Sửa bằng hợp đồng,
  *       không sửa bằng phân quyền.
- *   2 · **Vai — người này ĐƯỢC LÀM GÌ** (`Actor.roleId` → `ROLE_PERMISSIONS`).
+ *   2 · **Vai — người này ĐƯỢC LÀM GÌ** (`Actor.permissions`).
  *       Marketing và Sale cùng đứng trong nhánh Sales đã mua, nhưng một người
  *       giao việc được còn người kia thì không.
+ *
+ *       Từ 14/09 trục này đọc một MẢNG ĐÃ GIẢI trên `Actor`, không tra bảng
+ *       biên dịch nữa: ma trận vai→quyền sống trong `platform.role_permission`
+ *       và sửa được lúc chạy. Máy chủ giải nó cùng lúc nạp người gọi; trình
+ *       duyệt nhận y nguyên mảng ấy qua `/auth/me`. Hệ quả đáng giá nhất là
+ *       trình duyệt THÔI giữ bản sao ma trận — trước đây hai đầu cùng tra một
+ *       hằng số và chỉ đúng chừng nào hằng số đó còn giống nhau.
  *   3 · **Phạm vi — người này thấy DÒNG NÀO** (`Actor.ownOnly`).
  *       Cùng vai Sale, hai người vẫn không nhìn chung một sổ.
  *
@@ -36,128 +45,41 @@ import {
  *  bạn không có quyền này" · "đơn này không đứng tên bạn"), và ba đường sửa
  *  khác hẳn nhau. Một chữ `false` bắt màn tự đoán, và màn đoán sai. */
 
-export type Action = 'xem' | 'sửa' | 'duyệt' | 'xuất'
+export type Action = 'view' | 'edit' | 'approve' | 'export'
 
 export type AuditEntry = {
   at: string
   actorId: string
-  action: Action | 'ai-đọc'
+  action: Action | 'ai-read'
   code?: string
   note?: string
 }
 
 // ---------------------------------------------------------------------------
 // Trục 2 · vai → quyền
+//
+// Từ vựng (`PERMISSIONS`, `Permission`) đã sang `types.ts` — `Actor` cần nó, và
+// `Actor` là kiểu dùng chung của cả bốn engine. Cùng lý do `RoleId` nằm ở đó.
+// Ở lại đây là LUẬT: vai nào khai sinh với quyền nào, và object nào hỏi quyền gì.
 // ---------------------------------------------------------------------------
 
-/** Danh sách quyền — LIỆT KÊ TAY, không sinh bằng template literal.
+/** Ma trận vai → quyền LÚC KHAI SINH. Đọc theo HÀNG: một vai làm được gì.
  *
- *  `${Domain}.${Action}` sinh ra đủ tổ hợp, kể cả những tổ hợp vô nghĩa
- *  ('ghi-vết.chuyển-đổi'), và khi đó `tsc` không còn bắt được lỗi gõ nhầm nào
- *  nữa vì mọi chuỗi đều hợp lệ. Bảng này là hợp đồng: thêm một quyền là một
- *  quyết định, không phải hệ quả của một phép nhân.
+ *  ĐÂY KHÔNG CÒN LÀ CÂU TRẢ LỜI CUỐI CÙNG, và cái tên nói thế. Ma trận đang
+ *  có hiệu lực nằm ở `platform.role_permission`; bảng này là thứ gieo vào đó
+ *  lần đầu, rồi sau đó người quản trị sửa trên màn. Hỏi "hôm nay vai X làm
+ *  được gì" mà đọc file này là đọc nhầm chỗ — hỏi `Actor.permissions`.
  *
- *  Quyền ở đây là quyền KHỞI TẠO hành động — bấm được cái nút. Ai gật là việc
- *  của E3; `phê-duyệt.duyệt` là quyền gật, và nó tách riêng đúng vì thế. */
-export const PERMISSIONS = [
-  'chiến-dịch.xem',
-  'chiến-dịch.sửa',
-  /** Fire a MAS run — mail that actually leaves the company.
-   *
-   *  Split from `chiến-dịch.sửa` because editing a draft and sending a few
-   *  hundred letters to real customers are not the same risk: a wrong draft is
-   *  fixed by typing over it, a wrong send cannot be taken back, burns the
-   *  addresses it bounced on, and is visible to people outside the company. One
-   *  permission covering both means the button that is merely careless and the
-   *  button that is irreversible are granted by the same click. */
-  'chiến-dịch.bắn',
-  'lead.xem',
-  'lead.sửa',
-  /** Mail a batch picked by hand from the lead book — Quick MAS.
-   *
-   *  A SECOND send permission, next to `chiến-dịch.bắn`, and the pair is not a
-   *  duplication. They differ on the axis that actually carries the risk, which
-   *  is reach: this one rides trục 3 (`ownOnly`), so a Sale mailing ten leads
-   *  they already own reaches nobody they could not already phone. Firing a
-   *  campaign reaches the whole audience, including every lead belonging to
-   *  someone else, and repeats it wave after wave.
-   *
-   *  Collapsing them either way breaks a real screen. One permission for both
-   *  means granting a Sale the campaign blast in order to let them answer their
-   *  own lead; withholding it means the Quick MAS button sits on the lead book —
-   *  the screen Sale and BD live in — permanently greyed out for both. */
-  'lead.gửi-mail',
-  /** Giao việc trên một lead — nhiều người cho một việc (`AssignMenu`). Không
-   *  phải đổi chủ lead: đổi chủ chia lại hoa hồng nên là đề nghị riêng. */
-  'lead.giao',
-  'lead.chuyển-đổi',
-  /** Đưa lead ra khỏi luồng (`ExitDialog`). Hiếm và không quay lại được. */
-  'lead.loại',
-  /** The customer COMPANY book — `/sales/accounts`.
-   *
-   *  A DOMAIN OF ITS OWN rather than a reuse of the lead domain, and
-   *  deliberately unlike the contact book beside it: a contact is part of ONE
-   *  lead's profile, so it runs on the lead read/write pair (see `contact.ts`).
-   *  An account sits ABOVE the lead book and outlives every enquiry — renaming
-   *  it, correcting its tax code, merging it with another company changes what
-   *  every lead, deal and contract underneath is about. Folding it into the
-   *  lead write permission would mean every Sale who can edit their own lead
-   *  can also rename the customer for the whole department.
-   *
-   *  The read half carries NO scope axis (`ownOnly`) on any endpoint, and that is the
-   *  other half of the same decision: a company is owned by no seller. Scoping
-   *  it would mean a Sale opening a new enquiry cannot see that the company is
-   *  already a customer of the person at the next desk — the single most
-   *  expensive thing this book exists to prevent. */
-  'khách-hàng.xem',
-  'khách-hàng.sửa',
-  'cơ-hội.xem',
-  'cơ-hội.sửa',
-  'cơ-hội.chốt',
-  'hợp-đồng.xem',
-  'hợp-đồng.sửa',
-  /** Record that an installment's money landed, and tick an unlock condition as
-   *  met. Kept apart from the plain edit permission above because the two are of
-   *  different weight: editing changes a note, recording tells the whole system
-   *  the money is in — receivables, performance and commission all read it. A
-   *  Sale does NOT get this one: a seller does not confirm their own payment. */
-  'hợp-đồng.ghi-nhận-thu',
-  'hiệu-suất.xem',
-  'kế-hoạch.xem',
-  'kế-hoạch.gửi',
-  'cấu-hình.xem',
-  'cấu-hình.đề-nghị',
-  'ghi-vết.xem',
-  /** Mở tài khoản, gán vai, khoá người — màn Quản trị · Người dùng.
-   *
-   *  Quyền RỘNG NHẤT trong bảng này, và nó rộng theo một kiểu khác hẳn mọi
-   *  quyền còn lại: ai có nó thì tự cấp được cho mình mọi quyền khác, chỉ bằng
-   *  cách sửa `roleId` của chính mình. Vì thế nó không nằm trong hàng của
-   *  `marketing` · `bd` · `presales` · `sale` · `account-executive` — không
-   *  phải vì năm vai đó không cần, mà vì cấp nó cho họ là cấp luôn cả bảng.
-   *
-   *  Hai vai duy nhất có nó (`director`, `head-of-sales`) nhận tự động vì hàng
-   *  của họ viết là `PERMISSIONS` chứ không liệt kê tay — đúng lý do docblock
-   *  của `director` đã nói: thêm quyền mới mà quên thêm cho họ là lỗi vô hình.
-   *
-   *  Máy chủ còn chặn thêm một tầng nữa mà bảng này không biết và không cần
-   *  biết: người có quyền vẫn KHÔNG tự hạ vai hay tự khoá mình được. Đó là luật
-   *  về một dòng cụ thể (chính mình), nên nó thuộc service, không thuộc ma trận
-   *  vai — cùng lý do trục 3 không nằm ở đây. */
-  'người-dùng.quản-lý',
-  'phê-duyệt.duyệt',
-  'dữ-liệu.xuất',
-] as const
-
-export type Permission = (typeof PERMISSIONS)[number]
-
-/** Ma trận vai → quyền. Đọc theo HÀNG: một vai làm được gì.
+ *  Nó vẫn phải ở đây, và ở trong engine chứ không trong `apps/api`, vì hai
+ *  việc: gieo hàng cho một quyền vừa thêm vào `PERMISSIONS` (xem
+ *  `role-permission.seeder.ts`), và dựng actor cho fixture — nơi không có
+ *  database nào để hỏi.
  *
  *  Viết thẳng ra thay vì kế thừa (`sale = [...bd, ...]`): kế thừa đọc nhanh
  *  nhưng trả lời chậm đúng câu người ta hay hỏi nhất — "vai này có quyền X
  *  không" — vì phải lần ngược chuỗi cha. Bảng dài hơn vài dòng, đổi lại mở ra
  *  là thấy hết. `fixtures/actors.test.ts` khoá những khẳng định của bảng này. */
-export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
+export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   /** Giám đốc — nhìn cả năm nhánh, gật mọi thứ. Viết `PERMISSIONS` chứ không
    *  liệt kê lại: thêm quyền mới mà quên thêm cho Giám đốc là lỗi vô hình. */
   director: PERMISSIONS,
@@ -176,91 +98,91 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  giao việc, không chuyển đổi, không loại lead: đó là quyết định của người
    *  đang giữ khách, không phải của người mang khách về. */
   marketing: [
-    'chiến-dịch.xem',
-    'chiến-dịch.sửa',
+    'campaign.view',
+    'campaign.edit',
     /* Granted by hand here, while `director` and `head-of-sales` get it for free
        by spelling their row as `PERMISSIONS`. Marketing owns the campaign, so
        marketing is the role that fires it. */
-    'chiến-dịch.bắn',
-    'lead.xem',
-    'lead.sửa',
-    'lead.gửi-mail',
+    'campaign.broadcast',
+    'lead.view',
+    'lead.edit',
+    'lead.send-email',
     /* Read, not write. Marketing asks "which source produces customers", which
        needs the company book in view; renaming a customer for the whole
        department is not the job of the person who brings customers in. */
-    'khách-hàng.xem',
-    'hiệu-suất.xem',
-    'kế-hoạch.xem',
-    'cấu-hình.xem',
+    'account.view',
+    'performance.view',
+    'plan.view',
+    'config.view',
   ],
 
-  /** BD — mang lead vào và đẩy qua cổng init data. Không `lead.giao`: giao việc
+  /** BD — mang lead vào và đẩy qua cổng init data. Không `lead.assign`: giao việc
    *  cho người khác là quyền của TP. */
   bd: [
-    'chiến-dịch.xem',
-    'lead.xem',
-    'lead.sửa',
+    'campaign.view',
+    'lead.view',
+    'lead.edit',
     /* Reaching a lead they brought in is the job; `ownOnly` keeps the reach to
-       exactly that. `chiến-dịch.bắn` stays with marketing. */
-    'lead.gửi-mail',
-    'lead.chuyển-đổi',
+       exactly that. `campaign.broadcast` stays with marketing. */
+    'lead.send-email',
+    'lead.convert',
     /* BD is the person who OPENS the door at a company, so also the first to
        learn what that company is called on paper. Read without write would make
        the company row wait for another role to type it in, and while it waits a
        second enquiry from that same factory enters the book as a brand new
        customer. */
-    'khách-hàng.xem',
-    'khách-hàng.sửa',
-    'cơ-hội.xem',
-    'cơ-hội.sửa',
-    'hợp-đồng.xem',
-    'hiệu-suất.xem',
-    'kế-hoạch.xem',
-    'cấu-hình.xem',
+    'account.view',
+    'account.edit',
+    'opportunity.view',
+    'opportunity.edit',
+    'contract.view',
+    'performance.view',
+    'plan.view',
+    'config.view',
   ],
 
   /** Presales — dựng số và đi demo cùng Sale. Đọc lead, làm việc trên cơ hội,
    *  không chốt: chốt là chữ ký của người đứng tên đơn. */
   presales: [
-    'chiến-dịch.xem',
-    'lead.xem',
-    'khách-hàng.xem',
-    'cơ-hội.xem',
-    'cơ-hội.sửa',
-    'hợp-đồng.xem',
-    'hiệu-suất.xem',
-    'kế-hoạch.xem',
+    'campaign.view',
+    'lead.view',
+    'account.view',
+    'opportunity.view',
+    'opportunity.edit',
+    'contract.view',
+    'performance.view',
+    'plan.view',
   ],
 
   /** Sale — làm đủ vòng đời khách của MÌNH. Quyền rộng gần bằng BD nhưng bị
    *  trục 3 (`ownOnly`) siết lại còn đúng phần dữ liệu đứng tên mình; ma trận
    *  này không biết chuyện đó và không được biết. */
   sale: [
-    'chiến-dịch.xem',
-    'lead.xem',
-    'lead.sửa',
-    'lead.gửi-mail',
-    'lead.chuyển-đổi',
-    'lead.loại',
+    'campaign.view',
+    'lead.view',
+    'lead.edit',
+    'lead.send-email',
+    'lead.convert',
+    'lead.disqualify',
     /* Write, because correcting the address or tax code of the customer one is
        actively selling to is daily work. Axis 3 cannot narrow this permission —
        a company is owned by no seller — so this is precisely where the `sale`
        row reaches wider than the rest of itself, and it reaches wider on
        purpose rather than by oversight. */
-    'khách-hàng.xem',
-    'khách-hàng.sửa',
-    'cơ-hội.xem',
-    'cơ-hội.sửa',
-    'cơ-hội.chốt',
+    'account.view',
+    'account.edit',
+    'opportunity.view',
+    'opportunity.edit',
+    'opportunity.close',
     /* A contract is what this person's own closing move produced, so without
        these two a Sale signs a deal and then loses sight of it. `ownOnly` keeps
        the reach to exactly their own. The record-payment permission is
        deliberately absent — see the reason where it is declared. */
-    'hợp-đồng.xem',
-    'hợp-đồng.sửa',
-    'hiệu-suất.xem',
-    'kế-hoạch.xem',
-    'cấu-hình.xem',
+    'contract.view',
+    'contract.edit',
+    'performance.view',
+    'plan.view',
+    'config.view',
   ],
 
   /** Account executive — the combined Marketer + BD + AM seat. One person runs
@@ -269,40 +191,40 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  opportunities somebody else brought in is the point of the seat.
    *
    *  Three permissions are held back, for two different reasons. `cấu-hình.*`
-   *  and `hiệu-suất.xem` are withheld because those two screens stay with the
+   *  and `performance.view` are withheld because those two screens stay with the
    *  head of department — a decision about who reads them, not about what this
-   *  seat can do. `người-dùng.quản-lý` is withheld because keeping it would
+   *  seat can do. `user.manage` is withheld because keeping it would
    *  UNDO the other two: whoever edits their own `roleId` can hand themselves
    *  any row in this table, including one that has all three back. */
   'account-executive': [
-    'chiến-dịch.xem',
-    'chiến-dịch.sửa',
-    'chiến-dịch.bắn',
-    'lead.xem',
-    'lead.sửa',
-    'lead.gửi-mail',
-    'lead.giao',
-    'lead.chuyển-đổi',
-    'lead.loại',
-    'khách-hàng.xem',
-    'khách-hàng.sửa',
-    'cơ-hội.xem',
-    'cơ-hội.sửa',
-    'cơ-hội.chốt',
+    'campaign.view',
+    'campaign.edit',
+    'campaign.broadcast',
+    'lead.view',
+    'lead.edit',
+    'lead.send-email',
+    'lead.assign',
+    'lead.convert',
+    'lead.disqualify',
+    'account.view',
+    'account.edit',
+    'opportunity.view',
+    'opportunity.edit',
+    'opportunity.close',
     /* The record-payment permission is withheld from `sale` because a seller
        must not confirm their own money landing. This seat closes deals too, so
        granting it here is that rule being traded away on purpose: an AE carries
        the account end to end and there is no second person on it to do the
        confirming. Worth naming, because it is the one line in this row a reader
        of the `sale` row above would not expect. */
-    'hợp-đồng.xem',
-    'hợp-đồng.sửa',
-    'hợp-đồng.ghi-nhận-thu',
-    'kế-hoạch.xem',
-    'kế-hoạch.gửi',
-    'ghi-vết.xem',
-    'phê-duyệt.duyệt',
-    'dữ-liệu.xuất',
+    'contract.view',
+    'contract.edit',
+    'contract.record-payment',
+    'plan.view',
+    'plan.submit',
+    'audit-log.view',
+    'approval.decide',
+    'data.export',
   ],
 }
 
@@ -311,13 +233,13 @@ export const ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
  *  Kiểu chưa có màn (SO · WO · PO · L · BT · CNC…) CỐ TÌNH vắng: gán bừa một
  *  miền cho chúng là phát minh ra luật quyền cho nhánh chưa ai dựng. Với những
  *  kiểu đó `can()` chỉ kiểm license và phạm vi — nói rõ hơn ở `check()`. */
-const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'hợp-đồng' | 'khách-hàng'>> = {
+const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'opportunity' | 'contract' | 'account'>> = {
   LD: 'lead',
-  OP: 'cơ-hội',
+  OP: 'opportunity',
   /** Until 02/09 this kind had no domain, so `permissionFor` returned `null` for
    *  EVERY question about a contract — E2 waved them through instead of checking.
    *  The contract book is the first screen that needs a real answer. */
-  HĐ: 'hợp-đồng',
+  HĐ: 'contract',
   /** Both arrive with the account sweep, and they arrive pointing at DIFFERENT
    *  domains on purpose — this table is where that decision becomes something
    *  `can()` enforces rather than something two docblocks assert.
@@ -328,7 +250,7 @@ const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'hợp-đ�
    *  left out, every write check on a contact ref would return `null` and E2
    *  would wave it through — the exact hole the contract kind sat in until it
    *  was filled. */
-  AC: 'khách-hàng',
+  AC: 'account',
   CT: 'lead',
 }
 
@@ -337,8 +259,8 @@ const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'cơ-hội' | 'hợp-đ�
 function permissionFor(action: Action, ref: ObjectRef): Permission | null {
   const domain = KIND_DOMAIN[ref.kind]
   if (!domain) return null
-  if (action === 'xuất') return 'dữ-liệu.xuất'
-  if (action === 'duyệt') return 'phê-duyệt.duyệt'
+  if (action === 'export') return 'data.export'
+  if (action === 'approve') return 'approval.decide'
   return `${domain}.${action}` as Permission
 }
 
@@ -348,17 +270,29 @@ function permissionFor(action: Action, ref: ObjectRef): Permission | null {
 
 /** Vì sao bị chặn — bốn lý do, mỗi lý do một đường sửa khác nhau:
  *
- *  | Lý do            | Nói với người dùng            | Đường sửa            |
- *  |------------------|-------------------------------|----------------------|
- *  | `chưa-đăng-nhập` | đá về màn đăng nhập           | đăng nhập            |
- *  | `thiếu-nhánh`    | công ty chưa mua nhánh này    | hợp đồng             |
- *  | `thiếu-quyền`    | vai của bạn không làm việc này| xin quyền, qua E3    |
- *  | `ngoài-phạm-vi`  | dòng này không đứng tên bạn   | nhờ người giữ nó làm |
+ *  | Lý do                  | Nói với người dùng             | Đường sửa            |
+ *  |------------------------|--------------------------------|----------------------|
+ *  | `unauthenticated`      | đá về màn đăng nhập            | đăng nhập            |
+ *  | `branch-not-licensed`  | công ty chưa mua nhánh này     | hợp đồng             |
+ *  | `permission-denied`    | vai của bạn không làm việc này | xin quyền, qua E3    |
+ *  | `out-of-scope`         | dòng này không đứng tên bạn    | nhờ người giữ nó làm |
+ *
+ *  Bốn chuỗi này TRÙNG KHÍT `DenyReason` của `@pv/contracts`, và trùng khít
+ *  là một quyết định chứ không phải trùng hợp: trước 14/09 engine nói tiếng
+ *  Việt, hợp đồng nói ASCII, và hai bảng tra — một ở `access.guard.ts`, một ở
+ *  `errors.ts` — tồn tại chỉ để dịch qua lại. Cả hai đã xoá. Hợp đồng vẫn khai
+ *  lại bằng zod thay vì nhập từ đây (hợp đồng không kéo theo engine), nhưng
+ *  giờ nó khai lại CÙNG MỘT CHỮ, nên lệch là `tsc` đỏ chứ không phải một
+ *  nhánh `switch` lặng lẽ không bao giờ chạy.
  *
  *  Trộn hai lý do đầu là lỗi nặng nhất: đá một người ĐÃ đăng nhập về màn đăng
  *  nhập vì họ thiếu quyền là nói dối họ về nguyên nhân, và họ sẽ đăng nhập lại
  *  vòng vo mà không bao giờ vào được. */
-export type DenyReason = 'chưa-đăng-nhập' | 'thiếu-nhánh' | 'thiếu-quyền' | 'ngoài-phạm-vi'
+export type DenyReason =
+  | 'unauthenticated'
+  | 'branch-not-licensed'
+  | 'permission-denied'
+  | 'out-of-scope'
 
 export type Verdict = { ok: true } | { ok: false; reason: DenyReason; note: string }
 
@@ -399,16 +333,21 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
   const clock = opts.clock ?? systemClock
   const entries: AuditEntry[] = []
 
-  /** Vai lạ thì KHÔNG có quyền gì — hỏng theo hướng đóng, không hỏng theo
-   *  hướng nổ.
+  /** Không có mảng quyền thì KHÔNG có quyền gì — hỏng theo hướng đóng, không
+   *  hỏng theo hướng nổ.
    *
    *  `Actor` là kiểu, không phải lời hứa: nó đi vào từ kho của trình duyệt và
-   *  mai này từ máy chủ, nên `roleId` có thể là một chuỗi không nằm trong ma
-   *  trận (phiên lưu từ bản cũ, một vai vừa bị xoá). Tra thẳng rồi `.includes`
-   *  thì cả app trắng màn ở lần render đầu — 23/08 đã xảy ra đúng vậy với một
-   *  phiên lưu trước khi `roleId` tồn tại. */
+   *  từ máy chủ, nên `permissions` có thể vắng mặt (một phiên lưu từ bản trước
+   *  khi trường này tồn tại). `actor.permissions.includes` thẳng tay thì cả app
+   *  trắng màn ở lần render đầu — 23/08 đã xảy ra đúng vậy khi `roleId` là thứ
+   *  vắng mặt, và hình dạng của lỗi đó không đổi khi đổi trường.
+   *
+   *  Hỏi thẳng mảng chứ không tra `DEFAULT_ROLE_PERMISSIONS[actor.roleId]`: tra
+   *  bảng ở đây là bỏ qua mọi thay đổi người quản trị vừa lưu, và tệ hơn cả
+   *  việc bỏ qua là nó SẼ ĐÚNG trong mọi lần thử ở máy dev — nơi database còn
+   *  nguyên hàng đã gieo. */
   const allows: AccessControl['allows'] = (actor, permission) => {
-    const granted = actor ? ROLE_PERMISSIONS[actor.roleId] : undefined
+    const granted = actor?.permissions
     return granted ? granted.includes(permission) : false
   }
 
@@ -425,11 +364,11 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
    *  được" nữa. Ghi vết là việc của chỗ CHẶN THẬT (guard route, handler nút),
    *  nơi biết mình vừa chặn một lần chứ không phải vừa lọc một bảng. */
   const check: AccessControl['check'] = (actor, need) => {
-    if (!actor) return { ok: false, reason: 'chưa-đăng-nhập', note: 'Phiên chưa đăng nhập.' }
+    if (!actor) return { ok: false, reason: 'unauthenticated', note: 'Phiên chưa đăng nhập.' }
 
     const branch = need.branch ?? need.ref?.branch ?? null
     if (branch && !actor.branches.includes(branch)) {
-      return { ok: false, reason: 'thiếu-nhánh', note: `Không có nhánh ${branch}.` }
+      return { ok: false, reason: 'branch-not-licensed', note: `Không có nhánh ${branch}.` }
     }
 
     /* `permission` khai tay thắng `action`: chỗ gọi biết rõ mình cần quyền nào
@@ -437,13 +376,17 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
     const permission =
       need.permission ?? (need.action && need.ref ? permissionFor(need.action, need.ref) : null)
     if (permission && !allows(actor, permission)) {
-      return { ok: false, reason: 'thiếu-quyền', note: `Vai ${actor.role} không có ${permission}.` }
+      return {
+        ok: false,
+        reason: 'permission-denied',
+        note: `Vai ${actor.role} không có ${permission}.`,
+      }
     }
 
     /* Trục 3 chỉ có nghĩa khi đang hỏi về một DÒNG cụ thể. `ref.owner` trống là
        object không có chủ (bảng dùng chung) — không phải object của người khác. */
     if (need.ref && actor.ownOnly && need.ref.owner && need.ref.owner !== actor.name) {
-      return { ok: false, reason: 'ngoài-phạm-vi', note: `${need.ref.code} không đứng tên bạn.` }
+      return { ok: false, reason: 'out-of-scope', note: `${need.ref.code} không đứng tên bạn.` }
     }
 
     return PASS
@@ -457,14 +400,14 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
     can,
 
     visible(actor, items) {
-      const allowed = items.filter((i) => can(actor, 'xem', i.ref))
+      const allowed = items.filter((i) => can(actor, 'view', i.ref))
       return { visible: allowed, hidden: items.length - allowed.length }
     },
 
     aiRead(actor, refs) {
-      const allowed = refs.filter((r) => can(actor, 'xem', r))
+      const allowed = refs.filter((r) => can(actor, 'view', r))
       for (const r of allowed) {
-        entries.push({ at: clock(), actorId: actor.id, action: 'ai-đọc', code: r.code })
+        entries.push({ at: clock(), actorId: actor.id, action: 'ai-read', code: r.code })
       }
       return allowed
     },

@@ -62,7 +62,7 @@ function buttonSummary(row: MailTemplateRow): string {
 
 export function MailTemplatesPage() {
   const chrome = useAppChrome()
-  const canWrite = useCan('chiến-dịch.sửa')
+  const canWrite = useCan('campaign.edit')
 
   /* `error` is read, not dropped: a dead server drawn as "the book is empty",
      with a button inviting the first template, has somebody retyping copy that

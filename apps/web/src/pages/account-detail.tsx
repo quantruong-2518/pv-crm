@@ -186,7 +186,7 @@ function Score({ label, value }: { label: string; value: string }) {
  *  state, right when the user needs to see how many fields are unsaved and
  *  have a way back. */
 function AccountCard({ account }: { account: AccountProfile }) {
-  const canWrite = useCan('khách-hàng.sửa')
+  const canWrite = useCan('account.edit')
   const save = useSaveAccount(account.code)
 
   const saved = useMemo(() => accountDraftOf(account), [account])

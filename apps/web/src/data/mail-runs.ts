@@ -22,13 +22,13 @@ import { LEAD_MAIL_KEY } from '@/data/mas'
  *  lẻ chứ không nghĩa là thiếu dữ liệu.
  *
  *  ------------------------------------------------------------------
- *  ĐỌC BẰNG `chiến-dịch.xem`, HUỶ BẰNG `chiến-dịch.bắn`
+ *  ĐỌC BẰNG `campaign.view`, HUỶ BẰNG `campaign.broadcast`
  *  ------------------------------------------------------------------
  *  Chép đúng `@Need` của `MasController`. Hai mức vì huỷ một lô là một quyết
  *  định về mail thật: nó giết những lá thư còn nằm trong hàng đợi. Ai xem được
  *  số liệu chưa chắc được phép dừng một đợt đang bay. */
-const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true }
-const CANCEL_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true }
+const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view', scoped: true }
+const CANCEL_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.broadcast', scoped: true }
 
 export const MAIL_RUN_KEY = ['sales', 'mail-runs'] as const
 

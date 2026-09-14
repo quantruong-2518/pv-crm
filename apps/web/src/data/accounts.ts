@@ -38,8 +38,8 @@ const BOOK_PATH = '/sales/accounts'
 
 export const ACCOUNT_BOOK_KEY = ['sales', 'accounts'] as const
 
-const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'khách-hàng.xem' }
-const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'khách-hàng.sửa' }
+const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'account.view' }
+const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'account.edit' }
 
 export const DEFAULT_ACCOUNT_BOOK_QUERY: AccountBookQuery = AccountBookQuery.parse({})
 

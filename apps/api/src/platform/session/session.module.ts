@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { RolesModule } from '../roles/roles.module'
 import { ActorRepository } from './actor.repository'
 
 /** Chỉ xuất khẩu `ActorRepository`.
@@ -7,5 +8,9 @@ import { ActorRepository } from './actor.repository'
  *  `APP_GUARD` ở `app.module.ts`, và Nest dựng một thể hiện riêng trong ngữ
  *  cảnh của `AppModule`. Khai ở cả hai chỗ thì có hai thể hiện — vô hại vì
  *  guard không giữ trạng thái, nhưng nó nói dối người đọc về vòng đời. */
-@Module({ providers: [ActorRepository], exports: [ActorRepository] })
+@Module({
+  imports: [RolesModule],
+  providers: [ActorRepository],
+  exports: [ActorRepository],
+})
 export class SessionModule {}

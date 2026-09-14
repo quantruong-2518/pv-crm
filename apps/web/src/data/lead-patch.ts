@@ -56,7 +56,7 @@ import { changedFields, PROFILE_FIELDS, PROFILE_TO_WIRE, type ProfileField } fro
  *  a create has no row yet to cut by owner, while a patch names an existing
  *  lead and the server refuses one standing in somebody else's name — the same
  *  refusal, in the same words, that `GET /sales/leads/:code` already gives. */
-const PATCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.sửa', scoped: true }
+const PATCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: true }
 
 /** Three prefixes thrown away after a save, and each earns its place:
  *

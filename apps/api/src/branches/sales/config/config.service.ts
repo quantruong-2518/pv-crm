@@ -28,7 +28,7 @@ import type { ConfigRowDb } from './config.schema'
  *  Ba hàm ghi dưới đây kiểm xong xuôi — hình dữ liệu, thuộc tính có đúng danh
  *  mục không, tên có trùng không, người phụ trách có thật không — rồi KHÔNG
  *  ghi. Chúng dựng một `ConfigChange` và đưa cho cửa duyệt. Lý do nằm ở ma trận
- *  quyền: E2 chỉ cấp `cấu-hình.đề-nghị`, không có `cấu-hình.sửa`.
+ *  quyền: E2 chỉ cấp `config.propose`, không có `config.edit`.
  *
  *  Kiểm trước rồi mới đề nghị chứ không đề nghị rồi kiểm lúc gật: người gõ sai
  *  phải biết mình gõ sai ngay lúc gõ, không phải ba ngày sau khi trưởng phòng

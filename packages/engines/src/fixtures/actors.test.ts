@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ROLE_PERMISSIONS, createAccessControl, type Permission } from '../e2-access'
-import type { RoleId } from '../types'
+import { DEFAULT_ROLE_PERMISSIONS, createAccessControl } from '../e2-access'
+import type { Permission, RoleId } from '../types'
 import { dasVina } from './das-vina'
 import { saoDo } from './sao-do'
 
@@ -137,30 +137,30 @@ describe('Vai chuẩn hoá của người đăng nhập', () => {
 describe('Ma trận vai → quyền', () => {
   const access = createAccessControl()
   const roleOf = (id: string) => [...dasVina.actors, ...saoDo.actors].find((a) => a.id === id)!
-  const has = (role: RoleId, p: Permission) => ROLE_PERMISSIONS[role].includes(p)
+  const has = (role: RoleId, p: Permission) => DEFAULT_ROLE_PERMISSIONS[role].includes(p)
 
   it('giao việc và gật phê duyệt chỉ thuộc về người quản lý', () => {
     for (const role of ['director', 'head-of-sales'] as const) {
-      expect(has(role, 'lead.giao')).toBe(true)
-      expect(has(role, 'phê-duyệt.duyệt')).toBe(true)
-      expect(has(role, 'ghi-vết.xem')).toBe(true)
+      expect(has(role, 'lead.assign')).toBe(true)
+      expect(has(role, 'approval.decide')).toBe(true)
+      expect(has(role, 'audit-log.view')).toBe(true)
     }
     for (const role of ['marketing', 'bd', 'presales', 'sale'] as const) {
-      expect(has(role, 'lead.giao')).toBe(false)
-      expect(has(role, 'phê-duyệt.duyệt')).toBe(false)
-      expect(has(role, 'ghi-vết.xem')).toBe(false)
+      expect(has(role, 'lead.assign')).toBe(false)
+      expect(has(role, 'approval.decide')).toBe(false)
+      expect(has(role, 'audit-log.view')).toBe(false)
     }
   })
 
   it('Marketing mang khách về nhưng không định đoạt khách', () => {
-    expect(has('marketing', 'chiến-dịch.sửa')).toBe(true)
-    expect(has('marketing', 'lead.chuyển-đổi')).toBe(false)
-    expect(has('marketing', 'lead.loại')).toBe(false)
+    expect(has('marketing', 'campaign.edit')).toBe(true)
+    expect(has('marketing', 'lead.convert')).toBe(false)
+    expect(has('marketing', 'lead.disqualify')).toBe(false)
   })
 
   it('Presales dựng số cho cơ hội nhưng không chốt', () => {
-    expect(has('presales', 'cơ-hội.sửa')).toBe(true)
-    expect(has('presales', 'cơ-hội.chốt')).toBe(false)
+    expect(has('presales', 'opportunity.edit')).toBe(true)
+    expect(has('presales', 'opportunity.close')).toBe(false)
   })
 
   it('vai sale có quyền chốt, nhưng chỉ trên đơn đứng tên mình', () => {
@@ -168,11 +168,11 @@ describe('Ma trận vai → quyền', () => {
     const mine = dasVina.objects.find((o) => o.kind === 'OP' && o.owner === huy.name)
     const theirs = dasVina.objects.find((o) => o.kind === 'OP' && o.owner && o.owner !== huy.name)
 
-    expect(access.allows(huy, 'cơ-hội.chốt')).toBe(true)
+    expect(access.allows(huy, 'opportunity.close')).toBe(true)
     if (mine)
-      expect(access.check(huy, { ref: mine, permission: 'cơ-hội.chốt' })).toEqual({ ok: true })
+      expect(access.check(huy, { ref: mine, permission: 'opportunity.close' })).toEqual({ ok: true })
     if (theirs) {
-      expect(access.check(huy, { ref: theirs, permission: 'cơ-hội.chốt' })).toMatchObject({
+      expect(access.check(huy, { ref: theirs, permission: 'opportunity.close' })).toMatchObject({
         ok: false,
         reason: 'ngoài-phạm-vi',
       })

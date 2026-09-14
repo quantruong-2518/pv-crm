@@ -27,13 +27,13 @@ import { MasService } from './mas.service'
  *  ------------------------------------------------------------------
  *  | Đường                        | `@Need`                        |
  *  | ---------------------------- | ------------------------------ |
- *  | `POST  /sales/mail/preflight`| `lead.gửi-mail` · scoped       |
- *  | `POST  /sales/mail/preview`  | `lead.gửi-mail` · scoped       |
- *  | `POST  /sales/mail/runs`     | `lead.gửi-mail` · scoped (†)   |
- *  | `GET   /sales/mail/runs`     | `chiến-dịch.xem` · scoped      |
- *  | `GET   /sales/mail/runs/:id/recipients` | `chiến-dịch.xem` · scoped |
- *  | `PATCH /sales/mail/runs/:id` | `chiến-dịch.bắn` · scoped (‡)  |
- *  | `GET   /sales/mail/templates`| `chiến-dịch.xem`               |
+ *  | `POST  /sales/mail/preflight`| `lead.send-email` · scoped       |
+ *  | `POST  /sales/mail/preview`  | `lead.send-email` · scoped       |
+ *  | `POST  /sales/mail/runs`     | `lead.send-email` · scoped (†)   |
+ *  | `GET   /sales/mail/runs`     | `campaign.view` · scoped      |
+ *  | `GET   /sales/mail/runs/:id/recipients` | `campaign.view` · scoped |
+ *  | `PATCH /sales/mail/runs/:id` | `campaign.broadcast` · scoped (‡)  |
+ *  | `GET   /sales/mail/templates`| `campaign.view`               |
  *
  *  (‡) HUỶ ĐÒI QUYỀN CAO HƠN GỬI, và đó không phải sơ suất. Một lô Quick MAS đi
  *  hết trong vài chục giây, nên thứ người ta thật sự huỷ được là một lô ĐÃ HẸN
@@ -44,8 +44,8 @@ import { MasService } from './mas.service'
  *
  *  (†) Một `@Need` chỉ khai được MỘT quyền tĩnh, mà cửa gửi đòi quyền nào lại
  *  phụ thuộc `campaignCode` trong THÂN yêu cầu — thứ decorator chạy trước khi
- *  có. Nên ở đây khai quyền THẤP hơn (`lead.gửi-mail`) và `MasService.send`
- *  nâng lên `chiến-dịch.bắn` khi có `campaignCode`; đọc docblock của hàm đó cho
+ *  có. Nên ở đây khai quyền THẤP hơn (`lead.send-email`) và `MasService.send`
+ *  nâng lên `campaign.broadcast` khi có `campaignCode`; đọc docblock của hàm đó cho
  *  lập luận đầy đủ, kể cả vì sao thứ tự ấy hỏng theo hướng đóng.
  *
  *  ------------------------------------------------------------------
@@ -67,7 +67,7 @@ export class MasController {
   /** Chạy thử. KHÔNG ghi gì. */
   @Post('preflight')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.gửi-mail', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.send-email', scoped: true })
   preflight(@CurrentActor() who: Actor, @Body(zod(MasPreflightRequest)) body: MasPreflightRequest) {
     return this.mas.preflight(who, body)
   }
@@ -82,7 +82,7 @@ export class MasController {
    *  previewed one letter at a time. */
   @Post('preview')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.gửi-mail', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.send-email', scoped: true })
   preview(@CurrentActor() who: Actor, @Body(zod(MasPreviewRequest)) body: MasPreviewRequest) {
     return this.mas.preview(who, body)
   }
@@ -91,15 +91,15 @@ export class MasController {
    *  xếp hàng" và trỏ được vào lô vừa tạo. KHÔNG có thư nào rời máy trong lời
    *  gọi này; worker quét sau, xem `MasSendResponse`. */
   @Post('runs')
-  @Need({ branch: 'Sales', permission: 'lead.gửi-mail', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.send-email', scoped: true })
   send(@CurrentActor() who: Actor, @Body(zod(MasSendRequest)) body: MasSendRequest) {
     return this.mas.send(who, body)
   }
 
-  /** Sổ các lô đã gửi. `chiến-dịch.xem` chứ không `lead.xem`: một dòng ở đây là
+  /** Sổ các lô đã gửi. `campaign.view` chứ không `lead.view`: một dòng ở đây là
    *  một LÔ, và con số của nó nói về cả tệp người nhận chứ không về lead nào. */
   @Get('runs')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   runs(@CurrentActor() who: Actor, @Query(zod(MailRunListQuery)) q: MailRunListQuery) {
     return this.mas.list(who, q)
   }
@@ -115,7 +115,7 @@ export class MasController {
    *  400 naming the field rather than reaching `WHERE mail_run_id = $1::uuid`
    *  and dying as a driver 500. */
   @Get('runs/:id/recipients')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   recipients(@CurrentActor() who: Actor, @Param('id', zod(MailRunId)) id: MailRunId) {
     return this.mas.recipients(who, id)
   }
@@ -128,7 +128,7 @@ export class MasController {
    *  Có lô đó không, có phải của người này không, còn dừng được không — ba câu
    *  cần dữ liệu, nên là việc của service. */
   @Patch('runs/:id')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
   cancel(
     @CurrentActor() who: Actor,
     @Param('id', zod(MailRunId)) id: MailRunId,
@@ -140,7 +140,7 @@ export class MasController {
   /** Danh mục mẫu. Không `scoped`: mẫu là tài sản chung của phòng, không đứng
    *  tên ai — không có trục phạm vi nào để cắt. */
   @Get('templates')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem' })
+  @Need({ branch: 'Sales', permission: 'campaign.view' })
   templates() {
     return this.mas.templates()
   }
@@ -158,13 +158,13 @@ export class MasController {
    *  DELETE door either — retiring a template is `active: false`, because a
    *  batch already run still names it (see `campaign.schema.ts`). */
   @Post('templates')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa' })
+  @Need({ branch: 'Sales', permission: 'campaign.edit' })
   createTemplate(@Body(zod(MailTemplateCreate)) body: MailTemplateCreate) {
     return this.mas.createTemplate(body)
   }
 
   @Patch('templates/:code')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa' })
+  @Need({ branch: 'Sales', permission: 'campaign.edit' })
   patchTemplate(
     @Param('code', zod(MailTemplateCode)) code: MailTemplateCode,
     @Body(zod(MailTemplatePatch)) body: MailTemplatePatch,

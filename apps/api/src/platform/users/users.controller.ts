@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/com
 import type { Actor } from '@pv/engines'
 import { UserCreate, UserPatch } from '@pv/contracts'
 import { Need } from '../access/need.decorator'
+import { NeedsReauth } from '../auth/reauth.guard'
 import { zod } from '../http/zod.pipe'
 import { CurrentActor } from '../session/current-actor.decorator'
 import { UsersService } from './users.service'
@@ -54,7 +55,7 @@ export class UsersController {
   /** The whole book. No query, no paging — a company has as many accounts as it
    *  has employees, and the screen filters nothing. */
   @Get()
-  @Need({ permission: 'người-dùng.quản-lý' })
+  @Need({ permission: 'user.manage' })
   list() {
     return this.users.list()
   }
@@ -73,7 +74,7 @@ export class UsersController {
    *
    *  Session-only is the right rail because of who has to read this list: the
    *  assign menu, the convert dialog and every owner select sit on screens a
-   *  Sale and a BD live in, and none of them hold `người-dùng.quản-lý`. Gating
+   *  Sale and a BD live in, and none of them hold `user.manage`. Gating
    *  the roster on that permission would mean the people who assign work are
    *  the only ones who cannot see who to assign it to.
    *
@@ -93,8 +94,17 @@ export class UsersController {
    *
    *  `UserCreate` carries no password field and this route accepts none — the
    *  invite door below is the only way in. */
+  /* `@NeedsReauth()`: all three write doors of the people book change WHO CAN
+     GET IN AND WITH WHAT REACH — opening an account, changing a role or
+     locking one, minting a set-password link. That is exactly the trio someone
+     sitting down at a colleague's abandoned machine would reach for, and the
+     trio whose audit rows would carry the absent person's name. The two `@Get`
+     doors are deliberately exempt: reading the directory changes nothing, and
+     demanding a password to view a list is how users learn to type it into any
+     box at all. The full rule lives in `reauth.guard.ts`. */
   @Post()
-  @Need({ permission: 'người-dùng.quản-lý' })
+  @Need({ permission: 'user.manage' })
+  @NeedsReauth()
   create(@CurrentActor() who: Actor, @Body(zod(UserCreate)) body: UserCreate) {
     return this.users.create(who, body)
   }
@@ -103,7 +113,8 @@ export class UsersController {
    *  of the same patch, because locking somebody is an edit to their row and a
    *  second endpoint would be a second place for the rules to be checked. */
   @Patch(':id')
-  @Need({ permission: 'người-dùng.quản-lý' })
+  @Need({ permission: 'user.manage' })
+  @NeedsReauth()
   patch(
     @CurrentActor() who: Actor,
     @Param('id') id: string,
@@ -121,7 +132,8 @@ export class UsersController {
    *  address, which is the account-takeover field `UserPatch` already refuses. */
   @Post(':id/invite')
   @HttpCode(200)
-  @Need({ permission: 'người-dùng.quản-lý' })
+  @Need({ permission: 'user.manage' })
+  @NeedsReauth()
   invite(@CurrentActor() who: Actor, @Param('id') id: string) {
     return this.users.invite(who, id)
   }

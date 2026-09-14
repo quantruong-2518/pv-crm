@@ -118,7 +118,7 @@ import {
  *   · **403 `ngoài-phạm-vi`** — lead CÓ THẬT, chỉ là không thuộc phạm vi người
  *     đang xem. Câu chung ở `app/api/errors.ts` chỉ đúng một đường đi tiếp:
  *     hỏi người đang giữ nó. Không phải đăng nhập lại, không phải xin thêm
- *     quyền — họ đã có `lead.xem` rồi;
+ *     quyền — họ đã có `lead.view` rồi;
  *   · **còn lại** (mạng · máy chủ · mã sai dạng) — câu chung của loại lỗi đó.
  *
  *  Năm khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc ·
@@ -189,7 +189,7 @@ export function LeadDetailPage() {
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
 
   const me = useSession((s) => s.actor)
-  const canWrite = useCan('lead.sửa')
+  const canWrite = useCan('lead.edit')
   /* Sổ người của máy chủ. Gọi TRƯỚC mọi nhánh `return` sớm bên dưới — màn này
      thoát ra ở ba chỗ (đang tải, lỗi, không thấy), và một hook nằm sau chúng
      là một hook chạy khi có lead mà không chạy khi không. */

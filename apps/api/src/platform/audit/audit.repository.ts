@@ -20,7 +20,10 @@ export type AuditEntry = {
 export class AuditRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  async write(entry: AuditEntry): Promise<void> {
-    await this.db.insert(audit).values(entry)
+  /** `tx` so a rule that refuses a write also refuses its audit line: an
+   *  entry saying a role changed, next to a role that did not, is worse than
+   *  no entry — it is the log disagreeing with the table it exists to explain. */
+  async write(entry: AuditEntry, tx: Db = this.db): Promise<void> {
+    await tx.insert(audit).values(entry)
   }
 }

@@ -42,19 +42,19 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  thật. Sổ này chưa từng có bản fixture nên không có gì để cắt — nó sinh ra
  *  đã đứng trên bảng thật. */
 
-/** `chiến-dịch.xem` · scoped — cùng cửa mà `CampaignController` khai. Trục
+/** `campaign.view` · scoped — cùng cửa mà `CampaignController` khai. Trục
  *  phạm vi cắt ở máy chủ (chiến dịch không đứng tên bạn thì không thấy), nên
  *  màn không tự lọc lại: hai nơi lọc là hai kết quả lệch nhau. */
-const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true }
+const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view', scoped: true }
 
-/** Tạo · sửa · thêm/bớt thành viên. Tái dùng `chiến-dịch.sửa` cho cả tạo lẫn
- *  sửa, đúng khuôn `lead.sửa` — quyết định #6 của `ban-giao-campaign.md`. */
-const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.sửa', scoped: true }
+/** Tạo · sửa · thêm/bớt thành viên. Tái dùng `campaign.edit` cho cả tạo lẫn
+ *  sửa, đúng khuôn `lead.edit` — quyết định #6 của `ban-giao-campaign.md`. */
+const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.edit', scoped: true }
 
 /** Bắt đầu và dừng là quyền KHÁC: chúng bắn mail thật. Mọi vai có
- *  `chiến-dịch.sửa` hôm nay cũng có `chiến-dịch.bắn`, nhưng khai đúng quyền là
+ *  `campaign.edit` hôm nay cũng có `campaign.broadcast`, nhưng khai đúng quyền là
  *  thứ giữ cho ma trận vai đổi được mà màn không phải đổi theo. */
-const FIRE_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true }
+const FIRE_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.broadcast', scoped: true }
 
 export const CAMPAIGN_BOOK_KEY = ['sales', 'campaign-book'] as const
 

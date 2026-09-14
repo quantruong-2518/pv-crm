@@ -65,6 +65,7 @@ export class AuthRepository {
     tokenHash: string
     expiresAt: Date
     idleUntil: Date | null
+    reauthAt: Date
     userAgent: string | null
   }): Promise<SessionRow> {
     const [row] = await this.db.insert(session).values(input).returning()
@@ -104,6 +105,16 @@ export class AuthRepository {
    *  see the throttle in `AuthService.resolve`. */
   async touchSession(id: string, idleUntil: Date): Promise<void> {
     await this.db.update(session).set({ idleUntil }).where(eq(session.id, id))
+  }
+
+  /** Stamp the sudo mark. One column, and deliberately NOT `idle_until`.
+   *
+   *  Re-authentication is proof of identity, not proof of presence. Writing
+   *  both in one statement would let a confirm-password dialog quietly extend
+   *  the session by half an hour, which is the sitting-still mark losing the
+   *  very thing it measures. */
+  async markReauth(id: string, at: Date): Promise<void> {
+    await this.db.update(session).set({ reauthAt: at }).where(eq(session.id, id))
   }
 
   /** Sign-out, by the only identifier the caller holds.

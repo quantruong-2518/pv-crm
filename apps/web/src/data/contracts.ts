@@ -148,7 +148,7 @@ export const CONTRACT_BOOK_KEY = ['sales', 'contract-book'] as const
  *  nothing here — the browser holds no rows and must never be what decides; it
  *  is the DECLARATION, so a route whose scope axis is on and a query that forgot
  *  it can be spotted by diffing two lines. */
-const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'hợp-đồng.xem', scoped: true }
+const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'contract.view', scoped: true }
 
 /** Built by the contract rather than typed out, so a new required field fails at
  *  module load instead of falling back to something invented. */
@@ -193,7 +193,7 @@ export const contractSummaryQuery = queryOptions({
   queryKey: [...CONTRACT_BOOK_KEY, 'summary'] as const,
   queryFn: ({ signal }) =>
     api.read<ContractSummary>('/sales/contracts/summary', {
-      need: { branch: 'Sales', permission: 'hợp-đồng.xem' },
+      need: { branch: 'Sales', permission: 'contract.view' },
       schema: ContractSummary,
       signal,
     }),

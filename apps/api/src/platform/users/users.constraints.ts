@@ -15,7 +15,7 @@ import type { ConstraintBook } from '../http/db-error'
  *  it — this book only translates its verdict.
  *
  *  A pre-check would also be a mailbox oracle on a door that already refuses
- *  everyone without `người-dùng.quản-lý`, so nothing is lost by not having one.
+ *  everyone without `user.manage`, so nothing is lost by not having one.
  *
  *  ------------------------------------------------------------------
  *  THE KEY IS THE NAME POSTGRES REPORTS, NOT THE DRIZZLE VARIABLE

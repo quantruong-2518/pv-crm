@@ -55,7 +55,7 @@ trong repo):
 | ----------------------------- | ---------------------- | ------------- | ----------------------------------------- |
 | `u-ha`                        | `sales@pebblevina.com` | head-of-sales | cả sổ · mọi quyền Sales · quản lý người   |
 | `u-nam`                       | `nam@pebblevina.com`   | bd            | cả sổ                                     |
-| `u-chau`                      | `chau@pebblevina.com`  | marketing     | cả sổ · không `lead.giao/chuyển-đổi/loại` |
+| `u-chau`                      | `chau@pebblevina.com`  | marketing     | cả sổ · không `lead.assign/chuyển-đổi/loại` |
 | `u-anh`                       | `anh@pebblevina.com`   | presales      | cả sổ · chỉ đọc lead                      |
 | `u-huy` · `u-binh` · `u-linh` | `<tên>@pebblevina.com` | sale          | **chỉ lead của mình**                     |
 
@@ -66,7 +66,7 @@ khoá cả ngoại lệ lẫn việc chỉ có một ngoại lệ.
 ## Sổ người dùng — chỉ quản lý
 
 Không có màn đăng ký công khai: tài khoản do người có quyền
-`người-dùng.quản-lý` mở (hôm nay là `director` và `head-of-sales`), rồi hệ gửi
+`user.manage` mở (hôm nay là `director` và `head-of-sales`), rồi hệ gửi
 thư đặt mật khẩu. Tài khoản mới có `password_hash = NULL` cho tới khi chủ nó bấm
 link — trạng thái bình thường, màn hiện là "chờ đặt mật khẩu".
 
@@ -77,7 +77,7 @@ PATCH /users/:id         UserPatch   → 200 UserRow
 POST  /users/:id/invite              → 200 {sent, link?}
 ```
 
-Cả bốn khai `@Need({ permission: 'người-dùng.quản-lý' })` và **không khai
+Cả bốn khai `@Need({ permission: 'user.manage' })` và **không khai
 `branch`** — One Core cấp cho mọi công ty; treo sổ người vào license Sales thì
 công ty chỉ mua Supply không mở được tài khoản cho ai.
 
@@ -130,15 +130,15 @@ Lỗi tầng bảng đã được dịch sẵn, **không trả 500 nữa**:
 | Đường                              | Quyền                        | Ghi chú                                        |
 | ---------------------------------- | ---------------------------- | ---------------------------------------------- |
 | `GET /healthz`                     | công khai                    | `{ status, db }`                               |
-| `GET /sales/leads`                 | `lead.xem` · **cắt phạm vi** | sổ, lọc + phân trang **ở server**              |
-| `GET /sales/leads/:code`           | `lead.xem` · **cắt phạm vi** | hồ sơ một lead — ngoài phạm vi là **403**      |
-| `POST /sales/leads`                | `lead.sửa`                   | nhập tay → `source_kind = MANUAL`              |
-| `POST /sales/leads/import/preview` | `lead.sửa`                   | chạy khô, **không ghi gì**                     |
-| `POST /sales/leads/import`         | `lead.sửa`                   | chốt lô → `source_kind = IMPORT`               |
+| `GET /sales/leads`                 | `lead.view` · **cắt phạm vi** | sổ, lọc + phân trang **ở server**              |
+| `GET /sales/leads/:code`           | `lead.view` · **cắt phạm vi** | hồ sơ một lead — ngoài phạm vi là **403**      |
+| `POST /sales/leads`                | `lead.edit`                   | nhập tay → `source_kind = MANUAL`              |
+| `POST /sales/leads/import/preview` | `lead.edit`                   | chạy khô, **không ghi gì**                     |
+| `POST /sales/leads/import`         | `lead.edit`                   | chốt lô → `source_kind = IMPORT`               |
 | `POST /sales/leads/intake`         | công khai · có rate limit    | landing page → `source_kind = LANDING_PAGE`    |
-| `GET /sales/config`                | `cấu-hình.xem`               | 6 danh mục, gọi **một lần** rồi cache          |
-| `GET /sales/config/:list`          | `cấu-hình.xem`               |                                                |
-| `POST · PATCH /sales/config/…`     | `cấu-hình.đề-nghị`           | **→ E3 duyệt · hôm nay trả 500, cửa chưa nối** |
+| `GET /sales/config`                | `config.view`               | 6 danh mục, gọi **một lần** rồi cache          |
+| `GET /sales/config/:list`          | `config.view`               |                                                |
+| `POST · PATCH /sales/config/…`     | `config.propose`           | **→ E3 duyệt · hôm nay trả 500, cửa chưa nối** |
 
 ### `GET /sales/leads`
 
@@ -177,7 +177,7 @@ khai đúng một lần nên sổ và hồ sơ không lệch nhau được. Trư
 **Ngoài phạm vi là 403, không phải 404.** Đây là chỗ hồ sơ khác hẳn sổ: sổ lọc
 bớt dòng rồi trả `hidden`, còn hồ sơ chỉ có một dòng nên không lọc được gì — nó
 phải TỪ CHỐI. Một Sale `ownOnly` mở lead của người khác nhận `403` +
-`out-of-scope`; họ **có** `lead.xem`, nên trả `permission-denied` là nói dối về
+`out-of-scope`; họ **có** `lead.view`, nên trả `permission-denied` là nói dối về
 nguyên nhân, và trả `404` là bắt họ đi tìm một dòng đang nằm ngay đó. Lead **chưa
 ai nhận** cũng ngoài phạm vi của họ — đúng bằng thứ sổ đang làm (`u-huy` thấy 10
 trên 119 dòng).

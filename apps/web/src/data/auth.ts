@@ -12,7 +12,7 @@ import { isGatewayDown, reportAnswering, reportUnreachable } from '@/app/api/ser
  *  password floor as a local constant, and mint reset tickets by base64-ing an
  *  email. All three are gone: there is a server now, and it owns every one of
  *  those answers. The three auth screens barely moved, which was the whole
- *  point of putting the flow behind four functions in the first place.
+ *  point of putting the flow behind a handful of functions in the first place.
  *
  *  ------------------------------------------------------------------
  *  WHY THESE CALLS DO NOT GO THROUGH `app/api`
@@ -28,10 +28,10 @@ import { isGatewayDown, reportAnswering, reportUnreachable } from '@/app/api/ser
  *  `renewOnUnauthorized` turns any 401 into a renew attempt, and a failed renew
  *  calls `expire()`. The sign-in screen sets the machine to 'đang-vào' before
  *  it submits, which is one of the two states `expire` acts on — so one typo in
- *  a password would flip a guest into 'hết-hạn' and drop the lock overlay over
- *  a screen nobody was signed into. Wrong password is the most ordinary event
- *  this file handles; it must not be able to reach the session machinery at
- *  all.
+ *  a password would flip a guest into the expired state, and the guard would
+ *  then bounce them to the sign-in screen with an expiry notice for a session
+ *  they never had. Wrong password is the most ordinary event this file handles;
+ *  it must not be able to reach the session machinery at all.
  *
  *  So: bare `fetch`, exactly as `app/auth/renew.ts` has instructed for its own
  *  door since before there was a server to call. The two things worth sharing
@@ -92,6 +92,7 @@ export function toActor(wire: SessionActor): Actor {
     email: wire.email,
     role: wire.role,
     roleId: wire.roleId,
+    permissions: wire.permissions,
     branches: wire.branches,
     ownOnly: wire.ownOnly,
   }
@@ -194,7 +195,7 @@ async function knock(
          appears to succeed and the cookie is dropped on the floor. */
       credentials: 'include',
     })
-    /* The three auth doors are the ONLY calls that skip the interceptor chain,
+    /* The auth doors are the ONLY calls that skip the interceptor chain,
        so the chain's watch on the server misses exactly them — and they are the
        first thing an app does on boot. Without these two lines, opening the app
        while the server is down leaves a person typing their password into a
@@ -276,6 +277,52 @@ export async function signInWithEmail(
  *  lead book does not. */
 export async function signOutOnServer(): Promise<void> {
   await knock('/auth/sign-out', { method: 'POST' })
+}
+
+// ---------------------------------------------------------------------------
+// Confirm the password again — the sudo window
+// ---------------------------------------------------------------------------
+
+/** Retype the password to open the sudo window. `null` = done, carry on.
+ *
+ *  Another bare `fetch`, and here it is REQUIRED rather than merely consistent:
+ *  the caller is an `AFTER` interceptor in `app/api/client.ts`, handling a
+ *  request that just came back 403. Routing it through the chain would send a
+ *  call born inside the chain back into the top of it — and if that call
+ *  failed, `confirmOnReauthRequired` would fire again on its own failure and
+ *  feed itself. The same trap `renew.ts` fenced off before there was a server
+ *  to call.
+ *
+ *  The server's refusal is used VERBATIM, unlike
+ *  `signInWithEmail`, which has to collapse four reasons into one sentence
+ *  because it answers strangers. This door sits behind a live session: the
+ *  server already knows who is calling, so there is nothing left to withhold,
+ *  and a vague sentence would only leave the user unsure whether they mistyped
+ *  or the system broke.
+ *
+ *  A 401 here is NOT a wrong password — it is the session dying under the user
+ *  while the confirmation box was open. Saying "wrong password" for that makes
+ *  them retype a correct password until they give up. */
+export async function confirmPassword(password: string): Promise<AuthError | null> {
+  if (!password) return { field: 'password', message: 'Chưa nhập mật khẩu.' }
+
+  const res = await knock('/auth/confirm-password', { method: 'POST', body: { password } })
+  if (!res) return OFFLINE
+  if (res.ok) return null
+  if (res.status === 429) return TOO_FAST
+  if (res.status === 400 || res.status === 422)
+    return { field: 'password', message: 'Chưa nhập mật khẩu.' }
+  if (res.status === 401) {
+    const problem = (await readJson(res)) as { title?: unknown } | undefined
+    /* Two different things arrive under one status. `AuthService` sends its
+       own wrong-password sentence for the first, so matching that sentence is
+       cheaper than minting a status code for one door. */
+    const said = typeof problem?.title === 'string' ? problem.title : ''
+    return said.includes('Mật khẩu')
+      ? { field: 'password', message: said }
+      : { field: 'form', message: 'Phiên đã hết hạn. Đăng nhập lại để tiếp tục.' }
+  }
+  return SERVER_TROUBLE
 }
 
 // ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ import { LeadCategory } from './enums'
  *  can also rename the customer for the whole department.
  *
  *  It is also NOT scoped by owner, and that absence is the second half of the
- *  same decision. `lead.xem` rides axis 3 (`ownOnly`) so a Sale sees their own
+ *  same decision. `lead.view` rides axis 3 (`ownOnly`) so a Sale sees their own
  *  rows; a company is not owned by a seller. Scoping this book would mean a
  *  Sale opening a new enquiry cannot see that the company is already a customer
  *  of the person at the next desk — which is the single most expensive thing

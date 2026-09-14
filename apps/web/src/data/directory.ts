@@ -9,7 +9,7 @@ import { toActor } from '@/data/auth'
  *  ------------------------------------------------------------------
  *  VÌ SAO ĐỨNG RIÊNG, KHÔNG NẰM TRONG `data/users.ts`
  *  ------------------------------------------------------------------
- *  `data/users.ts` là màn Quản trị: bốn cửa, một quyền (`người-dùng.quản-lý`),
+ *  `data/users.ts` là màn Quản trị: bốn cửa, một quyền (`user.manage`),
  *  và dữ liệu của nó là trạng thái TÀI KHOẢN — đã đặt mật khẩu chưa, khoá từ
  *  bao giờ, mở ngày nào. File này hỏi một câu khác hẳn mà mọi Sale hỏi chục
  *  lần mỗi ngày: giao việc này cho ai được, đơn kia ai đứng tên, ô select này

@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Input } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
 import { EMAIL_HINT, signInWithEmail, type AuthError } from '@/data/auth'
-import { useSession } from '@/app/auth'
+import { useSession, type ExpiryReason } from '@/app/auth'
 
 /** Màn đăng nhập — cửa vào của PV One.
  *
@@ -24,6 +24,32 @@ import { useSession } from '@/app/auth'
  *  session store. What it hands over is now a PAIR — the person, and the window
  *  the server stamped on their session — because the browser no longer decides
  *  when a session ends. */
+/** Why the previous session died — three sentences, not one.
+ *
+ *  The three reasons send the reader three ways: sitting idle is "lock your
+ *  screen next time", end of shift is "normal, carry on", and revoked is
+ *  "somebody just closed your session" — the only one worth stopping to ask
+ *  about. Collapsing all three into one generic expiry line loses exactly that
+ *  third sentence.
+ *
+ *  It lives here rather than in `expiry.tsx` because this screen is now the
+ *  only place that shows it: since expiry started bouncing people straight
+ *  here, there is no lock overlay left to say it for us. An unrecognised reason
+ *  falls back to the generic line below — navigation state is outside data and
+ *  can be typed by hand.
+ *
+ *  All three promise the PAGE and never the work. The old lock overlay could
+ *  honestly say "carry on where you left off" because the screen stayed mounted
+ *  behind it; bouncing to this screen unmounts it, so anything half-typed is
+ *  gone and only the route comes back. Promising more here would make the
+ *  system look broken at the exact moment the user trusts it least. */
+const WHY: Record<ExpiryReason, string> = {
+  'ngồi-không':
+    'Máy để không quá lâu nên phiên tự đóng. Đăng nhập lại để mở lại trang bạn đang xem.',
+  'hết-ca': 'Hết một ca làm việc. Đăng nhập lại để mở lại trang bạn đang xem.',
+  'bị-thu-hồi': 'Phiên đã bị đóng. Đăng nhập lại nếu người ngồi đây vẫn là bạn.',
+}
+
 export function SignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -45,6 +71,7 @@ export function SignInPage() {
   const sent = location.state as {
     from?: string
     expired?: boolean
+    reason?: ExpiryReason
     email?: string
     reset?: boolean
   } | null
@@ -71,7 +98,8 @@ export function SignInPage() {
         sent?.reset
           ? 'Mật khẩu đã đổi. Đăng nhập lại bằng mật khẩu mới — mọi phiên cũ của tài khoản này đã bị đóng.'
           : sent?.expired
-            ? 'Phiên trước đã hết hạn. Đăng nhập lại để quay về đúng chỗ bạn đang làm dở.'
+            ? (sent.reason && WHY[sent.reason]) ||
+              'Phiên trước đã hết hạn. Đăng nhập lại để mở lại trang bạn đang xem.'
             : undefined
       }
     >
@@ -153,7 +181,7 @@ export function SignInPage() {
         <Checkbox
           checked={remember}
           onChange={setRemember}
-          label="Nhớ tôi trên máy này"
+          label="Ghi nhớ đăng nhập"
           className="-mx-3"
         />
 

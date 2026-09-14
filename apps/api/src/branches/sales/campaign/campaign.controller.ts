@@ -24,8 +24,8 @@ import { CampaignService } from './campaign.service'
  *  ------------------------------------------------------------------
  *  `/start` VÀ `/stop` LÀ HAI ĐƯỜNG RIÊNG, KHÔNG PHẢI `state` TRÊN `PATCH`
  *  ------------------------------------------------------------------
- *  Ba lý do: (1) chúng đòi `chiến-dịch.bắn` — quyền BẮN mail thật — trong khi
- *  sửa tên/chủ chỉ đòi `chiến-dịch.sửa`; gộp vào một `PATCH` thì hoặc phải nâng
+ *  Ba lý do: (1) chúng đòi `campaign.broadcast` — quyền BẮN mail thật — trong khi
+ *  sửa tên/chủ chỉ đòi `campaign.edit`; gộp vào một `PATCH` thì hoặc phải nâng
  *  quyền cho MỌI sửa tên, hoặc phải đọc thân yêu cầu trước khi biết quyền nào
  *  đúng (thứ `MasController` phải làm vì MỘT route phục vụ hai tầm với — ở đây
  *  không cần, vì `/start`/`/stop` vốn đã là hai route riêng). (2) `/start` nhận
@@ -37,13 +37,13 @@ export class CampaignController {
   constructor(private readonly campaigns: CampaignService) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(CampaignBookQuery)) q: CampaignBookQuery) {
     return this.campaigns.book(who, q)
   }
 
   @Get(':code')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.campaigns.profile(who, code)
   }
@@ -51,13 +51,13 @@ export class CampaignController {
   /** Không `scoped`: chưa có dòng nào để cắt theo phạm vi — cùng lý do
    *  `LeadController.create` không khai `scoped`. */
   @Post()
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa' })
+  @Need({ branch: 'Sales', permission: 'campaign.edit' })
   create(@CurrentActor() who: Actor, @Body(zod(CampaignCreate)) body: CampaignCreate) {
     return this.campaigns.create(who, body)
   }
 
   @Patch(':code')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.edit', scoped: true })
   patch(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -69,7 +69,7 @@ export class CampaignController {
   /** The READ permission, not the write one: listing the audience is reading,
    *  and the remove button beside each row goes through `POST :code/members`. */
   @Get(':code/members')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   memberList(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -79,7 +79,7 @@ export class CampaignController {
   }
 
   @Post(':code/members')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.edit', scoped: true })
   members(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -89,7 +89,7 @@ export class CampaignController {
   }
 
   @Post(':code/start')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
   start(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -101,7 +101,7 @@ export class CampaignController {
   /** Wave two onwards — the same FIRE permission `/start` declares, because it
    *  is the same act: real mail to the campaign's own audience. */
   @Post(':code/waves')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
   addWave(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -111,7 +111,7 @@ export class CampaignController {
   }
 
   @Post(':code/stop')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true })
+  @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
   stop(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.campaigns.stop(who, code)
   }

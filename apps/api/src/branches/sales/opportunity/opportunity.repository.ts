@@ -347,7 +347,7 @@ export class OpportunityRepository {
    *  như có chặn.
    *
    *  Hàng rào thật nằm ở chỗ khác và đã đứng rồi: dòng sổ gửi chỉ tồn tại nếu
-   *  `POST /sales/opportunities` đi qua `@Need({ permission: 'cơ-hội.sửa' })`,
+   *  `POST /sales/opportunities` đi qua `@Need({ permission: 'opportunity.edit' })`,
    *  và địa chỉ nhận là hộp thư của chính công ty, khai trong env — không phải
    *  thứ ai gọi được cũng đặt được. */
   async forMail(code: string): Promise<(OpportunityRead & { daysOpen: number }) | null> {
@@ -575,7 +575,7 @@ export class OpportunityRepository {
   ): Promise<{ id: string; at: Date }> {
     const [row] = await tx
       .insert(audit)
-      .values({ actorId: entry.actorId, action: 'sửa', note: entry.note })
+      .values({ actorId: entry.actorId, action: 'edit', note: entry.note })
       .returning({ id: audit.id, at: audit.at })
 
     if (!row) throw new Error('platform.audit: INSERT không trả về dòng nào')

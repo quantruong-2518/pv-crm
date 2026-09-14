@@ -8,21 +8,19 @@ import { ACCESS } from '../engines/tokens'
 import { PvError } from '../http/problem'
 import { NEED_KEY, PUBLIC_KEY, type RouteNeed } from './need.decorator'
 
-/** CHỐT LỆCH GIỮA ENGINE VÀ HỢP ĐỒNG.
+/** CHỐT LỆCH GIỮA ENGINE VÀ HỢP ĐỒNG — giờ là một phép gán, không còn là bảng.
  *
- *  `packages/contracts` khai lại bốn `DenyReason` bằng zod thay vì nhập từ
- *  engine (để hợp đồng không kéo theo cả engine), bằng khoá ASCII thay vì
- *  tiếng Việt (để sống sót qua HTTP). Bảng dưới đây dịch 1-1, đúng bảng đã ghi
- *  ở `e2-access.ts`. `Record<EngineDenyReason, …>` là chỗ `tsc` bắt được nếu
- *  hai bên lệch: thêm một lý do thứ năm vào E2 mà quên thêm vào bảng này thì
- *  build đỏ ngay, không đợi tới lúc màn nhận một chuỗi nó không biết đọc. */
-const CONTRACT_REASON: Record<EngineDenyReason, ContractDenyReason> = {
-  'chưa-đăng-nhập': 'unauthenticated',
-  'thiếu-nhánh': 'branch-not-licensed',
-  'thiếu-quyền': 'permission-denied',
-  'ngoài-phạm-vi': 'out-of-scope',
-}
-const asContractReason = (r: EngineDenyReason): ContractDenyReason => CONTRACT_REASON[r]
+ *  `packages/contracts` vẫn khai lại bốn `DenyReason` bằng zod thay vì nhập từ
+ *  engine, để hợp đồng không kéo theo cả engine. Thứ đã bỏ là chỗ hai bên dùng
+ *  HAI BỘ CHỮ cho cùng bốn lý do: engine tiếng Việt, hợp đồng ASCII, và một
+ *  `Record` mười lăm dòng ngồi đây dịch qua lại. Engine đã đổi sang đúng chữ
+ *  của hợp đồng, nên bảng ấy thành ánh xạ đồng nhất.
+ *
+ *  Phép gán này giữ nguyên tính chất đã mua bằng bảng kia: nó chỉ biên dịch khi
+ *  hai union còn trùng khít, nên thêm lý do thứ năm ở một bên mà quên bên kia
+ *  là build đỏ — không đợi tới lúc màn nhận một chuỗi nó không biết đọc.
+ *  `errors.ts` bên web vừa bỏ đúng bảng sinh đôi của bảng này. */
+const asContractReason = (r: EngineDenyReason): ContractDenyReason => r
 
 /** Hàng rào quyền của máy chủ — bản đối xứng của `requireAccess` bên web.
  *
@@ -74,12 +72,12 @@ export class AccessGuard implements CanActivate {
     if (actor) {
       await this.audit.write({
         actorId: actor.id,
-        action: 'xem',
+        action: 'view',
         note: `chặn ${req.method} ${req.url} · ${verdict.reason}`,
       })
     }
 
-    const unauth = verdict.reason === 'chưa-đăng-nhập'
+    const unauth = verdict.reason === 'unauthenticated'
     throw new PvError({
       kind: unauth ? 'unauthenticated' : 'forbidden',
       status: unauth ? 401 : 403,

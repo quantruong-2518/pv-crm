@@ -67,7 +67,7 @@ import { APPROVER_ROLE_LABEL } from '@/data/directory'
 export const ANCHOR_CODE = DAS_VINA_LEAD
 
 /** What the route asks for, in the SAME words `apps/api` uses on the other end
- *  (`@Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })` on
+ *  (`@Need({ branch: 'Sales', permission: 'lead.view', scoped: true })` on
  *  `LeadController.book`).
  *
  *  `scoped: true` is the axis this query used to be missing. The three Sale
@@ -76,7 +76,7 @@ export const ANCHOR_CODE = DAS_VINA_LEAD
  *  branch and permission reads as if the whole book were coming back. Both
  *  reads of one permission matrix have to say the same sentence — see `ApiNeed`
  *  in `app/api/client.ts`. */
-const BOOK_NEED = { branch: 'Sales', permission: 'lead.xem', scoped: true } as const
+const BOOK_NEED = { branch: 'Sales', permission: 'lead.view', scoped: true } as const
 
 /** Sổ, một trang một lần. `{ rows, total, hidden }` — hình của `paged()`.
  *
@@ -129,7 +129,7 @@ export const leadScorecardQuery = queryOptions({
   queryKey: ['sales', 'lead-scorecard'] as const,
   queryFn: ({ signal }) =>
     api.read<LeadScorecard>('/sales/leads/scorecard', {
-      need: { branch: 'Sales', permission: 'lead.xem' },
+      need: { branch: 'Sales', permission: 'lead.view' },
       schema: LeadScorecard,
       signal,
     }),
@@ -620,7 +620,7 @@ export function assigneeOptions(
         rank = 50
         /* Không còn "người gật mọi đề nghị" — không còn đề nghị nào để gật.
            Vai này đứng cao vì nó là vai DUY NHẤT giao được lead cho người
-           khác (`lead.giao`), nên nó cũng là người nhận lại được một lead
+           khác (`lead.assign`), nên nó cũng là người nhận lại được một lead
            đang không biết đưa cho ai. */
         why = 'Trưởng phòng — điều phối lead cho cả phòng'
       } else if (domains.length > 0) {

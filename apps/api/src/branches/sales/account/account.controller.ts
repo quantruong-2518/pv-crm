@@ -28,25 +28,25 @@ export class AccountController {
   constructor(private readonly accounts: AccountService) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'khách-hàng.xem' })
+  @Need({ branch: 'Sales', permission: 'account.view' })
   book(@Query(zod(AccountBookQuery)) q: AccountBookQueryType) {
     return this.accounts.book(q)
   }
 
   @Get(':code')
-  @Need({ branch: 'Sales', permission: 'khách-hàng.xem' })
+  @Need({ branch: 'Sales', permission: 'account.view' })
   profile(@Param('code', zod(MaObject)) code: MaObject) {
     return this.accounts.profile(code)
   }
 
   @Post()
-  @Need({ branch: 'Sales', permission: 'khách-hàng.sửa' })
+  @Need({ branch: 'Sales', permission: 'account.edit' })
   create(@Body(zod(AccountCreate)) body: AccountCreate) {
     return this.accounts.create(body)
   }
 
   @Patch(':code')
-  @Need({ branch: 'Sales', permission: 'khách-hàng.sửa' })
+  @Need({ branch: 'Sales', permission: 'account.edit' })
   update(
     @Param('code', zod(MaObject)) code: MaObject,
     @Body(zod(AccountUpdate)) body: AccountUpdate,

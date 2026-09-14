@@ -52,6 +52,20 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60_000
  *  it. See `resolve`. */
 const IDLE_TOUCH_FLOOR_MS = 60_000
 
+/** How long the sudo mark stays fresh.
+ *
+ *  What this window stops is a machine whose owner just walked away with a live
+ *  session on it. Whoever sits down next inherits the session but not the
+ *  password, so every role change and every lock stops here.
+ *
+ *  Asking EVERY time is worse, not safer: a manager fixing eight people's roles
+ *  types their password eight times, and what they learn is to type it fast
+ *  whenever a box appears — the exact reflex a convincing fake screen needs
+ *  them to have. An hour is longer than a lunch break, so the window stops
+ *  closing what it exists to close. Fifteen minutes covers one unbroken stretch
+ *  of work and is shorter than any real absence from the desk. */
+const REAUTH_TTL_MS = 15 * 60_000
+
 /** THE RULES OF GETTING IN. Knows the repository; never sees `req` or `res`.
  *
  *  Every method here takes and returns plain values — a token is a string, a
@@ -130,13 +144,20 @@ export class AuthService {
          cookie the controller sets. */
       tokenHash: hashToken(token),
       expiresAt: new Date(now + (remember ? SESSION_LIMITS.remembered : SESSION_LIMITS.absolute)),
-      /* "Nhớ tôi" turns the sitting-still axis OFF rather than lengthening it.
-         Both halves of that are what the tick means — see `SignInBody`. */
+      /* The remember-me tick turns the sitting-still axis OFF rather than
+         lengthening it. Both halves of that are what it means — see
+         `SignInBody`. */
       idleUntil: remember ? null : new Date(now + SESSION_LIMITS.idle),
+      /* Having just typed the password IS re-authentication. Without this
+         stamp every manager meets a confirm-password box seconds after signing
+         in, and a box that asks what was just asked is a box people learn to
+         click through. */
+      reauthAt: new Date(now),
       userAgent,
     })
 
-    return { view: SessionView.parse(toSessionView(row, session)), token }
+    const permissions = await this.grants.grantsFor(row.roleId)
+    return { view: SessionView.parse(toSessionView(row, session, permissions)), token }
   }
 
   /** WHO IS CALLING — the body of the seam `ActorGuard` reserved for it.
@@ -173,7 +194,7 @@ export class AuthService {
       }
     }
 
-    return toActor(found.actor)
+    return toActor(found.actor, await this.grants.grantsFor(found.actor.roleId))
   }
 
   /** `GET /auth/me`. The same two questions the guard asks, answered with the
@@ -182,7 +203,8 @@ export class AuthService {
   async view(token: string): Promise<SessionView> {
     const found = await this.living(token)
     if (!found) throw denied('unauthenticated')
-    return SessionView.parse(toSessionView(found.actor, found.session))
+    const permissions = await this.grants.grantsFor(found.actor.roleId)
+    return SessionView.parse(toSessionView(found.actor, found.session, permissions))
   }
 
   /** Push the sitting-still mark out. CANNOT move `expires_at`.
@@ -217,6 +239,55 @@ export class AuthService {
    *  says sign-out failed while the person is, in fact, signed out. */
   async signOut(token: string): Promise<void> {
     await this.repo.revokeByTokenHash(hashToken(token))
+  }
+
+  // -------------------------------------------------------------------------
+  // Re-authentication — the sudo window
+  // -------------------------------------------------------------------------
+
+  /** Retype the password to open the `REAUTH_TTL_MS` sudo window.
+   *
+   *  THE ONE PLACE IN THIS FILE THAT SAYS "WRONG PASSWORD" OUT LOUD.
+   *  `SIGN_IN_REFUSAL` collapses four reasons into one sentence because the
+   *  sign-in door answers strangers, and any difference between its answers is
+   *  a way to probe which mailboxes hold accounts. This door is the opposite:
+   *  it only answers a live session, so the server already knows who this is
+   *  and so does the caller. Nothing left to withhold — and a vague sentence
+   *  here only leaves the user guessing whether they mistyped or the system
+   *  broke.
+   *
+   *  Throttled on the ACTOR, not the mailbox. Reaching this door at all
+   *  requires a cookie, so guessing here is guessing at exactly one person;
+   *  keying on the mailbox would let someone spend that person's sign-in budget
+   *  using the person's own session. */
+  async confirmPassword(token: string, password: string): Promise<void> {
+    const found = await this.living(token)
+    if (!found) throw denied('unauthenticated')
+
+    const key = `reauth:${found.actor.id}`
+    this.refuseWhileThrottled(key)
+
+    const stored = found.actor.passwordHash ?? (await dummyPasswordHash())
+    if (!(await verifyPassword(password, stored))) {
+      this.throttle.fail(key)
+      throw denied('unauthenticated', 'Mật khẩu không đúng.')
+    }
+
+    this.throttle.clear(key)
+    await this.repo.markReauth(found.session.id, new Date())
+  }
+
+  /** Is this session's sudo mark still fresh. `ReauthGuard` is the only reader.
+   *
+   *  A dead session returns `false` rather than throwing: this runs AFTER
+   *  `AccessGuard`, so a request with no session was already refused and
+   *  anything arriving here holds a live one. That keeps `false` meaning
+   *  exactly one thing — password not yet retyped — which is what lets the
+   *  guard's 403 explain one situation instead of two. */
+  async reauthFresh(token: string): Promise<boolean> {
+    const found = await this.living(token)
+    const at = found?.session.reauthAt
+    return at ? Date.now() - at.getTime() < REAUTH_TTL_MS : false
   }
 
   // -------------------------------------------------------------------------
@@ -409,7 +480,7 @@ export class AuthService {
    *   · no row              — token never existed, or the sweep removed it
    *   · `revoked_at`        — signed out, password changed, account locked
    *   · past `expires_at`   — the shift ended
-   *   · past `idle_until`   — sat still too long (absent = "Nhớ tôi")
+   *   · past `idle_until`   — sat still too long (absent = remember-me on)
    *   · actor `disabled_at` — locked AFTER this session was opened, which is
    *                           why it is read here and not only at sign-in.
    *                           Without this line, locking an account would take

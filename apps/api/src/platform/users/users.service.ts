@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import {
-  ROLE_PERMISSIONS,
+  DEFAULT_ROLE_PERMISSIONS,
   type Actor,
   type Permission,
   type RoleId as EngineRoleId,
@@ -48,7 +48,7 @@ const ID_ATTEMPTS = 25
  *  is written out in both places rather than imported from one: `tsc` checks
  *  each against `PERMISSIONS`, and a shared constant would only move where the
  *  literal is written, not what checks it. */
-const MANAGE_USERS: Permission = 'người-dùng.quản-lý'
+const MANAGE_USERS: Permission = 'user.manage'
 
 /** Which roles can administer people, read out of the permission matrix.
  *
@@ -56,8 +56,8 @@ const MANAGE_USERS: Permission = 'người-dùng.quản-lý'
  *  the cast because TypeScript types it as `string[]` for soundness reasons
  *  that do not apply to a `Record` literal declared in the same package as its
  *  key union. */
-const KEYHOLDER_ROLES: EngineRoleId[] = (Object.keys(ROLE_PERMISSIONS) as EngineRoleId[]).filter(
-  (role) => ROLE_PERMISSIONS[role].includes(MANAGE_USERS),
+const KEYHOLDER_ROLES: EngineRoleId[] = (Object.keys(DEFAULT_ROLE_PERMISSIONS) as EngineRoleId[]).filter(
+  (role) => DEFAULT_ROLE_PERMISSIONS[role].includes(MANAGE_USERS),
 )
 
 /** Can this person open accounts, right now. Both halves matter: a locked
@@ -104,8 +104,8 @@ function slug(text: string): string {
  *  ------------------------------------------------------------------
  *  WHO COUNTS AS AN ADMINISTRATOR IS COMPUTED, NEVER LISTED
  *  ------------------------------------------------------------------
- *  `KEYHOLDER_ROLES` below is derived from `ROLE_PERMISSIONS`, so the day a
- *  seventh role is added to E2 with `người-dùng.quản-lý` in its row, the
+ *  `KEYHOLDER_ROLES` below is derived from `DEFAULT_ROLE_PERMISSIONS`, so the day a
+ *  seventh role is added to E2 with `user.manage` in its row, the
  *  sole-administrator rule counts it without anybody remembering to come here.
  *  Writing `['director', 'head-of-sales']` by hand is the same class of mistake
  *  the matrix itself avoids by spelling those two rows as `PERMISSIONS` rather
@@ -198,7 +198,7 @@ export class UsersService {
           await this.repo.writeNote(
             {
               actorId: who.id,
-              action: 'sửa',
+              action: 'edit',
               code: saved.id,
               note: `mở tài khoản ${saved.id} · ${saved.email} · vai=${saved.roleId} · nhánh=${saved.branches.join('/')}`,
             },
@@ -308,7 +308,7 @@ export class UsersService {
       }
 
       await this.repo.writeNote(
-        { actorId: who.id, action: 'sửa', code: target.id, note: this.noteFor(target, body) },
+        { actorId: who.id, action: 'edit', code: target.id, note: this.noteFor(target, body) },
         tx,
       )
       return saved
@@ -370,10 +370,10 @@ export class UsersService {
        its own handle. And note what this line does NOT carry — the note says
        that a letter was posted, never the token or the link. A credential in
        an append-only table is a credential with no expiry policy and a
-       `ghi-vết.xem` audience wider than the mailbox it was meant for. */
+       `audit-log.view` audience wider than the mailbox it was meant for. */
     await this.repo.writeNote({
       actorId: who.id,
-      action: 'sửa',
+      action: 'edit',
       code: target.id,
       note: `gửi thư đặt mật khẩu tới ${target.email}`,
     })
@@ -391,7 +391,7 @@ export class UsersService {
   /** RULE 1 · nobody edits their own role or their own lock.
    *
    *  A manager who demotes themselves, or locks themselves out of the only
-   *  account holding `người-dùng.quản-lý`, leaves a system nobody can
+   *  account holding `user.manage`, leaves a system nobody can
    *  administer — no invite can be sent, no role can be granted, and the way
    *  back is somebody with database credentials editing `platform.actor` by
    *  hand. That is a bad afternoon at best and an outage at worst, and it is
@@ -435,8 +435,8 @@ export class UsersService {
    *  administrator can be demoted by nobody but is still reachable through the
    *  lock button on somebody else's screen.
    *
-   *  "Administrator" is `ROLE_PERMISSIONS[roleId]` containing
-   *  `người-dùng.quản-lý` and `disabled_at IS NULL`, computed at module load
+   *  "Administrator" is `DEFAULT_ROLE_PERMISSIONS[roleId]` containing
+   *  `user.manage` and `disabled_at IS NULL`, computed at module load
    *  from the engine — a locked administrator administers nothing, and a role
    *  that gains the permission tomorrow is counted tomorrow without an edit
    *  here.

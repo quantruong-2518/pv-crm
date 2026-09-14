@@ -211,6 +211,20 @@
       "when": 1788500100000,
       "tag": "0030_role_id_english",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788500200000,
+      "tag": "0031_session_reauth",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788500300000,
+      "tag": "0032_role_permission",
+      "breakpoints": true
     }
   ]
 }

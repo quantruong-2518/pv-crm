@@ -19,7 +19,7 @@ import {
  *  ------------------------------------------------------------------
  *  `data/leads.ts` is the READ side — the book, its facets, and the three
  *  derivations every screen shares. This is the WRITE side, and it asks for a
- *  higher permission (`lead.sửa`, not `lead.xem`), carries its own body
+ *  higher permission (`lead.edit`, not `lead.view`), carries its own body
  *  contract, and has its own failure vocabulary (per-field complaints). None
  *  of that is shared with a query; putting it next to the queries would mean
  *  one file where a reader has to work out which half a given `need` belongs
@@ -49,16 +49,16 @@ import {
 const CREATE_PATH = '/sales/leads'
 
 /** What the route asks for, in the SAME words `apps/api` uses on the other end
- *  (`@Need({ branch: 'Sales', permission: 'lead.sửa' })` on
+ *  (`@Need({ branch: 'Sales', permission: 'lead.edit' })` on
  *  `LeadController.create`).
  *
  *  No `scoped` axis, and that is not an omission: the row does not exist yet,
  *  so there is no `owner_id` to cut by. Compare `BOOK_NEED` in `data/leads.ts`,
  *  which does carry it because a book of existing rows can be cut.
  *
- *  Higher than the read door on purpose — `lead.xem` gets you the book,
- *  `lead.sửa` gets you a pen. Presales holds the first and not the second. */
-const CREATE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.sửa' }
+ *  Higher than the read door on purpose — `lead.view` gets you the book,
+ *  `lead.edit` gets you a pen. Presales holds the first and not the second. */
+const CREATE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
 
 /** Every lead-book query in `data/leads.ts` hangs under this prefix.
  *

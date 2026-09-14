@@ -489,7 +489,7 @@ export const OpportunityUpdateResponse = OpportunityRow
  *  in full: these are the numbers of the KY — of the whole desk. Cutting them
  *  by who holds what means everybody reads a different figure under one label,
  *  and none of those figures is the one being asked for. The door still demands
- *  `cơ-hội.xem`; whoever cannot open the book does not see the cards.
+ *  `opportunity.view`; whoever cannot open the book does not see the cards.
  *
  *  ------------------------------------------------------------------
  *  MONEY IS A SUM IN DONG, AND THE BLANKS ARE COUNTED BESIDE IT
@@ -534,7 +534,7 @@ export const OpportunityScorecard = z.object({
  *  OP-5001, Sale B (also `ownOnly`) opens LD-0042, the scope axis removes
  *  OP-5001 from the answer, and the screen reads the resulting empty list as
  *  "nobody has converted this lead". The button lights up, `POST
- *  /sales/opportunities` demands only `cơ-hội.sửa` and does not check for
+ *  /sales/opportunities` demands only `opportunity.edit` and does not check for
  *  duplicates, and the customer now has two deals. A guard that hides the very
  *  row it exists to find is not a guard.
  *

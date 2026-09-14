@@ -278,12 +278,12 @@ thành 500.
 
 ## Nợ đang có
 
-1. **Không có `chiến-dịch.bắn`.** Marketing có `chiến-dịch.sửa` là bắn được mail
+1. **Không có `campaign.broadcast`.** Marketing có `campaign.edit` là bắn được mail
    ra ngoài công ty — sửa nháp và bắn 500 mail đang cùng một quyền, mà cái thứ
    hai không rút lại được. Đã chốt giữ nguyên ma trận (quyết định #6);
    `platform.audit` là thứ duy nhất truy được ai bấm bắn. Nếu sau muốn siết,
    chỗ thêm là một `@Need` ở đúng một endpoint.
-2. **Marketing không có `cơ-hội.xem`** → không đo được chiến dịch mình ra bao
+2. **Marketing không có `opportunity.view`** → không đo được chiến dịch mình ra bao
    nhiêu cơ hội. Luồng mới đóng vòng ở đó, mà vòng đó đang bị cắt.
 3. **`bd_owner_id` và `marketing_owner_id` không tính vào trục phạm vi.** E2
    `ownOnly` chỉ so `owner_id`; BD mang lead về rồi giao đi là mất tầm nhìn.

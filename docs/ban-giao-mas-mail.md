@@ -68,7 +68,7 @@ ngũ; xem `ban-giao-campaign.md` § "Lượt 29/08".
 | 3   | **Mọi lần gửi đều tạo `mail_run`**, kể cả Quick MAS                       | Timeline ở chi tiết lead đọc ĐÚNG MỘT bảng. Hai nguồn cho một câu hỏi là hai câu trả lời lệch nhau sau một quý                                                                                          |
 | 4   | **`mail_event` riêng; open/click KHÔNG đụng `email_delivery.state`**      | Thang `advances()` trả lời "thư có tới không". Mở trả lời câu khác và trả lời yếu hơn nhiều. Gộp là vừa hỏng thang vừa để tín hiệu mềm đè tín hiệu cứng. `mail-webhook.controller.ts:65` đã từ chối sẵn |
 | 5   | **Nội dung snapshot trên `mail_run`; biến trộn trên từng dòng gửi**       | Sửa mẫu không được viết lại thư đã gửi tuần trước. Còn `merge` phải nằm trên dòng vì composer ở `platform` không được đọc `sales.lead` — nhánh Sales điền sẵn lúc xếp hàng                              |
-| 6   | **Hai quyền gửi**, không phải một                                         | `lead.gửi-mail` đi kèm `ownOnly` (Sale gửi cho lead mình giữ) · `chiến-dịch.bắn` là bắn cả tệp, nhiều đợt. Gộp lại thì hoặc Sale được bắn chiến dịch, hoặc nút ở Sổ lead xám vĩnh viễn với Sale và BD   |
+| 6   | **Hai quyền gửi**, không phải một                                         | `lead.send-email` đi kèm `ownOnly` (Sale gửi cho lead mình giữ) · `campaign.broadcast` là bắn cả tệp, nhiều đợt. Gộp lại thì hoặc Sale được bắn chiến dịch, hoặc nút ở Sổ lead xám vĩnh viễn với Sale và BD   |
 | 7   | **`satisfies Record<…, true>` cho danh sách CHECK**, không đọc `.options` | `drizzle-kit generate` nạp `*.schema.ts` bằng bộ nạp CJS riêng, và barrel ESM của `@pv/contracts` không sống sót — import về `undefined`. Xem "Ma sát" #1                                               |
 
 ---
@@ -140,7 +140,7 @@ snowshoe spam, mỗi lần đổi là reset reputation về 0.
 
 ```
 packages/contracts/src/sales/mail.ts       MỚI — hợp đồng zod của cả cụm
-packages/engines/src/e2-access.ts          + 'chiến-dịch.bắn' · 'lead.gửi-mail'
+packages/engines/src/e2-access.ts          + 'campaign.broadcast' · 'lead.send-email'
 packages/tokens/src/tokens.ts              + swatch 'Azure' #2E63E6 (mail template cần hex)
 packages/mail-templates/src/mas-shell.tsx  MỚI — khung thư marketing
 packages/ui/src/patterns/stepper.tsx       MỚI (M-14) — modal MAS dùng chung

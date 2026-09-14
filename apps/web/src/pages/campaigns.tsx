@@ -86,7 +86,7 @@ export function CampaignsPage() {
      `app/api/client.ts` asks before letting a byte out, so the button and the
      fence never disagree; the real fence stays at the api layer and on the
      route. */
-  const canWrite = useCan('chiến-dịch.sửa')
+  const canWrite = useCan('campaign.edit')
 
   const urlQuery = useMemo(() => parseCampaignBookQuery(params), [params])
   const query = useMemo<CampaignBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])

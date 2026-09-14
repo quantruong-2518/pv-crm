@@ -19,7 +19,7 @@ export const leaderboardQuery = queryOptions({
   queryKey: ['sales', 'leaderboard'] as const,
   queryFn: ({ signal }) =>
     api.read<SalesLeaderboard>('/sales/leaderboard', {
-      need: { branch: 'Sales', permission: 'hiệu-suất.xem' },
+      need: { branch: 'Sales', permission: 'performance.view' },
       schema: SalesLeaderboard,
       signal,
     }),

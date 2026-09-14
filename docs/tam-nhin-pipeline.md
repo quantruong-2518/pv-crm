@@ -43,18 +43,18 @@ Số module sau khi module 4 chen vào (đã chốt ở `tam-nhin-bao-gia-hop-do
 
 | Phase   | State (nguồn chính thức)                                                                                              | Cửa đổi trạng thái                                     | Ai giữ                                  | Ai gật                     |
 | ------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------- | -------------------------- |
-| **P0**  | `SourceKind` = `chien-dich` · `su-kien` · `tu-nhien` — `campaign.ts:123`                                              | `config_entry` list `SOURCE`                           | marketing                               | E3 (`cấu-hình.đề-nghị`)    |
-| **P1a** | `CampaignState` = `DRAFT` → `RUNNING` → `STOPPED` \| `DONE` — `campaign-book.ts:17`                                   | `POST /:code/start` · `/stop`                          | marketing (`chiến-dịch.bắn`)            | —                          |
+| **P0**  | `SourceKind` = `chien-dich` · `su-kien` · `tu-nhien` — `campaign.ts:123`                                              | `config_entry` list `SOURCE`                           | marketing                               | E3 (`config.propose`)    |
+| **P1a** | `CampaignState` = `DRAFT` → `RUNNING` → `STOPPED` \| `DONE` — `campaign-book.ts:17`                                   | `POST /:code/start` · `/stop`                          | marketing (`campaign.broadcast`)            | —                          |
 | **P1b** | `CampaignMemberState` = `ACTIVE` ⇄ `REMOVED` — `:147`                                                                 | `POST /:code/members`                                  | marketing                               | —                          |
 | **P1c** | `MailRunState` = `DRAFT` → `SCHEDULED` → `SENDING` → `SENT` \| `CANCELLED` — `mail.ts:58`                             | `POST /mas/runs` · `PATCH /mas/runs/:id`               | marketing                               | —                          |
 | **P1d** | `MAIL_STATES` 10 giá trị, chỉ tiến — `platform/mail/mail.contract.ts:42`                                              | webhook Resend                                         | máy                                     | —                          |
 | **P2**  | `LeadSourceKind` × `LeadMotion` ⇒ `IntakeTrust` = `XAC_MINH` · `KHAI_BAO` · `THO`                                     | `POST /sales/leads` · `/import` · `/intake`            | BD, marketing                           | —                          |
 | **P3a** | `LeadTier` = `dau-moi` → `mql` → `sql` — `enums.ts:20`                                                                | **chưa có cửa** — nợ 2, §7                             | Sale, BD (`ownOnly`)                    | —                          |
-| **P3b** | `LeadStatus` = `running` · `signed` · `exited` — `lead.ts:185`                                                        | `ExitDialog` → `PATCH /:code`                          | Sale (`lead.loại`)                      | **E3 — mới**               |
+| **P3b** | `LeadStatus` = `running` · `signed` · `exited` — `lead.ts:185`                                                        | `ExitDialog` → `PATCH /:code`                          | Sale (`lead.disqualify`)                      | **E3 — mới**               |
 | **P3c** | chủ = `owner_id` \| `chua-ai-nhan`                                                                                    | `PATCH /:code/owner`                                   | TP                                      | **E3 — mới**               |
 | **P4**  | `OpportunityState` = `gui-quotation` · `nego` · `close-lost` · `pending` (+ `close-won` suy ra) — `opportunity.ts:45` | `POST` · `PATCH /sales/opportunities`                  | `OpportunityOwnerRole` = `SALE` \| `BD` | —                          |
 | **P5**  | `quote.status` = `nhap` → `da-gui` → `khach-chot` \| `khach-tu-choi` \| `thay-the`                                    | chưa dựng                                              | Sale; presales sửa được, gửi thì không  | **E3** khi giảm quá ngưỡng |
-| **P6**  | không phải state — **tồn tại dòng `sales.contract`**                                                                  | `POST /:code/contract` (`cơ-hội.chốt`)                 | Sale, TP, GĐ                            | —                          |
+| **P6**  | không phải state — **tồn tại dòng `sales.contract`**                                                                  | `POST /:code/contract` (`opportunity.close`)                 | Sale, TP, GĐ                            | —                          |
 | **P7**  | ngoài biên                                                                                                            | cạnh `platform.edge` + sự kiện `sales.contract.signed` | Supply                                  | —                          |
 
 Ba trục cắt ngang chạy song song mọi phase: `TouchKind` (10 giá trị, dòng thời
@@ -150,7 +150,7 @@ mọi yêu cầu đang chờ biến mất. Bảng đi trước, không có đư�
 | 3      | `giảm-giá`     | Đường tiền, và P5 sinh ra nó                               | TP → GĐ nếu quá ngưỡng |
 | 4      | `loại-lead`    | Không quay lại được                                        | TP                     |
 
-Quyền gật đã có: `phê-duyệt.duyệt`, chỉ `giám-đốc` và `trưởng-phòng` giữ.
+Quyền gật đã có: `approval.decide`, chỉ `giám-đốc` và `trưởng-phòng` giữ.
 `proposeFromAi` bắt buộc `basis` — luật 9 cưỡng chế ở tầng kiểu, không phải
 thiện chí người viết màn.
 

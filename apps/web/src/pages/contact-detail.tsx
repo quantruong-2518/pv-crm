@@ -44,7 +44,7 @@ export default function ContactDetailPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
-  const canEdit = useCan('lead.sửa')
+  const canEdit = useCan('lead.edit')
 
   const { data: contact, isPending, error } = useQuery(contactProfileQuery(code))
   const promote = useSetPrimaryContact(code, contact?.leadCode)

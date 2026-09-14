@@ -45,12 +45,12 @@ const BOOK_PATH = '/sales/opportunities'
 
 /** Cùng ba trục mà `OpportunityController` khai bằng `@Need`.
  *
- *  `cơ-hội.sửa` chứ không phải `cơ-hội.chốt`: mở một đơn thì đóng lại được, ký
+ *  `opportunity.edit` chứ không phải `opportunity.close`: mở một đơn thì đóng lại được, ký
  *  thì không — đọc docblock của controller cho phần đầy đủ. Khai ở đây để nút
  *  tắt đi TRƯỚC khi người dùng bấm, thay vì để họ điền hết phiếu rồi ăn 403. */
-export const OPPORTUNITY_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.sửa' }
+export const OPPORTUNITY_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.edit' }
 
-/** Cửa KÝ đòi một quyền khác hẳn — `@Need({ …, permission: 'cơ-hội.chốt',
+/** Cửa KÝ đòi một quyền khác hẳn — `@Need({ …, permission: 'opportunity.close',
  *  scoped: true })` ở `opportunity.controller.ts`.
  *
  *  Khai HẰNG RIÊNG chứ không mượn `OPPORTUNITY_WRITE_NEED` ngay trên, và không phải vì
@@ -64,7 +64,7 @@ export const OPPORTUNITY_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'c
  *  cũng chỉ ký được đơn của mình. */
 export const OPPORTUNITY_SIGN_NEED: ApiNeed = {
   branch: 'Sales',
-  permission: 'cơ-hội.chốt',
+  permission: 'opportunity.close',
   scoped: true,
 }
 
@@ -397,7 +397,7 @@ export function opportunityStageHistoryQuery(code: MaObject) {
     queryKey: ['sales', 'ops', code, 'stage-history'] as const,
     queryFn: ({ signal }) =>
       api.read<OpportunityStageHistory>(`${BOOK_PATH}/${code}/stage-history`, {
-        need: { branch: 'Sales', permission: 'cơ-hội.xem', scoped: true },
+        need: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
         signal,
       }),
   })

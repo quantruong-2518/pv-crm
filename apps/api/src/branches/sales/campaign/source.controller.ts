@@ -5,7 +5,7 @@ import { SourceService } from './source.service'
 /** Module 1 · Chiến dịch & Sự kiện — hai cửa ĐỌC của bảng nguồn.
  *
  *  ------------------------------------------------------------------
- *  `chiến-dịch.xem`, VÀ KHÔNG `scoped`
+ *  `campaign.view`, VÀ KHÔNG `scoped`
  *  ------------------------------------------------------------------
  *  Hai cửa này trả về SỐ CỦA CẢ PHÒNG, không trả dòng dữ liệu của ai. Một Sale
  *  `ownOnly` vẫn phải đọc được "nguồn nào đang ra lead tốt" — đó là thứ họ dùng
@@ -29,7 +29,7 @@ export class SourceController {
 
   /** Bảng nguồn — một dòng một nguồn, kèm đợt · hoá đơn · sự kiện của nó. */
   @Get('sources')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem' })
+  @Need({ branch: 'Sales', permission: 'campaign.view' })
   list() {
     return this.sources.sources()
   }
@@ -39,7 +39,7 @@ export class SourceController {
    *  `MasController`. Không segment nào nuốt segment nào ở đây; nếp vẫn là
    *  nếp, đúng lý do đã ghi ở `UsersController.directory`. */
   @Get('totals')
-  @Need({ branch: 'Sales', permission: 'chiến-dịch.xem' })
+  @Need({ branch: 'Sales', permission: 'campaign.view' })
   totals() {
     return this.sources.totals()
   }

@@ -747,7 +747,7 @@ const stageName = (key: NonNullable<OpportunityRow['stage']>) => STAGE_LABEL.get
 
 function StageCard({ op }: { op: OpportunityRow }) {
   const move = useMoveStage(op.code)
-  const canEdit = useCan('cơ-hội.sửa')
+  const canEdit = useCan('opportunity.edit')
   const history = useQuery(opportunityStageHistoryQuery(op.code))
 
   const stage = op.stage
@@ -939,8 +939,8 @@ function ToolsBar({
      `useCan` hỏi ĐÚNG hàm E2 mà `app/api/client.ts` hỏi trước khi thả một byte
      nào ra dây (`access.allows`), nên giao diện và hàng rào không nói ngược
      nhau. Ẩn nút KHÔNG phải là phân quyền: hàng rào thật vẫn ở tầng api, và cửa
-     máy chủ vẫn khai `@Need({ permission: 'cơ-hội.chốt' })`. */
-  const canSign = useCan('cơ-hội.chốt')
+     máy chủ vẫn khai `@Need({ permission: 'opportunity.close' })`. */
+  const canSign = useCan('opportunity.close')
   const [signing, setSigning] = useState(false)
 
   /* Ba trạng thái, và chúng loại nhau theo đúng thứ tự này:

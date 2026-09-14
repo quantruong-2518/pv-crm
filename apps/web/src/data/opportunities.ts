@@ -63,7 +63,7 @@ import { api, type ApiNeed } from '@/app/api'
 export const OPPORTUNITY_BOOK_KEY = ['sales', 'ops-book'] as const
 
 /** Ba trục mà `OpportunityController.book` khai bằng `@Need({ …, permission:
- *  'cơ-hội.xem', scoped: true })` — viết MỘT lần cho cả hai lượt đọc SỔ: trang
+ *  'opportunity.view', scoped: true })` — viết MỘT lần cho cả hai lượt đọc SỔ: trang
  *  đang xem và lượt đọc dựng ô lọc.
  *
  *  Lượt đọc thứ ba từng dùng chung hằng này — "lead này đã có đơn chưa" — đã
@@ -80,7 +80,7 @@ export const OPPORTUNITY_BOOK_KEY = ['sales', 'ops-book'] as const
  *  một sự lệch có ý thức chứ không phải quên: cửa `GET /sales/opportunities/:code`
  *  trả MỘT dòng, không phải một sổ, nên `hidden` không có nghĩa gì ở đó — sửa
  *  nó là việc khác. */
-const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'cơ-hội.xem', scoped: true }
+const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view', scoped: true }
 
 /** Mọi tên trường `OpportunityBookQuery` nhận, đọc thẳng từ chính schema chứ
  *  không chép tay: ngày hợp đồng mọc thêm một trục lọc, hai hàm dịch bên dưới
@@ -190,7 +190,7 @@ export const opportunityScorecardQuery = queryOptions({
   queryKey: [...OPPORTUNITY_BOOK_KEY, 'scorecard'] as const,
   queryFn: ({ signal }) =>
     api.read<OpportunityScorecard>('/sales/opportunities/scorecard', {
-      need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      need: { branch: 'Sales', permission: 'opportunity.view' },
       schema: OpportunityScorecard,
       signal,
     }),
@@ -210,7 +210,7 @@ export const opportunityHistogramQuery = queryOptions({
   queryKey: [...OPPORTUNITY_BOOK_KEY, 'histogram'] as const,
   queryFn: ({ signal }) =>
     api.read<OpportunityHistogram>('/sales/opportunities/histogram', {
-      need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+      need: { branch: 'Sales', permission: 'opportunity.view' },
       schema: OpportunityHistogram,
       signal,
     }),
@@ -264,7 +264,7 @@ export const opportunityProfileQuery = (code: string) =>
     queryKey: ['sales', 'ops', code] as const,
     queryFn: () =>
       api.read<OpportunityRow>(`/sales/opportunities/${code}`, {
-        need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+        need: { branch: 'Sales', permission: 'opportunity.view' },
       }),
   })
 
@@ -287,7 +287,7 @@ export const opportunityProfileQuery = (code: string) =>
  *  với `BOOK_NEED` (`scoped: true`), và nó thủng với MỌI Sale `ownOnly`: Sale A
  *  đổi LD-0042 thành OP-5001; Sale B mở LD-0042, máy chủ cắt mất OP-5001 vì đơn
  *  không đứng tên B, `rows` về rỗng, và màn đọc rỗng thành "chưa ai đổi". Nút
- *  sáng, cửa `POST` chỉ đòi `cơ-hội.sửa` và không kiểm trùng — đúng con lỗi mà
+ *  sáng, cửa `POST` chỉ đòi `opportunity.edit` và không kiểm trùng — đúng con lỗi mà
  *  đoạn trên nói query này sinh ra để giết, quay lại bằng đường khác.
  *
  *  Cửa mới bỏ trục phạm vi có chủ ý và trả đúng một mã đơn để bù lại (đọc
@@ -322,7 +322,7 @@ export const opportunitiesOfLeadQuery = (leadCode: string) =>
       api.read<OpportunityLiveDeal>(
         `/sales/opportunities/live-deal?leadCode=${encodeURIComponent(leadCode)}`,
         {
-          need: { branch: 'Sales', permission: 'cơ-hội.xem' },
+          need: { branch: 'Sales', permission: 'opportunity.view' },
           signal,
         },
       ),

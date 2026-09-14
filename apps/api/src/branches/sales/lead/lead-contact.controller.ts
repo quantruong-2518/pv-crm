@@ -57,19 +57,19 @@ export class LeadContactController {
    *  it has no code on the path to guard against. `ContactRepository.book`
    *  cuts by SQL, through lead — see the docblock there. */
   @Get()
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(ContactBookQuery)) q: ContactBookQuery) {
     return this.contacts.book(who, q)
   }
 
   @Get(':code')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.contacts.profile(who, code)
   }
 
   @Patch(':code')
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   edit(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -81,7 +81,7 @@ export class LeadContactController {
   /** 204: nothing left to return once the delete is done. */
   @Delete(':code')
   @HttpCode(204)
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   drop(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.contactDrop(who, code)
   }
@@ -93,7 +93,7 @@ export class LeadContactController {
    *  exactly what the caller would assume. */
   @Post(':code/primary')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   primary(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.contactPrimary(who, code)
   }

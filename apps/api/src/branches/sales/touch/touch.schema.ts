@@ -11,7 +11,7 @@ import { sales } from '../sales.schema'
  *  ------------------------------------------------------------------
  *  `platform.audit` ghi AI GỌI ĐƯỜNG NÀO — nó là vết bảo mật, khoá theo một
  *  `action` của HTTP, và tới lúc nó được ghi thì thứ duy nhất còn lại là
- *  `action: 'sửa'`. Nó không nói được "đơn này vừa từ Đã demo sang Chờ ký".
+ *  `action: 'edit'`. Nó không nói được "đơn này vừa từ Đã demo sang Chờ ký".
  *  `platform.email_delivery` biết mọi lá thư đã gửi, tức đúng một loại tiếp xúc
  *  và là loại duy nhất hai bảng kia nhìn thấy.
  *

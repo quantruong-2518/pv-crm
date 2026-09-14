@@ -53,14 +53,14 @@ const PREVIEW_PATH = '/sales/opportunities/import/preview'
 const COMMIT_PATH = '/sales/opportunities/import'
 
 /** What both routes ask for, in the SAME words `apps/api` uses on the other end
- *  (`@Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })` on
+ *  (`@Need({ branch: 'Sales', permission: 'opportunity.edit' })` on
  *  `OpportunityController.importPreview` and `.import`). Reused from
  *  `ops-write.ts` rather than declared again — one door, one need, one place to
  *  change it.
  *
  *  The dry run asks for the write permission too, and that is not an oversight
  *  on either side: a preview reads the whole live lead book and the open deals
- *  standing on it. Presales holds `cơ-hội.xem` and not `cơ-hội.sửa`, so the call
+ *  standing on it. Presales holds `opportunity.view` and not `opportunity.edit`, so the call
  *  is refused at `requireAccess` before a byte moves — same fence, one round
  *  trip earlier. */
 const IMPORT_NEED = OPPORTUNITY_WRITE_NEED

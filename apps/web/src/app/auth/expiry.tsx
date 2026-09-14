@@ -1,42 +1,33 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from '@pv/ui'
-import { useNavigate } from 'react-router-dom'
 import { Button, GlassCard, Icon } from '@pv/ui'
-import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
-import { signInWithEmail, type AuthError } from '@/data/auth'
 import { useExpiryWarning } from './lifecycle'
 import { renewSession } from './renew'
-import { useSession, type ExpiryReason } from './session'
+import { useSession } from './session'
 
-/** Hai khối của việc phiên chết: DẢI báo trước, và LỚP KHOÁ khi đã muộn.
+/** DẢI BÁO TRƯỚC khi phiên chết. Một khối, không còn hai.
  *
  *  ------------------------------------------------------------------
- *  VÌ SAO KHOÁ TẠI CHỖ CHỨ KHÔNG ĐÁ VỀ MÀN ĐĂNG NHẬP
+ *  LỚP KHOÁ TẠI CHỖ ĐÃ BỊ GỠ, VÀ ĐÂY LÀ THỨ THAY NÓ
  *  ------------------------------------------------------------------
- *  Người mất phiên hiếm khi đang ngồi không: họ vừa quay lại sau một cuộc họp,
- *  giữa chừng một phiếu đổi cơ hội điền dở. Điều hướng sang `/dang-nhap` tháo cả
- *  cây React của màn đó, và mọi thứ họ đã gõ đi theo — hệ thống tự xoá việc của
- *  người dùng để bảo vệ chính người dùng.
+ *  File này từng giữ thêm `SessionLocked`: phiên chết giữa chừng thì màn cũ ở
+ *  lại sau một lớp mờ và người dùng gõ mật khẩu ngay tại đó. Nay hết phiên là
+ *  đá thẳng về `/dang-nhap`, và `RequireAccess` mang theo đường đang đứng để
+ *  đăng nhập xong quay lại đúng chỗ.
  *
- *  Lớp khoá giữ nguyên cây: màn cũ vẫn nằm dưới, chỉ mờ và không bấm được. Đăng
- *  nhập xong là nó sống lại nguyên trạng, không cần tải lại, không cần nhớ mình
- *  đang ở đâu.
+ *  Đánh đổi thật, nói thẳng: phiếu đang gõ dở MẤT, vì cây React của màn cũ bị
+ *  tháo. Lớp khoá giữ được nó, nhưng đổi lại phải để nguyên dữ liệu của người
+ *  trước nằm trên màn sau một lớp mờ — trên đúng cái máy vừa bị bỏ trống, tức
+ *  là đúng tình huống mà hết phiên vì ngồi không sinh ra để xử. Giữa "mất phần
+ *  chưa lưu" và "còn hiện trên màn của người ngồi sau", chọn cái thứ nhất.
  *
- *  Đổi lại phải chấp nhận một điều và nói thẳng ra: dữ liệu cũ VẪN nằm trên màn
- *  sau lớp mờ. Vì thế lớp mờ phải đủ mạnh để không đọc được chữ, và toàn bộ
- *  phần dưới bị `inert` — không tiêu điểm, không Tab vào được, không chọn để
- *  copy được. Ai muốn thật sự dọn màn thì bấm "Đăng xuất", và đó mới là nút xoá
- *  sạch cả cache (`app/query-client.ts`).
+ *  Cái dải này vì thế quan trọng hơn trước: hai phút cảnh báo nay là cơ hội duy
+ *  nhất để người dùng bấm lưu trước khi bị đá ra. Nút "Gia hạn phiên" trên dải
+ *  là đường tránh, và nó chỉ hiện khi gia hạn được thật.
  *
- *  Thang tầng của app: nav 40 · drawer 50 · **dải cảnh báo 55 · lớp khoá 60**.
- *  Dải phải trên drawer, không thì phiên sắp hết mà panel đang mở là không ai
- *  thấy gì; lớp khoá phải trên tất cả, vì nó là thứ duy nhất còn bấm được. */
-
-const WHY: Record<ExpiryReason, string> = {
-  'ngồi-không': 'Máy để không quá lâu nên phiên tự đóng. Việc bạn đang làm vẫn còn nguyên.',
-  'hết-ca': 'Hết một ca làm việc. Đăng nhập lại để làm tiếp đúng chỗ đang dở.',
-  'bị-thu-hồi': 'Phiên đã bị đóng. Đăng nhập lại nếu người ngồi đây vẫn là bạn.',
-}
+ *  Thang tầng của app: nav 40 · drawer 50 · **dải cảnh báo 55 · hộp xác nhận
+ *  mật khẩu 60** (`reauth.tsx`). Dải phải trên drawer, không thì phiên sắp hết
+ *  mà panel đang mở là không ai thấy gì. */
 
 /** Đếm ngược mm:ss. */
 function countdown(ms: number): string {
@@ -101,108 +92,6 @@ export function ExpiryWarning() {
           </Button>
         )}
       </GlassCard>
-    </div>
-  )
-}
-
-/** Lớp khoá — đăng nhập lại tại chỗ.
- *
- *  Ô email KHÔNG có mặt, và đó là chủ ý: đây là cửa mở lại phiên của ĐÚNG người
- *  đang kẹt, không phải cửa đổi vai. Cho gõ email khác ở đây thì người mới đăng
- *  nhập vào và thừa hưởng nguyên màn của người cũ — kể cả phiếu điền dở. Muốn
- *  sang vai khác thì "Đăng xuất", và đường đó dọn sạch mọi thứ. */
-export function SessionLocked() {
-  const navigate = useNavigate()
-  const actor = useSession((s) => s.actor)
-  const expiredBy = useSession((s) => s.expiredBy)
-  const signIn = useSession((s) => s.signIn)
-  const signOut = useSession((s) => s.signOut)
-  /* Ô "Nhớ tôi" không có mặt trên lớp khoá, cùng lý do ô email không có mặt:
-     đây là cửa mở lại ĐÚNG phiên vừa đứt, không phải cửa đổi lựa chọn. Nên gửi
-     lại lựa chọn cũ cho máy chủ — người đã tick "Nhớ tôi" sáng nay không bị hạ
-     xuống một phiên chết theo tab chỉ vì họ đi họp một tiếng. */
-  const remember = useSession((s) => s.remember)
-
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<AuthError | null>(null)
-  /* Trạng thái gửi giữ CỤC BỘ, không dùng `beginSignIn`: máy trạng thái chuyển
-     sang 'đang-vào' sẽ làm chính lớp khoá này biến mất giữa chừng, để lộ màn cũ
-     trong đúng khoảnh khắc phiên vẫn đang chết. */
-  const [busy, setBusy] = useState(false)
-
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => ref.current?.focus(), [])
-
-  if (!actor) return null
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] overflow-auto bg-[var(--scrim)]"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Phiên đã hết hạn"
-    >
-      <AuthCard title="Phiên đã hết hạn" lead={expiredBy ? WHY[expiredBy] : undefined}>
-        <form
-          noValidate
-          onSubmit={async (e) => {
-            e.preventDefault()
-            if (busy) return
-            setBusy(true)
-            const result = await signInWithEmail(actor.email, password, remember)
-            setBusy(false)
-            if (!result.ok) return setError(result.error)
-            setPassword('')
-            /* Cửa sổ phiên đi thẳng từ câu trả lời của máy chủ vào kho, y như ở
-               màn đăng nhập. Tự tính lại hạn ở đây là dựng một cái đếm ngược
-               thứ hai bên cạnh cái máy chủ vừa đóng dấu, và chúng sẽ lệch. */
-            signIn(result.actor, { session: result.session, remember })
-          }}
-          className="flex flex-col gap-5"
-        >
-          <AuthField
-            label={`${actor.name} · ${actor.email}`}
-            htmlFor="lock-password"
-            error={error?.message}
-          >
-            <PasswordInput
-              ref={ref}
-              id="lock-password"
-              autoComplete="current-password"
-              placeholder="Mật khẩu của bạn"
-              value={password}
-              invalid={Boolean(error)}
-              onChange={(e) => {
-                setPassword(e.target.value)
-                setError(null)
-              }}
-            />
-          </AuthField>
-
-          <Button type="submit" size="lg" disabled={busy}>
-            {busy ? 'Đang vào…' : 'Vào lại'}
-          </Button>
-
-          {/* Same `lg` as the submit above it, not a smaller one: two buttons
-              stacked full width in the same card are one control stack, and a
-              stack that steps down in height reads as a hierarchy the card does
-              not have — leaving is a real choice here, not a footnote. */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="lg"
-            onClick={() => {
-              /* `void`: đóng phiên ở máy chủ là việc phải làm, không phải việc
-                 phải đợi. `signOut` dọn máy này ngay trong nhịp đầu tiên (xem
-                 `session.ts`), nên điều hướng ở dòng sau không đua với nó. */
-              void signOut()
-              navigate('/dang-nhap', { replace: true })
-            }}
-          >
-            Đăng xuất và đổi vai
-          </Button>
-        </form>
-      </AuthCard>
     </div>
   )
 }

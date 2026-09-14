@@ -9,8 +9,8 @@ import type { ConfigDraft, ConfigPatchDb } from './config.repository'
  *  ------------------------------------------------------------------
  *  VÌ SAO MỌI ĐƯỜNG GHI PHẢI ĐI QUA ĐÂY
  *  ------------------------------------------------------------------
- *  Ma trận quyền của E2 KHÔNG có `cấu-hình.sửa`. Nó chỉ có `cấu-hình.xem` và
- *  `cấu-hình.đề-nghị` — và đó không phải chỗ thiếu, đó là câu trả lời: sửa từ
+ *  Ma trận quyền của E2 KHÔNG có `config.edit`. Nó chỉ có `config.view` và
+ *  `config.propose` — và đó không phải chỗ thiếu, đó là câu trả lời: sửa từ
  *  vựng nghiệp vụ của cả phòng là việc phải có người gật, không phải việc một
  *  người bấm xong là xong. Bỏ một lý do rơi đang có 21 lead đứng tên thì 21
  *  dòng đó mất chỗ đứng.

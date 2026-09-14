@@ -21,17 +21,17 @@ import { OpportunityService } from './opportunity.service'
  *  SQL, không `req`/`res` — mọi thứ đáng đọc nằm ở mấy dòng khai báo.
  *
  *  ------------------------------------------------------------------
- *  HAI QUYỀN, VÀ CỬA GHI KHÔNG DÙNG `cơ-hội.chốt`
+ *  HAI QUYỀN, VÀ CỬA GHI KHÔNG DÙNG `opportunity.close`
  *  ------------------------------------------------------------------
- *  Đọc sổ và đọc một đơn cùng đòi `cơ-hội.xem`, cùng `scoped: true` — người chỉ
+ *  Đọc sổ và đọc một đơn cùng đòi `opportunity.view`, cùng `scoped: true` — người chỉ
  *  thấy đơn của mình thì thấy đúng đơn của mình, và khác biệt giữa hai endpoint
  *  nằm ở chỗ service LÀM GÌ với phán quyết đó, không nằm ở dòng khai.
  *
- *  Cửa ghi đòi `cơ-hội.sửa`, KHÔNG phải `cơ-hội.chốt`. Ba quyền của sổ này chia
+ *  Cửa ghi đòi `opportunity.edit`, KHÔNG phải `opportunity.close`. Ba quyền của sổ này chia
  *  theo mức độ không lùi được: xem là đọc, sửa là mở một đơn và động vào nó,
  *  chốt là ký — và ký là thứ đi ra khỏi phòng kinh doanh. Đổi một lead thành cơ
  *  hội thì rút lại được bằng cách đóng đơn; nó thuộc nhóm giữa. Gộp nó vào
- *  `cơ-hội.chốt` nghĩa là muốn cho một BD mở đơn thì phải cho họ luôn quyền ký.
+ *  `opportunity.close` nghĩa là muốn cho một BD mở đơn thì phải cho họ luôn quyền ký.
  *
  *  ------------------------------------------------------------------
  *  `POST` NHẬN `leadCode` TRONG THÂN, KHÔNG PHẢI TRONG ĐƯỜNG DẪN
@@ -46,7 +46,7 @@ export class OpportunityController {
   constructor(private readonly ops: OpportunityService) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(OpportunityBookQuery)) q: OpportunityBookQuery) {
     return this.ops.book(who, q)
   }
@@ -63,7 +63,7 @@ export class OpportunityController {
    *  `OpportunityService.scorecard` cho lập luận đầy đủ, và nó là lập luận đã
    *  chốt cho sổ lead chứ không phải một lựa chọn mới ở đây. */
   @Get('scorecard')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
+  @Need({ branch: 'Sales', permission: 'opportunity.view' })
   scorecard() {
     return this.ops.scorecard()
   }
@@ -74,7 +74,7 @@ export class OpportunityController {
    *  Before `@Get(':code')` and NOT `scoped`, both for the reasons already
    *  written on `scorecard` right above: one board, one set of figures. */
   @Get('histogram')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
+  @Need({ branch: 'Sales', permission: 'opportunity.view' })
   histogram() {
     return this.ops.histogram()
   }
@@ -96,7 +96,7 @@ export class OpportunityController {
    *  này là cơ hội, lead chỉ là câu hỏi — cùng lý do `POST` nhận `leadCode`
    *  trong thân request (xem docblock đầu controller). */
   @Get('live-deal')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem' })
+  @Need({ branch: 'Sales', permission: 'opportunity.view' })
   liveDeal(@Query(zod(OpportunityLiveDealQuery)) q: OpportunityLiveDealQuery) {
     return this.ops.liveDeal(q.leadCode)
   }
@@ -108,7 +108,7 @@ export class OpportunityController {
    *  truy vấn. Hàng rào thứ hai — có đơn đó không, có phải của người này không
    *  — là việc của service, vì nó cần dữ liệu mới trả lời được. */
   @Get(':code')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.ops.profile(who, code)
   }
@@ -117,16 +117,16 @@ export class OpportunityController {
    *
    *  Đứng ở đây chứ không ở một `@Controller('sales/touches')` dùng chung, và
    *  đó là quyết định chứ không phải chỗ trống: đường lần chạm của lead đòi
-   *  `lead.xem`, đường này đòi `cơ-hội.xem`, mà `@Need` là metadata TĨNH trên
+   *  `lead.view`, đường này đòi `opportunity.view`, mà `@Need` là metadata TĨNH trên
    *  một phương thức — không route nào khai được "quyền này nếu mã bắt đầu
    *  bằng LD, quyền kia nếu bắt đầu bằng OP". Lý do đầy đủ ở `touch.module.ts`.
    *
-   *  `cơ-hội.xem` chứ không `ghi-vết.xem`: quyền kia là để đọc `platform.audit`
+   *  `opportunity.view` chứ không `audit-log.view`: quyền kia là để đọc `platform.audit`
    *  — ai đã gọi đường nào — và đó là câu hỏi của người quản trị. Câu hỏi ở đây
    *  là "đơn của tôi đã đi qua những gì", và người bán mở hồ sơ đơn mình đứng
    *  tên không cần quyền của quản trị để đọc lịch sử chính đơn đó. */
   @Get(':code/touches')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.ops.touches(who, code)
   }
@@ -138,7 +138,7 @@ export class OpportunityController {
    *  đơn phải ghi được ai mở nó. Docblock của `OpportunityService.create` nói
    *  đầy đủ vì sao tham số này từng KHÔNG có mặt và điều gì đã đổi. */
   @Post()
-  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
   create(@CurrentActor() who: Actor, @Body(zod(OpportunityCreate)) body: OpportunityCreate) {
     return this.ops.create(who, body)
   }
@@ -147,20 +147,20 @@ export class OpportunityController {
    *
    *  `@HttpCode(200)` vì 201 sẽ nói dối rằng có thứ gì đó vừa được tạo.
    *
-   *  Đòi `cơ-hội.sửa` y như cửa nạp thật, và bản chạy thử KHÔNG được rẻ hơn:
+   *  Đòi `opportunity.edit` y như cửa nạp thật, và bản chạy thử KHÔNG được rẻ hơn:
    *  nó đọc cả sổ lead để trả lời "công ty này có trong sổ không" và "khách này
    *  đã có đơn đang mở chưa", mà hai câu trả lời đó đáng giá với người đang dò
    *  đúng bằng chính những dòng dữ liệu. Cùng lý lẽ mà lô nạp lead đã ghi. */
   @Post('import/preview')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
   importPreview(@Body(zod(OpportunityImportBody)) body: OpportunityImportBody) {
     return this.ops.importPreview(body)
   }
 
   /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào. */
   @Post('import')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa' })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
   import(
     @CurrentActor() who: Actor,
     @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
@@ -171,7 +171,7 @@ export class OpportunityController {
   /** Ký — cửa DUY NHẤT làm một đơn thành `close-won`.
    *
    *  ------------------------------------------------------------------
-   *  QUYỀN LÀ `cơ-hội.chốt`, VÀ ĐÂY LÀ ĐƯỜNG ĐẦU TIÊN DÙNG NÓ
+   *  QUYỀN LÀ `opportunity.close`, VÀ ĐÂY LÀ ĐƯỜNG ĐẦU TIÊN DÙNG NÓ
    *  ------------------------------------------------------------------
    *  Quyền đó đã có trong E2 từ đầu, đã có test khoá ở `actors.test.ts`, và tới
    *  hôm nay chưa gác đường nào. Docblock ở đầu controller này đã vạch sẵn
@@ -194,7 +194,7 @@ export class OpportunityController {
    *  có màn đọc sổ hợp đồng thì `GET /sales/contracts` là một tài nguyên khác,
    *  với gốc của nó. */
   @Post(':code/contract')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.chốt', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.close', scoped: true })
   sign(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -213,7 +213,7 @@ export class OpportunityController {
    *  Cùng quyền với cửa tạo. Người mở được đơn thì sửa được đơn — tách hai
    *  quyền ra chỉ tạo ra một vai mở được đơn rồi không sửa nổi chính nó. */
   @Patch(':code')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   update(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -232,7 +232,7 @@ export class OpportunityController {
    *  after the dynamic one, so it cannot collide with bare `:code`, exactly as
    *  `:code/contract` already does. */
   @Patch(':code/stage')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   moveStage(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -243,7 +243,7 @@ export class OpportunityController {
 
   /** Which columns the deal has passed through, and how long it stood in each. */
   @Get(':code/stage-history')
-  @Need({ branch: 'Sales', permission: 'cơ-hội.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   stageHistory(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.ops.stageHistory(who, code)
   }

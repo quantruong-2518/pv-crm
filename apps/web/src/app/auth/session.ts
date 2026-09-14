@@ -90,7 +90,7 @@ export type ExpiryReason = 'ngồi-không' | 'hết-ca' | 'bị-thu-hồi'
  *
  *  Hai mốc chết, không phải một: `expiresAt` là mốc TUYỆT ĐỐI, không gia hạn
  *  được bằng cách ngồi gõ; `idleUntil` là mốc vì ngồi không, mỗi lần chạm màn
- *  lại đẩy ra xa; `null` = không tính (đã tick "Nhớ tôi"). Thiếu mốc tuyệt đối
+ *  lại đẩy ra xa; `null` = không tính (đã tick "Ghi nhớ đăng nhập"). Thiếu mốc tuyệt đối
  *  thì một tab để mở và một con chuột rung nhẹ giữ phiên sống vô hạn — đúng thứ
  *  giới hạn phiên sinh ra để chặn.
  *
@@ -152,16 +152,6 @@ type SessionState = {
   ticket: Ticket | null
   remember: boolean
   expiredBy: ExpiryReason | null
-  /** Phiên chết TRONG LÚC đang làm việc ở tab này, hay chết từ trước khi mở app.
-   *
-   *  Hai cảnh khác nhau nên xử khác nhau. Chết giữa chừng thì phía sau còn một
-   *  màn đang mở đáng giữ — khoá tại chỗ. Mở app lên đã thấy vé chết thì phía
-   *  sau chẳng có gì, phủ một lớp khoá lên màn trắng chỉ làm người dùng tưởng
-   *  app hỏng — về thẳng màn đăng nhập.
-   *
-   *  Không persist: đây là chuyện của tab này, trong lần chạy này. */
-  lockInPlace: boolean
-
   /** Hỏi `/auth/me` rồi kết luận trạng thái. BẤT ĐỒNG BỘ — xem docblock của nó. */
   bootstrap: () => Promise<void>
   /** Form đã gửi — dùng để khoá nút và chặn gửi hai lần. */
@@ -177,7 +167,7 @@ type SessionState = {
   signOut: () => Promise<void>
 }
 
-/** Ô "Nhớ tôi" quyết định phiên nằm ở KHO NÀO, không phải nằm bao lâu — bao lâu
+/** Ô "Ghi nhớ đăng nhập" quyết định phiên nằm ở KHO NÀO, không phải nằm bao lâu — bao lâu
  *  là việc của `SESSION_LIMITS`.
  *
  *  Tick  → `localStorage`, sống qua lần đóng trình duyệt.
@@ -229,9 +219,8 @@ function settleLocally(actor: Actor | null, ticket: Ticket | null): Partial<Sess
   const death = ticketDeath(ticket, Date.now())
   if (death) {
     /* Vé chết trong lúc app đóng — thường là máy ngủ qua đêm. Vẫn giữ `actor`
-       để màn đăng nhập điền sẵn được; xoá vé để không ai dùng lại.
-       `lockInPlace: false` vì phía sau không có màn nào để khoá. */
-    return { status: 'hết-hạn', ticket: null, expiredBy: death, lockInPlace: false }
+       để màn đăng nhập điền sẵn được; xoá vé để không ai dùng lại. */
+    return { status: 'hết-hạn', ticket: null, expiredBy: death }
   }
   return { status: 'đã-vào', expiredBy: null }
 }
@@ -247,7 +236,6 @@ export const useSession = create<SessionState>()(
       ticket: null,
       remember: false,
       expiredBy: null,
-      lockInPlace: false,
 
       /** Ai đang đăng nhập — hỏi MÁY CHỦ, và đó là lý do hàm này bất đồng bộ.
        *
@@ -304,7 +292,7 @@ export const useSession = create<SessionState>()(
                 status: 'đã-vào',
                 actor: probe.actor,
                 ticket: ticketOf(probe.session),
-                /* Đọc lại ô "Nhớ tôi" từ chính cửa sổ máy chủ trả về thay vì tin
+                /* Đọc lại ô "Ghi nhớ đăng nhập" từ chính cửa sổ máy chủ trả về thay vì tin
                    boolean trong kho: `idleUntil === null` LÀ định nghĩa của ô
                    đó (xem `SESSION_LIMITS`). Cookie sống lâu hơn kho — người
                    dọn dữ liệu trang mà vẫn còn cookie sẽ quay lại với
@@ -312,7 +300,6 @@ export const useSession = create<SessionState>()(
                    `sessionStorage`, tức mất khi đóng tab. */
                 remember: probe.session.idleUntil === null,
                 expiredBy: null,
-                lockInPlace: false,
               })
               return
             }
@@ -322,7 +309,6 @@ export const useSession = create<SessionState>()(
                 actor: null,
                 ticket: null,
                 expiredBy: null,
-                lockInPlace: false,
               })
               return
             }
@@ -346,7 +332,7 @@ export const useSession = create<SessionState>()(
 
       signIn: (actor, opts) => {
         const remember = opts.remember ?? get().remember
-        access.log({ actorId: actor.id, action: 'xem', note: 'đăng nhập' })
+        access.log({ actorId: actor.id, action: 'view', note: 'đăng nhập' })
         set({
           status: 'đã-vào',
           actor,
@@ -356,7 +342,6 @@ export const useSession = create<SessionState>()(
           ticket: ticketOf(opts.session),
           remember,
           expiredBy: null,
-          lockInPlace: false,
         })
       },
 
@@ -378,10 +363,12 @@ export const useSession = create<SessionState>()(
         const { status, actor } = get()
         if (status !== 'đã-vào' && status !== 'đang-vào') return
         if (actor) {
-          access.log({ actorId: actor.id, action: 'xem', note: `phiên hết hạn · ${reason}` })
+          access.log({ actorId: actor.id, action: 'view', note: `phiên hết hạn · ${reason}` })
         }
-        /* Chết giữa chừng thì phía sau còn một màn đang mở — khoá tại chỗ. */
-        set({ status: 'hết-hạn', ticket: null, expiredBy: reason, lockInPlace: true })
+        /* `expiredBy` sống tiếp sau khi vé chết, và đó là toàn bộ việc của nó:
+           `RequireAccess` chuyển nó sang màn đăng nhập để màn ấy nói đúng vì sao
+           người dùng vừa bị đá ra — ngồi không, hết ca, hay bị thu hồi. */
+        set({ status: 'hết-hạn', ticket: null, expiredBy: reason })
       },
 
       /* Dọn CẢ HAI kho, không chỉ kho đang dùng — `removeItem` của
@@ -398,7 +385,6 @@ export const useSession = create<SessionState>()(
           actor: null,
           ticket: null,
           expiredBy: null,
-          lockInPlace: false,
         }),
 
       /** Đăng xuất thật: dọn máy này RỒI đóng phiên ở máy chủ.

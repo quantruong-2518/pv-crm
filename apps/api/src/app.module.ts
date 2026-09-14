@@ -5,6 +5,7 @@ import { AccessGuard } from './platform/access/access.guard'
 import { AccessModule } from './platform/access/access.module'
 import { AuditModule } from './platform/audit/audit.module'
 import { AuthModule } from './platform/auth/auth.module'
+import { ReauthGuard } from './platform/auth/reauth.guard'
 import { ConfigModule } from './platform/config/config.module'
 import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
@@ -57,6 +58,12 @@ import { UsersModule } from './platform/users/users.module'
        Filed under `platform/` rather than a branch because `platform.actor`
        belongs to no product line; `users.module.ts` writes that out in full. */
     UsersModule,
+    /* Right after `UsersModule` and for the matching reason: `/users` decides
+       who gets in, `/roles` decides what they may do once in, and the two
+       screens sit side by side under Admin. It is also the module that owns
+       `RolePermissionRepository`, which the authentication path reads on every
+       request — `SessionModule` and `AuthModule` both import it for that. */
+    RolesModule,
     AccessModule,
     HealthModule,
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
@@ -68,11 +75,19 @@ import { UsersModule } from './platform/users/users.module'
     SalesModule,
   ],
   providers: [
-    /** THỨ TỰ CÓ NGHĨA. Nest chạy guard toàn cục theo đúng thứ tự khai báo:
-     *  "anh là ai" phải xong trước khi hỏi "anh được làm gì". Đổi chỗ hai dòng
-     *  này thì `AccessGuard` luôn thấy `actor === null` và từ chối tất cả. */
+    /** THỨ TỰ CÓ NGHĨA. Nest chạy guard toàn cục theo đúng thứ tự khai báo, và
+     *  ba dòng này là ba câu hỏi phải hỏi đúng thứ tự ấy:
+     *
+     *   1 · anh là ai          — đổi chỗ với dòng 2 thì `AccessGuard` luôn thấy
+     *                            `actor === null` và từ chối tất cả;
+     *   2 · anh được làm gì    — phán quyết của E2;
+     *   3 · có chắc vẫn là anh — chỉ hỏi trên cửa có `@NeedsReauth()`, và phải
+     *                            hỏi SAU câu 2, nếu không thì người không có
+     *                            quyền bị bắt gõ mật khẩu cho một việc họ không
+     *                            bao giờ làm được. `reauth.guard.ts` viết đủ. */
     { provide: APP_GUARD, useClass: ActorGuard },
     { provide: APP_GUARD, useClass: AccessGuard },
+    { provide: APP_GUARD, useClass: ReauthGuard },
     { provide: APP_FILTER, useClass: ProblemFilter },
   ],
 })

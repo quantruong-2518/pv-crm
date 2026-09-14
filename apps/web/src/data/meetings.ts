@@ -15,7 +15,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  ------------------------------------------------------------------
  *  HAI QUYỀN, ĐỌC VÀ GHI, ĐÚNG NHƯ HỒ SƠ LEAD
  *  ------------------------------------------------------------------
- *  Đọc `lead.xem`, ghi `lead.sửa`, cả hai `scoped` — chép đúng từng chữ
+ *  Đọc `lead.view`, ghi `lead.edit`, cả hai `scoped` — chép đúng từng chữ
  *  `@Need(...)` bên máy chủ để một route bật trục phạm vi và một query quên nó
  *  lộ ra bằng cách so hai dòng. Ở phía này cờ ấy không cắt gì (trình duyệt
  *  không có dòng nào để cắt, và không bao giờ được là chỗ quyết định); nó tồn
@@ -36,8 +36,8 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  đếm số lead có ít nhất một buổi họp, nên buổi đầu tiên của một lead vừa đổi
  *  con số ấy. */
 
-const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
-const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.sửa', scoped: true }
+const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
+const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: true }
 
 /** Tiền tố của mọi khoá sổ họp, để một lượt ghi vứt được đúng phần của nó. */
 export const MEETING_KEY = ['sales', 'meetings'] as const

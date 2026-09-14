@@ -32,6 +32,7 @@ export const STATUS_OF: Record<ProblemKind, number> = {
   conflict: 409,
   invalid: 400,
   'rate-limited': 429,
+  'reauth-required': 403,
   server: 500,
 }
 
@@ -123,6 +124,20 @@ export function denied(reason: DenyReason, title?: string): PvError {
 /** 429 — the public caller has exhausted a bounded intake budget. */
 export function rateLimited(title = 'Bạn gửi quá nhanh. Vui lòng thử lại sau.'): PvError {
   return new PvError({ kind: 'rate-limited', status: 429, title })
+}
+
+/** 403 — permitted, but the sudo window has gone cold. Retyping the password
+ *  is the way through.
+ *
+ *  Carries no `reason`: `reason` is E2's vocabulary, and E2 did not refuse this
+ *  request — `AccessGuard` already waved it past. Attaching one would hand the
+ *  screen two explanations for one refusal, and it would pick the wrong one. */
+export function reauthRequired(): PvError {
+  return new PvError({
+    kind: 'reauth-required',
+    status: 403,
+    title: 'Xác nhận mật khẩu để tiếp tục.',
+  })
 }
 
 const DENY_TITLE: Record<DenyReason, string> = {

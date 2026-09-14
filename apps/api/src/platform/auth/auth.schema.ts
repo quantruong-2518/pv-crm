@@ -65,6 +65,21 @@ export const session = platform.table(
      *  họ, nên giữ mốc ngồi không cho họ thì cái ô đó chẳng nhớ được gì. */
     idleUntil: timestamp('idle_until', { withTimezone: true }),
 
+    /** Last time this person retyped their password — the sudo mark.
+     *
+     *  Its own column rather than a reuse of `issued_at`: on a seven-day
+     *  session `issued_at` can be six days old while the password was typed
+     *  three minutes ago, and the reverse. "When did this session open" and
+     *  "is the person typing still the account holder" are two questions, and
+     *  one column would answer the second with the first one's data.
+     *
+     *  Nullable because every session opened before this migration has no mark.
+     *  They read `null`, which means "not re-authenticated", which means a
+     *  password before the first sensitive action — the right answer for a
+     *  session that predates the feature. `REAUTH_TTL_MS` in `auth.service.ts`
+     *  sets how long a mark stays fresh; `ReauthGuard` is its only reader. */
+    reauthAt: timestamp('reauth_at', { withTimezone: true }),
+
     /** Thu hồi lúc nào. `null` = còn sống. Đăng xuất, khoá tài khoản và đổi mật
      *  khẩu đều điền cột này chứ không `DELETE`: một phiên bị thu hồi là một
      *  sự kiện đáng còn dấu vết, và bảng này là chỗ duy nhất trả lời được

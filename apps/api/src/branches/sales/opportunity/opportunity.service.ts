@@ -146,7 +146,7 @@ export class OpportunityService {
    *  nó theo đơn ai đang đứng tên thì mỗi người mở màn thấy một con số khác
    *  nhau dưới cùng một dòng chữ, và không con số nào trong đó là con số người
    *  ta định hỏi — "pipeline đang mở bao nhiêu tiền" không có phiên bản riêng
-   *  cho từng người. Cửa vẫn đòi `cơ-hội.xem`; ai không được vào sổ thì cũng
+   *  cho từng người. Cửa vẫn đòi `opportunity.view`; ai không được vào sổ thì cũng
    *  không thấy thẻ. Lập luận đầy đủ ở `LeadService.scorecard`.
    *
    *  Hệ quả phải nói ra: con số ở đây KHÔNG khớp `total` của sổ mà một người
@@ -175,14 +175,14 @@ export class OpportunityService {
    *  chí mạng cho một CHỐT CHẶN: Sale A đổi LD-0042 thành OP-5001, Sale B (cũng
    *  `ownOnly`) mở LD-0042, trục phạm vi cắt mất OP-5001, màn đọc danh sách
    *  rỗng đó thành "chưa ai đổi lead này". Nút sáng, `POST /sales/opportunities`
-   *  chỉ đòi `cơ-hội.sửa` và KHÔNG kiểm trùng, và một khách có hai đơn. Một
+   *  chỉ đòi `opportunity.edit` và KHÔNG kiểm trùng, và một khách có hai đơn. Một
    *  chốt chặn giấu đi đúng cái dòng nó sinh ra để tìm thì không phải chốt chặn.
    *
    *  Nên cửa này KHÔNG nhận `Actor` và không cắt theo phạm vi. Giá của việc đó
    *  trả bằng hình dữ liệu: nó rò đúng MỘT mã đơn, không rò tên người đứng đơn
    *  (thứ mà trục phạm vi vốn để che), không rò tiền, không rò trạng thái,
    *  không rò khách. Đủ để tắt một cái nút và để đi tới đúng đơn đó — hết. Cửa
-   *  vẫn đòi `cơ-hội.xem`: ai không được vào sổ thì cũng không hỏi được câu này.
+   *  vẫn đòi `opportunity.view`: ai không được vào sổ thì cũng không hỏi được câu này.
    *  Lập luận đầy đủ ở docblock của `OpportunityLiveDeal` (`@pv/contracts`).
    *
    *  ------------------------------------------------------------------

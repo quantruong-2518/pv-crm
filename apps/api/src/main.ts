@@ -157,7 +157,7 @@ async function bootstrap(): Promise<void> {
      *  `/auth` chỉ `GET` và `POST`, kể cả đăng xuất. `POST /auth/sign-out` chứ
      *  không `DELETE /auth/session`, vì cửa đó ai cũng gọi được (`@Public`) và
      *  hồi ấy đổi một động từ mới cho toàn bộ API lấy một chút REST đẹp mắt là
-     *  món lỗ. Nay động từ đã mở cho một cửa CÓ quyền canh (`lead.sửa`, trục
+     *  món lỗ. Nay động từ đã mở cho một cửa CÓ quyền canh (`lead.edit`, trục
      *  phạm vi bật), lập luận đó không đổi: cửa đăng xuất vẫn không cần nó. */
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
     /* PHẢI đủ MỌI header app web gắn, không chỉ những header handler đọc.

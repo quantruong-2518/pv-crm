@@ -511,7 +511,7 @@ function rowOf(s: CampaignSource, period: { fromISO: string; toISO: string }): S
 /** Hai query, MỘT mức quyền: cả hai đọc cùng một sổ nguồn, chỉ khác lát cắt.
  *  Cho chúng hai mức khác nhau là mở đường cho một màn hiện tổng mà không hiện
  *  được dòng nào. Máy chủ khai đúng chữ này ở `SourceController`. */
-const CAMPAIGN_ACCESS = { branch: 'Sales', permission: 'chiến-dịch.xem' } as const
+const CAMPAIGN_ACCESS = { branch: 'Sales', permission: 'campaign.view' } as const
 
 /** Bảng nguồn. Nguồn TỰ NHIÊN đứng ngoài — không ai chạy đợt nào cho chúng, nên
  *  mọi cột của bảng (người nhận, mở, bấm, hỏng) đều rỗng ở những dòng đó, và

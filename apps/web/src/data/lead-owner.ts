@@ -14,7 +14,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  (`LeadWriteService.setOwner`), vì chỉ nó cầm `owner_id` hiện tại.
  *
  *  ------------------------------------------------------------------
- *  KHAI `lead.sửa`, KHÔNG `scoped` — CHÉP ĐÚNG `@Need` CỦA ROUTE
+ *  KHAI `lead.edit`, KHÔNG `scoped` — CHÉP ĐÚNG `@Need` CỦA ROUTE
  *  ------------------------------------------------------------------
  *  Đúng từng chữ với `LeadController.setOwner`, cùng nghi thức mọi query khác
  *  của repo này dùng: hai bản khai lệch nhau thì lộ ra bằng cách so hai dòng.
@@ -38,7 +38,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  ba chỗ rồi quên chỗ thứ tư là đúng cái lớp lỗi "màn nói một đằng máy chủ
  *  một nẻo" mà cả tầng `data/` này dựng ra để không phải gặp nữa. */
 
-const OWNER_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.sửa' }
+const OWNER_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
 
 /** Ba tiền tố bị vứt sau mỗi lượt giao. Chép chuỗi chứ không import: ba file
  *  kia xuất object query chứ không xuất tiền tố — cùng món nợ `lead-create.ts`

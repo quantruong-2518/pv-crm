@@ -62,10 +62,10 @@ const WORK_SCAN = 50
 // ---------------------------------------------------------------------------
 
 export function useDesk() {
-  const canOps = useCan('cơ-hội.xem')
-  const canLead = useCan('lead.xem')
-  const canContract = useCan('hợp-đồng.xem')
-  const canPeople = useCan('hiệu-suất.xem')
+  const canOps = useCan('opportunity.view')
+  const canLead = useCan('lead.view')
+  const canContract = useCan('contract.view')
+  const canPeople = useCan('performance.view')
 
   const scorecard = useQuery({ ...opportunityScorecardQuery, enabled: canOps })
   const histogram = useQuery({ ...opportunityHistogramQuery, enabled: canOps })
@@ -244,9 +244,9 @@ export function useMyWork(limits: Map<StageKey, number>, labelOf: (stage: StageK
   const actor = useSession((s) => s.actor)
   const mine = actor?.id ?? ''
 
-  const canOps = useCan('cơ-hội.xem')
-  const canLead = useCan('lead.xem')
-  const canContract = useCan('hợp-đồng.xem')
+  const canOps = useCan('opportunity.view')
+  const canLead = useCan('lead.view')
+  const canContract = useCan('contract.view')
 
   const today = systemClock()
 

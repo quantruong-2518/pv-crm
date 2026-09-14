@@ -36,7 +36,7 @@ export class ContractController {
   constructor(private readonly contracts: ContractService) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'hợp-đồng.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(PageQuery)) q: PageQuery) {
     return this.contracts.book(who, q)
   }
@@ -53,7 +53,7 @@ export class ContractController {
    *  makes everyone read a different number under one label. Whoever cannot
    *  open the book still cannot see them. */
   @Get('summary')
-  @Need({ branch: 'Sales', permission: 'hợp-đồng.xem' })
+  @Need({ branch: 'Sales', permission: 'contract.view' })
   summary() {
     return this.contracts.summary()
   }
@@ -66,7 +66,7 @@ export class ContractController {
    *  exist, is it yours — belongs to the service, which needs the row to
    *  answer. */
   @Get(':code')
-  @Need({ branch: 'Sales', permission: 'hợp-đồng.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(MaHopDong)) code: MaHopDong) {
     return this.contracts.profile(who, code)
   }

@@ -36,7 +36,7 @@ the data path.
 ## Hard rules
 
 - The three permission axes are not substitutes for one another: **license**
-  (`Actor.branches`) · **role** (`roleId` → `ROLE_PERMISSIONS`) · **scope**
+  (`Actor.branches`) · **role** (`roleId` → `DEFAULT_ROLE_PERMISSIONS`) · **scope**
   (`ownOnly`). When reporting a data path, name every axis it touches — never
   collapse them into "allowed / not allowed".
 - Separate reads from writes. Today `api` only has `read`; every write is

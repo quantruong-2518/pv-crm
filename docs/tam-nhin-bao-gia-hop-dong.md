@@ -267,16 +267,16 @@ ContractTermRow / ContractTermDraft               // đợt thanh toán
 
 | Cửa                                        | Quyền          | scoped | Ghi chú                                       |
 | ------------------------------------------ | -------------- | ------ | --------------------------------------------- |
-| `GET /sales/quotes`                        | `báo-giá.xem`  | có     | sổ, cắt ngang mọi cơ hội                      |
-| `GET /sales/quotes/:code`                  | `báo-giá.xem`  | có     | một bản, kèm mọi bản cùng đơn để đối chiếu    |
+| `GET /sales/quotes`                        | `quote.view`  | có     | sổ, cắt ngang mọi cơ hội                      |
+| `GET /sales/quotes/:code`                  | `quote.view`  | có     | một bản, kèm mọi bản cùng đơn để đối chiếu    |
 | `POST /sales/quotes`                       | `báo-giá.sửa`  | **†**  | `opportunityCode` trong thân, không trên path |
 | `PATCH /sales/quotes/:code`                | `báo-giá.sửa`  | có     | 409 nếu đã gửi — sửa đè lên thứ khách cầm     |
 | `POST /sales/quotes/:code/replace`         | `báo-giá.sửa`  | có     | mồi từ bản này, **cấp mã mới**, nối cạnh      |
 | `POST /sales/quotes/:code/send`            | `báo-giá.gửi`  | có     | 409 nếu liên hệ không có email                |
-| `POST /sales/quotes/:code/decide`          | `cơ-hội.chốt`  | có     | khách chốt / từ chối — xem ghi chú quyền      |
-| `GET /sales/contracts`                     | `hợp-đồng.xem` | có     | sổ hợp đồng                                   |
-| `POST /sales/opportunities/:code/contract` | `cơ-hội.chốt`  | có     | **cửa cũ, đổi thân** — không nhận tiền nữa    |
-| `POST · PATCH .../contracts/:code/terms`   | `hợp-đồng.sửa` | có     | đợt thanh toán                                |
+| `POST /sales/quotes/:code/decide`          | `opportunity.close`  | có     | khách chốt / từ chối — xem ghi chú quyền      |
+| `GET /sales/contracts`                     | `contract.view` | có     | sổ hợp đồng                                   |
+| `POST /sales/opportunities/:code/contract` | `opportunity.close`  | có     | **cửa cũ, đổi thân** — không nhận tiền nữa    |
+| `POST · PATCH .../contracts/:code/terms`   | `contract.edit` | có     | đợt thanh toán                                |
 
 **†** `POST /sales/quotes` không scoped được vì chưa có `ref` để soi — nhưng
 **phải kiểm phạm vi của CƠ HỘI cha trong service**. Bỏ qua chỗ này là một Sale
@@ -284,13 +284,13 @@ ContractTermRow / ContractTermDraft               // đợt thanh toán
 
 ### Quyền — năm cái mới, không phải sáu
 
-`báo-giá.xem` · `báo-giá.sửa` · `báo-giá.gửi` · `hợp-đồng.xem` · `hợp-đồng.sửa`.
+`quote.view` · `báo-giá.sửa` · `báo-giá.gửi` · `contract.view` · `contract.edit`.
 
-**Ghi nhận "khách đã chốt" dùng `cơ-hội.chốt` sẵn có, không đẻ `báo-giá.chốt`.**
+**Ghi nhận "khách đã chốt" dùng `opportunity.close` sẵn có, không đẻ `báo-giá.chốt`.**
 Bàn tay chốt bản nào cũng chính là bàn tay quyết định số tiền sẽ được ký — buộc
 hai việc vào một quyền là mô tả đúng thực tế, và bớt được một dòng trong ma trận.
 
-| Vai            | báo-giá.xem/sửa | báo-giá.gửi | hợp-đồng.xem/sửa |
+| Vai            | quote.view/sửa | báo-giá.gửi | contract.view/sửa |
 | -------------- | --------------- | ----------- | ---------------- |
 | giám-đốc · TP  | có              | có          | có               |
 | sale           | có              | có          | có               |
@@ -298,8 +298,8 @@ hai việc vào một quyền là mô tả đúng thực tế, và bớt đượ
 | bd · marketing | không           | không       | không            |
 
 Presales dựng số và chạy demo — chính docblock của `ContractSign` đã viết vậy —
-nhưng không cầm việc gửi ra ngoài, đối xứng với việc họ không có `cơ-hội.chốt`.
-Cặp `sửa`/`gửi` có tiền lệ sẵn: `chiến-dịch.sửa` và `chiến-dịch.bắn`.
+nhưng không cầm việc gửi ra ngoài, đối xứng với việc họ không có `opportunity.close`.
+Cặp `sửa`/`gửi` có tiền lệ sẵn: `campaign.edit` và `campaign.broadcast`.
 
 ### Một lỗ hổng đang mở, phải vá TRƯỚC khi sổ hợp đồng lên
 
@@ -366,8 +366,8 @@ thật vẫn là nợ #12, đi đường vòng ở §7.
 
 | Màn                          | Trạng thái | Quyền          | Câu nó trả lời                             |
 | ---------------------------- | ---------- | -------------- | ------------------------------------------ |
-| `/sales/quotes`              | MỚI        | `báo-giá.xem`  | bản nào sắp hết hạn, tổng đã báo tháng này |
-| `/sales/contracts`           | MỚI        | `hợp-đồng.xem` | tháng này ký bao nhiêu, đợt nào tới hạn    |
+| `/sales/quotes`              | MỚI        | `quote.view`  | bản nào sắp hết hạn, tổng đã báo tháng này |
+| `/sales/contracts`           | MỚI        | `contract.view` | tháng này ký bao nhiêu, đợt nào tới hạn    |
 | Modal "Soạn báo giá"         | MỚI        | `báo-giá.sửa`  | bán gì, giá bao nhiêu, tổng đúng chưa      |
 | `/sales/opportunities/:code` | SỬA        | giữ nguyên     | đơn này báo giá tới bản mấy, ký chưa       |
 | `SignDrawer`                 | SỬA        | giữ nguyên     | ký bằng đúng số bản khách đã chốt          |
@@ -477,7 +477,7 @@ Ghi lại vì mỗi chỗ là một lỗi có thật, không phải ý kiến.
    luật hoà của `story()` vẽ ra bản CŨ.
 3. **Ô tick "Ký khác số báo giá".** Dựng lại đúng nguồn sự thật thứ hai mà cả
    thiết kế này sinh ra để giết. Đã bỏ.
-4. **Sáu quyền mới.** `báo-giá.chốt` gộp được vào `cơ-hội.chốt` sẵn có vì cùng
+4. **Sáu quyền mới.** `báo-giá.chốt` gộp được vào `opportunity.close` sẵn có vì cùng
    một bàn tay. Còn năm.
 
 Một chỗ nữa hai bản nháp **cùng phát hiện độc lập** nên tôi giữ nguyên cả hai
@@ -517,13 +517,13 @@ tức module 5.
 
 ### 3 · Presales — SỬA ĐƯỢC, GỬI THÌ KHÔNG
 
-`báo-giá.xem` + `báo-giá.sửa`, không `báo-giá.gửi`.
+`quote.view` + `báo-giá.sửa`, không `báo-giá.gửi`.
 
 Ranh giới ở đây không phải "ai được tính toán" mà là **"ai được nói chuyện với
 khách"**. Presales dựng số và chạy demo — chính docblock của `ContractSign` đã
 viết vậy — còn quan hệ với khách là của người đứng đơn. Hình này khớp đúng chỗ
-presales đã có `cơ-hội.sửa` mà không có `cơ-hội.chốt`, và cặp `sửa`/`gửi` có tiền
-lệ sẵn là `chiến-dịch.sửa`/`chiến-dịch.bắn`.
+presales đã có `opportunity.edit` mà không có `opportunity.close`, và cặp `sửa`/`gửi` có tiền
+lệ sẵn là `campaign.edit`/`campaign.broadcast`.
 
 ### 4 · `opportunity.state` — VẪN GÕ TAY ĐƯỢC, và KHÔNG suy ra từ báo giá
 

@@ -79,7 +79,7 @@ export default function AccountsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm công ty, mã số thuế…' })
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const canWrite = useCan('khách-hàng.sửa')
+  const canWrite = useCan('account.edit')
   const [creating, setCreating] = useState(false)
 
   const query = useMemo(() => parseAccountBookQuery(params), [params])

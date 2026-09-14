@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Res } from '@nestjs/common'
 import type { FastifyReply } from 'fastify'
 import {
+  ConfirmPasswordBody,
   ForgotPasswordBody,
   ResetPasswordBody,
   SignInBody,
@@ -8,16 +9,16 @@ import {
   type SessionView,
   type SessionWindow,
 } from '@pv/contracts'
-import { Public } from '@api/platform/access/need.decorator'
+import { Need, Public } from '@api/platform/access/need.decorator'
 import { ENV, type Env } from '@api/platform/config/env'
 import { zod } from '@api/platform/http/zod.pipe'
 import { AuthService } from './auth.service'
 import { clearedSessionCookie, SESSION_COOKIE, sessionCookie, SessionToken } from './cookie'
 
-/** `/auth` — the seven doors of getting in, and the only place a cookie exists.
+/** `/auth` — the eight doors of getting in, and the only place a cookie exists.
  *
  *  ------------------------------------------------------------------
- *  EVERY ROUTE IS `@Public()`, AND THIS IS THE SHORT LIST THAT ALLOWS IT
+ *  SEVEN ARE `@Public()`; THE EIGHTH IS THE ONE THAT CANNOT BE
  *  ------------------------------------------------------------------
  *  `need.decorator.ts` says the correct list of public endpoints is very short
  *  — the sign-in flow and `/healthz` — and asks anyone about to add a third
@@ -25,12 +26,17 @@ import { clearedSessionCookie, SESSION_COOKIE, sessionCookie, SessionToken } fro
  *  list rather than an exception to it.
  *
  *  `@Public()` means `AccessGuard` waves the request through; it does NOT mean
- *  the endpoint is unguarded. Four of these seven refuse on their own terms:
+ *  the endpoint is unguarded. Four of those seven refuse on their own terms:
  *  `/auth/me` and `/auth/renew` throw `denied('unauthenticated')` without a
  *  live session, and both reset doors answer 404 to a token that is used,
  *  expired or invented. What `@Public()` actually buys is that a person with NO
  *  session can reach the endpoints whose entire purpose is to get them one —
  *  requiring a session to sign in is a loop nobody escapes.
+ *
+ *  `/auth/confirm-password` is the eighth and it breaks the pattern because the
+ *  pattern does not apply to it: it re-proves a session that already exists, so
+ *  a caller without one has nothing to re-prove. It carries `@Need({})` and the
+ *  reasoning sits on the method.
  *
  *  ------------------------------------------------------------------
  *  THE COOKIE STOPS HERE
@@ -120,6 +126,28 @@ export class AuthController {
   @Public()
   async renew(@SessionToken() token: string): Promise<{ session: SessionWindow }> {
     return { session: await this.auth.renew(token) }
+  }
+
+  /** Retype the password to open the sudo window. 204 — nothing to return.
+   *
+   *  THE ONE DOOR HERE THAT IS NOT `@Public()`, and it cannot be. The other
+   *  seven are public because whoever calls them has, by definition, no
+   *  session. This one re-proves a session that already exists, so a caller
+   *  without one has nothing to re-prove. `@Need({})` is "just be signed in" —
+   *  the same declaration `/users/directory` carries — and it lets
+   *  `AccessGuard` phrase the "not signed in" refusal once for the whole
+   *  system instead of this file building a second copy by hand.
+   *
+   *  No `@NeedsReauth()`, obvious but worth stating: the door that opens the
+   *  lock must not demand the lock it is about to open. */
+  @Post('confirm-password')
+  @HttpCode(204)
+  @Need({})
+  confirmPassword(
+    @SessionToken() token: string,
+    @Body(zod(ConfirmPasswordBody)) body: ConfirmPasswordBody,
+  ): Promise<void> {
+    return this.auth.confirmPassword(token, body.password)
   }
 
   /** 204, always, for every address.

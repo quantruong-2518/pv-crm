@@ -45,7 +45,7 @@ import { EXIT_REASON_LABEL } from '@/data/leads'
 // ---------------------------------------------------------------------------
 
 /** What the route asks for, in the SAME words `apps/api` uses on the other end
- *  (`@Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })` on
+ *  (`@Need({ branch: 'Sales', permission: 'lead.view', scoped: true })` on
  *  `LeadController.profile`).
  *
  *  All three axes, exactly like `BOOK_NEED` in `data/leads.ts`, and the scope
@@ -54,7 +54,7 @@ import { EXIT_REASON_LABEL } from '@/data/leads'
  *  cuts by `owner_id` and answers 403 rather than handing over somebody else's
  *  lead. A query that declared only branch and permission would read as if any
  *  code were fair game. */
-const PROFILE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
+const PROFILE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
 
 /** One lead profile, by code.
  *

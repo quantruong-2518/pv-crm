@@ -51,7 +51,7 @@ export const withCore = (branches: readonly Branch[]): Branch[] => [
  *
  *  `toSessionActor` supplies the seven fields the browser already receives for
  *  the signed-in person; this adds the three facts that only somebody holding
- *  `người-dùng.quản-lý` has any business reading.
+ *  `user.manage` has any business reading.
  *
  *  `passwordSet` is computed from the hash and NEVER carries it — the shape
  *  going out has nowhere to put a credential, which is the same property

@@ -44,7 +44,7 @@ type ScreenDef = {
   /** Quyền vai màn này đòi. Bỏ trống = có license là vào được.
    *
    *  Luôn là quyền `.xem` của miền tương ứng: đây là cửa VÀO MÀN. Quyền làm
-   *  (`lead.giao`, `cấu-hình.đề-nghị`) hỏi ở chính cái nút bằng `useCan`, vì
+   *  (`lead.assign`, `config.propose`) hỏi ở chính cái nút bằng `useCan`, vì
    *  chặn cả màn chỉ vì người dùng không sửa được là lấy mất phần họ đọc được. */
   permission?: Permission
   /** Không cần đăng nhập. */
@@ -65,15 +65,32 @@ export const SCREENS: ScreenDef[] = [
      *  the one who opens accounts for everybody else.
      *
      *  `permission` is present, and it is NOT a `.xem` permission like the eight
-     *  branch screens below. `người-dùng.quản-lý` is the widest key in the
+     *  branch screens below. `user.manage` is the widest key in the
      *  matrix: whoever reaches this screen can edit their own `roleId` and
      *  thereby grant themselves every other permission. So there is deliberately
      *  no "read the people book" gate separate from "write the people book" —
      *  splitting them would build a door whose far side is the whole matrix. */
     path: '/quan-tri/nguoi-dung',
     name: 'One Core · Quản trị · Người dùng',
-    permission: 'người-dùng.quản-lý',
+    permission: 'user.manage',
     load: () => import('@/pages/users'),
+  },
+  {
+    /** One Core · Quản trị · Vai trò — the `platform.role_permission` matrix.
+     *
+     *  NO `branch`, for the reason the entry above gives: the matrix belongs to
+     *  no product line, and a licence axis here would shut the screen that says
+     *  who may do what for a company that bought only Supply.
+     *
+     *  `role.manage` rather than `user.manage`, and the two are deliberately
+     *  not one key: that one answers "who gets into the system", this one
+     *  answers "and what may they do once in". Both are as wide as the matrix
+     *  itself — whoever reaches this screen can grant themselves every other
+     *  permission — so, again, there is no separate read gate. */
+    path: '/quan-tri/vai-tro',
+    name: 'One Core · Quản trị · Vai trò',
+    permission: 'role.manage',
+    load: () => import('@/pages/roles'),
   },
   {
     /** BA SỔ, MỘT TIỀN TỐ — và thứ tự khai ở đây không quyết định gì.
@@ -88,7 +105,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns',
     name: 'Kinh doanh · Module 1 · Sổ chiến dịch',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     load: () => import('@/pages/campaigns'),
   },
   {
@@ -99,24 +116,24 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/nguon-dan',
     name: 'Kinh doanh · Module 1 · Nguồn dẫn',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     load: () => import('@/pages/sources'),
   },
   {
     path: '/sales/campaigns/nguon-dan/:code',
     name: 'Kinh doanh · Module 1 · Hồ sơ nguồn dẫn',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     load: () => import('@/pages/source-detail'),
   },
   {
     /** Sổ LÔ GỬI — `platform.mail_run`, mọi lô thư kể cả lô đi lẻ từ Sổ lead.
-     *  `chiến-dịch.xem` để đọc, `chiến-dịch.bắn` để dừng một lô; cửa thứ hai
+     *  `campaign.view` để đọc, `campaign.broadcast` để dừng một lô; cửa thứ hai
      *  gác ở `data/mail-runs.ts`, không gác ở đây. */
     path: '/sales/campaigns/lo-gui',
     name: 'Kinh doanh · Module 1 · Sổ lô gửi',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     load: () => import('@/pages/mail-runs'),
   },
   {
@@ -128,7 +145,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/mau-thu',
     name: 'Kinh doanh · Module 1 · Sổ mẫu thư',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     load: () => import('@/pages/mail-templates'),
   },
   {
@@ -142,7 +159,7 @@ export const SCREENS: ScreenDef[] = [
     /* Write permission, not read — this route and `:code/sua` below only exist
        to WRITE. Reading was the wrong gate: a Sale opened the form, filled all
        four steps, and ate a 403 on the last click. Refuse at the door. */
-    permission: 'chiến-dịch.sửa',
+    permission: 'campaign.edit',
     load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignCreatePage })),
   },
   {
@@ -151,7 +168,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/:code/sua',
     name: 'Kinh doanh · Module 1 · Sửa chiến dịch',
     branch: 'Sales',
-    permission: 'chiến-dịch.sửa',
+    permission: 'campaign.edit',
     load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignEditPage })),
   },
   {
@@ -160,14 +177,14 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/campaigns/:code',
     name: 'Kinh doanh · Module 1 · Hồ sơ chiến dịch',
     branch: 'Sales',
-    permission: 'chiến-dịch.xem',
+    permission: 'campaign.view',
     load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignViewPage })),
   },
   {
     path: '/sales/leads',
     name: 'Kinh doanh · Module 2 · Sổ lead',
     branch: 'Sales',
-    permission: 'lead.xem',
+    permission: 'lead.view',
     load: () => import('@/pages/leads'),
   },
   {
@@ -176,7 +193,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/leads/:code',
     name: 'Kinh doanh · Module 2 · Hồ sơ lead',
     branch: 'Sales',
-    permission: 'lead.xem',
+    permission: 'lead.view',
     load: () => import('@/pages/lead-detail'),
   },
   {
@@ -194,14 +211,14 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/accounts',
     name: 'Kinh doanh · Khách hàng · Sổ công ty',
     branch: 'Sales',
-    permission: 'khách-hàng.xem',
+    permission: 'account.view',
     load: () => import('@/pages/accounts'),
   },
   {
     path: '/sales/accounts/:code',
     name: 'Kinh doanh · Khách hàng · Hồ sơ công ty',
     branch: 'Sales',
-    permission: 'khách-hàng.xem',
+    permission: 'account.view',
     load: () => import('@/pages/account-detail'),
   },
   {
@@ -215,21 +232,21 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/contacts',
     name: 'Kinh doanh · Khách hàng · Sổ người liên hệ',
     branch: 'Sales',
-    permission: 'lead.xem',
+    permission: 'lead.view',
     load: () => import('@/pages/contacts'),
   },
   {
     path: '/sales/contacts/:code',
     name: 'Kinh doanh · Khách hàng · Hồ sơ người liên hệ',
     branch: 'Sales',
-    permission: 'lead.xem',
+    permission: 'lead.view',
     load: () => import('@/pages/contact-detail'),
   },
   {
     path: '/sales/opportunities',
     name: 'Kinh doanh · Module 3 · Sổ cơ hội',
     branch: 'Sales',
-    permission: 'cơ-hội.xem',
+    permission: 'opportunity.view',
     load: () => import('@/pages/opportunities'),
   },
   {
@@ -238,14 +255,14 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/opportunities/:code',
     name: 'Kinh doanh · Module 3 · Hồ sơ cơ hội',
     branch: 'Sales',
-    permission: 'cơ-hội.xem',
+    permission: 'opportunity.view',
     load: () => import('@/pages/opportunity-detail'),
   },
   {
     path: '/sales/contracts',
     name: 'Kinh doanh · Module 4 · Hợp đồng',
     branch: 'Sales',
-    permission: 'hợp-đồng.xem',
+    permission: 'contract.view',
     load: () => import('@/pages/contracts'),
   },
   {
@@ -254,7 +271,7 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/contracts/:code',
     name: 'Kinh doanh · Module 4 · Hồ sơ hợp đồng',
     branch: 'Sales',
-    permission: 'hợp-đồng.xem',
+    permission: 'contract.view',
     load: () => import('@/pages/contract-detail'),
   },
   {
@@ -264,28 +281,28 @@ export const SCREENS: ScreenDef[] = [
     path: '/sales/contracts/:code/dot/:no',
     name: 'Kinh doanh · Module 4 · Đợt thanh toán',
     branch: 'Sales',
-    permission: 'hợp-đồng.xem',
+    permission: 'contract.view',
     load: () => import('@/pages/installment-detail'),
   },
   {
     path: '/sales/performance',
     name: 'Kinh doanh · Module 4 · Performance',
     branch: 'Sales',
-    permission: 'hiệu-suất.xem',
+    permission: 'performance.view',
     load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
     name: 'Kinh doanh · Module 5 · Số liệu & kế hoạch',
     branch: 'Sales',
-    permission: 'kế-hoạch.xem',
+    permission: 'plan.view',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
     name: 'Kinh doanh · Module 6 · Cấu hình',
     branch: 'Sales',
-    permission: 'cấu-hình.xem',
+    permission: 'config.view',
     load: () => import('@/pages/sales-config'),
   },
   /** Ba màn của luồng auth. Đều `public` — bắt đăng nhập để vào được màn quên

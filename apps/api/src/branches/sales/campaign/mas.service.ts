@@ -198,7 +198,7 @@ export class MasService {
    *  ------------------------------------------------------------------
    *  TWO PERMISSIONS ON ONE ROUTE, AND `@Need` CAN ONLY DECLARE ONE
    *  ------------------------------------------------------------------
-   *  `chiến-dịch.bắn` and `lead.gửi-mail` are two different reaches, not two
+   *  `campaign.broadcast` and `lead.send-email` are two different reaches, not two
    *  names for one (`e2-access.ts` argues it at length): Quick MAS rides trục 3
    *  and reaches only leads the sender already holds, while firing a campaign
    *  reaches the whole audience including everybody else's leads, wave after
@@ -212,8 +212,8 @@ export class MasService {
    *
    *  So the route declares the WEAKER permission and this method raises the bar
    *  when `campaignCode` is present. That ordering is what makes it safe: every
-   *  role holding `chiến-dịch.bắn` today also holds `lead.gửi-mail`
-   *  (`ROLE_PERMISSIONS`), so the guard never refuses a campaign send it should
+   *  role holding `campaign.broadcast` today also holds `lead.send-email`
+   *  (`DEFAULT_ROLE_PERMISSIONS`), so the guard never refuses a campaign send it should
    *  have allowed — and the day a role is granted the campaign permission
    *  alone, the failure is a 403 on a send, which is the closed direction.
    *
@@ -253,10 +253,10 @@ export class MasService {
       )
     }
 
-    if (body.campaignCode !== undefined && !this.access.allows(who, 'chiến-dịch.bắn')) {
+    if (body.campaignCode !== undefined && !this.access.allows(who, 'campaign.broadcast')) {
       throw denied(
         'permission-denied',
-        'Bắn một đợt của chiến dịch cần quyền “chiến-dịch.bắn” — quyền gửi cho lead của mình không đủ.',
+        'Bắn một đợt của chiến dịch cần quyền “campaign.broadcast” — quyền gửi cho lead của mình không đủ.',
       )
     }
 

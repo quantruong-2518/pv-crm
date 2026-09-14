@@ -358,7 +358,7 @@ export const planBoardQuery = queryOptions({
   queryKey: ['sales', 'plan-board'] as const,
   queryFn: () =>
     api.read('/sales/plan', {
-      need: { branch: 'Sales', permission: 'kế-hoạch.xem' },
+      need: { branch: 'Sales', permission: 'plan.view' },
       load: fetchPlanBoard,
     }),
 })

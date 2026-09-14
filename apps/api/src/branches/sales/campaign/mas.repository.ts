@@ -339,13 +339,13 @@ export class MasRepository {
    *  them. `mail_run` has only `created_by`; there is no `cancelled_by` column,
    *  so this row is the whole answer.
    *
-   *  `action: 'sửa'` because the vocabulary is E2's five verbs and stopping a
+   *  `action: 'edit'` because the vocabulary is E2's five verbs and stopping a
    *  batch is a change to it, not a new object and not a reading. The run id
    *  goes in `code`, which is what makes the line findable from the run. */
   async writeCancelNote(tx: Db, entry: { actorId: string; runId: string }): Promise<void> {
     await tx.insert(audit).values({
       actorId: entry.actorId,
-      action: 'sửa',
+      action: 'edit',
       code: entry.runId,
       note: 'huỷ lô gửi MAS — thư chưa gửi bị giữ lại',
     })

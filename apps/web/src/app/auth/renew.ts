@@ -21,11 +21,12 @@ import { ticketDeath, useSession } from './session'
  *  cái 401 của chính nó lại gọi gia hạn — một vòng lặp tự nuôi mình, và nó chỉ
  *  lộ ra đúng lúc phiên hỏng thật, tức lúc khó gỡ nhất.
  *
- *  `renewOnServer` là một `fetch` TRẦN: nó nằm cùng chỗ với ba cửa auth kia
+ *  `renewOnServer` là một `fetch` TRẦN: nó nằm cùng chỗ với các cửa auth kia
  *  trong `data/auth.ts` (`knock`), không chạm vào chuỗi interceptor, và không
  *  thể chạm được — `data/auth.ts` cố tình không import `@/app/api`. Lý do đầy
- *  đủ nằm ở đầu file đó. Đây vẫn là một trong bốn đường duy nhất trong app được
- *  phép gọi mạng thẳng; đường thứ năm thì không. */
+ *  đủ nằm ở đầu file đó. `confirmPassword` vào cùng danh sách ấy và vì đúng lý
+ *  do này: nó cũng được gọi TỪ một interceptor. Ngoài danh sách đó ra, không
+ *  đường nào trong app được gọi mạng thẳng. */
 
 let inflight: Promise<boolean> | null = null
 

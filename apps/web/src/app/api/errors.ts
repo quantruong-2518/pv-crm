@@ -1,4 +1,4 @@
-import type { DenyReason as WireDenyReason } from '@pv/contracts'
+import { DenyReason as WireDenyReasonEnum, type DenyReason as WireDenyReason } from '@pv/contracts'
 import type { DenyReason } from '@pv/engines'
 
 /** Lỗi của tầng "dữ liệu từ ngoài vào" — MỘT kiểu lỗi, phân loại sẵn.
@@ -15,6 +15,20 @@ export type ApiFailure =
   | 'chưa-xác-thực'
   /** Có phiên nhưng không được phép (403). Màn hiện "Bị ẩn theo quyền của bạn". */
   | 'thiếu-quyền'
+  /** A 403 that CAN be opened: the permission is there, the password just has
+   *  not been retyped inside the sudo window — role changes, locking an
+   *  account, minting a set-password link.
+   *
+   *  Its own kind rather than a `reason` under the permission-denied one,
+   *  because the two send the reader opposite ways: that one means stop trying,
+   *  this one means type your password and try again. Folded together, the
+   *  screen would show the permission-hidden sentence for something the user
+   *  can actually do.
+   *
+   *  Screens do NOT render this: `confirmOnReauthRequired` in `client.ts` opens
+   *  the confirmation box and replays the request. The sentence in
+   *  `userMessage` covers the one way out — the user pressing Cancel. */
+  | 'cần-xác-thực-lại'
   | 'không-thấy'
   /** Dữ liệu đã đổi dưới tay người dùng (409) — sửa đè lên bản mới hơn. */
   | 'xung-đột'
@@ -84,33 +98,27 @@ export class ApiError extends Error {
 
 export const isApiError = (e: unknown): e is ApiError => e instanceof ApiError
 
-/** The wire says `permission-denied`; the engine says `thiếu-quyền`. Same four
- *  refusals, two vocabularies, because they were named in two places: E2 names
- *  them in Vietnamese for the screens, `@pv/contracts` names them in ASCII
- *  because that is what travels through a JSON body, a proxy log and an
- *  OpenAPI document.
+/** Dây và engine giờ nói CÙNG BỐN CHỮ, nên ở đây không còn dịch gì nữa.
  *
- *  This table is the ONLY seam between the two. Patching a comparison at the
- *  far end instead — teaching `userMessage` to also accept
- *  `'branch-not-licensed'` — would mean every future reader of a `reason` has
- *  to know both spellings, and the third reader will only remember one.
+ *  Trước 14/09 engine đặt tên bốn lý do bằng tiếng Việt còn hợp đồng bằng
+ *  ASCII, và một bảng `Record<WireDenyReason, DenyReason>` ngồi đúng chỗ này
+ *  chỉ để nối hai từ vựng. Engine đã đổi sang đúng chữ của hợp đồng, nên bảng
+ *  ấy thành ánh xạ đồng nhất và đã xoá — cùng lúc với bảng sinh đôi của nó ở
+ *  `access.guard.ts` bên máy chủ.
  *
- *  Typed as a full `Record` over the wire enum on purpose: the day the server
- *  adds a fifth refusal, this line stops compiling. */
-const DENY_REASON: Record<WireDenyReason, DenyReason> = {
-  unauthenticated: 'chưa-đăng-nhập',
-  'branch-not-licensed': 'thiếu-nhánh',
-  'permission-denied': 'thiếu-quyền',
-  'out-of-scope': 'ngoài-phạm-vi',
-}
+ *  Phép gán dưới đây là thứ THAY bảng chứ không phải thứ còn sót lại: nó chỉ
+ *  biên dịch được khi hai union còn trùng khít, nên ngày một bên thêm lý do thứ
+ *  năm mà bên kia quên thì `tsc` đỏ — đúng tính chất mà một `Record` đầy đủ
+ *  trước đây bảo đảm. Cùng khuôn với `toContractRole` ở `auth.mapper.ts`. */
+const sameWord = (wire: WireDenyReason): DenyReason => wire
 
 /** Wire refusal → engine refusal. Anything unknown comes back `undefined`
  *  rather than a guess: a screen with no `reason` says the generic sentence,
  *  which is merely unhelpful, while a wrong `reason` sends the user off to fix
  *  something that was never broken. */
 export function denyReasonOf(wire: string | undefined): DenyReason | undefined {
-  if (!wire) return undefined
-  return DENY_REASON[wire as WireDenyReason]
+  const parsed = WireDenyReasonEnum.safeParse(wire)
+  return parsed.success ? sameWord(parsed.data) : undefined
 }
 
 /** Mã HTTP → loại lỗi. Bảng này là chỗ DUY NHẤT trong app biết con số 403 nghĩa
@@ -144,13 +152,20 @@ export function userMessage(error: ApiError): string {
        is the person holding it. Say the wrong one and the user spends a day
        chasing an admin who has nothing to give them.
 
-       `chưa-đăng-nhập` deliberately has no branch here: it arrives as kind
+       `unauthenticated` deliberately has no branch here: it arrives as kind
        `chưa-xác-thực`, and that one is auth's business, not a screen's. */
     case 'thiếu-quyền':
-      if (error.reason === 'thiếu-nhánh') return 'Công ty chưa mở nhánh này.'
-      if (error.reason === 'ngoài-phạm-vi')
+      if (error.reason === 'branch-not-licensed') return 'Công ty chưa mở nhánh này.'
+      if (error.reason === 'out-of-scope')
         return 'Dữ liệu này của người khác. Nhờ người đang phụ trách mở hộ, hoặc xin bàn giao.'
       return 'Bị ẩn theo quyền của bạn.'
+    /* Only reachable when the user pressed Cancel on the confirmation box —
+       every other path was settled by `confirmOnReauthRequired` before a screen
+       ever saw the error. So this says "not confirmed", not "blocked": they
+       just chose not to, and a sentence that sounds like a refusal would send
+       them off to ask for permissions they already have. */
+    case 'cần-xác-thực-lại':
+      return 'Chưa xác nhận mật khẩu nên thao tác chưa chạy. Làm lại và xác nhận để tiếp tục.'
     case 'không-thấy':
       return 'Không tìm thấy dữ liệu này. Có thể nó vừa bị xoá.'
     /* `error.message` is the server's own `title` when it sent one (see

@@ -74,7 +74,7 @@ Hai câu đã trả lời, ghi lại để không ai đi hỏi lần nữa:
 - **"Nạp cơ hội từ tệp" có quay lại không** — cửa máy chủ đã dựng
   (`POST /sales/opportunities/import` + `/import/preview`). Nút trên màn thì CHƯA gắn lại;
   đó là việc của `apps/web`, và `OP_SPEC`/`ImportZone` vẫn nguyên chờ nó.
-- **Đơn thắng ghi ở đâu** — `POST /sales/opportunities/:code/contract`, quyền `cơ-hội.chốt`.
+- **Đơn thắng ghi ở đâu** — `POST /sales/opportunities/:code/contract`, quyền `opportunity.close`.
   Vẫn đúng nguyên tắc cũ: "đã thắng" là dòng bên `contract`, suy ra chứ không lưu.
 
 ---
@@ -160,12 +160,12 @@ hồ thì mọi đơn đều "vừa mới vào cột" và tín hiệu mục khô
 
 |                                    | quyền                 |                                       |
 | ---------------------------------- | --------------------- | ------------------------------------- |
-| `GET /sales/opportunities`         | `cơ-hội.xem` · scoped | sổ, phân trang, trả `hidden` (luật 7) |
-| `GET /sales/opportunities/:code`   | `cơ-hội.xem` · scoped | 404 và 403 là hai câu khác nhau       |
-| `POST /sales/opportunities`        | `cơ-hội.sửa`          | đổi lead thành cơ hội                 |
-| `PATCH /sales/opportunities/:code` | `cơ-hội.sửa` · scoped | lưu phiếu ở hồ sơ                     |
+| `GET /sales/opportunities`         | `opportunity.view` · scoped | sổ, phân trang, trả `hidden` (luật 7) |
+| `GET /sales/opportunities/:code`   | `opportunity.view` · scoped | 404 và 403 là hai câu khác nhau       |
+| `POST /sales/opportunities`        | `opportunity.edit`          | đổi lead thành cơ hội                 |
+| `PATCH /sales/opportunities/:code` | `opportunity.edit` · scoped | lưu phiếu ở hồ sơ                     |
 
-Cửa ghi đòi `cơ-hội.sửa` chứ **không** `cơ-hội.chốt`: mở một đơn thì đóng lại
+Cửa ghi đòi `opportunity.edit` chứ **không** `opportunity.close`: mở một đơn thì đóng lại
 được, ký thì không. Gộp vào `chốt` nghĩa là muốn cho BD mở đơn thì phải cho họ
 luôn quyền ký.
 
@@ -273,12 +273,12 @@ màn nào.**
 
 |                                            | quyền                  |                                                  |
 | ------------------------------------------ | ---------------------- | ------------------------------------------------ |
-| `GET /sales/opportunities?leadCode=`       | `cơ-hội.xem` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần     |
-| `GET /sales/opportunities/:code/touches`   | `cơ-hội.xem` · scoped  | dòng thời gian của một đơn                       |
-| `GET /sales/leads/:code/touches`           | `lead.xem` · scoped    | dòng thời gian của một lead                      |
-| `POST /sales/opportunities/import/preview` | `cơ-hội.sửa`           | chạy thử, không ghi gì                           |
-| `POST /sales/opportunities/import`         | `cơ-hội.sửa`           | nạp thật, cả lô hoặc không dòng nào              |
-| `POST /sales/opportunities/:code/contract` | `cơ-hội.chốt` · scoped | **ký** — đường ĐẦU TIÊN dùng quyền `cơ-hội.chốt` |
+| `GET /sales/opportunities?leadCode=`       | `opportunity.view` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần     |
+| `GET /sales/opportunities/:code/touches`   | `opportunity.view` · scoped  | dòng thời gian của một đơn                       |
+| `GET /sales/leads/:code/touches`           | `lead.view` · scoped    | dòng thời gian của một lead                      |
+| `POST /sales/opportunities/import/preview` | `opportunity.edit`           | chạy thử, không ghi gì                           |
+| `POST /sales/opportunities/import`         | `opportunity.edit`           | nạp thật, cả lô hoặc không dòng nào              |
+| `POST /sales/opportunities/:code/contract` | `opportunity.close` · scoped | **ký** — đường ĐẦU TIÊN dùng quyền `opportunity.close` |
 
 ### Bảng mới · `sales.touch`
 
@@ -430,7 +430,7 @@ Mỗi mục kèm mặc định tôi sẽ lấy nếu không ai nói khác:
    sửa BE nhỏ: thêm `contractCode` vào hợp đồng, đổi `EXISTS` thành `LEFT JOIN`
    ở `OpportunityRepository.signed()`. _(mặc định: thêm)_ — **đây là việc BE duy
    nhất còn thiếu; mọi thứ khác đã xong.**
-4. **Nút ký chỉ hiện với vai có `cơ-hội.chốt`** — ẩn hẳn với presales, không
+4. **Nút ký chỉ hiện với vai có `opportunity.close`** — ẩn hẳn với presales, không
    hiện rồi mờ. _(mặc định: ẩn hẳn)_
 5. **ActivityCard ở hồ sơ đơn đọc touches của ĐƠN**, ở hồ sơ lead đọc của LEAD,
    không trộn hai dòng thời gian. _(mặc định: như vậy)_
@@ -452,7 +452,7 @@ DATABASE_URL="pglite:///tmp/pgl-ops" PORT=4123 PV_TRUST_ACTOR_HEADER=true \
 
 `PV_TRUST_ACTOR_HEADER=true` cho phép đóng vai bằng header — `u-ha`
 (trưởng phòng, thấy cả sổ), `u-huy` (sale, `ownOnly`), `u-anh` (presales, KHÔNG
-có `cơ-hội.chốt` — dùng để kiểm nút ký phải ẩn).
+có `opportunity.close` — dùng để kiểm nút ký phải ẩn).
 
 pglite chỉ một kết nối: **tắt máy chủ trước khi mở cùng thư mục đó bằng script
 khác**, nếu không câu truy vấn thứ hai treo.
@@ -497,7 +497,7 @@ migration `0016` đã vào `7aa12de`.
 | **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: MaHopDong`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                           |
 | **Việc 3** · nạp tệp    | `ops.tsx` có `ImportZone`; thêm `data/opportunity-import-wire.ts` (dịch thuần) + `data/opportunity-import.ts` (preview → dừng nếu 0 dòng → import). `motions` đã gỡ khỏi `OP_SPEC` theo quyết định #2                                             |
 | **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/opportunities/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                           |
-| **Việc 4** · Chốt thắng | `components/sign-drawer.tsx` mới + nút trong `ToolsBar` + `useSignContract` ở `ops-write.ts`. Ba mặt: đã ký → pill tĩnh `Đã ký · HĐ-…`; đã thua → không vẽ gì; còn lại → nút, **ẩn hẳn** với vai không có `cơ-hội.chốt` (`useCan`, quyết định #4) |
+| **Việc 4** · Chốt thắng | `components/sign-drawer.tsx` mới + nút trong `ToolsBar` + `useSignContract` ở `ops-write.ts`. Ba mặt: đã ký → pill tĩnh `Đã ký · HĐ-…`; đã thua → không vẽ gì; còn lại → nút, **ẩn hẳn** với vai không có `opportunity.close` (`useCan`, quyết định #4) |
 
 ### Bốn thứ phát hiện khi dựng, không có trong bản phác
 

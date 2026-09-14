@@ -4,8 +4,8 @@ import { LeadTier } from './enums'
 
 /** The activity trail — what happened to a lead or a deal, in order.
  *
- *      GET /sales/leads/:code/touches           permission `lead.xem`   · scoped
- *      GET /sales/opportunities/:code/touches   permission `cơ-hội.xem` · scoped
+ *      GET /sales/leads/:code/touches           permission `lead.view`   · scoped
+ *      GET /sales/opportunities/:code/touches   permission `opportunity.view` · scoped
  *
  *  ------------------------------------------------------------------
  *  WHY A TABLE AND NOT A DERIVED VIEW
@@ -13,7 +13,7 @@ import { LeadTier } from './enums'
  *  Two event streams already exist and neither can answer this. `platform.audit`
  *  records who called which route — it is a security trail, keyed on an HTTP
  *  action, and it cannot say "this deal moved from Đã demo to Chờ ký" because
- *  by the time it is written the only thing left is `action: 'sửa'`.
+ *  by the time it is written the only thing left is `action: 'edit'`.
  *  `platform.email_delivery` knows every letter sent, which is one kind of
  *  contact and the only kind those tables see.
  *

@@ -1,3 +1,4 @@
+import { DEFAULT_ROLE_PERMISSIONS } from '../e2-access'
 import { loadScenario, type Scenario } from './scenario'
 
 /** KỊCH BẢN 1 · Đơn hàng Sao Đỏ — khách ĐÃ MUA. Dùng cho màn One 01–05.
@@ -100,6 +101,7 @@ const scenario: Scenario = {
       email: 'thang@pebblevina.com',
       role: 'Giám đốc',
       roleId: 'director',
+      permissions: DEFAULT_ROLE_PERMISSIONS['director'],
       branches: ['One', 'Sales', 'Supply', 'Factory', 'Finance'],
     },
     {
@@ -111,6 +113,7 @@ const scenario: Scenario = {
       email: 'sales@pebblevina.com',
       role: 'Trưởng phòng Kinh doanh',
       roleId: 'head-of-sales',
+      permissions: DEFAULT_ROLE_PERMISSIONS['head-of-sales'],
       branches: ['One', 'Sales'],
     },
     {
@@ -119,6 +122,7 @@ const scenario: Scenario = {
       email: 'huy@pebblevina.com',
       role: 'Sale · ngành chip',
       roleId: 'sale',
+      permissions: DEFAULT_ROLE_PERMISSIONS['sale'],
       branches: ['One', 'Sales'],
       ownOnly: true,
     },

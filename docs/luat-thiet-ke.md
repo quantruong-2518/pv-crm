@@ -162,7 +162,7 @@ Màn 01 đã dựng (`apps/web/src/pages/home.tsx`). Bốn màn còn lại chưa
 >
 > `/` là route DUY NHẤT không khai `permission`, nên mỗi khối tự hỏi E2 quyền
 > của nó (`enabled` trên từng query) và màn nói ra khối nào bị ẩn. Một tài khoản
-> marketing không có `cơ-hội.xem` lẫn `hợp-đồng.xem`; bắn query vô điều kiện là
+> marketing không có `opportunity.view` lẫn `contract.view`; bắn query vô điều kiện là
 > biến trang chủ của họ thành một dải báo lỗi.
 
 ---

@@ -29,12 +29,12 @@ import { LeadWriteService } from './lead-write.service'
  *  ------------------------------------------------------------------
  *  TWO PERMISSIONS, AND THE THREE WRITE DOORS SHARE ONE
  *  ------------------------------------------------------------------
- *  Reading the book needs `lead.xem` and is `scoped: true` — a holder who only
+ *  Reading the book needs `lead.view` and is `scoped: true` — a holder who only
  *  sees their own rows sees only their own rows. Reading ONE lead declares the
  *  same three axes, spelled identically, because it is the same question asked
  *  of one row; what differs is what the scope axis DOES with the answer, and
  *  that belongs to the service, not to the declaration. The three doors below need
- *  `lead.sửa`, including the preview: a dry run still reads the whole book to
+ *  `lead.edit`, including the preview: a dry run still reads the whole book to
  *  answer "does this mailbox already belong to somebody", and that answer is
  *  worth as much to someone fishing as the rows themselves.
  *
@@ -53,7 +53,7 @@ export class LeadController {
   ) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(LeadBookQuery)) q: LeadBookQuery) {
     return this.leads.book(who, q)
   }
@@ -69,7 +69,7 @@ export class LeadController {
    *  KHÔNG `scoped`: đây là điểm của cả phòng, không của riêng ai. Xem
    *  `LeadService.scorecard` cho lập luận đầy đủ. */
   @Get('scorecard')
-  @Need({ branch: 'Sales', permission: 'lead.xem' })
+  @Need({ branch: 'Sales', permission: 'lead.view' })
   scorecard() {
     return this.leads.scorecard()
   }
@@ -84,7 +84,7 @@ export class LeadController {
    *  `scoped: true`, cùng ba trục với `book()`: ô lọc phải chỉ chào những giá
    *  trị nằm TRONG sổ mà actor này đang thấy, không phải cả sổ của phòng. */
   @Get('facets')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   facets(@CurrentActor() who: Actor) {
     return this.leads.facets(who)
   }
@@ -100,7 +100,7 @@ export class LeadController {
    *  gọi tên ô, không đi tới câu truy vấn. Hàng rào thứ hai — có lead đó không,
    *  có phải của người này không — là việc của service, vì nó cần dữ liệu. */
   @Get(':code')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.profile(who, code)
   }
@@ -112,19 +112,19 @@ export class LeadController {
    *  cả tệp người nhận; đường này trả lời "mình đã viết cho NGƯỜI NÀY mấy lần",
    *  nên nó đứng cạnh hồ sơ của người đó và ăn cùng ba trục quyền.
    *
-   *  `lead.xem` chứ không `chiến-dịch.xem`, cùng lý do: đây là dữ liệu của một
+   *  `lead.view` chứ không `campaign.view`, cùng lý do: đây là dữ liệu của một
    *  lead, và một Sale mở hồ sơ khách của mình không cần quyền của phòng
    *  marketing để biết khách đã nhận thư nào. */
   @Get(':code/mail')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   mail(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.mailTimeline(who, code)
   }
 
   /** Detail behind one row of `:code/mail` — every open/click/reply, in order.
-   *  Same `lead.xem`, same scope: still one lead's own data, not a new door. */
+   *  Same `lead.view`, same scope: still one lead's own data, not a new door. */
   @Get(':code/mail/:runId/events')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   mailEvents(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -139,12 +139,12 @@ export class LeadController {
    *  đã viết cho người này mấy lần", cái này trả lời "chuyện gì đã xảy ra với
    *  khách này". Lý do đầy đủ ở `LeadService.touches`.
    *
-   *  `lead.xem` chứ không `ghi-vết.xem` — cùng lý lẽ mà `:code/mail` đã dùng:
+   *  `lead.view` chứ không `audit-log.view` — cùng lý lẽ mà `:code/mail` đã dùng:
    *  đây là dữ liệu CỦA MỘT LEAD, và một Sale mở hồ sơ khách của mình không cần
-   *  quyền của quản trị để đọc lịch sử chính khách đó. `ghi-vết.xem` là để đọc
+   *  quyền của quản trị để đọc lịch sử chính khách đó. `audit-log.view` là để đọc
    *  `platform.audit`, một câu hỏi khác của một người khác. */
   @Get(':code/touches')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.touches(who, code)
   }
@@ -159,12 +159,12 @@ export class LeadController {
   // đúng là của lead đó (404 nếu không, không phải 403: người gọi không được
   // biết buổi họp ấy có tồn tại ở lead nào khác hay không).
   //
-  // Đọc đòi `lead.xem`, ghi đòi `lead.sửa` — cùng cặp mà hồ sơ lead đang dùng.
+  // Đọc đòi `lead.view`, ghi đòi `lead.edit` — cùng cặp mà hồ sơ lead đang dùng.
   // Ghi một buổi họp vào lead của người khác LÀ sửa hồ sơ người khác, nên trục
   // phạm vi bật ở cả bốn.
 
   @Get(':code/meetings')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   meetings(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.meetingList(who, code)
   }
@@ -173,7 +173,7 @@ export class LeadController {
    *  suy được: nó là thuộc tính của cả tập, và một buổi ghi bù có thể vừa cướp
    *  ngôi của buổi đang giữ. */
   @Post(':code/meetings')
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   meetingAdd(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -183,7 +183,7 @@ export class LeadController {
   }
 
   @Patch(':code/meetings/:id')
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   meetingEdit(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -197,7 +197,7 @@ export class LeadController {
    *  cách nói cùng một chuyện. */
   @Delete(':code/meetings/:id')
   @HttpCode(204)
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   meetingDrop(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -215,7 +215,7 @@ export class LeadController {
   // the meeting doors above.
 
   @Get(':code/contacts')
-  @Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   contacts(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
     return this.leads.contactList(who, code)
   }
@@ -225,7 +225,7 @@ export class LeadController {
    *  primary one whatever the body says, because a lead with contacts and no
    *  primary leaves the profile with no name to print. */
   @Post(':code/contacts')
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   contactAdd(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -241,7 +241,7 @@ export class LeadController {
    *  in `LeadService`. */
   @Patch(':code/account')
   @HttpCode(204)
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   accountAttach(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -253,14 +253,14 @@ export class LeadController {
   /** Giao lead cho một người, hoặc trả về kho chung. Trả nguyên dòng sổ.
    *
    *  ------------------------------------------------------------------
-   *  KHAI `lead.sửa`, KHÔNG KHAI `lead.giao` — VÀ KHÔNG BẬT `scoped`
+   *  KHAI `lead.edit`, KHÔNG KHAI `lead.assign` — VÀ KHÔNG BẬT `scoped`
    *  ------------------------------------------------------------------
    *  Hai chỗ lệch với phần còn lại của file này, cùng một lý do: luật của cửa
    *  này ĐỌC dữ liệu mới quyết được, mà `@Need` là metadata TĨNH.
    *
-   *   · `lead.giao` là quyền GIAO CHO NGƯỜI KHÁC, và Sale không có nó. Khai ở
+   *   · `lead.assign` là quyền GIAO CHO NGƯỜI KHÁC, và Sale không có nó. Khai ở
    *     đây thì Sale mất luôn quyền tự nhận một lead chưa ai giữ — việc chẳng
-   *     lấy của ai cái gì. Nên cổng tĩnh dừng ở `lead.sửa`, còn phép so
+   *     lấy của ai cái gì. Nên cổng tĩnh dừng ở `lead.edit`, còn phép so
    *     "giao hay nhận" nằm ở `LeadWriteService.setOwner`, chỗ đã cầm trên tay
    *     `owner_id` hiện tại.
    *   · `scoped: true` cắt theo `owner_id = mình`, mà lead trong kho chung có
@@ -273,7 +273,7 @@ export class LeadController {
    *  tư mà quên `enableCors` trong `main.ts` là mọi lượt gọi chết ở preflight
    *  không để lại dòng log nào — chính cái bẫy file đó đã ghi lại. */
   @Patch(':code/owner')
-  @Need({ branch: 'Sales', permission: 'lead.sửa' })
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
   setOwner(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -297,7 +297,7 @@ export class LeadController {
    *  `LeadWriteService.patch`, which has `inScope` in hand, exactly as
    *  `@Get(':code')` declares the axis and leaves the verdict to its service. */
   @Patch(':code')
-  @Need({ branch: 'Sales', permission: 'lead.sửa', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   patch(
     @CurrentActor() who: Actor,
     @Param('code', zod(MaObject)) code: MaObject,
@@ -309,7 +309,7 @@ export class LeadController {
   /** Một lead, gõ tay. 201 kèm nguyên dòng sổ — màn chèn được ngay, không phải
    *  gọi lần thứ hai, và người gõ thấy luôn giá trị đã được chuẩn hoá. */
   @Post()
-  @Need({ branch: 'Sales', permission: 'lead.sửa' })
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
   create(@CurrentActor() who: Actor, @Body(zod(LeadCreate)) body: LeadCreate) {
     return this.write.create(who, body)
   }
@@ -317,14 +317,14 @@ export class LeadController {
   /** Chạy thử. KHÔNG ghi gì — kể cả một con số của dãy mã. */
   @Post('import/preview')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.sửa' })
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
   preview(@Body(zod(LeadImportBody)) body: LeadImportBody) {
     return this.write.preview(body)
   }
 
   /** Nạp thật. Cả lô vào hết hoặc không dòng nào vào. */
   @Post('import')
-  @Need({ branch: 'Sales', permission: 'lead.sửa' })
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
   import(@CurrentActor() who: Actor, @Body(zod(LeadImportBody)) body: LeadImportBody) {
     return this.write.commit(who, body)
   }

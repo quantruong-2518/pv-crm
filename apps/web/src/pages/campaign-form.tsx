@@ -348,8 +348,8 @@ function CampaignForm({
      byte out, so the screen and the barrier cannot say opposite things — and
      hiding a button is not access control: the real gate stays at the api layer
      and the server doors still declare their own `@Need`. */
-  const canEdit = useCan('chiến-dịch.sửa')
-  const canFire = useCan('chiến-dịch.bắn')
+  const canEdit = useCan('campaign.edit')
+  const canFire = useCan('campaign.broadcast')
 
   const submitCreate = () => {
     if (!draftProfile.name.trim() || submitting) return

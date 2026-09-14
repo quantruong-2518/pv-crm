@@ -43,7 +43,7 @@ remove it from the table.
 Delegate to `dataflow-tracer`. Four things must come back: **`need` (the permission
 the query demands)** · **the return type** · **which fixture `load` reads today** ·
 **the three permission axes it touches** (license `Actor.branches` · role `roleId`
-→ `ROLE_PERMISSIONS` · scope `ownOnly`).
+→ `DEFAULT_ROLE_PERMISSIONS` · scope `ownOnly`).
 
 The three axes are **not substitutes**. Hiding a button is not a permission —
 permissions live on the data path.

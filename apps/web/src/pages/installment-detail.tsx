@@ -158,7 +158,7 @@ export function InstallmentDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
   const navigate = useNavigate()
   const { code = '', no = '' } = useParams()
-  const canRecord = useCan('hợp-đồng.ghi-nhận-thu')
+  const canRecord = useCan('contract.record-payment')
 
   /* The installment lives inside the contract, so there is one read for both
      screens — and the cache is shared with level 1, which is why stepping in

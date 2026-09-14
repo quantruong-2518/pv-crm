@@ -42,7 +42,7 @@ import { UserDrawer, UserNameCell, UserRoleCell, UserStatusCell } from './users-
  *  ------------------------------------------------------------------
  *  ONE CORE, NOT A BRANCH — AND WHAT THAT COSTS AT THE DOOR
  *  ------------------------------------------------------------------
- *  `routes.tsx` gives this screen `permission: 'người-dùng.quản-lý'` and NO
+ *  `routes.tsx` gives this screen `permission: 'user.manage'` and NO
  *  `branch`: the people book belongs to no product line, so a licence axis here
  *  would shut it for a company that bought Supply and not Sales. Two gates,
  *  two questions — the `ScreenDef` docblock spells out why they are separate.

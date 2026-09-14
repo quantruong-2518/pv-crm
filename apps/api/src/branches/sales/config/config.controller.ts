@@ -20,9 +20,9 @@ import { SalesConfigService } from './config.service'
  *  ------------------------------------------------------------------
  *  HAI QUYỀN, VÀ KHOẢNG CÁCH GIỮA CHÚNG LÀ MỘT QUYẾT ĐỊNH
  *  ------------------------------------------------------------------
- *  Đọc cần `cấu-hình.xem` — năm trong bảy vai có. Ghi cần `cấu-hình.đề-nghị`,
+ *  Đọc cần `config.view` — năm trong bảy vai có. Ghi cần `config.propose`,
  *  mà ma trận E2 chỉ cấp nó cho Giám đốc và TP Kinh doanh. KHÔNG có
- *  `cấu-hình.sửa` trong `PERMISSIONS`, và đó là câu trả lời chứ không phải chỗ
+ *  `config.edit` trong `PERMISSIONS`, và đó là câu trả lời chứ không phải chỗ
  *  thiếu: từ vựng nghiệp vụ của cả phòng đổi thì phải có người gật. Ba đường
  *  ghi vì thế trả 202 — "đã nhận đề nghị", không phải "đã ghi".
  *
@@ -39,20 +39,20 @@ export class SalesConfigController {
 
   /** Cả sáu danh mục. Đây là thứ màn Cấu hình và mọi bảng tra nhãn cần. */
   @Get()
-  @Need({ branch: 'Sales', permission: 'cấu-hình.xem' })
+  @Need({ branch: 'Sales', permission: 'config.view' })
   bundle() {
     return this.config.bundle()
   }
 
   @Get(':list')
-  @Need({ branch: 'Sales', permission: 'cấu-hình.xem' })
+  @Need({ branch: 'Sales', permission: 'config.view' })
   list(@Param('list', zod(ConfigList)) list: ConfigList) {
     return this.config.list(list)
   }
 
   @Post(':list')
   @HttpCode(202)
-  @Need({ branch: 'Sales', permission: 'cấu-hình.đề-nghị' })
+  @Need({ branch: 'Sales', permission: 'config.propose' })
   create(
     @CurrentActor() who: Actor,
     @Param('list', zod(ConfigList)) list: ConfigList,
@@ -63,7 +63,7 @@ export class SalesConfigController {
 
   @Patch(':list/order')
   @HttpCode(202)
-  @Need({ branch: 'Sales', permission: 'cấu-hình.đề-nghị' })
+  @Need({ branch: 'Sales', permission: 'config.propose' })
   reorder(
     @CurrentActor() who: Actor,
     @Param('list', zod(ConfigList)) list: ConfigList,
@@ -74,7 +74,7 @@ export class SalesConfigController {
 
   @Patch(':list/:id')
   @HttpCode(202)
-  @Need({ branch: 'Sales', permission: 'cấu-hình.đề-nghị' })
+  @Need({ branch: 'Sales', permission: 'config.propose' })
   patch(
     @CurrentActor() who: Actor,
     @Param('list', zod(ConfigList)) list: ConfigList,

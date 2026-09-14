@@ -89,7 +89,7 @@ export const CampaignCreateResponse = CampaignBookRow
 
 /** `PATCH /sales/campaigns/:code` — sửa tên/chủ/nguồn quy công. Đổi TRẠNG THÁI
  *  đi qua `/start` và `/stop`, hai đường riêng, vì chúng đòi quyền khác
- *  (`chiến-dịch.bắn`) và không phải sửa nhầm một ô trên form là bắn được mail. */
+ *  (`campaign.broadcast`) và không phải sửa nhầm một ô trên form là bắn được mail. */
 export const CampaignPatch = z
   .object({
     name: textNhap(200).optional(),

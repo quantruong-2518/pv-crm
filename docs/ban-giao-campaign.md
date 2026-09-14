@@ -32,10 +32,10 @@ Trả lời đúng ba câu chủ dự án hỏi:
 | --- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **Tách riêng "Nguồn dẫn" (SOURCE) và "Chiến dịch" (`sales.campaign`)**, không hợp nhất     | Đóng D2. `sales.campaign` là đơn vị GỬI (comment sẵn trong schema: "CONSUMES LEADS, DOES NOT PRODUCE THEM"); SOURCE là nơi lead SINH RA. Hai định nghĩa đối lập nhau, không gộp được thành một bảng mà không phá một trong hai                                                                    |
 | 2   | Contract đặt tên `campaign-book.ts`, KHÔNG phải `campaign.ts`                              | Xung đột file THẬT giữa hai phiên đang chạy song song: phiên kia đã nhận `campaign.ts` cho contract SOURCE trước. Ghi lại để người sau không đặt trùng tên lần nữa                                                                                                                                |
-| 3   | `/start` và `/stop` là **hai đường riêng**, không phải `state` trên `PATCH`                | Chúng đòi `chiến-dịch.bắn` (bắn mail thật), còn sửa tên/chủ chỉ đòi `chiến-dịch.sửa`. Gộp vào một `PATCH` thì phải đọc thân trước khi biết quyền nào đúng — MasController đã phải làm vậy vì một lý do khác (một route phục vụ hai tầm với); ở đây không cần vì vốn đã là hai route               |
+| 3   | `/start` và `/stop` là **hai đường riêng**, không phải `state` trên `PATCH`                | Chúng đòi `campaign.broadcast` (bắn mail thật), còn sửa tên/chủ chỉ đòi `campaign.edit`. Gộp vào một `PATCH` thì phải đọc thân trước khi biết quyền nào đúng — MasController đã phải làm vậy vì một lý do khác (một route phục vụ hai tầm với); ở đây không cần vì vốn đã là hai route               |
 | 4   | `start()`/`stop()` **gọi thẳng** `MasService.send()`/`MasService.cancel()`, không viết lại | Toàn bộ suppression, hàng đợi, cầu dao bounce, quy tắc huỷ (A6) đã có. Viết lại là hai nơi cho một luật, và luật thứ hai trôi khỏi luật thứ nhất ngay lần sửa tiếp theo                                                                                                                           |
 | 5   | Trạng thái nâng lên `RUNNING` **TRƯỚC** vòng lặp gửi từng đợt                              | Một đợt lỗi giữa chừng (mẫu sai, MAS đang tắt, vượt trần lô) thì chiến dịch vẫn đúng là ĐANG CHẠY với những đợt đã gửi thành công — không phải NHÁP giả vờ trong khi thư đã nằm hàng đợi. Đợt lỗi gửi lại từng cái qua `POST /sales/mail/runs` với `campaignCode`, không gọi lại `/start`         |
-| 6   | Tái dùng `chiến-dịch.sửa` cho cả tạo lẫn sửa, không thêm quyền `chiến-dịch.tạo`            | Đúng khuôn `lead.sửa` (dùng chung tạo+sửa ở `LeadController`). Ma trận vai hiện tại: mọi vai có `chiến-dịch.sửa` cũng có `chiến-dịch.bắn` (marketing/director/head-of-sales/account-executive), nên `/start`/`/stop` khai thẳng `chiến-dịch.bắn`, không cần cơ chế nâng quyền như `MasController` |
+| 6   | Tái dùng `campaign.edit` cho cả tạo lẫn sửa, không thêm quyền `chiến-dịch.tạo`            | Đúng khuôn `lead.edit` (dùng chung tạo+sửa ở `LeadController`). Ma trận vai hiện tại: mọi vai có `campaign.edit` cũng có `campaign.broadcast` (marketing/director/head-of-sales/account-executive), nên `/start`/`/stop` khai thẳng `campaign.broadcast`, không cần cơ chế nâng quyền như `MasController` |
 | 7   | `campaign.sourceId`/`sourceName` có mặt trong contract NGAY, không đợi lượt sau            | Cột `campaign.source_id` do phiên xây SOURCE thêm cùng lượt (tham chiếu `config_entry.id`). Đưa luôn vào `CampaignCreate`/`Patch`/`Row` — không cần một migration riêng để gắn nhãn "chiến dịch này thuộc nguồn nào" cho báo cáo sau này                                                          |
 | 8   | Chuỗi đợt của hồ sơ đọc qua `MailRunRepository.list()`, KHÔNG qua `byId()`                 | `byId()` trả hàng DB TRẦN của `mail_run` (đủ cho `stop()` chỉ cần `.state`/`.id`). Mười một con số của `MailRunRow` (`sent`/`delivered`/`opened`/…) chỉ `list()` mới gộp qua hai lượt đọc `email_delivery`/`mail_event` — vấp lỗi kiểu ở đây trước khi kịp lên `pnpm check`, xem mục "Kiểm tay"   |
 
@@ -63,15 +63,15 @@ Không có migration mới — bảng `sales.campaign`/`campaign_member`/`campai
 
 | Đường                                 | `@Need`                                                          |
 | ------------------------------------- | ---------------------------------------------------------------- |
-| `POST /sales/campaigns`               | `chiến-dịch.sửa`                                                 |
-| `GET /sales/campaigns`                | `chiến-dịch.xem` · scoped                                        |
-| `GET /sales/campaigns/:code`          | `chiến-dịch.xem` · scoped                                        |
-| `PATCH /sales/campaigns/:code`        | `chiến-dịch.sửa` · scoped (tên/chủ/nguồn — KHÔNG đổi trạng thái) |
-| `POST /sales/campaigns/:code/members` | `chiến-dịch.sửa` · scoped                                        |
-| `GET /sales/campaigns/:code/members`  | `chiến-dịch.xem` · scoped — 30/08                                |
-| `POST /sales/campaigns/:code/start`   | `chiến-dịch.bắn` · scoped — chỉ NHÁP chưa có đợt                 |
-| `POST /sales/campaigns/:code/waves`   | `chiến-dịch.bắn` · scoped — đợt thứ hai trở đi, 30/08            |
-| `POST /sales/campaigns/:code/stop`    | `chiến-dịch.bắn` · scoped                                        |
+| `POST /sales/campaigns`               | `campaign.edit`                                                 |
+| `GET /sales/campaigns`                | `campaign.view` · scoped                                        |
+| `GET /sales/campaigns/:code`          | `campaign.view` · scoped                                        |
+| `PATCH /sales/campaigns/:code`        | `campaign.edit` · scoped (tên/chủ/nguồn — KHÔNG đổi trạng thái) |
+| `POST /sales/campaigns/:code/members` | `campaign.edit` · scoped                                        |
+| `GET /sales/campaigns/:code/members`  | `campaign.view` · scoped — 30/08                                |
+| `POST /sales/campaigns/:code/start`   | `campaign.broadcast` · scoped — chỉ NHÁP chưa có đợt                 |
+| `POST /sales/campaigns/:code/waves`   | `campaign.broadcast` · scoped — đợt thứ hai trở đi, 30/08            |
+| `POST /sales/campaigns/:code/stop`    | `campaign.broadcast` · scoped                                        |
 
 ---
 
@@ -283,7 +283,7 @@ tay một phiên chạy song song. Ghi lại để người sau đổi nốt khi
 ### Ba quyết định đáng biết
 
 1. **`useMasSend` chọn quyền theo THÂN**, không khai cứng một quyền. Gửi lẻ là
-   `lead.gửi-mail` (kèm `ownOnly`); gắn lô vào chiến dịch là `chiến-dịch.bắn`,
+   `lead.send-email` (kèm `ownOnly`); gắn lô vào chiến dịch là `campaign.broadcast`,
    đúng như `MasService.send()` phân nhánh ở đầu bên kia. Khai cứng thì hoặc
    Sale bị chặn oan lúc gửi lẻ, hoặc cửa client rộng hơn cửa thật và người dùng
    chỉ biết mình thiếu quyền sau khi đã soạn xong thư.
@@ -384,8 +384,8 @@ Cả hai nằm trong file mà một phiên khác đang mở; sửa chồng là h
   `STOPPED` / `DONE` bằng một lệnh `curl` — hàng rào hiện tại chỉ là bộ lọc
   phía client trong modal MAS. Đây là **nửa còn lại** của lỗ gửi trùng mà lượt
   này đã bịt ở cửa mới.
-- **`masPreview` khai `lead.gửi-mail`.** Nút "Xem trước" nay đứng trên màn
-  chiến dịch vốn chỉ đòi `chiến-dịch.bắn`, nên một vai bắn được chiến dịch mà
+- **`masPreview` khai `lead.send-email`.** Nút "Xem trước" nay đứng trên màn
+  chiến dịch vốn chỉ đòi `campaign.broadcast`, nên một vai bắn được chiến dịch mà
   không có quyền gửi lẻ sẽ thấy lỗi ở chỗ đáng lẽ là lá thư. `useMasSend` đã
   tách quyền theo thân yêu cầu; `masPreview` cần tách y hệt.
 

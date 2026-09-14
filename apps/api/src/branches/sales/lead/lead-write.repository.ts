@@ -290,7 +290,7 @@ export class LeadWriteRepository {
   ): Promise<{ id: string; at: Date }> {
     const [row] = await tx
       .insert(audit)
-      .values({ actorId: entry.actorId, action: 'sửa', note: entry.note })
+      .values({ actorId: entry.actorId, action: 'edit', note: entry.note })
       .returning({ id: audit.id, at: audit.at })
 
     if (!row) throw new Error('platform.audit: INSERT không trả về dòng nào')

@@ -49,7 +49,7 @@ import { assigneeOptions } from '@/data/leads'
  *  ------------------------------------------------------------------
  *  AI BẤM ĐƯỢC NÚT NÀO — HỎI E2, VÀ MÁY CHỦ HỎI LẠI
  *  ------------------------------------------------------------------
- *  `lead.giao` chỉ có ở trưởng phòng và giám đốc: giao khách của người khác
+ *  `lead.assign` chỉ có ở trưởng phòng và giám đốc: giao khách của người khác
  *  cho người thứ ba là chia lại hoa hồng. Không có quyền đó thì màn chỉ mở
  *  đúng một đường — NHẬN một lead chưa ai giữ về cho mình, thứ không lấy của
  *  ai cái gì.
@@ -75,7 +75,7 @@ type MenuProps = {
 
 export function AssignMenu({ lead, profile, size = 'md', buttonVariant, className }: MenuProps) {
   const me = useSession((s) => s.actor)
-  const mayAssign = useCan('lead.giao')
+  const mayAssign = useCan('lead.assign')
   const staff = useDirectory()
   const setOwner = useSetLeadOwner()
 
@@ -85,7 +85,7 @@ export function AssignMenu({ lead, profile, size = 'md', buttonVariant, classNam
 
   const held = profile.ownerId ?? null
   const heldByMe = held !== null && held === me?.id
-  /** Đường duy nhất còn lại cho người không có `lead.giao`. */
+  /** Đường duy nhất còn lại cho người không có `lead.assign`. */
   const mayClaim = held === null && me !== undefined
 
   const people = useMemo(() => assigneeOptions(lead, staff, me?.id), [lead, staff, me?.id])

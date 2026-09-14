@@ -73,7 +73,7 @@ export class LeadWriteService {
     private readonly mirror: ObjectMirror,
     private readonly accounts: AccountService,
     /* The first engine this service holds. `setOwner` asks it one question —
-       "does this role hold `lead.giao`" — and that question is trục 1 alone,
+       "does this role hold `lead.assign`" — and that question is trục 1 alone,
        which is why it calls `allows()` and not `check()`: the route guard has
        already settled licence and session, and there is no `ref` yet whose
        owner could be compared. */
@@ -149,19 +149,19 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  THE RULE, AND WHY IT IS TWO SENTENCES RATHER THAN ONE PERMISSION
    *  ------------------------------------------------------------------
-   *  `lead.giao` is held by `director`, `head-of-sales` and `account-executive`
+   *  `lead.assign` is held by `director`, `head-of-sales` and `account-executive`
    *  only — Sale and BD deliberately do not have it, because handing somebody
    *  else's customer to a third person re-cuts the commission
    *  (`COMMISSION_SPLIT`). Declaring the
-   *  route as `@Need({ permission: 'lead.giao' })` and stopping there would
+   *  route as `@Need({ permission: 'lead.assign' })` and stopping there would
    *  therefore be correct AND useless: it would also block a Sale from picking
    *  up a lead nobody holds, which is the single most common move on this
    *  screen and takes nothing from anyone.
    *
    *  So the door reads:
    *
-   *   · holder of `lead.giao` → may put any lead on anybody, or release it;
-   *   · anybody else with `lead.sửa` → may take a lead THAT NOBODY HOLDS, and
+   *   · holder of `lead.assign` → may put any lead on anybody, or release it;
+   *   · anybody else with `lead.edit` → may take a lead THAT NOBODY HOLDS, and
    *     only for themselves.
    *
    *  Everything else is 403 `out-of-scope`, with a sentence naming who to ask.
@@ -191,7 +191,7 @@ export class LeadWriteService {
    *  `giao`, which until today no door in the branch wrote. The lock is taken
    *  first; see `lockForOwnerChange`. */
   async setOwner(who: Actor, code: MaObject, body: LeadOwnerWrite): Promise<LeadOwnerResponse> {
-    const mayAssign = this.access.allows(who, 'lead.giao')
+    const mayAssign = this.access.allows(who, 'lead.assign')
 
     /* Looked up BEFORE the transaction, like `create()` does and for the same
        reason: the mirror row carries a display NAME while the column carries

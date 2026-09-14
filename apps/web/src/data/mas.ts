@@ -33,12 +33,12 @@ import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app
  *  ------------------------------------------------------------------
  *  | Door                       | `need`                            |
  *  | -------------------------- | --------------------------------- |
- *  | templates                  | `chiến-dịch.xem`                  |
- *  | preflight · preview · send | `lead.gửi-mail` · scoped          |
- *  | lead timeline              | `lead.xem` · scoped               |
+ *  | templates                  | `campaign.view`                  |
+ *  | preflight · preview · send | `lead.send-email` · scoped          |
+ *  | lead timeline              | `lead.view` · scoped               |
  *
  *  The server also carries `PATCH /sales/mail/runs/:id` (cancel a batch, needs
- *  `chiến-dịch.bắn`). It is deliberately NOT wired here: the only screen that
+ *  `campaign.broadcast`). It is deliberately NOT wired here: the only screen that
  *  could reach it is a run list, and no screen reads the run list yet. A query
  *  no component calls is a permission declaration nobody maintains.
  *
@@ -60,11 +60,15 @@ import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app
 // The wire
 // ---------------------------------------------------------------------------
 
-const TEMPLATES_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.xem' }
-const SEND_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.gửi-mail', scoped: true }
+const TEMPLATES_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view' }
+const SEND_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.send-email', scoped: true }
 /** Cửa của cùng endpoint khi lô được gắn vào một chiến dịch — xem `useMasSend`. */
-const CAMPAIGN_SEND_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.bắn', scoped: true }
-const TIMELINE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
+const CAMPAIGN_SEND_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'campaign.broadcast',
+  scoped: true,
+}
+const TIMELINE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
 
 /** Prefix of every mail-timeline key, so one send can invalidate all of them
  *  without knowing which leads it just wrote to. */
@@ -94,7 +98,7 @@ export const masTemplatesQuery = queryOptions({
  *  mail: editing a template sends no letter, because a run snapshots subject and
  *  body when it is created. Copied verbatim from `@Need` in
  *  `mas.controller.ts`. */
-const TEMPLATE_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'chiến-dịch.sửa' }
+const TEMPLATE_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.edit' }
 
 /** Clears exactly the key `masTemplatesQuery` holds — which is also the key both
  *  compose screens read to fill their template picker, so editing a template in
@@ -321,9 +325,9 @@ export function useMasSend() {
         /* HAI QUYỀN CHO MỘT CỬA, chọn theo THÂN — đúng như `MasService.send()`
            làm ở đầu bên kia.
 
-           `lead.gửi-mail` đi kèm `ownOnly`: một Sale gửi cho lead mình giữ.
+           `lead.send-email` đi kèm `ownOnly`: một Sale gửi cho lead mình giữ.
            Gắn lô vào một chiến dịch là bắn cả tệp, nhiều đợt, và máy chủ đòi
-           `chiến-dịch.bắn` cho đúng ca đó. Khai cứng một quyền ở đây thì hoặc
+           `campaign.broadcast` cho đúng ca đó. Khai cứng một quyền ở đây thì hoặc
            Sale bị chặn oan lúc gửi lẻ, hoặc cửa client mở rộng hơn cửa thật và
            người dùng chỉ biết mình không đủ quyền sau khi đã soạn xong thư và
            bấm gửi. */

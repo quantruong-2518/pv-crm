@@ -20,7 +20,7 @@ export class LeaderboardController {
   constructor(private readonly desk: LeaderboardService) {}
 
   @Get()
-  @Need({ branch: 'Sales', permission: 'hiệu-suất.xem' })
+  @Need({ branch: 'Sales', permission: 'performance.view' })
   rows() {
     return this.desk.rows()
   }

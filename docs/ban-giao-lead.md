@@ -12,13 +12,13 @@ Lát cắt **27/08/2026**, nhánh `develop`, `pnpm check` **xanh**. Tiếp nối
 | Đường                                           | Quyền                    | Trạng thái                             |
 | ----------------------------------------------- | ------------------------ | -------------------------------------- |
 | `GET /healthz`                                  | công khai                | ✅                                     |
-| `GET /sales/leads`                              | `lead.xem` · cắt phạm vi | ✅ lọc + sắp + phân trang **ở server** |
-| `GET /sales/leads/:code`                        | `lead.xem` · cắt phạm vi | ✅ hồ sơ · ngoài phạm vi là **403**    |
-| `POST /sales/leads`                             | `lead.sửa`               | ✅ 201 · nhập tay                      |
-| `POST /sales/leads/import/preview`              | `lead.sửa`               | ✅ 200 · **không ghi gì**              |
-| `POST /sales/leads/import`                      | `lead.sửa`               | ✅ 201 · một transaction               |
-| `GET /sales/config` · `GET /sales/config/:list` | `cấu-hình.xem`           | ✅ 6 danh mục                          |
-| `POST · PATCH /sales/config/…` (3 đường)        | `cấu-hình.đề-nghị`       | ⚠️ **500 — cửa E3 chưa nối**           |
+| `GET /sales/leads`                              | `lead.view` · cắt phạm vi | ✅ lọc + sắp + phân trang **ở server** |
+| `GET /sales/leads/:code`                        | `lead.view` · cắt phạm vi | ✅ hồ sơ · ngoài phạm vi là **403**    |
+| `POST /sales/leads`                             | `lead.edit`               | ✅ 201 · nhập tay                      |
+| `POST /sales/leads/import/preview`              | `lead.edit`               | ✅ 200 · **không ghi gì**              |
+| `POST /sales/leads/import`                      | `lead.edit`               | ✅ 201 · một transaction               |
+| `GET /sales/config` · `GET /sales/config/:list` | `config.view`           | ✅ 6 danh mục                          |
+| `POST · PATCH /sales/config/…` (3 đường)        | `config.propose`       | ⚠️ **500 — cửa E3 chưa nối**           |
 
 `RouteAudit` lúc khởi động: _11 đường dữ liệu, đều đã khai quyền._
 

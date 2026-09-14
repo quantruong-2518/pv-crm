@@ -76,7 +76,7 @@ khách là loại sai đắt nhất có thể mắc ở đây: người nhận s
 ### A6 · Cửa huỷ lô chưa có màn nào gọi
 
 `PATCH /sales/mail/runs/:id` đã dựng và chạy đúng (403 khi thiếu
-`chiến-dịch.bắn`, 404 khi không có lô, `held` đếm số thư chưa gửi bị giữ lại,
+`campaign.broadcast`, 404 khi không có lô, `held` đếm số thư chưa gửi bị giữ lại,
 bấm lần hai là idempotent). Nhưng **không màn nào gọi nó**: chỗ duy nhất gọi
 được là một sổ lô gửi, mà chưa màn nào đọc `GET /sales/mail/runs`. Người dùng
 vì thế vẫn chưa huỷ được một lô đã hẹn giờ bằng giao diện.

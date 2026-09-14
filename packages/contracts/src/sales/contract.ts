@@ -6,7 +6,7 @@ import { OpportunityRow } from './opportunity'
 
 /** Signing a deal — the door that makes `close-won` true.
  *
- *      POST /sales/opportunities/:code/contract     permission `cơ-hội.chốt`
+ *      POST /sales/opportunities/:code/contract     permission `opportunity.close`
  *
  *  ------------------------------------------------------------------
  *  WHY THIS IS A CONTRACT DOOR AND NOT A STATE ON THE DEAL
@@ -25,11 +25,11 @@ import { OpportunityRow } from './opportunity'
  *  to a deal marked won with no contract behind it.
  *
  *  ------------------------------------------------------------------
- *  THE PERMISSION IS `cơ-hội.chốt`, AND THIS IS THE ONLY ROUTE THAT USES IT
+ *  THE PERMISSION IS `opportunity.close`, AND THIS IS THE ONLY ROUTE THAT USES IT
  *  ------------------------------------------------------------------
  *  Until now that permission existed in E2, was tested in `actors.test.ts`, and
  *  guarded nothing — the three write doors on the Ops book all ask for
- *  `cơ-hội.sửa`. `OpportunityController`'s docblock already drew the line and
+ *  `opportunity.edit`. `OpportunityController`'s docblock already drew the line and
  *  explained it: editing is reversible, signing is not, and signing is the act
  *  that leaves the sales floor. This is the route that line was drawn for.
  *

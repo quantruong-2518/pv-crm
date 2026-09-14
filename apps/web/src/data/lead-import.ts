@@ -54,15 +54,15 @@ const PREVIEW_PATH = '/sales/leads/import/preview'
 const COMMIT_PATH = '/sales/leads/import'
 
 /** What both routes ask for, in the SAME words `apps/api` uses on the other end
- *  (`@Need({ branch: 'Sales', permission: 'lead.sửa' })` on
+ *  (`@Need({ branch: 'Sales', permission: 'lead.edit' })` on
  *  `LeadController.preview` and `.import`).
  *
  *  The dry run asks for the write permission too, and that is not an oversight
  *  on either side: a preview reads the whole live book through the mailbox
- *  index and reports which rows collide with it. Presales holds `lead.xem` and
- *  not `lead.sửa`, so the panel refuses them at `requireAccess` before a byte
+ *  index and reports which rows collide with it. Presales holds `lead.view` and
+ *  not `lead.edit`, so the panel refuses them at `requireAccess` before a byte
  *  moves — same fence, one round trip earlier. */
-const IMPORT_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.sửa' }
+const IMPORT_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
 
 /** Prefix every lead-book query in `data/leads.ts` hangs under — both the page
  *  (`…, 'page', query`) and the facet list (`…, 'facets'`). One prefix

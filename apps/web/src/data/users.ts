@@ -15,7 +15,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  ------------------------------------------------------------------
  *  ONE PERMISSION, NO BRANCH, NO SCOPE — AND EACH ABSENCE IS A DECISION
  *  ------------------------------------------------------------------
- *  All four doors declare `{ permission: 'người-dùng.quản-lý' }` and nothing
+ *  All four doors declare `{ permission: 'user.manage' }` and nothing
  *  else, spelled the same way `apps/api` writes `@Need(...)` so a route and a
  *  query that drifted apart can be found by diffing two lines.
  *
@@ -48,7 +48,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
 // The wire
 // ---------------------------------------------------------------------------
 
-const USERS_NEED: ApiNeed = { permission: 'người-dùng.quản-lý' }
+const USERS_NEED: ApiNeed = { permission: 'user.manage' }
 
 /** Everything this screen caches, under one prefix.
  *

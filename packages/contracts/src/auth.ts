@@ -39,7 +39,7 @@ import { email, Moc, textNhap, textNhapTuyChon } from './primitives'
  *  left to keep in step. These strings also go into `platform.actor.role_id`
  *  verbatim, so changing one is a migration, not a rename.
  *
- *  Order matches `ROLE_PERMISSIONS` top to bottom: widest reach first. */
+ *  Order matches `DEFAULT_ROLE_PERMISSIONS` top to bottom: widest reach first. */
 export const RoleId = z.enum([
   'director',
   'head-of-sales',
@@ -56,6 +56,50 @@ export const RoleId = z.enum([
  *  create a second name for a thing that only has one. */
 export const Branch = z.enum(['One', 'Sales', 'Supply', 'Factory', 'Finance'])
 
+/** Permission-matrix key — the SAME strings `@pv/engines` uses, re-declared
+ *  here for the reason `RoleId` above is re-declared: a contract must not drag
+ *  the engine in behind it.
+ *
+ *  Identical spellings, so `auth.mapper.ts` ASSERTS the two unions are one
+ *  instead of translating between them — drift is a red build with no lookup
+ *  table left to keep in step.
+ *
+ *  Unlike `RoleId`, these strings DO travel and DO get stored: the server sends
+ *  a person's resolved set on every `/auth/me`, and `platform.role_permission`
+ *  keeps one row per granted pair. Renaming one is a migration.
+ *
+ *  Order matches `PERMISSIONS` in the engine, grouped by resource. */
+export const Permission = z.enum([
+  'campaign.view',
+  'campaign.edit',
+  'campaign.broadcast',
+  'lead.view',
+  'lead.edit',
+  'lead.send-email',
+  'lead.assign',
+  'lead.convert',
+  'lead.disqualify',
+  'account.view',
+  'account.edit',
+  'opportunity.view',
+  'opportunity.edit',
+  'opportunity.close',
+  'contract.view',
+  'contract.edit',
+  'contract.record-payment',
+  'performance.view',
+  'plan.view',
+  'plan.submit',
+  'config.view',
+  'config.propose',
+  'audit-log.view',
+  'user.manage',
+  'role.manage',
+  'approval.decide',
+  'data.export',
+])
+
+export type Permission = z.infer<typeof Permission>
 export type RoleId = z.infer<typeof RoleId>
 export type Branch = z.infer<typeof Branch>
 
@@ -110,7 +154,7 @@ export const SessionActor = z.object({
  *
  *  `expiresAt` is absolute and cannot be pushed out by working; `idleUntil` is
  *  the sitting-still mark and moves every time the person touches the screen.
- *  `null` means the sitting-still axis is off entirely — what "Nhớ tôi" buys.
+ *  `null` means the sitting-still axis is off entirely — what "Ghi nhớ đăng nhập" buys.
  *
  *  The browser gets these so the lock screen can appear ON the right minute
  *  instead of on the next failed request. It is a HINT, not an authority: the
@@ -124,6 +168,27 @@ export const SessionWindow = z.object({
 
 export const SessionView = z.object({
   actor: SessionActor,
+  /** What the SIGNED-IN person may do today — resolved server-side from
+   *  `platform.role_permission`, not worked out by the browser from `roleId`.
+   *
+   *  The browser used to keep its own copy of the role matrix and look the
+   *  answer up. That was correct only while the two copies agreed, and once the
+   *  matrix became editable at runtime nothing could keep them agreeing.
+   *  Sending the resolved set deletes the second copy rather than trying to
+   *  synchronise it.
+   *
+   *  On `SessionView` and NOT on `SessionActor`, which is the shape a person
+   *  takes everywhere else — a row of the people book, an entry in the
+   *  directory. Only the caller's own set is ever checked against anything; E2
+   *  is asked about the person holding the session and never about a name in a
+   *  picker. Hanging it on `SessionActor` would ship 27 strings per person on
+   *  every roster read and tell everyone what everyone else may do, to answer
+   *  a question nobody asks.
+   *
+   *  Only as good as the screen it paints: the server re-checks every call
+   *  against the same table, so a tampered array buys a prettier button and a
+   *  403. */
+  permissions: z.array(Permission),
   session: SessionWindow,
 })
 
@@ -143,8 +208,8 @@ export const SessionView = z.object({
  *  The values follow how an office actually uses an ERP, not any library's
  *  default: 30 minutes idle is long enough for a short meeting and short enough
  *  that a laptop left in a meeting room stops showing the whole team's lead
- *  book. 12 hours absolute is one working shift. 7 days is what ticking "Nhớ
- *  tôi" buys, and it turns the idle axis OFF entirely — a person who ticks that
+ *  book. 12 hours absolute is one working shift. 7 days is what ticking "Ghi
+ *  nhớ đăng nhập" buys, and it turns the idle axis OFF entirely — a person who ticks that
  *  box is saying this machine is theirs, and keeping the idle mark for them
  *  means the box remembers nothing by the next morning. */
 export const SESSION_LIMITS = {
@@ -180,6 +245,23 @@ export const ResetPasswordBody = z.object({
   password,
 })
 
+/** Retype the password to open the sudo window before an admin action.
+ *
+ *  NO `email` FIELD, and that absence is the whole design. This door sits
+ *  behind a live session, so the server already knows who is calling and the
+ *  only thing left to prove is that it is still them. Accepting a mailbox would
+ *  turn a confirmation box into a second sign-in door: whoever sits down at an
+ *  abandoned machine would confirm with their OWN account and then act inside
+ *  somebody else's session, and the audit row would carry the absent person's
+ *  name.
+ *
+ *  Reuses `password` like every other door, `PASSWORD_MIN` included. The floor
+ *  protects nothing here — a password shorter than today's floor still exists
+ *  if the floor was once lower — but a separate schema just to relax it is a
+ *  second declaration of one thing, and the second is what gets forgotten when
+ *  the floor moves. Somebody meeting a 400 here does need to reset. */
+export const ConfirmPasswordBody = z.object({ password })
+
 /** What the reset screen may show before the new password is typed.
  *
  *  The mailbox only, and only for a token that is currently valid. It exists so
@@ -189,6 +271,7 @@ export const ResetPasswordBody = z.object({
 export const ResetTicketView = z.object({ email: z.email() })
 
 export type SignInBody = z.infer<typeof SignInBody>
+export type ConfirmPasswordBody = z.infer<typeof ConfirmPasswordBody>
 export type ForgotPasswordBody = z.infer<typeof ForgotPasswordBody>
 export type ResetPasswordBody = z.infer<typeof ResetPasswordBody>
 export type ResetTicketView = z.infer<typeof ResetTicketView>
@@ -224,7 +307,7 @@ export const UserListResponse = z.object({ rows: z.array(UserRow) })
  *  ------------------------------------------------------------------
  *  `GET /users` answers "who has an account, and what state is it in" — it
  *  carries `passwordSet`, `disabledAt` and `createdAt`, which are facts about
- *  ADMINISTERING a person, and it is gated on `người-dùng.quản-lý` for exactly
+ *  ADMINISTERING a person, and it is gated on `user.manage` for exactly
  *  that reason. This answers a different question that every Sale asks a dozen
  *  times a day: who can I hand this lead to, who owns that opportunity, whose
  *  name goes in this select. Answering it with the admin shape would mean

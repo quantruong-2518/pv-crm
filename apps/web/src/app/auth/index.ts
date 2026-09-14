@@ -7,7 +7,9 @@
  *  | `renew.ts`     | gia hạn vé, chống bay đàn                               |
  *  | `guard.tsx`    | hai cổng: `RequireAccess` cho MÀN, `Can` cho NÚT        |
  *  | `can.ts`       | hook hỏi quyền trong màn (`useCan`, `useAccess`)         |
- *  | `expiry.tsx`   | dải báo sắp hết phiên · lớp khoá đăng nhập lại tại chỗ   |
+ *  | `expiry.tsx`   | dải báo sắp hết phiên (hai phút cuối)                    |
+ *  | `reauth.ts`    | lời hứa xác nhận mật khẩu (`askReauth`) + kho            |
+ *  | `reauth-dialog`| hộp xác nhận, gắn trong `RequireAccess`                  |
  *
  *  Màn và tầng api import từ đây, không với vào từng file — cùng luật với biên
  *  giới package trong CLAUDE.md, áp cho một zone bên trong app. */
@@ -26,4 +28,5 @@ export {
 export { startAuthLifecycle, useExpiryWarning } from './lifecycle'
 export { renewSession, sessionIsLive } from './renew'
 export { Can, RequireAccess } from './guard'
+export { askReauth } from './reauth'
 export { useAccess, useCan } from './can'

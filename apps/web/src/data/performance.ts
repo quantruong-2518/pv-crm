@@ -944,7 +944,7 @@ export function performanceQuery(choice: PeriodChoice) {
     queryKey: ['sales', 'performance', period.key] as const,
     queryFn: () =>
       api.read(`/sales/performance/${period.key}`, {
-        need: { branch: 'Sales', permission: 'hiệu-suất.xem' },
+        need: { branch: 'Sales', permission: 'performance.view' },
         load: () => fetchPerformance(period),
       }),
   })

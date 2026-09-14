@@ -1,6 +1,6 @@
 import type { Problem, ZodType } from '@pv/contracts'
 import type { AccessNeed } from '@pv/engines'
-import { access, renewSession, sessionIsLive, useSession } from '@/app/auth'
+import { access, askReauth, renewSession, sessionIsLive, useSession } from '@/app/auth'
 import { API_BASE_URL } from './base-url'
 import { ApiError, denyReasonOf, failureOf } from './errors'
 import { isGatewayDown, reportAnswering, reportUnreachable } from './server-health'
@@ -58,7 +58,7 @@ export type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 /** What one endpoint asks for — the SAME shape the server declares.
  *
  *  `apps/api` calls it `RouteNeed` (`platform/access/need.decorator.ts`) and
- *  writes it as `@Need({ branch: 'Sales', permission: 'lead.xem', scoped: true })`.
+ *  writes it as `@Need({ branch: 'Sales', permission: 'lead.view', scoped: true })`.
  *  Both ends widen `AccessNeed` the same way and for the same reason: the
  *  engine turns axis 3 on through the presence of a `ref`, and a `ref` only
  *  exists once a row has been loaded — which is AFTER the call this object
@@ -152,17 +152,17 @@ const requireLiveSession: BeforeSend = (req) => {
  *  `/auth/me` — not one this app picked out of a fixture. That makes the two
  *  ends agree by construction rather than by luck, and it moves the whole
  *  weight of this check onto one translation: `data/auth.ts` maps the wire's
- *  ASCII `roleId` onto the Vietnamese key `ROLE_PERMISSIONS` is written in. Get
+ *  ASCII `roleId` onto the Vietnamese key `DEFAULT_ROLE_PERMISSIONS` is written in. Get
  *  that map wrong and `access.check` fails closed on every call — read the
  *  warning at that table before touching either spelling. */
 const requireAccess: BeforeSend = (req) => {
   const verdict = access.check(useSession.getState().actor, req.need)
   if (verdict.ok) return req
   throw new ApiError({
-    kind: verdict.reason === 'chưa-đăng-nhập' ? 'chưa-xác-thực' : 'thiếu-quyền',
+    kind: verdict.reason === 'unauthenticated' ? 'chưa-xác-thực' : 'thiếu-quyền',
     path: req.path,
-    message: verdict.reason === 'chưa-đăng-nhập' ? 'Phiên chưa đăng nhập.' : verdict.note,
-    status: verdict.reason === 'chưa-đăng-nhập' ? 401 : 403,
+    message: verdict.reason === 'unauthenticated' ? 'Phiên chưa đăng nhập.' : verdict.note,
+    status: verdict.reason === 'unauthenticated' ? 401 : 403,
     reason: verdict.reason,
   })
 }
@@ -198,7 +198,7 @@ const logDenied: OnFailure = async (error, req) => {
   if (actor) {
     access.log({
       actorId: actor.id,
-      action: 'xem',
+      action: 'view',
       note: `chặn ${req.method} ${req.path} · ${error.reason}`,
     })
   }
@@ -218,7 +218,24 @@ const watchServer: OnFailure = async (error) => {
   return 'chịu'
 }
 
-const AFTER: OnFailure[] = [renewOnUnauthorized, logDenied, watchServer]
+/** An openable 403 → ask for the password → ask for a replay.
+ *
+ *  `askReauth` collapses concurrent callers, so five admin actions refused at
+ *  once open exactly one box. Cancel answers "give up" and the error
+ *  travels on to the screen with `userMessage`'s sentence — abandoning an admin
+ *  action is a choice, not a fault worth retrying.
+ *
+ *  No attempt counter of its own: `MAX_ATTEMPTS` in the loop already does that,
+ *  and a mistyped password costs no attempt — the box holds the user until they
+ *  get it right or give up, so what returns here is always a SUCCESSFUL
+ *  confirmation. A second 403 after that means the server is refusing for some
+ *  other reason, and asking for the password again would only fail slower. */
+const confirmOnReauthRequired: OnFailure = async (error) => {
+  if (error.kind !== 'cần-xác-thực-lại') return 'chịu'
+  return (await askReauth()) ? 'thử-lại' : 'chịu'
+}
+
+const AFTER: OnFailure[] = [renewOnUnauthorized, confirmOnReauthRequired, logDenied, watchServer]
 
 // ---------------------------------------------------------------------------
 // Vòng gọi
@@ -238,9 +255,16 @@ const REPLAYABLE = new Set<Method>(['GET'])
  *  not catch it if the mailbox differs, and nothing downstream can tell which
  *  one is real.
  *
- *  So a write is replayed only when it PROVABLY never left the browser — a
- *  BEFORE interceptor threw (dead session, E2 refusal) and no byte moved. Note
- *  that renewing the ticket still happens in both cases; the only thing
+ *  So a write is replayed only when NOTHING CAN HAVE HAPPENED YET, and there are
+ *  exactly two such cases:
+ *
+ *   · a BEFORE interceptor threw (dead session, E2 refusal) and no byte moved;
+ *   · the server answered `reauth-required` — that is `ReauthGuard` refusing,
+ *     and a guard runs before the handler, so the row was never touched. This
+ *     one DID leave the browser, which is why it needs naming here rather than
+ *     falling out of `onTheWire`.
+ *
+ *  Note that renewing the ticket still happens in every case; the only thing
  *  withheld is the replay, so the next thing the user does still works.
  *
  *  This lives in the loop rather than inside `renewOnUnauthorized` because the
@@ -248,7 +272,8 @@ const REPLAYABLE = new Set<Method>(['GET'])
  *  that could help", the loop answers "is doing it again safe on THIS request".
  *  Fold them together and every future AFTER interceptor has to re-derive the
  *  rule, and the fourth one will get it wrong. */
-const mayReplay = (req: ApiRequest, onTheWire: boolean) => !onTheWire || REPLAYABLE.has(req.method)
+const mayReplay = (req: ApiRequest, onTheWire: boolean, error: ApiError) =>
+  !onTheWire || REPLAYABLE.has(req.method) || error.kind === 'cần-xác-thực-lại'
 
 /** Đọc thân `application/problem+json`. Máy chủ đã hứa một hình duy nhất cho
  *  mọi lỗi (RFC 9457), nên chỗ đọc cũng chỉ có một.
@@ -275,15 +300,21 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
   if (raw instanceof Response) {
     const problem = await readProblem(raw)
     return new ApiError({
-      kind: failureOf(raw.status),
+      /* The status code is the only source, with ONE exception: 403 carries two
+         opposite meanings — "never allowed" and "allowed, but confirm your
+         password first". The number cannot separate them; `Problem.type` can.
+         This is the only place in the app that reads the body's `type`, and it
+         has to stay the only one — two readers are two translation tables
+         waiting to drift. */
+      kind: problem.type === 'reauth-required' ? 'cần-xác-thực-lại' : failureOf(raw.status),
       path: req.path,
       status: raw.status,
       /* `title` là câu tiếng Việt máy chủ tự viết cho người dùng. Dùng nó khi
          có, vì máy chủ biết chuyện gì hỏng rõ hơn màn; không có thì rơi về một
          dòng kỹ thuật, thứ không ai định đọc to lên. */
       message: problem.title ?? `${req.method} ${req.path} → ${raw.status}`,
-      /* Máy chủ nói `permission-denied`, engine nói `thiếu-quyền`. Một bảng tra
-         duy nhất ở `errors.ts` nối hai từ vựng — xem `denyReasonOf`. */
+      /* Máy chủ và engine nói cùng bốn chữ từ 14/09; `denyReasonOf` chỉ còn
+         soát chuỗi lạ, không còn dịch. */
       reason: denyReasonOf(problem.reason),
       errors: problem.errors,
       traceId: problem.traceId ?? req.headers[TRACE_HEADER],
@@ -408,7 +439,7 @@ async function dispatch<T>(req: ApiRequest, load?: Fetcher<T>, schema?: ZodType<
       }
 
       if (recovery !== 'thử-lại' || current.attempt >= MAX_ATTEMPTS) throw error
-      if (!mayReplay(current, onTheWire)) throw error
+      if (!mayReplay(current, onTheWire, error)) throw error
       current = { ...current, attempt: current.attempt + 1 }
     }
   }
@@ -448,7 +479,7 @@ export type WriteOptions<T = unknown> = {
    *  `Content-Type` — một preflight thừa cho một request rỗng. */
   body?: unknown
   /** Quyền endpoint này đòi. Cửa ghi thường đòi mức CAO HƠN cửa đọc cùng sổ
-   *  (`lead.xem` để xem, `lead.sửa` để ghi), nên khai lại ở đây chứ đừng chép
+   *  (`lead.view` để xem, `lead.edit` để ghi), nên khai lại ở đây chứ đừng chép
    *  của query đọc. */
   need?: ApiNeed
   /** The response body's zod contract — same rule as `ReadOptions.schema`. */

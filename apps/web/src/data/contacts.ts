@@ -42,8 +42,8 @@ const BOOK_PATH = '/sales/contacts'
 
 export const CONTACT_BOOK_KEY = ['sales', 'contacts'] as const
 
-const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.xem', scoped: true }
-const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.sửa', scoped: true }
+const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
+const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: true }
 
 export const DEFAULT_CONTACT_BOOK_QUERY: ContactBookQuery = ContactBookQuery.parse({})
 
