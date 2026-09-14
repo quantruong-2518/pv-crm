@@ -157,8 +157,8 @@ index  quote_opportunity_idx (opportunity_code)                -- Postgres khôn
 tiêu số nhanh hơn mọi dãy khác trong hệ — càng phải bắt đầu đúng chỗ. Không phải 1: `seed.ts:488` nạp
 `dasVina.objects` vào `platform.object`, mà danh sách đó chứa `BG-1077`
 (`das-vina.ts:46`). Dãy từ 1 thì báo giá thứ 1077 đụng đúng dòng gương ấy — y hệt
-lý do dãy mã cơ hội và mã hợp đồng đều bắt đầu ở 5001. Mã `BG` khớp `MaObject`
-sẵn có, không cần primitive riêng (khác `MaHopDong`, phải tách vì chữ `Đ`).
+lý do dãy mã cơ hội và mã hợp đồng đều bắt đầu ở 5001. Mã `BG` khớp `ObjectCode`
+sẵn có, không cần primitive riêng (khác `ContractCode`, phải tách vì chữ `Đ`).
 
 ### `sales.quote_line`
 
@@ -242,7 +242,7 @@ service kiểm, và đó là một khoản nợ có tên, không phải một ch
 
 File mới `packages/contracts/src/sales/quote.ts`, cố ý là **lá**: chỉ import
 `../primitives` và `./enums`. `contract.ts` sẽ import THÊM một chiều từ `./quote`.
-Ngược lại là vòng chết lúc nạp module — đúng cái đã xảy ra thật với `MaHopDong`
+Ngược lại là vòng chết lúc nạp module — đúng cái đã xảy ra thật với `ContractCode`
 và bắt nó phải dời sang `primitives.ts` (ghi ở `ban-giao-co-hoi.md`, vòng ba).
 
 ```ts

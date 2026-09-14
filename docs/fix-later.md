@@ -46,7 +46,7 @@ Ba việc còn lại của chính lượt đó:
 mới chỉ có ghi và xoá. Sửa một buổi ghi nhầm giờ phải xoá rồi ghi lại, và thao
 tác đó mất luôn dòng `touch` cũ.
 
-**b · Không xoá được `link` bằng `PATCH`.** `textNhapTuyChon` biến chuỗi rỗng
+**b · Không xoá được `link` bằng `PATCH`.** `textInputOptional` biến chuỗi rỗng
 thành vắng mặt, mà vắng mặt nghĩa là "không đụng tới" — nên không có đường nào
 gỡ một link dán nhầm. Cần một quy ước cho "xoá ô này" (`null` tường minh trên
 dây) trước khi làm **a**.
@@ -404,7 +404,7 @@ in tiền tố**. Hai việc này dính nhau và cùng hoãn.
 **Ở đâu:** `'HĐ'` là thứ duy nhất trong hệ vừa là khoá vừa là giấy tờ:
 
 - khoá E1 (`types.ts:33`) và tra bảng quyền (`e2-access.ts:242` → `contract`)
-- `MaHopDong = /^HĐ-\d{3,6}$/` (`primitives.ts`) — cố tình KHÔNG khớp `MaObject`
+- `ContractCode = /^HĐ-\d{3,6}$/` (`primitives.ts`) — cố tình KHÔNG khớp `ObjectCode`
   vì `Đ` nằm ngoài `A-Z`
 - hàm sinh mã chạy TRONG Postgres: `contract.repository.ts:79` nối
   `'HĐ-' || lpad(nextval('sales.contract_code_seq')…)`
@@ -420,7 +420,7 @@ in tiền tố**. Hai việc này dính nhau và cùng hoãn.
    nhãn. Nếu CÓ, phải chọn giữa `HĐ → HD` (bỏ dấu, giữ nguyên cách phòng kinh
    doanh gọi tên) và `HĐ → CTR` (tiếng Anh hẳn, nhưng đổi số giấy tờ đã phát ra).
 2. **Migration**: backfill `sales.contract.code` trên Neon, viết lại hàm sinh mã,
-   sửa `MaHopDong`, và redirect cho bookmark cũ — link cũ chết nếu không có.
+   sửa `ContractCode`, và redirect cho bookmark cũ — link cũ chết nếu không có.
 
 **Vì sao chưa sửa:** đợt dọn định danh tiếng Anh (chốt 14/09) cố ý để `'HĐ'`
 đứng ngoài cả sáu đợt. Mọi enum khác chỉ chạm code, fixture và CHECK constraint;

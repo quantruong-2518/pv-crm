@@ -371,7 +371,7 @@ bước Soát lại hiện "Hẹn · 30/08".
 
 Nay đọc bằng `Intl` theo múi giờ trình duyệt, thêm `dmhm` (có GIỜ — màn hẹn giờ
 mà chỉ hiện ngày thì hai đợt cùng ngày không phân biệt được) và `localSlot` cho
-ô `datetime-local`. Một cái bẫy đi kèm, đã bịt: ngày TRẦN `YYYY-MM-DD` (`Ngay`
+ô `datetime-local`. Một cái bẫy đi kèm, đã bịt: ngày TRẦN `YYYY-MM-DD` (`Day`
 trong contract) bị `new Date` đọc là nửa đêm UTC, nên phía tây UTC lệch một
 ngày — `moment()` ép nó về nửa đêm giờ máy.
 

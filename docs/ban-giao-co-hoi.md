@@ -494,14 +494,14 @@ migration `0016` đã vào `7aa12de`.
 
 | Việc                    | Đã làm gì                                                                                                                                                                                                                                               |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: MaHopDong`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                                 |
+| **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: ContractCode`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                              |
 | **Việc 3** · nạp tệp    | `ops.tsx` có `ImportZone`; thêm `data/opportunity-import-wire.ts` (dịch thuần) + `data/opportunity-import.ts` (preview → dừng nếu 0 dòng → import). `motions` đã gỡ khỏi `OP_SPEC` theo quyết định #2                                                   |
 | **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/opportunities/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                                 |
 | **Việc 4** · Chốt thắng | `components/sign-drawer.tsx` mới + nút trong `ToolsBar` + `useSignContract` ở `ops-write.ts`. Ba mặt: đã ký → pill tĩnh `Đã ký · HĐ-…`; đã thua → không vẽ gì; còn lại → nút, **ẩn hẳn** với vai không có `opportunity.close` (`useCan`, quyết định #4) |
 
 ### Bốn thứ phát hiện khi dựng, không có trong bản phác
 
-1. **`MaHopDong` phải dời sang `primitives.ts`.** `sales/contract.ts` đã import
+1. **`ContractCode` phải dời sang `primitives.ts`.** `sales/contract.ts` đã import
    `OpportunityRow` từ `./opportunity`; để `opportunity.ts` import ngược lại là
    **vòng tròn chết lúc nạp module** — CommonJS của `apps/api` cho ra
    `undefined.optional()` khi boot. Vẫn đúng một bản regex, `@pv/contracts` vẫn
@@ -517,7 +517,7 @@ migration `0016` đã vào `7aa12de`.
    (đếm riêng trên `opportunity`) vẫn nói một. Chỗ trả nợ là một unique index,
    **không phải `DISTINCT`** — `DISTINCT` giấu triệu chứng và để lại hai dòng.
 4. **`signedAt` không được gửi chuỗi ngày trần.** Cột là `timestamptz` và hợp
-   đồng đòi `Moc`. Drawer gửi mốc thật khi ngày chọn là hôm nay, và **12:00 giờ
+   đồng đòi `Moment`. Drawer gửi mốc thật khi ngày chọn là hôm nay, và **12:00 giờ
    địa phương** cho ngày khác — mốc duy nhất còn đọc ra đúng ngày đó ở mọi múi
    giờ từ UTC-11 tới UTC+12. Cắt ngày từ `toISOString()` thì ai bấm sau 17:00
    giờ Hà Nội mở ô ngày ra thấy ngày mai.

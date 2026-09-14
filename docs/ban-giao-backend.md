@@ -84,7 +84,7 @@ chuyển — vé đang được đúc bằng base64url của email ngay trong tr
 
 ### C · Dựng `packages/contracts`
 
-Bắt đầu bằng `primitives.ts` (`Dong` · `Moc` · `Ngay` · `MaObject`, enum lấy
+Bắt đầu bằng `primitives.ts` (`MoneyVnd` · `Moment` · `Day` · `ObjectCode`, enum lấy
 thẳng từ engine) + một endpoint `leadBook` + `Problem`. Đủ để cắt một đường dữ
 liệu sang backend mà không màn nào phải sửa.
 

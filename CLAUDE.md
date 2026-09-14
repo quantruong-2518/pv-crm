@@ -56,16 +56,23 @@ Docblock ba mươi dòng cho vài dòng code là **nợ đang có, không phải
 sát phải grep khung trước mới đọc nổi. `docs/` giữ mức tổng quát — zone nào chứa
 gì, mở file nào theo việc — và không chép lại thứ code đã nói.
 
-**2 · Comment viết bằng tiếng Anh.** Comment, JSDoc, định danh và chuỗi log đi ra
-ngoài: vào stack trace, vào JSON, vào tay dev không đọc tiếng Việt. `aurora/comments-in-english`
-gác phần này ở mức `error`.
+**2 · Comment và ĐỊNH DANH viết bằng tiếng Anh.** Comment, JSDoc, tên biến, tên
+type, **giá trị enum** và chuỗi log đi ra ngoài: vào stack trace, vào JSON, vào
+URL, vào `CHECK` constraint của Postgres, vào tay dev không đọc tiếng Việt.
+`aurora/comments-in-english` gác phần comment ở mức `error`; phần định danh
+không rule nào gác được.
 
 Hai ngoại lệ, cố ý: **nhãn hiển thị** (`'Đang chạy'`) và **dữ liệu fixture** (tên
 người, tên công ty) giữ tiếng Việt — đó là _nội dung_, không phải khoá. Rule chỉ
 đọc comment, không đọc chuỗi, vì một chuỗi không tự nói nó là nhãn hay là câu văn.
 
-Thứ máy **không** thấy: định danh tiếng Việt viết không dấu (`textNhapTuyChon`).
-Không regex nào tách nó khỏi tiếng Anh — đó là việc của mắt người.
+Thứ máy **không** thấy: định danh tiếng Việt viết không dấu (`dau-moi`,
+`tim-hieu`) và giá trị lai nửa Việt nửa Anh (`gui-quotation`). Không regex nào
+tách chúng khỏi tiếng Anh — đó là việc của mắt người.
+
+Đợt dọn nợ này đang chạy: chốt 14/09, sáu đợt, đợt 1 xong ở `8013c49`. Ranh giới
+đầy đủ và danh sách từng đợt ở `docs/ban-giao-dinh-danh-tieng-anh.md` — đọc trước
+khi đổi tên bất cứ thứ gì.
 
 **3 · Ít code nhất giải được bài.** Không trừu tượng hoá cho thứ dùng một lần,
 không cấu hình không ai xin, không bắt lỗi cho tình huống không xảy ra được. Tên
