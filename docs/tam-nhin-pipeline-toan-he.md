@@ -8,6 +8,9 @@ sống; bản này là danh sách xương.
 Đọc cùng `tam-nhin-pipeline.md` (trục vị trí, 8 phase P0–P7) và
 `tam-nhin-bao-gia-hop-dong.md` §12 (đối chiếu sáu CRM lớn).
 
+**Bảy lượt của §9 đã chạy hết 14/09** — cái gì nằm ở đâu, quyết định nào không
+được lật, và ba cái bẫy đã dính: `ban-giao-tang-duyet-va-vi-tri.md`.
+
 ---
 
 ## §1 · Ba thứ khác nhau đang bị gọi chung một tên
@@ -273,9 +276,10 @@ thứ cho Supply nhặt (một cạnh `platform.edge` và một sự kiện
 
 Làm Supply/Factory trước khi đóng tầng 0 là dựng nhà không móng.
 
-Kèm theo, một lỗ quyền sẽ mở đúng lúc đó: `KIND_DOMAIN` **cố ý vắng**
-`SO · WO · PO · L · BT · CNC` (và `BG`), nên `can()` với mấy kind này chỉ kiểm
-license + phạm vi, **bỏ qua vai hoàn toàn**. Ngày mở màn Supply đầu tiên phải vá
+Kèm theo, một lỗ quyền sẽ mở đúng lúc đó: `KIND_DOMAIN` **cố ý vắng** tám kind —
+`BG · SO · WO · PR · PO · L · BT · CNC` (đếm lại 14/09; bản đầu quên `PR`) — nên
+`can()` với chúng chỉ kiểm license + phạm vi, **bỏ qua vai hoàn toàn**. Hàm thả
+trục vai là `permissionFor()` trả `null` (`e2-access.ts`). Ngày mở màn Supply đầu tiên phải vá
 `KIND_DOMAIN` TRƯỚC, không phải sau.
 
 ### Cảnh báo về `pipeline_position`
