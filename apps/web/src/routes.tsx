@@ -76,6 +76,23 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/users'),
   },
   {
+    /** One Core · the approval inbox — E3's queue, pipeline #10.
+     *
+     *  NO `branch`, like the two admin screens below it and for the same
+     *  reason: nine of the eleven pipelines end at somebody saying yes, so an
+     *  inbox hung off a Sales licence would hide a purchase approval from a
+     *  company that bought only Supply.
+     *
+     *  NO `permission` either, and that is the deliberate half. The list is cut
+     *  by the approval chain itself — it names the person waited on — so a
+     *  reader who approves nothing opens an empty screen rather than a refusal.
+     *  `approval.decide` gates the two BUTTONS, at the door that actually
+     *  changes something, exactly where the server puts it. */
+    path: '/duyet',
+    name: 'One Core · Hộp duyệt',
+    load: () => import('@/pages/approvals'),
+  },
+  {
     /** One Core · Admin · Roles — the `platform.role_permission` matrix.
      *
      *  NO `branch`, for the reason the entry above gives: the matrix belongs to

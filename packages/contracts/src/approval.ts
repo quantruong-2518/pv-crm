@@ -42,13 +42,17 @@ export const ApprovalChainLink = z.object({
   due: Moment.optional(),
 })
 
-/** `approval_link` — what object this request touches.
+/** `approval_link` — an object this request touches.
+ *
+ *  A LIST on the view below, and it may be empty: a change to the department's
+ *  vocabulary touches no object at all, a discount touches one deal, a batch
+ *  action could touch several. A single optional field would have made the
+ *  first case invent an object to point at.
  *
  *  `objectLabel` is a SNAPSHOT rather than a lookup through the object graph:
  *  an object can be renamed or moved to another branch after the request was
  *  raised, and the person approving has to read the name it carried THEN. */
 export const ApprovalLink = z.object({
-  requestId: z.string().min(1),
   objectCode: ObjectCode,
   objectLabel: z.string().min(1),
 })
@@ -62,7 +66,7 @@ export const ApprovalLink = z.object({
 export const ApprovalRequestView = z.object({
   id: z.string().min(1),
   kind: ApprovalKind,
-  link: ApprovalLink,
+  links: z.array(ApprovalLink),
   raisedBy: z.string().min(1),
   raisedAt: Moment,
   /** Proposed by the AI assistant or opened by a person — the engine's `fromAi`. */
@@ -76,7 +80,14 @@ export const ApprovalRequestView = z.object({
   consequence: z.string().min(1),
   decidedAt: Moment.optional(),
   decidedBy: z.string().optional(),
+  /** Present exactly on a refusal — the table refuses any other combination. */
+  decidedReason: z.string().optional(),
 })
+
+/** The id on the wire. A uuid, checked at the door rather than in the query:
+ *  a path segment that is not one reaches Postgres as a malformed uuid and
+ *  comes back as a 500 about a cast, where the honest answer is a 400. */
+export const ApprovalId = z.string().uuid()
 
 /** Not paged, for the reason `TouchTimelineResponse` is not: this is a queue of
  *  what one person must decide, bounded by how much work is actually waiting on
@@ -100,3 +111,4 @@ export type ApprovalLink = z.infer<typeof ApprovalLink>
 export type ApprovalRequestView = z.infer<typeof ApprovalRequestView>
 export type PendingApprovalsResponse = z.infer<typeof PendingApprovalsResponse>
 export type ApprovalDecisionBody = z.infer<typeof ApprovalDecisionBody>
+export type ApprovalId = z.infer<typeof ApprovalId>

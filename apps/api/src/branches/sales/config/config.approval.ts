@@ -1,46 +1,47 @@
 import { Injectable, Logger } from '@nestjs/common'
-import type { Actor, ApprovalState } from '@pv/engines'
+import type { Actor, ApprovalState, RoleId } from '@pv/engines'
 import type { ConfigList } from '@pv/contracts'
-import { PvError } from '@api/platform/http/problem'
+import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ConfigDraft, ConfigPatchDb } from './config.repository'
 
-/** CHỖ NỐI E3 — MỘT điểm cho cả ba đường ghi, và hôm nay nó đang TRỐNG.
+/** THE E3 SEAM — one point for all three write doors, and it is now WIRED.
  *
  *  ------------------------------------------------------------------
- *  VÌ SAO MỌI ĐƯỜNG GHI PHẢI ĐI QUA ĐÂY
+ *  WHY EVERY WRITE GOES THROUGH HERE
  *  ------------------------------------------------------------------
- *  Ma trận quyền của E2 KHÔNG có `config.edit`. Nó chỉ có `config.view` và
- *  `config.propose` — và đó không phải chỗ thiếu, đó là câu trả lời: sửa từ
- *  vựng nghiệp vụ của cả phòng là việc phải có người gật, không phải việc một
- *  người bấm xong là xong. Bỏ một lý do rơi đang có 21 lead đứng tên thì 21
- *  dòng đó mất chỗ đứng.
+ *  E2's permission matrix has no `config.edit`. It has `config.view` and
+ *  `config.propose`, and that is an answer rather than an omission: changing
+ *  the department's working vocabulary is something somebody has to say yes to,
+ *  not something one person finishes by pressing save. Dropping an exit reason
+ *  that 21 leads are standing on takes those 21 rows' ground away.
  *
- *  Hệ quả: `POST`/`PATCH` của module này KHÔNG ghi thẳng xuống bảng. Chúng dựng
- *  một `ConfigChange` — mô tả đầy đủ và đã kiểm xong của việc cần làm — rồi đưa
- *  cho cửa này. Ngày E3 có mặt, `decide()` gật thì service gọi tiếp phần áp
- *  dụng; trước ngày đó không có gì được ghi.
+ *  So `POST`/`PATCH` on this module do NOT write to the table. They build a
+ *  `ConfigChange` — a complete, already-validated description of the work — and
+ *  hand it to this gate, which turns it into a request in the One inbox. The
+ *  change lands only when somebody approves it, and it lands inside the very
+ *  transaction that records the approval (`ApprovalService.decide`).
  *
  *  ------------------------------------------------------------------
- *  ĐANG TRỐNG THẬT — ĐỪNG ĐỌC FILE NÀY NHƯ ĐÃ NỐI
+ *  WHO SAYS YES: THE DIRECTOR, ONE LINK
  *  ------------------------------------------------------------------
- *  E3 chưa được khởi tạo ở đâu trong hệ (`ban-giao-api.md`, mục "Nợ đang có"),
- *  và bản `createApprovalEngine()` hiện có giữ yêu cầu trong một `Map` sống
- *  theo tiến trình — tức một lần deploy là mọi yêu cầu đang chờ biến mất. Nối
- *  vào cái đó rồi trả 202 cho người dùng là nói dối họ rằng đề nghị đã được ghi
- *  nhận.
+ *  The matrix names who may PROPOSE — director and head of sales — and says
+ *  nothing about who approves, because approval chains are policy rather than
+ *  code. The policy, settled 14/09: one link, the director.
  *
- *  Nên hôm nay cửa này TỪ CHỐI TO TIẾNG. Ba việc phải làm để mở nó, đúng thứ tự
- *  chặn nhau:
+ *  It follows that a director's own proposal waits for the director. That is
+ *  deliberate and it is not theatre: the two steps stay two steps, so the inbox
+ *  holds one honest record of every change with a named person and a timestamp
+ *  against it. Read `CONFIG_APPROVERS` below before changing it — a second
+ *  approver is a policy decision, not a refactor.
  *
- *    1 · bảng `sales.approval` + `approval_link` (đã liệt kê ở
- *        `ban-giao-db.md`, cụm D "chưa dựng") — chỗ lưu bền;
- *    2 · `APPROVALS` thành provider thật trong `platform/engines/engines.module.ts`
- *        (hôm nay module đó chỉ cấp `ACCESS`, và đã ghi rõ lý do ở trong);
- *    3 · thay dòng `useClass` trong `config.module.ts` bằng bản nối thật, rồi
- *        `SalesConfigService.apply()` chạy khi `state === 'approved'`.
- *
- *  Cả ba là việc của platform, không phải của nhánh Sales — nên chúng KHÔNG
- *  được làm lén trong module này. */
+ *  ------------------------------------------------------------------
+ *  WHAT THE APPROVER READS
+ *  ------------------------------------------------------------------
+ *  `platform.approval` stores the change as an opaque payload it never reads,
+ *  plus `consequence`: a Vietnamese sentence, written HERE, saying what happens
+ *  if the request is approved. The inbox is a platform screen and must never
+ *  have to decode a branch's payload to draw a row — that would make every
+ *  branch's internals part of the platform's contract. */
 
 /** Việc cần gật. Đã kiểm xong ở service — cửa này không kiểm lại, và người
  *  duyệt đọc đúng thứ sẽ xảy ra chứ không đọc một payload thô.
@@ -71,30 +72,59 @@ export abstract class SalesConfigGate {
   abstract propose(who: Actor, change: ConfigChange): Promise<ConfigReceipt>
 }
 
-/** Bản triển khai HÔM NAY: dựng xong đề nghị rồi từ chối, vì không có chỗ cất.
+/** Roles that must say yes to a configuration change, in order.
  *
- *  Trả 500 chứ không 202: 202 nghĩa là "đã nhận, đang xử lý", và không có gì
- *  đang xử lý cả. Hỏng theo hướng đóng — cùng hướng với `AccessGuard` và với
- *  `RouteAudit`. */
+ *  ONE link, the director — the policy settled 14/09. A list rather than a
+ *  constant single value because the shape of the answer is "a chain", and a
+ *  second approver must be one line here rather than a rewrite of the gate.
+ *
+ *  Resolved to actual people by `ApprovalService.chainFor` at the moment a
+ *  request is raised, and frozen into the row from then on: a chain that
+ *  re-resolved on every read would silently move a pending request to whoever
+ *  holds the role TODAY, which is how a decision trail stops being one. */
+const CONFIG_APPROVERS: RoleId[] = ['director']
+
+/** The sentence the approver reads instead of the payload.
+ *
+ *  Written at the door that knows the change rather than at the screen that
+ *  draws it, for the same reason `ConfigChange` exists at all: the person
+ *  saying yes must see the consequence, not a JSON body. Short on purpose —
+ *  an inbox row is scanned, not studied. */
+function consequenceOf(change: ConfigChange): string {
+  if (change.kind === 'tao') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
+  if (change.kind === 'sua') return `Sửa dòng ${change.id} của danh mục ${change.list}`
+  return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
+}
+
+/** The live gate: every proposal becomes a row in the One inbox.
+ *
+ *  Answers `waiting` and nothing else. There is no path here that applies a
+ *  change immediately, not even for the person who could approve it a second
+ *  later, because "propose" and "approve" being two acts is the entire point of
+ *  the split — and because `ApprovalService.decide` is the only place that
+ *  knows how to apply and record in one transaction. */
 @Injectable()
-export class SalesConfigGateChuaNoi extends SalesConfigGate {
+export class SalesConfigGateE3 extends SalesConfigGate {
   private readonly log = new Logger('sales.config')
 
-  propose(who: Actor, change: ConfigChange): Promise<ConfigReceipt> {
-    /* Đề nghị đã hợp lệ tới tận đây rồi mới chết. Ghi lại để người vận hành
-       thấy được nhu cầu thật đang bị chặn ở đâu, và thấy bao nhiêu lần. */
-    this.log.warn(
-      `Đề nghị cấu hình bị chặn — chưa nối E3: ${who.id} · ${change.kind} · ${change.list}`,
-    )
+  constructor(private readonly approvals: ApprovalService) {
+    super()
+  }
 
-    return Promise.reject(
-      new PvError({
-        kind: 'server',
-        status: 500,
-        title:
-          'Đề nghị đổi cấu hình chưa gửi đi được: quy trình duyệt (E3) chưa có nơi lưu. ' +
-          'Cần bảng sales.approval trước khi đường ghi này mở.',
-      }),
-    )
+  async propose(who: Actor, change: ConfigChange): Promise<ConfigReceipt> {
+    const chain = await this.approvals.chainFor(CONFIG_APPROVERS)
+    const request = await this.approvals.open(who, {
+      kind: 'config-change',
+      consequence: consequenceOf(change),
+      /* The payload is this branch's own shape and the platform never reads it.
+         It comes back out at apply time, in `SalesConfigService.apply`, where
+         the branch is the one reading it again. */
+      payload: change,
+      chain,
+    })
+
+    this.log.log(`đề nghị ${request.id} · ${change.kind} · ${change.list} · bởi ${who.id}`)
+
+    return { requestId: request.id, state: request.state, change }
   }
 }

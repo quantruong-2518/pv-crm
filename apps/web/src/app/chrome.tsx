@@ -97,7 +97,7 @@ type NavEntry = {
  *  that day. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/' },
-  { icon: SquareCheckBig, label: 'Phê duyệt' },
+  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/duyet' },
   { icon: Bell, label: 'Thông báo' },
   {
     /** Renamed from "Quản trị & ghi vết" the day it got a screen: the entry now

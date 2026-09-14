@@ -161,12 +161,12 @@ export class SalesConfigRepository {
    *  KHÔNG lọc `active` ở đây: màn Cấu hình phải thấy dòng đã tắt (đó là toàn
    *  bộ hình thức "xoá" mà hệ có, giấu đi thì không ai bật lại được). Chỗ cần
    *  danh sách để CHỌN thì lọc ở chỗ đó. */
-  async list(list: ConfigList): Promise<ConfigRowDb[]> {
-    return this.db
-      .select()
-      .from(configEntry)
-      .where(eq(configEntry.list, list))
-      .orderBy(configEntry.ord)
+  /** `db` defaults to the pool and is passed a transaction by exactly one
+   *  caller: the apply step re-reads the list INSIDE the transaction that is
+   *  about to write, because what was true when the change was proposed may
+   *  have stopped being true while it waited for an approver. */
+  async list(list: ConfigList, db: Db = this.db): Promise<ConfigRowDb[]> {
+    return db.select().from(configEntry).where(eq(configEntry.list, list)).orderBy(configEntry.ord)
   }
 
   async byId(list: ConfigList, id: string): Promise<ConfigRowDb | null> {
@@ -209,50 +209,53 @@ export class SalesConfigRepository {
    *  lệ. `pg_advisory_xact_lock` xếp hàng chúng lại, khoá theo TỪNG danh mục
    *  nên thêm một lý do rơi không chặn ai đang thêm một cột phễu, và tự nhả khi
    *  transaction kết thúc dù kết thúc kiểu gì. */
-  async create(list: ConfigList, draft: ConfigDraft): Promise<ConfigRowDb> {
-    return this.db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(CAST(${LOCK_SPACE} AS int), CAST(${ConfigList.options.indexOf(list)} AS int))`,
-      )
+  async create(tx: Db, list: ConfigList, draft: ConfigDraft): Promise<ConfigRowDb> {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(CAST(${LOCK_SPACE} AS int), CAST(${ConfigList.options.indexOf(list)} AS int))`,
+    )
 
-      /* Số của `id` đi theo mã lớn nhất TỪNG cấp, không theo số dòng đang có:
-         đếm dòng thì một dòng bị xoá (chỉ có thể xảy ra bằng tay ở database)
-         làm mã tiếp theo trùng một mã đã từng tồn tại, và mọi log cũ nói về mã
-         đó thành nói sai. */
-      const [top] = await tx
-        .select({
-          ord: sql<number | null>`max(${configEntry.ord})`,
-          seq: sql<number | null>`max(CAST(split_part(${configEntry.id}, '-', 2) AS int))`,
-        })
-        .from(configEntry)
-        .where(eq(configEntry.list, list))
+    /* Số của `id` đi theo mã lớn nhất TỪNG cấp, không theo số dòng đang có:
+       đếm dòng thì một dòng bị xoá (chỉ có thể xảy ra bằng tay ở database)
+       làm mã tiếp theo trùng một mã đã từng tồn tại, và mọi log cũ nói về mã
+       đó thành nói sai. */
+    const [top] = await tx
+      .select({
+        ord: sql<number | null>`max(${configEntry.ord})`,
+        seq: sql<number | null>`max(CAST(split_part(${configEntry.id}, '-', 2) AS int))`,
+      })
+      .from(configEntry)
+      .where(eq(configEntry.list, list))
 
-      /* `Number(...)` chứ không tin thẳng kiểu khai: driver Postgres trả hàm
-         tổng hợp về dạng chuỗi với một số kiểu cột, và một phép `+` trên chuỗi
-         thì nối chứ không cộng. */
-      const ord = Number(top?.ord ?? 0) + 1
-      const seq = Number(top?.seq ?? 0) + 1
+    /* `Number(...)` chứ không tin thẳng kiểu khai: driver Postgres trả hàm
+       tổng hợp về dạng chuỗi với một số kiểu cột, và một phép `+` trên chuỗi
+       thì nối chứ không cộng. */
+    const ord = Number(top?.ord ?? 0) + 1
+    const seq = Number(top?.seq ?? 0) + 1
 
-      const [row] = await tx
-        .insert(configEntry)
-        .values({
-          id: `${CONFIG_PREFIX[list]}-${String(seq).padStart(2, '0')}`,
-          list,
-          name: draft.name,
-          ord,
-          limitDays: draft.limitDays ?? null,
-          ownerId: draft.ownerId ?? null,
-          kind: draft.kind ?? null,
-        })
-        .returning()
+    const [row] = await tx
+      .insert(configEntry)
+      .values({
+        id: `${CONFIG_PREFIX[list]}-${String(seq).padStart(2, '0')}`,
+        list,
+        name: draft.name,
+        ord,
+        limitDays: draft.limitDays ?? null,
+        ownerId: draft.ownerId ?? null,
+        kind: draft.kind ?? null,
+      })
+      .returning()
 
-      if (!row) throw new Error(`config_entry: INSERT vào ${list} không trả về dòng nào`)
-      return row
-    })
+    if (!row) throw new Error(`config_entry: INSERT vào ${list} không trả về dòng nào`)
+    return row
   }
 
   /** Sửa một dòng. Trả `null` khi cặp `(list, id)` không có thật. */
-  async patch(list: ConfigList, id: string, patch: ConfigPatchDb): Promise<ConfigRowDb | null> {
+  async patch(
+    tx: Db,
+    list: ConfigList,
+    id: string,
+    patch: ConfigPatchDb,
+  ): Promise<ConfigRowDb | null> {
     const set: ConfigPatchDb = {}
     /* So với `undefined` chứ không lọc bằng tính đúng-sai: `active: false`,
        `limitDays: 0` và `ownerId: null` đều là giá trị phải ghi xuống. */
@@ -262,7 +265,7 @@ export class SalesConfigRepository {
     if (patch.ownerId !== undefined) set.ownerId = patch.ownerId
     if (patch.kind !== undefined) set.kind = patch.kind
 
-    const [row] = await this.db
+    const [row] = await tx
       .update(configEntry)
       .set(set)
       .where(and(eq(configEntry.list, list), eq(configEntry.id, id)))
@@ -280,25 +283,19 @@ export class SalesConfigRepository {
    *  DEFERRED`: đảo chỗ hai dòng thì ở giữa câu chắc chắn có hai dòng cùng
    *  `ord`, và một ràng buộc kiểm-ngay sẽ từ chối. Postgres chỉ nhìn trạng thái
    *  lúc `COMMIT`. Xem ghi chú ở `config.schema.ts` và ở file migration. */
-  async reorder(list: ConfigList, ids: string[]): Promise<ConfigRowDb[]> {
-    return this.db.transaction(async (tx) => {
-      const pairs = sql.join(
-        ids.map((id, i) => sql`(CAST(${id} AS text), CAST(${i + 1} AS int))`),
-        sql`, `,
-      )
+  async reorder(tx: Db, list: ConfigList, ids: string[]): Promise<ConfigRowDb[]> {
+    const pairs = sql.join(
+      ids.map((id, i) => sql`(CAST(${id} AS text), CAST(${i + 1} AS int))`),
+      sql`, `,
+    )
 
-      await tx.execute(sql`
-        UPDATE ${configEntry} AS c
-           SET "ord" = v.ord
-          FROM (VALUES ${pairs}) AS v(id, ord)
-         WHERE c."id" = v.id AND c."list" = ${list}
-      `)
+    await tx.execute(sql`
+      UPDATE ${configEntry} AS c
+         SET "ord" = v.ord
+        FROM (VALUES ${pairs}) AS v(id, ord)
+       WHERE c."id" = v.id AND c."list" = ${list}
+    `)
 
-      return tx
-        .select()
-        .from(configEntry)
-        .where(eq(configEntry.list, list))
-        .orderBy(configEntry.ord)
-    })
+    return tx.select().from(configEntry).where(eq(configEntry.list, list)).orderBy(configEntry.ord)
   }
 }

@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common'
+import { Module, type OnModuleInit } from '@nestjs/common'
+import { ApprovalModule } from '@api/platform/approval/approval.module'
+import { ApprovalAppliers } from '@api/platform/approval/approval.service'
 import { SalesConfigController } from './config.controller'
-import { SalesConfigGate, SalesConfigGateChuaNoi } from './config.approval'
+import { SalesConfigGate, SalesConfigGateE3 } from './config.approval'
 import { SalesConfigRepository } from './config.repository'
 import { SalesConfigService } from './config.service'
 
@@ -15,28 +17,43 @@ import { SalesConfigService } from './config.service'
  *  `<tính-năng>.<vai>.ts` của repo; chỉ tên lớp dài thêm hai âm.
  *
  *  ------------------------------------------------------------------
- *  KHÔNG `imports: [EnginesModule]` — VÀ ĐÓ LÀ CHỖ TRỐNG, KHÔNG PHẢI CHỖ QUÊN
+ *  `imports: [ApprovalModule]` — THE TIER THIS MODULE STANDS ON
  *  ------------------------------------------------------------------
- *  Module này cần **E3**, không cần E2 theo dòng như module lead (một dòng cấu
- *  hình không đứng tên ai, nên không có trục phạm vi để cắt). Mà `EnginesModule`
- *  hôm nay chỉ cấp `ACCESS`: `APPROVALS` và `NOTIFY` chưa được khởi tạo ở đâu
- *  trong hệ, vì chúng cần lưu trữ bền mà bảng thì chưa có.
+ *  This module needs **E3**, not E2 the way the lead module does: a config row
+ *  stands in nobody's name, so there is no scope axis to cut. E3's durable half
+ *  lives in `platform/approval`, and this module asks it for two things —
+ *  a chain resolved from roles, and a place to put the request.
  *
- *  Nên đường ghi đi qua `SalesConfigGate`, và bản đang chạy là bản TỪ CHỐI.
- *  Ngày E3 có bảng, thay đúng dòng `useClass` bên dưới và thêm
- *  `imports: [EnginesModule]` — đó là toàn bộ chỗ phải sửa ở nhánh Sales. Đọc
- *  `config.approval.ts` để biết ba việc phải xong trước ngày đó.
+ *  `EnginesModule` is still absent, and that is still right: it hands out
+ *  engine instances, and the in-memory `createApprovalEngine()` is exactly what
+ *  a server must not use as its store (one deploy, every pending request gone).
+ *  The law E3 carries is shared as pure functions instead — see
+ *  `ApprovalService`.
+ *
+ *  `onModuleInit` registers this branch as the applier for `config-change`.
+ *  Registration rather than a `switch` in `platform` is what keeps the platform
+ *  from importing a branch, which `eslint.config.js` refuses outright.
  *
  *  `exports` cố tình chỉ có `SalesConfigService`: module khác được hỏi "danh
  *  mục có những gì", không được với thẳng vào bảng. Sổ lead sẽ cần đúng thế để
  *  đổi mã sang nhãn. */
 @Module({
+  imports: [ApprovalModule],
   controllers: [SalesConfigController],
   providers: [
     SalesConfigService,
     SalesConfigRepository,
-    { provide: SalesConfigGate, useClass: SalesConfigGateChuaNoi },
+    { provide: SalesConfigGate, useClass: SalesConfigGateE3 },
   ],
   exports: [SalesConfigService],
 })
-export class SalesConfigModule {}
+export class SalesConfigModule implements OnModuleInit {
+  constructor(
+    private readonly appliers: ApprovalAppliers,
+    private readonly config: SalesConfigService,
+  ) {}
+
+  onModuleInit(): void {
+    this.appliers.register('config-change', this.config)
+  }
+}

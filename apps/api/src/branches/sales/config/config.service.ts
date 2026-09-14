@@ -9,6 +9,9 @@ import {
   type ConfigOrderPatch,
 } from '@pv/contracts'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import type { ApprovalApplier } from '@api/platform/approval/approval.service'
+import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
+import type { Db } from '@api/platform/db/db.module'
 import { SalesConfigGate, type ConfigChange, type ConfigReceipt } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository } from './config.repository'
@@ -34,7 +37,7 @@ import type { ConfigRowDb } from './config.schema'
  *  phải biết mình gõ sai ngay lúc gõ, không phải ba ngày sau khi trưởng phòng
  *  bấm nút và nhận một lỗi không phải của họ. */
 @Injectable()
-export class SalesConfigService {
+export class SalesConfigService implements ApprovalApplier {
   constructor(
     private readonly repo: SalesConfigRepository,
     private readonly gate: SalesConfigGate,
@@ -98,21 +101,10 @@ export class SalesConfigService {
    *  giữa các số mới — và `ord` ở đây là thứ chở nghĩa nghiệp vụ ("bậc nào",
    *  "cột thứ mấy"), nên một thứ tự sai không phải chuyện hiển thị. */
   async reorder(who: Actor, list: ConfigList, body: ConfigOrderPatch): Promise<ConfigReceipt> {
-    const have = (await this.repo.list(list)).map((r) => r.id)
-    const missing = have.filter((id) => !body.ids.includes(id))
-    const strange = body.ids.filter((id) => !have.includes(id))
-
-    if (missing.length > 0 || strange.length > 0) {
-      throw invalid(
-        {
-          ids: [
-            ...(missing.length > 0 ? [`Thiếu: ${missing.join(', ')}`] : []),
-            ...(strange.length > 0 ? [`Không thuộc danh mục này: ${strange.join(', ')}`] : []),
-          ],
-        },
-        'Thứ tự mới phải liệt kê đúng và đủ các mục của danh mục.',
-      )
-    }
+    this.assertOrderCovers(
+      (await this.repo.list(list)).map((r) => r.id),
+      body.ids,
+    )
 
     return this.propose(who, { kind: 'thu-tu', list, ids: body.ids })
   }
@@ -126,23 +118,83 @@ export class SalesConfigService {
    *  `approved` bên dưới là đường sẽ chạy ngày E3 gật ngay (chuỗi duyệt rỗng,
    *  hoặc người đề nghị cũng là người gật); nhánh `waiting` KHÔNG ghi gì cả, và
    *  đó là toàn bộ điểm của việc tách hai bước. */
-  private async propose(who: Actor, change: ConfigChange): Promise<ConfigReceipt> {
-    const receipt = await this.gate.propose(who, change)
-    if (receipt.state === 'approved') await this.apply(change)
-    return receipt
+  private propose(who: Actor, change: ConfigChange): Promise<ConfigReceipt> {
+    /* Nothing is applied here any more, not even when the proposer could
+       approve it themselves a second later. Applying belongs to
+       `ApprovalService.decide`, which is the only place that can settle the
+       request and write the change in ONE transaction — see `apply` below. */
+    return this.gate.propose(who, change)
   }
 
-  /** Áp dụng một thay đổi ĐÃ ĐƯỢC GẬT. Không ai gọi thẳng hàm này. */
-  private async apply(change: ConfigChange): Promise<void> {
+  // ── the applier · what "approved" means for this branch ──────────────────
+
+  /** `ApprovalApplier` — called by `platform` once a `config-change` request
+   *  has been approved, with the transaction that settled it.
+   *
+   *  Riding that transaction is the whole design: a request that reads
+   *  `approved` while the vocabulary never changed is a failure with nothing
+   *  red anywhere. Either both land or neither does.
+   *
+   *  The payload comes back out as the `ConfigChange` this branch put in.
+   *  `platform.approval` stored it without reading it — it has no business
+   *  knowing what a config list is — so the cast here is the branch reading its
+   *  own handwriting, not a type assertion about somebody else's data. */
+  async apply(tx: Db, request: ApprovalRowDb): Promise<void> {
+    await this.applyChange(tx, request.payload as ConfigChange)
+  }
+
+  /** The write itself. Nobody calls this directly.
+   *
+   *  ------------------------------------------------------------------
+   *  EVERYTHING IS CHECKED AGAIN, AGAINST THE LIST AS IT IS NOW
+   *  ------------------------------------------------------------------
+   *  The checks at propose time ran against the book as it stood THEN, and the
+   *  request may have waited days. Two proposals can be perfectly valid apart
+   *  and impossible together — one renames an existing row to some name, the
+   *  other adds a new row with that same name — because neither was applied when
+   *  the other was checked. Approving both would then break `config_name_live`
+   *  deep inside this transaction, and
+   *  what the approver would read is whatever the constraint translator makes
+   *  of it.
+   *
+   *  So the same assertions run again here, on rows read through `tx`. When one
+   *  fails the transaction rolls back — including the settling UPDATE — so the
+   *  request stays WAITING rather than becoming an approval whose change never
+   *  happened. The approver is told why, and somebody can re-propose against
+   *  the book as it now stands.
+   *
+   *  The sentences are the propose-time sentences, deliberately: one wording
+   *  per rule. "This name is taken" is the same fact whether it is read while
+   *  typing or while approving. */
+  private async applyChange(tx: Db, change: ConfigChange): Promise<void> {
+    const rows = await this.repo.list(change.list, tx)
+
     if (change.kind === 'tao') {
-      await this.repo.create(change.list, change.draft)
+      this.assertNameFree(rows, change.draft.name)
+      await this.repo.create(tx, change.list, change.draft)
       return
     }
+
     if (change.kind === 'sua') {
-      await this.repo.patch(change.list, change.id, change.patch)
+      if (change.patch.name !== undefined) {
+        this.assertNameFree(rows, change.patch.name, change.id)
+      }
+      /* `patch` answers `null` when `(list, id)` no longer resolves — the row
+         was removed while the request waited. Dropping that answer would record
+         an approval for a write that touched nothing. */
+      const written = await this.repo.patch(tx, change.list, change.id, change.patch)
+      if (!written) throw notFound('mục cấu hình', change.id)
       return
     }
-    await this.repo.reorder(change.list, change.ids)
+
+    /* A reorder names every id in the list. One added or removed while the
+       request waited makes the list it carries wrong — and a wrong `ord` is not
+       a display bug here: it is which rung, which column. */
+    this.assertOrderCovers(
+      rows.map((r) => r.id),
+      change.ids,
+    )
+    await this.repo.reorder(tx, change.list, change.ids)
   }
 
   // ── kiểm · ba câu hỏi mà zod của thân yêu cầu không trả lời được ──────────
@@ -183,6 +235,27 @@ export class SalesConfigService {
    *  hoa thường và không cửa vào nào quên được). Câu hỏi ở đây chỉ để trả lời
    *  sớm và trả lời tử tế — nói ra mã của dòng đang chiếm tên, thứ mà một lỗi
    *  `23505` từ driver không nói được. */
+  /** The new order must name every id of the list and nothing else.
+   *
+   *  Shared by the propose door and the apply step rather than written twice:
+   *  the two run against different snapshots of the same book, and two copies
+   *  of one rule are two chances for the later one to be the stale one. */
+  private assertOrderCovers(have: string[], given: string[]): void {
+    const missing = have.filter((id) => !given.includes(id))
+    const strange = given.filter((id) => !have.includes(id))
+    if (missing.length === 0 && strange.length === 0) return
+
+    throw invalid(
+      {
+        ids: [
+          ...(missing.length > 0 ? [`Thiếu: ${missing.join(', ')}`] : []),
+          ...(strange.length > 0 ? [`Không thuộc danh mục này: ${strange.join(', ')}`] : []),
+        ],
+      },
+      'Thứ tự mới phải liệt kê đúng và đủ các mục của danh mục.',
+    )
+  }
+
   private assertNameFree(rows: ConfigRowDb[], name: string, exceptId?: string): void {
     const key = name.toLowerCase()
     const clash = rows.find((r) => r.active && r.id !== exceptId && r.name.toLowerCase() === key)
