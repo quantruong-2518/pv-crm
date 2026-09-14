@@ -222,12 +222,13 @@ cột, cạnh mỗi cột in "đang có bao nhiêu đơn".
 
 Trong bốn thứ một màn config pipeline cần, **đã có hai** (cập nhật 14/09):
 
-| Cần                                | Có chưa                                                   |
-| ---------------------------------- | --------------------------------------------------------- |
-| chặng + hạn                        | ✅ mục 5.2                                                |
-| vai giữ mỗi chặng                  | ❌ — mục 5.9 khai vai theo LUỒNG, chưa theo chặng         |
-| điều kiện chuyển                   | ❌                                                        |
-| định nghĩa 8 luồng, SLA theo luồng | 🟡 **khung xong, số chưa có** — mục 5.9, mọi ô đang trống |
+| Cần                                | Có chưa                                                      |
+| ---------------------------------- | ------------------------------------------------------------ |
+| chặng + hạn                        | ✅ mục 5.2 — đọc `config_entry` và SỬA được qua E3 (14/09)   |
+| vai giữ mỗi chặng                  | ❌ — mục 5.9 khai vai theo LUỒNG, chưa theo chặng            |
+| điều kiện chuyển                   | ❌                                                           |
+| định nghĩa 8 luồng, SLA theo luồng | 🟡 **khung xong, số chưa có** — mục 5.9, mọi ô đang trống    |
+| hạn từng BẬC lead                  | 🟡 **ô đã có** — mục 5.5, `TIER` là thang từ `0038`; số chưa |
 
 **Ba tầng "chưa" nay còn một, và nó không phải tầng kỹ thuật:**
 
@@ -239,12 +240,15 @@ Trong bốn thứ một màn config pipeline cần, **đã có hai** (cập nh�
    hai cửa mới `GET/PATCH /sales/config/motions`.
 3. ~~Gate từ chối vì chưa có bảng~~ — `platform.approval` có từ `0035`.
 4. **Chưa ai chốt số.** §8.5 vẫn treo, và giờ nó là thứ duy nhất chặn: màn đã có
-   đủ ô để nhập, sáu luồng × bốn ô, tất cả `NULL`.
+   đủ ô để nhập — sáu luồng × bốn ô ở mục 5.9, ba bậc lead ở mục 5.5 — và tất
+   cả đang `NULL`.
 
-Cộng thêm: `data/sales-config.ts` còn `load: fetchSalesConfig` cho tám mục cũ;
-mục 5.9 đọc máy chủ thật qua `data/sales-motions.ts`. Và một chỗ lệch phải sửa
-ngày nối tám mục kia: nút gửi cũ ở cuối màn vẫn ghi "Gửi TP Kinh doanh duyệt",
-trong khi chuỗi duyệt đã chốt là **Giám đốc**.
+~~Cộng thêm: `data/sales-config.ts` còn `load: fetchSalesConfig` cho tám mục
+cũ~~ — **trả 14/09.** Hai khối rời khỏi fixture: mục 5.2 đọc
+`ladderRows(catalog, 'STAGE')`, mục 5.5 đọc `'TIER'`, tức đúng những dòng mà nút
+gửi của chúng sửa. `load:` còn lại đúng phần `config_entry` chưa chở được — bộ
+mười câu, tỉ lệ hoa hồng, bảng kênh gửi. Nút gửi cũng hết ghi "Gửi TP Kinh doanh
+duyệt": chuỗi duyệt là **Giám đốc**, và màn in tên VAI chứ không tên người.
 
 Điểm đáng giữ của bản đang có: nó **được dựng sẵn theo hình propose-rồi-duyệt**,
 không phải sửa-là-lưu. Docblock ghi _"người gật cần thấy hậu quả trước khi gật"_ —
@@ -300,8 +304,12 @@ lại, đúng thứ §6 sinh ra để cấm.
 bây giờ rẻ hơn nhiều so với sửa sau khi bốn màn đều đã đọc nó.
 
 **Đã làm xong 14/09**, đúng sáu ô ấy: `pipelinePosition()` ở `@pv/engines` (thuần,
-đồng bộ, không con số ngày nào trong code — thang chặng đi vào bằng tham số), và
-hồ sơ đơn là màn đầu tiên đọc nó. `since` nhận `null` được: một dòng có chặng mà
+đồng bộ, không con số ngày nào trong code — thang chặng đi vào bằng tham số).
+Hồ sơ đơn là màn đầu tiên đọc nó; từ lượt 8 thì **dòng sổ cơ hội** và **hồ sơ
+lead** cũng đọc, và hai thang khác nhau cùng đi qua một hàm — `STAGE` cho đơn,
+`TIER` cho lead — vì `phase` mang khoá pipeline chứ không phải hằng số của Sales.
+Chỗ ghép dòng cấu hình với khoá nằm đúng một nơi cho cả nhánh
+(`branches/sales/ladder.ts`), có rào đếm như cũ. `since` nhận `null` được: một dòng có chặng mà
 không có mốc vào chặng thì vị trí vẫn biết, còn đồng hồ thì không — trả `null`
 chứ không lấy `created_at` thay, vì đó là §8.1 của bản kia và nó còn treo.
 
@@ -334,8 +342,10 @@ một lượt viết lại.
    chung không có người cũ, trả về kho chung không có người mới. `by` không
    phải đầu nào cả — trưởng phòng chuyển tay giữa hai Sale là người thứ ba.
    Lý do đầy đủ nằm cạnh cột, ở `touch.schema.ts`.
-5. **SLA chạm đầu của từng luồng, và luật giao việc.** Chưa có con số, và không
-   được bịa. Từ 14/09 nó **hết chặn việc dựng** và chỉ còn chặn chính nó: mục
+5. **SLA chạm đầu của từng luồng, hạn từng bậc lead, và luật giao việc.** Chưa
+   có con số, và không được bịa. Từ 14/09 nó **hết chặn việc dựng** và chỉ còn
+   chặn chính nó — mục 5.5 cũng đã có ô cho ba bậc (`dau-moi` · `mql` · `sql`),
+   và hồ sơ lead in vị trí mà không in đồng hồ đúng vì ba ô ấy trống. Mục
    5.9 của `/sales/config` đã có đủ ô cho sáu luồng — chạm đầu (phút · giờ ·
    ngày), người nhận, được vào chiến dịch mail lạnh không, form khách tự điền có
    tính là đủ ô — và tất cả đang `NULL`. Điền vào là xong, và mỗi ô đi qua Hộp
@@ -367,84 +377,65 @@ nghị **đảo**, và chen tầng 0 lên trước:
 | 5    | ~~Màn A định nghĩa luồng (qua E3)~~ — **xong 14/09**                                  | mục 5.9 + bảng `motion_policy` (`0036`); sáu luồng × bốn ô, **mọi ô trống chờ §8.5**               |
 | 6    | ~~`pipeline_position` có `branch`; `limitDays` sang `config_entry`~~ — **xong 14/09** | hàm thuần + hồ sơ đơn đọc nó thật; `limitDays` hết đóng đinh vào `STAGE` (`0037`)                  |
 
-**Bảy lượt đã xong cả bảy** (14/09). Bốn lượt tiếp theo dưới đây không mở tính
-năng mới — cả bốn đều là **dọn chỗ hệ đang nói hai câu khác nhau về một sự thật**,
-xếp theo thứ tự chỗ nào nói dối to nhất trước.
+**Bảy lượt đã xong cả bảy** (14/09). Bốn lượt tiếp theo không mở tính năng mới —
+cả bốn đều là **dọn chỗ hệ đang nói hai câu khác nhau về một sự thật**, xếp theo
+thứ tự chỗ nào nói dối to nhất trước. **Cả bốn cũng đã chạy, 14/09**, và ba câu
+hỏi chặn chúng đã có người trả lời:
 
-| Lượt | Việc                                           | Chặn bởi                 | Đụng vào                                                         |
-| ---- | ---------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| 7    | Nối tám mục còn lại của `/sales/config` vào E3 | một quyết định, xem dưới | `sales-config.tsx` · `data/sales-config.ts`                      |
-| 8    | `pipelinePosition` thay mọi chỗ tự suy vị trí  | lượt 7 (thang bậc lead)  | `opportunity.*` · `lead.*` · `home.ts` · `data/opportunities.ts` |
-| 9    | Vector đủ ba thứ còn thiếu                     | không                    | `sales.touch` + migration · `ActivityCard` · hồ sơ cơ hội        |
-| 10   | Dọn cạnh sắc của `seed-accounts.ts`            | một quyết định, xem dưới | `seed-accounts.ts`                                               |
+| Lượt | Việc                                                  | Đã chốt gì                                                               |
+| ---- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| 7    | ~~Nối `/sales/config` vào E3~~ — **xong**             | một lần gửi, **N yêu cầu** — mỗi thay đổi một dòng, gật/từ chối từng cái |
+| 8    | ~~`pipelinePosition` thay chỗ tự suy vị trí~~ — _gần_ | sổ đơn + hồ sơ lead xong; **trang chủ để lại**, lý do ở dưới             |
+| 9    | ~~Vector đủ ba thứ~~ — **xong**                       | `to_role` (`0039`) · `ActivityCard` khoá bằng `touchId` · hồ sơ cơ hội   |
+| 10   | ~~Cạnh sắc `seed-accounts.ts`~~ — **xong**            | đòi `--password=` ngoài pglite, VÀ thôi xoá `disabledAt`                 |
 
-### Lượt 7 · Tám mục config hết diễn
+**Một quyết định thứ tư, nảy ra giữa chừng và đã chốt:** `TIER` vào
+`LADDER_LISTS` thì `config_limit_only_ladder` — vốn là một đẳng thức — sẽ **bắt
+buộc** mọi bậc lead phải có hạn, mà §8.5 nói chưa ai chốt số. Ràng buộc nay chạy
+MỘT CHIỀU (`0038`): đồng hồ chỉ có trên thang, nhưng thang không bắt buộc có đồng
+hồ. Lead có vị trí ngay hôm nay; đồng hồ bật lên đúng ngày có người cho số, và
+không con số nào bị bịa ra làm giá vé. Cùng hình với `motion_policy`.
 
-Hôm nay chúng gom câu mô tả vào một mảng local rồi bấm gửi là xoá mảng. Cửa thật
-đã sống (`POST /sales/config/:list` · `PATCH /:list/:id` · `PATCH /:list/order`),
-mục 5.9 đã đi đường đó, nên việc còn lại là nối.
+### Ba thứ đổi hình mà đáng nhớ
 
-Ba thứ phải làm cùng lượt, bỏ cái nào cũng để lại một câu nói dối:
+1. **`/sales/config` hết diễn.** Mục 5.2 (hạn cột) và 5.5 (hạn bậc lead) đọc
+   `config_entry` và gửi `PATCH /sales/config/:list/:id` thật; 5.4c có ô thêm
+   sản phẩm (`POST`). Màn **không vẽ lại dòng** sau khi gửi — thay đổi xảy ra
+   lúc Giám đốc gật, ở màn khác. Nút gửi thôi ghi "TP Kinh doanh".
+2. **Dòng sổ cơ hội chở `position`.** Hai lượt đọc cho CẢ TRANG (thang chặng +
+   một câu `IN (…)` lấy yêu cầu duyệt treo), nên `isRottingOp` và bốn bản chép
+   `STAGE_LIMIT` hết đọc fixture. Hai màn lead đọc hạn thật qua `useStageLimits`.
+3. **Hồ sơ lead có vị trí trên thang bậc**, và in được "đang chờ ai". Đồng hồ
+   `null` vì §8.5 — đúng câu trả lời, không phải chỗ thiếu.
 
-1. Mỗi mục gọi cửa thật và nhận biên lai; **không vẽ lại dòng** sau khi gửi.
-2. Nút cũ còn ghi "Gửi TP Kinh doanh duyệt" — chuỗi duyệt đã chốt là **Giám đốc**.
-3. `data/sales-config.ts` còn `load: fetchSalesConfig` cho tám mục — cắt sang
-   `salesCatalogQuery` (đường `/cat-mock`), không thì màn sửa một sổ và đọc một sổ khác.
+### Cố ý để lại, nói ra chứ không giấu
 
-**Quyết định cần bạn chốt trước:** nút gửi hiện gom NHIỀU thay đổi rồi gửi một
-lần, còn `ConfigChange` là MỘT thay đổi một yêu cầu. Gửi năm ô đã sửa thì thành
-**năm dòng trong Hộp duyệt** (gật từng cái, từ chối từng cái) hay **một dòng
-mang cả năm** (gật là gật cả gói)? Cái sau cần một `ApprovalKind` thứ hai và một
-hình payload mới; cái trước không cần gì thêm nhưng làm hộp duyệt dài ra.
+- **Trang chủ vẫn tự dựng cạnh.** `deskStory` dựng chuỗi từ chính dòng hợp đồng
+  rồi gọi `E1.story()` — chuỗi ĐÚNG, chỉ là dựng bằng tay thay vì đọc
+  `platform.edge`. Đọc từ máy chủ cần một cửa `platform` mới, mà cửa nào cũng
+  phải khai `@Need`, và **không quyền nào trong ma trận hợp với một rail xuyên
+  nhánh**. Phát minh `graph.view` là phát minh luật quyền cho nhánh chưa ai
+  dựng — đúng thứ §7 vừa cảnh báo. Để lại tới ngày có nhánh thật đòi nó.
+- **Mục 5.1 đọc được, chưa sửa được.** Bộ mười câu cần một danh mục thứ chín và
+  một cột `required`; mười khoá ấy đang là KIỂU của phiếu lead. Nút lật "bắt
+  buộc" đã gỡ: nó vẽ một cổng MQL mới mà không cửa nào ghi được.
+- **Xoá hẳn một hạn đã đặt thì chưa có đường.** `ConfigEntryPatch.limitDays`
+  không nhận `null` — hạ được, nâng được, gỡ thì không. Bảng cho phép từ `0038`;
+  hợp đồng chưa.
+- **Bước `vao-so` do trình nạp tệp ghi không có vai.** Đường nạp giải tên chủ
+  qua `ActorLite` (`{ id, name }`), nên thêm vai là nới một kiểu đi khắp module
+  kiểm để lấy một cái nhãn trên một mắt. Vắng đọc ra là "không ghi lại", đúng sự
+  thật về những dòng đó.
 
-### Lượt 8 · Một câu trả lời cho "đang ở đâu, trễ bao nhiêu"
+**Ba chỗ lượt 0–4 để lại — hai đã trả, 14/09:**
 
-`isRottingOp` ở `apps/web` đọc `STAGE_LIMIT` — hằng số chép từ fixture đóng băng
-— trong khi hồ sơ đơn đã đọc hạn thật từ `config_entry`. Hai câu trả lời cho một
-câu hỏi, và bản cấu hình mới là bản đúng.
-
-- **Sổ đơn**: nạp thang chặng MỘT lần cho cả trang, cộng một câu `IN (…)` lấy
-  yêu cầu duyệt đang treo của các mã trong trang — rẻ hơn nghe nhiều, vì cả hai
-  đều là một truy vấn cho cả trang chứ không phải một truy vấn mỗi dòng. Xong
-  thì `isRottingOp` và `STAGE_LIMIT` xoá được.
-- **Trang chủ**: `deskStory` đang tự dựng cạnh bằng tay trên trình duyệt rồi gọi
-  `E1.story()` — nay `platform.edge` có cạnh thật, nên nó đọc được từ máy chủ.
-- **Hồ sơ lead**: chặn thật. Lead đi theo thang BẬC (`dau-moi → mql → sql`), mà
-  danh mục `TIER` chưa phải thang — `LADDER_LISTS` chỉ có `STAGE`. Muốn lead có
-  vị trí và có đồng hồ thì phải thêm `TIER` vào `LADDER_LISTS`, một migration mở
-  `limit_days` cho nó, **và những con số §8.5 chưa có**. Nên phần lead nằm sau
-  lượt 7 và sau khi bạn cho số.
-
-### Lượt 9 · Vector đủ ba thứ
-
-- **Vai từng người**: `sales.touch` không chở vai lúc đó, mà join `actor` lúc đọc
-  là lấy vai HÔM NAY — đúng thứ luật chép-tên-lúc-ghi cấm. Cần một cột nữa
-  (`to_role`, chụp lúc ghi) + migration + cửa `setOwner` điền nó.
-- **Bấm được**: `ActivityCard` khoá dòng bằng `at` chứ không bằng id, nên chưa có
-  gì để nhảy tới. Phải đổi hợp đồng của nó để chở `touchId` — một component dùng
-  chung, nên đọc kỹ chỗ gọi trước.
-- **Hồ sơ cơ hội**: §6·B nói nhúng cả lead lẫn cơ hội, mới làm lead.
-  `opportunityTouchesQuery` đã có và `stepsOf` không quan tâm subject là gì —
-  đây là phần rẻ nhất trong ba.
-
-### Lượt 10 · Hai cạnh sắc của `seed-accounts.ts`
-
-Gõ không kèm `--password=` thì nó dùng mật khẩu nằm trong repo. `mustChangePasswordAt`
-đã làm cùn chuyện đó (vé một lần), nhưng lượt cập nhật vẫn **xoá `disabledAt`** —
-tức bật lại tài khoản ai đó cố ý khoá. **Quyết định cần bạn chốt:** đòi
-`--password=` khi đích không phải pglite, hay giữ mặc định và thôi xoá `disabledAt`?
-
-**Ba chỗ lượt 0–4 cố ý để lại, nói ra chứ không giấu:**
-
-- Vector chưa in **vai** từng người — `sales.touch` không chở vai lúc đó, và
-  join `actor` để lấy vai hôm nay là đúng thứ luật chép-tên-lúc-ghi cấm. Muốn có
-  thì phải bồi một cột nữa.
-- Mắt vector chưa **bấm được**: `ActivityCard` khoá dòng bằng `at` chứ không
-  bằng id, nên chưa có gì để nhảy tới. Nối được, nhưng phải đổi hợp đồng của
-  `ActivityCard`.
-- Hộp duyệt chưa dùng `ApprovalCard` (O-04) vì tổ chức đó đòi `amount` và in số
-  tiền lên nút chính — đúng cho chiết khấu và đơn mua, sai cho một thay đổi từ
-  vựng vốn không có số nào.
+- ~~Vector chưa in **vai**~~ — `to_role` là cột thật (`0039`), chụp lúc ghi.
+  `setOwner` và cửa tạo lead điền nó; join `actor` lúc đọc vẫn cấm như cũ.
+- ~~Mắt vector chưa **bấm được**~~ — `ActivityCard` khoá dòng bằng `touchId`,
+  và `onOpen` cuộn dòng thời gian tới đúng mốc ấy. Hai hồ sơ đều có.
+- Hộp duyệt **vẫn chưa** dùng `ApprovalCard` (O-04) vì tổ chức đó đòi `amount`
+  và in số tiền lên nút chính — đúng cho chiết khấu và đơn mua, sai cho một
+  thay đổi từ vựng vốn không có số nào.
 
 **Sửa lại một chỗ bản này đọc sai code (14/09).** `giao` và `cham` KHÔNG thiếu
 cửa ghi: `setOwner` ghi `giao` từ `cf97f78` (29/08) và sổ cuộc họp ghi

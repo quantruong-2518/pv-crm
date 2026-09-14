@@ -3,6 +3,7 @@ import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
 import type { TouchRow, TouchTimelineResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { ROLE_LABEL } from '@/data/users'
 import { dm, dmy } from '@/lib/date'
 
 /** Dòng thời gian của một mã — hai cửa, một phép dịch.
@@ -56,7 +57,6 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
  *
  *  Bốn trường được lấy, phần còn lại của `TouchRow` cố ý bỏ:
  *
- *   · `id` — `ActivityCard` khoá dòng bằng `at`, không bằng id;
  *   · `subjectCode`/`subjectKind` — đã biết, vì chính lời gọi chọn chúng;
  *   · `toTier` — bậc SAU bước này. Màn Hiệu suất đếm bằng nó; thẻ hoạt động thì
  *     không, vì câu tiếng Việt ở `note` do máy chủ viết đã chở sẵn bậc. Bày
@@ -67,9 +67,22 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
  *
  *  Máy chủ đã sắp xếp; hàm này KHÔNG sắp lại. Sắp lần hai ở đây thì ngày máy
  *  chủ đổi thứ tự, màn vẫn hiện thứ tự cũ và không ai biết chỗ nào quyết định. */
-export function eventsOf(rows: readonly TouchRow[]): LeadEvent[] {
-  return rows.map((r) => ({ at: r.at, kind: r.kind, by: r.by, note: r.note }))
+export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
+  return rows.map((r) => ({ id: r.id, at: r.at, kind: r.kind, by: r.by, note: r.note }))
 }
+
+/** One timeline milestone, CARRYING the row it was read off.
+ *
+ *  `id` arrived on 14/09, and it is what joins two halves of one truth: a
+ *  `FlowVector` face carries a `touchId`, while `ActivityCard` keyed its rows
+ *  by position in the array — so there was nothing to scroll to and pressing a
+ *  face went nowhere. Keyed by the row id, the two blocks speak one language,
+ *  and a milestone keeps its identity when the list is filtered or reordered.
+ *
+ *  An intersection with the fixture's `LeadEvent` rather than a replacement:
+ *  the activity card still draws an event generated from the frozen scenario,
+ *  it just cannot be jumped to — which is the truth about those. */
+export type TouchEvent = LeadEvent & { id: string }
 
 /** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
  *
@@ -102,6 +115,11 @@ export function stepsOf(rows: readonly TouchRow[]): FlowVectorStep[] {
         actorId: row.to.actorId,
         at: dm(row.at),
         atFull: dmy(row.at),
+        /* The role AS IT WAS, straight off the row — `to_role` is frozen at
+           write time (`0039`). Absent on rows written before that column, and
+           on rows the bulk importer wrote, so the step prints a name with no
+           role rather than borrowing the one the person holds today. */
+        ...(row.to.role ? { role: ROLE_LABEL[row.to.role] } : {}),
       })
     } else if (row.kind === 'giao' && row.from) {
       steps.push({ kind: 'pool', touchId: row.id, at: dm(row.at), atFull: dmy(row.at) })
@@ -164,4 +182,28 @@ export const opportunityTouchesQuery = (code: string) =>
         signal,
       }),
     select: (d: TouchTimelineResponse) => eventsOf(d.rows),
+  })
+
+/** The holder chain of one DEAL — §6·B of `docs/tam-nhin-pipeline-toan-he.md`
+ *  said the vector belongs on both profiles, and until 14/09 only the lead had
+ *  it.
+ *
+ *  THE SAME `queryKey` as `opportunityTouchesQuery`, exactly as the two lead
+ *  queries share theirs: one fetch, two questions, `select` belonging to the
+ *  observer rather than to the cache. A key of its own would load the same list
+ *  twice and let the two copies drift apart by a few seconds.
+ *
+ *  `stepsOf` needs no variant for this: it reads `giao` and `vao-so` rows and
+ *  never asks what the subject is. A deal that has never changed hands answers
+ *  an empty chain, and `FlowVector` draws nothing at all — which is the honest
+ *  picture of a deal one person has carried the whole way. */
+export const opportunityVectorQuery = (code: string) =>
+  queryOptions({
+    queryKey: ['sales', 'ops-touches', code] as const,
+    queryFn: ({ signal }) =>
+      api.read<TouchTimelineResponse>(`/sales/opportunities/${encodeURIComponent(code)}/touches`, {
+        need: OPS_TOUCH_NEED,
+        signal,
+      }),
+    select: (d: TouchTimelineResponse) => stepsOf(d.rows),
   })

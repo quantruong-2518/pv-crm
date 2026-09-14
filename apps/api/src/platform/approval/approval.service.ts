@@ -190,6 +190,15 @@ export class ApprovalService {
     return this.repo.waitingOnObject(objectCode)
   }
 
+  /** The same question for a whole page of objects, in ONE query.
+   *
+   *  A book that prints a position per row needs this; asking `pendingOn` in a
+   *  loop would be a query per row for a column the page draws once. See the
+   *  repository for the shape of the answer. */
+  pendingOnMany(objectCodes: readonly string[]): Promise<Map<string, ApprovalRowDb[]>> {
+    return this.repo.waitingOnObjects(objectCodes)
+  }
+
   /** One person's yes or no — and, on the last yes, the change itself.
    *
    *  The order matters and is not arrangeable any other way: load, ask the

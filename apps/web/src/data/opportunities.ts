@@ -6,10 +6,12 @@ import {
   OpportunityScorecard,
   type OpportunityLiveDeal,
   type OpportunityOwner,
+  type OpportunityBookRow,
   type OpportunityProfileResponse,
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
+
 import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiNeed } from '@/app/api'
 
@@ -369,23 +371,29 @@ export const idsOf = (owners: OpportunityOwner[]) => owners.map((o) => o.id)
 export const dongOf = (op: OpportunityRow) =>
   op.amount === null || op.currency === null ? null : toMoneyVnd(op.amount, op.currency)
 
-/** Hạn của mỗi cột, tra theo khoá. */
-const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
-
-/** Đơn đang MỤC — nằm trong cột lâu hơn hạn của cột.
+/** Đơn đang MỤC — đã đứng trong cột lâu hơn hạn của cột.
  *
- *  Máy chủ gửi SỐ NGÀY, màn áp HẠN. Chia thế vì hai vế có hai đời sống khác
- *  nhau: số ngày là một phép trừ trên `stage_since`, chỉ database biết; còn hạn
- *  mỗi cột là dòng cấu hình của phòng kinh doanh, thứ người ta sửa được và màn
- *  đã cầm sẵn.
+ *  ------------------------------------------------------------------
+ *  MỘT CÂU HỎI, MỘT CHỖ TRẢ LỜI — 14/09
+ *  ------------------------------------------------------------------
+ *  Bản cũ tự áp hạn ở đây, tra một `Map` dựng từ `PIPELINE_STAGES` — hằng số
+ *  của fixture đóng băng — trong khi hồ sơ đơn cách đó một cú bấm đã đọc hạn
+ *  thật từ `config_entry`. Hai câu trả lời cho một câu hỏi về CÙNG một dòng,
+ *  và bản cấu hình mới là bản đúng: sửa hạn cột ở màn Cấu hình rồi gật, sổ vẫn
+ *  tô vàng theo số cũ mãi mãi.
  *
- *  `daysInStage === null` = đơn đã ra khỏi năm cột, và đơn đã đóng sổ thì không
- *  còn cột nào để mà mục. Đây cũng là chỗ bản cũ hay sai: kiểm `stage` trước
- *  rồi mới tra, nếu không thì một đơn vừa chuyển sang Close won vẫn bị tô vàng
- *  "mục" vì mã của nó còn trong bảng đơn đang mở. */
-export function isRottingOp(op: OpportunityRow): boolean {
-  if (op.daysInStage === null || op.stage === null) return false
-  return op.daysInStage > (STAGE_LIMIT.get(op.stage) ?? Infinity)
+ *  Nay `overdueBy` về sẵn trong `position` của từng dòng sổ, tính bởi
+ *  `pipelinePosition` ở `@pv/engines` trên đúng thang chặng máy chủ vừa đọc.
+ *  Hàm này còn lại một phép đọc dấu, và giữ lại vì nó ĐẶT TÊN cho phép đọc đó:
+ *  `overdueBy > 0` rải khắp bốn màn là bốn chỗ để ai đó viết `>= 0`.
+ *
+ *  `null` có hai nghĩa và cả hai ra `false`: cột chưa ai đặt hạn, hoặc dòng
+ *  không có mốc vào cột. "Không nói được gì về trễ" khác "không trễ", nhưng cả
+ *  hai đều KHÔNG phải "đang mục" — nhuộm vàng một dòng vì thiếu cấu hình là
+ *  đổ lỗi cho người bán vì một ô trống của người khác. */
+export function isRottingOp(op: Pick<OpportunityBookRow, 'position'>): boolean {
+  const overdueBy = op.position?.overdueBy ?? null
+  return overdueBy !== null && overdueBy > 0
 }
 
 /** The five columns plus where this deal stands, shaped for `StageTrack`.
@@ -395,15 +403,22 @@ export function isRottingOp(op: OpportunityRow): boolean {
  *  ONE function for both callers — the book grid and the deal profile. Two
  *  screens each building their own step array is two screens painting the same
  *  deal differently the day somebody adds a column on the Settings screen; the
- *  same reason `STAGE_LIMIT` above exists only once.
+ *  same reason `isRottingOp` above exists only once.
  *
  *  The hint hangs on the STANDING column only, and it carries what a rotting
  *  deal needs: days here against the column's limit. `isRottingOp` deliberately
  *  does NOT recolour the bar — the rot warning already has its place (an amber
  *  badge in the book, a line on the profile), and a bar saying both position
- *  and health says neither legibly. */
+ *  and health says neither legibly.
+ *
+ *  THE LIMIT IN THE HINT IS DERIVED, NOT LOOKED UP (14/09). `overdueBy` is
+ *  `daysHere − limitDays` by definition, so the configured limit comes back out
+ *  of the two numbers the server already sent — exact, and with no second copy
+ *  of the ladder on this side to go stale. A column nobody has timed says so
+ *  instead of borrowing a number from the frozen fixture, which is what this
+ *  line used to do. */
 export function stageTrackOf(
-  op: Pick<OpportunityRow, 'stage' | 'daysInStage'>,
+  op: Pick<OpportunityBookRow, 'stage' | 'daysInStage' | 'position'>,
 ): { steps: { key: string; label: string; hint?: string }[]; current: number } | null {
   const stage = op.stage
   if (stage === null) return null
@@ -415,13 +430,22 @@ export function stageTrackOf(
      as "this deal has not moved anywhere", which is a false sentence. */
   if (current === -1) return null
 
+  const overdueBy = op.position?.overdueBy ?? null
+  const limitDays =
+    op.daysInStage === null || overdueBy === null ? null : op.daysInStage - overdueBy
+
   return {
     current,
     steps: PIPELINE_STAGES.map((s, i) => ({
       key: s.key,
       label: s.label,
       ...(i === current && op.daysInStage !== null
-        ? { hint: `${op.daysInStage} ngày · hạn ${s.limitDays}` }
+        ? {
+            hint:
+              limitDays === null
+                ? `${op.daysInStage} ngày · chưa đặt hạn`
+                : `${op.daysInStage} ngày · hạn ${limitDays}`,
+          }
         : {}),
     })),
   }

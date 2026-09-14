@@ -117,9 +117,15 @@ export const ConfigEntry = z.object({
   active: z.boolean(),
   createdAt: Moment,
 
-  /** CHỈ `STAGE` — hạn của cột, tính bằng ngày. Quá hạn thì đơn tô cảnh báo.
-   *  Thay cho `stageLimit.get(key)` đang tra một `Map` dựng từ hằng số. */
+  /** Only a LADDER list (`LADDER_LISTS`) — the phase's clock, in days. Past it,
+   *  the row is drawn as late. Replaces `stageLimit.get(key)`, a `Map` built
+   *  from a constant.
+   *
+   *  Absent means NOBODY HAS SET ONE, which is a different answer from zero and
+   *  the only honest one for `TIER` today (§8.5). A phase with no clock has no
+   *  lateness — not "on time". */
   limitDays: z.number().int().nonnegative().optional(),
+
   /** CHỈ `CATEGORY` — Sale phụ trách ngành, `id` của `platform.actor`.
    *  Thay cho `LEAD_CATEGORIES[].sale`, thứ đang so bằng TÊN người. */
   ownerId: z.string().min(1).optional(),
@@ -244,23 +250,33 @@ export const ConfigListResponse = z.object({
  *  danh mục đè lên nhau. */
 
 /** The config lists that are LADDERS — an ordered run of phases an object walks
- *  through, each phase with a clock on it.
+ *  through, each phase able to carry a clock.
  *
- *  A ladder is the only kind of list where `limitDays` means anything, and rule
- *  2 of `docs/tam-nhin-pipeline-toan-he.md` §2 says every phase of every
- *  pipeline must carry one: a phase with no clock is a phase people park in.
+ *  A ladder is the only kind of list where `limitDays` means anything. Rule 2 of
+ *  `docs/tam-nhin-pipeline-toan-he.md` §2 wants every phase to carry one — a
+ *  phase with no clock is a phase people park in — and that remains the target
+ *  the screen nags towards. It is NOT what the table enforces, and the
+ *  difference was settled on 14/09 when `TIER` joined this list.
  *
- *  ONE member today, and that is the honest count: `STAGE` is the Sales funnel,
- *  and the other ten pipelines have no ladder in this table yet. What changed is
- *  the SHAPE of the rule — until now "only STAGE may have limitDays" was typed
- *  out three times (the CHECK on the table, the service's field guard, and the
- *  screen), each one naming Sales. The day Supply's ladder arrives it is one
- *  entry here plus one migration, not a hunt for the three places that spell
- *  `'STAGE'`.
+ *  ------------------------------------------------------------------
+ *  A CLOCK ONLY ON A LADDER, BUT NOT ON EVERY RUNG
+ *  ------------------------------------------------------------------
+ *  Until `0038` the CHECK was an equality — a ladder row MUST have a clock and
+ *  nothing else may. That held while `STAGE` was the only member, because all
+ *  five funnel columns came with deadlines in the seed. `TIER` does not: §8.5
+ *  says nobody has decided how long a lead may sit at `dau-moi`, and the whole
+ *  stance of this system is that an undeclared number stays `NULL` rather than
+ *  being invented — `motion_policy` is six rows of exactly that. Keeping the
+ *  equality would have forced a number out of thin air as the PRICE of letting
+ *  a lead have a position at all.
+ *
+ *  So the implication now runs one way: a clock implies a ladder. An
+ *  unconfigured rung answers `null`, `pipelinePosition` answers `overdueBy:
+ *  null`, and the screen prints "chưa đặt hạn" — which is the true sentence.
  *
  *  `readonly` and derived from `ConfigList` so a typo cannot name a list that
  *  does not exist. */
-export const LADDER_LISTS = ['STAGE'] as const satisfies readonly ConfigList[]
+export const LADDER_LISTS = ['STAGE', 'TIER'] as const satisfies readonly ConfigList[]
 
 /** Does this list carry a per-phase clock. */
 export function isLadder(list: ConfigList): boolean {
@@ -289,11 +305,15 @@ export const ConfigProposalReceipt = z.object({
 
 export const ConfigEntryCreate = z.object({
   name: textInput(120),
-  /** Bắt buộc với `STAGE`, cấm với năm danh mục còn lại — ràng buộc đó là
-   *  QUAN HỆ giữa `list` (nằm ở đường dẫn) và trường này, nên zod của thân yêu
-   *  cầu không nhìn thấy đủ để kiểm. Service kiểm, và `CHECK
-   *  config_limit_only_ladder` ở tầng bảng là lưới thứ hai. */
+  /** Allowed only on a LADDER list (`LADDER_LISTS`), refused on the others —
+   *  and that is a RELATION between `list` (which lives in the path) and this
+   *  field, so the body's zod cannot see enough to judge it. The service judges;
+   *  `CHECK config_limit_only_ladder` is the second net.
+   *
+   *  Optional even for a ladder since `0038`: a rung with no clock is a rung
+   *  nobody has timed yet, which is the true state of every `TIER` row today. */
   limitDays: z.number().int().nonnegative().max(365).optional(),
+
   ownerId: textInputOptional(64),
   kind: textInputOptional(32),
 })

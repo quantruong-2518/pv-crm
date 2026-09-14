@@ -31,6 +31,7 @@ import {
   OWNER_NONE,
   type OpportunityBookQuery,
   type OpportunityOwner,
+  type OpportunityBookRow,
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
@@ -823,7 +824,7 @@ function CloseCell({ op }: { op: OpportunityRow }) {
  *  the bar deliberately carries neither (see `stageTrackOf`). A closed deal has
  *  no bar, and the pill alone is the right answer for a deal standing in no
  *  column. */
-function StateCell({ op }: { op: OpportunityRow }) {
+function StateCell({ op }: { op: OpportunityBookRow }) {
   const rotting = isRottingOp(op)
   const stage = op.stage ? STAGE_LABEL.get(op.stage) : null
   const track = stageTrackOf(op)

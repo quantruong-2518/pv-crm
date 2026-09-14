@@ -64,12 +64,18 @@ cùng một người sẽ hết là hai chuỗi tên rời nhau.
 CHÍNH LÀ dấu hiệu, theo nghi thức ở docblock đầu `app/api/client.ts`: còn `load`
 là còn đọc fixture, vắng `load` là đã đi HTTP thật. Không có cờ nào khác.
 
-| Query                        | File                  | Route ở `apps/api` |
-| ---------------------------- | --------------------- | ------------------ |
-| `/sales/plan`                | `plan.ts:362`         | chưa có            |
-| `/sales/config`              | `sales-config.ts:186` | chưa có            |
-| `/sales/performance/:period` | `performance.ts:948`  | chưa có            |
-| `frozenLeadBookQuery`        | `leads.ts:196`        | dùng bởi 3 màn     |
+| Query                        | File              | Route ở `apps/api`                              |
+| ---------------------------- | ----------------- | ----------------------------------------------- |
+| `/sales/plan`                | `plan.ts`         | chưa có                                         |
+| `/sales/config`              | `sales-config.ts` | **có** — phần còn `load:` là phần bảng chưa chở |
+| `/sales/performance/:period` | `performance.ts`  | chưa có                                         |
+| `frozenLeadBookQuery`        | `leads.ts`        | dùng bởi 3 màn                                  |
+
+`salesConfigQuery` là ca riêng, đừng đọc nhầm thành "màn Cấu hình ăn fixture":
+`GET /sales/config` đã sống và `salesCatalogQuery` đọc nó thật. Thứ còn `load:`
+là ba khối `config_entry` CHƯA CÓ CHỖ để chở — bộ mười câu hồ sơ, tỉ lệ hoa hồng,
+bảng kênh gửi. Hai khối cuối cùng rời khỏi fixture ngày 14/09 (hạn cột 5.2 và
+hạn bậc lead 5.5), nên mọi con số trên màn ấy nay là số của Neon.
 
 Ba dòng đã RỤNG khỏi bảng này vì endpoint đã lên và `load:` đã bỏ: chiến dịch
 (`/sales/campaigns/{sources,totals}`, lượt 2 của đợt bỏ mock), sổ cơ hội

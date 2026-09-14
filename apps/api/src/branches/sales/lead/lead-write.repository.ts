@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import type { RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
@@ -70,9 +71,16 @@ export class LeadWriteRepository {
    *  Lead PIC cell, and the response of `POST /sales/leads` is a full book row.
    *  Null means no such actor — the insert will then fail on
    *  `lead_owner_id_actor_id_fk`, which is the fence that actually holds. */
-  async actorById(tx: Db, id: string): Promise<{ id: string; name: string; email: string } | null> {
+  async actorById(
+    tx: Db,
+    id: string,
+  ): Promise<{ id: string; name: string; email: string; roleId: RoleId } | null> {
+    /* `roleId` joined the select for `sales.touch.to_role` (`0039`): a hand-over
+       row freezes the role the RECEIVER held that day, and this is the read that
+       already knows who they are. One more column on a query that was running
+       anyway, rather than a second trip at write time. */
     const [row] = await tx
-      .select({ id: actor.id, name: actor.name, email: actor.email })
+      .select({ id: actor.id, name: actor.name, email: actor.email, roleId: actor.roleId })
       .from(actor)
       .where(eq(actor.id, id))
       .limit(1)

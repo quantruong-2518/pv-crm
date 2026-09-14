@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Facebook,
   Globe,
@@ -15,11 +15,18 @@ import {
   INIT_DATA_QUESTIONS,
   LEAD_CATEGORIES,
   LOSS_REASONS,
-  PIPELINE_STAGES,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
-import { ExitReason, type ConfigBundle } from '@pv/contracts'
-import { api } from '@/app/api'
+import {
+  ExitReason,
+  LeadTier,
+  StageKey,
+  type ConfigBundle,
+  type ConfigEntry,
+  type ConfigList,
+  type ConfigProposalReceipt,
+} from '@pv/contracts'
+import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 
 /** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
  *
@@ -103,31 +110,41 @@ export type SalesConfig = Awaited<ReturnType<typeof fetchSalesConfig>>
  *
  *  Thứ CÒN LẠI ở đây là LUẬT, không phải số: câu hỏi hồ sơ nào bắt buộc, chia
  *  hoa hồng thế nào, phòng có những kênh gửi nào. Chúng vẫn `load:` fixture vì
- *  `config_entry` chưa chở được chúng — bốn khối, đã ghi từng khối bên dưới. */
+ *  `config_entry` chưa chở được chúng — ba khối, đã ghi từng khối bên dưới.
+ *
+ *  HAI KHỐI RỜI KHỎI ĐÂY 14/09, và cả hai vì cùng một lý do: `config_entry` nay
+ *  chở được chúng, nên giữ một bản fixture cạnh một bản máy chủ là dựng sẵn hai
+ *  câu trả lời cho một câu hỏi.
+ *
+ *   · `stages` — mục 5.2 đọc `ladderRows(catalog, 'STAGE')`, tức đúng những
+ *     dòng mà nút gửi của nó sửa. Trước lượt này màn in hạn của fixture rồi gửi
+ *     một đề nghị sửa hạn ở Neon: gật xong, màn vẫn in số cũ mãi mãi.
+ *   · `earlyStageSla` — mục 5.5 hết là một `null` đóng đinh trong code. `TIER`
+ *     là thang bậc từ `0038`, nên ngưỡng của `dau-moi`/`mql` là `limitDays` của
+ *     đúng những dòng ấy, nhập được và đi qua Hộp duyệt như mọi hạn khác. Nó
+ *     vẫn TRỐNG — nhưng trống vì chưa ai điền, không vì không có chỗ điền. */
 async function fetchSalesConfig() {
   return {
     /** 5.1 — ô nào bắt buộc chính là cổng MQL → SQL. LUẬT, không phải số: số ô
-     *  đã điền nay ở `usage.slots`, khoá là `q.no`. */
+     *  đã điền nay ở `usage.slots`, khoá là `q.no`.
+     *
+     *  Mục ĐỌC ĐƯỢC, CHƯA SỬA ĐƯỢC, và mục duy nhất của màn còn thế. Bộ mười
+     *  câu không có chỗ nào trong `config_entry` để nằm: nó cần một danh mục
+     *  thứ chín cộng một cột thuộc tính `required`, và mười khoá ấy đang là
+     *  kiểu của `lead-form.ts` chứ không phải dữ liệu. Nút lật "bắt buộc" đã gỡ
+     *  ngày 14/09 vì nó vẽ một cổng MQL mới mà không cửa nào ghi được — xem
+     *  `sales-config.tsx`, mục 5.1. */
     questions: INIT_DATA_QUESTIONS,
 
-    /** 5.2 · 5.3 — cột của sổ cơ hội và ngành. Hai danh mục này `config_entry`
-     *  ĐÃ giữ (`STAGE` có `limitDays`, `CATEGORY` có `ownerId`), nhưng nhãn ở
-     *  đây còn kèm hai thứ máy chủ chưa trả nguyên hình: `key` chữ thường mà
-     *  `sales.lead` đang chứa (nợ §6) và TÊN Sale phụ trách, thứ `ownerId` phải
-     *  tra qua sổ nhân sự mới ra. Số đếm thì không còn ở đây — màn đọc
-     *  `usage.STAGE[s.key]` và `usage.CATEGORY[c.key]`, khoá nối đúng bằng
-     *  `key` này. */
-    stages: PIPELINE_STAGES,
+    /** 5.3 — ngành và Sale phụ trách. `config_entry` ĐÃ giữ (`CATEGORY` có
+     *  `ownerId`), nhưng nhãn ở đây còn kèm hai thứ máy chủ chưa trả nguyên
+     *  hình: `key` chữ thường mà `sales.lead` đang chứa (nợ §6) và TÊN Sale
+     *  phụ trách, thứ `ownerId` phải tra qua sổ nhân sự mới ra. Số đếm thì
+     *  không còn ở đây — màn đọc `usage.CATEGORY[c.key]`, nối đúng bằng `key`. */
     categories: LEAD_CATEGORIES,
 
-    /** 5.5 — ngưỡng SLA cho đầu mối và MQL. CHƯA AI ĐẶT.
-     *
-     *  `null` là câu trả lời đúng, không phải số 0 và không phải một mặc định
-     *  "cho có". Điền số ở tầng màn là đặt luật cho cả phòng bằng tay lập trình
-     *  viên — đúng thứ mục 5.5 sinh ra để chấm dứt (docs · "Nợ đang treo" · 3). */
-    earlyStageSla: null as number | null,
-
     /** 5.6 — hoa hồng chỉ chia khi có đơn ký; công trạng ghi ở mọi lần chạm.
+
      *  Cả hai là tỉ lệ và luật ghi công, không phải dòng dữ liệu — số người mang
      *  từng vai nay ở `usage.roles`. */
     commission: COMMISSION_SPLIT,
@@ -303,4 +320,199 @@ export function useLossReasons(): string[] {
   const { data } = useQuery(salesCatalogQuery)
   const rows = lossReasonRows(data)
   return rows.length > 0 ? rows.map((r) => r.label) : [...LOSS_REASONS]
+}
+
+// ---------------------------------------------------------------------------
+// LADDERS — the two lists that carry a clock, and the door that changes one
+// ---------------------------------------------------------------------------
+
+/** One rung of a ladder, as the configuration screen needs it.
+ *
+ *  `key` is the lower-case slug the rest of `sales` still stores ('tim-hieu',
+ *  'dau-moi'); `id` is the configuration row the write door addresses. Both,
+ *  because the screen has to count with one and write with the other. */
+export type LadderRow = {
+  id: string
+  key: string
+  label: string
+  limitDays: number | null
+  usage: number
+}
+
+/** The rungs of a ladder list, paired with the keys the rest of the system
+ *  stores — THE ONE PLACE on the web side that pairing is made.
+ *
+ *  ------------------------------------------------------------------
+ *  THE TWO SIDES DO NOT SHARE A KEY, SO THE JOIN IS BY POSITION
+ *  ------------------------------------------------------------------
+ *  Exactly the situation `exitReasonRows` above is in, and the server's
+ *  `stageConfigOf` on the other end: `sales.lead` and `sales.opportunity` hold
+ *  a slug, `config_entry` holds a label and an id of its own, and no column
+ *  carries both (debt §6 of `docs/fix-later.md`). The only join that holds is
+ *  ORDINAL POSITION, and it holds because `seed.ts` writes both lists straight
+ *  from the fixture arrays with `ord` starting at 1.
+ *
+ *  Same fence as the other two, for the same reason: a count that does not
+ *  match drops the server's labels and prints the key. A rung reading
+ *  'dau-moi' is ugly and TRUE; a rung wearing one name beside another rung's
+ *  deadline is pretty and lying, and it is the number somebody gets judged by.
+ *
+ *  Empty before the catalog lands, never `undefined` — the screen maps over it.
+ *  A screen that must tell loading apart reads the query's own `isPending`. */
+export function ladderRows(catalog: ConfigBundle | undefined, list: 'STAGE' | 'TIER'): LadderRow[] {
+  const keys: readonly string[] = list === 'STAGE' ? StageKey.options : LeadTier.options
+  const rows: ConfigEntry[] = catalog?.[list] ?? []
+  if (rows.length === 0) return []
+
+  const aligned = rows.length === keys.length
+
+  return rows.map((row, i) => {
+    const key = aligned ? (keys[i] ?? row.id) : row.id
+    return {
+      id: row.id,
+      key,
+      label: aligned ? row.name : key,
+      limitDays: row.limitDays ?? null,
+      usage: catalog?.usage[list][key] ?? 0,
+    }
+  })
+}
+
+/** One pending edit on the configuration screen.
+ *
+ *  `what` is the sentence the screen shows in its pending list; the approver
+ *  reads a different one, written server-side at the gate that knows the change
+ *  (`config.approval.ts#consequenceOf`). Two audiences, two sentences, neither
+ *  guessing at the other's. */
+export type ConfigEdit = {
+  list: ConfigList
+  id: string
+  what: string
+  limitDays: number
+}
+
+/** What one edit came back as. A batch answers a row per edit rather than
+ *  throwing on the first failure — see the mutation below. */
+export type ConfigEditResult =
+  { what: string; requestId: string } | { what: string; failure: string }
+
+export const isEditDone = (r: ConfigEditResult): r is { what: string; requestId: string } =>
+  'requestId' in r
+
+/** Send the screen's pending edits — ONE REQUEST PER EDIT.
+ *
+ *  ------------------------------------------------------------------
+ *  ONE SEND, N ROWS IN THE INBOX — AND THAT IS THE DECISION
+ *  ------------------------------------------------------------------
+ *  Settled 14/09. `ConfigChange` is one change per request all the way down:
+ *  the gate writes one consequence sentence, and `applyChange` re-checks that
+ *  one change against the book as it stands at approval time. A package of five
+ *  would need a second `ApprovalKind`, a payload shape of its own, and an
+ *  all-or-nothing apply — and it would take from the approver the move they
+ *  most need, which is to refuse the one wrong box and pass the other four.
+ *
+ *  The screen still SENDS once, because luật 2 of this module stands: nothing
+ *  on the configuration screen saves as you type. One press, N requests.
+ *
+ *  ------------------------------------------------------------------
+ *  SEQUENTIAL, AND EVERY ANSWER KEPT
+ *  ------------------------------------------------------------------
+ *  In order rather than in parallel, so the inbox reads top-to-bottom the way
+ *  the screen does. And a rejected edit does not abandon the rest: each one is
+ *  caught and reported, because the four that went through are already rows in
+ *  somebody's inbox and a screen that threw would never say so.
+ *
+ *  Nothing is repainted on success. The change has not happened — it happens
+ *  when the director approves it, which arrives through another screen. The
+ *  invalidation below re-reads the catalog exactly as the server still holds
+ *  it, which is the truth this screen should be showing. */
+export function useProposeConfigEdits() {
+  const client = useQueryClient()
+
+  return useMutation<ConfigEditResult[], ApiError, ConfigEdit[]>({
+    mutationFn: async (edits) => {
+      const out: ConfigEditResult[] = []
+
+      for (const edit of edits) {
+        try {
+          const receipt = await api.write<ConfigProposalReceipt>(
+            `/sales/config/${edit.list}/${edit.id}`,
+            {
+              method: 'PATCH',
+              body: { limitDays: edit.limitDays },
+              need: { branch: 'Sales', permission: 'config.propose' },
+            },
+          )
+          out.push({ what: edit.what, requestId: receipt.requestId })
+        } catch (error) {
+          out.push({
+            what: edit.what,
+            failure: isApiError(error) ? userMessage(error) : 'Không gửi được đề nghị này.',
+          })
+        }
+      }
+
+      return out
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
+      void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
+    },
+  })
+}
+
+/** Add one entry to a catalog — used by 5.4c, the products list.
+ *
+ *  Separate from the batch above because it is a different verb with a
+ *  different body, and because it is the only place on this screen that creates
+ *  rather than amends. The products list is the one the screen's empty state
+ *  tells its reader to fill in so the deal form has something to pick from —
+ *  a sentence that had no box under it until 14/09. */
+export function useProposeProduct() {
+  const client = useQueryClient()
+
+  return useMutation<ConfigProposalReceipt, ApiError, string>({
+    mutationFn: (name) =>
+      api.write<ConfigProposalReceipt>('/sales/config/PRODUCT', {
+        method: 'POST',
+        body: { name },
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
+      void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
+    },
+  })
+}
+
+/** Each funnel column's deadline, keyed by column — READ FROM CONFIGURATION,
+ *  not from the fixture.
+ *
+ *  Both lead screens ask this question ("is this lead past its column's
+ *  deadline"), and until 14/09 each built its own `Map` out of
+ *  `PIPELINE_STAGES`, a constant of the frozen scenario. The deal book next
+ *  door was already reading the real deadlines, so editing a column limit and
+ *  having it approved left two books of one department colouring rows by two
+ *  different tables.
+ *
+ *  `null` = nobody has set a deadline for that column. NOT an implicit
+ *  `Infinity`: the caller has to decide what to print for a column with no
+ *  clock, and the true sentence there is "nothing can be said", not "on time".
+ *
+ *  This answers for LEADS, not for deals. A deal book row now carries
+ *  `position.overdueBy` from the server (`isRottingOp`), because the server has
+ *  both the ladder and the mark of when the deal entered the column. A lead row
+ *  carries only `daysHere`, so the comparison still happens here — but at least
+ *  the table it compares against is the real one. */
+export function stageLimits(catalog: ConfigBundle | undefined): Map<string, number | null> {
+  return new Map(ladderRows(catalog, 'STAGE').map((r) => [r.key, r.limitDays]))
+}
+
+/** `stageLimits` as a hook, so two screens share one cached read. Empty until
+ *  the catalog lands, which reads as "no limit configured" for one round trip —
+ *  the honest direction to be wrong in: a lead is not accused of being late
+ *  before the rule it is judged by has arrived. */
+export function useStageLimits(): Map<string, number | null> {
+  const { data } = useQuery(salesCatalogQuery)
+  return stageLimits(data)
 }

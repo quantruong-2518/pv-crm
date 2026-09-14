@@ -467,18 +467,38 @@ export const OpportunityBookQuery = PageQuery.extend({
   dir: SortDir.default('desc'),
 })
 
-export const OpportunityBookResponse = paged(OpportunityRow)
+/** The book page — and since 14/09 every row carries its POSITION.
+ *
+ *  ------------------------------------------------------------------
+ *  THE DAY A SCREEN ASKED
+ *  ------------------------------------------------------------------
+ *  This shape used to end at `OpportunityRow`, and the note on the profile
+ *  response said the book would get a position "the day a screen asks". It
+ *  asked: the book grid was judging lateness with `isRottingOp`, which read
+ *  `STAGE_LIMIT` — a `Map` built from the frozen fixture — while the profile
+ *  one click away judged the same deal by the limits somebody can actually edit
+ *  on the configuration screen. Two answers to one question, on two screens
+ *  showing the same row.
+ *
+ *  The cost the old note worried about does not appear, because the reads are
+ *  PER PAGE and not per row: the ladder is one query the book already made for
+ *  its own histogram, and the open approvals are one `IN (…)`
+ *  (`ApprovalService.pendingOnMany`). Two queries for a page of up to 200.
+ *
+ *  `null` on a row means the deal stands in no column — won and lost have left
+ *  the board — which is rule 1 of §2 answered honestly rather than defaulted
+ *  away. */
+export const OpportunityBookRow = OpportunityRow.extend({
+  position: PipelinePositionView.nullable(),
+})
+
+export const OpportunityBookResponse = paged(OpportunityBookRow)
 
 /** `GET /sales/opportunities/:code` — the book row, plus where the deal stands.
  *
- *  A shape of its own rather than a field added to `OpportunityRow`, and the
- *  difference is the cost: a position needs the ladder and the open approvals
- *  loaded beside the row, which is two extra reads. Worth it for ONE deal on a
- *  profile; multiplied by a book page it is a second query per row for a column
- *  nobody is reading yet. The book gets it the day a screen asks.
- *
- *  `null` means this kind has no ladder — the honest answer rule 1 of §2 wants
- *  visible rather than defaulted away. */
+ *  The same extension the book row now carries, kept as its own name because
+ *  the two doors are free to diverge and a shared alias would hide the day they
+ *  do. */
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
 })
@@ -614,7 +634,9 @@ export type OpportunityUpdate = z.infer<typeof OpportunityUpdate>
 export type OpportunityUpdateResponse = z.infer<typeof OpportunityUpdateResponse>
 export type OpportunityOwner = z.infer<typeof OpportunityOwner>
 export type OpportunityRow = z.infer<typeof OpportunityRow>
+export type OpportunityBookRow = z.infer<typeof OpportunityBookRow>
 export type OpportunitySortKey = z.infer<typeof OpportunitySortKey>
+
 export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>

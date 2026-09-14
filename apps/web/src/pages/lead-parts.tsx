@@ -29,7 +29,6 @@ import {
   toMoneyVnd,
   type CurrencyCode,
   type Lead,
-  type LeadEvent,
   type LeadEventKind,
   type LeadProfile,
   type TranscriptTurn,
@@ -55,6 +54,7 @@ import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/
 import { ROOT_FIELD } from '@/data/lead-create'
 import { buildLeadPatch, patchFieldLabel, useUpdateLeadProfile } from '@/data/lead-patch'
 import { profileForm } from '@/data/lead-profile'
+import type { TouchEvent } from '@/data/touches'
 import {
   changedFields,
   channelUrlLabel,
@@ -824,15 +824,27 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
  *  transcript để thay. Nhãn `FrozenLead` bên `@pv/engines` chặn đường đó ở tầng
  *  kiểu; khối nhận `history` và `turns` rời nhau để MỖI người gọi tự khai mình
  *  đứng trên nền nào. Rỗng vẫn là một câu trả lời đúng, và câu ấy nằm ở nhánh
- *  `shown.length === 0` bên dưới — không phải một chỗ hỏng. */
+ *  `shown.length === 0` bên dưới — không phải một chỗ hỏng.
+ *
+ *  ------------------------------------------------------------------
+ *  DÒNG KHOÁ BẰNG MÃ LẦN CHẠM, KHÔNG BẰNG VỊ TRÍ — 14/09
+ *  ------------------------------------------------------------------
+ *  Khoá cũ là `${at}-${i}`, dựng từ chỗ đứng trong mảng. Nó đủ để React vẽ,
+ *  nhưng nó không phải danh tính: lọc sang tab "Có hội thoại" là mọi dòng đổi
+ *  khoá, và quan trọng hơn — mắt của `FlowVector` chở `touchId`, nên không có
+ *  gì để bấm tới. `focus` là nửa còn lại của lượt nối đó: mã một lần chạm đi
+ *  vào, khối tự cuộn tới dòng ấy và tô nó lên. */
 export function ActivityCard({
   code,
   history,
   turns,
+  focus,
 }: {
   code: string
-  history: readonly LeadEvent[]
+  history: readonly TouchEvent[]
   turns: readonly TranscriptTurn[]
+  /** The `sales.touch` row to jump to — normally a vector face just pressed. */
+  focus?: string | null
 }) {
   const [tab, setTab] = useState('all')
   const [open, setOpen] = useState<string | null>(null)
@@ -842,6 +854,17 @@ export function ActivityCard({
     setOpen(null)
   }, [code])
 
+  /* Jump to the moment asked for. Back to the first tab FIRST, because the
+     wanted row may be a hand-over — which the second tab filters out, and
+     scrolling to a hidden row scrolls nowhere. Pressing the same face twice
+     does nothing, and that is right: the row is already in view. */
+  useEffect(() => {
+    if (!focus) return
+    setTab('all')
+    const node = document.getElementById(`touch-${focus}`)
+    node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [focus])
+
   /* Nối mốc với lần chạm bằng ĐÚNG mốc thời gian: `leadTranscript` lấy `at` của
      turn thẳng từ sự kiện timeline sinh ra nó, nên hai đầu luôn khớp chuỗi. */
   const turnAt = useMemo(() => {
@@ -850,7 +873,7 @@ export function ActivityCard({
     return m
   }, [turns])
 
-  const rows = history.map((e, i) => ({ ...e, id: `${e.at}-${i}`, turn: turnAt.get(e.at) }))
+  const rows = history.map((e) => ({ ...e, turn: turnAt.get(e.at) }))
   const withConvo = rows.filter((r) => r.turn)
   const shown = tab === 'convo' ? withConvo : rows
 
@@ -889,7 +912,18 @@ export function ActivityCard({
             const last = i === shown.length - 1
 
             return (
-              <li key={row.id} className="flex gap-3">
+              <li
+                key={row.id}
+                id={`touch-${row.id}`}
+                className={cn(
+                  'flex gap-3 rounded-md transition-colors',
+                  /* Mark the row just jumped to. A faint ground rather than an
+                     outline, per rule 4 — nothing here draws a box. It stays
+                     until the next press, so the reader does not lose the row
+                     the moment the scroll stops. */
+                  focus === row.id && 'bg-accent/10',
+                )}
+              >
                 {/* Cột mốc: chấm trạng thái và sợi dây nối xuống mốc sau. Dây
                     dừng ở mốc cuối, nếu không nó chỉ vào khoảng trống. */}
                 <span className="flex flex-col items-center pt-1">

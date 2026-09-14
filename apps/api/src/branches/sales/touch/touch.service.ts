@@ -55,7 +55,16 @@ export class TouchService {
            an id can never land without its name — the shape
            `touch_hand_over_sides` refuses. */
         ...(e.from === undefined ? {} : { fromActorId: e.from.actorId, fromName: e.from.name }),
-        ...(e.to === undefined ? {} : { toActorId: e.to.actorId, toName: e.to.name }),
+        ...(e.to === undefined
+          ? {}
+          : {
+              toActorId: e.to.actorId,
+              toName: e.to.name,
+              /* The role rides with the end it belongs to — `touch_to_role_needs_an_end`
+                 refuses one without a person, and spreading it here is what
+                 makes that impossible to get wrong at a call site. */
+              ...(e.to.role === undefined ? {} : { toRole: e.to.role }),
+            }),
       })),
     )
   }

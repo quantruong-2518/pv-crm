@@ -61,8 +61,10 @@ export const configEntry = sales.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 
     // ── thuộc tính riêng · mỗi cột đúng một danh mục ────────────────────────
-    /** CHỈ `STAGE` — hạn của cột, tính bằng ngày. */
+    /** Only a LADDER list — the phase's clock, in days. `NULL` means nobody has
+     *  set one, which is not the same as zero; see the CHECK below. */
     limitDays: integer('limit_days'),
+
     /** CHỈ `CATEGORY` — Sale phụ trách ngành.
      *
      *  Khoá ngoại vào `platform.actor(id)`, KHÔNG lưu tên người: hai người
@@ -76,23 +78,24 @@ export const configEntry = sales.table(
     /** Trống là `NULL`, không bao giờ là `''` — cùng quy ước với `lead`. */
     check('config_name_not_blank', sql`"name" <> ''`),
 
-    /** A per-phase clock belongs to a LADDER list, and every phase of a ladder
-     *  must carry one.
+    /** A per-phase clock belongs to a LADDER list. Nothing else may carry one.
      *
-     *  Written as an equality between two clauses rather than two separate
-     *  CHECKs: one expression has no way to satisfy half and miss the other.
-     *  This is where the price of "six lists in one table" is paid.
+     *  This is where the price of "six lists in one table" is paid, and the
+     *  set comes from `LADDER_LISTS` in `@pv/contracts` — copied rather than
+     *  generated, the same call every other CHECK here makes: widening it must
+     *  be a migration somebody reads.
      *
-     *  The set comes from `LADDER_LISTS` in `@pv/contracts` and holds one entry
-     *  today (`STAGE`). Spelling the set rather than the single value is luật 2
-     *  of `docs/tam-nhin-pipeline-toan-he.md` §2 taken seriously: the rule is
-     *  "a ladder has clocks", not "Sales has clocks", and the day a second
-     *  pipeline brings a ladder this is one more value here — not a rewrite of
-     *  a constraint that was only ever true of one branch.
-     *
-     *  Copied rather than generated, the same call every other CHECK in this
-     *  codebase makes: widening it must be a migration somebody reads. */
-    check('config_limit_only_ladder', sql`("list" IN ('STAGE')) = ("limit_days" IS NOT NULL)`),
+     *  ONE-DIRECTIONAL since `0038`, and the direction is the decision. It used
+     *  to be an equality — a ladder rung must ALSO have a clock — which held
+     *  while `STAGE` was the only ladder because the seed gave every funnel
+     *  column a deadline. `TIER` has none: §8.5 of
+     *  `docs/tam-nhin-pipeline-toan-he.md` says nobody has decided how long a
+     *  lead may sit at `dau-moi`, and an undeclared number stays `NULL` here
+     *  rather than being invented. Under the equality, giving a lead a position
+     *  at all would have cost a made-up deadline somebody reads as agreed a
+     *  month later. The nagging half of luật 2 §2 lives on the screen, where a
+     *  human can answer it. */
+    check('config_limit_only_ladder', sql`"limit_days" IS NULL OR "list" IN ('STAGE', 'TIER')`),
 
     /** ĐÍCH của khoá ngoại GHÉP mà `sales.lead` sẽ trỏ vào.
      *

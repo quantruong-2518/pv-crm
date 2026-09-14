@@ -41,7 +41,7 @@ import {
   type OpportunityRowDb,
   type OpportunityStageEventRowDb,
 } from './opportunity.schema'
-import { stageConfigOf, type StageConfig } from './stage-config'
+import { stageConfigOf, type StageConfig } from '../ladder'
 import type { ActorLite } from './opportunity-import.check'
 import type { OpportunityValues } from './opportunity.mapper'
 
@@ -907,7 +907,7 @@ export class OpportunityRepository {
    *  Two queries, and the order matters: the configured limits are read FIRST
    *  because the "rotting" predicate is built out of them. They cannot be
    *  joined in SQL — `config_entry` stores no stage key, so the pairing is by
-   *  ordinal position and that lives in `stage-config.ts` behind its fence.
+   *  ordinal position and that lives in `../ladder.ts` behind its fence.
    *
    *  Unscoped like the scorecard, and open reads from `stage IS NOT NULL` for
    *  the same reason stated there: won and lost have left the board. */
@@ -960,7 +960,7 @@ export class OpportunityRepository {
   /** The STAGE list as `stageConfigOf` needs it. Public since the profile door
    *  reads the ladder too: `pipelinePosition` is given the phases and their
    *  clocks, and a second loader would be a second chance to read the list in a
-   *  different order — which is the one thing `stage-config.ts` fences. */
+   *  different order — which is the one thing `../ladder.ts` fences. */
   stageRows(): Promise<{ name: string; limitDays: number | null }[]> {
     return this.db
       .select({ name: configEntry.name, limitDays: configEntry.limitDays })

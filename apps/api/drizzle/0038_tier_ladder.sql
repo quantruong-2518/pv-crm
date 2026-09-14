@@ -1,0 +1,25 @@
+-- 0038 - the lead TIER ladder, and a clock that is allowed to be undecided.
+--
+-- Two things at once because they are one decision. `TIER` joins `LADDER_LISTS`
+-- so a lead can have a POSITION (`pipelinePosition` needs the rungs in order
+-- with a `limitDays` each), and the CHECK stops demanding that every rung of a
+-- ladder carry a clock.
+--
+-- `config_limit_only_ladder` was an equality: a ladder row must have a clock,
+-- nothing else may. That was true while STAGE was the only ladder, because the
+-- seed gave all five funnel columns a deadline. TIER has none - §8.5 of
+-- `docs/tam-nhin-pipeline-toan-he.md` says nobody has decided how long a lead
+-- may sit at `dau-moi`, and this system leaves an undecided number NULL rather
+-- than inventing one (`motion_policy` is six rows of that). Under the equality,
+-- giving a lead a position would have COST an invented deadline.
+--
+-- So the implication now runs one way: a clock implies a ladder. Every row that
+-- passed before still passes; what is newly allowed is a ladder rung with no
+-- clock, which reads as "chưa đặt hạn" everywhere it surfaces.
+--
+-- No `NOT VALID` needed: the new clause is strictly weaker than the one being
+-- dropped, so no existing row can fail it (trap 2 of
+-- `docs/ban-giao-tang-duyet-va-vi-tri.md` §2 - a CHECK checks the rows already
+-- there).
+ALTER TABLE "sales"."config_entry" DROP CONSTRAINT "config_limit_only_ladder";--> statement-breakpoint
+ALTER TABLE "sales"."config_entry" ADD CONSTRAINT "config_limit_only_ladder" CHECK ("limit_days" IS NULL OR "list" IN ('STAGE', 'TIER'));

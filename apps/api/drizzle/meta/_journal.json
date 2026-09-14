@@ -260,6 +260,20 @@
       "when": 1788500800000,
       "tag": "0037_ladder_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788500900000,
+      "tag": "0038_tier_ladder",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1788501000000,
+      "tag": "0039_touch_to_role",
+      "breakpoints": true
     }
   ]
 }

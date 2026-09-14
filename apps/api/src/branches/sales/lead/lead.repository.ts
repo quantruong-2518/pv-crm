@@ -561,4 +561,21 @@ export class LeadRepository {
       contracts: row?.contracts ?? 0,
     }
   }
+
+  /** The TIER list as configured, ACTIVE ONLY and in `ord` order — the two
+   *  conditions `ladderConfigOf` pairs positions under.
+   *
+   *  The lead's own ladder. The deal side has the identical query for `STAGE`
+   *  (`OpportunityRepository.stageRows`) and the two stay apart on purpose:
+   *  a module reads its own branch's tables, and sharing the reader would mean
+   *  one module reaching through another for a row it can select itself. What
+   *  IS shared is the fence that pairs the rows with keys, because that is the
+   *  part with a way to go quietly wrong (`../ladder.ts`). */
+  tierRows(): Promise<{ name: string; limitDays: number | null }[]> {
+    return this.db
+      .select({ name: configEntry.name, limitDays: configEntry.limitDays })
+      .from(configEntry)
+      .where(and(eq(configEntry.list, 'TIER'), eq(configEntry.active, true)))
+      .orderBy(asc(configEntry.ord))
+  }
 }

@@ -103,13 +103,41 @@ export class ApprovalRepository {
    *  Only `waiting` rows: a decided request is not waiting on anybody, and the
    *  caller — `pipelinePosition` — asks exactly one question of this list. */
   async waitingOnObject(objectCode: string): Promise<ApprovalRowDb[]> {
-    return this.db
-      .select({ approval })
+    const byCode = await this.waitingOnObjects([objectCode])
+    return byCode.get(objectCode) ?? []
+  }
+
+  /** The same question asked of a WHOLE PAGE of objects — one `IN (…)`, not one
+   *  query per row.
+   *
+   *  This exists because the deal book began printing a position per row
+   *  (14/09), and a position needs to know who the deal is waiting on. A book
+   *  page is at most 200 rows; 200 round trips for one column would have been a
+   *  reason not to have the column at all, and then the book would have gone on
+   *  judging lateness by a constant copied out of a frozen fixture — which is
+   *  the thing round 8 of `docs/tam-nhin-pipeline-toan-he.md` §9 ends.
+   *
+   *  Keyed by object code, and a code with nothing pending is ABSENT rather than
+   *  present with an empty array: the caller writes `?? []` once, which it has
+   *  to write anyway for a code the join never saw. */
+  async waitingOnObjects(objectCodes: readonly string[]): Promise<Map<string, ApprovalRowDb[]>> {
+    const byCode = new Map<string, ApprovalRowDb[]>()
+    if (objectCodes.length === 0) return byCode
+
+    const rows = await this.db
+      .select({ approval, objectCode: approvalLink.objectCode })
       .from(approval)
       .innerJoin(approvalLink, eq(approvalLink.requestId, approval.id))
-      .where(and(eq(approvalLink.objectCode, objectCode), eq(approval.state, 'waiting')))
+      .where(and(inArray(approvalLink.objectCode, [...objectCodes]), eq(approval.state, 'waiting')))
       .orderBy(desc(approval.raisedAt))
-      .then((rows) => rows.map((r) => r.approval))
+
+    for (const r of rows) {
+      const list = byCode.get(r.objectCode)
+      if (list) list.push(r.approval)
+      else byCode.set(r.objectCode, [r.approval])
+    }
+
+    return byCode
   }
 
   async linksOf(requestIds: readonly string[]): Promise<ApprovalLinkRowDb[]> {

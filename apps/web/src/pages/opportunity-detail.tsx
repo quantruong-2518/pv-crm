@@ -19,6 +19,7 @@ import {
   Badge,
   Button,
   Chip,
+  FlowVector,
   GlassCard,
   Icon,
   Input,
@@ -41,16 +42,17 @@ import {
   OPPORTUNITY_DESCRIPTION_MAX,
   OPPORTUNITY_NAME_MAX,
   type LeadProfile,
+  type OpportunityProfileResponse,
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
 import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage, type FieldErrors } from '@/app/api'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
 import { leadProfileQuery, realContact, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
-import { opportunityTouchesQuery } from '@/data/touches'
+import { NO_STEPS, opportunityTouchesQuery, opportunityVectorQuery } from '@/data/touches'
 import {
   bdOwnersOf,
   isLateClose,
@@ -226,6 +228,22 @@ export function OpportunityDetailPage() {
     enabled: Boolean(op?.code),
   })
 
+  /* The holder chain, off the SAME query key as the timeline above — one fetch,
+     two questions, exactly as the lead profile does it. §6·B asked for the
+     vector on both profiles and only the lead had it until 14/09. */
+  const { data: vector = NO_STEPS } = useQuery({
+    ...opportunityVectorQuery(op?.code ?? ''),
+    enabled: Boolean(op?.code),
+  })
+
+  /* Which timeline row a vector face last pointed at — the wire between the two
+     blocks, same shape as the lead profile. */
+  const [focusTouch, setFocusTouch] = useState<string | null>(null)
+
+  /* So a step can mark itself as the reader's own. Read here rather than inside
+     `FlowVector`: the library holds no session, data goes in by props. */
+  const me = useSession((s) => s.actor)
+
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
   if (isPending) {
@@ -367,6 +385,18 @@ export function OpportunityDetailPage() {
         </div>
       </GlassCard>
 
+      {/* WHO HAS HELD THIS DEAL, in order — the left half of the flow vector
+          (`docs/tam-nhin-pipeline-toan-he.md` §6·B), in the same place and for
+          the same reason as on the lead profile: it is a fact about an object,
+          not a task. A deal that never changed hands answers an empty chain and
+          this block draws nothing, which is the true picture of a deal one
+          person carried the whole way. */}
+      {vector.length > 0 && (
+        <GlassCard variant="b" className="p-4">
+          <FlowVector steps={vector} you={me?.id} onOpen={setFocusTouch} />
+        </GlassCard>
+      )}
+
       {/* Cùng lưới chi tiết với hồ sơ lead — `w-full` để mép card hai màn thẳng
           hàng, `xl:self-stretch` + cột phụ DÍNH để ba thẻ tra cứu còn trong tầm
           mắt khi cuộn hết phiếu.
@@ -394,7 +424,12 @@ export function OpportunityDetailPage() {
 
               `turns` vẫn `NO_TRANSCRIPT`, cố ý: máy chủ không có transcript và
               sẽ chưa có. Hằng số nói ra điều đó, một `[]` trần thì không. */}
-            <ActivityCard code={op.code} history={touches} turns={NO_TRANSCRIPT} />
+            <ActivityCard
+              code={op.code}
+              history={touches}
+              turns={NO_TRANSCRIPT}
+              focus={focusTouch}
+            />
           </DetailSidePanel>
         }
       />
@@ -764,7 +799,7 @@ function LeadCard({
  *  `exitReasonRows` applies when the row counts disagree. */
 const stageName = (key: NonNullable<OpportunityRow['stage']>) => STAGE_LABEL.get(key) ?? key
 
-function StageCard({ op }: { op: OpportunityRow }) {
+function StageCard({ op }: { op: OpportunityProfileResponse }) {
   const move = useMoveStage(op.code)
   const canEdit = useCan('opportunity.edit')
   const history = useQuery(opportunityStageHistoryQuery(op.code))

@@ -1,6 +1,6 @@
 import { check, index, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { LeadTier, TouchKind, TouchSubject } from '@pv/contracts'
+import type { LeadTier, RoleId, TouchKind, TouchSubject } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 
@@ -111,6 +111,24 @@ export const touch = sales.table(
     toActorId: text('to_actor_id').references(() => actor.id),
     toName: text('to_name'),
 
+    /** The role the RECEIVER held on the day — a copy, like the names beside it.
+     *
+     *  The flow vector prints a role under each name, and joining `actor` at
+     *  read time would print the role that person holds TODAY. A step from
+     *  March has to keep saying "BD" after the person moved to Sale in July;
+     *  that is the whole reason `by`, `from_name` and `to_name` are copies, and
+     *  a role read live beside three frozen names would be the one field that
+     *  rewrites history.
+     *
+     *  Only the RECEIVING end has one, and one column is enough: the vector
+     *  draws who holds it NEXT, and the giver is already on the chain as the
+     *  previous step, wearing the role it was handed to them under.
+     *
+     *  Nullable for ever. Every row written before `0039` has no answer, and
+     *  `stepsOf` prints nothing rather than borrowing one — an absent role is
+     *  a row that predates the column, not a person with no job. */
+    toRole: text('to_role').$type<RoleId>(),
+
     note: text('note').notNull(),
   },
   (t) => [
@@ -165,6 +183,18 @@ export const touch = sales.table(
     check(
       'touch_giao_names_an_end',
       sql`"kind" <> 'giao' OR "from_actor_id" IS NOT NULL OR "to_actor_id" IS NOT NULL`,
+    ),
+    /** A role with nobody wearing it is unreadable — the vector prints it UNDER
+     *  a name, so a row with `to_role` and no `to_actor_id` would draw a job
+     *  title floating free. */
+    check('touch_to_role_needs_an_end', sql`"to_role" IS NULL OR "to_actor_id" IS NOT NULL`),
+    /** The seven `RoleId` values, copied out for `touch_kind_known`'s reason:
+     *  a role added to the contract must be a migration somebody reads, not a
+     *  line that changes underneath the rows already written. */
+    check(
+      'touch_to_role_known',
+      sql`"to_role" IS NULL OR "to_role" IN ('director', 'head-of-sales', 'marketing',
+                                             'bd', 'presales', 'sale', 'account-executive')`,
     ),
     /** Một dòng thời gian không có câu nào để đọc là một dòng trống chiếm chỗ. */
     check('touch_no_blank', sql`"by" <> '' AND "note" <> '' AND "subject_code" <> ''`),

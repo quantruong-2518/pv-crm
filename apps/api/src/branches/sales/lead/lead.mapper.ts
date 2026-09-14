@@ -201,8 +201,13 @@ export type LeadProfileRead = LeadRead & {
  *  about the WIRE: an absent key is what `JSON.stringify` drops, while
  *  `x: undefined` and `x: null` both reach the screen as a value it has to
  *  special-case. The contract spells every one of these fields `optional()`,
- *  meaning "not dug out yet" — that is an absence, not a null. */
-export function toProfile(read: LeadProfileRead): LeadProfile {
+ *  meaning "not dug out yet" — that is an absence, not a null.
+ *
+ *  `position` is NOT here, and the `Omit` says so out loud: it is not a column
+ *  of this row but an answer `pipelinePosition` computes from the ladder and
+ *  the open approvals, neither of which a mapper has or should fetch. The
+ *  service adds it (`lead.service.ts#positionOf`). */
+export function toProfile(read: LeadProfileRead): Omit<LeadProfile, 'position'> {
   const { row } = read
   return {
     ...toContract(read),

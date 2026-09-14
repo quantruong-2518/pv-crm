@@ -70,7 +70,7 @@ export class SalesConfigService implements ApprovalApplier {
     list: ConfigList,
     body: ConfigEntryCreate,
   ): Promise<ConfigProposalReceipt> {
-    this.assertAttrs(list, body, true)
+    this.assertAttrs(list, body)
     await this.assertOwnerReal(body.ownerId)
     this.assertNameFree(await this.repo.list(list), body.name)
 
@@ -92,9 +92,10 @@ export class SalesConfigService implements ApprovalApplier {
     id: string,
     body: ConfigEntryPatch,
   ): Promise<ConfigProposalReceipt> {
-    this.assertAttrs(list, body, false)
+    this.assertAttrs(list, body)
 
     const rows = await this.repo.list(list)
+
     if (!rows.some((r) => r.id === id)) throw notFound(`mục của danh mục ${list}`, id)
 
     if (body.ownerId) await this.assertOwnerReal(body.ownerId)
@@ -261,7 +262,6 @@ export class SalesConfigService implements ApprovalApplier {
   private assertAttrs(
     list: ConfigList,
     v: { limitDays?: number; ownerId?: string | null; kind?: string },
-    requireLimit: boolean,
   ): void {
     const wrong: Record<string, string[]> = {}
     const only = (field: string, owner: ConfigList, given: boolean): void => {
@@ -277,11 +277,12 @@ export class SalesConfigService implements ApprovalApplier {
     only('ownerId', 'CATEGORY', v.ownerId !== undefined)
     only('kind', 'SOURCE', v.kind !== undefined)
 
-    /* Chỉ đòi lúc TẠO. Lúc sửa, vắng mặt nghĩa là "giữ nguyên hạn cũ", còn
-       xoá hạn của một cột phễu thì không có đường nào — đúng như CHECK ở bảng. */
-    if (requireLimit && isLadder(list) && v.limitDays === undefined) {
-      wrong.limitDays = ['Cột của phễu bắt buộc có hạn, tính bằng ngày.']
-    }
+    /* A new rung of a ladder used to be REQUIRED to arrive with a deadline.
+       It no longer is, for the reason written where the CHECK lives: since
+       `0038` a clock is a ladder's privilege, not its duty, because `TIER`'s
+       numbers are the thing §8.5 says nobody has decided. Demanding one here
+       would put the invented number back in through the door instead of the
+       table. Missing means missing, and the screen says so. */
 
     if (Object.keys(wrong).length > 0) throw invalid(wrong)
   }

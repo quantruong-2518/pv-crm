@@ -31,6 +31,7 @@ import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
+import { useStageLimits } from '@/data/sales-config'
 import { leadOf, leadProfileQuery, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
 import { opportunitiesOfLeadQuery } from '@/data/opportunities'
 import { leadTouchesQuery, leadVectorQuery, NO_STEPS } from '@/data/touches'
@@ -140,7 +141,6 @@ const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
-const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
 
 /** Vietnamese labels for the two intake fields `OriginCard` draws, keyed by
  *  the exact UPPERCASE wire values from `@pv/contracts` — not looked up
@@ -174,13 +174,19 @@ const LEAD_MOTION_LABEL: Record<LeadMotion, string> = {
   RECYCLE: 'Đánh thức lại',
 }
 
-/** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
- *  hồ sơ nay là `LeadProfile` và chỉ chở hai ô cần thiết — cùng phép tính,
- *  cùng bảng hạn, không phải dựng một dòng sổ giả để hỏi một câu hai trường.
- *  (Cùng nước đi `pages/leads.tsx` đã làm cho dòng sổ.) */
-function overSla(lead: LeadProfile): boolean {
+/** Quá hạn CỘT PHỄU — cùng phép tính và cùng bảng hạn với dòng sổ lead
+ *  (`pages/leads.tsx`), và từ 14/09 bảng hạn ấy đến từ `config_entry` chứ
+ *  không từ fixture đóng băng. Lý do đầy đủ ở chỗ kia.
+ *
+ *  KHÁC với `lead.position`, và khác biệt đó đáng giữ trong đầu: `position` nói
+ *  lead đang ở đâu trên thang BẬC của chính nó (`dau-moi → mql → sql`), còn hàm
+ *  này hỏi về CỘT của phễu cơ hội — thứ lead chỉ bước vào khi đã có đơn. Hai
+ *  thang, hai câu hỏi. Đồng hồ của thang bậc thì chưa ai lên dây (§8.5), nên
+ *  `position.overdueBy` hôm nay luôn `null` và không thay được hàm này. */
+function overSla(lead: LeadProfile, limits: Map<string, number | null>): boolean {
   if (!lead.stage) return false
-  return lead.daysHere > (STAGE_LIMIT.get(lead.stage) ?? Infinity)
+  const limit = limits.get(lead.stage)
+  return limit !== undefined && limit !== null && lead.daysHere > limit
 }
 
 export function LeadDetailPage() {
@@ -204,6 +210,13 @@ export function LeadDetailPage() {
      the hooks right above. A failed fetch does NOT break the screen:
      `= NO_TOUCHES` keeps the old wording, and an empty timeline still reads. */
   const { data: touches = NO_TOUCHES } = useQuery(leadTouchesQuery(code))
+  /* The configured column deadlines — one cached read, above the early
+     returns like everything else here. */
+  const stageLimits = useStageLimits()
+  /* Which timeline row a vector face last pointed at. Lives HERE rather than
+     inside either block because it is the wire between them: the vector says
+     which moment, the activity card shows it. */
+  const [focusTouch, setFocusTouch] = useState<string | null>(null)
   /* The holder chain, off the SAME query key as the timeline above — one fetch,
      two questions. Empty until somebody has actually held this lead, and
      `FlowVector` draws nothing at all in that case. */
@@ -343,8 +356,18 @@ export function LeadDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge lead={lead} reported={reported} />
               {lead.stage && (
-                <MetaPill tone={overSla(lead) ? 'warning' : 'accent'}>
+                <MetaPill tone={overSla(lead, stageLimits) ? 'warning' : 'accent'}>
                   {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
+                </MetaPill>
+              )}
+              {/* Who the lead is waiting ON, a different question from who
+                  HOLDS it: a request sitting with somebody else is why a lead
+                  stops moving while its holder looks idle. The same pill as the
+                  deal profile, off the same field (`position.waitingOn`),
+                  because it is one question and not two. */}
+              {lead.position?.waitingOn && (
+                <MetaPill tone="warning">
+                  chờ {lead.position.waitingOn.person} · {lead.position.waitingOn.role}
                 </MetaPill>
               )}
             </div>
@@ -392,11 +415,16 @@ export function LeadDetailPage() {
           (`docs/tam-nhin-pipeline-toan-he.md` §6·B). It sits under the header
           rather than in the side panel because it is a fact about the lead, not
           a task: the panel answers "what do I do now", this answers "who was
-          before me". No `onOpen` yet — `ActivityCard` keys its rows on `at`
-          rather than on a touch id, so there is nothing to scroll to. */}
+          before me".
+
+          PRESSABLE since 14/09: a step carries the `sales.touch` row it was
+          read off, and `ActivityCard` now keys its rows on that same id, so
+          `onOpen` has somewhere to land. Pressing a face scrolls the timeline
+          to the moment that person took the lead — the one question the vector
+          raises and cannot answer by itself. */}
       {vector.length > 0 && (
         <GlassCard variant="b" className="p-4">
-          <FlowVector steps={vector} you={me?.id} />
+          <FlowVector steps={vector} you={me?.id} onOpen={setFocusTouch} />
         </GlassCard>
       )}
 
@@ -447,7 +475,12 @@ export function LeadDetailPage() {
                 `turns` stays `NO_TRANSCRIPT` on purpose: the server has no
                 transcript and will not. The constant says so; a bare `[]` does
                 not. */}
-            <ActivityCard code={lead.code} history={touches} turns={NO_TRANSCRIPT} />
+            <ActivityCard
+              code={lead.code}
+              history={touches}
+              turns={NO_TRANSCRIPT}
+              focus={focusTouch}
+            />
             <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
           </DetailSidePanel>
@@ -524,6 +557,8 @@ function EmptyLead({
  *  badge giữ TRẠNG THÁI và bỏ mã, thay vì bịa một mã hoặc kéo mã cũ của
  *  fixture đi theo. Mã quay lại ngày hồ sơ chở một DANH SÁCH cơ hội. */
 function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReason | null }) {
+  const limits = useStageLimits()
+
   if (lead.signed) return <Badge tone="success">Đã ký</Badge>
   if (lead.exitReason) {
     return (
@@ -531,7 +566,7 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
     )
   }
   if (reported) return <Badge tone="warning">Đã báo · {reported}</Badge>
-  if (overSla(lead)) return <Badge tone="warning">Quá hạn cột</Badge>
+  if (overSla(lead, limits)) return <Badge tone="warning">Quá hạn cột</Badge>
   return <Badge tone="running">Đang chạy</Badge>
 }
 

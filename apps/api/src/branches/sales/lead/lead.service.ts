@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import { pipelinePosition, type AccessControl, type Actor } from '@pv/engines'
 import {
   LeadBookResponse,
   LeadFacets,
@@ -7,6 +7,8 @@ import {
   LeadMailTimelineResponse,
   LeadProfile,
   LeadScorecard,
+  LeadTier,
+  PipelinePositionView,
   type ContactCreate,
   type ContactListResponse,
   type ContactPatch,
@@ -23,12 +25,15 @@ import {
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
+import { ApprovalService } from '@api/platform/approval/approval.service'
+import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
+import { phasesOf, tierConfigOf } from '../ladder'
 import { AccountService } from '../account/account.service'
 import { ContactService } from '../contact/contact.service'
 import { MeetingService } from '../meeting/meeting.service'
 import { TouchService } from '../touch/touch.service'
 import { toContract, toMailEvent, toMailTimeline, toProfile, toRef } from './lead.mapper'
-import { LeadRepository } from './lead.repository'
+import { LeadRepository, type LeadProfileFound } from './lead.repository'
 
 /** Sổ lead — nơi DUY NHẤT biết cả repository lẫn engine.
  *
@@ -51,6 +56,9 @@ export class LeadService {
     private readonly meetings: MeetingService,
     private readonly contacts: ContactService,
     private readonly accounts: AccountService,
+    /* E3's durable half, asked one question by this module: what is still
+       waiting on a lead. Registering an applier is somebody else's job. */
+    private readonly approvals: ApprovalService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -127,10 +135,22 @@ export class LeadService {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 
+    /* The ladder and the open approvals, side by side: neither depends on the
+       other and the screen waits on both. The deal profile does exactly this
+       with its own ladder — same two reads, same reason, and read on the
+       PROFILE door only: the lead book is 121 rows that draw no position. */
+    const [tierRows, approvals] = await Promise.all([
+      this.repo.tierRows(),
+      this.approvals.pendingOn(code),
+    ])
+
     /* Cùng lý do với `book()`: kiểm chính dữ liệu mình trả ra bằng hợp đồng.
        Một cột đổi kiểu, một trường quên map — cả hai lọt qua `tsc` nếu mapper
        sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
-    return LeadProfile.parse(toProfile(found))
+    return LeadProfile.parse({
+      ...toProfile(found),
+      position: positionOf(found, tierRows, approvals),
+    })
   }
 
   /** Every batch this lead was posted in. `GET /sales/leads/:code/mail`.
@@ -364,4 +384,51 @@ export class LeadService {
 
     return leadCode
   }
+}
+
+/** Where one lead stands on the lead ladder, for the profile door.
+ *
+ *  Everything the engine needs is in hand before this is called; the function
+ *  itself is pure and synchronous, which is why the same one can run in a
+ *  browser. What the branch adds is the two translations only it can make:
+ *
+ *   · the LADDER — `config_entry` stores a label and an `ord`, never a tier
+ *     key, so the pairing is by ordinal position and `ladderConfigOf` is the
+ *     one place allowed to make it;
+ *   · the EVIDENCE — a lead's own tier IS the evidence. A deal passes its
+ *     column; a lead has nothing to infer, because `len-bac` has no write door
+ *     (the `TouchKind` docblock says why) and the column is the only record of
+ *     which rung it reached.
+ *
+ *  ------------------------------------------------------------------
+ *  `since` IS `stage_since`, AND THAT COLUMN MEANS "THE CURRENT PLACE"
+ *  ------------------------------------------------------------------
+ *  Its own docblock says so: it is the mark for wherever the lead stands now,
+ *  not for a funnel column specifically. So it is the right side of the
+ *  subtraction for a tier as well. The clock still comes back `null` on every
+ *  lead today — no `TIER` rung has a `limitDays` (§8.5) — and `overdueBy` is
+ *  `null` for that reason rather than for want of a mark.
+ *
+ *  `null` for a lead with no tier: it is in the book, not on the ladder, and
+ *  rule 1 of §2 wants that visible instead of defaulted to the first rung. */
+function positionOf(
+  found: LeadProfileFound,
+  tierRows: { name: string; limitDays: number | null }[],
+  approvals: readonly ApprovalRowDb[],
+): PipelinePositionView | null {
+  const tier = found.row.tier
+  if (!tier) return null
+
+  const position = pipelinePosition(
+    {
+      ref: toRef(found.row, found.ownerName),
+      phases: phasesOf(tierConfigOf(tierRows), LeadTier.options),
+      reached: [tier],
+      since: found.row.stageSince.toISOString(),
+      approvals,
+    },
+    new Date().toISOString(),
+  )
+
+  return position === null ? null : PipelinePositionView.parse(position)
 }

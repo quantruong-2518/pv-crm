@@ -50,6 +50,11 @@ import {
 /** Left half reads `sales.touch`, right half reads the flow definition — the
  *  future step deliberately carries no name and no date, because the type
  *  gives it nowhere to put one. */
+/* `role` is a LABEL here, matching what the screens pass: `stepsOf` resolves
+   `to_role` through `ROLE_LABEL` before it reaches this component, because
+   `@pv/ui` holds no vocabulary of its own (the package-boundary rule in
+   CLAUDE.md). A kit sample printing the raw id would show something no screen
+   ever draws. */
 const KIT_VECTOR: FlowVectorStep[] = [
   {
     kind: 'held',
@@ -57,17 +62,21 @@ const KIT_VECTOR: FlowVectorStep[] = [
     holder: 'Châu',
     actorId: 'u-chau',
     at: '12/08',
-    role: 'marketing',
+    role: 'Marketing',
   },
   { kind: 'held', touchId: 't2', holder: 'Nam', actorId: 'u-nam', at: '15/08', role: 'BD' },
-  { kind: 'held', touchId: 't3', holder: 'Huy', actorId: 'u-huy', at: '18/08', role: 'sale' },
-  { kind: 'upcoming', role: 'presales', due: 'hạn 3 ngày' },
+  { kind: 'held', touchId: 't3', holder: 'Huy', actorId: 'u-huy', at: '18/08', role: 'Sale' },
+  { kind: 'upcoming', role: 'Presales', due: 'hạn 3 ngày' },
 ]
 
 /** A lead just released into the common pool: the last step has a date and a
  *  `touchId`, and no holder. */
 const KIT_VECTOR_POOL: FlowVectorStep[] = [
   { kind: 'held', touchId: 't4', holder: 'Nam', actorId: 'u-nam', at: '15/08', role: 'BD' },
+  /* No `role` on this one, and it is not an omission: rows written before
+     migration `0039` and rows the bulk importer writes carry no role, so the
+     kit has to show what a step with a name and no job title looks like. */
+  { kind: 'held', touchId: 't6', holder: 'Diệu Anh', actorId: 'u-dieu-anh', at: '17/08' },
   { kind: 'pool', touchId: 't5', at: '19/08' },
 ]
 

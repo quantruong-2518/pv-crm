@@ -59,7 +59,7 @@ import {
 } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 import type { OpportunityRowDb } from './opportunity.schema'
-import { stageConfigOf } from './stage-config'
+import { phasesOf, stageConfigOf } from '../ladder'
 
 /** Module 3 · Sổ cơ hội — chỗ duy nhất biết cả repository lẫn engine.
  *
@@ -140,11 +140,26 @@ export class OpportunityService {
     }))
     const { visible, hidden } = this.access.visible(who, items)
 
+    /* TWO READS FOR THE WHOLE PAGE, and that is what makes a position per row
+       affordable. The ladder is one query; who each deal is waiting on is one
+       `IN (…)` over the codes that SURVIVED the scope cut, so a row this reader
+       may not see does not even have its approvals fetched.
+
+       They run side by side and only after `visible`, for those two reasons in
+       that order. */
+    const [stageRows, waiting] = await Promise.all([
+      this.repo.stageRows(),
+      this.approvals.pendingOnMany(visible.map((v) => v.row.code)),
+    ])
+
     /* Kiểm chính dữ liệu MÌNH trả ra bằng hợp đồng. Một cột đổi kiểu, một
        trường quên map — cả hai lọt qua `tsc` nếu mapper sai theo, không lọt qua
        đây. Phí bị chặn trên bởi `size` tối đa 200 dòng. */
     return OpportunityBookResponse.parse({
-      rows: visible.map((v) => toContract(v)),
+      rows: visible.map((v) => ({
+        ...toContract(v),
+        position: positionOf(v.row, stageRows, waiting.get(v.row.code) ?? []),
+      })),
       total: page.total,
       hidden: page.hidden + hidden,
     })
@@ -1141,11 +1156,9 @@ function positionOf(
   const position = pipelinePosition(
     {
       ref: toRef(row, null),
-      phases: StageKey.options.map((key) => ({
-        key,
-        limitDays: config.get(key)?.limitDays ?? null,
-      })),
+      phases: phasesOf(config, StageKey.options),
       reached: [row.stage],
+
       since: row.stageSince?.toISOString() ?? null,
       approvals,
     },

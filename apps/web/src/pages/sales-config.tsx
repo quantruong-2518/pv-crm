@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CircleAlert, Send, ShieldCheck } from '@pv/ui'
+import { CircleAlert, Plus, Send, ShieldCheck } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -16,19 +16,38 @@ import {
   Skeleton,
   StatusDot,
 } from '@pv/ui'
+import type { ConfigList } from '@pv/contracts'
 import { MOTION_BY_INTAKE } from '@pv/engines'
-import { HEAD_OF_SALES, dasVina } from '@pv/engines/fixtures/das-vina'
+import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
+import { toastDone } from '@/app/toast'
 import { MotionSection } from './sales-config-parts'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
+import { ROLE_LABEL } from '@/data/users'
 import {
   ANCHOR_CODE,
   exitReasonRows,
+  isEditDone,
+  ladderRows,
   naturalSources,
   lossReasonRows,
   salesCatalogQuery,
   salesConfigQuery,
+  useProposeConfigEdits,
+  useProposeProduct,
+  type ConfigEdit,
+  type ConfigEditResult,
+  type LadderRow,
 } from '@/data/sales-config'
+
+/** Ai gật một thay đổi cấu hình. MỘT mắt xích, và là VAI chứ không phải một
+ *  người: `CONFIG_APPROVERS` ở `config.approval.ts` khai `['director']`, và
+ *  `ApprovalService.chainFor` mới là chỗ đổi vai thành người, đúng lúc đề nghị
+ *  được dựng. Màn in tên vai vì đó là thứ đúng ở mọi thời điểm — in tên người
+ *  thì hôm nào người đó đổi ghế, màn nói sai mà không ai sửa.
+ *
+ *  Trước 14/09 chỗ này in `HEAD_OF_SALES`, từ hồi chuỗi duyệt còn là dự định. */
+const APPROVER = ROLE_LABEL.director
 
 /** Module 6 · Cấu hình.
  *
@@ -40,8 +59,8 @@ import {
  *      nào giữ bản sao của một hằng số ở đây.
  *   2. Đổi cấu hình có ghi vết (E2). Mục nào đang có dữ liệu bám vào — bỏ một
  *      cột đang có đơn đứng, bỏ một lý do đang có lead — phải qua E3, người gật
- *      là TP Kinh doanh. Vì thế mọi thay đổi gom vào MỘT danh sách rồi gửi một
- *      lần: cấu hình tự lưu lắt nhắt là cách chắc chắn nhất để hình dữ liệu lệch
+ *      là Giám đốc. Vì thế mọi thay đổi gom vào MỘT danh sách rồi gửi một lần:
+ *      cấu hình tự lưu lắt nhắt là cách chắc chắn nhất để hình dữ liệu lệch
  *      giữa hai màn giữa chừng.
  *   3. KHÔNG có ô "khác" ở bất kỳ danh sách đóng nào. Thêm lý do thứ bảy là
  *      hành động cấu hình có chủ, không phải ô để người dùng gõ tự do.
@@ -53,18 +72,35 @@ import {
  *  hình cái vòng.
  *
  *  ------------------------------------------------------------------
+ *  MÀN HẾT DIỄN — 14/09
+ *  ------------------------------------------------------------------
+ *  Trước lượt này nút gửi gom câu mô tả vào một mảng rồi xoá mảng, và không byte
+ *  nào rời trình duyệt. Nay mỗi ô sửa được là một đề nghị thật:
+ *  `PATCH /sales/config/:list/:id`, một đề nghị MỘT dòng trong Hộp duyệt, gật
+ *  hay từ chối từng cái. Một lần bấm, N yêu cầu — luật 2 vẫn nguyên, chỉ có
+ *  danh sách chờ gửi là thật.
+ *
+ *  Và màn KHÔNG vẽ lại dòng sau khi gửi. Thay đổi chưa xảy ra: nó xảy ra lúc
+ *  {@link APPROVER} gật, ở một màn khác. Vẽ lại là đúng lời nói dối cũ, chỉ
+ *  thêm một lượt gọi mạng phía sau.
+ *
+ *  ------------------------------------------------------------------
  *  CỐ TÌNH KHÔNG LÀM
  *  ------------------------------------------------------------------
- *  · **Mục 5.5 để trống.** Ngưỡng SLA cho bậc đầu mối và MQL chưa ai đặt
- *    (docs · "Nợ đang treo" · 3). Điền một con số ở đây là bịa luật cho cả
- *    phòng bằng tay lập trình viên — đúng thứ mục 5.5 sinh ra để chấm dứt. Ô
- *    trống kèm lời giải thích và số dòng đang chịu hậu quả là câu trả lời đúng.
- *  · **Không lưu thật.** Bấm gửi chỉ dựng yêu cầu E3; hình dữ liệu không đổi cho
- *    tới khi có người gật. Nối E2/E3 khi có backend.
+ *  · **Mục 5.1 đọc được, chưa sửa được.** Bộ mười câu không có chỗ nào trong
+ *    `config_entry` để nằm — nó cần một danh mục thứ chín cộng một cột thuộc
+ *    tính `required`, và mười khoá ấy đang là KIỂU của `lead-form.ts` chứ không
+ *    phải dữ liệu. Nút lật "bắt buộc" đã gỡ: nó vẽ ra một cổng MQL mới mà không
+ *    cửa nào ghi được, tức đúng thứ lượt này dọn.
+ *  · **Mục 5.5 vẫn trống — nhưng vì chưa ai điền, không vì không có chỗ.**
+ *    `TIER` là thang bậc từ `0038` nên ô nhập ở đó đi thẳng vào `config_entry`
+ *    như hạn cột 5.2. Con số thì vẫn là câu §8.5 của
+ *    `docs/tam-nhin-pipeline-toan-he.md`, và màn không bịa hộ.
  *  · **Không có khối AI soạn nội dung.** Mẫu nội dung của một đợt gửi thuộc
  *    module 1 — màn này chỉ giữ danh sách kênh được phép chọn.
- *  · **Không thêm/xoá dòng.** Thêm ngành thứ năm hay lý do thứ bảy là quyết
- *    định của người, chưa có đường E3 nào đỡ nên chưa dựng nút.
+ *  · **Xoá một hạn đã đặt thì chưa có đường.** `ConfigEntryPatch.limitDays`
+ *    không nhận `null`, nên hạ được và nâng được, gỡ hẳn thì không. Bảng cho
+ *    phép từ `0038`; hợp đồng chưa. Nói ra chứ không lặng lẽ nuốt ô trống.
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
 
@@ -94,33 +130,44 @@ export function SalesConfigPage() {
   const products = catalog?.PRODUCT ?? []
   const natural = naturalSources(catalog)
 
-  /** Mọi thay đổi gom vào đây rồi gửi một lần (luật 2 của module). */
-  const [changes, setChanges] = useState<string[]>([])
-  const [sent, setSent] = useState(false)
+  /* The two LADDERS, read from the catalog the send button writes back to.
+     Before 14/09 section 5.2 printed the fixture's deadlines and proposed a
+     change to Neon's: approve it, and the screen would keep showing the old
+     number for ever. */
+  const stages = ladderRows(catalog, 'STAGE')
+  const tiers = ladderRows(catalog, 'TIER')
 
-  /** Số hiệu bản nháp — tăng lên mỗi lần gửi. Dùng làm key của mấy ô nhập để
-   *  chúng quay về giá trị gốc: đợt gửi đã đóng thì bản nháp không được giữ lại
-   *  vệt chữ của đợt trước. */
-  const [draftNo, setDraftNo] = useState(0)
+  /** Hạn đang gõ dở, khoá `${list}/${id}` — ô nào chưa ai chạm thì vắng mặt.
+   *
+   *  Chuỗi chứ không phải số, vì ô nhập nói chuyện bằng chuỗi và "" là một
+   *  trạng thái thật ("đã xoá trắng"), khác `undefined` ("chưa đụng"). Đổi sang
+   *  số ở đúng một chỗ, `editsOf` bên dưới. */
+  const [typed, setTyped] = useState<Record<string, string>>({})
 
-  /** Ghi một thay đổi vào danh sách chờ gửi — và RÚT nó ra khi giá trị quay đúng
-   *  về mốc gốc. Cả ba chỗ chỉnh (ô bắt buộc 5.1, hạn cột 5.2, ngưỡng 5.5) đi
-   *  chung đúng hàm này: gõ vào rồi xoá về như cũ mà vẫn để lại một dòng thì
-   *  người gật nhận một yêu cầu rỗng, và ba chỗ trong cùng một màn lại hành xử
-   *  ba kiểu. */
-  const note = (what: string, changed: boolean) =>
-    setChanges((prev) =>
-      changed ? (prev.includes(what) ? prev : [...prev, what]) : prev.filter((c) => c !== what),
-    )
+  /** Kết quả của đợt gửi gần nhất — mỗi thay đổi một dòng, kể cả dòng hỏng. */
+  const [results, setResults] = useState<ConfigEditResult[]>([])
 
-  /** Ô nào đang bị lật trạng thái bắt buộc trong bản nháp. Giữ riêng khỏi
-   *  `changes` vì màn phải vẽ được cổng SẼ thành bao nhiêu nếu yêu cầu được gật
-   *  — người gật cần thấy hậu quả trước khi gật, không phải sau. */
-  const [flipped, setFlipped] = useState<string[]>([])
+  const propose = useProposeConfigEdits()
+
+  const edits = editsOf(
+    [
+      ...stages.map((row) => ({
+        list: 'STAGE' as ConfigList,
+        row,
+        what: `Hạn cột "${row.label}"`,
+      })),
+      ...tiers.map((row) => ({ list: 'TIER' as ConfigList, row, what: `Hạn bậc "${row.label}"` })),
+    ],
+    typed,
+  )
+
+  /* A box holding something that is not a positive whole number blocks the
+     whole send rather than being quietly dropped: dropping it would send four
+     of five edits and say five went. */
+  const bad = Object.entries(typed).some(([, v]) => v.trim() !== '' && !isDays(v))
 
   const questions = cfg?.questions ?? []
   const gateNow = questions.filter((q) => q.required).length
-  const gateDraft = questions.filter((q) => q.required !== flipped.includes(q.key)).length
 
   /* Luật 10 · ContextRail dựng thẳng từ đồ thị E1 — cấu hình trên màn này đang
      áp lên đúng câu chuyện đó. Nằm NGOÀI nhánh chờ dữ liệu: rail bắt buộc có
@@ -148,9 +195,7 @@ export function SalesConfigPage() {
             <span className="text-[13px] font-semibold">Ba luật của màn này</span>
             <ul className="text-muted-foreground flex flex-col gap-1 text-[11.5px] leading-[1.5]">
               <li>Cấu hình là dữ liệu — không màn nào được giữ bản sao của một hằng số ở đây.</li>
-              <li>
-                Mục đang có dữ liệu bám vào thì đổi phải qua {HEAD_OF_SALES} gật, và luôn ghi vết.
-              </li>
+              <li>Mục đang có dữ liệu bám vào thì đổi phải qua {APPROVER} gật, và luôn ghi vết.</li>
               <li>Không có ô &quot;khác&quot; ở bất kỳ danh sách đóng nào.</li>
             </ul>
           </div>
@@ -165,11 +210,14 @@ export function SalesConfigPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4 lg:gap-6">
-            {/* 5.1 — cổng của cả hệ nằm ở đây. */}
+            {/* 5.1 — cổng của cả hệ nằm ở đây, và là mục DUY NHẤT của màn còn
+                đọc-được-chưa-sửa-được. Nút lật "bắt buộc" gỡ 14/09: nó vẽ ra
+                một cổng MQL mới mà không cửa nào ghi được — xem khối "Cố tình
+                không làm" ở đầu file. */}
             <Section
               no="5.1"
               title="Bộ mười câu · ô nào bắt buộc"
-              hint="Cổng MQL → SQL là số ô BẮT BUỘC, không phải điền đủ cả bộ. Đổi cột này là đổi luật của cả phòng: lead đang chờ sẽ qua cổng hoặc rớt lại ngay lập tức."
+              hint="Cổng MQL → SQL là số ô BẮT BUỘC, không phải điền đủ cả bộ. Bảng đọc được, chưa sửa được: bộ mười câu còn là kiểu của phiếu lead chứ chưa phải dòng cấu hình."
             >
               <p className="text-[11.5px] leading-[1.5]">
                 Cổng hiện là{' '}
@@ -177,52 +225,32 @@ export function SalesConfigPage() {
                   {gateNow}/{cfg.questions.length}
                 </b>{' '}
                 ô bắt buộc.
-                {gateDraft === gateNow ? null : (
-                  <>
-                    {' '}
-                    Gửi duyệt xong sẽ thành{' '}
-                    <b className="tnum font-num text-warning font-semibold">
-                      {gateDraft}/{cfg.questions.length}
-                    </b>
-                    .
-                  </>
-                )}
               </p>
 
               <GlassCard variant="b" className="p-4">
                 <ul className="flex flex-col gap-3">
-                  {cfg.questions.map((q) => {
-                    const required = q.required !== flipped.includes(q.key)
-                    return (
-                      <li key={q.key} className="flex flex-wrap items-center gap-3">
-                        <StatusDot state={required ? 'ok' : 'next'} />
-                        <span className="min-w-0 flex-1 text-[11.5px] leading-[1.5]">
-                          <span className="font-mono">{q.no}.</span> {q.label}
-                        </span>
-                        <span className="text-muted-foreground tnum font-num text-[11px]">
-                          {usage?.slots[String(q.no)] ?? 0} lead đã điền
-                        </span>
-                        <Button
-                          size="sm"
-                          variant={required ? 'default' : 'ghost'}
-                          onClick={() => {
-                            /* Bấm lần hai là trả ô về như cũ — lúc đó phải RÚT
-                               dòng khỏi danh sách chờ gửi, không để lại một yêu
-                               cầu rỗng cho người gật đọc. */
-                            const back = flipped.includes(q.key)
-                            setFlipped((prev) =>
-                              back ? prev.filter((k) => k !== q.key) : [...prev, q.key],
-                            )
-                            note(`Ô ${q.no} · ${q.label} — đổi trạng thái bắt buộc`, !back)
-                          }}
-                        >
-                          {required ? 'Bắt buộc' : 'Không bắt buộc'}
-                        </Button>
-                      </li>
-                    )
-                  })}
+                  {cfg.questions.map((q) => (
+                    <li key={q.key} className="flex flex-wrap items-center gap-3">
+                      <StatusDot state={q.required ? 'ok' : 'next'} />
+                      <span className="min-w-0 flex-1 text-[11.5px] leading-[1.5]">
+                        <span className="font-mono">{q.no}.</span> {q.label}
+                      </span>
+                      <span className="text-muted-foreground tnum font-num text-[11px]">
+                        {usage?.slots[String(q.no)] ?? 0} lead đã điền
+                      </span>
+                      <Badge tone={q.required ? 'success' : null}>
+                        {q.required ? 'Bắt buộc' : 'Không bắt buộc'}
+                      </Badge>
+                    </li>
+                  ))}
                 </ul>
               </GlassCard>
+              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Chưa sửa được ở đây, và nói thẳng vì sao: bộ mười câu chưa có chỗ nào trong{' '}
+                <code>config_entry</code> để nằm — nó cần một danh mục thứ chín cộng một cột{' '}
+                <code>required</code>, còn mười khoá này đang là kiểu của phiếu lead. Nút lật cũ đã
+                gỡ: nó vẽ ra một cổng mới mà không cửa nào ghi được.
+              </p>
             </Section>
 
             {/* 5.2 */}
@@ -233,35 +261,21 @@ export function SalesConfigPage() {
             >
               {/* Luật 8 · bảng LUÔN nằm trên glass-b. */}
               <GlassCard variant="b" className="p-4">
-                <DataTable
-                  columns={[
-                    { header: 'Cột', width: '1.4fr' },
-                    { header: 'Hạn · ngày', width: '1fr' },
-                    { header: 'Đang có', width: '0.9fr', align: 'right' },
-                  ]}
-                  rows={cfg.stages.map((s) => ({
-                    id: s.key,
-                    cells: [
-                      s.label,
-                      <Input
-                        key={`d${draftNo}`}
-                        aria-label={`Hạn cột ${s.label}`}
-                        defaultValue={String(s.limitDays)}
-                        inputMode="numeric"
-                        className="h-10 w-20"
-                        /* So với hạn gốc chứ không chỉ "có ai đó gõ": gõ 9 rồi
-                           xoá về 7 là không đổi gì, danh sách chờ gửi phải sạch. */
-                        onChange={(e) =>
-                          note(`Hạn cột "${s.label}"`, e.target.value !== String(s.limitDays))
-                        }
-                      />,
-                      <span key="u" className="tnum font-num">
-                        {usage?.STAGE[s.key] ?? 0} đơn
-                      </span>,
-                    ],
-                  }))}
+                <LadderTable
+                  list="STAGE"
+                  rows={stages}
+                  unit="đơn"
+                  typed={typed}
+                  onType={setTyped}
                 />
               </GlassCard>
+              {stages.length === 0 ? null : (
+                <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  Hạn đọc từ <code>config_entry</code>, đúng những dòng mà nút gửi bên dưới sửa. Hạ
+                  và nâng được; gỡ hẳn một hạn đã đặt thì chưa có đường — bảng cho phép, hợp đồng
+                  chưa.
+                </p>
+              )}
             </Section>
 
             {/* 5.3 */}
@@ -296,7 +310,7 @@ export function SalesConfigPage() {
               </GlassCard>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 Cột &quot;Lead cả kỳ&quot; đếm mọi dòng sổ bám vào ngành — cả lead đã rơi và đã ký,
-                không phải số lead Sale đang chạy. {HEAD_OF_SALES} không có mặt trong cột Sale phụ
+                không phải số lead Sale đang chạy. Trưởng phòng không có mặt trong cột Sale phụ
                 trách: vai đó phân công chứ không giữ khách.
               </p>
             </Section>
@@ -325,8 +339,8 @@ export function SalesConfigPage() {
                 />
               </GlassCard>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Mọi lý do đang có lead đứng — bỏ bất kỳ dòng nào cũng phải qua {HEAD_OF_SALES} gật,
-                vì ngần ấy dòng sổ mất chỗ đứng ngay lúc đó.
+                Mọi lý do đang có lead đứng — bỏ bất kỳ dòng nào cũng phải qua {APPROVER} gật, vì
+                ngần ấy dòng sổ mất chỗ đứng ngay lúc đó.
               </p>
             </Section>
 
@@ -407,44 +421,46 @@ export function SalesConfigPage() {
                   />
                 </GlassCard>
               )}
+
+              {/* The box the empty-state sentence above has been promising since
+                  the migration deliberately left this list unseeded. It sends on
+                  its own rather than joining the batch below: adding a row is a
+                  different verb on a different door (`POST` vs `PATCH`), and a
+                  name typed here has nothing to compare against. */}
+              <AddProduct />
             </Section>
 
-            {/* 5.5 — nợ treo thật. KHÔNG lấp bằng số bịa: xem khối "Cố tình không
-                làm" ở đầu file. */}
+            {/* 5.5 — Ô TRỐNG VÌ CHƯA AI ĐIỀN, KHÔNG VÌ KHÔNG CÓ CHỖ ĐIỀN.
+                `TIER` là thang bậc từ migration `0038`, nên mỗi bậc có một ô hạn
+                đi đúng con đường của hạn cột 5.2. Con số thì vẫn là câu §8.5 của
+                `docs/tam-nhin-pipeline-toan-he.md`, và màn không bịa hộ. */}
             <Section
               no="5.5"
-              title="Ngưỡng SLA cho bậc đầu mối và MQL"
-              hint="Hạn ở mục trên chỉ áp cho lead đã vào sổ cơ hội. Lead nằm ở kho chung bao lâu thì coi là quá hạn — chưa ai đặt."
+              title="Ngưỡng SLA cho từng bậc lead"
+              hint="Hạn ở mục 5.2 chỉ áp cho đơn đã vào sổ cơ hội. Đây là hạn của lead: đứng ở một bậc bao lâu thì coi là quá. Nhập được, đi qua Hộp duyệt như mọi hạn khác — nhưng chưa ai chốt số."
             >
-              <div className="bg-warning/12 flex items-start gap-3 rounded-md p-4">
-                <Icon icon={CircleAlert} size={20} className="text-warning mt-1" />
-                <div className="flex flex-col gap-3">
-                  <span className="text-[11.5px] font-semibold">Chưa có giá trị mặc định</span>
-                  <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                    Ô này để trống có chủ ý. Điền một con số ở đây là đặt luật cho cả phòng, nên nó
-                    phải do người quyết chứ không phải do màn tự chế — đúng thứ mục này sinh ra để
-                    chấm dứt.
-                  </p>
-                  <Input
-                    key={`sla${draftNo}`}
-                    aria-label="Ngưỡng SLA cho bậc đầu mối và MQL"
-                    placeholder="chưa đặt"
-                    inputMode="numeric"
-                    className="w-40"
-                    /* Mốc gốc của ô này là chuỗi rỗng — chưa ai đặt ngưỡng nào.
-                       Gõ rồi xoá sạch là quay về đúng mốc đó. */
-                    onChange={(e) =>
-                      note('Ngưỡng SLA cho bậc đầu mối và MQL', e.target.value.trim() !== '')
-                    }
-                  />
+              <GlassCard variant="b" className="p-4">
+                <LadderTable list="TIER" rows={tiers} unit="lead" typed={typed} onType={setTyped} />
+              </GlassCard>
+
+              {tiers.some((t) => t.limitDays !== null) ? null : (
+                <div className="bg-warning/12 flex items-start gap-3 rounded-md p-4">
+                  <Icon icon={CircleAlert} size={20} className="text-warning mt-1" />
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11.5px] font-semibold">Chưa bậc nào có hạn</span>
+                    <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                      Đang có{' '}
+                      <span className="tnum font-num">
+                        {usage?.earlyStageLeads ?? 0} lead đang chạy
+                      </span>{' '}
+                      ở hai bậc đầu, và không dòng nào có hạn để quá — hồ sơ lead vì thế in vị trí
+                      mà không in đồng hồ. Đó là cái giá của ô trống, nói thẳng ra. Ô đã có sẵn từ
+                      14/09; thứ còn thiếu là một con số có người chịu trách nhiệm, không phải một
+                      con số mặc định.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Đang có{' '}
-                <span className="tnum font-num">{usage?.earlyStageLeads ?? 0} lead đang chạy</span>{' '}
-                ở hai bậc đó, và không dòng nào có hạn để quá. Đó là cái giá của ô trống, nói thẳng
-                ra.
-              </p>
+              )}
             </Section>
 
             {/* 5.6 */}
@@ -585,51 +601,79 @@ export function SalesConfigPage() {
               <MotionSection />
             </Section>
 
-            {/* Gửi duyệt — mọi thay đổi đi MỘT LẦN, không tự lưu lắt nhắt. */}
+            {/* Gửi duyệt — mọi thay đổi đi MỘT LẦN, không tự lưu lắt nhắt, và
+                mỗi thay đổi thành MỘT dòng riêng trong Hộp duyệt. Lý do đầy đủ
+                ở `useProposeConfigEdits`. */}
             <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
               <h3 className="text-[13px] font-semibold">Thay đổi đang chờ gửi</h3>
 
-              {/* Thứ tự nhánh: danh sách chờ gửi ĐỨNG TRƯỚC lời "đã gửi". `sent`
-                  không phải chốt một chiều — gửi xong mà lật thêm một ô thì đó là
-                  đợt mới, phải có đường gửi tiếp. Để `sent` chặn trên cùng là màn
-                  tự mâu thuẫn: vẽ "sẽ thành N/10" mà không yêu cầu nào đang chờ. */}
-              {changes.length > 0 ? (
+              {/* Thứ tự nhánh: danh sách chờ gửi ĐỨNG TRƯỚC biên lai của đợt
+                  trước. Gửi xong mà sửa thêm một ô thì đó là đợt mới và phải có
+                  đường gửi tiếp — để biên lai chặn trên cùng là màn tự mâu
+                  thuẫn, liệt kê thay đổi mà không có nút nào gửi chúng. */}
+              {edits.length > 0 ? (
                 <>
                   <ul className="flex flex-col gap-2">
-                    {changes.map((c) => (
-                      <li key={c} className="flex items-center gap-2 text-[11.5px]">
+                    {edits.map((e) => (
+                      <li
+                        key={`${e.list}/${e.id}`}
+                        className="flex items-center gap-2 text-[11.5px]"
+                      >
                         <StatusDot state="warning" />
-                        {c}
+                        {e.what} → <span className="tnum font-num">{e.limitDays}</span> ngày
                       </li>
                     ))}
                   </ul>
+
+                  {bad ? (
+                    <p role="alert" className="text-destructive-foreground text-[11.5px]">
+                      Có ô đang chứa thứ không phải số ngày. Sửa trước khi gửi.
+                    </p>
+                  ) : null}
+
                   <Button
                     size="md"
                     className="self-start"
-                    onClick={() => {
-                      setSent(true)
-                      /* Đợt gửi đã đóng thì bản nháp phải về đúng mốc gốc: yêu
-                         cầu nằm bên người gật, hình dữ liệu ở đây chưa đổi. Không
-                         dọn thì màn giữ mãi một bản nháp không còn đường gửi. */
-                      setChanges([])
-                      setFlipped([])
-                      setDraftNo((n) => n + 1)
-                      /* Nối E3 khi có backend: dựng đề nghị đổi cấu hình chờ TP
-                         Kinh doanh gật, và ghi vết bằng E2 ở cả hai đầu. */
-                    }}
+                    disabled={bad || propose.isPending}
+                    onClick={() =>
+                      propose.mutate(edits, {
+                        onSuccess: (answers) => {
+                          setResults(answers)
+                          /* Bản nháp dọn sạch, DÒNG TRÊN MÀN GIỮ NGUYÊN. Yêu cầu
+                             nằm bên người gật; hình dữ liệu ở đây chưa đổi, và
+                             vẽ lại là nói dối. */
+                          setTyped({})
+                          const ok = answers.filter(isEditDone).length
+                          toastDone(`Đã gửi ${ok}/${answers.length} đề nghị · chờ ${APPROVER} gật.`)
+                        },
+                      })
+                    }
                   >
                     <Icon icon={Send} size={16} />
-                    Gửi {HEAD_OF_SALES} duyệt · {changes.length} thay đổi
+                    Gửi {APPROVER} duyệt · {edits.length} thay đổi
                   </Button>
                 </>
-              ) : sent ? (
+              ) : results.length > 0 ? (
                 <>
-                  <Badge tone="running" className="self-start">
-                    Đã gửi · chờ {HEAD_OF_SALES} gật
-                  </Badge>
+                  <ul className="flex flex-col gap-2">
+                    {results.map((r) => (
+                      <li key={r.what} className="flex flex-wrap items-center gap-2 text-[11.5px]">
+                        <StatusDot state={isEditDone(r) ? 'ok' : 'bad'} />
+                        {r.what}
+                        {isEditDone(r) ? (
+                          <span className="text-muted-foreground font-mono text-[11px]">
+                            {r.requestId}
+                          </span>
+                        ) : (
+                          <span className="text-destructive-foreground">{r.failure}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                   <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                    Yêu cầu nằm trong Hộp duyệt của One. Hình dữ liệu chưa đổi cho tới khi có người
-                    gật, và lần gật đó được ghi vết. Đổi tiếp thì đó là một đợt gửi khác.
+                    Mỗi dòng là một yêu cầu riêng trong Hộp duyệt của One — {APPROVER} gật hoặc từ
+                    chối từng cái. Hình dữ liệu chưa đổi cho tới lúc đó, và lần gật được ghi vết.
+                    Đổi tiếp thì đó là một đợt gửi khác.
                   </p>
                 </>
               ) : (
@@ -712,7 +756,150 @@ function IntakeMatrix() {
   )
 }
 
+/** A whole number of days, at least one.
+ *
+ *  Zero is refused here although the table and the contract both accept it: a
+ *  column somebody must clear within zero days is late the instant a deal
+ *  arrives, which is a deadline nobody means to set by typing into a box. The
+ *  server keeps accepting it, because a rule the screen invents must not become
+ *  a rule the API pretends to have. */
+function isDays(v: string): boolean {
+  return /^\d+$/.test(v.trim()) && Number(v) > 0
+}
+
+/** Bản nháp → danh sách đề nghị. MỘT chỗ so sánh cho cả hai thang bậc.
+ *
+ *  Ba thứ rơi ra ở đây, và mỗi thứ vì một lý do khác nhau:
+ *   · ô chưa ai chạm (`undefined`) — không có gì để nói;
+ *   · ô gõ rồi xoá trắng — gỡ một hạn đã đặt thì `ConfigEntryPatch` không nhận
+ *     `null`, nên màn không có đường; nuốt lặng ô trống còn hơn gửi một đề nghị
+ *     đặt hạn 0 mà người gật đọc ra là "phải xong trong ngày";
+ *   · ô gõ đúng bằng hạn đang có — gõ 9 rồi sửa về 7 là không đổi gì, và một
+ *     yêu cầu rỗng vẫn tốn của người gật một lần đọc.
+ *
+ *  Ô chứa thứ không phải số ngày thì KHÔNG rơi ra lặng lẽ: nó không thành đề
+ *  nghị, nhưng `bad` ở màn chặn cả đợt gửi. Bỏ qua nó là gửi bốn trên năm thay
+ *  đổi rồi báo là năm. */
+function editsOf(
+  cells: { list: ConfigList; row: LadderRow; what: string }[],
+  typed: Record<string, string>,
+): ConfigEdit[] {
+  const edits: ConfigEdit[] = []
+
+  for (const { list, row, what } of cells) {
+    const v = typed[`${list}/${row.id}`]
+    if (v === undefined || !isDays(v)) continue
+
+    const limitDays = Number(v)
+    if (limitDays === row.limitDays) continue
+
+    edits.push({ list, id: row.id, what, limitDays })
+  }
+
+  return edits
+}
+
+/** Một thang bậc, mỗi bậc một ô hạn. Dùng chung cho mục 5.2 và 5.5.
+ *
+ *  Hai mục hỏi hai câu khác nhau — cột của sổ cơ hội, bậc của lead — nhưng hình
+ *  của chúng giống hệt kể từ `0038`: một danh sách có thứ tự, mỗi dòng một hạn
+ *  tính bằng ngày, và cùng một cửa ghi. Hai bản chép là hai chỗ để chúng hành
+ *  xử khác nhau, ngay trên một màn.
+ *
+ *  Ô nhập là CÓ KIỂM SOÁT, không phải `defaultValue`: bản nháp sống ở màn cha
+ *  vì nút gửi phải đọc được nó, và một ô không kiểm soát sẽ giữ lại vệt chữ của
+ *  đợt gửi trước sau khi bản nháp đã dọn. `placeholder` nói ra trạng thái thứ
+ *  ba — chưa ai đặt hạn nào — thứ mà số 0 không nói được. */
+function LadderTable({
+  list,
+  rows,
+  unit,
+  typed,
+  onType,
+}: {
+  list: ConfigList
+  rows: LadderRow[]
+  unit: string
+  typed: Record<string, string>
+  onType: (next: (prev: Record<string, string>) => Record<string, string>) => void
+}) {
+  return (
+    <DataTable
+      columns={[
+        { header: 'Bậc', width: '1.4fr' },
+        { header: 'Hạn · ngày', width: '1fr' },
+        { header: 'Đang có', width: '0.9fr', align: 'right' },
+      ]}
+      rows={rows.map((row) => {
+        const key = `${list}/${row.id}`
+        const shown = typed[key] ?? (row.limitDays === null ? '' : String(row.limitDays))
+
+        return {
+          id: row.id,
+          cells: [
+            row.label,
+            <Input
+              key="d"
+              aria-label={`Hạn của ${row.label}`}
+              value={shown}
+              placeholder="chưa đặt"
+              inputMode="numeric"
+              invalid={shown.trim() !== '' && !isDays(shown)}
+              className="h-10 w-24"
+              onChange={(e) => onType((prev) => ({ ...prev, [key]: e.target.value }))}
+            />,
+            <span key="u" className="tnum font-num">
+              {row.usage} {unit}
+            </span>,
+          ],
+        }
+      })}
+    />
+  )
+}
+
+/** Mục 5.4c · thêm một sản phẩm vào danh mục.
+ *
+ *  Gửi RIÊNG chứ không nhập đoàn với nút gửi chung: đây là động từ khác trên
+ *  một cửa khác (`POST` thay vì `PATCH`), và một cái tên vừa gõ không có bản cũ
+ *  nào để so — tức không có phép "gõ rồi xoá về như cũ" mà bản nháp kia dựng
+ *  trên đó. Ô tự dọn sau khi gửi được, vì lần gõ tiếp là một dòng khác chứ
+ *  không phải sửa dòng vừa gửi. */
+function AddProduct() {
+  const [name, setName] = useState('')
+  const propose = useProposeProduct()
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <Input
+        aria-label="Thêm sản phẩm/dịch vụ"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Tên sản phẩm hoặc dịch vụ"
+        className="min-w-0 flex-1"
+      />
+
+      <Button
+        size="md"
+        disabled={name.trim() === '' || propose.isPending}
+        onClick={() =>
+          propose.mutate(name.trim(), {
+            onSuccess: () => {
+              setName('')
+              toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
+            },
+          })
+        }
+      >
+        <Icon icon={Plus} size={16} />
+        Gửi đề nghị
+      </Button>
+    </div>
+  )
+}
+
 /** Một mục cấu hình. Số mục hiện thành tên nhóm cho trình đọc màn hình, vì bảy
+
  *  mục trông giống nhau — không có số thì người dùng bàn phím lạc ngay. */
 function Section({
   no,

@@ -4,7 +4,6 @@ import {
   type CurrencyCode,
   type ExitReason,
   type Lead,
-  type LeadEvent,
   type LeadCategory,
   type LeadContact,
   type LeadProfile as ProfileForm,
@@ -13,6 +12,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import type { TouchEvent } from '@/data/touches'
 import { EXIT_REASON_LABEL } from '@/data/leads'
 
 /** Module 2 · `GET /sales/leads/:code` — ONE whole lead profile.
@@ -300,7 +300,7 @@ export function leadOf(p: LeadProfile): Lead {
  *  invents an English conversation out of the lead code, which for an imported
  *  row is a conversation nobody ever had. `FrozenLead` in `@pv/engines` now
  *  refuses that call at compile time — see its docblock. */
-export const NO_TOUCHES: readonly LeadEvent[] = []
+export const NO_TOUCHES: readonly TouchEvent[] = []
 export const NO_TRANSCRIPT: readonly TranscriptTurn[] = []
 
 /** Same table as `exitLabel`, minus the `''` branch: a `Lead` spells "still

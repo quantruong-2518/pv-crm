@@ -74,7 +74,7 @@ import {
   leadSourceKindFacetQuery,
   NO_OWNER_TITLE,
 } from '@/data/leads'
-import { salesCatalogQuery } from '@/data/sales-config'
+import { salesCatalogQuery, useStageLimits } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory } from '@/data/directory'
@@ -272,7 +272,6 @@ const STATUSES: { key: LeadStatus; label: string }[] = [
 
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
-const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))
 
 /** Mảng rỗng dùng chung — một `?? []` viết thẳng trong thân component đẻ ra
  *  một mảng MỚI mỗi lượt vẽ, và mọi `useMemo` phụ thuộc vào nó mất tác dụng. */
@@ -296,11 +295,21 @@ const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
 
 /** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
- *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết. Hạn vẫn đọc từ
- *  `PIPELINE_STAGES` — mục 5.2 của module Cấu hình, không chế ở đây. */
-function overSla(lead: LeadRow): boolean {
+ *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết.
+ *
+ *  BẢNG HẠN ĐI VÀO BẰNG THAM SỐ TỪ 14/09, và nó đến từ `config_entry` chứ không
+ *  từ `PIPELINE_STAGES`. Hằng số cũ là hạn của kịch bản đóng băng, trong khi sổ
+ *  cơ hội ngay bên cạnh đã tô vàng theo hạn thật — sửa hạn cột ở màn Cấu hình
+ *  rồi gật thì hai sổ của cùng một phòng đọc hai bảng khác nhau, và không có gì
+ *  trên màn nói ra chỗ lệch.
+ *
+ *  Cột chưa ai đặt hạn trả `false`: "chưa nói được gì về trễ" khác "không trễ",
+ *  nhưng cả hai đều không phải "đang quá hạn" — nhuộm vàng một dòng vì một ô
+ *  cấu hình còn trống là đổ lỗi cho người bán vì việc của người khác. */
+function overSla(lead: LeadRow, limits: Map<string, number | null>): boolean {
   if (!lead.stage) return false
-  return lead.daysHere > (STAGE_LIMIT.get(lead.stage) ?? Infinity)
+  const limit = limits.get(lead.stage)
+  return limit !== undefined && limit !== null && lead.daysHere > limit
 }
 
 export function LeadsPage() {
@@ -1218,6 +1227,9 @@ function SourceMark({ source }: { source: LeadSource }) {
  *  Màu vàng ở đây thay hẳn tam giác cảnh báo đã gỡ khỏi cột Account: cùng một
  *  tín hiệu, nhưng đứng ở cột nói về trạng thái thay vì cột nói về tên khách. */
 function StatusCell({ lead }: { lead: LeadRow }) {
+  /* The configured column deadlines, one cached read shared by every row of
+     the page — see `useStageLimits`. */
+  const limits = useStageLimits()
   /* "Đã ký" KHÔNG kèm mã hợp đồng nữa, và mã đó không đi tìm lại được: lead →
      hợp đồng nay là 1-n, cột `lead.contract_code` đã biến mất, và `signed` là
      một `EXISTS(contract)` chứ không phải một mã. Một lead ký hai đơn thì không
@@ -1240,7 +1252,7 @@ function StatusCell({ lead }: { lead: LeadRow }) {
      yêu cầu: nhãn ngắn, ai đọc cũng hiểu ngay không cần giải nghĩa. */
   if (!lead.stage) return <Badge tone="draft">Chưa xử lý</Badge>
 
-  const over = overSla(lead)
+  const over = overSla(lead, limits)
   const stage = STAGE_LABEL.get(lead.stage) ?? lead.stage
   return (
     <Badge

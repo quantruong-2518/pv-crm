@@ -132,7 +132,7 @@ export class LeadWriteService {
           subjectKind: 'lead',
           kind: 'vao-so',
           ...byOf(who),
-          ...(owner ? { to: { actorId: owner.id, name: owner.name } } : {}),
+          ...(owner ? { to: { actorId: owner.id, name: owner.name, role: owner.roleId } } : {}),
           note: LEAD_NOTE.typed,
         },
       ])
@@ -280,7 +280,10 @@ export class LeadWriteService {
              no `from` means claimed out of it, no `to` means released into it —
              and `touch_hand_over_sides` refuses a row with neither. */
           ...(prev ? { from: { actorId: prev.id, name: prev.name } } : {}),
-          ...(next ? { to: { actorId: next.id, name: next.name } } : {}),
+          /* `role` is the role they hold TODAY, which is the day this row is
+             written — so freezing it here is what makes it still true in a
+             year, when the vector redraws this step. */
+          ...(next ? { to: { actorId: next.id, name: next.name, role: next.roleId } } : {}),
           note: next ? `${LEAD_NOTE.handedTo} ${next.name}` : LEAD_NOTE.released,
         },
       ])
@@ -508,7 +511,13 @@ export class LeadWriteService {
             /* An imported file may already say who owns each row, so the same
                `to` the manual door writes belongs here — see `create()`. Read
                off the ref rather than looked up again: `refOf` already resolved
-               the id into the display name for the mirror row. */
+               the id into the display name for the mirror row.
+               NO `role` here, unlike the other two doors, and the absence is
+               deliberate rather than forgotten: the import path resolves owners
+               through `ActorLite` (`{ id, name }`), so the role would cost a
+               widened type across the whole check module for a label on one
+               step. Absent reads as "not recorded" everywhere it surfaces —
+               `stepsOf` prints no role — which is the truth about these rows. */
             ...(p.row.ownerId && p.ref.owner
               ? { to: { actorId: p.row.ownerId, name: p.ref.owner } }
               : {}),

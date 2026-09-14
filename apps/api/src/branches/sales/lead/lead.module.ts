@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
@@ -48,6 +49,12 @@ import { LeadMailComposer } from './lead-mail.composer'
  *  them. */
 @Module({
   imports: [
+    /* `ApprovalModule` for one question only: what is still waiting on a lead,
+       which `pipelinePosition` needs to answer "who is it waiting on". Same
+       narrow reason the deal module imports it, and this module likewise
+       registers no applier — reading the inbox and having something to apply
+       are separate things. */
+    ApprovalModule,
     EnginesModule,
     GraphModule,
     MailModule,

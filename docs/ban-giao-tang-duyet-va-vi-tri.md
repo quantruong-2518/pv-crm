@@ -1,7 +1,8 @@
-# Bàn giao — bảy lượt của §9: tầng duyệt, cạnh lúc chạy, vị trí pipeline
+# Bàn giao — mười một lượt của §9: tầng duyệt, cạnh lúc chạy, vị trí pipeline
 
-Bảy lượt trong `tam-nhin-pipeline-toan-he.md` §9 đã chạy hết, 14/09/2026. **Trạng
-thái, việc còn lại và tám câu treo ở chính bản đó** (§6 · §8 · §9, đã cập nhật).
+Mười một lượt trong `tam-nhin-pipeline-toan-he.md` §9 đã chạy hết, 14/09/2026.
+**Trạng thái, việc còn lại và tám câu treo ở chính bản đó** (§6 · §8 · §9, đã
+cập nhật).
 
 Bản này chỉ giữ ba thứ không nằm ở đâu khác: mở file nào theo việc, ba cái bẫy đã
 dính, và cách kiểm mà không chạm production.
@@ -13,6 +14,7 @@ dính, và cách kiểm mà không chạm production.
 | 4     | E1 ghi cạnh lúc chạy                                | `15a0f18`             |
 | 5     | Màn A — thiết lập luồng, mọi ô trống                | `d020bad`             |
 | 6     | `pipelinePosition` + hạn chặng hết mang tên Sales   | `2688e49` · `b02c534` |
+| 7–10  | Màn cấu hình hết diễn · vị trí thật · vector đủ ba  | lượt này              |
 
 ---
 
@@ -28,9 +30,17 @@ dính, và cách kiểm mà không chạm production.
 | Chuỗi người giữ một object            | `packages/ui/src/patterns/flow-vector.tsx` · `data/touches.ts#stepsOf`      |
 | Sáu luồng lead khai gì                | `branches/sales/config/motion.schema.ts` · màn: mục **5.9** `/sales/config` |
 | Object đang ở đâu, chờ ai             | `packages/engines/src/pipeline-position.ts`                                 |
+| Dòng cấu hình ↔ khoá của thang        | `branches/sales/ladder.ts` — một rào cho cả `STAGE` lẫn `TIER`              |
+| Màn cấu hình gửi đề nghị thật         | `data/sales-config.ts#useProposeConfigEdits` · `pages/sales-config.tsx`     |
+| Hạn cột mà màn lead đang xử           | `data/sales-config.ts#useStageLimits` — KHÔNG phải `PIPELINE_STAGES`        |
 
-Migration thêm trong đợt này: `0033` · `0035` · `0036` · `0037` (`0034` của phiên
-khác).
+Migration thêm trong đợt này: `0033` · `0035` · `0036` · `0037` · `0038` · `0039`
+(`0034` của phiên khác).
+
+**Lượt 7–10 đổi bốn thứ đáng nhớ khi đọc code:** dòng sổ cơ hội chở `position`
+(hai lượt đọc cho CẢ TRANG, không phải mỗi dòng một câu) · `isRottingOp` thôi tra
+hằng số fixture · hồ sơ lead có vị trí trên thang `TIER` với đồng hồ `null` ·
+`sales.touch.to_role` chụp vai lúc ghi. Lý do từng cái nằm tại chỗ.
 
 **Quyết định không được lật thì đọc tại chỗ**, không chép lại ở đây: vì sao một
 lần giao là MỘT dòng (`touch.schema.ts`) · vì sao bảng duyệt ở `platform` và
@@ -58,6 +68,18 @@ tới migration trước, cắm một dòng kiểu cũ, rồi mới chạy cái 
 tiếng Việt vào file đã có nợ là vượt số và eslint báo đỏ **cả những khối cũ**.
 Dính sáu lần trong một phiên, kể cả khi chỉ trích một cái tên (`"Hộp duyệt"`,
 `"HĐ → SO"`) bên trong comment tiếng Anh. Chuỗi hiển thị thì vẫn tiếng Việt.
+
+Lượt 7–10 dính lại đúng thế: 12 khối mới làm 127 lỗi trên 8 file, và một chữ như
+`lượt` hay `luật biên giới package` nằm giữa một comment tiếng Anh cũng đủ. Kèm
+hai biến thể mới:
+
+- **Đổi tên file là mất suppression.** Khoá của `eslint-suppressions.json` là
+  ĐƯỜNG DẪN, nên `git mv` một file có nợ làm mọi vi phạm cũ của nó hiện ra dưới
+  tên mới. Dọn comment của file đó trước khi chuyển, hoặc chuyển xong thì dọn.
+- **Ít vi phạm hơn số đã khoá cũng đỏ.** Dịch một khối cũ sang tiếng Anh làm số
+  thật tụt xuống dưới `count`, và eslint thoát mã 2 với _"suppressions left that
+  do not occur anymore"_. `pnpm lint:prune` là đường đúng — xem diff trước khi
+  commit, nó chỉ được chạm file mình vừa sửa.
 
 Kèm một chuyện không phải bẫy: **cây làm việc có thể đang bị phiên khác sửa song
 song** — phiên này gặp hơn 20 file lạ giữa chừng, và `_journal.json` là file dùng

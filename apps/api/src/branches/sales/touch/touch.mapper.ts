@@ -24,7 +24,17 @@ export function toContract(row: TouchRowDb): TouchRow {
     ...(row.fromName && row.fromActorId
       ? { from: { actorId: row.fromActorId, name: row.fromName } }
       : {}),
-    ...(row.toName && row.toActorId ? { to: { actorId: row.toActorId, name: row.toName } } : {}),
+    ...(row.toName && row.toActorId
+      ? {
+          to: {
+            actorId: row.toActorId,
+            name: row.toName,
+            /* Absent, not `null`: a row from before `0039` has no answer, and
+               the contract spells the field `optional()` for that. */
+            ...(row.toRole ? { role: row.toRole } : {}),
+          },
+        }
+      : {}),
     note: row.note,
   }
 }

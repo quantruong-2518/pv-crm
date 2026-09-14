@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { RoleId } from '../auth'
 import { ObjectCode, Moment, textInput } from '../primitives'
 import { LeadTier } from './enums'
 
@@ -97,6 +98,18 @@ export const TouchSubject = z.enum(['lead', 'opportunity'])
 export const TouchHolder = z.object({
   actorId: z.string().min(1).max(64),
   name: textInput(120),
+  /** The role they held THAT DAY — a copy, for the name's exact reason.
+   *
+   *  Only the RECEIVING end ever carries one: the vector draws who holds it
+   *  next, and a giver is already on the chain as an earlier step wearing the
+   *  role they were handed it under.
+   *
+   *  Absent on every row written before `0039`, and absent stays absent: the
+   *  screen prints no role rather than joining `actor` for the one the person
+   *  holds TODAY, which would make a March step say what somebody became in
+   *  July. That is the single rule `by`, `from.name` and `to.name` all exist to
+   *  keep, and one live field beside three frozen ones would break it alone. */
+  role: RoleId.optional(),
 })
 
 // ---------------------------------------------------------------------------
