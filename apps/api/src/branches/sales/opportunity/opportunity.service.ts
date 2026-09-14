@@ -19,7 +19,7 @@ import {
   OpportunityStageHistory,
   OpportunityUpdateResponse,
   type ContractSign,
-  type MaObject,
+  type ObjectCode,
   type OpportunityBookQuery,
   type OpportunityCreate,
   type OpportunityImportBody,
@@ -198,7 +198,7 @@ export class OpportunityService {
    *  Nhiều đơn sống cùng lúc thì lấy mã NHỎ NHẤT, vì `liveDealsByLead` đã
    *  `ORDER BY code` và giữ dòng đầu: nút chỉ có một chỗ để đi tới, và thứ tự
    *  đó ổn định giữa hai lần đọc. */
-  async liveDeal(leadCode: MaObject): Promise<OpportunityLiveDeal> {
+  async liveDeal(leadCode: ObjectCode): Promise<OpportunityLiveDeal> {
     const byLead = await this.repo.liveDealsByLead(this.repo.readonlyHandle, [leadCode])
     return OpportunityLiveDeal.parse({ code: byLead.get(leadCode) ?? null })
   }
@@ -217,7 +217,7 @@ export class OpportunityService {
    *
    *  Ba cửa dưới (`update`, `touches`, `sign`) gộp theo cùng lý do. Sửa mỗi
    *  cửa đọc mà để `PATCH` trả 403 thì lỗ đếm vẫn còn nguyên, chỉ ồn hơn. */
-  async profile(who: Actor, code: MaObject): Promise<OpportunityCreateResponse> {
+  async profile(who: Actor, code: ObjectCode): Promise<OpportunityCreateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
@@ -447,7 +447,7 @@ export class OpportunityService {
    *  lần — nhưng nó là một quyết định, không phải một tai nạn. */
   async update(
     who: Actor,
-    code: MaObject,
+    code: ObjectCode,
     body: OpportunityUpdate,
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
@@ -572,7 +572,7 @@ export class OpportunityService {
    *  operation, and nobody has asked for it. */
   async moveStage(
     who: Actor,
-    code: MaObject,
+    code: ObjectCode,
     body: OpportunityStageMove,
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
@@ -651,7 +651,7 @@ export class OpportunityService {
    *  card reads `sales.touch` and prints a sentence a person reads; this table
    *  returns from-column, to-column and days spent, which is the shape you can
    *  average. Full reasoning is in the docblock of `opportunity_stage_event`. */
-  async stageHistory(who: Actor, code: MaObject): Promise<OpportunityStageHistory> {
+  async stageHistory(who: Actor, code: ObjectCode): Promise<OpportunityStageHistory> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
@@ -667,7 +667,7 @@ export class OpportunityService {
    *  không được kiêm nghĩa "không có đơn này, hoặc không phải của bạn".
    *  Cùng lý lẽ mà `LeadService.mailTimeline` đã viết ra đầy đủ, và cùng cái
    *  giá: một câu truy vấn thừa trên một màn vốn đang tải sẵn hồ sơ. */
-  async touches(who: Actor, code: MaObject): Promise<TouchTimelineResponse> {
+  async touches(who: Actor, code: ObjectCode): Promise<TouchTimelineResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
@@ -703,7 +703,7 @@ export class OpportunityService {
    *  dòng gương E1. Nửa vời thì sổ tự mâu thuẫn theo cách khó gỡ nhất: một đơn
    *  `signed` mà vẫn đứng trong cột "Chờ ký", hoặc một hợp đồng trỏ vào một đơn
    *  bảng vẫn coi là đang chạy. */
-  async sign(who: Actor, code: MaObject, body: ContractSign): Promise<ContractSignResponse> {
+  async sign(who: Actor, code: ObjectCode, body: ContractSign): Promise<ContractSignResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 

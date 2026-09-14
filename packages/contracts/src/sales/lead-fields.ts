@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Ngay } from '../primitives'
+import { Day } from '../primitives'
 
 /** Bounds and formats EVERY lead door shares — one table, four readers.
  *
@@ -46,7 +46,7 @@ export const LEAD_MAX = {
   /** `platform.actor.id` on the wire, and the same ceiling `LeadOwnerWrite`
    *  puts on it. */
   actorId: 64,
-  /** A campaign code — `MaConfig` shaped, but the file door takes it as free
+  /** A campaign code — `ConfigCode` shaped, but the file door takes it as free
    *  text because a spreadsheet cell is not validated against the campaign
    *  book until the server resolves it. */
   campaignCode: 64,
@@ -91,16 +91,16 @@ export const counted = (what: string, max: number) =>
 /** The window a hand-typed date has to land in.
  *
  *  A `<input type="date">` takes a four-digit year from a two-key typo: `26`
- *  becomes the year 26, which `Ngay` accepts happily — it only asks whether the
+ *  becomes the year 26, which `Day` accepts happily — it only asks whether the
  *  day exists on the calendar, and 0026-10-15 does. The row then sorts before
  *  every other lead in the book forever. Bounding the year is the cheapest
  *  place to catch it, and the bound is wide enough that no real deadline ever
  *  meets it. */
 export const DEADLINE_YEARS = { from: 2000, to: 2100 } as const
 
-/** A date a PERSON typed, bounded to `DEADLINE_YEARS`. Read side stays `Ngay`:
+/** A date a PERSON typed, bounded to `DEADLINE_YEARS`. Read side stays `Day`:
  *  a row already in the table must be describable whatever it holds. */
-export const deadlineDay = Ngay.refine((s) => {
+export const deadlineDay = Day.refine((s) => {
   const year = Number(s.slice(0, 4))
   return year >= DEADLINE_YEARS.from && year <= DEADLINE_YEARS.to
 }, `Thời hạn phải trong khoảng năm ${DEADLINE_YEARS.from}…${DEADLINE_YEARS.to}`)
@@ -124,7 +124,7 @@ const TAX_CODE = /^\d{10}(-\d{3})?$/
 const TAX_CODE_WRONG = 'Mã số thuế phải là 10 chữ số, hoặc 10 chữ số kèm 3 số chi nhánh'
 
 /** Tax code, optional. Empty after normalising means ABSENT — same rule as
- *  `textNhapTuyChon`, and for the same reason: `tax_code` is one of the fifteen
+ *  `textInputOptional`, and for the same reason: `tax_code` is one of the fifteen
  *  columns `CHECK lead_no_blank` covers, so an untouched box submitted as `''`
  *  is a 500 naming a constraint.
  *

@@ -7,7 +7,7 @@ import {
   CURRENCIES,
   OPPORTUNITY_STATES,
   PIPELINE_STAGES,
-  toDong,
+  toMoneyVnd,
   type CurrencyCode,
   type OpportunityDraft,
 } from '@pv/engines/fixtures/das-vina'
@@ -50,7 +50,7 @@ export const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
 
 /** How far the money box may grow.
  *
- *  Not a number picked here: `Dong` is `z.number().int().nonnegative()`, and
+ *  Not a number picked here: `MoneyVnd` is `z.number().int().nonnegative()`, and
  *  zod 4 reads `.int()` as SAFE integer — anything past `2^53−1` comes back
  *  `too_big` before Postgres is ever asked. So the ceiling already exists on
  *  the wire; this only moves the refusal to the keystroke that would cross it,
@@ -191,7 +191,7 @@ export function AmountRow({
         <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
           {currency === 'VND'
             ? `${dong(amount)} · ${billions(amount)}`
-            : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toDong(amount, currency))} quy ra đồng`}
+            : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(amount, currency))} quy ra đồng`}
         </span>
       )}
     </section>

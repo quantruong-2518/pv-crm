@@ -356,9 +356,9 @@ function fieldErrorsOf(
  *  ------------------------------------------------------------------
  *  EMPTY IS ABSENT — AND THAT IS WHY OPTIONAL FIELDS ARE OMITTED
  *  ------------------------------------------------------------------
- *  `textNhapTuyChon` turns `''` into `undefined` by itself, so an untouched
+ *  `textInputOptional` turns `''` into `undefined` by itself, so an untouched
  *  text box would survive being sent as `''`. An untouched SELECT or DATE
- *  would not: `LeadCategory.optional()` and `Ngay.optional()` accept a valid
+ *  would not: `LeadCategory.optional()` and `Day.optional()` accept a valid
  *  value or nothing at all, and `''` is neither — the user gets "Invalid
  *  option" on an industry they never chose. So the rule is by absence, not by
  *  control type: leave an optional field out entirely when it is blank.

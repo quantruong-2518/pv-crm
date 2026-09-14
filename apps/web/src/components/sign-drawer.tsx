@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PenLine, TriangleAlert, X } from '@pv/ui'
 import { Button, Chip, Drawer, Icon, Input, MetaPill, Select, billions, cn, dong } from '@pv/ui'
-import { CURRENCIES, toDong, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
+import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import type { ContractSign, OpportunityRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { peopleIdOptions, useSalesPeople } from '@/data/directory'
@@ -61,7 +61,7 @@ function localDay(at: Date): string {
   return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
 }
 
-/** `YYYY-MM-DD` của ô nhập → `Moc` (ISO 8601 có múi giờ) mà hợp đồng đòi.
+/** `YYYY-MM-DD` của ô nhập → `Moment` (ISO 8601 có múi giờ) mà hợp đồng đòi.
  *
  *  Cột bên máy chủ là `timestamptz`, nên một chuỗi ngày trần buộc ai đó phải
  *  BỊA ra giờ trong ngày — và bịa nửa đêm địa phương thì đọc ngược lại ở UTC ra
@@ -225,7 +225,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
             <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
               {form.currency === 'VND'
                 ? `${dong(form.amount)} · ${billions(form.amount)}`
-                : `${form.amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toDong(form.amount, form.currency))} quy ra đồng`}
+                : `${form.amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(form.amount, form.currency))} quy ra đồng`}
             </span>
           )}
         </section>
@@ -282,7 +282,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <MetaPill>{op.name}</MetaPill>
           {op.amount !== null && op.currency !== null && (
-            <MetaPill mono>đơn đang ghi {billions(toDong(op.amount, op.currency))}</MetaPill>
+            <MetaPill mono>đơn đang ghi {billions(toMoneyVnd(op.amount, op.currency))}</MetaPill>
           )}
         </div>
       </div>

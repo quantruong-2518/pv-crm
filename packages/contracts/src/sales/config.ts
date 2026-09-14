@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Moc, textNhap, textNhapTuyChon } from '../primitives'
+import { Moment, textInput, textInputOptional } from '../primitives'
 
 /** Cấu hình danh mục Sales — module 6. `/sales/config`.
  *
@@ -87,15 +87,15 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
  *
- *  Hẹp hơn `MaObject` (`[A-Z]{1,3}-\d{3,6}`) đúng một bậc, và cố ý: sáu tiền tố
+ *  Hẹp hơn `ObjectCode` (`[A-Z]{1,3}-\d{3,6}`) đúng một bậc, và cố ý: sáu tiền tố
  *  liệt kê thẳng ra nên một mã sai danh mục bị chặn ngay ở cổng zod, không phải
  *  đợi tới câu truy vấn. Cũng vì thế `PATCH /sales/config/:list/order` không bị
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
-export const MaConfig = z
+export const ConfigCode = z
   .string()
   .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR)-\d{2,4}$/, 'Mã cấu hình sai dạng')
 
-export type MaConfig = z.infer<typeof MaConfig>
+export type ConfigCode = z.infer<typeof ConfigCode>
 
 /** Một dòng của bất kỳ danh mục nào.
  *
@@ -103,7 +103,7 @@ export type MaConfig = z.infer<typeof MaConfig>
  *  RIÊNG, mỗi cái chỉ có nghĩa với đúng một danh mục — và ở tầng bảng chúng
  *  được ép bằng CHECK, không nhờ người nhớ. */
 export const ConfigEntry = z.object({
-  id: MaConfig,
+  id: ConfigCode,
   list: ConfigList,
   /** NHÃN hiển thị — sửa được, có dấu, không phải khoá của bất cứ thứ gì. */
   name: z.string().min(1),
@@ -113,7 +113,7 @@ export const ConfigEntry = z.object({
   /** `false` = đã tắt. Dòng vẫn còn để dữ liệu cũ trỏ vào có chỗ đứng, nhưng
    *  không hiện ra ở ô chọn nữa. Đây là toàn bộ hình thức "xoá" mà hệ có. */
   active: z.boolean(),
-  createdAt: Moc,
+  createdAt: Moment,
 
   /** CHỈ `STAGE` — hạn của cột, tính bằng ngày. Quá hạn thì đơn tô cảnh báo.
    *  Thay cho `stageLimit.get(key)` đang tra một `Map` dựng từ hằng số. */
@@ -232,7 +232,7 @@ export const ConfigListResponse = z.object({
 // ---------------------------------------------------------------------------
 
 /** Ba schema dưới đây KHÔNG chỉ nói "hợp lệ hay không", chúng còn ĐỔI dữ liệu:
- *  `textNhap`/`textNhapTuyChon` (xem `../primitives`) gộp khoảng trắng trước
+ *  `textInput`/`textInputOptional` (xem `../primitives`) gộp khoảng trắng trước
  *  khi kiểm, và đổi `''` thành `undefined`. Thứ đi tiếp xuống service là thứ đã
  *  chuẩn hoá — không tầng nào phía dưới phải `trim()` lần nữa, và không tầng
  *  nào được phép quên.
@@ -242,29 +242,29 @@ export const ConfigListResponse = z.object({
  *  danh mục đè lên nhau. */
 
 export const ConfigEntryCreate = z.object({
-  name: textNhap(120),
+  name: textInput(120),
   /** Bắt buộc với `STAGE`, cấm với năm danh mục còn lại — ràng buộc đó là
    *  QUAN HỆ giữa `list` (nằm ở đường dẫn) và trường này, nên zod của thân yêu
    *  cầu không nhìn thấy đủ để kiểm. Service kiểm, và `CHECK
    *  config_limit_only_stage` ở tầng bảng là lưới thứ hai. */
   limitDays: z.number().int().nonnegative().max(365).optional(),
-  ownerId: textNhapTuyChon(64),
-  kind: textNhapTuyChon(32),
+  ownerId: textInputOptional(64),
+  kind: textInputOptional(32),
 })
 
 /** Sửa MỘT dòng. Trường vắng mặt = không đụng tới.
  *
  *  `null` của `ownerId` là "xoá người phụ trách", khác hẳn `undefined` là
- *  "giữ nguyên". Phải tách hai thứ đó ra vì `''` đã bị `textNhapTuyChon` đổi
+ *  "giữ nguyên". Phải tách hai thứ đó ra vì `''` đã bị `textInputOptional` đổi
  *  thành `undefined` từ trước — nếu không có `null` thì không có cách nào gỡ
  *  một Sale ra khỏi ngành. */
 export const ConfigEntryPatch = z
   .object({
-    name: textNhap(120).optional(),
+    name: textInput(120).optional(),
     active: z.boolean().optional(),
     limitDays: z.number().int().nonnegative().max(365).optional(),
-    ownerId: textNhapTuyChon(64).nullable(),
-    kind: textNhapTuyChon(32),
+    ownerId: textInputOptional(64).nullable(),
+    kind: textInputOptional(32),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có trường nào để sửa',
@@ -279,7 +279,7 @@ export const ConfigEntryPatch = z
  *
  *  `ord` mới = vị trí trong mảng, bắt đầu từ 1. */
 export const ConfigOrderPatch = z
-  .object({ ids: z.array(MaConfig).min(1) })
+  .object({ ids: z.array(ConfigCode).min(1) })
   .refine((p) => new Set(p.ids).size === p.ids.length, {
     message: 'Có mã lặp lại trong thứ tự mới',
     path: ['ids'],

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { ContactBookQuery, ContactPatch, MaObject } from '@pv/contracts'
+import { ContactBookQuery, ContactPatch, ObjectCode } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -64,7 +64,7 @@ export class LeadContactController {
 
   @Get(':code')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  profile(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.contacts.profile(who, code)
   }
 
@@ -72,7 +72,7 @@ export class LeadContactController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   edit(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(ContactPatch)) body: ContactPatch,
   ) {
     return this.leads.contactEdit(who, code, body)
@@ -82,7 +82,7 @@ export class LeadContactController {
   @Delete(':code')
   @HttpCode(204)
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
-  drop(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  drop(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.contactDrop(who, code)
   }
 
@@ -94,7 +94,7 @@ export class LeadContactController {
   @Post(':code/primary')
   @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
-  primary(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  primary(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.contactPrimary(who, code)
   }
 }

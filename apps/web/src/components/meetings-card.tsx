@@ -298,7 +298,7 @@ function RecordMeetingDrawer({
 
     const body: MeetingCreate = {
       /* `datetime-local` trả chuỗi KHÔNG có múi giờ ("2026-08-29T14:30").
-         `Moc` của hợp đồng đòi ISO 8601 CÓ múi, nên `new Date(...)` diễn giải
+         `Moment` của hợp đồng đòi ISO 8601 CÓ múi, nên `new Date(...)` diễn giải
          nó theo múi của máy rồi `toISOString()` đóng dấu — đúng thứ người gõ
          vừa nhìn thấy trên đồng hồ của họ. */
       at: new Date(at).toISOString(),

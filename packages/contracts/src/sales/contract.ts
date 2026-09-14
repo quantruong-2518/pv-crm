@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Dong, MaHopDong, MaObject, Moc, textNhap } from '../primitives'
+import { MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { paged } from '../pagination'
 import { CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
@@ -61,17 +61,17 @@ import { OpportunityRow } from './opportunity'
 
 /** A contract number — `HĐ-2711`, `HĐ-5001`.
  *
- *  It gets its own primitive instead of reusing `MaObject`, and the reason is
- *  one character: `MaObject` is `^[A-Z]{1,3}-\d{3,6}$`, and `Đ` is not in
+ *  It gets its own primitive instead of reusing `ObjectCode`, and the reason is
+ *  one character: `ObjectCode` is `^[A-Z]{1,3}-\d{3,6}$`, and `Đ` is not in
  *  `A-Z`. The frozen book has carried `HĐ-27NN` since long before this door
  *  existed — `seed.ts` derives the six won deals' opportunity codes from those
  *  very strings — so the prefix is data that already exists, not a naming
  *  choice open today.
  *
- *  The consequence worth knowing: a contract code does NOT satisfy `MaObject`,
+ *  The consequence worth knowing: a contract code does NOT satisfy `ObjectCode`,
  *  so it cannot be passed to any route that validates a path param with it.
  *  Nothing does today, and this comment is here so the day something wants to
- *  it gets a widened `MaObject` rather than a quietly renamed prefix.
+ *  it gets a widened `ObjectCode` rather than a quietly renamed prefix.
  *
  *  The declaration itself lives in `primitives.ts`, one directory up. It moved
  *  the day `OpportunityRow` grew a `contractCode`: this module already imports
@@ -86,7 +86,7 @@ import { OpportunityRow } from './opportunity'
 export const ContractSign = z
   .object({
     /** Final signed value. Absent = whatever the opportunity carried. */
-    amount: Dong.optional(),
+    amount: MoneyVnd.optional(),
     currency: CurrencyCode.optional(),
 
     /** When the pen actually moved. Absent = now.
@@ -95,7 +95,7 @@ export const ContractSign = z
      *  narrowing to `YYYY-MM-DD` here would force the server to invent a time
      *  of day — which lands on the wrong calendar day for anybody signing after
      *  17:00 in Hanoi once the string is read back as UTC. */
-    signedAt: Moc.optional(),
+    signedAt: Moment.optional(),
 
     /** Whose commission. Absent = the first `SALE` owner on the deal. */
     ownerId: z.string().trim().min(1).max(64).optional(),
@@ -120,12 +120,12 @@ export const ConditionSide = z.enum(['ta', 'khách'])
 export const InstallmentConditionRow = z.object({
   id: z.string().min(1).max(64),
   side: ConditionSide,
-  what: textNhap(500),
-  due: Moc,
+  what: textInput(500),
+  due: Moment,
   /** Absent = not done. For a customer-side line, "done" means the CUSTOMER
    *  did it, not that we chased them. */
-  doneAt: Moc.optional(),
-  who: textNhap(120),
+  doneAt: Moment.optional(),
+  who: textInput(120),
 })
 
 /** "Not there yet" is a real state, not an empty slot — see the docblock on
@@ -134,9 +134,9 @@ export const DocState = z.enum(['đủ', 'chờ-ký', 'chưa-có'])
 
 export const InstallmentDocRow = z.object({
   id: z.string().min(1).max(64),
-  name: textNhap(300),
+  name: textInput(300),
   state: DocState,
-  hint: textNhap(300),
+  hint: textInput(300),
 })
 
 export const RecordState = z.enum(['xong', 'chờ-trả-lời', 'đã-xếp', 'chưa-tới'])
@@ -151,19 +151,19 @@ export const RecordChannel = z.enum(['email', 'zalo-oa', 'trong-app', 'gọi'])
 
 export const InstallmentRecordRow = z.object({
   id: z.string().min(1).max(64),
-  at: Moc,
+  at: Moment,
   channel: RecordChannel,
-  what: textNhap(300),
-  detail: textNhap(300),
+  what: textInput(300),
+  detail: textInput(300),
   state: RecordState,
 })
 
 /** Free-hand note — the place for what no field can hold. */
 export const InstallmentNoteRow = z.object({
   id: z.string().min(1).max(64),
-  at: Moc,
-  who: textNhap(120),
-  text: textNhap(2_000),
+  at: Moment,
+  who: textInput(120),
+  text: textInput(2_000),
 })
 
 /** One installment, FULL — every checklist line, document and touch nested
@@ -172,13 +172,13 @@ export const InstallmentNoteRow = z.object({
  *  merge). */
 export const InstallmentRow = z.object({
   no: z.number().int().positive(),
-  label: textNhap(200),
+  label: textInput(200),
   /** Share of the contract value, whole percent. */
   share: z.number().int().min(0).max(100),
-  amount: Dong,
-  due: Moc,
+  amount: MoneyVnd,
+  due: Moment,
   /** Day the money landed. Absent = not collected. */
-  paidAt: Moc.optional(),
+  paidAt: Moment.optional(),
   conditions: z.array(InstallmentConditionRow),
   docs: z.array(InstallmentDocRow),
   records: z.array(InstallmentRecordRow),
@@ -206,9 +206,9 @@ export const InstallmentSummaryRow = InstallmentRow.pick({
  *  `ContractDetailRow` below extends this same row with the full nested
  *  schedule for the one-contract screen. */
 export const ContractRow = z.object({
-  code: MaHopDong,
-  opportunityCode: MaObject,
-  leadCode: MaObject,
+  code: ContractCode,
+  opportunityCode: ObjectCode,
+  leadCode: ObjectCode,
   /** Customer company name, joined from the lead.
    *
    *  On the ROW rather than only on the detail, because the book's own customer
@@ -216,13 +216,13 @@ export const ContractRow = z.object({
    *  `leadCode`, which is the one string on that line nobody at the desk says
    *  out loud. The repository already selects it for the book (the E2 second
    *  net needs it for `toRef`); only the mapper was dropping it. */
-  customer: textNhap(200),
-  amount: Dong.nullable(),
+  customer: textInput(200),
+  amount: MoneyVnd.nullable(),
   currency: CurrencyCode.nullable(),
-  signedAt: Moc,
+  signedAt: Moment,
   /** Present together or not at all — an unassigned contract has neither. */
   ownerId: z.string().min(1).max(64).optional(),
-  ownerName: textNhap(120).optional(),
+  ownerName: textInput(120).optional(),
   /** Absent on a just-signed contract with no schedule drafted yet — the
    *  sign door (`ContractSignResponse`) returns a row before any installment
    *  exists. */
@@ -239,8 +239,8 @@ export const ContractRow = z.object({
  *  schedule. */
 export const ContractDetailRow = ContractRow.extend({
   /** The customer-side contact — the person who signs acceptance. */
-  contact: textNhap(120),
-  contactRole: textNhap(120),
+  contact: textInput(120),
+  contactRole: textInput(120),
   installments: z.array(InstallmentRow),
 })
 
@@ -290,7 +290,7 @@ export type ContractDetailResponse = z.infer<typeof ContractDetailResponse>
 export const ContractMonthPoint = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, 'Tháng phải dạng YYYY-MM'),
   signedCount: z.number().int().nonnegative(),
-  signedAmountVnd: Dong,
+  signedAmountVnd: MoneyVnd,
 })
 
 /** The contract book folded to one row of numbers.
@@ -308,20 +308,20 @@ export const ContractMonthPoint = z.object({
  *  and the tile exists because they disagree. */
 export const ContractSummary = z.object({
   signedCount: z.number().int().nonnegative(),
-  signedAmountVnd: Dong,
+  signedAmountVnd: MoneyVnd,
   /** Contracts carrying no amount — the ones missing from `signedAmountVnd`,
    *  reported beside it rather than counted as zero. */
   blankAmount: z.number().int().nonnegative(),
 
   /** Sum of every installment ever scheduled. Differs from `signedAmountVnd`
    *  when a contract has been signed with no schedule drafted yet. */
-  scheduledVnd: Dong,
-  collectedVnd: Dong,
+  scheduledVnd: MoneyVnd,
+  collectedVnd: MoneyVnd,
   /** Unpaid and past its date, as of the server's today. */
-  overdueVnd: Dong,
+  overdueVnd: MoneyVnd,
   overdueCount: z.number().int().nonnegative(),
   /** Unpaid, not yet late, inside `DUE_NEAR_DAYS` of `@pv/engines`. */
-  dueSoonVnd: Dong,
+  dueSoonVnd: MoneyVnd,
   dueSoonCount: z.number().int().nonnegative(),
 
   /** Unlock conditions past their date and not ticked, split by who owes them.

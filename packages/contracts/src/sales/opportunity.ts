@@ -1,7 +1,15 @@
 import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { Dong, MaHopDong, MaObject, Moc, Ngay, textNhap, textNhapTuyChon } from '../primitives'
-import { MaConfig } from './config'
+import {
+  MoneyVnd,
+  ContractCode,
+  ObjectCode,
+  Moment,
+  Day,
+  textInput,
+  textInputOptional,
+} from '../primitives'
+import { ConfigCode } from './config'
 import { CurrencyCode, StageKey } from './enums'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
@@ -87,7 +95,7 @@ export const OpportunityOwnerRole = z.enum(['SALE', 'BD'])
  *  `size` is capped so a hand-written body cannot park an absurd number in a
  *  column that something will eventually sum. */
 export const OpportunityFile = z.object({
-  name: textNhap(255),
+  name: textInput(255),
   size: z
     .number('Cỡ tệp là bắt buộc')
     .int()
@@ -125,7 +133,7 @@ export const OPPORTUNITY_STAGE_NOTE_MAX = 500
 /** Actor ids on one side of a deal. Deduped, so the join table is never handed
  *  the same pair twice and never dies on its own primary key. */
 const ownerIds = z
-  .array(textNhap(64))
+  .array(textInput(64))
   .max(20, 'Tối đa 20 người')
   .transform((ids) => [...new Set(ids)])
 
@@ -141,15 +149,15 @@ const ownerIds = z
  *  that spelled the eleven fields twice would be the place the two forms first
  *  drift apart. */
 const dealFields = {
-  name: textNhap(OPPORTUNITY_NAME_MAX),
+  name: textInput(OPPORTUNITY_NAME_MAX),
 
-  expectedClose: Ngay,
+  expectedClose: Day,
   state: OpportunityCreateState,
 
   /** Money always travels with its unit — both required together, unlike the
    *  lead's budget where the customer may simply not have named one. A deal
    *  being opened without a value is a deal nobody can forecast. */
-  amount: Dong,
+  amount: MoneyVnd,
   currency: CurrencyCode,
 
   saleOwners: ownerIds,
@@ -170,7 +178,7 @@ const dealFields = {
 
   /** What the customer is asking about — ids from the `PRODUCT` catalog.
    *
-   *  `MaConfig`, not free text and not `z.string()`: the ids go into
+   *  `ConfigCode`, not free text and not `z.string()`: the ids go into
    *  `sales.opportunity_product`, whose composite foreign key refuses anything
    *  that is not a live catalog row. Typing the wire the same way means a bad
    *  id is refused at the door with a field name on it, rather than at the
@@ -180,18 +188,18 @@ const dealFields = {
    *  the same chip clicked twice is a slip of the hand, not a request the
    *  server should reject a whole form over. */
   products: z
-    .array(MaConfig)
+    .array(ConfigCode)
     .max(OPPORTUNITY_PRODUCTS_MAX, `Tối đa ${OPPORTUNITY_PRODUCTS_MAX} sản phẩm`)
     .optional()
     .default([])
     .transform((ids) => [...new Set(ids)]),
 
-  description: textNhapTuyChon(OPPORTUNITY_DESCRIPTION_MAX),
+  description: textInputOptional(OPPORTUNITY_DESCRIPTION_MAX),
   attachments: z.array(OpportunityFile).max(OPPORTUNITY_FILES_MAX).optional().default([]),
 
   /** Only meaningful when `state === 'close-lost'`; refused otherwise. */
-  lossReason: textNhapTuyChon(OPPORTUNITY_LOSS_REASON_MAX),
-  lossNote: textNhapTuyChon(OPPORTUNITY_LOSS_NOTE_MAX),
+  lossReason: textInputOptional(OPPORTUNITY_LOSS_REASON_MAX),
+  lossNote: textInputOptional(OPPORTUNITY_LOSS_NOTE_MAX),
 }
 
 /* Ba luật LIÊN Ô dưới đây lặp lại ở cả hai cửa, và lặp có chủ ý. Zod 4 không
@@ -213,9 +221,9 @@ const dealFields = {
 export const OpportunityCreate = z
   .object({
     /** The lead this deal came out of. One lead may produce many. */
-    leadCode: MaObject,
+    leadCode: ObjectCode,
     /** The account object in E1's graph, when the lead already has one. */
-    accountCode: MaObject.optional(),
+    accountCode: ObjectCode.optional(),
     ...dealFields,
   })
   .refine((v) => v.saleOwners.length > 0, {
@@ -280,26 +288,26 @@ export const OpportunityUpdate = z
  *  `active: false` being the only form of deletion — so shipping the flag here
  *  would invite a screen to hide a chip describing a real historical fact. */
 export const OpportunityProduct = z.object({
-  id: MaConfig,
-  name: textNhap(120),
+  id: ConfigCode,
+  name: textInput(120),
 })
 
 export const OpportunityOwner = z.object({
-  id: textNhap(64),
-  name: textNhap(120),
+  id: textInput(64),
+  name: textInput(120),
   role: OpportunityOwnerRole,
 })
 
 /** One row of the Ops book. */
 export const OpportunityRow = z.object({
-  code: MaObject,
-  leadCode: MaObject,
+  code: ObjectCode,
+  leadCode: ObjectCode,
   /** The customer, carried so the book need not join the lead book to print a
    *  name. `accountCode` is present only when E1 has an account object. */
-  account: textNhap(200),
-  accountCode: MaObject.optional(),
+  account: textInput(200),
+  accountCode: ObjectCode.optional(),
 
-  name: textNhap(200),
+  name: textInput(200),
   state: OpportunityState,
   /** The number on the paper that made `state` read `close-won`.
    *
@@ -311,10 +319,10 @@ export const OpportunityRow = z.object({
    *  be a third way of saying "no contract" beside `state` and absence, and the
    *  screen would have to test for all three before printing.
    *
-   *  `MaHopDong`, not `MaObject`: `Đ` is not in `A-Z`. The primitive lives in
+   *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`. The primitive lives in
    *  `primitives.ts` and its docblock says why it cannot be reused from
    *  `./contract` — that module imports this one. */
-  contractCode: MaHopDong.optional(),
+  contractCode: ContractCode.optional(),
   /** Which of the five columns the deal stands in. `null` = it has left the
    *  board (won or lost). Written from `state` at create time, then free to
    *  move on its own — see the schema's docblock. */
@@ -331,8 +339,8 @@ export const OpportunityRow = z.object({
   /** Nullable, and only in the READ shape: the create door requires a date, but
    *  the deals the frozen book already carries were closed before anybody was
    *  asked for one, and backfilling them means inventing a date per row. */
-  expectedClose: Ngay.nullable(),
-  amount: Dong.nullable(),
+  expectedClose: Day.nullable(),
+  amount: MoneyVnd.nullable(),
   currency: CurrencyCode.nullable(),
 
   /** Nullable in the READ shape while optional in the write shape, and the two
@@ -356,8 +364,8 @@ export const OpportunityRow = z.object({
   lossReason: z.string().optional(),
   lossNote: z.string().optional(),
 
-  createdAt: Moc,
-  closedAt: Moc.nullable(),
+  createdAt: Moment,
+  closedAt: Moment.nullable(),
 })
 
 // ---------------------------------------------------------------------------
@@ -410,7 +418,7 @@ export const OpportunitySortKey = z.enum([
  *  Absent = no filter, the convention every optional filter on `LeadBookQuery`
  *  follows. */
 export const OpportunityBookQuery = PageQuery.extend({
-  leadCode: MaObject.optional(),
+  leadCode: ObjectCode.optional(),
 
   /** One of the five the book may CONTAIN, not one of the four a body may
    *  claim — `close-won` filters too, and it has to: it is the state the deal
@@ -510,7 +518,7 @@ export const OpportunityScorecard = z.object({
    *  Won and lost have left the board, so neither is counted here. */
   open: z.number().int().nonnegative(),
   /** Sum of the open deals that HAVE an amount, converted to dong. */
-  openAmountVnd: Dong,
+  openAmountVnd: MoneyVnd,
   /** How many open deals carry no amount — the ones missing from the sum. */
   openBlank: z.number().int().nonnegative(),
   won: z.number().int().nonnegative(),
@@ -552,7 +560,7 @@ export const OpportunityScorecard = z.object({
  *  block on any deal that had ever existed and left that lead permanently
  *  un-convertible. Two doors of one book must not answer this differently. */
 export const OpportunityLiveDealQuery = z.object({
-  leadCode: MaObject,
+  leadCode: ObjectCode,
 })
 
 /** The whole answer: a code, or nothing.
@@ -576,7 +584,7 @@ export const OpportunityLiveDealQuery = z.object({
  *  are two fields that eventually will. `code !== null` IS the existence
  *  answer. */
 export const OpportunityLiveDeal = z.object({
-  code: MaObject.nullable(),
+  code: ObjectCode.nullable(),
 })
 
 export type OpportunityLiveDealQuery = z.infer<typeof OpportunityLiveDealQuery>
@@ -633,7 +641,7 @@ export const OpportunityStageMove = z.object({
   stage: StageKey,
   /** What the mover typed, when they typed anything. Optional because demanding
    *  a sentence for every move is how a team learns to type 'x'. */
-  note: textNhapTuyChon(OPPORTUNITY_STAGE_NOTE_MAX),
+  note: textInputOptional(OPPORTUNITY_STAGE_NOTE_MAX),
 })
 
 /** One line of a deal's column history.
@@ -650,14 +658,14 @@ export const OpportunityStageMove = z.object({
  *  would make the first and last step of every deal invisible. */
 export const OpportunityStageEvent = z.object({
   id: z.string().min(1),
-  at: Moc,
+  at: Moment,
   from: StageKey.nullable(),
   to: StageKey.nullable(),
   /** Days the deal stood in `from`. Null exactly when `from` is. */
   daysInFrom: z.number().int().nonnegative().nullable(),
   /** The mover's name as it read on the day — snapshotted, not joined. Same
    *  rule as `TouchRow.by`: a record is a record of what was true THEN. */
-  by: textNhap(120),
+  by: textInput(120),
   note: z.string().optional(),
 })
 
@@ -687,7 +695,7 @@ export const OpportunityStageBucket = z.object({
    *  reading a customer scenario to find out what a column is called. */
   label: z.string().min(1),
   count: z.number().int().nonnegative(),
-  amountVnd: Dong,
+  amountVnd: MoneyVnd,
   /** Deals in this column with no amount — missing from `amountVnd`, counted
    *  here rather than added as zero. Same rule as `OpportunityScorecard`. */
   blank: z.number().int().nonnegative(),
@@ -695,7 +703,7 @@ export const OpportunityStageBucket = z.object({
    *  the column has no limit configured — not "nothing is late" but "nothing
    *  can be late here yet", which `limitDays` below lets the screen tell. */
   rotting: z.number().int().nonnegative(),
-  rottingAmountVnd: Dong,
+  rottingAmountVnd: MoneyVnd,
   /** The configured limit, echoed so the screen prints the rule it is judging
    *  by instead of keeping a second copy of it. Null = no limit set. */
   limitDays: z.number().int().positive().nullable(),

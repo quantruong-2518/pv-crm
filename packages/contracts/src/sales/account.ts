@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { Dong, MaObject, Moc, intFromQuery, textNhap, textNhapTuyChon } from '../primitives'
+import {
+  MoneyVnd,
+  ObjectCode,
+  Moment,
+  intFromQuery,
+  textInput,
+  textInputOptional,
+} from '../primitives'
 import { LeadCategory } from './enums'
 
 /** The CUSTOMER COMPANY book — `/sales/accounts`.
@@ -52,8 +59,8 @@ import { LeadCategory } from './enums'
  *  ships `usage`: the question "is this company worth opening" is answered by
  *  those numbers, so a list without them is a list of names. */
 export const AccountRow = z.object({
-  code: MaObject,
-  name: textNhap(200),
+  code: ObjectCode,
+  name: textInput(200),
   legalName: z.string().optional(),
   taxCode: z.string().optional(),
 
@@ -78,10 +85,10 @@ export const AccountRow = z.object({
    *  one rate table, for the same reason the opportunity book sorts by a
    *  converted amount: two sums of one company have to come from one table or
    *  the screen disagrees with itself. */
-  signedAmountVnd: Dong,
+  signedAmountVnd: MoneyVnd,
 
-  createdAt: Moc,
-  updatedAt: Moc,
+  createdAt: Moment,
+  updatedAt: Moment,
 })
 
 export const AccountBookResponse = paged(AccountRow)
@@ -98,24 +105,24 @@ export const AccountProfile = AccountRow.extend({
   /** Every enquiry, newest first. */
   leadRows: z.array(
     z.object({
-      code: MaObject,
-      company: textNhap(200),
+      code: ObjectCode,
+      company: textInput(200),
       tier: z.string().optional(),
       stage: z.string().optional(),
       ownerName: z.string().optional(),
-      createdAt: Moc,
+      createdAt: Moment,
     }),
   ),
   /** Every deal, newest first — open and closed, because "what have we tried to
    *  sell them" includes the attempts that failed. */
   dealRows: z.array(
     z.object({
-      code: MaObject,
-      name: textNhap(200),
+      code: ObjectCode,
+      name: textInput(200),
       state: z.string(),
-      amountVnd: Dong.nullable(),
+      amountVnd: MoneyVnd.nullable(),
       signed: z.boolean(),
-      createdAt: Moc,
+      createdAt: Moment,
     }),
   ),
   /** Everyone we know at the company, resolved through their leads — see the
@@ -123,9 +130,9 @@ export const AccountProfile = AccountRow.extend({
    *  account code of its own. */
   contactRows: z.array(
     z.object({
-      code: MaObject,
-      leadCode: MaObject,
-      name: textNhap(120),
+      code: ObjectCode,
+      leadCode: ObjectCode,
+      name: textInput(120),
       title: z.string().optional(),
       email: z.string().optional(),
       phone: z.string().optional(),
@@ -182,23 +189,23 @@ export const AccountBookQuery = PageQuery.extend({
  *  `dealFields` next door, and for the same reason: the create dialog and the
  *  profile form are one form in two places. */
 const companyFields = {
-  name: textNhap(200),
-  legalName: textNhapTuyChon(200),
+  name: textInput(200),
+  legalName: textInputOptional(200),
   /** Free text rather than a digit pattern. Vietnamese tax codes are 10 or 13
    *  digits with a hyphen, but this book also holds foreign customers, and a
    *  regex that refuses a real company's real number is a regex that teaches
    *  people to leave the field empty. The uniqueness index does the work that
    *  matters. */
-  taxCode: textNhapTuyChon(32),
+  taxCode: textInputOptional(32),
 
-  address: textNhapTuyChon(300),
-  province: textNhapTuyChon(120),
+  address: textInputOptional(300),
+  province: textInputOptional(120),
   category: LeadCategory.optional(),
 
   headcount: z.number().int().nonnegative().max(1_000_000).optional(),
   plants: z.number().int().nonnegative().max(1_000).optional(),
 
-  note: textNhapTuyChon(1_000),
+  note: textInputOptional(1_000),
 }
 
 /** `POST /sales/accounts`.
@@ -227,7 +234,7 @@ export const AccountUpdate = z.object(companyFields)
  *  attached to the wrong company must be removable from it without inventing a
  *  third company to park it under. */
 export const LeadAccountAttach = z.object({
-  accountCode: MaObject.nullable(),
+  accountCode: ObjectCode.nullable(),
 })
 
 export type AccountRow = z.infer<typeof AccountRow>

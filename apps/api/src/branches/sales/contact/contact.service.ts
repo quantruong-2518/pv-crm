@@ -8,7 +8,7 @@ import {
   type ContactBookQuery,
   type ContactCreate,
   type ContactPatch,
-  type MaObject,
+  type ObjectCode,
 } from '@pv/contracts'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, notFound } from '@api/platform/http/problem'
@@ -38,7 +38,7 @@ export class ContactService {
     private readonly mirror: ObjectMirror,
   ) {}
 
-  async list(leadCode: MaObject): Promise<ContactListResponse> {
+  async list(leadCode: ObjectCode): Promise<ContactListResponse> {
     const rows = await this.repo.byLead(leadCode)
     return ContactListResponse.parse({ rows: rows.map(toContract) })
   }
@@ -86,7 +86,7 @@ export class ContactService {
    *  404 — the same reasoning `LeadService.guardByContact` writes down:
    *  distinguishing the two responses would tell the caller that `CT-0412`
    *  really exists under a lead they cannot read. */
-  async profile(who: Actor, code: MaObject): Promise<ContactBookRow> {
+  async profile(who: Actor, code: ObjectCode): Promise<ContactBookRow> {
     const found = await this.repo.oneWithContext(who, code, true)
     if (!found) throw notFound('người liên hệ', code)
 
@@ -106,7 +106,7 @@ export class ContactService {
    *  on `sales.lead` with no source to copy from. This is the half of the
    *  rule an index cannot state — an index can only say "at most one", while
    *  "at least one once somebody exists" has to be the service's rule. */
-  async add(who: Actor, leadCode: MaObject, body: ContactCreate): Promise<ContactRow> {
+  async add(who: Actor, leadCode: ObjectCode, body: ContactCreate): Promise<ContactRow> {
     const code = await this.repo.nextCode()
 
     const written = await this.repo.run(async (tx) => {
@@ -130,7 +130,7 @@ export class ContactService {
     return ContactRow.parse(toContract(written))
   }
 
-  async edit(leadCode: MaObject, code: MaObject, body: ContactPatch): Promise<ContactRow> {
+  async edit(leadCode: ObjectCode, code: ObjectCode, body: ContactPatch): Promise<ContactRow> {
     const current = await this.mine(leadCode, code)
 
     const written = await this.repo.run(async (tx) => {
@@ -157,7 +157,7 @@ export class ContactService {
    *  this endpoint refuses exactly that case rather than silently leaving a
    *  book with nobody primary: change the primary contact first, then
    *  delete. */
-  async drop(leadCode: MaObject, code: MaObject): Promise<void> {
+  async drop(leadCode: ObjectCode, code: ObjectCode): Promise<void> {
     const row = await this.mine(leadCode, code)
 
     if (row.isPrimary) {
@@ -180,7 +180,7 @@ export class ContactService {
    *  A separate endpoint rather than `PATCH { isPrimary: true }` because it
    *  touches two rows and only works in exactly one order; the full
    *  reasoning is in the docblock of `packages/contracts/src/sales/contact.ts`. */
-  async setPrimary(leadCode: MaObject, code: MaObject): Promise<ContactRow> {
+  async setPrimary(leadCode: ObjectCode, code: ObjectCode): Promise<ContactRow> {
     const row = await this.mine(leadCode, code)
     if (row.isPrimary) return ContactRow.parse(toContract(row))
 

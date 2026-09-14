@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MaObject, Moc, textNhap, textNhapTuyChon } from '../primitives'
+import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
 
 /** Meetings held with one lead — the record behind "we have met them before".
  *
@@ -56,7 +56,7 @@ export const MEETING_LINK_MAX = 500
 
 /** Id of one meeting on the wire.
  *
- *  Not a `MaObject`: `LD-0042`-style codes exist for things a person says out
+ *  Not a `ObjectCode`: `LD-0042`-style codes exist for things a person says out
  *  loud and types into a search box, and nobody refers to a meeting by id —
  *  on screen it is a date and a title. Declared once because three routes carry
  *  it, and three hand-written `z.string()` are three chances for one of them to
@@ -87,10 +87,10 @@ export const MeetingSide = z.enum(['host', 'guest'])
 export const MeetingAttendee = z.object({
   side: MeetingSide,
   actorId: z.string().min(1).max(64).optional(),
-  name: textNhap(120),
+  name: textInput(120),
   /** Job title, as written on the day. Optional — plenty of meetings happen
    *  with somebody whose title nobody wrote down. */
-  role: textNhapTuyChon(120),
+  role: textInputOptional(120),
 })
 
 /** A joining link. Not `z.url()`: the value is pasted from Meet/Zoom/Teams and
@@ -106,13 +106,13 @@ const MeetingLink = z
 
 export const MeetingRow = z.object({
   id: z.string().min(1),
-  leadCode: MaObject,
+  leadCode: ObjectCode,
 
   /** When the meeting HAPPENED, not when the row was typed. The two differ
    *  every time somebody writes up yesterday's call, and the scorecard counts
    *  by this one. */
-  at: Moc,
-  title: textNhap(MEETING_TITLE_MAX),
+  at: Moment,
+  title: textInput(MEETING_TITLE_MAX),
   link: MeetingLink.optional(),
   transcript: z.string().max(TRANSCRIPT_MAX).optional(),
 
@@ -124,8 +124,8 @@ export const MeetingRow = z.object({
   isFirst: z.boolean(),
 
   /** Who wrote the row down, snapshotted like `TouchRow.by`. */
-  by: textNhap(120),
-  createdAt: Moc,
+  by: textInput(120),
+  createdAt: Moment,
 })
 
 export const MeetingListResponse = z.object({
@@ -141,17 +141,17 @@ export const MeetingListResponse = z.object({
  *  was not there. */
 export const MeetingHostInput = z.object({
   actorId: z.string().min(1).max(64),
-  name: textNhap(120),
+  name: textInput(120),
 })
 
 export const MeetingGuestInput = z.object({
-  name: textNhap(120),
-  role: textNhapTuyChon(120),
+  name: textInput(120),
+  role: textInputOptional(120),
 })
 
 export const MeetingCreate = z.object({
-  at: Moc,
-  title: textNhap(MEETING_TITLE_MAX),
+  at: Moment,
+  title: textInput(MEETING_TITLE_MAX),
   link: MeetingLink.optional(),
   transcript: z.string().max(TRANSCRIPT_MAX).optional(),
 

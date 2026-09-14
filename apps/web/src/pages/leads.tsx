@@ -219,7 +219,7 @@ const ANY = 'all'
 /** Tiền tố đánh dấu một giá trị ô lọc Nguồn là `sourceKind` chứ không phải id
  *  chiến dịch — xem docblock `nguonOptions` cho lý do một ô cần phân biệt hai
  *  loại giá trị. An toàn vì hai bảng mã không bao giờ đụng nhau: id chiến dịch
- *  luôn có tiền tố `SR-` (`MaConfig`, sáu prefix theo danh mục), `LeadSourceKind`
+ *  luôn có tiền tố `SR-` (`ConfigCode`, sáu prefix theo danh mục), `LeadSourceKind`
  *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
 const KIND_PREFIX = 'kind:'
 

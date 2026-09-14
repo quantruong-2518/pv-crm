@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { email, Moc, textNhap, textNhapTuyChon } from './primitives'
+import { email, Moment, textInput, textInputOptional } from './primitives'
 
 /** Sign-in, the session it produces, and the people book behind it.
  *
@@ -161,9 +161,9 @@ export const SessionActor = z.object({
  *  server re-checks both marks on every call, and a clock skewed by an hour
  *  costs a confusing countdown, never an extra minute of access. */
 export const SessionWindow = z.object({
-  issuedAt: Moc,
-  expiresAt: Moc,
-  idleUntil: Moc.nullable(),
+  issuedAt: Moment,
+  expiresAt: Moment,
+  idleUntil: Moment.nullable(),
 })
 
 export const SessionView = z.object({
@@ -290,8 +290,8 @@ export const UserRow = SessionActor.extend({
   /** Locked out, and WHEN. A timestamp rather than a boolean because "since
    *  when" is the question actually asked about a locked account, and a
    *  boolean answers it with a shrug. `null` = active. */
-  disabledAt: Moc.nullable(),
-  createdAt: Moc,
+  disabledAt: Moment.nullable(),
+  createdAt: Moment,
 })
 
 export const UserListResponse = z.object({ rows: z.array(UserRow) })
@@ -333,9 +333,9 @@ export const DirectoryResponse = z.object({ rows: z.array(SessionActor) })
  *  somebody's first password knows it, and from then on nothing that account
  *  does can be pinned on its owner alone. The invite link is the only way in. */
 export const UserCreate = z.object({
-  name: textNhap(200),
+  name: textInput(200),
   email,
-  role: textNhap(120),
+  role: textInput(120),
   roleId: RoleId,
   /** `One` is added by the server if absent — every account needs the core to
    *  see any screen at all, and a person who cannot open the home page is not
@@ -350,8 +350,8 @@ export const UserCreate = z.object({
  *  old account and inviting the new address is the path that leaves a trail. */
 export const UserPatch = z
   .object({
-    name: textNhapTuyChon(200),
-    role: textNhapTuyChon(120),
+    name: textInputOptional(200),
+    role: textInputOptional(120),
     roleId: RoleId.optional(),
     branches: z.array(Branch).max(5).optional(),
     ownOnly: z.boolean().optional(),

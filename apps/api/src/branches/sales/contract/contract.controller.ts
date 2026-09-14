@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { MaHopDong, PageQuery } from '@pv/contracts'
+import { ContractCode, PageQuery } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -45,7 +45,7 @@ export class ContractController {
    *
    *  MUST stand before `@Get(':code')`: Fastify matches in declaration order,
    *  so the other way round the word `summary` falls into the path param and
-   *  dies in `zod(MaHopDong)` with a 400 about a malformed code — technically
+   *  dies in `zod(ContractCode)` with a 400 about a malformed code — technically
    *  right and meaningless to whoever reads the log.
    *
    *  NOT `scoped`, unlike the two doors around it. Same call both scorecards
@@ -60,14 +60,14 @@ export class ContractController {
 
   /** One contract, fully nested.
    *
-   *  `MaHopDong` rather than `MaObject` is the first fence, and it is not
+   *  `ContractCode` rather than `ObjectCode` is the first fence, and it is not
    *  interchangeable: a contract code carries a letter outside `A-Z`, so the
    *  generic object-code primitive rejects it. The second fence — does it
    *  exist, is it yours — belongs to the service, which needs the row to
    *  answer. */
   @Get(':code')
   @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
-  profile(@CurrentActor() who: Actor, @Param('code', zod(MaHopDong)) code: MaHopDong) {
+  profile(@CurrentActor() who: Actor, @Param('code', zod(ContractCode)) code: ContractCode) {
     return this.contracts.profile(who, code)
   }
 }

@@ -13,7 +13,7 @@ import {
   type ContactRow,
   type LeadAccountAttach,
   type LeadBookQuery,
-  type MaObject,
+  type ObjectCode,
   type MailRunId,
   type MeetingCreate,
   type MeetingListResponse,
@@ -119,7 +119,7 @@ export class LeadService {
    *  can never refuse a row the id comparison let through. Adding a check that
    *  cannot fire is how a reader learns to trust a fence that is not holding
    *  anything. When E2 compares by id, this is the place to hang it. */
-  async profile(who: Actor, code: MaObject): Promise<LeadProfile> {
+  async profile(who: Actor, code: ObjectCode): Promise<LeadProfile> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
@@ -160,7 +160,7 @@ export class LeadService {
    *  tail behind "load more" lies about how often we have written to this
    *  person — which is the one question a timeline exists to answer before
    *  somebody writes to them again. */
-  async mailTimeline(who: Actor, code: MaObject): Promise<LeadMailTimelineResponse> {
+  async mailTimeline(who: Actor, code: ObjectCode): Promise<LeadMailTimelineResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
@@ -178,7 +178,11 @@ export class LeadService {
    *  `mailTimeline` above; an empty list here is a real answer too (nobody has
    *  opened, clicked or replied to this run yet), so it cannot also stand in
    *  for "no such lead" or "not yours". */
-  async mailEvents(who: Actor, code: MaObject, runId: MailRunId): Promise<LeadMailEventsResponse> {
+  async mailEvents(
+    who: Actor,
+    code: ObjectCode,
+    runId: MailRunId,
+  ): Promise<LeadMailEventsResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
@@ -210,7 +214,7 @@ export class LeadService {
    *  `mailTimeline` above: an empty list is a REAL answer here — most leads
    *  have exactly one row — so it cannot also mean "no such lead" or "not
    *  yours" without answering three questions at once. */
-  async touches(who: Actor, code: MaObject): Promise<TouchTimelineResponse> {
+  async touches(who: Actor, code: ObjectCode): Promise<TouchTimelineResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
@@ -230,19 +234,19 @@ export class LeadService {
   // Hai cửa ghi đòi `lead.edit`, khai trên controller. Trục phạm vi vẫn bật ở cả
   // bốn: ghi một buổi họp vào lead của người khác là sửa hồ sơ của người khác.
 
-  async meetingList(who: Actor, code: MaObject): Promise<MeetingListResponse> {
+  async meetingList(who: Actor, code: ObjectCode): Promise<MeetingListResponse> {
     await this.guard(who, code)
     return this.meetings.timeline(code)
   }
 
-  async meetingAdd(who: Actor, code: MaObject, body: MeetingCreate): Promise<MeetingRow> {
+  async meetingAdd(who: Actor, code: ObjectCode, body: MeetingCreate): Promise<MeetingRow> {
     await this.guard(who, code)
     return this.meetings.record(who, code, body)
   }
 
   async meetingEdit(
     who: Actor,
-    code: MaObject,
+    code: ObjectCode,
     id: string,
     body: MeetingPatch,
   ): Promise<MeetingRow> {
@@ -250,7 +254,7 @@ export class LeadService {
     return this.meetings.amend(code, id, body)
   }
 
-  async meetingDrop(who: Actor, code: MaObject, id: string): Promise<void> {
+  async meetingDrop(who: Actor, code: ObjectCode, id: string): Promise<void> {
     await this.guard(who, code)
     await this.meetings.drop(code, id)
   }
@@ -267,27 +271,27 @@ export class LeadService {
   // NO new permission: a contact is part of a lead's profile, so reading one
   // takes the lead READ permission and touching one takes the lead WRITE one.
 
-  async contactList(who: Actor, code: MaObject): Promise<ContactListResponse> {
+  async contactList(who: Actor, code: ObjectCode): Promise<ContactListResponse> {
     await this.guard(who, code)
     return this.contacts.list(code)
   }
 
-  async contactAdd(who: Actor, code: MaObject, body: ContactCreate): Promise<ContactRow> {
+  async contactAdd(who: Actor, code: ObjectCode, body: ContactCreate): Promise<ContactRow> {
     await this.guard(who, code)
     return this.contacts.add(who, code, body)
   }
 
-  async contactEdit(who: Actor, code: MaObject, body: ContactPatch): Promise<ContactRow> {
+  async contactEdit(who: Actor, code: ObjectCode, body: ContactPatch): Promise<ContactRow> {
     const leadCode = await this.guardByContact(who, code)
     return this.contacts.edit(leadCode, code, body)
   }
 
-  async contactDrop(who: Actor, code: MaObject): Promise<void> {
+  async contactDrop(who: Actor, code: ObjectCode): Promise<void> {
     const leadCode = await this.guardByContact(who, code)
     await this.contacts.drop(leadCode, code)
   }
 
-  async contactPrimary(who: Actor, code: MaObject): Promise<ContactRow> {
+  async contactPrimary(who: Actor, code: ObjectCode): Promise<ContactRow> {
     const leadCode = await this.guardByContact(who, code)
     return this.contacts.setPrimary(leadCode, code)
   }
@@ -300,7 +304,7 @@ export class LeadService {
    *  who may edit their own lead may also say which company it belongs to;
    *  demanding the company-book permission here would send a Sale to ask for a
    *  department-wide grant in order to fix one cell on their own profile. */
-  async attachAccount(who: Actor, code: MaObject, body: LeadAccountAttach): Promise<void> {
+  async attachAccount(who: Actor, code: ObjectCode, body: LeadAccountAttach): Promise<void> {
     await this.guard(who, code)
     await this.accounts.attachLead(code, body.accountCode)
   }
@@ -325,7 +329,7 @@ export class LeadService {
    *  `mailTimeline` và `touches` giữ nguyên bản của chúng: đổi cả ba trong
    *  cùng lượt này là trộn một đợt dựng tính năng với một đợt dọn dẹp, và
    *  người review sẽ phải đọc cả hai cùng lúc. */
-  private async guard(who: Actor, code: MaObject): Promise<void> {
+  private async guard(who: Actor, code: ObjectCode): Promise<void> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
@@ -351,7 +355,7 @@ export class LeadService {
    *  `ContactService` takes `leadCode` and re-checks it, and that second check
    *  is what keeps that service correct even if a fourth door ever forgets to
    *  call this fence. */
-  private async guardByContact(who: Actor, code: MaObject): Promise<MaObject> {
+  private async guardByContact(who: Actor, code: ObjectCode): Promise<ObjectCode> {
     const leadCode = await this.contacts.leadOf(code)
     if (leadCode === null) throw notFound('người liên hệ', code)
 

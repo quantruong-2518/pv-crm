@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MaObject, Moc, gomKhoangTrang, textNhap, textNhapTuyChon } from '../primitives'
+import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from '../primitives'
 
 /** Loading deals from a file — TWO endpoints, one body.
  *
@@ -85,13 +85,13 @@ export const OpportunityImportField = z.enum(OPPORTUNITY_IMPORT_FIELDS)
  *  for the same reason: typing a cell here turns one unconvertible value into a
  *  whole rejected batch carrying one message at the root. Conversion happens in
  *  the check, per row, per field, where the failure can name a line. */
-const importCell = z.string().max(1_000, 'Ô dài quá 1.000 ký tự').transform(gomKhoangTrang)
+const importCell = z.string().max(1_000, 'Ô dài quá 1.000 ký tự').transform(collapseSpaces)
 
 export const OpportunityImportRow = z.object({
   line: z.number().int().min(2, 'Dòng 1 là dòng tiêu đề'),
   /** The row's first non-empty cell, so an error can name a row a human
    *  recognises rather than a line number alone. */
-  first: textNhapTuyChon(200),
+  first: textInputOptional(200),
   values: z.partialRecord(OpportunityImportField, importCell),
 })
 
@@ -101,7 +101,7 @@ export const OpportunityImportRow = z.object({
  *  moment they differ, a batch can pass the preview and fail the commit, and
  *  the preview stops being worth running. */
 export const OpportunityImportBody = z.object({
-  fileName: textNhap(255),
+  fileName: textInput(255),
   rows: z
     .array(OpportunityImportRow)
     .min(1, 'Không có dòng nào để nạp')
@@ -121,7 +121,7 @@ export const OpportunityImportRowOut = z.object({
    *  `Account` cell — never accepted from the client, for the reason the lead
    *  import refuses a client-sent `key`: a value the caller can edit is a value
    *  the caller can use to walk past the check. */
-  leadCode: MaObject,
+  leadCode: ObjectCode,
   key: z.string(),
 })
 
@@ -138,7 +138,7 @@ export const OpportunityImportDup = z.object({
   first: z.string(),
   key: z.string(),
   /** On `dupWithBook`, the open deal already standing on that customer. */
-  code: MaObject.optional(),
+  code: ObjectCode.optional(),
 })
 
 /** Kept as ARRAYS with no parallel counters.
@@ -166,10 +166,10 @@ export const OpportunityImportCommitResponse = OpportunityImportReport.extend({
   batchId: z.string().min(1),
   /** ONE timestamp for the whole batch — every row went in together or none
    *  did, and a per-row clock would suggest otherwise. */
-  at: Moc,
+  at: Moment,
   accepted: z.number().int().nonnegative(),
   /** Minted codes, in the order of `rows`. */
-  codes: z.array(MaObject),
+  codes: z.array(ObjectCode),
 })
 
 export type OpportunityImportField = z.infer<typeof OpportunityImportField>

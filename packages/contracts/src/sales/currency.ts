@@ -43,6 +43,6 @@ export const CURRENCIES = [
 
 /** Quy về đồng. Mọi chỗ CỘNG tiền phải đi qua đây — sổ cơ hội cộng bằng đồng,
  *  cộng thẳng số USD vào đó là sai 26.400 lần. */
-export function toDong(amount: number, currency: CurrencyCode): number {
+export function toMoneyVnd(amount: number, currency: CurrencyCode): number {
   return amount * (CURRENCIES.find((c) => c.code === currency)?.rate ?? 1)
 }

@@ -1,17 +1,17 @@
 import { z } from 'zod'
 import {
-  Dong,
-  MaObject,
-  Moc,
-  Ngay,
+  MoneyVnd,
+  ObjectCode,
+  Moment,
+  Day,
   email,
-  gomKhoangTrang,
+  collapseSpaces,
   phoneOptional,
-  textNhap,
-  textNhapTuyChon,
+  textInput,
+  textInputOptional,
 } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { MaConfig } from './config'
+import { ConfigCode } from './config'
 import {
   ContactChannel,
   CurrencyCode,
@@ -69,7 +69,7 @@ import { LeadSource } from './lead-source'
 export const REQUIRED_SLOTS = 6
 
 export const LeadRow = z.object({
-  code: MaObject,
+  code: ObjectCode,
   company: z.string().min(1),
   /** The contact person — the real target of every touch. */
   contactName: z.string().min(1),
@@ -162,11 +162,11 @@ export const LeadRow = z.object({
 
   /** Warmth score, accumulated across touches. */
   score: z.number().int().nonnegative(),
-  lastTouchAt: Moc.optional(),
+  lastTouchAt: Moment.optional(),
 
-  createdAt: Moc,
+  createdAt: Moment,
   exitReason: ExitReason.optional(),
-  exitedAt: Moc.optional(),
+  exitedAt: Moment.optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -247,7 +247,7 @@ export const LeadBookQuery = PageQuery.extend({
    *  Named for what it filters. The old spelling was `source`, from back when
    *  the column held a bare code and nothing else; now that an origin is two
    *  facts, a param called `source` would not say which of the two it means. */
-  campaign: MaConfig.optional(),
+  campaign: ConfigCode.optional(),
 
   /** The OTHER half of an origin — see `LeadSource` for why the two facts
    *  cannot share one param. `campaign` picks one named campaign; this picks
@@ -407,9 +407,9 @@ export const LeadProfile = LeadRow.extend({
   /** The budget the CUSTOMER named, not the price we quoted. Travels with its
    *  unit or not at all — `CHECK lead_money_pair` guarantees the pair, so a
    *  profile can never show a number whose currency nobody knows. */
-  budget: Dong.optional(),
+  budget: MoneyVnd.optional(),
   currency: CurrencyCode.optional(),
-  deadline: Ngay.optional(),
+  deadline: Day.optional(),
 
   // ── credit · the two holders that are NOT the scope axis ─────────────────
   //
@@ -462,7 +462,7 @@ export const LeadProfile = LeadRow.extend({
  *  ------------------------------------------------------------------
  *  EVERY FIELD HERE NORMALISES, IT DOES NOT ONLY CHECK
  *  ------------------------------------------------------------------
- *  The text fields go through `textNhap` / `textNhapTuyChon`, the mailbox
+ *  The text fields go through `textInput` / `textInputOptional`, the mailbox
  *  through `email`, the phone through `phoneOptional` (see `../primitives`).
  *  What reaches the service is already trimmed, already collapsed, already
  *  lowercased where it has to be, and `''` has already become `undefined`.
@@ -497,25 +497,25 @@ export const LeadProfile = LeadRow.extend({
 export const LeadCreate = z
   .object({
     // ── the three required ones · exactly the three NOT NULL columns ─────────
-    company: textNhap(LEAD_MAX.company),
-    contactName: textNhap(LEAD_MAX.contactName),
+    company: textInput(LEAD_MAX.company),
+    contactName: textInput(LEAD_MAX.contactName),
     email,
 
     // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
-    legalName: textNhapTuyChon(LEAD_MAX.legalName),
+    legalName: textInputOptional(LEAD_MAX.legalName),
     /** Tax code, SHAPE-CHECKED — see `taxCodeOptional` for why it stopped being
      *  free text. Worth knowing: the importer's dedupe key strips it down to
      *  digits, so two spellings of one code are one key there. */
     taxCode: taxCodeOptional,
-    address: textNhapTuyChon(LEAD_MAX.address),
-    province: textNhapTuyChon(LEAD_MAX.province),
+    address: textInputOptional(LEAD_MAX.address),
+    province: textInputOptional(LEAD_MAX.province),
     category: LeadCategory.optional(),
-    mainProduct: textNhapTuyChon(LEAD_MAX.mainProduct),
+    mainProduct: textInputOptional(LEAD_MAX.mainProduct),
     headcount: counted('Số người', LEAD_NUM.headcountMax).optional(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).optional(),
 
     // ── contact · who we talk to ──────────────────────── slots 4 · 5 ────────
-    contactTitle: textNhapTuyChon(LEAD_MAX.contactTitle),
+    contactTitle: textInputOptional(LEAD_MAX.contactTitle),
     phone: phoneOptional,
     contactChannel: ContactChannel.optional(),
     /** The customer's page on that channel — shape-checked, still not a URL.
@@ -524,21 +524,21 @@ export const LeadCreate = z
     contactChannelUrl: channelUrlOptional,
 
     // ── need · what the customer wants solved ─────────── slots 6…10 ─────────
-    pain: textNhapTuyChon(LEAD_MAX.pain),
-    currentStack: textNhapTuyChon(LEAD_MAX.currentStack),
-    decisionMaker: textNhapTuyChon(LEAD_MAX.decisionMaker),
-    approver: textNhapTuyChon(LEAD_MAX.approver),
+    pain: textInputOptional(LEAD_MAX.pain),
+    currentStack: textInputOptional(LEAD_MAX.currentStack),
+    decisionMaker: textInputOptional(LEAD_MAX.decisionMaker),
+    approver: textInputOptional(LEAD_MAX.approver),
     /** The budget the CUSTOMER named, not the price we quoted. Bounded so a
      *  mistyped figure gets a Vietnamese sentence instead of zod's English one
      *  about `MAX_SAFE_INTEGER` — see `LEAD_NUM`. */
-    budget: Dong.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').optional(),
+    budget: MoneyVnd.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').optional(),
     currency: CurrencyCode.optional(),
     deadline: deadlineDay.optional(),
 
     // ── owner · actor ids, never names ───────────────────────────────────────
-    ownerId: textNhapTuyChon(LEAD_MAX.actorId),
-    bdOwnerId: textNhapTuyChon(LEAD_MAX.actorId),
-    marketingOwnerId: textNhapTuyChon(LEAD_MAX.actorId),
+    ownerId: textInputOptional(LEAD_MAX.actorId),
+    bdOwnerId: textInputOptional(LEAD_MAX.actorId),
+    marketingOwnerId: textInputOptional(LEAD_MAX.actorId),
 
     // ── where it came from ───────────────────────────────────────────────────
     /** Narrowed to the motions the `MANUAL` door can carry, so `EVENT` is
@@ -562,7 +562,7 @@ export const LeadCreate = z
      *  Only the ID is accepted. `kind` is not a field here — this endpoint IS
      *  the `MANUAL` origin, and a caller that can name its own origin can
      *  claim `LANDING_PAGE`, which `CHANNEL_TRUST` reads as customer-verified. */
-    campaignId: MaConfig.optional(),
+    campaignId: ConfigCode.optional(),
   })
   .refine((v) => (v.budget === undefined) === (v.currency === undefined), {
     /* Money always carries its unit. Enforced here rather than left to
@@ -593,7 +593,7 @@ export const LeadCreateResponse = LeadRow
  *  ------------------------------------------------------------------
  *  Not an inconsistency — the two doors are asked different questions. A create
  *  form has no stored value to remove, so a blank box is a field nobody filled
- *  in, and `textNhapTuyChon` folding `''` into `undefined` is exactly right.
+ *  in, and `textInputOptional` folding `''` into `undefined` is exactly right.
  *  On a patch that same `''` is somebody DELETING what was in the box, and
  *  folding it into `undefined` makes the field quietly un-clearable: the user
  *  empties it, presses save, and the old value comes straight back with no
@@ -612,7 +612,7 @@ const clearableText = (max: number) =>
   z
     .string('Ô này phải là chữ')
     .max(max, `Tối đa ${max} ký tự`)
-    .transform(gomKhoangTrang)
+    .transform(collapseSpaces)
     .transform((s): string | null => (s === '' ? null : s))
     .nullish()
 
@@ -669,7 +669,7 @@ export const LeadPatch = z
     // touch, so they are optional but NOT nullable: correcting a typo is the
     // point, deleting the only way to reach a customer is not — and the column
     // would refuse it anyway, one layer later and in worse words.
-    contactName: textNhap(LEAD_MAX.contactName).optional(),
+    contactName: textInput(LEAD_MAX.contactName).optional(),
     contactTitle: clearableText(LEAD_MAX.contactTitle),
     email: email.optional(),
     phone: phoneOptional.nullish(),
@@ -684,7 +684,7 @@ export const LeadPatch = z
     /* Bounded exactly as on the create door. A ceiling one door holds and the
        other does not is a ceiling: the value simply arrives through the door
        that lets it in, and the book ends up holding what the form refuses. */
-    budget: Dong.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').nullish(),
+    budget: MoneyVnd.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').nullish(),
     currency: CurrencyCode.nullish(),
     deadline: deadlineDay.nullish(),
   })

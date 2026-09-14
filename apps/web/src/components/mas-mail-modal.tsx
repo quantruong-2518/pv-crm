@@ -46,7 +46,7 @@ const NO_TEMPLATE = 'none'
  *
  *  Chuỗi riêng chứ không phải `''`: một `<Select>` có `value=""` không phân
  *  biệt được "người dùng chọn không gắn" với "chưa nạp xong danh sách", và
- *  `MaObject` ở hợp đồng từ chối chuỗi rỗng nên nhầm lẫn đó thành một lượt 400
+ *  `ObjectCode` ở hợp đồng từ chối chuỗi rỗng nên nhầm lẫn đó thành một lượt 400
  *  sau khi thư đã soạn xong. Cùng nước đi `NO_TEMPLATE` ở trên. */
 const NO_CAMPAIGN = 'none'
 const NO_SELECTION: ReadonlySet<string> = new Set()

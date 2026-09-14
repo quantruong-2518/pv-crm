@@ -44,7 +44,7 @@ import {
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
-import { PIPELINE_STAGES, toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage, type FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -331,7 +331,7 @@ export function OpportunityDetailPage() {
                   }
                 >
                   {op.amount !== null && op.currency !== null
-                    ? billions(toDong(op.amount, op.currency))
+                    ? billions(toMoneyVnd(op.amount, op.currency))
                     : '—'}
                 </MetaPill>
                 <MetaPill

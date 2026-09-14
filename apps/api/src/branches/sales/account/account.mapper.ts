@@ -15,7 +15,7 @@ export type AccountValues = Omit<typeof account.$inferInsert, 'code' | 'createdA
  *  WHY THIS CONVERSION CANNOT BE SKIPPED ON THE UPDATE PATH
  *  ------------------------------------------------------------------
  *  Three layers of this repo spell "empty" three different ways —
- *  `textNhapTuyChon` turns `''` into `undefined` at the contract, Drizzle reads
+ *  `textInputOptional` turns `''` into `undefined` at the contract, Drizzle reads
  *  `undefined` in a `.set()` as "leave this column alone", and Postgres stores
  *  `NULL`. Passing the parsed body straight into `.set()` therefore makes
  *  clearing a field IMPOSSIBLE: the user empties the tax code box, the contract

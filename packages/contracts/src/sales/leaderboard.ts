@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Dong, textNhap } from '../primitives'
+import { MoneyVnd, textInput } from '../primitives'
 import { RoleId } from '../auth'
 
 /** `GET /sales/leaderboard` — one row per salesperson, the desk side by side.
@@ -18,7 +18,7 @@ import { RoleId } from '../auth'
  *  person owns — nothing here is derived against a goal. */
 export const LeaderboardRow = z.object({
   actorId: z.string().min(1).max(64),
-  name: textNhap(120),
+  name: textInput(120),
   roleId: RoleId,
 
   /** Leads whose `status` is still `running` and whose `owner_id` is this
@@ -29,7 +29,7 @@ export const LeaderboardRow = z.object({
   /** Deals still standing in a column, where this person is the `SALE` owner.
    *  A deal with two owners (Sale + BD) counts once, on the Sale. */
   opsOpen: z.number().int().nonnegative(),
-  opsOpenAmountVnd: Dong,
+  opsOpenAmountVnd: MoneyVnd,
   /** Open deals of theirs carrying no amount — missing from the sum above. */
   opsBlank: z.number().int().nonnegative(),
 
@@ -40,7 +40,7 @@ export const LeaderboardRow = z.object({
    *  book, not a period — the overview has no period axis of its own and
    *  inventing one here would disagree with the Performance screen's. */
   signedCount: z.number().int().nonnegative(),
-  signedAmountVnd: Dong,
+  signedAmountVnd: MoneyVnd,
 })
 
 /** The desk. Rows come back ordered by `signedAmountVnd` desc then name, so the

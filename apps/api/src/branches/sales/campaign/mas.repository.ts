@@ -399,7 +399,7 @@ export class MasRepository {
    *
    *  `aggregate_type = 'lead'` is not belt-and-braces either. `email_delivery`
    *  is ONE ledger for every flow, and `MailRunRecipientRow.leadCode` is a
-   *  `MaObject` — so the day something other than a MAS letter is filed against
+   *  `ObjectCode` — so the day something other than a MAS letter is filed against
    *  a run, an aggregate id not shaped like `LD-0042` would fail the contract's
    *  own `.parse()` and take the whole list out with a 500. Today every row
    *  here is written by `MasService.intentOf`, which sets exactly this type.

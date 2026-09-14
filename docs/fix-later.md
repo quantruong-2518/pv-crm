@@ -388,3 +388,46 @@ sau mất một buổi điều tra nếu không có mục này.
 - **`created_by` rỗng ở cả 123 dòng cũ**, và đó là câu trả lời đúng chứ không
   phải dữ liệu thiếu: lượt backfill không có người nào để ghi công. Cột đó
   nullable vĩnh viễn vì lý do ấy, còn `by` chở tên chụp lại.
+
+---
+
+## 14 · Tiền tố mã object: `HĐ` mang dấu, và câu "có in prefix ra màn không" chưa chốt
+
+**Triệu chứng:** `ObjectKind` trong `packages/engines/src/types.ts` có một giá trị
+mang dấu tiếng Việt — `'HĐ'` — và nó không nằm yên trong code. Địa chỉ thật của
+một hồ sơ hợp đồng là `/sales/contracts/HĐ-2711`, tức trình duyệt percent-encode
+thành `H%C4%90-2711`. Đó là chỗ link trong mail gãy khi bị mã hoá hai lần.
+
+Chủ dự án chốt 14/09/2026 thêm một hướng nữa: **id của item chỉ hiện số, không
+in tiền tố**. Hai việc này dính nhau và cùng hoãn.
+
+**Ở đâu:** `'HĐ'` là thứ duy nhất trong hệ vừa là khoá vừa là giấy tờ:
+
+- khoá E1 (`types.ts:33`) và tra bảng quyền (`e2-access.ts:242` → `contract`)
+- `MaHopDong = /^HĐ-\d{3,6}$/` (`primitives.ts`) — cố tình KHÔNG khớp `MaObject`
+  vì `Đ` nằm ngoài `A-Z`
+- hàm sinh mã chạy TRONG Postgres: `contract.repository.ts:79` nối
+  `'HĐ-' || lpad(nextval('sales.contract_code_seq')…)`
+- in ra màn: badge lead (`lead.ts:159`, `lead-detail.tsx:504` — `"Đã ký · HĐ-2711"`),
+  trang kit, ContextRail
+- **in trên hợp đồng khách cầm** — `HĐ-2607` là số hợp đồng, không phải chi tiết
+  kỹ thuật
+
+**Sửa thế nào:** hai câu, và câu sau phụ thuộc câu trước.
+
+1. **Prefix có in ra màn nữa không.** Nếu KHÔNG, tiền tố thành định danh thuần
+   và luật "định danh tiếng Anh" thắng thẳng — hết chuyện phải cân giữa khoá và
+   nhãn. Nếu CÓ, phải chọn giữa `HĐ → HD` (bỏ dấu, giữ nguyên cách phòng kinh
+   doanh gọi tên) và `HĐ → CTR` (tiếng Anh hẳn, nhưng đổi số giấy tờ đã phát ra).
+2. **Migration**: backfill `sales.contract.code` trên Neon, viết lại hàm sinh mã,
+   sửa `MaHopDong`, và redirect cho bookmark cũ — link cũ chết nếu không có.
+
+**Vì sao chưa sửa:** đợt dọn định danh tiếng Anh (chốt 14/09) cố ý để `'HĐ'`
+đứng ngoài cả sáu đợt. Mọi enum khác chỉ chạm code, fixture và CHECK constraint;
+riêng cái này chạm dữ liệu đang sống, hàm sinh mã trong Postgres, và địa chỉ
+người dùng đã bookmark. Gộp vào là biến một đợt dọn kiểu thành một đợt migration
+dữ liệu, và hai thứ đó hỏng theo hai cách khác nhau.
+
+**Một điều phải biết:** ẩn prefix khỏi màn KHÔNG tự giải quyết phần URL. Dấu `Đ`
+vẫn nằm trong `code` của bảng, trong `platform.edge`, và trong đường dẫn —
+dù không màn nào in nó ra.

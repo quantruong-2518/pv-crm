@@ -74,8 +74,8 @@ export type ContractDetailRead = ContractRead & {
  *
  *  Tiền tố có dấu, và nó nằm trong một chuỗi SQL. An toàn vì kết nối chạy
  *  UTF-8 hai đầu và chuỗi này là hằng số trong mã nguồn, không ghép từ dữ liệu
- *  người dùng — nhưng nó cũng chính là lý do `MaHopDong` phải là một primitive
- *  riêng thay vì `MaObject`, và lý do đó đã ghi ở hợp đồng. */
+ *  người dùng — nhưng nó cũng chính là lý do `ContractCode` phải là một primitive
+ *  riêng thay vì `ObjectCode`, và lý do đó đã ghi ở hợp đồng. */
 const NEXT_CODE = sql`SELECT 'HĐ-' || lpad(nextval('sales.contract_code_seq')::text, 4, '0') AS code`
 
 /** The signed value of a contract in dong. Shared expression, one rate table —

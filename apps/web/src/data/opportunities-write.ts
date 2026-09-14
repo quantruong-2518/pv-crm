@@ -3,7 +3,7 @@ import {
   OpportunityCreateState,
   type ContractSign,
   type ContractSignResponse,
-  type MaObject,
+  type ObjectCode,
   type OpportunityCreate,
   type OpportunityCreateResponse,
   type OpportunityRow,
@@ -31,7 +31,7 @@ import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/op
  *   · `account` không đi lên. Tên khách đọc từ chính lead — gửi lên là cho phép
  *     một phiếu đổi tên khách của người khác.
  *   · `''` thành VẮNG MẶT. Bảng chỉ có một quy ước cho "trống" là `NULL`, và
- *     `textNhapTuyChon` ở tầng hợp đồng đã đổi `''` → `undefined`.
+ *     `textInputOptional` ở tầng hợp đồng đã đổi `''` → `undefined`.
  *
  *  ------------------------------------------------------------------
  *  VÀ MỘT ĐƯỜNG DỊCH NGƯỢC
@@ -116,7 +116,7 @@ function dealBody(draft: OpportunityDraft) {
 }
 
 /** Phiếu → thân `POST`. */
-export function createBodyOf(leadCode: MaObject, draft: OpportunityDraft): OpportunityCreate {
+export function createBodyOf(leadCode: ObjectCode, draft: OpportunityDraft): OpportunityCreate {
   return {
     leadCode,
     ...(draft.accountCode === '' ? {} : { accountCode: draft.accountCode }),
@@ -237,7 +237,7 @@ export function promoteLead(
 }
 
 export function saveOpportunity(
-  code: MaObject,
+  code: ObjectCode,
   body: OpportunityUpdate,
   signal?: AbortSignal,
 ): Promise<OpportunityUpdateResponse> {
@@ -261,7 +261,7 @@ export function saveOpportunity(
  *  `{}`. Drawer vẫn bày ba ô ra vì người bấm cần XÁC NHẬN cái mình sắp ký, chứ
  *  không phải vì máy chủ đòi. */
 export function signContract(
-  code: MaObject,
+  code: ObjectCode,
   body: ContractSign,
   signal?: AbortSignal,
 ): Promise<ContractSignResponse> {
@@ -296,7 +296,7 @@ export function usePromoteLead() {
  *  NGAY — người vừa bấm Lưu không nên thấy ô cũ nhấp nháy trở lại trong lúc
  *  chờ một lượt đọc thứ hai — còn cái sổ thì có thể nạp lại thong thả, nó đang
  *  không ở trước mắt ai. */
-export function useSaveOpportunity(code: MaObject) {
+export function useSaveOpportunity(code: ObjectCode) {
   const client = useQueryClient()
 
   return useMutation<OpportunityUpdateResponse, ApiError, OpportunityUpdate>({
@@ -322,7 +322,7 @@ export function useSaveOpportunity(code: MaObject) {
  *
  *  Và vì nửa `contract` cũng về trong cùng lượt, nút bấm xong KHÔNG phải gọi
  *  lại lần nào để biết số hợp đồng máy chủ vừa cấp. */
-export function useSignContract(code: MaObject) {
+export function useSignContract(code: ObjectCode) {
   const client = useQueryClient()
 
   return useMutation<ContractSignResponse, ApiError, ContractSign>({
@@ -349,7 +349,7 @@ export function useSignContract(code: MaObject) {
  *  Full reasoning is in the docblock of `OpportunityStageMove` in
  *  `@pv/contracts`. */
 export function moveOpportunityStage(
-  code: MaObject,
+  code: ObjectCode,
   body: OpportunityStageMove,
   signal?: AbortSignal,
 ): Promise<OpportunityUpdateResponse> {
@@ -368,7 +368,7 @@ export function moveOpportunityStage(
  *  has to reload. Without that, whoever just dragged the card sees the new
  *  column at the top and a history that says nothing about the move they just
  *  made — exactly the kind of mismatch that makes people click twice. */
-export function useMoveStage(code: MaObject) {
+export function useMoveStage(code: ObjectCode) {
   const client = useQueryClient()
 
   return useMutation<OpportunityUpdateResponse, ApiError, OpportunityStageMove>({
@@ -392,7 +392,7 @@ export function useMoveStage(code: MaObject) {
  *  segment — which is why a column move's `invalidateQueries` reaches it
  *  without a second key constant that two places could forget to keep in
  *  sync. */
-export function opportunityStageHistoryQuery(code: MaObject) {
+export function opportunityStageHistoryQuery(code: ObjectCode) {
   return queryOptions({
     queryKey: ['sales', 'ops', code, 'stage-history'] as const,
     queryFn: ({ signal }) =>

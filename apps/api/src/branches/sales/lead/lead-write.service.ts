@@ -10,7 +10,7 @@ import {
   type LeadImportBody,
   type LeadOwnerWrite,
   type LeadPatch,
-  type MaObject,
+  type ObjectCode,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
@@ -190,7 +190,7 @@ export class LeadWriteService {
    *  showing the old holder — rule 10), and one `sales.touch` row of kind
    *  `giao`, which until today no door in the branch wrote. The lock is taken
    *  first; see `lockForOwnerChange`. */
-  async setOwner(who: Actor, code: MaObject, body: LeadOwnerWrite): Promise<LeadOwnerResponse> {
+  async setOwner(who: Actor, code: ObjectCode, body: LeadOwnerWrite): Promise<LeadOwnerResponse> {
     const mayAssign = this.access.allows(who, 'lead.assign')
 
     /* Looked up BEFORE the transaction, like `create()` does and for the same
@@ -314,7 +314,7 @@ export class LeadWriteService {
    *  `values` is never empty, so the UPDATE is never a `set({})` — `LeadPatch`
    *  refuses a body in which every field is absent, and that refusal is the
    *  only reason this method needs no empty check of its own. */
-  async patch(who: Actor, code: MaObject, body: LeadPatch): Promise<LeadPatchResponse> {
+  async patch(who: Actor, code: ObjectCode, body: LeadPatch): Promise<LeadPatchResponse> {
     const before = await this.leads.byCode(who, code)
     if (!before) throw notFound('lead', code)
 

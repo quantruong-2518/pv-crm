@@ -331,12 +331,12 @@ function detailOf(read: LeadMailEventRead): string | undefined {
   return read.detail ?? undefined
 }
 
-/** Mốc thời gian của driver → `Moc` của hợp đồng (ISO 8601 CÓ múi).
+/** Mốc thời gian của driver → `Moment` của hợp đồng (ISO 8601 CÓ múi).
  *
  *  Nhận cả `Date` lẫn chuỗi vì hai driver trả hai kiểu trên một câu SQL thô —
  *  lý do đầy đủ ở `LeadMailTimelineRead`. Chuỗi vẫn đi qua `new Date(...)` chứ
  *  không được trả thẳng: PGlite in ra `2027-01-01 02:00:00+00`, dạng của
- *  Postgres chứ không phải ISO 8601, và `Moc` sẽ từ chối nó ở `.parse()` — một
+ *  Postgres chứ không phải ISO 8601, và `Moment` sẽ từ chối nó ở `.parse()` — một
  *  500 ngay trên đường trả về, đúng thứ mà lớp `.parse()` sinh ra để bắt.
  *
  *  Chuỗi không đọc được thì trả `undefined` chứ không trả `Invalid Date`:

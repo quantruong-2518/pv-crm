@@ -7,7 +7,7 @@ import {
   type ContactListResponse,
   type ContactPatch,
   type ContactRow,
-  type MaObject,
+  type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 
@@ -75,7 +75,7 @@ export function contactBookQuery(q: ContactBookQuery) {
   })
 }
 
-export function contactProfileQuery(code: MaObject) {
+export function contactProfileQuery(code: ObjectCode) {
   return queryOptions({
     queryKey: [...CONTACT_BOOK_KEY, code] as const,
     queryFn: ({ signal }) =>
@@ -89,7 +89,7 @@ export function contactProfileQuery(code: MaObject) {
  *  `CONTACT_BOOK_KEY`: the four write doors below invalidate both, and a
  *  nested key does that with one prefix instead of two constants that have to
  *  be kept in sync by hand. */
-export function leadContactsQuery(leadCode: MaObject) {
+export function leadContactsQuery(leadCode: ObjectCode) {
   return queryOptions({
     queryKey: ['sales', 'leads', leadCode, 'contacts'] as const,
     queryFn: ({ signal }) =>
@@ -121,7 +121,7 @@ function invalidateAround(client: ReturnType<typeof useQueryClient>, leadCode?: 
   }
 }
 
-export function useAddContact(leadCode: MaObject) {
+export function useAddContact(leadCode: ObjectCode) {
   const client = useQueryClient()
 
   return useMutation<ContactRow, ApiError, ContactCreate>({
@@ -135,7 +135,7 @@ export function useAddContact(leadCode: MaObject) {
   })
 }
 
-export function useEditContact(code: MaObject, leadCode?: string) {
+export function useEditContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
   return useMutation<ContactRow, ApiError, ContactPatch>({
@@ -148,7 +148,7 @@ export function useEditContact(code: MaObject, leadCode?: string) {
   })
 }
 
-export function useDropContact(code: MaObject, leadCode?: string) {
+export function useDropContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
   return useMutation<void, ApiError, void>({
@@ -165,7 +165,7 @@ export function useDropContact(code: MaObject, leadCode?: string) {
  *  order, or it dies on `contact_primary_uniq`. The contract also CUTS
  *  `isPrimary` out of `ContactPatch` entirely so that wrong call cannot even
  *  compile. */
-export function useSetPrimaryContact(code: MaObject, leadCode?: string) {
+export function useSetPrimaryContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
   return useMutation<ContactRow, ApiError, void>({

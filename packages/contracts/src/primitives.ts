@@ -6,8 +6,9 @@ import { z } from 'zod'
  *  ngày viết `z.string()` ở mười chỗ là mười cơ hội để chỗ thứ mười nhận
  *  '17/08/2026' trong khi chín chỗ kia nhận '2026-08-17'.
  *
- *  Tên tiếng Việt không dấu, đúng luật định-danh-vs-nhãn của `e2-access.ts`:
- *  đây là khoá của hệ, nó đi vào JSON và log, nên không mang dấu. */
+ *  Tên tiếng Anh, đúng luật định-danh-vs-nhãn của `e2-access.ts`: đây là khoá
+ *  của hệ, nó đi vào JSON, vào log và vào stack trace. Nhãn tiếng Việt vẫn ở
+ *  nguyên chỗ cũ — trong `error` của từng check, vì đó là câu người dùng đọc. */
 
 /** Does this string name a day that exists? A regex cannot count the days in
  *  February, so that half of the check has to be a function. */
@@ -34,19 +35,19 @@ function isRealCalendarDate(s: string): boolean {
  *  is a Postgres `date`: it rejects both, but it rejects them down at the
  *  driver, which surfaces as a 500 that cannot say which field was wrong.
  *  Checking here turns the same input into one 400 pointing at one field. */
-export const Ngay = z
+export const Day = z
   .string('Ngày là bắt buộc')
   /* `abort` on both checks, and it is what keeps ONE mistake to ONE sentence.
      Without it '15/10/2026' fails the regex AND `isRealCalendarDate` (which
      slices NaN out of a string shaped some other way), so the form prints two
-     complaints about one typo — and any check chained on top of `Ngay`, such as
+     complaints about one typo — and any check chained on top of `Day`, such as
      `deadlineDay`, adds a third. A string that is not a date has nothing more
      to say about itself. */
   .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Ngày phải dạng YYYY-MM-DD', abort: true })
   .refine(isRealCalendarDate, { error: 'Ngày không có trên lịch', abort: true })
 
 /** Mốc thời gian tuyệt đối, ISO 8601 kèm múi. */
-export const Moc = z
+export const Moment = z
   .string('Mốc thời gian là bắt buộc')
   .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/, 'Mốc phải là ISO 8601 có múi giờ')
 
@@ -57,7 +58,7 @@ export const Moc = z
  *  con số. Nợ số 7 của `docs/ban-giao-backend.md` (tiền không mang tiền tệ)
  *  sửa bằng cách bọc thành `{ amount, currency }` khi có đơn ngoại tệ thật;
  *  hôm nay khai rõ đơn vị ở tên là bước một. */
-export const Dong = z
+export const MoneyVnd = z
   .number('Số tiền là bắt buộc')
   /* One sentence for both halves of what `.int()` checks — whole number, and
      inside the range JavaScript can still count exactly. Left to zod they are
@@ -69,12 +70,12 @@ export const Dong = z
   .nonnegative('Số tiền không được âm')
 
 /** Mã object — 'LD-0042', 'OP-0301'. ASCII, không dấu (nợ số 1). */
-export const MaObject = z
+export const ObjectCode = z
   .string('Mã object là bắt buộc')
   .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã object sai dạng')
 
-/** Mã hợp đồng — 'HĐ-2711', 'HĐ-5001'. KHÔNG khớp `MaObject` và không được
- *  ép cho khớp: `MaObject` là `^[A-Z]{1,3}-\d{3,6}$`, còn 'Đ' không nằm trong
+/** Mã hợp đồng — 'HĐ-2711', 'HĐ-5001'. KHÔNG khớp `ObjectCode` và không được
+ *  ép cho khớp: `ObjectCode` là `^[A-Z]{1,3}-\d{3,6}$`, còn 'Đ' không nằm trong
  *  `A-Z`. Tiền tố đó là DỮ LIỆU đã có trong sổ đóng băng, không phải một lựa
  *  chọn đặt tên còn mở — câu chuyện đầy đủ ở docblock của `ContractRow`.
  *
@@ -86,16 +87,16 @@ export const MaObject = z
  *  trong thân file, nên bên nào chạy sau cũng đọc phải một hằng chưa khởi tạo.
  *  `primitives.ts` không import gì từ `sales/`, nên nó là chỗ duy nhất giữ
  *  được ĐÚNG MỘT bản của cái regex này. */
-export const MaHopDong = z
+export const ContractCode = z
   .string()
   .trim()
   .regex(/^HĐ-\d{3,6}$/, 'Mã hợp đồng sai dạng')
 
-export type Ngay = z.infer<typeof Ngay>
-export type Moc = z.infer<typeof Moc>
-export type Dong = z.infer<typeof Dong>
-export type MaObject = z.infer<typeof MaObject>
-export type MaHopDong = z.infer<typeof MaHopDong>
+export type Day = z.infer<typeof Day>
+export type Moment = z.infer<typeof Moment>
+export type MoneyVnd = z.infer<typeof MoneyVnd>
+export type ObjectCode = z.infer<typeof ObjectCode>
+export type ContractCode = z.infer<typeof ContractCode>
 
 /** Cờ bật/tắt ĐI QUA QUERY STRING.
  *
@@ -122,7 +123,7 @@ export const Bool = z.enum(['true', 'false']).transform((v) => v === 'true')
  *  chuỗi khác nhau với `=`, khác nhau với `UNIQUE`, và giống hệt nhau với mắt
  *  người. Không gộp thì một danh mục có hai dòng trông y như nhau mà hệ coi là
  *  hai mục, và người nhập không có cách nào nhìn ra mình vừa làm gì. */
-export function gomKhoangTrang(s: string): string {
+export function collapseSpaces(s: string): string {
   return s.trim().replace(/\s+/g, ' ')
 }
 
@@ -134,11 +135,11 @@ export function gomKhoangTrang(s: string): string {
  *
  *  Dùng cho MỌI ô chữ người gõ — tên danh mục, tên công ty, nhãn nguồn. Đặt ở
  *  `primitives.ts` chứ không ở từng module vì bản thứ hai sẽ lệch bản thứ
- *  nhất, không phải nếu mà là khi (cùng lý do với `Ngay` và `Moc` ở trên). */
-export const textNhap = (max = 200) =>
+ *  nhất, không phải nếu mà là khi (cùng lý do với `Day` và `Moment` ở trên). */
+export const textInput = (max = 200) =>
   z
     .string('Không được để trống')
-    .transform(gomKhoangTrang)
+    .transform(collapseSpaces)
     .pipe(z.string().min(1, 'Không được để trống').max(max, `Tối đa ${max} ký tự`))
 
 /** Ô text NGƯỜI NHẬP, tuỳ chọn. Rỗng sau khi chuẩn hoá = KHÔNG CÓ.
@@ -148,11 +149,11 @@ export const textNhap = (max = 200) =>
  *  `docs/ban-giao-backend.md`, đã ép bằng CHECK ở tầng cột). Form HTML thì luôn
  *  gửi `''` cho ô người dùng bỏ trắng. Không đổi ở đây thì mỗi lần bỏ trắng một
  *  ô là một lần CHECK ném 500 — xem đúng cảnh báo đó ở cuối `ban-giao-db.md`. */
-export const textNhapTuyChon = (max = 200) =>
+export const textInputOptional = (max = 200) =>
   z
     .string('Ô này phải là chữ')
     .max(max, `Tối đa ${max} ký tự`)
-    .transform(gomKhoangTrang)
+    .transform(collapseSpaces)
     .transform((s) => (s === '' ? undefined : s))
     .optional()
 
@@ -276,7 +277,7 @@ function withoutDefaultCc(digits: string): string {
 
 /** Phone field, optional. Empty after normalising means ABSENT.
  *
- *  `''` becomes `undefined` under the same rule as `textNhapTuyChon`, and for
+ *  `''` becomes `undefined` under the same rule as `textInputOptional`, and for
  *  one concrete reason: `phone` is listed in `CHECK lead_no_blank`, so a field
  *  the user left alone — which an HTML form always submits as `''` — is one
  *  more 500 thrown by that CHECK.
@@ -347,10 +348,10 @@ export const intFromQuery = z
   .transform(Number)
   .pipe(z.number().int('Số quá lớn để đếm chính xác'))
 
-/** Money arriving THROUGH A QUERY STRING, in dong. `intFromQuery` first, `Dong`
+/** Money arriving THROUGH A QUERY STRING, in dong. `intFromQuery` first, `MoneyVnd`
  *  second — so `?budgetMin=-1` dies at `nonnegative()` instead of becoming a
  *  negative floor that quietly matches the whole book. */
-export const moneyFromQuery = intFromQuery.pipe(Dong)
+export const moneyFromQuery = intFromQuery.pipe(MoneyVnd)
 
 /** Date arriving THROUGH A QUERY STRING. ISO only, deliberately.
  *
@@ -359,5 +360,5 @@ export const moneyFromQuery = intFromQuery.pipe(Dong)
  *  readings and the two readings differ by a month, silently. The place that
  *  accepts the Vietnamese hand-typed form is the screen layer (`readDate` in
  *  `apps/web/src/data/intake.ts`); by the time it reaches here there is one
- *  form left — and `Ngay` has already checked the day exists. */
-export const dateFromQuery = z.string().trim().pipe(Ngay)
+ *  form left — and `Day` has already checked the day exists. */
+export const dateFromQuery = z.string().trim().pipe(Day)

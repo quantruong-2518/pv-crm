@@ -490,7 +490,7 @@ async function seed(): Promise<void> {
       })),
     )
 
-    /* Ngay sau `actor` vì `CATEGORY.owner_id` trỏ vào đó, và trước `lead` vì
+    /* Day sau `actor` vì `CATEGORY.owner_id` trỏ vào đó, và trước `lead` vì
        sáu cột từ vựng của lead sẽ trỏ vào đây. */
     await tx.insert(configEntry).values(configSeed)
 

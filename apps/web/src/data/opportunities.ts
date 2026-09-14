@@ -9,7 +9,7 @@ import {
   type OpportunityRow,
   type OpportunityState,
 } from '@pv/contracts'
-import { PIPELINE_STAGES, toDong, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiNeed } from '@/app/api'
 
 /** Sổ cơ hội — module 3. Đọc từ máy chủ.
@@ -359,7 +359,7 @@ export const idsOf = (owners: OpportunityOwner[]) => owners.map((o) => o.id)
  *  cộng bằng (`@pv/contracts` · `./currency`): hai con số của một pipeline mà
  *  ra từ hai bảng tỉ giá là đúng thứ lệch không ai để ý. */
 export const dongOf = (op: OpportunityRow) =>
-  op.amount === null || op.currency === null ? null : toDong(op.amount, op.currency)
+  op.amount === null || op.currency === null ? null : toMoneyVnd(op.amount, op.currency)
 
 /** Hạn của mỗi cột, tra theo khoá. */
 const STAGE_LIMIT = new Map(PIPELINE_STAGES.map((s) => [s.key, s.limitDays]))

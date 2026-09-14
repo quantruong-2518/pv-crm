@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nes
 import type { Actor } from '@pv/engines'
 import {
   ContractSign,
-  MaObject,
+  ObjectCode,
   OpportunityBookQuery,
   OpportunityCreate,
   OpportunityImportBody,
@@ -55,7 +55,7 @@ export class OpportunityController {
    *
    *  PHẢI đứng trước `@Get(':code')`, và đây là một luật của bộ định tuyến chứ
    *  không phải thẩm mỹ: Fastify khớp theo thứ tự khai, nên nếu `:code` khai
-   *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(MaObject)` bằng một
+   *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(ObjectCode)` bằng một
    *  400 nói "Mã object sai dạng" — đúng về mặt kỹ thuật và vô nghĩa với người
    *  đọc log. Sổ lead đã vấp đúng chỗ này và ghi lại ở `lead.controller.ts`.
    *
@@ -83,7 +83,7 @@ export class OpportunityController {
    *
    *  PHẢI đứng trước `@Get(':code')` vì cùng lý do `scorecard` ghi ở trên:
    *  Fastify khớp theo thứ tự khai, nên khai sau thì chuỗi `live-deal` rơi vào
-   *  `:code` và chết ở `zod(MaObject)` bằng một 400 vô nghĩa.
+   *  `:code` và chết ở `zod(ObjectCode)` bằng một 400 vô nghĩa.
    *
    *  KHÔNG `scoped`, và đó là TOÀN BỘ lý do cửa này tồn tại thay vì hồ sơ lead
    *  đi lọc cái sổ: một chốt chặn cắt theo phạm vi sẽ giấu đi đúng cái đơn nó
@@ -103,13 +103,13 @@ export class OpportunityController {
 
   /** Hồ sơ một đơn.
    *
-   *  Khai SAU `@Get()` và `@Get('scorecard')`, cùng ba trục quyền y hệt cửa sổ. `MaObject` là hàng rào thứ
+   *  Khai SAU `@Get()` và `@Get('scorecard')`, cùng ba trục quyền y hệt cửa sổ. `ObjectCode` là hàng rào thứ
    *  nhất: mã sai dạng chết ở `ZodPipe` với một 400 gọi tên ô, không đi tới câu
    *  truy vấn. Hàng rào thứ hai — có đơn đó không, có phải của người này không
    *  — là việc của service, vì nó cần dữ liệu mới trả lời được. */
   @Get(':code')
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
-  profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  profile(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.ops.profile(who, code)
   }
 
@@ -127,7 +127,7 @@ export class OpportunityController {
    *  tên không cần quyền của quản trị để đọc lịch sử chính đơn đó. */
   @Get(':code/touches')
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
-  touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  touches(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.ops.touches(who, code)
   }
 
@@ -197,7 +197,7 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.close', scoped: true })
   sign(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(ContractSign)) body: ContractSign,
   ) {
     return this.ops.sign(who, code, body)
@@ -216,7 +216,7 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   update(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(OpportunityUpdate)) body: OpportunityUpdate,
   ) {
     return this.ops.update(who, code, body)
@@ -235,7 +235,7 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   moveStage(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(OpportunityStageMove)) body: OpportunityStageMove,
   ) {
     return this.ops.moveStage(who, code, body)
@@ -244,7 +244,7 @@ export class OpportunityController {
   /** Which columns the deal has passed through, and how long it stood in each. */
   @Get(':code/stage-history')
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
-  stageHistory(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  stageHistory(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.ops.stageHistory(who, code)
   }
 }

@@ -116,7 +116,7 @@ export type Ticket = {
  *
  *  Safe to parse without guarding for `NaN`: every window reaching this
  *  function has already been through `SessionWindow` in `data/auth.ts`, whose
- *  `Moc` primitive rejects anything that is not ISO 8601 with an offset. That
+ *  `Moment` primitive rejects anything that is not ISO 8601 with an offset. That
  *  check belongs at the wire, not here — this is the second line of the same
  *  fence, and duplicating it would just mean two places to keep in step. */
 export function ticketOf(session: SessionWindow): Ticket {

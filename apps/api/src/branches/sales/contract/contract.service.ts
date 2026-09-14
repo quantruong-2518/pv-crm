@@ -4,7 +4,7 @@ import {
   ContractBookResponse,
   ContractDetailResponse,
   ContractSummary,
-  type MaHopDong,
+  type ContractCode,
   type PageQuery,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
@@ -78,7 +78,7 @@ export class ContractService {
    *  copy in `apps/web/src/data/contracts.ts` already collapses both to null
    *  and says out loud that the merge is intentional. Two answers to one
    *  question was the bug. */
-  async profile(who: Actor, code: MaHopDong): Promise<ContractDetailResponse> {
+  async profile(who: Actor, code: ContractCode): Promise<ContractDetailResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('hợp đồng', code)
 

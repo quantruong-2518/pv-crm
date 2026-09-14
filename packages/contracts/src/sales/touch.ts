@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MaObject, Moc, textNhap } from '../primitives'
+import { ObjectCode, Moment, textInput } from '../primitives'
 import { LeadTier } from './enums'
 
 /** The activity trail — what happened to a lead or a deal, in order.
@@ -86,8 +86,8 @@ export const TouchSubject = z.enum(['lead', 'opportunity'])
 
 export const TouchRow = z.object({
   id: z.string().min(1),
-  at: Moc,
-  subjectCode: MaObject,
+  at: Moment,
+  subjectCode: ObjectCode,
   subjectKind: TouchSubject,
   kind: TouchKind,
 
@@ -114,12 +114,12 @@ export const TouchRow = z.object({
    *  every historical line silently adopt the person's current name, and would
    *  make a line written by the machine impossible to render at all. `'Hệ
    *  thống'` is a legitimate value here; an actor id is not required. */
-  by: textNhap(120),
+  by: textInput(120),
   actorId: z.string().min(1).max(64).optional(),
 
   /** The sentence the screen shows. Written by the server in Vietnamese,
    *  because it is a fact addressed to the person reading the card. */
-  note: textNhap(500),
+  note: textInput(500),
 })
 
 /** Not `paged()`, for the reason `LeadMailTimelineResponse` is not: a timeline

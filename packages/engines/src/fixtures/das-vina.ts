@@ -1,5 +1,5 @@
 import { DEFAULT_ROLE_PERMISSIONS } from '../e2-access'
-import { CURRENCIES, USD_VND, toDong, type CurrencyCode } from '@pv/contracts'
+import { CURRENCIES, USD_VND, toMoneyVnd, type CurrencyCode } from '@pv/contracts'
 import { loadScenario, type Scenario } from './scenario'
 import type { Actor } from '../types'
 
@@ -2873,7 +2873,7 @@ export function headcountOf(lead: FrozenLead): number {
  *  ra đồng ngay trong SQL — nên hai đầu dây phải đọc CÙNG một bảng, và bảng
  *  chung của hai đầu là hợp đồng dữ liệu, không phải fixture của một kịch bản.
  *  Câu chuyện đầy đủ ở `packages/contracts/src/sales/currency.ts`. */
-export { CURRENCIES, toDong, type CurrencyCode }
+export { CURRENCIES, toMoneyVnd, type CurrencyCode }
 
 /** Hồ sơ đầy đủ của một lead.
  *

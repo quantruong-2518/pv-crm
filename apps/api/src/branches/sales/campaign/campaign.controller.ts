@@ -8,7 +8,7 @@ import {
   CampaignPatch,
   CampaignStart,
   CampaignWaveAdd,
-  MaObject,
+  ObjectCode,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
@@ -44,7 +44,7 @@ export class CampaignController {
 
   @Get(':code')
   @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
-  profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  profile(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.campaigns.profile(who, code)
   }
 
@@ -60,7 +60,7 @@ export class CampaignController {
   @Need({ branch: 'Sales', permission: 'campaign.edit', scoped: true })
   patch(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(CampaignPatch)) body: CampaignPatch,
   ) {
     return this.campaigns.patch(who, code, body)
@@ -72,7 +72,7 @@ export class CampaignController {
   @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   memberList(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Query(zod(CampaignMemberQuery)) q: CampaignMemberQuery,
   ) {
     return this.campaigns.memberList(who, code, q)
@@ -82,7 +82,7 @@ export class CampaignController {
   @Need({ branch: 'Sales', permission: 'campaign.edit', scoped: true })
   members(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(CampaignMemberPatch)) body: CampaignMemberPatch,
   ) {
     return this.campaigns.members(who, code, body)
@@ -92,7 +92,7 @@ export class CampaignController {
   @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
   start(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(CampaignStart)) body: CampaignStart,
   ) {
     return this.campaigns.start(who, code, body)
@@ -104,7 +104,7 @@ export class CampaignController {
   @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
   addWave(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(CampaignWaveAdd)) body: CampaignWaveAdd,
   ) {
     return this.campaigns.addWave(who, code, body)
@@ -112,7 +112,7 @@ export class CampaignController {
 
   @Post(':code/stop')
   @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
-  stop(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  stop(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.campaigns.stop(who, code)
   }
 }

@@ -3,7 +3,7 @@ import {
   AccountBookQuery,
   AccountCreate,
   AccountUpdate,
-  MaObject,
+  ObjectCode,
   type AccountBookQuery as AccountBookQueryType,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
@@ -35,7 +35,7 @@ export class AccountController {
 
   @Get(':code')
   @Need({ branch: 'Sales', permission: 'account.view' })
-  profile(@Param('code', zod(MaObject)) code: MaObject) {
+  profile(@Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.accounts.profile(code)
   }
 
@@ -48,7 +48,7 @@ export class AccountController {
   @Patch(':code')
   @Need({ branch: 'Sales', permission: 'account.edit' })
   update(
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(AccountUpdate)) body: AccountUpdate,
   ) {
     return this.accounts.update(code, body)

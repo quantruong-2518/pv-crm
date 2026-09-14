@@ -70,7 +70,7 @@ export function toSessionActor(row: ActorRow): SessionActor {
 
 /** When this session dies, in the two marks the screen needs.
  *
- *  ISO strings with a timezone, per the `Moc` primitive — never epoch numbers.
+ *  ISO strings with a timezone, per the `Moment` primitive — never epoch numbers.
  *  The browser arms its "phiên sắp hết hạn" countdown off these, and a moment
  *  without a zone is a moment that means something different on a laptop set to
  *  UTC than on one set to Asia/Ho_Chi_Minh. */

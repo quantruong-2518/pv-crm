@@ -90,7 +90,7 @@ export type ImportBatchChoices = {
  *  skipped — `continue` — for an optional one), so there is no `''` here to
  *  decide the fate of. `importCell` in the contract keeps a *present* empty
  *  string as `''` rather than folding it into "absent" (unlike
- *  `textNhapTuyChon`, which turns `''` into `undefined`) — but this function
+ *  `textInputOptional`, which turns `''` into `undefined`) — but this function
  *  never manufactures a present-but-empty cell, so that distinction never
  *  gets exercised on the way out; it only matters if a future caller starts
  *  passing `values` built some other way. */

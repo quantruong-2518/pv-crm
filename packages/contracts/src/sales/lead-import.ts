@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MaObject, Moc, gomKhoangTrang, textNhap, textNhapTuyChon } from '../primitives'
+import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from '../primitives'
 import { LeadSourceKind } from './enums'
 import { LEAD_MAX } from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
@@ -115,7 +115,7 @@ export const MAX_IMPORT_CELL = 1_000
 const importCell = z
   .string()
   .max(MAX_IMPORT_CELL, `Ô dài quá ${MAX_IMPORT_CELL.toLocaleString('vi-VN')} ký tự`)
-  .transform(gomKhoangTrang)
+  .transform(collapseSpaces)
 
 /** One row of the file after the columns have been mapped.
  *
@@ -137,7 +137,7 @@ export const LeadImportRow = z.object({
    *  columns are mapped, the raw row order is gone. Without it the downloadable
    *  error file loses the column that lets someone find the row in their own
    *  spreadsheet. When absent the server falls back to `values.company`. */
-  first: textNhapTuyChon(LEAD_MAX.company),
+  first: textInputOptional(LEAD_MAX.company),
   values: z.partialRecord(LeadImportField, importCell),
 })
 
@@ -148,7 +148,7 @@ export const LeadImportRow = z.object({
 export const LeadImportBody = z.object({
   /** Shown in the batch record and in the lead's history line, so six months
    *  later "where did this row come from" has an answer. */
-  fileName: textNhap(LEAD_MAX.fileName),
+  fileName: textInput(LEAD_MAX.fileName),
   /** Narrowed to the motions the `tep` door can carry — the same four the
    *  screen offers (`LEAD_SPEC.motions`). A pair outside `MOTION_BY_CHANNEL`
    *  does not mean "not supported"; it means it does not happen, so it fails at
@@ -163,7 +163,7 @@ export const LeadImportBody = z.object({
    *  wins over the per-row `source` cell. The person clicking the button is
    *  saying something about the whole file, and a stale code in a column should
    *  not quietly overrule them. */
-  source: textNhapTuyChon(LEAD_MAX.campaignCode),
+  source: textInputOptional(LEAD_MAX.campaignCode),
   rows: z
     .array(LeadImportRow)
     .min(1, 'Không có dòng nào để nạp')
@@ -212,7 +212,7 @@ export const LeadImportDup = z.object({
   key: z.string(),
   /** The lead already holding that key. Only present on `dupWithBook` — a
    *  collision inside the file has no lead behind it yet. */
-  code: MaObject.optional(),
+  code: ObjectCode.optional(),
 })
 
 /** The report both endpoints return.
@@ -268,7 +268,7 @@ export const LeadImportCommitResponse = LeadImportReport.extend({
   /** ONE timestamp for the whole batch. Not one per row: with per-row stamps
    *  the first and last row of a single load differ by seconds, and a table
    *  sorted by time renders one load as two. */
-  at: Moc,
+  at: Moment,
   /** The origin, stated by the server rather than assumed by the client. Always
    *  `IMPORT` for this endpoint, and it is what `CHANNEL_TRUST` reads to decide
    *  the batch is `THO` — a trust label the client asserting itself would be
@@ -286,7 +286,7 @@ export const LeadImportCommitResponse = LeadImportReport.extend({
   accepted: z.number().int().nonnegative(),
   /** Codes minted, in the order of `rows`. This is what lets the screen link
    *  straight to what it just created instead of asking the user to go find it. */
-  codes: z.array(MaObject),
+  codes: z.array(ObjectCode),
 })
 
 export type LeadImportRow = z.infer<typeof LeadImportRow>

@@ -678,7 +678,7 @@ export class MailRunRepository {
   }
 }
 
-/** `Moc` on the wire is an ISO 8601 string with an offset; the driver hands
+/** `Moment` on the wire is an ISO 8601 string with an offset; the driver hands
  *  back a `Date`. Absent stays absent — `undefined`, not the epoch. */
 function iso(at: Date | null): string | undefined {
   return at ? at.toISOString() : undefined

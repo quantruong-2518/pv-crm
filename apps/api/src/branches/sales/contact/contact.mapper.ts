@@ -40,7 +40,7 @@ export function fromCreate(
  *  key here means "leave it alone" and must NOT become `null`. Only the keys
  *  actually present are copied, which is the one spelling that keeps both
  *  meanings available: absent leaves the column, `''` arrives as `undefined`
- *  from `textNhapTuyChon` and is therefore also "leave alone".
+ *  from `textInputOptional` and is therefore also "leave alone".
  *
  *  Clearing a contact's title is consequently not expressible today, and that
  *  is a real limit rather than a hidden one. It costs less than the alternative,

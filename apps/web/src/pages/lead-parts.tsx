@@ -26,7 +26,7 @@ import {
   CURRENCIES,
   filledSlots,
   INIT_DATA_QUESTIONS,
-  toDong,
+  toMoneyVnd,
   type CurrencyCode,
   type Lead,
   type LeadEvent,
@@ -652,7 +652,7 @@ function MoneyRead({ work, value }: { work: LeadProfile; value: string }) {
     <span className="text-muted-foreground text-[12px] leading-[1.6]">
       {currency === 'VND'
         ? `${dong(amount)} · ${billions(amount)}`
-        : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toDong(amount, currency))} quy ra đồng`}
+        : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(amount, currency))} quy ra đồng`}
     </span>
   )
 }

@@ -8,7 +8,7 @@ import {
   LeadImportBody,
   LeadOwnerWrite,
   LeadPatch,
-  MaObject,
+  ObjectCode,
   MailRunId,
   MeetingCreate,
   MeetingId,
@@ -62,7 +62,7 @@ export class LeadController {
    *
    *  PHẢI đứng trước `@Get(':code')`, và đây là một luật của bộ định tuyến chứ
    *  không phải thẩm mỹ: Fastify khớp theo thứ tự khai, nên nếu `:code` khai
-   *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(MaObject)` bằng một
+   *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(ObjectCode)` bằng một
    *  400 nói "Mã object sai dạng" — đúng về mặt kỹ thuật và vô nghĩa với người
    *  đọc log.
    *
@@ -78,7 +78,7 @@ export class LeadController {
    *  (`@pv/contracts`) trước khi đụng vào chỗ này.
    *
    *  PHẢI đứng trước `@Get(':code')`, cùng lý do `scorecard` đã ghi: chuỗi
-   *  `facets` mà rơi vào `:code` thì chết ở `zod(MaObject)` bằng một 400 vô
+   *  `facets` mà rơi vào `:code` thì chết ở `zod(ObjectCode)` bằng một 400 vô
    *  nghĩa với người đọc log.
    *
    *  `scoped: true`, cùng ba trục với `book()`: ô lọc phải chỉ chào những giá
@@ -96,12 +96,12 @@ export class LeadController {
    *  `GET /sales/leads/export` thì đường đó vẫn thắng `:code`; thứ tự khai ở
    *  đây là để người đọc thấy hai đường ĐỌC nằm cạnh nhau, trước ba cửa ghi.
    *
-   *  `MaObject` là hàng rào thứ nhất: mã sai dạng chết ở `ZodPipe` với một 400
+   *  `ObjectCode` là hàng rào thứ nhất: mã sai dạng chết ở `ZodPipe` với một 400
    *  gọi tên ô, không đi tới câu truy vấn. Hàng rào thứ hai — có lead đó không,
    *  có phải của người này không — là việc của service, vì nó cần dữ liệu. */
   @Get(':code')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  profile(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  profile(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.profile(who, code)
   }
 
@@ -117,7 +117,7 @@ export class LeadController {
    *  marketing để biết khách đã nhận thư nào. */
   @Get(':code/mail')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  mail(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  mail(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.mailTimeline(who, code)
   }
 
@@ -127,7 +127,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   mailEvents(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Param('runId', zod(MailRunId)) runId: MailRunId,
   ) {
     return this.leads.mailEvents(who, code, runId)
@@ -145,7 +145,7 @@ export class LeadController {
    *  `platform.audit`, một câu hỏi khác của một người khác. */
   @Get(':code/touches')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  touches(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  touches(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.touches(who, code)
   }
 
@@ -165,7 +165,7 @@ export class LeadController {
 
   @Get(':code/meetings')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  meetings(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  meetings(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.meetingList(who, code)
   }
 
@@ -176,7 +176,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   meetingAdd(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(MeetingCreate)) body: MeetingCreate,
   ) {
     return this.leads.meetingAdd(who, code, body)
@@ -186,7 +186,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   meetingEdit(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Param('id', zod(MeetingId)) id: MeetingId,
     @Body(zod(MeetingPatch)) body: MeetingPatch,
   ) {
@@ -200,7 +200,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   meetingDrop(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Param('id', zod(MeetingId)) id: MeetingId,
   ) {
     return this.leads.meetingDrop(who, code, id)
@@ -216,7 +216,7 @@ export class LeadController {
 
   @Get(':code/contacts')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  contacts(@CurrentActor() who: Actor, @Param('code', zod(MaObject)) code: MaObject) {
+  contacts(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.leads.contactList(who, code)
   }
 
@@ -228,7 +228,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   contactAdd(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(ContactCreate)) body: ContactCreate,
   ) {
     return this.leads.contactAdd(who, code, body)
@@ -244,7 +244,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   accountAttach(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(LeadAccountAttach)) body: LeadAccountAttach,
   ) {
     return this.leads.attachAccount(who, code, body)
@@ -276,7 +276,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit' })
   setOwner(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(LeadOwnerWrite)) body: LeadOwnerWrite,
   ) {
     return this.write.setOwner(who, code, body)
@@ -300,7 +300,7 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   patch(
     @CurrentActor() who: Actor,
-    @Param('code', zod(MaObject)) code: MaObject,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(LeadPatch)) body: LeadPatch,
   ) {
     return this.write.patch(who, code, body)

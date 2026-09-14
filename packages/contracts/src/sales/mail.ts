@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MaObject, Moc, textNhap } from '../primitives'
+import { ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, paged, SortDir } from '../pagination'
 
 /** MAS mail — sending ONE batch to many leads. `/sales/mail/*`.
@@ -104,7 +104,7 @@ export const MailEngagementKind = z.enum(['OPEN', 'CLICK', 'UNSUBSCRIBE'])
  *  `platform/mail/mail.schema.ts` — the foreign key that ties every letter back
  *  to the batch it went out with.
  *
- *  Not a `MaObject`: `LD-0042`-style codes are minted for things a person says
+ *  Not a `ObjectCode`: `LD-0042`-style codes are minted for things a person says
  *  out loud and types into a search box. Nobody says a run id out loud — a run
  *  is identified on screen by its `label` and its date. Declared once here
  *  because three schemas below carry it, and three hand-written `z.string()`
@@ -117,7 +117,7 @@ export const MailRunId = z.uuid('Mã lô gửi phải là UUID')
 
 /** Code of a mail template — `'mas-edge-ai-intro'`.
  *
- *  A short ASCII slug rather than a `MaObject`, and the difference is what the
+ *  A short ASCII slug rather than a `ObjectCode`, and the difference is what the
  *  value is FOR: a template code is written into `email_delivery.template` and
  *  read by the composer registry to pick a renderer, so it is a name in code,
  *  not a row number a user reads. `MAS-0007` tells whoever is debugging a
@@ -178,7 +178,7 @@ function webUrl(what: string) {
 }
 
 export const MailCta = z.object({
-  label: textNhap(80),
+  label: textInput(80),
   url: webUrl('Địa chỉ nút'),
 })
 
@@ -324,7 +324,7 @@ export const MAS_RECIPIENT_BLOCK_LABEL = {
  *  merely mirrored. See the handover note; this contract does not want to be
  *  the thing that breaks the day a lead reaches the book without a mailbox. */
 export const MasRecipient = z.object({
-  leadCode: MaObject,
+  leadCode: ObjectCode,
   company: z.string().min(1),
   contactName: z.string().min(1),
   /** Chức danh để người gửi phân biệt đúng người trước khi bấm gửi. */
@@ -353,7 +353,7 @@ export const MAS_MAX_RECIPIENTS = 200
  *  pass the preview and be refused at the send, which makes the preview not
  *  worth reading. (Same rule `LeadImportBody` follows for its two endpoints.) */
 const leadCodes = z
-  .array(MaObject)
+  .array(ObjectCode)
   .min(1, 'Chưa chọn lead nào')
   .max(MAS_MAX_RECIPIENTS, `Một lô tối đa ${MAS_MAX_RECIPIENTS} lead`)
 
@@ -452,11 +452,11 @@ export const MasPreflightResponse = z.object({
 // Sending
 // ---------------------------------------------------------------------------
 
-/** The mail BODY. Normalised, but NOT through `textNhap` — and that exception
+/** The mail BODY. Normalised, but NOT through `textInput` — and that exception
  *  is the whole reason this exists.
  *
- *  `textNhap` collapses every run of whitespace to a single space
- *  (`gomKhoangTrang`), which is exactly right for a name or a subject and
+ *  `textInput` collapses every run of whitespace to a single space
+ *  (`collapseSpaces`), which is exactly right for a name or a subject and
  *  destructive here: it turns
  *
  *      'Chào anh/chị,\n\nPebble Vina xin…'   into   'Chào anh/chị, Pebble Vina xin…'
@@ -506,16 +506,16 @@ export const MasSendRequest = z.object({
    *  says when asking "how did the March mailing do". Required: an unnamed run
    *  in a list of thirty runs is a row nobody can identify, and "Untitled" is
    *  what every one of them ends up called. */
-  label: textNhap(200),
+  label: textInput(200),
   /** Which template pre-filled the text, when one did. Recorded rather than
    *  inferred: `subject`/`body` below are what actually goes out, and once the
    *  user has edited them there is no way to work out afterwards which template
    *  they started from. That is the answer to "which of our templates works". */
   templateCode: MailTemplateCode.optional(),
-  /** Single line — `textNhap` is correct here, unlike for `body`. 200 is the
+  /** Single line — `textInput` is correct here, unlike for `body`. 200 is the
    *  hard cap; be aware that most clients stop showing a subject somewhere
    *  around 70 characters, so anything past that is written for nobody. */
-  subject: textNhap(200),
+  subject: textInput(200),
   body: mailBody,
   /** The button in the letter — ABSENT MEANS NO BUTTON, it does not mean
    *  "whatever the template says".
@@ -538,12 +538,12 @@ export const MasSendRequest = z.object({
    *  server's disagree by seconds routinely, and a contract that rejects on
    *  that difference rejects legitimate sends. The service compares against
    *  its own clock, which is the only one that decides when the run fires. */
-  scheduledAt: Moc.optional(),
+  scheduledAt: Moment.optional(),
   /** Present = this run belongs to a campaign, and the service also writes the
    *  `campaign_run` row joining the two. Absent = Quick MAS from the lead book:
    *  a run that belongs to no campaign, which is a complete answer and not a
    *  gap (same rule as `LeadSource.campaignId` in `./lead-source`). */
-  campaignCode: MaObject.optional(),
+  campaignCode: ObjectCode.optional(),
 })
 
 /** What the send answers with. Three numbers and a state, and NOT "sent".
@@ -609,7 +609,7 @@ export const MasSendResponse = z.object({
  *  that unsubscribes somebody. It is `POST` for the same reason `preflight` is:
  *  a 20.000-character body does not fit in a query string. */
 export const MasPreviewRequest = z.object({
-  subject: textNhap(200),
+  subject: textInput(200),
   body: mailBody,
   cta: MailCta.optional(),
   bookingUrl: MailBookingUrl.optional(),
@@ -617,7 +617,7 @@ export const MasPreviewRequest = z.object({
    *  is not a blank letter: with no lead the server substitutes visible sample
    *  values, so somebody previewing before picking recipients still sees the
    *  shape of a real letter rather than a greeting with a hole in it. */
-  leadCode: MaObject.optional(),
+  leadCode: ObjectCode.optional(),
 })
 
 /** What the preview answers with — the three strings a send would carry.
@@ -678,12 +678,12 @@ export const MailRunRow = z.object({
   state: MailRunState,
 
   /** Set only on a run that was given a time. */
-  scheduledAt: Moc.optional(),
+  scheduledAt: Moment.optional(),
   /** When the first letter of this run was actually attempted. Absent while
    *  the run is `DRAFT` or `SCHEDULED` — and that absence is what distinguishes
    *  "will fire at 9am" from "fired at 9am and is still going". */
-  startedAt: Moc.optional(),
-  finishedAt: Moc.optional(),
+  startedAt: Moment.optional(),
+  finishedAt: Moment.optional(),
 
   /** Letters this run OWED when it was opened — the picks that survived
    *  preflight, not the size of the pick.
@@ -758,7 +758,7 @@ export const MailRunRow = z.object({
    *  field the list can order and page on without holes; the three timestamps
    *  above are each absent for at least one legitimate state. Paging on a key
    *  that is NULL for some rows silently drops them from the list. */
-  createdAt: Moc,
+  createdAt: Moment,
 })
 
 /** Sort keys of the run list — exactly two, and both are columns that exist on
@@ -776,7 +776,7 @@ export const MailRunListQuery = PageQuery.extend({
   state: MailRunState.optional(),
   /** Runs of ONE campaign. Absent = every run, including the campaign-less
    *  Quick MAS ones — which are the majority today. */
-  campaign: MaObject.optional(),
+  campaign: ObjectCode.optional(),
   /** Substring search over the run's `label` and `subject`. */
   q: z.string().trim().min(1).max(120).optional(),
   sort: MailRunSortKey.default('createdAt'),
@@ -866,7 +866,7 @@ export const MailRunPatchResponse = z.object({
  *  at two hundred rows that hides its tail behind "load more" is a list that
  *  cannot answer "did everyone get it". */
 export const MailRunRecipientRow = z.object({
-  leadCode: MaObject,
+  leadCode: ObjectCode,
   company: z.string().min(1),
   contactName: z.string().min(1),
   /** The address the letter was POSTED to, off the ledger — not the lead's
@@ -876,13 +876,13 @@ export const MailRunRecipientRow = z.object({
 
   /** State of THIS letter — one value of `MAIL_STATES`. See the docblock. */
   deliveryState: z.string().min(1),
-  sentAt: Moc.optional(),
-  deliveredAt: Moc.optional(),
+  sentAt: Moment.optional(),
+  deliveredAt: Moment.optional(),
 
   openCount: z.number().int().nonnegative(),
-  lastOpenAt: Moc.optional(),
+  lastOpenAt: Moment.optional(),
   clickCount: z.number().int().nonnegative(),
-  lastClickAt: Moc.optional(),
+  lastClickAt: Moment.optional(),
 
   /** The provider's own sentence about why it did not arrive. Free text for
    *  the reason `LeadMailTimelineRow.failReason` gives: "mailbox full" and
@@ -916,14 +916,14 @@ export const LeadMailTimelineRow = z.object({
    *  an unprefixed `state` next to `deliveryState` is an invitation to read the
    *  wrong one. */
   runState: MailRunState,
-  scheduledAt: Moc.optional(),
+  scheduledAt: Moment.optional(),
 
   /** When the provider accepted this recipient's letter. This is the first
    *  honest moment the lead screen may call it "sent"; scheduling or queueing
    *  a row is not a successful send. */
-  sentAt: Moc.optional(),
+  sentAt: Moment.optional(),
   /** When the receiving server confirmed delivery, when that webhook exists. */
-  deliveredAt: Moc.optional(),
+  deliveredAt: Moment.optional(),
 
   /** State of THIS lead's letter — one value of `MAIL_STATES`, declared in
    *  `apps/api/src/platform/mail/mail.contract.ts`.
@@ -955,12 +955,12 @@ export const LeadMailTimelineRow = z.object({
    *  ignored us into a lead that "read it twice". Do not let a screen say
    *  "quan tâm" on the strength of this number alone. */
   openCount: z.number().int().nonnegative(),
-  lastOpenAt: Moc.optional(),
+  lastOpenAt: Moment.optional(),
 
   /** Clicks by this lead. The trustworthy half of the pair: a click is caused
    *  by the recipient, not by their mail client fetching images. */
   clickCount: z.number().int().nonnegative(),
-  lastClickAt: Moc.optional(),
+  lastClickAt: Moment.optional(),
 
   /** Why this lead's letter did not make it, in words. Present only for a
    *  failed or bounced delivery. Free text because it is the PROVIDER's
@@ -985,7 +985,7 @@ export const LeadMailTimelineRow = z.object({
    *  privacy proxy invented. Zero when reply tracking is off or this run
    *  predates it — a real "no" for those cases, not "unknown". */
   replyCount: z.number().int().nonnegative(),
-  lastReplyAt: Moc.optional(),
+  lastReplyAt: Moment.optional(),
 })
 
 /** One engagement moment on a single run, for the lead-timeline detail panel.
@@ -996,7 +996,7 @@ export const LeadMailTimelineRow = z.object({
  *  response would make the common case pay for the rare one. */
 export const LeadMailEventRow = z.object({
   kind: z.enum(['OPEN', 'CLICK', 'REPLY']),
-  at: Moc,
+  at: Moment,
   /** CLICK carries the (truncated) URL, REPLY carries "from · subject". OPEN
    *  has nothing more to say than the moment itself. */
   detail: z.string().optional(),
@@ -1029,8 +1029,8 @@ export const MailTemplateListResponse = z.object({
  *  There is no rename: changing it would orphan every run that names it. */
 export const MailTemplateCreate = z.object({
   code: MailTemplateCode,
-  name: textNhap(200),
-  subject: textNhap(200),
+  name: textInput(200),
+  subject: textInput(200),
   body: mailBody,
   cta: MailCta.optional(),
   bookingUrl: MailBookingUrl.optional(),
@@ -1053,8 +1053,8 @@ export const MailTemplateCreateResponse = MailTemplateRow
  *  `/start` and `/stop` earn on a campaign. */
 export const MailTemplatePatch = z
   .object({
-    name: textNhap(200).optional(),
-    subject: textNhap(200).optional(),
+    name: textInput(200).optional(),
+    subject: textInput(200).optional(),
     body: mailBody.optional(),
     cta: MailCta.nullable().optional(),
     /** Three states like `cta`: absent leaves it alone, `null` removes the

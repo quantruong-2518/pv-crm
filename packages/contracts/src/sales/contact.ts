@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { MaObject, Moc, email, phoneOptional, textNhap, textNhapTuyChon } from '../primitives'
+import {
+  ObjectCode,
+  Moment,
+  email,
+  phoneOptional,
+  textInput,
+  textInputOptional,
+} from '../primitives'
 import { ContactChannel } from './enums'
 
 /** People on the CUSTOMER'S side — the book that did not exist until now.
@@ -147,14 +154,14 @@ export const ContactRow = z.object({
    *  người") and the DAS Vina fixture already mints one: `CT-0391` is the seed
    *  row of that whole scenario. So this book was named in the object graph
    *  long before it had a table. */
-  code: MaObject,
-  leadCode: MaObject,
+  code: ObjectCode,
+  leadCode: ObjectCode,
 
-  name: textNhap(120),
+  name: textInput(120),
   /** Job title, as written the day the row was filled in. Optional — a name
    *  and a phone number is a usable contact; a title nobody asked for is not
    *  worth refusing the row over. */
-  title: textNhapTuyChon(120),
+  title: textInputOptional(120),
 
   /** Optional — see the file docblock. `lead.email` keeps the `NOT NULL`
    *  guarantee the mail flow needs. */
@@ -169,17 +176,17 @@ export const ContactRow = z.object({
    *  through `PATCH` — see the file docblock. */
   isPrimary: z.boolean(),
 
-  note: textNhapTuyChon(500),
+  note: textInputOptional(500),
 
   /** Who wrote the row down, snapshotted at write time under the same rule as
    *  `TouchRow.by` and `MeetingRow.by`: a record is a record of what was true
    *  THEN. Joining `platform.actor` on read would make an old row silently
    *  adopt somebody's new name, and would render nothing at all for a person
    *  who has since left the book. */
-  by: textNhap(120),
+  by: textInput(120),
 
-  createdAt: Moc,
-  updatedAt: Moc,
+  createdAt: Moment,
+  updatedAt: Moment,
 })
 
 /** Not `paged()`. The list is bounded by how many people one company has, which
@@ -199,12 +206,12 @@ export const ContactListResponse = z.object({
  *  been dug out yet, and filling one with an invented value to satisfy a schema
  *  breaks exactly what the init-data gate exists to measure. */
 export const ContactCreate = z.object({
-  name: textNhap(120),
-  title: textNhapTuyChon(120),
+  name: textInput(120),
+  title: textInputOptional(120),
   email: email.optional(),
   phone: phoneOptional,
   channel: ContactChannel.optional(),
-  note: textNhapTuyChon(500),
+  note: textInputOptional(500),
 
   /** Defaulted rather than optional so the service always receives a boolean
    *  and never has to decide what `undefined` meant. `false` is the safe
@@ -274,11 +281,11 @@ export const ContactBookRow = ContactRow.extend({
   /** The company this person works at, carried so the book prints a name rather
    *  than a lead code. Read through `lead.account_code`; absent for a lead that
    *  has not been attached to a company yet. */
-  accountCode: MaObject.optional(),
-  accountName: textNhapTuyChon(200),
+  accountCode: ObjectCode.optional(),
+  accountName: textInputOptional(200),
   /** The lead's company column, which is always present — the fallback the row
    *  prints when `accountName` is not there yet. */
-  company: textNhap(200),
+  company: textInput(200),
 })
 
 export const ContactBookResponse = paged(ContactBookRow)
@@ -295,7 +302,7 @@ export const ContactBookQuery = PageQuery.extend({
    *  question is "who do I call at each customer" rather than "who do we know". */
   primary: z.enum(['1']).optional(),
   /** Everyone at one company, by account code. */
-  account: MaObject.optional(),
+  account: ObjectCode.optional(),
 })
 
 export type ContactBookRow = z.infer<typeof ContactBookRow>

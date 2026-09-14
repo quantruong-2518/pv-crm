@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { Dong, Moc, Ngay } from '../primitives'
-import { MaConfig } from './config'
+import { MoneyVnd, Moment, Day } from '../primitives'
+import { ConfigCode } from './config'
 
 /** Module 1 · Chiến dịch & Sự kiện — `GET /sales/campaigns/sources` và
  *  `GET /sales/campaigns/totals`.
@@ -54,9 +54,9 @@ export const SourceCostLine = z.object({
   id: z.uuid(),
   kind: CostKind,
   label: z.string().min(1),
-  amount: Dong,
+  amount: MoneyVnd,
   /** NGÀY TIÊU, không phải ngày nhập. Đây là thứ cho phép cắt chi phí theo kỳ. */
-  spentOn: Ngay,
+  spentOn: Day,
 })
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ export const SourceWave = z.object({
   /** Lô mail của đợt. Có nó thì màn mở thẳng được sang chi tiết lô. */
   mailRunId: z.uuid(),
   /** Ngày lô rời máy chủ. Vắng = lô còn nháp hoặc còn hẹn giờ, chưa chạy. */
-  sentAt: Moc.optional(),
+  sentAt: Moment.optional(),
   /** Người nhận lô này NỢ khi mở — picks sống sót sau preflight. */
   audience: z.number().int().nonnegative(),
   sent: z.number().int().nonnegative(),
@@ -110,7 +110,7 @@ export const SourceEvent = z.object({
   venue: z.string().min(1).optional(),
   registered: z.number().int().nonnegative().optional(),
   checkedIn: z.number().int().nonnegative().optional(),
-  heldOn: Ngay.optional(),
+  heldOn: Day.optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ export type SourceKind = z.infer<typeof SourceKind>
  *  DUY NHẤT được đem đi so, name là thứ DUY NHẤT được in ra. Có cả hai trên dây
  *  thì màn không bao giờ có lý do vẽ một cái mã ra cho người dùng nhìn. */
 export const CampaignSource = z.object({
-  code: MaConfig,
+  code: ConfigCode,
   name: z.string().min(1),
   /** Vắng = dòng cấu hình chưa ai gán loại. Màn phải chịu được chuyện đó thay
    *  vì đoán 'chien-dich'. */
@@ -158,15 +158,15 @@ export const CampaignSource = z.object({
 
   /** Mốc đầu và cuối của nguồn, suy từ chính dữ liệu: lead sớm nhất, đợt sớm
    *  nhất, hoá đơn sớm nhất. Vắng cả hai = nguồn chưa có gì xảy ra. */
-  firstAt: Moc.optional(),
-  lastAt: Moc.optional(),
+  firstAt: Moment.optional(),
+  lastAt: Moment.optional(),
 })
 
 export const CampaignSourceResponse = z.object({
   rows: z.array(CampaignSource),
   /** Kỳ mà những con số này nói về — mốc sớm nhất và muộn nhất có dữ liệu.
    *  Màn dựng trục thời gian từ đây thay vì từ một hằng số đóng băng. */
-  period: z.object({ fromISO: Moc, toISO: Moc }),
+  period: z.object({ fromISO: Moment, toISO: Moment }),
 })
 
 // ---------------------------------------------------------------------------
@@ -201,8 +201,8 @@ export const CampaignTotals = z.object({
   ops: z.number().int().nonnegative(),
   opsBook: z.number().int().nonnegative(),
 
-  cost: Dong,
-  period: z.object({ fromISO: Moc, toISO: Moc }),
+  cost: MoneyVnd,
+  period: z.object({ fromISO: Moment, toISO: Moment }),
 })
 
 export type SourceCostLine = z.infer<typeof SourceCostLine>

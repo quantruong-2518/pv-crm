@@ -781,9 +781,9 @@ function toRunRecipient(read: MasRecipientRead): MailRunRecipientRow {
   }
 }
 
-/** Driver moment → the contract's `Moc` (ISO 8601 WITH a zone). Same shape and
+/** Driver moment → the contract's `Moment` (ISO 8601 WITH a zone). Same shape and
  *  same reasoning as `isoOf` in `lead.mapper.ts`: PGlite prints
- *  `2027-01-01 02:00:00+00`, which `Moc` refuses, and an unreadable moment is
+ *  `2027-01-01 02:00:00+00`, which `Moment` refuses, and an unreadable moment is
  *  dropped rather than allowed to throw out of `toISOString()`. */
 function isoOf(at: Date | string | null): string | undefined {
   if (!at) return undefined

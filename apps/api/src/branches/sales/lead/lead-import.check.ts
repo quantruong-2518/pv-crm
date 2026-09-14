@@ -8,8 +8,8 @@ import {
   email as emailField,
   phoneOptional,
   taxCodeOptional,
-  textNhap,
-  textNhapTuyChon,
+  textInput,
+  textInputOptional,
   type LeadImportDup,
   type LeadImportError,
   type LeadImportField,
@@ -141,15 +141,15 @@ const LABEL: Record<LeadImportField, string> = {
  *  label glued on, comes from — and the column that holds them is the one the
  *  panel's dedupe key reads. */
 const TEXT = {
-  company: textNhap(LEAD_MAX.company),
-  contactName: textNhap(LEAD_MAX.contactName),
-  province: textNhapTuyChon(LEAD_MAX.province),
-  legalName: textNhapTuyChon(LEAD_MAX.legalName),
+  company: textInput(LEAD_MAX.company),
+  contactName: textInput(LEAD_MAX.contactName),
+  province: textInputOptional(LEAD_MAX.province),
+  legalName: textInputOptional(LEAD_MAX.legalName),
   taxCode: taxCodeOptional,
-  address: textNhapTuyChon(LEAD_MAX.address),
-  contactTitle: textNhapTuyChon(LEAD_MAX.contactTitle),
-  pain: textNhapTuyChon(LEAD_MAX.pain),
-  source: textNhapTuyChon(LEAD_MAX.campaignCode),
+  address: textInputOptional(LEAD_MAX.address),
+  contactTitle: textInputOptional(LEAD_MAX.contactTitle),
+  pain: textInputOptional(LEAD_MAX.pain),
+  source: textInputOptional(LEAD_MAX.campaignCode),
 }
 
 /** Headcount as a spreadsheet writes it: digits, optionally grouped.

@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { MaObject, Moc, textNhap, textNhapTuyChon } from '../primitives'
+import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { MaConfig } from './config'
+import { ConfigCode } from './config'
 import { MasSendRequest, MasSendResponse, MailRunPatchResponse, MailRunRow } from './mail'
 
 /** Sổ chiến dịch — module 5 của nhánh Sales. `GET/POST /sales/campaigns`.
@@ -17,7 +17,7 @@ import { MasSendRequest, MasSendResponse, MailRunPatchResponse, MailRunRow } fro
 export const CampaignState = z.enum(['DRAFT', 'RUNNING', 'STOPPED', 'DONE'])
 
 export const CampaignBookRow = z.object({
-  code: MaObject,
+  code: ObjectCode,
   name: z.string().min(1),
   state: CampaignState,
 
@@ -32,7 +32,7 @@ export const CampaignBookRow = z.object({
    *  `SOURCE`, cùng không gian mã `./campaign` đọc. Optional: một chiến dịch
    *  dựng trước khi ai quyết nó thuộc nguồn nào là trạng thái thật, giống hệt
    *  `LeadRow.source.campaignId`. */
-  sourceId: MaConfig.optional(),
+  sourceId: ConfigCode.optional(),
   sourceName: z.string().min(1).optional(),
 
   /** Câu mở đầu ngắn hiện dưới tên chiến dịch trên bước Hồ sơ. Trang trí,
@@ -48,8 +48,8 @@ export const CampaignBookRow = z.object({
   /** Số đợt đã bắn (`campaign_run`), không tính đợt đang soạn chưa gửi. */
   waveCount: z.number().int().nonnegative(),
 
-  createdAt: Moc,
-  updatedAt: Moc,
+  createdAt: Moment,
+  updatedAt: Moment,
 })
 
 export const CampaignBookSortKey = z.enum(['name', 'createdAt'])
@@ -78,10 +78,10 @@ export const CampaignProfile = CampaignBookRow.extend({
 
 /** `POST /sales/campaigns` — mã do máy chủ sinh, trạng thái luôn bắt đầu `DRAFT`. */
 export const CampaignCreate = z.object({
-  name: textNhap(200),
-  ownerId: textNhapTuyChon(64),
-  sourceId: MaConfig.optional(),
-  slogan: textNhapTuyChon(200),
+  name: textInput(200),
+  ownerId: textInputOptional(64),
+  sourceId: ConfigCode.optional(),
+  slogan: textInputOptional(200),
   thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
 })
 
@@ -92,19 +92,19 @@ export const CampaignCreateResponse = CampaignBookRow
  *  (`campaign.broadcast`) và không phải sửa nhầm một ô trên form là bắn được mail. */
 export const CampaignPatch = z
   .object({
-    name: textNhap(200).optional(),
+    name: textInput(200).optional(),
     /** THREE states, not two — absent is "leave it", `null` is "CLEAR it".
      *
-     *  Until 30/08 there were only two: `textNhapTuyChon` turns `''` into
+     *  Until 30/08 there were only two: `textInputOptional` turns `''` into
      *  `undefined`, so a Select returning its unassigned option looked exactly like
      *  a field nobody touched, and an owner once assigned had no API that could
      *  remove it (debt #6 in `ban-giao-campaign.md`). The screen had to print an
      *  apology where a button belonged. `null` goes straight to the column — all
      *  four are nullable, and the `campaign_no_blank` CHECK compares `<> ''`, so
      *  `NULL` passes it by design rather than by luck. */
-    ownerId: textNhapTuyChon(64).nullable(),
-    sourceId: MaConfig.nullable().optional(),
-    slogan: textNhapTuyChon(200).nullable(),
+    ownerId: textInputOptional(64).nullable(),
+    sourceId: ConfigCode.nullable().optional(),
+    slogan: textInputOptional(200).nullable(),
     thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').nullable().optional(),
   })
   .refine(
@@ -124,8 +124,8 @@ export const CampaignPatchResponse = CampaignBookRow
  *  bớt là chuyển `REMOVED`, không xoá dòng — ai đã nhận đợt 1 vẫn còn trong sổ. */
 export const CampaignMemberPatch = z
   .object({
-    add: z.array(MaObject).max(500).optional(),
-    remove: z.array(MaObject).max(500).optional(),
+    add: z.array(ObjectCode).max(500).optional(),
+    remove: z.array(ObjectCode).max(500).optional(),
   })
   .refine((v) => (v.add?.length ?? 0) > 0 || (v.remove?.length ?? 0) > 0, {
     message: 'Cần thêm hoặc bớt ít nhất một lead',
@@ -147,7 +147,7 @@ export const CampaignMemberPatchResponse = z.object({
 export const CampaignMemberState = z.enum(['ACTIVE', 'REMOVED'])
 
 export const CampaignMemberRow = z.object({
-  leadCode: MaObject,
+  leadCode: ObjectCode,
   company: z.string().min(1),
   contactName: z.string().min(1),
   /** Absent = the lead has no address, so this row is certain to be skipped at
@@ -155,7 +155,7 @@ export const CampaignMemberRow = z.object({
    *  discover it afterwards in `skipped`. */
   email: z.email().optional(),
   state: CampaignMemberState,
-  addedAt: Moc,
+  addedAt: Moment,
 })
 
 export const CampaignMemberQuery = PageQuery.extend({

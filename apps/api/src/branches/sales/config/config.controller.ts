@@ -5,7 +5,7 @@ import {
   ConfigEntryPatch,
   ConfigList,
   ConfigOrderPatch,
-  MaConfig,
+  ConfigCode,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
@@ -31,7 +31,7 @@ import { SalesConfigService } from './config.service'
  *  ------------------------------------------------------------------
  *  `:list/order` khai TRƯỚC `:list/:id`. Bộ định tuyến của Fastify ưu tiên đoạn
  *  tĩnh hơn đoạn tham số nên thứ tự khai không đổi kết quả, nhưng người đọc thì
- *  đọc từ trên xuống — và `MaConfig` cũng đã từ chối chuỗi 'order', nên có ba
+ *  đọc từ trên xuống — và `ConfigCode` cũng đã từ chối chuỗi 'order', nên có ba
  *  lớp cùng nói một điều. Ba lớp cho một chỗ dễ vấp là rẻ. */
 @Controller('sales/config')
 export class SalesConfigController {
@@ -78,7 +78,7 @@ export class SalesConfigController {
   patch(
     @CurrentActor() who: Actor,
     @Param('list', zod(ConfigList)) list: ConfigList,
-    @Param('id', zod(MaConfig)) id: MaConfig,
+    @Param('id', zod(ConfigCode)) id: ConfigCode,
     @Body(zod(ConfigEntryPatch)) body: ConfigEntryPatch,
   ) {
     return this.config.patch(who, list, id, body)

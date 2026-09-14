@@ -6,7 +6,7 @@ import {
   type AccountBookQuery,
   type AccountCreate,
   type AccountUpdate,
-  type MaObject,
+  type ObjectCode,
 } from '@pv/contracts'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { notFound } from '@api/platform/http/problem'
@@ -54,7 +54,7 @@ export class AccountService {
     })
   }
 
-  async profile(code: MaObject): Promise<AccountProfile> {
+  async profile(code: ObjectCode): Promise<AccountProfile> {
     const found = await this.repo.byCode(code)
     if (!found) throw notFound('công ty', code)
 
@@ -121,7 +121,7 @@ export class AccountService {
     return AccountRow.parse(toContract(written))
   }
 
-  async update(code: MaObject, body: AccountUpdate): Promise<AccountRow> {
+  async update(code: ObjectCode, body: AccountUpdate): Promise<AccountRow> {
     const values = fromForm(body)
 
     const written = await this.repo.run(async (tx) => {
@@ -148,7 +148,7 @@ export class AccountService {
    *  `syncDealsOfLead`). Called from `LeadService`, after the lead has passed
    *  its `guard()`: the permission here is the lead's edit permission,
    *  because the row being changed is a lead row. */
-  async attachLead(leadCode: MaObject, accountCode: MaObject | null): Promise<void> {
+  async attachLead(leadCode: ObjectCode, accountCode: ObjectCode | null): Promise<void> {
     const moved = await this.repo.run(async (tx) => {
       if (accountCode !== null) {
         const target = await this.repo.byCode(accountCode)

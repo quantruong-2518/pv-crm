@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MaConfig } from './config'
+import { ConfigCode } from './config'
 import { LeadSourceKind } from './enums'
 
 /** Where a lead came from — ONE object, two facts, one label table.
@@ -36,7 +36,7 @@ import { LeadSourceKind } from './enums'
  *     neutral label rather than printing the bare code. */
 export const LeadSource = z.object({
   kind: LeadSourceKind.optional(),
-  campaignId: MaConfig.optional(),
+  campaignId: ConfigCode.optional(),
   campaignName: z.string().min(1).optional(),
 })
 

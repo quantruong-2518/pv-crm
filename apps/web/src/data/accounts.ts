@@ -6,7 +6,7 @@ import {
   type AccountProfile,
   type AccountRow,
   type AccountUpdate,
-  type MaObject,
+  type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 
@@ -80,7 +80,7 @@ export function accountBookQuery(q: AccountBookQuery) {
   })
 }
 
-export function accountProfileQuery(code: MaObject) {
+export function accountProfileQuery(code: ObjectCode) {
   return queryOptions({
     queryKey: [...ACCOUNT_BOOK_KEY, code] as const,
     queryFn: ({ signal }) =>
@@ -116,7 +116,7 @@ export function useCreateAccount() {
  *  So this is `invalidateQueries` for both the profile and the book: one
  *  extra read, in exchange for the screen never drawing a profile missing its
  *  bottom half. */
-export function useSaveAccount(code: MaObject) {
+export function useSaveAccount(code: ObjectCode) {
   const client = useQueryClient()
 
   return useMutation<AccountRow, ApiError, AccountUpdate>({

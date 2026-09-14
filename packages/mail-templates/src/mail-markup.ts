@@ -67,7 +67,7 @@ export function parseMailBody(body: string): MailBlock[] {
 
     /* A blank line ends the block — the rule the compose box shows the writer,
        and the reason `mailBody` in `@pv/contracts` refuses to run the body
-       through `textNhap`: collapsing whitespace would turn every paragraph
+       through `textInput`: collapsing whitespace would turn every paragraph
        break in every mass mail into a space. */
     if (line === '') {
       closeList()
