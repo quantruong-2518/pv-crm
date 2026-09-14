@@ -6,7 +6,7 @@ import {
   type ApprovalKind,
   type ApprovalRequestView,
 } from '@pv/contracts'
-import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound, PvError } from '@api/platform/http/problem'
 import type { Db } from '../db/db.module'
 import { toContract } from './approval.mapper'
 import { ApprovalRepository } from './approval.repository'
@@ -93,6 +93,14 @@ export class ApprovalService {
    *  outcome an approval chain exists to prevent. Fail closed, like every other
    *  gate in this codebase.
    *
+   *  It fails closed with a SENTENCE, though. The empty seat is a real state of
+   *  a real database — the demo cast has no `director`, so a freshly loaded
+   *  system hits this on the first proposal somebody sends — and a person who
+   *  meets it needs to read what is missing and who can fix it, not a stack
+   *  trace. 500 rather than 4xx because nothing the caller did is wrong: the
+   *  system promised an approval route and has nobody standing on it. Same
+   *  shape the refusing gate used before E3 had a table.
+   *
    *  One seat per role is the staff book's own rule; where two people hold a
    *  role the lowest actor id wins, so the same request always waits on the
    *  same person instead of alternating between them per call. */
@@ -101,7 +109,16 @@ export class ApprovalService {
 
     return roles.map((role) => {
       const person = holders.find((h) => h.roleId === role)
-      if (!person) throw new Error(`platform.approval: no actor holds role ${role}`)
+      if (!person) {
+        this.log.error(`chainFor: không có actor nào đang giữ vai ${role}`)
+        throw new PvError({
+          kind: 'server',
+          status: 500,
+          title:
+            `Chưa mở được yêu cầu duyệt: không có ai đang giữ vai "${role}" để gật. ` +
+            'Cần một tài khoản còn hoạt động mang vai đó trong sổ nhân sự.',
+        })
+      }
       return { role, person: person.name, state: 'waiting' as const }
     })
   }
