@@ -1,4 +1,4 @@
-# Tầm nhìn — mười một pipeline của cả hệ
+# Tầm nhìn — mười một pipeline của cả hệ, nay rút còn bảy
 
 `tam-nhin-pipeline.md` trả lời "một việc đang ở đâu, chờ ai" cho **nhánh Sales**.
 Bản này không đè lên nó — nó trả lời câu rộng hơn: **cả hệ nên có bao nhiêu
@@ -8,8 +8,41 @@ sống; bản này là danh sách xương.
 Đọc cùng `tam-nhin-pipeline.md` (trục vị trí, 8 phase P0–P7) và
 `tam-nhin-bao-gia-hop-dong.md` §12 (đối chiếu sáu CRM lớn).
 
-**Bảy lượt của §9 đã chạy hết 14/09** — cái gì nằm ở đâu, quyết định nào không
-được lật, và ba cái bẫy đã dính: `ban-giao-tang-duyet-va-vi-tri.md`.
+**Mười một lượt của §9 đã chạy hết 14/09** — cái gì nằm ở đâu, quyết định nào
+không được lật, và ba cái bẫy đã dính: `ban-giao-tang-duyet-va-vi-tri.md`.
+
+---
+
+## §0 · PHẠM VI ĐÃ RÚT — chốt 15/09, đọc trước mọi mục khác
+
+**Hệ này là một CRM của phòng kinh doanh. Mọi thứ ngoài Sales bỏ qua.**
+
+Bốn pipeline rời khỏi kế hoạch: **mua hàng** (#6 `PR·PO·L`), **sản xuất & bàn
+giao** (#7 `SO·WO`), **thiết bị & bảo trì** (#8 `CNC·BT`), và **Finance như một
+nhánh** (#9 — cụm thu theo đợt Ở LẠI, vì nó là đời sau của một hợp đồng chứ
+không phải sổ kế toán; xem §4·3). Cùng đi theo là mảng **dịch vụ sau bán**, thứ
+§4·1 nói vẫn là ô trống hoàn toàn.
+
+Bốn câu của §8 tắt theo, không phải vì ai trả lời mà vì chúng hết là câu hỏi:
+§8·1 (Finance có trong phạm vi không) · §8·2 (sau bán có `ObjectKind` mới không)
+· §8·3 (Supply và Factory làm thật hay chỉ vẽ) · §8·8 (`SO`/`WO` chung thang hay
+riêng). **Bảy câu còn treo đều là câu của Sales.**
+
+**Giá phải trả trong code: gần bằng không**, và đó là điều đáng ghi chứ không
+đáng mừng suông — vì nó chứng minh bốn nhánh kia chưa bao giờ rời khỏi giấy.
+`apps/api/src/branches/` vẫn đúng một thư mục `sales`; fixture `sao-do.ts` —
+nơi duy nhất mang chuỗi `SO → WO → PR → PO → L` và `CNC → BT` — **không màn nào
+import**; `das-vina`, kịch bản mà mọi màn sống thật đang đọc, chỉ có `OP` `CT`
+`BG` `AC`. Không có ContextRail nào đang in một object của nhánh sẽ không bao
+giờ được dựng.
+
+**Cái KHÔNG xoá, và vì sao.** `Branch` vẫn khai năm giá trị, `ObjectKind` vẫn đủ
+mười ba, `PIPELINE_OF_KIND` vẫn vét cạn. Chúng là hàng rào lúc BIÊN DỊCH: thêm
+một kind mà quên khai pipeline là build đỏ, và `KIND_DOMAIN` vắng tám kind nay
+khiến E2 **từ chối mọi lượt ghi** lên chúng (vá 14/09, xem §7). Xoá đi là đổi
+một hàng rào đang chặn lấy một chỗ trống, cho một nhánh không ai định dựng.
+Khai mà không dùng thì đọc ra là "chưa dựng"; xoá rồi dựng lại mới là chỗ sinh
+lỗ. Ngày nào thật sự cần dọn, đó là một lượt riêng có người đọc diff.
 
 ---
 
@@ -57,22 +90,26 @@ chuỗi `LD-0334 → HĐ-2607 → SO-0891 → WO-1180 → PR-0231 → PO-0455 �
 cộng `CNC-03 → BT-0310`. **Danh sách dưới đây không mở chuỗi mới — nó đặt tên cho
 thứ fixture đã tự khai.**
 
-| #   | Nhánh   | Pipeline                | Object         | Tình trạng                                                               |
-| --- | ------- | ----------------------- | -------------- | ------------------------------------------------------------------------ |
-| 1   | Sales   | Chiến dịch & đợt gửi    | `CP` `MailRun` | sống · `DONE` chưa có cửa (`fix-later` nợ 7)                             |
-| 2   | Sales   | Lead                    | `LD`           | sống · **thiếu cửa lên bậc** `dau-moi→mql→sql`                           |
-| 3   | Sales   | Cơ hội                  | `OP`           | sống · đang rút 5 → 3 cột                                                |
-| 4   | Sales   | Báo giá                 | `BG`           | nhánh `feat/module-4` · thiếu duyệt chiết khấu                           |
-| 5   | Sales   | Hợp đồng                | `HĐ`           | sống · **thiếu kỳ hạn** — không trả lời được "tháng sau hết hạn cái nào" |
-| 6   | Supply  | **Mua hàng**            | `PR → PO → L`  | chỉ trong seed                                                           |
-| 7   | Factory | **Sản xuất & bàn giao** | `SO → WO`      | chỉ trong seed — chính là P7 "ngoài biên" của bản kia                    |
-| 8   | Factory | **Thiết bị & bảo trì**  | `CNC → BT`     | chỉ trong seed · máy của TA, không phải tài sản đã lắp bên khách         |
-| 9   | Finance | **Thu theo đợt**        | payment term   | màn đã có, **chưa có đường ghi** — xem §4                                |
-| 10  | One     | **Hộp duyệt**           | `approval`     | chưa dựng · pipeline của NGƯỜI, không của object                         |
-| 11  | One     | **Dữ liệu vào sổ**      | `lead_intake`  | `IntakeTrust` đã có · thiếu trùng lặp, thiếu ô, sổ chặn                  |
+| #     | Nhánh       | Pipeline                | Object         | Tình trạng                                                                      |
+| ----- | ----------- | ----------------------- | -------------- | ------------------------------------------------------------------------------- |
+| 1     | Sales       | Chiến dịch & đợt gửi    | `CP` `MailRun` | sống · `DONE` chưa có cửa (`fix-later` nợ 7)                                    |
+| 2     | Sales       | Lead                    | `LD`           | sống · **có vị trí thật** (thang `TIER`) · đồng hồ chờ §8·5 · thiếu cửa lên bậc |
+| 3     | Sales       | Cơ hội                  | `OP`           | sống · **có vị trí thật** (thang `STAGE`) · chờ rút 5 → 3 cột                   |
+| 4     | Sales       | Báo giá                 | `BG`           | **chưa có module** trong `apps/api` · thiếu duyệt chiết khấu                    |
+| 5     | Sales       | Hợp đồng                | `HĐ`           | sống · **chưa có thang chặng** nên đặt không lên pipeline — §8·7                |
+| 9′    | Sales       | Thu theo đợt            | payment term   | ở lại, dưới Sales · màn đã có, **chưa có đường ghi** — xem §4·2                 |
+| 10    | One         | **Hộp duyệt**           | `approval`     | ✅ dựng 14/09 · pipeline của NGƯỜI, không của object                            |
+| 11    | One         | **Dữ liệu vào sổ**      | `lead_intake`  | `IntakeTrust` đã có · thiếu trùng lặp, thiếu ô, sổ chặn                         |
+| ~~6~~ | ~~Supply~~  | ~~Mua hàng~~            | ~~`PR→PO→L`~~  | **ngoài phạm vi 15/09** — §0                                                    |
+| ~~7~~ | ~~Factory~~ | ~~Sản xuất & bàn giao~~ | ~~`SO→WO`~~    | **ngoài phạm vi 15/09** — §0                                                    |
+| ~~8~~ | ~~Factory~~ | ~~Thiết bị & bảo trì~~  | ~~`CNC→BT`~~   | **ngoài phạm vi 15/09** — §0                                                    |
 
-**5 sống · 4 chỉ trong seed · 2 cắt ngang chưa dựng.** Hai cái cắt ngang là thứ
-làm cho chín cái kia có kỷ luật.
+**Bảy pipeline trong phạm vi: 2 có vị trí thật · 3 sống nhưng chưa đặt lên được
+· 1 vừa dựng · 1 còn dở.** Hai cái cắt ngang (#10 · #11) là thứ làm cho năm cái
+kia có kỷ luật.
+
+Số thứ tự GIỮ NGUYÊN kể cả chỗ đã gạch, cố ý: ba bản khác trong `docs/` trỏ vào
+"pipeline #7", và đánh số lại làm mọi trích dẫn cũ chỉ sai chỗ mà không ai biết.
 
 ### Bốn thứ cố ý KHÔNG đếm vào
 
@@ -95,6 +132,10 @@ Engineering, Sao Đỏ mới là khách). Nên pipeline #8 là **bảo trì máy
 có `ObjectKind`**, và mảng dịch vụ sau bán vẫn là ô trống hoàn toàn — không
 object, không màn, không rule E4.
 
+Mục này giữ nguyên vì nó vẫn là một chỗ dễ đọc nhầm, nhưng từ 15/09 cả hai vế
+đều **ngoài phạm vi**: bảo trì máy nội bộ đi theo Factory, còn ô trống sau bán
+thì thôi không đợi lấp. Xem §0.
+
 **2 · Pipeline thu tiền đã được thiết kế xong, chỉ chưa có đường ghi.** Ba route
 đã sống trên `master`: `/sales/contracts`, `/:code`, và `/:code/dot/:no`. Fixture
 `sao-do-contracts.ts` mô hình hoá rất sâu — mỗi đợt mang `conditions[]` có
@@ -104,7 +145,15 @@ thứ: cửa ghi (`contract` mới chỉ ĐỌC) và đúng nhánh. Đây là **
 để hoàn tất**, không phải đắt nhất.
 
 **3 · `Branch = 'Finance'` đã khai nhưng không sở hữu `ObjectKind` nào.** Trong
-khi cụm đợt thanh toán đang nằm dưới Sales. Đứng giữa là chỗ sinh nợ — xem §8.
+khi cụm đợt thanh toán đang nằm dưới Sales. Đứng giữa là chỗ sinh nợ.
+
+**Chốt 15/09 — cụm đợt thanh toán Ở LẠI dưới Sales, và `Finance` thôi là một
+nhánh sẽ dựng.** Đòi tiền theo đợt của MỘT hợp đồng là đời sau của chính hợp
+đồng đó: nó đọc `conditions[]` của đợt, nó đòi `contract.record-payment`, và
+người bấm nút là người bán chứ không phải kế toán. Hoá đơn và công nợ — thứ
+`tam-nhin-bao-gia-hop-dong.md` §12 xếp ngoài phạm vi — thì vẫn ngoài. Chỗ nó
+đang nằm chính là chỗ đúng của nó; cái rút đi là tham vọng dựng một nhánh thứ
+năm quanh nó. `Branch` giữ giá trị `'Finance'` vì lý do ở §0.
 
 ---
 
@@ -292,6 +341,12 @@ trước bảng miền. Lập luận đầy đủ nằm tại chỗ từ chối 
 Vì thế ngày mở màn Supply đầu tiên, việc khai `KIND_DOMAIN` + khai quyền là
 **điều kiện để cửa ghi chạy được**, không còn là một việc dễ quên.
 
+**Từ 15/09 ngày ấy không nằm trong kế hoạch nữa** (§0), và điều đó làm bản vá
+14/09 quan trọng hơn chứ không phải ít đi: tám kind sẽ **vĩnh viễn** không có
+miền quyền, nên thứ giữ chúng an toàn là chính lượt từ chối ở `check()`, không
+phải một lời hứa sẽ khai sau. Đọc được thì vẫn đọc được — trục license đã trả
+lời câu đọc, và rail của luật 10 cần nó.
+
 ### Cảnh báo về `pipeline_position`
 
 `tam-nhin-pipeline.md` §6 khai `phase` lấy từ thang `P0…P7` của riêng Sales. Nếu
@@ -322,17 +377,24 @@ một lượt viết lại.
 
 ---
 
-## §8 · Tám câu còn treo
+## §8 · Tám câu treo — nay còn bốn
 
-1. **Finance có thật trong phạm vi không?** `tam-nhin-bao-gia-hop-dong.md` §12
-   xếp "hoá đơn · công nợ" là _ngoài phạm vi_, nhưng `Branch` đã khai `Finance`
-   và cụm đợt thanh toán đã có ba màn. Hoặc rút `Finance` khỏi `Branch`, hoặc
-   nhận pipeline #9 về đúng nhánh.
-2. **"Sau bán" có `ObjectKind` mới không?** Tài sản đã lắp bên khách + yêu cầu
-   dịch vụ. `BT` đã có chủ (máy của ta), không mượn được.
-3. **Supply và Factory làm thật hay chỉ để E1 vẽ chuỗi?** Câu này gắt hơn vẻ
-   ngoài — vì tầng 0 chưa đóng nên hôm nay câu trả lời **trên thực tế** đang là
-   "chỉ để vẽ", dù ContextRail in ra như thể chúng sống.
+Bốn câu đã tắt: ba câu dưới đây tắt vì **phạm vi rút 15/09** (§0), câu 4 vì có
+người chốt 14/09. Bốn câu còn lại (5 · 6 · 7 · 8) đều là câu của Sales, và
+`tam-nhin-pipeline.md` §8 còn bốn câu nữa cũng vậy.
+
+1. ~~**Finance có thật trong phạm vi không?**~~ **Chốt 15/09 — KHÔNG, như một
+   nhánh.** Cụm đợt thanh toán ở lại dưới Sales vì nó là đời sau của một hợp
+   đồng; hoá đơn và công nợ vẫn ngoài phạm vi như `tam-nhin-bao-gia-hop-dong.md`
+   §12 đã xếp. Lập luận đầy đủ ở §4·3.
+2. ~~**"Sau bán" có `ObjectKind` mới không?**~~ **Chốt 15/09 — KHÔNG.** Tài sản
+   đã lắp bên khách và yêu cầu dịch vụ thôi không đợi một kind nữa. Ô trống vẫn
+   là ô trống, và nay nó là ô trống CỐ Ý.
+3. ~~**Supply và Factory làm thật hay chỉ để E1 vẽ chuỗi?**~~ **Chốt 15/09 —
+   không làm, và cũng không vẽ.** Câu này từng gắt vì ContextRail in
+   `SO-0891 → WO-1180` như thể chúng sống; hoá ra chuỗi ấy chỉ nằm trong
+   `sao-do.ts`, file **không màn nào import**. Nên câu trả lời không tốn một
+   lượt dọn nào — xem §0.
 4. ~~**`giao` ghi một dòng hay hai?**~~ **Đã chốt 14/09 — MỘT dòng**, mang cả
    hai đầu trong bốn cột mới của `sales.touch`
    (`from_actor_id`/`from_name` · `to_actor_id`/`to_name`, migration `0033`).
@@ -356,9 +418,11 @@ một lượt viết lại.
 7. **Ai khai thang chặng cho `HĐ`?** §3 #5 nói pipeline hợp đồng còn thiếu kỳ
    hạn, nên hôm nay `phases` của nó rỗng và hàm trả `null` — tức theo luật 1 của
    §2, hợp đồng "không tồn tại trong hệ". Hoặc khai thang, hoặc sửa luật 1.
-8. **`SO`/`WO` chung một thang hay mỗi kind một thang?** Hiện đang chung
-   (`production`), `PR`/`PO`/`L` cũng chung (`purchasing`). Nếu mỗi kind một
-   thang thì bảng tra phải khoá theo kind, không theo pipeline.
+8. ~~**`SO`/`WO` chung một thang hay mỗi kind một thang?**~~ **Tắt 15/09** —
+   cả sáu kind đều ngoài phạm vi (§0), nên không ai phải chọn khoá cho một bảng
+   tra không có dòng nào. `PIPELINE_OF_KIND` giữ `production`/`purchasing`/
+   `maintenance` vì nó là bảng VÉT CẠN, và vét cạn là hàng rào lúc biên dịch —
+   lý do ở §0.
 
 ---
 
@@ -410,12 +474,14 @@ không con số nào bị bịa ra làm giá vé. Cùng hình với `motion_poli
 
 ### Cố ý để lại, nói ra chứ không giấu
 
-- **Trang chủ vẫn tự dựng cạnh.** `deskStory` dựng chuỗi từ chính dòng hợp đồng
-  rồi gọi `E1.story()` — chuỗi ĐÚNG, chỉ là dựng bằng tay thay vì đọc
-  `platform.edge`. Đọc từ máy chủ cần một cửa `platform` mới, mà cửa nào cũng
-  phải khai `@Need`, và **không quyền nào trong ma trận hợp với một rail xuyên
-  nhánh**. Phát minh `graph.view` là phát minh luật quyền cho nhánh chưa ai
-  dựng — đúng thứ §7 vừa cảnh báo. Để lại tới ngày có nhánh thật đòi nó.
+- **Trang chủ vẫn tự dựng cạnh, và từ 15/09 đó là chỗ đứng CUỐI CÙNG của nó.**
+  `deskStory` dựng chuỗi từ chính dòng hợp đồng rồi gọi `E1.story()` — chuỗi
+  ĐÚNG, chỉ là dựng bằng tay thay vì đọc `platform.edge`. Đọc từ máy chủ cần một
+  cửa `platform` mới, mà cửa nào cũng phải khai `@Need`, và không quyền nào
+  trong ma trận hợp với một rail xuyên nhánh. Trước đây lý do hoãn là "đợi nhánh
+  thật đòi"; nay **không có nhánh thật nào sẽ đòi** (§0), và chuỗi mà trang chủ
+  cần vẽ chỉ có `LD → OP → HĐ` — ba kind đều thuộc Sales, đều đã có miền quyền,
+  và dòng hợp đồng đã chở sẵn cả ba mã. Hết là nợ, thành một quyết định.
 - **Mục 5.1 đọc được, chưa sửa được.** Bộ mười câu cần một danh mục thứ chín và
   một cột `required`; mười khoá ấy đang là KIỂU của phiếu lead. Nút lật "bắt
   buộc" đã gỡ: nó vẽ một cổng MQL mới mà không cửa nào ghi được.
