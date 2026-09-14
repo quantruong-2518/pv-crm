@@ -27,6 +27,6 @@ export {
 } from './session'
 export { startAuthLifecycle, useExpiryWarning } from './lifecycle'
 export { renewSession, sessionIsLive } from './renew'
-export { Can, RequireAccess } from './guard'
+export { Can, CHANGE_PASSWORD_PATH, RequireAccess } from './guard'
 export { askReauth } from './reauth'
 export { useAccess, useCan } from './can'

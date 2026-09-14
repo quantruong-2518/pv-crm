@@ -19,7 +19,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed.ts",
     "//db:seed:accounts": "KHÁC HẲN db:seed — chỉ UPDATE email + mật khẩu của actor ĐÃ CÓ, không xoá gì, nên chạy được trên database thật. Mặc định xem trước; phải thêm --apply mới ghi.",
-    "db:seed:accounts": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-accounts.ts"
+    "db:seed:accounts": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-accounts.ts",
+    "//db:reset:staff": "XOÁ SẠCH sales + platform rồi dựng lại sổ nhân sự thật từ src/staff.ts — bảy tài khoản, mỗi vai một người, cùng DEFAULT_PASSWORD. Destructive hơn db:seed: không nạp lại dữ liệu nào cả. Mặc định xem trước; phải thêm --apply mới ghi.",
+    "db:reset:staff": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-staff.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

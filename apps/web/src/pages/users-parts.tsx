@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { Copy, Lock, Mail, RotateCcw, Save, X } from '@pv/ui'
+import { Copy, Lock, Mail, RefreshCw, RotateCcw, Save, X } from '@pv/ui'
 import { Badge, Button, Checkbox, Drawer, Icon, Input, Kicker, MetaPill, Select, cn } from '@pv/ui'
 import type { Branch, RoleId, UserRow } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
@@ -16,6 +16,7 @@ import {
   scopeLabel,
   useCreateUser,
   useInviteUser,
+  useResetUserPassword,
   useLockUser,
   useSaveUser,
 } from '@/data/users'
@@ -109,6 +110,22 @@ export function UserStatusCell({ user }: { user: UserRow }) {
     )
   }
 
+  /* BEFORE the no-password branch, because an account can be both — an
+     administrator who resets somebody who never followed their invite has a row
+     with a password AND a debt. The debt is the newer fact and the one with a
+     button behind it, so it is the one the chip shows. */
+  if (user.mustChangePasswordAt !== null) {
+    return (
+      <Badge
+        tone="warning"
+        className="tnum"
+        title={`Đặt lại mật khẩu mặc định ${dmy(user.mustChangePasswordAt)}. Người này đăng nhập được nhưng chỉ mở được màn đổi mật khẩu, cho tới khi họ đặt mật khẩu riêng.`}
+      >
+        Chờ đổi mật khẩu · {dm(user.mustChangePasswordAt)}
+      </Badge>
+    )
+  }
+
   if (!user.passwordSet) {
     return (
       <Badge
@@ -171,6 +188,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const save = useSaveUser()
   const lock = useLockUser()
   const invite = useInviteUser()
+  const resetPassword = useResetUserPassword()
 
   /* Opening is a fresh start, every time. Keeping the last person's half-typed
      fields would mean the next account quietly inherits their role and
@@ -275,6 +293,25 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     )
   }
 
+  /* No confirmation dialog in front of it, unlike what a destructive-looking
+     button usually earns. The sudo box `@NeedsReauth()` puts up already asks a
+     question the user has to stop and answer, and two modals for one click is
+     how people learn to click through both. */
+  const resetToDefault = () => {
+    if (!user || isMe || resetPassword.isPending) return
+    setFailure('')
+    setLink('')
+    resetPassword.mutate(user.id, {
+      onSuccess: (row) => {
+        toastDone(
+          'Đã đặt lại mật khẩu mặc định',
+          `${row.name} phải đổi mật khẩu ngay lần đăng nhập tới, và mọi phiên đang mở đã bị cắt.`,
+        )
+      },
+      onError: (error) => setFailure(userMessage(error)),
+    })
+  }
+
   const sendInvite = () => {
     if (!user || invite.isPending) return
     setFailure('')
@@ -367,6 +404,11 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
                     <Icon icon={Mail} size={16} />
                     {invite.isPending ? 'Đang gửi…' : 'Gửi thư đặt mật khẩu'}
                   </Button>
+                  <ResetPasswordButton
+                    isMe={isMe}
+                    pending={resetPassword.isPending}
+                    onClick={resetToDefault}
+                  />
                   <LockButton
                     locked={lockedAt !== null}
                     isMe={isMe}
@@ -609,6 +651,47 @@ function LockButton({
       >
         <Icon icon={locked ? RotateCcw : Lock} size={16} />
         {locked ? 'Mở khoá' : 'Khoá tài khoản'}
+      </Button>
+    </span>
+  )
+}
+
+/** Put this person back on the default password.
+ *
+ *  THE SECOND DOOR, beside the invite-mail button, and the tooltip has to say
+ *  which one to reach for: they look interchangeable and are not. The mail
+ *  link is the normal path and nobody but the owner ever sees the secret; this
+ *  one works when the mailbox does not, and pays for that with a password two
+ *  people know. What makes it acceptable is on the other side of the wire: the
+ *  account can reach nothing but the change-password screen until its owner
+ *  replaces the string.
+ *
+ *  Disabled on yourself, like the lock button and for a cousin of its reason:
+ *  the server answers 409, and pressing it would strand you on the
+ *  change-password screen mid-administration for nothing the self-service door
+ *  does not already do better. */
+function ResetPasswordButton({
+  isMe,
+  pending,
+  onClick,
+}: {
+  isMe: boolean
+  pending: boolean
+  onClick: () => void
+}) {
+  const why = isMe
+    ? 'Không tự đặt lại mật khẩu của chính mình ở đây — máy chủ cũng từ chối. Dùng màn đổi mật khẩu.'
+    : 'Đặt lại về mật khẩu mặc định và bắt người này đổi ngay lần đăng nhập tới. Mọi phiên đang mở bị cắt. Dùng khi hòm thư không tới được; bình thường thì gửi thư đặt mật khẩu.'
+
+  return (
+    <span title={why}>
+      <Button size="md" variant="ghost" type="button" disabled={isMe || pending} onClick={onClick}>
+        {/* `RefreshCw` rather than a key glyph: the registry in
+            `packages/ui/src/icons.ts` has none, and adding one for a single
+            button means adding it to the kit page too. `RotateCcw` next door is
+            already the unlock button, so it cannot be borrowed. */}
+        <Icon icon={RefreshCw} size={16} />
+        {pending ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}
       </Button>
     </span>
   )

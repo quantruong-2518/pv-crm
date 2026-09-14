@@ -151,12 +151,26 @@ type SessionState = {
   actor: Actor | null
   ticket: Ticket | null
   remember: boolean
+  /** Holding a password somebody else chose. `RequireAccess` sends the person
+   *  to the change-password screen and lets them go nowhere else.
+   *
+   *  NOT persisted (see `partialize`): this is the server's conclusion, and a
+   *  flag read out of `localStorage` is a flag the user can edit. Every boot
+   *  asks `/auth/me` again. */
+  mustChangePassword: boolean
   expiredBy: ExpiryReason | null
   /** Hỏi `/auth/me` rồi kết luận trạng thái. BẤT ĐỒNG BỘ — xem docblock của nó. */
   bootstrap: () => Promise<void>
   /** Form đã gửi — dùng để khoá nút và chặn gửi hai lần. */
   beginSignIn: () => void
-  signIn: (actor: Actor, opts: { session: SessionWindow; remember?: boolean }) => void
+  signIn: (
+    actor: Actor,
+    opts: { session: SessionWindow; remember?: boolean; mustChangePassword?: boolean },
+  ) => void
+  /** Password changed: drop the flag here rather than pay for another
+   *  `/auth/me`. The server cleared the mark in the same transaction, so the
+   *  two ends cannot disagree. */
+  clearPasswordDebt: () => void
   /** Vé mới vừa xin được — chỉ thay hạn, không đụng tới người hay trạng thái. */
   adoptSession: (session: SessionWindow) => void
   /** Người dùng còn ngồi đó — đẩy mốc ngồi không ra xa. */
@@ -214,7 +228,14 @@ const rememberAware: PersistStorage<SessionState> = {
  *  luật quyền bám vào. Không có vai thì không phải một phiên — bắt đăng nhập
  *  lại còn hơn để một người đi tiếp với quyền không ai tra được. */
 function settleLocally(actor: Actor | null, ticket: Ticket | null): Partial<SessionState> {
-  if (!actor?.roleId) return { status: 'guest', actor: null, ticket: null, expiredBy: null }
+  if (!actor?.roleId)
+    return {
+      status: 'guest',
+      actor: null,
+      ticket: null,
+      mustChangePassword: false,
+      expiredBy: null,
+    }
 
   const death = ticketDeath(ticket, Date.now())
   if (death) {
@@ -235,6 +256,7 @@ export const useSession = create<SessionState>()(
       actor: null,
       ticket: null,
       remember: false,
+      mustChangePassword: false,
       expiredBy: null,
 
       /** Ai đang đăng nhập — hỏi MÁY CHỦ, và đó là lý do hàm này bất đồng bộ.
@@ -299,6 +321,7 @@ export const useSession = create<SessionState>()(
                    `remember: false` và phiên nhớ của họ bị ghi xuống
                    `sessionStorage`, tức mất khi đóng tab. */
                 remember: probe.session.idleUntil === null,
+                mustChangePassword: probe.mustChangePassword,
                 expiredBy: null,
               })
               return
@@ -308,6 +331,7 @@ export const useSession = create<SessionState>()(
                 status: 'guest',
                 actor: null,
                 ticket: null,
+                mustChangePassword: false,
                 expiredBy: null,
               })
               return
@@ -341,9 +365,12 @@ export const useSession = create<SessionState>()(
              lệch với cái mốc thật của phiên. */
           ticket: ticketOf(opts.session),
           remember,
+          mustChangePassword: opts.mustChangePassword ?? false,
           expiredBy: null,
         })
       },
+
+      clearPasswordDebt: () => set({ mustChangePassword: false }),
 
       /* Chỉ thay hạn. Không đụng `status`, không đụng `actor`: gia hạn là câu
          trả lời cho "vé sống thêm được không", không phải cho "ai đang đăng
@@ -384,6 +411,7 @@ export const useSession = create<SessionState>()(
           status: 'guest',
           actor: null,
           ticket: null,
+          mustChangePassword: false,
           expiredBy: null,
         }),
 
@@ -419,7 +447,8 @@ export const useSession = create<SessionState>()(
          máy chủ chỉ mất bản ghi nhớ, `/auth/me` nhận ra họ ngay.
          Tăng số này mỗi lần đổi hình dạng những gì `partialize` lưu. */
       version: 3,
-      migrate: () => ({ actor: null, ticket: null, remember: false }) as SessionState,
+      migrate: () =>
+        ({ actor: null, ticket: null, remember: false, mustChangePassword: false }) as SessionState,
       /* `status` KHÔNG được lưu: nó là kết luận, và kết luận phải tính lại mỗi
          lần mở app — nay là tính lại từ `/auth/me`. Lưu 'signed-in' vào kho là tự
          cho mình một phiên hợp lệ chỉ bằng cách sửa localStorage. */

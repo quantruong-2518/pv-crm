@@ -3,6 +3,7 @@ import type { FastifyReply } from 'fastify'
 import {
   ConfirmPasswordBody,
   ForgotPasswordBody,
+  PasswordChangeBody,
   ResetPasswordBody,
   SignInBody,
   type ResetTicketView,
@@ -14,11 +15,12 @@ import { ENV, type Env } from '@api/platform/config/env'
 import { zod } from '@api/platform/http/zod.pipe'
 import { AuthService } from './auth.service'
 import { clearedSessionCookie, SESSION_COOKIE, sessionCookie, SessionToken } from './cookie'
+import { ClosedWhileOwingPassword, OpenWhileOwingPassword } from './password-change.guard'
 
-/** `/auth` — the eight doors of getting in, and the only place a cookie exists.
+/** `/auth` — the nine doors of getting in, and the only place a cookie exists.
  *
  *  ------------------------------------------------------------------
- *  SEVEN ARE `@Public()`; THE EIGHTH IS THE ONE THAT CANNOT BE
+ *  SEVEN ARE `@Public()`; TWO ARE THE ONES THAT CANNOT BE
  *  ------------------------------------------------------------------
  *  `need.decorator.ts` says the correct list of public endpoints is very short
  *  — the sign-in flow and `/healthz` — and asks anyone about to add a third
@@ -33,10 +35,17 @@ import { clearedSessionCookie, SESSION_COOKIE, sessionCookie, SessionToken } fro
  *  session can reach the endpoints whose entire purpose is to get them one —
  *  requiring a session to sign in is a loop nobody escapes.
  *
- *  `/auth/confirm-password` is the eighth and it breaks the pattern because the
- *  pattern does not apply to it: it re-proves a session that already exists, so
- *  a caller without one has nothing to re-prove. It carries `@Need({})` and the
- *  reasoning sits on the method.
+ *  `/auth/confirm-password` and `/auth/change-password` break the pattern
+ *  because the pattern does not apply to them: both act on a session that
+ *  already exists, so a caller without one has nothing to act on. Both carry
+ *  `@Need({})` and the reasoning sits on each method.
+ *
+ *  The CONTROLLER carries `@OpenWhileOwingPassword()`, so every door here keeps
+ *  answering somebody stuck on a password an administrator handed them —
+ *  `confirm-password` opts back out with `@ClosedWhileOwingPassword()`. That is
+ *  a different axis from `@Public()`: public is about not needing a session,
+ *  this is about a session that exists but owes a change. See
+ *  `password-change.guard.ts` for why the line falls where it does.
  *
  *  ------------------------------------------------------------------
  *  THE COOKIE STOPS HERE
@@ -48,6 +57,7 @@ import { clearedSessionCookie, SESSION_COOKIE, sessionCookie, SessionToken } fro
  *  lets a second client — a mobile app, a service account, a test with no
  *  browser — reuse every rule without inheriting a cookie. */
 @Controller('auth')
+@OpenWhileOwingPassword()
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -143,11 +153,34 @@ export class AuthController {
   @Post('confirm-password')
   @HttpCode(204)
   @Need({})
+  @ClosedWhileOwingPassword()
   confirmPassword(
     @SessionToken() token: string,
     @Body(zod(ConfirmPasswordBody)) body: ConfirmPasswordBody,
   ): Promise<void> {
     return this.auth.confirmPassword(token, body.password)
+  }
+
+  /** Change your own password from inside a live session. 204 — nothing to
+   *  return, and deliberately not a fresh session: the caller keeps the one
+   *  they are standing on, every other one of theirs dies.
+   *
+   *  `@Need({})` is "just be signed in", like `confirm-password`. No
+   *  `@NeedsReauth()` — the old password in the body IS the re-authentication,
+   *  and asking for the same secret twice in one submit is the habit
+   *  `reauth.guard.ts` names as costing more than it buys.
+   *
+   *  The controller's `@OpenWhileOwingPassword()` is the point of this door in
+   *  particular: it is the one thing a person handed `DEFAULT_PASSWORD` can do
+   *  that clears the mark stopping them doing anything else. */
+  @Post('change-password')
+  @HttpCode(204)
+  @Need({})
+  changePassword(
+    @SessionToken() token: string,
+    @Body(zod(PasswordChangeBody)) body: PasswordChangeBody,
+  ): Promise<void> {
+    return this.auth.changePassword(token, body.currentPassword, body.newPassword)
   }
 
   /** 204, always, for every address.

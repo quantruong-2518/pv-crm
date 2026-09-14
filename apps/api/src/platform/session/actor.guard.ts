@@ -53,7 +53,12 @@ export class ActorGuard implements CanActivate {
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest<FastifyRequest>()
-    req.actor = await this.resolve(req)
+    const caller = await this.resolve(req)
+    req.actor = caller?.actor ?? null
+    /* Stashed beside the actor rather than folded into it: `Actor` is the
+       engines' shape and must not learn what a password is. `PasswordChangeGuard`
+       is the only reader — see `caller.ts`. */
+    req.owesPasswordChange = caller?.owesPasswordChange ?? false
     /* Luôn cho đi tiếp: "anh là ai" và "anh được làm gì" là hai câu hỏi khác
        nhau, và câu thứ hai là việc của AccessGuard. Chặn ở đây thì endpoint
        công khai (đăng nhập, quên mật khẩu) cũng chặn theo. */

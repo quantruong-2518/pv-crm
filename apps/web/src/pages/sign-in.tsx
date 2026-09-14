@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Input } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
 import { EMAIL_HINT, signInWithEmail, type AuthError } from '@/data/auth'
-import { useSession, type ExpiryReason } from '@/app/auth'
+import { CHANGE_PASSWORD_PATH, useSession, type ExpiryReason } from '@/app/auth'
 
 /** Màn đăng nhập — cửa vào của PV One.
  *
@@ -122,8 +122,16 @@ export function SignInPage() {
           }
           /* Cả người LẪN cửa sổ phiên đều là câu trả lời của máy chủ. Kho chỉ
              soi lại đúng những gì vừa nhận — nó không tự đặt hạn cho phiên. */
-          signIn(result.actor, { session: result.session, remember })
-          navigate(from, { replace: true })
+          signIn(result.actor, {
+            session: result.session,
+            remember,
+            mustChangePassword: result.mustChangePassword,
+          })
+          /* `from` is the page they were heading for before being bounced out.
+             Skipped while a password change is owed: `RequireAccess` would
+             bounce them onward anyway, and a flash of the old page on the way
+             says nothing to anybody. */
+          navigate(result.mustChangePassword ? CHANGE_PASSWORD_PATH : from, { replace: true })
         }}
         className="flex flex-col gap-5"
       >

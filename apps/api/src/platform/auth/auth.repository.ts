@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '../db/db.module'
 import { actor, type ActorRow } from '../db/platform.schema'
@@ -52,8 +52,39 @@ export class AuthRepository {
     return row ?? null
   }
 
+  /** Set a password the OWNER chose, and clear the must-change mark in the same
+   *  statement.
+   *
+   *  The two always move together, so they are one write rather than two calls
+   *  a future caller could make half of. Every path that reaches here — the
+   *  invite link, the forgotten-password link, the change-password form — ends
+   *  with the account holding a secret nobody else typed, which is precisely
+   *  what the mark exists to deny. An administrator handing out a temporary one
+   *  uses `handTemporaryPassword` below instead. */
   async setPasswordHash(actorId: string, hash: string, tx: Db = this.db): Promise<void> {
-    await tx.update(actor).set({ passwordHash: hash }).where(eq(actor.id, actorId))
+    await tx
+      .update(actor)
+      .set({ passwordHash: hash, mustChangePasswordAt: null })
+      .where(eq(actor.id, actorId))
+  }
+
+  /** Hand somebody a password they did not choose, and mark the debt.
+   *
+   *  The mirror of the call above, and a SEPARATE method rather than a boolean
+   *  argument on it: a flag would make the destructive reading — "set this
+   *  password and leave the account free to keep using it" — one `false` away
+   *  from any caller, including a future one that passes the argument through
+   *  from somewhere else. Two names, two acts. */
+  async handTemporaryPassword(
+    actorId: string,
+    hash: string,
+    at: Date,
+    tx: Db = this.db,
+  ): Promise<void> {
+    await tx
+      .update(actor)
+      .set({ passwordHash: hash, mustChangePasswordAt: at })
+      .where(eq(actor.id, actorId))
   }
 
   // -------------------------------------------------------------------------
@@ -135,14 +166,30 @@ export class AuthRepository {
       .where(and(eq(session.tokenHash, tokenHash), isNull(session.revokedAt)))
   }
 
-  /** Kill every live session of one person. Used by password reset today, and
-   *  by "khoá tài khoản" on the admin screen when that arrives — the same act
-   *  either way: this person's existing proofs stop working now. */
-  async revokeAllForActor(actorId: string, tx: Db = this.db): Promise<number> {
+  /** Kill every live session of one person. Used by password reset, by "khoá
+   *  tài khoản" on the admin screen, and by the administrator's reset — the
+   *  same act either way: this person's existing proofs stop working now.
+   *
+   *  `keepSessionId` spares exactly one row, and only the change-password door
+   *  passes it: that caller is the person themselves, standing on a screen,
+   *  and signing them out of it would read as the change having failed. Every
+   *  other caller wants the account's proofs gone without exception, which is
+   *  why sparing one is opt-in rather than the default. */
+  async revokeAllForActor(
+    actorId: string,
+    tx: Db = this.db,
+    keepSessionId?: string,
+  ): Promise<number> {
     const rows = await tx
       .update(session)
       .set({ revokedAt: new Date() })
-      .where(and(eq(session.actorId, actorId), isNull(session.revokedAt)))
+      .where(
+        and(
+          eq(session.actorId, actorId),
+          isNull(session.revokedAt),
+          keepSessionId ? ne(session.id, keepSessionId) : undefined,
+        ),
+      )
       .returning({ id: session.id })
     return rows.length
   }

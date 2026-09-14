@@ -1,0 +1,27 @@
+-- 0034 - a password somebody else knows is a ticket, and a ticket gets spent.
+--
+-- `platform.actor` gains one nullable mark. Set, it means the account is
+-- holding a password its owner did not choose: the whole book planted by
+-- `reset-staff.ts` with `DEFAULT_PASSWORD`, or one seat an administrator just
+-- reset. Cleared, it means the owner has since chosen their own.
+--
+-- WHY THE COLUMN EXISTS AT ALL
+-- `DEFAULT_PASSWORD` is written down in this repository, which contradicts the
+-- rule stated on `UserCreate` - a manager who types somebody's first password
+-- knows it, and from that moment nothing the account does can be pinned on its
+-- owner alone. This mark is what buys the contradiction back: while it is set
+-- the guard closes every door but the one that changes the password, so the
+-- shared string can never be the credential behind an action. Delete this
+-- column and `DEFAULT_PASSWORD` becomes a real password, seven people wide.
+--
+-- A MARK, NOT A BOOLEAN
+-- Same convention as `disabled_at` two columns up, and `exited_at`,
+-- `closed_at`, `revoked_at` elsewhere in this schema: the question actually
+-- asked about a blocked account is "since when", and `must_change = true`
+-- answers it with a shrug.
+--
+-- NOTHING IS BACKFILLED. Rows already in the book chose their own passwords
+-- through an invite link, so they owe nothing. Marking them would lock every
+-- existing account out of the system on deploy, to protect them from a
+-- constant that was introduced after they signed in.
+ALTER TABLE "platform"."actor" ADD COLUMN "must_change_password_at" timestamp with time zone;

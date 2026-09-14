@@ -5,6 +5,7 @@ import { AccessGuard } from './platform/access/access.guard'
 import { AccessModule } from './platform/access/access.module'
 import { AuditModule } from './platform/audit/audit.module'
 import { AuthModule } from './platform/auth/auth.module'
+import { PasswordChangeGuard } from './platform/auth/password-change.guard'
 import { ReauthGuard } from './platform/auth/reauth.guard'
 import { ConfigModule } from './platform/config/config.module'
 import { DbModule } from './platform/db/db.module'
@@ -77,16 +78,25 @@ import { RolesModule } from './platform/roles/roles.module'
   ],
   providers: [
     /** THỨ TỰ CÓ NGHĨA. Nest chạy guard toàn cục theo đúng thứ tự khai báo, và
-     *  ba dòng này là ba câu hỏi phải hỏi đúng thứ tự ấy:
+     *  bốn dòng này là bốn câu hỏi phải hỏi đúng thứ tự ấy:
      *
-     *   1 · anh là ai          — đổi chỗ với dòng 2 thì `AccessGuard` luôn thấy
+     *   1 · anh là ai          — đổi chỗ với dòng 3 thì `AccessGuard` luôn thấy
      *                            `actor === null` và từ chối tất cả;
-     *   2 · anh được làm gì    — phán quyết của E2;
-     *   3 · có chắc vẫn là anh — chỉ hỏi trên cửa có `@NeedsReauth()`, và phải
-     *                            hỏi SAU câu 2, nếu không thì người không có
+     *   2 · anh vào được chưa  — còn nợ đổi mật khẩu thì mọi cửa đóng trừ bốn
+     *                            cửa mang `@OpenWhileOwingPassword()`. Hỏi
+     *                            TRƯỚC câu 3, ngược với câu 4 và cùng một lý
+     *                            do: lúc này KHÔNG cửa nào mở, nên trả lời
+     *                            bằng phán quyết quyền là nói đúng về một vấn
+     *                            đề khác — người ta sẽ đi tìm quản trị viên
+     *                            trong khi thứ chắn họ là một cái form họ tự
+     *                            điền được. `password-change.guard.ts` viết đủ;
+     *   3 · anh được làm gì    — phán quyết của E2;
+     *   4 · có chắc vẫn là anh — chỉ hỏi trên cửa có `@NeedsReauth()`, và phải
+     *                            hỏi SAU câu 3, nếu không thì người không có
      *                            quyền bị bắt gõ mật khẩu cho một việc họ không
      *                            bao giờ làm được. `reauth.guard.ts` viết đủ. */
     { provide: APP_GUARD, useClass: ActorGuard },
+    { provide: APP_GUARD, useClass: PasswordChangeGuard },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: ReauthGuard },
     { provide: APP_FILTER, useClass: ProblemFilter },

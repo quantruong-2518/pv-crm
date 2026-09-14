@@ -19,7 +19,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import { Button } from '@pv/ui'
 import type { Permission } from '@pv/engines'
-import { access, useSession } from './auth'
+import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -353,19 +353,31 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
     },
     userAction: (
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => {
-          /* Nhãn là "Đăng xuất" chứ không phải "Đổi vai": từ 23/08 màn đăng nhập
-             không còn bảng chọn vai, nên nút này chỉ làm được đúng một việc —
-             ra khỏi phiên. Muốn sang vai khác thì đăng nhập bằng email vai đó. */
-          signOut()
-          navigate('/dang-nhap', { replace: true })
-        }}
-      >
-        Đăng xuất
-      </Button>
+      <>
+        {/* The VOLUNTARY way to the change-password screen. Somebody forced to
+            change does not need it - `RequireAccess` already put them there and
+            lets them go nowhere else - but without it anyone who simply wants a
+            new password has only the forgotten-password flow, which means
+            waiting for a letter to do something they are already entitled to do
+            on the spot. */}
+        <Button size="sm" variant="ghost" onClick={() => navigate(CHANGE_PASSWORD_PATH)}>
+          Đổi mật khẩu
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            /* Nhãn là "Đăng xuất" chứ không phải "Đổi vai": từ 23/08 màn đăng
+               nhập không còn bảng chọn vai, nên nút này chỉ làm được đúng một
+               việc — ra khỏi phiên. Muốn sang vai khác thì đăng nhập bằng email
+               vai đó. */
+            signOut()
+            navigate('/dang-nhap', { replace: true })
+          }}
+        >
+          Đăng xuất
+        </Button>
+      </>
     ),
   }
 

@@ -1,5 +1,26 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 
+/** The password every seat is handed until its owner picks their own.
+ *
+ *  A DELIBERATE EXCEPTION to the rule that no secret enters this repository,
+ *  and it is only survivable because of what sits beside it: every account
+ *  given this string also gets `platform.actor.must_change_password_at` set,
+ *  and `PasswordChangeGuard` then refuses every door but the one that replaces
+ *  it. So this is a ticket, not a credential — nothing anybody does in the
+ *  system can ever have been done while holding it.
+ *
+ *  Remove the mark or the guard and this line turns into a real password, as
+ *  wide as the staff book, published on GitHub. The three move together.
+ *
+ *  Lives HERE rather than beside the seed data that first planted it, because
+ *  the runtime is what has to know it now: `UsersService` hands it out on
+ *  reset. The CLI scripts borrow it from this module, not the other way round.
+ *
+ *  The day PV One stops being a POC: delete this, make `--password=` mandatory
+ *  on both scripts, and let the invite link be the only way a first password is
+ *  ever set. */
+export const DEFAULT_PASSWORD = 'Pebblevina@2026'
+
 /** PASSWORD HASHING — `scrypt` out of Node's own `node:crypto`, nothing added.
  *
  *  ------------------------------------------------------------------

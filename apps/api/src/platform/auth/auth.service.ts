@@ -1,8 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
 import { SESSION_LIMITS, SessionView, SessionWindow, type ResetTicketView } from '@pv/contracts'
 import { ENV, type Env } from '../config/env'
-import { denied, notFound, rateLimited } from '../http/problem'
+import { denied, invalid, notFound, rateLimited } from '../http/problem'
 import type { Db } from '../db/db.module'
 import type { ActorRow } from '../db/platform.schema'
 import { AttemptThrottle } from './attempt-throttle'
@@ -10,9 +9,10 @@ import type { SessionRow } from './auth.schema'
 import { toActor, toSessionView, toWindow } from './auth.mapper'
 import { RolePermissionRepository } from '../roles/role-permission.repository'
 import { AuthRepository } from './auth.repository'
-import { dummyPasswordHash, hashPassword, verifyPassword } from './password'
+import { DEFAULT_PASSWORD, dummyPasswordHash, hashPassword, verifyPassword } from './password'
 import { RESET_MAILER, resetLink, type ResetMailer } from './reset-mailer'
 import { hashToken, newToken } from './token'
+import type { Caller } from '../session/caller'
 
 /** ONE SENTENCE FOR EVERY WAY SIGN-IN CAN FAIL.
  *
@@ -187,7 +187,7 @@ export class AuthService {
    *  of the throttle is that a session can expire up to `IDLE_TOUCH_FLOOR_MS`
    *  earlier than a perfect implementation would allow — one minute out of
    *  thirty, on an axis whose entire purpose is approximate. */
-  async resolve(token: string): Promise<Actor | null> {
+  async resolve(token: string): Promise<Caller | null> {
     const found = await this.living(token)
     if (!found) return null
 
@@ -199,7 +199,12 @@ export class AuthService {
       }
     }
 
-    return toActor(found.actor, await this.grants.grantsFor(found.actor.roleId))
+    return {
+      actor: toActor(found.actor, await this.grants.grantsFor(found.actor.roleId)),
+      /* Read off the row `living()` already loaded, so `PasswordChangeGuard`
+         costs no query of its own. */
+      owesPasswordChange: found.actor.mustChangePasswordAt !== null,
+    }
   }
 
   /** `GET /auth/me`. The same two questions the guard asks, answered with the
@@ -473,6 +478,85 @@ export class AuthService {
    *  that could be called without a handle is a signature that eventually is. */
   revokeAllSessions(actorId: string, tx: Db): Promise<number> {
     return this.repo.revokeAllForActor(actorId, tx)
+  }
+
+  /** Hand somebody `DEFAULT_PASSWORD` and mark the debt. The administrator's
+   *  reset, called by `UsersService` — which owns the refusals and the audit
+   *  line, the same split `invite` already uses.
+   *
+   *  THE MARK IS WHAT MAKES THIS LEGAL. `UserCreate` states the rule this door
+   *  would otherwise break: a manager who knows somebody's password makes
+   *  everything that account does unattributable. Here the manager knows it and
+   *  the account cannot do anything at all until the owner replaces it — so the
+   *  window where the two people share a secret contains no actions to
+   *  misattribute. Drop the mark and this method becomes the thing the rule
+   *  forbids.
+   *
+   *  Every session dies, with no exception kept: unlike a self-service change,
+   *  the person whose password this is did not ask for it and is not standing
+   *  at the screen. */
+  async handDefaultPassword(person: { id: string; email: string }): Promise<void> {
+    const hash = await hashPassword(DEFAULT_PASSWORD)
+
+    await this.repo.run(async (tx) => {
+      await this.repo.handTemporaryPassword(person.id, hash, new Date(), tx)
+      const killed = await this.repo.revokeAllForActor(person.id, tx)
+      this.log.log(`Đặt lại mật khẩu mặc định · ${person.id} · thu hồi ${killed} phiên`)
+    })
+
+    /* A fresh password should not arrive behind a lockout built by whoever was
+       guessing at the old one. Same courtesy `resetPassword` extends — and the
+       mailbox is the key the sign-in throttle actually uses, which is why this
+       method takes one rather than deriving it from the id. */
+    this.throttle.clear(`sign-in:${person.email}`)
+  }
+
+  /** Change your own password from inside a live session. Clears the
+   *  must-change mark, which is the only thing that does.
+   *
+   *  THE OLD PASSWORD IS THE RE-AUTHENTICATION, which is why this write on
+   *  `platform.actor` carries no `@NeedsReauth()` — see `PasswordChangeBody`.
+   *  It is verified here rather than trusted from the guard because this door
+   *  is reachable by a session that is perfectly ordinary, not only by one
+   *  serving out a forced change.
+   *
+   *  Refuses a new password equal to the old one. Without that check the whole
+   *  forced-change flow has a hole with a bottom: somebody handed
+   *  `DEFAULT_PASSWORD` retypes it into both boxes, the mark clears, and they
+   *  walk away still using the string that is printed in this repository.
+   *
+   *  THE CALLER'S OWN SESSION SURVIVES, every other one does not. A password
+   *  change is how somebody reacts to suspecting another person holds their
+   *  session, so leaving those alive defeats the act; killing this one too
+   *  would sign the person out of the screen they are standing on, which reads
+   *  as a failure and teaches them not to do it again. */
+  async changePassword(token: string, current: string, next: string): Promise<void> {
+    const found = await this.living(token)
+    if (!found) throw denied('unauthenticated')
+
+    const key = `reauth:${found.actor.id}`
+    this.refuseWhileThrottled(key)
+
+    const stored = found.actor.passwordHash ?? (await dummyPasswordHash())
+    if (!(await verifyPassword(current, stored))) {
+      this.throttle.fail(key)
+      throw denied('unauthenticated', 'Mật khẩu hiện tại không đúng.')
+    }
+    this.throttle.clear(key)
+
+    if (current === next) {
+      throw invalid({ newPassword: ['Mật khẩu mới phải khác mật khẩu đang dùng.'] })
+    }
+
+    /* `scrypt` before the transaction, for `resetPassword`'s reason: ~100 ms is
+       a long time to hold a connection and a row lock. */
+    const hash = await hashPassword(next)
+
+    await this.repo.run(async (tx) => {
+      await this.repo.setPasswordHash(found.actor.id, hash, tx)
+      const killed = await this.repo.revokeAllForActor(found.actor.id, tx, found.session.id)
+      this.log.log(`Đổi mật khẩu · ${found.actor.id} · thu hồi ${killed} phiên khác`)
+    })
   }
 
   // -------------------------------------------------------------------------

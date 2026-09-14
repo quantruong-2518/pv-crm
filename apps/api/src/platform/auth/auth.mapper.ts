@@ -91,5 +91,9 @@ export function toSessionView(
     actor: toSessionActor(actorRow),
     permissions: [...permissions],
     session: toWindow(sessionRow),
+    /* Flattened to a yes/no here rather than passed through as the timestamp:
+       the browser routes on it and has no use for the date, and the date was
+       set by an administrator about this person. */
+    mustChangePassword: actorRow.mustChangePasswordAt !== null,
   }
 }

@@ -2,7 +2,7 @@ import type { Problem, ZodType } from '@pv/contracts'
 import type { AccessNeed } from '@pv/engines'
 import { access, askReauth, renewSession, sessionIsLive, useSession } from '@/app/auth'
 import { API_BASE_URL } from './base-url'
-import { ApiError, denyReasonOf, failureOf } from './errors'
+import { ApiError, denyReasonOf, failureOf, type ApiFailure } from './errors'
 import { isGatewayDown, reportAnswering, reportUnreachable } from './server-health'
 
 /** Tầng gọi dữ liệu — có INTERCEPTOR, và interceptor là toàn bộ lý do nó tồn tại.
@@ -292,6 +292,15 @@ async function readProblem(res: Response): Promise<Partial<Problem>> {
 
 /** Đổi mọi thứ ném ra thành `ApiError`. Sau hàm này, không chỗ nào trong app
  *  còn phải đoán mình vừa bắt được cái gì. */
+/** The two `Problem.type` values a status code cannot express. Everything else
+ *  is read off the number by `failureOf`; adding a row here means the server
+ *  grew a refusal that two endpoints answering 403 must not share a screen
+ *  reaction for. */
+const PROBLEM_KIND: Record<string, ApiFailure | undefined> = {
+  'reauth-required': 'cần-xác-thực-lại',
+  'password-change-required': 'phải-đổi-mật-khẩu',
+}
+
 async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
   if (raw instanceof ApiError) return raw
   if (raw instanceof DOMException && raw.name === 'AbortError') {
@@ -300,13 +309,13 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
   if (raw instanceof Response) {
     const problem = await readProblem(raw)
     return new ApiError({
-      /* The status code is the only source, with ONE exception: 403 carries two
-         opposite meanings — "never allowed" and "allowed, but confirm your
-         password first". The number cannot separate them; `Problem.type` can.
-         This is the only place in the app that reads the body's `type`, and it
-         has to stay the only one — two readers are two translation tables
-         waiting to drift. */
-      kind: problem.type === 'reauth-required' ? 'cần-xác-thực-lại' : failureOf(raw.status),
+      /* The status code is the only source, with ONE exception: 403 carries
+         three meanings — "never allowed", "allowed, confirm your password
+         first", and "change your default password before anything". The number
+         separates none of them; `Problem.type` does. This is the only place in
+         the app that reads the body's `type`, and it has to stay the only one —
+         two readers are two translation tables waiting to drift. */
+      kind: PROBLEM_KIND[problem.type ?? ''] ?? failureOf(raw.status),
       path: req.path,
       status: raw.status,
       /* `title` là câu tiếng Việt máy chủ tự viết cho người dùng. Dùng nó khi

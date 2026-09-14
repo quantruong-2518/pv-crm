@@ -190,6 +190,24 @@ export const SessionView = z.object({
    *  403. */
   permissions: z.array(Permission),
   session: SessionWindow,
+  /** This person is holding a password they did not choose, and can do nothing
+   *  until they do.
+   *
+   *  A BOOLEAN here while `UserRow` carries the timestamp, and the asymmetry is
+   *  deliberate: the admin screen asks "since when" about somebody else, the
+   *  browser asks "am I blocked" about itself and has no use for the date. It
+   *  also keeps a mark an administrator set off the wire to the person it was
+   *  set on.
+   *
+   *  On `SessionView` rather than `SessionActor` for the reason `permissions`
+   *  is: `SessionActor` is the shape a person takes in a roster or a picker,
+   *  and whether a colleague owes a password change is neither anybody's
+   *  business nor any screen's question.
+   *
+   *  A HINT for routing, never the fence. `PasswordChangeGuard` re-checks the
+   *  column on every request, so a tampered `false` buys a screen that renders
+   *  and a 403 from everything on it. */
+  mustChangePassword: z.boolean(),
 })
 
 /** How long a session lives, in milliseconds. ONE table, read by both ends.
@@ -262,6 +280,22 @@ export const ResetPasswordBody = z.object({
  *  the floor moves. Somebody meeting a 400 here does need to reset. */
 export const ConfirmPasswordBody = z.object({ password })
 
+/** Change your own password from inside a live session.
+ *
+ *  CARRIES THE OLD PASSWORD, and that field is the re-authentication — which is
+ *  why this door is the one write on `platform.actor` with no `@NeedsReauth()`.
+ *  Bolting the sudo dialog on top would ask for the same secret twice in one
+ *  submit, and `reauth.guard.ts` already names the cost of that habit: it
+ *  teaches people to type their password into any box that appears.
+ *
+ *  `newPassword` is checked against `current` on the server rather than here.
+ *  A cross-field `refine` would put the comparison in the browser's copy of the
+ *  schema too, and a rule about a secret belongs on the side that holds it. */
+export const PasswordChangeBody = z.object({
+  currentPassword: password,
+  newPassword: password,
+})
+
 /** What the reset screen may show before the new password is typed.
  *
  *  The mailbox only, and only for a token that is currently valid. It exists so
@@ -272,6 +306,7 @@ export const ResetTicketView = z.object({ email: z.email() })
 
 export type SignInBody = z.infer<typeof SignInBody>
 export type ConfirmPasswordBody = z.infer<typeof ConfirmPasswordBody>
+export type PasswordChangeBody = z.infer<typeof PasswordChangeBody>
 export type ForgotPasswordBody = z.infer<typeof ForgotPasswordBody>
 export type ResetPasswordBody = z.infer<typeof ResetPasswordBody>
 export type ResetTicketView = z.infer<typeof ResetTicketView>
@@ -291,6 +326,14 @@ export const UserRow = SessionActor.extend({
    *  when" is the question actually asked about a locked account, and a
    *  boolean answers it with a shrug. `null` = active. */
   disabledAt: Moment.nullable(),
+  /** Holding a password somebody else chose, and SINCE WHEN. `null` = the owner
+   *  picked their own.
+   *
+   *  Next to `disabledAt` because the two are read the same way — both are
+   *  states an administrator put the account into, and both answer "since
+   *  when". They are not the same state though: a locked account cannot sign
+   *  in at all, this one signs in and lands on a single screen. */
+  mustChangePasswordAt: Moment.nullable(),
   createdAt: Moment,
 })
 

@@ -63,6 +63,7 @@ export function toUserRow(row: ActorRow): UserRow {
     ...toSessionActor(row),
     passwordSet: row.passwordHash !== null,
     disabledAt: row.disabledAt ? row.disabledAt.toISOString() : null,
+    mustChangePasswordAt: row.mustChangePasswordAt ? row.mustChangePasswordAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   }
 }

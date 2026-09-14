@@ -2,7 +2,7 @@ import { lazy, Suspense, type ComponentType } from 'react'
 import { createBrowserRouter, matchPath } from 'react-router-dom'
 import { AuroraField } from '@pv/ui'
 import type { Branch, Permission } from '@pv/engines'
-import { RequireAccess } from '@/app/auth'
+import { CHANGE_PASSWORD_PATH, RequireAccess } from '@/app/auth'
 
 /** Bảng route của PV One.
  *
@@ -321,6 +321,22 @@ export const SCREENS: ScreenDef[] = [
     name: 'Đặt mật khẩu mới',
     public: true,
     load: () => import('@/pages/reset-password'),
+  },
+  /** The fourth screen of the auth flow, and the ONLY one in the group that is
+   *  not `public`: changing a password needs a live session, while the other
+   *  three exist precisely because there is none. No `permission` either - a
+   *  person owing a forced change gets past no `AccessGuard` on the server, so
+   *  a screen that demanded one would be a screen they cannot open through the
+   *  very door built to release them.
+   *
+   *  The path comes from `CHANGE_PASSWORD_PATH` rather than being retyped: the
+   *  guard redirects here and compares the path to know it has arrived. Two
+   *  spellings would be an infinite redirect, and the screen would never
+   *  paint. */
+  {
+    path: CHANGE_PASSWORD_PATH,
+    name: 'Đổi mật khẩu',
+    load: () => import('@/pages/change-password'),
   },
   { path: '/kit', name: 'Theme kit sống', public: true, load: () => import('@/kit/theme-kit') },
 ]

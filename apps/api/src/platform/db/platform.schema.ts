@@ -60,6 +60,22 @@ export const actor = platform.table('actor', {
    *  kiểm nó. */
   passwordHash: text('password_hash'),
 
+  /** Owes a password change SINCE WHEN. `null` = owes nothing.
+   *
+   *  Set while the account holds a password somebody else chose:
+   *  `reset-staff.ts` planting the whole book with `DEFAULT_PASSWORD`, or an
+   *  administrator pressing reset. Cleared when the owner picks their own.
+   *
+   *  While it is set, `PasswordChangeGuard` shuts every door but the four that
+   *  survive. That is what turns a password living in git into a one-time
+   *  ticket, and it is the condition on which `DEFAULT_PASSWORD` may exist at
+   *  all without breaking the rule stated on `UserCreate` — that a manager must
+   *  never know a password an account then acts under.
+   *
+   *  A mark rather than a `boolean`, same convention as `disabled_at` just
+   *  below: the question asked about a blocked account is "since when". */
+  mustChangePasswordAt: timestamp('must_change_password_at', { withTimezone: true }),
+
   /** Bị khoá từ LÚC NÀO. `null` = đang hoạt động.
    *
    *  Mốc thời gian chứ không phải `boolean`, vì câu người ta thật sự hỏi về

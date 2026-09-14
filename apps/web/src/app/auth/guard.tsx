@@ -8,6 +8,11 @@ import { ExpiryWarning } from './expiry'
 import { ReauthDialog } from './reauth-dialog'
 import { access, useSession } from './session'
 
+/** Where a person who owes a password change is held. Exported so `routes.tsx`
+ *  and this guard cannot disagree about the path: a mismatch would be an
+ *  infinite redirect, and the screen would simply never paint. */
+export const CHANGE_PASSWORD_PATH = '/doi-mat-khau'
+
 /** HAI cổng: `RequireAccess` cho cả một màn, `Can` cho một nút.
  *
  *  Cùng file vì chúng cùng hỏi một hàm E2 và cùng phải nói cùng một câu — tách
@@ -61,6 +66,7 @@ export function RequireAccess({
 }) {
   const status = useSession((s) => s.status)
   const actor = useSession((s) => s.actor)
+  const owesPassword = useSession((s) => s.mustChangePassword)
   const expiredBy = useSession((s) => s.expiredBy)
   const location = useLocation()
   const verdict = access.check(actor, { branch, permission })
@@ -95,6 +101,16 @@ export function RequireAccess({
         }}
       />
     )
+  }
+
+  /* BEFORE the E2 verdict, and that order matches the server's: while the mark
+     is set no door opens, so a permission-hidden screen would be a true
+     sentence about the wrong problem and would send a director off to look for
+     an administrator. `PasswordChangeGuard` orders its two questions the same
+     way, and the two have to agree or the screen and the API tell the person
+     different stories. */
+  if (owesPassword && location.pathname !== CHANGE_PASSWORD_PATH) {
+    return <Navigate to={CHANGE_PASSWORD_PATH} replace />
   }
 
   if (!verdict.ok) return <AccessLocked verdict={verdict} />

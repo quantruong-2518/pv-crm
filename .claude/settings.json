@@ -13,7 +13,7 @@
       "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; git log:*)",
       "Bash(wsl.exe -d Ubuntu-20.04 bash -lc '. ~/.nvm/nvm.sh; nvm use 22 >/dev/null 2>&1; cd ~/work/pebble-vina/pv-crm; git show:*)"
     ],
-    "deny": ["Bash(pnpm db:push:*)", "Bash(pnpm db:seed:*)"]
+    "deny": ["Bash(pnpm db:push:*)", "Bash(pnpm db:seed:*)", "Bash(pnpm db:reset:*)"]
   },
   "hooks": {
     "PreToolUse": [

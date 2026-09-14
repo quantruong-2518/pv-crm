@@ -374,6 +374,63 @@ export class UsersService {
     })
   }
 
+  /** Put somebody back on `DEFAULT_PASSWORD` and make them change it.
+   *
+   *  THE SECOND DOOR TO A FIRST PASSWORD, next to `invite`, and the two are not
+   *  duplicates — they differ on who has to be reachable. `invite` posts a link
+   *  and is the normal path: the owner sets a secret nobody else ever sees.
+   *  This one works when the mailbox does not — outbound mail off, a person
+   *  locked out of their own inbox, a demo about to start in five minutes — and
+   *  pays for that with a window in which two people know the string.
+   *
+   *  That window is closed by the mark rather than by trust:
+   *  `AuthService.handDefaultPassword` sets `must_change_password_at`, so the
+   *  account can reach exactly one screen until its owner replaces the
+   *  password. Nothing can be done under the shared secret, so nothing done
+   *  under it can be misattributed — which is the whole of the rule stated on
+   *  `UserCreate`.
+   *
+   *  NO REFUSAL FOR A LOCKED ACCOUNT, unlike `invite`, and the difference is
+   *  real rather than an oversight: an invite link for a locked person is dead
+   *  on arrival because `AuthService` rejects tickets for disabled actors, so
+   *  issuing one is a button that lies. A password is not a ticket — it simply
+   *  sits on the row and starts working the moment somebody unlocks the
+   *  account, which makes resetting before unlocking a sensible order to do
+   *  things in.
+   *
+   *  Refuses on YOURSELF, and that is rule 1 of the two fences below wearing a
+   *  different hat: resetting your own password locks you onto the
+   *  change-password screen until you finish, and an administrator who walks
+   *  away mid-form has left the system with one fewer working pair of hands for
+   *  no reason. The self-service door is right there and does not have that
+   *  failure mode. */
+  async resetPassword(who: Actor, id: string): Promise<UserRow> {
+    const target = await this.repo.byId(id)
+    if (!target) throw notFound('người dùng', id)
+
+    if (who.id === id) {
+      throw conflict(
+        'Bạn không tự đặt lại mật khẩu của chính mình ở đây được — dùng màn đổi mật khẩu. Đặt lại ở đây sẽ khoá bạn vào màn đổi mật khẩu cho tới khi đổi xong.',
+      )
+    }
+
+    await this.auth.handDefaultPassword({ id: target.id, email: target.email })
+
+    /* The note says a reset happened, never what the password is — the same
+       line `invite` draws, and it matters more here: this one IS a credential,
+       and `platform.audit` has an `audit-log.view` audience. */
+    await this.repo.writeNote({
+      actorId: who.id,
+      action: 'edit',
+      code: target.id,
+      note: `đặt lại mật khẩu mặc định cho ${target.email}`,
+    })
+
+    const fresh = await this.repo.byId(id)
+    if (!fresh) throw notFound('người dùng', id)
+    return UserRow.parse(toUserRow(fresh))
+  }
+
   // -------------------------------------------------------------------------
   // The two fences
   // -------------------------------------------------------------------------

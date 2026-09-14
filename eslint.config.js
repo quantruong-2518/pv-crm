@@ -271,6 +271,14 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': 'off', 'no-console': 'off' },
   },
   {
+    // `reset-staff.ts` đứng RIÊNG, không gộp vào khối trên, vì nó chỉ xin một
+    // nửa của ngoại lệ đó: nó là lệnh CLI nên `no-console` tắt, nhưng nó không
+    // nhập fixture nào — sổ nhân sự thật nằm ở `staff.ts`. Gộp vào là mở sẵn
+    // cửa cho tên khách hàng đi vào một file không cần tới chúng.
+    files: ['apps/api/src/reset-staff.ts'],
+    rules: { 'no-console': 'off' },
+  },
+  {
     // Platform là NỀN. Nền biết nhánh là nền đã thành một nhánh.
     files: ['apps/api/src/platform/**/*.ts'],
     rules: {

@@ -115,7 +115,16 @@ export function toActor(wire: SessionActor, permissions: readonly Permission[]):
  *  screen. Hanging "Bạn thử quá nhiều lần" under the password field tells the
  *  user their password is wrong, and they will spend the next five minutes
  *  retyping a password that was right the first time. */
-export type AuthField = 'email' | 'password' | 'confirm' | 'form'
+export type AuthField =
+  | 'email'
+  | 'password'
+  | 'confirm'
+  | 'form'
+  /** The change-password form has TWO password boxes that fail for different
+   *  reasons, so `'password'` cannot serve both — it would point at the old one
+   *  when the complaint is about the new. */
+  | 'currentPassword'
+  | 'newPassword'
 export type AuthError = { field: AuthField; message: string }
 
 /** Sai mật khẩu là ĐƯỜNG ĐI BÌNH THƯỜNG của một form đăng nhập, không phải sự
@@ -126,7 +135,8 @@ export type AuthError = { field: AuthField; message: string }
  *  both into `useSession.signIn`, because the browser no longer computes when a
  *  session dies — it mirrors what the server stamped. */
 export type SignInResult =
-  { ok: true; actor: Actor; session: SessionWindow } | { ok: false; error: AuthError }
+  | { ok: true; actor: Actor; session: SessionWindow; mustChangePassword: boolean }
+  | { ok: false; error: AuthError }
 
 /** ONE sentence for "no such mailbox" and "wrong password", and it is not
  *  laziness — it is the reason the old POC message had to go.
@@ -273,6 +283,7 @@ export async function signInWithEmail(
     ok: true,
     actor: toActor(view.data.actor, view.data.permissions),
     session: view.data.session,
+    mustChangePassword: view.data.mustChangePassword,
   }
 }
 
@@ -348,7 +359,7 @@ export async function confirmPassword(password: string): Promise<AuthError | nul
  *  API is deployed. See `bootstrap` in `app/auth/session.ts` for what is done
  *  with each. */
 export type SessionProbe =
-  | { state: 'signed-in'; actor: Actor; session: SessionWindow }
+  | { state: 'signed-in'; actor: Actor; session: SessionWindow; mustChangePassword: boolean }
   | { state: 'guest' }
   | { state: 'unreachable' }
 
@@ -375,6 +386,10 @@ export async function probeSession(): Promise<SessionProbe> {
     state: 'signed-in',
     actor: toActor(view.data.actor, view.data.permissions),
     session: view.data.session,
+    /* Re-read on every boot rather than remembered from sign-in: an
+       administrator can press reset while this tab sits open, and `/auth/me` is
+       the only thing that finds out. */
+    mustChangePassword: view.data.mustChangePassword,
   }
 }
 
@@ -401,6 +416,45 @@ export async function requestPasswordReset(email: string): Promise<AuthError | n
   if (res.status === 429) return TOO_FAST
   if (res.status === 400 || res.status === 422)
     return { field: 'email', message: 'Email sai dạng.' }
+  if (!res.ok) return SERVER_TROUBLE
+  return null
+}
+
+/** `POST /auth/change-password` — change your own, from inside a live session.
+ *
+ *  RIDES ON `knock`, not on the interceptor chain, like every other door in
+ *  this file. The reason is sharper here than anywhere else: while a person
+ *  owes a forced change the server answers `password-change-required` to
+ *  everything else, and `renewOnUnauthorized` would turn the 403 chain into a
+ *  loop against the very screen that exists to end it.
+ *
+ *  Errors are per-field because this form has two boxes and they fail for
+ *  different reasons — the old one can be wrong, the new one can be too short
+ *  or the same as the old. A single sentence would leave the person guessing
+ *  which box to fix. */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<AuthError | null> {
+  if (!currentPassword) return { field: 'currentPassword', message: 'Chưa nhập mật khẩu hiện tại.' }
+  if (newPassword.length < PASSWORD_MIN)
+    return { field: 'newPassword', message: `Mật khẩu tối thiểu ${PASSWORD_MIN} ký tự.` }
+  if (currentPassword === newPassword)
+    return { field: 'newPassword', message: 'Mật khẩu mới phải khác mật khẩu đang dùng.' }
+
+  const res = await knock('/auth/change-password', {
+    method: 'POST',
+    body: { currentPassword, newPassword },
+  })
+  if (!res) return OFFLINE
+  if (res.status === 429) return TOO_FAST
+  /* 401 here is NOT an expired session — `PasswordChangeGuard` lets this door
+     through, so the only thing the server can be refusing is the old password.
+     Routing it to the session machine would sign the person out for a typo. */
+  if (res.status === 401)
+    return { field: 'currentPassword', message: 'Mật khẩu hiện tại không đúng.' }
+  if (res.status === 400 || res.status === 422)
+    return { field: 'newPassword', message: 'Mật khẩu mới chưa hợp lệ.' }
   if (!res.ok) return SERVER_TROUBLE
   return null
 }

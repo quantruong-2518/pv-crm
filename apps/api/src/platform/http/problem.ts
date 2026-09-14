@@ -33,6 +33,7 @@ export const STATUS_OF: Record<ProblemKind, number> = {
   invalid: 400,
   'rate-limited': 429,
   'reauth-required': 403,
+  'password-change-required': 403,
   server: 500,
 }
 
@@ -137,6 +138,22 @@ export function reauthRequired(): PvError {
     kind: 'reauth-required',
     status: 403,
     title: 'Xác nhận mật khẩu để tiếp tục.',
+  })
+}
+
+/** 403 — signed in, permitted, but still holding a password somebody else
+ *  chose. Every door says this until the password is changed.
+ *
+ *  Carries no `reason` for `reauthRequired`'s reason: E2 did not refuse this,
+ *  and in fact E2 was never asked — `PasswordChangeGuard` runs BEFORE
+ *  `AccessGuard`, so a person in this state is told the one thing that is
+ *  actually in their way rather than a permission verdict that would send them
+ *  looking for an administrator. */
+export function passwordChangeRequired(): PvError {
+  return new PvError({
+    kind: 'password-change-required',
+    status: 403,
+    title: 'Đổi mật khẩu mặc định trước khi dùng tiếp.',
   })
 }
 

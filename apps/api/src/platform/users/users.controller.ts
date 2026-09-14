@@ -137,4 +137,22 @@ export class UsersController {
   invite(@CurrentActor() who: Actor, @Param('id') id: string) {
     return this.users.invite(who, id)
   }
+
+  /** Put somebody back on the default password. 200 with the refreshed row, so
+   *  the list can repaint the owes-a-change badge without a second fetch.
+   *
+   *  No body, for `invite`'s reason and one more: the password is not the
+   *  caller's to choose. Accepting one here would be a manager typing somebody
+   *  else's secret — exactly what the mark exists to make impossible, handed
+   *  back as a form field.
+   *
+   *  `@NeedsReauth()` like the other three write doors: this one mints a
+   *  credential, which is the second half of the rule on that decorator. */
+  @Post(':id/reset-password')
+  @HttpCode(200)
+  @Need({ permission: 'user.manage' })
+  @NeedsReauth()
+  resetPassword(@CurrentActor() who: Actor, @Param('id') id: string) {
+    return this.users.resetPassword(who, id)
+  }
 }

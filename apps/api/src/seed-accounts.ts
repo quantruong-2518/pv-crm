@@ -1,39 +1,40 @@
 import { eq } from 'drizzle-orm'
-import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
-import { hashPassword } from '@api/platform/auth/password'
+import { DEFAULT_PASSWORD, hashPassword } from '@api/platform/auth/password'
 import { session } from '@api/platform/auth/auth.schema'
 import { actor } from '@api/platform/db/platform.schema'
+import { STAFF } from './staff'
 
 /** Give the existing people a mailbox and a password — WITHOUT rebuilding anything.
  *
  *  ------------------------------------------------------------------
- *  WHY THIS IS NOT PART OF `db:seed`
+ *  WHY THIS IS NOT PART OF THE TWO REBUILD COMMANDS
  *  ------------------------------------------------------------------
- *  `seed.ts` is a REBUILD: it deletes the whole book and writes the frozen DAS
- *  Vina fixture back. Against the Neon database that command is destructive —
- *  19 real Apollo leads (`LD-0201`…`LD-0219`) came in through the import door
- *  and exist in no fixture, so a reseed loses them for good.
+ *  `seed.ts` and `reset-staff.ts` both DELETE before they write, which against
+ *  the Neon database loses whatever came in through the import door and exists
+ *  in no fixture.
  *
  *  This script only ever runs `UPDATE … WHERE id = …` against actors that
  *  already exist. It creates nothing, deletes nothing, and touches no table
  *  outside `platform.actor` (plus revoking sessions, see below). That is what
  *  makes it safe to point at a live database, and it is why it is a separate
- *  command instead of a flag on the other one — a flag would be one typo away
+ *  command instead of a flag on the other ones — a flag would be one typo away
  *  from the destructive path.
  *
  *  ------------------------------------------------------------------
- *  THE FIXTURE IS THE SOURCE OF IDENTITY, THE ARGUMENT IS THE SECRET
+ *  `STAFF` IS THE SOURCE OF IDENTITY, `password.ts` OF THE DEFAULT SECRET
  *  ------------------------------------------------------------------
- *  Names, ids and mailboxes come from `dasVina.actors`, so the seeded database
- *  and the frozen fixture cannot drift apart on who anybody is. The password
- *  comes from the command line and is never written down in this repository —
- *  a password committed to git is a password that outlives every machine it was
- *  meant for, and this repo is pushed to GitHub.
+ *  Names, ids and mailboxes come from `staff.ts`; the fallback password comes
+ *  from `platform/auth/password.ts`, the module the running server also hands
+ *  it out from. Neither this command nor `reset-staff.ts` keeps a copy, so the
+ *  three cannot disagree. `--password=…` overrides the default and is the only
+ *  path that survives the day that constant is deleted — read the reason it
+ *  exists at all where it is declared.
  *
- *      pnpm db:seed:accounts -- --password='…'          # xem trước, không ghi
- *      pnpm db:seed:accounts -- --password='…' --apply  # ghi thật
+ *      pnpm db:seed:accounts                            # xem trước, không ghi
+ *      pnpm db:seed:accounts -- --apply                 # ghi thật
+ *      pnpm db:seed:accounts -- --password='…' --apply  # mật khẩu khác
  *
  *  Dry run is the default on purpose. The same shape as
  *  `scrub-smoke-rows.mjs`, and for the same reason: a script whose first run
@@ -42,7 +43,7 @@ import { actor } from '@api/platform/db/platform.schema'
 const APPLY = process.argv.includes('--apply')
 
 const passwordArg = process.argv.find((a) => a.startsWith('--password='))
-const PASSWORD = passwordArg?.slice('--password='.length) ?? ''
+const PASSWORD = passwordArg?.slice('--password='.length) ?? DEFAULT_PASSWORD
 
 /** Mirrors `PASSWORD_MIN` in `@pv/contracts`. Not imported, deliberately: this
  *  is the floor for a HAND-TYPED operational secret, and it should be free to
@@ -50,18 +51,20 @@ const PASSWORD = passwordArg?.slice('--password='.length) ?? ''
 const MIN = 12
 
 async function main(): Promise<void> {
+  /* Only reachable via `--password=…`, since the default clears this by a wide
+     margin. Kept because the argument is the path that will still exist after
+     the constant is deleted. */
   if (PASSWORD.length < MIN) {
-    throw new Error(
-      `Thiếu --password=… (tối thiểu ${MIN} ký tự).\n` +
-        `  Xem trước:  pnpm db:seed:accounts -- --password='…'\n` +
-        `  Ghi thật :  pnpm db:seed:accounts -- --password='…' --apply`,
-    )
+    throw new Error(`--password=… quá ngắn (tối thiểu ${MIN} ký tự).`)
   }
 
   const env = loadEnv()
   const { db, close, kind } = await createDb(env.DATABASE_URL)
 
-  console.log(`[db] ${kind} · ${APPLY ? 'GHI THẬT' : 'xem trước'}`)
+  console.log(
+    `[db] ${kind} · ${APPLY ? 'GHI THẬT' : 'xem trước'} · ` +
+      `mật khẩu ${passwordArg ? 'từ --password' : 'mặc định (password.ts)'}`,
+  )
 
   try {
     const rows = await db.select().from(actor)
@@ -74,7 +77,7 @@ async function main(): Promise<void> {
        most of a second and buy nothing here. */
     const hash = await hashPassword(PASSWORD)
 
-    const plan = dasVina.actors.map((a) => {
+    const plan = STAFF.map((a) => {
       const row = byId.get(a.id)
       return {
         id: a.id,
@@ -98,13 +101,15 @@ async function main(): Promise<void> {
       )
     }
 
-    /* Anyone in the database the fixture does not know about. Reported rather
-       than touched: a row this script cannot explain is a row somebody added on
-       purpose, and silently handing it a known password would be the worst
-       possible reading of "seed the accounts". */
+    /* Anyone in the database the account book does not know about. Reported
+       rather than touched: a row this script cannot explain is a row somebody
+       added on purpose, and silently handing it a known password would be the
+       worst possible reading of "seed the accounts". */
     for (const row of rows) {
-      if (!dasVina.actors.some((a) => a.id === row.id)) {
-        console.log(`  ! ${row.id.padEnd(8)} có trong DB nhưng không có trong fixture — KHÔNG đụng`)
+      if (!STAFF.some((a) => a.id === row.id)) {
+        console.log(
+          `  ! ${row.id.padEnd(8)} có trong DB nhưng không có trong staff.ts — KHÔNG đụng`,
+        )
       }
     }
 
@@ -118,7 +123,16 @@ async function main(): Promise<void> {
         if (p.missing) continue
         await tx
           .update(actor)
-          .set({ email: p.emailTo, passwordHash: hash, disabledAt: null })
+          /* `mustChangePasswordAt` rides along because this command hands out a
+             password its operator typed. Without it the person would keep using
+             a string somebody else chose, which is the one thing
+             `PasswordChangeGuard` exists to prevent. */
+          .set({
+            email: p.emailTo,
+            passwordHash: hash,
+            disabledAt: null,
+            mustChangePasswordAt: new Date(),
+          })
           .where(eq(actor.id, p.id))
 
         /* Every password change kills that person's live sessions. The usual

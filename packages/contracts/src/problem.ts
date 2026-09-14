@@ -37,6 +37,15 @@ export const ProblemKind = z.enum([
    *  have, and the screen would show its permission-hidden sentence for
    *  something the user can in fact do. */
   'reauth-required',
+  /** A 403 that means "you owe a password change first", raised by
+   *  `PasswordChangeGuard` on every door but the four it lets through.
+   *
+   *  Its own `type` for `reauth-required`'s reason, one step further along: it
+   *  is not an E2 verdict, and it is not the sudo window either. The way out is
+   *  a different screen rather than a dialog on this one, so a screen that
+   *  cannot tell it from `reauth-required` would pop the confirm box, take a
+   *  correct password, and refuse again — forever. */
+  'password-change-required',
   'server',
 ])
 

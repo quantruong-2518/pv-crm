@@ -29,6 +29,20 @@ export type ApiFailure =
    *  the confirmation box and replays the request. The sentence in
    *  `userMessage` covers the one way out — the user pressing Cancel. */
   | 'cần-xác-thực-lại'
+  /** A third reading of 403: signed in, permitted, but still holding a password
+   *  an administrator handed out. `PasswordChangeGuard` answers this on every
+   *  door but four.
+   *
+   *  Separate from the sudo-window kind above because the way out is a different
+   *  SCREEN, not a dialog on this one. A screen that could not tell them apart
+   *  would open the confirm box, take a perfectly correct password, and be
+   *  refused again — forever.
+   *
+   *  Screens do NOT render this either: the session store routes on
+   *  `SessionView.mustChangePassword`, and `RequireAccess` sends the person to
+   *  the change-password screen before a request is ever made. This kind is the
+   *  backstop for a session whose flag went stale mid-visit. */
+  | 'phải-đổi-mật-khẩu'
   | 'không-thấy'
   /** Dữ liệu đã đổi dưới tay người dùng (409) — sửa đè lên bản mới hơn. */
   | 'xung-đột'
@@ -166,6 +180,13 @@ export function userMessage(error: ApiError): string {
        them off to ask for permissions they already have. */
     case 'cần-xác-thực-lại':
       return 'Chưa xác nhận mật khẩu nên thao tác chưa chạy. Làm lại và xác nhận để tiếp tục.'
+    /* Barely reachable: the guard sends the person to the change-password
+       screen off `SessionView.mustChangePassword`, before any request goes out.
+       What lands here is a session whose flag went stale mid-visit - an
+       administrator pressed reset while the tab was open - so the sentence has
+       to say what happened as well as what to do. */
+    case 'phải-đổi-mật-khẩu':
+      return 'Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu rồi làm lại thao tác.'
     case 'không-thấy':
       return 'Không tìm thấy dữ liệu này. Có thể nó vừa bị xoá.'
     /* `error.message` is the server's own `title` when it sent one (see

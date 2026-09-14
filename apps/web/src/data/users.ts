@@ -170,6 +170,26 @@ export function useInviteUser() {
   })
 }
 
+/** Put somebody back on the default password. `POST /users/:id/reset-password`.
+ *
+ *  DOES invalidate the list, unlike `useInviteUser` right above — and the
+ *  difference is the point. An invite changes nothing on the row; this changes
+ *  two things the row prints, `passwordSet` and `mustChangePasswordAt`, and it
+ *  changes them now rather than whenever somebody opens a mail.
+ *
+ *  Answers with the refreshed row so the badge is right even before the refetch
+ *  lands. */
+export function useResetUserPassword() {
+  const client = useQueryClient()
+  return useMutation<UserRow, ApiError, string>({
+    mutationFn: (id) =>
+      api.write<UserRow>(`/users/${encodeURIComponent(id)}/reset-password`, { need: USERS_NEED }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: USERS_KEY })
+    },
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Vocabulary the screen prints
 // ---------------------------------------------------------------------------
