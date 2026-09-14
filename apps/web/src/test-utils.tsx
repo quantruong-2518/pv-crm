@@ -37,7 +37,7 @@ function wrap(children: ReactNode, route: string) {
  *  `setState({ actor })`.
  *
  *  Nhét thẳng `actor` vào store để lại một phiên nửa vời: có người nhưng không
- *  có vé và `status` vẫn là 'khởi-động'. Guard sẽ ngồi đợi mãi và mọi lời gọi
+ *  có vé và `status` vẫn là 'booting'. Guard sẽ ngồi đợi mãi và mọi lời gọi
  *  qua `app/api` bị `requireLiveSession` chặn — test đỏ vì bản dựng test sai,
  *  không phải vì màn sai. */
 function signIn(actorId = 'u-ha') {

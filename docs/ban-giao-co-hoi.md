@@ -158,8 +158,8 @@ hồ thì mọi đơn đều "vừa mới vào cột" và tín hiệu mục khô
 
 ### Endpoint
 
-|                                    | quyền                 |                                       |
-| ---------------------------------- | --------------------- | ------------------------------------- |
+|                                    | quyền                       |                                       |
+| ---------------------------------- | --------------------------- | ------------------------------------- |
 | `GET /sales/opportunities`         | `opportunity.view` · scoped | sổ, phân trang, trả `hidden` (luật 7) |
 | `GET /sales/opportunities/:code`   | `opportunity.view` · scoped | 404 và 403 là hai câu khác nhau       |
 | `POST /sales/opportunities`        | `opportunity.edit`          | đổi lead thành cơ hội                 |
@@ -271,13 +271,13 @@ màn nào.**
 
 ### Endpoint mới
 
-|                                            | quyền                  |                                                  |
-| ------------------------------------------ | ---------------------- | ------------------------------------------------ |
-| `GET /sales/opportunities?leadCode=`       | `opportunity.view` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần     |
-| `GET /sales/opportunities/:code/touches`   | `opportunity.view` · scoped  | dòng thời gian của một đơn                       |
-| `GET /sales/leads/:code/touches`           | `lead.view` · scoped    | dòng thời gian của một lead                      |
-| `POST /sales/opportunities/import/preview` | `opportunity.edit`           | chạy thử, không ghi gì                           |
-| `POST /sales/opportunities/import`         | `opportunity.edit`           | nạp thật, cả lô hoặc không dòng nào              |
+|                                            | quyền                        |                                                        |
+| ------------------------------------------ | ---------------------------- | ------------------------------------------------------ |
+| `GET /sales/opportunities?leadCode=`       | `opportunity.view` · scoped  | lọc sổ theo lead — giết lỗi đổi lead hai lần           |
+| `GET /sales/opportunities/:code/touches`   | `opportunity.view` · scoped  | dòng thời gian của một đơn                             |
+| `GET /sales/leads/:code/touches`           | `lead.view` · scoped         | dòng thời gian của một lead                            |
+| `POST /sales/opportunities/import/preview` | `opportunity.edit`           | chạy thử, không ghi gì                                 |
+| `POST /sales/opportunities/import`         | `opportunity.edit`           | nạp thật, cả lô hoặc không dòng nào                    |
 | `POST /sales/opportunities/:code/contract` | `opportunity.close` · scoped | **ký** — đường ĐẦU TIÊN dùng quyền `opportunity.close` |
 
 ### Bảng mới · `sales.touch`
@@ -492,11 +492,11 @@ migration `0016` đã vào `7aa12de`.
 
 ### Lượt A — xong
 
-| Việc                    | Đã làm gì                                                                                                                                                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: MaHopDong`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                           |
-| **Việc 3** · nạp tệp    | `ops.tsx` có `ImportZone`; thêm `data/opportunity-import-wire.ts` (dịch thuần) + `data/opportunity-import.ts` (preview → dừng nếu 0 dòng → import). `motions` đã gỡ khỏi `OP_SPEC` theo quyết định #2                                             |
-| **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/opportunities/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                           |
+| Việc                    | Đã làm gì                                                                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BE, quyết định #3**   | `OpportunityRow` mọc `contractCode?: MaHopDong`. Ba đường đọc (`book` · `byCode` · `forMail`) lấy `signed` VÀ mã từ **một** `LEFT JOIN`, nên hai trường không lệch được                                                                                 |
+| **Việc 3** · nạp tệp    | `ops.tsx` có `ImportZone`; thêm `data/opportunity-import-wire.ts` (dịch thuần) + `data/opportunity-import.ts` (preview → dừng nếu 0 dòng → import). `motions` đã gỡ khỏi `OP_SPEC` theo quyết định #2                                                   |
+| **Việc 2** · nửa ĐƠN    | `data/touches.ts` mới; `ops-detail.tsx` đọc `GET /sales/opportunities/:code/touches` thật. `turns` vẫn `NO_TRANSCRIPT` — máy chủ không có và sẽ chưa có                                                                                                 |
 | **Việc 4** · Chốt thắng | `components/sign-drawer.tsx` mới + nút trong `ToolsBar` + `useSignContract` ở `ops-write.ts`. Ba mặt: đã ký → pill tĩnh `Đã ký · HĐ-…`; đã thua → không vẽ gì; còn lại → nút, **ẩn hẳn** với vai không có `opportunity.close` (`useCan`, quyết định #4) |
 
 ### Bốn thứ phát hiện khi dựng, không có trong bản phác

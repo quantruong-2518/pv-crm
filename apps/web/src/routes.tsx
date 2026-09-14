@@ -76,7 +76,7 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/users'),
   },
   {
-    /** One Core · Quản trị · Vai trò — the `platform.role_permission` matrix.
+    /** One Core · Admin · Roles — the `platform.role_permission` matrix.
      *
      *  NO `branch`, for the reason the entry above gives: the matrix belongs to
      *  no product line, and a licence axis here would shut the screen that says

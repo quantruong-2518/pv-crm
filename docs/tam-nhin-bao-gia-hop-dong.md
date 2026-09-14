@@ -265,18 +265,18 @@ ContractTermRow / ContractTermDraft               // đợt thanh toán
 
 ### Cửa
 
-| Cửa                                        | Quyền          | scoped | Ghi chú                                       |
-| ------------------------------------------ | -------------- | ------ | --------------------------------------------- |
-| `GET /sales/quotes`                        | `quote.view`  | có     | sổ, cắt ngang mọi cơ hội                      |
-| `GET /sales/quotes/:code`                  | `quote.view`  | có     | một bản, kèm mọi bản cùng đơn để đối chiếu    |
-| `POST /sales/quotes`                       | `báo-giá.sửa`  | **†**  | `opportunityCode` trong thân, không trên path |
-| `PATCH /sales/quotes/:code`                | `báo-giá.sửa`  | có     | 409 nếu đã gửi — sửa đè lên thứ khách cầm     |
-| `POST /sales/quotes/:code/replace`         | `báo-giá.sửa`  | có     | mồi từ bản này, **cấp mã mới**, nối cạnh      |
-| `POST /sales/quotes/:code/send`            | `báo-giá.gửi`  | có     | 409 nếu liên hệ không có email                |
-| `POST /sales/quotes/:code/decide`          | `opportunity.close`  | có     | khách chốt / từ chối — xem ghi chú quyền      |
-| `GET /sales/contracts`                     | `contract.view` | có     | sổ hợp đồng                                   |
-| `POST /sales/opportunities/:code/contract` | `opportunity.close`  | có     | **cửa cũ, đổi thân** — không nhận tiền nữa    |
-| `POST · PATCH .../contracts/:code/terms`   | `contract.edit` | có     | đợt thanh toán                                |
+| Cửa                                        | Quyền               | scoped | Ghi chú                                       |
+| ------------------------------------------ | ------------------- | ------ | --------------------------------------------- |
+| `GET /sales/quotes`                        | `quote.view`        | có     | sổ, cắt ngang mọi cơ hội                      |
+| `GET /sales/quotes/:code`                  | `quote.view`        | có     | một bản, kèm mọi bản cùng đơn để đối chiếu    |
+| `POST /sales/quotes`                       | `báo-giá.sửa`       | **†**  | `opportunityCode` trong thân, không trên path |
+| `PATCH /sales/quotes/:code`                | `báo-giá.sửa`       | có     | 409 nếu đã gửi — sửa đè lên thứ khách cầm     |
+| `POST /sales/quotes/:code/replace`         | `báo-giá.sửa`       | có     | mồi từ bản này, **cấp mã mới**, nối cạnh      |
+| `POST /sales/quotes/:code/send`            | `báo-giá.gửi`       | có     | 409 nếu liên hệ không có email                |
+| `POST /sales/quotes/:code/decide`          | `opportunity.close` | có     | khách chốt / từ chối — xem ghi chú quyền      |
+| `GET /sales/contracts`                     | `contract.view`     | có     | sổ hợp đồng                                   |
+| `POST /sales/opportunities/:code/contract` | `opportunity.close` | có     | **cửa cũ, đổi thân** — không nhận tiền nữa    |
+| `POST · PATCH .../contracts/:code/terms`   | `contract.edit`     | có     | đợt thanh toán                                |
 
 **†** `POST /sales/quotes` không scoped được vì chưa có `ref` để soi — nhưng
 **phải kiểm phạm vi của CƠ HỘI cha trong service**. Bỏ qua chỗ này là một Sale
@@ -291,11 +291,11 @@ Bàn tay chốt bản nào cũng chính là bàn tay quyết định số tiền
 hai việc vào một quyền là mô tả đúng thực tế, và bớt được một dòng trong ma trận.
 
 | Vai            | quote.view/sửa | báo-giá.gửi | contract.view/sửa |
-| -------------- | --------------- | ----------- | ---------------- |
-| giám-đốc · TP  | có              | có          | có               |
-| sale           | có              | có          | có               |
-| presales       | **có**          | không       | không            |
-| bd · marketing | không           | không       | không            |
+| -------------- | -------------- | ----------- | ----------------- |
+| giám-đốc · TP  | có             | có          | có                |
+| sale           | có             | có          | có                |
+| presales       | **có**         | không       | không             |
+| bd · marketing | không          | không       | không             |
 
 Presales dựng số và chạy demo — chính docblock của `ContractSign` đã viết vậy —
 nhưng không cầm việc gửi ra ngoài, đối xứng với việc họ không có `opportunity.close`.
@@ -364,13 +364,13 @@ thật vẫn là nợ #12, đi đường vòng ở §7.
 
 ## §7 · Màn
 
-| Màn                          | Trạng thái | Quyền          | Câu nó trả lời                             |
-| ---------------------------- | ---------- | -------------- | ------------------------------------------ |
-| `/sales/quotes`              | MỚI        | `quote.view`  | bản nào sắp hết hạn, tổng đã báo tháng này |
+| Màn                          | Trạng thái | Quyền           | Câu nó trả lời                             |
+| ---------------------------- | ---------- | --------------- | ------------------------------------------ |
+| `/sales/quotes`              | MỚI        | `quote.view`    | bản nào sắp hết hạn, tổng đã báo tháng này |
 | `/sales/contracts`           | MỚI        | `contract.view` | tháng này ký bao nhiêu, đợt nào tới hạn    |
-| Modal "Soạn báo giá"         | MỚI        | `báo-giá.sửa`  | bán gì, giá bao nhiêu, tổng đúng chưa      |
-| `/sales/opportunities/:code` | SỬA        | giữ nguyên     | đơn này báo giá tới bản mấy, ký chưa       |
-| `SignDrawer`                 | SỬA        | giữ nguyên     | ký bằng đúng số bản khách đã chốt          |
+| Modal "Soạn báo giá"         | MỚI        | `báo-giá.sửa`   | bán gì, giá bao nhiêu, tổng đúng chưa      |
+| `/sales/opportunities/:code` | SỬA        | giữ nguyên      | đơn này báo giá tới bản mấy, ký chưa       |
+| `SignDrawer`                 | SỬA        | giữ nguyên      | ký bằng đúng số bản khách đã chốt          |
 
 **Không có hồ sơ báo giá riêng và chưa có hồ sơ hợp đồng riêng.** Dòng ở cả hai
 sổ đều mở về hồ sơ CƠ HỘI — nơi thẻ báo giá và thẻ hợp đồng sống. Hồ sơ hợp đồng

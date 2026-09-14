@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { AuthModule } from '../auth/auth.module'
+import { RolesModule } from '../roles/roles.module'
 import { registerConstraints } from '../http/db-error'
 import { ACTOR_CONSTRAINTS } from './users.constraints'
 import { UsersController } from './users.controller'
@@ -52,7 +53,7 @@ registerConstraints(ACTOR_CONSTRAINTS)
  *  would be handing out the widest capability in the system before anybody has
  *  asked for it. */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, RolesModule],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],
 })

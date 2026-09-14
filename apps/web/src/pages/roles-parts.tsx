@@ -1,8 +1,9 @@
-import { Badge, Button, Checkbox, DataTable, Kicker, MetaPill } from '@pv/ui'
+import { Badge, Button, Checkbox, DataTable, Kicker } from '@pv/ui'
 import type { Permission, RoleId } from '@pv/contracts'
 import { ROLE_LABEL } from '@/data/users'
 import {
   PERMISSION_GROUPS,
+  ROLE_COLUMN_LABEL,
   PERMISSION_LABEL,
   ROLE_IDS,
   SELF_GRANTING_TAG,
@@ -11,7 +12,8 @@ import {
   type RoleDraft,
 } from '@/data/roles'
 
-/** The two faces of Quản trị · Vai trò — the same 27 × 7 matrix, drawn twice.
+/** The two faces of One Core · Admin · Roles — the same 27 x 7 matrix, drawn
+ *  twice.
  *
  *  Split out of `roles.tsx` the way `users-parts.tsx` was split out of
  *  `users.tsx`: the screen file should read as the shape of the screen, not as
@@ -22,11 +24,11 @@ import {
  *  WHY TWO BLOCKS AND NOT ONE RESPONSIVE GRID
  *  ------------------------------------------------------------------
  *  Seven columns of checkboxes stop being readable well before the tablet
- *  width of luật 3: at 1024px each role column is under 90px, the headings
+ *  width of rule 3: at 1024px each role column is under 90px, the headings
  *  wrap to three lines, and a finger covers two cells at once. So under `xl`
  *  the screen asks the question the other way round — pick ONE role, then read
  *  its permissions as a list — and every hit area there is at least 48px
- *  (luật 13). The two are swapped in CSS rather than by a media-query hook:
+ *  (rule 13). The two are swapped in CSS rather than by a media-query hook:
  *  `display:none` takes the hidden half out of the accessibility tree too, so
  *  a screen reader never meets 189 checkboxes twice. */
 
@@ -59,18 +61,27 @@ export type MatrixProps = {
    *  server refuses to strip a permission off it, and a refusal is easier to
    *  read when the column was labelled before the click. */
   meRoleId?: RoleId
+  /** A save is in flight. Ticking during it would be swallowed: the request
+   *  carries the draft as it was when the button was pressed, and the draft is
+   *  cleared when the last role lands — so a box ticked in between disappears
+   *  with nothing to show it ever existed. */
+  saving?: boolean
 }
 
 /** Desktop · the grid. Rows are permissions grouped by resource, columns are
  *  the seven roles, cells are checkboxes. */
-export function RoleMatrix({ grants, onToggle, meRoleId }: MatrixProps) {
+export function RoleMatrix({ grants, onToggle, meRoleId, saving = false }: MatrixProps) {
   return (
     <DataTable
       className="min-w-[1180px]"
       columns={[
         { header: 'Quyền', width: 'minmax(260px,1.7fr)' },
+        /* `ROLE_COLUMN_LABEL`, not `ROLE_LABEL`: a column is 104px and
+           `DataTable` renders headers at the inherited 16px, so the longest
+           role name wraps to three lines and shoves every row down. The full
+           name still shows on the picker, where there is room for it. */
         ...ROLE_IDS.map((id) => ({
-          header: id === meRoleId ? `${ROLE_LABEL[id]} · bạn` : ROLE_LABEL[id],
+          header: id === meRoleId ? `${ROLE_COLUMN_LABEL[id]} · bạn` : ROLE_COLUMN_LABEL[id],
           width: 'minmax(104px,1fr)',
         })),
       ]}
@@ -98,6 +109,7 @@ export function RoleMatrix({ grants, onToggle, meRoleId }: MatrixProps) {
                 label={
                   <span className="sr-only">{`${PERMISSION_LABEL[permission]} — ${ROLE_LABEL[id]}`}</span>
                 }
+                disabled={saving}
                 onChange={(on) => onToggle(id, permission, on)}
               />
             )),
@@ -120,10 +132,18 @@ export type SheetProps = MatrixProps & {
 /** Tablet and phone · one role at a time.
  *
  *  Buttons rather than `Select` or `SegmentedControl` for the picker: both of
- *  those top out at 40px and 32px high, and luật 13 puts the floor at 48. Full
+ *  those top out at 40px and 32px high, and rule 13 puts the floor at 48. Full
  *  width on a phone, two then three columns as the screen grows, so the
  *  longest role name never has to truncate. */
-export function RoleSheet({ grants, roleId, onPick, onToggle, dirty, meRoleId }: SheetProps) {
+export function RoleSheet({
+  grants,
+  roleId,
+  onPick,
+  onToggle,
+  dirty,
+  meRoleId,
+  saving = false,
+}: SheetProps) {
   const row = grants[roleId]
 
   return (
@@ -144,10 +164,15 @@ export function RoleSheet({ grants, roleId, onPick, onToggle, dirty, meRoleId }:
               <span className="min-w-0 truncate">
                 {id === meRoleId ? `${ROLE_LABEL[id]} · bạn` : ROLE_LABEL[id]}
               </span>
+              {/* Plain text in the button's own foreground, NOT a warning
+                  pill. The selected button is solid `--primary`, and amber on
+                  that ground measures 2.91:1 — under the 4.5:1 floor of rule
+                  13 — on the most ordinary path there is, editing the role you
+                  wear. Inheriting `currentColor` clears the floor on both
+                  variants, and the header still carries the full list in
+                  warning tone. */}
               {dirty.includes(id) && (
-                <MetaPill tone="warning" className="shrink-0">
-                  chưa lưu
-                </MetaPill>
+                <span className="shrink-0 text-[11px] font-medium opacity-90">chưa lưu</span>
               )}
             </Button>
           ))}
@@ -174,6 +199,7 @@ export function RoleSheet({ grants, roleId, onPick, onToggle, dirty, meRoleId }:
                   </Badge>
                 ) : undefined
               }
+              disabled={saving}
               onChange={(on) => onToggle(roleId, permission, on)}
             />
           ))}

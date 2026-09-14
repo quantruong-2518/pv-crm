@@ -72,14 +72,14 @@ export { SESSION_LIMITS }
 
 export type AuthStatus =
   /** Chưa biết — đang chờ `/auth/me` trả lời. */
-  | 'khởi-động'
+  | 'booting'
   /** Chắc chắn chưa đăng nhập. */
-  | 'khách'
+  | 'guest'
   /** Đang xác thực — form đã gửi, chưa có kết luận. */
-  | 'đang-vào'
-  | 'đã-vào'
+  | 'signing-in'
+  | 'signed-in'
   /** Biết người là ai, vé không còn hiệu lực. */
-  | 'hết-hạn'
+  | 'expired'
 
 /** Vì sao phiên chết. Màn khoá nói ba câu khác nhau, vì người dùng cần biết
  *  mình vừa mất phiên do bỏ đi pha cà phê hay do hết ca làm việc. */
@@ -146,7 +146,7 @@ export function ticketDeath(ticket: Ticket | null, now: number): ExpiryReason | 
 
 type SessionState = {
   status: AuthStatus
-  /** Còn giữ khi phiên `hết-hạn` — màn khoá cần chào đúng tên và điền sẵn email.
+  /** Còn giữ khi phiên `expired` — màn khoá cần chào đúng tên và điền sẵn email.
    *  Chỉ `signOut`/`clearSession` mới xoá. */
   actor: Actor | null
   ticket: Ticket | null
@@ -214,15 +214,15 @@ const rememberAware: PersistStorage<SessionState> = {
  *  luật quyền bám vào. Không có vai thì không phải một phiên — bắt đăng nhập
  *  lại còn hơn để một người đi tiếp với quyền không ai tra được. */
 function settleLocally(actor: Actor | null, ticket: Ticket | null): Partial<SessionState> {
-  if (!actor?.roleId) return { status: 'khách', actor: null, ticket: null, expiredBy: null }
+  if (!actor?.roleId) return { status: 'guest', actor: null, ticket: null, expiredBy: null }
 
   const death = ticketDeath(ticket, Date.now())
   if (death) {
     /* Vé chết trong lúc app đóng — thường là máy ngủ qua đêm. Vẫn giữ `actor`
        để màn đăng nhập điền sẵn được; xoá vé để không ai dùng lại. */
-    return { status: 'hết-hạn', ticket: null, expiredBy: death }
+    return { status: 'expired', ticket: null, expiredBy: death }
   }
-  return { status: 'đã-vào', expiredBy: null }
+  return { status: 'signed-in', expiredBy: null }
 }
 
 /** Lần hỏi `/auth/me` đang bay. Chống gọi hai lần — xem `bootstrap`. */
@@ -231,7 +231,7 @@ let booting: Promise<void> | null = null
 export const useSession = create<SessionState>()(
   persist(
     (set, get) => ({
-      status: 'khởi-động',
+      status: 'booting',
       actor: null,
       ticket: null,
       remember: false,
@@ -239,7 +239,7 @@ export const useSession = create<SessionState>()(
 
       /** Ai đang đăng nhập — hỏi MÁY CHỦ, và đó là lý do hàm này bất đồng bộ.
        *
-       *  `'khởi-động'` tồn tại đúng cho cửa sổ này: từ lúc app có mặt tới lúc
+       *  `'booting'` tồn tại đúng cho cửa sổ này: từ lúc app có mặt tới lúc
        *  `/auth/me` trả lời, câu trả lời chưa có, và guard phải ĐỢI chứ không
        *  được đoán. Đoán "chưa đăng nhập" thì mỗi lần F5 ở trang trong là một
        *  cú nhảy về màn đăng nhập rồi quay lại — với một vòng mạng thật, cú nháy
@@ -267,12 +267,12 @@ export const useSession = create<SessionState>()(
        *  ------------------------------------------------------------------
        *  Hàm này được treo ở `onRehydrateStorage`, và `lifecycle.ts` gọi lại nó
        *  một lần nữa làm lưới an toàn (nếu móc kia không chạy thì `status` kẹt ở
-       *  'khởi-động' và cả app là một màn trắng, không lỗi, không log). Hai lời
+       *  'booting' và cả app là một màn trắng, không lỗi, không log). Hai lời
        *  gọi đó xảy ra trong cùng một nhịp, nên `booting` gộp chúng thành đúng
        *  một vòng `/auth/me`.
        *
        *  `persist.rehydrate()` của đồng bộ đa tab cũng chạy lại móc đó, nhưng
-       *  lúc ấy `status` đã rời 'khởi-động' — và đó là một câu hỏi khác hẳn:
+       *  lúc ấy `status` đã rời 'booting' — và đó là một câu hỏi khác hẳn:
        *  tab kia vừa đăng nhập hoặc vừa gia hạn, kho đã có câu trả lời mới, và
        *  hỏi `/auth/me` một lần cho mỗi tab đang mở là một cơn mưa request cho
        *  một sự thật đã biết. Nhánh đó kết luận tại chỗ. */
@@ -280,7 +280,7 @@ export const useSession = create<SessionState>()(
         if (booting) return booting
 
         const { status, actor, ticket } = get()
-        if (status !== 'khởi-động') {
+        if (status !== 'booting') {
           set(settleLocally(actor, ticket))
           return Promise.resolve()
         }
@@ -289,7 +289,7 @@ export const useSession = create<SessionState>()(
           .then((probe) => {
             if (probe.state === 'signed-in') {
               set({
-                status: 'đã-vào',
+                status: 'signed-in',
                 actor: probe.actor,
                 ticket: ticketOf(probe.session),
                 /* Đọc lại ô "Ghi nhớ đăng nhập" từ chính cửa sổ máy chủ trả về thay vì tin
@@ -305,7 +305,7 @@ export const useSession = create<SessionState>()(
             }
             if (probe.state === 'guest') {
               set({
-                status: 'khách',
+                status: 'guest',
                 actor: null,
                 ticket: null,
                 expiredBy: null,
@@ -316,7 +316,7 @@ export const useSession = create<SessionState>()(
           })
           .catch(() => {
             /* Không được để sót một lời hứa vỡ ở đây. `status` chỉ thoát khỏi
-               'khởi-động' trong thân `then` ở trên; ném ra ngoài là kẹt vĩnh
+               'booting' trong thân `then` ở trên; ném ra ngoài là kẹt vĩnh
                viễn, và guard đợi mãi — cả app thành một màn trắng không lỗi,
                không log, loại hỏng tốn hàng giờ để tìm. */
             set(settleLocally(get().actor, get().ticket))
@@ -328,13 +328,13 @@ export const useSession = create<SessionState>()(
         return booting
       },
 
-      beginSignIn: () => set({ status: 'đang-vào' }),
+      beginSignIn: () => set({ status: 'signing-in' }),
 
       signIn: (actor, opts) => {
         const remember = opts.remember ?? get().remember
         access.log({ actorId: actor.id, action: 'view', note: 'đăng nhập' })
         set({
-          status: 'đã-vào',
+          status: 'signed-in',
           actor,
           /* Vé là bản sao cửa sổ máy chủ vừa đóng dấu, KHÔNG phải thứ màn tự
              tính. Tự tính thì hai bên đếm bằng hai đồng hồ và cái đếm ngược sẽ
@@ -355,20 +355,20 @@ export const useSession = create<SessionState>()(
         /* Chỉ gia hạn phiên ĐANG SỐNG. Chạm màn khi phiên đã chết không được
            hồi sinh nó — nếu được thì cái mốc ngồi không chẳng chặn được ai:
            người dùng quay lại sau hai tiếng, chạm chuột, và phiên tự sống dậy. */
-        if (status !== 'đã-vào' || !ticket || ticket.idleUntil === null) return
+        if (status !== 'signed-in' || !ticket || ticket.idleUntil === null) return
         set({ ticket: { ...ticket, idleUntil: now + SESSION_LIMITS.idle } })
       },
 
       expire: (reason) => {
         const { status, actor } = get()
-        if (status !== 'đã-vào' && status !== 'đang-vào') return
+        if (status !== 'signed-in' && status !== 'signing-in') return
         if (actor) {
           access.log({ actorId: actor.id, action: 'view', note: `phiên hết hạn · ${reason}` })
         }
         /* `expiredBy` sống tiếp sau khi vé chết, và đó là toàn bộ việc của nó:
            `RequireAccess` chuyển nó sang màn đăng nhập để màn ấy nói đúng vì sao
            người dùng vừa bị đá ra — ngồi không, hết ca, hay bị thu hồi. */
-        set({ status: 'hết-hạn', ticket: null, expiredBy: reason })
+        set({ status: 'expired', ticket: null, expiredBy: reason })
       },
 
       /* Dọn CẢ HAI kho, không chỉ kho đang dùng — `removeItem` của
@@ -377,11 +377,11 @@ export const useSession = create<SessionState>()(
 
          Cửa NỘI BỘ: không nói gì với máy chủ. Dùng cho hai chỗ mà một lời gọi
          `/auth/sign-out` sẽ là sai — tab này đang áp lệnh đăng xuất của tab kia
-         (tab kia đã gọi rồi), và màn đăng nhập gỡ máy trạng thái khỏi 'đang-vào'
+         (tab kia đã gọi rồi), và màn đăng nhập gỡ máy trạng thái khỏi 'signing-in'
          sau một lần gõ sai mật khẩu (chưa từng có phiên nào để đóng). */
       clearSession: () =>
         set({
-          status: 'khách',
+          status: 'guest',
           actor: null,
           ticket: null,
           expiredBy: null,
@@ -392,7 +392,7 @@ export const useSession = create<SessionState>()(
        *  Thứ tự đó là cố ý, và ngược với thứ tự trực giác. `guard.tsx` và
        *  `chrome.tsx` gọi `signOut()` rồi `navigate('/dang-nhap')` ngay dòng
        *  sau, không đợi. Đóng ở máy chủ trước thì suốt vòng mạng ấy `status` vẫn
-       *  là 'đã-vào', và màn đăng nhập có đúng một luật cho trường hợp đó: đã có
+       *  là 'signed-in', và màn đăng nhập có đúng một luật cho trường hợp đó: đã có
        *  phiên thì đi tiếp. Người dùng bấm "Đăng xuất", bị ném ngược vào app vài
        *  trăm mili giây, rồi mới bị đá ra — trông y như một cú bấm nhầm.
        *
@@ -421,7 +421,7 @@ export const useSession = create<SessionState>()(
       version: 3,
       migrate: () => ({ actor: null, ticket: null, remember: false }) as SessionState,
       /* `status` KHÔNG được lưu: nó là kết luận, và kết luận phải tính lại mỗi
-         lần mở app — nay là tính lại từ `/auth/me`. Lưu 'đã-vào' vào kho là tự
+         lần mở app — nay là tính lại từ `/auth/me`. Lưu 'signed-in' vào kho là tự
          cho mình một phiên hợp lệ chỉ bằng cách sửa localStorage. */
       partialize: (s) =>
         ({ actor: s.actor, ticket: s.ticket, remember: s.remember }) as SessionState,

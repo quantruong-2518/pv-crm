@@ -95,7 +95,10 @@ export class RolePermissionRepository {
     permissions: readonly Permission[],
   ): Promise<void> {
     if (grants.length > 0) {
-      await tx.insert(rolePermission).values([...grants]).onConflictDoNothing()
+      await tx
+        .insert(rolePermission)
+        .values([...grants])
+        .onConflictDoNothing()
     }
     if (permissions.length > 0) {
       await tx
@@ -134,9 +137,7 @@ export class RolePermissionRepository {
   /** Count of grants, for the boot log. `sql` and not `rows.length`: counting
    *  in Node means shipping every row across the wire to throw them away. */
   async grantCount(tx: Db = this.db): Promise<number> {
-    const [row] = await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(rolePermission)
+    const [row] = await tx.select({ n: sql<number>`count(*)::int` }).from(rolePermission)
     return row?.n ?? 0
   }
 }

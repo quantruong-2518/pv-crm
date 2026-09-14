@@ -30,13 +30,13 @@ import {
 } from '@/data/roles'
 import { RoleMatrix, RoleSheet } from './roles-parts'
 
-/** One Core · Quản trị · Vai trò — the matrix that decides what every role may
+/** One Core · Admin · Roles — the matrix that decides what every role may
  *  do, which stopped being a compile-time constant on 14/09.
  *
  *  ------------------------------------------------------------------
  *  NO CONTEXTRAIL — THE SAME EXCEPTION THE PEOPLE BOOK TOOK
  *  ------------------------------------------------------------------
- *  Luật 10 asks for a rail of mono object codes on every screen. A role holds
+ *  Rule 10 asks for a rail of mono object codes on every screen. A role holds
  *  no object code and sits on no chain, so `E1.story()` has nothing to build
  *  from — see the longer version of this argument in `users.tsx`. Do not fix
  *  it by inventing a code for a role to print.
@@ -80,7 +80,7 @@ export function RolesPage() {
 
   /* `null` means "nothing edited yet" rather than a copy of `server`, so a
      refetch after a save flows straight through to the screen. Clearing it is
-     therefore both what "Hoàn tác" does and what a completed save does. */
+     therefore both what the undo button does and what a completed save does. */
   const [edited, setEdited] = useState<RoleDraft | null>(null)
   const grants = edited ?? server
 
@@ -107,16 +107,24 @@ export function RolesPage() {
     if (!grants || save.isPending) return
     setFailure('')
 
+    let saved = 0
     for (const roleId of dirty) {
       try {
         await save.mutateAsync({ roleId, permissions: grants[roleId] })
+        saved++
       } catch (refusal) {
         /* The server's own sentence, not a replacement: a 409 here says either
            "you cannot take this off your own role" or "somebody has to keep
-           this permission", and only the server knows which. */
-        setFailure(
-          isApiError(refusal) ? userMessage(refusal) : 'Không ghi được bảng quyền. Thử lại.',
-        )
+           this permission", and only the server knows which.
+
+           Prefixed by what DID land. The loop commits role by role, so a
+           refusal on the third one leaves the first two stored; a message
+           carrying only the refusal reads as "nothing was saved", and the next
+           thing the reader does is redo work the server already accepted. */
+        const said = isApiError(refusal)
+          ? userMessage(refusal)
+          : 'Không ghi được bảng quyền. Thử lại.'
+        setFailure(saved > 0 ? `Đã lưu ${saved} vai. ${said}` : said)
         return
       }
     }
@@ -138,21 +146,37 @@ export function RolesPage() {
           kicker="One Core · Quản trị"
           title="Vai trò"
           description={<span className="tnum">{summary}</span>}
+          /* BOTH, never one instead of the other. A refusal that replaced the
+             unsaved list left the reader with a sentence about one role and no
+             sign that the others are still pending — the docblock above
+             promised "beside", and a ternary delivered "instead". */
           meta={
-            failure ? (
-              <span role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-                {failure}
+            failure || dirty.length > 0 ? (
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {failure ? (
+                  <span
+                    role="alert"
+                    className="text-destructive-foreground text-[11.5px] leading-[1.5]"
+                  >
+                    {failure}
+                  </span>
+                ) : null}
+                {dirty.length > 0 ? (
+                  <MetaPill tone="warning">
+                    Chưa lưu: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
+                  </MetaPill>
+                ) : null}
               </span>
-            ) : dirty.length > 0 ? (
-              <MetaPill tone="warning">
-                Chưa lưu: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
-              </MetaPill>
             ) : undefined
           }
           actions={
             <>
+              {/* `lg` (48px) and not `md`, at every width: rule 13 puts the
+                  touch floor at 48px on tablet, and these two are the actions
+                  the screen exists for. The role picker already made this
+                  choice for the same reason. */}
               <Button
-                size="md"
+                size="lg"
                 variant="ghost"
                 type="button"
                 disabled={dirty.length === 0 || save.isPending}
@@ -165,7 +189,7 @@ export function RolesPage() {
                 Hoàn tác
               </Button>
               <Button
-                size="md"
+                size="lg"
                 type="button"
                 disabled={dirty.length === 0 || save.isPending}
                 onClick={() => void saveDirty()}
@@ -177,7 +201,7 @@ export function RolesPage() {
           }
         />
 
-        {/* Luật 8 — the grid is a long table, so it sits on glass-b and the
+        {/* Rule 8 — the grid is a long table, so it sits on glass-b and the
             card draws the surface the table refuses to draw for itself. */}
         <GlassCard variant="b" className="overflow-hidden">
           <div className="p-4 lg:p-5">
@@ -202,7 +226,12 @@ export function RolesPage() {
             ) : (
               <>
                 <div className="hidden overflow-x-auto xl:block">
-                  <RoleMatrix grants={grants} onToggle={toggle} meRoleId={me?.roleId} />
+                  <RoleMatrix
+                    grants={grants}
+                    onToggle={toggle}
+                    meRoleId={me?.roleId}
+                    saving={save.isPending}
+                  />
                 </div>
                 <div className="xl:hidden">
                   <RoleSheet
@@ -212,6 +241,7 @@ export function RolesPage() {
                     onPick={setPicked}
                     onToggle={toggle}
                     meRoleId={me?.roleId}
+                    saving={save.isPending}
                   />
                 </div>
               </>

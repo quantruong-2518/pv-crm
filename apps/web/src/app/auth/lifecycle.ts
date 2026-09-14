@@ -81,7 +81,7 @@ export function startAuthLifecycle(): () => void {
     useExpiryWarning.setState({ deadline: null })
 
     const { status, ticket } = useSession.getState()
-    if (status !== 'đã-vào' || !ticket) return
+    if (status !== 'signed-in' || !ticket) return
 
     const at = nextDeath(ticket)
     const now = Date.now()
@@ -100,7 +100,7 @@ export function startAuthLifecycle(): () => void {
    *  chết chắc chắn rồi. */
   const checkNow = () => {
     const { status, ticket, expire } = useSession.getState()
-    if (status !== 'đã-vào') return
+    if (status !== 'signed-in') return
     const death = ticketDeath(ticket, Date.now())
     if (death) expire(death)
   }
@@ -170,16 +170,16 @@ export function startAuthLifecycle(): () => void {
   const unsubscribe = useSession.subscribe((now, before) => {
     if (now.status !== before.status || now.ticket !== before.ticket) rearm()
 
-    if (before.status === 'đã-vào' && now.status === 'khách') send({ kiểu: 'ra' })
-    else if (now.status === 'đã-vào' && before.status !== 'đã-vào') send({ kiểu: 'đổi' })
+    if (before.status === 'signed-in' && now.status === 'guest') send({ kiểu: 'ra' })
+    else if (now.status === 'signed-in' && before.status !== 'signed-in') send({ kiểu: 'đổi' })
   })
 
-  /** Lưới an toàn cho `khởi-động`.
+  /** Lưới an toàn cho `booting`.
    *
    *  Trạng thái đầu tiên chỉ thoát ra nhờ `bootstrap`, và `bootstrap` được treo
    *  vào `onRehydrateStorage`. Nếu vì lý do gì móc đó không chạy — kho đổi sang
    *  bất đồng bộ, hoặc một bản zustand sau đổi thứ tự gọi — thì `status` kẹt ở
-   *  'khởi-động' và guard đợi mãi: cả app là một màn trắng, không lỗi, không
+   *  'booting' và guard đợi mãi: cả app là một màn trắng, không lỗi, không
    *  log. Hỏng kiểu đó tốn hàng giờ để tìm, nên đây là ba dòng đáng giá.
    *
    *  Gọi hai lần vẫn vô hại, dù `bootstrap` nay là một vòng mạng: nó tự gộp

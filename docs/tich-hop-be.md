@@ -51,13 +51,13 @@ tên sang tiếng Anh là `drizzle/0025_role_id_english.sql`.
 Bảy actor có sẵn để thử (mật khẩu nạp bằng `pnpm db:seed:accounts`, không nằm
 trong repo):
 
-| id                            | Email                  | Vai           | Phạm vi                                   |
-| ----------------------------- | ---------------------- | ------------- | ----------------------------------------- |
-| `u-ha`                        | `sales@pebblevina.com` | head-of-sales | cả sổ · mọi quyền Sales · quản lý người   |
-| `u-nam`                       | `nam@pebblevina.com`   | bd            | cả sổ                                     |
+| id                            | Email                  | Vai           | Phạm vi                                     |
+| ----------------------------- | ---------------------- | ------------- | ------------------------------------------- |
+| `u-ha`                        | `sales@pebblevina.com` | head-of-sales | cả sổ · mọi quyền Sales · quản lý người     |
+| `u-nam`                       | `nam@pebblevina.com`   | bd            | cả sổ                                       |
 | `u-chau`                      | `chau@pebblevina.com`  | marketing     | cả sổ · không `lead.assign/chuyển-đổi/loại` |
-| `u-anh`                       | `anh@pebblevina.com`   | presales      | cả sổ · chỉ đọc lead                      |
-| `u-huy` · `u-binh` · `u-linh` | `<tên>@pebblevina.com` | sale          | **chỉ lead của mình**                     |
+| `u-anh`                       | `anh@pebblevina.com`   | presales      | cả sổ · chỉ đọc lead                        |
+| `u-huy` · `u-binh` · `u-linh` | `<tên>@pebblevina.com` | sale          | **chỉ lead của mình**                       |
 
 `sales@` là hòm thư CHỨC DANH, không phải tên riêng — người đổi thì chức danh
 không đổi. Đó là ngoại lệ duy nhất của luật đặt hòm thư, và `actors.test.ts`
@@ -127,18 +127,18 @@ Lỗi tầng bảng đã được dịch sẵn, **không trả 500 nữa**:
 
 ## Endpoint đang chạy
 
-| Đường                              | Quyền                        | Ghi chú                                        |
-| ---------------------------------- | ---------------------------- | ---------------------------------------------- |
-| `GET /healthz`                     | công khai                    | `{ status, db }`                               |
+| Đường                              | Quyền                         | Ghi chú                                        |
+| ---------------------------------- | ----------------------------- | ---------------------------------------------- |
+| `GET /healthz`                     | công khai                     | `{ status, db }`                               |
 | `GET /sales/leads`                 | `lead.view` · **cắt phạm vi** | sổ, lọc + phân trang **ở server**              |
 | `GET /sales/leads/:code`           | `lead.view` · **cắt phạm vi** | hồ sơ một lead — ngoài phạm vi là **403**      |
 | `POST /sales/leads`                | `lead.edit`                   | nhập tay → `source_kind = MANUAL`              |
 | `POST /sales/leads/import/preview` | `lead.edit`                   | chạy khô, **không ghi gì**                     |
 | `POST /sales/leads/import`         | `lead.edit`                   | chốt lô → `source_kind = IMPORT`               |
-| `POST /sales/leads/intake`         | công khai · có rate limit    | landing page → `source_kind = LANDING_PAGE`    |
-| `GET /sales/config`                | `config.view`               | 6 danh mục, gọi **một lần** rồi cache          |
-| `GET /sales/config/:list`          | `config.view`               |                                                |
-| `POST · PATCH /sales/config/…`     | `config.propose`           | **→ E3 duyệt · hôm nay trả 500, cửa chưa nối** |
+| `POST /sales/leads/intake`         | công khai · có rate limit     | landing page → `source_kind = LANDING_PAGE`    |
+| `GET /sales/config`                | `config.view`                 | 6 danh mục, gọi **một lần** rồi cache          |
+| `GET /sales/config/:list`          | `config.view`                 |                                                |
+| `POST · PATCH /sales/config/…`     | `config.propose`              | **→ E3 duyệt · hôm nay trả 500, cửa chưa nối** |
 
 ### `GET /sales/leads`
 

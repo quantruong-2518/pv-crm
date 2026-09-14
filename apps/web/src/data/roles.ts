@@ -3,7 +3,7 @@ import { Permission, RoleId } from '@pv/contracts'
 import type { RoleGrants, RoleGrantsPatch, RoleMatrixView } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 
-/** Quản trị · Vai trò — the two doors of `platform.role_permission`.
+/** One Core · Admin · Roles — the two doors of `platform.role_permission`.
  *
  *  ------------------------------------------------------------------
  *  ONE PERMISSION, NO BRANCH — THE SAME DECISION THE PEOPLE BOOK MADE
@@ -18,16 +18,11 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  why there is no separate "read the matrix" gate — splitting read from write
  *  would build a door whose far side is the whole matrix anyway.
  *
- *  ------------------------------------------------------------------
- *  THE SERVER OWNS BOTH REFUSALS, AND THE SCREEN PRINTS THEM VERBATIM
- *  ------------------------------------------------------------------
- *  Two rules guard a save: nobody strips a permission off the role they are
- *  currently wearing, and the system never runs out of people holding
- *  `user.manage` / `role.manage`. Both are answered with a 409 carrying a full
- *  Vietnamese `title`, and `userMessage` already prints that sentence as-is.
- *  Do NOT re-implement either check here: a browser-side copy would have to
- *  know how many OTHER accounts hold a permission, which is a fact this screen
- *  never loads. */
+ *  The two save refusals belong to the server and are printed verbatim —
+ *  the argument is in `pages/roles.tsx`, which is where the printing happens.
+ *  Do NOT re-implement either check here: a browser-side copy would need to
+ *  know how many OTHER accounts hold a permission, a fact this screen never
+ *  loads. */
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -106,10 +101,11 @@ export const RESOURCE_LABEL = {
 
 /** What each permission lets a person DO, in the words a sales manager uses.
  *
- *  Not a translation of the key: "campaign.broadcast" is "bắn chiến dịch ra
- *  ngoài", because the thing being granted is irreversible mail leaving the
- *  company, and "gửi chiến dịch" hides that. The key itself stays on screen
- *  under every label, so nobody has to trust the gloss.
+ *  Not a translation of the key. What `campaign.broadcast` grants is
+ *  irreversible mail leaving the company, so the label says it is fired
+ *  OUTWARDS; a neutral "send" would hide the part that cannot be undone. The
+ *  key itself stays on screen under every label, so nobody trusts the gloss
+ *  alone.
  *
  *  `satisfies Record<Permission, string>` — a permission added to the contract
  *  without a label here is a red build, not a blank row in the matrix. */
@@ -148,9 +144,30 @@ export const PERMISSION_LABEL = {
 export const ROLE_IDS = RoleId.options
 
 /** Which role the sheet opens on when the reader's own is unavailable — only
- *  while a session is being torn down. Spelled out rather than read as
- *  `ROLE_IDS[0]`, which `noUncheckedIndexedAccess` widens to `undefined`. */
-export const FIRST_ROLE: RoleId = 'director'
+ *  while a session is being torn down.
+ *
+ *  Read off `ROLE_IDS` rather than written out, so it follows the contract's
+ *  order instead of being a second copy of it: a literal `'director'` stays a
+ *  valid `RoleId` after somebody reorders the enum, so nothing would catch it
+ *  drifting. The `??` is there only because `noUncheckedIndexedAccess` widens
+ *  an index read to `undefined`; the array is never empty. */
+export const FIRST_ROLE: RoleId = ROLE_IDS[0] ?? 'director'
+
+/** Role names cut to fit a 104px matrix column.
+ *
+ *  A SECOND label table, and the one place that is worth it: the grid header
+ *  and the picker have nothing in common but the word. `satisfies` keeps it
+ *  honest — a role added to the contract without a short name is a red build,
+ *  not a column headed `undefined`. */
+export const ROLE_COLUMN_LABEL = {
+  director: 'Giám đốc',
+  'head-of-sales': 'TP Kinh doanh',
+  marketing: 'Marketing',
+  bd: 'BD',
+  presales: 'Presales',
+  sale: 'Sale',
+  'account-executive': 'AE',
+} as const satisfies Record<RoleId, string>
 
 export type PermissionGroup = {
   resource: Resource

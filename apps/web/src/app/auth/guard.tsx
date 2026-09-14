@@ -21,13 +21,13 @@ import { access, useSession } from './session'
  *  ------------------------------------------------------------------
  *  | Phiên        | Làm gì                                                   |
  *  |--------------|----------------------------------------------------------|
- *  | `khởi-động`  | ĐỢI. Không đá đi đâu — xem lý do ngay dưới               |
- *  | `khách`      | về màn đăng nhập, nhớ đường đang định vào                |
- *  | `hết-hạn`    | về màn đăng nhập, kèm LÝ DO và đường quay lại            |
- *  | `đang-vào`   | như `khách` — form đang bay, chưa có kết luận            |
- *  | `đã-vào`     | hỏi E2; không qua thì hiện đúng câu, KHÔNG đá đi         |
+ *  | `booting`  | ĐỢI. Không đá đi đâu — xem lý do ngay dưới               |
+ *  | `guest`      | về màn đăng nhập, nhớ đường đang định vào                |
+ *  | `expired`    | về màn đăng nhập, kèm LÝ DO và đường quay lại            |
+ *  | `signing-in`   | như `guest` — form đang bay, chưa có kết luận            |
+ *  | `signed-in`     | hỏi E2; không qua thì hiện đúng câu, KHÔNG đá đi         |
  *
- *  **Vì sao `khởi-động` phải đợi.** Lúc app vừa mở, câu trả lời cho "ai đang
+ *  **Vì sao `booting` phải đợi.** Lúc app vừa mở, câu trả lời cho "ai đang
  *  đăng nhập" chưa có. Coi "chưa biết" là "chưa đăng nhập" thì mỗi lần F5 ở một
  *  trang trong, người dùng bị ném về màn đăng nhập rồi mới quay lại — và với
  *  backend thật (một vòng `/me`) thì cú nháy đó dài đủ để họ kịp bấm nhầm.
@@ -67,7 +67,7 @@ export function RequireAccess({
   const denied = verdict.ok ? null : verdict.reason
 
   useEffect(() => {
-    if (status !== 'đã-vào' || !actor || !denied) return
+    if (status !== 'signed-in' || !actor || !denied) return
     access.log({
       actorId: actor.id,
       action: 'view',
@@ -77,9 +77,9 @@ export function RequireAccess({
 
   /* Đợi, và đợi bằng đúng khung mà `Suspense` của route dùng — nhấp nháy giữa
      hai khung trống khác nhau cũng là nhấp nháy. */
-  if (status === 'khởi-động') return <AuroraField>{null}</AuroraField>
+  if (status === 'booting') return <AuroraField>{null}</AuroraField>
 
-  if (status !== 'đã-vào' || !actor) {
+  if (status !== 'signed-in' || !actor) {
     return (
       <Navigate
         to="/dang-nhap"
@@ -90,8 +90,8 @@ export function RequireAccess({
            questions — "did a session just die" and "of what". */
         state={{
           from: location.pathname + location.search,
-          expired: status === 'hết-hạn',
-          reason: status === 'hết-hạn' ? expiredBy : undefined,
+          expired: status === 'expired',
+          reason: status === 'expired' ? expiredBy : undefined,
         }}
       />
     )

@@ -70,8 +70,8 @@ export function renewSession(): Promise<boolean> {
  *
  *  Hỏi bằng đồng hồ THẬT chứ không tin `status` trong store: hẹn giờ của
  *  `lifecycle` có thể chưa bắn (máy vừa ngủ dậy), và trong khoảng đó `status`
- *  vẫn nói 'đã-vào' trong khi vé đã chết từ lâu. */
+ *  vẫn nói 'signed-in' trong khi vé đã chết từ lâu. */
 export function sessionIsLive(): boolean {
   const { status, ticket } = useSession.getState()
-  return status === 'đã-vào' && ticketDeath(ticket, Date.now()) === null
+  return status === 'signed-in' && ticketDeath(ticket, Date.now()) === null
 }

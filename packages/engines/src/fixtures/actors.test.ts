@@ -170,24 +170,26 @@ describe('Ma trận vai → quyền', () => {
 
     expect(access.allows(huy, 'opportunity.close')).toBe(true)
     if (mine)
-      expect(access.check(huy, { ref: mine, permission: 'opportunity.close' })).toEqual({ ok: true })
+      expect(access.check(huy, { ref: mine, permission: 'opportunity.close' })).toEqual({
+        ok: true,
+      })
     if (theirs) {
       expect(access.check(huy, { ref: theirs, permission: 'opportunity.close' })).toMatchObject({
         ok: false,
-        reason: 'ngoài-phạm-vi',
+        reason: 'out-of-scope',
       })
     }
   })
 
-  it('thiếu license báo `thiếu-nhánh`, không báo thiếu quyền', () => {
+  it('thiếu license báo `branch-not-licensed`, không báo thiếu quyền', () => {
     const ha = roleOf('u-ha')
     expect(access.check(ha, { branch: 'Factory' })).toMatchObject({
       ok: false,
-      reason: 'thiếu-nhánh',
+      reason: 'branch-not-licensed',
     })
     expect(access.check(null, { branch: 'Sales' })).toMatchObject({
       ok: false,
-      reason: 'chưa-đăng-nhập',
+      reason: 'unauthenticated',
     })
   })
 })

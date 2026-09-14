@@ -36,12 +36,12 @@ export const queryClient = new QueryClient({
  *
  *  Hai cửa, và CHỈ hai: đăng xuất, và đăng nhập bằng người khác.
  *
- *  Phiên `hết-hạn` cố tình KHÔNG dọn. Lớp khoá giữ màn cũ nằm nguyên phía sau
+ *  Phiên `expired` cố tình KHÔNG dọn. Lớp khoá giữ màn cũ nằm nguyên phía sau
  *  để người dùng vào lại là làm tiếp (`app/auth/expiry.tsx`); dọn cache ở đây
  *  thì họ vào lại và thấy một màn trắng đang tải — tức là mất đúng thứ lớp khoá
  *  sinh ra để giữ. Đổi lại, dữ liệu cũ còn trong bộ nhớ sau lớp mờ; ai cần dọn
  *  thật thì bấm "Đăng xuất", và đường đó đi qua đúng nhánh đầu tiên dưới đây. */
 useSession.subscribe((now, before) => {
-  if (before.status === 'đã-vào' && now.status === 'khách') queryClient.clear()
+  if (before.status === 'signed-in' && now.status === 'guest') queryClient.clear()
   else if (now.actor && before.actor && now.actor.id !== before.actor.id) queryClient.clear()
 })

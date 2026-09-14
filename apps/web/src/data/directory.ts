@@ -1,8 +1,15 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
-import type { Actor } from '@pv/engines'
+import type { Actor, Permission } from '@pv/engines'
 import type { DirectoryResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { toActor } from '@/data/auth'
+
+/** A roster entry is a PERSON, never the caller, so it carries no permission
+ *  set — the wire sends one only for the signed-in session. Empty here is a
+ *  statement, not a gap: should a roster actor ever reach E2 by mistake, every
+ *  check denies. That is the direction E2 itself chooses when something is
+ *  missing, and the opposite of what a permissive default would do. */
+const NOT_THE_CALLER: readonly Permission[] = []
 
 /** AI LÀM Ở ĐÂY — `GET /users/directory`, sổ người dùng chung của mọi màn.
  *
@@ -54,7 +61,7 @@ export const directoryQuery = queryOptions({
   queryFn: ({ signal }) =>
     api
       .read<DirectoryResponse>('/users/directory', { need: DIRECTORY_NEED, signal })
-      .then((r) => r.rows.map(toActor)),
+      .then((r) => r.rows.map((row) => toActor(row, NOT_THE_CALLER))),
 })
 
 /** Sổ người cho một component. Rỗng trong lúc còn đang tải.

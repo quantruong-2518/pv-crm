@@ -289,10 +289,7 @@ function permissionFor(action: Action, ref: ObjectRef): Permission | null {
  *  nhập vì họ thiếu quyền là nói dối họ về nguyên nhân, và họ sẽ đăng nhập lại
  *  vòng vo mà không bao giờ vào được. */
 export type DenyReason =
-  | 'unauthenticated'
-  | 'branch-not-licensed'
-  | 'permission-denied'
-  | 'out-of-scope'
+  'unauthenticated' | 'branch-not-licensed' | 'permission-denied' | 'out-of-scope'
 
 export type Verdict = { ok: true } | { ok: false; reason: DenyReason; note: string }
 

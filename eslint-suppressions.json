@@ -51,7 +51,7 @@
   },
   "apps/api/src/branches/sales/campaign/mas.repository.ts": {
     "aurora/comments-in-english": {
-      "count": 3
+      "count": 2
     }
   },
   "apps/api/src/branches/sales/campaign/mas.service.ts": {
@@ -361,7 +361,7 @@
   },
   "apps/api/src/platform/auth/auth.service.ts": {
     "aurora/comments-in-english": {
-      "count": 3
+      "count": 1
     }
   },
   "apps/api/src/platform/auth/cookie.ts": {
@@ -514,11 +514,6 @@
       "count": 1
     }
   },
-  "apps/api/src/platform/users/users.controller.ts": {
-    "aurora/comments-in-english": {
-      "count": 1
-    }
-  },
   "apps/api/src/platform/users/users.mapper.ts": {
     "aurora/comments-in-english": {
       "count": 2
@@ -531,7 +526,7 @@
   },
   "apps/api/src/platform/users/users.service.ts": {
     "aurora/comments-in-english": {
-      "count": 11
+      "count": 7
     }
   },
   "apps/api/src/seed-accounts.ts": {
@@ -571,12 +566,12 @@
   },
   "apps/web/src/app/auth/expiry.tsx": {
     "aurora/comments-in-english": {
-      "count": 9
+      "count": 4
     }
   },
   "apps/web/src/app/auth/guard.tsx": {
     "aurora/comments-in-english": {
-      "count": 8
+      "count": 7
     }
   },
   "apps/web/src/app/auth/index.ts": {
@@ -596,7 +591,7 @@
   },
   "apps/web/src/app/auth/session.ts": {
     "aurora/comments-in-english": {
-      "count": 34
+      "count": 33
     }
   },
   "apps/web/src/app/chrome.tsx": {
@@ -726,7 +721,7 @@
   },
   "apps/web/src/data/lead-create.ts": {
     "aurora/comments-in-english": {
-      "count": 7
+      "count": 5
     }
   },
   "apps/web/src/data/lead-form.ts": {
@@ -735,11 +730,6 @@
     }
   },
   "apps/web/src/data/lead-import-wire.ts": {
-    "aurora/comments-in-english": {
-      "count": 1
-    }
-  },
-  "apps/web/src/data/lead-import.ts": {
     "aurora/comments-in-english": {
       "count": 1
     }
@@ -766,7 +756,7 @@
   },
   "apps/web/src/data/mas.ts": {
     "aurora/comments-in-english": {
-      "count": 8
+      "count": 7
     }
   },
   "apps/web/src/data/meetings.ts": {
@@ -791,7 +781,7 @@
   },
   "apps/web/src/data/opportunity-import.ts": {
     "aurora/comments-in-english": {
-      "count": 2
+      "count": 1
     }
   },
   "apps/web/src/data/performance.ts": {
@@ -1020,7 +1010,7 @@
   },
   "packages/contracts/src/auth.ts": {
     "aurora/comments-in-english": {
-      "count": 4
+      "count": 3
     }
   },
   "packages/contracts/src/index.ts": {
@@ -1060,12 +1050,12 @@
   },
   "packages/contracts/src/sales/contact.ts": {
     "aurora/comments-in-english": {
-      "count": 2
+      "count": 1
     }
   },
   "packages/contracts/src/sales/contract.ts": {
     "aurora/comments-in-english": {
-      "count": 2
+      "count": 1
     }
   },
   "packages/contracts/src/sales/currency.ts": {
@@ -1093,14 +1083,9 @@
       "count": 11
     }
   },
-  "packages/contracts/src/sales/meeting.ts": {
-    "aurora/comments-in-english": {
-      "count": 1
-    }
-  },
   "packages/contracts/src/sales/opportunity.ts": {
     "aurora/comments-in-english": {
-      "count": 7
+      "count": 6
     }
   },
   "packages/contracts/src/sales/touch.ts": {
@@ -1115,7 +1100,7 @@
   },
   "packages/engines/src/e2-access.ts": {
     "aurora/comments-in-english": {
-      "count": 33
+      "count": 29
     }
   },
   "packages/engines/src/e3-approvals.ts": {

@@ -1,15 +1,11 @@
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { RoleId as EngineRoleId } from '@pv/engines'
 import type { AuditEntry } from '../audit/audit.repository'
+import { lockAdminSurface } from '../db/admin-surface'
 import { DB, type Db } from '../db/db.module'
 import { actor, audit, type ActorRow } from '../db/platform.schema'
 import type { ActorColumns, ActorDraft } from './users.mapper'
-
-/** This table's own advisory-lock space. The number means nothing; it only has
- *  to be fixed and not collide with another table's — `SalesConfigRepository`
- *  holds 61_001 for the same reason. */
-const LOCK_SPACE = 61_002
 
 /** SQL for the people book. Decides NOTHING.
  *
@@ -71,8 +67,13 @@ export class UsersRepository {
    *
    *  The price is that edits to `platform.actor` serialise. That is a staff
    *  book edited by hand a few times a week; there is nothing here to scale. */
+  /** Shared with `RolesService` since 14/09 — the same lock, not a second
+   *  one. The sole-administrator rule now reads `platform.role_permission` as
+   *  well as this table, so a role edit and a person edit that do not wait for
+   *  each other can each conclude the other still holds the keys. See
+   *  `admin-surface.ts`. */
   async lockPeopleBook(tx: Db): Promise<void> {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(CAST(${LOCK_SPACE} AS int), CAST(0 AS int))`)
+    await lockAdminSurface(tx)
   }
 
   // -------------------------------------------------------------------------

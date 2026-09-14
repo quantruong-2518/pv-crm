@@ -2,16 +2,10 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor, Permission, RoleId } from '@pv/engines'
 import { RoleId as ContractRoleId, type RoleGrants, type RoleMatrixView } from '@pv/contracts'
 import { AuditRepository } from '../audit/audit.repository'
+import { ADMIN_KEYS, lockAdminSurface } from '../db/admin-surface'
 import { DB, type Db } from '../db/db.module'
 import { conflict } from '../http/problem'
 import { RolePermissionRepository } from './role-permission.repository'
-
-/** The two permissions that can lock the product's own door.
- *
- *  Whoever holds either can reach the other: `user.manage` edits a person's
- *  `roleId`, `role.manage` edits what a role may do. So both are guarded, and
- *  guarded the same way. */
-const KEYS = ['user.manage', 'role.manage'] as const satisfies readonly Permission[]
 
 /** Rules about WHO may change the matrix, and what change would leave nobody
  *  able to change it back.
@@ -49,6 +43,13 @@ export class RolesService {
     const wanted = [...new Set(next)]
 
     return await this.db.transaction(async (tx) => {
+      /* FIRST statement, before any read the rules depend on. Two
+         administrators editing two different roles would otherwise each read a
+         matrix in which the other role still holds the keys, each pass rule 2,
+         and between them leave nobody able to administer anything. The same
+         lock `UsersService` takes, because the invariant spans both tables. */
+      await lockAdminSurface(tx)
+
       const before = await this.repo.grantsFor(roleId, tx)
       this.assertNotLockingSelfOut(who, roleId, wanted)
       await this.assertSomebodyKeepsTheKeys(tx, roleId, wanted)
@@ -72,13 +73,9 @@ export class RolesService {
    *
    *  Deliberately narrow. Changing your own role's OTHER permissions is
    *  ordinary work and stays allowed; only the two keys are held down. */
-  private assertNotLockingSelfOut(
-    who: Actor,
-    roleId: RoleId,
-    wanted: readonly Permission[],
-  ): void {
+  private assertNotLockingSelfOut(who: Actor, roleId: RoleId, wanted: readonly Permission[]): void {
     if (who.roleId !== roleId) return
-    const dropped = KEYS.filter((k) => who.permissions.includes(k) && !wanted.includes(k))
+    const dropped = ADMIN_KEYS.filter((k) => who.permissions.includes(k) && !wanted.includes(k))
     if (dropped.length === 0) return
     throw conflict(
       `Bạn không tự bỏ ${dropped.join(' và ')} khỏi vai của chính mình được — nhờ một quản trị viên khác làm việc này. Người tự bỏ quyền sửa phân quyền sẽ không mở lại được chính màn vừa dùng.`,
@@ -104,7 +101,7 @@ export class RolesService {
     roleId: RoleId,
     wanted: readonly Permission[],
   ): Promise<void> {
-    for (const key of KEYS) {
+    for (const key of ADMIN_KEYS) {
       const holders = await this.repo.rolesHolding(key, tx)
       const after = wanted.includes(key)
         ? [...new Set([...holders, roleId])]

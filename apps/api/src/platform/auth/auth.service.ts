@@ -8,6 +8,7 @@ import type { ActorRow } from '../db/platform.schema'
 import { AttemptThrottle } from './attempt-throttle'
 import type { SessionRow } from './auth.schema'
 import { toActor, toSessionView, toWindow } from './auth.mapper'
+import { RolePermissionRepository } from '../roles/role-permission.repository'
 import { AuthRepository } from './auth.repository'
 import { dummyPasswordHash, hashPassword, verifyPassword } from './password'
 import { RESET_MAILER, resetLink, type ResetMailer } from './reset-mailer'
@@ -86,6 +87,10 @@ export class AuthService {
     private readonly repo: AuthRepository,
     @Inject(ENV) private readonly env: Env,
     @Inject(RESET_MAILER) private readonly mailer: ResetMailer,
+    /** Axis 2 is a table now, so every answer about a caller has to read it.
+     *  Injected here rather than resolved inside the mapper because the mapper
+     *  is pure — it turns rows into shapes and asks nothing. */
+    private readonly grants: RolePermissionRepository,
   ) {}
 
   // -------------------------------------------------------------------------

@@ -87,9 +87,9 @@ export function SignInPage() {
 
   /* Đã có phiên mà vẫn vào màn này (gõ tay `/dang-nhap`, hoặc tab khác vừa đăng
      nhập hộ) thì đi tiếp, đừng bắt đăng nhập lần hai. */
-  if (status === 'đã-vào') return <Navigate to={from} replace />
+  if (status === 'signed-in') return <Navigate to={from} replace />
 
-  const sending = status === 'đang-vào'
+  const sending = status === 'signing-in'
 
   return (
     <AuthCard
@@ -111,8 +111,8 @@ export function SignInPage() {
           beginSignIn()
           const result = await signInWithEmail(email, password, remember)
           if (!result.ok) {
-            /* Về lại 'khách' qua `clearSession`, KHÔNG qua `signOut`: một form
-               đã có kết luận mà máy trạng thái còn kẹt ở 'đang-vào' thì nút khoá
+            /* Về lại 'guest' qua `clearSession`, KHÔNG qua `signOut`: một form
+               đã có kết luận mà máy trạng thái còn kẹt ở 'signing-in' thì nút khoá
                vĩnh viễn — nhưng ở đây chưa từng có phiên nào để đóng, nên gọi
                `/auth/sign-out` là bắn một request vô nghĩa cho mỗi lần gõ sai
                mật khẩu, đúng vào cửa dễ bị dò nhất của hệ. */

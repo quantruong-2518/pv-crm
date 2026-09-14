@@ -15,6 +15,7 @@ import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
 import { SessionModule } from './platform/session/session.module'
 import { UsersModule } from './platform/users/users.module'
+import { RolesModule } from './platform/roles/roles.module'
 
 /** Gốc của app. Hai nhóm import, và ranh giới giữa chúng là luật:
  *

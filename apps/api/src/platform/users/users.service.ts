@@ -1,10 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import {
-  DEFAULT_ROLE_PERMISSIONS,
-  type Actor,
-  type Permission,
-  type RoleId as EngineRoleId,
-} from '@pv/engines'
+import { type Actor, type RoleId as EngineRoleId } from '@pv/engines'
 import {
   DirectoryResponse,
   InviteView,
@@ -15,6 +10,8 @@ import {
 } from '@pv/contracts'
 import { toEngineRole, toSessionActor } from '../auth/auth.mapper'
 import { AuthService } from '../auth/auth.service'
+import { ADMIN_KEYS } from '../db/admin-surface'
+import { RolePermissionRepository } from '../roles/role-permission.repository'
 import { ENV, type Env } from '../config/env'
 import type { Db } from '../db/db.module'
 import type { ActorRow } from '../db/platform.schema'
@@ -39,31 +36,20 @@ const ACTOR_PK = 'actor_pkey'
  *  unbounded loop against a primary key is a request that never returns. */
 const ID_ATTEMPTS = 25
 
-/** The permission that makes somebody an administrator of people.
- *
- *  Typed as `Permission`, so a misspelling — a plain letter where a Vietnamese
- *  one belongs, a missing tone mark — is a compile error rather than a rule
- *  that quietly matches nobody and lets the last administrator be locked out.
- *  That is the same guard `@Need` gets in the controller, which is why the key
- *  is written out in both places rather than imported from one: `tsc` checks
- *  each against `PERMISSIONS`, and a shared constant would only move where the
- *  literal is written, not what checks it. */
-const MANAGE_USERS: Permission = 'user.manage'
-
-/** Which roles can administer people, read out of the permission matrix.
- *
- *  Computed rather than listed — see the class docblock. `Object.keys` needs
- *  the cast because TypeScript types it as `string[]` for soundness reasons
- *  that do not apply to a `Record` literal declared in the same package as its
- *  key union. */
-const KEYHOLDER_ROLES: EngineRoleId[] = (Object.keys(DEFAULT_ROLE_PERMISSIONS) as EngineRoleId[]).filter(
-  (role) => DEFAULT_ROLE_PERMISSIONS[role].includes(MANAGE_USERS),
-)
-
 /** Can this person open accounts, right now. Both halves matter: a locked
- *  administrator holds a role that grants everything and can do none of it. */
-const holdsKeys = (roleId: EngineRoleId, disabledAt: Date | null): boolean =>
-  disabledAt === null && KEYHOLDER_ROLES.includes(roleId)
+ *  administrator holds a role that grants everything and can do none of it.
+ *
+ *  `keyholders` is passed in rather than read from a constant: since 14/09 the
+ *  matrix lives in `platform.role_permission` and an administrator can move
+ *  `user.manage` from one role to another without a deploy. A module-level
+ *  list computed from `DEFAULT_ROLE_PERMISSIONS` would still be the shape the
+ *  system SHIPPED with, and it would go on protecting a role that no longer
+ *  holds the keys while leaving the one that does unguarded. */
+const holdsKeys = (
+  roleId: EngineRoleId,
+  disabledAt: Date | null,
+  keyholders: readonly EngineRoleId[],
+): boolean => disabledAt === null && keyholders.includes(roleId)
 
 /** Vietnamese text → an ASCII handle fit for a primary key, a URL and a log.
  *
@@ -102,21 +88,25 @@ function slug(text: string): string {
  *  that opens accounts for everybody else.
  *
  *  ------------------------------------------------------------------
- *  WHO COUNTS AS AN ADMINISTRATOR IS COMPUTED, NEVER LISTED
+ *  WHO COUNTS AS AN ADMINISTRATOR IS READ, NEVER LISTED
  *  ------------------------------------------------------------------
- *  `KEYHOLDER_ROLES` below is derived from `DEFAULT_ROLE_PERMISSIONS`, so the day a
- *  seventh role is added to E2 with `user.manage` in its row, the
- *  sole-administrator rule counts it without anybody remembering to come here.
- *  Writing `['director', 'head-of-sales']` by hand is the same class of mistake
- *  the matrix itself avoids by spelling those two rows as `PERMISSIONS` rather
- *  than enumerating them: a permission added in one place and forgotten in the
- *  other is invisible until it matters. */
+ *  The sole-administrator rule asks `platform.role_permission` which roles hold
+ *  `user.manage`, on every call that could take the keys away. It used to ask a
+ *  constant computed at module load, which was right only while the matrix was
+ *  a compile-time table; now that an administrator can move `user.manage` to a
+ *  different role from the Roles screen, a cached answer would guard the role
+ *  that USED to hold the keys and leave the one that does hold them open.
+ *
+ *  Writing `['director', 'head-of-sales']` by hand was never an option for the
+ *  same family of reasons: a permission granted in one place and forgotten in
+ *  the other is invisible until it matters. */
 @Injectable()
 export class UsersService {
   private readonly log = new Logger('users')
 
   constructor(
     private readonly repo: UsersRepository,
+    private readonly grants: RolePermissionRepository,
     private readonly auth: AuthService,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -435,7 +425,7 @@ export class UsersService {
    *  administrator can be demoted by nobody but is still reachable through the
    *  lock button on somebody else's screen.
    *
-   *  "Administrator" is `DEFAULT_ROLE_PERMISSIONS[roleId]` containing
+   *  "Administrator" is a row of `platform.role_permission` carrying
    *  `user.manage` and `disabled_at IS NULL`, computed at module load
    *  from the engine — a locked administrator administers nothing, and a role
    *  that gains the permission tomorrow is counted tomorrow without an edit
@@ -453,21 +443,32 @@ export class UsersService {
     target: ActorRow,
     body: UserPatch,
   ): Promise<void> {
-    if (!holdsKeys(target.roleId, target.disabledAt)) return
-
     const nextRoleId = body.roleId === undefined ? target.roleId : toEngineRole(body.roleId)
     const nextDisabledAt =
       body.disabled === undefined ? target.disabledAt : body.disabled ? new Date() : null
-    if (holdsKeys(nextRoleId, nextDisabledAt)) return
 
-    const others = await this.repo.enabledIdsWithRoles(tx, target.id, KEYHOLDER_ROLES)
-    if (others.length > 0) return
+    /* BOTH keys, counted separately.
+       Until 14/09 this was a single check against `user.manage`, which was the
+       whole list back then. Adding `role.manage` without widening it left a
+       door open: strand `role.manage` on one role from the Roles screen, then
+       offboard that role's last occupant from HERE, and the check waves it
+       through because somebody else still holds `user.manage` — while nobody
+       can open the Roles screen again. Counted separately rather than as a
+       set, because a person holding one key is no help to the other. */
+    for (const key of ADMIN_KEYS) {
+      const keyholders = await this.grants.rolesHolding(key, tx)
+      if (!holdsKeys(target.roleId, target.disabledAt, keyholders)) continue
+      if (holdsKeys(nextRoleId, nextDisabledAt, keyholders)) continue
 
-    /* No `fields`: the lock button has no box to turn red, and the panel prints
-       the title in its footer for exactly this case. */
-    throw conflict(
-      `${target.name} là tài khoản quản trị cuối cùng còn hoạt động. Mở hoặc mở khoá một tài khoản quản trị khác trước, rồi hãy hạ vai hoặc khoá tài khoản này — nếu không sẽ không còn ai mở được tài khoản cho người khác.`,
-    )
+      const others = await this.repo.enabledIdsWithRoles(tx, target.id, keyholders)
+      if (others.length > 0) continue
+
+      /* No `fields`: the lock button has no box to turn red, and the panel
+         prints the title in its footer for exactly this case. */
+      throw conflict(
+        `${target.name} là tài khoản cuối cùng còn hoạt động giữ ${key}. Mở hoặc mở khoá một tài khoản khác giữ quyền đó trước, rồi hãy hạ vai hoặc khoá tài khoản này — nếu không sẽ không còn ai dùng được quyền đó nữa.`,
+      )
+    }
   }
 
   // -------------------------------------------------------------------------

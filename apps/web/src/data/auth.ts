@@ -1,5 +1,5 @@
 import { PASSWORD_MIN, SessionView, SessionWindow, type SessionActor } from '@pv/contracts'
-import type { Actor } from '@pv/engines'
+import type { Actor, Permission } from '@pv/engines'
 import { API_BASE_URL } from '@/app/api/base-url'
 import { isGatewayDown, reportAnswering, reportUnreachable } from '@/app/api/server-health'
 
@@ -26,7 +26,7 @@ import { isGatewayDown, reportAnswering, reportUnreachable } from '@/app/api/ser
  *
  *  Skipping the AFTER half matters just as much, and it is less obvious.
  *  `renewOnUnauthorized` turns any 401 into a renew attempt, and a failed renew
- *  calls `expire()`. The sign-in screen sets the machine to 'đang-vào' before
+ *  calls `expire()`. The sign-in screen sets the machine to 'signing-in' before
  *  it submits, which is one of the two states `expire` acts on — so one typo in
  *  a password would flip a guest into the expired state, and the guard would
  *  then bounce them to the sign-in screen with an expiry notice for a session
@@ -84,15 +84,20 @@ export const EMAIL_HINT = 'ten@pebblevina.com'
  *  somebody out of the product.
  *
  *  Exported for `data/directory.ts`, which receives a whole roster in the same
- *  `SessionActor` shape. */
-export function toActor(wire: SessionActor): Actor {
+ *  `SessionActor` shape.
+ *
+ *  `permissions` arrives SEPARATELY because it is not a property of a person,
+ *  it is a property of the session: the wire carries it on `SessionView`, next
+ *  to the actor rather than inside it. A roster entry therefore has none to
+ *  give, and passes the empty set — see `NOT_THE_CALLER` in `directory.ts`. */
+export function toActor(wire: SessionActor, permissions: readonly Permission[]): Actor {
   return {
     id: wire.id,
     name: wire.name,
     email: wire.email,
     role: wire.role,
     roleId: wire.roleId,
-    permissions: wire.permissions,
+    permissions,
     branches: wire.branches,
     ownOnly: wire.ownOnly,
   }
@@ -264,7 +269,11 @@ export async function signInWithEmail(
 
   const view = SessionView.safeParse(await readJson(res))
   if (!view.success) return { ok: false, error: UNREADABLE }
-  return { ok: true, actor: toActor(view.data.actor), session: view.data.session }
+  return {
+    ok: true,
+    actor: toActor(view.data.actor, view.data.permissions),
+    session: view.data.session,
+  }
 }
 
 /** `POST /auth/sign-out` — kill the session ON THE SERVER.
@@ -362,7 +371,11 @@ export async function probeSession(): Promise<SessionProbe> {
 
   const view = SessionView.safeParse(await readJson(res))
   if (!view.success) return { state: 'guest' }
-  return { state: 'signed-in', actor: toActor(view.data.actor), session: view.data.session }
+  return {
+    state: 'signed-in',
+    actor: toActor(view.data.actor, view.data.permissions),
+    session: view.data.session,
+  }
 }
 
 // ---------------------------------------------------------------------------
