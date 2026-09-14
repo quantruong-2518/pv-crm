@@ -1,0 +1,332 @@
+# Tầm nhìn — mười một pipeline của cả hệ
+
+`tam-nhin-pipeline.md` trả lời "một việc đang ở đâu, chờ ai" cho **nhánh Sales**.
+Bản này không đè lên nó — nó trả lời câu rộng hơn: **cả hệ nên có bao nhiêu
+pipeline, và cái gì KHÔNG nên là pipeline.** Trục vị trí của bản kia là xương
+sống; bản này là danh sách xương.
+
+Đọc cùng `tam-nhin-pipeline.md` (trục vị trí, 8 phase P0–P7) và
+`tam-nhin-bao-gia-hop-dong.md` §12 (đối chiếu sáu CRM lớn).
+
+---
+
+## §1 · Ba thứ khác nhau đang bị gọi chung một tên
+
+| Loại         | Định nghĩa                                                                 | Ví dụ đang có                  |
+| ------------ | -------------------------------------------------------------------------- | ------------------------------ |
+| **Pipeline** | Object đi qua các chặng CÓ THỨ TỰ, mỗi chặng có hạn, và nó RỜI ĐI có lý do | cơ hội 3 cột · `MailRunState`  |
+| **Hàng chờ** | Việc xếp theo NGƯỜI, không có chặng — vào rồi ra                           | `E3.pending(actor)` · `outbox` |
+| **Sổ cái**   | Sự kiện chỉ ghi thêm, không có trạng thái để "đi tới"                      | `touch` · `mail_event`         |
+
+Không phân biệt ba cái này thì "đưa mọi workstream vào quy củ" đẻ ra mười lăm
+bảng kanban không ai kéo.
+
+Điểm đáng lấy từ thị trường: màn hằng ngày của Margince **không phải** pipeline —
+là `Morning brief · CRM updates · Approval inbox`. Người dùng không vào pipeline,
+họ vào **hàng chờ**. Pipeline là thứ để đo và để báo cáo.
+
+---
+
+## §2 · Bốn luật làm nên "quy củ" — áp GIỐNG NHAU cho mọi pipeline
+
+Không có bốn cái này thì thêm bao nhiêu pipeline cũng vô nghĩa.
+
+1. **Mọi object phải đặt được lên đúng một pipeline.** `pipeline_position`
+   (`tam-nhin-pipeline.md` §6) là hàm thuần, tính lúc đọc. Object nào hàm này
+   không trả về vị trí thì object đó không tồn tại trong hệ. Đây là forcing
+   function duy nhất.
+2. **Mọi chặng phải có `limitDays`**, sống trong `config_entry`, không phải
+   fixture. Chặng không có đồng hồ là chặng người ta đỗ xe.
+3. **Mọi bước không quay lại được phải đi qua E3**, không qua một `PATCH` thẳng.
+4. **Không rời pipeline nếu không có lý do**, và mỗi pipeline **khai rõ danh
+   sách lý do của mình là ĐÓNG hay MỞ** — không pipeline nào dùng chung danh
+   sách với pipeline khác. Hệ đang có đúng hai, cố ý khác loại: `EXIT_REASONS`
+   6 giá trị **đóng** (lead chết trước khi thành cơ hội) và `LOSS_REASONS`
+   7 giá trị **mở** (đơn đã báo giá thua). Hôm nay luật này **đang hỏng** — nhãn
+   lý do rơi vẫn đọc fixture (`fix-later.md` §6).
+
+---
+
+## §3 · Mười một pipeline, chia theo đúng năm nhánh đã khai
+
+`Branch = One | Sales | Supply | Factory | Finance`. Fixture `sao-do` đã vẽ đủ
+chuỗi `LD-0334 → HĐ-2607 → SO-0891 → WO-1180 → PR-0231 → PO-0455 → L-2608-042`
+cộng `CNC-03 → BT-0310`. **Danh sách dưới đây không mở chuỗi mới — nó đặt tên cho
+thứ fixture đã tự khai.**
+
+| #   | Nhánh   | Pipeline                | Object         | Tình trạng                                                               |
+| --- | ------- | ----------------------- | -------------- | ------------------------------------------------------------------------ |
+| 1   | Sales   | Chiến dịch & đợt gửi    | `CP` `MailRun` | sống · `DONE` chưa có cửa (`fix-later` nợ 7)                             |
+| 2   | Sales   | Lead                    | `LD`           | sống · **thiếu cửa lên bậc** `dau-moi→mql→sql`                           |
+| 3   | Sales   | Cơ hội                  | `OP`           | sống · đang rút 5 → 3 cột                                                |
+| 4   | Sales   | Báo giá                 | `BG`           | nhánh `feat/module-4` · thiếu duyệt chiết khấu                           |
+| 5   | Sales   | Hợp đồng                | `HĐ`           | sống · **thiếu kỳ hạn** — không trả lời được "tháng sau hết hạn cái nào" |
+| 6   | Supply  | **Mua hàng**            | `PR → PO → L`  | chỉ trong seed                                                           |
+| 7   | Factory | **Sản xuất & bàn giao** | `SO → WO`      | chỉ trong seed — chính là P7 "ngoài biên" của bản kia                    |
+| 8   | Factory | **Thiết bị & bảo trì**  | `CNC → BT`     | chỉ trong seed · máy của TA, không phải tài sản đã lắp bên khách         |
+| 9   | Finance | **Thu theo đợt**        | payment term   | màn đã có, **chưa có đường ghi** — xem §4                                |
+| 10  | One     | **Hộp duyệt**           | `approval`     | chưa dựng · pipeline của NGƯỜI, không của object                         |
+| 11  | One     | **Dữ liệu vào sổ**      | `lead_intake`  | `IntakeTrust` đã có · thiếu trùng lặp, thiếu ô, sổ chặn                  |
+
+**5 sống · 4 chỉ trong seed · 2 cắt ngang chưa dựng.** Hai cái cắt ngang là thứ
+làm cho chín cái kia có kỷ luật.
+
+### Bốn thứ cố ý KHÔNG đếm vào
+
+- **Gia hạn / tái ký** — không phải pipeline thứ 12. `ban-giao-db.md` đã chốt
+  lead→cơ hội là **1-n** vì "một công ty mua nhiều lần", và fixture đã có
+  `BG-0512 "Báo giá gia hạn"`. Hợp đồng sắp hết hạn **đẻ lead**, không đẻ kanban.
+- **Trạng thái mail** (`MailState`, 10 giá trị) — sổ cái. Chỉ xử lý bounce /
+  complaint mới là pipeline, và nó thuộc #11.
+- **Dòng thời gian chạm** (`TouchKind`, 10 giá trị) — sổ cái.
+- **Hàng chờ E4** (`outbox`) — hàng chờ.
+
+---
+
+## §4 · Ba chỗ bản này SỬA lại hiểu biết cũ
+
+**1 · `CNC`/`BT` không phải "sau bán".** `CNC-03` mang `branch: 'Factory'`, và
+trong `sao-do` thì Factory là nhà máy của CHÍNH MÌNH (tenant là Thắng Lợi
+Engineering, Sao Đỏ mới là khách). Nên pipeline #8 là **bảo trì máy nội bộ**.
+`tam-nhin-bao-gia-hop-dong.md` §12 nói đúng: **tài sản đã lắp bên khách vẫn chưa
+có `ObjectKind`**, và mảng dịch vụ sau bán vẫn là ô trống hoàn toàn — không
+object, không màn, không rule E4.
+
+**2 · Pipeline thu tiền đã được thiết kế xong, chỉ chưa có đường ghi.** Ba route
+đã sống trên `master`: `/sales/contracts`, `/:code`, và `/:code/dot/:no`. Fixture
+`sao-do-contracts.ts` mô hình hoá rất sâu — mỗi đợt mang `conditions[]` có
+`side: 'ta' | 'khách'` (luôn trả lời được đang tắc bên nào), `docs[]`,
+`records[]` nhật ký đòi tiền, `notes[]`, cộng `DueLevel` 6 bậc. Thiếu đúng hai
+thứ: cửa ghi (`contract` mới chỉ ĐỌC) và đúng nhánh. Đây là **pipeline rẻ nhất
+để hoàn tất**, không phải đắt nhất.
+
+**3 · `Branch = 'Finance'` đã khai nhưng không sở hữu `ObjectKind` nào.** Trong
+khi cụm đợt thanh toán đang nằm dưới Sales. Đứng giữa là chỗ sinh nợ — xem §8.
+
+---
+
+## §5 · Tám đường đi hợp lệ qua pipeline Sales
+
+`LEAD_MOTIONS` trong `engines/lead-intake.ts` là danh sách **đã đóng**, kèm lý do
+viết thẳng trong code: một ô "khác" sau một quý sẽ thành thế lớn nhất bảng, và
+lúc đó câu "kênh nào ra khách" hết trả lời được. **Sáu luồng của CRM là sáu cái
+đó, không phải sáu cái ai đó nghĩ ra.**
+
+| Luồng        | Vào bằng          | Mức tin           | Luật riêng                                                     |
+| ------------ | ----------------- | ----------------- | -------------------------------------------------------------- |
+| **inbound**  | `api·dong-bo·tay` | xác minh/khai báo | khách đang giơ tay → **SLA tính bằng phút**, chỉ trong giờ làm |
+| **outbound** | `dong-bo·tay·tep` | khai báo/thô      | phải có cớ mở lời; `suppression` gác trước khi bắn             |
+| **event**    | `quet·tep`        | xác minh/thô      | cùng một buổi mà `quet` với `tep` là hai mức tin khác nhau     |
+| **referral** | **chỉ `tay`**     | khai báo          | **không được đẩy vào chiến dịch mail lạnh**                    |
+| **partner**  | `tay·tep·api`     | cả ba             | công trạng chia khác — `CREDIT_RULES` phải biết luồng này      |
+| **recycle**  | `tay·tep`         | khai báo/thô      | chỉ hồi sinh được nếu lý do rời cho phép — xem dưới            |
+
+`MOTION_BY_INTAKE` đã chốt **14 cặp hợp lệ trên 30**. Cặp vắng mặt không phải
+"chưa hỗ trợ" — nó là cặp KHÔNG XẢY RA.
+
+**Luật `recycle` chưa có, phải thêm.** Trong 6 `EXIT_REASONS`, ba là _hết hẳn_
+(không phải khách của mình · chọn bên khác · không gọi được ai) và ba là _chưa
+tới lúc_ (năm nay không có tiền · người liên hệ nghỉ · im sau báo giá). Trong 52
+lead đã rời, chỉ **17** là kho `recycle` hợp lệ. Không có luật này thì `recycle`
+thành cái thùng để dọn sổ.
+
+### Hai luồng quay lại — không qua lead, vào thẳng P4
+
+| Luồng       | Bắt đầu    | Bỏ qua |
+| ----------- | ---------- | ------ |
+| **mở rộng** | P4 cơ hội  | P0–P3  |
+| **gia hạn** | P5 báo giá | P0–P4  |
+
+Cả hai **không đẻ lead mới**. Ép chúng qua sổ lead là làm hỏng mọi tỉ lệ chuyển
+đổi — mẫu số phồng lên bằng khách đã mua rồi.
+
+**Tổng: 8 đường hợp lệ. Mọi đường khác là lỗi dữ liệu, không phải ca lạ.**
+
+### Vấn đề: luồng đang là NHÃN, chưa là hành vi
+
+`LeadMotion` được ghi ở cửa vào (`import-zone.tsx` · `intake-desk.ts` ·
+`lead-import-wire.ts`) rồi **không gì phía sau đọc nó nữa**:
+
+- `HANDOFF_SLA` phẳng — đúng 2 chặng, mỗi chặng `targetDays: 3`, giống hệt nhau
+  cho cả sáu luồng. Comment ngay tại chỗ tự khai thứ đã mất: _"Tài liệu đặt mục
+  tiêu bằng PHÚT và GIỜ (≤ 30 phút cho lead mới, ≤ 24 giờ cho SQL). Sổ lead của
+  kịch bản chỉ ghi tới ngày, nên mục tiêu quy về ngày."_ **SLA 30 phút của
+  inbound đã bị fixture làm phẳng thành 3 ngày.**
+- Không có luật giao việc theo luồng.
+- `IntakeTrust` không chặn gì — `tho` và `xac-minh` chỉ khác nhau ở nhãn.
+
+**Bốn thứ mỗi luồng phải khai** thì nó mới là luồng: chạm đầu trong bao lâu ·
+ai nhận · được làm gì ngay và phải chờ gì · cổng lên `mql`
+(`INIT_DATA_QUESTIONS` đã chốt "đủ 6 ô bắt buộc", nhưng chưa ai trả lời inbound
+tự điền form thì đã qua cổng chưa).
+
+---
+
+## §6 · Màn — hai màn và một component, không phải một màn
+
+|       | Cái gì           | Đặt ở đâu                                 |
+| ----- | ---------------- | ----------------------------------------- |
+| **A** | Thiết lập luồng  | tab mới trong `/sales/config`             |
+| **B** | Vector luồng     | component, nhúng vào hồ sơ lead + cơ hội  |
+| **C** | "Việc ở tay tôi" | tầng dưới Trang chủ — **đã có**, bồi thêm |
+
+Tách vì A là **luật** (sửa hiếm, cả phòng chịu, phải qua E3), B là **sự thật về
+một object**, C là **hàng chờ của một người**. Gộp lại thì màn thiết lập thành
+dashboard và không ai dám sửa gì trên đó nữa.
+
+### B · Vector luồng
+
+```
+  Châu ─────► Nam ─────► ●Huy ─────► Diệu Anh ┈┈┈┈► Hà
+  marketing   BD          SALE         presales      duyệt
+  12/08       15/08       từ 18/08     chưa tới      chưa tới
+  đúng hạn    trễ 1 ngày  còn 2 ngày   hạn 3 ngày    —
+  ──────── đã xảy ra ────────┤├──────── theo luật ─────────
+```
+
+**Luật xương sống: bên trái là SỰ THẬT, bên phải là LUẬT — không được vẽ giống
+nhau.** Nửa trái đọc `sales.touch` (có `at` thật, `by` thật, `touchId` bấm được).
+Nửa phải đọc định nghĩa luồng ở màn A: chỉ có **vai** và **hạn**, chưa có người
+và chưa có ngày.
+
+Cưỡng chế ở tầng kiểu, không nhờ người viết màn nhớ — cùng cách `AiActionProps.basis`
+gác luật 9:
+
+```ts
+type VectorStep =
+  | { kind: 'done'; at: Moment; by: string; actorId: string | null; touchId: string }
+  | { kind: 'upcoming'; role: RoleId; dueInDays: number }
+```
+
+Union phân biệt → **không compile được** một bước tương lai có ngày giờ, và không
+có chỗ nào để bịa tên người sẽ nhận.
+
+**Đây KHÔNG phải ContextRail.** Luật 10 chốt `E1.story()` là đầu vào hợp lệ duy
+nhất của ContextRail, và ContextRail vẽ **chuỗi object** (`HĐ → SO → WO`). Vector
+vẽ **chuỗi người trên một object**. Hai thanh, hai câu hỏi. Nhét cái này vào
+ContextRail là phá luật 10.
+
+**Ba thiết bị:** desktop/tablet nằm ngang; mobile **xoay dọc**, mốc hiện tại neo
+trên cùng. Tablet là hiện trường nên mỗi mắt ≥48px — ở 1024px chỉ đủ 3 mắt, phải
+gập phần đã qua thành một mắt "3 bước trước". Chưa lên `/kit` thì coi như chưa
+tồn tại.
+
+### A · Thiết lập luồng — và màn `/sales/config` hôm nay đang ở đâu
+
+Màn đã có: "Cấu hình phòng kinh doanh", 8 danh sách từ vựng. Phần chạm pipeline
+là **mục 5.2 "Cột của sổ cơ hội và hạn từng cột"** — sửa được `limitDays` từng
+cột, cạnh mỗi cột in "đang có bao nhiêu đơn".
+
+Trong bốn thứ một màn config pipeline cần, **đã có một**:
+
+| Cần                                | Có chưa    |
+| ---------------------------------- | ---------- |
+| chặng + hạn                        | ✅ mục 5.2 |
+| vai giữ mỗi chặng                  | ❌         |
+| điều kiện chuyển                   | ❌         |
+| định nghĩa 8 luồng, SLA theo luồng | ❌         |
+
+**Ba tầng "chưa", xếp chồng:**
+
+1. **Màn không gọi cửa nào.** `pages/sales-config.tsx` không có một `useMutation`
+   nào. `changes` là mảng local, `note()` thêm/rút dòng khỏi "danh sách chờ gửi",
+   bấm gửi chỉ tăng `draftNo` để reset ô nhập. Luồng đề-nghị-rồi-duyệt đang được
+   **diễn**, chưa nối.
+2. **Cửa server có nhưng từ chối.** 5 route thật, ba cửa ghi gác bằng
+   `config.propose`, cả ba dội vào `SalesConfigGate` đang từ chối to tiếng.
+3. **Gate từ chối vì `platform.approval` chưa có bảng.**
+
+Cộng thêm: `data/sales-config.ts` còn `load: fetchSalesConfig`.
+
+Điểm đáng giữ của bản đang có: nó **được dựng sẵn theo hình propose-rồi-duyệt**,
+không phải sửa-là-lưu. Docblock ghi _"người gật cần thấy hậu quả trước khi gật"_ —
+màn tính sẵn cổng MQL sẽ thành bao nhiêu nếu yêu cầu được gật. Khi E3 có bảng,
+đây là màn nối vào rẻ nhất, không phải viết lại.
+
+**Ba điều kiện cứng của màn A:** (a) không có `config.edit` — mọi thay đổi luồng
+là yêu cầu E3 loại `cấu-hình`, đúng loại số 1 trong thứ tự đã chốt; (b) hạn viết
+bằng đơn vị thật, đây là chỗ trả lại mục tiêu 30 phút của inbound; (c) đổi luồng
+**không** tô lại quá khứ — cùng lý do `touch.by` chép tên lúc ghi thay vì join
+`actor`.
+
+---
+
+## §7 · Ba tầng chặn — và tầng 0 chưa ai nhắc
+
+```
+tầng 0   E1 ghi cạnh LÚC CHẠY       — không có thì không có chuỗi xuyên nhánh
+tầng 1   E3 + platform.approval     — không có thì không có "đang chờ ai"
+tầng 2   mười một pipeline          — mỗi cái đứng trên hai tầng trên
+```
+
+**Tầng 0 là thứ chưa bản nào ghi ra.** Đến hôm nay **chỉ `seed.ts` ghi
+`platform.edge`**; `ObjectMirror` chỉ viết bảng `object`, `GraphService` chưa nối
+controller nào. Nghĩa là chuỗi `LD-0334 → HĐ-2607 → SO-0891 → …` **chỉ sống
+trong seed** — không cửa nào sinh cạnh lúc chạy thật. Module 4 để lại đúng hai
+thứ cho Supply nhặt (một cạnh `platform.edge` và một sự kiện
+`sales.contract.signed`) và **cả hai đều chưa có ai ghi**.
+
+Làm Supply/Factory trước khi đóng tầng 0 là dựng nhà không móng.
+
+Kèm theo, một lỗ quyền sẽ mở đúng lúc đó: `KIND_DOMAIN` **cố ý vắng**
+`SO · WO · PO · L · BT · CNC` (và `BG`), nên `can()` với mấy kind này chỉ kiểm
+license + phạm vi, **bỏ qua vai hoàn toàn**. Ngày mở màn Supply đầu tiên phải vá
+`KIND_DOMAIN` TRƯỚC, không phải sau.
+
+### Cảnh báo về `pipeline_position`
+
+`tam-nhin-pipeline.md` §6 khai `phase` lấy từ thang `P0…P7` của riêng Sales. Nếu
+Supply · Factory · Finance vào sau, hàm đó hoặc phải viết lại, hoặc vĩnh viễn chỉ
+phục vụ Sales — và khi đó Trang chủ vẫn phải tự suy vị trí cho 6 object kind còn
+lại, đúng thứ §6 sinh ra để cấm.
+
+Đề nghị: `{ branch, phase, state, holder, waitingOn, overdueBy }` **ngay từ lượt
+4**, và `phase` là khoá của **pipeline**, không phải hằng số của Sales. Thêm một ô
+bây giờ rẻ hơn nhiều so với sửa sau khi bốn màn đều đã đọc nó.
+
+Kèm theo: `CHECK config_limit_only_stage` (`config.schema.ts:84`) buộc "chỉ
+`STAGE` mới có `limitDays`". Luật 2 của §2 cần nó mở cho **mọi pipeline**, không
+chỉ 8 phase của Sales.
+
+---
+
+## §8 · Năm câu còn treo
+
+1. **Finance có thật trong phạm vi không?** `tam-nhin-bao-gia-hop-dong.md` §12
+   xếp "hoá đơn · công nợ" là _ngoài phạm vi_, nhưng `Branch` đã khai `Finance`
+   và cụm đợt thanh toán đã có ba màn. Hoặc rút `Finance` khỏi `Branch`, hoặc
+   nhận pipeline #9 về đúng nhánh.
+2. **"Sau bán" có `ObjectKind` mới không?** Tài sản đã lắp bên khách + yêu cầu
+   dịch vụ. `BT` đã có chủ (máy của ta), không mượn được.
+3. **Supply và Factory làm thật hay chỉ để E1 vẽ chuỗi?** Câu này gắt hơn vẻ
+   ngoài — vì tầng 0 chưa đóng nên hôm nay câu trả lời **trên thực tế** đang là
+   "chỉ để vẽ", dù ContextRail in ra như thể chúng sống.
+4. **`giao` ghi một dòng hay hai?** Một dòng mang cả `từ ai → cho ai`, hay hai
+   dòng (người cũ mất, người mới nhận)? Bảng `touch` hiện chỉ có `by` số ít —
+   chở "từ ai" phải bồi cột, và bồi sớm rẻ hơn nhiều so với sau khi có dữ liệu.
+5. **SLA chạm đầu của từng luồng, và luật giao việc.** Chưa có con số, và không
+   được bịa.
+
+---
+
+## §9 · Thứ tự đề nghị
+
+`tam-nhin-pipeline.md` §9 đặt "rút 3 cột" ở lượt 1 và E3 ở lượt 2–3. Bản này đề
+nghị **đảo**, và chen tầng 0 lên trước:
+
+| Lượt | Việc                                                                  | Vì sao                                                                                         |
+| ---- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 0    | Ghi `giao` + `cham` vào `sales.touch`                                 | **rẻ nhất** — một chỗ sửa, trong đúng transaction đang đổi `owner_id`. Mở ngay nửa trái vector |
+| 1    | Component Vector, chỉ vẽ nửa trái, lên `/kit`, nhúng hồ sơ lead       | kiểm xem hình này có thật sự trả lời "ai trước tôi"                                            |
+| 2    | `platform.approval` + `approval_link`, `APPROVALS` thành provider     | tầng 1 — chín pipeline kia đều hưởng                                                           |
+| 3    | Nối `config.approval.ts`, Hộp duyệt lên                               | chặn bởi lượt 2                                                                                |
+| 4    | E1 ghi cạnh lúc chạy — `ObjectMirror` + `GraphService` vào controller | tầng 0 thật sự                                                                                 |
+| 5    | Màn A định nghĩa luồng (qua E3) → mở nửa phải vector                  | chặn bởi 2, 3                                                                                  |
+| 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry`      | chặn bởi 4                                                                                     |
+
+Lượt 0 và 1 làm được **ngay**, không chặn bởi gì — và chúng là cách rẻ nhất để
+biết hình vector có đúng không trước khi bỏ công dựng màn thiết lập.
+
+`TouchKind` đã khai sẵn cả `giao` lẫn `cham` với ghi chú thành thật _"No door
+writes this yet… they are in the enum because the screen draws them"_ — enum đã
+chừa đúng chỗ cho việc này, chỉ thiếu cửa ghi.
