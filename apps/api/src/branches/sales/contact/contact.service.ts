@@ -121,6 +121,11 @@ export class ContactService {
       if (isPrimary) await this.repo.demote(tx, leadCode)
 
       await this.mirror.put(tx, refOf(code, leadCode, values))
+      /* The person BELONGS TO the lead, so the arrow runs contact → lead: the
+         lead is the parent the rail climbs to, not a thing the contact
+         produced. Both mirror rows are in place — the lead's is guaranteed by
+         `contact.lead_code`, the contact's by the line above. */
+      await this.mirror.link(tx, { from: code, to: leadCode, kind: 'thuộc-về' })
       const row = await this.repo.insert(tx, { ...values, code })
 
       if (isPrimary) await this.repo.mirrorOntoLead(tx, leadCode, row)

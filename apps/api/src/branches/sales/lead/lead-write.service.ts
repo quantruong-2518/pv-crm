@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import type { AccessControl, Actor, Edge } from '@pv/engines'
 import {
   LeadCreateResponse,
   LeadImportCommitResponse,
@@ -106,6 +106,12 @@ export class LeadWriteService {
          `lead.account_code` is a foreign key into `sales.account`, so the other
          order kills the lead insert because its target does not exist yet. */
       const accountCode = await this.accounts.resolveForLead(tx, write.values)
+      /* The lead BELONGS TO the company, so the arrow runs lead → company and
+         the rail climbs from the lead to the customer it is part of. Written
+         after `resolveForLead` and not before: that call is what puts the
+         company's mirror row there when the company is new, and
+         `edge.to_code` is a foreign key into it. */
+      await this.mirror.link(tx, { from: code, to: accountCode, kind: 'thuộc-về' })
       const [written] = await this.repo.insertLeads(tx, [{ ...write.values, accountCode, code }])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
 
@@ -465,14 +471,21 @@ export class LeadWriteService {
            this loop already knew. */
         const seen = new Map<string, string>()
         const rows: (typeof slice)[number]['row'][] = []
+        /* Same edge the single-lead door writes, collected HERE rather than
+           re-read off `rows`: the row type comes from `$inferInsert`, where the
+           company code is still optional, while in this loop it is the string
+           `resolveForLead` just returned. */
+        const links: Edge[] = []
         for (const p of slice) {
           const key = identityOfLead(p.row)
           const known = seen.get(key)
           const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row))
           if (!known) seen.set(key, accountCode)
           rows.push({ ...p.row, accountCode })
+          links.push({ from: p.row.code, to: accountCode, kind: 'thuộc-về' })
         }
 
+        await this.mirror.linkMany(tx, links)
         await this.repo.insertLeads(tx, rows)
         /* One timeline row per lead, in the same chunk as the lead itself. The
            file name goes into the sentence rather than into a column, because

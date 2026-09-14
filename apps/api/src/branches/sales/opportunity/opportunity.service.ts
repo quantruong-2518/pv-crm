@@ -310,6 +310,12 @@ export class OpportunityService {
 
       const ref = refOf(code, write, { label: write.values.name, ownerName })
       await this.mirror.put(tx, ref)
+      /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
+         rather than left to the seed because a rail that only exists in seeded
+         data is a rail that breaks the first time somebody opens a deal they
+         made themselves. Both mirror rows are in place: the lead's is
+         guaranteed by `lead.code`'s foreign key, the deal's by the line above. */
+      await this.mirror.link(tx, { from: body.leadCode, to: code, kind: 'sinh-ra' })
       const written = await this.repo.insertOpportunity(tx, { ...write.values, code })
       await this.repo.insertOwners(tx, ownerRowsOf(code, write))
       await this.repo.insertProducts(tx, productRowsOf(code, write))
@@ -766,12 +772,9 @@ export class OpportunityService {
          `toRef` đọc `row.stage`, thứ vừa thành NULL. */
       await this.mirror.put(tx, toRef(row, saleOwner?.name ?? null))
 
-      /* Hợp đồng là một object E1 của chính nó (`kind: 'HĐ'`). Không có nó thì
-         ContextRail đi hết chuỗi lead → cơ hội rồi dừng ngay trước mắt xích
-         người ta mở màn để tìm. Cạnh nối hai object thì CHƯA ghi: chưa cửa nào
-         trong `apps/api` ghi `platform.edge` — seed là chỗ duy nhất — nên dựng
-         một cạnh ở đây là mở một quy ước mới trong một cửa, không phải trong
-         `GraphModule` nơi nó thuộc về. */
+      /* The contract is an E1 object in its own right. Without it the rail
+         walks lead → deal and stops one link short of what the reader opened
+         the screen to find. */
       await this.mirror.put(tx, {
         code: contractCode,
         kind: 'HĐ',
@@ -780,6 +783,13 @@ export class OpportunityService {
         ...(ownerName ? { owner: ownerName } : {}),
         ...(contractRow.amount === null ? {} : { amount: contractRow.amount }),
       })
+
+      /* Signing is what BEGAT the contract, so the arrow runs deal → contract
+         and the rail continues from the deal instead of restarting. Placed
+         after both mirror rows above: neither code carries a foreign key into
+         `platform.object`, so this order is the service's discipline rather
+         than something the table enforces. */
+      await this.mirror.link(tx, { from: code, to: contractCode, kind: 'sinh-ra' })
 
       /* `at: signedAt` chứ không để `now()` mặc định: một hợp đồng vào sổ muộn
          ba ngày phải nằm đúng chỗ của nó trên dòng thời gian, không nhảy lên
@@ -947,6 +957,14 @@ export class OpportunityService {
         await this.mirror.putMany(
           tx,
           slice.map((p) => p.ref),
+        )
+        /* Same edge the single-deal door writes, for the same reason — a deal
+           that arrived in a file has exactly the same story as one typed by
+           hand, and a rail that depends on which door was used is a rail
+           nobody can trust. */
+        await this.mirror.linkMany(
+          tx,
+          slice.map((p) => ({ from: p.row.leadCode, to: p.code, kind: 'sinh-ra' as const })),
         )
         await this.repo.insertMany(
           tx,

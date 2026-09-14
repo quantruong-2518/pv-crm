@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
-import type { ObjectRef } from '@pv/engines'
+import type { Edge, ObjectRef } from '@pv/engines'
 import { type Db } from '../db/db.module'
-import { objectRef } from '../db/platform.schema'
+import { edge, objectRef } from '../db/platform.schema'
 
 /** Writes the `platform.object` row that every business object must have.
  *
@@ -97,6 +97,35 @@ export class ObjectMirror {
           amount: sql`excluded.amount`,
         },
       })
+  }
+
+  /** Record one directed relation between two objects.
+   *
+   *  Same contract as `put`: the caller owns the transaction, and both
+   *  endpoints must already hold their mirror row in the SAME unit of work —
+   *  `from_code` and `to_code` are foreign keys into `platform.object(code)`,
+   *  so an edge written first is an edge Postgres refuses.
+   *
+   *  Direction is meaning, not storage order: `story()` climbs by `to_code` and
+   *  descends by `from_code` without reading `kind` at all, so an arrow written
+   *  backwards draws a backwards rail and nothing anywhere corrects it. */
+  async link(tx: Db, e: Edge): Promise<void> {
+    await this.linkMany(tx, [e])
+  }
+
+  /** Same contract, one statement, for batch intake. */
+  async linkMany(tx: Db, edges: readonly Edge[]): Promise<void> {
+    if (edges.length === 0) return
+
+    await tx
+      .insert(edge)
+      .values(edges.map((e) => ({ fromCode: e.from, toCode: e.to, kind: e.kind })))
+      /* A door replayed — a double click, a retry after a dropped response —
+         must not kill the transaction on a relation that is already recorded.
+         The primary key IS the whole row here, so there is nothing to refresh
+         on conflict; settling it in SQL keeps it a single statement instead of
+         a read every writer would have to remember. */
+      .onConflictDoNothing()
   }
 
   /* `kind` and `branch` are deliberately absent from the update set. They are
