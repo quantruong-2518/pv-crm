@@ -217,26 +217,31 @@ Màn đã có: "Cấu hình phòng kinh doanh", 8 danh sách từ vựng. Phần
 là **mục 5.2 "Cột của sổ cơ hội và hạn từng cột"** — sửa được `limitDays` từng
 cột, cạnh mỗi cột in "đang có bao nhiêu đơn".
 
-Trong bốn thứ một màn config pipeline cần, **đã có một**:
+Trong bốn thứ một màn config pipeline cần, **đã có hai** (cập nhật 14/09):
 
-| Cần                                | Có chưa    |
-| ---------------------------------- | ---------- |
-| chặng + hạn                        | ✅ mục 5.2 |
-| vai giữ mỗi chặng                  | ❌         |
-| điều kiện chuyển                   | ❌         |
-| định nghĩa 8 luồng, SLA theo luồng | ❌         |
+| Cần                                | Có chưa                                                   |
+| ---------------------------------- | --------------------------------------------------------- |
+| chặng + hạn                        | ✅ mục 5.2                                                |
+| vai giữ mỗi chặng                  | ❌ — mục 5.9 khai vai theo LUỒNG, chưa theo chặng         |
+| điều kiện chuyển                   | ❌                                                        |
+| định nghĩa 8 luồng, SLA theo luồng | 🟡 **khung xong, số chưa có** — mục 5.9, mọi ô đang trống |
 
-**Ba tầng "chưa", xếp chồng:**
+**Ba tầng "chưa" nay còn một, và nó không phải tầng kỹ thuật:**
 
-1. **Màn không gọi cửa nào.** `pages/sales-config.tsx` không có một `useMutation`
-   nào. `changes` là mảng local, `note()` thêm/rút dòng khỏi "danh sách chờ gửi",
-   bấm gửi chỉ tăng `draftNo` để reset ô nhập. Luồng đề-nghị-rồi-duyệt đang được
-   **diễn**, chưa nối.
-2. **Cửa server có nhưng từ chối.** 5 route thật, ba cửa ghi gác bằng
-   `config.propose`, cả ba dội vào `SalesConfigGate` đang từ chối to tiếng.
-3. **Gate từ chối vì `platform.approval` chưa có bảng.**
+1. ~~Màn không gọi cửa nào~~ — **mục 5.9 gọi thật**: mỗi luồng tự đề nghị và
+   nhận về một biên lai của Hộp duyệt. Tám mục còn lại vẫn gom vào mảng
+   `changes` rồi xoá, tức vẫn đang DIỄN; nay chúng nối được, và đó là việc kế
+   tiếp.
+2. ~~Cửa server có nhưng từ chối~~ — `SalesConfigGateE3` thay bản từ chối, cộng
+   hai cửa mới `GET/PATCH /sales/config/motions`.
+3. ~~Gate từ chối vì chưa có bảng~~ — `platform.approval` có từ `0035`.
+4. **Chưa ai chốt số.** §8.5 vẫn treo, và giờ nó là thứ duy nhất chặn: màn đã có
+   đủ ô để nhập, sáu luồng × bốn ô, tất cả `NULL`.
 
-Cộng thêm: `data/sales-config.ts` còn `load: fetchSalesConfig`.
+Cộng thêm: `data/sales-config.ts` còn `load: fetchSalesConfig` cho tám mục cũ;
+mục 5.9 đọc máy chủ thật qua `data/sales-motions.ts`. Và một chỗ lệch phải sửa
+ngày nối tám mục kia: nút gửi cũ ở cuối màn vẫn ghi "Gửi TP Kinh doanh duyệt",
+trong khi chuỗi duyệt đã chốt là **Giám đốc**.
 
 Điểm đáng giữ của bản đang có: nó **được dựng sẵn theo hình propose-rồi-duyệt**,
 không phải sửa-là-lưu. Docblock ghi _"người gật cần thấy hậu quả trước khi gật"_ —
@@ -311,8 +316,11 @@ chỉ 8 phase của Sales.
    phải đầu nào cả — trưởng phòng chuyển tay giữa hai Sale là người thứ ba.
    Lý do đầy đủ nằm cạnh cột, ở `touch.schema.ts`.
 5. **SLA chạm đầu của từng luồng, và luật giao việc.** Chưa có con số, và không
-   được bịa. **Đây là thứ đang chặn lượt 5** — màn thiết lập luồng chính là chỗ
-   nhập chúng, nên nó không dựng được trước khi có số.
+   được bịa. Từ 14/09 nó **hết chặn việc dựng** và chỉ còn chặn chính nó: mục
+   5.9 của `/sales/config` đã có đủ ô cho sáu luồng — chạm đầu (phút · giờ ·
+   ngày), người nhận, được vào chiến dịch mail lạnh không, form khách tự điền có
+   tính là đủ ô — và tất cả đang `NULL`. Điền vào là xong, và mỗi ô đi qua Hộp
+   duyệt như mọi thay đổi cấu hình khác.
 6. **`BG` là pipeline riêng hay một chặng của cơ hội?** §3 xếp nó là pipeline #4;
    `tam-nhin-pipeline.md` §6 lại đặt báo giá ở P5 của chuỗi Sales. Hai bản mâu
    thuẫn nhau, và `pipelinePosition` hiện theo §3.
@@ -337,13 +345,17 @@ nghị **đảo**, và chen tầng 0 lên trước:
 | 2    | ~~`platform.approval` + `approval_link`~~ — **xong 14/09**       | migration `0035`, hai bảng ở `platform`, luật E3 tách thành hàm thuần dùng chung hai đầu                                |
 | 3    | ~~Nối `config.approval.ts`, Hộp duyệt~~ — **xong 14/09**         | cửa `/approvals`, màn `/duyet`, mục nav "Phê duyệt" hết trống đường                                                     |
 | 4    | ~~E1 ghi cạnh lúc chạy~~ — **xong 14/09**                        | `ObjectMirror.link/linkMany` + 6 cửa ghi cạnh trong đúng transaction đang có                                            |
-| 5    | Màn A định nghĩa luồng (qua E3) → mở nửa phải vector             | **chưa** — hết bị chặn, nhưng §8.5 (SLA từng luồng) phải có số trước                                                    |
+| 5    | ~~Màn A định nghĩa luồng (qua E3)~~ — **xong 14/09**             | mục 5.9 + bảng `motion_policy` (`0036`); sáu luồng × bốn ô, **mọi ô trống chờ §8.5**                                    |
 | 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry` | **một nửa**: hàm thuần đã có (`packages/engines/src/pipeline-position.ts`), chưa ai gọi; `limitDays` vẫn khoá ở `STAGE` |
 
-Còn lại đúng **lượt 5 và nửa sau của lượt 6**. Lượt 5 hết bị chặn về kỹ thuật —
-E3 đã có bảng, cửa và màn — nhưng nó là màn NHẬP SỐ cho §8.5, mà §8.5 chưa có
-số và doc này cấm bịa. Nửa sau lượt 6 là nối `pipelinePosition` vào chỗ thật và
-mở `config_limit_only_stage` cho mọi pipeline, không chỉ 8 phase của Sales.
+Còn lại **nửa sau của lượt 6**: nối `pipelinePosition` vào chỗ thật và mở
+`config_limit_only_stage` cho mọi pipeline, không chỉ 8 phase của Sales. Cộng
+một việc không nằm trong bảy lượt: nối tám mục còn lại của `/sales/config` vào
+cửa đề nghị vốn đã sống.
+
+Thứ chặn nửa phải của vector nay **không còn là kỹ thuật**. Màn A có đủ ô, bảng
+có đủ cột, đường duyệt chạy trọn vòng — thiếu đúng con số của §8.5. Ngày có số,
+nhập vào mục 5.9 là xong, không phải dựng thêm gì.
 
 **Ba chỗ lượt 0–4 cố ý để lại, nói ra chứ không giấu:**
 

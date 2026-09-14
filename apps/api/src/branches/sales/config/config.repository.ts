@@ -1,9 +1,10 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import { CONFIG_PREFIX, ConfigList } from '@pv/contracts'
+import { CONFIG_PREFIX, ConfigList, LeadMotion } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry, type ConfigRowDb } from './config.schema'
+import { motionPolicy, type MotionPolicyPatchDb, type MotionPolicyRowDb } from './motion.schema'
 
 /** Bản nháp một dòng mới — thứ repository ghi được, không hơn.
  *
@@ -161,6 +162,38 @@ export class SalesConfigRepository {
    *  KHÔNG lọc `active` ở đây: màn Cấu hình phải thấy dòng đã tắt (đó là toàn
    *  bộ hình thức "xoá" mà hệ có, giấu đi thì không ai bật lại được). Chỗ cần
    *  danh sách để CHỌN thì lọc ở chỗ đó. */
+  // ── the six motions · a table with no create door ────────────────────────
+
+  /** All six, in the order the contract declares them.
+   *
+   *  No `ord` column: there is nothing to reorder here, and a column that can
+   *  drift from the closed list it mirrors is a column that will.
+   *
+   *  Ordered by `LeadMotion.options` — the STORED spelling — rather than by the
+   *  engine's `LEAD_MOTIONS`, which holds the same six in lower case. That
+   *  second spelling is the "enum declared twice" debt recorded in
+   *  `ban-giao-api.md`, and its docblock is explicit that the conversion lives
+   *  in exactly ONE place (`lead.mapper.ts`). Reaching for the engine's list
+   *  here would open the second one. */
+  async motions(db: Db = this.db): Promise<MotionPolicyRowDb[]> {
+    const order = LeadMotion.options
+    const rows = await db.select().from(motionPolicy)
+    return [...rows].sort((a, b) => order.indexOf(a.motion) - order.indexOf(b.motion))
+  }
+
+  /** Write one motion's declaration. `false` = no such row, which can only
+   *  happen if somebody deleted one by hand: the six are planted by migration
+   *  `0036` and no door creates or removes them. */
+  async patchMotion(tx: Db, motion: LeadMotion, patch: MotionPolicyPatchDb): Promise<boolean> {
+    const rows = await tx
+      .update(motionPolicy)
+      .set(patch)
+      .where(eq(motionPolicy.motion, motion))
+      .returning({ motion: motionPolicy.motion })
+
+    return rows.length > 0
+  }
+
   /** `db` defaults to the pool and is passed a transaction by exactly one
    *  caller: the apply step re-reads the list INSIDE the transaction that is
    *  about to write, because what was true when the change was proposed may

@@ -19,6 +19,7 @@ import {
 import { MOTION_BY_INTAKE } from '@pv/engines'
 import { HEAD_OF_SALES, dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
+import { MotionSection } from './sales-config-parts'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
 import {
   ANCHOR_CODE,
@@ -564,6 +565,24 @@ export function SalesConfigPage() {
               hint="Hai trục ĐỘC LẬP: ai chủ động (thế) và dòng chui vào sổ bằng cách nào (đường vào). Bảng đọc được, chưa sửa được — đổi một danh sách đóng là đổi nghĩa mọi số đã đo theo kênh."
             >
               <IntakeMatrix />
+            </Section>
+
+            {/* Screen A of `docs/tam-nhin-pipeline-toan-he.md` §6 — a SECTION and
+                not a tab, because this screen has always been one scrolling page
+                and a tab bar would be a redesign of the eight sections above.
+
+                It is the only section here that actually calls the server: each
+                row proposes on its own and gets a receipt back. The eight above
+                still collect into the local `changes` array and clear it — the
+                propose-then-approve shape acted rather than wired. E3 has a
+                table now, so they CAN be wired; that is the next job, not this
+                section's. */}
+            <Section
+              no="5.9"
+              title="Thiết lập luồng"
+              hint="Bốn thứ mỗi luồng phải khai thì nó mới là luồng chứ không phải cái nhãn: chạm đầu trong bao lâu · ai nhận · được vào chiến dịch mail lạnh không · form khách tự điền có tính là đủ ô. Mọi ô đang TRỐNG vì chưa ai chốt số — và số bịa ra thì một tháng sau đọc như số đã thống nhất."
+            >
+              <MotionSection />
             </Section>
 
             {/* Gửi duyệt — mọi thay đổi đi MỘT LẦN, không tự lưu lắt nhắt. */}

@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type { Actor, ApprovalState, RoleId } from '@pv/engines'
-import type { ConfigList } from '@pv/contracts'
+import { FIRST_TOUCH_UNITS, splitFirstTouch, type ConfigList, type LeadMotion } from '@pv/contracts'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ConfigDraft, ConfigPatchDb } from './config.repository'
+import type { MotionPolicyPatchDb } from './motion.schema'
 
 /** THE E3 SEAM — one point for all three write doors, and it is now WIRED.
  *
@@ -55,6 +56,16 @@ export type ConfigChange =
   | { kind: 'tao'; list: ConfigList; draft: ConfigDraft }
   | { kind: 'sua'; list: ConfigList; id: string; patch: ConfigPatchDb }
   | { kind: 'thu-tu'; list: ConfigList; ids: string[] }
+  /** A motion's own declaration — no `list`, because the six motions are not a
+   *  vocabulary list: they cannot be added to, removed or reordered, and each
+   *  carries four unrelated fields. Same approval path, different table.
+   *
+   *  Spelled in English while the three above are not, and that is the rule
+   *  rather than an inconsistency: this value travels inside `approval.payload`
+   *  as JSON, so it is a stored key. The three older ones are on the identity
+   *  cleanup queue (`docs/ban-giao-dinh-danh-tieng-anh.md`); matching them would
+   *  add a fourth row to that queue. */
+  | { kind: 'motion'; motion: LeadMotion; patch: MotionPolicyPatchDb }
 
 /** Biên lai của một đề nghị. `state` là của E3, không phải của module này. */
 export type ConfigReceipt = {
@@ -93,7 +104,53 @@ const CONFIG_APPROVERS: RoleId[] = ['director']
 function consequenceOf(change: ConfigChange): string {
   if (change.kind === 'tao') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
   if (change.kind === 'sua') return `Sửa dòng ${change.id} của danh mục ${change.list}`
-  return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
+  if (change.kind === 'thu-tu') {
+    return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
+  }
+  return `Đổi thiết lập luồng ${change.motion}: ${motionWords(change.patch).join(' · ')}`
+}
+
+/** Each field of a motion patch, said in words.
+ *
+ *  The approver reads this instead of the patch, so it must survive being read
+ *  alone: a deadline in words rather than `firstTouchMinutes: 30`, and a phrase
+ *  for a field being cleared — clearing is a real decision here, not an empty
+ *  value, because `null` in this table means nobody has decided yet.
+ *
+ *  Minutes are decomposed by `splitFirstTouch` from the contract, the same
+ *  function the screen uses, so the sentence and the box never disagree. */
+function motionWords(patch: MotionPolicyPatchDb): string[] {
+  const said: string[] = []
+
+  if (patch.firstTouchMinutes !== undefined) {
+    if (patch.firstTouchMinutes === null) said.push('chạm đầu: bỏ khai')
+    else {
+      const { value, unit } = splitFirstTouch(patch.firstTouchMinutes)
+      const label = FIRST_TOUCH_UNITS.find((u) => u.unit === unit)?.label ?? 'phút'
+      said.push(`chạm đầu ${value} ${label}`)
+    }
+  }
+  if (patch.ownerRoleId !== undefined) {
+    said.push(
+      patch.ownerRoleId === null ? 'người nhận: bỏ khai' : `người nhận: ${patch.ownerRoleId}`,
+    )
+  }
+  if (patch.coldMailAllowed !== undefined) {
+    said.push(
+      patch.coldMailAllowed === null
+        ? 'mail lạnh: bỏ khai'
+        : `mail lạnh: ${patch.coldMailAllowed ? 'được' : 'KHÔNG được'}`,
+    )
+  }
+  if (patch.selfServeCountsAsInitData !== undefined) {
+    said.push(
+      patch.selfServeCountsAsInitData === null
+        ? 'form khách tự điền: bỏ khai'
+        : `form khách tự điền ${patch.selfServeCountsAsInitData ? 'tính' : 'KHÔNG tính'} là đủ ô`,
+    )
+  }
+
+  return said
 }
 
 /** The live gate: every proposal becomes a row in the One inbox.
@@ -123,7 +180,8 @@ export class SalesConfigGateE3 extends SalesConfigGate {
       chain,
     })
 
-    this.log.log(`đề nghị ${request.id} · ${change.kind} · ${change.list} · bởi ${who.id}`)
+    const subject = change.kind === 'motion' ? change.motion : change.list
+    this.log.log(`đề nghị ${request.id} · ${change.kind} · ${subject} · bởi ${who.id}`)
 
     return { requestId: request.id, state: request.state, change }
   }

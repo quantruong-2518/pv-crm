@@ -3,6 +3,10 @@ import type { Actor } from '@pv/engines'
 import {
   ConfigBundle,
   ConfigListResponse,
+  ConfigProposalReceipt,
+  MotionPolicyResponse,
+  type LeadMotion,
+  type MotionPolicyPatch,
   type ConfigEntryCreate,
   type ConfigEntryPatch,
   type ConfigList,
@@ -12,7 +16,7 @@ import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import type { ApprovalApplier } from '@api/platform/approval/approval.service'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import type { Db } from '@api/platform/db/db.module'
-import { SalesConfigGate, type ConfigChange, type ConfigReceipt } from './config.approval'
+import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository } from './config.repository'
 import type { ConfigRowDb } from './config.schema'
@@ -60,7 +64,11 @@ export class SalesConfigService implements ApprovalApplier {
     return ConfigListResponse.parse({ list, rows: rows.map(toContract) })
   }
 
-  async create(who: Actor, list: ConfigList, body: ConfigEntryCreate): Promise<ConfigReceipt> {
+  async create(
+    who: Actor,
+    list: ConfigList,
+    body: ConfigEntryCreate,
+  ): Promise<ConfigProposalReceipt> {
     this.assertAttrs(list, body, true)
     await this.assertOwnerReal(body.ownerId)
     this.assertNameFree(await this.repo.list(list), body.name)
@@ -82,7 +90,7 @@ export class SalesConfigService implements ApprovalApplier {
     list: ConfigList,
     id: string,
     body: ConfigEntryPatch,
-  ): Promise<ConfigReceipt> {
+  ): Promise<ConfigProposalReceipt> {
     this.assertAttrs(list, body, false)
 
     const rows = await this.repo.list(list)
@@ -100,13 +108,41 @@ export class SalesConfigService implements ApprovalApplier {
    *  dòng sẽ để lại dòng đó mang `ord` cũ, tức chèn nó vào một chỗ ngẫu nhiên
    *  giữa các số mới — và `ord` ở đây là thứ chở nghĩa nghiệp vụ ("bậc nào",
    *  "cột thứ mấy"), nên một thứ tự sai không phải chuyện hiển thị. */
-  async reorder(who: Actor, list: ConfigList, body: ConfigOrderPatch): Promise<ConfigReceipt> {
+  async reorder(
+    who: Actor,
+    list: ConfigList,
+    body: ConfigOrderPatch,
+  ): Promise<ConfigProposalReceipt> {
     this.assertOrderCovers(
       (await this.repo.list(list)).map((r) => r.id),
       body.ids,
     )
 
     return this.propose(who, { kind: 'thu-tu', list, ids: body.ids })
+  }
+
+  // ── the six motions · read, and propose ──────────────────────────────────
+
+  /** What every motion declares today — including the ones that declare
+   *  nothing, which is most of them and is the honest answer. */
+  async motions(): Promise<MotionPolicyResponse> {
+    return MotionPolicyResponse.parse({ rows: await this.repo.motions() })
+  }
+
+  /** Change one motion's declaration. Like every other write on this module it
+   *  does not write: it proposes, and the One inbox decides.
+   *
+   *  Nothing is validated here beyond what the contract already refused. The
+   *  other three doors check names against the book because a name can clash
+   *  with a neighbour; a motion has no neighbours to clash with, and its two
+   *  real fences — a sane deadline and a role that exists — are CHECKs on the
+   *  table. Repeating them here would be a second wording of one rule. */
+  proposeMotion(
+    who: Actor,
+    motion: LeadMotion,
+    body: MotionPolicyPatch,
+  ): Promise<ConfigProposalReceipt> {
+    return this.propose(who, { kind: 'motion', motion, patch: body })
   }
 
   // ── CHỖ NỐI E3 · một điểm cho cả ba đường ghi ─────────────────────────────
@@ -118,12 +154,17 @@ export class SalesConfigService implements ApprovalApplier {
    *  `approved` bên dưới là đường sẽ chạy ngày E3 gật ngay (chuỗi duyệt rỗng,
    *  hoặc người đề nghị cũng là người gật); nhánh `waiting` KHÔNG ghi gì cả, và
    *  đó là toàn bộ điểm của việc tách hai bước. */
-  private propose(who: Actor, change: ConfigChange): Promise<ConfigReceipt> {
+  private async propose(who: Actor, change: ConfigChange): Promise<ConfigProposalReceipt> {
     /* Nothing is applied here any more, not even when the proposer could
        approve it themselves a second later. Applying belongs to
        `ApprovalService.decide`, which is the only place that can settle the
        request and write the change in ONE transaction — see `apply` below. */
-    return this.gate.propose(who, change)
+    const receipt = await this.gate.propose(who, change)
+
+    /* The receipt is NARROWED here rather than in the controller: `change` is
+       this branch's private description of the work, and a controller that
+       forwards it whole makes a draft's internal shape part of the wire. */
+    return ConfigProposalReceipt.parse({ requestId: receipt.requestId, state: receipt.state })
   }
 
   // ── the applier · what "approved" means for this branch ──────────────────
@@ -167,6 +208,16 @@ export class SalesConfigService implements ApprovalApplier {
    *  per rule. "This name is taken" is the same fact whether it is read while
    *  typing or while approving. */
   private async applyChange(tx: Db, change: ConfigChange): Promise<void> {
+    if (change.kind === 'motion') {
+      /* Nothing to re-check across rows: a motion has no name to collide with
+         and no order to keep whole. What could still be wrong — a nonsense
+         deadline, a role that is not a role — is refused by the table's own
+         CHECKs, which hold for every door rather than only the checked ones. */
+      const written = await this.repo.patchMotion(tx, change.motion, change.patch)
+      if (!written) throw notFound('luồng', change.motion)
+      return
+    }
+
     const rows = await this.repo.list(change.list, tx)
 
     if (change.kind === 'tao') {

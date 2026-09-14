@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ApprovalState } from '../approval'
 import { Moment, textInput, textInputOptional } from '../primitives'
 
 /** Cấu hình danh mục Sales — module 6. `/sales/config`.
@@ -66,6 +67,7 @@ export const ConfigList = z.enum([
   'LOSS_REASON',
 ])
 
+export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
 export type ConfigList = z.infer<typeof ConfigList>
 
 /** Tiền tố id của từng danh mục. Máy chủ sinh `<tiền tố>-<số thứ tự>`.
@@ -240,6 +242,26 @@ export const ConfigListResponse = z.object({
  *  `id` và `ord` KHÔNG có mặt ở đây: cả hai do MÁY CHỦ sinh. Nhận `id` từ ngoài
  *  là cho người gọi tự chọn khoá chính, thứ mà một lần gõ trùng là một lần hai
  *  danh mục đè lên nhau. */
+
+/** What every write door on this module answers: a receipt, not a row.
+ *
+ *  There is no `config.edit` in the permission matrix — only `config.propose` —
+ *  so a successful call means "your request is in the One inbox", which is why
+ *  these doors answer 202 rather than 200. `requestId` is the row in
+ *  `platform.approval`; `state` is E3's, and today it is always `waiting`
+ *  because the chain has a link in it.
+ *
+ *  The change itself is deliberately NOT here. The branch keeps its own
+ *  description of the work (`ConfigChange`) server-side; putting it on the wire
+ *  would make a draft's internal shape part of the public contract, and a
+ *  screen would start reading it back.
+ *
+ *  Reused by every propose door — `MotionPolicyPatch` included — because
+ *  "somebody must say yes" is one fact and one shape, not four. */
+export const ConfigProposalReceipt = z.object({
+  requestId: z.string().min(1),
+  state: ApprovalState,
+})
 
 export const ConfigEntryCreate = z.object({
   name: textInput(120),

@@ -6,6 +6,8 @@ import {
   ConfigList,
   ConfigOrderPatch,
   ConfigCode,
+  LeadMotion,
+  MotionPolicyPatch,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
@@ -48,6 +50,33 @@ export class SalesConfigController {
   @Need({ branch: 'Sales', permission: 'config.view' })
   list(@Param('list', zod(ConfigList)) list: ConfigList) {
     return this.config.list(list)
+  }
+
+  /** The six lead motions and what each declares — mostly nothing, so far.
+   *
+   *  Declared BEFORE the `:list` doors below, the habit this file already keeps:
+   *  the router prefers a static segment over a parameter on its own, but a
+   *  reader meets the narrow path first only if somebody writes it first. */
+  @Get('motions')
+  @Need({ branch: 'Sales', permission: 'config.view' })
+  motions() {
+    return this.config.motions()
+  }
+
+  /** Change one motion's declaration. 202 like every other write here: what
+   *  comes back is a receipt for a request in the One inbox, not a saved row.
+   *
+   *  `PATCH` rather than `PUT` because a motion row always exists — the six are
+   *  planted by migration and there is no door that creates or removes one. */
+  @Patch('motions/:motion')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  patchMotion(
+    @CurrentActor() who: Actor,
+    @Param('motion', zod(LeadMotion)) motion: LeadMotion,
+    @Body(zod(MotionPolicyPatch)) body: MotionPolicyPatch,
+  ) {
+    return this.config.proposeMotion(who, motion, body)
   }
 
   @Post(':list')
