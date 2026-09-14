@@ -18,6 +18,13 @@ export function toContract(row: TouchRowDb): TouchRow {
     ...(row.toTier ? { toTier: row.toTier } : {}),
     by: row.by,
     ...(row.actorId ? { actorId: row.actorId } : {}),
+    /* Both halves of an end or neither, tested on the NAME: the table keeps the
+       pair whole (`touch_hand_over_sides`), and reading it back one column at a
+       time is how a half end would reach a screen that cannot draw it. */
+    ...(row.fromName && row.fromActorId
+      ? { from: { actorId: row.fromActorId, name: row.fromName } }
+      : {}),
+    ...(row.toName && row.toActorId ? { to: { actorId: row.toActorId, name: row.toName } } : {}),
     note: row.note,
   }
 }

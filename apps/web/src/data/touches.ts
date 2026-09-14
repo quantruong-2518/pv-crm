@@ -1,7 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
+import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
 import type { TouchRow, TouchTimelineResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { dm, dmy } from '@/lib/date'
 
 /** Dòng thời gian của một mã — hai cửa, một phép dịch.
  *
@@ -68,6 +70,73 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
 export function eventsOf(rows: readonly TouchRow[]): LeadEvent[] {
   return rows.map((r) => ({ at: r.at, kind: r.kind, by: r.by, note: r.note }))
 }
+
+/** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
+ *
+ *  Only two kinds carry a holder, and both state it in COLUMNS rather than in
+ *  the sentence: `vao-so` carries `to` for a lead that entered the book already
+ *  assigned, `giao` carries `from` and/or `to` on every hand-over. The server
+ *  answers newest-first, so this walks backwards to build time order.
+ *
+ *  A `giao` row with NEITHER end is skipped, and that is the one careful line
+ *  here: those are rows written before migration `0033`, when both ends lived
+ *  only in the Vietnamese sentence in `note`. A release into the common pool
+ *  has `from` and no `to`, and `touch_hand_over_sides` forbids a `giao` row
+ *  that names neither end — so the two cases cannot be confused. Digging names
+ *  back out of an old row's prose would invent history, so it is not done.
+ *
+ *  Dates are FORMATTED here: `@pv/ui` holds no locale and no clock. */
+export function stepsOf(rows: readonly TouchRow[]): FlowVectorStep[] {
+  const steps: FlowVectorStep[] = []
+
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i]
+    if (!row) continue
+    if (row.kind !== 'giao' && row.kind !== 'vao-so') continue
+
+    if (row.to) {
+      steps.push({
+        kind: 'held',
+        touchId: row.id,
+        holder: row.to.name,
+        actorId: row.to.actorId,
+        at: dm(row.at),
+        atFull: dmy(row.at),
+      })
+    } else if (row.kind === 'giao' && row.from) {
+      steps.push({ kind: 'pool', touchId: row.id, at: dm(row.at), atFull: dmy(row.at) })
+    }
+  }
+
+  return steps
+}
+
+/** No holder has ever been recorded for this lead.
+ *
+ *  A module-level frozen value rather than `[]` in the screen, for the reason
+ *  `NO_TOUCHES` is one: a fresh `[]` on every render gives `FlowVector` a new
+ *  array identity each time and makes its memo work for nothing. It also says
+ *  WHICH empty this is — nobody has held the lead, as opposed to the query not
+ *  having answered. */
+export const NO_STEPS: readonly FlowVectorStep[] = []
+
+/** The holder chain of one LEAD.
+ *
+ *  THE SAME `queryKey` as `leadTouchesQuery`, deliberately. Two parts of the
+ *  screen ask two questions of one timeline, and `select` belongs to the
+ *  observer rather than to the cache — so a single fetch feeds both the
+ *  activity card and the vector. A key of its own would load the same list
+ *  twice and let the two copies drift apart by a few seconds. */
+export const leadVectorQuery = (code: string) =>
+  queryOptions({
+    queryKey: ['sales', 'lead-touches', code] as const,
+    queryFn: ({ signal }) =>
+      api.read<TouchTimelineResponse>(`/sales/leads/${encodeURIComponent(code)}/touches`, {
+        need: LEAD_TOUCH_NEED,
+        signal,
+      }),
+    select: (d: TouchTimelineResponse) => stepsOf(d.rows),
+  })
 
 /** Lần chạm của một LEAD. `select` dịch ngay trong query, nên component nhận
  *  thẳng `LeadEvent[]` và không phải nhớ gọi `eventsOf` — TanStack còn giữ hộ

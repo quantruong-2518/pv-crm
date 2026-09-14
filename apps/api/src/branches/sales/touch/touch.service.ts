@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import {
   TouchTimelineResponse,
   type LeadTier,
+  type TouchHolder,
   type TouchKind,
   type TouchSubject,
 } from '@pv/contracts'
@@ -50,6 +51,11 @@ export class TouchService {
         ...(e.toTier === undefined ? {} : { toTier: e.toTier }),
         ...(e.actorId === undefined ? {} : { actorId: e.actorId }),
         ...(e.at === undefined ? {} : { at: e.at }),
+        /* One end spreads into two columns, and the pair is spread together so
+           an id can never land without its name — the shape
+           `touch_hand_over_sides` refuses. */
+        ...(e.from === undefined ? {} : { fromActorId: e.from.actorId, fromName: e.from.name }),
+        ...(e.to === undefined ? {} : { toActorId: e.to.actorId, toName: e.to.name }),
       })),
     )
   }
@@ -80,6 +86,15 @@ export type TouchEntry = {
   actorId?: string
   /** Bỏ trống = `now()` của database. Chỉ đặt khi mốc thật khác lúc ghi. */
   at?: Date
+  /** Who held it before this step, and who holds it after.
+   *
+   *  `from` belongs to `'giao'` alone; `to` to `'giao'` and to `'vao-so'` for a
+   *  lead that entered the book already assigned. A missing end is the common
+   *  pool, not a missing value — see `TouchRow.from` in the contract. The type
+   *  cannot tie an end to a `kind` any more than `toTier` can, so the fence is
+   *  `touch_hand_over_sides` in the database; these carry the value there. */
+  from?: TouchHolder
+  to?: TouchHolder
 }
 
 /** Tên máy tự xưng khi không có ai bấm nút.

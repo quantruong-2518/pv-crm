@@ -225,6 +225,13 @@
       "when": 1788500300000,
       "tag": "0032_role_permission",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788500400000,
+      "tag": "0033_touch_hand_over",
+      "breakpoints": true
     }
   ]
 }

@@ -301,9 +301,15 @@ chỉ 8 phase của Sales.
 3. **Supply và Factory làm thật hay chỉ để E1 vẽ chuỗi?** Câu này gắt hơn vẻ
    ngoài — vì tầng 0 chưa đóng nên hôm nay câu trả lời **trên thực tế** đang là
    "chỉ để vẽ", dù ContextRail in ra như thể chúng sống.
-4. **`giao` ghi một dòng hay hai?** Một dòng mang cả `từ ai → cho ai`, hay hai
-   dòng (người cũ mất, người mới nhận)? Bảng `touch` hiện chỉ có `by` số ít —
-   chở "từ ai" phải bồi cột, và bồi sớm rẻ hơn nhiều so với sau khi có dữ liệu.
+4. ~~**`giao` ghi một dòng hay hai?**~~ **Đã chốt 14/09 — MỘT dòng**, mang cả
+   hai đầu trong bốn cột mới của `sales.touch`
+   (`from_actor_id`/`from_name` · `to_actor_id`/`to_name`, migration `0033`).
+   Hai dòng đếm một việc thành hai ở mọi phép đếm lần chạm, cùng mang một `at`
+   (Postgres đóng băng `now()` theo transaction) nên không đọc ra thứ tự giữa
+   chúng, và "luôn hai dòng" gãy ngay ở hai nước đi thường nhất: nhận từ kho
+   chung không có người cũ, trả về kho chung không có người mới. `by` không
+   phải đầu nào cả — trưởng phòng chuyển tay giữa hai Sale là người thứ ba.
+   Lý do đầy đủ nằm cạnh cột, ở `touch.schema.ts`.
 5. **SLA chạm đầu của từng luồng, và luật giao việc.** Chưa có con số, và không
    được bịa.
 
@@ -314,19 +320,32 @@ chỉ 8 phase của Sales.
 `tam-nhin-pipeline.md` §9 đặt "rút 3 cột" ở lượt 1 và E3 ở lượt 2–3. Bản này đề
 nghị **đảo**, và chen tầng 0 lên trước:
 
-| Lượt | Việc                                                                  | Vì sao                                                                                         |
-| ---- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 0    | Ghi `giao` + `cham` vào `sales.touch`                                 | **rẻ nhất** — một chỗ sửa, trong đúng transaction đang đổi `owner_id`. Mở ngay nửa trái vector |
-| 1    | Component Vector, chỉ vẽ nửa trái, lên `/kit`, nhúng hồ sơ lead       | kiểm xem hình này có thật sự trả lời "ai trước tôi"                                            |
-| 2    | `platform.approval` + `approval_link`, `APPROVALS` thành provider     | tầng 1 — chín pipeline kia đều hưởng                                                           |
-| 3    | Nối `config.approval.ts`, Hộp duyệt lên                               | chặn bởi lượt 2                                                                                |
-| 4    | E1 ghi cạnh lúc chạy — `ObjectMirror` + `GraphService` vào controller | tầng 0 thật sự                                                                                 |
-| 5    | Màn A định nghĩa luồng (qua E3) → mở nửa phải vector                  | chặn bởi 2, 3                                                                                  |
-| 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry`      | chặn bởi 4                                                                                     |
+| Lượt | Việc                                                                  | Vì sao                                                                                             |
+| ---- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 0    | ~~Ghi `giao` + `cham` vào `sales.touch`~~ — **xong 14/09**            | cửa ghi đã có sẵn từ 29/08; phần còn thiếu là hai đầu của lần giao, nay là cột. Nửa trái vector mở |
+| 1    | Component Vector, chỉ vẽ nửa trái, lên `/kit`, nhúng hồ sơ lead       | kiểm xem hình này có thật sự trả lời "ai trước tôi"                                                |
+| 2    | `platform.approval` + `approval_link`, `APPROVALS` thành provider     | tầng 1 — chín pipeline kia đều hưởng                                                               |
+| 3    | Nối `config.approval.ts`, Hộp duyệt lên                               | chặn bởi lượt 2                                                                                    |
+| 4    | E1 ghi cạnh lúc chạy — `ObjectMirror` + `GraphService` vào controller | tầng 0 thật sự                                                                                     |
+| 5    | Màn A định nghĩa luồng (qua E3) → mở nửa phải vector                  | chặn bởi 2, 3                                                                                      |
+| 6    | `pipeline_position` có `branch`; `limitDays` sang `config_entry`      | chặn bởi 4                                                                                         |
 
-Lượt 0 và 1 làm được **ngay**, không chặn bởi gì — và chúng là cách rẻ nhất để
-biết hình vector có đúng không trước khi bỏ công dựng màn thiết lập.
+Lượt 1 làm được **ngay**, không chặn bởi gì — và nó là cách rẻ nhất để biết
+hình vector có đúng không trước khi bỏ công dựng màn thiết lập.
 
-`TouchKind` đã khai sẵn cả `giao` lẫn `cham` với ghi chú thành thật _"No door
-writes this yet… they are in the enum because the screen draws them"_ — enum đã
-chừa đúng chỗ cho việc này, chỉ thiếu cửa ghi.
+**Sửa lại một chỗ bản này đọc sai code (14/09).** `giao` và `cham` KHÔNG thiếu
+cửa ghi: `setOwner` ghi `giao` từ `cf97f78` (29/08) và sổ cuộc họp ghi
+`gap-lan-dau`/`cham` từ `d80c034` (cùng ngày). Ghi chú _"No door writes this
+yet"_ trong `TouchKind` là ghi chú cũ chưa ai dọn — nay đã dọn. Thứ thật sự
+thiếu là thứ §8.4 hỏi: một lần giao chỉ nói được hai đầu bằng câu tiếng Việt
+trong `note`, nên nửa trái vector muốn dựng chuỗi người phải đi bóc câu văn.
+Lượt 0 vì thế là **bốn cột + một CHECK**, không phải một cửa ghi mới.
+
+Hai loại vẫn chưa có cửa, và đó là sự thật hôm nay: `len-bac` và
+`ra-khoi-luong` — không cửa nào đổi bậc hay cho lead rời phễu, vì cả hai hợp
+đồng cố ý giữ lại hai cột đó ("gates, not fields").
+
+`vao-so` cũng chở `to_*` khi lead vào sổ đã có người giữ — cùng chỗ `to_tier`
+đã chở bậc cho lead vào sổ đã có bậc, để bước đầu tiên của vector là một mốc
+**được ghi** chứ không phải suy từ `lead.owner_id`, thứ chỉ biết ai giữ HÔM NAY
+và không có ngày để đứng.

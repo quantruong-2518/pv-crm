@@ -25,6 +25,8 @@ import {
   DataTable,
   EmptyState,
   FileDrop,
+  FlowVector,
+  type FlowVectorStep,
   Kicker,
   MetaPill,
   millions,
@@ -44,6 +46,30 @@ import {
 } from '@pv/ui'
 
 /** Zone 02 · Molecules — tầng mang chữ ký của hệ: ContextRail và AIAction. */
+
+/** Left half reads `sales.touch`, right half reads the flow definition — the
+ *  future step deliberately carries no name and no date, because the type
+ *  gives it nowhere to put one. */
+const KIT_VECTOR: FlowVectorStep[] = [
+  {
+    kind: 'held',
+    touchId: 't1',
+    holder: 'Châu',
+    actorId: 'u-chau',
+    at: '12/08',
+    role: 'marketing',
+  },
+  { kind: 'held', touchId: 't2', holder: 'Nam', actorId: 'u-nam', at: '15/08', role: 'BD' },
+  { kind: 'held', touchId: 't3', holder: 'Huy', actorId: 'u-huy', at: '18/08', role: 'sale' },
+  { kind: 'upcoming', role: 'presales', due: 'hạn 3 ngày' },
+]
+
+/** A lead just released into the common pool: the last step has a date and a
+ *  `touchId`, and no holder. */
+const KIT_VECTOR_POOL: FlowVectorStep[] = [
+  { kind: 'held', touchId: 't4', holder: 'Nam', actorId: 'u-nam', at: '15/08', role: 'BD' },
+  { kind: 'pool', touchId: 't5', at: '19/08' },
+]
 
 const CHAIN = [
   { label: 'Đức ✓ 08:40', state: 'ok' as const },
@@ -632,6 +658,36 @@ export function ZoneMolecules() {
             <StageTrack steps={KIT_STAGES} current={2} caption />
             {/* The table-cell shape: no caption, 4px tall, sits under a badge. */}
             <StageTrack steps={KIT_STAGES} current={0} />
+          </div>
+        </SpecCard>
+
+        {/* M-16 */}
+        <SpecCard
+          className="col-span-2"
+          code="M-16"
+          name="FlowVector"
+          note="ai đã giữ lead này, theo thứ tự"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Xương sống: bên trái là SỰ THẬT (đọc <code>sales.touch</code> — ngày thật, tên thật,
+              <code>touchId</code> bấm được), bên phải là LUẬT (định nghĩa luồng — chỉ vai và hạn).
+              Kiểu là hàng rào: nhánh <code>upcoming</code> KHÔNG có ô nào để đặt tên người hay ngày
+              vào, nên không màn nào bịa được — cùng cách <code>AiActionProps.basis</code> gác luật
+              9. Đường nối liền sau việc đã xảy ra, đứt trước việc mới chỉ tới hạn.
+              <br />
+              Khác ContextRail (M-04): rail vẽ chuỗi OBJECT và luật 10 chốt <code>
+                E1.story()
+              </code>{' '}
+              là đầu vào hợp lệ duy nhất của nó; thanh này vẽ chuỗi NGƯỜI trên MỘT object. Mỗi mắt
+              cao ≥48px (tablet là hiện trường), dưới 1024px phần đã qua gập thành một mắt &ldquo;n
+              bước trước&rdquo;, dưới 640px xoay dọc và mốc hiện tại neo trên cùng.
+            </>
+          }
+        >
+          <div className="flex flex-col gap-5">
+            <FlowVector steps={KIT_VECTOR} you="u-huy" onOpen={() => {}} />
+            <FlowVector steps={KIT_VECTOR_POOL} />
           </div>
         </SpecCard>
       </ZoneBody>

@@ -33,10 +33,12 @@ import { LeadTier } from './enums'
  *  table is where the two vocabularies drift.
  *
  *  Not every kind has a writer yet, and that is honest rather than aspirational:
- *  the branch writes what its doors actually do. `gap-lan-dau` and `giao` have
- *  no endpoint behind them today; they are in the enum because the screen draws
- *  them and because the alternative — widening the enum later — is a migration
- *  on a CHECK constraint for something already known to be coming.
+ *  the branch writes what its doors actually do. Two are still unwritten today —
+ *  `len-bac` and `ra-khoi-luong` — because no door moves a tier or drops a lead
+ *  out of the funnel: both contracts withhold those columns on purpose ("gates,
+ *  not fields"). They are in the enum because the screen draws them and because
+ *  the alternative — widening the enum later — is a migration on a CHECK
+ *  constraint for something already known to be coming.
  *
  *  ------------------------------------------------------------------
  *  MAIL IS NOT IN HERE
@@ -55,15 +57,15 @@ import { LeadTier } from './enums'
 export const TouchKind = z.enum([
   /** A lead entered the book — typed, imported, or through the landing page. */
   'vao-so',
-  /** Somebody made contact. No door writes this yet. */
+  /** Somebody made contact — today, a meeting that is not the first one. */
   'cham',
   /** Fields on the profile were filled in or corrected. */
   'dien-o',
-  /** Ownership handed over. No door writes this yet. */
+  /** Ownership handed over. Names both ends in `from`/`to`. */
   'giao',
   /** The lead moved up a tier. */
   'len-bac',
-  /** First meeting happened. No door writes this yet. */
+  /** First meeting happened. */
   'gap-lan-dau',
   /** A lead became an opportunity. */
   'vao-pipeline',
@@ -79,6 +81,23 @@ export const TouchKind = z.enum([
  *  merging them would make "this deal moved to Chờ ký" appear on a sibling deal
  *  belonging to the same customer. */
 export const TouchSubject = z.enum(['lead', 'opportunity'])
+
+// ---------------------------------------------------------------------------
+// WHO HELD IT
+// ---------------------------------------------------------------------------
+
+/** One end of a hand-over — the holder, named as they were named that day.
+ *
+ *  Both fields or neither, which is the same rule `touch_hand_over_sides`
+ *  enforces in the table: an id with no name is a step the vector can only
+ *  draw as an id, and the way out of that is a join back to `actor` — the one
+ *  thing `by` exists to prevent. The name is a copy taken at write time; the
+ *  id is here so the vector can mark "this step is you" without matching on a
+ *  string. */
+export const TouchHolder = z.object({
+  actorId: z.string().min(1).max(64),
+  name: textInput(120),
+})
 
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
@@ -117,6 +136,31 @@ export const TouchRow = z.object({
   by: textInput(120),
   actorId: z.string().min(1).max(64).optional(),
 
+  /** The two ends of a hand-over, as DATA — who held it before, who holds it
+   *  after.
+   *
+   *  `to` follows the convention `toTier` already set on this row: what is true
+   *  AFTER this step, stated by the row itself. So `to` appears on `giao`, and
+   *  on `vao-so` for a lead that entered the book already assigned — a trail
+   *  that begins at a holder written down rather than at one inferred.
+   *
+   *  An absent end is the common pool, and that is a fact rather than a hole:
+   *  no `from` means it was claimed out of the pool, no `to` means it was
+   *  released back into it. A `giao` row carries at least one of them.
+   *
+   *  Why columns and not the sentence in `note`, which already names the
+   *  recipient: the flow vector (`docs/tam-nhin-pipeline-toan-he.md` §6·B)
+   *  draws one step per holder, and reading the chain out of `note` means
+   *  parsing Vietnamese prose the server wrote for a person. Why on the row and
+   *  not walked backwards from the next row: that walk holds only while the
+   *  trail has no gaps — the same habit-shaped reasoning `toTier` exists to
+   *  refuse.
+   *
+   *  Neither end is `by`. `by` is whoever pressed the button, and on a manager's
+   *  reassignment that is a third person who neither lost nor gained the lead. */
+  from: TouchHolder.optional(),
+  to: TouchHolder.optional(),
+
   /** The sentence the screen shows. Written by the server in Vietnamese,
    *  because it is a fact addressed to the person reading the card. */
   note: textInput(500),
@@ -131,6 +175,7 @@ export const TouchTimelineResponse = z.object({
 })
 
 export type TouchKind = z.infer<typeof TouchKind>
+export type TouchHolder = z.infer<typeof TouchHolder>
 export type TouchSubject = z.infer<typeof TouchSubject>
 export type TouchRow = z.infer<typeof TouchRow>
 export type TouchTimelineResponse = z.infer<typeof TouchTimelineResponse>

@@ -9,7 +9,7 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *
  *  Vẫn khai, vì cái đỡ nằm ở chỗ khác: không có sổ thì bộ dịch lùi về câu chung
  *  theo SQLSTATE và **ghi nguyên chi tiết Postgres vào log ở mức `warn`**, kèm
- *  tên bảng và tên ràng buộc. Ba dòng dưới đây là chỗ để lại một câu cho người
+ *  tên bảng và tên ràng buộc. Mấy dòng dưới đây là chỗ để lại một câu cho người
  *  đọc log lúc 2 giờ sáng, và `fields` cố tình để trống — không ô nào trên màn
  *  tô đỏ được cho một lỗi không đến từ một ô nào. */
 export const TOUCH_CONSTRAINTS: ConstraintBook = {
@@ -26,6 +26,20 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
   touch_no_blank: {
     kind: 'invalid',
     message: 'Lần chạm phải có người làm và câu mô tả — một dòng trống không kể được gì.',
+  },
+
+  /** Only a `giao` row names the two ends of a hand-over, and it names at least
+   *  one of them. Nothing a person typed can break this — the service builds
+   *  the pair from the lead's own `owner_id` — so this firing means the writer
+   *  is wrong, and the sentence below exists for the log rather than the screen. */
+  touch_hand_over_sides: {
+    kind: 'invalid',
+    message: 'Chỉ lần chạm loại giao mới chở được người giao và người nhận.',
+  },
+
+  touch_giao_names_an_end: {
+    kind: 'invalid',
+    message: 'Một lần giao phải nói ra người giao hoặc người nhận.',
   },
 
   /** Người ghi không còn trong sổ nhân sự. Chỉ ăn khi một tài khoản bị xoá

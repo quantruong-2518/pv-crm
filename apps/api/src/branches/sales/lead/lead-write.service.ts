@@ -112,13 +112,21 @@ export class LeadWriteService {
       /* The lead's first timeline row, written in the same commit as the lead.
          A customer whose history starts at the day somebody happened to open
          the profile is a customer with no history — and the row costs one
-         INSERT on a path that is already writing two. */
+         INSERT on a path that is already writing two.
+
+         `to` is the holder the lead is BORN with, and it is on this row rather
+         than on a `giao` row of its own: nobody handed the lead over, it
+         arrived with a name on it. Without it the flow vector's first step
+         would have to be inferred from `lead.owner_id`, which says who holds it
+         TODAY and has no date to stand on. Same place `toTier` sits for a lead
+         that entered the book already graded. */
       await this.touch.record(tx, [
         {
           subjectCode: code,
           subjectKind: 'lead',
           kind: 'vao-so',
           ...byOf(who),
+          ...(owner ? { to: { actorId: owner.id, name: owner.name } } : {}),
           note: LEAD_NOTE.typed,
         },
       ])
@@ -188,8 +196,9 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  The column, the mirror row in `platform.object` (or the ContextRail keeps
    *  showing the old holder — rule 10), and one `sales.touch` row of kind
-   *  `giao`, which until today no door in the branch wrote. The lock is taken
-   *  first; see `lockForOwnerChange`. */
+   *  `giao` carrying BOTH ends of the move — one row, not two; the reasoning
+   *  is on the columns in `touch.schema.ts`. The lock is taken first; see
+   *  `lockForOwnerChange`. */
   async setOwner(who: Actor, code: ObjectCode, body: LeadOwnerWrite): Promise<LeadOwnerResponse> {
     const mayAssign = this.access.allows(who, 'lead.assign')
 
@@ -228,6 +237,15 @@ export class LeadWriteService {
          second hand-over on the timeline. */
       if (found.ownerId === (body.ownerId ?? null)) return
 
+      /* The holder being replaced, looked up for their NAME — the timeline row
+         copies names rather than joining `actor` later. Read here rather than
+         beside `next`: it is only needed once the hand-over is really
+         happening, and everything above this line can still refuse. A miss is
+         not possible while `lead_owner_id_actor_id_fk` holds, and if it ever
+         were, the row says "claimed out of the common pool" rather than
+         inventing a giver. */
+      const prev = found.ownerId ? await this.repo.actorById(tx, found.ownerId) : null
+
       await this.repo.setOwner(tx, code, body.ownerId ?? null)
 
       await this.mirror.put(tx, {
@@ -245,9 +263,18 @@ export class LeadWriteService {
           subjectKind: 'lead',
           kind: 'giao',
           /* `by`/`actorId` is who PRESSED the button, never who received the
-             lead — the timeline answers "who did this", and the recipient is
-             named in the note. `byOf` is the only way to build that pair. */
+             lead — the timeline answers "who did this", and a head of sales
+             moving a lead between two Sales is neither end of it. `byOf` is the
+             only way to build that pair. */
           ...byOf(who),
+          /* The two ends as DATA, beside the sentence that says the same thing
+             in Vietnamese. The note is for the person reading the card; these
+             are for the flow vector, which draws one step per holder and must
+             not get there by parsing prose. An absent end is the common pool:
+             no `from` means claimed out of it, no `to` means released into it —
+             and `touch_hand_over_sides` refuses a row with neither. */
+          ...(prev ? { from: { actorId: prev.id, name: prev.name } } : {}),
+          ...(next ? { to: { actorId: next.id, name: next.name } } : {}),
           note: next ? `${LEAD_NOTE.handedTo} ${next.name}` : LEAD_NOTE.released,
         },
       ])
@@ -465,6 +492,13 @@ export class LeadWriteService {
                hợp đồng cố tình giữ lại `tier` ở hai cửa đó: bậc của chúng là
                NULL, và ghi ra một bậc không tồn tại thì tệ hơn không ghi. */
             ...(p.row.tier ? { toTier: p.row.tier } : {}),
+            /* An imported file may already say who owns each row, so the same
+               `to` the manual door writes belongs here — see `create()`. Read
+               off the ref rather than looked up again: `refOf` already resolved
+               the id into the display name for the mirror row. */
+            ...(p.row.ownerId && p.ref.owner
+              ? { to: { actorId: p.row.ownerId, name: p.ref.owner } }
+              : {}),
             ...byOf(who),
             note: LEAD_NOTE.imported(body.fileName),
           })),

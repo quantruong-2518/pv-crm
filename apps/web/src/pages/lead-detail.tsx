@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Chip,
+  FlowVector,
   GlassCard,
   Icon,
   MetaPill,
@@ -32,7 +33,7 @@ import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
 import { leadOf, leadProfileQuery, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
 import { opportunitiesOfLeadQuery } from '@/data/opportunities'
-import { leadTouchesQuery } from '@/data/touches'
+import { leadTouchesQuery, leadVectorQuery, NO_STEPS } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
@@ -203,6 +204,10 @@ export function LeadDetailPage() {
      the hooks right above. A failed fetch does NOT break the screen:
      `= NO_TOUCHES` keeps the old wording, and an empty timeline still reads. */
   const { data: touches = NO_TOUCHES } = useQuery(leadTouchesQuery(code))
+  /* The holder chain, off the SAME query key as the timeline above — one fetch,
+     two questions. Empty until somebody has actually held this lead, and
+     `FlowVector` draws nothing at all in that case. */
+  const { data: vector = NO_STEPS } = useQuery(leadVectorQuery(code))
 
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -382,6 +387,18 @@ export function LeadDetailPage() {
           </div>
         </div>
       </GlassCard>
+
+      {/* WHO HAS HAD THIS LEAD, in order — the left half of the flow vector
+          (`docs/tam-nhin-pipeline-toan-he.md` §6·B). It sits under the header
+          rather than in the side panel because it is a fact about the lead, not
+          a task: the panel answers "what do I do now", this answers "who was
+          before me". No `onOpen` yet — `ActivityCard` keys its rows on `at`
+          rather than on a touch id, so there is nothing to scroll to. */}
+      {vector.length > 0 && (
+        <GlassCard variant="b" className="p-4">
+          <FlowVector steps={vector} you={me?.id} />
+        </GlassCard>
+      )}
 
       {/* HAI CỘT, HAI CÂU HỎI — bố cục chốt 29/08.
           Trái là HỒ SƠ ("khách này là ai"), phải là TÁC VỤ ("giờ tôi làm gì").

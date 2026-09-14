@@ -86,6 +86,31 @@ export const touch = sales.table(
     actorId: text('actor_id').references(() => actor.id),
     by: text('by').notNull(),
 
+    /** Both ends of one hand-over. NULL in all four on every other kind.
+     *
+     *  ONE ROW, NOT TWO — the open question in §8.4 of
+     *  `docs/tam-nhin-pipeline-toan-he.md`, answered here because here is where
+     *  it becomes columns. Two rows (one for the loser, one for the taker)
+     *  count a single event twice: the activity card already treats `giao` as a
+     *  conversation turn, so every "how many touches" count doubles on each
+     *  hand-over. They would also share one `at` — Postgres freezes `now()` per
+     *  transaction — leaving no readable order between them. And the "always
+     *  two" rule breaks on the two commonest moves anyway: claiming out of the
+     *  common pool has no loser, releasing back into it has no taker.
+     *
+     *  `by` is NEITHER end. It is whoever pressed the button, and a head of
+     *  sales moving a lead between two Sales is a third person who lost
+     *  nothing and gained nothing.
+     *
+     *  The names are COPIES taken at write time, for the same reason `by` is:
+     *  joining `actor` on read makes every past step silently adopt the
+     *  person's current name. The ids travel beside them so the flow vector can
+     *  mark "this step is you" without comparing strings. */
+    fromActorId: text('from_actor_id').references(() => actor.id),
+    fromName: text('from_name'),
+    toActorId: text('to_actor_id').references(() => actor.id),
+    toName: text('to_name'),
+
     note: text('note').notNull(),
   },
   (t) => [
@@ -111,6 +136,36 @@ export const touch = sales.table(
      *  Một dòng `len-bac` không mang bậc là một dòng không đọc được — chặn ở
      *  đây chứ không phát hiện lúc dựng biểu đồ. */
     check('touch_len_bac_co_bac', sql`"kind" <> 'len-bac' OR "to_tier" IS NOT NULL`),
+    /** The SHAPE of the four columns above, true of every row ever written:
+     *
+     *   · an end has a name and an id or neither — half an end cannot be drawn;
+     *   · only `giao` names the person who LOST the lead;
+     *   · only `giao` and `vao-so` name the person who GOT it — `vao-so` carries
+     *     it for a lead that entered the book already assigned, exactly where
+     *     `to_tier` carries the rung for a lead that entered already graded, so
+     *     the vector's left half starts at a step that was WRITTEN DOWN. */
+    check(
+      'touch_hand_over_sides',
+      sql`("from_actor_id" IS NULL) = ("from_name" IS NULL)
+          AND ("to_actor_id" IS NULL) = ("to_name" IS NULL)
+          AND ("from_actor_id" IS NULL OR "kind" = 'giao')
+          AND ("to_actor_id" IS NULL OR "kind" IN ('giao', 'vao-so'))`,
+    ),
+    /** A `giao` row naming neither end is a row nobody can read — but only from
+     *  migration `0033` onward, and that is why this is a SECOND constraint
+     *  rather than a fifth clause of the one above.
+     *
+     *  `setOwner` has been writing end-less `giao` rows since 29/08. Validating
+     *  this against the table would abort `0033` on any database where somebody
+     *  has pressed "Giao", so the migration adds it `NOT VALID`: enforced on
+     *  every write from now on, silent about rows that predate the columns.
+     *  Drizzle has no way to spell `NOT VALID`, so a schema diff generated from
+     *  this file would ask to re-add it validated — read the migration, not the
+     *  generator, before touching this one. */
+    check(
+      'touch_giao_names_an_end',
+      sql`"kind" <> 'giao' OR "from_actor_id" IS NOT NULL OR "to_actor_id" IS NOT NULL`,
+    ),
     /** Một dòng thời gian không có câu nào để đọc là một dòng trống chiếm chỗ. */
     check('touch_no_blank', sql`"by" <> '' AND "note" <> '' AND "subject_code" <> ''`),
   ],
