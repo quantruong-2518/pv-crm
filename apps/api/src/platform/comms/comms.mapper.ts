@@ -1,7 +1,22 @@
-import type { Channel } from '@pv/engines'
-import { email, type CommsChannel, type IdentityRow } from '@pv/contracts'
+import type { AccessControl, Actor, Channel, ObjectRef } from '@pv/engines'
+import {
+  email,
+  type CommsChannel,
+  type IdentityRow,
+  type LinkRow,
+  type MessageContent,
+  type MessageRow,
+  type ThreadRow,
+} from '@pv/contracts'
 import { invalid } from '@api/platform/http/problem'
-import type { IdentityRowDb } from './comms.schema'
+import type { ObjectRow } from '@api/platform/db/platform.schema'
+import type {
+  IdentityRowDb,
+  LinkRowDb,
+  MessagePartyRowDb,
+  MessageRowDb,
+  ThreadRowDb,
+} from './comms.schema'
 
 /** E4's `Channel` IS A SUBSET OF `CommsChannel` — asserted, not assumed.
  *
@@ -126,4 +141,106 @@ export function normaliseAddress(channel: CommsChannel, raw: string): Normalised
   }
 
   return trimmed as NormalisedAddress
+}
+
+// ---------------------------------------------------------------------------
+// TURN 1 - THE CONVERSATION BOOK
+// ---------------------------------------------------------------------------
+
+/** Row + the count that has no column -> wire.
+ *
+ *  `messageCount` arrives as an argument rather than being read off the row
+ *  because `comms.thread` deliberately has no such column: the number is a
+ *  `count()` in the same statement that fetched the header, and the schema's
+ *  docblock says why a stored counter would be a second source for a fact
+ *  `comms.message` already holds. */
+export function toThread(row: ThreadRowDb, messageCount: number): ThreadRow {
+  return {
+    id: row.id,
+    channel: row.channel,
+    externalId: row.externalId,
+    subject: row.subject,
+    startedAt: row.startedAt.toISOString(),
+    lastAt: row.lastAt.toISOString(),
+    state: row.state,
+    messageCount,
+  }
+}
+
+/** THE ONE PLACE A PERMISSION CUTS A FIELD OFF A RESPONSE.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THE ENGINE AND THE ACTOR COME IN HERE AND NOT AN `if` IN THE SERVICE
+ *  ------------------------------------------------------------------
+ *  This is the repo's first field-level permission cut, so it is also the
+ *  shape every later one will be copied from. A service that decided the cut
+ *  would need the decision at every place it builds a `MessageRow` - the
+ *  timeline read, the write door's echo, turn 5's transcript door - and three
+ *  copies of one rule is how the fourth one quietly forgets `'hidden'` and
+ *  sends `'none'` instead. That particular slip is exactly the lie
+ *  `MessageContent`'s three branches were shaped to make impossible, so the
+ *  rule lives at the single seam every branch has to pass through.
+ *
+ *  `access` comes in as an argument rather than the matrix being consulted
+ *  here: asking `actor.permissions.includes(...)` by hand would fork E2, the
+ *  one thing `engines.module.ts` spells out at length. The mapper decides WHAT
+ *  the cut looks like; E2 stays the only thing that decides WHO gets cut.
+ *
+ *  Three branches, and the middle one is the whole point: no text at all is
+ *  `'none'`, text the reader may not have is `'hidden'`, and a reader without
+ *  `comm.view-content` must never be handed `'none'` for a turn that has
+ *  words in it. `'none'` says "nothing was said"; that would be the server
+ *  telling a manager a call was silent because the manager is not cleared to
+ *  read it. */
+export function toMessage(
+  access: AccessControl,
+  who: Actor,
+  row: MessageRowDb,
+  parties: readonly MessagePartyRowDb[],
+): MessageRow {
+  return {
+    id: row.id,
+    threadId: row.threadId,
+    at: row.at.toISOString(),
+    direction: row.direction,
+    fromIdentityId: row.fromIdentityId,
+    durationSec: row.durationSec,
+    captureSource: row.captureSource,
+    content: contentOf(row.bodyText, access.allows(who, 'comm.view-content')),
+    parties: parties.map((p) => ({ identityId: p.identityId, role: p.role })),
+  }
+}
+
+/* Not exported: the only way to build a `MessageContent` is through
+   `toMessage`, so no second call site can grow its own opinion of the rule. */
+function contentOf(bodyText: string | null, mayReadContent: boolean): MessageContent {
+  if (bodyText === null) return { state: 'none' }
+  return mayReadContent ? { state: 'visible', bodyText } : { state: 'hidden' }
+}
+
+export function toLink(row: LinkRowDb): LinkRow {
+  return { threadId: row.threadId, objectCode: row.objectCode, linkedBy: row.linkedBy }
+}
+
+/** A `platform.object` mirror row as the shape E2 asks questions about.
+ *
+ *  `comms.thread` has no owner column and never will - a conversation belongs
+ *  to nobody - so the scope axis for this module is answered by the OBJECT a
+ *  thread hangs on. That answer is only askable once the mirror row is in the
+ *  engine's own vocabulary, which is what this does.
+ *
+ *  The three optional fields are spread conditionally rather than passed as
+ *  `null`: `ObjectRef` marks them `?`, and `owner: undefined` versus an absent
+ *  key reads the same to `check()` while `owner: null` would not type. Same
+ *  shape `graph.repository.ts` builds, for the same engine. */
+export function toObjectRef(row: ObjectRow): ObjectRef {
+  return {
+    code: row.code,
+    kind: row.kind,
+    branch: row.branch,
+    label: row.label,
+    ...(row.owner ? { owner: row.owner } : {}),
+    ...(row.state ? { state: row.state } : {}),
+    ...(row.amount !== null ? { amount: row.amount } : {}),
+  }
 }

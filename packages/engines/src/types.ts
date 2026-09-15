@@ -157,6 +157,22 @@ export const PERMISSIONS = [
    *  A `comm.view` split from it would be a permission granting sight of a
    *  list nobody opens on purpose. Reading a CONVERSATION is a different
    *  question and gets its own pair when threads land. */
+  /** The conversation trail — WHO talked to this customer, when, on which
+   *  channel, how many turns. Metadata only.
+   *
+   *  SPLIT FROM THE ONE BELOW ON PURPOSE, and the split is the whole design of
+   *  `docs/tam-nhin-giao-tiep-va-noi-dung.md` §5b. "We have written to them
+   *  fourteen times, last one three days ago" is a management question. "Here
+   *  is what they said" is not always the same question, and a product that
+   *  answers both with one grant has decided that for everyone. */
+  'comm.view',
+  /** The words themselves — a message body, later a transcript or a recording.
+   *
+   *  Reading somebody else's conversation leaves a row in `platform.audit`
+   *  (§5c). Transparency that only points one way, from manager down to staff,
+   *  is surveillance with a nicer name; the log is what makes it point both
+   *  ways. */
+  'comm.view-content',
   'comm.capture-manage',
   /** The dial box of system constants — `platform.setting`.
    *

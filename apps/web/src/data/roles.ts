@@ -138,6 +138,8 @@ export const PERMISSION_LABEL = {
   'user.manage': 'Mở tài khoản, gán vai, khoá người',
   'role.manage': 'Sửa chính bảng vai → quyền này',
   'approval.decide': 'Gật hoặc bác một đề nghị',
+  'comm.view': 'Xem đã trao đổi với khách những gì, khi nào',
+  'comm.view-content': 'Đọc nội dung thư, tin nhắn, bản ghi — để lại vết',
   'comm.capture-manage': 'Nối địa chỉ thư, chat, số máy với đúng người',
   'setting.manage': 'Chỉnh ngưỡng và thời hạn của cả hệ',
   'data.export': 'Tải dữ liệu ra ngoài',

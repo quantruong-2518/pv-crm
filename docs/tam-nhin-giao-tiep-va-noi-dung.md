@@ -350,7 +350,7 @@ Xuất dữ liệu dùng lại `data.export` đã có; thẻ điểm dùng lại
 
 | #   | Cửa                                                          | Quyền                                               |
 | --- | ------------------------------------------------------------ | --------------------------------------------------- |
-| C1  | `GET /comms/threads?object=LD-0334`                          | `comm.view` · scoped                                |
+| C1  | `GET /comms/threads?objectCode=LD-0334`                      | `comm.view` · scoped                                |
 | C2  | `GET /comms/threads/:id/messages`                            | `comm.view` (metadata) / `comm.view-content` (thân) |
 | C3  | `POST /comms/threads/:id/links`                              | `comm.view` + quyền sửa object đích                 |
 | C4  | `POST /comms/messages` (ghi tay: gọi điện, gặp mặt)          | `comm.view`                                         |

@@ -21,7 +21,7 @@ import type {
   OpportunityOwnerRole,
   StageKey,
 } from '@pv/contracts'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
@@ -86,7 +86,14 @@ import { sales } from '../sales.schema'
 export const opportunity = sales.table(
   'opportunity',
   {
-    code: text('code').primaryKey(),
+    /* The mirror row is a FENCE from migration 0042, not the service's
+       discipline any more. Declared here so the TS says what the database now
+       enforces — and so the write order stays visible to whoever edits a
+       writer: Postgres checks this per statement, not at commit, so the mirror
+       row has to land first inside the same transaction. */
+    code: text('code')
+      .primaryKey()
+      .references(() => objectRef.code),
     leadCode: text('lead_code')
       .notNull()
       .references(() => lead.code),

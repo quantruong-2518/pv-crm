@@ -288,6 +288,20 @@
       "when": 1788501200000,
       "tag": "0041_platform_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1788501300000,
+      "tag": "0042_object_mirror_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788501400000,
+      "tag": "0043_comms_thread",
+      "breakpoints": true
     }
   ]
 }

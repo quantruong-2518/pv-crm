@@ -17,7 +17,7 @@ import type {
   RecordChannel,
   RecordState,
 } from '@pv/contracts'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { sales } from '../sales.schema'
 
@@ -38,7 +38,14 @@ import { sales } from '../sales.schema'
 export const contract = sales.table(
   'contract',
   {
-    code: text('code').primaryKey(),
+    /* The mirror row is a FENCE from migration 0042, not the service's
+       discipline any more. Declared here so the TS says what the database now
+       enforces — and so the write order stays visible to whoever edits a
+       writer: Postgres checks this per statement, not at commit, so the mirror
+       row has to land first inside the same transaction. */
+    code: text('code')
+      .primaryKey()
+      .references(() => objectRef.code),
     opportunityCode: text('opportunity_code').notNull(),
     leadCode: text('lead_code').notNull(),
     amount: bigint('amount', { mode: 'number' }),

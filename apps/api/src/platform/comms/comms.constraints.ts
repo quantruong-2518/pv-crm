@@ -54,3 +54,75 @@ export const IDENTITY_CONSTRAINTS: ConstraintBook = {
     message: 'Mã object này không có trong sổ.',
   },
 }
+
+/** The conversation book's fences → the sentence a person reads.
+ *
+ *  A separate book from `IDENTITY_CONSTRAINTS` rather than more keys in it:
+ *  `registerConstraints` takes several books, and the split keeps the day
+ *  `comms.identity` moves or splits from dragging four unrelated sentences
+ *  with it.
+ *
+ *  Only the fences a CALLER can actually hit are listed. `thread_span_forward`
+ *  and `thread_channel_external_unique` are absent on purpose — the first is
+ *  kept true by `widenSpan`, the second by nothing writing an `external_id`
+ *  this turn, so a line here would be a sentence for a screen that cannot
+ *  produce it, and the generic SQLSTATE default is the correct answer if one
+ *  of those ever fires: it means the SERVER is wrong, not the caller. */
+export const THREAD_CONSTRAINTS: ConstraintBook = {
+  link_pk: {
+    kind: 'conflict',
+    fields: ['objectCode'],
+    message: 'Luồng này đã gắn vào hồ sơ đó rồi.',
+  },
+
+  link_object_code_object_code_fk: {
+    kind: 'invalid',
+    fields: ['objectCode'],
+    message: 'Mã object này không có trong sổ.',
+  },
+
+  /** Two people on one turn in one role, sent twice in one body. The caller
+   *  fixes it in their own list, so `invalid` with the field named rather than
+   *  the 23505 default of `conflict` — nobody else changed anything. */
+  message_party_pk: {
+    kind: 'invalid',
+    fields: ['parties'],
+    message: 'Một người chỉ đứng một lần trong mỗi vai của một lượt.',
+  },
+
+  message_party_identity_id_identity_id_fk: {
+    kind: 'invalid',
+    fields: ['parties'],
+    message: 'Có người trong danh sách không còn trong sổ định danh.',
+  },
+
+  message_from_identity_id_identity_id_fk: {
+    kind: 'invalid',
+    fields: ['fromIdentityId'],
+    message: 'Người gửi không còn trong sổ định danh.',
+  },
+
+  message_direction_known: {
+    kind: 'invalid',
+    fields: ['direction'],
+    message: 'Một lượt chỉ có thể là gửi đi hoặc nhận về.',
+  },
+
+  message_body_not_blank: {
+    kind: 'invalid',
+    fields: ['bodyText'],
+    message: 'Thân thư để trống thì bỏ hẳn ô này, đừng gửi một chuỗi rỗng.',
+  },
+
+  message_duration_nonneg: {
+    kind: 'invalid',
+    fields: ['durationSec'],
+    message: 'Thời lượng không thể là số âm.',
+  },
+
+  thread_channel_known: {
+    kind: 'invalid',
+    fields: ['channel'],
+    message: 'Kênh không nằm trong danh sách hệ nhận.',
+  },
+}

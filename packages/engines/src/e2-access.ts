@@ -105,6 +105,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
        marketing is the role that fires it. */
     'campaign.broadcast',
     'lead.view',
+    'comm.view',
     'lead.edit',
     'lead.send-email',
     /* Read, not write. Marketing asks "which source produces customers", which
@@ -125,6 +126,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   bd: [
     'campaign.view',
     'lead.view',
+    'comm.view',
+    'comm.view-content',
     'lead.edit',
     /* Reaching a lead they brought in is the job; `ownOnly` keeps the reach to
        exactly that. `campaign.broadcast` stays with marketing. */
@@ -150,6 +153,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   presales: [
     'campaign.view',
     'lead.view',
+    'comm.view',
+    'comm.view-content',
     'account.view',
     'opportunity.view',
     'opportunity.edit',
@@ -164,6 +169,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   sale: [
     'campaign.view',
     'lead.view',
+    'comm.view',
+    'comm.view-content',
     'lead.edit',
     'lead.send-email',
     'lead.convert',
@@ -205,6 +212,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'campaign.edit',
     'campaign.broadcast',
     'lead.view',
+    'comm.view',
+    'comm.view-content',
     'lead.edit',
     'lead.send-email',
     'lead.assign',
