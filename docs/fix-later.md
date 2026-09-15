@@ -486,3 +486,24 @@ một-sự-thật-một-sổ — ba cột trả lời ba câu khác nhau — nh�
 đổi mà `identity` không đổi thì hai sổ nói hai chuyện. **Chốt trước lượt 2:**
 `lead.email` đổi thì đẻ một identity mới hay sửa dòng cũ; dòng cũ giữ lại làm
 lịch sử hay hạ `verified_at` về NULL.
+
+---
+
+## `sslmode=require` sẽ đổi nghĩa ở pg v9 — ghi 15/09/2026
+
+**Triệu chứng (chưa xảy ra):** `pnpm db:migrate` in một cảnh báo mỗi lần chạy:
+`pg-connection-string` nói `prefer` · `require` · `verify-ca` hiện đang được đối
+xử như `verify-full`, và ở **pg-connection-string v3 / pg v9** chúng sẽ theo ngữ
+nghĩa libpq — tức **yếu hơn**: `require` sẽ mã hoá nhưng thôi xác minh chứng chỉ.
+
+**Ở đâu:** chuỗi `DATABASE_URL` trỏ Neon, dùng bởi `drizzle-kit migrate` và bởi
+pool của máy chủ.
+
+**Sửa thế nào:** đổi `sslmode=require` thành `sslmode=verify-full` trong chuỗi
+kết nối — giữ nguyên hành vi đang có, và nói ra điều đang ngầm định. Đổi ở Fly
+secrets và ở `.env` của máy, cùng lúc.
+
+**Vì sao chưa sửa:** hôm nay hành vi vẫn là `verify-full`, nên không có gì hỏng.
+Nhưng nó sẽ đổi trong một lần nâng phiên bản, **không đỏ ở đâu cả** — kết nối
+vẫn chạy, chỉ là thôi xác minh chứng chỉ. Đây là loại hỏng im lặng, nên đáng
+sửa vào lần chạm `.env` tiếp theo chứ đừng đợi tới lúc nâng pg.
