@@ -23,7 +23,7 @@ You build the server side of ONE module, against a contract you do not change.
   stop; do not patch the shape on the server side.
 - **One route, one permission**, declared with `@Need`. If a route would need two
   different permissions depending on the body, it is two routes — that decision is
-  already recorded in `docs/ban-giao-campaign.md` (decision 3).
+  already recorded in `docs/decisions/0004-one-route-one-permission.md`.
 - **Do not rewrite what exists.** Sending mail goes through `MasService`; queue
   work goes through the existing pg-boss provider; object mirror rows go through
   `ObjectMirror`. A second copy of a rule drifts from the first one on the next

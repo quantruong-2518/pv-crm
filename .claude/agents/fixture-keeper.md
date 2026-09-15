@@ -29,6 +29,9 @@ only catches part of that — the rest is your reading.
   needs a different value, that is an `openDecisions` line for the project owner.
 - Fixture CONTENT stays Vietnamese — people's names, company names, provinces.
   Identifiers, type names and keys stay English.
+- **Never edit outside the zone your brief gives you.** Barrels, routes, tokens and
+  `packages/ui/**` are shared ground — they go in `sharedRequests`, and the main
+  context applies them once every agent is back.
 - A new number must be consistent with the chain the fixture already tells
   (`LD-0334 → HĐ-2607 → SO-0891 → …`). Sums that do not add up are the defect this
   agent exists to prevent.

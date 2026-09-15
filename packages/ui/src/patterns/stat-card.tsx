@@ -8,7 +8,7 @@ import { cn } from '../lib/cn'
 /** M-01 · StatCard — Card + font-num + label + delta + Sparkline.
  *
  *  Delta dùng icon Hugeicons trending-up / trending-down / minus.
- *  Theme kit gốc còn ký tự "▲" ở ô này; luật 15 (docs/luat-thiet-ke.md §1)
+ *  Theme kit gốc còn ký tự "▲" ở ô này; luật 15 (docs/design-system/laws.md)
  *  cấm ▲▼▬ nên bản dựng theo luật, không theo ký tự cũ.
  *
  *  ---- Vì sao chiều cao không còn cứng ----

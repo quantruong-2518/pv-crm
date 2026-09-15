@@ -7,7 +7,7 @@ import { useOverlayLayer } from './overlay-stack'
 
 /** T-04 · Drawer — panel phải đè lên màn, có tấm che phía sau.
  *
- *  Cùng hình dạng với màn 04 · Trợ lý AI (docs/luat-thiet-ke.md §7: panel phải,
+ *  Cùng hình dạng với màn 04 · Trợ lý AI (docs/design-system/screens.md: panel phải,
  *  scrim `--scrim`), nên chi tiết một dòng của bảng dùng lại đúng ngôn ngữ đó
  *  thay vì đẻ ra kiểu thứ hai.
  *

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
-/** Nền màn — ĐÚNG 4 lớp, không có lớp thứ 5 (luật 12 · docs/luat-thiet-ke.md):
+/** Nền màn — ĐÚNG 4 lớp, không có lớp thứ 5 (luật 12 · docs/design-system/laws.md):
  *  quầng aurora (2 blob blur 90px) → lưới 32px → lưới 160px → hạt nhiễu.
  *  Chỉ đặt ở KHUNG NGOÀI CÙNG của mỗi màn, mọi lớp đều pointer-events:none.
  *

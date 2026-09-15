@@ -2,7 +2,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { cn } from '../lib/cn'
 import type { IconGlyph } from '../icons'
 
-/** Luật 11 · docs/luat-thiet-ke.md — Hugeicons Stroke Rounded, stroke 1.75,
+/** Luật 11 · docs/design-system/laws.md — Hugeicons Stroke Rounded, stroke 1.75,
  *  size 16 trong nút / 20 trong nav. Không icon fill, không emoji. */
 export type IconProps = {
   icon: IconGlyph

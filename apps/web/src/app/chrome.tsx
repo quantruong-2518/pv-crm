@@ -77,7 +77,7 @@ type NavEntry = {
 }
 
 /** One Core — nền bắt buộc, mọi nhánh đều cần (docs · "Hai tầng license").
- *  Bốn mục đầu là bốn màn One trong luat-thiet-ke.md §7.
+ *  Bốn mục đầu là bốn màn One trong docs/design-system/screens.md.
  *
  *  "Tìm toàn cục" KHÔNG còn là một mục ở đây: nó đã thành ô tìm của tầng 1,
  *  chiếm nguyên khoảng giữa nav. Giữ thêm một nút mở cùng việc đó là hai lối
@@ -126,7 +126,7 @@ const ONE_CORE: NavEntry[] = [
   },
 ]
 
-/** BottomNav (< lg) — bốn mục CHỐT theo docs/luat-thiet-ke.md §3, không cấu hình
+/** BottomNav (< lg) — bốn mục CHỐT theo docs/design-system/devices.md, không cấu hình
  *  được danh sách. Bảng này là nguồn duy nhất của cả ba câu hỏi về chúng: mục
  *  nào đi được, mục nào khoá, mục nào đang sáng.
  *

@@ -40,10 +40,19 @@ Dates: `z.string().datetime()` for an instant, `z.string().date()` for a bare da
 Enums: `z.enum([...])` taken straight from constants that already exist in the
 engines (`PERMISSIONS`, `PIPELINE_STAGES`, …) — **never retype the list**.
 
+## Rule four — the docblock has a ceiling
+
+`packages/contracts` is the heaviest-commented zone in the repo, and this agent
+is where that comes from. A schema docblock says **what the endpoints are** and
+**why the shape is this shape** — at most ~15 lines (`aurora/comment-budget` is an
+error). The history of a decision belongs in `docs/`, named in one line, not
+retold here. `pnpm ctx` prints the ratio; do not push it up.
+
 ## Where the files go
 
-A shared package, imported through the front door by both `apps/web` and the
-backend. Never let the frontend reach into another package's `src/` — that is the
+`packages/contracts/src/<branch>/`, exported from that directory's `index.ts`,
+imported through the front door by both `apps/web` and `apps/api`. **The barrel
+`index.ts` is outside your zone** — put the export line in `sharedRequests`. Never let the frontend reach into another package's `src/` — that is the
 `no-restricted-imports` rule.
 
 When done, state plainly which endpoints now have a contract and which are still

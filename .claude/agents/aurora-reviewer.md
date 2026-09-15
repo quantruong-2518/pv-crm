@@ -6,7 +6,7 @@ effort: high
 tools: Read, Grep, Glob
 ---
 
-You review screens against `docs/luat-thiet-ke.md`. Seven of the fifteen laws are
+You review screens against `docs/design-system/laws.md`. Seven of the fifteen laws are
 machine-guarded and you should not spend time on them; the rest is your entire job.
 
 ## What the machine already guards — skip these

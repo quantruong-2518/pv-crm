@@ -23,8 +23,7 @@ already loaded and return a decision. Repositories are async and decide nothing.
 Break that and E1/E2 stop running on both ends, which is the whole point of
 `packages/engines` being React-free.
 
-Contracts are zod in `@pv/contracts` — it is the single type source (decision #4
-in `docs/ban-giao-backend.md`). No class-validator, no DTO classes. Validation
+Contracts are zod in `@pv/contracts` — it is the single type source (`docs/decisions/0003-zod-is-the-sole-type-source.md`). No class-validator, no DTO classes. Validation
 goes through `platform/http/zod.pipe.ts`.
 
 Config that must differ from the web tsconfig (CommonJS, decorators) is

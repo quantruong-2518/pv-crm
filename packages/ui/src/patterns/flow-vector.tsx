@@ -68,7 +68,7 @@ export type FlowVectorProps = {
 }
 
 /** How many trailing nodes survive the fold below `lg`. Three is what 1024px
- *  fits at a ≥48px target, per `docs/luat-thiet-ke.md` §3. */
+ *  fits at a ≥48px target, per `docs/design-system/laws.md` §3. */
 const KEPT = 3
 
 function labelOf(step: FlowVectorStep): string {

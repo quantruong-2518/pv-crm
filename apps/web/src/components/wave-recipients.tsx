@@ -34,7 +34,7 @@ import { DELIVERED_MAIL, FAILED_MAIL, mailRunRecipientsQuery } from '@/data/mail
  *  ------------------------------------------------------------------
  *  NOT A `DataTable`, THOUGH IT IS A LIST
  *  ------------------------------------------------------------------
- *  Law 8 (`docs/luat-thiet-ke.md` §1) puts every table on `.glass-b`, and this
+ *  Law 8 (`docs/design-system/laws.md` §1) puts every table on `.glass-b`, and this
  *  panel is already INSIDE one — nesting a second pane of glass would be a
  *  fifth background layer, which law 12 forbids. So this is a flat list divided
  *  by hairlines, and the wave table above stays the only thing here wearing

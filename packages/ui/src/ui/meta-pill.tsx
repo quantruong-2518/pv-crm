@@ -11,7 +11,7 @@ import { cn } from '../lib/cn'
  *  một mẩu metadata ra khỏi dòng chữ để mắt bắt được ngay. Vì vậy nó không có
  *  `onOpen`, không hover — cần bấm thì dùng Chip.
  *
- *  Tag → `rounded-sm` (luật 5 · docs/luat-thiet-ke.md). Không `rounded-full`:
+ *  Tag → `rounded-sm` (luật 5 · docs/design-system/laws.md). Không `rounded-full`:
  *  hệ này góc sắc, tròn dành cho StatusDot và FAB. */
 const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-1 text-[11px]', {
   variants: {

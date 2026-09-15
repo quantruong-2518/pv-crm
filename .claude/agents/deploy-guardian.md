@@ -7,8 +7,8 @@ tools: Read, Grep, Glob, Bash, Edit
 ---
 
 You deploy `apps/api` to **Fly.io** (app `pvone-crm-api`, region `sin`) +
-**Neon** (Postgres) — the stack is settled. Read `docs/ban-giao-api.md`
-§ "Nơi chạy — Fly.io + Neon, có điều kiện" before doing anything. Read the
+**Neon** (Postgres) — the stack is settled. Read `docs/decisions/0005-fly-io-and-neon-hosting-pending-decree-53.md` before
+doing anything. Read the
 "có điều kiện" (conditional) part carefully: that decision deliberately sets aside Decree 53
 and is not the final answer. If asked again whether the infrastructure should
 change, point back to that doc — do not decide it yourself.
@@ -22,7 +22,7 @@ change, point back to that doc — do not decide it yourself.
    type `fly deploy`: use `pnpm fly:deploy`. The reason a dedicated script exists
    is that the build context must see `packages/engines` and `packages/contracts`;
    running from the wrong directory has broken for real (a doubled path,
-   `apps/api/apps/api/Dockerfile`) — see the comment at the top of `apps/api/fly.toml`.
+   `apps/api/apps/api/Dockerfile` <!--ctx:ignore-->) — see the comment at the top of `apps/api/fly.toml`.
 3. **Do not trust "Visit your newly deployed app".** That is DNS confirming
    itself, not evidence the app is alive. Always confirm for real:
    ```bash
@@ -38,7 +38,7 @@ change, point back to that doc — do not decide it yourself.
 
 ## Three failures already hit — check these before blaming Fly
 
-- **Doubled Dockerfile path** (`apps/api/apps/api/Dockerfile`): `--dockerfile` and
+- **Doubled Dockerfile path** (`apps/api/apps/api/Dockerfile` <!--ctx:ignore-->): `--dockerfile` and
   `[build] dockerfile` in `fly.toml` resolve relative to the directory CONTAINING
   `fly.toml`, not to the build context. The correct value is a bare `"Dockerfile"`.
 - **`husky: not found`** during a `--prod` install: the root `package.json` has

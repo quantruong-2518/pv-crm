@@ -16,7 +16,7 @@ import {
  *
  *  Nhánh không tự kiểm quyền. Kết quả "Bị ẩn theo quyền của bạn" do E2 trả về —
  *  con số đó là `hidden` ở dưới, không phải thứ màn tự đếm. Màn 03 (Tìm toàn
- *  cục) bắt buộc hiện hàng này (docs/luat-thiet-ke.md §7).
+ *  cục) bắt buộc hiện hàng này (docs/design-system/screens.md).
  *
  *  ------------------------------------------------------------------
  *  BA TRỤC QUYỀN — KHÔNG TRỤC NÀO THAY ĐƯỢC TRỤC NÀO

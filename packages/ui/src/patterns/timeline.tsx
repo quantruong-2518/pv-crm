@@ -12,7 +12,7 @@ import { cn } from '../lib/cn'
  *  ApprovalChain.
  *
  *  Đường nối là `bg-white/8` rộng 1px, KHÔNG phải `border` — hệ borderless
- *  (luật 4 · docs/luat-thiet-ke.md). Đường vẽ trên `<li>` chứ không trên cột
+ *  (luật 4 · docs/design-system/laws.md). Đường vẽ trên `<li>` chứ không trên cột
  *  chấm, vì khối định vị tuyệt đối tính theo padding box: nhờ vậy đường chạy
  *  xuyên qua cả khoảng `pb-6` để chạm chấm của mốc kế tiếp. Mốc cuối không có
  *  đường — chuỗi dừng ở đó, không lửng lơ. */

@@ -132,7 +132,7 @@ export const MESSAGE_BODY_MAX = 20000
  *
  *  Same instinct as `hidden` on `paged()` (`../pagination`) and the mandatory
  *  "hidden by your permission" row Rule 7 forces onto the global search screen
- *  (`docs/luat-thiet-ke.md` §7, screen 03): a server that knows something is
+ *  (`docs/design-system/laws.md` §7, screen 03): a server that knows something is
  *  being withheld says so, in the shape of the response, rather than sending
  *  the same absence a screen would send for "nothing here". */
 export const MessageContent = z.discriminatedUnion('state', [

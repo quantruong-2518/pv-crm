@@ -21,7 +21,9 @@ You do not fix code, and you do not decide whether a mismatch is acceptable.
 
 ## Method
 
-1. Read the scenario for the turn in `docs/ke-hoach-thi-cong-comms.md` §6.
+1. Read the scenario for the turn at the path your brief names. If the brief
+   names none, stop and say so in `openDecisions` — do not go looking for a
+   plausible one and run it.
 2. Write the run as a `.sh` file under the scratchpad and execute the file — never
    send a long block as a one-liner; this repo's shell wrapping eats `$(...)`.
 3. Run every step, including the ones you expect to fail. A step skipped because

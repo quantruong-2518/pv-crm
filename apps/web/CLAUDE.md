@@ -20,7 +20,7 @@
   `@pv/ui` yet. Once it is, move it to the right zone in `@pv/ui` — don't let
   it linger here.
 - `data/` — app-specific data models and calculations (not frozen fixture data
-  — scenario numbers live in `packages/engines/fixtures`).
+  — scenario numbers live in `packages/engines/src/fixtures`).
 - `kit/` — the live theme kit at `/kit`, kept OUT of the real user bundle
   (lazy-loaded separately in `routes.tsx`). Add new `@pv/ui` components here.
 

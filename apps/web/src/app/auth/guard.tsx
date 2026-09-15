@@ -49,7 +49,7 @@ export const CHANGE_PASSWORD_PATH = '/doi-mat-khau'
  *  nhập về màn đăng nhập vì họ thiếu quyền là nói dối họ về nguyên nhân; họ sẽ
  *  đăng nhập lại vòng vo và không bao giờ vào được. Chỗ này hiện đúng câu của
  *  E2 — cùng luật với hàng "Bị ẩn theo quyền của bạn" của màn Tìm toàn cục
- *  (docs/luat-thiet-ke.md §7), hai chỗ hiện.
+ *  (docs/design-system/screens.md), hai chỗ hiện.
  *
  *  Mọi lần chặn đều ghi vết qua E2. Chặn mà không ghi thì sau này không ai trả
  *  lời được câu "vì sao hôm đó tôi không vào được". */

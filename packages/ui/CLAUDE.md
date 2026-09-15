@@ -14,5 +14,5 @@ comment → add one line to the kit page `apps/web/src/kit/zone-*.tsx`. Skip the
 third step and the component doesn't count as existing.
 
 Rules 1·4·7·8·9·11·15 (color, borders, spacing, glass, AI-waits-for-button,
-icons, no AI slop) — full text in `docs/luat-thiet-ke.md §1`, not repeated
+icons, no AI slop) — full text in `docs/design-system/laws.md`, not repeated
 here so it can't drift from the source.

@@ -12,7 +12,7 @@ import { CHANGE_PASSWORD_PATH, useSession, type ExpiryReason } from '@/app/auth'
  *  một hệ ERP không hỏi mật khẩu thì không ai tin phần còn lại của nó.
  *
  *  Bảng chọn vai đã BỎ HẲN, không lùi xuống chân card. Đổi vai vẫn làm được và
- *  vẫn cần được (docs/luat-thiet-ke.md §7 — TP Kinh doanh nhìn khác Giám đốc),
+ *  vẫn cần được (docs/design-system/screens.md — TP Kinh doanh nhìn khác Giám đốc),
  *  nhưng bằng đúng đường mọi người dùng đi: đăng xuất rồi đăng nhập bằng email
  *  của vai kia. Một cửa sau bỏ qua mật khẩu ngay trên màn đăng nhập thì màn này
  *  không còn chứng minh được điều nó sinh ra để chứng minh.

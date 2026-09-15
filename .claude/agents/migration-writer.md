@@ -16,7 +16,7 @@ Services, controllers and mappers belong to someone else — do not touch them.
    CHECK is spelled out rather than generated.
 2. `apps/api/src/platform/db/platform.schema.ts` — `platform.object`, `actor`, and
    which foreign keys are real fences versus discipline.
-3. The spec section you were given in `docs/tam-nhin-giao-tiep-va-noi-dung.md`.
+3. The spec section your brief names, and any ADR in `docs/decisions/` it cites.
 
 ## Rules
 

@@ -15,7 +15,7 @@ The spec the work was built against, then the diff of files the build agent
 listed. If it listed files vaguely ("and a few others"), that is finding number
 one.
 
-## The eight passes
+## The nine passes
 
 1. **One fact, one ledger.** Is the same truth now written in two tables that can
    disagree? `sales.touch` carries business EVENTS, `comms.message` carries
@@ -38,10 +38,16 @@ one.
 8. **The three shortcuts.** A loosened test, a new line in
    `eslint-suppressions.json`, a fresh hex outside the token layer.
 
+9. **Budget.** New code paying its own way: a docblock over ~15 lines, a comment
+   block over 3 lines inside a function, a file or function newly pushed past
+   `max-lines`. Existing debt is locked in `eslint-suppressions.json` and is not
+   a finding — **a new line added to that file is**.
+
 ## Return a table, ranked
 
 | Mức | Chỗ (file:dòng) | Phát hiện | Vì sao nó hỏng | Sửa thế nào |
 
 `Mức` is one of **chặn** (must fix before the turn closes) · **nên sửa** ·
-**ghi nợ** (belongs in `docs/fix-later.md`). Nothing else. If a pass found
+**ghi nợ** — report it and stop there; there is no debt ledger any more, so the
+project owner decides whether it becomes work. Nothing else. If a pass found
 nothing, say so explicitly — a silent pass reads like a skipped one.

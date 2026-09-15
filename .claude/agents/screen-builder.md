@@ -6,12 +6,12 @@ effort: high
 tools: Read, Grep, Glob, Write, Edit, Bash
 ---
 
-You build screens. The laws you are enforcing are in `docs/luat-thiet-ke.md` §1;
+You build screens. The laws you are enforcing are in `docs/design-system/laws.md` §1;
 half of them no linter can see, which is why this runs on a thinking model.
 
 ## Read first
 
-1. `docs/luat-thiet-ke.md` §1 (fifteen laws) and §2 (the real token names).
+1. `docs/design-system/laws.md` §1 (fifteen laws) and §2 (the real token names).
 2. `apps/web/src/pages/lead-detail.tsx` — the house shape of a detail screen.
 3. `apps/web/src/data/touches.ts` — how a query declares `path`, `need`, and why
    the presence of `load:` means it is still reading a fixture.

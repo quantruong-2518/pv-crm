@@ -466,7 +466,7 @@ export const DEADLINE_MIN = `${DEADLINE_YEARS.from}-01-01`
 export const DEADLINE_MAX = `${DEADLINE_YEARS.to}-12-31`
 
 /** Which soft keyboard this box asks for on the tablet — rule 3 of
- *  `docs/luat-thiet-ke.md` puts the tablet on the same footing as the desktop.
+ *  `docs/design-system/laws.md` puts the tablet on the same footing as the desktop.
  *
  *  Only the three boxes where the default alphabetic keyboard is the wrong one.
  *  A phone number typed on a letter keyboard is four taps of mode-switching per

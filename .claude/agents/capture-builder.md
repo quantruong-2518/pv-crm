@@ -15,8 +15,8 @@ about what happens on the SECOND run and on the malformed payload.
    payload is refused today.
 2. `apps/api/src/platform/queue/` — pg-boss wiring, and how a consumer is
    registered; do not invent a second job runner.
-3. `docs/tam-nhin-giao-tiep-va-noi-dung.md` §4 (the adapter interface) and §5
-   (what must never be stored).
+3. `docs/decisions/0011-comms-capture-uses-one-adapter-interface.md` — the adapter
+   interface and the four privacy walls, including what must never be stored.
 
 ## Four rules, and they are the reason this agent exists
 
@@ -38,6 +38,9 @@ about what happens on the SECOND run and on the malformed payload.
 - Outbound email goes through `MasService` — suppression, the queue and the bounce
   breaker are already written and must not be reimplemented.
 - Secrets come from env, are never logged, never written to a row.
+- **Never edit outside the zone your brief gives you.** Barrels, routes, tokens and
+  `packages/ui/**` are shared ground — they go in `sharedRequests`, and the main
+  context applies them once every agent is back.
 - Identifiers and enum values in English.
 
 ## Return

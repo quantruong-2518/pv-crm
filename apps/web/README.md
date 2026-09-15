@@ -52,7 +52,7 @@ packages/ui/src/             @pv/ui — cửa vào duy nhất là index.ts
 ├─ layout/
 │  aurora-field              nền màn 4 lớp (luật 12)
 │  glass-card                F-03 · variant a | b
-│  app-shell                 khung màn, mobile-first (docs/luat-thiet-ke.md §4)
+│  app-shell                 khung màn, mobile-first (docs/design-system/components.md)
 │  assistant-fab             FAB 60px, icon `orbit`
 └─ assets/                   logo bản nền tối
 
@@ -65,7 +65,7 @@ apps/web/src/
 ```
 
 `AppShell` và `AssistantFab` không có trong theme kit gốc — chúng đến từ
-`docs/luat-thiet-ke.md` §1 luật 5 và §4, và là thứ mọi màn thật sẽ ngồi bên
+`docs/design-system/laws.md` §1 luật 5 và §4, và là thứ mọi màn thật sẽ ngồi bên
 trong. Chúng nằm trong thư viện nhưng **không** được thêm vào trang kit, để trang
 kit giữ đúng 1:1 với bản thiết kế.
 
@@ -89,14 +89,14 @@ kit giữ đúng 1:1 với bản thiết kế.
 
 Đặt tên cho giá trị đã có sẵn trong theme kit, **không thêm màu mới**:
 
-`--glass-foreground` (#B4BECD, đã ghi trong docs/luat-thiet-ke.md §2) · `--hc-surface` +
+`--glass-foreground` (#B4BECD, đã ghi trong docs/design-system/tokens.md) · `--hc-surface` +
 `--hc-border` (biến thể tương phản cao) · `--avatar-from` · `--gold-from` /
 `--gold-to` · `--aurora-*` (3 tông quầng) · `--shadow-success` / `--shadow-ai` /
 `--shadow-assistant` / `--shadow-control` / `--shadow-control-soft` ·
 `--motion-duration` / `--motion-ease`.
 
 Class mới trong `@layer components`: `.glass-b-flat` (panel tài liệu, không sheen
-đáy) · `.glass-ai` / `.glass-ai-panel` (nền khối AI, theo docs/luat-thiet-ke.md §2) ·
+đáy) · `.glass-ai` / `.glass-ai-panel` (nền khối AI, theo docs/design-system/tokens.md) ·
 `.aurora-blob` / `.aurora-grid-fine` / `.aurora-grid-major` / `.aurora-vignette` /
 `.aurora-noise` / `.aurora-grain-*` (bốn lớp nền).
 
@@ -121,7 +121,7 @@ Chỗ 1–4 đổi được về nguyên bản trong một lượt nếu muốn 
 sử thay vì bản thi hành luật.
 
 **Còn treo, chưa tự quyết:** T-03 vẽ mobile **390 × 844 · status 44**, còn
-`docs/luat-thiet-ke.md` §3 nói **440 × 956 · status 62 · bottom nav
+`docs/design-system/laws.md` §3 nói **440 × 956 · status 62 · bottom nav
 84**, kèm ghi chú “bản One cũ còn dựng ở 390×844; khi sửa lại thì nâng lên 440”.
 Bản dựng giữ theo file. Nói một tiếng là đổi.
 
@@ -130,7 +130,7 @@ Bản dựng giữ theo file. Nói một tiếng là đổi.
 ## Chưa làm
 
 Màn 01 Home / Morning brief đã dựng. Bốn màn còn lại trong
-`docs/luat-thiet-ke.md` §7 (Hộp phê duyệt · Tìm toàn cục · Trợ lý AI · Thông báo)
+`docs/design-system/laws.md` §7 (Hộp phê duyệt · Tìm toàn cục · Trợ lý AI · Thông báo)
 chưa dựng.
 
 Mười hai màn Pebble Sales cũng chưa.

@@ -1,6 +1,6 @@
 ---
-name: cat-mock
-description: Cut one pv-crm query off its fixture and onto a real endpoint — a complete pass from the zod contract, through the route on apps/api, to dropping `load:` from the query. Use when asked to "làm endpoint X", "cắt màn Y sang máy chủ", "bỏ mock cho Z", or when a screen still reads frozen numbers where it should be reading Neon.
+name: cut
+description: Cắt một query của pv-crm khỏi fixture sang endpoint thật — a complete pass from the zod contract, through the route on apps/api, to dropping `load:` from the query. Use when asked to "làm endpoint X", "cắt màn Y sang máy chủ", "bỏ mock cho Z", or when a screen still reads frozen numbers where it should be reading Neon.
 ---
 
 # Cutting one pass of mock data
@@ -26,8 +26,8 @@ from a query IS the ritual that cuts it over.**
 
 ## Step 1 · Pick, then verify it again
 
-The queue is in `docs/fix-later.md` §3 — a table of query · file · route. **That
-table can lag the code**: check it by eye before trusting it.
+There is no queue table any more — the code IS the queue, and it cannot lag
+itself. `grep` is the only source.
 
 ```bash
 grep -rn "load:" apps/web/src/data          # the current truth
@@ -35,8 +35,8 @@ ls apps/api/src/branches/sales              # which domains already have a modul
 ls packages/contracts/src/sales             # which contracts already exist
 ```
 
-Any row in the table that `grep` no longer finds a `load:` for is already cut —
-remove it from the table.
+Whatever `grep` still finds a `load:` for is still on a fixture. Nothing else
+needs checking.
 
 ## Step 2 · Learn what the query is asking
 
@@ -90,14 +90,12 @@ pnpm dev        # run_in_background — see /wsl, never nohup
 ```
 
 The screen must show numbers. A browser error `does not provide an export named X`
-while `typecheck` is green is **the Vite cache**, not a bug — see `/wsl`. It shows
+while `typecheck` is green is **the Vite cache**, not a bug — xoá `node_modules/.vite` rồi chạy lại. It shows
 up especially on this pass, because step 3 just touched the `packages/contracts`
 barrel file.
 
 ## Step 7 · Close the books
 
-- Remove the row just cut from the `docs/fix-later.md` §3 table and add a dated
-  line to the "already dropped" note — that is what keeps the table from lying to
-  the next pass.
-- Run `/preflight`. This pass touched `packages/contracts`, a **shared layer**, so
+- Nothing to update anywhere: dropping the `load:` line is itself the record.
+- Chạy `/check`. This pass touched `packages/contracts`, a **shared layer**, so
   it must reach tier 2; stopping at `check:fast` is not enough.
