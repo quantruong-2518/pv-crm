@@ -1,14 +1,16 @@
 import { scanClassStrings } from '../lib/classes.js'
 
-/** Luật 7 · Spacing chỉ 8 bậc: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48.
- *  docs/luat-thiet-ke.md §8: "Padding/gap chỉ thuộc 8 bậc. Không có 10, 14, 18."
+/** Law 7 · Spacing has only 8 steps: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48.
+ *  docs/luat-thiet-ke.md §8: "Padding/gap belongs only to the 8 steps. No 10, 14, 18."
  *
- *  Rule bắt cả hai dạng:
- *    · bậc Tailwind — `p-4` (16px) hợp lệ, `p-2.5` (10px) và `p-7` (28px) không;
- *    · giá trị tuỳ ý — `py-[18px]` không thuộc thang.
+ *  The rule catches both forms:
+ *    · Tailwind steps — `p-4` (16px) is valid, `p-2.5` (10px) and `p-7` (28px)
+ *      are not;
+ *    · arbitrary values — `py-[18px]` doesn't belong to the scale.
  *
- *  Vi phạm ĐANG CÓ nằm trong `eslint-suppressions.json`, không bị xoá đi mà
- *  được đếm — thêm mới thì đỏ, cái cũ thì nhìn thấy để trả dần. */
+ *  Violations that EXIST ALREADY live in `eslint-suppressions.json`, not
+ *  deleted but counted — a new one goes red, the old ones stay visible to be
+ *  paid down over time. */
 const SCALE = new Set([4, 8, 12, 16, 20, 24, 32, 48])
 
 const PROP = 'p|px|py|pt|pb|pl|pr|ps|pe|m|mx|my|mt|mb|ml|mr|ms|me|gap|gap-x|gap-y|space-x|space-y'
@@ -18,11 +20,11 @@ const STEP = new RegExp(`^-?(${PROP})-([0-9.]+|px)$`)
 export default {
   meta: {
     type: 'problem',
-    docs: { description: 'Spacing chỉ 8 bậc 4·8·12·16·20·24·32·48 (luật 7 · Aurora v2.0)' },
+    docs: { description: 'Spacing has only 8 steps, 4·8·12·16·20·24·32·48 (law 7 · Aurora v2.0)' },
     schema: [],
     messages: {
       offScale:
-        'Class "{{token}}" cho ra {{px}}px, không thuộc thang 8 bậc (4·8·12·16·20·24·32·48) — luật 7. Chọn bậc gần nhất, hoặc nếu con số lấy đúng từ bản vẽ gốc thì nêu ra và xin phê duyệt trước khi giữ.',
+        'Class "{{token}}" produces {{px}}px, which doesn\'t belong to the 8-step scale (4·8·12·16·20·24·32·48) — law 7. Pick the nearest step, or if the number comes straight from the original design file, flag it and get approval before keeping it.',
     },
   },
   create(context) {

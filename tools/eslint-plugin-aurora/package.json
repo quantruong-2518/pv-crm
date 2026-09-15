@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Cưỡng chế 15 luật cứng của Aurora v2.0 ở tầng lint. Viết bằng ESM thuần — không có bước build.",
+  "description": "Enforces the 15 hard laws of Aurora v2.0 at the lint layer. Written in plain ESM — no build step.",
   "main": "./index.js",
   "exports": {
     ".": "./index.js"

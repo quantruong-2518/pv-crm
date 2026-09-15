@@ -1,25 +1,27 @@
-/** Kịch bản dữ liệu: "Không trộn hai kịch bản trên cùng một màn."
+/** Data scenario: "Don't mix two scenarios on the same screen."
  *
- *  Có đúng hai kịch bản — Sao Đỏ (khách đã mua, đóng băng 10/08 07:58) và
- *  DAS Vina (khách chưa mua, đóng băng 17/08 09:10). Trộn chúng trên một màn
- *  tạo ra một thế giới không có thật: cùng lúc đã ký và chưa ký.
+ *  There are exactly two scenarios — `sao-do` (customer has already bought,
+ *  frozen 10/08 07:58) and `das-vina` (customer hasn't bought yet, frozen
+ *  17/08 09:10). Mixing them on one screen creates a world that can't exist:
+ *  signed and not-signed at the same time.
  *
- *  Đây là loại lỗi con người review rất khó thấy — hai import cách nhau vài
- *  dòng, tên biến không gợi gì. Máy thì thấy ngay. */
+ *  This is the kind of mistake a human reviewer has a very hard time
+ *  spotting — two imports a few lines apart, a variable name that gives
+ *  nothing away. The machine sees it instantly. */
 const SCENARIO = /fixtures\/(sao-do|das-vina)$/
 
 export default {
   meta: {
     type: 'problem',
     docs: {
-      description: 'Một file không được dùng cả hai kịch bản dữ liệu',
+      description: 'A file must not use both data scenarios',
     },
     schema: [],
     messages: {
       mixed:
-        'File này dùng cả hai kịch bản: "{{first}}" và "{{second}}". Không được trộn — Sao Đỏ là khách ĐÃ mua (đóng băng 10/08 07:58), DAS Vina là khách CHƯA mua (17/08 09:10). Tách thành hai màn, hoặc chọn một.',
+        'This file uses both scenarios: "{{first}}" and "{{second}}". Don\'t mix them — Sao Đỏ is a customer who HAS bought (frozen 10/08 07:58), DAS Vina is a customer who has NOT bought (17/08 09:10). Split into two screens, or pick one.',
       barrel:
-        'Màn không import barrel "{{source}}". Import thẳng kịch bản cần dùng — @pv/engines/fixtures/sao-do hoặc @pv/engines/fixtures/das-vina — để rule kiểm được là màn chỉ dùng một kịch bản.',
+        'A screen must not import the barrel "{{source}}". Import the scenario you need directly — @pv/engines/fixtures/sao-do or @pv/engines/fixtures/das-vina — so the rule can verify the screen uses only one scenario.',
     },
   },
   create(context) {

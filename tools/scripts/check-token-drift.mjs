@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-/** Gác tầng token.
+/** Guards the token layer.
  *
- *  Có `var(--x)` nào trong code trỏ tới token KHÔNG TỒN TẠI không?
+ *  Is there any `var(--x)` in code that points at a token that DOES NOT EXIST?
  *
- *  docs/luat-thiet-ke.md §2: "Thiếu token thì HỎI, đừng bịa hex mới" — nhưng bịa
- *  *tên token* còn tệ hơn bịa hex: CSS im lặng cho ra màu trong suốt, build
- *  xanh, test xanh, và không ai thấy cho tới lúc demo trước khách.
+ *  docs/luat-thiet-ke.md §2: "Missing a token? ASK, don't invent a new hex" —
+ *  but inventing a *token name* is even worse than inventing a hex: CSS
+ *  silently falls back to transparent, the build stays green, tests stay
+ *  green, and nobody notices until the demo in front of the client.
  *
- *  Bản trước còn một vế nữa: đối chiếu `packages/tokens/globals.css` với bản
- *  thiết kế `project/theme/globals.css`. Vế đó bỏ ngày 18/08 khi `project/` bị
- *  xoá — giờ cả repo chỉ còn MỘT file token, không có bản thứ hai để lệch.
- *  Dựng lại nguồn thiết kế thì khôi phục vế đó.
+ *  An earlier version had a second half: cross-checking
+ *  `packages/tokens/globals.css` against the design source
+ *  `project/theme/globals.css`. That half was dropped on 18/08 when
+ *  `project/` was deleted — now the whole repo has only ONE token file, with
+ *  no second copy to drift from. Rebuilding the design source would restore
+ *  that half.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -40,17 +43,18 @@ for (const file of [join(ROOT, 'packages'), join(ROOT, 'apps')].flatMap(walk)) {
 
 const dangling = [...referenced].filter(([name]) => !declared.has(name))
 
-console.log(`Token khai báo trong packages/tokens/globals.css : ${declared.size}`)
-console.log(`var(--*) code đang tham chiếu                    : ${referenced.size}`)
+console.log(`Tokens declared in packages/tokens/globals.css : ${declared.size}`)
+console.log(`var(--*) references in code                    : ${referenced.size}`)
 
 if (dangling.length > 0) {
-  console.error(`\n✗ ${dangling.length} tham chiếu trỏ vào token không tồn tại:\n`)
-  for (const [name, file] of dangling) console.error(`  · var(${name})  dùng ở ${file}`)
+  console.error(`\n✗ ${dangling.length} references point at a token that doesn't exist:\n`)
+  for (const [name, file] of dangling) console.error(`  · var(${name})  used in ${file}`)
   console.error(
-    '\nTầng token là file màu duy nhất của cả hệ. Khai báo token ở\n' +
-      'packages/tokens/globals.css, hoặc sửa tên cho đúng. Đừng bịa hex mới.\n',
+    '\nThe token layer is the one and only color file for the whole system.\n' +
+      'Declare the token in packages/tokens/globals.css, or fix the name.\n' +
+      "Don't invent a new hex.\n",
   )
   process.exit(1)
 }
 
-console.log('\n✓ Không có var(--*) nào trỏ vào hư không.')
+console.log('\n✓ No var(--*) points into nothing.')

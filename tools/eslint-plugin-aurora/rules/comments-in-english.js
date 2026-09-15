@@ -14,7 +14,7 @@
  *  diacritics (`textNhapTuyChon`). No regex separates that from English, so it
  *  stays a human check — see the code-generation rules in the root CLAUDE.md. */
 
-/** Precomposed Vietnamese letters plus đ/Đ.
+/** Precomposed Vietnamese letters, plus the Vietnamese d-with-stroke (lower and upper case).
  *
  *  Deliberately NOT a broad non-ASCII test: `≥`, `·`, `—` and `→` appear all
  *  over this repo's comments and are fine. Only letters that mark the text as

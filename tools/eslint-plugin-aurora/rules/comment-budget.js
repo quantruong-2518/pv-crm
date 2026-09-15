@@ -1,4 +1,4 @@
-/** Luật 1 · Comment mang cái VÌ SAO, và có trần.
+/** Law 1 · Comments carry the WHY, and have a cap.
  *
  *  A docblock long enough to narrate a decision is a docs/ page wearing a code
  *  file's clothes: every reader pays for it on every read, and it drifts from
@@ -26,11 +26,11 @@ const insideFunction = (node) => {
 export default {
   meta: {
     type: 'suggestion',
-    docs: { description: 'Trần độ dài một khối comment (luật 1)' },
+    docs: { description: 'Length cap for a comment block (law 1)' },
     schema: [],
     messages: {
       tooLong:
-        'Khối comment {{lines}} dòng, quá trần {{cap}} (luật 1). Giữ lại cái VÌ SAO ngay tại đây; phần kể lịch sử quyết định chuyển sang docs/ và trỏ tới bằng một dòng.',
+        "Comment block is {{lines}} lines, over the {{cap}}-line cap (law 1). Keep the WHY right here; move the decision's history to docs/ and point to it with one line.",
     },
   },
   create(context) {

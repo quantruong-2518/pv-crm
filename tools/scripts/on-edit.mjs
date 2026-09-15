@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-/** Hook PostToolUse — định dạng và tự sửa lint ngay sau mỗi lần agent ghi file.
+/** PostToolUse hook — formats and auto-fixes lint right after every agent file write.
  *
- *  Vì sao đáng làm: vòng lặp ngắn nhất có thể. Agent viết `gap-[9px]`, biết
- *  ngay lúc đó, không phải đợi tới `pnpm check` hay tới CI. Đây chính là phần
- *  "vibe nhanh mà vẫn ổn định" — cái gác đặt sát chỗ sinh lỗi nhất.
+ *  Why it's worth doing: the shortest possible feedback loop. An agent writes
+ *  `gap-[9px]`, and knows right then, not after waiting for `pnpm check` or
+ *  CI. This is exactly the "fast vibe that stays stable" part — the gate
+ *  placed as close as possible to where the mistake is made.
  *
- *  Nguyên tắc: hook này KHÔNG BAO GIỜ chặn. Môi trường nào chạy được thì tốt,
- *  không chạy được thì im lặng bỏ qua — lint-staged và CI vẫn gác đủ. Một hook
- *  hay hỏng là một hook sẽ bị gỡ. */
+ *  Principle: this hook NEVER blocks. If the environment can run it, great;
+ *  if it can't, it silently skips — lint-staged and CI still gate enough. A
+ *  hook that breaks things often is a hook that gets removed. */
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -22,11 +23,12 @@ const readStdin = async () => {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-/** Tìm file bin của một package.
+/** Find a package's bin file.
  *
- *  Không dùng `require.resolve('eslint/bin/eslint.js')` được: ESLint 9 khai báo
- *  `exports` và không mở đường dẫn đó, nên resolve sẽ ném. `./package.json` thì
- *  package nào cũng mở — đi vòng qua đó rồi ghép đường dẫn. */
+ *  Can't use `require.resolve('eslint/bin/eslint.js')`: ESLint 9 declares
+ *  `exports` and doesn't open that path, so resolve would throw.
+ *  `./package.json` is open in every package — go around through that and
+ *  join the path instead. */
 const bin = (pkg, rel) => {
   try {
     return resolve(dirname(require.resolve(`${pkg}/package.json`)), rel)
@@ -47,7 +49,7 @@ try {
 
   const abs = resolve(ROOT, file)
   const rel = relative(ROOT, abs)
-  // Ngoài repo, hoặc trong nguồn thiết kế / thư mục sinh ra → không đụng.
+  // Outside the repo, or inside the design source / a generated folder → leave it alone.
   if (rel.startsWith('..') || /^(project|node_modules|.*[\\/]dist)[\\/]/.test(rel)) process.exit(0)
 
   const ext = extname(abs)
@@ -57,16 +59,16 @@ try {
   run(bin('prettier', 'bin/prettier.cjs'), ['--write', '--log-level', 'error', abs])
 
   if (['.ts', '.tsx', '.js', '.mjs'].includes(ext)) {
-    // Formatter mặc định (stylish): sạch thì stdout rỗng.
+    // Default formatter (stylish): empty stdout when clean.
     const out = run(bin('eslint', 'bin/eslint.js'), ['--fix', abs])
     const remaining = (out?.stdout ?? '').trim()
     if (remaining) {
-      // In ra để agent thấy ngay trong transcript. Vẫn exit 0 — báo, không chặn.
-      console.log(`[aurora] còn lỗi lint chưa tự sửa được ở ${rel}:\n${remaining}`)
+      // Print so the agent sees it right away in the transcript. Still exit 0 — report, don't block.
+      console.log(`[aurora] lint errors still unfixed in ${rel}:\n${remaining}`)
     }
   }
 } catch {
-  // Im lặng. CI mới là chỗ chặn.
+  // Silent. CI is where the actual blocking happens.
 }
 
 process.exit(0)

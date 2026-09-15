@@ -7,15 +7,16 @@ import noScenarioMix from './rules/no-scenario-mix.js'
 import commentsInEnglish from './rules/comments-in-english.js'
 import commentBudget from './rules/comment-budget.js'
 
-/** eslint-plugin-aurora — 15 luật cứng của Aurora v2.0, phần máy kiểm được.
+/** eslint-plugin-aurora — the 15 hard laws of Aurora v2.0, the machine-checkable part.
  *
- *  Luật nào cưỡng chế được ở TẦNG KIỂU thì đã nằm trong @pv/ui và không có rule
- *  ở đây (luật 8 · 9 · 10 · A-11). Rule dưới đây chỉ lo phần TypeScript không
- *  với tới: nội dung chuỗi class và nội dung chữ.
+ *  Whichever law can be enforced at the STYLE LAYER already lives in @pv/ui
+ *  and has no rule here (laws 8 · 9 · 10 · A-11). The rules below only handle
+ *  the part TypeScript can't reach: class string content and text content.
  *
- *  Ba luật còn lại vẫn là việc của mắt người, ghi rõ để không ai tưởng CI đã
- *  gác hộ: luật 12 (nền đúng 4 lớp) · luật 13 (tương phản ≥ 4.5:1) ·
- *  docs/luat-thiet-ke.md §8.8 (nền 4 lớp · tương phản · cỡ nút tablet). */
+ *  The three remaining laws are still a human-eyes job, spelled out so no one
+ *  thinks CI has them covered: law 12 (correct 4-layer background) · law 13
+ *  (contrast ≥ 4.5:1) · docs/luat-thiet-ke.md §8.8 (4-layer background ·
+ *  contrast · tablet button size). */
 export default {
   meta: { name: '@pv/eslint-plugin-aurora', version: '1.0.0' },
   rules: {

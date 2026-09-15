@@ -1,48 +1,50 @@
-/** `pnpm mail:preview` — mở mọi mẫu mail trong trình duyệt, render lại mỗi
- *  lần F5.
+/** `pnpm mail:preview` — opens every mail template in the browser, re-rendering
+ *  on every F5.
  *
  *  ==================================================================
- *  VÌ SAO CẦN MỘT LỆNH RIÊNG CHO VIỆC NÀY
+ *  WHY THIS NEEDS ITS OWN COMMAND
  *  ==================================================================
- *  Mẫu mail là góc duy nhất của repo mà KHÔNG có gì nhìn hộ. Màn hình có
- *  `pnpm dev`, kiểu có `tsc`, luật Aurora có eslint — còn một lá thư thì
- *  không compiler nào biết nó vỡ, không test nào render nó, và người đầu tiên
- *  phát hiện ra là người nhận. `ops-mail-bits.tsx` đã ghi đúng câu đó thành
- *  lời cảnh báo; file này là câu trả lời cho nó.
+ *  Mail templates are the one corner of the repo with NOTHING watching over
+ *  them. Screens have `pnpm dev`, types have `tsc`, Aurora laws have eslint —
+ *  but a mail body has no compiler that knows it's broken, no test that
+ *  renders it, and the first person to find out is the recipient.
+ *  `ops-mail-bits.tsx` wrote exactly that into a warning comment; this file
+ *  is the answer to it.
  *
- *  Trước khi có lệnh này, cách duy nhất để nhìn một lá thư là viết tạm một
- *  file `*.test.ts` ghi HTML ra đĩa rồi xoá đi — đúng cái vòng mà `CLAUDE.md`
- *  không muốn ai phải lặp lại.
- *
- *  ------------------------------------------------------------------
- *  RENDER LẠI MỖI LẦN GỌI, KHÔNG DỰNG SẴN RA THƯ MỤC
- *  ------------------------------------------------------------------
- *  Mỗi request nạp lại module qua `ssrLoadModule` và dựng lại thân thư. Sửa
- *  một dòng trong `brand-shell.tsx` rồi F5 là thấy ngay, không phải chạy lại
- *  lệnh. Đổi lại, không có thư mục kết quả nào để lỡ tay commit — thứ vẫn xảy
- *  ra với mọi công cụ ghi ra đĩa.
+ *  Before this command existed, the only way to look at a mail body was to
+ *  write a throwaway `*.test.ts` file that dumped HTML to disk and then
+ *  delete it — exactly the loop `CLAUDE.md` doesn't want anyone repeating.
  *
  *  ------------------------------------------------------------------
- *  KHÔNG THÊM PHỤ THUỘC NÀO
+ *  RE-RENDERS ON EVERY CALL, NEVER PRE-BUILDS TO A FOLDER
  *  ------------------------------------------------------------------
- *  `vite` đã là devDependency ở gốc repo, và `ssrLoadModule` của nó biên dịch
- *  TSX sẵn. Một gói chạy-TS thứ hai (`tsx`, `vite-node`) sẽ là bộ phân giải
- *  module thứ hai trong cây — tức là một chỗ nữa để "chạy được ở công cụ này,
- *  vỡ ở công cụ kia".
+ *  Every request reloads the module via `ssrLoadModule` and rebuilds the mail
+ *  body. Edit one line in `brand-shell.tsx` and F5 shows it right away,
+ *  without re-running the command. The tradeoff: there's no output folder to
+ *  accidentally commit — something that still happens with every tool that
+ *  writes to disk.
  *
  *  ------------------------------------------------------------------
- *  DỮ LIỆU MẪU Ở ĐÂY LÀ DỮ LIỆU MẪU, KHÔNG PHẢI FIXTURE
+ *  NO NEW DEPENDENCY ADDED
  *  ------------------------------------------------------------------
- *  Số trong `SAMPLES` bên dưới KHÔNG phải số của kịch bản Sao Đỏ hay DAS Vina
- *  và không được chép ngược vào bất cứ đâu. Chúng tồn tại để ép mẫu thư vào
- *  trạng thái khó nhất: tên dài, địa chỉ dài, URL dài có token, trường tuỳ
- *  chọn lúc có lúc không. Một mẫu thư đẹp với dữ liệu đẹp thì chưa chứng minh
- *  được gì.
+ *  `vite` is already a devDependency at the repo root, and its
+ *  `ssrLoadModule` already compiles TSX. A second TS-runner package (`tsx`,
+ *  `vite-node`) would be a second module resolver in the tree — one more
+ *  place for "works with this tool, breaks with that one."
  *
- *  Vì thế file này KHÔNG nạp `@pv/engines/fixtures`: ràng buộc "thêm số mới
- *  vào fixture phải kèm test khoá số" tồn tại để bảo vệ số liệu demo, và kéo
- *  fixture vào một công cụ xem trước chỉ tạo thêm một chỗ cho số thật rò ra
- *  ngoài kịch bản của nó. */
+ *  ------------------------------------------------------------------
+ *  THE SAMPLE DATA HERE IS SAMPLE DATA, NOT A FIXTURE
+ *  ------------------------------------------------------------------
+ *  The numbers in `SAMPLES` below are NOT the numbers of the `sao-do` or
+ *  `das-vina` scenario, and must not be copied back anywhere. They exist to force
+ *  the mail template into its hardest state: long names, long addresses,
+ *  long URLs with a token, optional fields that come and go. A pretty
+ *  template with pretty data proves nothing.
+ *
+ *  That's why this file does NOT load `@pv/engines/fixtures`: the rule "add a
+ *  new number to a fixture and it needs a test locking that number" exists to
+ *  protect demo data, and pulling a fixture into a preview tool would only
+ *  create one more place for a real number to leak outside its scenario. */
 import { createServer as createHttpServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
@@ -53,16 +55,17 @@ const ROOT = new URL('../../', import.meta.url)
 const ENTRY = fileURLToPath(new URL('packages/mail-templates/src/index.ts', ROOT))
 const BRAND_DIR = new URL('apps/web/public/brand/', ROOT)
 
-/** Cổng riêng, không đụng 5173 của `pnpm dev` — hai thứ hay chạy cùng lúc, và
- *  Vite nhảy cổng khi bị chiếm thì địa chỉ in ra ở đây sẽ sai. */
+/** Its own port, not touching `pnpm dev`'s 5173 — the two often run at the
+ *  same time, and if Vite jumps port when 5173 is taken, the address printed
+ *  here would be wrong. */
 const PORT = Number(process.env.PV_MAIL_PREVIEW_PORT ?? 5175)
 const ORIGIN = `http://localhost:${PORT}`
 
-/** Mốc thời gian TRÔI THEO lúc chạy chứ không phải một hằng số ISO.
+/** Timestamps DRIFT WITH the time the script runs, not a fixed ISO constant.
  *
- *  Ba mẫu thư in khoảng cách thời gian ("còn 60 phút", "mở 12 ngày"), và một
- *  mốc cố định sẽ làm chúng in ra "đã quá hạn" sau vài hôm — người xem sẽ
- *  tưởng mình vừa làm hỏng cái gì. */
+ *  Three mail templates print a time distance ("60 minutes left", "open for
+ *  12 days"), and a fixed timestamp would make them print "already expired"
+ *  after a few days — the viewer would think they'd just broken something. */
 const inHours = (h) => new Date(Date.now() + h * 3_600_000).toISOString()
 const agoHours = (h) => new Date(Date.now() - h * 3_600_000).toISOString()
 
@@ -76,7 +79,7 @@ const SAMPLES = [
         purpose: 'invite',
         name: 'Nguyễn Thị Minh Hằng',
         email: 'minh.hang@pebblevina.com',
-        link: `${ORIGIN}/dat-lai-mat-khau?token=b7f3c9a12b4de40a18a1c6e5d0b93f27a4c8e1d6`,
+        link: `${ORIGIN}/reset-password?token=b7f3c9a12b4de40a18a1c6e5d0b93f27a4c8e1d6`,
         assetBaseUrl,
         expiresAt: inHours(24 * 7),
       }),
@@ -90,7 +93,7 @@ const SAMPLES = [
         purpose: 'reset',
         name: 'Hà Trần',
         email: 'ha.tran@pebblevina.com',
-        link: `${ORIGIN}/dat-lai-mat-khau?token=7f3c9a12b4de40a18a1c6e5d0b93`,
+        link: `${ORIGIN}/reset-password?token=7f3c9a12b4de40a18a1c6e5d0b93`,
         assetBaseUrl,
         expiresAt: inHours(1),
       }),
@@ -188,8 +191,9 @@ const SAMPLES = [
     render: (m, assetBaseUrl) =>
       m.renderMasShell({
         subject: 'Bốn cách rút ngắn vòng kiểm tra chất lượng trong xưởng cơ khí',
-        // Cố tình dùng cả ba cấu trúc `mail-markup.ts` hiểu — đậm, nghiêng,
-        // danh sách — vì đây là chỗ DUY NHẤT nhìn được chúng bằng mắt.
+        // Deliberately uses all three structures `mail-markup.ts` understands
+        // — bold, italic, list — because this is the ONLY place they can be
+        // seen with human eyes.
         blocks: m.parseMailBody(
           [
             'Chào anh/chị,',
@@ -223,9 +227,9 @@ const SAMPLES = [
   },
 ]
 
-/** Trang danh sách. Cố tình là HTML trần, không nhập gì từ `@pv/ui`: đây là
- *  công cụ, không phải một màn của sản phẩm, và một công cụ kéo theo cả hệ
- *  thiết kế sẽ vỡ mỗi lần hệ thiết kế đổi. */
+/** The listing page. Deliberately plain HTML, importing nothing from `@pv/ui`:
+ *  this is a tool, not a product screen, and a tool that drags in the whole
+ *  design system would break every time the design system changes. */
 function indexPage() {
   const rows = SAMPLES.map(
     (s) => `<li>
@@ -265,9 +269,10 @@ const vite = await createViteServer({
   root: fileURLToPath(ROOT),
   appType: 'custom',
   server: { middlewareMode: true },
-  /* `info` nuốt mất dòng nào? Không dòng nào đáng — ở chế độ middleware Vite
-     in mỗi lần nạp lại module, và với một trang render lại toàn bộ cây thì đó
-     là hàng chục dòng mỗi lần F5, che mất chính lỗi ta đang tìm. */
+  /* Does `info` swallow any line worth seeing? No — in middleware mode Vite
+     logs on every module reload, and for a page that re-renders the whole
+     tree that's dozens of lines per F5, burying the very error we're
+     looking for. */
   logLevel: 'warn',
 })
 
@@ -279,15 +284,15 @@ const server = createHttpServer(async (req, res) => {
       return send(res, 200, 'text/html; charset=utf-8', indexPage())
     }
 
-    /* Ảnh nhận diện phục vụ thẳng từ `apps/web/public/brand` — đúng thư mục
-       mà bản triển khai thật phục vụ, nên nếu một file thiếu ở đây thì nó
-       cũng thiếu trong thư thật. Một thư mục ảnh riêng cho bản xem trước sẽ
-       giấu mất đúng lỗi đó. */
+    /* Brand images served straight from `apps/web/public/brand` — the exact
+       folder the real deployment serves, so if a file is missing here it's
+       also missing in the real mail. A separate image folder just for the
+       preview would hide that very bug. */
     if (url.pathname.startsWith('/brand/')) {
       const name = url.pathname.slice('/brand/'.length)
-      /* Chặn `..` và mọi đường dẫn có gạch chéo: thư mục này chỉ có file
-         phẳng, nên bất cứ thứ gì phức tạp hơn một tên file đều là dấu hiệu
-         của một request không thật thà. */
+      /* Blocks `..` and any path with a slash: this folder only holds flat
+         files, so anything more complex than a filename is a sign of a
+         dishonest request. */
       if (!/^[\w.-]+$/.test(name) || name.includes('..')) return send(res, 400, 'text/plain', 'no')
       const body = await readFile(new URL(name, BRAND_DIR))
       return send(res, 200, MIME[extname(name)] ?? 'application/octet-stream', body)
@@ -304,9 +309,10 @@ const server = createHttpServer(async (req, res) => {
 
     return send(res, 404, 'text/plain; charset=utf-8', 'Không có trang này.')
   } catch (error) {
-    /* Lỗi in RA MÀN HÌNH TRÌNH DUYỆT chứ không chỉ ra terminal, kèm stack đã
-       được Vite ánh xạ về đúng dòng trong file `.tsx`. Người đang sửa mẫu thư
-       đang nhìn tab trình duyệt, không nhìn terminal. */
+    /* Errors print TO THE BROWSER SCREEN, not just to the terminal, with the
+       stack already mapped by Vite back to the right line in the `.tsx`
+       file. Whoever is editing a mail template is looking at the browser
+       tab, not the terminal. */
     if (error instanceof Error) vite.ssrFixStacktrace(error)
     const detail = error instanceof Error ? (error.stack ?? error.message) : String(error)
     send(res, 500, 'text/html; charset=utf-8', `<pre>${escapeHtml(detail)}</pre>`)
@@ -316,7 +322,7 @@ const server = createHttpServer(async (req, res) => {
 function send(res, status, type, body) {
   res.writeHead(status, {
     'content-type': type,
-    /* Không cache gì hết. Cả điểm của công cụ này là F5 thấy bản mới. */
+    /* No caching, period. The entire point of this tool is F5 shows the latest version. */
     'cache-control': 'no-store',
   })
   res.end(body)

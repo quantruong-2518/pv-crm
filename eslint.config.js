@@ -6,15 +6,15 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import prettier from 'eslint-config-prettier'
 import aurora from '@pv/eslint-plugin-aurora'
 
-/** Gác của repo. Ba tầng, từ ngoài vào:
- *   1 · TypeScript + React — lỗi lập trình thường;
- *   2 · aurora/* — 15 luật thiết kế, phần máy kiểm được;
- *   3 · biên giới package — nhánh không được với vào ruột nhánh khác.
+/** The repo's gate. Three layers, from outside in:
+ *   1 · TypeScript + React — common programming errors;
+ *   2 · aurora/* — the 15 design laws, the machine-checkable part;
+ *   3 · package boundaries — a branch must not reach into another branch's guts.
  *
- *  Vi phạm ĐANG CÓ nằm trong `eslint-suppressions.json` (sinh bằng
- *  `pnpm lint --suppress-all`). Rule vẫn là `error`: thêm vi phạm mới thì đỏ,
- *  còn nợ cũ thì đếm được và trả dần. Không có rule nào để ở `warn` — `warn`
- *  là cách êm ái để không bao giờ sửa. */
+ *  Violations that EXIST ALREADY live in `eslint-suppressions.json` (generated
+ *  with `pnpm lint --suppress-all`). The rule stays `error`: a new violation
+ *  goes red, and old debt is countable and paid down over time. No rule is
+ *  ever left at `warn` — `warn` is the gentle way to never fix it. */
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'] },
 
@@ -45,7 +45,7 @@ export default tseslint.config(
     },
   },
 
-  // ---- 2 · 15 luật Aurora --------------------------------------------------
+  // ---- 2 · the 15 Aurora laws ------------------------------------------------
   {
     files: ['apps/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'],
     plugins: { aurora },
@@ -59,56 +59,60 @@ export default tseslint.config(
       'aurora/comments-in-english': 'error',
       'aurora/comment-budget': 'error',
 
-      // Luật 3 · hình dạng code. Đếm DÒNG CODE THẬT (bỏ comment và dòng trống),
-      // nên trần không bị comment đẩy lên — và cắt comment không nới được trần.
+      // Law 3 · code shape. Counts REAL CODE LINES (comments and blank lines
+      // excluded), so the ceiling isn't pushed up by comments — and trimming
+      // comments doesn't raise the ceiling.
       'max-lines': ['error', { max: 700, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 
-  // Ngoại lệ đã ratify — mỗi cái kèm căn cứ, không có ngoại lệ không lý do.
+  // Ratified exceptions — each one comes with a written rationale, no exception without a reason.
   {
-    // Bảng token: hex ở đây là NỘI DUNG hiển thị, không phải giá trị style.
+    // Token table: the hex here is DISPLAYED CONTENT, not a style value.
     files: ['packages/tokens/src/tokens.ts'],
     rules: { 'aurora/no-raw-hex': 'off' },
   },
   {
-    // icon.tsx LÀ cái cửa — nó phải chạm Hugeicons renderer trực tiếp.
+    // icon.tsx IS the gate — it has to touch the Hugeicons renderer directly.
     files: ['packages/ui/src/ui/icon.tsx'],
     rules: { 'aurora/icon-through-gate': 'off' },
   },
   {
-    // Luật 4, ngoại lệ duy nhất: biến thể tương phản cao cho kiosk tablet
-    // ngoài sáng, viền 2px (docs/luat-thiet-ke.md §1 luật 4).
+    // Law 4, the sole exception: high-contrast variant for kiosk tablets
+    // outdoors in bright light, 2px border (docs/luat-thiet-ke.md §1 law 4).
     files: ['packages/ui/src/organisms/kiosk-tile.tsx'],
     rules: { 'aurora/no-box-border': 'off' },
   },
   {
-    // Trang kit là TÀI LIỆU về hệ: nó phải viết ra được cả thứ hệ cấm, để giải
-    // thích vì sao cấm. Chỉ miễn phần nội dung chữ, không miễn phần layout.
+    // The kit page IS DOCUMENTATION about the system: it has to be able to
+    // write out the very thing the system forbids, to explain why it's
+    // forbidden. Only the text content is exempt, not the layout.
     files: ['apps/web/src/kit/**/*.tsx'],
     rules: { 'aurora/no-ai-slop': 'off', 'aurora/no-raw-hex': 'off' },
   },
   {
-    // Fixture LÀ nơi định nghĩa kịch bản, và test phải cầm được cả hai để so.
+    // The fixture IS where scenarios are defined, and a test needs to hold
+    // both to compare them.
     files: ['packages/engines/src/fixtures/**', '**/*.test.{ts,tsx,js}'],
     rules: { 'aurora/no-scenario-mix': 'off' },
   },
   {
-    // Fixture là DỮ LIỆU và trang kit là CATALOG: cả hai dài theo số mục chúng
-    // liệt kê, không theo độ phức tạp. Trần độ dài ở đây đo nhầm thứ.
+    // Fixtures are DATA and the kit page is a CATALOG: both grow long by the
+    // number of entries they list, not by complexity. A length ceiling here
+    // measures the wrong thing.
     files: ['packages/engines/src/fixtures/**', 'apps/web/src/kit/**', '**/*.test.{ts,tsx,js}'],
     rules: { 'max-lines': 'off', 'max-lines-per-function': 'off' },
   },
   {
-    // Test không phải giao diện. Tiêu đề test được phép trích nguyên văn tài
-    // liệu thiết kế — kể cả dấu ⚠ trong bảng — và của chính rule no-ai-slop
-    // buộc phải viết ra thứ nó cấm.
+    // Tests aren't UI. A test title is allowed to quote the design docs
+    // verbatim — including the ⚠ mark in the table — and the no-ai-slop rule
+    // itself forces writing out the very thing it bans.
     files: ['**/*.test.{ts,tsx,js}'],
     rules: { 'aurora/no-ai-slop': 'off' },
   },
 
-  // ---- 3 · biên giới package ----------------------------------------------
+  // ---- 3 · package boundary ------------------------------------------------
   {
     files: ['apps/**/*.{ts,tsx}'],
     rules: {
@@ -162,20 +166,22 @@ export default tseslint.config(
   },
 
   {
-    // `@pv/contracts` — HỢP ĐỒNG DỮ LIỆU, và là package bị import rộng nhất.
+    // `@pv/contracts` — the DATA CONTRACT, and the most widely imported package.
     //
-    // Nó nằm trong bundle của TRÌNH DUYỆT (mọi `data/*.ts` của apps/web đọc
-    // kiểu từ đây) và cũng nằm trong máy chủ. Một dòng `import … from '@api/…'`
-    // ở đây vì thế không chỉ đảo chiều phụ thuộc — nó kéo mã nguồn máy chủ,
-    // và mọi thứ mã đó kéo theo, vào tệp người dùng tải về.
+    // It sits in the BROWSER bundle (every `data/*.ts` in apps/web reads its
+    // types from here) and also sits on the server. One `import … from '@api/…'`
+    // line here therefore doesn't just reverse the dependency — it drags server
+    // source code, and everything that code pulls in, into the file the user
+    // downloads.
     //
-    // Rào này là chỗ trống đã được ghi tên trong docblock của
-    // `LeadMailTimelineRow.deliveryState`: ba package kia đều có rào, package
-    // này thì không, nên biên giới của nó do người soát giữ. Nay máy giữ.
+    // This guard is the gap that was already named in the docblock of
+    // `LeadMailTimelineRow.deliveryState`: the other three packages all had a
+    // guard, this one didn't, so its boundary was kept by reviewers' eyes. Now
+    // the machine keeps it.
     //
-    // `zod` là phụ thuộc DUY NHẤT đúng của nó (xem `package.json`), nên danh
-    // sách cấm ở đây rộng hơn ba khối trên: không React, không thư viện màn,
-    // không engine, không máy chủ, không app.
+    // `zod` is its one and only legitimate dependency (see `package.json`), so
+    // the ban list here is broader than the three blocks above: no React, no
+    // screen library, no engine, no server, no app.
     files: ['packages/contracts/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -205,10 +211,11 @@ export default tseslint.config(
   },
 
   {
-    // `@pv/mail-templates` — chỗ DUY NHẤT ở tầng máy chủ được biết React.
-    // Nó dựng thân email và không biết gì khác: không engine, không app, không
-    // thư viện màn. Cửa ra là một hàm thuần trả {subject, html, text}, nên
-    // `apps/api` vẫn giữ nguyên rule cấm react ở khối 3b ngay dưới đây.
+    // `@pv/mail-templates` — the ONLY place on the server side allowed to
+    // know React. It builds email bodies and knows nothing else: no engine, no
+    // app, no screen library. Its exit door is a pure function returning
+    // {subject, html, text}, so `apps/api` still keeps the rule banning react
+    // in block 3b right below.
     files: ['packages/mail-templates/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
@@ -223,18 +230,20 @@ export default tseslint.config(
           ],
         },
       ],
-      // Thang 8 bậc là luật của MÀN (luật 7). Thân email đi bằng bảng và
-      // padding inline mà từng mail client tự diễn giải; ép thang ở đây là ép
-      // một luật vào nơi nó không có hiệu lực. Màu thì NGƯỢC LẠI — vẫn cấm hex
-      // thô, giá trị lấy từ `@pv/tokens` để mail không trôi khỏi bảng màu.
+      // The 8-step scale is a SCREEN law (law 7). Email bodies run on tables
+      // and inline padding that each mail client interprets its own way;
+      // enforcing the scale here forces a law onto a place it has no effect.
+      // Color is the OPPOSITE — raw hex is still banned, values come from
+      // `@pv/tokens` so mail doesn't drift off the color table.
       'aurora/spacing-scale': 'off',
     },
   },
 
-  // ---- 3b · biên giới BÊN TRONG apps/api ----------------------------------
-  // Ba luật, cùng cơ chế với biên giới package ở trên. Nest module KHÔNG tự ép
-  // được chúng: `@Module({ imports })` chỉ nói ai dùng được provider của ai, nó
-  // không ngăn một file `import` thẳng vào file khác.
+  // ---- 3b · boundary INSIDE apps/api -----------------------------------------
+  // Three rules, same mechanism as the package boundary above. A Nest module
+  // CANNOT enforce them on its own: `@Module({ imports })` only says who can
+  // use whose provider, it doesn't stop one file from `import`-ing straight
+  // into another.
   {
     files: ['apps/api/**/*.ts'],
     rules: {
@@ -267,31 +276,35 @@ export default tseslint.config(
     },
   },
   {
-    // Hai script seed nạp CHÍNH kịch bản đóng băng vào Postgres — đó là việc
-    // của chúng, và là ngoại lệ duy nhất của luật fixture ở trên.
+    // The two seed scripts load EXACTLY the frozen scenario into Postgres —
+    // that's their job, and the sole exception to the fixture law above.
     //
-    // Ngoại lệ bám vào MỘT tính chất, không phải vào tên file: đây là lệnh
-    // CLI chạy tay, không phải đường chạy của máy chủ. Luật fixture sinh ra để
-    // chặn tên khách hàng lọt vào thứ phục vụ request thật; một script người ta
-    // gõ tay rồi đọc kết quả không phải thứ đó. `no-console` tắt cùng lý do —
-    // đầu ra của một script CLI LÀ giao diện của nó.
+    // The exception hangs on ONE property, not the file name: this is a CLI
+    // command run by hand, not a server request path. The fixture law exists
+    // to stop customer names from leaking into what serves real requests; a
+    // script someone types by hand and reads the output of isn't that.
+    // `no-console` is off for the same reason — a CLI script's output IS its
+    // interface.
     //
-    // `seed.ts` dựng lại cả sổ; `seed-accounts.ts` chỉ UPDATE email và mật khẩu
-    // của actor đã có nên chạy được trên database thật. Thêm file thứ ba vào
-    // đây thì dừng lại và hỏi trước — danh sách này ngắn là có chủ ý.
+    // `seed.ts` rebuilds the whole ledger; `seed-accounts.ts` only UPDATEs the
+    // email and password of an actor that already exists, so it can run
+    // against the real database. Adding a third file here — stop and ask
+    // first; this list being short is deliberate.
     files: ['apps/api/src/seed.ts', 'apps/api/src/seed-accounts.ts'],
     rules: { 'no-restricted-imports': 'off', 'no-console': 'off' },
   },
   {
-    // `reset-staff.ts` đứng RIÊNG, không gộp vào khối trên, vì nó chỉ xin một
-    // nửa của ngoại lệ đó: nó là lệnh CLI nên `no-console` tắt, nhưng nó không
-    // nhập fixture nào — sổ nhân sự thật nằm ở `staff.ts`. Gộp vào là mở sẵn
-    // cửa cho tên khách hàng đi vào một file không cần tới chúng.
+    // `reset-staff.ts` stands ALONE, not merged into the block above, because
+    // it only asks for half of that exception: it's a CLI command so
+    // `no-console` is off, but it imports no fixture — the real staff ledger
+    // lives in `staff.ts`. Merging it in would open the door for customer
+    // names to enter a file that has no need of them.
     files: ['apps/api/src/reset-staff.ts'],
     rules: { 'no-console': 'off' },
   },
   {
-    // Platform là NỀN. Nền biết nhánh là nền đã thành một nhánh.
+    // Platform is the FOUNDATION. A foundation that knows about a branch has
+    // already become a branch.
     files: ['apps/api/src/platform/**/*.ts'],
     rules: {
       'no-restricted-imports': [
@@ -309,9 +322,9 @@ export default tseslint.config(
     },
   },
   {
-    // Chéo nhánh phải đi qua service xuất khẩu của module, không đi qua file.
-    // Đây là luật giữ cho việc tách service sau này là một tuần, không phải
-    // một quý — xem CLAUDE.md của apps/api.
+    // Cross-branch access must go through the module's exported service, not
+    // through a file. This is the law that keeps splitting off a service later
+    // a one-week job, not a one-quarter job — see apps/api's CLAUDE.md.
     files: ['apps/api/src/branches/sales/**/*.ts'],
     rules: {
       'no-restricted-imports': [
@@ -330,43 +343,62 @@ export default tseslint.config(
   },
 
   {
-    // ---- NGOẠI LỆ ĐÃ RATIFY: decorator của Nest cần import DẠNG GIÁ TRỊ ----
+    // ---- RATIFIED EXCEPTION: Nest decorators need a VALUE-FORM import ----
     //
-    // `consistent-type-imports` nhìn thấy `private readonly repo: LeadRepository`
-    // trong constructor và kết luận "chỉ dùng làm kiểu". Về cú pháp thì đúng.
-    // Về thực thi thì sai, và sai theo kiểu chỉ nổ lúc chạy:
-    // `emitDecoratorMetadata` phát sinh `design:paramtypes` từ chính lời
-    // `import` đó. Đổi sang `import type` thì TypeScript xoá lời import, siêu
-    // dữ liệu ghi `Object`, và Nest báo "Cannot resolve dependency" ở một chỗ
-    // chẳng liên quan gì tới file vừa sửa.
+    // `consistent-type-imports` sees `private readonly repo: LeadRepository` in
+    // a constructor and concludes "only used as a type." Syntactically, true.
+    // At runtime, wrong — and wrong in a way that only blows up when the app
+    // runs: `emitDecoratorMetadata` generates `design:paramtypes` from that
+    // very `import` statement. Switch to `import type` and TypeScript erases
+    // the import, the metadata records `Object`, and Nest reports "Cannot
+    // resolve dependency" at a spot that has nothing to do with the file you
+    // just edited.
     //
-    // Đây là chỗ ma sát có thật giữa idiom Nest và cấu hình ESM/`verbatim` của
-    // repo. Cách duy nhất vừa giữ rule vừa giữ DI là gắn `@Inject()` tay lên
-    // MỌI tham số constructor — ồn hơn nhiều so với một ngoại lệ có ghi lý do.
-    // Đổi lại: `apps/api` không được lợi từ rule này, và người viết phải tự
-    // dùng `import type` cho những gì thật sự chỉ là kiểu.
+    // This is real friction between the Nest idiom and the repo's ESM /
+    // `verbatim` config. The only way to keep both the rule and DI is to hand-
+    // attach `@Inject()` to EVERY constructor parameter — far noisier than one
+    // documented exception. The tradeoff: `apps/api` gets no benefit from this
+    // rule, and the author has to use `import type` themselves for whatever is
+    // genuinely just a type.
     files: ['apps/api/**/*.ts'],
     rules: { '@typescript-eslint/consistent-type-imports': 'off' },
   },
 
-  // ---- công cụ và cấu hình -------------------------------------------------
+  // ---- tools and config -------------------------------------------------------
   {
     files: ['tools/**/*.{js,mjs}', '*.config.{js,mjs,ts}', 'vitest.setup.ts'],
     languageOptions: { globals: globals.node },
     rules: { 'no-console': 'off', 'no-undef': 'off' },
   },
   {
-    // Quy ước shadcn/ui: cva variant xuất khẩu cùng file với component
-    // (`export { buttonVariants }`). Đây là quy ước đã chốt của repo —
-    // apps/web/README.md mục "Stack". Đổi lại, HMR của một file trong thư viện
-    // rơi về full reload thay vì fast refresh; chấp nhận được vì màn thật nằm
-    // ở apps/web, nơi rule vẫn bật.
+    // Block 2 above only scopes the Aurora rules to apps/** and packages/**, so
+    // tools/ and the root config files were never gated by comments-in-english —
+    // a hole that let Vietnamese comments pile up here undetected. This block
+    // closes it without touching block 2, since the other Aurora rules (raw hex,
+    // spacing scale, etc.) don't apply to lint tooling or build config.
+    files: [
+      'tools/**/*.{ts,js,mjs}',
+      'eslint.config.js',
+      'vitest.config.ts',
+      'prettier.config.js',
+      'alias.config.ts',
+    ],
+    plugins: { aurora },
+    rules: { 'aurora/comments-in-english': 'error' },
+  },
+  {
+    // shadcn/ui convention: the cva variant is exported from the same file as
+    // the component (`export { buttonVariants }`). This is a settled
+    // convention of the repo — apps/web/README.md, "Stack" section. The
+    // tradeoff: HMR for a file inside the library falls back to a full reload
+    // instead of fast refresh; acceptable because the real screens live in
+    // apps/web, where the rule stays on.
     files: ['packages/ui/**/*.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   {
-    // routes.tsx là BẢNG ROUTE, không phải module component — nó xuất khẩu
-    // `SCREENS` và `router`. Fast refresh không áp dụng cho nó.
+    // routes.tsx is a ROUTE TABLE, not a component module — it exports
+    // `SCREENS` and `router`. Fast refresh doesn't apply to it.
     files: ['apps/web/src/routes.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },

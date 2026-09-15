@@ -1,15 +1,16 @@
 #!/usr/bin/env node
-/** Gác vùng quét của Tailwind.
+/** Guards Tailwind's scan scope.
  *
- *  Tailwind v4 tự dò nguồn từ thư mục gốc của Vite. Trong monorepo, nó KHÔNG
- *  thấy package workspace — nên mọi class chỉ dùng bên trong @pv/ui sẽ lặng lẽ
- *  biến mất khỏi bản build. Không lỗi, không cảnh báo, chỉ có màn vỡ.
+ *  Tailwind v4 auto-detects sources from Vite's root directory. In a
+ *  monorepo, it does NOT see workspace packages — so any class used only
+ *  inside @pv/ui silently vanishes from the build. No error, no warning,
+ *  just a broken screen.
  *
- *  Đây là loại lỗi tệ nhất: build xanh, test xanh, typecheck xanh. Script này
- *  đọc mọi class giá trị tuỳ ý trong source rồi kiểm nó có thật sự sinh ra CSS
- *  hay không.
+ *  This is the worst kind of bug: build green, test green, typecheck green.
+ *  This script reads every arbitrary-value class in the source, then checks
+ *  whether it actually made it into the generated CSS.
  *
- *  Chạy SAU `pnpm build`. */
+ *  Run AFTER `pnpm build`. */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -30,18 +31,18 @@ try {
     css += readFileSync(join(DIST, f), 'utf8')
   }
 } catch {
-  console.error('✗ Không tìm thấy CSS đã build. Chạy `pnpm build` trước.')
+  console.error('✗ No built CSS found. Run `pnpm build` first.')
   process.exit(1)
 }
 
 if (!css) {
-  console.error('✗ Thư mục dist không có file CSS nào.')
+  console.error('✗ The dist directory has no CSS file.')
   process.exit(1)
 }
 
-// Class dạng `h-[150px]`, `size-[38px]`, `bg-[linear-gradient(...)]`.
-// Chỉ lấy loại có đơn vị px/rem — chúng chắc chắn phải xuất hiện nguyên văn
-// trong CSS sinh ra, nên kiểm được mà không phải mô phỏng cách Tailwind escape.
+// Classes shaped like `h-[150px]`, `size-[38px]`, `bg-[linear-gradient(...)]`.
+// Only takes the px/rem-unit kind — they're guaranteed to appear verbatim in
+// the generated CSS, so they can be checked without simulating how Tailwind escapes.
 const ARBITRARY = /\b[a-z][a-z0-9-]*-\[(-?[0-9.]+(?:px|rem))\]/g
 
 const wanted = new Map()
@@ -59,18 +60,18 @@ const missing = [...wanted].filter(([cls]) => {
   return !css.includes(value)
 })
 
-console.log(`Class giá trị tuỳ ý trong source : ${wanted.size}`)
-console.log(`Có mặt trong CSS đã build        : ${wanted.size - missing.length}`)
+console.log(`Arbitrary-value classes in source : ${wanted.size}`)
+console.log(`Present in built CSS               : ${wanted.size - missing.length}`)
 
 if (missing.length > 0) {
-  console.error(`\n✗ ${missing.length} class không sinh ra CSS:\n`)
+  console.error(`\n✗ ${missing.length} classes did not generate CSS:\n`)
   for (const [cls, file] of missing.slice(0, 25)) console.error(`  · ${cls}  (${file})`)
-  if (missing.length > 25) console.error(`  … và ${missing.length - 25} class nữa`)
+  if (missing.length > 25) console.error(`  … and ${missing.length - 25} more classes`)
   console.error(
-    '\nGần như chắc chắn là thiếu một dòng @source trong apps/web/src/styles/app.css.\n' +
-      'Mỗi thư mục source của workspace phải được khai báo ở đó.\n',
+    '\nAlmost certainly a missing @source line in apps/web/src/styles/app.css.\n' +
+      'Every workspace source directory must be declared there.\n',
   )
   process.exit(1)
 }
 
-console.log('\n✓ Mọi class giá trị tuỳ ý đều có mặt trong CSS đã build.')
+console.log('\n✓ Every arbitrary-value class is present in the built CSS.')

@@ -1,21 +1,22 @@
-/** Luật 11 · Icon Hugeicons Stroke Rounded, stroke 1.75, size 16 trong nút / 20 trong nav.
+/** Law 11 · Hugeicons Stroke Rounded icons, stroke 1.75, size 16 in buttons / 20 in nav.
  *
- *  `<Icon>` là CỬA DUY NHẤT vào Hugeicons — ở đó `size` và `strokeWidth` là union
- *  hẹp nên không đặt sai được. Render thẳng `<House />` thì đi vòng qua cửa đó
- *  và lấy stroke mặc định 2, size mặc định 24.
+ *  `<Icon>` is the ONLY GATE into Hugeicons — there `size` and `strokeWidth`
+ *  are a narrow union so they can't be set wrong. Rendering `<House />`
+ *  directly goes around that gate and gets the default stroke of 2, default
+ *  size of 24.
  *
- *  Import tên icon để TRUYỀN vào `<Icon icon={House} />` hoặc vào prop dữ liệu
- *  vẫn hợp lệ — rule chỉ chặn việc dùng nó làm thẻ JSX.
+ *  Importing the icon name to PASS into `<Icon icon={House} />` or into a
+ *  data prop is still valid — the rule only blocks using it as a JSX tag.
  *
- *  File định nghĩa `<Icon>` được miễn trong eslint.config.js. */
+ *  The file that defines `<Icon>` is exempted in eslint.config.js. */
 export default {
   meta: {
     type: 'problem',
-    docs: { description: 'Icon Hugeicons phải đi qua <Icon> (luật 11 · Aurora v2.0)' },
+    docs: { description: 'Hugeicons icons must go through <Icon> (law 11 · Aurora v2.0)' },
     schema: [],
     messages: {
       direct:
-        'Đừng render <{{name}} /> trực tiếp. Dùng <Icon icon={{{name}}} size={16} /> — <Icon> là cửa duy nhất vào Hugeicons, nơi stroke 1.75 và size được khoá ở tầng kiểu (luật 11).',
+        "Don't render <{{name}} /> directly. Use <Icon icon={{{name}}} size={16} /> — <Icon> is the only gate into Hugeicons, where stroke 1.75 and size are locked at the style layer (law 11).",
     },
   },
   create(context) {

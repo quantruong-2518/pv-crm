@@ -1,16 +1,17 @@
-/** Tiện ích chung: rút các token class Tailwind ra khỏi mọi chuỗi trong file.
+/** Shared utility: pull Tailwind class tokens out of every string in the file.
  *
- *  Không parse `cn()` / `cva()` riêng — class Tailwind luôn nằm trong chuỗi,
- *  nên quét mọi chuỗi là đủ và không bỏ sót nhánh nào. Đổi lại có thể chạm vào
- *  chuỗi văn xuôi; các regex dưới đây đều neo chặt nên văn xuôi không khớp. */
+ *  Doesn't parse `cn()` / `cva()` separately — Tailwind classes always sit
+ *  inside a string, so scanning every string is enough and misses no branch.
+ *  The tradeoff: it can touch prose strings too; the regexes below are all
+ *  tightly anchored so prose doesn't match. */
 
-/** Bỏ tiền tố variant (`lg:`, `hover:`, `dark:lg:`) và dấu `!` quan trọng. */
+/** Strip the variant prefix (`lg:`, `hover:`, `dark:lg:`) and the important `!` mark. */
 export function bare(token) {
   const last = token.split(':').pop() ?? token
   return last.replace(/^!/, '')
 }
 
-/** Duyệt mọi chuỗi trong file và gọi `visit(token, node)` cho từng class. */
+/** Walk every string in the file and call `visit(token, node)` for each class. */
 export function scanClassStrings(context, visit) {
   const fromText = (text, node) => {
     if (!text || text.length > 4000) return

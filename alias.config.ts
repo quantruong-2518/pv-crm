@@ -1,18 +1,20 @@
 import { fileURLToPath, URL } from 'node:url'
 
-/** Bảng alias DÙNG CHUNG cho `vite build` và `vitest`.
+/** Alias table SHARED by `vite build` and `vitest`.
  *
- *  Một bảng duy nhất, không hai bản. Nếu test và build phân giải module khác
- *  nhau thì test xanh trong khi app vỡ — loại bug tốn cả buổi để tìm ra và
- *  không có gì trong code chỉ tới nó.
+ *  One single table, not two copies. If test and build resolve modules
+ *  differently, tests go green while the app breaks — the kind of bug that
+ *  costs a whole afternoon to track down, with nothing in the code pointing at it.
  *
- *  Dùng regex neo hai đầu chứ không dùng chuỗi tiền tố: `@pv/tokens` dạng chuỗi
- *  sẽ nuốt luôn `@pv/tokens/globals.css` và trỏ nó vào `index.ts/globals.css`.
+ *  Uses regex anchored at both ends instead of a prefix string: `@pv/tokens` as
+ *  a plain string would also swallow `@pv/tokens/globals.css` and route it to
+ *  `index.ts/globals.css`.
  *
- *  `apps/api` KHÔNG đọc bảng này — Node runtime không hiểu alias của bundler.
- *  Phía máy chủ phân giải bằng `tsconfig-paths`, xem `apps/api/package.json`.
+ *  `apps/api` does NOT read this table — the Node runtime doesn't understand
+ *  bundler aliases. The server side resolves via `tsconfig-paths`, see
+ *  `apps/api/package.json`.
  *
- *  @param rootUrl `import.meta.url` của file gọi, quy về thư mục gốc repo. */
+ *  @param rootUrl `import.meta.url` of the calling file, resolved to the repo root. */
 export function pvAliases(rootUrl: string) {
   const r = (p: string) => fileURLToPath(new URL(p, rootUrl))
 

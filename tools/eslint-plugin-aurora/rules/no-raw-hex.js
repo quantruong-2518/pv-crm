@@ -1,19 +1,19 @@
-/** Luật 1 · Màu chỉ lấy từ `globals.css`.
- *  docs/luat-thiet-ke.md §8.1: "Không có hex nào trong code ngoài `globals.css`".
+/** Law 1 · Color comes only from `globals.css`.
+ *  docs/luat-thiet-ke.md §8.1: "No hex anywhere in code outside `globals.css`".
  *
- *  Ngoại lệ duy nhất đã ratify: `packages/tokens/src/tokens.ts` — ở đó hex là
- *  NỘI DUNG hiển thị của bảng màu, không phải giá trị style. Ngoại lệ khai báo
- *  trong `eslint.config.js`, không phải trong rule này. */
+ *  The one ratified exception: `packages/tokens/src/tokens.ts` — there the hex
+ *  is the DISPLAYED CONTENT of the color table, not a style value. The
+ *  exception is declared in `eslint.config.js`, not in this rule. */
 const HEX = /#[0-9a-fA-F]{3,8}\b/
 
 export default {
   meta: {
     type: 'problem',
-    docs: { description: 'Cấm hex ngoài tầng token (luật 1 · Aurora v2.0)' },
+    docs: { description: 'Ban hex outside the token layer (law 1 · Aurora v2.0)' },
     schema: [],
     messages: {
       rawHex:
-        'Hex "{{hex}}" nằm ngoài tầng token. Màu chỉ lấy từ packages/tokens/globals.css — dùng var(--*) hoặc class Tailwind đã map token. Thiếu token thì HỎI, đừng bịa hex mới.',
+        'Hex "{{hex}}" sits outside the token layer. Color comes only from packages/tokens/globals.css — use var(--*) or a Tailwind class already mapped to a token. Missing a token? ASK, don\'t invent a new hex.',
     },
   },
   create(context) {

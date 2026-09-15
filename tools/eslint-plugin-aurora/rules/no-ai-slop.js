@@ -1,9 +1,11 @@
-/** Luật 15 · Không AI slop, và luật 11 · không emoji.
+/** Law 15 · No AI slop, and law 11 · no emoji.
  *
- *  Ba thứ bị chặn, đều lấy thẳng từ docs/luat-thiet-ke.md:
- *   · emoji — không có chỗ nào trên giao diện dùng emoji;
- *   · ▲▼▬ và họ hàng — delta số dùng icon Hugeicons trending-up/down/minus;
- *   · icon `sparkles` / `bot` / `wand` — Trợ lý AI dùng `orbit`, không có ngoại lệ. */
+ *  Three things are blocked, all taken straight from docs/luat-thiet-ke.md:
+ *   · emoji — no place in the UI uses emoji;
+ *   · ▲▼▬ and relatives — numeric deltas use the Hugeicons
+ *     trending-up/down/minus icons;
+ *   · the `sparkles` / `bot` / `wand` icons — the AI Assistant uses `orbit`,
+ *     no exceptions. */
 const EMOJI = /\p{Extended_Pictographic}/u
 const GLYPH = /[▲▼▬△▽▴▾►◄◀▶⯅⯆]/
 
@@ -21,13 +23,13 @@ const BANNED_ICONS = new Set([
 export default {
   meta: {
     type: 'problem',
-    docs: { description: 'Không emoji, không ▲▼, không icon AI slop (luật 11 + 15)' },
+    docs: { description: 'No emoji, no ▲▼, no AI-slop icons (law 11 + 15)' },
     schema: [],
     messages: {
-      emoji: 'Emoji "{{ch}}" không dùng trên giao diện (luật 11 · docs/luat-thiet-ke.md).',
+      emoji: 'Emoji "{{ch}}" is not used in the UI (law 11 · docs/luat-thiet-ke.md).',
       glyph:
-        'Ký tự "{{ch}}" không dùng để chỉ hướng. Delta số dùng icon Hugeicons trending-up / trending-down / minus (luật 15).',
-      icon: 'Icon "{{name}}" là AI slop. Trợ lý AI dùng `orbit` — không `sparkles`, không `bot` (luật 15).',
+        'Character "{{ch}}" is not used to indicate direction. Numeric deltas use the Hugeicons trending-up / trending-down / minus icons (law 15).',
+      icon: 'Icon "{{name}}" is AI slop. The AI Assistant uses `orbit` — not `sparkles`, not `bot` (law 15).',
     },
   },
   create(context) {

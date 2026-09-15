@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-/** Báo cáo nợ lint — đọc `eslint-suppressions.json` thành thứ người đọc được.
+/** Lint debt report — reads `eslint-suppressions.json` into something a human can read.
  *
- *  File suppressions tồn tại để rule giữ mức `error` mà CI vẫn xanh ngay hôm
- *  nay. Nhưng nợ mà không ai đếm thì thành nợ vĩnh viễn. Chạy `pnpm lint:debt`
- *  để biết còn bao nhiêu, ở đâu, và file nào đáng dọn trước. */
+ *  The suppressions file exists so a rule can stay at `error` while CI stays
+ *  green today. But debt nobody counts becomes debt forever. Run
+ *  `pnpm lint:debt` to see how much is left, where, and which file is worth
+ *  cleaning up first. */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
@@ -14,7 +15,7 @@ let data
 try {
   data = JSON.parse(readFileSync(join(ROOT, 'eslint-suppressions.json'), 'utf8'))
 } catch {
-  console.log('✓ Không có eslint-suppressions.json — repo không nợ lint dòng nào.')
+  console.log('✓ No eslint-suppressions.json — the repo has zero lint debt.')
   process.exit(0)
 }
 
@@ -32,19 +33,19 @@ for (const [file, rules] of Object.entries(data)) {
 
 const total = [...byRule.values()].reduce((a, b) => a + b, 0)
 
-console.log(`Nợ lint: ${total} vi phạm trong ${byFile.length} file\n`)
+console.log(`Lint debt: ${total} violations across ${byFile.length} files\n`)
 
-console.log('Theo rule:')
+console.log('By rule:')
 for (const [rule, n] of [...byRule].sort((a, b) => b[1] - a[1])) {
   console.log(`  ${String(n).padStart(4)}  ${rule}`)
 }
 
-console.log('\nMười file nợ nhiều nhất:')
+console.log('\nTen files with the most debt:')
 for (const [file, n] of byFile.sort((a, b) => b[1] - a[1]).slice(0, 10)) {
   console.log(`  ${String(n).padStart(4)}  ${file}`)
 }
 
 console.log(
-  '\nDọn xong một file thì chạy `pnpm lint:prune` để gỡ nó khỏi danh sách.\n' +
-    'Rule vẫn là `error`: thêm vi phạm mới ở bất kỳ đâu là CI đỏ.',
+  '\nOnce a file is clean, run `pnpm lint:prune` to remove it from the list.\n' +
+    'The rule stays `error`: a new violation anywhere goes red in CI.',
 )

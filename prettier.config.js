@@ -5,9 +5,9 @@ export default {
   printWidth: 100,
   trailingComma: 'all',
 
-  // Sắp xếp class Tailwind tự động. Điều này quan trọng hơn thẩm mỹ:
-  // thứ tự class ổn định thì diff của agent đọc được, và không còn tranh cãi
-  // "class này đặt trước hay sau" trong review.
+  // Auto-sort Tailwind classes. This matters more than aesthetics: a stable
+  // class order makes agent diffs readable, and ends the "which class goes
+  // first" argument in review.
   plugins: ['prettier-plugin-tailwindcss'],
   tailwindStylesheet: './packages/tokens/globals.css',
   tailwindFunctions: ['cn', 'cva'],

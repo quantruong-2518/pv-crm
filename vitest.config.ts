@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: pvAliases(import.meta.url),
-    // Một bản React duy nhất cho mọi package — hai bản thì hook vỡ với thông
-    // báo "Invalid hook call" không chỉ tới nguyên nhân thật.
+    // One single React copy across every package — two copies break hooks
+    // with an "Invalid hook call" message that doesn't point to the real cause.
     dedupe: ['react', 'react-dom'],
   },
   test: {
@@ -15,8 +15,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     include: ['{apps,packages,tools}/**/*.{test,spec}.{ts,tsx,js,mjs}'],
-    // Không tự sinh test nữa (xem CLAUDE.md, "Chính sách test") — cây có thể
-    // có 0 file test hợp lệ, `pnpm check` không được đỏ vì lý do đó.
+    // No more self-generated tests (see CLAUDE.md, "Test policy") — the tree
+    // can have 0 valid test files, and `pnpm check` must not go red for that reason.
     passWithNoTests: true,
     coverage: {
       provider: 'v8',
