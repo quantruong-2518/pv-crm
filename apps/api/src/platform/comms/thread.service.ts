@@ -12,7 +12,7 @@ import {
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, notFound } from '@api/platform/http/problem'
+import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { toLink, toMessage, toObjectRef, toThread } from './comms.mapper'
 import { ThreadRepository } from './thread.repository'
 import type { MessagePartyRowDb } from './comms.schema'
@@ -33,11 +33,13 @@ import type { MessagePartyRowDb } from './comms.schema'
  *  It applies on all four doors, including the two that take a thread id
  *  rather than an object code. A scope fence on `?objectCode=` alone is not a
  *  fence: one UUID out of a colleague's screen and the timeline behind it
- *  opens. A thread with NO links is visible to anyone holding `comm.view`, and
- *  that is the same call E2 makes for `ref.owner` being empty — an object with
- *  no owner is a shared row, not somebody else's row. `thread: 'new'` is that
- *  case by construction: it hangs on nothing until somebody posts a link, and
- *  the link door is where the fence meets it.
+ *  opens. And a thread carrying NO link is refused rather than shared — see
+ *  `refuseUnreachableThread`, where that default was inverted after review.
+ *
+ *  Which is only safe because every door that mints a thread anchors it in
+ *  the same transaction. `create()` writes the `comms.link` row beside the
+ *  first message; there is no longer a way to produce a thread that hangs on
+ *  nothing, so the fail-closed default refuses no legitimate caller.
  *
  *  ------------------------------------------------------------------
  *  A READ THAT REVEALS A BODY WRITES ONE AUDIT LINE, AND NOT IN A TRANSACTION
@@ -103,29 +105,65 @@ export class ThreadService {
   /** C4 — one turn, logged by hand, and the thread under it if there is none.
    *
    *  ------------------------------------------------------------------
-   *  ONE TRANSACTION, BECAUSE HALF OF THIS IS NOT A TURN
+   *  ONE TRANSACTION, AND THE LINK ROW IS PART OF IT
    *  ------------------------------------------------------------------
    *  A thread with no message is a header describing a conversation that did
-   *  not happen; a message with no parties is a turn nobody was on. Both are
-   *  rows no screen can draw and no later write can repair, so all of it
-   *  commits together or none of it does — the same contract `MeetingService`
-   *  states for a meeting and its attendees.
+   *  not happen; a message with no parties is a turn nobody was on; and a
+   *  thread with no LINK is a conversation no record can reach — `byObject`
+   *  is an inner join on `comms.link`, so an unanchored thread appears on no
+   *  profile at all. That last one shipped broken in the first draft of this
+   *  file and was caught in review: the toast said saved, the list came back
+   *  unchanged, and because the empty state can only open the `'new'` branch,
+   *  the FIRST manual turn on every record was the one that vanished.
+   *
+   *  So all four rows commit together or none of them do — the same contract
+   *  `MeetingService` states for a meeting and its attendees, with one more
+   *  table in the cluster.
+   *
+   *  The anchor is written with `ensureLink`, not `insertLink`: the fifth call
+   *  on a deal lands on a thread already attached to it, and refusing that
+   *  with `link_pk` would turn an ordinary write into a 409 about a table the
+   *  caller never mentioned.
    *
    *  `thread.last_at` is bumped on the `'existing'` branch inside that same
    *  transaction. A timeline whose header still names last Tuesday after a
    *  call this morning is a book lying about itself, and it lies in the one
    *  place the thread list sorts by.
    *
+   *  ------------------------------------------------------------------
+   *  THREE REFUSALS BEFORE THE FIRST INSERT
+   *  ------------------------------------------------------------------
+   *  `'new'` used to run no permission check at all. That was invisible only
+   *  because the thread it minted hung on nothing; the moment it anchors, an
+   *  unchecked `'new'` is a write landing on somebody else's record through a
+   *  door that declares `comm.view`. So: the ANCHOR has to be in reach, the
+   *  THREAD has to be in reach on the `'existing'` branch, and every guest
+   *  identity named as sender or party has to belong to a record in reach —
+   *  naming a customer you cannot see would file this turn against them and
+   *  make their address readable to whoever reads the turn back.
+   *
+   *  The anchor is checked with `'view'` and not the `'edit'` the link door
+   *  asks for, and the difference is the act rather than an oversight: C3
+   *  moves a conversation that already exists onto a record, C4 records one
+   *  that just happened where it happened. Raising this to `'edit'` would stop
+   *  a presales seat logging the demo they personally sat through.
+   *
    *  `captureSource` is `'manual'` here and nowhere else: `MessageCreate`
    *  carries no field for it on purpose, because the only door that exists
    *  always means manual and the server is the one place that fact can be
-   *  trusted. `linkedBy` gets the same treatment on the link door below.
+   *  trusted. `linkedBy` gets the same treatment, on both doors.
    *
    *  NO `sales.touch` ROW (§3.3). The screen merges the two streams when it
    *  draws; the books stay separate. A `touch.record` call here would be the
    *  second copy of one fact, and the second copy drifts. */
   async create(who: Actor, body: MessageCreate): Promise<MessageCreateResponse> {
     const at = new Date(body.at)
+
+    await this.refuseUnreachableObject(who, body.objectCode, 'view')
+    await this.refuseUnreachableParties(who, [
+      body.fromIdentityId,
+      ...body.parties.map((p) => p.identityId),
+    ])
 
     const written = await this.repo.run(async (tx) => {
       const threadId =
@@ -142,6 +180,12 @@ export class ThreadService {
               })
             ).id
           : await this.openExisting(tx, who, body.threadId)
+
+      await this.repo.ensureLink(tx, {
+        threadId,
+        objectCode: body.objectCode,
+        linkedBy: 'human',
+      })
 
       const row = await this.repo.insertMessage(tx, {
         threadId,
@@ -171,6 +215,7 @@ export class ThreadService {
         {
           actorId: who.id,
           action: 'edit',
+          code: body.objectCode,
           note: `comms.message ${row.id} · manual capture on thread ${threadId} · ${body.direction} ${row.at.toISOString()}`,
         },
         tx,
@@ -264,10 +309,34 @@ export class ThreadService {
    *  A mail chain hanging on my lead and on a colleague's account is one
    *  conversation, and refusing it because half of what it touches is not mine
    *  would hide a letter I am named in. The refusal only fires when NOTHING
-   *  the thread is attached to is within reach. */
+   *  the thread is attached to is within reach.
+   *
+   *  ------------------------------------------------------------------
+   *  A THREAD ON NO OBJECT IS REFUSED, NOT WAVED THROUGH
+   *  ------------------------------------------------------------------
+   *  The first draft returned early on an empty link list and called it a
+   *  shared row, borrowing E2's reading of an empty `ref.owner`. That reading
+   *  was wrong twice over. E2's case is an object that EXISTS and is owned by
+   *  nobody; this one is an absence of any object to ask about, so there is
+   *  nothing the scope axis has been applied to — "no fence could be checked"
+   *  became "the fence passed", which is fail-OPEN sitting in the one line a
+   *  reader skims past. And while every manual turn now anchors itself, this
+   *  function is what a future door — turn 2's resolver, a hand-written row —
+   *  would meet, so the default it carries has to be the safe one.
+   *
+   *  Refusal rather than "only the person who created it", because there is no
+   *  creator column on `comms.thread` and inventing one to answer this would
+   *  put an owner on a thing whose whole design says it has none. Nothing is
+   *  lost: an unanchored thread is already reachable from no list, so this
+   *  refuses a door that only somebody holding a loose UUID could be at. */
   private async refuseUnreachableThread(who: Actor, threadId: string, tx?: Db): Promise<void> {
     const codes = await this.repo.linkCodesOf(threadId, tx)
-    if (codes.length === 0) return
+    if (codes.length === 0) {
+      throw denied(
+        'out-of-scope',
+        'Luồng giao tiếp này chưa gắn vào hồ sơ nào nên không ai đọc được — gắn nó vào một hồ sơ trước.',
+      )
+    }
 
     const rows = await this.repo.objectsByCodes(codes, tx)
     const { visible } = this.access.visible(
@@ -279,6 +348,51 @@ export class ThreadService {
     throw denied(
       'out-of-scope',
       'Luồng giao tiếp này chỉ gắn vào những hồ sơ ngoài phạm vi của bạn — hỏi người đang giữ chúng.',
+    )
+  }
+
+  /** Every identity a write door names has to belong to a record in reach.
+   *
+   *  Two different leaks close here, and only the first is obvious. Naming a
+   *  customer you cannot see files this turn against them, which is a write
+   *  landing in a scope the caller has no business in. The quieter one is the
+   *  read back: `comms.identity` holds the ADDRESS, and a turn that lists a
+   *  party is a turn that hands their id to everyone allowed to read it.
+   *
+   *  Only `'guest'` rows carry an object to check. A `'member'` row is a
+   *  colleague's own address and has no scope axis at all — that is the
+   *  property `identity.service.ts` states about the whole table, and it is
+   *  the reason a check on `side === 'member'` would be a fence around
+   *  nothing.
+   *
+   *  A missing id is refused here rather than left to the foreign key: `400`
+   *  naming the field is what the screen can redden, and the two constraints
+   *  that would otherwise fire name two different columns for one mistake. */
+  private async refuseUnreachableParties(who: Actor, ids: readonly string[]): Promise<void> {
+    const wanted = [...new Set(ids)]
+    const rows = await this.repo.identitiesByIds(wanted)
+
+    if (rows.length !== wanted.length) {
+      const found = new Set(rows.map((r) => r.id))
+      throw invalid(
+        { parties: [`Không có định danh ${wanted.filter((id) => !found.has(id)).join(', ')}.`] },
+        'Có người trong lượt này không còn trong sổ định danh.',
+      )
+    }
+
+    const codes = [...new Set(rows.flatMap((r) => (r.objectCode ? [r.objectCode] : [])))]
+    if (codes.length === 0) return
+
+    const objects = await this.repo.objectsByCodes(codes)
+    const { visible } = this.access.visible(
+      who,
+      objects.map((row) => ({ ref: toObjectRef(row) })),
+    )
+
+    if (visible.length === codes.length) return
+    throw denied(
+      'out-of-scope',
+      'Lượt này có người thuộc một hồ sơ ngoài phạm vi của bạn — hỏi người đang giữ hồ sơ đó.',
     )
   }
 

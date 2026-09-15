@@ -302,6 +302,13 @@
       "when": 1788501400000,
       "tag": "0043_comms_thread",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1788501500000,
+      "tag": "0044_object_mirror_validate",
+      "breakpoints": true
     }
   ]
 }

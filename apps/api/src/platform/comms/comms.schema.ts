@@ -56,8 +56,17 @@ export const comms = pgSchema('comms')
  *  test: `touch.subject_code` has no foreign key precisely because the mirror
  *  row for an opportunity is discipline rather than a fence, and a foreign key
  *  onto discipline turns somebody else's debt into a refused write here.
- *  Opportunity and contract are that debt, they are turn 1's to pay, and until
- *  they are paid nothing in this table may point at an `OP-…` or `HD-…` code.
+ *  Opportunity and contract were that debt; turn 1 paid it in migration 0042,
+ *  so an opportunity code or a contract code now stands on the same real
+ *  foreign key the other three do, and the service-side prefix list that stood
+ *  in for it while the debt was open has been removed.
+ *
+ *  Neither prefix is spelled out anywhere in this file, and that is not
+ *  squeamishness: the contract book's prefix is not ASCII, and
+ *  `aurora/comments-in-english` reads characters rather than meaning, so a
+ *  comment quoting it is a red build. Earlier comments here dodged that by
+ *  writing the prefix with a plain D, which is a code that does not exist.
+ *  Naming the KIND instead is the spelling that is both legal and true.
  *
  *  ------------------------------------------------------------------
  *  `UNIQUE (channel, address)` IS A FENCE, NOT A LOOKUP INDEX

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { ContractCode, Moment, ObjectCode, textInput, textInputOptional } from '../primitives'
-import { CommsChannel, IdentityId } from './identity'
+import { Moment, textInput, textInputOptional } from '../primitives'
+import { CommsChannel, IdentityId, LinkableCode } from './identity'
 
 /** Turn 1 of `comms` — the conversation log itself, on top of the `comms.identity`
  *  spine turn 0 shipped. `docs/tam-nhin-giao-tiep-va-noi-dung.md` §3 has the full
@@ -104,6 +104,21 @@ export type ThreadRow = z.infer<typeof ThreadRow>
 // MESSAGE CONTENT — the one field two permissions disagree about
 // ---------------------------------------------------------------------------
 
+/** Ceiling on one turn's text.
+ *
+ *  Argued rather than picked, the way `TRANSCRIPT_MAX` is: 20.000 characters is
+ *  roughly four thousand words — a very long letter, several times anything a
+ *  person types into a CRM by hand, and still an order of magnitude under the
+ *  hour-of-speech figure `TRANSCRIPT_MAX` allows, because a transcript is a
+ *  different column with a different writer.
+ *
+ *  What happens when turn 2's sync door meets a letter longer than this: it
+ *  REFUSES, it does not truncate. A truncated body renders as `'visible'`, and
+ *  nothing in `MessageContent` can say "this is the first 20.000 characters of
+ *  what was said" — so truncation would be a quiet lie of exactly the kind the
+ *  three-branch union exists to prevent, told inside a record that may be under
+ *  legal hold. A refusal has somewhere to land instead: the unmatched queue is
+ *  already the place for "arrived, not filed". */
 export const MESSAGE_BODY_MAX = 20000
 
 /** The body of one turn, wrapped so a reader can tell apart the two reasons
@@ -190,6 +205,19 @@ const MessagePartyCreate = z.object({
 })
 
 const MessageCreateFields = z.object({
+  /** WHICH RECORD THIS TURN BELONGS TO — required, on both branches.
+   *
+   *  A message with no link is a message nobody can reach: the thread list is
+   *  an inner join on `comms.link`, so an unlinked thread appears on no profile
+   *  at all. Leaving the anchor out of the write door meant the FIRST manual
+   *  turn on every record fell into a hole — the toast said saved, the list
+   *  came back unchanged. Caught in review before it shipped.
+   *
+   *  It rides on the shared fields rather than on the `'new'` branch alone
+   *  because the `'existing'` branch needs it too: the server checks the caller
+   *  can reach this object before it writes anything, and "which object" is the
+   *  only thing that check can be made against. */
+  objectCode: LinkableCode,
   at: Moment,
   direction: MessageDirection,
   fromIdentityId: IdentityId,
@@ -248,24 +276,6 @@ export type MessageCreateResponse = z.infer<typeof MessageCreateResponse>
 // ---------------------------------------------------------------------------
 // LINK — thread ↔ object
 // ---------------------------------------------------------------------------
-
-/** Any code a thread may hang on.
- *
- *  A UNION, and it is not tidiness — it is the one place the oldest wart in
- *  `ObjectKind` surfaces. `ObjectCode` accepts one to three ASCII capitals
- *  before the dash; the contract book's prefix is not ASCII, which is why
- *  `ContractCode` exists beside it in `../primitives` with a pattern of its
- *  own. Migration 0042 gave `sales.contract.code` a real foreign key into
- *  `platform.object`, so the database now accepts a thread hung on a signed
- *  contract — and without this union the zod pipe would refuse that one layer
- *  earlier, with a message reading "wrong code format" rather than the truth,
- *  which is that one of this product's object kinds is spelled in Vietnamese.
- *
- *  A union rather than a widened `ObjectCode` pattern, on purpose: the day the
- *  identifier clean-up renames that kind, this collapses back to one member and
- *  the removal is a line, not an excavation. */
-export const LinkableCode = z.union([ObjectCode, ContractCode], 'Mã object sai dạng')
-export type LinkableCode = z.infer<typeof LinkableCode>
 
 export const LinkRow = z.object({
   threadId: ThreadId,

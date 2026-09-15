@@ -529,3 +529,82 @@ rác. Nay `comms.identity.object_code` có khoá ngoại **thật** vào
 `platform.object`, nên chuỗi `identity → object → [contact đã mất]` vẫn hợp lệ
 với Postgres trong khi đầu cuối của nó không còn — và lượt 2 sẽ nối thư vào
 đúng cái chuỗi đó. Không chặn lượt 1; phải chốt trước lượt 2.
+
+---
+
+## Một class Tailwind trỏ vào token không tồn tại thì KHÔNG cổng nào bắt — 15/09/2026
+
+**Triệu chứng:** `apps/web/src/components/meetings-card.tsx` dùng `text-fg-1` ở
+bốn chỗ (nội dung transcript, tiêu đề buổi họp, tên người dự). `fg-1` không
+được khai ở đâu trong `packages/tokens/globals.css` — nên Tailwind sinh ra
+**không gì cả**, và bốn chỗ đó thừa hưởng màu của khối cha thay vì nhận
+`--foreground`. Trên một thẻ nền kính, chữ chính hoá ra mờ bằng chữ phụ. Đã sửa
+thành `text-foreground` cùng lượt tìm ra.
+
+**Ở đâu — và đây mới là phần đáng sợ:** cả `pnpm tokens:check` lẫn
+`pnpm css:check` đều **xanh** với lỗi này.
+
+- `tokens:check` chỉ soi `var(--x)` trỏ vào token không tồn tại. `text-fg-1`
+  không phải một `var()`.
+- `css:check` chỉ soi class **giá trị tuỳ ý** (`text-[11.5px]`) có mặt trong
+  CSS đã build hay không. `text-fg-1` không phải giá trị tuỳ ý.
+
+Nghĩa là mọi class dạng `text-*` · `bg-*` · `border-*` trỏ vào một tên màu
+KHÔNG tồn tại đều lọt qua cả hai cổng, và hỏng **lặng lẽ**: không đỏ ở đâu,
+chỉ là chữ sai màu trên một màn không ai soi lại.
+
+**Sửa thế nào:** thêm một lượt kiểm vào `tools/scripts/check-css-coverage.mjs` —
+gom mọi class `(text|bg|border|ring|fill|stroke)-<tên>` trong source, đối chiếu
+với danh sách màu mà `@theme` sinh ra, và đỏ nếu có tên không khớp. Cùng hình
+với lượt kiểm giá trị tuỳ ý đang có, chỉ khác tập đầu vào.
+
+**Vì sao chưa sửa:** nó là một script gác, không chặn lượt nào đang chạy — và
+hôm nay cả repo chỉ có đúng bốn chỗ dính, đã sửa xong. Nhưng khoảng trống thì
+vẫn còn nguyên.
+
+---
+
+## Sàn chạm 48px của `@pv/ui` mới đi được nửa đường — ghi 15/09/2026
+
+**Triệu chứng:** một biểu mẫu trên tablet 1024×768 không cách nào đạt luật 13.
+`Button` và `Select` đã có `size="lg"` (48px), nhưng bốn thứ còn lại thì không:
+
+| Atom                 | Cao bao nhiêu                         | Ở đâu                                      |
+| -------------------- | ------------------------------------- | ------------------------------------------ |
+| `Input`              | `h-10` = 40px, **không có prop size** | `packages/ui/src/ui/input.tsx`             |
+| `Textarea`           | không có prop size                    | `packages/ui/src/ui/textarea.tsx`          |
+| nút của `EmptyState` | `size="sm"` = 32px                    | `packages/ui/src/patterns/empty-state.tsx` |
+| nút đóng `Drawer`    | `size-8` = 32px                       | `packages/ui/src/layout/drawer.tsx`        |
+
+Lộ rõ nhất ở drawer ghi lượt của thẻ Dòng giao tiếp: `Select size="lg"` 48px
+đứng cạnh bốn ô `Input` 40px trong **cùng một form**. `Select` được thêm `size`
+ngày 15/09 vì đúng lý do này và docblock của nó nói thẳng ra; `Input` là atom
+cuối còn thiếu.
+
+**Sửa thế nào:** thêm `size?: 'md' | 'lg'` cho `Input` và `Textarea` theo đúng
+khuôn `Select` vừa làm, thêm dòng vào trang kit, rồi mới sửa chỗ gọi. Hai nút
+kia thì nâng mặc định hoặc cho phép truyền size.
+
+**Vì sao chưa sửa:** nó là một lượt dọn của `@pv/ui` chạm mọi form trong app,
+không phải việc của lượt đang chạy — và chỉ mắt người ở 1024×768 mới nói được
+48px có làm vỡ hàng ở đâu không. Một lượt riêng, có người mở màn ra nhìn.
+
+---
+
+## Quyền đọc transcript: đã trượt một lượt, và đây là lý do — 15/09/2026
+
+Mục §a ở trên hẹn "sửa khi cặp quyền nội dung về ở **lượt 1**". Cặp quyền
+(`comm.view` / `comm.view-content`) **đã về** ở lượt 1, và transcript buổi họp
+**vẫn** đứng sau `lead.view`, vẫn không ghi vết. Mục đó trượt sang lượt 2.
+
+Ghi ra lý do thay vì để nó trôi lặng lẽ: lượt 1 đã nở từ "sổ hội thoại" thành
+sổ hội thoại + trả nợ khoá ngoại dòng gương + hai quyền mới + một lượt sửa năm
+mục chặn. Nhét thêm một thay đổi hợp đồng ở `sales/meeting` vào cùng lượt là
+cách chắc chắn để không thứ nào được soát kỹ.
+
+**Điều kiện để nó KHÔNG trượt lần thứ hai:** lượt 2 mở bằng việc này, trước cửa
+nạp. Seam đã có sẵn và đã chạy — `MessageContent` union ba nhánh ở
+`comms/thread.ts` cộng `toMessage(access, who, …)` ở `comms.mapper.ts`.
+Transcript chỉ cần đi qua đúng hình đó: một union ba nhánh trong `MeetingRow`,
+cắt ở mapper bằng `access.allows(who, 'comm.view-content')`, và một dòng audit
+khi có thân được lộ.

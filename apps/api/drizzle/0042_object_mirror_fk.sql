@@ -22,14 +22,17 @@
 -- it. It is deliberately not a `RAISE EXCEPTION`: a count is information, and
 -- the two steps below are the ones allowed to refuse.
 --
--- WHY `NOT VALID` AND `VALIDATE` ARE TWO STATEMENTS (§19.4). `NOT VALID` fences
--- every FUTURE write immediately, without scanning the table and without taking
--- the lock a full check needs. `VALIDATE CONSTRAINT` is the separate pass over
--- the past. Split, an operator can see WHICH step failed: a failed `ADD` means
--- the schema is not what this file assumed, a failed `VALIDATE` means the
--- history is dirty and the fence is nonetheless already up for new rows. Merged
--- into one `ADD CONSTRAINT` they would be one error message for two different
--- accidents, and a rollback of the fence along with it.
+-- WHY `VALIDATE` IS IN A FILE OF ITS OWN, NOT TWO STATEMENTS DOWN (§19.4).
+-- `NOT VALID` fences every FUTURE write immediately, without scanning the table
+-- and without taking the lock a full check needs. `VALIDATE CONSTRAINT` is the
+-- separate pass over the past, and it lives in `0044`.
+--
+-- Two statements in ONE file would not have bought the split at all, and that
+-- correction is worth writing down because the first draft of this file got it
+-- wrong: `drizzle-kit migrate` wraps each migration file in a transaction, so a
+-- failing `VALIDATE` would roll the `ADD` back with it and the fence would not
+-- be up for anything. The only way a failed check over history can leave the
+-- fence standing for new rows is for the two to commit separately.
 --
 -- ONE PRECONDITION, ALREADY MET, NAMED HERE SO IT IS NOT RE-DISCOVERED:
 -- `OpportunityService.sign()` used to write the contract row BEFORE its own
@@ -55,8 +58,4 @@ END $$;
 --> statement-breakpoint
 ALTER TABLE "sales"."opportunity" ADD CONSTRAINT "opportunity_code_object_code_fk" FOREIGN KEY ("code") REFERENCES "platform"."object"("code") ON DELETE no action ON UPDATE no action NOT VALID;
 --> statement-breakpoint
-ALTER TABLE "sales"."opportunity" VALIDATE CONSTRAINT "opportunity_code_object_code_fk";
---> statement-breakpoint
 ALTER TABLE "sales"."contract" ADD CONSTRAINT "contract_code_object_code_fk" FOREIGN KEY ("code") REFERENCES "platform"."object"("code") ON DELETE no action ON UPDATE no action NOT VALID;
---> statement-breakpoint
-ALTER TABLE "sales"."contract" VALIDATE CONSTRAINT "contract_code_object_code_fk";

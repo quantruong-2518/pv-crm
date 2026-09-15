@@ -36,8 +36,12 @@
 --
 -- `comms.link.object_code` is the fence `0042` had to be written for. No row in
 -- these four tables may point at a code with no `platform.object` row, which is
--- exactly the guarantee that did not exist for `OP-` and `HD-` codes until the
--- previous migration.
+-- exactly the guarantee that did not exist for opportunity and contract codes
+-- until the previous migration. (Named by KIND, not by prefix: the contract
+-- book's prefix is spelled with a Vietnamese letter, and writing it here trips
+-- the English-comments rule. Writing a plain ASCII `D` instead - which an
+-- earlier draft did - spells a code that does not exist, which is worse than
+-- saying nothing. Do not retry that fix.)
 CREATE TABLE "comms"."thread" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"channel" text NOT NULL,

@@ -3,10 +3,12 @@ import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { objectRef, type ObjectRow } from '@api/platform/db/platform.schema'
 import {
+  identity,
   link,
   message,
   messageParty,
   thread,
+  type IdentityRowDb,
   type LinkRowDb,
   type LinkValues,
   type MessagePartyValues,
@@ -109,6 +111,24 @@ export class ThreadRepository {
     return rows.map((r) => r.code)
   }
 
+  /** The identities a write door just named, in one statement.
+   *
+   *  Reads `comms.identity` from this repository rather than borrowing
+   *  `IdentityRepository`: that one answers one id at a time by design, and a
+   *  four-person meeting would be five round trips to ask one question. Same
+   *  module, same schema file, one projection — the call
+   *  `MeetingRepository.contactLeadsOf` already makes for the same reason.
+   *
+   *  A code missing from the result simply is not in the book; the service is
+   *  what turns that into a refusal. */
+  async identitiesByIds(ids: readonly string[], tx: Db = this.db): Promise<IdentityRowDb[]> {
+    if (ids.length === 0) return []
+    return tx
+      .select()
+      .from(identity)
+      .where(inArray(identity.id, [...ids]))
+  }
+
   async objectByCode(code: string, tx: Db = this.db): Promise<ObjectRow | null> {
     const [row] = await tx.select().from(objectRef).where(eq(objectRef.code, code)).limit(1)
     return row ?? null
@@ -163,9 +183,31 @@ export class ThreadRepository {
       .where(eq(thread.id, threadId))
   }
 
+  /** C3's insert — a duplicate has to SURFACE here.
+   *
+   *  Somebody pressing "attach" on a thread already attached has asked for
+   *  something that did not happen, and `link_pk` turning into a 409 with its
+   *  own sentence is the answer. `ensureLink` below is the opposite call for
+   *  the opposite situation; the two are separate methods rather than a flag
+   *  so neither call site can pick the wrong one by leaving an argument out. */
   async insertLink(tx: Db, values: LinkValues): Promise<LinkRowDb> {
     const [row] = await tx.insert(link).values(values).returning()
     if (!row) throw new Error('comms.link: INSERT returned no row')
     return row
+  }
+
+  /** The anchor a manual turn lands on — idempotent, on purpose.
+   *
+   *  Logging the fifth call on a deal is not an attempt to attach anything;
+   *  the thread is already on that record and the person is recording a
+   *  conversation. Letting `link_pk` fire there would refuse an ordinary write
+   *  with a sentence about a table the caller never mentioned, so the anchor
+   *  is written with `ON CONFLICT DO NOTHING` and the existing row stands.
+   *
+   *  Nothing is returned because nothing downstream needs it: the write door's
+   *  response carries the thread and the message, and which of those two
+   *  outcomes happened here is not a fact the caller asked about. */
+  async ensureLink(tx: Db, values: LinkValues): Promise<void> {
+    await tx.insert(link).values(values).onConflictDoNothing()
   }
 }

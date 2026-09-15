@@ -27,8 +27,15 @@ import type { IdentityRowDb } from './comms.schema'
  *
  *  The refusals this service owns are the ones a schema structurally cannot:
  *  `amend`'s half check and `merge`'s same-person check both need the ROW read
- *  first, and the object-kind guard below needs to know which debts turn 1 has
- *  not paid yet.
+ *  first.
+ *
+ *  A THIRD ONE IS GONE, and its absence is the point. Turn 0 refused a guest
+ *  identity pointing at an `OP-` or contract-prefixed code, because the mirror
+ *  rows behind those two were discipline with no foreign key under them and a
+ *  write that succeeded today would have been a violation the day somebody
+ *  forgot to mirror. Migration 0042 made both into real foreign keys, so the
+ *  fence is now the key itself; a hand-kept prefix list beside it would be a
+ *  second, staler copy of a rule the database already enforces.
  *
  *  ------------------------------------------------------------------
  *  EVERY WRITE LEAVES AN AUDIT LINE, INSIDE THE SAME TRANSACTION
@@ -65,8 +72,6 @@ export class IdentityService {
    *  write the same address in the same second — a `SELECT` in front answers
    *  "not there" to both of them. */
   async create(who: Actor, body: IdentityCreate): Promise<IdentityRow> {
-    if (body.side === 'guest') refuseUnbackedObject(body.objectCode)
-
     const values: IdentityInsert = {
       channel: body.channel,
       address: normaliseAddress(body.channel, body.address),
@@ -97,8 +102,6 @@ export class IdentityService {
    *  sides between the check and the update, which is exactly the case the
    *  check exists for. */
   async amend(who: Actor, id: string, body: IdentityPatch): Promise<IdentityRow> {
-    if (body.objectCode !== undefined) refuseUnbackedObject(body.objectCode)
-
     const row = await this.repo.run(async (tx) => {
       const before = await this.repo.byId(tx, id)
       if (!before) throw notFound('định danh', id)
@@ -200,35 +203,6 @@ export class IdentityService {
       tx,
     )
   }
-}
-
-/** Object kinds a guest identity may point at — TURN 0's list, not the final one.
- *
- *  `identity.object_code` carries a real foreign key into `platform.object`, and
- *  only `lead`, `account` and `contact` guarantee a mirror row behind their code
- *  (each of the three has its own foreign key into that table). Opportunity and
- *  contract mirror rows exist by DISCIPLINE with no constraint under them —
- *  §18's count — so an `OP-…` here would be a write that succeeds today and a
- *  foreign key violation on the row somebody forgot to mirror tomorrow.
- *
- *  Enforced in the service rather than by a CHECK because turn 1 pays that debt
- *  and then widens exactly this list; two migrations for one rule, the second
- *  undoing the first, is work nobody needs to read. The three schema comments
- *  that already state this rule now have something that actually applies it. */
-const GUEST_OBJECT_KINDS = ['LD', 'AC', 'CT']
-
-function refuseUnbackedObject(code: string): void {
-  const kind = code.split('-')[0] ?? ''
-  if (GUEST_OBJECT_KINDS.includes(kind)) return
-
-  throw invalid(
-    {
-      objectCode: [
-        `Định danh của khách chỉ gắn được vào lead (LD-), công ty (AC-) hoặc người liên hệ (CT-). Mã "${code}" thuộc loại khác — cơ hội và hợp đồng sẽ mở ở lượt sau, khi dòng gương của chúng có hàng rào thật.`,
-      ],
-    },
-    'Mã object không gắn được vào định danh.',
-  )
 }
 
 /** The half check, as a sentence naming the field the caller sent.

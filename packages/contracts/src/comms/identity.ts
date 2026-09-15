@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { PageQuery, paged } from '../pagination'
-import { Moment, ObjectCode, textInput } from '../primitives'
+import { ContractCode, Moment, ObjectCode, textInput } from '../primitives'
 
 /** The spine of `comms` — the table that says which person a wire address
  *  belongs to. `docs/tam-nhin-giao-tiep-va-noi-dung.md` §2 has the full case for
@@ -87,6 +87,24 @@ const IdentityFields = z.object({
   verifiedAt: Moment.nullable(),
 })
 
+/** Any code a thread may hang on.
+ *
+ *  A UNION, and it is not tidiness — it is the one place the oldest wart in
+ *  `ObjectKind` surfaces. `ObjectCode` accepts one to three ASCII capitals
+ *  before the dash; the contract book's prefix is not ASCII, which is why
+ *  `ContractCode` exists beside it in `../primitives` with a pattern of its
+ *  own. Migration 0042 gave `sales.contract.code` a real foreign key into
+ *  `platform.object`, so the database now accepts a thread hung on a signed
+ *  contract — and without this union the zod pipe would refuse that one layer
+ *  earlier, with a message reading "wrong code format" rather than the truth,
+ *  which is that one of this product's object kinds is spelled in Vietnamese.
+ *
+ *  A union rather than a widened `ObjectCode` pattern, on purpose: the day the
+ *  identifier clean-up renames that kind, this collapses back to one member and
+ *  the removal is a line, not an excavation. */
+export const LinkableCode = z.union([ObjectCode, ContractCode], 'Mã object sai dạng')
+export type LinkableCode = z.infer<typeof LinkableCode>
+
 /** A discriminated union on `side`, not one object with both fields optional
  *  plus a `superRefine`.
  *
@@ -100,7 +118,7 @@ const IdentityFields = z.object({
  *  docblock warns against ("both fields or neither... an id with no name"). */
 export const IdentityRow = z.discriminatedUnion('side', [
   IdentityFields.extend({ side: z.literal('member'), actorId: z.string().min(1).max(64) }),
-  IdentityFields.extend({ side: z.literal('guest'), objectCode: ObjectCode }),
+  IdentityFields.extend({ side: z.literal('guest'), objectCode: LinkableCode }),
 ])
 
 export type IdentityRow = z.infer<typeof IdentityRow>
@@ -124,7 +142,7 @@ export const IdentityCreate = z.discriminatedUnion('side', [
     side: z.literal('member'),
     actorId: z.string().min(1).max(64),
   }),
-  IdentityCreateFields.extend({ side: z.literal('guest'), objectCode: ObjectCode }),
+  IdentityCreateFields.extend({ side: z.literal('guest'), objectCode: LinkableCode }),
 ])
 
 export type IdentityCreate = z.infer<typeof IdentityCreate>
@@ -140,7 +158,7 @@ export type IdentityCreate = z.infer<typeof IdentityCreate>
 export const IdentityPatch = z
   .object({
     actorId: z.string().min(1).max(64).optional(),
-    objectCode: ObjectCode.optional(),
+    objectCode: LinkableCode.optional(),
     verifiedAt: Moment.nullable().optional(),
   })
   .refine((p) => !(p.actorId !== undefined && p.objectCode !== undefined), {

@@ -39,6 +39,7 @@ import { leadTouchesQuery, leadVectorQuery, NO_STEPS } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
+import { CommsCard } from '@/components/comms-card'
 import { ContactsCard } from '@/components/contacts-card'
 import { ExitDialog } from '@/components/exit-dialog'
 import { MeetingsCard } from '@/components/meetings-card'
@@ -501,6 +502,15 @@ export function LeadDetailPage() {
               turns={NO_TRANSCRIPT}
               focus={focusTouch}
             />
+            {/* WHAT WAS SAID, beside WHAT HAPPENED — the two books merged by
+                standing next to each other, which is the only merge §3.3 of
+                `docs/tam-nhin-giao-tiep-va-noi-dung.md` allows (the books stay
+                separate; the screen puts them side by side). `CommsCard`'s own
+                docblock carries the reason this is two cards and not one
+                interleaved list. It sits AFTER the touch timeline because the
+                timeline answers the cheaper question first — what state this
+                lead is in — and this one answers the expensive follow-up. */}
+            <CommsCard code={lead.code} seedAddress={lead.email} />
             <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
           </DetailSidePanel>

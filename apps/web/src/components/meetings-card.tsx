@@ -128,7 +128,7 @@ export function MeetingsCard({ code, canEdit }: { code: string; canEdit: boolean
       >
         {/* `whitespace-pre-wrap`: transcript giữ nguyên xuống dòng của người
             dán vào. Bỏ nó đi thì cả buổi họp thành một khối chữ liền. */}
-        <p className="text-fg-1 whitespace-pre-wrap text-sm leading-relaxed">
+        <p className="text-foreground whitespace-pre-wrap text-sm leading-relaxed">
           {reading?.transcript}
         </p>
       </Drawer>
@@ -162,17 +162,17 @@ function MeetingLine({
         )}
       </div>
 
-      <p className="text-fg-1 text-[13.5px] font-semibold leading-[1.5]">{row.title}</p>
+      <p className="text-foreground text-[13.5px] font-semibold leading-[1.5]">{row.title}</p>
 
       <div className="grid gap-2 text-[12.5px] leading-[1.55]">
         <p className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
           <span className="text-muted-foreground">Chủ trì</span>
-          <span className="text-fg-1">{names(row.hosts)}</span>
+          <span className="text-foreground">{names(row.hosts)}</span>
         </p>
         {row.guests.length > 0 && (
           <p className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
             <span className="text-muted-foreground">Khách mời</span>
-            <span className="text-fg-1">{names(row.guests)}</span>
+            <span className="text-foreground">{names(row.guests)}</span>
           </p>
         )}
       </div>
