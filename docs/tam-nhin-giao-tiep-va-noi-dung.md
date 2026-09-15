@@ -32,9 +32,15 @@ ba trục số không được trộn — luật đó áp nguyên si ở §7 dư
 
 Bốn lỗ, xếp theo thứ tự phải bịt:
 
-1. **Phía khách chưa có định danh kênh.** `meeting_attendee.actor_id` NULL với
-   mọi khách (`fix-later.md` §2c). Không có ánh xạ `email/số điện thoại → contact`
-   thì mọi cửa nạp đều rơi xuống đất.
+1. **Phía khách chưa có định danh KÊNH** — dù sổ liên hệ thì có rồi. Pha 0 ngày
+   14/09 đính chính chỗ này: `sales.contact` là bảng THẬT từ migration 0018
+   (28/08), có `code` · `email` · `phone`, có khoá ngoại vào
+   `platform.object`, có API và màn thật. Thứ còn thiếu hẹp hơn nhiều: (a) không
+   bảng nào ánh xạ `địa chỉ → người`, nên một lá thư đến không nối vào đâu được;
+   (b) `meeting_attendee` phía khách vẫn gõ tay, chưa có picker nối vào
+   `sales.contact`. Ít nhất năm chỗ comment và `fix-later.md` §2c còn viết
+   "phía khách chưa có bảng nào" — câu đó hết đúng từ 28/08 và phải sửa trong
+   lượt 0.
 2. **Một dòng chỉ treo được vào MỘT object.** `touch.subject_code` là một cột.
    Một chuỗi thư bàn về lead hôm nay và về cơ hội tháng sau thì phải chép — và
    bản chép sẽ lệch.
@@ -55,8 +61,8 @@ comms.identity
   channel       'email' | 'zalo-oa' | 'telegram' | 'phone' | 'in-app'   ← đúng union Channel của E4
   address       text        email thường hoá · số E.164 · zalo user id
   side          'member' | 'guest'                                       ← đúng cặp của meeting_attendee
-  actor_id      text  → platform.actor      NULL khi là khách
-  contact_code  text  → sales.contact(code) NULL khi là người của ta
+  actor_id      text  → platform.actor          NULL khi là khách
+  object_code   text  → platform.object(code)    NULL khi là người của ta
   verified_at   timestamptz
   UNIQUE (channel, address)
 ```
@@ -66,8 +72,19 @@ Ba điều bảng này quyết định, và đều là quyết định có giá:
 - **`UNIQUE (channel, address)` là hàng rào chống trùng**, không phải chỉ mục
   cho nhanh. Một địa chỉ nối vào hai contact là gốc rễ của mọi con số sai ở §7.
 - **`side` chép lại đúng cặp `host`/`guest`** của `meeting_attendee` chứ không
-  đẻ từ vựng mới — ngày sổ liên hệ thật lên, bảng kia trỏ vào đây và hai buổi
-  họp với cùng một người hết là hai chuỗi tên rời nhau.
+  đẻ từ vựng mới — bảng kia trỏ vào đây và hai buổi họp với cùng một người hết là
+  hai chuỗi tên rời nhau.
+- **Phía khách trỏ `platform.object`, KHÔNG trỏ thẳng `sales.contact`** — sửa
+  ngày 14/09 sau pha 0. Lý do là một sự thật khó chịu mà pha 0 moi ra: **email của
+  khách đang nằm ở HAI chỗ không đồng bộ**. `sales.lead.email` (`NOT NULL`) là
+  địa chỉ MAS thật sự gửi tới; `sales.contact.email` là sổ nhiều người trên một
+  lead và **không lượt gửi nào đọc nó**. Một `contact_code` đơn độc sẽ bỏ sót
+  đúng cái địa chỉ mà mọi lá thư đang đi tới, tức mọi thread MAS rơi vào hàng chờ
+  chưa nối. Cả `lead.code` lẫn `contact.code` đều đã có khoá ngoại THẬT vào
+  `platform.object` (pha 0 xác nhận), nên một cột `object_code` phủ được cả hai
+  bằng một khoá ngoại, không CHECK đa hình, và mở sẵn đường cho nhà cung cấp sau
+  này. Đường thay thế — dựng một dòng `contact` gương cho mỗi `lead.email` — bị
+  bỏ vì nó chép dữ liệu người vào hai bảng để chữa một chỗ thiếu khoá.
 - **Không nối được thì KHÔNG VỨT.** Thư từ địa chỉ lạ vào `comms.inbox_unmatched`
   — một hàng chờ có màn, có nút "đây là ai". Vứt lặng lẽ là cách chắc nhất để
   không ai biết cửa nạp đang hỏng.
@@ -341,7 +358,7 @@ Xuất dữ liệu dùng lại `data.export` đã có; thẻ điểm dùng lại
 | C6  | `GET /comms/unmatched` · `POST /comms/unmatched/:id/resolve` | `comm.capture-manage`                               |
 | C7  | `POST /comms/connections` (OAuth) · `DELETE` ·`GET`          | `comm.connect`                                      |
 | C8  | `POST /comms/webhooks/:channel`                              | chữ ký, không phiên                                 |
-| C9  | `GET/POST/PATCH /comms/identities`                           | `comm.capture-manage`                               |
+| C9  | `GET/POST/PATCH /comms/identities` · `POST …/merge`          | `comm.capture-manage`                               |
 | C10 | `POST /comms/consent` · `DELETE /comms/consent/:id`          | `comm.capture-manage`                               |
 | N1  | `GET/POST/PATCH /content/assets` · `/:code/versions`         | `content.view`/`content.edit`                       |
 | N2  | `POST /content/assets/:code/publish`                         | `content.edit`                                      |
@@ -443,6 +460,16 @@ Tên file theo đúng khuôn đang có (`*.schema` · `*.mapper` · `*.repositor
 `comms` vào `platform` (§3.2), `content` vào nhánh Sales vì nó phục vụ bán hàng.
 
 ```
+QUYỀN MỚI KHÔNG CẦN MIGRATION (pha 0 đính chính §9). Đường thật, ba bước:
+  1. thêm key vào Permission ở CẢ HAI chỗ, khớp từng ký tự —
+     packages/contracts/src/auth.ts VÀ packages/engines/src/types.ts (PERMISSIONS).
+     auth.mapper.ts assert hai union bằng nhau; lệch là build đỏ.
+  2. thêm vào DEFAULT_ROLE_PERMISSIONS trong packages/engines/src/e2-access.ts.
+  3. hết. RolePermissionSeeder tự gieo quyền mới cho đúng vai ở lần boot sau;
+     platform.role_permission là bảng text trần, không CHECK enum.
+  Viết một file SQL cấp quyền là viết một file vô nghĩa, tệ hơn là bị
+  permission_seed chặn gieo trùng rồi im lặng không có tác dụng.
+
 packages/contracts/src/
   comms/
     index.ts
@@ -502,12 +529,13 @@ apps/api/src/branches/sales/content/
   content.module.ts
 
 apps/api/drizzle/
-  0034_comms_identity.sql        lượt 0
-  0035_comms_thread.sql          lượt 1
-  0036_comms_capture.sql         lượt 2 · connection + unmatched
-  0037_content_library.sql       lượt 3 · asset + share + view_event
-  0038_content_sequence.sql      lượt 4
-  0039_comms_blob.sql            lượt 5 · blob + consent + retention
+  <n+1>_comms_identity.sql       lượt 0 — ĐÁNH SỐ LÚC TẠO, sau file cao nhất
+  <n+2>_comms_thread.sql         lượt 1   đang có. Không đặt số trước: phiên
+  <n+3>_comms_capture.sql        lượt 2   song song đã lấy tới 0038 (14/09)
+  <n+4>_content_library.sql      lượt 3
+  <n+5>_content_sequence.sql     lượt 4
+  <n+6>_comms_blob.sql           lượt 5
+  KHÔNG có migration cấp quyền — xem ghi chú ngay dưới
   00xx_grant_comms_perms.sql     8 quyền vào ma trận vai (ma trận đã ở DB từ 11d97cb)
 
 apps/web/src/data/
@@ -631,3 +659,118 @@ AI · `Timeline` · `ChannelTag` · `FileDrop` · `BarChart` · `Sparkline` ·
 | G4  | Cảnh báo rủi ro                  | ba câu trích nguyên văn | cảnh báo trên hồ sơ |
 
 **52 function · 22 cửa HTTP · 6 việc nền · 8 quyền · 9 bảng · 1 pipeline mới.**
+
+---
+
+## §17 · Bốn quyết định của §14 — chốt 14/09/2026
+
+### 1 · `comms` đứng ở `platform`
+
+Chủ dự án giao lại cho bên thi công chọn theo best practice; chọn **`platform`**.
+
+Ba lý do, xếp theo sức nặng: hội thoại **không riêng của Sales** — ngày có nhánh
+Supply thì thư với nhà cung cấp là cùng một bảng, và một sổ `sales.comms` sẽ phải
+đẻ bản sao; `comms.link` trỏ `platform.object` là thứ **duy nhất** cho phép một
+thread treo đồng thời vào lead, công ty và cơ hội; và mọi CRM lớn đều đặt sổ hoạt
+động ở tầng nền chứ không trong một module bán hàng.
+
+**Cái giá, nhận rõ:** khoá ngoại `comms.link.object_code → platform.object(code)`
+chỉ đứng được khi **mọi** object được nối đều có dòng gương. Lead đã có khoá ngoại
+thật; cơ hội hôm nay là **kỷ luật chứ chưa phải hàng rào**. Nên **lượt 0 gánh thêm
+việc đóng khoản nợ đó** — `ObjectMirror` đã viết sẵn, việc còn lại là bắt
+`opportunity.code` đi qua nó và thêm khoá ngoại. Đây là phần phải xác minh ở pha 0
+trước khi viết dòng nào.
+
+### 2 · Một hộp chung `contact@`, không nối hộp thư cá nhân
+
+Bốn hệ quả, và cái thứ ba là cái phải làm thêm:
+
+- **§5a nhẹ đi ở chỗ khó nhất.** Một hộp nghiệp vụ không chứa thư riêng của ai,
+  nên không còn bài toán "CRM nuốt hộp thư cá nhân của nhân viên". Chỉ cần một
+  kết nối, một lần OAuth, quyền `comm.capture-manage` — không cần `comm.connect`
+  cho từng người ở lượt 2. **Quyền `comm.connect` hoãn**, không xoá khỏi danh sách:
+  ngày mở hộp cá nhân là ngày cần nó.
+- **Thư chưa nối được thì GIỮ, có hạn.** Khác với hộp cá nhân: người lạ viết vào
+  `contact@` vẫn là việc của công ty. Nên hàng chờ chưa nối **giữ cả thân thư**,
+  `retention_until` mặc định 30 ngày, và số ngày đó sống trong `config_entry`
+  (quyết định 4).
+- **Mất chiều thư cá nhân — và đây là lỗ có thật.** Sales viết cho khách từ hộp
+  riêng thì hệ không thấy. Vá bằng đúng thứ Salesforce (_Email to Salesforce_) và
+  HubSpot (_BCC address_) làm: **một địa chỉ hứng BCC** để nhân viên BCC vào khi
+  viết từ hộp riêng. Cùng adapter, cùng đường chống trùng theo `Message-ID`; chỉ
+  khác một luật nối: người **gửi** là `member`. Làm ở **lượt 2**, không phải lượt 0.
+- **Không dựng hộp thư đến.** Vẫn giữ nguyên §13.3: nạp và đọc, không soạn.
+
+### 3 · CÓ viết test cho hai file engine thuần
+
+`packages/engines/src/comms-rollup.ts` và `sequence.ts` được viết test — chủ dự án
+cho phép rõ ràng, nên đây là ngoại lệ **được cấp**, không phải agent tự cho mình.
+
+Ranh giới của ngoại lệ, để nó không nở ra: **chỉ hai file này**, chỉ hàm thuần,
+không React, không fixture, không HTTP. Test bám vào điều kiện thoát nhịp và phép
+gộp bốn trục — hai chỗ hỏng im lặng. Mọi test UI vẫn bị cấm như cũ.
+
+### 4 · Mọi ngưỡng sống trong `config_entry`
+
+Không hằng số nào trong số này được viết cứng trong code, và số đầu tiên do người
+chốt chứ không do agent chọn:
+
+| Khoá                              | Là gì                                                      |
+| --------------------------------- | ---------------------------------------------------------- |
+| `comms.reply.silence-days`        | im lặng bao nhiêu ngày thì lượt trả lời tính là mốc `cham` |
+| `comms.unmatched.retention-days`  | thư chưa nối giữ bao lâu (mặc định đề xuất 30)             |
+| `comms.blob.retention-days`       | ghi âm/ghi hình giữ bao lâu                                |
+| `sequence.step.default-wait-days` | khoảng chờ mặc định giữa hai bước                          |
+| `sequence.max-steps`              | trần số bước một nhịp                                      |
+| `content.share.expires-days`      | link theo dõi hết hạn sau bao lâu                          |
+
+`rules-reviewer` soi đúng chỗ này: một ngưỡng viết cứng là phát hiện mức **chặn**.
+
+---
+
+## §18 · Kết quả pha 0 — bốn chỗ bản này từng nói sai, 14/09
+
+Xác minh bằng code thật trước khi viết dòng đầu tiên. Bốn phát hiện, đã sửa
+ngược vào §1 · §2 · §15 ở trên; phần dưới ghi cái chưa sửa được vì cần người chốt.
+
+| #   | Bản này từng nói                       | Code thật                                                                                                                                     |
+| --- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | "phía khách chưa có bảng nào"          | `sales.contact` là bảng thật từ 0018 (28/08), có `code`·`email`·`phone`, khoá ngoại vào `platform.object`, API và màn thật, không còn `load:` |
+| 2   | `comms.identity.contact_code`          | phải là `object_code` — vì `lead.email` mới là địa chỉ MAS gửi tới, còn `contact.email` không lượt gửi nào đọc                                |
+| 3   | cần `_grant_comms_perms.sql`           | không cần. `RolePermissionSeeder` tự gieo; đổi lại phải sửa `Permission` ở **hai** union và chúng bị assert bằng nhau                         |
+| 4   | "mọi ngưỡng sống trong `config_entry`" | `config_entry` **không phải** kho khoá-giá trị — xem ngay dưới                                                                                |
+
+### `config_entry` không chứa được một ngưỡng — và đây là quyết định còn treo
+
+`config_entry` là registry của **tám danh mục có tên**: `STAGE` · `TIER` ·
+`CATEGORY` · `EXIT_REASON` · `CHANNEL` · `SOURCE` · `PRODUCT` · `LOSS_REASON`.
+Mỗi dòng là **một mục** có `id`·`name`·`ord` — từ vựng người dùng chọn từ danh
+sách. Cột số duy nhất là `limitDays`, và CHECK `config_limit_only_ladder` khoá nó
+cho đúng hai danh mục dạng bậc thang.
+
+"Im lặng bao nhiêu ngày thì tính là trả lời lần đầu" không có `name` để hiển thị,
+không có `ord`, không thuộc danh mục nào. Nhét nó vào đây phải mở một `list` thứ
+chín và nới một CHECK đang neo có chủ đích — tức bẻ ngữ nghĩa của bảng để chứa
+một thứ khác loại.
+
+**Đề xuất: một bảng `platform.setting` riêng** — `key` · `value` · `unit` ·
+`updated_by` · `updated_at`, một dòng một hằng số hệ thống, có màn admin và có
+audit. Ranh giới sạch: `config_entry` giữ **từ vựng người dùng gõ**,
+`platform.setting` giữ **hằng số hệ thống người vận hành chỉnh**. Đường thứ ba
+(ENV) bị loại vì đổi một ngưỡng sẽ thành một lần deploy.
+
+**Chưa chốt.** Không chặn lượt 0 (lượt 0 không cần ngưỡng nào), **chặn lượt 1–2**.
+
+### Phạm vi nợ dòng gương — chốt hẹp lại
+
+Pha 0 đếm ra bốn tình trạng khác nhau, không phải hai:
+
+| Object                         | Dòng gương | Khoá ngoại | Xử ở đâu                                                                                    |
+| ------------------------------ | ---------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `lead` · `account` · `contact` | có         | **có**     | không nợ — lượt 0 chỉ nối vào đây                                                           |
+| `opportunity`                  | có         | không      | trả ở **lượt 1**, khi thread cần nối vào `OP`                                               |
+| `contract`                     | có         | không      | trả **cùng lượt 1** — cùng một migration, cùng một dạng nợ                                  |
+| `campaign`                     | không      | không      | **ngoài phạm vi** — chưa có cả `ObjectKind`; ngày `comms` cần nối vào chiến dịch thì mở lại |
+
+Nên **lượt 0 không gánh nợ dòng gương nào** — đính chính §17.1, vốn xếp việc đó
+vào lượt 0. Nó chuyển sang lượt 1 và rộng hơn một object so với §17 đã viết.

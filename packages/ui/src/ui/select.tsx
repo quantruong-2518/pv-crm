@@ -37,7 +37,11 @@ export type SelectProps = {
   neutralValue?: string
   /** Ẩn nhãn khỏi mắt, giữ cho trình đọc màn hình. */
   hideLabel?: boolean
-  size?: 'sm' | 'md'
+  /** `lg` is 48px, the touch floor rule 13 sets for tablet — `Button` has had
+   *  it from the start and this control did not, so any form mixing the two
+   *  could not clear the floor at all. Reach for it wherever a `Button size="lg"`
+   *  stands beside it. */
+  size?: 'sm' | 'md' | 'lg'
   className?: string
 }
 
@@ -276,7 +280,9 @@ export function Select({
         onKeyDown={onKeyDown}
         className={cn(
           'motion-std relative inline-flex min-w-0 flex-1 items-center gap-2 rounded-md pl-3 pr-8 text-left outline-none',
-          size === 'sm' ? 'h-8 text-[11.5px]' : 'h-10 text-[12.5px]',
+          size === 'sm' && 'h-8 text-[11.5px]',
+          size === 'md' && 'h-10 text-[12.5px]',
+          size === 'lg' && 'h-12 text-[12.5px]',
           active ? 'bg-primary/24 text-accent-foreground' : 'bg-white/9 text-foreground',
           'focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
           open && 'shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_40%,transparent)]',

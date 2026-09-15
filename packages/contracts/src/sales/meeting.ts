@@ -73,20 +73,27 @@ export const MeetingSide = z.enum(['host', 'guest'])
 
 /** One person in the room.
  *
- *  `actorId` is present for our own people and absent for the customer's, and
- *  that asymmetry is the current shape of the data rather than a preference:
- *  `platform.actor` is a real book of real employees, while the customer side
- *  has no table of its own yet — `LeadContact` is still generated from the
- *  frozen fixture. So a guest is a typed name today.
+ *  `actorId` is present for our own people and absent for the customer's — that
+ *  asymmetry is real, `platform.actor` is a book of employees and there is no
+ *  matching "book of every human on the customer's side" a guest could be
+ *  looked up in. `contactCode` narrows that gap where it can: `sales.contact`
+ *  IS a real table since migration 0018 (28/08), so a guest who is already in
+ *  that book may be linked instead of only typed in. It stays optional because
+ *  plenty of meetings still happen with somebody nobody has entered as a
+ *  contact yet — typing a name is not a fallback being phased out, it is the
+ *  only option for a person the book does not hold.
  *
- *  `name` is stored even for a host who has an `actorId`, on the same rule as
- *  `TouchRow.by`: a record of a meeting is a record of who was there THEN.
- *  Joining `actor` on read would make a past meeting silently adopt somebody's
- *  new name, and would render nothing at all for a person who has since left
- *  and been removed from the book. */
+ *  `name` is stored even for a host who has an `actorId` (or a guest who has a
+ *  `contactCode`), on the same rule as `TouchRow.by`: a record of a meeting is
+ *  a record of who was there THEN. Joining `actor` or `contact` on read would
+ *  make a past meeting silently adopt somebody's new name, and would render
+ *  nothing at all for a person who has since left either book. */
 export const MeetingAttendee = z.object({
   side: MeetingSide,
   actorId: z.string().min(1).max(64).optional(),
+  /** Guest only — see the docblock above. Absent means the person was typed in
+   *  rather than picked from `sales.contact`, which is still the common case. */
+  contactCode: ObjectCode.optional(),
   name: textInput(120),
   /** Job title, as written on the day. Optional — plenty of meetings happen
    *  with somebody whose title nobody wrote down. */
@@ -147,6 +154,10 @@ export const MeetingHostInput = z.object({
 export const MeetingGuestInput = z.object({
   name: textInput(120),
   role: textInputOptional(120),
+  /** Optional link into `sales.contact` — see `MeetingAttendee`. Not required:
+   *  requiring it would block recording a meeting with somebody not yet in that
+   *  book, which is a flow this door must keep open. */
+  contactCode: ObjectCode.optional(),
 })
 
 export const MeetingCreate = z.object({

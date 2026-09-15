@@ -92,6 +92,9 @@ export const Permission = z.enum([
   'plan.submit',
   'config.view',
   'config.propose',
+  /** The channel identity book — which person a wire address belongs to.
+   *  `comms.identity`, one permission for read and write both. */
+  'comm.capture-manage',
   'audit-log.view',
   'user.manage',
   'role.manage',

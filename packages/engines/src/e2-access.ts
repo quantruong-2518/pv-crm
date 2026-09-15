@@ -114,6 +114,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'performance.view',
     'plan.view',
     'config.view',
+    /* Marketing owns the shared `contact@` mailbox, so it owns the table that
+       says whose address is whose. Sale and BD do not: mislinking one address
+       silently re-files somebody else's conversation. */
+    'comm.capture-manage',
   ],
 
   /** BD — mang lead vào và đẩy qua cổng init data. Không `lead.assign`: giao việc

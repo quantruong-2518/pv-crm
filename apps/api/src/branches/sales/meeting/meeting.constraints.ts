@@ -38,6 +38,19 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
     message: 'Người chủ trì phải chọn từ sổ nhân sự, không gõ tay — khách thì gõ tay.',
   },
 
+  /** Somebody picked from the contact book, deleted between opening the form
+   *  and pressing save. As rare as `meeting_lead_code_lead_code_fk`, and worth
+   *  its own sentence for the same reason. */
+  meeting_attendee_contact_code_contact_code_fk: {
+    kind: 'invalid',
+    message: 'Người liên hệ được chọn không còn trong sổ.',
+  },
+
+  meeting_attendee_contact_only_guest: {
+    kind: 'invalid',
+    message: 'Chỉ khách mới gắn được người liên hệ — người chủ trì lấy từ sổ nhân sự.',
+  },
+
   meeting_attendee_no_blank: {
     kind: 'invalid',
     message: 'Người dự phải có tên.',

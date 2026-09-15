@@ -7,6 +7,7 @@ import { AuditModule } from './platform/audit/audit.module'
 import { AuthModule } from './platform/auth/auth.module'
 import { PasswordChangeGuard } from './platform/auth/password-change.guard'
 import { ReauthGuard } from './platform/auth/reauth.guard'
+import { CommsModule } from './platform/comms/comms.module'
 import { ConfigModule } from './platform/config/config.module'
 import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
@@ -73,6 +74,12 @@ import { RolesModule } from './platform/roles/roles.module'
        và nó mang ba controller — cửa webhook của Resend, `/healthz/email` và
        cửa huỷ đăng ký của người nhận — nên đọc danh sách này phải thấy được
        rằng máy chủ có ba đường đó. */
+    /* Imported EXPLICITLY, the same way `MailModule` below is and for the same
+       two reasons: `comms` belongs to platform and must not ride into the tree
+       on a branch's import, and it carries `/comms/identities`, the four doors
+       of the identity book, so reading this list has to show the server has
+       them. */
+    CommsModule,
     MailModule,
     SalesModule,
   ],

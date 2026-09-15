@@ -149,6 +149,15 @@ export const PERMISSIONS = [
   'plan.submit',
   'config.view',
   'config.propose',
+  /** The channel identity book — which person a wire address belongs to.
+   *
+   *  ONE permission covering read and write, unlike every book beside it, and
+   *  the reason is who the book is for: nobody browses it. It is the operator's
+   *  table behind the capture doors, read only while correcting a wrong link.
+   *  A `comm.view` split from it would be a permission granting sight of a
+   *  list nobody opens on purpose. Reading a CONVERSATION is a different
+   *  question and gets its own pair when threads land. */
+  'comm.capture-manage',
   'audit-log.view',
   /** Open an account, assign a role, lock somebody out — Admin · People.
    *

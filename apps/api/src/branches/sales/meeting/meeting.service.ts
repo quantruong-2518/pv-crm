@@ -6,7 +6,8 @@ import {
   type MeetingCreate,
   type MeetingPatch,
 } from '@pv/contracts'
-import { conflict, notFound } from '@api/platform/http/problem'
+import type { Db } from '@api/platform/db/db.module'
+import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { TouchService, byOf } from '../touch/touch.service'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, toContract } from './meeting.mapper'
@@ -82,6 +83,7 @@ export class MeetingService {
         createdBy: who.id,
       })
 
+      await this.guestsBelongHere(tx, code, body.guests)
       await this.repo.setAttendees(tx, meetingId, attendeesOf(meetingId, body))
 
       await this.touch.record(tx, [
@@ -132,6 +134,7 @@ export class MeetingService {
       })
 
       if (body.hosts !== undefined || body.guests !== undefined) {
+        await this.guestsBelongHere(tx, code, body.guests)
         await this.repo.setAttendees(
           tx,
           id,
@@ -142,6 +145,11 @@ export class MeetingService {
               (before?.guests ?? []).map((g) => ({
                 name: g.name,
                 ...(g.role ? { role: g.role } : {}),
+                /* Carry `contactCode` over when this PATCH does not touch the
+                   guest list: `setAttendees` REPLACES the whole list, so
+                   dropping it here would mean fixing a typo in the title and
+                   silently unlinking every guest from the contact book. */
+                ...(g.contactCode ? { contactCode: g.contactCode } : {}),
               })),
           }),
         )
@@ -157,6 +165,49 @@ export class MeetingService {
       throw conflict('Lịch họp đã diễn ra nên không thể xoá.')
     }
     await this.repo.run((tx) => this.repo.remove(tx, id))
+  }
+
+  /** Every `contactCode` in the body must name somebody in THIS lead's own
+   *  contact book — the lead on the path, not any lead.
+   *
+   *  The foreign key cannot ask this. It asks "is this code in `sales.contact`",
+   *  which every code in the customer book answers yes to — so without this
+   *  check a salesperson with `ownOnly`, standing on a lead that really is
+   *  theirs, could attach another department's `CT-…` to a meeting and read that
+   *  person's name back out. The scope axis would be dropped at the exact moment
+   *  a new link to scoped data is created, which is the one moment it has to
+   *  hold.
+   *
+   *  Refuses an UNKNOWN code here too rather than letting the foreign key take
+   *  it: the FK's sentence cannot name a field, and this one reddens the guest
+   *  list. Same 400 for "not in the book" and "belongs to another lead" on
+   *  purpose — telling the two apart would confirm that `CT-0412` exists
+   *  somewhere the caller may not look, the reasoning `mine()` below spells out.
+   *
+   *  `guests === undefined` means this PATCH is not touching the list at all,
+   *  and the codes already on the rows were checked when they were written. */
+  private async guestsBelongHere(
+    tx: Db,
+    leadCode: string,
+    guests: MeetingCreate['guests'] | undefined,
+  ): Promise<void> {
+    if (guests === undefined) return
+
+    const codes = [...new Set(guests.map((g) => g.contactCode).filter((c) => c !== undefined))]
+    if (codes.length === 0) return
+
+    const found = await this.repo.contactLeadsOf(tx, codes)
+    const stray = codes.filter((c) => found.find((f) => f.code === c)?.leadCode !== leadCode)
+    if (stray.length === 0) return
+
+    throw invalid(
+      {
+        guests: [
+          `Người liên hệ ${stray.join(', ')} không thuộc lead ${leadCode} — chỉ chọn được người trong sổ liên hệ của chính lead này.`,
+        ],
+      },
+      'Người dự không thuộc lead này.',
+    )
   }
 
   /** Buổi họp có thật VÀ treo đúng vào lead trên đường dẫn.
@@ -201,6 +252,12 @@ function attendeesOf(
       meetingId,
       side: 'guest' as const,
       actorId: null,
+      /* The guest half only — `meeting_attendee_contact_only_guest` refuses a
+         host row carrying one, which is why the host branch above has no such
+         field. Still optional: typing a name is not a fallback being phased
+         out, it is the ONLY option for somebody the contact book does not
+         hold. */
+      contactCode: g.contactCode ?? null,
       name: g.name,
       role: g.role ?? null,
     })),

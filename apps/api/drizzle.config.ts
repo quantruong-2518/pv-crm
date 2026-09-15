@@ -13,9 +13,13 @@ const common = {
      cách bỏ qua nó. */
   out: './drizzle',
   dialect: 'postgresql' as const,
-  // Hai schema, không phải một. `public` cố tình để trống — mỗi nhánh một
-  // schema là luật ranh giới, xem CLAUDE.md của apps/api.
-  schemaFilter: ['platform', 'sales'],
+  /* Three schemas. `public` is left empty on purpose — one schema per branch or
+     domain is the boundary rule, see `apps/api`'s own CLAUDE.md. `comms` joined
+     on 15/09, and it has to be listed here: `schema` above already picks the new
+     file up, so without this line the DESIRED state holds `comms.identity` while
+     the INTROSPECTED state cannot see the schema at all, and the next generated
+     migration emits a second CREATE TABLE for a table that already exists. */
+  schemaFilter: ['platform', 'sales', 'comms'],
   verbose: true,
   strict: true,
 }

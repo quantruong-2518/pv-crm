@@ -51,10 +51,17 @@ thành vắng mặt, mà vắng mặt nghĩa là "không đụng tới" — nên
 gỡ một link dán nhầm. Cần một quy ước cho "xoá ô này" (`null` tường minh trên
 dây) trước khi làm **a**.
 
-**c · Khách vẫn là chữ gõ tay.** `meeting_attendee.actor_id` NULL với mọi khách
-vì phía khách chưa có bảng nào — `LeadContact` còn sinh từ fixture. Ngày có sổ
-liên hệ thật thì đây là chỗ đầu tiên mọc thêm khoá ngoại, và hai buổi họp với
-cùng một người sẽ hết là hai chuỗi tên rời nhau.
+**c · ~~Khách vẫn là chữ gõ tay~~ — trả ngày 15/09.**
+`meeting_attendee.contact_code` là khoá ngoại thật vào `sales.contact(code)`,
+nullable và chỉ cho `side = 'guest'` (migration `0040`). Đường gõ tay giữ
+nguyên — bắt buộc nối sổ thì hoặc chặn ghi buổi họp với người chưa có trong sổ,
+hoặc đẻ một dòng liên hệ rác cho mỗi người dự.
+
+Tiền đề cũ của mục này — "phía khách chưa có bảng nào" — **sai từ 28/08**:
+`sales.contact` là bảng thật từ migration 0018. Câu đó đã được sửa ở
+`meeting.schema.ts` và `contracts/src/sales/meeting.ts` cùng lượt. Còn thiếu
+đúng một thứ: **picker trên màn ghi buổi họp** vẫn cho gõ tên chứ chưa cho chọn
+từ sổ — đó là việc của lượt dựng màn, không phải của tầng dữ liệu.
 
 ---
 
@@ -437,3 +444,45 @@ dữ liệu, và hai thứ đó hỏng theo hai cách khác nhau.
 **Một điều phải biết:** ẩn prefix khỏi màn KHÔNG tự giải quyết phần URL. Dấu `Đ`
 vẫn nằm trong `code` của bảng, trong `platform.edge`, và trong đường dẫn —
 dù không màn nào in nó ra.
+
+---
+
+## Nợ mở ra từ lượt 0 module `comms` — ghi 15/09/2026
+
+Bốn mục, đều do hai agent soát tìm ra và **cố ý không sửa trong lượt 0** vì mỗi
+mục thuộc về một lượt sau đã có tên. Không mục nào chặn lượt 0.
+
+**a · Transcript buổi họp đang đọc bằng `lead.view`.**
+`packages/contracts/src/sales/meeting.ts` trả `transcript` cho bất kỳ ai xem
+được lead, và nút mở transcript ở `meetings-card.tsx` không ghi vết. Đặc tả mới
+(`tam-nhin-giao-tiep-va-noi-dung.md` §5b·§5c) đòi **nội dung** phải đi qua
+`comm.view-content` và để lại một dòng audit, tách khỏi metadata. Đây là nợ có
+TRƯỚC lượt 0 — cột và hợp đồng đã có từ lâu — nhưng lượt 0 vừa viết cái luật ấy
+ra thành đặc tả nên nó không được phép trôi tiếp. Sửa khi cặp quyền nội dung về
+ở **lượt 1**.
+
+**b · `verifiedAt` do client tự khai.**
+`comms.identity.verified_at` được định nghĩa là "khi có người ĐÃ XÁC NHẬN địa
+chỉ này là của người đó", nhưng cả `POST` lẫn `PATCH` đều nhận mốc từ dây, kể cả
+mốc tương lai. Lượt 2 sẽ lọc "chỉ giữ thư nối được vào identity đã xác minh"
+dựa trên đúng cột này, nên một giá trị tự gõ làm cả phép lọc thành trang trí.
+Sửa ở **lượt 2**, khi hàng chờ chưa nối có nút "đây là ai" thật: máy chủ đóng
+dấu `now()` tại đúng cửa đó, và thêm `CHECK (verified_at <= now())`.
+
+**c · Vai `account-executive` không có `comm.capture-manage`.**
+Quyền cấp cho `marketing` vì marketing giữ hòm `contact@`; `director` và
+`head-of-sales` nhận tự động. Nhưng `account-executive` — ghế gộp Marketer + BD
+
+- AM, đang giữ cả `campaign.broadcast` — thì không. Ở một công ty chỉ dùng ghế
+  AE, ngoài Giám đốc sẽ không ai mở được sổ định danh, và điều đó chỉ lộ ra ở
+  lượt 2 khi hàng chờ chưa nối không ai xử. **Đây là câu hỏi cho chủ dự án, không
+  phải cho agent:** AE có giữ hòm `contact@` không. Đừng tự thêm một dòng vào ma
+  trận vai.
+
+**d · Địa chỉ khách nằm ở ba chỗ, không lượt ghi nào giữ chúng đồng bộ.**
+`sales.lead.email` (địa chỉ MAS gửi tới) · `sales.contact.email` (sổ nhiều
+người) · `comms.identity.address` (ánh xạ địa chỉ→người). Chưa phải vi phạm luật
+một-sự-thật-một-sổ — ba cột trả lời ba câu khác nhau — nhưng ngày `lead.email`
+đổi mà `identity` không đổi thì hai sổ nói hai chuyện. **Chốt trước lượt 2:**
+`lead.email` đổi thì đẻ một identity mới hay sửa dòng cũ; dòng cũ giữ lại làm
+lịch sử hay hạ `verified_at` về NULL.

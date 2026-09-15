@@ -23,6 +23,11 @@ export function toContract(
       .map((a) => ({
         side: a.side,
         ...(a.actorId ? { actorId: a.actorId } : {}),
+        /* NULL column becomes an ABSENT field, the same rule `actorId` follows
+           right above: `MeetingAttendee.contactCode` is `.optional()`, so a
+           `null` there is a 500 at `parse` time. Absent means this guest was
+           TYPED IN, which is still the common case. */
+        ...(a.contactCode ? { contactCode: a.contactCode } : {}),
         name: a.name,
         ...(a.role ? { role: a.role } : {}),
       }))

@@ -92,6 +92,7 @@ export const RESOURCE_LABEL = {
   performance: 'Hiệu suất',
   plan: 'Số liệu & kế hoạch',
   config: 'Thiết lập Kinh doanh',
+  comm: 'Sổ giao tiếp',
   'audit-log': 'Ghi vết',
   user: 'Tài khoản người dùng',
   role: 'Vai trò & quyền',
@@ -136,6 +137,7 @@ export const PERMISSION_LABEL = {
   'user.manage': 'Mở tài khoản, gán vai, khoá người',
   'role.manage': 'Sửa chính bảng vai → quyền này',
   'approval.decide': 'Gật hoặc bác một đề nghị',
+  'comm.capture-manage': 'Nối địa chỉ thư, chat, số máy với đúng người',
   'data.export': 'Tải dữ liệu ra ngoài',
 } as const satisfies Record<Permission, string>
 

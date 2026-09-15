@@ -1,6 +1,7 @@
 import { asc, count, desc, eq, inArray } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contact } from '../contact/contact.schema'
 import {
   meeting,
   meetingAttendee,
@@ -82,6 +83,31 @@ export class MeetingRepository {
     /* Người dự đi theo bằng `ON DELETE CASCADE`, không xoá tay ở đây — hàng rào
        ở lược đồ là thứ còn đúng cả khi dòng bị xoá từ một cửa khác. */
     await tx.delete(meeting).where(eq(meeting.id, id))
+  }
+
+  /** Which lead each of these contact codes belongs to.
+   *
+   *  `sales.contact.lead_code` is `NOT NULL`, so one statement answers the whole
+   *  question and a code missing from the result simply is not in the book. Runs
+   *  on the caller's `tx` like every other statement here: the answer decides
+   *  whether the attendee rows may be written, so reading it outside the
+   *  transaction that writes them would be checking a book somebody else is
+   *  still editing.
+   *
+   *  Lives in this repository rather than reaching for `ContactRepository`
+   *  because it is one projection of one column — importing a sibling module's
+   *  service to ask it would pull `MeetingModule` into a dependency it needs for
+   *  nothing else. Same-branch table import, the rule `meeting.schema.ts`
+   *  already follows for the foreign key itself. */
+  async contactLeadsOf(
+    tx: Db,
+    codes: readonly string[],
+  ): Promise<{ code: string; leadCode: string }[]> {
+    if (codes.length === 0) return []
+    return tx
+      .select({ code: contact.code, leadCode: contact.leadCode })
+      .from(contact)
+      .where(inArray(contact.code, [...codes]))
   }
 
   /** Buổi họp SỚM NHẤT của lead đã có chưa — câu duy nhất cửa ghi cần để biết

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { createDb } from '@api/platform/db/create-db'
+import type { Db } from '@api/platform/db/db.module'
 import { loadEnv } from '@api/platform/config/env'
 import { DEFAULT_PASSWORD, hashPassword } from '@api/platform/auth/password'
 import { actor } from '@api/platform/db/platform.schema'
@@ -8,10 +9,10 @@ import { STAFF } from './staff'
 /** Empty the database and plant the seven real accounts.
  *
  *  DESTRUCTIVE, and unlike the fixture rebuild it puts nothing back: every
- *  lead, opportunity, contract, campaign and mail row in `sales` and `platform`
- *  goes, including the ones typed in by hand or imported through the intake
- *  door. That is the point — this is the command for "the demo is over, hand me
- *  a clean system with the right people in it".
+ *  lead, opportunity, contract, campaign, mail and channel-identity row in the
+ *  schemas this app owns goes, including the ones typed in by hand or imported
+ *  through the intake door. That is the point — this is the command for "the
+ *  demo is over, hand me a clean system with the right people in it".
  *
  *      pnpm db:reset:staff                            # preview, writes nothing
  *      pnpm db:reset:staff -- --apply                 # for real
@@ -42,6 +43,32 @@ const KEEP = ['role_permission', 'permission_seed', 'email_suppression']
  *  person who made them. */
 const EMPTIED_LAST = 'actor'
 
+/** The schemas this application owns, and therefore the ones a reset empties.
+ *
+ *  Named rather than discovered, because the opposite of an allowlist here is a
+ *  denylist, and a denylist fails in the dangerous direction: the day somebody
+ *  installs an extension or a queue that brings its own schema, "everything
+ *  except the ones I thought of" quietly truncates it. `drizzle` (migration
+ *  history) and `pgboss` (queued jobs) are both already in the database and
+ *  both would be catastrophic to empty. */
+const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
+
+/** Schemas that are legitimately present and are NOT ours to touch.
+ *
+ *  This list exists only so the check below can tell "known, leave it alone"
+ *  from "new, and nobody has decided" — see `assertNoUnknownSchema`. */
+const FOREIGN_SCHEMAS = [
+  'pg_catalog',
+  'information_schema',
+  'pg_toast',
+  'public',
+  /* Drizzle's own migration ledger. Emptying it makes every migration run
+     again on the next deploy, against a database that already has the tables. */
+  'drizzle',
+  /* pg-boss. Truncating it drops every queued mail job on the floor. */
+  'pgboss',
+]
+
 const APPLY = process.argv.includes('--apply')
 
 const passwordArg = process.argv.find((a) => a.startsWith('--password='))
@@ -51,6 +78,35 @@ const PASSWORD = passwordArg?.slice('--password='.length) ?? DEFAULT_PASSWORD
  *  the floor for a hand-typed operational secret should be free to be stricter
  *  than the one a user's own password has to clear. */
 const MIN = 12
+
+/** Refuse to run against a database carrying a schema nobody has classified.
+ *
+ *  THE FAILURE THIS EXISTS FOR ALREADY HAPPENED. The first version of this
+ *  script hard-coded `('platform', 'sales')`, and a fortnight later `comms`
+ *  arrived with a table holding a foreign key into `platform.actor`. A reset
+ *  would have left those rows standing, and then failed on the actor delete
+ *  they point at - or worse, succeeded on an empty table and quietly kept a
+ *  schema the operator believed they had emptied.
+ *
+ *  So an unclassified schema stops the command rather than being guessed at.
+ *  Adding one line to `OWNED_SCHEMAS` or `FOREIGN_SCHEMAS` is a decision
+ *  somebody makes on purpose; silence is not. */
+async function assertNoUnknownSchema(db: Db): Promise<void> {
+  const r = (await db.execute(sql`
+    SELECT schema_name FROM information_schema.schemata
+    WHERE schema_name <> ALL(${[...OWNED_SCHEMAS, ...FOREIGN_SCHEMAS]})
+      AND schema_name NOT LIKE 'pg\\_%'
+    ORDER BY schema_name
+  `)) as { rows: { schema_name: string }[] }
+
+  if (r.rows.length === 0) return
+  const names = r.rows.map((x) => x.schema_name).join(', ')
+  throw new Error(
+    `Database có schema chưa được phân loại: ${names}.\n` +
+      `Thêm vào OWNED_SCHEMAS (bị xoá) hoặc FOREIGN_SCHEMAS (giữ nguyên) ở reset-staff.ts, ` +
+      `rồi chạy lại. Đoán hộ là cách xoá nhầm thứ không ai định xoá.`,
+  )
+}
 
 async function main(): Promise<void> {
   /* Only reachable via `--password=…`, since the default clears this by a wide
@@ -69,13 +125,16 @@ async function main(): Promise<void> {
   )
 
   try {
+    await assertNoUnknownSchema(db)
+
     /* Read the table list from the database rather than from a hand-written
        array of forty names: a table added next month would silently survive a
-       "reset" that claims to have emptied everything. */
+       "reset" that claims to have emptied everything. The SCHEMA list is
+       hand-written for the opposite reason - see `OWNED_SCHEMAS`. */
     const listed = (await db.execute(sql`
       SELECT table_schema, table_name
       FROM information_schema.tables
-      WHERE table_schema IN ('platform', 'sales') AND table_type = 'BASE TABLE'
+      WHERE table_schema = ANY(${OWNED_SCHEMAS}) AND table_type = 'BASE TABLE'
       ORDER BY table_schema, table_name
     `)) as { rows: { table_schema: string; table_name: string }[] }
 
@@ -88,7 +147,9 @@ async function main(): Promise<void> {
        beats the syntax error a bare `TRUNCATE TABLE` would raise, and beats the
        silent success a preview run would otherwise report. */
     if (targets.length === 0) {
-      throw new Error('Không thấy bảng nào trong `platform`/`sales` — chạy `db:migrate` trước.')
+      throw new Error(
+        `Không thấy bảng nào trong ${OWNED_SCHEMAS.join('/')} — chạy migration trước.`,
+      )
     }
 
     const counted = await Promise.all(

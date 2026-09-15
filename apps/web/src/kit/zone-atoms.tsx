@@ -353,7 +353,7 @@ export function ZoneAtoms() {
           note="ô lọc một dòng"
           noteAccent
           bodyClassName="flex flex-wrap items-center gap-3 px-4 py-4"
-          footer="listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên"
+          footer="ba size: sm 32 · md 40 · lg 48 (sàn chạm tablet, luật 13) · listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên"
         >
           <Select
             label="Bậc"
@@ -364,6 +364,16 @@ export function ZoneAtoms() {
               { value: 'dau-moi', label: 'Đầu mối · 56' },
               { value: 'mql', label: 'MQL · 14' },
               { value: 'sql', label: 'SQL · 30' },
+            ]}
+          />
+          <Select
+            label="Người dự"
+            size="lg"
+            value="ct"
+            onChange={() => {}}
+            options={[
+              { value: 'ct', label: 'Phạm Thị Hoa · Trưởng phòng mua' },
+              { value: '', label: 'Chưa chọn — gõ tay' },
             ]}
           />
           <Select

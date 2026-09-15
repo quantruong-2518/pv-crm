@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import { CURRENCIES, type AccountBookQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -33,15 +34,41 @@ const NEXT_CODE = sql`SELECT 'AC-' || lpad(nextval('sales.account_code_seq')::te
  *
  *  All four are correlated on `sales.account.code` of the OUTER query, which is
  *  why they are declared here as expressions rather than built per call. */
+/** A column reference that CANNOT lose its table name.
+ *
+ *  ------------------------------------------------------------------
+ *  WHY THIS EXISTS — A 500 ON THE WHOLE ACCOUNT BOOK, FIXED 15/09
+ *  ------------------------------------------------------------------
+ *  Interpolating a column into a raw `sql` template usually renders it
+ *  qualified, and on its own `${lead.code}` does print
+ *  `"sales"."lead"."code"`. Inside the projection of `select({ … })` it does
+ *  NOT: drizzle emitted `JOIN "sales"."lead" ON "code" = "lead_code"`, and
+ *  `code` is a column of `account`, `lead` AND `contract` — so Postgres
+ *  answered `column reference "code" is ambiguous` and every read of
+ *  `/sales/accounts` and `/sales/accounts/:code` was a 500.
+ *
+ *  `sql.identifier` is a plain quoted name with no table attached, so there is
+ *  nothing for the renderer to shorten. Written as a helper rather than by hand
+ *  at each site because the failure is INVISIBLE in review — the broken form
+ *  and the working form read identically in the source.
+ *
+ *  The way out is the one `opportunity.repository.ts#signed` already takes:
+ *  build correlated subqueries with the query builder (`exists(db.select()…)`)
+ *  instead of a raw template, and the qualification question never arises.
+ *  These four stayed raw because they are module-level constants with no `db`
+ *  in scope; moving them onto the repository is a bigger change than the bug
+ *  warranted. */
+const at = (column: AnyPgColumn): SQL => sql`${column.table}.${sql.identifier(column.name)}`
+
 const LEAD_COUNT = sql<number>`(
-  SELECT count(*)::int FROM ${lead} WHERE ${lead.accountCode} = ${account.code}
+  SELECT count(*)::int FROM ${lead} WHERE ${at(lead.accountCode)} = ${at(account.code)}
 )`
 
 const OPEN_DEALS = sql<number>`(
   SELECT count(*)::int
   FROM ${opportunity}
-  JOIN ${lead} ON ${lead.code} = ${opportunity.leadCode}
-  WHERE ${lead.accountCode} = ${account.code} AND ${opportunity.closedAt} IS NULL
+  JOIN ${lead} ON ${at(lead.code)} = ${at(opportunity.leadCode)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${at(opportunity.closedAt)} IS NULL
 )`
 
 /** Signed = a row exists in `sales.contract`. Counted from the contract side
@@ -51,8 +78,8 @@ const OPEN_DEALS = sql<number>`(
 const SIGNED_DEALS = sql<number>`(
   SELECT count(*)::int
   FROM ${contract}
-  JOIN ${lead} ON ${lead.code} = ${contract.leadCode}
-  WHERE ${lead.accountCode} = ${account.code}
+  JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)}
 )`
 
 /** Everything signed, converted to dong with the same rate table the deal book
@@ -63,13 +90,15 @@ const SIGNED_DEALS = sql<number>`(
  *  an unknown — unlike a single deal with no amount, where NULL is the honest
  *  answer and the deal book keeps it. */
 const SIGNED_AMOUNT_VND = sql<number>`(
-  SELECT COALESCE(SUM(CASE ${contract.currency} ${sql.join(
-    CURRENCIES.map((c) => sql`WHEN ${c.code} THEN ${contract.amount} * ${sql.raw(String(c.rate))}`),
+  SELECT COALESCE(SUM(CASE ${at(contract.currency)} ${sql.join(
+    CURRENCIES.map(
+      (c) => sql`WHEN ${c.code} THEN ${at(contract.amount)} * ${sql.raw(String(c.rate))}`,
+    ),
     sql` `,
   )} END), 0)::bigint
   FROM ${contract}
-  JOIN ${lead} ON ${lead.code} = ${contract.leadCode}
-  WHERE ${lead.accountCode} = ${account.code}
+  JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)}
 )`
 
 /** The identity expression `account_identity_uniq` indexes, written a second
@@ -335,10 +364,14 @@ export class AccountRepository {
        as `SIGNED_DEALS > 0` so Postgres can stop at the first row instead of
        counting them all. */
     if (q.customer !== undefined) {
+      /* `at()` here too, and for the same reason as the four counters at the
+         top of this file: this fragment also lands in a `where()` beside a
+         projection, and an unqualified `code` is ambiguous across three
+         tables. */
       const signed = sql`EXISTS (
         SELECT 1 FROM ${contract}
-        JOIN ${lead} ON ${lead.code} = ${contract.leadCode}
-        WHERE ${lead.accountCode} = ${account.code}
+        JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
+        WHERE ${at(lead.accountCode)} = ${at(account.code)}
       )`
       parts.push(q.customer === 1 ? signed : sql`NOT ${signed}`)
     }

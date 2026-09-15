@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { MeetingSide } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
+import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 
 /** Cuộc họp với một lead — sổ các lần đã gặp, và chỗ ở của transcript.
@@ -93,9 +94,9 @@ export const meeting = sales.table(
  *  ba mảng song song là hình dạng chắc chắn lệch nhau ở lần sửa thứ hai.
  *
  *  `actor_id` NULL là trạng thái BÌNH THƯỜNG chứ không phải dữ liệu thiếu: nó
- *  đúng với mọi khách, vì phía khách chưa có sổ nào để trỏ tới — `LeadContact`
- *  hôm nay vẫn sinh ra từ fixture đóng băng. Ngày có bảng liên hệ thật thì đây
- *  là chỗ đầu tiên mọc thêm một khoá ngoại. */
+ *  đúng với mọi khách, vì `actor` là sổ người của TA. Phía khách trỏ vào
+ *  `contact_code` bên dưới — khoá ngoại đó mọc ra ở migration `0040`, đúng chỗ
+ *  đoạn này từng hẹn khi `sales.contact` chưa tồn tại. */
 export const meetingAttendee = sales.table(
   'meeting_attendee',
   {
@@ -110,12 +111,35 @@ export const meetingAttendee = sales.table(
 
     side: text('side').$type<MeetingSide>().notNull(),
     actorId: text('actor_id').references(() => actor.id),
+
+    /** The guest's row in `sales.contact`, when they have one.
+     *
+     *  This closes §2c of `docs/fix-later.md`, whose premise — that the
+     *  customer side had no table to point at — stopped being true on 28/08:
+     *  `sales.contact` is a real table with a real code, and the docblock above
+     *  already named this the first place a foreign key would grow.
+     *
+     *  NULLABLE FOR EVER, and `name` stays `NOT NULL` beside it. Plenty of
+     *  meetings happen with somebody nobody has entered in the book — a
+     *  colleague brought along, a director who sat in once — and making the
+     *  link required would either block writing that meeting down or force a
+     *  junk contact row per attendee. The typed path is an UPGRADE of the
+     *  hand-typed one, not a replacement: with a code the six-months-later
+     *  question "who was that" has an answer that survives two people sharing a
+     *  name, exactly what `meeting_attendee_host_co_actor` buys on the host
+     *  side. */
+    contactCode: text('contact_code').references(() => contact.code),
+
     name: text('name').notNull(),
     role: text('role'),
   },
   (t) => [
     index('meeting_attendee_meeting_idx').on(t.meetingId),
     check('meeting_attendee_side_known', sql`"side" IN ('host', 'guest')`),
+    /** `sales.contact` is the CUSTOMER's book — a host carrying a contact code
+     *  would be one of ours filed as one of theirs, and `actor_id` is already
+     *  the host's identity. The mirror of `meeting_attendee_host_co_actor`. */
+    check('meeting_attendee_contact_only_guest', sql`"contact_code" IS NULL OR "side" = 'guest'`),
     /** Chủ trì là người của mình, và cả điểm của trường này là để sau sáu
      *  tháng còn trả lời được "ai chạy buổi đó" — một cái tên gõ tay không trả
      *  lời được khi có hai người trùng tên. */
