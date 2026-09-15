@@ -507,3 +507,25 @@ secrets và ở `.env` của máy, cùng lúc.
 Nhưng nó sẽ đổi trong một lần nâng phiên bản, **không đỏ ở đâu cả** — kết nối
 vẫn chạy, chỉ là thôi xác minh chứng chỉ. Đây là loại hỏng im lặng, nên đáng
 sửa vào lần chạm `.env` tiếp theo chứ đừng đợi tới lúc nâng pg.
+
+---
+
+## Xoá contact để lại dòng gương mồ côi — ghi 15/09/2026
+
+**Triệu chứng:** `platform.object` có những dòng `CT-…` trỏ tới người liên hệ
+không còn tồn tại. Không màn nào báo gì; `E1.story()` vẫn vẽ chip cho chúng.
+
+**Ở đâu:** `ContactService.drop()` → `ContactRepository.remove()` xoá hàng
+`sales.contact` và dừng ở đó. `ObjectMirror` **không có method xoá nào cả** —
+nó chỉ biết `put`, `putMany` và `link`.
+
+**Sửa thế nào:** thêm một đường gỡ gương (`ObjectMirror.forget(tx, code)`) và
+gọi nó trong cùng transaction với lượt xoá, cộng một lượt dọn các dòng đã mồ
+côi sẵn. Cân nhắc thêm: có nên CHẶN xoá một contact mà `comms.identity` đang
+trỏ vào, thay vì để dây đứt ở giữa.
+
+**Vì sao chưa sửa:** trước lượt 0 của `comms` thì một dòng gương mồ côi chỉ là
+rác. Nay `comms.identity.object_code` có khoá ngoại **thật** vào
+`platform.object`, nên chuỗi `identity → object → [contact đã mất]` vẫn hợp lệ
+với Postgres trong khi đầu cuối của nó không còn — và lượt 2 sẽ nối thư vào
+đúng cái chuỗi đó. Không chặn lượt 1; phải chốt trước lượt 2.

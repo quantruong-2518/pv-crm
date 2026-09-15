@@ -95,6 +95,9 @@ export const Permission = z.enum([
   /** The channel identity book — which person a wire address belongs to.
    *  `comms.identity`, one permission for read and write both. */
   'comm.capture-manage',
+  /** System constants — retention windows, cadence waits, expiry days.
+   *  `platform.setting`, one permission for read and write both. */
+  'setting.manage',
   'audit-log.view',
   'user.manage',
   'role.manage',

@@ -794,6 +794,24 @@ export class OpportunityService {
 
     const done = await this.repo.run(async (tx) => {
       const row = await this.repo.updateOpportunity(tx, code, closeForSign(signedAt))
+
+      /* MIRROR ROW FIRST, then the contract row — and the order is load-bearing
+         from the turn that gives `sales.contract.code` a foreign key into
+         `platform.object`. Postgres checks a foreign key per statement, not at
+         commit, so a contract inserted before its mirror row fails on the spot
+         even though both land in one transaction.
+         `values.amount` is the same number `fromSign` already resolved (the
+         body's, or the deal's when the body withheld one), so nothing here
+         needs to wait for the inserted row to read it back. */
+      await this.mirror.put(tx, {
+        code: contractCode,
+        kind: 'HĐ',
+        branch: 'Sales',
+        label: `${found.account} · ${row.name}`,
+        ...(ownerName ? { owner: ownerName } : {}),
+        ...(values.amount === null ? {} : { amount: values.amount }),
+      })
+
       const contractRow = await this.contracts.insert(tx, values)
 
       /* THE LAST HISTORY ROW — `to: null`, the deal leaving the board because
@@ -823,23 +841,12 @@ export class OpportunityService {
          `toRef` đọc `row.stage`, thứ vừa thành NULL. */
       await this.mirror.put(tx, toRef(row, saleOwner?.name ?? null))
 
-      /* The contract is an E1 object in its own right. Without it the rail
-         walks lead → deal and stops one link short of what the reader opened
-         the screen to find. */
-      await this.mirror.put(tx, {
-        code: contractCode,
-        kind: 'HĐ',
-        branch: 'Sales',
-        label: `${found.account} · ${row.name}`,
-        ...(ownerName ? { owner: ownerName } : {}),
-        ...(contractRow.amount === null ? {} : { amount: contractRow.amount }),
-      })
-
       /* Signing is what BEGAT the contract, so the arrow runs deal → contract
-         and the rail continues from the deal instead of restarting. Placed
-         after both mirror rows above: neither code carries a foreign key into
-         `platform.object`, so this order is the service's discipline rather
-         than something the table enforces. */
+         and the rail continues from the deal instead of restarting. The
+         contract's own mirror row is written at the top of this transaction —
+         it is an E1 object in its own right, and without it the rail walks
+         lead → deal and stops one link short of what the reader opened the
+         screen to find. */
       await this.mirror.link(tx, { from: code, to: contractCode, kind: 'sinh-ra' })
 
       /* `at: signedAt` chứ không để `now()` mặc định: một hợp đồng vào sổ muộn

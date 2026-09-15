@@ -15,6 +15,7 @@ import { HealthModule } from './platform/health/health.module'
 import { MailModule } from './platform/mail/mail.module'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
+import { SettingModule } from './platform/setting/setting.module'
 import { SessionModule } from './platform/session/session.module'
 import { UsersModule } from './platform/users/users.module'
 import { RolesModule } from './platform/roles/roles.module'
@@ -68,6 +69,12 @@ import { RolesModule } from './platform/roles/roles.module'
        request — `SessionModule` and `AuthModule` both import it for that. */
     RolesModule,
     AccessModule,
+    /* Right after `AccessModule` because it is the same kind of thing: a
+       platform-wide capability nobody's branch owns. It carries
+       `/platform/settings`, so reading this list has to show the server has
+       those two doors — and it EXPORTS `SettingService`, the one way any other
+       module asks what a threshold is worth today. */
+    SettingModule,
     HealthModule,
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
        là của platform, không được đi nhờ qua một nhánh mới có mặt trong cây;

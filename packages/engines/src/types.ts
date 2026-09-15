@@ -158,6 +158,17 @@ export const PERMISSIONS = [
    *  list nobody opens on purpose. Reading a CONVERSATION is a different
    *  question and gets its own pair when threads land. */
   'comm.capture-manage',
+  /** The dial box of system constants — `platform.setting`.
+   *
+   *  NOT `config.propose` beside it, and the difference is what each table
+   *  holds: `sales.config_entry` is the VOCABULARY a user picks from — stages,
+   *  tiers, loss reasons, each an item with a name and an order. This one holds
+   *  numbers nobody picks from a list: how many days a recording is kept, how
+   *  long a cadence waits between steps. Granting one would be granting the
+   *  other, and they are not the same risk: renaming a stage is visible on
+   *  every screen the next morning, while halving a retention window deletes
+   *  things quietly. */
+  'setting.manage',
   'audit-log.view',
   /** Open an account, assign a role, lock somebody out — Admin · People.
    *

@@ -1,13 +1,17 @@
 import {
   bigint,
   boolean,
+  check,
   index,
+  integer,
   pgSchema,
   primaryKey,
   text,
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import type { SettingKey } from '@pv/contracts'
 import type { Action, Branch, EdgeKind, ObjectKind, RoleId } from '@pv/engines'
 
 /** Union của E2 cộng 'ai-read' — trợ lý AI đọc gì cũng để lại vết. */
@@ -167,7 +171,95 @@ export const audit = platform.table(
   (t) => [index('audit_code_idx').on(t.code), index('audit_actor_idx').on(t.actorId)],
 )
 
+// ---------------------------------------------------------------------------
+// System constants an operator tunes
+// ---------------------------------------------------------------------------
+
+/** One OVERRIDE of a system constant. Not a definition of one.
+ *
+ *  ------------------------------------------------------------------
+ *  A ROW IS AN OVERRIDE, SO THE TABLE IS FOUR COLUMNS AND NO MORE
+ *  ------------------------------------------------------------------
+ *  Default value, unit, bounds and the sentence an operator reads all live in
+ *  `SETTING_REGISTRY` (`@pv/contracts`, `setting.ts`), in code. A key with no
+ *  row here is not missing data — it is the ordinary state of a system nobody
+ *  has tuned, and the read serves the default straight from the registry.
+ *
+ *  `docs/tam-nhin-giao-tiep-va-noi-dung.md` §18 sketched this table as
+ *  `key · value · unit · updated_by · updated_at`. `unit` is dropped, and so is
+ *  every other descriptive column that sketch implies: the registry already
+ *  states that `sequence.max-steps` counts steps and the rest count days. A
+ *  column repeating it would be a second source for one fact, and the copy down
+ *  here drifts from the copy up there the first time a key changes — silently,
+ *  because nothing can compare them. The same argument retires min/max and the
+ *  operator-facing description.
+ *
+ *  ------------------------------------------------------------------
+ *  WHICH FENCE IS THE TABLE'S AND WHICH IS THE CONTRACT'S
+ *  ------------------------------------------------------------------
+ *  The table guards what is true of ALL SIX keys and will stay true however the
+ *  registry is retuned: the key is one of six known names, and the number is
+ *  positive. Zero days of retention, zero steps in a sequence, a link expiring
+ *  in zero days — each is a value the reading code cannot act on, so it belongs
+ *  to the table and not to a validator somebody can route around.
+ *
+ *  The PER-KEY bound (`sequence.max-steps` tops out at 50,
+ *  `comms.blob.retention-days` at 730) is `SettingPatch`'s, enforced by zod at
+ *  the door. It stays out of here for the reason above — it is registry data,
+ *  it is expected to be retuned, and a CHECK carrying a copy of it would turn
+ *  every retune into a migration AND leave the two disagreeing until then.
+ *
+ *  `setting_key_known` is the opposite case and deliberately so: the day a
+ *  seventh key exists, that has to be a migration a person reads, same as
+ *  `identity_channel_known` and `touch_kind_known`. The key list is not a
+ *  number to tune, it is the shape of the table. */
+export const setting = platform.table(
+  'setting',
+  {
+    /** The key IS the identity of the row — one override per key, no surrogate
+     *  id and no `UNIQUE` beside it. */
+    key: text('key').$type<SettingKey>().primaryKey(),
+
+    /** Days for five of the six keys, a count of steps for the sixth. Which one
+     *  applies is the registry's `unit`, not a column here. `integer` is ample:
+     *  the widest bound any key holds today is 730. */
+    value: integer('value').notNull(),
+
+    /** Who turned the dial. A real foreign key, unlike `touch.subject_code` and
+     *  the trap its docblock describes: an override is only ever written by a
+     *  signed-in operator holding `setting.manage`, so the `actor` row exists by
+     *  the time the write runs. There is no machine writer to leave NULL for —
+     *  a value nobody chose is the registry default, which is the absence of a
+     *  row rather than a row without an author. */
+    updatedBy: text('updated_by')
+      .notNull()
+      .references(() => actor.id),
+
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  /* No parameter: nothing below names a column through the table object,
+     because both CHECKs quote their columns the way the migration does. */
+  () => [
+    /* No index beyond the primary key. The only two reads are "this key's
+       override" — the primary key answers it — and "every override", which is
+       at most six rows and so a scan whatever an index says. An index on
+       `updated_by` would answer a question nobody asks and cost every write. */
+
+    /** The six members of `SettingKey`, copied out by hand rather than
+     *  generated, character for character from the contract's enum. */
+    check(
+      'setting_key_known',
+      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days')`,
+    ),
+    /** True of all six keys and of any key added later: a non-positive constant
+     *  is one the reading code cannot act on. The per-key ceiling is zod's. */
+    check('setting_value_positive', sql`"value" > 0`),
+  ],
+)
+
 export type ActorRow = typeof actor.$inferSelect
 export type ObjectRow = typeof objectRef.$inferSelect
 export type EdgeRow = typeof edge.$inferSelect
 export type AuditRow = typeof audit.$inferSelect
+export type SettingRowDb = typeof setting.$inferSelect
+export type SettingValues = typeof setting.$inferInsert

@@ -146,10 +146,10 @@ một lượt ghi hỏng nửa chừng. Màn ghép hai luồng khi vẽ; sổ kh
 
 Đúng **hai** ngoại lệ, và cả hai là sự kiện chứ không phải nội dung:
 
-| Sự kiện                                     | Dòng `touch`  | Vì sao                                       |
-| ------------------------------------------- | ------------- | -------------------------------------------- |
-| buổi họp đầu tiên với một lead              | `gap-lan-dau` | module `meeting` đã ghi từ trước, giữ nguyên |
-| khách trả lời lần đầu sau im lặng ≥ 14 ngày | `cham`        | đây là mốc phễu, không phải một tin nhắn     |
+| Sự kiện                           | Dòng `touch`  | Vì sao                                                                                                       |
+| --------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
+| buổi họp đầu tiên với một lead    | `gap-lan-dau` | module `meeting` đã ghi từ trước, giữ nguyên                                                                 |
+| khách trả lời lần đầu sau im lặng | **kind MỚI**  | mốc phễu, không phải một tin nhắn. KHÔNG dùng `cham` — nó đã mang nghĩa "buổi họp thứ hai trở đi". Xem §19.2 |
 
 ---
 
@@ -774,3 +774,72 @@ Pha 0 đếm ra bốn tình trạng khác nhau, không phải hai:
 
 Nên **lượt 0 không gánh nợ dòng gương nào** — đính chính §17.1, vốn xếp việc đó
 vào lượt 0. Nó chuyển sang lượt 1 và rộng hơn một object so với §17 đã viết.
+
+---
+
+## §19 · Kết quả pha 0 lượt 1 — bốn chỗ, 15/09
+
+### 1 · Nợ dòng gương hẹp hơn §18 tưởng, nhưng có một bug thứ tự
+
+Pha 0 đếm **bốn** đường ghi `opportunity`/`contract`, không phải hai:
+
+| Đường ghi                           | Thứ tự                               | An toàn cho khoá ngoại? |
+| ----------------------------------- | ------------------------------------ | ----------------------- |
+| `OpportunityService.create()`       | gương trước                          | có                      |
+| `OpportunityService.importCommit()` | gương trước                          | có                      |
+| `seed.ts`                           | gương trước                          | có                      |
+| `OpportunityService.sign()`         | **hàng hợp đồng TRƯỚC gương của nó** | **KHÔNG**               |
+
+Postgres kiểm khoá ngoại **theo từng câu lệnh**, không đợi tới commit — nên một
+hàng hợp đồng ghi trước dòng gương của chính nó sẽ đổ ngay, dù cả hai nằm trong
+một transaction. Và comment cũ ở chính chỗ đó đã tự khai thứ tự ấy chỉ đứng được
+vì _"neither code carries a foreign key into `platform.object`"_.
+
+**Đã sửa 15/09**, trước khi migration khoá ngoại được viết: dòng gương của hợp
+đồng lên đầu transaction. Nó không cần đợi hàng vừa ghi — `fromSign` đã chốt
+`values.amount` từ trước (số của thân yêu cầu, hoặc số của đơn khi thân không
+gửi), nên chỗ duy nhất từng cần `contractRow` là một lần đọc ngược không cần
+thiết.
+
+### 2 · `cham` đã có một nghĩa khác nghĩa §3.3 định gán
+
+§3.3 viết ngoại lệ thứ hai là "khách trả lời lần đầu sau im lặng ≥ 14 ngày →
+một dòng `cham`". Nhưng `cham` **hôm nay đã mang nghĩa khác**: sổ cuộc họp ghi
+`gap-lan-dau` cho buổi đầu và `cham` cho **mọi buổi họp thứ hai trở đi**, và
+docblock của `TouchKind` nói đúng như vậy.
+
+Viết nghĩa mới vào cùng một `kind` sẽ trộn hai loại sự kiện dưới một nhãn, và
+mọi phép đếm dựa trên `cham` — đã có, cho họp lặp — sai kể từ ngày đó.
+
+**Sửa §3.3:** mốc "khách trả lời" cần một `TouchKind` **mới**, không phải `cham`.
+Tên đề xuất `'replied'` — tiếng Anh, theo luật định danh hiện hành, dù hàng xóm
+của nó trong enum là nợ tiếng Việt chưa dọn. Chốt tên ở **lượt 2**, khi cửa nạp
+inbound thật sự sinh ra sự kiện đó; lượt 1 không ghi dòng `touch` nào.
+
+### 3 · `comms.link` KHÔNG phải một cạnh của `platform.edge`
+
+Câu hỏi pha 0 đặt đúng chỗ: gắn một thread vào `LD-0334` thì ContextRail của
+lead có vẽ nó ra không?
+
+**Không, và đó là quyết định.** ContextRail vẽ chip **mã object**, còn thread cố
+ý **không có mã** — cùng lý lẽ đã dùng cho `MailRunId`: mã chỉ đúc cho thứ con
+người gọi tên. Một thread không phải một object trong câu chuyện; nó là thứ đã
+xảy ra _giữa_ các object. Nên `comms.link` không gương hoá vào `platform.edge`,
+và màn dòng thời gian đọc thẳng `comms.link`. `content.asset` (`TL-`) thì ngược
+lại — nó CÓ mã, và §10 hứa ContextRail cho nó là hứa đúng.
+
+### 4 · Khoá ngoại phải thêm kiểu `NOT VALID`, không thêm cứng
+
+Neon đang có dữ liệu thật, và không ai biết chắc mọi hàng `opportunity`/
+`contract` cũ đều có dòng gương — ba đường ghi hiện tại thì có, nhưng lịch sử
+thì không đường code nào chứng minh được. Migration của lượt 1 phải:
+`ADD CONSTRAINT … NOT VALID` rồi `VALIDATE CONSTRAINT` thành một bước riêng,
+hoặc chạy một câu đếm mồ côi trước. Thêm cứng là đánh cược rằng quá khứ sạch.
+
+### Một khoản nợ ngoài phạm vi, ghi để khỏi trôi
+
+`ContactService.drop()` xoá hàng `sales.contact` nhưng **không xoá dòng gương** —
+`ObjectMirror` không có method xoá nào cả. Mọi contact bị xoá để lại một dòng
+`platform.object` mồ côi vĩnh viễn. Không chặn lượt 1, nhưng `comms.identity`
+nay trỏ vào `platform.object`, nên một identity có thể trỏ tới dòng gương của
+một contact không còn tồn tại. Đã ghi vào `docs/fix-later.md`.

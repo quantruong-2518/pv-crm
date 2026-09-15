@@ -93,6 +93,7 @@ export const RESOURCE_LABEL = {
   plan: 'Số liệu & kế hoạch',
   config: 'Thiết lập Kinh doanh',
   comm: 'Sổ giao tiếp',
+  setting: 'Hằng số hệ thống',
   'audit-log': 'Ghi vết',
   user: 'Tài khoản người dùng',
   role: 'Vai trò & quyền',
@@ -138,6 +139,7 @@ export const PERMISSION_LABEL = {
   'role.manage': 'Sửa chính bảng vai → quyền này',
   'approval.decide': 'Gật hoặc bác một đề nghị',
   'comm.capture-manage': 'Nối địa chỉ thư, chat, số máy với đúng người',
+  'setting.manage': 'Chỉnh ngưỡng và thời hạn của cả hệ',
   'data.export': 'Tải dữ liệu ra ngoài',
 } as const satisfies Record<Permission, string>
 
