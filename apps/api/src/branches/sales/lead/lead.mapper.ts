@@ -203,11 +203,12 @@ export type LeadProfileRead = LeadRead & {
  *  special-case. The contract spells every one of these fields `optional()`,
  *  meaning "not dug out yet" — that is an absence, not a null.
  *
- *  `position` is NOT here, and the `Omit` says so out loud: it is not a column
- *  of this row but an answer `pipelinePosition` computes from the ladder and
- *  the open approvals, neither of which a mapper has or should fetch. The
- *  service adds it (`lead.service.ts#positionOf`). */
-export function toProfile(read: LeadProfileRead): Omit<LeadProfile, 'position'> {
+ *  `position` and `chain` are NOT here, and the `Omit` says so out loud:
+ *  neither is a column of this row. One is what `pipelinePosition` computes
+ *  from the ladder and the open approvals; the other is what `E1.story()` walks
+ *  out of the object graph — and a mapper has neither, nor should it fetch
+ *  them. The service adds both (`lead.service.ts`). */
+export function toProfile(read: LeadProfileRead): Omit<LeadProfile, 'position' | 'chain'> {
   const { row } = read
   return {
     ...toContract(read),

@@ -6,6 +6,7 @@ import {
   OpportunityScorecard,
   type OpportunityLiveDeal,
   type OpportunityOwner,
+  type ObjectChainLink,
   type OpportunityBookRow,
   type OpportunityProfileResponse,
   type OpportunityRow,
@@ -13,6 +14,7 @@ import {
 } from '@pv/contracts'
 
 import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import type { RailObject } from '@pv/ui'
 import { api, type ApiNeed } from '@/app/api'
 
 /** Sổ cơ hội — module 3. Đọc từ máy chủ.
@@ -514,4 +516,50 @@ export const STATE_TONE: Record<OpportunityState, 'success' | 'danger' | 'runnin
   nego: 'running',
   'gui-quotation': 'running',
   pending: 'draft',
+}
+
+/** The object chain as ContextRail wants it — chips, with a way to open each.
+ *
+ *  ------------------------------------------------------------------
+ *  ONE HELPER FOR BOTH PROFILES, AND THE ROUTE COMES FROM `kind`
+ *  ------------------------------------------------------------------
+ *  Rule 10 makes `E1.story()` the only legal input to the rail, and the server
+ *  already walked it — so this does not build a chain, it dresses one. What it
+ *  adds is the two things the wire cannot carry: which chip is the record
+ *  currently open (`source`), and where each chip goes.
+ *
+ *  The destination is read off `kind` rather than off the code's prefix. A
+ *  prefix test is the same lookup written in a way that breaks quietly the day
+ *  a kind is added — and `ObjectKind` already exists to answer this.
+ *
+ *  A kind with no screen gets NO `onOpen`, so the chip draws but does not
+ *  pretend to be a door. Today that is every kind outside Sales (§0 of
+ *  `docs/tam-nhin-pipeline-toan-he.md` put them out of scope) plus `BG`, whose
+ *  screen is the one still missing from the Sales chain. */
+const CHAIN_ROUTE: Record<string, string> = {
+  LD: '/sales/leads',
+  OP: '/sales/opportunities',
+  HĐ: '/sales/contracts',
+  AC: '/sales/accounts',
+  CT: '/sales/contacts',
+}
+
+export function railOf(
+  chain: readonly ObjectChainLink[],
+  openCode: string,
+  go: (path: string) => void,
+): RailObject[] {
+  return chain.map((link) => {
+    const base = CHAIN_ROUTE[link.kind]
+
+    return {
+      code: link.code,
+      /* `source` is ContextRail's word for "this is the one you are looking
+         at" — it paints the accent chip. Not "where the chain started". */
+      source: link.code === openCode,
+      ...(base && link.code !== openCode
+        ? { onOpen: () => go(`${base}/${encodeURIComponent(link.code)}`) }
+        : {}),
+    }
+  })
 }

@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Chip,
+  ContextRail,
   FlowVector,
   GlassCard,
   Icon,
@@ -33,7 +34,7 @@ import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
 import { useStageLimits } from '@/data/sales-config'
 import { leadOf, leadProfileQuery, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
-import { opportunitiesOfLeadQuery } from '@/data/opportunities'
+import { opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
 import { leadTouchesQuery, leadVectorQuery, NO_STEPS } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
@@ -99,11 +100,13 @@ import {
  *    đã tự đọc được, và khối tóm tắt thành một bản sao thứ hai của cùng bốn
  *    trường — hai chỗ hiện một dữ liệu là hai chỗ để lệch nhau.
  *
- *  · **ContextRail** (luật 10). Đây là NỢ LUẬT có ý thức, giống hệt nợ đã ghi ở
- *    `pages/leads.tsx`: bốn chip mã treo trên đầu hồ sơ không ai bấm, vì mã cơ
- *    hội và mã báo giá của lead này đã nằm trong cụm Sổ sách của chính form, ở
- *    đúng chỗ người ta đi tìm chúng. Rail quay lại khi nào có màn thật để nó mở
- *    sang — không sớm hơn.
+ *  · ~~**ContextRail** (luật 10)~~ — **trả 15/09.** Nợ cũ ghi rằng rail quay
+ *    lại "khi nào có màn thật để nó mở sang"; nay có hai, và chuỗi chạm tới cả
+ *    hai. Điều làm nó khả thi không phải bố cục mà là DỮ LIỆU: lead → cơ hội là
+ *    1-n nên không cột nào của dòng này gọi tên được "cái" đơn hay "cái" hợp
+ *    đồng, và `E1.story()` ở máy chủ là chỗ duy nhất biết. Chip in ra đã cắt
+ *    theo quyền, và chỉ vẽ khi chuỗi dài hơn chính lead — một chip đơn độc chỉ
+ *    lặp lại cái mã đã in ngay trên đầu.
  *
  *  ------------------------------------------------------------------
  *  HỒ SƠ ĐỌC TỪ MÁY CHỦ · `GET /sales/leads/:code`
@@ -410,6 +413,23 @@ export function LeadDetailPage() {
           </div>
         </div>
       </GlassCard>
+
+      {/* THE OBJECT CHAIN this lead belongs to — lead, deal, contract. Rule 10.
+          Built by `E1.story()` ON THE SERVER, which is what makes it possible
+          here at all: one lead may raise several deals, so no column of this
+          row can name "the" deal or "the" contract, and the graph is the only
+          place that knows. Already cut by permission, so a chip that appears is
+          a record this reader may open.
+
+          Drawn only when the chain has more than the lead itself: a one-chip
+          rail restates the code already printed in the header two lines above.
+
+          The debt note this file carried until 15/09 said the rail would come
+          back "when there is a real screen to open onto" — there are two now,
+          and the chain reaches both. */}
+      {lead.chain.length > 1 && (
+        <ContextRail objects={railOf(lead.chain, lead.code, navigate)} className="px-1" />
+      )}
 
       {/* WHO HAS HAD THIS LEAD, in order — the left half of the flow vector
           (`docs/tam-nhin-pipeline-toan-he.md` §6·B). It sits under the header

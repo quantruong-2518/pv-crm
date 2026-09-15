@@ -19,6 +19,7 @@ import {
   Badge,
   Button,
   Chip,
+  ContextRail,
   FlowVector,
   GlassCard,
   Icon,
@@ -59,6 +60,7 @@ import {
   missingOf,
   namesOf,
   opportunityProfileQuery,
+  railOf,
   saleOwnersOf,
   stageTrackOf,
   STATE_TONE,
@@ -124,21 +126,19 @@ import { ActivityCard } from './lead-parts'
  *  rồi bắt họ cuộn qua chúng mỗi lần muốn sửa một ô.
  *
  *  ------------------------------------------------------------------
- *  NỢ LUẬT 10 — ContextRail, và ở đây nợ NẶNG HƠN bên lead
+ *  NỢ LUẬT 10 — ĐÃ TRẢ 15/09
  *  ------------------------------------------------------------------
- *  Luật 10 đòi rail trên mọi màn, và màn này KHÔNG có. Ghi ra vì im lặng thì
- *  lần soát sau đọc thành "chưa ai nhìn tới".
+ *  Nợ cũ ghi rằng màn này ĐỦ ĐIỀU KIỆN dựng rail ngay — dữ liệu đã có
+ *  (`op.leadCode` → `op.code` → `op.contractCode`), thứ thiếu là chỗ đặt — và
+ *  điều kiện trả nợ là CÓ NGƯỜI GẬT BỐ CỤC. Có người gật, và rail nay nằm ngay
+ *  dưới thẻ nhận diện.
  *
- *  Nhưng đừng chép lý do của `pages/lead-detail.tsx` sang đây — nó KHÔNG che
- *  được chỗ này. Bên lead, rail thiếu vì bốn chip mã đã nằm sẵn trong cụm Sổ
- *  sách của chính form, và vì chưa có màn thật để nó mở sang. Hồ sơ cơ hội thì
- *  ĐỦ ĐIỀU KIỆN dựng rail ngay: nó đã cầm sẵn chuỗi THẬT của đúng object đang
- *  mở (`op.leadCode` → `op.code` → `op.contractCode`), và đã có một đường đi
- *  thật sang `/sales/leads/:code` — thứ nút "Hồ sơ lead" ở thanh công cụ đang
- *  làm bằng tay. Tức thứ còn thiếu không phải dữ liệu, mà là chỗ đặt.
- *
- *  Nên điều kiện trả nợ ở đây là CÓ NGƯỜI GẬT BỐ CỤC, không phải "chờ có màn
- *  để mở sang": dựng rail là đổi bố cục, cần người gật trước khi chạm file.
+ *  Một chỗ đi khác lời hẹn cũ, cố ý: chuỗi KHÔNG ghép từ ba trường của dòng
+ *  này. Luật 10 chốt `E1.story()` là đầu vào hợp lệ duy nhất, và lý do lộ ra
+ *  ngay khi hồ sơ lead cũng cần rail — bên đó lead → cơ hội là 1-n nên không
+ *  cột nào ghép được. Hai màn tự ghép chuỗi là hai bức tranh khác nhau về một
+ *  bản ghi, đúng ngày ai đó thêm một mắt. Máy chủ đi đồ thị một lần, cắt theo
+ *  quyền, trả cho cả hai.
  *
  *  ------------------------------------------------------------------
  *  NỘI DUNG PHIẾU LÀ ĐÚNG NỘI DUNG POPUP
@@ -384,6 +384,22 @@ export function OpportunityDetailPage() {
           </div>
         </div>
       </GlassCard>
+
+      {/* THE OBJECT CHAIN this deal belongs to — lead, deal, contract. Rule 10.
+          Built by `E1.story()` ON THE SERVER and already cut by permission, so
+          a chip that appears is a record this reader may open.
+
+          Directly under the identity card and ABOVE the vector below, because
+          the two bars widen outwards: the rail says which WORK this is part
+          of, the vector says who has carried it. Answering "who" before "what"
+          reads backwards.
+
+          The debt note this file carried until 15/09 said the missing piece was
+          not data but a PLACE, and that building the rail needed somebody to
+          approve the layout. Both are now settled. */}
+      {op.chain.length > 1 && (
+        <ContextRail objects={railOf(op.chain, op.code, navigate)} className="px-1" />
+      )}
 
       {/* WHO HAS HELD THIS DEAL, in order — the left half of the flow vector
           (`docs/tam-nhin-pipeline-toan-he.md` §6·B), in the same place and for

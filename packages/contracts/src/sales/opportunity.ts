@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PipelinePositionView } from '../position'
+import { ObjectChainLink, PipelinePositionView } from '../position'
 import { PageQuery, SortDir, paged } from '../pagination'
 import {
   MoneyVnd,
@@ -501,6 +501,15 @@ export const OpportunityBookResponse = paged(OpportunityBookRow)
  *  do. */
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
+
+  /** The object chain this deal sits in — see `ObjectChainLink`.
+   *
+   *  The deal already holds `leadCode` and `contractCode`, so a screen COULD
+   *  assemble a chain itself — and that is exactly what rule 10 forbids, for
+   *  the reason the rail exists: two screens each building their own chain draw
+   *  two different pictures of one record the day a link is added. The graph
+   *  answers once, permission-cut, for both profiles. */
+  chain: z.array(ObjectChainLink),
 })
 
 export const OpportunityCreateResponse = OpportunityRow

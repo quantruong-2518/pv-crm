@@ -500,6 +500,68 @@ async function seed(): Promise<void> {
     }
   })
 
+  /* ── E1 · the object graph for THIS book ──────────────────────────────────
+     The seed has always written 100 leads into `platform.object`, but until
+     15/09 it SKIPPED the 16 deals and 6 contracts it builds in the same
+     transaction, and drew no edge between any of them. The consequence:
+     `story()` from a real lead code returned that code and nothing else — an
+     empty rail on every profile, and the layer-0 graph that round 4 closed at
+     the WRITE DOORS missing from the demo data.
+
+     Edges run in the direction of BIRTH, the direction `ObjectMirror.link`
+     writes at the real doors: a lead raises a deal, a deal raises a contract.
+     `story()` climbs by `to_code`, so this direction is what decides whether
+     the chain reads forwards or backwards.
+
+     Labels and state are copied off the very rows about to be written rather
+     than looked up again — two sources for one fact are two places for them to
+     drift. */
+  /* The scenario's four hand-written objects and the book OVERLAP by one code:
+     `OP-0288` is both the anchor of `dasVina.objects` and a row of the open
+     book. Registering it twice breaks `object_pkey`, so the fixture wins — it
+     carries a richer label and the story its edges were drawn for. */
+  const planted = new Set(dasVina.objects.map((o) => o.code))
+  const allDeals = [...deals, ...won.map((w) => w.opportunity)]
+
+  const dealObjects = allDeals
+    .filter((o) => !planted.has(o.code))
+    .map((o) => ({
+      code: o.code,
+      kind: 'OP' as const,
+      branch: 'Sales' as const,
+      label: o.name,
+      owner: null,
+      state: o.stage,
+      amount: o.amount,
+    }))
+
+  const contractObjects = won
+    .filter((w) => !planted.has(w.contract.code))
+    .map((w) => ({
+      code: w.contract.code,
+      kind: 'HĐ' as const,
+      branch: 'Sales' as const,
+      label: w.opportunity.name,
+      owner: null,
+      state: null,
+      amount: null,
+    }))
+
+  /* Edges are NOT filtered the way objects are: a code already in the registry
+     still needs its place in the chain, and `LD-0288 → OP-0288` is exactly the
+     link the fixture never drew. Deduped against the fixture's own pairs
+     instead, so the same arrow is never stated twice. */
+  const drawn = new Set(dasVina.edges.map((e) => `${e.from}→${e.to}`))
+
+  const bookEdges = [
+    ...allDeals.map((o) => ({ fromCode: o.leadCode, toCode: o.code, kind: 'sinh-ra' as const })),
+    ...won.map((w) => ({
+      fromCode: w.opportunity.code,
+      toCode: w.contract.code,
+      kind: 'sinh-ra' as const,
+    })),
+  ].filter((e) => !drawn.has(`${e.fromCode}→${e.toCode}`))
+
   await db.transaction(async (tx) => {
     /* Xoá theo thứ tự NGƯỢC khoá ngoại. Seed là thao tác dựng LẠI, không phải
        thêm chồng — chạy hai lần phải ra cùng một cơ sở dữ liệu. */
@@ -564,10 +626,19 @@ async function seed(): Promise<void> {
          tidy: the foreign key on `lead.code` rejects every one of the 100
          rows if these are not already committed in the same transaction. */
       ...leadObjects,
+      /* Deals and contracts carry no foreign key into this table — only
+         `lead.code` does — so nothing forces their order. They go in here
+         anyway, beside the leads, because the registry is what `story()` walks
+         and a chain missing its middle is a chain that stops at the lead. */
+      ...dealObjects,
+      ...contractObjects,
     ])
-    await tx
-      .insert(edge)
-      .values(dasVina.edges.map((e) => ({ fromCode: e.from, toCode: e.to, kind: e.kind })))
+    await tx.insert(edge).values([
+      ...dasVina.edges.map((e) => ({ fromCode: e.from, toCode: e.to, kind: e.kind })),
+      /* AFTER the objects above, and that order IS forced: `edge` keys both
+           ends into `platform.object`. */
+      ...bookEdges,
+    ])
 
     await tx.insert(lead).values(rows.map(({ _i, _owner, ...row }) => row))
 
@@ -621,8 +692,9 @@ async function seed(): Promise<void> {
   })
 
   console.log(
-    `Đã nạp ${actors.length} actor · ${dasVina.objects.length + leadObjects.length} object · ` +
-      `${dasVina.edges.length} cạnh · ${rows.length} lead · ` +
+    `Đã nạp ${actors.length} actor · ` +
+      `${dasVina.objects.length + leadObjects.length + dealObjects.length + contractObjects.length} object · ` +
+      `${dasVina.edges.length + bookEdges.length} cạnh · ${rows.length} lead · ` +
       `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · ` +
       `${touchRows.length} lần chạm · ${configSeed.length} dòng cấu hình · driver ${kind}.`,
   )

@@ -1,4 +1,4 @@
-import { inArray, sql } from 'drizzle-orm'
+import { and, inArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Edge, ObjectRef } from '@pv/engines'
 import { DB, type Db } from '../db/db.module'
@@ -54,13 +54,24 @@ export class GraphRepository {
     const codes = reached.rows.map((r) => r.code)
     if (codes.length === 0) return { objects: [], edges: [] }
 
-    /* Hai câu chạy song song — chúng không phụ thuộc nhau. */
+    /* Hai câu chạy song song — chúng không phụ thuộc nhau.
+       ------------------------------------------------------------------
+       CẢ HAI DÙNG `inArray`, VÀ ĐÓ LÀ MỘT LẦN SỬA LỖI (15/09)
+       ------------------------------------------------------------------
+       Câu dưới từng viết tay `= ANY(${codes})`. Drizzle gắn `codes` vào như
+       MỘT tham số, nên vế phải là một giá trị chứ không phải một mảng
+       Postgres: `op ANY/ALL (array) requires array on right side`. Lỗi nằm im
+       từ lúc file ra đời vì `story()` chưa có người gọi lúc chạy — hai hồ sơ
+       lead/cơ hội là lời gọi đầu tiên, và nó nổ ngay.
+
+       Một phép lọc viết hai kiểu trong cùng một hàm là chỗ để đúng một kiểu
+       sai; `inArray` là kiểu mà dòng trên đã dùng và đã đúng. */
     const [objects, edges] = await Promise.all([
       this.db.select().from(objectRef).where(inArray(objectRef.code, codes)),
       this.db
         .select()
         .from(edge)
-        .where(sql`${edge.fromCode} = ANY(${codes}) AND ${edge.toCode} = ANY(${codes})`),
+        .where(and(inArray(edge.fromCode, codes), inArray(edge.toCode, codes))),
     ])
 
     return {

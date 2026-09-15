@@ -53,3 +53,32 @@ export const PipelinePositionView = z.object({
 })
 
 export type PipelinePositionView = z.infer<typeof PipelinePositionView>
+
+/** One link of the object chain a record belongs to: lead, then deal, then
+ *  contract.
+ *
+ *  ------------------------------------------------------------------
+ *  A CHAIN OF OBJECTS, NOT A CHAIN OF PEOPLE
+ *  ------------------------------------------------------------------
+ *  This is what ContextRail (M-04) draws, and rule 10 makes `E1.story()` its
+ *  only legal input — so the server walks the graph and sends the answer rather
+ *  than letting a screen assemble one from whatever codes it happens to hold.
+ *  `FlowVector` (M-16) answers a different question on the same screen: who has
+ *  HELD one object. Two bars, two questions; §6·B of
+ *  `docs/tam-nhin-pipeline-toan-he.md` says why merging them breaks rule 10.
+ *
+ *  `kind` travels because the screen routes on it — a lead opens under
+ *  `/sales/leads`, a deal under `/sales/opportunities`, a contract under
+ *  `/sales/contracts` — and a chip that cannot say which door it opens is a
+ *  chip nobody can press.
+ *
+ *  The chain is already CUT BY PERMISSION when it arrives: `GraphService`
+ *  filters every link through E2, so a reader who may not see a deal does not
+ *  learn its code from the rail of a lead they may see. */
+export const ObjectChainLink = z.object({
+  code: textInput(20),
+  kind: textInput(4),
+  label: textInput(160),
+})
+
+export type ObjectChainLink = z.infer<typeof ObjectChainLink>

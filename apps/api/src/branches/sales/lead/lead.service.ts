@@ -27,6 +27,8 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
+import { toChainLink } from '@api/platform/graph/graph.mapper'
+import { GraphService } from '@api/platform/graph/graph.service'
 import { phasesOf, tierConfigOf } from '../ladder'
 import { AccountService } from '../account/account.service'
 import { ContactService } from '../contact/contact.service'
@@ -59,6 +61,10 @@ export class LeadService {
     /* E3's durable half, asked one question by this module: what is still
        waiting on a lead. Registering an applier is somebody else's job. */
     private readonly approvals: ApprovalService,
+    /* E1's read half. `LeadModule` already imports `GraphModule` for the write
+       half (`ObjectMirror`), which is the point of exporting the pair together:
+       a branch that registers objects is the branch that walks them. */
+    private readonly graph: GraphService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -135,13 +141,20 @@ export class LeadService {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 
-    /* The ladder and the open approvals, side by side: neither depends on the
-       other and the screen waits on both. The deal profile does exactly this
-       with its own ladder — same two reads, same reason, and read on the
-       PROFILE door only: the lead book is 121 rows that draw no position. */
-    const [tierRows, approvals] = await Promise.all([
+    /* The ladder, the open approvals and the object chain, side by side: none
+       depends on the others and the screen waits on all three. The deal profile
+       does exactly this — same reads, same reason, and on the PROFILE door
+       only: the lead book is 121 rows that draw neither a position nor a rail.
+
+       `storyFor` rather than `story`: the chain crosses records this reader may
+       not be allowed to see, and E2 cuts it inside the service rather than
+       here. `hidden` is dropped on purpose — a lead's rail is three chips long,
+       and a count of what was cut would say "there is a deal you cannot open",
+       which is the one thing the scope axis exists not to say. */
+    const [tierRows, approvals, story] = await Promise.all([
       this.repo.tierRows(),
       this.approvals.pendingOn(code),
+      this.graph.storyFor(who, code),
     ])
 
     /* Cùng lý do với `book()`: kiểm chính dữ liệu mình trả ra bằng hợp đồng.
@@ -150,6 +163,7 @@ export class LeadService {
     return LeadProfile.parse({
       ...toProfile(found),
       position: positionOf(found, tierRows, approvals),
+      chain: story.chain.map(toChainLink),
     })
   }
 

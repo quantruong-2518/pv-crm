@@ -36,6 +36,8 @@ import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, notFound } from '@api/platform/http/problem'
+import { toChainLink } from '@api/platform/graph/graph.mapper'
+import { GraphService } from '@api/platform/graph/graph.service'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
@@ -94,6 +96,9 @@ export class OpportunityService {
     private readonly contracts: ContractRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
+    /* E1's read half, beside the write half above — the pair `GraphModule`
+       exports together so a branch that registers objects also walks them. */
+    private readonly graph: GraphService,
     /* E3's durable half, asked one question by this module: what is still
        waiting on a deal. Registering an applier is somebody else's job — a
        branch may read the inbox without having anything to apply. */
@@ -248,17 +253,25 @@ export class OpportunityService {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
-    /* The ladder and the open approvals, side by side: neither depends on the
-       other and the screen waits on both. Read only on this door — see
-       `OpportunityProfileResponse` for why the book does not pay for them. */
-    const [stageRows, approvals] = await Promise.all([
+    /* The ladder, the open approvals and the object chain, side by side: none
+       depends on the others and the screen waits on all three. Read only on
+       this door — see `OpportunityProfileResponse` for why the book does not
+       pay for them.
+
+       `storyFor` rather than `story`, and the reasoning is the lead profile's:
+       the chain crosses records this reader may not be allowed to open, so E2
+       cuts it inside the service. `hidden` is dropped for the same reason
+       there — a count of what was cut is itself a leak on a rail this short. */
+    const [stageRows, approvals, story] = await Promise.all([
       this.repo.stageRows(),
       this.approvals.pendingOn(code),
+      this.graph.storyFor(who, code),
     ])
 
     return OpportunityProfileResponse.parse({
       ...toContract(found),
       position: positionOf(found.row, stageRows, approvals),
+      chain: story.chain.map(toChainLink),
     })
   }
 

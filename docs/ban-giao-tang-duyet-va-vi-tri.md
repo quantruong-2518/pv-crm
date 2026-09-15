@@ -28,6 +28,8 @@ dính, và cách kiểm mà không chạm production.
 | Hộp duyệt trên màn                    | `apps/web/src/pages/approvals.tsx` · route `/duyet`                         |
 | Cạnh đồ thị lúc chạy                  | `platform/graph/object-mirror.ts` — `link` · `linkMany`                     |
 | Chuỗi người giữ một object            | `packages/ui/src/patterns/flow-vector.tsx` · `data/touches.ts#stepsOf`      |
+| Chuỗi OBJECT của một bản ghi          | `platform/graph/graph.service.ts#storyFor` → `chain` trên hai cửa hồ sơ     |
+| Rail vẽ chuỗi ấy                      | `data/opportunities.ts#railOf` · hồ sơ lead và hồ sơ đơn                    |
 | Sáu luồng lead khai gì                | `branches/sales/config/motion.schema.ts` · màn: mục **5.9** `/sales/config` |
 | Object đang ở đâu, chờ ai             | `packages/engines/src/pipeline-position.ts`                                 |
 | Dòng cấu hình ↔ khoá của thang        | `branches/sales/ladder.ts` — một rào cho cả `STAGE` lẫn `TIER`              |

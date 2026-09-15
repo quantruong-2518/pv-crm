@@ -11,7 +11,7 @@ import {
   textInputOptional,
 } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { PipelinePositionView } from '../position'
+import { ObjectChainLink, PipelinePositionView } from '../position'
 import { ConfigCode } from './config'
 
 import {
@@ -476,6 +476,20 @@ export const LeadProfile = LeadRow.extend({
    *  `null` for the whole object means the lead has no tier at all — it is in
    *  the book but not on the ladder. */
   position: PipelinePositionView.nullable(),
+
+  /** The object chain this lead belongs to — lead, deal, contract — for
+   *  ContextRail.
+   *
+   *  The SERVER walks the graph (`E1.story()`) rather than letting the screen
+   *  assemble one: rule 10 makes `story()` the only legal input to the rail,
+   *  and this profile does not hold a contract code anyway — one lead may
+   *  raise several deals, so no column can name "the" deal or "the" contract.
+   *
+   *  Always at least one link, the lead itself. An EMPTY chain means this code
+   *  has no row in `platform.object` — a hole in the object registry — and the
+   *  screen must leave the rail blank rather than draw a chip of its own
+   *  invention. */
+  chain: z.array(ObjectChainLink),
 })
 
 // ---------------------------------------------------------------------------
