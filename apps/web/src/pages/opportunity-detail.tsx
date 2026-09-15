@@ -328,7 +328,7 @@ export function OpportunityDetailPage() {
             }
           />
 
-          <div className="flex min-w-0 flex-col justify-end gap-4 border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="border-surface-ink/10 flex min-w-0 flex-col justify-end gap-4 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={STATE_TONE[op.state]}>{STATE_LABEL.get(op.state)}</Badge>
               {op.stage && (

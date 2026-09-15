@@ -17,7 +17,7 @@ import {
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
-import { Button } from '@pv/ui'
+import { Button, ThemeSwitch } from '@pv/ui'
 import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 
@@ -354,6 +354,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     },
     userAction: (
       <>
+        <ThemeSwitch />
         {/* The VOLUNTARY way to the change-password screen. Somebody forced to
             change does not need it - `RequireAccess` already put them there and
             lets them go nowhere else - but without it anyone who simply wants a

@@ -589,7 +589,7 @@ export function MasMailModal({
                   ]}
                 />
               </Field>
-              <p className="text-muted-foreground rounded-sm bg-white/5 p-3 text-[11.5px] leading-[1.6]">
+              <p className="text-muted-foreground bg-surface-ink/5 rounded-sm p-3 text-[11.5px] leading-[1.6]">
                 {sendTiming === 'later'
                   ? 'Email được giữ trong hàng đợi và chỉ bắt đầu gửi khi tới giờ đã chọn.'
                   : 'Email vào hàng đợi ngay sau khi bạn kiểm tra và xác nhận người nhận.'}
@@ -633,7 +633,7 @@ export function MasMailModal({
                         aria-pressed={on}
                         className={cn(
                           'motion-std flex min-w-0 items-center justify-between gap-3 rounded-sm px-3 py-2 text-left',
-                          on ? 'bg-accent' : 'hover:bg-white/8 bg-white/5',
+                          on ? 'bg-accent' : 'hover:bg-surface-ink/8 bg-surface-ink/5',
                         )}
                       >
                         <RecipientIdentity lead={lead} />
@@ -657,7 +657,7 @@ export function MasMailModal({
                   {preflight?.sendable ?? selectedLeads.length}
                 </span>
               </div>
-              <div className="bg-white/6 h-px" />
+              <div className="bg-surface-ink/6 h-px" />
               <div className="max-h-[320px] overflow-y-auto p-4">
                 {preflight ? (
                   <PreflightReport report={preflight} />
@@ -666,7 +666,7 @@ export function MasMailModal({
                     {selectedLeads.map((lead) => (
                       <li
                         key={lead.code}
-                        className="flex items-start justify-between gap-3 rounded-sm bg-white/5 p-3"
+                        className="bg-surface-ink/5 flex items-start justify-between gap-3 rounded-sm p-3"
                       >
                         <RecipientIdentity lead={lead} />
                         {!single && (
@@ -674,7 +674,7 @@ export function MasMailModal({
                             type="button"
                             onClick={() => toggleRecipient(lead)}
                             aria-label={`Bỏ ${lead.contactName}`}
-                            className="motion-std hover:bg-white/16 bg-white/9 flex size-7 shrink-0 items-center justify-center rounded-md"
+                            className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 flex size-7 shrink-0 items-center justify-center rounded-md"
                           >
                             <Icon icon={X} size={14} />
                           </button>
@@ -691,7 +691,7 @@ export function MasMailModal({
             </GlassCard>
 
             {preflight?.apolloCount ? (
-              <p className="text-warning rounded-sm bg-white/5 px-3 py-2 text-[11.5px] leading-[1.6]">
+              <p className="text-warning bg-surface-ink/5 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
                 <Icon icon={TriangleAlert} size={14} className="mr-2 inline align-middle" />
                 Có {preflight.apolloCount} liên hệ từ Apollo. Chỉ gửi khi đã xác nhận họ đồng ý nhận
                 email.
@@ -729,7 +729,7 @@ function PreflightReport({ report }: { report: MasPreflightResponse }) {
       {report.recipients.map((recipient) => (
         <li
           key={recipient.leadCode}
-          className="flex items-start justify-between gap-3 rounded-sm bg-white/5 p-3"
+          className="bg-surface-ink/5 flex items-start justify-between gap-3 rounded-sm p-3"
         >
           <RecipientIdentity
             lead={{
@@ -746,7 +746,7 @@ function PreflightReport({ report }: { report: MasPreflightResponse }) {
         </li>
       ))}
       {report.hidden > 0 && (
-        <li className="text-warning rounded-sm bg-white/5 p-3 text-[11.5px] leading-[1.5]">
+        <li className="text-warning bg-surface-ink/5 rounded-sm p-3 text-[11.5px] leading-[1.5]">
           {report.hidden} lead bị ẩn theo quyền của bạn nên sẽ không nhận email.
         </li>
       )}

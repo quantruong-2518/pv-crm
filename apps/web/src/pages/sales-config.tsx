@@ -475,7 +475,10 @@ export function SalesConfigPage() {
                   { label: 'Chốt · Sale ký', value: cfg.commission.chot },
                   { label: 'Đi cùng demo · Presales', value: cfg.commission.diCungDemo },
                 ].map((part) => (
-                  <div key={part.label} className="flex flex-col gap-1 rounded-md bg-white/5 p-4">
+                  <div
+                    key={part.label}
+                    className="bg-surface-ink/5 flex flex-col gap-1 rounded-md p-4"
+                  >
                     <span className="tnum font-num text-[22px] font-semibold">{part.value}</span>
                     <span className="text-muted-foreground text-[11px]">{part.label}</span>
                   </div>

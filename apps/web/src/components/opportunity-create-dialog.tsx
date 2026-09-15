@@ -234,7 +234,7 @@ function LeadPickRow({ lead, onPick }: { lead: LeadRow; onPick: () => void }) {
       }
       className={cn(
         'motion-std flex w-full items-center gap-3 rounded-md px-3 py-2 text-left',
-        blocked ? 'bg-white/4 opacity-60' : 'bg-white/9 hover:bg-white/16',
+        blocked ? 'bg-surface-ink/4 opacity-60' : 'bg-surface-ink/9 hover:bg-surface-ink/16',
       )}
     >
       <Chip>{lead.code}</Chip>

@@ -283,7 +283,7 @@ export function Select({
           size === 'sm' && 'h-8 text-[11.5px]',
           size === 'md' && 'h-10 text-[12.5px]',
           size === 'lg' && 'h-12 text-[12.5px]',
-          active ? 'bg-primary/24 text-accent-foreground' : 'bg-white/9 text-foreground',
+          active ? 'bg-primary/24 text-accent-foreground' : 'bg-surface-ink/9 text-foreground',
           'focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
           open && 'shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_40%,transparent)]',
           options.length === 0 && 'text-muted-foreground cursor-not-allowed opacity-60',
@@ -350,8 +350,8 @@ export function Select({
                     selected
                       ? 'bg-primary/24 text-on-tint-primary font-semibold shadow-[inset_0_1px_0_var(--sheen-ai)]'
                       : focused
-                        ? 'text-foreground bg-white/10'
-                        : 'text-glass-foreground hover:bg-white/8 hover:text-foreground',
+                        ? 'text-foreground bg-surface-ink/10'
+                        : 'text-glass-foreground hover:bg-surface-ink/8 hover:text-foreground',
                   )}
                 >
                   <span className="min-w-0 flex-1 leading-[1.4]">{option.label}</span>
@@ -360,7 +360,7 @@ export function Select({
                       'flex size-6 shrink-0 items-center justify-center rounded-sm',
                       selected
                         ? 'bg-primary text-primary-foreground shadow-primary'
-                        : 'text-muted-foreground bg-white/5',
+                        : 'text-muted-foreground bg-surface-ink/5',
                     )}
                   >
                     {selected ? <Icon icon={Check} size={16} strokeWidth={1.9} /> : null}

@@ -78,7 +78,7 @@ function StepControl({
         className={cn(
           'motion-std inline-flex items-center gap-2 whitespace-nowrap rounded-sm px-2 py-1 text-[12px] font-medium',
           'text-foreground',
-          onGo ? 'hover:bg-white/8 cursor-pointer' : 'cursor-default',
+          onGo ? 'hover:bg-surface-ink/8 cursor-pointer' : 'cursor-default',
         )}
       >
         {marker}
@@ -117,7 +117,9 @@ export function Stepper({ steps, current, reached, onGo, className }: StepperPro
           const status: StepStatus = i === current ? 'current' : i <= furthest ? 'done' : 'upcoming'
           return (
             <li key={step.key} className="contents">
-              {i > 0 && <span aria-hidden="true" className="bg-white/14 h-[1.5px] w-4 shrink-0" />}
+              {i > 0 && (
+                <span aria-hidden="true" className="bg-surface-ink/14 h-[1.5px] w-4 shrink-0" />
+              )}
               <StepControl step={step} index={i} status={status} onGo={onGo} />
             </li>
           )

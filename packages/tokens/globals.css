@@ -1,5 +1,5 @@
 /* Pebble Vina — Aurora v2 · shadcn/ui token layer (Tailwind v4)
-   Dark-only. Mọi màu chữ đã kiểm tương phản ≥ 4.5:1 trên glass-a và glass-b.
+   Aurora (mặc định) + Đá mịn (data-theme="stone"). Mọi màu chữ đã kiểm tương phản ≥ 4.5:1 trên glass-a và glass-b.
 
    ĐÂY LÀ FILE TOKEN DUY NHẤT. Không viết hex ở bất kỳ file nào khác trong src/.
    Nguồn: bản token chốt 10/08 + phần bổ sung ở cuối khối :root,
@@ -23,6 +23,8 @@
   --brand-gold: #c9a227; /* Gold Rim    */
 
   /* ---- shadcn semantic ---- */
+  --surface-ink: #ffffff;
+  --secondary-hover: rgba(19, 58, 138, 0.75);
   --background: #0b1220;
   --foreground: #e5e7eb;
 
@@ -130,6 +132,8 @@
 }
 
 @theme inline {
+  --color-surface-ink: var(--surface-ink);
+  --color-secondary-hover: var(--secondary-hover);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -512,5 +516,101 @@
   * {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* Mode 2 · Đá mịn: nền khoáng xanh xám, mặt đọc đặc, hạt chỉ ở nền.
+   Aurora vẫn là mặc định; mọi màu của mode mới cùng nằm trong file token này. */
+:root[data-theme='stone'] {
+  color-scheme: light;
+  --surface-ink: #344b43;
+  --background: #e8ede9;
+  --foreground: #253832;
+  --card: #f5f7f3;
+  --card-foreground: #253832;
+  --popover: #f5f7f3;
+  --popover-foreground: #253832;
+  --primary: #234f91;
+  --primary-foreground: #ffffff;
+  --secondary: #dde6ef;
+  --secondary-hover: #cedcea;
+  --secondary-foreground: #254970;
+  --muted: #e1e7e2;
+  --muted-foreground: #52645c;
+  --glass-foreground: #465b51;
+  --accent: #dce6ef;
+  --accent-foreground: #234f91;
+  --destructive: #b12f2a;
+  --destructive-foreground: #98241f;
+  --warning: #886000;
+  --warning-foreground: #785300;
+  --success: #24734e;
+  --border: #cbd5cd;
+  --input: #e6ece6;
+  --ring: #234f91;
+  --on-tint-primary: #25466d;
+  --on-tint-primary-muted: #3b5577;
+  --on-tint-success: #285c41;
+  --on-tint-success-strong: #195733;
+  --on-tint-warning: #664d1d;
+  --on-tint-warning-strong: #644800;
+  --on-tint-destructive: #842a26;
+  --sheen-a: transparent;
+  --sheen-b: transparent;
+  --sheen-ai: transparent;
+  --scrim: rgba(25, 42, 35, 0.32);
+  --hc-surface: #f5f7f3;
+  --hc-border: #52645c;
+  --shadow-card: 0 1px 3px rgba(35, 56, 45, 0.07), 0 0 0 1px rgba(35, 56, 45, 0.07);
+  --shadow-panel: 0 2px 8px rgba(35, 56, 45, 0.06), 0 0 0 1px rgba(35, 56, 45, 0.09);
+  --shadow-frame: 0 12px 36px rgba(35, 56, 45, 0.12);
+  --shadow-primary: 0 1px 2px rgba(35, 56, 45, 0.12);
+  --shadow-control: 0 0 0 1px rgba(35, 56, 45, 0.13);
+  --shadow-control-soft: 0 0 0 1px rgba(35, 56, 45, 0.08);
+  --shadow-success: none;
+  --shadow-ai: 0 0 0 1px rgba(35, 79, 145, 0.12);
+  --shadow-assistant: none;
+}
+
+@layer components {
+  :where([data-theme='stone']) .aurora-field {
+    background: var(--background);
+  }
+  :where([data-theme='stone']) :is(.aurora-blob, .aurora-grid-fine, .aurora-grid-major) {
+    display: none;
+  }
+  :where([data-theme='stone']) .aurora-noise {
+    opacity: 0.065;
+    mix-blend-mode: multiply;
+  }
+  :where([data-theme='stone']) :is(.glass-a, .glass-b, .glass-b-flat) {
+    background: var(--card);
+    backdrop-filter: none;
+    box-shadow: var(--shadow-card);
+  }
+  :where([data-theme='stone']) .glass-overlay {
+    background: var(--popover);
+    box-shadow: var(--shadow-frame), var(--shadow-control);
+  }
+  :where([data-theme='stone']) :is(.glass-ai, .glass-ai-panel) {
+    background: var(--accent);
+    backdrop-filter: none;
+    box-shadow: var(--shadow-ai);
+  }
+  :where([data-theme='stone']) :is(input, textarea, select) {
+    font-size: 14px;
+  }
+  :where([data-theme='stone']) :is(td, th) {
+    font-size: 13px;
+  }
+}
+
+@layer utilities {
+  :where([data-theme='stone']) :is(.font-display, .font-num) {
+    font-family: var(--font-sans);
+  }
+  :where([data-theme='stone']) .shadow-primary {
+    --tw-shadow: var(--shadow-primary);
+    box-shadow: var(--shadow-primary);
   }
 }

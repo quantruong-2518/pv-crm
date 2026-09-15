@@ -4,7 +4,8 @@ import { SearchField, type SearchFieldProps } from '../patterns/search-field'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
-import { markLight, wordmarkLight } from '../assets'
+import { markBlue, markLight, wordmarkBlue, wordmarkLight } from '../assets'
+import { useThemeMode } from '../ui/theme-switch'
 
 /** O-06 · AppHeader — nav hai tầng, thay AppSidebar từ 19/08.
  *
@@ -97,7 +98,7 @@ function CoreButton({ action }: { action: HeaderAction }) {
       className={cn(
         'motion-std relative flex size-10 shrink-0 items-center justify-center rounded-md',
         action.active ? 'bg-primary/15 text-on-tint-primary' : 'text-muted-foreground',
-        action.locked ? 'cursor-not-allowed' : 'hover:bg-white/10',
+        action.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10',
       )}
     >
       <Icon icon={action.icon} size={17} className={cn(action.locked && 'opacity-55')} />
@@ -115,7 +116,6 @@ function CoreButton({ action }: { action: HeaderAction }) {
 
 export function AppHeader({
   product,
-  org,
   core,
   apps,
   user,
@@ -126,10 +126,12 @@ export function AppHeader({
   onOpenAssistant,
   className,
 }: AppHeaderProps) {
+  const themeMode = useThemeMode()
   const uid = useId()
   /** Ứng dụng đang xổ module con. Một lúc chỉ một — hai dropdown cùng mở thì
    *  người dùng không biết mục nào đang được nói tới. */
   const [openApp, setOpenApp] = useState<string | null>(null)
+  const [accountOpen, setAccountOpen] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
 
   /** Nav đã dính đỉnh màn chưa.
@@ -190,6 +192,22 @@ export function AppHeader({
     }
   }, [openApp])
 
+  useEffect(() => {
+    if (!accountOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as Element)?.closest('[data-account-menu]')) setAccountOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAccountOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [accountOpen])
+
   return (
     <header
       ref={headerRef}
@@ -213,37 +231,39 @@ export function AppHeader({
       />
 
       {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ---- */}
-      <div className="relative z-[1] flex h-16 items-center gap-4 px-4">
-        <div className="flex shrink-0 items-center gap-3">
+      <div className="relative z-[1] flex h-16 items-center gap-3 px-4 lg:gap-4">
+        <div className="flex shrink-0 items-center">
           {/* One brand read at two widths, not two logos: the wordmark already
               contains the square mark, so the short one is only what is left
-              when there is no room for the name. Same breakpoint as the product
-              text below — under `md` every horizontal pixel belongs to search. */}
-          <img src={markLight} alt="" className="size-9 shrink-0 object-contain md:hidden" />
-          <img src={wordmarkLight} alt="" className="hidden h-7 shrink-0 object-contain md:block" />
-          {/* Tên sản phẩm ẩn dưới `md`: ở đó mỗi pixel ngang thuộc về ô tìm, và
-              logo đã nói đủ đây là app nào. */}
-          <div className="hidden md:block">
-            <b className="font-display block text-[15px] leading-tight">{product}</b>
-            <small className="text-muted-foreground block text-[11px] font-normal leading-tight">
-              {org}
-            </small>
-          </div>
+              when there is no room for the name. Under `md`, every horizontal
+              pixel belongs to search. */}
+          <img
+            src={themeMode === 'stone' ? markBlue : markLight}
+            alt={product}
+            className="size-9 shrink-0 object-contain md:hidden"
+          />
+          <img
+            src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+            alt={product}
+            className="hidden h-7 shrink-0 object-contain md:block"
+          />
         </div>
 
         {/* Search is an entry point, not the top bar's visual background. Its
             cap keeps the query legible without overpowering the brand and
             pending-work controls. */}
-        <SearchField className="min-w-0 flex-1 md:max-w-[520px]" {...search} />
+        <SearchField className="min-w-[96px] flex-1 md:max-w-[560px]" {...search} />
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           {/* Việc chờ ẩn dưới `lg` — BottomNav đã giữ đúng bộ này ở điện thoại,
               bày hai lần là hai chỗ phải cùng đúng. */}
-          <div className="hidden items-center gap-1 lg:flex">
+          <div className="hidden items-center gap-1 xl:flex">
             {core.map((action) => (
               <CoreButton key={action.label} action={action} />
             ))}
           </div>
+
+          <span aria-hidden className="bg-surface-ink/14 hidden h-6 w-px xl:block" />
 
           {/* Không có `onOpenAssistant` = màn 04 chưa dựng. Nút vẫn đứng đây
               nhưng ở trạng thái KHOÁ, không biến mất: BottomNav dưới `lg` đang
@@ -255,7 +275,7 @@ export function AppHeader({
             disabled={!onOpenAssistant}
             onClick={onOpenAssistant}
             className={cn(
-              'motion-std hidden h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[12.5px] font-semibold lg:flex',
+              'motion-std hidden h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[12.5px] font-semibold xl:flex',
               onOpenAssistant
                 ? 'text-accent-foreground bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_30%,transparent),color-mix(in_srgb,var(--primary)_12%,transparent))] shadow-[var(--shadow-assistant),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12]'
                 : /* KHÔNG nền trắng: nó làm SÁNG chỗ đặt một nhãn vốn đã mờ,
@@ -275,10 +295,28 @@ export function AppHeader({
             )}
           </button>
 
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <Avatar name={user.name} initials={user.initials} />
             {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
-            {userAction}
+            <span aria-hidden className="bg-surface-ink/14 h-6 w-px" />
+            <div className="flex items-center gap-1">{userAction}</div>
+          </div>
+          <div className="relative shrink-0 lg:hidden" data-account-menu>
+            <button
+              type="button"
+              aria-label={`Mở tài khoản của ${user.name}`}
+              aria-expanded={accountOpen}
+              onClick={() => setAccountOpen((open) => !open)}
+              className="focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              <Avatar name={user.name} initials={user.initials} />
+            </button>
+            {accountOpen && (
+              <div className="glass-overlay shadow-panel absolute right-0 top-11 z-50 flex min-w-[190px] flex-col gap-1 rounded-lg p-2">
+                <div className="text-muted-foreground px-3 py-2 text-[11px]">{user.name}</div>
+                <div className="flex flex-col items-stretch gap-1">{userAction}</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -290,7 +328,7 @@ export function AppHeader({
           mục đầu bị đẩy khuất khỏi mép trái. */}
       <div
         ref={barRef}
-        className="relative z-[1] flex h-12 items-center gap-1 overflow-x-auto px-4 lg:justify-center lg:overflow-x-visible"
+        className="relative z-[1] flex h-12 items-center gap-1 overflow-x-auto px-4 lg:justify-start lg:overflow-x-visible"
       >
         {apps.map((app) => {
           const open = openApp === app.label
@@ -327,7 +365,7 @@ export function AppHeader({
                   app.active
                     ? 'bg-primary/15 text-on-tint-primary font-semibold'
                     : 'text-muted-foreground',
-                  app.locked ? 'cursor-not-allowed' : 'hover:bg-white/10',
+                  app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10',
                 )}
               >
                 <Icon icon={app.icon} size={16} className={cn(app.locked && 'opacity-55')} />
@@ -370,7 +408,7 @@ export function AppHeader({
                         'motion-std flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-3 text-left text-[12.5px]',
                         item.active
                           ? 'bg-primary/15 text-on-tint-primary font-semibold'
-                          : 'text-muted-foreground hover:bg-white/10',
+                          : 'text-muted-foreground hover:bg-surface-ink/10',
                       )}
                     >
                       <Icon icon={item.icon} size={16} />

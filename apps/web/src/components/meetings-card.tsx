@@ -151,7 +151,7 @@ function MeetingLine({
   const drop = useDropMeeting()
 
   return (
-    <li className="flex flex-col gap-3 rounded-md bg-white/5 p-3">
+    <li className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-3">
       <div className="flex flex-wrap items-center gap-2">
         <MetaPill mono>{dt(row.at)}</MetaPill>
         {row.isFirst && (
@@ -509,7 +509,7 @@ function RecordMeetingDrawer({
           )}
 
           {guests.map((g, i) => (
-            <div key={g.id} className="flex flex-col gap-2 rounded-md bg-white/5 p-3">
+            <div key={g.id} className="bg-surface-ink/5 flex flex-col gap-2 rounded-md p-3">
               {/* Hold the picker's place while the book loads. Rendering nothing
                   means somebody who presses the add-guest button straight after
                   opening the drawer sees two text boxes, decides the screen has

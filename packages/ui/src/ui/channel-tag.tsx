@@ -16,7 +16,7 @@ const channelTagVariants = cva(
   {
     variants: {
       tone: {
-        default: 'bg-white/9 text-glass-foreground',
+        default: 'bg-surface-ink/9 text-glass-foreground',
         warning: 'bg-warning/20 text-warning',
         accent: 'bg-primary/24 text-accent-foreground',
       },

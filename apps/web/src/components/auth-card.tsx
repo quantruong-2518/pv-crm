@@ -1,3 +1,4 @@
+import { useThemeMode, wordmarkBlue, ThemeSwitch } from '@pv/ui'
 import { forwardRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Eye, EyeOff } from '@pv/ui'
 import { Link } from 'react-router-dom'
@@ -34,11 +35,16 @@ export function AuthCard({
   back?: { to: string; label: string }
   children: ReactNode
 }) {
+  const themeMode = useThemeMode()
   return (
     <div className="flex min-h-svh items-center justify-center p-6">
       <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
         <div className="flex flex-col gap-3">
-          <img src={wordmarkLight} alt="PV One" className="h-6 self-start object-contain" />
+          <img
+            src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+            alt="PV One"
+            className="h-6 self-start object-contain"
+          />
           <div className="flex flex-col gap-2">
             <h1 className="font-display m-0 text-[20px] font-semibold">{title}</h1>
             {lead && (
@@ -49,6 +55,9 @@ export function AuthCard({
           </div>
         </div>
 
+        <div className="self-start">
+          <ThemeSwitch />
+        </div>
         {children}
 
         {back && (
@@ -133,7 +142,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputProps, 'type
           type="button"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-          className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 absolute right-1 top-1 flex size-8 items-center justify-center rounded-md"
+          className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 absolute right-1 top-1 flex size-8 items-center justify-center rounded-md"
         >
           <Icon icon={show ? EyeOff : Eye} size={16} />
         </button>

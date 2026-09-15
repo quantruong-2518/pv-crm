@@ -265,7 +265,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
         {/* Câu cảnh báo là phần THẬT SỰ của panel này, không phải chữ trang trí:
             cửa ký không có đường ngược. Icon qua cổng `<Icon>` (luật 11) chứ
             không phải một ký tự cảnh báo dán vào chuỗi. */}
-        <div className="flex items-start gap-3 rounded-md bg-white/5 p-4">
+        <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
           <Icon icon={TriangleAlert} size={16} className="text-warning mt-1 shrink-0" />
           <p className="text-[11.5px] leading-[1.5]">
             Ký xong không gỡ được từ giao diện. Không có nút huỷ ký, và sẽ không có — một chữ ký đã

@@ -49,7 +49,7 @@ export function SegmentedControl({
         role="group"
         aria-labelledby={`seg-${label}`}
         className={cn(
-          'flex min-w-0 flex-wrap items-center gap-1 rounded-md bg-white/5 p-1',
+          'bg-surface-ink/5 flex min-w-0 flex-wrap items-center gap-1 rounded-md p-1',
           size === 'sm' ? 'text-[11px]' : 'text-[12px]',
         )}
       >
@@ -67,7 +67,7 @@ export function SegmentedControl({
                 size === 'sm' ? 'h-6 px-2' : 'h-8 px-3',
                 active
                   ? 'bg-primary text-primary-foreground shadow-primary'
-                  : 'text-muted-foreground hover:bg-white/8 hover:text-foreground',
+                  : 'text-muted-foreground hover:bg-surface-ink/8 hover:text-foreground',
                 o.disabled && 'cursor-not-allowed opacity-45 hover:bg-transparent',
               )}
             >

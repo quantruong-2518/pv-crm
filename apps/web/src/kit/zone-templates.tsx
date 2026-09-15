@@ -38,7 +38,7 @@ const SHELL_HEADER = {
 
 const frame =
   'h-[270px] rounded-md bg-[color-mix(in_srgb,var(--background)_70%,transparent)] shadow-[inset_0_0_0_1px_rgb(255_255_255/.07)]'
-const slot = 'rounded-[2px] bg-white/7'
+const slot = 'rounded-[2px] bg-surface-ink/7'
 const accentSlot =
   'flex items-center justify-center rounded-[2px] bg-primary/20 font-mono text-[9.5px] text-accent-foreground'
 
@@ -82,7 +82,7 @@ export function ZoneTemplates() {
               232
             </div>
             <div className="flex flex-1 flex-col p-2.5">
-              <div className="bg-white/7 text-muted-foreground flex h-5 items-center justify-end rounded-[2px] pr-1.5 font-mono text-[9px]">
+              <div className="bg-surface-ink/7 text-muted-foreground flex h-5 items-center justify-end rounded-[2px] pr-1.5 font-mono text-[9px]">
                 topbar 64
               </div>
               <div className="mt-2 grid flex-1 grid-cols-4 grid-rows-2 gap-1.5">
@@ -116,7 +116,7 @@ export function ZoneTemplates() {
           }
         >
           <div className={cn(frame, 'flex flex-col p-3')}>
-            <div className="bg-white/7 text-muted-foreground flex h-[26px] items-center rounded-[2px] px-2 font-mono text-[9px]">
+            <div className="bg-surface-ink/7 text-muted-foreground flex h-[26px] items-center rounded-[2px] px-2 font-mono text-[9px]">
               header 72 · không sidebar
             </div>
             <div className="mt-2.5 grid flex-1 grid-cols-2 grid-rows-2 gap-2">
@@ -156,7 +156,7 @@ export function ZoneTemplates() {
               <div className={cn(slot, 'h-10')} />
               <div className={cn(slot, 'h-10')} />
             </div>
-            <div className="bg-white/9 text-muted-foreground flex h-[26px] items-center justify-center rounded-[2px] font-mono text-[7.5px]">
+            <div className="bg-surface-ink/9 text-muted-foreground flex h-[26px] items-center justify-center rounded-[2px] font-mono text-[7.5px]">
               bottom nav 84
             </div>
             <div className="h-2" />

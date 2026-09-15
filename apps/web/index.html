@@ -2,6 +2,19 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Apply the saved appearance before the first paint, including auth screens.
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('pv-theme') === 'stone' ? 'stone' : 'aurora'
+      } catch {
+        document.documentElement.dataset.theme = 'aurora'
+      }
+      document.documentElement.classList.toggle(
+        'dark',
+        document.documentElement.dataset.theme === 'aurora',
+      )
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="application-name" content="PV One" />
     <meta name="description" content="PV One — hệ thống CRM của Pebble Vina." />

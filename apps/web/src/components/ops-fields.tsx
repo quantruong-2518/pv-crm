@@ -238,7 +238,7 @@ export function PeopleRow({
                 'motion-std flex h-10 items-center gap-2 rounded-md pl-1 pr-3 text-[12px]',
                 on
                   ? 'bg-primary/24 text-accent-foreground font-semibold'
-                  : 'bg-white/9 hover:bg-white/16',
+                  : 'bg-surface-ink/9 hover:bg-surface-ink/16',
               )}
             >
               <Avatar name={p.name} size="sm" />
@@ -359,7 +359,7 @@ export function ProductsField({
                   'motion-std flex h-10 items-center rounded-md px-3 text-[12px]',
                   on
                     ? 'bg-primary/24 text-accent-foreground font-semibold'
-                    : 'bg-white/9 hover:bg-white/16',
+                    : 'bg-surface-ink/9 hover:bg-surface-ink/16',
                   p.active ? '' : 'opacity-60',
                 )}
               >
@@ -434,7 +434,10 @@ export function AttachmentsField({
         ) : (
           <ul className="flex flex-col gap-2">
             {draft.attachments.map((f) => (
-              <li key={f.name} className="flex items-center gap-3 rounded-md bg-white/5 px-3 py-2">
+              <li
+                key={f.name}
+                className="bg-surface-ink/5 flex items-center gap-3 rounded-md px-3 py-2"
+              >
                 <Icon icon={Paperclip} size={16} className="text-muted-foreground shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-[12px]">{f.name}</span>
                 <span className="text-muted-foreground tnum font-mono text-[11px]">
@@ -449,7 +452,7 @@ export function AttachmentsField({
                       draft.attachments.filter((x) => x.name !== f.name),
                     )
                   }
-                  className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex size-8 shrink-0 items-center justify-center rounded-md"
+                  className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 flex size-8 shrink-0 items-center justify-center rounded-md"
                 >
                   <Icon icon={Trash2} size={16} />
                 </button>
@@ -486,7 +489,10 @@ export function LossBlock({
   const reasons = useLossReasons()
 
   return (
-    <section className="flex flex-col gap-4 rounded-md bg-white/5 p-4" aria-label="Lý do thua">
+    <section
+      className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4"
+      aria-label="Lý do thua"
+    >
       <div className="flex flex-col gap-2">
         <Kicker>
           <span className="flex items-center gap-2">

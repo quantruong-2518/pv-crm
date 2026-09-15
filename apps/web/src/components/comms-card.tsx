@@ -317,7 +317,7 @@ function ThreadDrawer({ thread, onClose }: { thread: ThreadRow | null; onClose: 
 
 function MessageLine({ row }: { row: MessageRow }) {
   return (
-    <li className="flex flex-col gap-2 rounded-md bg-white/5 p-3">
+    <li className="bg-surface-ink/5 flex flex-col gap-2 rounded-md p-3">
       <div className="flex flex-wrap items-center gap-2">
         <MetaPill mono>{dmhm(row.at)}</MetaPill>
         <MetaPill icon={DIRECTION_ICON[row.direction]}>{DIRECTION_LABEL[row.direction]}</MetaPill>

@@ -216,9 +216,11 @@ export function FileDrop({
         onClick={openPicker}
         className={cn(
           'drop-dots motion-std relative flex flex-col items-center gap-4 rounded-lg px-4 py-8 text-center',
-          busy ? 'cursor-progress bg-white/[3%]' : 'cursor-pointer',
+          busy ? 'bg-surface-ink/[3%] cursor-progress' : 'cursor-pointer',
           !busy && over && 'glass-ai',
-          !busy && !over && (fileName ? 'bg-primary/12' : 'hover:bg-white/8 bg-white/[4.5%]'),
+          !busy &&
+            !over &&
+            (fileName ? 'bg-primary/12' : 'hover:bg-surface-ink/8 bg-surface-ink/[4.5%]'),
         )}
       >
         <Icon

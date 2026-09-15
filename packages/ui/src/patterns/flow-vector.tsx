@@ -133,7 +133,7 @@ function Node({
         type="button"
         onClick={() => onOpen(step.touchId)}
         aria-current={current ? 'step' : undefined}
-        className={cn('motion-std hover:bg-white/8 cursor-pointer text-left', shape)}
+        className={cn('motion-std hover:bg-surface-ink/8 cursor-pointer text-left', shape)}
       >
         {body}
       </button>
@@ -151,7 +151,7 @@ function Node({
  *  into what is merely due — drawn with a gradient rather than a dashed BORDER,
  *  because the system is borderless (rule 4). */
 function Link({ future, vertical }: { future: boolean; vertical?: boolean }) {
-  const solid = vertical ? 'bg-white/14 h-4 w-px' : 'bg-white/14 h-[1.5px] w-6 shrink-0'
+  const solid = vertical ? 'bg-surface-ink/14 h-4 w-px' : 'bg-surface-ink/14 h-[1.5px] w-6 shrink-0'
   const dashed = vertical
     ? 'h-4 w-px bg-[repeating-linear-gradient(180deg,rgb(255_255_255/0.14)_0_3px,transparent_3px_6px)]'
     : 'h-[1.5px] w-6 shrink-0 bg-[repeating-linear-gradient(90deg,rgb(255_255_255/0.14)_0_3px,transparent_3px_6px)]'

@@ -737,14 +737,14 @@ function RowProgress({ reading }: { reading: KpiReading | null }) {
   const pct = Math.min(reading.ratio, 1)
   return (
     <span className="flex items-center gap-2">
-      <span className="h-1.5 flex-1 overflow-hidden rounded-sm bg-white/10">
+      <span className="bg-surface-ink/10 h-1.5 flex-1 overflow-hidden rounded-sm">
         <span
           className={cn(
             'block h-full rounded-sm',
             reading.verdict === 'dat'
               ? 'bg-success'
               : reading.verdict === 'chua-chot'
-                ? 'bg-white/25'
+                ? 'bg-surface-ink/25'
                 : 'bg-warning',
           )}
           style={{ width: `${pct * 100}%` }}

@@ -15,7 +15,7 @@ export function ApprovalChain({ steps, className }: { steps: ChainStep[]; classN
       <div className="flex items-center gap-2.5">
         {steps.map((step, i) => (
           <span key={step.label} className="contents">
-            {i > 0 && <span className="bg-white/14 h-[1.5px] flex-1" />}
+            {i > 0 && <span className="bg-surface-ink/14 h-[1.5px] flex-1" />}
             <StatusDot state={step.state} label={step.label} />
           </span>
         ))}

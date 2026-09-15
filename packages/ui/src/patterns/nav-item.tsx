@@ -52,7 +52,7 @@ export function NavItem({
           ? 'text-muted-foreground cursor-not-allowed'
           : active
             ? 'bg-accent text-foreground shadow-[inset_0_1px_0_var(--sheen-ai)]'
-            : 'text-muted-foreground hover:bg-white/6',
+            : 'text-muted-foreground hover:bg-surface-ink/6',
         className,
       )}
     >

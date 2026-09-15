@@ -14,7 +14,8 @@ import {
 } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
-import { Icon } from '@pv/ui'
+import { Icon, useThemeMode } from '@pv/ui'
+import { useEffect, useState } from 'react'
 import { BRAND_PALETTE, RADIUS_SCALE, SEMANTIC_TOKENS, SPACING_SCALE } from '@pv/tokens'
 
 /** Zone 00 · Foundations — token thô, không có component nào ở đây. */
@@ -114,6 +115,16 @@ const ICON_ROW = [
 ]
 
 export function ZoneFoundations() {
+  const theme = useThemeMode()
+  const [values, setValues] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const style = getComputedStyle(document.documentElement)
+    setValues(
+      Object.fromEntries(
+        SEMANTIC_TOKENS.map((row) => [row.token, style.getPropertyValue(row.token).trim()]),
+      ),
+    )
+  }, [theme])
   return (
     <section id="zone-00" className="border-t-white/12 border-t pb-2 pt-10">
       <ZoneHeader
@@ -165,7 +176,9 @@ export function ZoneFoundations() {
                 <span className="text-accent-foreground w-[180px] shrink-0 font-mono text-[11px]">
                   {row.token}
                 </span>
-                <span className="text-muted-foreground text-[11.5px]">{row.note}</span>
+                <span className="text-muted-foreground text-[11.5px]">
+                  {theme === 'stone' ? values[row.token] : row.note}
+                </span>
               </div>
             ))}
           </SpecCard>
@@ -226,7 +239,9 @@ export function ZoneFoundations() {
                 <span className="text-accent-foreground font-mono text-[10.5px]">{row.token}</span>
                 {row.sample}
                 <span className="text-muted-foreground text-right font-mono text-[10px]">
-                  {row.spec[0]}
+                  {theme === 'stone' && ['Archivo', 'Space Grotesk'].includes(row.spec[0] ?? '')
+                    ? 'Plex Sans'
+                    : row.spec[0]}
                   <br />
                   {row.spec[1]}
                 </span>
@@ -265,7 +280,7 @@ export function ZoneFoundations() {
             {RADIUS_SCALE.map((row) => (
               <div key={row.token} className="flex items-center gap-3.5">
                 <span
-                  className={`bg-white/10 ${row.radius === '50%' ? 'mx-[18px]' : ''}`}
+                  className={`bg-surface-ink/10 ${row.radius === '50%' ? 'mx-[18px]' : ''}`}
                   style={{ width: row.w, height: row.h, borderRadius: row.radius }}
                 />
                 <div>
@@ -283,7 +298,7 @@ export function ZoneFoundations() {
             bodyClassName="flex flex-col gap-4 px-4 py-[18px]"
             footer="Borderless: mép đọc bằng bóng + vệt sáng inset 1px."
           >
-            <div className="text-accent-foreground flex h-10 items-center rounded-lg bg-white/[8.5%] px-3 font-mono text-[10.5px] shadow-[var(--shadow-card),inset_0_1px_0_rgb(255_255_255/.15)]">
+            <div className="text-accent-foreground bg-surface-ink/[8.5%] flex h-10 items-center rounded-lg px-3 font-mono text-[10.5px] shadow-[var(--shadow-card),inset_0_1px_0_rgb(255_255_255/.15)]">
               shadow-card
             </div>
             <div className="bg-popover text-accent-foreground flex h-10 items-center rounded-lg px-3 font-mono text-[10.5px] shadow-[var(--shadow-panel),inset_0_1px_0_rgb(255_255_255/.11)]">

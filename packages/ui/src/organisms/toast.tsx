@@ -133,7 +133,7 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
         type="button"
         onClick={close}
         aria-label="Đóng thông báo"
-        className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 -mr-1 shrink-0 rounded-sm p-1"
+        className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 -mr-1 shrink-0 rounded-sm p-1"
       >
         <Icon icon={X} size={16} />
       </button>

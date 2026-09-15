@@ -356,7 +356,7 @@ export function LeadDetailPage() {
             }
           />
 
-          <div className="flex min-w-0 flex-col justify-end gap-4 border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <div className="border-surface-ink/10 flex min-w-0 flex-col justify-end gap-4 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge lead={lead} reported={reported} />
               {lead.stage && (
@@ -706,7 +706,7 @@ function ToolsBar({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-          <div className="flex flex-wrap items-center gap-1 rounded-md bg-white/5 p-1">
+          <div className="bg-surface-ink/5 flex flex-wrap items-center gap-1 rounded-md p-1">
             <Button
               size="md"
               variant={pinned ? 'default' : 'ghost'}
@@ -719,7 +719,7 @@ function ToolsBar({
             <AssignMenu lead={legacy} profile={lead} buttonVariant="secondary" />
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 rounded-md bg-white/5 p-1">
+          <div className="bg-surface-ink/5 flex flex-wrap items-center gap-1 rounded-md p-1">
             <Button
               size="md"
               variant="secondary"

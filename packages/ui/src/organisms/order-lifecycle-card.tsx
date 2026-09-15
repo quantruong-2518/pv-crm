@@ -44,7 +44,7 @@ function LifecycleTrack({
                   'h-[1.5px] flex-1',
                   steps[i - 1] === 'current' || step === 'current'
                     ? 'bg-primary/45'
-                    : 'bg-white/12',
+                    : 'bg-surface-ink/12',
                 )}
               />
             )}

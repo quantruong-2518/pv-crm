@@ -66,7 +66,7 @@ export type StageTrackProps = {
 const SEGMENT = {
   done: 'bg-success',
   current: 'bg-primary',
-  upcoming: 'bg-white/24',
+  upcoming: 'bg-surface-ink/24',
 } as const
 
 export function StageTrack({ steps, current, caption = false, className }: StageTrackProps) {

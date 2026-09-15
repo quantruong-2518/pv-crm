@@ -97,7 +97,7 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
         </span>
       </div>
 
-      <ul className="divide-white/6 divide-y">
+      <ul className="divide-surface-ink/6 divide-y">
         {rows.map((row) => (
           <RecipientLine key={row.leadCode} row={row} template={template} />
         ))}

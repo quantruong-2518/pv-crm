@@ -215,7 +215,7 @@ export function Drawer({
             type="button"
             onClick={onClose}
             aria-label={closeLabel}
-            className="motion-std hover:bg-white/16 bg-white/9 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
+            className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
           >
             <Icon icon={X} size={16} />
           </button>

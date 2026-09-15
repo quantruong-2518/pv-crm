@@ -600,7 +600,7 @@ function FieldGroup({
   const done = slots.length > 0 && got === slots.length
 
   return (
-    <section className="flex flex-col gap-5 rounded-lg bg-white/5 p-4 sm:p-5">
+    <section className="bg-surface-ink/5 flex flex-col gap-5 rounded-lg p-4 sm:p-5">
       <button
         type="button"
         onClick={onToggle}
@@ -928,7 +928,7 @@ export function ActivityCard({
                     dừng ở mốc cuối, nếu không nó chỉ vào khoảng trống. */}
                 <span className="flex flex-col items-center pt-1">
                   <StatusDot state={EVENT_DOT[row.kind]} />
-                  {!last && <span aria-hidden className="bg-white/8 w-px flex-1" />}
+                  {!last && <span aria-hidden className="bg-surface-ink/8 w-px flex-1" />}
                 </span>
 
                 <div className={cn('flex min-w-0 flex-1 flex-col gap-2', !last && 'pb-4')}>
@@ -986,7 +986,7 @@ function Bubbles({ turn }: { turn: TranscriptTurn }) {
             'flex max-w-[90%] flex-col gap-1 rounded-md px-3 py-2',
             line.speaker === 'pv'
               ? 'bg-primary/24 text-accent-foreground self-end'
-              : 'text-glass-foreground self-start bg-white/5',
+              : 'text-glass-foreground bg-surface-ink/5 self-start',
           )}
         >
           <span className="font-mono text-[10px] uppercase tracking-[.13em] opacity-75">

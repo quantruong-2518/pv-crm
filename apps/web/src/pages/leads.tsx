@@ -650,7 +650,7 @@ export function LeadsPage() {
               Select đang lọc. */}
                 <Button
                   size="md"
-                  variant="ghost"
+                  variant="default"
                   onClick={() => setTyping(true)}
                   className="max-sm:flex-1"
                 >
@@ -778,7 +778,7 @@ export function LeadsPage() {
             </div>
           </div>
 
-          <div aria-hidden className="bg-white/6 h-px" />
+          <div aria-hidden className="bg-surface-ink/6 h-px" />
 
           <div className="overflow-x-auto p-4 pt-3 lg:p-5 lg:pt-4">
             {isPending ? (
@@ -1062,7 +1062,7 @@ function ScoreCards() {
     {
       icon: CalendarCheck,
       value: per(firstMeetings),
-      label: 'First meeting / lead',
+      label: 'Đã gặp / lead',
       source: `${firstMeetings} lead đã gặp mặt trên ${total} lead`,
     },
     {
@@ -1085,7 +1085,7 @@ function ScoreCards() {
         Thẻ điểm {PERIOD_FROM} → {PERIOD_TO}
       </Kicker>
 
-      <ScreenScoreGrid>
+      <ScreenScoreGrid className="max-sm:grid-cols-2">
         {metrics.map((metric) => (
           <StatCard key={metric.label} size="compact" {...metric} />
         ))}
@@ -1291,7 +1291,9 @@ function PinCell({
       }}
       className={cn(
         'motion-std flex size-8 items-center justify-center rounded-md',
-        on ? 'text-accent-foreground bg-primary/24' : 'text-muted-foreground hover:bg-white/9',
+        on
+          ? 'text-accent-foreground bg-primary/24'
+          : 'text-muted-foreground hover:bg-surface-ink/9',
       )}
     >
       <Icon icon={Pin} size={16} />

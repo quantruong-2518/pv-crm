@@ -297,7 +297,10 @@ export function PlanPage() {
                 ) : (
                   <ol className="flex flex-col gap-3">
                     {chosen.map((p, i) => (
-                      <li key={p.id} className="flex flex-col gap-2 rounded-md bg-white/5 p-3">
+                      <li
+                        key={p.id}
+                        className="bg-surface-ink/5 flex flex-col gap-2 rounded-md p-3"
+                      >
                         <span className="text-[11.5px] font-semibold leading-[1.5]">
                           <span className="tnum font-num">{i + 1}.</span> {p.suggestion}
                         </span>

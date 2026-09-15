@@ -11,7 +11,7 @@ import { cn } from '../lib/cn'
  *  số liệu, nút. Đó là lý do nó là component riêng chứ không phải một prop của
  *  ApprovalChain.
  *
- *  Đường nối là `bg-white/8` rộng 1px, KHÔNG phải `border` — hệ borderless
+ *  Đường nối là `bg-surface-ink/8` rộng 1px, KHÔNG phải `border` — hệ borderless
  *  (luật 4 · docs/design-system/laws.md). Đường vẽ trên `<li>` chứ không trên cột
  *  chấm, vì khối định vị tuyệt đối tính theo padding box: nhờ vậy đường chạy
  *  xuyên qua cả khoảng `pb-6` để chạm chấm của mốc kế tiếp. Mốc cuối không có
@@ -37,7 +37,7 @@ export function Timeline({ items, className }: { items: TimelineItem[]; classNam
       {items.map((item, i) => (
         <li key={item.id} className="relative flex gap-4 pb-6 last:pb-0">
           {i < items.length - 1 && (
-            <span aria-hidden className="bg-white/8 absolute bottom-0 left-1 top-4 w-px" />
+            <span aria-hidden className="bg-surface-ink/8 absolute bottom-0 left-1 top-4 w-px" />
           )}
 
           <span className="relative z-[1] flex w-2 shrink-0 justify-center pt-1">

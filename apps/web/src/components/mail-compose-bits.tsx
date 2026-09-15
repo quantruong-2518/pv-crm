@@ -50,7 +50,10 @@ export function MailHintList({ hints }: { hints: readonly MailHint[] | null }) {
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {hints.map((hint) => (
-            <li key={hint.id} className="flex items-start gap-3 rounded-sm bg-white/5 px-3 py-2">
+            <li
+              key={hint.id}
+              className="bg-surface-ink/5 flex items-start gap-3 rounded-sm px-3 py-2"
+            >
               <Icon
                 icon={hint.tone === 'warn' ? TriangleAlert : Info}
                 size={14}
@@ -166,13 +169,13 @@ export function MailPreviewCard({
           It is the inbox row, not the page — and it is the half of a mass mail
           that decides whether the rest is ever read. Drawing it inside the
           rendered body would put it somewhere it never appears. */}
-      <div className="flex min-w-0 flex-col gap-1 rounded-sm bg-white/5 px-3 py-2">
+      <div className="bg-surface-ink/5 flex min-w-0 flex-col gap-1 rounded-sm px-3 py-2">
         <span className="text-muted-foreground text-[10.5px]">Tiêu đề trong hộp thư</span>
         <span className="truncate text-[12.5px] font-semibold">{letter?.subject || '—'}</span>
       </div>
 
       {error ? (
-        <p className="text-warning m-0 rounded-sm bg-white/5 px-3 py-2 text-[11.5px] leading-[1.6]">
+        <p className="text-warning bg-surface-ink/5 m-0 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
           <Icon icon={TriangleAlert} size={14} className="mr-2 inline align-middle" />
           {error}
         </p>
@@ -183,7 +186,7 @@ export function MailPreviewCard({
            seen. Every letter carries one, a share of recipients read that one
            and not the HTML, and until this tab existed nobody had ever looked
            at it. */
-        <pre className="text-glass-foreground m-0 max-h-[560px] overflow-auto whitespace-pre-wrap rounded-sm bg-white/5 p-4 font-mono text-[11px] leading-[1.6]">
+        <pre className="text-glass-foreground bg-surface-ink/5 m-0 max-h-[560px] overflow-auto whitespace-pre-wrap rounded-sm p-4 font-mono text-[11px] leading-[1.6]">
           {letter.text}
         </pre>
       ) : (
@@ -246,7 +249,12 @@ function LetterFrame({
   }, [html, width])
 
   return (
-    <div className={cn('motion-std overflow-hidden rounded-sm bg-white/5', stale && 'opacity-60')}>
+    <div
+      className={cn(
+        'motion-std bg-surface-ink/5 overflow-hidden rounded-sm',
+        stale && 'opacity-60',
+      )}
+    >
       <iframe
         ref={frame}
         title="Bản xem trước thư"

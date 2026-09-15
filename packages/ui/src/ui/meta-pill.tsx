@@ -16,7 +16,7 @@ import { cn } from '../lib/cn'
 const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-1 text-[11px]', {
   variants: {
     tone: {
-      muted: 'bg-white/9 text-glass-foreground',
+      muted: 'bg-surface-ink/9 text-glass-foreground',
       accent: 'bg-primary/24 text-accent-foreground',
       warning: 'bg-warning/20 text-warning',
       success: 'bg-success/20 text-success',

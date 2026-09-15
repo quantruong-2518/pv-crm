@@ -33,7 +33,7 @@ export function DueBadge({ level, className }: { level: DueLevel; className?: st
 export function SideTag({ side, long = false }: { side: ConditionSide; long?: boolean }) {
   const ours = side === 'ta'
   return (
-    <span className="text-glass-foreground bg-white/9 inline-flex items-center gap-1 rounded-sm px-2 py-1 font-mono text-[10px] uppercase tracking-[.08em]">
+    <span className="text-glass-foreground bg-surface-ink/9 inline-flex items-center gap-1 rounded-sm px-2 py-1 font-mono text-[10px] uppercase tracking-[.08em]">
       <Icon icon={ours ? ArrowRight : ArrowLeft} size={14} />
       {ours ? 'Ta' : 'Khách'}
       {long && ' phải làm'}
@@ -58,7 +58,7 @@ export function ConditionBar({
           key={c.id}
           className={cn(
             'h-[5px] w-6 rounded-sm',
-            c.doneAt ? 'bg-success' : lateIds.has(c.id) ? 'bg-destructive' : 'bg-white/14',
+            c.doneAt ? 'bg-success' : lateIds.has(c.id) ? 'bg-destructive' : 'bg-surface-ink/14',
           )}
         />
       ))}
@@ -83,7 +83,7 @@ export function MoneySplit({
     <span className={cn('flex h-2.5 gap-1 overflow-hidden rounded-sm', className)} aria-hidden>
       {collected > 0 && <span className="bg-success" style={{ flex: collected }} />}
       {atRisk > 0 && <span className="bg-warning" style={{ flex: atRisk }} />}
-      {ahead > 0 && <span className="bg-white/12" style={{ flex: ahead }} />}
+      {ahead > 0 && <span className="bg-surface-ink/12" style={{ flex: ahead }} />}
     </span>
   )
 }

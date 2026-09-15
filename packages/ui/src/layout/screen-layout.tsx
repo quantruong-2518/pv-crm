@@ -17,7 +17,7 @@ export type ScreenLayoutProps = {
 
 export function ScreenLayout({ children, className }: ScreenLayoutProps) {
   return (
-    <div className={cn('flex w-full min-w-0 flex-col gap-6 lg:gap-8', className)}>{children}</div>
+    <div className={cn('flex w-full min-w-0 flex-col gap-5 lg:gap-6', className)}>{children}</div>
   )
 }
 
@@ -47,7 +47,7 @@ export function ScreenHeader({
   const titleId = useId()
 
   return (
-    <header className={cn('flex min-w-0 flex-col gap-4', className)} aria-labelledby={titleId}>
+    <header className={cn('flex min-w-0 flex-col gap-3', className)} aria-labelledby={titleId}>
       {back && (
         <Button size="sm" variant="ghost" className="self-start" onClick={back.onClick}>
           <Icon icon={ArrowLeft} size={16} />
@@ -55,7 +55,7 @@ export function ScreenHeader({
         </Button>
       )}
 
-      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-col gap-2">
           {kicker && (
             <div className="text-muted-foreground font-mono text-[10px] font-semibold uppercase tracking-[.1em]">
@@ -64,7 +64,7 @@ export function ScreenHeader({
           )}
           <h2
             id={titleId}
-            className="font-display text-[26px] font-semibold uppercase tracking-[-.6px] lg:text-[30px]"
+            className="font-display text-[26px] font-semibold tracking-[-.45px] lg:text-[30px]"
           >
             {title}
           </h2>

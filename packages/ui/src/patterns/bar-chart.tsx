@@ -21,7 +21,7 @@ const fillClass: Record<BarTone, string> = {
   success: 'bg-success',
   warning: 'bg-warning',
   danger: 'bg-destructive',
-  muted: 'bg-white/28',
+  muted: 'bg-surface-ink/28',
 }
 
 export type BarDatum = {
@@ -121,7 +121,7 @@ function Column({ d, top, barArea }: { d: BarDatum; top: number; barArea: number
       {/* Rãnh nền chạy hết chiều cao: thiếu nó thì một cột cao gần trọn khung
           đọc ra như một cái hộp đặc chứ không như một cột đã gần chạm đỉnh. */}
       <span
-        className="bg-white/6 flex w-full items-end justify-center overflow-hidden rounded-sm"
+        className="bg-surface-ink/6 flex w-full items-end justify-center overflow-hidden rounded-sm"
         style={{ height: barArea }}
       >
         <span
@@ -154,7 +154,7 @@ function Column({ d, top, barArea }: { d: BarDatum; top: number; barArea: number
       onClick={d.onSelect}
       className={cn(
         shell,
-        'motion-std hover:bg-white/8 rounded-md py-1 outline-none',
+        'motion-std hover:bg-surface-ink/8 rounded-md py-1 outline-none',
         'focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
       )}
     >
@@ -171,7 +171,7 @@ function BarRow({ d, top }: { d: BarDatum; top: number }) {
         {d.display ?? d.value}
       </span>
       <span className="col-span-2 flex items-center gap-3">
-        <span className="h-2 flex-1 overflow-hidden rounded-sm bg-white/10">
+        <span className="bg-surface-ink/10 h-2 flex-1 overflow-hidden rounded-sm">
           <span
             className={cn('block h-full rounded-sm', fillClass[d.tone ?? 'primary'])}
             style={{ width: `${Math.max((d.value / top) * 100, 1)}%` }}

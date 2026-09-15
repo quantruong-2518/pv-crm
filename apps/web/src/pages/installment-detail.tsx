@@ -87,7 +87,7 @@ function ConditionLine({
         'flex items-start gap-3 rounded-md p-3',
         blocking
           ? 'bg-destructive/16 p-4 shadow-[inset_0_1px_0_rgb(255_217_213/.16)]'
-          : 'bg-white/6',
+          : 'bg-surface-ink/6',
       )}
     >
       <span
@@ -96,8 +96,8 @@ function ConditionLine({
           condition.doneAt
             ? 'bg-success'
             : late
-              ? 'bg-white/9 shadow-[inset_0_0_0_1.5px_var(--destructive-foreground)]'
-              : 'bg-white/9',
+              ? 'bg-surface-ink/9 shadow-[inset_0_0_0_1.5px_var(--destructive-foreground)]'
+              : 'bg-surface-ink/9',
         )}
       >
         {condition.doneAt && <Icon icon={Check} size={14} className="text-background" />}
@@ -294,7 +294,10 @@ export function InstallmentDetailPage() {
             ) : (
               <div className="flex flex-col gap-2">
                 {installment.docs.map((doc) => (
-                  <div key={doc.id} className="bg-white/6 flex items-center gap-3 rounded-md p-3">
+                  <div
+                    key={doc.id}
+                    className="bg-surface-ink/6 flex items-center gap-3 rounded-md p-3"
+                  >
                     <Icon icon={FileText} size={18} className="text-muted-foreground shrink-0" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11.5px]">{doc.name}</span>
@@ -369,7 +372,7 @@ export function InstallmentDetailPage() {
             </SectionTitle>
 
             {installment.notes.map((note) => (
-              <div key={note.id} className="bg-white/6 flex flex-col gap-2 rounded-md p-3">
+              <div key={note.id} className="bg-surface-ink/6 flex flex-col gap-2 rounded-md p-3">
                 <div className="flex items-center gap-2">
                   <StatusDot state="ok" />
                   <span className="text-glass-foreground text-[11px]">{note.who}</span>
@@ -402,7 +405,7 @@ export function InstallmentDetailPage() {
 
             <button
               type="button"
-              className="text-muted-foreground motion-std bg-white/6 hover:bg-white/12 flex items-center gap-2 rounded-md p-3 text-[11.5px]"
+              className="text-muted-foreground motion-std bg-surface-ink/6 hover:bg-surface-ink/12 flex items-center gap-2 rounded-md p-3 text-[11.5px]"
               onClick={() => toast('Ô ghi chú nối ở lượt sau.')}
             >
               <Icon icon={Paperclip} size={16} />

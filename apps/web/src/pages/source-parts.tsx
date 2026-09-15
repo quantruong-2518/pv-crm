@@ -69,7 +69,7 @@ export function NotDoing() {
   ]
 
   return (
-    <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+    <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
       <h3 className="text-[12.5px] font-semibold">Cố tình không làm</h3>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {items.map((it) => (
@@ -256,7 +256,7 @@ function StepAudience({
         </Field>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-md bg-white/5 p-4">
+      <div className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <GroupLabel required>Nhóm người nhận</GroupLabel>
           {/* Con số phải to và phải đứng ngay trên các hàng chip. Nó là thứ nói
@@ -375,7 +375,7 @@ function WaveCard({
       aria-labelledby={titleId}
       tabIndex={-1}
       ref={cardRef}
-      className="flex flex-col gap-4 rounded-md bg-white/5 p-4 outline-none"
+      className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4 outline-none"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span id={titleId} className="text-[12.5px] font-semibold">
@@ -753,7 +753,7 @@ export function CampaignForm({
               type="button"
               disabled={locked}
               onClick={addWave}
-              className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-md bg-white/5 p-4 text-[12.5px] font-semibold"
+              className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 bg-surface-ink/5 flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-md p-4 text-[12.5px] font-semibold"
             >
               <Icon icon={Plus} size={20} />
               Thêm đợt
@@ -771,7 +771,7 @@ export function CampaignForm({
           </SectionTitle>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+            <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
               <GroupLabel id={stopId}>Điều kiện dừng</GroupLabel>
               <div role="group" aria-labelledby={stopId} className="flex flex-wrap gap-2">
                 <Button
@@ -808,7 +808,7 @@ export function CampaignForm({
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+            <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
               <GroupLabel id={approverId}>Người duyệt — không bắt buộc</GroupLabel>
 
               {approvers.length === 0 ? (
@@ -895,7 +895,7 @@ export function CampaignForm({
           Thanh mang theo câu tóm tắt vì đó là chỗ duy nhất trên màn nói đủ ba
           điều cùng lúc: gửi cho bao nhiêu người, mấy đợt, và đợt đầu đi lúc nào.
 
-          `glass-overlay` chứ KHÔNG `bg-white/5`: thanh này ĐÈ LÊN nội dung đang
+          `glass-overlay` chứ KHÔNG `bg-surface-ink/5`: thanh này ĐÈ LÊN nội dung đang
           cuộn phía dưới, và một mặt đục 5% thì danh sách người nhận hiện mờ mờ
           sau hai cái nút — đúng lỗi mà docblock của `glass-overlay` mô tả. Đây
           không phải lớp nền thứ năm (luật 12): nó là mặt của thứ nổi trên trang,

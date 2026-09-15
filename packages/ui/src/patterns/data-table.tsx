@@ -5,7 +5,7 @@ import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 
 /** M-07 · TableRow — default · hover · selected · hidden-by-permission.
- *  h-11 · divide-white/6 · hover:bg-white/5
+ *  h-11 · divide-surface-ink/6 · hover:bg-surface-ink/5
  *  selected = shadow-[inset_2px_0_0] shadow-primary + bg-primary/10
  *
  *  Bảng LUÔN nằm trên .glass-b, không bao giờ .glass-a (luật 8 · docs/design-system/laws.md) —
@@ -179,14 +179,14 @@ export function DataTable({
                  from the row after it. */
               (i < rows.length - 1 || row.details) && 'border-b-white/6 border-b',
               openable &&
-                'hover:bg-white/8 focus-visible:bg-white/8 cursor-pointer outline-none focus-visible:shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
+                'hover:bg-surface-ink/8 focus-visible:bg-surface-ink/8 cursor-pointer outline-none focus-visible:shadow-[inset_0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
               /* Bóng nổi CHỈ cho dòng chưa được chọn. Dòng `selected` đọc bằng
                  vệt azure `inset 2px 0 0` bên trái, mà `box-shadow` không cộng
                  dồn giữa hai class — `hover:shadow-card` sẽ thay chỗ vệt đó và
                  dòng đang mở mất dấu ngay lúc người dùng rê chuột lên nó. */
               openable && row.state !== 'selected' && 'hover:shadow-card',
-              !openable && row.state !== 'hidden' && 'hover:bg-white/5',
-              row.state === 'hover' && 'bg-white/5',
+              !openable && row.state !== 'hidden' && 'hover:bg-surface-ink/5',
+              row.state === 'hover' && 'bg-surface-ink/5',
               row.state === 'selected' && 'bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]',
               row.state === 'hidden' && 'opacity-55',
             )}

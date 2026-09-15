@@ -60,7 +60,7 @@ export function ForgotPasswordPage() {
             đúng thứ người đang đợi thư cần biết. Nó KHÔNG hứa rằng có một lá thư
             đang bay tới địa chỉ vừa gõ — chỉ có máy chủ biết địa chỉ đó có tài
             khoản hay không, và đó là điều màn này cố ý không tiết lộ. */}
-        <div className="flex items-start gap-3 rounded-md bg-white/5 p-4">
+        <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
           <Icon icon={MailCheck} size={18} className="text-muted-foreground mt-1 shrink-0" />
           <p className="text-muted-foreground m-0 text-pretty text-[12px] leading-[1.65]">
             Thư chưa tới sau vài phút thì xem hộp thư rác, và kiểm lại xem địa chỉ đã gõ đúng chưa.

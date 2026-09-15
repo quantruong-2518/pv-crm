@@ -500,7 +500,7 @@ export function OpportunitiesPage() {
             {total > PAGE_SIZE && <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />}
           </div>
 
-          <div aria-hidden className="bg-white/6 h-px" />
+          <div aria-hidden className="bg-surface-ink/6 h-px" />
 
           <div className="overflow-x-auto p-4 pt-3 lg:p-5 lg:pt-4">
             {isPending ? (

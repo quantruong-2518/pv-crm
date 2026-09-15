@@ -407,7 +407,7 @@ export function ZoneMolecules() {
           <NavItem icon={House} label="Trang chủ" active />
           <NavItem icon={SquareCheckBig} label="Phê duyệt" count={7} />
           <div className="relative">
-            <NavItem icon={Bell} label="Thông báo" className="bg-white/6" />
+            <NavItem icon={Bell} label="Thông báo" className="bg-surface-ink/6" />
             <span className="text-muted-foreground pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[9.5px]">
               hover
             </span>
@@ -428,11 +428,11 @@ export function ZoneMolecules() {
           bodyClassName="px-4 py-3.5"
           footer={
             <>
-              h-11 · divide-white/6 · hover:bg-white/5 · selected = shadow-[inset_2px_0_0]
-              shadow-primary + bg-primary/10
+              h-11 · divide-surface-ink/6 · hover:bg-surface-ink/5 · selected =
+              shadow-[inset_2px_0_0] shadow-primary + bg-primary/10
               <br />
-              row.onOpen → cả dòng mở object: cursor-pointer · hover:bg-white/8 + hover:shadow-card
-              · tabIndex 0 · Enter và Space
+              row.onOpen → cả dòng mở object: cursor-pointer · hover:bg-surface-ink/8 +
+              hover:shadow-card · tabIndex 0 · Enter và Space
               <br />
               col.sortKey → header thành nút, mũi tên ArrowUp/ArrowDown, mờ khi chưa sort theo cột
               đó
@@ -499,7 +499,8 @@ export function ZoneMolecules() {
               Cùng ngôn ngữ với ApprovalChain (chấm + đường nối) nhưng chạy dọc và mỗi mốc mang được
               meta, số liệu, nút.
               <br />
-              Đường nối bg-white/8 rộng 1px — không border (luật 4) · mốc cuối không kéo đường xuống
+              Đường nối bg-surface-ink/8 rộng 1px — không border (luật 4) · mốc cuối không kéo đường
+              xuống
               <br />
               Marker (&ldquo;Đợt 2&rdquo;) là NHÃN nên dùng thẳng Kicker tone muted, không tô azure:
               trạng thái đã do StatusDot nói, và azure chỉ dành cho AI · nút chính · trạng thái

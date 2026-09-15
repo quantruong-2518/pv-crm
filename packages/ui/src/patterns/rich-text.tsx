@@ -56,7 +56,9 @@ function ToolButton({
         'motion-std flex size-8 items-center justify-center rounded-md',
         disabled && 'text-muted-foreground cursor-not-allowed opacity-55',
         !disabled && active && 'bg-primary/24 text-accent-foreground',
-        !disabled && !active && 'text-muted-foreground hover:text-foreground hover:bg-white/9',
+        !disabled &&
+          !active &&
+          'text-muted-foreground hover:text-foreground hover:bg-surface-ink/9',
       )}
     >
       <Icon icon={icon} size={16} />
@@ -163,7 +165,7 @@ export function RichText({
         <div className="relative">
           {/* Placeholder đi theo ĐÚNG màu chữ của ô soạn, không phải màu chữ phụ.
               Ô soạn nằm trên `bg-input`, mà trong màn thật `bg-input` lại nằm
-              trong thẻ đợt `bg-white/5` trong GlassCard glass-a — ba lớp trắng
+              trong thẻ đợt `bg-surface-ink/5` trong GlassCard glass-a — ba lớp trắng
               chồng nhau kéo nền hiệu dụng lên ≈ #3B4251, và #93A1B8
               (muted-foreground) trên đó chỉ còn 3.87:1, dưới ngưỡng 4.5:1 của
               luật 13. `--glass-foreground` đo được 5.39:1 trên cùng nền đó. */}

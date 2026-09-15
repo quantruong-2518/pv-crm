@@ -81,7 +81,7 @@ export function ExpiryWarning() {
             type="button"
             aria-label="Ẩn nhắc này"
             onClick={() => setDismissed(deadline)}
-            className="motion-std text-muted-foreground hover:text-foreground hover:bg-white/9 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-md"
+            className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-md"
           >
             <Icon icon={X} size={14} />
           </button>

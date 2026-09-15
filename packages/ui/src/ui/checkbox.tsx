@@ -60,7 +60,7 @@ export function Checkbox({
          *  lên cả nút, đo được 2,29:1) và chốt cách sửa ở `nav-item.tsx`: chữ
          *  giữ nguyên màu, chỉ phần đồ hoạ mờ đi. Ô vuông ở dưới nhận
          *  `opacity-55`; chữ không. */
-        disabled ? 'cursor-not-allowed' : 'hover:bg-white/8 cursor-pointer',
+        disabled ? 'cursor-not-allowed' : 'hover:bg-surface-ink/8 cursor-pointer',
         checked && !disabled && 'bg-primary/16',
         className,
       )}
@@ -77,7 +77,7 @@ export function Checkbox({
         aria-hidden
         className={cn(
           'motion-std flex size-4 shrink-0 items-center justify-center rounded-sm',
-          checked || indeterminate ? 'bg-primary text-primary-foreground' : 'bg-white/12',
+          checked || indeterminate ? 'bg-primary text-primary-foreground' : 'bg-surface-ink/12',
           /* Toàn bộ tín hiệu "khoá" nằm ở đây — một hình vuông, không phải chữ.
              Mờ một mảng màu không làm ai đọc khó hơn; mờ một dòng chữ thì có. */
           disabled && 'opacity-55',

@@ -1,3 +1,4 @@
+import { useThemeMode, wordmarkBlue, markBlue, ThemeSwitch } from '@pv/ui'
 import { AuroraField, markLight, wordmarkLight } from '@pv/ui'
 import { ZoneAtoms } from '@/kit/zone-atoms'
 import { ZoneFoundations } from '@/kit/zone-foundations'
@@ -35,16 +36,24 @@ const CHECKLIST = [
 ]
 
 export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) {
+  const themeMode = useThemeMode()
   return (
     <AuroraField className="min-w-[1536px] px-12 pb-[110px] pt-14">
       <div className="relative z-[1] mx-auto min-w-[1440px] max-w-[1440px]">
+        <div className="mb-4">
+          <ThemeSwitch />
+        </div>
         <header className="flex items-end justify-between gap-10 pb-10">
           <div className="max-w-[680px]">
             <div className="mb-5 flex items-center gap-4">
-              <img src={wordmarkLight} alt="Pebble Vina" className="block h-[34px] w-auto" />
-              <span className="bg-white/16 h-5 w-px" />
+              <img
+                src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+                alt="Pebble Vina"
+                className="block h-[34px] w-auto"
+              />
+              <span className="bg-surface-ink/16 h-5 w-px" />
               <span className="text-muted-foreground font-mono text-[11px] font-semibold uppercase tracking-[.18em]">
-                Aurora · v2.0
+                {themeMode === 'stone' ? 'Đá mịn · sáng' : 'Aurora · v2.0'}
               </span>
             </div>
             <h1 className="font-display m-0 text-[40px] font-semibold leading-[1.15] tracking-[-.8px]">
@@ -66,7 +75,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
               <a
                 key={zone.id}
                 href={`#${zone.id}`}
-                className="motion-std flex w-[250px] items-center gap-3.5 rounded-md bg-white/5 px-4 py-[9px] hover:bg-white/10"
+                className="motion-std bg-surface-ink/5 hover:bg-surface-ink/10 flex w-[250px] items-center gap-3.5 rounded-md px-4 py-[9px]"
               >
                 <span className="font-num text-accent-foreground w-[22px] text-[14px] font-semibold">
                   {zone.number}
@@ -132,7 +141,11 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
             Không emoji · không icon fill · không màu đặc ngoài bảng brand · không viền trừ biến thể
             tương phản cao.
           </div>
-          <img src={markLight} alt="" className="size-10 object-contain opacity-70" />
+          <img
+            src={themeMode === 'stone' ? markBlue : markLight}
+            alt=""
+            className="size-10 object-contain opacity-70"
+          />
         </footer>
       </div>
     </AuroraField>

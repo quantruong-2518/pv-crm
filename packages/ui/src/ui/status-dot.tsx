@@ -9,7 +9,7 @@ const statusDotVariants = cva('inline-block size-2 shrink-0 rounded-full', {
     state: {
       ok: 'bg-success',
       current: 'bg-primary shadow-[0_0_0_4px_color-mix(in_srgb,var(--primary)_24%,transparent)]',
-      next: 'bg-white/24',
+      next: 'bg-surface-ink/24',
       bad: 'bg-destructive-foreground',
       warning: 'bg-warning',
     },

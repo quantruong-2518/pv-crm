@@ -282,7 +282,7 @@ export function CampaignsPage() {
             </span>
           </div>
 
-          <div aria-hidden className="bg-white/6 h-px" />
+          <div aria-hidden className="bg-surface-ink/6 h-px" />
 
           <div className="overflow-x-auto">
             {isPending ? (

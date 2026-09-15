@@ -32,7 +32,7 @@ export function SpecCard({
 }: SpecCardProps) {
   return (
     <section className={cn('glass-b-flat overflow-hidden rounded-lg', className)}>
-      <header className="flex items-center gap-2.5 bg-white/[4.5%] px-4 py-[11px]">
+      <header className="bg-surface-ink/[4.5%] flex items-center gap-2.5 px-4 py-[11px]">
         <span className="text-muted-foreground font-mono text-[10px] tracking-[.1em]">{code}</span>
         <h3 className="font-display text-[13.5px] font-semibold">{name}</h3>
         {note && (

@@ -68,7 +68,7 @@ export function AvatarGroup({
         <span className="group/av relative -ml-2">
           <span
             className={cn(
-              'text-glass-foreground shadow-control bg-white/16 flex items-center justify-center rounded-md font-semibold',
+              'text-glass-foreground shadow-control bg-surface-ink/16 flex items-center justify-center rounded-md font-semibold',
               size === 'lg'
                 ? 'size-[38px] text-[12.5px]'
                 : size === 'md'

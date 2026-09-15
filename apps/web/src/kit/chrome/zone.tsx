@@ -36,5 +36,5 @@ export function ZoneHeader({
 
 /** Nền zone — tấm rất mờ gom các SpecCard của cùng một tầng atomic design. */
 export function ZoneBody({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn('rounded-lg bg-white/[2.2%] p-6', className)}>{children}</div>
+  return <div className={cn('bg-surface-ink/[2.2%] rounded-lg p-6', className)}>{children}</div>
 }

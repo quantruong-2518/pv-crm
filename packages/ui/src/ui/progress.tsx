@@ -1,7 +1,7 @@
 import { cn } from '../lib/cn'
 import { percent as fmtPercent } from '../lib/format'
 
-/** A-07 · Progress — h-2 rounded-sm bg-white/10 · số luôn font-num. */
+/** A-07 · Progress — h-2 rounded-sm bg-surface-ink/10 · số luôn font-num. */
 export type ProgressProps = {
   /** 0–1 */
   value: number
@@ -42,7 +42,7 @@ export function Progress({ value, label, tone = 'primary', className }: Progress
         aria-valuenow={Math.round(pct * 100)}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-2 overflow-hidden rounded-sm bg-white/10"
+        className="bg-surface-ink/10 h-2 overflow-hidden rounded-sm"
       >
         <span
           className={cn('block h-full rounded-sm', FILL[tone])}

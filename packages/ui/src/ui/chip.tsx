@@ -9,11 +9,11 @@ const chipVariants = cva(
   {
     variants: {
       variant: {
-        object: 'bg-white/9 text-glass-foreground',
+        object: 'bg-surface-ink/9 text-glass-foreground',
         source: 'bg-primary/24 text-accent-foreground',
       },
       interactive: {
-        true: 'hover:bg-white/16 cursor-pointer',
+        true: 'hover:bg-surface-ink/16 cursor-pointer',
         false: '',
       },
     },

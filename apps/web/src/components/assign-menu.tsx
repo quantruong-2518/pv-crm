@@ -236,7 +236,7 @@ export function AssignMenu({ lead, profile, size = 'md', buttonVariant, classNam
         }
       >
         <div className="flex flex-col gap-6">
-          <section className="flex flex-col gap-2 rounded-lg bg-white/5 p-4">
+          <section className="bg-surface-ink/5 flex flex-col gap-2 rounded-lg p-4">
             <span className="text-muted-foreground text-[12px]">Đang giữ lead</span>
             {profile.ownerName ? (
               <MetaPill avatar={profile.ownerName} title={profile.ownerEmail}>
@@ -291,7 +291,7 @@ export function AssignMenu({ lead, profile, size = 'md', buttonVariant, classNam
                 className="w-full"
               />
 
-              <div className="flex flex-col gap-4 rounded-lg bg-white/5 p-3">
+              <div className="bg-surface-ink/5 flex flex-col gap-4 rounded-lg p-3">
                 {groups.map((group) => {
                   const rows = shown.filter((person) => person.group === group.key)
                   if (rows.length === 0) return null
@@ -323,7 +323,7 @@ export function AssignMenu({ lead, profile, size = 'md', buttonVariant, classNam
                             onClick={() => setPicked(person.id)}
                             className={cn(
                               'flex w-full items-center gap-3 rounded-md p-3 text-left',
-                              on ? 'bg-primary/16' : 'hover:bg-white/6',
+                              on ? 'bg-primary/16' : 'hover:bg-surface-ink/6',
                             )}
                           >
                             <Avatar name={person.name} size="md" />

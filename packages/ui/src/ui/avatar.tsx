@@ -4,7 +4,7 @@ import { cn } from '../lib/cn'
 /** A-05 · Avatar — rounded-md, không rounded-full: hệ này góc sắc.
  *  Viết tắt tên, không ảnh. Ba cỡ: 38 · 30 · 24. */
 const avatarVariants = cva(
-  'text-foreground inline-flex shrink-0 items-center justify-center rounded-md bg-[linear-gradient(135deg,var(--avatar-from),var(--avatar-to))] font-semibold',
+  'text-primary-foreground inline-flex shrink-0 items-center justify-center rounded-md bg-[linear-gradient(135deg,var(--avatar-from),var(--avatar-to))] font-semibold',
   {
     variants: {
       size: {

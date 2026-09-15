@@ -1,3 +1,4 @@
+import { useThemeMode, wordmarkBlue } from '@pv/ui'
 import { useEffect, useRef, useState } from 'react'
 import { Button, CircleCheck, GlassCard, Icon, Plug, RefreshCw, wordmarkLight } from '@pv/ui'
 import { queryClient } from '@/app/query-client'
@@ -138,6 +139,7 @@ function Recovered() {
 /** Mounted once, at the root, beside the toasts. Renders nothing at all until
  *  the server stops answering. */
 export function ServerDown() {
+  const themeMode = useThemeMode()
   const health = useServerHealth((s) => s.health)
   const [showing, setShowing] = useState(false)
   /* A ref, not state: this only decides whether the NEXT 'ok' is a recovery or
@@ -173,7 +175,11 @@ export function ServerDown() {
       aria-label={health === 'down' ? 'Máy chủ đang bảo trì' : 'Máy chủ đã trở lại'}
     >
       <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
-        <img src={wordmarkLight} alt="PV One" className="h-6 self-start object-contain" />
+        <img
+          src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+          alt="PV One"
+          className="h-6 self-start object-contain"
+        />
         {health === 'down' ? <Waiting /> : <Recovered />}
       </GlassCard>
     </div>

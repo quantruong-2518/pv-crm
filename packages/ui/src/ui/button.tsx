@@ -4,7 +4,7 @@ import { cn } from '../lib/cn'
 
 /** A-01 · Button — 4 variant · 3 size.
  *  default → h-10 px-[18px] rounded-md bg-primary text-primary-foreground shadow-primary
- *  ghost   → bg-white/9 · destructive → bg-destructive/20 text-destructive-foreground
+ *  ghost   → bg-surface-ink/9 · destructive → bg-destructive/20 text-destructive-foreground
  *  Nút tablet luôn size lg (≥48px) — luật 13 · docs/design-system/laws.md.
  *
  *  Ghi chú: padding ngang 18/24px lấy đúng từ theme kit; thang spacing 8 bậc
@@ -15,8 +15,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground shadow-primary hover:brightness-[1.12]',
-        secondary: 'bg-secondary text-secondary-foreground shadow-control hover:bg-brand-blue/75',
-        ghost: 'bg-white/9 text-foreground shadow-control hover:bg-white/16',
+        secondary: 'bg-secondary text-secondary-foreground shadow-control hover:bg-secondary-hover',
+        ghost: 'bg-surface-ink/9 text-foreground shadow-control hover:bg-surface-ink/16',
         destructive:
           'bg-destructive/20 text-destructive-foreground shadow-control-soft hover:bg-destructive/32',
       },
@@ -40,7 +40,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled}
       className={cn(
         buttonVariants({ variant, size }),
-        disabled && 'text-muted-foreground cursor-not-allowed bg-white/5 shadow-none',
+        disabled && 'text-muted-foreground bg-surface-ink/5 cursor-not-allowed shadow-none',
         className,
       )}
       {...props}

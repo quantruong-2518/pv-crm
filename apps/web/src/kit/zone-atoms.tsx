@@ -113,8 +113,8 @@ export function ZoneAtoms() {
             <>
               default → h-10 px-4 rounded-md bg-primary text-primary-foreground shadow-primary
               <br />
-              ghost → bg-white/10 · destructive → bg-destructive/20 text-destructive-foreground ·
-              nút tablet luôn size lg (≥48px)
+              ghost → bg-surface-ink/10 · destructive → bg-destructive/20
+              text-destructive-foreground · nút tablet luôn size lg (≥48px)
             </>
           }
         >
@@ -217,7 +217,7 @@ export function ZoneAtoms() {
           code="A-07"
           name="Progress"
           bodyClassName="flex flex-col gap-3.5 px-4 py-5"
-          footer="h-2 rounded-sm bg-white/10 · số luôn font-num · azure = đang chạy (gradient, tả chuyển động) · warning = dưới đích · success = đã đạt đích (hai tone sau nền phẳng: chỉ số đã đo xong)"
+          footer="h-2 rounded-sm bg-surface-ink/10 · số luôn font-num · azure = đang chạy (gradient, tả chuyển động) · warning = dưới đích · success = đã đạt đích (hai tone sau nền phẳng: chỉ số đã đo xong)"
         >
           <Progress label="WO-1180" value={0.68} />
           <Progress label="Giao đúng hạn" value={0.86} tone="warning" />
@@ -229,7 +229,7 @@ export function ZoneAtoms() {
           code="A-08"
           name="Skeleton"
           bodyClassName="flex flex-col gap-2.5 px-4 py-5"
-          footer="animate-pulse bg-white/10 rounded-sm"
+          footer="animate-pulse bg-surface-ink/10 rounded-sm"
         >
           <Skeleton width="58%" height={11} />
           <Skeleton width="76%" height={30} delay={200} />
@@ -241,7 +241,7 @@ export function ZoneAtoms() {
           code="A-09"
           name="Separator & Kicker"
           bodyClassName="flex flex-col gap-3.5 px-4 py-5"
-          footer="h-px bg-white/8 · kicker: font-mono text-[10.5px] tracking-[.2em] uppercase"
+          footer="h-px bg-surface-ink/8 · kicker: font-mono text-[10.5px] tracking-[.2em] uppercase"
         >
           <Separator />
           <Separator fade />
@@ -287,7 +287,7 @@ export function ZoneAtoms() {
           name="MetaPill"
           note="ngày · mã · người"
           bodyClassName="flex flex-wrap items-center gap-2 px-4 py-4"
-          footer="rounded-sm px-2 py-1 text-[11px] bg-white/9 · mono cho ngày và mã · không bấm được, cần bấm thì dùng Chip · title cho ô trống, đặt trên chính pill chứ không bọc span bên trong"
+          footer="rounded-sm px-2 py-1 text-[11px] bg-surface-ink/9 · mono cho ngày và mã · không bấm được, cần bấm thì dùng Chip · title cho ô trống, đặt trên chính pill chứ không bọc span bên trong"
         >
           <MetaPill icon={CalendarDays} mono>
             18/08 · 09:10
@@ -578,7 +578,10 @@ export function ZoneAtoms() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               {COST_BANDS.map((row) => (
-                <div key={row.code} className="flex flex-col gap-2 rounded-lg bg-white/5 px-4 py-4">
+                <div
+                  key={row.code}
+                  className="bg-surface-ink/5 flex flex-col gap-2 rounded-lg px-4 py-4"
+                >
                   <CostBand variant="card" {...row.band} />
                   <span className="text-muted-foreground text-[12px]">
                     Giá mỗi lead tốt · {row.code}

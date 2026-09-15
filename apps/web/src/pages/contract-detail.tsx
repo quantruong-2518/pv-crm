@@ -71,7 +71,7 @@ function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) 
     'đến-hạn': 'bg-warning',
     'quá-hạn': 'bg-destructive',
     'quá-hạn-lâu': 'bg-destructive',
-    'chưa-tới': 'bg-white/14',
+    'chưa-tới': 'bg-surface-ink/14',
   }
 
   return (
@@ -99,7 +99,7 @@ function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) 
         ))}
       </div>
 
-      <div className="bg-white/8 h-px" />
+      <div className="bg-surface-ink/8 h-px" />
 
       <div className="flex gap-6">
         {views.map((v) => (
@@ -142,7 +142,7 @@ function InstallmentRow({
         'grid-cols-[132px_180px_140px_minmax(0,1fr)_150px_24px]',
         needsAttention(view.level) || view.blocking
           ? 'bg-warning/10 hover:bg-warning/16 shadow-[inset_0_1px_0_rgba(255,233,163,.2)]'
-          : 'hover:bg-white/6',
+          : 'hover:bg-surface-ink/6',
       )}
     >
       <span className="flex flex-col items-start gap-1">

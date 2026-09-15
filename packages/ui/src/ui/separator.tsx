@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
-/** A-09 · Separator — h-px bg-white/8. `fade` là bản vuốt sáng → mờ. */
+/** A-09 · Separator — h-px bg-surface-ink/8. `fade` là bản vuốt sáng → mờ. */
 export function Separator({ fade = false, className }: { fade?: boolean; className?: string }) {
   return (
     <div
@@ -10,7 +10,7 @@ export function Separator({ fade = false, className }: { fade?: boolean; classNa
         'h-px',
         fade
           ? 'bg-[linear-gradient(90deg,rgb(255_255_255/.18),rgb(255_255_255/.02))]'
-          : 'bg-white/8',
+          : 'bg-surface-ink/8',
         className,
       )}
     />

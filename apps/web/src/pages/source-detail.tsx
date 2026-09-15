@@ -486,7 +486,7 @@ export function SourceDetailPage() {
               chiến dịch cũ — nó chỉ có số người nhận của từng đợt. Khối này nói
               thẳng chỗ thiếu đó thay vì dựng lại một nhóm chưa từng có; nhóm
               thật chỉ có ở chiến dịch soạn bằng form mới. */}
-            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+            <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
               <h3 className="text-[12.5px] font-semibold">Gửi cho ai</h3>
               <span className="flex items-baseline gap-2">
                 <span className="tnum font-num text-[26px] font-semibold leading-none">
@@ -514,7 +514,7 @@ export function SourceDetailPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-2 rounded-md bg-white/5 p-4">
+            <div className="bg-surface-ink/5 flex flex-col gap-2 rounded-md p-4">
               <h3 className="text-[12.5px] font-semibold">Điều kiện dừng</h3>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 {stopped
@@ -527,7 +527,7 @@ export function SourceDetailPage() {
 
             {/* Bảng lead không nằm ở đây — lý do ngay dưới, trong "Cố tình không
               làm". Còn lại hai con số và hai lối đi. */}
-            <div className="flex flex-col gap-3 rounded-md bg-white/5 p-4">
+            <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
               <span className="text-[11.5px] leading-[1.5]">
                 <span className="tnum font-num">{source.good}</span>/
                 <span className="tnum font-num">{source.leads}</span> lead của chiến dịch này đã qua

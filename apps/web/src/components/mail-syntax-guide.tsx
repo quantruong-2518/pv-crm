@@ -102,7 +102,7 @@ export function MailSyntaxGuide({ open, onClose }: { open: boolean; onClose: () 
  *  lines have to stand as two lines: that is the very thing being shown. */
 function Sample({ children }: { children: ReactNode }) {
   return (
-    <span className="block whitespace-pre-line rounded-sm bg-white/5 px-3 py-2 font-mono text-[11.5px] leading-[1.7]">
+    <span className="bg-surface-ink/5 block whitespace-pre-line rounded-sm px-3 py-2 font-mono text-[11.5px] leading-[1.7]">
       {children}
     </span>
   )

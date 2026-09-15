@@ -584,7 +584,7 @@ function StepMap({
             </thead>
             <tbody className="text-glass-foreground">
               {preview.map((row, i) => (
-                <tr key={i} className="bg-white/[3%]">
+                <tr key={i} className="bg-surface-ink/[3%]">
                   {shown.map((f) => (
                     <td key={f.key} className="max-w-[220px] truncate px-3 py-2">
                       {row[mapping[f.key] ?? -1] ?? ''}
@@ -783,7 +783,7 @@ function DoneRows({ rows, codes, spec }: { rows: BuiltRow[]; codes?: string[]; s
   return (
     <ResultList kicker="Đã vào sổ" head={head} count={rows.length}>
       {rows.slice(0, LIST_CAP).map((row, i) => (
-        <tr key={row.line} className="bg-white/[3%]">
+        <tr key={row.line} className="bg-surface-ink/[3%]">
           <Line n={row.line} />
           <td className="max-w-[280px] truncate px-3 py-2">
             {(id ? row.values[id.key] : undefined) ?? '—'}
@@ -811,7 +811,7 @@ function FailedRows({ errors, spec }: { errors: RowError[]; spec: ImportSpec }) 
       count={errors.length}
     >
       {errors.slice(0, LIST_CAP).map((e) => (
-        <tr key={e.line} className="bg-white/[3%]">
+        <tr key={e.line} className="bg-surface-ink/[3%]">
           <Line n={e.line} />
           <td className="max-w-[200px] truncate px-3 py-2">{e.first || '—'}</td>
           <td className="text-warning w-[140px] whitespace-nowrap px-3 py-2">{labelOf(e.field)}</td>
@@ -847,7 +847,7 @@ function DroppedRows({ withBook, withinFile }: { withBook?: DupRow[]; withinFile
       count={rows.length}
     >
       {rows.slice(0, LIST_CAP).map((d) => (
-        <tr key={`${d.line}-${d.why}`} className="bg-white/[3%]">
+        <tr key={`${d.line}-${d.why}`} className="bg-surface-ink/[3%]">
           <Line n={d.line} />
           <td className="max-w-[240px] truncate px-3 py-2">{d.first || '—'}</td>
           <td className="px-3 py-2">{d.why}</td>
