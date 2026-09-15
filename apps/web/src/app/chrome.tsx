@@ -54,7 +54,7 @@ import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
  *
  *  Ba đường vào Trợ lý AI đều đã thành thật khi `onOpenAssistant` trống:
  *  `AssistantFab` không vẽ, mục 'assistant' của BottomNav nằm trong `lockedNav`,
- *  và nút tầng 1 của `AppHeader` vào trạng thái khoá. Không cửa nào hứa màn 04. */
+ *  và mục Trợ lý trong menu avatar vào trạng thái khoá. Không cửa nào hứa màn 04. */
 
 type NavEntry = {
   icon: IconGlyph
@@ -97,7 +97,7 @@ type NavEntry = {
  *  that day. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/' },
-  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/duyet' },
+  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals' },
   { icon: Bell, label: 'Thông báo' },
   {
     /** Renamed from "Quản trị & ghi vết" the day it got a screen: the entry now
@@ -107,7 +107,7 @@ const ONE_CORE: NavEntry[] = [
      *  the audit screen, or the entry grows a second child. */
     icon: ShieldCheck,
     label: 'Quản trị',
-    path: '/quan-tri/nguoi-dung',
+    path: '/admin/users',
     permission: 'user.manage',
   },
   {
@@ -121,7 +121,7 @@ const ONE_CORE: NavEntry[] = [
      *  rather than sees a button that leads straight to a refusal. */
     icon: ListChecks,
     label: 'Vai trò',
-    path: '/quan-tri/vai-tro',
+    path: '/admin/roles',
     permission: 'role.manage',
   },
 ]
@@ -373,7 +373,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
                việc — ra khỏi phiên. Muốn sang vai khác thì đăng nhập bằng email
                vai đó. */
             signOut()
-            navigate('/dang-nhap', { replace: true })
+            navigate('/sign-in', { replace: true })
           }}
         >
           Đăng xuất

@@ -120,7 +120,7 @@ export function ZoneOrganisms() {
             name="AppHeader"
             note="tầng 1 h-16 · tầng 2 h-12"
             bodyClassName="p-4"
-            footer="Tầng 1: thương hiệu + ô tìm toàn cục + việc chờ + Trợ lý + Avatar. Tầng 2: ứng dụng, mục có module con thì xổ dropdown (glass-overlay, đục hẳn)"
+            footer="Tầng 1: thương hiệu + ô tìm toàn cục + Thông báo + Avatar; các lối vào còn lại nằm trong menu avatar. Tầng 2: ứng dụng, mục có module con thì xổ dropdown (glass-overlay, đục hẳn)"
           >
             <AppHeader
               product="PV One"

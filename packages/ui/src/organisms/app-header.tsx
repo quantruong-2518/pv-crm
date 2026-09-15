@@ -16,7 +16,8 @@ import { useThemeMode } from '../ui/theme-switch'
  *
  *  HAI TẦNG, hai câu hỏi khác nhau:
  *   · tầng 1 — "tôi là ai, tôi tìm gì, có gì đang chờ tôi": thương hiệu · ô tìm
- *     toàn cục · việc chờ (duyệt, thông báo) · trợ lý · người đang đăng nhập.
+ *     toàn cục · thông báo · người đang đăng nhập. Các lối vào ít dùng hơn
+ *     (duyệt, trợ lý, quản trị và cài đặt tài khoản) nằm trong avatar dropdown.
  *     Ô tìm ở đây LÀ "Tìm toàn cục" của One Core, không phải một ô thứ hai —
  *     gom một lần, không để hai lối vào cùng một việc.
  *   · tầng 2 — "tôi đang làm ở đâu": các ứng dụng. Ứng dụng có module con thì
@@ -64,7 +65,7 @@ export type AppHeaderProps = {
   unread?: boolean
   assistantLabel?: string
   search?: Pick<SearchFieldProps, 'placeholder' | 'meta'>
-  /** khối bên phải tầng 1, sau avatar — ví dụ nút "Đổi vai" */
+  /** các hành động tài khoản — hiện trong dropdown của avatar */
   userAction?: ReactNode
   onOpenAssistant?: () => void
   className?: string
@@ -86,7 +87,7 @@ function CountBadge({ count }: { count: number }) {
  *  `locked` theo đúng tiền lệ `patterns/nav-item.tsx`: nút tắt, không hover, ổ
  *  khoá 14 đứng chỗ badge số, và độ mờ chỉ đặt lên ICON. Bản trước phủ
  *  `opacity-45` lên cả nút — đo được 2,29:1, dưới ngưỡng 4,5:1 của luật 13. */
-function CoreButton({ action }: { action: HeaderAction }) {
+function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean }) {
   return (
     <button
       type="button"
@@ -109,6 +110,48 @@ function CoreButton({ action }: { action: HeaderAction }) {
         </span>
       ) : action.count ? (
         <CountBadge count={action.count} />
+      ) : unread ? (
+        <span
+          aria-hidden
+          className="bg-destructive ring-background absolute right-0.5 top-0.5 size-2 rounded-full ring-2"
+        />
+      ) : null}
+    </button>
+  )
+}
+
+/** Bản có chữ của một mục Core khi nó nằm trong menu tài khoản. Giữ cùng trạng
+ * thái active/locked với nút icon trên header nhưng cho người dùng đủ ngữ cảnh
+ * để chọn đúng nơi mình muốn đi. */
+function AccountAction({ action, onSelect }: { action: HeaderAction; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={action.locked}
+      aria-current={action.active ? 'page' : undefined}
+      onClick={() => {
+        onSelect()
+        action.onClick?.()
+      }}
+      className={cn(
+        'motion-std flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-[12.5px]',
+        action.active
+          ? 'bg-primary/15 text-on-tint-primary font-semibold'
+          : 'text-muted-foreground',
+        action.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10 hover:text-foreground',
+      )}
+    >
+      <span className="bg-surface-ink/9 relative flex size-7 shrink-0 items-center justify-center rounded-sm">
+        <Icon icon={action.icon} size={16} className={cn(action.locked && 'opacity-55')} />
+        {action.count ? <CountBadge count={action.count} /> : null}
+      </span>
+      <span className="flex-1">{action.label}</span>
+      {action.locked ? (
+        <>
+          <Icon icon={Lock} size={14} className="opacity-55" />
+          <span className="sr-only">chưa mở</span>
+        </>
       ) : null}
     </button>
   )
@@ -116,6 +159,7 @@ function CoreButton({ action }: { action: HeaderAction }) {
 
 export function AppHeader({
   product,
+  org,
   core,
   apps,
   user,
@@ -128,6 +172,8 @@ export function AppHeader({
 }: AppHeaderProps) {
   const themeMode = useThemeMode()
   const uid = useId()
+  const notificationAction = core.find((action) => action.label === 'Thông báo')
+  const otherCoreActions = core.filter((action) => action !== notificationAction)
   /** Ứng dụng đang xổ module con. Một lúc chỉ một — hai dropdown cùng mở thì
    *  người dùng không biết mục nào đang được nói tới. */
   const [openApp, setOpenApp] = useState<string | null>(null)
@@ -254,67 +300,103 @@ export function AppHeader({
             pending-work controls. */}
         <SearchField className="min-w-[96px] flex-1 md:max-w-[560px]" {...search} />
 
-        <div className="ml-auto flex shrink-0 items-center gap-3">
-          {/* Việc chờ ẩn dưới `lg` — BottomNav đã giữ đúng bộ này ở điện thoại,
-              bày hai lần là hai chỗ phải cùng đúng. */}
-          <div className="hidden items-center gap-1 xl:flex">
-            {core.map((action) => (
-              <CoreButton key={action.label} action={action} />
-            ))}
-          </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* Hàng một chỉ giữ lại tín hiệu cần xem nhanh: Thông báo và người đang
+              đăng nhập. Các lối vào còn lại sống trong menu avatar để header nhẹ
+              hơn, đặc biệt khi search bị co ở màn hình nhỏ. */}
+          {notificationAction ? <CoreButton action={notificationAction} unread={unread} /> : null}
+          {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
 
-          <span aria-hidden className="bg-surface-ink/14 hidden h-6 w-px xl:block" />
-
-          {/* Không có `onOpenAssistant` = màn 04 chưa dựng. Nút vẫn đứng đây
-              nhưng ở trạng thái KHOÁ, không biến mất: BottomNav dưới `lg` đang
-              khoá đúng mục này, và một năng lực hiện ở điện thoại mà bốc hơi ở
-              desktop là hai màn kể hai câu chuyện. Khoá thì bỏ luôn nền azure —
-              luật 3 để azure cho AI đang dùng được, không cho AI đang đóng. */}
-          <button
-            type="button"
-            disabled={!onOpenAssistant}
-            onClick={onOpenAssistant}
-            className={cn(
-              'motion-std hidden h-10 shrink-0 items-center gap-2 rounded-md px-4 text-[12.5px] font-semibold xl:flex',
-              onOpenAssistant
-                ? 'text-accent-foreground bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_30%,transparent),color-mix(in_srgb,var(--primary)_12%,transparent))] shadow-[var(--shadow-assistant),inset_0_1px_0_var(--sheen-ai)] hover:brightness-[1.12]'
-                : /* KHÔNG nền trắng: nó làm SÁNG chỗ đặt một nhãn vốn đã mờ,
-                     tức đẩy tương phản đi sai chiều. Khoá đọc bằng ổ khoá + con
-                     trỏ, không bằng một mặt nền. */
-                  'text-muted-foreground cursor-not-allowed',
-            )}
-          >
-            {/* Chỉ ICON mờ, chữ ở lại `--muted-foreground` — luật 13. */}
-            <Icon icon={Orbit} size={16} className={cn(!onOpenAssistant && 'opacity-55')} />
-            {assistantLabel}
-            {onOpenAssistant ? null : (
-              <>
-                <Icon icon={Lock} size={14} className="opacity-55" />
-                <span className="sr-only">chưa mở</span>
-              </>
-            )}
-          </button>
-
-          <div className="hidden shrink-0 items-center gap-2 lg:flex">
-            <Avatar name={user.name} initials={user.initials} />
-            {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
-            <span aria-hidden className="bg-surface-ink/14 h-6 w-px" />
-            <div className="flex items-center gap-1">{userAction}</div>
-          </div>
-          <div className="relative shrink-0 lg:hidden" data-account-menu>
+          <div className="relative shrink-0" data-account-menu>
             <button
               type="button"
               aria-label={`Mở tài khoản của ${user.name}`}
               aria-expanded={accountOpen}
-              onClick={() => setAccountOpen((open) => !open)}
-              className="focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2"
+              aria-haspopup="menu"
+              onClick={() => {
+                setOpenApp(null)
+                setAccountOpen((open) => !open)
+              }}
+              className={cn(
+                'motion-std focus-visible:outline-ring rounded-md p-0 focus-visible:outline-2 focus-visible:outline-offset-2',
+                accountOpen && 'bg-primary/15',
+              )}
             >
-              <Avatar name={user.name} initials={user.initials} />
+              <Avatar
+                name={user.name}
+                initials={user.initials}
+                className="transition-transform duration-[var(--motion-duration)]"
+              />
             </button>
             {accountOpen && (
-              <div className="glass-overlay shadow-panel absolute right-0 top-11 z-50 flex min-w-[190px] flex-col gap-1 rounded-lg p-2">
-                <div className="text-muted-foreground px-3 py-2 text-[11px]">{user.name}</div>
-                <div className="flex flex-col items-stretch gap-1">{userAction}</div>
+              <div
+                role="menu"
+                aria-label={`Tài khoản của ${user.name}`}
+                className="glass-overlay shadow-panel absolute right-0 top-[calc(100%+10px)] z-50 flex max-h-[min(640px,calc(100vh-88px))] w-[min(280px,calc(100vw-32px))] flex-col overflow-y-auto rounded-lg p-2"
+              >
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <Avatar name={user.name} initials={user.initials} size="md" />
+                  <div className="min-w-0">
+                    <div className="text-foreground truncate text-[13px] font-semibold">
+                      {user.name}
+                    </div>
+                    <div className="text-muted-foreground truncate text-[11px]">
+                      {user.role ?? org}
+                    </div>
+                  </div>
+                </div>
+
+                <div aria-hidden className="bg-surface-ink/12 my-1 h-px" />
+                <div className="text-muted-foreground px-3 pb-1 pt-2 text-[10px] font-semibold tracking-[0.08em]">
+                  Đi đến
+                </div>
+                <div className="flex flex-col gap-1">
+                  {otherCoreActions.map((action) => (
+                    <AccountAction
+                      key={action.label}
+                      action={action}
+                      onSelect={() => setAccountOpen(false)}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!onOpenAssistant}
+                    onClick={() => {
+                      setAccountOpen(false)
+                      onOpenAssistant?.()
+                    }}
+                    className={cn(
+                      'motion-std flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-[12.5px]',
+                      onOpenAssistant
+                        ? 'text-muted-foreground hover:bg-surface-ink/10 hover:text-foreground'
+                        : 'text-muted-foreground cursor-not-allowed',
+                    )}
+                  >
+                    <span className="bg-surface-ink/9 flex size-7 shrink-0 items-center justify-center rounded-sm">
+                      <Icon
+                        icon={Orbit}
+                        size={16}
+                        className={cn(!onOpenAssistant && 'opacity-55')}
+                      />
+                    </span>
+                    <span className="flex-1">{assistantLabel}</span>
+                    {!onOpenAssistant ? (
+                      <Icon icon={Lock} size={14} className="opacity-55" />
+                    ) : null}
+                  </button>
+                </div>
+
+                <div aria-hidden className="bg-surface-ink/12 my-1 h-px" />
+                <div className="text-muted-foreground px-3 pb-1 pt-2 text-[10px] font-semibold tracking-[0.08em]">
+                  Tài khoản
+                </div>
+                <div
+                  className="flex flex-col items-stretch gap-1 [&>button]:w-full [&>button]:justify-start"
+                  onClickCapture={() => setAccountOpen(false)}
+                >
+                  {userAction}
+                </div>
               </div>
             )}
           </div>
