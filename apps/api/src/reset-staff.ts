@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import { createDb } from '@api/platform/db/create-db'
 import type { Db } from '@api/platform/db/db.module'
 import { loadEnv } from '@api/platform/config/env'
@@ -69,6 +69,22 @@ const FOREIGN_SCHEMAS = [
   'pgboss',
 ]
 
+/** A `WHERE ... IN (...)` list, as BOUND PARAMETERS rather than spliced text.
+ *
+ *  `= ANY(${array})` is the obvious spelling and it does not work: drizzle binds
+ *  a JS array as one parameter of an unknown type, and Postgres answers
+ *  `op ANY/ALL (array) requires array on right side`. This was a real failure on
+ *  the first preview run, not a hypothetical.
+ *
+ *  `sql.join` expands to `$1, $2, $3`, which is both correct and the version
+ *  that stays correct when somebody eventually feeds it a name from outside
+ *  this file. */
+const list = (values: string[]): SQL =>
+  sql.join(
+    values.map((v) => sql`${v}`),
+    sql`, `,
+  )
+
 const APPLY = process.argv.includes('--apply')
 
 const passwordArg = process.argv.find((a) => a.startsWith('--password='))
@@ -94,7 +110,7 @@ const MIN = 12
 async function assertNoUnknownSchema(db: Db): Promise<void> {
   const r = (await db.execute(sql`
     SELECT schema_name FROM information_schema.schemata
-    WHERE schema_name <> ALL(${[...OWNED_SCHEMAS, ...FOREIGN_SCHEMAS]})
+    WHERE schema_name NOT IN (${list([...OWNED_SCHEMAS, ...FOREIGN_SCHEMAS])})
       AND schema_name NOT LIKE 'pg\\_%'
     ORDER BY schema_name
   `)) as { rows: { schema_name: string }[] }
@@ -134,7 +150,7 @@ async function main(): Promise<void> {
     const listed = (await db.execute(sql`
       SELECT table_schema, table_name
       FROM information_schema.tables
-      WHERE table_schema = ANY(${OWNED_SCHEMAS}) AND table_type = 'BASE TABLE'
+      WHERE table_schema IN (${list(OWNED_SCHEMAS)}) AND table_type = 'BASE TABLE'
       ORDER BY table_schema, table_name
     `)) as { rows: { table_schema: string; table_name: string }[] }
 
