@@ -31,7 +31,7 @@ import { OpportunityRepository } from './opportunity.repository'
  *  `opportunity.labels.ts`, vì dòng thời gian (`sales.touch`) cũng phải dựng
  *  câu "đơn vừa sang cột Chờ ký" và một bản chép thứ hai trong cùng một thư mục
  *  là bản sẽ bị quên. Bản của MÀN (`ops-fields.tsx`) vẫn còn và vẫn là khoản nợ
- *  đã ghi ở `docs/ban-giao-co-hoi.md`. */
+ *  đã ghi ở `docs/decisions/0018-opportunity-module-decisions.md`. */
 
 @Injectable()
 export class OpportunityMailComposer implements MailComposer {

@@ -607,7 +607,7 @@ export const RECIPIENT_SPEC: ImportSpec = {
  *  `sourceKind` cũng không mang thế — xem `packages/contracts/src/sales/
  *  opportunity-import.ts`, khác biệt 1.
  *
- *  KHÔNG có `motions`, và đó là một quyết định đã gật (`docs/ban-giao-co-hoi.md`
+ *  KHÔNG có `motions`, và đó là một quyết định đã gật (`docs/decisions/0018-opportunity-module-decisions.md`
  *  · "Năm quyết định còn treo" số 2): thế nói một LEAD đến bằng đường nào và nó
  *  rơi vào một cột của bảng lead. Đơn không có cột đó, `OpportunityImportBody`
  *  vì thế không hỏi, và bày một ô chọn mà máy chủ bỏ qua là nói dối người dùng.

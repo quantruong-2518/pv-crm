@@ -109,7 +109,7 @@ export class LeadService {
    *  reporting `hidden`. A profile has exactly one row, so there is nothing to
    *  thin out: it either hands the lead over or refuses. The refusal has to
    *  name the right reason, because the four reasons are four different next
-   *  steps for the person reading the screen (`docs/tich-hop-be.md`):
+   *  steps for the person reading the screen (`docs/decisions/0019-one-error-shape-for-every-api-error.md`):
    *
    *    404 `not-found`         mã gõ sai, hoặc lead chưa từng có
    *    403 `out-of-scope`      CÓ quyền `lead.view`, dòng này không của mình

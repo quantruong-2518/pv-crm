@@ -26,7 +26,7 @@ import type { BuiltRow, RowError } from '@/data/intake'
  *  panel still hands a motion to every `onCommit` — `ImportCommit.motion` is one
  *  type for three loaders — and this door DROPS it. That is not a value being
  *  lost: `OP_SPEC` no longer offers the selector at all (decision 2 of
- *  `docs/ban-giao-co-hoi.md`), so nobody chose it.
+ *  `docs/decisions/0018-opportunity-module-decisions.md`), so nobody chose it.
  *
  *  ------------------------------------------------------------------
  *  DIFFERENCE 2 · NO CLIENT-SIDE DEDUPE KEY WORTH SENDING

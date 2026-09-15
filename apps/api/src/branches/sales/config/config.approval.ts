@@ -63,7 +63,7 @@ export type ConfigChange =
    *  Spelled in English while the three above are not, and that is the rule
    *  rather than an inconsistency: this value travels inside `approval.payload`
    *  as JSON, so it is a stored key. The three older ones are on the identity
-   *  cleanup queue (`docs/ban-giao-dinh-danh-tieng-anh.md`); matching them would
+   *  cleanup queue (`docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`); matching them would
    *  add a fourth row to that queue. */
   | { kind: 'motion'; motion: LeadMotion; patch: MotionPolicyPatchDb }
 

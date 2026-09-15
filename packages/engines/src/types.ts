@@ -161,7 +161,7 @@ export const PERMISSIONS = [
    *  channel, how many turns. Metadata only.
    *
    *  SPLIT FROM THE ONE BELOW ON PURPOSE, and the split is the whole design of
-   *  `docs/tam-nhin-giao-tiep-va-noi-dung.md` §5b. "We have written to them
+   *  `docs/decisions/0011-comms-capture-uses-one-adapter-interface.md` §5b. "We have written to them
    *  fourteen times, last one three days ago" is a management question. "Here
    *  is what they said" is not always the same question, and a product that
    *  answers both with one grant has decided that for everyone. */

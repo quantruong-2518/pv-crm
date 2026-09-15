@@ -42,7 +42,7 @@
  *  both ends spelled the same way, here and in `.env`.
  *
  *  The fallback is the local `apps/api` port documented in
- *  `docs/tich-hop-be.md`, deliberately not production: someone who never copied
+ *  `docs/decisions/0019-one-error-shape-for-every-api-error.md`, deliberately not production: someone who never copied
  *  `.env.example` should hit their own machine and see a connection error, not
  *  quietly read and write the Fly.io database. Trailing slashes are trimmed
  *  because every `path` already opens with one, and `//sales/leads` is a 404

@@ -248,7 +248,7 @@ export const NO_CAMPAIGN_ICON = CircleDashed
  *  `/sales/config`: ghép theo thứ tự là một phép nối ngầm gãy im lặng đúng
  *  ngày ai đó kéo một dòng lên trên trong màn Cấu hình. Bảng biến mất khi
  *  `exitReason` trên `LeadRow` đổi sang ID cấu hình — nợ đã ghi ở
- *  `docs/tich-hop-be.md`. */
+ *  `docs/decisions/0019-one-error-shape-for-every-api-error.md`. */
 export const EXIT_REASON_LABEL: Record<string, string> = {
   'khong-goi-duoc': 'Không gọi được ai',
   'khong-phai-khach-cua-minh': 'Không phải khách của mình',

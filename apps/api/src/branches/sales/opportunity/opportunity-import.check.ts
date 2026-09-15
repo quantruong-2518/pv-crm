@@ -63,7 +63,7 @@ export type ImportCheck = {
  *
  *  Chép ra đây chứ không nhập từ `OP_SPEC` của `apps/web`: `apps/api` không
  *  nhập gì từ app web, và nhập fixture thì chỉ `seed.ts` được phép. Hai bản
- *  nhãn là một khoản nợ đã ghi trong `docs/ban-giao-co-hoi.md`, trả cùng lúc
+ *  nhãn là một khoản nợ đã ghi trong `docs/decisions/0018-opportunity-module-decisions.md`, trả cùng lúc
  *  với bước tách fixture — không sớm hơn. */
 const LABEL: Record<OpportunityImportField, string> = {
   name: 'Tên cơ hội',

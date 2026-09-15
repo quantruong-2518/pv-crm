@@ -19,7 +19,7 @@ import { dm, dmy } from '@/lib/date'
  *  ------------------------------------------------------------------
  *  HAI QUERY CHỨ KHÔNG MỘT, VÀ HAI DÒNG THỜI GIAN KHÔNG TRỘN
  *  ------------------------------------------------------------------
- *  Quyết định #5 của `docs/ban-giao-co-hoi.md`, đã gật: hồ sơ ĐƠN đọc lần chạm
+ *  Quyết định #5 của `docs/decisions/0018-opportunity-module-decisions.md`, đã gật: hồ sơ ĐƠN đọc lần chạm
  *  của đơn, hồ sơ LEAD đọc lần chạm của lead. Chúng không phải hai mảnh của
  *  một chuỗi để nối lại: `sales.touch` khoá bằng cặp `subject_code` +
  *  `subject_kind`, và một đơn có đời riêng — nó sinh ra SAU khi lead đã đi
