@@ -13,8 +13,8 @@ import type { OpportunityCreateState, StageKey } from '@pv/contracts'
  *  sẽ đẻ ra bản thứ hai.
  *
  *  Gộp về một bản trong `apps/api` là thứ làm được hôm nay. Bản THỨ HAI —
- *  `components/ops-fields.tsx` bên `apps/web` — vẫn còn, và vẫn là khoản nợ đã
- *  ghi ở `docs/decisions/0018-opportunity-module-decisions.md`: nó trả cùng lúc với bước tách nhãn khỏi
+ *  `components/ops-fields.tsx` bên `apps/web` — vẫn còn, và vẫn là một khoản nợ
+ *  chưa có ADR nào nhận: nó trả cùng lúc với bước tách nhãn khỏi
  *  fixture, vì hôm nay nhãn của màn còn nằm trong fixture mà `apps/api` chỉ
  *  được nhập fixture ở `seed.ts`. Hai bản là nợ; ba bản là một bản sẽ bị quên. */
 

@@ -87,7 +87,7 @@ export const leadProfileQuery = (code: string) =>
  *  ------------------------------------------------------------------
  *  ABSENT ON THE WIRE IS `''` / `null` IN THE FORM — NOT A DEFAULT
  *  ------------------------------------------------------------------
- *  A key missing from the JSON means NOT DUG OUT YET (`docs/decisions/0019-one-error-shape-for-every-api-error.md`),
+ *  A key missing from the JSON means NOT DUG OUT YET,
  *  and the form already has a spelling for exactly that: `readField` turns
  *  `''` / `null` / `undefined` into an empty control, `filledSlots` counts a
  *  slot as empty on the same three values, and `FieldControl` prints "—" for a

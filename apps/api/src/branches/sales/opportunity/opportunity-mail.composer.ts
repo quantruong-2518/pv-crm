@@ -30,8 +30,7 @@ import { OpportunityRepository } from './opportunity.repository'
  *  nhãn là việc của tầng hiển thị. Hai bảng nhãn từng nằm ngay đây; nay chúng ở
  *  `opportunity.labels.ts`, vì dòng thời gian (`sales.touch`) cũng phải dựng
  *  câu "đơn vừa sang cột Chờ ký" và một bản chép thứ hai trong cùng một thư mục
- *  là bản sẽ bị quên. Bản của MÀN (`ops-fields.tsx`) vẫn còn và vẫn là khoản nợ
- *  đã ghi ở `docs/decisions/0018-opportunity-module-decisions.md`. */
+ *  là bản sẽ bị quên. Bản của MÀN (`ops-fields.tsx`) vẫn còn và vẫn là một khoản nợ chưa có ADR nào nhận. */
 
 @Injectable()
 export class OpportunityMailComposer implements MailComposer {
