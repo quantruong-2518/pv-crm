@@ -57,6 +57,12 @@ export default tseslint.config(
       'aurora/icon-through-gate': 'error',
       'aurora/no-scenario-mix': 'error',
       'aurora/comments-in-english': 'error',
+      'aurora/comment-budget': 'error',
+
+      // Luật 3 · hình dạng code. Đếm DÒNG CODE THẬT (bỏ comment và dòng trống),
+      // nên trần không bị comment đẩy lên — và cắt comment không nới được trần.
+      'max-lines': ['error', { max: 700, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
 
@@ -87,6 +93,12 @@ export default tseslint.config(
     // Fixture LÀ nơi định nghĩa kịch bản, và test phải cầm được cả hai để so.
     files: ['packages/engines/src/fixtures/**', '**/*.test.{ts,tsx,js}'],
     rules: { 'aurora/no-scenario-mix': 'off' },
+  },
+  {
+    // Fixture là DỮ LIỆU và trang kit là CATALOG: cả hai dài theo số mục chúng
+    // liệt kê, không theo độ phức tạp. Trần độ dài ở đây đo nhầm thứ.
+    files: ['packages/engines/src/fixtures/**', 'apps/web/src/kit/**', '**/*.test.{ts,tsx,js}'],
+    rules: { 'max-lines': 'off', 'max-lines-per-function': 'off' },
   },
   {
     // Test không phải giao diện. Tiêu đề test được phép trích nguyên văn tài

@@ -5,11 +5,37 @@
     }
   },
   "apps/api/src/app.module.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "apps/api/src/branches/sales/account/account.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/branches/sales/account/account.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    }
+  },
+  "apps/api/src/branches/sales/account/account.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
+  "apps/api/src/branches/sales/account/account.service.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    }
+  },
   "apps/api/src/branches/sales/campaign/campaign.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
@@ -20,11 +46,17 @@
     }
   },
   "apps/api/src/branches/sales/campaign/campaign.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/api/src/branches/sales/campaign/campaign.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
@@ -35,83 +67,151 @@
     }
   },
   "apps/api/src/branches/sales/campaign/campaign.service.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
   },
   "apps/api/src/branches/sales/campaign/campaign.sweeper.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/branches/sales/campaign/mas.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
   },
   "apps/api/src/branches/sales/campaign/mas.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/branches/sales/campaign/mas.service.ts": {
+    "aurora/comment-budget": {
+      "count": 18
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "apps/api/src/branches/sales/campaign/source.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/api/src/branches/sales/campaign/source.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
   },
   "apps/api/src/branches/sales/campaign/source.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
   },
   "apps/api/src/branches/sales/campaign/source.service.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 8
     }
   },
   "apps/api/src/branches/sales/config/config.approval.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "apps/api/src/branches/sales/config/config.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/branches/sales/config/config.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/api/src/branches/sales/config/config.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/branches/sales/config/config.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 16
     }
   },
   "apps/api/src/branches/sales/config/config.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
   },
   "apps/api/src/branches/sales/config/config.service.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 10
+    }
+  },
+  "apps/api/src/branches/sales/config/motion.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/branches/sales/contact/contact.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
+  "apps/api/src/branches/sales/contact/contact.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    }
+  },
+  "apps/api/src/branches/sales/contact/contact.service.ts": {
+    "aurora/comment-budget": {
+      "count": 4
     }
   },
   "apps/api/src/branches/sales/contract/contract.constraints.ts": {
@@ -119,77 +219,152 @@
       "count": 3
     }
   },
+  "apps/api/src/branches/sales/contract/contract.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/branches/sales/contract/contract.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "apps/api/src/branches/sales/contract/contract.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/branches/sales/contract/contract.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "apps/api/src/branches/sales/contract/contract.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
+  "apps/api/src/branches/sales/contract/contract.service.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/branches/sales/ladder.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/branches/sales/lead/lead-contact.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/api/src/branches/sales/lead/lead-import.check.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "apps/api/src/branches/sales/lead/lead-intake.service.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/branches/sales/lead/lead-mail.composer.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/api/src/branches/sales/lead/lead-write.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/branches/sales/lead/lead-write.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/branches/sales/lead/lead-write.service.ts": {
+    "aurora/comment-budget": {
+      "count": 21
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "apps/api/src/branches/sales/lead/lead.constraints.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
   },
   "apps/api/src/branches/sales/lead/lead.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 23
     }
   },
   "apps/api/src/branches/sales/lead/lead.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
     "aurora/comments-in-english": {
       "count": 8
     }
   },
   "apps/api/src/branches/sales/lead/lead.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/branches/sales/lead/lead.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
   },
   "apps/api/src/branches/sales/lead/lead.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 10
+    },
     "aurora/comments-in-english": {
       "count": 28
     }
   },
   "apps/api/src/branches/sales/lead/lead.service.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 15
     }
@@ -200,6 +375,9 @@
     }
   },
   "apps/api/src/branches/sales/meeting/meeting.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
@@ -215,21 +393,33 @@
     }
   },
   "apps/api/src/branches/sales/meeting/meeting.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 9
     }
   },
   "apps/api/src/branches/sales/meeting/meeting.service.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 10
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity-import.check.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 23
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity-mail.composer.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
@@ -240,36 +430,57 @@
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 10
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.labels.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 9
+    },
     "aurora/comments-in-english": {
       "count": 25
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 43
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 10
+    },
     "aurora/comments-in-english": {
       "count": 15
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.service.ts": {
+    "aurora/comment-budget": {
+      "count": 32
+    },
     "aurora/comments-in-english": {
       "count": 31
     }
@@ -295,26 +506,41 @@
     }
   },
   "apps/api/src/branches/sales/touch/touch.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/branches/sales/touch/touch.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "apps/api/src/branches/sales/touch/touch.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 9
     }
   },
   "apps/api/src/branches/sales/touch/touch.service.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "apps/api/src/main.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
@@ -330,6 +556,9 @@
     }
   },
   "apps/api/src/platform/access/need.decorator.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
@@ -339,44 +568,155 @@
       "count": 2
     }
   },
+  "apps/api/src/platform/approval/approval.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/approval/approval.service.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    }
+  },
   "apps/api/src/platform/audit/audit.repository.ts": {
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/platform/auth/attempt-throttle.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/auth/auth.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/platform/auth/auth.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/platform/auth/auth.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/platform/auth/auth.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/platform/auth/auth.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
   },
   "apps/api/src/platform/auth/auth.service.ts": {
+    "aurora/comment-budget": {
+      "count": 9
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/platform/auth/cookie.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/platform/auth/password-change.guard.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/api/src/platform/auth/password-reset.mailer.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "apps/api/src/platform/auth/password.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    }
+  },
+  "apps/api/src/platform/auth/reauth.guard.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/platform/auth/reset-mailer.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
+    }
+  },
+  "apps/api/src/platform/auth/session.sweeper.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/platform/auth/token.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/comms/comms.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    }
+  },
+  "apps/api/src/platform/comms/comms.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/comms/comms.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    }
+  },
+  "apps/api/src/platform/comms/identity.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/comms/identity.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/comms/identity.service.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/platform/comms/thread.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/comms/thread.service.ts": {
+    "aurora/comment-budget": {
+      "count": 6
     }
   },
   "apps/api/src/platform/config/config.module.ts": {
@@ -385,11 +725,22 @@
     }
   },
   "apps/api/src/platform/config/env.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 27
     }
   },
+  "apps/api/src/platform/db/admin-surface.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/platform/db/create-db.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
@@ -400,16 +751,25 @@
     }
   },
   "apps/api/src/platform/db/like.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/platform/db/platform.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 24
     }
   },
   "apps/api/src/platform/engines/engines.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
@@ -425,6 +785,9 @@
     }
   },
   "apps/api/src/platform/graph/graph.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
@@ -434,17 +797,28 @@
       "count": 3
     }
   },
+  "apps/api/src/platform/graph/object-mirror.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
   "apps/api/src/platform/health/health.controller.ts": {
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/platform/http/db-error.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 20
     }
   },
   "apps/api/src/platform/http/problem.filter.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
@@ -460,36 +834,137 @@
     }
   },
   "apps/api/src/platform/mail/mail-run.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "apps/api/src/platform/mail/mail-run.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/platform/mail/mail-run.sweeper.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/platform/mail/mail-webhook.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/platform/mail/mail.contract.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/mail/mail.module.ts": {
+    "aurora/comment-budget": {
       "count": 1
     }
   },
   "apps/api/src/platform/mail/mail.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/mail/mail.schema.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    }
+  },
+  "apps/api/src/platform/mail/mas-letter.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    }
+  },
+  "apps/api/src/platform/mail/mas.composer.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
+  "apps/api/src/platform/mail/resend.driver.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/mail/unsubscribe-token.ts": {
+    "aurora/comment-budget": {
       "count": 1
     }
   },
   "apps/api/src/platform/mail/unsubscribe.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/platform/queue/boss.provider.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    }
+  },
+  "apps/api/src/platform/queue/mail-composer.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/queue/mail-rate.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/queue/mail-relay.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/platform/queue/mail.consumer.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/platform/queue/queue.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/roles/role-permission.seeder.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/api/src/platform/roles/roles.service.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/api/src/platform/session/actor.guard.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/platform/session/actor.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
@@ -509,47 +984,112 @@
       "count": 1
     }
   },
+  "apps/api/src/platform/setting/setting.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/setting/setting.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/api/src/platform/setting/setting.service.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/api/src/platform/users/users.constraints.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/platform/users/users.controller.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/api/src/platform/users/users.mapper.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
   "apps/api/src/platform/users/users.module.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/api/src/platform/users/users.repository.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
   "apps/api/src/platform/users/users.service.ts": {
+    "aurora/comment-budget": {
+      "count": 15
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
+  "apps/api/src/reset-staff.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
   "apps/api/src/seed-accounts.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/api/src/seed.ts": {
+    "aurora/comment-budget": {
+      "count": 24
+    },
     "aurora/comments-in-english": {
       "count": 31
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/api/src/worker.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
   },
+  "apps/web/src/app/api/base-url.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/app/api/client.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 30
     }
   },
   "apps/web/src/app/api/errors.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 15
     }
@@ -559,17 +1099,33 @@
       "count": 1
     }
   },
+  "apps/web/src/app/api/server-down.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/web/src/app/api/server-health.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/web/src/app/auth/can.ts": {
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/web/src/app/auth/expiry.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "apps/web/src/app/auth/guard.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
@@ -580,31 +1136,59 @@
     }
   },
   "apps/web/src/app/auth/lifecycle.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 17
     }
   },
+  "apps/web/src/app/auth/reauth-dialog.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/web/src/app/auth/reauth.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/app/auth/renew.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "apps/web/src/app/auth/session.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    },
     "aurora/comments-in-english": {
       "count": 33
     }
   },
   "apps/web/src/app/chrome.tsx": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 17
     }
   },
   "apps/web/src/app/desk.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 17
     }
   },
   "apps/web/src/app/intake-desk.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 12
     }
@@ -615,8 +1199,26 @@
     }
   },
   "apps/web/src/app/toast.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 5
+    }
+  },
+  "apps/web/src/app/url.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/web/src/components/account-create-dialog.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/web/src/components/account-fields.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
     }
   },
   "apps/web/src/components/app-toasts.tsx": {
@@ -625,196 +1227,420 @@
     }
   },
   "apps/web/src/components/assign-menu.tsx": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
     "aurora/comments-in-english": {
       "count": 16
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/components/auth-card.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 6
+    }
+  },
+  "apps/web/src/components/comms-card.tsx": {
+    "aurora/comment-budget": {
+      "count": 12
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/components/contacts-card.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
     }
   },
   "apps/web/src/components/convert-dialog.tsx": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 6
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/components/detail-side-panel.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/web/src/components/exit-dialog.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/web/src/components/import-zone.tsx": {
+    "aurora/comment-budget": {
+      "count": 11
+    },
     "aurora/comments-in-english": {
       "count": 37
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/components/lead-create-dialog.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
-  "apps/web/src/components/mas-mail-modal.tsx": {
-    "aurora/comments-in-english": {
+  "apps/web/src/components/mail-compose-bits.tsx": {
+    "aurora/comment-budget": {
       "count": 5
     }
   },
+  "apps/web/src/components/mail-syntax-guide.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/web/src/components/mas-mail-modal.tsx": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
+    "aurora/comments-in-english": {
+      "count": 5
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "apps/web/src/components/meetings-card.tsx": {
+    "aurora/comment-budget": {
+      "count": 10
+    },
     "aurora/comments-in-english": {
       "count": 12
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/components/module1-books.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
+  "apps/web/src/components/opportunity-create-dialog.tsx": {
+    "aurora/comment-budget": {
+      "count": 5
+    }
+  },
   "apps/web/src/components/ops-fields.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 8
     }
   },
   "apps/web/src/components/sign-drawer.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 12
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/components/table-bits.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "apps/web/src/components/wave-recipients.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/web/src/data/accounts.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/web/src/data/approvals.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/web/src/data/auth.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 11
     }
   },
   "apps/web/src/data/campaign-book.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 18
     }
   },
   "apps/web/src/data/campaigns.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 81
     }
   },
+  "apps/web/src/data/comms.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "apps/web/src/data/contacts.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/data/directory.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 9
     }
   },
+  "apps/web/src/data/home.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/data/intake-file.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 27
     }
   },
   "apps/web/src/data/intake.ts": {
+    "aurora/comment-budget": {
+      "count": 9
+    },
     "aurora/comments-in-english": {
       "count": 80
+    },
+    "max-lines": {
+      "count": 1
     }
   },
   "apps/web/src/data/lead-create.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "apps/web/src/data/lead-form.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 24
     }
   },
   "apps/web/src/data/lead-import-wire.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/web/src/data/lead-import.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/web/src/data/lead-owner.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 2
     }
   },
+  "apps/web/src/data/lead-patch.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "apps/web/src/data/lead-profile.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    },
     "aurora/comments-in-english": {
       "count": 3
     }
   },
   "apps/web/src/data/leads.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 37
     }
   },
+  "apps/web/src/data/mail-hints.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "apps/web/src/data/mail-runs.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "apps/web/src/data/mas.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "apps/web/src/data/meetings.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "apps/web/src/data/opportunities-write.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
     "aurora/comments-in-english": {
       "count": 18
     }
   },
   "apps/web/src/data/opportunities.ts": {
+    "aurora/comment-budget": {
+      "count": 9
+    },
     "aurora/comments-in-english": {
       "count": 22
     }
   },
   "apps/web/src/data/opportunity-import-wire.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/web/src/data/opportunity-import.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "apps/web/src/data/performance.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 69
     }
   },
   "apps/web/src/data/period.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 19
     }
   },
   "apps/web/src/data/plan.ts": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
     "aurora/comments-in-english": {
       "count": 38
     }
   },
+  "apps/web/src/data/roles.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/data/sales-config.ts": {
+    "aurora/comment-budget": {
+      "count": 11
+    },
     "aurora/comments-in-english": {
       "count": 16
     }
   },
+  "apps/web/src/data/sales-motions.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/data/source-cost.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 32
     }
   },
   "apps/web/src/data/touches.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "apps/web/src/data/users.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
@@ -844,6 +1670,9 @@
     }
   },
   "apps/web/src/kit/zone-atoms.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 6
     },
@@ -883,122 +1712,340 @@
       "count": 7
     }
   },
+  "apps/web/src/lib/date.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/main.tsx": {
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "apps/web/src/pages/account-detail.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
+  "apps/web/src/pages/accounts.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/pages/approvals.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/pages/campaign-form.tsx": {
+    "aurora/comment-budget": {
+      "count": 23
+    },
     "aurora/comments-in-english": {
       "count": 10
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
     }
   },
   "apps/web/src/pages/campaigns.tsx": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 5
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/pages/change-password.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
+  "apps/web/src/pages/contact-detail.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/pages/contacts.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "apps/web/src/pages/contract-detail.tsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/pages/contracts.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
     }
   },
   "apps/web/src/pages/forgot-password.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "apps/web/src/pages/home-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/pages/home.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 5
+    }
+  },
+  "apps/web/src/pages/installment-detail.tsx": {
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/lead-detail.tsx": {
+    "aurora/comment-budget": {
+      "count": 17
+    },
     "aurora/comments-in-english": {
       "count": 28
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/lead-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 15
+    },
     "aurora/comments-in-english": {
       "count": 33
+    },
+    "max-lines": {
+      "count": 1
     }
   },
   "apps/web/src/pages/leads.tsx": {
+    "aurora/comment-budget": {
+      "count": 24
+    },
     "aurora/comments-in-english": {
       "count": 56
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/mail-runs.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 5
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/pages/mail-templates-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "apps/web/src/pages/mail-templates.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
     }
   },
   "apps/web/src/pages/opportunities.tsx": {
+    "aurora/comment-budget": {
+      "count": 18
+    },
     "aurora/comments-in-english": {
       "count": 37
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/opportunity-detail.tsx": {
+    "aurora/comment-budget": {
+      "count": 24
+    },
     "aurora/comments-in-english": {
       "count": 27
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "apps/web/src/pages/performance.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 35
+    },
+    "max-lines": {
+      "count": 1
     }
   },
   "apps/web/src/pages/plan.tsx": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 18
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/reset-password.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
   },
+  "apps/web/src/pages/roles-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 5
+    }
+  },
+  "apps/web/src/pages/roles.tsx": {
+    "aurora/comment-budget": {
+      "count": 4
+    }
+  },
+  "apps/web/src/pages/sales-config-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "apps/web/src/pages/sales-config.tsx": {
+    "aurora/comment-budget": {
+      "count": 13
+    },
     "aurora/comments-in-english": {
       "count": 18
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/sign-in.tsx": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "apps/web/src/pages/source-detail.tsx": {
+    "aurora/comment-budget": {
+      "count": 7
+    },
     "aurora/comments-in-english": {
       "count": 17
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/source-model.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 17
     }
   },
   "apps/web/src/pages/source-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 4
+    },
     "aurora/comments-in-english": {
       "count": 28
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "apps/web/src/pages/sources.tsx": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 18
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/users-parts.tsx": {
+    "aurora/comment-budget": {
+      "count": 14
+    },
     "aurora/comments-in-english": {
       "count": 9
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "apps/web/src/pages/users.tsx": {
+    "aurora/comment-budget": {
+      "count": 10
+    },
     "aurora/comments-in-english": {
       "count": 10
     }
   },
   "apps/web/src/routes.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 15
     }
   },
   "apps/web/src/test-utils.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
@@ -1009,8 +2056,21 @@
     }
   },
   "packages/contracts/src/auth.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 3
+    }
+  },
+  "packages/contracts/src/comms/identity.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "packages/contracts/src/comms/thread.ts": {
+    "aurora/comment-budget": {
+      "count": 2
     }
   },
   "packages/contracts/src/index.ts": {
@@ -1023,7 +2083,15 @@
       "count": 2
     }
   },
+  "packages/contracts/src/position.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "packages/contracts/src/primitives.ts": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 10
     }
@@ -1033,64 +2101,142 @@
       "count": 8
     }
   },
+  "packages/contracts/src/sales/account.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "packages/contracts/src/sales/campaign-book.ts": {
     "aurora/comments-in-english": {
       "count": 14
     }
   },
   "packages/contracts/src/sales/campaign.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 30
     }
   },
   "packages/contracts/src/sales/config.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 17
     }
   },
   "packages/contracts/src/sales/contact.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "packages/contracts/src/sales/contract.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "packages/contracts/src/sales/currency.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "packages/contracts/src/sales/enums.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
+  "packages/contracts/src/sales/lead-fields.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "packages/contracts/src/sales/lead-import.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
+  "packages/contracts/src/sales/lead-intake.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "packages/contracts/src/sales/lead-source.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "packages/contracts/src/sales/lead.ts": {
+    "aurora/comment-budget": {
+      "count": 12
+    },
     "aurora/comments-in-english": {
       "count": 8
     }
   },
   "packages/contracts/src/sales/mail.ts": {
+    "aurora/comment-budget": {
+      "count": 16
+    },
     "aurora/comments-in-english": {
       "count": 11
     }
   },
+  "packages/contracts/src/sales/meeting.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "packages/contracts/src/sales/motion.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
+  "packages/contracts/src/sales/opportunity-import.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "packages/contracts/src/sales/opportunity.ts": {
+    "aurora/comment-budget": {
+      "count": 8
+    },
     "aurora/comments-in-english": {
       "count": 6
     }
   },
   "packages/contracts/src/sales/touch.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 3
+    }
+  },
+  "packages/contracts/src/setting.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
+  "packages/engines/src/contract-due.ts": {
+    "aurora/comment-budget": {
+      "count": 1
     }
   },
   "packages/engines/src/e1-object-graph.ts": {
@@ -1099,38 +2245,69 @@
     }
   },
   "packages/engines/src/e2-access.ts": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 27
     }
   },
   "packages/engines/src/e3-approvals.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "packages/engines/src/e4-notifications.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "packages/engines/src/fixtures/actors.test.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
   "packages/engines/src/fixtures/campaigns.test.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "packages/engines/src/fixtures/contracts.test.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "packages/engines/src/fixtures/das-vina.ts": {
+    "aurora/comment-budget": {
+      "count": 21
+    },
     "aurora/comments-in-english": {
       "count": 377
     }
   },
   "packages/engines/src/fixtures/opportunities.test.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 5
+    }
+  },
+  "packages/engines/src/fixtures/sao-do-contracts.ts": {
+    "aurora/comment-budget": {
+      "count": 1
     }
   },
   "packages/engines/src/fixtures/sao-do.ts": {
@@ -1149,66 +2326,115 @@
     }
   },
   "packages/engines/src/lead-intake.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 10
     }
   },
+  "packages/engines/src/pipeline-position.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "packages/engines/src/stats.ts": {
+    "aurora/comment-budget": {
+      "count": 7
+    },
     "aurora/comments-in-english": {
       "count": 45
     }
   },
   "packages/engines/src/types.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 25
     }
   },
   "packages/mail-templates/src/brand-shell.tsx": {
+    "aurora/comment-budget": {
+      "count": 3
+    },
     "aurora/comments-in-english": {
       "count": 18
     }
   },
   "packages/mail-templates/src/brand.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "packages/mail-templates/src/index.ts": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 1
     }
   },
   "packages/mail-templates/src/lead-intake-internal.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 4
     }
   },
+  "packages/mail-templates/src/mail-markup.ts": {
+    "aurora/comment-budget": {
+      "count": 3
+    }
+  },
   "packages/mail-templates/src/mas-shell.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "packages/mail-templates/src/opportunity-lost.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "packages/mail-templates/src/opportunity-opened.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 9
     }
   },
   "packages/mail-templates/src/ops-mail-bits.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 5
     }
   },
   "packages/mail-templates/src/ops-mail-style.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 9
     }
   },
   "packages/mail-templates/src/password-reset.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
@@ -1234,6 +2460,9 @@
     }
   },
   "packages/ui/src/layout/app-shell.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 11
     }
@@ -1244,11 +2473,17 @@
     }
   },
   "packages/ui/src/layout/aurora-field.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
   },
   "packages/ui/src/layout/drawer.tsx": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 15
     }
@@ -1263,6 +2498,11 @@
       "count": 1
     }
   },
+  "packages/ui/src/layout/overlay-stack.ts": {
+    "aurora/comment-budget": {
+      "count": 2
+    }
+  },
   "packages/ui/src/layout/screen-layout.tsx": {
     "aurora/comments-in-english": {
       "count": 7
@@ -1274,8 +2514,14 @@
     }
   },
   "packages/ui/src/organisms/app-header.tsx": {
+    "aurora/comment-budget": {
+      "count": 6
+    },
     "aurora/comments-in-english": {
       "count": 27
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "packages/ui/src/organisms/approval-card.tsx": {
@@ -1319,11 +2565,17 @@
     }
   },
   "packages/ui/src/organisms/toast.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 10
     }
   },
   "packages/ui/src/patterns/ai-action.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 10
     },
@@ -1340,6 +2592,9 @@
     }
   },
   "packages/ui/src/patterns/bar-chart.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 14
     }
@@ -1353,6 +2608,9 @@
     }
   },
   "packages/ui/src/patterns/data-table.tsx": {
+    "aurora/comment-budget": {
+      "count": 5
+    },
     "aurora/comments-in-english": {
       "count": 15
     }
@@ -1363,8 +2621,19 @@
     }
   },
   "packages/ui/src/patterns/file-drop.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 20
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "packages/ui/src/patterns/flow-vector.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
     }
   },
   "packages/ui/src/patterns/nav-item.tsx": {
@@ -1376,6 +2645,9 @@
     }
   },
   "packages/ui/src/patterns/rich-text.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
@@ -1396,7 +2668,15 @@
       "count": 3
     }
   },
+  "packages/ui/src/patterns/stage-track.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    }
+  },
   "packages/ui/src/patterns/stat-card.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 9
     }
@@ -1407,6 +2687,9 @@
     }
   },
   "packages/ui/src/patterns/timeline.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
@@ -1443,6 +2726,9 @@
     }
   },
   "packages/ui/src/ui/checkbox.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 7
     }
@@ -1456,6 +2742,9 @@
     }
   },
   "packages/ui/src/ui/cost-band.tsx": {
+    "aurora/comment-budget": {
+      "count": 2
+    },
     "aurora/comments-in-english": {
       "count": 13
     }
@@ -1506,6 +2795,9 @@
   "packages/ui/src/ui/select.tsx": {
     "aurora/comments-in-english": {
       "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "packages/ui/src/ui/separator.tsx": {
@@ -1529,6 +2821,9 @@
     }
   },
   "packages/ui/src/ui/textarea.tsx": {
+    "aurora/comment-budget": {
+      "count": 1
+    },
     "aurora/comments-in-english": {
       "count": 6
     }

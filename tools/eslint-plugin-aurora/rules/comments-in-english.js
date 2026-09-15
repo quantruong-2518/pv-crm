@@ -2,13 +2,13 @@
  *
  *  Identifiers, comments, JSDoc and log strings leave the building — they end up
  *  in stack traces, in JSON, and in the hands of developers who do not read
- *  Vietnamese. Display labels and fixture data are the opposite: they are
- *  content, not keys, and stay Vietnamese.
+ *  Vietnamese.
  *
- *  COMMENTS ONLY, on purpose. A string literal cannot be judged from its
- *  characters alone — `'Đang chạy'` is a legitimate UI label and `'Trần Văn
- *  Bình'` is legitimate fixture data. Comments carry no such exception, so they
- *  are the part a machine can decide.
+ *  COMMENTS ONLY, on purpose — not because string literals are exempt, but
+ *  because a literal cannot be judged from its characters alone: the same
+ *  sentence may be a label being migrated, a quoted column value, or evidence
+ *  cited in a test. Comments carry no such ambiguity, so they are the part a
+ *  machine can decide. The literals are a separate, human-driven pass.
  *
  *  What this rule CANNOT see: an identifier spelled in Vietnamese without
  *  diacritics (`textNhapTuyChon`). No regex separates that from English, so it
@@ -25,11 +25,11 @@ const VIETNAMESE =
 export default {
   meta: {
     type: 'problem',
-    docs: { description: 'Comment phải viết bằng tiếng Anh (§ Luật khi sinh code)' },
+    docs: { description: 'Comments must be written in English (§ code-generation rules)' },
     schema: [],
     messages: {
       vietnamese:
-        'Comment phải viết bằng tiếng Anh — thấy "{{ch}}". Nhãn hiển thị và dữ liệu fixture thì giữ tiếng Việt, nhưng comment thì không (CLAUDE.md § Luật khi sinh code).',
+        'Comments must be written in English — found "{{ch}}". Rewrite the sentence in English; stripping the diacritics is not a translation and defeats the point of this rule.',
     },
   },
   create(context) {

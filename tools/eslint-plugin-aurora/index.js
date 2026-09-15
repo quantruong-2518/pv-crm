@@ -5,6 +5,7 @@ import noAiSlop from './rules/no-ai-slop.js'
 import iconThroughGate from './rules/icon-through-gate.js'
 import noScenarioMix from './rules/no-scenario-mix.js'
 import commentsInEnglish from './rules/comments-in-english.js'
+import commentBudget from './rules/comment-budget.js'
 
 /** eslint-plugin-aurora — 15 luật cứng của Aurora v2.0, phần máy kiểm được.
  *
@@ -25,5 +26,6 @@ export default {
     'icon-through-gate': iconThroughGate,
     'no-scenario-mix': noScenarioMix,
     'comments-in-english': commentsInEnglish,
+    'comment-budget': commentBudget,
   },
 }
