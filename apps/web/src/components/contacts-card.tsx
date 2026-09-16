@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Pin, Trash2, Users } from '@pv/ui'
+import { Plus, Pin, Trash2 } from '@pv/ui'
 import {
   Badge,
   Button,
@@ -62,7 +62,12 @@ import { Field } from './ops-fields'
  *
  *  The FIRST person on a lead automatically becomes primary, decided by the
  *  server — the screen does not guess, because "at least one once someone
- *  exists" is half a rule that no index can state. */
+ *  exists" is half a rule that no index can state.
+ *
+ *  Two hints on the form say only what the seller must DO; the reason is here.
+ *  A contact's email may be left blank because a mail run reads the LEAD's
+ *  mailbox, not this box. The reply-channel field offers the same channel set a
+ *  send goes out on — where we reach them and where we write are one list. */
 export function ContactsCard({ code, canEdit }: { code: string; canEdit: boolean }) {
   const { data, isPending } = useQuery(leadContactsQuery(code))
   const [adding, setAdding] = useState(false)
@@ -71,10 +76,12 @@ export function ContactsCard({ code, canEdit }: { code: string; canEdit: boolean
   const rows = data?.rows ?? []
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Người liên hệ">
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Người liên hệ">
+      {/* Named like every other card in this column: short noun, count in
+          brackets only once there is something to count. */}
       <SectionTitle
-        size="sm"
-        hint="Người ĐẦU danh sách là người chính — hồ sơ lead in tên và số của họ."
+        size="detail"
+        hint="Người ĐẦU danh sách là người chính."
         actions={
           canEdit ? (
             <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
@@ -84,10 +91,7 @@ export function ContactsCard({ code, canEdit }: { code: string; canEdit: boolean
           ) : undefined
         }
       >
-        <span className="flex items-center gap-2">
-          <Icon icon={Users} size={16} />
-          Người liên hệ · {rows.length}
-        </span>
+        Người liên hệ {rows.length > 0 && `(${rows.length})`}
       </SectionTitle>
 
       {isPending ? (
@@ -278,7 +282,7 @@ function ContactDrawer({
         </div>
       }
     >
-      <div className="flex flex-col gap-4 p-5 lg:p-6">
+      <div className="flex flex-col gap-4 p-4 sm:p-5">
         <Field label="Tên" required errors={errors.name}>
           <Input
             value={draft.name}
@@ -303,7 +307,7 @@ function ContactDrawer({
         <Field
           label="Email"
           errors={errors.email}
-          hint="Bỏ trống được — hộp thư của LEAD là thứ luồng gửi thư dựa vào, không phải ô này."
+          hint="Bỏ trống được. Thư gửi theo hộp thư của lead."
         >
           <Input
             type="email"
@@ -327,7 +331,7 @@ function ContactDrawer({
           label="Kênh hay trả lời"
           plain
           errors={errors.channel}
-          hint="Cùng bộ kênh mà một đợt gửi bắn qua — 'gặp được ở đâu' và 'gửi qua đâu' là một danh sách."
+          hint="Kênh người này hay trả lời nhất."
         >
           <Select
             label="Kênh hay trả lời"

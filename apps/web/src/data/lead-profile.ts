@@ -8,7 +8,6 @@ import {
   type LeadContact,
   type LeadProfile as ProfileForm,
   type LeadTier,
-  type TranscriptTurn,
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
@@ -277,31 +276,22 @@ export function leadOf(p: LeadProfile): Lead {
 }
 
 // ---------------------------------------------------------------------------
-// What the touch endpoint will one day fill · TWO named constants, not `[]`
+// The fallback the touch query falls back TO · one named constant, not `[]`
 // ---------------------------------------------------------------------------
 
-/** The lead's touches, and the verbatim conversation on them — EMPTY, because
- *  `sales.touch` does not exist yet.
+/** The lead's touches when the query has not answered yet, or has failed.
  *
- *  `NO_TOUCHES` is no longer what the screens render: both detail screens read
- *  `sales.touch` through `data/touches.ts`, and it survives only as the fallback
- *  for a query that has not answered yet or failed. `NO_TRANSCRIPT` is still the
- *  real value at both call sites — the server has no transcript and will not.
+ *  Not what the screens normally render: both detail screens read `sales.touch`
+ *  through `data/touches.ts`. This survives as the fallback only.
  *
- *  Named constants rather than `[]` written inline, because a bare `[]` in JSX
- *  cannot say WHICH empty it is: nobody has spoken to this lead, or this screen
- *  has no such data to begin with. A reader six months from now would have to go
- *  find out.
+ *  A named constant rather than an inline `[]`, because a bare `[]` cannot say
+ *  WHICH empty it is — nobody has touched this lead, or the answer has not come
+ *  back. Module-level and frozen, so its identity holds across renders.
  *
- *  Frozen module-level values, so they keep the same identity across renders
- *  and never make `ActivityCard`'s memo work for nothing.
- *
- *  Deliberately NOT filled by the fixture's generators: `leadTranscript()`
- *  invents an English conversation out of the lead code, which for an imported
- *  row is a conversation nobody ever had. `FrozenLead` in `@pv/engines` now
- *  refuses that call at compile time — see its docblock. */
+ *  Its twin `NO_TRANSCRIPT` is gone: the verbatim-conversation panel was
+ *  dead on screen (both call sites passed an empty transcript), so the panel
+ *  and the constant went together. */
 export const NO_TOUCHES: readonly TouchEvent[] = []
-export const NO_TRANSCRIPT: readonly TranscriptTurn[] = []
 
 /** Same table as `exitLabel`, minus the `''` branch: a `Lead` spells "still
  *  running" as an ABSENT `exitReason`, and `''` there would read as "it exited

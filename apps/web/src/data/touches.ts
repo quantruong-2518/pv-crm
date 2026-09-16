@@ -11,10 +11,9 @@ import { dm, dmy } from '@/lib/date'
  *      GET /sales/leads/:code/touches   quyền `lead.view`    · scoped
  *      GET /sales/opportunities/:code/touches     quyền `opportunity.view`  · scoped
  *
- *  Đây là thứ thay hai hằng số `NO_TOUCHES`/`NO_TRANSCRIPT` ở
- *  `data/lead-profile.ts:300`. Docblock của chúng đã hẹn sẵn đường này: "khi
- *  endpoint về, `GET /sales/leads/:code/touches` thay đúng hai giá trị đó và
- *  không gì khác, nên thay đổi nằm gọn trong một file". File này là chỗ đó.
+ *  Đây là thứ thay hằng số `NO_TOUCHES` ở `data/lead-profile.ts`, nay chỉ còn
+ *  là chỗ lui khi câu hỏi chưa về. (`NO_TRANSCRIPT` đã bỏ cùng khối nguyên văn
+ *  hội thoại — nó chết trên màn vì cả hai chỗ gọi đều truyền tập rỗng.)
  *
  *  ------------------------------------------------------------------
  *  HAI QUERY CHỨ KHÔNG MỘT, VÀ HAI DÒNG THỜI GIAN KHÔNG TRỘN
@@ -82,6 +81,16 @@ export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
  *  An intersection with the fixture's `LeadEvent` rather than a replacement:
  *  the activity card still draws an event generated from the frozen scenario,
  *  it just cannot be jumped to — which is the truth about those. */
+/** Which touch row a vector face last pointed at.
+ *
+ *  `seq` is what makes a REPEAT press count: pressing the same face twice is a
+ *  real request — the screen may be on another tab by then — but a bare id
+ *  would be an unchanged state and React would skip the effects entirely.
+ *
+ *  A screen concern, not a wire one, so it lives here rather than in
+ *  `@pv/contracts`: `seq` exists to make React notice, and nothing sends it. */
+export type TouchFocus = { id: string; seq: number }
+
 export type TouchEvent = LeadEvent & { id: string }
 
 /** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
@@ -184,9 +193,9 @@ export const opportunityTouchesQuery = (code: string) =>
     select: (d: TouchTimelineResponse) => eventsOf(d.rows),
   })
 
-/** The holder chain of one DEAL — §6·B of `docs/tam-nhin-pipeline-toan-he.md`
- *  said the vector belongs on both profiles, and until 14/09 only the lead had
- *  it.
+/** The holder chain of one DEAL. The vector belongs on BOTH profiles — who has
+ *  held a deal is the same question as who has held a lead — and until 14/09
+ *  only the lead had it.
  *
  *  THE SAME `queryKey` as `opportunityTouchesQuery`, exactly as the two lead
  *  queries share theirs: one fetch, two questions, `select` belonging to the

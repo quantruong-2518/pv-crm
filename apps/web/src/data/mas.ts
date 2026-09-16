@@ -25,8 +25,8 @@ import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app
  *  Every door here has a real route on `apps/api`, so none of them carries a
  *  frozen fixture. Dropping `load` IS the ritual that cuts a query to the
  *  server (`app/api/client.ts`), and a fixture behind a route that exists would
- *  be a second answer nobody could tell from the first. The five queries still
- *  reading fixtures are listed in `docs/fix-later.md`; these are not among them.
+ *  be a second answer nobody could tell from the first. `pnpm ctx` counts which
+ *  screens still read fixtures; none of these five is among them.
  *
  *  ------------------------------------------------------------------
  *  THREE PERMISSIONS, ONE PER QUESTION THE DOOR ACTUALLY ASKS
@@ -382,7 +382,7 @@ export const leadMailTimelineQuery = (code: string) =>
  *  `enabled: runId !== null` rather than a conditional call to this function —
  *  hooks cannot be called conditionally, so the drawer that opens this always
  *  calls the hook and this flag is what turns the request off while the panel
- *  is closed. See `MailTimelineDetailDrawer` in `lead-parts.tsx`. */
+ *  is closed. See `MailTimelineDetailDrawer` in `components/lead-history-card.tsx`. */
 export const leadMailEventsQuery = (code: string, runId: string | null) =>
   queryOptions({
     queryKey: [...LEAD_MAIL_KEY, code, 'events', runId] as const,

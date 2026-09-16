@@ -1,23 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Check, ChevronDown, Mail, MessageSquare, Phone, Users, type IconGlyph } from '@pv/ui'
+import { Check, ChevronDown } from '@pv/ui'
 import {
-  Badge,
   Button,
-  Chip,
-  Drawer,
   GlassCard,
   Icon,
   Input,
-  MetaPill,
   SectionTitle,
-  SegmentedControl,
   Select,
-  Skeleton,
-  StatusDot,
   Textarea,
-  Timeline,
-  type StatusDotState,
   billions,
   cn,
   dong,
@@ -25,14 +15,10 @@ import {
 import {
   CURRENCIES,
   filledSlots,
-  INIT_DATA_QUESTIONS,
   toMoneyVnd,
   type CurrencyCode,
   type Lead,
-  type LeadEventKind,
   type LeadProfile,
-  type TranscriptTurn,
-  type TurnKind,
 } from '@pv/engines/fixtures/das-vina'
 /* HAI kiểu cùng tên `LeadProfile` gặp nhau ở file này, và đó là chuyện hợp
    đồng đã báo trước: cái của fixture là hình mà FORM đọc (mọi trường có mặt,
@@ -40,21 +26,13 @@ import {
    gửi (trường vắng nghĩa là chưa moi được). `profileForm` là chỗ duy nhất đi
    từ cái sau sang cái trước. Đặt bí danh chứ không import bừa: một cái tên
    chọn nhầm ở đây là cả cái form đọc sai một hồ sơ. */
-import type { LeadMailTimelineRow, LeadProfile as WireLeadProfile } from '@pv/contracts'
+import type { LeadProfile as WireLeadProfile } from '@pv/contracts'
 import { useLeadDesk } from '@/app/desk'
-import { dm, dmy } from '@/lib/date'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
-import { leadMailEventsQuery, leadMailTimelineQuery } from '@/data/mas'
-/* Two lookup tables shared with a wave's recipient list — their docblock is in
-   `data/mail-runs.ts`. Until 30/08 they were two private constants at the foot
-   of this file, and a second copy of them was about to be written the moment
-   the campaign screen needed to ask the same question. */
-import { DELIVERED_MAIL, FAILED_MAIL } from '@/data/mail-runs'
-import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { ROOT_FIELD } from '@/data/lead-create'
 import { buildLeadPatch, patchFieldLabel, useUpdateLeadProfile } from '@/data/lead-patch'
 import { profileForm } from '@/data/lead-profile'
-import type { TouchEvent } from '@/data/touches'
 import {
   changedFields,
   channelUrlLabel,
@@ -72,7 +50,7 @@ import {
   type ProfileField,
 } from '@/data/lead-form'
 
-/** Module 2 · Bốn khối lớn của hồ sơ lead.
+/** Module 2 · Ba khối lớn của hồ sơ lead.
  *
  *  Tách khỏi `lead-detail.tsx` vì cùng một lý do `campaign-parts.tsx` tách khỏi
  *  `campaign-detail.tsx`: màn còn lại chỉ nên là BỐ CỤC — đọc dòng lead, xếp
@@ -80,8 +58,7 @@ import {
  *
  *   · `ProfileCard`   — hồ sơ sửa được, có cổng init data sống;
  *   · `NotesCard`     — thông tin quan trọng, ô soạn tự do;
- *   · `NextActionCard`— một đề xuất ngắn về bước nên làm tiếp theo;
- *   · `ActivityCard`  — timeline và transcript, GỘP làm một.
+ *   · `NextActionCard`— một đề xuất ngắn về bước nên làm tiếp theo.
  *
  *  ------------------------------------------------------------------
  *  LUẬT CHỮ TRÊN MÀN
@@ -91,7 +68,7 @@ import {
  *  trên ba mươi. Phần lý do đầy đủ ở lại trong docblock, chỗ người sửa code
  *  đọc, chứ không ở trên màn, chỗ người bán hàng nhìn.
  *
- *  Cả bốn khối tự nối vào `app/desk.ts`, không nhận callback từ màn: thứ chúng
+ *  Cả ba khối tự nối vào `app/desk.ts`, không nhận callback từ màn: thứ chúng
  *  ghi sống lâu hơn một lần mở màn. */
 
 // ---------------------------------------------------------------------------
@@ -677,12 +654,8 @@ export function NotesCard({ lead }: { lead: Lead }) {
   const text = plainNote(note)
 
   return (
-    <GlassCard
-      variant="b"
-      className="flex flex-col gap-4 p-4 sm:p-5"
-      aria-label="Ghi chú quan trọng"
-    >
-      <SectionTitle size="detail" hint="Lưu điều cần nhớ khi liên hệ và xử lý lead.">
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Ghi chú">
+      <SectionTitle size="detail" hint="Điều cần nhớ khi liên hệ khách này.">
         Ghi chú
       </SectionTitle>
 
@@ -731,13 +704,9 @@ export function NextActionCard({ lead }: { lead: Lead }) {
   }
 
   return (
-    <GlassCard
-      variant="b"
-      className="flex flex-col gap-4 p-4 sm:p-5"
-      aria-label="Đề xuất việc tiếp theo"
-    >
-      <SectionTitle size="detail" hint="Ghi một bước cụ thể cần làm sau khi xem lịch họp và email.">
-        Đề xuất việc tiếp theo
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Việc tiếp theo">
+      <SectionTitle size="detail" hint="Một bước cụ thể phải làm tiếp.">
+        Việc tiếp theo
       </SectionTitle>
 
       <div className="flex flex-col gap-3">
@@ -754,537 +723,10 @@ export function NextActionCard({ lead }: { lead: Lead }) {
         />
         <div className="flex justify-end">
           <Button size="md" disabled={!changed} onClick={save}>
-            {changed ? 'Lưu đề xuất' : saved === '' ? 'Lưu đề xuất' : 'Đã lưu'}
+            {changed || saved === '' ? 'Lưu' : 'Đã lưu'}
           </Button>
         </div>
       </div>
     </GlassCard>
   )
-}
-
-// ---------------------------------------------------------------------------
-// 4 · Dòng thời gian — timeline VÀ transcript, một khối
-// ---------------------------------------------------------------------------
-
-/** Bốn kiểu lần chạm. Hình lấy từ chính công cụ đã dùng — nhìn là biết lần đó
- *  gặp mặt hay chỉ nhắn một câu. */
-const TURN_FACE: Record<TurnKind, { label: string; icon: IconGlyph }> = {
-  gap: { label: 'Gặp mặt', icon: Users },
-  goi: { label: 'Gọi điện', icon: Phone },
-  chat: { label: 'Nhắn tin', icon: MessageSquare },
-  mail: { label: 'Email', icon: Mail },
-}
-
-const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'> = {
-  'vao-so': 'next',
-  cham: 'next',
-  'dien-o': 'current',
-  giao: 'current',
-  'len-bac': 'ok',
-  'gap-lan-dau': 'ok',
-  'vao-pipeline': 'ok',
-  'doi-cot': 'current',
-  ky: 'ok',
-  'ra-khoi-luong': 'bad',
-}
-
-/** Cả đời lead và nguyên văn các lần nói chuyện — GỘP làm một.
- *
- *  ------------------------------------------------------------------
- *  VÌ SAO GỘP
- *  ------------------------------------------------------------------
- *  Hai khối cũ kể cùng một câu chuyện bằng hai giọng. Timeline có chín mốc và
- *  nói "ngày 05/06 agent 1 nhắn lại, lấy được 3 ô đầu"; transcript có năm lần
- *  chạm và nói "ngày 05/06, đây là nguyên văn câu đã hỏi". Mốc thứ hai của
- *  timeline VÀ lần chạm thứ hai của transcript là cùng một sự việc — để cạnh
- *  nhau thành hai danh sách thì người đọc phải tự ghép ngày để biết điều đó.
- *
- *  Gộp rồi thì mỗi mốc là một dòng, và mốc nào CÓ hội thoại thì mở ra đọc được
- *  nguyên văn ngay tại chỗ. Không còn chuyện nhảy qua nhảy lại giữa hai khối.
- *
- *  Hai tab: "Tất cả" là chín mốc, "Có hội thoại" lọc còn đúng những mốc mở ra
- *  được. Tab thứ hai là chế độ người ta cần khi đang đi tìm một câu khách đã
- *  nói — bốn mốc hành chính xen vào giữa chỉ làm loãng.
- *
- *  Nguyên văn vẫn ĐÓNG sẵn: docs chốt transcript tiếng Anh là dữ liệu lưu,
- *  không phải thứ hiển thị mặc định. Mở ra thì vẽ thành bong bóng hai phía —
- *  một cuộc nói chuyện đọc ra phải giống một cuộc nói chuyện.
- *
- *  ------------------------------------------------------------------
- *  DỮ LIỆU ĐI VÀO BẰNG PROPS — KHỐI NÀY KHÔNG TỰ ĐI LẤY
- *  ------------------------------------------------------------------
- *  Khối có HAI người gọi, cả hai nay đọc `sales.touch` THẬT qua `data/touches.ts`
- *   · `opportunity-detail` — lần chạm của ĐƠN;
- *   · `lead-detail` — lần chạm của LEAD.
- *  Hai dòng thời gian không trộn (quyết định #5, `docs/ban-giao-co-hoi.md`).
- *
- *  Nhưng `turns` thì cả hai đều truyền `NO_TRANSCRIPT`, và đó là lý do khối này
- *  vẫn KHÔNG được tự gọi `leadTranscript()`: hàm sinh của fixture với một mã
- *  Apollo bịa ra một cuộc hội thoại chưa từng xảy ra, và máy chủ không có
- *  transcript để thay. Nhãn `FrozenLead` bên `@pv/engines` chặn đường đó ở tầng
- *  kiểu; khối nhận `history` và `turns` rời nhau để MỖI người gọi tự khai mình
- *  đứng trên nền nào. Rỗng vẫn là một câu trả lời đúng, và câu ấy nằm ở nhánh
- *  `shown.length === 0` bên dưới — không phải một chỗ hỏng.
- *
- *  ------------------------------------------------------------------
- *  DÒNG KHOÁ BẰNG MÃ LẦN CHẠM, KHÔNG BẰNG VỊ TRÍ — 14/09
- *  ------------------------------------------------------------------
- *  Khoá cũ là `${at}-${i}`, dựng từ chỗ đứng trong mảng. Nó đủ để React vẽ,
- *  nhưng nó không phải danh tính: lọc sang tab "Có hội thoại" là mọi dòng đổi
- *  khoá, và quan trọng hơn — mắt của `FlowVector` chở `touchId`, nên không có
- *  gì để bấm tới. `focus` là nửa còn lại của lượt nối đó: mã một lần chạm đi
- *  vào, khối tự cuộn tới dòng ấy và tô nó lên. */
-export function ActivityCard({
-  code,
-  history,
-  turns,
-  focus,
-}: {
-  code: string
-  history: readonly TouchEvent[]
-  turns: readonly TranscriptTurn[]
-  /** The `sales.touch` row to jump to — normally a vector face just pressed. */
-  focus?: string | null
-}) {
-  const [tab, setTab] = useState('all')
-  const [open, setOpen] = useState<string | null>(null)
-
-  useEffect(() => {
-    setTab('all')
-    setOpen(null)
-  }, [code])
-
-  /* Jump to the moment asked for. Back to the first tab FIRST, because the
-     wanted row may be a hand-over — which the second tab filters out, and
-     scrolling to a hidden row scrolls nowhere. Pressing the same face twice
-     does nothing, and that is right: the row is already in view. */
-  useEffect(() => {
-    if (!focus) return
-    setTab('all')
-    const node = document.getElementById(`touch-${focus}`)
-    node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [focus])
-
-  /* Nối mốc với lần chạm bằng ĐÚNG mốc thời gian: `leadTranscript` lấy `at` của
-     turn thẳng từ sự kiện timeline sinh ra nó, nên hai đầu luôn khớp chuỗi. */
-  const turnAt = useMemo(() => {
-    const m = new Map<string, TranscriptTurn>()
-    for (const t of turns) if (!m.has(t.at)) m.set(t.at, t)
-    return m
-  }, [turns])
-
-  const rows = history.map((e) => ({ ...e, turn: turnAt.get(e.at) }))
-  const withConvo = rows.filter((r) => r.turn)
-  const shown = tab === 'convo' ? withConvo : rows
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Dòng thời gian">
-      <SectionTitle size="lg" hint="Các lần gọi, gặp và trao đổi đã được ghi nhận.">
-        Lịch sử tương tác
-      </SectionTitle>
-
-      <SegmentedControl
-        label="Lọc mốc"
-        hideLabel
-        size="sm"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'all', label: 'Tất cả', count: rows.length },
-          {
-            value: 'convo',
-            label: 'Có hội thoại',
-            count: withConvo.length,
-            disabled: withConvo.length === 0,
-          },
-        ]}
-      />
-
-      {shown.length === 0 ? (
-        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          Chưa có lịch sử tương tác. Dữ liệu lần chạm chưa được kết nối.
-        </p>
-      ) : (
-        <ol className="flex flex-col">
-          {shown.map((row, i) => {
-            const face = row.turn ? TURN_FACE[row.turn.kind] : undefined
-            const on = open === row.id
-            const last = i === shown.length - 1
-
-            return (
-              <li
-                key={row.id}
-                id={`touch-${row.id}`}
-                className={cn(
-                  'flex gap-3 rounded-md transition-colors',
-                  /* Mark the row just jumped to. A faint ground rather than an
-                     outline, per rule 4 — nothing here draws a box. It stays
-                     until the next press, so the reader does not lose the row
-                     the moment the scroll stops. */
-                  focus === row.id && 'bg-accent/10',
-                )}
-              >
-                {/* Cột mốc: chấm trạng thái và sợi dây nối xuống mốc sau. Dây
-                    dừng ở mốc cuối, nếu không nó chỉ vào khoảng trống. */}
-                <span className="flex flex-col items-center pt-1">
-                  <StatusDot state={EVENT_DOT[row.kind]} />
-                  {!last && <span aria-hidden className="bg-surface-ink/8 w-px flex-1" />}
-                </span>
-
-                <div className={cn('flex min-w-0 flex-1 flex-col gap-2', !last && 'pb-4')}>
-                  <span className="text-muted-foreground font-mono text-[10.5px]">
-                    {dm(row.at)}
-                  </span>
-                  <p className="text-[12px] font-semibold leading-[1.5]">{row.note}</p>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <MetaPill avatar={row.by}>{row.by}</MetaPill>
-                    {face && <MetaPill icon={face.icon}>{face.label}</MetaPill>}
-                  </div>
-
-                  {row.turn && (
-                    <>
-                      <div className="flex flex-wrap gap-2">
-                        {INIT_DATA_QUESTIONS.filter((q) => row.turn?.slots.includes(q.key)).map(
-                          (q) => (
-                            <Chip key={q.key}>{q.label}</Chip>
-                          ),
-                        )}
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="self-start"
-                        aria-expanded={on}
-                        onClick={() => setOpen(on ? null : row.id)}
-                      >
-                        <Icon icon={ChevronDown} size={16} className={cn(on && 'rotate-180')} />
-                        {on ? 'Ẩn nguyên văn' : 'Xem nguyên văn'}
-                      </Button>
-
-                      {on && <Bubbles turn={row.turn} />}
-                    </>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ol>
-      )}
-    </GlassCard>
-  )
-}
-
-function Bubbles({ turn }: { turn: TranscriptTurn }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {turn.lines.map((line, i) => (
-        <div
-          key={i}
-          className={cn(
-            'flex max-w-[90%] flex-col gap-1 rounded-md px-3 py-2',
-            line.speaker === 'pv'
-              ? 'bg-primary/24 text-accent-foreground self-end'
-              : 'text-glass-foreground bg-surface-ink/5 self-start',
-          )}
-        >
-          <span className="font-mono text-[10px] uppercase tracking-[.13em] opacity-75">
-            {line.speaker === 'pv' ? `PV · ${turn.by}` : 'Khách'}
-          </span>
-          <span className="text-[12px] leading-[1.65]">{line.text}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Sổ mail của lead — GET /sales/leads/:code/mail
-// ---------------------------------------------------------------------------
-
-/** Mình đã viết cho người này mấy lần, và có tín hiệu gì không.
- *
- *  ------------------------------------------------------------------
- *  KHÔNG BAO GIỜ VIẾT "CHƯA ĐỌC". VIẾT "CHƯA CÓ TÍN HIỆU MỞ".
- *  ------------------------------------------------------------------
- *  Đếm lượt mở là một cái ảnh 1×1, và nó hỏng theo CẢ HAI chiều cùng lúc:
- *
- *   · Apple Mail Privacy Protection tự tải mọi ảnh trên máy chủ của Apple, cho
- *     mọi người bật nó — sinh ra lượt mở KHÔNG AI thực hiện. Trên một tệp B2B
- *     Việt Nam đây không phải trường hợp hiếm, nó là phần lớn người dùng
- *     iPhone.
- *   · Gmail cache ảnh đó, nên mọi lần mở sau lần đầu KHÔNG được đếm.
- *   · Ai đọc thư với chế độ tắt ảnh thì đọc mà không đếm gì cả.
- *
- *  Nên `openCount` là một SÀN DƯỚI CÓ NHIỄU, và ở quy mô một lead thì nhiễu đó
- *  nặng hơn nhiều so với cả lô: một lượt mở ma biến một khách phớt lờ mình
- *  thành một khách "đọc hai lần". Màn này vì thế không có chữ "chưa đọc" và
- *  không có tỉ lệ phần trăm nào — nó nói "chưa có tín hiệu mở", là đúng thứ dữ
- *  liệu này chở được. `clickCount` mới là thứ đáng tin: một cú click là một
- *  hành động người ta chủ động làm, không có proxy ảnh nào bịa ra được.
- *
- *  ------------------------------------------------------------------
- *  MỘT MỐC LÀ MỘT `mail_run`, KHÔNG PHẢI MỘT SỰ KIỆN
- *  ------------------------------------------------------------------
- *  Thẻ này chèn TRƯỚC `ActivityCard`: nó cụ thể hơn — đây là những lá thư đã
- *  gửi cho đúng người này — còn dòng thời gian kia là dòng chảy chung của lead.
- *
- *  Trạng thái của một mốc gộp HAI trục lại thành một chấm, và thứ tự đọc là
- *  thứ tự ưu tiên: người dùng cần biết "có tín hiệu gì không" trước, "thư có
- *  tới không" sau — trừ khi thư KHÔNG tới, lúc đó đó mới là tin quan trọng
- *  nhất trên mốc. Xem `dotOf`. */
-export function MailTimelineCard({ code, actions }: { code: string; actions?: ReactNode }) {
-  const { data, isPending, error } = useQuery(leadMailTimelineQuery(code))
-  const rows = data?.rows ?? []
-  const [openRow, setOpenRow] = useState<LeadMailTimelineRow | null>(null)
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Sổ mail của lead">
-      <SectionTitle
-        size="detail"
-        hint="Theo dõi trạng thái gửi và tín hiệu tương tác của từng email."
-        actions={actions}
-      >
-        Hành trình email
-      </SectionTitle>
-
-      {isPending ? (
-        <Skeleton className="h-16 w-full" />
-      ) : error ? (
-        /* Hỏi không được thì nói là hỏi không được — cùng luật với sổ lead.
-           Một thẻ trống ở đây đọc ra là "chưa gửi lá thư nào", và đó là câu sai
-           nguy hiểm nhất thẻ này có thể nói: nó dẫn người dùng đi gửi thêm một
-           lá thư nữa cho người vừa nhận ba lá. */
-        <p className="text-warning text-[12.5px] leading-[1.6]">
-          Không đọc được lịch sử email của lead này.{' '}
-          {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
-        </p>
-      ) : rows.length === 0 ? (
-        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          Chưa gửi email nào cho lead này.
-        </p>
-      ) : (
-        <Timeline
-          items={rows.map((row) => {
-            const face = deliveryFace(row)
-            const signal = signalOf(row)
-            return {
-              id: row.runId,
-              state: face.dot,
-              title: row.label,
-              meta: (
-                <>
-                  <MetaPill>
-                    {row.campaignName ? `Chiến dịch · ${row.campaignName}` : 'Gửi riêng'}
-                  </MetaPill>
-                  <Badge tone={face.tone}>{face.label}</Badge>
-                  {face.at && <MetaPill mono>{face.at}</MetaPill>}
-                  {signal && (
-                    <MetaPill tone={row.clickCount > 0 ? 'accent' : undefined}>{signal}</MetaPill>
-                  )}
-                </>
-              ),
-              children: row.failReason ? (
-                <span className="text-destructive-foreground">
-                  Không gửi được: {row.failReason}
-                </span>
-              ) : face.tone === 'danger' ? (
-                <span className="text-destructive-foreground">
-                  Không gửi được. Kiểm tra lại địa chỉ email trước khi thử lại.
-                </span>
-              ) : undefined,
-              actions: (
-                <Button size="sm" variant="ghost" onClick={() => setOpenRow(row)}>
-                  Xem chi tiết
-                </Button>
-              ),
-            }
-          })}
-        />
-      )}
-
-      <MailTimelineDetailDrawer code={code} row={openRow} onClose={() => setOpenRow(null)} />
-    </GlassCard>
-  )
-}
-
-const MAIL_EVENT_LABEL: Record<'OPEN' | 'CLICK' | 'REPLY', string> = {
-  OPEN: 'Mở thư',
-  CLICK: 'Bấm liên kết',
-  REPLY: 'Trả lời',
-}
-
-/** One run's full detail — a right-side panel, keeping the timeline in place
- *  (see `Drawer`'s own docblock for why). The header fields come straight off
- *  `row`, already loaded for the whole card; the event sub-timeline is its own
- *  lazy request (`leadMailEventsQuery`, `enabled` only while the panel is
- *  open) — see that query's docblock for why it is not folded into `row`. */
-function MailTimelineDetailDrawer({
-  code,
-  row,
-  onClose,
-}: {
-  code: string
-  row: LeadMailTimelineRow | null
-  onClose: () => void
-}) {
-  const face = row ? deliveryFace(row) : null
-  const signal = row ? signalOf(row) : null
-  const { data: events, isPending: eventsPending } = useQuery(
-    leadMailEventsQuery(code, row?.runId ?? null),
-  )
-
-  return (
-    <Drawer
-      open={row !== null}
-      onClose={onClose}
-      title={row?.label ?? ''}
-      meta={face && <Badge tone={face.tone}>{face.label}</Badge>}
-    >
-      {row && (
-        <div className="flex flex-col gap-5 text-[12.5px] leading-[1.7]">
-          <div className="flex flex-col gap-4">
-            <DetailRow
-              label="Nguồn gửi"
-              value={
-                row.campaignName ? `Chiến dịch · ${row.campaignName}` : 'Gửi riêng (Quick MAS)'
-              }
-            />
-            {row.scheduledAt && <DetailRow label="Hẹn gửi" value={mailMoment(row.scheduledAt)} />}
-            {row.sentAt && <DetailRow label="Đã gửi" value={mailMoment(row.sentAt)} />}
-            {row.deliveredAt && (
-              <DetailRow label="Đã tới hộp thư" value={mailMoment(row.deliveredAt)} />
-            )}
-            <DetailRow label="Tín hiệu tương tác" value={signal ?? 'Chưa có tín hiệu'} />
-            {row.replyCount > 0 && (
-              <DetailRow
-                label="Đã trả lời"
-                value={
-                  row.lastReplyAt
-                    ? `${row.replyCount} lần · gần nhất ${mailMoment(row.lastReplyAt)}`
-                    : `${row.replyCount} lần`
-                }
-              />
-            )}
-            {row.failReason && (
-              <DetailRow label="Không gửi được" value={row.failReason} tone="danger" />
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px] uppercase tracking-wide">
-              Diễn biến
-            </span>
-            {eventsPending ? (
-              <Skeleton className="h-10 w-full" />
-            ) : !events || events.rows.length === 0 ? (
-              <p className="text-muted-foreground">Chưa có tín hiệu mở, bấm hay trả lời nào.</p>
-            ) : (
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {events.rows.map((event, i) => (
-                  <li key={`${event.kind}-${event.at}-${i}`} className="flex flex-wrap gap-2">
-                    <MetaPill mono>{mailMoment(event.at)}</MetaPill>
-                    <span className="font-medium">{MAIL_EVENT_LABEL[event.kind]}</span>
-                    {event.detail && (
-                      <span className="text-muted-foreground truncate">{event.detail}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-    </Drawer>
-  )
-}
-
-function DetailRow({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-muted-foreground text-[11px] uppercase tracking-wide">{label}</span>
-      <span className={tone === 'danger' ? 'text-destructive-foreground' : undefined}>{value}</span>
-    </div>
-  )
-}
-
-/** Hai trục → một chấm, theo thứ tự đọc của người dùng.
- *
- *  `bad` đứng trước mọi thứ: một lá thư bounce hoặc hỏng là tin quan trọng
- *  nhất trên mốc, và nó cũng là thứ duy nhất đòi một hành động (sửa địa chỉ,
- *  hoặc thôi đuổi theo). `warning` cho lá thư bị GIỮ LẠI — địa chỉ đã nằm
- *  trong sổ chặn lúc tới lượt nó — vì đó không phải lỗi đường ống mà là dấu
- *  hiệu tệp danh sách đang mục.
- *
- *  Rồi mới tới tín hiệu: `ok` khi người ta ĐÃ CLICK hoặc đã mở, `current` khi
- *  thư đã tới mà chưa có tín hiệu gì, `next` khi còn đang xếp hàng. */
-type MailDeliveryFace = {
-  label: string
-  tone: 'draft' | 'warning' | 'success' | 'danger'
-  dot: StatusDotState
-  at?: string
-}
-
-/** Trạng thái của LÁ THƯ, không phải trạng thái chung của cả đợt gửi. */
-function deliveryFace(row: LeadMailTimelineRow): MailDeliveryFace {
-  if (FAILED_MAIL[row.deliveryState]) {
-    return { label: 'Gửi lỗi', tone: 'danger', dot: 'bad' }
-  }
-  if (row.runState === 'CANCELLED') {
-    return { label: 'Đã huỷ', tone: 'draft', dot: 'next' }
-  }
-  if (DELIVERED_MAIL[row.deliveryState]) {
-    const moment = row.deliveredAt ?? row.sentAt
-    return {
-      label: 'Đã gửi',
-      tone: 'success',
-      dot: 'ok',
-      ...(moment
-        ? { at: `${row.deliveredAt ? 'Đã tới hộp thư' : 'Gửi thành công'} · ${mailMoment(moment)}` }
-        : {}),
-    }
-  }
-  if (row.runState === 'SCHEDULED') {
-    return {
-      label: 'Đã hẹn gửi',
-      tone: 'warning',
-      dot: 'next',
-      ...(row.scheduledAt ? { at: `Dự kiến · ${mailMoment(row.scheduledAt)}` } : {}),
-    }
-  }
-  return {
-    label: 'Đang gửi',
-    tone: 'warning',
-    dot: 'current',
-    ...(row.scheduledAt ? { at: `Bắt đầu · ${mailMoment(row.scheduledAt)}` } : {}),
-  }
-}
-
-/** Một câu về tín hiệu — và câu "chưa có tín hiệu mở" là câu quan trọng nhất
- *  trong file này. Xem docblock của `MailTimelineCard`. */
-function signalOf(row: LeadMailTimelineRow): string | null {
-  if (row.clickCount > 0) {
-    const count = row.clickCount === 1 ? 'Đã bấm liên kết' : `Đã bấm ${row.clickCount} lần`
-    return row.lastClickAt ? `${count} · ${mailMoment(row.lastClickAt)}` : count
-  }
-  if (row.openCount > 0) {
-    const count = `${row.openCount} tín hiệu mở`
-    return row.lastOpenAt ? `${count} · gần nhất ${mailMoment(row.lastOpenAt)}` : count
-  }
-  if (DELIVERED_MAIL[row.deliveryState]) return 'Chưa ghi nhận lượt mở'
-  return null
-}
-
-function mailMoment(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return dmy(iso)
-  return new Intl.DateTimeFormat('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour12: false,
-  }).format(date)
 }

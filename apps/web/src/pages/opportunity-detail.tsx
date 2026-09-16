@@ -52,8 +52,13 @@ import { isApiError, userMessage, type FieldErrors } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dm, dmy } from '@/lib/date'
-import { leadProfileQuery, realContact, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
-import { NO_STEPS, opportunityTouchesQuery, opportunityVectorQuery } from '@/data/touches'
+import { leadProfileQuery, realContact, NO_TOUCHES } from '@/data/lead-profile'
+import {
+  NO_STEPS,
+  opportunityTouchesQuery,
+  opportunityVectorQuery,
+  type TouchFocus,
+} from '@/data/touches'
 import {
   bdOwnersOf,
   isLateClose,
@@ -89,7 +94,7 @@ import {
 } from '@/components/ops-fields'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { SignDrawer } from '@/components/sign-drawer'
-import { ActivityCard } from './lead-parts'
+import { ActivityCard } from '@/components/lead-history-card'
 
 /** Module 3 · Hồ sơ một cơ hội — `/sales/opportunities/:code`.
  *
@@ -215,10 +220,10 @@ export function OpportunityDetailPage() {
     enabled: Boolean(op?.leadCode),
   })
 
-  /* Dòng thời gian của ĐƠN, không phải của lead — quyết định #5 của
-     `docs/ban-giao-co-hoi.md`. Đơn sinh ra SAU khi lead đã đi được một đoạn,
-     nên trộn hai chuỗi thì câu "đơn này đã đi qua những gì" trả lời lẫn cả
-     những việc xảy ra trước khi đơn tồn tại.
+  /* Dòng thời gian của ĐƠN, không phải của lead — quyết định 5 của ADR
+     `docs/decisions/0018-opportunity-module-decisions.md`. Đơn sinh ra SAU khi
+     lead đã đi được một đoạn, nên trộn hai chuỗi thì câu "đơn này đã đi qua
+     những gì" trả lời lẫn cả những việc xảy ra trước khi đơn tồn tại.
 
      `enabled` chờ đơn về, cùng lý do với hồ sơ lead ngay trên: mã nằm trên
      chính dòng đó. Hỏng lượt này KHÔNG làm hỏng màn — `?? NO_TOUCHES` giữ
@@ -238,7 +243,7 @@ export function OpportunityDetailPage() {
 
   /* Which timeline row a vector face last pointed at — the wire between the two
      blocks, same shape as the lead profile. */
-  const [focusTouch, setFocusTouch] = useState<string | null>(null)
+  const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
 
   /* So a step can mark itself as the reader's own. Read here rather than inside
      `FlowVector`: the library holds no session, data goes in by props. */
@@ -401,15 +406,18 @@ export function OpportunityDetailPage() {
         <ContextRail objects={railOf(op.chain, op.code, navigate)} className="px-1" />
       )}
 
-      {/* WHO HAS HELD THIS DEAL, in order — the left half of the flow vector
-          (`docs/tam-nhin-pipeline-toan-he.md` §6·B), in the same place and for
-          the same reason as on the lead profile: it is a fact about an object,
-          not a task. A deal that never changed hands answers an empty chain and
-          this block draws nothing, which is the true picture of a deal one
-          person carried the whole way. */}
+      {/* WHO HAS HELD THIS DEAL, in order — the left half of the flow vector,
+          in the same place and for the same reason as on the lead profile: it
+          is a fact about an object, not a task. A deal that never changed
+          hands answers an empty chain and this block draws nothing, which is
+          the true picture of a deal one person carried the whole way. */}
       {vector.length > 0 && (
         <GlassCard variant="b" className="p-4">
-          <FlowVector steps={vector} you={me?.id} onOpen={setFocusTouch} />
+          <FlowVector
+            steps={vector}
+            you={me?.id}
+            onOpen={(id) => setFocusTouch((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))}
+          />
         </GlassCard>
       )}
 
@@ -429,23 +437,14 @@ export function OpportunityDetailPage() {
             <StageCard op={op} />
             <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
             <PeopleCard op={op} />
-            {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches`. Khoá bằng mã ĐƠN chứ
-              không mã lead: `code` là thứ `ActivityCard` dùng để dựng lại tab
-              và mục đang mở, nên nó phải đổi đúng lúc dòng thời gian đổi.
+            {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches` — dòng thời
+              gian của ĐƠN, khoá bằng mã đơn chứ không mã lead.
 
               Thẻ không còn treo vào `lead` nữa. Trước đây nó gác như vậy vì
               `code` phải mượn mã lead; giờ đơn tự có dòng thời gian của mình,
               và một đơn mà lead nằm ngoài phạm vi người xem vẫn phải kể được
-              đời của chính nó.
-
-              `turns` vẫn `NO_TRANSCRIPT`, cố ý: máy chủ không có transcript và
-              sẽ chưa có. Hằng số nói ra điều đó, một `[]` trần thì không. */}
-            <ActivityCard
-              code={op.code}
-              history={touches}
-              turns={NO_TRANSCRIPT}
-              focus={focusTouch}
-            />
+              đời của chính nó. */}
+            <ActivityCard history={touches} focus={focusTouch} />
           </DetailSidePanel>
         }
       />
@@ -1000,7 +999,8 @@ function ToolsBar({
   const contact = lead ? realContact(lead) : null
   const owner = saleOwnersOf(op)[0]
 
-  /* ẨN HẲN, không hiện rồi làm mờ — quyết định #4 của `docs/ban-giao-co-hoi.md`.
+  /* ẨN HẲN, không hiện rồi làm mờ — quyết định 4 của ADR
+     `docs/decisions/0018-opportunity-module-decisions.md`.
      Một nút mờ là một lời hứa: "cái này làm được, chỉ chưa lúc này". Với
      `presales` thì không bao giờ là lúc — vai đó dựng số và chạy demo, chữ ký
      thuộc về người đứng tên đơn — nên nút mờ ở đó chỉ dạy người dùng đi tìm

@@ -33,24 +33,18 @@ import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
 import { useStageLimits } from '@/data/sales-config'
-import { leadOf, leadProfileQuery, NO_TOUCHES, NO_TRANSCRIPT } from '@/data/lead-profile'
+import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
-import { leadTouchesQuery, leadVectorQuery, NO_STEPS } from '@/data/touches'
+import { leadTouchesQuery, leadVectorQuery, NO_STEPS, type TouchFocus } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
-import { CommsCard } from '@/components/comms-card'
 import { ContactsCard } from '@/components/contacts-card'
 import { ExitDialog } from '@/components/exit-dialog'
+import { LeadHistoryCard } from '@/components/lead-history-card'
 import { MeetingsCard } from '@/components/meetings-card'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import {
-  ActivityCard,
-  MailTimelineCard,
-  NextActionCard,
-  NotesCard,
-  ProfileCard,
-} from './lead-parts'
+import { NextActionCard, NotesCard, ProfileCard } from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
  *
@@ -58,9 +52,8 @@ import {
  *  VÌ SAO LÀ MỘT TRANG RIÊNG
  *  ------------------------------------------------------------------
  *  Hồ sơ này có một form ba mươi ô, một ô soạn tự do, một danh sách việc và cả
- *  dòng thời gian có nguyên văn. Nhét vào panel bên phải của sổ thì vừa bóp
- *  bảng còn 60% chiều rộng vừa bắt người dùng cuộn năm màn hình trong một cột
- *  hẹp. Danh sách và hồ sơ là hai việc khác nhau nên là hai trang khác nhau; sổ
+ *  một dòng thời gian. Nhét vào panel bên phải của sổ thì vừa bóp bảng còn 60%
+ *  chiều rộng vừa bắt người dùng cuộn năm màn hình trong một cột hẹp. Danh sách và hồ sơ là hai việc khác nhau nên là hai trang khác nhau; sổ
  *  giữ đường quay lại ở góc trái trên.
  *
  *  ------------------------------------------------------------------
@@ -79,7 +72,7 @@ import {
  *       mở sẵn là lý do màn này bị kêu "nhiều quá"; xem `FieldGroup`.
  *
  *   2 · CỘT PHẢI (2 phần) — TÁC VỤ, xếp theo dòng quyết định:
- *       cuộc họp → mail MAS → dòng thời gian → đề xuất bước tiếp theo → ghi chú.
+ *       người liên hệ → cuộc họp → lịch sử → việc tiếp theo → ghi chú.
  *       Cột đi theo luồng cuộn của trang và chỉ bám đáy khi đã hiện trọn vẹn;
  *       không tạo thêm một thanh cuộn lồng khó điều khiển.
  *
@@ -209,18 +202,19 @@ export function LeadDetailPage() {
   /* "Khách này đã được đổi thành cơ hội chưa" — hỏi MÁY CHỦ, cùng lý do hook
      phải nằm trên ba nhánh `return` sớm. Xem `opportunitiesOfLeadQuery`. */
   const priorOps = useQuery(opportunitiesOfLeadQuery(code))
-  /* The LEAD's timeline, not the opportunity's — decision #5 in
-     `docs/ban-giao-co-hoi.md`. Above the three early `return`s, same reason as
-     the hooks right above. A failed fetch does NOT break the screen:
-     `= NO_TOUCHES` keeps the old wording, and an empty timeline still reads. */
-  const { data: touches = NO_TOUCHES } = useQuery(leadTouchesQuery(code))
+  /* The LEAD's timeline, not the opportunity's — decision 5 of ADR
+     `docs/decisions/0018-opportunity-module-decisions.md`. Above the three
+     early `return`s, same reason as the hooks right above. Handed over
+     UNRESOLVED: `undefined` is "not answered yet", and the history tab prints
+     no count until it is. */
+  const { data: touches } = useQuery(leadTouchesQuery(code))
   /* The configured column deadlines — one cached read, above the early
      returns like everything else here. */
   const stageLimits = useStageLimits()
   /* Which timeline row a vector face last pointed at. Lives HERE rather than
      inside either block because it is the wire between them: the vector says
      which moment, the activity card shows it. */
-  const [focusTouch, setFocusTouch] = useState<string | null>(null)
+  const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
   /* The holder chain, off the SAME query key as the timeline above — one fetch,
      two questions. Empty until somebody has actually held this lead, and
      `FlowVector` draws nothing at all in that case. */
@@ -432,20 +426,22 @@ export function LeadDetailPage() {
         <ContextRail objects={railOf(lead.chain, lead.code, navigate)} className="px-1" />
       )}
 
-      {/* WHO HAS HAD THIS LEAD, in order — the left half of the flow vector
-          (`docs/tam-nhin-pipeline-toan-he.md` §6·B). It sits under the header
-          rather than in the side panel because it is a fact about the lead, not
-          a task: the panel answers "what do I do now", this answers "who was
-          before me".
+      {/* WHO HAS HAD THIS LEAD, in order — the left half of the flow vector. It
+          sits under the header rather than in the side panel because it is a
+          fact about the lead, not a task: the panel answers "what do I do now",
+          this answers "who was before me".
 
           PRESSABLE since 14/09: a step carries the `sales.touch` row it was
-          read off, and `ActivityCard` now keys its rows on that same id, so
-          `onOpen` has somewhere to land. Pressing a face scrolls the timeline
-          to the moment that person took the lead — the one question the vector
-          raises and cannot answer by itself. */}
+          read off, and the history card keys its activity rows on that same id,
+          so `onOpen` has somewhere to land — the card opens that tab and scrolls
+          to the moment the person took the lead. */}
       {vector.length > 0 && (
         <GlassCard variant="b" className="p-4">
-          <FlowVector steps={vector} you={me?.id} onOpen={setFocusTouch} />
+          <FlowVector
+            steps={vector}
+            you={me?.id}
+            onOpen={(id) => setFocusTouch((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))}
+          />
         </GlassCard>
       )}
 
@@ -466,16 +462,22 @@ export function LeadDetailPage() {
         main={<ProfileCard profile={lead} />}
         side={
           <DetailSidePanel>
-            {/* Đọc dữ kiện trước khi quyết định: đã họp gì → email đang ở đâu →
-                bước tiếp theo là gì. Ghi chú nằm sau luồng chính. */}
+            {/* Reading order of the column: who to call → what was agreed →
+                what has happened → what to do next → what to remember. */}
             {/* Contacts come BEFORE meetings: "who do I call" is asked before
                 "how many times have we met", and this card is what writes the
                 lead's own five contact columns — see its docblock. */}
             <ContactsCard code={lead.code} canEdit={canWrite} />
             <MeetingsCard code={lead.code} canEdit={canWrite} />
-            <MailTimelineCard
+            {/* ONE history card, three doors: the letters sent, what happened
+                to the record, and what was actually said. They were three
+                cards in a row and nobody could tell which one to open. */}
+            <LeadHistoryCard
               code={lead.code}
-              actions={
+              touches={touches}
+              focus={focusTouch}
+              seedAddress={lead.email}
+              mailActions={
                 <Button
                   size="sm"
                   variant="secondary"
@@ -484,33 +486,10 @@ export function LeadDetailPage() {
                   onClick={() => setComposing(true)}
                 >
                   <Icon icon={Mail} size={16} />
-                  Gửi mail
+                  Gửi email
                 </Button>
               }
             />
-            {/* Real rows from `GET /sales/leads/:code/touches`. It sits AFTER the
-                mail card because the mail card is the more specific one — the
-                letters sent to this exact person — while this is the lead's
-                general flow; see `MailTimelineCard`'s docblock.
-
-                `turns` stays `NO_TRANSCRIPT` on purpose: the server has no
-                transcript and will not. The constant says so; a bare `[]` does
-                not. */}
-            <ActivityCard
-              code={lead.code}
-              history={touches}
-              turns={NO_TRANSCRIPT}
-              focus={focusTouch}
-            />
-            {/* WHAT WAS SAID, beside WHAT HAPPENED — the two books merged by
-                standing next to each other, which is the only merge §3.3 of
-                `docs/tam-nhin-giao-tiep-va-noi-dung.md` allows (the books stay
-                separate; the screen puts them side by side). `CommsCard`'s own
-                docblock carries the reason this is two cards and not one
-                interleaved list. It sits AFTER the touch timeline because the
-                timeline answers the cheaper question first — what state this
-                lead is in — and this one answers the expensive follow-up. */}
-            <CommsCard code={lead.code} seedAddress={lead.email} />
             <NextActionCard lead={legacy} />
             <NotesCard lead={legacy} />
           </DetailSidePanel>
@@ -544,7 +523,7 @@ export function LeadDetailPage() {
         onClose={() => setComposing(false)}
         leads={masRecipients}
         initialLeadCode={masRecipients.length > 0 ? lead.code : undefined}
-        defaultLabel={`Gửi mail · ${accountName}`}
+        defaultLabel={`Gửi email · ${accountName}`}
         onQueued={() => setComposing(false)}
       />
     </ScreenLayout>,
@@ -597,7 +576,10 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
   }
   if (reported) return <Badge tone="warning">Đã báo · {reported}</Badge>
   if (overSla(lead, limits)) return <Badge tone="warning">Quá hạn cột</Badge>
-  return <Badge tone="running">Đang chạy</Badge>
+  /* The lead book calls this bucket "Chưa chốt" and the two screens must print
+     one word for one bucket. "Đang chạy" also overstated it: most leads in
+     here have not been touched by anybody yet. */
+  return <Badge tone="running">Chưa chốt</Badge>
 }
 
 /** Lead này từ đâu về — TRA TỪ SỔ NGUỒN THẬT.
@@ -632,7 +614,7 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *  Thanh này chia làm hai nửa theo câu hỏi nó trả lời, không theo loại
  *  component:
  *
- *   · nửa trái = **AI** — khách là ai (người liên hệ + chức danh);
+ *   · nửa trái = **KHÁCH LÀ AI** — người liên hệ + chức danh;
  *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
  *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
  *

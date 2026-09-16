@@ -1501,7 +1501,7 @@
   },
   "apps/web/src/data/lead-profile.ts": {
     "aurora/comment-budget": {
-      "count": 7
+      "count": 6
     },
     "aurora/comments-in-english": {
       "count": 3
@@ -1821,7 +1821,7 @@
   },
   "apps/web/src/pages/lead-detail.tsx": {
     "aurora/comment-budget": {
-      "count": 17
+      "count": 15
     },
     "aurora/comments-in-english": {
       "count": 28
@@ -1832,13 +1832,10 @@
   },
   "apps/web/src/pages/lead-parts.tsx": {
     "aurora/comment-budget": {
-      "count": 15
+      "count": 10
     },
     "aurora/comments-in-english": {
-      "count": 33
-    },
-    "max-lines": {
-      "count": 1
+      "count": 22
     }
   },
   "apps/web/src/pages/leads.tsx": {
@@ -2515,10 +2512,10 @@
   },
   "packages/ui/src/organisms/app-header.tsx": {
     "aurora/comment-budget": {
-      "count": 6
+      "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 27
+      "count": 24
     },
     "max-lines-per-function": {
       "count": 1

@@ -64,7 +64,11 @@ export function MeetingsCard({ code, canEdit }: { code: string; canEdit: boolean
   const rows = data?.rows ?? []
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Cuộc họp với lead">
+    <GlassCard
+      variant="b"
+      className="flex flex-col gap-4 p-4 sm:p-5"
+      aria-label="Cuộc họp với lead"
+    >
       <SectionTitle
         size="detail"
         actions={

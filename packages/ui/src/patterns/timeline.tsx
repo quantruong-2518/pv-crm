@@ -18,6 +18,12 @@ import { cn } from '../lib/cn'
  *  đường — chuỗi dừng ở đó, không lửng lơ. */
 export type TimelineItem = {
   id: string
+  /** DOM `id`, for a screen that has to `scrollIntoView` one moment. Separate
+   *  from `id`, which is the React key and may collide with another element on
+   *  the page — whatever reaches the DOM is the caller's to namespace. */
+  domId?: string
+  /** Mark the moment just jumped to: a faint ground, never an outline (law 4). */
+  highlight?: boolean
   /** chấm trạng thái; mặc định `next` = chưa tới */
   state?: StatusDotState
   /** nhãn ngắn bên trái tiêu đề, ví dụ "Đợt 2" */
@@ -35,7 +41,14 @@ export function Timeline({ items, className }: { items: TimelineItem[]; classNam
   return (
     <ol className={cn('m-0 list-none p-0', className)}>
       {items.map((item, i) => (
-        <li key={item.id} className="relative flex gap-4 pb-6 last:pb-0">
+        <li
+          key={item.id}
+          id={item.domId}
+          className={cn(
+            'relative flex gap-4 rounded-md pb-6 transition-colors last:pb-0',
+            item.highlight && 'bg-accent/10',
+          )}
+        >
           {i < items.length - 1 && (
             <span aria-hidden className="bg-surface-ink/8 absolute bottom-0 left-1 top-4 w-px" />
           )}

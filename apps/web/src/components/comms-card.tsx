@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Check, Lock, MessageSquare, Plus, Timer, UserPlus } from '@pv/ui'
+import { ArrowDown, ArrowUp, Check, Lock, MessageSquare, Timer, UserPlus } from '@pv/ui'
 import {
   Badge,
   Button,
   ChannelTag,
   Drawer,
   EmptyState,
-  GlassCard,
   Icon,
   Input,
   MetaPill,
-  SectionTitle,
   Select,
   Skeleton,
   Textarea,
@@ -46,12 +44,11 @@ import {
  *  what happened to the record.
  *
  *  ------------------------------------------------------------------
- *  A CARD BESIDE `ActivityCard`, NOT ONE MERGED TIMELINE
+ *  A TAB BESIDE THE ACTIVITY TAB, NOT ONE MERGED TIMELINE
  *  ------------------------------------------------------------------
- *  §3.3 of `docs/tam-nhin-giao-tiep-va-noi-dung.md` says the books stay
- *  separate and the SCREEN merges the two streams when it draws. This screen
- *  merges them by standing them next to each other, in one column, in reading
- *  order — and that is a decision with a reason, not a shortcut.
+ *  The two books stay separate and the SCREEN merges the streams when it
+ *  draws: `LeadHistoryCard` merges them by putting them behind three doors of
+ *  one card — and that is a decision with a reason, not a shortcut.
  *
  *  A `sales.touch` row is a POINT: the lead entered the book, changed hands,
  *  moved a column, got signed. A thread is an INTERVAL with turns inside it —
@@ -71,17 +68,29 @@ import {
  *  gets `state: 'hidden'` on the words but keeps every touch row in full; one
  *  merged list would alternate between rows that are complete and rows that
  *  are withheld, and the withheld ones would read as gaps in the record rather
- *  than as gaps in the reader's clearance. Two cards keep the boundary where
+ *  than as gaps in the reader's clearance. Two lists keep the boundary where
  *  the permission actually falls.
  *
  *  ------------------------------------------------------------------
  *  NO CODE, NO RAIL
  *  ------------------------------------------------------------------
- *  A thread mints no object code and never reaches ContextRail (§19.3) — a
+ *  A thread mints no object code and never reaches ContextRail — a
  *  code is minted for something a person names out loud, and a thread is
  *  something that happened BETWEEN objects. So nothing here feeds the rail,
  *  and a thread is opened in a drawer rather than at an address of its own. */
-export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: string }) {
+export function CommsPanel({
+  code,
+  seedAddress,
+  capturing,
+  onCapture,
+}: {
+  code: string
+  seedAddress?: string
+  /** Whether the capture drawer is open. The button that opens it stands in
+   *  the history card's header, which is why this state is not held here. */
+  capturing: boolean
+  onCapture: (open: boolean) => void
+}) {
   const canView = useCan('comm.view')
   /* The capture door itself only asks for `comm.view`. The IDENTITY BOOK it
      depends on asks for `comm.capture-manage`, and without a way to name a
@@ -90,7 +99,7 @@ export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: s
   /* ONE question for the whole card, and it decides ONE sentence — not how any
      turn is drawn. Without this line the only way to learn you are not cleared
      to read content is to open a thread, and opening a thread writes a
-     `platform.audit` row (§5c): finding out you may not read costs you a
+     `platform.audit` row: finding out you may not read costs you a
      record saying you read. Said here, that trade goes away.
      Each turn still renders off `row.content.state`, straight from the server.
      The screen never decides which branch applies. */
@@ -98,31 +107,15 @@ export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: s
 
   const { data, isPending, error } = useQuery({ ...objectThreadsQuery(code), enabled: canView })
   const [reading, setReading] = useState<ThreadRow | null>(null)
-  const [capturing, setCapturing] = useState(false)
 
   const rows = data?.rows ?? []
 
   return (
-    /* Rule 8 — a list lives on `.glass-b`, never on `.glass-a`. */
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Dòng giao tiếp">
-      <SectionTitle
-        size="detail"
-        hint="Nội dung hai bên đã trao đổi — một sổ riêng, không phải dòng thời gian sự kiện."
-        actions={
-          canView && canCapture ? (
-            <Button size="sm" variant="secondary" onClick={() => setCapturing(true)}>
-              <Icon icon={Plus} size={16} />
-              Ghi một lượt
-            </Button>
-          ) : undefined
-        }
-      >
-        Dòng giao tiếp {rows.length > 0 && `(${rows.length})`}
-      </SectionTitle>
-
+    /* Rule 8 — the card around this panel is `.glass-b`, never `.glass-a`. */
+    <>
       {!canView ? (
         <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          Vai của bạn không có quyền xem sổ giao tiếp, nên thẻ này không nói được đã trao đổi bao
+          Vai của bạn không có quyền xem các trao đổi, nên thẻ này không nói được đã trao đổi bao
           nhiêu lượt với khách này.
         </p>
       ) : isPending ? (
@@ -136,7 +129,7 @@ export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: s
            somebody off to make a cold first call to a customer three people
            have already been emailing. */
         <p className="text-warning text-[12.5px] leading-[1.6]">
-          Không đọc được sổ giao tiếp của hồ sơ này.{' '}
+          Không đọc được các trao đổi của hồ sơ này.{' '}
           {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
         </p>
       ) : rows.length === 0 ? (
@@ -149,12 +142,12 @@ export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: s
         canCapture ? (
           <EmptyState
             icon={MessageSquare}
-            message="Chưa có luồng giao tiếp nào gắn vào hồ sơ này."
-            action={{ label: 'Ghi lượt đầu tiên', onClick: () => setCapturing(true) }}
+            message="Chưa có trao đổi nào với khách này."
+            action={{ label: 'Ghi trao đổi đầu tiên', onClick: () => onCapture(true) }}
           />
         ) : (
           <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-            Chưa có luồng giao tiếp nào gắn vào hồ sơ này.
+            Chưa có trao đổi nào với khách này.
           </p>
         )
       ) : (
@@ -187,7 +180,7 @@ export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: s
               /* The ONE press target on a thread row, so it takes rule 13's
                  tablet floor rather than the card-header button's size. */
               <Button size="lg" variant="ghost" onClick={() => setReading(row)}>
-                Mở luồng
+                Mở trao đổi
               </Button>
             ),
           }))}
@@ -217,11 +210,11 @@ export function CommsCard({ code, seedAddress }: { code: string; seedAddress?: s
       <CaptureDrawer
         code={code}
         open={capturing}
-        onClose={() => setCapturing(false)}
+        onClose={() => onCapture(false)}
         threads={rows}
         seedAddress={seedAddress}
       />
-    </GlassCard>
+    </>
   )
 }
 
@@ -538,7 +531,7 @@ function CaptureDrawer({
 
     capture.mutate(payload, {
       onSuccess: () => {
-        toast('Đã ghi một lượt vào sổ giao tiếp', { tone: 'success' })
+        toast('Đã ghi một trao đổi', { tone: 'success' })
         onClose()
       },
       onError: (error) =>
@@ -552,7 +545,7 @@ function CaptureDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Ghi một lượt giao tiếp"
+      title="Ghi một trao đổi"
       subtitle="Ghi lại một cuộc gọi, một lá thư hay một tin nhắn đã diễn ra."
       width="lg"
       footer={

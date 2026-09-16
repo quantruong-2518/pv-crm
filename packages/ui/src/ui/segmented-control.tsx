@@ -72,11 +72,14 @@ export function SegmentedControl({
               )}
             >
               {o.label}
+              {/* On `--primary` the count takes `--primary-foreground`:
+                  `--on-tint-*` is for a TINTED ground and fails 4.5:1 here
+                  (3.8:1 Aurora, 1.2:1 stone — all but invisible). */}
               {typeof o.count === 'number' && (
                 <span
                   className={cn(
                     'tnum font-num text-[10.5px] font-normal',
-                    active ? 'text-on-tint-primary' : 'text-muted-foreground',
+                    active ? 'text-primary-foreground' : 'text-muted-foreground',
                   )}
                 >
                   {o.count}

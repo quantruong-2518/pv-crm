@@ -42,7 +42,6 @@ import {
   dayISO,
   LEAD_CATEGORIES,
   PIPELINE_STAGES,
-  REQUIRED_SLOTS,
 } from '@pv/engines/fixtures/das-vina'
 import {
   campaignLabel,
@@ -114,12 +113,6 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *     (`ANCHOR_CODE`), nên bốn chip mã treo trên đầu một danh sách 100 dòng nói
  *     về một lead mà người dùng không hề chọn. Rail quay lại khi nào nó dựng
  *     được từ dòng đang được chọn — không sớm hơn.
- *   · **khối tiêu đề "Sổ lead" + dòng kỳ** — gỡ TẠM THỜI, khác hai thứ trên.
- *     Kỳ và số dòng cả kỳ vẫn còn nguyên trên phễu ngay bên dưới
- *     (`Phễu 01/05 → 17/08`), nên đầu màn đang lặp lại chính nó. Hệ quả phải
- *     biết: màn HẾT `<h2>` — trình đọc màn hình không còn tên cho vùng nội
- *     dung, và tên màn chỉ còn nằm ở nav tầng 2. Trả lại khối này (hoặc một
- *     tiêu đề gọn hơn) trước khi màn ra khỏi POC.
  *
  *  ------------------------------------------------------------------
  *  TÁM CỘT — chốt 22/08, tên cột sửa lần 2
@@ -200,8 +193,9 @@ import { Pager, PersonCell, PicCell } from '@/components/table-bits'
  *  cố tình không đổi theo bộ lọc — xem `ScoreCards`.
  *
  *  Thứ CÒN đọc fixture: nhãn của bậc, ngành và lý do rơi, vì `LeadRow` còn chở
- *  khoá chữ thường cũ chứ chưa phải ID cấu hình (nợ đã ghi ở
- *  `docs/tich-hop-be.md`). Chỉ NGUỒN đã nối được vào sổ nguồn thật.
+ *  khoá chữ thường cũ chứ chưa phải ID cấu hình. Riêng nhãn lý do rơi có ADR
+ *  ghi nợ — `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
+ *  luật 4; hai nhãn kia chưa ai ghi. Chỉ NGUỒN đã nối được vào sổ nguồn thật.
  *
  *  Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và đi qua cả màn chi
  *  tiết — chúng nằm ở `app/desk.ts`. */
@@ -260,9 +254,8 @@ const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
  *  22/08" ở docblock đầu file — nhãn sai, không phải độ mịn của bộ lọc, mới là
  *  thứ đang được sửa ở đây.
  *
- *  `lead-detail.tsx#StatusBadge` vẫn in "Đang chạy" cho đúng bucket này — đó
- *  là một mặt khác của CÙNG một sự lệch pha, chưa sửa trong đợt này vì nó là
- *  một badge khác, ở một màn khác, không phải ô lọc đang được hỏi tới. */
+ *  `lead-detail.tsx#StatusBadge` in CÙNG nhãn này cho cùng bucket — hai màn của
+ *  một dòng dữ liệu không được gọi nó bằng hai tên. */
 const STATUSES: { key: LeadStatus; label: string }[] = [
   { key: 'running', label: 'Chưa chốt' },
   { key: 'signed', label: 'Đã ký' },
@@ -324,7 +317,7 @@ export function LeadsPage() {
   const urlQuery = useMemo(() => parseLeadBookQuery(params), [params])
   const query = useMemo<LeadBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
 
-  /* `error` đọc ra, KHÔNG bỏ — `fix-later.md` mục 2.
+  /* `error` đọc ra, KHÔNG bỏ.
      Bỏ nó đi thì một máy chủ chết hiện ra thành "Không có lead nào khớp bộ lọc
      đang chọn" kèm nút "Bỏ hết bộ lọc", console sạch trơn: người dùng đi sửa
      bộ lọc cho một sự cố hạ tầng, và chỉ dừng lại khi đã bỏ hết bộ lọc mà sổ
@@ -633,18 +626,18 @@ export function LeadsPage() {
           title="Sổ lead"
           actions={
             selecting ? (
-              <>
-                <Badge tone="running">{selectedCodes.size} lead đã chọn</Badge>
-                <Button size="md" variant="ghost" onClick={exitSelection}>
-                  <Icon icon={X} size={16} />
-                  Thoát chọn
-                </Button>
-              </>
+              /* The selected count is printed on the sticky bottom bar only: it
+                 sits beside the actions that consume the selection, and it stays
+                 in view at every scroll position. */
+              <Button size="md" variant="ghost" onClick={exitSelection}>
+                <Icon icon={X} size={16} />
+                Thoát chọn
+              </Button>
             ) : (
               <>
                 {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
               vào. Cùng cỡ, cùng dáng — chúng là hai đường vào một chỗ, không
-              phải một nút chính và một nút phụ. Gửi MAS mail đứng riêng bên phải:
+              phải một nút chính và một nút phụ. Nút gửi email đứng riêng bên phải:
               nó không ghi lead mới, nó chọn lead CÓ SẴN để gửi mail — sáng lên
               (variant default) khi chế độ chọn đang bật, cùng ngôn ngữ với
               Select đang lọc. */}
@@ -661,7 +654,7 @@ export function LeadsPage() {
                   spec={leadSpec}
                   existingKeys={NO_LOCAL_KEYS}
                   scopeOptions={importSourceOptions}
-                  buttonLabel="Đẩy danh sách"
+                  buttonLabel="Nhập từ file"
                   onCommit={commitLeads}
                   onSeeResult={clearFilters}
                 />
@@ -751,7 +744,7 @@ export function LeadsPage() {
               <span className="tnum text-foreground font-num text-[15px] font-semibold">
                 {total}
               </span>{' '}
-              dữ liệu
+              lead
             </span>
             <div className="flex flex-wrap items-center justify-end gap-3">
               {selecting && rows.length > 0 && (
@@ -760,7 +753,7 @@ export function LeadsPage() {
                   indeterminate={pageSelected > 0 && !allPageSelected}
                   onChange={selectPage}
                   label="Chọn trang này"
-                  hint={`${pageSelected}/${rows.length} lead trên trang`}
+                  hint={`${pageSelected}/${rows.length} lead`}
                   className="py-1"
                 />
               )}
@@ -918,7 +911,7 @@ export function LeadsPage() {
           onClose={() => setComposing(false)}
           leads={wholeBook}
           initialLeadCodes={selectedCodeList}
-          defaultLabel="Gửi MAS mail · Sổ lead"
+          defaultLabel="Gửi email · Sổ lead"
           onQueued={() => {
             setComposing(false)
             exitSelection()
@@ -987,9 +980,7 @@ function LeadSelectionBar({
         </span>
         <span className="flex min-w-0 flex-col">
           <span className="text-[13px] font-semibold">{leads} lead đã chọn</span>
-          <span className="text-muted-foreground text-[11.5px]">
-            {emails} địa chỉ email · Kéo qua dòng để chọn nhanh
-          </span>
+          <span className="text-muted-foreground text-[11.5px]">{emails} địa chỉ email</span>
         </span>
       </div>
       <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
@@ -998,7 +989,7 @@ function LeadSelectionBar({
         </Button>
         <Button size="lg" disabled={leads === 0} onClick={onSend}>
           <Icon icon={Mail} size={16} />
-          Gửi MAS mail
+          Gửi email
         </Button>
       </div>
     </div>
@@ -1023,14 +1014,14 @@ function LeadSelectionBar({
  *  ngay dưới bảng mới là chỗ trả lời cho bộ lọc.
  *
  *  ------------------------------------------------------------------
- *  ĐÃ CẮT KHỎI FIXTURE — MỤC #3 CỦA `docs/fix-later.md`
+ *  ĐÃ CẮT KHỎI FIXTURE
  *  ------------------------------------------------------------------
  *  Bốn ô này từng đọc thẳng hằng `FUNNEL` và `FIRST_MEETINGS` của
  *  `@pv/engines/fixtures/das-vina`, không qua một `useQuery` nào, nên từ ngày
  *  nối Neon thì bảng nói 122 dòng còn thẻ điểm đứng nguyên `100 · 38% · 30% ·
  *  6%`. Nay là `GET /sales/leads/scorecard`, đếm thật.
  *
- *  Ô "First meeting / lead" ĐỔI ĐỊNH NGHĨA cùng lượt này, và đó là thứ đáng
+ *  Ô "Đã gặp mặt" ĐỔI ĐỊNH NGHĨA cùng lượt này, và đó là thứ đáng
  *  đọc nhất ở đây. Fixture đếm bằng `hasFirstMeeting` — lead đã lên MQL và có
  *  kênh gọi lại được — một điều kiện không suy ra được từ cột thật nào, và
  *  chính nó là lý do món nợ treo lâu thế. Nay nó đếm số lead có ít nhất một
@@ -1057,30 +1048,32 @@ function ScoreCards() {
       icon: Users,
       value: String(total),
       label: 'Tổng số lead',
-      source: `Sổ lead toàn kỳ · ${PERIOD_FROM}–${PERIOD_TO}`,
+      source: 'Sổ lead toàn kỳ',
     },
     {
       icon: CalendarCheck,
       value: per(firstMeetings),
-      label: 'Đã gặp / lead',
+      label: 'Đã gặp mặt',
       source: `${firstMeetings} lead đã gặp mặt trên ${total} lead`,
     },
     {
       icon: Target,
       value: per(ops),
-      label: 'Cơ hội / lead',
+      label: 'Thành cơ hội',
       source: `${ops} cơ hội trên ${total} lead`,
     },
     {
       icon: FileCheck,
       value: per(deals),
-      label: 'Hợp đồng / lead',
+      label: 'Thành hợp đồng',
       source: `${deals} hợp đồng trên ${total} lead`,
     },
   ]
 
   return (
     <div className="flex flex-col gap-3">
+      {/* The period is printed here only, because it holds for all four cards —
+          the first card's `source` used to repeat the same range 40px below. */}
       <Kicker>
         Thẻ điểm {PERIOD_FROM} → {PERIOD_TO}
       </Kicker>
@@ -1304,7 +1297,11 @@ function PinCell({
 /** Ghim của tôi — tách hẳn khỏi bảng.
  *
  *  Để lẫn trong bảng thì ghim vô nghĩa: dòng ghim vẫn nằm ở trang 4 sau khi lọc.
- *  Tách lên trên là cách duy nhất khiến nó luôn ở trong tầm mắt. */
+ *  Tách lên trên là cách duy nhất khiến nó luôn ở trong tầm mắt.
+ *
+ *  The meta line no longer prints the required-slot fraction: a pinned card is
+ *  a shortcut to OPEN a lead, not a gauge of how full its profile is — the lead
+ *  detail screen is where that is read. */
 function PinnedStrip({
   leads,
   onOpen,
@@ -1328,8 +1325,7 @@ function PinnedStrip({
               <span className="truncate text-[12.5px] font-semibold">{l.company}</span>
               <span className="text-muted-foreground truncate text-[11px]">
                 <span className="font-mono">{l.code}</span> ·{' '}
-                {l.category ? (CATEGORY_LABEL.get(l.category) ?? l.category) : '—'} ·{' '}
-                {l.requiredFilled}/{REQUIRED_SLOTS} ô
+                {l.category ? (CATEGORY_LABEL.get(l.category) ?? l.category) : '—'}
               </span>
             </button>
             <PinCell on company={l.company} onToggle={() => onUnpin(l.code)} />
