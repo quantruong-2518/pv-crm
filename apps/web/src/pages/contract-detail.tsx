@@ -348,7 +348,9 @@ export function ContractDetailPage() {
               <InstallmentRow
                 key={v.installment.no}
                 view={v}
-                onOpen={() => navigate(`/sales/contracts/${contract.code}/dot/${v.installment.no}`)}
+                onOpen={() =>
+                  navigate(`/sales/contracts/${contract.code}/installments/${v.installment.no}`)
+                }
               />
             ))}
           </div>
@@ -367,7 +369,7 @@ export function ContractDetailPage() {
             confirmLabel="Soạn thư"
             onConfirm={() => toast('Bản nháp thư nhắc sẽ mở khi thư viện mail nối vào màn này.')}
             onInspect={() =>
-              navigate(`/sales/contracts/${contract.code}/dot/${next.installment.no}`)
+              navigate(`/sales/contracts/${contract.code}/installments/${next.installment.no}`)
             }
             inspectLabel="Mở đợt"
           />

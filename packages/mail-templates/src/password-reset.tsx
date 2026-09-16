@@ -16,7 +16,7 @@ import { formatMoment } from './ops-mail-style'
  *  ------------------------------------------------------------------
  *  WHY ONE TEMPLATE AND NOT TWO
  *  ------------------------------------------------------------------
- *  An invite and a reset end at the SAME screen (`/dat-lai-mat-khau`), carry
+ *  An invite and a reset end at the SAME screen (`/reset-password`), carry
  *  the same kind of single-use token, and are subject to the same handling rule
  *  — do not forward it, it sets a password. What differs is who asked and how
  *  long the ticket lives, and that is a paragraph and a number, not a layout.

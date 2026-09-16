@@ -41,7 +41,7 @@ import {
  *  đây là mở lại đúng cánh cửa vừa đóng, và tệ hơn: người bấm link trong mail
  *  rất hay đang ngồi máy lạ.
  *
- *  Nên màn này đưa họ về `/dang-nhap`, điền sẵn email và nói rõ vừa xảy ra
+ *  Nên màn này đưa họ về `/sign-in`, điền sẵn email và nói rõ vừa xảy ra
  *  chuyện gì. Một lần gõ mật khẩu, đổi lấy việc mọi phiên cũ thật sự chết. */
 export function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -84,7 +84,7 @@ export function ResetPasswordPage() {
       <AuthCard
         title="Đang kiểm tra link…"
         lead="Chờ một nhịp — hệ đang xem link này còn dùng được không."
-        back={{ to: '/dang-nhap', label: 'Về màn đăng nhập' }}
+        back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
       >
         {null}
       </AuthCard>
@@ -96,9 +96,9 @@ export function ResetPasswordPage() {
       <AuthCard
         title="Link không dùng được"
         lead="Vé đặt lại này hỏng hoặc đã hết hạn. Xin một link mới — mất chừng mười giây."
-        back={{ to: '/dang-nhap', label: 'Về màn đăng nhập' }}
+        back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
       >
-        <Button size="lg" onClick={() => navigate('/quen-mat-khau', { replace: true })}>
+        <Button size="lg" onClick={() => navigate('/forgot-password', { replace: true })}>
           Xin link mới
         </Button>
       </AuthCard>
@@ -115,7 +115,7 @@ export function ResetPasswordPage() {
           lại bằng mật khẩu mới.
         </>
       }
-      back={{ to: '/dang-nhap', label: 'Về màn đăng nhập' }}
+      back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
     >
       <form
         noValidate
@@ -137,7 +137,7 @@ export function ResetPasswordPage() {
           /* Không `signIn` ở đây — xem docblock đầu file. Email đi kèm để họ
              không phải gõ lại, `reset` để màn kia nói đúng câu thay vì để họ
              đoán xem mình vừa bị đá về đây vì cái gì. */
-          navigate('/dang-nhap', { replace: true, state: { email: ticket.email, reset: true } })
+          navigate('/sign-in', { replace: true, state: { email: ticket.email, reset: true } })
         }}
         className="flex flex-col gap-5"
       >

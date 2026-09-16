@@ -85,7 +85,7 @@ export function SignInPage() {
   const emailRef = useRef<HTMLInputElement>(null)
   useEffect(() => emailRef.current?.focus(), [])
 
-  /* Đã có phiên mà vẫn vào màn này (gõ tay `/dang-nhap`, hoặc tab khác vừa đăng
+  /* Đã có phiên mà vẫn vào màn này (gõ tay `/sign-in`, hoặc tab khác vừa đăng
      nhập hộ) thì đi tiếp, đừng bắt đăng nhập lần hai. */
   if (status === 'signed-in') return <Navigate to={from} replace />
 
@@ -162,7 +162,7 @@ export function SignInPage() {
           error={error?.field === 'password' ? error.message : undefined}
           action={
             <Link
-              to="/quen-mat-khau"
+              to="/forgot-password"
               state={{ email }}
               className="motion-std text-muted-foreground hover:text-foreground text-[11.5px] font-semibold"
             >

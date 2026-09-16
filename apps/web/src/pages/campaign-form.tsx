@@ -110,8 +110,8 @@ import { WaveRecipients } from '@/components/wave-recipients'
  *  `WaveComposer` · `WaveTable` — và ba `export` dưới chỉ khác nhau ở BƯỚC
  *  MỞ ĐẦU của cùng một `CampaignForm`:
  *
- *    · `CampaignCreatePage` — `/sales/campaigns/moi`,      bước 0, đi tới bằng "Tiếp"
- *    · `CampaignEditPage`   — `/sales/campaigns/:code/sua`, bước 0, đi thẳng vào sửa
+ *    · `CampaignCreatePage` — `/sales/campaigns/new`,      bước 0, đi tới bằng "Tiếp"
+ *    · `CampaignEditPage`   — `/sales/campaigns/:code/edit`, bước 0, đi thẳng vào sửa
  *    · `CampaignViewPage`   — `/sales/campaigns/:code`,     bước 3 (Tổng quan)
  *
  *  ------------------------------------------------------------------

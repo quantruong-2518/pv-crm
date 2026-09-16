@@ -162,7 +162,7 @@ export function collectionWork(rows: ContractRow[], mine: string, today: string)
         meta: c.leadCode,
         amountVnd: i.amount,
         daysLate: -left,
-        href: `/sales/contracts/${c.code}/dot/${i.no}`,
+        href: `/sales/contracts/${c.code}/installments/${i.no}`,
       })
     }
   }

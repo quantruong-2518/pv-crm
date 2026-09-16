@@ -58,7 +58,7 @@ import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from '.
  *  ĐỔI TÊN 29/08 — MÀN NÀY TỪNG LÀ `/sales/campaigns`
  *  ------------------------------------------------------------------
  *  Nó nhường đường dẫn đó cho `sales.campaign` thật (`CP-nnnn`,
- *  `pages/campaigns.tsx`) và lui về `/sales/campaigns/nguon-dan`. Quyết định D2
+ *  `pages/campaigns.tsx`) và lui về `/sales/campaigns/sources`. Quyết định D2
  *  ngày 28/08: SOURCE là nơi lead SINH RA, `sales.campaign` là đơn vị GỬI —
  *  hai định nghĩa đối lập, không gộp được thành một bảng mà không phá một
  *  trong hai. Đổi ở đây là copy và path, cấu trúc màn không động tới; tên biến
@@ -448,7 +448,7 @@ export function SourcesPage() {
                   /* CẢ DÒNG mở hồ sơ. Không có vùng bấm thứ hai bên trong dòng:
                      hai vùng bấm chồng nhau chỉ làm người dùng đoán xem phải
                      bấm chỗ nào. */
-                  onOpen: () => navigate(`/sales/campaigns/nguon-dan/${s.code}`),
+                  onOpen: () => navigate(`/sales/campaigns/sources/${s.code}`),
                   cells: [
                     /* Trạng thái là một CHẤM đứng trước tên, không phải một cột
                        riêng: nó chỉ có ba giá trị, và một cột 0.8fr cho ba chữ

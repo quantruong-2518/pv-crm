@@ -45,7 +45,7 @@ import { Pager } from '@/components/table-bits'
  *  ĐÂY LÀ `sales.campaign` (CP-nnnn), KHÔNG PHẢI MÀN NGUỒN DẪN
  *  ------------------------------------------------------------------
  *  Đường dẫn `/sales/campaigns` trước 29/08 là sổ **Nguồn dẫn** (`SR-nn`) —
- *  nơi lead SINH RA. Nó nay ở `/sales/campaigns/nguon-dan` (`pages/sources.tsx`),
+ *  nơi lead SINH RA. Nó nay ở `/sales/campaigns/sources` (`pages/sources.tsx`),
  *  và chỗ này trả về cho thứ mang đúng cái tên: đơn vị GỬI, thứ TIÊU lead.
  *  Quyết định D2 ngày 28/08 chốt hai bảng tách riêng và không hợp nhất; đây là
  *  nửa còn thiếu của nó trên màn. Ba sổ của module đi qua `Module1Books`.
@@ -188,7 +188,7 @@ export function CampaignsPage() {
           title="Sổ chiến dịch"
           actions={
             canWrite && (
-              <Button size="md" onClick={() => navigate('/sales/campaigns/moi')}>
+              <Button size="md" onClick={() => navigate('/sales/campaigns/new')}>
                 <Icon icon={Plus} size={16} />
                 Chiến dịch mới
               </Button>
@@ -316,11 +316,11 @@ export function CampaignsPage() {
                     : canWrite
                       ? {
                           label: 'Chiến dịch mới',
-                          onClick: () => navigate('/sales/campaigns/moi'),
+                          onClick: () => navigate('/sales/campaigns/new'),
                         }
                       : {
                           label: 'Xem Sổ lô gửi',
-                          onClick: () => navigate('/sales/campaigns/lo-gui'),
+                          onClick: () => navigate('/sales/campaigns/mail-runs'),
                         }
                 }
                 className="py-12"

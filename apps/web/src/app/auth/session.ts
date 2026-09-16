@@ -418,7 +418,7 @@ export const useSession = create<SessionState>()(
       /** Đăng xuất thật: dọn máy này RỒI đóng phiên ở máy chủ.
        *
        *  Thứ tự đó là cố ý, và ngược với thứ tự trực giác. `guard.tsx` và
-       *  `chrome.tsx` gọi `signOut()` rồi `navigate('/dang-nhap')` ngay dòng
+       *  `chrome.tsx` gọi `signOut()` rồi `navigate('/sign-in')` ngay dòng
        *  sau, không đợi. Đóng ở máy chủ trước thì suốt vòng mạng ấy `status` vẫn
        *  là 'signed-in', và màn đăng nhập có đúng một luật cho trường hợp đó: đã có
        *  phiên thì đi tiếp. Người dùng bấm "Đăng xuất", bị ném ngược vào app vài

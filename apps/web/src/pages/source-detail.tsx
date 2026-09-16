@@ -124,7 +124,7 @@ export function SourceDetailPage() {
             message={`Không có nguồn dẫn nào mang mã ${code} trong kỳ này.`}
             action={{
               label: 'Về sổ nguồn dẫn',
-              onClick: () => navigate('/sales/campaigns/nguon-dan'),
+              onClick: () => navigate('/sales/campaigns/sources'),
             }}
             className="py-12"
           />
@@ -252,7 +252,7 @@ export function SourceDetailPage() {
   return shell(
     <ScreenLayout>
       <ScreenHeader
-        back={{ label: 'Sổ nguồn dẫn', onClick: () => navigate('/sales/campaigns/nguon-dan') }}
+        back={{ label: 'Sổ nguồn dẫn', onClick: () => navigate('/sales/campaigns/sources') }}
         title={
           <span className="flex flex-wrap items-center gap-2">
             <Icon icon={CAMPAIGN_ICON} size={20} className="text-accent-foreground" />

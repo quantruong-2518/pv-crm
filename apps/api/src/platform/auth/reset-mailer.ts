@@ -77,11 +77,11 @@ export const RESET_MAILER = Symbol('pv.auth.reset-mailer')
  *  out on `PV_API_PUBLIC_URL` in `env.ts`, and getting it backwards here would
  *  send every recipient to a JSON body.
  *
- *  One path for both purposes, because there is one screen: `/dat-lai-mat-khau`
+ *  One path for both purposes, because there is one screen: `/reset-password`
  *  in `apps/web/src/routes.tsx`. An invite and a reset differ in who asked, not
  *  in what the person then does. */
 export function resetLink(env: Env, token: string): string {
-  return `${env.PV_APP_URL.replace(/\/+$/, '')}/dat-lai-mat-khau?token=${encodeURIComponent(token)}`
+  return `${env.PV_APP_URL.replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(token)}`
 }
 
 /** The default binding: no letter leaves the machine.

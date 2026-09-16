@@ -54,7 +54,7 @@ export function ForgotPasswordPage() {
             sống trong 30 phút; hết hạn thì xin lại từ đầu.
           </>
         }
-        back={{ to: '/dang-nhap', label: 'Về màn đăng nhập' }}
+        back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
       >
         {/* Câu này thay chỗ nút "mở link giả lập" của bản POC, và nó phải nói
             đúng thứ người đang đợi thư cần biết. Nó KHÔNG hứa rằng có một lá thư
@@ -75,7 +75,7 @@ export function ForgotPasswordPage() {
     <AuthCard
       title="Quên mật khẩu"
       lead="Nhập email của bạn. Chúng tôi gửi một link đặt lại — không hỏi mật khẩu cũ, vì bạn đang không nhớ nó."
-      back={{ to: '/dang-nhap', label: 'Về màn đăng nhập' }}
+      back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
     >
       <form
         noValidate

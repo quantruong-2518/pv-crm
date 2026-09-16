@@ -26,14 +26,14 @@ import { SegmentedControl } from '@pv/ui'
  *  một sổ vốn thuộc module 1. Đường dẫn dài hơn vài ký tự rẻ hơn cả hai. */
 const BOOKS = [
   { value: '/sales/campaigns', label: 'Chiến dịch' },
-  { value: '/sales/campaigns/nguon-dan', label: 'Nguồn dẫn' },
-  { value: '/sales/campaigns/lo-gui', label: 'Lô gửi' },
+  { value: '/sales/campaigns/sources', label: 'Nguồn dẫn' },
+  { value: '/sales/campaigns/mail-runs', label: 'Lô gửi' },
   /* The fourth book, and the only one that measures nothing: the three above
      answer "what happened", this one holds the RAW MATERIAL of the next send.
      It stands here because people ask it in the same sitting as the other three
      (which template works, which campaign to put it in), and because
      `sales.mail_template` has no other nav entry to belong to. */
-  { value: '/sales/campaigns/mau-thu', label: 'Mẫu thư' },
+  { value: '/sales/campaigns/mail-templates', label: 'Mẫu thư' },
 ] as const
 
 /** Sổ nào đang mở, tính theo đường dẫn ĐẦY ĐỦ chứ không theo tiền tố.
@@ -41,7 +41,7 @@ const BOOKS = [
  *  Tiền tố sẽ hỏng ở đúng một chỗ và đó là chỗ hay đi nhất: `/sales/campaigns`
  *  là tiền tố của cả ba, nên "khớp tiền tố" làm ô Chiến dịch sáng kể cả khi
  *  đang đứng ở Lô gửi. Hồ sơ (`/sales/campaigns/CP-0001`,
- *  `…/nguon-dan/SR-03`) thì so khớp từ dài tới ngắn: hồ sơ nguồn dẫn phải sáng
+ *  `…/sources/SR-03`) thì so khớp từ dài tới ngắn: hồ sơ nguồn dẫn phải sáng
  *  ô Nguồn dẫn, không phải ô Chiến dịch. */
 function currentBook(pathname: string): string {
   const nested = BOOKS.filter((b) => b.value !== '/sales/campaigns').find(

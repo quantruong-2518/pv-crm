@@ -11,7 +11,7 @@ import { access, useSession } from './session'
 /** Where a person who owes a password change is held. Exported so `routes.tsx`
  *  and this guard cannot disagree about the path: a mismatch would be an
  *  infinite redirect, and the screen would simply never paint. */
-export const CHANGE_PASSWORD_PATH = '/doi-mat-khau'
+export const CHANGE_PASSWORD_PATH = '/change-password'
 
 /** HAI cổng: `RequireAccess` cho cả một màn, `Can` cho một nút.
  *
@@ -41,7 +41,7 @@ export const CHANGE_PASSWORD_PATH = '/doi-mat-khau'
  *  trong cây và phủ một lớp mờ có ô mật khẩu lên trên, để người dùng không mất
  *  phiếu đang gõ dở. Cái giá là dữ liệu của người vừa rời đi vẫn nằm trên màn
  *  — trên đúng cái máy vừa bị bỏ trống, tức đúng tình huống mà mốc "ngồi không"
- *  sinh ra để xử. Nay đá thẳng về `/dang-nhap` kèm đường quay lại: phần chưa
+ *  sinh ra để xử. Nay đá thẳng về `/sign-in` kèm đường quay lại: phần chưa
  *  lưu mất, nhưng màn sạch. Dải cảnh báo hai phút (`expiry.tsx`) là chỗ bù lại
  *  cho cái mất đó, và nó có nút gia hạn.
  *
@@ -88,7 +88,7 @@ export function RequireAccess({
   if (status !== 'signed-in' || !actor) {
     return (
       <Navigate
-        to="/dang-nhap"
+        to="/sign-in"
         replace
         /* `reason` travels BESIDE `expired`, not instead of it: `expiredBy`
            can be left over from an older expiry after the user signed out, so
@@ -182,7 +182,7 @@ function AccessLocked({ verdict }: { verdict: Extract<Verdict, { ok: false }> })
               variant="ghost"
               onClick={() => {
                 signOut()
-                navigate('/dang-nhap', { replace: true })
+                navigate('/sign-in', { replace: true })
               }}
             >
               Đăng xuất

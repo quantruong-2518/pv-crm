@@ -70,7 +70,7 @@ export const SCREENS: ScreenDef[] = [
      *  thereby grant themselves every other permission. So there is deliberately
      *  no "read the people book" gate separate from "write the people book" —
      *  splitting them would build a door whose far side is the whole matrix. */
-    path: '/quan-tri/nguoi-dung',
+    path: '/admin/users',
     name: 'One Core · Quản trị · Người dùng',
     permission: 'user.manage',
     load: () => import('@/pages/users'),
@@ -88,7 +88,7 @@ export const SCREENS: ScreenDef[] = [
      *  reader who approves nothing opens an empty screen rather than a refusal.
      *  `approval.decide` gates the two BUTTONS, at the door that actually
      *  changes something, exactly where the server puts it. */
-    path: '/duyet',
+    path: '/approvals',
     name: 'One Core · Hộp duyệt',
     load: () => import('@/pages/approvals'),
   },
@@ -104,7 +104,7 @@ export const SCREENS: ScreenDef[] = [
      *  answers "and what may they do once in". Both are as wide as the matrix
      *  itself — whoever reaches this screen can grant themselves every other
      *  permission — so, again, there is no separate read gate. */
-    path: '/quan-tri/vai-tro',
+    path: '/admin/roles',
     name: 'One Core · Quản trị · Vai trò',
     permission: 'role.manage',
     load: () => import('@/pages/roles'),
@@ -113,7 +113,7 @@ export const SCREENS: ScreenDef[] = [
     /** BA SỔ, MỘT TIỀN TỐ — và thứ tự khai ở đây không quyết định gì.
      *
      *  React Router xếp hạng route theo độ cụ thể chứ không theo thứ tự mảng,
-     *  nên `/sales/campaigns/nguon-dan` (đoạn tĩnh) luôn thắng
+     *  nên `/sales/campaigns/sources` (đoạn tĩnh) luôn thắng
      *  `/sales/campaigns/:code` (đoạn động) dù đứng sau nó. Ba sổ đứng chung
      *  một tiền tố vì `useAppChrome` sáng mục nav bằng `inModule()`, tức khớp
      *  theo tiền tố: tách Nguồn dẫn ra `/sales/sources` là làm mục nav tắt
@@ -130,14 +130,14 @@ export const SCREENS: ScreenDef[] = [
      *  `/sales/campaigns` cho tới 29/08; nó nhường chỗ cho `sales.campaign`
      *  thật (`CP-nnnn`, đơn vị GỬI) theo quyết định D2 ngày 28/08. Hai bảng,
      *  hai định nghĩa đối lập, không hợp nhất được. */
-    path: '/sales/campaigns/nguon-dan',
+    path: '/sales/campaigns/sources',
     name: 'Kinh doanh · Module 1 · Nguồn dẫn',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/sources'),
   },
   {
-    path: '/sales/campaigns/nguon-dan/:code',
+    path: '/sales/campaigns/sources/:code',
     name: 'Kinh doanh · Module 1 · Hồ sơ nguồn dẫn',
     branch: 'Sales',
     permission: 'campaign.view',
@@ -147,7 +147,7 @@ export const SCREENS: ScreenDef[] = [
     /** Sổ LÔ GỬI — `platform.mail_run`, mọi lô thư kể cả lô đi lẻ từ Sổ lead.
      *  `campaign.view` để đọc, `campaign.broadcast` để dừng một lô; cửa thứ hai
      *  gác ở `data/mail-runs.ts`, không gác ở đây. */
-    path: '/sales/campaigns/lo-gui',
+    path: '/sales/campaigns/mail-runs',
     name: 'Kinh doanh · Module 1 · Sổ lô gửi',
     branch: 'Sales',
     permission: 'campaign.view',
@@ -159,7 +159,7 @@ export const SCREENS: ScreenDef[] = [
      *  edit one; the second gate lives in `data/mas.ts` and on the buttons, not
      *  here — reading this screen is useful to a view-only role too, because it
      *  answers what our letters currently say. */
-    path: '/sales/campaigns/mau-thu',
+    path: '/sales/campaigns/mail-templates',
     name: 'Kinh doanh · Module 1 · Sổ mẫu thư',
     branch: 'Sales',
     permission: 'campaign.view',
@@ -168,12 +168,12 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Tạo chiến dịch — đoạn tĩnh `moi`, đứng TRƯỚC `:code` trong mảng nhưng
      *  thứ tự đó không quyết định gì (React Router xếp theo độ cụ thể, đúng
-     *  lý do `nguon-dan` ở trên thắng `:code`). Cùng file `campaign-form.tsx`
+     *  lý do `sources` ở trên thắng `:code`). Cùng file `campaign-form.tsx`
      *  với hai route dưới — ba cửa vào MỘT khung, xem docblock đầu file đó. */
-    path: '/sales/campaigns/moi',
+    path: '/sales/campaigns/new',
     name: 'Kinh doanh · Module 1 · Chiến dịch mới',
     branch: 'Sales',
-    /* Write permission, not read — this route and `:code/sua` below only exist
+    /* Write permission, not read — this route and `:code/edit` below only exist
        to WRITE. Reading was the wrong gate: a Sale opened the form, filled all
        four steps, and ate a 403 on the last click. Refuse at the door. */
     permission: 'campaign.edit',
@@ -182,7 +182,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Sửa hồ sơ một chiến dịch — cùng khung với hồ sơ, mở thẳng vào bước Hồ
      *  sơ thay vì bước Tổng quan. */
-    path: '/sales/campaigns/:code/sua',
+    path: '/sales/campaigns/:code/edit',
     name: 'Kinh doanh · Module 1 · Sửa chiến dịch',
     branch: 'Sales',
     permission: 'campaign.edit',
@@ -295,7 +295,7 @@ export const SCREENS: ScreenDef[] = [
     /* One level deeper than any other Sales screen, and it earns the depth: an
        installment carries its own checklist, paperwork, chase log and notes, and
        none of that fits beside three sibling installments on one page. */
-    path: '/sales/contracts/:code/dot/:no',
+    path: '/sales/contracts/:code/installments/:no',
     name: 'Kinh doanh · Module 4 · Đợt thanh toán',
     branch: 'Sales',
     permission: 'contract.view',
@@ -326,15 +326,15 @@ export const SCREENS: ScreenDef[] = [
    *  mật khẩu thì không còn ai vào được nó. Là BA đường dẫn chứ không phải ba
    *  trạng thái của một màn, vì link đặt lại trong mail phải có URL riêng và nút
    *  Back của trình duyệt phải lùi đúng một bước. */
-  { path: '/dang-nhap', name: 'Đăng nhập', public: true, load: () => import('@/pages/sign-in') },
+  { path: '/sign-in', name: 'Đăng nhập', public: true, load: () => import('@/pages/sign-in') },
   {
-    path: '/quen-mat-khau',
+    path: '/forgot-password',
     name: 'Quên mật khẩu',
     public: true,
     load: () => import('@/pages/forgot-password'),
   },
   {
-    path: '/dat-lai-mat-khau',
+    path: '/reset-password',
     name: 'Đặt mật khẩu mới',
     public: true,
     load: () => import('@/pages/reset-password'),

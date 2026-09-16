@@ -12,7 +12,7 @@ import { useSession } from './session'
  *  ------------------------------------------------------------------
  *  File này từng giữ thêm `SessionLocked`: phiên chết giữa chừng thì màn cũ ở
  *  lại sau một lớp mờ và người dùng gõ mật khẩu ngay tại đó. Nay hết phiên là
- *  đá thẳng về `/dang-nhap`, và `RequireAccess` mang theo đường đang đứng để
+ *  đá thẳng về `/sign-in`, và `RequireAccess` mang theo đường đang đứng để
  *  đăng nhập xong quay lại đúng chỗ.
  *
  *  Đánh đổi thật, nói thẳng: phiếu đang gõ dở MẤT, vì cây React của màn cũ bị
