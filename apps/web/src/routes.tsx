@@ -283,6 +283,20 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/opportunity-detail'),
   },
   {
+    path: '/sales/workstreams',
+    name: 'Kinh doanh · Hành trình khách hàng · Sổ hành trình',
+    branch: 'Sales',
+    permission: 'workstream.view',
+    load: () => import('@/pages/workstreams'),
+  },
+  {
+    path: '/sales/workstreams/:code',
+    name: 'Kinh doanh · Hành trình khách hàng · Hồ sơ hành trình',
+    branch: 'Sales',
+    permission: 'workstream.view',
+    load: () => import('@/pages/workstream-detail'),
+  },
+  {
     path: '/sales/contracts',
     name: 'Kinh doanh · Module 4 · Hợp đồng',
     branch: 'Sales',

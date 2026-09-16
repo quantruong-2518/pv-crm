@@ -547,22 +547,26 @@ const CHAIN_ROUTE: Record<string, string> = {
   CT: '/sales/contacts',
 }
 
+/** Undefined when the kind has no screen yet. */
+export const chainPath = (kind: string, code: string): string | undefined => {
+  const base = CHAIN_ROUTE[kind]
+  return base && `${base}/${encodeURIComponent(code)}`
+}
+
 export function railOf(
   chain: readonly ObjectChainLink[],
   openCode: string,
   go: (path: string) => void,
 ): RailObject[] {
   return chain.map((link) => {
-    const base = CHAIN_ROUTE[link.kind]
+    const path = chainPath(link.kind, link.code)
 
     return {
       code: link.code,
       /* `source` is ContextRail's word for "this is the one you are looking
          at" — it paints the accent chip. Not "where the chain started". */
       source: link.code === openCode,
-      ...(base && link.code !== openCode
-        ? { onOpen: () => go(`${base}/${encodeURIComponent(link.code)}`) }
-        : {}),
+      ...(path && link.code !== openCode ? { onOpen: () => go(path) } : {}),
     }
   })
 }

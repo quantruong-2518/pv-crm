@@ -1,5 +1,6 @@
 import type { IconGlyph } from '@pv/ui'
 import {
+  Activity,
   Bell,
   Factory,
   FileCheck,
@@ -251,7 +252,18 @@ export const SALES_MODULES: SalesModule[] = [
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
   },
   {
-    /* Sits right after Ops because it is the next step for the same customer:
+    /* `no: 0` like the company book: a run spans modules 2–4 rather than being
+       one of them. It follows Ops because a run is read as "where is this deal
+       in the whole journey". */
+    no: 0,
+    icon: Activity,
+    label: 'Hành trình khách hàng',
+    path: '/sales/workstreams',
+    permission: 'workstream.view',
+    question: 'Mỗi lượt đi của một khách — đang ở bậc nào, ai giữ, liên lạc lần cuối khi nào',
+  },
+  {
+    /* Sits after Ops (and the journey book spanning both) because it is the next step for the same customer:
        an opportunity that closes won becomes a contract. Renumbering the three
        modules below it is cheap — cross references in comments name modules, not
        numbers. */
