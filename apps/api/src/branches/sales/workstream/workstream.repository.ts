@@ -1,0 +1,457 @@
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import { Inject, Injectable } from '@nestjs/common'
+import type { Actor } from '@pv/engines'
+import {
+  WorkstreamChannel,
+  type OpportunityOwner,
+  type WorkstreamBookQuery,
+  type WorkstreamFootprint,
+} from '@pv/contracts'
+import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
+import { actor } from '@api/platform/db/platform.schema'
+import { account } from '../account/account.schema'
+import { configEntry } from '../config/config.schema'
+import { contract } from '../contract/contract.schema'
+import { lead, type LeadRowDb } from '../lead/lead.schema'
+import {
+  opportunity,
+  opportunityOwner,
+  type OpportunityRowDb,
+} from '../opportunity/opportunity.schema'
+import { workstream, type WorkstreamRowDb } from './workstream.schema'
+
+/** The only SQL of the workstream module. It decides nothing about permission
+ *  — it only ENFORCES the axis the endpoint declared with `@Need`.
+ *
+ *  Two properties worth knowing before editing, each argued where it is used:
+ *  the communication footprint is gathered from three ledgers in ONE statement
+ *  for the whole page (`FOOTPRINT`), and every follow-up read takes the page's
+ *  codes at once. A book over four ledgers asked row by row is `4n` round
+ *  trips to Neon, which is what makes this screen affordable or not. */
+@Injectable()
+export class WorkstreamRepository {
+  constructor(@Inject(DB) private readonly db: Db) {}
+
+  /** Reserve the next code. Outside any transaction, for the reason
+   *  `OpportunityRepository.nextCode` writes out: `nextval` deliberately does
+   *  not listen to transactions, and one request holding two connections is
+   *  how a pool deadlocks itself.
+   *
+   *  No write door calls it yet — opening and closing a run is a later turn. It
+   *  lives here because the sequence belongs to this repository, and because
+   *  `seed.ts` needs exactly this formula: two places minting `WS-` two ways
+   *  are two sequences. */
+  async nextCode(): Promise<string> {
+    const r = (await this.db.execute(NEXT_CODE)) as { rows: { code: string }[] }
+    const code = r.rows[0]?.code
+    if (!code) throw new Error('sales.workstream_code_seq trả về rỗng — migration đã chạy chưa?')
+    return code
+  }
+
+  async book(who: Actor, q: WorkstreamBookQuery, scoped: boolean): Promise<WorkstreamBookPage> {
+    const scope = this.scopeOf(who, scoped)
+    const filters = this.filtersOf(q)
+
+    /* Count a SECOND time only while the scope axis is actually cutting: for a
+       reader who sees the whole book `hidden` is always 0, and a full count to
+       print a zero is paying for a question nobody asked. */
+    const [scopedTotal, all] = await Promise.all([
+      this.count(and(...filters, scope)),
+      scope ? this.count(and(...filters)) : Promise.resolve(null),
+    ])
+
+    const rows = await this.page(and(...filters, scope), q)
+
+    return { rows, total: scopedTotal, hidden: all === null ? 0 : all - scopedTotal }
+  }
+
+  /** One run by code, carrying the scope axis's verdict ON ITSELF.
+   *
+   *  `inScope` is SELECTED rather than filtered on, the shape `LeadRepository
+   *  .byCode` and `OpportunityRepository.byCode` both hold: a query that has
+   *  already filtered by scope can only answer "no such row", and the service
+   *  needs the two answers apart before it picks a status code. */
+  async byCode(who: Actor, code: string): Promise<(WorkstreamRead & { inScope: boolean }) | null> {
+    const [found] = await this.db
+      .select({ ...READ_COLUMNS, inScope: this.inScopeValue(who) })
+      .from(workstream)
+      .innerJoin(lead, ANCHOR_ON)
+      .leftJoin(account, eq(account.code, workstream.accountCode))
+      .leftJoin(SALE_ACTOR, eq(SALE_ACTOR.id, lead.ownerId))
+      .leftJoin(BD_ACTOR, eq(BD_ACTOR.id, lead.bdOwnerId))
+      .where(eq(workstream.code, code))
+      .limit(1)
+
+    return found ? { ...toRead(found), inScope: found.inScope } : null
+  }
+
+  /** Every deal of a page of runs, in ONE statement.
+   *
+   *  Ordered by code DESCENDING, which is "newest deal first" without joining a
+   *  date column: the code sequence advances with time. The holder rule reads
+   *  the first entry, so the order is load-bearing rather than cosmetic. */
+  async dealsOf(codes: readonly string[]): Promise<Map<string, OpportunityRowDb[]>> {
+    if (codes.length === 0) return new Map()
+
+    const rows = await this.db
+      .select()
+      .from(opportunity)
+      .where(inArray(opportunity.workstreamCode, [...codes]))
+      .orderBy(desc(opportunity.code))
+
+    const byWorkstream = new Map<string, OpportunityRowDb[]>()
+    for (const row of rows) {
+      if (row.workstreamCode === null) continue
+      const list = byWorkstream.get(row.workstreamCode)
+      if (list) list.push(row)
+      else byWorkstream.set(row.workstreamCode, [row])
+    }
+    return byWorkstream
+  }
+
+  /** Who stands on a batch of deals. Same shape, same table and same stable
+   *  ordering as `OpportunityRepository.ownersOf` — one question, one answer. */
+  async dealOwnersOf(codes: readonly string[]): Promise<Map<string, OpportunityOwner[]>> {
+    if (codes.length === 0) return new Map()
+
+    const rows = await this.db
+      .select({
+        code: opportunityOwner.opportunityCode,
+        id: opportunityOwner.actorId,
+        name: actor.name,
+        role: opportunityOwner.role,
+      })
+      .from(opportunityOwner)
+      .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
+      .where(inArray(opportunityOwner.opportunityCode, [...codes]))
+      .orderBy(opportunityOwner.role, actor.name)
+
+    const byDeal = new Map<string, OpportunityOwner[]>()
+    for (const r of rows) {
+      const owner = { id: r.id, name: r.name, role: r.role }
+      const list = byDeal.get(r.code)
+      if (list) list.push(owner)
+      else byDeal.set(r.code, [owner])
+    }
+    return byDeal
+  }
+
+  /** The signature that ended a run, when there is one. NEWEST first if a run
+   *  somehow carries several: `stand` prints exactly one code, and that code
+   *  has to be the same on two reads. */
+  async contractsOf(codes: readonly string[]): Promise<Map<string, string>> {
+    if (codes.length === 0) return new Map()
+
+    const rows = await this.db
+      .select({ ws: contract.workstreamCode, code: contract.code })
+      .from(contract)
+      .where(inArray(contract.workstreamCode, [...codes]))
+      .orderBy(desc(contract.signedAt), desc(contract.code))
+
+    const byWorkstream = new Map<string, string>()
+    for (const r of rows) {
+      if (r.ws !== null && !byWorkstream.has(r.ws)) byWorkstream.set(r.ws, r.code)
+    }
+    return byWorkstream
+  }
+
+  /** The communication footprint of a WHOLE PAGE, in exactly one statement.
+   *
+   *  One statement rather than one per row, and that is what makes the screen
+   *  affordable: three ledgers times fifty rows is a hundred and fifty round
+   *  trips. All the gathering happens in SQL; Node only rebuilds the record of
+   *  seven counters. The shape of the three ledgers — and of the fourth one
+   *  left out — is argued at `FOOTPRINT` below. */
+  async footprintOf(codes: readonly string[]): Promise<Map<string, WorkstreamFootprint>> {
+    const footprints = new Map<string, WorkstreamFootprint>()
+    if (codes.length === 0) return footprints
+
+    const r = (await this.db.execute(FOOTPRINT(codes))) as {
+      rows: { ws: string; channel: string; n: number; last_at: string | Date | null }[]
+    }
+
+    for (const row of r.rows) {
+      const channel = WorkstreamChannel.safeParse(row.channel)
+      /* A channel outside the seven is DROPPED, never re-bucketed: a miss means
+         the two vocabularies have drifted, and folding it into a neighbour
+         would hide exactly the drift worth seeing. */
+      if (!channel.success) continue
+
+      const found = footprints.get(row.ws) ?? blankFootprint()
+      found.byChannel[channel.data] = Number(row.n)
+      const at = row.last_at === null ? null : new Date(row.last_at).toISOString()
+      if (at !== null && (found.lastContactedAt === null || at > found.lastContactedAt)) {
+        found.lastContactedAt = at
+      }
+      footprints.set(row.ws, found)
+    }
+    return footprints
+  }
+
+  /** Both ladders of the branch in ONE statement, split in Node.
+   *
+   *  `config_entry` carries no phase key, so the pairing is by ordinal position
+   *  and only `../ladder.ts` may make it. The one job here is to read under the
+   *  conditions that function assumes: active rows only, in `ord` order. */
+  async ladderRows(): Promise<{ stage: LadderRow[]; tier: LadderRow[] }> {
+    const rows = await this.db
+      .select({ list: configEntry.list, name: configEntry.name, limitDays: configEntry.limitDays })
+      .from(configEntry)
+      .where(and(inArray(configEntry.list, ['STAGE', 'TIER']), eq(configEntry.active, true)))
+      .orderBy(asc(configEntry.ord))
+
+    const of = (list: string): LadderRow[] =>
+      rows.filter((r) => r.list === list).map(({ name, limitDays }) => ({ name, limitDays }))
+
+    return { stage: of('STAGE'), tier: of('TIER') }
+  }
+
+  private page(where: SQL | undefined, q: WorkstreamBookQuery): Promise<WorkstreamRead[]> {
+    return this.db
+      .select(READ_COLUMNS)
+      .from(workstream)
+      .innerJoin(lead, ANCHOR_ON)
+      .leftJoin(account, eq(account.code, workstream.accountCode))
+      .leftJoin(SALE_ACTOR, eq(SALE_ACTOR.id, lead.ownerId))
+      .leftJoin(BD_ACTOR, eq(BD_ACTOR.id, lead.bdOwnerId))
+      .where(where)
+      .orderBy(...this.orderBy(q))
+      .limit(q.size)
+      .offset((q.page - 1) * q.size)
+      .then((rows) => rows.map(toRead))
+  }
+
+  /** Counts under the same joins `page()` uses, so both numbers describe the
+   *  same set. `account` is joined without a column selected because the search
+   *  box reads `account.name`; without it Postgres refuses the statement. */
+  private async count(where: SQL | undefined): Promise<number> {
+    const [r] = await this.db
+      .select({ n: count() })
+      .from(workstream)
+      .innerJoin(lead, ANCHOR_ON)
+      .leftJoin(account, eq(account.code, workstream.accountCode))
+      .where(where)
+    return r?.n ?? 0
+  }
+
+  /** "My run" is "the lead that opened it stands in my name".
+   *
+   *  By `owner_id`, the same predicate `LeadRepository.scopeOf` uses, and
+   *  deliberately WITHOUT asking `opportunity_owner` as well: a run may have no
+   *  deal at all, so a scope axis reading the deal table would answer nothing
+   *  for every journey still in the funnel. Whoever holds the lead holds the
+   *  run. */
+  private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
+    return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+  }
+
+  /** The same predicate, SELECTED instead of filtered on — see `byCode`. */
+  private inScopeValue(who: Actor): SQL<boolean> {
+    const scope = this.scopeOf(who, true)
+    return (scope ? sql`COALESCE(${scope}, false)` : sql`true`) as SQL<boolean>
+  }
+
+  /** THE USER's filters. The scope axis stands outside them — see `book()`. */
+  private filtersOf(q: WorkstreamBookQuery): (SQL | undefined)[] {
+    return [
+      q.status === 'open'
+        ? isNull(workstream.closedAt)
+        : q.status === 'closed'
+          ? isNotNull(workstream.closedAt)
+          : undefined,
+      q.accountCode ? eq(workstream.accountCode, q.accountCode) : undefined,
+      /* One box, three columns: a run code pasted out of a chat, half the legal
+         name, or the customer as the seller says it. Through `contains()` so a
+         `%` the user typed stays a character. */
+      q.q
+        ? or(
+            ilike(workstream.code, contains(q.q)),
+            ilike(lead.company, contains(q.q)),
+            ilike(account.name, contains(q.q)),
+          )
+        : undefined,
+    ]
+  }
+
+  /** Primary column by `sort`, then ALWAYS `code`.
+   *
+   *  The tie-break is not decoration: without a stable second key Postgres is
+   *  free to return two different orders for two reads of the same page, and a
+   *  row then appears on page 1 and page 2 — or on neither. */
+  private orderBy(q: WorkstreamBookQuery): SQL[] {
+    const dir = q.dir === 'asc' ? 'asc' : 'desc'
+    const primary = q.sort === 'customer' ? CUSTOMER : workstream.openedAt
+
+    return [sql`${primary} ${sql.raw(dir)}`, sql`${workstream.code} ${sql.raw(dir)}`]
+  }
+}
+
+/** One book row with everything READ FROM TABLES loaded. The rest — where the
+ *  run stands, its position on a ladder, its footprint — is assembled by the
+ *  service, because each of those needs an engine or a second statement. */
+export type WorkstreamRead = {
+  row: WorkstreamRowDb
+  /** The lead that OPENED the run — see `ANCHOR_ON`. */
+  lead: LeadRowDb
+  accountName: string | null
+  saleName: string | null
+  bdName: string | null
+}
+
+export type WorkstreamBookPage = {
+  rows: WorkstreamRead[]
+  total: number
+  /** Rows the scope axis cut away — law 7, and the server has to count them
+   *  because the screen cannot count what it never received. */
+  hidden: number
+}
+
+export type LadderRow = { name: string; limitDays: number | null }
+
+/** One number off `sales.workstream_code_seq`, printed as `WS-%04d`.
+ *
+ *  The sequence is declared in `workstream.schema.ts` so `drizzle-kit` owns it;
+ *  Drizzle has no expression node for `nextval`, so the name is written out
+ *  once here — the same trade `lead` and `opportunity` already wrote down, and
+ *  the same formula migration 0045 used for its backfill. */
+const NEXT_CODE = sql`SELECT 'WS-' || lpad(nextval('sales.workstream_code_seq')::text, 4, '0') AS code`
+
+const SALE_ACTOR = alias(actor, 'sale_actor')
+const BD_ACTOR = alias(actor, 'bd_actor')
+
+/** ONE run, ONE lead — the invariant migration 0045 established (one workstream
+ *  per lead) and `seed.ts` keeps.
+ *
+ *  That invariant is why this is an `innerJoin` and not a `LATERAL … LIMIT 1`:
+ *  a plain join reads, and the lead is also the only row the scope axis can cut
+ *  on (`lead.owner_id`). The day a write door lets two leads share a run, this
+ *  book prints that run twice — so that door either keeps the invariant or
+ *  turns this into a lateral. */
+const ANCHOR_ON = eq(lead.workstreamCode, workstream.code)
+
+/** The customer name on the row: the COMPANY once somebody has said which
+ *  company this run belongs to, and the lead's own wording until then.
+ *
+ *  In that order because `sales.account` is the merged company book while
+ *  `lead.company` is a string one person typed on one form — two enquiries from
+ *  one factory can spell it two ways. A null `account_code` is the normal path
+ *  (see the column's docblock), so the second branch is not a fallback. */
+const CUSTOMER = sql<string>`COALESCE(${account.name}, ${lead.company})`
+
+const READ_COLUMNS = {
+  row: workstream,
+  lead,
+  accountName: account.name,
+  saleName: SALE_ACTOR.name,
+  bdName: BD_ACTOR.name,
+}
+
+function toRead(r: {
+  row: WorkstreamRowDb
+  lead: LeadRowDb
+  accountName: string | null
+  saleName: string | null
+  bdName: string | null
+}): WorkstreamRead {
+  return {
+    row: r.row,
+    lead: r.lead,
+    accountName: r.accountName,
+    saleName: r.saleName,
+    bdName: r.bdName,
+  }
+}
+
+/** EVERY channel, including the ones that never fired — the contract promises
+ *  seven cells so no screen has to default one to zero itself. */
+export const blankFootprint = (): WorkstreamFootprint => ({
+  byChannel: Object.fromEntries(WorkstreamChannel.options.map((c) => [c, 0])) as Record<
+    (typeof WorkstreamChannel.options)[number],
+    number
+  >,
+  lastContactedAt: null,
+})
+
+/** AN ALLOW LIST, NOT A DENY LIST — the mail leg of the footprint.
+ *
+ *  `platform.email_delivery.aggregate_type` carries no foreign key and no
+ *  CHECK, so `<> 'opportunity'` would silently admit whatever third value a
+ *  future mail door writes and read it out as customer contact. Only `'lead'`
+ *  is a letter leaving the company; `'opportunity'` is an internal alert to
+ *  `PV_OPS_NOTIFICATION_TO`.
+ *
+ *  `accepted_at IS NOT NULL` is the mark of the letter having LEFT: a row still
+ *  queued, or parked dead, is a promise rather than a contact. The same column
+ *  decides the count and the moment, so the two can never disagree. */
+const MAIL_IS_CUSTOMER_FACING = sql`d.aggregate_type = 'lead' AND d.accepted_at IS NOT NULL`
+
+/** THREE LEDGERS MERGED, A FOURTH LEFT OUT ON PURPOSE.
+ *
+ *  Four tables answer "have we talked to this customer", on four anchors:
+ *  `comms.link.object_code` (polymorphic, one thread may hang on several
+ *  objects), `sales.meeting.lead_code` (a real key, lead only),
+ *  `platform.email_delivery` (see `MAIL_IS_CUSTOMER_FACING` above), and
+ *  `sales.touch` — the one left out. Touch logs business EVENTS (`vao-so`,
+ *  `len-bac`, `ky`), has no channel and no direction column, and a meeting
+ *  already writes a touch row beside itself: counting it would double-count
+ *  `sales.meeting`. */
+/** Gathered across the WHOLE JOURNEY rather than per object — mail sent to the
+ *  lead before it became a deal is still contact on this run.
+ *  `apps/web/src/data/touches.ts` records that the lead timeline and the deal
+ *  timeline are deliberately NOT merged; that decision is about those two
+ *  profile screens, and this row is the one place that gathers across. Do not
+ *  "fix" this to match them.
+ *
+ *  `count(DISTINCT m.id)` because one thread may hang on the lead AND on the
+ *  deal of the same run, and the join multiplies that message once per link. */
+function FOOTPRINT(codes: readonly string[]): SQL {
+  const list = sql.join(
+    codes.map((c) => sql`${c}`),
+    sql`, `,
+  )
+
+  return sql`
+    WITH obj AS (
+      SELECT workstream_code AS ws, code FROM sales.lead        WHERE workstream_code IN (${list})
+      UNION ALL
+      SELECT workstream_code AS ws, code FROM sales.opportunity WHERE workstream_code IN (${list})
+      UNION ALL
+      SELECT workstream_code AS ws, code FROM sales.contract    WHERE workstream_code IN (${list})
+    )
+    SELECT o.ws AS ws, t.channel AS channel, count(DISTINCT m.id)::int AS n, max(m.at) AS last_at
+      FROM obj o
+      JOIN comms.link k ON k.object_code = o.code
+      JOIN comms.thread t ON t.id = k.thread_id
+      JOIN comms.message m ON m.thread_id = t.id
+     GROUP BY o.ws, t.channel
+    UNION ALL
+    SELECT l.workstream_code AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at
+      FROM sales.meeting mt
+      JOIN sales.lead l ON l.code = mt.lead_code
+     WHERE l.workstream_code IN (${list})
+     GROUP BY l.workstream_code
+    UNION ALL
+    SELECT l.workstream_code AS ws, 'mail' AS channel, count(*)::int AS n,
+           max(COALESCE(d.delivered_at, d.accepted_at)) AS last_at
+      FROM platform.email_delivery d
+      JOIN sales.lead l ON l.code = d.aggregate_id
+     WHERE ${MAIL_IS_CUSTOMER_FACING}
+       AND l.workstream_code IN (${list})
+     GROUP BY l.workstream_code
+  `
+}

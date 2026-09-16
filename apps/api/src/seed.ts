@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { createDb } from '@api/platform/db/create-db'
 import {
   dasVina,
@@ -27,6 +28,7 @@ import { lead } from '@api/branches/sales/lead/lead.schema'
 import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
 import { opportunity, opportunityOwner } from '@api/branches/sales/opportunity/opportunity.schema'
 import { touch } from '@api/branches/sales/touch/touch.schema'
+import { workstream } from '@api/branches/sales/workstream/workstream.schema'
 import { passwordReset, session } from '@api/platform/auth/auth.schema'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
 import { loadEnv } from '@api/platform/config/env'
@@ -80,6 +82,32 @@ const blank = <T>(v: T | '' | null | undefined): T | null =>
   v === '' || v === null || v === undefined ? null : v
 
 const DAY = 86_400_000
+
+/** The RUN a lead opened, `WS-0001` upward in fixture order.
+ *
+ *  Minted from the index rather than from `nextval`, unlike every write door:
+ *  `db:seed` REBUILDS, so running it twice has to land the same database, and a
+ *  sequence would hand out a fresh block each time. The sequence is pushed past
+ *  this block with `setval` inside the same transaction, so the first real write
+ *  door still gets an unused number. Same 4-digit shape migration 0045 used for
+ *  its own backfill. */
+const runCodeOf = (i: number) => `WS-${String(i + 1).padStart(4, '0')}`
+
+/** How a run ENDED — read exactly the way migration 0045 reads it, so a
+ *  database built by migrating and one built by seeding agree.
+ *
+ *  Neither end is invented: WON is a signature (`sales.contract.signed_at`),
+ *  LOST is a funnel exit (`lead.exited_at`), and a signature wins when a lead
+ *  somehow carries both — it is the stronger statement about how a run ended,
+ *  and the lead book already treats `signed` as its own status. CHURNED is set
+ *  on NOTHING: no column in this database records a customer who bought and did
+ *  not come back, and deriving one would be inventing business data. */
+function runEndOf(signedAt: Date | null, exitedAt: Date | null) {
+  const closedAt = signedAt ?? exitedAt
+  const closeReason =
+    signedAt !== null ? ('WON' as const) : exitedAt !== null ? ('LOST' as const) : null
+  return { closedAt, closeReason }
+}
 
 /** Mốc lead vào chỗ hiện tại, tính NGƯỢC từ `daysHere` của fixture.
  *
@@ -321,6 +349,10 @@ async function seed(): Promise<void> {
 
       exitReason: l.exitReason ? exitKeyOf(l.exitReason) : null,
       exitedAt: l.exitedAt ? new Date(l.exitedAt) : null,
+      /* Until this line every seeded lead came back with a NULL run, and the
+         rows migration 0045 backfilled were orphaned by the very next rebuild.
+         One run per lead is 0045's own rule, kept here. */
+      workstreamCode: runCodeOf(i),
       _i: i,
       /* Display NAME, not id — `platform.object.owner` stores the label E2's
          scope axis still compares against. Carried here rather than looked up
@@ -387,6 +419,9 @@ async function seed(): Promise<void> {
       return {
         code: d.code,
         leadCode: r.code,
+        /* A copy of the lead's key, not a second opinion about which run this
+           is — the standing `opportunity.workstream_code` was given. */
+        workstreamCode: r.workstreamCode,
         state: STATE_OF_STAGE[d.stage],
         stage: d.stage,
         /* Đồng hồ cột đọc THẲNG `daysInStage` của fixture, không lấy `created_at`
@@ -474,6 +509,7 @@ async function seed(): Promise<void> {
       opportunity: {
         code: code.replace(/^[^-]+/, 'OP'),
         leadCode: r.code,
+        workstreamCode: r.workstreamCode,
         /* Đơn đã ký: cột là NULL (ra khỏi bảng năm cột), còn trạng thái cuối
            cùng trước khi ký là Nego. 'close-won' KHÔNG phải một giá trị của cột
            `state` — "đã thắng" là dòng bên `contract`, xem docblock của
@@ -492,12 +528,33 @@ async function seed(): Promise<void> {
         code,
         opportunityCode: code.replace(/^[^-]+/, 'OP'),
         leadCode: r.code,
+        workstreamCode: r.workstreamCode,
         amount: null,
         currency: null,
         signedAt: r.stageSince,
         ownerId: r.ownerId,
       },
     }
+  })
+
+  /* The one table this file did not rebuild: it rewrote lead, opportunity and
+     contract but not the run they belong to, so every row migration 0045
+     backfilled was orphaned by the next rebuild. */
+  const signedAtOf = new Map(won.map((w) => [w.contract.leadCode, w.contract.signedAt]))
+
+  const runs = rows.map((r) => {
+    const end = runEndOf(signedAtOf.get(r.code) ?? null, r.exitedAt)
+
+    return {
+      code: r.workstreamCode,
+      /* NULL, and it has to be: this file writes no `sales.account` row, and
+         the key would refuse any code invented here. */
+      accountCode: null,
+      /* `least` of the two, the reason 0045 gives: a backdated signature must
+         not trip `workstream_closed_after_opened`. */
+      openedAt: end.closedAt !== null && end.closedAt < r.createdAt ? end.closedAt : r.createdAt,
+      ...end,
+    } satisfies typeof workstream.$inferInsert
   })
 
   /* ── E1 · the object graph for THIS book ──────────────────────────────────
@@ -574,6 +631,8 @@ async function seed(): Promise<void> {
     await tx.delete(opportunity)
     await tx.delete(edge)
     await tx.delete(lead)
+    /* AFTER `lead`, `opportunity` and `contract`: all three key into it. */
+    await tx.delete(workstream)
     /* Sau `lead`: ngày sáu cột của lead thành khoá ngoại ghép trỏ vào
        `config_entry`, thứ tự này là thứ tự BẮT BUỘC. Trước `actor`: cột
        `owner_id` của `CATEGORY` trỏ sang sổ nhân sự. */
@@ -640,6 +699,10 @@ async function seed(): Promise<void> {
       ...bookEdges,
     ])
 
+    /* BEFORE `lead`, and forced rather than tidy: `lead.workstream_code` is a
+       live foreign key, so every one of the 100 rows below is refused if these
+       are not already in. */
+    await tx.insert(workstream).values(runs)
     await tx.insert(lead).values(rows.map(({ _i, _owner, ...row }) => row))
 
     /* Người đứng đơn rời sang bảng nối 28/08 — cột `owner_id` không còn. Seed
@@ -689,10 +752,15 @@ async function seed(): Promise<void> {
     })
 
     await tx.insert(touch).values([...touchRows, ...dealOpened])
+
+    /* The codes above came from an index, so the sequence still points at 1 and
+       the first real write door would mint `WS-0001` on top of a live row. 0045
+       got this for free by calling `nextval` per backfilled row. */
+    await tx.execute(sql`SELECT setval('sales.workstream_code_seq', ${runs.length})`)
   })
 
   console.log(
-    `Đã nạp ${actors.length} actor · ` +
+    `Đã nạp ${actors.length} actor · ${runs.length} hành trình · ` +
       `${dasVina.objects.length + leadObjects.length + dealObjects.length + contractObjects.length} object · ` +
       `${dasVina.edges.length + bookEdges.length} cạnh · ${rows.length} lead · ` +
       `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · ` +

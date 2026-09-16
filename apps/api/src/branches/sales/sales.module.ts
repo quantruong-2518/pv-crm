@@ -14,6 +14,7 @@ import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
+import { WorkstreamModule } from './workstream/workstream.module'
 
 /** Nhánh tự cắm sổ ràng buộc của mình vào bộ dịch lỗi cơ sở dữ liệu.
  *
@@ -61,6 +62,12 @@ registerConstraints(CONTACT_CONSTRAINTS)
     /* Not in `exports`, unlike the others: it belongs to no book, and no module
        has anything to ask it. */
     LeaderboardModule,
+    /* The journey book — one row per run at one company, gathered across the
+       lead, its deals and its contract. It stands beside the three books rather
+       than under one of them for `AccountModule`'s reason: a run spans all
+       three, so hanging it off any one would make the other two reach across a
+       module boundary to read it. */
+    WorkstreamModule,
   ],
   exports: [
     LeadModule,
@@ -69,6 +76,7 @@ registerConstraints(CONTACT_CONSTRAINTS)
     SalesConfigModule,
     CampaignModule,
     AccountModule,
+    WorkstreamModule,
   ],
 })
 export class SalesModule {}

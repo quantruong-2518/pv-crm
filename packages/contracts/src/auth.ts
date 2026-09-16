@@ -75,6 +75,7 @@ export const Permission = z.enum([
   'campaign.broadcast',
   'lead.view',
   'lead.edit',
+  'workstream.view',
   'lead.send-email',
   'lead.assign',
   'lead.convert',

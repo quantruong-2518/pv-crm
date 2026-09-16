@@ -27,6 +27,7 @@ export type RoleId =
 export type ObjectKind =
   | 'AC' // account — công ty
   | 'CT' // contact — người
+  | 'WS' // workstream — one customer journey: its lead, deals and contract
   | 'LD' // lead
   | 'OP' // opportunity — cơ hội
   | 'BG' // báo giá
@@ -94,6 +95,13 @@ export const PERMISSIONS = [
   'campaign.broadcast',
   'lead.view',
   'lead.edit',
+  /** Read the workstream book — one row per customer journey.
+   *
+   *  Its own key rather than riding `lead.view`, because a journey row
+   *  prints the deal and contract codes of the run. `marketing` holds
+   *  `lead.view` and NOT `opportunity.view`; one shared key would hand it
+   *  deal codes through a side door. */
+  'workstream.view',
   /** Mail a batch picked by hand from the lead book — Quick MAS.
    *
    *  A SECOND send permission, next to `campaign.broadcast`, and the pair is not a

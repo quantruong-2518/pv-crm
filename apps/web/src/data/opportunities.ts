@@ -539,6 +539,7 @@ export const STATE_TONE: Record<OpportunityState, 'success' | 'danger' | 'runnin
  *  so this list grows as those screens land — plus `BG`, whose screen is the
  *  one still missing from the Sales chain. */
 const CHAIN_ROUTE: Record<string, string> = {
+  WS: '/sales/workstreams',
   LD: '/sales/leads',
   OP: '/sales/opportunities',
   HĐ: '/sales/contracts',

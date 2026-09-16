@@ -41,10 +41,12 @@ export type PipelineId =
  *
  *  Accounts and contacts are books, not pipelines (§1): a company and a person
  *  have no ordered stages and never leave for a reason. That is a decision, and
- *  writing it here is how it stays one. */
+ *  writing it here is how it stays one. `WS` is null for its own reason: a run
+ *  CONTAINS ladder-walkers rather than walking one. */
 export const PIPELINE_OF_KIND: Record<ObjectKind, PipelineId | null> = {
   AC: null,
   CT: null,
+  WS: null,
   LD: 'lead',
   OP: 'opportunity',
   BG: 'quote',

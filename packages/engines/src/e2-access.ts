@@ -141,6 +141,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'account.view',
     'account.edit',
     'opportunity.view',
+    'workstream.view',
     'opportunity.edit',
     'contract.view',
     'performance.view',
@@ -157,6 +158,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'comm.view-content',
     'account.view',
     'opportunity.view',
+    'workstream.view',
     'opportunity.edit',
     'contract.view',
     'performance.view',
@@ -183,6 +185,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'account.view',
     'account.edit',
     'opportunity.view',
+    'workstream.view',
     'opportunity.edit',
     'opportunity.close',
     /* A contract is what this person's own closing move produced, so without
@@ -222,6 +225,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'account.view',
     'account.edit',
     'opportunity.view',
+    'workstream.view',
     'opportunity.edit',
     'opportunity.close',
     /* The record-payment permission is withheld from `sale` because a seller
@@ -257,6 +261,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
  *  written where the refusal is. */
 const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'opportunity' | 'contract' | 'account'>> = {
   LD: 'lead',
+  /** A run is anchored on its lead (migration 0045 mints one per lead), and
+   *  the scope axis cuts on that lead's `owner_id` — so the SQL fence and this
+   *  grid ask one question, not two that can drift. */
+  WS: 'lead',
   OP: 'opportunity',
   /** Until 02/09 this kind had no domain, so `permissionFor` returned `null` for
    *  EVERY question about a contract — E2 waved them through instead of checking.

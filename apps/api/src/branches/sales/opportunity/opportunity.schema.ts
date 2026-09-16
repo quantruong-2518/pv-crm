@@ -26,6 +26,7 @@ import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { sales } from '../sales.schema'
+import { workstream } from '../workstream/workstream.schema'
 
 /** Cơ hội — module 3 (Ops) của nhánh Sales.
  *
@@ -150,6 +151,18 @@ export const opportunity = sales.table(
      *  is always the lead's account, never a second opinion about it. */
     accountCode: text('account_code').references(() => account.code),
 
+    /** The RUN this deal belongs to. Always the workstream of its own lead —
+     *  a copy of a key, never a second opinion, the same standing
+     *  `account_code` just above has.
+     *
+     *  Nullable for the reason the column on `lead` states: a `NOT NULL` here
+     *  would make `POST /sales/opportunities` fail until a service somewhere
+     *  else learns to mint a workstream. Denormalised rather than reached
+     *  through `lead_code` because the book groups deals by run directly, and
+     *  a two-hop group-by on every open of the screen is the join this column
+     *  exists to remove. */
+    workstreamCode: text('workstream_code').references(() => workstream.code),
+
     amount: bigint('amount', { mode: 'number' }),
     currency: text('currency').$type<CurrencyCode>(),
 
@@ -199,6 +212,9 @@ export const opportunity = sales.table(
   },
   (t) => [
     index('opportunity_lead_idx').on(t.leadCode),
+    /** "The deals of this run" — how the book screen groups, and the join it
+     *  leans on hardest. */
+    index('opportunity_workstream_idx').on(t.workstreamCode),
     /** Đích của khoá ngoại GHÉP bên `contract`. `code` đã là khoá chính nên
      *  cặp này thừa về mặt duy nhất — nó tồn tại chỉ để Postgres có chỗ neo
      *  khoá ngoại hai cột, và đó chính là thứ làm việc lệch trở thành bất khả

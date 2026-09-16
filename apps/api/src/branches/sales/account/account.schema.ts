@@ -1,7 +1,7 @@
 import { check, index, integer, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { LeadCategory } from '@pv/contracts'
-import { objectRef } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 
 /** The customer COMPANY — the row every lead, contact and deal hangs off.
@@ -77,6 +77,23 @@ export const account = sales.table(
 
     headcount: integer('headcount'),
     plants: integer('plants'),
+
+    /** The ACCOUNT MANAGER — the one seller who answers for this company.
+     *
+     *  REVERSES a decision written down on `'account.view'` in
+     *  `packages/engines/src/types.ts` (~line 129): "a company is owned by no
+     *  seller". That sentence is an argument about the READ side — it exists so
+     *  a Sale opening a new enquiry can see the company already belongs to the
+     *  desk next door. This column does not touch that: it NAMES a person, it
+     *  does not narrow a query, and no `ownOnly` axis reads it. An ADR is being
+     *  written separately; it is not this file's job to settle.
+     *
+     *  Nullable for ever. Migration 0026 backfilled the companies out of lead
+     *  rows that name no manager, and choosing one for them would be inventing
+     *  an assignment nobody made. NOT indexed — "which companies do I manage"
+     *  is not a question any screen asks yet, and an index with no question is
+     *  a cost paid on every insert. */
+    ownerId: text('owner_id').references(() => actor.id),
 
     /** What the account team knows that no column asks for. */
     note: text('note'),

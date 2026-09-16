@@ -309,6 +309,13 @@
       "when": 1788501500000,
       "tag": "0044_object_mirror_validate",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788501600000,
+      "tag": "0045_workstream",
+      "breakpoints": true
     }
   ]
 }

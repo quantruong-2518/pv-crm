@@ -25,6 +25,7 @@ import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
+import { workstream } from '../workstream/workstream.schema'
 
 /** Chuỗi rỗng KHÔNG phải một giá trị.
  *
@@ -153,6 +154,20 @@ export const lead = sales.table(
      *  `account.schema.ts` for why they stay and which of the two wins when they
      *  disagree. */
     accountCode: text('account_code').references(() => account.code),
+
+    /** The RUN this enquiry started. NULL = a lead that predates the concept.
+     *
+     *  NULLABLE, and not by preference. `NOT NULL` would mean no lead can be
+     *  written until a workstream exists for it, i.e. the intake door — the
+     *  one path that must never refuse a row — would start failing the moment
+     *  this migration lands and keep failing until somebody else's service
+     *  learns to mint one. A foreign key that can reject a legitimate write is
+     *  worse than none.
+     *
+     *  Migration 0045 leaves ZERO nulls behind it: one workstream per lead,
+     *  every lead. A null appearing after that is a row written by a door that
+     *  has not been taught yet, exactly what `motion` above means. */
+    workstreamCode: text('workstream_code').references(() => workstream.code),
 
     company: text('company').notNull(),
     /** Tên trên giấy tờ, khác tên gọi trong sổ. */
@@ -333,6 +348,9 @@ export const lead = sales.table(
     index('lead_stage_idx').on(t.stage),
     index('lead_exit_idx').on(t.exitReason),
     index('lead_campaign_idx').on(t.campaignId),
+    /** "Everything belonging to this run" — the book screen groups by this
+     *  column, and it is the hottest join of the feature. */
+    index('lead_workstream_idx').on(t.workstreamCode),
     /* Ô tìm theo tên công ty dùng `ILIKE '%…%'` — B-tree KHÔNG đỡ được kiểu
        này, mọi lần gõ là một seq scan. Với 100 dòng thì không ai thấy; khi có
        dữ liệu thật thì bật `pg_trgm` và thêm một GIN index trên `company`.

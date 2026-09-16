@@ -86,6 +86,7 @@ export type Resource = ResourceOf<Permission>
 export const RESOURCE_LABEL = {
   campaign: 'Chiến dịch & sự kiện',
   lead: 'Sổ lead',
+  workstream: 'Hành trình khách hàng',
   account: 'Khách hàng công ty',
   opportunity: 'Cơ hội',
   contract: 'Hợp đồng & thu tiền',
@@ -116,6 +117,7 @@ export const PERMISSION_LABEL = {
   'campaign.edit': 'Dựng và sửa chiến dịch',
   'campaign.broadcast': 'Bắn chiến dịch ra ngoài',
   'lead.view': 'Xem sổ lead',
+  'workstream.view': 'Xem sổ hành trình',
   'lead.edit': 'Sửa hồ sơ lead',
   'lead.send-email': 'Gửi thư cho lead đang giữ',
   'lead.assign': 'Giao việc trên lead cho người khác',

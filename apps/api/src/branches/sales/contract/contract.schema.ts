@@ -20,6 +20,7 @@ import type {
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { sales } from '../sales.schema'
+import { workstream } from '../workstream/workstream.schema'
 
 /** Hợp đồng đã ký — NGUỒN SỰ THẬT DUY NHẤT của câu "lead này đã ký chưa".
  *
@@ -52,6 +53,15 @@ export const contract = sales.table(
     currency: text('currency').$type<CurrencyCode>(),
     signedAt: timestamp('signed_at', { withTimezone: true }).notNull(),
     ownerId: text('owner_id').references(() => actor.id),
+
+    /** The RUN this signature ended. Copied from the deal's own workstream,
+     *  which is copied from the lead's — one key, three places, no opinion.
+     *
+     *  Nullable like the other two, and here that is not only about write
+     *  doors: this is the column the backfill uses to CLOSE a run, so a
+     *  contract that arrives with nothing in it is a run still counted open,
+     *  not a write refused at the moment a deal is won. */
+    workstreamCode: text('workstream_code').references(() => workstream.code),
   },
   (t) => [
     foreignKey({
@@ -61,6 +71,9 @@ export const contract = sales.table(
     }),
     /** Chỉ mục của câu hỏi hay nhất: "lead này đã ký chưa". */
     index('contract_lead_idx').on(t.leadCode),
+    /** "Did this run end in a signature, and when" — the book screen groups
+     *  by run, and this is the join that answers it without a scan. */
+    index('contract_workstream_idx').on(t.workstreamCode),
     check('contract_money_pair', sql`("amount" IS NULL) = ("currency" IS NULL)`),
   ],
 )

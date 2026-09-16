@@ -155,7 +155,19 @@ export const ContactChannel = z.enum(
  *  bảng bằng CHECK chứ không nhờ người nhớ. */
 export const CurrencyCode = z.enum(['VND', 'USD'], 'Đơn vị tiền không có trong danh sách')
 
+/** Three ways one workstream closes. UPPER_SNAKE, the same law
+ *  `LeadSourceKind` above states for a stored key that is never a label.
+ *
+ *  Null exactly when `closedAt` is null, non-null exactly when it is not —
+ *  the pairing `sales.workstream`'s own CHECK enforces; this enum only
+ *  supplies the closed side's vocabulary. */
+export const WorkstreamCloseReason = z.enum(
+  ['WON', 'LOST', 'CHURNED'],
+  'Lý do đóng không có trong danh sách',
+)
+
 export type LeadSourceKind = z.infer<typeof LeadSourceKind>
 export type LeadMotion = z.infer<typeof LeadMotion>
 export type ContactChannel = z.infer<typeof ContactChannel>
 export type CurrencyCode = z.infer<typeof CurrencyCode>
+export type WorkstreamCloseReason = z.infer<typeof WorkstreamCloseReason>
