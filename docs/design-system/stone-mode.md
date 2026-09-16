@@ -1,17 +1,17 @@
-# Đá mịn — mode sáng
+# Stone — the light mode
 
-Mode thứ hai theo yêu cầu ngày 16/09/2026: giao diện sáng, trang nhã, tối giản cho người dùng kinh doanh văn phòng. Aurora là mode mặc định; người dùng chuyển bằng nút Aurora / Đá mịn ở thanh đầu trang hoặc màn đăng nhập. Lựa chọn lưu trong `pv-theme` trên trình duyệt và đồng bộ giữa các tab.
+The second mode, asked for on 16/09/2026: a light, restrained, minimal surface for office sales users. Aurora is the default; the user switches with the Aurora / "Đá mịn" button in the app header or on the sign-in screen. The choice is stored under `pv-theme` in the browser and stays in sync across tabs.
 
-## Chất liệu và màu
+## Material and colour
 
-- Nền khoáng xám xanh, có hạt tĩnh rất nhẹ; không phủ hạt lên chữ hoặc bảng.
-- Mặt nội dung sáng có sắc màu, đặc, không blur; bóng nông và mép nhẹ để phân lớp.
-- Chữ than; xanh Pebble trầm dành cho thao tác, liên kết và vùng được chọn.
-- IBM Plex Sans cho nội dung, tiêu đề và số; số vẫn canh hàng bằng tabular numerals.
-- Token nằm trong `packages/tokens/globals.css`, dưới `:root[data-theme='stone']`.
-- `surface-ink` là màu pha của nền phụ, đường phân cách và trạng thái hover: trắng trong Aurora, màu mực trong Đá mịn. Không thay màu chữ trắng trên nút chính hoặc avatar.
-- Logo tự chuyển sang bộ tài sản xanh đã có.
+- A blue-grey mineral background carrying very faint static grain; the grain never lies over text or tables.
+- Content surfaces are light and tinted, opaque, never blurred; a shallow shadow and a soft edge do the layering.
+- Charcoal text; a muted Pebble blue for actions, links and selected regions.
+- IBM Plex Sans for body, headings and numbers; numbers still align on tabular numerals.
+- The tokens live in `packages/tokens/globals.css`, under `:root[data-theme='stone']`.
+- `surface-ink` is the tint shared by secondary backgrounds, dividers and hover states: white in Aurora, ink in Stone. It does not change the white text on a primary button or on an avatar.
+- The logo switches itself to the existing blue asset set.
 
-## Kiểm tra
+## What was checked
 
-TypeScript web, build web, ESLint phần giao diện, token drift và CSS coverage. Kiểm tra trình duyệt tại `/kit` và `/dang-nhap`: chuyển hai mode, lưu sau reload, desktop 1536px và màn đăng nhập mobile 390px. API chưa chạy trong lần kiểm tra này; phản hồi chưa đăng nhập được giả lập riêng trong trình duyệt kiểm thử.
+TypeScript web, web build, ESLint over the interface, token drift and CSS coverage. Checked in the browser at `/kit` and `/sign-in`: switching both modes, the choice surviving a reload, desktop at 1536px and the sign-in screen at mobile 390px. The API was not running for this pass; the signed-out response was stubbed separately in the test browser.
