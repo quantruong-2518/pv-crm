@@ -5,12 +5,12 @@ Source: packages/contracts/src/sales/contact.ts — docblock at the top of the f
 
 ## Context
 
-Decision #1 of `docs/ban-giao-db.md` once locked in "email sits directly on
+Decision #1 of `docs/ban-giao-db.md` once locked in "email sits directly on <!--ctx:ignore-->
 `lead`, no `contact` split" — and it wrote its own expiry date into that same
 line, verbatim (docblock, section "WHY A TABLE AT ALL, WHEN DECISION #1 SAID
 NOT TO SPLIT ONE"):
 
-> "`docs/ban-giao-db.md` decision #1 is explicit: 'email sits directly on
+> "`docs/ban-giao-db.md` decision #1 is explicit: 'email sits directly on <!--ctx:ignore-->
 > `lead`, no `contact` split — one lead = one person = one mailbox'. That was
 > the right call for the shape of the data at the time, and it came with its
 > own expiry date written into the same line: 'the day one company needs
@@ -45,7 +45,7 @@ that did not exist until now" — with five doors:
 > is `lead.view` and touching one is `lead.edit`.
 
 `email` is optional on the `contact` table — and this is NOT a relaxation of
-`lead.email NOT NULL` (decision #4 of `docs/ban-giao-db.md`), verbatim:
+`lead.email NOT NULL` (decision #4 of `docs/ban-giao-db.md`), verbatim: <!--ctx:ignore-->
 
 > "`lead.email` is `NOT NULL` (decision #4) to enforce exactly one rule: a
 > lead with no mailbox cannot take part in the MAS mail flow, which is the

@@ -5,7 +5,7 @@ Source: docs/ban-giao-api.md — section "Where it runs — Fly.io + Neon, condi
 
 ## Context
 
-`docs/ban-giao-backend.md` left two questions open: the BE framework (later
+`docs/ban-giao-backend.md` left two questions open: the BE framework (later <!--ctx:ignore-->
 locked in as NestJS — ADR 0007) and where the BE runs. Where it runs locked in
 on **26/08**: a container host first, ECS/RDS once there is someone on ops
 duty — the team currently has no one on ops duty.
@@ -37,7 +37,7 @@ split by PROCESS (`worker.ts`), not by service.
 **Conditional, not the final call:** this decision DELIBERATELY skips over
 Decree 53/2022 (in-country data residency) — neither Fly.io nor Neon has
 infrastructure in Vietnam; the closest is Singapore. The legal question in
-`docs/ban-giao-backend.md` remains open, unanswered here. If legal confirms
+`docs/ban-giao-backend.md` remains open, unanswered here. If legal confirms <!--ctx:ignore-->
 in-country storage is mandatory, the part that must change is **Neon → Vultr
 Managed Database or a VN cloud** (Viettel IDC/VNG/FPT/CMC — Vultr has a Ho Chi
 Minh City datacenter, needs re-confirming before picking); Fly.io/Vercel do

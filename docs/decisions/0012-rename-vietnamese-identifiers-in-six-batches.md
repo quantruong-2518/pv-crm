@@ -2,7 +2,7 @@
 
 Status: accepted (batch 1 shipped; batches 2–6 pending)
 Source: docs/ban-giao-dinh-danh-tieng-anh.md; the excluded `HĐ` case also
-recorded at docs/fix-later.md §14
+recorded at docs/fix-later.md §14 <!--ctx:ignore-->
 
 ## Context
 
@@ -62,8 +62,14 @@ number-locking test touched.
 > never colliding. Batch 2 renames **values** — `'dat'`, `'ngay'`, `'moi'` —
 > short lowercase slugs inside quotes. **Must match INSIDE THE QUOTES**
 > (`s/'dat'/'met'/g`), and must grep with context before changing anything.
-> `'moi'` is both a `StageKey` and the route `/sales/campaigns/moi`; `'ngay'`
-> is a web `Grain`, an E4 `timing`, and an unrelated `QuestionKey`, all three.
+> `'moi'` is a `StageKey`; `'ngay'` is a web `Grain`, an E4 `timing`, and an
+> unrelated `QuestionKey`, all three.
+>
+> **16/09 — half of the `'moi'` warning has expired.** A separate pass renamed
+> every Vietnamese web route to English, so the collision with
+> `/sales/campaigns/moi` is gone: that path is now `/sales/campaigns/new`.
+> The `StageKey` half still stands and is still batch 2's work — the route
+> rename did not touch stored values.
 > Absolutely no tree-wide `sed`.
 
 | Type            | Declared at                          | Values → proposed                                                                                                                                                                                                                             |

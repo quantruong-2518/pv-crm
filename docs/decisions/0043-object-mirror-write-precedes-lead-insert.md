@@ -28,6 +28,6 @@ red anywhere. Postgres now refuses this outright.
 The price is a **permanent ordering obligation** on every writer, including
 `seed.ts`: write `platform.object` FIRST, `sales.lead` SECOND, inside **one**
 transaction. `ObjectMirror`
-(`apps/api/src/branches/sales/platform/graph/object-mirror.ts`) is the one
+(`apps/api/src/platform/graph/object-mirror.ts`) is the one
 place that does this, and it **deliberately does not open its own
 transaction** — the caller holds it.

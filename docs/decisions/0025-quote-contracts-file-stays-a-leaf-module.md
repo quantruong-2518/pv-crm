@@ -5,12 +5,12 @@ Source: docs/tam-nhin-bao-gia-hop-dong.md — "§4 · Hợp đồng zod"
 
 ## Context
 
-A new file, `packages/contracts/src/sales/quote.ts`, needs a place in the
+A new file, `packages/contracts/src/sales/quote.ts`, needs a place in the <!--ctx:ignore-->
 import graph relative to `contract.ts`.
 
 ## Decision
 
-`packages/contracts/src/sales/quote.ts` is deliberately a **leaf**: it only
+`packages/contracts/src/sales/quote.ts` is deliberately a **leaf**: it only <!--ctx:ignore-->
 imports `../primitives` and `./enums`. `contract.ts` imports **additionally**
 from `./quote`, one direction only. The reverse would be a module-load dead
 cycle — precisely what already happened for real with `ContractCode`, which

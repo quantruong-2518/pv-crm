@@ -33,10 +33,13 @@ const walk = (dir, out = []) => {
   return out
 }
 
-// Every markdown that instructs an agent. These are the files allowed to rot.
+// Every markdown an agent reads to decide something — the files allowed to rot.
+// docs/ belongs here: an ADR naming a file that no longer exists is a dead end
+// exactly like a skill naming one, and until 16/09 nothing checked them at all.
 const INSTRUCTION_FILES = [
   'CLAUDE.md',
   ...walk('.claude').filter((p) => p.endsWith('.md')),
+  ...walk('docs').filter((p) => p.endsWith('.md')),
   ...['apps', 'packages']
     .flatMap((d) => readdirSync(join(ROOT, d)).map((n) => `${d}/${n}/CLAUDE.md`))
     .filter((p) => existsSync(join(ROOT, p))),
@@ -56,7 +59,7 @@ const skipPath = (p) =>
 // being described, or a file that was deleted and is named as history.
 for (const file of INSTRUCTION_FILES) {
   for (const text of read(file).split('\n')) {
-    if (text.includes('<!--ctx:ignore-->')) continue
+    if (text.includes('<!--ctx:ignore-->') || text.trim().startsWith('Source:')) continue
     for (const [, raw] of text.matchAll(PATH_RE)) {
       const p = raw.replace(/\/$/, '')
       if (skipPath(p)) continue
@@ -207,6 +210,43 @@ for (const dir of codeDirs) {
 }
 for (const [p, n] of [...dangling].sort((a, b) => b[1] - a[1]))
   warn('8·code', `${n} comment${n > 1 ? 's' : ''} cite${n > 1 ? '' : 's'} ${p} — that file is gone`)
+
+// ------------------------------------- 9 · bare .md names, no docs/ prefix
+// A pointer written `fix-later.md §6` instead of `docs/fix-later.md` is just as
+// dead and twice as hard to see: checks 1 and 8 both key on the prefix. Resolve
+// by BASENAME against every markdown that actually exists, so nothing has to be
+// hardcoded and the check cannot rot with the file list.
+const knownMd = new Set()
+for (const dir of ['docs', '.claude', 'apps', 'packages', 'tools']) {
+  for (const f of walk(dir).filter((p) => p.endsWith('.md'))) knownMd.add(f.split('/').pop())
+}
+for (const f of readdirSync(ROOT)) if (f.endsWith('.md')) knownMd.add(f)
+
+const BARE_MD_RE = /(?<![\w/\-.])([a-z0-9]+(?:-[a-z0-9]+)+\.md)(?![\w/])/g
+const bare = new Map()
+const scanBare = (file, text, label) => {
+  for (const [, name] of text.matchAll(BARE_MD_RE)) {
+    if (knownMd.has(name)) continue
+    const key = `${name}|${label}`
+    bare.set(key, (bare.get(key) ?? 0) + 1)
+  }
+}
+for (const file of INSTRUCTION_FILES) {
+  for (const line of read(file).split('\n')) {
+    if (line.includes('<!--ctx:ignore-->') || line.trim().startsWith('Source:')) continue
+    scanBare(file, line, 'docs')
+  }
+}
+for (const dir of codeDirs)
+  for (const f of walk(dir).filter((p) => /\.tsx?$/.test(p))) scanBare(f, read(f), 'code')
+
+for (const [key, n] of [...bare].sort((a, b) => b[1] - a[1])) {
+  const [name, label] = key.split('|')
+  warn(
+    '9·bare',
+    `${n} ${label} reference${n > 1 ? 's' : ''} name "${name}" with no docs/ prefix — no such file`,
+  )
+}
 
 // ----------------------------------------------------------------- report
 console.log('\nContext cost\n')

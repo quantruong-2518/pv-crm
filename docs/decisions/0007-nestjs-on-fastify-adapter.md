@@ -7,7 +7,7 @@ section "Nest friction — two stumbles, don't stumble again"
 
 ## Context
 
-`docs/ban-giao-backend.md` left the BE framework question open: "Nest is
+`docs/ban-giao-backend.md` left the BE framework question open: "Nest is <!--ctx:ignore-->
 worth it if ≥3 people write BE and there is a `@pv/contracts` in zod so DTOs
 are not written twice; below that threshold, Fastify + Drizzle is leaner."
 

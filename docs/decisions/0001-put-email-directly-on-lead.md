@@ -6,7 +6,7 @@ Source: docs/ban-giao-db.md — table "Seven decisions locked in", row #1
 ## Context
 
 One of seven decisions that locked in the main flow of the data schema as of
-26/08/2026 (`docs/ban-giao-db.md`, section "Main flow — re-locked, DIFFERENT
+26/08/2026 (`docs/ban-giao-db.md`, section "Main flow — re-locked, DIFFERENT <!--ctx:ignore-->
 from the first draft"): campaigns **consume** existing leads, they do not
 produce leads, and the lead book is the root of the whole chain.
 
