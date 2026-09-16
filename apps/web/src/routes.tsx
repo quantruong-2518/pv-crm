@@ -1,5 +1,12 @@
 import { lazy, Suspense, type ComponentType } from 'react'
-import { createBrowserRouter, matchPath } from 'react-router-dom'
+import {
+  createBrowserRouter,
+  generatePath,
+  matchPath,
+  Navigate,
+  useLocation,
+  useParams,
+} from 'react-router-dom'
 import { AuroraField } from '@pv/ui'
 import type { Branch, Permission } from '@pv/engines'
 import { CHANGE_PASSWORD_PATH, RequireAccess } from '@/app/auth'
@@ -358,8 +365,44 @@ export const SCREENS: ScreenDef[] = [
   { path: '/kit', name: 'Theme kit sống', public: true, load: () => import('@/kit/theme-kit') },
 ]
 
-export const router = createBrowserRouter(
-  SCREENS.map(({ path, load, branch, permission, public: isPublic }) => ({
+/** The Vietnamese paths, kept alive until 23/09/2026.
+ *
+ *  Thirteen routes dropped Vietnamese at `83480fa`. Bookmarks, and the links
+ *  inside mail already sent, still point at the old spelling — deleting them
+ *  outright serves a 404 to someone who did nothing wrong. The password-invite
+ *  ticket lives 7 days, the latest expiry in the system, so it sets the date
+ *  this table goes away.
+ *
+ *  `search` and `hash` MUST travel with the redirect: the reset link is
+ *  `/dat-lai-mat-khau?token=…`, and dropping the query would land the person on
+ *  the right screen holding no ticket — a failure harder to read than the 404
+ *  it replaced. */
+const LEGACY_PATHS: Record<string, string> = {
+  '/quan-tri/nguoi-dung': '/admin/users',
+  '/quan-tri/vai-tro': '/admin/roles',
+  '/duyet': '/approvals',
+  '/sales/campaigns/nguon-dan': '/sales/campaigns/sources',
+  '/sales/campaigns/nguon-dan/:code': '/sales/campaigns/sources/:code',
+  '/sales/campaigns/lo-gui': '/sales/campaigns/mail-runs',
+  '/sales/campaigns/mau-thu': '/sales/campaigns/mail-templates',
+  '/sales/campaigns/moi': '/sales/campaigns/new',
+  '/sales/campaigns/:code/sua': '/sales/campaigns/:code/edit',
+  '/sales/contracts/:code/dot/:no': '/sales/contracts/:code/installments/:no',
+  '/dang-nhap': '/sign-in',
+  '/quen-mat-khau': '/forgot-password',
+  '/dat-lai-mat-khau': '/reset-password',
+  '/doi-mat-khau': CHANGE_PASSWORD_PATH,
+}
+
+/** `replace` so the Back button cannot fall onto the old path and bounce. */
+function LegacyRedirect({ to }: { to: string }) {
+  const params = useParams()
+  const { hash, search } = useLocation()
+  return <Navigate to={`${generatePath(to, params)}${search}${hash}`} replace />
+}
+
+export const router = createBrowserRouter([
+  ...SCREENS.map(({ path, load, branch, permission, public: isPublic }) => ({
     path,
     element: isPublic ? (
       withFallback(load)
@@ -369,7 +412,11 @@ export const router = createBrowserRouter(
       </RequireAccess>
     ),
   })),
-)
+  ...Object.entries(LEGACY_PATHS).map(([from, to]) => ({
+    path: from,
+    element: <LegacyRedirect to={to} />,
+  })),
+])
 
 /** Head metadata per screen — SCREENS already carries a human name, index.html
  *  otherwise leaves every route stuck on the same static title/description/
