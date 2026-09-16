@@ -1,6 +1,8 @@
 # 0029 · Module 4 deliberately skips a product catalog, contract cancellation, and server-side PDF generation
 
-Status: accepted
+Status: partially superseded by 0054 (the delivery/acceptance half of the
+"no sales order, delivery, acceptance, or real payment collection" line only —
+the other four exclusions stand)
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§9 · Cố ý KHÔNG làm"
 
 ## Context

@@ -1,6 +1,6 @@
 # 0014 · Reduce system scope to a Sales-only CRM; payment installments stay under Sales
 
-Status: accepted
+Status: superseded by 0054 (payment-installments ruling below stands, see 0054)
 Source: docs/tam-nhin-pipeline-toan-he.md §0 ("SCOPE CUT — locked in 15/09,
 read before every other section"), §4·3, §8·1
 

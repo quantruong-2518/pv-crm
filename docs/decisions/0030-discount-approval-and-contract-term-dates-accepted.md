@@ -1,6 +1,7 @@
 # 0030 · Discount approval and contract term dates accepted into scope; e-signature deferred; invoicing, installed-asset tracking and post-sale tickets stay out of scope
 
-Status: accepted
+Status: partially superseded by 0054 (items 5–6 — installed-asset tracking
+and post-sale ticketing — only; items 1–4 and the e-signature deferral stand)
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§12 · Đối chiếu sáu CRM lớn —
 soát 31/08/2026", table "Sáu khối thị trường có mà bản này chưa nhắc" and its
 six numbered notes

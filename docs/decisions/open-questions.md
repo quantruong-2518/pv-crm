@@ -73,3 +73,16 @@ checked against `git show` if the original is ever needed.
 20. **Where comms thresholds physically live.** The principle is settled (config,
     not code — ADR 0053) but `config_entry` cannot hold a scalar threshold as it
     stands. _(was `ke-hoach-thi-cong-comms.md` §11.4)_
+
+## V2 scope reopening (added 16/09/2026)
+
+21. **Is invoicing back in scope.** ADR 0054 reopens blocks 4 and 5 of the V2
+    customer journey but explicitly does not reverse ADR 0030's exclusion of
+    invoicing and receivables — the owner has not ruled on it either way.
+    _(see ADR 0054)_
+22. **Should `account.view`/`account.edit` gain an `ownOnly` scope axis** now
+    that `sales.account.owner_id` exists (ADR 0056). Adding the column does not
+    by itself answer whether account visibility should be scoped to its
+    owner — the original reason it was left unscoped (a Sale needs to see a
+    company is already someone else's customer) still applies unless the
+    owner rules on it separately. _(see ADR 0056)_

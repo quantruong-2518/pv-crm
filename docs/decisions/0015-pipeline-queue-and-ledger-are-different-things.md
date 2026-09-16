@@ -1,6 +1,7 @@
 # 0015 · Pipeline, queue and ledger are three different things, and four rules govern every pipeline
 
-Status: accepted
+Status: partially superseded by 0055 (the `LOSS_REASONS` half of rule 4 only —
+rules 1–3 and the pipeline/queue/ledger split stand)
 Source: docs/tam-nhin-pipeline-toan-he.md §1 ("Three different things being
 called by one name") and §2 ("Four rules that make up 'orderly'")
 
