@@ -39,6 +39,18 @@ export function useThemeMode() {
   return useSyncExternalStore(subscribe, snapshot, (): ThemeMode => 'aurora')
 }
 
+/** Shared by the standalone switch and the account menu row, so both remember
+ *  the choice the same way. */
+export function toggleTheme() {
+  const next: ThemeMode = snapshot() === 'stone' ? 'aurora' : 'stone'
+  applyTheme(next)
+  try {
+    localStorage.setItem(THEME_KEY, next)
+  } catch {
+    // Still switch for this visit when browser storage is unavailable.
+  }
+}
+
 export function ThemeSwitch() {
   const theme = useThemeMode()
   const stone = theme === 'stone'
@@ -50,15 +62,7 @@ export function ThemeSwitch() {
       aria-label="Giao diện sáng Đá mịn"
       aria-pressed={stone}
       title={stone ? 'Chuyển sang Aurora tối' : 'Chuyển sang Đá mịn sáng'}
-      onClick={() => {
-        const next = stone ? 'aurora' : 'stone'
-        applyTheme(next)
-        try {
-          localStorage.setItem(THEME_KEY, next)
-        } catch {
-          // Still switch for this visit when browser storage is unavailable.
-        }
-      }}
+      onClick={toggleTheme}
     >
       <span aria-hidden="true" className="bg-accent shadow-control size-3 shrink-0 rounded-full" />
       {stone ? 'Đá mịn' : 'Aurora'}

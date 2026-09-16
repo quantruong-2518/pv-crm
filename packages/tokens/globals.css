@@ -331,6 +331,13 @@
       var(--shadow-panel),
       inset 0 1px 0 rgba(255, 255, 255, 0.11);
   }
+  /* The caret of a dropdown: a square turned 45deg laid OVER the panel's top
+     edge, same fill as the panel. Only its two upper edges carry the panel's
+     edge light; the lower half sits inside the panel and must draw nothing. */
+  .glass-overlay-caret {
+    background: linear-gradient(var(--popover), var(--popover)), var(--background);
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.11);
+  }
   /* khối AI — chữ ký của hệ (M-09). Gạch chéo + gradient azure. */
   .glass-ai {
     background:
@@ -591,6 +598,11 @@
   :where([data-theme='stone']) .glass-overlay {
     background: var(--popover);
     box-shadow: var(--shadow-frame), var(--shadow-control);
+  }
+  /* Same 1px ring as `--shadow-control`, drawn on the two upper edges only. */
+  :where([data-theme='stone']) .glass-overlay-caret {
+    background: var(--popover);
+    box-shadow: -1px -1px 0 rgba(35, 56, 45, 0.13);
   }
   :where([data-theme='stone']) :is(.glass-ai, .glass-ai-panel) {
     background: var(--accent);

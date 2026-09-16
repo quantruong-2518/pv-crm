@@ -1171,10 +1171,10 @@
   },
   "apps/web/src/app/chrome.tsx": {
     "aurora/comment-budget": {
-      "count": 8
+      "count": 6
     },
     "aurora/comments-in-english": {
-      "count": 17
+      "count": 15
     }
   },
   "apps/web/src/app/desk.ts": {
@@ -2512,13 +2512,10 @@
   },
   "packages/ui/src/organisms/app-header.tsx": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 3
     },
     "aurora/comments-in-english": {
-      "count": 24
-    },
-    "max-lines-per-function": {
-      "count": 1
+      "count": 15
     }
   },
   "packages/ui/src/organisms/approval-card.tsx": {

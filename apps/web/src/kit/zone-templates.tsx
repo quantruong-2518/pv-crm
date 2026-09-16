@@ -31,8 +31,10 @@ const SHELL_HEADER = {
     { icon: Bell, label: 'Thông báo', locked: true },
   ],
   apps: [
-    { icon: Users, label: 'Kinh doanh', active: true },
-    { icon: Package, label: 'Cung ứng', locked: true },
+    [
+      { icon: Users, label: 'Kinh doanh', active: true },
+      { icon: Package, label: 'Cung ứng', locked: true },
+    ],
   ],
 }
 

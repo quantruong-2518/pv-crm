@@ -1,11 +1,12 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, Lock, Orbit, type IconGlyph } from '../icons'
+import { useEffect, useRef, useState } from 'react'
+import { Lock, type IconGlyph } from '../icons'
 import { SearchField, type SearchFieldProps } from '../patterns/search-field'
-import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 import { markBlue, markLight, wordmarkBlue, wordmarkLight } from '../assets'
 import { useThemeMode } from '../ui/theme-switch'
+import { AccountMenu } from './account-menu'
+import { AppNav } from './app-nav'
 
 /** O-06 · AppHeader — nav hai tầng, thay AppSidebar từ 19/08.
  *
@@ -23,9 +24,9 @@ import { useThemeMode } from '../ui/theme-switch'
  *   · tầng 2 — "tôi đang làm ở đâu": các ứng dụng. Ứng dụng có module con thì
  *     bấm vào xổ ra, không trải sẵn. Trải sẵn là thứ đã làm nav dọc vỡ.
  *
- *  Tầng 2 CUỘN NGANG dưới `lg`. Chín ứng dụng không xếp vừa màn điện thoại, mà
- *  xuống dòng thì chiều cao khung đổi theo số mục — khung phải cao cố định để
- *  nội dung bên dưới không nhảy.
+ *  Tier 2 SCROLLS SIDEWAYS rather than wrapping: a wrapped row changes the
+ *  frame's height with the entry count, and the content below would jump.
+ *  Details in `app-nav.tsx`.
  *
  *  @pv/ui không biết router: `active` và `onClick` do app tính rồi truyền vào. */
 
@@ -59,14 +60,15 @@ export type AppHeaderProps = {
   org: string
   /** One Core — tầng 1 */
   core: HeaderAction[]
-  /** ứng dụng — tầng 2 */
-  apps: HeaderApp[]
+  /** Tier 2, in groups — a hairline separates each group from the next. */
+  apps: HeaderApp[][]
   user: { name: string; initials?: string; role?: string }
   unread?: boolean
   assistantLabel?: string
   search?: Pick<SearchFieldProps, 'placeholder' | 'meta'>
-  /** các hành động tài khoản — hiện trong dropdown của avatar */
-  userAction?: ReactNode
+  /** Account rows at the bottom of the avatar menu, below the theme row. Data,
+   *  not a ReactNode, so every row keeps the menu's one shape. */
+  accountActions?: HeaderAction[]
   onOpenAssistant?: () => void
   className?: string
 }
@@ -120,43 +122,6 @@ function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean
   )
 }
 
-/** Bản có chữ của một mục Core khi nó nằm trong menu tài khoản. Giữ cùng trạng
- * thái active/locked với nút icon trên header nhưng cho người dùng đủ ngữ cảnh
- * để chọn đúng nơi mình muốn đi. */
-function AccountAction({ action, onSelect }: { action: HeaderAction; onSelect: () => void }) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      disabled={action.locked}
-      aria-current={action.active ? 'page' : undefined}
-      onClick={() => {
-        onSelect()
-        action.onClick?.()
-      }}
-      className={cn(
-        'motion-std flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-[12.5px]',
-        action.active
-          ? 'bg-primary/15 text-on-tint-primary font-semibold'
-          : 'text-muted-foreground',
-        action.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10 hover:text-foreground',
-      )}
-    >
-      <span className="bg-surface-ink/9 relative flex size-7 shrink-0 items-center justify-center rounded-sm">
-        <Icon icon={action.icon} size={16} className={cn(action.locked && 'opacity-55')} />
-        {action.count ? <CountBadge count={action.count} /> : null}
-      </span>
-      <span className="flex-1">{action.label}</span>
-      {action.locked ? (
-        <>
-          <Icon icon={Lock} size={14} className="opacity-55" />
-          <span className="sr-only">chưa mở</span>
-        </>
-      ) : null}
-    </button>
-  )
-}
-
 export function AppHeader({
   product,
   org,
@@ -166,20 +131,13 @@ export function AppHeader({
   unread,
   assistantLabel = 'Trợ lý',
   search,
-  userAction,
+  accountActions,
   onOpenAssistant,
   className,
 }: AppHeaderProps) {
   const themeMode = useThemeMode()
-  const uid = useId()
   const notificationAction = core.find((action) => action.label === 'Thông báo')
   const otherCoreActions = core.filter((action) => action !== notificationAction)
-  /** Ứng dụng đang xổ module con. Một lúc chỉ một — hai dropdown cùng mở thì
-   *  người dùng không biết mục nào đang được nói tới. */
-  const [openApp, setOpenApp] = useState<string | null>(null)
-  const [accountOpen, setAccountOpen] = useState(false)
-  const barRef = useRef<HTMLDivElement>(null)
-
   /** Nav đã dính đỉnh màn chưa.
    *
    *  Ở trạng thái thường nav là một THẺ nền đặc: nằm trong cùng trục với main,
@@ -218,42 +176,6 @@ export function AppHeader({
     return () => io.disconnect()
   }, [])
 
-  /* Bấm ra ngoài hoặc Esc thì đóng. Không có hai đường này thì dropdown mắc lại
-     trên màn và che mất chính nội dung người dùng vừa chuyển tới. */
-  useEffect(() => {
-    if (openApp === null) return
-
-    const onDown = (e: MouseEvent) => {
-      if (!barRef.current?.contains(e.target as Node)) setOpenApp(null)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenApp(null)
-    }
-
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [openApp])
-
-  useEffect(() => {
-    if (!accountOpen) return
-    const onDown = (e: MouseEvent) => {
-      if (!(e.target as Element)?.closest('[data-account-menu]')) setAccountOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setAccountOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [accountOpen])
-
   return (
     <header
       ref={headerRef}
@@ -276,9 +198,11 @@ export function AppHeader({
         )}
       />
 
-      {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ---- */}
-      <div className="relative z-[1] flex h-16 items-center gap-3 px-4 lg:gap-4">
-        <div className="flex shrink-0 items-center">
+      {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ----
+          Outer columns `1fr` from `md`, so search sits on the true centre however
+          wide brand and account are. `z-[2]` so the account menu paints over tier 2. */}
+      <div className="relative z-[2] grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:grid-cols-[1fr_minmax(0,560px)_1fr] lg:gap-4">
+        <div className="flex items-center">
           {/* One brand read at two widths, not two logos: the wordmark already
               contains the square mark, so the short one is only what is left
               when there is no room for the name. Under `md`, every horizontal
@@ -295,214 +219,28 @@ export function AppHeader({
           />
         </div>
 
-        {/* Search is an entry point, not the top bar's visual background. Its
-            cap keeps the query legible without overpowering the brand and
-            pending-work controls. */}
-        <SearchField className="min-w-[96px] flex-1 md:max-w-[560px]" {...search} />
+        <SearchField className="w-full" {...search} />
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {/* Hàng một chỉ giữ lại tín hiệu cần xem nhanh: Thông báo và người đang
-              đăng nhập. Các lối vào còn lại sống trong menu avatar để header nhẹ
-              hơn, đặc biệt khi search bị co ở màn hình nhỏ. */}
+        <div className="flex items-center justify-end gap-2">
           {notificationAction ? <CoreButton action={notificationAction} unread={unread} /> : null}
           {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
-
-          <div className="relative shrink-0" data-account-menu>
-            <button
-              type="button"
-              aria-label={`Mở tài khoản của ${user.name}`}
-              aria-expanded={accountOpen}
-              aria-haspopup="menu"
-              onClick={() => {
-                setOpenApp(null)
-                setAccountOpen((open) => !open)
-              }}
-              className={cn(
-                'motion-std focus-visible:outline-ring rounded-md p-0 focus-visible:outline-2 focus-visible:outline-offset-2',
-                accountOpen && 'bg-primary/15',
-              )}
-            >
-              <Avatar
-                name={user.name}
-                initials={user.initials}
-                className="transition-transform duration-[var(--motion-duration)]"
-              />
-            </button>
-            {accountOpen && (
-              <div
-                role="menu"
-                aria-label={`Tài khoản của ${user.name}`}
-                className="glass-overlay shadow-panel absolute right-0 top-[calc(100%+10px)] z-50 flex max-h-[min(640px,calc(100vh-88px))] w-[min(280px,calc(100vw-32px))] flex-col overflow-y-auto rounded-lg p-2"
-              >
-                <div className="flex items-center gap-3 px-3 py-2">
-                  <Avatar name={user.name} initials={user.initials} size="md" />
-                  <div className="min-w-0">
-                    <div className="text-foreground truncate text-[13px] font-semibold">
-                      {user.name}
-                    </div>
-                    <div className="text-muted-foreground truncate text-[11px]">
-                      {user.role ?? org}
-                    </div>
-                  </div>
-                </div>
-
-                <div aria-hidden className="bg-surface-ink/12 my-1 h-px" />
-                <div className="text-muted-foreground px-3 pb-1 pt-2 text-[10px] font-semibold tracking-[0.08em]">
-                  Đi đến
-                </div>
-                <div className="flex flex-col gap-1">
-                  {otherCoreActions.map((action) => (
-                    <AccountAction
-                      key={action.label}
-                      action={action}
-                      onSelect={() => setAccountOpen(false)}
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={!onOpenAssistant}
-                    onClick={() => {
-                      setAccountOpen(false)
-                      onOpenAssistant?.()
-                    }}
-                    className={cn(
-                      'motion-std flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-left text-[12.5px]',
-                      onOpenAssistant
-                        ? 'text-muted-foreground hover:bg-surface-ink/10 hover:text-foreground'
-                        : 'text-muted-foreground cursor-not-allowed',
-                    )}
-                  >
-                    <span className="bg-surface-ink/9 flex size-7 shrink-0 items-center justify-center rounded-sm">
-                      <Icon
-                        icon={Orbit}
-                        size={16}
-                        className={cn(!onOpenAssistant && 'opacity-55')}
-                      />
-                    </span>
-                    <span className="flex-1">{assistantLabel}</span>
-                    {!onOpenAssistant ? (
-                      <Icon icon={Lock} size={14} className="opacity-55" />
-                    ) : null}
-                  </button>
-                </div>
-
-                <div aria-hidden className="bg-surface-ink/12 my-1 h-px" />
-                <div className="text-muted-foreground px-3 pb-1 pt-2 text-[10px] font-semibold tracking-[0.08em]">
-                  Tài khoản
-                </div>
-                <div
-                  className="flex flex-col items-stretch gap-1 [&>button]:w-full [&>button]:justify-start"
-                  onClickCapture={() => setAccountOpen(false)}
-                >
-                  {userAction}
-                </div>
-              </div>
-            )}
-          </div>
+          <AccountMenu
+            user={user}
+            org={org}
+            destinations={otherCoreActions}
+            assistantLabel={assistantLabel}
+            onOpenAssistant={onOpenAssistant}
+            actions={accountActions}
+          />
         </div>
       </div>
 
-      {/* ---- Tầng 2 · tôi đang làm ở đâu ----
-          Căn GIỮA từ `lg`: tầng 2 chỉ có chín mục ngắn, dồn trái thì chúng nằm
-          lệch hẳn một góc dưới ô tìm dài, còn nửa phải trống trơn. Dưới `lg`
-          vẫn dồn trái vì hàng đã cuộn ngang — căn giữa một hàng cuộn được thì
-          mục đầu bị đẩy khuất khỏi mép trái. */}
-      <div
-        ref={barRef}
-        className="relative z-[1] flex h-12 items-center gap-1 overflow-x-auto px-4 lg:justify-start lg:overflow-x-visible"
-      >
-        {apps.map((app) => {
-          const open = openApp === app.label
-          const hasItems = Boolean(app.items?.length) && !app.locked
-          const menuId = `${uid}-${app.label}`
+      {/* A hairline, not a border: the two tiers answer different questions and
+          used to run together into one undivided slab. */}
+      <div aria-hidden className="bg-surface-ink/10 relative z-[1] mx-4 h-px" />
 
-          return (
-            /* `relative` ở ĐÂY, không ở hàng: dropdown phải neo vào chính nút
-               đã mở nó. Neo vào hàng thì mọi menu rơi về cùng một chỗ ở mép
-               trái — đo được lệch 133px so với nút "Kinh doanh". */
-            <div key={app.label} className="relative shrink-0">
-              <button
-                type="button"
-                title={app.description ?? app.label}
-                aria-label={app.description ? `${app.label}. ${app.description}` : undefined}
-                disabled={app.locked}
-                aria-expanded={hasItems ? open : undefined}
-                aria-haspopup={hasItems ? 'menu' : undefined}
-                aria-controls={hasItems && open ? menuId : undefined}
-                aria-current={app.active ? 'page' : undefined}
-                onClick={() => {
-                  if (hasItems) {
-                    setOpenApp(open ? null : app.label)
-                    return
-                  }
-                  app.onClick?.()
-                }}
-                /* Mục khoá: chỉ hai ICON mờ đi, CHỮ giữ nguyên
-                   `--muted-foreground`. Dìm cả nút bằng `opacity-45` như bản
-                   trước là 2,29:1 — phá luật 13. Dấu hiệu "chưa mở" nằm ở ổ
-                   khoá, không ở độ mờ (tiền lệ: `patterns/nav-item.tsx`). */
-                className={cn(
-                  'motion-std flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-3 text-[12.5px]',
-                  app.active
-                    ? 'bg-primary/15 text-on-tint-primary font-semibold'
-                    : 'text-muted-foreground',
-                  app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10',
-                )}
-              >
-                <Icon icon={app.icon} size={16} className={cn(app.locked && 'opacity-55')} />
-                {app.label}
-                {app.locked ? (
-                  <>
-                    <Icon icon={Lock} size={14} className="opacity-55" />
-                    <span className="sr-only">chưa mở</span>
-                  </>
-                ) : null}
-                {hasItems ? (
-                  <Icon
-                    icon={ChevronDown}
-                    size={14}
-                    className={cn('motion-std opacity-60', open && 'rotate-180')}
-                  />
-                ) : null}
-              </button>
-
-              {hasItems && open ? (
-                /* `glass-b` — dropdown nổi TRÊN nội dung, cần mặt đục hơn khung
-                   chứa nó, không phải cùng một lớp kính (luật 12). */
-                <div
-                  id={menuId}
-                  role="menu"
-                  aria-label={app.label}
-                  className="glass-overlay shadow-card absolute left-0 z-50 mt-1 flex min-w-[232px] flex-col gap-1 rounded-lg p-2"
-                >
-                  {app.items?.map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      role="menuitem"
-                      aria-current={item.active ? 'page' : undefined}
-                      onClick={() => {
-                        setOpenApp(null)
-                        item.onClick?.()
-                      }}
-                      className={cn(
-                        'motion-std flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-3 text-left text-[12.5px]',
-                        item.active
-                          ? 'bg-primary/15 text-on-tint-primary font-semibold'
-                          : 'text-muted-foreground hover:bg-surface-ink/10',
-                      )}
-                    >
-                      <Icon icon={item.icon} size={16} />
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
+      {/* ---- Tầng 2 · tôi đang làm ở đâu ---- */}
+      <AppNav groups={apps} />
     </header>
   )
 }

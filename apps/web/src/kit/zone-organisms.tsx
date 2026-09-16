@@ -1,4 +1,20 @@
-import { Bell, Factory, FileText, House, Package, SquareCheckBig, Users } from '@pv/ui'
+import {
+  Activity,
+  Bell,
+  Factory,
+  FileCheck,
+  Gauge,
+  Handshake,
+  House,
+  KeyRound,
+  LogOut,
+  Megaphone,
+  SlidersHorizontal,
+  SquareCheckBig,
+  Target,
+  Users,
+  UsersRound,
+} from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -19,18 +35,30 @@ const HEADER_CORE = [
   { icon: Bell, label: 'Thông báo' },
 ]
 
+const HEADER_ACCOUNT = [
+  { icon: KeyRound, label: 'Đổi mật khẩu' },
+  { icon: LogOut, label: 'Đăng xuất' },
+]
+
+const HEADER_CUSTOMER = [
+  { icon: Factory, label: 'Công ty', active: true },
+  { icon: UsersRound, label: 'Người liên hệ' },
+  { icon: Activity, label: 'Hành trình', locked: true },
+]
+
 const HEADER_APPS = [
-  {
-    icon: Users,
-    label: 'Kinh doanh',
-    active: true,
-    items: [
-      { icon: Users, label: 'Lead', active: true },
-      { icon: FileText, label: 'Báo giá' },
-    ],
-  },
-  { icon: Package, label: 'Cung ứng', locked: true },
-  { icon: Factory, label: 'Sản xuất', locked: true },
+  [
+    { icon: Megaphone, label: 'Chiến dịch' },
+    { icon: Users, label: 'Lead' },
+    { icon: Handshake, label: 'Cơ hội' },
+    { icon: FileCheck, label: 'Hợp đồng' },
+  ],
+  [{ icon: Factory, label: 'Khách hàng', active: true, items: HEADER_CUSTOMER }],
+  [
+    { icon: Gauge, label: 'Hiệu suất' },
+    { icon: Target, label: 'Kế hoạch', locked: true },
+  ],
+  [{ icon: SlidersHorizontal, label: 'Thiết lập' }],
 ]
 
 const CHAIN = [
@@ -120,13 +148,14 @@ export function ZoneOrganisms() {
             name="AppHeader"
             note="tầng 1 h-16 · tầng 2 h-12"
             bodyClassName="p-4"
-            footer="Tầng 1: thương hiệu + ô tìm toàn cục + Thông báo + Avatar; các lối vào còn lại nằm trong menu avatar. Tầng 2: ứng dụng, mục có module con thì xổ dropdown (glass-overlay, đục hẳn)"
+            footer="Tầng 1: thương hiệu · ô tìm căn giữa · Thông báo + Avatar (tên, vai từ lg); menu avatar: lối vào Core · Giao diện · tài khoản. Tầng 2: ứng dụng theo nhóm, căn giữa, cách nhau bằng vạch mảnh; role thiếu quyền không thấy mục; mục có module con xổ dropdown có mũi tên (glass-overlay, đục hẳn)"
           >
             <AppHeader
               product="PV One"
               org="Thắng Lợi"
               core={HEADER_CORE}
               apps={HEADER_APPS}
+              accountActions={HEADER_ACCOUNT}
               user={{ name: 'Nguyễn Văn Thắng' }}
               unread
               search={{ placeholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' }}

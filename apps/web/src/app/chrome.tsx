@@ -7,7 +7,9 @@ import {
   Gauge,
   Handshake,
   House,
+  KeyRound,
   ListChecks,
+  LogOut,
   Megaphone,
   ShieldCheck,
   SlidersHorizontal,
@@ -18,7 +20,6 @@ import {
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
-import { Button, ThemeSwitch } from '@pv/ui'
 import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 
@@ -71,9 +72,9 @@ type NavEntry = {
    *
    *  Absent means the entry is open to anyone with a live session, which is
    *  true of `/` and will be true of most Core screens. Present means a role
-   *  without it sees the entry LOCKED rather than sees a button that leads
-   *  straight to a refusal — the same treatment the six Sales modules get, on
-   *  One Core's own terms: no branch, because Core is licensed to everybody. */
+   *  without it does not see the entry at all — the same treatment the Sales
+   *  modules get, on One Core's own terms: no branch, because Core is licensed
+   *  to everybody. */
   permission?: Permission
 }
 
@@ -117,8 +118,7 @@ const ONE_CORE: NavEntry[] = [
      *
      *  Its own permission, because the two screens are gated apart: somebody
      *  who opens accounts for the company does not thereby get to rewrite what
-     *  every role may do. A role without `role.manage` sees this entry locked
-     *  rather than sees a button that leads straight to a refusal. */
+     *  every role may do. A role without `role.manage` does not see it. */
     icon: ListChecks,
     label: 'Vai trò',
     path: '/admin/roles',
@@ -158,7 +158,12 @@ export type SalesModule = {
   permission: Permission
   /** Module này trả câu hỏi gì. */
   question: string
+  /** Tier 2 cluster. Nav order is cluster first, array order within it. */
+  group: NavGroup
 }
+
+/** `customer` collapses into one dropdown; `setup` closes the row. */
+type NavGroup = 'sell' | 'customer' | 'manage' | 'setup'
 
 /** BẢY module Pebble Sales — bảng CHỐT.
  *
@@ -190,14 +195,16 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/campaigns',
     permission: 'campaign.view',
     question: 'Tạo và đo lường các chiến dịch thu hút khách hàng',
+    group: 'sell',
   },
   {
     no: 2,
     icon: Users,
-    label: 'Sổ lead',
+    label: 'Lead',
     path: '/sales/leads',
     permission: 'lead.view',
     question: 'Thu nhận, phân loại và phân công khách tiềm năng',
+    group: 'sell',
   },
   {
     /** THE CUSTOMER COMPANY BOOK — `no: 0`, and that zero is a statement rather
@@ -210,16 +217,15 @@ export const SALES_MODULES: SalesModule[] = [
      *  middle and shifting the four below would break every "module 3" citation
      *  in this repo and in the docs.
      *
-     *  Its place in the nav comes from ARRAY ORDER, not from `no`: it sits right
-     *  after the lead book, because that is where a user goes when the question
-     *  changes from "how is this enquiry going" to "how many times has this
-     *  customer bought". */
+     *  Its nav label names the company, not the customer: it sits inside the
+     *  customer dropdown, and a child named like its parent reads as a mistake. */
     no: 0,
     icon: Factory,
-    label: 'Khách hàng',
+    label: 'Công ty',
     path: '/sales/accounts',
     permission: 'account.view',
     question: 'Một dòng một công ty — khách này đã hỏi mấy lần và mua mấy lần',
+    group: 'customer',
   },
   {
     /** THE CONTACT BOOK. Also `no: 0` — same reason as the entry above, and two
@@ -239,6 +245,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/contacts',
     permission: 'lead.view',
     question: 'Đã gặp người này bao giờ chưa, và gọi họ thế nào',
+    group: 'customer',
   },
   {
     /** Đứng ngay sau Lead vì đó là bước kế tiếp của cùng một khách: qua cổng
@@ -250,20 +257,21 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/opportunities',
     permission: 'opportunity.view',
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
+    group: 'sell',
   },
   {
     /* `no: 0` like the company book: a run spans modules 2–4 rather than being
-       one of them. It follows Ops because a run is read as "where is this deal
-       in the whole journey". */
+       one of them, so it sits with the customer records, not in the flow. */
     no: 0,
     icon: Activity,
-    label: 'Hành trình khách hàng',
+    label: 'Hành trình',
     path: '/sales/workstreams',
     permission: 'workstream.view',
     question: 'Mỗi lượt đi của một khách — đang ở bậc nào, ai giữ, liên lạc lần cuối khi nào',
+    group: 'customer',
   },
   {
-    /* Sits after Ops (and the journey book spanning both) because it is the next step for the same customer:
+    /* Sits after Ops because it is the next step for the same customer:
        an opportunity that closes won becomes a contract. Renumbering the three
        modules below it is cheap — cross references in comments name modules, not
        numbers. */
@@ -273,6 +281,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/contracts',
     permission: 'contract.view',
     question: 'Theo dõi tiền về và nghĩa vụ hai bên sau khi ký',
+    group: 'sell',
   },
   {
     no: 5,
@@ -281,6 +290,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/performance',
     permission: 'performance.view',
     question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
+    group: 'manage',
   },
   {
     no: 6,
@@ -289,6 +299,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/plan',
     permission: 'plan.view',
     question: 'Lập mục tiêu và kế hoạch cho kỳ tiếp theo',
+    group: 'manage',
   },
   {
     /** Cấu hình KHÔNG nằm trong vòng khép kín của năm module trên — nó là thứ
@@ -299,6 +310,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/config',
     permission: 'config.view',
     question: 'Quản lý danh mục và quy tắc bán hàng',
+    group: 'setup',
   },
 ]
 
@@ -308,89 +320,92 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
 
-  /** A Core entry locks on either of TWO axes, and they say different things.
+  /** Two axes, two different answers.
    *
-   *   · **No `path`** — the screen does not exist yet. "Phê duyệt" and "Thông
-   *     báo" are real capabilities with nothing built behind them, and a locked
-   *     entry says so honestly instead of offering a button that goes nowhere.
-   *     Filling in the path is the whole ritual for unlocking one.
-   *   · **No `permission`** — the screen exists and this role may not open it.
-   *     Asked through the same `access.check` the route guard uses, so nav and
-   *     door never disagree; asked with `branch: null` because One Core is
-   *     licensed to everybody, and passing a branch here would deny a Sales-only
-   *     account a screen that has nothing to do with Sales.
-   *
-   *  Without the second axis a `sale` would see "Quản trị" sitting in the top
-   *  bar, click it, and be bounced by `RequireAccess` — a nav item whose only
-   *  destination is a refusal. */
-  const plain = (entry: NavEntry): HeaderAction => {
-    const granted =
-      !entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok
-    const locked = !entry.path || !granted
-    return {
-      icon: entry.icon,
-      label: entry.label,
-      count: entry.count,
-      locked,
-      active: entry.path ? pathname === entry.path : false,
-      onClick: entry.path && !locked ? () => navigate(entry.path!) : undefined,
-    }
-  }
+   *   · **No `permission`** — this role may not open the screen, so the entry is
+   *     HIDDEN, not locked: a role is shown the product it has, not a map of
+   *     doors it cannot open. Asked through the same `access.check` the route
+   *     guard uses, so nav and door never disagree; `branch: null` because One
+   *     Core is licensed to everybody.
+   *   · **No `path`** — the screen does not exist yet, for anyone. That entry
+   *     stays visible but locked, which says so honestly instead of offering a
+   *     button that goes nowhere. Filling in the path unlocks it. */
+  const granted = (entry: NavEntry) =>
+    !entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok
+  const plain = (entry: NavEntry): HeaderAction => ({
+    icon: entry.icon,
+    label: entry.label,
+    count: entry.count,
+    locked: !entry.path,
+    active: entry.path ? pathname === entry.path : false,
+    onClick: entry.path ? () => navigate(entry.path!) : undefined,
+  })
 
-  /** Module thật đi thẳng lên hàng điều hướng. Quyền vẫn hỏi cùng `access.check`
-   *  với route guard: người thiếu quyền thấy bản đồ sản phẩm nhưng mục tương ứng
-   *  khoá; người có quyền tới màn chỉ bằng một lần bấm. */
+  /** Sales modules follow the same rule: without the permission the entry is
+   *  gone. A cluster left empty disappears too — `AppNav` drops empty groups. */
   const inModule = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
-  const moduleApp = (module: SalesModule): HeaderApp => {
-    const open = access.check(actor, { branch: 'Sales', permission: module.permission }).ok
-    return {
-      icon: module.icon,
-      label: module.label,
-      description: module.question,
-      locked: !open,
-      active: inModule(module.path),
-      onClick: open ? () => navigate(module.path) : undefined,
-    }
-  }
+  const moduleApp = (module: SalesModule): HeaderApp => ({
+    icon: module.icon,
+    label: module.label,
+    description: module.question,
+    active: inModule(module.path),
+    onClick: () => navigate(module.path),
+  })
+
+  /* Three books about one customer share a dropdown: as three slots they
+     pushed tier 2 past 1024px. No child left means no dropdown either. */
+  const appsIn = (group: NavGroup) =>
+    SALES_MODULES.filter(
+      (m) =>
+        m.group === group && access.check(actor, { branch: 'Sales', permission: m.permission }).ok,
+    ).map(moduleApp)
+  const customer = appsIn('customer')
 
   const header: AppShellProps['header'] = {
     product: 'PV One',
     org: 'Pebble Vina',
-    core: ONE_CORE.map(plain),
-    apps: SALES_MODULES.map(moduleApp),
+    core: ONE_CORE.filter(granted).map(plain),
+    apps: [
+      appsIn('sell'),
+      customer.length
+        ? [
+            {
+              icon: Factory,
+              label: 'Khách hàng',
+              description: 'Công ty, người liên hệ và hành trình của từng khách',
+              active: customer.some((app) => app.active),
+              items: customer,
+            },
+          ]
+        : [],
+      appsIn('manage'),
+      appsIn('setup'),
+    ],
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
     assistantLabel: 'Trợ lý',
     search: {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
     },
-    userAction: (
-      <>
-        <ThemeSwitch />
-        {/* The VOLUNTARY way to the change-password screen. Somebody forced to
-            change does not need it - `RequireAccess` already put them there and
-            lets them go nowhere else - but without it anyone who simply wants a
-            new password has only the forgotten-password flow, which means
-            waiting for a letter to do something they are already entitled to do
-            on the spot. */}
-        <Button size="sm" variant="ghost" onClick={() => navigate(CHANGE_PASSWORD_PATH)}>
-          Đổi mật khẩu
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            /* Nhãn là "Đăng xuất" chứ không phải "Đổi vai": từ 23/08 màn đăng
-               nhập không còn bảng chọn vai, nên nút này chỉ làm được đúng một
-               việc — ra khỏi phiên. Muốn sang vai khác thì đăng nhập bằng email
-               vai đó. */
-            signOut()
-            navigate('/sign-in', { replace: true })
-          }}
-        >
-          Đăng xuất
-        </Button>
-      </>
-    ),
+    accountActions: [
+      {
+        /* The VOLUNTARY way to the change-password screen. Somebody forced to
+           change is already held there by `RequireAccess`; everyone else would
+           otherwise have only the forgotten-password letter. */
+        icon: KeyRound,
+        label: 'Đổi mật khẩu',
+        onClick: () => navigate(CHANGE_PASSWORD_PATH),
+      },
+      {
+        /* "Đăng xuất", not "Đổi vai": sign-in has had no role picker since
+           23/08, so leaving the session is the only thing this can do. */
+        icon: LogOut,
+        label: 'Đăng xuất',
+        onClick: () => {
+          signOut()
+          navigate('/sign-in', { replace: true })
+        },
+      },
+    ],
   }
 
   /** Mục BottomNav đang đứng — hoặc KHÔNG mục nào.
