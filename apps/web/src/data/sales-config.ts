@@ -220,7 +220,7 @@ export const salesCatalogQuery = queryOptions({
  *  ------------------------------------------------------------------
  *  `sales.lead.exit_reason` chứa KHOÁ ('khong-goi-duoc'); `config_entry.name`
  *  chứa NHÃN ('Không gọi được ai'). Không cột nào chở cả hai, nên không có phép
- *  nối bằng khoá — đó là nợ `docs/fix-later.md` §6 nhìn từ đúng chỗ nó đau.
+ *  nối bằng khoá — đó là nợ slug-so-với-nhãn nhìn từ đúng chỗ nó đau.
  *
  *  Phép nối duy nhất đang đúng là THỨ TỰ, và nó đúng vì có người đặt cho nó
  *  đúng chứ không phải tình cờ: `seed.ts` sinh sáu dòng `EX-01…EX-06` theo đúng
@@ -348,7 +348,7 @@ export type LadderRow = {
  *  Exactly the situation `exitReasonRows` above is in, and the server's
  *  `stageConfigOf` on the other end: `sales.lead` and `sales.opportunity` hold
  *  a slug, `config_entry` holds a label and an id of its own, and no column
- *  carries both (debt §6 of `docs/fix-later.md`). The only join that holds is
+ *  carries both. The only join that holds is
  *  ORDINAL POSITION, and it holds because `seed.ts` writes both lists straight
  *  from the fixture arrays with `ord` starting at 1.
  *

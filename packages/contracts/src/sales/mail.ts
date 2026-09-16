@@ -433,7 +433,7 @@ export const MasPreflightResponse = z.object({
    *  WHY IT WARNS AND DOES NOT BLOCK
    *  ------------------------------------------------------------------
    *  The project owner weighed this and decided to WARN rather than refuse
-   *  (`docs/ban-giao-mas-mail.md`, "AUP của Resend"): the source label is
+   *  (`docs/decisions/0041-resend-aup-guardrails-not-hard-block.md`): the source label is
    *  internal data that never travels in the letter, Resend does not read
    *  labels — it measures bounces and complaints — and the judgement of whether
    *  a particular Apollo row was genuinely opted in belongs to the person

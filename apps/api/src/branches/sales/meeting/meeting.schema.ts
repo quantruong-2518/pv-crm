@@ -114,8 +114,8 @@ export const meetingAttendee = sales.table(
 
     /** The guest's row in `sales.contact`, when they have one.
      *
-     *  This closes §2c of `docs/fix-later.md`, whose premise — that the
-     *  customer side had no table to point at — stopped being true on 28/08:
+     *  This closes an older gap, whose premise — that the customer side had no
+     *  table to point at — stopped being true on 28/08:
      *  `sales.contact` is a real table with a real code, and the docblock above
      *  already named this the first place a foreign key would grow.
      *

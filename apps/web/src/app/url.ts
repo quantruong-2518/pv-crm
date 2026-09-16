@@ -1,8 +1,7 @@
 import { LeadBookQuery } from '@pv/contracts'
 
 /** URL state for the lead book — the file promised (but not yet written) by
- *  the docblock on `LeadBookQuery` in `packages/contracts/src/sales/lead.ts`
- *  and by the handover note at `docs/ban-giao-lead.md`.
+ *  the docblock on `LeadBookQuery` in `packages/contracts/src/sales/lead.ts`.
  *
  *  ------------------------------------------------------------------
  *  WHY THIS HAS TO EXIST BEFORE THE BOOK CUTS TO THE SERVER

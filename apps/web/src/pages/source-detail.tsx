@@ -174,7 +174,7 @@ export function SourceDetailPage() {
 
   /* Luật 10 · ContextRail. MỘT chip — chính chiến dịch đang mở — và đó là tất
      cả những gì E1 nói được hôm nay: một chiến dịch KHÔNG phải `platform.object`
-     (nợ #4 của `docs/ban-giao-db.md`), nên `story()` không có mã nào để leo từ
+     (một khoản nợ còn để ngỏ), nên `story()` không có mã nào để leo từ
      đây. Bản trước mượn một đơn mà chiến dịch đã đẻ ra để rail có chuỗi; mã đó
      đến từ fixture, và mượn một đơn của người khác để vẽ chuỗi của mình là một
      chuỗi nói sai chủ. Rail đầy đủ quay lại khi E1 có `ObjectKind` cho chiến

@@ -30,7 +30,8 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  ------------------------------------------------------------------
  *  `LeadMotion` here is the contract's `INBOUND`…, not the lower-case list in
  *  `@pv/engines` that the rest of `apps/web` reads. The two are the "enum
- *  declared twice" debt recorded in `ban-giao-api.md`, and its rule is that the
+ *  declared twice" debt recorded in
+ *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`, and its rule is that the
  *  conversion lives in exactly ONE place. This file does not convert: it shows
  *  what the server sent, with labels of its own. */
 const VIEW_NEED: ApiNeed = { branch: 'Sales', permission: 'config.view' }

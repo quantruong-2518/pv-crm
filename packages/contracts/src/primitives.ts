@@ -55,8 +55,8 @@ export const Moment = z
  *
  *  Số nguyên vì đồng không có phần lẻ, và vì float làm tổng của 100 dòng sổ
  *  lệch ở chữ số thứ mười lăm — đủ để hai màn cùng đọc một nguồn mà hiện hai
- *  con số. Nợ số 7 của `docs/ban-giao-backend.md` (tiền không mang tiền tệ)
- *  sửa bằng cách bọc thành `{ amount, currency }` khi có đơn ngoại tệ thật;
+ *  con số. Nợ "tiền không mang tiền tệ" sửa bằng cách bọc thành
+ *  `{ amount, currency }` khi có đơn ngoại tệ thật;
  *  hôm nay khai rõ đơn vị ở tên là bước một. */
 export const MoneyVnd = z
   .number('Số tiền là bắt buộc')
@@ -145,10 +145,9 @@ export const textInput = (max = 200) =>
 /** Ô text NGƯỜI NHẬP, tuỳ chọn. Rỗng sau khi chuẩn hoá = KHÔNG CÓ.
  *
  *  `''` → `undefined`, và đó là một quyết định về dữ liệu chứ không phải một
- *  tiện nghi: bảng chỉ có MỘT quy ước cho "trống" là `NULL` (nợ số 5 của
- *  `docs/ban-giao-backend.md`, đã ép bằng CHECK ở tầng cột). Form HTML thì luôn
- *  gửi `''` cho ô người dùng bỏ trắng. Không đổi ở đây thì mỗi lần bỏ trắng một
- *  ô là một lần CHECK ném 500 — xem đúng cảnh báo đó ở cuối `ban-giao-db.md`. */
+ *  tiện nghi: bảng chỉ có MỘT quy ước cho "trống" là `NULL`, đã ép bằng CHECK
+ *  ở tầng cột. Form HTML thì luôn gửi `''` cho ô người dùng bỏ trắng. Không đổi
+ *  ở đây thì mỗi lần bỏ trắng một ô là một lần CHECK ném 500. */
 export const textInputOptional = (max = 200) =>
   z
     .string('Ô này phải là chữ')

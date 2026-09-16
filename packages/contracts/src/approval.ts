@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { Moment, ObjectCode, textInput } from './primitives'
 
 /** The One approval inbox (E3) — the wire shape for `platform.approval` and
- *  `platform.approval_link` (`docs/ban-giao-db.md`, group D).
+ *  `platform.approval_link`.
  *
  *  Nine pipelines share ONE approval layer; today only Sales plugs into it,
  *  through `apps/api/src/branches/sales/config/config.approval.ts`. The shapes
@@ -23,8 +23,9 @@ import { Moment, ObjectCode, textInput } from './primitives'
 export const ApprovalState = z.enum(['waiting', 'approved', 'rejected'])
 
 /** What is being asked for. One kind today — a change to the sales department's
- *  configuration (`docs/tam-nhin-pipeline-toan-he.md` §9, first in the settled
- *  order). The list grows as other pipelines plug into E3, and each new kind is
+ *  configuration — first in the order settled by
+ *  `docs/decisions/0031-waiting-on-comes-from-e3-approval-links.md`.
+ *  The list grows as other pipelines plug into E3, and each new kind is
  *  a migration somebody reads: the value is copied into a CHECK constraint, so
  *  it is never quietly widened here. */
 export const ApprovalKind = z.enum(['config-change'])

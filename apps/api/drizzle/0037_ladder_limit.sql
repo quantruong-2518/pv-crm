@@ -2,9 +2,10 @@
 --
 -- `config_limit_only_stage` said `("list" = 'STAGE') = ("limit_days" IS NOT
 -- NULL)`: only the Sales funnel may carry a clock, and every one of its columns
--- must. The rule is right and its subject was wrong. Luật 2 of
--- `docs/tam-nhin-pipeline-toan-he.md` §2 is about every pipeline: a phase with
--- no clock is a phase people park in, whether it belongs to Sales, Supply or
+-- must. The rule is right and its subject was wrong. Rule 2 of
+-- `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
+-- is about every pipeline: a phase with no clock is a phase people park in,
+-- whether it belongs to Sales, Supply or
 -- Factory.
 --
 -- So the constraint now names a SET, and the set has one member today because

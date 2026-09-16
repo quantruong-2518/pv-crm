@@ -563,8 +563,7 @@ export function MasMailModal({
                 Để trống là Quick MAS: lô vẫn sinh một `mail_run` và vẫn hiện ở
                 Sổ lô gửi, chỉ không có dòng nối `campaign_run` nào. Chọn một
                 chiến dịch là biến lô này thành ĐỢT TIẾP THEO của nó — đúng
-                đường mà `ban-giao-campaign.md` chỉ cho đợt thứ hai trở đi, thay
-                vì gọi lại `/start`.
+                đường cho đợt thứ hai trở đi, thay vì gọi lại `/start`.
 
                 Chỉ hiện chiến dịch ĐANG CHẠY. Chiến dịch còn NHÁP bắt đầu từ hồ
                 sơ của nó, không gắn từ đây — gắn từ đây thì thư bay mà state vẫn

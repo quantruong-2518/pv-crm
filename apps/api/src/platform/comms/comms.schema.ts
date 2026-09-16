@@ -35,8 +35,7 @@ export const comms = pgSchema('comms')
  *
  *  Without a row here an inbound letter connects to nobody: an address is the
  *  only thing a mail server, a Zalo webhook or a phone log hands us, and every
- *  count in §7 of `docs/tam-nhin-giao-tiep-va-noi-dung.md` is a count of
- *  conversations with a PERSON.
+ *  comms count is a count of conversations with a PERSON.
  *
  *  ------------------------------------------------------------------
  *  THE GUEST HALF POINTS AT `platform.object`, NOT AT `sales.contact`

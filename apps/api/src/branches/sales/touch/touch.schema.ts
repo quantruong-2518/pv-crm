@@ -88,8 +88,9 @@ export const touch = sales.table(
 
     /** Both ends of one hand-over. NULL in all four on every other kind.
      *
-     *  ONE ROW, NOT TWO — the open question in §8.4 of
-     *  `docs/tam-nhin-pipeline-toan-he.md`, answered here because here is where
+     *  ONE ROW, NOT TWO — the open question settled by
+     *  `docs/decisions/0017-record-a-handoff-as-one-touch-row.md`,
+     *  answered in columns here because here is where
      *  it becomes columns. Two rows (one for the loser, one for the taker)
      *  count a single event twice: the activity card already treats `giao` as a
      *  conversation turn, so every "how many touches" count doubles on each

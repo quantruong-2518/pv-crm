@@ -94,8 +94,8 @@ const APPROVER = ROLE_LABEL.director
  *    cửa nào ghi được, tức đúng thứ lượt này dọn.
  *  · **Mục 5.5 vẫn trống — nhưng vì chưa ai điền, không vì không có chỗ.**
  *    `TIER` là thang bậc từ `0038` nên ô nhập ở đó đi thẳng vào `config_entry`
- *    như hạn cột 5.2. Con số thì vẫn là câu §8.5 của
- *    `docs/tam-nhin-pipeline-toan-he.md`, và màn không bịa hộ.
+ *    như hạn cột 5.2. Con số thì vẫn là câu chưa ai trả lời, và màn không
+ *    bịa hộ.
  *  · **Không có khối AI soạn nội dung.** Mẫu nội dung của một đợt gửi thuộc
  *    module 1 — màn này chỉ giữ danh sách kênh được phép chọn.
  *  · **Xoá một hạn đã đặt thì chưa có đường.** `ConfigEntryPatch.limitDays`
@@ -372,8 +372,8 @@ export function SalesConfigPage() {
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 Phép đếm nối bằng NHÃN chứ chưa bằng mã: cột{' '}
                 <code>sales.opportunity.lost_reason</code> đang chở đúng chuỗi người bán đã bấm. Sửa
-                một nhãn ở đây làm số của dòng đó về 0 cho tới khi đơn cũ được sửa theo — nợ §6 của{' '}
-                <code>docs/fix-later.md</code>, nhìn từ chỗ nó đau.
+                một nhãn ở đây làm số của dòng đó về 0 cho tới khi đơn cũ được sửa theo — nợ
+                slug-so-với-nhãn, nhìn từ chỗ nó đau.
               </p>
             </Section>
 
@@ -432,8 +432,8 @@ export function SalesConfigPage() {
 
             {/* 5.5 — Ô TRỐNG VÌ CHƯA AI ĐIỀN, KHÔNG VÌ KHÔNG CÓ CHỖ ĐIỀN.
                 `TIER` là thang bậc từ migration `0038`, nên mỗi bậc có một ô hạn
-                đi đúng con đường của hạn cột 5.2. Con số thì vẫn là câu §8.5 của
-                `docs/tam-nhin-pipeline-toan-he.md`, và màn không bịa hộ. */}
+                đi đúng con đường của hạn cột 5.2. Con số thì vẫn là câu chưa ai
+                trả lời, và màn không bịa hộ. */}
             <Section
               no="5.5"
               title="Ngưỡng SLA cho từng bậc lead"
@@ -586,7 +586,7 @@ export function SalesConfigPage() {
               <IntakeMatrix />
             </Section>
 
-            {/* Screen A of `docs/tam-nhin-pipeline-toan-he.md` §6 — a SECTION and
+            {/* Screen A of the config vision — a SECTION and
                 not a tab, because this screen has always been one scrolling page
                 and a tab bar would be a redesign of the eight sections above.
 

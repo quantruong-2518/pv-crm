@@ -20,7 +20,8 @@ import { ContactChannel } from './enums'
  *
  *  No new permission: a contact is a part of the lead's profile, so seeing one
  *  is `lead.view` and touching one is `lead.edit`. Decision #6 of
- *  `docs/ban-giao-db.md` keeps the E2 matrix as it stands, and "a book of
+ *  `docs/decisions/0008-lead-schema-and-permission-decisions.md`
+ *  keeps the E2 matrix as it stands, and "a book of
  *  people" is not a new axis of trust — it is the same lead, described more
  *  precisely.
  *
@@ -37,8 +38,9 @@ import { ContactChannel } from './enums'
  *  ------------------------------------------------------------------
  *  WHY A TABLE AT ALL, WHEN DECISION #1 SAID NOT TO SPLIT ONE
  *  ------------------------------------------------------------------
- *  `docs/ban-giao-db.md` decision #1 is explicit: "email sits directly on
- *  `lead`, no `contact` split — one lead = one person = one mailbox". That was
+ *  `docs/decisions/0001-put-email-directly-on-lead.md` is explicit:
+ *  "email sits directly on `lead`, no `contact` split — one lead = one person =
+ *  one mailbox". That was
  *  the right call for the shape of the data at the time, and it came with its
  *  own expiry date written into the same line: "the day one company needs
  *  several people to receive mail will be a migration". Today is that day, and

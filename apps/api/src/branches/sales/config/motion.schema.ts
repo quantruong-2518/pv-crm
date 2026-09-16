@@ -14,9 +14,9 @@ import { sales } from '../sales.schema'
  *  So this table has no create door and no delete door — the six rows exist
  *  from migration `0036` onward and only their columns ever change.
  *
- *  That is also why every column is nullable and every row starts NULL. §8.5 of
- *  `docs/tam-nhin-pipeline-toan-he.md` says the numbers do not exist yet and
- *  must not be invented; a `DEFAULT 3` here would be exactly the invented
+ *  That is also why every column is nullable and every row starts NULL. The
+ *  numbers do not exist yet and must not be invented; a `DEFAULT 3` here would
+ *  be exactly the invented
  *  number, wearing a schema for a disguise. NULL reads as "nobody has decided",
  *  the screen draws it as such, and a rule that finds one must refuse to act
  *  rather than fall back on something nobody agreed to.

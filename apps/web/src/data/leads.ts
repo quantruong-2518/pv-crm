@@ -105,8 +105,7 @@ export const leadBookQuery = (query: LeadBookQuery) =>
  *  `ScoreCards` trong `pages/leads.tsx` từng đọc thẳng `FUNNEL` và
  *  `FIRST_MEETINGS` từ `@pv/engines/fixtures/das-vina`, không qua một
  *  `useQuery` nào — nên bảng nói 122 dòng trong khi thẻ điểm đứng nguyên
- *  `100 · 38% · 30% · 6%` — món nợ "thẻ điểm đọc fixture" của
- *  `docs/fix-later.md`, đã trả và đã xoá khỏi file đó ngày 29/08.
+ *  `100 · 38% · 30% · 6%` — món nợ "thẻ điểm đọc fixture", đã trả ngày 29/08.
  *
  *  Món nợ ấy treo được lâu vì `FIRST_MEETINGS` của fixture đếm bằng một điều
  *  kiện KHÔNG suy ra được từ dữ liệu thật (đã lên MQL và có kênh gọi lại).

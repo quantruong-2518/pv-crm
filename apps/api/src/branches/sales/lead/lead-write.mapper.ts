@@ -35,9 +35,9 @@ export type LeadValues = Omit<typeof lead.$inferInsert, 'code'>
  *  is not a column of `sales.lead`.
  *
  *  `ownerName` travels beside the values rather than inside them because
- *  `lead` stores `owner_id` while `platform.object` stores a display name —
- *  debt #2 of `docs/ban-giao-backend.md`, the same split `lead.mapper.ts#toRef`
- *  lives with on the read side. Null means the lead is in the common pool. */
+ *  `lead` stores `owner_id` while `platform.object` stores a display name, the
+ *  same split `lead.mapper.ts#toRef` lives with on the read side. Null means
+ *  the lead is in the common pool. */
 export type LeadWrite = {
   values: LeadValues
   ownerName: string | null

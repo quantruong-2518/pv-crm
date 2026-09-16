@@ -16,8 +16,8 @@ import { LeadMotion } from './enums'
  *  targets were in MINUTES and HOURS and the frozen book only kept days. There
  *  is no assignment rule per motion, and `IntakeTrust` blocks nothing.
  *
- *  `docs/tam-nhin-pipeline-toan-he.md` §5 names the four things a motion must
- *  declare before it is behaviour rather than a label, and this is that list,
+ *  Four things a motion must declare before it is behaviour rather than a
+ *  label, and this is that list,
  *  one field each. Nothing more: a fifth field nobody asked for is a column
  *  every motion would have to leave empty forever.
  *

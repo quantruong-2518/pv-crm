@@ -117,8 +117,8 @@ export class SalesConfigRepository {
       SELECT 'PRODUCT', product_id, count(*)::int
         FROM sales.opportunity_product GROUP BY product_id
       UNION ALL
-      /* LOSS_REASON is keyed by the lower-cased NAME, joining the §6 debt of
-         docs/fix-later.md rather than inventing a different rule for one list:
+      /* LOSS_REASON is keyed by the lower-cased NAME, living with the
+         slug-versus-label debt rather than inventing a different rule for one list:
          sales.opportunity.lost_reason stores what the seller picked as text.
          Lower-cased on both sides so a label edited to change only its casing
          does not split one reason into two rows on the config screen. */
@@ -172,7 +172,8 @@ export class SalesConfigRepository {
    *  Ordered by `LeadMotion.options` — the STORED spelling — rather than by the
    *  engine's `LEAD_MOTIONS`, which holds the same six in lower case. That
    *  second spelling is the "enum declared twice" debt recorded in
-   *  `ban-giao-api.md`, and its docblock is explicit that the conversion lives
+   *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`,
+   *  and its docblock is explicit that the conversion lives
    *  in exactly ONE place (`lead.mapper.ts`). Reaching for the engine's list
    *  here would open the second one. */
   async motions(db: Db = this.db): Promise<MotionPolicyRowDb[]> {

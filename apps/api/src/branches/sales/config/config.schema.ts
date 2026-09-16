@@ -68,8 +68,8 @@ export const configEntry = sales.table(
     /** CHỈ `CATEGORY` — Sale phụ trách ngành.
      *
      *  Khoá ngoại vào `platform.actor(id)`, KHÔNG lưu tên người: hai người
-     *  trùng tên là hai người nhận nhầm lead của nhau (nợ số 2 của
-     *  `ban-giao-backend.md`, trả trước ở đây thay vì trả sau bằng migration). */
+     *  trùng tên là hai người nhận nhầm lead của nhau — trả nợ đó trước ở đây
+     *  thay vì trả sau bằng migration. */
     ownerId: text('owner_id').references(() => actor.id),
     /** CHỈ `SOURCE` — 'chien-dich' · 'su-kien' · 'tu-nhien'. */
     kind: text('kind'),
@@ -88,8 +88,7 @@ export const configEntry = sales.table(
      *  ONE-DIRECTIONAL since `0038`, and the direction is the decision. It used
      *  to be an equality — a ladder rung must ALSO have a clock — which held
      *  while `STAGE` was the only ladder because the seed gave every funnel
-     *  column a deadline. `TIER` has none: §8.5 of
-     *  `docs/tam-nhin-pipeline-toan-he.md` says nobody has decided how long a
+     *  column a deadline. `TIER` has none: nobody has decided how long a
      *  lead may sit at `dau-moi`, and an undeclared number stays `NULL` here
      *  rather than being invented. Under the equality, giving a lead a position
      *  at all would have cost a made-up deadline somebody reads as agreed a
@@ -129,8 +128,7 @@ export const configEntry = sales.table(
      *
      *  Hai điều kiện, mỗi cái trả một câu khác nhau:
      *   · `lower(name)` — 'Đã demo' và 'ĐÃ DEMO' là một mục, không phải hai.
-     *     Ép ở index thì không cửa vào nào quên được (đúng chặn số 3 của
-     *     `ban-giao-db.md`, trả trước ở bảng này).
+     *     Ép ở index thì không cửa vào nào quên được.
      *   · `WHERE active` — một mục đã tắt vẫn giữ tên cũ để dữ liệu cũ đọc
      *     được, nhưng nó không được chặn người dùng dựng lại một mục cùng tên. */
     uniqueIndex('config_name_live')

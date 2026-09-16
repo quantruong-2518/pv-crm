@@ -45,7 +45,8 @@ import { Pager } from '@/components/table-bits'
  *  ------------------------------------------------------------------
  *  Đây là màn đọc của `platform.mail_run` — mọi lô thư, kể cả lô Quick MAS đi
  *  lẻ từ Sổ lead. Cột "Chiến dịch" trống nghĩa là lô đi lẻ, không nghĩa là
- *  thiếu dữ liệu; quyết định #3 của `ban-giao-mas-mail.md` chốt mọi lần gửi
+ *  thiếu dữ liệu; quyết định #3 của
+ *  `docs/decisions/0040-mas-mail-data-model-decisions.md` chốt mọi lần gửi
  *  đều tạo `mail_run` để dòng thời gian ở hồ sơ lead chỉ phải đọc một bảng.
  *
  *  ------------------------------------------------------------------

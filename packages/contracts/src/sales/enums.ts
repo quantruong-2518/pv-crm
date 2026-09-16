@@ -10,8 +10,8 @@ import { z } from 'zod'
  *  hàng đang nằm trong đường import của hệ kiểu. Kéo đường đó vào
  *  `packages/contracts` là hàn tên khách vào cả hợp đồng dữ liệu.
  *
- *  Nên bản chính thức đặt ở đây. Bước B của `docs/ban-giao-backend.md` (tách
- *  domain khỏi fixture) sẽ để fixture NHẬP từ file này, không phải ngược lại.
+ *  Nên bản chính thức đặt ở đây. Bước tách domain khỏi fixture sẽ để fixture
+ *  NHẬP từ file này, không phải ngược lại.
  *  Trong lúc chưa tách, hai bên còn là hai bản chép tay — chốt chặn duy nhất là
  *  test khoá số của fixture. Đây là nợ ĐÃ BIẾT, không phải chỗ quên. */
 
@@ -40,7 +40,7 @@ export const StageKey = z.enum(['moi', 'tim-hieu', 'da-demo', 'da-bao-gia', 'cho
 
 /** SÁU lý do rơi — KHOÁ ASCII, không phải nhãn tiếng Việt.
  *
- *  Đây là nợ số 4 của `docs/ban-giao-backend.md` được trả ngay: fixture đang
+ *  Đây là một khoản nợ được trả ngay: fixture đang
  *  lưu thẳng NHÃN ('Không gọi được ai') làm giá trị của `Lead.exitReason`, nên
  *  sửa một chữ trên màn là đổi dữ liệu 52 dòng sổ. Trả bây giờ tốn một bảng
  *  tra; trả sau khi có dữ liệu thật thì tốn một migration.
@@ -127,7 +127,8 @@ export const LeadSourceKind = z.enum(
  *  `packages/engines/src/lead-intake.ts` holds `LEAD_MOTIONS`: the same six
  *  values in lower case (`inbound`, …), and `apps/web` reads that one. This
  *  copy is the stored/wire form. Two declarations of one vocabulary is the
- *  "enum declared twice" debt recorded in `docs/ban-giao-api.md`, and it is
+ *  "enum declared twice" debt recorded in
+ *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`, and it is
  *  paid in its own sweep — not here, where it would drag `apps/web` into a
  *  migration.
  *
@@ -149,7 +150,7 @@ export const ContactChannel = z.enum(
   'Kênh liên hệ không có trong danh sách',
 )
 
-/** Đơn vị tiền. Nợ số 7 của `docs/ban-giao-backend.md`: mọi cột tiền phải đi
+/** Đơn vị tiền: mọi cột tiền phải đi
  *  kèm một cột này, và ràng buộc "có tiền thì phải có đơn vị" được ép ở tầng
  *  bảng bằng CHECK chứ không nhờ người nhớ. */
 export const CurrencyCode = z.enum(['VND', 'USD'], 'Đơn vị tiền không có trong danh sách')

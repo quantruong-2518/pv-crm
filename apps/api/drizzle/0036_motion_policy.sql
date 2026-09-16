@@ -7,8 +7,8 @@
 -- 30-minute target has been sitting in a fixture as "3 days" for months.
 --
 -- This table is where a motion stops being a label. Four columns, one per item
--- in the list `docs/tam-nhin-pipeline-toan-he.md` section 5 calls the four
--- things a motion must declare.
+-- in the list of four things a motion must declare before it is behaviour
+-- rather than a label.
 --
 -- EVERY COLUMN IS NULL, AND THAT IS THE POINT
 -- Section 8.5 of the same document says the numbers do not exist yet and must
@@ -25,7 +25,8 @@
 -- The values are UPPER CASE because that is the stored spelling declared in
 -- `@pv/contracts`. `@pv/engines` holds the same six in lower case and the web
 -- app reads that one; the pair is the "enum declared twice" debt in
--- `ban-giao-api.md`, converted in exactly one place. This table stores the
+-- `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`,
+-- converted in exactly one place. This table stores the
 -- stored form and opens no second conversion site.
 CREATE TABLE "sales"."motion_policy" (
 	"motion" text PRIMARY KEY NOT NULL,

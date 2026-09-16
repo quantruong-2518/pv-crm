@@ -1,6 +1,6 @@
 /** @pv/contracts — hợp đồng dữ liệu giữa app web và máy chủ.
  *
- *  zod là NGUỒN KIỂU DUY NHẤT (quyết định #4, `docs/ban-giao-backend.md`):
+ *  zod là NGUỒN KIỂU DUY NHẤT (`docs/decisions/0003-zod-is-the-sole-type-source.md`):
  *  kiểu TypeScript suy ra bằng `z.infer`, không có bản mô hình thứ hai. Cùng
  *  một schema làm ba việc — kiểm dữ liệu vào ở máy chủ, cho kiểu handler, và
  *  sinh tài liệu OpenAPI.

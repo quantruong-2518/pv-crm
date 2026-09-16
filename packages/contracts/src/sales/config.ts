@@ -158,8 +158,8 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
  *     list with a real relation today.
  *   · `STAGE` · `TIER` · `CATEGORY` · `EXIT_REASON` — the key is the lower-case
  *     slug the column holds ('cho-ky', 'chip'), because `sales.lead` does not
- *     carry config ids yet. That debt is written down at `docs/fix-later.md` §6;
- *     the server does NOT invent a name-to-slug join to paper over it, because a
+ *     carry config ids yet. The server does NOT invent a name-to-slug join to
+ *     paper over that debt, because a
  *     join that has to be guessed is a join that goes wrong silently the day
  *     somebody edits a label.
  *   · `CHANNEL` — always empty: no column in the database records a send
@@ -253,7 +253,8 @@ export const ConfigListResponse = z.object({
  *  through, each phase able to carry a clock.
  *
  *  A ladder is the only kind of list where `limitDays` means anything. Rule 2 of
- *  `docs/tam-nhin-pipeline-toan-he.md` §2 wants every phase to carry one — a
+ *  `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
+ *  wants every phase to carry one — a
  *  phase with no clock is a phase people park in — and that remains the target
  *  the screen nags towards. It is NOT what the table enforces, and the
  *  difference was settled on 14/09 when `TIER` joined this list.

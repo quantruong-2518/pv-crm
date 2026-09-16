@@ -37,8 +37,7 @@ registerConstraints(CONTACT_CONSTRAINTS)
  *  Hai module còn lại (performance · kế hoạch) thêm vào đây theo đúng hình của
  *  `lead/`; `campaign/` vừa vào với nửa MAS mail của nó — sổ chiến dịch và tệp
  *  thành viên là những bộ bốn file tiếp theo trong cùng module đó, không phải
- *  module mới. Thứ tự dựng bám theo mục B của
- *  `docs/ban-giao-backend.md`: luật phải về đúng tầng trước, endpoint sau.
+ *  module mới. Thứ tự dựng: luật phải về đúng tầng trước, endpoint sau.
  *
  *  `config/` vào trước bốn cái kia có lý do: nó là chỗ sáu danh mục của nhánh
  *  thôi làm `z.enum` để thành dữ liệu người nhập, và bốn module còn lại đều đọc

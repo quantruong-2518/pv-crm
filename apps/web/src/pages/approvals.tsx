@@ -28,8 +28,9 @@ import { pendingApprovalsQuery, useDecideApproval } from '@/data/approvals'
  *  ------------------------------------------------------------------
  *  A QUEUE, NOT A PIPELINE
  *  ------------------------------------------------------------------
- *  `docs/tam-nhin-pipeline-toan-he.md` §1 separates three things this codebase
- *  kept calling one: a pipeline (ordered stages, each with a clock), a queue
+ *  `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
+ *  separates three things this codebase kept calling one: a pipeline (ordered
+ *  stages, each with a clock), a queue
  *  (work sorted by PERSON, in and out), and a ledger (append-only events). This
  *  screen is the second. It has no columns and no stages — a request is either
  *  waiting on you or it has left, and the only two controls are yes and no.

@@ -48,7 +48,8 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
 const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view', scoped: true }
 
 /** Tạo · sửa · thêm/bớt thành viên. Tái dùng `campaign.edit` cho cả tạo lẫn
- *  sửa, đúng khuôn `lead.edit` — quyết định #6 của `ban-giao-campaign.md`. */
+ *  sửa, đúng khuôn `lead.edit` — quyết định #6 của
+ *  `docs/decisions/0009-campaign-module-decisions.md`. */
 const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.edit', scoped: true }
 
 /** Bắt đầu và dừng là quyền KHÁC: chúng bắn mail thật. Mọi vai có

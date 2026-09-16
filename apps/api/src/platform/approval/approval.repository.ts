@@ -115,7 +115,8 @@ export class ApprovalRepository {
    *  page is at most 200 rows; 200 round trips for one column would have been a
    *  reason not to have the column at all, and then the book would have gone on
    *  judging lateness by a constant copied out of a frozen fixture — which is
-   *  the thing round 8 of `docs/tam-nhin-pipeline-toan-he.md` §9 ends.
+   *  the thing `docs/decisions/0031-waiting-on-comes-from-e3-approval-links.md`
+   *  ends by reading `waitingOn` from the approval links themselves.
    *
    *  Keyed by object code, and a code with nothing pending is ABSENT rather than
    *  present with an empty array: the caller writes `?? []` once, which it has

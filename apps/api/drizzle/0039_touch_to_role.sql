@@ -15,8 +15,8 @@
 -- than borrowing.
 --
 -- The CHECK is safe to validate - it is an implication whose left side is NULL
--- on every existing row, so no row can fail it (trap 2 of
--- `docs/ban-giao-tang-duyet-va-vi-tri.md` §2).
+-- on every existing row, so no row can fail it (a CHECK checks the rows
+-- already there).
 ALTER TABLE "sales"."touch" ADD COLUMN "to_role" text;--> statement-breakpoint
 ALTER TABLE "sales"."touch" ADD CONSTRAINT "touch_to_role_needs_an_end" CHECK ("to_role" IS NULL OR "to_actor_id" IS NOT NULL);--> statement-breakpoint
 ALTER TABLE "sales"."touch" ADD CONSTRAINT "touch_to_role_known" CHECK ("to_role" IS NULL OR "to_role" IN ('director', 'head-of-sales', 'marketing', 'bd', 'presales', 'sale', 'account-executive'));

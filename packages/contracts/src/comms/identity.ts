@@ -3,8 +3,8 @@ import { PageQuery, paged } from '../pagination'
 import { ContractCode, Moment, ObjectCode, textInput } from '../primitives'
 
 /** The spine of `comms` — the table that says which person a wire address
- *  belongs to. `docs/tam-nhin-giao-tiep-va-noi-dung.md` §2 has the full case for
- *  this shape (why `object_code` and not `contact_code` — the precondition pass
+ *  belongs to. The case for this shape (why `object_code` and not
+ *  `contact_code` — the precondition pass
  *  address the mail flow actually sends to, `lead.email`, does not live on
  *  `sales.contact` at all); this file only turns that shape into zod.
  *

@@ -157,7 +157,8 @@ export class CampaignRepository {
    *  một đợt mới chen vào.
    *
    *  `EXISTS` một đợt là hàng rào chống ca xấu nhất: `/start` nâng `RUNNING`
-   *  TRƯỚC vòng lặp gửi (quyết định #5 của `ban-giao-campaign.md`), nên có
+   *  TRƯỚC vòng lặp gửi (quyết định #5 của
+   *  `docs/decisions/0009-campaign-module-decisions.md`), nên có
    *  một khoảnh khắc chiến dịch đã `RUNNING` mà chưa đợt nào kịp ghi. Thiếu
    *  `EXISTS`, lượt quét chạy đúng vào khoảnh khắc đó sẽ đóng ngay một chiến
    *  dịch chưa gửi lá thư nào — và `DONE` không có đường quay lại `RUNNING`.

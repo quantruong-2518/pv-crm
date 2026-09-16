@@ -35,9 +35,8 @@ import { salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
  *  ------------------------------------------------------------------
  *  EMPTY IS A VALUE HERE
  *  ------------------------------------------------------------------
- *  Every box starts empty and reads as undeclared, because §8.5 of
- *  `docs/tam-nhin-pipeline-toan-he.md` says these numbers do not exist yet and
- *  must not be invented. A placeholder showing "3" would be an invented policy
+ *  Every box starts empty and reads as undeclared, because these numbers do
+ *  not exist yet and must not be invented. A placeholder showing "3" would be an invented policy
  *  that somebody reads as agreed a month later. Clearing a box is its own
  *  decision: it sends `null`, which un-declares the field rather than leaving
  *  it untouched. */

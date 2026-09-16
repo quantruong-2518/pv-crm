@@ -10,7 +10,7 @@ import { invalid } from './problem'
  *  Idiom mặc định của Nest là DTO class kèm decorator trên từng field. Làm thế
  *  là mô hình hoá lần thứ hai đúng cái hình dữ liệu mà `@pv/contracts` đã mô
  *  tả bằng zod — và bản thứ hai sẽ lệch bản thứ nhất, không phải nếu mà là khi.
- *  Quyết định #4 của `docs/ban-giao-backend.md` nói zod là nguồn kiểu DUY NHẤT;
+ *  `docs/decisions/0003-zod-is-the-sole-type-source.md` nói zod là nguồn kiểu DUY NHẤT;
  *  hai mươi dòng dưới đây là toàn bộ giá phải trả để giữ đúng lời đó.
  *
  *  Khi cần OpenAPI, thêm `nestjs-zod` để `@nestjs/swagger` đọc được zod —

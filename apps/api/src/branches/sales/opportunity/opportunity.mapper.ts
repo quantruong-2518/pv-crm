@@ -350,7 +350,7 @@ export function toStageEvent(row: OpportunityStageEventRowDb): OpportunityStageE
  *  gương thì không có gì đỏ, chỉ có một cơ hội mà rail mở ra trống trơn.
  *
  *  `owner` là tên hiển thị của Sale đứng đơn đầu tiên: `platform.object` chở
- *  NHÃN còn bảng nối chở id (nợ số 2 của `docs/ban-giao-backend.md`). Đơn nhiều
+ *  NHÃN còn bảng nối chở id. Đơn nhiều
  *  người thì rail in người đầu — nó là một dòng tóm tắt, không phải bảng phân
  *  chia hoa hồng. */
 export function refOf(

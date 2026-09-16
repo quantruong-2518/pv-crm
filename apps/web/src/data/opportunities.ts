@@ -533,9 +533,11 @@ export const STATE_TONE: Record<OpportunityState, 'success' | 'danger' | 'runnin
  *  a kind is added — and `ObjectKind` already exists to answer this.
  *
  *  A kind with no screen gets NO `onOpen`, so the chip draws but does not
- *  pretend to be a door. Today that is every kind outside Sales (§0 of
- *  `docs/tam-nhin-pipeline-toan-he.md` put them out of scope) plus `BG`, whose
- *  screen is the one still missing from the Sales chain. */
+ *  pretend to be a door. Today that is every kind outside Sales — scope
+ *  reopened to blocks 4 and 5 on 16/09
+ *  (`docs/decisions/0054-reopen-scope-to-full-customer-journey.md`),
+ *  so this list grows as those screens land — plus `BG`, whose screen is the
+ *  one still missing from the Sales chain. */
 const CHAIN_ROUTE: Record<string, string> = {
   LD: '/sales/leads',
   OP: '/sales/opportunities',

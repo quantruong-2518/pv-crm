@@ -386,8 +386,8 @@ export class OpportunityRepository {
 
   /** Tên hiển thị của một loạt actor, cho dòng gương E1 và cho câu trả lời.
    *
-   *  Đọc trước khi ghi vì `platform.object` chở NHÃN còn bảng nối chở id (nợ số
-   *  2 của `docs/ban-giao-backend.md`). Ai không có trong sổ nhân sự thì vắng
+   *  Đọc trước khi ghi vì `platform.object` chở NHÃN còn bảng nối chở id. Ai
+   *  không có trong sổ nhân sự thì vắng
    *  mặt trong Map — và insert vào bảng nối sẽ chết ở
    *  `opportunity_owner_actor_id_actor_id_fk` ngay sau đó, đúng hàng rào giữ
    *  cho MỌI cửa chứ không riêng cửa nào nhớ kiểm. */

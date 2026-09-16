@@ -28,8 +28,8 @@ export const actor = platform.table('actor', {
   id: text('id').primaryKey(),
 
   /** NHÃN hiển thị. Trục phạm vi của E2 hiện đang so bằng trường này
-   *  (`ref.owner !== actor.name`) — đó là nợ số 2 của
-   *  `docs/ban-giao-backend.md`. Lọc ở SQL thì đã so bằng `id`; ngày trả nợ
+   *  (`ref.owner !== actor.name`) — một khoản nợ chưa trả. Lọc ở SQL thì đã so
+   *  bằng `id`; ngày trả nợ
    *  xong, engine cũng so bằng `id` và trường này thôi làm khoá. */
   name: text('name').notNull(),
 
@@ -119,7 +119,7 @@ export const objectRef = platform.table(
 /** Cạnh có hướng giữa hai object.
  *
  *  `kind` mang giá trị CÓ DẤU ('chờ', 'thuộc-về') vì đó là union của engine
- *  hôm nay — nợ số 1 của `docs/ban-giao-backend.md`. Đổi ở engine trước, rồi
+ *  hôm nay, và là một khoản nợ chưa trả. Đổi ở engine trước, rồi
  *  một migration đổi dữ liệu; đổi ở đây trước là làm hai bên lệch nhau. */
 export const edge = platform.table(
   'edge',
@@ -185,7 +185,7 @@ export const audit = platform.table(
  *  row here is not missing data — it is the ordinary state of a system nobody
  *  has tuned, and the read serves the default straight from the registry.
  *
- *  `docs/tam-nhin-giao-tiep-va-noi-dung.md` §18 sketched this table as
+ *  The first sketch of this table was
  *  `key · value · unit · updated_by · updated_at`. `unit` is dropped, and so is
  *  every other descriptive column that sketch implies: the registry already
  *  states that `sequence.max-steps` counts steps and the rest count days. A

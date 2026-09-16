@@ -15,7 +15,8 @@ import { LEAD_MAIL_KEY } from '@/data/mas'
  *  MỘT BẢNG TRẢ LỜI CHO CẢ HAI ĐƯỜNG GỬI
  *  ------------------------------------------------------------------
  *  Quick MAS (chọn vài lead ở sổ rồi bấm gửi) và một đợt của chiến dịch đều
- *  sinh một `mail_run` — quyết định #3 của `ban-giao-mas-mail.md`, và lý do
+ *  sinh một `mail_run` — quyết định #3 của
+ *  `docs/decisions/0040-mas-mail-data-model-decisions.md`, và lý do
  *  ghi ở đó: dòng thời gian trong hồ sơ lead phải đọc ĐÚNG MỘT bảng, vì hai
  *  nguồn cho một câu hỏi là hai câu trả lời lệch nhau sau một quý. Hệ quả cho
  *  màn này là nó thấy được cả hai, và cột "Chiến dịch" trống nghĩa là lô đi

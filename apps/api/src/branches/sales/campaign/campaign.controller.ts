@@ -16,7 +16,7 @@ import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { CampaignService } from './campaign.service'
 
 /** `/sales/campaigns` — sổ chiến dịch thật, đứng trên `sales.campaign`
- *  (mã `CP-`). Đóng A3 của `docs/con-thieu-mas-mail.md`.
+ *  (mã `CP-`).
  *
  *  Controller mỏng có chủ ý, đúng khuôn `lead.controller.ts`: nhận, kiểm, gọi,
  *  trả. Không `if` nghiệp vụ, không SQL.

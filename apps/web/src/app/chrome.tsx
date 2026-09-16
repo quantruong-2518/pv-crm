@@ -91,8 +91,7 @@ type NavEntry = {
  *
  *  Do NOT wire them to E3/E4 to bring them back. `createApprovalEngine` keeps
  *  its requests in a per-process `Map`, so a single deploy empties it, and
- *  `docs/tam-nhin-pipeline.md` section 4 calls answering a user from that
- *  storage a lie in as many words. The count comes back when
+ *  answering a user from that storage would be a lie. The count comes back when
  *  `platform.approval` is a real table. `NavEntry.count` stays on the type for
  *  that day. */
 const ONE_CORE: NavEntry[] = [

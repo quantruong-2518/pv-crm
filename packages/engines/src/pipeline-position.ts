@@ -12,13 +12,13 @@ import type { Branch, ObjectKind, ObjectRef } from './types'
  *  four screens each deriving it from whatever they happen to have loaded is
  *  precisely the drift this function exists to end.
  *
- *  See `docs/tam-nhin-pipeline.md` §6 and `docs/tam-nhin-pipeline-toan-he.md`
- *  §2 and §7. */
+ *  See `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
+ *  and `docs/decisions/0016-permission-check-rejects-writes-to-undeclared-kinds.md`. */
 
 /** The pipelines that own an object kind today.
  *
- *  Seven of the eleven pipelines listed in `tam-nhin-pipeline-toan-he.md` §3;
- *  the other four (campaigns, installment collection, the approval inbox,
+ *  Seven of the eleven pipelines the vision lists; the other four (campaigns,
+ *  installment collection, the approval inbox,
  *  intake) hold no `ObjectKind`, so a name for them here would hold nothing.
  *
  *  No branch prefix on the names, deliberately: the branch is already a field
@@ -113,8 +113,8 @@ export type PositionInput = {
    *  NULLABLE, and the null is not laziness: a row can carry a phase and no
    *  mark of when it got there, and the two honest answers to that are
    *  different. Where it stands is still known; how long it has stood there is
-   *  not. Falling back to `created_at` would quietly answer §8.1 of
-   *  `tam-nhin-pipeline.md` — still open — and it would answer it wrong for
+   *  not. Falling back to `created_at` would quietly answer question 4 of
+   *  `docs/decisions/open-questions.md` — still open — and it would answer it wrong for
    *  every object that has moved at least once. So: no mark, no clock, and
    *  `overdueBy` comes back `null`. */
   since: string | null

@@ -34,7 +34,7 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
     message: 'Email này đã có trong sổ lead — một email không mở được hai lead cùng lúc.',
   },
 
-  /** Tiền luôn mang đơn vị — nợ số 7 của `docs/ban-giao-backend.md`. */
+  /** Tiền luôn mang đơn vị. */
   lead_money_pair: {
     kind: 'invalid',
     fields: ['budget', 'currency'],

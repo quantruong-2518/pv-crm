@@ -26,8 +26,9 @@ import { IdentityService } from './identity.service'
  *  No `scoped` either: the table has no owner column to cut by. See
  *  `identity.service.ts`.
  *
- *  `merge` IS ITS OWN DOOR rather than a field on `PATCH`, the rule decision 3
- *  of `docs/ban-giao-campaign.md` set: it takes a body of its own (two ids, not
+ *  `merge` IS ITS OWN DOOR rather than a field on `PATCH`, the rule
+ *  `docs/decisions/0004-one-route-one-permission.md`
+ *  sets: it takes a body of its own (two ids, not
  *  one), it touches two rows, and reading the log has to show who folded two
  *  people into one without inferring it from a `PATCH` shared with every
  *  spelling correction. And it is now true rather than aspirational: all three

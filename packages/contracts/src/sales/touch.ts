@@ -162,8 +162,8 @@ export const TouchRow = z.object({
    *  released back into it. A `giao` row carries at least one of them.
    *
    *  Why columns and not the sentence in `note`, which already names the
-   *  recipient: the flow vector (`docs/tam-nhin-pipeline-toan-he.md` §6·B)
-   *  draws one step per holder, and reading the chain out of `note` means
+   *  recipient: the flow vector draws one step per holder, and reading the
+   *  chain out of `note` means
    *  parsing Vietnamese prose the server wrote for a person. Why on the row and
    *  not walked backwards from the next row: that walk holds only while the
    *  trail has no gaps — the same habit-shaped reasoning `toTier` exists to

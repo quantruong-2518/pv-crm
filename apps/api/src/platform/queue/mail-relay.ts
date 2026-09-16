@@ -24,7 +24,8 @@ import { MailQueue } from './mail-queue'
  *  second pg-boss instance in the worker's tree, which is worse than the thing
  *  it fixes.
  *
- *  So the ledger row IS the outbox, exactly as `docs/ban-giao-db.md` drew it,
+ *  So the ledger row IS the outbox — decision #2 of
+ *  `docs/decisions/0010-transactional-mail-infrastructure-decisions.md` —
  *  and this class is the relay. The branch writes one row inside its own
  *  transaction and touches nothing else. The cost is latency bounded by
  *  `PV_QUEUE_POLL_SECONDS`; the gain is that every failure mode — queue down,

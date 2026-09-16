@@ -33,15 +33,16 @@ export const campaignCodeSeq = sales.sequence('campaign_code_seq', {
 
 /** A CAMPAIGN CONSUMES LEADS; IT DOES NOT PRODUCE THEM.
  *
- *  This is the correction `docs/ban-giao-db.md` records against the first
- *  draft, and the whole table shape follows from it: a campaign is not the
+ *  This is the correction decision #1 of
+ *  `docs/decisions/0009-campaign-module-decisions.md` records against the
+ *  first draft, and the whole table shape follows from it: a campaign is not the
  *  parent of a lead, the two are n:m through `campaign_member`, and one lead
  *  being mailed by three campaigns is ordinary rather than a duplicate.
  *
  *  Not a `platform.object` row, so E1's `story()` cannot walk from a lead back
- *  to the campaign that touched it — debt #4 in `ban-giao-db.md`, left open on
- *  purpose. Closing it means adding a `CP` object kind, which is a change to
- *  the graph, not to this table. */
+ *  to the campaign that touched it — a debt left open on purpose. Closing it
+ *  means adding a `CP` object kind, which is a change to the graph, not to this
+ *  table. */
 export const campaign = sales.table(
   'campaign',
   {
@@ -89,7 +90,8 @@ export const campaign = sales.table(
 )
 
 /** MEMBERSHIP IS FROZEN AT THE MOMENT OF ADDING — decision #2 of
- *  `ban-giao-db.md`. A dynamic segment re-evaluated per wave means wave 2 and
+ *  `docs/decisions/0008-lead-schema-and-permission-decisions.md`.
+ *  A dynamic segment re-evaluated per wave means wave 2 and
  *  wave 3 go to different people, and afterwards nobody can answer "who
  *  actually received what". A row here is a fact that stops moving. */
 export const campaignMember = sales.table(

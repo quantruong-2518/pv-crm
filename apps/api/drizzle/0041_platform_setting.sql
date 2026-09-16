@@ -6,7 +6,7 @@
 -- error and not missing data - it is the ordinary state of a system nobody has
 -- tuned yet, and the read serves the registry default.
 --
--- `docs/tam-nhin-giao-tiep-va-noi-dung.md` §18 sketched the table as
+-- The first sketch of this table was
 -- `key · value · unit · updated_by · updated_at`. `unit` is dropped here, and so
 -- is every other descriptive column that sketch implies (min, max, the operator
 -- description): the registry already says five keys count days and one counts

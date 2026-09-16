@@ -296,8 +296,8 @@ const Env = z
      *
      *  20 because it is the smallest denominator on which a single bounce (5%)
      *  is already over 4% — i.e. the smallest sample where the breaker can fire
-     *  at all — and because it matches the 20–30 address canary the MAS runbook
-     *  asks for before any large batch (`docs/ban-giao-mas-mail.md`). */
+     *  at all — and because it matches the 20–30 address canary the MAS runbook asks for
+     *  before any large batch (`docs/decisions/0041-resend-aup-guardrails-not-hard-block.md`). */
     PV_MAS_BOUNCE_MIN_SAMPLE: z.coerce.number().int().min(1).max(10_000).default(20),
 
     /** HMAC key behind every unsubscribe link — see `unsubscribe-token.ts`.

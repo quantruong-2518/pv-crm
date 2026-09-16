@@ -463,12 +463,13 @@ export const LeadProfile = LeadRow.extend({
    *  a column of the DEAL funnel, which the lead only enters once it has a deal
    *  on it. Two ladders, and this field answers about the first. Before 14/09
    *  the answer to "where is this lead" was derived on four screens from
-   *  whatever each happened to have loaded, which is the drift §6 of
-   *  `docs/tam-nhin-pipeline.md` exists to end.
+   *  whatever each happened to have loaded, which is the drift
+   *  `docs/decisions/0034-extend-limitdays-to-all-eight-pipeline-phases.md`
+   *  exists to end.
    *
    *  `overdueBy` comes back `null` on every lead today and that is the TRUE
-   *  answer, not a gap: no `TIER` rung has a `limitDays` yet, because §8.5 of
-   *  `docs/tam-nhin-pipeline-toan-he.md` is the question nobody has answered.
+   *  answer, not a gap: no `TIER` rung has a `limitDays` yet, because how long
+   *  a lead may sit at `dau-moi` is the question nobody has answered.
    *  The rungs can hold one since `0038`, and the box to type it into is
    *  section 5.5 of `/sales/config`. A number invented here would be read as a
    *  policy a month from now, and somebody would be judged by it.

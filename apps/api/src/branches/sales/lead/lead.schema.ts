@@ -26,7 +26,7 @@ import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
 
-/** Chuỗi rỗng KHÔNG phải một giá trị — nợ số 5 của `docs/ban-giao-backend.md`.
+/** Chuỗi rỗng KHÔNG phải một giá trị.
  *
  *  Ba tầng đang có ba quy ước cho "trống": `Lead` dùng `undefined`,
  *  `LeadProfile` dùng `''`, `Opportunity` trộn cả hai. Đổ vào một bảng mà không
@@ -45,8 +45,8 @@ const noBlank = (...cols: string[]): SQL => sql.raw(cols.map((c) => `"${c}" <> '
  *  WHY A SEQUENCE EXISTS AT ALL
  *  ------------------------------------------------------------------
  *  `code` is a `text` primary key with no DEFAULT, so until now nothing could
- *  create a lead unless it already knew a free code — blocker #1 of the four
- *  in `docs/ban-giao-db.md`. A sequence is the only counter that stays correct
+ *  create a lead unless it already knew a free code. A sequence is the only
+ *  counter that stays correct
  *  with two writers at once: `SELECT max(code) + 1` hands the same code to
  *  both of them, and the second one loses to the primary key.
  *
@@ -227,8 +227,8 @@ export const lead = sales.table(
      *
      *  Nullable, and it stays nullable. The frozen fixture predates the idea
      *  of an intake door entirely, so its 100 rows carry NULL here; guessing
-     *  a value for them would put invented data on the Performance screen
-     *  (debt #5, `docs/ban-giao-db.md`). Real doors fill it: the file-import
+     *  a value for them would put invented data on the Performance screen.
+     *  Real doors fill it: the file-import
      *  panel in `apps/web` already asks the user to pick one motion for a
      *  whole batch, and until this column existed there was nowhere to put
      *  the answer.
@@ -344,8 +344,8 @@ export const lead = sales.table(
      *  hai lead. Nhưng khách rơi khỏi luồng năm ngoái quay lại năm nay là một
      *  lead MỚI hợp lệ — nên điều kiện chỉ áp cho dòng chưa rơi.
      *
-     *  Indexed on `lower(email)`, not on the raw column — blocker #3 of the
-     *  four in `docs/ban-giao-db.md`. `An@x.vn` and `an@x.vn` are one mailbox,
+     *  Indexed on `lower(email)`, not on the raw column. `An@x.vn` and
+     *  `an@x.vn` are one mailbox,
      *  so on a raw index they slip through as two live leads and the MAS mail
      *  flow sends the same person the same campaign twice. The column comment
      *  above already asks writers to store the address lowercased and

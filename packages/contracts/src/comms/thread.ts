@@ -3,9 +3,8 @@ import { Moment, textInput, textInputOptional } from '../primitives'
 import { CommsChannel, IdentityId, LinkableCode } from './identity'
 
 /** Turn 1 of `comms` — the conversation log itself, on top of the `comms.identity`
- *  spine turn 0 shipped. `docs/tam-nhin-giao-tiep-va-noi-dung.md` §3 has the full
- *  case for three tables instead of one; this file only turns that shape into
- *  zod, MANUAL CAPTURE ONLY (§11, §13.3 — no sync door, no webhook, no upload
+ *  spine turn 0 shipped. Three tables instead of one, and this file only turns
+ *  that shape into zod, MANUAL CAPTURE ONLY (no sync door, no webhook, no upload
  *  in this turn, so `captureSource` and `externalId` carry room for those doors
  *  without pretending a writer for them exists yet).
  *

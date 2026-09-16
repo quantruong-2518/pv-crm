@@ -10,7 +10,8 @@ import { MasSendRequest, MasSendResponse, MailRunPatchResponse, MailRunRow } fro
  *  sinh ra (xem docblock của bảng ở `campaign.schema.ts`). Khác `./campaign`
  *  (mã `SR-`/`SK-`, "Nguồn dẫn" — nguồn kéo lead về, báo cáo). Hai khái niệm
  *  từng đứng chung một cái tên "chiến dịch" trên UI, đã tách theo quyết định
- *  D2 ở `docs/con-thieu-mas-mail.md`. Tên file này khác `./campaign` dù cùng
+ *  D2, đóng ở `docs/decisions/0009-campaign-module-decisions.md`.
+ *  Tên file này khác `./campaign` dù cùng
  *  đứng trên bảng `campaign` phía máy chủ, đúng lý do trên: `./campaign` đã bị
  *  một phiên khác nhận trước cho phần Nguồn dẫn. */
 
@@ -98,7 +99,7 @@ export const CampaignPatch = z
      *  Until 30/08 there were only two: `textInputOptional` turns `''` into
      *  `undefined`, so a Select returning its unassigned option looked exactly like
      *  a field nobody touched, and an owner once assigned had no API that could
-     *  remove it (debt #6 in `ban-giao-campaign.md`). The screen had to print an
+     *  remove it. The screen had to print an
      *  apology where a button belonged. `null` goes straight to the column — all
      *  four are nullable, and the `campaign_no_blank` CHECK compares `<> ''`, so
      *  `NULL` passes it by design rather than by luck. */

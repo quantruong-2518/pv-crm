@@ -423,7 +423,8 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
        "allowed for every role at once". That is the hole this paragraph exists
        to fill, and it is also the forcing function: the day a branch builds its
        first write door, it declares its domain and its permission FIRST, which
-       is what §7 of `tam-nhin-pipeline-toan-he.md` asks for in as many words.
+       is what `docs/decisions/0016-permission-check-rejects-writes-to-undeclared-kinds.md`
+       asks for in as many words.
 
        Skipped when the caller named a permission by hand: a door that knows
        exactly what it needs has already been checked against it above. */

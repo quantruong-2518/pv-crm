@@ -16,8 +16,8 @@ import { Moment } from './primitives'
  *  ------------------------------------------------------------------
  *  WHY THIS IS NOT ANOTHER ROW IN `sales.config_entry`
  *  ------------------------------------------------------------------
- *  `docs/tam-nhin-giao-tiep-va-noi-dung.md` §18 worked through the case for a
- *  separate table once, and it is settled: `ConfigEntry` (`./sales/config`) is
+ *  The case for a separate table was worked through once, and it is settled:
+ *  `ConfigEntry` (`./sales/config`) is
  *  a registry of NAMED PICKLISTS — every row is an entry a person CHOOSES,
  *  with an `id`·`name`·`ord` and, on exactly two ladder lists, a `limitDays`.
  *  "How many days of silence counts as a first reply" has no name to show, no

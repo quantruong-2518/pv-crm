@@ -12,7 +12,7 @@
 #
 # KHÔNG dùng buildpack: Fly.io tự khuyến cáo không dùng buildpack cho monorepo
 # pnpm — đúng gotcha symlink `.pnpm` mà Dockerfile đã giải thủ công. Chi tiết
-# và điều kiện chọn Fly.io/Neon: docs/ban-giao-api.md § "Nơi chạy".
+# và điều kiện chọn Fly.io/Neon: docs/decisions/0005-fly-io-and-neon-hosting-pending-decree-53.md.
 #
 app = "pvone-crm-api"
 primary_region = "sin" # Singapore — gần VN nhất, Fly.io chưa có region tại VN

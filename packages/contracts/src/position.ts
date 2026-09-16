@@ -9,8 +9,9 @@ import { Moment, textInput } from './primitives'
  *  answers the day somebody edits one of them. The engine decides; this only
  *  carries.
  *
- *  Rule 1 of `docs/tam-nhin-pipeline-toan-he.md` §2 makes this the forcing
- *  function of the whole vision: an object the function cannot place does not
+ *  Rule 1 of `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
+ *  makes this the forcing function of the whole vision: an object the function
+ *  cannot place does not
  *  exist in the system. `null` on a read is therefore not a gap to paper over
  *  with a default — it is the system saying this kind has no ladder yet, and
  *  the screen should say so too. */
@@ -64,8 +65,7 @@ export type PipelinePositionView = z.infer<typeof PipelinePositionView>
  *  only legal input — so the server walks the graph and sends the answer rather
  *  than letting a screen assemble one from whatever codes it happens to hold.
  *  `FlowVector` (M-16) answers a different question on the same screen: who has
- *  HELD one object. Two bars, two questions; §6·B of
- *  `docs/tam-nhin-pipeline-toan-he.md` says why merging them breaks rule 10.
+ *  HELD one object. Two bars, two questions, and merging them breaks rule 10.
  *
  *  `kind` travels because the screen routes on it — a lead opens under
  *  `/sales/leads`, a deal under `/sales/opportunities`, a contract under

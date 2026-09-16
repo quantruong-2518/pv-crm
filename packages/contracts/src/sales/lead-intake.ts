@@ -49,7 +49,8 @@ import { LEAD_MAX } from './lead-fields'
  *  five-door table narrowed to the origins that exist, with `tay → MANUAL`,
  *  `tep → IMPORT`, `api → LANDING_PAGE`; `APOLLO` has no counterpart there at
  *  all, because the engine copy has no notion of a named vendor. Reconciling
- *  the two is the "enum declared twice" debt in `docs/ban-giao-api.md`; the
+ *  the two is the "enum declared twice" debt in
+ *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`; the
  *  conversion happens in `lead.mapper.ts`, in exactly ONE place, until it is
  *  paid. */
 

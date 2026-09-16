@@ -43,8 +43,8 @@ import { loadEnv } from '@api/platform/config/env'
 /** Nhãn tiếng Việt (fixture) → khoá ASCII (hợp đồng).
  *
  *  Bảng này TỒN TẠI vì nợ số 4 chưa trả xong ở phía fixture: `Lead.exitReason`
- *  đang lưu thẳng nhãn hiển thị làm giá trị. Nó biến mất khi bước B của
- *  `docs/ban-giao-backend.md` đổi fixture sang khoá. */
+ *  đang lưu thẳng nhãn hiển thị làm giá trị. Nó biến mất khi fixture đổi sang
+ *  khoá. */
 const EXIT_KEY: Record<string, ExitReason> = {
   'Không gọi được ai': 'khong-goi-duoc',
   'Không phải khách của mình': 'khong-phai-khach-cua-minh',

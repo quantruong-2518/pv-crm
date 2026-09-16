@@ -20,8 +20,8 @@ import { actor, objectRef, platform } from '../db/platform.schema'
  *  ------------------------------------------------------------------
  *  An older note in `config.approval.ts` called this table `sales.approval`.
  *  That was written when Sales was the only branch with anything to approve.
- *  Nine of the eleven pipelines end at a person saying yes
- *  (`docs/tam-nhin-pipeline-toan-he.md` §3), and a branch-local table would
+ *  Nine of the eleven pipelines end at a person saying yes, and a
+ *  branch-local table would
  *  mean a purchase order approved through a different mechanism than a discount
  *  — which is the one thing an approval inbox exists to prevent. So it sits in
  *  `platform`, next to `actor` and `object`, and every branch asks it.

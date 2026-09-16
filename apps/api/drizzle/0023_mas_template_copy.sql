@@ -29,8 +29,8 @@
 -- ---------------------------------------------------------------------------
 -- KHÔNG MỘT CON SỐ NÀO, VÀ ĐÓ LÀ RÀNG BUỘC CHỨ KHÔNG PHẢI SỰ NGHÈO NÀN
 -- ---------------------------------------------------------------------------
--- Bốn thứ `docs/con-thieu-mas-mail.md` §A2 đòi — tên dòng sản phẩm · câu định
--- vị · CTA dẫn đi đâu · số liệu nào được in — vẫn CHƯA được cấp. Nên bốn lá
+-- Bốn thứ một lá thư cần — tên dòng sản phẩm · câu định vị · CTA dẫn đi đâu ·
+-- số liệu nào được in — vẫn CHƯA được cấp. Nên bốn lá
 -- dưới đây viết quanh thứ đã biết chắc và chỉ thứ đó:
 --
 --   · Pebble Vina làm chip AI biên. Có sẵn trong repo, không phải suy đoán.

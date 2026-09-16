@@ -73,8 +73,8 @@ CREATE INDEX "identity_object_idx" ON "comms"."identity" USING btree ("object_co
 -- replacement.
 --
 -- The CHECK is safe to validate against existing rows - its left side is NULL
--- on every row written before this migration, so none can fail it (trap 2 of
--- `docs/ban-giao-tang-duyet-va-vi-tri.md` §2).
+-- on every row written before this migration, so none can fail it (a CHECK
+-- checks the rows already there).
 ALTER TABLE "sales"."meeting_attendee" ADD COLUMN "contact_code" text;
 --> statement-breakpoint
 ALTER TABLE "sales"."meeting_attendee" ADD CONSTRAINT "meeting_attendee_contact_code_contact_code_fk" FOREIGN KEY ("contact_code") REFERENCES "sales"."contact"("code") ON DELETE no action ON UPDATE no action;
