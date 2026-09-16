@@ -129,7 +129,7 @@ export const ConfigEntry = z.object({
   /** CHỈ `CATEGORY` — Sale phụ trách ngành, `id` của `platform.actor`.
    *  Thay cho `LEAD_CATEGORIES[].sale`, thứ đang so bằng TÊN người. */
   ownerId: z.string().min(1).optional(),
-  /** CHỈ `SOURCE` — 'chien-dich' · 'su-kien' · 'tu-nhien'. */
+  /** CHỈ `SOURCE` — 'campaign' · 'event' · 'organic'. */
   kind: z.string().min(1).optional(),
 })
 
@@ -157,7 +157,7 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
  *     `sales.lead.campaign_id` references `config_entry.id`. This is the ONLY
  *     list with a real relation today.
  *   · `STAGE` · `TIER` · `CATEGORY` · `EXIT_REASON` — the key is the lower-case
- *     slug the column holds ('cho-ky', 'chip'), because `sales.lead` does not
+ *     slug the column holds ('awaiting-signature', 'chip'), because `sales.lead` does not
  *     carry config ids yet. The server does NOT invent a name-to-slug join to
  *     paper over that debt, because a
  *     join that has to be guessed is a join that goes wrong silently the day
@@ -265,7 +265,7 @@ export const ConfigListResponse = z.object({
  *  Until `0038` the CHECK was an equality — a ladder row MUST have a clock and
  *  nothing else may. That held while `STAGE` was the only member, because all
  *  five funnel columns came with deadlines in the seed. `TIER` does not: §8.5
- *  says nobody has decided how long a lead may sit at `dau-moi`, and the whole
+ *  says nobody has decided how long a lead may sit at `prospect`, and the whole
  *  stance of this system is that an undeclared number stays `NULL` rather than
  *  being invented — `motion_policy` is six rows of exactly that. Keeping the
  *  equality would have forced a number out of thin air as the PRICE of letting

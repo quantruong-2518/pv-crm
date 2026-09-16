@@ -6,9 +6,18 @@ import {
   type AccountProfile,
   type AccountRow,
   type AccountUpdate,
+  type LeadCategory,
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+
+/** The stored key is English; every account screen prints this name instead. */
+export const CATEGORY_LABEL: Record<LeadCategory, string> = {
+  chip: 'Chip',
+  mechanical: 'Cơ khí',
+  automotive: 'Ô tô',
+  pharma: 'Dược',
+}
 
 /** Account module · the customer company book — `/sales/accounts`.
  *

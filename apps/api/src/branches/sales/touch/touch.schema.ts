@@ -68,9 +68,9 @@ export const touch = sales.table(
 
     /** Bậc lead SAU bước này. NULL ở mọi loại trừ hai loại chở bậc.
      *
-     *  `kind` một mình không trả lời được câu hỏi của màn Hiệu suất: `len-bac`
+     *  `kind` một mình không trả lời được câu hỏi của màn Hiệu suất: `tier-raised`
      *  nói "lên một bậc", không nói lên `mql` hay lên `sql`. Đường rẻ hơn là
-     *  đếm theo THỨ TỰ — dòng `len-bac` đầu tiên của một lead là `mql`, dòng
+     *  đếm theo THỨ TỰ — dòng `tier-raised` đầu tiên của một lead là `mql`, dòng
      *  thứ hai là `sql` — và nó chỉ đúng khi ba điều cùng đúng: dòng thời gian
      *  không thủng, không lượt ghi nào nhảy cách bậc, và mọi lead đều xuất phát
      *  từ cùng một bậc. Không điều nào trong ba là hàng rào; cả ba là thói quen
@@ -79,7 +79,7 @@ export const touch = sales.table(
      *
      *  Một dòng TỰ NÓI ĐƯỢC bậc của nó thì không cần điều kiện nào cả: một
      *  trường, không window function, không giả định về phần còn lại của dòng
-     *  thời gian. `vao-so` cũng chở được nó, để dòng thời gian bắt đầu từ một
+     *  thời gian. `created` cũng chở được nó, để dòng thời gian bắt đầu từ một
      *  điểm được ghi ra chứ không phải một điểm được đoán. */
     toTier: text('to_tier').$type<LeadTier>(),
 
@@ -92,7 +92,7 @@ export const touch = sales.table(
      *  `docs/decisions/0017-record-a-handoff-as-one-touch-row.md`,
      *  answered in columns here because here is where
      *  it becomes columns. Two rows (one for the loser, one for the taker)
-     *  count a single event twice: the activity card already treats `giao` as a
+     *  count a single event twice: the activity card already treats `handed-over` as a
      *  conversation turn, so every "how many touches" count doubles on each
      *  hand-over. They would also share one `at` — Postgres freezes `now()` per
      *  transaction — leaving no readable order between them. And the "always
@@ -145,21 +145,21 @@ export const touch = sales.table(
      *  phải là một migration có người đọc, không phải một dòng lặng lẽ đổi. */
     check(
       'touch_kind_known',
-      sql`"kind" IN ('vao-so', 'cham', 'dien-o', 'giao', 'len-bac', 'gap-lan-dau',
-                     'vao-pipeline', 'doi-cot', 'ky', 'ra-khoi-luong')`,
+      sql`"kind" IN ('created', 'contacted', 'field-filled', 'handed-over', 'tier-raised', 'first-meeting',
+                     'entered-pipeline', 'stage-changed', 'signed', 'exited')`,
     ),
     /** Ba giá trị của `LeadTier`. Chép ra đây cùng lý do với `touch_kind_known`
      *  ở trên: enum dài thêm thì phải là một migration có người đọc. */
-    check('touch_to_tier_known', sql`"to_tier" IS NULL OR "to_tier" IN ('dau-moi', 'mql', 'sql')`),
-    /** Lý do cột `to_tier` tồn tại là để `len-bac` trả lời được "lên bậc nào".
-     *  Một dòng `len-bac` không mang bậc là một dòng không đọc được — chặn ở
+    check('touch_to_tier_known', sql`"to_tier" IS NULL OR "to_tier" IN ('prospect', 'mql', 'sql')`),
+    /** Lý do cột `to_tier` tồn tại là để `tier-raised` trả lời được "lên bậc nào".
+     *  Một dòng `tier-raised` không mang bậc là một dòng không đọc được — chặn ở
      *  đây chứ không phát hiện lúc dựng biểu đồ. */
-    check('touch_len_bac_co_bac', sql`"kind" <> 'len-bac' OR "to_tier" IS NOT NULL`),
+    check('touch_tier_raised_has_tier', sql`"kind" <> 'tier-raised' OR "to_tier" IS NOT NULL`),
     /** The SHAPE of the four columns above, true of every row ever written:
      *
      *   · an end has a name and an id or neither — half an end cannot be drawn;
-     *   · only `giao` names the person who LOST the lead;
-     *   · only `giao` and `vao-so` name the person who GOT it — `vao-so` carries
+     *   · only `handed-over` names the person who LOST the lead;
+     *   · only `handed-over` and `created` name the person who GOT it — `created` carries
      *     it for a lead that entered the book already assigned, exactly where
      *     `to_tier` carries the rung for a lead that entered already graded, so
      *     the vector's left half starts at a step that was WRITTEN DOWN. */
@@ -167,14 +167,14 @@ export const touch = sales.table(
       'touch_hand_over_sides',
       sql`("from_actor_id" IS NULL) = ("from_name" IS NULL)
           AND ("to_actor_id" IS NULL) = ("to_name" IS NULL)
-          AND ("from_actor_id" IS NULL OR "kind" = 'giao')
-          AND ("to_actor_id" IS NULL OR "kind" IN ('giao', 'vao-so'))`,
+          AND ("from_actor_id" IS NULL OR "kind" = 'handed-over')
+          AND ("to_actor_id" IS NULL OR "kind" IN ('handed-over', 'created'))`,
     ),
-    /** A `giao` row naming neither end is a row nobody can read — but only from
+    /** A `handed-over` row naming neither end is a row nobody can read — but only from
      *  migration `0033` onward, and that is why this is a SECOND constraint
      *  rather than a fifth clause of the one above.
      *
-     *  `setOwner` has been writing end-less `giao` rows since 29/08. Validating
+     *  `setOwner` has been writing end-less `handed-over` rows since 29/08. Validating
      *  this against the table would abort `0033` on any database where somebody
      *  has pressed "Giao", so the migration adds it `NOT VALID`: enforced on
      *  every write from now on, silent about rows that predate the columns.
@@ -182,8 +182,8 @@ export const touch = sales.table(
      *  this file would ask to re-add it validated — read the migration, not the
      *  generator, before touching this one. */
     check(
-      'touch_giao_names_an_end',
-      sql`"kind" <> 'giao' OR "from_actor_id" IS NOT NULL OR "to_actor_id" IS NOT NULL`,
+      'touch_handed_over_names_an_end',
+      sql`"kind" <> 'handed-over' OR "from_actor_id" IS NOT NULL OR "to_actor_id" IS NOT NULL`,
     ),
     /** A role with nobody wearing it is unreadable — the vector prints it UNDER
      *  a name, so a row with `to_role` and no `to_actor_id` would draw a job

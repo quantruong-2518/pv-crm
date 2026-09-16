@@ -51,14 +51,14 @@ export const HORIZON_END = iso(FROZEN_Y, FROZEN_M, daysInMonth(FROZEN_Y, FROZEN_
 
 export const DATA_WINDOW = { from: DATA_START, cutoff: FROZEN_DAY, horizon: HORIZON_END } as const
 
-export type Grain = 'thang' | 'quy' | 'nam' | 'ngay'
+export type Grain = 'month' | 'quarter' | 'year' | 'day'
 
 /** Lựa chọn của người dùng — thứ duy nhất màn giữ trong state. */
 export type PeriodChoice = {
   grain: Grain
-  /** '2026-07' · '2026-Q3' · '2026'. Bỏ trống khi `grain === 'ngay'`. */
+  /** '2026-07' · '2026-Q3' · '2026'. Bỏ trống khi `grain === 'day'`. */
   key: string
-  /** chỉ dùng cho `grain === 'ngay'`, dạng yyyy-mm-dd */
+  /** chỉ dùng cho `grain === 'day'`, dạng yyyy-mm-dd */
   from?: string
   to?: string
 }
@@ -146,7 +146,7 @@ export const MONTHS: Period[] = (() => {
   while (iso(y, m, 1) <= HORIZON_END) {
     out.push(
       build(
-        'thang',
+        'month',
         `${y}-${String(m).padStart(2, '0')}`,
         `Tháng ${m} · ${y}`,
         MONTH_SHORT(m),
@@ -173,7 +173,7 @@ export const QUARTERS: Period[] = (() => {
     seen.set(
       key,
       build(
-        'quy',
+        'quarter',
         key,
         `Quý ${q} · ${y}`,
         `Q${q}`,
@@ -191,7 +191,7 @@ export const YEARS: Period[] = (() => {
     const y = Number(month.key.slice(0, 4))
     if (seen.has(y)) return []
     seen.add(y)
-    return [build('nam', String(y), `Năm ${y}`, String(y), iso(y, 1, 1), iso(y, 12, 31))]
+    return [build('year', String(y), `Năm ${y}`, String(y), iso(y, 1, 1), iso(y, 12, 31))]
   })
 })()
 
@@ -203,21 +203,21 @@ export const YEARS: Period[] = (() => {
  *  đọc, và "quý đang chạy" vẫn trả lời đúng câu hỏi của màn. Đổi sang tháng chỉ
  *  mất một cú bấm. */
 export const DEFAULT_CHOICE: PeriodChoice = {
-  grain: 'quy',
+  grain: 'quarter',
   key: QUARTERS[QUARTERS.length - 1]?.key ?? '',
 }
 
 const byKey = (list: Period[], key: string) => list.find((p) => p.key === key)
 
 export function resolvePeriod(choice: PeriodChoice): Period {
-  if (choice.grain === 'ngay') {
+  if (choice.grain === 'day') {
     const from = clampDay(choice.from ?? DATA_START, DATA_START, HORIZON_END)
     const to = clampDay(choice.to ?? FROZEN_DAY, from, HORIZON_END)
     const label = from === to ? `Ngày ${vn(from)}` : `${vn(from)} → ${vn(to)}`
-    return build('ngay', `${from}..${to}`, label, vn(from), from, to)
+    return build('day', `${from}..${to}`, label, vn(from), from, to)
   }
 
-  const list = choice.grain === 'quy' ? QUARTERS : choice.grain === 'nam' ? YEARS : MONTHS
+  const list = choice.grain === 'quarter' ? QUARTERS : choice.grain === 'year' ? YEARS : MONTHS
   const found = byKey(list, choice.key) ?? list[list.length - 1]
   if (!found) throw new Error(`Kịch bản không có kỳ nào ở mức "${choice.grain}"`)
   return found
@@ -229,15 +229,15 @@ export function resolvePeriod(choice: PeriodChoice): Period {
  *  tháng 5 không có delta: so với tháng 4 thì mẫu số bằng 0, mà "tăng vô hạn"
  *  không phải một con số ai đọc được. */
 export function previousPeriod(period: Period): Period | null {
-  if (period.grain === 'ngay') {
+  if (period.grain === 'day') {
     const len = spanDays(period.from, period.to)
     const to = shift(period.from, -1)
     const from = shift(to, -(len - 1))
     if (to < DATA_START) return null
-    return build('ngay', `${from}..${to}`, `${vn(from)} → ${vn(to)}`, vn(from), from, to)
+    return build('day', `${from}..${to}`, `${vn(from)} → ${vn(to)}`, vn(from), from, to)
   }
 
-  const list = period.grain === 'quy' ? QUARTERS : period.grain === 'nam' ? YEARS : MONTHS
+  const list = period.grain === 'quarter' ? QUARTERS : period.grain === 'year' ? YEARS : MONTHS
   const i = list.findIndex((p) => p.key === period.key)
   return i > 0 ? (list[i - 1] ?? null) : null
 }

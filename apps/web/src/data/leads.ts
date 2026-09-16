@@ -199,12 +199,12 @@ export const ORIGIN_FACE: Record<
   OriginKind,
   { label: string; icon: IconGlyph; openLabel: string }
 > = {
-  'chien-dich': { label: 'Chiến dịch', icon: Megaphone, openLabel: 'Xem chiến dịch' },
-  'su-kien': { label: 'Sự kiện', icon: CalendarClock, openLabel: 'Xem sự kiện' },
+  campaign: { label: 'Chiến dịch', icon: Megaphone, openLabel: 'Xem chiến dịch' },
+  event: { label: 'Sự kiện', icon: CalendarClock, openLabel: 'Xem sự kiện' },
   /* Nhãn KIỂU phải khác tên NGUỒN: nguồn GT tên sẵn là "Khách cũ giới thiệu",
      nên nhãn kiểu trùng chữ sẽ in ra hai lần cùng một câu trên một thẻ. */
-  'gioi-thieu': { label: 'Được giới thiệu', icon: Handshake, openLabel: 'Xem nguồn' },
-  'tu-mo': { label: 'Tạo trực tiếp', icon: PenLine, openLabel: 'Xem nguồn' },
+  referral: { label: 'Được giới thiệu', icon: Handshake, openLabel: 'Xem nguồn' },
+  'self-sourced': { label: 'Tạo trực tiếp', icon: PenLine, openLabel: 'Xem nguồn' },
 }
 
 /* `SOURCE_KIND_FACE` (khoá theo `kind` của một dòng SỔ NGUỒN, `GET
@@ -213,8 +213,8 @@ export const ORIGIN_FACE: Record<
    là tín hiệu chính), và sau khi bỏ thì không còn chỗ nào đọc bảng này nữa.
 
    Tone vàng của pill từng so `entry.kind === 'mua-du-lieu'` — một câu KHÔNG
-   BAO GIỜ đúng: `kind` của một dòng sổ nguồn chỉ nhận `chien-dich · su-kien ·
-   tu-nhien`, nên nhánh đó là code chết kể từ lúc viết. Nay nó so
+   BAO GIỜ đúng: `kind` của một dòng sổ nguồn chỉ nhận `campaign · event ·
+   organic`, nên nhánh đó là code chết kể từ lúc viết. Nay nó so
    `source.kind === 'APOLLO'`, một giá trị có thật của `LeadSourceKind` và
    đúng câu hỏi định hỏi từ đầu: dòng này có phải dữ liệu MUA không. */
 
@@ -249,12 +249,12 @@ export const NO_CAMPAIGN_ICON = CircleDashed
  *  `exitReason` trên `LeadRow` đổi sang ID cấu hình — nợ đã ghi ở
  *  `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md` luật 4. */
 export const EXIT_REASON_LABEL: Record<string, string> = {
-  'khong-goi-duoc': 'Không gọi được ai',
-  'khong-phai-khach-cua-minh': 'Không phải khách của mình',
-  'khong-co-ngan-sach': 'Năm nay không có tiền',
-  'nguoi-lien-he-nghi': 'Người liên hệ nghỉ việc',
-  'chon-ben-khac': 'Khách chọn bên khác',
-  'im-sau-bao-gia': 'Im sau báo giá',
+  unreachable: 'Không gọi được ai',
+  'not-a-fit': 'Không phải khách của mình',
+  'no-budget': 'Năm nay không có tiền',
+  'contact-left': 'Người liên hệ nghỉ việc',
+  'chose-competitor': 'Khách chọn bên khác',
+  'silent-after-quote': 'Im sau báo giá',
 }
 
 /** Câu giải thích ô PIC trống — MỘT bản, dùng ở cả sổ lẫn hồ sơ.
@@ -274,16 +274,16 @@ export const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
 // ---------------------------------------------------------------------------
 
 export type NextActionKey =
-  | 'nhan-lead'
-  | 'lay-o-thieu'
-  | 'de-nghi-sql'
-  | 'nhac-ky'
-  | 'day-cot'
-  | 'bao-tac'
-  | 'goi-khach'
-  | 'nhan-tin'
-  | 'giao-viec'
-  | 'mo-nguon'
+  | 'claim-lead'
+  | 'fill-slots'
+  | 'propose-sql'
+  | 'chase-signature'
+  | 'advance-stage'
+  | 'flag-blocked'
+  | 'call-customer'
+  | 'send-message'
+  | 'assign-owner'
+  | 'open-source-record'
 
 export type NextAction = {
   key: NextActionKey
@@ -327,14 +327,14 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
   if (lead.exitReason) {
     return [
       {
-        key: 'mo-nguon',
+        key: 'open-source-record',
         label: 'Xem nguồn kéo về',
         icon: Megaphone,
         primary: true,
         why: `Lead đã ra khỏi luồng · ${lead.exitReason}. Việc còn lại là trả phản hồi cho nơi kéo nó về.`,
       },
       {
-        key: 'giao-viec',
+        key: 'assign-owner',
         label: 'Giao việc',
         icon: Users,
         primary: false,
@@ -345,7 +345,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
 
   if (!lead.owner) {
     out.push({
-      key: 'nhan-lead',
+      key: 'claim-lead',
       label: 'Nhận lead về mình',
       icon: UserPlus,
       primary: true,
@@ -355,7 +355,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
 
   if (missing > 0) {
     out.push({
-      key: 'lay-o-thieu',
+      key: 'fill-slots',
       label: `Lấy ${missing} ô còn thiếu`,
       icon: ClipboardList,
       primary: out.length === 0,
@@ -365,7 +365,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
 
   if (gate.ok) {
     out.push({
-      key: 'de-nghi-sql',
+      key: 'propose-sql',
       label: 'Đề nghị nhận vào pipeline',
       icon: ArrowRight,
       primary: out.length === 0,
@@ -376,15 +376,15 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
   if (isOverSla(lead)) {
     const limit = PIPELINE_STAGES.find((s) => s.key === lead.stage)
     out.push({
-      key: 'bao-tac',
+      key: 'flag-blocked',
       label: 'Báo tắc',
       icon: TriangleAlert,
       primary: out.length === 0,
       why: `Nằm cột "${limit?.label ?? lead.stage}" ${lead.daysHere} ngày, quá hạn ${limit?.limitDays ?? '?'} ngày của cột.`,
     })
-  } else if (lead.stage === 'cho-ky') {
+  } else if (lead.stage === 'awaiting-signature') {
     out.push({
-      key: 'nhac-ky',
+      key: 'chase-signature',
       label: 'Nhắc ký',
       icon: PenLine,
       primary: out.length === 0,
@@ -392,7 +392,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
     })
   } else if (lead.stage) {
     out.push({
-      key: 'day-cot',
+      key: 'advance-stage',
       label: 'Đề nghị sang cột kế',
       icon: ArrowRight,
       primary: out.length === 0,
@@ -401,7 +401,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
   }
 
   out.push({
-    key: contact?.phone ? 'goi-khach' : 'nhan-tin',
+    key: contact?.phone ? 'call-customer' : 'send-message',
     label: contact?.phone ? `Gọi ${contact.name}` : 'Nhắn trên kênh khách vừa dùng',
     icon: contact?.phone ? Phone : MessageSquare,
     primary: false,
@@ -416,7 +416,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
   })
 
   out.push({
-    key: 'giao-viec',
+    key: 'assign-owner',
     label: 'Giao việc',
     icon: Users,
     primary: false,
@@ -432,10 +432,10 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
 
 /** Cột của bảng việc. Năm cột của sổ cơ hội, cộng một cột cho lead chưa qua
  *  cổng — nó CHƯA có cột nào để đứng, và đó chính là việc phải làm. */
-export type WorkColumn = StageKey | 'chua-vao-cot'
+export type WorkColumn = StageKey | 'unstaged'
 
 export const WORK_COLUMNS: { key: WorkColumn; label: string; limitDays?: number }[] = [
-  { key: 'chua-vao-cot', label: 'Chưa vào sổ cơ hội' },
+  { key: 'unstaged', label: 'Chưa vào sổ cơ hội' },
   ...PIPELINE_STAGES.map((s) => ({
     key: s.key as WorkColumn,
     label: s.label,
@@ -489,7 +489,7 @@ export function myWork(input: {
     if (!action) return
     out.push({
       lead,
-      column: lead.stage ?? 'chua-vao-cot',
+      column: lead.stage ?? 'unstaged',
       reason,
       action,
       fresh,
@@ -539,7 +539,7 @@ export function myWork(input: {
 
   if (actor.roleId === 'presales') {
     for (const lead of running) {
-      if (lead.stage === 'tim-hieu' || lead.stage === 'da-demo') {
+      if (lead.stage === 'discovery' || lead.stage === 'demo-done') {
         push(lead, `Đơn ở cột có demo · chủ đơn ${lead.owner ?? 'chưa ai'}`)
       }
     }
@@ -572,8 +572,8 @@ export type AssigneeOption = {
   domains: string[]
   /** Vì sao được gợi ý cho ĐÚNG lead này. */
   why: string
-  /** 'toi' luôn đứng đầu; 'goi-y' là người hợp việc; 'con-lai' là phần còn lại. */
-  group: 'toi' | 'goi-y' | 'con-lai'
+  /** 'mine' luôn đứng đầu; 'suggested' là người hợp việc; 'rest' là phần còn lại. */
+  group: 'mine' | 'suggested' | 'rest'
 }
 
 /** Danh sách người nên giao, xếp theo mức hợp việc với ĐÚNG lead này.
@@ -608,11 +608,11 @@ export function assigneeOptions(
         why = `Còn ${missing} ô bắt buộc — moi ô là việc của vai này`
       } else if (
         a.roleId === 'presales' &&
-        (lead.stage === 'tim-hieu' || lead.stage === 'da-demo')
+        (lead.stage === 'discovery' || lead.stage === 'demo-done')
       ) {
         rank = 30
         why = 'Đơn đang ở cột có demo'
-      } else if (a.roleId === 'marketing' && lead.tier === 'dau-moi') {
+      } else if (a.roleId === 'marketing' && lead.tier === 'prospect') {
         rank = 40
         why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'
       } else if (a.roleId === 'head-of-sales') {
@@ -640,7 +640,7 @@ export function assigneeOptions(
     role: actor.role,
     domains,
     why,
-    group: actor.id === meId ? 'toi' : rank <= 50 ? 'goi-y' : 'con-lai',
+    group: actor.id === meId ? 'mine' : rank <= 50 ? 'suggested' : 'rest',
   }))
 }
 

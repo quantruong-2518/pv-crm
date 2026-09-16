@@ -53,7 +53,7 @@ const SEARCH_MAX = 120
 
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
-  'dau-moi': 'draft',
+  prospect: 'draft',
   mql: 'running',
   sql: 'success',
 }

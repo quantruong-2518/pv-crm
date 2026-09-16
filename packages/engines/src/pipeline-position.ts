@@ -82,7 +82,7 @@ export type PipelinePosition = {
    *  forever; scoping the key to its pipeline is that warning answered in the
    *  type, and it keeps the shape at the six fields already agreed. A bare key
    *  could not be read anyway by a screen that lists several pipelines at once,
-   *  since two ladders may well both call a phase `cho-ky`. */
+   *  since two ladders may well both call a phase `awaiting-signature`. */
   phase: { pipeline: PipelineId; key: string }
   /** The object's own state machine value, read straight off it, not
    *  reinterpreted: every pipeline keeps its own and this function has no

@@ -20,7 +20,7 @@
 /** Which side owes the work. Two values only, and that is the point: every line
  *  has exactly one side on the hook, so "which side is this stuck on" always
  *  has an answer. */
-export type ConditionSide = 'ta' | 'khách'
+export type ConditionSide = 'ours' | 'customer'
 
 export type InstallmentCondition = {
   id: string
@@ -37,7 +37,7 @@ export type InstallmentCondition = {
 /** "Not there yet" is a REAL state, not an empty slot: the invoice is unissued
  *  because the customer has not signed, and that ordering belongs to the
  *  contract rather than to the software. */
-export type DocState = 'đủ' | 'chờ-ký' | 'chưa-có'
+export type DocState = 'complete' | 'awaiting-signature' | 'missing'
 
 export type InstallmentDoc = {
   id: string
@@ -46,7 +46,7 @@ export type InstallmentDoc = {
   hint: string
 }
 
-export type RecordState = 'xong' | 'chờ-trả-lời' | 'đã-xếp' | 'chưa-tới'
+export type RecordState = 'done' | 'awaiting-reply' | 'scheduled' | 'upcoming'
 
 /** One touch — already sent, or queued to send. Both kinds share ONE list
  *  because the reader asks a single question: what have we chased, what is left
@@ -55,7 +55,7 @@ export type RecordState = 'xong' | 'chờ-trả-lời' | 'đã-xếp' | 'chưa-t
 export type InstallmentRecord = {
   id: string
   at: string
-  channel: 'email' | 'zalo-oa' | 'trong-app' | 'gọi'
+  channel: 'email' | 'zalo-oa' | 'in-app' | 'call'
   what: string
   detail: string
   state: RecordState
@@ -125,7 +125,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
         conditions: [
           {
             id: 'd1-c1',
-            side: 'ta',
+            side: 'ours',
             what: 'Ký hợp đồng và gửi bản gốc cho khách',
             due: '2026-07-22T00:00:00+07:00',
             doneAt: '2026-07-21T00:00:00+07:00',
@@ -133,7 +133,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
           {
             id: 'd1-c2',
-            side: 'khách',
+            side: 'customer',
             what: 'Chuẩn bị mặt bằng phòng máy và điện 3 pha',
             due: '2026-07-26T00:00:00+07:00',
             doneAt: '2026-07-24T00:00:00+07:00',
@@ -144,11 +144,16 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           {
             id: 'd1-t1',
             name: 'Hợp đồng HĐ-2607 bản ký.pdf',
-            state: 'đủ',
+            state: 'complete',
             hint: '12 trang · ký 21/07',
           },
-          { id: 'd1-t2', name: 'Hoá đơn GTGT đợt 1', state: 'đủ', hint: 'Phạm Thị Mai xuất 22/07' },
-          { id: 'd1-t3', name: 'Uỷ nhiệm chi của khách', state: 'đủ', hint: 'tiền về 25/07' },
+          {
+            id: 'd1-t2',
+            name: 'Hoá đơn GTGT đợt 1',
+            state: 'complete',
+            hint: 'Phạm Thị Mai xuất 22/07',
+          },
+          { id: 'd1-t3', name: 'Uỷ nhiệm chi của khách', state: 'complete', hint: 'tiền về 25/07' },
         ],
         records: [
           {
@@ -157,15 +162,15 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Gửi hợp đồng bản ký và hoá đơn đợt 1',
             detail: 'khách xác nhận trong ngày',
-            state: 'xong',
+            state: 'done',
           },
           {
             id: 'd1-r2',
             at: '2026-07-25T15:02:00+07:00',
-            channel: 'trong-app',
+            channel: 'in-app',
             what: 'Kế toán ghi nhận tiền về',
             detail: 'sớm hơn hạn 3 ngày',
-            state: 'xong',
+            state: 'done',
           },
         ],
         notes: [],
@@ -179,7 +184,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
         conditions: [
           {
             id: 'd2-c1',
-            side: 'ta',
+            side: 'ours',
             what: 'Bàn giao máy chủ và cài đặt MES',
             due: '2026-07-30T00:00:00+07:00',
             doneAt: '2026-07-29T00:00:00+07:00',
@@ -187,7 +192,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
           {
             id: 'd2-c2',
-            side: 'ta',
+            side: 'ours',
             what: 'Đào tạo vận hành ca 1 — 4 kỹ thuật viên',
             due: '2026-08-05T00:00:00+07:00',
             doneAt: '2026-08-04T00:00:00+07:00',
@@ -195,7 +200,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
           {
             id: 'd2-c3',
-            side: 'ta',
+            side: 'ours',
             what: 'Gửi biên bản nghiệm thu giai đoạn 1 cho khách',
             due: '2026-08-08T00:00:00+07:00',
             doneAt: '2026-08-08T00:00:00+07:00',
@@ -203,7 +208,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
           {
             id: 'd2-c4',
-            side: 'khách',
+            side: 'customer',
             what: 'Ký biên bản nghiệm thu giai đoạn 1',
             due: '2026-08-06T00:00:00+07:00',
             who: 'Nguyễn Văn Đạt',
@@ -213,20 +218,20 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           {
             id: 'd2-t1',
             name: 'Biên bản nghiệm thu GĐ1.pdf',
-            state: 'chờ-ký',
+            state: 'awaiting-signature',
             hint: '2 trang · ta gửi 08/08',
           },
-          { id: 'd2-t2', name: '6 ảnh chạy thử · xưởng X1', state: 'đủ', hint: 'chụp 07/08' },
+          { id: 'd2-t2', name: '6 ảnh chạy thử · xưởng X1', state: 'complete', hint: 'chụp 07/08' },
           {
             id: 'd2-t3',
             name: 'Hoá đơn GTGT đợt 2',
-            state: 'chưa-có',
+            state: 'missing',
             hint: 'kế toán xuất sau khi có chữ ký',
           },
           {
             id: 'd2-t4',
             name: 'Uỷ nhiệm chi của khách',
-            state: 'chưa-có',
+            state: 'missing',
             hint: 'bằng chứng tiền đã chuyển',
           },
         ],
@@ -234,10 +239,10 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           {
             id: 'd2-r1',
             at: '2026-07-29T08:30:00+07:00',
-            channel: 'trong-app',
+            channel: 'in-app',
             what: 'Nhắc kiểm tra khách đã mở duyệt chi chưa',
             detail: 'đã xem',
-            state: 'xong',
+            state: 'done',
           },
           {
             id: 'd2-r2',
@@ -245,7 +250,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Thư báo trước hạn — gửi Nguyễn Văn Đạt',
             detail: 'khách mở 06/08 08:11',
-            state: 'xong',
+            state: 'done',
           },
           {
             id: 'd2-r3',
@@ -253,7 +258,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Gửi biên bản nghiệm thu GĐ1',
             detail: 'Lê Minh Đức gửi · chưa có bản ký về',
-            state: 'xong',
+            state: 'done',
           },
           {
             id: 'd2-r4',
@@ -261,15 +266,15 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'zalo-oa',
             what: 'Nhắc lần 2 — xin ngày khách chuyển tiền',
             detail: 'đã nhận · chưa trả lời sau 20 giờ',
-            state: 'chờ-trả-lời',
+            state: 'awaiting-reply',
           },
           {
             id: 'd2-r5',
             at: '2026-08-12T08:00:00+07:00',
-            channel: 'trong-app',
+            channel: 'in-app',
             what: 'Đối chiếu với kế toán — tiền về chưa',
             detail: 'bạn và Phạm Thị Mai',
-            state: 'đã-xếp',
+            state: 'scheduled',
           },
           {
             id: 'd2-r6',
@@ -277,7 +282,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Nhắc chính thức — dẫn điều 6.1, phạt chậm 0,05%/ngày',
             detail: 'cc Trưởng phòng Kinh doanh · soạn sẵn',
-            state: 'chưa-tới',
+            state: 'upcoming',
           },
         ],
         notes: [
@@ -298,28 +303,28 @@ export const SAO_DO_CONTRACTS: Contract[] = [
         conditions: [
           {
             id: 'd3-c1',
-            side: 'ta',
+            side: 'ours',
             what: 'Chạy thử dây chuyền 1',
             due: '2026-08-08T00:00:00+07:00',
             who: 'Lê Minh Đức',
           },
           {
             id: 'd3-c2',
-            side: 'khách',
+            side: 'customer',
             what: 'Cấp dữ liệu mã hàng (BOM) cho dây chuyền 2',
             due: '2026-08-25T00:00:00+07:00',
             who: 'Nguyễn Văn Đạt',
           },
           {
             id: 'd3-c3',
-            side: 'ta',
+            side: 'ours',
             what: 'Bàn giao tài liệu vận hành',
             due: '2026-09-18T00:00:00+07:00',
             who: 'Lê Minh Đức',
           },
           {
             id: 'd3-c4',
-            side: 'khách',
+            side: 'customer',
             what: 'Ký biên bản nghiệm thu toàn bộ',
             due: '2026-09-18T00:00:00+07:00',
             who: 'Nguyễn Văn Đạt',
@@ -329,7 +334,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           {
             id: 'd3-t1',
             name: 'Kế hoạch chạy thử dây chuyền 1',
-            state: 'đủ',
+            state: 'complete',
             hint: 'Lê Minh Đức lập 02/08',
           },
         ],
@@ -337,10 +342,10 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           {
             id: 'd3-r1',
             at: '2026-08-09T10:15:00+07:00',
-            channel: 'trong-app',
+            channel: 'in-app',
             what: 'Kế hoạch báo chạy thử trễ, hẹn xong 14/08',
             detail: 'Lê Minh Đức cam kết · chưa phải ngày chốt',
-            state: 'xong',
+            state: 'done',
           },
           {
             id: 'd3-r2',
@@ -348,7 +353,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Thư báo trước hạn đợt 3',
             detail: 'soạn sẵn theo nhịp hạn − 14',
-            state: 'chưa-tới',
+            state: 'upcoming',
           },
         ],
         notes: [],
@@ -362,7 +367,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
         conditions: [
           {
             id: 'd4-c1',
-            side: 'ta',
+            side: 'ours',
             what: 'Hết 12 tháng bảo hành không sự cố',
             due: '2027-03-20T00:00:00+07:00',
             who: 'Lê Minh Đức',
@@ -396,7 +401,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
         conditions: [
           {
             id: 'mq-c1',
-            side: 'ta',
+            side: 'ours',
             what: 'Bàn giao và nghiệm thu toàn bộ',
             due: '2026-07-22T00:00:00+07:00',
             doneAt: '2026-07-20T00:00:00+07:00',
@@ -404,7 +409,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
           {
             id: 'mq-c2',
-            side: 'khách',
+            side: 'customer',
             what: 'Ký biên bản nghiệm thu',
             due: '2026-07-24T00:00:00+07:00',
             doneAt: '2026-07-24T00:00:00+07:00',
@@ -412,9 +417,14 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
         ],
         docs: [
-          { id: 'mq-t1', name: 'Biên bản nghiệm thu.pdf', state: 'đủ', hint: 'hai bên ký 24/07' },
-          { id: 'mq-t2', name: 'Hoá đơn GTGT', state: 'đủ', hint: 'xuất 25/07' },
-          { id: 'mq-t3', name: 'Uỷ nhiệm chi của khách', state: 'chưa-có', hint: 'chưa thấy tiền' },
+          {
+            id: 'mq-t1',
+            name: 'Biên bản nghiệm thu.pdf',
+            state: 'complete',
+            hint: 'hai bên ký 24/07',
+          },
+          { id: 'mq-t2', name: 'Hoá đơn GTGT', state: 'complete', hint: 'xuất 25/07' },
+          { id: 'mq-t3', name: 'Uỷ nhiệm chi của khách', state: 'missing', hint: 'chưa thấy tiền' },
         ],
         records: [
           {
@@ -423,7 +433,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Nhắc chính thức lần 1 — dẫn điều 6.1',
             detail: 'khách hẹn "cuối tuần"',
-            state: 'xong',
+            state: 'done',
           },
           {
             id: 'mq-r2',
@@ -431,7 +441,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Nhắc chính thức lần 2 — cc Trưởng phòng Kinh doanh',
             detail: 'nhịp lặp 3 ngày một lần',
-            state: 'đã-xếp',
+            state: 'scheduled',
           },
         ],
         notes: [
@@ -466,7 +476,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
         conditions: [
           {
             id: 'tt-c1',
-            side: 'ta',
+            side: 'ours',
             what: 'Bàn giao và nghiệm thu toàn bộ',
             due: '2026-08-03T00:00:00+07:00',
             doneAt: '2026-08-01T00:00:00+07:00',
@@ -474,7 +484,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
           {
             id: 'tt-c2',
-            side: 'khách',
+            side: 'customer',
             what: 'Ký biên bản nghiệm thu',
             due: '2026-08-05T00:00:00+07:00',
             doneAt: '2026-08-05T00:00:00+07:00',
@@ -482,12 +492,17 @@ export const SAO_DO_CONTRACTS: Contract[] = [
           },
         ],
         docs: [
-          { id: 'tt-t1', name: 'Biên bản nghiệm thu.pdf', state: 'đủ', hint: 'hai bên ký 05/08' },
-          { id: 'tt-t2', name: 'Hoá đơn GTGT', state: 'đủ', hint: 'xuất 06/08' },
+          {
+            id: 'tt-t1',
+            name: 'Biên bản nghiệm thu.pdf',
+            state: 'complete',
+            hint: 'hai bên ký 05/08',
+          },
+          { id: 'tt-t2', name: 'Hoá đơn GTGT', state: 'complete', hint: 'xuất 06/08' },
           {
             id: 'tt-t3',
             name: 'Uỷ nhiệm chi của khách',
-            state: 'chưa-có',
+            state: 'missing',
             hint: 'đến hạn hôm nay',
           },
         ],
@@ -498,7 +513,7 @@ export const SAO_DO_CONTRACTS: Contract[] = [
             channel: 'email',
             what: 'Thư báo trước hạn',
             detail: 'khách xác nhận sẽ chuyển đúng hạn',
-            state: 'xong',
+            state: 'done',
           },
         ],
         notes: [],

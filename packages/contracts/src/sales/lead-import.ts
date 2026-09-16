@@ -30,7 +30,7 @@ import { MOTION_BY_CHANNEL } from './lead-intake'
  *  ------------------------------------------------------------------
  *  Every batch carries a `motion` chosen by the person doing the load, and its
  *  door is fixed: `IMPORT`. That is not decoration — `CHANNEL_TRUST` reads it
- *  as `THO`, "nobody has confirmed anything". Rows that land through here are a
+ *  as `RAW`, "nobody has confirmed anything". Rows that land through here are a
  *  pile of data until someone touches them, and any conversion rate computed
  *  over a book that has swallowed such a pile without recording it is wrong.
  *
@@ -149,7 +149,7 @@ export const LeadImportBody = z.object({
   /** Shown in the batch record and in the lead's history line, so six months
    *  later "where did this row come from" has an answer. */
   fileName: textInput(LEAD_MAX.fileName),
-  /** Narrowed to the motions the `tep` door can carry — the same four the
+  /** Narrowed to the motions the `file` door can carry — the same four the
    *  screen offers (`LEAD_SPEC.motions`). A pair outside `MOTION_BY_CHANNEL`
    *  does not mean "not supported"; it means it does not happen, so it fails at
    *  the gate on the `motion` field rather than being stored and then
@@ -271,7 +271,7 @@ export const LeadImportCommitResponse = LeadImportReport.extend({
   at: Moment,
   /** The origin, stated by the server rather than assumed by the client. Always
    *  `IMPORT` for this endpoint, and it is what `CHANNEL_TRUST` reads to decide
-   *  the batch is `THO` — a trust label the client asserting itself would be
+   *  the batch is `RAW` — a trust label the client asserting itself would be
    *  worth nothing.
    *
    *  `APOLLO` does NOT come out of this endpoint even for an Apollo file: a

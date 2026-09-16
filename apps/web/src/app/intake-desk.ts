@@ -93,7 +93,7 @@ export const useIntakeDesk = create<IntakeState>()(
       addLeads: (batch, rows) => {
         let id = ''
         set((s) => {
-          id = `lo-${s.seq + 1}`
+          id = `batch-${s.seq + 1}`
           return {
             seq: s.seq + 1,
             batches: [{ ...batch, id }, ...s.batches],
@@ -106,7 +106,7 @@ export const useIntakeDesk = create<IntakeState>()(
       addOps: (batch, rows) => {
         let id = ''
         set((s) => {
-          id = `lo-${s.seq + 1}`
+          id = `batch-${s.seq + 1}`
           return {
             seq: s.seq + 1,
             batches: [{ ...batch, id }, ...s.batches],

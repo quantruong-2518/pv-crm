@@ -269,11 +269,11 @@ function RichTextDemo() {
  *  `PIPELINE_STAGES`: the kit page draws COMPONENTS and stands on no scenario.
  *  The hint here is sample text, not a real deal's numbers. */
 const KIT_STAGES = [
-  { key: 'moi', label: 'Mới' },
-  { key: 'tim-hieu', label: 'Đang tìm hiểu' },
-  { key: 'da-demo', label: 'Đã demo', hint: '9 ngày · hạn 21' },
-  { key: 'da-bao-gia', label: 'Đã báo giá' },
-  { key: 'cho-ky', label: 'Chờ ký' },
+  { key: 'new', label: 'Mới' },
+  { key: 'discovery', label: 'Đang tìm hiểu' },
+  { key: 'demo-done', label: 'Đã demo', hint: '9 ngày · hạn 21' },
+  { key: 'quoted', label: 'Đã báo giá' },
+  { key: 'awaiting-signature', label: 'Chờ ký' },
 ]
 
 function StepperDemo() {

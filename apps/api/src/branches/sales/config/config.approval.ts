@@ -53,18 +53,12 @@ import type { MotionPolicyPatchDb } from './motion.schema'
  *  trong `draft` vì máy chủ sinh chúng lúc ÁP DỤNG — hai đề nghị cùng chờ mà đã
  *  giữ sẵn `ord` thì cái được gật sau mang một số đã cũ. */
 export type ConfigChange =
-  | { kind: 'tao'; list: ConfigList; draft: ConfigDraft }
-  | { kind: 'sua'; list: ConfigList; id: string; patch: ConfigPatchDb }
-  | { kind: 'thu-tu'; list: ConfigList; ids: string[] }
+  | { kind: 'create'; list: ConfigList; draft: ConfigDraft }
+  | { kind: 'update'; list: ConfigList; id: string; patch: ConfigPatchDb }
+  | { kind: 'reorder'; list: ConfigList; ids: string[] }
   /** A motion's own declaration — no `list`, because the six motions are not a
    *  vocabulary list: they cannot be added to, removed or reordered, and each
-   *  carries four unrelated fields. Same approval path, different table.
-   *
-   *  Spelled in English while the three above are not, and that is the rule
-   *  rather than an inconsistency: this value travels inside `approval.payload`
-   *  as JSON, so it is a stored key. The three older ones are on the identity
-   *  cleanup queue (`docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`); matching them would
-   *  add a fourth row to that queue. */
+   *  carries four unrelated fields. Same approval path, different table. */
   | { kind: 'motion'; motion: LeadMotion; patch: MotionPolicyPatchDb }
 
 /** Biên lai của một đề nghị. `state` là của E3, không phải của module này. */
@@ -102,9 +96,9 @@ const CONFIG_APPROVERS: RoleId[] = ['director']
  *  saying yes must see the consequence, not a JSON body. Short on purpose —
  *  an inbox row is scanned, not studied. */
 function consequenceOf(change: ConfigChange): string {
-  if (change.kind === 'tao') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
-  if (change.kind === 'sua') return `Sửa dòng ${change.id} của danh mục ${change.list}`
-  if (change.kind === 'thu-tu') {
+  if (change.kind === 'create') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
+  if (change.kind === 'update') return `Sửa dòng ${change.id} của danh mục ${change.list}`
+  if (change.kind === 'reorder') {
     return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
   }
   return `Đổi thiết lập luồng ${change.motion}: ${motionWords(change.patch).join(' · ')}`

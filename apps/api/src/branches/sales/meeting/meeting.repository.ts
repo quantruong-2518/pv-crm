@@ -111,7 +111,7 @@ export class MeetingRepository {
   }
 
   /** Buổi họp SỚM NHẤT của lead đã có chưa — câu duy nhất cửa ghi cần để biết
-   *  dòng `touch` sắp ghi là `gap-lan-dau` hay `cham`.
+   *  dòng `touch` sắp ghi là `first-meeting` hay `contacted`.
    *
    *  Đếm chứ không đọc dòng: câu hỏi là "đã có buổi nào chưa", và một `count`
    *  không kéo transcript của buổi cũ về chỉ để bị vứt đi. */

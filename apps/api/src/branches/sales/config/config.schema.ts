@@ -71,7 +71,7 @@ export const configEntry = sales.table(
      *  trùng tên là hai người nhận nhầm lead của nhau — trả nợ đó trước ở đây
      *  thay vì trả sau bằng migration. */
     ownerId: text('owner_id').references(() => actor.id),
-    /** CHỈ `SOURCE` — 'chien-dich' · 'su-kien' · 'tu-nhien'. */
+    /** CHỈ `SOURCE` — 'campaign' · 'event' · 'organic'. */
     kind: text('kind'),
   },
   (t) => [
@@ -89,7 +89,7 @@ export const configEntry = sales.table(
      *  to be an equality — a ladder rung must ALSO have a clock — which held
      *  while `STAGE` was the only ladder because the seed gave every funnel
      *  column a deadline. `TIER` has none: nobody has decided how long a
-     *  lead may sit at `dau-moi`, and an undeclared number stays `NULL` here
+     *  lead may sit at `prospect`, and an undeclared number stays `NULL` here
      *  rather than being invented. Under the equality, giving a lead a position
      *  at all would have cost a made-up deadline somebody reads as agreed a
      *  month later. The nagging half of luật 2 §2 lives on the screen, where a

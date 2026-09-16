@@ -22,19 +22,19 @@ const countOf = (kind: LeadEventKind) => HISTORY.filter((e) => e.kind === kind).
 
 describe('Dòng thời gian · kịch bản 2 · DAS Vina', () => {
   it('mỗi lead vào sổ đúng một lần', () => {
-    expect(countOf('vao-so')).toBe(LEADS.length)
+    expect(countOf('created')).toBe(LEADS.length)
   })
 
   it('số lần ký khớp số hợp đồng của sổ', () => {
-    expect(countOf('ky')).toBe(BOOK_SPLIT.signed)
+    expect(countOf('signed')).toBe(BOOK_SPLIT.signed)
   })
 
   it('số lần ra khỏi luồng khớp số lead đã rơi', () => {
-    expect(countOf('ra-khoi-luong')).toBe(BOOK_SPLIT.exited)
+    expect(countOf('exited')).toBe(BOOK_SPLIT.exited)
   })
 
   it('số buổi gặp đầu khớp hằng số đã chốt, và khớp điều kiện của nó', () => {
-    expect(countOf('gap-lan-dau')).toBe(FIRST_MEETINGS)
+    expect(countOf('first-meeting')).toBe(FIRST_MEETINGS)
     expect(LEADS.filter(hasFirstMeeting).length).toBe(FIRST_MEETINGS)
   })
 
@@ -50,31 +50,33 @@ describe('Ràng buộc mà bảng `sales.touch` sẽ từ chối', () => {
      screen looking wrong — it aborts `db:seed` with a constraint name, which
      is a worse place to learn about it than here. */
 
-  it('mọi mốc lên bậc đều tự khai bậc — `touch_len_bac_co_bac`', () => {
-    const naked = HISTORY.filter((e) => e.kind === 'len-bac' && !e.toTier)
+  it('mọi mốc lên bậc đều tự khai bậc — `touch_tier_raised_has_tier`', () => {
+    const naked = HISTORY.filter((e) => e.kind === 'tier-raised' && !e.toTier)
     expect(naked).toEqual([])
   })
 
   it('bậc khai ra dừng đúng ở bậc lead đang đứng', () => {
     for (const lead of LEADS) {
-      const rungs = lead.history.filter((e) => e.kind === 'len-bac')
-      const last = rungs.at(-1)?.toTier ?? 'dau-moi'
+      const rungs = lead.history.filter((e) => e.kind === 'tier-raised')
+      const last = rungs.at(-1)?.toTier ?? 'prospect'
       expect(last, lead.code).toBe(lead.tier)
     }
   })
 
-  it('chỉ `giao` và `vao-so` chở người nhận — `touch_hand_over_sides`', () => {
-    const wrong = HISTORY.filter((e) => e.toName && e.kind !== 'giao' && e.kind !== 'vao-so')
+  it('chỉ `handed-over` và `created` chở người nhận — `touch_hand_over_sides`', () => {
+    const wrong = HISTORY.filter(
+      (e) => e.toName && e.kind !== 'handed-over' && e.kind !== 'created',
+    )
     expect(wrong).toEqual([])
   })
 
-  it('chỉ `giao` chở người giao — `touch_hand_over_sides`', () => {
-    const wrong = HISTORY.filter((e) => e.fromName && e.kind !== 'giao')
+  it('chỉ `handed-over` chở người giao — `touch_hand_over_sides`', () => {
+    const wrong = HISTORY.filter((e) => e.fromName && e.kind !== 'handed-over')
     expect(wrong).toEqual([])
   })
 
-  it('mọi lần giao đều nêu được ít nhất một đầu — `touch_giao_names_an_end`', () => {
-    const naked = HISTORY.filter((e) => e.kind === 'giao' && !e.fromName && !e.toName)
+  it('mọi lần giao đều nêu được ít nhất một đầu — `touch_handed_over_names_an_end`', () => {
+    const naked = HISTORY.filter((e) => e.kind === 'handed-over' && !e.fromName && !e.toName)
     expect(naked).toEqual([])
   })
 })
@@ -82,18 +84,18 @@ describe('Ràng buộc mà bảng `sales.touch` sẽ từ chối', () => {
 describe('Nửa trái của vector luồng', () => {
   it('mọi lead đều có ít nhất một mắt — không hồ sơ nào mở ra trống', () => {
     const blind = LEADS.filter(
-      (l) => !l.history.some((e) => e.toName && (e.kind === 'giao' || e.kind === 'vao-so')),
+      (l) => !l.history.some((e) => e.toName && (e.kind === 'handed-over' || e.kind === 'created')),
     )
     expect(blind).toEqual([])
   })
 
   it('lead đã qua bậc đầu mối thì chuỗi có hai mắt, và mắt sau nối mắt trước', () => {
-    const moved = LEADS.filter((l) => l.tier !== 'dau-moi')
+    const moved = LEADS.filter((l) => l.tier !== 'prospect')
     expect(moved.length).toBeGreaterThan(0)
 
     for (const lead of moved) {
-      const entered = lead.history.find((e) => e.kind === 'vao-so')
-      const handed = lead.history.find((e) => e.kind === 'giao')
+      const entered = lead.history.find((e) => e.kind === 'created')
+      const handed = lead.history.find((e) => e.kind === 'handed-over')
 
       /* The chain has to JOIN: whoever received the lead on the way in is
          whoever gives it away next. A break here draws a vector with two

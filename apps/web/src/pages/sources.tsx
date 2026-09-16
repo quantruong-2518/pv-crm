@@ -121,7 +121,7 @@ export function SourcesPage() {
   /* Thứ tự bảng là state của MÀN, không phải của `DataTable` — bảng chỉ vẽ mũi
      tên và báo người dùng vừa bấm cột nào. Mặc định mới nhất lên trước. */
   const [sort, setSort] = useState<{ key: SourceSortKey; dir: TableSort['dir'] }>({
-    key: 'bat-dau',
+    key: 'start',
     dir: 'desc',
   })
 
@@ -134,8 +134,8 @@ export function SourcesPage() {
      tổng nói 2 trong khi bảng dưới nó tô một dòng. */
   const byStatus = useMemo(
     () => ({
-      done: sources.filter((r) => r.status === 'da-xong').length,
-      running: sources.filter((r) => r.status === 'dang-chay').length,
+      done: sources.filter((r) => r.status === 'done').length,
+      running: sources.filter((r) => r.status === 'running').length,
     }),
     [sources],
   )
@@ -433,12 +433,12 @@ export function SourcesPage() {
                 { header: 'Nguồn dẫn', width: '2.4fr' },
                 { header: 'PIC', width: '1fr' },
                 { header: 'Kênh bắn', width: '0.8fr' },
-                { header: 'Bắt đầu', width: '0.75fr', sortKey: 'bat-dau' },
-                { header: 'Kết thúc', width: '0.75fr', sortKey: 'ket-thuc' },
-                { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'nguoi-nhan' },
-                { header: 'Mở mail', width: '0.7fr', align: 'right', sortKey: 'mo' },
-                { header: 'Bấm', width: '0.7fr', align: 'right', sortKey: 'bam' },
-                { header: 'Mail hỏng', width: '0.75fr', align: 'right', sortKey: 'hong' },
+                { header: 'Bắt đầu', width: '0.75fr', sortKey: 'start' },
+                { header: 'Kết thúc', width: '0.75fr', sortKey: 'end' },
+                { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'recipients' },
+                { header: 'Mở mail', width: '0.7fr', align: 'right', sortKey: 'opens' },
+                { header: 'Bấm', width: '0.7fr', align: 'right', sortKey: 'clicks' },
+                { header: 'Mail hỏng', width: '0.75fr', align: 'right', sortKey: 'bounces' },
                 { header: '→ Ops', width: '0.7fr', align: 'right', sortKey: 'ops' },
               ]}
               rows={visible.map((s) => {

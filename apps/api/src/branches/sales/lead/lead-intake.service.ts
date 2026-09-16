@@ -64,7 +64,7 @@ export class LeadIntakeService {
           {
             subjectCode: code,
             subjectKind: 'lead',
-            kind: 'vao-so',
+            kind: 'created',
             by: SYSTEM_ACTOR,
             note: LEAD_NOTE.landing,
           },

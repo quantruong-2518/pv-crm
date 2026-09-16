@@ -216,7 +216,7 @@ const SAMPLES = [
         // with no token layer to lean on.
         bookingUrl: 'https://calendly.com/vivian-pebblevina/30min',
         assetBaseUrl,
-        unsubscribeUrl: `${ORIGIN}/unsubscribe?token=mau-xem-truoc`,
+        unsubscribeUrl: `${ORIGIN}/unsubscribe?token=preview`,
         sender: {
           name: 'Pebble Vina Technology',
           address:

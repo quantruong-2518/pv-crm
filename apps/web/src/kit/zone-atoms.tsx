@@ -87,7 +87,7 @@ export function ZoneAtoms() {
      không, và ô tick có đổi nền không. */
   const [tier, setTier] = useState('all')
   const [picked, setPicked] = useState<string[]>(['Đỗ Quang Huy'])
-  const [grain, setGrain] = useState('quy')
+  const [grain, setGrain] = useState('quarter')
   const [fn, setFn] = useState('all')
 
   return (
@@ -361,7 +361,7 @@ export function ZoneAtoms() {
             onChange={setTier}
             options={[
               { value: 'all', label: 'Tất cả' },
-              { value: 'dau-moi', label: 'Đầu mối · 56' },
+              { value: 'prospect', label: 'Đầu mối · 56' },
               { value: 'mql', label: 'MQL · 14' },
               { value: 'sql', label: 'SQL · 30' },
             ]}
@@ -488,9 +488,9 @@ export function ZoneAtoms() {
             value={grain}
             onChange={setGrain}
             options={[
-              { value: 'thang', label: 'Tháng' },
-              { value: 'quy', label: 'Quý' },
-              { value: 'nam', label: 'Năm' },
+              { value: 'month', label: 'Tháng' },
+              { value: 'quarter', label: 'Quý' },
+              { value: 'year', label: 'Năm' },
             ]}
           />
           <SegmentedControl

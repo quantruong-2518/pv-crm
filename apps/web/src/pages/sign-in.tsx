@@ -44,10 +44,9 @@ import { CHANGE_PASSWORD_PATH, useSession, type ExpiryReason } from '@/app/auth'
  *  gone and only the route comes back. Promising more here would make the
  *  system look broken at the exact moment the user trusts it least. */
 const WHY: Record<ExpiryReason, string> = {
-  'ngồi-không':
-    'Máy để không quá lâu nên phiên tự đóng. Đăng nhập lại để mở lại trang bạn đang xem.',
-  'hết-ca': 'Hết một ca làm việc. Đăng nhập lại để mở lại trang bạn đang xem.',
-  'bị-thu-hồi': 'Phiên đã bị đóng. Đăng nhập lại nếu người ngồi đây vẫn là bạn.',
+  idle: 'Máy để không quá lâu nên phiên tự đóng. Đăng nhập lại để mở lại trang bạn đang xem.',
+  'shift-ended': 'Hết một ca làm việc. Đăng nhập lại để mở lại trang bạn đang xem.',
+  revoked: 'Phiên đã bị đóng. Đăng nhập lại nếu người ngồi đây vẫn là bạn.',
 }
 
 export function SignInPage() {

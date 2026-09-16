@@ -114,7 +114,7 @@ export const ContractSign = z
 
 /** Which side owes the work. Two values, so "which side is this stuck on"
  *  always has an answer. */
-export const ConditionSide = z.enum(['ta', 'khách'])
+export const ConditionSide = z.enum(['ours', 'customer'])
 
 /** One unlock line inside an installment's checklist. */
 export const InstallmentConditionRow = z.object({
@@ -130,7 +130,7 @@ export const InstallmentConditionRow = z.object({
 
 /** "Not there yet" is a real state, not an empty slot — see the docblock on
  *  the fixture's own `DocState`. */
-export const DocState = z.enum(['đủ', 'chờ-ký', 'chưa-có'])
+export const DocState = z.enum(['complete', 'awaiting-signature', 'missing'])
 
 export const InstallmentDocRow = z.object({
   id: z.string().min(1).max(64),
@@ -139,7 +139,7 @@ export const InstallmentDocRow = z.object({
   hint: textInput(300),
 })
 
-export const RecordState = z.enum(['xong', 'chờ-trả-lời', 'đã-xếp', 'chưa-tới'])
+export const RecordState = z.enum(['done', 'awaiting-reply', 'scheduled', 'upcoming'])
 
 /** Channel of one touch on an installment — already sent, or queued to send.
  *  A different closed set from `ContactChannel` in `./enums`: that one lists
@@ -147,7 +147,7 @@ export const RecordState = z.enum(['xong', 'chờ-trả-lời', 'đã-xếp', 'c
  *  the two vocabularies do not line up (the phone-call value here has no
  *  analogue on the lead side, and telegram/linkedin/facebook/website have
  *  none here). */
-export const RecordChannel = z.enum(['email', 'zalo-oa', 'trong-app', 'gọi'])
+export const RecordChannel = z.enum(['email', 'zalo-oa', 'in-app', 'call'])
 
 export const InstallmentRecordRow = z.object({
   id: z.string().min(1).max(64),

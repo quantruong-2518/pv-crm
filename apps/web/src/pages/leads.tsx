@@ -211,7 +211,7 @@ const PAGE_SIZE = 10
 const ANY = 'all'
 
 /** Tiền tố đánh dấu một giá trị ô lọc Nguồn là `sourceKind` chứ không phải id
- *  chiến dịch — xem docblock `nguonOptions` cho lý do một ô cần phân biệt hai
+ *  chiến dịch — xem docblock `sourceFilterOptions` cho lý do một ô cần phân biệt hai
  *  loại giá trị. An toàn vì hai bảng mã không bao giờ đụng nhau: id chiến dịch
  *  luôn có tiền tố `SR-` (`ConfigCode`, sáu prefix theo danh mục), `LeadSourceKind`
  *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
@@ -438,7 +438,7 @@ export function LeadsPage() {
      được "SR-09" (một id chiến dịch) với "LANDING_PAGE" (một kind) mà không
      cần đi tra lại — hai bảng mã không bao giờ đụng nhau (chiến dịch luôn có
      tiền tố `SR-`, kind luôn viết hoa không dấu gạch), nên ghép an toàn. */
-  const nguonOptions = useMemo(
+  const sourceFilterOptions = useMemo(
     () => [
       ...sourceOptions.map((entry) => ({ value: entry.id, label: entry.name })),
       ...(sourceKindFacets?.sourceKinds ?? []).map((kind) => ({
@@ -449,11 +449,11 @@ export function LeadsPage() {
     [sourceOptions, sourceKindFacets],
   )
 
-  const nguonValue = query.sourceKind
+  const sourceFilterValue = query.sourceKind
     ? `${KIND_PREFIX}${query.sourceKind}`
     : (query.campaign ?? ANY)
 
-  const patchNguon = (value: string) => {
+  const patchSourceFilter = (value: string) => {
     if (value === ANY) return patch({ campaign: undefined, sourceKind: undefined })
     if (value.startsWith(KIND_PREFIX)) {
       return patch({
@@ -706,8 +706,8 @@ export function LeadsPage() {
           />
           <Select
             label="Nguồn"
-            value={nguonValue}
-            onChange={patchNguon}
+            value={sourceFilterValue}
+            onChange={patchSourceFilter}
             /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
                dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
             className="w-full max-w-none"
@@ -717,7 +717,7 @@ export function LeadsPage() {
                  `${entry.id} · ${entry.name}`, tức dán 'SR-09' vào trước mỗi
                  dòng của một ô chọn mà người dùng đọc bằng tên. Mã vẫn là thứ
                  đi vào câu hỏi gửi máy chủ, nó chỉ không cần đi vào mắt ai. */
-              ...nguonOptions,
+              ...sourceFilterOptions,
             ]}
           />
           {dirty && (
@@ -1129,7 +1129,7 @@ function shortSourceName(name: string): string {
  *  mắt bắt được ngay khi lướt bảng. Phần đó vẫn đúng.
  *
  *  Câu `if` thì không. Bản trước so `entry.kind === 'mua-du-lieu'`, mà `kind`
- *  của một dòng SỔ NGUỒN chỉ nhận `chien-dich · su-kien · tu-nhien` — nhánh
+ *  của một dòng SỔ NGUỒN chỉ nhận `campaign · event · organic` — nhánh
  *  vàng là code chết kể từ dòng đầu tiên nó được viết, và không có gì bắt
  *  được: cả hai vế đều là `string`, nên `tsc` cũng im. Nay nó so
  *  `source.kind === 'APOLLO'`, một giá trị có thật của enum `LeadSourceKind`,
@@ -1230,7 +1230,7 @@ function StatusCell({ lead }: { lead: LeadRow }) {
   if (lead.signed) return <Badge tone="success">Đã ký</Badge>
 
   if (lead.exitReason) {
-    /* Máy chủ trả KHOÁ ASCII ('khong-goi-duoc'), fixture giữ NHÃN tiếng Việt.
+    /* Máy chủ trả KHOÁ ASCII ('unreachable'), fixture giữ NHÃN tiếng Việt.
        Bảng tra ở `data/leads.ts`, cùng chỗ với lời giải thích vì sao nó tồn tại. */
     const why = EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason
     return (

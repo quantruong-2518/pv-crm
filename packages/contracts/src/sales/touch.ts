@@ -35,7 +35,7 @@ import { LeadTier } from './enums'
  *
  *  Not every kind has a writer yet, and that is honest rather than aspirational:
  *  the branch writes what its doors actually do. Two are still unwritten today —
- *  `len-bac` and `ra-khoi-luong` — because no door moves a tier or drops a lead
+ *  `tier-raised` and `exited` — because no door moves a tier or drops a lead
  *  out of the funnel: both contracts withhold those columns on purpose ("gates,
  *  not fields"). They are in the enum because the screen draws them and because
  *  the alternative — widening the enum later — is a migration on a CHECK
@@ -46,7 +46,7 @@ import { LeadTier } from './enums'
  *  ------------------------------------------------------------------
  *  `GET /sales/leads/:code/mail` already answers "how often have we written to
  *  this person", with open and click counts a touch row could not carry. Adding
- *  a `cham` row per delivery would put the same fact in two tables that then
+ *  a `contacted` row per delivery would put the same fact in two tables that then
  *  disagree the first time a send fails after being queued — the ledger would
  *  know, the timeline would not. Two streams, two questions, one screen free to
  *  draw them side by side. */
@@ -57,25 +57,25 @@ import { LeadTier } from './enums'
 
 export const TouchKind = z.enum([
   /** A lead entered the book — typed, imported, or through the landing page. */
-  'vao-so',
+  'created',
   /** Somebody made contact — today, a meeting that is not the first one. */
-  'cham',
+  'contacted',
   /** Fields on the profile were filled in or corrected. */
-  'dien-o',
+  'field-filled',
   /** Ownership handed over. Names both ends in `from`/`to`. */
-  'giao',
+  'handed-over',
   /** The lead moved up a tier. */
-  'len-bac',
+  'tier-raised',
   /** First meeting happened. */
-  'gap-lan-dau',
+  'first-meeting',
   /** A lead became an opportunity. */
-  'vao-pipeline',
+  'entered-pipeline',
   /** A deal changed column. */
-  'doi-cot',
+  'stage-changed',
   /** A contract was signed. */
-  'ky',
+  'signed',
   /** The lead left the funnel. */
-  'ra-khoi-luong',
+  'exited',
 ])
 
 /** Which book the row hangs off. A deal and its lead keep separate trails —
@@ -123,13 +123,13 @@ export const TouchRow = z.object({
   subjectKind: TouchSubject,
   kind: TouchKind,
 
-  /** The tier the lead stands at AFTER this step. Present on `len-bac` — the
-   *  database refuses that kind without it — and optionally on `vao-so`, for a
+  /** The tier the lead stands at AFTER this step. Present on `tier-raised` — the
+   *  database refuses that kind without it — and optionally on `created`, for a
    *  lead that entered the book already graded.
    *
    *  `kind` alone cannot answer the question the performance screen asks:
-   *  `len-bac` says "moved up one", not "moved up to `mql`". Counting by
-   *  ordinal position instead (first `len-bac` is `mql`, second is `sql`) holds
+   *  `tier-raised` says "moved up one", not "moved up to `mql`". Counting by
+   *  ordinal position instead (first `tier-raised` is `mql`, second is `sql`) holds
    *  only while the trail has no gaps, no write skips a rung, and every lead
    *  starts from the same rung. None of those three is enforced anywhere — they
    *  are current habits of the code, and a count resting on habit breaks
@@ -153,13 +153,13 @@ export const TouchRow = z.object({
    *  after.
    *
    *  `to` follows the convention `toTier` already set on this row: what is true
-   *  AFTER this step, stated by the row itself. So `to` appears on `giao`, and
-   *  on `vao-so` for a lead that entered the book already assigned — a trail
+   *  AFTER this step, stated by the row itself. So `to` appears on `handed-over`, and
+   *  on `created` for a lead that entered the book already assigned — a trail
    *  that begins at a holder written down rather than at one inferred.
    *
    *  An absent end is the common pool, and that is a fact rather than a hole:
    *  no `from` means it was claimed out of the pool, no `to` means it was
-   *  released back into it. A `giao` row carries at least one of them.
+   *  released back into it. A `handed-over` row carries at least one of them.
    *
    *  Why columns and not the sentence in `note`, which already names the
    *  recipient: the flow vector draws one step per holder, and reading the

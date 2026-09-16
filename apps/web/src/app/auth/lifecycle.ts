@@ -23,10 +23,10 @@ import { SESSION_LIMITS, ticketDeath, useSession, type Ticket } from './session'
 type AuthSignal =
   /** Tab kia đăng xuất. Tab nhận phải dọn NGAY, không đợi đọc lại kho — kho
    *  trống thì `rehydrate` không có gì để áp và phiên trong bộ nhớ sống tiếp. */
-  | { kiểu: 'ra' }
+  | { kind: 'signed-out' }
   /** Kho đã đổi (vừa đăng nhập, hoặc vừa gia hạn). Tab nhận đọc lại kho thay vì
    *  nhận state qua message: một nguồn sự thật, không có bản sao đi đường vòng. */
-  | { kiểu: 'đổi' }
+  | { kind: 'changed' }
 
 const CHANNEL = 'pv-auth'
 
@@ -124,7 +124,7 @@ export function startAuthLifecycle(): () => void {
     if (now - lastTouch < TOUCH_EVERY) return
     lastTouch = now
     useSession.getState().touch(now)
-    send({ kiểu: 'đổi' })
+    send({ kind: 'changed' })
   }
 
   const onVisible = () => {
@@ -147,7 +147,7 @@ export function startAuthLifecycle(): () => void {
      đóng — bốn tab thành bốn lời gọi, và cái thứ hai trở đi chỉ có thể trả lỗi.
      Việc của tab này là dọn màn của chính nó. */
   const onMessage = (ev: MessageEvent<AuthSignal>) => {
-    if (ev.data.kiểu === 'ra') {
+    if (ev.data.kind === 'signed-out') {
       applyRemote(() => useSession.getState().clearSession())
       return
     }
@@ -170,8 +170,8 @@ export function startAuthLifecycle(): () => void {
   const unsubscribe = useSession.subscribe((now, before) => {
     if (now.status !== before.status || now.ticket !== before.ticket) rearm()
 
-    if (before.status === 'signed-in' && now.status === 'guest') send({ kiểu: 'ra' })
-    else if (now.status === 'signed-in' && before.status !== 'signed-in') send({ kiểu: 'đổi' })
+    if (before.status === 'signed-in' && now.status === 'guest') send({ kind: 'signed-out' })
+    else if (now.status === 'signed-in' && before.status !== 'signed-in') send({ kind: 'changed' })
   })
 
   /** Lưới an toàn cho `booting`.

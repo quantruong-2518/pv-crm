@@ -17,7 +17,6 @@ import {
   LEAD_INTAKES,
   LEAD_MOTIONS,
   type Actor,
-  type IntakeTrust,
   type LeadIntake,
   type LeadMotion,
 } from '@pv/engines'
@@ -33,7 +32,7 @@ import {
   type OriginKind,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
-import { EMAIL_MAX, LEAD_MAX, MAX_IMPORT_CELL, PHONE_MAX } from '@pv/contracts'
+import { EMAIL_MAX, LEAD_MAX, MAX_IMPORT_CELL, PHONE_MAX, type IntakeTrust } from '@pv/contracts'
 import { peopleIdOptions, peopleNameOptions } from '@/data/directory'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { MAX_ROWS, type Sheet } from '@/data/intake-file'
@@ -120,25 +119,25 @@ export type IntakeFace = {
 }
 
 export const INTAKE_FACE: Record<LeadIntake, IntakeFace> = {
-  'dong-bo': {
+  sync: {
     label: 'Đợt tự đổ về',
     icon: Megaphone,
     blurb: 'Chiến dịch chạy xong, lead từ đợt rơi thẳng vào sổ.',
     built: true,
   },
-  tep: {
+  file: {
     label: 'Nạp tệp',
     icon: FileSpreadsheet,
     blurb: 'Kéo một tệp CSV hoặc Excel vào sổ, khớp cột rồi nạp cả lô.',
     built: true,
   },
-  tay: {
+  manual: {
     label: 'Gõ tay',
     icon: PenLine,
     blurb: 'Một dòng một lần, người gõ chịu trách nhiệm từng ô.',
     built: false,
   },
-  quet: {
+  scan: {
     label: 'Quét thẻ',
     icon: ScanLine,
     blurb: 'Quét mã tại quầy sự kiện — khách đang đứng trước mặt.',
@@ -162,17 +161,17 @@ export const TRUST_FACE: Record<
   IntakeTrust,
   { label: string; tone: 'success' | 'running' | 'draft'; blurb: string }
 > = {
-  'xac-minh': {
+  VERIFIED: {
     label: 'Có khách xác nhận',
     tone: 'success',
     blurb: 'Người bên khách đã tự tay đưa thông tin.',
   },
-  'khai-bao': {
+  DECLARED: {
     label: 'Có người mình đứng tên',
     tone: 'running',
     blurb: 'Một người bên mình chịu trách nhiệm dòng này.',
   },
-  tho: {
+  RAW: {
     label: 'Chưa ai xác nhận',
     tone: 'draft',
     blurb: 'Mới là một dòng dữ liệu — chưa ai chạm khách.',
@@ -198,13 +197,13 @@ export const trustOf = (intake: LeadIntake) => TRUST_FACE[INTAKE_TRUST[intake]]
  *  ra `outbound`. Có nhật ký đợt theo từng lead thì tách lại. */
 export function motionOfOrigin(kind: OriginKind): LeadMotion {
   switch (kind) {
-    case 'chien-dich':
+    case 'campaign':
       return 'outbound'
-    case 'su-kien':
+    case 'event':
       return 'event'
-    case 'gioi-thieu':
+    case 'referral':
       return 'referral'
-    case 'tu-mo':
+    case 'self-sourced':
       return 'outbound'
   }
 }
@@ -267,7 +266,7 @@ export type ImportSpec = {
   title: string
   /** Một câu: nạp cái gì vào đâu. */
   blurb: string
-  /** Đường vào cố định của luồng — cả ba luồng đều là `tep`, và nói ra chứ
+  /** Đường vào cố định của luồng — cả ba luồng đều là `file`, và nói ra chứ
    *  không ngầm hiểu, vì đó là thứ quyết định mức tin của dòng nạp về. */
   intake: LeadIntake
   /** Thế được phép chọn cho cả lô. Cắt theo `MOTION_BY_INTAKE` của engine rồi
@@ -347,7 +346,7 @@ export const LEAD_SPEC: ImportSpec = {
   key: 'lead',
   title: 'Nạp lead vào sổ',
   blurb: 'Mỗi dòng của tệp thành một lead. Cột nào khớp được thì tính luôn vào cổng init data.',
-  intake: 'tep',
+  intake: 'file',
   motions: ['outbound', 'event', 'partner', 'recycle'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-lead',
@@ -548,7 +547,7 @@ export const RECIPIENT_SPEC: ImportSpec = {
   key: 'recipient',
   title: 'Nạp danh sách người nhận',
   blurb: 'Danh sách gửi của một đợt, hoặc danh sách đăng ký và người đến của một buổi.',
-  intake: 'tep',
+  intake: 'file',
   motions: ['outbound', 'event'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-nguoi-nhan',
@@ -624,7 +623,7 @@ export const OP_SPEC: ImportSpec = {
   key: 'op',
   title: 'Nạp cơ hội vào sổ',
   blurb: 'Mang pipeline đang giữ trong Excel vào sổ cơ hội, mỗi dòng một đơn.',
-  intake: 'tep',
+  intake: 'file',
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-co-hoi',
   fields: [
@@ -1079,7 +1078,7 @@ export function errorRows(errors: RowError[], spec?: ImportSpec): string[][] {
  *
  *  `Lead` của fixture không có hai ô đó và sẽ không bao giờ có (100 dòng đã
  *  đóng băng). Với dòng NẠP thì hai ô ấy là thứ biết chắc — người nạp vừa chọn
- *  thế, và đường vào thì cố định là `tep` — nên giữ thẳng chứ không suy lại. */
+ *  thế, và đường vào thì cố định là `file` — nên giữ thẳng chứ không suy lại. */
 export type ImportedLead = Lead & {
   motion: LeadMotion
   intake: LeadIntake
@@ -1108,12 +1107,12 @@ export type ImportedLead = Lead & {
  *  thứ nằm trong một tệp mua về. Vì thế `optionalFilled` của mọi dòng nạp là 0,
  *  và đó là số ĐÚNG chứ không phải chỗ chưa làm. */
 const SLOT_FROM_IMPORT: { key: QuestionKey; from: (v: Record<string, string>) => boolean }[] = [
-  { key: 'phap-nhan', from: (v) => (v.taxCode ?? '') !== '' },
-  { key: 'nganh', from: (v) => (v.category ?? '') !== '' },
-  { key: 'quy-mo', from: (v) => (v.headcount ?? '') !== '' },
-  { key: 'nguoi-lien-he', from: (v) => (v.contactName ?? '') !== '' },
-  { key: 'kenh', from: (v) => [v.phone, v.email, v.channel].some((c) => (c ?? '') !== '') },
-  { key: 'dau', from: (v) => (v.pain ?? '') !== '' },
+  { key: 'legal-entity', from: (v) => (v.taxCode ?? '') !== '' },
+  { key: 'industry', from: (v) => (v.category ?? '') !== '' },
+  { key: 'scale', from: (v) => (v.headcount ?? '') !== '' },
+  { key: 'contact', from: (v) => (v.contactName ?? '') !== '' },
+  { key: 'channel', from: (v) => [v.phone, v.email, v.channel].some((c) => (c ?? '') !== '') },
+  { key: 'pain', from: (v) => (v.pain ?? '') !== '' },
 ]
 
 /** Nguồn mặc định của một lô nạp không gắn chiến dịch nào: `TM` — BD tự mở.
@@ -1144,8 +1143,8 @@ export function nextLeadCode(book: readonly { code: string }[], taken: readonly 
  *  SQL là 500 cơ hội giả xuất hiện trong phễu chỉ vì ai đó gõ chữ "SQL" vào một
  *  cột Excel. Cột Bậc trong tệp vì thế chỉ hạ được chứ không nâng được. */
 function tierOfRow(asked: string | undefined, requiredFilled: number): LeadTier {
-  if (asked === 'dau-moi') return 'dau-moi'
-  return requiredFilled >= REQUIRED_SLOTS ? 'mql' : 'dau-moi'
+  if (asked === 'prospect') return 'prospect'
+  return requiredFilled >= REQUIRED_SLOTS ? 'mql' : 'prospect'
 }
 
 /** Dựng dòng sổ lead từ dòng tệp.
@@ -1199,7 +1198,7 @@ export function rowsToLeads(
       history: [
         {
           at: opts.at,
-          kind: 'vao-so',
+          kind: 'created',
           by: opts.by,
           /* Dòng lịch sử nói ra ĐƯỜNG VÀO và số dòng trong tệp gốc. Sáu tháng
              sau, câu hỏi duy nhất về một lead lạ là "cái này ở đâu ra" — và
@@ -1307,7 +1306,7 @@ export function rowsToOps(
       accountCode: '',
       closedDate: readDate(v.closedDate ?? '') ?? '',
       state: 'pending' as const,
-      stage: 'tim-hieu' as const,
+      stage: 'discovery' as const,
       amount: readMoney(v.amount ?? ''),
       currency: 'VND' as const,
       saleOwners: v.saleOwner === undefined || v.saleOwner === '' ? [] : [v.saleOwner],

@@ -219,7 +219,7 @@ export const LeadSortKey = z.enum(['company', 'createdAt', 'daysHere'])
  *
  *  So the screen maps its sentinel to this constant on the way out. ASCII,
  *  lowercase, unaccented, like every other identifier that leaves the process. */
-export const OWNER_NONE = 'chua-ai-nhan'
+export const OWNER_NONE = 'unassigned'
 
 /** Filters of the book. Matches exactly the query contract carried on the URL
  *  by `apps/web/src/app/url.ts` — one filter, one name, both ends.
@@ -469,7 +469,7 @@ export const LeadProfile = LeadRow.extend({
    *
    *  `overdueBy` comes back `null` on every lead today and that is the TRUE
    *  answer, not a gap: no `TIER` rung has a `limitDays` yet, because how long
-   *  a lead may sit at `dau-moi` is the question nobody has answered.
+   *  a lead may sit at `prospect` is the question nobody has answered.
    *  The rungs can hold one since `0038`, and the box to type it into is
    *  section 5.5 of `/sales/config`. A number invented here would be read as a
    *  policy a month from now, and somebody would be judged by it.
@@ -661,7 +661,7 @@ const clearableText = (max: number) =>
  *  ------------------------------------------------------------------
  *  EXACTLY THE THREE GROUPS THE PROFILE CARD DRAWS
  *  ------------------------------------------------------------------
- *  `ProfileCard` renders `khach` · `nguoi` · `viec` and filters `so` out —
+ *  `ProfileCard` renders `company` · `person` · `need` and filters `system` out —
  *  the book group is what the system writes about itself. This shape is those
  *  three groups and stops there, so everything withheld is withheld for a
  *  reason already written down somewhere:

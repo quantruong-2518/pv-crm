@@ -9,12 +9,12 @@ import type { DenyReason } from '@pv/engines'
 
 export type ApiFailure =
   /** Không tới được máy chủ — mất mạng, DNS hỏng, CORS chặn. */
-  | 'mạng'
+  | 'network'
   /** Phiên không còn hiệu lực (401). Đây là chuyện của AUTH, không phải của màn:
    *  màn không hiện lỗi này, nó để lifecycle khoá màn hình lại. */
-  | 'chưa-xác-thực'
+  | 'unauthenticated'
   /** Có phiên nhưng không được phép (403). Màn hiện "Bị ẩn theo quyền của bạn". */
-  | 'thiếu-quyền'
+  | 'forbidden'
   /** A 403 that CAN be opened: the permission is there, the password just has
    *  not been retyped inside the sudo window — role changes, locking an
    *  account, minting a set-password link.
@@ -28,7 +28,7 @@ export type ApiFailure =
    *  Screens do NOT render this: `confirmOnReauthRequired` in `client.ts` opens
    *  the confirmation box and replays the request. The sentence in
    *  `userMessage` covers the one way out — the user pressing Cancel. */
-  | 'cần-xác-thực-lại'
+  | 'reauth-required'
   /** A third reading of 403: signed in, permitted, but still holding a password
    *  an administrator handed out. `PasswordChangeGuard` answers this on every
    *  door but four.
@@ -42,27 +42,27 @@ export type ApiFailure =
    *  `SessionView.mustChangePassword`, and `RequireAccess` sends the person to
    *  the change-password screen before a request is ever made. This kind is the
    *  backstop for a session whose flag went stale mid-visit. */
-  | 'phải-đổi-mật-khẩu'
-  | 'không-thấy'
+  | 'password-change-required'
+  | 'not-found'
   /** Dữ liệu đã đổi dưới tay người dùng (409) — sửa đè lên bản mới hơn. */
-  | 'xung-đột'
+  | 'conflict'
   /** The response body does not match the endpoint's zod contract.
    *
    *  Neither a server fault nor bad user input — the two ends are running two
    *  versions of one contract. It earns its own kind because it sends the
    *  reader somewhere completely different: waiting and retrying fixes nothing,
    *  someone has to deploy until both ends agree. */
-  | 'lệch-hợp-đồng'
+  | 'contract-mismatch'
   /** Máy chủ từ chối vì dữ liệu người dùng gửi lên sai (400/422) — không phải
    *  máy chủ trục trặc. Khác với các `kind` ở trên, đây LÀ việc của màn: màn tự
    *  hiện lỗi này, không đẩy lên tầng phiên. `error.errors` thường nêu tên ô sai
    *  (RFC 9457), nhưng có thể rỗng nên `userMessage` không được giả định nó có. */
-  | 'dữ-liệu-sai'
+  | 'invalid-data'
   /** Quá ngân sách request của một cửa công khai (429). */
-  | 'quá-nhanh'
-  | 'máy-chủ'
+  | 'rate-limited'
+  | 'server-error'
   /** Người dùng rời màn giữa chừng. KHÔNG phải lỗi — đừng hiện gì cả. */
-  | 'huỷ'
+  | 'aborted'
 
 /** Per-field complaints, keyed by field name — the `errors` map of RFC 9457.
  *
@@ -75,7 +75,7 @@ export class ApiError extends Error {
   readonly kind: ApiFailure
   readonly path: string
   readonly status?: number
-  /** Lý do E2 từ chối, chỉ có khi `kind === 'thiếu-quyền'`. Giữ nguyên chữ của
+  /** Lý do E2 từ chối, chỉ có khi `kind === 'forbidden'`. Giữ nguyên chữ của
    *  engine để màn nói đúng câu: thiếu license và thiếu vai là hai chuyện.
    *
    *  Denials raised locally by E2 already speak this vocabulary; denials that
@@ -138,25 +138,25 @@ export function denyReasonOf(wire: string | undefined): DenyReason | undefined {
 /** Mã HTTP → loại lỗi. Bảng này là chỗ DUY NHẤT trong app biết con số 403 nghĩa
  *  là gì; thêm một `if (res.status === 403)` ở màn là bắt đầu có hai bảng. */
 export function failureOf(status: number): ApiFailure {
-  if (status === 401) return 'chưa-xác-thực'
-  if (status === 403) return 'thiếu-quyền'
-  if (status === 404) return 'không-thấy'
-  if (status === 409) return 'xung-đột'
+  if (status === 401) return 'unauthenticated'
+  if (status === 403) return 'forbidden'
+  if (status === 404) return 'not-found'
+  if (status === 409) return 'conflict'
   /* 419/440 là "phiên hết hạn" của một số máy chủ — gộp vào 401 vì hậu quả với
      người dùng giống hệt: phải đăng nhập lại. */
-  if (status === 419 || status === 440) return 'chưa-xác-thực'
-  if (status === 400 || status === 422) return 'dữ-liệu-sai'
-  if (status === 429) return 'quá-nhanh'
-  return 'máy-chủ'
+  if (status === 419 || status === 440) return 'unauthenticated'
+  if (status === 400 || status === 422) return 'invalid-data'
+  if (status === 429) return 'rate-limited'
+  return 'server-error'
 }
 
 /** Câu hiện cho người dùng. Không kèm mã lỗi, không kèm tên hàm — người đọc câu
  *  này đang muốn biết mình làm gì tiếp, không muốn biết tầng nào hỏng. */
 export function userMessage(error: ApiError): string {
   switch (error.kind) {
-    case 'mạng':
+    case 'network':
       return 'Không nối được máy chủ. Kiểm tra mạng rồi thử lại.'
-    case 'chưa-xác-thực':
+    case 'unauthenticated':
       return 'Phiên đã hết hạn. Đăng nhập lại để tiếp tục.'
     /* Three of E2's four refusals land on this one kind, and each one sends the
        user somewhere different — that is why they get three sentences, not one.
@@ -167,8 +167,8 @@ export function userMessage(error: ApiError): string {
        chasing an admin who has nothing to give them.
 
        `unauthenticated` deliberately has no branch here: it arrives as kind
-       `chưa-xác-thực`, and that one is auth's business, not a screen's. */
-    case 'thiếu-quyền':
+       `unauthenticated`, and that one is auth's business, not a screen's. */
+    case 'forbidden':
       if (error.reason === 'branch-not-licensed') return 'Công ty chưa mở nhánh này.'
       if (error.reason === 'out-of-scope')
         return 'Dữ liệu này của người khác. Nhờ người đang phụ trách mở hộ, hoặc xin bàn giao.'
@@ -178,42 +178,42 @@ export function userMessage(error: ApiError): string {
        ever saw the error. So this says "not confirmed", not "blocked": they
        just chose not to, and a sentence that sounds like a refusal would send
        them off to ask for permissions they already have. */
-    case 'cần-xác-thực-lại':
+    case 'reauth-required':
       return 'Chưa xác nhận mật khẩu nên thao tác chưa chạy. Làm lại và xác nhận để tiếp tục.'
     /* Barely reachable: the guard sends the person to the change-password
        screen off `SessionView.mustChangePassword`, before any request goes out.
        What lands here is a session whose flag went stale mid-visit - an
        administrator pressed reset while the tab was open - so the sentence has
        to say what happened as well as what to do. */
-    case 'phải-đổi-mật-khẩu':
+    case 'password-change-required':
       return 'Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu rồi làm lại thao tác.'
-    case 'không-thấy':
+    case 'not-found':
       return 'Không tìm thấy dữ liệu này. Có thể nó vừa bị xoá.'
     /* `error.message` is the server's own `title` when it sent one (see
        `toApiError` in `client.ts`) — a duplicate-email 409 and a stale-write
-       409 are both `'xung-đột'`, but they are not the same sentence: only the
+       409 are both `'conflict'`, but they are not the same sentence: only the
        second one is "someone else just edited this". The server already knows
        which is which, so its sentence wins; the canned line below only covers
        the rare case where the server said nothing at all. */
-    case 'xung-đột':
+    case 'conflict':
       return error.message || 'Người khác vừa sửa dữ liệu này. Tải lại rồi làm lại thao tác.'
     /* Unlike the kinds above, this one IS the screen's business: it is a
        complaint about what the user just typed, not about the session or the
        server. `error.errors` often names the offending field, but a screen
        cannot always show a per-field message (list filters, query params), so
        this sentence must stand on its own even when `errors` is empty. */
-    case 'dữ-liệu-sai':
+    case 'invalid-data':
       return 'Dữ liệu vừa nhập chưa hợp lệ. Kiểm tra lại rồi thử lại.'
-    case 'quá-nhanh':
+    case 'rate-limited':
       return 'Bạn thao tác quá nhanh. Chờ một lát rồi thử lại.'
-    case 'huỷ':
+    case 'aborted':
       return ''
     /* Name the action that actually helps. "Try again in a few minutes" is the
        wrong sentence here: a contract skew does not heal with time, and that
        line leaves someone pressing F5 at a screen that will never come back. */
-    case 'lệch-hợp-đồng':
+    case 'contract-mismatch':
       return 'Màn và máy chủ đang lệch phiên bản dữ liệu. Báo người trực deploy — tải lại trang không chữa được.'
-    case 'máy-chủ':
+    case 'server-error':
       return 'Máy chủ đang trục trặc. Thử lại sau ít phút.'
   }
 }

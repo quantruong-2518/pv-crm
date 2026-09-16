@@ -10,7 +10,7 @@ import {
   Textarea,
   billions,
   cn,
-  dong,
+  vnd,
 } from '@pv/ui'
 import {
   CURRENCIES,
@@ -293,7 +293,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
   const dirty = useMemo(() => changedFields(base, work), [base, work])
 
   /* Two human clicks are two real writes, and the second one lands a second
-     `dien-o` row on the timeline — one sitting reading as two. `isPending`
+     `field-filled` row on the timeline — one sitting reading as two. `isPending`
      guards it here; the client only refuses to replay a write automatically. */
   const submit = () => {
     if (save.isPending) return
@@ -383,7 +383,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
         Chi tiết lead
       </SectionTitle>
 
-      {PROFILE_GROUPS.filter((g) => g.key !== 'so').map((group) => (
+      {PROFILE_GROUPS.filter((g) => g.key !== 'system').map((group) => (
         <FieldGroup
           key={group.key}
           group={group}
@@ -537,11 +537,11 @@ function FieldRow({
 
 /** Nhóm nào còn ô bắt buộc chưa moi được — dùng để quyết định mở hay gập.
  *
- *  Nhóm `so` ("Thông tin hệ thống") không nằm trong danh sách vì chính
+ *  Nhóm `system` ("Thông tin hệ thống") không nằm trong danh sách vì chính
  *  `ProfileCard` đã lọc nó ra khỏi màn: máy tự ghi, người không điền. */
 function incompleteGroups(profile: LeadProfile): GroupKey[] {
   const live = new Set(filledSlots(profile))
-  return PROFILE_GROUPS.filter((g) => g.key !== 'so')
+  return PROFILE_GROUPS.filter((g) => g.key !== 'system')
     .filter((g) => {
       const slots = slotsOfGroup(g.key)
       return slots.length > 0 && slots.some((s) => !live.has(s))
@@ -628,7 +628,7 @@ function MoneyRead({ work, value }: { work: LeadProfile; value: string }) {
   return (
     <span className="text-muted-foreground text-[12px] leading-[1.6]">
       {currency === 'VND'
-        ? `${dong(amount)} · ${billions(amount)}`
+        ? `${vnd(amount)} · ${billions(amount)}`
         : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(amount, currency))} quy ra đồng`}
     </span>
   )

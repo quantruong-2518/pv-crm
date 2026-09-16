@@ -83,7 +83,7 @@ export type AuthStatus =
 
 /** Vì sao phiên chết. Màn khoá nói ba câu khác nhau, vì người dùng cần biết
  *  mình vừa mất phiên do bỏ đi pha cà phê hay do hết ca làm việc. */
-export type ExpiryReason = 'ngồi-không' | 'hết-ca' | 'bị-thu-hồi'
+export type ExpiryReason = 'idle' | 'shift-ended' | 'revoked'
 
 /** Vé phiên — MỘT BẢN SAO của `SessionWindow` máy chủ đã đóng dấu, tính bằng
  *  mili giây thay vì chuỗi ISO.
@@ -138,9 +138,9 @@ export function ticketOf(session: SessionWindow): Ticket {
  *  access: the server holds the same two marks on the session row and re-checks
  *  them on every request. */
 export function ticketDeath(ticket: Ticket | null, now: number): ExpiryReason | null {
-  if (!ticket) return 'bị-thu-hồi'
-  if (now >= ticket.expiresAt) return 'hết-ca'
-  if (ticket.idleUntil !== null && now >= ticket.idleUntil) return 'ngồi-không'
+  if (!ticket) return 'revoked'
+  if (now >= ticket.expiresAt) return 'shift-ended'
+  if (ticket.idleUntil !== null && now >= ticket.idleUntil) return 'idle'
   return null
 }
 

@@ -13,8 +13,8 @@ export type StageConfig = PhaseConfig
  *  ------------------------------------------------------------------
  *  THE TWO SIDES DO NOT SHARE A KEY, SO THE JOIN IS BY POSITION
  *  ------------------------------------------------------------------
- *  `opportunity.stage` holds a key ('tim-hieu'), `lead.tier` holds one
- *  ('dau-moi'); `config_entry` holds a display label and an id of its own
+ *  `opportunity.stage` holds a key ('discovery'), `lead.tier` holds one
+ *  ('prospect'); `config_entry` holds a display label and an id of its own
  *  ('ST-01'). No column carries both, so there is no join on a key to
  *  write. The only join that holds is ORDINAL POSITION, and it holds because
  *  somebody made it hold: `seed.ts` writes both lists straight from the fixture
@@ -23,7 +23,7 @@ export type StageConfig = PhaseConfig
  *
  *  Joining by position is the quietest thing in this repo to break, so it lives
  *  in exactly one function, with a fence: a count that does not match means the
- *  labels are dropped and the key is printed instead. A rung reading 'tim-hieu'
+ *  labels are dropped and the key is printed instead. A rung reading 'discovery'
  *  is ugly and TRUE; a rung pairing one phase's name with another phase's limit
  *  is pretty and lying, and nobody would catch it.
  *

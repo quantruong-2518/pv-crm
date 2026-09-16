@@ -17,7 +17,7 @@
  *  by its own date rather than by a browser clock. */
 
 /** Six levels, ordered by how badly someone has to act. */
-export type DueLevel = 'đã-xong' | 'chưa-tới' | 'gần-hạn' | 'đến-hạn' | 'quá-hạn' | 'quá-hạn-lâu'
+export type DueLevel = 'done' | 'upcoming' | 'due-soon' | 'due' | 'overdue' | 'long-overdue'
 
 /** Thresholds in days relative to the due date.
  *
@@ -52,17 +52,17 @@ export function daysUntil(due: string, today: string): number {
  *  installment already collected is never "overdue", not even when it arrived
  *  late. The lateness lives in history, not in today's status. */
 export function dueLevelOf(due: string, today: string, doneAt?: string): DueLevel {
-  if (doneAt) return 'đã-xong'
+  if (doneAt) return 'done'
   const left = daysUntil(due, today)
-  if (left > DUE_NEAR_DAYS) return 'chưa-tới'
-  if (left > 0) return 'gần-hạn'
-  if (left === 0) return 'đến-hạn'
-  if (-left < DUE_LONG_OVERDUE_DAYS) return 'quá-hạn'
-  return 'quá-hạn-lâu'
+  if (left > DUE_NEAR_DAYS) return 'upcoming'
+  if (left > 0) return 'due-soon'
+  if (left === 0) return 'due'
+  if (-left < DUE_LONG_OVERDUE_DAYS) return 'overdue'
+  return 'long-overdue'
 }
 
 /** Which levels demand something today. Used to count the "needs you" tile and
  *  to sort the book by urgency rather than by signing date. */
 export function needsAttention(level: DueLevel): boolean {
-  return level === 'đến-hạn' || level === 'quá-hạn' || level === 'quá-hạn-lâu'
+  return level === 'due' || level === 'overdue' || level === 'long-overdue'
 }

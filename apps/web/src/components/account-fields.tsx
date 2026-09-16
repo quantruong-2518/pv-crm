@@ -1,7 +1,7 @@
 import { Input, Select, Textarea } from '@pv/ui'
 import { LeadCategory } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
-import type { AccountDraft } from '@/data/accounts'
+import { CATEGORY_LABEL, type AccountDraft } from '@/data/accounts'
 import { Field } from './ops-fields'
 
 /** The company form's nine fields, shared between TWO places.
@@ -116,7 +116,7 @@ export function AccountFields({
             onChange={(v) => onSet('category', v)}
             options={[
               { value: '', label: 'Chưa xếp ngành' },
-              ...LeadCategory.options.map((c) => ({ value: c, label: c })),
+              ...LeadCategory.options.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
             ]}
             className="w-full"
           />

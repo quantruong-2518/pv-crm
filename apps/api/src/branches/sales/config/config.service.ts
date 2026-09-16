@@ -75,7 +75,7 @@ export class SalesConfigService implements ApprovalApplier {
     this.assertNameFree(await this.repo.list(list), body.name)
 
     return this.propose(who, {
-      kind: 'tao',
+      kind: 'create',
       list,
       draft: {
         name: body.name,
@@ -101,7 +101,7 @@ export class SalesConfigService implements ApprovalApplier {
     if (body.ownerId) await this.assertOwnerReal(body.ownerId)
     if (body.name !== undefined) this.assertNameFree(rows, body.name, id)
 
-    return this.propose(who, { kind: 'sua', list, id, patch: body })
+    return this.propose(who, { kind: 'update', list, id, patch: body })
   }
 
   /** Đổi thứ tự cả danh mục.
@@ -120,7 +120,7 @@ export class SalesConfigService implements ApprovalApplier {
       body.ids,
     )
 
-    return this.propose(who, { kind: 'thu-tu', list, ids: body.ids })
+    return this.propose(who, { kind: 'reorder', list, ids: body.ids })
   }
 
   // ── the six motions · read, and propose ──────────────────────────────────
@@ -222,13 +222,13 @@ export class SalesConfigService implements ApprovalApplier {
 
     const rows = await this.repo.list(change.list, tx)
 
-    if (change.kind === 'tao') {
+    if (change.kind === 'create') {
       this.assertNameFree(rows, change.draft.name)
       await this.repo.create(tx, change.list, change.draft)
       return
     }
 
-    if (change.kind === 'sua') {
+    if (change.kind === 'update') {
       if (change.patch.name !== undefined) {
         this.assertNameFree(rows, change.patch.name, change.id)
       }

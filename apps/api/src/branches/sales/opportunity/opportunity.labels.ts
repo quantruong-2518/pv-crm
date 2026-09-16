@@ -5,7 +5,7 @@ import type { OpportunityCreateState, StageKey } from '@pv/contracts'
  *  ------------------------------------------------------------------
  *  VÌ SAO NHÃN NẰM Ở ĐÂY VÀ KHÔNG NẰM Ở `@pv/contracts`
  *  ------------------------------------------------------------------
- *  Hợp đồng cố tình chỉ giữ KHOÁ (`'gui-quotation'`, `'cho-ky'`). Nhãn là việc
+ *  Hợp đồng cố tình chỉ giữ KHOÁ (`'quote-sent'`, `'awaiting-signature'`). Nhãn là việc
  *  của tầng hiển thị, và máy chủ có đúng hai tầng hiển thị: thân một lá mail,
  *  và câu của một dòng thời gian. Cả hai đều là chữ gửi cho người đọc, cả hai
  *  đều được dựng ở `apps/api`, và trước file này chúng có HAI bản chép rời —
@@ -19,18 +19,18 @@ import type { OpportunityCreateState, StageKey } from '@pv/contracts'
  *  được nhập fixture ở `seed.ts`. Hai bản là nợ; ba bản là một bản sẽ bị quên. */
 
 export const STATE_LABEL: Record<OpportunityCreateState, string> = {
-  'gui-quotation': 'Gửi quotation',
+  'quote-sent': 'Gửi quotation',
   nego: 'Nego',
   'close-lost': 'Close lost',
   pending: 'Pending',
 }
 
 export const STAGE_LABEL: Record<StageKey, string> = {
-  moi: 'Mới',
-  'tim-hieu': 'Đang tìm hiểu',
-  'da-demo': 'Đã demo',
-  'da-bao-gia': 'Đã báo giá',
-  'cho-ky': 'Chờ ký',
+  new: 'Mới',
+  discovery: 'Đang tìm hiểu',
+  'demo-done': 'Đã demo',
+  quoted: 'Đã báo giá',
+  'awaiting-signature': 'Chờ ký',
 }
 
 /** Tên cột để đọc trong một câu văn. `null` = đơn đã ra khỏi bảng năm cột, và

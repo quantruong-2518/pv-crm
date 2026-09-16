@@ -102,7 +102,7 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
  *     no gate, so it stands at no rung of the funnel yet.
  *   · `exitReason`, `exitedAt` — a lead cannot be born already lost.
  *   · `sourceKind` — set here, not accepted from the caller: the system records
- *     where a row came from. `MANUAL` reads as `KHAI_BAO` in `CHANNEL_TRUST`
+ *     where a row came from. `MANUAL` reads as `DECLARED` in `CHANNEL_TRUST`
  *     (somebody here put their name on every cell they typed), and a trust
  *     level the client asserted about itself would be worth nothing. Trust is
  *     derived, never stored. The caller may still name a CAMPAIGN — that half

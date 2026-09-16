@@ -370,7 +370,7 @@ export const idsOf = (owners: OpportunityOwner[]) => owners.map((o) => o.id)
  *  nó chỉ không còn là việc của tầng màn. Cùng bảng tỉ giá mà máy chủ sắp và
  *  cộng bằng (`@pv/contracts` · `./currency`): hai con số của một pipeline mà
  *  ra từ hai bảng tỉ giá là đúng thứ lệch không ai để ý. */
-export const dongOf = (op: OpportunityRow) =>
+export const amountVndOf = (op: OpportunityRow) =>
   op.amount === null || op.currency === null ? null : toMoneyVnd(op.amount, op.currency)
 
 /** Đơn đang MỤC — đã đứng trong cột lâu hơn hạn của cột.
@@ -514,7 +514,7 @@ export const STATE_TONE: Record<OpportunityState, 'success' | 'danger' | 'runnin
   'close-won': 'success',
   'close-lost': 'danger',
   nego: 'running',
-  'gui-quotation': 'running',
+  'quote-sent': 'running',
   pending: 'draft',
 }
 

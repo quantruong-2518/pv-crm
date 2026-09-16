@@ -9,12 +9,12 @@ import { DUE_LABEL } from '@/data/contracts'
  *  screen is a component that will be bent out of shape by the second. */
 
 const TONE: Record<DueLevel, 'draft' | 'warning' | 'success' | 'danger'> = {
-  'đã-xong': 'success',
-  'chưa-tới': 'draft',
-  'gần-hạn': 'warning',
-  'đến-hạn': 'warning',
-  'quá-hạn': 'danger',
-  'quá-hạn-lâu': 'danger',
+  done: 'success',
+  upcoming: 'draft',
+  'due-soon': 'warning',
+  due: 'warning',
+  overdue: 'danger',
+  'long-overdue': 'danger',
 }
 
 /** The level badge. Colour alone never carries it — the word is always there,
@@ -31,7 +31,7 @@ export function DueBadge({ level, className }: { level: DueLevel; className?: st
  *  colours on these screens already mean "how late", and a second meaning laid
  *  over the same hue would make both unreadable. */
 export function SideTag({ side, long = false }: { side: ConditionSide; long?: boolean }) {
-  const ours = side === 'ta'
+  const ours = side === 'ours'
   return (
     <span className="text-glass-foreground bg-surface-ink/9 inline-flex items-center gap-1 rounded-sm px-2 py-1 font-mono text-[10px] uppercase tracking-[.08em]">
       <Icon icon={ours ? ArrowRight : ArrowLeft} size={14} />

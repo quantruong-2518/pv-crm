@@ -48,12 +48,12 @@ import { loadEnv } from '@api/platform/config/env'
  *  đang lưu thẳng nhãn hiển thị làm giá trị. Nó biến mất khi fixture đổi sang
  *  khoá. */
 const EXIT_KEY: Record<string, ExitReason> = {
-  'Không gọi được ai': 'khong-goi-duoc',
-  'Không phải khách của mình': 'khong-phai-khach-cua-minh',
-  'Năm nay không có tiền': 'khong-co-ngan-sach',
-  'Người liên hệ nghỉ việc': 'nguoi-lien-he-nghi',
-  'Khách chọn bên khác': 'chon-ben-khac',
-  'Im sau báo giá': 'im-sau-bao-gia',
+  'Không gọi được ai': 'unreachable',
+  'Không phải khách của mình': 'not-a-fit',
+  'Năm nay không có tiền': 'no-budget',
+  'Người liên hệ nghỉ việc': 'contact-left',
+  'Khách chọn bên khác': 'chose-competitor',
+  'Im sau báo giá': 'silent-after-quote',
 }
 
 /** Dịch nhãn sang khoá, và NỔ khi gặp nhãn lạ.
@@ -133,7 +133,7 @@ function stageSinceOf(l: Lead): Date {
  *  Những trường khác của hai ô ấy (`contact_title`, `phone`, `channel`) VẪN
  *  lấy theo `filled` thật, vì hai cột đếm ô của bảng đo chúng — lấy theo bản
  *  sao thì mọi lead đều đủ ô 4 và ô 5, và cổng init data mất nghĩa. */
-const CONTACT_SLOTS: QuestionKey[] = ['nguoi-lien-he', 'kenh']
+const CONTACT_SLOTS: QuestionKey[] = ['contact', 'channel']
 
 function contactOf(l: FrozenLead) {
   /* `FrozenLead` chứ không `Lead`, và bản sao giữ nguyên nhãn: seed chạy trên
@@ -292,8 +292,8 @@ async function seed(): Promise<void> {
   const rows = LEADS.map((l, i) => {
     const p = leadProfile(l)
     const c = contactOf(l)
-    const hasContactSlot = l.filled.includes('nguoi-lien-he')
-    const reachable = l.filled.includes('kenh')
+    const hasContactSlot = l.filled.includes('contact')
+    const reachable = l.filled.includes('channel')
 
     return {
       code: l.code,
@@ -373,11 +373,7 @@ async function seed(): Promise<void> {
      lead row into an E1 object, and every field is read off the lead row that
      already exists. No new data enters the database.
 
-     `state` holds the STAGE KEY ('moi'), matching `toRef`. The four fixture
-     objects hold Vietnamese labels there instead ('Đang tìm hiểu') — that
-     mismatch predates this file and is not resolved here; resolving it means
-     deciding whether `object.state` is a key or a label, which is a decision
-     for the module that reads it. */
+     `state` holds the STAGE KEY ('new'), matching `toRef`. */
   const leadObjects = rows.map((r) => ({
     code: r.code,
     kind: 'LD' as const,
@@ -400,15 +396,15 @@ async function seed(): Promise<void> {
      cũng đã tồn tại. */
   /* Trạng thái suy NGƯỢC từ cột, và bảng tra này chỉ dùng cho seed.
      `stageOfState` đi một chiều state → stage; chiều ngược lại không phải hàm
-     (hai cột 'moi'/'da-demo' không có trạng thái nào trỏ tới), nên nó chỉ đúng
+     (hai cột 'new'/'demo-done' không có trạng thái nào trỏ tới), nên nó chỉ đúng
      ở đây, nơi dữ liệu là mười đơn đóng băng đã biết trước. Đơn đang mở ở ba
      cột đầu đều là "Pending" — chưa báo giá thì chưa có gì để nego. */
   const STATE_OF_STAGE = {
-    moi: 'pending',
-    'tim-hieu': 'pending',
-    'da-demo': 'pending',
-    'da-bao-gia': 'gui-quotation',
-    'cho-ky': 'nego',
+    new: 'pending',
+    discovery: 'pending',
+    'demo-done': 'pending',
+    quoted: 'quote-sent',
+    'awaiting-signature': 'nego',
   } as const
 
   const deals = rows
@@ -611,11 +607,11 @@ async function seed(): Promise<void> {
   const drawn = new Set(dasVina.edges.map((e) => `${e.from}→${e.to}`))
 
   const bookEdges = [
-    ...allDeals.map((o) => ({ fromCode: o.leadCode, toCode: o.code, kind: 'sinh-ra' as const })),
+    ...allDeals.map((o) => ({ fromCode: o.leadCode, toCode: o.code, kind: 'spawned' as const })),
     ...won.map((w) => ({
       fromCode: w.opportunity.code,
       toCode: w.contract.code,
-      kind: 'sinh-ra' as const,
+      kind: 'spawned' as const,
     })),
   ].filter((e) => !drawn.has(`${e.fromCode}→${e.toCode}`))
 
@@ -729,12 +725,12 @@ async function seed(): Promise<void> {
        `history`; this is the other half, and without it a deal profile opens
        blank exactly as that door's docblock warns.
 
-       The instant comes from the lead's own `vao-pipeline` event: one act, one
+       The instant comes from the lead's own `entered-pipeline` event: one act, one
        moment, two ledgers. Using the deal's `createdAt` would give two
        different dates for one press of one button. */
     const dealOpened = ops.flatMap((o) => {
       const event = LEADS.find((l) => l.code === o.leadCode)?.history.find(
-        (e) => e.kind === 'vao-pipeline',
+        (e) => e.kind === 'entered-pipeline',
       )
       if (!event) return []
 
@@ -742,7 +738,7 @@ async function seed(): Promise<void> {
         {
           subjectCode: o.code,
           subjectKind: 'opportunity' as const,
-          kind: 'vao-pipeline' as const,
+          kind: 'entered-pipeline' as const,
           at: new Date(event.at),
           by: event.by,
           actorId: idOf.get(event.by) ?? null,

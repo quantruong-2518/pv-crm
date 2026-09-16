@@ -14,7 +14,7 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
     message: 'Buổi họp phải có tiêu đề — một dòng trống không kể lại được gì.',
   },
 
-  meeting_link_la_web: {
+  meeting_link_is_web: {
     kind: 'invalid',
     message: 'Link họp phải bắt đầu bằng http:// hoặc https://.',
   },
@@ -33,7 +33,7 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
 
   /** Ràng buộc DUY NHẤT ở đây mà người dùng gặp thật, và gặp thường: chọn
    *  người chủ trì bằng cách gõ tên thay vì chọn từ sổ nhân sự. */
-  meeting_attendee_host_co_actor: {
+  meeting_attendee_host_is_actor: {
     kind: 'invalid',
     message: 'Người chủ trì phải chọn từ sổ nhân sự, không gõ tay — khách thì gõ tay.',
   },

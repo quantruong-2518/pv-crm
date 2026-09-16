@@ -16,7 +16,7 @@ import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
  *  hangs off that lead.
  *
  *  ------------------------------------------------------------------
- *  WHY A TABLE OF ITS OWN AND NOT A `cham` ROW
+ *  WHY A TABLE OF ITS OWN AND NOT A `contacted` ROW
  *  ------------------------------------------------------------------
  *  `sales.touch` carries one Vietnamese sentence per event, which is exactly
  *  right for a timeline and cannot hold a joining link, a transcript, and two
@@ -25,9 +25,9 @@ import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
  *  them.
  *
  *  The two are not rivals: writing a meeting ALSO writes a touch row, so the
- *  activity feed still tells the whole story. That touch is `gap-lan-dau` for
- *  a lead's first meeting and `cham` for every later one — which is where the
- *  writer for `gap-lan-dau` finally lives. It was in `TouchKind` from the
+ *  activity feed still tells the whole story. That touch is `first-meeting` for
+ *  a lead's first meeting and `contacted` for every later one — which is where the
+ *  writer for `first-meeting` finally lives. It was in `TouchKind` from the
  *  start with the note "no door writes this yet".
  *
  *  ------------------------------------------------------------------

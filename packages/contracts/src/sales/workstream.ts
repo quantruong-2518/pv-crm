@@ -79,7 +79,7 @@ export const WorkstreamHolder = z.object({
  *  `platform.email_delivery` FILTERED to rows whose `aggregate_type` is not
  *  `'opportunity'` — that column also carries internal alerts to our own
  *  desk, not customer contact. Deliberately excluded: `sales.touch` — it logs
- *  business EVENTS (`vao-so`, `len-bac`), not conversations, and has no
+ *  business EVENTS (`created`, `tier-raised`), not conversations, and has no
  *  channel or direction to bucket by. Reaching for touch here is reaching for
  *  the wrong ledger. */
 export const WorkstreamChannel = z.enum(

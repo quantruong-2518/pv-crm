@@ -37,7 +37,8 @@ import type { WorkItem, WorkKind } from '@/data/home'
  *  A dashboard printing billions beside millions makes the eye do a unit
  *  conversion to compare two bars that sit next to each other. Billions above a
  *  billion, millions below, one rule, applied everywhere on this screen. */
-const money = (dong: number) => (dong >= 1_000_000_000 ? billions(dong, 1) : millions(dong, 0))
+const money = (amount: number) =>
+  amount >= 1_000_000_000 ? billions(amount, 1) : millions(amount, 0)
 
 /** Ratio, or an em dash when the denominator is 0 — never "0%", which claims a
  *  measurement was taken and came out zero. */
@@ -68,7 +69,7 @@ export function MoneyLine({
 
   const data: BarDatum[] = [
     {
-      key: 'dang-mo',
+      key: 'open',
       label: 'Đang mở',
       value: open,
       display: money(open),
@@ -76,7 +77,7 @@ export function MoneyLine({
       tone: 'primary',
     },
     {
-      key: 'da-ky',
+      key: 'signed',
       label: 'Đã ký',
       value: signed,
       display: money(signed),
@@ -84,7 +85,7 @@ export function MoneyLine({
       tone: 'success',
     },
     {
-      key: 'da-thu',
+      key: 'collected',
       label: 'Đã thu',
       value: collected,
       display: money(collected),
@@ -92,7 +93,7 @@ export function MoneyLine({
       tone: 'success',
     },
     {
-      key: 'qua-han',
+      key: 'overdue',
       label: 'Quá hạn thu',
       value: overdue,
       display: money(overdue),
@@ -264,9 +265,9 @@ export function Funnel({ funnel }: { funnel: LeadScorecard | undefined }) {
   const leads = funnel?.leads ?? 0
   const steps: { key: string; label: string; value: number }[] = [
     { key: 'lead', label: 'Lead vào sổ', value: leads },
-    { key: 'gap', label: 'Đã gặp mặt', value: funnel?.firstMeetings ?? 0 },
-    { key: 'co-hoi', label: 'Thành cơ hội', value: funnel?.opportunities ?? 0 },
-    { key: 'hop-dong', label: 'Thành hợp đồng', value: funnel?.contracts ?? 0 },
+    { key: 'met', label: 'Đã gặp mặt', value: funnel?.firstMeetings ?? 0 },
+    { key: 'opportunity', label: 'Thành cơ hội', value: funnel?.opportunities ?? 0 },
+    { key: 'contract', label: 'Thành hợp đồng', value: funnel?.contracts ?? 0 },
   ]
 
   const data: BarDatum[] = steps.map((s, i) => {
@@ -368,8 +369,8 @@ export function PeopleBoard({ rows }: { rows: LeaderboardRow[] | undefined }) {
 // ---------------------------------------------------------------------------
 
 const KIND_LABEL: Record<WorkKind, string> = {
-  'thu-tien': 'Thu tiền',
-  'co-hoi': 'Cơ hội',
+  payment: 'Thu tiền',
+  opportunity: 'Cơ hội',
   lead: 'Lead',
 }
 
@@ -377,7 +378,7 @@ const KIND_LABEL: Record<WorkKind, string> = {
  *  a late installment is somebody else holding your cash. A stalled deal or
  *  lead is `warning` until it doubles its limit. */
 const toneOf = (item: WorkItem): 'danger' | 'warning' =>
-  item.kind === 'thu-tien' || item.daysLate >= 15 ? 'danger' : 'warning'
+  item.kind === 'payment' || item.daysLate >= 15 ? 'danger' : 'warning'
 
 const WORK_COLUMNS: TableColumn[] = [
   { header: 'Loại', width: '108px' },

@@ -24,7 +24,7 @@ import {
  *  Three doors already exist into the lead book: a campaign wave that drops
  *  its answers in, a file dragged onto the import panel, and the public
  *  landing form. This is the fourth — one row, one person, who owns every cell
- *  they typed. `INTAKE_FACE.tay` in `data/intake.ts` has been carrying
+ *  they typed. `INTAKE_FACE.manual` in `data/intake.ts` has been carrying
  *  `built: false` next to that description; this is the door it was waiting
  *  for.
  *

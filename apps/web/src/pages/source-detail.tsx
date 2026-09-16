@@ -170,7 +170,7 @@ export function SourceDetailPage() {
     ? { label: 'Đã dừng', tone: 'draft' as const }
     : { label: STATUS_LABEL[source.status], tone: STATUS_TONE[source.status] }
 
-  const running = !stopped && source.status === 'dang-chay'
+  const running = !stopped && source.status === 'running'
 
   /* Luật 10 · ContextRail. MỘT chip — chính chiến dịch đang mở — và đó là tất
      cả những gì E1 nói được hôm nay: một chiến dịch KHÔNG phải `platform.object`

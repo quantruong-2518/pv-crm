@@ -3,7 +3,7 @@
  *  ------------------------------------------------------------------
  *  VÌ SAO HAI TRỤC
  *  ------------------------------------------------------------------
- *  Fixture đã có `OriginKind` (`chien-dich · su-kien · gioi-thieu · tu-mo`) và
+ *  Fixture đã có `OriginKind` (`campaign · event · referral · self-sourced`) và
  *  nó trả lời đúng MỘT câu: lead này từ nguồn nào ra. Hai câu còn lại mà mọi
  *  phòng kinh doanh đều hỏi thì không có chỗ nào để kê:
  *
@@ -17,8 +17,8 @@
  *     TIN vào dòng đó: một dòng quét badge có người thật đứng trước mặt, một
  *     dòng trong tệp mua về thì chưa ai xác minh gì.
  *
- *  Hai trục ĐỘC LẬP, và đó là điểm chính. Một lead `event` vào bằng `quet`
- *  (quét badge tại gian hàng) hoặc bằng `tep` (danh sách đăng ký hôm sau mới
+ *  Hai trục ĐỘC LẬP, và đó là điểm chính. Một lead `event` vào bằng `scan`
+ *  (quét badge tại gian hàng) hoặc bằng `file` (danh sách đăng ký hôm sau mới
  *  xuất ra) — cùng một buổi, hai mức tin cậy khác nhau. Gộp hai trục thành một
  *  enum ba chục giá trị là cách chắc chắn để không ai lọc được theo trục nào.
  *
@@ -34,6 +34,8 @@
  *  (`data/intake.ts`), cùng lý do `ORIGIN_FACE` nằm ở đó chứ không ở fixture:
  *  "inbound trông như thế nào" là cách trình bày của phòng kinh doanh, không
  *  phải kiến thức của platform (biên giới package · CLAUDE.md). */
+
+import type { IntakeTrust } from '@pv/contracts'
 
 // ---------------------------------------------------------------------------
 // Trục A · Thế — ai chủ động
@@ -63,9 +65,9 @@ export type LeadMotion = (typeof LEAD_MOTIONS)[number]
 
 /** NĂM đường vào. Cũng là danh sách đóng, và cũng vì lý do trên.
  *
- *  `dong-bo` là đường vào duy nhất mà hệ tự đi: đợt chạy xong, lead đổ về sổ.
+ *  `sync` là đường vào duy nhất mà hệ tự đi: đợt chạy xong, lead đổ về sổ.
  *  Bốn cái còn lại đều có người hoặc có hệ khác đứng sau. */
-export const LEAD_INTAKES = ['dong-bo', 'tay', 'tep', 'quet', 'api'] as const
+export const LEAD_INTAKES = ['sync', 'manual', 'file', 'scan', 'api'] as const
 
 export type LeadIntake = (typeof LEAD_INTAKES)[number]
 
@@ -73,30 +75,16 @@ export type LeadIntake = (typeof LEAD_INTAKES)[number]
 // Mức tin — hệ quả của đường vào, không phải một trường gõ tay
 // ---------------------------------------------------------------------------
 
-/** Dòng vào bằng đường này thì tin được tới đâu.
- *
- *  Đây là thứ SUY RA từ đường vào chứ không phải một ô người dùng chọn, và nó
- *  suy được vì nó chỉ hỏi đúng một câu: **có người xác nhận dòng này không, và
- *  người đó là ai.**
- *
- *   · `xac-minh` — có người bên KHÁCH xác nhận. Quét badge là khách đứng trước
- *     mặt đưa thẻ; API là khách tự điền form rồi bấm gửi.
- *   · `khai-bao` — có người bên MÌNH đứng tên. Gõ tay là một BD chịu trách
- *     nhiệm từng ô; đồng bộ từ đợt là một địa chỉ đã trả lời thư của mình.
- *   · `tho` — chưa ai xác nhận gì. Một tệp mua về hoặc xuất từ hệ cũ là một
- *     đống dòng, và cho tới lúc có người chạm thì nó vẫn chỉ là một đống dòng.
- *
- *  Vì sao đáng có mặt: nếu không nói ra, 500 dòng nạp từ một tệp Apollo trông
- *  y hệt 500 lead đã có người nói chuyện, và mọi tỉ lệ chuyển đổi tính trên
- *  tổng đó đều sai. */
-export type IntakeTrust = 'xac-minh' | 'khai-bao' | 'tho'
-
+/** The trust levels are declared once, in `@pv/contracts`; this table only
+ *  maps the five doors onto them. `scan` and `api` are VERIFIED because the
+ *  customer handed over the data themselves; `sync` and `manual` are DECLARED
+ *  because someone on our side owns the row; `file` is RAW until touched. */
 export const INTAKE_TRUST: Record<LeadIntake, IntakeTrust> = {
-  'dong-bo': 'khai-bao',
-  tay: 'khai-bao',
-  tep: 'tho',
-  quet: 'xac-minh',
-  api: 'xac-minh',
+  sync: 'DECLARED',
+  manual: 'DECLARED',
+  file: 'RAW',
+  scan: 'VERIFIED',
+  api: 'VERIFIED',
 }
 
 // ---------------------------------------------------------------------------
@@ -106,19 +94,19 @@ export const INTAKE_TRUST: Record<LeadIntake, IntakeTrust> = {
 /** Cặp (thế, đường vào) nào có thật.
  *
  *  Không phải mọi cặp đều tồn tại, và bảng này nói ra chỗ đó thay vì để màn tự
- *  đoán: `dong-bo` chỉ chở `outbound` và `inbound` (đợt gửi đi, hoặc người bấm
+ *  đoán: `sync` chỉ chở `outbound` và `inbound` (đợt gửi đi, hoặc người bấm
  *  landing của đợt) — một lead `referral` không bao giờ tự đổ về từ một đợt vì
- *  không có đợt nào gửi cho nó; `quet` chỉ chở `event` vì máy quét chỉ đứng ở
+ *  không có đợt nào gửi cho nó; `scan` chỉ chở `event` vì máy quét chỉ đứng ở
  *  sự kiện.
  *
  *  Dùng ở màn nạp tệp để lọc danh sách thế theo chỗ người dùng đang đứng, và ở
  *  module Cấu hình để in ra bảng sáu-nhân-năm. Cặp không có trong bảng thì
  *  không phải "chưa hỗ trợ" — nó là cặp KHÔNG XẢY RA. */
 export const MOTION_BY_INTAKE: Record<LeadIntake, readonly LeadMotion[]> = {
-  'dong-bo': ['outbound', 'inbound'],
-  tay: ['inbound', 'outbound', 'referral', 'partner', 'recycle'],
-  tep: ['outbound', 'event', 'partner', 'recycle'],
-  quet: ['event'],
+  sync: ['outbound', 'inbound'],
+  manual: ['inbound', 'outbound', 'referral', 'partner', 'recycle'],
+  file: ['outbound', 'event', 'partner', 'recycle'],
+  scan: ['event'],
   api: ['inbound', 'partner'],
 }
 

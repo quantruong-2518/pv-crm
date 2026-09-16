@@ -1,5 +1,5 @@
 import { cn } from '../lib/cn'
-import { billions, dong, millions } from '../lib/format'
+import { billions, millions, vnd } from '../lib/format'
 
 /** A-10 · Money — chuẩn VN: phẩy thập phân, chấm ngăn nghìn, luôn tabular-nums.
  *  hero  → Space Grotesk 28–42 · trong thẻ → Space Grotesk 20
@@ -13,7 +13,7 @@ export type MoneyProps = {
 
 export function Money({ value, scale = 'card', className }: MoneyProps) {
   if (scale === 'table') {
-    return <span className={cn('tnum font-mono text-[12.5px]', className)}>{dong(value)}</span>
+    return <span className={cn('tnum font-mono text-[12.5px]', className)}>{vnd(value)}</span>
   }
   if (scale === 'hero') {
     return (

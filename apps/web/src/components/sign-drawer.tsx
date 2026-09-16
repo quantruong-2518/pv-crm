@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PenLine, TriangleAlert, X } from '@pv/ui'
-import { Button, Chip, Drawer, Icon, Input, MetaPill, Select, billions, cn, dong } from '@pv/ui'
+import { Button, Chip, Drawer, Icon, Input, MetaPill, Select, billions, cn, vnd } from '@pv/ui'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import type { ContractSign, OpportunityRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
@@ -73,7 +73,7 @@ function localDay(at: Date): string {
  *   · Ngày khác — giấy tờ vào sổ muộn vài hôm — thì lấy 12:00 GIỜ ĐỊA PHƯƠNG.
  *     Giữa trưa là mốc duy nhất còn đọc ra đúng ngày đó ở mọi múi giờ từ UTC-11
  *     tới UTC+12, nên đơn ký ngày 28 không đọc thành ngày 27 ở một máy khác. */
-function mocOf(day: string): string {
+function signedAtOf(day: string): string {
   const now = new Date()
   if (day === localDay(now)) return now.toISOString()
   const [y = '', m = '', d = ''] = day.split('-')
@@ -90,7 +90,7 @@ function bodyOf(form: SignForm): ContractSign {
 
   return {
     ...(money ? { amount: form.amount as number, currency: form.currency } : {}),
-    ...(form.signedDate === '' ? {} : { signedAt: mocOf(form.signedDate) }),
+    ...(form.signedDate === '' ? {} : { signedAt: signedAtOf(form.signedDate) }),
     ...(form.ownerId === '' ? {} : { ownerId: form.ownerId }),
   }
 }
@@ -224,7 +224,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
           {form.amount !== null && form.amount > 0 && (
             <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
               {form.currency === 'VND'
-                ? `${dong(form.amount)} · ${billions(form.amount)}`
+                ? `${vnd(form.amount)} · ${billions(form.amount)}`
                 : `${form.amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(form.amount, form.currency))} quy ra đồng`}
             </span>
           )}

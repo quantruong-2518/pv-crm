@@ -120,7 +120,7 @@ export type SalesConfig = Awaited<ReturnType<typeof fetchSalesConfig>>
  *     dòng mà nút gửi của nó sửa. Trước lượt này màn in hạn của fixture rồi gửi
  *     một đề nghị sửa hạn ở Neon: gật xong, màn vẫn in số cũ mãi mãi.
  *   · `earlyStageSla` — mục 5.5 hết là một `null` đóng đinh trong code. `TIER`
- *     là thang bậc từ `0038`, nên ngưỡng của `dau-moi`/`mql` là `limitDays` của
+ *     là thang bậc từ `0038`, nên ngưỡng của `prospect`/`mql` là `limitDays` của
  *     đúng những dòng ấy, nhập được và đi qua Hộp duyệt như mọi hạn khác. Nó
  *     vẫn TRỐNG — nhưng trống vì chưa ai điền, không vì không có chỗ điền. */
 async function fetchSalesConfig() {
@@ -218,7 +218,7 @@ export const salesCatalogQuery = queryOptions({
  *  ------------------------------------------------------------------
  *  MỘT LÝ DO, HAI VỰNG, VÀ CHÚNG KHÔNG NỐI ĐƯỢC BẰNG KHOÁ
  *  ------------------------------------------------------------------
- *  `sales.lead.exit_reason` chứa KHOÁ ('khong-goi-duoc'); `config_entry.name`
+ *  `sales.lead.exit_reason` chứa KHOÁ ('unreachable'); `config_entry.name`
  *  chứa NHÃN ('Không gọi được ai'). Không cột nào chở cả hai, nên không có phép
  *  nối bằng khoá — đó là nợ slug-so-với-nhãn nhìn từ đúng chỗ nó đau.
  *
@@ -229,7 +229,7 @@ export const salesCatalogQuery = queryOptions({
  *  đúng MỘT chỗ — ở đây — có rào và có đường xoá:
  *
  *   · rào: số lượng lệch thì bỏ hẳn nhãn của máy chủ và in khoá ra. Một màn in
- *     'khong-goi-duoc' là một màn xấu mà ĐÚNG; một màn ghép nhầm nhãn với số là
+ *     'unreachable' là một màn xấu mà ĐÚNG; một màn ghép nhầm nhãn với số là
  *     một màn đẹp mà nói dối, và không ai phát hiện ra.
  *   · đường xoá: ngày `sales.lead.exit_reason` chở `id` cấu hình, hàm này rút
  *     còn một vòng `map` trên `catalog.EXIT_REASON`. */
@@ -252,7 +252,7 @@ export function exitReasonRows(catalog: ConfigBundle | undefined) {
  *  `config_entry`, số lead là `usage.SOURCE` khoá theo `id`, quan hệ DUY NHẤT
  *  trong sáu danh mục đã có khoá ngoại thật. */
 export function naturalSources(catalog: ConfigBundle | undefined) {
-  const nat = (catalog?.SOURCE ?? []).filter((s) => s.kind === 'tu-nhien')
+  const nat = (catalog?.SOURCE ?? []).filter((s) => s.kind === 'organic')
   return {
     count: nat.length,
     leads: nat.reduce((sum, s) => sum + (catalog?.usage.SOURCE[s.id] ?? 0), 0),
@@ -328,8 +328,8 @@ export function useLossReasons(): string[] {
 
 /** One rung of a ladder, as the configuration screen needs it.
  *
- *  `key` is the lower-case slug the rest of `sales` still stores ('tim-hieu',
- *  'dau-moi'); `id` is the configuration row the write door addresses. Both,
+ *  `key` is the lower-case slug the rest of `sales` still stores ('discovery',
+ *  'prospect'); `id` is the configuration row the write door addresses. Both,
  *  because the screen has to count with one and write with the other. */
 export type LadderRow = {
   id: string
@@ -354,7 +354,7 @@ export type LadderRow = {
  *
  *  Same fence as the other two, for the same reason: a count that does not
  *  match drops the server's labels and prints the key. A rung reading
- *  'dau-moi' is ugly and TRUE; a rung wearing one name beside another rung's
+ *  'prospect' is ugly and TRUE; a rung wearing one name beside another rung's
  *  deadline is pretty and lying, and it is the number somebody gets judged by.
  *
  *  Empty before the catalog lands, never `undefined` — the screen maps over it.

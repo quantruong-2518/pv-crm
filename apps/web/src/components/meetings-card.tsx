@@ -428,14 +428,14 @@ function RecordMeetingDrawer({
             <Button variant="ghost" onClick={onClose}>
               Huỷ
             </Button>
-            <Button type="submit" form="ghi-buoi-hop" disabled={Boolean(blocker) || add.isPending}>
+            <Button type="submit" form="add-meeting" disabled={Boolean(blocker) || add.isPending}>
               {add.isPending ? 'Đang thêm…' : 'Thêm lịch họp'}
             </Button>
           </div>
         </div>
       }
     >
-      <form id="ghi-buoi-hop" onSubmit={submit} className="flex flex-col gap-4">
+      <form id="add-meeting" onSubmit={submit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-muted-foreground text-[11px]">Thời gian</span>
           <Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />

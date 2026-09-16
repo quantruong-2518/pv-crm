@@ -55,11 +55,11 @@ export type ObjectRef = {
 
 export type EdgeKind =
   /** A sinh ra B — HĐ-2607 sinh SO-0891 */
-  | 'sinh-ra'
+  | 'spawned'
   /** A bị chặn bởi B — WO-1180 chờ PO-0455 */
-  | 'chờ'
+  | 'waits-on'
   /** A thuộc về B — CT-0391 thuộc AC-0142 */
-  | 'thuộc-về'
+  | 'belongs-to'
 
 export type Edge = { from: string; to: string; kind: EdgeKind }
 

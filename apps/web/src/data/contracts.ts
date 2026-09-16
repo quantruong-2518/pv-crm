@@ -207,12 +207,12 @@ export const contractSummaryQuery = queryOptions({
 /** Vietnamese label of a level. Kept beside the ladder rather than inside a
  *  component because three screens print it and they must all read the same. */
 export const DUE_LABEL: Record<DueLevel, string> = {
-  'đã-xong': 'Đã thu',
-  'chưa-tới': 'Chưa tới',
-  'gần-hạn': 'Gần hạn',
-  'đến-hạn': 'Đến hạn',
-  'quá-hạn': 'Quá hạn',
-  'quá-hạn-lâu': 'Quá hạn lâu',
+  done: 'Đã thu',
+  upcoming: 'Chưa tới',
+  'due-soon': 'Gần hạn',
+  due: 'Đến hạn',
+  overdue: 'Quá hạn',
+  'long-overdue': 'Quá hạn lâu',
 }
 
 /** How many days, said the way a person would say it. */

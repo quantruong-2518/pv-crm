@@ -81,13 +81,13 @@ const scenario: Scenario = {
   // Chuỗi chính là thứ ContextRail vẽ ra:
   // HĐ-2607 → SO-0891 → WO-1180 → PO-0455 → L-2608-042
   edges: [
-    { from: 'LD-0334', to: 'HĐ-2607', kind: 'sinh-ra' },
-    { from: 'HĐ-2607', to: 'SO-0891', kind: 'sinh-ra' },
-    { from: 'SO-0891', to: 'WO-1180', kind: 'sinh-ra' },
-    { from: 'WO-1180', to: 'PR-0231', kind: 'sinh-ra' },
-    { from: 'WO-1180', to: 'PO-0455', kind: 'chờ' },
-    { from: 'PO-0455', to: 'L-2608-042', kind: 'sinh-ra' },
-    { from: 'CNC-03', to: 'BT-0310', kind: 'sinh-ra' },
+    { from: 'LD-0334', to: 'HĐ-2607', kind: 'spawned' },
+    { from: 'HĐ-2607', to: 'SO-0891', kind: 'spawned' },
+    { from: 'SO-0891', to: 'WO-1180', kind: 'spawned' },
+    { from: 'WO-1180', to: 'PR-0231', kind: 'spawned' },
+    { from: 'WO-1180', to: 'PO-0455', kind: 'waits-on' },
+    { from: 'PO-0455', to: 'L-2608-042', kind: 'spawned' },
+    { from: 'CNC-03', to: 'BT-0310', kind: 'spawned' },
   ],
 
   /** Cùng công ty với kịch bản 2 nên cùng tên miền email, và người trùng thì
@@ -167,9 +167,9 @@ export type Kpi = {
 
 /** Bốn KPI của Trang chủ. Trường bỏ trống nghĩa là KPI đó không có mục đó. */
 export const SAO_DO_KPI: Kpi[] = [
-  { key: 'doanh-thu', label: 'Doanh thu tháng 8', value: 4_200_000_000, deltaPct: 0.12 },
-  { key: 'dung-han', label: 'Giao đúng hạn', value: 0.86, target: 0.9 },
-  { key: 'qua-han', label: 'Công nợ quá hạn', value: 890_000_000, invoices: 2 },
+  { key: 'revenue', label: 'Doanh thu tháng 8', value: 4_200_000_000, deltaPct: 0.12 },
+  { key: 'on-time', label: 'Giao đúng hạn', value: 0.86, target: 0.9 },
+  { key: 'overdue', label: 'Công nợ quá hạn', value: 890_000_000, invoices: 2 },
   { key: 'oee', label: 'Hiệu suất thiết bị · xưởng X1', value: 0.914 },
 ]
 

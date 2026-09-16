@@ -231,7 +231,7 @@ const MOTION_FIELD: CreateField = {
   wire: 'motion',
   label: 'Thế',
   kind: 'select',
-  group: 'so',
+  group: 'system',
   required: true,
   hint: 'Ai chủ động. Lead của một sự kiện về theo danh sách, không gõ tay từng dòng.',
   options: MOTION_BY_CHANNEL.MANUAL.map((motion) => ({
@@ -295,8 +295,8 @@ export const CREATE_FIELDS: CreateField[] = [
  *  own label and purpose line for the same reason — "Hệ tự ghi, đọc là chính"
  *  is a true sentence about the profile screen and a false one about this. */
 export const CREATE_GROUPS: { key: GroupKey; label: string; purpose: string }[] = [
-  { key: 'so', label: 'Dòng đầu sổ', purpose: 'Tên trong sổ và thế — hai ô đòi ngay.' },
-  ...PROFILE_GROUPS.filter((group) => group.key !== 'so').map((group) => ({
+  { key: 'system', label: 'Dòng đầu sổ', purpose: 'Tên trong sổ và thế — hai ô đòi ngay.' },
+  ...PROFILE_GROUPS.filter((group) => group.key !== 'system').map((group) => ({
     key: group.key as GroupKey,
     label: group.label as string,
     purpose: group.purpose as string,
@@ -404,6 +404,6 @@ export function buildLeadCreate(draft: LeadDraft): BuildResult {
  *  sees it. That is a worse sentence than the generic one, and still better
  *  than confidently telling somebody to reload. */
 export function createFailureMessage(error: ApiError): string {
-  if (error.kind === 'xung-đột' && error.message !== '') return error.message
+  if (error.kind === 'conflict' && error.message !== '') return error.message
   return userMessage(error)
 }

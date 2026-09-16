@@ -145,8 +145,8 @@ export function fromCreate(body: OpportunityCreate, now: Date): OpportunityWrite
  *   · `stage`       — cột. Tính lại qua `stageOfState` CHỈ KHI trạng thái đổi.
  *     Tính lại ở mọi lượt lưu là một lỗi thật, và nó đã lộ ra khi bấm thử
  *     (28/08): một đơn đang đứng ở "Đã demo", sửa mỗi cái tên rồi bấm Lưu, bị
- *     kéo ngược về "Đang tìm hiểu" — vì `pending` ánh xạ xuống 'tim-hieu'. Hai
- *     cột 'moi' và 'da-demo' KHÔNG có trạng thái nào trỏ tới, nên với chúng thì
+ *     kéo ngược về "Đang tìm hiểu" — vì `pending` ánh xạ xuống 'discovery'. Hai
+ *     cột 'new' và 'demo-done' KHÔNG có trạng thái nào trỏ tới, nên với chúng thì
  *     mọi lượt lưu đều là một lần dời cột ngoài ý muốn. Trạng thái không đổi
  *     thì cột giữ nguyên, chấm hết.
  *   · `stage_since` — ĐỒNG HỒ CỦA CỘT. Chỉ chạm khi cột THẬT SỰ ĐỔI. Sửa tên
@@ -365,8 +365,7 @@ export function refOf(
     label: opts.label,
     ...(opts.ownerName ? { owner: opts.ownerName } : {}),
     /* `state` của một object E1 chở KHOÁ CỘT, không chở trạng thái phiếu —
-       cùng quy ước `lead.mapper.ts#toRef` dùng, và mismatch với bốn object
-       tiếng Việt của fixture đã được ghi ở `seed.ts`. */
+       cùng quy ước `lead.mapper.ts#toRef` dùng. */
     ...(write.values.stage ? { state: write.values.stage } : {}),
   }
 }

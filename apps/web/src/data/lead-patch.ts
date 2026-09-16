@@ -64,7 +64,7 @@ const PATCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: 
  *     recomputed by Postgres rather than the count this tab loaded earlier;
  *   · `lead-book` — the book behind the screen prints `contactName`, `phone`,
  *     `contactChannel` and the init-data gate, all of which this door moves;
- *   · `lead-touches` — the server just wrote a `dien-o` row on the timeline,
+ *   · `lead-touches` — the server just wrote a `field-filled` row on the timeline,
  *     and the timeline card is on this very page.
  *
  *  Copied strings rather than imported objects, same debt `lead-owner.ts` and
@@ -84,7 +84,7 @@ export type PatchInput = { code: string; body: LeadPatch }
  *
  *  No retry, and for a different reason than `useCreateLead`: a repeated PATCH
  *  is harmless because it writes the same values twice, but it also writes a
- *  second `dien-o` row on the timeline — one save reading as two sittings. The
+ *  second `field-filled` row on the timeline — one save reading as two sittings. The
  *  human double-click is guarded by `isPending` in the card. */
 export function useUpdateLeadProfile() {
   const client = useQueryClient()

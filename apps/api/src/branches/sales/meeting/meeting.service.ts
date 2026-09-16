@@ -60,7 +60,7 @@ export class MeetingService {
    *
    *  Loại của dòng `touch` đọc từ SỔ chứ không từ dữ liệu người gửi:
    *  `countOf` bên trong transaction trả 0 nghĩa đây là buổi đầu tiên, và dòng
-   *  đó là `gap-lan-dau` — writer đầu tiên của loại ấy kể từ khi `TouchKind`
+   *  đó là `first-meeting` — writer đầu tiên của loại ấy kể từ khi `TouchKind`
    *  được viết ra. Đọc trong transaction chứ không trước nó vì hai người cùng
    *  ghi buổi đầu tiên của một lead là chuyện có thật, và ở ngoài thì cả hai
    *  cùng thấy 0.
@@ -90,7 +90,7 @@ export class MeetingService {
         {
           subjectCode: code,
           subjectKind: 'lead',
-          kind: already === 0 ? 'gap-lan-dau' : 'cham',
+          kind: already === 0 ? 'first-meeting' : 'contacted',
           ...byOf(who),
           note: already === 0 ? `Gặp lần đầu: ${body.title}` : `Họp: ${body.title}`,
           /* Mốc của dòng thời gian là lúc HỌP, không phải lúc gõ — ghi bù một
@@ -264,7 +264,7 @@ function attendeesOf(
   ]
 }
 
-/** Người chủ trì đọc lên từ sổ luôn có `actorId` — `meeting_attendee_host_co_actor`
+/** Người chủ trì đọc lên từ sổ luôn có `actorId` — `meeting_attendee_host_is_actor`
  *  không cho dòng nào khác tồn tại. Kiểu thì không biết điều đó, nên chỗ này
  *  nói ra một lần thay vì rải `?? ''` khắp nơi. */
 function requireActor(h: { actorId?: string; name: string }): { actorId: string; name: string } {

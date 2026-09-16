@@ -239,7 +239,7 @@ export class LeadService {
    *  one row per THING SOMEBODY DID — the lead entered the book, it was
    *  promoted, a contract was signed — facts no delivery ledger can hold.
    *
-   *  Writing a `cham` touch per delivery would put the same fact in two tables
+   *  Writing a `contacted` touch per delivery would put the same fact in two tables
    *  that then disagree the first moment a queued letter fails to send: the
    *  ledger would know, the timeline would not. Two streams, two questions, and
    *  a screen free to draw them side by side.
@@ -410,7 +410,7 @@ export class LeadService {
  *     key, so the pairing is by ordinal position and `ladderConfigOf` is the
  *     one place allowed to make it;
  *   · the EVIDENCE — a lead's own tier IS the evidence. A deal passes its
- *     column; a lead has nothing to infer, because `len-bac` has no write door
+ *     column; a lead has nothing to infer, because `tier-raised` has no write door
  *     (the `TouchKind` docblock says why) and the column is the only record of
  *     which rung it reached.
  *

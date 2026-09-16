@@ -96,7 +96,7 @@ export function refOf(
     kind: 'AC',
     branch: 'Sales',
     label: values.name,
-    state: signed ? 'khách' : 'tiềm năng',
+    state: signed ? 'customer' : 'prospect',
   }
 }
 

@@ -87,8 +87,8 @@ export type TouchEntry = {
   kind: TouchKind
   by: string
   note: string
-  /** BẮT BUỘC khi `kind` là `'len-bac'` — `touch_len_bac_co_bac` từ chối dòng
-   *  thiếu nó. Đặt được cả với `'vao-so'` cho lead vào sổ đã có sẵn bậc. Kiểu
+  /** BẮT BUỘC khi `kind` là `'tier-raised'` — `touch_tier_raised_has_tier` từ chối dòng
+   *  thiếu nó. Đặt được cả với `'created'` cho lead vào sổ đã có sẵn bậc. Kiểu
    *  không ép được điều kiện theo `kind` nên hàng rào thật nằm ở database; đây
    *  chỉ là chỗ mang giá trị đi. */
   toTier?: LeadTier
@@ -97,7 +97,7 @@ export type TouchEntry = {
   at?: Date
   /** Who held it before this step, and who holds it after.
    *
-   *  `from` belongs to `'giao'` alone; `to` to `'giao'` and to `'vao-so'` for a
+   *  `from` belongs to `'handed-over'` alone; `to` to `'handed-over'` and to `'created'` for a
    *  lead that entered the book already assigned. A missing end is the common
    *  pool, not a missing value — see `TouchRow.from` in the contract. The type
    *  cannot tie an end to a `kind` any more than `toTier` can, so the fence is

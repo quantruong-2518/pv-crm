@@ -44,7 +44,7 @@ import { dm } from '@/lib/date'
 import {
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
-  dongOf,
+  amountVndOf,
   isLateClose,
   isRottingOp,
   namesOf,
@@ -750,8 +750,8 @@ function ScoreCards() {
  *  Ngoại tệ in kèm số gốc ở `title` — sổ cộng bằng đồng, nhưng đơn thì chào
  *  bằng đồng tiền của nó. */
 function AmountCell({ op }: { op: OpportunityRow }) {
-  const inDong = dongOf(op)
-  if (op.amount === null || inDong === null) {
+  const amountVnd = amountVndOf(op)
+  if (op.amount === null || amountVnd === null) {
     return (
       <span className="text-muted-foreground" title="Chưa moi được ô 9 — khoảng tiền khách nói">
         —
@@ -767,7 +767,7 @@ function AmountCell({ op }: { op: OpportunityRow }) {
           : `${op.amount.toLocaleString('vi-VN')} ${op.currency} quy ra đồng`
       }
     >
-      {billions(inDong)}
+      {billions(amountVnd)}
     </span>
   )
 }

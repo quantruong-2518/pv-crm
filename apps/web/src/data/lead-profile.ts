@@ -168,7 +168,7 @@ export function profileForm(p: LeadProfile): ProfileForm {
 
 /** ASCII exit key → the Vietnamese label the frozen shapes carry.
  *
- *  The server stores and sends a key (`khong-goi-duoc`); the fixture typed the
+ *  The server stores and sends a key (`unreachable`); the fixture typed the
  *  field as the label itself. One table does the translation for the whole app
  *  and it already exists next to the book — spelling a second one here is how
  *  two screens end up naming one exit reason two ways. */

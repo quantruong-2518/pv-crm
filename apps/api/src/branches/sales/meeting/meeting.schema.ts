@@ -18,7 +18,7 @@ import { lead } from '../lead/lead.schema'
  *
  *  Hai bảng KHÔNG tranh nhau: ghi một cuộc họp thì `MeetingService` ghi kèm
  *  một dòng `touch`, nên dòng thời gian vẫn kể đủ chuyện. Dòng đó là
- *  `gap-lan-dau` cho cuộc họp sớm nhất của lead và `cham` cho mọi cuộc sau —
+ *  `first-meeting` cho cuộc họp sớm nhất của lead và `contacted` cho mọi cuộc sau —
  *  đây chính là cửa ghi mà `TouchKind` đã chừa chỗ từ đầu với ghi chú "no door
  *  writes this yet".
  *
@@ -83,7 +83,7 @@ export const meeting = sales.table(
      *  cú XSS lưu trữ, nên lược đồ từ chối nó chứ không chỉ zod ở cửa vào:
      *  bảng này còn nhận dữ liệu từ migration và từ tay người, không chỉ từ
      *  HTTP. */
-    check('meeting_link_la_web', sql`"link" IS NULL OR "link" ~ '^https?://'`),
+    check('meeting_link_is_web', sql`"link" IS NULL OR "link" ~ '^https?://'`),
   ],
 )
 
@@ -126,7 +126,7 @@ export const meetingAttendee = sales.table(
      *  junk contact row per attendee. The typed path is an UPGRADE of the
      *  hand-typed one, not a replacement: with a code the six-months-later
      *  question "who was that" has an answer that survives two people sharing a
-     *  name, exactly what `meeting_attendee_host_co_actor` buys on the host
+     *  name, exactly what `meeting_attendee_host_is_actor` buys on the host
      *  side. */
     contactCode: text('contact_code').references(() => contact.code),
 
@@ -138,12 +138,12 @@ export const meetingAttendee = sales.table(
     check('meeting_attendee_side_known', sql`"side" IN ('host', 'guest')`),
     /** `sales.contact` is the CUSTOMER's book — a host carrying a contact code
      *  would be one of ours filed as one of theirs, and `actor_id` is already
-     *  the host's identity. The mirror of `meeting_attendee_host_co_actor`. */
+     *  the host's identity. The mirror of `meeting_attendee_host_is_actor`. */
     check('meeting_attendee_contact_only_guest', sql`"contact_code" IS NULL OR "side" = 'guest'`),
     /** Chủ trì là người của mình, và cả điểm của trường này là để sau sáu
      *  tháng còn trả lời được "ai chạy buổi đó" — một cái tên gõ tay không trả
      *  lời được khi có hai người trùng tên. */
-    check('meeting_attendee_host_co_actor', sql`"side" <> 'host' OR "actor_id" IS NOT NULL`),
+    check('meeting_attendee_host_is_actor', sql`"side" <> 'host' OR "actor_id" IS NOT NULL`),
     check('meeting_attendee_no_blank', sql`"name" <> ''`),
   ],
 )

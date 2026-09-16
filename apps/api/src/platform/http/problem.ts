@@ -80,7 +80,7 @@ export function notFound(kind: string, code?: string): PvError {
 /** 409 — dữ liệu ngoài kia đã khác thứ thao tác này giả định.
  *
  *  Trùng khoá, sửa đè lên bản mới hơn, xoá thứ nơi khác còn dùng. `title` phải
- *  nói được người dùng LÀM GÌ TIẾP; bên web nhánh `'xung-đột'` mặc định chỉ
+ *  nói được người dùng LÀM GÌ TIẾP; bên web nhánh `'conflict'` mặc định chỉ
  *  nói "tải lại rồi làm lại", câu cụ thể hơn là việc của chỗ ném.
  *
  *  `fields` cùng hình với `invalid()` bên dưới — xem docblock của

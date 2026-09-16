@@ -32,7 +32,7 @@ import { LeadBookQuery } from '@pv/contracts'
  *  from silently drifting out of sync the next time the contract grows a
  *  filter.
  *
- *  `owner` deserves a specific note: `OWNER_NONE` (`'chua-ai-nhan'`, see
+ *  `owner` deserves a specific note: `OWNER_NONE` (`'unassigned'`, see
  *  `lead.ts`) is a normal, valid VALUE of the owner axis — "nobody has taken
  *  it" — not the absence of a filter. It needs no special case below: it is
  *  just a non-empty string that is not the field's default (`undefined`), so

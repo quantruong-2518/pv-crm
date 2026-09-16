@@ -366,7 +366,7 @@ export class OpportunityService {
          data is a rail that breaks the first time somebody opens a deal they
          made themselves. Both mirror rows are in place: the lead's is
          guaranteed by `lead.code`'s foreign key, the deal's by the line above. */
-      await this.mirror.link(tx, { from: body.leadCode, to: code, kind: 'sinh-ra' })
+      await this.mirror.link(tx, { from: body.leadCode, to: code, kind: 'spawned' })
       const written = await this.repo.insertOpportunity(tx, { ...write.values, code })
       await this.repo.insertOwners(tx, ownerRowsOf(code, write))
       await this.repo.insertProducts(tx, productRowsOf(code, write))
@@ -403,14 +403,14 @@ export class OpportunityService {
         {
           subjectCode: code,
           subjectKind: 'opportunity',
-          kind: 'vao-pipeline',
+          kind: 'entered-pipeline',
           ...byOf(who),
           note: NOTE.opened(body.leadCode, body.state),
         },
         {
           subjectCode: body.leadCode,
           subjectKind: 'lead',
-          kind: 'vao-pipeline',
+          kind: 'entered-pipeline',
           ...byOf(who),
           note: NOTE.promoted(code, write.values.name),
         },
@@ -545,7 +545,7 @@ export class OpportunityService {
           {
             subjectCode: code,
             subjectKind: 'opportunity',
-            kind: 'doi-cot',
+            kind: 'stage-changed',
             ...byOf(who),
             note: moved
               ? NOTE.moved(found.row.stage, written.stage)
@@ -612,7 +612,7 @@ export class OpportunityService {
    *  ------------------------------------------------------------------
    *  Before it, `stage` could only be written INDIRECTLY, through `state` and
    *  the `STAGE_OF_STATE` table. That table covers three of the five columns —
-   *  no state maps to 'moi' or 'da-demo' — so the board had five columns and
+   *  no state maps to 'new' or 'demo-done' — so the board had five columns and
    *  only three of them writable. Full reasoning is in the docblock of
    *  `OpportunityStageMove` in the contract.
    *
@@ -677,7 +677,7 @@ export class OpportunityService {
         {
           subjectCode: code,
           subjectKind: 'opportunity',
-          kind: 'doi-cot',
+          kind: 'stage-changed',
           ...byOf(who),
           note: body.note ?? NOTE.moved(found.row.stage, body.stage),
         },
@@ -847,7 +847,7 @@ export class OpportunityService {
          it is an E1 object in its own right, and without it the rail walks
          lead → deal and stops one link short of what the reader opened the
          screen to find. */
-      await this.mirror.link(tx, { from: code, to: contractCode, kind: 'sinh-ra' })
+      await this.mirror.link(tx, { from: code, to: contractCode, kind: 'spawned' })
 
       /* `at: signedAt` chứ không để `now()` mặc định: một hợp đồng vào sổ muộn
          ba ngày phải nằm đúng chỗ của nó trên dòng thời gian, không nhảy lên
@@ -857,7 +857,7 @@ export class OpportunityService {
         {
           subjectCode: code,
           subjectKind: 'opportunity',
-          kind: 'ky',
+          kind: 'signed',
           ...byOf(who),
           note: NOTE.signed(contractCode),
           at: signedAt,
@@ -865,7 +865,7 @@ export class OpportunityService {
         {
           subjectCode: row.leadCode,
           subjectKind: 'lead',
-          kind: 'ky',
+          kind: 'signed',
           ...byOf(who),
           note: NOTE.signed(contractCode),
           at: signedAt,
@@ -984,14 +984,14 @@ export class OpportunityService {
           {
             subjectCode: code,
             subjectKind: 'opportunity' as const,
-            kind: 'vao-pipeline' as const,
+            kind: 'entered-pipeline' as const,
             ...byOf(who),
             note: NOTE.opened(write.leadCode, write.state),
           },
           {
             subjectCode: write.leadCode,
             subjectKind: 'lead' as const,
-            kind: 'vao-pipeline' as const,
+            kind: 'entered-pipeline' as const,
             ...byOf(who),
             note: NOTE.promoted(code, write.name),
           },
@@ -1022,7 +1022,7 @@ export class OpportunityService {
            nobody can trust. */
         await this.mirror.linkMany(
           tx,
-          slice.map((p) => ({ from: p.row.leadCode, to: p.code, kind: 'sinh-ra' as const })),
+          slice.map((p) => ({ from: p.row.leadCode, to: p.code, kind: 'spawned' as const })),
         )
         await this.repo.insertMany(
           tx,

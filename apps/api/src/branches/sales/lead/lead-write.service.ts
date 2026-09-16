@@ -111,7 +111,7 @@ export class LeadWriteService {
          after `resolveForLead` and not before: that call is what puts the
          company's mirror row there when the company is new, and
          `edge.to_code` is a foreign key into it. */
-      await this.mirror.link(tx, { from: code, to: accountCode, kind: 'thuộc-về' })
+      await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
       const [written] = await this.repo.insertLeads(tx, [{ ...write.values, accountCode, code }])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
 
@@ -121,7 +121,7 @@ export class LeadWriteService {
          INSERT on a path that is already writing two.
 
          `to` is the holder the lead is BORN with, and it is on this row rather
-         than on a `giao` row of its own: nobody handed the lead over, it
+         than on a `handed-over` row of its own: nobody handed the lead over, it
          arrived with a name on it. Without it the flow vector's first step
          would have to be inferred from `lead.owner_id`, which says who holds it
          TODAY and has no date to stand on. Same place `toTier` sits for a lead
@@ -130,7 +130,7 @@ export class LeadWriteService {
         {
           subjectCode: code,
           subjectKind: 'lead',
-          kind: 'vao-so',
+          kind: 'created',
           ...byOf(who),
           ...(owner ? { to: { actorId: owner.id, name: owner.name, role: owner.roleId } } : {}),
           note: LEAD_NOTE.typed,
@@ -202,7 +202,7 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  The column, the mirror row in `platform.object` (or the ContextRail keeps
    *  showing the old holder — rule 10), and one `sales.touch` row of kind
-   *  `giao` carrying BOTH ends of the move — one row, not two; the reasoning
+   *  `handed-over` carrying BOTH ends of the move — one row, not two; the reasoning
    *  is on the columns in `touch.schema.ts`. The lock is taken first; see
    *  `lockForOwnerChange`. */
   async setOwner(who: Actor, code: ObjectCode, body: LeadOwnerWrite): Promise<LeadOwnerResponse> {
@@ -267,7 +267,7 @@ export class LeadWriteService {
         {
           subjectCode: code,
           subjectKind: 'lead',
-          kind: 'giao',
+          kind: 'handed-over',
           /* `by`/`actorId` is who PRESSED the button, never who received the
              lead — the timeline answers "who did this", and a head of sales
              moving a lead between two Sales is neither end of it. `byOf` is the
@@ -341,7 +341,7 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  ONE TOUCH ROW PER SAVE, COUNTING BOXES
    *  ------------------------------------------------------------------
-   *  `dien-o` has been in `TouchKind` since the timeline was drawn, described
+   *  `field-filled` has been in `TouchKind` since the timeline was drawn, described
    *  as "fields on the profile were filled in or corrected", with no door
    *  writing it. This is that door. One row per save rather than per field:
    *  somebody working through the ten questions fills six boxes in one sitting,
@@ -370,7 +370,7 @@ export class LeadWriteService {
         {
           subjectCode: code,
           subjectKind: 'lead',
-          kind: 'dien-o',
+          kind: 'field-filled',
           ...byOf(who),
           note: LEAD_NOTE.corrected(Object.keys(values).length),
         },
@@ -485,7 +485,7 @@ export class LeadWriteService {
           const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row))
           if (!known) seen.set(key, accountCode)
           rows.push({ ...p.row, accountCode })
-          links.push({ from: p.row.code, to: accountCode, kind: 'thuộc-về' })
+          links.push({ from: p.row.code, to: accountCode, kind: 'belongs-to' })
         }
 
         await this.mirror.linkMany(tx, links)
@@ -500,7 +500,7 @@ export class LeadWriteService {
           slice.map((p): TouchEntry => ({
             subjectCode: p.row.code,
             subjectKind: 'lead',
-            kind: 'vao-so',
+            kind: 'created',
             /* Đọc off chính dòng sắp ghi, không chép lại `IMPORTED_TIER`: hai
                chỗ cùng nói một luật là hai chỗ để nó lệch nhau, và chỗ lệch sẽ
                là chỗ này — nó không có test, còn kia thì có docblock dài.

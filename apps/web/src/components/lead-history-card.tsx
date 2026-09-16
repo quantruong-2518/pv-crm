@@ -148,16 +148,16 @@ function useCommsTabHead(code: string) {
 // ---------------------------------------------------------------------------
 
 const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'> = {
-  'vao-so': 'next',
-  cham: 'next',
-  'dien-o': 'current',
-  giao: 'current',
-  'len-bac': 'ok',
-  'gap-lan-dau': 'ok',
-  'vao-pipeline': 'ok',
-  'doi-cot': 'current',
-  ky: 'ok',
-  'ra-khoi-luong': 'bad',
+  created: 'next',
+  contacted: 'next',
+  'field-filled': 'current',
+  'handed-over': 'current',
+  'tier-raised': 'ok',
+  'first-meeting': 'ok',
+  'entered-pipeline': 'ok',
+  'stage-changed': 'current',
+  signed: 'ok',
+  exited: 'bad',
 }
 
 /** What has happened to this record, one row per `sales.touch`.

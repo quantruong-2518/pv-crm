@@ -55,7 +55,7 @@ export function renewSession(): Promise<boolean> {
     .then((ok) => {
       if (!ok) {
         const { ticket, expire } = useSession.getState()
-        expire(ticketDeath(ticket, Date.now()) ?? 'bị-thu-hồi')
+        expire(ticketDeath(ticket, Date.now()) ?? 'revoked')
       }
       return ok
     })

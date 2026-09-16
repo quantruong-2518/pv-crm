@@ -10,16 +10,16 @@ import { SAO_DO_CONTRACTS, SAO_DO_FROZEN_AT, SAO_DO_KPI, SAO_DO_SIGNED_AT } from
  *  Every number locked here ALREADY EXISTED in the scenario; the contract file
  *  is not allowed to contradict them. */
 
-const HOP_DONG = SAO_DO_CONTRACTS.find((c) => c.code === 'HĐ-2607')
+const CONTRACT = SAO_DO_CONTRACTS.find((c) => c.code === 'HĐ-2607')
 
 describe('HĐ-2607 — khớp với chuỗi object của kịch bản', () => {
   it('có mặt, và mang đúng giá trị 1,84 tỷ mà `objects` đã khai', () => {
-    expect(HOP_DONG).toBeDefined()
-    expect(HOP_DONG?.amount).toBe(1_840_000_000)
+    expect(CONTRACT).toBeDefined()
+    expect(CONTRACT?.amount).toBe(1_840_000_000)
   })
 
   it('ngày ký trùng `SAO_DO_SIGNED_AT` — một hợp đồng, một thời điểm', () => {
-    expect(HOP_DONG?.signedAt).toBe(SAO_DO_SIGNED_AT)
+    expect(CONTRACT?.signedAt).toBe(SAO_DO_SIGNED_AT)
   })
 })
 
@@ -50,7 +50,7 @@ describe('Công nợ tới hạn cộng lại đúng KPI của Trang chủ', () 
     const duePast = SAO_DO_CONTRACTS.flatMap((c) => c.installments).filter(
       (d) => !d.paidAt && d.due <= SAO_DO_FROZEN_AT,
     )
-    const kpi = SAO_DO_KPI.find((k) => k.key === 'qua-han')
+    const kpi = SAO_DO_KPI.find((k) => k.key === 'overdue')
 
     expect(duePast).toHaveLength(kpi?.invoices ?? 0)
     expect(duePast.reduce((n, d) => n + d.amount, 0)).toBe(kpi?.value)
@@ -58,26 +58,28 @@ describe('Công nợ tới hạn cộng lại đúng KPI của Trang chủ', () 
 })
 
 describe('Bậc hạn đọc ra đúng thứ màn đang vẽ', () => {
-  const dot2 = HOP_DONG?.installments.find((d) => d.no === 2)
+  const installment2 = CONTRACT?.installments.find((d) => d.no === 2)
 
-  it('đợt 2 là `gần-hạn` tại ngày đóng băng — còn 2 ngày', () => {
-    expect(dueLevelOf(dot2?.due ?? '', SAO_DO_FROZEN_AT)).toBe('gần-hạn')
+  it('đợt 2 là `due-soon` tại ngày đóng băng — còn 2 ngày', () => {
+    expect(dueLevelOf(installment2?.due ?? '', SAO_DO_FROZEN_AT)).toBe('due-soon')
   })
 
-  it('đợt 1 đã thu thì luôn `đã-xong`, kể cả khi so với ngày nào', () => {
-    const dot1 = HOP_DONG?.installments.find((d) => d.no === 1)
-    expect(dueLevelOf(dot1?.due ?? '', SAO_DO_FROZEN_AT, dot1?.paidAt)).toBe('đã-xong')
+  it('đợt 1 đã thu thì luôn `done`, kể cả khi so với ngày nào', () => {
+    const installment1 = CONTRACT?.installments.find((d) => d.no === 1)
+    expect(dueLevelOf(installment1?.due ?? '', SAO_DO_FROZEN_AT, installment1?.paidAt)).toBe('done')
   })
 
-  it('đợt duy nhất của Minh Quang là `quá-hạn` — trễ 12 ngày, chưa tới bậc lâu', () => {
+  it('đợt duy nhất của Minh Quang là `overdue` — trễ 12 ngày, chưa tới bậc lâu', () => {
     const mq = SAO_DO_CONTRACTS.find((c) => c.code === 'HĐ-2604')?.installments[0]
-    expect(dueLevelOf(mq?.due ?? '', SAO_DO_FROZEN_AT)).toBe('quá-hạn')
+    expect(dueLevelOf(mq?.due ?? '', SAO_DO_FROZEN_AT)).toBe('overdue')
   })
 
-  it('điều kiện khách chưa ký của đợt 2 là `quá-hạn` — trễ 4 ngày', () => {
-    const chuaKy = dot2?.conditions.find((c) => c.side === 'khách' && !c.doneAt)
-    expect(chuaKy).toBeDefined()
-    expect(dueLevelOf(chuaKy?.due ?? '', SAO_DO_FROZEN_AT)).toBe('quá-hạn')
+  it('điều kiện khách chưa ký của đợt 2 là `overdue` — trễ 4 ngày', () => {
+    const unsignedCondition = installment2?.conditions.find(
+      (c) => c.side === 'customer' && !c.doneAt,
+    )
+    expect(unsignedCondition).toBeDefined()
+    expect(dueLevelOf(unsignedCondition?.due ?? '', SAO_DO_FROZEN_AT)).toBe('overdue')
   })
 })
 

@@ -29,14 +29,14 @@ import { z } from 'zod'
  *  screen is already showing them, and a value outside the list means a column
  *  was mapped wrong, not that somebody failed to choose. */
 export const LeadCategory = z.enum(
-  ['chip', 'co-khi', 'o-to', 'duoc'],
+  ['chip', 'mechanical', 'automotive', 'pharma'],
   'Ngành không có trong danh sách',
 )
 
-export const LeadTier = z.enum(['dau-moi', 'mql', 'sql'], 'Bậc không có trong danh sách')
+export const LeadTier = z.enum(['prospect', 'mql', 'sql'], 'Bậc không có trong danh sách')
 
 /** Năm cột của sổ cơ hội. Không có cột thứ sáu. */
-export const StageKey = z.enum(['moi', 'tim-hieu', 'da-demo', 'da-bao-gia', 'cho-ky'])
+export const StageKey = z.enum(['new', 'discovery', 'demo-done', 'quoted', 'awaiting-signature'])
 
 /** SÁU lý do rơi — KHOÁ ASCII, không phải nhãn tiếng Việt.
  *
@@ -47,12 +47,12 @@ export const StageKey = z.enum(['moi', 'tim-hieu', 'da-demo', 'da-bao-gia', 'cho
  *
  *  Nhãn hiển thị KHÔNG nằm ở đây — nhãn là việc của tầng màn. */
 export const ExitReason = z.enum([
-  'khong-goi-duoc',
-  'khong-phai-khach-cua-minh',
-  'khong-co-ngan-sach',
-  'nguoi-lien-he-nghi',
-  'chon-ben-khac',
-  'im-sau-bao-gia',
+  'unreachable',
+  'not-a-fit',
+  'no-budget',
+  'contact-left',
+  'chose-competitor',
+  'silent-after-quote',
 ])
 
 export type LeadCategory = z.infer<typeof LeadCategory>

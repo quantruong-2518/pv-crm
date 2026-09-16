@@ -28,7 +28,7 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
     message: 'Lần chạm phải có người làm và câu mô tả — một dòng trống không kể được gì.',
   },
 
-  /** Only a `giao` row names the two ends of a hand-over, and it names at least
+  /** Only a `handed-over` row names the two ends of a hand-over, and it names at least
    *  one of them. Nothing a person typed can break this — the service builds
    *  the pair from the lead's own `owner_id` — so this firing means the writer
    *  is wrong, and the sentence below exists for the log rather than the screen. */
@@ -37,7 +37,7 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
     message: 'Chỉ lần chạm loại giao mới chở được người giao và người nhận.',
   },
 
-  touch_giao_names_an_end: {
+  touch_handed_over_names_an_end: {
     kind: 'invalid',
     message: 'Một lần giao phải nói ra người giao hoặc người nhận.',
   },

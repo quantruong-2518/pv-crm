@@ -26,7 +26,7 @@ import { OpportunityRepository } from './opportunity.repository'
  *  ------------------------------------------------------------------
  *  NHÃN TIẾNG VIỆT ĐÃ RỜI KHỎI FILE NÀY
  *  ------------------------------------------------------------------
- *  `@pv/contracts` cố tình chỉ giữ KHOÁ ('gui-quotation'), không giữ nhãn —
+ *  `@pv/contracts` cố tình chỉ giữ KHOÁ ('quote-sent'), không giữ nhãn —
  *  nhãn là việc của tầng hiển thị. Hai bảng nhãn từng nằm ngay đây; nay chúng ở
  *  `opportunity.labels.ts`, vì dòng thời gian (`sales.touch`) cũng phải dựng
  *  câu "đơn vừa sang cột Chờ ký" và một bản chép thứ hai trong cùng một thư mục

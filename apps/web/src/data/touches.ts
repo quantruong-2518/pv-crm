@@ -49,9 +49,9 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
  *
  *  Đổi tên trường, không phải một bảng tra — và đó là chủ ý từ đầu chứ không
  *  phải may: `TouchKind` ở `@pv/contracts` được đặt TRÙNG đúng mười giá trị của
- *  `LeadEventKind` trong fixture (`vao-so` · `cham` · `dien-o` · `giao` ·
- *  `len-bac` · `gap-lan-dau` · `vao-pipeline` · `doi-cot` · `ky` ·
- *  `ra-khoi-luong`). Một bảng tra ở đây sẽ là chỗ thứ hai phải nhớ mỗi lần enum
+ *  `LeadEventKind` trong fixture (`created` · `contacted` · `field-filled` · `handed-over` ·
+ *  `tier-raised` · `first-meeting` · `entered-pipeline` · `stage-changed` · `signed` ·
+ *  `exited`). Một bảng tra ở đây sẽ là chỗ thứ hai phải nhớ mỗi lần enum
  *  mọc thêm một giá trị, và là chỗ lặng lẽ nuốt giá trị mới nào chưa kịp khai.
  *
  *  Bốn trường được lấy, phần còn lại của `TouchRow` cố ý bỏ:
@@ -96,14 +96,14 @@ export type TouchEvent = LeadEvent & { id: string }
 /** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
  *
  *  Only two kinds carry a holder, and both state it in COLUMNS rather than in
- *  the sentence: `vao-so` carries `to` for a lead that entered the book already
- *  assigned, `giao` carries `from` and/or `to` on every hand-over. The server
+ *  the sentence: `created` carries `to` for a lead that entered the book already
+ *  assigned, `handed-over` carries `from` and/or `to` on every hand-over. The server
  *  answers newest-first, so this walks backwards to build time order.
  *
- *  A `giao` row with NEITHER end is skipped, and that is the one careful line
+ *  A `handed-over` row with NEITHER end is skipped, and that is the one careful line
  *  here: those are rows written before migration `0033`, when both ends lived
  *  only in the Vietnamese sentence in `note`. A release into the common pool
- *  has `from` and no `to`, and `touch_hand_over_sides` forbids a `giao` row
+ *  has `from` and no `to`, and `touch_hand_over_sides` forbids a `handed-over` row
  *  that names neither end — so the two cases cannot be confused. Digging names
  *  back out of an old row's prose would invent history, so it is not done.
  *
@@ -114,7 +114,7 @@ export function stepsOf(rows: readonly TouchRow[]): FlowVectorStep[] {
   for (let i = rows.length - 1; i >= 0; i--) {
     const row = rows[i]
     if (!row) continue
-    if (row.kind !== 'giao' && row.kind !== 'vao-so') continue
+    if (row.kind !== 'handed-over' && row.kind !== 'created') continue
 
     if (row.to) {
       steps.push({
@@ -130,7 +130,7 @@ export function stepsOf(rows: readonly TouchRow[]): FlowVectorStep[] {
            role rather than borrowing the one the person holds today. */
         ...(row.to.role ? { role: ROLE_LABEL[row.to.role] } : {}),
       })
-    } else if (row.kind === 'giao' && row.from) {
+    } else if (row.kind === 'handed-over' && row.from) {
       steps.push({ kind: 'pool', touchId: row.id, at: dm(row.at), atFull: dmy(row.at) })
     }
   }
@@ -202,7 +202,7 @@ export const opportunityTouchesQuery = (code: string) =>
  *  observer rather than to the cache. A key of its own would load the same list
  *  twice and let the two copies drift apart by a few seconds.
  *
- *  `stepsOf` needs no variant for this: it reads `giao` and `vao-so` rows and
+ *  `stepsOf` needs no variant for this: it reads `handed-over` and `created` rows and
  *  never asks what the subject is. A deal that has never changed hands answers
  *  an empty chain, and `FlowVector` draws nothing at all — which is the honest
  *  picture of a deal one person has carried the whole way. */

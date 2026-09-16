@@ -406,8 +406,8 @@ const MAIL_IS_CUSTOMER_FACING = sql`d.aggregate_type = 'lead' AND d.accepted_at 
  *  `comms.link.object_code` (polymorphic, one thread may hang on several
  *  objects), `sales.meeting.lead_code` (a real key, lead only),
  *  `platform.email_delivery` (see `MAIL_IS_CUSTOMER_FACING` above), and
- *  `sales.touch` — the one left out. Touch logs business EVENTS (`vao-so`,
- *  `len-bac`, `ky`), has no channel and no direction column, and a meeting
+ *  `sales.touch` — the one left out. Touch logs business EVENTS (`created`,
+ *  `tier-raised`, `signed`), has no channel and no direction column, and a meeting
  *  already writes a touch row beside itself: counting it would double-count
  *  `sales.meeting`. */
 /** Gathered across the WHOLE JOURNEY rather than per object — mail sent to the

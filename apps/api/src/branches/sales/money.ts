@@ -13,7 +13,7 @@ import { CURRENCIES } from '@pv/contracts'
  *  NULL, never 0, for a row with no amount or an unknown currency: "this row
  *  carries no money" is reported as its own count, and a zero would bury it
  *  inside the sum. */
-export function dongOf(amount: SQLWrapper, currency: SQLWrapper): SQL<number | null> {
+export function toVndSql(amount: SQLWrapper, currency: SQLWrapper): SQL<number | null> {
   return sql`CASE ${currency} ${sql.join(
     /* `sql.raw` for the rate, a bound parameter for the code: Postgres cannot
        infer the type of `$1` inside a CASE branch, and the rates are our own

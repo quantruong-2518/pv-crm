@@ -18,7 +18,7 @@ import {
   StatusDot,
   billions,
   cn,
-  dong,
+  vnd,
   millions,
 } from '@pv/ui'
 import { daysUntil, needsAttention } from '@pv/engines'
@@ -66,12 +66,12 @@ function moneyOf(contract: Contract, now: string) {
 function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) {
   const tallest = Math.max(...views.map((v) => v.installment.amount))
   const fill: Record<string, string> = {
-    'đã-xong': 'bg-success',
-    'gần-hạn': 'bg-warning',
-    'đến-hạn': 'bg-warning',
-    'quá-hạn': 'bg-destructive',
-    'quá-hạn-lâu': 'bg-destructive',
-    'chưa-tới': 'bg-surface-ink/14',
+    done: 'bg-success',
+    'due-soon': 'bg-warning',
+    due: 'bg-warning',
+    overdue: 'bg-destructive',
+    'long-overdue': 'bg-destructive',
+    upcoming: 'bg-surface-ink/14',
   }
 
   return (
@@ -93,7 +93,7 @@ function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) 
             <span
               className={cn('w-full rounded-t-md', fill[v.level])}
               style={{ height: `${Math.round((v.installment.amount / tallest) * 150)}px` }}
-              title={`Đợt ${v.installment.no} · ${dong(v.installment.amount)} · hạn ${dmy(v.installment.due)}`}
+              title={`Đợt ${v.installment.no} · ${vnd(v.installment.amount)} · hạn ${dmy(v.installment.due)}`}
             />
           </div>
         ))}
@@ -152,7 +152,7 @@ function InstallmentRow({
         <DueBadge level={view.level} />
       </span>
 
-      <span className="tnum font-num text-[14px] font-semibold">{dong(d.amount)}</span>
+      <span className="tnum font-num text-[14px] font-semibold">{vnd(d.amount)}</span>
 
       <span className="flex flex-col gap-1">
         <span className="tnum font-mono text-[11.5px]">{dmy(d.due)}</span>
@@ -227,7 +227,7 @@ export function ContractDetailPage() {
           <ScreenHeader
             title="Không mở được hợp đồng này"
             description={
-              failure?.kind === 'không-thấy' || failure === null
+              failure?.kind === 'not-found' || failure === null
                 ? 'Có thể mã sai, hoặc hợp đồng không đứng tên bạn — hỏi người giữ nó, hoặc mở lại từ sổ.'
                 : userMessage(failure)
             }
@@ -276,7 +276,7 @@ export function ContractDetailPage() {
               size="compact"
               label="Giá trị hợp đồng"
               value={contract.amount === null ? '—' : billions(contract.amount)}
-              source={contract.amount === null ? 'chưa có số tiền' : dong(contract.amount)}
+              source={contract.amount === null ? 'chưa có số tiền' : vnd(contract.amount)}
             />
             <StatCard
               size="compact"

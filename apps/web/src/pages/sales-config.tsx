@@ -471,9 +471,9 @@ export function SalesConfigPage() {
             >
               <div className="flex flex-wrap gap-3">
                 {[
-                  { label: 'Mở cửa · BD', value: cfg.commission.moCua },
-                  { label: 'Chốt · Sale ký', value: cfg.commission.chot },
-                  { label: 'Đi cùng demo · Presales', value: cfg.commission.diCungDemo },
+                  { label: 'Mở cửa · BD', value: cfg.commission.opener },
+                  { label: 'Chốt · Sale ký', value: cfg.commission.closer },
+                  { label: 'Đi cùng demo · Presales', value: cfg.commission.demoPartner },
                 ].map((part) => (
                   <div
                     key={part.label}
@@ -487,7 +487,7 @@ export function SalesConfigPage() {
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 Ba phần cộng lại phải bằng{' '}
                 <span className="tnum font-num">
-                  {cfg.commission.moCua + cfg.commission.chot + cfg.commission.diCungDemo}
+                  {cfg.commission.opener + cfg.commission.closer + cfg.commission.demoPartner}
                 </span>
                 , và đang áp cho{' '}
                 <span className="tnum font-num">{usage?.signedDeals ?? 0} hợp đồng</span> đã ký
@@ -693,9 +693,9 @@ export function SalesConfigPage() {
 /** Bảng SÁU THẾ × NĂM ĐƯỜNG VÀO.
  *
  *  Hai danh sách xếp cạnh nhau chứ không lồng vào nhau, vì chúng độc lập: một
- *  lead `event` vào bằng `quet` hay bằng `tep` là hai mức tin khác nhau của cùng
+ *  lead `event` vào bằng `scan` hay bằng `file` là hai mức tin khác nhau của cùng
  *  một buổi hội thảo. Vẽ thành lưới 6×5 thì mắt đọc ra một phép nhân — mà phép
- *  nhân đó sai: có cặp không xảy ra (`quet` chỉ chở `event`), và `intakeCarries`
+ *  nhân đó sai: có cặp không xảy ra (`scan` chỉ chở `event`), và `intakeCarries`
  *  của engine mới là chỗ giữ luật đó.
  *
  *  Cột phải nói ĐƯỜNG NÀO ĐÃ DỰNG. Vẽ đủ năm đường mà ba cái không bấm được ở

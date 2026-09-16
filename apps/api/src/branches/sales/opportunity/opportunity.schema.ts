@@ -68,7 +68,7 @@ import { workstream } from '../workstream/workstream.schema'
  *     cột suy từ trạng thái (`stageOfState` của hợp đồng, một bảng dùng chung
  *     cho cả hai đầu). Sau đó chúng RỜI nhau một cách hợp lệ: kéo một đơn từ
  *     "Mới" sang "Đã demo" là đổi cột mà không đổi việc đang làm, và hai cột
- *     'moi'/'da-demo' không có trạng thái nào ánh xạ tới — đó chính là chỗ một
+ *     'new'/'demo-done' không có trạng thái nào ánh xạ tới — đó chính là chỗ một
  *     cột sinh sẽ xoá mất dữ liệu của mười đơn đang mở trong sổ đóng băng.
  *
  *     `state` chỉ có BỐN giá trị — 'won' vẫn không phải trạng thái, đúng như
@@ -235,7 +235,7 @@ export const opportunity = sales.table(
     check('opportunity_stage_clock', sql`("stage" IS NULL) = ("stage_since" IS NULL)`),
     check(
       'opportunity_state_known',
-      sql`"state" IN ('gui-quotation', 'nego', 'close-lost', 'pending')`,
+      sql`"state" IN ('quote-sent', 'nego', 'close-lost', 'pending')`,
     ),
     /** A percentage is a percentage. Written `BETWEEN` rather than left to zod
      *  because the forecast on the plan screen multiplies by this number, and a
@@ -300,7 +300,7 @@ export const opportunityProduct = sales.table(
 /** Every column change a deal has ever made.
  *
  *  ------------------------------------------------------------------
- *  WHY THIS IS NOT JUST THE `doi-cot` TOUCH ROWS
+ *  WHY THIS IS NOT JUST THE `stage-changed` TOUCH ROWS
  *  ------------------------------------------------------------------
  *  `sales.touch` already records that a deal changed column, and it will keep
  *  doing so — that row is what the activity card on the profile reads, written

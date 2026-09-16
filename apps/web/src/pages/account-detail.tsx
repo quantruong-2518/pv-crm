@@ -28,6 +28,7 @@ import {
   accountBodyOf,
   accountDraftOf,
   accountProfileQuery,
+  CATEGORY_LABEL,
   changedAccountFields,
   useSaveAccount,
   type AccountDraft,
@@ -94,14 +95,14 @@ export default function AccountDetailPage() {
           <ScreenHeader
             kicker="Kinh doanh · Khách hàng"
             title={
-              kind === 'không-thấy'
+              kind === 'not-found'
                 ? `Không có công ty ${code}`
-                : kind === 'thiếu-quyền'
+                : kind === 'forbidden'
                   ? 'Bạn không được xem sổ công ty'
                   : 'Không mở được hồ sơ công ty'
             }
             description={
-              kind === 'không-thấy'
+              kind === 'not-found'
                 ? 'Mã này không có trong sổ. Có thể nó đã được gộp vào một công ty khác.'
                 : isApiError(error)
                   ? userMessage(error)
@@ -137,7 +138,7 @@ export default function AccountDetailPage() {
                 {account.signedDeals > 0 ? 'Đã mua' : 'Chưa mua'}
               </Badge>
               {account.province !== undefined && <MetaPill>{account.province}</MetaPill>}
-              {account.category !== null && <MetaPill>{account.category}</MetaPill>}
+              {account.category !== null && <MetaPill>{CATEGORY_LABEL[account.category]}</MetaPill>}
             </div>
           }
         />

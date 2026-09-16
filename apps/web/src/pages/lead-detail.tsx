@@ -130,7 +130,7 @@ import { NextActionCard, NotesCard, ProfileCard } from './lead-parts'
  *  thấy lead tạo sau lát cắt đóng băng, một cái không thấy máy nào khác. */
 
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
-  'dau-moi': 'draft',
+  prospect: 'draft',
   mql: 'running',
   sql: 'success',
 }
@@ -151,9 +151,9 @@ const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
  *     open a third conversion site for that one enum, which is the exact
  *     thing that docblock says must not happen.
  *   · `INTAKE_FACE` is keyed by the older, five-value `LeadIntake` axis
- *     (`dong-bo` / `tay` / `tep` / `quet` / `api`), not by `LeadSourceKind`
+ *     (`sync` / `manual` / `file` / `scan` / `api`), not by `LeadSourceKind`
  *     (`MANUAL` / `IMPORT` / `APOLLO` / `LANDING_PAGE`). The two axes are
- *     related but not a 1:1 map — `dong-bo` and `quet` have no counterpart in
+ *     related but not a 1:1 map — `sync` and `scan` have no counterpart in
  *     the stored enum, and `APOLLO` has none in the engine copy — so a lookup
  *     through it would either miss keys or fabricate a mapping that isn't
  *     true. The origin half no longer needs a table on this page at all:
@@ -244,8 +244,8 @@ export function LeadDetailPage() {
        `message` — `app/api/errors.ts` đã phân loại một lần cho cả app, và hai
        màn tự đọc lấy một mã lỗi là hai câu khác nhau cho cùng một sự cố. */
     const failure = isApiError(error) ? error : null
-    const missing = failure?.kind === 'không-thấy'
-    const denied = failure?.kind === 'thiếu-quyền'
+    const missing = failure?.kind === 'not-found'
+    const denied = failure?.kind === 'forbidden'
 
     return shell(
       <ScreenLayout>
@@ -669,7 +669,7 @@ function ToolsBar({
   const contactLine = lead.contactTitle
     ? `${lead.contactName} · ${lead.contactTitle}`
     : lead.contactName
-  /* Máy chủ trả KHOÁ lý do rơi (`khong-goi-duoc`); màn in NHÃN. */
+  /* Máy chủ trả KHOÁ lý do rơi (`unreachable`); màn in NHÃN. */
   const exitLabel = lead.exitReason
     ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
     : undefined

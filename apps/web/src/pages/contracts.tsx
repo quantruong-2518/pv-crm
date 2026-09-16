@@ -17,7 +17,7 @@ import {
   StatCard,
   TriangleAlert,
   billions,
-  dong,
+  vnd,
   millions,
 } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
@@ -52,7 +52,7 @@ function NextCell({ next }: { next: InstallmentView | null }) {
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <span className="tnum font-num text-[12.5px] font-semibold">
-        {dong(next.installment.amount)}
+        {vnd(next.installment.amount)}
       </span>
       <span className="text-muted-foreground tnum font-mono text-[10.5px]">
         đợt {next.installment.no} · {dm(next.installment.due)} · {daysPhrase(next.daysLeft)}
@@ -70,19 +70,19 @@ function rowCells(row: ContractBookRow) {
   const atRisk = row.urgent ? (row.next?.installment.amount ?? 0) : 0
 
   return [
-    <span key="ma" className="text-accent-foreground font-mono text-[11.5px]">
+    <span key="code" className="text-accent-foreground font-mono text-[11.5px]">
       {row.contract.code}
     </span>,
-    <span key="khach" className="flex min-w-0 flex-col gap-1">
+    <span key="customer" className="flex min-w-0 flex-col gap-1">
       <span className="truncate text-[12.5px]">{row.contract.customer}</span>
       <span className="text-muted-foreground text-[10.5px]">
         {row.contract.ownerName ?? 'chưa gán người'} · ký {dm(row.contract.signedAt)}
       </span>
     </span>,
-    <span key="gia-tri" className="tnum font-num text-right text-[13px] font-semibold">
-      {dong(amount)}
+    <span key="value" className="tnum font-num text-right text-[13px] font-semibold">
+      {vnd(amount)}
     </span>,
-    <span key="da-thu" className="flex min-w-0 flex-col gap-1">
+    <span key="collected" className="flex min-w-0 flex-col gap-1">
       <MoneySplit
         collected={row.collected}
         atRisk={atRisk}
@@ -94,7 +94,7 @@ function rowCells(row: ContractBookRow) {
         {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
       </span>
     </span>,
-    <NextCell key="ke-tiep" next={row.next} />,
+    <NextCell key="next" next={row.next} />,
   ]
 }
 
@@ -132,7 +132,7 @@ function ContractScore() {
              than the truth with nothing on screen saying why. */
           source={
             blank === 0
-              ? `${signedCount} hợp đồng · ${dong(signed)}`
+              ? `${signedCount} hợp đồng · ${vnd(signed)}`
               : `${signedCount} hợp đồng · ${blank} chưa có tiền, không cộng vào`
           }
         />

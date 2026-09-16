@@ -22,7 +22,7 @@ import {
   StatusDot,
   Timeline,
   cn,
-  dong,
+  vnd,
   millions,
   type StatusDotState,
 } from '@pv/ui'
@@ -50,20 +50,23 @@ import { DueBadge, SideTag } from '@/components/contract-bits'
  *  block that can change today. */
 
 const RECORD_DOT: Record<string, StatusDotState> = {
-  xong: 'ok',
-  'chờ-trả-lời': 'bad',
-  'đã-xếp': 'current',
-  'chưa-tới': 'next',
+  done: 'ok',
+  'awaiting-reply': 'bad',
+  scheduled: 'current',
+  upcoming: 'next',
 }
 
 const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
   'zalo-oa': 'Zalo OA',
-  'trong-app': 'Trong app',
-  gọi: 'Gọi điện',
+  'in-app': 'Trong app',
+  call: 'Gọi điện',
 }
 
-const DOC_TONE = { đủ: 'success', 'chờ-ký': 'danger', 'chưa-có': 'draft' } as const
+const DOC_TONE = { complete: 'success', 'awaiting-signature': 'danger', missing: 'draft' } as const
+
+/** The stored key is English; the badge keeps printing the words it always printed. */
+const DOC_LABEL = { complete: 'đủ', 'awaiting-signature': 'chờ-ký', missing: 'chưa-có' } as const
 
 /** One checklist line. The blocking one is given room to breathe and carries the
  *  buttons — every other line is a tick and a date, because a done thing does not
@@ -133,7 +136,7 @@ function ConditionLine({
                 onClick={() => toast('Thư nhắc sẽ mở khi thư viện mail nối vào màn này.')}
               >
                 <Icon icon={Mail} size={16} />
-                Nhắc {condition.side === 'khách' ? 'khách' : 'nội bộ'}
+                Nhắc {condition.side === 'customer' ? 'khách' : 'nội bộ'}
               </Button>
               <Button
                 size="sm"
@@ -191,7 +194,7 @@ export function InstallmentDetailPage() {
           <ScreenHeader
             title="Không mở được đợt này"
             description={
-              failure && failure.kind !== 'không-thấy'
+              failure && failure.kind !== 'not-found'
                 ? userMessage(failure)
                 : 'Hợp đồng không tồn tại, không đứng tên bạn, hoặc số đợt sai.'
             }
@@ -218,7 +221,7 @@ export function InstallmentDetailPage() {
           meta={
             <div className="flex flex-wrap gap-2">
               <DueBadge level={view.level} />
-              <MetaPill mono>{dong(installment.amount)}</MetaPill>
+              <MetaPill mono>{vnd(installment.amount)}</MetaPill>
               <MetaPill>{installment.share}% giá trị hợp đồng</MetaPill>
             </div>
           }
@@ -235,7 +238,7 @@ export function InstallmentDetailPage() {
             size="compact"
             label="Số tiền"
             value={millions(installment.amount, 0)}
-            source={dong(installment.amount)}
+            source={vnd(installment.amount)}
           />
           <StatCard
             size="compact"
@@ -249,14 +252,14 @@ export function InstallmentDetailPage() {
             value={`${view.doneConditions}/${view.totalConditions}`}
             source={
               view.blocking
-                ? `còn 1 · bên ${view.blocking.side === 'ta' ? 'ta' : 'khách'}`
+                ? `còn 1 · bên ${view.blocking.side === 'ours' ? 'ta' : 'khách'}`
                 : 'xong cả hai bên'
             }
           />
           <StatCard
             size="compact"
             label="Hoá đơn"
-            value={invoice?.state === 'đủ' ? 'Đã xuất' : 'Chưa xuất'}
+            value={invoice?.state === 'complete' ? 'Đã xuất' : 'Chưa xuất'}
             source={invoice?.hint ?? 'chưa tới lượt'}
           />
         </GlassCard>
@@ -306,7 +309,7 @@ export function InstallmentDetailPage() {
                       </span>
                     </span>
                     <Badge tone={DOC_TONE[doc.state]} className="shrink-0 uppercase">
-                      {doc.state}
+                      {DOC_LABEL[doc.state]}
                     </Badge>
                   </div>
                 ))}
@@ -339,8 +342,8 @@ export function InstallmentDetailPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <MetaPill>{CHANNEL_LABEL[r.channel]}</MetaPill>
                       <span className="text-muted-foreground tnum font-mono text-[10.5px]">
-                        {r.state === 'chưa-tới' || r.state === 'đã-xếp' ? dm(r.at) : dmhm(r.at)} ·{' '}
-                        {r.detail}
+                        {r.state === 'upcoming' || r.state === 'scheduled' ? dm(r.at) : dmhm(r.at)}{' '}
+                        · {r.detail}
                       </span>
                     </div>
                   ),

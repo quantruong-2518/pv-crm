@@ -98,9 +98,9 @@ export type Fetcher<T> = (req: ApiRequest) => Promise<T>
 
 type BeforeSend = (req: ApiRequest) => ApiRequest
 
-/** Kết luận của một interceptor lỗi. `'thử-lại'` chỉ được trả khi đã LÀM một
+/** Kết luận của một interceptor lỗi. `'retry'` chỉ được trả khi đã LÀM một
  *  việc khiến lần sau có cơ khác đi (gia hạn vé) — trả bừa thì đó là vòng lặp. */
-type Recovery = 'thử-lại' | 'chịu'
+type Recovery = 'retry' | 'give-up'
 type OnFailure = (error: ApiError, req: ApiRequest) => Promise<Recovery>
 
 const MAX_ATTEMPTS = 2
@@ -139,7 +139,7 @@ const stampTrace: BeforeSend = (req) => ({
 const requireLiveSession: BeforeSend = (req) => {
   if (sessionIsLive()) return req
   throw new ApiError({
-    kind: 'chưa-xác-thực',
+    kind: 'unauthenticated',
     path: req.path,
     message: 'Phiên không còn hiệu lực.',
   })
@@ -159,7 +159,7 @@ const requireAccess: BeforeSend = (req) => {
   const verdict = access.check(useSession.getState().actor, req.need)
   if (verdict.ok) return req
   throw new ApiError({
-    kind: verdict.reason === 'unauthenticated' ? 'chưa-xác-thực' : 'thiếu-quyền',
+    kind: verdict.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
     path: req.path,
     message: verdict.reason === 'unauthenticated' ? 'Phiên chưa đăng nhập.' : verdict.note,
     status: verdict.reason === 'unauthenticated' ? 401 : 403,
@@ -183,8 +183,8 @@ const BEFORE: BeforeSend[] = [stampTrace, requireLiveSession, requireAccess]
  *  Nó chỉ nói "tôi vừa làm một việc khiến lần sau có cơ khác đi". Việc phát lại
  *  request có an toàn hay không là câu hỏi khác, và `mayReplay` trả lời. */
 const renewOnUnauthorized: OnFailure = async (error, req) => {
-  if (error.kind !== 'chưa-xác-thực' || req.attempt >= MAX_ATTEMPTS) return 'chịu'
-  return (await renewSession()) ? 'thử-lại' : 'chịu'
+  if (error.kind !== 'unauthenticated' || req.attempt >= MAX_ATTEMPTS) return 'give-up'
+  return (await renewSession()) ? 'retry' : 'give-up'
 }
 
 /** 403 → ghi vết.
@@ -193,7 +193,7 @@ const renewOnUnauthorized: OnFailure = async (error, req) => {
  *  danh sách, còn chỗ này là một lần chặn thật. Nhật ký phải trả lời được "vì
  *  sao hôm đó tôi không lấy được dữ liệu", nên nó cần ít dòng mà đúng chỗ. */
 const logDenied: OnFailure = async (error, req) => {
-  if (error.kind !== 'thiếu-quyền') return 'chịu'
+  if (error.kind !== 'forbidden') return 'give-up'
   const actor = useSession.getState().actor
   if (actor) {
     access.log({
@@ -202,7 +202,7 @@ const logDenied: OnFailure = async (error, req) => {
       note: `chặn ${req.method} ${req.path} · ${error.reason}`,
     })
   }
-  return 'chịu'
+  return 'give-up'
 }
 
 /** Nothing came back at all -> tell `server-health`, which owns the takeover.
@@ -214,8 +214,8 @@ const logDenied: OnFailure = async (error, req) => {
  *  gateway answered for a machine that did not. A plain 500 is one endpoint
  *  falling over on a server that is plainly alive. */
 const watchServer: OnFailure = async (error) => {
-  if (error.kind === 'mạng' || isGatewayDown(error.status)) reportUnreachable()
-  return 'chịu'
+  if (error.kind === 'network' || isGatewayDown(error.status)) reportUnreachable()
+  return 'give-up'
 }
 
 /** An openable 403 → ask for the password → ask for a replay.
@@ -231,8 +231,8 @@ const watchServer: OnFailure = async (error) => {
  *  confirmation. A second 403 after that means the server is refusing for some
  *  other reason, and asking for the password again would only fail slower. */
 const confirmOnReauthRequired: OnFailure = async (error) => {
-  if (error.kind !== 'cần-xác-thực-lại') return 'chịu'
-  return (await askReauth()) ? 'thử-lại' : 'chịu'
+  if (error.kind !== 'reauth-required') return 'give-up'
+  return (await askReauth()) ? 'retry' : 'give-up'
 }
 
 const AFTER: OnFailure[] = [renewOnUnauthorized, confirmOnReauthRequired, logDenied, watchServer]
@@ -273,7 +273,7 @@ const REPLAYABLE = new Set<Method>(['GET'])
  *  Fold them together and every future AFTER interceptor has to re-derive the
  *  rule, and the fourth one will get it wrong. */
 const mayReplay = (req: ApiRequest, onTheWire: boolean, error: ApiError) =>
-  !onTheWire || REPLAYABLE.has(req.method) || error.kind === 'cần-xác-thực-lại'
+  !onTheWire || REPLAYABLE.has(req.method) || error.kind === 'reauth-required'
 
 /** Đọc thân `application/problem+json`. Máy chủ đã hứa một hình duy nhất cho
  *  mọi lỗi (RFC 9457), nên chỗ đọc cũng chỉ có một.
@@ -297,14 +297,14 @@ async function readProblem(res: Response): Promise<Partial<Problem>> {
  *  grew a refusal that two endpoints answering 403 must not share a screen
  *  reaction for. */
 const PROBLEM_KIND: Record<string, ApiFailure | undefined> = {
-  'reauth-required': 'cần-xác-thực-lại',
-  'password-change-required': 'phải-đổi-mật-khẩu',
+  'reauth-required': 'reauth-required',
+  'password-change-required': 'password-change-required',
 }
 
 async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
   if (raw instanceof ApiError) return raw
   if (raw instanceof DOMException && raw.name === 'AbortError') {
-    return new ApiError({ kind: 'huỷ', path: req.path, message: 'Đã huỷ.', cause: raw })
+    return new ApiError({ kind: 'aborted', path: req.path, message: 'Đã huỷ.', cause: raw })
   }
   if (raw instanceof Response) {
     const problem = await readProblem(raw)
@@ -330,7 +330,7 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
     })
   }
   return new ApiError({
-    kind: 'mạng',
+    kind: 'network',
     path: req.path,
     message: raw instanceof Error ? raw.message : 'Gọi dữ liệu hỏng.',
     traceId: req.headers[TRACE_HEADER],
@@ -416,7 +416,7 @@ function parsed<T>(body: unknown, req: ApiRequest, schema?: ZodType<T>): T {
   const at = first === undefined || first.path.length === 0 ? 'thân trả về' : first.path.join('.')
 
   throw new ApiError({
-    kind: 'lệch-hợp-đồng',
+    kind: 'contract-mismatch',
     path: req.path,
     message: `Máy chủ trả về không khớp hợp đồng ở \`${at}\`: ${first?.message ?? 'sai hình'}.`,
     traceId: req.headers[TRACE_HEADER],
@@ -442,12 +442,12 @@ async function dispatch<T>(req: ApiRequest, load?: Fetcher<T>, schema?: ZodType<
     } catch (raw) {
       const error = await toApiError(raw, prepared)
 
-      let recovery: Recovery = 'chịu'
+      let recovery: Recovery = 'give-up'
       for (const step of AFTER) {
-        if ((await step(error, prepared)) === 'thử-lại') recovery = 'thử-lại'
+        if ((await step(error, prepared)) === 'retry') recovery = 'retry'
       }
 
-      if (recovery !== 'thử-lại' || current.attempt >= MAX_ATTEMPTS) throw error
+      if (recovery !== 'retry' || current.attempt >= MAX_ATTEMPTS) throw error
       if (!mayReplay(current, onTheWire, error)) throw error
       current = { ...current, attempt: current.attempt + 1 }
     }

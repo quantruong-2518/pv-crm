@@ -28,6 +28,7 @@ import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import {
   accountBookQuery,
   accountBookQueryToParams,
+  CATEGORY_LABEL,
   DEFAULT_ACCOUNT_BOOK_QUERY,
   parseAccountBookQuery,
 } from '@/data/accounts'
@@ -164,7 +165,7 @@ export default function AccountsPage() {
             }
             options={[
               { value: '', label: 'Mọi ngành' },
-              ...LeadCategory.options.map((c) => ({ value: c, label: c })),
+              ...LeadCategory.options.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
             ]}
           />
           <Select

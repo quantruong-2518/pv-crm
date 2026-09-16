@@ -42,12 +42,12 @@ import { LEAD_MAX } from './lead-fields'
  *  KNOWN DEBT — THE ENGINE STILL HOLDS AN OLDER SHAPE
  *  ------------------------------------------------------------------
  *  `packages/engines/src/lead-intake.ts` models this axis with FIVE values
- *  (`dong-bo · tay · tep · quet · api`) in lower case, and the import panel in
+ *  (`sync · manual · file · scan · api`) in lower case, and the import panel in
  *  `apps/web` reads that one. The stored vocabulary is the four in `./enums`:
- *  every one of them has a code path behind it, whereas `dong-bo` and `quet`
+ *  every one of them has a code path behind it, whereas `sync` and `scan`
  *  describe doors nothing has been built for yet. The tables below are that
- *  five-door table narrowed to the origins that exist, with `tay → MANUAL`,
- *  `tep → IMPORT`, `api → LANDING_PAGE`; `APOLLO` has no counterpart there at
+ *  five-door table narrowed to the origins that exist, with `manual → MANUAL`,
+ *  `file → IMPORT`, `api → LANDING_PAGE`; `APOLLO` has no counterpart there at
  *  all, because the engine copy has no notion of a named vendor. Reconciling
  *  the two is the "enum declared twice" debt in
  *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`; the
@@ -59,35 +59,35 @@ import { LEAD_MAX } from './lead-fields'
  *  Derived from the origin rather than chosen, because it only asks one question:
  *  is there someone who confirmed this row, and who was it.
  *
- *   · `XAC_MINH` — someone on the CUSTOMER side confirmed it.
- *   · `KHAI_BAO` — someone on OUR side put their name on it.
- *   · `THO`      — nobody has confirmed anything yet.
+ *   · `VERIFIED` — someone on the CUSTOMER side confirmed it.
+ *   · `DECLARED` — someone on OUR side put their name on it.
+ *   · `RAW`      — nobody has confirmed anything yet.
  *
  *  Worth carrying on the wire because without it 500 rows out of a purchased
  *  file look exactly like 500 leads someone has actually spoken to, and every
  *  conversion rate computed over that total is wrong. */
-export const IntakeTrust = z.enum(['XAC_MINH', 'KHAI_BAO', 'THO'])
+export const IntakeTrust = z.enum(['VERIFIED', 'DECLARED', 'RAW'])
 
 export type IntakeTrust = z.infer<typeof IntakeTrust>
 
 /** Trust is a CONSEQUENCE of where the row came from, never a field anyone
  *  types.
  *
- *  `LANDING_PAGE` is `XAC_MINH` because the customer filled the form and
- *  pressed send themselves; `MANUAL` is `KHAI_BAO` because a person here owns
- *  every cell they typed; `IMPORT` is `THO` because a file is a pile of rows
+ *  `LANDING_PAGE` is `VERIFIED` because the customer filled the form and
+ *  pressed send themselves; `MANUAL` is `DECLARED` because a person here owns
+ *  every cell they typed; `IMPORT` is `RAW` because a file is a pile of rows
  *  until somebody has touched one.
  *
- *  `APOLLO` is `THO` for the same reason as `IMPORT`, and it is worth saying
+ *  `APOLLO` is `RAW` for the same reason as `IMPORT`, and it is worth saying
  *  why it does not get its own level: paying for a row is not the same as
  *  confirming it. A bought contact is exactly as unverified as a free one —
- *  the invoice buys reach, not truth — and a vendor tier above `THO` would
+ *  the invoice buys reach, not truth — and a vendor tier above `RAW` would
  *  quietly inflate every conversion rate computed over purchased data. */
 export const CHANNEL_TRUST = {
-  MANUAL: 'KHAI_BAO',
-  IMPORT: 'THO',
-  APOLLO: 'THO',
-  LANDING_PAGE: 'XAC_MINH',
+  MANUAL: 'DECLARED',
+  IMPORT: 'RAW',
+  APOLLO: 'RAW',
+  LANDING_PAGE: 'VERIFIED',
 } as const satisfies Record<z.infer<typeof LeadSourceKind>, z.infer<typeof IntakeTrust>>
 
 /** Which origin can carry which motion — the pairs that actually exist.

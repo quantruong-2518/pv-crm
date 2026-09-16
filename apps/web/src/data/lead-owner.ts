@@ -32,7 +32,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *     người TỪ cả sổ, nên giao lead đầu tiên cho ai đó là thêm một dòng vào ô
  *     lọc mà không lượt đọc nào khác biết;
  *   · hồ sơ lead (`lead-profile`) — khối PIC ở đầu trang chi tiết;
- *   · dòng thời gian (`lead-touches`) — máy chủ vừa ghi một lần chạm `giao`.
+ *   · dòng thời gian (`lead-touches`) — máy chủ vừa ghi một lần chạm `handed-over`.
  *
  *  Hai tiền tố vì hai cái đầu nằm chung dưới `['sales','lead-book']`. Vá tay
  *  ba chỗ rồi quên chỗ thứ tư là đúng cái lớp lỗi "màn nói một đằng máy chủ

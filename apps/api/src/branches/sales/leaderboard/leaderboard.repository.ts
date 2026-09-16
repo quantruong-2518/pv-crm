@@ -5,7 +5,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
-import { dongOf } from '../money'
+import { toVndSql } from '../money'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 
 /** One person's row, with the role still spelled the way the database and E2
@@ -45,8 +45,8 @@ export class LeaderboardRepository {
    *  `SUM` is `bigint`, which node-postgres returns as a STRING and PGlite as a
    *  number — `Number()` takes both, and an `::int` cast would overflow. */
   async rows(): Promise<LeaderboardTally[]> {
-    const opsVnd = dongOf(opportunity.amount, opportunity.currency)
-    const contractVnd = dongOf(contract.amount, contract.currency)
+    const opsVnd = toVndSql(opportunity.amount, opportunity.currency)
+    const contractVnd = toVndSql(contract.amount, contract.currency)
     /* Standing in one of the five columns, read from `stage` and not from
        `state`: both terminal states leave the board, and a signed deal whose
        `state` still says `nego` would be counted open. */

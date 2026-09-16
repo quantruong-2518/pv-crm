@@ -23,7 +23,7 @@ export type ChainLink = {
 
 export type ApprovalRequest = {
   id: string
-  /** Loại yêu cầu do nhánh khai báo, ví dụ 'giảm-giá' | 'mua-hàng'. */
+  /** Loại yêu cầu do nhánh khai báo, ví dụ 'discount' | 'purchase'. */
   type: string
   ref: ObjectRef
   raisedBy: string

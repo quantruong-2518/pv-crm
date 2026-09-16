@@ -96,15 +96,15 @@ const MKT_CODES = new Set(MKT_SOURCES.map((s) => s.code))
 
 export type { KpiLayer, KpiMeasureUnit, Period, PeriodChoice }
 
-export type RoleKind = 'marketing' | 'bd' | 'sale' | 'presales' | 'truong-phong'
+export type RoleKind = 'marketing' | 'bd' | 'sale' | 'presales' | 'head-of-sales'
 
 /** Trạng thái của một thước.
  *
  *  Ba cái đầu là của tài liệu KPI, dùng chung cho người và cho SLA. Cái thứ tư
- *  thêm 20/08 và KHÁC HẲN `chua-do`: `chua-do` là chưa có nguồn số; `chua-chot`
+ *  thêm 20/08 và KHÁC HẲN `no-data`: `no-data` là chưa có nguồn số; `not-final`
  *  là ĐÃ ĐO XONG, số hiện đủ, nhưng kỳ chưa đóng nên chưa chấm nhãn. Gộp hai
  *  cái vào nhau sẽ giấu mất một con số đã có. */
-export type Verdict = 'dat' | 'can-cai-thien' | 'chua-do' | 'chua-chot'
+export type Verdict = 'met' | 'needs-work' | 'no-data' | 'not-final'
 
 /** Một thước đã đo. `value === null` là chưa đo được — nói thẳng chứ không hiện
  *  số 0, vì 0 nghĩa là "đo rồi, kết quả bằng không". */
@@ -130,7 +130,7 @@ export type KpiReading = {
  *  luôn neo vào lát cắt 17/08 chứ KHÔNG theo kỳ đang xem: kỳ đang xem trả lời
  *  "đã làm được gì", nhịp trả lời "hôm nay còn phải làm gì". */
 export type PaceRow = {
-  key: 'ngay' | 'thang' | 'quy'
+  key: 'day' | 'month' | 'quarter'
   label: string
   window: string
   target: number
@@ -298,10 +298,10 @@ function buildOverview(p: Period): Overview {
      của bậc trên. Đếm theo ngày xảy ra thì tháng 8 có thể ra "2 SQL trên 2 MQL
      = 100%" chỉ vì hai lead đó lên MQL từ tháng 6 — một con số đúng phép tính
      mà sai câu chuyện. */
-  const cohort = BOOK.filter((r) => inPeriod(r.at.vaoSo, p))
+  const cohort = BOOK.filter((r) => inPeriod(r.at.created, p))
   const mql = cohort.filter((r) => r.at.mql).length
   const sql = cohort.filter((r) => r.at.sql).length
-  const won = cohort.filter((r) => r.at.ky).length
+  const won = cohort.filter((r) => r.at.signed).length
 
   return {
     leads: cohort.length,
@@ -311,8 +311,8 @@ function buildOverview(p: Period): Overview {
     /* Hai số này đếm theo NGÀY XẢY RA, không theo lứa: "phòng ký được mấy hợp
        đồng trong tháng này" là câu hỏi về tháng này, không về lứa lead nào. Nhãn
        trên màn phải nói rõ "trong kỳ" để không ai đọc nhầm thành bậc của phễu. */
-    signedInPeriod: BOOK.filter((r) => inPeriod(r.at.ky, p)).length,
-    exited: BOOK.filter((r) => inPeriod(r.at.roi, p)).length,
+    signedInPeriod: BOOK.filter((r) => inPeriod(r.at.signed, p)).length,
+    exited: BOOK.filter((r) => inPeriod(r.at.dropped, p)).length,
     mqlRate: rate(mql, cohort.length),
     sqlRate: rate(sql, mql),
     winRate: rate(won, sql),
@@ -331,10 +331,10 @@ function buildOverview(p: Period): Overview {
  *  đúng bốn bậc cùng tên của `FUNNEL` — `scenario.test.ts` khoá đẳng thức đó. */
 function buildFunnel(o: Overview): FunnelStep[] {
   const raw = [
-    { key: 'dau-moi', label: 'Lead vào sổ', count: o.leads },
+    { key: 'prospect', label: 'Lead vào sổ', count: o.leads },
     { key: 'mql', label: 'MQL — công ty thật', count: o.mql },
     { key: 'sql', label: 'SQL — vào sổ cơ hội', count: o.sql },
-    { key: 'hop-dong', label: 'Hợp đồng', count: o.won },
+    { key: 'contract', label: 'Hợp đồng', count: o.won },
   ]
 
   return raw.map((step, i) => {
@@ -351,8 +351,8 @@ function buildMonths(p: Period): MonthPoint[] {
   return MONTHS.map((m) => ({
     key: m.key,
     short: m.short,
-    leads: BOOK.filter((r) => inPeriod(r.at.vaoSo, m)).length,
-    signed: BOOK.filter((r) => inPeriod(r.at.ky, m)).length,
+    leads: BOOK.filter((r) => inPeriod(r.at.created, m)).length,
+    signed: BOOK.filter((r) => inPeriod(r.at.signed, m)).length,
     /* Tháng nào nằm trong kỳ đang xem thì sáng lên — thanh thời gian vừa là đồ
        thị vừa là chỗ nhìn ra kỳ hiện tại phủ những tháng nào. */
     /* Phủ nhau là đủ, không cần nằm trọn: chọn "05/05 → 20/05" thì tháng 5 vẫn
@@ -362,7 +362,7 @@ function buildMonths(p: Period): MonthPoint[] {
 }
 
 function buildExits(p: Period): { exits: ExitRow[]; total: number } {
-  const rows = BOOK.filter((r) => inPeriod(r.at.roi, p))
+  const rows = BOOK.filter((r) => inPeriod(r.at.dropped, p))
   const total = rows.length
 
   const exits = EXIT_REASONS.map((reason) => {
@@ -379,7 +379,8 @@ function buildExits(p: Period): { exits: ExitRow[]; total: number } {
  *  hạn, vượt không quá 20% là cần theo dõi, hơn nữa là trễ hạn. */
 function buildSla(p: Period): SlaRow[] {
   const legs: Record<string, (r: Row) => number | null> = {
-    'mkt-bd': (r) => (inPeriod(r.at.bdCham, p) ? daysBetween(r.at.vaoSo, r.at.bdCham) : null),
+    'mkt-bd': (r) =>
+      inPeriod(r.at.bdTouched, p) ? daysBetween(r.at.created, r.at.bdTouched) : null,
     'bd-sale': (r) => (inPeriod(r.at.sql, p) ? daysBetween(r.at.mql, r.at.sql) : null),
   }
 
@@ -393,7 +394,7 @@ function buildSla(p: Period): SlaRow[] {
         ...leg,
         actualDays: null,
         count: 0,
-        verdict: 'chua-do' as const,
+        verdict: 'no-data' as const,
         state: 'Chưa có bàn giao nào trong kỳ',
       }
     }
@@ -403,7 +404,7 @@ function buildSla(p: Period): SlaRow[] {
       ...leg,
       actualDays,
       count: days.length,
-      verdict: over <= 1 ? 'dat' : ('can-cai-thien' as Verdict),
+      verdict: over <= 1 ? 'met' : ('needs-work' as Verdict),
       state: over <= 1 ? 'Đúng hạn' : over <= 1 + SLA_WATCH_MARGIN ? 'Cần theo dõi' : 'Trễ hạn',
     }
   })
@@ -418,7 +419,7 @@ const KIND: Record<string, RoleKind> = {
   BD: 'bd',
   Sale: 'sale',
   Presales: 'presales',
-  'Trưởng phòng Kinh doanh': 'truong-phong',
+  'Trưởng phòng Kinh doanh': 'head-of-sales',
 }
 
 /** Vai của một người → dòng KPI của vai đó. 'Sale · chip' và 'Sale · dược' cùng
@@ -441,7 +442,7 @@ type Measured = {
   /** Ghi đè cờ `snapshot` của `ROLE_KPI_MODEL`.
    *
    *  Cờ ở fixture nói "thước này không cắt được theo kỳ". Với
-   *  `gia-moi-lead-tot` điều đó đúng cho tới 20/08, khi `CostLine.day` xuất
+   *  `cost-per-good-lead` điều đó đúng cho tới 20/08, khi `CostLine.day` xuất
    *  hiện và chi phí cắt được. Sửa cờ ở fixture là việc của `packages/**`;
    *  cho tới lúc đó màn không được in "số chụp tại 17/08" dưới một con số đã
    *  cắt theo kỳ — câu đó sai, và sai theo hướng làm người đọc tin nhầm. */
@@ -457,20 +458,20 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
   const { value } = measured
 
   let ratio: number | null = null
-  let verdict: Verdict = 'chua-do'
+  let verdict: Verdict = 'no-data'
 
   if (value !== null && target !== null && target > 0) {
     /* Thước "càng thấp càng tốt" (giá mỗi lead tốt) đảo tử số với mẫu số, nhờ
        vậy 1,0 luôn là "vừa đúng mục tiêu" cho mọi thước và đồng hồ đọc được
        bằng một cách duy nhất. */
     ratio = def.higherIsBetter ? value / target : rate(target, value)
-    verdict = ratio !== null && ratio >= 1 ? 'dat' : 'can-cai-thien'
+    verdict = ratio !== null && ratio >= 1 ? 'met' : 'needs-work'
 
     /* Kỳ chưa đóng + thước chốt muộn = hiện số, hoãn nhãn. Tiền của nguồn đang
        chạy đã ghi đủ vào kỳ, lead của nó thì chưa về hết, nên tỉ số đọc ra một
        con số thật mà chấm điểm trên nó là chấm độ trễ. `ratio` giữ nguyên để
        đồng hồ vẫn vẽ được — chỉ cái NHÃN bị hoãn. */
-    if (def.settlesLate && !p.closed) verdict = 'chua-chot'
+    if (def.settlesLate && !p.closed) verdict = 'not-final'
   }
 
   return {
@@ -494,7 +495,7 @@ function read(def: RoleKpiSpec, p: Period, measured: Measured): KpiReading {
  *  --------------------------------------------------------------------------
  *  CHI PHÍ GIỜ CẮT ĐƯỢC THEO KỲ (20/08) — TRẢ MỘT MÓN NỢ, MỞ MỘT CÂU HỎI
  *  --------------------------------------------------------------------------
- *  Trước hôm nay `gia-moi-lead-tot` chia lead CỦA KỲ cho chi phí CẢ KỲ: tháng 5
+ *  Trước hôm nay `cost-per-good-lead` chia lead CỦA KỲ cho chi phí CẢ KỲ: tháng 5
  *  có 10 lead tốt đứng trên 300 triệu của bốn tháng, và mọi kỳ đều ra đúng
  *  10,0 triệu vì tử số lẫn mẫu số đều là số của cả kỳ. Mỗi `CostLine` giờ có
  *  `day`, nên hai vế đứng chung một khoảng được.
@@ -514,7 +515,7 @@ function marketingReadings(p: Period): {
   sources: SourceRow[]
   sourcesNote: string
 } {
-  const mine = BOOK.filter((r) => MKT_CODES.has(r.lead.source) && inPeriod(r.at.vaoSo, p))
+  const mine = BOOK.filter((r) => MKT_CODES.has(r.lead.source) && inPeriod(r.at.created, p))
   const good = mine.filter((r) => r.lead.requiredFilled >= REQUIRED_SLOTS)
   const waves = MKT_SOURCES.flatMap((s) => s.waves.filter((w) => inPeriod(waveDay(w.day), p)))
 
@@ -522,7 +523,7 @@ function marketingReadings(p: Period): {
   const inThisPeriod = (line: { day: number }) => inPeriod(waveDay(line.day), p)
 
   const sources: SourceRow[] = MKT_SOURCES.map((s) => {
-    const rows = BOOK.filter((r) => r.lead.source === s.code && inPeriod(r.at.vaoSo, p))
+    const rows = BOOK.filter((r) => r.lead.source === s.code && inPeriod(r.at.created, p))
     const hits = rows.filter((r) => r.lead.requiredFilled >= REQUIRED_SLOTS).length
     const cut = spendIn([s], inThisPeriod)
     const priced = costOf(s, cut.cost, rows.length, hits)
@@ -554,26 +555,26 @@ function marketingReadings(p: Period): {
         : 'Không nguồn nào bị cắt ngang chuỗi trong kỳ này, nên không có phần chi phí nào rơi lệch lát.',
     ].join(' '),
     measured: {
-      'lead-keo-ve': {
+      'leads-sourced': {
         value: mine.length,
         note: `${MKT_SOURCES.length} chiến dịch và sự kiện đứng tên vai này · ${waves.length} đợt chạy trong kỳ`,
       },
-      'lead-tot': {
+      'good-leads': {
         value: good.length,
         note: `Qua cổng ${REQUIRED_SLOTS} ô bắt buộc · ${good.length} trên ${mine.length} lead của kỳ`,
       },
-      'ty-le-lead-tot': {
+      'good-lead-rate': {
         value: rate(good.length, mine.length),
         note: `${good.length} lead tốt trên ${mine.length} lead kéo về trong kỳ`,
       },
-      'lead-tot-moi-dot': {
+      'good-leads-per-wave': {
         value: rate(good.length, waves.length),
         note:
           waves.length > 0
             ? `Chia đều ${good.length} lead tốt cho ${waves.length} đợt chạy trong kỳ`
             : 'Kỳ này không đợt nào chạy — không có mẫu số để chia',
       },
-      'gia-moi-lead-tot': {
+      'cost-per-good-lead': {
         value: perGood,
         note:
           good.length > 0
@@ -596,13 +597,13 @@ function waveDay(day: number): string {
 
 /** BD — ô bắt buộc moi được và phần đẩy được sang SQL.
  *
- *  Mẫu số là lead BD **đã chạm**, đọc từ mốc `dien-o` do BD ghi trong lịch sử —
+ *  Mẫu số là lead BD **đã chạm**, đọc từ mốc `field-filled` do BD ghi trong lịch sử —
  *  KHÔNG phải lead BD đang giữ. Lead lên SQL thì đổi chủ sang Sale, nhưng công
  *  trạng của BD nằm ở lần chạm đó (docs · "Hoa hồng và công trạng"). Đọc bằng
  *  `owner === BD` chỉ thấy 12 lead còn trong tay anh, bỏ mất 32 lead anh đã moi
  *  ô rồi giao đi. */
 function bdReadings(p: Period): { measured: Record<string, Measured>; leads: LeadRow[] } {
-  const touched = BOOK.filter((r) => inPeriod(r.at.bdCham, p))
+  const touched = BOOK.filter((r) => inPeriod(r.at.bdTouched, p))
   const slots = sum(touched.map((r) => r.lead.requiredFilled))
   const mqlCohort = BOOK.filter((r) => inPeriod(r.at.mql, p))
 
@@ -621,21 +622,21 @@ function bdReadings(p: Period): { measured: Record<string, Measured>; leads: Lea
   return {
     leads,
     measured: {
-      'o-bat-buoc': {
+      'required-slots-filled': {
         value: slots,
         note: `${touched.length} lead BD chạm trong kỳ · tối đa ${touched.length * REQUIRED_SLOTS} ô`,
       },
-      'lead-xac-minh': {
+      'verified-leads': {
         value: mqlCohort.length,
         note: `${mqlCohort.length} lead lên bậc MQL trong kỳ`,
       },
-      'mql-sang-sql': {
+      'mql-to-sql': {
         /* Lứa MQL của kỳ, xem bao nhiêu đã đi tiếp — cùng cách đọc với phễu ở
            khối tổng quan, để hai con số không bao giờ nói ngược nhau. */
         value: rate(mqlCohort.filter((r) => r.at.sql).length, mqlCohort.length),
         note: `${mqlCohort.filter((r) => r.at.sql).length} lead vào sổ cơ hội trên ${mqlCohort.length} lead lên MQL trong kỳ`,
       },
-      'phan-hoi-nguoc': {
+      'feedback-to-marketing': {
         value: null,
         note: 'Chưa đo được: sổ lead không ghi lần nào BD trả phản hồi về đợt cho Marketing.',
       },
@@ -648,7 +649,7 @@ function saleReadings(
   p: Period,
   name: string,
 ): { measured: Record<string, Measured>; deals: DealRow[] } {
-  const signed = BOOK.filter((r) => r.lead.owner === name && inPeriod(r.at.ky, p))
+  const signed = BOOK.filter((r) => r.lead.owner === name && inPeriod(r.at.signed, p))
   /* Win rate cắt theo LỨA, không theo ngày ký: "của lô SQL giao trong kỳ này,
      chốt được bao nhiêu". Cắt theo ngày ký thì mẫu số là SQL nhận cùng tháng —
      mà một đơn hiếm khi nhận và ký trong cùng tháng, nên mẫu số hay bằng 0 và
@@ -676,14 +677,14 @@ function saleReadings(
   return {
     deals,
     measured: {
-      'don-chot': {
+      'deals-closed': {
         value: signed.length,
         note:
           signed.length > 0
             ? `${signed.map((r) => r.lead.company).join(' · ')}`
             : 'Kỳ này chưa hợp đồng nào đứng tên vai này',
       },
-      'gia-tri-don': {
+      'deal-value': {
         value: sum(mine.map((d) => d.amount)),
         note: `${mine.length} đơn đang mở tại lát cắt. Fixture không ghi giá trị hợp đồng đã ký nên không cộng vào đây.`,
       },
@@ -694,7 +695,7 @@ function saleReadings(
             ? `${cohortWon.length} đã ký trên ${cohort.length} SQL nhận trong kỳ`
             : 'Kỳ này không SQL nào được giao cho vai này — không có mẫu số',
       },
-      'toc-do-cot': {
+      'stage-velocity': {
         value: rate(onTime, mine.length),
         note: `${onTime} trên ${mine.length} đơn còn trong hạn cột đang đứng · ${rotting.length} đơn đã mục`,
       },
@@ -708,8 +709,8 @@ function presalesReadings(): Record<string, Measured> {
      buổi demo", nên demo không ghép được với người. */
   const note = 'Sổ cơ hội không có trường "ai đi cùng buổi demo" — không ghép được demo với người'
   return {
-    'demo-di-cung': { value: null, note },
-    'demo-ra-bao-gia': { value: null, note },
+    'demos-joined': { value: null, note },
+    'demos-to-quote': { value: null, note },
   }
 }
 
@@ -732,9 +733,9 @@ function buildPace(def: RoleKpiSpec | undefined, measure: (p: Period) => number 
   const quarter = QUARTERS.find((q) => q.from <= FROZEN_DAY && FROZEN_DAY <= q.to)
 
   const rows: { key: PaceRow['key']; label: string; period: Period }[] = [
-    { key: 'ngay', label: `Hôm nay · ${vn(FROZEN_DAY)}`, period: dayPeriod(month) },
-    { key: 'thang', label: month.label, period: month },
-    ...(quarter ? [{ key: 'quy' as const, label: quarter.label, period: quarter }] : []),
+    { key: 'day', label: `Hôm nay · ${vn(FROZEN_DAY)}`, period: dayPeriod(month) },
+    { key: 'month', label: month.label, period: month },
+    ...(quarter ? [{ key: 'quarter' as const, label: quarter.label, period: quarter }] : []),
   ]
 
   return rows.map(({ key, label, period }) => {
@@ -761,7 +762,7 @@ function buildPace(def: RoleKpiSpec | undefined, measure: (p: Period) => number 
 function dayPeriod(month: Period): Period {
   return {
     ...month,
-    grain: 'ngay',
+    grain: 'day',
     key: `pace-${FROZEN_DAY}`,
     label: `Ngày ${vn(FROZEN_DAY)}`,
     short: vn(FROZEN_DAY),
@@ -806,20 +807,20 @@ function buildPeople(p: Period, overview: Overview): PersonCard[] {
          điểm chất lượng là một cột RIÊNG. Cho lớp chất lượng quyền đánh trượt
          thì một Sale chốt đủ đơn vẫn bị gắn "Cần cải thiện" chỉ vì một đơn cũ
          nằm quá hạn cột, và nhãn mất luôn khả năng phân biệt ai đang tắc. */
-      const scored = kpis.filter((k) => k.verdict !== 'chua-do' && k.layer !== 'chat-luong')
+      const scored = kpis.filter((k) => k.verdict !== 'no-data' && k.layer !== 'quality')
       const verdict: Verdict =
         scored.length === 0
-          ? 'chua-do'
-          : scored.every((k) => k.verdict === 'dat')
-            ? 'dat'
-            : 'can-cai-thien'
+          ? 'no-data'
+          : scored.every((k) => k.verdict === 'met')
+            ? 'met'
+            : 'needs-work'
 
       return {
         ...base,
         primary,
         kpis,
         verdict,
-        scored: { ok: scored.filter((k) => k.verdict === 'dat').length, total: scored.length },
+        scored: { ok: scored.filter((k) => k.verdict === 'met').length, total: scored.length },
         pace: pacer ? buildPace(primaryDef, pacer) : [],
         note: noteFor(role.kind, overview),
         ...extras,
@@ -844,7 +845,7 @@ function measureFor(
       return {
         measured,
         extras: { sources, sourcesNote },
-        pacer: (period) => marketingReadings(period).measured['lead-keo-ve']?.value ?? null,
+        pacer: (period) => marketingReadings(period).measured['leads-sourced']?.value ?? null,
       }
     }
     case 'bd': {
@@ -852,7 +853,7 @@ function measureFor(
       return {
         measured,
         extras: { leads },
-        pacer: (period) => bdReadings(period).measured['o-bat-buoc']?.value ?? null,
+        pacer: (period) => bdReadings(period).measured['required-slots-filled']?.value ?? null,
       }
     }
     case 'sale': {
@@ -860,18 +861,18 @@ function measureFor(
       return {
         measured,
         extras: { deals },
-        pacer: (period) => saleReadings(period, name).measured['don-chot']?.value ?? null,
+        pacer: (period) => saleReadings(period, name).measured['deals-closed']?.value ?? null,
       }
     }
     case 'presales':
       return { measured: presalesReadings(), extras: {} }
-    case 'truong-phong':
+    case 'head-of-sales':
       return { measured: {}, extras: {} }
   }
 }
 
 function noteFor(kind: RoleKind, o: Overview): string | undefined {
-  if (kind === 'truong-phong') {
+  if (kind === 'head-of-sales') {
     return `Không tính công trạng cá nhân — vai này phân công, số của phòng chính là số của họ: ${o.leads} lead vào sổ, ${o.signedInPeriod} hợp đồng ký trong kỳ.`
   }
   if (kind === 'presales') {

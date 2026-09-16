@@ -31,7 +31,7 @@ import { assigneeOptions } from '@/data/leads'
  *  Nên khối này giờ làm đúng một việc và làm thật: đặt `lead.owner_id` qua
  *  `PATCH /sales/leads/:code/owner`. Bấm xong là dữ liệu đã đổi trên máy chủ,
  *  cột Lead PIC ở sổ đổi theo trong cùng một nhịp (`useSetLeadOwner` vứt ba
- *  tiền tố cache), và dòng thời gian của lead có một lần chạm `giao`.
+ *  tiền tố cache), và dòng thời gian của lead có một lần chạm `handed-over`.
  *
  *  ------------------------------------------------------------------
  *  MỘT NGƯỜI, KHÔNG PHẢI NHIỀU — VÀ KHÔNG CÒN Ô "VIỆC CẦN GIAO"
@@ -89,11 +89,11 @@ export function AssignMenu({ lead, profile, size = 'md', buttonVariant, classNam
   const mayClaim = held === null && me !== undefined
 
   const people = useMemo(() => assigneeOptions(lead, staff, me?.id), [lead, staff, me?.id])
-  const self = people.find((person) => person.group === 'toi')
+  const self = people.find((person) => person.group === 'mine')
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    const teammates = people.filter((person) => person.group !== 'toi')
+    const teammates = people.filter((person) => person.group !== 'mine')
     if (needle === '') return teammates
     return teammates.filter((p) =>
       [p.name, p.role, ...p.domains].some((s) => s.toLowerCase().includes(needle)),
@@ -131,14 +131,14 @@ export function AssignMenu({ lead, profile, size = 'md', buttonVariant, classNam
 
   const groups = [
     {
-      key: 'goi-y' as const,
+      key: 'suggested' as const,
       priority: 'Ưu tiên cao',
       label: 'Phù hợp trực tiếp với lead',
       note: 'Khớp ngành, vai trò hoặc trạng thái hiện tại của lead.',
       tone: 'running' as const,
     },
     {
-      key: 'con-lai' as const,
+      key: 'rest' as const,
       priority: 'Ưu tiên thường',
       label: 'Có thể phối hợp',
       note: 'Không có tín hiệu khớp trực tiếp, nhưng vẫn thuộc phòng kinh doanh.',

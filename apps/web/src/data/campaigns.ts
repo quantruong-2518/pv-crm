@@ -93,14 +93,14 @@ export const dayAfterToday = (n: number): string =>
 
 /** Ba trạng thái của một chiến dịch, đúng thứ tự đời của nó.
  *
- *  `nhap` chưa có trong kịch bản đóng băng — nó là trạng thái của chiến dịch
+ *  `draft` chưa có trong kịch bản đóng băng — nó là trạng thái của chiến dịch
  *  NGƯỜI DÙNG vừa soạn trong phiên và chưa bấm "Bắt đầu chạy". Có mặt ở đây vì
  *  màn phải vẽ được nó ngay khi form lưu nháp, chứ không phải vì fixture có
  *  dòng nào mang nó. */
 export const CAMPAIGN_STATUS = [
-  { key: 'nhap', label: 'Nháp', tone: 'draft' },
-  { key: 'dang-chay', label: 'Đang chạy', tone: 'running' },
-  { key: 'da-xong', label: 'Đã xong', tone: 'success' },
+  { key: 'draft', label: 'Nháp', tone: 'draft' },
+  { key: 'running', label: 'Đang chạy', tone: 'running' },
+  { key: 'done', label: 'Đã xong', tone: 'success' },
 ] as const satisfies readonly {
   key: string
   label: string
@@ -121,9 +121,9 @@ export const STATUS_TONE = Object.fromEntries(
  *  hai component có hai bộ tên trạng thái khác nhau, và nối chúng bằng một phép
  *  đoán là cách để một hôm nào đó chấm xanh nằm cạnh chữ "Đang chạy". */
 export const STATUS_DOT: Record<CampaignStatus, 'next' | 'current' | 'ok'> = {
-  nhap: 'next',
-  'dang-chay': 'current',
-  'da-xong': 'ok',
+  draft: 'next',
+  running: 'current',
+  done: 'ok',
 }
 
 /** Chiến dịch đang chạy hay đã xong — đọc theo CỬA SỔ CÒN NHẬN TRẢ LỜI, không
@@ -138,8 +138,8 @@ export const STATUS_DOT: Record<CampaignStatus, 'next' | 'current' | 'ok'> = {
  *  phải chấm trạng thái trên CÙNG một mốc hôm nay, và hai lời gọi `Date.now()`
  *  cách nhau một nhịp render là hai mốc khác nhau. */
 function statusOf(lastDay: number, todayDay: number, hasWaves: boolean): CampaignStatus {
-  if (!hasWaves) return 'nhap'
-  return todayDay - lastDay <= WAVE_REPLY_WINDOW ? 'dang-chay' : 'da-xong'
+  if (!hasWaves) return 'draft'
+  return todayDay - lastDay <= WAVE_REPLY_WINDOW ? 'running' : 'done'
 }
 
 /** Chuỗi còn được coi là ĐANG CHẠY bao nhiêu ngày sau đợt cuối, ngày.
@@ -526,7 +526,7 @@ export const sourcesQuery = queryOptions({
         need: CAMPAIGN_ACCESS,
         signal,
       })
-      .then((r) => r.rows.filter((s) => s.kind !== 'tu-nhien').map((s) => rowOf(s, r.period))),
+      .then((r) => r.rows.filter((s) => s.kind !== 'organic').map((s) => rowOf(s, r.period))),
 })
 
 /** Hàng score card. Trả nguyên hình của hợp đồng — mọi tỉ lệ của hàng này tính
@@ -552,12 +552,12 @@ export type SourceSort = {
  *  của nó. Một nhãn "Theo ngày" không chỗ nào hiện là một nhãn sẽ trôi khỏi tên
  *  cột mà không ai biết. */
 export const SOURCE_SORTS = [
-  { key: 'bat-dau', compare: (a: SourceRow, b: SourceRow) => a.startDay - b.startDay },
-  { key: 'ket-thuc', compare: (a: SourceRow, b: SourceRow) => a.lastDay - b.lastDay },
-  { key: 'nguoi-nhan', compare: (a: SourceRow, b: SourceRow) => a.sent - b.sent },
-  { key: 'mo', compare: (a: SourceRow, b: SourceRow) => a.openRate - b.openRate },
-  { key: 'bam', compare: (a: SourceRow, b: SourceRow) => a.clickRate - b.clickRate },
-  { key: 'hong', compare: (a: SourceRow, b: SourceRow) => a.bounceRate - b.bounceRate },
+  { key: 'start', compare: (a: SourceRow, b: SourceRow) => a.startDay - b.startDay },
+  { key: 'end', compare: (a: SourceRow, b: SourceRow) => a.lastDay - b.lastDay },
+  { key: 'recipients', compare: (a: SourceRow, b: SourceRow) => a.sent - b.sent },
+  { key: 'opens', compare: (a: SourceRow, b: SourceRow) => a.openRate - b.openRate },
+  { key: 'clicks', compare: (a: SourceRow, b: SourceRow) => a.clickRate - b.clickRate },
+  { key: 'bounces', compare: (a: SourceRow, b: SourceRow) => a.bounceRate - b.bounceRate },
   { key: 'ops', compare: (a: SourceRow, b: SourceRow) => a.ops - b.ops },
 ] as const satisfies readonly SourceSort[]
 

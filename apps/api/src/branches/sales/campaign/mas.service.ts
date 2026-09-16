@@ -190,7 +190,7 @@ export class MasService {
    *  answers it the way it answers any bad token. */
   private previewUnsubscribeUrl(): string {
     const origin = this.env.PV_API_PUBLIC_URL || this.env.PV_APP_URL
-    return `${origin.replace(/\/+$/, '')}/mail/unsubscribe/xem-truoc`
+    return `${origin.replace(/\/+$/, '')}/mail/unsubscribe/preview`
   }
 
   /** Open one batch and hand it to the queue. Nothing is sent inside this call.

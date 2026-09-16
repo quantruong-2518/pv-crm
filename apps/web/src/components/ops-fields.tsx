@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 import { Paperclip, Trash2, TriangleAlert } from '@pv/ui'
-import { Avatar, Button, Icon, Input, Kicker, Select, Textarea, billions, cn, dong } from '@pv/ui'
+import { Avatar, Button, Icon, Input, Kicker, Select, Textarea, billions, cn, vnd } from '@pv/ui'
 import { OPPORTUNITY_FILES_MAX, OPPORTUNITY_LOSS_NOTE_MAX } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
 import {
@@ -190,7 +190,7 @@ export function AmountRow({
       {amount !== null && amount > 0 && (
         <span className="text-muted-foreground text-[11.5px] leading-[1.5] sm:col-span-2">
           {currency === 'VND'
-            ? `${dong(amount)} · ${billions(amount)}`
+            ? `${vnd(amount)} · ${billions(amount)}`
             : `${amount.toLocaleString('vi-VN')} ${symbol} · ${billions(toMoneyVnd(amount, currency))} quy ra đồng`}
         </span>
       )}

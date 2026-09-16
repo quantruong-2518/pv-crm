@@ -170,7 +170,7 @@ export const contractCondition = sales.table(
     }).onDelete('cascade'),
     /** "The conditions of this installment" — the only way this table is read. */
     index('contract_condition_installment_idx').on(t.contractCode, t.installmentNo),
-    check('contract_condition_side_known', sql`"side" IN ('ta', 'khách')`),
+    check('contract_condition_side_known', sql`"side" IN ('ours', 'customer')`),
   ],
 )
 
@@ -194,7 +194,10 @@ export const contractDocument = sales.table(
       foreignColumns: [contractInstallment.contractCode, contractInstallment.no],
     }).onDelete('cascade'),
     index('contract_document_installment_idx').on(t.contractCode, t.installmentNo),
-    check('contract_document_state_known', sql`"state" IN ('đủ', 'chờ-ký', 'chưa-có')`),
+    check(
+      'contract_document_state_known',
+      sql`"state" IN ('complete', 'awaiting-signature', 'missing')`,
+    ),
   ],
 )
 
@@ -226,11 +229,11 @@ export const contractRecord = sales.table(
     index('contract_record_installment_idx').on(t.contractCode, t.installmentNo, t.at),
     check(
       'contract_record_channel_known',
-      sql`"channel" IN ('email', 'zalo-oa', 'trong-app', 'gọi')`,
+      sql`"channel" IN ('email', 'zalo-oa', 'in-app', 'call')`,
     ),
     check(
       'contract_record_state_known',
-      sql`"state" IN ('xong', 'chờ-trả-lời', 'đã-xếp', 'chưa-tới')`,
+      sql`"state" IN ('done', 'awaiting-reply', 'scheduled', 'upcoming')`,
     ),
   ],
 )

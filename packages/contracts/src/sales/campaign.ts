@@ -120,7 +120,7 @@ export const SourceEvent = z.object({
 /** Ba loại nguồn. Giá trị của `config_entry.kind` trên danh mục `SOURCE`, giữ
  *  nguyên cách viết đã có trong cột — đổi cách viết là một migration, không
  *  phải một dòng hợp đồng. */
-export const SourceKind = z.enum(['chien-dich', 'su-kien', 'tu-nhien'])
+export const SourceKind = z.enum(['campaign', 'event', 'organic'])
 
 export type SourceKind = z.infer<typeof SourceKind>
 
@@ -133,7 +133,7 @@ export const CampaignSource = z.object({
   code: ConfigCode,
   name: z.string().min(1),
   /** Vắng = dòng cấu hình chưa ai gán loại. Màn phải chịu được chuyện đó thay
-   *  vì đoán 'chien-dich'. */
+   *  vì đoán 'campaign'. */
   kind: SourceKind.optional(),
   active: z.boolean(),
 
@@ -176,7 +176,7 @@ export const CampaignSourceResponse = z.object({
 /** Hàng score card. Cùng luật với `CampaignSource`: tử số và mẫu số, không tỉ
  *  lệ. */
 export const CampaignTotals = z.object({
-  /** Nguồn có người chạy (`chien-dich` + `su-kien`). */
+  /** Nguồn có người chạy (`campaign` + `event`). */
   sources: z.number().int().nonnegative(),
   /** Nguồn tự nhiên — không ai chạy chiến dịch nào. Tách ra vì số lead của
    *  chúng vẫn phải nói ra một lần, không thì bảng đọc như cả kỳ. */

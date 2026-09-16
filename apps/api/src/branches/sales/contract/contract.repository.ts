@@ -5,7 +5,7 @@ import type { ContractMonthPoint, ContractSummary, PageQuery } from '@pv/contrac
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
-import { dongOf } from '../money'
+import { toVndSql } from '../money'
 import {
   contract,
   contractCondition,
@@ -80,7 +80,7 @@ const NEXT_CODE = sql`SELECT 'HĐ-' || lpad(nextval('sales.contract_code_seq')::
 
 /** The signed value of a contract in dong. Shared expression, one rate table —
  *  see `../money.ts`. */
-const CONTRACT_VND = dongOf(contract.amount, contract.currency)
+const CONTRACT_VND = toVndSql(contract.amount, contract.currency)
 
 /** How far back the trend strip reaches. Twelve points including the current
  *  month, which is what `ContractSummary.byMonth` promises. */
@@ -311,8 +311,8 @@ export class ContractRepository {
          that one is money that did not land. */
       this.db
         .select({
-          ours: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'ta')::int`,
-          theirs: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'khách')::int`,
+          ours: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'ours')::int`,
+          theirs: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'customer')::int`,
         })
         .from(contractCondition)
         .where(and(isNull(contractCondition.doneAt), sql`${contractCondition.due} < now()`)),

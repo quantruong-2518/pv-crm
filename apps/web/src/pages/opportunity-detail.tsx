@@ -268,8 +268,8 @@ export function OpportunityDetailPage() {
        phải làm tiếp khác nhau, nên một `EmptyOp` chung cho cả ba là bảo người
        dùng "hỏng rồi" mà không nói hỏng kiểu gì. */
     const failure = isApiError(error) ? error : null
-    const missing = failure?.kind === 'không-thấy'
-    const denied = failure?.kind === 'thiếu-quyền'
+    const missing = failure?.kind === 'not-found'
+    const denied = failure?.kind === 'forbidden'
 
     return shell(
       <ScreenLayout>

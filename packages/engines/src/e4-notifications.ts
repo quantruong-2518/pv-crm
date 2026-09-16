@@ -92,7 +92,7 @@ export type NotificationRule = {
   templateVersion: number
   /** Display only, for the rules table on screen 05. Neither is used for
    *  routing — `audience` routes. */
-  timing?: string
+  timing?: 'immediate'
   role?: string
 }
 
@@ -119,7 +119,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
     audience: AUDIENCE_INTERNAL,
     template: 'lead-intake-internal',
     templateVersion: 1,
-    timing: 'ngay',
+    timing: 'immediate',
     role: 'Sales',
   },
 
@@ -141,7 +141,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
     audience: AUDIENCE_INTERNAL,
     template: 'opportunity-opened',
     templateVersion: 1,
-    timing: 'ngay',
+    timing: 'immediate',
     role: 'Sales',
   },
   {
@@ -153,7 +153,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
     audience: AUDIENCE_INTERNAL,
     template: 'opportunity-lost',
     templateVersion: 1,
-    timing: 'ngay',
+    timing: 'immediate',
     role: 'Sales',
   },
 ]

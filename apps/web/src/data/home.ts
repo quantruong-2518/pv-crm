@@ -118,7 +118,7 @@ export function labelsOf(
 // THE WORK QUEUE — one person's rows, three books, one order
 // ---------------------------------------------------------------------------
 
-export type WorkKind = 'thu-tien' | 'co-hoi' | 'lead'
+export type WorkKind = 'payment' | 'opportunity' | 'lead'
 
 /** One thing on this desk that had a deadline and passed it.
  *
@@ -156,7 +156,7 @@ export function collectionWork(rows: ContractRow[], mine: string, today: string)
       if (left >= 0) continue
       out.push({
         id: `${c.code}-${i.no}`,
-        kind: 'thu-tien',
+        kind: 'payment',
         code: c.code,
         title: `Đợt ${i.no} · ${i.label}`,
         meta: c.leadCode,
@@ -184,7 +184,7 @@ export function dealWork(
     if (limit === undefined || o.daysInStage <= limit) continue
     out.push({
       id: o.code,
-      kind: 'co-hoi',
+      kind: 'opportunity',
       code: o.code,
       title: o.name,
       meta: `${o.account} · ${labelOf(o.stage)}`,
@@ -288,8 +288,8 @@ export function useMyWork(limits: Map<StageKey, number>, labelOf: (stage: StageK
 // ---------------------------------------------------------------------------
 
 const KIND_OF: Record<WorkKind, ObjectRef['kind']> = {
-  'thu-tien': 'HĐ',
-  'co-hoi': 'OP',
+  payment: 'HĐ',
+  opportunity: 'OP',
   lead: 'LD',
 }
 
@@ -313,7 +313,7 @@ export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
     top ??
     (first === undefined
       ? undefined
-      : { id: first.code, kind: 'thu-tien' as const, code: first.code, title: first.customer })
+      : { id: first.code, kind: 'payment' as const, code: first.code, title: first.customer })
   if (anchor === undefined) return []
 
   const objects: ObjectRef[] = []
@@ -347,8 +347,8 @@ export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
       amount: contract.amount ?? undefined,
     })
     edges.push(
-      { from: contract.leadCode, to: contract.opportunityCode, kind: 'sinh-ra' },
-      { from: contract.opportunityCode, to: contract.code, kind: 'sinh-ra' },
+      { from: contract.leadCode, to: contract.opportunityCode, kind: 'spawned' },
+      { from: contract.opportunityCode, to: contract.code, kind: 'spawned' },
     )
   }
 

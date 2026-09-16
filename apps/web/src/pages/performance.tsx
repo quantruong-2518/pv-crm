@@ -113,10 +113,10 @@ const ALL = 'all'
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
 
 const GRAINS: { value: Grain; label: string }[] = [
-  { value: 'thang', label: 'Tháng' },
-  { value: 'quy', label: 'Quý' },
-  { value: 'nam', label: 'Năm' },
-  { value: 'ngay', label: 'Khoảng ngày' },
+  { value: 'month', label: 'Tháng' },
+  { value: 'quarter', label: 'Quý' },
+  { value: 'year', label: 'Năm' },
+  { value: 'day', label: 'Khoảng ngày' },
 ]
 
 /** Nhãn ngắn của vai trên chip lọc. 'Trưởng phòng Kinh doanh' dài gấp ba nhãn
@@ -124,12 +124,12 @@ const GRAINS: { value: Grain; label: string }[] = [
 const ROLE_SHORT: Record<string, string> = { 'Trưởng phòng Kinh doanh': 'Trưởng phòng' }
 
 const VERDICT: Record<Verdict, { label: string; tone: 'success' | 'warning' | 'draft' }> = {
-  dat: { label: 'Đạt', tone: 'success' },
-  'can-cai-thien': { label: 'Cần cải thiện', tone: 'warning' },
-  'chua-do': { label: 'Chưa đo được', tone: 'draft' },
+  met: { label: 'Đạt', tone: 'success' },
+  'needs-work': { label: 'Cần cải thiện', tone: 'warning' },
+  'no-data': { label: 'Chưa đo được', tone: 'draft' },
   /* Đã đo xong, số hiện đủ — chỉ chưa chấm được vì kỳ chưa đóng. Tông 'draft'
-     giống 'chua-do' vì cả hai đều KHÔNG phải một lời khen hay một lời chê. */
-  'chua-chot': { label: 'Chưa chốt', tone: 'draft' },
+     giống 'no-data' vì cả hai đều KHÔNG phải một lời khen hay một lời chê. */
+  'not-final': { label: 'Chưa chốt', tone: 'draft' },
 }
 
 /** Số nguyên hiện nguyên, số lẻ giữ một chữ số — chuẩn VN, phẩy thập phân (luật 6). */
@@ -144,15 +144,15 @@ function money(value: number): string {
 /** Một thước → chữ hiện trên màn. `null` là chưa đo được, không phải 0. */
 function kpiText(k: Pick<KpiReading, 'value' | 'unit'>): string {
   if (k.value === null) return 'chưa đo được'
-  if (k.unit === 'ty-le') return percent(k.value)
-  if (k.unit === 'tien') return money(k.value)
+  if (k.unit === 'ratio') return percent(k.value)
+  if (k.unit === 'money') return money(k.value)
   return num(k.value)
 }
 
 function targetText(k: KpiReading): string | null {
   if (k.target === null) return null
-  if (k.unit === 'ty-le') return percent(k.target)
-  if (k.unit === 'tien') return money(k.target)
+  if (k.unit === 'ratio') return percent(k.target)
+  if (k.unit === 'money') return money(k.target)
   return num(k.target)
 }
 
@@ -191,7 +191,7 @@ export function PerformancePage() {
             <ScoreBento data={data} />
             <FlowBlock
               data={data}
-              onWiden={() => setChoice({ grain: 'nam', key: YEARS[YEARS.length - 1]?.key ?? '' })}
+              onWiden={() => setChoice({ grain: 'year', key: YEARS[YEARS.length - 1]?.key ?? '' })}
             />
             <PeopleBlock
               data={data}
@@ -238,7 +238,7 @@ function PeriodBar({
   onChange: (c: PeriodChoice) => void
   data: Performance | undefined
 }) {
-  const list = choice.grain === 'quy' ? QUARTERS : choice.grain === 'nam' ? YEARS : MONTHS
+  const list = choice.grain === 'quarter' ? QUARTERS : choice.grain === 'year' ? YEARS : MONTHS
 
   const columns: BarDatum[] = (data?.months ?? []).map((m) => ({
     key: m.key,
@@ -246,7 +246,7 @@ function PeriodBar({
     value: m.leads,
     display: num(m.leads),
     active: m.selected,
-    onSelect: () => onChange({ grain: 'thang', key: m.key }),
+    onSelect: () => onChange({ grain: 'month', key: m.key }),
   }))
 
   return (
@@ -261,18 +261,19 @@ function PeriodBar({
             options={GRAINS}
             onChange={(grain) =>
               onChange(
-                grain === 'ngay'
+                grain === 'day'
                   ? { grain, key: '', from: DATA_WINDOW.from, to: DATA_WINDOW.cutoff }
                   : {
                       grain: grain as Grain,
                       key:
-                        (grain === 'quy' ? QUARTERS : grain === 'nam' ? YEARS : MONTHS).slice(-1)[0]
-                          ?.key ?? '',
+                        (grain === 'quarter' ? QUARTERS : grain === 'year' ? YEARS : MONTHS).slice(
+                          -1,
+                        )[0]?.key ?? '',
                     },
               )
             }
           />
-          {choice.grain === 'ngay' ? (
+          {choice.grain === 'day' ? (
             <DayRange choice={choice} onChange={onChange} />
           ) : (
             <SegmentedControl
@@ -333,7 +334,7 @@ function DayRange({
           value={from}
           min={DATA_WINDOW.from}
           max={to}
-          onChange={(e) => onChange({ ...choice, grain: 'ngay', key: '', from: e.target.value })}
+          onChange={(e) => onChange({ ...choice, grain: 'day', key: '', from: e.target.value })}
           className="h-8 w-[148px] px-3 text-[11.5px]"
         />
       </label>
@@ -344,7 +345,7 @@ function DayRange({
           value={to}
           min={from}
           max={DATA_WINDOW.horizon}
-          onChange={(e) => onChange({ ...choice, grain: 'ngay', key: '', to: e.target.value })}
+          onChange={(e) => onChange({ ...choice, grain: 'day', key: '', to: e.target.value })}
           className="h-8 w-[148px] px-3 text-[11.5px]"
         />
       </label>
@@ -361,13 +362,13 @@ function DayRange({
 
 /** Delta so với kỳ liền trước cùng loại. Không có kỳ trước thì KHÔNG có ô delta:
  *  "tăng so với không có gì" không phải một con số đọc được. */
-function delta(now: number | null, before: number | null, unit: 'so' | 'ty-le' | 'tien') {
+function delta(now: number | null, before: number | null, unit: 'count' | 'ratio' | 'money') {
   if (now === null || before === null) return undefined
   const diff = now - before
   const text =
-    unit === 'ty-le'
+    unit === 'ratio'
       ? `${diff >= 0 ? '+' : '−'}${percent(Math.abs(diff))}`
-      : unit === 'tien'
+      : unit === 'money'
         ? `${diff >= 0 ? '+' : '−'}${money(Math.abs(diff))}`
         : `${diff >= 0 ? '+' : '−'}${num(Math.abs(diff))}`
 
@@ -403,7 +404,7 @@ function ScoreBento({ data }: { data: Performance }) {
           value={num(o.leads)}
           label="Lead vào sổ trong kỳ"
           hint={vs}
-          delta={delta(o.leads, before?.leads ?? null, 'so')}
+          delta={delta(o.leads, before?.leads ?? null, 'count')}
         />
         <StatCard
           size="compact"
@@ -411,7 +412,7 @@ function ScoreBento({ data }: { data: Performance }) {
           value={o.mqlRate === null ? '—' : percent(o.mqlRate)}
           label="Tỷ lệ MQL"
           hint={`${num(o.mql)} trên ${num(o.leads)} lead của lứa`}
-          delta={delta(o.mqlRate, before?.mqlRate ?? null, 'ty-le')}
+          delta={delta(o.mqlRate, before?.mqlRate ?? null, 'ratio')}
         />
         <StatCard
           size="compact"
@@ -419,7 +420,7 @@ function ScoreBento({ data }: { data: Performance }) {
           value={o.sqlRate === null ? '—' : percent(o.sqlRate)}
           label="Tỷ lệ SQL"
           hint={`${num(o.sql)} trên ${num(o.mql)} lead lên MQL`}
-          delta={delta(o.sqlRate, before?.sqlRate ?? null, 'ty-le')}
+          delta={delta(o.sqlRate, before?.sqlRate ?? null, 'ratio')}
         />
         <StatCard
           size="compact"
@@ -427,7 +428,7 @@ function ScoreBento({ data }: { data: Performance }) {
           value={o.winRate === null ? '—' : percent(o.winRate)}
           label="Win rate"
           hint={`${num(o.won)} đã ký trên ${num(o.sql)} SQL của lứa`}
-          delta={delta(o.winRate, before?.winRate ?? null, 'ty-le')}
+          delta={delta(o.winRate, before?.winRate ?? null, 'ratio')}
         />
 
         <StatCard
@@ -436,7 +437,7 @@ function ScoreBento({ data }: { data: Performance }) {
           value={num(o.signedInPeriod)}
           label="Hợp đồng ký trong kỳ"
           hint={vs}
-          delta={delta(o.signedInPeriod, before?.signedInPeriod ?? null, 'so')}
+          delta={delta(o.signedInPeriod, before?.signedInPeriod ?? null, 'count')}
         />
         <StatCard
           size="compact"
@@ -444,7 +445,7 @@ function ScoreBento({ data }: { data: Performance }) {
           value={num(o.exited)}
           label="Lead ra khỏi luồng"
           hint={vs}
-          delta={delta(o.exited, before?.exited ?? null, 'so')}
+          delta={delta(o.exited, before?.exited ?? null, 'count')}
         />
         <StatCard
           size="compact"
@@ -481,7 +482,7 @@ function FunnelHero({ data }: { data: Performance }) {
     value: s.count,
     display: num(s.count),
     note: s.ratio === null ? 'đầu phễu' : `${percent(s.ratio)} của bậc trên`,
-    tone: s.key === 'hop-dong' ? 'success' : 'primary',
+    tone: s.key === 'contract' ? 'success' : 'primary',
   }))
 
   return (
@@ -583,11 +584,11 @@ function FlowBlock({ data, onWiden }: { data: Performance; onWiden: () => void }
               </span>,
               <span
                 key="a"
-                className={cn('tnum font-num font-semibold', s.verdict !== 'dat' && 'text-warning')}
+                className={cn('tnum font-num font-semibold', s.verdict !== 'met' && 'text-warning')}
               >
                 {s.actualDays === null ? '—' : `${num(s.actualDays)} ngày`}
               </span>,
-              <Badge key="s" tone={s.verdict === 'dat' ? 'success' : 'warning'}>
+              <Badge key="s" tone={s.verdict === 'met' ? 'success' : 'warning'}>
                 {s.state}
               </Badge>,
             ],
@@ -741,9 +742,9 @@ function RowProgress({ reading }: { reading: KpiReading | null }) {
         <span
           className={cn(
             'block h-full rounded-sm',
-            reading.verdict === 'dat'
+            reading.verdict === 'met'
               ? 'bg-success'
-              : reading.verdict === 'chua-chot'
+              : reading.verdict === 'not-final'
                 ? 'bg-surface-ink/25'
                 : 'bg-warning',
           )}
@@ -843,7 +844,7 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
             value: step.count,
             display: num(step.count),
             note: step.ratio === null ? 'đầu phễu' : `${percent(step.ratio)} của bậc trên`,
-            tone: step.key === 'hop-dong' ? 'success' : 'primary',
+            tone: step.key === 'contract' ? 'success' : 'primary',
           }))}
           source="Phễu của phòng trong kỳ · Sổ lead"
         />
@@ -855,9 +856,9 @@ function GaugeBlock({ person, data }: { person: PersonCard; data: Performance })
   const target = k.target
   const missing = target === null ? null : Math.max(0, target - done)
   const tone =
-    k.verdict === 'dat'
+    k.verdict === 'met'
       ? 'success'
-      : k.verdict === 'chua-do' || k.verdict === 'chua-chot'
+      : k.verdict === 'no-data' || k.verdict === 'not-final'
         ? 'primary'
         : 'warning'
 
@@ -945,20 +946,20 @@ function Fact({
  *  Ba mốc neo vào lát cắt chứ không theo kỳ đang xem: kỳ đang xem có thể là
  *  tháng 5, nhưng câu hỏi "hôm nay tôi còn phải làm gì" luôn hỏi về hôm nay. */
 function PaceBlock({ pace, unit }: { pace: PaceRow[]; unit?: KpiReading['unit'] }) {
-  const fmt = (v: number) => kpiText({ value: v, unit: unit ?? 'so' })
+  const fmt = (v: number) => kpiText({ value: v, unit: unit ?? 'count' })
   /* Số nhịp hay nhỏ hơn 1 ("cần 0,07 đơn mỗi ngày"). `num` cắt còn một chữ số
      thập phân nên nó ra "0" — đúng kiểu số làm người đọc tưởng không phải làm
      gì. Nhịp vì thế giữ hai chữ số khi nhỏ hơn 1. */
   const pace1 = (v: number) =>
-    unit === 'tien' || unit === 'ty-le'
+    unit === 'money' || unit === 'ratio'
       ? fmt(v)
       : v < 1
         ? v.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
         : fmt(v)
 
-  const today = pace.find((r) => r.key === 'ngay')
-  const month = pace.find((r) => r.key === 'thang')
-  const milestones = pace.filter((r) => r.key !== 'ngay')
+  const today = pace.find((r) => r.key === 'day')
+  const month = pace.find((r) => r.key === 'month')
+  const milestones = pace.filter((r) => r.key !== 'day')
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5">
@@ -1042,7 +1043,7 @@ function LayerBlock({ person }: { person: PersonCard }) {
               <h5 className="text-[12px] font-semibold">{layer.label}</h5>
               <span className="text-muted-foreground text-[10.5px]">
                 {layer.note}
-                {layer.key === 'chat-luong' ? ' · không dùng để xếp hạng' : ''}
+                {layer.key === 'quality' ? ' · không dùng để xếp hạng' : ''}
               </span>
             </div>
             <div className="flex flex-col gap-3">
@@ -1067,8 +1068,8 @@ function KpiRow({ k }: { k: KpiReading }) {
             className={cn(
               'tnum font-num text-[15px] font-semibold',
               k.value === null && 'text-warning text-[12px]',
-              k.verdict === 'dat' && 'text-on-tint-success-strong',
-              k.verdict === 'can-cai-thien' && 'text-warning',
+              k.verdict === 'met' && 'text-on-tint-success-strong',
+              k.verdict === 'needs-work' && 'text-warning',
             )}
           >
             {kpiText(k)}
@@ -1260,7 +1261,7 @@ function AssistantBlock({ data }: { data: Performance }) {
       ? `${data.funnel[worstIndex - 1]?.label} → ${data.funnel[worstIndex]?.label}`
       : null
 
-  const behind = data.people.filter((p) => p.verdict === 'can-cai-thien')
+  const behind = data.people.filter((p) => p.verdict === 'needs-work')
   const rail = railChips(dasVina.graph.story(o.biggestDealCode), o.biggestDealCode)
 
   return (

@@ -118,9 +118,8 @@ export const objectRef = platform.table(
 
 /** Cạnh có hướng giữa hai object.
  *
- *  `kind` mang giá trị CÓ DẤU ('chờ', 'thuộc-về') vì đó là union của engine
- *  hôm nay, và là một khoản nợ chưa trả. Đổi ở engine trước, rồi
- *  một migration đổi dữ liệu; đổi ở đây trước là làm hai bên lệch nhau. */
+ *  `kind` is part of the primary key and mirrors the engine's `EdgeKind`, so a
+ *  renamed value ships with a data migration (`0046`), never on its own. */
 export const edge = platform.table(
   'edge',
   {

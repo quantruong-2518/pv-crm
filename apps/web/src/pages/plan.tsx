@@ -60,10 +60,10 @@ import { PLAN_ANCHOR, planBoardQuery } from '@/data/plan'
  *  `undefined` và thẻ đơn giản là không có icon — thiếu một hình trang trí không
  *  đáng để làm hỏng cả màn. */
 const STAT_ICON: Record<string, IconGlyph> = {
-  'dang-muc': TriangleAlert,
-  'qua-sla': Timer,
-  'lead-tot': CircleCheckBig,
-  'gia-lead-tot': Coins,
+  rotting: TriangleAlert,
+  'over-sla': Timer,
+  'good-leads': CircleCheckBig,
+  'good-lead-cost': Coins,
 }
 
 export function PlanPage() {
@@ -216,7 +216,7 @@ export function PlanPage() {
             <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] lg:gap-6">
               {/* 2 · Đề xuất. Mỗi khối là một <AiAction>: có căn cứ số thật, có
                   nút, và có dòng "Chưa tạo gì cả" ngay dưới nút. */}
-              <section id="de-xuat" className="flex flex-col gap-4">
+              <section id="proposals" className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                   {/* Luật 15 · icon Trợ lý AI là `orbit`, size 20 vì đây là đầu
                       một khối chứ không phải icon trong nút. */}
@@ -289,7 +289,7 @@ export function PlanPage() {
                       label: 'Xem đề xuất',
                       onClick: () =>
                         document
-                          .getElementById('de-xuat')
+                          .getElementById('proposals')
                           ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }),
                     }}
                     className="py-8"

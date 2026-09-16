@@ -137,7 +137,7 @@ function exitTally(): { total: number; ranked: ExitTally[] } {
     return {
       label: r.label,
       count: mine.length,
-      atFirstTier: mine.filter((l) => l.tier === 'dau-moi').length,
+      atFirstTier: mine.filter((l) => l.tier === 'prospect').length,
       filledSum: mine.reduce((sum, l) => sum + l.requiredFilled, 0),
       codes: mine.map((l) => l.code),
     }
@@ -173,7 +173,7 @@ function buildProposals(): PlanProposal[] {
   if (worst) {
     const value = rotting.reduce((sum, d) => sum + d.amount, 0)
     out.push({
-      id: 'don-dang-muc',
+      id: 'rotting-deals',
       suggestion: `Đưa ${HEAD_OF_SALES} vào cuộc với ${rotting.length} đơn đang mục, bắt đầu từ ${head.map((d) => d.code).join(' và ')} — hai đơn nằm cột lâu nhất.`,
       basis: `${rotting.length}/${OPEN_DEALS.length} đơn quá hạn cột · ${billions(value)} đang treo · ${head.map(overdueLine).join(' · ')}`,
       owner: HEAD_OF_SALES,
@@ -187,7 +187,7 @@ function buildProposals(): PlanProposal[] {
   const [top] = ranked
   if (top && top.count > 0) {
     out.push({
-      id: 'cham-som-hon',
+      id: 'touch-earlier',
       suggestion: `Cho agent 1 chạm sớm hơn ở bậc Đầu mối — lý do rơi lớn nhất của kỳ vẫn là "${top.label}".`,
       basis: `${top.count}/${exitedTotal} lead rơi vì lý do này · ${top.atFirstTier}/${top.count} rơi ngay ở bậc Đầu mối · trung bình mới điền ${avg(top.filledSum, top.count)} trên ${REQUIRED_SLOTS} ô bắt buộc`,
       owner: MARKETING,
@@ -218,7 +218,7 @@ function buildProposals(): PlanProposal[] {
     const bands = `${cheap.code} chi ${millions(cheap.cost)} ra ${cheap.good} lead tốt trên ${cheap.leads} lead · dải ${bandText(cheap.band)} mỗi lead tốt · ${dear.code} chi ${millions(dear.cost)} ra ${dear.good} lead tốt trên ${dear.leads} lead · dải ${bandText(dear.band)}`
 
     out.push({
-      id: 'don-ngan-sach',
+      id: 'shift-budget',
       suggestion: gap
         ? `Dồn ngân sách sang ${gap.cheap.code} và cắt ${gap.dear.code} — ${gap.dear.code} đắt hơn ít nhất ${gap.timesText} lần mỗi lead tốt.`
         : `Giữ nguyên ngân sách của ${cheap.code} và ${dear.code} tháng tới, chạy thêm đợt để dày mẫu số — chưa nguồn nào chứng minh được là rẻ hơn nguồn nào.`,
@@ -262,25 +262,25 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
   return {
     stats: [
       {
-        key: 'dang-muc',
+        key: 'rotting',
         value: `${rotting.length}/${OPEN_DEALS.length}`,
         label: 'Đơn đang mục',
         hint: `${billions(rottingValue)} đang treo`,
       },
       {
-        key: 'qua-sla',
+        key: 'over-sla',
         value: `${overSla.length}`,
         label: 'Lead quá SLA',
         hint: `Trên ${running.length} lead đang chạy`,
       },
       {
-        key: 'lead-tot',
+        key: 'good-leads',
         value: `${good.length}/${LEADS.length}`,
         label: 'Lead tốt trên tổng lead',
         hint: `Qua cổng ${REQUIRED_SLOTS} ô bắt buộc`,
       },
       {
-        key: 'gia-lead-tot',
+        key: 'good-lead-cost',
         /* Nhãn phải KHAI PHẠM VI: cùng chữ "giá mỗi lead tốt" mà màn Chiến dịch
            đọc trên nguồn đã chạy đợt, màn Performance đọc trên nguồn của
            Marketing. Không nói ra tập nào thì ba con số trông như một. */

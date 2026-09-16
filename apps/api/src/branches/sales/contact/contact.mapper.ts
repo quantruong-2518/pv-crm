@@ -74,7 +74,7 @@ export function refOf(
     branch: 'Sales',
     label: values.name,
     owner: leadCode,
-    state: values.isPrimary ? 'liên hệ chính' : 'liên hệ',
+    state: values.isPrimary ? 'primary-contact' : 'contact',
   }
 }
 

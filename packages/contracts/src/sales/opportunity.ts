@@ -52,17 +52,11 @@ import { CurrencyCode, StageKey } from './enums'
 // ---------------------------------------------------------------------------
 
 /** What a seller is DOING with the deal. Five values, two of them terminal. */
-export const OpportunityState = z.enum([
-  'gui-quotation',
-  'nego',
-  'close-won',
-  'close-lost',
-  'pending',
-])
+export const OpportunityState = z.enum(['quote-sent', 'nego', 'close-won', 'close-lost', 'pending'])
 
 /** The four a create body may claim. See the docblock above for why
  *  `close-won` is not one of them. */
-export const OpportunityCreateState = z.enum(['gui-quotation', 'nego', 'close-lost', 'pending'])
+export const OpportunityCreateState = z.enum(['quote-sent', 'nego', 'close-lost', 'pending'])
 
 /** Which of the five pipeline columns a state drops the deal into.
  *
@@ -72,11 +66,11 @@ export const OpportunityCreateState = z.enum(['gui-quotation', 'nego', 'close-lo
  *  the server writes `stage` from `state` on the way in — one table, so the
  *  column a row lands in cannot disagree with the badge printed on it. */
 export const STAGE_OF_STATE = {
-  'gui-quotation': 'da-bao-gia',
-  nego: 'cho-ky',
+  'quote-sent': 'quoted',
+  nego: 'awaiting-signature',
   'close-won': null,
   'close-lost': null,
-  pending: 'tim-hieu',
+  pending: 'discovery',
 } as const satisfies Record<z.infer<typeof OpportunityState>, z.infer<typeof StageKey> | null>
 
 export function stageOfState(state: OpportunityState): StageKey | null {
@@ -664,8 +658,8 @@ export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
  *  Two doors reaching the same column looks like a duplication and is not,
  *  because until now there was NO door that could reach it. `PATCH /:code`
  *  writes `stage` only as a consequence of `state` — through `STAGE_OF_STATE` —
- *  which leaves two of the five columns unreachable: no state maps to 'moi' or
- *  'da-demo', so a deal could never be put into either one from any screen. The
+ *  which leaves two of the five columns unreachable: no state maps to 'new' or
+ *  'demo-done', so a deal could never be put into either one from any screen. The
  *  board had five columns and three of them were writable.
  *
  *  The two doors also mean different things, and that is the durable reason to

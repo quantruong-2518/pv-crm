@@ -153,7 +153,7 @@ export class SourceService {
        vào tổng thì mọi tỉ lệ của kỳ đọc như thể phòng đã chạy chiến dịch cho cả
        trăm lead, trong khi một phần lead tự đến. */
     const naturalCodes = new Set(
-      catalogue.filter((s) => kindOf.get(s.code) === 'tu-nhien').map((s) => s.code),
+      catalogue.filter((s) => kindOf.get(s.code) === 'organic').map((s) => s.code),
     )
 
     const ran = leads.filter((r) => r.sourceId !== null && !naturalCodes.has(r.sourceId))

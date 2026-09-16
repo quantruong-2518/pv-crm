@@ -172,14 +172,14 @@ const GROUPED_INT = /^\d[\d.,\s]*$/
  *  writing down why rather than leaving it as an accident: slot 2 of
  *  `lead.required_filled` reads `main_product`, and `main_product` is not one
  *  of the sixteen columns `LEAD_IMPORT_FIELDS` carries. So an imported row
- *  tops out at 5 of 6 and `tierOfRow` returns `dau-moi` for every row of every
+ *  tops out at 5 of 6 and `tierOfRow` returns `prospect` for every row of every
  *  file. Writing the constant is the same answer as running the formula, minus
  *  a second copy of a generated column's arithmetic living in TypeScript.
  *
  *  The Bậc cell is still CHECKED against the closed list above, because a
  *  value outside it means the column mapping is wrong and the person wants to
  *  know that before 500 rows land. It just has nowhere to go afterwards. */
-const IMPORTED_TIER = 'dau-moi'
+const IMPORTED_TIER = 'prospect'
 
 /** The dedupe key, and the only identity this import has.
  *
@@ -401,7 +401,7 @@ function checkRow(
 
         tier: IMPORTED_TIER,
         /* The door, stated by the server. `CHANNEL_TRUST` reads `IMPORT` as
-           `THO` — nobody has confirmed anything about these rows yet — and a
+           `RAW` — nobody has confirmed anything about these rows yet — and a
            trust level the client asserted about itself would be worth nothing,
            which is why the client never gets to send this field.
 
