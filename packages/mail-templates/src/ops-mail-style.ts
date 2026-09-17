@@ -52,7 +52,7 @@ export const COLOR_SURFACE = paletteHex('Light Gray')
  *  Khác biệt không phải là khẩu vị. Dải đầu thư dùng `Deep Navy`, và một nút
  *  `Pebble Blue` đặt dưới đó là xanh đậm trên xanh đậm — mắt không tách được
  *  "đây là chỗ bấm" khỏi "đây là logo". Hai vai, hai màu: navy là ai gửi,
- *  azure là bấm vào đâu. Trắng trên `Azure` đo 5.14:1, qua ngưỡng 4.5:1. */
+ *  azure là bấm vào đâu. Trắng trên `Azure` đo 5.93:1, qua ngưỡng 4.5:1. */
 export const COLOR_PRIMARY = paletteHex('Azure')
 
 /** Bảng kiểu Google Fonts cho `Be Vietnam Pro`.

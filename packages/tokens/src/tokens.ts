@@ -13,8 +13,9 @@ export type Swatch = {
 /** F-01 · Brand palette — bảng màu gốc Pebble Vina */
 export const BRAND_PALETTE: Swatch[] = [
   { name: 'Pebble Blue', hex: '#133A8A', css: 'var(--brand-blue)' },
-  // Azure resolves --primary (globals.css) for @pv/mail-templates — email HTML has no var() support.
-  { name: 'Azure', hex: '#2E63E6', css: 'var(--primary)' },
+  // Azure resolves --primary-strong (globals.css) for @pv/mail-templates — email HTML has no
+  // var() support, and no gradient either, so it takes the flat end of the primary ramp.
+  { name: 'Azure', hex: '#2D59D9', css: 'var(--primary-strong)' },
   { name: 'Deep Navy', hex: '#0F172A', css: 'var(--brand-navy)' },
   { name: 'Slate Gray', hex: '#5E6B80', css: 'var(--brand-slate)' },
   { name: 'Light Gray', hex: '#E5E7EB', css: 'var(--brand-gray)' },
@@ -30,23 +31,23 @@ export const BRAND_PALETTE: Swatch[] = [
 
 /** F-02 · Semantic tokens — tên shadcn/ui, đúng thứ tự trong theme kit */
 export const SEMANTIC_TOKENS: Array<{ token: string; css: string; note: string }> = [
-  { token: '--background', css: 'var(--background)', note: '#0B1220 · nền màn' },
-  { token: '--foreground', css: 'var(--foreground)', note: '#E5E7EB · chữ chính' },
-  { token: '--primary', css: 'var(--primary)', note: '#2E63E6 · nền nút chính, AI, active' },
-  { token: '--accent', css: 'var(--accent)', note: 'azure 22% · nền chip nguồn' },
+  { token: '--background', css: 'var(--background)', note: '#070B16 · nền màn' },
+  { token: '--foreground', css: 'var(--foreground)', note: '#EEF2FB · chữ chính' },
+  { token: '--primary', css: 'var(--primary)', note: '#3D6DF5 · nền nút chính, AI, active' },
+  { token: '--accent', css: 'var(--accent)', note: 'brand 16% · nền chip nguồn' },
   {
     token: '--accent-foreground',
     css: 'var(--accent-foreground)',
-    note: '#7FA3FF · MỌI chữ màu azure',
+    note: '#A9C1FF · MỌI chữ màu azure',
   },
   {
     token: '--muted-foreground',
     css: 'var(--muted-foreground)',
-    note: '#93A1B8 · chú thích, nhãn',
+    note: '#A3AEC8 · chú thích, nhãn',
   },
-  { token: '--success', css: 'var(--success)', note: '#22B573 · phái sinh, ngoài brand' },
-  { token: '--warning', css: 'var(--warning)', note: 'Flag Yellow' },
-  { token: '--destructive', css: 'var(--destructive)', note: 'Flag Red · chữ #FF6B5E' },
+  { token: '--success', css: 'var(--success)', note: '#5AD49A · phái sinh, ngoài brand' },
+  { token: '--warning', css: 'var(--warning)', note: '#F4B860 · việc cần làm ngay' },
+  { token: '--destructive', css: 'var(--destructive)', note: 'Flag Red · chữ #FF8A8F' },
   { token: '--border', css: 'transparent', note: 'transparent · hệ borderless' },
 ]
 
@@ -70,7 +71,7 @@ export const RADIUS_SCALE: Array<{
   h: number
   radius: string
 }> = [
-  { token: 'rounded-lg', use: '6px · thẻ, panel', w: 52, h: 34, radius: '6px' },
+  { token: 'rounded-lg', use: '6px · thẻ, panel — bo lớn nhất', w: 52, h: 34, radius: '6px' },
   { token: 'rounded-md', use: '4px · nút, input, nav', w: 52, h: 30, radius: '4px' },
   { token: 'rounded-sm', use: '3px · tag, chip', w: 52, h: 22, radius: '3px' },
   { token: 'rounded-full', use: 'chỉ chấm trạng thái', w: 16, h: 16, radius: '50%' },

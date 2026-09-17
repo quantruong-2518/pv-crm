@@ -34,7 +34,7 @@ const TYPE_SCALE = [
         1,84 tỷ
       </span>
     ),
-    spec: ['Space Grotesk', '42 / 600 / −1.5'],
+    spec: ['Be Vietnam Pro', '42 / 600 / −1.5'],
   },
   {
     token: 'text-3xl',
@@ -43,14 +43,14 @@ const TYPE_SCALE = [
         Đơn hàng Sao Đỏ
       </span>
     ),
-    spec: ['Archivo', '28 / 600'],
+    spec: ['Be Vietnam Pro', '28 / 600'],
   },
   {
     token: 'text-2xl',
     sample: (
       <span className="font-display text-[22px] font-semibold">Chào buổi sáng, anh Thắng</span>
     ),
-    spec: ['Archivo', '22 / 600'],
+    spec: ['Be Vietnam Pro', '22 / 600'],
   },
   {
     token: 'text-lg',
@@ -59,7 +59,7 @@ const TYPE_SCALE = [
         Lệnh sản xuất WO-1180 chậm 2 ngày
       </span>
     ),
-    spec: ['Archivo', '15 / 600'],
+    spec: ['Be Vietnam Pro', '15 / 600'],
   },
   {
     token: 'text-base',
@@ -68,7 +68,7 @@ const TYPE_SCALE = [
         Kho K1-A2 hết thép Ø40 từ 08/08. Đề nghị mua 500 kg từ Thép Nam Việt.
       </span>
     ),
-    spec: ['Plex Sans', '13 / 400 / 1.6'],
+    spec: ['Be Vietnam Pro', '13 / 400 / 1.6'],
   },
   {
     token: 'text-sm',
@@ -77,7 +77,7 @@ const TYPE_SCALE = [
         Thiếu thép Ø40 tại K1-A2 · hạn giao khách 22/08 còn nguyên
       </span>
     ),
-    spec: ['Plex Sans', '12.5 / 400'],
+    spec: ['Be Vietnam Pro', '12.5 / 400'],
   },
   {
     token: 'text-xs',
@@ -86,7 +86,7 @@ const TYPE_SCALE = [
         Cập nhật 07:58 · hôm nay · nguồn ERP kho
       </span>
     ),
-    spec: ['Plex Sans', '11.5 / 400'],
+    spec: ['Be Vietnam Pro', '11.5 / 400'],
   },
   {
     token: 'font-mono',
@@ -95,7 +95,7 @@ const TYPE_SCALE = [
         SO-0891 · WO-1180 · L-2608-042 · 128,5 tr
       </span>
     ),
-    spec: ['Plex Mono', '12.5 · tabular'],
+    spec: ['JetBrains Mono', '12.5 · tabular'],
   },
 ]
 
@@ -190,12 +190,12 @@ export function ZoneFoundations() {
             code="F-03"
             name="Surfaces"
             bodyClassName="flex flex-col gap-3 p-4"
-            footer="Sheen chỉ là ánh sáng trong mép kính — không làm màu chữ hay nền đặc."
+            footer="Mặt phẳng, không kính: khối tách khỏi nền bằng độ sáng và bóng. Sheen chỉ còn là vạch sáng 1px ở mép trên."
           >
             <div className="glass-a rounded-lg px-[15px] py-[13px]">
               <div className="text-[12.5px] font-semibold">.glass-a</div>
               <div className="text-muted-foreground mt-1 font-mono text-[10.5px] leading-[1.6]">
-                white/8.5 · blur 24 · saturate 1.5
+                bg-100 đặc · shadow-panel
               </div>
               <div className="text-muted-foreground mt-1.5 text-[11px]">
                 Thẻ thường · KPI · brief card
@@ -204,7 +204,7 @@ export function ZoneFoundations() {
             <div className="glass-b rounded-lg px-[15px] py-[13px]">
               <div className="text-[12.5px] font-semibold">.glass-b</div>
               <div className="text-muted-foreground mt-1 font-mono text-[10.5px] leading-[1.6]">
-                navy/84 · không blur
+                bg-100 đặc · shadow-panel
               </div>
               <div className="text-muted-foreground mt-1.5 text-[11px]">
                 Bảng · danh sách dài · panel
@@ -225,9 +225,9 @@ export function ZoneFoundations() {
             className="col-span-2"
             code="F-04"
             name="Type scale"
-            note="4 họ chữ · 8 bậc"
+            note="1 sans + 1 mono · 8 bậc"
             bodyClassName="px-4 pt-2 pb-4"
-            footer="font-display Archivo · font-sans IBM Plex Sans · font-num Space Grotesk · font-mono IBM Plex Mono — tất cả đủ dấu tiếng Việt."
+            footer="font-display · font-sans · font-num đều là Be Vietnam Pro; font-mono là JetBrains Mono. Một họ chữ cho chữ và số, một cho mã."
           >
             {TYPE_SCALE.map((row, i) => (
               <div
@@ -239,9 +239,7 @@ export function ZoneFoundations() {
                 <span className="text-accent-foreground font-mono text-[10.5px]">{row.token}</span>
                 {row.sample}
                 <span className="text-muted-foreground text-right font-mono text-[10px]">
-                  {theme === 'stone' && ['Archivo', 'Space Grotesk'].includes(row.spec[0] ?? '')
-                    ? 'Plex Sans'
-                    : row.spec[0]}
+                  {row.spec[0]}
                   <br />
                   {row.spec[1]}
                 </span>

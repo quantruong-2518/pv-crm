@@ -1,10 +1,15 @@
-/* Pebble Vina — Aurora v2 · shadcn/ui token layer (Tailwind v4)
-   Aurora (mặc định) + Đá mịn (data-theme="stone"). Mọi màu chữ đã kiểm tương phản ≥ 4.5:1 trên glass-a và glass-b.
+/* Pebble Vina — Pebble Aurora · shadcn/ui token layer (Tailwind v4)
+   Aurora (dark, default) + Đá mịn (data-theme="stone", light).
 
-   ĐÂY LÀ FILE TOKEN DUY NHẤT. Không viết hex ở bất kỳ file nào khác trong src/.
-   Nguồn: bản token chốt 10/08 + phần bổ sung ở cuối khối :root,
-   mỗi biến bổ sung đều lấy giá trị đang có sẵn trong
-   theme kit gốc — không có hex nào được bịa mới. */
+   THIS IS THE ONE TOKEN FILE. No hex in any other file under src/.
+   Source: the Pebble Aurora design system (tokens.json v2) — every value in
+   the two theme blocks is copied from it, none invented. The `--brand-*`
+   block keeps the original Pebble Vina palette, which that system does not
+   restate and which the brand page and the mail templates still read.
+
+   Surfaces are FLAT now: bg-000 page → bg-100 panel → bg-200 nested →
+   bg-300 control. The `.glass-*` classes stay as the surface API of @pv/ui,
+   but they no longer paint glass — see the components layer. */
 
 @import 'tailwindcss';
 @import 'tw-animate-css';
@@ -13,7 +18,7 @@
 
 :root,
 .dark {
-  /* ---- brand (nguyên bản, chỉ dùng làm nền / kẻ / quầng sáng) ---- */
+  /* ---- brand (original palette, used as ground / glow / mail color) ---- */
   --brand-blue: #133a8a; /* Pebble Blue */
   --brand-navy: #0f172a; /* Deep Navy   */
   --brand-slate: #5e6b80; /* Slate Gray  */
@@ -22,111 +27,94 @@
   --brand-yellow: #ffcd00; /* Flag Yellow */
   --brand-gold: #c9a227; /* Gold Rim    */
 
-  /* ---- shadcn semantic ---- */
-  --surface-ink: #ffffff;
-  --secondary-hover: rgba(19, 58, 138, 0.75);
-  --background: #0b1220;
-  --foreground: #e5e7eb;
+  /* ---- shadcn semantic ← Pebble Aurora (token name in the comment) ---- */
+  --surface-ink: #ffffff; /* tint laid at 5–24% for nested surfaces */
+  --background: #070b16; /* bg-000 */
+  --foreground: #eef2fb; /* ink */
 
-  --card: rgba(255, 255, 255, 0.085); /* glass-a */
-  --card-foreground: #e5e7eb;
-  --popover: rgba(15, 23, 42, 0.84); /* glass-b */
-  --popover-foreground: #e5e7eb;
+  --card: #0d1424; /* bg-100 */
+  --card-foreground: #eef2fb;
+  --popover: #0d1424; /* bg-100 */
+  --popover-foreground: #eef2fb;
 
-  --primary: #2e63e6; /* tint on-dark của Pebble Blue */
-  --primary-foreground: #ffffff;
-  --secondary: rgba(19, 58, 138, 0.55);
-  --secondary-foreground: #e5e7eb;
+  --primary: #3d6df5; /* brand */
+  --primary-strong: #2d59d9; /* brand-strong — primary hover, gradient end */
+  --primary-foreground: #ffffff; /* on-brand */
+  --secondary: #1a2540; /* bg-300 — secondary button, per the new system */
+  --secondary-hover: #131c31; /* bg-200 */
+  --secondary-foreground: #eef2fb;
 
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: #93a1b8; /* KHÔNG dùng --brand-slate làm chữ */
-  --accent: rgba(46, 99, 230, 0.22);
-  --accent-foreground: #7fa3ff; /* azure-text */
+  --muted: #131c31; /* bg-200 — table head, hover row */
+  --muted-foreground: #a3aec8; /* ink-muted */
+  --accent: rgba(61, 109, 245, 0.16); /* brand-soft */
+  --accent-foreground: #a9c1ff; /* brand-ink */
 
+  /* Flag Red stays the SOLID destructive ground: Pebble Aurora has only the
+     `danger` text tone (#ff8a8f), and white on that measures 1,9:1 — under the
+     4,5:1 floor of law 13 that the count badges need. */
   --destructive: #da251d;
-  --destructive-foreground: #ff6b5e;
-  --warning: #ffcd00;
-  --warning-foreground: #ffcd00;
-  --success: #22b573; /* semantic phái sinh — không có trong bảng brand */
+  --destructive-foreground: #ff8a8f; /* danger */
+  --warning: #f4b860; /* status-todo */
+  --warning-foreground: #f4b860;
+  --success: #5ad49a; /* status-won */
 
-  --border: transparent; /* borderless: phân lớp bằng bóng */
-  --input: rgba(255, 255, 255, 0.06);
-  --ring: #2e63e6;
+  --border: transparent; /* borderless: layers read by shadow */
+  --input: #1a2540; /* bg-300 */
+  --ring: #6f9bff; /* status-new — the focus ring tone */
 
-  --radius: 0.375rem; /* 6px — thẻ */
+  --radius: 0.375rem; /* 6px — panel */
 
-  /* ---- chữ trên nền tint (khối AI, thẻ trạng thái nền màu) ----
-     Cần vì --foreground quá gắt và --muted-foreground quá chìm khi
-     mặt nền đã nhuộm màu. Chỉ dùng BÊN TRONG khối đã tint. ---- */
-  --on-tint-primary: #d4def2;
-  --on-tint-primary-muted: #b9c8e8;
-  --on-tint-success: #b9e7d2;
-  --on-tint-success-strong: #5ee0a8;
-  --on-tint-warning: #d9cfae;
-  --on-tint-warning-strong: #ffe9a3;
-  --on-tint-destructive: #ffd9d5;
+  /* ---- text inside an already-tinted block ----
+     Pebble Aurora colors such text with the status tone itself, so the
+     `-muted` / `-strong` halves of each pair now resolve alike. ---- */
+  --on-tint-primary: #a9c1ff;
+  --on-tint-primary-muted: #a3aec8;
+  --on-tint-success: #5ad49a;
+  --on-tint-success-strong: #5ad49a;
+  --on-tint-warning: #f4b860;
+  --on-tint-warning-strong: #f4b860;
+  --on-tint-destructive: #ff8a8f;
 
-  /* ---- sheen: ánh sáng bên trong mép kính ---- */
-  --sheen-a: rgba(150, 215, 255, 0.26);
-  --sheen-b: rgba(120, 160, 255, 0.18);
-  --sheen-ai: rgba(150, 180, 255, 0.26);
+  /* sheen: the single 4% top line a flat panel keeps as its edge light */
+  --sheen-a: rgba(255, 255, 255, 0.04);
+  --sheen-b: rgba(255, 255, 255, 0.04);
+  --sheen-ai: rgba(255, 255, 255, 0.04);
 
-  /* ================================================================
-     BỔ SUNG — đặt tên cho các giá trị đã tồn tại trong theme kit
-     nhưng chưa được tokenize ở bản 10/08. Không thêm màu mới.
-     ================================================================ */
+  /* body 11.5–12.5px on a panel — ink-subtle, 6,4:1 on bg-100 */
+  --glass-foreground: #8491b0;
 
-  /* chữ body 11.5–12.5px nằm trên kính (chip, badge nháp) — AGENTS.md §2 */
-  --glass-foreground: #b4becd;
+  --scrim: rgba(3, 6, 14, 0.72);
 
-  /* tấm che sau panel đè lên màn — nguyên văn màn 04 · Trợ lý AI
-     (docs/luat-thiet-ke.md §7: "đè lên brief + scrim rgba(3,7,16,.52)").
-     Không phải màu mới: cùng hệ với `--background` của nền aurora. */
-  --scrim: rgba(3, 7, 16, 0.52);
-
-  /* biến thể tương phản cao cho kiosk tablet ngoài sáng.
-     NGOẠI LỆ DUY NHẤT của luật borderless (luật 4 · CLAUDE.md). */
-  --hc-surface: #0a1220;
+  /* high-contrast variant for the outdoor kiosk tablet.
+     THE ONE EXCEPTION to borderless (law 4 · CLAUDE.md). */
+  --hc-surface: #0d1424;
   --hc-border: rgba(255, 255, 255, 0.42);
 
-  /* avatar 2 tông — cùng họ Pebble Blue, dùng làm nền chứ không làm chữ */
-  --avatar-from: #1e3f7a;
-  --avatar-to: var(--brand-blue);
+  /* avatar — brand into the teal aurora point, per the new system */
+  --avatar-from: var(--primary);
+  --avatar-to: var(--aurora-2);
 
-  /* Gold Rim chỉ tồn tại dưới dạng vệt kim loại trong bảng brand */
+  /* Gold Rim exists only as a metallic streak in the brand table */
   --gold-from: #e3c766;
   --gold-to: #8f6f13;
 
-  /* quầng aurora — 2 blob (luật 12 · CLAUDE.md).
+  /* aurora glow — three points, the only gradient of the screen background.
+     Gradient is LIGHT, not pattern: the two grids and the noise grain of
+     Aurora v2 are gone, and with them the reason the glow had to be dimmed
+     to 20/28% alpha. The glow is masked and capped at 55% opacity in
+     `.aurora-glow`, which is where the contrast of the panel edge is set. */
+  --aurora-1: #1c3f9e;
+  --aurora-2: #0e6b72;
+  --aurora-3: #0f4d49;
 
-     ĐỘ ĐẬM HẠ NGÀY 20/08, và đây là con số đo được chứ không phải gu thẩm mỹ.
-     `.glass-a` chỉ đục 8,5% nên nền lọt qua gần hết: quầng sáng bao nhiêu thì
-     mặt kính sáng bấy nhiêu, và chữ phụ `--muted-foreground` trên mặt kính đó
-     tụt xuống dưới ngưỡng 4,5:1 của luật 13.
-
-       không quầng          5,79 (đỉnh gradient) · 4,63 (đáy)   ĐẠT
-       azure .30 · blue .58  4,11              ·  3,95          TRƯỢT
-       azure .20 · blue .28  4,64              ·  4,55          ĐẠT
-
-     Ba luật không cùng đúng được — 12 đòi hai quầng, 2 chốt chữ phụ là
-     #93A1B8, 13 đòi ≥ 4,5:1. Chỗ nhường là độ đậm quầng, vì nó là thứ duy nhất
-     không có con số nào trong hiến pháp gọi đích danh. Đừng nâng lại hai giá
-     trị này mà không tính lại bảng trên.
-
-     `--aurora-azure-soft` đã XOÁ: nó là tông thứ ba của bản 5 blob, mà luật 12
-     chốt đúng 2 blob nên bản đó không quay lại được. Một token chết nằm cạnh
-     hai token sống là một lời mời dùng nhầm. */
-  --aurora-azure: rgba(46, 99, 230, 0.2);
-  --aurora-blue: rgba(19, 58, 138, 0.28);
-
-  /* bóng ánh màu — thay cho viền màu (hệ borderless) */
-  --shadow-success: 0 3px 14px rgba(34, 181, 115, 0.22);
-  --shadow-ai: 0 12px 30px rgba(46, 99, 230, 0.14);
-  --shadow-assistant: 0 3px 14px rgba(46, 99, 230, 0.24);
+  /* colored shadow — stands in for a colored border (borderless system) */
+  --shadow-success: 0 3px 14px rgba(90, 212, 154, 0.22);
+  --shadow-ai: 0 12px 30px rgba(61, 109, 245, 0.14);
+  --shadow-assistant: 0 3px 14px rgba(61, 109, 245, 0.24);
   --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.34);
   --shadow-control-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
 
-  /* chuyển động — 180ms ease-out (F-09) */
+  /* motion — 180ms ease-out (F-09), inside the 150–250ms band of the system */
   --motion-duration: 180ms;
   --motion-ease: cubic-bezier(0, 0, 0.2, 1);
 }
@@ -141,6 +129,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -174,20 +163,23 @@
   --color-brand-yellow: var(--brand-yellow);
   --color-brand-gold: var(--brand-gold);
 
-  --font-display: 'Archivo', system-ui, sans-serif;
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-num: 'Space Grotesk', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* One sans for text, headings and numbers — Pebble Aurora dropped the
+     display and number families; Be Vietnam Pro carries the Vietnamese
+     diacritics the old display face rendered badly. */
+  --font-display: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-sans: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-num: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 10px;
+  --radius-sm: 3px; /* radius-xs · status label, lead code */
+  --radius-md: 4px; /* radius-sm · button, input */
+  --radius-lg: 6px; /* radius-md · panel, card, menu — the largest of the system */
 
-  --shadow-card: 0 10px 26px rgba(0, 0, 0, 0.4);
-  --shadow-panel: 0 12px 30px rgba(0, 0, 0, 0.46);
-  --shadow-frame: 0 32px 80px rgba(0, 0, 0, 0.45);
-  --shadow-primary: 0 3px 12px rgba(46, 99, 230, 0.3);
+  --shadow-card: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --shadow-frame: 0 24px 80px rgba(0, 0, 0, 0.6);
+  --shadow-primary: 0 3px 12px rgba(61, 109, 245, 0.3);
   --shadow-control: var(--shadow-control);
   --shadow-control-soft: var(--shadow-control-soft);
   --shadow-success: var(--shadow-success);
@@ -196,68 +188,58 @@
 
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 
-  /* Drawer trượt vào từ mép phải, tấm che mờ dần theo. Dùng đúng nhịp chuẩn
-     của hệ (F-09 · 180ms ease-out) — panel không được có nhịp riêng, nếu
-     không mỗi khối trên màn lại chuyển động theo một tốc độ khác. */
-  /* `forwards` trên hai hoạt cảnh ĐI RA, và đây là con số đo được chứ không
-     phải cho chắc. Không có nó thì lúc hoạt cảnh kết thúc, phần tử rơi về kiểu
-     nền của nó — panel về `transform: none` (tức x=0, NẰM GIỮA MÀN) và tấm che
-     về `opacity: 1` — rồi mới bị gỡ ở lượt render sau. Đo trên Chrome, một lần
-     đóng drawer:
+  /* Drawer slides in from the right edge, the scrim fades with it. Same beat
+     as the rest of the system (F-09 · 180ms ease-out) — a panel may not carry
+     a tempo of its own. */
+  /* `forwards` on both LEAVING animations, and that is a measured number, not
+     a precaution. Without it, the element falls back to its base style when
+     the animation ends — the panel to `transform: none` (x=0, MID SCREEN) and
+     the scrim to `opacity: 1` — and only then is it removed on the next
+     render. Measured on Chrome, one drawer close:
 
-       t=195ms  translateX(757px)   panel gần khuất hẳn
-       t=221ms  transform: none     panel NHẢY VỀ GIỮA MÀN, tấm che đen lại
-       t=250ms  gỡ khỏi DOM
+       t=195ms  translateX(757px)   panel almost gone
+       t=221ms  transform: none     panel JUMPS BACK to mid screen, scrim dark
+       t=250ms  removed from the DOM
 
-     Hai khung hình đó là cú "giật" người dùng thấy: drawer trượt ra, loé lại
-     nguyên vẹn một cái, rồi mới biến mất. `animationend` → `setState` → render
-     → commit luôn tốn ít nhất một khung, nên khoảng hở này KHÔNG đóng được ở
-     phía JS; phải giữ khung hình cuối bằng `forwards`. */
+     Those two frames are the "flash" the user sees. `animationend` → setState
+     → render → commit costs at least one frame, so this gap CANNOT be closed
+     from JS; the last frame has to be held by `forwards`. */
   --animate-drawer-in: drawer-in var(--motion-duration) var(--motion-ease);
   --animate-drawer-out: drawer-out var(--motion-duration) var(--motion-ease) forwards;
   --animate-scrim-in: scrim-in var(--motion-duration) var(--motion-ease);
   --animate-scrim-out: scrim-out var(--motion-duration) var(--motion-ease) forwards;
 
-  /* Breakpoint thứ sáu — hàng lọc của sổ lead và sổ cơ hội co về MỘT dòng ở
-     đây. KHÔNG viết `min-[1440px]:` thẳng trong JSX: Tailwind v4 xếp một biến
-     thể ngoặc vuông vào một lớp cascade không tên, đứng DƯỚI mọi breakpoint
-     có tên (`sm`…`xl`) — nên `xl:grid-cols-3` (1280px) luôn thắng nó ở mọi bề
-     rộng ≥ 1440px, kể cả 1920px, bất kể trị số ai lớn hơn ai. Khai thành một
-     breakpoint có tên thì Tailwind xếp đúng chỗ theo trị số, và `wide:` thắng
-     `xl:` đúng như JSX viết ra trông như vậy. */
+  /* Sixth breakpoint — the filter row of the lead book and the opportunity
+     book collapses to ONE line here. Do NOT write `min-[1440px]:` in JSX:
+     Tailwind v4 files a bracket variant into an unnamed cascade layer BELOW
+     every named breakpoint, so `xl:grid-cols-3` (1280px) beats it at every
+     width ≥ 1440px, 1920px included, whichever number is larger. Declared as
+     a named breakpoint, Tailwind orders it by value and `wide:` beats `xl:`
+     exactly as the JSX reads. */
   --breakpoint-wide: 90rem;
 }
 
 @layer base {
-  /* Hệ này dark-only. Control gốc còn lại của trình duyệt — thanh cuộn, ô
-     ngày — đọc màu từ `color-scheme`, KHÔNG đọc từ token. Select của hệ đã có
-     listbox riêng để kiểm soát độ tương phản và kích thước hàng. */
+  /* Aurora is dark. The browser's own remaining controls — scrollbar, date
+     field — read `color-scheme`, NOT tokens. */
   :root {
     color-scheme: dark;
-    /* Chỗ của thanh cuộn dọc LUÔN được giữ, kể cả khi trang không cuộn.
-       Không có dòng này thì bề rộng dùng được của trang đổi 15px giữa hai
-       loại màn: màn `AppShell fill` (Chiến dịch — `lg:h-screen
-       lg:overflow-hidden`, trang không bao giờ cuộn nên không có thanh cuộn)
-       và màn cuộn thường (Performance, Sổ lead…). Đi từ màn này sang màn kia
-       là cả bố cục nhảy ngang một nhịp — người dùng thấy màn "co dãn, giật"
-       dù nav dùng chung. Giữ chỗ sẵn thì hai loại màn rộng bằng nhau. */
+    /* The vertical scrollbar gutter is ALWAYS held, even on a page that does
+       not scroll. Without this line the usable width shifts 15px between an
+       `AppShell fill` screen (Chiến dịch — never scrolls) and an ordinary
+       scrolling screen (Performance, Sổ lead…): walking from one to the other
+       jogs the whole layout sideways. */
     scrollbar-gutter: stable;
-    /* `scrollbar-gutter` một mình KHÔNG giữ chỗ ở tầng viewport (đo trên
-       Chrome 1999px: stable + overflow auto vẫn ra 0px, chỉ `scroll` mới ra
-       15px). Ép rãnh cuộn luôn có mặt. Màn `fill` không cuộn thật nên rãnh
-       này chỉ là một vệt trống — đổi lại, mọi màn rộng bằng nhau. */
+    /* `scrollbar-gutter` alone does NOT hold the gutter at viewport level
+       (measured on Chrome at 1999px: stable + overflow auto still gives 0px,
+       only `scroll` gives 15px). */
     overflow-y: scroll;
   }
-  /* Vệt bôi đen — token, không phải màu mặc định của hệ điều hành.
-     Không có luật nào cấm bôi đen chữ, và người dùng CẦN bôi để chép mã đơn,
-     nên chỗ này không khoá `user-select`. Nhưng chưa khai báo thì Chrome lấy
-     `Highlight` của HĐH: một mảng xanh đặc, tông ngoài bảng brand, đè thẳng lên
-     mặt kính. Giữ nhấn rồi nhích chuột một pixel là bôi trúng — nên thẻ "thỉnh
-     thoảng" trông như hỏng, mà thỉnh thoảng là vì cú bấm sạch thì không bôi.
-     `--secondary` là navy 55%: đọc ra vệt chọn ngay, và `--foreground` trên nó
-     vẫn qua ngưỡng 4,5:1 của luật 13 trên cả `.glass-a` lẫn `.glass-b`. */
+  /* Selection band — a token, not the OS default. Undeclared, Chrome uses the
+     OS `Highlight`: a flat blue outside the palette. `--primary-strong` reads
+     as a selection at once and `--foreground` on it measures 5,3:1. */
   ::selection {
-    background: var(--secondary);
+    background: var(--primary-strong);
     color: var(--foreground);
   }
   * {
@@ -282,86 +264,58 @@
 }
 
 @layer components {
-  /* glass-a — thẻ thường, KPI, brief card */
-  .glass-a {
-    background: var(--card);
-    backdrop-filter: blur(24px) saturate(1.5);
-    box-shadow:
-      var(--shadow-card),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15),
-      inset 0 30px 46px -34px var(--sheen-a);
-  }
-  /* glass-b — bảng, danh sách dài (đục hơn để chữ không trôi)
-     KHÔNG backdrop-filter: --popover ở alpha .84 nên chỉ 16% nền lọt qua,
-     blur một nền tĩnh ở 16% cường độ là thứ mắt không thấy nhưng trình duyệt
-     vẫn phải chụp lại vùng nền rồi lọc mỗi lần vẽ. Mặt kính của glass-b đọc
-     bằng độ đục + bóng, không bằng blur. */
-  .glass-b {
-    background: var(--popover);
-    box-shadow:
-      var(--shadow-panel),
-      inset 0 1px 0 rgba(255, 255, 255, 0.11),
-      inset 0 26px 40px -32px var(--sheen-b);
-  }
-  /* glass-b phẳng — panel spec trong theme kit: không sheen đáy,
-     giữ đúng bóng của theme kit gốc cho khối tài liệu */
+  /* Panels are flat: bg-100 over the page, layered by lightness and shadow,
+     never by a border or a blur. `.glass-a` (cards, KPI) and `.glass-b`
+     (tables, long lists) keep their names — law 8 still names them and 47
+     files ask for them — but Pebble Aurora paints both with the one panel
+     surface; the split now only says what may sit on what. */
+  .glass-a,
+  .glass-b,
   .glass-b-flat {
+    background: var(--card);
+    box-shadow:
+      var(--shadow-panel),
+      inset 0 1px 0 var(--sheen-a);
+  }
+  /* glass-overlay — the face of everything floating ABOVE the content: the nav
+     dropdown and the Drawer panel. Same surface, the deeper shadow of a thing
+     that left the page. */
+  .glass-overlay {
     background: var(--popover);
     box-shadow:
-      var(--shadow-panel),
-      inset 0 1px 0 rgba(255, 255, 255, 0.11);
-  }
-  /* glass-overlay — mặt của MỌI thứ nổi trên nội dung: dropdown của nav, và
-     panel của Drawer. Khác glass-b ở đúng một điểm, và điểm đó là lý do nó tồn
-     tại: ĐỤC HẲN.
-
-     `--popover` nằm ở alpha .84 nên 16% nền vẫn lọt qua. Với một thẻ nằm TRONG
-     trang thì 16% đó là mặt kính đẹp; với một thứ ĐÈ LÊN trang thì nó là lỗi —
-     chữ của lớp dưới hiện mờ mờ sau chữ của lớp trên, và không tầng nào đọc
-     được. Drawer còn tệ hơn dropdown: dưới nó là tấm scrim tối 52%, nên 16%
-     lọt qua trộn thành một lớp bùn và cả panel trông như bị làm mờ.
-
-     Nền đặc dựng bằng hai lớp: `--background` phủ kín phía sau, `--popover`
-     phủ lên trên để giữ đúng sắc của mặt popover. KHÔNG `backdrop-filter`:
-     nền đã đục thì không còn gì phía sau để làm mờ, blur lúc đó là bắt trình
-     duyệt chụp lại vùng nền rồi lọc để không ai thấy khác biệt. */
-  .glass-overlay {
-    background: linear-gradient(var(--popover), var(--popover)), var(--background);
-    box-shadow:
-      var(--shadow-panel),
-      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+      var(--shadow-pop),
+      inset 0 1px 0 var(--sheen-a);
   }
   /* The caret of a dropdown: a square turned 45deg laid OVER the panel's top
      edge, same fill as the panel. Only its two upper edges carry the panel's
      edge light; the lower half sits inside the panel and must draw nothing. */
   .glass-overlay-caret {
-    background: linear-gradient(var(--popover), var(--popover)), var(--background);
-    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.11);
+    background: var(--popover);
+    box-shadow: inset 1px 1px 0 var(--sheen-a);
   }
-  /* khối AI — chữ ký của hệ (M-09). Gạch chéo + gradient azure. */
+  /* AI block — the signature of the system (M-09). A brand wash over the
+     panel, left to right. The 115deg hatch is gone: Pebble Aurora keeps
+     gradient for light and bans pattern. */
   .glass-ai {
     background:
-      linear-gradient(90deg, rgba(46, 99, 230, 0.22), rgba(46, 99, 230, 0.06)),
-      repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 9px);
-    backdrop-filter: blur(24px) saturate(1.4);
+      linear-gradient(90deg, rgba(61, 109, 245, 0.16), rgba(61, 109, 245, 0.04)), var(--card);
     box-shadow:
       var(--shadow-ai),
       inset 0 1px 0 var(--sheen-ai);
   }
-  /* bản panel dọc của khối AI dùng 150deg — AGENTS.md §2 */
+  /* the vertical panel variant of the AI block uses 150deg — AGENTS.md §2 */
   .glass-ai-panel {
     background:
-      linear-gradient(150deg, rgba(46, 99, 230, 0.22), rgba(46, 99, 230, 0.06)),
-      repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 9px);
-    backdrop-filter: blur(24px) saturate(1.4);
+      linear-gradient(150deg, rgba(61, 109, 245, 0.16), rgba(61, 109, 245, 0.04)), var(--card);
     box-shadow:
       var(--shadow-ai),
       inset 0 1px 0 var(--sheen-ai);
   }
 
-  /* Mép chấm của vùng kéo-thả — bốn dải gradient, không phải box border.
-     Dùng token chữ accent pha trong suốt để đọc được trên cả mặt nghỉ và mặt
-     `.glass-ai`; pseudo-element giữ pattern không bị lớp background đè mất. */
+  /* Dotted edge of a drop zone — four gradient strips, not a box border.
+     Uses the accent text token mixed with transparency so it reads on both
+     the resting surface and `.glass-ai`; the pseudo-element keeps the pattern
+     from being covered by the background layer. */
   .drop-dots::before {
     content: '';
     position: absolute;
@@ -402,70 +356,44 @@
       2px 8px;
   }
 
-  /* ---- nền màn: đúng 4 lớp, không lớp thứ 5 (luật 12 · CLAUDE.md) ----
-     1 quầng aurora → 2 lưới 32px → 3 lưới 160px → 4 hạt nhiễu */
+  /* ---- screen background: bg-000 plus ONE glow (law 12 · CLAUDE.md) ----
+     Three aurora points along the top edge, masked out downwards. The 32px
+     grid, the 160px grid and the noise grain are gone: Pebble Aurora keeps
+     the gradient as light and drops the pattern. */
   .aurora-field {
-    background: linear-gradient(160deg, #0b1220, #0f172a 45%, #16233f);
+    background: var(--background);
   }
-  /* Nền TĨNH, có chủ đích. Bản trước cho quầng trôi vô hạn
-     (`aurdrift 14–26s infinite`); mà trên nền là 8 mặt `.glass-a` dùng
-     backdrop-filter, nên nền nhúc nhích một pixel là cả 8 mặt kính phải tính
-     lại blur — mỗi frame, mãi mãi, kể cả khi không ai đụng vào trang. Nền đứng
-     yên thì trình duyệt cache được kết quả blur và tiền chuyển động dồn hết cho
-     tương tác thật (`.motion-std`, 180ms · F-09). */
-  .aurora-blob {
+  /* STATIC on purpose. The earlier field let the glow drift forever
+     (`aurdrift 14–26s infinite`); a moving background re-rasterises every
+     panel above it, every frame, forever, even when nobody touches the page.
+     A still background lets the browser cache it and spends the motion budget
+     on real interaction (`.motion-std`, 180ms · F-09). */
+  .aurora-glow {
     position: absolute;
-    border-radius: 50%;
-    filter: blur(90px);
+    inset: 0 0 auto;
+    height: 420px;
     pointer-events: none;
-  }
-  .aurora-grid-fine,
-  .aurora-grid-major,
-  .aurora-noise {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-  .aurora-grid-fine {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
-  }
-  .aurora-grid-major {
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
-    background-size: 160px 160px;
-  }
-  /* lớp 4 — hạt nhiễu SVG soft-light .11, đúng nguyên văn luật 12.
-     Ba lớp phủ `aurora-grain-overlay` / `aurora-grain-soft` / `aurora-vignette`
-     đã bỏ: chúng là lớp thứ 5, 6 và 7 mà luật 12 cấm, hai lớp hạt lại nằm TRÊN nội
-     dung (z-3) nên mọi thứ bên dưới phải đi qua thêm hai lần trộn blend toàn
-     khung hình. Vân "phun cát" của mặt kính giờ do một mình lớp này lo. */
-  .aurora-noise {
-    opacity: 0.11;
-    mix-blend-mode: soft-light;
-    background-size: 220px 220px;
-    background-image: var(--noise-tile);
+    opacity: 0.55;
+    background:
+      radial-gradient(60% 90% at 12% -10%, var(--aurora-1), transparent 60%),
+      radial-gradient(45% 80% at 70% -20%, var(--aurora-2), transparent 62%),
+      radial-gradient(30% 60% at 100% 10%, var(--aurora-3), transparent 70%);
+    -webkit-mask: linear-gradient(#000 40%, transparent);
+    mask: linear-gradient(#000 40%, transparent);
   }
 }
 
 @layer utilities {
-  /* số luôn tabular (luật 6 · CLAUDE.md) */
+  /* numbers are always tabular (law 6 · CLAUDE.md) */
   .tnum {
     font-variant-numeric: tabular-nums;
   }
-  /* chuyển động chuẩn của hệ: 180ms ease-out (F-09) */
+  /* the standard beat of the system: 180ms ease-out (F-09) */
   .motion-std {
     transition-property: background-color, box-shadow, color, filter, opacity, transform;
     transition-duration: var(--motion-duration);
     transition-timing-function: var(--motion-ease);
   }
-}
-
-:root {
-  --noise-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 @keyframes shimmer {
@@ -480,9 +408,10 @@
   }
 }
 
-/* Drawer: trượt ngang, KHÔNG đổi opacity. Panel mờ dần lúc vào thì trong vài
-   khung hình đầu nó vừa trong suốt vừa nằm trên tấm che tối — đúng cái vẻ
-   "bị làm mờ" vừa sửa xong ở mặt kính. Trượt là đủ để mắt bắt được hướng. */
+/* Drawer: slides sideways, does NOT fade. A panel that fades in is, for the
+   first few frames, both translucent and sitting on a dark scrim — exactly the
+   "blurred" look just removed from the panel surface. Sliding is enough for
+   the eye to catch the direction. */
 @keyframes drawer-in {
   from {
     transform: translateX(100%);
@@ -526,87 +455,71 @@
   }
 }
 
-/* Mode 2 · Đá mịn: nền khoáng xanh xám, mặt đọc đặc, hạt chỉ ở nền.
-   Aurora vẫn là mặc định; mọi màu của mode mới cùng nằm trong file token này. */
+/* Mode 2 · Đá mịn — the `light` theme of Pebble Aurora under the name this app
+   already ships in its header. Same token names, light column of the same
+   table; Aurora stays the default. */
 :root[data-theme='stone'] {
   color-scheme: light;
-  --surface-ink: #344b43;
-  --background: #e8ede9;
-  --foreground: #253832;
-  --card: #f5f7f3;
-  --card-foreground: #253832;
-  --popover: #f5f7f3;
-  --popover-foreground: #253832;
-  --primary: #234f91;
+  --surface-ink: #0f172a; /* ink — the tint of nested surfaces in light */
+  --background: #eef1f6; /* bg-000 */
+  --foreground: #0f172a; /* ink */
+  --card: #ffffff; /* bg-100 */
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2451d6; /* brand */
+  --primary-strong: #1c42b3; /* brand-strong */
   --primary-foreground: #ffffff;
-  --secondary: #dde6ef;
-  --secondary-hover: #cedcea;
-  --secondary-foreground: #254970;
-  --muted: #e1e7e2;
-  --muted-foreground: #52645c;
-  --glass-foreground: #465b51;
-  --accent: #dce6ef;
-  --accent-foreground: #234f91;
-  --destructive: #b12f2a;
-  --destructive-foreground: #98241f;
-  --warning: #886000;
-  --warning-foreground: #785300;
-  --success: #24734e;
-  --border: #cbd5cd;
-  --input: #e6ece6;
-  --ring: #234f91;
-  --on-tint-primary: #25466d;
-  --on-tint-primary-muted: #3b5577;
-  --on-tint-success: #285c41;
-  --on-tint-success-strong: #195733;
-  --on-tint-warning: #664d1d;
-  --on-tint-warning-strong: #644800;
-  --on-tint-destructive: #842a26;
+  --secondary: #e9edf4; /* bg-300 */
+  --secondary-hover: #f5f7fb; /* bg-200 */
+  --secondary-foreground: #0f172a;
+  --muted: #f5f7fb; /* bg-200 */
+  --muted-foreground: #46516a; /* ink-muted */
+  --glass-foreground: #5d6882; /* ink-subtle */
+  --accent: #e4ebfd; /* brand-soft */
+  --accent-foreground: #1d44b8; /* brand-ink */
+  --destructive: #b42330; /* danger */
+  --destructive-foreground: #b42330;
+  --warning: #8a4b00; /* status-todo */
+  --warning-foreground: #8a4b00;
+  --success: #0b7040; /* status-won */
+  --border: rgba(15, 30, 60, 0.08); /* line */
+  --input: #e9edf4;
+  --ring: #2451d6;
+  --on-tint-primary: #1d44b8;
+  --on-tint-primary-muted: #46516a;
+  --on-tint-success: #0b7040;
+  --on-tint-success-strong: #0b7040;
+  --on-tint-warning: #8a4b00;
+  --on-tint-warning-strong: #8a4b00;
+  --on-tint-destructive: #b42330;
   --sheen-a: transparent;
   --sheen-b: transparent;
   --sheen-ai: transparent;
-  --scrim: rgba(25, 42, 35, 0.32);
-  --hc-surface: #f5f7f3;
-  --hc-border: #52645c;
-  --shadow-card: 0 1px 3px rgba(35, 56, 45, 0.07), 0 0 0 1px rgba(35, 56, 45, 0.07);
-  --shadow-panel: 0 2px 8px rgba(35, 56, 45, 0.06), 0 0 0 1px rgba(35, 56, 45, 0.09);
-  --shadow-frame: 0 12px 36px rgba(35, 56, 45, 0.12);
-  --shadow-primary: 0 1px 2px rgba(35, 56, 45, 0.12);
-  --shadow-control: 0 0 0 1px rgba(35, 56, 45, 0.13);
-  --shadow-control-soft: 0 0 0 1px rgba(35, 56, 45, 0.08);
+  --scrim: rgba(15, 23, 42, 0.4);
+  --hc-surface: #ffffff;
+  --hc-border: #46516a;
+  --aurora-1: #c8d6fb;
+  --aurora-2: #c6ece8;
+  --aurora-3: #d9f1e6;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+  --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+  --shadow-pop: 0 12px 40px rgba(15, 23, 42, 0.14);
+  --shadow-frame: 0 24px 64px rgba(15, 23, 42, 0.22);
+  --shadow-primary: 0 1px 2px rgba(15, 23, 42, 0.12);
+  --shadow-control: 0 0 0 1px rgba(15, 30, 60, 0.08);
+  --shadow-control-soft: 0 0 0 1px rgba(15, 30, 60, 0.05);
   --shadow-success: none;
-  --shadow-ai: 0 0 0 1px rgba(35, 79, 145, 0.12);
+  --shadow-ai: 0 0 0 1px rgba(36, 81, 214, 0.12);
   --shadow-assistant: none;
 }
 
 @layer components {
-  :where([data-theme='stone']) .aurora-field {
-    background: var(--background);
-  }
-  :where([data-theme='stone']) :is(.aurora-blob, .aurora-grid-fine, .aurora-grid-major) {
-    display: none;
-  }
-  :where([data-theme='stone']) .aurora-noise {
-    opacity: 0.065;
-    mix-blend-mode: multiply;
-  }
-  :where([data-theme='stone']) :is(.glass-a, .glass-b, .glass-b-flat) {
-    background: var(--card);
-    backdrop-filter: none;
-    box-shadow: var(--shadow-card);
-  }
-  :where([data-theme='stone']) .glass-overlay {
-    background: var(--popover);
-    box-shadow: var(--shadow-frame), var(--shadow-control);
-  }
-  /* Same 1px ring as `--shadow-control`, drawn on the two upper edges only. */
-  :where([data-theme='stone']) .glass-overlay-caret {
-    background: var(--popover);
-    box-shadow: -1px -1px 0 rgba(35, 56, 45, 0.13);
-  }
+  /* The panel classes already read `--card` and `--shadow-panel`, so the light
+     mode needs no surface override any more — only the AI wash, which carries
+     its own dark rgba, and the two reading sizes of the office screen. */
   :where([data-theme='stone']) :is(.glass-ai, .glass-ai-panel) {
     background: var(--accent);
-    backdrop-filter: none;
     box-shadow: var(--shadow-ai);
   }
   :where([data-theme='stone']) :is(input, textarea, select) {
@@ -618,9 +531,6 @@
 }
 
 @layer utilities {
-  :where([data-theme='stone']) :is(.font-display, .font-num) {
-    font-family: var(--font-sans);
-  }
   :where([data-theme='stone']) .shadow-primary {
     --tw-shadow: var(--shadow-primary);
     box-shadow: var(--shadow-primary);
