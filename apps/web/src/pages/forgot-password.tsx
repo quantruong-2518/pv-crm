@@ -3,7 +3,9 @@ import { MailCheck } from '@pv/ui'
 import { useLocation } from 'react-router-dom'
 import { Button, Icon, Input } from '@pv/ui'
 import { AuthCard, AuthField } from '@/components/auth-card'
-import { EMAIL_HINT, requestPasswordReset, type AuthError } from '@/data/auth'
+import { requestPasswordReset, type AuthError } from '@/data/auth'
+import { authErrorText, emailHint, forgotPasswordText, t } from '@/data/auth-i18n'
+import { useLang } from '@/app/i18n'
 
 /** Quên mật khẩu — bước 1: xin lại đường vào bằng email.
  *
@@ -33,6 +35,7 @@ import { EMAIL_HINT, requestPasswordReset, type AuthError } from '@/data/auth'
  *  sent would be the one lie that actually strands the user. */
 export function ForgotPasswordPage() {
   const location = useLocation()
+  const lang = useLang()
 
   /* Người bấm "Quên mật khẩu?" ở màn đăng nhập đã gõ email rồi — bắt gõ lại là
      bắt làm hai lần cùng một việc. */
@@ -47,14 +50,15 @@ export function ForgotPasswordPage() {
   if (sentTo) {
     return (
       <AuthCard
-        title="Đã gửi hướng dẫn"
+        title={t(lang, forgotPasswordText.sentTitle)}
         lead={
           <>
-            Kiểm tra hộp thư <b className="text-foreground font-semibold">{sentTo}</b>. Link đặt lại
-            sống trong 30 phút; hết hạn thì xin lại từ đầu.
+            {t(lang, forgotPasswordText.sentBefore)}
+            <b className="text-foreground font-semibold">{sentTo}</b>
+            {t(lang, forgotPasswordText.sentAfter)}
           </>
         }
-        back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
+        back={{ to: '/sign-in', label: t(lang, forgotPasswordText.back) }}
       >
         {/* Câu này thay chỗ nút "mở link giả lập" của bản POC, và nó phải nói
             đúng thứ người đang đợi thư cần biết. Nó KHÔNG hứa rằng có một lá thư
@@ -63,8 +67,7 @@ export function ForgotPasswordPage() {
         <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
           <Icon icon={MailCheck} size={18} className="text-muted-foreground mt-1 shrink-0" />
           <p className="text-muted-foreground m-0 text-pretty text-[12px] leading-[1.65]">
-            Thư chưa tới sau vài phút thì xem hộp thư rác, và kiểm lại xem địa chỉ đã gõ đúng chưa.
-            Địa chỉ chưa từng đăng ký thì sẽ không có thư nào cả.
+            {t(lang, forgotPasswordText.hint)}
           </p>
         </div>
       </AuthCard>
@@ -73,9 +76,9 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthCard
-      title="Quên mật khẩu"
-      lead="Nhập email của bạn. Chúng tôi gửi một link đặt lại — không hỏi mật khẩu cũ, vì bạn đang không nhớ nó."
-      back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
+      title={t(lang, forgotPasswordText.title)}
+      lead={t(lang, forgotPasswordText.lead)}
+      back={{ to: '/sign-in', label: t(lang, forgotPasswordText.back) }}
     >
       <form
         noValidate
@@ -93,14 +96,18 @@ export function ForgotPasswordPage() {
         }}
         className="flex flex-col gap-5"
       >
-        <AuthField label="Email" htmlFor="email" error={error?.message}>
+        <AuthField
+          label={t(lang, forgotPasswordText.email)}
+          htmlFor="email"
+          error={error ? authErrorText(lang, error) : undefined}
+        >
           <Input
             ref={emailRef}
             id="email"
             type="email"
             inputMode="email"
             autoComplete="username"
-            placeholder={EMAIL_HINT}
+            placeholder={t(lang, emailHint)}
             value={email}
             invalid={Boolean(error)}
             onChange={(e) => {
@@ -111,7 +118,7 @@ export function ForgotPasswordPage() {
         </AuthField>
 
         <Button type="submit" size="lg" disabled={busy}>
-          {busy ? 'Đang gửi…' : 'Gửi link đặt lại'}
+          {busy ? t(lang, forgotPasswordText.submitting) : t(lang, forgotPasswordText.submit)}
         </Button>
       </form>
     </AuthCard>

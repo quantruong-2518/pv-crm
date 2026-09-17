@@ -9,6 +9,8 @@ import {
   setNewPassword,
   type AuthError,
 } from '@/data/auth'
+import { authErrorText, resetPasswordText, t } from '@/data/auth-i18n'
+import { useLang } from '@/app/i18n'
 
 /** Quên mật khẩu — bước 2: đặt mật khẩu mới.
  *
@@ -47,6 +49,7 @@ export function ResetPasswordPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const token = params.get('token')
+  const lang = useLang()
 
   const [ticket, setTicket] = useState<{ email: string } | null>(null)
   const [checking, setChecking] = useState(true)
@@ -82,9 +85,9 @@ export function ResetPasswordPage() {
   if (checking) {
     return (
       <AuthCard
-        title="Đang kiểm tra link…"
-        lead="Chờ một nhịp — hệ đang xem link này còn dùng được không."
-        back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
+        title={t(lang, resetPasswordText.checkingTitle)}
+        lead={t(lang, resetPasswordText.checkingLead)}
+        back={{ to: '/sign-in', label: t(lang, resetPasswordText.back) }}
       >
         {null}
       </AuthCard>
@@ -94,12 +97,12 @@ export function ResetPasswordPage() {
   if (!ticket) {
     return (
       <AuthCard
-        title="Link không dùng được"
-        lead="Vé đặt lại này hỏng hoặc đã hết hạn. Xin một link mới — mất chừng mười giây."
-        back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
+        title={t(lang, resetPasswordText.deadTitle)}
+        lead={t(lang, resetPasswordText.deadLead)}
+        back={{ to: '/sign-in', label: t(lang, resetPasswordText.back) }}
       >
         <Button size="lg" onClick={() => navigate('/forgot-password', { replace: true })}>
-          Xin link mới
+          {t(lang, resetPasswordText.requestNew)}
         </Button>
       </AuthCard>
     )
@@ -107,15 +110,15 @@ export function ResetPasswordPage() {
 
   return (
     <AuthCard
-      title="Đặt mật khẩu mới"
+      title={t(lang, resetPasswordText.title)}
       lead={
         <>
-          Cho tài khoản <b className="text-foreground font-semibold">{ticket.email}</b>. Tối thiểu{' '}
-          {PASSWORD_MIN} ký tự. Đặt xong, mọi phiên cũ của tài khoản này bị đóng và bạn đăng nhập
-          lại bằng mật khẩu mới.
+          {t(lang, resetPasswordText.leadBefore)}
+          <b className="text-foreground font-semibold">{ticket.email}</b>
+          {t(lang, resetPasswordText.leadAfter(PASSWORD_MIN))}
         </>
       }
-      back={{ to: '/sign-in', label: 'Về màn đăng nhập' }}
+      back={{ to: '/sign-in', label: t(lang, resetPasswordText.back) }}
     >
       <form
         noValidate
@@ -142,15 +145,15 @@ export function ResetPasswordPage() {
         className="flex flex-col gap-5"
       >
         <AuthField
-          label="Mật khẩu mới"
+          label={t(lang, resetPasswordText.newPassword)}
           htmlFor="password"
-          error={error?.field === 'password' ? error.message : undefined}
+          error={error?.field === 'password' ? authErrorText(lang, error) : undefined}
         >
           <PasswordInput
             ref={firstRef}
             id="password"
             autoComplete="new-password"
-            placeholder={`Tối thiểu ${PASSWORD_MIN} ký tự`}
+            placeholder={t(lang, resetPasswordText.newPasswordPlaceholder(PASSWORD_MIN))}
             value={password}
             invalid={error?.field === 'password'}
             onChange={(e) => {
@@ -161,14 +164,14 @@ export function ResetPasswordPage() {
         </AuthField>
 
         <AuthField
-          label="Nhập lại mật khẩu mới"
+          label={t(lang, resetPasswordText.confirm)}
           htmlFor="confirm"
-          error={error?.field === 'confirm' ? error.message : undefined}
+          error={error?.field === 'confirm' ? authErrorText(lang, error) : undefined}
         >
           <PasswordInput
             id="confirm"
             autoComplete="new-password"
-            placeholder="Gõ lại đúng chuỗi trên"
+            placeholder={t(lang, resetPasswordText.confirmPlaceholder)}
             value={confirm}
             invalid={error?.field === 'confirm'}
             onChange={(e) => {
@@ -183,12 +186,12 @@ export function ResetPasswordPage() {
             mật khẩu, trong khi việc phải làm là xin một link mới. */}
         {error?.field === 'form' && (
           <p role="alert" className="text-destructive-foreground m-0 text-[11px] leading-[1.5]">
-            {error.message}
+            {authErrorText(lang, error)}
           </p>
         )}
 
         <Button type="submit" size="lg" disabled={busy}>
-          {busy ? 'Đang đặt lại…' : 'Đặt lại mật khẩu'}
+          {busy ? t(lang, resetPasswordText.submitting) : t(lang, resetPasswordText.submit)}
         </Button>
       </form>
     </AuthCard>

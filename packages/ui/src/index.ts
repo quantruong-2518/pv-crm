@@ -82,4 +82,4 @@ export * from './layout/drawer'
 export * from './layout/modal'
 export * from './layout/screen-layout'
 
-export { ThemeSwitch, useThemeMode, type ThemeMode } from './ui/theme-switch'
+export { ThemeSwitch, toggleTheme, useThemeMode, type ThemeMode } from './ui/theme-switch'

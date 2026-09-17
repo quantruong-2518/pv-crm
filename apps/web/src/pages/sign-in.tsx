@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Checkbox, Input } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
-import { EMAIL_HINT, signInWithEmail, type AuthError } from '@/data/auth'
+import { signInWithEmail, type AuthError } from '@/data/auth'
+import { authErrorText, emailHint, signInText, t } from '@/data/auth-i18n'
 import { CHANGE_PASSWORD_PATH, useSession, type ExpiryReason } from '@/app/auth'
+import { useLang } from '@/app/i18n'
 
 /** Màn đăng nhập — cửa vào của PV One.
  *
@@ -43,12 +45,6 @@ import { CHANGE_PASSWORD_PATH, useSession, type ExpiryReason } from '@/app/auth'
  *  behind it; bouncing to this screen unmounts it, so anything half-typed is
  *  gone and only the route comes back. Promising more here would make the
  *  system look broken at the exact moment the user trusts it least. */
-const WHY: Record<ExpiryReason, string> = {
-  idle: 'Máy để không quá lâu nên phiên tự đóng. Đăng nhập lại để mở lại trang bạn đang xem.',
-  'shift-ended': 'Hết một ca làm việc. Đăng nhập lại để mở lại trang bạn đang xem.',
-  revoked: 'Phiên đã bị đóng. Đăng nhập lại nếu người ngồi đây vẫn là bạn.',
-}
-
 export function SignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -56,6 +52,7 @@ export function SignInPage() {
   const beginSignIn = useSession((s) => s.beginSignIn)
   const signIn = useSession((s) => s.signIn)
   const remembered = useSession((s) => s.remember)
+  const lang = useLang()
 
   /** Ai gửi người ta tới đây, và kèm theo cái gì.
    *
@@ -92,13 +89,13 @@ export function SignInPage() {
 
   return (
     <AuthCard
-      title="Đăng nhập"
+      title={t(lang, signInText.title)}
       lead={
         sent?.reset
-          ? 'Mật khẩu đã đổi. Đăng nhập lại bằng mật khẩu mới — mọi phiên cũ của tài khoản này đã bị đóng.'
+          ? t(lang, signInText.resetLead)
           : sent?.expired
-            ? (sent.reason && WHY[sent.reason]) ||
-              'Phiên trước đã hết hạn. Đăng nhập lại để mở lại trang bạn đang xem.'
+            ? (sent.reason && t(lang, signInText.why[sent.reason])) ||
+              t(lang, signInText.expiredFallback)
             : undefined
       }
     >
@@ -135,9 +132,9 @@ export function SignInPage() {
         className="flex flex-col gap-5"
       >
         <AuthField
-          label="Email"
+          label={t(lang, signInText.email)}
           htmlFor="email"
-          error={error?.field === 'email' ? error.message : undefined}
+          error={error?.field === 'email' ? authErrorText(lang, error) : undefined}
         >
           <Input
             ref={emailRef}
@@ -145,7 +142,7 @@ export function SignInPage() {
             type="email"
             inputMode="email"
             autoComplete="username"
-            placeholder={EMAIL_HINT}
+            placeholder={t(lang, emailHint)}
             value={email}
             invalid={error?.field === 'email'}
             onChange={(e) => {
@@ -156,23 +153,23 @@ export function SignInPage() {
         </AuthField>
 
         <AuthField
-          label="Mật khẩu"
+          label={t(lang, signInText.password)}
           htmlFor="password"
-          error={error?.field === 'password' ? error.message : undefined}
+          error={error?.field === 'password' ? authErrorText(lang, error) : undefined}
           action={
             <Link
               to="/forgot-password"
               state={{ email }}
               className="motion-std text-muted-foreground hover:text-foreground text-[11.5px] font-semibold"
             >
-              Quên mật khẩu?
+              {t(lang, signInText.forgotPassword)}
             </Link>
           }
         >
           <PasswordInput
             id="password"
             autoComplete="current-password"
-            placeholder="Mật khẩu của bạn"
+            placeholder={t(lang, signInText.passwordPlaceholder)}
             value={password}
             invalid={error?.field === 'password'}
             onChange={(e) => {
@@ -188,7 +185,7 @@ export function SignInPage() {
         <Checkbox
           checked={remember}
           onChange={setRemember}
-          label="Ghi nhớ đăng nhập"
+          label={t(lang, signInText.remember)}
           className="-mx-3"
         />
 
@@ -198,12 +195,12 @@ export function SignInPage() {
             lỗi của ô (`AuthField`) để mắt không phải học quy ước thứ hai. */}
         {error?.field === 'form' && (
           <p role="alert" className="text-destructive-foreground m-0 text-[11px] leading-[1.5]">
-            {error.message}
+            {authErrorText(lang, error)}
           </p>
         )}
 
         <Button type="submit" size="lg" disabled={sending}>
-          {sending ? 'Đang vào…' : 'Đăng nhập'}
+          {sending ? t(lang, signInText.submitting) : t(lang, signInText.submit)}
         </Button>
       </form>
     </AuthCard>

@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
 import { useSession } from '@/app/auth'
+import { useLang } from '@/app/i18n'
 import { PASSWORD_MIN, changePassword, type AuthError } from '@/data/auth'
+import { authErrorText, changePasswordText, t } from '@/data/auth-i18n'
 
 /** Change your own password, from inside a live session.
  *
@@ -43,6 +45,7 @@ export function ChangePasswordPage() {
   const navigate = useNavigate()
   const forced = useSession((s) => s.mustChangePassword)
   const clearDebt = useSession((s) => s.clearPasswordDebt)
+  const lang = useLang()
 
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -52,15 +55,11 @@ export function ChangePasswordPage() {
 
   return (
     <AuthCard
-      title="Đổi mật khẩu"
-      lead={
-        forced
-          ? 'Tài khoản đang dùng mật khẩu mặc định — mật khẩu này nằm trong mã nguồn nên người khác cũng biết. Đặt mật khẩu của riêng bạn để mở khoá phần còn lại của hệ.'
-          : 'Đặt mật khẩu mới. Mọi phiên khác của bạn sẽ bị đăng xuất; phiên đang dùng thì không.'
-      }
+      title={t(lang, changePasswordText.title)}
+      lead={t(lang, forced ? changePasswordText.forcedLead : changePasswordText.normalLead)}
       /* No way back while forced: a "return" link on the screen a guard has
          just redirected somebody to only leads where they were bounced from. */
-      back={forced ? undefined : { to: '/', label: 'Về trang chủ' }}
+      back={forced ? undefined : { to: '/', label: t(lang, changePasswordText.back) }}
     >
       <form
         noValidate
@@ -83,15 +82,15 @@ export function ChangePasswordPage() {
         className="flex flex-col gap-5"
       >
         <AuthField
-          label="Mật khẩu hiện tại"
+          label={t(lang, changePasswordText.currentPassword)}
           htmlFor="currentPassword"
-          error={error?.field === 'currentPassword' ? error.message : undefined}
+          error={error?.field === 'currentPassword' ? authErrorText(lang, error) : undefined}
         >
           <PasswordInput
             ref={firstRef}
             id="currentPassword"
             autoComplete="current-password"
-            placeholder="Mật khẩu bạn vừa đăng nhập"
+            placeholder={t(lang, changePasswordText.currentPasswordPlaceholder)}
             value={current}
             invalid={error?.field === 'currentPassword'}
             onChange={(e) => {
@@ -102,14 +101,14 @@ export function ChangePasswordPage() {
         </AuthField>
 
         <AuthField
-          label="Mật khẩu mới"
+          label={t(lang, changePasswordText.newPassword)}
           htmlFor="newPassword"
-          error={error?.field === 'newPassword' ? error.message : undefined}
+          error={error?.field === 'newPassword' ? authErrorText(lang, error) : undefined}
         >
           <PasswordInput
             id="newPassword"
             autoComplete="new-password"
-            placeholder={`Tối thiểu ${PASSWORD_MIN} ký tự`}
+            placeholder={t(lang, changePasswordText.newPasswordPlaceholder(PASSWORD_MIN))}
             value={next}
             invalid={error?.field === 'newPassword'}
             onChange={(e) => {
@@ -125,12 +124,12 @@ export function ChangePasswordPage() {
             network. */}
         {error?.field === 'form' && (
           <p role="alert" className="text-destructive-foreground m-0 text-[11px] leading-[1.5]">
-            {error.message}
+            {authErrorText(lang, error)}
           </p>
         )}
 
         <Button type="submit" size="lg" disabled={busy}>
-          {busy ? 'Đang đổi…' : 'Đổi mật khẩu'}
+          {busy ? t(lang, changePasswordText.submitting) : t(lang, changePasswordText.submit)}
         </Button>
       </form>
     </AuthCard>

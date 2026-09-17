@@ -1,8 +1,20 @@
-import { useThemeMode, wordmarkBlue, ThemeSwitch } from '@pv/ui'
+import { toggleTheme, useThemeMode, wordmarkBlue } from '@pv/ui'
 import { forwardRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Eye, EyeOff } from '@pv/ui'
 import { Link } from 'react-router-dom'
-import { cn, GlassCard, Icon, Input, Separator, wordmarkLight, type InputProps } from '@pv/ui'
+import {
+  AuroraField,
+  Button,
+  cn,
+  GlassCard,
+  Icon,
+  Input,
+  Separator,
+  wordmarkLight,
+  type InputProps,
+} from '@pv/ui'
+import { cycleLang, useLang, LANG_LABEL } from '@/app/i18n'
+import { langSwitchText, passwordEyeText, t, themeSwitchText } from '@/data/auth-i18n'
 
 /** Khung chung của ba màn auth — đăng nhập · quên mật khẩu · đặt lại.
  *
@@ -37,43 +49,90 @@ export function AuthCard({
 }) {
   const themeMode = useThemeMode()
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
-        <div className="flex flex-col gap-3">
-          <img
-            src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
-            alt="PV One"
-            className="h-6 self-start object-contain"
-          />
-          <div className="flex flex-col gap-2">
-            <h1 className="font-display m-0 text-[20px] font-semibold">{title}</h1>
-            {lead && (
-              <p className="text-muted-foreground m-0 text-pretty text-[12.5px] leading-[1.65]">
-                {lead}
-              </p>
-            )}
+    <AuroraField>
+      <div className="flex min-h-svh items-center justify-center p-6">
+        <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <img
+                src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+                alt="PV One"
+                className="h-6 object-contain"
+              />
+              <div className="flex items-center gap-2">
+                <ModeDot />
+                <LangSwitch />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <h1 className="font-display m-0 text-[20px] font-semibold">{title}</h1>
+              {lead && (
+                <p className="text-muted-foreground m-0 text-pretty text-[12.5px] leading-[1.65]">
+                  {lead}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="self-start">
-          <ThemeSwitch />
-        </div>
-        {children}
+          {children}
 
-        {back && (
-          <div className="flex flex-col gap-4">
-            <Separator />
-            <Link
-              to={back.to}
-              className="motion-std text-muted-foreground hover:text-foreground inline-flex items-center gap-2 self-start text-[12px] font-semibold"
-            >
-              <Icon icon={ArrowLeft} size={14} />
-              {back.label}
-            </Link>
-          </div>
-        )}
-      </GlassCard>
-    </div>
+          {back && (
+            <div className="flex flex-col gap-4">
+              <Separator />
+              <Link
+                to={back.to}
+                className="motion-std text-muted-foreground hover:text-foreground inline-flex items-center gap-2 self-start text-[12px] font-semibold"
+              >
+                <Icon icon={ArrowLeft} size={14} />
+                {back.label}
+              </Link>
+            </div>
+          )}
+        </GlassCard>
+      </div>
+    </AuroraField>
+  )
+}
+
+/** A dot in place of the theme-name label — only COLOR speaks the state now,
+ *  no text. `title`/`aria-label` still carry the full sentence for keyboard
+ *  and screen-reader users; only the VISIBLE word is gone. */
+function ModeDot() {
+  const lang = useLang()
+  const stone = useThemeMode() === 'stone'
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={toggleTheme}
+      aria-label={t(lang, themeSwitchText.label)}
+      aria-pressed={stone}
+      title={stone ? t(lang, themeSwitchText.toAurora) : t(lang, themeSwitchText.toStone)}
+      className="focus-visible:outline-ring w-8 px-0 focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
+      <span aria-hidden="true" className="bg-accent shadow-control size-3 shrink-0 rounded-full" />
+    </Button>
+  )
+}
+
+/** The two/three-letter code of the ACTIVE language — click cycles the fixed
+ *  ring EN → VN → KO (`cycleLang` in `app/i18n.ts`). A real switch, not a
+ *  decorative label: every word on the four auth screens reads off this value. */
+function LangSwitch() {
+  const lang = useLang()
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={cycleLang}
+      aria-label={t(lang, langSwitchText.label)}
+      title={t(lang, langSwitchText.label)}
+      className="w-10 px-0 font-mono"
+    >
+      {LANG_LABEL[lang]}
+    </Button>
   )
 }
 
@@ -129,6 +188,7 @@ export function AuthField({
 export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputProps, 'type'>>(
   ({ className, ...props }, ref) => {
     const [show, setShow] = useState(false)
+    const lang = useLang()
 
     return (
       <div className="relative">
@@ -141,7 +201,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputProps, 'type
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          aria-label={show ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+          aria-label={t(lang, show ? passwordEyeText.hide : passwordEyeText.show)}
           className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 absolute right-1 top-1 flex size-8 items-center justify-center rounded-md"
         >
           <Icon icon={show ? EyeOff : Eye} size={16} />

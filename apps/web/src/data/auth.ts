@@ -61,9 +61,6 @@ import { isGatewayDown, reportAnswering, reportUnreachable } from '@/app/api/ser
  *  here is a screen promising a floor the server does not enforce. */
 export { PASSWORD_MIN } from '@pv/contracts'
 
-/** Hiện dưới ô email làm gợi ý gõ — người demo không phải đoán tên miền. */
-export const EMAIL_HINT = 'ten@pebblevina.com'
-
 // ---------------------------------------------------------------------------
 // Wire role → engine role
 // ---------------------------------------------------------------------------
@@ -125,7 +122,35 @@ export type AuthField =
    *  when the complaint is about the new. */
   | 'currentPassword'
   | 'newPassword'
-export type AuthError = { field: AuthField; message: string }
+
+/** Each key points at one sentence in `data/auth-i18n.ts`, pre-translated into
+ *  three languages. The display text no longer lives here. */
+export type AuthErrorKey =
+  | 'wrongPair'
+  | 'offline'
+  | 'tooFast'
+  | 'serverTrouble'
+  | 'unreadable'
+  | 'missingEmail'
+  | 'missingPassword'
+  | 'invalidEmail'
+  | 'missingCurrentPassword'
+  | 'passwordTooShort'
+  | 'samePassword'
+  | 'wrongCurrentPassword'
+  | 'invalidNewPassword'
+  | 'missingNewPassword'
+  | 'passwordMismatch'
+  | 'resetLinkExpired'
+  | 'passwordRequirementsNotMet'
+  | 'sessionExpired'
+
+/** Most errors point at a translatable key. The `message` branch is only for
+ *  a sentence the server returns VERBATIM (see `confirmPassword`) — that
+ *  string is not part of the three-language set because it is not this
+ *  screen's own wording. */
+export type AuthError =
+  { field: AuthField; key: AuthErrorKey } | { field: AuthField; message: string }
 
 /** Sai mật khẩu là ĐƯỜNG ĐI BÌNH THƯỜNG của một form đăng nhập, không phải sự
  *  cố — nên kết quả có nhánh, không có `throw`. `throw` cho việc thường ngày
@@ -152,22 +177,13 @@ export type SignInResult =
  *  It goes on the password field rather than the form because that is where the
  *  cursor should land: of the two boxes, the password is the one worth retyping
  *  first, and the sentence names both anyway. */
-const WRONG_PAIR: AuthError = { field: 'password', message: 'Email hoặc mật khẩu không đúng.' }
+const WRONG_PAIR: AuthError = { field: 'password', key: 'wrongPair' }
 
-const OFFLINE: AuthError = {
-  field: 'form',
-  message: 'Không nối được máy chủ. Kiểm tra mạng rồi thử lại.',
-}
+const OFFLINE: AuthError = { field: 'form', key: 'offline' }
 
-const TOO_FAST: AuthError = {
-  field: 'form',
-  message: 'Bạn thử quá nhiều lần. Chờ một lát rồi thử lại.',
-}
+const TOO_FAST: AuthError = { field: 'form', key: 'tooFast' }
 
-const SERVER_TROUBLE: AuthError = {
-  field: 'form',
-  message: 'Máy chủ đang trục trặc. Thử lại sau ít phút.',
-}
+const SERVER_TROUBLE: AuthError = { field: 'form', key: 'serverTrouble' }
 
 /** The server answered, and what it said does not fit the contract.
  *
@@ -176,10 +192,7 @@ const SERVER_TROUBLE: AuthError = {
  *  role is the silent "granted nothing" state described at `toActor`. Being
  *  sent back to the sign-in screen is annoying; being let in as a person the
  *  permission matrix cannot classify is a day of debugging. */
-const UNREADABLE: AuthError = {
-  field: 'form',
-  message: 'Máy chủ trả dữ liệu phiên không đọc được. Báo quản trị hệ thống.',
-}
+const UNREADABLE: AuthError = { field: 'form', key: 'unreadable' }
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -258,8 +271,8 @@ export async function signInWithEmail(
   password: string,
   remember = false,
 ): Promise<SignInResult> {
-  if (!email.trim()) return { ok: false, error: { field: 'email', message: 'Chưa nhập email.' } }
-  if (!password) return { ok: false, error: { field: 'password', message: 'Chưa nhập mật khẩu.' } }
+  if (!email.trim()) return { ok: false, error: { field: 'email', key: 'missingEmail' } }
+  if (!password) return { ok: false, error: { field: 'password', key: 'missingPassword' } }
 
   const res = await knock('/auth/sign-in', {
     method: 'POST',
@@ -274,7 +287,7 @@ export async function signInWithEmail(
      "email hoặc mật khẩu không đúng" for it would send the user off to retype a
      password that was never read. */
   if (res.status === 400 || res.status === 422)
-    return { ok: false, error: { field: 'email', message: 'Email sai dạng.' } }
+    return { ok: false, error: { field: 'email', key: 'invalidEmail' } }
   if (!res.ok) return { ok: false, error: SERVER_TROUBLE }
 
   const view = SessionView.safeParse(await readJson(res))
@@ -324,14 +337,13 @@ export async function signOutOnServer(): Promise<void> {
  *  while the confirmation box was open. Saying "wrong password" for that makes
  *  them retype a correct password until they give up. */
 export async function confirmPassword(password: string): Promise<AuthError | null> {
-  if (!password) return { field: 'password', message: 'Chưa nhập mật khẩu.' }
+  if (!password) return { field: 'password', key: 'missingPassword' }
 
   const res = await knock('/auth/confirm-password', { method: 'POST', body: { password } })
   if (!res) return OFFLINE
   if (res.ok) return null
   if (res.status === 429) return TOO_FAST
-  if (res.status === 400 || res.status === 422)
-    return { field: 'password', message: 'Chưa nhập mật khẩu.' }
+  if (res.status === 400 || res.status === 422) return { field: 'password', key: 'missingPassword' }
   if (res.status === 401) {
     const problem = (await readJson(res)) as { title?: unknown } | undefined
     /* Two different things arrive under one status. `AuthService` sends its
@@ -340,7 +352,7 @@ export async function confirmPassword(password: string): Promise<AuthError | nul
     const said = typeof problem?.title === 'string' ? problem.title : ''
     return said.includes('Mật khẩu')
       ? { field: 'password', message: said }
-      : { field: 'form', message: 'Phiên đã hết hạn. Đăng nhập lại để tiếp tục.' }
+      : { field: 'form', key: 'sessionExpired' }
   }
   return SERVER_TROUBLE
 }
@@ -406,7 +418,7 @@ export async function probeSession(): Promise<SessionProbe> {
  *  exist is an address-harvesting tool, and it does not stop being one because
  *  the answer is phrased helpfully. */
 export async function requestPasswordReset(email: string): Promise<AuthError | null> {
-  if (!email.trim()) return { field: 'email', message: 'Chưa nhập email.' }
+  if (!email.trim()) return { field: 'email', key: 'missingEmail' }
 
   const res = await knock('/auth/forgot-password', {
     method: 'POST',
@@ -414,8 +426,7 @@ export async function requestPasswordReset(email: string): Promise<AuthError | n
   })
   if (!res) return OFFLINE
   if (res.status === 429) return TOO_FAST
-  if (res.status === 400 || res.status === 422)
-    return { field: 'email', message: 'Email sai dạng.' }
+  if (res.status === 400 || res.status === 422) return { field: 'email', key: 'invalidEmail' }
   if (!res.ok) return SERVER_TROUBLE
   return null
 }
@@ -436,11 +447,9 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<AuthError | null> {
-  if (!currentPassword) return { field: 'currentPassword', message: 'Chưa nhập mật khẩu hiện tại.' }
-  if (newPassword.length < PASSWORD_MIN)
-    return { field: 'newPassword', message: `Mật khẩu tối thiểu ${PASSWORD_MIN} ký tự.` }
-  if (currentPassword === newPassword)
-    return { field: 'newPassword', message: 'Mật khẩu mới phải khác mật khẩu đang dùng.' }
+  if (!currentPassword) return { field: 'currentPassword', key: 'missingCurrentPassword' }
+  if (newPassword.length < PASSWORD_MIN) return { field: 'newPassword', key: 'passwordTooShort' }
+  if (currentPassword === newPassword) return { field: 'newPassword', key: 'samePassword' }
 
   const res = await knock('/auth/change-password', {
     method: 'POST',
@@ -451,10 +460,9 @@ export async function changePassword(
   /* 401 here is NOT an expired session — `PasswordChangeGuard` lets this door
      through, so the only thing the server can be refusing is the old password.
      Routing it to the session machine would sign the person out for a typo. */
-  if (res.status === 401)
-    return { field: 'currentPassword', message: 'Mật khẩu hiện tại không đúng.' }
+  if (res.status === 401) return { field: 'currentPassword', key: 'wrongCurrentPassword' }
   if (res.status === 400 || res.status === 422)
-    return { field: 'newPassword', message: 'Mật khẩu mới chưa hợp lệ.' }
+    return { field: 'newPassword', key: 'invalidNewPassword' }
   if (!res.ok) return SERVER_TROUBLE
   return null
 }
@@ -491,10 +499,9 @@ export async function readResetTicket(token: string | null): Promise<{ email: st
  *  schema is built on. The confirm box is checked only here and never sent: the
  *  server has no use for a second copy of the same string. */
 export function checkNewPassword(password: string, confirm: string): AuthError | null {
-  if (!password) return { field: 'password', message: 'Chưa nhập mật khẩu mới.' }
-  if (password.length < PASSWORD_MIN)
-    return { field: 'password', message: `Mật khẩu tối thiểu ${PASSWORD_MIN} ký tự.` }
-  if (password !== confirm) return { field: 'confirm', message: 'Hai ô chưa khớp nhau.' }
+  if (!password) return { field: 'password', key: 'missingNewPassword' }
+  if (password.length < PASSWORD_MIN) return { field: 'password', key: 'passwordTooShort' }
+  if (password !== confirm) return { field: 'confirm', key: 'passwordMismatch' }
   return null
 }
 
@@ -512,13 +519,9 @@ export async function setNewPassword(token: string, password: string): Promise<A
      30 minutes is short and a person can be interrupted. It is not a complaint
      about the password they just typed twice, so it must not point at that
      box. */
-  if (res.status === 404 || res.status === 410)
-    return { field: 'form', message: 'Link đặt lại đã hết hạn. Xin một link mới rồi thử lại.' }
+  if (res.status === 404 || res.status === 410) return { field: 'form', key: 'resetLinkExpired' }
   if (res.status === 400 || res.status === 422)
-    return {
-      field: 'password',
-      message: `Mật khẩu chưa đạt yêu cầu — tối thiểu ${PASSWORD_MIN} ký tự.`,
-    }
+    return { field: 'password', key: 'passwordRequirementsNotMet' }
   if (!res.ok) return SERVER_TROUBLE
   return null
 }

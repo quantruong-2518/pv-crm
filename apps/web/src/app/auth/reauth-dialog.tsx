@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
 import { confirmPassword, type AuthError } from '@/data/auth'
+import { authErrorText, reauthText, t } from '@/data/auth-i18n'
+import { useLang } from '@/app/i18n'
 import { useReauthPrompt } from './reauth'
 import { useSession } from './session'
 
@@ -19,6 +21,7 @@ import { useSession } from './session'
 export function ReauthDialog() {
   const settle = useReauthPrompt((s) => s.settle)
   const actor = useSession((s) => s.actor)
+  const lang = useLang()
 
   const [password, setPassword] = useState('')
   const [error, setError] = useState<AuthError | null>(null)
@@ -46,12 +49,9 @@ export function ReauthDialog() {
       className="fixed inset-0 z-[60] overflow-auto bg-[var(--scrim)]"
       role="dialog"
       aria-modal="true"
-      aria-label="Xác nhận mật khẩu"
+      aria-label={t(lang, reauthText.dialogLabel)}
     >
-      <AuthCard
-        title="Xác nhận mật khẩu"
-        lead="Thao tác này thay đổi quyền vào hệ thống. Gõ lại mật khẩu để xác nhận đúng là bạn."
-      >
+      <AuthCard title={t(lang, reauthText.title)} lead={t(lang, reauthText.lead)}>
         <form
           noValidate
           onSubmit={async (e) => {
@@ -70,13 +70,13 @@ export function ReauthDialog() {
           <AuthField
             label={`${actor.name} · ${actor.email}`}
             htmlFor="reauth-password"
-            error={error?.message}
+            error={error ? authErrorText(lang, error) : undefined}
           >
             <PasswordInput
               ref={ref}
               id="reauth-password"
               autoComplete="current-password"
-              placeholder="Mật khẩu của bạn"
+              placeholder={t(lang, reauthText.passwordPlaceholder)}
               value={password}
               invalid={Boolean(error)}
               onChange={(e) => {
@@ -87,7 +87,7 @@ export function ReauthDialog() {
           </AuthField>
 
           <Button type="submit" size="lg" disabled={busy}>
-            {busy ? 'Đang xác nhận…' : 'Xác nhận'}
+            {busy ? t(lang, reauthText.confirming) : t(lang, reauthText.confirm)}
           </Button>
 
           {/* Same `lg` as the button above: two full-width buttons stacked in
@@ -95,7 +95,7 @@ export function ReauthDialog() {
               height reads as a hierarchy this card does not have. Cancelling is
               a real choice here. */}
           <Button type="button" variant="ghost" size="lg" onClick={() => finish(false)}>
-            Huỷ
+            {t(lang, reauthText.cancel)}
           </Button>
         </form>
       </AuthCard>
