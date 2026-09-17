@@ -23,9 +23,7 @@ import {
   draftErrorsOf,
   usePromoteLead,
 } from '@/data/opportunities-write'
-import { gateRefusalOf } from '@/data/stage-gate'
 import { dmy } from '@/lib/date'
-import { GateRefusal } from './sign-drawer'
 import {
   AmountRow,
   AttachmentsField,
@@ -147,9 +145,6 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
 
   const missing = missingOf(draft)
   const ready = missing.length === 0 && !promote.isPending
-  /* A 409 refusing entry past an unticked earlier stage — a new deal has no
-     ticks yet, so this is the ladder asking for an earlier starting state. */
-  const gate = gateRefusalOf(promote.error)
 
   return (
     <Drawer
@@ -166,33 +161,25 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
       meta={<Badge tone={lost ? 'danger' : 'running'}>{STATE_LABEL.get(draft.state)}</Badge>}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
-          {gate ? (
-            /* The deal does not exist yet, so the default "tick on the profile" hint cannot apply. */
-            <GateRefusal
-              criteria={gate}
-              hint="Tạo ở stage sớm hơn (ví dụ trạng thái Pending) rồi tick điều kiện trên hồ sơ cơ hội."
-            />
-          ) : (
-            <span
-              className={cn(
-                'text-[11.5px] leading-[1.5]',
-                ready ? 'text-muted-foreground' : 'text-warning',
-              )}
-              aria-live="polite"
-            >
-              {/* Ba câu, và câu lỗi thắng hai câu kia: người vừa bấm mà bị từ
+          <span
+            className={cn(
+              'text-[11.5px] leading-[1.5]',
+              ready ? 'text-muted-foreground' : 'text-warning',
+            )}
+            aria-live="polite"
+          >
+            {/* Ba câu, và câu lỗi thắng hai câu kia: người vừa bấm mà bị từ
                   chối cần biết vì sao TRƯỚC khi biết chuyện gì lẽ ra đã xảy ra.
                   `userMessage` dịch Problem của máy chủ; ô nào sai thì chính nó
                   gọi tên ô đó. */}
-              {promote.error
-                ? userMessage(promote.error)
-                : promote.isPending
-                  ? 'Đang gửi phiếu…'
-                  : ready
-                    ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${approver} gật thì đơn vào cột thật.`
-                    : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
-            </span>
-          )}
+            {promote.error
+              ? userMessage(promote.error)
+              : promote.isPending
+                ? 'Đang gửi phiếu…'
+                : ready
+                  ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${approver} gật thì đơn vào cột thật.`
+                  : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
+          </span>
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" onClick={onClose}>
               <Icon icon={X} size={16} />

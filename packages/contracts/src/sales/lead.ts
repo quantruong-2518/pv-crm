@@ -800,6 +800,21 @@ export const LeadOwnerWrite = z.object({
 export const LeadOwnerResponse = LeadRow
 
 // ---------------------------------------------------------------------------
+// LEAVING AND RE-ENTERING THE FUNNEL — no approval, the Sale's own call
+// ---------------------------------------------------------------------------
+
+/** `POST /sales/leads/:code/exit`. No approval: `POST :code/reopen` (no body)
+ *  undoes it, so E3 has nothing irreversible to weigh (ADR 0057). */
+export const LeadExitBody = z.object({
+  reason: ExitReason,
+  note: textInputOptional(500),
+})
+
+/** Both doors answer the re-read profile, like `PATCH :code`. */
+export const LeadExitResponse = LeadProfile
+export const LeadReopenResponse = LeadProfile
+
+// ---------------------------------------------------------------------------
 // The scorecard — `GET /sales/leads/scorecard`
 // ---------------------------------------------------------------------------
 
@@ -853,4 +868,7 @@ export type LeadPatch = z.infer<typeof LeadPatch>
 export type LeadPatchResponse = z.infer<typeof LeadPatchResponse>
 export type LeadOwnerWrite = z.infer<typeof LeadOwnerWrite>
 export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
+export type LeadExitBody = z.infer<typeof LeadExitBody>
+export type LeadExitResponse = z.infer<typeof LeadExitResponse>
+export type LeadReopenResponse = z.infer<typeof LeadReopenResponse>
 export type LeadScorecard = z.infer<typeof LeadScorecard>

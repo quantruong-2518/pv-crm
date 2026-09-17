@@ -1,6 +1,7 @@
 # 0055 · Deal loss reasons become a closed list
 
-Status: accepted (supersedes the `LOSS_REASONS` half of ADR 0015 rule 4 only)
+Status: superseded by 0057 (loss reason reverts to free text, overriding the
+closed-list direction decided here)
 
 Source: project owner's decision in session · `crm_workstream_v2.pdf` ("CRM
 master workstream V2", a 3-page diagram of the whole customer journey in five

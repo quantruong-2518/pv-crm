@@ -5,6 +5,7 @@ import {
   LeadAccountAttach,
   LeadBookQuery,
   LeadCreate,
+  LeadExitBody,
   LeadImportBody,
   LeadOwnerWrite,
   LeadPatch,
@@ -18,6 +19,7 @@ import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { LeadService } from './lead.service'
+import { LeadExitService } from './lead-exit.service'
 import { LeadWriteService } from './lead-write.service'
 
 /** `/sales/leads` — sổ lead, module 2 của nhánh Sales.
@@ -50,6 +52,7 @@ export class LeadController {
   constructor(
     private readonly leads: LeadService,
     private readonly write: LeadWriteService,
+    private readonly exits: LeadExitService,
   ) {}
 
   @Get()
@@ -280,6 +283,27 @@ export class LeadController {
     @Body(zod(LeadOwnerWrite)) body: LeadOwnerWrite,
   ) {
     return this.write.setOwner(who, code, body)
+  }
+
+  /** Take a lead out of the funnel, or put it back — no approval, because each
+   *  undoes the other (ADR 0057 §2). `lead.disqualify`, which E2 withholds from
+   *  marketing and BD; scoped like `PATCH :code`. 200, nothing is created. */
+  @Post(':code/exit')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.disqualify', scoped: true })
+  exit(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(LeadExitBody)) body: LeadExitBody,
+  ) {
+    return this.exits.exit(who, code, body)
+  }
+
+  @Post(':code/reopen')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.disqualify', scoped: true })
+  reopen(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.exits.reopen(who, code)
   }
 
   /** Correct one lead's profile — the save button of the detail screen's card.

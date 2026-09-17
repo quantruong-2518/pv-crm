@@ -26,6 +26,7 @@ import {
   type OpportunityStageBucket,
   type OpportunityState,
 } from '@pv/contracts'
+import { approval } from '@api/platform/approval/approval.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor, audit } from '@api/platform/db/platform.schema'
@@ -260,15 +261,22 @@ export class OpportunityRepository {
    *  `inScope` đi KÈM dữ liệu chứ không quyết định dữ liệu có về hay không —
    *  cùng hình với `LeadRepository.byCode`, và vì cùng lý do: 404 "không có đơn
    *  này" và 403 "đơn không phải của bạn" là hai câu khác nhau, mà một truy vấn
-   *  đã lọc theo phạm vi thì chỉ trả lời được câu thứ nhất. */
-  async byCode(who: Actor, code: string): Promise<(OpportunityRead & { inScope: boolean }) | null> {
-    const [found] = await this.db
+   *  đã lọc theo phạm vi thì chỉ trả lời được câu thứ nhất.
+   *
+   *  `who` null is the E3 applier: an approved request has no reader to scope,
+   *  and it reads through the settling transaction's `handle`. */
+  async byCode(
+    who: Actor | null,
+    code: string,
+    handle: Db = this.db,
+  ): Promise<(OpportunityRead & { inScope: boolean }) | null> {
+    const [found] = await handle
       .select({
         row: opportunity,
         account: lead.company,
         contractCode: contract.code,
         daysInStage: DAYS_IN_STAGE,
-        inScope: this.inScopeValue(who),
+        inScope: who ? this.inScopeValue(who) : sql<boolean>`true`,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -279,8 +287,8 @@ export class OpportunityRepository {
     if (!found) return null
 
     const [owners, products] = await Promise.all([
-      this.ownersOf(this.db, [code]),
-      this.productsOf(this.db, [code]),
+      this.ownersOf(handle, [code]),
+      this.productsOf(handle, [code]),
     ])
     return {
       ...found,
@@ -332,9 +340,13 @@ export class OpportunityRepository {
   async leadCompany(
     tx: Db,
     code: string,
-  ): Promise<{ company: string; workstreamCode: string | null } | null> {
+  ): Promise<{ company: string; workstreamCode: string | null; exited: boolean } | null> {
     const [row] = await tx
-      .select({ company: lead.company, workstreamCode: lead.workstreamCode })
+      .select({
+        company: lead.company,
+        workstreamCode: lead.workstreamCode,
+        exited: sql<boolean>`${lead.exitReason} IS NOT NULL`,
+      })
       .from(lead)
       .where(eq(lead.code, code))
       .limit(1)
@@ -420,9 +432,9 @@ export class OpportunityRepository {
    *  Node, vì `regexp_replace` cho một sổ trăm dòng là trả phí cho thứ vòng lặp
    *  đã đi qua rồi.
    *
-   *  Chỉ lead CÒN CHẠY (`exit_reason IS NULL`), cùng nửa điều kiện mà
-   *  `lead_email_live_idx` mang: một khách đã rơi khỏi luồng thì không mở đơn
-   *  mới cho họ bằng một dòng Excel được.
+   *  Chỉ lead CÒN CHẠY (`exit_reason IS NULL`) vào `byCompany`, cùng nửa điều
+   *  kiện mà `lead_email_live_idx` mang; lead đã rời phễu về `exited` để dòng
+   *  của nó bị từ chối bằng đúng câu "mở lại lead trước".
    *
    *  Trả về CẢ tập tên nhập nhằng, không lặng lẽ chọn dòng đầu. Hai lead cùng
    *  tên công ty là chuyện có thật (hai chi nhánh, một lần nhập trùng), và đoán
@@ -432,28 +444,34 @@ export class OpportunityRepository {
     byCompany: Map<string, string>
     ambiguous: Set<string>
     workstreamByLead: Map<string, string | null>
+    exited: Set<string>
   }> {
     const rows = await tx
       .select({
         code: lead.code,
         folded: sql<string>`lower(${lead.company})`,
         workstreamCode: lead.workstreamCode,
+        exitReason: lead.exitReason,
       })
       .from(lead)
-      .where(isNull(lead.exitReason))
 
     const byCompany = new Map<string, string>()
     const ambiguous = new Set<string>()
     const workstreamByLead = new Map<string, string | null>()
+    const exited = new Set<string>()
 
     for (const r of rows) {
       const key = r.folded.trim().replace(/\s+/g, ' ')
+      if (r.exitReason !== null) {
+        exited.add(key)
+        continue
+      }
       workstreamByLead.set(r.code, r.workstreamCode)
       if (byCompany.has(key)) ambiguous.add(key)
       else byCompany.set(key, r.code)
     }
 
-    return { byCompany, ambiguous, workstreamByLead }
+    return { byCompany, ambiguous, workstreamByLead, exited }
   }
 
   /** Lead code → every OPEN deal code of it, oldest first. A lead may hold
@@ -578,6 +596,44 @@ export class OpportunityRepository {
   ): Promise<void> {
     if (rows.length === 0) return
     await tx.insert(opportunityOwner).values([...rows])
+  }
+
+  /** Lock one deal `FOR UPDATE`, then re-read what the doors decided on before
+   *  the transaction: signed, and a sign request waiting. Two statements on
+   *  purpose — in READ COMMITTED the second takes a fresh snapshot, so it sees
+   *  whatever committed while this one waited for the lock. `null` = no deal.
+   *
+   *  The waiting request is read off `platform.approval` directly because
+   *  `ApprovalService.pendingOn` cannot join a transaction handle (PGlite would
+   *  deadlock); same predicate as `approval_contract_sign_waiting_uq`. */
+  async lockDeal(tx: Db, code: string): Promise<{ signed: boolean; pendingSign: boolean } | null> {
+    const [locked] = await tx
+      .select({ code: opportunity.code })
+      .from(opportunity)
+      .where(eq(opportunity.code, code))
+      .for('update')
+    if (!locked) return null
+
+    const [state] = await tx
+      .select({
+        signed: sql<boolean>`EXISTS (SELECT 1 FROM ${contract} WHERE ${contract.opportunityCode} = ${code})`,
+        pendingSign: sql<boolean>`EXISTS (SELECT 1 FROM ${approval} WHERE ${approval.kind} = 'contract-sign' AND ${approval.state} = 'waiting' AND ${approval.payload}->>'opportunityCode' = ${code})`,
+      })
+      .from(sql`(SELECT 1) AS one`)
+    return state ?? null
+  }
+
+  /** Lock leads `FOR SHARE` — held against `lockForExit`'s `FOR UPDATE` — and
+   *  answer which of them have left the funnel, so a deal write cannot land on
+   *  a lead exiting in the same instant. */
+  async exitedLocked(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
+    if (leadCodes.length === 0) return []
+    const rows = await tx
+      .select({ code: lead.code, exitReason: lead.exitReason })
+      .from(lead)
+      .where(inArray(lead.code, [...leadCodes]))
+      .for('share')
+    return rows.filter((r) => r.exitReason !== null).map((r) => r.code)
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */

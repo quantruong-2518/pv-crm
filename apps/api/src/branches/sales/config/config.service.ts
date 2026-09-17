@@ -72,11 +72,7 @@ export class SalesConfigService implements ApprovalApplier {
     list: ConfigList,
     body: ConfigEntryCreate,
   ): Promise<ConfigProposalReceipt> {
-    this.assertAttrs(list, body)
-    await this.assertOwnerReal(body.ownerId)
-    this.assertNameFree(await this.repo.list(list), body.name)
-
-    return this.propose(who, {
+    const change: ConfigChange = {
       kind: 'create',
       list,
       draft: {
@@ -85,7 +81,14 @@ export class SalesConfigService implements ApprovalApplier {
         ...(body.ownerId === undefined ? {} : { ownerId: body.ownerId }),
         ...(body.kind === undefined ? {} : { kind: body.kind }),
       },
-    })
+    }
+    this.assertAttrs(list, body)
+    const rows = await this.repo.list(list)
+    this.assertShapeKept(change, rows)
+    await this.assertOwnerReal(body.ownerId)
+    this.assertNameFree(rows, body.name)
+
+    return this.propose(who, change)
   }
 
   async patch(
@@ -100,10 +103,12 @@ export class SalesConfigService implements ApprovalApplier {
 
     if (!rows.some((r) => r.id === id)) throw notFound(`mục của danh mục ${list}`, id)
 
+    const change: ConfigChange = { kind: 'update', list, id, patch: body }
+    this.assertShapeKept(change, rows)
     if (body.ownerId) await this.assertOwnerReal(body.ownerId)
     if (body.name !== undefined) this.assertNameFree(rows, body.name, id)
 
-    return this.propose(who, { kind: 'update', list, id, patch: body })
+    return this.propose(who, change)
   }
 
   /** Đổi thứ tự cả danh mục.
@@ -117,12 +122,15 @@ export class SalesConfigService implements ApprovalApplier {
     list: ConfigList,
     body: ConfigOrderPatch,
   ): Promise<ConfigProposalReceipt> {
+    const change: ConfigChange = { kind: 'reorder', list, ids: body.ids }
+    const rows = await this.repo.list(list)
+    this.assertShapeKept(change, rows)
     this.assertOrderCovers(
-      (await this.repo.list(list)).map((r) => r.id),
+      rows.map((r) => r.id),
       body.ids,
     )
 
-    return this.propose(who, { kind: 'reorder', list, ids: body.ids })
+    return this.propose(who, change)
   }
 
   // ── the six motions · read, and propose ──────────────────────────────────
@@ -226,6 +234,8 @@ export class SalesConfigService implements ApprovalApplier {
     }
 
     const rows = await this.repo.list(change.list, tx)
+    /* Proposals raised before the lock may still be waiting. */
+    this.assertShapeKept(change, rows)
 
     if (change.kind === 'create') {
       this.assertNameFree(rows, change.draft.name)
@@ -290,6 +300,25 @@ export class SalesConfigService implements ApprovalApplier {
        table. Missing means missing, and the screen says so. */
 
     if (Object.keys(wrong).length > 0) throw invalid(wrong)
+  }
+
+  /** `STAGE` and `TIER` rungs pair with code keys BY POSITION (`ladder.ts`), so
+   *  adding, switching off or reordering one silently shifts every limit. Their
+   *  shape is code, not config (ADR 0057 §3): rename and `limitDays` only. */
+  private assertShapeKept(
+    change: Extract<ConfigChange, { list: ConfigList }>,
+    rows: ConfigRowDb[],
+  ): void {
+    if (!isLadder(change.list)) return
+    const reshapes =
+      change.kind === 'create' ||
+      change.kind === 'reorder' ||
+      (change.patch.active !== undefined &&
+        rows.find((r) => r.id === change.id)?.active !== change.patch.active)
+    if (!reshapes) return
+    throw conflict(
+      `Danh mục ${change.list} có cấu trúc cố định — chỉ đổi được tên và số ngày giới hạn của từng chặng, không thêm, tắt hay xếp lại chặng.`,
+    )
   }
 
   /** Tên không trùng trong phần ĐANG SỐNG của danh mục.

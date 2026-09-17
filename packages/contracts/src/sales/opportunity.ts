@@ -252,7 +252,8 @@ export const OpportunityCreate = z
  *  that could move it is a request that can rewrite somebody's pipeline by
  *  typo. `code` is not editable for the same reason it is not creatable. */
 export const OpportunityUpdate = z
-  .object(dealFields)
+  // `close-won` so a signed deal's form can save (ADR 0057); the server polices it.
+  .object({ ...dealFields, state: OpportunityState })
   .refine((v) => v.saleOwners.length > 0, {
     error: 'Phải có ít nhất một Sale đứng đơn',
     path: ['saleOwners'],
@@ -488,6 +489,14 @@ export const OpportunityBookRow = OpportunityRow.extend({
 
 export const OpportunityBookResponse = paged(OpportunityBookRow)
 
+/** The `contract-sign` request waiting on this deal. Required-nullable: `null`
+ *  means none, never "not checked", so the screen can disable signing on one read. */
+export const PendingSign = z.object({
+  approvalId: z.string().min(1),
+  raisedBy: textInput(120),
+  raisedAt: Moment,
+})
+
 /** `GET /sales/opportunities/:code` — the book row, plus where the deal stands.
  *
  *  The same extension the book row now carries, kept as its own name because
@@ -495,6 +504,7 @@ export const OpportunityBookResponse = paged(OpportunityBookRow)
  *  do. */
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
+  pendingSign: PendingSign.nullable(),
 
   /** The object chain this deal sits in — see `ObjectChainLink`.
    *
@@ -602,6 +612,7 @@ export type OpportunitySortKey = z.infer<typeof OpportunitySortKey>
 export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>
+export type PendingSign = z.infer<typeof PendingSign>
 export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileResponse>
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 

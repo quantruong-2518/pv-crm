@@ -449,6 +449,7 @@ export function StepPanel({
           criteria={step.criteria}
           title="Điều kiện qua stage"
           editable={lane.open && canEdit}
+          passed={step.state === 'done'}
           note={
             lane.open
               ? 'Bạn không có quyền sửa cơ hội này.'

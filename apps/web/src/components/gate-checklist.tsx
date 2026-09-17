@@ -1,19 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
-import { Checkbox, GlassCard, SectionTitle } from '@pv/ui'
+import { Badge, Checkbox, GlassCard, SectionTitle } from '@pv/ui'
 import { StageKey, type GateCriterionState, type OpportunityRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { dm } from '@/lib/date'
+import { ladderRows, salesCatalogQuery } from '@/data/sales-config'
 import { opportunityGateQuery, useTickCriterion } from '@/data/stage-gate'
-import { STAGE_LABEL } from './ops-fields'
 
 /** Stage-gate checklist — ticked on the workstream step panel and on the deal
  *  profile, so a deal owner who does not hold the lead still has a place to tick.
  *
- *  Ticks are the gate (full rule in `stage-gate.ts` of `@pv/contracts`): moving
- *  forward needs the current stage and every stage skipped, signing needs every
- *  stage through awaiting-signature. Every box stays shut while one tick is in
- *  flight, so two clicks cannot race over the same list. */
+ *  Ticks gate only a forward move (every criterion of every earlier stage) and
+ *  signing (all of them) — ADR 0057, decision 6. A stage already passed that
+ *  still has unticked boxes marks them missing. Every box stays shut while one
+ *  tick is in flight, so two clicks cannot race over the same list. */
 
 export function GateChecklist({
   opportunityCode,
@@ -21,6 +21,7 @@ export function GateChecklist({
   title,
   editable,
   note,
+  passed = false,
 }: {
   opportunityCode: string
   criteria: GateCriterionState[]
@@ -28,6 +29,8 @@ export function GateChecklist({
   editable: boolean
   /** Why the boxes are shut; printed only when `editable` is false. */
   note?: string
+  /** The deal is already past this stage, so an unticked box is missing. */
+  passed?: boolean
 }) {
   const tick = useTickCriterion()
   const flying = tick.isPending ? tick.variables : undefined
@@ -38,7 +41,10 @@ export function GateChecklist({
   return (
     <section aria-label={title} className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3 text-[12.5px]">
-        <span className="font-semibold">{title}</span>
+        <span className="flex items-center gap-2 font-semibold">
+          {title}
+          {passed && done < criteria.length && <Badge tone="warning">Còn thiếu</Badge>}
+        </span>
         <span className="tnum font-mono">
           {done}/{criteria.length}
         </span>
@@ -52,7 +58,11 @@ export function GateChecklist({
             checked={ticked(c)}
             disabled={!editable || tick.isPending}
             label={c.label}
-            hint={c.tickedAt && [c.tickedBy, dm(c.tickedAt)].filter(Boolean).join(' · ')}
+            hint={
+              ticked(c)
+                ? c.tickedAt && [c.tickedBy, dm(c.tickedAt)].filter(Boolean).join(' · ')
+                : passed && 'Còn thiếu'
+            }
             onChange={(next) => tick.mutate({ opportunityCode, criterionId: c.id, ticked: next })}
           />
         ))}
@@ -67,17 +77,23 @@ export function GateChecklist({
   )
 }
 
-/** The deal profile's card: stages from the deal's current one onward, current
- *  first. A closed deal draws nothing — no move is left to gate — and neither
- *  does a reader outside the deal's scope, whom the door answers 403/404. */
+/** The deal profile's card: earlier stages that still miss a tick, then the
+ *  current stage onward. A closed deal draws nothing — no move is left to gate
+ *  — and neither does a reader outside the deal's scope (403/404). Stage names
+ *  come from config, the same rows the settings screen renames. */
 export function OpportunityGateCard({ op }: { op: Pick<OpportunityRow, 'code' | 'stage'> }) {
   const canEdit = useCan('opportunity.edit')
   const gate = useQuery({ ...opportunityGateQuery(op.code), enabled: op.stage !== null })
+  const { data: catalog } = useQuery(salesCatalogQuery)
   if (op.stage === null) return null
 
+  const names = new Map(ladderRows(catalog, 'STAGE').map((r) => [r.key, r.label]))
   const from = StageKey.options.indexOf(op.stage)
+  const passedStage = (stage: StageKey) => StageKey.options.indexOf(stage) < from
   const stages = (gate.data?.stages ?? []).filter(
-    (s) => StageKey.options.indexOf(s.stage) >= from && s.criteria.length > 0,
+    (s) =>
+      s.criteria.length > 0 &&
+      (!passedStage(s.stage) || s.criteria.some((c) => c.tickedAt === null)),
   )
   const unseen = isApiError(gate.error) && ['forbidden', 'not-found'].includes(gate.error.kind)
   if (unseen || (gate.isSuccess && stages.length === 0) || gate.isPending) return null
@@ -90,7 +106,7 @@ export function OpportunityGateCard({ op }: { op: Pick<OpportunityRow, 'code' | 
     >
       <SectionTitle
         size="sm"
-        hint={`Đi tiếp, ký hợp đồng, và tạo hoặc import một cơ hội thẳng vào một stage đều cần đủ điều kiện của mọi stage đã qua — ký cần đủ tới "${STAGE_LABEL.get('awaiting-signature')}". Mở lại một đơn đã thua bị kiểm lại đúng từ stage nó thua; đánh thua không bao giờ bị chặn.`}
+        hint="Chỉ hai việc bị chặn: đi tiếp sang stage sau cần đủ điều kiện của mọi stage trước nó, ký hợp đồng cần đủ tất cả. Tạo, import, mở lại một đơn đã thua, lùi stage và đánh thua không bao giờ bị chặn."
       >
         Điều kiện qua stage
       </SectionTitle>
@@ -104,8 +120,9 @@ export function OpportunityGateCard({ op }: { op: Pick<OpportunityRow, 'code' | 
           key={s.stage}
           opportunityCode={op.code}
           criteria={s.criteria}
-          title={STAGE_LABEL.get(s.stage) ?? s.stage}
+          title={names.get(s.stage) ?? s.stage}
           editable={canEdit}
+          passed={passedStage(s.stage)}
           note="Vai của bạn không sửa được cơ hội."
         />
       ))}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PenLine, TriangleAlert, X } from '@pv/ui'
 import {
   Button,
@@ -16,6 +16,7 @@ import {
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import type { ContractSign, OpportunityRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { toastDone } from '@/app/toast'
 import { peopleIdOptions, useSalesPeople } from '@/data/directory'
 import { saleOwnersOf } from '@/data/opportunities'
 import { useSignContract } from '@/data/opportunities-write'
@@ -23,7 +24,7 @@ import { gateRefusalOf } from '@/data/stage-gate'
 import { Field } from './ops-fields'
 import { dmy } from '@/lib/date'
 
-/** Ký hợp đồng cho một cơ hội — panel đè lên hồ sơ đơn.
+/** Đề nghị ký hợp đồng cho một cơ hội — panel đè lên hồ sơ đơn.
  *
  *  ------------------------------------------------------------------
  *  BA Ô, VÀ CẢ BA ĐỀU LÀ Ô XÁC NHẬN CHỨ KHÔNG PHẢI Ô BẮT BUỘC
@@ -33,11 +34,10 @@ import { dmy } from '@/lib/date'
  *  lượt ký đúng bằng số đã chào, hôm nay, bởi người đang đứng đơn — trường hợp
  *  chín trên mười — gửi lên một thân rỗng cũng chạy.
  *
- *  Panel vẫn bày cả ba ra, và vì một lý do khác hẳn "máy chủ đòi": ký là thao
- *  tác KHÔNG GỠ ĐƯỢC từ giao diện. Không có `DELETE`, và sẽ không có — gỡ một
- *  chữ ký đã sang tay kế toán phải là một đề nghị có người duyệt. Một nút bấm
- *  phát một mà tạo ra dòng không rút lại được thì phải cho người bấm nhìn thấy
- *  ba con số họ đang ký TRƯỚC khi bấm, kể cả khi cả ba đều đã đúng sẵn.
+ *  Panel vẫn bày cả ba ra, và vì một lý do khác hẳn "máy chủ đòi": ba con số
+ *  này là thứ người duyệt đọc, và một khi được gật thì hợp đồng KHÔNG GỠ ĐƯỢC
+ *  từ giao diện. Người gửi phải nhìn thấy ba con số TRƯỚC khi gửi, kể cả khi cả
+ *  ba đều đã đúng sẵn.
  *
  *  ------------------------------------------------------------------
  *  VÌ SAO DRAWER, KHÔNG PHẢI MỘT MÀN
@@ -47,13 +47,11 @@ import { dmy } from '@/lib/date'
  *  của panel này lấy đúng từ đó. Đóng panel lại là đọc tiếp, không mất chỗ.
  *
  *  ------------------------------------------------------------------
- *  KHÔNG BAO GIỜ TỰ VẼ TRẠNG THÁI "ĐÃ KÝ"
+ *  NEVER PAINTS "SIGNED" ITSELF
  *  ------------------------------------------------------------------
- *  Panel đóng lại khi máy chủ đã nhận, và chỉ khi đó. Nó không chạm gì vào cache
- *  — `useSignContract` ghi nửa `opportunity` của phản hồi vào đúng khoá hồ sơ,
- *  nên `contractCode` mọc lên và thanh công cụ tự đổi nút thành pill. Đóng
- *  trước rồi mới gửi là cách chắc chắn nhất để một lượt ký bị từ chối biến mất
- *  không dấu vết, mà người dùng thì tin là đã xong. */
+ *  The panel closes once the server has taken the request, and only then. The
+ *  answer is a 202 receipt, not a contract: `useSignContract` re-reads the
+ *  profile, whose `pendingSign` locks the button until an approver decides. */
 
 type SignForm = {
   /** `null` = không ghi đè; máy chủ lấy số của đơn. */
@@ -112,14 +110,7 @@ function bodyOf(form: SignForm): ContractSign {
  *  save on the deal profile, so every refused door says the same sentence and
  *  points to where criteria get ticked. `text-foreground` for the pointer: muted
  *  drops to 3.65:1 on the Drawer footer tint in the stone theme. */
-/** `hint` says where to tick; the default fits a deal that already exists. */
-export function GateRefusal({
-  criteria,
-  hint = 'Tick các điều kiện ở mục Điều kiện qua stage trên hồ sơ cơ hội.',
-}: {
-  criteria: string[]
-  hint?: ReactNode
-}) {
+export function GateRefusal({ criteria }: { criteria: string[] }) {
   return (
     <div role="alert" className="flex flex-col gap-2 text-[11.5px] leading-[1.5]">
       <span className="text-destructive-foreground font-semibold">
@@ -133,7 +124,9 @@ export function GateRefusal({
           </li>
         ))}
       </ul>
-      <span className="text-foreground">{hint}</span>
+      <span className="text-foreground">
+        Tick các điều kiện ở mục Điều kiện qua stage trên hồ sơ cơ hội.
+      </span>
     </div>
   )
 }
@@ -184,11 +177,11 @@ export function SignDrawer({ op, open, onClose }: Props) {
     <Drawer
       open={open}
       onClose={onClose}
-      title="Chốt thắng"
+      title="Đề nghị ký"
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · {op.account} — ký xong đơn rời năm cột và
-          đứng ở "Đã ký".
+          <span className="font-mono">{op.code}</span> · {op.account} — được duyệt thì đơn rời năm
+          cột và đứng ở "Đã ký".
         </>
       }
       meta={<Chip>{op.code}</Chip>}
@@ -200,19 +193,19 @@ export function SignDrawer({ op, open, onClose }: Props) {
             <span
               className={cn(
                 'text-[11.5px] leading-[1.5]',
-                sign.error ? 'text-on-tint-warning-strong' : 'text-foreground',
+                sign.error ? 'text-destructive-foreground' : 'text-foreground',
               )}
               aria-live="polite"
             >
               {/* Lỗi máy chủ thắng mọi câu khác — người vừa bấm mà bị từ chối cần
                 biết vì sao trước khi biết chuyện gì lẽ ra đã xảy ra. 409 ở cửa
-                này nghĩa là đơn đã ký rồi, hoặc đã thua; `userMessage` dịch
+                này nghĩa là đơn đã ký, đã thua, hoặc đang có đề nghị ký chờ duyệt; `userMessage` dịch
                 nguyên câu của máy chủ thay vì đoán lại. */}
               {sign.error
                 ? userMessage(sign.error)
                 : busy
-                  ? 'Đang ghi hợp đồng…'
-                  : 'Máy chủ cấp số hợp đồng lúc ký, theo dãy mã của sổ.'}
+                  ? 'Đang gửi đề nghị ký…'
+                  : 'Gửi xong là một đề nghị chờ duyệt. Hợp đồng và số hợp đồng chỉ có khi người duyệt gật.'}
             </span>
           )}
           <div className="flex shrink-0 gap-2">
@@ -224,11 +217,16 @@ export function SignDrawer({ op, open, onClose }: Props) {
               size="md"
               disabled={busy}
               onClick={() => {
-                sign.mutate(bodyOf(form), { onSuccess: () => onClose() })
+                sign.mutate(bodyOf(form), {
+                  onSuccess: () => {
+                    toastDone('Đã gửi đề nghị ký, chờ duyệt.')
+                    onClose()
+                  },
+                })
               }}
             >
               <Icon icon={PenLine} size={16} />
-              {busy ? 'Đang ký…' : 'Ký hợp đồng'}
+              {busy ? 'Đang gửi…' : 'Gửi đề nghị ký'}
             </Button>
           </div>
         </div>
@@ -316,8 +314,8 @@ export function SignDrawer({ op, open, onClose }: Props) {
         <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
           <Icon icon={TriangleAlert} size={16} className="text-warning mt-1 shrink-0" />
           <p className="text-[11.5px] leading-[1.5]">
-            Ký xong không gỡ được từ giao diện. Không có nút huỷ ký, và sẽ không có — một chữ ký đã
-            sang tay kế toán và sang tay khách thì gỡ nó phải là một đề nghị có người duyệt.
+            Đề nghị này đi qua Hộp duyệt; được gật thì hợp đồng mới được tạo, và từ đó không gỡ được
+            từ giao diện.
             {owner && (
               <>
                 {' '}

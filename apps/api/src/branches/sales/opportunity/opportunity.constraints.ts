@@ -103,4 +103,11 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     message: 'Dòng lịch sử có cột đi thì phải có số ngày đứng ở cột đó, và ngược lại.',
   },
+
+  /** A unique index on `platform.approval`, but its meaning is this module's:
+   *  two sign presses racing past `OpportunitySign.propose`'s own check. */
+  approval_contract_sign_waiting_uq: {
+    kind: 'conflict',
+    message: 'Cơ hội này đã có một yêu cầu ký đang chờ duyệt.',
+  },
 }

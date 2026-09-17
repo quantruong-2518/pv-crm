@@ -51,7 +51,7 @@ import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/
 import { isApiError, userMessage, type FieldErrors } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { dm, dmy } from '@/lib/date'
+import { dm, dmhm, dmy } from '@/lib/date'
 import { leadProfileQuery, realContact, NO_TOUCHES } from '@/data/lead-profile'
 import {
   NO_STEPS,
@@ -483,7 +483,7 @@ function EmptyOp({ icon, note, onBack }: { icon: IconGlyph; note: ReactNode; onB
  *  đơn → mô tả và giấy tờ. Khối lý do thua chỉ mở khi trạng thái là Close lost,
  *  và nó CHẶN nút lưu cho tới khi có lý do — một đơn thua không ghi lý do là
  *  một bài học mất trắng. */
-function DealCard({ op }: { op: OpportunityRow }) {
+function DealCard({ op }: { op: OpportunityProfileResponse }) {
   const save = useSaveOpportunity(op.code)
 
   /* Dòng máy chủ → hình phiếu. Qua `useMemo` để `work` không bị nạp lại mỗi
@@ -520,6 +520,12 @@ function DealCard({ op }: { op: OpportunityRow }) {
   const dirty = changedFields(saved, work)
   const missing = missingOf(work)
   const lost = work.state === 'close-lost'
+  /* A signed deal stays signed through any edit — the server refuses a state
+     change and carries amount/currency/owner onto the contract instead. */
+  const signed = op.contractCode !== undefined
+  /* While a sign request waits the server refuses state, money and sale-owner
+     changes (409), so those boxes lock first. */
+  const waiting = Boolean(op.pendingSign)
   const stage = CREATE_STATES.find((s) => s.key === work.state)?.stage ?? null
   const blocked = dirty.length === 0 || missing.length > 0 || save.isPending
   const gate = gateRefusalOf(save.error)
@@ -594,37 +600,55 @@ function DealCard({ op }: { op: OpportunityRow }) {
           plain
           errors={errors.state}
           hint={
-            work.state === saved.state
-              ? op.stage
-                ? `Đang ở cột "${STAGE_LABEL.get(op.stage)}". Lưu không dời cột — đổi trạng thái mới dời.`
-                : 'Đơn đã đóng sổ, không nằm cột nào.'
-              : stage
-                ? `Lưu sẽ chuyển đơn sang cột "${STAGE_LABEL.get(stage)}".`
-                : 'Đóng sổ ngay — đơn ra khỏi năm cột. Chốt THẮNG không đặt ở đây: đơn thắng là đơn có hợp đồng.'
+            waiting
+              ? WAITING_SIGN
+              : signed
+                ? 'Đơn đã ký — sửa không mở lại đơn. Đổi tiền, đồng tiền hay Sale đứng đơn thì hợp đồng cập nhật theo.'
+                : work.state === saved.state
+                  ? op.stage
+                    ? `Đang ở cột "${STAGE_LABEL.get(op.stage)}". Lưu không dời cột — đổi trạng thái mới dời.`
+                    : 'Đơn đã đóng sổ, không nằm cột nào.'
+                  : stage
+                    ? `Lưu sẽ chuyển đơn sang cột "${STAGE_LABEL.get(stage)}".`
+                    : 'Đóng sổ ngay — đơn ra khỏi năm cột. Chốt THẮNG không đặt ở đây: đơn thắng là đơn có hợp đồng.'
           }
         >
-          <Select
-            label="Trạng thái"
-            hideLabel
-            value={work.state}
-            neutralValue={work.state}
-            onChange={(v) => set('state', v as OpportunityState)}
-            options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
-            className="w-full"
-          />
+          {signed || waiting ? (
+            <span className="text-foreground flex h-10 items-center text-[12.5px] font-semibold">
+              {STATE_LABEL.get(op.state)}
+            </span>
+          ) : (
+            <Select
+              label="Trạng thái"
+              hideLabel
+              value={work.state}
+              neutralValue={work.state}
+              onChange={(v) => set('state', v as OpportunityState)}
+              options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
+              className="w-full"
+            />
+          )}
         </Field>
       </section>
 
-      <AmountRow draft={work} onSet={set} errors={errors} />
+      {/* A native `disabled` fieldset shuts every input and button inside it —
+          the shared field components carry no `disabled` prop of their own. */}
+      <fieldset disabled={waiting} className="contents">
+        <AmountRow draft={work} onSet={set} errors={errors} />
 
-      <PeopleRow
-        label="Sale đứng đơn"
-        required
-        hint="Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong."
-        picked={work.saleOwners}
-        errors={errors.saleOwners}
-        onToggle={(id) => set('saleOwners', toggled(work.saleOwners, id))}
-      />
+        <PeopleRow
+          label="Sale đứng đơn"
+          required
+          hint={
+            waiting
+              ? WAITING_SIGN
+              : 'Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong.'
+          }
+          picked={work.saleOwners}
+          errors={errors.saleOwners}
+          onToggle={(id) => set('saleOwners', toggled(work.saleOwners, id))}
+        />
+      </fieldset>
 
       <PeopleRow
         label="BD mở cửa"
@@ -730,6 +754,9 @@ function DealCard({ op }: { op: OpportunityRow }) {
     </GlassCard>
   )
 }
+
+const WAITING_SIGN =
+  'Đơn đang chờ duyệt ký — trạng thái, tiền, đồng tiền, Sale đứng đơn và cột tạm khoá.'
 
 /** Lead sinh ra đơn này — dây nối ngược về module 2.
  *
@@ -839,9 +866,11 @@ function StageCard({ op }: { op: OpportunityProfileResponse }) {
   const lockedBecause =
     stage === null
       ? 'Đơn đã đóng sổ — thắng hoặc thua thì không đứng ở cột nào.'
-      : !canEdit
-        ? 'Vai của bạn không sửa được cơ hội.'
-        : null
+      : op.pendingSign
+        ? WAITING_SIGN
+        : !canEdit
+          ? 'Vai của bạn không sửa được cơ hội.'
+          : null
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Cột và lịch sử">
@@ -1002,7 +1031,7 @@ function ToolsBar({
   lead,
   onOpenLead,
 }: {
-  op: OpportunityRow
+  op: OpportunityProfileResponse
   lead: LeadProfile | null
   onOpenLead: () => void
 }) {
@@ -1037,6 +1066,9 @@ function ToolsBar({
       còn lại → nút mở panel ký, cho vai có quyền. */
   const signed = op.contractCode !== undefined
   const lost = op.state === 'close-lost'
+  /* Signing is a request now; while one waits, a second is a 409 — so the
+     button stays visible but shut, beside who raised it and when. */
+  const pending = op.pendingSign
 
   return (
     <div className="z-10 lg:sticky lg:bottom-4">
@@ -1108,11 +1140,20 @@ function ToolsBar({
             <MetaPill icon={Handshake} tone="success" mono>
               Đã ký · {op.contractCode}
             </MetaPill>
-          ) : lost || !canSign ? null : (
-            <Button size="md" onClick={() => setSigning(true)}>
-              <Icon icon={Handshake} size={16} />
-              Chốt thắng
-            </Button>
+          ) : lost ? null : (
+            <>
+              {pending && (
+                <MetaPill tone="warning">
+                  Chờ duyệt ký · {pending.raisedBy} gửi {dmhm(pending.raisedAt)}
+                </MetaPill>
+              )}
+              {canSign && (
+                <Button size="md" disabled={Boolean(pending)} onClick={() => setSigning(true)}>
+                  <Icon icon={Handshake} size={16} />
+                  Chốt thắng
+                </Button>
+              )}
+            </>
           )}
 
           {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của

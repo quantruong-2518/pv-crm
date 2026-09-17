@@ -34,12 +34,11 @@ import { LeadTier } from './enums'
  *  table is where the two vocabularies drift.
  *
  *  Not every kind has a writer yet, and that is honest rather than aspirational:
- *  the branch writes what its doors actually do. Two are still unwritten today —
- *  `tier-raised` and `exited` — because no door moves a tier or drops a lead
- *  out of the funnel: both contracts withhold those columns on purpose ("gates,
- *  not fields"). They are in the enum because the screen draws them and because
- *  the alternative — widening the enum later — is a migration on a CHECK
- *  constraint for something already known to be coming.
+ *  the branch writes what its doors actually do. `tier-raised` is still
+ *  unwritten today — no door moves a tier — while `exited`/`reopened` now are:
+ *  `POST /sales/leads/:code/exit` and `.../reopen` (`./lead`). They stay in the
+ *  enum regardless, because the alternative — widening it later — is a
+ *  migration on a CHECK constraint for something already known to be coming.
  *
  *  ------------------------------------------------------------------
  *  MAIL IS NOT IN HERE
@@ -76,6 +75,8 @@ export const TouchKind = z.enum([
   'signed',
   /** The lead left the funnel. */
   'exited',
+  /** The lead came back into the funnel, after `exited`. */
+  'reopened',
 ])
 
 /** Which book the row hangs off. A deal and its lead keep separate trails —

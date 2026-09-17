@@ -124,7 +124,7 @@ export const ConfigEntry = z.object({
    *  Absent means NOBODY HAS SET ONE, which is a different answer from zero and
    *  the only honest one for `TIER` today (§8.5). A phase with no clock has no
    *  lateness — not "on time". */
-  limitDays: z.number().int().nonnegative().optional(),
+  limitDays: z.number().int().positive().optional(),
 
   /** CHỈ `CATEGORY` — Sale phụ trách ngành, `id` của `platform.actor`.
    *  Thay cho `LEAD_CATEGORIES[].sale`, thứ đang so bằng TÊN người. */
@@ -313,7 +313,7 @@ export const ConfigEntryCreate = z.object({
    *
    *  Optional even for a ladder since `0038`: a rung with no clock is a rung
    *  nobody has timed yet, which is the true state of every `TIER` row today. */
-  limitDays: z.number().int().nonnegative().max(365).optional(),
+  limitDays: z.number().int().positive().max(365).optional(),
 
   ownerId: textInputOptional(64),
   kind: textInputOptional(32),
@@ -329,7 +329,7 @@ export const ConfigEntryPatch = z
   .object({
     name: textInput(120).optional(),
     active: z.boolean().optional(),
-    limitDays: z.number().int().nonnegative().max(365).optional(),
+    limitDays: z.number().int().positive().max(365).optional(),
     ownerId: textInputOptional(64).nullable(),
     kind: textInputOptional(32),
   })

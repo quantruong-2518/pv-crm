@@ -1,5 +1,15 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowRight, Inbox, Lock, Mail, Phone, Pin, TriangleAlert, type IconGlyph } from '@pv/ui'
+import {
+  ArrowRight,
+  Inbox,
+  Lock,
+  Mail,
+  Phone,
+  Pin,
+  RotateCcw,
+  TriangleAlert,
+  type IconGlyph,
+} from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -21,7 +31,6 @@ import {
   LEAD_CATEGORIES,
   LEAD_TIERS,
   PIPELINE_STAGES,
-  type ExitReason,
   type Lead,
   type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
@@ -33,12 +42,14 @@ import {
   type OpportunityLiveDeal,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { toastDone, toastFail } from '@/app/toast'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
 import { useStageLimits } from '@/data/sales-config'
+import { useReopenLead } from '@/data/lead-exit'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { chainPath, opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
 import { leadTouchesQuery, leadVectorQuery, NO_STEPS, type TouchFocus } from '@/data/touches'
@@ -126,8 +137,8 @@ import { NextActionCard, NotesCard, ProfileCard } from './lead-parts'
  *     quyền — họ đã có `lead.view` rồi;
  *   · **còn lại** (mạng · máy chủ · mã sai dạng) — câu chung của loại lỗi đó.
  *
- *  Năm khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc ·
- *  báo rơi) chưa có endpoint nào, nên chúng giữ nguyên và đọc một bản `Lead`
+ *  Bốn khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc)
+ *  chưa có endpoint nào, nên chúng giữ nguyên và đọc một bản `Lead`
  *  dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`.
  *
  *  "Đã đổi thành cơ hội chưa" thì KHÔNG còn ở đó nữa (29/08): nó đọc
@@ -201,6 +212,7 @@ export function LeadDetailPage() {
 
   const me = useSession((s) => s.actor)
   const canWrite = useCan('lead.edit')
+  const canDisqualify = useCan('lead.disqualify')
   /* Sổ người của máy chủ. Gọi TRƯỚC mọi nhánh `return` sớm bên dưới — màn này
      thoát ra ở ba chỗ (đang tải, lỗi, không thấy), và một hook nằm sau chúng
      là một hook chạy khi có lead mà không chạy khi không. */
@@ -230,9 +242,6 @@ export function LeadDetailPage() {
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [composing, setComposing] = useState(false)
-  /* Lý do vừa báo trong phiên này. Chưa có backend nên nó chết cùng lần mở màn
-     — và đó là điều đúng: một đề nghị chưa ai gật thì chưa phải sự thật của sổ. */
-  const [reported, setReported] = useState<ExitReason | null>(null)
 
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
@@ -306,8 +315,8 @@ export function LeadDetailPage() {
       : undefined
 
   /* Every open deal of this lead, shown beside the convert button as
-     information — a lead may hold several at once, and opening one more is
-     always allowed, so nothing here disables the button. */
+     information — a lead may hold several at once, so none of them disables
+     the button. */
   const liveDeal = priorOps.data ?? { codes: [], hidden: 0 }
 
   return shell(
@@ -344,7 +353,7 @@ export function LeadDetailPage() {
 
           <div className="border-surface-ink/10 flex min-w-0 flex-col justify-end gap-4 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge lead={lead} reported={reported} />
+              <StatusBadge lead={lead} />
               {lead.stage && (
                 <MetaPill tone={overSla(lead, stageLimits) ? 'warning' : 'accent'}>
                   {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
@@ -494,7 +503,7 @@ export function LeadDetailPage() {
         pinned={pins.includes(lead.code)}
         liveDeal={liveDeal}
         onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
-        reported={reported}
+        canDisqualify={canDisqualify}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
         onConvert={() => setConverting(true)}
@@ -503,12 +512,7 @@ export function LeadDetailPage() {
       {/* Hồ sơ TRÊN DÂY, không phải `legacy`: phiếu đổi mồi từ hồ sơ thật chứ
           không sinh lại hồ sơ từ mã lead — xem docblock của `ConvertDialog`. */}
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
-      <ExitDialog
-        lead={legacy}
-        open={exiting}
-        onClose={() => setExiting(false)}
-        onReport={setReported}
-      />
+      <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <MasMailModal
         open={composing}
         onClose={() => setComposing(false)}
@@ -556,7 +560,7 @@ function EmptyLead({
  *  gọi tên được "cái" hợp đồng. Thứ sống sót là `signed`, một boolean — nên
  *  badge giữ TRẠNG THÁI và bỏ mã, thay vì bịa một mã hoặc kéo mã cũ của
  *  fixture đi theo. Mã quay lại ngày hồ sơ chở một DANH SÁCH cơ hội. */
-function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReason | null }) {
+function StatusBadge({ lead }: { lead: LeadProfile }) {
   const limits = useStageLimits()
 
   if (lead.signed) return <Badge tone="success">Đã ký</Badge>
@@ -565,7 +569,6 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
       <Badge tone="danger">Đã rơi · {EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason}</Badge>
     )
   }
-  if (reported) return <Badge tone="warning">Đã báo · {reported}</Badge>
   if (overSla(lead, limits)) return <Badge tone="warning">Quá hạn cột</Badge>
   /* The lead book calls this bucket "Chưa chốt" and the two screens must print
      one word for one bucket. "Đang chạy" also overstated it: most leads in
@@ -609,8 +612,9 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
  *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
  *
- *  The convert button is ALWAYS live — a lead may hold several open deals at
- *  once, so opening one more is never blocked here. Existing open deals are
+ *  The convert button is live on every running lead — a lead may hold several
+ *  open deals at once, so opening one more is never blocked by them; only an
+ *  exited lead locks it, since the door refuses those. Existing open deals are
  *  shown as INFORMATION beside it instead: a 48px row per code the reader may
  *  open, off the same `opportunitiesOfLeadQuery` the rail above reads, plus a
  *  muted count for the ones a colleague holds that this reader may not open.
@@ -630,7 +634,7 @@ function ToolsBar({
   legacy,
   pinned,
   liveDeal,
-  reported,
+  canDisqualify,
   onPin,
   onExit,
   onConvert,
@@ -644,7 +648,7 @@ function ToolsBar({
   pinned: boolean
   /** Every open deal this lead already holds — information, never a block. */
   liveDeal: OpportunityLiveDeal
-  reported: ExitReason | null
+  canDisqualify: boolean
   onPin: () => void
   onExit: () => void
   onConvert: () => void
@@ -661,6 +665,7 @@ function ToolsBar({
   const exitLabel = lead.exitReason
     ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
     : undefined
+  const reopen = useReopenLead(lead.code)
   return (
     <div className="z-10 lg:sticky lg:bottom-4">
       <GlassCard
@@ -703,13 +708,34 @@ function ToolsBar({
               {lead.contactName ? `Gọi ${lead.contactName}` : 'Gọi khách'}
             </Button>
 
-            {(reported ?? exitLabel) ? (
-              <Badge tone="warning">Đã báo · {reported ?? exitLabel}</Badge>
+            {exitLabel ? (
+              <>
+                <Badge tone="danger">Đã rơi · {exitLabel}</Badge>
+                {canDisqualify && (
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    disabled={reopen.isPending}
+                    onClick={() =>
+                      reopen.mutate(undefined, {
+                        onSuccess: () => toastDone(`Đã mở lại ${lead.code}.`),
+                        onError: (error) =>
+                          toastFail('Không mở lại được lead.', userMessage(error)),
+                      })
+                    }
+                  >
+                    <Icon icon={RotateCcw} size={16} />
+                    {reopen.isPending ? 'Đang mở lại…' : 'Mở lại lead'}
+                  </Button>
+                )}
+              </>
             ) : (
-              <Button size="md" variant="destructive" onClick={onExit}>
-                <Icon icon={TriangleAlert} size={16} />
-                Báo không phù hợp
-              </Button>
+              canDisqualify && (
+                <Button size="md" variant="destructive" onClick={onExit}>
+                  <Icon icon={TriangleAlert} size={16} />
+                  Báo không phù hợp
+                </Button>
+              )
             )}
 
             {(liveDeal.codes.length > 0 || liveDeal.hidden > 0) && (
@@ -727,7 +753,13 @@ function ToolsBar({
                 )}
               </>
             )}
-            <Button size="md" onClick={onConvert}>
+            {/* An exited lead takes no new deal (the door answers 409) — reopen it first. */}
+            <Button
+              size="md"
+              disabled={Boolean(exitLabel)}
+              title={exitLabel ? 'Lead đã rơi — mở lại lead trước.' : undefined}
+              onClick={onConvert}
+            >
               <Icon icon={ArrowRight} size={16} />
               Chuyển thành cơ hội
             </Button>

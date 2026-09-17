@@ -58,10 +58,9 @@ export function useDecideApproval(id: string) {
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: INBOX_KEY })
-      /* The sales config screen reads the very rows an approved `config-change`
-         just rewrote. Invalidating by prefix rather than naming that one key
-         keeps this file from having to know which screens the next kind of
-         request will touch. */
+      /* An approved `config-change` rewrites config rows; a `contract-sign` moves
+         the deal, its lead, its run and the contract book. All live under
+         `['sales']`, so one prefix covers every kind without naming screens. */
       void client.invalidateQueries({ queryKey: ['sales'] })
     },
   })

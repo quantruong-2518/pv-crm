@@ -258,7 +258,7 @@ export function SalesConfigPage() {
             <Section
               no="5.2"
               title="Cột của sổ cơ hội và hạn từng cột"
-              hint="Hạn là thứ sinh ra cảnh báo quá SLA. Không có cột thứ sáu — thêm cột là đổi hình của kanban và của mọi báo cáo chuyển đổi."
+              hint="Hạn là thứ sinh ra cảnh báo quá SLA — số ngày nguyên từ 1, để trống là không đặt hạn. Thang cố định: không thêm, tắt hay đổi thứ tự cột ở đây — đổi hình thang là đổi kanban và mọi báo cáo chuyển đổi."
             >
               {/* Luật 8 · bảng LUÔN nằm trên glass-b. */}
               <GlassCard variant="b" className="p-4">
@@ -283,7 +283,7 @@ export function SalesConfigPage() {
             <Section
               no="5.2b"
               title="Điều kiện qua stage"
-              hint="Tiến cột, ký hợp đồng, và tạo hoặc import một cơ hội thẳng vào một cột giữa chừng đều cần đủ điều kiện đang bật của mọi cột đã qua — một đơn mới không có tick nào nên trên thực tế phải tạo ở cột sớm nhất; mở lại một đơn đã thua thì bị kiểm lại đúng từ cột nó thua. Lùi cột và đánh thua không bao giờ bị chặn. Tắt thay cho xoá."
+              hint="Chỉ hai việc bị chặn: tiến cột cần đủ điều kiện đang bật của mọi cột trước nó, ký hợp đồng cần đủ tất cả. Tạo hoặc import thẳng vào một cột giữa chừng, mở lại một đơn đã thua, lùi cột và đánh thua không bao giờ bị chặn. Tắt thay cho xoá."
             >
               <StageGateSection stages={stages} />
             </Section>
@@ -447,7 +447,7 @@ export function SalesConfigPage() {
             <Section
               no="5.5"
               title="Ngưỡng SLA cho từng bậc lead"
-              hint="Hạn ở mục 5.2 chỉ áp cho đơn đã vào sổ cơ hội. Đây là hạn của lead: đứng ở một bậc bao lâu thì coi là quá. Nhập được, đi qua Hộp duyệt như mọi hạn khác — nhưng chưa ai chốt số."
+              hint="Hạn ở mục 5.2 chỉ áp cho đơn đã vào sổ cơ hội. Đây là hạn của lead: đứng ở một bậc bao lâu thì coi là quá. Số ngày nguyên từ 1, đi qua Hộp duyệt như mọi hạn khác — nhưng chưa ai chốt số. Thang bậc cố định: không thêm, tắt hay đổi thứ tự."
             >
               <GlassCard variant="b" className="p-4">
                 <LadderTable list="TIER" rows={tiers} unit="lead" typed={typed} onType={setTyped} />

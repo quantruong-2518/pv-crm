@@ -1,11 +1,12 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   OpportunityCreateState,
+  type ConfigProposalReceipt,
   type ContractSign,
-  type ContractSignResponse,
   type ObjectCode,
   type OpportunityCreate,
   type OpportunityCreateResponse,
+  type OpportunityProfileResponse,
   type OpportunityRow,
   type OpportunityStageHistory,
   type OpportunityStageMove,
@@ -14,6 +15,7 @@ import {
 } from '@pv/contracts'
 import { OPPORTUNITY_STATES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
+import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 
 /** Module 3 · ba cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
@@ -249,23 +251,19 @@ export function saveOpportunity(
   })
 }
 
-/** Ký hợp đồng — cửa duy nhất làm một đơn thành `close-won`.
+/** Raise a request to sign — the only road to `close-won`, and it now passes E3.
  *
- *  Không có `PATCH state: 'close-won'` nào đứng cạnh nó, và đó là cố ý ở tầng
- *  hợp đồng: "đã thắng" là SỰ TỒN TẠI của một dòng bên `sales.contract`, suy ra
- *  chứ không lưu. Một cửa sửa nhận `close-won` sẽ phải có chỗ để cất con số và
- *  cái ngày, mà chỗ duy nhất là chính bảng đó.
- *
- *  Cả ba ô của thân request đều tuỳ chọn — vắng thì máy chủ lấy theo đơn — nên
- *  một lượt ký đúng bằng số đã chào, hôm nay, bởi Sale đang đứng đơn là một
- *  `{}`. Drawer vẫn bày ba ô ra vì người bấm cần XÁC NHẬN cái mình sắp ký, chứ
- *  không phải vì máy chủ đòi. */
+ *  202 with a receipt: the contract row exists only once an approver accepts
+ *  the `contract-sign` request (`docs/decisions/0057-seven-sales-pipeline-decisions.md`,
+ *  decision 7). All three body fields are optional — absent means "as the deal
+ *  says" — and the drawer still shows them so the requester confirms the
+ *  figures the approver will read. A second request while one waits is a 409. */
 export function signContract(
   code: ObjectCode,
   body: ContractSign,
   signal?: AbortSignal,
-): Promise<ContractSignResponse> {
-  return api.write<ContractSignResponse>(`${BOOK_PATH}/${code}/contract`, {
+): Promise<ConfigProposalReceipt> {
+  return api.write<ConfigProposalReceipt>(`${BOOK_PATH}/${code}/contract`, {
     method: 'POST',
     body,
     need: OPPORTUNITY_SIGN_NEED,
@@ -302,34 +300,32 @@ export function useSaveOpportunity(code: ObjectCode) {
   return useMutation<OpportunityUpdateResponse, ApiError, OpportunityUpdate>({
     mutationFn: (body) => saveOpportunity(code, body),
     onSuccess: (row) => {
-      client.setQueryData(['sales', 'ops', code], row)
+      /* Merged, not replaced: the row lacks the profile's `chain`, `position`
+         and `pendingSign`, and a bare row would crash the rail on the next render. */
+      client.setQueryData<OpportunityProfileResponse>(['sales', 'ops', code], (prev) =>
+        prev ? { ...prev, ...row } : prev,
+      )
       void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+      /* A signed deal's amount, currency and owner are carried onto its contract. */
+      void client.invalidateQueries({ queryKey: CONTRACT_BOOK_KEY })
     },
   })
 }
 
-/** Mutation của nút "Chốt thắng".
+/** Mutation of the "Chốt thắng" button.
  *
- *  Cùng khuôn hai bước với `useSaveOpportunity` ngay trên — ghi thẳng dòng vừa
- *  nhận vào cache của hồ sơ, rồi mới đánh dấu sổ cần nạp lại — nhưng lấy nửa
- *  `opportunity` của phản hồi chứ không lấy cả phản hồi: 201 chở HAI nửa, và
- *  cache của hồ sơ giữ một `OpportunityRow`.
- *
- *  Nửa đơn đó là thứ BẮT BUỘC phải nhận lại, không phải tiện thì lấy. Ký làm
- *  đổi bốn thứ mà mọi thứ đều TÍNH RA: `state` lật sang `close-won`, `stage` và
- *  `daysInStage` thành null, `contractCode` mọc lên. Một màn tự vá dòng cache
- *  của mình sẽ đọc ra khác hẳn lượt `GET` kế tiếp.
- *
- *  Và vì nửa `contract` cũng về trong cùng lượt, nút bấm xong KHÔNG phải gọi
- *  lại lần nào để biết số hợp đồng máy chủ vừa cấp. */
+ *  Nothing about the deal has changed yet, so nothing is written into the
+ *  cache: the profile is re-read for its `pendingSign`, which locks the button,
+ *  and the inbox is re-read in case the requester is also on the chain. The
+ *  deal and contract books move when the approval lands (`useDecideApproval`). */
 export function useSignContract(code: ObjectCode) {
   const client = useQueryClient()
 
-  return useMutation<ContractSignResponse, ApiError, ContractSign>({
+  return useMutation<ConfigProposalReceipt, ApiError, ContractSign>({
     mutationFn: (body) => signContract(code, body),
-    onSuccess: (res) => {
-      client.setQueryData(['sales', 'ops', code], res.opportunity)
-      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['sales', 'ops', code], exact: true })
+      void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
     },
   })
 }
@@ -374,7 +370,11 @@ export function useMoveStage(code: ObjectCode) {
   return useMutation<OpportunityUpdateResponse, ApiError, OpportunityStageMove>({
     mutationFn: (body) => moveOpportunityStage(code, body),
     onSuccess: (row) => {
-      client.setQueryData(['sales', 'ops', code], row)
+      /* Merged, not replaced: the row lacks the profile's `chain`, `position`
+         and `pendingSign`, and a bare row would crash the rail on the next render. */
+      client.setQueryData<OpportunityProfileResponse>(['sales', 'ops', code], (prev) =>
+        prev ? { ...prev, ...row } : prev,
+      )
       void client.invalidateQueries({ queryKey: ['sales', 'ops', code, 'stage-history'] })
       void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     },

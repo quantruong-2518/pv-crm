@@ -1,6 +1,8 @@
 # 0031 · `waitingOn` is read from E3 approval links, not a twelfth state machine; four request types wired in order, gated by a `platform.approval` table
 
-Status: accepted
+Status: partially superseded by 0057 (request type 4, `loại-lead`, drops out
+of E3 — lead exit is direct and reversible; a fifth type, `contract-sign`, is
+added)
 Source: docs/tam-nhin-pipeline.md — "Ba câu chủ dự án chốt 31/08" (table),
 "§4 · Quyết định 2 — nối E3, và ba bước chặn nhau"
 

@@ -1,55 +1,49 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { TriangleAlert, X } from '@pv/ui'
-import { Badge, Button, Drawer, Icon, Select, Textarea } from '@pv/ui'
-import { EXIT_REASONS, type ExitReason, type Lead } from '@pv/engines/fixtures/das-vina'
-import { useApproverName } from '@/data/directory'
+import { Button, Drawer, Icon, Select, Textarea, cn } from '@pv/ui'
+import { ExitReason, type LeadProfile } from '@pv/contracts'
+import { userMessage } from '@/app/api'
+import { toastDone } from '@/app/toast'
+import { exitReasonRows, salesCatalogQuery } from '@/data/sales-config'
+import { useExitLead } from '@/data/lead-exit'
 
-/** Đưa lead ra khỏi luồng — hộp thoại, không phải một thẻ nằm sẵn trên màn.
+/** Take a lead out of the funnel — a dialog, not a card sitting on the screen.
  *
- *  ------------------------------------------------------------------
- *  VÌ SAO CHUYỂN THÀNH HỘP THOẠI
- *  ------------------------------------------------------------------
- *  Bản trước là một thẻ đứng thường trực ở cột phải, mang sẵn sáu cái nút đỏ.
- *  Sai tỷ lệ: đây là hành động HIẾM và KHÔNG QUAY LẠI ĐƯỢC, mà lại chiếm chỗ
- *  ngang với những khối người ta dùng mỗi lần mở màn. Sáu nút "giết lead" bày
- *  sẵn cạnh chỗ đọc hồ sơ cũng là sáu cơ hội bấm nhầm.
+ *  A rare action, so it costs one extra step: a toolbar button, then a reason
+ *  here. It writes at once with no approval, and the profile's "Mở lại lead"
+ *  undoes it (`docs/decisions/0057-seven-sales-pipeline-decisions.md`, decision 2).
  *
- *  Giờ nó là một nút trên thanh công cụ, và hộp thoại mới là chỗ chọn lý do.
- *  Một bước thêm vào đúng chỗ cần một bước thêm.
- *
- *  ------------------------------------------------------------------
- *  SÁU LÝ DO, DANH SÁCH ĐÓNG
- *  ------------------------------------------------------------------
- *  `EXIT_REASONS` không có ô "khác" và sẽ không có: lý do thứ bảy là một hành
- *  động cấu hình ở module Cấu hình, không phải một dòng gõ tay. Ô ghi thêm ở dưới là
- *  để kể chi tiết của ĐÚNG lead này — nó không tạo ra lý do mới, và không bắt
- *  buộc.
- *
- *  Khác hẳn `LOSS_REASONS` của phiếu đổi cơ hội: bảng đó MỞ, vì lý do thua một
- *  đơn đã báo giá là thứ học được từ thị trường. Hai bảng, hai luật, hai chỗ. */
+ *  Reasons are a CLOSED enum (`ExitReason`): the key goes on the wire, the label
+ *  comes from config (`exitReasonRows`), where it can be renamed. The note tells
+ *  this lead's story; it never adds a reason. A 409 (open deal, already signed)
+ *  prints the server's sentence and the dialog stays open. */
 export function ExitDialog({
-  lead,
+  profile,
   open,
   onClose,
-  onReport,
 }: {
-  lead: Lead
+  profile: LeadProfile
   open: boolean
   onClose: () => void
-  onReport: (reason: ExitReason) => void
 }) {
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
-  const approver = useApproverName()
+  const exit = useExitLead(profile.code)
+  const { reset } = exit
+  const { data: catalog } = useQuery(salesCatalogQuery)
 
-  /* Mở lại là một lần bắt đầu mới — không giữ lựa chọn của lần trước, vì lần
-     trước người ta đã bấm Huỷ và đó là một câu trả lời. */
+  /* Reopening starts fresh: the previous Cancel was an answer, and a refusal
+     from last time is about a state that may have changed since. */
   useEffect(() => {
     if (open) {
       setReason('')
       setNote('')
+      reset()
     }
-  }, [open])
+  }, [open, reset])
+
+  const picked = ExitReason.safeParse(reason)
 
   return (
     <Drawer
@@ -58,17 +52,26 @@ export function ExitDialog({
       title="Lead có vấn đề"
       subtitle={
         <>
-          <span className="font-mono">{lead.code}</span> · {lead.company} — đưa ra khỏi luồng là
-          đóng lead lại. Sổ vẫn giữ dòng này để tra, nhưng nó thôi chạy.
+          <span className="font-mono">{profile.code}</span> · {profile.company} — đưa ra khỏi luồng
+          là dừng lead lại. Sổ vẫn giữ dòng này, và mở lại được khi khách quay lại.
         </>
       }
-      meta={<Badge tone="warning">Không quay lại được</Badge>}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <span className="text-muted-foreground text-[11.5px] leading-[1.5]" aria-live="polite">
-            {reason === ''
-              ? 'Chọn một trong sáu lý do để bật nút.'
-              : `Đề nghị này chờ ${approver} gật. Công trạng của nguồn kéo lead về vẫn giữ.`}
+          <span
+            className={cn(
+              'text-[11.5px] leading-[1.5]',
+              exit.error ? 'text-destructive-foreground' : 'text-foreground',
+            )}
+            aria-live="polite"
+          >
+            {exit.error
+              ? userMessage(exit.error)
+              : exit.isPending
+                ? 'Đang ghi…'
+                : !picked.success
+                  ? 'Chọn một lý do để bật nút.'
+                  : 'Ghi ngay, không cần ai duyệt. Công trạng của nguồn kéo lead về vẫn giữ.'}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" onClick={onClose}>
@@ -78,12 +81,19 @@ export function ExitDialog({
             <Button
               size="md"
               variant="destructive"
-              disabled={reason === ''}
+              disabled={!picked.success || exit.isPending}
               onClick={() => {
-                if (reason === '') return
-                onReport(reason as ExitReason)
-                onClose()
-                /* Nối E2 khi có backend: mọi lần đưa lead ra khỏi luồng phải ghi vết. */
+                if (!picked.success) return
+                const trimmed = note.trim()
+                exit.mutate(
+                  { reason: picked.data, ...(trimmed === '' ? {} : { note: trimmed }) },
+                  {
+                    onSuccess: () => {
+                      toastDone(`Đã đưa ${profile.code} ra khỏi luồng.`)
+                      onClose()
+                    },
+                  },
+                )
               }}
             >
               <Icon icon={TriangleAlert} size={16} />
@@ -111,13 +121,9 @@ export function ExitDialog({
             className="w-full"
             options={[
               { value: '', label: '— chọn một lý do —' },
-              ...EXIT_REASONS.map((r) => ({ value: r.label, label: r.label })),
+              ...exitReasonRows(catalog).map((r) => ({ value: r.key, label: r.label })),
             ]}
           />
-          <span className="text-muted-foreground text-[11px] leading-[1.5]">
-            Sáu lý do là toàn bộ danh sách, không có ô &quot;khác&quot;. Lý do thứ bảy là việc của
-            module Cấu hình.
-          </span>
         </div>
 
         <label className="flex flex-col gap-2">

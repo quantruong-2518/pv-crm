@@ -13,6 +13,7 @@ import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
 import { LeadWriteRepository } from './lead-write.repository'
+import { LeadExitService } from './lead-exit.service'
 import { LeadWriteService } from './lead-write.service'
 import { LeadIntakeController } from './lead-intake.controller'
 import { LeadIntakeGuard } from './lead-intake.guard'
@@ -76,6 +77,7 @@ import { LeadMailComposer } from './lead-mail.composer'
     LeadRepository,
     LeadWriteService,
     LeadWriteRepository,
+    LeadExitService,
     LeadIntakeService,
     LeadIntakeRepository,
     LeadIntakeGuard,

@@ -10,7 +10,6 @@ import {
   type ObjectRef,
 } from '@pv/engines'
 import {
-  ContractSignResponse,
   OpportunityBookResponse,
   OpportunityCreateResponse,
   OpportunityProfileResponse,
@@ -23,7 +22,6 @@ import {
   OpportunityUpdateResponse,
   PipelinePositionView,
   StageKey,
-  type ContractSign,
   type ObjectCode,
   type OpportunityBookQuery,
   type OpportunityCreate,
@@ -41,14 +39,12 @@ import { GraphService } from '@api/platform/graph/graph.service'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
-import { ContractRepository } from '../contract/contract.repository'
-import { fromSign, toContract as toContractRow } from '../contract/contract.mapper'
+import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { OpportunityGate } from './opportunity-gate.service'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import {
-  closeForSign,
   fromCreate,
   fromUpdate,
   daysInStageOf,
@@ -62,7 +58,7 @@ import {
   toRef,
   toStageEvent,
 } from './opportunity.mapper'
-import { OpportunityRepository } from './opportunity.repository'
+import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 import type { OpportunityRowDb } from './opportunity.schema'
 import { phasesOf, stageConfigOf } from '../ladder'
 
@@ -105,8 +101,7 @@ export class OpportunityService {
        exports together so a branch that registers objects also walks them. */
     private readonly graph: GraphService,
     /* E3's durable half, asked one question by this module: what is still
-       waiting on a deal. Registering an applier is somebody else's job — a
-       branch may read the inbox without having anything to apply. */
+       waiting on a deal. Applying `contract-sign` is `OpportunitySign`'s job. */
     private readonly approvals: ApprovalService,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
@@ -252,9 +247,13 @@ export class OpportunityService {
       this.graph.storyFor(who, code),
     ])
 
+    const sign = approvals.find((a) => a.kind === 'contract-sign')
     return OpportunityProfileResponse.parse({
       ...toContract(found),
       position: positionOf(found.row, stageRows, approvals),
+      pendingSign: sign
+        ? { approvalId: sign.id, raisedBy: sign.raisedBy, raisedAt: sign.raisedAt.toISOString() }
+        : null,
       chain: story.chain.map(toChainLink),
     })
   }
@@ -293,6 +292,7 @@ export class OpportunityService {
       this.repo.actorNames(handle, [...body.saleOwners, ...body.bdOwners]),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
+    if (lead.exited) throw conflict('Lead đã rời phễu — mở lại lead trước')
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
        `fromCreate` call, which was enough while one place needed it; the column
@@ -301,12 +301,12 @@ export class OpportunityService {
        column". */
     const now = new Date()
     const write = fromCreate(body, now, lead.workstreamCode)
-    await this.gate.assertEntry(write.values.stage ?? null)
     const code = await this.repo.nextCode()
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
     const row = await this.repo.run(async (tx) => {
+      await this.assertLeadsLive(tx, [body.leadCode])
       const ref = refOf(code, write, { label: write.values.name, ownerName })
       await this.mirror.put(tx, ref)
       /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
@@ -458,21 +458,42 @@ export class OpportunityService {
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
+    if (found.signed && body.state !== 'close-won') {
+      throw conflict(`Cơ hội ${code} đã ký — sửa được thông tin nhưng không đổi được trạng thái.`, {
+        state: ['Đơn đã ký'],
+      })
+    }
+    if (!found.signed && body.state === 'close-won') {
+      throw conflict('Chốt thắng bằng nút Ký hợp đồng', {
+        state: ['Chốt thắng bằng nút Ký hợp đồng'],
+      })
+    }
+    // A reopened deal on an exited lead would be an open deal the exit door refused to leave behind.
+    if (found.row.state === 'close-lost' && body.state !== 'close-lost') {
+      const lead = await this.repo.leadCompany(this.repo.readonlyHandle, found.row.leadCode)
+      if (lead?.exited) throw conflict('Lead đã rời phễu — mở lại lead trước')
+    }
 
-    const names = await this.repo.actorNames(this.repo.readonlyHandle, [
-      ...body.saleOwners,
-      ...body.bdOwners,
+    const [names, signedContract, pendingSign] = await Promise.all([
+      this.repo.actorNames(this.repo.readonlyHandle, [...body.saleOwners, ...body.bdOwners]),
+      found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : null,
+      this.pendingSign(code),
     ])
+    if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
     const now = new Date()
-    const write = fromUpdate(body, found.row, now)
+    const write = fromUpdate(body, found.row, now, found.signed)
     await this.gate.assertMove(code, found.row.stage, write.values.stage ?? null)
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
     const becameLost = body.state === 'close-lost' && found.row.state !== 'close-lost'
-    const stateChanged = body.state !== found.row.state
+    const stateChanged = write.values.state !== found.row.state
 
     const row = await this.repo.run(async (tx) => {
+      await this.assertLockedAsRead(tx, code, found.signed, pendingSign)
+      if (found.row.state === 'close-lost' && body.state !== 'close-lost') {
+        await this.assertLeadsLive(tx, [found.row.leadCode])
+      }
       /* Dòng gương cập nhật theo — `put` là upsert. Không cập nhật thì
          ContextRail vẫn in tên đơn cũ và cột cũ sau khi người dùng đã sửa, và
          không có gì đỏ để chỉ ra điều đó. */
@@ -481,6 +502,7 @@ export class OpportunityService {
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
+      if (signedContract) await this.syncContract(tx, found, body, signedContract, names)
 
       /* Chỉ ghi vết khi TRẠNG THÁI đổi. Sửa tên đơn, thêm một tệp, đổi ngày
          đóng — không cái nào là một mẩu lịch sử bán hàng, và ghi hết thì thẻ
@@ -499,7 +521,7 @@ export class OpportunityService {
             ...byOf(who),
             note: moved
               ? NOTE.moved(found.row.stage, written.stage)
-              : NOTE.restated(found.row.state, body.state),
+              : NOTE.restated(found.row.state, write.values.state ?? found.row.state),
           },
         ])
 
@@ -603,11 +625,13 @@ export class OpportunityService {
     if (found.row.stage === body.stage) {
       return OpportunityUpdateResponse.parse(toContract(found))
     }
+    if (await this.pendingSign(code)) throw frozenForSign()
     await this.gate.assertMove(code, found.row.stage, body.stage)
 
     const now = new Date()
 
     const row = await this.repo.run(async (tx) => {
+      await this.assertLockedAsRead(tx, code, false, false)
       const written = await this.repo.updateOpportunity(tx, code, {
         stage: body.stage,
         /* The column clock is reset — this IS a column move, exactly what
@@ -684,182 +708,6 @@ export class OpportunityService {
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
     return this.touch.timeline(code)
-  }
-
-  /** `POST /sales/opportunities/:code/contract` — ký.
-   *
-   *  ------------------------------------------------------------------
-   *  HAI CÂU TỪ CHỐI LÀ 409, KHÔNG PHẢI 400
-   *  ------------------------------------------------------------------
-   *  "Đơn này đã ký" và "đơn này đã thua" không nói về thân request — thân đó
-   *  hoàn toàn hợp lệ, và gửi lại y nguyên sau khi mở lại đơn thì nó chạy. Cái
-   *  sai là TRẠNG THÁI của tài nguyên, và đó đúng là định nghĩa của 409. Trả
-   *  400 sẽ bắt màn tô đỏ một ô, mà không ô nào sai.
-   *
-   *  Câu "đã ký" chở luôn mã hợp đồng đã có. Người bấm nút hai lần cần biết
-   *  cái đã tồn tại là cái nào, không phải chỉ biết mình bấm thừa.
-   *
-   *  ------------------------------------------------------------------
-   *  KHÔNG CÓ CỬA HUỶ KÝ, VÀ ĐÓ LÀ CHỦ Ý
-   *  ------------------------------------------------------------------
-   *  Ký là thứ đi ra khỏi phòng kinh doanh — hợp đồng đã sang tay kế toán và
-   *  sang tay khách. Một `DELETE` ở đây là một nút xoá doanh số, và nó phải là
-   *  một đề nghị có người duyệt (E3), không phải một lượt gọi của người vừa lỡ
-   *  tay. Cho tới lúc có E3, gỡ một chữ ký là việc của người có quyền vào
-   *  database, và điều đó đúng.
-   *
-   *  ------------------------------------------------------------------
-   *  BA LƯỢT GHI, MỘT COMMIT
-   *  ------------------------------------------------------------------
-   *  Dòng hợp đồng, cột của đơn (`stage`/`stage_since`/`closed_at`), và hai
-   *  dòng gương E1. Nửa vời thì sổ tự mâu thuẫn theo cách khó gỡ nhất: một đơn
-   *  `signed` mà vẫn đứng trong cột "Chờ ký", hoặc một hợp đồng trỏ vào một đơn
-   *  bảng vẫn coi là đang chạy. */
-  async sign(who: Actor, code: ObjectCode, body: ContractSign): Promise<ContractSignResponse> {
-    const found = await this.repo.byCode(who, code)
-    if (!found || !found.inScope) throw notFound('cơ hội', code)
-
-    if (found.signed) {
-      const existing = await this.contracts.byOpportunity(code, found.row.leadCode)
-      throw conflict(
-        existing
-          ? `Cơ hội ${code} đã ký — hợp đồng ${existing.row.code}.`
-          : `Cơ hội ${code} đã ký.`,
-      )
-    }
-    if (found.row.state === 'close-lost') {
-      throw conflict(`Cơ hội ${code} đã thua — mở lại đơn trước khi ký.`)
-    }
-    await this.gate.assertSign(code, found.row.stage)
-
-    const saleOwner = found.owners.find((o) => o.role === 'SALE') ?? null
-    const contractCode = await this.contracts.nextCode()
-    const values = fromSign(body, contractCode, found.row, saleOwner?.id ?? null, new Date())
-    const signedAt = values.signedAt
-
-    /* Tên người ăn hoa hồng. Đọc chứ không suy: `ownerId` có thể đến từ thân
-       request và trỏ vào một người không nằm trong danh sách đứng đơn.
-       `?? null` gộp hai cách vắng mặt của cột — `undefined` (mapper bỏ trường)
-       và `null` (giá trị NULL) — thành một, vì ở đây chúng nói cùng một câu. */
-    const ownerId = values.ownerId ?? null
-    const names = await this.repo.actorNames(
-      this.repo.readonlyHandle,
-      ownerId === null ? [] : [ownerId],
-    )
-    const ownerName = ownerId === null ? null : (names.get(ownerId) ?? null)
-
-    const done = await this.repo.run(async (tx) => {
-      const row = await this.repo.updateOpportunity(tx, code, closeForSign(signedAt))
-
-      /* MIRROR ROW FIRST, then the contract row — and the order is load-bearing
-         from the turn that gives `sales.contract.code` a foreign key into
-         `platform.object`. Postgres checks a foreign key per statement, not at
-         commit, so a contract inserted before its mirror row fails on the spot
-         even though both land in one transaction.
-         `values.amount` is the same number `fromSign` already resolved (the
-         body's, or the deal's when the body withheld one), so nothing here
-         needs to wait for the inserted row to read it back. */
-      await this.mirror.put(tx, {
-        code: contractCode,
-        kind: 'HĐ',
-        branch: 'Sales',
-        label: `${found.account} · ${row.name}`,
-        ...(ownerName ? { owner: ownerName } : {}),
-        ...(values.amount === null ? {} : { amount: values.amount }),
-      })
-
-      const contractRow = await this.contracts.insert(tx, values)
-      if (row.workstreamCode) await this.workstreams.syncClosed(tx, [row.workstreamCode])
-
-      /* THE LAST HISTORY ROW — `to: null`, the deal leaving the board because
-         it was signed. Without it the funnel has an entry step and no exit
-         step: every won deal vanishes from the final column with no row saying
-         where it went, and "how many deals turned into contracts" — the one
-         question the funnel exists to answer — cannot be computed. A deal
-         standing in no column (`stage` NULL, e.g. one opened straight into the
-         lost state and signed anyway) is skipped: a `null -> null` row is
-         refused by `opportunity_stage_event_moved`, exactly as it should be. */
-      if (found.row.stage !== null) {
-        await this.repo.insertStageEvent(
-          tx,
-          stageEventOf({
-            code,
-            from: found.row.stage,
-            to: null,
-            stageSince: found.row.stageSince,
-            at: signedAt,
-            by: { id: who.id, name: who.name },
-            note: NOTE.signed(contractCode),
-          }),
-        )
-      }
-
-      /* Đơn ra khỏi bảng năm cột, nên dòng gương của nó thôi chở `state` — và
-         `toRef` đọc `row.stage`, thứ vừa thành NULL. */
-      await this.mirror.put(tx, toRef(row, saleOwner?.name ?? null))
-
-      /* Signing is what BEGAT the contract, so the arrow runs deal → contract
-         and the rail continues from the deal instead of restarting. The
-         contract's own mirror row is written at the top of this transaction —
-         it is an E1 object in its own right, and without it the rail walks
-         lead → deal and stops one link short of what the reader opened the
-         screen to find. */
-      await this.mirror.link(tx, { from: code, to: contractCode, kind: 'spawned' })
-
-      /* `at: signedAt` chứ không để `now()` mặc định: một hợp đồng vào sổ muộn
-         ba ngày phải nằm đúng chỗ của nó trên dòng thời gian, không nhảy lên
-         đầu. Đây là chỗ duy nhất trong nhánh đặt `at` bằng tay, và lý do là
-         cột `signed_at` mang một mốc thật do người nhập biết. */
-      await this.touch.record(tx, [
-        {
-          subjectCode: code,
-          subjectKind: 'opportunity',
-          kind: 'signed',
-          ...byOf(who),
-          note: NOTE.signed(contractCode),
-          at: signedAt,
-        },
-        {
-          subjectCode: row.leadCode,
-          subjectKind: 'lead',
-          kind: 'signed',
-          ...byOf(who),
-          note: NOTE.signed(contractCode),
-          at: signedAt,
-        },
-      ])
-
-      return { row, contractRow }
-    })
-
-    return ContractSignResponse.parse({
-      opportunity: toContract({
-        row: done.row,
-        account: found.account,
-        owners: found.owners,
-        /* Biết chứ không hỏi lại: dòng hợp đồng vừa được ghi trong chính
-           transaction vừa commit. `toContract` đọc cờ này để lắp trạng thái thứ
-           năm — cùng phép mà `create` dùng để nói `signed: false`. */
-        signed: true,
-        /* Đi CÙNG `signed`, không để một mình. Ba đường đọc (`book`, `byCode`,
-           `forMail`) lấy cả hai từ một `LEFT JOIN`, nên chúng không lệch được;
-           câu trả lời của cửa ký thì lắp tay, và bỏ trường này ở đây là dựng ra
-           một đơn `close-won` KHÔNG có mã hợp đồng — hình mà không lượt đọc nào
-           sinh ra nổi. Màn nào tin vào bất biến "đã ký thì có mã" sẽ vỡ đúng
-           một lần, ngay sau cú bấm ký, rồi tự lành ở lượt đọc kế tiếp: đúng
-           loại lỗi không ai tái hiện được. */
-        contractCode: done.contractRow.code,
-        daysInStage: null,
-        /* Signing does not touch the product join table, so the list read
-           alongside the row is still correct — carry it back rather than ask a
-           second time. */
-        products: found.products,
-      }),
-      /* The deal's account IS the customer company — the contract row has no
-         column for it, and re-reading the lead here would be a second question
-         with the same answer. */
-      contract: toContractRow(done.contractRow, ownerName, found.account),
-    })
   }
 
   // ── nạp từ tệp ───────────────────────────────────────────────────────────
@@ -957,6 +805,7 @@ export class OpportunityService {
     })
 
     const batch = await this.repo.run(async (tx) => {
+      await this.assertLeadsLive(tx, [...new Set(ready.map((p) => p.row.leadCode))])
       /* Cắt khúc, và vẫn nguyên tử — mọi câu dưới đây chạy trong đúng
          transaction này. Cắt khúc là chuyện trần 65.535 tham số ràng buộc của
          Postgres, không phải chuyện bền vững.
@@ -1040,10 +889,9 @@ export class OpportunityService {
     handle: Db,
     body: OpportunityImportBody,
   ): Promise<ImportCheck & { workstreamByLead: ReadonlyMap<string, string | null> }> {
-    const [staff, leads, entryMissing] = await Promise.all([
+    const [staff, leads] = await Promise.all([
       this.repo.staff(handle),
       this.repo.leadsByCompany(handle),
-      this.gate.entryRule(),
     ])
 
     const candidates = [
@@ -1063,10 +911,71 @@ export class OpportunityService {
         leadByCompany: leads.byCompany,
         ambiguousCompany: leads.ambiguous,
         liveDealByLead,
-        entryMissing,
+        exitedCompany: leads.exited,
       }),
       workstreamByLead: leads.workstreamByLead,
     }
+  }
+
+  private async pendingSign(code: string): Promise<boolean> {
+    return (await this.approvals.pendingOn(code)).some((a) => a.kind === 'contract-sign')
+  }
+
+  /** Inside the write's transaction: lock the deal, and refuse if signing or a
+   *  sign request landed between the pre-transaction checks and the lock. */
+  private async assertLockedAsRead(
+    tx: Db,
+    code: string,
+    signed: boolean,
+    pendingSign: boolean,
+  ): Promise<void> {
+    const locked = await this.repo.lockDeal(tx, code)
+    if (!locked) throw notFound('cơ hội', code)
+    if (locked.signed !== signed || locked.pendingSign !== pendingSign) {
+      throw conflict(`Cơ hội ${code} vừa được ký hoặc gửi duyệt ký — tải lại rồi thử lại.`)
+    }
+  }
+
+  /** Share-lock the leads a deal write lands on; an exit racing it waits. */
+  private async assertLeadsLive(tx: Db, leadCodes: readonly string[]): Promise<void> {
+    const exited = await this.repo.exitedLocked(tx, leadCodes)
+    if (exited.length > 0) throw conflict('Lead đã rời phễu — mở lại lead trước')
+  }
+
+  /** A signed deal's edit carries its money and commission holder onto the
+   *  contract, in the edit's transaction (ADR 0057 §1). The holder moves only
+   *  when they are no longer a SALE owner — one hand-picked in the sign drawer
+   *  survives a reorder. The contract's mirror row carries both, so it moves. */
+  private async syncContract(
+    tx: Db,
+    found: OpportunityRead,
+    body: OpportunityUpdate,
+    signed: ContractRead,
+    names: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    const moneyChanged = body.amount !== found.row.amount || body.currency !== found.row.currency
+    const main = body.saleOwners[0] ?? null
+    const ownerChanged =
+      signed.row.ownerId === null || !body.saleOwners.includes(signed.row.ownerId)
+    if (!moneyChanged && !ownerChanged) return
+
+    const row = await this.contracts.updateTerms(tx, signed.row.code, {
+      ...(moneyChanged ? { amount: body.amount, currency: body.currency } : {}),
+      ...(ownerChanged ? { ownerId: main } : {}),
+    })
+    const ownerName = ownerChanged
+      ? main === null
+        ? null
+        : (names.get(main) ?? null)
+      : signed.ownerName
+    await this.mirror.put(tx, {
+      code: row.code,
+      kind: 'HĐ',
+      branch: 'Sales',
+      label: `${found.account} · ${body.name}`,
+      ...(ownerName ? { owner: ownerName } : {}),
+      ...(row.amount === null ? {} : { amount: row.amount }),
+    })
   }
 
   /** Xếp hàng mail báo TRONG CÙNG đơn vị công việc với chính cơ hội.
@@ -1155,3 +1064,19 @@ function positionOf(
 
   return position === null ? null : PipelinePositionView.parse(position)
 }
+
+/** While a sign request waits, the terms the approver read are frozen: state,
+ *  money and SALE owners. Name, dates, files and the rest may still be saved. */
+function touchesSignTerms(found: OpportunityRead, body: OpportunityUpdate): boolean {
+  const sale = found.owners.filter((o) => o.role === 'SALE').map((o) => o.id)
+  return (
+    body.state !== (found.signed ? 'close-won' : found.row.state) ||
+    body.amount !== found.row.amount ||
+    body.currency !== found.row.currency ||
+    sale.length !== body.saleOwners.length ||
+    sale.some((id) => !body.saleOwners.includes(id))
+  )
+}
+
+const frozenForSign = () =>
+  conflict('Cơ hội đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa')

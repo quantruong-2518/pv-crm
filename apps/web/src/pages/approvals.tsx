@@ -16,7 +16,7 @@ import {
   Textarea,
   type ChainStep,
 } from '@pv/ui'
-import type { ApprovalRequestView } from '@pv/contracts'
+import type { ApprovalKind, ApprovalRequestView } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
@@ -108,6 +108,13 @@ export default function ApprovalInboxScreen() {
   )
 }
 
+/** The kind as a reader says it. Keyed by the contract's enum, so a new kind
+ *  fails to compile here instead of printing its wire key. */
+const KIND_LABEL: Record<ApprovalKind, string> = {
+  'config-change': 'Đổi cấu hình',
+  'contract-sign': 'Ký hợp đồng',
+}
+
 /** The chain as M-03 draws it: `ok` behind, `current` on the person waited on,
  *  `next` ahead. The label carries the role beside the name because a reader
  *  three links down needs to know why that person is in the chain at all. */
@@ -142,7 +149,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
     <GlassCard variant="b" className="flex flex-col gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <Kicker tone="muted">{request.kind}</Kicker>
+          <Kicker tone="muted">{KIND_LABEL[request.kind]}</Kicker>
           <p className="font-display text-[15px] font-semibold">{request.consequence}</p>
           <p className="text-muted-foreground text-[11.5px]">
             {request.raisedBy} đề nghị · {dmhm(request.raisedAt)}

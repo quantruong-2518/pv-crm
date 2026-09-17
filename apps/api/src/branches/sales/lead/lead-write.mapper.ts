@@ -1,5 +1,5 @@
 import type { ObjectRef } from '@pv/engines'
-import type { LeadCreate, LeadIntakeBody, LeadPatch } from '@pv/contracts'
+import type { ExitReason, LeadCreate, LeadIntakeBody, LeadPatch } from '@pv/contracts'
 import type { lead } from './lead.schema'
 
 /** Contract shapes → column values, for the THREE write doors of the book.
@@ -74,6 +74,10 @@ export const LEAD_NOTE = {
    *  boxes rather than naming them — twenty-one field names would make a
    *  timeline row nobody reads to the end. */
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
+  /** The reason travels as its key: labels belong to the screen (`ExitReason`). */
+  exited: (reason: ExitReason, note: string | undefined) =>
+    note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,
+  reopened: 'Mở lại lead — quay về phễu',
 } as const
 
 export function refOf(code: string, write: LeadWrite): ObjectRef {

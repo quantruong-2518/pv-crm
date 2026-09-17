@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
-import type { TouchRow, TouchTimelineResponse } from '@pv/contracts'
+import type { TouchKind, TouchRow, TouchTimelineResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { ROLE_LABEL } from '@/data/users'
 import { dm, dmy } from '@/lib/date'
@@ -48,10 +48,9 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
 /** `TouchRow[]` → `LeadEvent[]`.
  *
  *  Đổi tên trường, không phải một bảng tra — và đó là chủ ý từ đầu chứ không
- *  phải may: `TouchKind` ở `@pv/contracts` được đặt TRÙNG đúng mười giá trị của
- *  `LeadEventKind` trong fixture (`created` · `contacted` · `field-filled` · `handed-over` ·
- *  `tier-raised` · `first-meeting` · `entered-pipeline` · `stage-changed` · `signed` ·
- *  `exited`). Một bảng tra ở đây sẽ là chỗ thứ hai phải nhớ mỗi lần enum
+ *  phải may: `TouchKind` ở `@pv/contracts` chứa đủ mười giá trị của
+ *  `LeadEventKind` trong fixture, cộng `reopened` mà fixture không có — nên
+ *  `TouchEvent` lấy `kind` từ contract chứ không từ fixture. Một bảng tra ở đây sẽ là chỗ thứ hai phải nhớ mỗi lần enum
  *  mọc thêm một giá trị, và là chỗ lặng lẽ nuốt giá trị mới nào chưa kịp khai.
  *
  *  Bốn trường được lấy, phần còn lại của `TouchRow` cố ý bỏ:
@@ -91,7 +90,7 @@ export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
  *  `@pv/contracts`: `seq` exists to make React notice, and nothing sends it. */
 export type TouchFocus = { id: string; seq: number }
 
-export type TouchEvent = LeadEvent & { id: string }
+export type TouchEvent = Omit<LeadEvent, 'kind'> & { id: string; kind: TouchKind }
 
 /** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
  *

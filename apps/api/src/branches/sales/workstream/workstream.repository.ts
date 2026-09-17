@@ -99,9 +99,9 @@ export class WorkstreamRepository {
    *  `workstream_closed_after_opened`; `CHURNED` is never derived. Only rows
    *  whose pair actually changes are written.
    *
-   *  Called by every deal door that can move the answer: create, import, a
-   *  state change, sign. No door writes `lead.exit_reason` or deletes a
-   *  contract today — the day one does, it calls this too. */
+   *  Called by every door that can move the answer: deal create, import, a
+   *  state change, sign; lead exit and reopen. No door deletes a contract
+   *  today — the day one does, it calls this too. */
   async syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
     if (workstreamCodes.length === 0) return
     await tx.execute(SYNC_CLOSED(workstreamCodes))

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { StageKey } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -7,7 +7,6 @@ import {
   opportunityCriterionTick,
   type OpportunityCriterionTickRowDb,
 } from './opportunity-criterion-tick.schema'
-import { opportunityStageEvent } from './opportunity.schema'
 
 /** SQL of the stage gate: which criteria are active, which a deal has ticked.
  *  Decides nothing — `OpportunityGate` owns the rule. Reads `stage_criterion`
@@ -16,26 +15,15 @@ import { opportunityStageEvent } from './opportunity.schema'
 export class OpportunityGateRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  async activeCriteria(stages: readonly StageKey[]): Promise<StageCriterionRowDb[]> {
+  async activeCriteria(
+    stages: readonly StageKey[],
+    handle: Db = this.db,
+  ): Promise<StageCriterionRowDb[]> {
     if (stages.length === 0) return []
-    return this.db
+    return handle
       .select()
       .from(stageCriterion)
       .where(and(eq(stageCriterion.active, true), inArray(stageCriterion.stage, [...stages])))
-  }
-
-  /** The stage a deal stood on when it last left the ladder (lost or signed):
-   *  `from_stage` of its latest history row into no column. */
-  async leftFrom(code: string): Promise<StageKey | null> {
-    const [row] = await this.db
-      .select({ stage: opportunityStageEvent.fromStage })
-      .from(opportunityStageEvent)
-      .where(
-        and(eq(opportunityStageEvent.opportunityCode, code), isNull(opportunityStageEvent.toStage)),
-      )
-      .orderBy(desc(opportunityStageEvent.at))
-      .limit(1)
-    return row?.stage ?? null
   }
 
   /** `activeOnly: false` is for unticking: a criterion switched off after it
@@ -77,8 +65,8 @@ export class OpportunityGateRepository {
     return { criteria, ticks }
   }
 
-  async tickedIds(code: string): Promise<Set<string>> {
-    const rows = await this.db
+  async tickedIds(code: string, handle: Db = this.db): Promise<Set<string>> {
+    const rows = await handle
       .select({ id: opportunityCriterionTick.criterionId })
       .from(opportunityCriterionTick)
       .where(eq(opportunityCriterionTick.opportunityCode, code))

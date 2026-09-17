@@ -4,6 +4,7 @@ import type { RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
+import { leadHasOpenDeal, leadSigned } from '../open-deal'
 import { lead, type LeadRowDb } from './lead.schema'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
@@ -240,6 +241,33 @@ export class LeadWriteRepository {
    *  every call site remembers to count — while the lock fails loudly. */
   async setOwner(tx: Db, code: string, ownerId: string | null): Promise<void> {
     await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
+  }
+
+  /** What leaving or re-entering the funnel must know, read under a row lock
+   *  for the reason `lockForOwnerChange` gives: two exit presses would
+   *  otherwise both see a live lead and both write a timeline row. */
+  async lockForExit(
+    tx: Db,
+    code: string,
+  ): Promise<{
+    exitReason: LeadRowDb['exitReason']
+    workstreamCode: string | null
+    openDeal: boolean
+    signed: boolean
+  } | null> {
+    const [row] = await tx
+      .select({
+        exitReason: lead.exitReason,
+        workstreamCode: lead.workstreamCode,
+        openDeal: sql<boolean>`${leadHasOpenDeal(lead.code)}`,
+        signed: sql<boolean>`${leadSigned(lead.code)}`,
+      })
+      .from(lead)
+      .where(eq(lead.code, code))
+      .limit(1)
+      .for('update')
+
+    return row ?? null
   }
 
   /** Write the columns one patch named. `false` = no row carries that code.

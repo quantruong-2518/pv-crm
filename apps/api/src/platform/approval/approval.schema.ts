@@ -6,6 +6,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
@@ -94,11 +95,17 @@ export const approval = platform.table(
       .where(sql`"state" = 'waiting'`),
     /** "Waiting on ME" is `chain @> '[{"person":…,"state":"waiting"}]'`. */
     index('approval_chain_idx').using('gin', t.chain),
+    /** "Is a sign request already waiting on this deal?" — at most one may be.
+     *  A second would let two approvers sign the same contract twice; decided
+     *  rows drop out, so a refused request can be raised again. */
+    uniqueIndex('approval_contract_sign_waiting_uq')
+      .on(sql`("payload"->>'opportunityCode')`)
+      .where(sql`"kind" = 'contract-sign' AND "state" = 'waiting'`),
 
     check('approval_state_known', sql`"state" IN ('waiting', 'approved', 'rejected')`),
-    /** One kind today. Copied rather than generated, the same call
-     *  `touch_kind_known` makes: widening it must be a migration somebody reads. */
-    check('approval_kind_known', sql`"kind" IN ('config-change')`),
+    /** Copied rather than generated, the same call `touch_kind_known` makes:
+     *  widening it must be a migration somebody reads. */
+    check('approval_kind_known', sql`"kind" IN ('config-change', 'contract-sign')`),
     /** Rule 9: AI never acts, and never asks without saying on what grounds. */
     check('approval_ai_has_basis', sql`"from_ai" = false OR "basis" IS NOT NULL`),
     /** Decided exactly when it is no longer waiting. Without this the two halves

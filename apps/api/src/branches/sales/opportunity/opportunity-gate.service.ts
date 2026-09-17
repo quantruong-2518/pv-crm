@@ -8,6 +8,7 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { conflict, notFound } from '@api/platform/http/problem'
+import type { Db } from '@api/platform/db/db.module'
 import type { StageCriterionRowDb } from '../config/stage-criterion.schema'
 import { OpportunityGateRepository } from './opportunity-gate.repository'
 import { gateStatesOf } from './opportunity.mapper'
@@ -16,14 +17,14 @@ import { OpportunityRepository } from './opportunity.repository'
 const LADDER = StageKey.options
 
 /** The stage gate. The rule itself lives on `stage-gate.ts` in the contracts;
- *  this file is the one place that enforces it, so `moveStage`, `update`,
- *  `sign`, `create` and the import check ask here instead of each carrying a
- *  copy.
+ *  this file is the one place that enforces it, so `moveStage`, `update` and
+ *  signing ask here instead of each carrying a copy.
  *
- *  No door skips it by entering sideways: a reopened deal is gated from the
- *  stage it left the ladder on, and a new deal entering at stage T owes every
- *  criterion before T — with no ticks yet, so any active one refuses. Leaving
- *  the ladder as lost is never gated. */
+ *  It blocks exactly two things (ADR 0057 §6): a FORWARD move, and signing.
+ *  Both look back across every earlier stage, not only the one being left, so
+ *  a deal created straight into a late stage owes the earlier criteria before
+ *  its next step forward. Creating, importing, losing and reopening a lost
+ *  deal are never gated. */
 @Injectable()
 export class OpportunityGate {
   constructor(
@@ -31,38 +32,19 @@ export class OpportunityGate {
     private readonly deals: OpportunityRepository,
   ) {}
 
-  /** Refuses a move forward past unticked criteria; backward and same are free.
-   *  `from` null is a deal off the ladder coming back: it resumes from the stage
-   *  it left on (first stage if it never stood on one), so ticks still count. */
+  /** Refuses a forward move while any criterion of a stage before `to` is
+   *  unticked. `from` null is a deal coming back off the ladder — free. */
   async assertMove(code: string, from: StageKey | null, to: StageKey | null): Promise<void> {
-    if (to === null) return
-    const start = from ?? (await this.gate.leftFrom(code))
-    const [i, j] = [start === null ? 0 : LADDER.indexOf(start), LADDER.indexOf(to)]
-    if (j > i) await this.assertCleared(code, LADDER.slice(i, j))
+    if (from === null || to === null) return
+    const j = LADDER.indexOf(to)
+    if (j > LADDER.indexOf(from)) await this.assertCleared(code, LADDER.slice(0, j))
   }
 
-  /** `create` refuses a new deal entering past active criteria. */
-  async assertEntry(to: StageKey | null): Promise<void> {
-    const missing = (await this.entryRule())(to)
-    if (missing.length === 0) return
-    throw conflict(
-      'Cơ hội mới chưa qua được các stage trước — tạo ở stage sớm hơn rồi tick điều kiện',
-      { criteria: [...missing] },
-    )
-  }
-
-  /** The entry rule over every active criterion read ONCE, so an import checks
-   *  a whole file on one read and with the same predicate `create` uses. */
-  async entryRule(): Promise<EntryRule> {
-    const active = await this.gate.activeCriteria(LADDER)
-    return (to) =>
-      to === null ? [] : labelsOf(missingOf(active, new Set(), LADDER.slice(0, LADDER.indexOf(to))))
-  }
-
-  /** Signing leaves the ladder past its last stage, so every stage from the
-   *  current one to the end must be cleared. */
-  async assertSign(code: string, from: StageKey | null): Promise<void> {
-    if (from !== null) await this.assertCleared(code, LADDER.slice(LADDER.indexOf(from)))
+  /** Signing leaves the ladder past its last stage, so the whole ladder must be
+   *  cleared whatever stage the deal stands on. `handle` lets the E3 applier
+   *  ask inside the transaction that settles the request. */
+  async assertSign(code: string, handle?: Db): Promise<void> {
+    await this.assertCleared(code, LADDER, handle)
   }
 
   /** `PATCH /sales/opportunities/:code/criteria/:criterionId`. */
@@ -122,10 +104,14 @@ export class OpportunityGate {
     })
   }
 
-  private async assertCleared(code: string, stages: readonly StageKey[]): Promise<void> {
+  private async assertCleared(
+    code: string,
+    stages: readonly StageKey[],
+    handle?: Db,
+  ): Promise<void> {
     const [required, ticked] = await Promise.all([
-      this.gate.activeCriteria(stages),
-      this.gate.tickedIds(code),
+      this.gate.activeCriteria(stages, handle),
+      this.gate.tickedIds(code, handle),
     ])
     const missing = labelsOf(missingOf(required, ticked, stages))
     if (missing.length === 0) return
@@ -133,9 +119,6 @@ export class OpportunityGate {
     throw conflict('Chưa đủ điều kiện qua stage', { criteria: missing })
   }
 }
-
-/** Missing labels for a deal entering at `to`; empty means it may enter. */
-export type EntryRule = (to: StageKey | null) => readonly string[]
 
 /** Unticked criteria of `stages`, in ladder order then checklist order. */
 function missingOf(

@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common'
+import { Module, type OnModuleInit } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
+import { ApprovalAppliers } from '@api/platform/approval/approval.service'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
@@ -10,6 +11,7 @@ import { OpportunityController } from './opportunity.controller'
 import { OpportunityGateRepository } from './opportunity-gate.repository'
 import { OpportunityGate } from './opportunity-gate.service'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
+import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityRepository } from './opportunity.repository'
 import { OpportunityService } from './opportunity.service'
 
@@ -58,10 +60,9 @@ import { OpportunityService } from './opportunity.service'
  *  repository: module khác được hỏi "cho tôi sổ cơ hội của người này", không
  *  được với thẳng vào bảng. */
 @Module({
-  /* `ApprovalModule` for one question only: what is still waiting on a deal,
-     which `pipelinePosition` needs to answer "who is it waiting on". This
-     module registers no applier — reading the inbox and having something to
-     apply are separate things, and only the config module has the second. */
+  /* `ApprovalModule` for two things: what is still waiting on a deal (which
+     `pipelinePosition` needs), and the `contract-sign` applier registered below
+     — signing goes through E3 since ADR 0057 §7. */
   imports: [ApprovalModule, EnginesModule, GraphModule, MailModule, TouchModule, WorkstreamModule],
   controllers: [OpportunityController],
   providers: [
@@ -69,6 +70,7 @@ import { OpportunityService } from './opportunity.service'
     OpportunityRepository,
     OpportunityGate,
     OpportunityGateRepository,
+    OpportunitySign,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không
        dưới token: đăng bạ là một mảng do
@@ -79,4 +81,13 @@ import { OpportunityService } from './opportunity.service'
   ],
   exports: [OpportunityService, OpportunityMailComposer],
 })
-export class OpportunityModule {}
+export class OpportunityModule implements OnModuleInit {
+  constructor(
+    private readonly appliers: ApprovalAppliers,
+    private readonly sign: OpportunitySign,
+  ) {}
+
+  onModuleInit(): void {
+    this.appliers.register('contract-sign', this.sign)
+  }
+}

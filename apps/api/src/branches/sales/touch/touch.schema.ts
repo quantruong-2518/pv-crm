@@ -140,13 +140,13 @@ export const touch = sales.table(
     /** "Việc tôi đã làm", chưa có màn nào hỏi. Rẻ, và cột đã có sẵn. */
     index('touch_actor_idx').on(t.actorId),
     check('touch_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
-    /** Đúng mười giá trị của `TouchKind`. Chép ra đây chứ không sinh: một CHECK
+    /** Đúng mười một giá trị của `TouchKind`. Chép ra đây chứ không sinh: một CHECK
      *  là một chuỗi trong migration, và ngày enum ở hợp đồng dài thêm thì đây
      *  phải là một migration có người đọc, không phải một dòng lặng lẽ đổi. */
     check(
       'touch_kind_known',
       sql`"kind" IN ('created', 'contacted', 'field-filled', 'handed-over', 'tier-raised', 'first-meeting',
-                     'entered-pipeline', 'stage-changed', 'signed', 'exited')`,
+                     'entered-pipeline', 'stage-changed', 'signed', 'exited', 'reopened')`,
     ),
     /** Ba giá trị của `LeadTier`. Chép ra đây cùng lý do với `touch_kind_known`
      *  ở trên: enum dài thêm thì phải là một migration có người đọc. */

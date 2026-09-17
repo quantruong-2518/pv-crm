@@ -1,6 +1,8 @@
 # 0034 · `limitDays` moves into `config_entry` for all eight pipeline phases, not only the three opportunity `STAGE` columns; the schema `CHECK` is loosened accordingly
 
-Status: accepted
+Status: partially superseded by 0057 (ADR 0015 rule 2 suspended outside the
+five opportunity stages; this extension is paused there until the owner lifts
+the suspension)
 Source: docs/tam-nhin-pipeline.md — "§6 · Hình cuối — `pipeline_position`"
 (the `limitDays`/`config_entry` paragraph)
 

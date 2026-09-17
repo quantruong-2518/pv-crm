@@ -109,9 +109,10 @@ export class ContractRepository {
 
   /** Giữ trước mã kế tiếp. Gọi TRƯỚC khi mở transaction — cùng lý do đầy đủ ở
    *  `OpportunityRepository.nextCode()`: hỏi dãy trong lúc transaction của mình
-   *  đang giữ một kết nối là một request chiếm hai kết nối. */
-  async nextCode(): Promise<string> {
-    const r = (await this.db.execute(NEXT_CODE)) as { rows: { code: string }[] }
+   *  đang giữ một kết nối là một request chiếm hai kết nối. The E3 applier
+   *  passes its `tx`: it is already inside the transaction settling the request. */
+  async nextCode(handle: Db = this.db): Promise<string> {
+    const r = (await handle.execute(NEXT_CODE)) as { rows: { code: string }[] }
     const code = r.rows[0]?.code
     if (!code) {
       throw new Error('sales.contract_code_seq trả về rỗng — migration đã chạy chưa?')
@@ -122,6 +123,22 @@ export class ContractRepository {
   async insert(tx: Db, row: typeof contract.$inferInsert): Promise<ContractRowDb> {
     const [written] = await tx.insert(contract).values(row).returning()
     if (!written) throw new Error(`sales.contract: INSERT ${row.code} không trả về dòng nào`)
+    return written
+  }
+
+  /** Carry a signed deal's edited money or commission holder onto its contract
+   *  (ADR 0057 §1). Returns the row as stored. */
+  async updateTerms(
+    tx: Db,
+    code: string,
+    patch: Partial<Pick<ContractRowDb, 'amount' | 'currency' | 'ownerId'>>,
+  ): Promise<ContractRowDb> {
+    const [written] = await tx
+      .update(contract)
+      .set(patch)
+      .where(eq(contract.code, code))
+      .returning()
+    if (!written) throw new Error(`sales.contract: UPDATE ${code} không trả về dòng nào`)
     return written
   }
 

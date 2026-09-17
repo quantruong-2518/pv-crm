@@ -164,15 +164,21 @@ export function fromCreate(
  *   · `closed_at`   — đóng khi sang `close-lost`, MỞ LẠI khi rời khỏi nó. Vế
  *     thứ hai là thứ dễ quên: một đơn thua rồi được mở lại mà vẫn giữ ngày đóng
  *     là một đơn `stage` nói đang chạy còn `closed_at` nói đã xong, và
- *     `opportunity_stage_clock` bắt được vế đó chứ không bắt được vế này. */
+ *     `opportunity_stage_clock` bắt được vế đó chứ không bắt được vế này.
+ *
+ *  `signed`: editing a signed deal never reopens it (ADR 0057 §1). Its form
+ *  says 'close-won', which is the contract row rather than a column value, so
+ *  the stored `state` and `closed_at` stay; the service refuses anything else. */
 export function fromUpdate(
   body: OpportunityUpdate,
   current: Pick<OpportunityRowDb, 'state' | 'stage' | 'stageSince' | 'closedAt'>,
   now: Date,
+  signed: boolean,
 ): OpportunityEdit {
-  const lost = body.state === 'close-lost'
-  const stateChanged = body.state !== current.state
-  const stage = stateChanged ? stageOfState(body.state) : current.stage
+  const state = signed || body.state === 'close-won' ? current.state : body.state
+  const lost = state === 'close-lost'
+  const stateChanged = state !== current.state
+  const stage = stateChanged ? stageOfState(state) : current.stage
   const moved = stage !== current.stage
 
   return {
@@ -180,7 +186,7 @@ export function fromUpdate(
       /* `leadCode` KHÔNG có ở đây và cũng không có trong `OpportunityUpdate`:
          một cơ hội không đổi được sang khách khác. Bỏ khỏi `values` nghĩa là
          câu UPDATE không nhắc tới cột đó, chứ không phải ghi đè bằng undefined. */
-      state: body.state,
+      state,
       stage,
       stageSince: stage === null ? null : moved ? now : (current.stageSince ?? now),
       name: body.name,
@@ -195,7 +201,7 @@ export function fromUpdate(
       probability: body.probability ?? null,
       description: body.description ?? null,
       attachments: [...body.attachments],
-      closedAt: lost ? (current.closedAt ?? now) : null,
+      closedAt: lost ? (current.closedAt ?? now) : signed ? current.closedAt : null,
       lostReason: body.lossReason ?? null,
       lostNote: body.lossNote ?? null,
     },

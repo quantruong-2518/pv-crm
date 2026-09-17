@@ -14,8 +14,7 @@ import {
   Timeline,
   type StatusDotState,
 } from '@pv/ui'
-import type { LeadEventKind } from '@pv/engines/fixtures/das-vina'
-import type { LeadMailTimelineRow } from '@pv/contracts'
+import type { LeadMailTimelineRow, TouchKind } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dm, dmy } from '@/lib/date'
 import { DELIVERED_MAIL, FAILED_MAIL } from '@/data/mail-runs'
@@ -25,6 +24,7 @@ import { NO_TOUCHES } from '@/data/lead-profile'
 import type { TouchEvent } from '@/data/touches'
 import { useCan } from '@/app/auth'
 import { objectThreadsQuery } from '@/data/comms'
+import { exitReasonRows, salesCatalogQuery } from '@/data/sales-config'
 import { CommsPanel } from './comms-card'
 
 /** One history card for a lead — mail, activity and conversation behind tabs.
@@ -147,7 +147,7 @@ function useCommsTabHead(code: string) {
 // The lead's own moments — `sales.touch`
 // ---------------------------------------------------------------------------
 
-const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'> = {
+const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'> = {
   created: 'next',
   contacted: 'next',
   'field-filled': 'current',
@@ -158,6 +158,7 @@ const EVENT_DOT: Record<LeadEventKind, 'ok' | 'current' | 'next' | 'bad' | 'warn
   'stage-changed': 'current',
   signed: 'ok',
   exited: 'bad',
+  reopened: 'current',
 }
 
 /** What has happened to this record, one row per `sales.touch`.
@@ -176,6 +177,9 @@ export function ActivityTimeline({
   history: readonly TouchEvent[]
   focus?: TouchFocus | null
 }) {
+  const { data: catalog } = useQuery(salesCatalogQuery)
+  const reasons = new Map(exitReasonRows(catalog).map((r) => [r.key, r.label]))
+
   useEffect(() => {
     if (!focus) return
     const node = document.getElementById(`touch-${focus.id}`)
@@ -201,11 +205,19 @@ export function ActivityTimeline({
         highlight: focus?.id === row.id,
         state: EVENT_DOT[row.kind],
         marker: dm(row.at),
-        title: row.note,
+        title: row.kind === 'exited' ? exitNote(row.note, reasons) : row.note,
         meta: <MetaPill avatar={row.by}>{row.by}</MetaPill>,
       }))}
     />
   )
+}
+
+/** An `exited` note arrives as "<prefix> · <reason-key>[ · note]" — swap the key
+ *  for its configured label. Anything else is printed as the server wrote it. */
+function exitNote(note: string, labels: Map<string, string>): string {
+  const [head, key, ...rest] = note.split(' · ')
+  const label = key === undefined ? undefined : labels.get(key)
+  return label === undefined ? note : [head, label, ...rest].join(' · ')
 }
 
 /** The same timeline as its own card, for a screen that shows only this one.

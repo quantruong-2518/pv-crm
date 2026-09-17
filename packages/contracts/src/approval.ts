@@ -22,13 +22,14 @@ import { Moment, ObjectCode, textInput } from './primitives'
  *  engine for the sake of a three-member union. */
 export const ApprovalState = z.enum(['waiting', 'approved', 'rejected'])
 
-/** What is being asked for. One kind today — a change to the sales department's
- *  configuration — first in the order settled by
- *  `docs/decisions/0031-waiting-on-comes-from-e3-approval-links.md`.
+/** What is being asked for. `config-change` was first, settled by
+ *  `docs/decisions/0031-waiting-on-comes-from-e3-approval-links.md`;
+ *  `contract-sign` is a deal's signature, which the sales floor may no longer
+ *  finalise on its own (`ContractSignProposal` in `./sales/contract`).
  *  The list grows as other pipelines plug into E3, and each new kind is
  *  a migration somebody reads: the value is copied into a CHECK constraint, so
  *  it is never quietly widened here. */
-export const ApprovalKind = z.enum(['config-change'])
+export const ApprovalKind = z.enum(['config-change', 'contract-sign'])
 
 /** One link in the approval chain — mirrors `ChainLink` in the engine.
  *

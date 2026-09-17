@@ -4,17 +4,18 @@ import { StageKey } from './enums'
 
 /** Stage gate — exit criteria per opportunity stage, ticked per deal.
  *
- *  Moving forward from S to T needs every ACTIVE criterion of S and of every
- *  stage strictly between S and T ticked; signing counts as moving past the
- *  last stage. Create and import ENTER at T as if moving from the first stage,
- *  and a new deal has no ticks. Reopening a lost deal moves from the stage it
- *  was lost at. Backward moves and marking a deal lost are never gated.
+ *  Moving forward to T needs every ACTIVE criterion of every stage before T
+ *  ticked; signing needs every stage's. Create, import and reopening a lost deal
+ *  are never gated, nor are backward moves or marking a deal lost — so criteria
+ *  skipped on entry block the next forward move and signing (ADR 0057).
  *
  *  A criterion added later applies to open deals at once. Ticks survive a
  *  backward move. Only an open deal (not signed, not lost) can be ticked.
  *
  *  A refusal is a 409 `Problem` whose `errors.criteria` lists the missing
- *  labels (an import rejects the row instead). */
+ *  labels. Create and import never refuse on criteria — they only ENTER — so
+ *  no import row error carries a criteria reason; `OpportunityImportError` is
+ *  unchanged by this gate. */
 
 /** One bound for the label on both ends, so the input cannot drift from the gate. */
 export const STAGE_CRITERION_LABEL_MAX = 80

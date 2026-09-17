@@ -4,9 +4,18 @@ import { paged } from '../pagination'
 import { CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
-/** Signing a deal — the door that makes `close-won` true.
+/** Signing a deal — the door that RAISES the request to make `close-won` true.
  *
  *      POST /sales/opportunities/:code/contract     permission `opportunity.close`
+ *      -> 202 `ConfigProposalReceipt` (`./config`) — one inbox, one receipt shape,
+ *         every propose door on this branch answers the same way.
+ *
+ *  This door no longer writes `sales.contract` itself — signing leaves the
+ *  sales floor, and E3's chain gets to look before the number is final.
+ *  `ContractSignProposal` below is the payload the request carries; approving
+ *  it is what actually inserts the row and produces `ContractSignResponse`,
+ *  which is why that shape now travels through the approval decision rather
+ *  than through this door's own response.
  *
  *  ------------------------------------------------------------------
  *  WHY THIS IS A CONTRACT DOOR AND NOT A STATE ON THE DEAL
@@ -104,6 +113,18 @@ export const ContractSign = z
     error: 'Số tiền và đồng tiền phải đi cùng nhau',
     path: ['currency'],
   })
+
+/** The `contract-sign` payload raised into the One inbox (`ApprovalKind` in
+ *  `../approval`).
+ *
+ *  `opportunityCode` — not `code` or `leadCode` — is load-bearing: a partial
+ *  unique index on `platform.approval` keys on `payload->>'opportunityCode'`
+ *  to refuse a second waiting sign request on the same deal, so the field
+ *  cannot be renamed without a migration. */
+export const ContractSignProposal = z.object({
+  opportunityCode: ObjectCode,
+  sign: ContractSign,
+})
 
 // ---------------------------------------------------------------------------
 // INSTALLMENTS — a signed contract's payment schedule, mirroring
@@ -250,7 +271,7 @@ export const ContractBookResponse = paged(ContractRow)
 /** `GET /sales/contracts/:code` — one contract, fully nested. */
 export const ContractDetailResponse = ContractDetailRow
 
-/** What the sign door answers with.
+/** What signing produces, once E3 approves the `contract-sign` request.
  *
  *  BOTH halves, because the caller needs both and neither implies the other.
  *  The opportunity comes back because signing changes how it reads — `state`
@@ -258,13 +279,19 @@ export const ContractDetailResponse = ContractDetailRow
  *  and every one of those is computed, so a screen that patched its own cached
  *  row would get a different answer than the next `GET`. The contract comes
  *  back because the number the server just minted exists nowhere else yet, and
- *  making the caller re-read to learn it is the same round trip twice. */
+ *  making the caller re-read to learn it is the same round trip twice.
+ *
+ *  No door answers this SYNCHRONOUSLY any more — `POST :code/contract` returns
+ *  a receipt, not this. It is what the approval decision produces server-side
+ *  once `contract-sign` is approved; kept here rather than deleted because the
+ *  shape of "a sign happened" has not changed, only when it fires. */
 export const ContractSignResponse = z.object({
   opportunity: OpportunityRow,
   contract: ContractRow,
 })
 
 export type ContractSign = z.infer<typeof ContractSign>
+export type ContractSignProposal = z.infer<typeof ContractSignProposal>
 export type ContractSignResponse = z.infer<typeof ContractSignResponse>
 
 export type ConditionSide = z.infer<typeof ConditionSide>

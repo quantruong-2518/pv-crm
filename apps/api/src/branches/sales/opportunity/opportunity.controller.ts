@@ -16,6 +16,7 @@ import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { OpportunityGate } from './opportunity-gate.service'
+import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
 
 /** `/sales/opportunities` — sổ cơ hội, module 3 của nhánh Sales.
@@ -49,6 +50,7 @@ export class OpportunityController {
   constructor(
     private readonly ops: OpportunityService,
     private readonly gate: OpportunityGate,
+    private readonly signs: OpportunitySign,
   ) {}
 
   @Get()
@@ -189,15 +191,19 @@ export class OpportunityController {
    *  cấp một: một hợp đồng KHÔNG tồn tại độc lập — khoá ngoại ghép của nó neo
    *  vào đúng một cặp `(cơ hội, lead)`, và đường dẫn nói lại đúng điều đó. Ngày
    *  có màn đọc sổ hợp đồng thì `GET /sales/contracts` là một tài nguyên khác,
-   *  với gốc của nó. */
+   *  với gốc của nó.
+   *
+   *  202 since ADR 0057 §7: the door raises a `contract-sign` request in the One
+   *  inbox and answers with its receipt; the contract lands on approval. */
   @Post(':code/contract')
+  @HttpCode(202)
   @Need({ branch: 'Sales', permission: 'opportunity.close', scoped: true })
   sign(
     @CurrentActor() who: Actor,
     @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(ContractSign)) body: ContractSign,
   ) {
-    return this.ops.sign(who, code, body)
+    return this.signs.propose(who, code, body)
   }
 
   /** Lưu phiếu ở hồ sơ cơ hội.
