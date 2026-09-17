@@ -106,12 +106,6 @@ export const passwordEyeText = {
   hide: tr('Ẩn mật khẩu', 'Hide password', '비밀번호 숨기기'),
 }
 
-export const themeSwitchText = {
-  label: tr('Giao diện sáng Đá mịn', 'Light "Stone" appearance', '라이트 "Stone" 테마'),
-  toAurora: tr('Chuyển sang Aurora tối', 'Switch to dark Aurora', '어두운 Aurora로 전환'),
-  toStone: tr('Chuyển sang Đá mịn sáng', 'Switch to light Stone', '밝은 Stone으로 전환'),
-}
-
 export const langSwitchText = {
   label: tr('Đổi ngôn ngữ', 'Change language', '언어 변경'),
 }

@@ -1,10 +1,9 @@
-import { toggleTheme, useThemeMode, wordmarkBlue } from '@pv/ui'
+import { useThemeMode, wordmarkBlue } from '@pv/ui'
 import { forwardRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Eye, EyeOff } from '@pv/ui'
 import { Link } from 'react-router-dom'
 import {
   AuroraField,
-  Button,
   cn,
   GlassCard,
   Icon,
@@ -13,8 +12,8 @@ import {
   wordmarkLight,
   type InputProps,
 } from '@pv/ui'
-import { cycleLang, useLang, LANG_LABEL } from '@/app/i18n'
-import { langSwitchText, passwordEyeText, t, themeSwitchText } from '@/data/auth-i18n'
+import { setLang, useLang, LANG_LABEL, type Lang } from '@/app/i18n'
+import { langSwitchText, passwordEyeText, t } from '@/data/auth-i18n'
 
 /** Khung chung của ba màn auth — đăng nhập · quên mật khẩu · đặt lại.
  *
@@ -59,10 +58,7 @@ export function AuthCard({
                 alt="PV One"
                 className="h-6 object-contain"
               />
-              <div className="flex items-center gap-2">
-                <ModeDot />
-                <LangSwitch />
-              </div>
+              <LangSwitch />
             </div>
             <div className="flex flex-col gap-2">
               <h1 className="font-display m-0 text-[20px] font-semibold">{title}</h1>
@@ -94,45 +90,44 @@ export function AuthCard({
   )
 }
 
-/** A dot in place of the theme-name label — only COLOR speaks the state now,
- *  no text. `title`/`aria-label` still carry the full sentence for keyboard
- *  and screen-reader users; only the VISIBLE word is gone. */
-function ModeDot() {
-  const lang = useLang()
-  const stone = useThemeMode() === 'stone'
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={toggleTheme}
-      aria-label={t(lang, themeSwitchText.label)}
-      aria-pressed={stone}
-      title={stone ? t(lang, themeSwitchText.toAurora) : t(lang, themeSwitchText.toStone)}
-      className="focus-visible:outline-ring w-8 px-0 focus-visible:outline-2 focus-visible:outline-offset-2"
-    >
-      <span aria-hidden="true" className="bg-accent shadow-control size-3 shrink-0 rounded-full" />
-    </Button>
-  )
-}
+/** VN · KO · EN, in that fixed order — a pick, not a dial. `setLang` in
+ *  `app/i18n.ts` sets the code directly, so landing on the one you want never
+ *  costs more than one click. Every word on the four auth screens reads off
+ *  this value. */
+const LANGS: Lang[] = ['vi', 'ko', 'en']
 
-/** The two/three-letter code of the ACTIVE language — click cycles the fixed
- *  ring EN → VN → KO (`cycleLang` in `app/i18n.ts`). A real switch, not a
- *  decorative label: every word on the four auth screens reads off this value. */
 function LangSwitch() {
   const lang = useLang()
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={cycleLang}
+    <div
+      role="group"
       aria-label={t(lang, langSwitchText.label)}
-      title={t(lang, langSwitchText.label)}
-      className="w-10 px-0 font-mono"
+      className="flex items-center gap-2 font-mono text-[11.5px] font-semibold"
     >
-      {LANG_LABEL[lang]}
-    </Button>
+      {LANGS.map((code, i) => {
+        const active = code === lang
+        return (
+          <span key={code} className="flex items-center gap-2">
+            {i > 0 && (
+              <span aria-hidden="true" className="text-muted-foreground/35">
+                ·
+              </span>
+            )}
+            <button
+              type="button"
+              aria-pressed={active}
+              onClick={() => setLang(code)}
+              className={cn(
+                'motion-std focus-visible:outline-ring rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2',
+                active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {LANG_LABEL[code]}
+            </button>
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -148,30 +143,30 @@ export function AuthField({
   label,
   htmlFor,
   error,
-  action,
+  below,
   children,
 }: {
   label: string
   htmlFor: string
   error?: string
-  /** Góc phải dòng nhãn — chỗ của "Quên mật khẩu?", không phải chỗ của nút. */
-  action?: ReactNode
+  /** Content after the error, not before — a link like "Forgot password?"
+   *  sitting between the input and its own error would read as if the error
+   *  belonged to whatever comes after the link instead. */
+  below?: ReactNode
   children: ReactNode
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <label htmlFor={htmlFor} className="text-[11.5px] font-semibold">
-          {label}
-        </label>
-        {action}
-      </div>
+      <label htmlFor={htmlFor} className="text-[11.5px] font-semibold">
+        {label}
+      </label>
       {children}
       {error && (
         <p role="alert" className="text-destructive-foreground m-0 text-[11px] leading-[1.5]">
           {error}
         </p>
       )}
+      {below}
     </div>
   )
 }

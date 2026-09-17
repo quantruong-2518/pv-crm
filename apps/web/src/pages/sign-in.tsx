@@ -156,11 +156,11 @@ export function SignInPage() {
           label={t(lang, signInText.password)}
           htmlFor="password"
           error={error?.field === 'password' ? authErrorText(lang, error) : undefined}
-          action={
+          below={
             <Link
               to="/forgot-password"
               state={{ email }}
-              className="motion-std text-muted-foreground hover:text-foreground text-[11.5px] font-semibold"
+              className="motion-std text-muted-foreground hover:text-foreground self-end text-[11.5px] font-semibold"
             >
               {t(lang, signInText.forgotPassword)}
             </Link>
@@ -186,7 +186,7 @@ export function SignInPage() {
           checked={remember}
           onChange={setRemember}
           label={t(lang, signInText.remember)}
-          className="-mx-3"
+          className="-mx-3 bg-transparent"
         />
 
         {/* Lỗi KHÔNG thuộc về ô nào: hết lượt thử, hoặc không nối được máy chủ.

@@ -14,9 +14,6 @@ export type Lang = 'vi' | 'en' | 'ko'
 const LANG_KEY = 'pv-lang'
 const CHANGE_EVENT = 'pv-lang-change'
 
-/** Fixed ring, in the agreed order: EN → VN → KO → EN. */
-const NEXT: Record<Lang, Lang> = { en: 'vi', vi: 'ko', ko: 'en' }
-
 export const LANG_LABEL: Record<Lang, string> = { en: 'EN', vi: 'VN', ko: 'KO' }
 
 function isLang(value: string | null): value is Lang {
@@ -56,8 +53,8 @@ export function useLang(): Lang {
   )
 }
 
-export function cycleLang() {
-  current = NEXT[current]
+export function setLang(next: Lang) {
+  current = next
   try {
     localStorage.setItem(LANG_KEY, current)
   } catch {
