@@ -37,12 +37,7 @@ import {
   queryPageFromPageIndex,
 } from '@/app/url'
 import { dm, dmy } from '@/lib/date'
-import {
-  leadBookQuery,
-  leadFacetQuery,
-  leadSourceKindFacetQuery,
-  NO_OWNER_TITLE,
-} from '@/data/leads'
+import { leadBookQuery, leadFacetQuery, leadSourceKindFacetQuery } from '@/data/leads'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -51,9 +46,10 @@ import { LEAD_SPEC, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { FilterMenu, PicCell, TableFooter } from '@/components/table-bits'
+import { FilterMenu, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
+  LeadPicCell,
   LeadSelectionBar,
   PeriodLabel,
   PinCell,
@@ -485,6 +481,7 @@ export function LeadsPage() {
   const table = (list: LeadRow[], sortable: boolean) => (
     <DataTable
       flush
+      rowHeight="h-14"
       className="min-w-[880px]"
       /* The arrow lights only while the book sorts by this column; the default
          order (`createdAt desc`) is no column on the table. */
@@ -539,7 +536,7 @@ export function LeadsPage() {
           <CompanyCell key="c" lead={l} />,
           <SourceCell key="s" lead={l} />,
           <StatusCell key="w" lead={l} />,
-          <PicCell key="o" avatar email={l.ownerEmail} name={l.ownerName} empty={NO_OWNER_TITLE} />,
+          <LeadPicCell key="o" lead={l} />,
           <PinCell
             key="p"
             on={pins.includes(l.code)}
@@ -554,8 +551,8 @@ export function LeadsPage() {
   const body = pinnedView ? (
     facetsPending ? (
       <div className="flex flex-col gap-3 p-5">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-14 w-full" />
+        <Skeleton className="h-14 w-full" />
       </div>
     ) : facetsError ? (
       <EmptyState
@@ -578,9 +575,9 @@ export function LeadsPage() {
     )
   ) : isPending ? (
     <div className="flex flex-col gap-3 p-5">
-      <Skeleton className="h-12 w-full" />
-      <Skeleton className="h-12 w-full" />
-      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-14 w-full" />
+      <Skeleton className="h-14 w-full" />
+      <Skeleton className="h-14 w-full" />
     </div>
   ) : bookError ? (
     /* A failed read says so and offers a retry, not "clear filters": the

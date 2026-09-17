@@ -1,4 +1,4 @@
-import type { PointerEvent, ReactNode } from 'react'
+import type { PointerEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
@@ -12,16 +12,21 @@ import {
   StatStrip,
   StatusDot,
   Target,
+  UserRoundPlus,
   Users,
   cn,
   percent,
   type StatStripItem,
   type StatusDotState,
 } from '@pv/ui'
-import { sourceKindLabel, type LeadRow, type LeadSourceKind } from '@pv/contracts'
-import { dm } from '@/lib/date'
+import { sourceKindLabel, type LeadRow } from '@pv/contracts'
+import { isApiError, userMessage } from '@/app/api'
+import { useSession } from '@/app/auth'
+import { toast } from '@/app/toast'
 import { STAGE_LABEL } from '@/components/ops-fields'
-import { EXIT_REASON_LABEL, leadScorecardQuery } from '@/data/leads'
+import { PicCell } from '@/components/table-bits'
+import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
+import { useSetLeadOwner } from '@/data/lead-owner'
 import { useStageLimits } from '@/data/sales-config'
 
 /** Module 2 · the cells and blocks of the lead book, split from `leads.tsx` so
@@ -84,8 +89,8 @@ export function ScoreStrip() {
   return <StatStrip label="Thẻ điểm sổ lead" items={items} />
 }
 
-/** Company over code · contact · title. The contact is required by the
- *  contract; the title is often not dug out yet, and then it is simply absent. */
+/** Company over contact · title. The row already opens the lead's own code on
+ *  click, so the cell prints the two things a person actually scans for. */
 export function CompanyCell({ lead }: { lead: LeadRow }) {
   const meta = [lead.contactName, lead.contactTitle].filter(Boolean).join(' · ')
   return (
@@ -93,10 +98,11 @@ export function CompanyCell({ lead }: { lead: LeadRow }) {
       <span className="truncate text-[13px] font-semibold" title={lead.company}>
         {lead.company}
       </span>
-      <span className="text-muted-foreground truncate text-[11.5px]" title={meta}>
-        <span className="font-mono">{lead.code}</span>
-        {meta && ` · ${meta}`}
-      </span>
+      {meta && (
+        <span className="text-muted-foreground truncate text-[11.5px]" title={meta}>
+          {meta}
+        </span>
+      )}
     </span>
   )
 }
@@ -109,32 +115,16 @@ function shortSourceName(name: string): string {
   return cut === -1 ? name : name.slice(0, cut).trimEnd()
 }
 
-/** Bought data (APOLLO) needs checking before anyone calls, and a landing-page
- *  lead came on its own — the two kinds worth catching while scanning. Not
- *  azure: law 3 keeps it for AI, the primary button and the active state. */
-const SOURCE_KIND_TEXT = {
-  MANUAL: 'text-muted-foreground',
-  IMPORT: 'text-muted-foreground',
-  APOLLO: 'text-warning',
-  LANDING_PAGE: 'text-success',
-} as const satisfies Record<LeadSourceKind, string>
-
-/** Campaign first — it tells two neighbouring rows apart, the kind does not —
- *  then the kind and the day the lead entered the book. */
+/** Campaign name when there is one — it tells two neighbouring rows apart,
+ *  the kind does not — else the kind itself. One line: the day the lead
+ *  entered the book lives in the sort order, not in every row's text. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
   const kind = sourceKindLabel(lead.source)
   const name = lead.source.campaignName
-  const kindText = lead.source.kind ? SOURCE_KIND_TEXT[lead.source.kind] : 'text-muted-foreground'
 
   return (
-    <span className="flex min-w-0 flex-col gap-1">
-      <span className="truncate text-[12.5px] font-semibold" title={name ?? kind}>
-        {name ? shortSourceName(name) : kind}
-      </span>
-      <span className="text-muted-foreground truncate text-[11.5px]">
-        {name && <span className={kindText}>{kind} · </span>}
-        vào sổ {dm(lead.createdAt)}
-      </span>
+    <span className="truncate text-[12.5px] font-semibold" title={name ?? kind}>
+      {name ? shortSourceName(name) : kind}
     </span>
   )
 }
@@ -147,62 +137,76 @@ function daysLate(lead: LeadRow, limits: Map<string, number | null>): number {
   return limit === undefined || limit === null ? 0 : Math.max(0, lead.daysHere - limit)
 }
 
-function StatusLine({
-  dot,
-  label,
-  children,
-}: {
-  dot: StatusDotState
-  label: string
-  children?: ReactNode
-}) {
+function StatusLine({ dot, label }: { dot: StatusDotState; label: string }) {
   return (
-    <span className="flex min-w-0 flex-col gap-1">
-      <span className="flex min-w-0 items-center gap-2 text-[12.5px]">
-        <StatusDot state={dot} />
-        <span className="truncate">{label}</span>
-      </span>
-      {children && (
-        <span className="text-muted-foreground truncate pl-4 text-[11.5px]">{children}</span>
-      )}
+    <span className="flex min-w-0 items-center gap-2 text-[12.5px]">
+      <StatusDot state={dot} />
+      <span className="truncate">{label}</span>
     </span>
   )
 }
 
 /** Dot colour answers "does this row need me": green signed, red dropped,
  *  amber untouched or past its column limit, azure moving within its limit.
- *  A signed row carries no contract code — lead → contract is one-to-many now. */
+ *  A signed row carries no contract code — lead → contract is one-to-many now.
+ *  One line: days-here and the late count move to the lead's own page. */
 export function StatusCell({ lead }: { lead: LeadRow }) {
   const limits = useStageLimits()
 
   if (lead.signed) return <StatusLine dot="ok" label="Đã ký" />
-
-  if (lead.exitReason) {
-    return (
-      <StatusLine dot="bad" label="Đã rơi">
-        {EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason}
-      </StatusLine>
-    )
-  }
-
-  const stay = `tồn ${lead.daysHere} ngày`
-  if (!lead.stage) {
-    return (
-      <StatusLine dot="warning" label="Chưa xử lý">
-        {stay}
-      </StatusLine>
-    )
-  }
+  if (lead.exitReason) return <StatusLine dot="bad" label="Đã rơi" />
+  if (!lead.stage) return <StatusLine dot="warning" label="Chưa xử lý" />
 
   const late = daysLate(lead, limits)
   return (
     <StatusLine
       dot={late > 0 ? 'warning' : 'current'}
       label={STAGE_LABEL.get(lead.stage) ?? lead.stage}
+    />
+  )
+}
+
+/** Lead PIC cell for the book row. A held lead prints the usual `PicCell`; an
+ *  unheld one gets a one-click claim instead of the bare "—" — the book is
+ *  where an unassigned lead is spotted, so taking it should not first require
+ *  opening the lead's own page. Same write as `AssignMenu`'s self-claim button
+ *  (`PATCH /sales/leads/:code/owner`, `useSetLeadOwner`); no separate claim
+ *  endpoint. Stops the click from reaching the row, or claiming would also
+ *  open the lead. */
+export function LeadPicCell({ lead }: { lead: LeadRow }) {
+  const me = useSession((s) => s.actor)
+  const setOwner = useSetLeadOwner()
+
+  if (lead.ownerEmail || lead.ownerName || !me) {
+    return <PicCell avatar email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={setOwner.isPending}
+      onClick={(event) => {
+        event.stopPropagation()
+        setOwner.mutate(
+          { code: lead.code, ownerId: me.id },
+          {
+            onSuccess: () =>
+              toast('Bạn đã nhận lead này', {
+                tone: 'success',
+                detail: `${lead.code} · ${lead.company}`,
+              }),
+            onError: (error) =>
+              toast(isApiError(error) ? userMessage(error) : 'Không giao được, vui lòng thử lại.', {
+                tone: 'danger',
+              }),
+          },
+        )
+      }}
     >
-      {late > 0 && <span className="text-warning">Trễ {late} ngày · </span>}
-      {stay}
-    </StatusLine>
+      <Icon icon={UserRoundPlus} size={16} />
+      {setOwner.isPending ? 'Đang giao…' : 'Giao PIC luôn'}
+    </Button>
   )
 }
 

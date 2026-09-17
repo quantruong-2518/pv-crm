@@ -70,6 +70,7 @@ export function DataTable({
   sort,
   onSort,
   flush = false,
+  rowHeight = 'h-12',
 }: {
   columns: TableColumn[]
   rows: TableRowModel[]
@@ -81,6 +82,10 @@ export function DataTable({
   /** Edge to edge inside its card: the header becomes a tinted band and every
    *  row carries its own side padding, so hover reaches both edges of the card. */
   flush?: boolean
+  /** Tailwind row height; default `h-12` fits single-line books. A book with
+   *  wider cells can pass `h-14`/`h-16` without reshaping every other table
+   *  that uses this component. */
+  rowHeight?: string
 }) {
   const template = columns.map((c) => c.width).join(' ')
 
@@ -183,7 +188,8 @@ export function DataTable({
                  phải chạm sát ô kế bên và hai giá trị dính liền nhau thành một
                  chuỗi vô nghĩa ("6/6Mới · 4 ngày"). Header dùng cùng khe để hai
                  lưới không lệch. */
-              'motion-std group grid h-12 items-center gap-3 text-[12.5px]',
+              'motion-std group grid items-center gap-3 text-[12.5px]',
+              rowHeight,
               flush && 'px-5',
               /* An OPEN row always carries a bottom rule, last row included:
                  that rule separates the row from its own detail panel, not
