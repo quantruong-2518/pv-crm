@@ -31,6 +31,8 @@ export type MailRunCreate = {
   state: MailRunState
   scheduledAt?: Date | null
   audienceCount: number
+  /** Absent on purpose means "whatever the column decides" — see `create()`. */
+  trackEngagement?: boolean
   createdBy: string
 }
 
@@ -185,6 +187,10 @@ export class MailRunRepository {
         state: input.state,
         scheduledAt: input.scheduledAt ?? null,
         audienceCount: input.audienceCount,
+        /* Omitted, never `?? true`: `mail_run.track_engagement` already carries
+           the default, and a second copy of it here is two places to remember
+           on the day it changes. An absent flag leaves the column to decide. */
+        ...(input.trackEngagement === undefined ? {} : { trackEngagement: input.trackEngagement }),
         createdBy: input.createdBy,
       })
       .returning({ id: mailRun.id })
@@ -279,6 +285,7 @@ export class MailRunRepository {
           startedAt: iso(row.startedAt),
           finishedAt: iso(row.finishedAt),
           audienceCount: row.audienceCount,
+          trackEngagement: row.trackEngagement,
           sent: d?.sent ?? 0,
           delivered: d?.delivered ?? 0,
           opened: e?.opened ?? 0,

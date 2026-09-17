@@ -1,70 +1,67 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarClock, Check, Eye, Info, Plus, Send, TriangleAlert, X } from '@pv/ui'
-import {
-  Badge,
-  Button,
-  GlassCard,
-  Icon,
-  Input,
-  Modal,
-  SearchField,
-  SegmentedControl,
-  Select,
-  Textarea,
-  cn,
-} from '@pv/ui'
-import {
-  MAS_MAX_RECIPIENTS,
-  MAS_RECIPIENT_BLOCK_LABEL,
-  type LeadRow,
-  type MailTemplateRow,
-  type MasPreflightResponse,
-  type MasSendRequest,
-} from '@pv/contracts'
+import { CalendarClock, Check, Send } from '@pv/ui'
+import { Badge, Button, Icon, Modal, Stepper } from '@pv/ui'
+import type { MasSendRequest } from '@pv/contracts'
+import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
-import { localSlot } from '@/lib/date'
 import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
 import { MailSyntaxGuide } from '@/components/mail-syntax-guide'
-import { masPreflight, masTemplatesQuery, useMailPreview, useMasSend } from '@/data/mas'
-import { mailHints } from '@/data/mail-hints'
+import {
+  ComposeStep,
+  DeliveryStep,
+  PreviewPlaceholder,
+  RecipientsStep,
+} from '@/components/mas-mail-steps'
 import { campaignFacetQuery } from '@/data/campaign-book'
+import { isHttpUrl } from '@/data/http-url'
+import { mailHints } from '@/data/mail-hints'
+import {
+  NO_CAMPAIGN,
+  NO_TEMPLATE,
+  templateCodeFrom,
+  useMasMailDraft,
+  type MasRecipient,
+} from '@/data/mas-mail-draft'
+import {
+  masPreflight,
+  masTemplatesQuery,
+  useMailPreview,
+  useMailTemplateCreate,
+  useMasSend,
+} from '@/data/mas'
 
-/** Một phiếu gửi mail đầy đủ, dùng chung cho hai ngữ cảnh:
+/** One mail, composed in three answers: who · what · how.
  *
- *  · Hồ sơ lead: đúng một người đã được chọn, hành động gọi là "Gửi mail".
- *  · Sổ lead: chọn nhiều người ngay trong phiếu, hành động gọi là "Gửi MAS mail".
+ *  It replaces a single long form in which the send button sat below a
+ *  recipient grid, a compose box, a schedule and a checklist — everything at
+ *  once, and nothing finished. Each step now asks one question, the preview
+ *  stands beside all three so the letter is never out of sight, and the footer
+ *  says in a sentence what is still missing.
  *
- * Thứ tự trên phiếu là thứ tự một người mới cần nghĩ: viết gì → gửi lúc nào →
- * gửi cho ai. Preview mở ngay dưới nội dung; preflight là cổng bắt buộc trước
- * khi nút gửi xuất hiện. */
-
-const NO_TEMPLATE = 'none'
-
-/** Giá trị "lô này không thuộc chiến dịch nào" — Quick MAS thuần.
- *
- *  Chuỗi riêng chứ không phải `''`: một `<Select>` có `value=""` không phân
- *  biệt được "người dùng chọn không gắn" với "chưa nạp xong danh sách", và
- *  `ObjectCode` ở hợp đồng từ chối chuỗi rỗng nên nhầm lẫn đó thành một lượt 400
- *  sau khi thư đã soạn xong. Cùng nước đi `NO_TEMPLATE` ở trên. */
-const NO_CAMPAIGN = 'none'
-const NO_SELECTION: ReadonlySet<string> = new Set()
-const CANDIDATE_LIMIT = 12
-const FORM_ID = 'mas-mail-form'
-
-type MasRecipient = Pick<LeadRow, 'code' | 'company' | 'contactName' | 'contactTitle' | 'email'>
-
+ *  THE PREFLIGHT GATE IS UNCHANGED and must stay where it is: the send button
+ *  does not exist until `POST /sales/mail/preflight` has answered, because
+ *  suppression and duplicate addresses are only known to the server. Picking
+ *  anybody new throws the answer away again. */
 export type MasMailModalProps = {
   open: boolean
   onClose: () => void
   leads: MasRecipient[]
   initialLeadCode?: string
-  /** Danh sách đã bôi chọn ngoài Sổ lead. Modal dùng làm mồi và vẫn cho thêm. */
+  /** Rows highlighted out in the lead book. Seed, not a lock — more can be
+   *  added in step 1. */
   initialLeadCodes?: readonly string[]
   defaultLabel?: string
   onQueued: () => void
 }
+
+const STEPS = [
+  { key: 'to', label: 'Gửi tới' },
+  { key: 'content', label: 'Nội dung' },
+  { key: 'how', label: 'Cách gửi' },
+]
 
 export function MasMailModal({
   open,
@@ -75,200 +72,115 @@ export function MasMailModal({
   defaultLabel,
   onQueued,
 }: MasMailModalProps) {
-  const single = Boolean(initialLeadCode)
-  const { data: catalogue } = useQuery({ ...masTemplatesQuery, enabled: open })
-  /* `enabled: open` như thư viện mẫu: hộp đóng thì không hỏi. Sổ chiến dịch
-     dùng chung đúng query của màn Sổ chiến dịch (`campaignFacetQuery`,
-     `staleTime` một phút), nên mở hộp lần thứ hai trong cùng phút không tốn
-     thêm lượt đi nào. */
-  const { data: campaignBook } = useQuery({ ...campaignFacetQuery, enabled: open })
-  const send = useMasSend()
-
-  const [template, setTemplate] = useState(NO_TEMPLATE)
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
-  const [cta, setCta] = useState<MailTemplateRow['cta']>()
-  const [bookingUrl, setBookingUrl] = useState('')
-  const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION)
-  const [previewCode, setPreviewCode] = useState('')
-  const [previewOpen, setPreviewOpen] = useState(false)
-  /* Has the person CLOSED the preview themselves? Auto-opening is a suggestion,
-     and a suggestion that comes back after being refused is a nag. */
-  const [previewDismissed, setPreviewDismissed] = useState(false)
-  const [sendTiming, setSendTiming] = useState<'now' | 'later'>('now')
-  const [scheduledAt, setScheduledAt] = useState('')
-  const [campaignCode, setCampaignCode] = useState(NO_CAMPAIGN)
-  const [failure, setFailure] = useState('')
-  const [preflight, setPreflight] = useState<MasPreflightResponse>()
+  const draft = useMasMailDraft(open, initialLeadCode, initialLeadCodes)
+  const [step, setStep] = useState(0)
+  const [reached, setReached] = useState(0)
+  const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof masPreflight>>>()
   const [checking, setChecking] = useState(false)
+  const [failure, setFailure] = useState('')
   const [guideOpen, setGuideOpen] = useState(false)
 
+  const { data: catalogue } = useQuery({ ...masTemplatesQuery, enabled: open })
+  const { data: campaignBook } = useQuery({ ...campaignFacetQuery, enabled: open })
+  const send = useMasSend()
+  const saveTemplate = useMailTemplateCreate()
+  const canSaveTemplate = useCan('campaign.edit')
+
   useEffect(() => {
-    /* Closing the panel takes the guide with it — otherwise the guide is left
-       floating over a page whose compose panel has gone. */
     if (!open) {
       setGuideOpen(false)
       return
     }
-    setTemplate(NO_TEMPLATE)
-    setSubject('')
-    setBody('')
-    setCta(undefined)
-    setBookingUrl('')
-    setPreviewDismissed(false)
-    setQuery('')
-    const seeded = initialLeadCode ? [initialLeadCode] : (initialLeadCodes ?? [])
-    setSelected(seeded.length > 0 ? new Set(seeded) : NO_SELECTION)
-    setPreviewCode(seeded[0] ?? '')
-    setPreviewOpen(false)
-    setSendTiming('now')
-    setScheduledAt(localSlot())
-    setCampaignCode(NO_CAMPAIGN)
+    setStep(0)
+    setReached(0)
     setPreflight(undefined)
     setChecking(false)
     setFailure('')
-  }, [open, initialLeadCode, initialLeadCodes])
+  }, [open])
+
+  /* The audience changed, so the server's verdict about it is stale. Clearing
+     it puts the send button back behind the check — the whole point of the
+     gate is that it describes THIS list. */
+  useEffect(() => setPreflight(undefined), [draft.selected])
 
   const templates = useMemo(
     () => (catalogue?.rows ?? []).filter((item) => item.active),
     [catalogue],
   )
-  /* RUNNING only. Hanging a wave off a DRAFT campaign from here is a
-     double-send trap: the mail really flies and `campaign_run` gets its row
-     while `campaign.state` stays DRAFT, so the start button on the campaign
-     profile still passes its `state === 'DRAFT'` guard and blasts the whole
-     audience a second time. `CampaignSweeper` only closes RUNNING campaigns, so
-     that campaign is then stuck DRAFT forever. A draft is started from its own
-     profile and shows up in this list once it runs. Stopped and done campaigns
-     stay out for the older reason: a new wave runs on behind whoever stopped it. */
-  const openCampaigns = useMemo(
-    () => (campaignBook?.rows ?? []).filter((c) => c.state === 'RUNNING'),
+  const campaigns = useMemo(
+    () => (campaignBook?.rows ?? []).filter((item) => item.state === 'RUNNING'),
     [campaignBook],
   )
-  const selectedLeads = useMemo(
-    () => leads.filter((lead) => selected.has(lead.code)),
-    [leads, selected],
+  const chosen = useMemo(
+    () => leads.filter((lead) => draft.selected.has(lead.code)),
+    [leads, draft.selected],
   )
-  const candidates = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase('vi')
-    return leads
-      .filter((lead) =>
-        needle === ''
-          ? true
-          : [lead.code, lead.company, lead.contactName, lead.contactTitle ?? '', lead.email].some(
-              (value) => value.toLocaleLowerCase('vi').includes(needle),
-            ),
-      )
-      .slice(0, CANDIDATE_LIMIT)
-  }, [leads, query])
-  const previewLead =
-    selectedLeads.find((lead) => lead.code === previewCode) ?? selectedLeads[0] ?? null
+  const previewLead = chosen.find((lead) => lead.code === draft.previewCode) ?? chosen[0] ?? null
 
-  const toggleRecipient = (lead: MasRecipient) => {
-    setSelected((current) => {
-      const next = new Set(current)
-      if (next.has(lead.code)) next.delete(lead.code)
-      else next.add(lead.code)
-      return next
-    })
-    if (!selected.has(lead.code) && previewCode === '') setPreviewCode(lead.code)
-    setPreflight(undefined)
-    setFailure('')
-  }
+  const ctaBroken = Boolean(draft.cta && (!draft.cta.label.trim() || !isHttpUrl(draft.cta.url)))
+  const bookingBroken = Boolean(draft.bookingUrl.trim() && !isHttpUrl(draft.bookingUrl.trim()))
+  const scheduleBroken =
+    draft.sendTiming === 'later' &&
+    (!draft.scheduledAt ||
+      Number.isNaN(new Date(draft.scheduledAt).getTime()) ||
+      new Date(draft.scheduledAt) <= new Date())
 
-  const applyTemplate = (key: string) => {
-    setTemplate(key)
-    const found = templates.find((item) => item.code === key)
-    setSubject(found?.subject ?? '')
-    setBody(found?.body ?? '')
-    setCta(found?.cta)
-    setBookingUrl(found?.bookingUrl ?? '')
-    setFailure('')
-  }
+  const stepBlockers: (string | null)[] = [
+    chosen.length > MAS_MAX_RECIPIENTS
+      ? `Một lượt tối đa ${MAS_MAX_RECIPIENTS} lead — đang chọn ${chosen.length}.`
+      : chosen.length === 0
+        ? 'Chưa chọn người nhận.'
+        : null,
+    !draft.subject.trim() && !draft.body.trim()
+      ? 'Còn thiếu tiêu đề, nội dung.'
+      : !draft.subject.trim()
+        ? 'Còn thiếu tiêu đề.'
+        : !draft.body.trim()
+          ? 'Còn thiếu nội dung.'
+          : ctaBroken
+            ? 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
+            : bookingBroken
+              ? 'Link đặt lịch phải bắt đầu bằng http/https.'
+              : draft.saveAsTemplate && canSaveTemplate && !templateCodeFrom(draft.templateName)
+                ? 'Đặt tên cho mẫu sắp lưu.'
+                : null,
+    scheduleBroken ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.' : null,
+  ]
+  /* The send needs EVERY step to be clean, not just the one on screen — a
+     subject deleted on the way back must not leave the button live. */
+  const blocker = stepBlockers.find((item) => item !== null) ?? null
 
-  const scheduleInvalid =
-    sendTiming === 'later' &&
-    (!scheduledAt ||
-      Number.isNaN(new Date(scheduledAt).getTime()) ||
-      new Date(scheduledAt) <= new Date())
-  const ctaInvalid = Boolean(cta && (!cta.label.trim() || !isHttpUrl(cta.url)))
-  /* Trimmed-empty is "no booking button", not a broken one — the field starts
-     empty on every letter and most letters keep it that way. */
-  const bookingInvalid = Boolean(bookingUrl.trim() && !isHttpUrl(bookingUrl.trim()))
-  const overCeiling = selectedLeads.length > MAS_MAX_RECIPIENTS
-
-  /* THE HARD GATE, AND IT IS DELIBERATELY SHORT.
-     Five conditions, and every one of them is a send that CANNOT happen: no
-     audience, an audience over the ceiling the contract enforces, an empty
-     letter, a button that points nowhere, a schedule in the past.
-
-     What used to be a sixth is now advice. A body still holding a `[…]` slot
-     from the seeded template locked this button, and that was wrong for the
-     reason `mail-hints.ts` sets out at length: the template is a starting
-     point, not a form to complete. Somebody writing their own letter was
-     refused a send over a placeholder they had never seen. It is the first
-     row of the checklist instead, where it can be read and overruled. */
-  const blocker: string | null = overCeiling
-    ? `Một lượt tối đa ${MAS_MAX_RECIPIENTS} lead — đang chọn ${selectedLeads.length}.`
-    : selectedLeads.length === 0
-      ? 'Chưa chọn người nhận.'
-      : !subject.trim() || !body.trim()
-        ? 'Chọn mẫu hoặc điền đủ tiêu đề và nội dung email.'
-        : ctaInvalid
-          ? 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
-          : bookingInvalid
-            ? 'Link đặt lịch phải bắt đầu bằng http/https.'
-            : scheduleInvalid
-              ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
-              : null
-
-  /* THE LETTER SHOWS ITSELF ONCE THERE IS A LETTER TO SHOW.
-     The compose box is a plain textarea — `**bold**` stays two asterisks in it
-     and no button is drawn there — so everything this panel does to a letter is
-     invisible until the preview is open. Behind a button, that made the
-     rendered letter a thing you had to already know about: the person who
-     specified the second button looked for it in the compose box, and a
-     salesperson will look in the same wrong place.
-     Opening it is still only a SUGGESTION — close it once and it stays closed
-     for this letter. */
-  const canPreview = subject.trim() !== '' && body.trim() !== ''
-  useEffect(() => {
-    if (!canPreview) {
-      setPreviewOpen(false)
-      setPreviewDismissed(false)
-    } else if (!previewDismissed) setPreviewOpen(true)
-  }, [canPreview, previewDismissed])
-
-  const togglePreview = () => {
-    setPreviewDismissed(previewOpen)
-    setPreviewOpen(!previewOpen)
-  }
-
+  const letterReady = draft.subject.trim() !== '' && draft.body.trim() !== ''
   const preview = useMailPreview(
     {
-      subject,
-      body,
-      ...(cta && !ctaInvalid ? { cta } : {}),
-      ...(bookingUrl.trim() && !bookingInvalid ? { bookingUrl: bookingUrl.trim() } : {}),
+      subject: draft.subject,
+      body: draft.body,
+      ...(draft.cta && !ctaBroken ? { cta: draft.cta } : {}),
+      ...(draft.bookingUrl.trim() && !bookingBroken ? { bookingUrl: draft.bookingUrl.trim() } : {}),
       ...(previewLead ? { leadCode: previewLead.code } : {}),
     },
-    previewOpen,
+    letterReady,
   )
   const hints = mailHints({
-    subject,
-    body,
-    ctaUrl: cta?.url,
-    bookingUrl,
+    subject: draft.subject,
+    body: draft.body,
+    ctaUrl: draft.cta?.url,
+    bookingUrl: draft.bookingUrl,
     missing: preview.letter?.missing,
   })
+
+  const goTo = (next: number) => {
+    setStep(next)
+    setReached((furthest) => Math.max(furthest, next))
+    setFailure('')
+  }
 
   const checkRecipients = async () => {
     if (blocker) return
     setChecking(true)
     setFailure('')
     try {
-      setPreflight(await masPreflight(selectedLeads.map((lead) => lead.code)))
+      setPreflight(await masPreflight(chosen.map((lead) => lead.code)))
     } catch (error) {
       setFailure(isApiError(error) ? userMessage(error) : 'Không kiểm tra được người nhận.')
     } finally {
@@ -276,25 +188,29 @@ export function MasMailModal({
     }
   }
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
+  const submit = async () => {
     if (blocker || !preflight || preflight.sendable === 0 || send.isPending) return
-
     const label = (
       defaultLabel ||
-      templates.find((item) => item.code === template)?.name ||
-      subject
+      templates.find((item) => item.code === draft.template)?.name ||
+      draft.subject
     ).trim()
     const payload: MasSendRequest = {
-      leadCodes: selectedLeads.map((lead) => lead.code),
+      leadCodes: chosen.map((lead) => lead.code),
       label,
-      subject,
-      body,
-      ...(template === NO_TEMPLATE ? {} : { templateCode: template }),
-      ...(cta ? { cta } : {}),
-      ...(bookingUrl.trim() ? { bookingUrl: bookingUrl.trim() } : {}),
-      ...(sendTiming === 'later' ? { scheduledAt: new Date(scheduledAt).toISOString() } : {}),
-      ...(campaignCode === NO_CAMPAIGN ? {} : { campaignCode }),
+      subject: draft.subject,
+      body: draft.body,
+      ...(draft.template === NO_TEMPLATE ? {} : { templateCode: draft.template }),
+      ...(draft.cta ? { cta: draft.cta } : {}),
+      ...(draft.bookingUrl.trim() ? { bookingUrl: draft.bookingUrl.trim() } : {}),
+      ...(draft.sendTiming === 'later'
+        ? { scheduledAt: new Date(draft.scheduledAt).toISOString() }
+        : {}),
+      ...(draft.campaignCode === NO_CAMPAIGN ? {} : { campaignCode: draft.campaignCode }),
+      /* Stated on every send even though absent already means ON: this is the
+         one value on the panel a person can turn OFF, and a field the request
+         omits is a field nobody can read back off the wire. */
+      trackEngagement: draft.trackEngagement,
     }
 
     setFailure('')
@@ -304,14 +220,9 @@ export function MasMailModal({
         result.state === 'SCHEDULED'
           ? `Đã đặt lịch ${result.queued} email`
           : `Đã xếp hàng ${result.queued} email`,
-        {
-          tone: 'success',
-          detail:
-            result.state === 'SCHEDULED'
-              ? `Hệ thống bắt đầu gửi lúc ${mailMoment(payload.scheduledAt!)}.`
-              : 'Email sẽ rời hệ thống sau vài chục giây.',
-        },
+        { tone: 'success', detail: 'Email sẽ rời hệ thống sau vài chục giây.' },
       )
+      if (draft.saveAsTemplate && canSaveTemplate) keepAsTemplate()
       onQueued()
       onClose()
     } catch (error) {
@@ -319,7 +230,38 @@ export function MasMailModal({
     }
   }
 
-  const actionLabel = single ? 'Gửi mail' : 'Gửi MAS mail'
+  /* Fired AFTER the send resolves and never awaited: the letter is the job, and
+     a template the library refuses (a code already taken) must not turn a
+     successful send into an error on screen. */
+  const keepAsTemplate = () =>
+    saveTemplate.mutate(
+      {
+        code: templateCodeFrom(draft.templateName),
+        name: draft.templateName.trim(),
+        subject: draft.subject,
+        body: draft.body,
+        ...(draft.cta ? { cta: draft.cta } : {}),
+        ...(draft.bookingUrl.trim() ? { bookingUrl: draft.bookingUrl.trim() } : {}),
+      },
+      {
+        onSuccess: () => toast('Đã lưu mẫu email', { tone: 'success' }),
+        onError: (error) =>
+          toast(isApiError(error) ? userMessage(error) : 'Không lưu được mẫu email', {
+            tone: 'warning',
+            detail: 'Thư vẫn đã được xếp hàng gửi.',
+          }),
+      },
+    )
+
+  const summaries = [
+    chosen.length === 0
+      ? 'Chưa chọn'
+      : chosen.length === 1
+        ? (chosen[0]?.contactName ?? '')
+        : `${chosen.length} người nhận`,
+    draft.subject.trim() || 'Chưa soạn',
+    draft.sendTiming === 'later' ? 'Hẹn giờ' : 'Gửi ngay',
+  ]
 
   return (
     <>
@@ -327,496 +269,184 @@ export function MasMailModal({
         open={open}
         onClose={onClose}
         width="xl"
-        title={actionLabel}
-        subtitle={
-          single
-            ? `Soạn, xem trước và kiểm tra email trước khi gửi cho ${selectedLeads[0]?.company ?? 'lead này'}.`
-            : 'Chọn nội dung, thời điểm và kiểm tra từng người trước khi gửi hàng loạt.'
-        }
+        title={initialLeadCode ? 'Gửi email' : 'Gửi email hàng loạt'}
+        subtitle="Ba bước: chọn người nhận, viết nội dung, chọn cách gửi."
         meta={
           <Badge tone={preflight?.blocked ? 'warning' : preflight ? 'success' : 'draft'}>
-            {preflight ? `${preflight.sendable} người sẽ nhận` : `${selectedLeads.length} đã chọn`}
+            {preflight ? `${preflight.sendable} người sẽ nhận` : `${chosen.length} đã chọn`}
           </Badge>
         }
         footer={
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <span
-              className={cn(
-                'max-w-[560px] text-[11.5px] leading-[1.5]',
-                failure || blocker ? 'text-warning' : 'text-muted-foreground',
-              )}
-              aria-live="polite"
-            >
-              {failure ||
-                blocker ||
-                (preflight
-                  ? `${preflight.sendable} gửi được · ${preflight.blocked} bị chặn · ${preflight.hidden} bị ẩn theo quyền`
-                  : 'Kiểm tra người nhận để mở nút gửi.')}
-            </span>
-            <div className="flex shrink-0 gap-2">
-              <Button size="md" variant="ghost" type="button" onClick={onClose}>
-                Huỷ
-              </Button>
-              {preflight ? (
-                <Button
-                  size="md"
-                  type="submit"
-                  form={FORM_ID}
-                  disabled={Boolean(blocker) || preflight.sendable === 0 || send.isPending}
-                >
-                  <Icon icon={sendTiming === 'later' ? CalendarClock : Send} size={16} />
-                  {send.isPending
-                    ? 'Đang tạo lượt gửi…'
-                    : sendTiming === 'later'
-                      ? `Đặt lịch cho ${preflight.sendable} người`
-                      : `Gửi cho ${preflight.sendable} người`}
-                </Button>
-              ) : (
-                <Button
-                  size="md"
-                  type="button"
-                  disabled={Boolean(blocker) || checking}
-                  onClick={() => void checkRecipients()}
-                >
-                  <Icon icon={Check} size={16} />
-                  {checking ? 'Đang kiểm tra…' : 'Kiểm tra người nhận'}
-                </Button>
-              )}
-            </div>
-          </div>
+          <MailFooter
+            message={
+              failure ||
+              stepBlockers[step] ||
+              footerNote(step, chosen.length, preflight ? preflight.sendable : null)
+            }
+            warning={Boolean(failure || stepBlockers[step])}
+            step={step}
+            stepBlocked={Boolean(stepBlockers[step])}
+            sendBlocked={Boolean(blocker)}
+            checking={checking}
+            sending={send.isPending}
+            preflightDone={Boolean(preflight)}
+            sendable={preflight?.sendable ?? 0}
+            timing={draft.sendTiming}
+            onBack={() => (step === 0 ? onClose() : goTo(step - 1))}
+            onNext={() => goTo(step + 1)}
+            onCheck={() => void checkRecipients()}
+            onSend={() => void submit()}
+          />
         }
       >
-        <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-8">
-          <div className="grid min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(360px,1fr)]">
-            <section className="flex min-w-0 flex-col gap-4">
-              <SectionTitle
-                number="1"
-                title="Nội dung email"
-                note="Chọn mẫu để điền sẵn, sau đó sửa nếu cần."
-              />
-
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <Field label="Mẫu nội dung">
-                  <Select
-                    label="Mẫu nội dung"
-                    hideLabel
-                    value={template}
-                    neutralValue={NO_TEMPLATE}
-                    onChange={applyTemplate}
-                    className="w-full"
-                    options={[
-                      { value: NO_TEMPLATE, label: 'Không dùng mẫu — tự soạn' },
-                      ...templates.map((item) => ({ value: item.code, label: item.name })),
-                    ]}
-                  />
-                </Field>
-                <Button
-                  type="button"
-                  size="md"
-                  variant="secondary"
-                  /* No longer gated on a picked recipient: the server renders
-                   sample merge values when none is given, and somebody who has
-                   just written a letter is exactly who wants to look at it
-                   before going to choose who gets it. */
-                  disabled={!subject.trim() || !body.trim()}
-                  aria-expanded={previewOpen}
-                  onClick={togglePreview}
+        <div className="flex min-w-0 flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Stepper steps={STEPS} current={step} reached={reached} onGo={goTo} />
+            <div className="grid min-w-0 grid-cols-3 gap-2">
+              {summaries.map((summary, index) => (
+                <p
+                  key={STEPS[index]?.key}
+                  className="text-glass-foreground m-0 min-w-0 truncate text-[11px]"
                 >
-                  <Icon icon={Eye} size={16} />
-                  {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
-                </Button>
-              </div>
-
-              {templates.length === 0 && (
-                <p className="text-muted-foreground text-[11px] leading-[1.5]">
-                  Chưa có mẫu đang bật. Bạn vẫn có thể tự soạn email.
+                  {summary}
                 </p>
-              )}
+              ))}
+            </div>
+          </div>
 
-              <Field label="Tiêu đề email" note={`${subject.length}/200 ký tự`}>
-                <Input
-                  value={subject}
-                  maxLength={200}
-                  placeholder="Ví dụ: Mời anh/chị xem giải pháp cho nhà máy"
-                  onChange={(event) => setSubject(event.target.value)}
-                />
-              </Field>
+          {/* `wide:` (1440px), NOT `lg:` (1024px) — 1024 IS the tablet frame,
+              and splitting there leaves the preview ~348px of usable width for
+              a ~600px letter table with `overflow-hidden`, which crops the mail
+              and quietly shrinks the "phone" view below a real phone. Below
+              1440 the preview stacks under the form at full width. */}
+          <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
+            {step === 0 && <RecipientsStep draft={draft} leads={leads} chosen={chosen} />}
+            {step === 1 && (
+              <ComposeStep
+                draft={draft}
+                templates={templates}
+                canSaveTemplate={canSaveTemplate}
+                ctaBroken={ctaBroken}
+                bookingBroken={bookingBroken}
+                onOpenGuide={() => setGuideOpen(true)}
+              />
+            )}
+            {step === 2 && (
+              <DeliveryStep
+                draft={draft}
+                campaigns={campaigns}
+                preflight={preflight}
+                scheduleBroken={scheduleBroken}
+                onEdit={goTo}
+              />
+            )}
 
-              <Field
-                label="Nội dung"
-                hint="**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để tự điền đúng tên từng người và công ty."
-                /* The guide is a Drawer opening over this Modal. Escape closes
-                 only the guide — `overlay-stack.ts` is shared by both, so the
-                 letter being typed here survives the keypress. */
-                action={
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    type="button"
-                    onClick={() => setGuideOpen(true)}
-                  >
-                    <Icon icon={Info} size={14} />
-                    Cách viết nội dung
-                  </Button>
-                }
-              >
-                <Textarea
-                  autoGrow
-                  rows={7}
-                  value={body}
-                  placeholder="Viết nội dung email ở đây…"
-                  onChange={(event) => setBody(event.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="Nút trong email (không bắt buộc)"
-                hint="Để trống cả hai ô nếu email không cần nút."
-              >
-                <div className="grid gap-2 sm:grid-cols-[minmax(150px,.55fr)_minmax(0,1fr)]">
-                  <Input
-                    value={cta?.label ?? ''}
-                    placeholder="Tên nút"
-                    aria-label="Tên nút trong email"
-                    onChange={(event) => setCta(ctaWith(cta, { label: event.target.value }))}
-                  />
-                  <Input
-                    value={cta?.url ?? ''}
-                    placeholder="https://…"
-                    aria-label="Địa chỉ nút trong email"
-                    onChange={(event) => setCta(ctaWith(cta, { url: event.target.value }))}
-                  />
-                </div>
-              </Field>
-
-              {/* Its own field, under the CTA, because it is its own button in
-                the letter — an outlined one below the filled CTA. No label box
-                beside it: the wording is `BOOKING_LABEL` in
-                `@pv/mail-templates`, so every letter this company sends words
-                that button the same way. */}
-              <Field
-                label="Link đặt lịch (không bắt buộc)"
-                hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
-              >
-                <Input
-                  value={bookingUrl}
-                  placeholder="https://calendly.com/…"
-                  aria-label="Link đặt lịch trong email"
-                  onChange={(event) => setBookingUrl(event.target.value)}
-                />
-              </Field>
-            </section>
-
-            {/* Side by side, not stacked: this used to sit at the bottom of the
-              left column and push the send-timing section down every time
-              preview opened. Moved beside the field being typed into instead,
-              so the letter shows up without scrolling. */}
             <section className="flex min-w-0 flex-col gap-4">
-              <MailHintList hints={hints} />
-
-              {previewOpen && (
+              {letterReady ? (
                 <MailPreviewCard
                   letter={preview.letter}
                   pending={preview.pending}
                   error={preview.error}
-                  recipients={selectedLeads.map((lead) => ({
+                  recipients={chosen.map((lead) => ({
                     code: lead.code,
-                    label: `${lead.contactName} · ${lead.company}`,
+                    label: `Như ${lead.contactName} nhận`,
                   }))}
                   recipientCode={previewLead?.code}
-                  onRecipient={setPreviewCode}
+                  onRecipient={draft.setPreviewCode}
                 />
+              ) : (
+                <PreviewPlaceholder />
               )}
-
-              <SectionTitle
-                number="2"
-                title="Thời điểm gửi"
-                note="Gửi ngay hoặc giữ lại đến giờ đã chọn."
-              />
-              <SegmentedControl
-                label="Thời điểm gửi"
-                hideLabel
-                value={sendTiming}
-                onChange={(value) => {
-                  setSendTiming(value as 'now' | 'later')
-                  setFailure('')
-                }}
-                options={[
-                  { value: 'now', label: 'Gửi ngay' },
-                  { value: 'later', label: 'Đặt lịch gửi' },
-                ]}
-              />
-              {sendTiming === 'later' && (
-                <Field label="Ngày và giờ gửi" hint="Hiển thị theo giờ trên máy của bạn.">
-                  <Input
-                    type="datetime-local"
-                    value={scheduledAt}
-                    min={localSlot(1)}
-                    onChange={(event) => setScheduledAt(event.target.value)}
-                  />
-                </Field>
-              )}
-
-              {/* GẮN LÔ VÀO MỘT CHIẾN DỊCH — cùng bước với lịch gửi, vì đây cũng
-                là một câu về "lô này là gì", không phải về nội dung thư.
-
-                Để trống là Quick MAS: lô vẫn sinh một `mail_run` và vẫn hiện ở
-                Sổ lô gửi, chỉ không có dòng nối `campaign_run` nào. Chọn một
-                chiến dịch là biến lô này thành ĐỢT TIẾP THEO của nó — đúng
-                đường cho đợt thứ hai trở đi, thay vì gọi lại `/start`.
-
-                Chỉ hiện chiến dịch ĐANG CHẠY. Chiến dịch còn NHÁP bắt đầu từ hồ
-                sơ của nó, không gắn từ đây — gắn từ đây thì thư bay mà state vẫn
-                NHÁP, và cú bấm chạy sau đó bắn lại toàn bộ người nhận. Chiến dịch
-                đã DỪNG hay XONG mà nhận thêm một đợt là chạy tiếp sau lưng người
-                đã dừng nó. */}
-              <Field
-                label="Gắn vào chiến dịch (không bắt buộc)"
-                hint="Để trống thì lô này đi lẻ, vẫn xem được ở Sổ lô gửi. Chiến dịch còn nháp thì bắt đầu từ hồ sơ chiến dịch, không gắn ở đây."
-              >
-                <Select
-                  label="Chiến dịch"
-                  hideLabel
-                  value={campaignCode}
-                  onChange={setCampaignCode}
-                  options={[
-                    { value: NO_CAMPAIGN, label: 'Không gắn — gửi lẻ' },
-                    ...openCampaigns.map((c) => ({
-                      value: c.code,
-                      label: `${c.code} · ${c.name}`,
-                    })),
-                  ]}
-                />
-              </Field>
-              <p className="text-muted-foreground bg-surface-ink/5 rounded-sm p-3 text-[11.5px] leading-[1.6]">
-                {sendTiming === 'later'
-                  ? 'Email được giữ trong hàng đợi và chỉ bắt đầu gửi khi tới giờ đã chọn.'
-                  : 'Email vào hàng đợi ngay sau khi bạn kiểm tra và xác nhận người nhận.'}
-              </p>
+              <MailHintList hints={hints} />
             </section>
           </div>
-
-          <section className="flex min-w-0 flex-col gap-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <SectionTitle
-                number="3"
-                title="Người nhận"
-                note={
-                  single
-                    ? 'Lead này đã được chọn sẵn.'
-                    : 'Danh sách ngoài sổ đã được đưa vào. Bạn vẫn có thể tìm và chọn thêm.'
-                }
-              />
-              <Badge tone={preflight?.blocked ? 'warning' : preflight ? 'success' : 'draft'}>
-                {preflight
-                  ? `${preflight.sendable} người sẽ nhận`
-                  : `${selectedLeads.length} đã chọn`}
-              </Badge>
-            </div>
-
-            {!single && (
-              <>
-                <SearchField
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="Tìm thêm theo tên, chức danh, email hoặc công ty…"
-                />
-                <div className="grid max-h-[240px] gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-                  {candidates.map((lead) => {
-                    const on = selected.has(lead.code)
-                    return (
-                      <button
-                        key={lead.code}
-                        type="button"
-                        onClick={() => toggleRecipient(lead)}
-                        aria-pressed={on}
-                        className={cn(
-                          'motion-std flex min-w-0 items-center justify-between gap-3 rounded-sm px-3 py-2 text-left',
-                          on ? 'bg-accent' : 'hover:bg-surface-ink/8 bg-surface-ink/5',
-                        )}
-                      >
-                        <RecipientIdentity lead={lead} />
-                        <Icon icon={on ? Check : Plus} size={16} className="shrink-0" />
-                      </button>
-                    )
-                  })}
-                  {candidates.length === 0 && (
-                    <p className="text-muted-foreground text-[11.5px]">Không có lead phù hợp.</p>
-                  )}
-                </div>
-              </>
-            )}
-
-            <GlassCard variant="b" className="overflow-hidden">
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="text-[12.5px] font-semibold">
-                  {preflight ? 'Danh sách sau kiểm tra' : 'Danh sách sẽ kiểm tra'}
-                </span>
-                <span className="tnum font-num text-[14px] font-semibold">
-                  {preflight?.sendable ?? selectedLeads.length}
-                </span>
-              </div>
-              <div className="bg-surface-ink/6 h-px" />
-              <div className="max-h-[320px] overflow-y-auto p-4">
-                {preflight ? (
-                  <PreflightReport report={preflight} />
-                ) : selectedLeads.length > 0 ? (
-                  <ul className="m-0 grid list-none gap-2 p-0 md:grid-cols-2">
-                    {selectedLeads.map((lead) => (
-                      <li
-                        key={lead.code}
-                        className="bg-surface-ink/5 flex items-start justify-between gap-3 rounded-sm p-3"
-                      >
-                        <RecipientIdentity lead={lead} />
-                        {!single && (
-                          <button
-                            type="button"
-                            onClick={() => toggleRecipient(lead)}
-                            aria-label={`Bỏ ${lead.contactName}`}
-                            className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 flex size-7 shrink-0 items-center justify-center rounded-md"
-                          >
-                            <Icon icon={X} size={14} />
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-muted-foreground py-4 text-center text-[11.5px]">
-                    Chưa chọn người nhận.
-                  </p>
-                )}
-              </div>
-            </GlassCard>
-
-            {preflight?.apolloCount ? (
-              <p className="text-warning bg-surface-ink/5 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
-                <Icon icon={TriangleAlert} size={14} className="mr-2 inline align-middle" />
-                Có {preflight.apolloCount} liên hệ từ Apollo. Chỉ gửi khi đã xác nhận họ đồng ý nhận
-                email.
-              </p>
-            ) : null}
-          </section>
-        </form>
+        </div>
       </Modal>
 
-      {/* A sibling, not a child of the form: it is a second overlay, and it must
-          not sit inside a `<form>` whose submit button it has nothing to do
-          with. */}
+      {/* A sibling of the modal, not a child: it is a second overlay, and
+          `overlay-stack.ts` gives Escape to whichever is on top. */}
       <MailSyntaxGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </>
   )
 }
 
-function SectionTitle({ number, title, note }: { number: string; title: string; note: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className="bg-accent text-accent-foreground flex size-6 shrink-0 items-center justify-center rounded-sm font-mono text-[11px] font-semibold">
-        {number}
-      </span>
-      <div className="min-w-0">
-        <h3 className="font-display m-0 text-[14px] font-semibold">{title}</h3>
-        <p className="text-muted-foreground m-0 mt-1 text-[11.5px] leading-[1.5]">{note}</p>
-      </div>
-    </div>
-  )
+/** What the footer says when nothing is wrong — one fact per step. */
+function footerNote(step: number, picked: number, sendable: number | null): string {
+  if (step === 0) return `${picked} người nhận · thư đi từ hộp thư chung của công ty`
+  if (step === 1) return 'Xem bản bên phải trước khi sang bước sau.'
+  return sendable === null ? 'Kiểm tra lại rồi gửi.' : `${sendable} người sẽ nhận thư này.`
 }
 
-function PreflightReport({ report }: { report: MasPreflightResponse }) {
-  return (
-    <ul className="m-0 grid list-none gap-2 p-0 md:grid-cols-2">
-      {report.recipients.map((recipient) => (
-        <li
-          key={recipient.leadCode}
-          className="bg-surface-ink/5 flex items-start justify-between gap-3 rounded-sm p-3"
-        >
-          <RecipientIdentity
-            lead={{
-              code: recipient.leadCode,
-              company: recipient.company,
-              contactName: recipient.contactName,
-              contactTitle: recipient.contactTitle,
-              email: recipient.email ?? 'Chưa có email',
-            }}
-          />
-          <Badge tone={recipient.block ? 'warning' : 'success'}>
-            {recipient.block ? MAS_RECIPIENT_BLOCK_LABEL[recipient.block] : 'Sẽ gửi'}
-          </Badge>
-        </li>
-      ))}
-      {report.hidden > 0 && (
-        <li className="text-warning bg-surface-ink/5 rounded-sm p-3 text-[11.5px] leading-[1.5]">
-          {report.hidden} lead bị ẩn theo quyền của bạn nên sẽ không nhận email.
-        </li>
-      )}
-    </ul>
-  )
-}
-
-function RecipientIdentity({ lead }: { lead: MasRecipient }) {
-  return (
-    <span className="flex min-w-0 flex-col">
-      <span className="truncate text-[12.5px] font-semibold">{lead.contactName}</span>
-      <span className="text-muted-foreground truncate text-[11px]">
-        {lead.contactTitle || 'Chưa có chức danh'} · {lead.company}
-      </span>
-      <span className="text-glass-foreground truncate font-mono text-[10.5px]">{lead.email}</span>
-    </span>
-  )
-}
-
-function Field({
-  label,
-  hint,
-  note,
-  action,
-  children,
+function MailFooter({
+  message,
+  warning,
+  step,
+  stepBlocked,
+  sendBlocked,
+  checking,
+  sending,
+  preflightDone,
+  sendable,
+  timing,
+  onBack,
+  onNext,
+  onCheck,
+  onSend,
 }: {
-  label: string
-  hint?: string
-  note?: string
-  /** A control on the label row, sharing the slot the counter uses. Only one
-   *  field carries both, and a counter is a word wide. */
-  action?: ReactNode
-  children: ReactNode
+  message: string
+  warning: boolean
+  step: number
+  stepBlocked: boolean
+  sendBlocked: boolean
+  checking: boolean
+  sending: boolean
+  preflightDone: boolean
+  sendable: number
+  timing: 'now' | 'later'
+  onBack: () => void
+  onNext: () => void
+  onCheck: () => void
+  onSend: () => void
 }) {
+  const last = step === STEPS.length - 1
+
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-muted-foreground text-[11px]">{label}</span>
-        {note && <span className="text-muted-foreground font-mono text-[10.5px]">{note}</span>}
-        {action}
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+      <span
+        aria-live="polite"
+        className={
+          warning
+            ? 'text-warning min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+            : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+        }
+      >
+        {message}
+      </span>
+      <div className="flex shrink-0 gap-2">
+        <Button size="lg" variant="ghost" type="button" onClick={onBack}>
+          {step === 0 ? 'Huỷ' : 'Quay lại'}
+        </Button>
+        {!last ? (
+          <Button size="lg" type="button" disabled={stepBlocked} onClick={onNext}>
+            Tiếp: {STEPS[step + 1]?.label}
+          </Button>
+        ) : preflightDone ? (
+          <Button
+            size="lg"
+            type="button"
+            disabled={sendBlocked || sendable === 0 || sending}
+            onClick={onSend}
+          >
+            <Icon icon={timing === 'later' ? CalendarClock : Send} size={16} />
+            {sending ? 'Đang tạo lượt gửi…' : `Gửi ${sendable} email`}
+          </Button>
+        ) : (
+          <Button size="lg" type="button" disabled={sendBlocked || checking} onClick={onCheck}>
+            <Icon icon={Check} size={16} />
+            {checking ? 'Đang kiểm tra…' : 'Kiểm tra người nhận'}
+          </Button>
+        )}
       </div>
-      {children}
-      {hint && <span className="text-muted-foreground text-[11px] leading-[1.5]">{hint}</span>}
     </div>
   )
-}
-function ctaWith(
-  current: MailTemplateRow['cta'],
-  patch: { label?: string; url?: string },
-): MailTemplateRow['cta'] {
-  const next = { label: patch.label ?? current?.label ?? '', url: patch.url ?? current?.url ?? '' }
-  return next.label === '' && next.url === '' ? undefined : next
-}
-
-function isHttpUrl(raw: string): boolean {
-  try {
-    return /^https?:$/.test(new URL(raw).protocol)
-  } catch {
-    return false
-  }
-}
-
-/** Keeps the YEAR, so NOT `dmhm` from `@/lib/date`. This prints back the moment
- *  the user just typed into a `datetime-local` field that shows a year, and a
- *  mistyped year is the one scheduling slip nothing else on the screen catches. */
-function mailMoment(iso: string): string {
-  return new Date(iso).toLocaleString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }

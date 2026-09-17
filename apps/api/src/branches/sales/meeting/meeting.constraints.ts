@@ -19,6 +19,20 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
     message: 'Link họp phải bắt đầu bằng http:// hoặc https://.',
   },
 
+  /** The booking drawer's two closed pickers. zod already refuses a stray
+   *  value at the HTTP door, so a row breaking these arrived by another road
+   *  (a migration, a hand) — still worth a sentence, because a bare 500 names
+   *  no field. */
+  meeting_mode_known: {
+    kind: 'invalid',
+    message: 'Hình thức họp không nằm trong danh sách chọn được trên màn đặt lịch.',
+  },
+
+  meeting_duration_known: {
+    kind: 'invalid',
+    message: 'Thời lượng họp phải chọn từ danh sách có sẵn trên màn đặt lịch.',
+  },
+
   /** Lead bị xoá đúng giữa lúc mở biểu mẫu và lúc bấm lưu. Hiếm, nhưng câu này
    *  rẻ hơn một 500 không ai đọc được. */
   meeting_lead_code_lead_code_fk: {

@@ -132,6 +132,14 @@ export const MailTemplateCode = z
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Mã mẫu chỉ gồm chữ thường, số và dấu nối')
   .max(64, 'Mã mẫu tối đa 64 ký tự')
 
+/** Hard cap on a subject line, and on the names a run or a template is filed
+ *  under. Declared rather than written `200` at each door because the compose
+ *  panel PRINTS this number ("0/200") and sets `maxLength` from it: a screen
+ *  that counts down to a different ceiling than the one zod refuses at is a
+ *  form that lets somebody finish typing and then rejects the result. */
+export const MAIL_SUBJECT_MAX = 200
+export const MAIL_NAME_MAX = 200
+
 /** One row of the template list. READ side — `GET /sales/mail/templates`.
  *
  *  `subject` and `body` travel with the row rather than being fetched one
@@ -506,7 +514,7 @@ export const MasSendRequest = z.object({
    *  says when asking "how did the March mailing do". Required: an unnamed run
    *  in a list of thirty runs is a row nobody can identify, and "Untitled" is
    *  what every one of them ends up called. */
-  label: textInput(200),
+  label: textInput(MAIL_NAME_MAX),
   /** Which template pre-filled the text, when one did. Recorded rather than
    *  inferred: `subject`/`body` below are what actually goes out, and once the
    *  user has edited them there is no way to work out afterwards which template
@@ -515,7 +523,7 @@ export const MasSendRequest = z.object({
   /** Single line — `textInput` is correct here, unlike for `body`. 200 is the
    *  hard cap; be aware that most clients stop showing a subject somewhere
    *  around 70 characters, so anything past that is written for nobody. */
-  subject: textInput(200),
+  subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,
   /** The button in the letter — ABSENT MEANS NO BUTTON, it does not mean
    *  "whatever the template says".
@@ -544,6 +552,21 @@ export const MasSendRequest = z.object({
    *  a run that belongs to no campaign, which is a complete answer and not a
    *  gap (same rule as `LeadSource.campaignId` in `./lead-source`). */
   campaignCode: ObjectCode.optional(),
+  /** Whether this run RECORDS `OPEN`/`CLICK` for its letters — not whether
+   *  they are tracked. Tracking itself (the pixel, the wrapped link) is
+   *  Resend's doing at the account/domain level and has no per-send switch;
+   *  this flag only decides what `mail-webhook.controller.ts` does with the
+   *  events Resend sends anyway. `false` makes it drop `OPEN`/`CLICK` at the
+   *  door — nothing lands in `platform.mail_event`, and the lead's history
+   *  shows neither line. It does not notify anybody of anything; no such
+   *  channel exists yet.
+   *
+   *  Absent means `true`: every run sent before this flag existed had its
+   *  events recorded, with no way to opt out. Defaulting to `false` would
+   *  silently change that behaviour for every door that does not pass through
+   *  the new panel, and would backfill old `mail_run` rows with a value that
+   *  contradicts what actually happened. */
+  trackEngagement: z.boolean().optional(),
 })
 
 /** What the send answers with. Three numbers and a state, and NOT "sent".
@@ -609,7 +632,7 @@ export const MasSendResponse = z.object({
  *  that unsubscribes somebody. It is `POST` for the same reason `preflight` is:
  *  a 20.000-character body does not fit in a query string. */
 export const MasPreviewRequest = z.object({
-  subject: textInput(200),
+  subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,
   cta: MailCta.optional(),
   bookingUrl: MailBookingUrl.optional(),
@@ -751,6 +774,15 @@ export const MailRunRow = z.object({
    *  domain keeps being able to deliver mail at all. A run whose unsubscribes
    *  spike is a run to stop, not a run to repeat. */
   unsubscribed: z.number().int().nonnegative(),
+
+  /** Whether `OPEN`/`CLICK` events for this run were recorded — the flag
+   *  posted as `MasSendRequest.trackEngagement`, echoed back so the run list
+   *  can show which batches have no engagement history by choice rather than
+   *  by chance. Required rather than optional: every run predating this flag
+   *  had its events recorded regardless, so old rows backfill `true` — the
+   *  thing that actually happened to them, not a gap `undefined` stands in
+   *  for. */
+  trackEngagement: z.boolean(),
 
   /** When the run was created — NOT when it was sent.
    *
@@ -1029,8 +1061,8 @@ export const MailTemplateListResponse = z.object({
  *  There is no rename: changing it would orphan every run that names it. */
 export const MailTemplateCreate = z.object({
   code: MailTemplateCode,
-  name: textInput(200),
-  subject: textInput(200),
+  name: textInput(MAIL_NAME_MAX),
+  subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,
   cta: MailCta.optional(),
   bookingUrl: MailBookingUrl.optional(),
@@ -1053,8 +1085,8 @@ export const MailTemplateCreateResponse = MailTemplateRow
  *  `/start` and `/stop` earn on a campaign. */
 export const MailTemplatePatch = z
   .object({
-    name: textInput(200).optional(),
-    subject: textInput(200).optional(),
+    name: textInput(MAIL_NAME_MAX).optional(),
+    subject: textInput(MAIL_SUBJECT_MAX).optional(),
     body: mailBody.optional(),
     cta: MailCta.nullable().optional(),
     /** Three states like `cta`: absent leaves it alone, `null` removes the

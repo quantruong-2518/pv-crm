@@ -23,6 +23,7 @@ import {
   mailEvent,
   mailReply,
 } from './mail.schema'
+import { mailRun } from './mail-run.schema'
 
 /** SQL only, per `apps/api/CLAUDE.md` — every branch below is a mechanical
  *  translation of a decision `mail.contract.ts` already wrote down
@@ -334,13 +335,20 @@ export class MailRepository implements MailLedger {
       if (seen.length === 0) return 'ignored-duplicate'
     }
 
-    const deliveryId = await this.deliveryIdFor(engagement)
-    if (!deliveryId) return 'unknown-delivery'
+    const target = await this.deliveryIdFor(engagement)
+    if (!target) return 'unknown-delivery'
+
+    /* The batch said no watching, so the row is never written — a counter that
+       moves while no event row exists would be two ledgers disagreeing. Only
+       these two kinds: delivery events and UNSUBSCRIBE are other axes. */
+    if (!target.trackEngagement && (engagement.kind === 'OPEN' || engagement.kind === 'CLICK')) {
+      return 'ignored-untracked'
+    }
 
     const written = await this.db
       .insert(mailEvent)
       .values({
-        deliveryId,
+        deliveryId: target.id,
         kind: engagement.kind,
         at: engagement.at,
         url: engagement.url ?? null,
@@ -450,11 +458,19 @@ export class MailRepository implements MailLedger {
     return r.rows[0] ?? { requeued: 0, parked: 0 }
   }
 
-  /** Row id by either road, or `null`. `deliveryId` is trusted only as far as
-   *  "a row with this id exists" — it is still read back rather than used
-   *  blind, so an id whose delivery was deleted cannot leave a `mail_event`
-   *  pointing at nothing. */
-  private async deliveryIdFor(engagement: MailEngagement): Promise<string | null> {
+  /** Row id by either road, plus the batch's recording flag, or `null`.
+   *  `deliveryId` is trusted only as far as "a row with this id exists" — it is
+   *  still read back rather than used blind, so an id whose delivery was
+   *  deleted cannot leave a `mail_event` pointing at nothing.
+   *
+   *  The flag rides the SAME query as a LEFT JOIN rather than a second lookup:
+   *  the door already pays for this round trip, and a separate read would
+   *  double the DB cost of every open a campaign generates. The join is left
+   *  because `mail_run_id` is NULL for a one-off (lead-intake notification),
+   *  which has no batch to read a flag off and keeps the recorded behaviour. */
+  private async deliveryIdFor(
+    engagement: MailEngagement,
+  ): Promise<{ id: string; trackEngagement: boolean } | null> {
     const where = engagement.deliveryId
       ? eq(emailDelivery.id, engagement.deliveryId)
       : engagement.providerEmailId
@@ -464,11 +480,13 @@ export class MailRepository implements MailLedger {
     if (!where) return null
 
     const [row] = await this.db
-      .select({ id: emailDelivery.id })
+      .select({ id: emailDelivery.id, trackEngagement: mailRun.trackEngagement })
       .from(emailDelivery)
+      .leftJoin(mailRun, eq(mailRun.id, emailDelivery.mailRunId))
       .where(where)
       .limit(1)
-    return row?.id ?? null
+    if (!row) return null
+    return { id: row.id, trackEngagement: row.trackEngagement ?? true }
   }
 
   /** One round trip, not three: `/healthz/email` and the runbook both want

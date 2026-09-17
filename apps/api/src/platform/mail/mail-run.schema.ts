@@ -1,4 +1,4 @@
-import { check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { MailRunState } from '@pv/contracts'
 import { platform } from '@api/platform/db/platform.schema'
@@ -133,6 +133,18 @@ export const mailRun = platform.table(
      *  the batch can still say how big it was meant to be after rows are
      *  pruned by retention. */
     audienceCount: integer('audience_count').notNull().default(0),
+
+    /** Whether the webhook door RECORDS this batch's `OPEN`/`CLICK` events into
+     *  `platform.mail_event`. It does not reach the provider: Resend tracks at
+     *  account level, outside this repo, so a `false` here means the events
+     *  arrive and are dropped, not that nobody was watching.
+     *
+     *  `NOT NULL DEFAULT true`, and the default is the honest one: every run
+     *  sent so far had its events recorded, with no switch anywhere to stop it.
+     *  A `false` default would claim the old batches were untracked — which is
+     *  not what happened — and would silently mute recording for any send door
+     *  that does not set the flag. */
+    trackEngagement: boolean('track_engagement').notNull().default(true),
 
     /** The actor who pressed send. `platform.audit` carries the full trail;
      *  this column is what the run list shows without a join. */

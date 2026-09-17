@@ -291,9 +291,13 @@ export type MailEngagement = {
 
 /** `recorded` — a new row exists. `ignored-duplicate` — this exact engagement
  *  is already in the ledger, by envelope or by (delivery, kind, moment).
- *  `unknown-delivery` — nothing here names a row this system sent. None of the
- *  three is an error; all three are ordinary outcomes of a public door. */
-export type EngagementOutcome = 'recorded' | 'ignored-duplicate' | 'unknown-delivery'
+ *  `unknown-delivery` — nothing here names a row this system sent.
+ *  `ignored-untracked` — the batch was sent with `mail_run.track_engagement`
+ *  off, so its OPEN/CLICK is dropped at the door; UNSUBSCRIBE is a consent act
+ *  on the same table and is never dropped. None of the four is an error; all
+ *  four are ordinary outcomes of a public door. */
+export type EngagementOutcome =
+  'recorded' | 'ignored-duplicate' | 'ignored-untracked' | 'unknown-delivery'
 
 /** A LEAD REPLYING TO US, read off the `email.received` webhook. Deliberately
  *  not a `MailEngagementKind` — see `mail_reply` in `mail.schema.ts` for the

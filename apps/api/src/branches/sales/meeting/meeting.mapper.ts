@@ -1,4 +1,4 @@
-import type { MeetingAttendee, MeetingRow } from '@pv/contracts'
+import { MEETING_DURATION_MINUTES, type MeetingAttendee, type MeetingRow } from '@pv/contracts'
 import type { MeetingAttendeeRowDb, MeetingRowDb } from './meeting.schema'
 
 /** Bảng ↔ dây. Không đọc gì, không quyết định gì trừ đúng một phép so sánh.
@@ -32,6 +32,8 @@ export function toContract(
         ...(a.role ? { role: a.role } : {}),
       }))
 
+  const duration = MEETING_DURATION_MINUTES.find((m) => m === row.durationMinutes)
+
   return {
     id: row.id,
     leadCode: row.leadCode,
@@ -39,6 +41,12 @@ export function toContract(
     title: row.title,
     ...(row.link ? { link: row.link } : {}),
     ...(row.transcript ? { transcript: row.transcript } : {}),
+    /* All three are conditional because every row written before `0050` is
+       NULL — the "NULL column becomes an ABSENT field" rule above.
+       `durationMinutes` is matched against the picker, not cast. */
+    ...(duration === undefined ? {} : { durationMinutes: duration }),
+    ...(row.mode ? { mode: row.mode } : {}),
+    ...(row.goal ? { goal: row.goal } : {}),
     hosts: of('host'),
     guests: of('guest'),
     isFirst,

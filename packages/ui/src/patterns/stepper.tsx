@@ -69,6 +69,8 @@ function StepControl({
       </span>
     )
 
+  /* Law 13: a visited step is the main way back in a multi-step form, and the
+     unreachable ones grow with it so the row does not stagger. */
   if (status === 'done') {
     return (
       <button
@@ -76,7 +78,7 @@ function StepControl({
         disabled={!onGo}
         onClick={() => onGo?.(index)}
         className={cn(
-          'motion-std inline-flex items-center gap-2 whitespace-nowrap rounded-sm px-2 py-1 text-[12px] font-medium',
+          'motion-std pointer-coarse:min-h-12 inline-flex items-center gap-2 whitespace-nowrap rounded-sm px-2 py-1 text-[12px] font-medium',
           'text-foreground',
           onGo ? 'hover:bg-surface-ink/8 cursor-pointer' : 'cursor-default',
         )}
@@ -92,7 +94,7 @@ function StepControl({
       aria-current={status === 'current' ? 'step' : undefined}
       aria-disabled={status === 'upcoming' ? true : undefined}
       className={cn(
-        'inline-flex items-center gap-2 whitespace-nowrap rounded-sm px-2 py-1 text-[12px]',
+        'pointer-coarse:min-h-12 inline-flex items-center gap-2 whitespace-nowrap rounded-sm px-2 py-1 text-[12px]',
         status === 'current'
           ? 'bg-accent text-foreground font-semibold shadow-[inset_0_1px_0_var(--sheen-ai)]'
           : 'text-muted-foreground cursor-not-allowed',

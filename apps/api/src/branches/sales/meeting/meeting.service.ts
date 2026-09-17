@@ -73,12 +73,16 @@ export class MeetingService {
     const id = await this.repo.run(async (tx) => {
       const already = await this.repo.countOf(tx, code)
 
+      const at = new Date(body.at)
       const meetingId = await this.repo.insert(tx, {
         leadCode: code,
-        at: new Date(body.at),
+        at,
         title: body.title,
         link: body.link ?? null,
         transcript: body.transcript ?? null,
+        durationMinutes: body.durationMinutes,
+        mode: body.mode,
+        goal: body.goal ?? null,
         by: who.name,
         createdBy: who.id,
       })
@@ -92,10 +96,10 @@ export class MeetingService {
           subjectKind: 'lead',
           kind: already === 0 ? 'first-meeting' : 'contacted',
           ...byOf(who),
-          note: already === 0 ? `Gặp lần đầu: ${body.title}` : `Họp: ${body.title}`,
+          note: noteOf(at, body.title, already === 0),
           /* Mốc của dòng thời gian là lúc HỌP, không phải lúc gõ — ghi bù một
              buổi tuần trước phải nằm đúng chỗ của nó trong dòng thời gian. */
-          at: new Date(body.at),
+          at,
         },
       ])
 
@@ -131,6 +135,12 @@ export class MeetingService {
            chứ không giả vờ là đã xử lý. */
         ...(body.link === undefined ? {} : { link: body.link }),
         ...(body.transcript === undefined ? {} : { transcript: body.transcript }),
+        /* The booking fields follow the idiom right above: absent means leave
+           it alone. Rows written before `0050` have none of the three, so a
+           PATCH that never mentions them must leave the NULLs standing. */
+        ...(body.durationMinutes === undefined ? {} : { durationMinutes: body.durationMinutes }),
+        ...(body.mode === undefined ? {} : { mode: body.mode }),
+        ...(body.goal === undefined ? {} : { goal: body.goal }),
       })
 
       if (body.hosts !== undefined || body.guests !== undefined) {
@@ -228,6 +238,25 @@ export class MeetingService {
     if (!row) throw notFound('cuộc họp', id)
     return MeetingRow.parse(row)
   }
+}
+
+/** The timeline sentence, in the tense `at` earns against the SERVER clock at
+ *  the moment the row is written.
+ *
+ *  A meeting booked for next week lands at a future mark, and a past-tense
+ *  sentence there tells of something that has not happened — the reader cannot
+ *  tell a booking from minutes. The KIND of the row
+ *  (`first-meeting`/`contacted`) does not move with the tense: it is read from
+ *  the book, and `TouchKind` is a contract this file does not widen.
+ *
+ *  Decided once at write time, never recomputed on read: a touch row records
+ *  what was true THEN, so next week's booking keeps its booking sentence after
+ *  the day passes — like every other row, it is not rewritten. */
+function noteOf(at: Date, title: string, isFirst: boolean): string {
+  if (at.getTime() > Date.now()) {
+    return isFirst ? `Đặt lịch gặp lần đầu: ${title}` : `Đặt lịch họp: ${title}`
+  }
+  return isFirst ? `Gặp lần đầu: ${title}` : `Họp: ${title}`
 }
 
 /** Hai danh sách của hợp đồng thành một bảng con.

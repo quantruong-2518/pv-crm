@@ -1,6 +1,6 @@
-import { check, index, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { MeetingSide } from '@pv/contracts'
+import type { MeetingMode, MeetingSide } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 import { contact } from '../contact/contact.schema'
@@ -64,6 +64,26 @@ export const meeting = sales.table(
     link: text('link'),
     transcript: text('transcript'),
 
+    /** How long the meeting was booked for, in minutes, and how it was held.
+     *
+     *  NULLABLE FOR EVER, and not because either is optional on the way in:
+     *  `MeetingCreate` requires both. Every row typed before migration `0050`
+     *  has neither, and there is no value that would be an honest guess — 60
+     *  minutes and `'office'` would be numbers nobody measured, sitting in the
+     *  same column as ones somebody chose. `MeetingRow` reads them back as
+     *  optional for exactly this reason; the drawer plans for the gap. */
+    durationMinutes: integer('duration_minutes'),
+    mode: text('mode').$type<MeetingMode>(),
+
+    /** What the meeting was FOR, in the booker's own words. Free text and
+     *  never required — a meeting booked in a hurry with no stated goal is
+     *  still worth having on the calendar, and forcing a sentence produces
+     *  filler. The 500-character cap is `MEETING_GOAL_MAX` at the zod gate and
+     *  is deliberately not a CHECK here: `title` and `link` carry their caps
+     *  the same way, and a length constraint on this one column would be the
+     *  only place the table disagreed with the contract about a limit. */
+    goal: text('goal'),
+
     /** Người GÕ dòng này, chụp lại tên như `touch.by` — hồ sơ một buổi họp là
      *  hồ sơ của lúc ĐÓ, nên join `actor` lúc đọc sẽ khiến buổi cũ mang tên
      *  mới của người ta, và không vẽ được gì cho người đã rời công ty. */
@@ -84,6 +104,16 @@ export const meeting = sales.table(
      *  bảng này còn nhận dữ liệu từ migration và từ tay người, không chỉ từ
      *  HTTP. */
     check('meeting_link_is_web', sql`"link" IS NULL OR "link" ~ '^https?://'`),
+    /** Three values of `MeetingMode`, copied out rather than generated: the day
+     *  a fourth one is offered, that has to be a migration somebody reads. */
+    check('meeting_mode_known', sql`"mode" IS NULL OR "mode" IN ('online', 'onsite', 'office')`),
+    /** The picker's own five slots, not a `> 0 AND <= 120` range: the contract
+     *  is a closed list (`MEETING_DURATION_MINUTES`), and a looser bound here
+     *  would be a second threshold accepting a 37 the zod gate refuses. */
+    check(
+      'meeting_duration_known',
+      sql`"duration_minutes" IS NULL OR "duration_minutes" IN (30, 45, 60, 90, 120)`,
+    ),
   ],
 )
 

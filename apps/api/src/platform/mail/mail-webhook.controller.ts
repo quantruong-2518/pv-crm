@@ -103,7 +103,16 @@ import {
  *  or a click, and neither type appears in `Signal`. What changed is that there
  *  is now somewhere honest to put them: `platform.mail_event`, additive rows on
  *  their own axis, invisible to `advances()`. So they are RECORDED, and the
- *  delivery ledger still does not move. */
+ *  delivery ledger still does not move.
+ *
+ *  RECORDED unless the batch was posted with `mail_run.track_engagement` off,
+ *  which drops the row in `recordEngagement()` — one LEFT JOIN on the lookup
+ *  that road already makes, no second round trip, and the answer is still 2xx.
+ *  It gates ONLY that road: whether a letter arrived is a different question
+ *  from whether a person was watched opening it, so every delivery event is
+ *  recorded for every batch. Resend's own tracking is an account-level setting
+ *  this repo cannot reach, so the flag promises exactly one thing — what we
+ *  keep. */
 
 /** Resend event type → the ledger state it proves.
  *

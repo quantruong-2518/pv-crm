@@ -324,6 +324,10 @@ export class MasService {
            letters written by nobody. */
         fromAddress: this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM,
         replyTo: this.env.PV_EMAIL_MAS_REPLY_TO || null,
+        /* Absent stays absent so the column's own `DEFAULT true` answers — the
+           flag is opt-OUT, and passing `?? false` here would mute open/click
+           recording for every caller that simply does not send the field. */
+        ...(body.trackEngagement === undefined ? {} : { trackEngagement: body.trackEngagement }),
         state,
         scheduledAt,
         /* How many recipients survived preflight (`mail_run.audience_count`).

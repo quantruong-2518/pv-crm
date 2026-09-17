@@ -139,7 +139,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label={closeLabel}
-            className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
+            className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 pointer-coarse:size-12 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
           >
             <Icon icon={X} size={16} />
           </button>
@@ -147,7 +147,14 @@ export function Modal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 lg:px-6">{view.children}</div>
 
-        {view.footer && <div className="bg-black/20 px-5 py-4 lg:px-6">{view.footer}</div>}
+        {/* Theme-aware ink, not a flat `black/20`: this strip carries the line
+            saying why the main button is off, and a hard black over the LIGHT
+            glass sank `--muted-foreground` to 3.65:1, under law 13. */}
+        {view.footer && (
+          <div className="bg-surface-ink/9 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 lg:px-6">
+            {view.footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,
