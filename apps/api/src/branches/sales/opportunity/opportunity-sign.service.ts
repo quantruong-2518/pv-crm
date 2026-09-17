@@ -61,11 +61,19 @@ export class OpportunitySign implements ApprovalApplier {
       opportunityCode: code,
       sign: { ...body, signedAt: body.signedAt ?? new Date().toISOString() },
     }
+    /* The chain is frozen on the row now, so a raiser holding a seat on it
+       would approve their own signature — matched by name, as `decideOn` does. */
+    const chain = await this.approvals.chainFor(SIGN_APPROVERS)
+    if (chain.some((link) => link.person === who.name)) {
+      throw conflict(
+        'Bạn đang giữ ghế duyệt ký nên không tự gửi đề nghị ký được — nhờ một sale đứng đơn gửi.',
+      )
+    }
     const request = await this.approvals.open(who, {
       kind: 'contract-sign',
       consequence: consequenceOf(found, body),
       payload: proposal,
-      chain: await this.approvals.chainFor(SIGN_APPROVERS),
+      chain,
       links: [{ objectCode: code, objectLabel: found.row.name }],
     })
 

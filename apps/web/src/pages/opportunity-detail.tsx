@@ -485,6 +485,7 @@ function EmptyOp({ icon, note, onBack }: { icon: IconGlyph; note: ReactNode; onB
  *  một bài học mất trắng. */
 function DealCard({ op }: { op: OpportunityProfileResponse }) {
   const save = useSaveOpportunity(op.code)
+  const canClose = useCan('opportunity.close')
 
   /* Dòng máy chủ → hình phiếu. Qua `useMemo` để `work` không bị nạp lại mỗi
      lần vẽ: `op` giữ nguyên tham chiếu giữa các lần render của react-query, nên
@@ -526,6 +527,10 @@ function DealCard({ op }: { op: OpportunityProfileResponse }) {
   /* While a sign request waits the server refuses state, money and sale-owner
      changes (409), so those boxes lock first. */
   const waiting = Boolean(op.pendingSign)
+  /* A signed deal's money and commission holders move the contract, so the
+     server asks for `opportunity.close` there (403 otherwise). */
+  const moneyLocked = waiting || (signed && !canClose)
+  const moneyHint = waiting ? WAITING_SIGN : moneyLocked ? SIGNED_MONEY_NEEDS_CLOSE : null
   const stage = CREATE_STATES.find((s) => s.key === work.state)?.stage ?? null
   const blocked = dirty.length === 0 || missing.length > 0 || save.isPending
   const gate = gateRefusalOf(save.error)
@@ -633,16 +638,15 @@ function DealCard({ op }: { op: OpportunityProfileResponse }) {
 
       {/* A native `disabled` fieldset shuts every input and button inside it —
           the shared field components carry no `disabled` prop of their own. */}
-      <fieldset disabled={waiting} className="contents">
+      <fieldset disabled={moneyLocked} className="contents">
         <AmountRow draft={work} onSet={set} errors={errors} />
 
         <PeopleRow
           label="Sale đứng đơn"
           required
           hint={
-            waiting
-              ? WAITING_SIGN
-              : 'Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong.'
+            moneyHint ??
+            'Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong.'
           }
           picked={work.saleOwners}
           errors={errors.saleOwners}
@@ -754,6 +758,8 @@ function DealCard({ op }: { op: OpportunityProfileResponse }) {
     </GlassCard>
   )
 }
+
+const SIGNED_MONEY_NEEDS_CLOSE = 'Đổi tiền/người ăn hoa hồng của đơn đã ký cần quyền chốt đơn.'
 
 const WAITING_SIGN =
   'Đơn đang chờ duyệt ký — trạng thái, tiền, đồng tiền, Sale đứng đơn và cột tạm khoá.'

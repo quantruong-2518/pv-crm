@@ -33,7 +33,7 @@ import {
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { conflict, notFound } from '@api/platform/http/problem'
+import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { toChainLink } from '@api/platform/graph/graph.mapper'
 import { GraphService } from '@api/platform/graph/graph.service'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
@@ -467,6 +467,13 @@ export class OpportunityService {
       throw conflict('Chốt thắng bằng nút Ký hợp đồng', {
         state: ['Chốt thắng bằng nút Ký hợp đồng'],
       })
+    }
+    /* Money or SALE owners on a signed deal rewrite the contract, so they need
+       the sign door's permission and scope; state is already pinned above. */
+    if (found.signed && touchesSignTerms(found, body)) {
+      const ref = scopeRefOf(found.row, found.owners, who.id)
+      const verdict = this.access.check(who, { permission: 'opportunity.close', ref })
+      if (!verdict.ok) throw denied(verdict.reason, verdict.note)
     }
     // A reopened deal on an exited lead would be an open deal the exit door refused to leave behind.
     if (found.row.state === 'close-lost' && body.state !== 'close-lost') {

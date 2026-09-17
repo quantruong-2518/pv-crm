@@ -25,6 +25,11 @@ changed. If the edit changes the amount, the currency, or the main SALE owner
 it — the contract is not left pointing at stale figures after a legitimate
 edit.
 
+Changing the amount, currency or SALE owners of a signed deal requires
+`opportunity.close` — the same permission signing needs. Other edits need
+only `opportunity.edit`. The contract's commission holder changes only when
+that person is no longer a SALE owner on the deal.
+
 ### 2 · Lead exit is direct, reversible, and outside E3
 
 A lead leaving the funnel ("rời phễu") is performed by the salesperson
@@ -40,6 +45,10 @@ which no longer holds.
 
 Exit is refused while the lead still has an open deal, or is signed. On exit,
 the lead's customer-journey run closes `LOST`; on reopen, the run reopens.
+
+Exit and reopen both require `lead.disqualify` (scoped) — the permission the
+E2 matrix already names "Đưa lead ra khỏi luồng" — so marketing and BD cannot
+perform either.
 
 ### 3 · `limitDays` shape, and the `STAGE`/`TIER` ladders are structurally fixed
 
@@ -90,6 +99,16 @@ signing into compliance with ADR 0015 rule 3 — it was not E3-gated before.
 `contract-sign` is a fifth entry alongside the four request types ADR 0031
 wired in (`cấu-hình` · `đổi-chủ-lead` · `giảm-giá` · `loại-lead`, the last of
 which decision 2 above removes).
+
+While a sign request waits, the deal's state, amount, currency, SALE owners
+and stage are frozen, so what the approver approves is what actually gets
+signed.
+
+No self-approval: the person holding the sign-approval seat cannot raise a
+sign request for that deal. The check runs at raise time, not approve time —
+the chain is fixed on the request and there is a single seat per role, so
+refusing at approve time would leave the request stuck forever with nobody
+else able to decide it. Other approval kinds are unchanged.
 
 ## Consequences
 
