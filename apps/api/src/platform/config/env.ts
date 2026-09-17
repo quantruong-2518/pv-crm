@@ -101,7 +101,7 @@ const Env = z
       .default('false')
       .transform((v) => v === 'true'),
     /** Phải thuộc domain đã verify trên Resend. Nhìn thấy được nên để trong repo. */
-    PV_EMAIL_FROM: z.string().default('PV One CRM <leads@notify.pebblevina.com>'),
+    PV_EMAIL_FROM: z.string().default('Pebble Vina CRM <leads@notify.pebblevina.com>'),
     PV_EMAIL_REPLY_TO: z.string().default(''),
 
     /** `From` for the two letters that carry a password link — lời mời và đặt

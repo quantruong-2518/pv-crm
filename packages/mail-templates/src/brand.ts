@@ -23,11 +23,11 @@
  *  với sai một dòng. Khi chủ dự án cấp số thật thì thêm vào đây, một chỗ. */
 export const BRAND = {
   /** Tên sản phẩm — thứ người nhận thấy trên đầu thư. */
-  product: 'PV One',
+  product: 'Pebble Vina CRM',
   /** Tên gọi ngắn, dùng ở câu chữ trong thân thư. */
   org: 'Pebble Vina',
   /** Tên đứng ở chân thư. */
-  legalName: 'Pebble Vina Technology',
+  legalName: 'Pebble Vina',
   contactEmail: 'contact@pebblevina.com',
   site: 'pebblevina.com',
   siteUrl: 'https://pebblevina.com',
@@ -59,7 +59,9 @@ export function markUrl(assetBaseUrl: string, variant: MarkVariant): string {
 }
 
 /** The long lockup is reserved for placements wide enough to keep its custom
- *  lettering legible. Email uses PNG because Outlook does not decode WebP. */
-export function wordmarkUrl(assetBaseUrl: string, variant: MarkVariant): string {
+ *  lettering legible. Email uses PNG because Outlook does not decode WebP.
+ *  `blue-plate` bakes a white rounded plate into the image, so a mail client
+ *  that darkens the background cannot take the blue lettering down with it. */
+export function wordmarkUrl(assetBaseUrl: string, variant: MarkVariant | 'blue-plate'): string {
   return `${assetBaseUrl.replace(/\/+$/, '')}/wordmark-${variant}.png`
 }

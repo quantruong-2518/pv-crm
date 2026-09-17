@@ -218,7 +218,7 @@ const SAMPLES = [
         assetBaseUrl,
         unsubscribeUrl: `${ORIGIN}/unsubscribe?token=preview`,
         sender: {
-          name: 'Pebble Vina Technology',
+          name: 'Pebble Vina',
           address:
             'Văn phòng O1912, Tầng 19, Landmark 72 Tower, Khu E6, ' +
             'Khu đô thị mới Cầu Giấy, P. Yên Hoà, Hà Nội',

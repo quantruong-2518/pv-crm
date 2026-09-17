@@ -1,5 +1,6 @@
 import { createElement } from 'react'
 import { render } from '@react-email/render'
+import { BRAND } from './brand'
 import { LeadIntakeInternalEmail, type LeadIntakeInternalData } from './lead-intake-internal'
 import { MasShellEmail, type MasShellData } from './mas-shell'
 import { OpportunityLostEmail, type OpportunityLostData } from './opportunity-lost'
@@ -93,12 +94,12 @@ export async function renderOpportunityLost(
  *  ------------------------------------------------------------------
  *  THE SUBJECT CARRIES NO ACCOUNT DETAIL, ON PURPOSE
  *  ------------------------------------------------------------------
- *  Unlike the other four this subject interpolates nothing. Subjects are the
+ *  Unlike the other four this subject interpolates nothing but the product name. Subjects are the
  *  one part of a mail that travels furthest from the mailbox: they surface on
  *  lock screens, in desktop toast notifications, in the `Subject:` line every
  *  relay in the chain writes to its own logs, and in the mail-client search
  *  index of whatever machine the mailbox is also open on. A subject naming the
- *  account would put "this address holds a PV One login" in all of them, which
+ *  account would put "this address holds a Pebble Vina CRM login" in all of them, which
  *  is precisely the fact `/auth/forgot-password` refuses to confirm over HTTP.
  *  The address belongs in the body, where the recipient already is.
  *
@@ -112,7 +113,9 @@ export async function renderPasswordReset(
   data: PasswordResetData,
 ): Promise<{ subject: string; html: string; text: string }> {
   const subject = sanitizeSubjectPart(
-    data.purpose === 'invite' ? 'Tài khoản PV One của bạn đã được mở' : 'Đặt lại mật khẩu PV One',
+    data.purpose === 'invite'
+      ? `Tài khoản ${BRAND.product} của bạn đã được tạo`
+      : `Đặt lại mật khẩu ${BRAND.product}`,
   )
   const element = createElement(PasswordResetEmail, data)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])

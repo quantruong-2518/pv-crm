@@ -1,4 +1,5 @@
-import { Section } from '@react-email/components'
+import { Link, Section } from '@react-email/components'
+import { BRAND } from './brand'
 import {
   BrandShell,
   CtaButton,
@@ -9,7 +10,7 @@ import {
   Para,
   ShellHeading,
 } from './brand-shell'
-import { formatMoment } from './ops-mail-style'
+import { COLOR_PRIMARY, formatMoment } from './ops-mail-style'
 
 /** THE LETTER THAT CARRIES A SET-PASSWORD LINK — one template, two greetings.
  *
@@ -101,27 +102,25 @@ type Copy = {
 function copyFor(purpose: 'invite' | 'reset'): Copy {
   if (purpose === 'invite') {
     return {
-      preview: 'Đặt mật khẩu đầu tiên để bắt đầu dùng PV One.',
-      heading: 'Tài khoản PV One của bạn đã được mở',
+      preview: `Tài khoản ${BRAND.product} của bạn đã sẵn sàng. Vui lòng đặt mật khẩu để bắt đầu sử dụng.`,
+      heading: `Tài khoản ${BRAND.product} của bạn đã được tạo`,
       lead:
-        'Quản lý vừa mở cho bạn một tài khoản trên PV One. Tài khoản đã sẵn sàng, chỉ còn ' +
-        'thiếu mật khẩu — bấm nút bên dưới để tự đặt mật khẩu đầu tiên.',
-      cta: 'Đặt mật khẩu đầu tiên',
+        `Quản trị viên đã tạo cho bạn một tài khoản trên ${BRAND.product}. ` +
+        'Vui lòng nhấn nút bên dưới để đặt mật khẩu và bắt đầu sử dụng.',
+      cta: 'Đặt mật khẩu',
       reassurance:
-        'Quá hạn thì nhờ người đã mở tài khoản gửi lại một lời mời mới. Không có cách nào ' +
-        'gia hạn liên kết cũ, và đó là chủ ý.',
+        'Nếu đường dẫn đã hết hạn, vui lòng liên hệ quản trị viên để được gửi lại lời mời.',
     }
   }
   return {
-    preview: 'Liên kết đặt lại mật khẩu cho tài khoản PV One của bạn.',
-    heading: 'Đặt lại mật khẩu PV One',
+    preview: `Yêu cầu đặt lại mật khẩu cho tài khoản ${BRAND.product} của bạn.`,
+    heading: 'Đặt lại mật khẩu',
     lead:
-      'Có người vừa yêu cầu đặt lại mật khẩu cho tài khoản này. Bấm nút bên dưới để chọn ' +
-      'một mật khẩu mới.',
+      `Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản ${BRAND.product} của bạn. ` +
+      'Vui lòng nhấn nút bên dưới để tạo mật khẩu mới.',
     reassurance:
-      'Nếu không phải bạn yêu cầu thì cứ bỏ qua thư này: mật khẩu hiện tại giữ nguyên và ' +
-      'không có gì thay đổi. Chỉ khi bạn thật sự đặt mật khẩu mới thì mọi thiết bị đang ' +
-      'đăng nhập mới bị đăng xuất.',
+      'Nếu bạn không gửi yêu cầu này, vui lòng bỏ qua email, mật khẩu hiện tại vẫn được giữ ' +
+      'nguyên. Sau khi đặt mật khẩu mới, mọi thiết bị đang đăng nhập sẽ bị đăng xuất.',
     cta: 'Đặt lại mật khẩu',
   }
 }
@@ -178,29 +177,43 @@ export function PasswordResetEmail(data: PasswordResetData) {
   return (
     <BrandShell preview={copy.preview} assetBaseUrl={data.assetBaseUrl}>
       <ShellHeading>{copy.heading}</ShellHeading>
-      <Para>Chào {greeting},</Para>
+      <Para>Xin chào {greeting},</Para>
       <Para>{copy.lead}</Para>
 
       <CtaButton href={data.link}>{copy.cta}</CtaButton>
 
       <FactBox>
         <Fact label="Tài khoản" value={data.email} />
-        <Fact label="Liên kết hết hạn" value={expiryValue(remaining, moment)} />
+        <Fact label="Thời hạn liên kết" value={expiryValue(remaining, moment)} />
       </FactBox>
 
       {/* `FallbackLink` mang `margin: 0`, nên khoảng cách với đoạn kế tiếp
           phải do chỗ này giữ — không có nó thì lời trấn an dính liền vào một
           dòng URL dài đang ngắt giữa chữ. */}
       <Section style={{ margin: '0 0 20px' }}>
-        <Note>Nút không bấm được thì chép nguyên đường dẫn này vào thanh địa chỉ trình duyệt:</Note>
+        <Note>
+          Nếu nút không hoạt động, vui lòng sao chép đường dẫn sau và dán vào trình duyệt:
+        </Note>
         <FallbackLink url={data.link} />
       </Section>
 
-      <Note>Mỗi liên kết chỉ dùng được một lần. {copy.reassurance}</Note>
+      <Note>Đường dẫn chỉ sử dụng được một lần. {copy.reassurance}</Note>
+      <Note>Vì lý do bảo mật, vui lòng không chuyển tiếp email này cho người khác.</Note>
       <Note>
-        Đừng chuyển tiếp thư này cho ai: người giữ liên kết là người đặt được mật khẩu cho tài
-        khoản.
+        Nếu cần hỗ trợ, vui lòng liên hệ{' '}
+        <Link href={`mailto:${BRAND.contactEmail}`} style={{ color: COLOR_PRIMARY }}>
+          {BRAND.contactEmail}
+        </Link>
+        .
       </Note>
+
+      <Section style={{ margin: '20px 0 0' }}>
+        <Para>
+          Trân trọng,
+          <br />
+          {BRAND.product}
+        </Para>
+      </Section>
     </BrandShell>
   )
 }

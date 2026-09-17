@@ -139,10 +139,17 @@ const COLUMN_STYLE = {
  *  vertical line. That alignment is what the card's edge used to supply for
  *  free; with no edge to draw it, the padding has to. Vertical values differ
  *  because the blocks differ in weight — the body carries the letter and gets
- *  the most air — and no corner is rounded any more. */
+ *  the most air — and no corner is rounded any more.
+ *
+ *  The header is WHITE with the blue wordmark on its own white plate. Gmail's
+ *  dark mode inverts backgrounds but never images: the old navy band turned
+ *  pale and swallowed the white wordmark, and a bare blue one sits at ~2:1 on
+ *  the darkened band. The plate is part of the PNG, so it survives inversion.
+ *  Its 8px of padding is why this block pads 16px, keeping the glyphs on the
+ *  shared 24px line. */
 const HEADER_STYLE = {
-  backgroundColor: COLOR_INK,
-  padding: '20px 24px',
+  backgroundColor: COLOR_BG,
+  padding: '12px 16px',
 } as const
 
 const CONTENT_STYLE = { padding: '28px 24px' } as const
@@ -167,13 +174,15 @@ export function BrandShell({
         <Container style={COLUMN_STYLE}>
           <Section style={HEADER_STYLE}>
             <Img
-              src={wordmarkUrl(assetBaseUrl, 'light')}
-              width="160"
-              height="30"
+              src={wordmarkUrl(assetBaseUrl, 'blue-plate')}
+              width="176"
+              height="46"
               alt={BRAND.org}
               style={{ display: 'block', border: 0 }}
             />
           </Section>
+
+          <Hr style={{ borderColor: COLOR_SURFACE, margin: '0 24px' }} />
 
           <Section style={CONTENT_STYLE}>{children}</Section>
 
