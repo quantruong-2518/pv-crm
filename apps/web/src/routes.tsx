@@ -287,6 +287,20 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/opportunities'),
   },
   {
+    /** Typing a deal by hand — the same door `/sales/leads/new` opens, and it
+     *  reaches the same form card `:code` draws.
+     *
+     *  Write permission, not read: this route exists only to write, so refuse
+     *  at the door rather than after fourteen fields. The lead the deal grows
+     *  out of arrives as `?lead=`; without one the screen asks for it first,
+     *  because `POST /sales/opportunities` carries a foreign key. */
+    path: '/sales/opportunities/new',
+    name: 'Kinh doanh · Module 3 · Cơ hội mới',
+    branch: 'Sales',
+    permission: 'opportunity.edit',
+    load: () => import('@/pages/opportunity-new'),
+  },
+  {
     /** Hồ sơ một cơ hội. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
      *  là một dòng của sổ, và nav bên trái vẫn sáng ở mục Ops. */
     path: '/sales/opportunities/:code',

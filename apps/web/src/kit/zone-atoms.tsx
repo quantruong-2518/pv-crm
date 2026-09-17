@@ -107,14 +107,15 @@ export function ZoneAtoms() {
           className="col-span-2"
           code="A-01"
           name="Button"
-          note="4 variant · 3 size"
+          note="5 variant · 3 size"
           bodyClassName="flex flex-col gap-4 px-4 py-5"
           footer={
             <>
               default → h-10 px-4 rounded-md bg-primary text-primary-foreground shadow-primary
               <br />
               ghost → bg-surface-ink/10 · destructive → bg-destructive/20
-              text-destructive-foreground · nút tablet luôn size lg (≥48px)
+              text-destructive-foreground · success → bg-success/20 text-on-tint-success-strong ·
+              nút tablet luôn size lg (≥48px)
             </>
           }
         >
@@ -123,6 +124,7 @@ export function ZoneAtoms() {
             <Button variant="secondary">Gửi lại</Button>
             <Button variant="ghost">Xem căn cứ</Button>
             <Button variant="destructive">Từ chối</Button>
+            <Button variant="success">Chốt thắng</Button>
           </div>
           <div className="flex items-center gap-3">
             <Button size="sm">sm · 32</Button>
@@ -169,9 +171,15 @@ export function ZoneAtoms() {
           code="A-04"
           name="Input"
           bodyClassName="flex flex-col gap-2.5 px-4 py-[18px]"
-          footer="bg-input h-10 rounded-md focus:ring-2 ring-ring"
+          footer="bg-input h-10 rounded-md focus:ring-2 ring-ring · `suffix` gắn đơn vị ở mép phải BÊN TRONG ô, là anh em flex nên khoảng thở 8px không đổi theo độ dài số — vòng focus và vòng invalid chuyển sang lớp vỏ"
         >
           <Input placeholder="Tên khách hàng" readOnly />
+          <Input
+            defaultValue="320.000.000"
+            suffix="₫ VND"
+            className="tnum text-right font-mono"
+            readOnly
+          />
           <Input
             defaultValue="Cơ điện Sao Đỏ"
             className="shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]"
@@ -353,8 +361,18 @@ export function ZoneAtoms() {
           note="ô lọc một dòng"
           noteAccent
           bodyClassName="flex flex-wrap items-center gap-3 px-4 py-4"
-          footer="ba size: sm 32 · md 40 · lg 48 (sàn chạm tablet, luật 13) · listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên"
+          footer="ba size: sm 32 · md 40 · lg 48 (sàn chạm tablet, luật 13) · listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên · `leading` gắn một dấu nhỏ trước GIÁ TRỊ, aria-hidden vì chữ ngay cạnh đã nói"
         >
+          <Select
+            label="Trạng thái"
+            leading={<StatusDot state="current" />}
+            value="nego"
+            onChange={() => {}}
+            options={[
+              { value: 'pending', label: 'Pending' },
+              { value: 'nego', label: 'Nego' },
+            ]}
+          />
           <Select
             label="Bậc"
             value={tier}

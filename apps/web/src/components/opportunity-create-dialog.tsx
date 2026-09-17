@@ -1,14 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Inbox, TriangleAlert, X } from '@pv/ui'
-import { Badge, Button, Chip, Drawer, EmptyState, Icon, SearchField, Skeleton } from '@pv/ui'
-import type { LeadRow, LeadTier, OpportunityCreateResponse } from '@pv/contracts'
-import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
+import { TriangleAlert, X } from '@pv/ui'
+import { Button, Drawer, EmptyState, Icon, Skeleton } from '@pv/ui'
+import type { LeadRow, OpportunityCreateResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadProfileQuery } from '@/data/lead-profile'
-import { leadBookQuery } from '@/data/leads'
-import { opportunitiesOfLeadQuery } from '@/data/opportunities'
+import { LeadPickList } from './lead-picker'
 import { ConvertDialog } from './convert-dialog'
 
 /** Module 3 · one opportunity typed by hand, opened from the opportunity book.
@@ -34,28 +31,6 @@ import { ConvertDialog } from './convert-dialog'
  *  It still asks per row rather than through the book, because the book's
  *  scope axis (`ownOnly`) would hide a colleague's deal from a Sale, and
  *  `live-deal` is unscoped on purpose (see `opportunitiesOfLeadQuery`). */
-
-/** Rows the picker draws. Deliberately short: this list is for confirming the
- *  lead you already have in mind, and the search box above it is how you get
- *  there — not scrolling. */
-const PICK_SIZE = 8
-
-/** Same beat as the two books: type at full speed, ask the server once. */
-const SEARCH_DELAY_MS = 300
-
-/** `LeadBookQuery.q` is `.max(120)`. Cut here rather than let the extra
- *  characters ride: the server answers a longer one with a 400, which this
- *  panel can only render as "the lead book could not be fetched" — a sentence
- *  about the server, for something the person typed. Cutting silently is right
- *  for a search box: the 121st character of a company name narrows nothing. */
-const SEARCH_MAX = 120
-
-const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
-const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
-  prospect: 'draft',
-  mql: 'running',
-  sql: 'success',
-}
 
 type Props = {
   open: boolean
@@ -86,7 +61,9 @@ export function OpportunityCreateDialog({ open, onClose, onCreated }: Props) {
 
 // ---------------------------------------------------------------------------
 
-/** Step one — which lead this deal comes out of. */
+/** Step one — which lead this deal comes out of. The list itself lives in
+ *  `components/lead-picker.tsx`: the create PAGE asks the same question without
+ *  a drawer around it. */
 function LeadPicker({
   open,
   onClose,
@@ -96,29 +73,6 @@ function LeadPicker({
   onClose: () => void
   onPick: (lead: LeadRow) => void
 }) {
-  const [text, setText] = useState('')
-  const [q, setQ] = useState<string | undefined>(undefined)
-
-  useEffect(() => {
-    const typed = text.trim().slice(0, SEARCH_MAX)
-    const wanted = typed === '' ? undefined : typed
-    if (wanted === q) return
-    const timer = setTimeout(() => setQ(wanted), SEARCH_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [text, q])
-
-  /* `enabled` because this panel stays mounted while closed, for the exit
-     animation — without it every visit to the book fires a lead query nobody
-     asked for, and eight live-deal reads behind it. `status` keeps its default
-     `running`: a lead that has left the book is not a deal waiting to open. */
-  const { data, isPending, error, refetch } = useQuery({
-    ...leadBookQuery({ ...DEFAULT_LEAD_BOOK_QUERY, q, size: PICK_SIZE }),
-    enabled: open,
-  })
-
-  const rows = data?.rows ?? []
-  const total = data?.total ?? 0
-
   return (
     <Drawer
       open={open}
@@ -138,92 +92,8 @@ function LeadPicker({
         </div>
       }
     >
-      <div className="flex flex-col gap-4">
-        <SearchField
-          size="page"
-          placeholder="Tìm theo tên công ty hoặc mã lead…"
-          value={text}
-          onChange={setText}
-          className="w-full"
-        />
-
-        {error ? (
-          <EmptyState
-            icon={TriangleAlert}
-            message={`Không lấy được sổ lead. ${
-              isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-            }`}
-            action={{ label: 'Thử lại', onClick: () => void refetch() }}
-            className="py-12"
-          />
-        ) : isPending ? (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </div>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon={Inbox}
-            message={
-              q === undefined
-                ? 'Sổ lead chưa có dòng nào đang chạy — chưa có khách nào để mở đơn.'
-                : `Không có lead nào khớp "${q}".`
-            }
-            action={
-              q === undefined
-                ? { label: 'Đóng', onClick: onClose }
-                : { label: 'Xoá ô tìm', onClick: () => setText('') }
-            }
-            className="py-12"
-          />
-        ) : (
-          <>
-            <div className="flex flex-col gap-2">
-              {rows.map((lead) => (
-                <LeadPickRow key={lead.code} lead={lead} onPick={() => onPick(lead)} />
-              ))}
-            </div>
-            {/* The list is CUT SHORT, and says so. Left unsaid, eight rows read
-                as the whole book, and somebody who cannot see their customer
-                concludes it is not in the book rather than typing one more
-                letter into the search box. */}
-            <p className="text-muted-foreground text-[11px] leading-[1.5]">
-              Hiện <span className="tnum font-num">{rows.length}</span> trên{' '}
-              <span className="tnum font-num">{total}</span> lead đang chạy. Gõ vào ô tìm để thu
-              hẹp.
-            </p>
-          </>
-        )}
-      </div>
+      <LeadPickList enabled={open} onPick={onPick} onGiveUp={onClose} />
     </Drawer>
-  )
-}
-
-/** One line of the picker — and, when the lead already holds one or more open
- *  deals, information about which. */
-function LeadPickRow({ lead, onPick }: { lead: LeadRow; onPick: () => void }) {
-  const { data: live } = useQuery(opportunitiesOfLeadQuery(lead.code))
-  const openCount = (live?.codes.length ?? 0) + (live?.hidden ?? 0)
-
-  return (
-    <button
-      type="button"
-      onClick={onPick}
-      className="motion-std bg-surface-ink/9 hover:bg-surface-ink/16 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left"
-    >
-      <Chip>{lead.code}</Chip>
-      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{lead.company}</span>
-      {openCount > 0 ? (
-        <Badge tone="warning" className="text-on-tint-warning-strong">
-          Đang mở · {openCount} cơ hội
-        </Badge>
-      ) : (
-        lead.tier !== undefined && (
-          <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier)}</Badge>
-        )
-      )}
-    </button>
   )
 }
 

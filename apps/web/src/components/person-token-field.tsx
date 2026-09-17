@@ -3,12 +3,13 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Search, X } from '@pv/ui'
+import { ChevronDown, Search, X } from '@pv/ui'
 import { Avatar, Icon, Input, cn } from '@pv/ui'
 
 /** A list of people already chosen, plus one box to add the next one.
@@ -45,9 +46,23 @@ export type PersonTokenFieldProps = {
    *  means typing alone adds nobody, which is right for the staff directory. */
   onFreeText?: (text: string) => string | null
   placeholder: string
-  hint: ReactNode
+  /** Absent when the caller's own field frame already prints one — the deal
+   *  form puts the hint under the box together with the server's refusal. */
+  hint?: ReactNode
   /** Sentence shown in place of the list when there is nothing to suggest. */
   emptyNote?: string
+  /** Where the chosen people sit.
+   *
+   *  `stacked` (the default) keeps them on their own row above the search box,
+   *  which is what a list of eight recipients needs. `inline` puts them INSIDE
+   *  the control with a chevron at its right edge, so a box holding one person
+   *  reads as an ordinary picker rather than as a search with a result stuck
+   *  above it — the deal form asks for one sale owner nine times out of ten.
+   *
+   *  A VARIANT RATHER THAN A SECOND COMPONENT on purpose: the keyboard rules,
+   *  the portalled list and the backspace-removes-the-last-token behaviour are
+   *  the part that costs, and two copies of them drift apart on the first fix. */
+  variant?: 'stacked' | 'inline'
 }
 
 /** How many suggestions are drawn at once. A list longer than this is a list
@@ -72,12 +87,16 @@ export function PersonTokenField({
   placeholder,
   hint,
   emptyNote,
+  variant = 'stacked',
 }: PersonTokenFieldProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [refusal, setRefusal] = useState('')
   const field = useRef<HTMLInputElement>(null)
-  const box = useMenuBox(open, field)
+  /* The list lines up with the CONTROL, which in the inline variant is wider
+     than the text box inside it. */
+  const shell = useRef<HTMLDivElement>(null)
+  const box = useMenuBox(open, shell)
 
   const needle = query.trim().toLocaleLowerCase('vi')
   const matches = useMemo(
@@ -123,41 +142,63 @@ export function PersonTokenField({
     else takeTyped()
   }
 
+  /* One set of handlers for both variants — a second copy of the keyboard
+     rules is where the two shapes drift. An option's own `mousedown` calls
+     `preventDefault`, so `onBlur` never runs for a real pick. */
+  const typing = {
+    'aria-label': label,
+    value: query,
+    placeholder,
+    onFocus: () => setOpen(true),
+    onBlur: () => setOpen(false),
+    onKeyDown: onKey,
+    onChange: (event: ChangeEvent<HTMLInputElement>) => {
+      setQuery(event.target.value)
+      setRefusal('')
+      setOpen(true)
+    },
+  }
+
+  const chosen = tokens.map((person) => (
+    <Token key={person.id} person={person} onRemove={() => onRemove(person.id)} />
+  ))
+
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      {tokens.length > 0 && (
-        <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-          {tokens.map((person) => (
-            <Token key={person.id} person={person} onRemove={() => onRemove(person.id)} />
-          ))}
-        </ul>
+      {variant === 'inline' ? (
+        <div
+          ref={shell}
+          className="bg-input flex min-h-10 w-full min-w-0 flex-wrap items-center gap-2 rounded-md px-2 py-1"
+        >
+          {tokens.length > 0 && (
+            <ul className="m-0 flex list-none flex-wrap items-center gap-2 p-0">{chosen}</ul>
+          )}
+          <input
+            ref={field}
+            {...typing}
+            className="placeholder:text-muted-foreground text-foreground min-w-[7rem] flex-1 bg-transparent text-[12.5px] outline-none"
+          />
+          <Icon
+            icon={ChevronDown}
+            size={16}
+            className="text-muted-foreground pointer-events-none shrink-0"
+          />
+        </div>
+      ) : (
+        <>
+          {tokens.length > 0 && (
+            <ul className="m-0 flex list-none flex-wrap gap-2 p-0">{chosen}</ul>
+          )}
+          <div ref={shell} className="relative min-w-0">
+            <Icon
+              icon={Search}
+              size={16}
+              className="text-muted-foreground pointer-events-none absolute left-3 top-3"
+            />
+            <Input ref={field} {...typing} className="pl-8" />
+          </div>
+        </>
       )}
-
-      <div className="relative min-w-0">
-        <Icon
-          icon={Search}
-          size={16}
-          className="text-muted-foreground pointer-events-none absolute left-3 top-3"
-        />
-        <Input
-          ref={field}
-          aria-label={label}
-          value={query}
-          placeholder={placeholder}
-          className="pl-8"
-          onFocus={() => setOpen(true)}
-          /* An option's own `mousedown` handler calls `preventDefault`, so focus
-             never leaves and this blur never runs for a real pick — true in the
-             portal too, which is about DOM position and not about focus. */
-          onBlur={() => setOpen(false)}
-          onKeyDown={onKey}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setRefusal('')
-            setOpen(true)
-          }}
-        />
-      </div>
 
       {open && box && (
         <SuggestionMenu
@@ -173,7 +214,7 @@ export function PersonTokenField({
       {refusal ? (
         <p className="text-warning m-0 text-[11px] leading-[1.5]">{refusal}</p>
       ) : (
-        <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">{hint}</p>
+        hint && <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">{hint}</p>
       )}
     </div>
   )
@@ -272,7 +313,7 @@ function SuggestionMenu({
  *  it inside an `overflow-y-auto` panel, which clips an absolutely positioned
  *  child at the panel's bottom edge. `Select` in `@pv/ui` went to the viewport
  *  for exactly this reason and says so in its own docblock. */
-function useMenuBox(open: boolean, field: RefObject<HTMLInputElement | null>): MenuBox | null {
+function useMenuBox(open: boolean, field: RefObject<HTMLElement | null>): MenuBox | null {
   const [box, setBox] = useState<MenuBox | null>(null)
 
   useLayoutEffect(() => {

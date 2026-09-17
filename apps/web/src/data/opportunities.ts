@@ -448,7 +448,7 @@ export function isLateClose(op: OpportunityRow): boolean {
 export function missingOf(draft: OpportunityDraft): string[] {
   const missing: string[] = []
   if (draft.name.trim() === '') missing.push('tên cơ hội')
-  if (draft.closedDate === '') missing.push('ngày đóng dự kiến')
+  if (draft.closedDate === '') missing.push('ngày chốt dự kiến')
   if (draft.amount === null || draft.amount === 0) missing.push('giá trị đơn')
   if (draft.saleOwners.length === 0) missing.push('ít nhất một Sale đứng đơn')
   if (draft.state === 'close-lost' && draft.lossReason === '' && draft.lossNote.trim() === '') {

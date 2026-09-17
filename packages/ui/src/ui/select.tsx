@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown } from '../icons'
@@ -37,6 +38,16 @@ export type SelectProps = {
   neutralValue?: string
   /** Ẩn nhãn khỏi mắt, giữ cho trình đọc màn hình. */
   hideLabel?: boolean
+  /** A small mark riding just BEFORE THE VALUE inside the trigger — a status
+   *  dot, a flag, a currency sign. Different from `label`, which stands before
+   *  the whole box and says what it asks.
+   *
+   *  It lives here rather than on `SelectOption` because it describes the
+   *  CHOSEN value, not each row of the menu, so the caller derives it from
+   *  `value` with its own table — the library may not know which colour "still
+   *  running" wears (package boundary). Carries `aria-hidden`: the colour only
+   *  repeats what the word beside it already said. */
+  leading?: ReactNode
   /** `lg` is 48px, the touch floor rule 13 sets for tablet — `Button` has had
    *  it from the start and this control did not, so any form mixing the two
    *  could not clear the floor at all. Reach for it wherever a `Button size="lg"`
@@ -68,6 +79,7 @@ export function Select({
   onChange,
   neutralValue,
   hideLabel = false,
+  leading,
   size = 'md',
   className,
 }: SelectProps) {
@@ -299,6 +311,11 @@ export function Select({
         >
           {label}
         </span>
+        {leading && (
+          <span aria-hidden className="flex shrink-0 items-center">
+            {leading}
+          </span>
+        )}
         <span id={valueId} className={cn('min-w-0 flex-1 truncate', active && 'font-semibold')}>
           {selectedLabel}
         </span>

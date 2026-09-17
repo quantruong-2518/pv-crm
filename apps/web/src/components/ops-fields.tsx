@@ -3,6 +3,7 @@ import { Paperclip, Trash2, TriangleAlert } from '@pv/ui'
 import { Avatar, Button, Icon, Input, Kicker, Select, Textarea, billions, cn, vnd } from '@pv/ui'
 import { OPPORTUNITY_FILES_MAX, OPPORTUNITY_LOSS_NOTE_MAX } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
+import type { SetDraft } from '@/data/deal-draft'
 import {
   CURRENCIES,
   OPPORTUNITY_STATES,
@@ -40,10 +41,9 @@ import { useLossReasons, useProductCatalog } from '@/data/sales-config'
  *  trạng thái của phiếu là kiến thức của NHÁNH Sales, mà thư viện component thì
  *  không được biết nhánh nào (biên giới package · CLAUDE.md). */
 
-export type SetDraft = <K extends keyof OpportunityDraft>(
-  key: K,
-  value: OpportunityDraft[K],
-) => void
+/** Re-exported so a screen drawing these boxes has ONE door to import from.
+ *  Declared beside the draft itself — the write layer owns the shape. */
+export type { SetDraft }
 
 export const STATE_LABEL = new Map(OPPORTUNITY_STATES.map((s) => [s.key, s.label]))
 export const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
@@ -70,44 +70,58 @@ export function Field({
   hint,
   errors,
   plain,
+  grow,
   className,
   children,
 }: {
-  label: string
+  /** `ReactNode` so a box may put a glyph beside its own name. The head is a
+   *  flex row, so a node label and the star stay on ONE line. */
+  label: ReactNode
   required?: boolean
   hint?: ReactNode
   /** What the server just said about THIS box. Absent or empty = no complaint. */
   errors?: string[]
   /** Bỏ thẻ `<label>` bọc ngoài — cho Select và cụm nút tự mang nhãn. */
   plain?: boolean
+  /** Fill the grid cell instead of hugging the control, so two boxes standing
+   *  side by side end on the same line. Off by default: a box that stretches
+   *  with nothing to stretch to would collapse its own control. */
+  grow?: boolean
   className?: string
   children: ReactNode
 }) {
   const wrong = Boolean(errors?.length)
 
+  /* A FLEX ROW, not an inline span. The label may be a node — a status dot
+     beside a word — and a block-level child inside an inline span pushes the
+     star onto a second line, which is exactly what it used to do. */
   const head = (
     <span
-      className={cn('text-[11px]', wrong ? 'text-destructive-foreground' : 'text-muted-foreground')}
+      className={cn(
+        'flex items-center gap-1 text-[11px]',
+        wrong ? 'text-destructive-foreground' : 'text-muted-foreground',
+      )}
     >
       {label}
       {required && (
         <span className="text-warning" aria-hidden="true">
-          {' '}
           *
         </span>
       )}
     </span>
   )
 
+  const body = cn('flex flex-col gap-2', grow && 'min-h-0 flex-1')
+
   return (
-    <div className={cn('flex min-w-0 flex-col gap-2', className)}>
+    <div className={cn('flex min-w-0 flex-col gap-2', grow && 'h-full', className)}>
       {plain ? (
-        <div className="flex flex-col gap-2">
+        <div className={body}>
           {head}
           {children}
         </div>
       ) : (
-        <label className="flex flex-col gap-2">
+        <label className={body}>
           {head}
           {children}
         </label>

@@ -257,7 +257,7 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
           </Field>
 
           <Field
-            label="Ngày đóng dự kiến"
+            label="Ngày chốt dự kiến"
             required
             errors={errors.closedDate}
             hint={draft.closedDate !== '' ? `Đọc là ${dmy(draft.closedDate)}.` : undefined}
@@ -265,7 +265,7 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
             <Input
               type="date"
               value={draft.closedDate}
-              aria-label="Ngày đóng dự kiến"
+              aria-label="Ngày chốt dự kiến"
               aria-required
               invalid={Boolean(errors.closedDate)}
               onChange={(e) => set('closedDate', e.target.value)}
