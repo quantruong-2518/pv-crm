@@ -137,13 +137,9 @@ export function AccountMenu({
           open ? 'bg-surface-ink/10' : 'hover:bg-surface-ink/10',
         )}
       >
+        {/* Initials only: the one-row header has no width for a name, and the
+            open menu prints name and role in full. */}
         <Avatar name={user.name} initials={user.initials} size="md" />
-        {/* Name beside the avatar only from `lg`: below that the search field
-            owns every spare pixel, and the initials already say who it is. */}
-        <span className="hidden max-w-[160px] flex-col text-left leading-tight lg:flex">
-          <span className="text-foreground truncate text-[12.5px] font-semibold">{user.name}</span>
-          <span className="text-muted-foreground truncate text-[11px]">{user.role ?? org}</span>
-        </span>
         <Icon
           icon={ChevronDown}
           size={14}

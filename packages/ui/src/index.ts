@@ -60,6 +60,7 @@ export * from './patterns/scan-field'
 export * from './patterns/search-field'
 export * from './patterns/stage-track'
 export * from './patterns/stat-card'
+export * from './patterns/stat-strip'
 export * from './patterns/stepper'
 export * from './patterns/timeline'
 

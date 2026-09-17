@@ -44,6 +44,8 @@ export function ScreenHeader({
   back,
   className,
 }: ScreenHeaderProps) {
+  /* A bare title is the one-line header: actions sit level with the title. */
+  const titleOnly = !kicker && !description && !meta
   const titleId = useId()
 
   return (
@@ -55,7 +57,12 @@ export function ScreenHeader({
         </Button>
       )}
 
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div
+        className={cn(
+          'flex min-w-0 flex-col gap-3 sm:flex-row sm:justify-between',
+          titleOnly ? 'sm:items-center' : 'sm:items-start',
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-2">
           {kicker && (
             <div className="text-muted-foreground font-mono text-[10px] font-semibold uppercase tracking-[.1em]">

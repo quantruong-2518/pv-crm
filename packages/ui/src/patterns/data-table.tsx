@@ -23,7 +23,8 @@ import { cn } from '../lib/cn'
 export type RowState = 'default' | 'hover' | 'selected' | 'hidden'
 
 export type TableColumn = {
-  header: string
+  /** A node so a column can head itself with a control — the select-page box. */
+  header: ReactNode
   /** phần của grid-template-columns, ví dụ '1.4fr' */
   width: string
   align?: 'left' | 'right'
@@ -68,6 +69,7 @@ export function DataTable({
   className,
   sort,
   onSort,
+  flush = false,
 }: {
   columns: TableColumn[]
   rows: TableRowModel[]
@@ -76,6 +78,9 @@ export function DataTable({
   sort?: TableSort
   /** người dùng bấm header có `sortKey`; đảo chiều là việc của màn */
   onSort?: (key: string) => void
+  /** Edge to edge inside its card: the header becomes a tinted band and every
+   *  row carries its own side padding, so hover reaches both edges of the card. */
+  flush?: boolean
 }) {
   const template = columns.map((c) => c.width).join(' ')
 
@@ -92,17 +97,20 @@ export function DataTable({
     <div className={cn('overflow-x-hidden', className)} role="table">
       <div
         role="row"
-        className="border-b-white/6 text-muted-foreground grid min-h-10 items-center gap-3 border-b py-2 font-medium tracking-[.01em]"
+        className={cn(
+          'text-muted-foreground grid min-h-10 items-center gap-3 py-2 font-medium tracking-[.01em]',
+          flush ? 'bg-surface-ink/5 px-5 text-[11.5px]' : 'border-b-white/6 border-b',
+        )}
         style={{ gridTemplateColumns: template }}
       >
-        {columns.map((col) => {
+        {columns.map((col, c) => {
           const sortable = Boolean(col.sortKey) && Boolean(onSort)
           const active = Boolean(col.sortKey) && sort?.key === col.sortKey
           const glyph = active ? (sort?.dir === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
 
           return (
             <span
-              key={col.header}
+              key={c}
               role="columnheader"
               aria-sort={
                 !col.sortKey
@@ -142,6 +150,8 @@ export function DataTable({
         const open = () => row.onOpen?.()
         const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
           if (event.key !== 'Enter' && event.key !== ' ') return
+          // A key pressed on a control inside the row (checkbox, pin) is that control's.
+          if (event.target !== event.currentTarget) return
           // Space cuộn trang nếu để nguyên — dòng bảng là nút, không phải trang.
           if (event.key === ' ') event.preventDefault()
           open()
@@ -173,7 +183,8 @@ export function DataTable({
                  phải chạm sát ô kế bên và hai giá trị dính liền nhau thành một
                  chuỗi vô nghĩa ("6/6Mới · 4 ngày"). Header dùng cùng khe để hai
                  lưới không lệch. */
-              'motion-std grid h-12 items-center gap-3 text-[12.5px]',
+              'motion-std group grid h-12 items-center gap-3 text-[12.5px]',
+              flush && 'px-5',
               /* An OPEN row always carries a bottom rule, last row included:
                  that rule separates the row from its own detail panel, not
                  from the row after it. */

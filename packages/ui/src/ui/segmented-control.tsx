@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { cn } from '../lib/cn'
 
 /** A-19 · SegmentedControl — chọn ĐÚNG MỘT trong vài lựa chọn ngang hàng.
@@ -24,6 +25,10 @@ export type SegmentedControlProps = {
   options: SegmentedOption[]
   onChange: (value: string) => void
   size?: 'sm' | 'md'
+  /** `quiet` lifts the active cell on a neutral ground instead of azure — for
+   *  list tabs, where the list itself is the content and azure stays with the
+   *  primary action on the screen (law 3). */
+  tone?: 'primary' | 'quiet'
   hideLabel?: boolean
   className?: string
 }
@@ -34,20 +39,22 @@ export function SegmentedControl({
   options,
   onChange,
   size = 'md',
+  tone = 'primary',
   hideLabel = false,
   className,
 }: SegmentedControlProps) {
+  const labelId = useId()
   return (
     <div className={cn('flex min-w-0 items-center gap-2', className)}>
       <span
         className={cn('text-muted-foreground shrink-0 text-[11px]', hideLabel && 'sr-only')}
-        id={`seg-${label}`}
+        id={labelId}
       >
         {label}
       </span>
       <div
         role="group"
-        aria-labelledby={`seg-${label}`}
+        aria-labelledby={labelId}
         className={cn(
           'bg-surface-ink/5 flex min-w-0 flex-wrap items-center gap-1 rounded-md p-1',
           size === 'sm' ? 'text-[11px]' : 'text-[12px]',
@@ -64,10 +71,10 @@ export function SegmentedControl({
               onClick={() => onChange(o.value)}
               className={cn(
                 'motion-std inline-flex items-center gap-2 whitespace-nowrap rounded-sm font-semibold',
-                size === 'sm' ? 'h-6 px-2' : 'h-8 px-3',
-                active
-                  ? 'bg-primary text-primary-foreground shadow-primary'
-                  : 'text-muted-foreground hover:bg-surface-ink/8 hover:text-foreground',
+                size === 'sm' ? 'h-6 px-2' : 'pointer-coarse:h-12 h-8 px-3',
+                active && tone === 'primary' && 'bg-primary text-primary-foreground shadow-primary',
+                active && tone === 'quiet' && 'bg-surface-ink/12 text-foreground shadow-control',
+                !active && 'text-muted-foreground hover:bg-surface-ink/8 hover:text-foreground',
                 o.disabled && 'cursor-not-allowed opacity-45 hover:bg-transparent',
               )}
             >
@@ -80,6 +87,7 @@ export function SegmentedControl({
                   className={cn(
                     'tnum font-num text-[10.5px] font-normal',
                     active ? 'text-primary-foreground' : 'text-muted-foreground',
+                    active && tone === 'quiet' && 'text-foreground',
                   )}
                 >
                   {o.count}

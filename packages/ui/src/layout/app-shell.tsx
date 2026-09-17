@@ -20,8 +20,8 @@ import { cn } from '../lib/cn'
  *  bên trong tự cuộn thì tự đặt `overflow` cho khối đó — đó là việc của màn,
  *  không phải một chế độ của khung.
  *
- *  Nav là AppHeader hai tầng (xem docblock ở đó), dán đỉnh màn. Nav dọc cũ đã
- *  bỏ: bộ mục cao 1040px trong khi màn cao 801px. */
+ *  The nav is a one-row AppHeader, a full-bleed bar stuck to the top; its row
+ *  sits on main's axis so the brand lines up with every page title. */
 
 /** Nhịp của khung — sửa ở đây là sửa mọi màn. Màn KHÔNG tự đặt lại mấy giá trị
  *  này; gõ `p-8` trong một màn là màn đó tự tách khỏi hệ. */
@@ -29,10 +29,10 @@ const SHELL = {
   /** Header và main cùng một trục. 1600px giữ bảng nghiệp vụ không nở thành một
    *  dải quá dài trên màn lớn; dưới ngưỡng đó khung co theo viewport. */
   frame: 'mx-auto w-full max-w-[1600px]',
+  /** The header row on the same axis: `frame` plus the shell's side padding. */
+  headerFrame: 'mx-auto w-full max-w-[1648px] px-4 lg:px-6',
   /** lề ngoài của cả khung */
   pad: 'p-4 lg:p-6',
-  /** khoảng giữa nav và nội dung */
-  gap: 'gap-4 lg:gap-6',
   /** chừa chỗ cho BottomNav (84px + safe-area) — chỉ dưới `lg` */
   bottomNavPad: 'pb-[calc(84px+env(safe-area-inset-bottom)+16px)] lg:pb-6',
   /** Nav dán sát đỉnh; chiều rộng vẫn theo `frame`, không nở khỏi trục main. */
@@ -64,20 +64,16 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <AuroraField>
-      <div
-        className={cn(
-          'relative z-[1] flex min-h-screen flex-col',
-          SHELL.pad,
-          SHELL.gap,
-          SHELL.bottomNavPad,
-        )}
-      >
+      <div className="relative z-[1] flex min-h-screen flex-col">
         <AppHeader
           {...header}
           onOpenAssistant={onOpenAssistant}
-          className={cn(SHELL.frame, SHELL.stick)}
+          className={SHELL.stick}
+          frameClassName={SHELL.headerFrame}
         />
-        <main className={cn(SHELL.frame, 'min-w-0 flex-1')}>{children}</main>
+        <div className={cn('flex flex-1 flex-col', SHELL.pad, SHELL.bottomNavPad)}>
+          <main className={cn(SHELL.frame, 'min-w-0 flex-1')}>{children}</main>
+        </div>
       </div>
 
       {/* Nút Trợ lý nổi CHỈ khi có người nhận cú bấm.

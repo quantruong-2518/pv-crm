@@ -1,56 +1,28 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import {
-  CalendarCheck,
-  FileCheck,
-  Inbox,
-  ListChecks,
-  Mail,
-  PenLine,
-  Pin,
-  Target,
-  TriangleAlert,
-  Users,
-  X,
-} from '@pv/ui'
+import { Inbox, Pin, Plus, TriangleAlert } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Badge,
   Button,
   Checkbox,
-  Chip,
   DataTable,
   EmptyState,
   GlassCard,
   Icon,
-  Kicker,
-  MetaPill,
-  SearchField,
-  Select,
-  Skeleton,
   ScreenHeader,
   ScreenLayout,
-  ScreenScoreGrid,
-  ScreenToolbar,
-  StatCard,
-  cn,
-  percent,
+  SearchField,
+  SegmentedControl,
+  Select,
+  Skeleton,
 } from '@pv/ui'
+import { DAS_VINA_FROZEN_AT, dayISO } from '@pv/engines/fixtures/das-vina'
 import {
-  DAS_VINA_FROZEN_AT,
-  dayISO,
-  LEAD_CATEGORIES,
-  PIPELINE_STAGES,
-} from '@pv/engines/fixtures/das-vina'
-import {
-  campaignLabel,
   SOURCE_KIND_LABEL,
-  sourceKindLabel,
   type ConfigEntry,
   type LeadBookQuery,
   type LeadRow,
-  type LeadSource,
   type LeadSourceKind,
   type LeadStatus,
 } from '@pv/contracts'
@@ -64,16 +36,14 @@ import {
   parseLeadBookQuery,
   queryPageFromPageIndex,
 } from '@/app/url'
-import { dm } from '@/lib/date'
+import { dm, dmy } from '@/lib/date'
 import {
-  EXIT_REASON_LABEL,
   leadBookQuery,
   leadFacetQuery,
-  leadScorecardQuery,
   leadSourceKindFacetQuery,
   NO_OWNER_TITLE,
 } from '@/data/leads'
-import { salesCatalogQuery, useStageLimits } from '@/data/sales-config'
+import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory } from '@/data/directory'
@@ -82,132 +52,40 @@ import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { LeadCreateDialog } from '@/components/lead-create-dialog'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { Pager, PersonCell, PicCell } from '@/components/table-bits'
+import { PicCell, TableFooter } from '@/components/table-bits'
+import {
+  CompanyCell,
+  FilterMenu,
+  LeadSelectionBar,
+  PeriodLabel,
+  PinCell,
+  ScoreStrip,
+  SelectionCell,
+  SourceCell,
+  StatusCell,
+} from './leads-parts'
 
-/** Module 2 · Sổ lead.
+/** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
- *  ------------------------------------------------------------------
- *  MÀN NÀY LÀ MỘT DANH SÁCH, KHÔNG PHẢI MỘT BÀN LÀM VIỆC
- *  ------------------------------------------------------------------
- *  Bản trước nhét cả hồ sơ lead vào panel bên phải: bảng co còn 60% chiều rộng,
- *  panel phải cuộn ba màn hình mới hết, và cùng một lead thao tác được ở hai
- *  chỗ. Chốt lại: **danh sách ở đây, hồ sơ ở `/sales/leads/:code`.** Bấm một
- *  dòng là sang trang — dòng nổi lên và đổi con trỏ để nói ra điều đó.
+ *  The layout every book follows: a one-line header (uppercase title ·
+ *  actions), one score strip, then one list card holding tabs · search · filter,
+ *  the table and its page footer. Cells and blocks live in `leads-parts.tsx`.
  *
- *  Ba khối, đúng thứ tự mắt cần:
- *   1 · thẻ điểm — bốn con số của cả kỳ, đọc trong một nhịp mắt;
- *   2 · một hàng lọc — ô tìm + bốn select, không còn ba chục nút pill;
- *   3 · sổ — ghim của tôi tách lên trên, rồi bảng phân trang.
+ *  The book is server-side: `GET /sales/leads` returns one filtered, sorted page
+ *  plus `total`, and every filter lives in the URL (`app/url.ts`) so F5, shared
+ *  links and the back button keep it. Tab counts are that query at `size=1`.
+ *  The pinned tab is the exception: pins are per person (`app/desk.ts`), so it
+ *  lists them out of `leadFacetQuery`, whose limits are written there.
  *
- *  ------------------------------------------------------------------
- *  GỠ 22/08 — MỘT MÀN TRẢ LỜI MỘT CÂU
- *  ------------------------------------------------------------------
- *  Hai thứ đã gỡ khỏi đầu màn:
- *   · **hai tab "Sổ lead" / "Việc của tôi"**. Sổ trả lời "phòng đang có gì",
- *     bàn việc cá nhân trả lời "tôi phải làm gì". Hai câu khác nhau thì là hai
- *     màn, không phải hai tab nấp sau tiêu đề của sổ. `MyWork` xoá khỏi màn,
- *     nhưng phần dựng việc (`myWork`, `WORK_COLUMNS` ở `data/leads.ts`) GIỮ
- *     NGUYÊN — màn việc dựng lại được mà không phải viết lại từ đầu.
- *   · **ContextRail**. Luật 10 đòi rail trên mọi màn, nên đây là NỢ LUẬT có ý
- *     thức chứ không phải quên: chuỗi ở màn này dựng từ một dòng mồi CỨNG
- *     (`ANCHOR_CODE`), nên bốn chip mã treo trên đầu một danh sách 100 dòng nói
- *     về một lead mà người dùng không hề chọn. Rail quay lại khi nào nó dựng
- *     được từ dòng đang được chọn — không sớm hơn.
- *
- *  ------------------------------------------------------------------
- *  TÁM CỘT — chốt 22/08, tên cột sửa lần 2
- *  ------------------------------------------------------------------
- *  Ghim · Mã · **Account** · Người liên hệ · Chức danh · Nguồn · Trạng thái ·
- *  **Lead PIC**. Sổ đổi trục: từ "lead đi tới đâu trong phễu" sang "ai đang nói
- *  chuyện với ai" — hai cột NGƯỜI (bên khách và bên mình) thay bốn cột đo tiến
- *  độ. Gỡ theo: Bậc · Ô bắt buộc · Đang ở (số ngày) · Đang làm (nhóm avatar).
- *  Sắp xếp vì thế chỉ còn cột Account: hai khoá `slots` và `days` mất cột để bấm.
- *
- *  Ba cột đổi cách vẽ cùng lúc, và ba cái đổi cùng một hướng — **bỏ chữ thừa,
- *  giữ tín hiệu**:
- *
- *   · **Account** (trước là "Công ty") — bỏ tam giác cảnh báo SLA. Cột tên khách
- *     không phải chỗ báo động; tín hiệu đó chuyển sang màu vàng của pill trạng
- *     thái, tức là chuyển vào đúng cột nói về trạng thái.
- *   · **Nguồn** — bỏ mã, còn một hình. `SK-0103` là sáu ký tự không ai đọc ra
- *     nghĩa khi lướt bảng; cái hình trả lời xong câu "về bằng đường nào". Cột
- *     rút từ `1fr` xuống 64px, chỗ dôi ra chia cho hai cột bên phải.
- *     — CẬP NHẬT 27/08: một icon không phân biệt nổi hai chiến dịch khác hẳn
- *     nhau (cùng `kind`, chỉ bốn giá trị). Cột đổi sang pill icon + TÊN RÚT
- *     GỌN của `config_entry.name` (cắt ở dấu `—`/`·` đầu tiên), tên đầy đủ
- *     nằm ở `title`.
- *     — CẬP NHẬT LẦN 2 (chủ dự án xem xong): bỏ hẳn icon trong pill — tên chữ
- *     giờ đã là tín hiệu chính, icon chỉ chiếm chỗ (`Database` cho "mua dữ
- *     liệu" từng bị đọc sai nghĩa). Loại `mua-du-lieu` tô pill tone `warning`
- *     (vàng) thay vì `muted`, theo đúng `kind` chứ không theo `id` — xem lý do
- *     ở `SourceMark`. Rộng thu 160px → 140px vì hết icon thì chữ cần ít chỗ
- *     hơn — xem `SourceMark`.
- *   · **Lead PIC** (trước là "Người giữ") — in hòm thư công ty chứ không in
- *     tên. Tên trùng được, hòm thư thì không, và mọi hệ khác (thư, lịch, bảng
- *     hoa hồng) đều khoá theo nó. Hòm thư ĐỌC TỪ dòng sổ (`ownerEmail`), không
- *     suy từ tên nữa: suy ra là đoán, và một cái đoán ở đây là một lá thư gửi
- *     tới địa chỉ không tồn tại.
- *
- *  Nhãn hai cột người lấy từ chính fixture chứ không dịch lại: câu số 4 của init
- *  data tên là "Người liên hệ và chức danh" (`INIT_DATA_QUESTIONS`).
- *
- *  58/119 dòng CHƯA có chức danh — ô số 4 chưa moi được. Hai cột người vẽ
- *  "—" cho chúng và nói lý do ở `title`. Điền một cái tên cho đủ ô là phá đúng
- *  thứ cổng init data sinh ra để đo.
- *
- *  Hàng lọc: ô tìm · Trạng thái · Nguồn — tên ô lọc đi theo tên cột, vì một
- *  trường mà hai chỗ gọi hai tên là chỗ để hiểu nhầm. Bỏ: Bậc · Ngành · Quá
- *  SLA (từ đầu) và Lead PIC · Account (29/08 — đọc comment trên khối
- *  `ScreenToolbar` cho lý do; cả hai vẫn còn nguyên là CỘT trên bảng).
- *
- *  Sổ phân trang, không cuộn vô tận — và từ 27/08 nó là sổ THẬT của máy chủ,
- *  không còn là 100 dòng đóng băng. Từ 29/08 thẻ điểm cũng vậy
- *  (`GET /sales/leads/scorecard`), nên hai khối trên màn không còn đếm hai sổ
- *  khác nhau — thứ đã đúng suốt hai ngày kể từ lúc nối Neon.
- *
- *  Vào được màn này là vai có nhánh Sales — cửa ở `app/auth/guard.tsx`, không
- *  kiểm lại ở đây. Trục PHẠM VI thì máy chủ cắt: một Sale `ownOnly` chỉ nhận
- *  dòng mình giữ, và số dòng bị cắt về trong `hidden`.
- *
- *  Ba mảnh `Pager` · `PicCell` · `PersonCell` đã chuyển sang
- *  `components/table-bits.tsx` (23/08) — sổ cơ hội của module Ops cần đúng ba thứ
- *  đó, và hai cái sổ của cùng một phòng phải phân trang giống nhau.
- *
- *  ------------------------------------------------------------------
- *  SỔ ĐÃ CẮT SANG MÁY CHỦ — LỌC · SẮP · PHÂN TRANG KHÔNG CÒN Ở ĐÂY
- *  ------------------------------------------------------------------
- *  `GET /sales/leads` trả về đúng một trang đã lọc, đã sắp, kèm `total`. Bốn
- *  đoạn đã XOÁ khỏi màn, không phải vô hiệu hoá: `book.filter(...)`, phép sắp
- *  theo `company` ở trình duyệt (máy chủ còn nối thêm `code` làm khoá phá hoà,
- *  thứ bản cũ không có nên một dòng lọt được vào cả hai trang), phép cắt trang
- *  bằng `slice`, và phép gộp dòng nạp từ tệp — đợt 3 ghi thẳng lên máy chủ,
- *  giữ phép gộp lại là hiện đôi dòng.
- *
- *  Bộ lọc sống trên ĐỊA CHỈ, không trong `useState`. Một bộ lọc chỉ nằm trong
- *  state React thì F5 mất sạch, link không gửi được cho ai, và nút back không
- *  còn nghĩa gì — ba thứ đó không phải tiện nghi, chúng là cách người ta thật
- *  sự dùng một cái sổ. Dịch hai chiều nằm ở `app/url.ts`, màn chỉ nối dây.
- *
- *  Thẻ điểm ĐÃ CẮT khỏi fixture (29/08): `GET /sales/leads/scorecard` đếm thật,
- *  nên bảng và thẻ điểm không còn đếm hai sổ khác nhau. Nó vẫn là số CẢ KỲ và
- *  cố tình không đổi theo bộ lọc — xem `ScoreCards`.
- *
- *  Thứ CÒN đọc fixture: nhãn của bậc, ngành và lý do rơi, vì `LeadRow` còn chở
- *  khoá chữ thường cũ chứ chưa phải ID cấu hình. Riêng nhãn lý do rơi có ADR
- *  ghi nợ — `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md`
- *  luật 4; hai nhãn kia chưa ai ghi. Chỉ NGUỒN đã nối được vào sổ nguồn thật.
- *
- *  Ghim và đề nghị giao việc sống lâu hơn một lần mở màn và đi qua cả màn chi
- *  tiết — chúng nằm ở `app/desk.ts`. */
+ *  No ContextRail (law 10 debt): a chain built from a hard-coded anchor would
+ *  describe a lead nobody picked. It returns once it can follow the chosen row. */
 
 /** Số dòng một trang. Máy chủ cắt trang, nhưng con số vẫn do màn quyết —
  *  `size` đi kèm mọi lời gọi. */
 const PAGE_SIZE = 10
 
-/** Giá trị "không lọc trục này" của hai ô Select (Trạng thái, Nguồn). Trên dây
- *  thì "không lọc" là trường VẮNG MẶT, nhưng `<select>` gốc chỉ mang được
- *  chuỗi nên vẫn cần một giá trị để đại diện. Đổi qua đổi lại đúng ở hai chỗ:
- *  `?? ANY` lúc đọc, `=== ANY ? undefined` lúc ghi. */
+/** "Any source" for the Nguồn select. On the wire that is an ABSENT field, but a
+ *  native `<select>` carries strings only, so it needs a stand-in value. */
 const ANY = 'all'
 
 /** Tiền tố đánh dấu một giá trị ô lọc Nguồn là `sourceKind` chứ không phải id
@@ -224,13 +102,8 @@ const KIND_PREFIX = 'kind:'
  *  một câu hỏi. Chữ trong ô vẫn đổi ngay từng phím — chỉ có địa chỉ là đợi. */
 const SEARCH_DELAY_MS = 300
 
-const NO_CONTACT = 'Chưa có người liên hệ — ô số 4 của init data chưa moi được'
-
-const NO_TITLE = 'Chưa có chức danh — ô số 4 của init data chưa moi được'
-
 /* Mốc kỳ suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
 const PERIOD_FROM = dm(dayISO(0))
-const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
 
 /** Bốn trạng thái của một dòng trong sổ. "Chưa chốt" là mặc định — lead đã rơi
  *  vẫn tra được, vì đó là nơi câu trả lời "vì sao mất" nằm.
@@ -247,12 +120,8 @@ const PERIOD_TO = dm(DAS_VINA_FROZEN_AT)
  *  "đang chạy". Một người lọc "Đang chạy" rồi thấy phần lớn dòng ghi "Chưa xử
  *  lý" đọc như hai câu trả lời cho hai câu hỏi khác nhau.
  *
- *  "Chưa chốt" đúng cho CẢ hai nhánh cột vẽ ra ở bucket này — "Chưa xử lý" lẫn
- *  tên bậc pipeline (kể cả "Quá hạn · …") — vì cả hai đều là "chưa tới kết cục
- *  cuối" (đã ký hoặc đã rơi), đúng bằng định nghĩa SQL của `running`. Không
- *  đổi thành lọc theo TỪNG bậc: đó là quyết định đã chốt riêng, đọc phần "GỠ
- *  22/08" ở docblock đầu file — nhãn sai, không phải độ mịn của bộ lọc, mới là
- *  thứ đang được sửa ở đây.
+ *  "Chưa chốt" fits both things the status column draws in this bucket — an
+ *  untouched row and a pipeline stage — since neither has reached an ending.
  *
  *  `lead-detail.tsx#StatusBadge` in CÙNG nhãn này cho cùng bucket — hai màn của
  *  một dòng dữ liệu không được gọi nó bằng hai tên. */
@@ -260,11 +129,11 @@ const STATUSES: { key: LeadStatus; label: string }[] = [
   { key: 'running', label: 'Chưa chốt' },
   { key: 'signed', label: 'Đã ký' },
   { key: 'exited', label: 'Đã rơi' },
-  { key: 'all', label: 'Cả kỳ' },
+  { key: 'all', label: 'Tất cả' },
 ]
 
-const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
-const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
+/** The pinned tab's value — not a `LeadStatus`, so it never reaches the URL. */
+const PINNED = 'pinned'
 
 /** Mảng rỗng dùng chung — một `?? []` viết thẳng trong thân component đẻ ra
  *  một mảng MỚI mỗi lượt vẽ, và mọi `useMemo` phụ thuộc vào nó mất tác dụng. */
@@ -286,24 +155,6 @@ const NO_SOURCES: ConfigEntry[] = []
  *  không còn chỗ gọi nào — nó ở lại `data/intake.ts` cho tới lượt dọn. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
-
-/** Quá hạn cột. Bản cũ gọi `isOverSla` của fixture, thứ đòi nguyên một `Lead`;
- *  dòng sổ nay là `LeadRow` và chỉ chở hai ô cần thiết.
- *
- *  BẢNG HẠN ĐI VÀO BẰNG THAM SỐ TỪ 14/09, và nó đến từ `config_entry` chứ không
- *  từ `PIPELINE_STAGES`. Hằng số cũ là hạn của kịch bản đóng băng, trong khi sổ
- *  cơ hội ngay bên cạnh đã tô vàng theo hạn thật — sửa hạn cột ở màn Cấu hình
- *  rồi gật thì hai sổ của cùng một phòng đọc hai bảng khác nhau, và không có gì
- *  trên màn nói ra chỗ lệch.
- *
- *  Cột chưa ai đặt hạn trả `false`: "chưa nói được gì về trễ" khác "không trễ",
- *  nhưng cả hai đều không phải "đang quá hạn" — nhuộm vàng một dòng vì một ô
- *  cấu hình còn trống là đổ lỗi cho người bán vì việc của người khác. */
-function overSla(lead: LeadRow, limits: Map<string, number | null>): boolean {
-  if (!lead.stage) return false
-  const limit = limits.get(lead.stage)
-  return limit !== undefined && limit !== null && lead.daysHere > limit
-}
 
 export function LeadsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -332,12 +183,14 @@ export function LeadsPage() {
   const rows = bookPage?.rows ?? []
   const total = bookPage?.total ?? 0
 
-  /* Sổ ĐẦY ĐỦ, gọi riêng một lần và cache dài. Đây là chỗ CHẮP VÁ — cả lý do
-     lẫn ngày nó gãy nằm trong docblock của `leadFacetQuery`, đọc ở đó trước
-     khi bắt chước cách này. Hai chỗ dưới đây cần một câu trả lời về CẢ SỔ mà
-     một trang mười dòng không trả lời được: dải ghim, và khoá chống trùng của
-     panel nạp. */
-  const { data: facets } = useQuery(leadFacetQuery)
+  /* The WHOLE book, read once — a patch whose limits are in `leadFacetQuery`'s
+     docblock. The pinned tab and the mail modal need rows beyond this page. */
+  const {
+    data: facets,
+    isPending: facetsPending,
+    error: facetsError,
+    refetch: refetchFacets,
+  } = useQuery(leadFacetQuery)
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
 
   /* Sổ nguồn THẬT — chỉ danh mục `SOURCE`. Năm danh mục kia (bậc · hạng ·
@@ -423,6 +276,25 @@ export function LeadsPage() {
     [pins, wholeBook],
   )
 
+  const [pinnedView, setPinnedView] = useState(false)
+  const shown = pinnedView ? pinned : rows
+
+  /* One `size=1` read per tab: `total` is the count under the current search
+     and source filter, and nothing else on the server answers that. */
+  const tabCounts = useQueries({
+    queries: STATUSES.map((s) =>
+      leadBookQuery({ ...urlQuery, status: s.key, page: DEFAULT_LEAD_BOOK_QUERY.page, size: 1 }),
+    ),
+  })
+  const tabs = [
+    ...STATUSES.map((s, i) => ({ value: s.key, label: s.label, count: tabCounts[i]?.data?.total })),
+    { value: PINNED, label: 'Đã ghim', count: pinned.length },
+  ]
+  const onTab = (value: string) => {
+    setPinnedView(value === PINNED)
+    if (value !== PINNED) patch({ status: value as LeadStatus })
+  }
+
   /* Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`, real
      `sourceKind` nào đang đứng không kèm chiến dịch trong sổ. Đọc docblock
      `LeadFacets` (`@pv/contracts`) trước khi đụng vào chỗ này: nửa "có chiến
@@ -488,10 +360,9 @@ export function LeadsPage() {
      Sổ không đổi cột hay chèn thêm section khi soạn mail. */
   const [composing, setComposing] = useState(false)
 
-  /* Chế độ chọn nhiều sống qua phân trang vì tập mã nằm ở MÀN, không nằm trong
-     mười dòng `rows` của trang hiện tại. Modal nhận tập này làm mồi rồi vẫn cho
-     thêm/bớt tiếp — chọn ngoài sổ không biến thành một vòng chọn lại bên trong. */
-  const [selecting, setSelecting] = useState(false)
+  /* The selection outlives paging: the codes live on the screen, not in the ten
+     rows of this page. The mail modal takes them as a seed and still lets the
+     user add and remove. */
   const [selectedCodes, setSelectedCodes] = useState<ReadonlySet<string>>(NO_SELECTED_CODES)
   const dragIntent = useRef<'select' | 'deselect' | null>(null)
   const suppressClick = useRef<string | null>(null)
@@ -502,8 +373,8 @@ export function LeadsPage() {
   )
   const selectedCodeList = useMemo(() => [...selectedCodes], [selectedCodes])
   const selectedEmailCount = selectedLeads.filter((lead) => Boolean(lead.email)).length
-  const pageSelected = rows.filter((lead) => selectedCodes.has(lead.code)).length
-  const allPageSelected = rows.length > 0 && pageSelected === rows.length
+  const pageSelected = shown.filter((lead) => selectedCodes.has(lead.code)).length
+  const allPageSelected = shown.length > 0 && pageSelected === shown.length
 
   const setCodeSelected = (code: string, on: boolean) => {
     setSelectedCodes((current) => {
@@ -514,14 +385,9 @@ export function LeadsPage() {
     })
   }
 
-  const activateSelection = (code: string) => {
-    if (suppressClick.current === code) return
-    setCodeSelected(code, !selectedCodes.has(code))
-  }
-
-  const beginDrag = (code: string, event: ReactPointerEvent<HTMLDivElement>) => {
-    /* Touch giữ thao tác cuộn tự nhiên; một lần chạm được xử lý bằng click sau
-       đó. Chuột và bút mới dùng động tác "bôi" qua nhiều dòng. */
+  const beginDrag = (code: string, event: ReactPointerEvent<HTMLElement>) => {
+    /* Touch keeps its native scroll and toggles through the click that follows;
+       mouse and pen press a checkbox and paint across rows. */
     if (event.pointerType === 'touch' || event.button !== 0) return
     event.preventDefault()
     const intent = selectedCodes.has(code) ? 'deselect' : 'select'
@@ -530,7 +396,7 @@ export function LeadsPage() {
     setCodeSelected(code, intent === 'select')
   }
 
-  const paintSelection = (code: string, event: ReactPointerEvent<HTMLDivElement>) => {
+  const paintSelection = (code: string, event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType === 'touch' || event.buttons !== 1 || dragIntent.current === null) return
     setCodeSelected(code, dragIntent.current === 'select')
   }
@@ -538,7 +404,7 @@ export function LeadsPage() {
   const selectPage = (on: boolean) => {
     setSelectedCodes((current) => {
       const next = new Set(current)
-      for (const lead of rows) {
+      for (const lead of shown) {
         if (on) next.add(lead.code)
         else next.delete(lead.code)
       }
@@ -546,19 +412,17 @@ export function LeadsPage() {
     })
   }
 
-  const exitSelection = () => {
-    setSelecting(false)
+  const clearSelection = () => {
     setSelectedCodes(NO_SELECTED_CODES)
     dragIntent.current = null
     suppressClick.current = null
   }
 
   useEffect(() => {
-    if (!selecting) return
     const finish = () => {
       dragIntent.current = null
-      /* `click` của lần nhấn đầu bắn ngay sau `pointerup`. Xoá ở macrotask kế
-         tiếp để click đó không đảo ngược lựa chọn vừa tô bằng pointerdown. */
+      /* The press's own `click` fires right after `pointerup`; clearing on the
+         next macrotask keeps it from undoing what the press just painted. */
       window.setTimeout(() => {
         suppressClick.current = null
       }, 0)
@@ -569,7 +433,7 @@ export function LeadsPage() {
       window.removeEventListener('pointerup', finish)
       window.removeEventListener('pointercancel', finish)
     }
-  }, [selecting])
+  }, [])
 
   /* Bản vẽ nạp tệp + sổ người của máy chủ. Ô "Lead PIC" là danh sách đóng, và
      danh sách đó là những người ĐANG làm ở đây — không phải bảy cái tên từng
@@ -617,294 +481,233 @@ export function LeadsPage() {
     return report
   }
 
+  const onPage = (i: number) =>
+    setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
+
+  const table = (list: LeadRow[], sortable: boolean) => (
+    <DataTable
+      flush
+      className="min-w-[880px]"
+      /* The arrow lights only while the book sorts by this column; the default
+         order (`createdAt desc`) is no column on the table. */
+      sort={sortable && query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined}
+      onSort={
+        sortable
+          ? (key) => {
+              /* The only sortable column; any other key would die at the server's
+                 zod gate as a 400. The pinned list does not read the URL, so it
+                 gets no sort control at all. */
+              if (key !== 'company') return
+              patch(
+                query.sort === 'company'
+                  ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+                  : { sort: 'company', dir: 'asc' },
+              )
+            }
+          : undefined
+      }
+      columns={[
+        {
+          header: (
+            <Checkbox
+              checked={allPageSelected}
+              indeterminate={pageSelected > 0 && !allPageSelected}
+              onChange={selectPage}
+              label={<span className="sr-only">Chọn cả trang</span>}
+              className="w-full justify-center gap-0 p-0"
+            />
+          ),
+          width: '32px',
+        },
+        { header: 'Công ty · Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
+        { header: 'Nguồn', width: 'minmax(0,1.3fr)' },
+        { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
+        { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
+        { header: <span className="sr-only">Ghim</span>, width: '48px' },
+      ]}
+      rows={list.map((l) => ({
+        id: l.code,
+        state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
+        onOpen: () => open(l.code),
+        onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) => paintSelection(l.code, event),
+        cells: [
+          <SelectionCell
+            key="select"
+            checked={selectedCodes.has(l.code)}
+            company={l.company}
+            onPress={(event) => beginDrag(l.code, event)}
+            onChange={(on) => suppressClick.current !== l.code && setCodeSelected(l.code, on)}
+          />,
+          <CompanyCell key="c" lead={l} />,
+          <SourceCell key="s" lead={l} />,
+          <StatusCell key="w" lead={l} />,
+          <PicCell key="o" avatar email={l.ownerEmail} name={l.ownerName} empty={NO_OWNER_TITLE} />,
+          <PinCell
+            key="p"
+            on={pins.includes(l.code)}
+            company={l.company}
+            onToggle={() => me && togglePin(me.id, l.code)}
+          />,
+        ],
+      }))}
+    />
+  )
+
+  const body = pinnedView ? (
+    facetsPending ? (
+      <div className="flex flex-col gap-3 p-5">
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+    ) : facetsError ? (
+      <EmptyState
+        icon={TriangleAlert}
+        message={`Không lấy được danh sách ghim. ${
+          isApiError(facetsError) ? userMessage(facetsError) : 'Vui lòng thử lại.'
+        }`}
+        action={{ label: 'Thử lại', onClick: () => void refetchFacets() }}
+        className="py-12"
+      />
+    ) : pinned.length === 0 ? (
+      <EmptyState
+        icon={Pin}
+        message="Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây."
+        action={{ label: 'Về sổ lead', onClick: () => setPinnedView(false) }}
+        className="py-12"
+      />
+    ) : (
+      table(pinned, false)
+    )
+  ) : isPending ? (
+    <div className="flex flex-col gap-3 p-5">
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+    </div>
+  ) : bookError ? (
+    /* A failed read says so and offers a retry, not "clear filters": the
+       filters are not what broke. `userMessage` keeps the server's own words. */
+    <EmptyState
+      icon={TriangleAlert}
+      message={`Không lấy được sổ lead. ${
+        isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+      }`}
+      action={{ label: 'Thử lại', onClick: () => void refetchBook() }}
+      className="py-12"
+    />
+  ) : rows.length === 0 ? (
+    <EmptyState
+      icon={Inbox}
+      message="Không có lead nào khớp bộ lọc đang chọn."
+      action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
+      className="py-12"
+    />
+  ) : (
+    table(rows, true)
+  )
+
+  const sourceFiltered = query.campaign !== undefined || query.sourceKind !== undefined
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        {/* Tiêu đề trả lại (nợ ghi ở docblock đầu file: màn đang HẾT `<h2>`) và
-            cùng lúc là chỗ đứng của nút nạp — một hàng, hai việc. */}
         <ScreenHeader
-          title="Sổ lead"
+          /* CSS uppercase, not typed capitals: screen readers still read the words. */
+          title={<span className="uppercase">Sổ lead</span>}
           actions={
-            selecting ? (
-              /* The selected count is printed on the sticky bottom bar only: it
-                 sits beside the actions that consume the selection, and it stays
-                 in view at every scroll position. */
-              <Button size="md" variant="ghost" onClick={exitSelection}>
-                <Icon icon={X} size={16} />
-                Thoát chọn
+            <>
+              <PeriodLabel from={PERIOD_FROM} to={dmy(DAS_VINA_FROZEN_AT)} />
+              <ImportZone
+                spec={leadSpec}
+                existingKeys={NO_LOCAL_KEYS}
+                scopeOptions={importSourceOptions}
+                buttonLabel="Nhập từ file"
+                onCommit={commitLeads}
+                onSeeResult={() => {
+                  setPinnedView(false)
+                  clearFilters()
+                }}
+              />
+              <Button size="md" onClick={() => setTyping(true)} className="max-sm:flex-1">
+                <Icon icon={Plus} size={16} />
+                Tạo lead
               </Button>
-            ) : (
-              <>
-                {/* Hai cửa ghi của sổ, cạnh nhau: một dòng gõ tay, cả một tệp nạp
-              vào. Cùng cỡ, cùng dáng — chúng là hai đường vào một chỗ, không
-              phải một nút chính và một nút phụ. Nút gửi email đứng riêng bên phải:
-              nó không ghi lead mới, nó chọn lead CÓ SẴN để gửi mail — sáng lên
-              (variant default) khi chế độ chọn đang bật, cùng ngôn ngữ với
-              Select đang lọc. */}
-                <Button
-                  size="md"
-                  variant="default"
-                  onClick={() => setTyping(true)}
-                  className="max-sm:flex-1"
-                >
-                  <Icon icon={PenLine} size={16} />
-                  Tạo lead
-                </Button>
-                <ImportZone
-                  spec={leadSpec}
-                  existingKeys={NO_LOCAL_KEYS}
-                  scopeOptions={importSourceOptions}
-                  buttonLabel="Nhập từ file"
-                  onCommit={commitLeads}
-                  onSeeResult={clearFilters}
-                />
-                <Button
-                  size="md"
-                  variant="ghost"
-                  onClick={() => {
-                    setSelectedCodes(NO_SELECTED_CODES)
-                    setSelecting(true)
-                  }}
-                  className="max-sm:flex-1"
-                >
-                  <Icon icon={ListChecks} size={16} />
-                  Chọn nhiều lead
-                </Button>
-              </>
-            )
+            </>
           }
         />
 
-        <ScoreCards />
+        <ScoreStrip />
 
-        {/* Một hàng lọc — ô tìm + hai select (Trạng thái, Nguồn). Bỏ "Lead PIC"
-            và "Account" (29/08, theo yêu cầu): cả hai từng chọn từ một danh
-            sách dựng bằng tay ở trình duyệt (`[...new Set(...)]` trên 200 dòng
-            đầu sổ) — không phải "không real", nhưng là một filter trúng-trật:
-            đúng khi owner/account cần tìm còn nằm trong 200 dòng kéo về, sai
-            thầm lặng khi không. Xoá hẳn thay vì vá tiếp, vì hai trục đó ít
-            việc hơn Trạng thái/Nguồn: "của tôi" đã có ở dải Ghim, và tìm theo
-            account đã có ở chính ô tìm (khớp `company`). Hai cột "Lead PIC" /
-            "Account" trên bảng KHÔNG mất — chỉ mất Ô LỌC theo chúng. */}
-        <ScreenToolbar
-          label="Bộ lọc sổ lead"
-          className="grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-[minmax(280px,2fr)_repeat(2,minmax(180px,1fr))_auto] xl:items-center"
-        >
-          <SearchField
-            size="topbar"
-            placeholder="Tìm theo tên công ty hoặc mã lead…"
-            value={text}
-            onChange={setText}
-            className="w-full md:col-span-2 xl:col-span-1"
-          />
-          <Select
-            label="Trạng thái"
-            value={query.status}
-            neutralValue={DEFAULT_LEAD_BOOK_QUERY.status}
-            onChange={(v) => patch({ status: v as LeadStatus })}
-            options={STATUSES.map((s) => ({ value: s.key, label: s.label }))}
-          />
-          <Select
-            label="Nguồn"
-            value={sourceFilterValue}
-            onChange={patchSourceFilter}
-            /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
-               dài nhất — không kẹp thì một ô lọc nuốt nửa hàng. */
-            className="w-full max-w-none"
-            options={[
-              { value: ANY, label: 'Mọi nguồn' },
-              /* `value` là mã, `label` là TÊN — và chỉ tên. Bản trước in
-                 `${entry.id} · ${entry.name}`, tức dán 'SR-09' vào trước mỗi
-                 dòng của một ô chọn mà người dùng đọc bằng tên. Mã vẫn là thứ
-                 đi vào câu hỏi gửi máy chủ, nó chỉ không cần đi vào mắt ai. */
-              ...sourceFilterOptions,
-            ]}
-          />
-          {dirty && (
-            <Button size="md" variant="ghost" onClick={clearFilters} className="w-full xl:w-auto">
-              Bỏ hết bộ lọc
-            </Button>
-          )}
-        </ScreenToolbar>
-
-        {pinned.length > 0 && (
-          <PinnedStrip
-            leads={pinned}
-            onOpen={open}
-            onUnpin={(code) => me && togglePin(me.id, code)}
-          />
-        )}
-
-        {/* Bảng LUÔN nằm trên glass-b — luật 8. */}
-        <GlassCard variant="b" className="overflow-hidden">
-          <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-5">
-            <span className="text-muted-foreground text-[11.5px]">
-              {/* `total` của máy chủ, không phải `rows.length`: một trang mười
-                  dòng không biết sổ có bao nhiêu dòng khớp. */}
-              <span className="tnum text-foreground font-num text-[15px] font-semibold">
-                {total}
-              </span>{' '}
-              lead
-            </span>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {selecting && rows.length > 0 && (
-                <Checkbox
-                  checked={allPageSelected}
-                  indeterminate={pageSelected > 0 && !allPageSelected}
-                  onChange={selectPage}
-                  label="Chọn trang này"
-                  hint={`${pageSelected}/${rows.length} lead`}
-                  className="py-1"
-                />
-              )}
-              {total > PAGE_SIZE && (
-                <Pager
-                  page={pageIndex}
-                  pageCount={pageCount}
-                  onPage={(i) =>
-                    setParams(
-                      leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }),
-                    )
-                  }
-                />
-              )}
+        {/* Tables always sit on glass-b — law 8. */}
+        {/* No `overflow-hidden`: the filter popover must hang past the card's edge. */}
+        <GlassCard variant="b" aria-label="Sổ lead">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <SegmentedControl
+                label="Nhóm lead"
+                hideLabel
+                tone="quiet"
+                value={pinnedView ? PINNED : query.status}
+                options={tabs}
+                onChange={onTab}
+              />
+              <span className="text-muted-foreground text-[11.5px]">
+                <span className="tnum text-foreground font-semibold">
+                  {pinnedView ? pinned.length : total}
+                </span>{' '}
+                lead
+              </span>
             </div>
-          </div>
-
-          <div aria-hidden className="bg-surface-ink/6 h-px" />
-
-          <div className="overflow-x-auto p-4 pt-3 lg:p-5 lg:pt-4">
-            {isPending ? (
-              <div className="flex flex-col gap-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
+            {!pinnedView && (
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                <SearchField
+                  placeholder="Tìm theo tên công ty hoặc mã lead…"
+                  value={text}
+                  onChange={setText}
+                  className="min-w-0 flex-1 sm:max-w-[320px]"
+                />
+                <FilterMenu active={sourceFiltered ? 1 : 0}>
+                  <Select
+                    label="Nguồn"
+                    value={sourceFilterValue}
+                    onChange={patchSourceFilter}
+                    /* Campaign names run to 40 characters and a native select
+                       grows to its longest option — clamp it to the panel. */
+                    className="w-full max-w-none"
+                    options={[{ value: ANY, label: 'Mọi nguồn' }, ...sourceFilterOptions]}
+                  />
+                  {dirty && (
+                    <Button size="md" variant="ghost" onClick={clearFilters}>
+                      Bỏ hết bộ lọc
+                    </Button>
+                  )}
+                </FilterMenu>
               </div>
-            ) : bookError ? (
-              /* Hỏi không được thì nói là hỏi không được. Nút mời THỬ LẠI chứ
-                 không mời bỏ bộ lọc: bộ lọc không phải thứ đang hỏng, và một
-                 nút sửa nhầm chỗ tốn của người dùng nhiều thời gian hơn là
-                 không có nút nào. `userMessage` trả câu máy chủ tự viết khi có,
-                 nên "mất mạng" và "phiên hết hạn" đọc ra khác nhau. */
-              <EmptyState
-                icon={TriangleAlert}
-                message={`Không lấy được sổ lead. ${
-                  isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetchBook() }}
-                className="py-12"
-              />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                message="Không có lead nào khớp bộ lọc đang chọn."
-                action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                className={cn('min-w-[1180px]', selecting && 'select-none')}
-                /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định
-                 là `createdAt desc` — mới nhất trước — và đó không phải cột nào
-                 trên bảng, nên lúc đó không cột nào có mũi tên. */
-                sort={query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined}
-                onSort={(key) => {
-                  /* Account là cột duy nhất có khoá sắp xếp (`sortKey` bên dưới).
-                   Khoá nào không nằm trong `LeadSortKey` sẽ chết ở cổng zod của
-                   máy chủ, nên chặn ngay ở đây thay vì gửi đi một 400. */
-                  if (key !== 'company') return
-                  patch(
-                    query.sort === 'company'
-                      ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                      : { sort: 'company', dir: 'asc' },
-                  )
-                }}
-                columns={[
-                  { header: selecting ? 'Chọn' : 'Ghim', width: '52px' },
-                  { header: 'Mã', width: '0.85fr' },
-                  { header: 'Account', width: '1.6fr', sortKey: 'company' },
-                  { header: 'Người liên hệ', width: '1.2fr' },
-                  { header: 'Chức danh', width: '1.3fr' },
-                  /* 160px → 140px: bỏ icon (27/08 lần 2) trả lại ~22px (icon 14px +
-                   gap 8px của MetaPill) cho bảy cột kia — pill giờ chỉ còn
-                   padding (16px) + chữ. Vẫn đủ cho tên rút gọn dài nhất
-                   THƯỜNG GẶP ("Khách cũ giới thiệu", ~116px chữ ở IBM Plex Sans
-                   11px, ước theo tỉ lệ đo Arial rồi hiệu chỉnh về mốc 154px đã
-                   đo tay bản có icon — 132px pill + ~8px đệm). Tên rút gọn hiếm
-                   hoi còn dài hơn thế ("Triển lãm công nghiệp hỗ trợ", ~177px
-                   chữ) tự cắt bằng CSS truncate như cũ — xem `SourceMark`. */
-                  { header: 'Nguồn', width: '140px' },
-                  { header: 'Trạng thái', width: '1.5fr' },
-                  { header: 'Lead PIC', width: '1.5fr' },
-                ]}
-                rows={rows.map((l) => ({
-                  id: l.code,
-                  state: selecting && selectedCodes.has(l.code) ? ('selected' as const) : undefined,
-                  onOpen: () => (selecting ? activateSelection(l.code) : open(l.code)),
-                  ...(selecting
-                    ? {
-                        onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) =>
-                          beginDrag(l.code, event),
-                        onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) =>
-                          paintSelection(l.code, event),
-                      }
-                    : {}),
-                  cells: [
-                    selecting ? (
-                      <SelectionCell
-                        key="select"
-                        checked={selectedCodes.has(l.code)}
-                        lead={l}
-                        onChange={(on) => setCodeSelected(l.code, on)}
-                      />
-                    ) : (
-                      <PinCell
-                        key="p"
-                        on={pins.includes(l.code)}
-                        company={l.company}
-                        onToggle={() => me && togglePin(me.id, l.code)}
-                      />
-                    ),
-                    <Chip key="c">{l.code}</Chip>,
-                    <span key="n" className="block truncate" title={l.company}>
-                      {l.company}
-                    </span>,
-                    /* Hai cột người đọc thẳng từ dòng sổ. Bản cũ dựng chúng bằng
-                     `leadContact(l)`, một hàm sinh của fixture — nó cho ra một
-                     cái tên cho mọi mã lead, kể cả mã mà bảng thật để trống. */
-                    <PersonCell key="ct" value={l.contactName} missing={NO_CONTACT} />,
-                    <PersonCell key="ti" value={l.contactTitle} missing={NO_TITLE} />,
-                    <SourceMark key="s" source={l.source} />,
-                    <StatusCell key="w" lead={l} />,
-                    <PicCell
-                      key="o"
-                      email={l.ownerEmail}
-                      name={l.ownerName}
-                      empty={NO_OWNER_TITLE}
-                    />,
-                  ],
-                }))}
-              />
             )}
           </div>
+
+          <div className="overflow-x-auto">{body}</div>
+
+          {pinnedView
+            ? !facetsPending &&
+              pinned.length > 0 && (
+                <TableFooter
+                  page={0}
+                  pageSize={pinned.length}
+                  total={pinned.length}
+                  onPage={onPage}
+                />
+              )
+            : !isPending &&
+              !bookError &&
+              total > 0 && (
+                <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={onPage} />
+              )}
         </GlassCard>
 
-        {total > PAGE_SIZE && (
-          <div className="flex justify-end">
-            <Pager
-              page={pageIndex}
-              pageCount={pageCount}
-              onPage={(i) =>
-                setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
-              }
-            />
-          </div>
-        )}
-        {selecting && <div aria-hidden className="h-24" />}
-        {/* Sổ tự làm mới sau khi tạo: `useCreateLead` invalidate tiền tố
-            `['sales','lead-book']`, tiền tố của CẢ trang đang vẽ lẫn
-            `leadFacetQuery` — nên lead mới có mặt trong bảng và trong hai ô lọc
-            người/công ty cùng một lúc. Dialog tự đóng khi 201 về. */}
+        {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
+        {/* The book refreshes itself after a create: `useCreateLead` invalidates
+            the `['sales','lead-book']` prefix, and the dialog closes on 201. */}
         <LeadCreateDialog open={typing} onClose={() => setTyping(false)} />
         <MasMailModal
           open={composing}
@@ -914,425 +717,19 @@ export function LeadsPage() {
           defaultLabel="Gửi email · Sổ lead"
           onQueued={() => {
             setComposing(false)
-            exitSelection()
+            clearSelection()
           }}
         />
-        {selecting && (
+        {selectedCodes.size > 0 && (
           <LeadSelectionBar
             leads={selectedCodes.size}
             emails={selectedEmailCount}
-            onClear={() => setSelectedCodes(NO_SELECTED_CODES)}
+            onClear={clearSelection}
             onSend={() => setComposing(true)}
           />
         )}
       </ScreenLayout>
     </AppShell>
-  )
-}
-
-// ---------------------------------------------------------------------------
-
-function SelectionCell({
-  checked,
-  lead,
-  onChange,
-}: {
-  checked: boolean
-  lead: LeadRow
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <span
-      className="flex w-full justify-center"
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <Checkbox
-        checked={checked}
-        onChange={onChange}
-        label={<span className="sr-only">Chọn {lead.company}</span>}
-        className="w-full justify-center gap-0 p-0"
-      />
-    </span>
-  )
-}
-
-function LeadSelectionBar({
-  leads,
-  emails,
-  onClear,
-  onSend,
-}: {
-  leads: number
-  emails: number
-  onClear: () => void
-  onSend: () => void
-}) {
-  return (
-    <div
-      className="glass-overlay shadow-panel fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
-      role="region"
-      aria-label="Các lead đang chọn"
-    >
-      <div className="flex min-w-0 items-center gap-3" aria-live="polite">
-        <span className="bg-accent text-accent-foreground font-num tnum flex size-10 shrink-0 items-center justify-center rounded-md text-[16px] font-semibold">
-          {leads}
-        </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="text-[13px] font-semibold">{leads} lead đã chọn</span>
-          <span className="text-muted-foreground text-[11.5px]">{emails} địa chỉ email</span>
-        </span>
-      </div>
-      <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
-        <Button size="lg" variant="ghost" disabled={leads === 0} onClick={onClear}>
-          Bỏ chọn hết
-        </Button>
-        <Button size="lg" disabled={leads === 0} onClick={onSend}>
-          <Icon icon={Mail} size={16} />
-          Gửi email
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-
-/** Thẻ điểm cả kỳ — BỐN con số, không còn phễu sáu bậc.
- *
- *  Phễu cũ trả lời "tắc ở bậc nào". Nhưng câu người mở sổ hỏi TRƯỚC là "một
- *  trăm đầu mối ra được bao nhiêu deal", và câu đó phải đọc được trong một nhịp
- *  mắt chứ không phải trừ hai số cạnh nhau. Bốn ô ở đây là bốn con số trên CÙNG
- *  một mẫu số — 100 đầu mối cả kỳ.
- *
- *  Gỡ theo phễu: bấm một bậc để lọc, và ba pill cân sổ (đã ký · đang chạy · đã
- *  rơi). Không mất chức năng nào — hai ô Select "Trạng thái" và "Bậc" ở hàng lọc
- *  ngay dưới lọc y hệt.
- *
- *  Số đọc từ MÁY CHỦ chứ KHÔNG từ `book` đã lọc: thẻ điểm là điểm của CẢ KỲ.
- *  Điểm mà đổi theo bộ lọc thì nó không còn là điểm — dòng "42 dòng khớp bộ lọc"
- *  ngay dưới bảng mới là chỗ trả lời cho bộ lọc.
- *
- *  ------------------------------------------------------------------
- *  ĐÃ CẮT KHỎI FIXTURE
- *  ------------------------------------------------------------------
- *  Bốn ô này từng đọc thẳng hằng `FUNNEL` và `FIRST_MEETINGS` của
- *  `@pv/engines/fixtures/das-vina`, không qua một `useQuery` nào, nên từ ngày
- *  nối Neon thì bảng nói 122 dòng còn thẻ điểm đứng nguyên `100 · 38% · 30% ·
- *  6%`. Nay là `GET /sales/leads/scorecard`, đếm thật.
- *
- *  Ô "Đã gặp mặt" ĐỔI ĐỊNH NGHĨA cùng lượt này, và đó là thứ đáng
- *  đọc nhất ở đây. Fixture đếm bằng `hasFirstMeeting` — lead đã lên MQL và có
- *  kênh gọi lại được — một điều kiện không suy ra được từ cột thật nào, và
- *  chính nó là lý do món nợ treo lâu thế. Nay nó đếm số lead có ít nhất một
- *  dòng trong `sales.meeting`, tức đúng bằng thứ ngôi sao "lần gặp đầu" trên
- *  màn hồ sơ lead đang hiện. Hai con số không cãi nhau được nữa vì chúng là
- *  một câu truy vấn.
- *
- *  Hệ quả phải nói ra: cho tới khi có người ghi buổi họp, ô này là 0%. Đó là
- *  sự thật của dữ liệu, không phải màn hỏng. */
-function ScoreCards() {
-  const { data } = useQuery(leadScorecardQuery)
-
-  const total = data?.leads ?? 0
-  const ops = data?.opportunities ?? 0
-  const deals = data?.contracts ?? 0
-  const firstMeetings = data?.firstMeetings ?? 0
-
-  /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". Phân số
-     thô đi xuống dòng Nguồn; value chỉ giữ đúng con số người dùng cần quét. */
-  const per = (n: number) => (total === 0 ? '—' : percent(n / total))
-
-  const metrics = [
-    {
-      icon: Users,
-      value: String(total),
-      label: 'Tổng số lead',
-      source: 'Sổ lead toàn kỳ',
-    },
-    {
-      icon: CalendarCheck,
-      value: per(firstMeetings),
-      label: 'Đã gặp mặt',
-      source: `${firstMeetings} lead đã gặp mặt trên ${total} lead`,
-    },
-    {
-      icon: Target,
-      value: per(ops),
-      label: 'Thành cơ hội',
-      source: `${ops} cơ hội trên ${total} lead`,
-    },
-    {
-      icon: FileCheck,
-      value: per(deals),
-      label: 'Thành hợp đồng',
-      source: `${deals} hợp đồng trên ${total} lead`,
-    },
-  ]
-
-  return (
-    <div className="flex flex-col gap-3">
-      {/* The period is printed here only, because it holds for all four cards —
-          the first card's `source` used to repeat the same range 40px below. */}
-      <Kicker>
-        Thẻ điểm {PERIOD_FROM} → {PERIOD_TO}
-      </Kicker>
-
-      <ScreenScoreGrid className="max-sm:grid-cols-2">
-        {metrics.map((metric) => (
-          <StatCard key={metric.label} size="compact" {...metric} />
-        ))}
-      </ScreenScoreGrid>
-    </div>
-  )
-}
-
-/** Shorten a source's full name to its lead-in clause, for the pill in the
- *  Nguồn column. `config_entry.name` reads like "Apollo — danh sách mua" or
- *  "Hội thảo · Số hoá nhà máy đóng gói": everything before the first `—` or
- *  `·` is the short handle a person actually says out loud, the rest is a
- *  free-text description. A name with no separator (e.g. "BD tự mở") has
- *  nothing to cut, so it passes through unchanged.
- *
- *  Cuts at the separator's character position, not at a fixed string length
- *  — slicing by length instead would risk landing mid-diacritic on Vietnamese
- *  text. A short name still too long for the pill is left to CSS `truncate`
- *  (see `SourceMark`), never hand-truncated with a manual "…". */
-const SOURCE_NAME_SEPARATOR = /[—·]/
-
-function shortSourceName(name: string): string {
-  const cut = name.search(SOURCE_NAME_SEPARATOR)
-  return cut === -1 ? name : name.slice(0, cut).trimEnd()
-}
-
-/** Nguồn của một lead — pill TÊN RÚT GỌN (không icon), tên đầy đủ nằm ở `title`.
- *
- *  Mã nguồn đã bỏ 22/08 vì `SK-0103` là sáu ký tự không ai đọc ra nghĩa khi
- *  lướt bảng — quyết định đó vẫn đúng, mã không quay lại. Nhưng thay mã bằng
- *  một hình duy nhất hoá ra đổi một vấn đề đọc-không-ra thành một vấn đề khác:
- *  `kind` chỉ có bốn giá trị, nên hai chiến dịch khác hẳn nhau (vd. "Apollo"
- *  và "Chuỗi email") vẽ ra CÙNG một icon. Bản 27/08 thêm lại chữ — không phải
- *  mã, mà TÊN, rút gọn bằng `shortSourceName` — nên "về bằng đường nào" giờ
- *  đọc thẳng ra được, không phải suy từ hình.
- *
- *  — CẬP NHẬT LẦN 2 (chủ dự án xem xong): icon `Database` gán cho "mua dữ
- *  liệu" bị đọc sai nghĩa, và giờ tên chữ đã là tín hiệu chính nên icon chỉ
- *  chiếm chỗ — bỏ hẳn, cho cả bốn `kind`. `SOURCE_KIND_FACE` (bảng icon theo
- *  `kind`) không còn ai đọc nữa sau đó — grep xác nhận không màn nào khác đọc
- *  nó — nên cả bảng đã XOÁ khỏi `data/leads.ts`, không chỉ trường `icon`.
- *
- *  ------------------------------------------------------------------
- *  VÀNG CHO DỮ LIỆU MUA — VÀ VÌ SAO CÂU `if` CŨ KHÔNG BAO GIỜ ĐÚNG
- *  ------------------------------------------------------------------
- *  Danh sách mua đáng chú ý hơn nguồn tự sinh/tự mở — dữ liệu mua cần người
- *  kiểm chất lượng, nên tô vàng (`tone="warning"` có sẵn của `MetaPill`) để
- *  mắt bắt được ngay khi lướt bảng. Phần đó vẫn đúng.
- *
- *  Câu `if` thì không. Bản trước so `entry.kind === 'mua-du-lieu'`, mà `kind`
- *  của một dòng SỔ NGUỒN chỉ nhận `campaign · event · organic` — nhánh
- *  vàng là code chết kể từ dòng đầu tiên nó được viết, và không có gì bắt
- *  được: cả hai vế đều là `string`, nên `tsc` cũng im. Nay nó so
- *  `source.kind === 'APOLLO'`, một giá trị có thật của enum `LeadSourceKind`,
- *  và `Record<…>` trên enum ấy ở `@pv/contracts` khiến lần đổi từ vựng sau
- *  thành lỗi biên dịch chứ không thành một pill lặng lẽ hết vàng.
- *
- *  KHÔNG dùng `tone="accent"` — luật 3 dành nền azure cho AI/nút chính/trạng
- *  thái active, không cho một pill lặp trên mọi dòng.
- *
- *  ------------------------------------------------------------------
- *  KHÔNG CÒN PHÉP TRA NÀO Ở ĐÂY
- *  ------------------------------------------------------------------
- *  Bản trước cầm một mã trần rồi tự tra tên trong `GET /sales/config`, nên nó
- *  phải nhận cả một `Map` làm prop và phải có nhánh "tra không ra". Máy chủ
- *  nay gửi `source.campaignName` ngay cạnh `campaignId` (cùng lối
- *  `ownerId`/`ownerName` đã đi), nên component chỉ còn đọc thứ nó được đưa.
- *  Mất theo phép tra là mất luôn cả một lớp lỗi — không còn chỗ nào để trượt,
- *  và mã `SR-…` không còn đường nào ra tới mắt người dùng.
- *
- *  ------------------------------------------------------------------
- *  BA TONE CHO BỐN `KIND` — CẬP NHẬT 28/08
- *  ------------------------------------------------------------------
- *  `MetaPill` chỉ cho bốn tone và `accent` bị cấm dùng lặp trên mọi dòng (lý
- *  do ở trên), nên còn đúng ba: muted · warning · success cho bốn `kind`.
- *  MANUAL · IMPORT tô xám — người trong nhà tự gõ hoặc tự nạp, không có gì
- *  đặc biệt để báo. APOLLO giữ vàng — dữ liệu MUA cần người kiểm chất lượng
- *  trước khi gọi, ý cũ không đổi. LANDING_PAGE tô xanh — khách TỰ tìm đến,
- *  một tín hiệu đáng phân biệt với ba loại còn lại.
- *
- *  `Record<LeadSourceKind, …>` bắt khai đủ bốn nhánh — thêm một `kind` mới mà
- *  quên gán tone là lỗi biên dịch, không phải một pill lặng lẽ im màu, cùng lý
- *  lẽ đã áp cho câu `if` cũ ở trên.
- *
- *  100 dòng fixture đóng băng (`das-vina`) không mang `kind` — xem docblock
- *  của `LeadSource` ở `@pv/contracts` — nên phần lớn sổ vẫn ra `muted` như
- *  trước; màu chỉ thật sự đổi cho lead vào qua cửa server thật (có `kind`). */
-const SOURCE_KIND_TONE = {
-  MANUAL: 'muted',
-  IMPORT: 'muted',
-  APOLLO: 'warning',
-  LANDING_PAGE: 'success',
-} as const satisfies Record<LeadSourceKind, 'muted' | 'warning' | 'success'>
-
-function SourceMark({ source }: { source: LeadSource }) {
-  /* Chiến dịch trước, loại xuất xứ sau. Một ô bảng in được ĐÚNG MỘT thứ, và
-     giữa hai nửa thì tên chiến dịch là nửa phân biệt được hai dòng cạnh nhau —
-     "Apollo" đúng cho một phần năm cuốn sổ, còn "Chuỗi email — nhà máy điện tử
-     Bắc Ninh" chỉ đúng cho hai mươi hai dòng. Nửa còn lại không mất: nó nằm
-     trong `title`, và nó là thứ quyết định màu pill ngay dưới đây. */
-  const kind = sourceKindLabel(source)
-  const text = source.campaignName ? shortSourceName(source.campaignName) : kind
-  /* `campaignLabel` chứ không phải `campaignName`: ô bảng chỉ đủ chỗ cho một
-     thứ, nhưng cái hover thì đủ chỗ cho cả ba trạng thái — và trạng thái đáng
-     nói nhất là "có mã mà tra không ra", thứ mà một pill in tên loại xuất xứ
-     sẽ che mất hoàn toàn. */
-  const title = `${campaignLabel(source)} · ${kind}`
-
-  const tone = source.kind ? SOURCE_KIND_TONE[source.kind] : 'muted'
-
-  return (
-    <span className="block min-w-0" title={title} aria-label={title}>
-      <MetaPill tone={tone} className="flex min-w-0 max-w-full">
-        <span className="min-w-0 truncate">{text}</span>
-      </MetaPill>
-    </span>
-  )
-}
-
-/** Cột "Trạng thái" — một PILL, và màu của pill là câu trả lời thứ hai.
- *
- *  ------------------------------------------------------------------
- *  NĂM MÀU, THEO LOẠI TRẠNG THÁI CHỨ KHÔNG THEO CỘT PIPELINE
- *  ------------------------------------------------------------------
- *  Bảng token có đúng năm tone semantic, và năm loại trạng thái của một dòng sổ
- *  khớp vào đó không dư không thiếu:
- *
- *    xanh lá  · đã ký          — hết đường, kết cục tốt
- *    đỏ       · đã rơi         — hết đường, kết cục xấu
- *    vàng     · quá hạn cột    — đang chạy nhưng CẦN NGƯỜI ĐỘNG VÀO
- *    azure    · đang trong cột — đang chạy, còn trong hạn
- *    xám      · chưa vào sổ    — chưa bắt đầu
- *
- *  Không tô năm màu khác nhau cho năm CỘT pipeline: bảng brand không có năm màu
- *  trung tính để làm việc đó, và bịa hex mới là phá luật 1. Quan trọng hơn: màu
- *  nên nói "dòng này có cần tôi không", chứ không nói lại đúng chữ đã in trong
- *  chính cái pill.
- *
- *  Màu vàng ở đây thay hẳn tam giác cảnh báo đã gỡ khỏi cột Account: cùng một
- *  tín hiệu, nhưng đứng ở cột nói về trạng thái thay vì cột nói về tên khách. */
-function StatusCell({ lead }: { lead: LeadRow }) {
-  /* The configured column deadlines, one cached read shared by every row of
-     the page — see `useStageLimits`. */
-  const limits = useStageLimits()
-  /* "Đã ký" KHÔNG kèm mã hợp đồng nữa, và mã đó không đi tìm lại được: lead →
-     hợp đồng nay là 1-n, cột `lead.contract_code` đã biến mất, và `signed` là
-     một `EXISTS(contract)` chứ không phải một mã. Một lead ký hai đơn thì không
-     mã nào vừa — in một trong hai là nói dối về cái còn lại. */
-  if (lead.signed) return <Badge tone="success">Đã ký</Badge>
-
-  if (lead.exitReason) {
-    /* Máy chủ trả KHOÁ ASCII ('unreachable'), fixture giữ NHÃN tiếng Việt.
-       Bảng tra ở `data/leads.ts`, cùng chỗ với lời giải thích vì sao nó tồn tại. */
-    const why = EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason
-    return (
-      <Badge tone="danger" className="max-w-full" title={`Đã rơi · ${why}`}>
-        <span className="min-w-0 truncate">Đã rơi · {why}</span>
-      </Badge>
-    )
-  }
-
-  /* "Chưa xử lý" — trước là "Chưa vào sổ cơ hội", chữ "sổ cơ hội" là từ nội bộ
-     (tên module Ops), một intern mới vào không biết sổ nào. Đổi 28/08 theo
-     yêu cầu: nhãn ngắn, ai đọc cũng hiểu ngay không cần giải nghĩa. */
-  if (!lead.stage) return <Badge tone="draft">Chưa xử lý</Badge>
-
-  const over = overSla(lead, limits)
-  const stage = STAGE_LABEL.get(lead.stage) ?? lead.stage
-  return (
-    <Badge
-      tone={over ? 'warning' : 'running'}
-      title={over ? `Quá hạn cột · nằm đây ${lead.daysHere} ngày` : undefined}
-    >
-      {/* "Quá hạn" đứng trước tên bậc, không sau — đây là tín hiệu CẦN LÀM
-         NGAY, và mắt phải đọc được nó trước khi đọc lead đang ở bậc nào. Bản
-         cũ ghép "{bậc} · quá hạn" (v.d. "Mới · quá hạn") đọc như một cụm lạ,
-         phải đọc hết mới hiểu ý chính nằm ở nửa sau. */}
-      {over ? `Quá hạn · ${stage}` : stage}
-    </Badge>
-  )
-}
-
-/** Ghim một dòng. Ghim theo NGƯỜI — hai người cùng mở sổ thấy hai bộ ghim khác
- *  nhau (`app/desk.ts`). Nút nằm trong một dòng bấm được nên phải chặn click nổi
- *  bọt, nếu không ghim xong là sang luôn trang chi tiết. */
-function PinCell({
-  on,
-  company,
-  onToggle,
-}: {
-  on: boolean
-  company: string
-  onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      aria-label={on ? `Bỏ ghim ${company}` : `Ghim ${company}`}
-      onClick={(e) => {
-        e.stopPropagation()
-        onToggle()
-      }}
-      className={cn(
-        'motion-std flex size-8 items-center justify-center rounded-md',
-        on
-          ? 'text-accent-foreground bg-primary/24'
-          : 'text-muted-foreground hover:bg-surface-ink/9',
-      )}
-    >
-      <Icon icon={Pin} size={16} />
-    </button>
-  )
-}
-
-/** Ghim của tôi — tách hẳn khỏi bảng.
- *
- *  Để lẫn trong bảng thì ghim vô nghĩa: dòng ghim vẫn nằm ở trang 4 sau khi lọc.
- *  Tách lên trên là cách duy nhất khiến nó luôn ở trong tầm mắt.
- *
- *  The meta line no longer prints the required-slot fraction: a pinned card is
- *  a shortcut to OPEN a lead, not a gauge of how full its profile is — the lead
- *  detail screen is where that is read. */
-function PinnedStrip({
-  leads,
-  onOpen,
-  onUnpin,
-}: {
-  leads: LeadRow[]
-  onOpen: (code: string) => void
-  onUnpin: (code: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-3">
-      <Kicker>Ghim của tôi · {leads.length}</Kicker>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {leads.map((l) => (
-          <GlassCard key={l.code} className="flex items-start gap-3 p-3">
-            <button
-              type="button"
-              onClick={() => onOpen(l.code)}
-              className="motion-std flex min-w-0 flex-1 flex-col gap-1 text-left"
-            >
-              <span className="truncate text-[12.5px] font-semibold">{l.company}</span>
-              <span className="text-muted-foreground truncate text-[11px]">
-                <span className="font-mono">{l.code}</span> ·{' '}
-                {l.category ? (CATEGORY_LABEL.get(l.category) ?? l.category) : '—'}
-              </span>
-            </button>
-            <PinCell on company={l.company} onToggle={() => onUnpin(l.code)} />
-          </GlassCard>
-        ))}
-      </div>
-    </div>
   )
 }
 

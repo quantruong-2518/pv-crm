@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from '@pv/ui'
-import { Button, Icon } from '@pv/ui'
+import { Avatar, Button, Icon, cn } from '@pv/ui'
 
 /** Ba mảnh dùng chung của MỌI SỔ — sổ lead (module Lead) và sổ cơ hội (module Ops).
  *
@@ -47,6 +48,103 @@ export function Pager({
   )
 }
 
+/** Page indexes to print: first, last, and the current one with its neighbours.
+ *  `null` marks a gap, so ten pages never turn into ten buttons. */
+function pageWindow(page: number, pageCount: number): (number | null)[] {
+  const keep = [...new Set([0, page - 1, page, page + 1, pageCount - 1])]
+    .filter((p) => p >= 0 && p < pageCount)
+    .sort((a, b) => a - b)
+  return keep.flatMap((p, i) => (i > 0 && p - (keep[i - 1] ?? p) > 1 ? [null, p] : [p]))
+}
+
+function PageButton({
+  label,
+  current,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  current?: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-current={current ? 'page' : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      /* 48px wherever the pointer is a finger — tablets page these books by touch (law 13). */
+      className={cn(
+        'motion-std tnum font-num pointer-coarse:h-12 pointer-coarse:min-w-12 flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-[12px]',
+        current ? 'bg-surface-ink/12 text-foreground font-semibold' : 'text-muted-foreground',
+        disabled ? 'cursor-not-allowed opacity-45' : !current && 'hover:bg-surface-ink/8',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** The foot of a book card: which rows are showing, then numbered pages.
+ *  `page` is 0-based, like `Pager`. */
+export function TableFooter({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  page: number
+  pageSize: number
+  total: number
+  onPage: (p: number) => void
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const from = total === 0 ? 0 : page * pageSize + 1
+  const to = Math.min(total, (page + 1) * pageSize)
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+      <span className="text-muted-foreground tnum text-[11.5px]">
+        Hiển thị {from}–{to} trong {total}
+      </span>
+      {pageCount > 1 && (
+        <nav aria-label="Phân trang" className="flex items-center gap-1">
+          <PageButton label="Trang trước" disabled={page === 0} onClick={() => onPage(page - 1)}>
+            <Icon icon={ChevronLeft} size={16} />
+          </PageButton>
+          {pageWindow(page, pageCount).map((p, i) =>
+            p === null ? (
+              <span key={`gap-${i}`} aria-hidden className="text-muted-foreground px-1">
+                …
+              </span>
+            ) : (
+              <PageButton
+                key={p}
+                label={`Trang ${p + 1}`}
+                current={p === page}
+                onClick={() => onPage(p)}
+              >
+                {p + 1}
+              </PageButton>
+            ),
+          )}
+          <PageButton
+            label="Trang sau"
+            disabled={page >= pageCount - 1}
+            onClick={() => onPage(page + 1)}
+          >
+            <Icon icon={ChevronRight} size={16} />
+          </PageButton>
+        </nav>
+      )}
+    </div>
+  )
+}
+
 /** Cột người bên MÌNH — TÊN trên bảng, hòm thư ở `title`.
  *
  *  Bản trước in ngược lại: hòm thư trên bảng, tên ở tooltip. Lý do khi đó —
@@ -70,7 +168,18 @@ export function Pager({
  *  một dạng khác. Hai trường về từ CÙNG một phép join nên ca đó gần như không
  *  xảy ra; nếu xảy ra thì "có người giữ, chưa biết tên" phải đọc khác hẳn
  *  "chưa ai nhận" — dòng "—" bên dưới. */
-export function PicCell({ email, name, empty }: { email?: string; name?: string; empty: string }) {
+export function PicCell({
+  email,
+  name,
+  empty,
+  avatar = false,
+}: {
+  email?: string
+  name?: string
+  empty: string
+  /** Initials before the name — the one-row list layout. */
+  avatar?: boolean
+}) {
   const shown = name ?? email
   if (!shown) {
     return (
@@ -79,12 +188,19 @@ export function PicCell({ email, name, empty }: { email?: string; name?: string;
       </span>
     )
   }
-  return (
+  const text = (
     <span
       className={name ? 'block truncate' : 'block truncate font-mono text-[11px]'}
       title={email ?? name}
     >
       {shown}
+    </span>
+  )
+  if (!avatar) return text
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <Avatar name={shown} size="sm" />
+      {text}
     </span>
   )
 }

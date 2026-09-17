@@ -19,9 +19,11 @@ import {
   UsersRound,
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
+import { pendingApprovalsQuery } from '@/data/approvals'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -65,6 +67,7 @@ type NavEntry = {
    *  bấm được rồi không đi đâu tệ hơn hẳn một nút nói thẳng là chưa mở. */
   path?: string
   count?: number
+  slot?: HeaderAction['slot']
   /** Role permission the screen behind this entry asks for — must match the
    *  `permission` of the same `path` in `routes.tsx`, for the reason
    *  `SalesModule.permission` gives just below: the two tables cannot be merged
@@ -85,21 +88,14 @@ type NavEntry = {
  *  chiếm nguyên khoảng giữa nav. Giữ thêm một nút mở cùng việc đó là hai lối
  *  vào một chỗ, và cái nút bao giờ cũng là lối tệ hơn.
  *
- *  NO COUNT ON ANY ENTRY, and that is the point. Two badges used to hang here —
- *  seven waiting approvals, twelve unread — carried over from the old screen 01
- *  with no fixture and no table behind either of them. They were dropped on
- *  03/09 when the home screen stopped inventing numbers; a red badge is a
- *  claim, and neither of these two could be checked against anything.
- *
- *  Do NOT wire them to E3/E4 to bring them back. `createApprovalEngine` keeps
- *  its requests in a per-process `Map`, so a single deploy empties it, and
- *  answering a user from that storage would be a lie. The count comes back when
- *  `platform.approval` is a real table. `NavEntry.count` stays on the type for
- *  that day. */
+ *  Only Phê duyệt carries a count, and only because `platform.approval` is a
+ *  real table now — `useAppChrome` reads `GET /approvals/pending`. Unread
+ *  notifications stay uncounted until something stores them; a badge is a
+ *  claim, and E3/E4 keep their state in a per-process `Map` a deploy empties. */
 const ONE_CORE: NavEntry[] = [
-  { icon: House, label: 'Trang chủ', path: '/' },
-  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals' },
-  { icon: Bell, label: 'Thông báo' },
+  { icon: House, label: 'Trang chủ', path: '/', slot: 'home' },
+  { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals', slot: 'approvals' },
+  { icon: Bell, label: 'Thông báo', slot: 'notifications' },
   {
     /** Renamed from "Quản trị & ghi vết" the day it got a screen: the entry now
      *  leads to the people book, and the audit log is a screen that does not
@@ -319,6 +315,14 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const { pathname } = useLocation()
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
+  /* A badge is a claim: re-ask every minute and on focus instead of inheriting
+     the app-wide `staleTime: Infinity`, or someone else's request never shows. */
+  const { data: pendingApprovals } = useQuery({
+    ...pendingApprovalsQuery(),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
 
   /** Two axes, two different answers.
    *
@@ -335,7 +339,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const plain = (entry: NavEntry): HeaderAction => ({
     icon: entry.icon,
     label: entry.label,
-    count: entry.count,
+    slot: entry.slot,
+    count: entry.slot === 'approvals' ? pendingApprovals?.length : entry.count,
     locked: !entry.path,
     active: entry.path ? pathname === entry.path : false,
     onClick: entry.path ? () => navigate(entry.path!) : undefined,
@@ -360,26 +365,41 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         m.group === group && access.check(actor, { branch: 'Sales', permission: m.permission }).ok,
     ).map(moduleApp)
   const customer = appsIn('customer')
+  const manage = appsIn('manage')
 
   const header: AppShellProps['header'] = {
     product: 'PV One',
     org: 'Pebble Vina',
-    core: ONE_CORE.filter(granted).map(plain),
+    /* Setup rides with the Core entries into the avatar menu: the one-row
+       header has room for the daily books only. */
+    core: [...ONE_CORE.filter(granted).map(plain), ...appsIn('setup')],
+    /* One group, so no separators: the row reads as one list of books. */
     apps: [
-      appsIn('sell'),
-      customer.length
-        ? [
-            {
-              icon: Factory,
-              label: 'Khách hàng',
-              description: 'Công ty, người liên hệ và hành trình của từng khách',
-              active: customer.some((app) => app.active),
-              items: customer,
-            },
-          ]
-        : [],
-      appsIn('manage'),
-      appsIn('setup'),
+      [
+        ...appsIn('sell'),
+        ...(customer.length
+          ? [
+              {
+                icon: Factory,
+                label: 'Khách hàng',
+                description: 'Công ty, người liên hệ và hành trình của từng khách',
+                active: customer.some((app) => app.active),
+                items: customer,
+              },
+            ]
+          : []),
+        ...(manage.length > 1
+          ? [
+              {
+                icon: Target,
+                label: 'Kế hoạch',
+                description: 'Hiệu suất đội ngũ và kế hoạch cho kỳ tiếp theo',
+                active: manage.some((app) => app.active),
+                items: manage,
+              },
+            ]
+          : manage),
+      ],
     ],
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
     assistantLabel: 'Trợ lý',

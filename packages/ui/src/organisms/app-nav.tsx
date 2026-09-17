@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import { ChevronDown, Lock } from '../icons'
+import { Lock } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 import { MenuCaret, MenuRow } from './account-menu'
@@ -17,6 +17,7 @@ type AppNavProps = {
   /** Empty groups are dropped, so a role that sees none of a cluster gets no
    *  stray separator either. */
   groups: HeaderApp[][]
+  className?: string
 }
 
 function LockMark() {
@@ -54,21 +55,16 @@ function AppButton({
       /* Locked: only the icons dim, the label keeps `--muted-foreground`.
          Dimming the whole button measured 2.29:1, below law 13's 4.5:1. */
       className={cn(
-        'motion-std flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 text-[12.5px]',
+        'motion-std pointer-coarse:h-12 flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[12.5px] 2xl:px-3',
         app.active ? 'bg-primary/15 text-on-tint-primary font-semibold' : 'text-muted-foreground',
         app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10',
       )}
     >
       <Icon icon={app.icon} size={16} className={cn(app.locked && 'opacity-55')} />
       {app.label}
+      {/* No chevron on a menu entry: the one-row header has no width for it, and
+          `aria-haspopup` already tells assistive tech the entry opens a menu. */}
       {app.locked ? <LockMark /> : null}
-      {hasItems ? (
-        <Icon
-          icon={ChevronDown}
-          size={14}
-          className={cn('motion-std opacity-60', open && 'rotate-180')}
-        />
-      ) : null}
     </button>
   )
 }
@@ -77,7 +73,7 @@ function AppButton({
  *  edge of the header so a menu opened near a scrolled edge is not cut off. */
 const MENU_HALF = 116
 
-export function AppNav({ groups }: AppNavProps) {
+export function AppNav({ groups, className }: AppNavProps) {
   const menuId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -125,16 +121,20 @@ export function AppNav({ groups }: AppNavProps) {
   const rootWidth = rootRef.current?.clientWidth ?? 0
 
   return (
-    <div ref={rootRef} className="relative z-[1]">
-      {/* `mx-auto` on the strip, not `justify-center` on the row: an overflowing
-          centred row pushes its first entries where scrolling cannot reach.
-          Scrolling closes the menu, which would otherwise float free. */}
+    <div
+      ref={rootRef}
+      className={cn(
+        'max-lg:before:bg-surface-ink/10 relative z-[1] max-lg:before:absolute max-lg:before:inset-x-0 max-lg:before:top-0 max-lg:before:h-px',
+        className,
+      )}
+    >
+      {/* Scrolling closes the menu, which would otherwise float free. */}
       <div
         ref={rowRef}
         onScroll={() => setOpen(null)}
-        className="flex h-12 items-center overflow-x-auto px-4"
+        className="flex h-12 items-center overflow-x-auto"
       >
-        <div className="mx-auto flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {visible.map((group, i) => (
             <Fragment key={group[0]?.label}>
               {i > 0 ? (

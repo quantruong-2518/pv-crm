@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 import { Lock, type IconGlyph } from '../icons'
 import { SearchField, type SearchFieldProps } from '../patterns/search-field'
 import { Icon } from '../ui/icon'
@@ -8,31 +7,24 @@ import { useThemeMode } from '../ui/theme-switch'
 import { AccountMenu } from './account-menu'
 import { AppNav } from './app-nav'
 
-/** O-06 · AppHeader — nav hai tầng, thay AppSidebar từ 19/08.
+/** O-06 · AppHeader — the whole nav in ONE row from `lg`, replacing the two tiers.
  *
- *  VÌ SAO BỎ NAV DỌC. Bộ mục đã vượt sức chứa của một cột: đo được 1040px nội
- *  dung trên màn cao 801px, tức mục cuối và khối người dùng nằm ngoài tầm nhìn
- *  vĩnh viễn. Nhét thêm vào cột đó chỉ đổi chỗ đau — chữ nhỏ lại, khoảng thở
- *  hẹp lại, và 232px chiều ngang vẫn mất trắng ở MỌI màn.
+ *  Brand (home) · apps · search · approvals · notifications · account. Two tiers
+ *  spent 112px of every screen on a map most people read once; one row gives
+ *  that height back to the content and puts the screen's own title right under
+ *  the nav. Below `lg` the apps drop to a second, sideways-scrolling row —
+ *  BottomNav carries only One Core, so the apps cannot simply disappear there.
  *
- *  HAI TẦNG, hai câu hỏi khác nhau:
- *   · tầng 1 — "tôi là ai, tôi tìm gì, có gì đang chờ tôi": thương hiệu · ô tìm
- *     toàn cục · thông báo · người đang đăng nhập. Các lối vào ít dùng hơn
- *     (duyệt, trợ lý, quản trị và cài đặt tài khoản) nằm trong avatar dropdown.
- *     Ô tìm ở đây LÀ "Tìm toàn cục" của One Core, không phải một ô thứ hai —
- *     gom một lần, không để hai lối vào cùng một việc.
- *   · tầng 2 — "tôi đang làm ở đâu": các ứng dụng. Ứng dụng có module con thì
- *     bấm vào xổ ra, không trải sẵn. Trải sẵn là thứ đã làm nav dọc vỡ.
+ *  Entries are picked out of `core` by `slot`: home becomes the brand button,
+ *  approvals and notifications stand in the row, the rest go to the avatar.
  *
- *  Tier 2 SCROLLS SIDEWAYS rather than wrapping: a wrapped row changes the
- *  frame's height with the entry count, and the content below would jump.
- *  Details in `app-nav.tsx`.
- *
- *  @pv/ui không biết router: `active` và `onClick` do app tính rồi truyền vào. */
+ *  @pv/ui does not know the router: `active` and `onClick` come from the app. */
 
 export type HeaderAction = {
   icon: IconGlyph
   label: string
+  /** Where the entry stands in the row. Without one it goes to the avatar menu. */
+  slot?: 'home' | 'approvals' | 'notifications'
   /** số việc đang chờ — hiện thành huy hiệu trên icon */
   count?: number
   active?: boolean
@@ -71,6 +63,9 @@ export type AppHeaderProps = {
   accountActions?: HeaderAction[]
   onOpenAssistant?: () => void
   className?: string
+  /** Width and side padding of the row inside the full-bleed bar — the shell
+   *  passes main's own axis, so the brand lines up with the page title. */
+  frameClassName?: string
 }
 
 /** Huy hiệu số việc chờ. Ngồi trên icon chứ không đứng cạnh chữ: tầng 1 là hàng
@@ -122,6 +117,36 @@ function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean
   )
 }
 
+/** Approvals keep their name in the row from `2xl`: it is the one Core entry
+ *  that asks something of the reader, and a bare icon hides what the count counts. */
+function ApprovalsButton({ action }: { action: HeaderAction }) {
+  return (
+    <button
+      type="button"
+      title={action.label}
+      aria-label={action.count ? `${action.label} · ${action.count} đang chờ` : action.label}
+      aria-current={action.active ? 'page' : undefined}
+      disabled={action.locked}
+      onClick={action.onClick}
+      className={cn(
+        'motion-std pointer-coarse:h-12 flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-[12.5px]',
+        action.active
+          ? 'bg-primary/15 text-on-tint-primary font-semibold'
+          : 'text-foreground hover:bg-surface-ink/10',
+        action.locked && 'cursor-not-allowed',
+      )}
+    >
+      <Icon icon={action.icon} size={16} className="text-muted-foreground" />
+      <span className="hidden 2xl:inline">{action.label}</span>
+      {action.count ? (
+        <span className="bg-warning/20 text-on-tint-warning-strong tnum min-w-[18px] rounded-sm px-1 text-center text-[11px] font-semibold leading-[18px]">
+          {action.count > 99 ? '99+' : action.count}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
 export function AppHeader({
   product,
   org,
@@ -134,94 +159,57 @@ export function AppHeader({
   accountActions,
   onOpenAssistant,
   className,
+  frameClassName,
 }: AppHeaderProps) {
   const themeMode = useThemeMode()
-  const notificationAction = core.find((action) => action.label === 'Thông báo')
-  const otherCoreActions = core.filter((action) => action !== notificationAction)
-  /** Nav đã dính đỉnh màn chưa.
-   *
-   *  Ở trạng thái thường nav là một THẺ nền đặc: nằm trong cùng trục với main,
-   *  bo góc, có bóng. Khi trang cuộn tới đúng đỉnh, nó chỉ bỏ bo góc trên; bề
-   *  rộng, logo, ô tìm và các nút đều đứng nguyên chỗ.
-   *
-   *  Đo bằng `IntersectionObserver` trên CHÍNH nav, không bằng `scroll` +
-   *  `getBoundingClientRect`: một `scroll` listener chạy mọi khung hình và mỗi
-   *  lần đọc `rect` là ép trình duyệt tính lại bố cục giữa lúc đang cuộn. Phần
-   *  tử được đo cũng giữ nguyên hình học ở cả hai state: bản trước animate
-   *  `margin`, khiến chính header đổi bề rộng trong lúc observer đang đo nó và
-   *  toàn bộ control bên trong phải layout lại từng frame — nguồn của nhịp giật.
-   *
-   *  Mẹo ở `rootMargin` âm 1px trên cạnh trên cộng `threshold: 1`: chừng nào
-   *  nav còn nằm trọn trong vùng nhìn đã thu hẹp thì tỉ lệ giao bằng 1; lúc nó
-   *  dính đỉnh, đúng 1px của nó bị dải âm đó cắt mất nên tỉ lệ tụt xuống dưới 1.
-   *
-   *  KHÔNG dùng một thẻ mốc riêng đặt phía trên: fragment trả về hai phần tử
-   *  thì cả hai thành hai flex item của khung, và cái mốc ăn nguyên một nhịp
-   *  `gap` — đo được nav bị đẩy xuống thêm 24px. */
-  const [stuck, setStuck] = useState(false)
-  const headerRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    const el = headerRef.current
-    if (!el || typeof IntersectionObserver === 'undefined') return
-
-    const io = new IntersectionObserver(
-      ([entry]) => setStuck((entry?.intersectionRatio ?? 1) < 1),
-      {
-        rootMargin: '-1px 0px 0px 0px',
-        threshold: [1],
-      },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
+  const home = core.find((action) => action.slot === 'home')
+  const approvals = core.find((action) => action.slot === 'approvals')
+  const notificationAction = core.find((action) => action.slot === 'notifications')
+  const otherCoreActions = core.filter((action) => !action.slot)
   return (
-    <header
-      ref={headerRef}
-      className={cn(
-        /* Header không tự mang mặt kính. Mặt nền là một layer riêng ngay dưới
-           đây để nó có thể nở mà không đổi box đang chứa nội dung và không làm
-           IntersectionObserver tự kích lại giữa animation. */
-        'relative isolate flex flex-col',
-        className,
-      )}
-    >
-      {/* `glass-overlay` đục hẳn: chữ của nội dung đang cuộn không lọt qua nav.
-          Layer tuyệt đối giữ nền tách khỏi layout; khi sticky chỉ radius đổi,
-          không có bề rộng hay control nào bị kéo theo. */}
-      <div
-        aria-hidden
-        className={cn(
-          'glass-overlay pointer-events-none absolute inset-0 z-0 transition-[border-radius] duration-[var(--motion-duration)] ease-[var(--motion-ease)]',
-          stuck ? 'rounded-b-lg rounded-t-none' : 'rounded-lg',
-        )}
-      />
+    <header className={cn('relative isolate flex flex-col', className)}>
+      {/* A full-bleed bar with no radius, so nothing changes when it sticks.
+          `glass-overlay` is opaque: scrolling text does not show through. */}
+      <div aria-hidden className="glass-overlay pointer-events-none absolute inset-0 z-0" />
 
-      {/* ---- Tầng 1 · tôi là ai · tôi tìm gì · gì đang chờ tôi ----
-          Outer columns `1fr` from `md`, so search sits on the true centre however
-          wide brand and account are. `z-[2]` so the account menu paints over tier 2. */}
-      <div className="relative z-[2] grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 md:grid-cols-[1fr_minmax(0,560px)_1fr] lg:gap-4">
-        <div className="flex items-center">
-          {/* One brand read at two widths, not two logos: the wordmark already
-              contains the square mark, so the short one is only what is left
-              when there is no room for the name. Under `md`, every horizontal
-              pixel belongs to search. */}
+      <div
+        className={cn(
+          'relative z-[2] flex min-h-16 flex-wrap items-center gap-x-3 lg:flex-nowrap lg:gap-x-4',
+          frameClassName,
+        )}
+      >
+        <button
+          type="button"
+          onClick={home?.onClick}
+          aria-label={home?.label ?? product}
+          aria-current={home?.active ? 'page' : undefined}
+          className="flex h-16 shrink-0 items-center"
+        >
+          {/* One brand at two widths: the wordmark already holds the mark. */}
           <img
             src={themeMode === 'stone' ? markBlue : markLight}
-            alt={product}
+            alt=""
             className="size-9 shrink-0 object-contain md:hidden"
           />
           <img
             src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
-            alt={product}
-            className="hidden h-7 shrink-0 object-contain md:block"
+            alt=""
+            className="hidden h-6 shrink-0 object-contain md:block"
           />
-        </div>
+        </button>
 
-        <SearchField className="w-full" {...search} />
+        <AppNav
+          groups={apps}
+          className="order-last basis-full lg:order-none lg:min-w-0 lg:flex-1 lg:basis-auto"
+        />
 
-        <div className="flex items-center justify-end gap-2">
+        <SearchField
+          className="min-w-0 flex-1 lg:w-[200px] lg:flex-none 2xl:w-[280px]"
+          {...search}
+        />
+
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          {approvals ? <ApprovalsButton action={approvals} /> : null}
           {notificationAction ? <CoreButton action={notificationAction} unread={unread} /> : null}
           {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
           <AccountMenu
@@ -234,13 +222,6 @@ export function AppHeader({
           />
         </div>
       </div>
-
-      {/* A hairline, not a border: the two tiers answer different questions and
-          used to run together into one undivided slab. */}
-      <div aria-hidden className="bg-surface-ink/10 relative z-[1] mx-4 h-px" />
-
-      {/* ---- Tầng 2 · tôi đang làm ở đâu ---- */}
-      <AppNav groups={apps} />
     </header>
   )
 }

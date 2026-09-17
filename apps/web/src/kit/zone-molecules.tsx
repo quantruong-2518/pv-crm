@@ -3,6 +3,7 @@ import {
   Bell,
   CalendarDays,
   Factory,
+  FileCheck,
   Gauge,
   House,
   Inbox,
@@ -38,6 +39,7 @@ import {
   SearchField,
   StageTrack,
   StatCard,
+  StatStrip,
   Stepper,
   type TableColumn,
   type TableSort,
@@ -699,6 +701,39 @@ export function ZoneMolecules() {
             <FlowVector steps={KIT_VECTOR} you="u-huy" onOpen={() => {}} />
             <FlowVector steps={KIT_VECTOR_POOL} />
           </div>
+        </SpecCard>
+
+        {/* M-17 */}
+        <SpecCard
+          className="col-span-3"
+          code="M-17"
+          name="StatStrip"
+          note="một khối · ô bằng nhau"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Hàng số đầu màn là MỘT khối, không vạch chia giữa các ô. Ô bằng nhau từ `lg`, hai ô
+              một hàng dưới đó. Icon chìm dưới nền giữ từ StatCard compact. `tone="warning"` khi
+              chính con số là báo động.
+            </>
+          }
+        >
+          <StatStrip
+            label="Thẻ điểm sổ lead"
+            items={[
+              { icon: Users, label: 'Tổng lead', value: '100', context: 'Toàn bộ sổ lead' },
+              {
+                icon: CalendarDays,
+                label: 'Đã gặp mặt',
+                value: '0',
+                suffix: '/ 100',
+                tone: 'warning',
+                context: 'Chưa ghi nhận cuộc gặp nào',
+              },
+              { icon: Target, label: 'Thành cơ hội', value: '16%', context: '16 cơ hội' },
+              { icon: FileCheck, label: 'Thành hợp đồng', value: '6%', context: '6 hợp đồng' },
+            ]}
+          />
         </SpecCard>
       </ZoneBody>
     </section>

@@ -1171,7 +1171,7 @@
   },
   "apps/web/src/app/chrome.tsx": {
     "aurora/comment-budget": {
-      "count": 6
+      "count": 5
     },
     "aurora/comments-in-english": {
       "count": 15
@@ -1840,13 +1840,10 @@
   },
   "apps/web/src/pages/leads.tsx": {
     "aurora/comment-budget": {
-      "count": 24
+      "count": 9
     },
     "aurora/comments-in-english": {
-      "count": 56
-    },
-    "max-lines": {
-      "count": 1
+      "count": 25
     },
     "max-lines-per-function": {
       "count": 1
@@ -2461,7 +2458,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 11
+      "count": 10
     }
   },
   "packages/ui/src/layout/assistant-fab.tsx": {
@@ -2511,11 +2508,8 @@
     }
   },
   "packages/ui/src/organisms/app-header.tsx": {
-    "aurora/comment-budget": {
-      "count": 3
-    },
     "aurora/comments-in-english": {
-      "count": 15
+      "count": 9
     }
   },
   "packages/ui/src/organisms/approval-card.tsx": {
