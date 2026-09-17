@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import type { PointerEvent, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
@@ -6,7 +6,6 @@ import {
   CalendarDays,
   Checkbox,
   FileCheck,
-  Filter,
   Icon,
   Mail,
   Pin,
@@ -267,60 +266,6 @@ export function SelectionCell({
         className="h-12 w-full justify-center gap-0 bg-transparent p-0 hover:bg-transparent"
       />
     </span>
-  )
-}
-
-/** The source filter and the reset, behind one button — the toolbar row keeps
- *  room for the tabs. `active` counts filters in force, printed on the button. */
-export function FilterMenu({ active, children }: { active: number; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      /* The source select portals its listbox to `body`: a press there is still ours. */
-      const target = e.target as Element
-      if (!root.current?.contains(target) && !target.closest('[role="listbox"]')) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  return (
-    <div ref={root} className="relative shrink-0">
-      <Button
-        size="md"
-        variant="ghost"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <Icon icon={Filter} size={16} />
-        Bộ lọc
-        {active > 0 && (
-          <span className="bg-primary/24 text-on-tint-primary tnum rounded-sm px-1 text-[11px] font-semibold">
-            {active}
-          </span>
-        )}
-      </Button>
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Bộ lọc sổ lead"
-          className="glass-overlay absolute right-0 top-[calc(100%+8px)] z-30 flex w-[min(320px,calc(100vw-32px))] flex-col gap-3 rounded-lg p-4"
-        >
-          {children}
-        </div>
-      )}
-    </div>
   )
 }
 

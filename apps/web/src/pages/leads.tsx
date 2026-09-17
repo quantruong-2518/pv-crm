@@ -51,10 +51,9 @@ import { LEAD_SPEC, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { PicCell, TableFooter } from '@/components/table-bits'
+import { FilterMenu, PicCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
-  FilterMenu,
   LeadSelectionBar,
   PeriodLabel,
   PinCell,
@@ -674,7 +673,7 @@ export function LeadsPage() {
                   onChange={setText}
                   className="min-w-0 flex-1 sm:max-w-[320px]"
                 />
-                <FilterMenu active={sourceFiltered ? 1 : 0}>
+                <FilterMenu label="Bộ lọc sổ lead" active={sourceFiltered ? 1 : 0}>
                   <Select
                     label="Nguồn"
                     value={sourceFilterValue}

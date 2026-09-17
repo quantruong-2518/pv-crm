@@ -1739,7 +1739,7 @@
   },
   "apps/web/src/pages/campaigns.tsx": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 4
     },
     "aurora/comments-in-english": {
       "count": 5
@@ -1847,10 +1847,10 @@
   },
   "apps/web/src/pages/opportunities.tsx": {
     "aurora/comment-budget": {
-      "count": 18
+      "count": 16
     },
     "aurora/comments-in-english": {
-      "count": 37
+      "count": 34
     },
     "max-lines-per-function": {
       "count": 1

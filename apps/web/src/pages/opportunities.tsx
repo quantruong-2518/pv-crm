@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Ban, FileCheck, Inbox, PenLine, Target, TriangleAlert, Wallet } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
@@ -13,17 +13,17 @@ import {
   Icon,
   Kicker,
   SearchField,
+  SegmentedControl,
   Select,
   Skeleton,
   ScreenHeader,
   ScreenLayout,
-  ScreenScoreGrid,
-  ScreenToolbar,
   StageTrack,
-  StatCard,
+  StatStrip,
   billions,
   cn,
   percent,
+  type StatStripItem,
   type TableSort,
 } from '@pv/ui'
 import {
@@ -61,7 +61,7 @@ import { OP_SPEC } from '@/data/intake'
 import { useOpportunityImport } from '@/data/opportunity-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
-import { Pager, PersonCell } from '@/components/table-bits'
+import { FilterMenu, PersonCell, TableFooter } from '@/components/table-bits'
 import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
 
 /** Module 3 · Sổ cơ hội — `GET /sales/opportunities`.
@@ -69,15 +69,17 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *  ------------------------------------------------------------------
  *  CÙNG HÌNH VỚI SỔ LEAD, CÓ CHỦ Ý
  *  ------------------------------------------------------------------
- *  Ba khối, đúng thứ tự mắt cần, y hệt `pages/leads.tsx`:
- *   1 · thẻ điểm — bốn con số của cả sổ, đọc trong một nhịp mắt;
- *   2 · một hàng lọc — ô tìm + bốn select;
- *   3 · sổ — bảng phân trang trên `.glass-b` (luật 8).
+ *  Hai khối, đúng hình của `pages/leads.tsx`:
+ *   1 · thẻ điểm — bốn con số của cả sổ trên MỘT dải (`StatStrip`);
+ *   2 · MỘT thẻ sổ trên `.glass-b` (luật 8) chứa cả ba thứ nói về cái bảng bên
+ *       trong nó: hàng tab + đếm + ô tìm + nút lọc, rồi bảng, rồi chân trang.
  *
- *  Người dùng đi từ sổ lead sang sổ này mỗi ngày. Hai cái sổ của cùng một phòng
- *  mà bố cục khác nhau thì mỗi lần chuyển màn là một lần phải học lại chỗ đứng
- *  của ô tìm. `Pager` và `PersonCell` vì thế dùng CHUNG
- *  (`components/table-bits.tsx`) chứ không chép sang.
+ *  Hàng lọc rời và `Pager` đứng ngoài thẻ đã ĐI (17/09). Chúng là chỗ hai sổ
+ *  của cùng một phòng trôi khỏi nhau: người dùng đi từ sổ lead sang sổ này mỗi
+ *  ngày, và mỗi lần chuyển màn là một lần phải tìm lại ô tìm bằng mắt. Ô lọc
+ *  trạng thái thành TAB vì đó là trục người ta đổi liên tục (A-19), ba ô còn
+ *  lại lui vào `FilterMenu`. `FilterMenu`, `TableFooter` và `PersonCell` dùng
+ *  CHUNG (`components/table-bits.tsx`) chứ không chép sang.
  *
  *  Khác sổ lead đúng một chỗ và khác có lý do: **không có cột Ghim.** Ghim là
  *  thứ của người ĐANG ĐỌC sổ lead, giữ theo `actorId` ở `app/desk.ts`; đẻ thêm
@@ -173,6 +175,21 @@ const TABLE_MIN_WIDTH = 'min-w-[1180px]'
  *  nó là `undefined`, và phép dịch giữa hai bên nằm ở đúng bốn chỗ gọi
  *  `onChange` bên dưới. */
 const ANY = 'all'
+
+/** The book's tab row — the `state` axis, the one people flip back and forth all
+ *  day, so it lies open (A-19) instead of hiding inside a select.
+ *
+ *  The all-states tab stands FIRST because it is the tab the screen opens on
+ *  when nothing
+ *  is filtered, and the lead book likewise opens on its own first tab — two
+ *  books of one department have to open in the same place. The array lives
+ *  outside the component because `useQueries` below reads its length: rebuilding
+ *  it each render would still be the same length, but nobody should have to
+ *  check that. */
+const STATE_TABS: { value: string; label: string }[] = [
+  { value: ANY, label: 'Tất cả' },
+  ...OPPORTUNITY_STATES.map((state) => ({ value: state.key as string, label: state.label })),
+]
 
 /** Ô tìm nhỏ giọt lên địa chỉ sau chừng này. Gõ tới đâu thấy tới đó là việc của
  *  `useState`; ghi mỗi phím lên địa chỉ thì nút Back thành nút xoá từng chữ. */
@@ -274,9 +291,9 @@ export function OpportunitiesPage() {
 
   /* Trang ngoài tầm thì SỬA ĐỊA CHỈ, không chỉ kẹp con số đem đi vẽ.
 
-     Kẹp `pageIndex` ở trên mới chỉ chữa cái `Pager`; câu hỏi gửi máy chủ vẫn
+     Kẹp `pageIndex` ở trên mới chỉ chữa cái chân trang; câu hỏi gửi máy chủ vẫn
      mang `page` cũ, nên `OFFSET` vẫn vượt sổ và trang về rỗng. Và rỗng ở đây
-     đọc ra một câu SAI hẳn: `total` nhỏ hơn một trang nên không `Pager` nào
+     đọc ra một câu SAI hẳn: `total` nhỏ hơn một trang nên không chân trang nào
      được vẽ, bộ lọc thì chưa ai chạm nên màn rơi vào nhánh "Sổ cơ hội chưa có
      đơn nào" kèm đúng một nút "Về sổ lead" — người dùng có tám đơn trong sổ mà
      không nút nào trên màn đưa họ về được trang 1.
@@ -300,8 +317,8 @@ export function OpportunitiesPage() {
     )
   }, [data, query.page, pageCount, urlQuery, setParams])
 
-  /* Một chỗ duy nhất đổi số trang của `Pager` (đếm từ 0) sang số trang của hợp
-     đồng (đếm từ 1) — hai đầu cầu nằm ở `app/url.ts`, cùng cầu sổ lead đi. */
+  /* Một chỗ duy nhất đổi số trang của `TableFooter` (đếm từ 0) sang số trang
+     của hợp đồng (đếm từ 1) — hai đầu cầu ở `app/url.ts`, cùng cầu sổ lead đi. */
   const goPage = (index: number) =>
     setParams(opportunityBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
 
@@ -325,6 +342,27 @@ export function OpportunitiesPage() {
 
   const clearFilters = () =>
     patch({ q: undefined, state: undefined, sale: undefined, bd: undefined, account: undefined })
+
+  /* One `size=1` read per tab, the move the lead book already makes: `total` is
+     the count under the OTHER filters in force, and no other endpoint answers
+     that question. */
+  const tabCounts = useQueries({
+    queries: STATE_TABS.map((tab) =>
+      opportunityBookQuery({
+        ...urlQuery,
+        state: tab.value === ANY ? undefined : (tab.value as OpportunityState),
+        page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
+        size: 1,
+      }),
+    ),
+  })
+  const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+
+  /* The number printed on the filter button. State is NOT counted here: it is
+     already visible on the tab row, and counting it twice says one thing twice. */
+  const activeFilters = [query.sale, query.bd, query.account].filter(
+    (value) => value !== undefined,
+  ).length
 
   /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định là
      `createdAt desc` — mới nhất trước — và `createdAt` không phải cột nào trên
@@ -380,7 +418,8 @@ export function OpportunitiesPage() {
             vẫn dùng. Thứ đổi là chỗ ĐỨNG để bắt đầu, không phải luật — ai đang
             đọc sổ cơ hội không phải đi vòng qua sổ lead để mở một đơn. */}
         <ScreenHeader
-          title="Sổ cơ hội"
+          /* CSS uppercase, not typed capitals: screen readers still read the words. */
+          title={<span className="uppercase">Sổ cơ hội</span>}
           actions={
             <>
               <Button
@@ -405,112 +444,99 @@ export function OpportunitiesPage() {
 
         <ScoreCards />
 
-        {/* Một hàng lọc, dùng ĐÚNG chuỗi lưới của sổ lead. Hai sổ của cùng một
-            phòng phải xuống dòng ở cùng một chỗ trên cùng một bề rộng màn hình
-            — lệch một breakpoint là mỗi lần chuyển màn người dùng lại phải tìm
-            lại ô tìm bằng mắt. */}
-        <ScreenToolbar
-          label="Bộ lọc sổ cơ hội"
-          className="wide:grid-cols-[minmax(280px,1.6fr)_repeat(4,minmax(150px,1fr))_auto] grid gap-3 p-4 md:grid-cols-2 xl:grid xl:grid-cols-3 xl:items-center"
-        >
-          <SearchField
-            size="topbar"
-            placeholder="Tìm theo tên cơ hội, mã hoặc account…"
-            value={text}
-            onChange={setText}
-            className="w-full md:col-span-2 xl:col-span-1"
-          />
-          <Select
-            label="Trạng thái"
-            value={query.state ?? ANY}
-            onChange={(v) => patch({ state: v === ANY ? undefined : (v as OpportunityState) })}
-            className="w-full max-w-none"
-            options={[
-              { value: ANY, label: 'Mọi trạng thái' },
-              ...OPPORTUNITY_STATES.map((s) => ({ value: s.key, label: s.label })),
-            ]}
-          />
-          <Select
-            label="Sale đứng đơn"
-            value={query.sale ?? ANY}
-            onChange={(v) => patch({ sale: v === ANY ? undefined : v })}
-            className="w-full max-w-none"
-            options={[{ value: ANY, label: 'Mọi Sale' }, ...saleOptions]}
-          />
-          <Select
-            label="BD mở cửa"
-            value={query.bd ?? ANY}
-            onChange={(v) => patch({ bd: v === ANY ? undefined : v })}
-            className="w-full max-w-none"
-            options={[
-              { value: ANY, label: 'Mọi BD' },
-              /* Không có mục này thì cách duy nhất tìm ra đơn chưa ghi công
-                 trạng mở cửa là đọc hết sổ bằng mắt. Hằng `NO_BD` tự chế của màn
-                 đã đi: nó chỉ có nghĩa với chính màn này, mà bên lọc bây giờ là
-                 máy chủ. `OWNER_NONE` là cách viết của "chưa ai" TRÊN DÂY
-                 (`@pv/contracts`) — hai đầu đọc đúng một chuỗi. */
-              { value: OWNER_NONE, label: 'Chưa ghi BD' },
-              ...bdOptions,
-            ]}
-          />
-          <Select
-            label="Account"
-            value={query.account ?? ANY}
-            onChange={(v) => patch({ account: v === ANY ? undefined : v })}
-            className="w-full max-w-none"
-            options={[
-              { value: ANY, label: 'Mọi account' },
-              ...accounts.map((a) => ({ value: a, label: a })),
-            ]}
-          />
-          {dirty && (
-            <Button size="md" variant="ghost" onClick={clearFilters} className="w-full xl:w-auto">
-              Bỏ hết bộ lọc
-            </Button>
-          )}
-        </ScreenToolbar>
-
-        {/* Bảng LUÔN nằm trên glass-b — luật 8. Dòng đếm và `Pager` nằm TRONG
-            thẻ, làm hàng đầu: chúng nói về đúng cái bảng ngay dưới chúng, nên
-            đứng ngoài thẻ là để chúng trôi lơ lửng giữa hai khối. Sổ lead đã
-            đứng như vậy; đây là chỗ hai màn từng lệch nhau. */}
-        <GlassCard variant="b" className="overflow-hidden">
-          <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-5">
-            <span className="text-muted-foreground text-[11.5px]">
-              {/* `total` của MÁY CHỦ, không phải `rows.length`: một trang mười
-                  dòng không biết sổ có bao nhiêu dòng khớp bộ lọc. */}
-              {/* Cỡ chữ của con số lấy ĐÚNG bản của sổ lead: hai sổ đặt dòng
-                  đếm ở cùng chỗ thì con số cũng phải cùng cỡ, không thì mắt
-                  đọc ra hai mức quan trọng khác nhau cho cùng một câu trả lời. */}
-              <span className="tnum text-foreground font-num text-[15px] font-semibold">
-                {total}
-              </span>{' '}
-              dòng khớp bộ lọc
-              {/* Luật 7 — con số này cũng do máy chủ đếm, vì màn không đếm được
-                  thứ nó không nhận. Chỉ hiện khi thật sự có dòng bị cắt. */}
-              {hidden > 0 && (
-                <>
-                  {' · '}
-                  <span className="text-warning">
-                    <span className="tnum font-num">{hidden}</span> bị ẩn theo quyền của bạn
-                  </span>
-                </>
-              )}
-            </span>
-            {total > PAGE_SIZE && <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />}
+        {/* One list card, the lead book's shape. No `overflow-hidden`: the
+            filter popover must hang past the card's edge. Tables always sit on
+            glass-b — law 8. */}
+        <GlassCard variant="b" aria-label="Sổ cơ hội">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <SegmentedControl
+                label="Trạng thái đơn"
+                hideLabel
+                tone="quiet"
+                value={query.state ?? ANY}
+                options={tabs}
+                onChange={(value) =>
+                  patch({ state: value === ANY ? undefined : (value as OpportunityState) })
+                }
+              />
+              <span className="text-muted-foreground text-[11.5px]">
+                {/* `total` của MÁY CHỦ, không phải `rows.length`: một trang mười
+                    dòng không biết sổ có bao nhiêu dòng khớp bộ lọc. */}
+                <span className="tnum text-foreground font-semibold">{total}</span> cơ hội
+                {/* Luật 7 — con số này cũng do máy chủ đếm, vì màn không đếm
+                    được thứ nó không nhận. Chỉ hiện khi thật sự có dòng bị cắt. */}
+                {hidden > 0 && (
+                  <>
+                    {' · '}
+                    <span className="text-warning">
+                      <span className="tnum">{hidden}</span> bị ẩn theo quyền của bạn
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+              <SearchField
+                placeholder="Tìm theo tên cơ hội, mã hoặc account…"
+                value={text}
+                onChange={setText}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
+              />
+              <FilterMenu label="Bộ lọc sổ cơ hội" active={activeFilters}>
+                <Select
+                  label="Sale đứng đơn"
+                  value={query.sale ?? ANY}
+                  onChange={(value) => patch({ sale: value === ANY ? undefined : value })}
+                  /* A native select grows to its longest option, and account
+                     names run long — clamp it to the panel. */
+                  className="w-full max-w-none"
+                  options={[{ value: ANY, label: 'Mọi Sale' }, ...saleOptions]}
+                />
+                <Select
+                  label="BD mở cửa"
+                  value={query.bd ?? ANY}
+                  onChange={(value) => patch({ bd: value === ANY ? undefined : value })}
+                  className="w-full max-w-none"
+                  options={[
+                    { value: ANY, label: 'Mọi BD' },
+                    /* Không có mục này thì cách duy nhất tìm ra đơn chưa ghi công
+                       trạng mở cửa là đọc hết sổ bằng mắt. Hằng `NO_BD` tự chế của
+                       màn đã đi: nó chỉ có nghĩa với chính màn này, mà bên lọc bây
+                       giờ là máy chủ. `OWNER_NONE` là cách viết của "chưa ai" TRÊN
+                       DÂY (`@pv/contracts`) — hai đầu đọc đúng một chuỗi. */
+                    { value: OWNER_NONE, label: 'Chưa ghi BD' },
+                    ...bdOptions,
+                  ]}
+                />
+                <Select
+                  label="Account"
+                  value={query.account ?? ANY}
+                  onChange={(value) => patch({ account: value === ANY ? undefined : value })}
+                  className="w-full max-w-none"
+                  options={[
+                    { value: ANY, label: 'Mọi account' },
+                    ...accounts.map((a) => ({ value: a, label: a })),
+                  ]}
+                />
+                {dirty && (
+                  <Button size="md" variant="ghost" onClick={clearFilters}>
+                    Bỏ hết bộ lọc
+                  </Button>
+                )}
+              </FilterMenu>
+            </div>
           </div>
 
-          <div aria-hidden className="bg-surface-ink/6 h-px" />
-
-          <div className="overflow-x-auto p-4 pt-3 lg:p-5 lg:pt-4">
+          <div className="overflow-x-auto">
             {isPending ? (
-              /* `h-12` là ĐÚNG chiều cao dòng `DataTable` vẽ. Lệch một bậc là
-                 mỗi dòng nhảy 4px đúng lúc dữ liệu về — một cú giật mà người
-                 dùng đọc thành "màn vẽ lại", không phải "dữ liệu đã tới". */
-              <div className="flex flex-col gap-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
+              /* `h-14` là ĐÚNG chiều cao dòng `DataTable` vẽ ở đây. Lệch một
+                 bậc là mỗi dòng nhảy 8px đúng lúc dữ liệu về — một cú giật mà
+                 người dùng đọc thành "màn vẽ lại", không phải "dữ liệu đã tới". */
+              <div className="flex flex-col gap-3 p-5">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
               </div>
             ) : bookError ? (
               /* Hỏi không được thì nói là hỏi không được. Nút mời THỬ LẠI chứ
@@ -547,6 +573,8 @@ export function OpportunitiesPage() {
               />
             ) : (
               <DataTable
+                flush
+                rowHeight="h-14"
                 className={TABLE_MIN_WIDTH}
                 sort={tableSort}
                 onSort={(key) => {
@@ -606,13 +634,11 @@ export function OpportunitiesPage() {
               />
             )}
           </div>
-        </GlassCard>
 
-        {total > PAGE_SIZE && (
-          <div className="flex justify-end">
-            <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />
-          </div>
-        )}
+          {!isPending && !bookError && total > 0 && (
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+          )}
+        </GlassCard>
 
         {/* Written, then STRAIGHT to the new deal's profile rather than back to
             the book. Staying leaves the user in front of a table whose filters
@@ -693,48 +719,45 @@ function ScoreCards() {
   /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
   const per = (n: number) => (total === 0 ? '—' : percent(n / total))
 
+  const items: StatStripItem[] = [
+    {
+      icon: Target,
+      label: 'Tổng số cơ hội',
+      value: String(total),
+      context: 'đơn đang có trong sổ',
+    },
+    {
+      icon: Wallet,
+      label: 'Đang mở',
+      value: billions(openAmount),
+      /* Máy chủ cộng bằng ĐỒNG và bỏ qua đơn chưa có tiền — rồi báo lại số đơn
+         đã bỏ, vì cộng `null` thành 0 là nói dối về một con số chưa ai moi
+         được, còn im lặng bỏ đi thì pipeline đọc ra nhỏ hơn thật mà không có gì
+         trên màn nói vì sao. */
+      context:
+        openBlank === 0
+          ? `${openCount} đơn còn trong năm cột`
+          : `${openCount} đơn còn trong năm cột · ${openBlank} đơn chưa có tiền, không cộng vào`,
+    },
+    {
+      icon: FileCheck,
+      label: 'Close won',
+      value: per(won),
+      context: `${won} đơn đã ký trên ${total} cơ hội`,
+    },
+    {
+      icon: Ban,
+      label: 'Close lost',
+      value: per(lost),
+      context: `${lost} đơn đã thua trên ${total} cơ hội`,
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-3">
       <Kicker>Thẻ điểm cả sổ · không theo phạm vi của bạn</Kicker>
 
-      <ScreenScoreGrid>
-        <StatCard
-          size="compact"
-          icon={Target}
-          value={String(total)}
-          label="Tổng số cơ hội"
-          hint="đơn đang có trong sổ"
-        />
-        <StatCard
-          size="compact"
-          icon={Wallet}
-          value={billions(openAmount)}
-          label="Đang mở"
-          /* Máy chủ cộng bằng ĐỒNG và bỏ qua đơn chưa có tiền — rồi báo lại số
-             đơn đã bỏ, vì cộng `null` thành 0 là nói dối về một con số chưa ai
-             moi được, còn im lặng bỏ đi thì pipeline đọc ra nhỏ hơn thật mà
-             không có gì trên màn nói vì sao. */
-          hint={
-            openBlank === 0
-              ? `${openCount} đơn còn trong năm cột`
-              : `${openCount} đơn còn trong năm cột · ${openBlank} đơn chưa có tiền, không cộng vào`
-          }
-        />
-        <StatCard
-          size="compact"
-          icon={FileCheck}
-          value={per(won)}
-          label="Close won"
-          hint={`${won} đơn đã ký trên ${total} cơ hội`}
-        />
-        <StatCard
-          size="compact"
-          icon={Ban}
-          value={per(lost)}
-          label="Close lost"
-          hint={`${lost} đơn đã thua trên ${total} cơ hội`}
-        />
-      </ScreenScoreGrid>
+      <StatStrip label="Thẻ điểm sổ cơ hội" items={items} />
 
       <p className="text-muted-foreground text-[11px] leading-[1.5]">
         Mỗi cơ hội mọc ra từ một lead đã lên bậc SQL — cùng một sự kiện, không phải hai sổ. Phần còn

@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react'
-import { ChevronLeft, ChevronRight } from '@pv/ui'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, Filter } from '@pv/ui'
 import { Avatar, Button, Icon, cn } from '@pv/ui'
 
-/** Ba mảnh dùng chung của MỌI SỔ — sổ lead (module Lead) và sổ cơ hội (module Ops).
+/** Những mảnh dùng chung của MỌI SỔ — lead · cơ hội · chiến dịch.
  *
- *  Cả ba từng nằm private trong `pages/leads.tsx`. Chúng chuyển ra đây khi sổ
- *  cơ hội cần đúng ba thứ đó, và lý do tách quan trọng hơn chuyện đỡ gõ lại:
- *  hai cái sổ của cùng một phòng phải phân trang giống nhau, in hòm thư giống
- *  nhau, và vẽ ô trống giống nhau. Chép sang màn thứ hai là mở đường cho hai
- *  cái sổ trôi khỏi nhau — bên này "Trước/Sau", bên kia "◀ ▶", cùng một app.
+ *  Cả bọn từng nằm private trong `pages/leads.tsx`. Chúng chuyển ra đây khi sổ
+ *  thứ hai cần đúng những thứ đó, và lý do tách quan trọng hơn chuyện đỡ gõ
+ *  lại: mấy cái sổ của cùng một phòng phải phân trang giống nhau, lọc giống
+ *  nhau, in hòm thư giống nhau, và vẽ ô trống giống nhau. Chép sang màn thứ
+ *  hai là mở đường cho chúng trôi khỏi nhau — bên này "Trước/Sau", bên kia
+ *  "◀ ▶", cùng một app.
  *
  *  Chúng KHÔNG lên `@pv/ui`: cả ba biết cách phòng kinh doanh đọc một dòng sổ,
  *  đó là kiến thức của app chứ không của thư viện component (biên giới package ·
@@ -222,5 +223,71 @@ export function PersonCell({ value, missing }: { value?: string; missing: string
     <span className="block truncate" title={value}>
       {value}
     </span>
+  )
+}
+
+/** The secondary filters and the reset, behind ONE button — a book's toolbar row
+ *  has room for its tabs and its search box, not for four selects. `active`
+ *  counts the axes in force and prints that number on the button.
+ *
+ *  `label` names the popover because three books share this one component: a
+ *  hard-coded lead-book name would lie on the other two. */
+export function FilterMenu({
+  label,
+  active,
+  children,
+}: {
+  label: string
+  active: number
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      /* The selects inside portal their listbox to `body`: a press there is still ours. */
+      const target = e.target as Element
+      if (!root.current?.contains(target) && !target.closest('[role="listbox"]')) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={root} className="relative shrink-0">
+      <Button
+        size="md"
+        variant="ghost"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Icon icon={Filter} size={16} />
+        Bộ lọc
+        {active > 0 && (
+          <span className="bg-primary/24 text-on-tint-primary tnum rounded-sm px-1 text-[11px] font-semibold">
+            {active}
+          </span>
+        )}
+      </Button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={label}
+          className="glass-overlay absolute right-0 top-[calc(100%+8px)] z-30 flex w-[min(320px,calc(100vw-32px))] flex-col gap-3 rounded-lg p-4"
+        >
+          {children}
+        </div>
+      )}
+    </div>
   )
 }

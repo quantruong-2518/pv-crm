@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Inbox, Megaphone, Plus, CircleAlert, Zap } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
@@ -12,13 +12,13 @@ import {
   EmptyState,
   GlassCard,
   SearchField,
+  SegmentedControl,
   Select,
   Skeleton,
   ScreenHeader,
   ScreenLayout,
-  ScreenScoreGrid,
-  ScreenToolbar,
-  StatCard,
+  StatStrip,
+  type StatStripItem,
   type TableSort,
 } from '@pv/ui'
 import { CampaignBookSortKey, type CampaignBookQuery, type CampaignState } from '@pv/contracts'
@@ -37,7 +37,7 @@ import {
   parseCampaignBookQuery,
 } from '@/data/campaign-book'
 import { Module1Books } from '@/components/module1-books'
-import { Pager } from '@/components/table-bits'
+import { FilterMenu, TableFooter } from '@/components/table-bits'
 
 /** Module 1 · Sổ chiến dịch — `GET /sales/campaigns`.
  *
@@ -53,14 +53,15 @@ import { Pager } from '@/components/table-bits'
  *  ------------------------------------------------------------------
  *  CÙNG HÌNH VỚI SỔ CƠ HỘI, ÍT KHỐI HƠN
  *  ------------------------------------------------------------------
- *  Ba khối theo thứ tự mắt cần, y hệt `pages/opportunities.tsx`: thẻ điểm ·
- *  một hàng lọc · bảng phân trang trên `.glass-b` (luật 8). Bộ lọc nằm trên
- *  ĐỊA CHỈ, nên một trang đã lọc chép cho người khác được.
+ *  Hai khối, y hệt `pages/leads.tsx` và `pages/opportunities.tsx`: thẻ điểm
+ *  trên MỘT dải, rồi MỘT thẻ sổ trên `.glass-b` (luật 8) chở hàng tab + đếm +
+ *  ô tìm + nút lọc, bảng, và chân trang. Bộ lọc nằm trên ĐỊA CHỈ, nên một
+ *  trang đã lọc chép cho người khác được.
  *
- *  Ít khối hơn vì sổ này trả lời ít câu hơn: không có nút nạp tệp (thành viên
- *  vào chiến dịch từ Sổ lead, không từ một tệp rời), và hàng lọc chỉ có ô tìm
- *  + trạng thái + chủ. Ba ô lọc của sổ cơ hội trả lời những câu mà sổ vài chục
- *  dòng này chưa ai hỏi. */
+ *  Ít thứ hơn vì sổ này trả lời ít câu hơn: không có nút nạp tệp (thành viên
+ *  vào chiến dịch từ Sổ lead, không từ một tệp rời), trạng thái là hàng tab, và
+ *  trong `FilterMenu` chỉ còn một ô Chủ. Ba ô lọc của sổ cơ hội trả lời những
+ *  câu mà sổ vài chục dòng này chưa ai hỏi. */
 
 /** Số dòng bảng vẽ. Nhỏ hơn mặc định 50 của hợp đồng vì hàng chiến dịch cao
  *  hơn hàng cơ hội — có tên dài và hai con số. */
@@ -74,6 +75,19 @@ const TABLE_MIN_WIDTH = 'min-w-[980px]'
 const SEARCH_DELAY_MS = 300
 
 const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
+
+/** "Every state" for the tab row. On the wire that is an ABSENT field, but a
+ *  segmented control carries strings only, so it needs a stand-in value. */
+const ANY = 'all'
+
+/** The tab row — the `state` axis, laid open rather than hidden in a select,
+ *  exactly as the lead and opportunity books lay theirs. The all-states tab
+ *  stands first because it is the tab the screen opens on. Outside the
+ *  component because `useQueries` below reads its length. */
+const STATE_TABS: { value: string; label: string }[] = [
+  { value: ANY, label: 'Tất cả' },
+  ...STATES.map((state) => ({ value: state as string, label: CAMPAIGN_STATE_LABEL[state] })),
+]
 
 export function CampaignsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
@@ -176,6 +190,41 @@ export function CampaignsPage() {
     patch({ q: undefined, state: undefined, owner: undefined })
   }
 
+  /* One `size=1` read per tab, the move both other books make: `total` is the
+     count under the OTHER filters in force, and no other endpoint answers that. */
+  const tabCounts = useQueries({
+    queries: STATE_TABS.map((tab) =>
+      campaignBookQuery({
+        ...urlQuery,
+        state: tab.value === ANY ? undefined : (tab.value as CampaignState),
+        page: DEFAULT_CAMPAIGN_BOOK_QUERY.page,
+        size: 1,
+      }),
+    ),
+  })
+  const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+
+  const scoreItems: StatStripItem[] = [
+    {
+      icon: Megaphone,
+      label: 'Nháp chờ bắn',
+      value: String(score.drafts),
+      context: 'đã dựng xong nhưng chưa gửi',
+    },
+    {
+      icon: Zap,
+      label: 'Đang chạy',
+      value: String(score.running),
+      context: 'còn ít nhất một đợt chưa gửi xong',
+    },
+    {
+      icon: Inbox,
+      label: 'Lượt gửi đã gom',
+      value: score.audience.toLocaleString('vi-VN'),
+      context: 'cộng dồn, không trừ trùng',
+    },
+  ]
+
   const tableSort: TableSort | undefined =
     query.sort === DEFAULT_CAMPAIGN_BOOK_QUERY.sort
       ? undefined
@@ -185,7 +234,8 @@ export function CampaignsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Sổ chiến dịch"
+          /* CSS uppercase, not typed capitals: screen readers still read the words. */
+          title={<span className="uppercase">Sổ chiến dịch</span>}
           actions={
             canWrite && (
               <Button size="md" onClick={() => navigate('/sales/campaigns/new')}>
@@ -198,98 +248,74 @@ export function CampaignsPage() {
 
         <Module1Books />
 
-        <ScreenScoreGrid>
-          <StatCard
-            size="compact"
-            icon={Megaphone}
-            value={String(score.drafts)}
-            label="Nháp chờ bắn"
-            hint="đã dựng xong nhưng chưa gửi"
-          />
-          <StatCard
-            size="compact"
-            icon={Zap}
-            value={String(score.running)}
-            label="Đang chạy"
-            hint="còn ít nhất một đợt chưa gửi xong"
-          />
-          <StatCard
-            size="compact"
-            icon={Inbox}
-            value={score.audience.toLocaleString('vi-VN')}
-            label="Lượt gửi đã gom"
-            hint="cộng dồn, không trừ trùng"
-          />
-        </ScreenScoreGrid>
+        <StatStrip label="Thẻ điểm sổ chiến dịch" items={scoreItems} />
 
-        <ScreenToolbar
-          label="Bộ lọc sổ chiến dịch"
-          className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.6fr)_repeat(2,minmax(150px,1fr))_auto] xl:items-center"
-        >
-          <SearchField
-            size="topbar"
-            placeholder="Tìm theo tên hoặc mã chiến dịch…"
-            value={text}
-            onChange={setText}
-            className="w-full md:col-span-2 xl:col-span-1"
-          />
-          <Select
-            label="Trạng thái"
-            value={query.state ?? ''}
-            onChange={(v) => patch({ state: v === '' ? undefined : (v as CampaignState) })}
-            options={[
-              { value: '', label: 'Mọi trạng thái' },
-              ...STATES.map((s) => ({ value: s, label: CAMPAIGN_STATE_LABEL[s] })),
-            ]}
-          />
-          <Select
-            label="Chủ"
-            value={query.owner ?? ''}
-            onChange={(v) => patch({ owner: v === '' ? undefined : v })}
-            options={[{ value: '', label: 'Mọi chủ' }, ...owners]}
-          />
-          {dirty && (
-            <Button size="md" variant="ghost" onClick={clearFilters} className="w-full xl:w-auto">
-              Bỏ hết bộ lọc
-            </Button>
-          )}
-        </ScreenToolbar>
-
-        {/* `overflow-hidden` is not decoration: the divider below is a
-            full-bleed `h-px`, and without a clip it runs straight past the
-            rounded corner. Same pairing the opportunity book already uses. */}
-        <GlassCard variant="b" className="overflow-hidden p-0">
-          {/* The count line belongs INSIDE the card: it talks about the table
-              right below it. `total` and `hidden` are both counted by the
-              server — a ten-row page cannot know how many rows match the filter,
-              and no screen can count what it was never sent. Rule 7 asks for the
-              hidden line; without it a Sale whose scope cut the whole book reads
-              an empty table as "the book is empty". */}
-          <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <span className="text-muted-foreground text-[11.5px]">
-              <span className="tnum text-foreground font-num text-[15px] font-semibold">
-                {total}
-              </span>{' '}
-              dòng khớp bộ lọc
-              {hidden > 0 && (
-                <>
-                  {' · '}
-                  <span className="text-warning">
-                    <span className="tnum font-num">{hidden}</span> bị ẩn theo quyền của bạn
-                  </span>
-                </>
-              )}
-            </span>
+        {/* One list card, the lead book's shape. No `overflow-hidden`: the
+            filter popover must hang past the card's edge. Tables always sit on
+            glass-b — law 8. */}
+        <GlassCard variant="b" aria-label="Sổ chiến dịch">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <SegmentedControl
+                label="Trạng thái chiến dịch"
+                hideLabel
+                tone="quiet"
+                value={query.state ?? ANY}
+                options={tabs}
+                onChange={(value) =>
+                  patch({ state: value === ANY ? undefined : (value as CampaignState) })
+                }
+              />
+              <span className="text-muted-foreground text-[11.5px]">
+                {/* The SERVER's `total`, not `rows.length`: a ten-row page cannot
+                    know how many rows match the filter. */}
+                <span className="tnum text-foreground font-semibold">{total}</span> chiến dịch
+                {/* Rule 7 — also counted by the server, since no screen can count
+                    what it was never sent. Only shown when rows were really cut. */}
+                {hidden > 0 && (
+                  <>
+                    {' · '}
+                    <span className="text-warning">
+                      <span className="tnum">{hidden}</span> bị ẩn theo quyền của bạn
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+              <SearchField
+                placeholder="Tìm theo tên hoặc mã chiến dịch…"
+                value={text}
+                onChange={setText}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
+              />
+              <FilterMenu label="Bộ lọc sổ chiến dịch" active={query.owner === undefined ? 0 : 1}>
+                <Select
+                  label="Chủ"
+                  value={query.owner ?? ANY}
+                  onChange={(value) => patch({ owner: value === ANY ? undefined : value })}
+                  /* A native select grows to its longest option — clamp it to
+                     the panel. */
+                  className="w-full max-w-none"
+                  options={[{ value: ANY, label: 'Mọi chủ' }, ...owners]}
+                />
+                {dirty && (
+                  <Button size="md" variant="ghost" onClick={clearFilters}>
+                    Bỏ hết bộ lọc
+                  </Button>
+                )}
+              </FilterMenu>
+            </div>
           </div>
-
-          <div aria-hidden className="bg-surface-ink/6 h-px" />
 
           <div className="overflow-x-auto">
             {isPending ? (
-              <div className="flex flex-col gap-2 p-4">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
+              /* `h-14` is exactly the row height `DataTable` draws here — a
+                 step off and every row jumps the moment the data lands. */
+              <div className="flex flex-col gap-3 p-5">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
               </div>
             ) : bookError ? (
               <EmptyState
@@ -327,6 +353,8 @@ export function CampaignsPage() {
               />
             ) : (
               <DataTable
+                flush
+                rowHeight="h-14"
                 className={TABLE_MIN_WIDTH}
                 sort={tableSort}
                 onSort={(key) => {
@@ -377,13 +405,11 @@ export function CampaignsPage() {
               />
             )}
           </div>
-        </GlassCard>
 
-        {total > PAGE_SIZE && (
-          <div className="flex justify-end">
-            <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />
-          </div>
-        )}
+          {!isPending && !bookError && total > 0 && (
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+          )}
+        </GlassCard>
       </ScreenLayout>
     </AppShell>
   )
