@@ -20,73 +20,37 @@ import {
 } from '@pv/contracts'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 
-/** Module 2 · BẢN VẼ CỦA FORM HỒ SƠ LEAD.
+/** Module 2 · Blueprint of the lead profile form: which boxes exist, what they
+ *  are called, which tab holds them, in what order.
  *
- *  ------------------------------------------------------------------
- *  VÌ SAO FORM LÀ DỮ LIỆU CHỨ KHÔNG PHẢI JSX
- *  ------------------------------------------------------------------
- *  Hồ sơ có hơn ba chục trường. Viết tay ba chục khối `<Field><Input/></Field>`
- *  thì bốn thứ hỏng gần như chắc chắn: thứ tự trôi khỏi thứ tự của bộ 10 câu,
- *  nhãn hai chỗ lệch nhau, một trường mới thêm vào `LeadProfile` mà quên vẽ ra
- *  màn, và không chỗ nào trả lời được "ô số 5 gồm những trường nào".
+ *  A table, not JSX: thirty hand-written boxes drift out of the order of the ten
+ *  init-data questions, label one field two ways, and leave a field added to
+ *  `LeadProfile` silently undrawn. Width is not a property of a field — every
+ *  box is exactly one grid cell, a textarea grows taller and never wider.
  *
- *  ------------------------------------------------------------------
- *  BỀ RỘNG: MỌI Ô BẰNG NHAU — chốt 22/08, sau hai lần sai
- *  ------------------------------------------------------------------
- *  Lần 1 · lưới ba cột trải hết bề ngang màn: ô "số nhà máy" rộng 440px để chứa
- *  chữ số `1`, ô "đau ở đâu" rộng 1.470px để chứa một dòng.
+ *  The star marks a box the WRITE refuses to leave empty (`isRequired`), asked
+ *  of the contract on both doors. The init-data gate is a different count and
+ *  is printed on the tab row, not beside a label.
  *
- *  Lần 2 · mỗi ô một bề rộng riêng theo nội dung, xếp bằng flex-wrap. Hết ô quá
- *  rộng, nhưng đổi lấy một cái tệ ngang: các ô không còn thẳng cột nào, và một
- *  form ba mươi ô không thẳng hàng thì mắt phải bám lại từ đầu ở mỗi dòng.
- *
- *  Lần 3, bản đang chạy · **lưới đều, mọi ô đúng một ô lưới.** Cột nội dung
- *  chính giờ chỉ chiếm 3/4 màn, nên một ô lưới rơi vào khoảng 340px — vừa đúng
- *  cho tên công ty, không quá rộng cho một con số. Bề rộng không còn là thuộc
- *  tính của trường nữa, nên bảng dưới đây không khai nó.
- *
- *  Ô văn bản (`long`) cũng đúng một ô lưới; nó cao lên chứ không rộng ra.
- *
- *  ------------------------------------------------------------------
- *  DẤU SAO, KHÔNG PHẢI SỐ Ô
- *  ------------------------------------------------------------------
- *  Bản trước đeo nhãn `ô 4` cạnh mỗi nhãn trường để nối form với cổng init data.
- *  Ý đúng, cái giá sai: ba mươi cái nhãn mã số trên một form là ba mươi thứ mắt
- *  phải bỏ qua, và người điền form không quan tâm câu đó đánh số mấy — họ quan
- *  tâm ô nào bắt buộc.
- *
- *  Giờ chỉ còn **dấu sao cho ô không được để trống** (`isRequiredOnSave`), hỏi
- *  thẳng hợp đồng chứ không hỏi cổng init data — xem docblock của hàm đó. Cổng
- *  vẫn đếm y như cũ ở dải trên đầu thẻ.
- *
- *  ------------------------------------------------------------------
- *  BIÊN GIỚI: CÁI GÌ Ở ĐÂY, CÁI GÌ Ở FIXTURE
- *  ------------------------------------------------------------------
- *  `@pv/engines` giữ thứ ĐÚNG-SAI: hồ sơ có những trường nào (`LeadProfile`),
- *  trường nào chở ô nào của bộ 10 câu (`SLOT_FIELDS`), ô nào đã moi được
- *  (`filledSlots`). Đó là luật của phòng kinh doanh, backend nào cũng phải theo.
- *
- *  File này giữ thứ TRÔNG-NHƯ-THẾ-NÀO: nhãn tiếng Việt, thứ tự, bề rộng, ô nào
- *  là select và select đó có gì. Đổi nhãn không đổi luật; đổi luật thì phải
- *  sang fixture. Cùng cách chia với `ORIGIN_FACE` ở `data/leads.ts`.
- *
- *  Kịch bản 2 · DAS Vina. */
+ *  Border with the fixture: `@pv/engines` owns what is TRUE (which fields a
+ *  profile has, which of the ten slots each carries); this file owns what it
+ *  LOOKS like (label, order, select options). Scenario 2 · DAS Vina. */
 
 // ---------------------------------------------------------------------------
-// Bốn cụm — mỗi cụm nói rõ nó dùng để làm gì
+// The three field groups — one tab each
 // ---------------------------------------------------------------------------
 
-/** Thứ tự bốn cụm LÀ thứ tự người cầm lead cần đọc, không phải thứ tự trong
- *  `LeadProfile`.
+/** The order here IS the tab order, which is the order somebody holding a lead
+ *  needs to read it — not the order of `LeadProfile`.
  *
- *  `purpose` là câu trả lời cho "mở cụm này ra để làm gì" và nó phải NGẮN —
- *  một dòng, dưới mười hai chữ. Câu dài thì người ta bỏ qua, và một cụm không
- *  ai đọc lời dẫn thì lời dẫn đó chỉ còn là chỗ chiếm mét vuông. Lý do đầy đủ
- *  nằm trong docblock của code, không nằm trên màn. */
+ *  `label` doubles as the tab label, so it stays SHORT: a tab row is read
+ *  sideways at a glance and a four-word tab is a four-word obstacle. `purpose`
+ *  is the one line under the row saying what the open tab is for — under twelve
+ *  words, or people stop reading it. */
 export const PROFILE_GROUPS = [
   {
     key: 'company',
-    label: 'Thông tin doanh nghiệp',
+    label: 'Doanh nghiệp',
     purpose: 'Thông tin pháp lý, ngành và quy mô hoạt động.',
   },
   {
@@ -96,17 +60,16 @@ export const PROFILE_GROUPS = [
   },
   {
     key: 'need',
-    label: 'Nhu cầu và quyết định',
+    label: 'Nhu cầu',
     purpose: 'Vấn đề, ngân sách, người duyệt và thời hạn.',
-  },
-  {
-    key: 'system',
-    label: 'Thông tin hệ thống',
-    purpose: 'Dữ liệu hệ thống tự ghi, chỉ sửa khi cần thiết.',
   },
 ] as const
 
-export type GroupKey = (typeof PROFILE_GROUPS)[number]['key']
+/** `system` has NO tab and no group row: the group dissolved on 17/09. Not one
+ *  of its boxes survived AS a box — `owner` and `source` are printed by the
+ *  right-hand card off `LeadProfile`, `code`/`createdAt`/`stage`/`exitReason`
+ *  by the header meta row. Text, rather than boxes nobody may type into. */
+export type GroupKey = (typeof PROFILE_GROUPS)[number]['key'] | 'system'
 
 /** Which write door is drawing the form.
  *
@@ -114,30 +77,6 @@ export type GroupKey = (typeof PROFILE_GROUPS)[number]['key']
  *  looking at a lead and correcting it are one screen with one set of boxes —
  *  what separates a reader from an editor is the permission, not the form. */
 export type FormMode = 'edit' | 'create'
-
-export type FormGroup = { key: GroupKey; label: string; purpose: string }
-
-/** Which groups a door draws, in reading order — and the two do not agree.
- *
- *  `edit` drops `system` entirely: twelve boxes the machine writes itself, and
- *  the three worth a look (holder · tier · column) are already pills in the
- *  page header.
- *
- *  `create` puts that same group FIRST and renames it: on a blank form it is
- *  down to two boxes, both required, and burying the first thing anybody types
- *  under twenty optional ones is how a form gets abandoned halfway. */
-export function groupsOf(mode: FormMode): FormGroup[] {
-  const rest: FormGroup[] = PROFILE_GROUPS.filter((g) => g.key !== 'system').map((g) => ({
-    key: g.key,
-    label: g.label,
-    purpose: g.purpose,
-  }))
-  if (mode === 'edit') return rest
-  return [
-    { key: 'system', label: 'Dòng đầu sổ', purpose: 'Tên trong sổ và thế — hai ô đòi ngay.' },
-    ...rest,
-  ]
-}
 
 // ---------------------------------------------------------------------------
 // Một trường
@@ -231,6 +170,13 @@ const STAGE_OPTIONS = [
 export const PROFILE_FIELDS: ProfileField[] = [
   // ── 1 · Khách là ai ──────────────────────────────────────────────────────
   {
+    key: 'company',
+    label: 'Tên gọi trong sổ',
+    kind: 'text',
+    group: 'company',
+    hint: 'Tên mọi màn gọi khách này. Hợp đồng vẫn ký theo tên pháp nhân.',
+  },
+  {
     key: 'legalName',
     label: 'Tên pháp nhân',
     kind: 'text',
@@ -287,6 +233,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     slot: 'scale',
     unit: 'nhà máy',
   },
+  { key: 'tier', label: 'Bậc', kind: 'select', group: 'company', options: TIER_OPTIONS },
 
   // ── 2 · Nói chuyện với ai ────────────────────────────────────────────────
   {
@@ -385,10 +332,8 @@ export const PROFILE_FIELDS: ProfileField[] = [
   },
   { key: 'deadline', label: 'Thời hạn mong muốn', kind: 'date', group: 'need', slot: 'deadline' },
 
-  // ── 4 · Sổ sách ──────────────────────────────────────────────────────────
+  // ── 4 · Sổ sách — no tab of its own, see `GroupKey` ──────────────────────
   { key: 'code', label: 'Mã lead', kind: 'read', group: 'system', mono: true },
-  { key: 'company', label: 'Tên gọi trong sổ', kind: 'text', group: 'system' },
-  { key: 'tier', label: 'Bậc', kind: 'select', group: 'system', options: TIER_OPTIONS },
   {
     key: 'stage',
     label: 'Cột trong sổ cơ hội',
@@ -562,6 +507,18 @@ export function isRequiredOnSave(field: FormField): boolean {
   return probe !== undefined && !probe.safeParse(null).success
 }
 
+/** Does the SAVE door carry this box at all?
+ *
+ *  `LeadPatch` has no field for `company`, `tier`, `stage`, the three holder
+ *  names or the book's own bookkeeping, so the edit door draws those as printed
+ *  values: a box that takes typing and writes nothing is a worse lie than a
+ *  line nobody can type into — and with autosave there is no button left whose
+ *  silence could hint at it. Asked of the contract, never listed. */
+export function isEditable(field: FormField): boolean {
+  const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
+  return wire in PATCH_SHAPE
+}
+
 /** Which of the ten questions a box carries — kept for the gate strip, and NOT
  *  for the star any more. See `isRequiredOnSave` for why they parted ways. */
 export function isMandatory(field: FormField): boolean {
@@ -653,8 +610,8 @@ function createOptions(field: ProfileField): ProfileField['options'] {
 }
 
 /** The create door, COMPUTED rather than declared a second time. Blueprint
- *  order is kept and `motion` is appended, which lands it right after `company`
- *  — the only two survivors of the book group. */
+ *  order is kept and `motion` is appended — the one box no stored lead has a
+ *  column for, and the only survivor of the book group. */
 export const CREATE_FIELDS: FormField[] = [
   ...PROFILE_FIELDS.filter((f) => f.kind !== 'read' && createWireOf(f) !== undefined).map((f) => ({
     ...f,
@@ -662,6 +619,29 @@ export const CREATE_FIELDS: FormField[] = [
   })),
   MOTION_FIELD,
 ]
+
+/** The boxes the "Phụ trách và nguồn" card draws through this blueprint, so its
+ *  labels and options cannot drift from the form's.
+ *
+ *  ONE box, and the list stayed a list rather than becoming a constant because
+ *  that is the shape the card reads. It carried five until 17/09 — `owner`,
+ *  `bdOwner`, `marketingOwner`, `source` and `motion` — while the card drew
+ *  only `motion`: the holder and the origin are PRINTED there, read straight
+ *  off `LeadProfile`, because neither has a write door on this screen (`owner`
+ *  goes through `PATCH /sales/leads/:code/owner`). A declared box nobody draws
+ *  is a field that quietly leaves the screen, which is what happened to
+ *  `bdOwner` and `marketingOwner` — no block prints them anywhere now. */
+export const OWNER_SOURCE_FIELDS: FormField[] = [MOTION_FIELD]
+
+/** Wire name → the box that carries it, so a complaint the server keys by
+ *  CONTRACT field can be printed under the box that caused it.
+ *
+ *  Searched over `CREATE_FIELDS` because it is the widest table — every profile
+ *  box a door can carry, plus `motion`. Both contracts spell every name they
+ *  share identically, which is what lets one lookup serve both doors. */
+export function fieldOfWire(wire: string): FormField | undefined {
+  return CREATE_FIELDS.find((f) => (PROFILE_TO_WIRE[f.key] ?? f.key) === wire)
+}
 
 // ---------------------------------------------------------------------------
 // Đọc và ghi một ô

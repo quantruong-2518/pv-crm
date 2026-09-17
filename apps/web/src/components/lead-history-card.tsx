@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from '@pv/ui'
 import {
@@ -27,31 +27,33 @@ import { objectThreadsQuery } from '@/data/comms'
 import { exitReasonRows, salesCatalogQuery } from '@/data/sales-config'
 import { CommsPanel } from './comms-card'
 
-/** One history card for a lead — mail, activity and conversation behind tabs.
+/** The three timelines of a lead behind three doors — mail, activity, talk.
  *
- *  These were three cards in a row, each titled as its own timeline, and
- *  nobody could say which of the three would answer a given question. They are
- *  one object seen three ways, so they are one card with three doors.
+ *  They were three cards in a row, each titled as its own timeline, and nobody
+ *  could say which of the three would answer a given question. They are one
+ *  object seen three ways, so they are one tab row.
  *
- *  The header carries the button of the OPEN tab only: two of the three would
- *  always be pointing at content nobody is looking at.
+ *  NO GLASS OF ITS OWN since 17/09: it draws inside the activity card, and a
+ *  second glass surface there is the fifth background layer (law 12).
+ *
+ *  The tab row carries the button of the OPEN tab only — a button aimed at
+ *  content nobody is looking at gets pressed by accident. Writing a letter is
+ *  not one of those: it is the card's own head button.
  *
  *  A tab prints no count until its query has answered — `0` is a wrong answer
- *  about data that is not known yet. All three reads were already running
- *  before this merge and still are, so no tab pays for the others' counts. */
-type HistoryTab = 'mail' | 'activity' | 'comms'
+ *  about data nobody knows yet. */
+type HistoryTab = 'activity' | 'mail' | 'comms'
 
 const TAB_HINT: Record<HistoryTab, string> = {
-  mail: 'Email đã gửi và tín hiệu trả về.',
   activity: 'Những gì đã xảy ra với hồ sơ này.',
+  mail: 'Email đã gửi và tín hiệu trả về.',
   comms: 'Nội dung hai bên đã trao đổi.',
 }
 
-export function LeadHistoryCard({
+export function LeadHistoryPanel({
   code,
   touches,
   focus,
-  mailActions,
   seedAddress,
 }: {
   code: string
@@ -59,18 +61,16 @@ export function LeadHistoryCard({
   touches: readonly TouchEvent[] | undefined
   /** The `sales.touch` row to jump to — normally a vector face just pressed. */
   focus?: TouchFocus | null
-  /** Header button of the mail tab; the screen owns the compose modal. */
-  mailActions?: ReactNode
-  seedAddress?: string
+  seedAddress?: string | null
 }) {
-  const [tab, setTab] = useState<HistoryTab>('mail')
-  /* The capture drawer opens from the header, which the panel does not own. */
+  const [tab, setTab] = useState<HistoryTab>('activity')
+  /* The capture drawer opens from the tab row, which the panel does not own. */
   const [capturing, setCapturing] = useState(false)
   const mail = useQuery(leadMailTimelineQuery(code))
   const comms = useCommsTabHead(code)
 
   useEffect(() => {
-    setTab('mail')
+    setTab('activity')
     setCapturing(false)
   }, [code])
 
@@ -82,50 +82,41 @@ export function LeadHistoryCard({
   }, [focus])
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Lịch sử">
-      <SectionTitle
-        size="detail"
-        hint={TAB_HINT[tab]}
-        actions={
-          tab === 'mail' ? (
-            mailActions
-          ) : tab === 'comms' && comms.canCapture ? (
-            <Button size="sm" variant="secondary" onClick={() => setCapturing(true)}>
-              <Icon icon={Plus} size={16} />
-              Ghi một trao đổi
-            </Button>
-          ) : undefined
-        }
-      >
-        Lịch sử
-      </SectionTitle>
+    <section className="flex min-w-0 flex-col gap-3" aria-label="Lịch sử">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SegmentedControl
+          label="Dòng lịch sử"
+          hideLabel
+          tone="quiet"
+          value={tab}
+          onChange={(value) => setTab(value as HistoryTab)}
+          options={[
+            { value: 'activity', label: 'Hoạt động', count: touches?.length },
+            { value: 'mail', label: 'Email', count: mail.data?.rows.length },
+            { value: 'comms', label: 'Trao đổi', count: comms.count },
+          ]}
+        />
+        {tab === 'comms' && comms.canCapture && (
+          <Button size="md" variant="secondary" onClick={() => setCapturing(true)}>
+            <Icon icon={Plus} size={16} />
+            Ghi một trao đổi
+          </Button>
+        )}
+      </div>
 
-      {/* `min-h-12` is rule 13's 48px touch floor — this is the one control a
-          tablet reader presses on this card. */}
-      <SegmentedControl
-        label="Dòng lịch sử"
-        hideLabel
-        value={tab}
-        onChange={(value) => setTab(value as HistoryTab)}
-        className="[&_button]:min-h-12"
-        options={[
-          { value: 'mail', label: 'Email', count: mail.data?.rows.length },
-          { value: 'activity', label: 'Hoạt động', count: touches?.length },
-          { value: 'comms', label: 'Trao đổi', count: comms.count },
-        ]}
-      />
+      <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">{TAB_HINT[tab]}</p>
 
-      {tab === 'mail' && <MailTimelinePanel code={code} />}
       {tab === 'activity' && <ActivityTimeline history={touches ?? NO_TOUCHES} focus={focus} />}
+      {tab === 'mail' && <MailTimelinePanel code={code} />}
       {tab === 'comms' && (
         <CommsPanel
           code={code}
-          seedAddress={seedAddress}
+          seedAddress={seedAddress ?? undefined}
           capturing={capturing}
           onCapture={setCapturing}
         />
       )}
-    </GlassCard>
+    </section>
   )
 }
 

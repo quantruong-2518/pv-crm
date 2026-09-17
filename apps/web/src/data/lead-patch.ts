@@ -3,47 +3,23 @@ import { LeadPatch, type LeadPatchResponse } from '@pv/contracts'
 import type { LeadProfile as ProfileForm } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { ROOT_FIELD } from '@/data/lead-create'
-import { changedFields, PROFILE_FIELDS, PROFILE_TO_WIRE, type ProfileField } from '@/data/lead-form'
+import { changedFields, PROFILE_TO_WIRE, type ProfileField } from '@/data/lead-form'
 
-/** Module 2 · `PATCH /sales/leads/:code` — the SAVE button of the profile card.
+/** Module 2 · `PATCH /sales/leads/:code` — the autosave door of the profile
+ *  card. Since 17/09 there is no save button: a value that leaves a box goes
+ *  through here on its own, one field at a time.
  *
- *  ------------------------------------------------------------------
- *  THE DOOR THAT REPLACES A DRAWER
- *  ------------------------------------------------------------------
- *  Until this file existed, the save button wrote into `useLeadDesk.profiles`
- *  — a zustand store in the browser. It looked like saving and behaved like
- *  saving right up to the moment somebody opened the same lead on another
- *  machine, and then the correction was simply gone. That store is now off the
- *  profile path entirely; the server is the only thing that remembers.
+ *  IT SENDS THE DIFF, NEVER THE WHOLE PROFILE. `buildLeadPatch` walks
+ *  `changedFields` and nothing else. Not about payload size — it is the only
+ *  way two people can work on one lead in the same hour: a body carrying all
+ *  twenty-one fields would write the untouched ones back with the values this
+ *  tab read BEFORE a colleague's edit, and their work would vanish with nothing
+ *  on either screen suggesting it had. Autosave narrows the pair it is given to
+ *  ONE field, so a refused box cannot drag a good one into the same refusal.
  *
- *  ------------------------------------------------------------------
- *  IT SENDS THE DIFF, NEVER THE WHOLE PROFILE
- *  ------------------------------------------------------------------
- *  `buildLeadPatch` walks `changedFields` and nothing else, so a body carries
- *  the three boxes a person touched and stays silent about the other eighteen.
- *  That is not about payload size — it is the only way two people can work on
- *  one lead in the same hour. A body carrying all twenty-one would write the
- *  eighteen untouched fields back with the values this tab read BEFORE the
- *  colleague's edit, and their work would disappear with nothing on either
- *  screen suggesting it had.
- *
- *  ------------------------------------------------------------------
- *  A CLEARED BOX SENDS `null`, WHICH IS WHY THIS FILE ASKS THE SCHEMA
- *  ------------------------------------------------------------------
- *  The form has one spelling for "empty" (`''`) and the wire needs two — `null`
- *  to clear a column, `''` on the two NOT NULL fields so the contract refuses it
- *  ITSELF, against that box, rather than the form inventing a second sentence
- *  about a rule it does not own. Worth knowing what that refusal says: emptying
- *  the name gives the blank-field complaint, while emptying the mailbox gives
- *  the malformed-mailbox one, because `email` checks a shape and `''` has none.
- *  Not lovely, and deliberately not fixed here — the create door answers a
- *  blank mailbox with exactly the same sentence, and one door quietly wording
- *  it better is how two doors start disagreeing about one rule.
- *
- *  Which field is which is ASKED of `LeadPatch` (`clearable` below), never
- *  listed here: a hand-written list of two would be a second place to keep in
- *  step, and the day the contract makes a third field nullable this follows in
- *  the same commit. */
+ *  A CLEARED BOX SENDS `null`. The form spells "empty" one way (`''`) and the
+ *  wire needs two, so the contract itself is asked which fields may be emptied
+ *  (`clearable`) rather than a hand-kept list of two going stale. */
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -177,18 +153,11 @@ export function buildLeadPatch(base: ProfileForm, work: ProfileForm): PatchResul
   return { ok: false, errors: fieldErrorsOf(parsed.error.issues) }
 }
 
-/** Contract field name → the Vietnamese label of the box that carries it.
+/** What the header meta row says about the last thing typed.
  *
- *  The server answers with `{ currency: […] }`, keyed by CONTRACT field, while
- *  the profile card knows its boxes by profile field. Rather than outlining the
- *  box — which would mean threading an error map through four components for a
- *  screen that saves twenty-one fields at once — the card prints
- *  the label and the complaint side by side beside the button, and this is what turns the first half of
- *  that sentence into something a person recognises.
- *
- *  Falls back to the wire name: a complaint nobody can place is still better
- *  than a complaint nobody can see. */
-export function patchFieldLabel(wire: string): string {
-  const field = PROFILE_FIELDS.find((f) => wireKeyOf(f.key) === wire)
-  return field?.label ?? wire
-}
+ *  Four branches and never a fifth: with the save button gone, this sentence is
+ *  the ONLY thing telling a person whether their correction reached the server,
+ *  so "nothing yet" and "saved" must not share a state. `failed` carries its
+ *  own wording because the reason is never the same twice. */
+export type SaveState =
+  { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' } | { kind: 'failed'; message: string }

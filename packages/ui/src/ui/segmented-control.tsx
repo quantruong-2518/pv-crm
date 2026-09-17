@@ -13,8 +13,10 @@ import { cn } from '../lib/cn'
 export type SegmentedOption = {
   value: string
   label: string
-  /** số nhỏ sau nhãn — "Sale · 3" */
-  count?: number
+  /** số nhỏ sau nhãn — "Sale · 3", hoặc một phân số đã dựng sẵn ("2/3") khi
+   *  cái đếm được có mẫu số. Chuỗi đi cùng đường vẽ với số để hai tab cạnh
+   *  nhau không in ra hai kiểu chữ số. */
+  count?: number | string
   disabled?: boolean
 }
 
@@ -82,7 +84,7 @@ export function SegmentedControl({
               {/* On `--primary` the count takes `--primary-foreground`:
                   `--on-tint-*` is for a TINTED ground and fails 4.5:1 here
                   (3.8:1 Aurora, 1.2:1 stone — all but invisible). */}
-              {typeof o.count === 'number' && (
+              {o.count !== undefined && o.count !== '' && (
                 <span
                   className={cn(
                     'tnum font-num text-[10.5px] font-normal',

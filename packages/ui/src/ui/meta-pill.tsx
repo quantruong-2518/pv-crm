@@ -18,8 +18,8 @@ const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-
     tone: {
       muted: 'bg-surface-ink/9 text-glass-foreground',
       accent: 'bg-primary/24 text-accent-foreground',
-      warning: 'bg-warning/20 text-warning',
-      success: 'bg-success/20 text-success',
+      warning: 'bg-warning/20 text-on-tint-warning',
+      success: 'bg-success/20 text-on-tint-success',
     },
     /** ngày và mã đọc bằng mắt theo cột — mono + tabular giữ chúng thẳng hàng */
     mono: {

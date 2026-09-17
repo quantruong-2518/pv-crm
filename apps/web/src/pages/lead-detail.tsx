@@ -1,15 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import {
-  ArrowRight,
-  Inbox,
-  Lock,
-  Mail,
-  Phone,
-  Pin,
-  RotateCcw,
-  TriangleAlert,
-  type IconGlyph,
-} from '@pv/ui'
+import { Inbox, Lock, TriangleAlert, type IconGlyph } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -27,221 +17,49 @@ import {
   ScreenLayout,
   Skeleton,
 } from '@pv/ui'
-import {
-  LEAD_CATEGORIES,
-  LEAD_TIERS,
-  PIPELINE_STAGES,
-  type Lead,
-  type LeadTier,
-} from '@pv/engines/fixtures/das-vina'
-import {
-  campaignLabel,
-  sourceKindLabel,
-  type LeadMotion,
-  type LeadProfile,
-  type OpportunityLiveDeal,
-} from '@pv/contracts'
+import type { LeadProfile } from '@pv/contracts'
+import { PIPELINE_STAGES } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
-import { toastDone, toastFail } from '@/app/toast'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
-import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
+import { EXIT_REASON_LABEL } from '@/data/leads'
 import { useStageLimits } from '@/data/sales-config'
-import { useReopenLead } from '@/data/lead-exit'
+import { useLeadDraft } from '@/data/lead-draft'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { chainPath, opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
 import { leadTouchesQuery, leadVectorQuery, NO_STEPS, type TouchFocus } from '@/data/touches'
-import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
-import { ContactsCard } from '@/components/contacts-card'
 import { ExitDialog } from '@/components/exit-dialog'
-import { LeadHistoryCard } from '@/components/lead-history-card'
-import { MeetingsCard } from '@/components/meetings-card'
+import { LeadActivityCard } from '@/components/lead-activity-card'
+import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { LeadForm, NextActionCard, NotesCard } from './lead-parts'
+import { OwnerSourceCard } from '@/components/owner-source-card'
+import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
 
-/** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
+/** Module 2 · One lead's profile — `/sales/leads/:code`.
  *
- *  ------------------------------------------------------------------
- *  VÌ SAO LÀ MỘT TRANG RIÊNG
- *  ------------------------------------------------------------------
- *  Hồ sơ này có một form ba mươi ô, một ô soạn tự do, một danh sách việc và cả
- *  một dòng thời gian. Nhét vào panel bên phải của sổ thì vừa bóp bảng còn 60%
- *  chiều rộng vừa bắt người dùng cuộn năm màn hình trong một cột hẹp. Danh sách và hồ sơ là hai việc khác nhau nên là hai trang khác nhau; sổ
- *  giữ đường quay lại ở góc trái trên.
+ *  Header: the account name with its status beside it, then ONE meta row — the
+ *  code, the customer it became if it did, the date it was booked, and whether
+ *  what was typed reached the server. Under it the object chain (law 10) and
+ *  the flow vector: which story this lead sits in, and who has held it.
  *
- *  ------------------------------------------------------------------
- *  BỐ CỤC — hai cột 3:2, HỒ SƠ trái · TÁC VỤ phải (chốt 29/08, bản 4)
- *  ------------------------------------------------------------------
- *  Bản 3 chia theo "sửa được / chỉ đọc". Sai trục: người mở một lead ra không
- *  hỏi "cái nào sửa được", họ hỏi "khách này là ai" rồi "giờ tôi làm gì". Nên
- *  bản 4 chia theo đúng hai câu đó: cuộc họp sang phải, còn nguồn lead nằm
- *  ngay dưới thông tin nhận diện để không tạo thêm một section tra cứu.
+ *  Two columns: LEFT is the record — form and activity; RIGHT is the work —
+ *  next action, holder and origin. Below `xl` it folds to one column with the
+ *  RIGHT one first: on a tablet a lead is opened to work it, not to fill a form.
  *
- *   0 · ĐẦU TRANG — tên account và trạng thái, rồi một hàng pill phân loại.
- *       Không còn nút nào ở đây: ghim và giao việc đã xuống thanh công cụ.
- *
- *   1 · CỘT TRÁI (3 phần) — HỒ SƠ. Đúng một khối, và nó GẬP theo nhóm: nhóm
- *       nào còn ô bắt buộc trống thì mở, nhóm đã đủ thì gập kèm ✓. Ba mươi ô
- *       mở sẵn là lý do màn này bị kêu "nhiều quá"; xem `FieldGroup`.
- *
- *   2 · CỘT PHẢI (2 phần) — TÁC VỤ, xếp theo dòng quyết định:
- *       người liên hệ → cuộc họp → lịch sử → việc tiếp theo → ghi chú.
- *       Cột đi theo luồng cuộn của trang và chỉ bám đáy khi đã hiện trọn vẹn;
- *       không tạo thêm một thanh cuộn lồng khó điều khiển.
- *
- *   3 · THANH CÔNG CỤ dính đáy — ai gọi cho ai bên trái, làm gì bên phải.
- *
- *  Dưới `xl` về MỘT cột và cột phải lên TRƯỚC (`sideFirst`): trên tablet người
- *  ta mở một khách ra để làm việc, không phải để điền form.
- *
- *  Nợ phải biết: hai khối đứng ở vị trí trang trọng nhất cột phải — việc tiếp
- *  theo và ghi chú — vẫn đọc `app/desk.ts`, tức state trong trình duyệt, chưa
- *  có endpoint. Bố cục mới làm chúng trông như dữ liệu thật hơn trước, trong
- *  khi mở ở máy khác là mất. Chủ dự án đã được báo và chốt giữ nguyên vị trí.
- *
- *  ------------------------------------------------------------------
- *  HAI THỨ ĐÃ GỠ, VÀ CÁI GIÁ CỦA CHÚNG
- *  ------------------------------------------------------------------
- *  · **Khối tóm tắt bốn ô** (đau ở đâu · tiền · ai quyết · cổng). Dựng ra để
- *    khỏi phải quét ba mươi ô nhập, nhưng khi cột chính chỉ còn 3/4 màn thì form
- *    đã tự đọc được, và khối tóm tắt thành một bản sao thứ hai của cùng bốn
- *    trường — hai chỗ hiện một dữ liệu là hai chỗ để lệch nhau.
- *
- *  · ~~**ContextRail** (luật 10)~~ — **trả 15/09.** Nợ cũ ghi rằng rail quay
- *    lại "khi nào có màn thật để nó mở sang"; nay có hai, và chuỗi chạm tới cả
- *    hai. Điều làm nó khả thi không phải bố cục mà là DỮ LIỆU: lead → cơ hội là
- *    1-n nên không cột nào của dòng này gọi tên được "cái" đơn hay "cái" hợp
- *    đồng, và `E1.story()` ở máy chủ là chỗ duy nhất biết. Chip in ra đã cắt
- *    theo quyền, và chỉ vẽ khi chuỗi dài hơn chính lead — một chip đơn độc chỉ
- *    lặp lại cái mã đã in ngay trên đầu.
- *
- *  ------------------------------------------------------------------
- *  HỒ SƠ ĐỌC TỪ MÁY CHỦ · `GET /sales/leads/:code`
- *  ------------------------------------------------------------------
- *  Màn không còn tra lead trong sổ đóng băng. Đường tra cũ (`find()` trên 100
- *  dòng fixture) trả `null` cho mọi mã ngoài `LD-0101…LD-0200`, nên sau khi sổ
- *  cắt sang máy chủ thì bấm bất kỳ dòng nào của trang 1 cũng rơi vào nhánh
- *  rỗng — một cái thẻ bé xíu trông như màn trắng.
- *
- *  Bốn ca, bốn câu khác nhau, vì bốn ca là bốn việc phải làm tiếp khác nhau:
- *   · **đang tải** — khung xương, y như trước;
- *   · **404** — không có lead nào mang mã đó (câu riêng của màn này, vì chỉ màn
- *     này biết thứ không tìm thấy là một mã lead người dùng vừa bấm);
- *   · **403 `ngoài-phạm-vi`** — lead CÓ THẬT, chỉ là không thuộc phạm vi người
- *     đang xem. Câu chung ở `app/api/errors.ts` chỉ đúng một đường đi tiếp:
- *     hỏi người đang giữ nó. Không phải đăng nhập lại, không phải xin thêm
- *     quyền — họ đã có `lead.view` rồi;
- *   · **còn lại** (mạng · máy chủ · mã sai dạng) — câu chung của loại lỗi đó.
- *
- *  Bốn khối còn nằm trên `app/desk.ts` (ghim · ghi chú · việc · giao việc)
- *  chưa có endpoint nào, nên chúng giữ nguyên và đọc một bản `Lead`
- *  dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`.
- *
- *  "Đã đổi thành cơ hội chưa" thì KHÔNG còn ở đó nữa (29/08): nó đọc
- *  `opportunitiesOfLeadQuery` — `GET /sales/opportunities/live-deal?leadCode=…`
- *  — thay cho `opportunityOfLead` của fixture và cho `desk.deals`. Cả hai
- *  chống đỡ cũ đều mù: một cái không thấy lead tạo sau lát cắt đóng băng, một
- *  cái không thấy máy nào khác. */
-
-const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
-  prospect: 'draft',
-  mql: 'running',
-  sql: 'success',
-}
-
-const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
-const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
-const STAGE_LABEL = new Map(PIPELINE_STAGES.map((s) => [s.key, s.label]))
-
-/** Vietnamese labels for the two intake fields `OriginCard` draws, keyed by
- *  the exact UPPERCASE wire values from `@pv/contracts` — not looked up
- *  through `MOTION_FACE` / `INTAKE_FACE` in `data/intake.ts`.
- *
- *  Those two tables are the wrong door for this:
- *   · `MOTION_FACE` is keyed by `@pv/engines`'s `LEAD_MOTIONS`, the SAME six
- *     motions spelled lower-case (`inbound`, …) — a second declaration of one
- *     vocabulary, called out as known debt on `LeadMotion` in
- *     `packages/contracts/src/sales/enums.ts`. Reading through it here would
- *     open a third conversion site for that one enum, which is the exact
- *     thing that docblock says must not happen.
- *   · `INTAKE_FACE` is keyed by the older, five-value `LeadIntake` axis
- *     (`sync` / `manual` / `file` / `scan` / `api`), not by `LeadSourceKind`
- *     (`MANUAL` / `IMPORT` / `APOLLO` / `LANDING_PAGE`). The two axes are
- *     related but not a 1:1 map — `sync` and `scan` have no counterpart in
- *     the stored enum, and `APOLLO` has none in the engine copy — so a lookup
- *     through it would either miss keys or fabricate a mapping that isn't
- *     true. The origin half no longer needs a table on this page at all:
- *     `sourceKindLabel` in `@pv/contracts` is the one both ends read.
- *
- *  `Record<…, string>` on the CONTRACT's own enum type, so a value the
- *  contract adds later and this table forgets is a compile error, not a
- *  silent fallback to the raw wire string. */
-const LEAD_MOTION_LABEL: Record<LeadMotion, string> = {
-  INBOUND: 'Inbound',
-  OUTBOUND: 'Outbound',
-  EVENT: 'Sự kiện',
-  REFERRAL: 'Giới thiệu',
-  PARTNER: 'Đối tác',
-  RECYCLE: 'Đánh thức lại',
-}
-
-/** Quá hạn CỘT PHỄU — cùng phép tính và cùng bảng hạn với dòng sổ lead
- *  (`pages/leads.tsx`), và từ 14/09 bảng hạn ấy đến từ `config_entry` chứ
- *  không từ fixture đóng băng. Lý do đầy đủ ở chỗ kia.
- *
- *  KHÁC với `lead.position`, và khác biệt đó đáng giữ trong đầu: `position` nói
- *  lead đang ở đâu trên thang BẬC của chính nó (`dau-moi → mql → sql`), còn hàm
- *  này hỏi về CỘT của phễu cơ hội — thứ lead chỉ bước vào khi đã có đơn. Hai
- *  thang, hai câu hỏi. Đồng hồ của thang bậc thì chưa ai lên dây (§8.5), nên
- *  `position.overdueBy` hôm nay luôn `null` và không thay được hàm này. */
-function overSla(lead: LeadProfile, limits: Map<string, number | null>): boolean {
-  if (!lead.stage) return false
-  const limit = limits.get(lead.stage)
-  return limit !== undefined && limit !== null && lead.daysHere > limit
-}
+ *  Four ways the profile fails to draw (loading · 404 · 403 out-of-scope ·
+ *  anything else) say four different things, because each is a different next
+ *  step for the reader. `LeadBody` is split out so that every hook of the
+ *  profile runs only once there IS a profile. */
 
 export function LeadDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
-
-  const me = useSession((s) => s.actor)
-  const canWrite = useCan('lead.edit')
-  const canDisqualify = useCan('lead.disqualify')
-  /* Sổ người của máy chủ. Gọi TRƯỚC mọi nhánh `return` sớm bên dưới — màn này
-     thoát ra ở ba chỗ (đang tải, lỗi, không thấy), và một hook nằm sau chúng
-     là một hook chạy khi có lead mà không chạy khi không. */
-  const pins = useLeadDesk((s) => pinsOf(s, me?.id))
-  const togglePin = useLeadDesk((s) => s.togglePin)
-  /* "Khách này đã được đổi thành cơ hội chưa" — hỏi MÁY CHỦ, cùng lý do hook
-     phải nằm trên ba nhánh `return` sớm. Xem `opportunitiesOfLeadQuery`. */
-  const priorOps = useQuery(opportunitiesOfLeadQuery(code))
-  /* The LEAD's timeline, not the opportunity's — decision 5 of ADR
-     `docs/decisions/0018-opportunity-module-decisions.md`. Above the three
-     early `return`s, same reason as the hooks right above. Handed over
-     UNRESOLVED: `undefined` is "not answered yet", and the history tab prints
-     no count until it is. */
-  const { data: touches } = useQuery(leadTouchesQuery(code))
-  /* The configured column deadlines — one cached read, above the early
-     returns like everything else here. */
-  const stageLimits = useStageLimits()
-  /* Which timeline row a vector face last pointed at. Lives HERE rather than
-     inside either block because it is the wire between them: the vector says
-     which moment, the activity card shows it. */
-  const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
-  /* The holder chain, off the SAME query key as the timeline above — one fetch,
-     two questions. Empty until somebody has actually held this lead, and
-     `FlowVector` draws nothing at all in that case. */
-  const { data: vector = NO_STEPS } = useQuery(leadVectorQuery(code))
-
-  const [converting, setConverting] = useState(false)
-  const [exiting, setExiting] = useState(false)
-  const [composing, setComposing] = useState(false)
 
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
@@ -256,9 +74,9 @@ export function LeadDetailPage() {
   }
 
   if (!lead) {
-    /* Một `kind`, một câu. Màn không đọc `status` số và không bắt chuỗi trong
-       `message` — `app/api/errors.ts` đã phân loại một lần cho cả app, và hai
-       màn tự đọc lấy một mã lỗi là hai câu khác nhau cho cùng một sự cố. */
+    /* One `kind`, one sentence. The screen reads no numeric status and matches
+       no substring of `message`: `app/api/errors.ts` classified it once for the
+       whole app, and two screens classifying it again are two wordings. */
     const failure = isApiError(error) ? error : null
     const missing = failure?.kind === 'not-found'
     const denied = failure?.kind === 'forbidden'
@@ -285,129 +103,94 @@ export function LeadDetailPage() {
     )
   }
 
-  /* Sáu khối trên `app/desk.ts` vẫn đọc hình `Lead` của fixture — dựng MỘT bản
-     ở đây thay vì để mỗi khối tự quy đổi lấy. */
+  return shell(<LeadBody lead={lead} />)
+}
+
+export default LeadDetailPage
+
+// ---------------------------------------------------------------------------
+
+function LeadBody({ lead }: { lead: LeadProfile }) {
+  const navigate = useNavigate()
+  const me = useSession((s) => s.actor)
+  const canWrite = useCan('lead.edit')
+  const canDisqualify = useCan('lead.disqualify')
+  /* Asked HERE, next to `lead.edit`, and handed to the toolbar: the bar is the
+     only block whose three buttons write through three different doors, and a
+     button opening a drawer that ends in a 403 is worse than a locked one. */
+  const canSendEmail = useCan('lead.send-email')
+  const canConvert = useCan('opportunity.edit')
+  const pins = useLeadDesk((s) => pinsOf(s, me?.id))
+  const togglePin = useLeadDesk((s) => s.togglePin)
+  /* Has this lead been turned into a deal yet — asked of the SERVER. */
+  const priorOps = useQuery(opportunitiesOfLeadQuery(lead.code))
+  /* The LEAD's timeline, not the opportunity's — decision 5 of ADR
+     `docs/decisions/0018-opportunity-module-decisions.md`. Handed over
+     UNRESOLVED: `undefined` is "not answered yet". */
+  const { data: touches } = useQuery(leadTouchesQuery(lead.code))
+  /* The holder chain, off the SAME query key as the timeline above — one fetch,
+     two questions. Empty until somebody has actually held this lead. */
+  const { data: vector = NO_STEPS } = useQuery(leadVectorQuery(lead.code))
+  /* Which timeline row a vector face last pointed at. Lives HERE rather than
+     inside either block because it is the wire between them: the vector says
+     which moment, the activity card shows it. */
+  const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
+  /* A COUNTER, not a flag: pressing the meeting button twice must open the
+     door twice, and a boolean already `true` says nothing the second time.
+     Same shape and same reason as `focusTouch`. */
+  const [scheduleSeq, setScheduleSeq] = useState(0)
+  const [converting, setConverting] = useState(false)
+  const [exiting, setExiting] = useState(false)
+  const [composing, setComposing] = useState(false)
+
+  /* ONE draft for the whole screen: the form card on the left and the holder
+     card on the right type into the same boxes. */
+  const draft = useLeadDraft({ mode: 'edit', profile: lead })
+  /* The blocks still living on `app/desk.ts` read the fixture's `Lead` shape —
+     built ONCE here instead of every block converting it for itself. */
   const legacy = leadOf(lead)
-  /* Người liên hệ THẬT trên dây — KHÔNG phải `leadContact(legacy)`. Trước đây
-     `nextActions` tự gọi hàm sinh đó bên trong, và với một mã ngoài dải đóng
-     băng (Apollo) nó nặn ra một cái tên và một số điện thoại không có thật. */
-  /* Tên account đọc thẳng từ hồ sơ máy chủ. Trước 30/08 chỗ này còn phải hỏi
-     `desk.profiles` trước, vì nút Lưu của thẻ hồ sơ chỉ ghi vào trình duyệt và
-     đầu trang sẽ mâu thuẫn với ô nhập ngay bên dưới. Có `PATCH` thật thì lượt
-     lưu vứt `lead-profile` và câu truy vấn này trả về tên mới — một nguồn. */
-  const accountName = lead.company
-  const masRecipients =
-    lead.contactName && lead.email
-      ? [
-          {
-            code: lead.code,
-            company: accountName,
-            contactName: lead.contactName,
-            contactTitle: lead.contactTitle,
-            email: lead.email,
-          },
-        ]
-      : []
   const masBlocker = !lead.email
     ? 'Lead chưa có địa chỉ email.'
     : !lead.contactName
       ? 'Lead chưa có người liên hệ.'
       : undefined
 
-  /* Every open deal of this lead, shown beside the convert button as
-     information — a lead may hold several at once, so none of them disables
-     the button. */
-  const liveDeal = priorOps.data ?? { codes: [], hidden: 0 }
-
-  return shell(
+  return (
     <ScreenLayout>
       <GlassCard variant="b" className="p-4">
-        {/* Dòng tên chỉ chở HAI thứ: tên account và trạng thái. Mọi nhãn phân
-            loại — mã, bậc, ngành, tỉnh, cột — xuống hàng pill dưới. Bậc là một
-            CÁCH XẾP LOẠI lead, trạng thái là lead ĐANG SỐNG HAY KHÔNG; để hai
-            badge cạnh nhau trên dòng tên thì chúng đọc ra như một cặp cùng loại. */}
-        {/* Trường VẮNG nghĩa là chưa moi được, không phải rỗng — nên chỗ nào
-            chưa có thì in "—" chứ không bỏ pill đi: một hàng pill thiếu chỗ
-            này thừa chỗ kia không đọc ra được là "chưa biết" hay "không có". */}
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)] lg:gap-6">
-          <ScreenHeader
-            back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
-            title={accountName}
-            className="gap-3 [&>div]:gap-3 [&_h2]:normal-case [&_h2]:tracking-[-.4px]"
-            meta={
-              <>
-                <Chip>{lead.code}</Chip>
-                {lead.tier && (
-                  <Badge tone={TIER_TONE[lead.tier]}>
-                    {TIER_LABEL.get(lead.tier) ?? lead.tier}
-                  </Badge>
-                )}
-                {lead.category && (
-                  <MetaPill>Ngành: {CATEGORY_LABEL.get(lead.category) ?? lead.category}</MetaPill>
-                )}
-                {lead.province && <MetaPill>Khu vực: {lead.province}</MetaPill>}
-                <MetaPill mono>Tạo ngày {dmy(lead.createdAt)}</MetaPill>
-              </>
-            }
-          />
-
-          <div className="border-surface-ink/10 flex min-w-0 flex-col justify-end gap-4 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge lead={lead} />
-              {lead.stage && (
-                <MetaPill tone={overSla(lead, stageLimits) ? 'warning' : 'accent'}>
-                  {STAGE_LABEL.get(lead.stage)} · {lead.daysHere} ngày
-                </MetaPill>
-              )}
-              {/* Who the lead is waiting ON, a different question from who
-                  HOLDS it: a request sitting with somebody else is why a lead
-                  stops moving while its holder looks idle. The same pill as the
-                  deal profile, off the same field (`position.waitingOn`),
-                  because it is one question and not two. */}
+        <ScreenHeader
+          back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
+          className="gap-3 [&>div]:gap-3 [&_h2]:tracking-[-.4px]"
+          title={
+            <span className="flex flex-wrap items-center gap-3">
+              {lead.company}
+              {/* `font-sans` because the badge now sits INSIDE the `h2`, which
+                  carries `font-display` — a badge is body text (law 6). */}
+              <StatusBadge lead={lead} className="font-sans" />
+            </span>
+          }
+          meta={
+            <>
+              <Chip>{lead.code}</Chip>
+              <CustomerPill lead={lead} />
+              {/* No "by <person>": the profile carries no creator column, and
+                  the vector's first holder answers a different question. */}
+              <MetaPill mono>Tạo {dmy(lead.createdAt)}</MetaPill>
+              {/* Which column and how long — the badge above says "Quá hạn cột"
+                  without naming either, and both are what decides the next move. */}
+              <StagePill lead={lead} />
+              {/* Who the lead waits ON, which is not who holds it: a request
+                  sitting with somebody else is why a lead stops moving while
+                  its holder looks idle. Nothing else on the page says it. */}
               {lead.position?.waitingOn && (
                 <MetaPill tone="warning">
                   chờ {lead.position.waitingOn.person} · {lead.position.waitingOn.role}
                 </MetaPill>
               )}
-            </div>
-
-            {/* PIC ĐỨNG TRÊN NGUỒN, và thứ tự đó là một quyết định.
-                "Ai đang giữ" được hỏi mỗi lần mở hồ sơ — trước khi bấm gọi,
-                người ta liếc xem lead này có phải của mình không, vì nếu không
-                thì cuộc gọi đó là chen ngang. "Về bằng đường nào" thì tra một
-                lần rồi thôi. Khối đọc nhiều hơn đứng trên.
-
-                In `ownerName` — cái NHÃN. Hòm thư lui về `title` của pill,
-                đúng như cột PIC của sổ lead (`components/table-bits.tsx`): hai
-                màn của cùng một dòng dữ liệu phải in ra cùng một thứ, nếu
-                không thì bảng nói một đằng hồ sơ nói một nẻo.
-
-                Cả ba trường người giữ đến từ MỘT phép join ở máy chủ
-                (`lead.repository.ts` · `leftJoin(actor, …)`), nên chúng luôn
-                vắng cùng nhau — chỉ cần một nhánh trống, không cần ba. */}
-            <div className="flex min-w-0 flex-col gap-2">
-              <span className="text-muted-foreground text-[12.5px] font-semibold">Lead PIC</span>
-              <div className="flex flex-wrap items-center gap-2">
-                {lead.ownerName ? (
-                  <MetaPill avatar={lead.ownerName} title={lead.ownerEmail}>
-                    {lead.ownerName}
-                  </MetaPill>
-                ) : (
-                  <MetaPill title={NO_OWNER_TITLE}>Chưa ai nhận</MetaPill>
-                )}
-              </div>
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-2">
-              <span className="text-muted-foreground text-[12.5px] font-semibold">Nguồn lead</span>
-              <div className="flex flex-wrap items-center gap-2">
-                <MetaPill>{campaignLabel(lead.source)}</MetaPill>
-                <Chip variant="source">{sourceKindLabel(lead.source)}</Chip>
-                {lead.motion && <MetaPill>{LEAD_MOTION_LABEL[lead.motion]}</MetaPill>}
-              </div>
-            </div>
-          </div>
-        </div>
+              <SaveStateNote state={draft.saveState} />
+            </>
+          }
+        />
       </GlassCard>
 
       {/* THE OBJECT CHAIN this lead belongs to — lead, deal, contract. Rule 10.
@@ -418,11 +201,7 @@ export function LeadDetailPage() {
           a record this reader may open.
 
           Drawn only when the chain has more than the lead itself: a one-chip
-          rail restates the code already printed in the header two lines above.
-
-          The debt note this file carried until 15/09 said the rail would come
-          back "when there is a real screen to open onto" — there are two now,
-          and the chain reaches both. */}
+          rail restates the code already printed in the header two lines above. */}
       {lead.chain.length > 1 && (
         <ContextRail objects={railOf(lead.chain, lead.code, navigate)} className="px-1" />
       )}
@@ -433,9 +212,8 @@ export function LeadDetailPage() {
           this answers "who was before me".
 
           PRESSABLE since 14/09: a step carries the `sales.touch` row it was
-          read off, and the history card keys its activity rows on that same id,
-          so `onOpen` has somewhere to land — the card opens that tab and scrolls
-          to the moment the person took the lead. */}
+          read off, and the activity card keys its rows on that same id, so
+          `onOpen` has somewhere to land. */}
       {vector.length > 0 && (
         <GlassCard variant="b" className="p-4">
           <FlowVector
@@ -446,93 +224,114 @@ export function LeadDetailPage() {
         </GlassCard>
       )}
 
-      {/* HAI CỘT, HAI CÂU HỎI — bố cục chốt 29/08.
-          Trái là HỒ SƠ ("khách này là ai"), phải là TÁC VỤ ("giờ tôi làm gì").
-          Bản trước trộn hai thứ: hồ sơ và cuộc họp cùng bên trái, còn cột phải
-          xếp lẫn thẻ tra cứu với thẻ thao tác.
-
-          Giữ đúng grid chuẩn 3:1 của màn chi tiết. Grid và hai cột đều chiếm
-          trọn chiều ngang khả dụng để các mép card luôn thẳng hàng. */}
       <ScreenDetailGrid
         sideLabel="Việc cần làm với lead này"
         className="w-full"
         sideClassName="relative xl:self-stretch"
-        /* Dưới xl về một cột và TÁC VỤ lên trước: trên tablet người ta mở một
-           khách ra để làm việc, không phải để điền form. */
+        /* One column below `xl`, with the WORK column first: on a tablet a
+           lead is opened to work it, not to fill a form. */
         sideFirst
-        main={<LeadForm mode="edit" profile={lead} />}
-        side={
-          <DetailSidePanel>
-            {/* Reading order of the column: who to call → what was agreed →
-                what has happened → what to do next → what to remember. */}
-            {/* Contacts come BEFORE meetings: "who do I call" is asked before
-                "how many times have we met", and this card is what writes the
-                lead's own five contact columns — see its docblock. */}
-            <ContactsCard code={lead.code} canEdit={canWrite} />
-            <MeetingsCard code={lead.code} canEdit={canWrite} />
-            {/* ONE history card, three doors: the letters sent, what happened
-                to the record, and what was actually said. They were three
-                cards in a row and nobody could tell which one to open. */}
-            <LeadHistoryCard
+        main={
+          <>
+            <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
+            <LeadActivityCard
               code={lead.code}
+              canEdit={canWrite}
               touches={touches}
               focus={focusTouch}
               seedAddress={lead.email}
-              mailActions={
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={Boolean(masBlocker)}
-                  title={masBlocker}
-                  onClick={() => setComposing(true)}
-                >
-                  <Icon icon={Mail} size={16} />
-                  Gửi email
-                </Button>
-              }
+              onCompose={() => setComposing(true)}
+              composeBlocked={masBlocker}
+              openSchedule={scheduleSeq}
             />
+          </>
+        }
+        side={
+          <DetailSidePanel>
+            {/* Next action stands first: this column answers "what do I do
+                now", while holder and origin are looked up once and dropped. */}
             <NextActionCard lead={legacy} />
-            <NotesCard lead={legacy} />
+            <OwnerSourceCard mode="edit" profile={lead} legacy={legacy} />
           </DetailSidePanel>
         }
       />
 
-      <ToolsBar
+      <LeadToolsBar
+        mode="edit"
         lead={lead}
         legacy={legacy}
         pinned={pins.includes(lead.code)}
-        liveDeal={liveDeal}
-        onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
+        liveDeal={priorOps.data ?? EMPTY_LIVE_DEAL}
         canDisqualify={canDisqualify}
+        canEdit={canWrite}
+        canSendEmail={canSendEmail}
+        canConvert={canConvert}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
         onConvert={() => setConverting(true)}
+        onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
+        onCompose={() => setComposing(true)}
+        composeBlocked={masBlocker}
+        onSchedule={() => setScheduleSeq((n) => n + 1)}
       />
 
-      {/* Hồ sơ TRÊN DÂY, không phải `legacy`: phiếu đổi mồi từ hồ sơ thật chứ
-          không sinh lại hồ sơ từ mã lead — xem docblock của `ConvertDialog`. */}
+      {/* The WIRE profile, not `legacy`: the convert form is seeded from the
+          stored row rather than regenerated from the code. */}
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <MasMailModal
         open={composing}
         onClose={() => setComposing(false)}
-        leads={masRecipients}
-        initialLeadCode={masRecipients.length > 0 ? lead.code : undefined}
-        defaultLabel={`Gửi email · ${accountName}`}
+        leads={masRecipients(lead)}
+        initialLeadCode={masBlocker ? undefined : lead.code}
+        defaultLabel={`Gửi email · ${lead.company}`}
         onQueued={() => setComposing(false)}
       />
-    </ScreenLayout>,
+    </ScreenLayout>
   )
 }
 
 // ---------------------------------------------------------------------------
 
-/** Màn không mở được — MỘT khối, ba câu, và cái hình đổi theo câu.
+/** Every open deal of this lead — information beside the convert button, never
+ *  a block. A stable object so the toolbar's props do not change identity on a
+ *  render where nothing did. */
+const EMPTY_LIVE_DEAL = { codes: [], hidden: 0 }
+
+/** The mail modal takes a LIST of recipients; this screen holds exactly one,
+ *  and none at all while the lead has no mailbox or no person to address. */
+function masRecipients(lead: LeadProfile) {
+  if (!lead.contactName || !lead.email) return []
+  return [
+    {
+      code: lead.code,
+      company: lead.company,
+      contactName: lead.contactName,
+      contactTitle: lead.contactTitle,
+      email: lead.email,
+    },
+  ]
+}
+
+/** Which customer this lead became — the `AC` link of the object chain.
  *
- *  Một component cho cả ba vì cả ba là cùng một trạng thái của màn ("không có
- *  hồ sơ để vẽ") và cùng một đường đi tiếp ("về sổ lead"). Cái khác nhau là
- *  CÂU, và câu là thứ được truyền vào — chứ không phải ba khối rỗng gần giống
- *  nhau, thứ chắc chắn sẽ trôi khỏi nhau ở lần sửa thứ hai. */
+ *  NOT pressable, on purpose: `MetaPill` has no press door by design, and a
+ *  pressable 24px chip in a meta row is a touch target under the 48px law 13
+ *  asks of a tablet. The door onto the customer is the ContextRail right below,
+ *  where `railOf` has already wired `chainPath`. */
+function CustomerPill({ lead }: { lead: LeadProfile }) {
+  const link = lead.chain.find((entry) => entry.kind === 'AC')
+  if (!link) return null
+  return <MetaPill>Khách hàng {link.code}</MetaPill>
+}
+
+/** The screen that would not open — ONE block, three sentences, and the glyph
+ *  follows the sentence.
+ *
+ *  One component for all three because all three are the same state of the
+ *  screen (no profile to draw) with the same way out (back to the lead book).
+ *  What differs is the SENTENCE, so the sentence is the prop — rather than
+ *  three near-identical empty blocks that drift apart on the second edit. */
 function EmptyLead({
   icon,
   note,
@@ -553,226 +352,66 @@ function EmptyLead({
   )
 }
 
-/** Trạng thái của lead — bốn nhánh, và nhánh đầu KHÔNG còn mã hợp đồng.
- *
- *  Trước đây badge in "Đã ký · HĐ-2711". Mã đó đến từ `lead.contractCode` của
- *  fixture, và cột ấy không còn: lead → hợp đồng nay là 1-n nên không cột nào
- *  gọi tên được "cái" hợp đồng. Thứ sống sót là `signed`, một boolean — nên
- *  badge giữ TRẠNG THÁI và bỏ mã, thay vì bịa một mã hoặc kéo mã cũ của
- *  fixture đi theo. Mã quay lại ngày hồ sơ chở một DANH SÁCH cơ hội. */
-function StatusBadge({ lead }: { lead: LeadProfile }) {
-  const limits = useStageLimits()
+const STAGE_LABEL = new Map(PIPELINE_STAGES.map((stage) => [stage.key, stage.label]))
 
-  if (lead.signed) return <Badge tone="success">Đã ký</Badge>
-  if (lead.exitReason) {
-    return (
-      <Badge tone="danger">Đã rơi · {EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason}</Badge>
-    )
-  }
-  if (overSla(lead, limits)) return <Badge tone="warning">Quá hạn cột</Badge>
-  /* The lead book calls this bucket "Chưa chốt" and the two screens must print
-     one word for one bucket. "Đang chạy" also overstated it: most leads in
-     here have not been touched by anybody yet. */
-  return <Badge tone="running">Chưa chốt</Badge>
+/** Past the PIPELINE COLUMN's deadline — the same table and the same sum the
+ *  lead book reads (`pages/leads.tsx`), which comes from `config_entry`. NOT
+ *  `lead.position`: that is the lead's own ladder, this is the funnel column. */
+function overSla(lead: LeadProfile, limits: Map<string, number | null>): boolean {
+  if (!lead.stage) return false
+  const limit = limits.get(lead.stage)
+  return limit !== undefined && limit !== null && lead.daysHere > limit
 }
 
-/** Lead này từ đâu về — TRA TỪ SỔ NGUỒN THẬT.
- *
- *  ------------------------------------------------------------------
- *  BỐN PILL ĐÃ RỤNG, VÀ VÌ SAO KHÔNG LẤP LẠI
- *  ------------------------------------------------------------------
- *  Bản cũ gọi `leadOrigin(lead)` của fixture: nó tra mã nguồn trong `SOURCES`
- *  và **ném** khi không thấy — mà 119 dòng trên Neon trỏ vào mã của sổ nguồn
- *  thật (`SR-…`), không phải mã fixture. Giữ nó là mở lead nào cũng vỡ màn.
- *
- *  Hồ sơ chở `source` — một OBJECT hai nửa — nên chỗ này không còn tra cứu gì
- *  nữa: tên chiến dịch đi kèm mã ngay trên dây (`campaignName`), nhãn của loại
- *  xuất xứ lấy từ bảng dùng chung với máy chủ. Trước đây khối này phải tự gọi
- *  `GET /sales/config` rồi dựng một `Map` để đổi mã lấy tên; cái `useQuery` đó
- *  đã đi cùng với phép tra.
- *
- *  Cái gì KHÔNG có đường về thì vẫn thôi, không đoán: chủ nguồn, ngày bắt đầu
- *  chạy, kênh của đợt, và khối địa điểm/số người đến của sự kiện đều là dữ
- *  liệu của fixture chiến dịch, không có trong hợp đồng này. Vẽ lại chúng bằng
- *  giá trị suy đoán là đúng thứ một màn hồ sơ không được phép làm.
- *
- *  `campaignLabel` chọn giữa BA trạng thái — có tên · không thuộc chiến dịch ·
- *  có mã mà tra không ra. Hai cái sau trông giống nhau trên màn nếu gộp làm
- *  một, mà chúng là hai vấn đề ngược nhau: một cái bình thường, một cái nghĩa
- *  là có dòng đang trỏ vào chỗ trống. */
-/** Thanh công cụ dính đáy — AI ở trái, LÀM GÌ ở phải.
- *
- *  ------------------------------------------------------------------
- *  VÌ SAO PIC ĐỨNG NGAY CẠNH KHÁCH
- *  ------------------------------------------------------------------
- *  Thanh này chia làm hai nửa theo câu hỏi nó trả lời, không theo loại
- *  component:
- *
- *   · nửa trái = **KHÁCH LÀ AI** — người liên hệ + chức danh;
- *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
- *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
- *
- *  The convert button is live on every running lead — a lead may hold several
- *  open deals at once, so opening one more is never blocked by them; only an
- *  exited lead locks it, since the door refuses those. Existing open deals are
- *  shown as INFORMATION beside it instead: a 48px row per code the reader may
- *  open, off the same `opportunitiesOfLeadQuery` the rail above reads, plus a
- *  muted count for the ones a colleague holds that this reader may not open.
- *
- *  PIC KHÔNG nằm ở đây, nó nằm trên khối nhận diện ở đầu trang. Bản cũ định
- *  đặt nó cạnh khối khách trong chính thanh này, với lý do đúng — trước khi
- *  bấm gọi người ta liếc "mình gọi cho ai" và "lead này của ai", vì nếu không
- *  phải tên mình thì cuộc gọi đó là chen ngang. Cái sai là CHỖ: nửa trái của
- *  thanh này `hidden lg:flex`, nên đặt PIC vào đây là giấu nó khỏi tablet và
- *  điện thoại, đúng hai thiết bị luật 3 bắt phải chạy được. Khối đầu trang
- *  hiện ở cả ba cỡ và vẫn nằm trong tầm mắt lúc quyết định gọi.
- *
- *  Thanh DÍNH chứ không cố định tuyệt đối: nó ở trong luồng nội dung nên không
- *  đè lên sidebar, và dưới `lg` thì nhường chỗ cho BottomNav 84px của AppShell. */
-function ToolsBar({
-  lead,
-  legacy,
-  pinned,
-  liveDeal,
-  canDisqualify,
-  onPin,
-  onExit,
-  onConvert,
-  onOpenOp,
-}: {
-  lead: LeadProfile
-  /** Hình `Lead` của fixture. `AssignMenu` nhận nó CHỈ để `assigneeOptions`
-   *  xếp thứ tự gợi ý người nhận — phép ghi của khối đó đã cắt sang máy chủ và
-   *  đọc mọi giá trị từ `lead` (hồ sơ trên dây), không từ hình này. */
-  legacy: Lead
-  pinned: boolean
-  /** Every open deal this lead already holds — information, never a block. */
-  liveDeal: OpportunityLiveDeal
-  canDisqualify: boolean
-  onPin: () => void
-  onExit: () => void
-  onConvert: () => void
-  onOpenOp: (code: string) => void
-}) {
-  /* Người liên hệ đọc THẲNG từ hồ sơ. Bản cũ gọi `leadContact(lead)`, một hàm
-     SINH tên và số điện thoại từ mã lead — tất định, khớp với 100 dòng đóng
-     băng, và bịa ra một con người cho mọi mã ngoài khoảng đó. Bốn trường thật
-     đã có trên dây, nên không còn lý do gì để đoán. */
-  const contactLine = lead.contactTitle
-    ? `${lead.contactName} · ${lead.contactTitle}`
-    : lead.contactName
-  /* Máy chủ trả KHOÁ lý do rơi (`unreachable`); màn in NHÃN. */
-  const exitLabel = lead.exitReason
-    ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
-    : undefined
-  const reopen = useReopenLead(lead.code)
+/** Which funnel column the lead sits in, and for how long. One computation for
+ *  this pill and for the badge, so the two can never disagree about overdue. */
+function StagePill({ lead }: { lead: LeadProfile }) {
+  const limits = useStageLimits()
+  if (!lead.stage) return null
   return (
-    <div className="z-10 lg:sticky lg:bottom-4">
-      <GlassCard
-        variant="b"
-        className="bg-hc-surface shadow-panel grid gap-3 p-3 lg:grid-cols-[minmax(220px,1fr)_auto] lg:items-center"
-        aria-label="Thanh công cụ"
-      >
-        <div className="hidden min-w-0 max-w-[320px] flex-col gap-1 lg:flex">
-          <span className="text-muted-foreground text-[12px]">Liên hệ</span>
-          <span className="truncate text-[13px] font-semibold">
-            {contactLine || 'Chưa có người liên hệ'}
-          </span>
-        </div>
-
-        <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-          <div className="bg-surface-ink/5 flex flex-wrap items-center gap-1 rounded-md p-1">
-            <Button
-              size="md"
-              variant={pinned ? 'default' : 'ghost'}
-              aria-pressed={pinned}
-              onClick={onPin}
-            >
-              <Icon icon={Pin} size={16} />
-              {pinned ? 'Đã ghim' : 'Ghim'}
-            </Button>
-            <AssignMenu lead={legacy} profile={lead} buttonVariant="secondary" />
-          </div>
-
-          <div className="bg-surface-ink/5 flex flex-wrap items-center gap-1 rounded-md p-1">
-            <Button
-              size="md"
-              variant="secondary"
-              disabled={!lead.phone}
-              title={lead.phone ?? 'Chưa có số điện thoại'}
-              onClick={() => {
-                if (lead.phone) window.location.href = `tel:${lead.phone}`
-              }}
-            >
-              <Icon icon={Phone} size={16} />
-              {lead.contactName ? `Gọi ${lead.contactName}` : 'Gọi khách'}
-            </Button>
-
-            {exitLabel ? (
-              <>
-                <Badge tone="danger">Đã rơi · {exitLabel}</Badge>
-                {canDisqualify && (
-                  <Button
-                    size="md"
-                    variant="secondary"
-                    disabled={reopen.isPending}
-                    onClick={() =>
-                      reopen.mutate(undefined, {
-                        onSuccess: () => toastDone(`Đã mở lại ${lead.code}.`),
-                        onError: (error) =>
-                          toastFail('Không mở lại được lead.', userMessage(error)),
-                      })
-                    }
-                  >
-                    <Icon icon={RotateCcw} size={16} />
-                    {reopen.isPending ? 'Đang mở lại…' : 'Mở lại lead'}
-                  </Button>
-                )}
-              </>
-            ) : (
-              canDisqualify && (
-                <Button size="md" variant="destructive" onClick={onExit}>
-                  <Icon icon={TriangleAlert} size={16} />
-                  Báo không phù hợp
-                </Button>
-              )
-            )}
-
-            {(liveDeal.codes.length > 0 || liveDeal.hidden > 0) && (
-              <>
-                <span className="text-muted-foreground text-[11px]">Đang mở:</span>
-                {liveDeal.codes.map((code) => (
-                  <Button key={code} size="lg" variant="ghost" onClick={() => onOpenOp(code)}>
-                    <span className="font-mono">{code}</span>
-                  </Button>
-                ))}
-                {liveDeal.hidden > 0 && (
-                  <span className="text-muted-foreground text-[11px]">
-                    +{liveDeal.hidden} cơ hội của người khác
-                  </span>
-                )}
-              </>
-            )}
-            {/* An exited lead takes no new deal (the door answers 409) — reopen it first. */}
-            <Button
-              size="md"
-              disabled={Boolean(exitLabel)}
-              title={exitLabel ? 'Lead đã rơi — mở lại lead trước.' : undefined}
-              onClick={onConvert}
-            >
-              <Icon icon={ArrowRight} size={16} />
-              Chuyển thành cơ hội
-            </Button>
-          </div>
-
-          {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của
-              AppShell). Thanh này chạm mép phải cùng chỗ với nút đó, nên không
-              chừa thì nút đè lên đúng hành động cuối. */}
-          <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
-        </div>
-      </GlassCard>
-    </div>
+    <MetaPill tone={overSla(lead, limits) ? 'warning' : 'accent'}>
+      {STAGE_LABEL.get(lead.stage) ?? lead.stage} · {lead.daysHere} ngày
+    </MetaPill>
   )
 }
 
-export default LeadDetailPage
+/** The lead's status — four branches, and the first one NO LONGER carries a
+ *  contract code.
+ *
+ *  It used to print the signed contract's code, read off the fixture's
+ *  `contractCode`. That column is gone: lead to contract is 1-n now, so no
+ *  column can name "the" contract. What survived is `signed`, a boolean — so
+ *  the badge keeps the STATE and drops the code rather than inventing one. The
+ *  code returns the day the profile carries a LIST of deals. */
+function StatusBadge({ lead, className }: { lead: LeadProfile; className?: string }) {
+  const limits = useStageLimits()
+
+  if (lead.signed)
+    return (
+      <Badge tone="success" className={className}>
+        Đã ký
+      </Badge>
+    )
+  if (lead.exitReason) {
+    return (
+      <Badge tone="danger" className={className}>
+        Đã rơi · {EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason}
+      </Badge>
+    )
+  }
+  if (overSla(lead, limits)) {
+    return (
+      <Badge tone="warning" className={className}>
+        Quá hạn cột
+      </Badge>
+    )
+  }
+  /* The lead book names this bucket the same way, and two screens must print
+     one word for one bucket. The older wording claimed the lead was moving;
+     most leads in here have not been touched by anybody yet. */
+  return (
+    <Badge tone="running" className={className}>
+      Chưa chốt
+    </Badge>
+  )
+}

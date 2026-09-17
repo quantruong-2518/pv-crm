@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Pin, Trash2 } from '@pv/ui'
 import {
@@ -16,6 +16,7 @@ import {
 import { ContactChannel, type ContactRow } from '@pv/contracts'
 import { userMessage, type FieldErrors } from '@/app/api'
 import { toast } from '@/app/toast'
+import { CHANNEL_LABEL } from '@/data/sales-config'
 import {
   BLANK_CONTACT,
   changedContactFields,
@@ -68,31 +69,62 @@ import { Field } from './ops-fields'
  *  A contact's email may be left blank because a mail run reads the LEAD's
  *  mailbox, not this box. The reply-channel field offers the same channel set a
  *  send goes out on — where we reach them and where we write are one list. */
-export function ContactsCard({ code, canEdit }: { code: string; canEdit: boolean }) {
+export function ContactsCard({
+  code,
+  canEdit,
+  /** Drawn INSIDE another card's tab: no glass of its own and no title of its
+   *  own, because the tab already named it and a card inside a card is the
+   *  fifth background layer (law 12). */
+  embedded,
+}: {
+  code: string
+  canEdit: boolean
+  embedded?: boolean
+}) {
   const { data, isPending } = useQuery(leadContactsQuery(code))
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<ContactRow | null>(null)
 
   const rows = data?.rows ?? []
+  const Shell = embedded ? EmbeddedShell : CardShell
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Người liên hệ">
-      {/* Named like every other card in this column: short noun, count in
-          brackets only once there is something to count. */}
-      <SectionTitle
-        size="detail"
-        hint="Người ĐẦU danh sách là người chính."
-        actions={
-          canEdit ? (
-            <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+    <Shell>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+            Người ĐẦU danh sách là người chính.
+          </span>
+          {canEdit && (
+            <Button
+              size="md"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              onClick={() => setAdding(true)}
+            >
               <Icon icon={Plus} size={16} />
-              Thêm
+              Thêm người liên hệ
             </Button>
-          ) : undefined
-        }
-      >
-        Người liên hệ {rows.length > 0 && `(${rows.length})`}
-      </SectionTitle>
+          )}
+        </div>
+      ) : (
+        /* Named like every other card in this column: short noun, count in
+           brackets only once there is something to count. */
+        <SectionTitle
+          size="detail"
+          hint="Người ĐẦU danh sách là người chính."
+          actions={
+            canEdit ? (
+              <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+                <Icon icon={Plus} size={16} />
+                Thêm
+              </Button>
+            ) : undefined
+          }
+        >
+          Người liên hệ {rows.length > 0 && `(${rows.length})`}
+        </SectionTitle>
+      )}
 
       {isPending ? (
         <Skeleton className="h-20 w-full" />
@@ -128,8 +160,22 @@ export function ContactsCard({ code, canEdit }: { code: string; canEdit: boolean
         row={editing}
         first={false}
       />
+    </Shell>
+  )
+}
+
+/** The two skins of this card, as components rather than a ternary around the
+ *  whole body: one JSX tree, two frames. */
+function CardShell({ children }: { children: ReactNode }) {
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Người liên hệ">
+      {children}
     </GlassCard>
   )
+}
+
+function EmbeddedShell({ children }: { children: ReactNode }) {
+  return <div className="flex min-w-0 flex-col gap-4">{children}</div>
 }
 
 function ContactLine({
@@ -165,6 +211,7 @@ function ContactLine({
               <Button
                 size="sm"
                 variant="ghost"
+                className="pointer-coarse:size-12"
                 title="Đặt làm người liên hệ chính"
                 disabled={promote.isPending}
                 onClick={() =>
@@ -179,6 +226,7 @@ function ContactLine({
             <Button
               size="sm"
               variant="ghost"
+              className="pointer-coarse:size-12"
               title="Xoá người liên hệ"
               disabled={drop.isPending}
               onClick={() =>
@@ -341,7 +389,9 @@ function ContactDrawer({
             onChange={(v) => set('channel', v)}
             options={[
               { value: '', label: 'Chưa biết' },
-              ...ContactChannel.options.map((c) => ({ value: c, label: c })),
+              /* The wire key is not a label: `zalo-oa` and `in-app` are stored
+                 keys. One table for every channel name in the app. */
+              ...ContactChannel.options.map((c) => ({ value: c, label: CHANNEL_LABEL[c] })),
             ]}
             className="w-full"
           />

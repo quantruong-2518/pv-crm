@@ -1182,7 +1182,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 17
+      "count": 15
     }
   },
   "apps/web/src/app/intake-desk.ts": {
@@ -1284,10 +1284,10 @@
   },
   "apps/web/src/components/import-zone.tsx": {
     "aurora/comment-budget": {
-      "count": 11
+      "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 37
+      "count": 32
     },
     "max-lines-per-function": {
       "count": 1
@@ -1450,10 +1450,10 @@
   },
   "apps/web/src/data/lead-form.ts": {
     "aurora/comment-budget": {
-      "count": 2
+      "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 24
+      "count": 22
     }
   },
   "apps/web/src/data/lead-import-wire.ts": {
@@ -1479,7 +1479,7 @@
   },
   "apps/web/src/data/lead-patch.ts": {
     "aurora/comment-budget": {
-      "count": 2
+      "count": 1
     }
   },
   "apps/web/src/data/lead-profile.ts": {
@@ -1804,21 +1804,10 @@
   },
   "apps/web/src/pages/lead-detail.tsx": {
     "aurora/comment-budget": {
-      "count": 13
+      "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 23
-    },
-    "max-lines-per-function": {
       "count": 1
-    }
-  },
-  "apps/web/src/pages/lead-parts.tsx": {
-    "aurora/comment-budget": {
-      "count": 9
-    },
-    "aurora/comments-in-english": {
-      "count": 21
     }
   },
   "apps/web/src/pages/leads.tsx": {

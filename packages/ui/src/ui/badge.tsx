@@ -11,8 +11,8 @@ const badgeVariants = cva(
       tone: {
         /** Nháp — Slate Gray chỉ làm nền, chữ lấy --glass-foreground (luật 2) */
         draft: 'bg-brand-slate/28 text-glass-foreground',
-        warning: 'bg-warning/20 text-warning',
-        success: 'bg-success/20 text-success',
+        warning: 'bg-warning/20 text-on-tint-warning',
+        success: 'bg-success/20 text-on-tint-success',
         running: 'bg-primary/24 text-accent-foreground',
         danger: 'bg-destructive/24 text-destructive-foreground',
       },
