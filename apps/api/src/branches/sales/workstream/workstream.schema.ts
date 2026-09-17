@@ -97,10 +97,10 @@ export const workstream = sales.table(
  *  difference is the whole reason this note exists. `lead`, `opportunity`,
  *  `contract` and `account` all start high because the frozen fixture already
  *  OWNS a block of their codes and a sequence starting at 1 would walk into it
- *  years later. No fixture, no seed and no migration mints a `WS-` code, so
- *  there is no block to clear — and inventing headroom for a collision that
- *  cannot happen is inventing data. The backfill in 0045 takes the first run
- *  of codes off this same sequence, exactly as 0026 did for `AC-`. */
+ *  years later. No fixture owns a `WS-` block, so there is none to clear —
+ *  and inventing headroom for a collision that cannot happen is inventing
+ *  data. Migrations 0045/0048, seed and the lead write doors all mint off this
+ *  one sequence. */
 export const workstreamCodeSeq = sales.sequence('workstream_code_seq', {
   startWith: 1,
   increment: 1,

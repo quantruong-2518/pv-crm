@@ -5,7 +5,10 @@ import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { ContractRepository } from '../contract/contract.repository'
 import { TouchModule } from '../touch/touch.module'
+import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityController } from './opportunity.controller'
+import { OpportunityGateRepository } from './opportunity-gate.repository'
+import { OpportunityGate } from './opportunity-gate.service'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
 import { OpportunityRepository } from './opportunity.repository'
 import { OpportunityService } from './opportunity.service'
@@ -59,11 +62,13 @@ import { OpportunityService } from './opportunity.service'
      which `pipelinePosition` needs to answer "who is it waiting on". This
      module registers no applier — reading the inbox and having something to
      apply are separate things, and only the config module has the second. */
-  imports: [ApprovalModule, EnginesModule, GraphModule, MailModule, TouchModule],
+  imports: [ApprovalModule, EnginesModule, GraphModule, MailModule, TouchModule, WorkstreamModule],
   controllers: [OpportunityController],
   providers: [
     OpportunityService,
     OpportunityRepository,
+    OpportunityGate,
+    OpportunityGateRepository,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không
        dưới token: đăng bạ là một mảng do

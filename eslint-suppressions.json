@@ -350,7 +350,7 @@
       "count": 6
     },
     "aurora/comments-in-english": {
-      "count": 13
+      "count": 12
     }
   },
   "apps/api/src/branches/sales/lead/lead.schema.ts": {
@@ -413,7 +413,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 23
+      "count": 22
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity-mail.composer.ts": {
@@ -431,10 +431,10 @@
   },
   "apps/api/src/branches/sales/opportunity/opportunity.controller.ts": {
     "aurora/comment-budget": {
-      "count": 3
+      "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 10
+      "count": 9
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.labels.ts": {
@@ -466,7 +466,7 @@
       "count": 8
     },
     "aurora/comments-in-english": {
-      "count": 43
+      "count": 42
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.schema.ts": {
@@ -479,10 +479,10 @@
   },
   "apps/api/src/branches/sales/opportunity/opportunity.service.ts": {
     "aurora/comment-budget": {
-      "count": 32
+      "count": 30
     },
     "aurora/comments-in-english": {
-      "count": 31
+      "count": 29
     }
   },
   "apps/api/src/branches/sales/sales.module.ts": {
@@ -1260,10 +1260,10 @@
   },
   "apps/web/src/components/convert-dialog.tsx": {
     "aurora/comment-budget": {
-      "count": 8
+      "count": 7
     },
     "aurora/comments-in-english": {
-      "count": 6
+      "count": 5
     },
     "max-lines-per-function": {
       "count": 1
@@ -1346,7 +1346,7 @@
   },
   "apps/web/src/components/opportunity-create-dialog.tsx": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 4
     }
   },
   "apps/web/src/components/ops-fields.tsx": {
@@ -1557,10 +1557,10 @@
   },
   "apps/web/src/data/opportunities.ts": {
     "aurora/comment-budget": {
-      "count": 9
+      "count": 8
     },
     "aurora/comments-in-english": {
-      "count": 22
+      "count": 21
     }
   },
   "apps/web/src/data/opportunity-import-wire.ts": {
@@ -1821,10 +1821,10 @@
   },
   "apps/web/src/pages/lead-detail.tsx": {
     "aurora/comment-budget": {
-      "count": 15
+      "count": 13
     },
     "aurora/comments-in-english": {
-      "count": 28
+      "count": 24
     },
     "max-lines-per-function": {
       "count": 1
@@ -2212,7 +2212,7 @@
   },
   "packages/contracts/src/sales/opportunity.ts": {
     "aurora/comment-budget": {
-      "count": 8
+      "count": 6
     },
     "aurora/comments-in-english": {
       "count": 6

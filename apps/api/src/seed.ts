@@ -23,6 +23,7 @@ import {
   type ExitReason,
 } from '@pv/contracts'
 import { configEntry } from '@api/branches/sales/config/config.schema'
+import { stageCriterion } from '@api/branches/sales/config/stage-criterion.schema'
 import { contract } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
 import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
@@ -280,6 +281,18 @@ async function seed(): Promise<void> {
     ),
     ...sourceRows,
   ]
+
+  /** Four exit criteria on `discovery`, order and labels from the product
+   *  owner's mockup. No ticks seeded — an untouched checklist is the correct
+   *  starting point. */
+  const criteriaSeed = ['Ngân sách', 'Người quyết định', 'Timeline', 'Pain point'].map(
+    (label, i) => ({
+      id: `SC-${String(i + 1).padStart(2, '0')}`,
+      stage: 'discovery' as const,
+      label,
+      ord: i + 1,
+    }),
+  )
 
   /* `satisfies` chứ không để suy kiểu tự do: `rows` đi qua một `.map()` trước
      khi tới `.values()`, và phép gán đó KHÔNG bị TypeScript kiểm thừa-thiếu
@@ -633,6 +646,9 @@ async function seed(): Promise<void> {
        `config_entry`, thứ tự này là thứ tự BẮT BUỘC. Trước `actor`: cột
        `owner_id` của `CATEGORY` trỏ sang sổ nhân sự. */
     await tx.delete(configEntry)
+    /* After `opportunity`: ticks key into this table and are only gone
+       because deleting a deal cascades them away. */
+    await tx.delete(stageCriterion)
     await tx.delete(objectRef)
     /* Hai bảng xác thực, ngay trước `actor` vì cả hai trỏ vào nó.
      *
@@ -665,6 +681,7 @@ async function seed(): Promise<void> {
     /* Day sau `actor` vì `CATEGORY.owner_id` trỏ vào đó, và trước `lead` vì
        sáu cột từ vựng của lead sẽ trỏ vào đây. */
     await tx.insert(configEntry).values(configSeed)
+    await tx.insert(stageCriterion).values(criteriaSeed)
 
     /* E1 · đồ thị. Object trước, cạnh sau — cạnh có khoá ngoại hai đầu. */
     await tx.insert(objectRef).values([
@@ -760,7 +777,8 @@ async function seed(): Promise<void> {
       `${dasVina.objects.length + leadObjects.length + dealObjects.length + contractObjects.length} object · ` +
       `${dasVina.edges.length + bookEdges.length} cạnh · ${rows.length} lead · ` +
       `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · ` +
-      `${touchRows.length} lần chạm · ${configSeed.length} dòng cấu hình · driver ${kind}.`,
+      `${touchRows.length} lần chạm · ${configSeed.length} dòng cấu hình · ` +
+      `${criteriaSeed.length} tiêu chí thoát · driver ${kind}.`,
   )
   await close()
 }

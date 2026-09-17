@@ -9,7 +9,6 @@ import {
   inArray,
   isNotNull,
   isNull,
-  ne,
   not,
   or,
   sql,
@@ -33,6 +32,7 @@ import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { dealOpen } from '../open-deal'
 import {
   opportunity,
   opportunityOwner,
@@ -329,13 +329,16 @@ export class OpportunityRepository {
    *  Null = không có lead đó, và cửa ghi biến null thành 404 — khoá ngoại
    *  `opportunity_lead_code_lead_code_fk` cũng chặn, nhưng nó ném ra một 500
    *  không gọi tên ô nào. */
-  async leadCompany(tx: Db, code: string): Promise<string | null> {
+  async leadCompany(
+    tx: Db,
+    code: string,
+  ): Promise<{ company: string; workstreamCode: string | null } | null> {
     const [row] = await tx
-      .select({ company: lead.company })
+      .select({ company: lead.company, workstreamCode: lead.workstreamCode })
       .from(lead)
       .where(eq(lead.code, code))
       .limit(1)
-    return row?.company ?? null
+    return row ?? null
   }
 
   /** Một đơn, đọc cho BỘ DỰNG THÂN MAIL. Không có trục phạm vi.
@@ -425,27 +428,36 @@ export class OpportunityRepository {
    *  tên công ty là chuyện có thật (hai chi nhánh, một lần nhập trùng), và đoán
    *  ở đây là gán một đơn cho nhầm hồ sơ — đúng loại lỗi không lộ ra cho tới
    *  lúc ai đó gọi điện cho sai người. */
-  async leadsByCompany(
-    tx: Db,
-  ): Promise<{ byCompany: Map<string, string>; ambiguous: Set<string> }> {
+  async leadsByCompany(tx: Db): Promise<{
+    byCompany: Map<string, string>
+    ambiguous: Set<string>
+    workstreamByLead: Map<string, string | null>
+  }> {
     const rows = await tx
-      .select({ code: lead.code, folded: sql<string>`lower(${lead.company})` })
+      .select({
+        code: lead.code,
+        folded: sql<string>`lower(${lead.company})`,
+        workstreamCode: lead.workstreamCode,
+      })
       .from(lead)
       .where(isNull(lead.exitReason))
 
     const byCompany = new Map<string, string>()
     const ambiguous = new Set<string>()
+    const workstreamByLead = new Map<string, string | null>()
 
     for (const r of rows) {
       const key = r.folded.trim().replace(/\s+/g, ' ')
+      workstreamByLead.set(r.code, r.workstreamCode)
       if (byCompany.has(key)) ambiguous.add(key)
       else byCompany.set(key, r.code)
     }
 
-    return { byCompany, ambiguous }
+    return { byCompany, ambiguous, workstreamByLead }
   }
 
-  /** Mã lead → mã đơn ĐANG MỞ của nó, cho `dupWithBook` của lô nạp.
+  /** Lead code → every OPEN deal code of it, oldest first. A lead may hold
+   *  several; `code` only breaks ties, since 'OP-10000' sorts before 'OP-9999'.
    *
    *  "Đang mở" loại cả hai đầu cuối: `state <> 'close-lost'` bỏ đơn thua, và
    *  `NOT signed` bỏ đơn đã ký. Một khách quay lại quý sau là một đơn MỚI, không
@@ -455,24 +467,48 @@ export class OpportunityRepository {
    *  Đọc theo danh sách mã chứ không quét cả bảng: lô đã dịch xong tên công ty
    *  nên nó biết chính xác hỏi về những lead nào. `IN` đi đúng
    *  `opportunity_lead_idx`. */
-  async liveDealsByLead(tx: Db, leadCodes: readonly string[]): Promise<Map<string, string>> {
+  async liveDealsByLead(tx: Db, leadCodes: readonly string[]): Promise<Map<string, string[]>> {
     if (leadCodes.length === 0) return new Map()
 
     const rows = await tx
       .select({ leadCode: opportunity.leadCode, code: opportunity.code })
       .from(opportunity)
-      .where(
-        and(
-          inArray(opportunity.leadCode, [...leadCodes]),
-          ne(opportunity.state, 'close-lost'),
-          not(this.signed()),
-        ),
-      )
-      .orderBy(opportunity.code)
+      .where(and(inArray(opportunity.leadCode, [...leadCodes]), this.live()))
+      .orderBy(opportunity.createdAt, opportunity.code)
 
-    const byLead = new Map<string, string>()
-    for (const r of rows) if (!byLead.has(r.leadCode)) byLead.set(r.leadCode, r.code)
+    const byLead = new Map<string, string[]>()
+    for (const r of rows) byLead.set(r.leadCode, [...(byLead.get(r.leadCode) ?? []), r.code])
     return byLead
+  }
+
+  /** The open deals of ONE lead with their owners, oldest first, in one
+   *  statement — what the live-deal door needs to build an E2 ref per deal.
+   *  Owners keep `ownersOf`'s order (role, then name). */
+  async liveDealsWithOwners(
+    leadCode: string,
+  ): Promise<{ row: OpportunityRowDb; owners: OpportunityOwner[] }[]> {
+    const rows = await this.db
+      .select({
+        row: opportunity,
+        id: opportunityOwner.actorId,
+        name: actor.name,
+        role: opportunityOwner.role,
+      })
+      .from(opportunity)
+      .leftJoin(opportunityOwner, eq(opportunityOwner.opportunityCode, opportunity.code))
+      .leftJoin(actor, eq(actor.id, opportunityOwner.actorId))
+      .where(and(eq(opportunity.leadCode, leadCode), this.live()))
+      .orderBy(opportunity.createdAt, opportunity.code, opportunityOwner.role, actor.name)
+
+    const deals = new Map<string, { row: OpportunityRowDb; owners: OpportunityOwner[] }>()
+    for (const r of rows) {
+      const deal = deals.get(r.row.code) ?? { row: r.row, owners: [] }
+      if (r.id !== null && r.name !== null && r.role !== null) {
+        deal.owners.push({ id: r.id, name: r.name, role: r.role })
+      }
+      deals.set(r.row.code, deal)
+    }
+    return [...deals.values()]
   }
 
   // ── ghi ──────────────────────────────────────────────────────────────────
@@ -1009,11 +1045,13 @@ export class OpportunityRepository {
     ) as SQL
   }
 
-  /** Cùng câu hỏi, hình VỊ TỪ — thứ đứng được trong `WHERE` và trong `FILTER`.
-   *
-   *  Ba chỗ dùng, và cả ba đều CẦN hình vị từ chứ không cần mã hợp đồng:
-   *  `liveDealsByLead` (đơn nào còn sống), `stateFilter` (lọc trạng thái thứ
-   *  năm) và `scorecard` (đếm đơn thắng). */
+  /** "Still open": not lost, not signed — the branch's one rule, `../open-deal.ts`. */
+  private live(): SQL {
+    return dealOpen(opportunity.code, opportunity.state)
+  }
+
+  /** Same question in PREDICATE shape, for `WHERE` and `FILTER`: `stateFilter`
+   *  (the fifth state) and `scorecard` (won deals) need a boolean, not a code. */
   private signed(): SQL {
     return exists(
       this.db

@@ -1,14 +1,15 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, useQueryClient } from '@tanstack/react-query'
 import {
   WorkstreamBookQuery,
   WorkstreamBookResponse,
   WorkstreamProfileResponse,
-  type WorkstreamChannel,
   type WorkstreamCloseReason,
   type WorkstreamFootprint,
+  type WorkstreamHolder,
+  type WorkstreamRow,
+  type WorkstreamStep,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import { COMMS_CHANNEL_LABEL } from '@/data/comms'
 
 /** Workstream book — `/sales/workstreams`. One row per customer journey run.
  *
@@ -29,15 +30,6 @@ export const CLOSE_REASON_LABEL: Record<WorkstreamCloseReason, string> = {
   WON: 'Thắng',
   LOST: 'Thua',
   CHURNED: 'Rời bỏ',
-}
-
-/** Five channels borrow the comms labels. `mail` counts letters actually sent
- *  to the customer (internal alerts are excluded server-side), not a captured
- *  conversation, so it must not read as a second "Email". */
-export const WORKSTREAM_CHANNEL_LABEL: Record<WorkstreamChannel, string> = {
-  ...COMMS_CHANNEL_LABEL,
-  meeting: 'Cuộc gặp',
-  mail: 'Thư đã gửi',
 }
 
 /** Every channel is always present on the wire, so a sum of 0 is a real 0.
@@ -92,4 +84,66 @@ export function workstreamProfileQuery(code: string) {
         signal,
       }),
   })
+}
+
+/** Every run counts to the day it closed; an open one counts to `now`, which
+ *  the caller reads once per mount so a redraw never changes the figure. */
+export function runDays(ws: Pick<WorkstreamRow, 'openedAt' | 'closedAt'>, now: number): number {
+  const end = ws.closedAt === null ? now : Date.parse(ws.closedAt)
+  return Math.max(0, Math.floor((end - Date.parse(ws.openedAt)) / 86_400_000))
+}
+
+/** A lead lane and a deal lane read alike once the outcome is folded into `open`. */
+export type WorkstreamLane = {
+  kind: 'LD' | 'OP'
+  code: string
+  owner: WorkstreamHolder | null
+  steps: WorkstreamStep[]
+  open: boolean
+}
+
+export type StepRef = { lane: string; step: string }
+
+export function lanesOf(ws: WorkstreamProfileResponse): WorkstreamLane[] {
+  const lead = { kind: 'LD' as const, ...ws.lead, open: ws.lead.outcome === 'open' }
+  const deals = ws.deals.map((d) => ({ kind: 'OP' as const, ...d, open: d.outcome === 'open' }))
+  return [lead, ...deals]
+}
+
+export const currentStepOf = (lane: WorkstreamLane) => lane.steps.find((s) => s.state === 'current')
+
+/** The newest open deal is what somebody opens a run to push forward; the lead
+ *  and the last deal are fallbacks for a run with nothing moving. */
+export function defaultStepOf(ws: WorkstreamProfileResponse): StepRef | null {
+  const [lead, ...deals] = lanesOf(ws)
+  const newest = deals.at(-1)
+  const ref = (lane: WorkstreamLane | undefined, step: WorkstreamStep | undefined) =>
+    lane && step ? { lane: lane.code, step: step.key } : null
+  const open = [...deals].reverse().find((d) => d.open)
+  return (
+    ref(open, open && currentStepOf(open)) ??
+    ref(lead, lead && currentStepOf(lead)) ??
+    ref(newest, newest?.steps.at(-1)) ??
+    ref(lead, lead?.steps.at(-1))
+  )
+}
+
+export function findStep(ws: WorkstreamProfileResponse, ref: StepRef | null) {
+  const lane = lanesOf(ws).find((l) => l.code === ref?.lane)
+  const step = lane?.steps.find((s) => s.key === ref?.step)
+  return lane && step ? { lane, step } : null
+}
+
+/** "Owner deal" in the header: whoever holds the newest open deal, else the
+ *  newest deal of any outcome. */
+export function dealOwnerOf(ws: WorkstreamProfileResponse): WorkstreamHolder | null {
+  const deal = [...ws.deals].reverse().find((d) => d.outcome === 'open') ?? ws.deals.at(-1)
+  return deal?.owner ?? null
+}
+
+/** A deal created from the lead lane changes the lanes, and `usePromoteLead`
+ *  only invalidates the opportunity book. */
+export function useRefreshWorkstream(code: string) {
+  const client = useQueryClient()
+  return () => void client.invalidateQueries({ queryKey: workstreamProfileQuery(code).queryKey })
 }

@@ -1,47 +1,60 @@
-import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
+  ArrowLeft,
+  Avatar,
   Badge,
   Button,
-  Chip,
   ContextRail,
   GlassCard,
-  ScreenDetailGrid,
+  Icon,
   ScreenHeader,
   ScreenLayout,
-  SectionTitle,
   Skeleton,
-  StatCard,
 } from '@pv/ui'
-import {
-  WorkstreamChannel,
-  type ObjectChainLink,
-  type WorkstreamProfileResponse,
+import type {
+  WorkstreamHolder,
+  WorkstreamProfileResponse,
+  WorkstreamStandKind,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { dmhm, dmy } from '@/lib/date'
-import { chainPath, railOf } from '@/data/opportunities'
+import { dmy } from '@/lib/date'
+import { railOf } from '@/data/opportunities'
 import {
-  WORKSTREAM_CHANNEL_LABEL,
-  footprintTotal,
+  dealOwnerOf,
+  defaultStepOf,
+  findStep,
+  lanesOf,
+  runDays,
+  useRefreshWorkstream,
   workstreamProfileQuery,
+  type StepRef,
 } from '@/data/workstreams'
-import { CloseBadge, OverdueNote } from '@/components/workstream-bits'
+import { CloseBadge } from '@/components/workstream-bits'
 import { DetailSidePanel } from '@/components/detail-side-panel'
+import {
+  AccountLaneRow,
+  CreateDealButton,
+  DealLaneRow,
+  LeadLaneRow,
+  StepDot,
+  StepPanel,
+} from './workstream-detail-parts'
 
-/** One customer journey run — `/sales/workstreams/:code`. Read-only: no door
- *  on the server writes a run yet.
+/** One customer journey run — `/sales/workstreams/:code`, drawn as swimlanes:
+ *  one lead lane, one lane per deal (oldest first, several may be open), one
+ *  account lane. Every step cell selects; the side panel reads the selection
+ *  and ticks a deal's stage criteria (the deal profile ticks them too). Lanes
+ *  are only deals the reader may open; the rest are a count, `hiddenDeals`.
  *
- *  The rail prepends the run itself: a run has no `platform.object` mirror row
- *  or edge, so the server walks the chain from the lead and the open object is
- *  not among the links. They are still filtered by code, so a future mirror
- *  row cannot draw the run twice.
- *
- *  No StageTrack: the row carries a display `phaseLabel`, not a stage key or
- *  index, and a track drawn without one would be guessing the ladder. */
+ *  Only a click is stored; until then the selection is derived on every render
+ *  (`defaultStepOf`), so a refetch after a tick moves it with the data. The
+ *  rail stays although the mockup has none: law 10 binds every screen, and a
+ *  run has no mirror row, so the run itself is prepended. */
 
 type Profile = WorkstreamProfileResponse
 type Go = (path: string) => void
@@ -49,19 +62,28 @@ type Go = (path: string) => void
 const BOOK = '/sales/workstreams'
 const KICKER = 'Sales · Hành trình khách hàng'
 
+const STAND_LABEL: Record<WorkstreamStandKind, string> = {
+  LD: 'Lead',
+  OP: 'Cơ hội',
+  HĐ: 'Hợp đồng',
+}
+
 export default function WorkstreamDetailPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const { data: ws, isPending, error } = useQuery(workstreamProfileQuery(code))
-  const links = ws?.chain.filter((l) => l.code !== ws.code) ?? []
+  const [now] = useState(Date.now)
+  const [picked, setPicked] = useState<StepRef | null>(null)
+  const canEdit = useCan('opportunity.edit')
+  const refresh = useRefreshWorkstream(code)
 
   if (isPending) {
     return (
       <AppShell {...chrome.shell}>
         <ScreenLayout>
           <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-96 w-full" />
+          <Skeleton className="h-64 w-full" />
         </ScreenLayout>
       </AppShell>
     )
@@ -99,205 +121,173 @@ export default function WorkstreamDetailPage() {
     )
   }
 
+  const selection = findStep(ws, picked) ?? findStep(ws, defaultStepOf(ws))
+  const links = ws.chain.filter((l) => l.code !== ws.code)
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          kicker={KICKER}
-          title={ws.customer}
-          back={{ label: 'Sổ hành trình', onClick: () => navigate(BOOK) }}
-          meta={
-            <>
-              {ws.closedAt === null ? (
-                <Badge tone="running">Đang chạy</Badge>
-              ) : (
-                ws.closeReason !== null && <CloseBadge reason={ws.closeReason} />
-              )}
-            </>
-          }
-          context={
-            <ContextRail
-              objects={[{ code: ws.code, source: true }, ...railOf(links, ws.code, navigate)]}
-            />
-          }
+        <Header ws={ws} now={now} go={navigate} />
+        <ContextRail
+          objects={[{ code: ws.code, source: true }, ...railOf(links, ws.code, navigate)]}
         />
 
-        <ScreenDetailGrid
-          className="w-full"
-          sideClassName="relative xl:self-stretch"
-          sideLabel="Thông tin hành trình"
-          main={
-            <div className="flex flex-col gap-6">
-              <PositionCard ws={ws} go={navigate} />
-              <ChainCard chain={links} go={navigate} />
-              <FootprintSection ws={ws} />
-            </div>
-          }
-          side={
-            <DetailSidePanel>
-              <FactsCard ws={ws} go={navigate} />
-            </DetailSidePanel>
-          }
-        />
+        <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,78fr)_minmax(260px,22fr)]">
+          <GlassCard variant="b" className="min-w-0 p-5 lg:p-6" aria-label="Hành trình">
+            <Journey
+              ws={ws}
+              selected={selection && { lane: selection.lane.code, step: selection.step.key }}
+              onSelect={setPicked}
+              canCreate={canEdit && ws.lead.outcome !== 'exited'}
+              onCreated={refresh}
+              go={navigate}
+            />
+          </GlassCard>
+
+          <DetailSidePanel>
+            <GlassCard variant="b" className="p-5" aria-label="Bước đang chọn">
+              {selection ? (
+                <StepPanel
+                  lane={selection.lane}
+                  step={selection.step}
+                  canEdit={canEdit}
+                  onSelect={setPicked}
+                  go={navigate}
+                />
+              ) : (
+                <p className="text-muted-foreground m-0 text-[12.5px]">
+                  Hành trình chưa có bước nào để xem.
+                </p>
+              )}
+            </GlassCard>
+          </DetailSidePanel>
+        </div>
       </ScreenLayout>
     </AppShell>
   )
 }
 
-function PositionCard({ ws, go }: { ws: Profile; go: Go }) {
-  const waiting = ws.waitingOn
-  const contract = ws.stand.kind === 'HĐ'
+function Header({ ws, now, go }: { ws: Profile; now: number; go: Go }) {
+  const days = runDays(ws, now)
   return (
-    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Vị trí hiện tại">
-      <SectionTitle size="sm">Vị trí hiện tại</SectionTitle>
-      <ChainRow
-        link={{ code: ws.stand.code, kind: ws.stand.kind, label: ws.stand.phaseLabel }}
-        go={go}
-      />
-      <div className="flex flex-wrap items-center gap-3 text-[12px] leading-[1.6]">
-        {ws.closedAt === null && (
-          <OverdueNote
-            overdueBy={ws.overdueBy}
-            noDeadline={contract ? 'Hợp đồng không có hạn theo bậc' : 'Chưa đặt hạn cho bậc này'}
-          />
-        )}
-        {/* The server also sends null when it cannot place a contract stand, so
-            for a contract a null is not proof that nobody is being waited on. */}
-        {waiting === null ? (
-          !contract && <span className="text-muted-foreground">Không chờ ai</span>
-        ) : (
-          <span>
-            Đang chờ <strong className="font-semibold">{waiting.person}</strong> · {waiting.role}
-            {waiting.due !== null && (
-              <>
-                {' '}
-                · hạn <span className="tnum font-num">{dmy(waiting.due)}</span>
-              </>
+    <header className="flex flex-wrap items-start justify-between gap-6">
+      <div className="flex min-w-0 items-start gap-4">
+        <Button
+          variant="ghost"
+          size="lg"
+          className="w-12 shrink-0 px-0"
+          aria-label="Về sổ hành trình"
+          onClick={() => go(BOOK)}
+        >
+          <Icon icon={ArrowLeft} size={16} />
+        </Button>
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-display m-0 text-[26px] font-semibold tracking-[-.45px]">
+              {ws.customer}
+            </h2>
+            {ws.closedAt === null ? (
+              <Badge tone="running">Đang mở · {STAND_LABEL[ws.stand.kind]}</Badge>
+            ) : (
+              ws.closeReason !== null && <CloseBadge reason={ws.closeReason} />
             )}
-          </span>
-        )}
+          </div>
+          <p className="text-muted-foreground tnum m-0 font-mono text-[12px]">
+            {ws.code} · mở {dmy(ws.openedAt)} · {days} ngày
+          </p>
+        </div>
       </div>
-    </GlassCard>
+
+      <dl className="m-0 flex flex-wrap gap-6">
+        <Owner label="Owner lead" owner={ws.lead.owner} />
+        <Owner label="Owner deal" owner={dealOwnerOf(ws)} />
+        <Owner label="Owner account" owner={ws.account.owner} />
+      </dl>
+    </header>
   )
 }
 
-/** A whole row is the target so a tablet thumb gets 48px, not the chip's 20. */
-function ChainRow({ link, go }: { link: ObjectChainLink; go: Go }) {
-  const path = chainPath(link.kind, link.code)
-  const body = (
-    <>
-      <Chip className="shrink-0">{link.code}</Chip>
-      <span className="line-clamp-2 min-w-0">{link.label}</span>
-    </>
-  )
-  if (!path) return <div className="flex min-h-12 items-center gap-3 px-3">{body}</div>
+function Owner({ label, owner }: { label: string; owner: WorkstreamHolder | null }) {
   return (
-    <button
-      type="button"
-      onClick={() => go(path)}
-      className="motion-std hover:bg-surface-ink/8 flex min-h-12 w-full items-center gap-3 rounded-sm px-3 text-left"
-    >
-      {body}
-    </button>
-  )
-}
-
-function ChainCard({ chain, go }: { chain: Profile['chain']; go: Go }) {
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Chuỗi hành trình">
-      <SectionTitle size="sm" hint="Lead, các cơ hội và hợp đồng của lượt đi này.">
-        Chuỗi hành trình
-      </SectionTitle>
-      {chain.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa dựng được chuỗi cho hành trình này.
-        </p>
+    <div className="flex items-center gap-3">
+      {owner ? (
+        <Avatar name={owner.name} />
       ) : (
-        <ul className="flex flex-col gap-1 text-[12px]">
-          {chain.map((link) => (
-            <li key={link.code}>
-              <ChainRow link={link} go={go} />
-            </li>
-          ))}
-        </ul>
+        <span aria-hidden className="bg-surface-ink/9 size-[38px] shrink-0 rounded-md" />
       )}
-    </GlassCard>
-  )
-}
-
-function FootprintSection({ ws }: { ws: Profile }) {
-  const last = ws.footprint.lastContactedAt
-  return (
-    <section className="flex flex-col gap-4" aria-label="Dấu vết liên lạc">
-      <SectionTitle
-        size="sm"
-        hint={
-          last === null ? (
-            'Chưa liên lạc'
-          ) : (
-            <>
-              Liên lạc gần nhất <span className="tnum font-num">{dmhm(last)}</span>
-            </>
-          )
-        }
-      >
-        Dấu vết liên lạc
-      </SectionTitle>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {WorkstreamChannel.options.map((channel) => (
-          <StatCard
-            key={channel}
-            size="compact"
-            label={WORKSTREAM_CHANNEL_LABEL[channel]}
-            value={String(ws.footprint.byChannel[channel])}
-          />
-        ))}
-        <StatCard size="compact" label="Tổng" value={String(footprintTotal(ws.footprint))} />
+      <div className="flex min-w-0 flex-col">
+        <dt className="text-muted-foreground text-[11px]">{label}</dt>
+        <dd className="m-0 max-w-40 truncate text-[12.5px] font-semibold">{owner?.name ?? '—'}</dd>
       </div>
-    </section>
-  )
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-h-12 items-center justify-between gap-3">
-      <dt className="text-muted-foreground shrink-0">{label}</dt>
-      <dd className="flex min-w-0 items-center justify-end gap-2 text-right">{children}</dd>
     </div>
   )
 }
 
-function FactsCard({ ws, go }: { ws: Profile; go: Go }) {
-  const accountPath = ws.accountCode === null ? undefined : chainPath('AC', ws.accountCode)
+const LEGEND = [
+  { state: 'done', label: 'Xong' },
+  { state: 'current', label: 'Đang ở' },
+  { state: 'dropped', label: 'Rớt' },
+  { state: 'upcoming', label: 'Chưa tới' },
+] as const
+
+function Journey({
+  ws,
+  selected,
+  onSelect,
+  canCreate,
+  onCreated,
+  go,
+}: {
+  ws: Profile
+  selected: StepRef | null
+  onSelect: (ref: StepRef) => void
+  canCreate: boolean
+  onCreated: () => void
+  go: Go
+}) {
+  const [lead, ...deals] = lanesOf(ws)
+  const openDeals = ws.deals.filter((d) => d.outcome === 'open').length
+  const track = { selected, onSelect }
+
   return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Thông tin">
-      <SectionTitle size="sm">Thông tin</SectionTitle>
-      <dl className="flex flex-col text-[12px]">
-        <Fact label="Sale">{ws.saleHolder?.name ?? 'Chưa gán'}</Fact>
-        <Fact label="BD">{ws.bdHolder?.name ?? 'Chưa gán'}</Fact>
-        <Fact label="Mở ngày">
-          <span className="tnum font-num">{dmy(ws.openedAt)}</span>
-        </Fact>
-        <Fact label="Đóng ngày">
-          {ws.closedAt === null ? (
-            'Đang chạy'
-          ) : (
-            <span className="tnum font-num">{dmy(ws.closedAt)}</span>
-          )}
-        </Fact>
-        <Fact label="Lý do đóng">
-          {ws.closeReason === null ? '—' : <CloseBadge reason={ws.closeReason} />}
-        </Fact>
-        <Fact label="Khách hàng">
-          {accountPath === undefined ? (
-            <span className="truncate">{ws.customer}</span>
-          ) : (
-            <Button variant="ghost" size="lg" className="font-mono" onClick={() => go(accountPath)}>
-              {ws.accountCode}
-            </Button>
-          )}
-        </Fact>
-      </dl>
-    </GlassCard>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h3 className="font-display m-0 text-[16px] font-semibold">Hành trình</h3>
+          <span className="text-muted-foreground tnum text-[12.5px]">
+            {ws.deals.length} cơ hội · {openDeals} đang mở
+          </span>
+        </div>
+        <ul className="m-0 flex list-none flex-wrap items-center gap-4 p-0 text-[12px]">
+          {LEGEND.map((item) => (
+            <li key={item.state} className="flex items-center gap-2">
+              <StepDot state={item.state} />
+              {item.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <ol className="divide-surface-ink/8 m-0 flex list-none flex-col divide-y p-0">
+        {lead && (
+          <LeadLaneRow
+            lead={ws.lead}
+            lane={lead}
+            {...track}
+            action={canCreate && <CreateDealButton leadCode={ws.lead.code} onCreated={onCreated} />}
+          />
+        )}
+        {ws.deals.map((deal, i) => {
+          const lane = deals[i]
+          return lane && <DealLaneRow key={deal.code} deal={deal} lane={lane} {...track} />
+        })}
+        {ws.hiddenDeals > 0 && (
+          <li className="text-muted-foreground tnum py-4 text-[12.5px]">
+            +{ws.hiddenDeals} cơ hội bạn không có quyền xem
+          </li>
+        )}
+        <AccountLaneRow account={ws.account} go={go} />
+      </ol>
+    </div>
   )
 }

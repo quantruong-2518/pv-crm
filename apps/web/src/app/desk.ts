@@ -26,7 +26,7 @@ import type { Opportunity } from '@pv/engines/fixtures/das-vina'
  *  ------------------------------------------------------------------
  *  `deals`/`convert`/`undoConvert` từng là chống đỡ duy nhất cho "lead này đổi
  *  thành cơ hội chưa". Câu đó nay hỏi máy chủ — `opportunitiesOfLeadQuery` ở `data/opportunities.ts`
- *  gọi `GET /sales/opportunities?leadCode=…` — nên ba thứ trên đã ra khỏi store. Chống đỡ
+ *  gọi `GET /sales/opportunities/live-deal` — nên ba thứ trên đã ra khỏi store. Chống đỡ
  *  cũ vốn đã chết trước đó: `convert` không còn ai gọi từ lượt cắt sổ cơ hội
  *  sang máy chủ, nên `deals` luôn rỗng dù nút vẫn hỏi nó.
  *

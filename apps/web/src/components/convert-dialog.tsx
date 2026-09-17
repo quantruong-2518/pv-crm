@@ -23,7 +23,9 @@ import {
   draftErrorsOf,
   usePromoteLead,
 } from '@/data/opportunities-write'
+import { gateRefusalOf } from '@/data/stage-gate'
 import { dmy } from '@/lib/date'
+import { GateRefusal } from './sign-drawer'
 import {
   AmountRow,
   AttachmentsField,
@@ -145,6 +147,9 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
 
   const missing = missingOf(draft)
   const ready = missing.length === 0 && !promote.isPending
+  /* A 409 refusing entry past an unticked earlier stage — a new deal has no
+     ticks yet, so this is the ladder asking for an earlier starting state. */
+  const gate = gateRefusalOf(promote.error)
 
   return (
     <Drawer
@@ -161,25 +166,33 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
       meta={<Badge tone={lost ? 'danger' : 'running'}>{STATE_LABEL.get(draft.state)}</Badge>}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <span
-            className={cn(
-              'text-[11.5px] leading-[1.5]',
-              ready ? 'text-muted-foreground' : 'text-warning',
-            )}
-            aria-live="polite"
-          >
-            {/* Ba câu, và câu lỗi thắng hai câu kia: người vừa bấm mà bị từ
-                chối cần biết vì sao TRƯỚC khi biết chuyện gì lẽ ra đã xảy ra.
-                `userMessage` dịch Problem của máy chủ; ô nào sai thì chính nó
-                gọi tên ô đó. */}
-            {promote.error
-              ? userMessage(promote.error)
-              : promote.isPending
-                ? 'Đang gửi phiếu…'
-                : ready
-                  ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${approver} gật thì đơn vào cột thật.`
-                  : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
-          </span>
+          {gate ? (
+            /* The deal does not exist yet, so the default "tick on the profile" hint cannot apply. */
+            <GateRefusal
+              criteria={gate}
+              hint="Tạo ở stage sớm hơn (ví dụ trạng thái Pending) rồi tick điều kiện trên hồ sơ cơ hội."
+            />
+          ) : (
+            <span
+              className={cn(
+                'text-[11.5px] leading-[1.5]',
+                ready ? 'text-muted-foreground' : 'text-warning',
+              )}
+              aria-live="polite"
+            >
+              {/* Ba câu, và câu lỗi thắng hai câu kia: người vừa bấm mà bị từ
+                  chối cần biết vì sao TRƯỚC khi biết chuyện gì lẽ ra đã xảy ra.
+                  `userMessage` dịch Problem của máy chủ; ô nào sai thì chính nó
+                  gọi tên ô đó. */}
+              {promote.error
+                ? userMessage(promote.error)
+                : promote.isPending
+                  ? 'Đang gửi phiếu…'
+                  : ready
+                    ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${approver} gật thì đơn vào cột thật.`
+                    : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
+            </span>
+          )}
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" onClick={onClose}>
               <Icon icon={X} size={16} />
@@ -190,24 +203,25 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
               disabled={!ready}
               onClick={() => {
                 promote.mutate(createBodyOf(profile.code, draft), {
-                  /* Đóng phiếu CHỈ khi máy chủ đã nhận. Đóng trước rồi mới gửi
-                     là cách chắc chắn nhất để một phiếu bị từ chối biến mất
-                     không dấu vết, và người dùng tin là đã xong.
+                  /* Close the drawer ONLY once the server has accepted. Closing
+                     first and sending after is the surest way for a refused
+                     ticket to vanish without a trace while the user believes
+                     it went through.
 
-                     Không ghi gì vào `app/desk.ts` nữa (29/08). Bản cũ gọi
-                     `convert()` để hồ sơ lead nhớ "đã đổi rồi"; câu đó nay hỏi
-                     máy chủ, và `usePromoteLead` đã vô hiệu hoá sổ cơ hội —
-                     `opportunitiesOfLeadQuery` nối dài khoá của sổ nên nó chạy lại theo,
-                     và nút dưới thanh đáy tự lật sang "Cơ hội OP-…". */
+                     Writes nothing to `app/desk.ts` anymore (29/08). The old
+                     code called `convert()` so the lead profile would
+                     remember "already converted"; that question now asks the
+                     server, and `usePromoteLead` invalidates the Ops book —
+                     `opportunitiesOfLeadQuery` extends that key, so it
+                     refetches too and `ToolsBar` picks up the new deal as one
+                     more open-deal row beside the convert button. */
                   onSuccess: (row) => {
                     onCreated?.(row)
                     onClose()
                   },
-                  /* The server has the last word, and when it refuses it names
-                     the box; `draftErrorsOf` turns its spelling into the
-                     form's. An EMPTY map is not "no complaint" — it is a
-                     complaint about no one field, and the duplicate-deal 409
-                     is the common case. The footer sentence carries those. */
+                  /* The server still has the last word: `draftErrorsOf` turns
+                     any refusal into per-field text. An empty map means a
+                     complaint that named no field, not "no complaint" at all. */
                   onError: (error) => setErrors(draftErrorsOf(error.errors)),
                 })
               }}

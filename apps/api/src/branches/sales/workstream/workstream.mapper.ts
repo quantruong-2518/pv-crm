@@ -23,14 +23,14 @@ import type { WorkstreamRead } from './workstream.repository'
 const SIGNED_LABEL = 'Đã ký'
 const NO_TIER_LABEL = 'Chưa xếp bậc'
 
-/** Which object of the journey a reader should open, walked in the order the
- *  journey itself runs: a signature ends it, else the deal that got furthest,
- *  else the lead it started at.
+/** Which object of the journey a reader should open: the open deal that got
+ *  furthest, else the signature, else the lead it started at.
  *
- *  Only an OPEN deal counts. A deal with no `stage` has left the five-column
- *  board (won or lost), so standing a live run on it would print a rung the
- *  deal is no longer on — and a lost deal never ends the run: the lead is still
- *  there and can raise another. */
+ *  An open deal outranks a contract because a run with work still moving
+ *  stands on that work — one deal signed does not finish a second one. A deal
+ *  with no `stage` has left the five-column board (won or lost), so it never
+ *  counts; a lost deal never ends the run either, the lead can raise another.
+ *  The caller passes only deals and a contract the reader may open. */
 export type WorkstreamLive =
   | { kind: 'HĐ'; code: string }
   | { kind: 'OP'; deal: OpportunityRowDb; stage: StageKey }
@@ -40,8 +40,6 @@ export function liveOf(
   deals: readonly OpportunityRowDb[],
   contractCode: string | null,
 ): WorkstreamLive {
-  if (contractCode !== null) return { kind: 'HĐ', code: contractCode }
-
   let best: { deal: OpportunityRowDb; stage: StageKey; rung: number } | null = null
   for (const deal of deals) {
     const stage = deal.stage
@@ -52,7 +50,8 @@ export function liveOf(
     if (best === null || rung > best.rung) best = { deal, stage, rung }
   }
 
-  return best === null ? { kind: 'LD' } : { kind: 'OP', deal: best.deal, stage: best.stage }
+  if (best !== null) return { kind: 'OP', deal: best.deal, stage: best.stage }
+  return contractCode === null ? { kind: 'LD' } : { kind: 'HĐ', code: contractCode }
 }
 
 /** Where the run stands, with the rung's name already resolved.

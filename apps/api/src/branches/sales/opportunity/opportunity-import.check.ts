@@ -2,6 +2,7 @@ import {
   CurrencyCode,
   OpportunityCreate,
   OpportunityCreateState,
+  stageOfState,
   type OpportunityImportDup,
   type OpportunityImportError,
   type OpportunityImportField,
@@ -9,6 +10,7 @@ import {
   type OpportunityImportRow,
   type OpportunityImportRowOut,
 } from '@pv/contracts'
+import type { EntryRule } from './opportunity-gate.service'
 
 /** Bộ kiểm của lô nạp cơ hội — THUẦN. Không DB, không promise, không clock.
  *
@@ -49,8 +51,10 @@ export type ImportCheckInput = {
   leadByCompany: ReadonlyMap<string, string>
   /** Tên công ty đã gấp mà khớp NHIỀU HƠN MỘT lead. */
   ambiguousCompany: ReadonlySet<string>
-  /** Mã lead → mã đơn ĐANG MỞ của nó. Cơ sở của `dupWithBook`. */
-  liveDealByLead: ReadonlyMap<string, string>
+  /** Lead code → its open deal codes, oldest first. Basis of `dupWithBook`. */
+  liveDealByLead: ReadonlyMap<string, readonly string[]>
+  /** The stage gate's entry rule, the same closure `create` asks. */
+  entryMissing: EntryRule
 }
 
 export type ImportCheck = {
@@ -117,7 +121,10 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     }
 
     const key = keyOf(checked.write.leadCode)
-    const existing = input.liveDealByLead.get(checked.write.leadCode)
+    /* Refused even though a lead may hold several open deals: a file carries
+       no intent to open a SECOND one, and this is what stops a re-uploaded
+       file from doubling every deal. Opening another goes through the form. */
+    const existing = input.liveDealByLead.get(checked.write.leadCode)?.[0]
 
     if (existing !== undefined) {
       dupWithBook.push({ line: row.line, first: row.first ?? '', key, code: existing })
@@ -277,6 +284,17 @@ function checkRow(
   if (!parsed.success) {
     const issue = parsed.error.issues[0]
     return { reason: issue?.message ?? 'Dòng không hợp lệ' }
+  }
+
+  /* After the schema, so the stage is read off a state the schema accepted.
+     A row entering past active criteria is refused here, so preview and commit
+     refuse the same rows. */
+  const missing = input.entryMissing(stageOfState(parsed.data.state))
+  if (missing.length > 0) {
+    return {
+      field: 'state',
+      reason: `${LABEL.state} "${state}" vào thẳng stage chưa đủ điều kiện: ${missing.join(', ')} — nạp ở trạng thái sớm hơn rồi tick điều kiện`,
+    }
   }
 
   return { write: parsed.data, values }

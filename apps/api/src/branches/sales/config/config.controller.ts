@@ -8,11 +8,15 @@ import {
   ConfigCode,
   LeadMotion,
   MotionPolicyPatch,
+  StageCriterion,
+  StageCriterionCreate,
+  StageCriterionPatch,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { SalesConfigService } from './config.service'
+import { StageCriterionService } from './stage-criterion.service'
 
 /** `/sales/config` — cấu hình danh mục, module 6 của nhánh Sales.
  *
@@ -37,7 +41,10 @@ import { SalesConfigService } from './config.service'
  *  lớp cùng nói một điều. Ba lớp cho một chỗ dễ vấp là rẻ. */
 @Controller('sales/config')
 export class SalesConfigController {
-  constructor(private readonly config: SalesConfigService) {}
+  constructor(
+    private readonly config: SalesConfigService,
+    private readonly criteria: StageCriterionService,
+  ) {}
 
   /** Cả sáu danh mục. Đây là thứ màn Cấu hình và mọi bảng tra nhãn cần. */
   @Get()
@@ -77,6 +84,35 @@ export class SalesConfigController {
     @Body(zod(MotionPolicyPatch)) body: MotionPolicyPatch,
   ) {
     return this.config.proposeMotion(who, motion, body)
+  }
+
+  /** Stage gate exit criteria. Static segment, declared before the `:list`
+   *  doors for the same reader's reason as `motions`. */
+  @Get('stage-criteria')
+  @Need({ branch: 'Sales', permission: 'config.view' })
+  stageCriteria() {
+    return this.criteria.list()
+  }
+
+  @Post('stage-criteria')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  createCriterion(
+    @CurrentActor() who: Actor,
+    @Body(zod(StageCriterionCreate)) body: StageCriterionCreate,
+  ) {
+    return this.criteria.create(who, body)
+  }
+
+  @Patch('stage-criteria/:id')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  patchCriterion(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(StageCriterion.shape.id)) id: string,
+    @Body(zod(StageCriterionPatch)) body: StageCriterionPatch,
+  ) {
+    return this.criteria.patch(who, id, body)
   }
 
   @Post(':list')

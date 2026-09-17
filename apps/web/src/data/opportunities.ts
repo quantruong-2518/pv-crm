@@ -280,53 +280,19 @@ export const opportunityProfileQuery = (code: string) =>
       }),
   })
 
-/** Đơn CÒN SỐNG của một lead — `GET /sales/opportunities/live-deal?leadCode=…`.
+/** Open deals of one lead — `GET /sales/opportunities/live-deal?leadCode=…`.
  *
- *  ------------------------------------------------------------------
- *  QUERY NÀY TỒN TẠI ĐỂ GIẾT MỘT LỖI CỤ THỂ
- *  ------------------------------------------------------------------
- *  Hồ sơ lead phải trả lời "khách này đã được đổi thành cơ hội chưa" TRƯỚC khi
- *  bày cái nút đổi. Có một thời nó trả lời bằng `opportunityOfLead()` — một
- *  phép tra trong mảng fixture đóng băng — nên mọi lead tạo sau lát cắt đó luôn
- *  nhận `undefined`, nút vẫn sáng, và bấm thêm lần nữa là mở đơn thứ hai cho
- *  cùng một khách. Đó chính là con số không có thật mà `desk.deals` được đẻ ra
- *  để chặn, chặn bằng localStorage — đổi máy là hết.
+ *  Asked of this door, not the book: the book's page of rows cannot say how
+ *  many deals it cut, and the page would read an empty list as "none open".
+ *  The server cuts `codes` by scope and counts the rest in `hidden`.
  *
- *  ------------------------------------------------------------------
- *  BỎ CỬA SỔ VÌ CỬA SỔ CẮT THEO PHẠM VI — 29/08
- *  ------------------------------------------------------------------
- *  Bản trước hỏi câu này bằng chính cửa sổ, `GET /sales/opportunities?leadCode=…`
- *  với `BOOK_NEED` (`scoped: true`), và nó thủng với MỌI Sale `ownOnly`: Sale A
- *  đổi LD-0042 thành OP-5001; Sale B mở LD-0042, máy chủ cắt mất OP-5001 vì đơn
- *  không đứng tên B, `rows` về rỗng, và màn đọc rỗng thành "chưa ai đổi". Nút
- *  sáng, cửa `POST` chỉ đòi `opportunity.edit` và không kiểm trùng — đúng con lỗi mà
- *  đoạn trên nói query này sinh ra để giết, quay lại bằng đường khác.
+ *  A lead may hold several open deals, so the answer is information, never a
+ *  gate. `codes: []` is "none open"; `undefined` is "not read yet" — keep them
+ *  apart. `hidden` rides along unselected: a colleague's deal the reader may
+ *  not open still counts toward "how many", even without a code to show.
  *
- *  Cửa mới bỏ trục phạm vi có chủ ý và trả đúng một mã đơn để bù lại (đọc
- *  `OpportunityLiveDeal` ở `@pv/contracts` trước khi mở rộng nó — hình hẹp đó
- *  LÀ cái giá của việc bỏ trục phạm vi, không phải chỗ trống chưa ai điền).
- *  Vì thế lượt đọc này KHÔNG dùng `BOOK_NEED`: nó khai đúng `@Need` của cửa nó
- *  gọi, và cửa đó không `scoped`.
- *
- *  ------------------------------------------------------------------
- *  "CÒN SỐNG", KHÔNG PHẢI "TỪNG TỒN TẠI"
- *  ------------------------------------------------------------------
- *  Máy chủ chỉ trả đơn chưa thua và chưa ký. Trước đây màn chặn theo bất kỳ đơn
- *  nào từng tồn tại, nên một lead có đúng một đơn đã thua quý I thì quý III
- *  khách quay lại vẫn thấy nút "Cơ hội OP-5001" thay cho nút đổi — vĩnh viễn —
- *  trong khi cửa nạp tệp lại nhận đúng dòng đó vì nó chỉ soi đơn còn sống. Hai
- *  cửa của một sổ nay trả lời bằng cùng một vị từ.
- *
- *  `select` gói lại thành MẢNG, và đó là chủ ý chứ không phải di sản: người gọi
- *  hỏi "có đơn nào chưa" rồi lấy `[0]?.code`, mà một lead giữ được nhiều đơn —
- *  ngày cửa này trả về cả danh sách thì chỗ gọi không phải đổi một dòng. Mảng
- *  RỖNG là câu trả lời "chưa có", và nó khác `undefined` (chưa đọc xong) đúng ở
- *  chỗ màn cần: rỗng thì mời đổi, `undefined` thì tắt nút và nói đang kiểm tra.
- *
- *  Khoá NỐI DÀI `OPPORTUNITY_BOOK_KEY` chứ không đứng riêng, và đó là phần làm
- *  cho nút tự lật: `usePromoteLead` vô hiệu hoá `['sales','ops-book']` sau khi
- *  máy chủ nhận phiếu, mà TanStack vô hiệu hoá theo TIỀN TỐ — nên lượt đọc này
- *  chạy lại ngay trong cùng nhịp, không cần ai nhớ thêm một dòng invalidate. */
+ *  The key extends `OPPORTUNITY_BOOK_KEY` so `usePromoteLead`'s prefix
+ *  invalidation refreshes this read in the same beat. */
 export const opportunitiesOfLeadQuery = (leadCode: string) =>
   queryOptions({
     queryKey: [...OPPORTUNITY_BOOK_KEY, 'of-lead', leadCode] as const,
@@ -334,11 +300,10 @@ export const opportunitiesOfLeadQuery = (leadCode: string) =>
       api.read<OpportunityLiveDeal>(
         `/sales/opportunities/live-deal?leadCode=${encodeURIComponent(leadCode)}`,
         {
-          need: { branch: 'Sales', permission: 'opportunity.view' },
+          need: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
           signal,
         },
       ),
-    select: (d: OpportunityLiveDeal) => (d.code === null ? [] : [{ code: d.code }]),
   })
 
 // ---------------------------------------------------------------------------

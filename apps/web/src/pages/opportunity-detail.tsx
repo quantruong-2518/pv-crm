@@ -93,7 +93,9 @@ import {
   type SetDraft,
 } from '@/components/ops-fields'
 import { DetailSidePanel } from '@/components/detail-side-panel'
-import { SignDrawer } from '@/components/sign-drawer'
+import { GateRefusal, SignDrawer } from '@/components/sign-drawer'
+import { OpportunityGateCard } from '@/components/gate-checklist'
+import { gateRefusalOf } from '@/data/stage-gate'
 import { ActivityCard } from '@/components/lead-history-card'
 
 /** Module 3 · Hồ sơ một cơ hội — `/sales/opportunities/:code`.
@@ -435,6 +437,7 @@ export function OpportunityDetailPage() {
         side={
           <DetailSidePanel>
             <StageCard op={op} />
+            <OpportunityGateCard op={op} />
             <LeadCard op={op} lead={lead} onOpen={() => navigate(`/sales/leads/${op.leadCode}`)} />
             <PeopleCard op={op} />
             {/* Đọc THẬT từ `GET /sales/opportunities/:code/touches` — dòng thời
@@ -519,6 +522,7 @@ function DealCard({ op }: { op: OpportunityRow }) {
   const lost = work.state === 'close-lost'
   const stage = CREATE_STATES.find((s) => s.key === work.state)?.stage ?? null
   const blocked = dirty.length === 0 || missing.length > 0 || save.isPending
+  const gate = gateRefusalOf(save.error)
 
   return (
     <GlassCard className="flex flex-col gap-6 p-5 lg:p-6" aria-label="Phiếu cơ hội">
@@ -701,23 +705,27 @@ function DealCard({ op }: { op: OpportunityRow }) {
         >
           Bỏ sửa
         </Button>
-        <span
-          className={cn(
-            'text-[11.5px] leading-[1.5]',
-            (missing.length > 0 || save.error) && 'text-warning',
-          )}
-          aria-live="polite"
-        >
-          {/* Lỗi máy chủ thắng mọi câu khác: người vừa bấm Lưu mà không thấy gì
+        {gate ? (
+          <GateRefusal criteria={gate} />
+        ) : (
+          <span
+            className={cn(
+              'text-[11.5px] leading-[1.5]',
+              (missing.length > 0 || save.error) && 'text-warning',
+            )}
+            aria-live="polite"
+          >
+            {/* Lỗi máy chủ thắng mọi câu khác: người vừa bấm Lưu mà không thấy gì
               đổi cần biết vì sao, trước cả "còn mấy ô chưa lưu". */}
-          {save.error
-            ? userMessage(save.error)
-            : missing.length > 0
-              ? `Chưa lưu được — còn thiếu ${missing.join(' · ')}.`
-              : dirty.length > 0
-                ? `${dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-                : 'Phiếu đã khớp với bản trên máy chủ.'}
-        </span>
+            {save.error
+              ? userMessage(save.error)
+              : missing.length > 0
+                ? `Chưa lưu được — còn thiếu ${missing.join(' · ')}.`
+                : dirty.length > 0
+                  ? `${dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
+                  : 'Phiếu đã khớp với bản trên máy chủ.'}
+          </span>
+        )}
       </div>
     </GlassCard>
   )
@@ -818,6 +826,7 @@ function StageCard({ op }: { op: OpportunityProfileResponse }) {
   const move = useMoveStage(op.code)
   const canEdit = useCan('opportunity.edit')
   const history = useQuery(opportunityStageHistoryQuery(op.code))
+  const gate = gateRefusalOf(move.error)
 
   const stage = op.stage
   const track = stageTrackOf(op)
@@ -874,10 +883,14 @@ function StageCard({ op }: { op: OpportunityProfileResponse }) {
           `null` and the pill above already says why. */}
       {track && <StageTrack steps={track.steps} current={track.current} caption />}
 
-      {move.isError && (
-        <p role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-          {userMessage(move.error)}
-        </p>
+      {gate ? (
+        <GateRefusal criteria={gate} />
+      ) : (
+        move.isError && (
+          <p role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
+            {userMessage(move.error)}
+          </p>
+        )
       )}
 
       <Separator />

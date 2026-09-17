@@ -4,6 +4,7 @@ import { FIRST_TOUCH_UNITS, splitFirstTouch, type ConfigList, type LeadMotion } 
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ConfigDraft, ConfigPatchDb } from './config.repository'
 import type { MotionPolicyPatchDb } from './motion.schema'
+import type { StageCriterionDraft, StageCriterionPatchDb } from './stage-criterion.repository'
 
 /** THE E3 SEAM — one point for all three write doors, and it is now WIRED.
  *
@@ -60,6 +61,10 @@ export type ConfigChange =
    *  vocabulary list: they cannot be added to, removed or reordered, and each
    *  carries four unrelated fields. Same approval path, different table. */
   | { kind: 'motion'; motion: LeadMotion; patch: MotionPolicyPatchDb }
+  /** A stage gate's exit criterion — its own table, not a seventh list; see
+   *  `stage-criterion.schema.ts`. Same approval path, same reason. */
+  | { kind: 'criterion-create'; draft: StageCriterionDraft }
+  | { kind: 'criterion-update'; id: string; patch: StageCriterionPatchDb }
 
 /** Biên lai của một đề nghị. `state` là của E3, không phải của module này. */
 export type ConfigReceipt = {
@@ -100,6 +105,16 @@ function consequenceOf(change: ConfigChange): string {
   if (change.kind === 'update') return `Sửa dòng ${change.id} của danh mục ${change.list}`
   if (change.kind === 'reorder') {
     return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
+  }
+  if (change.kind === 'criterion-create') {
+    return `Thêm tiêu chí "${change.draft.label}" vào chặng ${change.draft.stage}`
+  }
+  if (change.kind === 'criterion-update') {
+    const said = [
+      ...(change.patch.label === undefined ? [] : [`đổi tên thành "${change.patch.label}"`]),
+      ...(change.patch.active === undefined ? [] : [change.patch.active ? 'bật lại' : 'tắt']),
+    ]
+    return `Sửa tiêu chí ${change.id}: ${said.join(' · ')}`
   }
   return `Đổi thiết lập luồng ${change.motion}: ${motionWords(change.patch).join(' · ')}`
 }
@@ -174,7 +189,14 @@ export class SalesConfigGateE3 extends SalesConfigGate {
       chain,
     })
 
-    const subject = change.kind === 'motion' ? change.motion : change.list
+    const subject =
+      change.kind === 'motion'
+        ? change.motion
+        : change.kind === 'criterion-create'
+          ? change.draft.stage
+          : change.kind === 'criterion-update'
+            ? change.id
+            : change.list
     this.log.log(`đề nghị ${request.id} · ${change.kind} · ${subject} · bởi ${who.id}`)
 
     return { requestId: request.id, state: request.state, change }

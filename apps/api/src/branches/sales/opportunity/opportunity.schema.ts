@@ -155,9 +155,9 @@ export const opportunity = sales.table(
      *  a copy of a key, never a second opinion, the same standing
      *  `account_code` just above has.
      *
-     *  Nullable for the reason the column on `lead` states: a `NOT NULL` here
-     *  would make `POST /sales/opportunities` fail until a service somewhere
-     *  else learns to mint a workstream. Denormalised rather than reached
+     *  Nullable for the reason the column on `lead` states: the create doors
+     *  copy the lead's run and must never refuse a deal whose lead has none.
+     *  Denormalised rather than reached
      *  through `lead_code` because the book groups deals by run directly, and
      *  a two-hop group-by on every open of the screen is the join this column
      *  exists to remove. */

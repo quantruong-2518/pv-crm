@@ -13,6 +13,7 @@ import {
   WorkstreamBookResponse,
   WorkstreamProfileResponse,
   type ObjectCode,
+  type OpportunityOwner,
   type WorkstreamBookQuery,
   type WorkstreamRow,
 } from '@pv/contracts'
@@ -23,9 +24,13 @@ import { toChainLink } from '@api/platform/graph/graph.mapper'
 import { notFound } from '@api/platform/http/problem'
 import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladder'
 import { toRef as leadRef } from '../lead/lead.mapper'
-import { toRef as dealRef } from '../opportunity/opportunity.mapper'
+import { OpportunityGateRepository } from '../opportunity/opportunity-gate.repository'
+import { scopeRefOf, toRef as dealRef } from '../opportunity/opportunity.mapper'
+import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import { blankFootprint, WorkstreamRepository, type WorkstreamRead } from './workstream.repository'
 import { holdersOf, liveOf, standOf, toContract, type WorkstreamLive } from './workstream.mapper'
+import { accountLaneOf, dealLanesOf, leadLaneOf } from './workstream-lanes'
+import { WorkstreamLanesRepository } from './workstream-lanes.repository'
 
 /** Module 5 · the journey book. Repository AND engine, the only layer allowed
  *  to know both.
@@ -42,6 +47,8 @@ export class WorkstreamService {
        object this run currently stands on. */
     private readonly approvals: ApprovalService,
     private readonly graph: GraphService,
+    private readonly lanes: WorkstreamLanesRepository,
+    private readonly gate: OpportunityGateRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -55,7 +62,7 @@ export class WorkstreamService {
     const { visible, hidden } = this.access.visible(who, items)
 
     return WorkstreamBookResponse.parse({
-      rows: await this.rowsOf(visible),
+      rows: await this.rowsOf(who, visible),
       total: page.total,
       hidden: page.hidden + hidden,
     })
@@ -75,40 +82,83 @@ export class WorkstreamService {
     /* Walked from the LEAD: E1 has no `WS` kind to start at, and the lead is
        the first link of the chain the rail draws anyway. `storyFor`, not
        `story` — E2 cuts links this reader may not open. */
-    const [rows, story] = await Promise.all([
-      this.rowsOf([found]),
+    const [rows, story, lanes] = await Promise.all([
+      this.rowsOf(who, [found]),
       this.graph.storyFor(who, found.lead.code),
+      this.lanesOf(who, found),
     ])
     const [row] = rows
     if (!row) throw notFound('hành trình', code)
 
-    return WorkstreamProfileResponse.parse({ ...row, chain: story.chain.map(toChainLink) })
+    return WorkstreamProfileResponse.parse({
+      ...row,
+      chain: story.chain.map(toChainLink),
+      ...lanes,
+    })
+  }
+
+  /** The swimlanes of one run. Re-reads the run's deals and ladders beside
+   *  `rowsOf` rather than threading them out of the book's merge: two cheap
+   *  statements on one row, against reshaping the page path.
+   *
+   *  Only deals this reader may open get a lane; the lead lane and `purchased`
+   *  still read every deal, facts about the lead and the company that name none. */
+  private async lanesOf(who: Actor, read: WorkstreamRead) {
+    const [[byRun, owners], ladders] = await Promise.all([
+      this.dealsWithOwners([read.row.code]),
+      this.repo.ladderRows(),
+    ])
+    const all = byRun.get(read.row.code) ?? []
+    const { deals, hidden } = this.visibleDeals(who, all, owners)
+    const [laneRead, checklist] = await Promise.all([
+      this.lanes.lanesOf(
+        read.lead.code,
+        all.map((d) => d.code),
+        read.row.accountCode,
+      ),
+      this.gate.checklist(deals.map((d) => d.code)),
+    ])
+    const rows = { ...laneRead, ...checklist }
+
+    const now = new Date()
+    return {
+      lead: leadLaneOf(read, all, rows, tierConfigOf(ladders.tier), now),
+      deals: dealLanesOf(deals, owners, rows, stageConfigOf(ladders.stage), now),
+      hiddenDeals: hidden,
+      account: accountLaneOf(read, rows),
+    }
   }
 
   /** The merge, for one page or for one row.
    *
    *  Two waves, and the split is forced rather than stylistic: which object a
-   *  run stands on is only known after its deals and its contract are in hand,
-   *  and the owners and the approvals are read for THOSE objects. Neither wave
-   *  grows with the number of rows. */
-  private async rowsOf(reads: readonly WorkstreamRead[]): Promise<WorkstreamRow[]> {
+   *  run stands on is only known after its deals, their owners and its
+   *  contracts are in hand, and the approvals are read for THAT object. Neither
+   *  wave grows with the number of rows.
+   *
+   *  Deals are cut per reader before anything is derived from them: the run is
+   *  scoped by its lead, a deal by its own owners, so a colleague's deal must
+   *  not surface as the row's stand, holder or waiting-on. */
+  private async rowsOf(who: Actor, reads: readonly WorkstreamRead[]): Promise<WorkstreamRow[]> {
     const codes = reads.map((r) => r.row.code)
-    const [deals, contracts, footprints, ladders] = await Promise.all([
-      this.repo.dealsOf(codes),
+    const [[deals, owners], contracts, footprints, ladders] = await Promise.all([
+      this.dealsWithOwners(codes),
       this.repo.contractsOf(codes),
       this.repo.footprintOf(codes),
       this.repo.ladderRows(),
     ])
 
     const walked = reads.map((read) => {
-      const own = deals.get(read.row.code) ?? []
-      return { read, own, live: liveOf(own, contracts.get(read.row.code) ?? null) }
+      const own = this.visibleDeals(who, deals.get(read.row.code) ?? [], owners).deals
+      const signed = (contracts.get(read.row.code) ?? []).find((c) =>
+        own.some((d) => d.code === c.deal),
+      )
+      return { read, own, live: liveOf(own, signed?.code ?? null) }
     })
 
-    const [owners, waiting] = await Promise.all([
-      this.repo.dealOwnersOf(walked.flatMap((w) => w.own.map((d) => d.code))),
-      this.approvals.pendingOnMany(walked.map((w) => liveCodeOf(w.read, w.live))),
-    ])
+    const waiting = await this.approvals.pendingOnMany(
+      walked.map((w) => liveCodeOf(w.read, w.live)),
+    )
 
     const stage = stageConfigOf(ladders.stage)
     const tier = tierConfigOf(ladders.tier)
@@ -129,6 +179,29 @@ export class WorkstreamService {
         footprint: footprints.get(w.read.row.code) ?? blankFootprint(),
       }),
     )
+  }
+
+  private async dealsWithOwners(
+    codes: readonly string[],
+  ): Promise<[Map<string, OpportunityRowDb[]>, Map<string, OpportunityOwner[]>]> {
+    const deals = await this.repo.dealsOf(codes)
+    const owners = await this.repo.dealOwnersOf([...deals.values()].flat().map((d) => d.code))
+    return [deals, owners]
+  }
+
+  /** E2 per deal, with the ref `OpportunityService.book()` builds — the same
+   *  fence the opportunity book puts between this reader and a deal. */
+  private visibleDeals(
+    who: Actor,
+    all: readonly OpportunityRowDb[],
+    owners: Map<string, OpportunityOwner[]>,
+  ): { deals: OpportunityRowDb[]; hidden: number } {
+    const items = all.map((row) => ({
+      row,
+      ref: scopeRefOf(row, owners.get(row.code) ?? [], who.id),
+    }))
+    const { visible, hidden } = this.access.visible(who, items)
+    return { deals: visible.map((v) => v.row), hidden }
   }
 }
 

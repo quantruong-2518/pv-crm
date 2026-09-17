@@ -1,5 +1,6 @@
 import {
   stageOfState,
+  type GateCriterionState,
   type OpportunityCreate,
   type OpportunityCreateState,
   type OpportunityOwner,
@@ -10,6 +11,7 @@ import {
   type StageKey,
 } from '@pv/contracts'
 import type { ObjectRef } from '@pv/engines'
+import type { GateChecklist } from './opportunity-gate.repository'
 import { STATE_LABEL, stageLabel } from './opportunity.labels'
 import type {
   opportunity,
@@ -100,7 +102,11 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
  *     hỏi trạng thái; bắt người điền chọn thêm cột là hỏi hai lần một câu. Hai
  *     cột rời nhau được về sau (kéo trên bảng), nên đây là GIÁ TRỊ ĐẦU chứ
  *     không phải một ràng buộc — xem docblock của `opportunity.schema.ts`. */
-export function fromCreate(body: OpportunityCreate, now: Date): OpportunityWrite {
+export function fromCreate(
+  body: OpportunityCreate,
+  now: Date,
+  workstreamCode: string | null,
+): OpportunityWrite {
   const lost = body.state === 'close-lost'
 
   return {
@@ -112,6 +118,8 @@ export function fromCreate(body: OpportunityCreate, now: Date): OpportunityWrite
          — `opportunity_stage_clock` đòi cột và đồng hồ đi cùng nhau. */
       stageSince: stageOfState(body.state) === null ? null : now,
       name: body.name,
+      /* The lead's run, read by the caller; a lead predating runs stays null. */
+      workstreamCode,
       ...(body.accountCode === undefined ? {} : { accountCode: body.accountCode }),
       amount: body.amount,
       currency: body.currency,
@@ -395,6 +403,17 @@ export function toRef(row: OpportunityRowDb, ownerName: string | null): ObjectRe
   }
 }
 
+/** The ref E2 checks SCOPE on: the reader's own name when they stand on the
+ *  deal, else the first owner — so E2 asks the question `scopeOf` asks in SQL.
+ *  Every read that cuts deals per reader builds its ref here; `book()` argues it. */
+export function scopeRefOf(
+  row: OpportunityRowDb,
+  owners: readonly OpportunityOwner[],
+  readerId: string,
+): ObjectRef {
+  return toRef(row, (owners.find((o) => o.id === readerId) ?? owners[0])?.name ?? null)
+}
+
 /** Một dòng sổ, như màn đọc nó. */
 export function toContract(input: {
   row: OpportunityRowDb
@@ -459,4 +478,24 @@ export function toContract(input: {
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt?.toISOString() ?? null,
   }
+}
+
+/** One deal's checklist for one stage, in criterion order — shared by the
+ *  deal's criteria door and the journey's deal lanes so the pairing exists once. */
+export function gateStatesOf(
+  list: GateChecklist,
+  deal: string,
+  stage: string,
+): GateCriterionState[] {
+  return list.criteria
+    .filter((c) => c.stage === stage)
+    .map((c) => {
+      const tick = list.ticks.find((t) => t.deal === deal && t.criterionId === c.id)
+      return {
+        id: c.id,
+        label: c.label,
+        tickedAt: tick?.at.toISOString() ?? null,
+        tickedBy: tick?.by ?? null,
+      }
+    })
 }

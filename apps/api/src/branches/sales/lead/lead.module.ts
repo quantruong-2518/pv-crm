@@ -7,6 +7,7 @@ import { AccountModule } from '../account/account.module'
 import { ContactModule } from '../contact/contact.module'
 import { MeetingModule } from '../meeting/meeting.module'
 import { TouchModule } from '../touch/touch.module'
+import { WorkstreamModule } from '../workstream/workstream.module'
 import { LeadContactController } from './lead-contact.controller'
 import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
@@ -66,6 +67,8 @@ import { LeadMailComposer } from './lead-mail.composer'
        go through the exported service rather than reaching into the
        `sales.account` table — the branch rule in `apps/api/CLAUDE.md`. */
     AccountModule,
+    /* Every lead insert opens its run inside the same transaction. */
+    WorkstreamModule,
   ],
   controllers: [LeadController, LeadIntakeController, LeadContactController],
   providers: [

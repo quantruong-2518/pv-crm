@@ -24,6 +24,7 @@ import { fromCreate, fromPatch, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { toContract, toProfile } from './lead.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
+import { WorkstreamRepository } from '../workstream/workstream.repository'
 
 /** THE THREE DOORS A LEAD CAN COME IN THROUGH. One of them writes nothing.
  *
@@ -72,6 +73,8 @@ export class LeadWriteService {
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     private readonly accounts: AccountService,
+    /* Every new lead opens its own run; minted here, inserted in the lead's tx. */
+    private readonly runs: WorkstreamRepository,
     /* The first engine this service holds. `setOwner` asks it one question —
        "does this role hold `lead.assign`" — and that question is trục 1 alone,
        which is why it calls `allows()` and not `check()`: the route guard has
@@ -99,6 +102,7 @@ export class LeadWriteService {
        the response is a full book row, and a book row prints names, not ids. */
     const campaignName = body.campaignId ? await this.assertCampaign(handle, body.campaignId) : null
     const code = await this.leads.nextCode()
+    const run = await this.runs.nextCode()
 
     const row = await this.repo.run(async (tx) => {
       await this.mirror.put(tx, refOf(code, write))
@@ -112,7 +116,10 @@ export class LeadWriteService {
          company's mirror row there when the company is new, and
          `edge.to_code` is a foreign key into it. */
       await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
-      const [written] = await this.repo.insertLeads(tx, [{ ...write.values, accountCode, code }])
+      await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
+      const [written] = await this.repo.insertLeads(tx, [
+        { ...write.values, accountCode, code, workstreamCode: run },
+      ])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
 
       /* The lead's first timeline row, written in the same commit as the lead.
@@ -438,11 +445,13 @@ export class LeadWriteService {
     const codes = (await Promise.all(writes.map(() => this.leads.nextCode()))).sort(
       (a, b) => Number(a.slice(3)) - Number(b.slice(3)),
     )
+    const runs = await this.runs.nextCodes(writes.length)
+    const openedAt = new Date()
 
     /* Row and mirror row are built together, from the same draft and the same
        code, so the two can never drift apart by an index. */
     const ready = writes.map((write, i) => ({
-      row: { ...write.values, code: codes[i]! },
+      row: { ...write.values, code: codes[i]!, workstreamCode: runs[i]! },
       ref: refOf(codes[i]!, write),
     }))
 
@@ -479,6 +488,7 @@ export class LeadWriteService {
            company code is still optional, while in this loop it is the string
            `resolveForLead` just returned. */
         const links: Edge[] = []
+        const opened: { code: string; accountCode: string; openedAt: Date }[] = []
         for (const p of slice) {
           const key = identityOfLead(p.row)
           const known = seen.get(key)
@@ -486,9 +496,11 @@ export class LeadWriteService {
           if (!known) seen.set(key, accountCode)
           rows.push({ ...p.row, accountCode })
           links.push({ from: p.row.code, to: accountCode, kind: 'belongs-to' })
+          opened.push({ code: p.row.workstreamCode, accountCode, openedAt })
         }
 
         await this.mirror.linkMany(tx, links)
+        await this.runs.insertOpened(tx, opened)
         await this.repo.insertLeads(tx, rows)
         /* One timeline row per lead, in the same chunk as the lead itself. The
            file name goes into the sentence rather than into a column, because

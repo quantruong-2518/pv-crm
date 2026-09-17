@@ -53,6 +53,7 @@ export function fromSign(
     leadCode: string
     amount: number | null
     currency: CurrencyCode | null
+    workstreamCode: string | null
   },
   fallbackOwnerId: string | null,
   now: Date,
@@ -68,6 +69,9 @@ export function fromSign(
     code,
     opportunityCode: deal.code,
     leadCode: deal.leadCode,
+    /* The run of the signed deal — copied, never re-derived. Whether signing
+       closes the run is `WorkstreamRepository.syncClosed`'s call, not this row's. */
+    workstreamCode: deal.workstreamCode,
     amount: money.amount,
     currency: money.currency,
     signedAt: body.signedAt === undefined ? now : new Date(body.signedAt),

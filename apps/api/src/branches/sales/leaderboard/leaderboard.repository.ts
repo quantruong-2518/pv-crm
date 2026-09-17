@@ -5,6 +5,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { leadSigned } from '../open-deal'
 import { toVndSql } from '../money'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 
@@ -135,11 +136,8 @@ export class LeaderboardRepository {
       .sort((a, b) => b.signedAmountVnd - a.signedAmountVnd || a.name.localeCompare(b.name, 'vi'))
   }
 
-  /* Both predicates ask `sales.contract` with an `EXISTS` written here rather
-     than borrowed from the two books that already ask it. That is the shape the
-     other repositories settled on and for the same reason: an `EXISTS` has to
-     ride inside the query that needs it, and calling across for one would be a
-     second round trip per row. */
+  /* Both predicates are SQL fragments riding inside the query that needs them:
+     calling across for one would be a second round trip per row. */
 
   /** Does this deal have a contract behind it? Matches BOTH columns, the pair
      `contract_opportunity_fk` anchors. */
@@ -157,13 +155,9 @@ export class LeaderboardRepository {
     )
   }
 
-  /** Has this lead been signed? One column here — a contract knows its lead. */
+  /** Signed = a contract and no deal still open, the lead book's rule, so a
+   *  lead with a sibling deal in play still counts as running here. */
   private leadSigned(): SQL {
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(contract)
-        .where(eq(contract.leadCode, lead.code)),
-    )
+    return leadSigned(lead.code)
   }
 }

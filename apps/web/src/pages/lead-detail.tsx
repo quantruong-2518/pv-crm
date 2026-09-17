@@ -25,7 +25,13 @@ import {
   type Lead,
   type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
-import { campaignLabel, sourceKindLabel, type LeadMotion, type LeadProfile } from '@pv/contracts'
+import {
+  campaignLabel,
+  sourceKindLabel,
+  type LeadMotion,
+  type LeadProfile,
+  type OpportunityLiveDeal,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
@@ -34,7 +40,7 @@ import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL, NO_OWNER_TITLE } from '@/data/leads'
 import { useStageLimits } from '@/data/sales-config'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
-import { opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
+import { chainPath, opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
 import { leadTouchesQuery, leadVectorQuery, NO_STEPS, type TouchFocus } from '@/data/touches'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
@@ -125,9 +131,10 @@ import { NextActionCard, NotesCard, ProfileCard } from './lead-parts'
  *  dựng từ hồ sơ thật — xem `leadOf` ở `data/lead-profile.ts`.
  *
  *  "Đã đổi thành cơ hội chưa" thì KHÔNG còn ở đó nữa (29/08): nó đọc
- *  `opportunitiesOfLeadQuery` — `GET /sales/opportunities?leadCode=…` — thay cho `opportunityOfLead`
- *  của fixture và cho `desk.deals`. Cả hai chống đỡ cũ đều mù: một cái không
- *  thấy lead tạo sau lát cắt đóng băng, một cái không thấy máy nào khác. */
+ *  `opportunitiesOfLeadQuery` — `GET /sales/opportunities/live-deal?leadCode=…`
+ *  — thay cho `opportunityOfLead` của fixture và cho `desk.deals`. Cả hai
+ *  chống đỡ cũ đều mù: một cái không thấy lead tạo sau lát cắt đóng băng, một
+ *  cái không thấy máy nào khác. */
 
 const TIER_TONE: Record<LeadTier, 'draft' | 'running' | 'success'> = {
   prospect: 'draft',
@@ -298,25 +305,10 @@ export function LeadDetailPage() {
       ? 'Lead chưa có người liên hệ.'
       : undefined
 
-  /* Lead đã có một dòng trong sổ cơ hội thì mời đổi lần nữa là mời tạo đơn thứ
-     hai cho cùng một khách, và sổ cơ hội cộng ra một con số không có thật. Nút
-     đổi vì thế thành đường sang đúng đơn đó.
-
-     Lấy dòng ĐẦU TIÊN máy chủ trả: một lead giữ được nhiều đơn, nhưng nút này
-     chỉ có một chỗ để đi tới, và thứ tự của sổ là thứ tự máy chủ đã sắp — màn
-     không sắp lại lần hai. */
-  const existingOp = priorOps.data?.[0]
-  const openOpCode = existingOp?.code
-
-  /* CHƯA BIẾT thì KHÔNG MỜI ĐỔI. Lượt đọc chưa về — hoặc về bằng một lỗi — là
-     đúng cái trạng thái mà bản cũ đọc nhầm thành "chưa có đơn nào", rồi mở đơn
-     thứ hai. Nút vẫn đứng nguyên chỗ, chỉ tắt và nói vì sao; hai câu khác nhau
-     vì hai đường đi tiếp khác nhau: một cái chờ là xong, một cái phải tải lại. */
-  const opBlocker = priorOps.data
-    ? undefined
-    : priorOps.isPending
-      ? 'Đang kiểm tra lead này đã có cơ hội chưa…'
-      : 'Chưa đọc được sổ cơ hội nên chưa biết lead này đã có đơn chưa. Tải lại trang rồi thử lại.'
+  /* Every open deal of this lead, shown beside the convert button as
+     information — a lead may hold several at once, and opening one more is
+     always allowed, so nothing here disables the button. */
+  const liveDeal = priorOps.data ?? { codes: [], hidden: 0 }
 
   return shell(
     <ScreenLayout>
@@ -500,9 +492,8 @@ export function LeadDetailPage() {
         lead={lead}
         legacy={legacy}
         pinned={pins.includes(lead.code)}
-        opCode={openOpCode}
-        opBlocker={opBlocker}
-        onOpenOp={() => openOpCode && navigate(`/sales/opportunities/${openOpCode}`)}
+        liveDeal={liveDeal}
+        onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
         reported={reported}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
@@ -618,10 +609,11 @@ function StatusBadge({ lead, reported }: { lead: LeadProfile; reported: ExitReas
  *   · nửa phải = **LÀM GÌ** — hai nút giữ chỗ (ghim · giao việc), rồi ba nút
  *     hành động thật, nút chuyển cơ hội là nút đặc duy nhất.
  *
- *  Nút cuối có BA mặt, không phải hai: lead đã có đơn trong sổ cơ hội thì nó là
- *  đường SANG đơn đó, không phải lời mời đổi lần nữa (23/08); và trong lúc sổ
- *  chưa trả lời thì nó TẮT kèm lý do. Mặt thứ ba mới là mặt quan trọng — mời
- *  đổi khi chưa biết là đúng cách mở đơn thứ hai cho một khách đã có đơn.
+ *  The convert button is ALWAYS live — a lead may hold several open deals at
+ *  once, so opening one more is never blocked here. Existing open deals are
+ *  shown as INFORMATION beside it instead: a 48px row per code the reader may
+ *  open, off the same `opportunitiesOfLeadQuery` the rail above reads, plus a
+ *  muted count for the ones a colleague holds that this reader may not open.
  *
  *  PIC KHÔNG nằm ở đây, nó nằm trên khối nhận diện ở đầu trang. Bản cũ định
  *  đặt nó cạnh khối khách trong chính thanh này, với lý do đúng — trước khi
@@ -637,8 +629,7 @@ function ToolsBar({
   lead,
   legacy,
   pinned,
-  opCode,
-  opBlocker,
+  liveDeal,
   reported,
   onPin,
   onExit,
@@ -651,16 +642,13 @@ function ToolsBar({
    *  đọc mọi giá trị từ `lead` (hồ sơ trên dây), không từ hình này. */
   legacy: Lead
   pinned: boolean
-  /** Mã cơ hội lead này ĐÃ có trong sổ, nếu có. */
-  opCode?: string
-  /** Vì sao CHƯA mời đổi được — sổ cơ hội chưa trả lời. Vắng = đã biết chắc
-   *  lead này chưa có đơn nào. */
-  opBlocker?: string
+  /** Every open deal this lead already holds — information, never a block. */
+  liveDeal: OpportunityLiveDeal
   reported: ExitReason | null
   onPin: () => void
   onExit: () => void
   onConvert: () => void
-  onOpenOp: () => void
+  onOpenOp: (code: string) => void
 }) {
   /* Người liên hệ đọc THẲNG từ hồ sơ. Bản cũ gọi `leadContact(lead)`, một hàm
      SINH tên và số điện thoại từ mã lead — tất định, khớp với 100 dòng đóng
@@ -724,17 +712,25 @@ function ToolsBar({
               </Button>
             )}
 
-            {opCode ? (
-              <Button size="md" onClick={onOpenOp}>
-                <Icon icon={ArrowRight} size={16} />
-                Cơ hội {opCode}
-              </Button>
-            ) : (
-              <Button size="md" disabled={Boolean(opBlocker)} title={opBlocker} onClick={onConvert}>
-                <Icon icon={ArrowRight} size={16} />
-                Chuyển thành cơ hội
-              </Button>
+            {(liveDeal.codes.length > 0 || liveDeal.hidden > 0) && (
+              <>
+                <span className="text-muted-foreground text-[11px]">Đang mở:</span>
+                {liveDeal.codes.map((code) => (
+                  <Button key={code} size="lg" variant="ghost" onClick={() => onOpenOp(code)}>
+                    <span className="font-mono">{code}</span>
+                  </Button>
+                ))}
+                {liveDeal.hidden > 0 && (
+                  <span className="text-muted-foreground text-[11px]">
+                    +{liveDeal.hidden} cơ hội của người khác
+                  </span>
+                )}
+              </>
             )}
+            <Button size="md" onClick={onConvert}>
+              <Icon icon={ArrowRight} size={16} />
+              Chuyển thành cơ hội
+            </Button>
           </div>
 
           {/* Chỗ trống đúng bằng nút Trợ lý AI nổi (60px, `bottom-8 right-8` của

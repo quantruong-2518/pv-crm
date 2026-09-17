@@ -66,7 +66,7 @@ export function OverdueNote({
   }
   if (overdueBy <= 0) return null
   return (
-    <Badge tone="warning" className="shrink-0">
+    <Badge tone="warning" className="shrink-0 gap-1">
       Trễ <span className="tnum font-num">{overdueBy}</span> ngày
     </Badge>
   )

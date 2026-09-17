@@ -28,6 +28,7 @@ import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
+import { leadSigned } from '../open-deal'
 import {
   opportunity,
   opportunityOwner,
@@ -50,17 +51,60 @@ export class WorkstreamRepository {
   /** Reserve the next code. Outside any transaction, for the reason
    *  `OpportunityRepository.nextCode` writes out: `nextval` deliberately does
    *  not listen to transactions, and one request holding two connections is
-   *  how a pool deadlocks itself.
-   *
-   *  No write door calls it yet — opening and closing a run is a later turn. It
-   *  lives here because the sequence belongs to this repository, and because
-   *  `seed.ts` needs exactly this formula: two places minting `WS-` two ways
-   *  are two sequences. */
+   *  how a pool deadlocks itself. `seed.ts` mints with the same formula. */
   async nextCode(): Promise<string> {
-    const r = (await this.db.execute(NEXT_CODE)) as { rows: { code: string }[] }
-    const code = r.rows[0]?.code
-    if (!code) throw new Error('sales.workstream_code_seq trả về rỗng — migration đã chạy chưa?')
+    const [code] = await this.nextCodes(1)
+    if (!code)
+      throw new Error('sales.workstream_code_seq returned nothing — has the migration run?')
     return code
+  }
+
+  /** `n` codes in ONE round trip, for the lead write doors that open one run per
+   *  lead. Outside any transaction for `nextCode`'s reason; a rolled-back batch
+   *  burns its numbers, and a gap in `WS-` is harmless. */
+  async nextCodes(n: number): Promise<string[]> {
+    if (n <= 0) return []
+    const r = (await this.db.execute(NEXT_CODES(n))) as { rows: { code: string }[] }
+    if (r.rows.length !== n) {
+      throw new Error(`sales.workstream_code_seq issued ${r.rows.length}/${n} codes`)
+    }
+    return r.rows.map((x) => x.code)
+  }
+
+  /** Open runs inside the caller's transaction, so a run never outlives the lead
+   *  row that anchors it. One statement: `MAX_IMPORT_ROWS` × 3 columns stays far
+   *  under Postgres's 65,535 bind-parameter ceiling. */
+  async insertOpened(
+    tx: Db,
+    rows: readonly { code: string; accountCode: string | null; openedAt: Date }[],
+  ): Promise<void> {
+    if (rows.length === 0) return
+    await tx.insert(workstream).values(
+      rows.map((r) => ({
+        code: r.code,
+        accountCode: r.accountCode,
+        openedAt: r.openedAt,
+        closedAt: null,
+        closeReason: null,
+      })),
+    )
+  }
+
+  /** Re-derive how these runs stand from their lead, inside the caller's
+   *  transaction, so a run's end is written with the row that caused it.
+   *
+   *  WON when the lead is signed (`leadSigned`, the lead book's rule) at its
+   *  latest signature; else LOST at `exited_at`; else OPEN — which also REOPENS
+   *  a closed run. The date is floored at `opened_at` for
+   *  `workstream_closed_after_opened`; `CHURNED` is never derived. Only rows
+   *  whose pair actually changes are written.
+   *
+   *  Called by every deal door that can move the answer: create, import, a
+   *  state change, sign. No door writes `lead.exit_reason` or deletes a
+   *  contract today — the day one does, it calls this too. */
+  async syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
+    if (workstreamCodes.length === 0) return
+    await tx.execute(SYNC_CLOSED(workstreamCodes))
   }
 
   async book(who: Actor, q: WorkstreamBookQuery, scoped: boolean): Promise<WorkstreamBookPage> {
@@ -151,21 +195,23 @@ export class WorkstreamRepository {
     return byDeal
   }
 
-  /** The signature that ended a run, when there is one. NEWEST first if a run
-   *  somehow carries several: `stand` prints exactly one code, and that code
-   *  has to be the same on two reads. */
-  async contractsOf(codes: readonly string[]): Promise<Map<string, string>> {
+  /** Every signature of a page of runs, NEWEST first per run, each with the
+   *  deal it signed: `stand` prints the first one the reader may open, and that
+   *  code has to be the same on two reads. */
+  async contractsOf(
+    codes: readonly string[],
+  ): Promise<Map<string, { code: string; deal: string }[]>> {
     if (codes.length === 0) return new Map()
 
     const rows = await this.db
-      .select({ ws: contract.workstreamCode, code: contract.code })
+      .select({ ws: contract.workstreamCode, code: contract.code, deal: contract.opportunityCode })
       .from(contract)
       .where(inArray(contract.workstreamCode, [...codes]))
       .orderBy(desc(contract.signedAt), desc(contract.code))
 
-    const byWorkstream = new Map<string, string>()
-    for (const r of rows) {
-      if (r.ws !== null && !byWorkstream.has(r.ws)) byWorkstream.set(r.ws, r.code)
+    const byWorkstream = new Map<string, { code: string; deal: string }[]>()
+    for (const { ws, ...signed } of rows) {
+      if (ws !== null) byWorkstream.set(ws, [...(byWorkstream.get(ws) ?? []), signed])
     }
     return byWorkstream
   }
@@ -323,25 +369,60 @@ export type WorkstreamBookPage = {
 
 export type LadderRow = { name: string; limitDays: number | null }
 
-/** One number off `sales.workstream_code_seq`, printed as `WS-%04d`.
+/** `n` numbers off `sales.workstream_code_seq`, printed as `WS-%04d`.
  *
  *  The sequence is declared in `workstream.schema.ts` so `drizzle-kit` owns it;
  *  Drizzle has no expression node for `nextval`, so the name is written out
- *  once here — the same trade `lead` and `opportunity` already wrote down, and
- *  the same formula migration 0045 used for its backfill. */
-const NEXT_CODE = sql`SELECT 'WS-' || lpad(nextval('sales.workstream_code_seq')::text, 4, '0') AS code`
+ *  once here — the same formula migration 0045 used for its backfill. */
+const NEXT_CODES = (n: number): SQL =>
+  sql`SELECT 'WS-' || lpad(nextval('sales.workstream_code_seq')::text, 4, '0') AS code
+      FROM generate_series(1, ${n})`
+
+/** One UPDATE for `syncClosed`. The `CASE` around `greatest` is load-bearing:
+ *  `greatest` skips NULLs, so an open run would otherwise get `opened_at`. */
+function SYNC_CLOSED(codes: readonly string[]): SQL {
+  const list = sql.join(
+    codes.map((c) => sql`${c}`),
+    sql`, `,
+  )
+
+  return sql`
+    UPDATE sales.workstream w
+       SET closed_at = v.closed_at, close_reason = v.close_reason
+      FROM (
+        SELECT w2.code,
+               CASE WHEN x.won THEN greatest(x.signed_at, w2.opened_at)
+                    WHEN x.exited_at IS NOT NULL THEN greatest(x.exited_at, w2.opened_at)
+               END AS closed_at,
+               CASE WHEN x.won THEN 'WON'
+                    WHEN x.exited_at IS NOT NULL THEN 'LOST'
+               END AS close_reason
+          FROM sales.workstream w2
+          JOIN LATERAL (
+            SELECT ${leadSigned(sql`l.code`)} AS won,
+                   (SELECT max(k.signed_at) FROM sales.contract k WHERE k.lead_code = l.code) AS signed_at,
+                   l.exited_at
+              FROM sales.lead l
+             WHERE l.workstream_code = w2.code
+          ) x ON true
+         WHERE w2.code IN (${list})
+      ) v
+     WHERE w.code = v.code
+       AND (w.closed_at, w.close_reason) IS DISTINCT FROM (v.closed_at, v.close_reason)
+  `
+}
 
 const SALE_ACTOR = alias(actor, 'sale_actor')
 const BD_ACTOR = alias(actor, 'bd_actor')
 
-/** ONE run, ONE lead — the invariant migration 0045 established (one workstream
- *  per lead) and `seed.ts` keeps.
+/** ONE run, ONE lead — the invariant migration 0045 established and every
+ *  write door that opens a run (lead create, lead import) keeps by minting one
+ *  run per lead.
  *
  *  That invariant is why this is an `innerJoin` and not a `LATERAL … LIMIT 1`:
  *  a plain join reads, and the lead is also the only row the scope axis can cut
- *  on (`lead.owner_id`). The day a write door lets two leads share a run, this
- *  book prints that run twice — so that door either keeps the invariant or
- *  turns this into a lateral. */
+ *  on (`lead.owner_id`). A door that lets two leads share a run would print
+ *  that run twice — so it keeps the invariant or turns this into a lateral. */
 const ANCHOR_ON = eq(lead.workstreamCode, workstream.code)
 
 /** The customer name on the row: the COMPANY once somebody has said which

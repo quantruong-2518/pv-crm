@@ -44,6 +44,8 @@ import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract
 import { ContractRepository } from '../contract/contract.repository'
 import { fromSign, toContract as toContractRow } from '../contract/contract.mapper'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
+import { WorkstreamRepository } from '../workstream/workstream.repository'
+import { OpportunityGate } from './opportunity-gate.service'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import {
   closeForSign,
@@ -54,6 +56,7 @@ import {
   ownerRowsOf,
   productRowsOf,
   refOf,
+  scopeRefOf,
   stageEventOf,
   toContract,
   toRef,
@@ -94,6 +97,8 @@ export class OpportunityService {
   constructor(
     private readonly repo: OpportunityRepository,
     private readonly contracts: ContractRepository,
+    private readonly gate: OpportunityGate,
+    private readonly workstreams: WorkstreamRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     /* E1's read half, beside the write half above — the pair `GraphModule`
@@ -141,7 +146,7 @@ export class OpportunityService {
        người ngoài đọc, đúng như `refOf` khai. */
     const items = page.rows.map((r) => ({
       ...r,
-      ref: toRef(r.row, (r.owners.find((o) => o.id === who.id) ?? r.owners[0])?.name ?? null),
+      ref: scopeRefOf(r.row, r.owners, who.id),
     }))
     const { visible, hidden } = this.access.visible(who, items)
 
@@ -196,43 +201,22 @@ export class OpportunityService {
     return OpportunityHistogram.parse({ buckets: await this.repo.histogram() })
   }
 
-  /** "Lead này đã có đơn CÒN SỐNG chưa" — `GET /sales/opportunities/live-deal`.
+  /** Every open deal of a lead — `GET /sales/opportunities/live-deal`.
    *
-   *  ------------------------------------------------------------------
-   *  CỬA NÀY CỐ Ý BỎ TRỤC PHẠM VI, VÀ NÓ TRẢ GIÁ BẰNG CÁCH TRẢ RẤT ÍT
-   *  ------------------------------------------------------------------
-   *  Hồ sơ lead phải trả lời câu này TRƯỚC khi bày nút "Chuyển thành cơ hội",
-   *  và cho tới hôm nay nó hỏi bằng chính cửa sổ — `GET /sales/opportunities?
-   *  leadCode=…`, thứ khai `scoped: true`. `scoped` đúng cho một cái SỔ và sai
-   *  chí mạng cho một CHỐT CHẶN: Sale A đổi LD-0042 thành OP-5001, Sale B (cũng
-   *  `ownOnly`) mở LD-0042, trục phạm vi cắt mất OP-5001, màn đọc danh sách
-   *  rỗng đó thành "chưa ai đổi lead này". Nút sáng, `POST /sales/opportunities`
-   *  chỉ đòi `opportunity.edit` và KHÔNG kiểm trùng, và một khách có hai đơn. Một
-   *  chốt chặn giấu đi đúng cái dòng nó sinh ra để tìm thì không phải chốt chặn.
+   *  Cut per deal by E2 with the ref `book()` builds, because the lead profile
+   *  is scoped by the LEAD's owner while each deal is scoped by its own: a
+   *  colleague's deal is counted in `hidden`, its code never listed.
    *
-   *  Nên cửa này KHÔNG nhận `Actor` và không cắt theo phạm vi. Giá của việc đó
-   *  trả bằng hình dữ liệu: nó rò đúng MỘT mã đơn, không rò tên người đứng đơn
-   *  (thứ mà trục phạm vi vốn để che), không rò tiền, không rò trạng thái,
-   *  không rò khách. Đủ để tắt một cái nút và để đi tới đúng đơn đó — hết. Cửa
-   *  vẫn đòi `opportunity.view`: ai không được vào sổ thì cũng không hỏi được câu này.
-   *  Lập luận đầy đủ ở docblock của `OpportunityLiveDeal` (`@pv/contracts`).
-   *
-   *  ------------------------------------------------------------------
-   *  "CÒN SỐNG", KHÔNG PHẢI "TỪNG TỒN TẠI"
-   *  ------------------------------------------------------------------
-   *  Đi thẳng qua `liveDealsByLead` — CHÍNH vị từ mà cửa nạp tệp gọi là trùng:
-   *  `state <> 'close-lost'` và chưa ký. Dùng lại nó chứ không viết vị từ thứ
-   *  hai, vì hai vị từ là hai câu trả lời sẽ lệch nhau, và chúng ĐANG lệch: màn
-   *  chặn theo bất kỳ đơn nào từng tồn tại, nên một lead có đúng một đơn đã thua
-   *  quý I thì quý III khách quay lại vẫn không đổi được nữa — vĩnh viễn — trong
-   *  khi lô nạp lại nhận đúng dòng ấy. Một khách quay lại là một đơn MỚI.
-   *
-   *  Nhiều đơn sống cùng lúc thì lấy mã NHỎ NHẤT, vì `liveDealsByLead` đã
-   *  `ORDER BY code` và giữ dòng đầu: nút chỉ có một chỗ để đi tới, và thứ tự
-   *  đó ổn định giữa hai lần đọc. */
-  async liveDeal(leadCode: ObjectCode): Promise<OpportunityLiveDeal> {
-    const byLead = await this.repo.liveDealsByLead(this.repo.readonlyHandle, [leadCode])
-    return OpportunityLiveDeal.parse({ code: byLead.get(leadCode) ?? null })
+   *  "Open" is the repository's `live()` predicate (not lost, not signed), the
+   *  same one the import door uses, so the two cannot drift. Oldest first. */
+  async liveDeal(who: Actor, leadCode: ObjectCode): Promise<OpportunityLiveDeal> {
+    const deals = await this.repo.liveDealsWithOwners(leadCode)
+    const items = deals.map((d) => ({
+      code: d.row.code,
+      ref: scopeRefOf(d.row, d.owners, who.id),
+    }))
+    const { visible, hidden } = this.access.visible(who, items)
+    return OpportunityLiveDeal.parse({ codes: visible.map((v) => v.code), hidden })
   }
 
   /** Một đơn theo mã. Hai cách hỏng, và cả hai trả về CÙNG một 404.
@@ -304,11 +288,11 @@ export class OpportunityService {
   async create(who: Actor, body: OpportunityCreate): Promise<OpportunityCreateResponse> {
     const handle = this.repo.readonlyHandle
 
-    const [account, names] = await Promise.all([
+    const [lead, names] = await Promise.all([
       this.repo.leadCompany(handle, body.leadCode),
       this.repo.actorNames(handle, [...body.saleOwners, ...body.bdOwners]),
     ])
-    if (account === null) throw notFound('lead', body.leadCode)
+    if (lead === null) throw notFound('lead', body.leadCode)
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
        `fromCreate` call, which was enough while one place needed it; the column
@@ -316,49 +300,13 @@ export class OpportunityService {
        milliseconds apart are two answers to "when did this deal enter the
        column". */
     const now = new Date()
-    const write = fromCreate(body, now)
+    const write = fromCreate(body, now, lead.workstreamCode)
+    await this.gate.assertEntry(write.values.stage ?? null)
     const code = await this.repo.nextCode()
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
     const row = await this.repo.run(async (tx) => {
-      /* MỘT LEAD, MỘT ĐƠN CÒN SỐNG — chốt ở CỬA GHI, không chỉ ở cái nút.
-         ------------------------------------------------------------------
-         Màn đã tắt nút khi `liveDeal` trả về một mã, nhưng một cái nút tắt
-         không phải là một hàng rào: double-click, một tab mở từ sáng, hay một
-         lượt gọi thẳng API đều đi vòng qua nó, và cái sinh ra là hai đơn cho
-         cùng một khách — sổ cộng ra một con số không có thật, hoa hồng chia
-         hai lần.
-
-         Cửa NẠP TỆP đã từ chối đúng ca này từ đầu (`dupWithBook`), nên tới
-         hôm nay hai đường vào cùng một bảng trả lời ngược nhau: lô nạp nói
-         "khách này đã có đơn đang mở", phiếu tay nói "được". Một bảng thì một
-         luật.
-
-         Dùng lại CHÍNH `liveDealsByLead` mà cả `liveDeal` lẫn cửa nạp tệp gọi
-         — ba chỗ, một vị từ. Viết vị từ thứ hai ở đây là dựng chỗ để chúng
-         lệch nhau, và lệch kiểu này thì không ai thấy cho tới lúc sổ sai.
-
-         TRONG transaction, không phải trước nó: kiểm ngoài rồi ghi trong để
-         hở đúng cái khe mà double-click rơi vào.
-
-         Nói thẳng phần CÒN HỞ: đây vẫn không phải hàng rào ở tầng bảng. Hai
-         transaction đồng thời ở READ COMMITTED đều có thể thấy "chưa có đơn
-         sống" rồi cùng ghi. Một unique index bộ phận trên `lead_code` sẽ đóng
-         hẳn khe đó, nhưng nó KHÔNG diễn đạt được vế "chưa ký" — vế ấy nằm ở
-         `sales.contract`, một bảng khác, mà index bộ phận thì không với sang
-         bảng khác được. Đóng nốt khe này là một quyết định về lược đồ (dựng
-         cột phi chuẩn hoá `signed`, hoặc khoá theo lead), không phải một dòng
-         thêm vào đây. */
-      const live = await this.repo.liveDealsByLead(tx, [body.leadCode])
-      const opened = live.get(body.leadCode)
-      if (opened !== undefined) {
-        throw conflict(
-          `Lead ${body.leadCode} đã có cơ hội đang mở (${opened}) — đóng đơn đó trước khi mở đơn mới.`,
-          { leadCode: [`Đơn đang mở: ${opened}`] },
-        )
-      }
-
       const ref = refOf(code, write, { label: write.values.name, ownerName })
       await this.mirror.put(tx, ref)
       /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
@@ -417,6 +365,7 @@ export class OpportunityService {
       ])
 
       await this.notify(tx, ref, body.state === 'close-lost')
+      if (written.workstreamCode) await this.workstreams.syncClosed(tx, [written.workstreamCode])
       return written
     })
 
@@ -439,7 +388,7 @@ export class OpportunityService {
     return OpportunityCreateResponse.parse(
       toContract({
         row,
-        account,
+        account: lead.company,
         owners: [
           ...body.saleOwners.map((id) => ({
             id,
@@ -516,6 +465,7 @@ export class OpportunityService {
     ])
     const now = new Date()
     const write = fromUpdate(body, found.row, now)
+    await this.gate.assertMove(code, found.row.stage, write.values.stage ?? null)
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
@@ -577,6 +527,10 @@ export class OpportunityService {
       }
 
       if (becameLost) await this.notify(tx, ref, true)
+      /* Losing or reopening a deal can end or reopen its run. */
+      if (stateChanged && written.workstreamCode) {
+        await this.workstreams.syncClosed(tx, [written.workstreamCode])
+      }
       return written
     })
 
@@ -649,6 +603,7 @@ export class OpportunityService {
     if (found.row.stage === body.stage) {
       return OpportunityUpdateResponse.parse(toContract(found))
     }
+    await this.gate.assertMove(code, found.row.stage, body.stage)
 
     const now = new Date()
 
@@ -775,6 +730,7 @@ export class OpportunityService {
     if (found.row.state === 'close-lost') {
       throw conflict(`Cơ hội ${code} đã thua — mở lại đơn trước khi ký.`)
     }
+    await this.gate.assertSign(code, found.row.stage)
 
     const saleOwner = found.owners.find((o) => o.role === 'SALE') ?? null
     const contractCode = await this.contracts.nextCode()
@@ -813,6 +769,7 @@ export class OpportunityService {
       })
 
       const contractRow = await this.contracts.insert(tx, values)
+      if (row.workstreamCode) await this.workstreams.syncClosed(tx, [row.workstreamCode])
 
       /* THE LAST HISTORY ROW — `to: null`, the deal leaving the board because
          it was signed. Without it the funnel has an entry step and no exit
@@ -923,7 +880,7 @@ export class OpportunityService {
     body: OpportunityImportBody,
   ): Promise<OpportunityImportCommitResponse> {
     const handle = this.repo.readonlyHandle
-    const { report, writes } = await this.check(handle, body)
+    const { report, writes, workstreamByLead } = await this.check(handle, body)
 
     /* Mã cấp TRƯỚC khi mở transaction, một câu cho cả lô — lý do đầy đủ ở
        `nextCodes`. Dãy trả theo thứ tự tăng nên thứ tự của tệp cũng là thứ tự
@@ -940,7 +897,7 @@ export class OpportunityService {
        bản nháp và cùng một mã — bốn thứ không lệch nhau bằng một chỉ số được. */
     const ready = writes.map((write, i) => {
       const code = codes[i] ?? ''
-      const draft = fromCreate(write, now)
+      const draft = fromCreate(write, now, workstreamByLead.get(write.leadCode) ?? null)
       const ownerName =
         write.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
@@ -1045,6 +1002,9 @@ export class OpportunityService {
           slice.flatMap((p) => p.touches),
         )
       }
+      await this.workstreams.syncClosed(tx, [
+        ...new Set(ready.flatMap((p) => p.row.workstreamCode ?? [])),
+      ])
 
       /* Biên lai được ghi KỂ CẢ khi không dòng nào vào. Một lô toàn lỗi vẫn là
          một việc đã xảy ra, và "tôi có bấm nạp mà chẳng thấy gì" là câu chỉ trả
@@ -1076,10 +1036,14 @@ export class OpportunityService {
    *  công ty sang mã lead mới biết hỏi đơn đang mở của những lead NÀO. Dịch
    *  bằng đúng `fold` mà bộ kiểm dùng — không phải một bản chép, mà chính hàm
    *  đó — nên tập mã hỏi ở đây và tập mã bộ kiểm phân giải không lệch nhau. */
-  private async check(handle: Db, body: OpportunityImportBody): Promise<ImportCheck> {
-    const [staff, leads] = await Promise.all([
+  private async check(
+    handle: Db,
+    body: OpportunityImportBody,
+  ): Promise<ImportCheck & { workstreamByLead: ReadonlyMap<string, string | null> }> {
+    const [staff, leads, entryMissing] = await Promise.all([
       this.repo.staff(handle),
       this.repo.leadsByCompany(handle),
+      this.gate.entryRule(),
     ])
 
     const candidates = [
@@ -1092,13 +1056,17 @@ export class OpportunityService {
 
     const liveDealByLead = await this.repo.liveDealsByLead(handle, candidates)
 
-    return checkBatch({
-      rows: body.rows,
-      staff,
-      leadByCompany: leads.byCompany,
-      ambiguousCompany: leads.ambiguous,
-      liveDealByLead,
-    })
+    return {
+      ...checkBatch({
+        rows: body.rows,
+        staff,
+        leadByCompany: leads.byCompany,
+        ambiguousCompany: leads.ambiguous,
+        liveDealByLead,
+        entryMissing,
+      }),
+      workstreamByLead: leads.workstreamByLead,
+    }
   }
 
   /** Xếp hàng mail báo TRONG CÙNG đơn vị công việc với chính cơ hội.

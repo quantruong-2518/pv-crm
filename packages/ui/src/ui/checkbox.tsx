@@ -25,6 +25,9 @@ export type CheckboxProps = {
   /** Khối bên phải: avatar, badge, số. */
   trailing?: ReactNode
   disabled?: boolean
+  /** Let label and hint wrap instead of truncating — for a label the reader
+   *  must see whole, such as a stage criterion the user is about to confirm. */
+  wrap?: boolean
   className?: string
 }
 
@@ -36,6 +39,7 @@ export function Checkbox({
   hint,
   trailing,
   disabled = false,
+  wrap = false,
   className,
 }: CheckboxProps) {
   const input = useRef<HTMLInputElement>(null)
@@ -92,8 +96,16 @@ export function Checkbox({
       </span>
 
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[12.5px] font-semibold">{label}</span>
-        {hint && <span className="text-muted-foreground truncate text-[11px]">{hint}</span>}
+        <span className={cn('text-[12.5px] font-semibold', wrap ? 'break-words' : 'truncate')}>
+          {label}
+        </span>
+        {hint && (
+          <span
+            className={cn('text-muted-foreground text-[11px]', wrap ? 'break-words' : 'truncate')}
+          >
+            {hint}
+          </span>
+        )}
       </span>
 
       {trailing && <span className="flex shrink-0 items-center gap-2">{trailing}</span>}

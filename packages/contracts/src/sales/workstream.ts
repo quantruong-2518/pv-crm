@@ -2,10 +2,11 @@ import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ObjectChainLink, PipelinePositionView } from '../position'
 import { Moment, ObjectCode, textInput } from '../primitives'
-import { WorkstreamCloseReason } from './enums'
+import { LeadSourceKind, WorkstreamCloseReason } from './enums'
+import { GateCriterionState } from './stage-gate'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
- *  lead, its opportunities and the contract that came out of ONE run at ONE
+ *  lead, its opportunities and the contracts that came out of ONE run at ONE
  *  company.
  *
  *  `closedAt` is the field that makes a journey a RUN and not a company's
@@ -25,11 +26,9 @@ import { WorkstreamCloseReason } from './enums'
 /** `lead.workstream_code` / `opportunity.workstream_code` /
  *  `contract.workstream_code` — all NULLABLE, not `NOT NULL`.
  *
- *  Every row already in the three tables predates this concept, and there is
- *  no honest value to backfill: which of a customer's several past leads
- *  started which run is a fact nobody recorded. `LeadProfile.motion` took the
- *  same nullable-for-history stance for the same reason. New rows are free to
- *  fill it at write time; no write door in this file touches it. */
+ *  Migrations 0045/0048 give every lead one run and copy it down; the lead
+ *  doors mint one per new lead, and the deal and contract doors copy it. The
+ *  column stays nullable so no write door can be refused over a missing run. */
 
 // ---------------------------------------------------------------------------
 // WHERE THE JOURNEY STANDS
@@ -158,12 +157,78 @@ export const WorkstreamBookQuery = PageQuery.extend({
 
 export const WorkstreamBookResponse = paged(WorkstreamRow)
 
-/** `GET /sales/workstreams/:code` — the row, plus the object chain (lead →
- *  opportunity → contract) for ContextRail. Server-walked via `E1.story()`,
- *  the same rule `OpportunityProfileResponse.chain` states — a screen must
- *  not assemble this chain itself. */
+// ---------------------------------------------------------------------------
+// THE PROFILE — swimlanes: one lead lane, one lane per deal, one account lane
+// ---------------------------------------------------------------------------
+
+/** The four states the screen legend prints, one per dot colour. */
+export const WorkstreamStepState = z.enum(
+  ['done', 'current', 'dropped', 'upcoming'],
+  'Trạng thái bước không có trong danh sách',
+)
+
+/** One rung of a lane. `key` is a `StageKey` or `LeadTier` value, left as a
+ *  string because one step shape serves both ladders; `label` comes from
+ *  `config_entry`. `at` is when the rung was entered — null for upcoming or a
+ *  skipped rung. `by` is the mover's name snapshotted then. */
+export const WorkstreamStep = z.object({
+  key: z.string().min(1).max(40),
+  label: textInput(120),
+  state: WorkstreamStepState,
+  at: Moment.nullable(),
+  by: textInput(120).nullable(),
+  /** Recorded for done/dropped, counted to now for current, null for upcoming. */
+  days: z.number().int().nonnegative().nullable(),
+  /** Always `[]` on lead steps — the gate is an opportunity ladder only. */
+  criteria: z.array(GateCriterionState),
+})
+
+/** `converted` = the lead produced at least one deal (`outcomeAt` = the first);
+ *  `exited` = `lead.exited_at`. */
+export const WorkstreamLeadOutcome = z.enum(['converted', 'exited', 'open'])
+
+export const WorkstreamLeadLane = z.object({
+  code: ObjectCode,
+  sourceKind: LeadSourceKind.nullable(),
+  owner: WorkstreamHolder.nullable(),
+  steps: z.array(WorkstreamStep),
+  outcome: WorkstreamLeadOutcome,
+  outcomeAt: Moment.nullable(),
+})
+
+export const WorkstreamDealOutcome = z.enum(['won', 'lost', 'open'])
+
+export const WorkstreamDealLane = z.object({
+  code: ObjectCode,
+  /** The first sale owner. */
+  owner: WorkstreamHolder.nullable(),
+  steps: z.array(WorkstreamStep),
+  outcome: WorkstreamDealOutcome,
+  outcomeAt: Moment.nullable(),
+  /** Not `ObjectCode`: a contract code fails that regex, as `WorkstreamStand.code` notes. */
+  contractCode: z.string().min(1).max(20).nullable(),
+})
+
+/** `code` is null while the run has no company yet. `purchased` = at least one
+ *  deal of the run is signed, including deals not listed in `deals`. */
+export const WorkstreamAccountLane = z.object({
+  code: ObjectCode.nullable(),
+  name: textInput(200).nullable(),
+  owner: WorkstreamHolder.nullable(),
+  purchased: z.boolean(),
+})
+
+/** `GET /sales/workstreams/:code` — the book row, the object chain for
+ *  ContextRail (server-walked via `E1.story()`, never assembled by a screen),
+ *  and the lanes. `deals` is oldest first and holds only deals the reader may
+ *  open — the run is scoped by the lead, a deal by its own owners — and
+ *  `hiddenDeals` counts the ones cut. */
 export const WorkstreamProfileResponse = WorkstreamRow.extend({
   chain: z.array(ObjectChainLink),
+  lead: WorkstreamLeadLane,
+  deals: z.array(WorkstreamDealLane),
+  hiddenDeals: z.number().int().nonnegative(),
+  account: WorkstreamAccountLane,
 })
 
 export type WorkstreamStandKind = z.infer<typeof WorkstreamStandKind>
@@ -176,4 +241,11 @@ export type WorkstreamStatus = z.infer<typeof WorkstreamStatus>
 export type WorkstreamSortKey = z.infer<typeof WorkstreamSortKey>
 export type WorkstreamBookQuery = z.infer<typeof WorkstreamBookQuery>
 export type WorkstreamBookResponse = z.infer<typeof WorkstreamBookResponse>
+export type WorkstreamStepState = z.infer<typeof WorkstreamStepState>
+export type WorkstreamStep = z.infer<typeof WorkstreamStep>
+export type WorkstreamLeadOutcome = z.infer<typeof WorkstreamLeadOutcome>
+export type WorkstreamLeadLane = z.infer<typeof WorkstreamLeadLane>
+export type WorkstreamDealOutcome = z.infer<typeof WorkstreamDealOutcome>
+export type WorkstreamDealLane = z.infer<typeof WorkstreamDealLane>
+export type WorkstreamAccountLane = z.infer<typeof WorkstreamAccountLane>
 export type WorkstreamProfileResponse = z.infer<typeof WorkstreamProfileResponse>

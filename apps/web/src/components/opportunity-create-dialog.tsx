@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Inbox, TriangleAlert, X } from '@pv/ui'
-import { Badge, Button, Chip, Drawer, EmptyState, Icon, SearchField, Skeleton, cn } from '@pv/ui'
+import { Badge, Button, Chip, Drawer, EmptyState, Icon, SearchField, Skeleton } from '@pv/ui'
 import type { LeadRow, LeadTier, OpportunityCreateResponse } from '@pv/contracts'
 import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
@@ -27,14 +27,13 @@ import { ConvertDialog } from './convert-dialog'
  *  here is a second place they drift apart.
  *
  *  ------------------------------------------------------------------
- *  WHY THE ROWS ASK ABOUT LIVE DEALS ONE BY ONE
+ *  WHY THE ROWS SHOW EXISTING DEALS, PER ROW
  *  ------------------------------------------------------------------
- *  One lead may hold one live deal, and the server refuses the second inside
- *  the write transaction (`OpportunityService.create`). Finding that out AFTER
- *  the form is filled in is a 409 landing on fourteen typed cells, so the
- *  picker asks first — per row, because `live-deal` takes one code and the
- *  book cannot answer instead: its scope axis hides other people's deals from
- *  a Sale, which is the exact case this check exists to catch. */
+ *  A lead may hold several open deals at once, and opening one more is never
+ *  refused for that reason — so the badge below is INFORMATION, not a gate.
+ *  It still asks per row rather than through the book, because the book's
+ *  scope axis (`ownOnly`) would hide a colleague's deal from a Sale, and
+ *  `live-deal` is unscoped on purpose (see `opportunitiesOfLeadQuery`). */
 
 /** Rows the picker draws. Deliberately short: this list is for confirming the
  *  lead you already have in mind, and the search box above it is how you get
@@ -201,46 +200,24 @@ function LeadPicker({
   )
 }
 
-/** One line of the picker — and the answer to "does this customer already hold
- *  a deal". */
+/** One line of the picker — and, when the lead already holds one or more open
+ *  deals, information about which. */
 function LeadPickRow({ lead, onPick }: { lead: LeadRow; onPick: () => void }) {
-  const { data: live, isError } = useQuery(opportunitiesOfLeadQuery(lead.code))
-
-  const openDeal = live?.[0]?.code
-  /* `undefined` is "still reading", and it is NOT the empty array that means
-     "no live deal" — see the `select` of `opportunitiesOfLeadQuery`. The row
-     stays shut until the difference is known, because opening the form on a
-     lead that already holds a deal spends fourteen cells to earn a 409.
-
-     A FAILED read is a third answer, and it must not read as the second one:
-     `data` is `undefined` there too, so treating it as "still checking" locks
-     every row of the list for good, under a tooltip that says a wait is in
-     progress when nothing is waiting. The row opens instead — the fence that
-     matters is the one inside the write transaction, and it is still up. */
-  const checking = live === undefined && !isError
-  const blocked = checking || openDeal !== undefined
+  const { data: live } = useQuery(opportunitiesOfLeadQuery(lead.code))
+  const openCount = (live?.codes.length ?? 0) + (live?.hidden ?? 0)
 
   return (
     <button
       type="button"
-      disabled={blocked}
       onClick={onPick}
-      title={
-        openDeal !== undefined
-          ? `Đã có cơ hội ${openDeal} đang mở — đóng đơn đó trước khi mở đơn mới.`
-          : checking
-            ? 'Đang kiểm tra khách này đã có đơn nào chưa…'
-            : undefined
-      }
-      className={cn(
-        'motion-std flex w-full items-center gap-3 rounded-md px-3 py-2 text-left',
-        blocked ? 'bg-surface-ink/4 opacity-60' : 'bg-surface-ink/9 hover:bg-surface-ink/16',
-      )}
+      className="motion-std bg-surface-ink/9 hover:bg-surface-ink/16 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left"
     >
       <Chip>{lead.code}</Chip>
       <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">{lead.company}</span>
-      {openDeal !== undefined ? (
-        <Badge tone="warning">Đã có {openDeal}</Badge>
+      {openCount > 0 ? (
+        <Badge tone="warning" className="text-on-tint-warning-strong">
+          Đang mở · {openCount} cơ hội
+        </Badge>
       ) : (
         lead.tier !== undefined && (
           <Badge tone={TIER_TONE[lead.tier]}>{TIER_LABEL.get(lead.tier)}</Badge>

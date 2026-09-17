@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  exists,
   ilike,
   isNotNull,
   isNull,
@@ -21,7 +20,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
-import { contract } from '../contract/contract.schema'
+import { leadSigned } from '../open-deal'
 import { lead } from './lead.schema'
 import type {
   LeadMailEventRead,
@@ -413,27 +412,13 @@ export class LeadRepository {
     return r.rows
   }
 
-  /** Has this lead been signed — one hop on one index, asked of `contract`
-   *  directly through `lead_code`.
+  /** Signed = the lead holds a contract AND no deal of it is still open.
    *
-   *  An earlier version read a `lead.contract_code` column. That column went
-   *  away when lead → opportunity became 1-n: one column cannot carry a lead
-   *  that signed twice, and a second column is exactly where two answers to one
-   *  question start to disagree.
-   *
-   *  The predicate is stated in the POSITIVE — `EXISTS`, true when signed —
-   *  and that is deliberate. It was briefly written as `NOT EXISTS` under this
-   *  same name, which made every caller correct only because it negated the
-   *  method back: `status='signed'` read `not(signed())`. The behaviour was
-   *  right and the name was a lie, which is the shape of bug that survives
-   *  review and then bites whoever adds the fifth caller. */
+   *  A lead may run several deals at once, so a signature on one must not file
+   *  the lead as finished while a sibling deal is still being worked — that
+   *  lead stays `running`. The rule itself lives in `../open-deal.ts`. */
   private signed(): SQL {
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(contract)
-        .where(eq(contract.leadCode, lead.code)),
-    )
+    return leadSigned(lead.code)
   }
 
   /** The same predicate as a SELECTED value rather than a filter.
@@ -451,9 +436,8 @@ export class LeadRepository {
   private statusFilter(status: LeadStatus): SQL | undefined {
     switch (status) {
       case 'running':
-        /* "Còn chạy" = chưa rơi khỏi luồng và chưa ký. Định nghĩa này nằm ở
-           `isRunning()` bên engine; ở đây là bản dịch sang SQL của cùng một câu,
-           và bước B của doc bàn giao sẽ gộp chúng lại làm một. */
+        /* Not exited and not finished by signature — which includes a lead
+           with a signed deal and another one still open. */
         return and(isNull(lead.exitReason), not(this.signed()))
       case 'signed':
         return this.signed()

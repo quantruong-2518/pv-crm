@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nes
 import type { Actor } from '@pv/engines'
 import {
   ContractSign,
+  CriterionTick,
   ObjectCode,
   OpportunityBookQuery,
   OpportunityCreate,
@@ -9,10 +10,12 @@ import {
   OpportunityLiveDealQuery,
   OpportunityStageMove,
   OpportunityUpdate,
+  StageCriterion,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { OpportunityGate } from './opportunity-gate.service'
 import { OpportunityService } from './opportunity.service'
 
 /** `/sales/opportunities` — sổ cơ hội, module 3 của nhánh Sales.
@@ -43,7 +46,10 @@ import { OpportunityService } from './opportunity.service'
  *  nguyên thì một gốc. */
 @Controller('sales/opportunities')
 export class OpportunityController {
-  constructor(private readonly ops: OpportunityService) {}
+  constructor(
+    private readonly ops: OpportunityService,
+    private readonly gate: OpportunityGate,
+  ) {}
 
   @Get()
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
@@ -79,26 +85,17 @@ export class OpportunityController {
     return this.ops.histogram()
   }
 
-  /** Chốt chặn trùng đơn — "lead này đã có đơn CÒN SỐNG chưa".
-   *
-   *  PHẢI đứng trước `@Get(':code')` vì cùng lý do `scorecard` ghi ở trên:
-   *  Fastify khớp theo thứ tự khai, nên khai sau thì chuỗi `live-deal` rơi vào
-   *  `:code` và chết ở `zod(ObjectCode)` bằng một 400 vô nghĩa.
-   *
-   *  KHÔNG `scoped`, và đó là TOÀN BỘ lý do cửa này tồn tại thay vì hồ sơ lead
-   *  đi lọc cái sổ: một chốt chặn cắt theo phạm vi sẽ giấu đi đúng cái đơn nó
-   *  cần tìm, rồi trả lời "chưa ai đổi lead này" cho người thứ hai và mời họ mở
-   *  đơn trùng. Đánh đổi được trả bằng hình dữ liệu hẹp nhất có thể — một mã
-   *  đơn hoặc `null`, không tên người, không tiền. Lập luận đầy đủ ở
-   *  `OpportunityService.liveDeal` và ở `OpportunityLiveDeal` của hợp đồng.
-   *
-   *  `leadCode` đi trong query chứ không trong đường dẫn: tài nguyên của cửa
-   *  này là cơ hội, lead chỉ là câu hỏi — cùng lý do `POST` nhận `leadCode`
-   *  trong thân request (xem docblock đầu controller). */
+  /** Every open deal of a lead: codes the reader may open, plus a count of
+   *  the rest. Before `@Get(':code')` for the reason `scorecard` states above.
+   *  `scoped` because the list is cut per deal owner — see
+   *  `OpportunityService.liveDeal`. */
   @Get('live-deal')
-  @Need({ branch: 'Sales', permission: 'opportunity.view' })
-  liveDeal(@Query(zod(OpportunityLiveDealQuery)) q: OpportunityLiveDealQuery) {
-    return this.ops.liveDeal(q.leadCode)
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
+  liveDeal(
+    @CurrentActor() who: Actor,
+    @Query(zod(OpportunityLiveDealQuery)) q: OpportunityLiveDealQuery,
+  ) {
+    return this.ops.liveDeal(who, q.leadCode)
   }
 
   /** Hồ sơ một đơn.
@@ -246,5 +243,25 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   stageHistory(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.ops.stageHistory(who, code)
+  }
+
+  /** The deal's own stage-gate checklist, read by whoever may open the deal. */
+  @Get(':code/criteria')
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
+  criteria(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.gate.checklist(who, code)
+  }
+
+  /** Tick or untick one stage-gate criterion on a deal. Same permission and
+   *  scope as the column move it unlocks. */
+  @Patch(':code/criteria/:criterionId')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  tickCriterion(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Param('criterionId', zod(StageCriterion.shape.id)) criterionId: string,
+    @Body(zod(CriterionTick)) body: CriterionTick,
+  ) {
+    return this.gate.tick(who, code, criterionId, body)
   }
 }

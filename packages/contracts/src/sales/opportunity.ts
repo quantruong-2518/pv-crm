@@ -564,65 +564,24 @@ export const OpportunityScorecard = z.object({
 })
 
 // ---------------------------------------------------------------------------
-// THE DUPLICATE GUARD — `GET /sales/opportunities/live-deal`
+// OPEN DEALS OF ONE LEAD — `GET /sales/opportunities/live-deal`
 // ---------------------------------------------------------------------------
 
-/** "Does this lead already have a deal that is still alive?" — one lead in, at
- *  most one deal code out.
+/** "Which deals of this lead are still open?" — open means not lost and not
+ *  signed, the same meaning the import door uses (`liveDealsByLead`).
  *
- *  ------------------------------------------------------------------
- *  IT IS A SEPARATE DOOR BECAUSE THE BOOK CANNOT ANSWER THIS QUESTION
- *  ------------------------------------------------------------------
- *  The lead profile asks it before offering the "convert to opportunity"
- *  button, and it used to ask it by filtering the book —
- *  `GET /sales/opportunities?leadCode=…`, which is `scoped: true`. Scoped is
- *  right for a book and fatally wrong for a guard: Sale A converts LD-0042 into
- *  OP-5001, Sale B (also `ownOnly`) opens LD-0042, the scope axis removes
- *  OP-5001 from the answer, and the screen reads the resulting empty list as
- *  "nobody has converted this lead". The button lights up, `POST
- *  /sales/opportunities` demands only `opportunity.edit` and does not check for
- *  duplicates, and the customer now has two deals. A guard that hides the very
- *  row it exists to find is not a guard.
- *
- *  So this door deliberately steps OFF the scope axis, and pays for that by
- *  returning as little as it possibly can — see `code`.
- *
- *  ------------------------------------------------------------------
- *  "ALIVE", NOT "HAS EVER EXISTED"
- *  ------------------------------------------------------------------
- *  Alive means `state <> 'close-lost'` AND not signed, which is exactly what
- *  the import door already means by a duplicate (`liveDealsByLead`). A customer
- *  who comes back a quarter after a lost deal is a NEW deal, not a second copy
- *  of a finished one — so a lead whose only deal is closed may be converted
- *  again, and this contract has to say so, because the screen it feeds used to
- *  block on any deal that had ever existed and left that lead permanently
- *  un-convertible. Two doors of one book must not answer this differently. */
+ *  Unscoped on purpose: the book is `scoped: true`, so a Sale filtering it
+ *  would not see a colleague's deal on the same lead. */
 export const OpportunityLiveDealQuery = z.object({
   leadCode: ObjectCode,
 })
 
-/** The whole answer: a code, or nothing.
- *
- *  ------------------------------------------------------------------
- *  THE SHORT SHAPE IS THE PRICE OF SKIPPING THE SCOPE AXIS
- *  ------------------------------------------------------------------
- *  This door tells a Sale about a deal that is NOT theirs and that the book
- *  would have hidden from them. That is worth doing for exactly one reason —
- *  stopping a second deal on one customer — so it may leak exactly what that
- *  reason needs and not one field more: whether a live deal exists, and the
- *  code to navigate to. No owner name (who is working the account is precisely
- *  what the scope axis is protecting), no amount, no state, no customer.
- *
- *  `null` means "no live deal", never "you may not see it": the door does not
- *  cut by scope, so an empty answer is a fact about the book rather than a fact
- *  about the reader. That is what makes it safe to read as "the button may
- *  light up".
- *
- *  A bare `code` rather than `{ exists, code }`: two fields that can disagree
- *  are two fields that eventually will. `code !== null` IS the existence
- *  answer. */
+/** Open deals of the lead, oldest first — information, not a duplicate guard.
+ *  `codes` holds only deals the reader may open; `hidden` counts the rest, so
+ *  a colleague's deal is known to exist without its code being listed. */
 export const OpportunityLiveDeal = z.object({
-  code: ObjectCode.nullable(),
+  codes: z.array(ObjectCode),
+  hidden: z.number().int().nonnegative(),
 })
 
 export type OpportunityLiveDealQuery = z.infer<typeof OpportunityLiveDealQuery>

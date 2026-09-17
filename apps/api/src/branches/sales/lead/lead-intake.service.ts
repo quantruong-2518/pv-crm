@@ -12,6 +12,7 @@ import { fromIntake, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadIntakeRepository, type IntakeClient } from './lead-intake.repository'
+import { WorkstreamRepository } from '../workstream/workstream.repository'
 
 @Injectable()
 export class LeadIntakeService {
@@ -22,6 +23,7 @@ export class LeadIntakeService {
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     private readonly accounts: AccountService,
+    private readonly runs: WorkstreamRepository,
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
   ) {}
@@ -42,6 +44,7 @@ export class LeadIntakeService {
 
     const write = fromIntake(body)
     const code = await this.leads.nextCode()
+    const run = await this.runs.nextCode()
 
     try {
       await this.writes.run(async (tx) => {
@@ -53,7 +56,13 @@ export class LeadIntakeService {
            filling in the landing page form has to land on the company row that
            already exists, or every repeat submission opens a new customer. */
         const accountCode = await this.accounts.resolveForLead(tx, write.values)
-        await this.writes.insertLandingLead(tx, { ...write.values, accountCode, code })
+        await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
+        await this.writes.insertLandingLead(tx, {
+          ...write.values,
+          accountCode,
+          code,
+          workstreamCode: run,
+        })
         await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
 
         /* `SYSTEM_ACTOR` and no `actorId`, because this door is anonymous by
