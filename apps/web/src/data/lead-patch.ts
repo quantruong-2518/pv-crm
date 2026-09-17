@@ -36,7 +36,7 @@ import { changedFields, PROFILE_FIELDS, PROFILE_TO_WIRE, type ProfileField } fro
  *  about a rule it does not own. Worth knowing what that refusal says: emptying
  *  the name gives the blank-field complaint, while emptying the mailbox gives
  *  the malformed-mailbox one, because `email` checks a shape and `''` has none.
- *  Not lovely, and deliberately not fixed here — the create drawer answers a
+ *  Not lovely, and deliberately not fixed here — the create door answers a
  *  blank mailbox with exactly the same sentence, and one door quietly wording
  *  it better is how two doors start disagreeing about one rule.
  *
@@ -157,6 +157,10 @@ export function buildLeadPatch(base: ProfileForm, work: ProfileForm): PatchResul
   const candidate: Record<string, unknown> = {}
 
   for (const key of changedFields(base, work)) {
+    /* `motion` is the one box `changedFields` also tracks for the create door
+       (`data/lead-form.ts`) — no profile column holds it, so the patch door
+       has nothing to send for it. */
+    if (key === 'motion') continue
     const wire = wireKeyOf(key)
     if (!wire) continue
 

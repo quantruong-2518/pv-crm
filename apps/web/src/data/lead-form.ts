@@ -13,9 +13,10 @@ import {
   EMAIL_MAX,
   LEAD_MAX,
   LEAD_NUM,
+  LeadCreate,
   LeadPatch,
+  MOTION_BY_CHANNEL,
   PHONE_MAX,
-  type LeadCreate,
 } from '@pv/contracts'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 
@@ -107,6 +108,37 @@ export const PROFILE_GROUPS = [
 
 export type GroupKey = (typeof PROFILE_GROUPS)[number]['key']
 
+/** Which write door is drawing the form.
+ *
+ *  There is no third value for "xem": the detail screen edits IN PLACE, so
+ *  looking at a lead and correcting it are one screen with one set of boxes —
+ *  what separates a reader from an editor is the permission, not the form. */
+export type FormMode = 'edit' | 'create'
+
+export type FormGroup = { key: GroupKey; label: string; purpose: string }
+
+/** Which groups a door draws, in reading order — and the two do not agree.
+ *
+ *  `edit` drops `system` entirely: twelve boxes the machine writes itself, and
+ *  the three worth a look (holder · tier · column) are already pills in the
+ *  page header.
+ *
+ *  `create` puts that same group FIRST and renames it: on a blank form it is
+ *  down to two boxes, both required, and burying the first thing anybody types
+ *  under twenty optional ones is how a form gets abandoned halfway. */
+export function groupsOf(mode: FormMode): FormGroup[] {
+  const rest: FormGroup[] = PROFILE_GROUPS.filter((g) => g.key !== 'system').map((g) => ({
+    key: g.key,
+    label: g.label,
+    purpose: g.purpose,
+  }))
+  if (mode === 'edit') return rest
+  return [
+    { key: 'system', label: 'Dòng đầu sổ', purpose: 'Tên trong sổ và thế — hai ô đòi ngay.' },
+    ...rest,
+  ]
+}
+
 // ---------------------------------------------------------------------------
 // Một trường
 // ---------------------------------------------------------------------------
@@ -117,6 +149,10 @@ export type GroupKey = (typeof PROFILE_GROUPS)[number]['key']
  *  thành một ô nhập xám. Một ô nhập không gõ được là một lời mời bấm vào rồi
  *  thất vọng — và trên tablet thì nó còn ăn mất một vùng chạm 48px. */
 export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 'read'
+
+/** The create door draws ONE box no stored lead has a column for: `motion` is
+ *  not part of a profile, it is how the lead got here. */
+export type FieldKey = keyof LeadProfile | 'motion'
 
 export type ProfileField = {
   key: keyof LeadProfile
@@ -146,6 +182,15 @@ export type ProfileField = {
   mono?: boolean
 }
 
+/** A box on EITHER write door — the same shape as a profile box, one key
+ *  wider, so both forms draw through one set of components. */
+export type FormField = Omit<ProfileField, 'key'> & { key: FieldKey }
+
+/** What the boxes hold: the frozen profile shape plus `motion`, which is
+ *  ABSENT on a lead that already exists — optional, not an empty string, so
+ *  nothing reads a blank motion off a stored profile. */
+export type FormValues = LeadProfile & { motion?: string }
+
 const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: c.label }))
@@ -166,9 +211,8 @@ const CHANNEL_URL_LABEL = 'URL kênh liên hệ'
  *  channel states what it is asking for, instead of making the person infer it
  *  from the control beside it.
  *
- *  Only the detail screen can call this, because only there is a profile being
- *  edited in hand. `CREATE_FIELDS` is built once at module level, so the create
- *  drawer keeps the static label. */
+ *  Swapped at DRAW time, never written back into the field table, so the
+ *  static label below stays the one a box carries before a channel is picked. */
 export function channelUrlLabel(channel: string): string {
   const name = (CHANNEL_LABEL as Record<string, string | undefined>)[channel]
   return name ? `URL ${name}` : CHANNEL_URL_LABEL
@@ -398,17 +442,13 @@ export const PROFILE_FIELDS: ProfileField[] = [
  *  while the table has a `contact_channel` column and a `contact_*` family
  *  around it. Kept as a two-entry table rather than renamed on either side:
  *  renaming the profile field touches the fixture, the gate (`SLOT_FIELDS`) and
- *  four screens for a cosmetic win.
- *
- *  It lives HERE rather than in `data/lead-create.ts`, where it used to, and
- *  the move is the point: BOTH write doors need it, and the edit door borrowing
- *  it from the create door made two peers into a dependency. The blueprint is
- *  what both of them already read.
+ *  four screens for a cosmetic win. Lives here, not in `lead-create.ts`, so both
+ *  write doors read the same blueprint instead of one borrowing from the other.
  *
  *  Typed against `LeadCreate` so a typo does not compile; `LeadPatch` spells
  *  every name it shares identically, which is why the patch door can read the
  *  same table through a widening cast. */
-export const PROFILE_TO_WIRE: Partial<Record<ProfileField['key'], keyof LeadCreate>> = {
+export const PROFILE_TO_WIRE: Partial<Record<FieldKey, keyof LeadCreate>> = {
   channel: 'contactChannel',
   channelUrl: 'contactChannelUrl',
 }
@@ -445,7 +485,7 @@ const NUM_MAX: Record<string, number | undefined> = {
  *  Two fields carry a ceiling of their own rather than one from `LEAD_MAX`: a
  *  mailbox and a phone number are bounded by what is deliverable and what is
  *  dialable, not by what this book chose to store. */
-export function maxCharsOf(field: ProfileField): number | undefined {
+export function maxCharsOf(field: FormField): number | undefined {
   if (field.kind === 'read' || field.kind === 'select' || field.kind === 'date') return undefined
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
   if (field.kind === 'num' || field.kind === 'money') return NUM_MAX[wire]
@@ -473,7 +513,7 @@ export const DEADLINE_MAX = `${DEADLINE_YEARS.to}-12-31`
  *  digit, and a mailbox without the `@` key in reach is where this book's typos
  *  come from. `taxCode` is digits and a dash, which is what `numeric` offers;
  *  `tel` would be wrong there — it hands over a dial pad carrying `*` and `#`. */
-export function inputModeOf(field: ProfileField): 'email' | 'tel' | 'numeric' | undefined {
+export function inputModeOf(field: FormField): 'email' | 'tel' | 'numeric' | undefined {
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
   if (wire === 'email') return 'email'
   if (wire === 'phone') return 'tel'
@@ -481,8 +521,13 @@ export function inputModeOf(field: ProfileField): 'email' | 'tel' | 'numeric' | 
   return undefined
 }
 
-/** Ô đã chọn, gom theo cụm — màn lặp qua đây thay vì lọc lại ở bốn chỗ. */
-export const fieldsOf = (group: GroupKey) => PROFILE_FIELDS.filter((f) => f.group === group)
+/** Ô đã chọn, gom theo cụm — màn lặp qua đây thay vì lọc lại ở bốn chỗ.
+ *
+ *  The create door draws a DIFFERENT set (`CREATE_FIELDS` below). `edit` is the
+ *  default because every count the init-data gate makes asks about the whole
+ *  profile, not about what one door happens to draw. */
+export const fieldsOf = (group: GroupKey, mode: FormMode = 'edit'): FormField[] =>
+  (mode === 'create' ? CREATE_FIELDS : PROFILE_FIELDS).filter((f) => f.group === group)
 
 /** Is this box one the SAVE will refuse to leave empty?
  *
@@ -493,7 +538,7 @@ export const fieldsOf = (group: GroupKey) => PROFILE_FIELDS.filter((f) => f.grou
  *  question of the ten", read off `INIT_DATA_QUESTIONS`. That put a star on
  *  thirteen boxes while the patch door refuses exactly two of them — so eleven
  *  stars marked boxes a person could clear and save without a word of
- *  complaint. Meanwhile the create drawer, built later, used the same glyph for
+ *  complaint. Meanwhile the create door, built later, used the same glyph for
  *  "the contract will not take this empty". One symbol, two meanings, two
  *  screens: whichever one somebody learned first, they read the other wrong.
  *
@@ -508,7 +553,7 @@ export const fieldsOf = (group: GroupKey) => PROFILE_FIELDS.filter((f) => f.grou
  *  at all cannot be required BY it, so those come back false. */
 const PATCH_SHAPE = LeadPatch.shape as Record<string, FieldProbe>
 
-export function isRequiredOnSave(field: ProfileField): boolean {
+export function isRequiredOnSave(field: FormField): boolean {
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
   const probe = PATCH_SHAPE[wire]
   /* Refuses `null` = the column is NOT NULL and this door may not empty it.
@@ -519,10 +564,104 @@ export function isRequiredOnSave(field: ProfileField): boolean {
 
 /** Which of the ten questions a box carries — kept for the gate strip, and NOT
  *  for the star any more. See `isRequiredOnSave` for why they parted ways. */
-export function isMandatory(field: ProfileField): boolean {
+export function isMandatory(field: FormField): boolean {
   if (!field.slot) return false
   return INIT_DATA_QUESTIONS.find((q) => q.key === field.slot)?.required ?? false
 }
+
+// ---------------------------------------------------------------------------
+// Which boxes the CREATE door draws — one table, one filter
+// ---------------------------------------------------------------------------
+
+type CreateKey = keyof LeadCreate
+
+const CREATE_SHAPE = LeadCreate.shape as Record<string, FieldProbe>
+
+/** Which `LeadCreate` field a box writes into — `undefined` when the contract
+ *  has no such field, which is how the create form drops what it must not send.
+ *
+ *  That is the whole filter and it needs no exclusion list: `tier` and `stage`
+ *  are withheld by the contract (a client that names its own tier claims a gate
+ *  it never went through), the three holder boxes hold NAMES while the contract
+ *  takes actor ids, and `code` · `createdAt` · `source` · `exitReason` are the
+ *  book's own bookkeeping — `kind: 'read'` besides. */
+export function createWireOf(field: FormField): CreateKey | undefined {
+  const renamed = PROFILE_TO_WIRE[field.key]
+  if (renamed) return renamed
+  return field.key in CREATE_SHAPE ? (field.key as CreateKey) : undefined
+}
+
+/** Is this box one the CREATE will refuse to leave empty? Asked of the schema
+ *  exactly like `isRequiredOnSave` asks `LeadPatch`: required means "the
+ *  contract refuses `undefined` here", never a list kept by hand. */
+export function isRequiredOnCreate(field: FormField): boolean {
+  const wire = createWireOf(field)
+  const probe = wire === undefined ? undefined : CREATE_SHAPE[wire]
+  return probe !== undefined && !probe.safeParse(undefined).success
+}
+
+/** The star, one meaning on both doors: leave it blank and the write is
+ *  refused. Which contract answers depends on which door is writing. */
+export const isRequired = (field: FormField, mode: FormMode): boolean =>
+  mode === 'create' ? isRequiredOnCreate(field) : isRequiredOnSave(field)
+
+/** Vietnamese for the five motions the `MANUAL` door can carry.
+ *
+ *  NOT read from `MOTION_FACE` in `data/intake.ts`: that table is keyed by the
+ *  ENGINE's lower-case spelling (`inbound`) while the wire speaks `INBOUND`, and
+ *  `@pv/contracts/sales/enums.ts` states the conversion between the two has
+ *  exactly ONE legal site — the server's mapper. A label table is not a
+ *  conversion; this one is keyed by the values actually sent. */
+const MOTION_LABEL: Record<LeadCreate['motion'], string> = {
+  INBOUND: 'Inbound · khách tự tìm tới mình',
+  OUTBOUND: 'Outbound · mình đi tìm khách',
+  REFERRAL: 'Giới thiệu · khách cũ chỉ sang',
+  PARTNER: 'Đối tác · đại lý đẩy khách sang',
+  RECYCLE: 'Đánh thức lại · lead cũ quay lại',
+}
+
+/** Motion has no `PROFILE_FIELDS` row to reuse, so it is the one box this table
+ *  describes itself.
+ *
+ *  Five options taken from `MOTION_BY_CHANNEL.MANUAL` rather than listed:
+ *  `EVENT` is absent from that row because an event arrives as a LIST, and a
+ *  hand-typed row claiming to be an event lead is one nobody can trace back to
+ *  an event. Listing five by hand would be a promise to remember that. */
+const MOTION_FIELD: FormField = {
+  key: 'motion',
+  label: 'Thế',
+  kind: 'select',
+  group: 'system',
+  hint: 'Ai chủ động. Lead của một sự kiện về theo danh sách, không gõ tay từng dòng.',
+  options: MOTION_BY_CHANNEL.MANUAL.map((motion) => ({
+    value: motion,
+    label: MOTION_LABEL[motion],
+  })),
+}
+
+/** Placeholder row for an OPTIONAL select whose own list has no "nothing
+ *  chosen" entry. On a lead that exists, industry and currency are always set,
+ *  so the blueprint carries none; on a blank form a select without an empty row
+ *  silently posts its first option — an industry nobody chose. */
+const EMPTY_OPTION = { value: '', label: '— chưa có —' }
+
+function createOptions(field: ProfileField): ProfileField['options'] {
+  if (field.kind !== 'select') return field.options
+  const options = field.options ?? []
+  if (isRequiredOnCreate(field) || options[0]?.value === '') return options
+  return [EMPTY_OPTION, ...options]
+}
+
+/** The create door, COMPUTED rather than declared a second time. Blueprint
+ *  order is kept and `motion` is appended, which lands it right after `company`
+ *  — the only two survivors of the book group. */
+export const CREATE_FIELDS: FormField[] = [
+  ...PROFILE_FIELDS.filter((f) => f.kind !== 'read' && createWireOf(f) !== undefined).map((f) => ({
+    ...f,
+    options: createOptions(f),
+  })),
+  MOTION_FIELD,
+]
 
 // ---------------------------------------------------------------------------
 // Đọc và ghi một ô
@@ -532,8 +671,8 @@ export function isMandatory(field: ProfileField): boolean {
  *
  *  `null` và `undefined` cùng ra chuỗi rỗng — ô nhập không có khái niệm "chưa
  *  biết", và một chữ "null" hiện trong ô là lỗi cổ điển của form dựng vội. */
-export function readField(profile: LeadProfile, key: keyof LeadProfile): string {
-  const v = profile[key]
+export function readField(values: FormValues, key: FieldKey): string {
+  const v = values[key]
   if (v === null || v === undefined) return ''
   return String(v)
 }
@@ -543,21 +682,26 @@ export function readField(profile: LeadProfile, key: keyof LeadProfile): string 
  *  Ô số rỗng trả `null` chứ không trả `0`: xoá trắng ô "số người" nghĩa là
  *  "chưa moi được", còn `0` nghĩa là "nhà máy không có ai" — hai chuyện khác
  *  hẳn nhau, và `filledSlots` đọc đúng khác biệt đó. */
-export function writeField(field: ProfileField, raw: string): LeadProfile[keyof LeadProfile] {
+export function writeField(field: FormField, raw: string): FormValues[FieldKey] {
   if (field.kind === 'num' || field.kind === 'money') {
     const digits = raw.replace(/\D/g, '')
     return digits === '' ? null : Number(digits)
   }
-  return raw as LeadProfile[keyof LeadProfile]
+  return raw as FormValues[FieldKey]
 }
 
 /** Trường nào đã đổi so với bản dựng từ fixture.
  *
  *  Màn cần con số này để nói "3 ô đã sửa" và để bật nút hoàn tác. So từng
  *  trường chứ không so cả object: hai object luôn khác nhau về tham chiếu, và
- *  một dirty state luôn bật là một dirty state vô dụng. */
-export function changedFields(base: LeadProfile, work: LeadProfile): (keyof LeadProfile)[] {
-  return PROFILE_FIELDS.filter((f) => base[f.key] !== work[f.key]).map((f) => f.key)
+ *  một dirty state luôn bật là một dirty state vô dụng.
+ *
+ *  Duyệt cả `motion` — cửa tạo đọc ô đó dù nó không có hàng riêng trong
+ *  `PROFILE_FIELDS` — kẻo đổi mỗi ô "Thế" không tính là dirty và nút "Xoá
+ *  hết" ở cửa tạo cứ đứng im khoá. */
+export function changedFields(base: FormValues, work: FormValues): FieldKey[] {
+  const keys: FieldKey[] = [...PROFILE_FIELDS.map((f) => f.key), 'motion']
+  return keys.filter((k) => base[k] !== work[k])
 }
 
 /** Ô của bộ 10 câu mà một cụm đang chở — dùng cho dòng đếm trên đầu cụm. */

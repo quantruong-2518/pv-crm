@@ -730,9 +730,9 @@ function InviteLink({ link, onCopy }: { link: string; onCopy: () => void }) {
 /** Label · control · then EITHER the hint OR what the server disliked about the
  *  box, never both.
  *
- *  Swapping rather than stacking is the trick `lead-create-dialog` documents:
- *  the eye already goes to the line under a box it just filled in, so the
- *  complaint belongs exactly there, and stacking both grows the form by a row
+ *  Swapping rather than stacking is the trick `components/ops-fields.tsx`
+ *  documents: the eye already goes to the line under a box it just filled in, so
+ *  the complaint belongs exactly there, and stacking both grows the form by a row
  *  per error — enough, on a six-field panel, to push the save button under the
  *  fold mid-correction. */
 function FormField({

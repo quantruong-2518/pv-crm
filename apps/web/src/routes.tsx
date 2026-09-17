@@ -212,6 +212,19 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/leads'),
   },
   {
+    /** Typing a lead by hand — static segment `new`, placed BEFORE `:code` in
+     *  the array, but that order decides nothing (React Router ranks by
+     *  specificity, the same reason `/sales/campaigns/new` above wins over
+     *  `:code`). */
+    path: '/sales/leads/new',
+    name: 'Kinh doanh · Module 2 · Lead mới',
+    branch: 'Sales',
+    /* Write permission, not read — same reason as campaign.edit above: this
+       route only exists to write, so refuse at the door, not after 30 fields. */
+    permission: 'lead.edit',
+    load: () => import('@/pages/lead-new'),
+  },
+  {
     /** Hồ sơ một lead. Đường dẫn nằm DƯỚI sổ vì nó là một dòng của sổ — nav
      *  bên trái vẫn sáng ở mục Lead, không đẻ thêm mục thứ sáu cho nhánh. */
     path: '/sales/leads/:code',

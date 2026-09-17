@@ -61,7 +61,7 @@ import { ExitDialog } from '@/components/exit-dialog'
 import { LeadHistoryCard } from '@/components/lead-history-card'
 import { MeetingsCard } from '@/components/meetings-card'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { NextActionCard, NotesCard, ProfileCard } from './lead-parts'
+import { LeadForm, NextActionCard, NotesCard } from './lead-parts'
 
 /** Module 2 · Hồ sơ một lead — `/sales/leads/:code`.
  *
@@ -460,7 +460,7 @@ export function LeadDetailPage() {
         /* Dưới xl về một cột và TÁC VỤ lên trước: trên tablet người ta mở một
            khách ra để làm việc, không phải để điền form. */
         sideFirst
-        main={<ProfileCard profile={lead} />}
+        main={<LeadForm mode="edit" profile={lead} />}
         side={
           <DetailSidePanel>
             {/* Reading order of the column: who to call → what was agreed →

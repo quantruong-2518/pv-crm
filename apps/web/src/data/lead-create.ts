@@ -1,15 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { LeadCreate, MOTION_BY_CHANNEL, type LeadCreateResponse } from '@pv/contracts'
+import { LeadCreate, type LeadCreateResponse } from '@pv/contracts'
+import type { CurrencyCode, LeadCategory, LeadTier } from '@pv/engines/fixtures/das-vina'
 import { api, userMessage, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import {
-  inputModeOf,
-  maxCharsOf,
-  PROFILE_FIELDS,
-  PROFILE_GROUPS,
-  PROFILE_TO_WIRE,
-  type FieldKind,
-  type GroupKey,
-  type ProfileField,
+  createWireOf,
+  CREATE_FIELDS,
+  isRequiredOnCreate,
+  readField,
+  type FormValues,
 } from '@/data/lead-form'
 
 /** Module 2 · `POST /sales/leads` — the HAND-TYPED door of the lead book.
@@ -36,11 +34,9 @@ import {
  *   · `LeadCreate` (`@pv/contracts`) knows what the endpoint ACCEPTS — which
  *     fields exist, which are required, and what each one normalises to.
  *
- *  `CREATE_FIELDS` below is the intersection of those two, computed. Nothing
- *  is enumerated by hand, and that is the point: the day the contract drops a
- *  field or makes one required, the form follows in the same commit as the
- *  contract instead of drifting until somebody notices a control the server
- *  refuses to hear about. */
+ *  `CREATE_FIELDS` — the intersection of those two, computed — lives NEXT TO
+ *  the blueprint since 17/09, because the profile screen draws it too: one lead
+ *  form, three doors (xem · sửa · tạo). What is left here is the WIRE. */
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -84,9 +80,9 @@ export function createLead(body: LeadCreate, signal?: AbortSignal): Promise<Lead
   })
 }
 
-/** The mutation the dialog runs.
+/** The mutation the create form runs.
  *
- *  `onSuccess` invalidates the book so the table behind the dialog refetches.
+ *  `onSuccess` invalidates the book so the lead book refetches behind it.
  *  It deliberately does NOT go looking for the new row: the 201 already
  *  carries the whole `LeadRow`, normalised, and handing that to the caller is
  *  both faster and the only way the person who typed it sees what was actually
@@ -98,7 +94,7 @@ export function createLead(body: LeadCreate, signal?: AbortSignal): Promise<Lead
  *  No retry is configured and none should be: `mayReplay` already refuses to
  *  replay a POST that reached the wire, because a lead inserted twice is two
  *  rows nothing downstream can tell apart. Guarding the second HUMAN click is
- *  the form's job — see `isPending` in the dialog. */
+ *  the form's job — see `pending` in `LeadForm`. */
 export function useCreateLead() {
   const client = useQueryClient()
 
@@ -111,211 +107,63 @@ export function useCreateLead() {
 }
 
 // ---------------------------------------------------------------------------
-// Which of the profile fields this door actually carries
+// What the thirty boxes start out holding
 // ---------------------------------------------------------------------------
-
-type CreateKey = keyof LeadCreate
-
-/** The contract's own field table, read structurally.
- *
- *  Only two questions are asked of it — "does this field exist" and "may it be
- *  absent" — so the type is narrowed to the one method that answers them
- *  rather than dragging zod's types into `apps/web`, which does not depend on
- *  zod and should not start. */
-type FieldProbe = { safeParse: (value: unknown) => { success: boolean } }
-
-const SHAPE = LeadCreate.shape as Record<CreateKey, FieldProbe>
-
-/** Is this field required?
- *
- *  ASKED OF THE SCHEMA, never listed by hand. A field is required exactly when
- *  the contract refuses `undefined` for it, which today means `company`,
- *  `contactName`, `email` (the three NOT NULL columns) and `motion`. A
- *  hand-written list of four would be a fifth place to keep in step, and the
- *  star on a label that disagrees with the server is worse than no star: the
- *  user fills the form, presses the button, and is told about a field that
- *  carried no mark. */
-const requiredOnWire = (key: CreateKey) => !SHAPE[key].safeParse(undefined).success
-
-/** Which `LeadCreate` field a drawn profile field writes into — `undefined`
- *  when the contract has no such field, which is how the create form drops
- *  what it must not send.
- *
- *  This is the whole filter, and it needs no exclusion list. Everything the
- *  sketch says to leave out is already absent from `LeadCreate`, for reasons
- *  the contract states itself:
- *
- *   · `tier` · `stage` — withheld. A freshly typed lead has passed no gate and
- *     opened no opportunity; a client that can name its own tier can claim a
- *     gate it never went through.
- *   · `owner` · `bdOwner` · `marketingOwner` — the contract takes ACTOR IDS
- *     (`ownerId`…), never names, so the three name-valued profile fields match
- *     nothing here and fall out on their own. A new lead lands in the common
- *     pool with nobody holding it, exactly like the rows the importer makes.
- *   · `code` · `createdAt` · `dealCode` · `contractCode` · `exitReason` —
- *     the system's own bookkeeping, and all `kind: 'read'` besides.
- *   · `source` — present in the contract but `kind: 'read'` on the profile, so
- *     the read filter drops it. Right answer for the wrong-looking reason, and
- *     the contract agrees: a lead typed in by hand belongs to no campaign, and
- *     inventing a source code creates a source that is in no source book. */
-function wireKeyOf(key: ProfileField['key']): CreateKey | undefined {
-  const renamed = PROFILE_TO_WIRE[key]
-  if (renamed) return renamed
-  return key in SHAPE ? (key as CreateKey) : undefined
-}
-
-/** One control on the create form.
- *
- *  Keyed by the WIRE name, not the profile name, and that is the decision that
- *  makes per-field errors work: `ApiError.errors` arrives keyed by contract
- *  field (`{ email: […] }`, `{ currency: […] }`), so a draft keyed the same way
- *  needs no translation table between "what the server complained about" and
- *  "which box to outline". One rename lives in `PROFILE_TO_WIRE`; nothing else has two
- *  names anywhere in this file. */
-export type CreateField = {
-  wire: CreateKey
-  label: string
-  kind: FieldKind
-  group: GroupKey
-  required: boolean
-  /** How many characters the control accepts — `maxCharsOf` in
-   *  `data/lead-form.ts` decides it, off the contract's own table, and the
-   *  profile card reads the same function. */
-  max?: number
-  /** Soft keyboard for the tablet, from the same blueprint. Derived once here
-   *  rather than looked up while drawing, because this table is built once at
-   *  module level and the drawer is not. */
-  inputMode?: 'email' | 'tel' | 'numeric'
-  hint?: string
-  placeholder?: string
-  unit?: string
-  mono?: boolean
-  options?: { value: string; label: string }[]
-}
-
-/** Vietnamese for the five motions the `MANUAL` door can carry.
- *
- *  NOT read from `MOTION_FACE` in `data/intake.ts`, and this is deliberate:
- *  that table is keyed by the ENGINE's lower-case spelling (`inbound`), while
- *  the wire speaks `INBOUND`. Reaching across would mean a `.toUpperCase()`
- *  somewhere, and `@pv/contracts/sales/enums.ts` states that the conversion
- *  between the two spellings has exactly ONE legal site — `lead.mapper.ts` on
- *  the server — "a second conversion site is how two spellings start to drift,
- *  so there must not be one." A label table is not a conversion; labels are
- *  view-layer knowledge, and this one is keyed by the values actually sent.
- *
- *  Typed as a full `Record` over the narrowed union on purpose: widen or
- *  narrow `MOTION_BY_CHANNEL.MANUAL` and this stops compiling. */
-const MOTION_LABEL: Record<LeadCreate['motion'], string> = {
-  INBOUND: 'Inbound · khách tự tìm tới mình',
-  OUTBOUND: 'Outbound · mình đi tìm khách',
-  REFERRAL: 'Giới thiệu · khách cũ chỉ sang',
-  PARTNER: 'Đối tác · đại lý đẩy khách sang',
-  RECYCLE: 'Đánh thức lại · lead cũ quay lại',
-}
 
 /** What a hand-typed lead is unless told otherwise. Somebody sitting down to
  *  type one row has almost always just put the phone down. */
-export const DEFAULT_MOTION: LeadCreate['motion'] = 'INBOUND'
+const DEFAULT_MOTION: LeadCreate['motion'] = 'INBOUND'
 
-/** Motion has no `PROFILE_FIELDS` row to reuse — it is not part of a lead's
- *  profile at all, it is how the lead got here — so it is the one control this
- *  file describes itself.
+/** A blank lead, in the SAME shape the profile card edits — that shape is what
+ *  lets one form serve both doors.
  *
- *  Five options, taken from `MOTION_BY_CHANNEL.MANUAL` rather than listed:
- *  `EVENT` is missing from that row because an event arrives as a LIST, and a
- *  hand-typed row claiming to be an event lead is a row nobody can trace back
- *  to an event. Listing the five here by hand would be a promise to remember
- *  that reasoning every time the table changes. */
-const MOTION_FIELD: CreateField = {
-  wire: 'motion',
-  label: 'Thế',
-  kind: 'select',
-  group: 'system',
-  required: true,
-  hint: 'Ai chủ động. Lead của một sự kiện về theo danh sách, không gõ tay từng dòng.',
-  options: MOTION_BY_CHANNEL.MANUAL.map((motion) => ({
-    value: motion,
-    label: MOTION_LABEL[motion],
-  })),
-}
+ *  Written out rather than derived from the field table, because "empty" is a
+ *  matter of the column's TYPE: a number nobody has dug out is `null`, not `0`
+ *  and not `''`, and `filledSlots` reads exactly that distinction. */
+export const emptyDraft = (): FormValues => ({
+  legalName: '',
+  taxCode: '',
+  address: '',
+  province: '',
+  category: '' as LeadCategory,
+  mainProduct: '',
+  headcount: null,
+  plants: null,
 
-/** Placeholder row for an OPTIONAL select whose option list has no "nothing
- *  chosen" entry of its own.
- *
- *  `CHANNEL_OPTIONS` in `data/lead-form.ts` already opens with one ("Chưa moi
- *  được kênh nào") because the profile form needs to un-set it; the industry
- *  and currency lists do not, because on a lead that already exists those are
- *  always set. On a blank create form they are not, and a select with no empty
- *  row silently posts its first option — an industry nobody chose. */
-const EMPTY_OPTION = { value: '', label: '— chưa có —' }
+  contactName: '',
+  contactTitle: '',
+  phone: '',
+  email: '',
+  channel: '',
+  channelUrl: '',
 
-function optionsOf(field: ProfileField, required: boolean) {
-  if (field.kind !== 'select') return undefined
-  const options = field.options ?? []
-  if (required || options[0]?.value === '') return options
-  return [EMPTY_OPTION, ...options]
-}
+  pain: '',
+  currentStack: '',
+  decisionMaker: '',
+  approver: '',
+  budget: null,
+  currency: '' as CurrencyCode,
+  deadline: '',
 
-/** The form, computed. Profile order is kept; `motion` is appended, which puts
- *  it right after `company` because those two are the only survivors of the
- *  book group. */
-export const CREATE_FIELDS: CreateField[] = [
-  ...PROFILE_FIELDS.flatMap((field): CreateField[] => {
-    if (field.kind === 'read') return []
-    const wire = wireKeyOf(field.key)
-    if (!wire) return []
-    const required = requiredOnWire(wire)
-    return [
-      {
-        wire,
-        label: field.label,
-        kind: field.kind,
-        group: field.group,
-        required,
-        max: maxCharsOf(field),
-        inputMode: inputModeOf(field),
-        hint: field.hint,
-        placeholder: field.placeholder,
-        unit: field.unit,
-        mono: field.mono,
-        options: optionsOf(field, required),
-      },
-    ]
-  }),
-  MOTION_FIELD,
-]
+  code: '',
+  company: '',
+  tier: '' as LeadTier,
+  source: '',
+  owner: '',
+  bdOwner: '',
+  marketingOwner: '',
+  createdAt: '',
+  stage: '',
+  dealCode: '',
+  contractCode: '',
+  exitReason: '',
 
-/** Group order, and the book group comes FIRST here.
- *
- *  On the profile screen "Sổ sách" is last and collapsed, because there it is
- *  twelve fields the system wrote itself. On a create form the same group is
- *  down to two controls, both required, and burying the first thing anyone
- *  types under twenty optional ones is how a form gets abandoned halfway. Its
- *  own label and purpose line for the same reason — "Hệ tự ghi, đọc là chính"
- *  is a true sentence about the profile screen and a false one about this. */
-export const CREATE_GROUPS: { key: GroupKey; label: string; purpose: string }[] = [
-  { key: 'system', label: 'Dòng đầu sổ', purpose: 'Tên trong sổ và thế — hai ô đòi ngay.' },
-  ...PROFILE_GROUPS.filter((group) => group.key !== 'system').map((group) => ({
-    key: group.key as GroupKey,
-    label: group.label as string,
-    purpose: group.purpose as string,
-  })),
-]
-
-export const createFieldsOf = (group: GroupKey) => CREATE_FIELDS.filter((f) => f.group === group)
+  motion: DEFAULT_MOTION,
+})
 
 // ---------------------------------------------------------------------------
 // Draft → body
 // ---------------------------------------------------------------------------
-
-/** What the controls hold: raw strings, keyed by wire name. Strings all the
- *  way, including the three numeric fields — an `<input>` has no numbers, and
- *  a draft that pretends otherwise has to decide what a half-typed number is
- *  before the user has finished typing it. */
-export type LeadDraft = Partial<Record<CreateKey, string>>
-
-export const emptyDraft = (): LeadDraft => ({ motion: DEFAULT_MOTION })
 
 /** Key that carries a complaint belonging to no single field.
  *
@@ -351,7 +199,7 @@ function fieldErrorsOf(
  *  server would have raised, on the same field, in the same Vietnamese.
  *
  *  It is a courtesy, not a fence. The server parses again and has the last
- *  word; the dialog handles a 400 exactly as it handles this.
+ *  word; the form handles a 400 exactly as it handles this.
  *
  *  ------------------------------------------------------------------
  *  EMPTY IS ABSENT — AND THAT IS WHY OPTIONAL FIELDS ARE OMITTED
@@ -366,23 +214,24 @@ function fieldErrorsOf(
  *  Required fields keep the opposite treatment — a blank one is SENT as `''`
  *  so the contract answers "Không được để trống" against that field, rather
  *  than the form quietly posting three fields and calling it a lead. */
-export function buildLeadCreate(draft: LeadDraft): BuildResult {
+export function buildLeadCreate(values: FormValues): BuildResult {
   const candidate: Record<string, unknown> = {}
 
   for (const field of CREATE_FIELDS) {
-    const raw = draft[field.wire] ?? ''
+    const wire = createWireOf(field)
+    if (!wire) continue
 
+    const raw = readField(values, field.key)
     if (field.kind === 'num' || field.kind === 'money') {
-      /* Every numeric field on this door is optional, so a blank one is simply
-         absent. Digits only: the control shows `1.000.000` and the contract
-         wants a number. */
-      const digits = raw.replace(/\D/g, '')
-      if (digits !== '') candidate[field.wire] = Number(digits)
+      /* Every numeric box on this door is optional, so a blank one is simply
+         absent. `writeField` already made a cleared box `null`, which reads
+         back as `''` here. */
+      if (raw !== '') candidate[wire] = Number(raw)
       continue
     }
 
-    if (raw === '' && !field.required) continue
-    candidate[field.wire] = raw
+    if (raw === '' && !isRequiredOnCreate(field)) continue
+    candidate[wire] = raw
   }
 
   const parsed = LeadCreate.safeParse(candidate)

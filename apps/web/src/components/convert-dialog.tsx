@@ -61,7 +61,7 @@ import {
  *  `draftOpportunity` tự sinh hồ sơ từ mã lead — với một mã ngoài dải đóng
  *  băng, hàm sinh đó tra nguồn `SR-…` trong `SOURCES` của fixture và NÉM, làm
  *  vỡ cả màn hồ sơ chứ không riêng phiếu này (dialog nằm trong cây kể cả khi
- *  chưa mở). `profileForm` là đường dịch duy nhất, dùng chung với `ProfileCard`
+ *  chưa mở). `profileForm` là đường dịch duy nhất, dùng chung với `LeadForm`
  *  — cùng một hồ sơ thì thẻ đọc và phiếu điền không được đọc ra hai bản.
  *
  *  Đi qua `useMemo` cũng là để GIỮ NGUYÊN thứ đang gõ dở: `profile` từ
@@ -130,7 +130,7 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
   /* Typing into a box the server just complained about clears that complaint.
      A red mark that survives the fix reads as "still wrong", and the user
      stops believing any of the other red marks. Same rule the lead form runs
-     on — see `set` in `components/lead-create-dialog.tsx`. */
+     on — see `set` in `pages/lead-parts.tsx`. */
   const set = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => {
     setDraft((d) => ({ ...d, [key]: value }))
     setErrors((current) => {

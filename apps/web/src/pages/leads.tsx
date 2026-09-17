@@ -28,7 +28,7 @@ import {
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
-import { useSession } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import {
   DEFAULT_LEAD_BOOK_QUERY,
   leadBookQueryToParams,
@@ -50,7 +50,6 @@ import { useDirectory } from '@/data/directory'
 import { LEAD_SPEC, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
-import { LeadCreateDialog } from '@/components/lead-create-dialog'
 import { MasMailModal } from '@/components/mas-mail-modal'
 import { PicCell, TableFooter } from '@/components/table-bits'
 import {
@@ -160,6 +159,10 @@ export function LeadsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  /* Hides rather than greys out — same call the create route's own gate makes
+     (`routes.tsx`, `permission: 'lead.edit'`), so the button and the fence
+     never disagree. Precedent: `campaigns.tsx`'s `canWrite`. */
+  const canWrite = useCan('lead.edit')
 
   /* ĐỊA CHỈ là nguồn sự thật của bộ lọc — dịch hai chiều ở `app/url.ts`.
      `size` thì màn áp đè: `PAGE_SIZE` là số dòng bảng này vẽ, còn mặc định của
@@ -351,10 +354,6 @@ export function LeadsPage() {
       sourceKind: undefined,
       status: DEFAULT_LEAD_BOOK_QUERY.status,
     })
-
-  /* Cửa gõ tay. Trạng thái CHẾT theo màn (mở/đóng một dialog), nên nó nằm ở
-     `useState` của màn chứ không ở `app/` — cùng luật với số trang và bộ lọc. */
-  const [typing, setTyping] = useState(false)
 
   /* Phiếu MAS sống trọn trong Modal: nội dung, lịch và người nhận cùng một chỗ.
      Sổ không đổi cột hay chèn thêm section khi soạn mail. */
@@ -628,10 +627,19 @@ export function LeadsPage() {
                   clearFilters()
                 }}
               />
-              <Button size="md" onClick={() => setTyping(true)} className="max-sm:flex-1">
-                <Icon icon={Plus} size={16} />
-                Tạo lead
-              </Button>
+              {/* Typing a lead by hand is a PAGE now (`/sales/leads/new`), not a
+                  drawer: it asks the very questions the lead profile asks, so it
+                  uses that same form — see `pages/lead-new.tsx`. */}
+              {canWrite && (
+                <Button
+                  size="md"
+                  onClick={() => navigate('/sales/leads/new')}
+                  className="max-sm:flex-1"
+                >
+                  <Icon icon={Plus} size={16} />
+                  Tạo lead
+                </Button>
+              )}
             </>
           }
         />
@@ -706,9 +714,6 @@ export function LeadsPage() {
         </GlassCard>
 
         {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
-        {/* The book refreshes itself after a create: `useCreateLead` invalidates
-            the `['sales','lead-book']` prefix, and the dialog closes on 201. */}
-        <LeadCreateDialog open={typing} onClose={() => setTyping(false)} />
         <MasMailModal
           open={composing}
           onClose={() => setComposing(false)}

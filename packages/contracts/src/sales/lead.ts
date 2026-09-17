@@ -659,9 +659,9 @@ const clearableText = (max: number) =>
 /** What a person may correct on the profile screen, and nothing else.
  *
  *  ------------------------------------------------------------------
- *  EXACTLY THE THREE GROUPS THE PROFILE CARD DRAWS
+ *  EXACTLY THE THREE GROUPS THE FORM DRAWS
  *  ------------------------------------------------------------------
- *  `ProfileCard` renders `company` · `person` · `need` and filters `system` out —
+ *  `LeadForm` renders `company` · `person` · `need` and filters `system` out —
  *  the book group is what the system writes about itself. This shape is those
  *  three groups and stops there, so everything withheld is withheld for a
  *  reason already written down somewhere:

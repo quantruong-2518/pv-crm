@@ -60,8 +60,7 @@ const AMOUNT_MAX = Number.MAX_SAFE_INTEGER
 /** Khung một ô của phiếu. Cùng hình với ô của form hồ sơ lead — hai chỗ nhập
  *  trong cùng một app mà khác hình thì đọc ra như hai sản phẩm.
  *
- *  `errors` ĐÈ LÊN `hint` chứ không xếp thêm một dòng bên dưới, và đó là bản
- *  chép nguyên của `FieldShell` ở `components/lead-create-dialog.tsx`: mắt vốn
+ *  `errors` ĐÈ LÊN `hint` chứ không xếp thêm một dòng bên dưới: mắt vốn
  *  đã nhìn xuống dòng ngay dưới cái ô vừa điền, nên câu từ chối phải nằm đúng
  *  chỗ đó. Xếp chồng cả hai thì mỗi ô sai đẩy phiếu dài thêm một dòng, và trên
  *  một phiếu mười bốn ô thì cái nút Gửi trôi khỏi màn hình giữa lúc đang sửa. */

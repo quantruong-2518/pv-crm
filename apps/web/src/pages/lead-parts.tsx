@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Check, ChevronDown } from '@pv/ui'
+import { Check, ChevronDown, Plus } from '@pv/ui'
 import {
   Button,
   GlassCard,
@@ -18,19 +18,21 @@ import {
   toMoneyVnd,
   type CurrencyCode,
   type Lead,
-  type LeadProfile,
 } from '@pv/engines/fixtures/das-vina'
-/* HAI kiểu cùng tên `LeadProfile` gặp nhau ở file này, và đó là chuyện hợp
-   đồng đã báo trước: cái của fixture là hình mà FORM đọc (mọi trường có mặt,
-   `''`/`null` nghĩa là chưa moi được), cái của `@pv/contracts` là hình MÁY CHỦ
-   gửi (trường vắng nghĩa là chưa moi được). `profileForm` là chỗ duy nhất đi
-   từ cái sau sang cái trước. Đặt bí danh chứ không import bừa: một cái tên
-   chọn nhầm ở đây là cả cái form đọc sai một hồ sơ. */
+/* Bí danh chứ không import bừa: hình MÁY CHỦ gửi (trường vắng = chưa moi được)
+   khác hình FORM đọc (`FormValues`, mọi trường có mặt, `''`/`null` là chưa moi
+   được), và `profileForm` là chỗ duy nhất đi từ cái trước sang cái sau. */
 import type { LeadProfile as WireLeadProfile } from '@pv/contracts'
 import { useLeadDesk } from '@/app/desk'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
-import { ROOT_FIELD } from '@/data/lead-create'
+import {
+  buildLeadCreate,
+  createFailureMessage,
+  emptyDraft,
+  ROOT_FIELD,
+  useCreateLead,
+} from '@/data/lead-create'
 import { buildLeadPatch, patchFieldLabel, useUpdateLeadProfile } from '@/data/lead-patch'
 import { profileForm } from '@/data/lead-profile'
 import {
@@ -39,15 +41,18 @@ import {
   DEADLINE_MAX,
   DEADLINE_MIN,
   fieldsOf,
+  groupsOf,
   inputModeOf,
-  isRequiredOnSave,
+  isRequired,
   maxCharsOf,
-  PROFILE_GROUPS,
   readField,
   slotsOfGroup,
   writeField,
+  type FormField,
+  type FormGroup,
+  type FormMode,
+  type FormValues,
   type GroupKey,
-  type ProfileField,
 } from '@/data/lead-form'
 
 /** Module 2 · Ba khối lớn của hồ sơ lead.
@@ -56,7 +61,7 @@ import {
  *  `campaign-detail.tsx`: màn còn lại chỉ nên là BỐ CỤC — đọc dòng lead, xếp
  *  khối, treo thanh công cụ. Nội dung từng khối là chuyện riêng của khối.
  *
- *   · `ProfileCard`   — hồ sơ sửa được, có cổng init data sống;
+ *   · `LeadForm`      — hồ sơ đọc/sửa/tạo được, một component ba cửa (mode);
  *   · `NotesCard`     — thông tin quan trọng, ô soạn tự do;
  *   · `NextActionCard`— một đề xuất ngắn về bước nên làm tiếp theo.
  *
@@ -86,17 +91,21 @@ import {
  *  control nào để nhãn trỏ vào. */
 function FieldShell({
   field,
+  required,
   plain,
   children,
 }: {
-  field: ProfileField
+  field: FormField
+  /** The star. Handed in rather than asked for here, because the two doors ask
+   *  two contracts — `LeadPatch` while editing, `LeadCreate` while typing. */
+  required: boolean
   plain?: boolean
   children: ReactNode
 }) {
   const head = (
     <span className="text-glass-foreground text-[13px] font-semibold leading-[1.4]">
       {field.label}
-      {isRequiredOnSave(field) && (
+      {required && (
         <span className="text-warning" aria-hidden="true">
           {' '}
           *
@@ -131,18 +140,20 @@ const grouped = (raw: string) => (raw === '' ? '' : Number(raw).toLocaleString('
 function FieldControl({
   field,
   value,
+  required,
   options,
   onChange,
 }: {
-  field: ProfileField
+  field: FormField
   value: string
+  required: boolean
   /** Danh sách của ô select. Truyền vào chứ không đọc `field.options`, vì ba ô
    *  người của form lấy danh sách từ sổ người trên máy chủ — `FieldRow` dựng
    *  nó một lần cho cả hàng thay vì ba chục ô cùng mở một observer query. */
   options: { value: string; label: string }[]
   onChange: (raw: string) => void
 }) {
-  const required = isRequiredOnSave(field) || undefined
+  const marked = required || undefined
 
   if (field.kind === 'read') {
     return (
@@ -183,7 +194,7 @@ function FieldControl({
         maxLength={maxCharsOf(field)}
         placeholder={field.placeholder}
         aria-label={field.label}
-        aria-required={required}
+        aria-required={marked}
         className="text-[13px]"
         onChange={(e) => onChange(e.target.value)}
       />
@@ -198,7 +209,7 @@ function FieldControl({
         min={DEADLINE_MIN}
         max={DEADLINE_MAX}
         aria-label={field.label}
-        aria-required={required}
+        aria-required={marked}
         className="h-11 text-[13px]"
         onChange={(e) => onChange(e.target.value)}
       />
@@ -212,7 +223,7 @@ function FieldControl({
           inputMode="numeric"
           value={grouped(value)}
           aria-label={field.label}
-          aria-required={required}
+          aria-required={marked}
           className="h-11 min-w-0 flex-1 font-mono text-[13px]"
           /* Clamped by DIGITS, not by `maxLength`: the box shows `1.000.000`
              while the value behind it is `1000000`, so a character ceiling on
@@ -239,7 +250,7 @@ function FieldControl({
       maxLength={maxCharsOf(field)}
       placeholder={field.placeholder}
       aria-label={field.label}
-      aria-required={required}
+      aria-required={marked}
       className={cn('h-11 text-[13px]', field.mono && 'font-mono')}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -250,29 +261,33 @@ function FieldControl({
 // 1 · Hồ sơ lead
 // ---------------------------------------------------------------------------
 
-/** Hồ sơ lead — bộ 10 câu mở ra thành ô nhập.
+/** ONE FORM, TWO DOORS — a lead's profile opened into boxes, and the screen
+ *  that types a new lead by hand.
  *
- *  ------------------------------------------------------------------
- *  BỐN QUYẾT ĐỊNH
- *  ------------------------------------------------------------------
- *  1 · **Form dựng từ bản vẽ, không viết tay.** `PROFILE_FIELDS` là bảng; khối
- *      này chỉ lặp qua nó. Thêm trường vào hồ sơ = thêm một dòng vào bảng.
+ *  Until 17/09 "gõ tay một lead" was a drawer with its own field table, its own
+ *  field type and its own copy of these controls. Two sets for one set of
+ *  thirty questions is two places to drift apart, and they had: the URL box
+ *  followed the chosen channel on one side and stood still on the other. Now
+ *  one table (`data/lead-form.ts`), one set of controls, and `mode` decides
+ *  three things — which boxes are drawn, which contract guards the star, and
+ *  which door the button writes through.
  *
- *  2 · **Lưới đều, mọi ô một ô lưới.** Xem docblock `data/lead-form.ts` — hai
- *      cách xếp trước đó đều sai, và sai theo hai hướng ngược nhau.
- *
- *  3 · **Chỉ dấu sao, không số ô.** Người điền form quan tâm ô nào bắt buộc,
- *      không quan tâm câu đó đánh số mấy. Cổng vẫn đếm ở dải trên đầu thẻ.
- *
- *  4 · **Cụm Sổ sách đóng sẵn.** Mười hai ô hệ tự ghi, mở ra chín trên mười lần
- *      không ai sửa gì. Ba ô đáng nhìn nhất của cụm (người giữ · bậc · cột) đã
- *      nằm trên dãy pill ở đầu trang rồi.
- *
- *  Sửa xong phải bấm lưu. Tự lưu từng phím nghe tiện nhưng bỏ mất trạng thái
- *  "tôi đang sửa dở" — mà đó chính là lúc người dùng cần thấy còn bao nhiêu ô
- *  chưa lưu và có đường lùi. */
-export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
+ *  The four decisions of the old card survive: built from the blueprint · even
+ *  grid, one box per cell · star only, no question numbers · nothing is written
+ *  until the button is pressed. */
+export type LeadFormProps =
+  | { mode: 'edit'; profile: WireLeadProfile }
+  /** Nothing to hand in: the lead does not exist yet. The 201 answers with its
+   *  code, and the create screen walks on to the profile just written. */
+  | { mode: 'create'; onCreated: (code: string) => void }
+
+export function LeadForm(props: LeadFormProps) {
+  const mode: FormMode = props.mode
+  const profile = props.mode === 'edit' ? props.profile : null
+  /* Both doors opened up front: a hook cannot sit behind a branch, and a
+     mutation nobody calls costs nothing. */
   const save = useUpdateLeadProfile()
+  const create = useCreateLead()
   const [failed, setFailed] = useState<FieldErrors | null>(null)
 
   /* Bản gốc là HỒ SƠ THẬT của máy chủ, không còn là bản sinh từ mã lead. Trường
@@ -283,20 +298,36 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
      kho zustand, và bản đã "lưu" đó phủ lên bản của máy chủ — nghĩa là sau khi
      có `PATCH` thật, một patch cũ còn nằm trong trình duyệt sẽ che mất chính
      giá trị vừa ghi xuống. Một nguồn sự thật, và nó ở phía máy chủ. */
-  const base = useMemo(() => profileForm(profile), [profile])
-  const [work, setWork] = useState<LeadProfile>(base)
+  const base = useMemo(() => (profile ? profileForm(profile) : emptyDraft()), [profile])
+  const [work, setWork] = useState<FormValues>(base)
 
   /* Đổi lead — hoặc nhận bản mới sau một lượt lưu — thì nạp lại ô nhập. Không
      nạp lại thì bấm sang lead khác vẫn thấy hồ sơ của lead trước. */
   useEffect(() => setWork(base), [base])
 
   const dirty = useMemo(() => changedFields(base, work), [base, work])
+  const groups = groupsOf(mode)
+  const pending = mode === 'create' ? create.isPending : save.isPending
 
-  /* Two human clicks are two real writes, and the second one lands a second
-     `field-filled` row on the timeline — one sitting reading as two. `isPending`
-     guards it here; the client only refuses to replay a write automatically. */
+  /* Two human clicks are two real writes: on the patch door the second lands a
+     second `field-filled` row on the timeline, on the create door it lands a
+     second lead. The client only refuses to replay a write AUTOMATICALLY. */
   const submit = () => {
-    if (save.isPending) return
+    if (pending) return
+
+    if (props.mode === 'create') {
+      const built = buildLeadCreate(work)
+      if (!built.ok) {
+        setFailed(built.errors)
+        return
+      }
+      setFailed(null)
+      create.mutate(built.body, {
+        onSuccess: (lead) => props.onCreated(lead.code),
+        onError: (error) => setFailed(error.errors ?? {}),
+      })
+      return
+    }
 
     const built = buildLeadPatch(base, work)
     if (!built.ok) {
@@ -306,7 +337,7 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
 
     setFailed(null)
     save.mutate(
-      { code: profile.code, body: built.body },
+      { code: props.profile.code, body: built.body },
       { onError: (error) => setFailed(error.errors ?? {}) },
     )
   }
@@ -338,14 +369,12 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
    *     dưới con trỏ" ở trên. Hình dạng này không phải chọn giữa hai cái sai.
    *
    *  Đây là mẫu chính thức của React cho "đặt lại state khi prop đổi". */
-  const [openGroups, setOpenGroups] = useState<ReadonlySet<GroupKey>>(
-    () => new Set(incompleteGroups(base)),
-  )
-  const [seededFor, setSeededFor] = useState(profile.code)
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<GroupKey>>(() => openAtFirst(mode, base))
+  const [seededFor, setSeededFor] = useState(profile?.code ?? '')
 
-  if (seededFor !== profile.code) {
-    setSeededFor(profile.code)
-    setOpenGroups(new Set(incompleteGroups(base)))
+  if (seededFor !== (profile?.code ?? '')) {
+    setSeededFor(profile?.code ?? '')
+    setOpenGroups(openAtFirst(mode, base))
   }
 
   /* Typing anywhere drops the complaint from the last attempt. A red sentence
@@ -353,19 +382,20 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
      that the user stops believing any of them. Dropped wholesale rather than
      per field because this note names boxes, not outlines them: keeping the
      other half of a stale sentence on screen is the same lie, shorter. */
-  const set = (field: ProfileField, raw: string) => {
+  const set = (field: FormField, raw: string) => {
     setFailed(null)
     /* Guarded, not called on every keystroke: `reset` dispatches a state update
        of its own, and the note has nothing to clear while the mutation is idle. */
     if (save.isError) save.reset()
-    setWork((w) => ({ ...w, [field.key]: writeField(field, raw) }) as LeadProfile)
+    if (create.isError) create.reset()
+    setWork((w) => ({ ...w, [field.key]: writeField(field, raw) }) as FormValues)
   }
 
   return (
     <GlassCard
       variant="b"
       className="flex flex-col gap-6 p-4 sm:p-5 lg:p-6"
-      aria-label="Hồ sơ lead"
+      aria-label={mode === 'create' ? 'Lead mới' : 'Hồ sơ lead'}
     >
       <SectionTitle
         size="detail"
@@ -374,19 +404,24 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
            lần chạm nào — con số đó sẽ là 0 với MỌI lead, kể cả lead vừa nói
            chuyện xong. Một con số luôn bằng 0 không phải thông tin, nên chỗ này
            nói thẳng ra là chưa có sổ để đếm. */
-        hint="Điền theo từng nhóm. Ô có dấu * không được để trống khi lưu."
+        hint={
+          mode === 'create'
+            ? 'Điền theo từng nhóm. Ô có dấu * không được để trống khi ghi xuống sổ.'
+            : 'Điền theo từng nhóm. Ô có dấu * không được để trống khi lưu.'
+        }
         /* The "back to the original" button is gone. It stepped from the copy
            saved ON THIS MACHINE back to the server's, and those two are now one
            and the same. Stepping back from something already written into the
            book is editing it again and saving again, not a button. */
       >
-        Chi tiết lead
+        {mode === 'create' ? 'Thông tin lead' : 'Chi tiết lead'}
       </SectionTitle>
 
-      {PROFILE_GROUPS.filter((g) => g.key !== 'system').map((group) => (
+      {groups.map((group) => (
         <FieldGroup
           key={group.key}
           group={group}
+          mode={mode}
           work={work}
           onSet={set}
           open={openGroups.has(group.key)}
@@ -402,24 +437,43 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
       ))}
 
       <div className="bg-popover shadow-panel flex flex-wrap items-center gap-3 rounded-md p-3 lg:sticky lg:bottom-24 lg:z-10">
-        <Button size="md" disabled={dirty.length === 0 || save.isPending} onClick={submit}>
-          <Icon icon={Check} size={16} />
-          {save.isPending
-            ? 'Đang lưu…'
-            : `Lưu ${dirty.length > 0 ? `${dirty.length} thay đổi` : 'thay đổi'}`}
+        {/* The create door does NOT gate the button on how much is typed: which
+            boxes are required is the contract's answer, and it gives it in a
+            sentence placed right beside this button. Create is `lg` (48px,
+            law 13) because it is the screen's ONLY primary action, unlike the
+            detail toolbar where `md` sits among other buttons (repo-wide debt,
+            out of scope here). */}
+        <Button
+          size={mode === 'create' ? 'lg' : 'md'}
+          disabled={(mode === 'edit' && dirty.length === 0) || pending}
+          onClick={submit}
+        >
+          <Icon icon={mode === 'create' ? Plus : Check} size={16} />
+          {mode === 'create'
+            ? pending
+              ? 'Đang ghi…'
+              : 'Tạo lead'
+            : pending
+              ? 'Đang lưu…'
+              : `Lưu ${dirty.length > 0 ? `${dirty.length} thay đổi` : 'thay đổi'}`}
         </Button>
         <Button
-          size="md"
+          size={mode === 'create' ? 'lg' : 'md'}
           variant="ghost"
-          disabled={dirty.length === 0 || save.isPending}
+          disabled={dirty.length === 0 || pending}
           onClick={() => {
             setFailed(null)
             setWork(base)
           }}
         >
-          Bỏ sửa
+          {mode === 'create' ? 'Xoá hết' : 'Bỏ sửa'}
         </Button>
-        <SaveNote dirty={dirty.length} failed={failed} error={save.error} />
+        <SaveNote
+          mode={mode}
+          dirty={dirty.length}
+          failed={failed}
+          error={mode === 'create' ? create.error : save.error}
+        />
       </div>
     </GlassCard>
   )
@@ -427,28 +481,22 @@ export function ProfileCard({ profile }: { profile: WireLeadProfile }) {
 
 /** The one sentence beside the save button — three states, never mixed.
  *
- *  ------------------------------------------------------------------
- *  A SENTENCE, NOT AN OUTLINE ROUND EACH BOX
- *  ------------------------------------------------------------------
- *  The hand-typing drawer outlines the box the server disliked, and there that
- *  is cheap: one `errors` map handed straight down one loop. This card COLLAPSES
- *  by group, so the box being complained about may well be inside a group that
- *  is shut — an outline would then mark something nobody can see, and it would
- *  still cost threading the map through four components to draw it.
+ *  The form collapses by group, so the box being complained about may sit
+ *  inside a closed group — an outline would mark something nobody can see.
+ *  So this prints the box's NAME beside the complaint instead, and the user
+ *  opens the group to find it themselves.
  *
- *  So this prints the box's NAME beside its complaint, right next to the button
- *  just pressed. The trade is stated rather than hidden: the user opens the
- *  group and finds the box themselves. The day outlining is worth it, the fix
- *  is to OPEN the group holding the bad box first — outlining without opening
- *  is half the job.
- *
- *  `patchFieldLabel` does the naming: the server answers keyed by CONTRACT
- *  field (`currency`), and a reader knows only the label on screen. */
+ *  `patchFieldLabel` names it: both doors answer keyed by CONTRACT field. A
+ *  409 from the create door reads through `createFailureMessage` — the one
+ *  refusal `userMessage` words badly (a mailbox already taken, not a
+ *  conflicting edit). */
 function SaveNote({
+  mode,
   dirty,
   failed,
   error,
 }: {
+  mode: FormMode
   dirty: number
   failed: FieldErrors | null
   error: ApiError | null
@@ -465,7 +513,15 @@ function SaveNote({
         role="alert"
         className="text-destructive-foreground max-w-[520px] text-[12.5px] leading-[1.5]"
       >
-        {[error ? userMessage(error) : null, ...complaints].filter(Boolean).join(' · ')}
+        {[error ? failureMessage(mode, error) : null, ...complaints].filter(Boolean).join(' · ')}
+      </span>
+    )
+  }
+
+  if (mode === 'create') {
+    return (
+      <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
+        Ô có dấu sao là bắt buộc. Ô bỏ trống không được ghi xuống sổ.
       </span>
     )
   }
@@ -477,6 +533,9 @@ function SaveNote({
   )
 }
 
+const failureMessage = (mode: FormMode, error: ApiError) =>
+  mode === 'create' ? createFailureMessage(error) : userMessage(error)
+
 /** Một hàng ô, lưới đều.
  *
  *  Ba cột trên màn rộng, hai cột ở khoảng giữa, một cột trên điện thoại. Không
@@ -484,12 +543,14 @@ function SaveNote({
  *  mươi ô, và một ngoại lệ là đủ để mất nó. */
 function FieldRow({
   fields,
+  mode,
   work,
   onSet,
 }: {
-  fields: ProfileField[]
-  work: LeadProfile
-  onSet: (field: ProfileField, raw: string) => void
+  fields: FormField[]
+  mode: FormMode
+  work: FormValues
+  onSet: (field: FormField, raw: string) => void
 }) {
   /* Ba ô người của form đọc sổ người trên máy chủ. Dựng ở đây, một lần cho cả
      hàng: ô nào khai `people` thì nhận dòng "chưa ai" của chính nó rồi tới tên
@@ -515,11 +576,13 @@ function FieldRow({
           <FieldShell
             key={field.key}
             field={drawn}
+            required={isRequired(field, mode)}
             plain={field.kind === 'select' || field.kind === 'read'}
           >
             <FieldControl
               field={drawn}
               value={readField(work, field.key)}
+              required={isRequired(field, mode)}
               options={
                 field.people
                   ? [{ value: '', label: field.people }, ...staffOptions]
@@ -535,18 +598,28 @@ function FieldRow({
   )
 }
 
-/** Nhóm nào còn ô bắt buộc chưa moi được — dùng để quyết định mở hay gập.
+/** Which groups stand open the moment the form appears.
  *
- *  Nhóm `system` ("Thông tin hệ thống") không nằm trong danh sách vì chính
- *  `ProfileCard` đã lọc nó ra khỏi màn: máy tự ghi, người không điền. */
-function incompleteGroups(profile: LeadProfile): GroupKey[] {
-  const live = new Set(filledSlots(profile))
-  return PROFILE_GROUPS.filter((g) => g.key !== 'system')
-    .filter((g) => {
-      const slots = slotsOfGroup(g.key)
-      return slots.length > 0 && slots.some((s) => !live.has(s))
-    })
-    .map((g) => g.key)
+ *  The CREATE door opens all of them: a blank form has nothing dug out yet, and
+ *  its two required boxes sit in the one group the init-data gate does not
+ *  count — collapsing by missing slots there would fold away exactly what has
+ *  to be typed first.
+ *
+ *  The EDIT door folds the groups that are complete. `system` is not among them
+ *  because `groupsOf` already keeps it off that door: the machine writes it. */
+function openAtFirst(mode: FormMode, values: FormValues): Set<GroupKey> {
+  const groups = groupsOf(mode)
+  if (mode === 'create') return new Set(groups.map((g) => g.key))
+
+  const live = new Set(filledSlots(values))
+  return new Set(
+    groups
+      .filter((g) => {
+        const slots = slotsOfGroup(g.key)
+        return slots.length > 0 && slots.some((s) => !live.has(s))
+      })
+      .map((g) => g.key),
+  )
 }
 
 /** Một cụm: tên · mục đích · đã moi được mấy ô — gập được.
@@ -560,14 +633,16 @@ function incompleteGroups(profile: LeadProfile): GroupKey[] {
  *  mất một nửa. */
 function FieldGroup({
   group,
+  mode,
   work,
   onSet,
   open,
   onToggle,
 }: {
-  group: (typeof PROFILE_GROUPS)[number]
-  work: LeadProfile
-  onSet: (field: ProfileField, raw: string) => void
+  group: FormGroup
+  mode: FormMode
+  work: FormValues
+  onSet: (field: FormField, raw: string) => void
   open: boolean
   onToggle: () => void
 }) {
@@ -608,7 +683,9 @@ function FieldGroup({
         )}
       </button>
 
-      {open && <FieldRow fields={fieldsOf(group.key)} work={work} onSet={onSet} />}
+      {open && (
+        <FieldRow fields={fieldsOf(group.key, mode)} mode={mode} work={work} onSet={onSet} />
+      )}
     </section>
   )
 }
@@ -619,7 +696,7 @@ function FieldGroup({
  *  lệch mười lần và không ai thấy. Dòng này in lại đúng số đó bằng đơn vị người
  *  ta nói (tỷ), và với ngoại tệ thì in luôn phần quy ra đồng, vì sổ cơ hội cộng
  *  bằng đồng. */
-function MoneyRead({ work, value }: { work: LeadProfile; value: string }) {
+function MoneyRead({ work, value }: { work: FormValues; value: string }) {
   if (value === '') return null
   const amount = Number(value)
   const currency: CurrencyCode = work.currency
