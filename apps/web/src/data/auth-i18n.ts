@@ -218,9 +218,9 @@ export const resetPasswordText = {
 export const changePasswordText = {
   title: tr('Đổi mật khẩu', 'Change password', '비밀번호 변경'),
   forcedLead: tr(
-    'Tài khoản đang dùng mật khẩu mặc định — mật khẩu này nằm trong mã nguồn nên người khác cũng biết. Đặt mật khẩu của riêng bạn để mở khoá phần còn lại của hệ.',
-    'This account is using the default password — since it lives in the source code, other people know it too. Set your own password to unlock the rest of the system.',
-    '이 계정은 기본 비밀번호를 사용 중입니다 — 소스 코드에 있어 다른 사람도 알 수 있습니다. 나머지 시스템을 사용하려면 본인만의 비밀번호를 설정하세요.',
+    'Đổi mật khẩu mặc định để bắt đầu trải nghiệm sản phẩm.',
+    'Change the default password to start using the product.',
+    '제품 사용을 시작하려면 기본 비밀번호를 변경하세요.',
   ),
   normalLead: tr(
     'Đặt mật khẩu mới. Mọi phiên khác của bạn sẽ bị đăng xuất; phiên đang dùng thì không.',
