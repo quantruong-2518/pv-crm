@@ -20,6 +20,9 @@ import { LeadIntakeGuard } from './lead-intake.guard'
 import { LeadIntakeRepository } from './lead-intake.repository'
 import { LeadIntakeService } from './lead-intake.service'
 import { LeadMailComposer } from './lead-mail.composer'
+import { LeadArchiveSweeper } from './lead-archive.sweeper'
+import { LeadStateModule } from './lead-state'
+import { LeadCommsHook } from './lead-comms.hook'
 
 /** Module 2 · Sổ lead.
  *
@@ -70,6 +73,8 @@ import { LeadMailComposer } from './lead-mail.composer'
     AccountModule,
     /* Every lead insert opens its run inside the same transaction. */
     WorkstreamModule,
+    /* The one writer of `lead.state` (ADR 0058), shared with the other doors. */
+    LeadStateModule,
   ],
   controllers: [LeadController, LeadIntakeController, LeadContactController],
   providers: [
@@ -81,13 +86,17 @@ import { LeadMailComposer } from './lead-mail.composer'
     LeadIntakeService,
     LeadIntakeRepository,
     LeadIntakeGuard,
+    /* Self-timed like `SessionSweeper`, so it needs no line in `worker.ts`. */
+    LeadArchiveSweeper,
     /* One entry of the `MAIL_COMPOSER` registry. Exported as the CLASS, not
        under the token: the registry is an array assembled by
        `QueueModule.forWorker({ composers: [...] })`, because Nest cannot merge
        two providers of one token across two modules. `worker.ts` is the file
        that names this class beside the platform's own composer. */
     LeadMailComposer,
+    /* Bound to comms' `MESSAGE_LOGGED_HOOK` by `app.module.ts`, same reason. */
+    LeadCommsHook,
   ],
-  exports: [LeadService, LeadMailComposer],
+  exports: [LeadService, LeadMailComposer, LeadCommsHook],
 })
 export class LeadModule {}

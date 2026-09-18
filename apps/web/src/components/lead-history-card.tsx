@@ -19,7 +19,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { dm, dmy } from '@/lib/date'
 import { DELIVERED_MAIL, FAILED_MAIL } from '@/data/mail-runs'
 import { leadMailEventsQuery, leadMailTimelineQuery } from '@/data/mas'
-import { type TouchFocus } from '@/data/touches'
+import { lifecycleTitle, type TouchFocus } from '@/data/touches'
 import { NO_TOUCHES } from '@/data/lead-profile'
 import type { TouchEvent } from '@/data/touches'
 import { useCan } from '@/app/auth'
@@ -144,6 +144,10 @@ const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'
   'field-filled': 'current',
   'handed-over': 'current',
   'tier-raised': 'ok',
+  verified: 'ok',
+  nurtured: 'next',
+  resumed: 'current',
+  archived: 'next',
   'first-meeting': 'ok',
   'entered-pipeline': 'ok',
   'stage-changed': 'current',
@@ -196,7 +200,8 @@ export function ActivityTimeline({
         highlight: focus?.id === row.id,
         state: EVENT_DOT[row.kind],
         marker: dm(row.at),
-        title: row.kind === 'exited' ? exitNote(row.note, reasons) : row.note,
+        title:
+          lifecycleTitle(row) ?? (row.kind === 'exited' ? exitNote(row.note, reasons) : row.note),
         meta: <MetaPill avatar={row.by}>{row.by}</MetaPill>,
       }))}
     />

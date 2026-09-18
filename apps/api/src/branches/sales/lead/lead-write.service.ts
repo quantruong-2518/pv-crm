@@ -5,7 +5,8 @@ import {
   LeadImportCommitResponse,
   LeadImportPreviewResponse,
   LeadOwnerResponse,
-  LeadPatchResponse,
+  LeadTier,
+  type LeadPatchResponse,
   type LeadCreate,
   type LeadImportBody,
   type LeadOwnerWrite,
@@ -13,7 +14,7 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, invalid, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { AccountService } from '../account/account.service'
 import { identityOfLead } from '../account/account.mapper'
@@ -21,9 +22,11 @@ import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
 import { fromCreate, fromPatch, LEAD_NOTE, refOf } from './lead-write.mapper'
-import { toContract, toProfile } from './lead.mapper'
+import { toContract } from './lead.mapper'
+import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
+import { LeadStateWriter, stateAfterOwnerChange } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 
 /** THE THREE DOORS A LEAD CAN COME IN THROUGH. One of them writes nothing.
@@ -75,6 +78,8 @@ export class LeadWriteService {
     private readonly accounts: AccountService,
     /* Every new lead opens its own run; minted here, inserted in the lead's tx. */
     private readonly runs: WorkstreamRepository,
+    private readonly states: LeadStateWriter,
+    private readonly profiles: LeadService,
     /* The first engine this service holds. `setOwner` asks it one question —
        "does this role hold `lead.assign`" — and that question is trục 1 alone,
        which is why it calls `allows()` and not `check()`: the route guard has
@@ -148,7 +153,7 @@ export class LeadWriteService {
     })
 
     /* `daysHere` is 0 and `signed` is false by construction, not by guesswork:
-       `stage_since` defaulted to now a millisecond ago, and a lead that has
+       `state_since` defaulted to now a millisecond ago, and a lead that has
        existed for a millisecond has no contract. Both are computed at read
        time by `lead.repository.ts`; here the answer is known without asking. */
     return LeadCreateResponse.parse(
@@ -207,8 +212,9 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  FOUR WRITES, ONE TRANSACTION
    *  ------------------------------------------------------------------
-   *  The column, the mirror row in `platform.object` (or the ContextRail keeps
-   *  showing the old holder — rule 10), and one `sales.touch` row of kind
+   *  The column (and the state it may move, ADR 0058), the mirror row in
+   *  `platform.object` (or the ContextRail keeps showing the old holder — rule
+   *  10), and one `sales.touch` row of kind
    *  `handed-over` carrying BOTH ends of the move — one row, not two; the reasoning
    *  is on the columns in `touch.schema.ts`. The lock is taken first; see
    *  `lockForOwnerChange`. */
@@ -259,16 +265,16 @@ export class LeadWriteService {
          inventing a giver. */
       const prev = found.ownerId ? await this.repo.actorById(tx, found.ownerId) : null
 
-      await this.repo.setOwner(tx, code, body.ownerId ?? null)
-
-      await this.mirror.put(tx, {
-        code: found.code,
-        kind: 'LD',
-        branch: 'Sales',
-        label: found.company,
-        ...(next ? { owner: next.name } : {}),
-        ...(found.stage ? { state: found.stage } : {}),
-      })
+      /* One statement when the state follows the owner: `lead_open_owner_matches`
+         refuses a `new` lead with a holder even for the instant between two. */
+      const ownerId = body.ownerId ?? null
+      const state = stateAfterOwnerChange(found.state, ownerId)
+      if (state === found.state) {
+        await this.repo.setOwner(tx, code, ownerId)
+        await this.states.refresh(tx, [code])
+      } else {
+        await this.states.move(tx, code, state, { ownerId })
+      }
 
       await this.touch.record(tx, [
         {
@@ -332,18 +338,14 @@ export class LeadWriteService {
    *  holds for the whole call.
    *
    *  ------------------------------------------------------------------
-   *  NO MIRROR ROW, AND THAT IS A PROPERTY OF THE CONTRACT
+   *  THE HOLDER'S FIRST EDIT MOVES THE STATE; TIER WAITS FOR VERIFICATION
    *  ------------------------------------------------------------------
-   *  Every other write door updates `platform.object` because it moves one of
-   *  the four values a ref carries — `label` (company), `owner`, `state`
-   *  (stage). `LeadPatch` accepts none of those three: the book group is not
-   *  patchable, the holder has its own door, the funnel column is a gate. So
-   *  the ref this lead already has is still true afterwards, and an UPSERT here
-   *  would be a write that cannot change anything.
-   *
-   *  Add a field to `LeadPatch` that a ref reads and this stops being true.
-   *  That is the moment to write the mirror row, and this paragraph is the
-   *  reason it is missing today rather than an oversight to copy.
+   *  A save by the lead's own holder is their first action (ADR 0058), so
+   *  `LeadStateWriter.firstAction` runs in the same transaction and refreshes
+   *  the mirror row if it moved anything. `tier` is accepted only while the
+   *  lead is `working` or `converted`: the first tier is `:code/verify`'s to
+   *  set, and a parked lead must not come back verified by a patch. A raise
+   *  writes `tier-raised` beside `field-filled`; a lowering writes no tier row.
    *
    *  ------------------------------------------------------------------
    *  ONE TOUCH ROW PER SAVE, COUNTING BOXES
@@ -365,13 +367,20 @@ export class LeadWriteService {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 
+    if (body.tier !== undefined && !TIER_EDITABLE.has(before.row.state)) {
+      throw conflict(
+        `Lead ${code} chỉ sửa bậc được khi đang chăm hoặc đã lên cơ hội — bậc đầu tiên chốt ở bước "Xác minh xong".`,
+      )
+    }
     const values = fromPatch(body)
+    const raised = body.tier !== undefined && rungOf(body.tier) > rungOf(before.row.tier)
 
     await this.repo.run(async (tx) => {
       /* The row was read a moment ago and outside this transaction, so it can
          have been deleted since. `patchLead` answers that and nothing else. */
       const written = await this.repo.patchLead(tx, code, values)
       if (!written) throw notFound('lead', code)
+      await this.states.firstAction(tx, [code], who.id)
 
       await this.touch.record(tx, [
         {
@@ -381,18 +390,25 @@ export class LeadWriteService {
           ...byOf(who),
           note: LEAD_NOTE.corrected(Object.keys(values).length),
         },
+        ...(raised && body.tier
+          ? [
+              {
+                subjectCode: code,
+                subjectKind: 'lead' as const,
+                kind: 'tier-raised' as const,
+                toTier: body.tier,
+                ...byOf(who),
+                note: LEAD_NOTE.tierRaised(body.tier),
+              },
+            ]
+          : []),
       ])
     })
 
-    /* Read back through the ordinary read path, same reason as `setOwner`:
-       `requiredFilled` is a GENERATED column, so filling in a phone number
-       moves the init-data gate without this door touching it. An answer
-       assembled from the patch body would carry the old count and the gate bar
-       would sit one notch behind what was just saved. */
-    const after = await this.leads.byCode(who, code)
-    if (!after) throw notFound('lead', code)
-
-    return LeadPatchResponse.parse(toProfile(after))
+    /* Read back through the profile door: `requiredFilled` is GENERATED, and
+       `LeadPatchResponse` is the whole profile — `position` and `chain` too,
+       which only `LeadService.profile` builds. */
+    return this.profiles.profile(who, code)
   }
 
   // ── door 2 · the dry run ─────────────────────────────────────────────────
@@ -513,13 +529,6 @@ export class LeadWriteService {
             subjectCode: p.row.code,
             subjectKind: 'lead',
             kind: 'created',
-            /* Đọc off chính dòng sắp ghi, không chép lại `IMPORTED_TIER`: hai
-               chỗ cùng nói một luật là hai chỗ để nó lệch nhau, và chỗ lệch sẽ
-               là chỗ này — nó không có test, còn kia thì có docblock dài.
-               Lead gõ tay và lead từ landing page KHÔNG có dòng tương ứng, vì
-               hợp đồng cố tình giữ lại `tier` ở hai cửa đó: bậc của chúng là
-               NULL, và ghi ra một bậc không tồn tại thì tệ hơn không ghi. */
-            ...(p.row.tier ? { toTier: p.row.tier } : {}),
             /* An imported file may already say who owns each row, so the same
                `to` the manual door writes belongs here — see `create()`. Read
                off the ref rather than looked up again: `refOf` already resolved
@@ -622,6 +631,13 @@ export class LeadWriteService {
 /** Rows per statement. See the note at the call site — this is the bind
  *  parameter ceiling, not a durability boundary. */
 const CHUNK = 500
+
+/** The only states in which a patch may re-grade the tier (ADR 0058). */
+const TIER_EDITABLE: ReadonlySet<string> = new Set(['working', 'converted'])
+
+/** Rung index on the tier ladder; no tier sits below the first rung. */
+const rungOf = (tier: LeadTier | null): number =>
+  tier === null ? -1 : LeadTier.options.indexOf(tier)
 
 /** The batch record's note.
  *

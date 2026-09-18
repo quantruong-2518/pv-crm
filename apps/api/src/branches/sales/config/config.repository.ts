@@ -1,10 +1,16 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import { CONFIG_PREFIX, ConfigList, LeadMotion } from '@pv/contracts'
+import { CONFIG_PREFIX, ConfigList, LEAD_OPEN_STATES, LeadMotion } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry, type ConfigRowDb } from './config.schema'
 import { motionPolicy, type MotionPolicyPatchDb, type MotionPolicyRowDb } from './motion.schema'
+
+/** `LEAD_OPEN_STATES` as bound parameters, so raw SQL never re-spells the five. */
+const OPEN_STATES = sql.join(
+  LEAD_OPEN_STATES.map((s) => sql`${s}`),
+  sql`, `,
+)
 
 /** Bản nháp một dòng mới — thứ repository ghi được, không hơn.
  *
@@ -95,7 +101,7 @@ export class SalesConfigRepository {
        `graph.repository.ts`. */
     const result = (await this.db.execute(sql`
       SELECT 'STAGE' AS bucket, stage AS key, count(*)::int AS n
-        FROM sales.lead WHERE stage IS NOT NULL GROUP BY stage
+        FROM sales.opportunity WHERE stage IS NOT NULL GROUP BY stage
       UNION ALL
       SELECT 'TIER', tier, count(*)::int
         FROM sales.lead WHERE tier IS NOT NULL GROUP BY tier
@@ -145,13 +151,12 @@ export class SalesConfigRepository {
       UNION ALL
       SELECT 'signedDeals', '', count(DISTINCT lead_code)::int FROM sales.contract
       UNION ALL
-      /* "Still running" = not exited AND not signed, the same branch as
-         lead.repository.ts#statusFilter. Early tiers = every tier but 'sql'.
+      /* Still open = the five open states of ADR 0058, the book's default tab.
+         Early tiers = every tier but 'sql'.
          No backticks inside this block: one would close the template literal. */
       SELECT 'earlyStageLeads', '', count(*)::int FROM sales.lead l
-       WHERE l.exit_reason IS NULL
+       WHERE l.state IN (${OPEN_STATES})
          AND l.tier IS DISTINCT FROM 'sql'
-         AND NOT EXISTS (SELECT 1 FROM sales.contract c WHERE c.lead_code = l.code)
     `)) as unknown as { rows: UsageTally[] }
 
     return result.rows

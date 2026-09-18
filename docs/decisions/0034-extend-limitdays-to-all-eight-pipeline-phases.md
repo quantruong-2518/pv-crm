@@ -2,7 +2,9 @@
 
 Status: partially superseded by 0057 (ADR 0015 rule 2 suspended outside the
 five opportunity stages; this extension is paused there until the owner lifts
-the suspension)
+the suspension) and by 0058 (the lead's own status stops riding this file's
+`phase` field — a lead now has its own stored lifecycle state; the `phase`
+field itself, and `pipeline_position` more broadly, are untouched)
 Source: docs/tam-nhin-pipeline.md — "§6 · Hình cuối — `pipeline_position`"
 (the `limitDays`/`config_entry` paragraph)
 

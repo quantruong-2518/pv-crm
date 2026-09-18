@@ -18,7 +18,7 @@ import {
   type LeadImportRowOut,
   type LeadMotion,
 } from '@pv/contracts'
-import type { LeadWrite } from './lead-write.mapper'
+import { stateAtBirth, type LeadWrite } from './lead-write.mapper'
 
 /** THE ONE CHECK BOTH IMPORT ENDPOINTS RUN.
  *
@@ -87,7 +87,7 @@ export type ImportCheckInput = {
    *  what makes the difference between "fix one cell" and "the import is
    *  broken". */
   campaigns: ReadonlySet<string>
-  /** `lower(email)` → code, over leads that have NOT exited. Exactly the rows
+  /** `lower(email)` → code, over leads not disqualified or archived. The rows
    *  `lead_email_live_idx` covers, so what this map says and what the unique
    *  index will say are the same answer. */
   book: ReadonlyMap<string, string>
@@ -160,31 +160,15 @@ const TEXT = {
  *  person meant, and a row error that quotes the cell says so instead. */
 const GROUPED_INT = /^\d[\d.,\s]*$/
 
-/** Every imported lead lands at the bottom rung, and the file cannot lift it.
- *
- *  `tierOfRow` in `apps/web/src/data/intake.ts` states the rule: the Bậc
- *  column of a file can only LOWER a row, never raise it, because SQL means
- *  the init-data gate was passed AND somebody opened an opportunity — neither
- *  of which a spreadsheet can witness. It reaches `mql` only when all six
- *  required slots are filled.
- *
- *  Against the real table that ceiling is never reached, and it is worth
- *  writing down why rather than leaving it as an accident: slot 2 of
- *  `lead.required_filled` reads `main_product`, and `main_product` is not one
- *  of the sixteen columns `LEAD_IMPORT_FIELDS` carries. So an imported row
- *  tops out at 5 of 6 and `tierOfRow` returns `prospect` for every row of every
- *  file. Writing the constant is the same answer as running the formula, minus
- *  a second copy of a generated column's arithmetic living in TypeScript.
- *
- *  The Bậc cell is still CHECKED against the closed list above, because a
- *  value outside it means the column mapping is wrong and the person wants to
- *  know that before 500 rows land. It just has nowhere to go afterwards. */
-const IMPORTED_TIER = 'prospect'
+/* No imported lead gets a tier: the first tier is set when a PIC confirms
+   verification (`POST :code/verify`, ADR 0058), which no spreadsheet can
+   witness. The Bậc cell is still CHECKED against the closed list, because a
+   value outside it means the column mapping is wrong — then it is dropped. */
 
 /** The dedupe key, and the only identity this import has.
  *
  *  `lower(email)`, because that is the one identity `sales.lead` actually
- *  enforces — `lead_email_live_idx`, unique among leads that have not exited.
+ *  enforces — `lead_email_live_idx`, unique among leads not disqualified/archived.
  *  Prefixed the way the screen prefixes its own keys (`mst:`, `ten:`) so a key
  *  printed in the report says what kind of thing it is.
  *
@@ -338,10 +322,10 @@ function checkRow(
   if (!channel.ok) return fail('channel', channel.reason)
   if (channel.value !== undefined) out.channel = channel.value
 
-  /* Checked, echoed back, and then dropped — see `IMPORTED_TIER`. */
+  /* Checked, then dropped — not echoed, or the preview would promise a tier
+     the commit never writes. See the note above `keyOf`. */
   const tier = closedList(cells, 'tier', LeadTier)
   if (!tier.ok) return fail('tier', tier.reason)
-  if (tier.value !== undefined) out.tier = tier.value
 
   // ── phone · the contract's own normaliser decides, not a second rule ─────
   const phone = optional(cells, 'phone', phoneOptional)
@@ -398,8 +382,8 @@ function checkRow(
         pain: pain.value ?? null,
 
         ownerId: owner.value?.id ?? null,
+        state: stateAtBirth(owner.value?.id),
 
-        tier: IMPORTED_TIER,
         /* The door, stated by the server. `CHANNEL_TRUST` reads `IMPORT` as
            `RAW` — nobody has confirmed anything about these rows yet — and a
            trust level the client asserted about itself would be worth nothing,

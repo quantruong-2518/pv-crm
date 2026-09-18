@@ -74,7 +74,7 @@ export type LeadMailEventRead = {
 /** Một dòng đã đọc xong từ bảng, kèm thứ không phải cột.
  *
  *  `daysHere` KHÔNG có trong `LeadRowDb` vì nó không phải cột — máy chủ tính
- *  nó từ `stage_since` ngay trong câu truy vấn. Mang nó cạnh hàng thay vì nhét
+ *  nó từ `state_since` ngay trong câu truy vấn. Mang nó cạnh hàng thay vì nhét
  *  vào hàng để `tsc` vẫn phân biệt được "thứ bảng có" và "thứ câu hỏi tính
  *  ra".
  *
@@ -154,7 +154,8 @@ export function toContract(read: LeadRead): LeadRow {
     ...(row.ownerId ? { ownerId: row.ownerId } : {}),
     ...(ownerName ? { ownerName } : {}),
     ...(ownerEmail ? { ownerEmail } : {}),
-    ...(row.stage ? { stage: row.stage } : {}),
+    state: row.state,
+    stateSince: row.stateSince.toISOString(),
     daysHere,
     source: sourceOf(read),
     signed,
@@ -263,7 +264,7 @@ export function toRef(row: LeadRowDb, ownerName: string | null): ObjectRef {
     branch: 'Sales',
     label: row.company,
     ...(ownerName ? { owner: ownerName } : {}),
-    ...(row.stage ? { state: row.stage } : {}),
+    state: row.state,
   }
 }
 

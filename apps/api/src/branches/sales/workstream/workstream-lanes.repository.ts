@@ -30,7 +30,10 @@ export class WorkstreamLanesRepository {
         .select({ at: touch.at, by: touch.by, tier: touch.toTier })
         .from(touch)
         .where(
-          and(eq(touch.subjectCode, leadCode), inArray(touch.kind, ['created', 'tier-raised'])),
+          and(
+            eq(touch.subjectCode, leadCode),
+            inArray(touch.kind, ['created', 'verified', 'tier-raised']),
+          ),
         )
         .orderBy(asc(touch.at)),
       deals.length === 0

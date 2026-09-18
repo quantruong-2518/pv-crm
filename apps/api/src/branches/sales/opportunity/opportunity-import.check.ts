@@ -197,7 +197,10 @@ function checkRow(
   }
   const leadCode = input.leadByCompany.get(folded)
   if (leadCode === undefined && input.exitedCompany.has(folded)) {
-    return { field: 'company', reason: `Lead "${company}" đã rời phễu — mở lại lead trước` }
+    return {
+      field: 'company',
+      reason: `Lead "${company}" đã loại hoặc đã lưu trữ — không tạo được cơ hội`,
+    }
   }
   if (leadCode === undefined) {
     return {

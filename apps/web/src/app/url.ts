@@ -25,8 +25,8 @@ import { LeadBookQuery } from '@pv/contracts'
  *  PARAMETER NAMES ARE THE CONTRACT'S NAMES, UNCHANGED
  *  ------------------------------------------------------------------
  *  Every key `LeadBookQuery.safeParse` accepts is read from and written to a
- *  URL param of THE SAME NAME (`stage`, `tier`, `category`, `status`,
- *  `source`, `owner`, `account`, `q`, `sort`, `dir`, `page`, `size`). Deriving
+ *  URL param of THE SAME NAME (`tier`, `category`, `state`, `campaign`,
+ *  `sourceKind`, `owner`, `q`, `sort`, `dir`, `page`, `size`). Deriving
  *  the key list from `LeadBookQuery.shape` at runtime — instead of copying
  *  the field names into a second hand-written list — is what keeps this file
  *  from silently drifting out of sync the next time the contract grows a
@@ -41,7 +41,7 @@ import { LeadBookQuery } from '@pv/contracts'
  *  ------------------------------------------------------------------
  *  A BROKEN URL FALLS BACK TO DEFAULTS, IT NEVER THROWS
  *  ------------------------------------------------------------------
- *  Someone can always hand-edit the address bar (`?status=nope`,
+ *  Someone can always hand-edit the address bar (`?state=nope`,
  *  `?page=abc`). `parseLeadBookQuery` runs `LeadBookQuery.safeParse` — never
  *  `.parse` — and on failure returns the same default query the screen would
  *  show with no URL at all. That fallback is for the WHOLE query, not
@@ -81,7 +81,7 @@ const LEAD_BOOK_QUERY_KEYS = Object.keys(LeadBookQuery.shape) as (keyof LeadBook
  *  Exported because the screen needs the same defaults this file writes
  *  against: "clear all filters" has to put every axis back to the value that
  *  gets DROPPED from the URL, and spelling those values out a second time in
- *  `leads.tsx` is how a cleared filter starts leaving `?status=running`
+ *  `leads.tsx` is how a cleared filter starts leaving `?state=open`
  *  behind. */
 export const DEFAULT_LEAD_BOOK_QUERY: LeadBookQuery = LeadBookQuery.parse({})
 

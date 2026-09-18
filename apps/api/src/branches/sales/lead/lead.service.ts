@@ -15,6 +15,7 @@ import {
   type ContactRow,
   type LeadAccountAttach,
   type LeadBookQuery,
+  type LeadFacetsQuery,
   type ObjectCode,
   type MailRunId,
   type MeetingCreate,
@@ -96,8 +97,12 @@ export class LeadService {
    *  qua `ref.owner`, còn đây là một danh sách đã DISTINCT — không còn một
    *  lead nào để gắn `ref` mà xét lại. Hàng rào duy nhất là `scopeOf()` trong
    *  SQL, đúng hàng rào `book()` dùng để cắt xuống cùng một tập lead. */
-  async facets(who: Actor): Promise<LeadFacets> {
-    return LeadFacets.parse({ sourceKinds: await this.repo.sourceKindFacets(who) })
+  async facets(who: Actor, q: LeadFacetsQuery): Promise<LeadFacets> {
+    const [sourceKinds, byState] = await Promise.all([
+      this.repo.sourceKindFacets(who),
+      this.repo.stateFacets(who, q),
+    ])
+    return LeadFacets.parse({ sourceKinds, byState })
   }
 
   /** Hồ sơ một lead. Ba cách hỏng, và chúng KHÔNG gộp được vào nhau.
@@ -151,8 +156,9 @@ export class LeadService {
        here. `hidden` is dropped on purpose — a lead's rail is three chips long,
        and a count of what was cut would say "there is a deal you cannot open",
        which is the one thing the scope axis exists not to say. */
-    const [tierRows, approvals, story] = await Promise.all([
+    const [tierRows, tierSince, approvals, story] = await Promise.all([
       this.repo.tierRows(),
+      this.repo.tierSince(code, found.row.tier),
       this.approvals.pendingOn(code),
       this.graph.storyFor(who, code),
     ])
@@ -162,7 +168,7 @@ export class LeadService {
        sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
     return LeadProfile.parse({
       ...toProfile(found),
-      position: positionOf(found, tierRows, approvals),
+      position: positionOf(found, tierRows, tierSince, approvals),
       chain: story.chain.map(toChainLink),
     })
   }
@@ -317,7 +323,7 @@ export class LeadService {
 
   async contactEdit(who: Actor, code: ObjectCode, body: ContactPatch): Promise<ContactRow> {
     const leadCode = await this.guardByContact(who, code)
-    return this.contacts.edit(leadCode, code, body)
+    return this.contacts.edit(who, leadCode, code, body)
   }
 
   async contactDrop(who: Actor, code: ObjectCode): Promise<void> {
@@ -327,7 +333,7 @@ export class LeadService {
 
   async contactPrimary(who: Actor, code: ObjectCode): Promise<ContactRow> {
     const leadCode = await this.guardByContact(who, code)
-    return this.contacts.setPrimary(leadCode, code)
+    return this.contacts.setPrimary(who, leadCode, code)
   }
 
   /** Attach a lead to a company, or detach it.
@@ -340,7 +346,7 @@ export class LeadService {
    *  department-wide grant in order to fix one cell on their own profile. */
   async attachAccount(who: Actor, code: ObjectCode, body: LeadAccountAttach): Promise<void> {
     await this.guard(who, code)
-    await this.accounts.attachLead(code, body.accountCode)
+    await this.accounts.attachLead(who, code, body.accountCode)
   }
 
   /** Thẻ điểm Sổ lead. `GET /sales/leads/scorecard`.
@@ -410,24 +416,21 @@ export class LeadService {
  *     key, so the pairing is by ordinal position and `ladderConfigOf` is the
  *     one place allowed to make it;
  *   · the EVIDENCE — a lead's own tier IS the evidence. A deal passes its
- *     column; a lead has nothing to infer, because `tier-raised` has no write door
- *     (the `TouchKind` docblock says why) and the column is the only record of
- *     which rung it reached.
+ *     column; a lead has nothing to infer — the column is the record of which
+ *     rung it reached, set by `:code/verify` and raised by `PATCH :code`.
  *
- *  ------------------------------------------------------------------
- *  `since` IS `stage_since`, AND THAT COLUMN MEANS "THE CURRENT PLACE"
- *  ------------------------------------------------------------------
- *  Its own docblock says so: it is the mark for wherever the lead stands now,
- *  not for a funnel column specifically. So it is the right side of the
- *  subtraction for a tier as well. The clock still comes back `null` on every
- *  lead today — no `TIER` rung has a `limitDays` (§8.5) — and `overdueBy` is
- *  `null` for that reason rather than for want of a mark.
+ *  `since` is when the lead reached its CURRENT tier — the latest `verified`
+ *  or `tier-raised` touch naming it — not `state_since`, which nurture/resume
+ *  and hand-overs reset while the tier stands still. `state_since` is only the
+ *  fallback for a tier with no such touch (seeded or imported before ADR 0058).
+ *  No `TIER` rung has a `limitDays` today (§8.5), so `overdueBy` stays `null`.
  *
  *  `null` for a lead with no tier: it is in the book, not on the ladder, and
  *  rule 1 of §2 wants that visible instead of defaulted to the first rung. */
 function positionOf(
   found: LeadProfileFound,
   tierRows: { name: string; limitDays: number | null }[],
+  tierSince: Date | null,
   approvals: readonly ApprovalRowDb[],
 ): PipelinePositionView | null {
   const tier = found.row.tier
@@ -438,7 +441,7 @@ function positionOf(
       ref: toRef(found.row, found.ownerName),
       phases: phasesOf(tierConfigOf(tierRows), LeadTier.options),
       reached: [tier],
-      since: found.row.stageSince.toISOString(),
+      since: (tierSince ?? found.row.stateSince).toISOString(),
       approvals,
     },
     new Date().toISOString(),

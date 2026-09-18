@@ -234,7 +234,7 @@ export class AccountRepository {
         code: lead.code,
         company: lead.company,
         tier: lead.tier,
-        stage: lead.stage,
+        state: lead.state,
         ownerName: actor.name,
         createdAt: lead.createdAt,
       })

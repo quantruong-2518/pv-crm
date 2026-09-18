@@ -6,9 +6,12 @@ import {
   LeadBookQuery,
   LeadCreate,
   LeadExitBody,
+  LeadFacetsQuery,
   LeadImportBody,
+  LeadNurtureBody,
   LeadOwnerWrite,
   LeadPatch,
+  LeadVerifyBody,
   ObjectCode,
   MailRunId,
   MeetingCreate,
@@ -77,8 +80,8 @@ export class LeadController {
     return this.leads.scorecard()
   }
 
-  /** Nửa "không chiến dịch" của ô lọc Nguồn trên sổ — đọc docblock `LeadFacets`
-   *  (`@pv/contracts`) trước khi đụng vào chỗ này.
+  /** The source filter's no-campaign half, plus one count per state tab under
+   *  the book's other filters — read `LeadFacets` (`@pv/contracts`) first.
    *
    *  PHẢI đứng trước `@Get(':code')`, cùng lý do `scorecard` đã ghi: chuỗi
    *  `facets` mà rơi vào `:code` thì chết ở `zod(ObjectCode)` bằng một 400 vô
@@ -88,8 +91,8 @@ export class LeadController {
    *  trị nằm TRONG sổ mà actor này đang thấy, không phải cả sổ của phòng. */
   @Get('facets')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  facets(@CurrentActor() who: Actor) {
-    return this.leads.facets(who)
+  facets(@CurrentActor() who: Actor, @Query(zod(LeadFacetsQuery)) q: LeadFacetsQuery) {
+    return this.leads.facets(who, q)
   }
 
   /** Hồ sơ một lead — mọi thứ dòng sổ cố tình không chở.
@@ -304,6 +307,38 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.disqualify', scoped: true })
   reopen(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.exits.reopen(who, code)
+  }
+
+  /** The PIC's own lifecycle calls (ADR 0058): confirm verification with the
+   *  first tier, park as not ready, bring back. `lead.edit` and scoped like
+   *  `PATCH :code` — moving one's own lead is editing it. 200, like `exit`. */
+  @Post(':code/verify')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
+  verify(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(LeadVerifyBody)) body: LeadVerifyBody,
+  ) {
+    return this.exits.verify(who, code, body)
+  }
+
+  @Post(':code/nurture')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
+  nurture(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(LeadNurtureBody)) body: LeadNurtureBody,
+  ) {
+    return this.exits.nurture(who, code, body)
+  }
+
+  @Post(':code/resume')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
+  resume(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.exits.resume(who, code)
   }
 
   /** Correct one lead's profile — the save button of the detail screen's card.

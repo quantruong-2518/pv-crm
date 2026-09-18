@@ -1,11 +1,11 @@
-import { and, count, eq, exists, inArray, isNotNull, isNull, not, sql, type SQL } from 'drizzle-orm'
+import { and, count, eq, exists, inArray, isNotNull, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { RoleId as EngineRoleId } from '@pv/engines'
+import { LEAD_OPEN_STATES } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
-import { leadSigned } from '../open-deal'
 import { toVndSql } from '../money'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 
@@ -58,10 +58,9 @@ export class LeaderboardRepository {
       this.db
         .select({ actorId: lead.ownerId, n: count() })
         .from(lead)
-        /* "Still running" = not exited and not signed, the same branch
-           `lead.repository.ts#statusFilter` takes. Leads this person used to
-           hold do not count: the column answers what is on the desk today. */
-        .where(and(isNotNull(lead.ownerId), isNull(lead.exitReason), not(this.leadSigned())))
+        /* On the desk = one of the five open states (ADR 0058), the book's
+           default tab. Leads this person used to hold do not count. */
+        .where(and(isNotNull(lead.ownerId), inArray(lead.state, [...LEAD_OPEN_STATES])))
         .groupBy(lead.ownerId),
       /* Joined through `opportunity_owner` filtered to SALE, so a deal with a
          Sale and a BD on it lands once, on the Sale. */
@@ -136,8 +135,8 @@ export class LeaderboardRepository {
       .sort((a, b) => b.signedAmountVnd - a.signedAmountVnd || a.name.localeCompare(b.name, 'vi'))
   }
 
-  /* Both predicates are SQL fragments riding inside the query that needs them:
-     calling across for one would be a second round trip per row. */
+  /* The predicate is an SQL fragment riding inside the query that needs it:
+     calling across for it would be a second round trip per row. */
 
   /** Does this deal have a contract behind it? Matches BOTH columns, the pair
      `contract_opportunity_fk` anchors. */
@@ -153,11 +152,5 @@ export class LeaderboardRepository {
           ),
         ),
     )
-  }
-
-  /** Signed = a contract and no deal still open, the lead book's rule, so a
-   *  lead with a sibling deal in play still counts as running here. */
-  private leadSigned(): SQL {
-    return leadSigned(lead.code)
   }
 }

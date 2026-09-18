@@ -29,7 +29,10 @@ import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
+import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
 import { MasRepository, type MasLeadRow, type MasRecipientRead } from './mas.repository'
+
+const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
 /** The template this feature composes against — `platform/mail/mas.composer.ts`
  *  answers for exactly this string, and the version is in the name because
@@ -127,6 +130,7 @@ export class MasService {
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(ENV) private readonly env: Env,
+    private readonly states: LeadStateWriter,
   ) {}
 
   /** A dry run that writes nothing — not even a sequence number. */
@@ -347,6 +351,11 @@ export class MasService {
       if (campaignCode !== undefined) {
         const waveNo = await this.repo.nextWaveNo(tx, campaignCode)
         await this.repo.linkCampaign(tx, { campaignCode, mailRunId, waveNo })
+      } else {
+        /* A Quick MAS by the holder is their first action (ADR 0058); a
+           campaign wave is marketing's, not the PIC's, so it moves nothing. */
+        const mailed = sendable.map((d) => d.row.code)
+        await this.states.firstAction(tx, mailed, who.id)
       }
 
       return { mailRunId, written }
@@ -614,7 +623,8 @@ export class MasService {
       if (!row) continue
 
       const address = row.email?.toLowerCase()
-      const block: MasRecipientBlock | undefined = row.exitReason
+      /* `nurturing` stays mailable — keeping in touch is what it is for. */
+      const block: MasRecipientBlock | undefined = GONE.has(row.state)
         ? 'EXITED'
         : !address
           ? 'NO_EMAIL'

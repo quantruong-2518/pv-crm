@@ -1,5 +1,14 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { LeadExitBody, LeadExitResponse, LeadReopenResponse } from '@pv/contracts'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import type {
+  LeadExitBody,
+  LeadExitResponse,
+  LeadNurtureBody,
+  LeadNurtureResponse,
+  LeadReopenResponse,
+  LeadResumeResponse,
+  LeadVerifyBody,
+  LeadVerifyResponse,
+} from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { WORKSTREAM_BOOK_KEY } from './workstreams'
 
@@ -11,22 +20,33 @@ import { WORKSTREAM_BOOK_KEY } from './workstreams'
  *  Reversible, so it is the Sale's own call rather than an E3 request
  *  (`docs/decisions/0057-seven-sales-pipeline-decisions.md`, decision 2).
  *  A 409 (open deal, already signed) carries the server's own sentence, which
- *  the dialog prints through `userMessage`. */
+ *  the dialog prints through `userMessage`.
+ *
+ *  The PIC's own lifecycle steps (ADR 0058) sit here too, same shape, under
+ *  `lead.edit`: `:code/verify` · `:code/nurture` · `:code/resume`. */
 
 const EXIT_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.disqualify', scoped: true }
+const STEP_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: true }
 
-/* Every read that prints whether a lead is still running: the book and its
-   counts, the profile, the timeline (an `exited`/`reopened` touch), and the
-   journey run that closes LOST on exit and reopens with the lead. */
-const TOUCHED_KEYS = [
+/** Every read that prints a lead's state (ADR 0058): the book and its counts,
+ *  the scorecard, the profile, the timeline, the company card's lead list, and
+ *  the journey run. The server now moves the state inside OTHER doors too
+ *  (meeting, mail, contact, deal, call log), and the cache never goes stale on
+ *  its own (`staleTime: Infinity`) — so each of those doors calls this. */
+export const LEAD_STATE_KEYS = [
   ['sales', 'lead-book'],
   ['sales', 'lead-scorecard'],
   ['sales', 'lead-profile'],
   ['sales', 'lead-touches'],
+  ['sales', 'accounts'],
   WORKSTREAM_BOOK_KEY,
 ] as const
 
-const leadPath = (code: string, door: 'exit' | 'reopen') =>
+export function invalidateLeadState(client: QueryClient) {
+  for (const key of LEAD_STATE_KEYS) void client.invalidateQueries({ queryKey: key })
+}
+
+const leadPath = (code: string, door: 'exit' | 'reopen' | 'verify' | 'nurture' | 'resume') =>
   `/sales/leads/${encodeURIComponent(code)}/${door}`
 
 export function useExitLead(code: string) {
@@ -39,9 +59,7 @@ export function useExitLead(code: string) {
         body,
         need: EXIT_NEED,
       }),
-    onSuccess: () => {
-      for (const key of TOUCHED_KEYS) void client.invalidateQueries({ queryKey: key })
-    },
+    onSuccess: () => invalidateLeadState(client),
   })
 }
 
@@ -54,8 +72,47 @@ export function useReopenLead(code: string) {
         method: 'POST',
         need: EXIT_NEED,
       }),
-    onSuccess: () => {
-      for (const key of TOUCHED_KEYS) void client.invalidateQueries({ queryKey: key })
-    },
+    onSuccess: () => invalidateLeadState(client),
+  })
+}
+
+export function useVerifyLead(code: string) {
+  const client = useQueryClient()
+
+  return useMutation<LeadVerifyResponse, ApiError, LeadVerifyBody>({
+    mutationFn: (body) =>
+      api.write<LeadVerifyResponse>(leadPath(code, 'verify'), {
+        method: 'POST',
+        body,
+        need: STEP_NEED,
+      }),
+    onSuccess: () => invalidateLeadState(client),
+  })
+}
+
+export function useNurtureLead(code: string) {
+  const client = useQueryClient()
+
+  return useMutation<LeadNurtureResponse, ApiError, LeadNurtureBody>({
+    mutationFn: (body) =>
+      api.write<LeadNurtureResponse>(leadPath(code, 'nurture'), {
+        method: 'POST',
+        body,
+        need: STEP_NEED,
+      }),
+    onSuccess: () => invalidateLeadState(client),
+  })
+}
+
+export function useResumeLead(code: string) {
+  const client = useQueryClient()
+
+  return useMutation<LeadResumeResponse, ApiError, void>({
+    mutationFn: () =>
+      api.write<LeadResumeResponse>(leadPath(code, 'resume'), {
+        method: 'POST',
+        need: STEP_NEED,
+      }),
+    onSuccess: () => invalidateLeadState(client),
   })
 }

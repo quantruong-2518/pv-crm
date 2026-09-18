@@ -10,6 +10,7 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Contacts — TWO path shapes, and both are real.
  *
@@ -119,6 +120,8 @@ function invalidateAround(client: ReturnType<typeof useQueryClient>, leadCode?: 
     void client.invalidateQueries({ queryKey: ['sales', 'leads', leadCode, 'contacts'] })
     void client.invalidateQueries({ queryKey: ['sales', 'leads', leadCode] })
   }
+  /* A contact write by the owner moves the lead to `verifying` (ADR 0058). */
+  invalidateLeadState(client)
 }
 
 export function useAddContact(leadCode: ObjectCode) {

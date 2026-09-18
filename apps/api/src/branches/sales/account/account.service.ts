@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import type { Actor } from '@pv/engines'
 import {
   AccountBookResponse,
   AccountProfile,
@@ -11,6 +12,7 @@ import {
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { notFound } from '@api/platform/http/problem'
 import type { Db } from '@api/platform/db/db.module'
+import { LeadStateWriter } from '../lead/lead-state'
 import { AccountRepository } from './account.repository'
 import {
   fromForm,
@@ -43,6 +45,8 @@ export class AccountService {
   constructor(
     private readonly repo: AccountRepository,
     private readonly mirror: ObjectMirror,
+    /* Attaching a lead by its holder is their first action (ADR 0058). */
+    private readonly states: LeadStateWriter,
   ) {}
 
   async book(q: AccountBookQuery): Promise<AccountBookResponse> {
@@ -74,7 +78,7 @@ export class AccountService {
           code: r.code,
           company: r.company,
           ...(r.tier ? { tier: r.tier } : {}),
-          ...(r.stage ? { stage: r.stage } : {}),
+          state: r.state,
           ...(r.ownerName ? { ownerName: r.ownerName } : {}),
           createdAt: r.createdAt.toISOString(),
         })),
@@ -148,7 +152,11 @@ export class AccountService {
    *  `syncDealsOfLead`). Called from `LeadService`, after the lead has passed
    *  its `guard()`: the permission here is the lead's edit permission,
    *  because the row being changed is a lead row. */
-  async attachLead(leadCode: ObjectCode, accountCode: ObjectCode | null): Promise<void> {
+  async attachLead(
+    who: Actor,
+    leadCode: ObjectCode,
+    accountCode: ObjectCode | null,
+  ): Promise<void> {
     const moved = await this.repo.run(async (tx) => {
       if (accountCode !== null) {
         const target = await this.repo.byCode(accountCode)
@@ -156,6 +164,7 @@ export class AccountService {
       }
       const ok = await this.repo.attachLead(tx, leadCode, accountCode)
       if (ok) await this.repo.syncDealsOfLead(tx, leadCode, accountCode)
+      if (ok) await this.states.firstAction(tx, [leadCode], who.id)
       return ok
     })
 

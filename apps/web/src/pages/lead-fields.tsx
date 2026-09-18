@@ -8,7 +8,6 @@ import {
   DEADLINE_MAX,
   DEADLINE_MIN,
   inputModeOf,
-  isEditable,
   isRequired,
   maxCharsOf,
   readField,
@@ -243,7 +242,7 @@ const savesOnChange = (field: FormField) => field.kind === 'select' || field.kin
  *  one shape for "you cannot change this here", rather than a typeable box
  *  whose every blur earns a 403 the reader never asked for. */
 function drawnField(field: FormField, draft: LeadDraft, writable: boolean): FormField {
-  const printed = draft.mode === 'edit' && (!writable || !isEditable(field))
+  const printed = draft.mode === 'edit' && (!writable || !draft.editable(field))
   return {
     ...field,
     label:

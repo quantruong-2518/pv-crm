@@ -27,18 +27,17 @@ import { LeadTier } from './enums'
  *  ------------------------------------------------------------------
  *  THE KINDS ARE THE SCREEN'S KINDS, DELIBERATELY
  *  ------------------------------------------------------------------
- *  `TouchKind` is the same ten values as `LeadEventKind` in the frozen fixture,
+ *  `TouchKind` began as the values of `LeadEventKind` in the frozen fixture,
  *  spelled identically, because `ActivityCard` already renders them and already
  *  decides which ones are worth a conversation turn. A server enum invented
  *  fresh here would mean a translation table on the wire's far side, and that
  *  table is where the two vocabularies drift.
  *
  *  Not every kind has a writer yet, and that is honest rather than aspirational:
- *  the branch writes what its doors actually do. `tier-raised` is still
- *  unwritten today — no door moves a tier — while `exited`/`reopened` now are:
- *  `POST /sales/leads/:code/exit` and `.../reopen` (`./lead`). They stay in the
- *  enum regardless, because the alternative — widening it later — is a
- *  migration on a CHECK constraint for something already known to be coming.
+ *  the branch writes what its doors actually do. `exited`/`reopened` are written
+ *  by `POST /sales/leads/:code/exit` and `.../reopen` (`./lead`), the four
+ *  ADR 0058 lifecycle kinds by `.../verify`, `.../nurture`, `.../resume` and
+ *  the archive sweep.
  *
  *  ------------------------------------------------------------------
  *  MAIL IS NOT IN HERE
@@ -63,8 +62,16 @@ export const TouchKind = z.enum([
   'field-filled',
   /** Ownership handed over. Names both ends in `from`/`to`. */
   'handed-over',
-  /** The lead moved up a tier. */
+  /** The lead moved up a tier, after it was verified. */
   'tier-raised',
+  /** The PIC confirmed verification and set the first tier (→ `working`). */
+  'verified',
+  /** The PIC parked the lead as not ready yet (→ `nurturing`). */
+  'nurtured',
+  /** The PIC brought a nurtured lead back (→ `working`). */
+  'resumed',
+  /** The system retired a lead left in `nurturing` too long (→ `archived`). */
+  'archived',
   /** First meeting happened. */
   'first-meeting',
   /** A lead became an opportunity. */
@@ -124,9 +131,9 @@ export const TouchRow = z.object({
   subjectKind: TouchSubject,
   kind: TouchKind,
 
-  /** The tier the lead stands at AFTER this step. Present on `tier-raised` — the
-   *  database refuses that kind without it — and optionally on `created`, for a
-   *  lead that entered the book already graded.
+  /** The tier the lead stands at AFTER this step. Present on `verified` and
+   *  `tier-raised` — the database refuses either without it — and optionally on
+   *  `created`, for a lead that entered the book already graded.
    *
    *  `kind` alone cannot answer the question the performance screen asks:
    *  `tier-raised` says "moved up one", not "moved up to `mql`". Counting by

@@ -97,12 +97,11 @@ export function PeopleBoard({ rows }: { rows: LeaderboardRow[] | undefined }) {
 const KIND_LABEL: Record<WorkKind, string> = {
   payment: 'Thu tiền',
   opportunity: 'Cơ hội',
-  lead: 'Lead',
 }
 
 /** A row's badge tone. Money that has not landed is `danger` whatever its age —
- *  a late installment is somebody else holding your cash. A stalled deal or
- *  lead turns `danger` once it is as late as a long-overdue payment
+ *  a late installment is somebody else holding your cash. A stalled deal
+ *  turns `danger` once it is as late as a long-overdue payment
  *  (`DUE_LONG_OVERDUE_DAYS`); shorter than that it stays `warning`. */
 const toneOf = (item: WorkItem): 'danger' | 'warning' =>
   item.kind === 'payment' || item.daysLate >= DUE_LONG_OVERDUE_DAYS ? 'danger' : 'warning'

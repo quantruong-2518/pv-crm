@@ -95,7 +95,7 @@
       "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 2
+      "count": 1
     }
   },
   "apps/api/src/branches/sales/campaign/mas.service.ts": {
@@ -270,7 +270,7 @@
   },
   "apps/api/src/branches/sales/lead/lead-import.check.ts": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 4
     },
     "aurora/comments-in-english": {
       "count": 5
@@ -307,10 +307,10 @@
   },
   "apps/api/src/branches/sales/lead/lead-write.service.ts": {
     "aurora/comment-budget": {
-      "count": 21
+      "count": 19
     },
     "aurora/comments-in-english": {
-      "count": 5
+      "count": 4
     }
   },
   "apps/api/src/branches/sales/lead/lead.constraints.ts": {
@@ -350,7 +350,7 @@
       "count": 6
     },
     "aurora/comments-in-english": {
-      "count": 12
+      "count": 11
     }
   },
   "apps/api/src/branches/sales/lead/lead.schema.ts": {
@@ -358,7 +358,7 @@
       "count": 10
     },
     "aurora/comments-in-english": {
-      "count": 28
+      "count": 24
     }
   },
   "apps/api/src/branches/sales/lead/lead.service.ts": {
@@ -526,7 +526,7 @@
       "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 9
+      "count": 7
     }
   },
   "apps/api/src/branches/sales/touch/touch.service.ts": {
@@ -1216,11 +1216,8 @@
     }
   },
   "apps/web/src/components/assign-menu.tsx": {
-    "aurora/comment-budget": {
-      "count": 4
-    },
     "aurora/comments-in-english": {
-      "count": 16
+      "count": 8
     },
     "max-lines-per-function": {
       "count": 1
@@ -1767,20 +1764,12 @@
       "count": 1
     }
   },
-  "apps/web/src/pages/lead-detail.tsx": {
-    "aurora/comment-budget": {
-      "count": 2
-    },
-    "aurora/comments-in-english": {
-      "count": 1
-    }
-  },
   "apps/web/src/pages/leads.tsx": {
     "aurora/comment-budget": {
-      "count": 9
+      "count": 7
     },
     "aurora/comments-in-english": {
-      "count": 24
+      "count": 22
     },
     "max-lines-per-function": {
       "count": 1
@@ -2101,10 +2090,10 @@
   },
   "packages/contracts/src/sales/lead.ts": {
     "aurora/comment-budget": {
-      "count": 12
+      "count": 11
     },
     "aurora/comments-in-english": {
-      "count": 8
+      "count": 7
     }
   },
   "packages/contracts/src/sales/mail.ts": {

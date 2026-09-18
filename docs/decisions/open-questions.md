@@ -86,3 +86,14 @@ checked against `git show` if the original is ever needed.
     owner — the original reason it was left unscoped (a Sale needs to see a
     company is already someone else's customer) still applies unless the
     owner rules on it separately. _(see ADR 0056)_
+
+## Lead lifecycle (added 18/09/2026)
+
+23. **Whether SDR is a new role or maps onto an existing one.** The V2
+    diagram assigns lead creation, first contact, nurture and disqualification
+    to an SDR role, and conversion to BD. There is no SDR role in the E2 role
+    matrix today (`packages/engines/src/e2-access.ts`: director, head-of-sales,
+    marketing, bd, presales, sale, account-executive). Until the owner
+    decides, the PIC-driven transitions in ADR 0058 use the existing
+    permissions (`lead.edit` scoped for the PIC's own moves, `lead.disqualify`
+    for disqualify/reopen). _(see ADR 0058)_

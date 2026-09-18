@@ -1,5 +1,12 @@
 import type { ObjectRef } from '@pv/engines'
-import type { ExitReason, LeadCreate, LeadIntakeBody, LeadPatch } from '@pv/contracts'
+import type {
+  ExitReason,
+  LeadCreate,
+  LeadIntakeBody,
+  LeadPatch,
+  LeadState,
+  LeadTier,
+} from '@pv/contracts'
 import type { lead } from './lead.schema'
 
 /** Contract shapes → column values, for the THREE write doors of the book.
@@ -23,7 +30,7 @@ import type { lead } from './lead.schema'
  *  yet at that moment. It builds the SAME SHAPE from the draft instead, and
  *  that shape is the thing to keep in step: `kind: 'LD'`, `branch: 'Sales'`,
  *  `label` = company, `owner` = the DISPLAY NAME of the holder, `state` =
- *  stage. Change one side and change the other. */
+ *  `lead.state`. Change one side and change the other. */
 
 /** Column values for one `sales.lead` row, minus the key.
  *
@@ -78,7 +85,18 @@ export const LEAD_NOTE = {
   exited: (reason: ExitReason, note: string | undefined) =>
     note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,
   reopened: 'Mở lại lead — quay về phễu',
+  verified: (tier: LeadTier) => `Xác minh xong · bậc ${tier}`,
+  nurtured: (note: string | undefined) =>
+    note ? `Chuyển nuôi dài hạn · ${note}` : 'Chuyển nuôi dài hạn',
+  resumed: 'Chăm lại sau thời gian nuôi',
+  archived: 'Lưu trữ tự động · quá 6 tháng nuôi dài hạn',
+  tierRaised: (tier: LeadTier) => `Nâng bậc · ${tier}`,
 } as const
+
+/** A lead is born `assigned` when it arrives with a holder, `new` otherwise
+ *  (ADR 0058) — `lead_open_owner_matches` refuses any other pairing. */
+export const stateAtBirth = (ownerId: string | null | undefined): LeadState =>
+  ownerId ? 'assigned' : 'new'
 
 export function refOf(code: string, write: LeadWrite): ObjectRef {
   return {
@@ -87,7 +105,7 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
     branch: 'Sales',
     label: write.values.company,
     ...(write.ownerName ? { owner: write.ownerName } : {}),
-    ...(write.values.stage ? { state: write.values.stage } : {}),
+    ...(write.values.state ? { state: write.values.state } : {}),
   }
 }
 
@@ -100,10 +118,10 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
  *  drift is the one nobody re-reads.
  *
  *  Four groups of columns are NOT written and each has its own reason:
- *   · `code`, `createdAt`, `stageSince`, `score` — minted or defaulted by the
- *     server; see `LeadValues` above and the column defaults.
- *   · `tier`, `stage` — withheld by the contract. A hand-typed lead has passed
- *     no gate, so it stands at no rung of the funnel yet.
+ *   · `code`, `createdAt`, `stateSince`, `score` — minted or defaulted by the
+ *     server; see `LeadValues` above and the column defaults. `state` is
+ *     derived from the owner (`stateAtBirth`), never accepted.
+ *   · `tier` — withheld by the contract: set only on verification (ADR 0058).
  *   · `exitReason`, `exitedAt` — a lead cannot be born already lost.
  *   · `sourceKind` — set here, not accepted from the caller: the system records
  *     where a row came from. `MANUAL` reads as `DECLARED` in `CHANNEL_TRUST`
@@ -142,6 +160,7 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       deadline: body.deadline ?? null,
 
       ownerId: body.ownerId ?? null,
+      state: stateAtBirth(body.ownerId),
       bdOwnerId: body.bdOwnerId ?? null,
       marketingOwnerId: body.marketingOwnerId ?? null,
 
@@ -202,6 +221,7 @@ export function fromIntake(body: LeadIntakeBody): LeadWrite {
       phone: body.phone ?? null,
       province: body.province ?? null,
       pain: body.pain ?? null,
+      state: 'new',
       sourceKind: 'LANDING_PAGE',
       motion: 'INBOUND',
     },

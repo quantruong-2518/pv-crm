@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
+import { LeadCommsHook } from './branches/sales/lead/lead-comms.hook'
+import { LeadModule } from './branches/sales/lead/lead.module'
 import { SalesModule } from './branches/sales/sales.module'
 import { AccessGuard } from './platform/access/access.guard'
 import { AccessModule } from './platform/access/access.module'
@@ -85,8 +87,9 @@ import { RolesModule } from './platform/roles/roles.module'
        two reasons: `comms` belongs to platform and must not ride into the tree
        on a branch's import, and it carries `/comms/identities`, the four doors
        of the identity book, so reading this list has to show the server has
-       them. */
-    CommsModule,
+       them. `withHook` is the one place comms learns that logging a call on a
+       lead moves its state — see `message-logged.hook.ts`. */
+    CommsModule.withHook({ imports: [LeadModule], hook: LeadCommsHook }),
     MailModule,
     SalesModule,
   ],

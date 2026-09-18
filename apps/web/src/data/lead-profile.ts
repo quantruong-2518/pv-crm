@@ -159,7 +159,9 @@ export function profileForm(p: LeadProfile): ProfileForm {
     bdOwner: p.bdOwnerName ?? '',
     marketingOwner: p.marketingOwnerName ?? '',
     createdAt: p.createdAt,
-    stage: p.stage ?? '',
+    /* A lead has no pipeline column since ADR 0058 — its status is `p.state`,
+       which the header prints; the frozen shape still has the slot. */
+    stage: '',
     dealCode: '',
     contractCode: '',
     exitReason: exitLabel(p.exitReason),
@@ -256,7 +258,6 @@ export function leadOf(p: LeadProfile): Lead {
     answered: p.requiredFilled + p.optionalFilled,
     filled,
     owner: p.ownerName,
-    stage: p.stage,
     daysHere: p.daysHere,
     /* EMPTY on purpose, and this is the one field that must not be filled in.
        `Lead.source` documents itself as "mã nguồn — trỏ vào `SOURCES`", the

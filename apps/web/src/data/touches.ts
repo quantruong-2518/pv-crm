@@ -3,6 +3,7 @@ import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
 import type { TouchKind, TouchRow, TouchTimelineResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { tierLabel } from '@/data/lead-state'
 import { ROLE_LABEL } from '@/data/users'
 import { dm, dmy } from '@/lib/date'
 
@@ -56,9 +57,8 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
  *  Bốn trường được lấy, phần còn lại của `TouchRow` cố ý bỏ:
  *
  *   · `subjectCode`/`subjectKind` — đã biết, vì chính lời gọi chọn chúng;
- *   · `toTier` — bậc SAU bước này. Màn Hiệu suất đếm bằng nó; thẻ hoạt động thì
- *     không, vì câu tiếng Việt ở `note` do máy chủ viết đã chở sẵn bậc. Bày
- *     thêm một nhãn bậc cạnh câu đã nói điều đó là in hai lần một sự thật;
+ *   · `toTier` — kept for one job: the server's `verified` sentence carries the
+ *     tier KEY (`mql`), so `lifecycleTitle` rewrites it with the tier label;
  *   · `actorId` — `by` là ẢNH CHỤP tên lúc ghi, và thẻ chỉ in tên. Cầm thêm id
  *     là mở đường cho ai đó join lại `actor` để "lấy tên mới hơn", đúng thứ
  *     docblock của `TouchRow.by` cấm.
@@ -66,7 +66,14 @@ const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view
  *  Máy chủ đã sắp xếp; hàm này KHÔNG sắp lại. Sắp lần hai ở đây thì ngày máy
  *  chủ đổi thứ tự, màn vẫn hiện thứ tự cũ và không ai biết chỗ nào quyết định. */
 export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
-  return rows.map((r) => ({ id: r.id, at: r.at, kind: r.kind, by: r.by, note: r.note }))
+  return rows.map((r) => ({
+    id: r.id,
+    at: r.at,
+    kind: r.kind,
+    by: r.by,
+    note: r.note,
+    ...(r.toTier ? { toTier: r.toTier } : {}),
+  }))
 }
 
 /** One timeline milestone, CARRYING the row it was read off.
@@ -91,6 +98,29 @@ export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
 export type TouchFocus = { id: string; seq: number }
 
 export type TouchEvent = Omit<LeadEvent, 'kind'> & { id: string; kind: TouchKind }
+
+/** The screen's own sentence for the four lifecycle steps (ADR 0058), or
+ *  `undefined` to print the server's `note`. The server writes keys (a tier
+ *  key, not its label), and labels are the screen's job. A `nurtured` row keeps
+ *  the PIC's own note, which rides after the server's first ` · `. */
+export function lifecycleTitle(event: TouchEvent): string | undefined {
+  switch (event.kind) {
+    case 'verified': {
+      const tier = event.toTier && tierLabel(event.toTier)
+      return tier ? `Đã xác minh · bậc ${tier}` : 'Đã xác minh'
+    }
+    case 'nurtured': {
+      const note = event.note.split(' · ').slice(1).join(' · ')
+      return note ? `Chuyển sang nuôi dài hạn · ${note}` : 'Chuyển sang nuôi dài hạn'
+    }
+    case 'resumed':
+      return 'Chăm lại'
+    case 'archived':
+      return 'Lưu trữ (hết hạn nuôi)'
+    default:
+      return undefined
+  }
+}
 
 /** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
  *

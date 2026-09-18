@@ -16,14 +16,13 @@ import {
   Skeleton,
 } from '@pv/ui'
 import type { LeadProfile } from '@pv/contracts'
-import { PIPELINE_STAGES } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL } from '@/data/leads'
-import { useStageLimits } from '@/data/sales-config'
+import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { useLeadDraft } from '@/data/lead-draft'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { chainPath, opportunitiesOfLeadQuery } from '@/data/opportunities'
@@ -32,6 +31,7 @@ import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
 import { LeadActivityCard } from '@/components/lead-activity-card'
+import { NurtureDialog, VerifyDialog } from '@/components/lead-state-actions'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { MasMailModal } from '@/components/mas-mail-modal'
 import { OwnerSourceCard } from '@/components/owner-source-card'
@@ -130,6 +130,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
   const [scheduleSeq, setScheduleSeq] = useState(0)
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
+  const [step, setStep] = useState<'verify' | 'nurture' | null>(null)
   const [composing, setComposing] = useState(false)
 
   /* ONE draft for the whole screen: the form card on the left and the holder
@@ -138,11 +139,16 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
   /* The blocks still living on `app/desk.ts` read the fixture's `Lead` shape —
      built ONCE here instead of every block converting it for itself. */
   const legacy = leadOf(lead)
-  const masBlocker = !lead.email
-    ? 'Lead chưa có địa chỉ email.'
-    : !lead.contactName
-      ? 'Lead chưa có người liên hệ.'
-      : undefined
+  /* The server treats a dropped or archived lead as left the funnel, and
+     refuses mail to it — say so on the button rather than after composing. */
+  const masBlocker =
+    lead.state === 'disqualified' || lead.state === 'archived'
+      ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
+      : !lead.email
+        ? 'Lead chưa có địa chỉ email.'
+        : !lead.contactName
+          ? 'Lead chưa có người liên hệ.'
+          : undefined
 
   return (
     <ScreenLayout>
@@ -165,9 +171,11 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
               {/* No "by <person>": the profile carries no creator column, and
                   the vector's first holder answers a different question. */}
               <MetaPill mono>Tạo {dmy(lead.createdAt)}</MetaPill>
-              {/* Which column and how long — the badge above says "Quá hạn cột"
-                  without naming either, and both are what decides the next move. */}
-              <StagePill lead={lead} />
+              {/* Since when the lead has stood in its state — the badge above
+                  names the state; no limit to be late against (ADR 0057 §4). */}
+              <MetaPill mono>
+                Từ {dmy(lead.stateSince)} · {lead.daysHere} ngày
+              </MetaPill>
               {/* Who the lead waits ON, which is not who holds it: a request
                   sitting with somebody else is why a lead stops moving while
                   its holder looks idle. Nothing else on the page says it. */}
@@ -226,6 +234,8 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
         canConvert={canConvert}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
+        onVerify={() => setStep('verify')}
+        onNurture={() => setStep('nurture')}
         onConvert={() => setConverting(true)}
         onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
         onCompose={() => setComposing(true)}
@@ -237,6 +247,8 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
           stored row rather than regenerated from the code. */}
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
+      <VerifyDialog profile={lead} open={step === 'verify'} onClose={() => setStep(null)} />
+      <NurtureDialog profile={lead} open={step === 'nurture'} onClose={() => setStep(null)} />
       <MasMailModal
         open={composing}
         onClose={() => setComposing(false)}
@@ -309,66 +321,19 @@ function EmptyLead({
   )
 }
 
-const STAGE_LABEL = new Map(PIPELINE_STAGES.map((stage) => [stage.key, stage.label]))
-
-/** Past the PIPELINE COLUMN's deadline — the same table and the same sum the
- *  lead book reads (`pages/leads.tsx`), which comes from `config_entry`. NOT
- *  `lead.position`: that is the lead's own ladder, this is the funnel column. */
-function overSla(lead: LeadProfile, limits: Map<string, number | null>): boolean {
-  if (!lead.stage) return false
-  const limit = limits.get(lead.stage)
-  return limit !== undefined && limit !== null && lead.daysHere > limit
-}
-
-/** Which funnel column the lead sits in, and for how long. One computation for
- *  this pill and for the badge, so the two can never disagree about overdue. */
-function StagePill({ lead }: { lead: LeadProfile }) {
-  const limits = useStageLimits()
-  if (!lead.stage) return null
-  return (
-    <MetaPill tone={overSla(lead, limits) ? 'warning' : 'accent'}>
-      {STAGE_LABEL.get(lead.stage) ?? lead.stage} · {lead.daysHere} ngày
-    </MetaPill>
-  )
-}
-
-/** The lead's status — four branches, and the first one NO LONGER carries a
- *  contract code.
- *
- *  It used to print the signed contract's code, read off the fixture's
- *  `contractCode`. That column is gone: lead to contract is 1-n now, so no
- *  column can name "the" contract. What survived is `signed`, a boolean — so
- *  the badge keeps the STATE and drops the code rather than inventing one. The
- *  code returns the day the profile carries a LIST of deals. */
+/** The lead's stored lifecycle state (ADR 0058), named by the same table the
+ *  book reads — two screens of one row must print one word. A disqualified
+ *  lead also says why, because that is the first question about it. */
 function StatusBadge({ lead, className }: { lead: LeadProfile; className?: string }) {
-  const limits = useStageLimits()
+  const face = LEAD_STATE_FACE[lead.state]
+  const reason =
+    lead.state === 'disqualified' && lead.exitReason
+      ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
+      : undefined
 
-  if (lead.signed)
-    return (
-      <Badge tone="success" className={className}>
-        Đã ký
-      </Badge>
-    )
-  if (lead.exitReason) {
-    return (
-      <Badge tone="danger" className={className}>
-        Đã rơi · {EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason}
-      </Badge>
-    )
-  }
-  if (overSla(lead, limits)) {
-    return (
-      <Badge tone="warning" className={className}>
-        Quá hạn cột
-      </Badge>
-    )
-  }
-  /* The lead book names this bucket the same way, and two screens must print
-     one word for one bucket. The older wording claimed the lead was moving;
-     most leads in here have not been touched by anybody yet. */
   return (
-    <Badge tone="running" className={className}>
-      Chưa chốt
+    <Badge tone={face.badge} className={className}>
+      {reason ? `${face.label} · ${reason}` : face.label}
     </Badge>
   )
 }

@@ -1,7 +1,7 @@
 import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { LeadSourceKind, MailRunListQuery, MailTemplateRow } from '@pv/contracts'
+import type { LeadSourceKind, LeadState, MailRunListQuery, MailTemplateRow } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { audit } from '@api/platform/db/platform.schema'
@@ -27,21 +27,13 @@ export type MasLeadRow = {
   email: string | null
   sourceKind: LeadSourceKind | null
   suppressed: boolean
-  /** Why this lead left the funnel, or `null` while it is still running.
-   *
-   *  A FACT and not a filter, which is the whole reason it is a column here
-   *  rather than a `WHERE` clause: a lead cut in SQL comes back in no row at
-   *  all, and the preflight would then report "40 picked, 37 sendable" with
-   *  three that vanished for a reason the screen never names (the same failure
-   *  `MasPreflightResponse.hidden` exists to describe for the picks this
-   *  repository genuinely may not return). An exited lead is one this caller is
-   *  fully entitled to see; it just must not be written to. So it comes back
-   *  whole, and `MasService.decide` turns it into `EXITED`.
-   *
-   *  The reason string travels rather than a bare boolean because it costs the
-   *  same and it is the difference between "đã rơi khỏi phễu" and being able to
-   *  say WHY on a screen that one day wants to. */
-  exitReason: string | null
+  /** The lead's lifecycle state (ADR 0058). A FACT and not a filter: a lead
+   *  cut in SQL comes back in no row at all, and the preflight would then
+   *  report "40 picked, 37 sendable" with three that vanished for a reason the
+   *  screen never names. A `disqualified` or `archived` lead is one this caller
+   *  is fully entitled to see; it just must not be written to — so it comes
+   *  back whole, and `MasService.decide` turns it into `EXITED`. */
+  state: LeadState
 }
 
 /** One letter of a run, in the DRIVER's own spelling — `snake_case` keys and
@@ -148,16 +140,16 @@ export class MasRepository {
    *  later produces a blocked recipient, not a letter addressed to `''`.
    *
    *  ------------------------------------------------------------------
-   *  `exit_reason` IS SELECTED, NOT FILTERED — AND THAT IS THE POINT
+   *  `state` IS SELECTED, NOT FILTERED — AND THAT IS THE POINT
    *  ------------------------------------------------------------------
    *  A lead that left the funnel must not be written to, and the obvious fix is
-   *  `AND exit_reason IS NULL` in the WHERE clause. It is the wrong one: the
+   *  `AND state NOT IN ('disqualified', 'archived')` in the WHERE clause. It is the wrong one: the
    *  row would then be absent exactly like a row the scope axis cut, the
    *  preflight would say "40 picked · 37 sendable" and account for none of the
    *  other three, and the sender would go looking for a data problem that is
    *  not there. The column comes back as a FACT and `MasService.decide` turns
    *  it into `EXITED`, so the panel can name it. Same rule as `suppressed`
-   *  right above it — see the note on `MasLeadRow.exitReason`. */
+   *  right above it — see the note on `MasLeadRow.state`. */
   async audience(
     handle: Db,
     who: Actor,
@@ -175,7 +167,7 @@ export class MasRepository {
         email: sql<string | null>`NULLIF(trim(${lead.email}), '')`,
         sourceKind: lead.sourceKind,
         suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,
-        exitReason: lead.exitReason,
+        state: lead.state,
       })
       .from(lead)
       .leftJoin(

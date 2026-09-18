@@ -5,6 +5,7 @@ import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { ContractRepository } from '../contract/contract.repository'
+import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityController } from './opportunity.controller'
@@ -63,7 +64,15 @@ import { OpportunityService } from './opportunity.service'
   /* `ApprovalModule` for two things: what is still waiting on a deal (which
      `pipelinePosition` needs), and the `contract-sign` applier registered below
      — signing goes through E3 since ADR 0057 §7. */
-  imports: [ApprovalModule, EnginesModule, GraphModule, MailModule, TouchModule, WorkstreamModule],
+  imports: [
+    ApprovalModule,
+    EnginesModule,
+    GraphModule,
+    MailModule,
+    TouchModule,
+    WorkstreamModule,
+    LeadStateModule,
+  ],
   controllers: [OpportunityController],
   providers: [
     OpportunityService,

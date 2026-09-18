@@ -140,21 +140,25 @@ export const touch = sales.table(
     /** "Việc tôi đã làm", chưa có màn nào hỏi. Rẻ, và cột đã có sẵn. */
     index('touch_actor_idx').on(t.actorId),
     check('touch_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
-    /** Đúng mười một giá trị của `TouchKind`. Chép ra đây chứ không sinh: một CHECK
-     *  là một chuỗi trong migration, và ngày enum ở hợp đồng dài thêm thì đây
-     *  phải là một migration có người đọc, không phải một dòng lặng lẽ đổi. */
+    /** The fifteen `TouchKind` values, copied out rather than generated: a CHECK
+     *  is a string in a migration, and the day the contract's enum grows this
+     *  must be a migration somebody reads (0052 added ADR 0058's four). */
     check(
       'touch_kind_known',
-      sql`"kind" IN ('created', 'contacted', 'field-filled', 'handed-over', 'tier-raised', 'first-meeting',
-                     'entered-pipeline', 'stage-changed', 'signed', 'exited', 'reopened')`,
+      sql`"kind" IN ('created', 'contacted', 'field-filled', 'handed-over', 'tier-raised', 'verified',
+                     'nurtured', 'resumed', 'archived', 'first-meeting', 'entered-pipeline',
+                     'stage-changed', 'signed', 'exited', 'reopened')`,
     ),
     /** Ba giá trị của `LeadTier`. Chép ra đây cùng lý do với `touch_kind_known`
      *  ở trên: enum dài thêm thì phải là một migration có người đọc. */
     check('touch_to_tier_known', sql`"to_tier" IS NULL OR "to_tier" IN ('prospect', 'mql', 'sql')`),
-    /** Lý do cột `to_tier` tồn tại là để `tier-raised` trả lời được "lên bậc nào".
-     *  Một dòng `tier-raised` không mang bậc là một dòng không đọc được — chặn ở
-     *  đây chứ không phát hiện lúc dựng biểu đồ. */
-    check('touch_tier_raised_has_tier', sql`"kind" <> 'tier-raised' OR "to_tier" IS NOT NULL`),
+    /** `to_tier` exists so a rung-moving row can say WHICH rung. `verified` sets
+     *  the first tier (ADR 0058), so it is fenced like `tier-raised`; the name
+     *  predates it and stays, since renaming a constraint buys nothing. */
+    check(
+      'touch_tier_raised_has_tier',
+      sql`"kind" NOT IN ('tier-raised', 'verified') OR "to_tier" IS NOT NULL`,
+    ),
     /** The SHAPE of the four columns above, true of every row ever written:
      *
      *   · an end has a name and an id or neither — half an end cannot be drawn;

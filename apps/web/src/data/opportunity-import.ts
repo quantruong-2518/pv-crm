@@ -5,6 +5,7 @@ import type {
 } from '@pv/contracts'
 import { api, isApiError, userMessage } from '@/app/api'
 import { OPPORTUNITY_BOOK_KEY } from '@/data/opportunities'
+import { invalidateLeadState } from '@/data/lead-exit'
 import { OPPORTUNITY_WRITE_NEED } from '@/data/opportunities-write'
 import {
   buildOpportunityImportBody,
@@ -167,6 +168,7 @@ export function useOpportunityImport() {
   return async (input: OpportunityImportInput): Promise<OpportunityImportRun> => {
     const run = await runOpportunityImport(input)
     void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+    invalidateLeadState(client)
     return run
   }
 }

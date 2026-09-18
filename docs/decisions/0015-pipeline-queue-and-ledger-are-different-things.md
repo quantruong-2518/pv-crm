@@ -1,10 +1,12 @@
 # 0015 · Pipeline, queue and ledger are three different things, and four rules govern every pipeline
 
 Status: partially superseded by 0055 (rule 4's `LOSS_REASONS` half — itself
-further superseded by 0057, which reopens loss reason to free text) and by
+further superseded by 0057, which reopens loss reason to free text), by
 0057 (rule 2 suspended outside the five opportunity stages · rule 3 does not
-apply to lead exit, which is reversible); rule 1 and the pipeline/queue/ledger
-split stand
+apply to lead exit, which is reversible), and by 0058 (the lead's own status
+stops riding this file's pipeline/`phase` treatment — the lead now has its
+own stored lifecycle state, decoupled from where it sits on a pipeline);
+rule 1 and the pipeline/queue/ledger split stand
 Source: docs/tam-nhin-pipeline-toan-he.md §1 ("Three different things being
 called by one name") and §2 ("Four rules that make up 'orderly'")
 

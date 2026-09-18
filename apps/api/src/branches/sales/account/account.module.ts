@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { GraphModule } from '@api/platform/graph/graph.module'
+import { LeadStateModule } from '../lead/lead-state'
 import { AccountController } from './account.controller'
 import { AccountRepository } from './account.repository'
 import { AccountService } from './account.service'
@@ -18,7 +19,7 @@ import { AccountService } from './account.service'
  *  reach here, and it goes through the exported service rather than through the
  *  table, per the branch rule in `apps/api/CLAUDE.md`. */
 @Module({
-  imports: [GraphModule],
+  imports: [GraphModule, LeadStateModule],
   controllers: [AccountController],
   providers: [AccountService, AccountRepository],
   exports: [AccountService],

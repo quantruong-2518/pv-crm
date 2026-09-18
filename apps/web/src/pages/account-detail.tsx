@@ -33,6 +33,7 @@ import {
   useSaveAccount,
   type AccountDraft,
 } from '@/data/accounts'
+import { LEAD_STATE_FACE, tierLabel } from '@/data/lead-state'
 import { AccountFields } from '@/components/account-fields'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 
@@ -351,8 +352,13 @@ function LeadsCard({
                 <span className="text-muted-foreground text-[11px]">{dm(l.createdAt)}</span>
               </button>
               <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                {[l.tier, l.stage, l.ownerName].filter((x) => x !== undefined).join(' · ') ||
-                  'Chưa xếp bậc'}
+                {[
+                  l.tier === undefined ? undefined : tierLabel(l.tier),
+                  LEAD_STATE_FACE[l.state].label,
+                  l.ownerName,
+                ]
+                  .filter((x) => x !== undefined)
+                  .join(' · ')}
               </span>
             </li>
           ))}

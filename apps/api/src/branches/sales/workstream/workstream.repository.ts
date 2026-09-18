@@ -94,13 +94,14 @@ export class WorkstreamRepository {
    *  transaction, so a run's end is written with the row that caused it.
    *
    *  WON when the lead is signed (`leadSigned`, the lead book's rule) at its
-   *  latest signature; else LOST at `exited_at`; else OPEN — which also REOPENS
+   *  latest signature; else LOST when the lead is `disqualified` (at
+   *  `exited_at`) or `archived` (at `state_since`); else OPEN — which also REOPENS
    *  a closed run. The date is floored at `opened_at` for
    *  `workstream_closed_after_opened`; `CHURNED` is never derived. Only rows
    *  whose pair actually changes are written.
    *
    *  Called by every door that can move the answer: deal create, import, a
-   *  state change, sign; lead exit and reopen. No door deletes a contract
+   *  state change, sign; lead exit, reopen and archive. No door deletes a contract
    *  today — the day one does, it calls this too. */
   async syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
     if (workstreamCodes.length === 0) return
@@ -392,16 +393,18 @@ function SYNC_CLOSED(codes: readonly string[]): SQL {
       FROM (
         SELECT w2.code,
                CASE WHEN x.won THEN greatest(x.signed_at, w2.opened_at)
-                    WHEN x.exited_at IS NOT NULL THEN greatest(x.exited_at, w2.opened_at)
+                    WHEN x.lost_at IS NOT NULL THEN greatest(x.lost_at, w2.opened_at)
                END AS closed_at,
                CASE WHEN x.won THEN 'WON'
-                    WHEN x.exited_at IS NOT NULL THEN 'LOST'
+                    WHEN x.lost_at IS NOT NULL THEN 'LOST'
                END AS close_reason
           FROM sales.workstream w2
           JOIN LATERAL (
             SELECT ${leadSigned(sql`l.code`)} AS won,
                    (SELECT max(k.signed_at) FROM sales.contract k WHERE k.lead_code = l.code) AS signed_at,
-                   l.exited_at
+                   CASE l.state WHEN 'disqualified' THEN l.exited_at
+                                WHEN 'archived' THEN l.state_since
+                   END AS lost_at
               FROM sales.lead l
              WHERE l.workstream_code = w2.code
           ) x ON true

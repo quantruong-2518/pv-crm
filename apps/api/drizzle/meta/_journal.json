@@ -351,6 +351,13 @@
       "when": 1788502100000,
       "tag": "0050_meeting_booking_and_mail_track",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788502300000,
+      "tag": "0052_lead_state",
+      "breakpoints": true
     }
   ]
 }

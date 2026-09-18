@@ -14,17 +14,16 @@ import {
   cn,
   percent,
   type StatStripItem,
-  type StatusDotState,
 } from '@pv/ui'
 import { sourceKindLabel, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { useSession } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
-import { STAGE_LABEL } from '@/components/ops-fields'
+import { AssignMenu } from '@/components/assign-menu'
 import { PicCell } from '@/components/table-bits'
 import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
 import { useSetLeadOwner } from '@/data/lead-owner'
-import { useStageLimits } from '@/data/sales-config'
+import { LEAD_STATE_FACE } from '@/data/lead-state'
 
 /** Module 2 · the cells and blocks of the lead book, split from `leads.tsx` so
  *  the screen file stays the layout: header, score strip, one list card.
@@ -126,55 +125,53 @@ export function SourceCell({ lead }: { lead: LeadRow }) {
   )
 }
 
-/** Days past the column's configured limit, 0 when not late. A column with no
- *  limit set is never late: an empty config cell is not the seller's fault. */
-function daysLate(lead: LeadRow, limits: Map<string, number | null>): number {
-  if (!lead.stage) return 0
-  const limit = limits.get(lead.stage)
-  return limit === undefined || limit === null ? 0 : Math.max(0, lead.daysHere - limit)
-}
-
-function StatusLine({ dot, label }: { dot: StatusDotState; label: string }) {
+/** The lead's stored lifecycle state (ADR 0058), label and dot from the one
+ *  table in `data/lead-state.ts`. How long it has sat there lives on the lead's
+ *  own page: states carry no limit to be late against (ADR 0057 §4). */
+export function StatusCell({ lead }: { lead: LeadRow }) {
+  const face = LEAD_STATE_FACE[lead.state]
   return (
     <span className="flex min-w-0 items-center gap-2 text-[12.5px]">
-      <StatusDot state={dot} />
-      <span className="truncate">{label}</span>
+      <StatusDot state={face.dot} />
+      <span className="truncate">{face.label}</span>
     </span>
   )
 }
 
-/** Dot colour answers "does this row need me": green signed, red dropped,
- *  amber untouched or past its column limit, azure moving within its limit.
- *  A signed row carries no contract code — lead → contract is one-to-many now.
- *  One line: days-here and the late count move to the lead's own page. */
-export function StatusCell({ lead }: { lead: LeadRow }) {
-  const limits = useStageLimits()
-
-  if (lead.signed) return <StatusLine dot="ok" label="Đã ký" />
-  if (lead.exitReason) return <StatusLine dot="bad" label="Đã rơi" />
-  if (!lead.stage) return <StatusLine dot="warning" label="Chưa xử lý" />
-
-  const late = daysLate(lead, limits)
-  return (
-    <StatusLine
-      dot={late > 0 ? 'warning' : 'current'}
-      label={STAGE_LABEL.get(lead.stage) ?? lead.stage}
-    />
-  )
-}
-
-/** Lead PIC cell for the book row. A held lead prints the usual `PicCell`; an
- *  unheld one gets a one-click claim instead of the bare "—" — the book is
- *  where an unassigned lead is spotted, so taking it should not first require
- *  opening the lead's own page. Same write as `AssignMenu`'s self-claim button
- *  (`PATCH /sales/leads/:code/owner`, `useSetLeadOwner`); no separate claim
- *  endpoint. Stops the click from reaching the row, or claiming would also
- *  open the lead. */
+/** Lead PIC cell for the book row.
+ *
+ *  Holder of `lead.assign` (director, head-of-sales, account-executive) gets
+ *  `AssignMenu` right in the row — same component as the lead's own page, so
+ *  a manager can hand a lead to a specific report without opening it first.
+ *  Everyone else keeps the plain one-click claim: unheld gets a button that
+ *  always claims for self, held gets the bare `PicCell`. Both paths write
+ *  through `PATCH /sales/leads/:code/owner` (`useSetLeadOwner`); no separate
+ *  claim or assign endpoint. Stops the click from reaching the row, or
+ *  claiming/assigning would also open the lead. */
 export function LeadPicCell({ lead }: { lead: LeadRow }) {
   const me = useSession((s) => s.actor)
+  const mayAssign = useCan('lead.assign')
   const setOwner = useSetLeadOwner()
+  const held = Boolean(lead.ownerEmail || lead.ownerName)
 
-  if (lead.ownerEmail || lead.ownerName || !me) {
+  if (me && mayAssign) {
+    return (
+      <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-2">
+        {held && (
+          <PicCell avatar email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
+        )}
+        <AssignMenu
+          lead={lead}
+          profile={lead}
+          size="sm"
+          buttonVariant={held ? 'ghost' : 'default'}
+          iconOnly={held}
+        />
+      </span>
+    )
+  }
+
+  if (held || !me) {
     return <PicCell avatar email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
   }
 

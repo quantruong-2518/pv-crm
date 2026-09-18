@@ -33,6 +33,7 @@ import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { dealOpen } from '../open-deal'
 import {
   opportunity,
@@ -45,6 +46,8 @@ import {
 import { stageConfigOf, type StageConfig } from '../ladder'
 import type { ActorLite } from './opportunity-import.check'
 import type { OpportunityValues } from './opportunity.mapper'
+
+const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
 /** Một dòng sổ đã nạp đủ thứ nó cần để ra mặt. */
 export type OpportunityRead = {
@@ -345,7 +348,7 @@ export class OpportunityRepository {
       .select({
         company: lead.company,
         workstreamCode: lead.workstreamCode,
-        exited: sql<boolean>`${lead.exitReason} IS NOT NULL`,
+        exited: sql<boolean>`${inArray(lead.state, [...LEAD_GONE_STATES])}`,
       })
       .from(lead)
       .where(eq(lead.code, code))
@@ -432,9 +435,9 @@ export class OpportunityRepository {
    *  Node, vì `regexp_replace` cho một sổ trăm dòng là trả phí cho thứ vòng lặp
    *  đã đi qua rồi.
    *
-   *  Chỉ lead CÒN CHẠY (`exit_reason IS NULL`) vào `byCompany`, cùng nửa điều
-   *  kiện mà `lead_email_live_idx` mang; lead đã rời phễu về `exited` để dòng
-   *  của nó bị từ chối bằng đúng câu "mở lại lead trước".
+   *  Only leads not `disqualified`/`archived` enter `byCompany` — the same
+   *  condition `lead_email_live_idx` carries; the rest go to `exited` so their
+   *  row is refused with the same "reopen the lead first" sentence.
    *
    *  Trả về CẢ tập tên nhập nhằng, không lặng lẽ chọn dòng đầu. Hai lead cùng
    *  tên công ty là chuyện có thật (hai chi nhánh, một lần nhập trùng), và đoán
@@ -451,7 +454,7 @@ export class OpportunityRepository {
         code: lead.code,
         folded: sql<string>`lower(${lead.company})`,
         workstreamCode: lead.workstreamCode,
-        exitReason: lead.exitReason,
+        state: lead.state,
       })
       .from(lead)
 
@@ -462,7 +465,7 @@ export class OpportunityRepository {
 
     for (const r of rows) {
       const key = r.folded.trim().replace(/\s+/g, ' ')
-      if (r.exitReason !== null) {
+      if (GONE.has(r.state)) {
         exited.add(key)
         continue
       }
@@ -623,17 +626,20 @@ export class OpportunityRepository {
     return state ?? null
   }
 
-  /** Lock leads `FOR SHARE` — held against `lockForExit`'s `FOR UPDATE` — and
-   *  answer which of them have left the funnel, so a deal write cannot land on
-   *  a lead exiting in the same instant. */
+  /** Lock leads `FOR NO KEY UPDATE` and answer which are `disqualified`/
+   *  `archived`, so a deal write cannot land on a lead exiting in the same
+   *  instant. Not `FOR SHARE`: the same tx then UPDATEs the lead to `converted`,
+   *  and two share-holders upgrading at once deadlock. The deal's FK takes KEY
+   *  SHARE, which this mode allows; `ORDER BY code` keeps batch locks ordered. */
   async exitedLocked(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
     if (leadCodes.length === 0) return []
     const rows = await tx
-      .select({ code: lead.code, exitReason: lead.exitReason })
+      .select({ code: lead.code, state: lead.state })
       .from(lead)
       .where(inArray(lead.code, [...leadCodes]))
-      .for('share')
-    return rows.filter((r) => r.exitReason !== null).map((r) => r.code)
+      .orderBy(asc(lead.code))
+      .for('no key update')
+    return rows.filter((r) => GONE.has(r.state)).map((r) => r.code)
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */

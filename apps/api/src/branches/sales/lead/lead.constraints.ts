@@ -47,11 +47,30 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
     message: 'Đánh dấu lead rơi khỏi luồng phải kèm cả lý do lẫn ngày rơi.',
   },
 
-  lead_exit_no_stage: {
+  /** The four lifecycle fences of ADR 0058. Every door moves `state` through
+   *  `LeadStateWriter`, so reaching one of these is a door written wrong. An
+   *  unknown state is `invalid` (a bad value); the other three are `conflict`,
+   *  because the row's current state is what the write collided with. */
+  lead_state_known: {
     kind: 'invalid',
-    fields: ['exitReason', 'stage'],
+    fields: ['state'],
+    message: 'Trạng thái lead không có trong danh sách.',
+  },
+  lead_disqualified_has_reason: {
+    kind: 'conflict',
+    fields: ['exitReason'],
+    message: 'Lead đã loại phải kèm lý do rời phễu, và chỉ lead đã loại mới mang lý do đó.',
+  },
+  lead_working_has_tier: {
+    kind: 'conflict',
+    fields: ['tier'],
+    message: 'Lead đang chăm phải có bậc — chốt bậc ở bước "Xác minh xong".',
+  },
+  lead_open_owner_matches: {
+    kind: 'conflict',
+    fields: ['ownerId'],
     message:
-      'Lead đã rơi khỏi luồng thì không còn đứng ở cột nào của phễu — bỏ cột, hoặc bỏ đánh dấu rơi.',
+      'Lead còn trong phễu thì "Mới tạo" nghĩa là chưa ai nhận: có người phụ trách thì không còn là lead mới, và ngược lại.',
   },
 
   /** CHECK trải trên mười lăm cột, nên không quy được về một ô nào. Câu chung,

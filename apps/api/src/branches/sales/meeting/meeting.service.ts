@@ -8,6 +8,7 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { LeadStateWriter } from '../lead/lead-state'
 import { TouchService, byOf } from '../touch/touch.service'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, toContract } from './meeting.mapper'
@@ -32,6 +33,8 @@ export class MeetingService {
   constructor(
     private readonly repo: MeetingRepository,
     private readonly touch: TouchService,
+    /* A meeting logged by the lead's holder is their first action (ADR 0058). */
+    private readonly states: LeadStateWriter,
   ) {}
 
   /** Mọi buổi họp của một lead, mới trước, kèm cờ lần gặp đầu. */
@@ -89,6 +92,7 @@ export class MeetingService {
 
       await this.guestsBelongHere(tx, code, body.guests)
       await this.repo.setAttendees(tx, meetingId, attendeesOf(meetingId, body))
+      await this.states.firstAction(tx, [code], who.id)
 
       await this.touch.record(tx, [
         {

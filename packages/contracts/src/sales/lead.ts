@@ -21,8 +21,8 @@ import {
   LeadCategory,
   LeadMotion,
   LeadSourceKind,
+  LeadState,
   LeadTier,
-  StageKey,
 } from './enums'
 import {
   LEAD_MAX,
@@ -89,6 +89,7 @@ export const LeadRow = z.object({
 
   province: z.string().min(1).optional(),
   category: LeadCategory.optional(),
+  /** Absent until a PIC confirms verification — `POST :code/verify` sets it. */
   tier: LeadTier.optional(),
   phone: z.string().min(1).optional(),
   contactChannel: ContactChannel.optional(),
@@ -130,10 +131,12 @@ export const LeadRow = z.object({
    *  here is a mail sent to an address that does not exist. */
   ownerEmail: z.string().min(1).optional(),
 
-  stage: StageKey.optional(),
+  /** See `LeadState`. Required: every row is in exactly one state. */
+  state: LeadState,
+  stateSince: Moment,
 
-  /** Days spent at the current place. NOT a column — the server computes it
-   *  from `stage_since` at read time, because this number changes with the
+  /** Whole days in the current `state`. NOT a column — the server computes it
+   *  from `state_since` at read time, because this number changes with the
    *  clock even when nobody touches the row. */
   daysHere: z.number().int().nonnegative(),
 
@@ -167,6 +170,7 @@ export const LeadRow = z.object({
   lastTouchAt: Moment.optional(),
 
   createdAt: Moment,
+  /** Both present exactly while `state` is `disqualified`. */
   exitReason: ExitReason.optional(),
   exitedAt: Moment.optional(),
 })
@@ -175,26 +179,15 @@ export const LeadRow = z.object({
 // Filters — every one of them has to survive the URL
 // ---------------------------------------------------------------------------
 
-/** The four branches of the book's "Trạng thái" filter.
- *
- *  This REPLACES the old `running: Bool`, and the replacement is not cosmetic.
- *  A boolean carries two branches while the screen has four, and the two extra
- *  ones are not the negation of anything:
- *
- *      running   not exited AND not signed
- *      signed    EXISTS(contract)              <- not "NOT running"
- *      exited    exit_reason IS NOT NULL
- *      all       everything in the period
- *
- *  What the boolean actually did is worth writing down, because it is live
- *  today in `lead.repository.ts`: `running=true` returned "not exited and no
- *  contract", `running=false` returned "exited". A SIGNED lead matched NEITHER
- *  value — it was unreachable through the only filter the contract had. That is
- *  the failure mode this enum removes.
- *
- *  Default `running`, matching the screen: an exited lead is still lookup-able,
- *  because that is where the answer to "why did we lose it" lives. */
-export const LeadStatus = z.enum(['running', 'signed', 'exited', 'all'])
+/** The book's `state` filter: one `LeadState`, or a group — `open` (the five
+ *  `LEAD_OPEN_STATES`, the default: the book is a work list), `live` (open or
+ *  converted — every lead a deal may still be raised on) or `all`. A group
+ *  key rather than a list param, so "which five are open" is decided on the
+ *  server and not re-spelled by every caller. */
+export const LeadStateFilter = z.enum(
+  [...LeadState.options, 'open', 'live', 'all'],
+  'Trạng thái không có trong danh sách',
+)
 
 /** Columns the book can be sorted by. A closed list on purpose: a sort key with
  *  no column behind it must die at the zod gate, not inside the query builder.
@@ -203,7 +196,7 @@ export const LeadStatus = z.enum(['running', 'signed', 'exited', 'all'])
  *  is the book's natural order — the repository already sorts by it — and
  *  `daysHere` is here because it is the number the SLA warning reads. Note for
  *  whoever implements it: `daysHere` is not a column, so ordering by it means
- *  ordering by the same expression the SELECT computes, which is `stage_since`
+ *  ordering by the same expression the SELECT computes, which is `state_since`
  *  in reverse. */
 export const LeadSortKey = z.enum(['company', 'createdAt', 'daysHere'])
 
@@ -236,13 +229,12 @@ export const OWNER_NONE = 'unassigned'
  *  stayed behind on the client no longer filters the book — it filters the 50
  *  rows the server happened to send for page 1. There is no partial version of
  *  this move, which is why `campaign`, `owner` and `account` are here even
- *  though only `stage`/`tier`/`category` were before. */
+ *  though only the enum filters were before. */
 export const LeadBookQuery = PageQuery.extend({
-  stage: StageKey.optional(),
   tier: LeadTier.optional(),
   category: LeadCategory.optional(),
 
-  status: LeadStatus.default('running'),
+  state: LeadStateFilter.default('open'),
 
   /** Campaign id, exact match. Absent = every campaign, including none.
    *
@@ -288,26 +280,43 @@ export const LeadBookQuery = PageQuery.extend({
 
 export const LeadBookResponse = paged(LeadRow)
 
-/** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`.
- *
- *  ------------------------------------------------------------------
- *  TẠI SAO CHỈ CÓ `sourceKind`, KHÔNG CÓ DANH SÁCH CHIẾN DỊCH Ở ĐÂY
- *  ------------------------------------------------------------------
- *  Nửa chiến dịch của ô lọc đã có nguồn THẬT rồi — `GET /sales/config` (danh
- *  mục `SOURCE`, `salesCatalogQuery` ở `apps/web/src/data/sales-config.ts`).
- *  Việc còn thiếu là nửa kia: một lead KHÔNG gắn chiến dịch nào vẫn có một
- *  `sourceKind` thật (`LeadSourceKind`) và cột Nguồn vẫn in nó ra
- *  (`SourceMark` → "Web landing", "Apollo"…) — nhưng trước bản sửa này, ô lọc
- *  không có lấy MỘT lựa chọn nào trỏ tới những dòng đó. Chọn "Mọi nguồn" là
- *  cách duy nhất một lead `LANDING_PAGE` không chiến dịch còn tìm lại được.
- *
- *  Đây là DANH SÁCH THẬT bốn giá trị `LeadSourceKind` nào đang thật sự xuất
- *  hiện KHÔNG kèm chiến dịch trong sổ — không phải cả bốn giá trị enum lúc
- *  nào cũng liệt kê đủ: một sổ mà mọi lead đều có chiến dịch thì mảng này
- *  rỗng, và ô lọc không vẽ ra một lựa chọn chết. Cùng trục phạm vi với
- *  `book()`. */
+/** `GET /sales/leads/facets` — the book's filters without `state` or paging:
+ *  the state tabs count what pressing each would show. `sourceKinds` ignores
+ *  them and stays over the whole scoped book, or the source dropdown would
+ *  shrink to the one value already picked. */
+export const LeadFacetsQuery = LeadBookQuery.omit({
+  state: true,
+  page: true,
+  size: true,
+  sort: true,
+  dir: true,
+})
+
+/** What the book's filter row and state tabs need before a page is read. */
 export const LeadFacets = z.object({
+  /** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`.
+   *
+   *  ------------------------------------------------------------------
+   *  TẠI SAO CHỈ CÓ `sourceKind`, KHÔNG CÓ DANH SÁCH CHIẾN DỊCH Ở ĐÂY
+   *  ------------------------------------------------------------------
+   *  Nửa chiến dịch của ô lọc đã có nguồn THẬT rồi — `GET /sales/config` (danh
+   *  mục `SOURCE`, `salesCatalogQuery` ở `apps/web/src/data/sales-config.ts`).
+   *  Việc còn thiếu là nửa kia: một lead KHÔNG gắn chiến dịch nào vẫn có một
+   *  `sourceKind` thật (`LeadSourceKind`) và cột Nguồn vẫn in nó ra
+   *  (`SourceMark` → "Web landing", "Apollo"…) — nhưng trước bản sửa này, ô lọc
+   *  không có lấy MỘT lựa chọn nào trỏ tới những dòng đó. Chọn "Mọi nguồn" là
+   *  cách duy nhất một lead `LANDING_PAGE` không chiến dịch còn tìm lại được.
+   *
+   *  Đây là DANH SÁCH THẬT bốn giá trị `LeadSourceKind` nào đang thật sự xuất
+   *  hiện KHÔNG kèm chiến dịch trong sổ — không phải cả bốn giá trị enum lúc
+   *  nào cũng liệt kê đủ: một sổ mà mọi lead đều có chiến dịch thì mảng này
+   *  rỗng, và ô lọc không vẽ ra một lựa chọn chết. Cùng trục phạm vi với
+   *  `book()`. */
   sourceKinds: z.array(LeadSourceKind),
+  /** A count for EVERY `LeadState`, zeros included, so the tabs print straight
+   *  off the object — the rule `WorkstreamFootprint.byChannel` states. `open`
+   *  and `all` are sums the screen takes itself. */
+  byState: z.record(LeadState, z.number().int().nonnegative()),
 })
 
 // ---------------------------------------------------------------------------
@@ -352,9 +361,6 @@ export const LeadFacets = z.object({
  *   · touches, the conversation record, `history` — `sales.touch` does not
  *     exist yet, which is also why `score` is `0` and `lastTouchAt` is absent
  *     on every row in the book today.
- *   · `stageSince` — the timestamp `daysHere` is computed from, and `daysHere`
- *     is already inherited. Two spellings of one fact is how the two start to
- *     disagree.
  *
  *  NAME COLLISION, on purpose: `@pv/engines/fixtures/das-vina` exports a type
  *  also called `LeadProfile` — the frozen shape the detail screen reads today,
@@ -457,11 +463,11 @@ export const LeadProfile = LeadRow.extend({
   /** Where the lead stands on ITS OWN ladder, and who it is waiting on.
    *
    *  ------------------------------------------------------------------
-   *  THE LEAD LADDER IS `TIER`, NOT `STAGE`
+   *  THE LEAD LADDER IS `TIER`, NOT `STATE`
    *  ------------------------------------------------------------------
-   *  `dau-moi → mql → sql` is the run a lead walks; `stage` on this same row is
-   *  a column of the DEAL funnel, which the lead only enters once it has a deal
-   *  on it. Two ladders, and this field answers about the first. Before 14/09
+   *  `prospect → mql → sql` is the run a lead walks; `state` on this same row is
+   *  its lifecycle (ADR 0058), and a DEAL column is another ladder again. This
+   *  field answers about the tier ladder only. Before 14/09
    *  the answer to "where is this lead" was derived on four screens from
    *  whatever each happened to have loaded, which is the drift
    *  `docs/decisions/0034-extend-limitdays-to-all-eight-pipeline-phases.md`
@@ -522,15 +528,13 @@ export const LeadProfile = LeadRow.extend({
  *   · `requiredFilled` / `optionalFilled` — generated columns. They are counted
  *     FROM the fields above; accepting them is offering a way for the count to
  *     disagree with the data it counts.
- *   · `score`, `stageSince`, `createdAt`, `lastTouchAt` — the system's own
- *     bookkeeping.
- *   · `tier` and `stage` — deliberately withheld, same rule the file importer
- *     already applies (`tierOfRow` caps an imported row at MQL). SQL means the
- *     init-data gate has been passed AND somebody opened an opportunity; a lead
- *     that has just been typed has passed neither, and a client that can name
- *     its own tier can claim a gate it never went through.
+ *   · `score`, `state`, `stateSince`, `createdAt`, `lastTouchAt` — the system's
+ *     own bookkeeping; `state` starts at `new` or `assigned` by owner.
+ *   · `tier` — set only when a PIC confirms verification (`POST :code/verify`,
+ *     ADR 0058). A lead that has just been typed has not been verified, and a
+ *     client that can name its own tier can claim a gate it never went through.
  *   · `exitReason` / `exitedAt` — a lead cannot be born already lost, and
- *     `CHECK lead_exit_pair` would be the one to say so.
+ *     `CHECK lead_disqualified_has_reason` would be the one to say so.
  *   · `source.kind` — the system records the origin, nobody types it. For this
  *     endpoint the origin is `MANUAL`, which is why `motion` is narrowed below
  *     to the motions that door can carry. Only `campaignId` is accepted. */
@@ -668,13 +672,12 @@ const clearableText = (max: number) =>
  *
  *   · `code` · `createdAt` · `score` · `requiredFilled` — the system's own
  *     bookkeeping, two of them generated columns Postgres computes.
- *   · `tier` · `stage` — gates, not fields. A client that can name its own
- *     tier can claim a gate it never went through (`LeadCreate` says the same).
+ *   · `state` — moved by the server and the lifecycle doors (`:code/verify`,
+ *     `nurture`, `resume`, `exit`, `reopen`), never typed.
  *   · `ownerId` · `bdOwnerId` · `marketingOwnerId` — `PATCH :code/owner` is
  *     their door, and it holds a rule this one does not (who may hand a lead
  *     to somebody else) that would have to be copied here to stay true.
- *   · `exitReason` · `exitedAt` — `CHECK lead_exit_pair` and `lead_exit_no_stage`
- *     tie them to `stage`, so they move together through their own door.
+ *   · `exitReason` · `exitedAt` — they move with `state` through `:code/exit`.
  *   · `motion` · `campaignId` — where the lead CAME FROM. That is history, and
  *     history is not a thing you correct on a form six weeks later.
  *
@@ -699,6 +702,10 @@ export const LeadPatch = z
     address: clearableText(LEAD_MAX.address),
     province: clearableText(LEAD_MAX.province),
     category: LeadCategory.nullish(),
+    /** Re-grading AFTER verification. The server refuses it before `working`:
+     *  the first tier is set by `POST :code/verify`, and a patch must not be a
+     *  way round that gate. Not clearable — a verified lead always has a tier. */
+    tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
     headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).nullish(),
@@ -815,6 +822,27 @@ export const LeadExitResponse = LeadProfile
 export const LeadReopenResponse = LeadProfile
 
 // ---------------------------------------------------------------------------
+// MOVING THROUGH THE LIFECYCLE — the PIC's own call (ADR 0058)
+// ---------------------------------------------------------------------------
+
+/** `POST /sales/leads/:code/verify` — `verifying` → `working`. The tier is
+ *  REQUIRED: this is the one step that sets the first tier. */
+export const LeadVerifyBody = z.object({
+  tier: LeadTier,
+})
+
+/** `POST /sales/leads/:code/nurture` — `verifying` | `working` → `nurturing`.
+ *  `POST :code/resume` (no body) brings it back to `working`. */
+export const LeadNurtureBody = z.object({
+  note: textInputOptional(500),
+})
+
+/** All three answer the re-read profile, like `:code/exit`. */
+export const LeadVerifyResponse = LeadProfile
+export const LeadNurtureResponse = LeadProfile
+export const LeadResumeResponse = LeadProfile
+
+// ---------------------------------------------------------------------------
 // The scorecard — `GET /sales/leads/scorecard`
 // ---------------------------------------------------------------------------
 
@@ -856,10 +884,11 @@ export const LeadScorecard = z.object({
 })
 
 export type LeadRow = z.infer<typeof LeadRow>
-export type LeadStatus = z.infer<typeof LeadStatus>
+export type LeadStateFilter = z.infer<typeof LeadStateFilter>
 export type LeadSortKey = z.infer<typeof LeadSortKey>
 export type LeadBookQuery = z.infer<typeof LeadBookQuery>
 export type LeadBookResponse = z.infer<typeof LeadBookResponse>
+export type LeadFacetsQuery = z.infer<typeof LeadFacetsQuery>
 export type LeadFacets = z.infer<typeof LeadFacets>
 export type LeadProfile = z.infer<typeof LeadProfile>
 export type LeadCreate = z.infer<typeof LeadCreate>
@@ -871,4 +900,9 @@ export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
 export type LeadExitBody = z.infer<typeof LeadExitBody>
 export type LeadExitResponse = z.infer<typeof LeadExitResponse>
 export type LeadReopenResponse = z.infer<typeof LeadReopenResponse>
+export type LeadVerifyBody = z.infer<typeof LeadVerifyBody>
+export type LeadNurtureBody = z.infer<typeof LeadNurtureBody>
+export type LeadVerifyResponse = z.infer<typeof LeadVerifyResponse>
+export type LeadNurtureResponse = z.infer<typeof LeadNurtureResponse>
+export type LeadResumeResponse = z.infer<typeof LeadResumeResponse>
 export type LeadScorecard = z.infer<typeof LeadScorecard>

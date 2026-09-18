@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { MeetingCreate, MeetingListResponse, MeetingPatch, MeetingRow } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Sổ cuộc họp của một lead — bốn cửa dưới `/sales/leads/:code/meetings`.
  *
@@ -81,6 +82,8 @@ export function useAddMeeting() {
     onSuccess: (_row, { code }) => {
       void client.invalidateQueries({ queryKey: [...MEETING_KEY, code] })
       void client.invalidateQueries({ queryKey: SCORECARD_KEY })
+      /* The owner's first meeting moves the lead to `verifying` (ADR 0058). */
+      invalidateLeadState(client)
     },
   })
 }

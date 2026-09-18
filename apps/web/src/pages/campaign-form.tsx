@@ -1154,7 +1154,7 @@ function AudiencePicker({
     () => ({
       page: 1,
       size: AUDIENCE_PAGE_SIZE,
-      status: 'running',
+      state: 'open',
       sort: 'createdAt',
       dir: 'desc',
       ...(search === '' ? {} : { q: search }),

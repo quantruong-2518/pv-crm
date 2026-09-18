@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
 import { MeetingRepository } from './meeting.repository'
 import { MeetingService } from './meeting.service'
@@ -15,7 +16,7 @@ import { MeetingService } from './meeting.service'
  *  và `exports` chỉ có service: `LeadModule` được hỏi "ghi giúp tôi một buổi
  *  họp", không được với thẳng vào hai bảng. */
 @Module({
-  imports: [TouchModule],
+  imports: [TouchModule, LeadStateModule],
   providers: [MeetingService, MeetingRepository],
   exports: [MeetingService],
 })

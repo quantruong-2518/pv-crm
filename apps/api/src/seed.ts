@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import {
   normalisePhone,
   StageKey,
+  type LeadState,
   type OpportunityCreateState,
   type TouchKind,
 } from '@pv/contracts'
@@ -17,6 +18,7 @@ import { stageCriterion } from '@api/branches/sales/config/stage-criterion.schem
 import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
+import { LEAD_NOTE } from '@api/branches/sales/lead/lead-write.mapper'
 import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
 import { opportunityCriterionTick } from '@api/branches/sales/opportunity/opportunity-criterion-tick.schema'
 import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
@@ -272,18 +274,14 @@ function plantJourney(j: JourneySeed, i: number): void {
      which is exactly what a second entry in `deals` does. Only a SIGNED deal
      or the lead's own exit closes the journey. */
   const won = deals.find((r) => r.signedAt !== null)
-  /* The rung the run stands on: the OPEN deal furthest along, so a deal that
-     already died does not blank out one still moving right beside it. */
-  const live = deals.reduce<(typeof deals)[number] | null>(
-    (best, r) =>
-      r.openStage !== null &&
-      (!best || StageKey.options.indexOf(r.openStage) > StageKey.options.indexOf(best.openStage!))
-        ? r
-        : best,
-    null,
-  )
 
   const closedAt = won?.signedAt ?? exitedAt
+  const state = stateOf(j, owner, deals.length)
+  const firstDealAt = deals[0]?.enteredAt ?? null
+  const verifiedAt =
+    state === 'working'
+      ? plantVerified(ld, j, owner, ago(reached ? m.meeting : j.bornDaysAgo, 7))
+      : null
   out.runs.push({
     code: ws,
     accountCode: ac,
@@ -302,7 +300,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     branch: 'Sales',
     label: a.name,
     owner: owner?.name,
-    state: live?.openStage,
+    state,
   })
   out.edges.push({ fromCode: ld, toCode: ac, kind: 'belongs-to' })
   out.leads.push({
@@ -333,9 +331,10 @@ function plantJourney(j: JourneySeed, i: number): void {
     ownerId: owner?.id ?? null,
     bdOwnerId: reached ? BD.id : null,
     marketingOwnerId: MARKETING.id,
-    tier: j.tier,
-    stage: live?.openStage ?? null,
-    stageSince: live?.openStageSince ?? closedAt ?? ago(reached ? m.mql : j.bornDaysAgo),
+    /* An unowned `new` lead has not been verified, so it has no tier. */
+    tier: state === 'new' ? null : j.tier,
+    state,
+    stateSince: exitedAt ?? firstDealAt ?? verifiedAt ?? ago(reached ? m.mql : j.bornDaysAgo),
     sourceKind: src.sourceKind,
     motion: src.motion,
     campaignId: sourceIdOf(src.key),
@@ -348,6 +347,22 @@ function plantJourney(j: JourneySeed, i: number): void {
   if (src.campaign) {
     out.members.push({ campaignCode: campaignCodeOf.get(src.key)!, leadCode: ld, addedAt: born })
   }
+}
+
+/** Every CHECK of ADR 0058 holds: exit ⇔ disqualified, a deal ⇒ converted,
+ *  no holder ⇔ new, and a holder with a tier is a verified lead. */
+function stateOf(j: JourneySeed, owner: Hand | null, deals: number): LeadState {
+  if (j.exit) return 'disqualified'
+  if (deals > 0) return 'converted'
+  return owner ? 'working' : 'new'
+}
+
+/** A working lead got its tier through verify (ADR 0058), so it carries the
+ *  `verified` touch that says so — after its other pre-deal events. */
+function plantVerified(ld: string, j: JourneySeed, owner: Hand | null, at: Date): Date {
+  const when = new Date(Math.min(at.getTime(), NOW))
+  pushTouch(ld, 'lead', 'verified', when, owner, LEAD_NOTE.verified(j.tier), { toTier: j.tier })
+  return when
 }
 
 function plantMeeting(
@@ -542,11 +557,7 @@ function plantDeal(
   )
 
   if (signedAt) plantContract(ld, op, ws, owner, name, d.amount!, signedAt)
-  return {
-    signedAt,
-    openStage: closedAt ? null : last,
-    openStageSince: closedAt ? null : when[when.length - 1]!,
-  }
+  return { signedAt, enteredAt: entered }
 }
 
 /** Standard PV One terms: 30% on signing, 50% at go-live, 20% after a year. */

@@ -42,6 +42,7 @@ import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
+import { LeadStateWriter } from '../lead/lead-state'
 import { OpportunityGate } from './opportunity-gate.service'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import {
@@ -106,6 +107,8 @@ export class OpportunityService {
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ENV) private readonly env: Env,
+    /* A deal opened on a lead converts it (ADR 0058), in the deal's own tx. */
+    private readonly leadStates: LeadStateWriter,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -292,7 +295,7 @@ export class OpportunityService {
       this.repo.actorNames(handle, [...body.saleOwners, ...body.bdOwners]),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
-    if (lead.exited) throw conflict('Lead đã rời phễu — mở lại lead trước')
+    if (lead.exited) throw conflict('Lead đã loại hoặc đã lưu trữ — không tạo được cơ hội')
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
        `fromCreate` call, which was enough while one place needed it; the column
@@ -365,6 +368,7 @@ export class OpportunityService {
       ])
 
       await this.notify(tx, ref, body.state === 'close-lost')
+      await this.leadStates.converted(tx, [body.leadCode])
       if (written.workstreamCode) await this.workstreams.syncClosed(tx, [written.workstreamCode])
       return written
     })
@@ -478,7 +482,7 @@ export class OpportunityService {
     // A reopened deal on an exited lead would be an open deal the exit door refused to leave behind.
     if (found.row.state === 'close-lost' && body.state !== 'close-lost') {
       const lead = await this.repo.leadCompany(this.repo.readonlyHandle, found.row.leadCode)
-      if (lead?.exited) throw conflict('Lead đã rời phễu — mở lại lead trước')
+      if (lead?.exited) throw conflict('Lead đã loại hoặc đã lưu trữ — không tạo được cơ hội')
     }
 
     const [names, signedContract, pendingSign] = await Promise.all([
@@ -858,6 +862,7 @@ export class OpportunityService {
           slice.flatMap((p) => p.touches),
         )
       }
+      await this.leadStates.converted(tx, [...new Set(ready.map((p) => p.row.leadCode))])
       await this.workstreams.syncClosed(tx, [
         ...new Set(ready.flatMap((p) => p.row.workstreamCode ?? [])),
       ])
@@ -946,7 +951,7 @@ export class OpportunityService {
   /** Share-lock the leads a deal write lands on; an exit racing it waits. */
   private async assertLeadsLive(tx: Db, leadCodes: readonly string[]): Promise<void> {
     const exited = await this.repo.exitedLocked(tx, leadCodes)
-    if (exited.length > 0) throw conflict('Lead đã rời phễu — mở lại lead trước')
+    if (exited.length > 0) throw conflict('Lead đã loại hoặc đã lưu trữ — không tạo được cơ hội')
   }
 
   /** A signed deal's edit carries its money and commission holder onto the

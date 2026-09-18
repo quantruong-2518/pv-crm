@@ -1,10 +1,11 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { leadHasOpenDeal, leadSigned } from '../open-deal'
+import { LEAD_GONE_STATES } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
@@ -143,8 +144,9 @@ export class LeadWriteRepository {
    *  ------------------------------------------------------------------
    *  THE `WHERE` HAS TO MATCH THE INDEX, NOT MERELY RESEMBLE IT
    *  ------------------------------------------------------------------
-   *  `lead_email_live_idx` is unique on `lower(email)` among rows with
-   *  `exit_reason IS NULL`. Both halves are copied here on purpose. Drop the
+   *  `lead_email_live_idx` is unique on `lower(email)` among rows whose
+   *  `state` is not `disqualified`/`archived`. Both halves are copied here on
+   *  purpose. Drop the
    *  `lower()` and two spellings of one mailbox read as two different leads —
    *  the check passes and the INSERT then dies on the index, turning a row
    *  the preview called clean into a failed batch. Drop the exit filter and a
@@ -160,7 +162,12 @@ export class LeadWriteRepository {
     const rows = await tx
       .select({ key: sql<string>`lower(${lead.email})`, code: lead.code })
       .from(lead)
-      .where(and(isNull(lead.exitReason), inArray(sql`lower(${lead.email})`, [...emails])))
+      .where(
+        and(
+          notInArray(lead.state, [...LEAD_GONE_STATES]),
+          inArray(sql`lower(${lead.email})`, [...emails]),
+        ),
+      )
 
     return new Map(rows.map((r) => [r.key, r.code]))
   }
@@ -204,24 +211,16 @@ export class LeadWriteRepository {
    *  place where what the caller is allowed to do depends on a column the
    *  caller is about to change.
    *
-   *  `company` and `stage` come back because the mirror row in
-   *  `platform.object` is written by UPSERT of the WHOLE ref — see
-   *  `ObjectMirror.putMany`, where `state` is set from `excluded` and would be
-   *  cleared by a ref that simply left it out. */
+   *  `state` comes back because a hand-over can move it (ADR 0058): `new` →
+   *  `assigned` on a claim, back to `new` on a release. */
   async lockForOwnerChange(
     tx: Db,
     code: string,
-  ): Promise<{
-    code: string
-    company: string
-    stage: string | null
-    ownerId: string | null
-  } | null> {
+  ): Promise<Pick<LeadRowDb, 'code' | 'state' | 'ownerId'> | null> {
     const [row] = await tx
       .select({
         code: lead.code,
-        company: lead.company,
-        stage: lead.stage,
+        state: lead.state,
         ownerId: lead.ownerId,
       })
       .from(lead)
@@ -243,24 +242,30 @@ export class LeadWriteRepository {
     await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
   }
 
-  /** What leaving or re-entering the funnel must know, read under a row lock
-   *  for the reason `lockForOwnerChange` gives: two exit presses would
-   *  otherwise both see a live lead and both write a timeline row. */
-  async lockForExit(
+  /** What a lifecycle door (exit, reopen, verify, nurture, resume) must know,
+   *  read under a row lock for the reason `lockForOwnerChange` gives: two
+   *  presses would otherwise both see the old state and both write a touch.
+   *  `hasDeal` counts lost deals too — reopen reads it as "was converted". */
+  async lockForMove(
     tx: Db,
     code: string,
-  ): Promise<{
-    exitReason: LeadRowDb['exitReason']
-    workstreamCode: string | null
-    openDeal: boolean
-    signed: boolean
-  } | null> {
+  ): Promise<
+    | (Pick<LeadRowDb, 'state' | 'tier' | 'ownerId' | 'workstreamCode'> & {
+        openDeal: boolean
+        signed: boolean
+        hasDeal: boolean
+      })
+    | null
+  > {
     const [row] = await tx
       .select({
-        exitReason: lead.exitReason,
+        state: lead.state,
+        tier: lead.tier,
+        ownerId: lead.ownerId,
         workstreamCode: lead.workstreamCode,
         openDeal: sql<boolean>`${leadHasOpenDeal(lead.code)}`,
         signed: sql<boolean>`${leadSigned(lead.code)}`,
+        hasDeal: sql<boolean>`EXISTS (SELECT 1 FROM sales.opportunity o WHERE o.lead_code = ${lead.code})`,
       })
       .from(lead)
       .where(eq(lead.code, code))

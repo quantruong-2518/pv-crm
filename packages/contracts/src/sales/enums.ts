@@ -55,10 +55,40 @@ export const ExitReason = z.enum([
   'silent-after-quote',
 ])
 
+/** Where a lead stands in its OWN lifecycle (ADR 0058). STORED in a column under
+ *  a CHECK and moved only by the server, inside the write that caused the move —
+ *  a screen reads it and never derives it from other fields.
+ *
+ *   · `new`          — no PIC yet
+ *   · `assigned`     — has a PIC who has not acted on it yet
+ *   · `verifying`    — the PIC's first action happened; data and need being checked
+ *   · `working`      — the PIC confirmed verification and set the tier
+ *   · `nurturing`    — parked as "not ready"; archived after six months
+ *   · `converted`    — the first opportunity was opened from it
+ *   · `disqualified` — dropped with an `ExitReason`; reopen recomputes from facts
+ *   · `archived`     — retired by the system after six months in `nurturing`
+ *
+ *  Not `StageKey`: that ladder belongs to the opportunity. */
+export const LeadState = z.enum(
+  ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted', 'disqualified', 'archived'],
+  'Trạng thái lead không có trong danh sách',
+)
+
+/** The states still in the funnel — the book's default tab and every "still
+ *  open" count. Declared once so no two readers disagree on which five. */
+export const LEAD_OPEN_STATES = [
+  'new',
+  'assigned',
+  'verifying',
+  'working',
+  'nurturing',
+] as const satisfies readonly LeadState[]
+
 export type LeadCategory = z.infer<typeof LeadCategory>
 export type LeadTier = z.infer<typeof LeadTier>
 export type StageKey = z.infer<typeof StageKey>
 export type ExitReason = z.infer<typeof ExitReason>
+export type LeadState = z.infer<typeof LeadState>
 
 /** WHERE a lead originated — the closed half of `LeadSource`.
  *

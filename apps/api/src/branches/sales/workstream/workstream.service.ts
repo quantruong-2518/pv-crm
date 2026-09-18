@@ -259,6 +259,6 @@ function inputOf(
     ref: leadRef(read.lead, read.saleName),
     phases: phasesOf(config.tier, LeadTier.options),
     reached: [rung],
-    since: read.lead.stageSince.toISOString(),
+    since: read.lead.stateSince.toISOString(),
   }
 }

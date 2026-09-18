@@ -18,6 +18,7 @@ import {
   MOTION_BY_CHANNEL,
   PHONE_MAX,
 } from '@pv/contracts'
+import { tierEditable } from '@/data/lead-state'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 
 /** Module 2 · Blueprint of the lead profile form: which boxes exist, what they
@@ -509,13 +510,16 @@ export function isRequiredOnSave(field: FormField): boolean {
 
 /** Does the SAVE door carry this box at all?
  *
- *  `LeadPatch` has no field for `company`, `tier`, `stage`, the three holder
+ *  `LeadPatch` has no field for `company`, `stage`, the three holder
  *  names or the book's own bookkeeping, so the edit door draws those as printed
  *  values: a box that takes typing and writes nothing is a worse lie than a
  *  line nobody can type into — and with autosave there is no button left whose
  *  silence could hint at it. Asked of the contract, never listed. */
-export function isEditable(field: FormField): boolean {
+export function isEditable(field: FormField, lead?: Parameters<typeof tierEditable>[0]): boolean {
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
+  /* `LeadPatch` carries `tier`, but the server refuses it before verification
+     (ADR 0058) — so the box opens only once the lead is past that gate. */
+  if (wire === 'tier') return lead !== undefined && tierEditable(lead)
   return wire in PATCH_SHAPE
 }
 

@@ -5,9 +5,10 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
   isNotNull,
   isNull,
-  not,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -15,12 +16,23 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { OWNER_NONE, type LeadBookQuery, type LeadSourceKind, type LeadStatus } from '@pv/contracts'
+import {
+  LEAD_OPEN_STATES,
+  LeadState,
+  OWNER_NONE,
+  type LeadBookQuery,
+  type LeadFacetsQuery,
+  type LeadSourceKind,
+  type LeadTier,
+  type LeadStateFilter,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { leadSigned } from '../open-deal'
+import { LEAD_GONE_STATES } from './lead-state'
+import { touch } from '../touch/touch.schema'
 import { lead } from './lead.schema'
 import type {
   LeadMailEventRead,
@@ -73,16 +85,15 @@ const CAMPAIGN_ON = and(eq(configEntry.id, lead.campaignId), eq(configEntry.list
  *  profile — see the docblock on `byCode()`. */
 export type LeadProfileFound = LeadProfileRead & { inScope: boolean }
 
-/** Số ngày lead nằm ở chỗ hiện tại.
+/** Whole days in the current `state` — computed in the query, not stored,
+ *  because it changes with the clock while nobody touches the row. No stop at
+ *  `exited_at` any more: `state_since` already restarts on every move, exit
+ *  included (ADR 0058).
  *
- *  Tính trong câu truy vấn chứ không đọc từ một cột: đây là con số đổi theo
- *  thời gian ngay cả khi không ai chạm vào dòng dữ liệu, nên một cột `days_here`
- *  chỉ đúng vào đêm job vừa chạy. Lead đã rơi thì đồng hồ dừng ở `exited_at`.
- *
- *  Qua `epoch` chứ không `EXTRACT(day FROM …)`: epoch luôn là tổng số giây của
- *  cả khoảng, không phụ thuộc cách Postgres cắt interval thành tháng/ngày. */
+ *  Through `epoch` rather than `EXTRACT(day FROM …)`: epoch is always the
+ *  interval's total seconds, whatever way Postgres splits it into months. */
 const DAYS_HERE = sql<number>`GREATEST(0, FLOOR(
-  EXTRACT(epoch FROM COALESCE(${lead.exitedAt}, now()) - ${lead.stageSince}) / 86400
+  EXTRACT(epoch FROM now() - ${lead.stateSince}) / 86400
 ))::int`
 
 /** One number from `sales.lead_code_seq`, printed as `LD-%04d`.
@@ -136,7 +147,7 @@ export class LeadRepository {
   }
 
   async book(who: Actor, q: LeadBookQuery, scoped: boolean): Promise<LeadBookPage> {
-    const filters = this.filtersOf(q)
+    const filters = [...this.filtersOf(q), this.stateFilter(q.state)]
 
     const scope = this.scopeOf(who, scoped)
 
@@ -189,6 +200,22 @@ export class LeadRepository {
       .where(and(isNull(lead.campaignId), isNotNull(lead.sourceKind), scope))
 
     return rows.map((r) => r.kind as LeadSourceKind)
+  }
+
+  /** How many leads each state tab would show: the book's own filters and
+   *  scope, minus `state`. Every state is present, zeros included. */
+  async stateFacets(who: Actor, q: LeadFacetsQuery): Promise<Record<LeadState, number>> {
+    const rows = await this.db
+      .select({ state: lead.state, n: count() })
+      .from(lead)
+      .where(and(...this.filtersOf(q), this.scopeOf(who, true)))
+      .groupBy(lead.state)
+    const byState = Object.fromEntries(LeadState.options.map((s) => [s, 0])) as Record<
+      LeadState,
+      number
+    >
+    for (const r of rows) byState[r.state] = r.n
+    return byState
   }
 
   /** Một lead theo mã — CẢ DÒNG, kể cả khi trục phạm vi không cho người này
@@ -430,22 +457,13 @@ export class LeadRepository {
     return this.signed() as SQL<boolean>
   }
 
-  /** The four branches of the book's `status` filter — see `LeadStatus` in
-   *  `@pv/contracts` for the full reasoning. Replaces the old two-valued
-   *  `q.running`, which had no branch a SIGNED lead could ever match. */
-  private statusFilter(status: LeadStatus): SQL | undefined {
-    switch (status) {
-      case 'running':
-        /* Not exited and not finished by signature — which includes a lead
-           with a signed deal and another one still open. */
-        return and(isNull(lead.exitReason), not(this.signed()))
-      case 'signed':
-        return this.signed()
-      case 'exited':
-        return isNotNull(lead.exitReason)
-      case 'all':
-        return undefined
-    }
+  /** The book's `state` filter: `open` is the five `LEAD_OPEN_STATES`, `live`
+   *  is everything not gone, `all` is no condition, anything else is one state. */
+  private stateFilter(state: LeadStateFilter): SQL | undefined {
+    if (state === 'all') return undefined
+    if (state === 'open') return inArray(lead.state, [...LEAD_OPEN_STATES])
+    if (state === 'live') return notInArray(lead.state, [...LEAD_GONE_STATES])
+    return eq(lead.state, state)
   }
 
   /** Sort column for `q.sort`, plus the tiebreaker every sort needs.
@@ -463,12 +481,11 @@ export class LeadRepository {
     return [dir(primary), dir(lead.code)]
   }
 
-  private filtersOf(q: LeadBookQuery): (SQL | undefined)[] {
+  /** Every filter but `state` — the half `stateFacets` shares with `book()`. */
+  private filtersOf(q: LeadFacetsQuery): (SQL | undefined)[] {
     return [
-      q.stage ? eq(lead.stage, q.stage) : undefined,
       q.tier ? eq(lead.tier, q.tier) : undefined,
       q.category ? eq(lead.category, q.category) : undefined,
-      this.statusFilter(q.status),
       /* Lead PIC. `OWNER_NONE` is the wire's word for "nobody has taken it" —
          the screen's own sentinel carries a NUL byte and must not travel, see
          the constant's docblock — so it asks the column for NULL rather than
@@ -544,6 +561,25 @@ export class LeadRepository {
       opportunities: row?.opportunities ?? 0,
       contracts: row?.contracts ?? 0,
     }
+  }
+
+  /** When the lead reached this tier: the latest `verified`/`tier-raised`
+   *  touch naming it, or `null` when the ledger has none. */
+  async tierSince(code: string, tier: LeadTier | null): Promise<Date | null> {
+    if (tier === null) return null
+    const [row] = await this.db
+      .select({ at: touch.at })
+      .from(touch)
+      .where(
+        and(
+          eq(touch.subjectCode, code),
+          inArray(touch.kind, ['verified', 'tier-raised']),
+          eq(touch.toTier, tier),
+        ),
+      )
+      .orderBy(desc(touch.at))
+      .limit(1)
+    return row?.at ?? null
   }
 
   /** The TIER list as configured, ACTIVE ONLY and in `ord` order — the two

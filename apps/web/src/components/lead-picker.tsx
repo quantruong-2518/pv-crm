@@ -66,7 +66,9 @@ export function LeadPickList({
   }, [text, q])
 
   const { data, isPending, error, refetch } = useQuery({
-    ...leadBookQuery({ ...DEFAULT_LEAD_BOOK_QUERY, q, size: PICK_SIZE }),
+    /* `live` = open or converted: a lead that already raised a deal may raise
+       another, while a dropped or archived one is refused by the door. */
+    ...leadBookQuery({ ...DEFAULT_LEAD_BOOK_QUERY, state: 'live', q, size: PICK_SIZE }),
     enabled,
   })
 
@@ -103,7 +105,7 @@ export function LeadPickList({
           icon={Inbox}
           message={
             q === undefined
-              ? 'Sổ lead chưa có dòng nào đang chạy — chưa có khách nào để mở đơn.'
+              ? 'Sổ lead chưa có lead nào mở được cơ hội — chưa có khách nào để mở đơn.'
               : `Không có lead nào khớp "${q}".`
           }
           action={
@@ -125,7 +127,8 @@ export function LeadPickList({
               stops looking instead of narrowing the search. */}
           <p className="text-muted-foreground text-[11px] leading-[1.5]">
             Hiện <span className="tnum font-num">{rows.length}</span> trên{' '}
-            <span className="tnum font-num">{total}</span> lead đang chạy. Gõ vào ô tìm để thu hẹp.
+            <span className="tnum font-num">{total}</span> lead mở được cơ hội. Gõ vào ô tìm để thu
+            hẹp.
           </p>
         </>
       )}

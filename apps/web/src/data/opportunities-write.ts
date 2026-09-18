@@ -16,6 +16,7 @@ import {
 import { OPPORTUNITY_STATES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
+import { invalidateLeadState } from '@/data/lead-exit'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 
 /** Module 3 · ba cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
@@ -283,6 +284,8 @@ export function usePromoteLead() {
     mutationFn: (body) => promoteLead(body),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+      /* The first deal moves its lead to `converted` (ADR 0058). */
+      invalidateLeadState(client)
     },
   })
 }

@@ -6,6 +6,7 @@ import {
   Phone,
   Pin,
   RotateCcw,
+  Timer,
   TriangleAlert,
   type IconGlyph,
 } from '@pv/ui'
@@ -18,7 +19,9 @@ import { useReopenLead } from '@/data/lead-exit'
 import { readField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { EXIT_REASON_LABEL } from '@/data/leads'
+import { isOpenState } from '@/data/lead-state'
 import { AssignMenu } from './assign-menu'
+import { LeadStepButton } from './lead-state-actions'
 
 /** The sticky bottom bar — WHO the customer is on the left, WHAT TO DO on the right.
  *
@@ -29,9 +32,9 @@ import { AssignMenu } from './assign-menu'
  *  The three everyday actions stand in the open (call · mail · meeting); the
  *  rest sits behind `…`, because a bar of ten buttons has no first button.
  *
- *  The convert button is live on every running lead: a lead may hold several
- *  open deals at once, so an open deal never blocks one more — only an exited
- *  lead locks it, since the door refuses those. Open deals are INFORMATION.
+ *  The convert button stands on every open or converted lead: a lead may hold
+ *  several deals, so an open deal never blocks one more. A disqualified or
+ *  archived lead has no convert button at all — the door refuses those.
  *
  *  STICKY rather than fixed: it stays in the content flow so it cannot cover the
  *  sidebar, and below `lg` it leaves room for AppShell's 84px BottomNav. */
@@ -58,6 +61,9 @@ export function LeadToolsBar(
         canConvert: boolean
         onPin: () => void
         onExit: () => void
+        /** The PIC's lifecycle steps (ADR 0058), gated by `canEdit`. */
+        onVerify: () => void
+        onNurture: () => void
         onConvert: () => void
         onOpenOp: (code: string) => void
         onCompose: () => void
@@ -92,6 +98,8 @@ function EditBar({
   canConvert,
   onPin,
   onExit,
+  onVerify,
+  onNurture,
   onConvert,
   onOpenOp,
   onCompose,
@@ -103,6 +111,12 @@ function EditBar({
   const exitLabel = lead.exitReason
     ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
     : undefined
+  const convertible = isOpenState(lead.state) || lead.state === 'converted'
+  const nurturable = lead.state === 'verifying' || lead.state === 'working'
+  /* A converted lead may still be dropped while it holds no open deal and has
+     not signed — the same two refusals the exit door answers 409 with. */
+  const noDeal = liveDeal.codes.length === 0 && liveDeal.hidden === 0 && !lead.signed
+  const droppable = isOpenState(lead.state) || (lead.state === 'converted' && noDeal)
 
   return (
     <>
@@ -148,6 +162,8 @@ function EditBar({
           Đặt lịch
         </Button>
 
+        <LeadStepButton lead={lead} canEdit={canEdit} onVerify={onVerify} />
+
         <OverflowMenu>
           {(close) => (
             <>
@@ -169,8 +185,22 @@ function EditBar({
                 buttonVariant="ghost"
                 className="w-full [&>button]:min-h-12 [&>button]:w-full [&>button]:justify-start [&>button]:bg-transparent [&>button]:shadow-none"
               />
+              {nurturable && (
+                <MenuRow
+                  icon={Timer}
+                  label="Nuôi dài hạn"
+                  disabled={!canEdit}
+                  title={canEdit ? undefined : 'Cần quyền sửa lead.'}
+                  onClick={() => {
+                    onNurture()
+                    close()
+                  }}
+                />
+              )}
               <ExitRow
                 code={lead.code}
+                dropped={lead.state === 'disqualified'}
+                droppable={droppable}
                 exitLabel={exitLabel}
                 canDisqualify={canDisqualify}
                 onExit={() => {
@@ -189,16 +219,17 @@ function EditBar({
           )}
         </OverflowMenu>
 
-        {/* An exited lead takes no new deal (the door answers 409) — reopen it first. */}
-        <Button
-          size="lg"
-          disabled={Boolean(exitLabel) || !canConvert}
-          title={convertBlocked(exitLabel, canConvert)}
-          onClick={onConvert}
-        >
-          <Icon icon={ArrowRight} size={16} />
-          Chuyển thành cơ hội
-        </Button>
+        {convertible && (
+          <Button
+            size="lg"
+            disabled={!canConvert}
+            title={canConvert ? undefined : 'Cần quyền sửa cơ hội để chuyển lead.'}
+            onClick={onConvert}
+          >
+            <Icon icon={ArrowRight} size={16} />
+            Chuyển thành cơ hội
+          </Button>
+        )}
 
         {/* Room for the floating AI Assistant button (60px, AppShell's
             `bottom-8 right-8`): the bar reaches the right edge at the same
@@ -207,13 +238,6 @@ function EditBar({
       </div>
     </>
   )
-}
-
-/** Why the convert button is locked — the lead's own state first, because a
- *  reopen is a step this person can take while a missing permission is not. */
-function convertBlocked(exitLabel: string | undefined, canConvert: boolean) {
-  if (exitLabel) return 'Lead đã rơi — mở lại lead trước.'
-  return canConvert ? undefined : 'Cần quyền sửa cơ hội để chuyển lead.'
 }
 
 /** The create door: the person being typed into the draft on the left, that
@@ -276,15 +300,21 @@ function ContactFace({
   )
 }
 
-/** On an exited lead this row reopens it; on a running one it is the way to
- *  report it unfit. One row, because those are two ways of one switch. */
+/** On a disqualified lead this row reopens it; on a `droppable` one (open, or
+ *  converted with no open deal and no signature) it drops it. One row, because
+ *  those are two ways of one switch. Anything else — archived, or converted
+ *  with a live deal — gets neither: the server refuses both from there. */
 function ExitRow({
   code,
+  dropped,
+  droppable,
   exitLabel,
   canDisqualify,
   onExit,
 }: {
   code: string
+  dropped: boolean
+  droppable: boolean
   exitLabel: string | undefined
   canDisqualify: boolean
   onExit: () => void
@@ -292,18 +322,20 @@ function ExitRow({
   const reopen = useReopenLead(code)
 
   if (!canDisqualify) {
-    return exitLabel ? (
+    return dropped ? (
       <div className="px-3 py-2">
-        <Badge tone="danger">Đã rơi · {exitLabel}</Badge>
+        <Badge tone="danger">Đã loại{exitLabel ? ` · ${exitLabel}` : ''}</Badge>
       </div>
     ) : null
   }
 
-  if (exitLabel) {
+  if (dropped) {
     return (
       <MenuRow
         icon={RotateCcw}
-        label={reopen.isPending ? 'Đang mở lại…' : `Mở lại lead · ${exitLabel}`}
+        label={
+          reopen.isPending ? 'Đang mở lại…' : `Mở lại lead${exitLabel ? ` · ${exitLabel}` : ''}`
+        }
         onClick={() =>
           reopen.mutate(undefined, {
             onSuccess: () => toastDone(`Đã mở lại ${code}.`),
@@ -314,7 +346,8 @@ function ExitRow({
     )
   }
 
-  return <MenuRow icon={TriangleAlert} label="Báo không phù hợp" onClick={onExit} />
+  if (!droppable) return null
+  return <MenuRow icon={TriangleAlert} label="Loại lead" onClick={onExit} />
 }
 
 /** The deals this lead holds — a pressable row for each one this reader may
@@ -348,12 +381,16 @@ function MenuRow({
   label,
   mono,
   pressed,
+  disabled,
+  title,
   onClick,
 }: {
   icon?: IconGlyph
   label: string
   mono?: boolean
   pressed?: boolean
+  disabled?: boolean
+  title?: string
   onClick: () => void
 }) {
   return (
@@ -361,6 +398,8 @@ function MenuRow({
       size="md"
       variant="ghost"
       aria-pressed={pressed}
+      disabled={disabled}
+      title={title}
       onClick={onClick}
       className="min-h-12 w-full justify-start bg-transparent shadow-none"
     >

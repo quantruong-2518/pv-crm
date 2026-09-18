@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { LeadStateModule } from '../lead/lead-state'
 import { CampaignController } from './campaign.controller'
 import { CampaignRepository } from './campaign.repository'
 import { CampaignService } from './campaign.service'
@@ -44,7 +45,7 @@ import { SourceService } from './source.service'
  *  `exports` để trống: chưa module nào cần hỏi nhánh này điều gì. Ngày sổ chiến
  *  dịch cần biết "lô này thuộc đợt mấy" thì thêm `MasService`, không mở bảng. */
 @Module({
-  imports: [EnginesModule, MailModule],
+  imports: [EnginesModule, MailModule, LeadStateModule],
   controllers: [MasController, SourceController, CampaignController],
   providers: [
     MasService,

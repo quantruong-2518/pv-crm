@@ -151,7 +151,7 @@ export function HomePage() {
         <section className="flex flex-col gap-3">
           <SectionTitle
             kicker="Chỉ của bạn · đã cắt theo người đang đăng nhập"
-            hint="hợp đồng, cơ hội và lead chung một hàng, xếp theo mức trễ"
+            hint="hợp đồng và cơ hội chung một hàng, xếp theo mức trễ"
             actions={
               work.items.length === 0 ? undefined : <Kicker>{work.items.length} việc</Kicker>
             }

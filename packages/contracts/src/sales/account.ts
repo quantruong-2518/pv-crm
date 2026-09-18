@@ -8,7 +8,7 @@ import {
   textInput,
   textInputOptional,
 } from '../primitives'
-import { LeadCategory } from './enums'
+import { LeadCategory, LeadState } from './enums'
 
 /** The CUSTOMER COMPANY book — `/sales/accounts`.
  *
@@ -108,7 +108,7 @@ export const AccountProfile = AccountRow.extend({
       code: ObjectCode,
       company: textInput(200),
       tier: z.string().optional(),
-      stage: z.string().optional(),
+      state: LeadState,
       ownerName: z.string().optional(),
       createdAt: Moment,
     }),

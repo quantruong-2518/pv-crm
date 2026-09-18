@@ -10,6 +10,7 @@ import type {
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { invalidateLeadState } from '@/data/lead-exit'
 
 /** The conversation book — the four doors under `/comms`, turn 1 of `comms`.
  *
@@ -131,6 +132,8 @@ export function useCaptureMessage(objectCode: string) {
     onSuccess: (written) => {
       void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'threads', objectCode] })
       void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'messages', written.thread.id] })
+      /* A logged call by the owner moves the lead to `verifying` (ADR 0058). */
+      invalidateLeadState(client)
     },
   })
 }

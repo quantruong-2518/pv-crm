@@ -91,16 +91,19 @@ export function leadLaneOf(
     (min, d) => (min === null || d.createdAt < min ? d.createdAt : min),
     null,
   )
-  const outcome = lead.exitedAt ? 'exited' : firstDeal ? 'converted' : 'open'
-  const outcomeAt = lead.exitedAt ?? firstDeal
+  /* An archived lead left the funnel too (its run closes LOST), at `state_since`. */
+  const leftAt = lead.state === 'archived' ? lead.stateSince : lead.exitedAt
+  const outcome = leftAt ? 'exited' : firstDeal ? 'converted' : 'open'
+  const outcomeAt = leftAt ?? firstDeal
 
   const keys = LeadTier.options
   const index = lead.tier === null ? -1 : keys.indexOf(lead.tier)
   const entryOf = (key: string): Entry => lastOf(rows.tiers, (t) => t.tier === key) ?? null
-  /* A rung's own entry, or `stage_since` for the rung the lead stands on — the
-     touch ledger may predate the lead. */
+  /* The current rung's clock is its latest `verified`/`tier-raised` entry;
+     `state_since` only when the ledger has none (it may predate the lead). */
+  const tierSince = entryOf(lead.tier ?? '')?.at ?? lead.stateSince
   const atOf = (i: number): Date | null =>
-    entryOf(keys[i] ?? '')?.at ?? (i === index ? lead.stageSince : null)
+    entryOf(keys[i] ?? '')?.at ?? (i === index ? tierSince : null)
 
   const doneDays = (i: number, at: Date | null): number | null => {
     if (i === index) return wholeDays(at, outcomeAt)
@@ -124,8 +127,8 @@ export function leadLaneOf(
       index,
       closed: outcome === 'exited' ? 'dropped' : outcome === 'converted' ? 'done' : 'current',
       entryOf,
-      since: lead.stageSince,
-      until: lead.exitedAt ?? now,
+      since: tierSince,
+      until: leftAt ?? now,
       doneDays,
       criteriaOf: () => [],
     }),

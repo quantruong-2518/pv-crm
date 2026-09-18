@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Optional } from '@nestjs/common'
 import type { AccessControl, Action, Actor } from '@pv/engines'
 import {
   LinkRow,
@@ -11,9 +11,11 @@ import {
 } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
+import type { ObjectRow } from '@api/platform/db/platform.schema'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { toLink, toMessage, toObjectRef, toThread } from './comms.mapper'
+import { MESSAGE_LOGGED_HOOK, type MessageLoggedHook } from './message-logged.hook'
 import { ThreadRepository } from './thread.repository'
 import type { MessagePartyRowDb } from './comms.schema'
 
@@ -64,6 +66,7 @@ export class ThreadService {
     private readonly repo: ThreadRepository,
     private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    @Optional() @Inject(MESSAGE_LOGGED_HOOK) private readonly logged?: MessageLoggedHook,
   ) {}
 
   /** C1 — the threads hanging on one object, with their turn counts. */
@@ -159,7 +162,7 @@ export class ThreadService {
   async create(who: Actor, body: MessageCreate): Promise<MessageCreateResponse> {
     const at = new Date(body.at)
 
-    await this.refuseUnreachableObject(who, body.objectCode, 'view')
+    const anchor = await this.refuseUnreachableObject(who, body.objectCode, 'view')
     await this.refuseUnreachableParties(who, [
       body.fromIdentityId,
       ...body.parties.map((p) => p.identityId),
@@ -203,6 +206,15 @@ export class ThreadService {
       )
 
       if (body.thread === 'existing') await this.repo.widenSpan(tx, threadId, at)
+
+      /* Direct lead anchors only: a contact's lead is a `sales` hop comms cannot make. */
+      if (anchor.kind === 'LD') {
+        await this.logged?.afterLogged(tx, {
+          subjectKind: anchor.kind,
+          subjectCode: anchor.code,
+          actorId: who.id,
+        })
+      }
 
       /* Read back rather than echo the body: the response has to describe the
          rows that are now in the book, and the thread's turn count and its
@@ -296,12 +308,17 @@ export class ThreadService {
    *  book and a code that is not yours are two different next steps for the
    *  person reading the screen, and collapsing them sends one of the two
    *  hunting for a row that is sitting right there. */
-  private async refuseUnreachableObject(who: Actor, code: string, action: Action): Promise<void> {
+  private async refuseUnreachableObject(
+    who: Actor,
+    code: string,
+    action: Action,
+  ): Promise<ObjectRow> {
     const row = await this.repo.objectByCode(code)
     if (!row) throw notFound('object', code)
 
     const verdict = this.access.check(who, { ref: toObjectRef(row), action })
     if (!verdict.ok) throw denied(verdict.reason, verdict.note)
+    return row
   }
 
   /** E2 on every object a thread hangs on — ONE in reach is enough.

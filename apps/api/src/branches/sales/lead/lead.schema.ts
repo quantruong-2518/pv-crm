@@ -18,8 +18,8 @@ import type {
   LeadCategory,
   LeadMotion,
   LeadSourceKind,
+  LeadState,
   LeadTier,
-  StageKey,
 } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
@@ -219,19 +219,16 @@ export const lead = sales.table(
 
     // ── pipeline · đang ở đâu ──────────────────────────────────────────────
     tier: text('tier').$type<LeadTier>(),
-    /** NULL = không còn ở cột nào của phễu (chưa vào, đã ký, hoặc đã rơi). */
-    stage: text('stage').$type<StageKey>(),
-    /** Lead vào chỗ hiện tại từ lúc nào. THAY cho cột `days_here` cũ.
-     *
-     *  `days_here` là một con số đổi theo thời gian mà không ai chạm vào dòng
-     *  dữ liệu — lưu thành cột thì phải có một job quét cả bảng mỗi đêm, và
-     *  giữa hai lần quét con số trên màn là sai. Lưu mốc, tính lúc đọc:
-     *
-     *      EXTRACT(day FROM COALESCE(exited_at, now()) - stage_since)
-     *
-     *  Lead rơi khỏi luồng thì cột này KHÔNG đặt lại, nên `days_here` của một
-     *  lead đã rơi là số ngày nó nằm ở cột cuối trước khi rơi. */
-    stageSince: timestamp('stage_since', { withTimezone: true }).notNull().defaultNow(),
+    /** Where the lead is in its OWN lifecycle (ADR 0058) — not the pipeline
+     *  stage, which belongs to `pipeline_position`. Stored, not derived: the
+     *  server moves it in the same transaction as the write that caused it.
+     *  The eight values are fenced by `lead_state_known` below. */
+    state: text('state').$type<LeadState>().notNull().default('new'),
+    /** When the lead entered `state`. Replaces `days_here`: a stored day count
+     *  goes stale with nobody touching the row, a stored timestamp does not —
+     *  the age is `now() - state_since`, computed on read. Was `stage_since`
+     *  until 0052; every state change resets it, `disqualified` included. */
+    stateSince: timestamp('state_since', { withTimezone: true }).notNull().defaultNow(),
     sourceKind: text('source_kind').$type<LeadSourceKind>(),
     /** Who made the first move — one of the six `LeadMotion` values.
      *
@@ -345,7 +342,9 @@ export const lead = sales.table(
   },
   (t) => [
     index('lead_owner_idx').on(t.ownerId),
-    index('lead_stage_idx').on(t.stage),
+    /** "Which leads are open / in state X" — the book's default tab filters on
+     *  `LEAD_OPEN_STATES`, and each state tab counts by this column. */
+    index('lead_state_idx').on(t.state),
     index('lead_exit_idx').on(t.exitReason),
     index('lead_campaign_idx').on(t.campaignId),
     /** "Everything belonging to this run" — the book screen groups by this
@@ -356,22 +355,21 @@ export const lead = sales.table(
        dữ liệu thật thì bật `pg_trgm` và thêm một GIN index trên `company`.
        Chưa làm bây giờ vì extension phải đi kèm migration riêng. */
 
-    /** MỘT email = MỘT lead ĐANG SỐNG.
+    /** ONE email = ONE LIVE lead.
      *
-     *  Landing page nộp hai lần là hai bản ghi thô ở `lead_intake`, không phải
-     *  hai lead. Nhưng khách rơi khỏi luồng năm ngoái quay lại năm nay là một
-     *  lead MỚI hợp lệ — nên điều kiện chỉ áp cho dòng chưa rơi.
+     *  A landing page submitted twice is two raw rows in `lead_intake`, not two
+     *  leads. But a customer disqualified last year who comes back this year is
+     *  a legitimate NEW lead — so the fence covers every state except the two a
+     *  lead does not come back from on its own (`disqualified`, `archived`).
+     *  `converted` stays inside: the customer is live, as a deal.
      *
-     *  Indexed on `lower(email)`, not on the raw column. `An@x.vn` and
-     *  `an@x.vn` are one mailbox,
-     *  so on a raw index they slip through as two live leads and the MAS mail
-     *  flow sends the same person the same campaign twice. The column comment
-     *  above already asks writers to store the address lowercased and
-     *  trimmed; this is what makes that a fact instead of a request, at the
-     *  one place no door can skip. Same technique `config_name_live` uses. */
+     *  Indexed on `lower(email)`: `An@x.vn` and `an@x.vn` are one mailbox, and
+     *  on a raw index they slip through as two live leads that MAS mail writes
+     *  to twice. The name is load-bearing — `lead-intake.service.ts` matches the
+     *  23505 on it. */
     uniqueIndex('lead_email_live_idx')
       .on(sql`lower("email")`)
-      .where(sql`"exit_reason" IS NULL`),
+      .where(sql`"state" NOT IN ('disqualified', 'archived')`),
 
     /** The campaign has to EXIST, and has to be a row of the source catalogue.
      *
@@ -394,9 +392,30 @@ export const lead = sales.table(
     check('lead_money_pair', sql`("budget" IS NULL) = ("currency" IS NULL)`),
     /** Rơi thì phải có mốc rơi. Thiếu mốc thì mọi báo cáo theo kỳ đếm hụt. */
     check('lead_exit_pair', sql`("exit_reason" IS NULL) = ("exited_at" IS NULL)`),
-    /** Rơi rồi thì không còn đứng ở cột nào của phễu. Không có ràng buộc này
-     *  thì sổ cơ hội và sổ lead đếm ra hai con số khác nhau. */
-    check('lead_exit_no_stage', sql`"exit_reason" IS NULL OR "stage" IS NULL`),
+    /** The eight `LeadState` values, copied out by hand for `touch_kind_known`'s
+     *  reason: a state added to the contract must be a migration somebody
+     *  reads, not a string that changes underneath the rows already written. */
+    check(
+      'lead_state_known',
+      sql`"state" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
+                      'converted', 'disqualified', 'archived')`,
+    ),
+    /** A reason exists exactly when the lead is disqualified — ADR 0057 §2's
+     *  exit, renamed as a state. `lead_exit_pair` above pairs the timestamp. */
+    check(
+      'lead_disqualified_has_reason',
+      sql`("state" = 'disqualified') = ("exit_reason" IS NOT NULL)`,
+    ),
+    /** `working` is entered only by the PIC confirming verification WITH a tier
+     *  (ADR 0058, "tier is not a state") — a tierless `working` row skipped it. */
+    check('lead_working_has_tier', sql`"state" <> 'working' OR "tier" IS NOT NULL`),
+    /** Among the open states, `new` means exactly "no PIC yet". Terminal states
+     *  are exempt: a spam intake lead is disqualified without ever having one. */
+    check(
+      'lead_open_owner_matches',
+      sql`"state" NOT IN ('new', 'assigned', 'verifying', 'working', 'nurturing')
+          OR (("state" = 'new') = ("owner_id" IS NULL))`,
+    ),
     /** `contact_channel` joined this list on 27/08, and it is not cosmetic:
      *  it is one of the two columns slot 5 of `required_filled` reads
      *  (`phone IS NOT NULL OR contact_channel IS NOT NULL`). An empty string

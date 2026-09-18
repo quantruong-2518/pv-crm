@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Plus } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
@@ -14,12 +14,14 @@ import {
 } from '@pv/ui'
 import { DAS_VINA_FROZEN_AT, dayISO } from '@pv/engines/fixtures/das-vina'
 import {
+  LEAD_OPEN_STATES,
+  LeadState,
   SOURCE_KIND_LABEL,
   type ConfigEntry,
   type LeadBookQuery,
   type LeadRow,
   type LeadSourceKind,
-  type LeadStatus,
+  type LeadStateFilter,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
@@ -32,7 +34,8 @@ import {
   queryPageFromPageIndex,
 } from '@/app/url'
 import { dm, dmy } from '@/lib/date'
-import { leadBookQuery, leadFacetQuery, leadSourceKindFacetQuery } from '@/data/leads'
+import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
+import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -60,7 +63,7 @@ import {
  *
  *  The book is server-side: `GET /sales/leads` returns one filtered, sorted page
  *  plus `total`, and every filter lives in the URL (`app/url.ts`) so F5, shared
- *  links and the back button keep it. Tab counts are that query at `size=1`.
+ *  links and the back button keep it. Tab counts come from `facets.byState`.
  *  The pinned tab is the exception: pins are per person (`app/desk.ts`), so it
  *  lists them out of `leadFacetQuery`, whose limits are written there.
  *
@@ -92,34 +95,25 @@ const SEARCH_DELAY_MS = 300
 /* Mốc kỳ suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
 const PERIOD_FROM = dm(dayISO(0))
 
-/** Bốn trạng thái của một dòng trong sổ. "Chưa chốt" là mặc định — lead đã rơi
- *  vẫn tra được, vì đó là nơi câu trả lời "vì sao mất" nằm.
+/** The state tabs (ADR 0058). `open` is the default because the book is a work
+ *  list; a dropped or archived lead is still one tab away, since that is where
+ *  "why did we lose it" is answered. Each key is a `LeadStateFilter` value, so
+ *  it goes onto the URL and the wire unchanged.
  *
- *  Bốn khoá là bốn giá trị của `LeadStatus` trong hợp đồng, không phải một bản
- *  liệt kê thứ hai: chúng đi thẳng lên địa chỉ rồi lên dây.
- *
- *  ------------------------------------------------------------------
- *  NHÃN CỦA `running` ĐỔI TỪ "Đang chạy" (29/08) — CỘT VÀ Ô LỌC PHẢI NÓI CÙNG MỘT CHUYỆN
- *  ------------------------------------------------------------------
- *  `running` = chưa ký, chưa rơi (`statusFilter` ở `lead.repository.ts`) — và
- *  55/65 dòng khớp điều kiện đó chưa hề có `stage`, nên cột Trạng thái của
- *  chúng vẽ "Chưa xử lý" (`StatusCell`), không phải bất cứ thứ gì đọc ra như
- *  "đang chạy". Một người lọc "Đang chạy" rồi thấy phần lớn dòng ghi "Chưa xử
- *  lý" đọc như hai câu trả lời cho hai câu hỏi khác nhau.
- *
- *  "Chưa chốt" fits both things the status column draws in this bucket — an
- *  untouched row and a pipeline stage — since neither has reached an ending.
- *
- *  `lead-detail.tsx#StatusBadge` in CÙNG nhãn này cho cùng bucket — hai màn của
- *  một dòng dữ liệu không được gọi nó bằng hai tên. */
-const STATUSES: { key: LeadStatus; label: string }[] = [
-  { key: 'running', label: 'Chưa chốt' },
-  { key: 'signed', label: 'Đã ký' },
-  { key: 'exited', label: 'Đã rơi' },
+ *  Narrowing to ONE open state (every `assigned` lead, say) is the state select
+ *  in the filter menu, not a sixth to ninth tab: a row of nine tabs has no
+ *  first tab on a tablet. */
+type StateTab = 'open' | 'converted' | 'disqualified' | 'archived' | 'all'
+
+const STATE_TABS: { key: StateTab; label: string }[] = [
+  { key: 'open', label: 'Đang chạy' },
+  { key: 'converted', label: LEAD_STATE_FACE.converted.label },
+  { key: 'disqualified', label: LEAD_STATE_FACE.disqualified.label },
+  { key: 'archived', label: LEAD_STATE_FACE.archived.label },
   { key: 'all', label: 'Tất cả' },
 ]
 
-/** The pinned tab's value — not a `LeadStatus`, so it never reaches the URL. */
+/** The pinned tab's value — not a `LeadStateFilter`, so it never reaches the URL. */
 const PINNED = 'pinned'
 
 /** Mảng rỗng dùng chung — một `?? []` viết thẳng trong thân component đẻ ra
@@ -270,30 +264,42 @@ export function LeadsPage() {
   const [pinnedView, setPinnedView] = useState(false)
   const shown = pinnedView ? pinned : rows
 
-  /* One `size=1` read per tab: `total` is the count under the current search
-     and source filter, and nothing else on the server answers that. */
-  const tabCounts = useQueries({
-    queries: STATUSES.map((s) =>
-      leadBookQuery({ ...urlQuery, status: s.key, page: DEFAULT_LEAD_BOOK_QUERY.page, size: 1 }),
-    ),
-  })
+  /* One read answers every tab — `byState` under the current search and source
+     filter; `open` and `all` are sums the screen takes — and feeds the
+     no-campaign half of the source select (`sourceKinds`). See `LeadFacets`. */
+  const { data: counts } = useQuery(leadFacetsQuery(urlQuery))
+  const byState = counts?.byState
+  const sumOf = (states: readonly LeadState[]) =>
+    byState && states.reduce((sum, state) => sum + (byState[state] ?? 0), 0)
+  const countOf = (key: StateTab) =>
+    key === 'open'
+      ? sumOf(LEAD_OPEN_STATES)
+      : key === 'all'
+        ? sumOf(LeadState.options)
+        : byState?.[key]
   const tabs = [
-    ...STATUSES.map((s, i) => ({ value: s.key, label: s.label, count: tabCounts[i]?.data?.total })),
+    ...STATE_TABS.map((t) => ({ value: t.key, label: t.label, count: countOf(t.key) })),
     { value: PINNED, label: 'Đã ghim', count: pinned.length },
   ]
+  /* One open state picked in the filter menu still lights the `open` tab. */
+  const oneOpenState = isOpenState(query.state)
+  const tabValue = oneOpenState ? 'open' : query.state
   const onTab = (value: string) => {
     setPinnedView(value === PINNED)
-    if (value !== PINNED) patch({ status: value as LeadStatus })
+    if (value !== PINNED) patch({ state: value as LeadStateFilter })
   }
 
-  /* Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`, real
-     `sourceKind` nào đang đứng không kèm chiến dịch trong sổ. Đọc docblock
-     `LeadFacets` (`@pv/contracts`) trước khi đụng vào chỗ này: nửa "có chiến
-     dịch" đã có nguồn thật rồi (`sourceOptions` ở trên, từ `GET /sales/config`)
-     — cái CÒN THIẾU trước bản sửa này là nửa kia, và thiếu nó nghĩa là một
-     lead `LANDING_PAGE` không chiến dịch (cột Nguồn in "Web landing") không có
-     lấy MỘT lựa chọn trong ô lọc trỏ được tới nó. */
-  const { data: sourceKindFacets } = useQuery(leadSourceKindFacetQuery)
+  /* The state select: every open state, or one of them. */
+  const stateFilterOptions = [
+    { value: 'open', label: 'Mọi trạng thái đang chạy' },
+    ...LEAD_OPEN_STATES.map((state) => ({
+      value: state,
+      label:
+        byState === undefined
+          ? LEAD_STATE_FACE[state].label
+          : `${LEAD_STATE_FACE[state].label} · ${byState[state] ?? 0}`,
+    })),
+  ]
 
   /* Một ô, hai trục hợp đồng (`campaign` và `sourceKind`) — xem docblock
      `sourceKind` trong `LeadBookQuery` cho lý do hai trục không gộp làm một
@@ -304,12 +310,12 @@ export function LeadsPage() {
   const sourceFilterOptions = useMemo(
     () => [
       ...sourceOptions.map((entry) => ({ value: entry.id, label: entry.name })),
-      ...(sourceKindFacets?.sourceKinds ?? []).map((kind) => ({
+      ...(counts?.sourceKinds ?? []).map((kind) => ({
         value: `${KIND_PREFIX}${kind}`,
         label: SOURCE_KIND_LABEL[kind],
       })),
     ],
-    [sourceOptions, sourceKindFacets],
+    [sourceOptions, counts],
   )
 
   const sourceFilterValue = query.sourceKind
@@ -333,14 +339,14 @@ export function LeadsPage() {
     text.trim() !== '' ||
     query.campaign !== undefined ||
     query.sourceKind !== undefined ||
-    query.status !== DEFAULT_LEAD_BOOK_QUERY.status
+    query.state !== DEFAULT_LEAD_BOOK_QUERY.state
 
   const clearFilters = () =>
     patch({
       q: undefined,
       campaign: undefined,
       sourceKind: undefined,
-      status: DEFAULT_LEAD_BOOK_QUERY.status,
+      state: DEFAULT_LEAD_BOOK_QUERY.state,
     })
 
   /* Phiếu MAS sống trọn trong Modal: nội dung, lịch và người nhận cùng một chỗ.
@@ -617,7 +623,7 @@ export function LeadsPage() {
               label="Nhóm lead"
               hideLabel
               tone="quiet"
-              value={pinnedView ? PINNED : query.status}
+              value={pinnedView ? PINNED : tabValue}
               options={tabs}
               onChange={onTab}
             />
@@ -632,7 +638,19 @@ export function LeadsPage() {
                   onChange={setText}
                   className="min-w-0 flex-1 sm:max-w-[320px]"
                 />
-                <FilterMenu label="Bộ lọc sổ lead" active={sourceFiltered ? 1 : 0}>
+                <FilterMenu
+                  label="Bộ lọc sổ lead"
+                  active={(sourceFiltered ? 1 : 0) + (oneOpenState ? 1 : 0)}
+                >
+                  {tabValue === 'open' && (
+                    <Select
+                      label="Trạng thái"
+                      value={query.state}
+                      onChange={(value) => patch({ state: value as LeadStateFilter })}
+                      className="w-full max-w-none"
+                      options={stateFilterOptions}
+                    />
+                  )}
                   <Select
                     label="Nguồn"
                     value={sourceFilterValue}

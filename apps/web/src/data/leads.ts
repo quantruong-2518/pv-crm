@@ -32,10 +32,10 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import { LeadScorecard } from '@pv/contracts'
-import type { LeadBookQuery, LeadBookResponse, LeadFacets } from '@pv/contracts'
+import { LeadFacetsQuery, LeadScorecard } from '@pv/contracts'
+import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadRow } from '@pv/contracts'
 import { api } from '@/app/api'
-import { leadBookQueryToParams } from '@/app/url'
+import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
 import { APPROVER_ROLE_LABEL } from '@/data/directory'
 
 /** Sổ lead — module 2.
@@ -156,25 +156,29 @@ export const FACET_SIZE = 200
 export const leadFacetQuery = queryOptions({
   queryKey: ['sales', 'lead-book', 'facets'] as const,
   queryFn: ({ signal }) =>
-    api.read<LeadBookResponse>(`/sales/leads?status=all&size=${FACET_SIZE}`, {
+    api.read<LeadBookResponse>(`/sales/leads?state=all&size=${FACET_SIZE}`, {
       need: BOOK_NEED,
       signal,
     }),
 })
 
-/** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`. Đọc
- *  docblock `LeadFacets` (`@pv/contracts`) trước khi dùng lại query này.
+/** `GET /sales/leads/facets` — the state tabs' counts (`byState`) under the
+ *  book's other filters, plus the no-campaign half of the Nguồn select
+ *  (`sourceKinds`, which ignores them). Read `LeadFacets` before reusing it.
  *
- *  `SELECT DISTINCT` ở máy chủ, cùng trục phạm vi với sổ — không có trần 200
- *  như `leadFacetQuery` phía trên. */
-export const leadSourceKindFacetQuery = queryOptions({
-  queryKey: ['sales', 'lead-book', 'facets', 'source-kind'] as const,
-  queryFn: ({ signal }) =>
-    api.read<LeadFacets>('/sales/leads/facets', {
-      need: BOOK_NEED,
-      signal,
-    }),
-})
+ *  Takes the whole book query and lets the contract strip what facets do not
+ *  take (`state`, paging, sort), so the key only moves when a count could. */
+export const leadFacetsQuery = (query: LeadBookQuery) => {
+  const filters = LeadFacetsQuery.parse(query)
+  return queryOptions({
+    queryKey: ['sales', 'lead-book', 'counts', filters] as const,
+    queryFn: ({ signal }) =>
+      api.read<LeadFacets>(
+        `/sales/leads/facets?${leadBookQueryToParams({ ...DEFAULT_LEAD_BOOK_QUERY, ...filters })}`,
+        { need: BOOK_NEED, signal },
+      ),
+  })
+}
 
 /* `frozenLeadBookQuery` XOÁ 31/08 cùng `loadFrozenBook`. Nó là sổ fixture 100
    dòng mà hai màn Nguồn dẫn đọc để chống trùng và cấp mã cho lô nạp; cả hai
@@ -580,13 +584,18 @@ export type AssigneeOption = {
  *  người có ngành khớp, rồi vai đang nắm phần việc lead đang thiếu, rồi phần
  *  còn lại. Danh sách đầy đủ vẫn giữ — gợi ý sai thì người dùng vẫn phải chọn
  *  được người mình muốn. */
+/** The only 3 fields `assigneeOptions` reads — `LeadRow` (book row) and `Lead`
+ *  (the detail page's fixture bridge) both carry them, so callers no longer
+ *  need to build a full `Lead` object just to rank assignees. */
+export type AssigneeCandidateLead = Pick<LeadRow, 'category' | 'tier' | 'requiredFilled'>
+
 export function assigneeOptions(
-  lead: Lead,
+  lead: AssigneeCandidateLead,
   actors: readonly Actor[],
   meId: string | undefined,
 ): AssigneeOption[] {
   const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
-  const owner = saleOfCategory(lead.category)
+  const owner = lead.category ? saleOfCategory(lead.category) : undefined
 
   const scored = actors
     .filter((a) => a.branches.includes('Sales'))
@@ -604,12 +613,6 @@ export function assigneeOptions(
       } else if (a.roleId === 'bd' && missing > 0) {
         rank = 20
         why = `Còn ${missing} ô bắt buộc — moi ô là việc của vai này`
-      } else if (
-        a.roleId === 'presales' &&
-        (lead.stage === 'discovery' || lead.stage === 'demo-done')
-      ) {
-        rank = 30
-        why = 'Đơn đang ở cột có demo'
       } else if (a.roleId === 'marketing' && lead.tier === 'prospect') {
         rank = 40
         why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'

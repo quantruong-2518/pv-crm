@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import type { ContractRow, LeadRow, OpportunityRow, StageKey } from '@pv/contracts'
+import type { ContractRow, OpportunityRow, StageKey } from '@pv/contracts'
 import {
   createObjectGraph,
   daysUntil,
@@ -11,9 +11,8 @@ import {
 } from '@pv/engines'
 import { billions, millions, percent } from '@pv/ui'
 import { useCan, useSession } from '@/app/auth'
-import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { contractBookQuery, contractSummaryQuery } from './contracts'
-import { leadBookQuery, leadScorecardQuery } from './leads'
+import { leadScorecardQuery } from './leads'
 import { leaderboardQuery } from './leaderboard'
 import {
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
@@ -136,16 +135,16 @@ export function labelsOf(
 }
 
 // ---------------------------------------------------------------------------
-// THE WORK QUEUE — one person's rows, three books, one order
+// THE WORK QUEUE — one person's rows, two books, one order
 // ---------------------------------------------------------------------------
 
-export type WorkKind = 'payment' | 'opportunity' | 'lead'
+export type WorkKind = 'payment' | 'opportunity'
 
 /** One thing on this desk that had a deadline and passed it.
  *
- *  Three books produce one shape so the screen can sort them against each
+ *  Two books produce one shape so the screen can sort them against each
  *  other: an installment eleven days late outranks a deal two days over its
- *  column, and nothing could see that while the three lived in three tables. */
+ *  column, and nothing could see that while the two lived in two tables. */
 export type WorkItem = {
   id: string
   kind: WorkKind
@@ -217,32 +216,9 @@ export function dealWork(
   return out
 }
 
-/** Leads stuck past their stage limit — the same rule as a deal, one book
- *  earlier. Judged by `daysHere` against the SAME `STAGE` limits rather than a
- *  second threshold invented for leads: one configured number, two books. */
-export function leadWork(
-  rows: LeadRow[],
-  limits: Map<StageKey, number>,
-  labelOf: (stage: StageKey) => string,
-): WorkItem[] {
-  const out: WorkItem[] = []
-  for (const l of rows) {
-    if (l.signed || l.exitReason !== undefined || l.stage === undefined) continue
-    const limit = limits.get(l.stage)
-    if (limit === undefined || l.daysHere <= limit) continue
-    out.push({
-      id: l.code,
-      kind: 'lead',
-      code: l.code,
-      title: l.company,
-      meta: `${l.contactName} · ${labelOf(l.stage)}`,
-      amountVnd: null,
-      daysLate: l.daysHere - limit,
-      href: `/sales/leads/${l.code}`,
-    })
-  }
-  return out
-}
+/* No lead branch since ADR 0058: a lead's lifecycle states carry no limit to
+   be late against (ADR 0057 §4 suspends them), and borrowing the deal-stage
+   limits for a lead is the second threshold that rule refuses. */
 
 /** Latest first, then by money, then by code so two equally late rows do not
  *  swap places between renders. */
@@ -266,7 +242,6 @@ export function useMyWork(limits: Map<StageKey, number>, labelOf: (stage: StageK
   const mine = actor?.id ?? ''
 
   const canOps = useCan('opportunity.view')
-  const canLead = useCan('lead.view')
   const canContract = useCan('contract.view')
 
   const today = systemClock()
@@ -279,20 +254,15 @@ export function useMyWork(limits: Map<StageKey, number>, labelOf: (stage: StageK
     ...opportunityBookQuery({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, size: WORK_SCAN, sale: mine }),
     enabled: mine !== '' && canOps,
   })
-  const leads = useQuery({
-    ...leadBookQuery({ ...DEFAULT_LEAD_BOOK_QUERY, size: WORK_SCAN, owner: mine }),
-    enabled: mine !== '' && canLead,
-  })
 
   const contractRows = contracts.data?.rows ?? []
 
   const items = orderWork([
     ...collectionWork(contractRows, mine, today),
     ...dealWork(deals.data?.rows ?? [], limits, labelOf),
-    ...leadWork(leads.data?.rows ?? [], limits, labelOf),
   ])
 
-  const parts = [contracts, deals, leads]
+  const parts = [contracts, deals]
 
   return {
     items,
@@ -311,7 +281,6 @@ export function useMyWork(limits: Map<StageKey, number>, labelOf: (stage: StageK
 const KIND_OF: Record<WorkKind, ObjectRef['kind']> = {
   payment: 'HĐ',
   opportunity: 'OP',
-  lead: 'LD',
 }
 
 /** ContextRail for whatever is most urgent right now.
