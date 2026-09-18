@@ -264,4 +264,33 @@ export class AuthRepository {
       .returning({ id: passwordReset.id })
     return rows.length > 0
   }
+
+  /** Kill every live reset ticket this account still has. Returns how many.
+   *
+   *  ------------------------------------------------------------------
+   *  WHY `used_at` AND NOT A SECOND COLUMN
+   *  ------------------------------------------------------------------
+   *  "Spent by its owner" and "replaced by a newer link" are two stories with
+   *  one operational meaning: the ticket does not open the door again. A
+   *  separate `invalidated_at` would buy an audit distinction nothing reads,
+   *  and would cost every reader a second predicate to forget — `used_at IS
+   *  NULL` is already the one thing the whole flow agrees means "alive".
+   *
+   *  `purpose = 'reset'` is load-bearing: invite tickets share this table and
+   *  live seven days, and a forgotten password must not cancel the invitation
+   *  the same person has not opened yet. */
+  async invalidatePendingResetTickets(actorId: string, tx: Db = this.db): Promise<number> {
+    const rows = await tx
+      .update(passwordReset)
+      .set({ usedAt: sql`now()` })
+      .where(
+        and(
+          eq(passwordReset.actorId, actorId),
+          eq(passwordReset.purpose, 'reset'),
+          isNull(passwordReset.usedAt),
+        ),
+      )
+      .returning({ id: passwordReset.id })
+    return rows.length
+  }
 }

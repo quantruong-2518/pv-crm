@@ -8,7 +8,7 @@ import { ENV, type Env } from '../config/env'
  *  ------------------------------------------------------------------
  *  The reset TICKET and the reset LETTER are two different pieces of work with
  *  two different owners. The ticket is authentication: a single-use row, a
- *  hashed token, a 60-minute window, and the rule that a reset kills every live
+ *  hashed token, a 30-minute window, and the rule that a reset kills every live
  *  session. The letter is presentation: a subject line, a body that renders in
  *  Outlook, a `platform.email_delivery` row and an `event_key` that stops it
  *  being sent twice.

@@ -87,7 +87,7 @@ const SAMPLES = [
   {
     slug: 'password-reset-reset',
     title: 'Đặt mật khẩu · quên mật khẩu',
-    note: 'Vé 60 phút. Cùng một file mẫu, khác lời chào và khác TTL.',
+    note: 'Vé 30 phút. Cùng một file mẫu, khác lời chào và khác TTL.',
     render: (m, assetBaseUrl) =>
       m.renderPasswordReset({
         purpose: 'reset',
@@ -95,7 +95,7 @@ const SAMPLES = [
         email: 'ha.tran@pebblevina.com',
         link: `${ORIGIN}/reset-password?token=7f3c9a12b4de40a18a1c6e5d0b93`,
         assetBaseUrl,
-        expiresAt: inHours(1),
+        expiresAt: inHours(0.5),
       }),
   },
   {

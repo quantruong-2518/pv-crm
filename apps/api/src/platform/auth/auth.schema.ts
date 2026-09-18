@@ -1,4 +1,5 @@
-import { index, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { index, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { actor, platform } from '../db/platform.schema'
 
 /** Hai bảng của xác thực: phiên đang sống, và vé đặt mật khẩu.
@@ -145,7 +146,16 @@ export const passwordReset = platform.table(
     /** Đã tiêu lúc nào. `null` = chưa dùng. Cột này LÀ cơ chế một-lần. */
     usedAt: timestamp('used_at', { withTimezone: true }),
   },
-  (t) => [index('password_reset_actor_idx').on(t.actorId)],
+  (t) => [
+    index('password_reset_actor_idx').on(t.actorId),
+
+    /** One live reset ticket per account: invalidate-then-INSERT is unlocked, so
+     *  two concurrent forgot-password requests both insert — the second now gets
+     *  `23505`. Invite tickets live seven days and stay outside this fence. */
+    uniqueIndex('password_reset_one_live_reset_uq')
+      .on(t.actorId)
+      .where(sql`"purpose" = 'reset' AND "used_at" IS NULL`),
+  ],
 )
 
 export type SessionRow = typeof session.$inferSelect

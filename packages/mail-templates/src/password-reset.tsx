@@ -125,16 +125,16 @@ function copyFor(purpose: 'invite' | 'reset'): Copy {
   }
 }
 
-/** "còn 60 phút" / "còn 7 ngày", in the unit the recipient would say it in.
+/** "còn 30 phút" / "còn 7 ngày", in the unit the recipient would say it in.
  *
  *  Rendering happens milliseconds after the ticket row is written, so the
  *  distance to `expiresAt` IS the TTL — which is exactly why the number can be
  *  derived instead of imported across a package boundary that forbids it.
  *
  *  The unit thresholds are chosen so the two TTLs in use today read naturally
- *  (60 minutes stays "60 phút" rather than becoming a bare "1 giờ" that sounds
- *  vaguer than the guarantee actually is) and so a future TTL of any size still
- *  produces a sentence a person can act on.
+ *  (30 minutes stays "30 phút" rather than becoming a bare fraction of an hour
+ *  that sounds vaguer than the guarantee actually is) and so a future TTL of
+ *  any size still produces a sentence a person can act on.
  *
  *  Returns `null` rather than guessing when the value is unusable or already
  *  past — a clock skewed the wrong way must not tell somebody their live link
@@ -160,7 +160,7 @@ function remainingPhrase(expiresAtIso: string, now: number): string | null {
  *  Bản cũ in nó thành một câu giữa hai đoạn văn và nó chìm đúng vào lúc cần
  *  nổi nhất: khi người ta mở lại lá thư sau vài tiếng để xem còn kịp không.
  *
- *  Giữ CẢ khoảng cách lẫn mốc tuyệt đối: "còn 60 phút" là thứ hành động được
+ *  Giữ CẢ khoảng cách lẫn mốc tuyệt đối: "còn 30 phút" là thứ hành động được
  *  ngay, còn "15:20 ngày 29/08" là thứ vẫn đúng khi lá thư được đọc lại lần
  *  thứ hai, lúc con số kia đã sai. Không có khoảng cách — đồng hồ lệch, hoặc
  *  vé đã quá hạn — thì chỉ còn mốc tuyệt đối, thứ luôn luôn thật. */

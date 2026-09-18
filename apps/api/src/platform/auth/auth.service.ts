@@ -1,6 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { SESSION_LIMITS, SessionView, SessionWindow, type ResetTicketView } from '@pv/contracts'
+import {
+  RESET_TICKET_TTL_MINUTES,
+  SESSION_LIMITS,
+  SessionView,
+  SessionWindow,
+  type ResetTicketView,
+} from '@pv/contracts'
 import { ENV, type Env } from '../config/env'
+import { isDbConstraint } from '../http/db-error'
 import { denied, invalid, notFound, rateLimited } from '../http/problem'
 import type { Db } from '../db/db.module'
 import type { ActorRow } from '../db/platform.schema'
@@ -40,10 +47,10 @@ import type { Caller } from '../session/caller'
  *  a colleague who can tell them. */
 const SIGN_IN_REFUSAL = 'Email hoặc mật khẩu không đúng.'
 
-/** What a reset link is worth, in time. One hour, because the person who asked
- *  for it is sitting at the screen waiting — a link that is still live tomorrow
- *  is a link sitting in a mailbox for a day with nobody watching it. */
-const RESET_TTL_MS = 60 * 60_000
+/** What a reset link is worth, in time. `RESET_TICKET_TTL_MINUTES` from
+ *  `@pv/contracts` is the one number; the screen's countdown reads the same
+ *  constant instead of a second, hand-typed 30. */
+const RESET_TTL_MS = RESET_TICKET_TTL_MINUTES * 60_000
 
 /** An invitation is a different animal: the recipient does not know it is
  *  coming and may be on leave. Seven days, per `auth.schema.ts`. */
@@ -377,6 +384,10 @@ export class AuthService {
     await this.repo.run(async (tx) => {
       const burned = await this.repo.consumeResetTicket(found.ticket.id, tx)
       if (!burned) throw notFound('liên kết đặt mật khẩu')
+      /* An older RESET link still inside its own window would otherwise set the
+         password again after the owner believes this is finished — invite
+         tickets are untouched, a different door (repository method's docblock). */
+      await this.repo.invalidatePendingResetTickets(found.actor.id, tx)
       await this.repo.setPasswordHash(found.actor.id, hash, tx)
       const killed = await this.repo.revokeAllForActor(found.actor.id, tx)
       this.log.log(`Đặt lại mật khẩu · ${found.actor.id} · thu hồi ${killed} phiên`)
@@ -626,14 +637,26 @@ export class AuthService {
     purpose: 'invite' | 'reset',
     ttlMs: number,
   ): Promise<void> {
+    /* Retires this account's other live reset links before minting a new one —
+       the common case; `password_reset_one_live_reset_uq` is the real fence
+       for two requests that land at the same instant. */
+    if (purpose === 'reset') await this.repo.invalidatePendingResetTickets(row.id)
+
     const token = newToken()
     const expiresAt = new Date(Date.now() + ttlMs)
-    await this.repo.createResetTicket({
-      actorId: row.id,
-      tokenHash: hashToken(token),
-      purpose,
-      expiresAt,
-    })
+    try {
+      await this.repo.createResetTicket({
+        actorId: row.id,
+        tokenHash: hashToken(token),
+        purpose,
+        expiresAt,
+      })
+    } catch (error: unknown) {
+      /* A twin request already holds this account's one live reset ticket and
+         its mail is on the way — this request has nothing left to do. */
+      if (isDbConstraint(error, 'password_reset_one_live_reset_uq')) return
+      throw error
+    }
 
     /* The mailer's contract says `send` does not throw; this catch is the
        belt for that braces. An exception escaping to the controller would make

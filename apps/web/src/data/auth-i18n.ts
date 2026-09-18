@@ -155,18 +155,32 @@ export const signInText = {
 }
 
 export const forgotPasswordText = {
-  sentTitle: tr('Đã gửi hướng dẫn', 'Instructions sent', '안내 메일 발송됨'),
-  sentBefore: tr('Kiểm tra hộp thư ', 'Check your inbox at ', '받은편지함을 확인하세요: '),
+  sentTitle: tr('Kiểm tra hộp thư của bạn', 'Check your inbox', '받은편지함을 확인하세요'),
+  sentBefore: tr('Kiểm tra ', 'Check ', ''),
   sentAfter: tr(
-    '. Link đặt lại sống trong 30 phút; hết hạn thì xin lại từ đầu.',
-    '. The reset link is valid for 30 minutes; request a new one if it expires.',
-    '. 재설정 링크는 30분 동안 유효합니다. 만료되면 새로 요청하세요.',
+    ', yêu cầu đổi mật khẩu đã được gửi.',
+    ', the reset request has been sent.',
+    ' 주소로 재설정 메일을 보냈습니다.',
   ),
   hint: tr(
-    'Thư chưa tới sau vài phút thì xem hộp thư rác, và kiểm lại xem địa chỉ đã gõ đúng chưa. Địa chỉ chưa từng đăng ký thì sẽ không có thư nào cả.',
-    'If nothing arrives after a few minutes, check your spam folder and make sure the address was typed correctly. An address with no account will never receive a letter.',
-    '몇 분이 지나도 메일이 오지 않으면 스팸함을 확인하고 주소를 올바르게 입력했는지 확인하세요. 계정이 없는 주소로는 메일이 발송되지 않습니다.',
+    'Vui lòng mở hòm thư rác hoặc kiểm tra lại địa chỉ mail trong trường hợp mail không phản hồi quá lâu. Mỗi lần gửi lại, link trước đó sẽ bị vô hiệu hoá.',
+    'Please check your spam folder or verify the email address if the message takes too long to arrive. Resending replaces the previous link, which stops working.',
+    '메일이 오래도록 오지 않으면 스팸함을 확인하거나 이메일 주소를 다시 확인해 주세요. 다시 보내면 이전 링크는 더 이상 사용할 수 없습니다.',
   ),
+  /** The clock arrives already formatted as mm:ss — Korean puts the duration
+   *  before its postposition, so the three sentences cannot share one split. */
+  expiresIn: (clock: string) =>
+    tr(
+      `Link còn hiệu lực ${clock}.`,
+      `The link expires in ${clock}.`,
+      `링크는 ${clock} 후 만료됩니다.`,
+    ),
+  expired: tr(
+    'Link đã hết hạn — bấm gửi lại.',
+    'The link has expired — press resend.',
+    '링크가 만료되었습니다 — 다시 보내기를 누르세요.',
+  ),
+  resend: tr('Gửi lại', 'Resend', '다시 보내기'),
   title: tr('Quên mật khẩu', 'Forgot password', '비밀번호 찾기'),
   lead: tr(
     'Nhập email của bạn. Chúng tôi gửi một link đặt lại — không hỏi mật khẩu cũ, vì bạn đang không nhớ nó.',

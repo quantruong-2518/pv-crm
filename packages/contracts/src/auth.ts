@@ -263,6 +263,12 @@ export const SignInBody = z.object({
   remember: z.boolean().default(false),
 })
 
+/** How long a reset link lives, in minutes. ONE number, read by the server (to
+ *  set `expiresAt`), the mailer (to word the letter) and the screen (to run its
+ *  countdown) — the same failure `SESSION_LIMITS` above exists to prevent,
+ *  restated for a shorter-lived ticket instead of a session. */
+export const RESET_TICKET_TTL_MINUTES = 30
+
 /** Asking for a reset link. Answered with 204 whether or not the mailbox is
  *  known — see the service for why the honest-looking alternative is worse. */
 export const ForgotPasswordBody = z.object({ email })
