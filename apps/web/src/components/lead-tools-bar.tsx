@@ -15,7 +15,7 @@ import type { LeadProfile, OpportunityLiveDeal } from '@pv/contracts'
 import type { Lead } from '@pv/engines/fixtures/das-vina'
 import { userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
-import { useReopenLead } from '@/data/lead-exit'
+import { useContactLead, useReopenLead } from '@/data/lead-exit'
 import { readField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { EXIT_REASON_LABEL } from '@/data/leads'
@@ -123,19 +123,7 @@ function EditBar({
       <ContactFace name={lead.contactName} title={lead.contactTitle} phone={lead.phone} />
 
       <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-        <Button
-          size="md"
-          variant="secondary"
-          className="pointer-coarse:h-12"
-          disabled={!lead.phone}
-          title={lead.phone ?? 'Chưa có số điện thoại'}
-          onClick={() => {
-            if (lead.phone) window.location.href = `tel:${lead.phone}`
-          }}
-        >
-          <Icon icon={Phone} size={16} />
-          Gọi
-        </Button>
+        <CallButton lead={lead} canEdit={canEdit} />
         {/* Locked buttons say WHY on the title, the same way the activity card
             does: a drawer filled in and then refused with a 403 is the one
             outcome a disabled button is here to prevent. */}
@@ -237,6 +225,53 @@ function EditBar({
         <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
       </div>
     </>
+  )
+}
+
+/** Dial first, confirm second. The browser cannot know whether leaving through
+ *  `tel:` produced a real call, so only the short confirmation press writes
+ *  the touch and advances an assigned lead to `verifying`. */
+function CallButton({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
+  const contact = useContactLead(lead.code)
+  const [dialed, setDialed] = useState(false)
+
+  useEffect(() => {
+    setDialed(false)
+    contact.reset()
+    // `reset` is stable for one mutation observer; the lead code starts a new one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.code])
+
+  const canConfirm = canEdit && lead.state !== 'disqualified' && lead.state !== 'archived'
+
+  const press = () => {
+    if (!lead.phone) return
+    if (!dialed) {
+      if (canConfirm) setDialed(true)
+      window.location.href = `tel:${lead.phone}`
+      return
+    }
+    contact.mutate(undefined, {
+      onSuccess: () => {
+        toastDone('Đã ghi cuộc gọi.')
+        setDialed(false)
+      },
+      onError: (error) => toastFail('Chưa ghi được.', userMessage(error)),
+    })
+  }
+
+  return (
+    <Button
+      size="md"
+      variant={dialed ? 'default' : 'secondary'}
+      className="pointer-coarse:h-12"
+      disabled={!lead.phone || contact.isPending}
+      title={dialed ? 'Xác nhận cuộc gọi đã diễn ra' : (lead.phone ?? 'Chưa có số điện thoại')}
+      onClick={press}
+    >
+      <Icon icon={Phone} size={16} />
+      {contact.isPending ? 'Đang ghi…' : dialed ? 'Đã gọi' : 'Gọi'}
+    </Button>
   )
 }
 

@@ -1,10 +1,12 @@
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../lib/cn'
 
-/** A-05 · Avatar — rounded-md, không rounded-full: hệ này góc sắc.
+/** A-05 · Avatar — rounded-full (design law 5, docs/design-system/laws.md):
+ *  a person reads as a circle, not a card, so this is the third exception
+ *  alongside StatusDot and the AI Assistant FAB.
  *  Viết tắt tên, không ảnh. Ba cỡ: 38 · 30 · 24. */
 const avatarVariants = cva(
-  'text-primary-foreground inline-flex shrink-0 items-center justify-center rounded-md bg-[linear-gradient(135deg,var(--avatar-from),var(--avatar-to))] font-semibold',
+  'text-primary-foreground inline-flex shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--avatar-from),var(--avatar-to))] font-semibold',
   {
     variants: {
       size: {

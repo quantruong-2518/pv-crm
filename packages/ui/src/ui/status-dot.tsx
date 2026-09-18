@@ -2,8 +2,9 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../lib/cn'
 
 /** A-06 · StatusDot — size-2 rounded-full.
- *  `current` thêm ring-4 ring-primary/24. Đây là một trong hai chỗ duy nhất
- *  được dùng rounded-full (luật 5 · docs/design-system/laws.md), chỗ kia là FAB Trợ lý AI. */
+ *  `current` thêm ring-4 ring-primary/24. Một trong ba chỗ được dùng
+ *  rounded-full (luật 5 · docs/design-system/laws.md), hai chỗ kia là Avatar
+ *  và FAB Trợ lý AI. */
 const statusDotVariants = cva('inline-block size-2 shrink-0 rounded-full', {
   variants: {
     state: {

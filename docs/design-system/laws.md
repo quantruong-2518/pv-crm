@@ -34,8 +34,8 @@ Breaking one of these is a PR reject.
    sheen. **Single exception**: the high-contrast variant for outdoor kiosk
    tablets, 2px border.
 5. **Corner radius**: card 6 · control 4 · tag 3 · `rounded-full` reserved for
-   status dots and the floating AI Assistant button only (FAB, 60px, bottom
-   right corner).
+   status dots, avatars and the floating AI Assistant button only (FAB, 60px,
+   bottom right corner).
 6. **Type**: Be Vietnam Pro carries text, headings and numbers alike · JetBrains
    Mono carries code and object codes. Numbers are always `tabular-nums`. Labels
    are sentence case — no uppercase, no letter-spacing, because Vietnamese
@@ -70,6 +70,11 @@ Breaking one of these is a PR reject.
     ▲▼▬. No emoji, no decorative gradient outside the background glow, the AI
     block and the primary button ramp, no
     rounded-card-with-left-border-accent.
+16. **Object status is always a text pill**, never a naked color dot. Lead,
+    opportunity and contract states use `Badge` with a semantic tone; the text
+    names the exact state and colors may be shared by states in the same group.
+    `StatusDot` remains for timelines, progress markers and signal legends,
+    where the dot marks a position rather than replacing a status label.
 
 ---
 
@@ -95,6 +100,7 @@ Eyes-only — CI does **not** know these, a human must look:
 - **Law 12** — background is the glow and nothing else, no second layer
 - **Law 13** — contrast ≥ 4.5:1 on both `.glass-a` and `.glass-b`, in Aurora
   **and** in Đá mịn; tablet buttons ≥ 48px
+- **Law 16** — object status is a text pill; dots are only markers or legends
 - **Mail templates** — no compiler renders them and no test runs them, so any
   change in `packages/mail-templates` must be checked with
   `pnpm mail:preview`. Law 13 applies there like everywhere else, and email has

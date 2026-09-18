@@ -193,7 +193,7 @@ export function ZoneAtoms() {
           code="A-05"
           name="Avatar"
           bodyClassName="flex items-center gap-3 px-4 py-[18px]"
-          footer="rounded-md — không rounded-full, hệ này góc sắc"
+          footer="rounded-full — một trong ba chỗ được phép, luật 5"
         >
           <Avatar name="Nguyễn Văn Thắng" size="lg" />
           <Avatar name="Trần Thu Hà" size="md" />
@@ -534,8 +534,8 @@ export function ZoneAtoms() {
           bodyClassName="flex items-center justify-center px-4 py-6"
           footer={
             <>
-              Một trong hai chỗ duy nhất được dùng rounded-full (luật 5) · icon `orbit`, không
-              `sparkles`, không `bot` (luật 15).
+              Một trong ba chỗ được dùng rounded-full (luật 5) · icon `orbit`, không `sparkles`,
+              không `bot` (luật 15).
               <br />
               AppShell chỉ vẽ nút này khi màn có truyền `onOpenAssistant`. Một nút nổi bấm không ra
               gì thì tệ hơn không có nút — nó hứa một màn chưa tồn tại, trên mọi màn.

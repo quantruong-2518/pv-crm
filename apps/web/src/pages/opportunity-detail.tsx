@@ -5,8 +5,10 @@ import { useQuery } from '@tanstack/react-query'
 import { AppShell, GlassCard, ScreenLayout, Skeleton } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { useSession } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { MasMailModal } from '@/components/mas-mail-modal'
+import { masRecipientsOf } from '@/data/mas-mail-draft'
 import { leadProfileQuery, NO_TOUCHES } from '@/data/lead-profile'
 import { NO_STEPS, opportunityTouchesQuery, opportunityVectorQuery } from '@/data/touches'
 import type { TouchFocus } from '@/data/touches'
@@ -111,6 +113,20 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
      two blocks of the history tab. */
   const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
   const [signing, setSigning] = useState(false)
+  const [composing, setComposing] = useState(false)
+
+  /* Asked HERE and handed to the toolbar, the same call the lead screen makes:
+     a button that opens a panel ending in a 403 is worse than a locked one. */
+  const canSendEmail = useCan('lead.send-email')
+  /* The deal writes to its ORIGIN LEAD's mailbox, so the three gaps that stop a
+     lead mail stop this one — said on the button, not after composing. */
+  const mailBlocker = !lead
+    ? 'Chưa đọc được lead gốc của đơn này.'
+    : !lead.email
+      ? 'Lead gốc chưa có địa chỉ email.'
+      : !lead.contactName
+        ? 'Lead gốc chưa có người liên hệ.'
+        : undefined
 
   /* The stored row as the form sees it. Through `useMemo` so the seed keeps
      its reference between renders — react-query hands back the same `op`, so
@@ -148,9 +164,29 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         }}
       />
 
-      <DealToolsBar draft={draft} op={op} onSign={() => setSigning(true)} />
+      <DealToolsBar
+        draft={draft}
+        op={op}
+        onSign={() => setSigning(true)}
+        canSendEmail={canSendEmail}
+        composeBlocked={mailBlocker}
+        onCompose={() => setComposing(true)}
+      />
 
       <SignDrawer op={op} open={signing} onClose={() => setSigning(false)} />
+
+      {/* ONE DEAL, so the panel opens in chain mode. The run is filed against
+          the deal (`subjectType: 'opportunity'`) while the recipient row stays
+          the origin lead — that is the mailbox it reaches. */}
+      <MasMailModal
+        open={composing}
+        onClose={() => setComposing(false)}
+        leads={masRecipientsOf(lead)}
+        {...(lead && !mailBlocker ? { initialLeadCode: lead.code } : {})}
+        opportunityCode={op.code}
+        defaultLabel={`Gửi email · ${op.name}`}
+        onQueued={() => setComposing(false)}
+      />
     </ScreenLayout>
   )
 }

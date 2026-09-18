@@ -1,16 +1,42 @@
-import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { LeadSourceKind, LeadState, MailRunListQuery, MailTemplateRow } from '@pv/contracts'
+import type {
+  LeadSourceKind,
+  LeadState,
+  MailRunListQuery,
+  MailTemplateRow,
+  MasAudience,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { audit } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
-import { campaign, campaignRun, mailTemplate } from './campaign.schema'
+import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
+import { mailSequenceRun, type MailSequenceRunRow } from '../mail-sequence.schema'
+import { campaign, mailTemplate } from './campaign.schema'
 
-/** One picked lead, with every FACT the preflight needs and no verdict.
+/** One picked SUBJECT — a lead or an opportunity — with every FACT the
+ *  preflight needs and no verdict.
+ *
+ *  `code` is the subject's own code, so it is an opportunity code on the
+ *  opportunity branch; every other field comes off the lead either way,
+ *  because the mailbox does (`opportunity.lead_code` is `NOT NULL`).
  *
  *  `email` arrives as `NULLIF(trim(…), '')` rather than as the raw column, so
  *  "has no mailbox" is one shape here instead of three at the call site. It is
@@ -19,7 +45,7 @@ import { campaign, campaignRun, mailTemplate } from './campaign.schema'
  *
  *  `suppressed` is a fact from `platform.email_suppression`; `DUPLICATE` is
  *  deliberately NOT here, because it is not a fact about one row at all. */
-export type MasLeadRow = {
+export type MasSubjectRow = {
   code: string
   company: string
   contactName: string
@@ -35,6 +61,32 @@ export type MasLeadRow = {
    *  back whole, and `MasService.decide` turns it into `EXITED`. */
   state: LeadState
 }
+
+/** Which book owns a wave chain. Read off the column rather than written out
+ *  again, so the day `mail_sequence_run` accepts a fourth book this file
+ *  follows the migration instead of contradicting it. */
+export type SequenceSubject = MailSequenceRunRow['subjectType']
+
+/** Everything about a recipient that comes off the LEAD, whichever book the
+ *  pick came from — a deal has no mailbox of its own (see `audience()`). Named
+ *  once so the two branches cannot select two different sets of facts. */
+const LEAD_FACTS = {
+  company: lead.company,
+  contactName: lead.contactName,
+  contactTitle: lead.contactTitle,
+  email: sql<string | null>`NULLIF(trim(${lead.email}), '')`,
+  sourceKind: lead.sourceKind,
+  suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,
+  state: lead.state,
+}
+
+/** The block list, on the SAME normal form `rowOf()` writes — see the class
+ *  docblock for why the predicate is repeated here rather than asked one
+ *  address at a time. */
+const SUPPRESSED_ON = and(
+  eq(emailSuppression.recipient, sql`lower(trim(${lead.email}))`),
+  isNull(emailSuppression.releasedAt),
+)
 
 /** One letter of a run, in the DRIVER's own spelling — `snake_case` keys and
  *  `Date` objects, because `db.execute` hands back what postgres sent without a
@@ -104,13 +156,25 @@ export class MasRepository {
     return this.db
   }
 
-  /** One unit of work. A run, its `campaign_run` link and its N ledger rows
-   *  land together or not at all. */
+  /** One unit of work. A run, its `mail_sequence_run` link and its N ledger
+   *  rows land together or not at all. */
   run<T>(work: (tx: Db) => Promise<T>): Promise<T> {
     return this.db.transaction((tx) => work(tx))
   }
 
-  /** The picked leads, as the server sees them — SCOPE CUT IN SQL.
+  /** The picked subjects, as the server sees them — SCOPE CUT IN SQL.
+   *
+   *  ------------------------------------------------------------------
+   *  AN OPPORTUNITY IS MAILED THROUGH ITS LEAD, AND HAS NO ADDRESS OF ITS OWN
+   *  ------------------------------------------------------------------
+   *  `sales.opportunity` carries no mailbox and no contact: `lead_code` is
+   *  `NOT NULL` with a foreign key behind it, so the lead IS the deal's
+   *  customer record and the join is total — a deal cannot come back without
+   *  one. What changes on that branch is the `code` (the deal's, so the ledger
+   *  files the letter against the deal) and the scope axis, which becomes
+   *  `opportunity_owner` — the deal's own axis, copied from
+   *  `OpportunityRepository.scopeOf`; cutting on `lead.owner_id` instead would
+   *  hide a deal from the seller who holds it.
    *
    *  ------------------------------------------------------------------
    *  A LEAD OUTSIDE THE CALLER'S SCOPE IS ABSENT, NOT MARKED
@@ -149,34 +213,30 @@ export class MasRepository {
    *  other three, and the sender would go looking for a data problem that is
    *  not there. The column comes back as a FACT and `MasService.decide` turns
    *  it into `EXITED`, so the panel can name it. Same rule as `suppressed`
-   *  right above it — see the note on `MasLeadRow.state`. */
+   *  right above it — see the note on `MasSubjectRow.state`. */
   async audience(
     handle: Db,
     who: Actor,
     scoped: boolean,
+    subjectType: MasAudience['subjectType'],
     codes: readonly string[],
-  ): Promise<MasLeadRow[]> {
+  ): Promise<MasSubjectRow[]> {
     if (codes.length === 0) return []
 
+    if (subjectType === 'opportunity') {
+      return handle
+        .select({ code: opportunity.code, ...LEAD_FACTS })
+        .from(opportunity)
+        .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+        .leftJoin(emailSuppression, SUPPRESSED_ON)
+        .where(and(inArray(opportunity.code, [...codes]), this.dealScopeOf(who, scoped)))
+        .orderBy(asc(opportunity.code))
+    }
+
     return handle
-      .select({
-        code: lead.code,
-        company: lead.company,
-        contactName: lead.contactName,
-        contactTitle: lead.contactTitle,
-        email: sql<string | null>`NULLIF(trim(${lead.email}), '')`,
-        sourceKind: lead.sourceKind,
-        suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,
-        state: lead.state,
-      })
+      .select({ code: lead.code, ...LEAD_FACTS })
       .from(lead)
-      .leftJoin(
-        emailSuppression,
-        and(
-          eq(emailSuppression.recipient, sql`lower(trim(${lead.email}))`),
-          isNull(emailSuppression.releasedAt),
-        ),
-      )
+      .leftJoin(emailSuppression, SUPPRESSED_ON)
       .where(and(inArray(lead.code, [...codes]), this.scopeOf(who, scoped)))
       .orderBy(asc(lead.code))
   }
@@ -281,11 +341,11 @@ export class MasRepository {
       .where(eq(mailTemplate.code, code))
   }
 
-  /** Does this campaign exist? Asked before the run is written rather than left
-   *  to the foreign key: `campaign_run.campaign_code` would refuse the insert
-   *  anyway, but it would do it as a constraint violation halfway through a
-   *  transaction — a 500 where the honest answer is a 404 naming the code the
-   *  caller typed. */
+  /** Does this campaign exist? THE ONLY FENCE, not a friendlier first one:
+   *  `mail_sequence_run.subject_code` is polymorphic and carries no foreign
+   *  key (migration 0053), so nothing downstream would refuse a wave naming a
+   *  campaign nobody owns. Asked inside the send's transaction, so a `false`
+   *  is a 404 naming the code the caller typed and no run is written. */
   async campaignExists(handle: Db, code: string): Promise<boolean> {
     const [row] = await handle
       .select({ one: sql`1` })
@@ -295,29 +355,39 @@ export class MasRepository {
     return row !== undefined
   }
 
-  /** Wave numbers of a campaign, one past the highest so far.
+  /** Wave numbers of ONE subject, one past the highest so far.
    *
-   *  Read inside `tx`, and the primary key `(campaign_code, wave_no)` is what
-   *  makes that safe rather than merely hopeful: two sends racing on one
-   *  campaign both read wave 3, and Postgres refuses the second insert instead
-   *  of silently producing two "wave 3"s. A sequence would not help — waves are
-   *  numbered per campaign, and a global counter would print wave 47 on a
-   *  campaign's second send. */
-  async nextWaveNo(tx: Db, campaignCode: string): Promise<number> {
+   *  Read inside `tx`, and the primary key `(subject_type, subject_code,
+   *  wave_no)` is what makes that safe rather than merely hopeful: two sends
+   *  racing on one subject both read wave 3, and Postgres refuses the second
+   *  insert instead of silently producing two "wave 3"s. A sequence would not
+   *  help — waves are numbered per subject, and a global counter would print
+   *  wave 47 on a campaign's second send. */
+  async nextWaveNo(tx: Db, subjectType: SequenceSubject, subjectCode: string): Promise<number> {
     const [row] = await tx
-      .select({ next: sql<number>`COALESCE(max(${campaignRun.waveNo}), 0)::int + 1` })
-      .from(campaignRun)
-      .where(eq(campaignRun.campaignCode, campaignCode))
+      .select({ next: sql<number>`COALESCE(max(${mailSequenceRun.waveNo}), 0)::int + 1` })
+      .from(mailSequenceRun)
+      .where(
+        and(
+          eq(mailSequenceRun.subjectType, subjectType),
+          eq(mailSequenceRun.subjectCode, subjectCode),
+        ),
+      )
 
     return row?.next ?? 1
   }
 
   /** The join row — sales → platform, the allowed direction. */
-  async linkCampaign(
+  async linkSequenceWave(
     tx: Db,
-    link: { campaignCode: string; mailRunId: string; waveNo: number },
+    link: {
+      subjectType: SequenceSubject
+      subjectCode: string
+      mailRunId: string
+      waveNo: number
+    },
   ): Promise<void> {
-    await tx.insert(campaignRun).values(link)
+    await tx.insert(mailSequenceRun).values(link)
   }
 
   /** WHO STOPPED THIS BATCH — one append-only line in `platform.audit`.
@@ -346,15 +416,24 @@ export class MasRepository {
   /** Which batches belong to one campaign.
    *
    *  This is the half `MailRunRepository.list()` refuses to do for itself: the
-   *  answer lives in `sales.campaign_run` and `platform/` may not read it, so
-   *  that method throws when `query.campaign` arrives without `onlyIds` rather
-   *  than quietly returning every run in the system. An empty array is a
-   *  complete answer meaning "that campaign has never been fired". */
+   *  answer lives in `sales.mail_sequence_run` and `platform/` may not read it,
+   *  so that method throws when `query.campaign` arrives without `onlyIds`
+   *  rather than quietly returning every run in the system. An empty array is a
+   *  complete answer meaning "that campaign has never been fired".
+   *
+   *  `subject_type = 'campaign'` is load-bearing since 0053: the table now also
+   *  holds lead and opportunity chains, and a lead whose code happened to match
+   *  would otherwise hand this campaign somebody else's batch. */
   async runIdsOfCampaign(campaignCode: string): Promise<string[]> {
     const rows = await this.db
-      .select({ id: campaignRun.mailRunId })
-      .from(campaignRun)
-      .where(eq(campaignRun.campaignCode, campaignCode))
+      .select({ id: mailSequenceRun.mailRunId })
+      .from(mailSequenceRun)
+      .where(
+        and(
+          eq(mailSequenceRun.subjectType, 'campaign'),
+          eq(mailSequenceRun.subjectCode, campaignCode),
+        ),
+      )
 
     return rows.map((r) => r.id)
   }
@@ -389,12 +468,14 @@ export class MasRepository {
    *  its letter; `merge` is the ledger's own snapshot of the two names and
    *  covers that case without a second query.
    *
-   *  `aggregate_type = 'lead'` is not belt-and-braces either. `email_delivery`
+   *  The `aggregate_type` filter is not belt-and-braces either. `email_delivery`
    *  is ONE ledger for every flow, and `MailRunRecipientRow.leadCode` is a
    *  `ObjectCode` — so the day something other than a MAS letter is filed against
    *  a run, an aggregate id not shaped like `LD-0042` would fail the contract's
-   *  own `.parse()` and take the whole list out with a 500. Today every row
-   *  here is written by `MasService.intentOf`, which sets exactly this type.
+   *  own `.parse()` and take the whole list out with a 500. The two values are
+   *  exactly the two `MasService.intentOf` writes: a batch aimed at the deal
+   *  book files its letters against `OP-…` codes, and naming only `'lead'` here
+   *  would answer "sent to nobody" for a run that went out perfectly.
    *
    *  No scope axis in this SQL, matching `mailTimeline` and for the same
    *  reason: `MasService.recipients` settles the entitlement on the RUN before
@@ -426,7 +507,7 @@ export class MasRepository {
                WHERE m."delivery_id" = d."id"
              ) e ON true
        WHERE d."mail_run_id" = ${runId}
-         AND d."aggregate_type" = 'lead'
+         AND d."aggregate_type" IN ('lead', 'opportunity')
        ORDER BY d."created_at" ASC, d."aggregate_id" ASC
     `)) as { rows: MasRecipientRead[] }
 
@@ -491,6 +572,24 @@ export class MasRepository {
    *  `LeadRepository.scopeOf`. */
   private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
     return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+  }
+
+  /** The same axis over a DEAL, which has no owner column: standing is a row in
+   *  `opportunity_owner`, so the predicate is the `EXISTS` copied from
+   *  `OpportunityRepository.scopeOf` — one axis per book, never the lead's. */
+  private dealScopeOf(who: Actor, scoped: boolean): SQL | undefined {
+    if (!scoped || !who.ownOnly) return undefined
+    return exists(
+      this.db
+        .select({ one: sql`1` })
+        .from(opportunityOwner)
+        .where(
+          and(
+            eq(opportunityOwner.opportunityCode, opportunity.code),
+            eq(opportunityOwner.actorId, who.id),
+          ),
+        ),
+    )
   }
 
   private listFilters(

@@ -30,6 +30,7 @@ export const Need = (need: RouteNeed) => SetMetadata(NEED_KEY, need)
  *
  *  Phải khai tường minh, vì `AccessGuard` hỏng theo hướng ĐÓNG: endpoint không
  *  có `@Need` cũng không có `@Public` thì bị từ chối, và `RouteAudit` chặn
- *  ngay lúc khởi động. Danh sách đúng của nó rất ngắn — luồng đăng nhập và
- *  `/healthz`. Nếu thấy mình sắp thêm cái thứ ba, dừng lại và hỏi. */
+ *  ngay lúc khởi động. Danh sách đúng của nó rất ngắn — luồng đăng nhập và họ
+ *  hàng health-check (`/livez`, `/readyz`, `/healthz`, `/healthz/email`). Nếu
+ *  thấy mình sắp thêm một `@Public()` KHÔNG thuộc hai nhóm đó, dừng lại và hỏi. */
 export const Public = () => SetMetadata(PUBLIC_KEY, true)

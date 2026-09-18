@@ -356,14 +356,34 @@ export const MasRecipient = z.object({
  *  list nobody can review before pressing send. */
 export const MAS_MAX_RECIPIENTS = 200
 
-/** The audience of one run, as picked. Declared once and reused by both bodies
- *  below — preflight and send must accept exactly the same list, or a batch can
- *  pass the preview and be refused at the send, which makes the preview not
- *  worth reading. (Same rule `LeadImportBody` follows for its two endpoints.) */
+/** The codes of one run's audience. Declared once and reused by preflight,
+ *  send (via `MasAudience`) — the two must accept exactly the same list, or a
+ *  batch can pass the preview and be refused at the send, which makes the
+ *  preview not worth reading. (Same rule `LeadImportBody` follows for its two
+ *  endpoints.) Message text stays generic — this same array now also carries
+ *  opportunity codes inside `MasAudience`. */
 const leadCodes = z
   .array(ObjectCode)
-  .min(1, 'Chưa chọn lead nào')
-  .max(MAS_MAX_RECIPIENTS, `Một lô tối đa ${MAS_MAX_RECIPIENTS} lead`)
+  .min(1, 'Chưa chọn đối tượng nào')
+  .max(MAS_MAX_RECIPIENTS, `Một lô tối đa ${MAS_MAX_RECIPIENTS} đối tượng`)
+
+/** WHOM a Quick-MAS run is sent to — polymorphic on purpose.
+ *
+ *  Quick MAS started life on the lead book only, so `leadCodes` was a fine
+ *  name; the composer now also fires from an opportunity list, and a field
+ *  named after one subject cannot honestly hold the other's codes. One
+ *  discriminated shape rather than `leadCodes?`/`opportunityCodes?` side by
+ *  side, because two optional arrays let a caller post neither or both —
+ *  exactly the ambiguity `subjectType` exists to rule out at the zod gate.
+ *
+ *  `'campaign'` is deliberately NOT a third `subjectType` here: a campaign
+ *  wave's audience is never picked by a person, it is read server-side from
+ *  `campaign_member` (see `CampaignWaveInput` below), so it has no codes to
+ *  carry and stays on its own field, `campaignCode`. */
+export const MasAudience = z.object({
+  subjectType: z.enum(['lead', 'opportunity']),
+  codes: leadCodes,
+})
 
 /** `POST /sales/mail/preflight` — a dry run that writes NOTHING.
  *
@@ -504,12 +524,13 @@ const mailBody = z
  *   · any counter (`sent`, `delivered`, `opened`…) — those are counted FROM the
  *     ledger, and accepting them offers a way for the count to disagree with
  *     the thing it counts.
- *   · a recipient LIST of raw addresses — only lead codes. A mass mail whose
- *     addresses came from the client is a mass mail that cannot be traced back
- *     to a lead, cannot be checked against `email_suppression` by anything the
- *     server trusts, and cannot appear on any lead's timeline. */
+ *   · a recipient LIST of raw addresses — only subject codes (`audience`). A
+ *     mass mail whose addresses came from the client is a mass mail that
+ *     cannot be traced back to a lead or opportunity, cannot be checked
+ *     against `email_suppression` by anything the server trusts, and cannot
+ *     appear on any subject's timeline. */
 export const MasSendRequest = z.object({
-  leadCodes,
+  audience: MasAudience,
   /** What this batch is CALLED — what the run list shows and what a person
    *  says when asking "how did the March mailing do". Required: an unnamed run
    *  in a list of thirty runs is a row nobody can identify, and "Untitled" is
@@ -548,9 +569,11 @@ export const MasSendRequest = z.object({
    *  its own clock, which is the only one that decides when the run fires. */
   scheduledAt: Moment.optional(),
   /** Present = this run belongs to a campaign, and the service also writes the
-   *  `campaign_run` row joining the two. Absent = Quick MAS from the lead book:
-   *  a run that belongs to no campaign, which is a complete answer and not a
-   *  gap (same rule as `LeadSource.campaignId` in `./lead-source`). */
+   *  `campaign_run` row joining the two. Absent = Quick MAS from the lead or
+   *  opportunity book: a run that belongs to no campaign, which is a complete
+   *  answer and not a gap (same rule as `LeadSource.campaignId` in
+   *  `./lead-source`). Campaigns are lead-only today, so `audience.subjectType`
+   *  is always `'lead'` whenever this is present. */
   campaignCode: ObjectCode.optional(),
   /** Whether this run RECORDS `OPEN`/`CLICK` for its letters — not whether
    *  they are tracked. Tracking itself (the pixel, the wrapped link) is
@@ -1122,6 +1145,7 @@ export type MailTemplateCode = z.infer<typeof MailTemplateCode>
 export type MailTemplateRow = z.infer<typeof MailTemplateRow>
 export type MasRecipientBlock = z.infer<typeof MasRecipientBlock>
 export type MasRecipient = z.infer<typeof MasRecipient>
+export type MasAudience = z.infer<typeof MasAudience>
 export type MasPreflightRequest = z.infer<typeof MasPreflightRequest>
 export type MasPreflightResponse = z.infer<typeof MasPreflightResponse>
 export type MasSendRequest = z.infer<typeof MasSendRequest>

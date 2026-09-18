@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { replayRemote, SESSION_LIMITS, ticketDeath, useSession, type Ticket } from './session'
+import { SESSION_LIMITS, ticketDeath, useSession, type Ticket } from './session'
 
 /** Vòng đời của một phiên — ba việc chạy NGOÀI React.
  *
@@ -59,7 +59,7 @@ export function startAuthLifecycle(): () => void {
   const applyRemote = (fn: () => void) => {
     applyingRemote = true
     try {
-      replayRemote(fn)
+      fn()
     } finally {
       applyingRemote = false
     }

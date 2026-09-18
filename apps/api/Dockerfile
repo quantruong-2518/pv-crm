@@ -76,8 +76,11 @@ EXPOSE 3000
 # đã biên dịch trong dist — lý do dài nằm trong `tsconfig.runtime.json`.
 ENV TS_NODE_PROJECT=tsconfig.runtime.json
 
-# Alpine không có curl, và Node 22 có sẵn `fetch`.
+# Alpine không có curl, và Node 22 có sẵn `fetch`. `/livez` chứ không
+# `/healthz` — Docker's own probe would otherwise hit `SELECT 1` every 15s on
+# top of Fly's own check, exactly what `docs/runbooks/neon-compute-and-worker.md`
+# §2 removed the Fly one to avoid.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>r.ok?0:process.exit(1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/livez').then(r=>r.ok?0:process.exit(1)).catch(()=>process.exit(1))"
 
 CMD ["node", "--enable-source-maps", "-r", "tsconfig-paths/register", "dist/apps/api/src/main.js"]

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type {
+  LeadContactedResponse,
   LeadExitBody,
   LeadExitResponse,
   LeadNurtureBody,
@@ -23,7 +24,8 @@ import { WORKSTREAM_BOOK_KEY } from './workstreams'
  *  the dialog prints through `userMessage`.
  *
  *  The PIC's own lifecycle steps (ADR 0058) sit here too, same shape, under
- *  `lead.edit`: `:code/verify` · `:code/nurture` · `:code/resume`. */
+ *  `lead.edit`: `:code/contacted` · `:code/verify` · `:code/nurture` ·
+ *  `:code/resume`. */
 
 const EXIT_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.disqualify', scoped: true }
 const STEP_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: true }
@@ -46,8 +48,23 @@ export function invalidateLeadState(client: QueryClient) {
   for (const key of LEAD_STATE_KEYS) void client.invalidateQueries({ queryKey: key })
 }
 
-const leadPath = (code: string, door: 'exit' | 'reopen' | 'verify' | 'nurture' | 'resume') =>
-  `/sales/leads/${encodeURIComponent(code)}/${door}`
+const leadPath = (
+  code: string,
+  door: 'contacted' | 'exit' | 'reopen' | 'verify' | 'nurture' | 'resume',
+) => `/sales/leads/${encodeURIComponent(code)}/${door}`
+
+export function useContactLead(code: string) {
+  const client = useQueryClient()
+
+  return useMutation<LeadContactedResponse, ApiError, void>({
+    mutationFn: () =>
+      api.write<LeadContactedResponse>(leadPath(code, 'contacted'), {
+        method: 'POST',
+        need: STEP_NEED,
+      }),
+    onSuccess: () => invalidateLeadState(client),
+  })
+}
 
 export function useExitLead(code: string) {
   const client = useQueryClient()

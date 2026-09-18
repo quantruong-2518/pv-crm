@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common'
 import { PgBoss, fromPglite } from 'pg-boss'
 import type { ConstructorOptions, PGliteLike, Queue } from 'pg-boss'
 import type { Env } from '../config/env'
+import { connectWithRetry } from '../db/connection-retry'
 import type { DbHandle } from '../db/create-db'
 import { EMAIL_QUEUE, EMAIL_QUEUE_DEAD } from '../mail/mail.contract'
 
@@ -110,29 +111,44 @@ export async function createBoss(role: QueueRole, env: Env, handle: DbHandle): P
      it is never the reason a job runs. */
   options.useListenNotify = worker && (handle.kind === 'pglite' || direct)
 
-  const boss = new PgBoss(options)
+  /* One attempt is the whole boot — `start()` AND `ensureQueues()` — because a
+     connection can drop between them as easily as before them. Which failures
+     are retried is decided by error class in `connectWithRetry`. */
+  const boss = await connectWithRetry(async () => {
+    const instance = new PgBoss(options)
 
-  /* An EventEmitter with no 'error' listener throws on the process. pg-boss
-     emits here for background failures that belong to nobody's await — a
-     maintenance query, the listener dropping — so without these two lines a
-     blip in archiving takes the whole worker down.
+    /* An EventEmitter with no 'error' listener throws on the process. pg-boss
+       emits here for background failures that belong to nobody's await — a
+       maintenance query, the listener dropping — so without these two lines a
+       blip in archiving takes the whole worker down.
 
-     Reached through `NodeJS.EventEmitter` rather than `boss.on` because
-     `PgBoss extends EventEmitter<PgBossEventMap>` and the typed `EventEmitter`
-     is a DEFAULT export of `node:events`, which needs `esModuleInterop` —
-     `tsconfig.base.json` leaves it off for the whole repo. `skipLibCheck` then
-     swallows the resolution failure inside pg-boss's own `.d.ts` and the base
-     class arrives here with no members. Nothing is wrong with either package;
-     this is the seam between two module systems, and one cast is a smaller
-     price than flipping an interop flag under three other packages. */
-  const events = boss as unknown as NodeJS.EventEmitter
-  events.on('error', (error: Error) => log.error(`pg-boss: ${error.message}`, error.stack))
-  events.on('warning', (warning: { message: string }) => log.warn(`pg-boss: ${warning.message}`))
+       Reached through `NodeJS.EventEmitter` rather than `boss.on` because
+       `PgBoss extends EventEmitter<PgBossEventMap>` and the typed `EventEmitter`
+       is a DEFAULT export of `node:events`, which needs `esModuleInterop` —
+       `tsconfig.base.json` leaves it off for the whole repo. `skipLibCheck` then
+       swallows the resolution failure inside pg-boss's own `.d.ts` and the base
+       class arrives here with no members. Nothing is wrong with either package;
+       this is the seam between two module systems, and one cast is a smaller
+       price than flipping an interop flag under three other packages. */
+    const events = instance as unknown as NodeJS.EventEmitter
+    events.on('error', (error: Error) => log.error(`pg-boss: ${error.message}`, error.stack))
+    events.on('warning', (warning: { message: string }) => log.warn(`pg-boss: ${warning.message}`))
 
-  await boss.start()
-  await ensureQueues(boss, env, options.useListenNotify === true)
+    try {
+      await instance.start()
+      await ensureQueues(instance, env, options.useListenNotify === true)
+      return instance
+    } catch (error) {
+      /* pg-boss 12 lets `stop()` close the pool of a `start()` that failed
+         partway; without it every retry leaks a connection to the endpoint
+         that is refusing them. */
+      await instance.stop({ close: true, graceful: false }).catch(() => {})
+      throw error
+    }
+  }, log)
+
   log.log(
-    `pg-boss lên · vai ${role} · driver ${handle.kind}${options.useListenNotify ? ' · notify' : ''}`,
+    `pg-boss up · role ${role} · driver ${handle.kind}${options.useListenNotify ? ' · notify' : ''}`,
   )
 
   return boss

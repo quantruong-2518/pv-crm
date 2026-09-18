@@ -7,7 +7,8 @@ import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
-import { campaign, campaignMember, campaignRun, type CampaignRowDb } from './campaign.schema'
+import { mailSequenceRun } from '../mail-sequence.schema'
+import { campaign, campaignMember, type CampaignRowDb } from './campaign.schema'
 import type { CampaignMemberRead, CampaignRead } from './campaign.mapper'
 
 export type CampaignBookPage = {
@@ -33,9 +34,12 @@ const AUDIENCE_COUNT = sql<number>`(
    WHERE cm."campaign_code" = ${campaign.code} AND cm."state" = 'ACTIVE'
 )`
 
+/** `subject_type` travels WITH the code, and is not belt-and-braces: since 0053
+ *  the wave table also holds lead and opportunity chains, so filtering on
+ *  `subject_code` alone counts another book's waves into this campaign. */
 const WAVE_COUNT = sql<number>`(
-  SELECT count(*)::int FROM "sales"."campaign_run" cr
-   WHERE cr."campaign_code" = ${campaign.code}
+  SELECT count(*)::int FROM "sales"."mail_sequence_run" cr
+   WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = ${campaign.code}
 )`
 
 /** Một mã mới từ `sales.campaign_code_seq`, in `CP-%04d` — cùng khuôn
@@ -173,14 +177,14 @@ export class CampaignRepository {
              "updated_at" = now()
        WHERE c."state" = 'RUNNING'
          AND EXISTS (
-               SELECT 1 FROM "sales"."campaign_run" cr
-                WHERE cr."campaign_code" = c."code"
+               SELECT 1 FROM "sales"."mail_sequence_run" cr
+                WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
              )
          AND NOT EXISTS (
                SELECT 1
-                 FROM "sales"."campaign_run" cr
+                 FROM "sales"."mail_sequence_run" cr
                  JOIN "platform"."mail_run" r ON r."id" = cr."mail_run_id"
-                WHERE cr."campaign_code" = c."code"
+                WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
                   AND r."state" NOT IN ('SENT', 'CANCELLED')
              )
       RETURNING c."code"
@@ -330,10 +334,12 @@ export class CampaignRepository {
    *  đi CHIỀU NÀY thì đúng, đọc thẳng thì không — xem `mas.repository.ts`). */
   async waves(code: string): Promise<{ waveNo: number; mailRunId: string }[]> {
     return this.db
-      .select({ waveNo: campaignRun.waveNo, mailRunId: campaignRun.mailRunId })
-      .from(campaignRun)
-      .where(eq(campaignRun.campaignCode, code))
-      .orderBy(asc(campaignRun.waveNo))
+      .select({ waveNo: mailSequenceRun.waveNo, mailRunId: mailSequenceRun.mailRunId })
+      .from(mailSequenceRun)
+      .where(
+        and(eq(mailSequenceRun.subjectType, 'campaign'), eq(mailSequenceRun.subjectCode, code)),
+      )
+      .orderBy(asc(mailSequenceRun.waveNo))
   }
 
   /** Trục 3 · phạm vi. So bằng `id`, không bằng tên — cùng luật

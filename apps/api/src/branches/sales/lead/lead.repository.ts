@@ -346,12 +346,14 @@ export class LeadRepository {
    *  noise is proportionally far worse.
    *
    *  ------------------------------------------------------------------
-   *  `campaign_run`/`campaign` ARE LEFT JOINS, AND NULL IS A REAL ANSWER
+   *  `mail_sequence_run`/`campaign` ARE LEFT JOINS, AND NULL IS A REAL ANSWER
    *  ------------------------------------------------------------------
    *  Quick MAS fires straight from the lead book with no campaign attached —
-   *  `campaign_run.mailRunId` is unique but not required, so a run may match
-   *  zero rows here. NULL on `campaign_code`/`campaign_name` means "sent on
-   *  its own", not "data missing", and the mapper must read it that way. */
+   *  `mail_sequence_run.mail_run_id` is unique but not required, so a run may
+   *  match zero rows here. NULL on `campaign_code`/`campaign_name` means "sent
+   *  on its own", not "data missing", and the mapper must read it that way.
+   *  `subject_type = 'campaign'` sits in the ON and not the WHERE: a wave of a
+   *  LEAD's own chain is a real row this timeline must still show, campaign-less. */
   async mailTimeline(code: string): Promise<LeadMailTimelineRead[]> {
     const r = (await this.db.execute(sql`
       SELECT r."id"                                          AS run_id,
@@ -386,8 +388,9 @@ export class LeadRepository {
                 FROM "platform"."mail_reply" p
                WHERE p."delivery_id" = d."id"
              ) p ON true
-        LEFT JOIN "sales"."campaign_run" cr ON cr."mail_run_id" = r."id"
-        LEFT JOIN "sales"."campaign" c ON c."code" = cr."campaign_code"
+        LEFT JOIN "sales"."mail_sequence_run" cr
+               ON cr."mail_run_id" = r."id" AND cr."subject_type" = 'campaign'
+        LEFT JOIN "sales"."campaign" c ON c."code" = cr."subject_code"
        WHERE d."aggregate_type" = 'lead'
          AND d."aggregate_id" = ${code}
          AND d."mail_run_id" IS NOT NULL

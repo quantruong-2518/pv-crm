@@ -27,7 +27,7 @@ import { configEntry } from '../config/config.schema'
  *     `lead.campaign_id` trỏ vào và module 1 vẽ ra thành bảng. Người dùng tự
  *     thêm, tự đổi tên, tự tắt.
  *   · `sales.campaign` (mã `CP-…`) — một chiến dịch GỬI MAIL, thứ có tệp người
- *     nhận (`campaign_member`) và các lô gửi (`campaign_run`).
+ *     nhận (`campaign_member`) và các lô gửi (`mail_sequence_run`).
  *
  *  Tiền tiêu, người đến sự kiện và người theo dõi đều là chuyện của cái THỨ
  *  NHẤT: một nguồn tiêu 145 triệu cho gian hàng triển lãm không hề gửi mail nào,

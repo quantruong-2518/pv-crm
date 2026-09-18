@@ -365,6 +365,13 @@
       "when": 1788502300000,
       "tag": "0052_lead_state",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788502400000,
+      "tag": "0053_mail_sequence_run",
+      "breakpoints": true
     }
   ]
 }

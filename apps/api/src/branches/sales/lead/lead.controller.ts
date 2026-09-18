@@ -288,6 +288,16 @@ export class LeadController {
     return this.write.setOwner(who, code, body)
   }
 
+  /** A dial button cannot tell whether a call happened. The PIC confirms it
+   *  here; that one write records the touch and advances the first-action
+   *  state in the same transaction. */
+  @Post(':code/contacted')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
+  contacted(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.exits.contacted(who, code)
+  }
+
   /** Take a lead out of the funnel, or put it back — no approval, because each
    *  undoes the other (ADR 0057 §2). `lead.disqualify`, which E2 withholds from
    *  marketing and BD; scoped like `PATCH :code`. 200, nothing is created. */

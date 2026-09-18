@@ -23,15 +23,12 @@ import {
   CircleAlert,
   DataTable,
   EmptyState,
-  Eye,
   GlassCard,
   Icon,
   ImagePlus,
   Inbox,
-  Info,
   Input,
   Kicker,
-  MetaPill,
   Octagon,
   PenLine,
   Plus,
@@ -40,13 +37,10 @@ import {
   SearchField,
   SectionTitle,
   Select,
-  SegmentedControl,
   Send,
   Skeleton,
   StatCard,
   Stepper,
-  Textarea,
-  Timeline,
   Trash2,
   UserPlus,
   Users,
@@ -56,7 +50,7 @@ import {
   type TableColumn,
 } from '@pv/ui'
 import type { Actor } from '@pv/engines'
-import { CAMPAIGN_START_MAX_WAVES, MAS_MAX_RECIPIENTS } from '@pv/contracts'
+import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import type {
   CampaignPatch,
   CampaignProfile,
@@ -71,14 +65,11 @@ import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
 import { useCan } from '@/app/auth'
-import { dm, dmhm, localSlot } from '@/lib/date'
+import { dm, dmhm } from '@/lib/date'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { leadBookQuery } from '@/data/leads'
-import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
-import { MailSyntaxGuide } from '@/components/mail-syntax-guide'
-import { mailHints } from '@/data/mail-hints'
-import { masTemplatesQuery, useMailPreview } from '@/data/mas'
+import { masTemplatesQuery } from '@/data/mas'
 import {
   CAMPAIGN_STATE_LABEL,
   CAMPAIGN_STATE_TONE,
@@ -95,6 +86,14 @@ import {
 import { MAIL_RUN_STATE_LABEL, MAIL_RUN_STATE_TONE } from '@/data/mail-runs'
 import { RunWhen } from '@/components/run-when'
 import { WaveRecipients } from '@/components/wave-recipients'
+import { WaveComposer } from '@/components/mail-sequence/wave-composer'
+import {
+  composerDraftInput,
+  composerDraftValid,
+  effectiveWaves,
+  emptyComposerState,
+  type ComposerState,
+} from '@/components/mail-sequence/wave-draft'
 
 /** Module 1 · MỘT KHUNG, BA CỬA — tạo / sửa / xem một chiến dịch.
  *
@@ -173,84 +172,6 @@ function profileFrom(c: CampaignProfile): ProfileDraft {
     ownerId: c.ownerId ?? '',
     sourceId: c.sourceId ?? '',
   }
-}
-
-type WaveDraft = CampaignWaveInput & { localId: string }
-
-let waveSeq = 0
-const newWaveId = () => `w${++waveSeq}`
-const stripLocalId = ({ localId: _localId, ...rest }: WaveDraft): CampaignWaveInput => rest
-
-/** State sống của `WaveComposer` — KHÔNG chỉ là mảng đợt đã khoá. `committed`
- *  là những đợt đã bấm "+ Thêm sự kiện"; tám trường còn lại là đợt ĐANG SOẠN,
- *  chưa khoá. Tách hai thứ này vì Đợt 1 không cần bấm "+" mới tồn tại — xem
- *  `effectiveWaves`. */
-type ComposerState = {
-  committed: WaveDraft[]
-  templateCode: string
-  label: string
-  subject: string
-  body: string
-  ctaLabel: string
-  ctaUrl: string
-  bookingUrl: string
-  timing: 'now' | 'later'
-  at: string
-}
-
-function emptyComposerState(): ComposerState {
-  return {
-    committed: [],
-    templateCode: '',
-    label: '',
-    subject: '',
-    body: '',
-    ctaLabel: '',
-    ctaUrl: '',
-    bookingUrl: '',
-    timing: 'now',
-    at: '',
-  }
-}
-
-function composerScheduleOk(s: ComposerState): boolean {
-  return (
-    s.timing === 'now' ||
-    (s.at !== '' && !Number.isNaN(new Date(s.at).getTime()) && new Date(s.at) > new Date())
-  )
-}
-
-function composerDraftValid(s: ComposerState): boolean {
-  return (
-    s.label.trim() !== '' &&
-    s.subject.trim() !== '' &&
-    s.body.trim() !== '' &&
-    composerScheduleOk(s)
-  )
-}
-
-function composerDraftInput(s: ComposerState): CampaignWaveInput {
-  return {
-    label: s.label.trim(),
-    subject: s.subject.trim(),
-    body: s.body.trim(),
-    ...(s.templateCode === '' ? {} : { templateCode: s.templateCode }),
-    ...(s.ctaLabel.trim() !== '' && s.ctaUrl.trim() !== ''
-      ? { cta: { label: s.ctaLabel.trim(), url: s.ctaUrl.trim() } }
-      : {}),
-    ...(s.bookingUrl.trim() !== '' ? { bookingUrl: s.bookingUrl.trim() } : {}),
-    ...(s.timing === 'later' ? { scheduledAt: new Date(s.at).toISOString() } : {}),
-  }
-}
-
-/** Đợt đầu tiên KHÔNG cần bấm "+ Thêm sự kiện" mới có — điền đủ form bên trái
- *  là đủ để nó tính là một đợt thật. Nút "+" chỉ khoá đợt đang soạn lại (để
- *  không sửa nhầm sau khi đã coi là xong) và mở form trắng cho đợt kế tiếp.
- *  Nên danh sách THẬT SỰ sẽ gửi là mọi đợt đã khoá cộng đợt đang soạn, nếu nó
- *  đã đủ điều kiện gửi. */
-function effectiveWaves(s: ComposerState): CampaignWaveInput[] {
-  const locked = s.committed.map(stripLocalId)
-  return composerDraftValid(s) ? [...locked, composerDraftInput(s)] : locked
 }
 
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
@@ -1605,370 +1526,6 @@ function AudienceEditStep({
           </div>
         </GlassCard>
       )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Bước 3 · Luồng sự kiện — soạn mail bên trái, chuỗi đợt bên phải
-// ---------------------------------------------------------------------------
-
-function WaveComposer({
-  state,
-  setState,
-  templates,
-  showAdd = true,
-  alreadyFired = 0,
-}: {
-  state: ComposerState
-  setState: Dispatch<SetStateAction<ComposerState>>
-  templates: MailTemplateRow[]
-  /** Off for a running campaign: see `WaveAddStep`, one wave per round. */
-  showAdd?: boolean
-  /** WAVES THIS CAMPAIGN HAS ALREADY FIRED — the number the composer counts up
-   *  FROM.
-   *
-   *  `ComposerState` is a local draft and knows nothing of the server, so
-   *  numbering off `committed.length` alone made every composer open at wave
-   *  one. On `WaveAddStep` that put three labels on one screen contradicting
-   *  the two beside them: a compose heading and a timeline marker both reading
-   *  wave 1, over a send button reading wave 5, above a table listing the four
-   *  waves already gone. The button was right — it reads `campaign.waveCount` —
-   *  so the count now comes in from that same place. */
-  alreadyFired?: number
-}) {
-  const pickTemplate = (value: string) => {
-    const found = templates.find((t) => t.code === value)
-    setState((s) => ({
-      ...s,
-      templateCode: value,
-      ...(found ? { subject: found.subject, body: found.body } : {}),
-      ...(found && s.label.trim() === '' ? { label: found.name } : {}),
-      ...(found?.cta ? { ctaLabel: found.cta.label, ctaUrl: found.cta.url } : {}),
-      ...(found?.bookingUrl ? { bookingUrl: found.bookingUrl } : {}),
-    }))
-  }
-
-  const [previewOpen, setPreviewOpen] = useState(false)
-  /* Has the person CLOSED the preview themselves? Auto-opening is a suggestion,
-     and a suggestion that comes back after being refused is a nag. */
-  const [previewDismissed, setPreviewDismissed] = useState(false)
-  const [guideOpen, setGuideOpen] = useState(false)
-  /* The button travels only when the pair is COMPLETE and the URL parses —
-     `MailCta` in the contract refuses a half-typed address, and somebody in the
-     middle of typing `https://` has a half-typed address on every keystroke.
-     Without the pair the letter renders with no button, exactly as it would be
-     sent. */
-  const previewCta =
-    state.ctaLabel.trim() !== '' && /^https?:\/\/\S+$/.test(state.ctaUrl.trim())
-      ? { label: state.ctaLabel.trim(), url: state.ctaUrl.trim() }
-      : undefined
-  /* Same gate as the CTA above and for the same reason: `MailBookingUrl` refuses
-     a half-typed address, and somebody mid-way through `https://` has one on
-     every keystroke. */
-  const previewBooking = /^https?:\/\/\S+$/.test(state.bookingUrl.trim())
-    ? state.bookingUrl.trim()
-    : undefined
-  const preview = useMailPreview(
-    {
-      subject: state.subject,
-      body: state.body,
-      ...(previewCta ? { cta: previewCta } : {}),
-      ...(previewBooking ? { bookingUrl: previewBooking } : {}),
-    },
-    previewOpen,
-  )
-  const hints = mailHints({
-    subject: state.subject,
-    body: state.body,
-    ctaUrl: state.ctaUrl,
-    bookingUrl: state.bookingUrl,
-    missing: preview.letter?.missing,
-  })
-
-  /* THE LETTER SHOWS ITSELF ONCE THERE IS A LETTER TO SHOW — same change and
-     same reason as the quick MAS panel: the compose box is a plain textarea, so
-     bold, bullet lists and both buttons exist ONLY in the rendered preview.
-     Behind a button, that made them findable only by someone who already knew.
-     Still just a suggestion: closing it keeps it closed for this draft, and
-     starting a new wave (which empties the box) offers it again. */
-  const canPreview = state.subject.trim() !== '' && state.body.trim() !== ''
-  useEffect(() => {
-    if (!canPreview) {
-      setPreviewOpen(false)
-      setPreviewDismissed(false)
-    } else if (!previewDismissed) setPreviewOpen(true)
-  }, [canPreview, previewDismissed])
-
-  const togglePreview = () => {
-    setPreviewDismissed(previewOpen)
-    setPreviewOpen(!previewOpen)
-  }
-
-  const draftValid = composerDraftValid(state)
-  const canAdd = draftValid && state.committed.length < CAMPAIGN_START_MAX_WAVES
-  const nextIndex = alreadyFired + state.committed.length + 1
-  const totalCount = effectiveWaves(state).length
-  const draftTouched =
-    state.label.trim() !== '' || state.subject.trim() !== '' || state.body.trim() !== ''
-
-  const addEvent = () => {
-    if (!canAdd) return
-    const wave: WaveDraft = { localId: newWaveId(), ...composerDraftInput(state) }
-    setState((s) => ({ ...emptyComposerState(), committed: [...s.committed, wave] }))
-  }
-
-  const removeCommitted = (localId: string) =>
-    setState((s) => ({ ...s, committed: s.committed.filter((w) => w.localId !== localId) }))
-
-  const clearDraft = () =>
-    setState((s) => ({
-      ...s,
-      templateCode: '',
-      label: '',
-      subject: '',
-      body: '',
-      ctaLabel: '',
-      ctaUrl: '',
-      bookingUrl: '',
-      timing: 'now',
-      at: '',
-    }))
-
-  return (
-    <div className="grid gap-4 md:grid-cols-[7fr_5fr] md:items-start">
-      <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
-        <SectionTitle>Soạn Đợt {nextIndex}</SectionTitle>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Mẫu thư (không bắt buộc)</span>
-          <Select
-            label="Mẫu thư"
-            hideLabel
-            value={state.templateCode}
-            onChange={pickTemplate}
-            options={[
-              { value: '', label: 'Tự soạn' },
-              ...templates.map((t) => ({ value: t.code, label: t.name })),
-            ]}
-          />
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Tên đợt</span>
-          <Input
-            value={state.label}
-            onChange={(e) => setState((s) => ({ ...s, label: e.target.value }))}
-            placeholder="Ví dụ: Đợt 1 · giới thiệu"
-            maxLength={200}
-          />
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">
-            Tiêu đề email · {state.subject.length}/200
-          </span>
-          <Input
-            value={state.subject}
-            onChange={(e) => setState((s) => ({ ...s, subject: e.target.value }))}
-            maxLength={200}
-            placeholder="Tiêu đề người nhận đọc thấy trong hộp thư"
-          />
-        </label>
-
-        {/* The label row carries the guide button, so it sits OUTSIDE the
-            `<label>`: a button inside a label re-focuses the textarea on every
-            click. The guide is a Drawer over this page — no other overlay is
-            open here, so there is nothing for Escape to close by mistake. */}
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground text-[11px]">Nội dung</span>
-          <Button size="sm" variant="ghost" type="button" onClick={() => setGuideOpen(true)}>
-            <Icon icon={Info} size={14} />
-            Cách viết nội dung
-          </Button>
-        </div>
-        <label className="flex flex-col gap-2">
-          <Textarea
-            value={state.body}
-            onChange={(e) => setState((s) => ({ ...s, body: e.target.value }))}
-            rows={6}
-            placeholder="Thân thư. **đậm**, _nghiêng_, đầu dòng `- ` thành danh sách. Dùng {{company}} và {{contactName}} để điền tên từng người nhận."
-          />
-        </label>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">
-              Nút CTA · nhãn (không bắt buộc)
-            </span>
-            <Input
-              value={state.ctaLabel}
-              onChange={(e) => setState((s) => ({ ...s, ctaLabel: e.target.value }))}
-              maxLength={80}
-            />
-          </label>
-          <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Nút CTA · URL</span>
-            <Input
-              value={state.ctaUrl}
-              onChange={(e) => setState((s) => ({ ...s, ctaUrl: e.target.value }))}
-              placeholder="https://…"
-            />
-          </label>
-        </div>
-
-        {/* Full width and on its own row, not a third cell beside the CTA pair:
-          it is the letter's SECOND button, not a third piece of the first one.
-          No label field — the wording is a constant, see `BOOKING_LABEL`. */}
-        <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Link đặt lịch (không bắt buộc)</span>
-          <Input
-            value={state.bookingUrl}
-            onChange={(e) => setState((s) => ({ ...s, bookingUrl: e.target.value }))}
-            placeholder="https://calendly.com/…"
-          />
-        </label>
-
-        <div className="flex flex-col gap-2">
-          <SegmentedControl
-            label="Thời điểm gửi"
-            value={state.timing}
-            /* Switching to the scheduled option fills the field with a real slot.
-               An empty `<input type="datetime-local">` is not a neutral start:
-               the send button stays locked and the reason is written nowhere, so
-               the user faces a control that refuses without a word. */
-            onChange={(v) =>
-              setState((s) => ({
-                ...s,
-                timing: v as 'now' | 'later',
-                ...(v === 'later' && s.at === '' ? { at: localSlot() } : {}),
-              }))
-            }
-            options={[
-              { value: 'now', label: 'Gửi ngay' },
-              { value: 'later', label: 'Đặt lịch gửi' },
-            ]}
-          />
-          {state.timing === 'later' && (
-            <label className="flex flex-col gap-2">
-              <span className="text-muted-foreground text-[11px]">Giờ gửi (giờ máy bạn)</span>
-              <Input
-                type="datetime-local"
-                value={state.at}
-                onChange={(e) => setState((s) => ({ ...s, at: e.target.value }))}
-              />
-            </label>
-          )}
-        </div>
-
-        {/* The toggle stays here, next to the field being typed into — but the
-            letter itself is DRAWN in the sibling column, so opening it never
-            pushes the rest of this card down. */}
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground text-[11px]">Kiểm lại thư trước khi thêm đợt</span>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={state.subject.trim() === '' || state.body.trim() === ''}
-            aria-expanded={previewOpen}
-            onClick={togglePreview}
-          >
-            <Icon icon={Eye} size={14} />
-            {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
-          </Button>
-        </div>
-      </GlassCard>
-
-      <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5 lg:p-6">
-        {/* THE SAME TWO BLOCKS THE MAS COMPOSE PANEL SHOWS, and the same
-            components rather than a second pair: a campaign wave leaves through
-            the identical send path (`mail_run` → `mas-v1`), so a preview built
-            separately here would be a second rendering of one letter, and two
-            renderings are two things that drift apart.
-
-            No lead to merge against — a campaign's audience is
-            `campaign_member`, frozen when it starts running rather than while
-            it is being written — so the preview goes without `leadCode` and the
-            server fills in sample values. The shell, footer and button are the
-            real ones either way. Sits in this column, beside the compose card
-            instead of under it, so the letter is visible while typing. */}
-        <MailHintList hints={hints} />
-
-        {previewOpen && (
-          <MailPreviewCard
-            letter={preview.letter}
-            pending={preview.pending}
-            error={preview.error}
-          />
-        )}
-
-        <div className="flex items-center justify-between gap-2">
-          {/* Two panels, two honest titles. Stacking waves into one `/start`
-              body is the only mode where a chain and a ceiling exist — the
-              ceiling bounds THAT body. `WaveAddStep` sends one wave per round
-              against an endpoint that has no such cap, so printing `1/20`
-              there invented both a chain of one and a limit that is not the
-              campaign's. */}
-          <SectionTitle>
-            {showAdd ? `Chuỗi đợt · ${totalCount}/${CAMPAIGN_START_MAX_WAVES}` : `Đợt ${nextIndex}`}
-          </SectionTitle>
-          {showAdd && (
-            <Button size="sm" variant="ghost" onClick={addEvent} disabled={!canAdd}>
-              <Icon icon={Plus} size={14} />
-              Thêm đợt
-            </Button>
-          )}
-        </div>
-
-        <Timeline
-          items={[
-            ...state.committed.map((w, i) => ({
-              id: w.localId,
-              state: 'next' as const,
-              marker: `Đợt ${alreadyFired + i + 1}`,
-              title: w.label,
-              meta: (
-                <MetaPill>
-                  {w.scheduledAt ? `Hẹn · ${dmhm(w.scheduledAt)}` : 'Gửi ngay khi bắt đầu chạy'}
-                </MetaPill>
-              ),
-              children: <span className="line-clamp-1">{w.subject}</span>,
-              actions: (
-                <Button size="sm" variant="ghost" onClick={() => removeCommitted(w.localId)}>
-                  <Icon icon={Trash2} size={14} />
-                  Xoá
-                </Button>
-              ),
-            })),
-            {
-              id: 'live-draft',
-              state: 'current' as const,
-              marker: `Đợt ${nextIndex}`,
-              title: state.label.trim() || (
-                <span className="text-muted-foreground">(đang soạn…)</span>
-              ),
-              meta: (
-                <MetaPill>
-                  {draftValid ? 'Đang soạn — sẽ gửi' : 'Chưa đủ để gửi — điền tiêu đề và nội dung'}
-                </MetaPill>
-              ),
-              children: state.subject.trim() ? (
-                <span className="line-clamp-1">{state.subject}</span>
-              ) : (
-                <span className="text-muted-foreground">Chưa có tiêu đề</span>
-              ),
-              actions: draftTouched ? (
-                <Button size="sm" variant="ghost" onClick={clearDraft}>
-                  <Icon icon={Trash2} size={14} />
-                  Xoá
-                </Button>
-              ) : undefined,
-            },
-          ]}
-        />
-      </GlassCard>
-
-      <MailSyntaxGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   )
 }

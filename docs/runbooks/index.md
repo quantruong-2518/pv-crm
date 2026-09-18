@@ -13,3 +13,6 @@ these files only say how to check the behavior by hand.
 - [`mail-dead-letter-recovery.md`](./mail-dead-letter-recovery.md) — how to
   read and release rows stuck in `state='dead'` in `platform.email_delivery`,
   and how to release a wrongly-suppressed recipient.
+- [`neon-compute-and-worker.md`](./neon-compute-and-worker.md) — phased
+  production runbook for reducing Neon polling/compute waste without weakening
+  the mail outbox, scheduled campaigns, worker recovery, or health semantics.

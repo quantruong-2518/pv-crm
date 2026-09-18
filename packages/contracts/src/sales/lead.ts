@@ -837,7 +837,8 @@ export const LeadNurtureBody = z.object({
   note: textInputOptional(500),
 })
 
-/** All three answer the re-read profile, like `:code/exit`. */
+/** All lifecycle doors answer the re-read profile, like `:code/exit`. */
+export const LeadContactedResponse = LeadProfile
 export const LeadVerifyResponse = LeadProfile
 export const LeadNurtureResponse = LeadProfile
 export const LeadResumeResponse = LeadProfile
@@ -902,6 +903,7 @@ export type LeadExitResponse = z.infer<typeof LeadExitResponse>
 export type LeadReopenResponse = z.infer<typeof LeadReopenResponse>
 export type LeadVerifyBody = z.infer<typeof LeadVerifyBody>
 export type LeadNurtureBody = z.infer<typeof LeadNurtureBody>
+export type LeadContactedResponse = z.infer<typeof LeadContactedResponse>
 export type LeadVerifyResponse = z.infer<typeof LeadVerifyResponse>
 export type LeadNurtureResponse = z.infer<typeof LeadNurtureResponse>
 export type LeadResumeResponse = z.infer<typeof LeadResumeResponse>

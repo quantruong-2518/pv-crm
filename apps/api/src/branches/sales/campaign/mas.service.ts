@@ -30,7 +30,12 @@ import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/m
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
-import { MasRepository, type MasLeadRow, type MasRecipientRead } from './mas.repository'
+import {
+  MasRepository,
+  type MasRecipientRead,
+  type MasSubjectRow,
+  type SequenceSubject,
+} from './mas.repository'
 
 const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
@@ -85,12 +90,16 @@ const TEMPLATE_VERSION = 1
  *  `:` rather than a fourth `/` so the key still splits into exactly four
  *  segments: anything reading these keys — a log filter, a future parser —
  *  keeps seeing flow · audience · version · code, with the compound key living
- *  entirely inside the last one. */
+ *  entirely inside the last one.
+ *
+ *  The `<audience>` slot is the BOOK the pick came from (`lead` · `opportunity`)
+ *  and not a constant any more: it is the one segment that says what the code
+ *  in the last slot names, and `OP-0007` filed under `mas/lead/…` would send
+ *  whoever greps these keys to the wrong book. */
 const MAS_FLOW = 'mas'
-const MAS_AUDIENCE = 'lead'
 
-const eventKeyOf = (mailRunId: string, leadCode: string): string =>
-  `${MAS_FLOW}/${MAS_AUDIENCE}/v${TEMPLATE_VERSION}/${mailRunId}:${leadCode}`
+const eventKeyOf = (audience: string, mailRunId: string, code: string): string =>
+  `${MAS_FLOW}/${audience}/v${TEMPLATE_VERSION}/${mailRunId}:${code}`
 
 /** What caused the letter, for `email_delivery.event_type`. Dotted and prefixed
  *  by branch, the same spelling `LEAD_INTAKE_ACCEPTED` uses. Not an E4 constant
@@ -101,7 +110,7 @@ const MAS_EVENT = 'sales.mas.run.queued'
  *  verdict rather than folded into a `MasRecipient`, because the intent needs a
  *  recipient address that the contract's optional `email` cannot promise —
  *  narrowing once here beats a non-null assertion at the call site. */
-type Decided = { row: MasLeadRow; block?: MasRecipientBlock }
+type Decided = { row: MasSubjectRow; block?: MasRecipientBlock }
 
 /** MAS mail from the Sales side — the only place that knows both the repository
  *  and the engine.
@@ -136,7 +145,7 @@ export class MasService {
   /** A dry run that writes nothing — not even a sequence number. */
   async preflight(who: Actor, body: MasPreflightRequest): Promise<MasPreflightResponse> {
     const codes = dedupe(body.leadCodes)
-    const rows = await this.repo.audience(this.repo.readonlyHandle, who, true, codes)
+    const rows = await this.repo.audience(this.repo.readonlyHandle, who, true, 'lead', codes)
 
     return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
   }
@@ -163,7 +172,7 @@ export class MasService {
    *  just degrades to sample values instead of to an error. */
   async preview(who: Actor, body: MasPreviewRequest): Promise<MasPreviewResponse> {
     const rows = body.leadCode
-      ? await this.repo.audience(this.repo.readonlyHandle, who, true, [body.leadCode])
+      ? await this.repo.audience(this.repo.readonlyHandle, who, true, 'lead', [body.leadCode])
       : []
     const row = rows[0]
 
@@ -271,18 +280,19 @@ export class MasService {
        not on the deduplicated list, because that is the number on their
        screen — telling somebody who selected 260 rows that they selected 258
        is answering a question nobody asked. */
-    if (body.leadCodes.length > this.env.PV_MAS_BATCH_MAX) {
+    const picked = body.audience.codes
+    if (picked.length > this.env.PV_MAS_BATCH_MAX) {
       throw invalid(
         {
-          leadCodes: [
-            `Một lô tối đa ${this.env.PV_MAS_BATCH_MAX} lead — lô này có ${body.leadCodes.length}.`,
+          'audience.codes': [
+            `Một lô tối đa ${this.env.PV_MAS_BATCH_MAX} đối tượng — lô này có ${picked.length}.`,
           ],
         },
-        `Lô vượt trần: ${body.leadCodes.length} lead, trần hiện tại là ${this.env.PV_MAS_BATCH_MAX}.`,
+        `Lô vượt trần: ${picked.length} đối tượng, trần hiện tại là ${this.env.PV_MAS_BATCH_MAX}.`,
       )
     }
 
-    const codes = dedupe(body.leadCodes)
+    const codes = dedupe(picked)
     const campaignCode = body.campaignCode
     const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null
     const state: MailRunState = scheduledAt ? 'SCHEDULED' : 'SENDING'
@@ -296,10 +306,16 @@ export class MasService {
          list is the one input to this decision that another connection can
          change, and a suppression written between the check and the insert
          would otherwise produce a letter to an address already refused. */
-      const rows = await this.repo.audience(tx, who, campaignCode === undefined, codes)
+      const rows = await this.repo.audience(
+        tx,
+        who,
+        campaignCode === undefined,
+        body.audience.subjectType,
+        codes,
+      )
       const decided = this.decide(codes, rows)
       const sendable = decided.filter(
-        (d): d is { row: MasLeadRow & { email: string } } =>
+        (d): d is { row: MasSubjectRow & { email: string } } =>
           d.block === undefined && d.row.email !== null,
       )
 
@@ -342,18 +358,27 @@ export class MasService {
         createdBy: who.id,
       })
 
-      const intents = sendable.map((d) => this.intentOf(mailRunId, d.row))
+      const intents = sendable.map((d) =>
+        this.intentOf(mailRunId, body.audience.subjectType, d.row),
+      )
       /* Every row's retry clock is set to the run's own send time, which is
          how a SCHEDULED batch waits: `pendingBatch()` already refuses a row
          that is not due, so scheduling needs no second scanner. */
       const written = await this.mail.enqueueBatch(tx, intents, { nextAttemptAt: scheduledAt })
 
-      if (campaignCode !== undefined) {
-        const waveNo = await this.repo.nextWaveNo(tx, campaignCode)
-        await this.repo.linkCampaign(tx, { campaignCode, mailRunId, waveNo })
-      } else {
-        /* A Quick MAS by the holder is their first action (ADR 0058); a
-           campaign wave is marketing's, not the PIC's, so it moves nothing. */
+      /* The wave row is written in the SAME transaction as the run it numbers:
+         `subject_code` has no foreign key (migration 0053), so a chain rolled
+         back with its run is the only thing keeping the two in step. */
+      const subject = sequenceSubjectOf(campaignCode, body.audience.subjectType, codes)
+      if (subject) {
+        const waveNo = await this.repo.nextWaveNo(tx, subject.subjectType, subject.subjectCode)
+        await this.repo.linkSequenceWave(tx, { ...subject, mailRunId, waveNo })
+      }
+
+      if (campaignCode === undefined && body.audience.subjectType === 'lead') {
+        /* First action of the lead's holder (ADR 0058). A campaign wave is
+           marketing's, not the PIC's; a letter to a DEAL moves nothing either —
+           the lead behind an open deal is long past `new`/`assigned`. */
         const mailed = sendable.map((d) => d.row.code)
         await this.states.firstAction(tx, mailed, who.id)
       }
@@ -367,10 +392,10 @@ export class MasService {
       /* `queued + skipped` equals the number of codes POSTED — the identity
          `MasSendResponse` exists to give a person, so they can see that 40
          picks became 37 letters without counting anything. It therefore
-         measures against `body.leadCodes.length` and absorbs every reason a
-         pick produced no row: the three block reasons, a code repeated in the
-         list, a code naming no lead, and a lead the scope axis cut. */
-      skipped: body.leadCodes.length - queued.written,
+         measures against `body.audience.codes.length` and absorbs every reason
+         a pick produced no row: the three block reasons, a code repeated in the
+         list, a code naming nothing, and a row the scope axis cut. */
+      skipped: picked.length - queued.written,
       state,
     })
   }
@@ -382,7 +407,7 @@ export class MasService {
    *  ------------------------------------------------------------------
    *  `MailRunRepository.list()` THROWS on `query.campaign` without `onlyIds`,
    *  rather than quietly handing a screen that asked for one campaign every run
-   *  in the system. The answer lives in `sales.campaign_run`, which `platform/`
+   *  in the system. The answer lives in `sales.mail_sequence_run`, which `platform/`
    *  may not read, so this is the half that resolves it. An empty result is a
    *  legitimate answer — "that campaign has never been fired" — and produces an
    *  empty page instead of an unfiltered one.
@@ -609,7 +634,7 @@ export class MasService {
    *  A code with no row is skipped entirely — it names no lead, or it names one
    *  the scope axis cut in SQL. Neither has a `MasRecipientBlock`, and inventing
    *  a row for the second would print a company name this caller may not read. */
-  private decide(codes: readonly string[], rows: readonly MasLeadRow[]): Decided[] {
+  private decide(codes: readonly string[], rows: readonly MasSubjectRow[]): Decided[] {
     const byCode = new Map(rows.map((row) => [row.code, row]))
     /* Addresses that already have a letter in this batch. Lower-cased for the
        same reason `email_delivery.recipient` is: `An@x.vn` and `an@x.vn` are
@@ -684,11 +709,18 @@ export class MasService {
    *  `platform/`, where `sales.lead` is unreadable; a letter that had to look
    *  its own recipient up would drag the platform across the line at every
    *  send. */
-  private intentOf(mailRunId: string, row: MasLeadRow & { email: string }): MailIntent {
+  private intentOf(
+    mailRunId: string,
+    subjectType: MasSendRequest['audience']['subjectType'],
+    row: MasSubjectRow & { email: string },
+  ): MailIntent {
     return {
-      eventKey: eventKeyOf(mailRunId, row.code),
+      eventKey: eventKeyOf(subjectType, mailRunId, row.code),
       eventType: MAS_EVENT,
-      aggregateType: 'lead',
+      /* The BOOK the letter is filed under, so the ledger row points back at
+         the thing the sender picked — a deal's letter is the deal's history,
+         not a second copy of its lead's. */
+      aggregateType: subjectType,
       aggregateId: row.code,
       template: TEMPLATE,
       templateVersion: TEMPLATE_VERSION,
@@ -721,7 +753,7 @@ export class MasService {
  *  Called by `intentOf` for every real recipient and by `preview` for the one
  *  on screen, so what a person reviews substitutes exactly what the send will. */
 function mergeOf(
-  row: Pick<MasLeadRow, 'company' | 'contactName' | 'email'>,
+  row: Pick<MasSubjectRow, 'company' | 'contactName' | 'email'>,
 ): Record<MailMergeKey, string> {
   return {
     company: row.company,
@@ -743,6 +775,27 @@ const SAMPLE_MERGE: Record<MailMergeKey, string> = mergeOf({
   contactName: 'anh/chị',
   email: 'nguoi.nhan@congty-mau.vn',
 })
+
+/** WHOSE CHAIN THIS RUN IS A WAVE OF — or nobody's.
+ *
+ *  A wave number only means something when it counts letters to ONE subject:
+ *  "the third time we wrote to this deal". So a run earns a `mail_sequence_run`
+ *  row in exactly two cases — a campaign, which names itself whatever its
+ *  members are, and a batch aimed at a single lead or deal.
+ *
+ *  A hand-picked batch of forty gets NO row, and that is the answer rather than
+ *  a gap: forty leads have no shared chain to be the third wave of, and writing
+ *  forty rows would make every one of them read "wave 1" forever. Keeping a
+ *  chain across sends is what a campaign is for. */
+function sequenceSubjectOf(
+  campaignCode: string | undefined,
+  subjectType: MasSendRequest['audience']['subjectType'],
+  codes: readonly string[],
+): { subjectType: SequenceSubject; subjectCode: string } | undefined {
+  if (campaignCode !== undefined) return { subjectType: 'campaign', subjectCode: campaignCode }
+  const only = codes.length === 1 ? codes[0] : undefined
+  return only === undefined ? undefined : { subjectType, subjectCode: only }
+}
 
 /** The same code twice in one pick is one recipient, not two letters.
  *

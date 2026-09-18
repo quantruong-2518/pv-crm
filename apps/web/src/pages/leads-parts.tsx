@@ -1,19 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
+  Badge,
   CalendarCheck,
   CalendarDays,
   FileCheck,
   Icon,
   Pin,
-  StatStrip,
-  StatusDot,
+  StatCard,
   Target,
   UserRoundPlus,
   Users,
   cn,
   percent,
-  type StatStripItem,
 } from '@pv/ui'
 import { sourceKindLabel, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
@@ -54,35 +53,66 @@ export function ScoreStrip() {
   const total = data?.leads ?? 0
   const per = (n: number) => (!data || total === 0 ? '—' : percent(n / total))
   const count = (n: number | undefined) => (n === undefined ? '—' : String(n))
-  const noMeeting = Boolean(data) && total > 0 && data?.firstMeetings === 0
+  /* Zero reads as "missing", not "fine" — warn per cell on its own count,
+     not on `total`: zero leads is an empty book, zero opportunities on a
+     full book is a different fact. */
+  const zero = (n: number | undefined) => Boolean(data) && (n ?? 0) === 0
 
-  const items: StatStripItem[] = [
-    { icon: Users, label: 'Tổng lead', value: count(data?.leads), context: 'Toàn bộ sổ lead' },
+  /* EXPERIMENT (Aurora M-01 instead of M-17) — separate cards instead of one
+     joined strip. No delta/sparkline: `leadScorecardQuery` has no prior
+     period to compare against, and law 15 forbids inventing a trend. */
+  const items = [
+    {
+      icon: Users,
+      label: 'Tổng lead',
+      value: count(data?.leads),
+      hint: 'Toàn bộ sổ lead',
+      warn: zero(data?.leads),
+    },
     {
       icon: CalendarCheck,
       label: 'Đã gặp mặt',
       value: count(data?.firstMeetings),
-      suffix: data ? `/ ${total}` : undefined,
-      tone: noMeeting ? 'warning' : 'default',
-      context: noMeeting
+      hint: zero(data?.firstMeetings)
         ? 'Chưa ghi nhận cuộc gặp nào'
         : `${per(data?.firstMeetings ?? 0)} số lead`,
+      warn: zero(data?.firstMeetings),
     },
     {
       icon: Target,
       label: 'Thành cơ hội',
       value: per(data?.opportunities ?? 0),
-      context: `${count(data?.opportunities)} cơ hội`,
+      hint: `${count(data?.opportunities)} cơ hội`,
+      warn: zero(data?.opportunities),
     },
     {
       icon: FileCheck,
       label: 'Thành hợp đồng',
       value: per(data?.contracts ?? 0),
-      context: `${count(data?.contracts)} hợp đồng`,
+      hint: `${count(data?.contracts)} hợp đồng`,
+      warn: zero(data?.contracts),
     },
   ]
 
-  return <StatStrip label="Thẻ điểm sổ lead" items={items} />
+  return (
+    <div
+      role="group"
+      aria-label="Thẻ điểm sổ lead"
+      className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+    >
+      {items.map((item) => (
+        <StatCard
+          key={item.label}
+          size="compact"
+          icon={item.icon}
+          label={item.label}
+          value={item.value}
+          hint={item.hint}
+          tone={item.warn ? 'warning' : 'default'}
+        />
+      ))}
+    </div>
+  )
 }
 
 /** Company over contact · title. The row already opens the lead's own code on
@@ -125,17 +155,12 @@ export function SourceCell({ lead }: { lead: LeadRow }) {
   )
 }
 
-/** The lead's stored lifecycle state (ADR 0058), label and dot from the one
+/** The lead's stored lifecycle state (ADR 0058), shown as the same text pill
  *  table in `data/lead-state.ts`. How long it has sat there lives on the lead's
  *  own page: states carry no limit to be late against (ADR 0057 §4). */
 export function StatusCell({ lead }: { lead: LeadRow }) {
   const face = LEAD_STATE_FACE[lead.state]
-  return (
-    <span className="flex min-w-0 items-center gap-2 text-[12.5px]">
-      <StatusDot state={face.dot} />
-      <span className="truncate">{face.label}</span>
-    </span>
-  )
+  return <Badge tone={face.badge}>{face.label}</Badge>
 }
 
 /** Lead PIC cell for the book row.
@@ -199,7 +224,7 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
       }}
     >
       <Icon icon={UserRoundPlus} size={16} />
-      {setOwner.isPending ? 'Đang giao…' : 'Giao PIC luôn'}
+      {setOwner.isPending ? 'Đang nhận…' : 'Nhận lead'}
     </Button>
   )
 }

@@ -1,4 +1,3 @@
-import type { StatusDotState } from '@pv/ui'
 import { LEAD_OPEN_STATES, type LeadState, type LeadTier } from '@pv/contracts'
 import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
 
@@ -6,25 +5,25 @@ import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
  *  Labels are the screen's job (`@pv/contracts/sales/enums.ts`), so the one
  *  table lives here and the book, the profile and the account card all read it.
  *
- *  The dot answers "does this row need somebody": amber while nobody has acted
- *  (`new`, `assigned`), azure while a PIC is on it, grey while it is parked or
- *  retired, green once it became a deal, red once it was dropped. */
+ *  The pill tone answers "does this row need somebody": amber while nobody
+ *  has acted, azure while a PIC is on it, grey while parked or retired, green
+ *  once it became a deal, red once it was dropped. The label carries the exact
+ *  state; colour deliberately does not invent eight separate meanings. */
 export const LEAD_STATE_FACE: Record<
   LeadState,
   {
     label: string
-    dot: StatusDotState
     badge: 'warning' | 'running' | 'draft' | 'success' | 'danger'
   }
 > = {
-  new: { label: 'Mới tạo', dot: 'warning', badge: 'warning' },
-  assigned: { label: 'Đã nhận', dot: 'warning', badge: 'warning' },
-  verifying: { label: 'Đang xác minh', dot: 'current', badge: 'running' },
-  working: { label: 'Đang chăm', dot: 'current', badge: 'running' },
-  nurturing: { label: 'Nuôi dài hạn', dot: 'next', badge: 'draft' },
-  converted: { label: 'Đã lên cơ hội', dot: 'ok', badge: 'success' },
-  disqualified: { label: 'Đã loại', dot: 'bad', badge: 'danger' },
-  archived: { label: 'Lưu trữ', dot: 'next', badge: 'draft' },
+  new: { label: 'Mới tạo', badge: 'warning' },
+  assigned: { label: 'Đã nhận', badge: 'warning' },
+  verifying: { label: 'Đang xác minh', badge: 'running' },
+  working: { label: 'Đang chăm', badge: 'running' },
+  nurturing: { label: 'Nuôi dài hạn', badge: 'draft' },
+  converted: { label: 'Đã lên cơ hội', badge: 'success' },
+  disqualified: { label: 'Đã loại', badge: 'danger' },
+  archived: { label: 'Lưu trữ', badge: 'draft' },
 }
 
 const OPEN: ReadonlySet<string> = new Set(LEAD_OPEN_STATES)

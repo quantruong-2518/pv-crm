@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { LeadRow, MailMergeKey, MailTemplateRow } from '@pv/contracts'
+import type { LeadProfile, LeadRow, MailMergeKey, MailTemplateRow } from '@pv/contracts'
 import { localSlot } from '@/lib/date'
 
 /** Everything the three-step compose panel is holding while it is open.
@@ -26,6 +26,23 @@ export type MasRecipient = Pick<
 >
 
 export type MailSendTiming = 'now' | 'later'
+
+/** The panel takes a LIST of recipients; a detail screen holds exactly one, and
+ *  none at all while the lead has no mailbox or no person to address. Shared by
+ *  the lead screen and the deal screen — a deal writes to its origin lead's
+ *  mailbox, so both build the same row from the same profile. */
+export function masRecipientsOf(lead: LeadProfile | null): MasRecipient[] {
+  if (!lead?.contactName || !lead.email) return []
+  return [
+    {
+      code: lead.code,
+      company: lead.company,
+      contactName: lead.contactName,
+      contactTitle: lead.contactTitle,
+      email: lead.email,
+    },
+  ]
+}
 
 /** The two merge slots the insert buttons write. Typed as `MailMergeKey` so a
  *  rename in the contract fails here rather than silently posting a letter with

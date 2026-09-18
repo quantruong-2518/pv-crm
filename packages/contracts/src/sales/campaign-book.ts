@@ -166,11 +166,12 @@ export const CampaignMemberQuery = PageQuery.extend({
 export const CampaignMemberListResponse = paged(CampaignMemberRow)
 
 /** Một đợt trong kế hoạch bắt đầu chạy — CÙNG HÌNH `MasSendRequest`, trừ hai
- *  trường `/start` tự điền: `leadCodes` (toàn bộ audience đang ACTIVE của
- *  chiến dịch, máy chủ đọc chứ không nhận từ client) và `campaignCode` (đã có
- *  trên đường dẫn). Một hình, không phải hai — đúng lý do `MasSendRequest`
- *  vốn đã gộp Quick MAS và chiến dịch làm một. */
-export const CampaignWaveInput = MasSendRequest.omit({ leadCodes: true, campaignCode: true })
+ *  trường `/start` tự điền: `audience` (toàn bộ audience đang ACTIVE của
+ *  chiến dịch, máy chủ đọc chứ không nhận từ client — luôn là lead, chiến dịch
+ *  chưa có audience opportunity) và `campaignCode` (đã có trên đường dẫn). Một
+ *  hình, không phải hai — đúng lý do `MasSendRequest` vốn đã gộp Quick MAS và
+ *  chiến dịch làm một. */
+export const CampaignWaveInput = MasSendRequest.omit({ audience: true, campaignCode: true })
 
 /** `POST /sales/campaigns/:code/start` — chuyển `DRAFT` → `RUNNING` và bắn đợt
  *  đầu (có thể nhiều đợt cùng lúc nếu đã soạn sẵn). Chỉ nhận chiến dịch NHÁP
@@ -202,7 +203,7 @@ export const CampaignStartResponse = z.object({
  *  what `campaign_member` exists to make unnecessary: the audience was frozen at
  *  wave 1, and picking again by hand picks a DIFFERENT set.
  *
- *  So the request body carries no `leadCodes`, exactly like `CampaignStart`: the
+ *  So the request body carries no `audience`, exactly like `CampaignStart`: the
  *  server reads the campaign's own audience. One shape, one source of truth, and
  *  the recipient ceiling enforced in exactly one place. */
 export const CampaignWaveAdd = z.object({

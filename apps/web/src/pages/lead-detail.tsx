@@ -34,6 +34,7 @@ import { LeadActivityCard } from '@/components/lead-activity-card'
 import { NurtureDialog, VerifyDialog } from '@/components/lead-state-actions'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { MasMailModal } from '@/components/mas-mail-modal'
+import { masRecipientsOf } from '@/data/mas-mail-draft'
 import { OwnerSourceCard } from '@/components/owner-source-card'
 import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
 
@@ -252,7 +253,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
       <MasMailModal
         open={composing}
         onClose={() => setComposing(false)}
-        leads={masRecipients(lead)}
+        leads={masRecipientsOf(lead)}
         initialLeadCode={masBlocker ? undefined : lead.code}
         defaultLabel={`Gửi email · ${lead.company}`}
         onQueued={() => setComposing(false)}
@@ -267,21 +268,6 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
  *  a block. A stable object so the toolbar's props do not change identity on a
  *  render where nothing did. */
 const EMPTY_LIVE_DEAL = { codes: [], hidden: 0 }
-
-/** The mail modal takes a LIST of recipients; this screen holds exactly one,
- *  and none at all while the lead has no mailbox or no person to address. */
-function masRecipients(lead: LeadProfile) {
-  if (!lead.contactName || !lead.email) return []
-  return [
-    {
-      code: lead.code,
-      company: lead.company,
-      contactName: lead.contactName,
-      contactTitle: lead.contactTitle,
-      email: lead.email,
-    },
-  ]
-}
 
 /** Which customer this lead became — the `AC` link of the object chain.
  *

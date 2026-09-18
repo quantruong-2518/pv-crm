@@ -341,27 +341,31 @@ function LeadsCard({
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {account.leadRows.map((l) => (
-            <li key={l.code}>
-              <button
-                type="button"
-                onClick={() => onOpen(l.code)}
-                className="motion-std flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
-              >
-                <Chip>{l.code}</Chip>
-                <span className="text-muted-foreground text-[11px]">{dm(l.createdAt)}</span>
-              </button>
-              <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                {[
-                  l.tier === undefined ? undefined : tierLabel(l.tier),
-                  LEAD_STATE_FACE[l.state].label,
-                  l.ownerName,
-                ]
-                  .filter((x) => x !== undefined)
-                  .join(' · ')}
-              </span>
-            </li>
-          ))}
+          {account.leadRows.map((l) => {
+            const face = LEAD_STATE_FACE[l.state]
+            const meta = [l.tier === undefined ? undefined : tierLabel(l.tier), l.ownerName]
+              .filter((x) => x !== undefined)
+              .join(' · ')
+
+            return (
+              <li key={l.code}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(l.code)}
+                  className="motion-std flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
+                >
+                  <Chip>{l.code}</Chip>
+                  <span className="text-muted-foreground text-[11px]">{dm(l.createdAt)}</span>
+                </button>
+                <span className="mt-1 flex flex-wrap items-center gap-2">
+                  <Badge tone={face.badge}>{face.label}</Badge>
+                  {meta && (
+                    <span className="text-muted-foreground text-[11px] leading-[1.5]">{meta}</span>
+                  )}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </GlassCard>

@@ -37,8 +37,11 @@ export type StatCardProps = {
   hint?: string
   /** Con số được tính từ tập dữ liệu nào — viết cho người dùng, không viết tên biến. */
   source?: string
-  /** icon nhận dạng chỉ số — compact dùng như watermark nền, hero đặt cạnh số */
+  /** icon nhận dạng chỉ số — compact dùng như watermark nền, hero đặt cạnh label */
   icon?: IconGlyph
+  /** `warning` when the number itself is the alert — zero reads as "missing",
+   *  not "fine". Tints value + hint, leaves label and icon alone. */
+  tone?: 'default' | 'warning'
   delta?: {
     direction: 'up' | 'down' | 'flat'
     text: string
@@ -63,6 +66,7 @@ export function StatCard({
   size = 'hero',
   hint,
   icon,
+  tone = 'default',
   delta,
   sparkline,
   source,
@@ -70,6 +74,7 @@ export function StatCard({
 }: StatCardProps) {
   const compact = size === 'compact'
   const compactContext = source ?? hint
+  const warn = tone === 'warning'
 
   return (
     <GlassCard
@@ -86,7 +91,7 @@ export function StatCard({
         <Icon
           icon={icon}
           size={64}
-          className="text-muted-foreground pointer-events-none absolute -bottom-3 -right-2 opacity-10"
+          className="text-muted-foreground pointer-events-none absolute -bottom-1 -right-2 rotate-[-22deg] scale-[1.4] opacity-20"
         />
       )}
 
@@ -96,28 +101,43 @@ export function StatCard({
         </div>
       )}
 
-      <div
-        className={cn('relative z-10 flex items-start justify-between gap-2', compact && 'mt-2')}
-      >
+      <div className={cn('relative z-10', compact && 'mt-2')}>
         <div
           className={cn(
             'tnum font-num min-w-0 font-semibold leading-none',
             compact ? 'text-[30px] tracking-[-1px]' : 'text-[42px] tracking-[-1.5px]',
+            warn && 'text-warning',
           )}
         >
           {value}
         </div>
-        {!compact && icon && <Icon icon={icon} size={16} className="text-muted-foreground" />}
       </div>
 
-      {!compact && <div className="text-muted-foreground mt-2 text-[12px]">{label}</div>}
+      {!compact && (
+        <div className="text-muted-foreground mt-2 flex items-center gap-1 text-[12px]">
+          {icon && <Icon icon={icon} size={14} />}
+          {label}
+        </div>
+      )}
 
       {!compact && hint && (
-        <div className="text-muted-foreground mt-1 text-[11px] leading-[1.5]">{hint}</div>
+        <div
+          className={cn(
+            'mt-1 text-[11px] leading-[1.5]',
+            warn ? 'text-warning' : 'text-muted-foreground',
+          )}
+        >
+          {hint}
+        </div>
       )}
 
       {compact && compactContext && (
-        <div className="text-glass-foreground relative z-10 mt-2 pr-8 text-[11px] leading-[1.5]">
+        <div
+          className={cn(
+            'relative z-10 mt-2 pr-8 text-[11px] leading-[1.5]',
+            warn ? 'text-warning' : 'text-glass-foreground',
+          )}
+        >
           {compactContext}
         </div>
       )}

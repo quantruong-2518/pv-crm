@@ -181,20 +181,6 @@ type SessionState = {
   signOut: () => Promise<void>
 }
 
-let replaying = false
-
-/** Apply a change ANOTHER tab made. Synchronous on purpose: `rehydrate` over
- *  this Web Storage adapter runs to completion inside `fn`, so the flag covers
- *  every write the replay causes. */
-export function replayRemote(fn: () => void): void {
-  replaying = true
-  try {
-    fn()
-  } finally {
-    replaying = false
-  }
-}
-
 /** Ô "Ghi nhớ đăng nhập" quyết định phiên nằm ở KHO NÀO, không phải nằm bao lâu — bao lâu
  *  là việc của `SESSION_LIMITS`.
  *
@@ -203,9 +189,10 @@ export function replayRemote(fn: () => void): void {
  *          xin khi họ bỏ trống ô đó trên máy phòng họp.
  *
  *  Đọc thì ưu tiên `sessionStorage`: người vừa đăng nhập không-nhớ trên máy đã
- *  từng có phiên nhớ phải thấy phiên MỚI, không phải phiên cũ còn sót. Ghi thì
- *  xoá kho kia trước — hai kho cùng giữ phiên là hai câu trả lời khác nhau cho
- *  câu hỏi "ai đang đăng nhập", và lần sau F5 sẽ bốc trúng cái sai. */
+ *  từng có phiên nhớ phải thấy phiên MỚI, không phải phiên cũ còn sót. The other
+ *  store is emptied in `signIn` and nowhere else — two stores holding two
+ *  sessions let the next F5 pick the wrong one, but `localStorage` is shared by
+ *  every tab, so no routine write may empty it (see `setItem`). */
 const rememberAware: PersistStorage<SessionState> = {
   getItem: (name) => {
     const raw = sessionStorage.getItem(name) ?? localStorage.getItem(name)
@@ -219,13 +206,11 @@ const rememberAware: PersistStorage<SessionState> = {
     }
   },
   setItem: (name, value) => {
-    const keep = value.state.remember ? localStorage : sessionStorage
-    const drop = value.state.remember ? sessionStorage : localStorage
-    /* A tab replaying another tab's change keeps its own stale `remember`, and
-       dropping `localStorage` from here erased the remembered session the other
-       tab had just written — which bounced that tab straight back to sign-in. */
-    if (!replaying) drop.removeItem(name)
-    keep.setItem(name, JSON.stringify(value))
+    /* Every write lands here — a guest tab booting, a sign-in form sending — and
+       those used to erase the session another tab had just saved, bouncing it to
+       sign-in. An empty state clears only this tab's copy; it never writes. */
+    if (!value.state.actor) return sessionStorage.removeItem(name)
+    ;(value.state.remember ? localStorage : sessionStorage).setItem(name, JSON.stringify(value))
   },
   removeItem: (name) => {
     sessionStorage.removeItem(name)
@@ -373,6 +358,7 @@ export const useSession = create<SessionState>()(
 
       signIn: (actor, opts) => {
         const remember = opts.remember ?? get().remember
+        ;(remember ? sessionStorage : localStorage).removeItem(KEY)
         access.log({ actorId: actor.id, action: 'view', note: 'đăng nhập' })
         set({
           status: 'signed-in',
@@ -415,9 +401,9 @@ export const useSession = create<SessionState>()(
         set({ status: 'expired', ticket: null, expiredBy: reason })
       },
 
-      /* Dọn CẢ HAI kho, không chỉ kho đang dùng — `removeItem` của
-         `rememberAware` lo việc đó. Giữ `remember` lại để lần đăng nhập sau ô
-         còn nhớ lựa chọn cũ.
+      /* Clears this tab's own copy only: the shared one may belong to another
+         tab that is still signed in, and `signOut` empties both. Giữ `remember`
+         lại để lần đăng nhập sau ô còn nhớ lựa chọn cũ.
 
          Cửa NỘI BỘ: không nói gì với máy chủ. Dùng cho hai chỗ mà một lời gọi
          `/auth/sign-out` sẽ là sai — tab này đang áp lệnh đăng xuất của tab kia
@@ -450,6 +436,7 @@ export const useSession = create<SessionState>()(
        *  được khỏi máy phòng họp, dù mạng có ra sao. */
       signOut: async () => {
         get().clearSession()
+        rememberAware.removeItem(KEY)
         await signOutOnServer()
       },
     }),

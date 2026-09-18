@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
@@ -53,6 +54,33 @@ export async function createDb(url: string): Promise<DbHandle> {
     return { db: drizzle(client), close: () => client.close(), kind: 'pglite' }
   }
 
-  const pool = new Pool({ connectionString: url, max: 10 })
+  const pool = new Pool({
+    connectionString: url,
+    max: 10,
+    application_name: `pv-one-app-${detectRole()}`,
+    /* Fail a stuck connection attempt fast rather than hang a request — Neon
+       cold-start and quota rejection both surface within a few seconds. */
+    connectionTimeoutMillis: 5_000,
+    /* Close idle clients instead of holding them open — every held connection
+       is compute Neon will not let go idle. */
+    idleTimeoutMillis: 30_000,
+  })
+  /* `pg.Pool` is an EventEmitter: an idle client Neon drops in the background
+     throws on the process with no 'error' listener — same risk
+     `boss.provider.ts` already guards for the pg-boss pool. */
+  pool.on('error', (err) => {
+    new Logger('db').error(`Postgres pool background error: ${err.message}`)
+  })
   return { db: drizzleNodePg(pool), close: () => pool.end(), kind: 'postgres' }
+}
+
+/** Tells processes apart in `pg_stat_activity` — not a parameter, because
+ *  `DbModule` is shared by both `api` and `worker` (see `db.module.ts`), so
+ *  nothing in the DI graph naturally knows the role to pass down. `main.ts`
+ *  and `worker.ts` each set `PV_ROLE` as the first thing they do, before any
+ *  other code runs; one-off scripts (`seed.ts`, `seed-accounts.ts`,
+ *  `reset-staff.ts`) never set it, so they fall into `'script'`. */
+function detectRole(): 'api' | 'worker' | 'script' {
+  const role = process.env.PV_ROLE
+  return role === 'api' || role === 'worker' ? role : 'script'
 }

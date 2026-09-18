@@ -1,15 +1,5 @@
-import {
-  boolean,
-  check,
-  index,
-  integer,
-  primaryKey,
-  text,
-  timestamp,
-  uuid,
-} from 'drizzle-orm/pg-core'
+import { boolean, check, index, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
-import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { sales } from '../sales.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
@@ -65,7 +55,7 @@ export const campaign = sales.table(
      *  dòng `SOURCE`, cùng thứ mà `lead.campaign_id` trỏ vào.
      *
      *  Đây là sợi dây làm cho module 1 có chuỗi đợt THẬT: đợt của một nguồn là
-     *  các lô (`campaign_run` → `platform.mail_run`) của những chiến dịch mang
+     *  các lô (`mail_sequence_run` → `platform.mail_run`) của những chiến dịch mang
      *  mã nguồn này. Không có cột này thì hai nửa của cùng một câu chuyện —
      *  "nguồn nào kéo lead về" và "đã gửi những gì" — không nối được với nhau,
      *  và bảng nguồn phải tự bịa ra chuỗi đợt của mình.
@@ -115,47 +105,6 @@ export const campaignMember = sales.table(
   ],
 )
 
-/** THE JOIN THAT KEEPS THE PACKAGE BOUNDARY INTACT.
- *
- *  `platform.mail_run` is one batch of outbound mail and knows nothing about
- *  campaigns — it cannot, because `platform/` may not depend on `branches/`.
- *  This row is the link, and it points sales → platform, which is the allowed
- *  direction. A quick send from the lead book simply has no row here.
- *
- *  `wave_no` is part of the key rather than a plain column so the same wave
- *  number cannot be claimed twice inside one campaign — the wave chain drawn
- *  on the campaign screen is ordered by it. */
-export const campaignRun = sales.table(
-  'campaign_run',
-  {
-    campaignCode: text('campaign_code')
-      .notNull()
-      .references(() => campaign.code),
-    /** Unique on its own: a batch belongs to at most one campaign. */
-    mailRunId: uuid('mail_run_id')
-      .notNull()
-      .unique()
-      .references(() => mailRun.id),
-    waveNo: integer('wave_no').notNull(),
-
-    /** Bao nhiêu lead ĐẶT TRƯỚC cho đợt này — con số nói ra trước khi bấm gửi.
-     *
-     *  Nullable, và vắng nghĩa là "không ai đặt kỳ vọng", KHÔNG phải 0: một đợt
-     *  đặt 0 lead là một đợt gửi để làm gì đó khác (nhắc lịch, gửi tài liệu),
-     *  còn một đợt không đặt gì là một đợt chưa ai chịu trách nhiệm về kết quả.
-     *  Màn phải phân biệt được hai chuyện đó, nên cột phải phân biệt được.
-     *
-     *  Nằm trên `campaign_run` chứ không trên `mail_run`: kỳ vọng là chuyện của
-     *  nhánh Sales, còn `platform.mail_run` không được biết chiến dịch là gì. */
-    expected: integer('expected'),
-  },
-  (t) => [
-    check('campaign_run_wave_positive', sql`${t.waveNo} > 0`),
-    check('campaign_run_expected_nonneg', sql`${t.expected} IS NULL OR ${t.expected} >= 0`),
-    primaryKey({ columns: [t.campaignCode, t.waveNo] }),
-  ],
-)
-
 /** Ready-made copy the sender picks from, then edits. Deliberately NOT
  *  referenced by `mail_run`: the batch snapshots subject and body at creation,
  *  so editing a template never rewrites what already went out. Which is also
@@ -193,5 +142,4 @@ export const mailTemplate = sales.table(
  *  wire shape, built by `campaign.mapper.ts` from this and never returned raw. */
 export type CampaignRowDb = typeof campaign.$inferSelect
 export type CampaignMemberRow = typeof campaignMember.$inferSelect
-export type CampaignRunRow = typeof campaignRun.$inferSelect
 export type MailTemplateRow = typeof mailTemplate.$inferSelect

@@ -81,6 +81,7 @@ export const LEAD_NOTE = {
    *  boxes rather than naming them — twenty-one field names would make a
    *  timeline row nobody reads to the end. */
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
+  contacted: 'Đã gọi khách',
   /** The reason travels as its key: labels belong to the screen (`ExitReason`). */
   exited: (reason: ExitReason, note: string | undefined) =>
     note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,

@@ -242,7 +242,7 @@ export class LeadWriteRepository {
     await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
   }
 
-  /** What a lifecycle door (exit, reopen, verify, nurture, resume) must know,
+  /** What a lifecycle door (contacted, exit, reopen, verify, nurture, resume) must know,
    *  read under a row lock for the reason `lockForOwnerChange` gives: two
    *  presses would otherwise both see the old state and both write a touch.
    *  `hasDeal` counts lost deals too — reopen reads it as "was converted". */

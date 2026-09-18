@@ -12,8 +12,7 @@ import {
   SegmentedControl,
   Select,
   ScreenLayout,
-  StatStrip,
-  type StatStripItem,
+  StatCard,
   type TableSort,
 } from '@pv/ui'
 import { CampaignBookSortKey, type CampaignBookQuery, type CampaignState } from '@pv/contracts'
@@ -198,24 +197,32 @@ export function CampaignsPage() {
   })
   const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
-  const scoreItems: StatStripItem[] = [
+  /* Zero reads as "missing", not "fine" — tint per cell on its own count.
+     `facets` is the loaded flag: `score` defaults every field to 0 while it
+     is still pending, and that pending zero must not flash as a warning. */
+  const zero = (n: number) => Boolean(facets) && n === 0
+
+  const scoreItems = [
     {
       icon: Megaphone,
       label: 'Nháp chờ bắn',
       value: String(score.drafts),
-      context: 'đã dựng xong nhưng chưa gửi',
+      hint: 'đã dựng xong nhưng chưa gửi',
+      warn: zero(score.drafts),
     },
     {
       icon: Zap,
       label: 'Đang chạy',
       value: String(score.running),
-      context: 'còn ít nhất một đợt chưa gửi xong',
+      hint: 'còn ít nhất một đợt chưa gửi xong',
+      warn: zero(score.running),
     },
     {
       icon: Inbox,
       label: 'Lượt gửi đã gom',
       value: score.audience.toLocaleString('vi-VN'),
-      context: 'cộng dồn, không trừ trùng',
+      hint: 'cộng dồn, không trừ trùng',
+      warn: zero(score.audience),
     },
   ]
 
@@ -238,7 +245,25 @@ export function CampaignsPage() {
             )
           }
           nav={<Module1Books />}
-          score={<StatStrip label="Thẻ điểm sổ chiến dịch" items={scoreItems} />}
+          score={
+            <div
+              role="group"
+              aria-label="Thẻ điểm sổ chiến dịch"
+              className="grid grid-cols-2 gap-3 lg:grid-cols-3"
+            >
+              {scoreItems.map((item) => (
+                <StatCard
+                  key={item.label}
+                  size="compact"
+                  icon={item.icon}
+                  label={item.label}
+                  value={item.value}
+                  hint={item.hint}
+                  tone={item.warn ? 'warning' : 'default'}
+                />
+              ))}
+            </div>
+          }
           tabs={
             <SegmentedControl
               label="Trạng thái chiến dịch"

@@ -48,6 +48,10 @@ export type SelectProps = {
    *  running" wears (package boundary). Carries `aria-hidden`: the colour only
    *  repeats what the word beside it already said. */
   leading?: ReactNode
+  /** Replace the trigger's plain selected label with a richer equivalent.
+   *  Status selectors use this to keep the selected state in its pill while
+   *  the listbox options remain short, searchable text. */
+  valueContent?: ReactNode
   /** `lg` is 48px, the touch floor rule 13 sets for tablet — `Button` has had
    *  it from the start and this control did not, so any form mixing the two
    *  could not clear the floor at all. Reach for it wherever a `Button size="lg"`
@@ -80,6 +84,7 @@ export function Select({
   neutralValue,
   hideLabel = false,
   leading,
+  valueContent,
   size = 'md',
   className,
 }: SelectProps) {
@@ -317,7 +322,7 @@ export function Select({
           </span>
         )}
         <span id={valueId} className={cn('min-w-0 flex-1 truncate', active && 'font-semibold')}>
-          {selectedLabel}
+          {valueContent ?? selectedLabel}
         </span>
         <Icon
           icon={ChevronDown}

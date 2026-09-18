@@ -89,10 +89,10 @@ export async function probeServer(): Promise<void> {
 
   try {
     /* `credentials: 'omit'`: the probe asks one question — is anyone home — and
-       it must not need a session to get an answer. `/healthz` is public and
+       it must not need a session to get an answer. `/readyz` is public and
        says whether the database answered too, so an app that is up but cut off
        from Neon does not read as healthy. */
-    const res = await fetch(`${API_BASE_URL}/healthz`, { cache: 'no-store', credentials: 'omit' })
+    const res = await fetch(`${API_BASE_URL}/readyz`, { cache: 'no-store', credentials: 'omit' })
     if (res.ok) return reportAnswering()
   } catch {
     /* Still nothing on the wire. Same outcome as a gateway error below, so

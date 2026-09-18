@@ -60,7 +60,7 @@ export function RecipientsStep({
     <section className="flex min-w-0 flex-col gap-4">
       <SectionTitle
         size="md"
-        hint="Người liên hệ chính đã được chọn sẵn. Tìm thêm người trong sổ lead — gõ tên, công ty hoặc email để lọc."
+        hint="Người liên hệ chính đã được chọn sẵn. Tìm thêm người nhận — gõ tên, công ty hoặc email để lọc."
       >
         Gửi tới ai?
       </SectionTitle>
@@ -80,7 +80,7 @@ export function RecipientsStep({
           onPick={pick}
           onRemove={drop}
           hint="Mỗi người nhận một email riêng, tên được điền tự động."
-          emptyNote="Không còn lead nào khác để thêm từ màn này."
+          emptyNote="Không còn ai khác để thêm từ màn này."
         />
       </Field>
 
@@ -89,7 +89,7 @@ export function RecipientsStep({
           would promise a choice this panel cannot make. */}
       <Field
         label="Gửi từ hộp thư"
-        hint="Hệ chưa bật đường ghi thư trả lời, nên trả lời của khách không tự hiện ở Lịch sử của lead."
+        hint="Hệ chưa bật đường ghi thư trả lời, nên trả lời của khách không tự hiện ở Lịch sử của hồ sơ."
       >
         <p className="text-glass-foreground bg-surface-ink/5 m-0 flex min-w-0 items-start gap-2 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
           <Icon icon={Mail} size={16} className="mt-1 shrink-0" />
@@ -314,8 +314,12 @@ function CtaBlock({
 
 /** Saving the letter as a template is a DIFFERENT permission from sending it —
  *  `campaign.edit`, not `lead.send-email` — so somebody without it sees the box
- *  locked with the reason rather than a 403 after pressing send. */
-function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; allowed: boolean }) {
+ *  locked with the reason rather than a 403 after pressing send.
+ *
+ *  Exported because the CHAIN door composes in `WaveComposer` instead of
+ *  `ComposeStep`, and losing this box there would quietly take the feature away
+ *  from the screen that uses it most. */
+export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; allowed: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <Checkbox
@@ -326,7 +330,7 @@ function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; allowed: b
         label="Lưu nội dung này thành mẫu"
         hint={
           allowed
-            ? 'Cả đội dùng lại được cho lead khác.'
+            ? 'Cả đội dùng lại được cho thư sau.'
             : 'Cần quyền sửa mẫu email mới lưu được — thư vẫn gửi bình thường.'
         }
       />
@@ -350,12 +354,20 @@ export function DeliveryStep({
   campaigns,
   preflight,
   scheduleBroken,
+  chain,
+  audienceNote,
   onEdit,
 }: {
   draft: MasMailDraft
   campaigns: readonly CampaignBookRow[]
   preflight?: MasPreflightResponse
   scheduleBroken: boolean
+  /** Present = the letter is a CHAIN, so every wave already carries its own
+   *  time and this step must not ask for a second one. */
+  chain?: { waves: number; subject: string }
+  /** Said out loud when the check below reads a DIFFERENT code from the one the
+   *  run is filed against — the deal door, where preflight is lead-only. */
+  audienceNote?: string
   onEdit: (step: number) => void
 }) {
   return (
@@ -364,20 +376,22 @@ export function DeliveryStep({
         Gửi thế nào?
       </SectionTitle>
 
-      <Field label="Thời điểm">
-        <SegmentedControl
-          label="Thời điểm"
-          hideLabel
-          value={draft.sendTiming}
-          onChange={(value) => draft.setSendTiming(value as MailSendTiming)}
-          options={[
-            { value: 'now', label: 'Gửi ngay' },
-            { value: 'later', label: 'Hẹn giờ' },
-          ]}
-        />
-      </Field>
+      {!chain && (
+        <Field label="Thời điểm">
+          <SegmentedControl
+            label="Thời điểm"
+            hideLabel
+            value={draft.sendTiming}
+            onChange={(value) => draft.setSendTiming(value as MailSendTiming)}
+            options={[
+              { value: 'now', label: 'Gửi ngay' },
+              { value: 'later', label: 'Hẹn giờ' },
+            ]}
+          />
+        </Field>
+      )}
 
-      {draft.sendTiming === 'later' && (
+      {!chain && draft.sendTiming === 'later' && (
         <Field
           label="Ngày và giờ gửi"
           hint="Hiển thị theo giờ trên máy của bạn."
@@ -421,23 +435,43 @@ export function DeliveryStep({
         checked={draft.trackEngagement}
         onChange={draft.setTrackEngagement}
         label="Ghi nhận khi khách mở email hoặc bấm nút"
-        hint="Tín hiệu hiện ở Lịch sử của lead. Tắt thì lô này không ghi nhận lượt mở và lượt bấm."
+        hint="Tín hiệu hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi nhận lượt mở và lượt bấm."
       />
 
-      <ReviewTable draft={draft} onEdit={onEdit} />
+      <ReviewTable draft={draft} chain={chain} onEdit={onEdit} />
+
+      {audienceNote && (
+        <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">{audienceNote}</p>
+      )}
 
       {preflight && <PreflightReport report={preflight} />}
     </section>
   )
 }
 
-/** The last look before the button: three lines and a way back to each one. */
-function ReviewTable({ draft, onEdit }: { draft: MasMailDraft; onEdit: (step: number) => void }) {
-  const rows = [
-    { label: 'Người nhận', value: `${draft.selected.size} người`, step: 0 },
-    { label: 'Tiêu đề', value: draft.subject || 'Chưa có', step: 1 },
-    { label: 'Nội dung', value: firstLine(draft.body), step: 1 },
-  ]
+/** The last look before the button: three lines and a way back to each one. A
+ *  chain reads its own count instead of the body, because the box on screen
+ *  holds the wave being written and not everything about to go out. */
+function ReviewTable({
+  draft,
+  chain,
+  onEdit,
+}: {
+  draft: MasMailDraft
+  chain?: { waves: number; subject: string }
+  onEdit: (step: number) => void
+}) {
+  const rows = chain
+    ? [
+        { label: 'Người nhận', value: `${draft.selected.size} người`, step: 0 },
+        { label: 'Chuỗi đợt', value: `${chain.waves} đợt sẽ gửi`, step: 1 },
+        { label: 'Tiêu đề', value: chain.subject || 'Chưa có', step: 1 },
+      ]
+    : [
+        { label: 'Người nhận', value: `${draft.selected.size} người`, step: 0 },
+        { label: 'Tiêu đề', value: draft.subject || 'Chưa có', step: 1 },
+        { label: 'Nội dung', value: firstLine(draft.body), step: 1 },
+      ]
 
   return (
     <GlassCard variant="b" className="min-w-0 p-4">
@@ -496,7 +530,7 @@ export function PreflightReport({ report }: { report: MasPreflightResponse }) {
         ))}
         {report.hidden > 0 && (
           <li className="text-warning bg-surface-ink/5 rounded-sm p-3 text-[11.5px] leading-[1.5]">
-            {report.hidden} lead bị ẩn theo quyền của bạn nên sẽ không nhận email.
+            {report.hidden} người nhận bị ẩn theo quyền của bạn nên sẽ không nhận email.
           </li>
         )}
         {report.apolloCount ? (

@@ -1,4 +1,9 @@
 import 'reflect-metadata'
+
+/* First thing this entrypoint does — `create-db.ts#detectRole` reads it to
+   label this process's pool in `pg_stat_activity`. */
+process.env.PV_ROLE = 'worker'
+
 import { Logger, Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import type { JobWithMetadata, PgBoss } from 'pg-boss'
@@ -227,4 +232,15 @@ async function bootstrap(): Promise<void> {
  *  được gì. */
 const SHUTDOWN_TIMEOUT_MS = 90_000
 
-void bootstrap()
+/* A Neon rejection while pg-boss connects no longer reaches here —
+   `connectWithRetry` waits it out. What lands here is a bug, a bad env value,
+   or a database that dropped again mid-boot: one clear log line and a non-zero
+   exit, which the worker's `[[restart]]` policy turns into a fresh boot. */
+bootstrap().catch((error: unknown) => {
+  const log = new Logger('worker')
+  log.error(
+    `Unrecoverable startup failure: ${error instanceof Error ? error.message : String(error)}`,
+    error instanceof Error ? error.stack : undefined,
+  )
+  process.exit(1)
+})

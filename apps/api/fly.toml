@@ -29,6 +29,15 @@ primary_region = "sin" # Singapore — gần VN nhất, Fly.io chưa có region 
 [env]
 NODE_ENV = "production"
 
+# Profile A of docs/runbooks/neon-compute-and-worker.md, chosen: Neon compute
+# stays on (Launch plan, scale-to-zero OFF), so this cadence buys latency, not
+# CU-hours. Under scale-to-zero ANY interval below Neon's 5-minute suspend
+# keeps compute awake — Profile B needs an external wake-up, not a longer poll.
+# 30s is the runbook's first step. pg-boss wakes on NOTIFY only while
+# PV_QUEUE_DATABASE_URL holds the DIRECT endpoint; without it a job can wait a
+# second interval after the relay enqueues it.
+PV_QUEUE_POLL_SECONDS = "30"
+
 # Hộp thư nhận báo "có lead mới từ landing page". KHÔNG phải secret — địa chỉ
 # công ty thì ai đọc repo cũng nên thấy, đúng luật đã ghi ở
 # `docs/van-hanh-mail.md` § "Secret trên Fly": chỉ RESEND_API_KEY và
@@ -88,8 +97,16 @@ hard_limit = 50
 grace_period = "20s"
 interval = "15s"
 method = "GET"
-path = "/healthz"
+path = "/livez"
 timeout = "3s"
+
+# The default `on-failure` gave up after 10 exits on 17/09 (Neon quota) and
+# left the worker `stopped` with mail undelivered. The worker now retries a
+# rejected connection itself (`platform/db/connection-retry.ts`), so `always`
+# is the net for a death that loop cannot see — not a hot reconnect loop.
+[[restart]]
+policy = "always"
+processes = ["worker"]
 
 # Kích thước máy: mặc định Fly (shared-cpu-1x) đủ cho quy mô hiện tại. Chỉnh
 # riêng từng process bằng `fly scale vm --process-group worker ...` sau khi

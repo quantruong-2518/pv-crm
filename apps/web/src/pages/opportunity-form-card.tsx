@@ -1,19 +1,12 @@
 import { useState, type ReactNode } from 'react'
-import {
-  GlassCard,
-  Input,
-  SegmentedControl,
-  Select,
-  StatusDot,
-  Textarea,
-  type StatusDotState,
-} from '@pv/ui'
+import { GlassCard, Badge, Input, SegmentedControl, Select, Textarea } from '@pv/ui'
 import {
   OPPORTUNITY_DESCRIPTION_MAX,
   OPPORTUNITY_NAME_MAX,
   type OpportunityState,
 } from '@pv/contracts'
 import { toggled } from '@/data/opportunities'
+import { STATE_TONE } from '@/data/opportunities'
 import { CREATE_STATES } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import { Field, LossBlock, STATE_LABEL } from '@/components/ops-fields'
@@ -38,16 +31,6 @@ import {
  *  Two boxes the form no longer draws — win probability and currency — are
  *  still carried through by `useDealDraft`, untouched. Dropping a box from a
  *  screen is not the same act as clearing its value. */
-
-/** A dot before the status name. Colour answers "is this deal still alive",
- *  the word answers "at which step" — the same split `STATE_TONE` makes. */
-const STATE_DOT: Record<OpportunityState, StatusDotState> = {
-  'close-won': 'ok',
-  'close-lost': 'bad',
-  nego: 'current',
-  'quote-sent': 'current',
-  pending: 'next',
-}
 
 export function DealFormCard({
   draft,
@@ -193,29 +176,25 @@ const MISSING_NOTE = 'Còn thiếu — chưa lưu được phiếu.'
 
 /** The status box, and the one box on this form that writes itself through.
  *
- *  THE DOT RIDES INSIDE THE CONTROL, in front of the value — it is a fact
- *  about the deal, not a decoration on the word naming the box. Beside the
- *  label it read as a speck of dust; `Select`'s `leading` slot is its place.
+ *  The selected value stays a text pill in both read and edit modes. Colour
+ *  groups open/won/lost; the label carries the exact state.
  *
  *  A locked state prints the value instead of a shut picker: `Select` has no
  *  `disabled` prop, and adding one to the library for one caller would change
  *  its API. The reader reads WHY rather than clicking a grey box. */
 function StateBox({ draft }: { draft: DealDraft }) {
   const state = draft.work.state
-  const dot = <StatusDot state={STATE_DOT[state]} />
+  const pill = <Badge tone={STATE_TONE[state]}>{STATE_LABEL.get(state)}</Badge>
 
   return (
     <Field label="Trạng thái" required plain errors={draft.errors.state} hint={draft.stateHint}>
       {draft.stateLocked ? (
-        <span className="text-foreground flex h-10 items-center gap-2 text-[12.5px] font-semibold">
-          {dot}
-          {STATE_LABEL.get(state)}
-        </span>
+        <span className="flex h-10 items-center">{pill}</span>
       ) : (
         <Select
           label="Trạng thái"
           hideLabel
-          leading={dot}
+          valueContent={pill}
           value={state}
           neutralValue={state}
           onChange={(v) => draft.setState(v as OpportunityState)}

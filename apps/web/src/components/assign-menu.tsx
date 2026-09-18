@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, Check, UserRoundPlus } from '@pv/ui'
+import { ArrowLeftRight, Check, Inbox, UserRoundPlus } from '@pv/ui'
 import { Avatar, Button, Drawer, Icon, MetaPill, SearchField, cn } from '@pv/ui'
 import type { LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
@@ -7,6 +7,7 @@ import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { useDirectory } from '@/data/directory'
 import { useSetLeadOwner } from '@/data/lead-owner'
+import { isOpenState } from '@/data/lead-state'
 import { assigneeOptions, type AssigneeOption, type AssigneeCandidateLead } from '@/data/leads'
 
 /** Giao/đổi PIC cho một lead — bấm một người trong danh sách, xác nhận, ghi
@@ -95,6 +96,7 @@ export function AssignMenu({
    *  phím gõ không vẽ lại cả danh sách. */
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
+  const [releasing, setReleasing] = useState(false)
 
   const held = profile.ownerId ?? null
   const heldByMe = held !== null && held === me?.id
@@ -129,13 +131,14 @@ export function AssignMenu({
     setQuery('')
     setDebouncedQuery('')
     setPicked(null)
+    setReleasing(false)
     setOwner.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const pickedPerson = picked === self?.id ? self : others.find((person) => person.id === picked)
 
-  const commit = (ownerId: string, said: string) => {
+  const commit = (ownerId: string | null, said: string) => {
     setOwner.mutate(
       { code: profile.code, ownerId },
       {
@@ -189,7 +192,38 @@ export function AssignMenu({
           </>
         }
         footer={
-          pickedPerson && (
+          releasing ? (
+            <div className="flex flex-col gap-3">
+              {setOwner.isError && (
+                <p className="text-danger m-0 text-[12.5px] leading-[1.6]" role="alert">
+                  {isApiError(setOwner.error)
+                    ? userMessage(setOwner.error)
+                    : 'Chưa đưa về kho được. Thử lại nhé.'}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-[13px]">Đưa lead về kho chung?</span>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    size="md"
+                    variant="ghost"
+                    disabled={setOwner.isPending}
+                    onClick={() => setReleasing(false)}
+                  >
+                    Huỷ
+                  </Button>
+                  <Button
+                    size="md"
+                    disabled={setOwner.isPending}
+                    onClick={() => commit(null, 'Lead đã về kho')}
+                  >
+                    <Icon icon={Inbox} size={16} />
+                    {setOwner.isPending ? 'Đang ghi…' : 'Về kho'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : pickedPerson ? (
             <div className="flex flex-col gap-3">
               {setOwner.isError && (
                 <p className="text-danger m-0 text-[12.5px] leading-[1.6]" role="alert">
@@ -224,12 +258,16 @@ export function AssignMenu({
                     }
                   >
                     <Icon icon={Check} size={16} />
-                    {setOwner.isPending ? 'Đang ghi…' : 'Xác nhận'}
+                    {setOwner.isPending
+                      ? 'Đang ghi…'
+                      : pickedPerson.id === me?.id
+                        ? 'Nhận lead'
+                        : 'Giao lead'}
                   </Button>
                 </div>
               </div>
             </div>
-          )
+          ) : null
         }
       >
         <div className="flex flex-col gap-5">
@@ -261,7 +299,10 @@ export function AssignMenu({
                   tag="Bạn"
                   disabled={heldByMe}
                   selected={picked === self.id}
-                  onPick={() => setPicked(self.id)}
+                  onPick={() => {
+                    setReleasing(false)
+                    setPicked(self.id)
+                  }}
                 />
                 <div aria-hidden className="bg-surface-ink/10 -mx-2 my-2 h-px" />
               </>
@@ -274,7 +315,10 @@ export function AssignMenu({
                     key={person.id}
                     person={person}
                     selected={picked === person.id}
-                    onPick={() => setPicked(person.id)}
+                    onPick={() => {
+                      setReleasing(false)
+                      setPicked(person.id)
+                    }}
                   />
                 ))}
                 {shown.length === 0 && (
@@ -290,6 +334,26 @@ export function AssignMenu({
                 Giao lead cho người khác là quyền của trưởng phòng — phần chốt của hoa hồng chia
                 theo người đang giữ. Bạn nhận được lead chưa ai giữ về cho mình.
               </p>
+            )}
+
+            {mayAssign && held !== null && isOpenState(profile.state) && (
+              <>
+                <div aria-hidden className="bg-surface-ink/10 -mx-2 my-2 h-px" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPicked(null)
+                    setReleasing(true)
+                  }}
+                  className={cn(
+                    'flex min-h-12 w-full items-center gap-3 rounded-md px-3 text-left text-[13px] font-semibold',
+                    releasing ? 'bg-primary/16' : 'hover:bg-surface-ink/6',
+                  )}
+                >
+                  <Icon icon={Inbox} size={16} />
+                  Về kho
+                </button>
+              </>
             )}
           </div>
         </div>

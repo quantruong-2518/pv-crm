@@ -19,6 +19,7 @@ import {
   type CampaignWaveAdd,
   type CampaignWaveRow,
   type MailRunPatchResponse,
+  type MasAudience,
   type MasSendResponse,
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
@@ -27,6 +28,13 @@ import { PvError, conflict, denied, notFound } from '@api/platform/http/problem'
 import { toContract, toMemberRow, toProfile } from './campaign.mapper'
 import { CampaignRepository } from './campaign.repository'
 import { MasService } from './mas.service'
+
+/** One wave's audience, in the shape `MasSendRequest.audience` asks for. A
+ *  campaign's members are LEADS today (`campaign_member.lead_code`), so the
+ *  subject type is a constant here — one line to change the day they are not. */
+const audienceOf = (codes: string[]): { audience: MasAudience } => ({
+  audience: { subjectType: 'lead', codes },
+})
 
 /** Sổ chiến dịch — nơi DUY NHẤT biết cả repository lẫn engine, cùng luật chịu
  *  lực `lead.service.ts` đã đặt ra.
@@ -182,7 +190,7 @@ export class CampaignService {
     }
 
     /* A DRAFT can already have waves: the MAS modal on the lead book can pin a
-       batch to one, which writes `campaign_run` and sends real mail while
+       batch to one, which writes a `mail_sequence_run` wave and sends real mail while
        `state` stays DRAFT. Without this the DRAFT gate above waves `/start`
        through and the whole audience is mailed a second time. Kept out of the
        UPDATE below on purpose — merged in, 0 rows could not tell "no longer a
@@ -201,7 +209,7 @@ export class CampaignService {
     /* Early gate, NOT a second fence: `MasService.send()` keeps enforcing
        `PV_MAS_BATCH_MAX`. The audience is built here on the server, so the zod
        recipient cap never sees it and the fence downstream would surface as a
-       400 pinned to a `leadCodes` field this screen has no box for. */
+       400 pinned to an `audience.codes` field this screen has no box for. */
     if (leadCodes.length > this.env.PV_MAS_BATCH_MAX) {
       throw conflict(
         `Tệp người nhận có ${leadCodes.length} lead, vượt trần ${this.env.PV_MAS_BATCH_MAX} lead mỗi đợt — bớt thành viên rồi bắt đầu chạy lại.`,
@@ -218,7 +226,9 @@ export class CampaignService {
 
     const waves: MasSendResponse[] = []
     for (const wave of body.waves) {
-      waves.push(await this.mas.send(who, { ...wave, leadCodes, campaignCode: code }))
+      waves.push(
+        await this.mas.send(who, { ...wave, ...audienceOf(leadCodes), campaignCode: code }),
+      )
     }
 
     return CampaignStartResponse.parse({ state: 'RUNNING', waves })
@@ -231,7 +241,7 @@ export class CampaignService {
    *  exactly what `campaign_member` exists to make unnecessary, and a hand
    *  pick is a DIFFERENT set. Nothing of the send path is rewritten here:
    *  `MasService.send()` still owns suppression, the queue, the bounce
-   *  breaker, `PV_MAS_BATCH_MAX`, and the `campaign_run` row with the next
+   *  breaker, `PV_MAS_BATCH_MAX`, and the `mail_sequence_run` row with the next
    *  `waveNo`. */
   async addWave(who: Actor, code: string, body: CampaignWaveAdd): Promise<CampaignWaveAddResponse> {
     const found = await this.repo.byCode(who, code, true)
@@ -280,7 +290,7 @@ export class CampaignService {
     if (found.row.state !== 'RUNNING') await this.repo.setState(code, 'RUNNING')
 
     return CampaignWaveAddResponse.parse(
-      await this.mas.send(who, { ...body.wave, leadCodes, campaignCode: code }),
+      await this.mas.send(who, { ...body.wave, ...audienceOf(leadCodes), campaignCode: code }),
     )
   }
 
@@ -326,7 +336,7 @@ export class CampaignService {
     return CampaignStopResponse.parse({ state: 'STOPPED', cancelled })
   }
 
-  /** Chuỗi đợt cho hồ sơ — gắn số thứ tự (`campaign_run`) vào NGUYÊN
+  /** Chuỗi đợt cho hồ sơ — gắn số thứ tự (`mail_sequence_run`) vào NGUYÊN
    *  `MailRunRow`, không dựng lại 11 con số của lô gửi.
    *
    *  Qua `MailRunRepository.list()`, KHÔNG qua `byId()`: `byId` trả hàng

@@ -18,9 +18,9 @@ import { LeadService } from './lead.service'
 import { LeadStateWriter, stateOnReopen } from './lead-state'
 import { LeadWriteRepository } from './lead-write.repository'
 
-/** The lifecycle doors a person presses (ADR 0058): exit and reopen (ADR 0057
- *  §2 — direct, no E3, because each undoes the other), verify, nurture and
- *  resume. Each locks the row, checks the state it leaves, moves it through
+/** The lifecycle doors a person presses (ADR 0058): confirm contact, exit and
+ *  reopen (ADR 0057 §2 — direct, no E3, because each undoes the other), verify,
+ *  nurture and resume. Each locks the row, checks the state it leaves, moves it through
  *  `LeadStateWriter` with its timeline row in one transaction, then answers
  *  with the profile read back through `LeadService.profile`.
  *
@@ -36,6 +36,26 @@ export class LeadExitService {
     private readonly states: LeadStateWriter,
     private readonly runs: WorkstreamRepository,
   ) {}
+
+  /** `POST /sales/leads/:code/contacted` — confirm that the phone call really
+   *  happened. Opening a `tel:` URL alone proves nothing, so the screen asks
+   *  for this short second press. It records every valid call and performs the
+   *  PIC's first-action move when the lead is still `new|assigned`. */
+  async contacted(who: Actor, code: ObjectCode): Promise<LeadProfile> {
+    await this.inScope(who, code)
+
+    await this.repo.run(async (tx) => {
+      const held = await this.lockRow(tx, who, code)
+      if (held.state === 'disqualified' || held.state === 'archived') {
+        throw conflict(`Lead ${code} đã dừng — không ghi cuộc gọi mới được.`)
+      }
+
+      await this.states.firstAction(tx, [code], who.id)
+      await this.record(tx, who, code, 'contacted', LEAD_NOTE.contacted)
+    })
+
+    return this.profiles.profile(who, code)
+  }
 
   /** `POST /sales/leads/:code/exit` — from any open state, or from `converted`
    *  once its deals are lost (how a run closes LOST). */

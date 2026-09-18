@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, X } from '@pv/ui'
-import { Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
+import { Badge, Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
 import {
   CURRENCIES,
   draftOpportunity,
@@ -17,7 +17,7 @@ import {
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
-import { missingOf, toggled } from '@/data/opportunities'
+import { missingOf, STATE_TONE, toggled } from '@/data/opportunities'
 import {
   createBodyOf,
   CREATE_STATES,
@@ -25,7 +25,7 @@ import {
   usePromoteLead,
 } from '@/data/opportunities-write'
 import { AmountField, AttachmentsDropField, PersonPickField, ProductTagsField } from './deal-fields'
-import { Field, LossBlock } from './ops-fields'
+import { Field, LossBlock, STATE_LABEL } from './ops-fields'
 
 /** Turn a lead into a deal — a panel over the profile it reads from.
  *
@@ -225,6 +225,9 @@ function ConvertFields({
             hideLabel
             value={draft.state}
             neutralValue={draft.state}
+            valueContent={
+              <Badge tone={STATE_TONE[draft.state]}>{STATE_LABEL.get(draft.state)}</Badge>
+            }
             onChange={(v) => onSet('state', v as OpportunityState)}
             options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
             className="w-full"

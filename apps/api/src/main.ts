@@ -1,4 +1,9 @@
 import 'reflect-metadata'
+
+/* First thing this entrypoint does — `create-db.ts#detectRole` reads it to
+   label this process's pool in `pg_stat_activity`. */
+process.env.PV_ROLE = 'api'
+
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify'

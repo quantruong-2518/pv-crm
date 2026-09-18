@@ -7,7 +7,8 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
-import { campaign, campaignRun } from './campaign.schema'
+import { mailSequenceRun } from '../mail-sequence.schema'
+import { campaign } from './campaign.schema'
 import { sourceCost, sourceEvent, sourceFollower } from './source.schema'
 
 /** SQL của module 1 · Chiến dịch & Sự kiện. Quyết định KHÔNG có gì ở đây.
@@ -120,8 +121,12 @@ export class SourceRepository {
     return this.db.select().from(sourceEvent)
   }
 
-  /** Chuỗi đợt của mọi nguồn: `campaign_run` → `sales.campaign` (lấy nguồn) →
-   *  `platform.mail_run` (lấy nhãn và mốc chạy).
+  /** Chuỗi đợt của mọi nguồn: `mail_sequence_run` → `sales.campaign` (lấy
+   *  nguồn) → `platform.mail_run` (lấy nhãn và mốc chạy).
+   *
+   *  Nối bằng CẢ CẶP `subject_type = 'campaign'` VÀ `subject_code`: từ 0053 bảng
+   *  đợt còn giữ chuỗi của lead và cơ hội, nên nối mỗi mã là mời một đợt của sổ
+   *  khác trùng mã vào báo cáo nguồn — một con số sai không ai soi ra được.
    *
    *  Hướng JOIN là hướng DUY NHẤT được phép: nhánh Sales đọc sang bảng của
    *  platform. Câu ngược lại — platform tự tìm chiến dịch của một lô — là thứ
@@ -134,21 +139,21 @@ export class SourceRepository {
     return this.db
       .select({
         sourceId: campaign.sourceId,
-        campaignCode: campaignRun.campaignCode,
-        waveNo: campaignRun.waveNo,
-        expected: campaignRun.expected,
-        mailRunId: campaignRun.mailRunId,
+        campaignCode: mailSequenceRun.subjectCode,
+        waveNo: mailSequenceRun.waveNo,
+        expected: mailSequenceRun.expected,
+        mailRunId: mailSequenceRun.mailRunId,
         label: mailRun.label,
         state: mailRun.state,
         startedAt: mailRun.startedAt,
         scheduledAt: mailRun.scheduledAt,
         audience: mailRun.audienceCount,
       })
-      .from(campaignRun)
-      .innerJoin(campaign, eq(campaign.code, campaignRun.campaignCode))
-      .innerJoin(mailRun, eq(mailRun.id, campaignRun.mailRunId))
-      .where(isNotNull(campaign.sourceId))
-      .orderBy(asc(campaign.sourceId), asc(campaignRun.waveNo))
+      .from(mailSequenceRun)
+      .innerJoin(campaign, eq(campaign.code, mailSequenceRun.subjectCode))
+      .innerJoin(mailRun, eq(mailRun.id, mailSequenceRun.mailRunId))
+      .where(and(eq(mailSequenceRun.subjectType, 'campaign'), isNotNull(campaign.sourceId)))
+      .orderBy(asc(campaign.sourceId), asc(mailSequenceRun.waveNo))
   }
 
   /** Hai con số của cả sổ mà bảng nguồn không trả lời được.
@@ -208,10 +213,16 @@ export class SourceRepository {
         firstAt: sql<Date | null>`min(coalesce(${mailRun.startedAt}, ${mailRun.scheduledAt}))`,
         lastAt: sql<Date | null>`max(coalesce(${mailRun.startedAt}, ${mailRun.scheduledAt}))`,
       })
-      .from(campaignRun)
-      .innerJoin(campaign, eq(campaign.code, campaignRun.campaignCode))
-      .innerJoin(mailRun, eq(mailRun.id, campaignRun.mailRunId))
-      .where(and(isNotNull(campaign.sourceId), isNotNull(mailRun.startedAt)))
+      .from(mailSequenceRun)
+      .innerJoin(campaign, eq(campaign.code, mailSequenceRun.subjectCode))
+      .innerJoin(mailRun, eq(mailRun.id, mailSequenceRun.mailRunId))
+      .where(
+        and(
+          eq(mailSequenceRun.subjectType, 'campaign'),
+          isNotNull(campaign.sourceId),
+          isNotNull(mailRun.startedAt),
+        ),
+      )
 
     return { firstAt: row?.firstAt ?? null, lastAt: row?.lastAt ?? null }
   }

@@ -15,11 +15,10 @@ import {
   Select,
   ScreenLayout,
   StageTrack,
-  StatStrip,
+  StatCard,
   billions,
   cn,
   percent,
-  type StatStripItem,
   type TableSort,
 } from '@pv/ui'
 import {
@@ -813,7 +812,7 @@ function ScoreCards() {
   /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
   const per = (n: number) => (total === 0 ? '—' : percent(n / total))
 
-  const items: StatStripItem[] = [
+  const items = [
     {
       icon: Target,
       label: 'Tổng số cơ hội',
@@ -821,19 +820,19 @@ function ScoreCards() {
       /* An empty book is worth flagging — same warning threshold as the
          open-pipeline and win-rate cards below. The lost-rate card never gets
          this tone: zero lost deals is good news, not something to warn about. */
-      tone: total === 0 ? 'warning' : 'default',
-      context: 'đơn đang có trong sổ',
+      tone: total === 0 ? ('warning' as const) : ('default' as const),
+      hint: 'đơn đang có trong sổ',
     },
     {
       icon: Wallet,
       label: 'Đang mở',
       value: billions(openAmount),
-      tone: openAmount === 0 ? 'warning' : 'default',
+      tone: openAmount === 0 ? ('warning' as const) : ('default' as const),
       /* Máy chủ cộng bằng ĐỒNG và bỏ qua đơn chưa có tiền — rồi báo lại số đơn
          đã bỏ, vì cộng `null` thành 0 là nói dối về một con số chưa ai moi
          được, còn im lặng bỏ đi thì pipeline đọc ra nhỏ hơn thật mà không có gì
          trên màn nói vì sao. */
-      context:
+      hint:
         openBlank === 0
           ? `${openCount} đơn còn trong năm cột`
           : `${openCount} đơn còn trong năm cột · ${openBlank} đơn chưa có tiền, không cộng vào`,
@@ -842,14 +841,14 @@ function ScoreCards() {
       icon: FileCheck,
       label: 'Close won',
       value: per(won),
-      tone: total > 0 && won === 0 ? 'warning' : 'default',
-      context: `${won} đơn đã ký trên ${total} cơ hội`,
+      tone: total > 0 && won === 0 ? ('warning' as const) : ('default' as const),
+      hint: `${won} đơn đã ký trên ${total} cơ hội`,
     },
     {
       icon: Ban,
       label: 'Close lost',
       value: per(lost),
-      context: `${lost} đơn đã thua trên ${total} cơ hội`,
+      hint: `${lost} đơn đã thua trên ${total} cơ hội`,
     },
   ]
 
@@ -857,7 +856,23 @@ function ScoreCards() {
     <div className="flex flex-col gap-3">
       <Kicker>Thẻ điểm cả sổ · không theo phạm vi của bạn</Kicker>
 
-      <StatStrip label="Thẻ điểm sổ cơ hội" items={items} />
+      <div
+        role="group"
+        aria-label="Thẻ điểm sổ cơ hội"
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+      >
+        {items.map((item) => (
+          <StatCard
+            key={item.label}
+            size="compact"
+            icon={item.icon}
+            label={item.label}
+            value={item.value}
+            hint={item.hint}
+            tone={item.tone}
+          />
+        ))}
+      </div>
 
       <p className="text-muted-foreground text-[11px] leading-[1.5]">
         Mỗi cơ hội mọc ra từ một lead đã lên bậc SQL — cùng một sự kiện, không phải hai sổ. Phần còn

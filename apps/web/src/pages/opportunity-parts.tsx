@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Handshake, Phone, TriangleAlert, Users, type IconGlyph } from '@pv/ui'
+import { Check, Handshake, Mail, Phone, TriangleAlert, Users, type IconGlyph } from '@pv/ui'
 import {
   Avatar,
   Button,
@@ -232,11 +232,20 @@ export function DealToolsBar({
   draft,
   op,
   onSign,
+  canSendEmail = false,
+  composeBlocked,
+  onCompose,
 }: {
   draft: DealDraft
   /** `null` on the create door — nothing is signed and nothing is dirty yet. */
   op: OpportunityProfileResponse | null
   onSign: () => void
+  /** `lead.send-email`, scoped — the permission `data/mas.ts` declares. */
+  canSendEmail?: boolean
+  /** Why this deal cannot be written to, when it cannot. */
+  composeBlocked?: string
+  /** Absent on the create door: there is no deal to write about yet. */
+  onCompose?: () => void
 }) {
   const creating = draft.mode === 'create'
   const blocking = Boolean(draft.error) || draft.missing.length > 0
@@ -298,6 +307,23 @@ export function DealToolsBar({
           {/* Every button in this bar clears law 13's 48px floor on a coarse
               pointer, and keeps the bar's 40px rhythm on a mouse. A bar where
               half the buttons are reachable is worse than one that is all small. */}
+          {/* Locked buttons say WHY on the title, the same way the lead toolbar
+              does: a panel filled in and then refused with a 403 is the one
+              outcome a disabled button is here to prevent. */}
+          {onCompose && (
+            <Button
+              size="md"
+              variant="secondary"
+              className="pointer-coarse:h-12"
+              disabled={!canSendEmail || Boolean(composeBlocked)}
+              title={canSendEmail ? composeBlocked : 'Cần quyền gửi email cho lead.'}
+              onClick={onCompose}
+            >
+              <Icon icon={Mail} size={16} />
+              Gửi mail cho khách
+            </Button>
+          )}
+
           {draft.canEdit && (
             <Button
               size="md"

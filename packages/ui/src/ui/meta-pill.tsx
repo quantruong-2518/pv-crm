@@ -12,7 +12,7 @@ import { cn } from '../lib/cn'
  *  `onOpen`, không hover — cần bấm thì dùng Chip.
  *
  *  Tag → `rounded-sm` (luật 5 · docs/design-system/laws.md). Không `rounded-full`:
- *  hệ này góc sắc, tròn dành cho StatusDot và FAB. */
+ *  hệ này góc sắc, tròn dành cho StatusDot, Avatar và FAB. */
 const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-1 text-[11px]', {
   variants: {
     tone: {

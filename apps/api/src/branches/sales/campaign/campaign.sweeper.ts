@@ -10,7 +10,7 @@ import { CampaignRepository } from './campaign.repository'
  *
  *  Ba tầng vì ba vị ngữ trên ba bảng khác nhau, và không tầng nào trả lời được
  *  câu của tầng trên: `mail_run` không biết chiến dịch nào đang chờ nó — dây
- *  nối `sales.campaign_run` chạy một chiều từ nhánh sang nền, đúng như quyết
+ *  nối `sales.mail_sequence_run` chạy một chiều từ nhánh sang nền, đúng như quyết
  *  định #1 và #2 của
  *  `docs/decisions/0040-mas-mail-data-model-decisions.md` chốt.
  *  Nên câu hỏi cuối cùng phải
