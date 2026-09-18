@@ -7,8 +7,6 @@ import {
   Badge,
   Button,
   Chip,
-  ContextRail,
-  FlowVector,
   GlassCard,
   Icon,
   MetaPill,
@@ -28,8 +26,8 @@ import { EXIT_REASON_LABEL } from '@/data/leads'
 import { useStageLimits } from '@/data/sales-config'
 import { useLeadDraft } from '@/data/lead-draft'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
-import { chainPath, opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
-import { leadTouchesQuery, leadVectorQuery, NO_STEPS, type TouchFocus } from '@/data/touches'
+import { chainPath, opportunitiesOfLeadQuery } from '@/data/opportunities'
+import { leadTouchesQuery } from '@/data/touches'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
@@ -43,8 +41,7 @@ import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
  *
  *  Header: the account name with its status beside it, then ONE meta row — the
  *  code, the customer it became if it did, the date it was booked, and whether
- *  what was typed reached the server. Under it the object chain (law 10) and
- *  the flow vector: which story this lead sits in, and who has held it.
+ *  what was typed reached the server.
  *
  *  Two columns: LEFT is the record — form and activity; RIGHT is the work —
  *  next action, holder and origin. Below `xl` it folds to one column with the
@@ -128,16 +125,8 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
      `docs/decisions/0018-opportunity-module-decisions.md`. Handed over
      UNRESOLVED: `undefined` is "not answered yet". */
   const { data: touches } = useQuery(leadTouchesQuery(lead.code))
-  /* The holder chain, off the SAME query key as the timeline above — one fetch,
-     two questions. Empty until somebody has actually held this lead. */
-  const { data: vector = NO_STEPS } = useQuery(leadVectorQuery(lead.code))
-  /* Which timeline row a vector face last pointed at. Lives HERE rather than
-     inside either block because it is the wire between them: the vector says
-     which moment, the activity card shows it. */
-  const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
   /* A COUNTER, not a flag: pressing the meeting button twice must open the
-     door twice, and a boolean already `true` says nothing the second time.
-     Same shape and same reason as `focusTouch`. */
+     door twice, and a boolean already `true` says nothing the second time. */
   const [scheduleSeq, setScheduleSeq] = useState(0)
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
@@ -193,37 +182,6 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
         />
       </GlassCard>
 
-      {/* THE OBJECT CHAIN this lead belongs to — lead, deal, contract. Rule 10.
-          Built by `E1.story()` ON THE SERVER, which is what makes it possible
-          here at all: one lead may raise several deals, so no column of this
-          row can name "the" deal or "the" contract, and the graph is the only
-          place that knows. Already cut by permission, so a chip that appears is
-          a record this reader may open.
-
-          Drawn only when the chain has more than the lead itself: a one-chip
-          rail restates the code already printed in the header two lines above. */}
-      {lead.chain.length > 1 && (
-        <ContextRail objects={railOf(lead.chain, lead.code, navigate)} className="px-1" />
-      )}
-
-      {/* WHO HAS HAD THIS LEAD, in order — the left half of the flow vector. It
-          sits under the header rather than in the side panel because it is a
-          fact about the lead, not a task: the panel answers "what do I do now",
-          this answers "who was before me".
-
-          PRESSABLE since 14/09: a step carries the `sales.touch` row it was
-          read off, and the activity card keys its rows on that same id, so
-          `onOpen` has somewhere to land. */}
-      {vector.length > 0 && (
-        <GlassCard variant="b" className="p-4">
-          <FlowVector
-            steps={vector}
-            you={me?.id}
-            onOpen={(id) => setFocusTouch((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))}
-          />
-        </GlassCard>
-      )}
-
       <ScreenDetailGrid
         sideLabel="Việc cần làm với lead này"
         className="w-full"
@@ -238,7 +196,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
               code={lead.code}
               canEdit={canWrite}
               touches={touches}
-              focus={focusTouch}
+              focus={null}
               seedAddress={lead.email}
               onCompose={() => setComposing(true)}
               composeBlocked={masBlocker}
@@ -317,8 +275,7 @@ function masRecipients(lead: LeadProfile) {
  *
  *  NOT pressable, on purpose: `MetaPill` has no press door by design, and a
  *  pressable 24px chip in a meta row is a touch target under the 48px law 13
- *  asks of a tablet. The door onto the customer is the ContextRail right below,
- *  where `railOf` has already wired `chainPath`. */
+ *  asks of a tablet. */
 function CustomerPill({ lead }: { lead: LeadProfile }) {
   const link = lead.chain.find((entry) => entry.kind === 'AC')
   if (!link) return null
