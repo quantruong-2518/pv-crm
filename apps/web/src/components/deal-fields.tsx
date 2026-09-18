@@ -9,14 +9,14 @@ import { useProductCatalog } from '@/data/sales-config'
 import { PersonTokenField } from '@/components/person-token-field'
 import { Field } from '@/components/ops-fields'
 
-/** Module 3 · the boxes only the DEAL FORM CARD draws.
+/** Module 3 · the boxes of the DEAL FORM.
  *
- *  A file of its own rather than four more exports on `ops-fields.tsx`, which
- *  `max-lines` already holds at its ceiling. The split is not arbitrary: the
- *  boxes here answer the form card's layout — one column, no currency picker,
- *  tags instead of a wall of toggles — while `ops-fields.tsx` keeps the ones
- *  the convert panel asks for. The FRAME is shared (`Field`), so a label, a
- *  star and a refusal still look the same on both.
+ *  Drawn by both doors onto the same piece of paper — the form card
+ *  (`pages/opportunity-form-card.tsx`) and the convert panel
+ *  (`components/convert-dialog.tsx`). They answer one layout: tags and a
+ *  searchable picker instead of walls of toggles, so the eye lands on what
+ *  was CHOSEN rather than on everything that was not. `ops-fields.tsx` keeps
+ *  the frame (`Field`) and the loss block.
  *
  *  Nothing here is in `@pv/ui`: every one of them calls an app query, and the
  *  library may not know a branch (package boundary · CLAUDE.md). */
@@ -27,11 +27,11 @@ const AMOUNT_MAX = Number.MAX_SAFE_INTEGER
 
 /** The deal's amount — ONE box, with a suffix naming its own currency.
  *
- *  `AmountRow` in `ops-fields.tsx` stays for the convert panel, which asks for the
- *  currency; the form card does not, so the picker's job moves into this
- *  suffix. It reads `CURRENCIES` rather than printing "VND": a deal quoted in
- *  dollars keeps its currency through every save, and a box that says VND over
- *  a dollar figure is the most expensive lie this screen could tell. */
+ *  Only the convert panel stands a currency picker beside it, because that is
+ *  the one door where a currency is chosen. So the suffix carries the answer
+ *  everywhere else, and it reads `CURRENCIES` rather than printing "VND": a
+ *  box that says VND over a dollar figure is the most expensive lie this
+ *  screen could tell. */
 export function AmountField({
   draft,
   onSet,
@@ -81,8 +81,9 @@ export function AmountField({
             onSet('amount', null)
             return
           }
-          /* REFUSE the keystroke rather than cut the number down to size —
-             the same call `AmountRow` makes, for the same reason. */
+          /* REFUSE the keystroke rather than cut the number down to size: a
+             box that silently drops the tail turns one amount into another,
+             plausible-looking one. */
           const next = Number(digits)
           if (next > AMOUNT_MAX) return
           onSet('amount', next)
@@ -141,11 +142,10 @@ export function PersonPickField({
 /** The product lines this customer asked about — chosen ones as removable
  *  tags, the catalog behind one button.
  *
- *  `ProductsField` above lays the whole catalog out as toggles, which is right
- *  in a panel read top to bottom once. On a form somebody returns to, the
- *  question is "what did we pick", and a wall of unpicked buttons buries the
- *  two or three answers in it. An entry switched OFF still shows while this
- *  deal holds it — hiding the tag would be editing history. */
+ *  Laying the whole catalog out as toggles buries the two or three answers in
+ *  a wall of buttons nobody picked — and the question on both doors is "what
+ *  did we pick". An entry switched OFF still shows while this deal holds it —
+ *  hiding the tag would be editing history. */
 export function ProductTagsField({
   picked,
   errors,
@@ -242,7 +242,7 @@ export function ProductTagsField({
  *
  *  `FileDrop` of `@pv/ui` takes exactly one file and draws a 64px glyph, so it
  *  cannot stand in a two-column row beside a five-line textarea; this one takes
- *  many and keeps the same POC promise as `AttachmentsField` — no upload.
+ *  many, and keeps the POC promise: name and size only, nothing uploaded.
  *
  *  THE BUTTON IS A REAL BUTTON. A zone that only answers drag-and-drop is dead
  *  ground to a keyboard and to an iPad, so the pointer gesture is the extra

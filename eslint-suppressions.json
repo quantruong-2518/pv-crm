@@ -1258,17 +1258,6 @@
       "count": 2
     }
   },
-  "apps/web/src/components/convert-dialog.tsx": {
-    "aurora/comment-budget": {
-      "count": 7
-    },
-    "aurora/comments-in-english": {
-      "count": 5
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "apps/web/src/components/detail-side-panel.tsx": {
     "aurora/comment-budget": {
       "count": 1
@@ -1330,14 +1319,6 @@
   "apps/web/src/components/opportunity-create-dialog.tsx": {
     "aurora/comment-budget": {
       "count": 2
-    }
-  },
-  "apps/web/src/components/ops-fields.tsx": {
-    "aurora/comment-budget": {
-      "count": 3
-    },
-    "aurora/comments-in-english": {
-      "count": 8
     }
   },
   "apps/web/src/components/sign-drawer.tsx": {

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, X } from '@pv/ui'
-import { Badge, Button, Chip, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
+import { Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
 import {
+  CURRENCIES,
   draftOpportunity,
-  OPPORTUNITY_STATES,
+  type CurrencyCode,
   type OpportunityDraft,
   type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
@@ -13,8 +14,8 @@ import {
   type LeadProfile,
   type OpportunityCreateResponse,
 } from '@pv/contracts'
-import { userMessage, type FieldErrors } from '@/app/api'
-import { useApproverName, useDirectory } from '@/data/directory'
+import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/opportunities'
 import {
@@ -23,89 +24,42 @@ import {
   draftErrorsOf,
   usePromoteLead,
 } from '@/data/opportunities-write'
-import { dmy } from '@/lib/date'
-import {
-  AmountRow,
-  AttachmentsField,
-  Field,
-  LossBlock,
-  PeopleRow,
-  ProbabilityField,
-  ProductsField,
-  STAGE_LABEL,
-  STATE_LABEL,
-} from './ops-fields'
+import { AmountField, AttachmentsDropField, PersonPickField, ProductTagsField } from './deal-fields'
+import { Field, LossBlock } from './ops-fields'
 
-/** Đổi lead thành cơ hội — phiếu điền, mở đè lên hồ sơ.
+/** Turn a lead into a deal — a panel over the profile it reads from.
  *
- *  ------------------------------------------------------------------
- *  VÌ SAO LÀ PANEL ĐÈ CHỨ KHÔNG PHẢI MỘT MÀN
- *  ------------------------------------------------------------------
- *  Người điền phiếu này đang ĐỌC DỞ hồ sơ: họ vừa xem khách đau ở đâu, ai ký
- *  cuối, khoảng tiền bao nhiêu — và chín trên mười ô của phiếu lấy đúng từ đó.
- *  Chuyển sang một màn riêng là cắt mất phần tra cứu ngay lúc cần nó nhất.
- *  Panel giữ hồ sơ nguyên chỗ phía sau, đóng lại là đọc tiếp.
+ *  A panel and not a screen because the person filling this in is HALF WAY
+ *  through the profile behind it: nine boxes out of ten come from what they
+ *  just read. `Drawer` (T-04) is already a real dialog, so a second overlay
+ *  language would buy nothing.
  *
- *  `Drawer` (T-04) đã là hộp thoại thật — `role="dialog"`, `aria-modal`, tấm
- *  che, Escape, bẫy tiêu điểm. Dựng thêm một Modal căn giữa chỉ để có hình khác
- *  là đẻ ra ngôn ngữ đè màn thứ hai trong cùng một app.
+ *  SAME BOXES AS THE DEAL FORM, in the same order (`deal-fields.tsx` ·
+ *  `pages/opportunity-form-card.tsx`): a deal typed here and opened there must
+ *  not read as two different pieces of paper. What this panel keeps of its own
+ *  is the currency picker — the only door where a currency is chosen.
  *
- *  ------------------------------------------------------------------
- *  PHIẾU MỞ RA LÀ ĐÃ GẦN ĐỦ — VÀ MỒI TỪ HỒ SƠ THẬT
- *  ------------------------------------------------------------------
- *  `draftOpportunity` mồi sẵn mã, tên, tiền, người bán, mô tả. Người dùng SỬA
- *  một bản nháp chứ không GÕ một tờ giấy trắng. Ba ô hệ không đoán được — ngày
- *  đóng, trạng thái, tệp đính kèm — là ba ô duy nhất thật sự phải nghĩ.
- *
- *  Phiếu nhận HỒ SƠ TRÊN DÂY, không nhận dòng sổ. Bản cũ nhận `Lead` và
- *  `draftOpportunity` tự sinh hồ sơ từ mã lead — với một mã ngoài dải đóng
- *  băng, hàm sinh đó tra nguồn `SR-…` trong `SOURCES` của fixture và NÉM, làm
- *  vỡ cả màn hồ sơ chứ không riêng phiếu này (dialog nằm trong cây kể cả khi
- *  chưa mở). `profileForm` là đường dịch duy nhất, dùng chung với `LeadForm`
- *  — cùng một hồ sơ thì thẻ đọc và phiếu điền không được đọc ra hai bản.
- *
- *  Đi qua `useMemo` cũng là để GIỮ NGUYÊN thứ đang gõ dở: `profile` từ
- *  react-query giữ nguyên tham chiếu giữa các lần vẽ lại, nên bản nháp mồi
- *  không đổi, nên `useEffect` bên dưới không nạp đè lên ô người dùng vừa gõ.
- *
- *  ------------------------------------------------------------------
- *  Ô NHẬP DÙNG CHUNG VỚI MÀN HỒ SƠ CƠ HỘI — sửa 23/08
- *  ------------------------------------------------------------------
- *  Bốn khối ô (`Field` · `AmountRow` · `PeopleRow` · `LossBlock`) đã chuyển sang
- *  `components/ops-fields.tsx`, và bản kiểm "còn thiếu gì" (`missingOf`) sang
- *  `data/opportunities.ts` — cả hai dùng chung với `pages/opportunity-detail.tsx`. Cùng một phiếu
- *  điền ở hai chỗ thì phải là một bộ ô và một bản kiểm, không phải hai bản
- *  chép — lý do đầy đủ ở docblock của hai file đó.
- *
- *  ------------------------------------------------------------------
- *  CLOSE LOST MỞ RA MỘT KHỐI KHÁC
- *  ------------------------------------------------------------------
- *  Chọn "Close lost" là mở khối lý do thua, và khối đó CHẶN nút gửi cho tới khi
- *  có lý do. Một đơn thua không ghi lý do là một bài học mất trắng — sổ vẫn trừ
- *  đúng số tiền, nhưng không ai học được gì từ nó. */
+ *  Takes the PROFILE ON THE WIRE, not a book row: `profileForm` is the one
+ *  translation, shared with `LeadForm`. Through `useMemo` so the seeded draft
+ *  keeps its reference and the effect below never lands on top of typing. */
 
 type Props = {
   profile: LeadProfile
   open: boolean
   onClose: () => void
   /** The row the server just wrote. Optional because the two screens that open
-   *  this form want two different endings: the lead profile stays where it is
-   *  (its bottom-bar button flips to the new deal by itself), while the
-   *  opportunity book jumps to the deal — the only place that can show the CODE
-   *  this form deliberately refuses to promise. */
+   *  this form want two different endings: the lead profile stays where it is,
+   *  while the opportunity book jumps to the deal — the only place that can
+   *  show the CODE this form deliberately refuses to promise. */
   onCreated?: (row: OpportunityCreateResponse) => void
 }
 
 export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
   const staff = useDirectory()
-  const approver = useApproverName()
   const form = useMemo(() => profileForm(profile), [profile])
-  /* Gọi KHÔNG kèm danh sách mã đã cấp — tham số thứ ba của `draftOpportunity`
-     mặc định rỗng. Danh sách đó từng đọc `desk.deals` để phiếu thứ hai không
-     lấy lại mã của phiếu thứ nhất; nay dãy mã nằm ở `sales.opportunity_code_seq`
-     và chỉ máy chủ cấp, nên `draft.code` không còn được bày ra ở đâu và không
-     có gì để tránh trùng. Chữ ký của hàm thì giữ nguyên — nó là của
-     `@pv/engines`, và sổ cơ hội đóng băng vẫn dùng tham số đó. */
+  /* Seeded WITHOUT a list of codes already handed out: the sequence lives in
+     `sales.opportunity_code_seq`, only the server reads it, so there is
+     nothing here to avoid colliding with. */
   const seed = useMemo(() => draftOpportunity(form, staff), [form, staff])
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -113,13 +67,9 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
   const promote = usePromoteLead()
   const { reset } = promote
 
-  /* Mở phiếu là một lần bắt đầu mới: nạp lại bản nháp. Không nạp lại thì đóng
-     rồi mở lại vẫn thấy thứ mình vừa gõ dở của lần trước — hoặc tệ hơn, của
-     một lead khác.
-
-     Câu từ chối của lần trước đi cùng bản nháp, và cả `promote.reset()` nữa:
-     giữ lại thì phiếu mới mở ra đã đỏ sẵn mấy ô, nói về một lượt gửi của một
-     lead khác. */
+  /* Opening is a fresh start: re-seed, and drop the previous refusal with it.
+     Kept, the panel would open already red about a submission that belonged to
+     another lead. */
   useEffect(() => {
     if (!open) return
     setDraft(seed)
@@ -127,10 +77,9 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
     reset()
   }, [open, seed, reset])
 
-  /* Typing into a box the server just complained about clears that complaint.
-     A red mark that survives the fix reads as "still wrong", and the user
-     stops believing any of the other red marks. Same rule the lead form runs
-     on — see `set` in `pages/lead-parts.tsx`. */
+  /* Typing into a box the server just refused clears that refusal — a red mark
+     surviving the fix reads as "still wrong", and people stop believing the
+     other red marks. Same rule as `set` in `pages/lead-parts.tsx`. */
   const set = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => {
     setDraft((d) => ({ ...d, [key]: value }))
     setErrors((current) => {
@@ -140,11 +89,19 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
     })
   }
 
-  const lost = draft.state === 'close-lost'
-  const stage = OPPORTUNITY_STATES.find((s) => s.key === draft.state)?.stage ?? null
-
   const missing = missingOf(draft)
-  const ready = missing.length === 0 && !promote.isPending
+
+  const submit = () =>
+    promote.mutate(createBodyOf(profile.code, draft), {
+      /* Close ONLY once the server has accepted. Closing first and sending
+         after is the surest way for a refused ticket to vanish without a trace
+         while the user believes it went through. */
+      onSuccess: (row) => {
+        onCreated?.(row)
+        onClose()
+      },
+      onError: (error) => setErrors(draftErrorsOf(error.errors)),
+    })
 
   return (
     <Drawer
@@ -154,197 +111,186 @@ export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
       title="Đổi lead thành cơ hội"
       subtitle={
         <>
-          <span className="font-mono">{profile.code}</span> · {profile.company} — phiếu này tạo một
-          dòng mới trong sổ cơ hội và nối nó vào đúng lead đang mở.
+          <span className="font-mono">{profile.code}</span> · {profile.company}
         </>
       }
-      meta={<Badge tone={lost ? 'danger' : 'running'}>{STATE_LABEL.get(draft.state)}</Badge>}
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <span
-            className={cn(
-              'text-[11.5px] leading-[1.5]',
-              ready ? 'text-muted-foreground' : 'text-warning',
-            )}
-            aria-live="polite"
-          >
-            {/* Ba câu, và câu lỗi thắng hai câu kia: người vừa bấm mà bị từ
-                  chối cần biết vì sao TRƯỚC khi biết chuyện gì lẽ ra đã xảy ra.
-                  `userMessage` dịch Problem của máy chủ; ô nào sai thì chính nó
-                  gọi tên ô đó. */}
-            {promote.error
-              ? userMessage(promote.error)
-              : promote.isPending
-                ? 'Đang gửi phiếu…'
-                : ready
-                  ? `Đổi xong, ${profile.company} rời sổ lead và đứng ở sổ cơ hội. Mã do máy chủ cấp lúc lưu. ${approver} gật thì đơn vào cột thật.`
-                  : `Chưa đổi được — còn thiếu ${missing.join(' · ')}.`}
-          </span>
-          <div className="flex shrink-0 gap-2">
-            <Button size="md" variant="ghost" onClick={onClose}>
-              <Icon icon={X} size={16} />
-              Huỷ
-            </Button>
-            <Button
-              size="md"
-              disabled={!ready}
-              onClick={() => {
-                promote.mutate(createBodyOf(profile.code, draft), {
-                  /* Close the drawer ONLY once the server has accepted. Closing
-                     first and sending after is the surest way for a refused
-                     ticket to vanish without a trace while the user believes
-                     it went through.
-
-                     Writes nothing to `app/desk.ts` anymore (29/08). The old
-                     code called `convert()` so the lead profile would
-                     remember "already converted"; that question now asks the
-                     server, and `usePromoteLead` invalidates the Ops book —
-                     `opportunitiesOfLeadQuery` extends that key, so it
-                     refetches too and `ToolsBar` picks up the new deal as one
-                     more open-deal row beside the convert button. */
-                  onSuccess: (row) => {
-                    onCreated?.(row)
-                    onClose()
-                  },
-                  /* The server still has the last word: `draftErrorsOf` turns
-                     any refusal into per-field text. An empty map means a
-                     complaint that named no field, not "no complaint" at all. */
-                  onError: (error) => setErrors(draftErrorsOf(error.errors)),
-                })
-              }}
-            >
-              <Icon icon={ArrowRight} size={16} />
-              {promote.isPending ? 'Đang đổi…' : 'Đổi thành cơ hội'}
-            </Button>
-          </div>
-        </div>
+        <ConvertBar
+          missing={missing}
+          pending={promote.isPending}
+          error={promote.error}
+          onClose={onClose}
+          onSubmit={submit}
+        />
       }
     >
-      <div className="flex flex-col gap-6">
-        <section className="grid gap-4 sm:grid-cols-2">
-          {/* KHÔNG in mã ở đây nữa — 28/08.
-              Ô này từng bày `draft.code`, một mã do trình duyệt tự đoán bằng
-              cách đếm trên sổ nó đang thấy. Bấm thử mới lộ ra hậu quả: phiếu
-              hiện "OP-0305", máy chủ cấp "OP-5001", và người vừa bấm đi tìm một
-              mã không tồn tại. Dãy mã nằm ở `sales.opportunity_code_seq` và chỉ
-              máy chủ đọc được nó — trình duyệt không có cách nào biết trước.
-              Hứa một con số mình không cấp được thì thà đừng hứa. */}
-          <Field label="Mã cơ hội" hint="Máy chủ cấp lúc lưu, theo dãy mã của sổ.">
-            <span className="text-muted-foreground flex h-10 items-center text-[12.5px]">
-              cấp khi lưu
-            </span>
-          </Field>
+      <ConvertFields draft={draft} onSet={set} errors={errors} />
+    </Drawer>
+  )
+}
 
-          <Field
-            label="Account"
-            hint="Đi thẳng từ lead — một cơ hội không đổi được sang khách khác."
-          >
-            <span className="flex h-10 flex-wrap items-center gap-2">
-              <span className="text-[12.5px] font-semibold">{draft.account}</span>
-              {draft.accountCode !== '' && <Chip variant="source">{draft.accountCode}</Chip>}
-            </span>
-          </Field>
+/** The bottom bar — one sentence, and it only ever carries what STANDS IN THE
+ *  WAY. The refusal wins over the pending line: someone who just pressed the
+ *  button and was turned down needs the reason, not a progress report. */
+function ConvertBar({
+  missing,
+  pending,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  missing: string[]
+  pending: boolean
+  error: ApiError | null
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  const ready = missing.length === 0 && !pending
 
-          <Field label="Tên cơ hội" required errors={errors.name} className="sm:col-span-2">
-            <Input
-              value={draft.name}
-              aria-label="Tên cơ hội"
-              aria-required
-              maxLength={OPPORTUNITY_NAME_MAX}
-              invalid={Boolean(errors.name)}
-              onChange={(e) => set('name', e.target.value)}
-            />
-          </Field>
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <span
+        className={cn(
+          'text-[11.5px] leading-[1.5]',
+          ready ? 'text-muted-foreground' : 'text-warning',
+        )}
+        aria-live="polite"
+      >
+        {error
+          ? userMessage(error)
+          : pending
+            ? 'Đang gửi phiếu…'
+            : ready
+              ? ''
+              : `Còn thiếu ${missing.join(' · ')}.`}
+      </span>
+      <div className="flex shrink-0 gap-2">
+        <Button size="md" variant="ghost" onClick={onClose}>
+          <Icon icon={X} size={16} />
+          Huỷ
+        </Button>
+        <Button size="md" disabled={!ready} onClick={onSubmit}>
+          <Icon icon={ArrowRight} size={16} />
+          {pending ? 'Đang đổi…' : 'Đổi thành cơ hội'}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
-          <Field
-            label="Ngày chốt dự kiến"
-            required
-            errors={errors.closedDate}
-            hint={draft.closedDate !== '' ? `Đọc là ${dmy(draft.closedDate)}.` : undefined}
-          >
-            <Input
-              type="date"
-              value={draft.closedDate}
-              aria-label="Ngày chốt dự kiến"
-              aria-required
-              invalid={Boolean(errors.closedDate)}
-              onChange={(e) => set('closedDate', e.target.value)}
-            />
-          </Field>
+/** The boxes, in the order the deal form card asks them.
+ *
+ *  THREE BOXES LEFT THE PANEL on 17/09: the code, the account and the win
+ *  probability. The first two printed what the header already says, and none
+ *  of the three took an answer a person filling this in could give. */
+function ConvertFields({
+  draft,
+  onSet,
+  errors,
+}: {
+  draft: OpportunityDraft
+  onSet: <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => void
+  errors: FieldErrors
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-5">
+      <Field label="Tên cơ hội" required errors={errors.name}>
+        <Input
+          value={draft.name}
+          aria-label="Tên cơ hội"
+          aria-required
+          maxLength={OPPORTUNITY_NAME_MAX}
+          invalid={Boolean(errors.name)}
+          onChange={(e) => onSet('name', e.target.value)}
+        />
+      </Field>
 
-          <Field
+      {/* Four boxes in one 2×2 block rather than four stacked rows — not one of
+          them needs the panel's full width. */}
+      <section className="grid gap-4 sm:grid-cols-2">
+        <Field label="Ngày chốt dự kiến" required errors={errors.closedDate}>
+          <Input
+            type="date"
+            value={draft.closedDate}
+            aria-label="Ngày chốt dự kiến"
+            aria-required
+            invalid={Boolean(errors.closedDate)}
+            onChange={(e) => onSet('closedDate', e.target.value)}
+          />
+        </Field>
+
+        <Field label="Trạng thái" plain errors={errors.state}>
+          <Select
             label="Trạng thái"
-            plain
-            errors={errors.state}
-            hint={
-              stage
-                ? `Vào cột "${STAGE_LABEL.get(stage)}" của sổ cơ hội.`
-                : 'Đóng sổ ngay — đơn ra khỏi năm cột, không nằm cột nào. Chốt THẮNG không đặt ở đây: đơn thắng là đơn có hợp đồng, ký ở hồ sơ cơ hội.'
-            }
-          >
-            <Select
-              label="Trạng thái"
-              hideLabel
-              value={draft.state}
-              neutralValue={draft.state}
-              onChange={(v) => set('state', v as OpportunityState)}
-              options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
-              className="w-full"
-            />
-          </Field>
-        </section>
+            hideLabel
+            value={draft.state}
+            neutralValue={draft.state}
+            onChange={(v) => onSet('state', v as OpportunityState)}
+            options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
+            className="w-full"
+          />
+        </Field>
 
-        <AmountRow draft={draft} onSet={set} errors={errors} />
+        <AmountField draft={draft} onSet={onSet} errors={errors.amount} />
 
-        <PeopleRow
+        <Field label="Đồng tiền" plain errors={errors.currency}>
+          <Select
+            label="Đồng tiền"
+            hideLabel
+            value={draft.currency}
+            neutralValue={draft.currency}
+            onChange={(v) => onSet('currency', v as CurrencyCode)}
+            options={CURRENCIES.map((c) => ({ value: c.code, label: c.label }))}
+            className="w-full"
+          />
+        </Field>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        <PersonPickField
           label="Sale đứng đơn"
           required
-          hint="Người chốt. Phần chốt của hoa hồng chia theo danh sách này, nên đừng để trống cho xong."
+          hint="Người chốt — nhận phần trăm hoa hồng chốt."
           picked={draft.saleOwners}
           errors={errors.saleOwners}
-          onToggle={(id) => set('saleOwners', toggled(draft.saleOwners, id))}
+          onToggle={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}
         />
 
-        <PeopleRow
+        <PersonPickField
           label="BD mở cửa"
-          hint="Người moi được ô bắt buộc và mở được khách. Công trạng mở cửa ghi cho danh sách này, tách khỏi phần chốt."
+          hint="Người mở được khách — nhận công trạng mở cửa."
           picked={draft.bdOwners}
           errors={errors.bdOwners}
-          onToggle={(id) => set('bdOwners', toggled(draft.bdOwners, id))}
+          onToggle={(id) => onSet('bdOwners', toggled(draft.bdOwners, id))}
         />
+      </section>
 
-        <ProbabilityField
-          value={draft.probability}
-          errors={errors.probability}
-          onSet={(next) => set('probability', next)}
-        />
+      <ProductTagsField
+        picked={draft.products}
+        errors={errors.products}
+        onToggle={(id) => onSet('products', toggled(draft.products, id))}
+      />
 
-        <ProductsField
-          picked={draft.products}
-          errors={errors.products}
-          onToggle={(id) => set('products', toggled(draft.products, id))}
-        />
-
-        <Field
-          label="Mô tả"
-          errors={errors.description}
-          hint="Mở sẵn bằng ô 6 của init data — việc khách muốn giải. Sửa lại cho đúng phạm vi đang chào."
-        >
+      {/* Both cells carry `grow`, so the textarea and the drop zone STRETCH to
+          end on the same line. */}
+      <section className="grid gap-4 sm:grid-cols-2">
+        <Field label="Mô tả" grow errors={errors.description}>
           <Textarea
-            autoGrow
-            rows={3}
+            rows={5}
+            className="h-full resize-none"
             maxLength={OPPORTUNITY_DESCRIPTION_MAX}
             invalid={Boolean(errors.description)}
             value={draft.description}
             aria-label="Mô tả cơ hội"
-            onChange={(e) => set('description', e.target.value)}
+            placeholder="Việc khách muốn giải — một hai câu là đủ."
+            onChange={(e) => onSet('description', e.target.value)}
           />
         </Field>
 
-        <AttachmentsField draft={draft} onSet={set} errors={errors.attachments} />
+        <AttachmentsDropField draft={draft} onSet={onSet} errors={errors.attachments} />
+      </section>
 
-        {lost && <LossBlock draft={draft} onSet={set} errors={errors} />}
-      </div>
-    </Drawer>
+      {draft.state === 'close-lost' && <LossBlock draft={draft} onSet={onSet} errors={errors} />}
+    </div>
   )
 }
