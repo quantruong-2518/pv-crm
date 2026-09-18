@@ -1,8 +1,10 @@
 import type { IconGlyph } from '@pv/ui'
 import {
-  Activity,
   Bell,
-  Factory,
+  Building,
+  ChartAnalysis,
+  Contact,
+  ContactBook,
   FileCheck,
   Gauge,
   Handshake,
@@ -11,12 +13,12 @@ import {
   ListChecks,
   LogOut,
   Megaphone,
+  Route,
   ShieldCheck,
   SlidersHorizontal,
   SquareCheckBig,
   Target,
   Users,
-  UsersRound,
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -32,8 +34,10 @@ import { pendingApprovalsQuery } from '@/data/approvals'
  *  NAVBAR LÀ BẢN ĐỒ CÔNG VIỆC CỦA SẢN PHẨM
  *  ------------------------------------------------------------------
  *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
- *  Chiến dịch · Sổ lead · Cơ hội · Hiệu suất · Kế hoạch · Thiết lập. Chúng đi
- *  thẳng tới sáu màn đang tồn tại, không nấp dưới một mục "Kinh doanh" và
+ *  Hành trình · Lead · Cơ hội · Hợp đồng · Chiến dịch là năm lối vào trực
+ *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng và
+ *  Điều hành gom các sổ tham chiếu/phân tích ít cần mở hơn. Chúng không nấp
+ *  dưới một mục "Kinh doanh" và
  *  không đứng cạnh roadmap Cung ứng/Sản xuất/Tài chính/One Plus chưa mở.
  *
  *  Navbar không phải brochure hệ sinh thái. Đưa module chưa có vào đây dưới
@@ -159,8 +163,9 @@ export type SalesModule = {
   group: NavGroup
 }
 
-/** `customer` collapses into one dropdown; `setup` closes the row. */
-type NavGroup = 'sell' | 'customer' | 'manage' | 'setup'
+/** `primary` is the left-to-right daily work; the other groups collapse or
+ *  move into the account menu. */
+type NavGroup = 'primary' | 'customer' | 'manage' | 'setup'
 
 /** BẢY module Pebble Sales — bảng CHỐT.
  *
@@ -186,13 +191,16 @@ type NavGroup = 'sell' | 'customer' | 'manage' | 'setup'
  *  màn thật, không còn mục nào cần chỗ để nói "đang vướng gì". */
 export const SALES_MODULES: SalesModule[] = [
   {
-    no: 1,
-    icon: Megaphone,
-    label: 'Chiến dịch',
-    path: '/sales/campaigns',
-    permission: 'campaign.view',
-    question: 'Tạo và đo lường các chiến dịch thu hút khách hàng',
-    group: 'sell',
+    /* A run spans Lead → Opportunity → Contract and answers the broadest daily
+       question: where is this customer, who holds it, and what is late? It is
+       therefore the first direct entry, not a child of the customer directory. */
+    no: 0,
+    icon: Route,
+    label: 'Hành trình',
+    path: '/sales/workstreams',
+    permission: 'workstream.view',
+    question: 'Mỗi lượt đi của một khách — đang ở bậc nào, ai giữ, liên lạc lần cuối khi nào',
+    group: 'primary',
   },
   {
     no: 2,
@@ -201,7 +209,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/leads',
     permission: 'lead.view',
     question: 'Thu nhận, phân loại và phân công khách tiềm năng',
-    group: 'sell',
+    group: 'primary',
   },
   {
     /** THE CUSTOMER COMPANY BOOK — `no: 0`, and that zero is a statement rather
@@ -217,7 +225,7 @@ export const SALES_MODULES: SalesModule[] = [
      *  Its nav label names the company, not the customer: it sits inside the
      *  customer dropdown, and a child named like its parent reads as a mistake. */
     no: 0,
-    icon: Factory,
+    icon: Building,
     label: 'Công ty',
     path: '/sales/accounts',
     permission: 'account.view',
@@ -237,7 +245,7 @@ export const SALES_MODULES: SalesModule[] = [
      *  read leads sees this entry open and that one locked, which is exactly
      *  what should happen. */
     no: 0,
-    icon: UsersRound,
+    icon: Contact,
     label: 'Người liên hệ',
     path: '/sales/contacts',
     permission: 'lead.view',
@@ -254,18 +262,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/opportunities',
     permission: 'opportunity.view',
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
-    group: 'sell',
-  },
-  {
-    /* `no: 0` like the company book: a run spans modules 2–4 rather than being
-       one of them, so it sits with the customer records, not in the flow. */
-    no: 0,
-    icon: Activity,
-    label: 'Hành trình',
-    path: '/sales/workstreams',
-    permission: 'workstream.view',
-    question: 'Mỗi lượt đi của một khách — đang ở bậc nào, ai giữ, liên lạc lần cuối khi nào',
-    group: 'customer',
+    group: 'primary',
   },
   {
     /* Sits after Ops because it is the next step for the same customer:
@@ -278,7 +275,18 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/contracts',
     permission: 'contract.view',
     question: 'Theo dõi tiền về và nghĩa vụ hai bên sau khi ký',
-    group: 'sell',
+    group: 'primary',
+  },
+  {
+    /* Acquisition matters, but it is periodic work rather than the book a
+       seller lives in all day, so it closes the direct-work sequence. */
+    no: 1,
+    icon: Megaphone,
+    label: 'Chiến dịch',
+    path: '/sales/campaigns',
+    permission: 'campaign.view',
+    question: 'Tạo và đo lường các chiến dịch thu hút khách hàng',
+    group: 'primary',
   },
   {
     no: 5,
@@ -361,8 +369,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     onClick: () => navigate(module.path),
   })
 
-  /* Three books about one customer share a dropdown: as three slots they
-     pushed tier 2 past 1024px. No child left means no dropdown either. */
+  /* The two customer reference books share a dropdown. The journey is daily
+     operational work and therefore remains a direct entry. */
   const appsIn = (group: NavGroup) =>
     SALES_MODULES.filter(
       (m) =>
@@ -382,13 +390,13 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     /* One group, so no separators: the row reads as one list of books. */
     apps: [
       [
-        ...appsIn('sell'),
+        ...appsIn('primary'),
         ...(customer.length
           ? [
               {
-                icon: Factory,
+                icon: ContactBook,
                 label: 'Khách hàng',
-                description: 'Công ty, người liên hệ và hành trình của từng khách',
+                description: 'Hồ sơ công ty và những người liên hệ tại đó',
                 active: customer.some((app) => app.active),
                 items: customer,
               },
@@ -397,8 +405,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         ...(manage.length > 1
           ? [
               {
-                icon: Target,
-                label: 'Kế hoạch',
+                icon: ChartAnalysis,
+                label: 'Điều hành',
                 description: 'Hiệu suất đội ngũ và kế hoạch cho kỳ tiếp theo',
                 active: manage.some((app) => app.active),
                 items: manage,

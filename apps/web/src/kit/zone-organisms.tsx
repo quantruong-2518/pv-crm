@@ -1,7 +1,9 @@
 import {
-  Activity,
   Bell,
-  Factory,
+  Building,
+  ChartAnalysis,
+  Contact,
+  ContactBook,
   FileCheck,
   Gauge,
   Handshake,
@@ -9,11 +11,11 @@ import {
   KeyRound,
   LogOut,
   Megaphone,
+  Route,
   SlidersHorizontal,
   SquareCheckBig,
   Target,
   Users,
-  UsersRound,
 } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
@@ -30,9 +32,10 @@ import {
 /** Zone 03 · Organisms — khối hoàn chỉnh, đặt thẳng vào màn. */
 
 const HEADER_CORE = [
-  { icon: House, label: 'Trang chủ', active: true },
-  { icon: SquareCheckBig, label: 'Phê duyệt', count: 7 },
-  { icon: Bell, label: 'Thông báo' },
+  { icon: House, label: 'Trang chủ', active: true, slot: 'home' as const },
+  { icon: SquareCheckBig, label: 'Phê duyệt', count: 7, slot: 'approvals' as const },
+  { icon: Bell, label: 'Thông báo', slot: 'notifications' as const },
+  { icon: SlidersHorizontal, label: 'Thiết lập' },
 ]
 
 const HEADER_ACCOUNT = [
@@ -41,24 +44,27 @@ const HEADER_ACCOUNT = [
 ]
 
 const HEADER_CUSTOMER = [
-  { icon: Factory, label: 'Công ty', active: true },
-  { icon: UsersRound, label: 'Người liên hệ' },
-  { icon: Activity, label: 'Hành trình', locked: true },
+  { icon: Building, label: 'Công ty', active: true },
+  { icon: Contact, label: 'Người liên hệ' },
 ]
 
 const HEADER_APPS = [
   [
-    { icon: Megaphone, label: 'Chiến dịch' },
+    { icon: Route, label: 'Hành trình' },
     { icon: Users, label: 'Lead' },
     { icon: Handshake, label: 'Cơ hội' },
     { icon: FileCheck, label: 'Hợp đồng' },
+    { icon: Megaphone, label: 'Chiến dịch' },
+    { icon: ContactBook, label: 'Khách hàng', active: true, items: HEADER_CUSTOMER },
+    {
+      icon: ChartAnalysis,
+      label: 'Điều hành',
+      items: [
+        { icon: Gauge, label: 'Hiệu suất' },
+        { icon: Target, label: 'Kế hoạch', locked: true },
+      ],
+    },
   ],
-  [{ icon: Factory, label: 'Khách hàng', active: true, items: HEADER_CUSTOMER }],
-  [
-    { icon: Gauge, label: 'Hiệu suất' },
-    { icon: Target, label: 'Kế hoạch', locked: true },
-  ],
-  [{ icon: SlidersHorizontal, label: 'Thiết lập' }],
 ]
 
 const CHAIN = [

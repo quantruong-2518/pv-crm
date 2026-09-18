@@ -107,13 +107,18 @@ export {
 
 // Semantic aliases for familiar names that Hugeicons does not expose directly.
 export {
+  Building02Icon as Building,
+  ChartAnalysisIcon as ChartAnalysis,
   CheckmarkCircle02Icon as CheckCircle2,
   CheckmarkCircle02Icon as CircleCheckBig,
+  Contact01Icon as Contact,
+  ContactBookIcon as ContactBook,
   FileSpreadsheetIcon as FileSpreadsheet,
   GaugeIcon as Gauge,
   Key01Icon as KeyRound,
   Logout03Icon as LogOut,
   Moon02Icon as Moon,
+  Route01Icon as Route,
   CheckmarkSquare02Icon as SquareCheckBig,
   Sun03Icon as Sun,
   TriangleAlertIcon as TriangleAlert,
