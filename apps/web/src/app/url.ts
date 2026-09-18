@@ -62,7 +62,7 @@ import { LeadBookQuery } from '@pv/contracts'
  *  The shared `Pager` atom (`apps/web/src/components/table-bits.tsx`, used by
  *  both the lead book and the Ops book) and today's `leads.tsx` local `page`
  *  state are 0-based instead — first page is `0`, and the widget's own
- *  "previous" button is disabled on `page === 0`. `Pager` is not this
+ *  "previous" button is disabled on `page === 0`. `TableFooter` is not this
  *  migration's to change, so the mismatch does not go away; it just needs
  *  exactly one seam instead of a `+1`/`-1` copied into every future call
  *  site. `pageIndexFromQueryPage` / `queryPageFromPageIndex` below are that
@@ -120,7 +120,7 @@ export function leadBookQueryToParams(query: LeadBookQuery): URLSearchParams {
   return params
 }
 
-/** Contract's 1-based `page` → the 0-based index `Pager` and today's
+/** Contract's 1-based `page` → the 0-based index `TableFooter` and today's
  *  `leads.tsx` state expect. The one place this conversion happens — see
  *  "`page`: two worlds count differently" above. */
 export function pageIndexFromQueryPage(page: number): number {

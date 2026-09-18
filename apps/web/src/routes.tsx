@@ -10,6 +10,7 @@ import {
 import { AuroraField } from '@pv/ui'
 import type { Branch, Permission } from '@pv/engines'
 import { CHANGE_PASSWORD_PATH, RequireAccess } from '@/app/auth'
+import { isParked } from '@/app/parked'
 
 /** Bảng route của PV One.
  *
@@ -445,7 +446,12 @@ function LegacyRedirect({ to }: { to: string }) {
 export const router = createBrowserRouter([
   ...SCREENS.map(({ path, load, branch, permission, public: isPublic }) => ({
     path,
-    element: isPublic ? (
+    /* A parked module (`app/parked.ts`) sends the path home rather than losing
+       its route: a bookmark or a link inside old mail still has to land
+       somewhere, and a dropped route paints nothing at all. */
+    element: isParked(permission) ? (
+      <Navigate to="/" replace />
+    ) : isPublic ? (
       withFallback(load)
     ) : (
       <RequireAccess branch={branch ?? null} permission={permission}>

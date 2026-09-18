@@ -1,4 +1,5 @@
 import type { AccessNeed, Permission, Verdict } from '@pv/engines'
+import { isParked } from '../parked'
 import { access, useSession } from './session'
 
 /** Hỏi quyền từ trong một màn — cho NÚT, không phải cho cả màn.
@@ -20,8 +21,11 @@ export function useAccess(need: AccessNeed): Verdict {
   return access.check(actor, need)
 }
 
-/** Câu hỏi có/không cho một quyền thuần vai. Đây là thứ 90% chỗ gọi cần. */
+/** Câu hỏi có/không cho một quyền thuần vai. Đây là thứ 90% chỗ gọi cần.
+ *
+ *  A PARKED module answers no to everybody, whatever the matrix says — that is
+ *  what shuts its desk cards and work queues without every screen checking. */
 export function useCan(permission: Permission): boolean {
   const actor = useSession((s) => s.actor)
-  return access.allows(actor, permission)
+  return !isParked(permission) && access.allows(actor, permission)
 }

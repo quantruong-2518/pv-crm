@@ -1,13 +1,10 @@
-import type { PointerEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
   CalendarCheck,
   CalendarDays,
-  Checkbox,
   FileCheck,
   Icon,
-  Mail,
   Pin,
   StatStrip,
   StatusDot,
@@ -240,74 +237,5 @@ export function PinCell({
     >
       <Icon icon={Pin} size={16} />
     </button>
-  )
-}
-
-/** The row's checkbox. Pressing it starts a paint-drag across rows; the click
- *  that follows the same press is ignored by the screen (`suppressClick`), so a
- *  press toggles once, not twice. */
-export function SelectionCell({
-  checked,
-  company,
-  onChange,
-  onPress,
-}: {
-  checked: boolean
-  company: string
-  onChange: (checked: boolean) => void
-  onPress: (event: PointerEvent<HTMLSpanElement>) => void
-}) {
-  return (
-    <span
-      className="flex w-full justify-center"
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={onPress}
-    >
-      <Checkbox
-        checked={checked}
-        onChange={onChange}
-        label={<span className="sr-only">Chọn {company}</span>}
-        className="h-12 w-full justify-center gap-0 bg-transparent p-0 hover:bg-transparent"
-      />
-    </span>
-  )
-}
-
-export function LeadSelectionBar({
-  leads,
-  emails,
-  onClear,
-  onSend,
-}: {
-  leads: number
-  emails: number
-  onClear: () => void
-  onSend: () => void
-}) {
-  return (
-    <div
-      className="glass-overlay shadow-panel fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
-      role="region"
-      aria-label="Các lead đang chọn"
-    >
-      <div className="flex min-w-0 items-center gap-3" aria-live="polite">
-        <span className="bg-accent text-accent-foreground font-num tnum flex size-10 shrink-0 items-center justify-center rounded-md text-[16px] font-semibold">
-          {leads}
-        </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="text-[13px] font-semibold">{leads} lead đã chọn</span>
-          <span className="text-muted-foreground text-[11.5px]">{emails} địa chỉ email</span>
-        </span>
-      </div>
-      <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
-        <Button size="lg" variant="ghost" onClick={onClear}>
-          Bỏ chọn hết
-        </Button>
-        <Button size="lg" onClick={onSend}>
-          <Icon icon={Mail} size={16} />
-          Gửi email
-        </Button>
-      </div>
-    </div>
   )
 }

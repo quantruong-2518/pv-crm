@@ -9,6 +9,7 @@ import {
   type Edge,
   type ObjectRef,
 } from '@pv/engines'
+import { billions, millions, percent } from '@pv/ui'
 import { useCan, useSession } from '@/app/auth'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { contractBookQuery, contractSummaryQuery } from './contracts'
@@ -19,6 +20,7 @@ import {
   opportunityBookQuery,
   opportunityHistogramQuery,
   opportunityScorecardQuery,
+  railOf,
 } from './opportunities'
 
 /** The home screen — the only one that reads across all three books at once.
@@ -58,6 +60,21 @@ import {
 const WORK_SCAN = 50
 
 // ---------------------------------------------------------------------------
+// ONE MONEY FORMAT FOR THE WHOLE SCREEN
+// ---------------------------------------------------------------------------
+
+/** A dashboard printing billions beside millions makes the eye convert units to
+ *  compare two figures sitting next to each other. Billions above a billion,
+ *  millions below, one rule. It lives here rather than in a render file because
+ *  the bento and the two tables are three files sharing one rule. */
+export const money = (amount: number) =>
+  amount >= 1_000_000_000 ? billions(amount, 1) : millions(amount, 0)
+
+/** Ratio, or an em dash when the denominator is 0 — never "0%", which claims a
+ *  measurement was taken and came out zero. */
+export const ratio = (top: number, bottom: number) => (bottom === 0 ? '—' : percent(top / bottom))
+
+// ---------------------------------------------------------------------------
 // THE DESK — unscoped, same figures for everybody who may see them
 // ---------------------------------------------------------------------------
 
@@ -91,6 +108,10 @@ export function useDesk() {
     error: parts.find((p) => p.error)?.error ?? null,
   }
 }
+
+/** What the bento is handed. Derived from the hook rather than written out
+ *  again, so a sixth aggregate cannot be added without the cells seeing it. */
+export type DeskView = ReturnType<typeof useDesk>
 
 /** Stage limits, keyed. The histogram already carries the configured limit per
  *  column, so the work queue reads it from there instead of joining
@@ -307,7 +328,11 @@ const KIND_OF: Record<WorkKind, ObjectRef['kind']> = {
  *  to the desk's newest contract, which still draws a true chain. Only a desk
  *  with no contracts at all has nothing to anchor on, and then the row is
  *  genuinely absent rather than filled with an invented code. */
-export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
+export function deskStory(
+  top: WorkItem | undefined,
+  contracts: ContractRow[],
+  go: (path: string) => void,
+) {
   const first = contracts[0]
   const anchor =
     top ??
@@ -352,7 +377,8 @@ export function deskStory(top: WorkItem | undefined, contracts: ContractRow[]) {
     )
   }
 
-  return createObjectGraph(objects, edges)
-    .story(anchor.code)
-    .map((o) => ({ code: o.code, source: o.code === anchor.code }))
+  /* `railOf` already turns a chain into chips-with-doors for opportunity and
+     lead screens; reusing it means a kind with no screen (contracts, parked)
+     draws its chip with no fake `onOpen` instead of us re-deriving routes. */
+  return railOf(createObjectGraph(objects, edges).story(anchor.code), anchor.code, go)
 }

@@ -3,7 +3,6 @@ import { ArrowLeft } from '../icons'
 import { cn } from '../lib/cn'
 import { Button } from '../ui/button'
 import { Icon } from '../ui/icon'
-import { GlassCard } from './glass-card'
 
 /** T-06 · ScreenLayout — nhịp nội dung chuẩn nằm bên trong AppShell.
  *
@@ -121,26 +120,6 @@ export function ScreenScoreGrid({ children, className }: ScreenScoreGridProps) {
   const smCols = count <= 1 ? 'sm:grid-cols-1' : 'sm:grid-cols-2'
 
   return <div className={cn('grid grid-cols-1 gap-3', smCols, xlCols, className)}>{children}</div>
-}
-
-export type ScreenToolbarProps = {
-  children: ReactNode
-  label: string
-  className?: string
-}
-
-/** Mặt công cụ chuẩn. Màn quyết định số cột vì số bộ lọc là dữ liệu nghiệp vụ;
- * template chỉ khóa mặt kính, padding và nhịp giữa control. */
-export function ScreenToolbar({ children, label, className }: ScreenToolbarProps) {
-  return (
-    <GlassCard
-      variant="b"
-      className={cn('grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:flex xl:items-center', className)}
-      aria-label={label}
-    >
-      {children}
-    </GlassCard>
-  )
 }
 
 export type ScreenDetailGridProps = {

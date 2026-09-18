@@ -1,22 +1,16 @@
 import { useMemo, useState } from 'react'
-import { CircleX, Inbox, Mail, MailOpen, Send, CircleAlert } from '@pv/ui'
+import { CircleX, Mail, MailOpen, Send, CircleAlert } from '@pv/ui'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
-  DataTable,
-  EmptyState,
-  GlassCard,
   Icon,
   SearchField,
   Select,
-  Skeleton,
-  ScreenHeader,
   ScreenLayout,
   ScreenScoreGrid,
-  ScreenToolbar,
   StatCard,
   percent,
 } from '@pv/ui'
@@ -34,9 +28,10 @@ import {
   mailRunQueryToParams,
   useMailRunCancel,
 } from '@/data/mail-runs'
+import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { RunWhen } from '@/components/run-when'
-import { Pager } from '@/components/table-bits'
+import { FilterMenu, TableFooter } from '@/components/table-bits'
 
 /** Module 1 · Sổ lô gửi — `GET /sales/mail/runs`.
  *
@@ -175,181 +170,157 @@ export function MailRunsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader title="Sổ lô gửi" />
-
-        <Module1Books />
-
-        <ScreenScoreGrid>
-          <StatCard
-            size="compact"
-            icon={Send}
-            value={page.sent.toLocaleString('vi-VN')}
-            label="Thư đã rời máy"
-            hint="cộng trên trang đang mở"
-          />
-          <StatCard
-            size="compact"
-            icon={Mail}
-            value={page.delivered.toLocaleString('vi-VN')}
-            label="Tới hộp thư"
-            hint={page.sent > 0 ? percent(page.delivered / page.sent) : '—'}
-          />
-          <StatCard
-            size="compact"
-            icon={MailOpen}
-            value={page.opened.toLocaleString('vi-VN')}
-            label="Có người mở"
-            hint={page.delivered > 0 ? percent(page.opened / page.delivered) : '—'}
-          />
-          <StatCard
-            size="compact"
-            icon={CircleAlert}
-            value={page.bounced.toLocaleString('vi-VN')}
-            label="Bounce"
-            hint={page.sent > 0 ? `${percent(page.bounced / page.sent)} · trần 4%` : 'trần 4%'}
-          />
-        </ScreenScoreGrid>
-
-        <ScreenToolbar
-          label="Bộ lọc sổ lô gửi"
-          className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1.6fr)_minmax(150px,1fr)_auto] xl:items-center"
-        >
-          <SearchField
-            size="topbar"
-            placeholder="Tìm theo tên lô hoặc tiêu đề thư…"
-            value={text}
-            onChange={(v) => {
-              setText(v)
-              patch({ q: v.trim() === '' ? undefined : v.trim() })
-            }}
-            className="w-full md:col-span-2 xl:col-span-1"
-          />
-          <Select
-            label="Trạng thái"
-            value={query.state ?? ''}
-            onChange={(v) => patch({ state: v === '' ? undefined : (v as MailRunState) })}
-            options={[
-              { value: '', label: 'Mọi trạng thái' },
-              ...STATES.map((s) => ({ value: s, label: MAIL_RUN_STATE_LABEL[s] })),
-            ]}
-          />
-          {dirty && (
-            <Button size="md" variant="ghost" onClick={clearFilters} className="w-full xl:w-auto">
-              Bỏ hết bộ lọc
-            </Button>
-          )}
-        </ScreenToolbar>
-
-        <GlassCard variant="b" className="p-0">
-          <div className="overflow-x-auto">
-            {isPending ? (
-              <div className="flex flex-col gap-2 p-4">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ) : error ? (
-              <EmptyState
+        <BookPage
+          title="Sổ lô gửi"
+          nav={<Module1Books />}
+          score={
+            <ScreenScoreGrid>
+              <StatCard
+                size="compact"
+                icon={Send}
+                value={page.sent.toLocaleString('vi-VN')}
+                label="Thư đã rời máy"
+                hint="cộng trên trang đang mở"
+              />
+              <StatCard
+                size="compact"
+                icon={Mail}
+                value={page.delivered.toLocaleString('vi-VN')}
+                label="Tới hộp thư"
+                hint={page.sent > 0 ? percent(page.delivered / page.sent) : '—'}
+              />
+              <StatCard
+                size="compact"
+                icon={MailOpen}
+                value={page.opened.toLocaleString('vi-VN')}
+                label="Có người mở"
+                hint={page.delivered > 0 ? percent(page.opened / page.delivered) : '—'}
+              />
+              <StatCard
+                size="compact"
                 icon={CircleAlert}
-                message={`Không lấy được sổ lô gửi. ${
-                  isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetch() }}
-                className="py-12"
+                value={page.bounced.toLocaleString('vi-VN')}
+                label="Bounce"
+                hint={page.sent > 0 ? `${percent(page.bounced / page.sent)} · trần 4%` : 'trần 4%'}
               />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                message={
-                  dirty
+            </ScreenScoreGrid>
+          }
+          count={<BookCount total={total} noun="lô" hidden={hidden} />}
+          tools={
+            <>
+              <SearchField
+                placeholder="Tìm theo tên lô hoặc tiêu đề thư…"
+                value={text}
+                onChange={(v) => {
+                  setText(v)
+                  patch({ q: v.trim() === '' ? undefined : v.trim() })
+                }}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
+              />
+              <FilterMenu label="Bộ lọc sổ lô gửi" active={query.state === undefined ? 0 : 1}>
+                <Select
+                  label="Trạng thái"
+                  value={query.state ?? ''}
+                  onChange={(v) => patch({ state: v === '' ? undefined : (v as MailRunState) })}
+                  /* A native select grows to its longest option and would burst
+                     the popover — clamp it to the panel. */
+                  className="w-full max-w-none"
+                  options={[
+                    { value: '', label: 'Mọi trạng thái' },
+                    ...STATES.map((s) => ({ value: s, label: MAIL_RUN_STATE_LABEL[s] })),
+                  ]}
+                />
+                {dirty && (
+                  <Button size="md" variant="ghost" onClick={clearFilters}>
+                    Bỏ hết bộ lọc
+                  </Button>
+                )}
+              </FilterMenu>
+            </>
+          }
+          pending={isPending}
+          failure={
+            error
+              ? {
+                  message: `Không lấy được sổ lô gửi. ${
+                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetch(),
+                }
+              : undefined
+          }
+          empty={
+            rows.length === 0
+              ? {
+                  message: dirty
                     ? 'Không có lô nào khớp bộ lọc đang chọn.'
-                    : 'Chưa lô thư nào được gửi. Lô đầu tiên sinh ra khi bạn gửi mail từ Sổ lead hoặc bắt đầu một chiến dịch.'
+                    : 'Chưa lô thư nào được gửi. Lô đầu tiên sinh ra khi bạn gửi mail từ Sổ lead hoặc bắt đầu một chiến dịch.',
+                  action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
                 }
-                action={
-                  dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
-                    : { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
-                }
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                className={TABLE_MIN_WIDTH}
-                columns={[
-                  { header: 'Lô', width: '2fr' },
-                  { header: 'Trạng thái', width: '1fr' },
-                  { header: 'Lúc', width: '1.1fr' },
-                  { header: 'Tệp', width: '0.8fr', align: 'right' },
-                  { header: 'Đã gửi', width: '0.8fr', align: 'right' },
-                  { header: 'Tới nơi', width: '0.8fr', align: 'right' },
-                  { header: 'Mở', width: '0.7fr', align: 'right' },
-                  { header: 'Bounce', width: '0.8fr', align: 'right' },
-                  { header: '', width: '0.8fr' },
-                ]}
-                rows={rows.map((r) => ({
-                  id: r.id,
-                  cells: [
-                    <div key="l" className="min-w-0">
-                      <span className="block truncate" title={r.label}>
-                        {r.label}
-                      </span>
-                      <span
-                        className="text-muted-foreground block truncate text-[11px]"
-                        title={r.subject}
-                      >
-                        {r.subject}
-                      </span>
-                    </div>,
-                    <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
-                      {MAIL_RUN_STATE_LABEL[r.state]}
-                    </Badge>,
-                    <RunWhen key="w" run={r} />,
-                    <span key="a">{r.audienceCount.toLocaleString('vi-VN')}</span>,
-                    <span key="sent">{r.sent.toLocaleString('vi-VN')}</span>,
-                    <span key="d">{r.delivered.toLocaleString('vi-VN')}</span>,
-                    <span key="o">{r.opened.toLocaleString('vi-VN')}</span>,
-                    /* Bounce tô cảnh báo NGAY TỪ MỘT dòng khi lô đủ mẫu, không
-                       đợi chạm 4%: cầu dao ở máy chủ mới là thứ dừng lô, còn ô
-                       này chỉ để người nhìn thấy trước khi nó dừng. */
-                    <span
-                      key="b"
-                      className={r.bounced > 0 ? 'text-warning' : undefined}
-                      title={r.sent > 0 ? percent(r.bounced / r.sent) : undefined}
-                    >
-                      {r.bounced.toLocaleString('vi-VN')}
-                    </span>,
-                    <Button
-                      key="x"
-                      size="sm"
-                      variant="ghost"
-                      disabled={!CANCELLABLE.includes(r.state) || cancel.isPending}
-                      onClick={() => stop(r)}
-                    >
-                      <Icon icon={CircleX} size={14} />
-                      Dừng
-                    </Button>,
-                  ],
-                }))}
-              />
-            )}
-          </div>
-        </GlassCard>
-
-        {(hidden > 0 || total > PAGE_SIZE) && (
-          <div className="flex items-center justify-between gap-3">
-            {/* Rule 7 — this count also comes from the server, since the screen
-                cannot count what it never received. Only shown when rows were
-                actually cut. */}
-            <span className="text-muted-foreground text-[11.5px]">
-              {hidden > 0 && (
-                <span className="text-warning">
-                  <span className="tnum font-num">{hidden}</span> bị ẩn theo quyền của bạn
-                </span>
-              )}
-            </span>
-            {total > PAGE_SIZE && <Pager page={pageIndex} pageCount={pageCount} onPage={goPage} />}
-          </div>
-        )}
+              : undefined
+          }
+          table={{
+            minWidth: TABLE_MIN_WIDTH,
+            columns: [
+              { header: 'Lô', width: '2fr' },
+              { header: 'Trạng thái', width: '1fr' },
+              { header: 'Lúc', width: '1.1fr' },
+              { header: 'Tệp', width: '0.8fr', align: 'right' },
+              { header: 'Đã gửi', width: '0.8fr', align: 'right' },
+              { header: 'Tới nơi', width: '0.8fr', align: 'right' },
+              { header: 'Mở', width: '0.7fr', align: 'right' },
+              { header: 'Bounce', width: '0.8fr', align: 'right' },
+              { header: '', width: '0.8fr' },
+            ],
+            rows: rows.map((r) => ({
+              id: r.id,
+              cells: [
+                <div key="l" className="min-w-0">
+                  <span className="block truncate" title={r.label}>
+                    {r.label}
+                  </span>
+                  <span
+                    className="text-muted-foreground block truncate text-[11px]"
+                    title={r.subject}
+                  >
+                    {r.subject}
+                  </span>
+                </div>,
+                <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
+                  {MAIL_RUN_STATE_LABEL[r.state]}
+                </Badge>,
+                <RunWhen key="w" run={r} />,
+                <span key="a">{r.audienceCount.toLocaleString('vi-VN')}</span>,
+                <span key="sent">{r.sent.toLocaleString('vi-VN')}</span>,
+                <span key="d">{r.delivered.toLocaleString('vi-VN')}</span>,
+                <span key="o">{r.opened.toLocaleString('vi-VN')}</span>,
+                /* Bounce tô cảnh báo NGAY TỪ MỘT dòng khi lô đủ mẫu, không
+                   đợi chạm 4%: cầu dao ở máy chủ mới là thứ dừng lô, còn ô
+                   này chỉ để người nhìn thấy trước khi nó dừng. */
+                <span
+                  key="b"
+                  className={r.bounced > 0 ? 'text-warning' : undefined}
+                  title={r.sent > 0 ? percent(r.bounced / r.sent) : undefined}
+                >
+                  {r.bounced.toLocaleString('vi-VN')}
+                </span>,
+                <Button
+                  key="x"
+                  size="sm"
+                  variant="ghost"
+                  disabled={!CANCELLABLE.includes(r.state) || cancel.isPending}
+                  onClick={() => stop(r)}
+                >
+                  <Icon icon={CircleX} size={14} />
+                  Dừng
+                </Button>,
+              ],
+            })),
+          }}
+          footer={
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+          }
+        />
       </ScreenLayout>
     </AppShell>
   )

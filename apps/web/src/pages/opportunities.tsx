@@ -1,22 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Ban, FileCheck, Inbox, PenLine, Target, TriangleAlert, Wallet } from '@pv/ui'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { Ban, FileCheck, Plus, Target, Wallet } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
+  Checkbox,
   Chip,
-  DataTable,
-  EmptyState,
-  GlassCard,
   Icon,
   Kicker,
   SearchField,
   SegmentedControl,
   Select,
-  Skeleton,
-  ScreenHeader,
   ScreenLayout,
   StageTrack,
   StatStrip,
@@ -59,20 +55,28 @@ import {
 } from '@/data/opportunities'
 import { OP_SPEC } from '@/data/intake'
 import { useOpportunityImport } from '@/data/opportunity-import'
+import { leadFacetQuery } from '@/data/leads'
+import { type MasRecipient } from '@/data/mas-mail-draft'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
+import { MasMailModal } from '@/components/mas-mail-modal'
+import { BookCount, BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
-import { FilterMenu, PersonCell, TableFooter } from '@/components/table-bits'
+import {
+  BookSelectionBar,
+  FilterMenu,
+  PersonCell,
+  SelectionCell,
+  TableFooter,
+} from '@/components/table-bits'
 import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
 
 /** Module 3 · Sổ cơ hội — `GET /sales/opportunities`.
  *
  *  ------------------------------------------------------------------
- *  CÙNG HÌNH VỚI SỔ LEAD, CÓ CHỦ Ý
+ *  HÌNH SỔ NẰM Ở `BookPage`, CÙNG HÌNH VỚI SỔ LEAD
  *  ------------------------------------------------------------------
- *  Hai khối, đúng hình của `pages/leads.tsx`:
- *   1 · thẻ điểm — bốn con số của cả sổ trên MỘT dải (`StatStrip`);
- *   2 · MỘT thẻ sổ trên `.glass-b` (luật 8) chứa cả ba thứ nói về cái bảng bên
- *       trong nó: hàng tab + đếm + ô tìm + nút lọc, rồi bảng, rồi chân trang.
+ *  Màn chỉ đưa NỘI DUNG cho `components/book-page.tsx`: thẻ điểm, hàng tab, ô
+ *  tìm, nút lọc, cột và chân trang. Hình thì một chỗ quyết.
  *
  *  Hàng lọc rời và `Pager` đứng ngoài thẻ đã ĐI (17/09). Chúng là chỗ hai sổ
  *  của cùng một phòng trôi khỏi nhau: người dùng đi từ sổ lead sang sổ này mỗi
@@ -162,13 +166,13 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *  con số không ai chọn. */
 const PAGE_SIZE = 10
 
-/** Bề rộng tối thiểu của bảng — thứ làm cho `overflow-x-auto` bọc ngoài có
- *  việc để làm. Không có nó thì con của khối cuộn không bao giờ rộng hơn chính
+/** Bề rộng tối thiểu của bảng — thứ làm cho khối cuộn của `BookPage` có việc
+ *  để làm. Không có nó thì con của khối cuộn không bao giờ rộng hơn chính
  *  khối cuộn, nên thanh cuộn ngang KHÔNG BAO GIỜ hiện và tám track `fr` bị bóp
  *  thay vì cuộn: ở 1024px cột "Mã" còn ~73px trong khi một `<Chip>` mã đơn cần
- *  ~90px, ở 390px nó còn ~21px. Cùng con số với sổ lead vì cùng tám cột và hai
- *  sổ phải bắt đầu cuộn ở cùng một bề rộng màn hình. */
-const TABLE_MIN_WIDTH = 'min-w-[1180px]'
+ *  ~90px, ở 390px nó còn ~21px. +32px so với bản không có cột chọn dòng, đúng
+ *  bề rộng cố định của cột checkbox đứng đầu bảng. */
+const TABLE_MIN_WIDTH = 'min-w-[1212px]'
 
 /** Giá trị "không lọc trục này" của bốn ô Select. `<select>` gốc chỉ chở được
  *  chuỗi, nên trạng thái "mọi giá trị" phải có một chuỗi đại diện; trên dây thì
@@ -208,6 +212,7 @@ const NO_SALE_TITLE = 'Chưa có Sale đứng đơn'
  *  tệ hơn nữa là nó loại dòng TRƯỚC khi máy chủ được nhìn, mà bốn con số panel
  *  vẽ lại là số của máy chủ. Một cửa chống trùng, và đó là cửa biết mã lead. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
+const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
 
 export function OpportunitiesPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -244,6 +249,26 @@ export function OpportunitiesPage() {
      trang mười dòng không trả lời được. */
   const { data: facets } = useQuery(opportunityFacetQuery)
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
+
+  /* `leadFacetQuery`'s own capped-book debt, reused rather than duplicated: a
+     recipient's name and address live on the LEAD row, and an opportunity only
+     carries the `leadCode` that points at one. */
+  const { data: leadFacets } = useQuery(leadFacetQuery)
+  const wholeLeadBook = useMemo(() => leadFacets?.rows ?? [], [leadFacets])
+  const opportunityLeadCodes = useMemo(() => new Set(wholeBook.map((o) => o.leadCode)), [wholeBook])
+  const recipients: MasRecipient[] = useMemo(
+    () =>
+      wholeLeadBook
+        .filter((lead) => opportunityLeadCodes.has(lead.code))
+        .map((lead) => ({
+          code: lead.code,
+          company: lead.company,
+          contactName: lead.contactName,
+          contactTitle: lead.contactTitle,
+          email: lead.email,
+        })),
+    [wholeLeadBook, opportunityLeadCodes],
+  )
 
   const open = (code: string) => navigate(`/sales/opportunities/${code}`)
 
@@ -406,6 +431,87 @@ export function OpportunitiesPage() {
     return report
   }
 
+  /* Row selection + bulk mail — the lead book's own shape (`pages/leads.tsx`),
+     copied so the two books keep reading as one product. Selection outlives
+     paging: codes live on the screen, not in this page's ten rows. */
+  const [composing, setComposing] = useState(false)
+  const [selectedCodes, setSelectedCodes] = useState<ReadonlySet<string>>(NO_SELECTED_CODES)
+  const dragIntent = useRef<'select' | 'deselect' | null>(null)
+  const suppressClick = useRef<string | null>(null)
+
+  const selectedOps = useMemo(
+    () => wholeBook.filter((o) => selectedCodes.has(o.code)),
+    [wholeBook, selectedCodes],
+  )
+  const selectedLeadCodes = useMemo(
+    () => [...new Set(selectedOps.map((o) => o.leadCode))],
+    [selectedOps],
+  )
+  const selectedEmailCount = recipients.filter(
+    (r) => selectedLeadCodes.includes(r.code) && Boolean(r.email),
+  ).length
+  const pageSelected = rows.filter((o) => selectedCodes.has(o.code)).length
+  const allPageSelected = rows.length > 0 && pageSelected === rows.length
+
+  const setCodeSelected = (code: string, on: boolean) => {
+    setSelectedCodes((current) => {
+      const next = new Set(current)
+      if (on) next.add(code)
+      else next.delete(code)
+      return next
+    })
+  }
+
+  const beginDrag = (code: string, event: ReactPointerEvent<HTMLElement>) => {
+    /* Touch keeps its native scroll and toggles through the click that follows;
+       mouse and pen press a checkbox and paint across rows. */
+    if (event.pointerType === 'touch' || event.button !== 0) return
+    event.preventDefault()
+    const intent = selectedCodes.has(code) ? 'deselect' : 'select'
+    dragIntent.current = intent
+    suppressClick.current = code
+    setCodeSelected(code, intent === 'select')
+  }
+
+  const paintSelection = (code: string, event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'touch' || event.buttons !== 1 || dragIntent.current === null) return
+    setCodeSelected(code, dragIntent.current === 'select')
+  }
+
+  const selectPage = (on: boolean) => {
+    setSelectedCodes((current) => {
+      const next = new Set(current)
+      for (const o of rows) {
+        if (on) next.add(o.code)
+        else next.delete(o.code)
+      }
+      return next
+    })
+  }
+
+  const clearSelection = () => {
+    setSelectedCodes(NO_SELECTED_CODES)
+    dragIntent.current = null
+    suppressClick.current = null
+  }
+
+  useEffect(() => {
+    const finish = () => {
+      dragIntent.current = null
+      /* The press's own `click` fires right after `pointerup`; clearing on the
+         next macrotask keeps it from undoing what the press just painted. */
+      window.setTimeout(() => {
+        suppressClick.current = null
+      }, 0)
+    }
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+    return () => {
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+    }
+  }, [])
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
@@ -417,20 +523,10 @@ export function OpportunitiesPage() {
             chọn lead trước, rồi giao cho ĐÚNG `ConvertDialog` mà hồ sơ lead
             vẫn dùng. Thứ đổi là chỗ ĐỨNG để bắt đầu, không phải luật — ai đang
             đọc sổ cơ hội không phải đi vòng qua sổ lead để mở một đơn. */}
-        <ScreenHeader
-          /* CSS uppercase, not typed capitals: screen readers still read the words. */
-          title={<span className="uppercase">Sổ cơ hội</span>}
+        <BookPage
+          title="Sổ cơ hội"
           actions={
             <>
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() => setCreating(true)}
-                className="max-sm:flex-1"
-              >
-                <Icon icon={PenLine} size={16} />
-                Tạo cơ hội
-              </Button>
               <ImportZone
                 spec={OP_SPEC}
                 existingKeys={NO_LOCAL_KEYS}
@@ -438,45 +534,31 @@ export function OpportunitiesPage() {
                 onCommit={commitOps}
                 onSeeResult={clearFilters}
               />
+              {/* Không mở một phiếu trắng: nó mở một ô chọn lead trước, rồi giao
+                  cho ĐÚNG `ConvertDialog` mà hồ sơ lead vẫn dùng — đơn vẫn sinh
+                  ra từ một lead, chỉ khác chỗ đứng để bắt đầu. */}
+              <Button size="md" onClick={() => setCreating(true)} className="max-sm:flex-1">
+                <Icon icon={Plus} size={16} />
+                Tạo cơ hội
+              </Button>
             </>
           }
-        />
-
-        <ScoreCards />
-
-        {/* One list card, the lead book's shape. No `overflow-hidden`: the
-            filter popover must hang past the card's edge. Tables always sit on
-            glass-b — law 8. */}
-        <GlassCard variant="b" aria-label="Sổ cơ hội">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              <SegmentedControl
-                label="Trạng thái đơn"
-                hideLabel
-                tone="quiet"
-                value={query.state ?? ANY}
-                options={tabs}
-                onChange={(value) =>
-                  patch({ state: value === ANY ? undefined : (value as OpportunityState) })
-                }
-              />
-              <span className="text-muted-foreground text-[11.5px]">
-                {/* `total` của MÁY CHỦ, không phải `rows.length`: một trang mười
-                    dòng không biết sổ có bao nhiêu dòng khớp bộ lọc. */}
-                <span className="tnum text-foreground font-semibold">{total}</span> cơ hội
-                {/* Luật 7 — con số này cũng do máy chủ đếm, vì màn không đếm
-                    được thứ nó không nhận. Chỉ hiện khi thật sự có dòng bị cắt. */}
-                {hidden > 0 && (
-                  <>
-                    {' · '}
-                    <span className="text-warning">
-                      <span className="tnum">{hidden}</span> bị ẩn theo quyền của bạn
-                    </span>
-                  </>
-                )}
-              </span>
-            </div>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          score={<ScoreCards />}
+          tabs={
+            <SegmentedControl
+              label="Trạng thái đơn"
+              hideLabel
+              tone="quiet"
+              value={query.state ?? ANY}
+              options={tabs}
+              onChange={(value) =>
+                patch({ state: value === ANY ? undefined : (value as OpportunityState) })
+              }
+            />
+          }
+          count={<BookCount total={total} noun="cơ hội" hidden={hidden} />}
+          tools={
+            <>
               <SearchField
                 placeholder="Tìm theo tên cơ hội, mã hoặc account…"
                 value={text}
@@ -525,120 +607,110 @@ export function OpportunitiesPage() {
                   </Button>
                 )}
               </FilterMenu>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            {isPending ? (
-              /* `h-14` là ĐÚNG chiều cao dòng `DataTable` vẽ ở đây. Lệch một
-                 bậc là mỗi dòng nhảy 8px đúng lúc dữ liệu về — một cú giật mà
-                 người dùng đọc thành "màn vẽ lại", không phải "dữ liệu đã tới". */
-              <div className="flex flex-col gap-3 p-5">
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-              </div>
-            ) : bookError ? (
-              /* Hỏi không được thì nói là hỏi không được. Nút mời THỬ LẠI chứ
-                 không mời bỏ bộ lọc: bộ lọc không phải thứ đang hỏng, và một nút
-                 sửa nhầm chỗ tốn của người dùng nhiều thời gian hơn là không có
-                 nút nào. `userMessage` trả câu máy chủ tự viết khi có, nên "mất
-                 mạng" và "phiên hết hạn" đọc ra khác nhau. */
-              <EmptyState
-                icon={TriangleAlert}
-                message={`Không lấy được sổ cơ hội. ${
-                  isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetchBook() }}
-                className="py-12"
-              />
-            ) : rows.length === 0 ? (
-              /* Hai câu khác nhau, và `dirty` là thứ phân biệt chúng — không
-                 phải một phép đếm sổ. Màn nay chỉ cầm một trang, nên "sổ rỗng"
-                 là thứ nó không tự kiểm được; nhưng "chưa ai chạm vào bộ lọc mà
-                 trang đầu vẫn trống" thì đúng bằng câu đó. */
-              <EmptyState
-                icon={Inbox}
-                message={
-                  dirty
+            </>
+          }
+          pending={isPending}
+          failure={
+            bookError
+              ? {
+                  message: `Không lấy được sổ cơ hội. ${
+                    isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetchBook(),
+                }
+              : undefined
+          }
+          empty={
+            rows.length === 0
+              ? {
+                  /* Hai câu khác nhau, và `dirty` là thứ phân biệt chúng — không
+                     phải một phép đếm sổ: màn chỉ cầm một trang, nên "sổ rỗng" là
+                     thứ nó không tự kiểm được. */
+                  message: dirty
                     ? 'Không có cơ hội nào khớp bộ lọc đang chọn.'
-                    : 'Sổ cơ hội chưa có đơn nào. Đổi một lead thành cơ hội từ hồ sơ lead.'
-                }
-                action={
-                  dirty
+                    : 'Sổ cơ hội chưa có đơn nào. Đổi một lead thành cơ hội từ hồ sơ lead.',
+                  action: dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
-                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') }
+                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
                 }
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                flush
-                rowHeight="h-14"
-                className={TABLE_MIN_WIDTH}
-                sort={tableSort}
-                onSort={(key) => {
-                  /* Bốn cột có `sortKey` bên dưới đều là khoá máy chủ nhận. Khoá
-                     nào không nằm trong `OpportunitySortKey` sẽ chết ở cổng zod
-                     của máy chủ, nên chặn ngay ở đây thay vì gửi đi một 400 —
-                     cùng nước đi sổ lead làm với `LeadSortKey`. */
-                  const parsed = OpportunitySortKey.safeParse(key)
-                  if (!parsed.success) return
-                  patch(
-                    query.sort === parsed.data
-                      ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                      : { sort: parsed.data, dir: 'asc' },
-                  )
-                }}
-                columns={[
-                  /* `Mã` và `State` không có `sortKey`: máy chủ không nhận hai
-                     khoá đó (`OpportunitySortKey`), và một mũi tên bấm được mà
-                     không sắp được gì là một lời hứa suông. */
-                  { header: 'Mã', width: '0.85fr' },
-                  { header: 'Ops name', width: '2fr', sortKey: 'name' },
-                  { header: 'Account', width: '1.4fr', sortKey: 'account' },
-                  { header: 'Amount', width: '1fr', align: 'right', sortKey: 'amount' },
-                  { header: 'Close date', width: '0.9fr', sortKey: 'expectedClose' },
-                  /* 1.5fr, not the 1.2fr it was: this cell now stacks two
-                     things, a badge over a flow bar. Five segments in a narrow
-                     cell shrink into five ticks that no longer read as a
-                     position, and the longest badge truncates. The extra width
-                     comes out of the `fr` grid itself, so `TABLE_MIN_WIDTH`
-                     stays where it is. */
-                  { header: 'State', width: '1.5fr' },
-                  { header: 'Sale owner', width: '1.3fr' },
-                  { header: 'BD owner', width: '1.3fr' },
-                ]}
-                rows={rows.map((o) => ({
-                  id: o.code,
-                  onOpen: () => open(o.code),
-                  cells: [
-                    <Chip key="c">{o.code}</Chip>,
-                    <span key="n" className="block truncate" title={o.name}>
-                      {o.name}
-                    </span>,
-                    <span key="a" className="block truncate" title={o.account}>
-                      {o.account}
-                    </span>,
-                    <AmountCell key="m" op={o} />,
-                    <CloseCell key="d" op={o} />,
-                    <StateCell key="s" op={o} />,
-                    <PersonCell
-                      key="so"
-                      value={firstName(saleOwnersOf(o))}
-                      missing={NO_SALE_TITLE}
-                    />,
-                    <PersonCell key="bo" value={firstName(bdOwnersOf(o))} missing={NO_BD_TITLE} />,
-                  ],
-                }))}
-              />
-            )}
-          </div>
-
-          {!isPending && !bookError && total > 0 && (
+              : undefined
+          }
+          table={{
+            minWidth: TABLE_MIN_WIDTH,
+            sort: tableSort,
+            onSort: (key) => {
+              /* Bốn cột có `sortKey` bên dưới đều là khoá máy chủ nhận. Khoá nào
+                 không nằm trong `OpportunitySortKey` sẽ chết ở cổng zod của máy
+                 chủ, nên chặn ngay ở đây thay vì gửi đi một 400. */
+              const parsed = OpportunitySortKey.safeParse(key)
+              if (!parsed.success) return
+              patch(
+                query.sort === parsed.data
+                  ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+                  : { sort: parsed.data, dir: 'asc' },
+              )
+            },
+            columns: [
+              {
+                header: (
+                  <Checkbox
+                    checked={allPageSelected}
+                    indeterminate={pageSelected > 0 && !allPageSelected}
+                    onChange={selectPage}
+                    label={<span className="sr-only">Chọn cả trang</span>}
+                    className="w-full justify-center gap-0 p-0"
+                  />
+                ),
+                width: '32px',
+              },
+              /* `Mã` và `Trạng thái` không có `sortKey`: máy chủ không nhận hai
+                 khoá đó (`OpportunitySortKey`), và một mũi tên bấm được mà
+                 không sắp được gì là một lời hứa suông. */
+              { header: 'Mã', width: '0.8fr' },
+              { header: 'Tên cơ hội', width: '2.3fr', sortKey: 'name' },
+              { header: 'Account', width: '1.6fr', sortKey: 'account' },
+              { header: 'Giá trị', width: '0.8fr', align: 'right', sortKey: 'amount' },
+              { header: 'Ngày chốt', width: '0.8fr', sortKey: 'expectedClose' },
+              /* 1.5fr, not the 1.2fr it was: this cell stacks a badge over a
+                 flow bar. Five segments in a narrow cell shrink into five ticks
+                 that no longer read as a position. */
+              { header: 'Trạng thái', width: '1.5fr' },
+              { header: 'Sale', width: '1fr' },
+              { header: 'BD', width: '1fr' },
+            ],
+            rows: rows.map((o) => ({
+              id: o.code,
+              state: selectedCodes.has(o.code) ? ('selected' as const) : undefined,
+              onOpen: () => open(o.code),
+              onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) =>
+                paintSelection(o.code, event),
+              cells: [
+                <SelectionCell
+                  key="select"
+                  checked={selectedCodes.has(o.code)}
+                  label={o.name}
+                  onPress={(event) => beginDrag(o.code, event)}
+                  onChange={(on) => suppressClick.current !== o.code && setCodeSelected(o.code, on)}
+                />,
+                <Chip key="c">{o.code}</Chip>,
+                <span key="n" className="block truncate" title={o.name}>
+                  {o.name}
+                </span>,
+                <span key="a" className="block truncate" title={o.account}>
+                  {o.account}
+                </span>,
+                <AmountCell key="m" op={o} />,
+                <CloseCell key="d" op={o} />,
+                <StateCell key="s" op={o} />,
+                <PersonCell key="so" value={firstName(saleOwnersOf(o))} missing={NO_SALE_TITLE} />,
+                <PersonCell key="bo" value={firstName(bdOwnersOf(o))} missing={NO_BD_TITLE} />,
+              ],
+            })),
+          }}
+          footer={
             <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
-          )}
-        </GlassCard>
+          }
+        />
 
         {/* Written, then STRAIGHT to the new deal's profile rather than back to
             the book. Staying leaves the user in front of a table whose filters
@@ -650,6 +722,28 @@ export function OpportunitiesPage() {
           onClose={() => setCreating(false)}
           onCreated={(row) => open(row.code)}
         />
+
+        {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
+        <MasMailModal
+          open={composing}
+          onClose={() => setComposing(false)}
+          leads={recipients}
+          initialLeadCodes={selectedLeadCodes}
+          defaultLabel="Gửi email · Sổ cơ hội"
+          onQueued={() => {
+            setComposing(false)
+            clearSelection()
+          }}
+        />
+        {selectedCodes.size > 0 && (
+          <BookSelectionBar
+            count={selectedCodes.size}
+            noun="cơ hội"
+            meta={`${selectedEmailCount} địa chỉ email`}
+            onClear={clearSelection}
+            onSend={() => setComposing(true)}
+          />
+        )}
       </ScreenLayout>
     </AppShell>
   )
@@ -724,12 +818,17 @@ function ScoreCards() {
       icon: Target,
       label: 'Tổng số cơ hội',
       value: String(total),
+      /* An empty book is worth flagging — same warning threshold as the
+         open-pipeline and win-rate cards below. The lost-rate card never gets
+         this tone: zero lost deals is good news, not something to warn about. */
+      tone: total === 0 ? 'warning' : 'default',
       context: 'đơn đang có trong sổ',
     },
     {
       icon: Wallet,
       label: 'Đang mở',
       value: billions(openAmount),
+      tone: openAmount === 0 ? 'warning' : 'default',
       /* Máy chủ cộng bằng ĐỒNG và bỏ qua đơn chưa có tiền — rồi báo lại số đơn
          đã bỏ, vì cộng `null` thành 0 là nói dối về một con số chưa ai moi
          được, còn im lặng bỏ đi thì pipeline đọc ra nhỏ hơn thật mà không có gì
@@ -743,6 +842,7 @@ function ScoreCards() {
       icon: FileCheck,
       label: 'Close won',
       value: per(won),
+      tone: total > 0 && won === 0 ? 'warning' : 'default',
       context: `${won} đơn đã ký trên ${total} cơ hội`,
     },
     {

@@ -1,22 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Factory, Inbox, TriangleAlert } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Badge,
   Button,
   Chip,
-  DataTable,
-  EmptyState,
-  GlassCard,
+  Factory,
   Icon,
-  ScreenHeader,
   ScreenLayout,
-  ScreenToolbar,
   SearchField,
   Select,
-  Skeleton,
   billions,
   type TableSort,
 } from '@pv/ui'
@@ -32,7 +25,8 @@ import {
   DEFAULT_ACCOUNT_BOOK_QUERY,
   parseAccountBookQuery,
 } from '@/data/accounts'
-import { Pager } from '@/components/table-bits'
+import { BookCount, BookPage } from '@/components/book-page'
+import { FilterMenu, TableFooter } from '@/components/table-bits'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
 
 /** The customer company book — `/sales/accounts`.
@@ -93,35 +87,42 @@ export default function AccountsPage() {
     const merged = { ...query, ...next, page: next.page ?? 1 }
     setParams(new URLSearchParams(accountBookQueryToParams(merged)), { replace: true })
   }
+  const clearAll = () => setParams(new URLSearchParams(), { replace: true })
 
   const { data, isPending, error, refetch } = useQuery(accountBookQuery(query))
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
   const pageIndex = pageIndexFromQueryPage(query.page)
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const dirty =
     query.q !== undefined ||
     query.province !== undefined ||
     query.category !== undefined ||
     query.customer !== undefined
+  /* Only the axes the popover holds — the search box is in plain sight, so
+     counting it would print a badge for a filter the reader can already see. */
+  const activeFilters = [query.province, query.category, query.customer].filter(
+    (v) => v !== undefined,
+  ).length
 
   const tableSort: TableSort = { key: query.sort, dir: query.dir }
+
+  const onSort = (key: string) => {
+    const parsed = AccountSortKey.safeParse(key)
+    if (!parsed.success) return
+    patch(
+      query.sort === parsed.data
+        ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+        : { sort: parsed.data, dir: 'asc' },
+    )
+  }
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          kicker="Kinh doanh · Khách hàng"
-          title="Sổ công ty khách"
-          description="Mỗi dòng là MỘT công ty, không phải một lần hỏi hàng. Bốn cột số bên phải nói công ty đó đã đi tới đâu."
-          meta={
-            <Badge tone="draft">
-              {total} công ty
-              {dirty ? ' khớp bộ lọc' : ''}
-            </Badge>
-          }
+        <BookPage
+          title="Sổ công ty"
           actions={
             canWrite ? (
               <Button size="md" onClick={() => setCreating(true)}>
@@ -130,169 +131,146 @@ export default function AccountsPage() {
               </Button>
             ) : undefined
           }
-        />
-
-        <ScreenToolbar label="Lọc sổ công ty">
-          <SearchField
-            placeholder="Tên, tên trên giấy tờ, mã số thuế"
-            value={query.q ?? ''}
-            onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
-          />
-          <Select
-            label="Tỉnh/thành"
-            value={query.province ?? ''}
-            neutralValue=""
-            onChange={(v) => patch({ province: v === '' ? undefined : v })}
-            options={[
-              { value: '', label: 'Mọi tỉnh/thành' },
-              /* The province list is built from the CURRENT PAGE being
-                 viewed, not from a province table. That is a real limit and
-                 it is spelled out in the label: filtering by province can
-                 only pick provinces present on this page. A select with all
-                 63 provinces needs its own facet door, and nobody has asked
-                 for that yet. */
-              ...[...new Set(rows.map((r) => r.province).filter((p) => p !== undefined))].map(
-                (p) => ({ value: p, label: p }),
-              ),
-            ]}
-          />
-          <Select
-            label="Ngành"
-            value={query.category ?? ''}
-            neutralValue=""
-            onChange={(v) =>
-              patch({ category: v === '' ? undefined : (v as AccountBookQuery['category']) })
-            }
-            options={[
-              { value: '', label: 'Mọi ngành' },
-              ...LeadCategory.options.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
-            ]}
-          />
-          <Select
-            label="Đã mua chưa"
-            value={query.customer === undefined ? '' : String(query.customer)}
-            neutralValue=""
-            onChange={(v) => patch({ customer: v === '' ? undefined : (Number(v) as 0 | 1) })}
-            options={CUSTOMER_OPTIONS}
-          />
-        </ScreenToolbar>
-
-        <GlassCard variant="b" className="p-0">
-          <div className="overflow-x-auto p-4 lg:p-5">
-            {isPending ? (
-              <div className="flex flex-col gap-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ) : error ? (
-              <EmptyState
-                icon={TriangleAlert}
-                message={`Không lấy được sổ công ty. ${
-                  isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetch() }}
-                className="py-12"
+          count={<BookCount total={total} noun="công ty" />}
+          tools={
+            <>
+              <SearchField
+                placeholder="Tên, tên trên giấy tờ, mã số thuế"
+                value={query.q ?? ''}
+                onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                message={
-                  dirty
+              <FilterMenu label="Bộ lọc sổ công ty" active={activeFilters}>
+                <Select
+                  label="Tỉnh/thành"
+                  value={query.province ?? ''}
+                  neutralValue=""
+                  onChange={(v) => patch({ province: v === '' ? undefined : v })}
+                  /* A native select grows to its longest option and would burst
+                     the popover — clamp it to the panel. */
+                  className="w-full max-w-none"
+                  options={[
+                    { value: '', label: 'Mọi tỉnh/thành' },
+                    /* The province list is built from the CURRENT PAGE being
+                       viewed, not from a province table. That is a real limit and
+                       it is spelled out in the label: filtering by province can
+                       only pick provinces present on this page. A select with all
+                       63 provinces needs its own facet door, and nobody has asked
+                       for that yet. */
+                    ...[...new Set(rows.map((r) => r.province).filter((p) => p !== undefined))].map(
+                      (p) => ({ value: p, label: p }),
+                    ),
+                  ]}
+                />
+                <Select
+                  label="Ngành"
+                  value={query.category ?? ''}
+                  neutralValue=""
+                  onChange={(v) =>
+                    patch({ category: v === '' ? undefined : (v as AccountBookQuery['category']) })
+                  }
+                  className="w-full max-w-none"
+                  options={[
+                    { value: '', label: 'Mọi ngành' },
+                    ...LeadCategory.options.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
+                  ]}
+                />
+                <Select
+                  label="Đã mua chưa"
+                  value={query.customer === undefined ? '' : String(query.customer)}
+                  neutralValue=""
+                  onChange={(v) => patch({ customer: v === '' ? undefined : (Number(v) as 0 | 1) })}
+                  className="w-full max-w-none"
+                  options={CUSTOMER_OPTIONS}
+                />
+                {dirty && (
+                  <Button size="md" variant="ghost" onClick={clearAll}>
+                    Bỏ hết bộ lọc
+                  </Button>
+                )}
+              </FilterMenu>
+            </>
+          }
+          pending={isPending}
+          failure={
+            error
+              ? {
+                  message: `Không lấy được sổ công ty. ${
+                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetch(),
+                }
+              : undefined
+          }
+          empty={
+            rows.length === 0
+              ? {
+                  message: dirty
                     ? 'Không có công ty nào khớp bộ lọc đang chọn.'
-                    : 'Sổ công ty chưa có dòng nào. Mỗi lead vào sổ tự mở hoặc nối vào một công ty, nên sổ này thường không rỗng lâu.'
+                    : 'Sổ công ty chưa có dòng nào. Mỗi lead vào sổ tự mở hoặc nối vào một công ty, nên sổ này thường không rỗng lâu.',
+                  action: dirty
+                    ? { label: 'Bỏ hết bộ lọc', onClick: clearAll }
+                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
                 }
-                action={
-                  dirty
-                    ? {
-                        label: 'Bỏ hết bộ lọc',
-                        onClick: () =>
-                          setParams(new URLSearchParams(), {
-                            replace: true,
-                          }),
-                      }
-                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') }
-                }
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                className="min-w-[1100px]"
-                sort={tableSort}
-                onSort={(key) => {
-                  const parsed = AccountSortKey.safeParse(key)
-                  if (!parsed.success) return
-                  patch(
-                    query.sort === parsed.data
-                      ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                      : { sort: parsed.data, dir: 'asc' },
-                  )
-                }}
-                columns={[
-                  { header: 'Mã', width: '0.8fr' },
-                  { header: 'Công ty', width: '2.2fr', sortKey: 'name' },
-                  { header: 'MST', width: '1.1fr' },
-                  { header: 'Tỉnh/thành', width: '1fr', sortKey: 'province' },
-                  { header: 'Lead', width: '0.6fr', align: 'right', sortKey: 'leads' },
-                  { header: 'Đơn mở', width: '0.7fr', align: 'right', sortKey: 'openDeals' },
-                  { header: 'Đã ký', width: '0.7fr', align: 'right', sortKey: 'signedDeals' },
-                  {
-                    header: 'Doanh số',
-                    width: '1.1fr',
-                    align: 'right',
-                    sortKey: 'signedAmountVnd',
-                  },
-                ]}
-                rows={rows.map((a) => ({
-                  id: a.code,
-                  onOpen: () => navigate(`/sales/accounts/${a.code}`),
-                  cells: [
-                    <Chip key="c">{a.code}</Chip>,
-                    <span key="n" className="block truncate" title={a.legalName ?? a.name}>
-                      {a.name}
-                    </span>,
-                    <span key="t" className="tnum font-num block truncate">
-                      {a.taxCode ?? '—'}
-                    </span>,
-                    <span key="p" className="block truncate">
-                      {a.province ?? '—'}
-                    </span>,
-                    <span key="l" className="tnum font-num">
-                      {a.leads}
-                    </span>,
-                    <span key="o" className="tnum font-num">
-                      {a.openDeals}
-                    </span>,
-                    /* The signed count is what separates a CUSTOMER from a
-                       name: bold it, and only it. The other three number
-                       columns are context. */
-                    <span
-                      key="s"
-                      className={
-                        a.signedDeals > 0 ? 'tnum font-num font-semibold' : 'tnum font-num'
-                      }
-                    >
-                      {a.signedDeals}
-                    </span>,
-                    <span key="m" className="tnum font-num">
-                      {a.signedAmountVnd > 0 ? billions(a.signedAmountVnd) : '—'}
-                    </span>,
-                  ],
-                }))}
-              />
-            )}
-          </div>
-        </GlassCard>
-
-        {total > PAGE_SIZE && (
-          <div className="flex justify-end">
-            <Pager
+              : undefined
+          }
+          table={{
+            minWidth: 'min-w-[1100px]',
+            sort: tableSort,
+            onSort,
+            columns: [
+              { header: 'Mã', width: '0.8fr' },
+              { header: 'Công ty', width: '2.2fr', sortKey: 'name' },
+              { header: 'MST', width: '1.1fr' },
+              { header: 'Tỉnh/thành', width: '1fr', sortKey: 'province' },
+              { header: 'Lead', width: '0.6fr', align: 'right', sortKey: 'leads' },
+              { header: 'Đơn mở', width: '0.7fr', align: 'right', sortKey: 'openDeals' },
+              { header: 'Đã ký', width: '0.7fr', align: 'right', sortKey: 'signedDeals' },
+              { header: 'Doanh số', width: '1.1fr', align: 'right', sortKey: 'signedAmountVnd' },
+            ],
+            rows: rows.map((a) => ({
+              id: a.code,
+              onOpen: () => navigate(`/sales/accounts/${a.code}`),
+              cells: [
+                <Chip key="c">{a.code}</Chip>,
+                <span key="n" className="block truncate" title={a.legalName ?? a.name}>
+                  {a.name}
+                </span>,
+                <span key="t" className="tnum font-num block truncate">
+                  {a.taxCode ?? '—'}
+                </span>,
+                <span key="p" className="block truncate">
+                  {a.province ?? '—'}
+                </span>,
+                <span key="l" className="tnum font-num">
+                  {a.leads}
+                </span>,
+                <span key="o" className="tnum font-num">
+                  {a.openDeals}
+                </span>,
+                /* The signed count is what separates a CUSTOMER from a name:
+                   bold it, and only it. The other three are context. */
+                <span
+                  key="s"
+                  className={a.signedDeals > 0 ? 'tnum font-num font-semibold' : 'tnum font-num'}
+                >
+                  {a.signedDeals}
+                </span>,
+                <span key="m" className="tnum font-num">
+                  {a.signedAmountVnd > 0 ? billions(a.signedAmountVnd) : '—'}
+                </span>,
+              ],
+            })),
+          }}
+          footer={
+            <TableFooter
               page={pageIndex}
-              pageCount={pageCount}
+              pageSize={PAGE_SIZE}
+              total={total}
               onPage={(p) => patch({ page: queryPageFromPageIndex(p) })}
             />
-          </div>
-        )}
+          }
+        />
 
         <AccountCreateDialog
           open={creating}

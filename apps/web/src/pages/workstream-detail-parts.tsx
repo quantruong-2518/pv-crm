@@ -149,6 +149,19 @@ function EndCap({ tone, label, sub }: { tone: EndCapTone; label: string; sub: st
   )
 }
 
+/** Only the rungs a lane has something to say about — an `upcoming` rung is
+ *  empty by construction (no `at`, no `by`), and a fresh deal one column into
+ *  a five-column ladder used to trail four empty boxes behind it. At least one
+ *  rung always shows, even the one lane that has reached none yet (a lead with
+ *  no tier). */
+function reachedSteps(steps: WorkstreamStep[]): WorkstreamStep[] {
+  let cut = 0
+  steps.forEach((s, i) => {
+    if (s.state !== 'upcoming') cut = i + 1
+  })
+  return steps.slice(0, Math.max(cut, 1))
+}
+
 /** The track scrolls inside itself so a narrow screen never scrolls the page
  *  sideways. A connector is lit when the step it leads INTO was reached. */
 function StepTrack({
@@ -162,12 +175,13 @@ function StepTrack({
   onSelect: (ref: StepRef) => void
   endCap: ReactNode
 }) {
+  const steps = reachedSteps(lane.steps)
   return (
     <div className="overflow-x-auto">
       <div className="flex w-max min-w-full items-stretch gap-4">
         <ol className="m-0 flex list-none p-0">
-          {lane.steps.map((step, i) => {
-            const next = lane.steps[i + 1]
+          {steps.map((step, i) => {
+            const next = steps[i + 1]
             const isSelected = selected?.lane === lane.code && selected.step === step.key
             const tinted = isSelected || (step.state === 'current' && lane.open)
             return (

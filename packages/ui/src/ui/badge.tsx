@@ -14,7 +14,7 @@ const badgeVariants = cva(
         warning: 'bg-warning/20 text-on-tint-warning',
         success: 'bg-success/20 text-on-tint-success',
         running: 'bg-primary/24 text-accent-foreground',
-        danger: 'bg-destructive/24 text-destructive-foreground',
+        danger: 'bg-destructive/20 text-on-tint-destructive',
       },
     },
     defaultVariants: { tone: 'draft' },

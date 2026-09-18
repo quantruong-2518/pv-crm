@@ -142,19 +142,17 @@ export const FACET_SIZE = 200
 
 /** CHẮP VÁ — không phải một giải pháp. Đọc hết trước khi dùng lại kiểu này.
  *
- *  KHÔNG còn nuôi ô lọc nào nữa (29/08, đợt bỏ ô lọc "Lead PIC"/"Account" —
- *  hai ô đó gỡ hẳn khỏi màn, không phải sửa: chọn một owner/account từ 200
- *  dòng đầu của sổ không phải là filter "thật", nó là filter trúng-trật tuỳ
- *  owner/account đó có nằm trong 200 dòng may mắn được kéo về hay không).
+ *  KHÔNG còn nuôi ô lọc nào nữa (29/08 — chọn owner/account từ 200 dòng đầu
+ *  không phải filter thật, nó là trúng-trật tuỳ owner/account đó có lọt vào
+ *  200 dòng may mắn được kéo về hay không).
  *
- *  Lượt gọi này vẫn còn việc: dải "Ghim của tôi" (ghim trỏ vào mã ở bất kỳ
- *  trang nào) và khoá chống trùng của panel nạp tệp — cả hai cần CẢ SỔ, không
- *  phải một trang mười dòng, và chưa có endpoint nào trả lời đúng câu đó cho
- *  chúng. Vẫn gãy ở lead thứ 201, chỉ là gãy chậm hơn hai ô lọc đã bỏ vì hai
- *  chỗ này ít khi chạm tới lead cũ. Cách sửa THẬT: một endpoint tra theo mã
- *  (`GET /sales/leads/:code`, xem docblock đầu file) cho ghim, và bộ kiểm
- *  trùng đã có sẵn ở máy chủ (`POST /sales/leads/import/preview`) cho panel
- *  nạp — cả hai không phải việc của đợt sửa ô lọc này. */
+ *  Ba việc còn sống nhờ lượt gọi này, cả ba cần CẢ SỔ chứ không phải một
+ *  trang mười dòng: "Ghim của tôi", khoá chống trùng của panel nạp tệp, và
+ *  (18/09) `pages/opportunities.tsx` ghép `leadCode` sang đây lấy hòm thư cho
+ *  mail hàng loạt vì `OpportunityRow` không tự mang hòm thư. Vẫn gãy ở lead
+ *  thứ 201 — với sổ cơ hội, gãy nghĩa là một cơ hội lặng lẽ rơi khỏi danh
+ *  sách nhận mail, không báo lỗi gì. Cách sửa THẬT: một endpoint tra theo mã
+ *  (`GET /sales/leads/:code`) cho ghim và cho mail — ngoài phạm vi đợt này. */
 export const leadFacetQuery = queryOptions({
   queryKey: ['sales', 'lead-book', 'facets'] as const,
   queryFn: ({ signal }) =>

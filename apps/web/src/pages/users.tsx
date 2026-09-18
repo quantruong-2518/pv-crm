@@ -1,22 +1,13 @@
 import { useMemo, useState } from 'react'
-import { Inbox, TriangleAlert, UserPlus } from '@pv/ui'
+import { UserPlus } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AppShell,
-  Button,
-  DataTable,
-  EmptyState,
-  GlassCard,
-  Icon,
-  ScreenHeader,
-  ScreenLayout,
-  Skeleton,
-} from '@pv/ui'
+import { AppShell, Button, Icon, ScreenLayout } from '@pv/ui'
 import type { UserRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useSession } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { scopeLabel, tallyLine, userTally, usersQuery } from '@/data/users'
+import { BookPage } from '@/components/book-page'
 import { UserDrawer, UserNameCell, UserRoleCell, UserStatusCell } from './users-parts'
 
 /** One Core · Quản trị · Người dùng — where accounts are opened, roles are
@@ -132,110 +123,84 @@ export function UsersPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          /* Mục nav đọc là "Quản trị", màn đọc là "Người dùng" — đây là mục
-             duy nhất trong app mà hai chữ đó khác nhau, nên kicker là chỗ nối
-             chúng lại. Nó cũng để sẵn chỗ cho màn ghi vết mọc thêm dưới cùng
-             một mục mà không phải đổi nhãn nav lần nữa. */
-          kicker="One Core · Quản trị"
+        <BookPage
           title="Người dùng"
-          /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
-             số không đều bề rộng làm cả dòng nhảy ngang sau mỗi lần refetch. */
-          description={<span className="tnum">{summary}</span>}
           actions={
             <Button size="md" onClick={openCreate} className="max-sm:flex-1">
               <Icon icon={UserPlus} size={16} />
               Thêm người
             </Button>
           }
+          /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
+             số không đều bề rộng làm cả dòng nhảy ngang sau mỗi lần refetch. */
+          count={<span className="text-muted-foreground tnum text-[11.5px]">{summary}</span>}
+          pending={isPending}
+          failure={
+            error
+              ? {
+                  /* Ask again — do not offer to open an account. The book is not
+                     what is broken, and a button that fixes the wrong thing costs
+                     the user more than no button at all. `userMessage` prints the
+                     server's own sentence when it wrote one, so "mất mạng" and
+                     "phiên hết hạn" read differently. */
+                  message: `Không lấy được sổ tài khoản. ${
+                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetch(),
+                }
+              : undefined
+          }
+          empty={
+            rows.length === 0
+              ? {
+                  message:
+                    'Sổ tài khoản đang trống. Mở tài khoản đầu tiên cho người trong phòng — họ tự đặt mật khẩu qua thư mời.',
+                  action: { label: 'Thêm người', onClick: openCreate },
+                }
+              : undefined
+          }
+          table={{
+            minWidth: TABLE_MIN_WIDTH,
+            columns: [
+              { header: 'Người', width: '1.4fr' },
+              { header: 'Email', width: '1.7fr' },
+              { header: 'Vai', width: '1.5fr' },
+              { header: 'Nhánh', width: '1.2fr' },
+              { header: 'Phạm vi', width: '124px' },
+              { header: 'Trạng thái', width: '168px' },
+            ],
+            rows: rows.map((user) => ({
+              id: user.id,
+              /* Whole row opens the panel — the house pattern for both
+                 sales books. The sketch drew a `⋯` menu per row instead;
+                 `@pv/ui` has no menu, and adding one would be a new
+                 component with a kit page to match. A clickable row does
+                 the same job with what already exists, and the panel it
+                 opens holds every action the menu was going to list. */
+              onOpen: () => openEdit(user),
+              cells: [
+                <UserNameCell key="n" name={user.name} isMe={user.id === me?.id} />,
+                /* Mono, like every mailbox in the app: an address is read
+                   character by character when somebody is checking it
+                   against another system, and a proportional font makes
+                   `rn` and `m` the same shape. */
+                <span key="e" className="block truncate font-mono text-[11px]" title={user.email}>
+                  {user.email}
+                </span>,
+                <UserRoleCell key="r" label={user.role} roleId={user.roleId} />,
+                /* Branch names stay English — luật 14 fixes them as product
+                   names, so there is nothing here to translate. */
+                <span key="b" className="block truncate" title={user.branches.join(' · ')}>
+                  {user.branches.join(' · ')}
+                </span>,
+                <span key="s" className="block truncate">
+                  {scopeLabel(user.ownOnly)}
+                </span>,
+                <UserStatusCell key="t" user={user} />,
+              ],
+            })),
+          }}
         />
-
-        {/* Bảng LUÔN nằm trên glass-b — luật 8. No count strip above it the way
-            the lead book has one: the header directly above already carries the
-            tally, and a second copy of the same number is a second thing to
-            keep true. */}
-        <GlassCard variant="b" className="overflow-hidden">
-          <div className="overflow-x-auto p-4 lg:p-5">
-            {isPending ? (
-              <div className="flex flex-col gap-3">
-                {/* `height`, not `h-12`: `Skeleton` writes its height into an
-                    inline `style`, which beats the class — so `h-12` renders an
-                    11px bar standing in for a 48px row. `leads.tsx` and
-                    `opportunities.tsx` both carry that bug; this screen does not copy it. */}
-                <Skeleton height={48} className="w-full" />
-                <Skeleton height={48} className="w-full" />
-                <Skeleton height={48} className="w-full" />
-              </div>
-            ) : error ? (
-              /* Ask again — do not offer to open an account. The book is not
-                 what is broken, and a button that fixes the wrong thing costs
-                 the user more than no button at all. `userMessage` prints the
-                 server's own sentence when it wrote one, so "mất mạng" and
-                 "phiên hết hạn" read differently. */
-              <EmptyState
-                icon={TriangleAlert}
-                message={`Không lấy được sổ tài khoản. ${
-                  isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetch() }}
-                className="py-12"
-              />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                message="Sổ tài khoản đang trống. Mở tài khoản đầu tiên cho người trong phòng — họ tự đặt mật khẩu qua thư mời."
-                action={{ label: 'Thêm người', onClick: openCreate }}
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                className={TABLE_MIN_WIDTH}
-                columns={[
-                  { header: 'Người', width: '1.4fr' },
-                  { header: 'Email', width: '1.7fr' },
-                  { header: 'Vai', width: '1.5fr' },
-                  { header: 'Nhánh', width: '1.2fr' },
-                  { header: 'Phạm vi', width: '124px' },
-                  { header: 'Trạng thái', width: '168px' },
-                ]}
-                rows={rows.map((user) => ({
-                  id: user.id,
-                  /* Whole row opens the panel — the house pattern for both
-                     sales books. The sketch drew a `⋯` menu per row instead;
-                     `@pv/ui` has no menu, and adding one would be a new
-                     component with a kit page to match. A clickable row does
-                     the same job with what already exists, and the panel it
-                     opens holds every action the menu was going to list. */
-                  onOpen: () => openEdit(user),
-                  cells: [
-                    <UserNameCell key="n" name={user.name} isMe={user.id === me?.id} />,
-                    /* Mono, like every mailbox in the app: an address is read
-                       character by character when somebody is checking it
-                       against another system, and a proportional font makes
-                       `rn` and `m` the same shape. */
-                    <span
-                      key="e"
-                      className="block truncate font-mono text-[11px]"
-                      title={user.email}
-                    >
-                      {user.email}
-                    </span>,
-                    <UserRoleCell key="r" label={user.role} roleId={user.roleId} />,
-                    /* Branch names stay English — luật 14 fixes them as product
-                       names, so there is nothing here to translate. */
-                    <span key="b" className="block truncate" title={user.branches.join(' · ')}>
-                      {user.branches.join(' · ')}
-                    </span>,
-                    <span key="s" className="block truncate">
-                      {scopeLabel(user.ownOnly)}
-                    </span>,
-                    <UserStatusCell key="t" user={user} />,
-                  ],
-                }))}
-              />
-            )}
-          </div>
-        </GlassCard>
 
         {/* One panel, both jobs. `editing === null` is "thêm người"; a row is
             "sửa <tên>". Two panels would be two copies of one form, and the

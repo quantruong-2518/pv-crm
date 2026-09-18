@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleCheck, Download, FileUp, TriangleAlert, Upload } from '@pv/ui'
+import { useState } from 'react'
+import { CircleCheck, Download, FileSpreadsheet, TriangleAlert, Upload } from '@pv/ui'
 import {
   Badge,
   Button,
+  Chip,
   Drawer,
   FileDrop,
   GlassCard,
@@ -10,13 +11,16 @@ import {
   Kicker,
   Progress,
   SectionTitle,
+  SegmentedControl,
   Select,
+  Stepper,
   cn,
 } from '@pv/ui'
 import { MOTION_BY_INTAKE, type LeadMotion } from '@pv/engines'
 import {
   ACCEPT,
   MAX_BYTES,
+  detectMojibakeColumn,
   downloadCsv,
   readSheet,
   sheetFromPaste,
@@ -33,11 +37,17 @@ import {
   unmappedRequired,
   type BuiltRow,
   type ColumnMapping,
-  type DupRow,
+  type ImportField,
   type ImportReport,
   type ImportSpec,
-  type RowError,
 } from '@/data/intake'
+import {
+  DoneRows,
+  DroppedRows,
+  FailedRows,
+  Tally,
+  WindowDropCatcher,
+} from '@/components/import-zone-bits'
 
 /** Luồng nạp tệp — MỘT component cho cả ba sổ.
  *
@@ -45,21 +55,20 @@ import {
  *  MỘT DÒNG TRÊN MỖI MÀN
  *  ------------------------------------------------------------------
  *  `ImportZone` gói cả ba mảnh của luồng: cái nút, tấm phủ khi kéo tệp vào màn,
- *  và panel ba bước. Màn chỉ phải viết đúng một thẻ. Bày ba mảnh ra cho từng
- *  màn tự lắp thì ba sổ sẽ lắp ba kiểu, và cái sai đầu tiên sẽ là màn quên tấm
- *  phủ — tức người dùng kéo tệp vào rồi ngồi nhìn trình duyệt mở tệp đè lên cả
- *  app.
+ *  và panel. Màn chỉ phải viết đúng một thẻ. Bày ba mảnh ra cho từng màn tự lắp
+ *  thì ba sổ sẽ lắp ba kiểu, và cái sai đầu tiên sẽ là màn quên tấm phủ — tức
+ *  người dùng kéo tệp vào rồi ngồi nhìn trình duyệt mở tệp đè lên cả app.
  *
  *  ------------------------------------------------------------------
- *  BA BƯỚC, VÀ VÌ SAO ĐÚNG BA
+ *  HAI BƯỚC TRÊN `Stepper`, BỐN TRẠNG THÁI BÊN TRONG
  *  ------------------------------------------------------------------
- *   1 · **Chọn tệp** — sáu đường vào của `FileDrop`.
- *   2 · **Khớp cột** — chỗ NGƯỜI phải nhìn. Đây là bước không bỏ được: hệ đoán
- *       được phần lớn cột theo tên, nhưng đoán sai một cột là 400 số điện thoại
- *       chui vào ô mã số thuế, và không ai phát hiện cho tới lúc gọi khách.
- *       Xem trước ba dòng đầu là cách rẻ nhất để thấy chỗ đoán sai.
- *   3 · **Nạp** — thanh tiến độ THẬT (đếm theo dòng, nhường nhịp vẽ), rồi bảng
- *       kết quả bốn con số và tệp lỗi tải về được.
+ *   1 · **Chọn tệp** — sáu đường vào của `FileDrop`, cộng khối "Tệp cần có".
+ *   2 · **Khớp cột và nạp** — chỗ NGƯỜI phải nhìn, và là bước không bỏ được: hệ
+ *       đoán được phần lớn cột theo tên, nhưng đoán sai một cột là 400 số điện
+ *       thoại chui vào ô mã số thuế mà không ai biết cho tới lúc gọi khách.
+ *       Thanh tiến độ và bảng kết quả mọc THÊM dưới bảng khớp cột chứ không
+ *       thành bước thứ ba: nạp không phải một quyết định nữa của người dùng, nó
+ *       là cái đuôi của quyết định vừa bấm.
  *
  *  Panel KHÔNG tự đóng khi xong: bảng kết quả là thứ đáng đọc nhất của cả
  *  luồng, và đóng nó lại để bắn một cái toast là đổi một bảng bốn con số lấy
@@ -71,8 +80,8 @@ import {
  *  Bảng khớp cột đoán bằng so tên cột với một bảng bí danh CỐ ĐỊNH: cùng một
  *  tệp luôn ra cùng một bảng khớp, và mọi ô đều sửa được trước khi bấm. Đó là
  *  một phép tra, không phải một đề xuất của AI — nên nó không mang dòng
- *  "Căn cứ:" và không cần nút xác nhận riêng theo luật 9. Nút "Nạp" ở bước 3 là
- *  nút của NGƯỜI DÙNG, không phải nút gật cho máy. */
+ *  "Căn cứ:" và không cần nút xác nhận riêng theo luật 9. Nút "Nạp" ở chân panel
+ *  là nút của NGƯỜI DÙNG, không phải nút gật cho máy. */
 /** Những gì màn nhận được khi người dùng bấm nạp.
  *
  *  Kiểu riêng chứ không viết thẳng trong props, vì cả ba màn đều phải khai lại
@@ -131,6 +140,13 @@ export type ImportZoneProps = {
 
 type Phase = 'pick' | 'map' | 'run' | 'done'
 
+/** The two steps of the bar. `run` and `done` get NO step of their own — they
+ *  grow under the mapping table, so the bar stays on step 2 while loading. */
+const STEPS = [
+  { key: 'pick', label: 'Chọn tệp' },
+  { key: 'map', label: 'Khớp cột và nạp' },
+]
+
 /** Số dòng xem trước ở bước 2. Ba là đủ để thấy cột lệch mà chưa phải cuộn. */
 const PREVIEW = 3
 
@@ -169,6 +185,10 @@ export function ImportZone({
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(0)
   const [report, setReport] = useState<ImportReport>()
+  /** Optional fields shown in the mapping table with no column matched — the
+   *  match-more button was pressed, or the user touched that select. Once shown
+   *  they stay: a select vanishing on being set back to skip cannot be undone. */
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set())
 
   const reset = () => {
     setPhase('pick')
@@ -179,6 +199,7 @@ export function ImportZone({
     setBusy(false)
     setDone(0)
     setReport(undefined)
+    setRevealed(new Set())
   }
 
   const close = () => {
@@ -225,13 +246,6 @@ export function ImportZone({
   /** Nguồn thật của lô: cố định thắng chọn, chọn thắng bỏ trống. */
   const effectiveScope = scope ?? (picked === '' ? undefined : picked)
 
-  /* Tấm phủ chỉ nghe khi panel ĐÓNG. Panel mở rồi thì vùng thả nằm trong panel
-     lo phần đó, và hai chỗ cùng nghe một cú thả là một tệp bị nhận hai lần. */
-  const dragging = useWindowFileDrag(!open, (file) => {
-    setOpen(true)
-    void take(file)
-  })
-
   /** Chạy thật. */
   const run = async () => {
     if (!sheet) return
@@ -240,7 +254,7 @@ export function ImportZone({
 
     const built = await buildRows(sheet, mapping, spec, existingKeys, (n) => setDone(n))
 
-    /* Bước 3 đứng nguyên ở "Đang nạp" cho tới khi người ghi trả lời. Nhảy sang
+    /* Khối nạp đứng nguyên ở "Đang nạp" cho tới khi người ghi trả lời. Nhảy sang
        bảng kết quả trước đó là vẽ bốn con số chưa ai xác nhận, rồi sửa chúng
        dưới mắt người đang đọc. */
     let final: ImportReport = built
@@ -294,7 +308,16 @@ export function ImportZone({
         {buttonLabel ?? 'Nạp tệp'}
       </Button>
 
-      <DropOverlay active={dragging} label={spec.title} />
+      {/* Tấm phủ chỉ nghe khi panel ĐÓNG. Panel mở rồi thì vùng thả nằm trong
+          panel lo phần đó, và hai chỗ cùng nghe một cú thả là nhận hai lần. */}
+      <WindowDropCatcher
+        enabled={!open}
+        label={spec.title}
+        onFile={(file) => {
+          setOpen(true)
+          void take(file)
+        }}
+      />
 
       <Drawer
         open={open}
@@ -326,31 +349,52 @@ export function ImportZone({
         }
       >
         <div className="flex flex-col gap-6">
-          <StepPick
-            spec={spec}
-            phase={phase}
-            busy={busy}
-            error={error}
-            fileName={sheet?.fileName}
-            onPick={(f) => void take(f)}
-            onPasteText={takePaste}
+          <Stepper
+            steps={STEPS}
+            current={phase === 'pick' ? 0 : 1}
+            reached={sheet ? 1 : 0}
+            /* The bar is frozen while loading and after: stepping back mid-run
+               abandons a batch in flight, and once it is over the result table
+               is the thing to read. */
+            onGo={
+              phase === 'run' || phase === 'done'
+                ? undefined
+                : (i) => setPhase(i === 0 || !sheet ? 'pick' : 'map')
+            }
           />
 
-          {sheet && phase !== 'pick' && (
-            <StepMap
+          {phase === 'pick' ? (
+            <StepPick
               spec={spec}
-              sheet={sheet}
-              mapping={mapping}
-              onMap={(key, at) => setMapping((m) => ({ ...m, [key]: at }))}
-              motion={motion}
-              motions={motions}
-              onMotion={setMotion}
-              scope={scope}
-              scopeOptions={scope ? undefined : scopeOptions}
-              picked={picked}
-              onPick={setPicked}
-              locked={phase !== 'map'}
+              busy={busy}
+              error={error}
+              fileName={sheet?.fileName}
+              onPick={(f) => void take(f)}
+              onPasteText={takePaste}
             />
+          ) : (
+            sheet && (
+              <StepMap
+                spec={spec}
+                sheet={sheet}
+                mapping={mapping}
+                onMap={(key, at) => {
+                  setMapping((m) => ({ ...m, [key]: at }))
+                  setRevealed((keys) => new Set(keys).add(key))
+                }}
+                revealed={revealed}
+                onRevealAll={() => setRevealed(new Set(spec.fields.map((f) => f.key)))}
+                onChangeFile={() => setPhase('pick')}
+                motion={motion}
+                motions={motions}
+                onMotion={setMotion}
+                scope={scope}
+                scopeOptions={scope ? undefined : scopeOptions}
+                picked={picked}
+                onPick={setPicked}
+                locked={phase !== 'map'}
+              />
+            )
           )}
 
           {(phase === 'run' || phase === 'done') && sheet && (
@@ -375,7 +419,6 @@ export function ImportZone({
 
 function StepPick({
   spec,
-  phase,
   busy,
   error,
   fileName,
@@ -383,24 +426,17 @@ function StepPick({
   onPasteText,
 }: {
   spec: ImportSpec
-  phase: Phase
   busy: boolean
   error?: string
   fileName?: string
   onPick: (file: File) => void
   onPasteText: (text: string) => void
 }) {
-  const required = spec.fields.filter((f) => f.required).map((f) => f.label)
+  const required = spec.fields.filter((f) => f.required)
 
   return (
     <section className="flex flex-col gap-4">
-      <SectionTitle
-        size="lg"
-        kicker="Bước 1"
-        hint={`Cột bắt buộc: ${required.join(' · ')}. Cột khác thiếu thì bỏ qua, không chặn.`}
-      >
-        Chọn tệp
-      </SectionTitle>
+      <SectionTitle size="lg">Chọn tệp</SectionTitle>
 
       <FileDrop
         accept={ACCEPT}
@@ -409,20 +445,47 @@ function StepPick({
         error={error}
         fileName={fileName}
         onPick={onPick}
-        /* Đường dán chỉ mở ở bước 1: dán một bảng khác trong lúc đang khớp cột
-           sẽ vứt bảng khớp vừa sửa mà không hỏi gì. */
-        onPasteText={phase === 'pick' ? onPasteText : undefined}
-        hint={
-          <button
-            type="button"
-            onClick={() => downloadCsv(`${spec.sampleStem}.csv`, sampleRows(spec))}
-            className="motion-std text-accent-foreground inline-flex items-center gap-2 hover:brightness-125"
-          >
-            <Icon icon={Download} size={14} />
-            Tải tệp mẫu — một dòng tiêu đề, một dòng ví dụ
-          </button>
-        }
+        /* Đường dán chỉ mở ở bước 1 — nay là do chính khối này chỉ đứng ở bước
+           1: dán một bảng khác lúc đang khớp cột sẽ vứt bảng khớp vừa sửa. */
+        onPasteText={onPasteText}
       />
+
+      {/* The file's contract, read BEFORE going to look for the file. A block
+          and not a hint line: these are three different answers, and packing all
+          three into one grey 11px line is how none of them get read. Law 8. */}
+      <GlassCard variant="b" className="flex flex-col gap-3 p-4">
+        <Kicker>Tệp cần có</Kicker>
+        <dl className="grid gap-3 sm:grid-cols-[132px_1fr]">
+          <dt className="text-muted-foreground text-[11.5px]">Cột bắt buộc</dt>
+          <dd className="flex flex-wrap gap-2">
+            {/* `object`, not `source`: azure already belongs to the load button
+                in the footer (law 3), and three blue chips only dilute it. */}
+            {required.map((f) => (
+              <Chip key={f.key}>{f.label}</Chip>
+            ))}
+          </dd>
+
+          <dt className="text-muted-foreground text-[11.5px]">Cột khác</dt>
+          <dd className="text-glass-foreground text-[11.5px] leading-[1.7]">
+            Thiếu thì bỏ qua, không chặn việc nạp.
+          </dd>
+
+          <dt className="text-muted-foreground text-[11.5px]">Tệp mẫu</dt>
+          <dd className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => downloadCsv(`${spec.sampleStem}.csv`, sampleRows(spec))}
+              className="motion-std text-accent-foreground inline-flex items-center gap-2 text-[11.5px] hover:brightness-125"
+            >
+              <Icon icon={Download} size={14} />
+              Tải tệp mẫu
+            </button>
+            <span className="text-muted-foreground text-[11.5px]">
+              Một dòng tiêu đề, một dòng ví dụ
+            </span>
+          </dd>
+        </dl>
+      </GlassCard>
     </section>
   )
 }
@@ -434,11 +497,223 @@ function StepPick({
 /** Giá trị "bỏ qua cột này" của ô chọn. `<select>` gốc chỉ chở được chuỗi. */
 const SKIP = '-1'
 
+/** One line saying how many rows the batch-wide source actually touches.
+ *
+ *  The source column IN THE FILE wins over this pick (the server decides that),
+ *  so the number worth printing is how many rows leave that column EMPTY —
+ *  "which source" is a meaningless question for a file that carries its own. */
+function sourceNote(spec: ImportSpec, sheet: Sheet, mapping: ColumnMapping): string {
+  const n = sheet.rows.length
+  if (!spec.fields.some((f) => f.key === 'source')) return `Cả ${n} dòng lấy nguồn chọn ở đây.`
+
+  const at = mapping.source ?? -1
+  if (at < 0) return `Tệp chưa khớp cột Nguồn — cả ${n} dòng lấy nguồn chọn ở đây.`
+
+  const blank = sheet.rows.filter((r) => (r[at] ?? '').trim() === '').length
+  return blank === 0
+    ? `Cả ${n} dòng đã có nguồn sẵn trong tệp — lựa chọn này không dùng tới.`
+    : `${blank} trên ${n} dòng bỏ trống cột Nguồn, và sẽ lấy lựa chọn này.`
+}
+
+/** The file being mapped: name, row count, and the way back to step 1.
+ *
+ *  The multi-tab note sits here rather than after the load, because this is
+ *  while the user can still swap files — said afterwards the other tab has
+ *  already been dropped. Only spoken above ONE tab; CSV and paste have none. */
+function FileStrip({ sheet, onChangeFile }: { sheet: Sheet; onChangeFile: () => void }) {
+  const tabNote =
+    sheet.sheetCount && sheet.sheetCount > 1
+      ? ` · tệp có ${sheet.sheetCount} tab, đang đọc "${sheet.sheetName}"`
+      : ''
+
+  return (
+    <GlassCard variant="b" className="flex flex-wrap items-center gap-3 p-4">
+      <Icon icon={FileSpreadsheet} size={16} className="text-accent-foreground" />
+      <span className="text-[12.5px] font-semibold">{sheet.fileName}</span>
+      <span className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px]">
+        <span className="font-num tnum">{sheet.rows.length}</span> dòng dữ liệu{tabNote}
+      </span>
+      <Button size="md" variant="ghost" onClick={onChangeFile}>
+        Đổi tệp
+      </Button>
+    </GlassCard>
+  )
+}
+
+/** Warns that the file was saved in the wrong encoding. Never repairs it —
+ *  see `detectMojibakeColumn`. */
+function MojibakeNote({ column, sample }: { column: string; sample: string }) {
+  return (
+    <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
+      <Icon icon={TriangleAlert} size={18} className="text-warning" />
+      <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
+        Tệp lưu sai bảng mã — ví dụ cột &quot;{column}&quot; đang ra &quot;{sample}&quot;. Mọi cột
+        có dấu đều đang hỏng, không riêng cột này: lưu lại tệp dạng CSV UTF-8 rồi chọn lại, hoặc vẫn
+        nạp rồi sửa tay sau.
+      </p>
+    </GlassCard>
+  )
+}
+
+/** One group of mapping selects. Two groups and not one flat grid — see `StepMap`. */
+function FieldGrid({
+  title,
+  fields,
+  mapping,
+  columnOptions,
+  onMap,
+}: {
+  title: string
+  fields: ImportField[]
+  mapping: ColumnMapping
+  columnOptions: { value: string; label: string }[]
+  onMap: (key: string, at: number) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Kicker>{title}</Kicker>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {fields.map((field) => (
+          <Select
+            key={field.key}
+            label={field.required ? `${field.label} *` : field.label}
+            value={String(mapping[field.key] ?? -1)}
+            neutralValue={SKIP}
+            options={columnOptions}
+            onChange={(v) => onMap(field.key, Number(v))}
+            className="w-full"
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Fields the file has no column for — names only, no selects.
+ *
+ *  Ten selects all reading '— bỏ qua cột này —' are ten rows to check before
+ *  learning that none of them holds anything; one row of chips answers that at
+ *  a glance. 'Khớp thêm' hands the selects back to whoever knows better. */
+function SkippedFields({
+  fields,
+  onRevealAll,
+}: {
+  fields: ImportField[]
+  onRevealAll: () => void
+}) {
+  return (
+    <GlassCard variant="b" className="flex flex-wrap items-center gap-3 p-4">
+      <Kicker className="w-full">Không có cột tương ứng · bỏ qua</Kicker>
+      {fields.map((f) => (
+        <Chip key={f.key}>{f.label}</Chip>
+      ))}
+      <button
+        type="button"
+        onClick={onRevealAll}
+        className="motion-std text-accent-foreground text-[11.5px] hover:brightness-125"
+      >
+        Khớp thêm
+      </button>
+    </GlassCard>
+  )
+}
+
+/** Assigned to the WHOLE BATCH — two things no file carries but every row needs.
+ *
+ *  The motion a file never carries: nobody exports an "inbound or outbound"
+ *  column out of Apollo. A source can be carried, but loading from inside a
+ *  campaign means that campaign's code wins — the user is standing in it, and
+ *  letting them pick again is inviting one wrong pick.
+ *
+ *  The whole card DISAPPEARS when a door assigns nothing batch-wide (see
+ *  `assigns` in `StepMap`): a card down to its title is a blank to decipher. */
+function BatchAssign({
+  count,
+  noun,
+  motion,
+  motions,
+  onMotion,
+  scope,
+  scopeOptions,
+  picked,
+  onPick,
+  sourceHint,
+}: {
+  count: number
+  noun: string
+  motion: LeadMotion
+  motions: readonly LeadMotion[]
+  onMotion: (m: LeadMotion) => void
+  scope?: string
+  scopeOptions?: { value: string; label: string }[]
+  picked: string
+  onPick: (value: string) => void
+  sourceHint: string
+}) {
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4">
+      <Kicker>
+        Áp cho cả {count} {noun}
+      </Kicker>
+
+      {motions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {/* SegmentedControl and not Select: both motions on show can be
+              compared, and the definition below follows the active one — a
+              popup covers exactly that sentence while it is being read. */}
+          <SegmentedControl
+            label="Thế tiếp cận"
+            value={motion}
+            options={motions.map((m) => ({ value: m, label: MOTION_FACE[m].label }))}
+            onChange={(v) => onMotion(v as LeadMotion)}
+          />
+          <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
+            {MOTION_FACE[motion].blurb}{' '}
+            <span className="opacity-70">{MOTION_FACE[motion].example}</span>
+          </p>
+        </div>
+      )}
+
+      {scope ? (
+        <div className="flex flex-col gap-2">
+          <Kicker>Nguồn</Kicker>
+          <span className="font-mono text-[12.5px] font-semibold">{scope}</span>
+        </div>
+      ) : (
+        scopeOptions && (
+          <div className="flex flex-col gap-2">
+            <Select
+              label="Nguồn khi cột Nguồn trống"
+              value={picked}
+              neutralValue=""
+              options={scopeOptions}
+              onChange={onPick}
+              /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
+                 dài nhất — không kẹp thì một ô nuốt cả hàng. */
+              className="max-w-[240px]"
+            />
+            <p className="text-glass-foreground text-[11.5px] leading-[1.7]">{sourceHint}</p>
+          </div>
+        )
+      )}
+    </GlassCard>
+  )
+}
+
+/** The mapping table, in TWO GROUPS rather than one flat grid.
+ *
+ *  The required group always shows in full, including fields with no column
+ *  matched — that list is what disables the load button, and hiding a line of
+ *  it hides the very thing to fix. The optional group shows only what was
+ *  matched (or touched); the rest drops to the chip row below. */
 function StepMap({
   spec,
   sheet,
   mapping,
   onMap,
+  revealed,
+  onRevealAll,
+  onChangeFile,
   motion,
   motions,
   onMotion,
@@ -452,6 +727,9 @@ function StepMap({
   sheet: Sheet
   mapping: ColumnMapping
   onMap: (key: string, at: number) => void
+  revealed: ReadonlySet<string>
+  onRevealAll: () => void
+  onChangeFile: () => void
   motion: LeadMotion
   motions: readonly LeadMotion[]
   onMotion: (m: LeadMotion) => void
@@ -471,106 +749,72 @@ function StepMap({
     })),
   ]
 
+  const isMapped = (f: ImportField) => (mapping[f.key] ?? -1) >= 0
+  const required = spec.fields.filter((f) => f.required)
+  const extra = spec.fields.filter((f) => !f.required && (isMapped(f) || revealed.has(f.key)))
+  const skipped = spec.fields.filter((f) => !f.required && !isMapped(f) && !revealed.has(f.key))
+
+  const shown = spec.fields.filter(isMapped)
   const preview = sheet.rows.slice(0, PREVIEW)
-  const shown = spec.fields.filter((f) => (mapping[f.key] ?? -1) >= 0)
+  const hit = [...required, ...extra].filter(isMapped).length
+  const mojibake = detectMojibakeColumn(sheet.headers, sheet.rows)
 
-  /** Có gì để gán cho cả lô không — thế, hoặc một nguồn. Không có cái nào thì
-   *  thẻ "Gán cho cả lô" không được vẽ ra. */
+  /** Anything to assign batch-wide at all — a motion, or a source. */
   const assigns = motions.length > 0 || scope !== undefined || scopeOptions !== undefined
-
-  /* Chỉ nói khi tệp có NHIỀU HƠN MỘT tab — xlsx một tab (ca phổ biến nhất) và
-     CSV/ô dán (không có khái niệm tab) im lặng, không thêm nhiễu. Đặt ở ĐÂY,
-     trong hint của bước 2, vì đây là lúc người dùng còn kịp làm gì đó (đang
-     nhìn bảng khớp cột) — hiện SAU khi đã nạp xong thì vô ích, dữ liệu tab kia
-     vẫn bị bỏ qua mà không ai kịp đổi tệp. */
-  const tabNote =
-    sheet.sheetCount && sheet.sheetCount > 1
-      ? `Tệp có ${sheet.sheetCount} tab · đang đọc tab "${sheet.sheetName}". `
-      : ''
 
   return (
     <section className={cn('flex flex-col gap-4', locked && 'pointer-events-none opacity-55')}>
+      <FileStrip sheet={sheet} onChangeFile={onChangeFile} />
+
+      {mojibake && <MojibakeNote column={mojibake.column} sample={mojibake.sample} />}
+
       <SectionTitle
         size="lg"
-        kicker="Bước 2"
-        hint={`${tabNote}${sheet.rows.length} dòng trong "${sheet.fileName}". Cột đoán sai thì đổi ở đây — đổi xong xem lại ba dòng bên dưới.`}
+        hint={`Đã tự khớp ${hit}/${spec.fields.length} trường · đoán sai thì đổi cột`}
       >
         Khớp cột
       </SectionTitle>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {spec.fields.map((field) => {
-          const at = mapping[field.key] ?? -1
-          return (
-            <Select
-              key={field.key}
-              label={field.required ? `${field.label} *` : field.label}
-              value={String(at)}
-              neutralValue={SKIP}
-              options={columnOptions}
-              onChange={(v) => onMap(field.key, Number(v))}
-              className="w-full"
-            />
-          )
-        })}
-      </div>
+      <FieldGrid
+        title="Bắt buộc"
+        fields={required}
+        mapping={mapping}
+        columnOptions={columnOptions}
+        onMap={onMap}
+      />
 
-      {/* Gán CẢ LÔ — hai thứ không nằm trong tệp mà vẫn phải có.
+      {extra.length > 0 && (
+        <FieldGrid
+          title="Thông tin thêm"
+          fields={extra}
+          mapping={mapping}
+          columnOptions={columnOptions}
+          onMap={onMap}
+        />
+      )}
 
-          Thế thì tệp không bao giờ mang: không ai xuất một cột "inbound hay
-          outbound" từ Apollo. Nguồn thì có mang được, nhưng khi nạp từ trong
-          một hồ sơ chiến dịch thì mã của hồ sơ đó thắng — người dùng đang đứng
-          trong nó, và để họ chọn lại là mời một lần chọn nhầm.
+      {skipped.length > 0 && <SkippedFields fields={skipped} onRevealAll={onRevealAll} />}
 
-          Cả khối BIẾN MẤT khi luồng không gán gì cho cả lô — cửa nạp cơ hội ghi
-          vào một bảng không có cột thế, và không nạp từ trong hồ sơ nào. Một
-          tấm thẻ chỉ còn cái tiêu đề "Gán cho cả lô" là một khoảng trống người
-          đọc phải tự hiểu là "chỗ này không có gì". */}
       {assigns && (
-        <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
-          <div className="min-w-[200px] flex-1">
-            <Kicker className="mb-2">Gán cho cả lô</Kicker>
-            {motions.length > 0 && (
-              <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-                {MOTION_FACE[motion].blurb}{' '}
-                <span className="opacity-70">{MOTION_FACE[motion].example}</span>
-              </p>
-            )}
-          </div>
-          {motions.length > 0 && (
-            <Select
-              label="Thế"
-              value={motion}
-              neutralValue={spec.defaultMotion}
-              options={motions.map((m) => ({ value: m, label: MOTION_FACE[m].label }))}
-              onChange={(v) => onMotion(v as LeadMotion)}
-            />
-          )}
-          {scope ? (
-            <div className="flex flex-col gap-2">
-              <Kicker>Nguồn</Kicker>
-              <span className="font-mono text-[12.5px] font-semibold">{scope}</span>
-            </div>
-          ) : (
-            scopeOptions && (
-              <Select
-                label="Nguồn"
-                value={picked}
-                neutralValue=""
-                options={scopeOptions}
-                onChange={onPick}
-                /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo
-                   option dài nhất — không kẹp thì một ô nuốt cả hàng. */
-                className="max-w-[240px]"
-              />
-            )
-          )}
-        </GlassCard>
+        <BatchAssign
+          count={sheet.rows.length}
+          noun={spec.rowNoun ?? 'dòng'}
+          motion={motion}
+          motions={motions}
+          onMotion={onMotion}
+          scope={scope}
+          scopeOptions={scopeOptions}
+          picked={picked}
+          onPick={onPick}
+          sourceHint={sourceNote(spec, sheet, mapping)}
+        />
       )}
 
       {/* Bảng xem trước nằm trên `.glass-b` — luật 8. */}
       <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-        <Kicker>Ba dòng đầu, sau khi khớp</Kicker>
+        <Kicker>
+          Xem trước {preview.length}/{sheet.rows.length} dòng, sau khi khớp
+        </Kicker>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-[11.5px]">
             <thead>
@@ -621,9 +865,9 @@ function StepRun({
 }) {
   return (
     <section className="flex flex-col gap-4">
-      <SectionTitle size="lg" kicker="Bước 3">
-        {report ? 'Đã nạp xong' : 'Đang nạp'}
-      </SectionTitle>
+      {/* No 'Bước 3' kicker: the bar has two steps, and naming a third one here
+          would contradict it. */}
+      <SectionTitle size="lg">{report ? 'Đã nạp xong' : 'Đang nạp'}</SectionTitle>
 
       {!report && (
         <GlassCard variant="b" className="flex flex-col gap-3 p-4">
@@ -685,302 +929,5 @@ function StepRun({
         </>
       )}
     </section>
-  )
-}
-
-/** THE THREE LISTS OF STEP 3 — which rows went in, which did not, which were
- *  dropped for being duplicates.
- *
- *  ------------------------------------------------------------------
- *  WHY THE FOUR TALLIES WERE NOT ENOUGH
- *  ------------------------------------------------------------------
- *  A number answers "how many" and the question the person loading a file
- *  actually has is "which ones". "17 rows could not be loaded" leaves them with
- *  a file of 500 rows and no idea where to look; "312 duplicates" gets either
- *  trusted blindly or treated as a broken import. The counts stay — they are
- *  the summary — and each one now has the rows behind it printed underneath.
- *
- *  ------------------------------------------------------------------
- *  THREE LISTS AND NOT ONE TABLE WITH A STATUS COLUMN
- *  ------------------------------------------------------------------
- *  The three outcomes need different columns and lead to different actions: a
- *  row that went in has a code to follow, a row that failed has a column to fix
- *  and a file to re-load, and a duplicate needs deciding about rather than
- *  fixing. One table would carry the union of those columns with two thirds of
- *  every row blank.
- *
- *  ------------------------------------------------------------------
- *  CAPPED, AND SAYING SO
- *  ------------------------------------------------------------------
- *  A 5.000-row batch is 5.000 table rows in the DOM and a drawer nobody can
- *  scroll. Each list stops at `LIST_CAP` and prints how many it is not showing,
- *  next to the way to see the rest — the error file for the failures, the book
- *  itself for what went in. A silent cut would be the panel lying about the
- *  size of what just happened. */
-const LIST_CAP = 50
-
-function ResultList({
-  kicker,
-  head,
-  count,
-  children,
-}: {
-  kicker: string
-  head: string[]
-  count: number
-  children: ReactNode
-}) {
-  if (count === 0) return null
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-      <Kicker>
-        {kicker} · {count}
-      </Kicker>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-left text-[11.5px]">
-          <thead>
-            <tr className="text-muted-foreground">
-              {head.map((h) => (
-                <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="text-glass-foreground">{children}</tbody>
-        </table>
-      </div>
-      {count > LIST_CAP && (
-        <p className="text-muted-foreground text-[11px] leading-[1.6]">
-          Đang hiện {LIST_CAP} dòng đầu trên tổng số {count}.
-        </p>
-      )}
-    </GlassCard>
-  )
-}
-
-/** Line number, in the file's own numbering. Mono because it is read digit by
- *  digit against the left margin of a spreadsheet, and `text-glass-foreground`
- *  like every other cell — this is the column somebody copies out to go and
- *  find the row, so it is not the one to mute (rule 13). */
-function Line({ n }: { n: number }) {
-  return <td className="text-glass-foreground w-[92px] px-3 py-2 font-mono">{n}</td>
-}
-
-function DoneRows({ rows, codes, spec }: { rows: BuiltRow[]; codes?: string[]; spec: ImportSpec }) {
-  /* The column that identifies a row is the spec's FIRST field, not a hardcoded
-     `company`: this panel loads three different books, and the opportunity one
-     leads with the deal name. Reading it off the spec is also what keeps the
-     header and the value naming the same thing. */
-  const id = spec.fields[0]
-
-  /* The code column only appears after a real write. On a run that never
-     committed there is no code, and an empty column would read as "this row
-     went in and lost its code" rather than "nothing was written". */
-  const head = ['Dòng trong tệp', id?.label ?? '', ...(codes ? ['Mã lead'] : [])]
-
-  return (
-    <ResultList kicker="Đã vào sổ" head={head} count={rows.length}>
-      {rows.slice(0, LIST_CAP).map((row, i) => (
-        <tr key={row.line} className="bg-surface-ink/[3%]">
-          <Line n={row.line} />
-          <td className="max-w-[280px] truncate px-3 py-2">
-            {(id ? row.values[id.key] : undefined) ?? '—'}
-          </td>
-          {codes && <td className="w-[120px] px-3 py-2 font-mono">{codes[i] ?? '—'}</td>}
-        </tr>
-      ))}
-    </ResultList>
-  )
-}
-
-function FailedRows({ errors, spec }: { errors: RowError[]; spec: ImportSpec }) {
-  /* The column the user is looking at, not the wire name: the contract calls it
-     `contactName`, and what is printed above the cell they have to go and fix
-     is the spec's own Vietnamese header. Falls back to the key, then to a dash
-     — a row can fail as a WHOLE rather than at one column, and that is an
-     answer rather than a missing one. */
-  const labelOf = (key: string | undefined) =>
-    key === undefined ? '—' : (spec.fields.find((f) => f.key === key)?.label ?? key)
-
-  return (
-    <ResultList
-      kicker="Không nạp được"
-      head={['Dòng trong tệp', 'Ô đầu dòng', 'Cột sai', 'Vì sao']}
-      count={errors.length}
-    >
-      {errors.slice(0, LIST_CAP).map((e) => (
-        <tr key={e.line} className="bg-surface-ink/[3%]">
-          <Line n={e.line} />
-          <td className="max-w-[200px] truncate px-3 py-2">{e.first || '—'}</td>
-          <td className="text-warning w-[140px] whitespace-nowrap px-3 py-2">{labelOf(e.field)}</td>
-          <td className="text-destructive-foreground px-3 py-2 leading-[1.6]">{e.reason}</td>
-        </tr>
-      ))}
-    </ResultList>
-  )
-}
-
-/** Duplicates are neither done nor broken, so they get their own list.
- *
- *  The two kinds stay apart in one table, via the column naming what each row
- *  collided with, rather than in two tables: a collision with the book is the
- *  ordinary outcome of loading
- *  a list twice, a collision inside the file is a defect in the file, and the
- *  reader needs to tell them apart — but they are one decision, taken in one
- *  sitting, over one list.
- *
- *  Absent arrays mean this loader reports duplicates as counts only (the
- *  recipient and opportunity doors still do), and then nothing is drawn — a
- *  list that cannot be filled must not appear as an empty one. */
-function DroppedRows({ withBook, withinFile }: { withBook?: DupRow[]; withinFile?: DupRow[] }) {
-  const rows = [
-    ...(withBook ?? []).map((d) => ({ ...d, why: d.code ? `Lead ${d.code}` : 'Một lead đã có' })),
-    ...(withinFile ?? []).map((d) => ({ ...d, why: 'Một dòng khác trong chính tệp này' })),
-  ].sort((a, b) => a.line - b.line)
-
-  return (
-    <ResultList
-      kicker="Bỏ vì trùng"
-      head={['Dòng trong tệp', 'Ô đầu dòng', 'Trùng với']}
-      count={rows.length}
-    >
-      {rows.slice(0, LIST_CAP).map((d) => (
-        <tr key={`${d.line}-${d.why}`} className="bg-surface-ink/[3%]">
-          <Line n={d.line} />
-          <td className="max-w-[240px] truncate px-3 py-2">{d.first || '—'}</td>
-          <td className="px-3 py-2">{d.why}</td>
-        </tr>
-      ))}
-    </ResultList>
-  )
-}
-
-function Tally({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: number
-  tone?: 'success' | 'danger'
-}) {
-  return (
-    <div className="glass-b flex flex-col gap-2 rounded-lg p-4">
-      <span
-        className={cn(
-          'font-num tnum text-[24px] font-semibold leading-none',
-          value === 0 && 'text-muted-foreground',
-          value > 0 && tone === 'success' && 'text-success',
-          value > 0 && tone === 'danger' && 'text-destructive-foreground',
-        )}
-      >
-        {value}
-      </span>
-      <span className="text-muted-foreground text-[11.5px]">{label}</span>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tấm phủ khi kéo tệp vào bất kỳ đâu trên màn
-// ---------------------------------------------------------------------------
-
-/** Nghe cú kéo tệp trên CẢ CỬA SỔ.
- *
- *  Hai việc, và việc thứ hai quan trọng hơn việc thứ nhất:
- *   1 · nói cho người dùng biết thả được — họ kéo tệp vào rồi mới đi tìm nút;
- *   2 · CHẶN mặc định của trình duyệt. Thả một tệp .csv vào một trang web mà
- *       trang không chặn thì trình duyệt điều hướng sang tệp đó: cả app biến
- *       mất, thay bằng chữ thô của tệp, và mọi thứ chưa lưu đi theo. Đây là lý
- *       do listener này gắn ở `window` chứ không ở một khối nào của màn.
- *
- *  Đếm vào-ra như `FileDrop`, cùng lý do: `dragleave` bắn cả khi con trỏ đi qua
- *  một phần tử con. */
-function useWindowFileDrag(enabled: boolean, onFile: (file: File) => void): boolean {
-  const [dragging, setDragging] = useState(false)
-  const depth = useRef(0)
-
-  const latest = useRef(onFile)
-  latest.current = onFile
-
-  useEffect(() => {
-    const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false
-
-    const onEnter = (e: DragEvent) => {
-      if (!hasFiles(e)) return
-      e.preventDefault()
-      depth.current += 1
-      if (enabled) setDragging(true)
-    }
-
-    const onOver = (e: DragEvent) => {
-      if (!hasFiles(e)) return
-      e.preventDefault()
-      /* Only claim the drop while this catcher is the one that will handle it.
-         When the panel is open, the FileDrop inside it has already set
-         dropEffect to 'copy'; this listener runs LAST (window is the end of the
-         bubble path), so writing 'none' here overrode it, the browser cancelled
-         the drag, and no `drop` event ever reached the panel — the file picker
-         worked, dragging did nothing. Leaving dropEffect alone still blocks
-         navigation, because onDrop below preventDefaults either way. */
-      if (enabled && e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-    }
-
-    const onLeave = () => {
-      depth.current = Math.max(0, depth.current - 1)
-      if (depth.current === 0) setDragging(false)
-    }
-
-    const onDrop = (e: DragEvent) => {
-      /* Chặn KỂ CẢ khi `enabled` tắt: panel đang mở thì vùng thả trong panel lo
-         phần nhận, còn phần rơi ra ngoài panel vẫn phải bị chặn — nếu không thì
-         thả trượt một chút là mất cả app. */
-      if (!hasFiles(e)) return
-      e.preventDefault()
-      depth.current = 0
-      setDragging(false)
-      if (!enabled) return
-
-      const file = e.dataTransfer?.files[0]
-      if (file) latest.current(file)
-    }
-
-    window.addEventListener('dragenter', onEnter)
-    window.addEventListener('dragover', onOver)
-    window.addEventListener('dragleave', onLeave)
-    window.addEventListener('drop', onDrop)
-    return () => {
-      window.removeEventListener('dragenter', onEnter)
-      window.removeEventListener('dragover', onOver)
-      window.removeEventListener('dragleave', onLeave)
-      window.removeEventListener('drop', onDrop)
-    }
-  }, [enabled])
-
-  return dragging && enabled
-}
-
-/** Tấm phủ cả màn, hiện lúc có tệp đang bay trên trang.
- *
- *  `z-[45]`: trên nav (40), dưới panel (50). Thang tầng của app nằm ở docblock
- *  của `Drawer`; thêm một tầng ở đây thì phải kê vào đó, không tự đặt số.
- *
- *  `pointer-events-none`: tấm này KHÔNG nhận cú thả — `window` nhận. Cho nó bắt
- *  chuột thì nó nuốt luôn sự kiện của mọi thứ bên dưới lúc đang kéo. */
-function DropOverlay({ active, label }: { active: boolean; label: string }) {
-  if (!active) return null
-
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[45] flex items-center justify-center bg-[var(--scrim)] p-8">
-      <div className="glass-ai animate-scrim-in flex flex-col items-center gap-4 rounded-lg px-12 py-8 text-center">
-        <Icon icon={FileUp} size={26} strokeWidth={1.9} className="text-accent-foreground" />
-        <p className="font-display text-[18px] font-semibold">Thả tệp ra là nhận</p>
-        <p className="text-glass-foreground text-[11.5px]">
-          {label} · {ACCEPT.join(' · ')}
-        </p>
-      </div>
-    </div>
   )
 }

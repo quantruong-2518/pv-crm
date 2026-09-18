@@ -507,7 +507,9 @@ const CHAIN_ROUTE: Record<string, string> = {
   WS: '/sales/workstreams',
   LD: '/sales/leads',
   OP: '/sales/opportunities',
-  HĐ: '/sales/contracts',
+  /* The contract kind is deliberately absent while Sales module 4 is parked
+     (`app/parked.ts`): the chip still draws it, but it is no longer a door to
+     a screen whose route now redirects home. */
   AC: '/sales/accounts',
   CT: '/sales/contacts',
 }

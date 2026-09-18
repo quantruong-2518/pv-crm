@@ -283,6 +283,10 @@ export type ImportSpec = {
    *  giá trị, và màn nào không dùng tới thì bỏ nó ở đường dịch của mình. */
   defaultMotion: LeadMotion
   fields: ImportField[]
+  /** What one row BECOMES, printed in the batch-assign card: "apply to all 8
+   *  <rowNoun>". The generic word for a row is true but never says what the row
+   *  turns into, and that is what the person about to press the button needs. */
+  rowNoun?: string
   /** Default ceiling for a cell with no `max` of its own — the body-level
    *  ceiling of whatever contract this loader posts to. Absent means no check,
    *  exactly as before. */
@@ -350,6 +354,7 @@ export const LEAD_SPEC: ImportSpec = {
   motions: ['outbound', 'event', 'partner', 'recycle'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-lead',
+  rowNoun: 'lead',
   /* `importCell`'s ceiling in the contract. The columns with no `max` of their
      own — industry, campaign, tier, channel, headcount — still have to stay
      under it, because it is a ceiling on the BODY: one cell over it fails
@@ -359,7 +364,7 @@ export const LEAD_SPEC: ImportSpec = {
   fields: [
     {
       key: 'company',
-      label: 'Account',
+      label: 'Công ty',
       required: true,
       max: LEAD_MAX.company,
       aliases: ['account', 'cong ty', 'ten cong ty', 'ten khach hang', 'khach hang', 'company'],
@@ -551,6 +556,7 @@ export const RECIPIENT_SPEC: ImportSpec = {
   motions: ['outbound', 'event'],
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-nguoi-nhan',
+  rowNoun: 'người nhận',
   fields: [
     {
       key: 'company',

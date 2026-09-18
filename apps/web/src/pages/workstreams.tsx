@@ -3,21 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Badge,
   Button,
   Chip,
-  DataTable,
-  EmptyState,
-  GlassCard,
   Icon,
-  Inbox,
-  ScreenHeader,
   ScreenLayout,
-  ScreenToolbar,
   SearchField,
   SegmentedControl,
-  Skeleton,
-  TriangleAlert,
   X,
   type TableColumn,
   type TableSort,
@@ -39,7 +30,8 @@ import {
   workstreamBookQuery,
   workstreamBookQueryToParams,
 } from '@/data/workstreams'
-import { PersonCell, Pager } from '@/components/table-bits'
+import { BookCount, BookPage } from '@/components/book-page'
+import { PersonCell, TableFooter } from '@/components/table-bits'
 import { CloseBadge, ObjectChip, StandCell } from '@/components/workstream-bits'
 
 /** The workstream book — `/sales/workstreams`. One row per customer journey run.
@@ -147,7 +139,6 @@ export default function WorkstreamsPage() {
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
   const hidden = data?.hidden ?? 0
-  const pageCount = Math.max(1, Math.ceil(total / query.size))
   const dirty =
     query.q !== undefined ||
     query.accountCode !== undefined ||
@@ -167,120 +158,92 @@ export default function WorkstreamsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          kicker="Sales · Hành trình khách hàng"
-          title="Hành trình khách hàng"
-          description="Mỗi dòng là MỘT lượt đi của một khách: lead, các cơ hội và hợp đồng sinh ra từ lượt đó."
-          meta={
+        <BookPage
+          title="Sổ hành trình"
+          tabs={
+            <SegmentedControl
+              label="Trạng thái"
+              hideLabel
+              tone="quiet"
+              value={query.status}
+              options={STATUS_OPTIONS}
+              onChange={(v) => {
+                const parsed = WorkstreamStatus.safeParse(v)
+                if (parsed.success) patch({ status: parsed.data })
+              }}
+            />
+          }
+          count={<BookCount total={total} noun="hành trình" hidden={hidden} />}
+          tools={
             <>
-              <Badge tone="draft">
-                <span className="tnum font-num">{total}</span> hành trình
-                {dirty ? ' khớp bộ lọc' : ''}
-              </Badge>
-              {/* `hidden` is the server's count of the scope cut; the screen
-                  cannot count rows it never received. */}
-              {hidden > 0 && (
-                <span className="text-muted-foreground text-[11.5px]">
-                  <span className="tnum font-num">{hidden}</span> hành trình ngoài phạm vi của bạn
-                  không hiện ở đây
-                </span>
+              {/* Reads the raw param, not the parsed query: the contract trims `q`,
+                  so echoing the parsed value would eat the space between two words
+                  while the user is still typing. */}
+              <SearchField
+                placeholder="Mã hành trình, tên lead, tên công ty"
+                value={params.get('q') ?? ''}
+                onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
+              />
+              {query.accountCode !== undefined && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="font-mono"
+                  aria-label={`Bỏ lọc theo công ty ${query.accountCode}`}
+                  onClick={() => patch({ accountCode: undefined })}
+                >
+                  {query.accountCode}
+                  <Icon icon={X} size={16} />
+                </Button>
               )}
             </>
           }
-        />
-
-        <ScreenToolbar label="Lọc sổ hành trình">
-          <SegmentedControl
-            label="Trạng thái"
-            value={query.status}
-            options={STATUS_OPTIONS}
-            onChange={(v) => {
-              const parsed = WorkstreamStatus.safeParse(v)
-              if (parsed.success) patch({ status: parsed.data })
-            }}
-          />
-          {/* Reads the raw param, not the parsed query: the contract trims `q`,
-              so echoing the parsed value would eat the space between two words
-              while the user is still typing. */}
-          <SearchField
-            className="h-12"
-            placeholder="Mã hành trình, tên lead, tên công ty"
-            value={params.get('q') ?? ''}
-            onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
-          />
-          {query.accountCode !== undefined && (
-            <Button
-              variant="ghost"
-              size="lg"
-              className="font-mono"
-              aria-label={`Bỏ lọc theo công ty ${query.accountCode}`}
-              onClick={() => patch({ accountCode: undefined })}
-            >
-              {query.accountCode}
-              <Icon icon={X} size={16} />
-            </Button>
-          )}
-        </ScreenToolbar>
-
-        <GlassCard variant="b" className="p-0">
-          <div className="overflow-x-auto p-4 lg:p-5">
-            {isPending ? (
-              <div className="flex flex-col gap-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ) : error ? (
-              <EmptyState
-                icon={TriangleAlert}
-                message={`Không lấy được sổ hành trình. ${
-                  isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetch() }}
-                className="py-12"
-              />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                message={
-                  dirty
+          pending={isPending}
+          failure={
+            error
+              ? {
+                  message: `Không lấy được sổ hành trình. ${
+                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetch(),
+                }
+              : undefined
+          }
+          empty={
+            rows.length === 0
+              ? {
+                  message: dirty
                     ? 'Không có hành trình nào khớp bộ lọc đang chọn.'
                     : hidden > 0
                       ? `${hidden} hành trình nằm ngoài phạm vi của bạn nên không hiện ở đây.`
-                      : 'Sổ này chỉ có hành trình của các lead đã có sẵn — lead vừa tạo hiện chưa tự mở hành trình nào.'
-                }
-                action={
-                  dirty
+                      : 'Sổ này chỉ có hành trình của các lead đã có sẵn — lead vừa tạo hiện chưa tự mở hành trình nào.',
+                  action: dirty
                     ? { label: 'Xoá bộ lọc', onClick: clearAll }
-                    : { label: 'Mở sổ lead', onClick: () => navigate('/sales/leads') }
+                    : { label: 'Mở sổ lead', onClick: () => navigate('/sales/leads') },
                 }
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                className="min-w-[1200px]"
-                sort={tableSort}
-                onSort={onSort}
-                columns={COLUMNS}
-                rows={rows.map((row) => ({
-                  id: row.code,
-                  onOpen: () => navigate(`/sales/workstreams/${encodeURIComponent(row.code)}`),
-                  cells: rowCells(row, navigate),
-                }))}
-              />
-            )}
-          </div>
-        </GlassCard>
-
-        {total > query.size && (
-          <div className="flex justify-end">
-            <Pager
+              : undefined
+          }
+          table={{
+            minWidth: 'min-w-[1200px]',
+            sort: tableSort,
+            onSort,
+            columns: COLUMNS,
+            rows: rows.map((row) => ({
+              id: row.code,
+              onOpen: () => navigate(`/sales/workstreams/${encodeURIComponent(row.code)}`),
+              cells: rowCells(row, navigate),
+            })),
+          }}
+          footer={
+            <TableFooter
               page={pageIndexFromQueryPage(query.page)}
-              pageCount={pageCount}
+              pageSize={query.size}
+              total={total}
               onPage={(p) => patch({ page: queryPageFromPageIndex(p) })}
             />
-          </div>
-        )}
+          }
+        />
       </ScreenLayout>
     </AppShell>
   )

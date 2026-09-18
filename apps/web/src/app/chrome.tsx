@@ -23,6 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
+import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
 
 /** Khung app dùng chung cho MỌI màn.
@@ -334,8 +335,11 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
    *   · **No `path`** — the screen does not exist yet, for anyone. That entry
    *     stays visible but locked, which says so honestly instead of offering a
    *     button that goes nowhere. Filling in the path unlocks it. */
+  /* A parked module (`parked.ts`) has no entry at all — locking it would be a
+     map of doors that are not coming back this week. */
   const granted = (entry: NavEntry) =>
-    !entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok
+    !isParked(entry.permission) &&
+    (!entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok)
   const plain = (entry: NavEntry): HeaderAction => ({
     icon: entry.icon,
     label: entry.label,
@@ -362,7 +366,9 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const appsIn = (group: NavGroup) =>
     SALES_MODULES.filter(
       (m) =>
-        m.group === group && access.check(actor, { branch: 'Sales', permission: m.permission }).ok,
+        m.group === group &&
+        !isParked(m.permission) &&
+        access.check(actor, { branch: 'Sales', permission: m.permission }).ok,
     ).map(moduleApp)
   const customer = appsIn('customer')
   const manage = appsIn('manage')

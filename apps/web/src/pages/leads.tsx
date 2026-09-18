@@ -1,21 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { Inbox, Pin, Plus, TriangleAlert } from '@pv/ui'
+import { Plus } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
   Checkbox,
-  DataTable,
-  EmptyState,
-  GlassCard,
   Icon,
-  ScreenHeader,
   ScreenLayout,
   SearchField,
   SegmentedControl,
   Select,
-  Skeleton,
 } from '@pv/ui'
 import { DAS_VINA_FROZEN_AT, dayISO } from '@pv/engines/fixtures/das-vina'
 import {
@@ -46,24 +41,22 @@ import { LEAD_SPEC, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { MasMailModal } from '@/components/mas-mail-modal'
-import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
   LeadPicCell,
-  LeadSelectionBar,
   PeriodLabel,
   PinCell,
   ScoreStrip,
-  SelectionCell,
   SourceCell,
   StatusCell,
 } from './leads-parts'
 
 /** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
- *  The layout every book follows: a one-line header (uppercase title ·
- *  actions), one score strip, then one list card holding tabs · search · filter,
- *  the table and its page footer. Cells and blocks live in `leads-parts.tsx`.
+ *  The layout every book follows lives in `components/book-page.tsx`; this file
+ *  only hands it content. Cells and blocks live in `leads-parts.tsx`.
  *
  *  The book is server-side: `GET /sales/leads` returns one filtered, sorted page
  *  plus `total`, and every filter lives in the URL (`app/url.ts`) so F5, shared
@@ -478,137 +471,117 @@ export function LeadsPage() {
   const onPage = (i: number) =>
     setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
 
-  const table = (list: LeadRow[], sortable: boolean) => (
-    <DataTable
-      flush
-      rowHeight="h-14"
-      className="min-w-[880px]"
-      /* The arrow lights only while the book sorts by this column; the default
-         order (`createdAt desc`) is no column on the table. */
-      sort={sortable && query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined}
-      onSort={
-        sortable
-          ? (key) => {
-              /* The only sortable column; any other key would die at the server's
-                 zod gate as a 400. The pinned list does not read the URL, so it
-                 gets no sort control at all. */
-              if (key !== 'company') return
-              patch(
-                query.sort === 'company'
-                  ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                  : { sort: 'company', dir: 'asc' },
-              )
-            }
-          : undefined
-      }
-      columns={[
-        {
-          header: (
-            <Checkbox
-              checked={allPageSelected}
-              indeterminate={pageSelected > 0 && !allPageSelected}
-              onChange={selectPage}
-              label={<span className="sr-only">Chọn cả trang</span>}
-              className="w-full justify-center gap-0 p-0"
-            />
-          ),
-          width: '32px',
-        },
-        { header: 'Công ty · Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
-        { header: 'Nguồn', width: 'minmax(0,1.3fr)' },
-        { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
-        { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
-        { header: <span className="sr-only">Ghim</span>, width: '48px' },
-      ]}
-      rows={list.map((l) => ({
-        id: l.code,
-        state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
-        onOpen: () => open(l.code),
-        onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) => paintSelection(l.code, event),
-        cells: [
-          <SelectionCell
-            key="select"
-            checked={selectedCodes.has(l.code)}
-            company={l.company}
-            onPress={(event) => beginDrag(l.code, event)}
-            onChange={(on) => suppressClick.current !== l.code && setCodeSelected(l.code, on)}
-          />,
-          <CompanyCell key="c" lead={l} />,
-          <SourceCell key="s" lead={l} />,
-          <StatusCell key="w" lead={l} />,
-          <LeadPicCell key="o" lead={l} />,
-          <PinCell
-            key="p"
-            on={pins.includes(l.code)}
-            company={l.company}
-            onToggle={() => me && togglePin(me.id, l.code)}
-          />,
-        ],
-      }))}
-    />
-  )
+  /* The pinned list does not read the URL, so it gets no sort control at all. */
+  const sortable = !pinnedView
 
-  const body = pinnedView ? (
-    facetsPending ? (
-      <div className="flex flex-col gap-3 p-5">
-        <Skeleton className="h-14 w-full" />
-        <Skeleton className="h-14 w-full" />
-      </div>
-    ) : facetsError ? (
-      <EmptyState
-        icon={TriangleAlert}
-        message={`Không lấy được danh sách ghim. ${
-          isApiError(facetsError) ? userMessage(facetsError) : 'Vui lòng thử lại.'
-        }`}
-        action={{ label: 'Thử lại', onClick: () => void refetchFacets() }}
-        className="py-12"
-      />
-    ) : pinned.length === 0 ? (
-      <EmptyState
-        icon={Pin}
-        message="Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây."
-        action={{ label: 'Về sổ lead', onClick: () => setPinnedView(false) }}
-        className="py-12"
-      />
-    ) : (
-      table(pinned, false)
-    )
-  ) : isPending ? (
-    <div className="flex flex-col gap-3 p-5">
-      <Skeleton className="h-14 w-full" />
-      <Skeleton className="h-14 w-full" />
-      <Skeleton className="h-14 w-full" />
-    </div>
-  ) : bookError ? (
-    /* A failed read says so and offers a retry, not "clear filters": the
-       filters are not what broke. `userMessage` keeps the server's own words. */
-    <EmptyState
-      icon={TriangleAlert}
-      message={`Không lấy được sổ lead. ${
-        isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
-      }`}
-      action={{ label: 'Thử lại', onClick: () => void refetchBook() }}
-      className="py-12"
-    />
-  ) : rows.length === 0 ? (
-    <EmptyState
-      icon={Inbox}
-      message="Không có lead nào khớp bộ lọc đang chọn."
-      action={{ label: 'Bỏ hết bộ lọc', onClick: clearFilters }}
-      className="py-12"
-    />
-  ) : (
-    table(rows, true)
-  )
+  const table: BookTable = {
+    minWidth: 'min-w-[880px]',
+    /* The arrow lights only while the book sorts by this column; the default
+       order (`createdAt desc`) is no column on the table. */
+    sort: sortable && query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined,
+    onSort: sortable
+      ? (key) => {
+          /* The only sortable column; any other key would die at the server's
+             zod gate as a 400. */
+          if (key !== 'company') return
+          patch(
+            query.sort === 'company'
+              ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+              : { sort: 'company', dir: 'asc' },
+          )
+        }
+      : undefined,
+    columns: [
+      {
+        header: (
+          <Checkbox
+            checked={allPageSelected}
+            indeterminate={pageSelected > 0 && !allPageSelected}
+            onChange={selectPage}
+            label={<span className="sr-only">Chọn cả trang</span>}
+            className="w-full justify-center gap-0 p-0"
+          />
+        ),
+        width: '32px',
+      },
+      { header: 'Công ty · Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
+      { header: 'Nguồn', width: 'minmax(0,1.3fr)' },
+      { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
+      { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
+      { header: <span className="sr-only">Ghim</span>, width: '48px' },
+    ],
+    rows: shown.map((l) => ({
+      id: l.code,
+      state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
+      onOpen: () => open(l.code),
+      onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) => paintSelection(l.code, event),
+      cells: [
+        <SelectionCell
+          key="select"
+          checked={selectedCodes.has(l.code)}
+          label={l.company}
+          onPress={(event) => beginDrag(l.code, event)}
+          onChange={(on) => suppressClick.current !== l.code && setCodeSelected(l.code, on)}
+        />,
+        <CompanyCell key="c" lead={l} />,
+        <SourceCell key="s" lead={l} />,
+        <StatusCell key="w" lead={l} />,
+        <LeadPicCell key="o" lead={l} />,
+        <PinCell
+          key="p"
+          on={pins.includes(l.code)}
+          company={l.company}
+          onToggle={() => me && togglePin(me.id, l.code)}
+        />,
+      ],
+    })),
+  }
+
+  /* Two bodies, one card: the pinned tab answers out of `leadFacetQuery`, the
+     book out of `leadBookQuery`, so every draw state picks its own source. */
+  const pending = pinnedView ? facetsPending : isPending
+
+  /* A failed read says so and offers a retry, not "clear filters": the filters
+     are not what broke. `userMessage` keeps the server's own words. */
+  const failure = pinnedView
+    ? facetsError
+      ? {
+          message: `Không lấy được danh sách ghim. ${
+            isApiError(facetsError) ? userMessage(facetsError) : 'Vui lòng thử lại.'
+          }`,
+          onRetry: () => void refetchFacets(),
+        }
+      : undefined
+    : bookError
+      ? {
+          message: `Không lấy được sổ lead. ${
+            isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+          }`,
+          onRetry: () => void refetchBook(),
+        }
+      : undefined
+
+  const empty = pinnedView
+    ? pinned.length === 0
+      ? {
+          message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây.',
+          action: { label: 'Về sổ lead', onClick: () => setPinnedView(false) },
+        }
+      : undefined
+    : rows.length === 0
+      ? {
+          message: 'Không có lead nào khớp bộ lọc đang chọn.',
+          action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
+        }
+      : undefined
 
   const sourceFiltered = query.campaign !== undefined || query.sourceKind !== undefined
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          /* CSS uppercase, not typed capitals: screen readers still read the words. */
-          title={<span className="uppercase">Sổ lead</span>}
+        <BookPage
+          title="Sổ lead"
           actions={
             <>
               <PeriodLabel from={PERIOD_FROM} to={dmy(DAS_VINA_FROZEN_AT)} />
@@ -638,32 +611,21 @@ export function LeadsPage() {
               )}
             </>
           }
-        />
-
-        <ScoreStrip />
-
-        {/* Tables always sit on glass-b — law 8. */}
-        {/* No `overflow-hidden`: the filter popover must hang past the card's edge. */}
-        <GlassCard variant="b" aria-label="Sổ lead">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              <SegmentedControl
-                label="Nhóm lead"
-                hideLabel
-                tone="quiet"
-                value={pinnedView ? PINNED : query.status}
-                options={tabs}
-                onChange={onTab}
-              />
-              <span className="text-muted-foreground text-[11.5px]">
-                <span className="tnum text-foreground font-semibold">
-                  {pinnedView ? pinned.length : total}
-                </span>{' '}
-                lead
-              </span>
-            </div>
-            {!pinnedView && (
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          score={<ScoreStrip />}
+          tabs={
+            <SegmentedControl
+              label="Nhóm lead"
+              hideLabel
+              tone="quiet"
+              value={pinnedView ? PINNED : query.status}
+              options={tabs}
+              onChange={onTab}
+            />
+          }
+          count={<BookCount total={pinnedView ? pinned.length : total} noun="lead" />}
+          tools={
+            !pinnedView && (
+              <>
                 <SearchField
                   placeholder="Tìm theo tên công ty hoặc mã lead…"
                   value={text}
@@ -686,28 +648,28 @@ export function LeadsPage() {
                     </Button>
                   )}
                 </FilterMenu>
-              </div>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">{body}</div>
-
-          {pinnedView
-            ? !facetsPending &&
-              pinned.length > 0 && (
-                <TableFooter
-                  page={0}
-                  pageSize={pinned.length}
-                  total={pinned.length}
-                  onPage={onPage}
-                />
-              )
-            : !isPending &&
-              !bookError &&
-              total > 0 && (
-                <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={onPage} />
-              )}
-        </GlassCard>
+              </>
+            )
+          }
+          pending={pending}
+          failure={failure}
+          empty={empty}
+          table={table}
+          footer={
+            pinnedView ? (
+              /* The pinned list is one page by definition — it is as long as the
+                 person's own pins, so there is nothing to page through. */
+              <TableFooter
+                page={0}
+                pageSize={pinned.length}
+                total={pinned.length}
+                onPage={onPage}
+              />
+            ) : (
+              <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={onPage} />
+            )
+          }
+        />
 
         {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
         <MasMailModal
@@ -722,9 +684,10 @@ export function LeadsPage() {
           }}
         />
         {selectedCodes.size > 0 && (
-          <LeadSelectionBar
-            leads={selectedCodes.size}
-            emails={selectedEmailCount}
+          <BookSelectionBar
+            count={selectedCodes.size}
+            noun="lead"
+            meta={`${selectedEmailCount} địa chỉ email`}
             onClear={clearSelection}
             onSend={() => setComposing(true)}
           />

@@ -269,6 +269,47 @@ export function sheetFromPaste(text: string): Sheet {
 }
 
 // ---------------------------------------------------------------------------
+// Wrong encoding — detected, never repaired
+// ---------------------------------------------------------------------------
+
+/** The trace of UTF-8 read as CP1252: a lead byte (\u00C0-\u00FF) landing
+ *  directly BEFORE a continuation byte, and it is that PAIR this catches — one
+ *  accented syllable comes back two characters long. Written as escapes, never
+ *  as the glyphs: bytes 80-9F are INVISIBLE pasted into source, the same reason
+ *  the BOM below is built with `fromCharCode`. Two ranges because CP1252 maps
+ *  80-9F onto its own punctuation while A0-BF decode straight through. */
+const MOJIBAKE =
+  /[\u00C0-\u00FF][\u00A0-\u00BF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A\u20AC\u2122]/
+
+/** Rows read before a column counts as clean. A column broken at all is broken
+ *  from its first row, so this only has to outrun a few leading blanks. */
+const MOJIBAKE_SCAN = 20
+
+/** The first column that looks saved in the wrong encoding, with one sample cell.
+ *
+ *  DETECTS only, never repairs: guessing the encoding backwards and getting it
+ *  wrong writes garbage into the book with nobody the wiser, while a warning
+ *  lets the person holding the file re-save it themselves. */
+export function detectMojibakeColumn(
+  headers: readonly string[],
+  rows: readonly string[][],
+): { column: string; sample: string } | undefined {
+  const scan = rows.slice(0, MOJIBAKE_SCAN)
+
+  for (let i = 0; i < headers.length; i += 1) {
+    const cells = scan.map((r) => r[i] ?? '').filter((c) => c !== '')
+    const bad = cells.filter((c) => MOJIBAKE.test(c))
+    /* By RATIO, not by one cell: a single odd cell is one dirty row, a whole odd
+       column is a file saved wrong — only the second is worth stopping for. */
+    if (bad[0] !== undefined && bad.length / cells.length >= 0.3) {
+      return { column: headers[i] || `cột ${i + 1}`, sample: bad[0] }
+    }
+  }
+
+  return undefined
+}
+
+// ---------------------------------------------------------------------------
 // Tải tệp về
 // ---------------------------------------------------------------------------
 

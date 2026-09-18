@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Filter } from '@pv/ui'
-import { Avatar, Button, Icon, cn } from '@pv/ui'
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, Filter, Mail } from '@pv/ui'
+import { Avatar, Button, Checkbox, Icon, cn } from '@pv/ui'
 
 /** Những mảnh dùng chung của MỌI SỔ — lead · cơ hội · chiến dịch.
  *
@@ -13,41 +13,7 @@ import { Avatar, Button, Icon, cn } from '@pv/ui'
  *
  *  Chúng KHÔNG lên `@pv/ui`: cả ba biết cách phòng kinh doanh đọc một dòng sổ,
  *  đó là kiến thức của app chứ không của thư viện component (biên giới package ·
- *  CLAUDE.md). Cần một Pager thật sự tổng quát thì đó là một atom mới, có mặt
- *  trên trang kit — việc riêng, không gộp vào đây. */
-
-/** Phân trang. Sổ trăm dòng không cuộn vô tận — người dùng phải biết mình đang
- *  ở đâu trong sổ. */
-export function Pager({
-  page,
-  pageCount,
-  onPage,
-}: {
-  page: number
-  pageCount: number
-  onPage: (p: number) => void
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => onPage(page - 1)}>
-        <Icon icon={ChevronLeft} size={16} />
-        Trước
-      </Button>
-      <span className="text-muted-foreground tnum font-num text-[11.5px]">
-        {page + 1}/{pageCount}
-      </span>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={page >= pageCount - 1}
-        onClick={() => onPage(page + 1)}
-      >
-        Sau
-        <Icon icon={ChevronRight} size={16} />
-      </Button>
-    </div>
-  )
-}
+ *  CLAUDE.md). */
 
 /** Page indexes to print: first, last, and the current one with its neighbours.
  *  `null` marks a gap, so ten pages never turn into ten buttons. */
@@ -91,7 +57,7 @@ function PageButton({
 }
 
 /** The foot of a book card: which rows are showing, then numbered pages.
- *  `page` is 0-based, like `Pager`. */
+ *  `page` is 0-based. */
 export function TableFooter({
   page,
   pageSize,
@@ -288,6 +254,90 @@ export function FilterMenu({
           {children}
         </div>
       )}
+    </div>
+  )
+}
+
+/** A row's checkbox, shared by every book that lets rows be picked out for a
+ *  bulk action. Pressing it starts a paint-drag across rows; the click that
+ *  follows the same press is ignored by the screen (its own `suppressClick`),
+ *  so a press toggles once, not twice. */
+export function SelectionCell({
+  checked,
+  label,
+  onChange,
+  onPress,
+}: {
+  checked: boolean
+  /** What the row IS, for the screen-reader label the checkbox renders — a
+   *  company, an opportunity name, whatever names the row on that book. */
+  label: string
+  onChange: (checked: boolean) => void
+  onPress: (event: PointerEvent<HTMLSpanElement>) => void
+}) {
+  return (
+    <span
+      className="flex w-full justify-center"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={onPress}
+    >
+      <Checkbox
+        checked={checked}
+        onChange={onChange}
+        label={<span className="sr-only">Chọn {label}</span>}
+        className="h-12 w-full justify-center gap-0 bg-transparent p-0 hover:bg-transparent"
+      />
+    </span>
+  )
+}
+
+/** The floating bar a book's selection opens once a row is checked — count,
+ *  a way out, and the one bulk action every book with a mail merge needs.
+ *  Shared because the lead book and the opportunity book both need this exact
+ *  shape, and a screen's own copy is how the two start reading differently. */
+export function BookSelectionBar({
+  count,
+  noun,
+  meta,
+  onClear,
+  onSend,
+}: {
+  count: number
+  /** The picked noun, already declined for the count line — "lead", or an
+   *  opportunity book's own word for its rows. */
+  noun: string
+  /** Second line under the count — an email-address tally, or whatever else
+   *  the caller has to say about the picked rows beyond how many there are. */
+  meta: string
+  onClear: () => void
+  onSend: () => void
+}) {
+  return (
+    <div
+      className="glass-overlay shadow-panel fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
+      role="region"
+      aria-label={`Đang chọn ${count} ${noun}`}
+    >
+      <div className="flex min-w-0 items-center gap-3" aria-live="polite">
+        <span className="bg-accent text-accent-foreground font-num tnum flex size-10 shrink-0 items-center justify-center rounded-md text-[16px] font-semibold">
+          {count}
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[13px] font-semibold">
+            {count} {noun} đã chọn
+          </span>
+          <span className="text-muted-foreground text-[11.5px]">{meta}</span>
+        </span>
+      </div>
+      <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
+        <Button size="lg" variant="ghost" onClick={onClear}>
+          Bỏ chọn hết
+        </Button>
+        <Button size="lg" onClick={onSend}>
+          <Icon icon={Mail} size={16} />
+          Gửi email
+        </Button>
+      </div>
     </div>
   )
 }

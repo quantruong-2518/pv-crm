@@ -112,6 +112,12 @@ export function lanesOf(ws: WorkstreamProfileResponse): WorkstreamLane[] {
 
 export const currentStepOf = (lane: WorkstreamLane) => lane.steps.find((s) => s.state === 'current')
 
+/** The rung a lane actually stands on once it stopped moving — `at(-1)` would
+ *  answer the LAST rung of the ladder instead, which for a deal lost or won
+ *  before the final column is an `upcoming` rung nothing ever reached. */
+const lastReachedOf = (lane: WorkstreamLane | undefined) =>
+  lane && [...lane.steps].reverse().find((s) => s.state !== 'upcoming')
+
 /** The newest open deal is what somebody opens a run to push forward; the lead
  *  and the last deal are fallbacks for a run with nothing moving. */
 export function defaultStepOf(ws: WorkstreamProfileResponse): StepRef | null {
@@ -123,8 +129,8 @@ export function defaultStepOf(ws: WorkstreamProfileResponse): StepRef | null {
   return (
     ref(open, open && currentStepOf(open)) ??
     ref(lead, lead && currentStepOf(lead)) ??
-    ref(newest, newest?.steps.at(-1)) ??
-    ref(lead, lead?.steps.at(-1))
+    ref(newest, lastReachedOf(newest)) ??
+    ref(lead, lastReachedOf(lead))
   )
 }
 

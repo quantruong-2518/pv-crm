@@ -1,784 +1,729 @@
+import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { createDb } from '@api/platform/db/create-db'
 import {
-  dasVina,
-  leadContact,
-  leadProfile,
-  EXIT_REASONS,
-  LEAD_CATEGORIES,
-  LEAD_TIERS,
-  LEADS,
-  OPEN_DEALS,
-  PIPELINE_STAGES,
-  SOURCES,
-  type FrozenLead,
-  type Lead,
-  type QuestionKey,
-} from '@pv/engines/fixtures/das-vina'
-import {
-  CONFIG_PREFIX,
-  ContactChannel,
   normalisePhone,
-  type ConfigList,
-  type ExitReason,
+  StageKey,
+  type OpportunityCreateState,
+  type TouchKind,
 } from '@pv/contracts'
+import { createDb } from '@api/platform/db/create-db'
+import { loadEnv } from '@api/platform/config/env'
+import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
+import { account } from '@api/branches/sales/account/account.schema'
+import { campaign, campaignMember } from '@api/branches/sales/campaign/campaign.schema'
+import { sourceCost, sourceEvent, sourceFollower } from '@api/branches/sales/campaign/source.schema'
 import { configEntry } from '@api/branches/sales/config/config.schema'
 import { stageCriterion } from '@api/branches/sales/config/stage-criterion.schema'
-import { contract } from '@api/branches/sales/contract/contract.schema'
+import { contact } from '@api/branches/sales/contact/contact.schema'
+import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
+import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
+import { opportunityCriterionTick } from '@api/branches/sales/opportunity/opportunity-criterion-tick.schema'
 import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
-import { opportunity, opportunityOwner } from '@api/branches/sales/opportunity/opportunity.schema'
+import {
+  opportunity,
+  opportunityOwner,
+  opportunityProduct,
+  opportunityStageEvent,
+} from '@api/branches/sales/opportunity/opportunity.schema'
 import { touch } from '@api/branches/sales/touch/touch.schema'
 import { workstream } from '@api/branches/sales/workstream/workstream.schema'
-import { passwordReset, session } from '@api/platform/auth/auth.schema'
-import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
-import { loadEnv } from '@api/platform/config/env'
+import { STAFF, type StaffMember } from './staff'
+import { JOURNEYS, PRODUCTS, SOURCES, type DealSeed, type JourneySeed } from './seed-book'
+import { ACCOUNTS, type ContactSeed } from './seed-companies'
+import {
+  configSeed,
+  CRITERIA,
+  criteriaSeed,
+  EXIT_NAME,
+  person,
+  productRows,
+  sourceIdOf,
+} from './seed-config'
 
-/** Nạp kịch bản 2 · DAS Vina vào Postgres tại máy.
+/** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
  *
- *  Nguồn là FIXTURE ĐÓNG BĂNG, không phải dữ liệu bịa: cùng 100 dòng sổ mà
- *  `apps/web` đang vẽ, nên hai đầu so được với nhau bằng mắt trong lúc cắt
- *  từng endpoint sang backend. Đây là chỗ DUY NHẤT trong `apps/api` được phép
- *  nhập fixture — chỗ khác nhập là đưa tên khách hàng vào đường chạy thật.
+ *  The cast is `STAFF`, the seven real seats, so the book can be walked by
+ *  signing in; passwords still come from `pnpm db:seed:accounts -- --apply`.
+ *  Refuses anything but pglite unless `--remote` is passed: it empties whole
+ *  schemas, and `.env` has pointed at Neon before.
  *
- *  Chạy: `pnpm db:migrate && pnpm db:seed`. */
+ *  Run: `pnpm db:migrate && pnpm db:seed && pnpm db:seed:accounts -- --apply`. */
 
-/** Nhãn tiếng Việt (fixture) → khoá ASCII (hợp đồng).
- *
- *  Bảng này TỒN TẠI vì nợ số 4 chưa trả xong ở phía fixture: `Lead.exitReason`
- *  đang lưu thẳng nhãn hiển thị làm giá trị. Nó biến mất khi fixture đổi sang
- *  khoá. */
-const EXIT_KEY: Record<string, ExitReason> = {
-  'Không gọi được ai': 'unreachable',
-  'Không phải khách của mình': 'not-a-fit',
-  'Năm nay không có tiền': 'no-budget',
-  'Người liên hệ nghỉ việc': 'contact-left',
-  'Khách chọn bên khác': 'chose-competitor',
-  'Im sau báo giá': 'silent-after-quote',
-}
-
-/** Dịch nhãn sang khoá, và NỔ khi gặp nhãn lạ.
- *
- *  Bản trước viết `EXIT_KEY[label] ?? null` — fixture thêm lý do thứ bảy thì
- *  52 dòng sổ lặng lẽ mất trường `exitReason`, seed vẫn báo thành công, và cái
- *  sai chỉ lộ ra ở một biểu đồ nào đó vài tuần sau. Seed hỏng to còn hơn seed
- *  hỏng nhỏ mà im. */
-function exitKeyOf(label: string): ExitReason {
-  const key = EXIT_KEY[label]
-  if (!key) {
-    throw new Error(
-      `Lý do rơi "${label}" chưa có khoá ASCII trong EXIT_KEY. ` +
-        `Thêm vào cả \`packages/contracts/src/sales/enums.ts\` lẫn bảng ở seed.`,
-    )
-  }
-  return key
-}
-
-/** Ba quy ước "trống" của fixture → MỘT quy ước của bảng.
- *
- *  `Lead` dùng `undefined`, `LeadProfile` dùng `''`, `Opportunity` trộn cả hai
- *  (nợ số 5). Bảng chỉ nhận `NULL`, và CHECK `lead_no_blank` từ chối chuỗi
- *  rỗng — nên phép chuẩn hoá phải xảy ra ở ĐÂY, không phải ở chỗ đọc. */
-const blank = <T>(v: T | '' | null | undefined): T | null =>
-  v === '' || v === null || v === undefined ? null : v
+/** Reference data the migrations plant and no seed rebuilds — same list as
+ *  `reset-staff.ts` plus the two catalogs migrations insert. */
+const KEEP = [
+  'role_permission',
+  'permission_seed',
+  'email_suppression',
+  'mail_template',
+  'motion_policy',
+]
+const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
 
 const DAY = 86_400_000
+const NOW = Date.now()
 
-/** The RUN a lead opened, `WS-0001` upward in fixture order.
- *
- *  Minted from the index rather than from `nextval`, unlike every write door:
- *  `db:seed` REBUILDS, so running it twice has to land the same database, and a
- *  sequence would hand out a fresh block each time. The sequence is pushed past
- *  this block with `setval` inside the same transaction, so the first real write
- *  door still gets an unused number. Same 4-digit shape migration 0045 used for
- *  its own backfill. */
-const runCodeOf = (i: number) => `WS-${String(i + 1).padStart(4, '0')}`
+/** `days` ago at 09:00 Vietnam time (02:00 UTC) plus `hours` — the hour
+ *  orders events sharing a day, whatever timezone the seed runs in. */
+function ago(days: number, hours = 0): Date {
+  const d = new Date(NOW - days * DAY)
+  d.setUTCHours(2 + hours, 0, 0, 0)
+  return d
+}
+const dateOnly = (d: Date) => d.toISOString().slice(0, 10)
+const code = (prefix: string, n: number) => `${prefix}-${String(n).padStart(4, '0')}`
 
-/** How a run ENDED — read exactly the way migration 0045 reads it, so a
- *  database built by migrating and one built by seeding agree.
- *
- *  Neither end is invented: WON is a signature (`sales.contract.signed_at`),
- *  LOST is a funnel exit (`lead.exited_at`), and a signature wins when a lead
- *  somehow carries both — it is the stronger statement about how a run ended,
- *  and the lead book already treats `signed` as its own status. CHURNED is set
- *  on NOTHING: no column in this database records a customer who bought and did
- *  not come back, and deriving one would be inventing business data. */
-function runEndOf(signedAt: Date | null, exitedAt: Date | null) {
-  const closedAt = signedAt ?? exitedAt
-  const closeReason =
-    signedAt !== null ? ('WON' as const) : exitedAt !== null ? ('LOST' as const) : null
-  return { closedAt, closeReason }
+const MARKETING = person('u-marketing')
+const BD = person('u-bd')
+const HEAD = person('u-grace')
+const PRESALES = person('u-presales')
+
+/** Every row the seed writes, grouped by table, in insert order. */
+const out = {
+  objects: [] as (typeof objectRef.$inferInsert)[],
+  edges: [] as (typeof edge.$inferInsert)[],
+  accounts: [] as (typeof account.$inferInsert)[],
+  runs: [] as (typeof workstream.$inferInsert)[],
+  leads: [] as (typeof lead.$inferInsert)[],
+  contacts: [] as (typeof contact.$inferInsert)[],
+  members: [] as (typeof campaignMember.$inferInsert)[],
+  deals: [] as (typeof opportunity.$inferInsert)[],
+  owners: [] as (typeof opportunityOwner.$inferInsert)[],
+  products: [] as (typeof opportunityProduct.$inferInsert)[],
+  moves: [] as (typeof opportunityStageEvent.$inferInsert)[],
+  ticks: [] as (typeof opportunityCriterionTick.$inferInsert)[],
+  contracts: [] as (typeof contract.$inferInsert)[],
+  installments: [] as (typeof contractInstallment.$inferInsert)[],
+  touches: [] as (typeof touch.$inferInsert)[],
+  meetings: [] as (typeof meeting.$inferInsert)[],
+  attendees: [] as (typeof meetingAttendee.$inferInsert)[],
 }
 
-/** Mốc lead vào chỗ hiện tại, tính NGƯỢC từ `daysHere` của fixture.
- *
- *  Bảng lưu mốc chứ không lưu số ngày (xem `lead.schema.ts`), nên seed phải
- *  đổi chiều: `stage_since = mốc dừng − daysHere`. Lead đã rơi thì đồng hồ
- *  dừng ở `exitedAt`, nên con số của nó cố định mãi mãi; lead còn sống thì mốc
- *  dừng là `now()`, nên `daysHere` khớp fixture NGAY SAU KHI SEED rồi trôi
- *  theo ngày thật. Đó là hệ quả đúng của việc bỏ một cột đóng băng — kịch bản
- *  "hôm nay" phải chạy theo hôm nay. */
-function stageSinceOf(l: Lead): Date {
-  const stop = l.exitedAt ? new Date(l.exitedAt).getTime() : Date.now()
-  return new Date(stop - l.daysHere * DAY)
+const accountCodeOf = new Map(ACCOUNTS.map((a, i) => [a.key, code('AC', i + 1)]))
+
+function plantAccounts(): void {
+  ACCOUNTS.forEach((a) => {
+    const ac = accountCodeOf.get(a.key)!
+    const owner = a.ownerId ? person(a.ownerId) : null
+    out.objects.push({ code: ac, kind: 'AC', branch: 'Sales', label: a.name, owner: owner?.name })
+    out.accounts.push({
+      code: ac,
+      name: a.name,
+      legalName: a.legalName,
+      address: a.address,
+      province: a.province,
+      category: a.category,
+      headcount: a.headcount,
+      plants: a.plants,
+      ownerId: owner?.id ?? null,
+      note: a.note ?? null,
+      createdAt: ago(
+        Math.max(...JOURNEYS.filter((j) => j.account === a.key).map((j) => j.bornDaysAgo)),
+      ),
+    })
+  })
 }
 
-/** Hồ sơ có ĐỦ hai ô liên hệ, dùng để lấy tên người và email.
- *
- *  `contact_name` và `email` là cột BẮT BUỘC của bảng, nhưng fixture chỉ lộ
- *  chúng khi lead đã moi được ô 4 và ô 5 — 58 và 62 dòng trong 100 dòng thì
- *  chưa. Thay vì bịa một mẫu email mới, seed gọi CHÍNH bộ sinh tất định của
- *  fixture trên một bản sao đã đánh dấu hai ô đó là đã moi: cùng công thức,
- *  cùng kết quả, không có dữ liệu lạ nào vào cơ sở dữ liệu.
- *
- *  Những trường khác của hai ô ấy (`contact_title`, `phone`, `channel`) VẪN
- *  lấy theo `filled` thật, vì hai cột đếm ô của bảng đo chúng — lấy theo bản
- *  sao thì mọi lead đều đủ ô 4 và ô 5, và cổng init data mất nghĩa. */
-const CONTACT_SLOTS: QuestionKey[] = ['contact', 'channel']
+type Hand = Pick<StaffMember, 'id' | 'name' | 'roleId'>
 
-function contactOf(l: FrozenLead) {
-  /* `FrozenLead` chứ không `Lead`, và bản sao giữ nguyên nhãn: seed chạy trên
-     ĐÚNG 100 dòng của kịch bản, và `leadContact` là hàm SINH — nhãn kiểu là
-     thứ đảm bảo ngày seed đọc từ một nguồn khác thì chỗ này nổ lúc biên dịch
-     chứ không lặng lẽ nhét người bịa vào cột `NOT NULL`. */
-  const full: FrozenLead = { ...l, filled: [...new Set([...l.filled, ...CONTACT_SLOTS])] }
-  const c = leadContact(full)
-  /* Bản sao đã đánh dấu đủ hai ô nên `leadContact` luôn trả người VÀ email —
-     nhưng chữ ký của nó vẫn cho phép vắng, nên kiểm ở đây thay vì ép kiểu. Ngày
-     fixture đổi cách sinh, chỗ này nổ chứ không nhét `undefined` vào cột
-     `NOT NULL`. */
-  if (!c?.email) throw new Error(`Không dựng được người liên hệ cho ${l.code}`)
-  return { ...c, email: c.email }
+/** One line of a timeline, on the lead or on its deal. */
+function pushTouch(
+  subjectCode: string,
+  subjectKind: 'lead' | 'opportunity',
+  kind: TouchKind,
+  at: Date,
+  by: Hand | null,
+  note: string,
+  extra: Partial<typeof touch.$inferInsert> = {},
+): void {
+  out.touches.push({
+    subjectCode,
+    subjectKind,
+    kind,
+    at,
+    by: by?.name ?? 'Trợ lý AI',
+    actorId: by?.id ?? null,
+    note,
+    ...extra,
+  })
 }
 
-/** Nhãn bảy kênh liên lạc — CHÉP NGUYÊN VĂN từ `CHANNEL_LABEL` bên
- *  `apps/web/src/data/sales-config.ts`.
- *
- *  Chép chứ không nhập: máy chủ không được với sang app web (eslint chặn, và
- *  đúng ra là thế). Chép chứ không đặt tên mới: bảy nhãn này đã chốt ở màn Cấu
- *  hình, gõ lại theo ý mình ở đây là dựng bản thứ hai của cùng một quyết định.
- *
- *  Đây là bản chép CUỐI CÙNG của bảng đó. Sau lần seed này nguồn sự thật là
- *  `sales.config_entry`; bảng bên `apps/web` phải rút về đọc từ API, cùng đường
- *  mà `PIPELINE_STAGES`, `LEAD_CATEGORIES` và bốn danh mục kia đang đi.
- *
- *  Hai thuộc tính của kênh — `hasRoad` (E4 đã gửi thật được chưa) và "có địa
- *  chỉ để dội hay không" — KHÔNG theo vào bảng: lược đồ đã chốt của
- *  `config_entry` chỉ có ba cột thuộc tính (`limit_days`, `owner_id`, `kind`),
- *  không cột nào chở được chúng. Chúng ở nguyên `E4_CHANNELS` và
- *  `ADDRESSED_CHANNELS` bên `apps/web`. Ghi ra để không ai tưởng là chỗ quên. */
-const CHANNEL_NAME: Record<ContactChannel, string> = {
-  email: 'Email',
-  'zalo-oa': 'Zalo OA',
-  telegram: 'Telegram',
-  'in-app': 'Trong app',
-  linkedin: 'LinkedIn',
-  facebook: 'Facebook',
-  website: 'Website',
+const handTo = (p: Hand) => ({ toActorId: p.id, toName: p.name, toRole: p.roleId })
+
+/** Days-ago of each pre-pipeline milestone, never later than the day the
+ *  lead leaves that phase, so the timeline cannot run backwards. */
+function milestones(j: JourneySeed) {
+  const end = j.deals?.[0]?.enteredDaysAgo ?? j.exit?.daysAgo ?? 0
+  const at = (offset: number) => Math.max(j.bornDaysAgo - offset, end)
+  return { contacted: at(1), mql: at(3), handover: at(4), meeting: at(7) }
 }
 
-/** Một dòng danh mục trước khi có mã và số thứ tự. */
-type ConfigSeed = { name: string; limitDays?: number; ownerId?: string | null; kind?: string }
+let contactNo = 0
+let dealNo = 0
+let contractNo = 0
 
-/** Đánh mã và đánh số theo ĐÚNG thứ tự fixture đang có.
- *
- *  Thứ tự nhập là thứ tự nghiệp vụ, nên nó không được sắp lại theo bảng chữ cái
- *  hay theo bất cứ thứ gì khác: 'Mới' phải là `ord` 1 và 'Chờ ký' phải là 5, vì
- *  đó là hình dạng thật của cái phễu. Mã thì ngược lại — nó KHÔNG mang nghĩa,
- *  nó chỉ cần bất biến. */
-function configRows(list: ConfigList, items: ConfigSeed[]) {
-  return items.map((it, i) => ({
-    id: `${CONFIG_PREFIX[list]}-${String(i + 1).padStart(2, '0')}`,
-    list,
-    name: it.name,
-    ord: i + 1,
-    active: true,
-    limitDays: it.limitDays ?? null,
-    ownerId: it.ownerId ?? null,
-    kind: it.kind ?? null,
-  }))
+/** The primary arrives with the lead; the rest are met at the site survey. */
+function plantContacts(ld: string, domain: string, people: ContactSeed[], born: Date, met: Date) {
+  people.forEach((p, n) => {
+    const ct = code('CT', ++contactNo)
+    out.objects.push({ code: ct, kind: 'CT', branch: 'Sales', label: p.name })
+    out.edges.push({ fromCode: ct, toCode: ld, kind: 'belongs-to' })
+    out.contacts.push({
+      code: ct,
+      leadCode: ld,
+      name: p.name,
+      title: p.title,
+      email: `${p.mail}@${domain}`,
+      phone: normalisePhone(p.phone),
+      channel: p.channel,
+      isPrimary: n === 0,
+      by: n === 0 ? MARKETING.name : BD.name,
+      createdBy: n === 0 ? MARKETING.id : BD.id,
+      createdAt: n === 0 ? born : met,
+    })
+  })
 }
+
+function plantJourney(j: JourneySeed, i: number): void {
+  const a = ACCOUNTS.find((x) => x.key === j.account)
+  if (!a) throw new Error(`Journey ${i} names unknown account "${j.account}"`)
+  const src = SOURCES.find((s) => s.key === j.source)!
+  const ld = code('LD', i + 1)
+  const ws = code('WS', i + 1)
+  const ac = accountCodeOf.get(a.key)!
+  const owner = j.ownerId ? person(j.ownerId) : null
+  const people = (j.contacts ?? a.contacts.map((_, n) => n)).map((n) => a.contacts[n]!)
+  const primary = people[0]!
+  const m = milestones(j)
+  const reached = j.tier !== 'prospect'
+  const born = ago(j.bornDaysAgo)
+
+  plantContacts(ld, a.domain, people, born, ago(m.meeting, 6))
+
+  /* Timeline on the lead: arrival, first reply, and — once real — the hand-over to BD. */
+  pushTouch(ld, 'lead', 'created', born, MARKETING, `Vào sổ từ ${src.name}`, handTo(MARKETING))
+  pushTouch(
+    ld,
+    'lead',
+    'contacted',
+    ago(m.contacted, 1),
+    null,
+    'Agent 1 nhắn lại trên kênh khách vừa dùng',
+  )
+  if (reached) {
+    pushTouch(
+      ld,
+      'lead',
+      'tier-raised',
+      ago(m.mql, 2),
+      MARKETING,
+      'Xác minh công ty có thật · lên bậc MQL',
+      { toTier: 'mql' },
+    )
+    pushTouch(
+      ld,
+      'lead',
+      'handed-over',
+      ago(m.handover, 3),
+      HEAD,
+      `Giao cho ${BD.name} đi lấy nốt ô bắt buộc`,
+      {
+        fromActorId: MARKETING.id,
+        fromName: MARKETING.name,
+        ...handTo(BD),
+      },
+    )
+    pushTouch(
+      ld,
+      'lead',
+      'first-meeting',
+      ago(m.meeting, 5),
+      BD,
+      'Buổi gặp đầu tiên — khảo sát xưởng',
+    )
+    pushTouch(
+      ld,
+      'lead',
+      'field-filled',
+      ago(m.meeting, 6),
+      BD,
+      'Điền quy mô, người liên hệ và nỗi đau sau buổi khảo sát',
+    )
+    plantMeeting(ld, ago(m.meeting, 5), 'Khảo sát xưởng lần đầu', 'onsite', 90, [BD], people)
+  }
+
+  const deals = (j.deals ?? []).map((d, k) =>
+    plantDeal(ld, ws, ac, a.name, owner!, people, d, k === 0),
+  )
+  const exitedAt = j.exit ? ago(j.exit.daysAgo, 8) : null
+  if (j.exit) {
+    pushTouch(
+      ld,
+      'lead',
+      'exited',
+      exitedAt!,
+      owner ?? MARKETING,
+      `Ra khỏi luồng · ${EXIT_NAME[j.exit.reason]}`,
+    )
+  }
+
+  /* A lost deal never ends the run by itself — the lead can raise another,
+     which is exactly what a second entry in `deals` does. Only a SIGNED deal
+     or the lead's own exit closes the journey. */
+  const won = deals.find((r) => r.signedAt !== null)
+  /* The rung the run stands on: the OPEN deal furthest along, so a deal that
+     already died does not blank out one still moving right beside it. */
+  const live = deals.reduce<(typeof deals)[number] | null>(
+    (best, r) =>
+      r.openStage !== null &&
+      (!best || StageKey.options.indexOf(r.openStage) > StageKey.options.indexOf(best.openStage!))
+        ? r
+        : best,
+    null,
+  )
+
+  const closedAt = won?.signedAt ?? exitedAt
+  out.runs.push({
+    code: ws,
+    accountCode: ac,
+    openedAt: born,
+    closedAt,
+    closeReason: won ? 'WON' : exitedAt ? 'LOST' : null,
+  })
+
+  /* The fields a phase fills: a prospect is a name and a mailbox, MQL adds
+     who they are, SQL adds why they buy — the init-data gate counts these. */
+  const filled = <T>(v: T, from: 'mql' | 'sql' = 'mql') =>
+    j.tier === 'sql' || (from === 'mql' && reached) ? v : null
+  out.objects.push({
+    code: ld,
+    kind: 'LD',
+    branch: 'Sales',
+    label: a.name,
+    owner: owner?.name,
+    state: live?.openStage,
+  })
+  out.edges.push({ fromCode: ld, toCode: ac, kind: 'belongs-to' })
+  out.leads.push({
+    code: ld,
+    createdAt: born,
+    accountCode: ac,
+    workstreamCode: ws,
+    company: a.name,
+    legalName: filled(a.legalName),
+    address: filled(a.address),
+    province: a.province,
+    category: a.category,
+    mainProduct: filled(a.mainProduct),
+    headcount: filled(a.headcount),
+    plants: filled(a.plants),
+    contactName: primary.name,
+    contactTitle: primary.title,
+    email: `${primary.mail}@${a.domain}`,
+    phone: filled(normalisePhone(primary.phone)),
+    contactChannel: primary.channel,
+    pain: j.pain ?? null,
+    currentStack: j.currentStack ?? null,
+    decisionMaker: j.decisionMaker ?? null,
+    approver: j.approver ?? null,
+    budget: j.budget ?? null,
+    currency: j.budget ? 'VND' : null,
+    deadline: j.deadlineInDays === undefined ? null : dateOnly(ago(-j.deadlineInDays)),
+    ownerId: owner?.id ?? null,
+    bdOwnerId: reached ? BD.id : null,
+    marketingOwnerId: MARKETING.id,
+    tier: j.tier,
+    stage: live?.openStage ?? null,
+    stageSince: live?.openStageSince ?? closedAt ?? ago(reached ? m.mql : j.bornDaysAgo),
+    sourceKind: src.sourceKind,
+    motion: src.motion,
+    campaignId: sourceIdOf(src.key),
+    lastTouchAt: out.touches
+      .filter((t) => t.subjectCode === ld)
+      .reduce((max, t) => (t.at! > max ? t.at! : max), born),
+    exitReason: j.exit?.reason ?? null,
+    exitedAt,
+  })
+  if (src.campaign) {
+    out.members.push({ campaignCode: campaignCodeOf.get(src.key)!, leadCode: ld, addedAt: born })
+  }
+}
+
+function plantMeeting(
+  ld: string,
+  at: Date,
+  title: string,
+  mode: 'online' | 'onsite' | 'office',
+  minutes: 30 | 45 | 60 | 90 | 120,
+  hosts: Hand[],
+  guests: ContactSeed[],
+): void {
+  const id = randomUUID()
+  out.meetings.push({
+    id,
+    leadCode: ld,
+    at,
+    title,
+    mode,
+    durationMinutes: minutes,
+    link: mode === 'online' ? 'https://meet.google.com/pvo-demo-chip' : null,
+    by: hosts[0]!.name,
+    createdBy: hosts[0]!.id,
+    createdAt: at < new Date(NOW) ? at : new Date(NOW),
+  })
+  hosts.forEach((h) =>
+    out.attendees.push({ meetingId: id, side: 'host', actorId: h.id, name: h.name }),
+  )
+  guests.forEach((g) => {
+    const ct = out.contacts.find((c) => c.leadCode === ld && c.name === g.name)?.code
+    out.attendees.push({
+      meetingId: id,
+      side: 'guest',
+      contactCode: ct ?? null,
+      name: g.name,
+      role: g.title,
+    })
+  })
+}
+
+/** Deal → columns walked → signature or loss, with both timelines.
+ *
+ *  `first` gates the tier-raise touch: a lead qualifies to SQL once, not once
+ *  per deal it ever opens — a second entry in `deals` is the same lead trying
+ *  again, already sitting at SQL. */
+function plantDeal(
+  ld: string,
+  ws: string,
+  ac: string,
+  company: string,
+  owner: Hand,
+  people: ContactSeed[],
+  d: DealSeed,
+  first: boolean,
+) {
+  const op = code('OP', ++dealNo)
+  const name = `${company} · ${PRODUCTS[d.products[0]!].split(' — ')[0]}`
+  const path = StageKey.options.slice(0, StageKey.options.indexOf(d.stage) + 1)
+  const entered = ago(d.enteredDaysAgo, 8)
+
+  if (first) {
+    /* Qualified to SQL and opened as a deal in one sitting — one act, two ledgers. */
+    pushTouch(
+      ld,
+      'lead',
+      'tier-raised',
+      ago(d.enteredDaysAgo, 7),
+      HEAD,
+      'Đủ ô bắt buộc · qua cổng init data',
+      { toTier: 'sql' },
+    )
+  }
+  pushTouch(ld, 'lead', 'entered-pipeline', entered, owner, NOTE.promoted(op, name))
+  pushTouch(op, 'opportunity', 'entered-pipeline', entered, owner, NOTE.opened(ld, 'pending'))
+
+  /* Columns spread evenly from the day it opened to the day it reached the last one. */
+  const when = path.map((_, k) =>
+    k === 0
+      ? entered
+      : ago(d.enteredDaysAgo - ((d.enteredDaysAgo - d.stageDaysAgo) * k) / (path.length - 1), 4),
+  )
+  path.forEach((stage, k) => {
+    const from = k === 0 ? null : path[k - 1]!
+    out.moves.push({
+      opportunityCode: op,
+      at: when[k]!,
+      fromStage: from,
+      toStage: stage,
+      daysInFrom: from ? Math.round((when[k]!.getTime() - when[k - 1]!.getTime()) / DAY) : null,
+      byId: owner.id,
+      by: owner.name,
+    })
+    if (from)
+      pushTouch(op, 'opportunity', 'stage-changed', when[k]!, owner, NOTE.moved(from, stage))
+    if (stage === 'demo-done') {
+      plantMeeting(
+        ld,
+        when[k]!,
+        'Demo PV One trên dữ liệu xưởng',
+        'online',
+        60,
+        [PRESALES, owner],
+        people,
+      )
+    }
+  })
+
+  const leftDiscovery = path.includes('discovery') && path.at(-1) !== 'discovery'
+  const tickAt = leftDiscovery ? when[path.indexOf('discovery') + 1]! : null
+  CRITERIA.slice(0, leftDiscovery ? CRITERIA.length : (d.ticks ?? 0)).forEach((_, n) =>
+    out.ticks.push({
+      opportunityCode: op,
+      criterionId: criteriaSeed[n]!.id,
+      tickedAt: tickAt ?? ago(d.stageDaysAgo - n - 1, 2),
+      tickedById: owner.id,
+      tickedBy: owner.name,
+    }),
+  )
+
+  const last = path[path.length - 1]!
+  const signedAt = d.won ? ago(d.won.signedDaysAgo, 6) : null
+  const lostAt = d.lost ? ago(d.lost.daysAgo, 6) : null
+  const openState: OpportunityCreateState =
+    last === 'quoted' ? 'quote-sent' : last === 'awaiting-signature' ? 'nego' : 'pending'
+  const closedAt = signedAt ?? lostAt
+
+  if (closedAt) {
+    out.moves.push({
+      opportunityCode: op,
+      at: closedAt,
+      fromStage: last,
+      toStage: null,
+      daysInFrom: Math.round((closedAt.getTime() - when[when.length - 1]!.getTime()) / DAY),
+      byId: owner.id,
+      by: owner.name,
+    })
+  }
+  if (lostAt)
+    pushTouch(
+      op,
+      'opportunity',
+      'stage-changed',
+      lostAt,
+      owner,
+      NOTE.restated(openState, 'close-lost'),
+    )
+  if (!closedAt && (last === 'quoted' || last === 'awaiting-signature')) {
+    const next = last === 'quoted' ? 'Chốt phạm vi và giá' : 'Rà soát điều khoản hợp đồng'
+    plantMeeting(
+      ld,
+      ago(last === 'quoted' ? -3 : -2, 5),
+      next,
+      'office',
+      60,
+      [owner],
+      people.slice(0, 1),
+    )
+  }
+
+  out.objects.push({
+    code: op,
+    kind: 'OP',
+    branch: 'Sales',
+    label: name,
+    owner: owner.name,
+    state: closedAt ? null : last,
+    amount: d.amount,
+  })
+  out.edges.push({ fromCode: ld, toCode: op, kind: 'spawned' })
+  out.deals.push({
+    code: op,
+    leadCode: ld,
+    state: lostAt ? 'close-lost' : openState,
+    stage: closedAt ? null : last,
+    stageSince: closedAt ? null : when[when.length - 1]!,
+    name,
+    accountCode: ac,
+    workstreamCode: ws,
+    amount: d.amount,
+    currency: d.amount === null ? null : 'VND',
+    expectedClose: d.expectedCloseInDays === null ? null : dateOnly(ago(-d.expectedCloseInDays)),
+    probability: d.probability,
+    description: d.description,
+    closedAt,
+    lostReason: d.lost?.reason ?? null,
+    lostNote: d.lost?.note ?? null,
+    createdAt: entered,
+  })
+  out.owners.push({ opportunityCode: op, actorId: owner.id, role: 'SALE' })
+  if (owner.id !== BD.id) out.owners.push({ opportunityCode: op, actorId: BD.id, role: 'BD' })
+  d.products.forEach((n) =>
+    out.products.push({ opportunityCode: op, productId: productRows[n]!.id, list: 'PRODUCT' }),
+  )
+
+  if (signedAt) plantContract(ld, op, ws, owner, name, d.amount!, signedAt)
+  return {
+    signedAt,
+    openStage: closedAt ? null : last,
+    openStageSince: closedAt ? null : when[when.length - 1]!,
+  }
+}
+
+/** Standard PV One terms: 30% on signing, 50% at go-live, 20% after a year. */
+const TERMS = [
+  { label: 'Tạm ứng khi ký', share: 30, dueDays: 7 },
+  { label: 'Nghiệm thu go-live', share: 50, dueDays: 90 },
+  { label: 'Hết bảo hành năm đầu', share: 20, dueDays: 365 },
+]
+
+function plantContract(
+  ld: string,
+  op: string,
+  ws: string,
+  owner: Hand,
+  name: string,
+  amount: number,
+  signedAt: Date,
+): void {
+  const hd = code('HĐ', ++contractNo)
+  out.objects.push({
+    code: hd,
+    kind: 'HĐ',
+    branch: 'Sales',
+    label: name,
+    owner: owner.name,
+    amount,
+  })
+  out.edges.push({ fromCode: op, toCode: hd, kind: 'spawned' })
+  out.contracts.push({
+    code: hd,
+    opportunityCode: op,
+    leadCode: ld,
+    amount,
+    currency: 'VND',
+    signedAt,
+    ownerId: owner.id,
+    workstreamCode: ws,
+  })
+  TERMS.forEach((t, n) => {
+    const due = new Date(signedAt.getTime() + t.dueDays * DAY)
+    out.installments.push({
+      contractCode: hd,
+      no: n + 1,
+      label: t.label,
+      share: t.share,
+      amount: (amount * t.share) / 100,
+      due,
+      paidAt: due.getTime() < NOW ? new Date(due.getTime() - 2 * DAY) : null,
+    })
+  })
+  pushTouch(ld, 'lead', 'signed', signedAt, owner, NOTE.signed(hd))
+  pushTouch(op, 'opportunity', 'signed', signedAt, owner, NOTE.signed(hd))
+}
+
+const campaigns = SOURCES.flatMap((s, i) =>
+  s.campaign
+    ? [
+        {
+          key: s.key,
+          row: {
+            code: code('CP', i + 1),
+            name: s.campaign.name,
+            slogan: s.campaign.slogan,
+            ownerId: MARKETING.id,
+            sourceId: sourceIdOf(s.key),
+            state: s.campaign.state,
+            createdAt: ago(Math.max(...s.costs.map((c) => c.daysAgo), 0) + 5),
+          },
+        },
+      ]
+    : [],
+)
+const campaignCodeOf = new Map(campaigns.map((c) => [c.key, c.row.code]))
 
 async function seed(): Promise<void> {
   const env = loadEnv()
   const { db, close, kind } = await createDb(env.DATABASE_URL)
-
-  const actors = dasVina.actors
-  const idOf = new Map(actors.map((a) => [a.name, a.id]))
-
-  /** Tên người → id, và NỔ nếu fixture nhắc một người không có trong sổ nhân
-   *  sự. Áp cho cả ba vai đứng tên trên lead, không chỉ người giữ. */
-  const personId = (name: string | undefined | null, code: string, role: string) => {
-    if (!name) return null
-    const id = idOf.get(name)
-    if (!id) throw new Error(`${code}: ${role} "${name}" không khớp actor nào`)
-    return id
+  if (kind !== 'pglite' && !process.argv.includes('--remote')) {
+    await close()
+    throw new Error('db:seed empties the database — pglite only, or pass --remote on purpose.')
   }
 
-  /* ── Sáu danh mục cấu hình ─────────────────────────────────────────────────
-     Lấy ĐÚNG từ fixture: giữ nguyên thứ tự, giữ nguyên nhãn. Không dòng nào
-     được thêm, không `limitDays` nào được đoán — sáu danh mục này chính là thứ
-     hôm nay còn là `z.enum` và hằng số, nên một giá trị bịa ra ở đây sẽ được
-     đọc như luật đã chốt của phòng kinh doanh.
-
-     `CATEGORY` là danh mục duy nhất có khoá ngoại sang người: fixture ghi TÊN
-     Sale phụ trách ngành, bảng lưu `id` — `personId` dịch, và nổ nếu fixture
-     nhắc một người không có trong sổ nhân sự.
-
-     `SOURCE` là danh mục duy nhất số dòng không cố định: nó theo `SOURCES` của
-     kỳ, tám nguồn tính tới 17/08. Tách riêng biến `sourceRows` bên dưới —
-     không gộp thẳng vào mảng như năm danh mục kia — vì `rows` cần TRA NGƯỢC
-     lại đúng những id vừa sinh này khi ghi `lead.campaign_id` (xem
-     `campaignIdOf`). Bug thật đã xảy ra đúng ở chỗ thiếu bước tra ngược: bản
-     trước ghi thẳng mã CŨ của fixture (`Source.code`, kiểu `'CD-0101'`) xuống
-     cột đó, mã ấy không hề tồn tại trong `config_entry` — chỉ mã máy chủ vừa
-     sinh (`sourceRows[i].id`, kiểu `'SR-01'`) mới tồn tại. Vì cột không có khoá
-     ngoại (nợ đã ghi ở docblock cột `campaign_id` trong `lead.schema.ts`), Postgres
-     nhận cả mã sai lẫn mã đúng mà không kêu — 100/119 dòng lệch trước khi sửa
-     chỗ này. Tra qua CHÍNH mảng vừa sinh, không chép tay một bảng ánh xạ thứ
-     hai, để hai bên không thể lệch lại theo cách khác. */
-  const sourceRows = configRows(
-    'SOURCE',
-    SOURCES.map((s) => ({ name: s.label, kind: s.kind })),
-  )
-
-  /** `Source.code` cũ (`'CD-0101'`…) → id `config_entry` vừa sinh (`'SR-01'`…),
-   *  theo đúng vị trí trong `SOURCES` — không đoán, không chép tay. */
-  const campaignIdByCode = new Map(SOURCES.map((s, i) => [s.code, sourceRows[i]?.id]))
-
-  /** Dịch mã nguồn cũ sang id chiến dịch mới, và NỔ nếu fixture nhắc một mã
-   *  không có trong `SOURCES` — cùng cách `personId`/`exitKeyOf` đang làm ở
-   *  trên: seed hỏng to còn hơn seed hỏng nhỏ mà im. */
-  function campaignIdOf(code: string): string {
-    const id = campaignIdByCode.get(code)
-    if (!id) throw new Error(`Lead trỏ vào nguồn "${code}" không có trong SOURCES`)
-    return id
-  }
-
-  const configSeed = [
-    ...configRows(
-      'STAGE',
-      PIPELINE_STAGES.map((s) => ({ name: s.label, limitDays: s.limitDays })),
-    ),
-    ...configRows(
-      'TIER',
-      LEAD_TIERS.map((t) => ({ name: t.label })),
-    ),
-    ...configRows(
-      'CATEGORY',
-      LEAD_CATEGORIES.map((c) => ({
-        name: c.label,
-        ownerId: personId(c.sale, `CATEGORY·${c.key}`, 'Sale phụ trách ngành'),
-      })),
-    ),
-    ...configRows(
-      'EXIT_REASON',
-      EXIT_REASONS.map((r) => ({ name: r.label })),
-    ),
-    ...configRows(
-      'CHANNEL',
-      ContactChannel.options.map((k) => ({ name: CHANNEL_NAME[k] })),
-    ),
-    ...sourceRows,
-  ]
-
-  /** Four exit criteria on `discovery`, order and labels from the product
-   *  owner's mockup. No ticks seeded — an untouched checklist is the correct
-   *  starting point. */
-  const criteriaSeed = ['Ngân sách', 'Người quyết định', 'Timeline', 'Pain point'].map(
-    (label, i) => ({
-      id: `SC-${String(i + 1).padStart(2, '0')}`,
-      stage: 'discovery' as const,
-      label,
-      ord: i + 1,
-    }),
-  )
-
-  /* `satisfies` chứ không để suy kiểu tự do: `rows` đi qua một `.map()` trước
-     khi tới `.values()`, và phép gán đó KHÔNG bị TypeScript kiểm thừa-thiếu
-     trường. Đúng lần đổi tên `source` → `campaign_id` này, seed vẫn biên dịch
-     xanh trong khi ghi `NULL` vào cột chiến dịch của cả 100 dòng — im lặng,
-     đúng kiểu hỏng mà file này đã ăn một lần rồi. Neo vào `$inferInsert` là
-     thứ biến lần sau thành lỗi biên dịch. */
-  type LeadSeedRow = typeof lead.$inferInsert & { _i: number; _owner: string | null }
-
-  const rows = LEADS.map((l, i) => {
-    const p = leadProfile(l)
-    const c = contactOf(l)
-    const hasContactSlot = l.filled.includes('contact')
-    const reachable = l.filled.includes('channel')
-
-    return {
-      code: l.code,
-      createdAt: new Date(l.createdAt),
-
-      company: l.company,
-      legalName: blank(p.legalName),
-      taxCode: blank(p.taxCode),
-      address: blank(p.address),
-      province: blank(l.province),
-      category: l.category,
-      mainProduct: blank(p.mainProduct),
-      headcount: p.headcount,
-      plants: p.plants,
-
-      contactName: c.name,
-      contactTitle: hasContactSlot ? blank(c.title) : null,
-      email: c.email.trim().toLowerCase(),
-      /* Through the same normaliser the four write doors use, not straight
-         from the fixture: the fixture writes numbers the way a person types
-         them ('0912 300 391'), and a seeded book spelling its phones one way
-         while every saved lead spells them another is a column with two
-         conventions in it. Same reason `email` is lowercased a line above. */
-      phone: reachable ? blank(normalisePhone(c.phone ?? '')) : null,
-      contactChannel: reachable ? blank(c.channel as ContactChannel) : null,
-
-      pain: blank(p.pain),
-      currentStack: blank(p.currentStack),
-      decisionMaker: blank(p.decisionMaker),
-      approver: blank(p.approver),
-      /* Tiền luôn đi cặp với đơn vị — CHECK `lead_money_pair` từ chối một nửa. */
-      budget: p.budget,
-      currency: p.budget === null ? null : p.currency,
-      deadline: blank(p.deadline),
-
-      ownerId: personId(l.owner, l.code, 'người giữ'),
-      bdOwnerId: personId(blank(p.bdOwner), l.code, 'BD'),
-      marketingOwnerId: personId(blank(p.marketingOwner), l.code, 'Marketing'),
-
-      tier: l.tier,
-      stage: l.stage ?? null,
-      stageSince: stageSinceOf(l),
-      /* Fixture chưa có khái niệm LOẠI XUẤT XỨ (`MANUAL · IMPORT · APOLLO ·
-         LANDING_PAGE`) — nó có từ luồng MAS mail trở đi. Để trống chứ không
-         đoán: một giá trị đoán ở đây sẽ được đọc như dữ liệu thật ở màn
-         Performance. Nửa còn lại của xuất xứ — chiến dịch — thì fixture CÓ,
-         nên nó được điền ngay bên dưới. Một nửa biết, một nửa không, và cột
-         nào cũng nói đúng phần của nó. */
-      sourceKind: null,
-      campaignId: campaignIdOf(l.source),
-      score: 0,
-      lastTouchAt: null,
-
-      exitReason: l.exitReason ? exitKeyOf(l.exitReason) : null,
-      exitedAt: l.exitedAt ? new Date(l.exitedAt) : null,
-      /* Until this line every seeded lead came back with a NULL run, and the
-         rows migration 0045 backfilled were orphaned by the very next rebuild.
-         One run per lead is 0045's own rule, kept here. */
-      workstreamCode: runCodeOf(i),
-      _i: i,
-      /* Display NAME, not id — `platform.object.owner` stores the label E2's
-         scope axis still compares against. Carried here rather than looked up
-         again so the mirror rows below read from the same source as the lead
-         row. Dropped before insert, like `_i`. */
-      _owner: l.owner ?? null,
-    } satisfies LeadSeedRow
-  })
-
-  /* ── E1 mirror rows, one per lead ──────────────────────────────────────────
-     `lead.code` is a FOREIGN KEY into `platform.object` since 27/08, so a lead
-     without a mirror row can no longer be written at all — that is the whole
-     point of the key (see the docblock on the column in `lead.schema.ts`).
-
-     The fixture's own `objects` list carries FOUR rows — account, contact,
-     opportunity, quote — and no leads, so these 100 are built here. Built, not
-     invented: same shape `lead.mapper.ts#toRef` produces when the API turns a
-     lead row into an E1 object, and every field is read off the lead row that
-     already exists. No new data enters the database.
-
-     `state` holds the STAGE KEY ('new'), matching `toRef`. */
-  const leadObjects = rows.map((r) => ({
-    code: r.code,
-    kind: 'LD' as const,
-    branch: 'Sales' as const,
-    label: r.company,
-    owner: r._owner,
-    state: r.stage,
-    amount: null,
-  }))
-
-  /* ── Cơ hội và hợp đồng ────────────────────────────────────────────────────
-     Quan hệ lead → cơ hội nay là 1-n, nên `deal_code`/`contract_code` không
-     còn là cột của lead. Hai bảng dưới đây là chỗ chúng đi tới.
-
-     Fixture gán `dealCode` cho 10 dòng đầu và `contractCode` cho 6 dòng tiếp
-     theo — và 6 dòng đã ký KHÔNG có `dealCode`. Nhưng một hợp đồng phải đến từ
-     một cơ hội (khoá ngoại ghép của `contract` bắt buộc thế), nên seed dựng
-     thêm 6 cơ hội tương ứng, mã suy thẳng từ mã hợp đồng. Đó là suy ra theo mô
-     hình, không phải bịa dữ liệu: hợp đồng đã tồn tại thì cơ hội sinh ra nó
-     cũng đã tồn tại. */
-  /* Trạng thái suy NGƯỢC từ cột, và bảng tra này chỉ dùng cho seed.
-     `stageOfState` đi một chiều state → stage; chiều ngược lại không phải hàm
-     (hai cột 'new'/'demo-done' không có trạng thái nào trỏ tới), nên nó chỉ đúng
-     ở đây, nơi dữ liệu là mười đơn đóng băng đã biết trước. Đơn đang mở ở ba
-     cột đầu đều là "Pending" — chưa báo giá thì chưa có gì để nego. */
-  const STATE_OF_STAGE = {
-    new: 'pending',
-    discovery: 'pending',
-    'demo-done': 'pending',
-    quoted: 'quote-sent',
-    'awaiting-signature': 'nego',
-  } as const
-
-  const deals = rows
-    .filter((r) => r._i < OPEN_DEALS.length)
-    .map((r) => {
-      const d = OPEN_DEALS[r._i]
-      if (!d) throw new Error(`Thiếu OPEN_DEALS[${r._i}]`)
-      return {
-        code: d.code,
-        leadCode: r.code,
-        /* A copy of the lead's key, not a second opinion about which run this
-           is — the standing `opportunity.workstream_code` was given. */
-        workstreamCode: r.workstreamCode,
-        state: STATE_OF_STAGE[d.stage],
-        stage: d.stage,
-        /* Đồng hồ cột đọc THẲNG `daysInStage` của fixture, không lấy `created_at`
-           như migration phải làm cho dữ liệu cũ. Ở đây con số có thật: sổ đóng
-           băng khai đúng đơn nào đã nằm bao nhiêu ngày trong cột, và đó là thứ
-           `isRotting` của fixture đang dùng để chấm một đơn là mục. Lấy ngày mở
-           đơn thay vào là làm lệch tín hiệu mục của cả mười đơn đang mở.
-
-           Đếm ngược từ `Date.now()` chứ không từ một mốc đóng băng — cùng phép
-           `stageSinceOf` dùng cho lead, và cùng hệ quả đã ghi ở đó: con số khớp
-           fixture ngay sau khi seed rồi trôi theo ngày thật, vì kịch bản "hôm
-           nay" phải chạy theo hôm nay. */
-        stageSince: new Date(Date.now() - d.daysInStage * DAY),
-        /* Tên đơn = tên khách. Fixture không khai tên cho mười đơn đang mở
-           (`OpenDeal` không có trường đó), và ghép thêm " · <sản phẩm>" ở đây
-           là bịa một con số demo mới — thứ CLAUDE.md cấm ngoài fixture. */
-        name: r.company,
-        amount: d.amount,
-        currency: 'VND' as const,
-        closedAt: null,
-        lostReason: null,
-        createdAt: r.createdAt,
-        _ownerId: personId(d.owner, d.code, 'người giữ cơ hội'),
-      }
-    })
-
-  /* ── The timeline ─────────────────────────────────────────────────────────
-     The source is the `history` that `buildHistory` already built for every
-     lead — NOT a chain of milestones invented here. Two screens read one
-     lead's life, and they can only agree while exactly one place decides what
-     happened.
-
-     Until 15/09 this table was EMPTY after every seed, so the activity card
-     printed its no-history line on all 100 leads and `FlowVector` drew no node
-     at all — a book of a hundred rows where none of them had a past. */
-  const roleOf = new Map(actors.map((a) => [a.name, a.roleId]))
-
-  /** One end of a hand-over: name → `{ id, name, role }`, THROWS on a miss.
-   *
-   *  Stricter than `by` right beside it, deliberately. `by` is a snapshot of a
-   *  name and is allowed to be somebody outside the staff book (the AI
-   *  assistant — agent 1 is not an actor); `from_actor_id`/`to_actor_id` are real foreign
-   *  keys, and `touch_hand_over_sides` demands the id travel with the name. An
-   *  end that does not resolve means the fixture is naming a person who does
-   *  not exist, and that is the fixture's bug. */
-  const handOf = (name: string, code: string) => {
-    const id = personId(name, code, 'đầu của lần giao')
-    const role = roleOf.get(name)
-    if (!id || !role) throw new Error(`${code}: "${name}" không có vai trong sổ nhân sự`)
-    return { id, name, role }
-  }
-
-  const touchRows: (typeof touch.$inferInsert)[] = LEADS.flatMap((l) =>
-    l.history.map((e) => {
-      const from = e.fromName ? handOf(e.fromName, l.code) : null
-      const to = e.toName ? handOf(e.toName, l.code) : null
-
-      return {
-        subjectCode: l.code,
-        subjectKind: 'lead' as const,
-        kind: e.kind,
-        at: new Date(e.at),
-        by: e.by,
-        /* SOFT lookup: `by` carries the name of whoever pressed the button, and
-           the AI assistant is not a row in the staff book. An absent
-           `actor_id` reads as exactly that. */
-        actorId: idOf.get(e.by) ?? null,
-        note: e.note,
-        ...(e.toTier ? { toTier: e.toTier } : {}),
-        ...(from ? { fromActorId: from.id, fromName: from.name } : {}),
-        /* `to_role` freezes the role held AT THE TIME. Reading it from the
-           staff book is correct here — the scenario is frozen, so "then" and
-           "now" are the same instant — but the column must still be written,
-           because the day the book changes this row must not change with it. */
-        ...(to ? { toActorId: to.id, toName: to.name, toRole: to.role } : {}),
-      }
-    }),
-  )
-
-  const signedRows = rows.filter((r) => LEADS[r._i]?.contractCode)
-  const won = signedRows.map((r) => {
-    const code = LEADS[r._i]?.contractCode
-    if (!code) throw new Error(`Thiếu contractCode ở ${r.code}`)
-    return {
-      opportunity: {
-        code: code.replace(/^[^-]+/, 'OP'),
-        leadCode: r.code,
-        workstreamCode: r.workstreamCode,
-        /* Đơn đã ký: cột là NULL (ra khỏi bảng năm cột), còn trạng thái cuối
-           cùng trước khi ký là Nego. 'close-won' KHÔNG phải một giá trị của cột
-           `state` — "đã thắng" là dòng bên `contract`, xem docblock của
-           `opportunity.schema.ts`. */
-        state: 'nego' as const,
-        stage: null,
-        name: r.company,
-        amount: null,
-        currency: null,
-        closedAt: r.stageSince,
-        lostReason: null,
-        createdAt: r.createdAt,
-        _ownerId: r.ownerId,
-      },
-      contract: {
-        code,
-        opportunityCode: code.replace(/^[^-]+/, 'OP'),
-        leadCode: r.code,
-        workstreamCode: r.workstreamCode,
-        amount: null,
-        currency: null,
-        signedAt: r.stageSince,
-        ownerId: r.ownerId,
-      },
-    }
-  })
-
-  /* The one table this file did not rebuild: it rewrote lead, opportunity and
-     contract but not the run they belong to, so every row migration 0045
-     backfilled was orphaned by the next rebuild. */
-  const signedAtOf = new Map(won.map((w) => [w.contract.leadCode, w.contract.signedAt]))
-
-  const runs = rows.map((r) => {
-    const end = runEndOf(signedAtOf.get(r.code) ?? null, r.exitedAt)
-
-    return {
-      code: r.workstreamCode,
-      /* NULL, and it has to be: this file writes no `sales.account` row, and
-         the key would refuse any code invented here. */
-      accountCode: null,
-      /* `least` of the two, the reason 0045 gives: a backdated signature must
-         not trip `workstream_closed_after_opened`. */
-      openedAt: end.closedAt !== null && end.closedAt < r.createdAt ? end.closedAt : r.createdAt,
-      ...end,
-    } satisfies typeof workstream.$inferInsert
-  })
-
-  /* ── E1 · the object graph for THIS book ──────────────────────────────────
-     The seed has always written 100 leads into `platform.object`, but until
-     15/09 it SKIPPED the 16 deals and 6 contracts it builds in the same
-     transaction, and drew no edge between any of them. The consequence:
-     `story()` from a real lead code returned that code and nothing else — an
-     empty rail on every profile, and the layer-0 graph that round 4 closed at
-     the WRITE DOORS missing from the demo data.
-
-     Edges run in the direction of BIRTH, the direction `ObjectMirror.link`
-     writes at the real doors: a lead raises a deal, a deal raises a contract.
-     `story()` climbs by `to_code`, so this direction is what decides whether
-     the chain reads forwards or backwards.
-
-     Labels and state are copied off the very rows about to be written rather
-     than looked up again — two sources for one fact are two places for them to
-     drift. */
-  /* The scenario's four hand-written objects and the book OVERLAP by one code:
-     `OP-0288` is both the anchor of `dasVina.objects` and a row of the open
-     book. Registering it twice breaks `object_pkey`, so the fixture wins — it
-     carries a richer label and the story its edges were drawn for. */
-  const planted = new Set(dasVina.objects.map((o) => o.code))
-  const allDeals = [...deals, ...won.map((w) => w.opportunity)]
-
-  const dealObjects = allDeals
-    .filter((o) => !planted.has(o.code))
-    .map((o) => ({
-      code: o.code,
-      kind: 'OP' as const,
-      branch: 'Sales' as const,
-      label: o.name,
-      owner: null,
-      state: o.stage,
-      amount: o.amount,
-    }))
-
-  const contractObjects = won
-    .filter((w) => !planted.has(w.contract.code))
-    .map((w) => ({
-      code: w.contract.code,
-      kind: 'HĐ' as const,
-      branch: 'Sales' as const,
-      label: w.opportunity.name,
-      owner: null,
-      state: null,
-      amount: null,
-    }))
-
-  /* Edges are NOT filtered the way objects are: a code already in the registry
-     still needs its place in the chain, and `LD-0288 → OP-0288` is exactly the
-     link the fixture never drew. Deduped against the fixture's own pairs
-     instead, so the same arrow is never stated twice. */
-  const drawn = new Set(dasVina.edges.map((e) => `${e.from}→${e.to}`))
-
-  const bookEdges = [
-    ...allDeals.map((o) => ({ fromCode: o.leadCode, toCode: o.code, kind: 'spawned' as const })),
-    ...won.map((w) => ({
-      fromCode: w.opportunity.code,
-      toCode: w.contract.code,
-      kind: 'spawned' as const,
-    })),
-  ].filter((e) => !drawn.has(`${e.fromCode}→${e.toCode}`))
+  plantAccounts()
+  JOURNEYS.forEach(plantJourney)
 
   await db.transaction(async (tx) => {
-    /* Xoá theo thứ tự NGƯỢC khoá ngoại. Seed là thao tác dựng LẠI, không phải
-       thêm chồng — chạy hai lần phải ra cùng một cơ sở dữ liệu. */
-    await tx.delete(contract)
-    /* Trước `opportunity`: bảng nối có khoá ngoại về nó. `ON DELETE CASCADE`
-       cũng dọn được, nhưng seed xoá tường minh theo đúng thứ tự ngược khoá
-       ngoại — dựa vào cascade là để một dòng biến mất mà không ai đọc thấy ở
-       đây. */
-    await tx.delete(opportunityOwner)
-    await tx.delete(opportunity)
-    await tx.delete(edge)
-    await tx.delete(lead)
-    /* AFTER `lead`, `opportunity` and `contract`: all three key into it. */
-    await tx.delete(workstream)
-    /* Sau `lead`: ngày sáu cột của lead thành khoá ngoại ghép trỏ vào
-       `config_entry`, thứ tự này là thứ tự BẮT BUỘC. Trước `actor`: cột
-       `owner_id` của `CATEGORY` trỏ sang sổ nhân sự. */
-    await tx.delete(configEntry)
-    /* After `opportunity`: ticks key into this table and are only gone
-       because deleting a deal cascades them away. */
-    await tx.delete(stageCriterion)
-    await tx.delete(objectRef)
-    /* Hai bảng xác thực, ngay trước `actor` vì cả hai trỏ vào nó.
-     *
-     *  Seed dựng lại sổ nhân sự từ fixture, mà fixture KHÔNG mang mật khẩu —
-     *  nên sau một lần seed, mọi tài khoản đều về trạng thái "chưa đặt mật
-     *  khẩu" và mọi phiên đang mở đều chết. Đó là hành vi ĐÚNG của một lệnh
-     *  dựng lại, không phải tác dụng phụ: giữ lại phiên của một sổ nhân sự vừa
-     *  bị xoá và nạp lại là giữ một vé trỏ vào người có thể không còn nữa.
-     *
-     *  Mật khẩu nạp bằng `seed-accounts.ts`, chạy SAU `db:seed`. Tách ra vì
-     *  một cái là dữ liệu demo đóng băng, cái kia là bí mật của một môi trường
-     *  cụ thể — trộn hai thứ đó vào một lệnh là cách để mật khẩu của máy này
-     *  đi lạc sang máy khác. */
-    await tx.delete(session)
-    await tx.delete(passwordReset)
-    await tx.delete(actor)
+    /* Every table the app owns except `KEEP`, in one TRUNCATE so foreign keys
+       need no ordering; `actor` last by DELETE, so `role_permission.granted_by`
+       falls to NULL instead of cascading the permission matrix away. */
+    const listed = (await tx.execute(sql`
+      SELECT table_schema, table_name FROM information_schema.tables
+      WHERE table_schema IN (${sql.join(
+        OWNED_SCHEMAS.map((x) => sql`${x}`),
+        sql`, `,
+      )})
+        AND table_type = 'BASE TABLE'
+    `)) as { rows: { table_schema: string; table_name: string }[] }
+    const wiped = listed.rows
+      .filter((t) => !KEEP.includes(t.table_name) && t.table_name !== 'actor')
+      .map((t) => `"${t.table_schema}"."${t.table_name}"`)
+    await tx.execute(sql.raw(`TRUNCATE TABLE ${wiped.join(', ')} RESTART IDENTITY`))
+    await tx.execute(sql.raw(`DELETE FROM "platform"."actor"`))
 
-    await tx.insert(actor).values(
-      actors.map((a) => ({
-        id: a.id,
-        name: a.name,
-        email: a.email,
-        role: a.role,
-        roleId: a.roleId,
-        branches: a.branches,
-        ownOnly: a.ownOnly ?? false,
-      })),
-    )
-
-    /* Day sau `actor` vì `CATEGORY.owner_id` trỏ vào đó, và trước `lead` vì
-       sáu cột từ vựng của lead sẽ trỏ vào đây. */
+    await tx
+      .insert(actor)
+      .values(STAFF.map(({ ownOnly, ...p }) => ({ ...p, ownOnly: ownOnly ?? false })))
     await tx.insert(configEntry).values(configSeed)
     await tx.insert(stageCriterion).values(criteriaSeed)
-
-    /* E1 · đồ thị. Object trước, cạnh sau — cạnh có khoá ngoại hai đầu. */
-    await tx.insert(objectRef).values([
-      ...dasVina.objects.map((o) => ({
-        code: o.code,
-        kind: o.kind,
-        branch: o.branch,
-        label: o.label,
-        owner: o.owner ?? null,
-        state: o.state ?? null,
-        amount: o.amount ?? null,
+    await tx.insert(objectRef).values(out.objects)
+    await tx.insert(account).values(out.accounts)
+    await tx.insert(workstream).values(out.runs)
+    await tx.insert(lead).values(out.leads)
+    await tx.insert(contact).values(out.contacts)
+    await tx.insert(edge).values(out.edges)
+    await tx.insert(campaign).values(campaigns.map((c) => c.row))
+    await tx.insert(campaignMember).values(out.members)
+    await tx.insert(sourceCost).values(
+      SOURCES.flatMap((s) =>
+        s.costs.map((c) => ({
+          sourceId: sourceIdOf(s.key),
+          kind: c.kind,
+          label: c.label,
+          amount: c.amount,
+          spentOn: dateOnly(ago(c.daysAgo)),
+        })),
+      ),
+    )
+    await tx.insert(sourceEvent).values(
+      SOURCES.flatMap((s) =>
+        s.event
+          ? [
+              {
+                sourceId: sourceIdOf(s.key),
+                venue: s.event.venue,
+                registered: s.event.registered,
+                checkedIn: s.event.checkedIn,
+                heldOn: dateOnly(ago(s.event.daysAgo)),
+              },
+            ]
+          : [],
+      ),
+    )
+    await tx.insert(sourceFollower).values(
+      SOURCES.filter((s) => s.kind !== 'organic').map((s) => ({
+        sourceId: sourceIdOf(s.key),
+        actorId: BD.id,
       })),
-      /* BEFORE `lead` below, and that order is now mandatory rather than
-         tidy: the foreign key on `lead.code` rejects every one of the 100
-         rows if these are not already committed in the same transaction. */
-      ...leadObjects,
-      /* Deals and contracts carry no foreign key into this table — only
-         `lead.code` does — so nothing forces their order. They go in here
-         anyway, beside the leads, because the registry is what `story()` walks
-         and a chain missing its middle is a chain that stops at the lead. */
-      ...dealObjects,
-      ...contractObjects,
-    ])
-    await tx.insert(edge).values([
-      ...dasVina.edges.map((e) => ({ fromCode: e.from, toCode: e.to, kind: e.kind })),
-      /* AFTER the objects above, and that order IS forced: `edge` keys both
-           ends into `platform.object`. */
-      ...bookEdges,
-    ])
+    )
+    await tx.insert(opportunity).values(out.deals)
+    await tx.insert(opportunityOwner).values(out.owners)
+    await tx.insert(opportunityProduct).values(out.products)
+    await tx.insert(opportunityStageEvent).values(out.moves)
+    await tx.insert(opportunityCriterionTick).values(out.ticks)
+    await tx.insert(contract).values(out.contracts)
+    await tx.insert(contractInstallment).values(out.installments)
+    await tx.insert(touch).values(out.touches)
+    await tx.insert(meeting).values(out.meetings)
+    await tx.insert(meetingAttendee).values(out.attendees)
 
-    /* BEFORE `lead`, and forced rather than tidy: `lead.workstream_code` is a
-       live foreign key, so every one of the 100 rows below is refused if these
-       are not already in. */
-    await tx.insert(workstream).values(runs)
-    await tx.insert(lead).values(rows.map(({ _i, _owner, ...row }) => row))
-
-    /* Người đứng đơn rời sang bảng nối 28/08 — cột `owner_id` không còn. Seed
-       chỉ dựng được vai SALE: fixture khai đúng một người cho mỗi đơn
-       (`OpenDeal.owner`), và gán bừa ai đó vào vai BD là bịa công trạng mở cửa
-       cho một người thật. Đơn nào có BD thật thì đó là dữ liệu người dùng nhập
-       qua `POST /sales/opportunities`, không phải thứ seed biết. */
-    const ops = [...deals, ...won.map((w) => w.opportunity)]
-    await tx.insert(opportunity).values(ops.map(({ _ownerId, ...row }) => row))
-    await tx
-      .insert(opportunityOwner)
-      .values(
-        ops
-          .filter((o) => o._ownerId !== null)
-          .map((o) => ({ opportunityCode: o.code, actorId: o._ownerId!, role: 'SALE' as const })),
-      )
-    await tx.insert(contract).values(won.map((w) => w.contract))
-
-    /* THE FIRST LINE OF EVERY DEAL, and it has to exist because the real door
-       writes it too. `POST /sales/opportunities` writes TWO rows in one
-       transaction — one on the lead ("promoted to a deal"), one on the deal
-       ("opened from which lead") — because those two sentences are read by two
-       people looking at two different screens. The lead already has its half in
-       `history`; this is the other half, and without it a deal profile opens
-       blank exactly as that door's docblock warns.
-
-       The instant comes from the lead's own `entered-pipeline` event: one act, one
-       moment, two ledgers. Using the deal's `createdAt` would give two
-       different dates for one press of one button. */
-    const dealOpened = ops.flatMap((o) => {
-      const event = LEADS.find((l) => l.code === o.leadCode)?.history.find(
-        (e) => e.kind === 'entered-pipeline',
-      )
-      if (!event) return []
-
-      return [
-        {
-          subjectCode: o.code,
-          subjectKind: 'opportunity' as const,
-          kind: 'entered-pipeline' as const,
-          at: new Date(event.at),
-          by: event.by,
-          actorId: idOf.get(event.by) ?? null,
-          note: NOTE.opened(o.leadCode, o.state),
-        },
-      ]
-    })
-
-    await tx.insert(touch).values([...touchRows, ...dealOpened])
-
-    /* The codes above came from an index, so the sequence still points at 1 and
-       the first real write door would mint `WS-0001` on top of a live row. 0045
-       got this for free by calling `nextval` per backfilled row. */
-    await tx.execute(sql`SELECT setval('sales.workstream_code_seq', ${runs.length})`)
+    /* Codes above were minted from indexes; move each sequence past them so
+       the first real write door does not collide with a seeded row. */
+    const counts: [string, number][] = [
+      ['account_code_seq', out.accounts.length],
+      ['contact_code_seq', out.contacts.length],
+      ['lead_code_seq', out.leads.length],
+      ['workstream_code_seq', out.runs.length],
+      ['opportunity_code_seq', out.deals.length],
+      ['contract_code_seq', out.contracts.length],
+      ['campaign_code_seq', SOURCES.length],
+    ]
+    for (const [seq, n] of counts) await tx.execute(sql.raw(`SELECT setval('sales.${seq}', ${n})`))
   })
 
   console.log(
-    `Đã nạp ${actors.length} actor · ${runs.length} hành trình · ` +
-      `${dasVina.objects.length + leadObjects.length + dealObjects.length + contractObjects.length} object · ` +
-      `${dasVina.edges.length + bookEdges.length} cạnh · ${rows.length} lead · ` +
-      `${deals.length + won.length} cơ hội · ${won.length} hợp đồng · ` +
-      `${touchRows.length} lần chạm · ${configSeed.length} dòng cấu hình · ` +
-      `${criteriaSeed.length} tiêu chí thoát · driver ${kind}.`,
+    `Đã nạp ${STAFF.length} actor · ${out.accounts.length} account · ${out.contacts.length} liên hệ · ` +
+      `${out.leads.length} lead · ${campaigns.length} chiến dịch · ${out.deals.length} cơ hội · ` +
+      `${out.contracts.length} hợp đồng · ${out.meetings.length} buổi gặp · ${out.touches.length} lần chạm · driver ${kind}.`,
   )
   await close()
 }

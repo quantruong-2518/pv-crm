@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Inbox, Megaphone, Plus, CircleAlert, Zap } from '@pv/ui'
+import { Inbox, Megaphone, Plus, Zap } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -8,14 +8,9 @@ import {
   Button,
   Chip,
   Icon,
-  DataTable,
-  EmptyState,
-  GlassCard,
   SearchField,
   SegmentedControl,
   Select,
-  Skeleton,
-  ScreenHeader,
   ScreenLayout,
   StatStrip,
   type StatStripItem,
@@ -36,6 +31,7 @@ import {
   campaignFacetQuery,
   parseCampaignBookQuery,
 } from '@/data/campaign-book'
+import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
 
@@ -51,12 +47,10 @@ import { FilterMenu, TableFooter } from '@/components/table-bits'
  *  nửa còn thiếu của nó trên màn. Ba sổ của module đi qua `Module1Books`.
  *
  *  ------------------------------------------------------------------
- *  CÙNG HÌNH VỚI SỔ CƠ HỘI, ÍT KHỐI HƠN
+ *  HÌNH SỔ NẰM Ở `BookPage`, ÍT KHỐI HƠN HAI SỔ KIA
  *  ------------------------------------------------------------------
- *  Hai khối, y hệt `pages/leads.tsx` và `pages/opportunities.tsx`: thẻ điểm
- *  trên MỘT dải, rồi MỘT thẻ sổ trên `.glass-b` (luật 8) chở hàng tab + đếm +
- *  ô tìm + nút lọc, bảng, và chân trang. Bộ lọc nằm trên ĐỊA CHỈ, nên một
- *  trang đã lọc chép cho người khác được.
+ *  Màn chỉ đưa NỘI DUNG cho `components/book-page.tsx` — tiêu đề, nút, tab,
+ *  cột. Bộ lọc nằm trên ĐỊA CHỈ, nên một trang đã lọc chép cho người khác được.
  *
  *  Ít thứ hơn vì sổ này trả lời ít câu hơn: không có nút nạp tệp (thành viên
  *  vào chiến dịch từ Sổ lead, không từ một tệp rời), trạng thái là hàng tab, và
@@ -233,9 +227,8 @@ export function CampaignsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          /* CSS uppercase, not typed capitals: screen readers still read the words. */
-          title={<span className="uppercase">Sổ chiến dịch</span>}
+        <BookPage
+          title="Sổ chiến dịch"
           actions={
             canWrite && (
               <Button size="md" onClick={() => navigate('/sales/campaigns/new')}>
@@ -244,45 +237,23 @@ export function CampaignsPage() {
               </Button>
             )
           }
-        />
-
-        <Module1Books />
-
-        <StatStrip label="Thẻ điểm sổ chiến dịch" items={scoreItems} />
-
-        {/* One list card, the lead book's shape. No `overflow-hidden`: the
-            filter popover must hang past the card's edge. Tables always sit on
-            glass-b — law 8. */}
-        <GlassCard variant="b" aria-label="Sổ chiến dịch">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              <SegmentedControl
-                label="Trạng thái chiến dịch"
-                hideLabel
-                tone="quiet"
-                value={query.state ?? ANY}
-                options={tabs}
-                onChange={(value) =>
-                  patch({ state: value === ANY ? undefined : (value as CampaignState) })
-                }
-              />
-              <span className="text-muted-foreground text-[11.5px]">
-                {/* The SERVER's `total`, not `rows.length`: a ten-row page cannot
-                    know how many rows match the filter. */}
-                <span className="tnum text-foreground font-semibold">{total}</span> chiến dịch
-                {/* Rule 7 — also counted by the server, since no screen can count
-                    what it was never sent. Only shown when rows were really cut. */}
-                {hidden > 0 && (
-                  <>
-                    {' · '}
-                    <span className="text-warning">
-                      <span className="tnum">{hidden}</span> bị ẩn theo quyền của bạn
-                    </span>
-                  </>
-                )}
-              </span>
-            </div>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          nav={<Module1Books />}
+          score={<StatStrip label="Thẻ điểm sổ chiến dịch" items={scoreItems} />}
+          tabs={
+            <SegmentedControl
+              label="Trạng thái chiến dịch"
+              hideLabel
+              tone="quiet"
+              value={query.state ?? ANY}
+              options={tabs}
+              onChange={(value) =>
+                patch({ state: value === ANY ? undefined : (value as CampaignState) })
+              }
+            />
+          }
+          count={<BookCount total={total} noun="chiến dịch" hidden={hidden} />}
+          tools={
+            <>
               <SearchField
                 placeholder="Tìm theo tên hoặc mã chiến dịch…"
                 value={text}
@@ -305,111 +276,90 @@ export function CampaignsPage() {
                   </Button>
                 )}
               </FilterMenu>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            {isPending ? (
-              /* `h-14` is exactly the row height `DataTable` draws here — a
-                 step off and every row jumps the moment the data lands. */
-              <div className="flex flex-col gap-3 p-5">
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-              </div>
-            ) : bookError ? (
-              <EmptyState
-                icon={CircleAlert}
-                message={`Không lấy được sổ chiến dịch. ${
-                  isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetchBook() }}
-                className="py-12"
-              />
-            ) : rows.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                message={
-                  dirty
+            </>
+          }
+          pending={isPending}
+          failure={
+            bookError
+              ? {
+                  message: `Không lấy được sổ chiến dịch. ${
+                    isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetchBook(),
+                }
+              : undefined
+          }
+          empty={
+            rows.length === 0
+              ? {
+                  message: dirty
                     ? 'Không có chiến dịch nào khớp bộ lọc đang chọn.'
                     : canWrite
                       ? 'Sổ chiến dịch chưa có gì. Tạo một chiến dịch rồi gom người nhận từ Sổ lead.'
-                      : 'Sổ chiến dịch chưa có gì mở cho bạn. Chiến dịch do Marketing hoặc quản lý tạo.'
-                }
-                action={
-                  dirty
+                      : 'Sổ chiến dịch chưa có gì mở cho bạn. Chiến dịch do Marketing hoặc quản lý tạo.',
+                  action: dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
                     : canWrite
-                      ? {
-                          label: 'Chiến dịch mới',
-                          onClick: () => navigate('/sales/campaigns/new'),
-                        }
+                      ? { label: 'Chiến dịch mới', onClick: () => navigate('/sales/campaigns/new') }
                       : {
                           label: 'Xem Sổ lô gửi',
                           onClick: () => navigate('/sales/campaigns/mail-runs'),
-                        }
+                        },
                 }
-                className="py-12"
-              />
-            ) : (
-              <DataTable
-                flush
-                rowHeight="h-14"
-                className={TABLE_MIN_WIDTH}
-                sort={tableSort}
-                onSort={(key) => {
-                  /* Máy chủ chỉ nhận hai khoá (`CampaignBookSortKey`). Cột nào
-                     không có `sortKey` bên dưới thì không vẽ mũi tên, nên nhánh
-                     này chỉ chặn một đường vòng — nhưng chặn ở đây rẻ hơn một
-                     lượt 400 từ cổng zod. */
-                  const parsed = CampaignBookSortKey.safeParse(key)
-                  if (!parsed.success) return
-                  patch(
-                    query.sort === parsed.data
-                      ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                      : { sort: parsed.data, dir: 'asc' },
-                  )
-                }}
-                columns={[
-                  { header: 'Mã', width: '0.8fr' },
-                  { header: 'Tên chiến dịch', width: '2.2fr', sortKey: 'name' },
-                  { header: 'Trạng thái', width: '1fr' },
-                  { header: 'Chủ', width: '1.2fr' },
-                  { header: 'Nguồn dẫn', width: '1.2fr' },
-                  { header: 'Người nhận', width: '0.9fr', align: 'right' },
-                  { header: 'Đợt', width: '0.6fr', align: 'right' },
-                  { header: 'Tạo lúc', width: '0.9fr', sortKey: 'createdAt' },
-                ]}
-                rows={rows.map((c) => ({
-                  id: c.code,
-                  onOpen: () => navigate(`/sales/campaigns/${c.code}`),
-                  cells: [
-                    <Chip key="c">{c.code}</Chip>,
-                    <span key="n" className="block truncate" title={c.name}>
-                      {c.name}
-                    </span>,
-                    <Badge key="s" tone={CAMPAIGN_STATE_TONE[c.state]}>
-                      {CAMPAIGN_STATE_LABEL[c.state]}
-                    </Badge>,
-                    <span key="o" className="block truncate">
-                      {c.ownerName ?? '—'}
-                    </span>,
-                    <span key="src" className="block truncate">
-                      {c.sourceName ?? '—'}
-                    </span>,
-                    <span key="a">{c.audienceCount.toLocaleString('vi-VN')}</span>,
-                    <span key="w">{c.waveCount}</span>,
-                    <span key="t">{dm(c.createdAt)}</span>,
-                  ],
-                }))}
-              />
-            )}
-          </div>
-
-          {!isPending && !bookError && total > 0 && (
+              : undefined
+          }
+          table={{
+            minWidth: TABLE_MIN_WIDTH,
+            sort: tableSort,
+            onSort: (key) => {
+              /* Máy chủ chỉ nhận hai khoá (`CampaignBookSortKey`). Cột nào không
+                 có `sortKey` bên dưới thì không vẽ mũi tên, nên nhánh này chỉ
+                 chặn một đường vòng — nhưng rẻ hơn một lượt 400 từ cổng zod. */
+              const parsed = CampaignBookSortKey.safeParse(key)
+              if (!parsed.success) return
+              patch(
+                query.sort === parsed.data
+                  ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+                  : { sort: parsed.data, dir: 'asc' },
+              )
+            },
+            columns: [
+              { header: 'Mã', width: '0.8fr' },
+              { header: 'Tên chiến dịch', width: '2.2fr', sortKey: 'name' },
+              { header: 'Trạng thái', width: '1fr' },
+              { header: 'Chủ', width: '1.2fr' },
+              { header: 'Nguồn dẫn', width: '1.2fr' },
+              { header: 'Người nhận', width: '0.9fr', align: 'right' },
+              { header: 'Đợt', width: '0.6fr', align: 'right' },
+              { header: 'Tạo lúc', width: '0.9fr', sortKey: 'createdAt' },
+            ],
+            rows: rows.map((c) => ({
+              id: c.code,
+              onOpen: () => navigate(`/sales/campaigns/${c.code}`),
+              cells: [
+                <Chip key="c">{c.code}</Chip>,
+                <span key="n" className="block truncate" title={c.name}>
+                  {c.name}
+                </span>,
+                <Badge key="s" tone={CAMPAIGN_STATE_TONE[c.state]}>
+                  {CAMPAIGN_STATE_LABEL[c.state]}
+                </Badge>,
+                <span key="o" className="block truncate">
+                  {c.ownerName ?? '—'}
+                </span>,
+                <span key="src" className="block truncate">
+                  {c.sourceName ?? '—'}
+                </span>,
+                <span key="a">{c.audienceCount.toLocaleString('vi-VN')}</span>,
+                <span key="w">{c.waveCount}</span>,
+                <span key="t">{dm(c.createdAt)}</span>,
+              ],
+            })),
+          }}
+          footer={
             <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
-          )}
-        </GlassCard>
+          }
+        />
       </ScreenLayout>
     </AppShell>
   )
