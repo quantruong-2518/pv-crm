@@ -26,7 +26,9 @@ export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
  *  number is both a second debt and the place the two shapes drift apart. */
 const FIELD_PAD = 'px-[14px]'
 
-const FOCUS_RING = 'shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]'
+/* Both focus rings are written out WHOLE, never built from a shared piece:
+   Tailwind only generates classes it finds verbatim in source, so a
+   `focus-within:${ring}` template produces no CSS at all. */
 const INVALID_RING =
   'text-destructive-foreground shadow-[0_0_0_2px_color-mix(in_srgb,var(--destructive)_50%,transparent)]'
 
@@ -40,7 +42,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           'motion-std bg-input text-foreground h-10 w-full rounded-md text-[12.5px] outline-none',
           FIELD_PAD,
           'placeholder:text-muted-foreground',
-          `focus-visible:${FOCUS_RING}`,
+          'focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
           invalid && INVALID_RING,
           className,
         )}
@@ -57,7 +59,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         className={cn(
           'motion-std bg-input flex h-10 w-full min-w-0 items-center gap-2 rounded-md',
           FIELD_PAD,
-          `focus-within:${FOCUS_RING}`,
+          'focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
           invalid && INVALID_RING,
         )}
       >

@@ -45,6 +45,9 @@ export function OpportunityNewPage() {
 
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
 
+  /* No rail on this step, by the pipeline itself: a deal is born from a lead,
+     so before one is picked there is no object to chain. It appears the moment
+     `?lead=` is set. */
   if (leadCode === '') {
     return shell(
       <ScreenLayout>

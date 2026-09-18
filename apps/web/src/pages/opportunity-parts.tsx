@@ -124,9 +124,10 @@ export function DealHeader({
       }
       meta={
         <>
-          {/* Drawn only when the chain holds more than the deal itself: one
-              chip alone restates the code printed in the kicker above. */}
-          {rail.length > 1 && <ContextRail objects={rail} />}
+          {/* ALWAYS drawn (law 10), even as one chip: the deal's own azure chip
+              marks where it stands in lead → deal → contract, and a reader cut
+              off from the lead still needs that mark. */}
+          <ContextRail objects={rail} />
           {lead ? (
             <>
               <MetaPill>{lead.province ?? '—'}</MetaPill>
@@ -297,15 +298,17 @@ export function DealToolsBar({
           {/* Every button in this bar clears law 13's 48px floor on a coarse
               pointer, and keeps the bar's 40px rhythm on a mouse. A bar where
               half the buttons are reachable is worse than one that is all small. */}
-          <Button
-            size="md"
-            variant="ghost"
-            className="pointer-coarse:h-12"
-            disabled={draft.dirty.length === 0 || draft.busy}
-            onClick={draft.reset}
-          >
-            Bỏ sửa
-          </Button>
+          {draft.canEdit && (
+            <Button
+              size="md"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              disabled={draft.dirty.length === 0 || draft.busy}
+              onClick={draft.reset}
+            >
+              Bỏ sửa
+            </Button>
+          )}
 
           {/* HIDDEN OUTRIGHT without `opportunity.close` — decision 4 of ADR
               `docs/decisions/0018-opportunity-module-decisions.md`. Hiding is
@@ -323,15 +326,19 @@ export function DealToolsBar({
             </Button>
           )}
 
-          <Button
-            size="md"
-            className="pointer-coarse:h-12"
-            disabled={!draft.canSubmit}
-            onClick={draft.submit}
-          >
-            <Icon icon={Check} size={16} />
-            {draft.busy ? 'Đang lưu…' : creating ? 'Tạo cơ hội' : 'Lưu phiếu'}
-          </Button>
+          {/* Hidden, not greyed, for a read-only role — the same call ADR 0018
+              makes for the sign button above. */}
+          {draft.canEdit && (
+            <Button
+              size="md"
+              className="pointer-coarse:h-12"
+              disabled={!draft.canSubmit}
+              onClick={draft.submit}
+            >
+              <Icon icon={Check} size={16} />
+              {draft.busy ? 'Đang lưu…' : creating ? 'Tạo cơ hội' : 'Lưu phiếu'}
+            </Button>
+          )}
 
           {/* Room for the floating AI button (60px, `bottom-8 right-8` of
               AppShell) — without it, it covers the last action on the bar. */}

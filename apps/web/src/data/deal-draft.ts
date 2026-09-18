@@ -225,7 +225,7 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     missing,
     canEdit,
     canClose,
-    canSubmit: missing.length === 0 && !busy && (op === null || dirty.length > 0),
+    canSubmit: canEdit && missing.length === 0 && !busy && (op === null || dirty.length > 0),
     busy,
     error,
     gate: gateRefusalOf(save.error) ?? gateRefusalOf(move.error),

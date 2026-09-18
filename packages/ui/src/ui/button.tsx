@@ -7,12 +7,12 @@ import { cn } from '../lib/cn'
  *  ghost   → bg-surface-ink/9 · destructive → bg-destructive/20 text-destructive-foreground
  *  Nút tablet luôn size lg (≥48px) — luật 13 · docs/design-system/laws.md.
  *
- *  `success` là bản đối xứng của `destructive`: một nền TINT, không phải nền
- *  đặc. Nền đặc `--success` trên theme tối chỉ đạt 2,7:1 với chữ trắng, dưới
- *  sàn 4,5:1 của luật 13; `--on-tint-success-strong` là token sinh ra đúng cho
- *  chữ trên nền success đã nhuộm, và đo được 8,2:1 (midnight) · 6,0:1 (stone).
- *  Nó KHÔNG thay `default` ở hành động chính — azure vẫn giữ vai đó (luật 3);
- *  `success` dành cho hành động tích cực đứng CẠNH hành động chính.
+ *  `success` mirrors `destructive`: a TINTED ground, not a solid one — white
+ *  on solid `--success` falls under law 13's 4.5:1 floor in the dark theme.
+ *  `--on-tint-success-strong` is the token made for text on that tint. Re-
+ *  measured on the flat-surface tokens (18/09): 6.6:1 dark · 4.6:1 stone —
+ *  stone is only just over the floor, so re-measure on any token change.
+ *  It does NOT replace `default` for the primary action (law 3).
  *
  *  Ghi chú: padding ngang 18/24px lấy đúng từ theme kit; thang spacing 8 bậc
  *  áp cho gap và padding khối, không áp cho padding ngang của control. */

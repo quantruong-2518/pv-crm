@@ -106,10 +106,13 @@ function bodyOf(form: SignForm): ContractSign {
   }
 }
 
-/** A stage-gate refusal, spelled out. Shared with the stage picker and the form
- *  save on the deal profile, so every refused door says the same sentence and
- *  points to where criteria get ticked. `text-foreground` for the pointer: muted
- *  drops to 3.65:1 on the Drawer footer tint in the stone theme. */
+/** A stage-gate refusal, spelled out. Shared by the sign drawer and the save
+ *  on the deal profile, so every refused door says the same sentence.
+ *
+ *  NO "where to tick" pointer for now: the criteria checklist
+ *  (`OpportunityGateCard`) is parked off the deal profile, and a sentence
+ *  sending the reader to a block that is not drawn is a dead end. The pointer
+ *  comes back with the checklist. */
 export function GateRefusal({ criteria }: { criteria: string[] }) {
   return (
     <div role="alert" className="flex flex-col gap-2 text-[11.5px] leading-[1.5]">
@@ -124,9 +127,6 @@ export function GateRefusal({ criteria }: { criteria: string[] }) {
           </li>
         ))}
       </ul>
-      <span className="text-foreground">
-        Tick các điều kiện ở mục Điều kiện qua stage trên hồ sơ cơ hội.
-      </span>
     </div>
   )
 }

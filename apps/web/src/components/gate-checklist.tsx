@@ -80,7 +80,10 @@ export function GateChecklist({
 /** The deal profile's card: earlier stages that still miss a tick, then the
  *  current stage onward. A closed deal draws nothing — no move is left to gate
  *  — and neither does a reader outside the deal's scope (403/404). Stage names
- *  come from config, the same rows the settings screen renames. */
+ *  come from config, the same rows the settings screen renames.
+ *
+ *  PARKED, NOT DEAD: the one-card deal profile has no slot for it yet, so it
+ *  has no caller on purpose. Kept so the tick path returns in one line. */
 export function OpportunityGateCard({ op }: { op: Pick<OpportunityRow, 'code' | 'stage'> }) {
   const canEdit = useCan('opportunity.edit')
   const gate = useQuery({ ...opportunityGateQuery(op.code), enabled: op.stage !== null })
