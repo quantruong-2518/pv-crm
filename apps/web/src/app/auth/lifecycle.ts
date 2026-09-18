@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { SESSION_LIMITS, ticketDeath, useSession, type Ticket } from './session'
+import { replayRemote, SESSION_LIMITS, ticketDeath, useSession, type Ticket } from './session'
 
 /** Vòng đời của một phiên — ba việc chạy NGOÀI React.
  *
@@ -59,7 +59,7 @@ export function startAuthLifecycle(): () => void {
   const applyRemote = (fn: () => void) => {
     applyingRemote = true
     try {
-      fn()
+      replayRemote(fn)
     } finally {
       applyingRemote = false
     }
@@ -159,8 +159,12 @@ export function startAuthLifecycle(): () => void {
    *  xoá tay localStorage trong DevTools — thứ BroadcastChannel không thấy. */
   const onStorage = (ev: StorageEvent) => {
     if (ev.key !== null && ev.key !== 'pv-session') return
-    if (ev.newValue === null) applyRemote(() => useSession.getState().clearSession())
-    else applyRemote(() => void useSession.persist.rehydrate())
+    if (ev.newValue !== null) applyRemote(() => void useSession.persist.rehydrate())
+    /* A not-remembered session lives in this tab's `sessionStorage`; another tab
+       emptying `localStorage` is not a sign-out of it — sign-out comes by channel. */
+    else if (useSession.getState().remember) {
+      applyRemote(() => useSession.getState().clearSession())
+    }
   }
   window.addEventListener('storage', onStorage)
 

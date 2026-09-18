@@ -181,6 +181,20 @@ type SessionState = {
   signOut: () => Promise<void>
 }
 
+let replaying = false
+
+/** Apply a change ANOTHER tab made. Synchronous on purpose: `rehydrate` over
+ *  this Web Storage adapter runs to completion inside `fn`, so the flag covers
+ *  every write the replay causes. */
+export function replayRemote(fn: () => void): void {
+  replaying = true
+  try {
+    fn()
+  } finally {
+    replaying = false
+  }
+}
+
 /** Ô "Ghi nhớ đăng nhập" quyết định phiên nằm ở KHO NÀO, không phải nằm bao lâu — bao lâu
  *  là việc của `SESSION_LIMITS`.
  *
@@ -207,7 +221,10 @@ const rememberAware: PersistStorage<SessionState> = {
   setItem: (name, value) => {
     const keep = value.state.remember ? localStorage : sessionStorage
     const drop = value.state.remember ? sessionStorage : localStorage
-    drop.removeItem(name)
+    /* A tab replaying another tab's change keeps its own stale `remember`, and
+       dropping `localStorage` from here erased the remembered session the other
+       tab had just written — which bounced that tab straight back to sign-in. */
+    if (!replaying) drop.removeItem(name)
     keep.setItem(name, JSON.stringify(value))
   },
   removeItem: (name) => {
