@@ -12,6 +12,9 @@ import { loadEnv } from '@api/platform/config/env'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '@api/branches/sales/account/account.schema'
 import { campaign, campaignMember } from '@api/branches/sales/campaign/campaign.schema'
+import { mailSequenceRun } from '@api/branches/sales/mail-sequence.schema'
+import { mailRun } from '@api/platform/mail/mail-run.schema'
+import { emailDelivery, mailEvent } from '@api/platform/mail/mail.schema'
 import { sourceCost, sourceEvent, sourceFollower } from '@api/branches/sales/campaign/source.schema'
 import { configEntry } from '@api/branches/sales/config/config.schema'
 import { stageCriterion } from '@api/branches/sales/config/stage-criterion.schema'
@@ -32,6 +35,7 @@ import { touch } from '@api/branches/sales/touch/touch.schema'
 import { workstream } from '@api/branches/sales/workstream/workstream.schema'
 import { STAFF, type StaffMember } from './staff'
 import { JOURNEYS, PRODUCTS, SOURCES, type DealSeed, type JourneySeed } from './seed-book'
+import { mailHistory } from './seed-mail'
 import { ACCOUNTS, type ContactSeed } from './seed-companies'
 import {
   configSeed,
@@ -652,6 +656,16 @@ async function seed(): Promise<void> {
   plantAccounts()
   JOURNEYS.forEach(plantJourney)
 
+  /* The mail history is built from what the journeys just produced, so it is
+     assembled here rather than at module load. */
+  const mail = mailHistory({
+    leads: out.leads,
+    members: out.members,
+    campaignCodeOf,
+    ownerId: MARKETING.id,
+    ago,
+  })
+
   await db.transaction(async (tx) => {
     /* Every table the app owns except `KEEP`, in one TRUNCATE so foreign keys
        need no ordering; `actor` last by DELETE, so `role_permission.granted_by`
@@ -683,6 +697,10 @@ async function seed(): Promise<void> {
     await tx.insert(edge).values(out.edges)
     await tx.insert(campaign).values(campaigns.map((c) => c.row))
     await tx.insert(campaignMember).values(out.members)
+    await tx.insert(mailRun).values(mail.runs)
+    await tx.insert(mailSequenceRun).values(mail.sequenceRuns)
+    await tx.insert(emailDelivery).values(mail.deliveries)
+    await tx.insert(mailEvent).values(mail.events)
     await tx.insert(sourceCost).values(
       SOURCES.flatMap((s) =>
         s.costs.map((c) => ({
@@ -743,7 +761,9 @@ async function seed(): Promise<void> {
   console.log(
     `Đã nạp ${STAFF.length} actor · ${out.accounts.length} account · ${out.contacts.length} liên hệ · ` +
       `${out.leads.length} lead · ${campaigns.length} chiến dịch · ${out.deals.length} cơ hội · ` +
-      `${out.contracts.length} hợp đồng · ${out.meetings.length} buổi gặp · ${out.touches.length} lần chạm · driver ${kind}.`,
+      `${out.contracts.length} hợp đồng · ${out.meetings.length} buổi gặp · ${out.touches.length} lần chạm · ` +
+      `${mail.runs.length} đợt thư · ${mail.deliveries.length} lá · ${mail.events.length} sự kiện mở/bấm/hủy · ` +
+      `driver ${kind}.`,
   )
   await close()
 }

@@ -617,3 +617,97 @@ export const JOURNEYS: JourneySeed[] = [
     ],
   },
 ]
+
+/** THE MAIL HISTORY OF THE THREE CAMPAIGNS — added 20/09.
+ *
+ *  Without it the seed contradicted its own rules: `CampaignSweeper` only
+ *  closes a campaign to `DONE` when at least one wave EXISTS (ADR 0045), yet
+ *  CP-0001 was planted `DONE` with none, and the two `RUNNING` ones had nothing
+ *  a reader could open. Every number a campaign screen draws — sent, delivered,
+ *  opened, clicked, unsubscribed, bounced — comes from the rows below. */
+export type WaveSeed = {
+  source: SourceKey
+  no: number
+  label: string
+  subject: string
+  body: string
+  /** When the batch left, counted back from the moment the seed runs. */
+  daysAgo: number
+}
+
+export const WAVES: WaveSeed[] = [
+  {
+    source: 'event',
+    no: 1,
+    label: 'Đợt 1 · cảm ơn khách ghé gian hàng',
+    subject: 'Cảm ơn {{contactName}} đã ghé gian hàng PV One',
+    body: 'Chào {{contactName}},\n\nCảm ơn anh/chị đã dành thời gian ghé gian hàng của PV One tại Hội thảo Smart Factory.\n\nGửi anh/chị bản ghi phần demo truy xuất lô wafer, và **case study** của một nhà máy OSAT đã rút thời gian truy vết từ 4 giờ xuống 30 giây.',
+    daysAgo: 66,
+  },
+  {
+    source: 'event',
+    no: 2,
+    label: 'Đợt 2 · mời xem demo riêng',
+    subject: '{{company}} có muốn xem bản demo trên số liệu của chính mình?',
+    body: 'Chào {{contactName}},\n\nBản demo ở hội thảo chạy trên số liệu mẫu. Nếu anh/chị gửi một file sản lượng bất kỳ của {{company}}, bên em dựng lại đúng màn đó trên số liệu thật trong hai ngày.\n\n- Không cần kết nối hệ thống\n- Không ràng buộc gì sau buổi demo',
+    daysAgo: 52,
+  },
+  {
+    source: 'email',
+    no: 1,
+    label: 'Đợt 1 · giới thiệu truy xuất lô',
+    subject: 'Truy xuất một lô chip của {{company}} trong 30 giây',
+    body: 'Chào {{contactName}},\n\nMột nhà máy OSAT ở Bắc Ninh vừa rút thời gian truy vết một lô hàng lỗi từ 4 giờ xuống dưới 30 giây.\n\nEm gửi anh/chị bản mô tả ngắn cách họ làm — đọc hết trong 3 phút.',
+    daysAgo: 34,
+  },
+  {
+    source: 'email',
+    no: 2,
+    label: 'Đợt 2 · case study substrate',
+    subject: 'Case study: nhà máy substrate giảm 62% thời gian dựng báo cáo ca',
+    body: 'Chào {{contactName}},\n\nTiếp nối thư trước, đây là con số đo được sau 3 tháng ở một nhà máy substrate cùng quy mô {{company}}:\n\n- Dựng báo cáo ca: 45 phút → 17 phút\n- Sai lệch tồn kho cuối ca: 3,1% → 0,4%',
+    daysAgo: 12,
+  },
+  {
+    source: 'linkedin',
+    no: 1,
+    label: 'Đợt 1 · OEE thật',
+    subject: 'OEE của {{company}} đang được tính từ đâu?',
+    body: 'Chào {{contactName}},\n\nPhần lớn nhà máy em gặp đều tính OEE trên Excel, nhập tay cuối ca — nên con số đúng về hình thức nhưng trễ một ngày.\n\nEm gửi anh/chị một bản so sánh ngắn giữa OEE nhập tay và OEE đọc thẳng từ máy.',
+    daysAgo: 15,
+  },
+]
+
+/** What became of ONE letter, decided by its position — no randomness, so the
+ *  seed plants the same book every run and `seed-book.test.ts` can lock the
+ *  totals it adds up to. */
+export type LetterFate = {
+  state: 'delivered' | 'bounced' | 'suppressed'
+  opened: boolean
+  clicked: boolean
+  unsubscribed: boolean
+}
+
+/** `index` is the recipient's place in the campaign's member list, `waveNo`
+ *  shifts the pattern so two waves of one campaign do not land identically.
+ *
+ *  The two periods are SIX, not a realistic bounce rate: a seeded campaign
+ *  holds five or six people, so anything rarer never fires and the bounce tile
+ *  and its warning could not be looked at. The same seat bounces on wave 1 and
+ *  is suppressed from wave 2 on — which is the real sequence, a hard bounce
+ *  putting an address on the suppression list. */
+export function letterFate(index: number, waveNo: number): LetterFate {
+  if (waveNo > 1 && index % 6 === 5) {
+    return { state: 'suppressed', opened: false, clicked: false, unsubscribed: false }
+  }
+  if (index % 6 === 5) {
+    return { state: 'bounced', opened: false, clicked: false, unsubscribed: false }
+  }
+  const opened = (index * 7 + waveNo * 3) % 9 < 4
+  return {
+    state: 'delivered',
+    opened,
+    clicked: opened && (index + waveNo) % 5 === 2,
+    unsubscribed: opened && (index + waveNo) % 13 === 4,
+  }
+}
