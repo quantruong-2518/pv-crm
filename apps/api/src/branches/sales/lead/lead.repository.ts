@@ -361,6 +361,7 @@ export class LeadRepository {
     const r = (await this.db.execute(sql`
       SELECT r."id"                                          AS run_id,
              r."label"                                       AS label,
+             r."subject"                                     AS subject,
              r."state"                                       AS run_state,
              r."scheduled_at"                                AS scheduled_at,
              d."accepted_at"                                 AS sent_at,

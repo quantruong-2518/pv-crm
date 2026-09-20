@@ -1,6 +1,7 @@
 import type { ObjectRef } from '@pv/engines'
 import type { ContactCreate, ContactPatch, ContactRow } from '@pv/contracts'
 import type { contact, ContactRowDb } from './contact.schema'
+import type { LeadContactMirror } from './contact.repository'
 
 export type ContactValues = Omit<typeof contact.$inferInsert, 'code' | 'createdAt' | 'updatedAt'>
 
@@ -28,6 +29,35 @@ export function fromCreate(
     isPrimary,
     by: who.name,
     createdBy: who.id,
+  }
+}
+
+/** A newborn lead's own five columns → its first, primary `sales.contact` row.
+ *
+ *  Both write doors of `sales.lead` (`fromCreate`, the import batch) collect
+ *  `contactName`/`contactTitle`/… onto the lead row itself — a lead cannot be
+ *  born without them. Nothing turned that into a contact row, so the profile's
+ *  "person" tab (`ContactsCard`, which reads ONLY `sales.contact`) printed
+ *  nobody for every lead born after the one-time 0018/0026 backfill, while the
+ *  book kept reading the lead's own columns and printed the name correctly —
+ *  two screens, two truths for one customer. `ContactService.seedPrimary` is
+ *  the one call site that closes the gap, at birth, once. */
+export function fromLeadBirth(
+  leadCode: string,
+  mirror: LeadContactMirror,
+  by: { id: string; name: string },
+): ContactValues {
+  return {
+    leadCode,
+    name: mirror.contactName,
+    title: mirror.contactTitle,
+    email: mirror.email,
+    phone: mirror.phone,
+    channel: mirror.contactChannel,
+    note: null,
+    isPrimary: true,
+    by: by.name,
+    createdBy: by.id,
   }
 }
 

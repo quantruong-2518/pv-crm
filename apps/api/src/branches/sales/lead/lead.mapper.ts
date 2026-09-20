@@ -45,6 +45,7 @@ import type { LeadRowDb } from './lead.schema'
 export type LeadMailTimelineRead = {
   run_id: string
   label: string
+  subject: string
   run_state: MailRunState
   scheduled_at: Date | string | null
   sent_at: Date | string | null
@@ -295,6 +296,7 @@ export function toMailTimeline(read: LeadMailTimelineRead): LeadMailTimelineRow 
   return {
     runId: read.run_id,
     label: read.label,
+    subject: read.subject,
     runState: read.run_state,
     ...(scheduledAt ? { scheduledAt } : {}),
     ...(sentAt ? { sentAt } : {}),

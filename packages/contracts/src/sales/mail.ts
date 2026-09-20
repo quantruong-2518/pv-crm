@@ -967,6 +967,12 @@ export const MailRunRecipientsResponse = z.object({
 export const LeadMailTimelineRow = z.object({
   runId: MailRunId,
   label: z.string().min(1),
+  /** The subject line that actually went out, snapshotted on the run — the same
+   *  field `MailRunRow` carries, and on a lead's timeline the only one that
+   *  tells two letters apart. `label` names the BATCH, and every batch fired
+   *  from a lead profile is named after that lead, so a lead written to three
+   *  times reads as the same row three times without this. */
+  subject: z.string().min(1),
   /** State of the BATCH. Prefixed `run` because the row carries two states and
    *  an unprefixed `state` next to `deliveryState` is an invitation to read the
    *  wrong one. */

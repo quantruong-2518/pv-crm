@@ -10,11 +10,12 @@ import {
   type ContactPatch,
   type ObjectCode,
 } from '@pv/contracts'
+import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { LeadStateWriter } from '../lead/lead-state'
-import { ContactRepository } from './contact.repository'
-import { fromCreate, fromPatch, refOf, toContract } from './contact.mapper'
+import { ContactRepository, type LeadContactMirror } from './contact.repository'
+import { fromCreate, fromLeadBirth, fromPatch, refOf, toContract } from './contact.mapper'
 
 /** The contact book — hangs under lead, the same shape as `MeetingService`.
  *
@@ -99,6 +100,31 @@ export class ContactService {
       ...(found.accountName ? { accountName: found.accountName } : {}),
       company: found.company,
     })
+  }
+
+  /** Seed a newborn lead's primary contact FROM the lead's own columns, in the
+   *  SAME transaction the lead is born in.
+   *
+   *  The only caller is `LeadWriteService` (typed create and file import), and
+   *  it hands in its own `tx` rather than letting this method open one:
+   *  `contact.lead_code` is a foreign key into the lead row that transaction is
+   *  still writing, so the two inserts have to land atomically or not at all —
+   *  the same reason every write in this file runs inside `this.repo.run()`
+   *  everywhere ELSE the transaction starts here instead. No `countOf` check
+   *  first, unlike `add()`: the lead was just minted in this same transaction,
+   *  so it is a mathematical certainty this is its first and only contact. */
+  async seedPrimary(
+    tx: Db,
+    leadCode: string,
+    mirror: LeadContactMirror,
+    who: { id: string; name: string },
+  ): Promise<void> {
+    const code = await this.repo.nextCode()
+    const values = fromLeadBirth(leadCode, mirror, who)
+
+    await this.mirror.put(tx, refOf(code, leadCode, values))
+    await this.mirror.link(tx, { from: code, to: leadCode, kind: 'belongs-to' })
+    await this.repo.insert(tx, { ...values, code })
   }
 
   /** Write a new person into a lead's book.

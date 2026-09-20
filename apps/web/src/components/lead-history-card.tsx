@@ -285,7 +285,10 @@ function MailTimelinePanel({ code }: { code: string }) {
             return {
               id: row.runId,
               state: face.dot,
-              title: row.label,
+              /* The SUBJECT names the letter; `label` names the batch, and
+                 every batch fired from this screen is named after the lead —
+                 so three letters read as one row repeated. */
+              title: row.subject,
               meta: (
                 <>
                   <MetaPill>
@@ -352,12 +355,15 @@ function MailTimelineDetailDrawer({
     <Drawer
       open={row !== null}
       onClose={onClose}
-      title={row?.label ?? ''}
+      title={row?.subject ?? ''}
       meta={face && <Badge tone={face.tone}>{face.label}</Badge>}
     >
       {row && (
         <div className="flex flex-col gap-5 text-[12.5px] leading-[1.7]">
           <div className="flex flex-col gap-4">
+            {/* The batch this letter rode out with — the name the run book
+                lists it under, and the only way back from this panel to it. */}
+            <DetailRow label="Lô gửi" value={row.label} />
             <DetailRow
               label="Nguồn gửi"
               value={row.campaignName ? `Chiến dịch · ${row.campaignName}` : 'Gửi riêng'}

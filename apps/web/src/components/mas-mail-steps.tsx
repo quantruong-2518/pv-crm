@@ -56,6 +56,11 @@ export function RecipientsStep({
       return next
     })
 
+  /* The token beside the label carries a NAME, and a lead's mailbox is not
+     always the address of the contact it names — so the one-recipient case
+     (every send opened from a lead profile) prints the address itself. */
+  const only = chosen.length === 1 ? chosen[0] : undefined
+
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <SectionTitle
@@ -65,7 +70,7 @@ export function RecipientsStep({
         Gửi tới ai?
       </SectionTitle>
 
-      <Field label="Người nhận">
+      <Field label="Người nhận" note={only?.email}>
         <PersonTokenField
           label="Thêm người nhận"
           placeholder="Thêm người nhận…"
@@ -351,6 +356,7 @@ export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; all
 /** STEP 3 · when and under what, then one last look. */
 export function DeliveryStep({
   draft,
+  chosen,
   campaigns,
   preflight,
   scheduleBroken,
@@ -359,6 +365,7 @@ export function DeliveryStep({
   onEdit,
 }: {
   draft: MasMailDraft
+  chosen: readonly MasRecipient[]
   campaigns: readonly CampaignBookRow[]
   preflight?: MasPreflightResponse
   scheduleBroken: boolean
@@ -438,7 +445,7 @@ export function DeliveryStep({
         hint="Tín hiệu hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi nhận lượt mở và lượt bấm."
       />
 
-      <ReviewTable draft={draft} chain={chain} onEdit={onEdit} />
+      <ReviewTable draft={draft} chain={chain} chosen={chosen} onEdit={onEdit} />
 
       {audienceNote && (
         <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">{audienceNote}</p>
@@ -451,24 +458,37 @@ export function DeliveryStep({
 
 /** The last look before the button: three lines and a way back to each one. A
  *  chain reads its own count instead of the body, because the box on screen
- *  holds the wave being written and not everything about to go out. */
+ *  holds the wave being written and not everything about to go out.
+ *
+ *  A single recipient is NAMED WITH THEIR MAILBOX: a count of one is the case
+ *  where the number says nothing the reader needed — the question at this point
+ *  is which address this letter is about to land in, and a lead's mailbox is
+ *  not always the address of the contact shown beside it. */
 function ReviewTable({
   draft,
   chain,
+  chosen,
   onEdit,
 }: {
   draft: MasMailDraft
   chain?: { waves: number; subject: string }
+  chosen: readonly MasRecipient[]
   onEdit: (step: number) => void
 }) {
+  const only = chosen.length === 1 ? chosen[0] : undefined
+  const to = {
+    label: 'Người nhận',
+    value: only ? `${only.contactName} · ${only.email}` : `${draft.selected.size} người`,
+    step: 0,
+  }
   const rows = chain
     ? [
-        { label: 'Người nhận', value: `${draft.selected.size} người`, step: 0 },
+        to,
         { label: 'Chuỗi đợt', value: `${chain.waves} đợt sẽ gửi`, step: 1 },
         { label: 'Tiêu đề', value: chain.subject || 'Chưa có', step: 1 },
       ]
     : [
-        { label: 'Người nhận', value: `${draft.selected.size} người`, step: 0 },
+        to,
         { label: 'Tiêu đề', value: draft.subject || 'Chưa có', step: 1 },
         { label: 'Nội dung', value: firstLine(draft.body), step: 1 },
       ]

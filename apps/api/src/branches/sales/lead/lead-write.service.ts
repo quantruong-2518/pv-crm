@@ -20,6 +20,8 @@ import { AccountService } from '../account/account.service'
 import { identityOfLead } from '../account/account.mapper'
 import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
+import { ContactService } from '../contact/contact.service'
+import type { LeadContactMirror } from '../contact/contact.repository'
 import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
 import { fromCreate, fromPatch, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { toContract } from './lead.mapper'
@@ -28,6 +30,26 @@ import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadStateWriter, stateAfterOwnerChange } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
+
+/** The five columns every lead write already carries, in the shape
+ *  `ContactService.seedPrimary` asks for — see its docblock for why this call
+ *  exists at all. Pulled out once because both `create()` and `commit()`
+ *  build it off the row they are about to insert. */
+function mirrorOf(values: {
+  contactName: string
+  contactTitle?: string | null
+  email: string
+  phone?: string | null
+  contactChannel?: LeadContactMirror['contactChannel']
+}): LeadContactMirror {
+  return {
+    contactName: values.contactName,
+    contactTitle: values.contactTitle ?? null,
+    email: values.email,
+    phone: values.phone ?? null,
+    contactChannel: values.contactChannel ?? null,
+  }
+}
 
 /** THE THREE DOORS A LEAD CAN COME IN THROUGH. One of them writes nothing.
  *
@@ -80,6 +102,8 @@ export class LeadWriteService {
     private readonly runs: WorkstreamRepository,
     private readonly states: LeadStateWriter,
     private readonly profiles: LeadService,
+    /* Seeds the newborn lead's primary contact — see `seedPrimary`'s docblock. */
+    private readonly contacts: ContactService,
     /* The first engine this service holds. `setOwner` asks it one question —
        "does this role hold `lead.assign`" — and that question is trục 1 alone,
        which is why it calls `allows()` and not `check()`: the route guard has
@@ -126,6 +150,9 @@ export class LeadWriteService {
         { ...write.values, accountCode, code, workstreamCode: run },
       ])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
+
+      /* Same transaction as the lead row — see `ContactService.seedPrimary`. */
+      await this.contacts.seedPrimary(tx, code, mirrorOf(write.values), who)
 
       /* The lead's first timeline row, written in the same commit as the lead.
          A customer whose history starts at the day somebody happened to open
@@ -518,6 +545,11 @@ export class LeadWriteService {
         await this.mirror.linkMany(tx, links)
         await this.runs.insertOpened(tx, opened)
         await this.repo.insertLeads(tx, rows)
+        /* Sequential, one `nextCode()` round trip per row — same accepted
+           cost as `codes` above, bounded by `CHUNK` per pass. */
+        for (const row of rows) {
+          await this.contacts.seedPrimary(tx, row.code, mirrorOf(row), who)
+        }
         /* One timeline row per lead, in the same chunk as the lead itself. The
            file name goes into the sentence rather than into a column, because
            the batch receipt in `platform.audit` already holds the authoritative

@@ -402,6 +402,7 @@ export function MasMailModal({
             {step === 2 && (
               <DeliveryStep
                 draft={draft}
+                chosen={chosen}
                 campaigns={campaigns}
                 preflight={preflight}
                 scheduleBroken={scheduleBroken}
