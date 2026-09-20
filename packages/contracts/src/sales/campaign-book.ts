@@ -2,7 +2,13 @@ import { z } from 'zod'
 import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ConfigCode } from './config'
-import { MasSendRequest, MasSendResponse, MailRunPatchResponse, MailRunRow } from './mail'
+import {
+  MasRecipient,
+  MasSendRequest,
+  MasSendResponse,
+  MailRunPatchResponse,
+  MailRunRow,
+} from './mail'
 
 /** Sổ chiến dịch — module 5 của nhánh Sales. `GET/POST /sales/campaigns`.
  *
@@ -220,6 +226,51 @@ export const CampaignStopResponse = z.object({
   cancelled: z.array(MailRunPatchResponse),
 })
 
+/** One member of this campaign who is ALSO being written to by another one.
+ *
+ *  Not a `MasRecipientBlock`: nothing refuses this letter, and the server will
+ *  send it. It is the one thing a sender cannot see from anywhere else —
+ *  `campaign_member` is per campaign, so two campaigns mailing the same person
+ *  in the same week is invisible until the person replies asking to be left
+ *  alone. The campaign book's own scorecard admits it counts sends rather than
+ *  people; this is the other half of that admission. */
+export const CampaignOverlap = z.object({
+  leadCode: ObjectCode,
+  /** The OTHER campaign — never the one being preflighted. */
+  campaignCode: ObjectCode,
+  campaignName: z.string().min(1),
+})
+
+/** `POST /sales/campaigns/:code/preflight` — WHO THIS CAMPAIGN CAN REACH.
+ *
+ *  Its own door rather than a `campaignCode` field on `MasPreflightRequest`,
+ *  and both reasons point the same way.
+ *
+ *  ONE ROUTE, ONE PERMISSION (ADR 0004): the MAS preflight declares
+ *  `lead.send-email`, while a dry run of `/start` must demand what `/start`
+ *  demands — `campaign.broadcast`.
+ *
+ *  AND A PREFLIGHT MUST PREDICT THE SEND IT PRECEDES. `MasService.send()` reads
+ *  a campaign's audience UNSCOPED (`scoped: campaignCode === undefined`), the
+ *  MAS preflight hardcodes scoped — so on a campaign holding somebody else's
+ *  leads the old door called them missing while the send reached them.
+ *
+ *  No request body: the audience is `campaign_member`, not a pick. */
+export const CampaignPreflightResponse = z.object({
+  /** Every ACTIVE member, blocked or not — one list with the refusals marked,
+   *  never two the reader has to reconcile. */
+  recipients: z.array(MasRecipient),
+  /** How many letters this wave would actually produce. */
+  sendable: z.number().int().nonnegative(),
+  /** How many members produce none, for the reasons on their rows. */
+  blocked: z.number().int().nonnegative(),
+  /** No `hidden` twin of `MasPreflightResponse`: that number exists because the
+   *  scope axis can cut a pick out of the answer, and this read is unscoped by
+   *  the same rule the send follows. `sendable + blocked` is the whole
+   *  audience, and a missing member here would be a bug, not a permission. */
+  alsoRunning: z.array(CampaignOverlap),
+})
+
 export type CampaignState = z.infer<typeof CampaignState>
 export type CampaignBookRow = z.infer<typeof CampaignBookRow>
 export type CampaignBookSortKey = z.infer<typeof CampaignBookSortKey>
@@ -243,3 +294,5 @@ export type CampaignStartResponse = z.infer<typeof CampaignStartResponse>
 export type CampaignWaveAdd = z.infer<typeof CampaignWaveAdd>
 export type CampaignWaveAddResponse = z.infer<typeof CampaignWaveAddResponse>
 export type CampaignStopResponse = z.infer<typeof CampaignStopResponse>
+export type CampaignOverlap = z.infer<typeof CampaignOverlap>
+export type CampaignPreflightResponse = z.infer<typeof CampaignPreflightResponse>

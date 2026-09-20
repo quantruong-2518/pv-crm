@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Inbox, Megaphone, Plus, Zap } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -8,6 +7,10 @@ import {
   Button,
   Chip,
   Icon,
+  Inbox,
+  Megaphone,
+  Plus,
+  Zap,
   SearchField,
   SegmentedControl,
   Select,
@@ -17,6 +20,8 @@ import {
 } from '@pv/ui'
 import { CampaignBookSortKey, type CampaignBookQuery, type CampaignState } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { useSalesPeople } from '@/data/directory'
+import { salesCatalogQuery } from '@/data/sales-config'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
@@ -33,6 +38,7 @@ import {
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { CampaignCreateModal } from './campaign-profile-parts'
 
 /** Module 1 · Sổ chiến dịch — `GET /sales/campaigns`.
  *
@@ -94,6 +100,15 @@ export function CampaignsPage() {
      fence never disagree; the real fence stays at the api layer and on the
      route. */
   const canWrite = useCan('campaign.edit')
+
+  /* The create form opens HERE, in state, instead of on a route of its own:
+     `/sales/campaigns/new` was a whole screen whose content was five boxes. */
+  const [creating, setCreating] = useState(false)
+  const people = useSalesPeople()
+  /* `config.view`, which `presales` does not hold while holding
+     `campaign.view` — and only the create modal reads it. */
+  const { data: catalog } = useQuery({ ...salesCatalogQuery, enabled: canWrite })
+  const sources = useMemo(() => catalog?.SOURCE ?? [], [catalog])
 
   const urlQuery = useMemo(() => parseCampaignBookQuery(params), [params])
   const query = useMemo<CampaignBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
@@ -238,7 +253,7 @@ export function CampaignsPage() {
           title="Sổ chiến dịch"
           actions={
             canWrite && (
-              <Button size="md" onClick={() => navigate('/sales/campaigns/new')}>
+              <Button size="md" className="pointer-coarse:h-12" onClick={() => setCreating(true)}>
                 <Icon icon={Plus} size={16} />
                 Chiến dịch mới
               </Button>
@@ -325,7 +340,7 @@ export function CampaignsPage() {
                   action: dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
                     : canWrite
-                      ? { label: 'Chiến dịch mới', onClick: () => navigate('/sales/campaigns/new') }
+                      ? { label: 'Chiến dịch mới', onClick: () => setCreating(true) }
                       : {
                           label: 'Xem Sổ lô gửi',
                           onClick: () => navigate('/sales/campaigns/mail-runs'),
@@ -349,8 +364,10 @@ export function CampaignsPage() {
               )
             },
             columns: [
-              { header: 'Mã', width: '0.8fr' },
-              { header: 'Tên chiến dịch', width: '2.2fr', sortKey: 'name' },
+              /* Code and name are ONE column since 20/09: the code is how a
+                 row is named out loud, so it rides with the name instead of
+                 paying for a column of its own. The slack went to the name. */
+              { header: 'Chiến dịch', width: '3fr', sortKey: 'name' },
               { header: 'Trạng thái', width: '1fr' },
               { header: 'Chủ', width: '1.2fr' },
               { header: 'Nguồn dẫn', width: '1.2fr' },
@@ -362,10 +379,12 @@ export function CampaignsPage() {
               id: c.code,
               onOpen: () => navigate(`/sales/campaigns/${c.code}`),
               cells: [
-                <Chip key="c">{c.code}</Chip>,
-                <span key="n" className="block truncate" title={c.name}>
-                  {c.name}
-                </span>,
+                <div key="n" className="flex min-w-0 items-center gap-2">
+                  <Chip>{c.code}</Chip>
+                  <span className="min-w-0 truncate" title={c.name}>
+                    {c.name}
+                  </span>
+                </div>,
                 <Badge key="s" tone={CAMPAIGN_STATE_TONE[c.state]}>
                   {CAMPAIGN_STATE_LABEL[c.state]}
                 </Badge>,
@@ -384,6 +403,14 @@ export function CampaignsPage() {
           footer={
             <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
           }
+        />
+
+        <CampaignCreateModal
+          open={creating}
+          onClose={() => setCreating(false)}
+          people={people}
+          sources={sources}
+          onCreated={(code) => navigate(`/sales/campaigns/${code}`)}
         />
       </ScreenLayout>
     </AppShell>

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   CampaignBookQuery,
@@ -86,6 +86,22 @@ export class CampaignController {
     @Body(zod(CampaignMemberPatch)) body: CampaignMemberPatch,
   ) {
     return this.campaigns.members(who, code, body)
+  }
+
+  /** The dry run of `/start`, so it declares what `/start` declares — one
+   *  route, one permission (ADR 0004). `campaign.view` would be the cheaper
+   *  ask and the wrong one: this answers "what would firing do", a question
+   *  only the person allowed to fire needs answered.
+   *
+   *  `POST` with `@HttpCode(200)` for the reason `MasController` already wrote
+   *  out for its own `preflight`: nothing is created here, not even a sequence
+   *  number, and 201 would say otherwise. No body — the audience is
+   *  `campaign_member`, not a pick. */
+  @Post(':code/preflight')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
+  preflight(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.campaigns.preflight(who, code)
   }
 
   @Post(':code/start')

@@ -243,6 +243,37 @@ export class CampaignRepository {
     return row ?? null
   }
 
+  /** Members of `code` that another RUNNING campaign is also mailing.
+   *
+   *  The self-join is on `lead_code` and the whole predicate sits in `WHERE`,
+   *  the way `closeFinished()` writes it: one trip, one snapshot, no chance of
+   *  a wave starting between two reads. `other <> mine` keeps `code` itself out
+   *  of its own answer — a campaign never overlaps with itself.
+   *
+   *  RUNNING on the OTHER campaign, not on this one: a DRAFT sends nothing, and
+   *  a STOPPED or DONE one has stopped sending, so neither competes for the
+   *  inbox this preflight is about to write to. */
+  async overlappingRuns(
+    code: string,
+  ): Promise<{ leadCode: string; campaignCode: string; campaignName: string }[]> {
+    const r = (await this.db.execute(sql`
+      SELECT mine."lead_code"          AS "leadCode",
+             other."campaign_code"     AS "campaignCode",
+             c."name"                  AS "campaignName"
+        FROM "sales"."campaign_member" mine
+        JOIN "sales"."campaign_member" other ON other."lead_code" = mine."lead_code"
+        JOIN "sales"."campaign" c ON c."code" = other."campaign_code"
+       WHERE mine."campaign_code" = ${code}
+         AND mine."state" = 'ACTIVE'
+         AND other."campaign_code" <> mine."campaign_code"
+         AND other."state" = 'ACTIVE'
+         AND c."state" = 'RUNNING'
+       ORDER BY mine."lead_code", other."campaign_code"
+    `)) as { rows: { leadCode: string; campaignCode: string; campaignName: string }[] }
+
+    return r.rows
+  }
+
   async activeMemberCodes(code: string): Promise<string[]> {
     const rows = await this.db
       .select({ leadCode: campaignMember.leadCode })

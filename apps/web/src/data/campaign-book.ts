@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CampaignBookQuery } from '@pv/contracts'
+import { CampaignBookQuery, MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import type {
   CampaignBookResponse,
   CampaignCreate,
@@ -9,6 +9,7 @@ import type {
   CampaignMemberPatchResponse,
   CampaignPatch,
   CampaignPatchResponse,
+  CampaignPreflightResponse,
   CampaignProfile,
   CampaignStart,
   CampaignStartResponse,
@@ -16,7 +17,6 @@ import type {
   CampaignStopResponse,
   CampaignWaveAdd,
   CampaignWaveAddResponse,
-  CampaignWaveInput,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 
@@ -212,7 +212,7 @@ export const campaignProfileQuery = (code: string) =>
  *  `MAS_MAX_RECIPIENTS` (200) recipients, which is also the ceiling of
  *  `PageQuery.size`. A campaign holding more than that still reports the truth
  *  in `total`, and the screen reads that number rather than counting rows. */
-const MEMBER_PAGE_SIZE = 200
+const MEMBER_PAGE_SIZE = MAS_MAX_RECIPIENTS
 
 /** WHO IS IN THE AUDIENCE — `GET /sales/campaigns/:code/members`, `ACTIVE` by
  *  default (the server's own default for `CampaignMemberQuery.state`).
@@ -232,6 +232,29 @@ export const campaignMembersQuery = (code: string) =>
       api.read<CampaignMemberListResponse>(
         `/sales/campaigns/${encodeURIComponent(code)}/members?size=${MEMBER_PAGE_SIZE}`,
         { need: READ_NEED, signal },
+      ),
+  })
+
+/** WHOM THIS CAMPAIGN CAN STILL REACH — `POST /sales/campaigns/:code/preflight`.
+ *
+ *  A POST that writes nothing, so it is a query and not a mutation — the same
+ *  shape `masPreflight` already has on the wire. No request body: the audience
+ *  is `campaign_member`, not a pick.
+ *
+ *  `FIRE_NEED`, not `READ_NEED`: a dry run of `/start` must demand what
+ *  `/start` demands, so a `campaign.view`-only reader takes a 403 at
+ *  `app/api/client.ts` before a byte moves. Callers turn it off with `enabled`
+ *  — see `campaign-detail.tsx`.
+ *
+ *  The key extends `CAMPAIGN_BOOK_KEY` like every other query here: adding a
+ *  member or firing a wave changes this answer, so it is swept with the rest. */
+export const campaignPreflightQuery = (code: string) =>
+  queryOptions({
+    queryKey: [...CAMPAIGN_BOOK_KEY, 'preflight', code] as const,
+    queryFn: ({ signal }) =>
+      api.write<CampaignPreflightResponse>(
+        `/sales/campaigns/${encodeURIComponent(code)}/preflight`,
+        { method: 'POST', need: FIRE_NEED, signal },
       ),
   })
 
@@ -258,72 +281,6 @@ export function useCampaignCreate() {
         need: WRITE_NEED,
       }),
     onSuccess: invalidate,
-  })
-}
-
-/** Ném ra khi campaign đã tạo xong nhưng bước gom người nhận hoặc bắt đầu chạy
- *  ngay sau đó thất bại — MÀN cần biết mã vừa sinh ra để đưa người dùng vào
- *  đúng hồ sơ thay vì về sổ tay không, chứ không phải bắt họ nhớ tên vừa gõ và
- *  tìm lại trong sổ. `cause` giữ lỗi gốc để `userMessage` vẫn đọc được câu máy
- *  chủ tự viết. */
-export class CampaignCreateFullError extends Error {
-  constructor(
-    readonly code: string,
-    readonly cause: unknown,
-  ) {
-    super(`Chiến dịch ${code} đã tạo nhưng chưa xong hẳn`)
-  }
-}
-
-/** MỘT LƯỢT BẤM, BA CUỘC GỌI — tạo hồ sơ, gom người nhận, bắt đầu chạy chuỗi
- *  đợt đã soạn. Sống ở tầng dữ liệu, không ở màn (`apps/web/CLAUDE.md`: màn
- *  chỉ gọi `useQuery`/mutation, không tự gọi `api`) — vì `code` của chiến
- *  dịch chỉ có SAU lệnh gọi đầu, nên ba hook `useCampaignCreate` /
- *  `useCampaignMembers` / `useCampaignStart` (mỗi cái đòi `code` ngay lúc
- *  gọi hook) không ghép được thành một chuỗi ở tầng màn.
- *
- *  Hai bước sau là TUỲ CHỌN — bước Người nhận/Luồng sự kiện của stepper có
- *  thể để trống, và một chiến dịch NHÁP không người nhận là trạng thái hợp
- *  lệ. Hỏng ở bước hai hoặc ba KHÔNG lùi bước một: dòng đã nằm trong sổ,
- *  nên lỗi ném ra kèm `code` để màn điều hướng thẳng vào hồ sơ đó thay vì
- *  về sổ với một dòng người dùng không biết đã có. */
-export function useCampaignCreateFull() {
-  const invalidate = useInvalidateBook()
-
-  return useMutation<
-    CampaignCreateResponse,
-    ApiError | CampaignCreateFullError,
-    CampaignCreate & { leadCodes?: string[]; waves?: CampaignWaveInput[] }
-  >({
-    mutationFn: async ({ leadCodes, waves, ...body }) => {
-      const created = await api.write<CampaignCreateResponse>('/sales/campaigns', {
-        method: 'POST',
-        body,
-        need: WRITE_NEED,
-      })
-
-      try {
-        if (leadCodes && leadCodes.length > 0) {
-          await api.write(`/sales/campaigns/${encodeURIComponent(created.code)}/members`, {
-            method: 'POST',
-            body: { add: leadCodes },
-            need: WRITE_NEED,
-          })
-        }
-        if (waves && waves.length > 0) {
-          await api.write(`/sales/campaigns/${encodeURIComponent(created.code)}/start`, {
-            method: 'POST',
-            body: { waves },
-            need: FIRE_NEED,
-          })
-        }
-      } catch (cause) {
-        throw new CampaignCreateFullError(created.code, cause)
-      }
-
-      return created
-    },
-    onSettled: invalidate,
   })
 }
 

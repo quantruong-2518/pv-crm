@@ -5,7 +5,7 @@ import { dmhm } from '@/lib/date'
 /** A run has three timestamps and only ONE answers "where is this run right
  *  now" — `finishedAt` wins because it's the final word, `startedAt` answers
  *  "running since when", `scheduledAt` is a promise for later. `mail-runs.tsx`
- *  and `campaign-form.tsx`'s `WaveWhen` carried this exact three-branch logic
+ *  and `campaign-wave-parts.tsx`'s wave rows carried this exact three-branch logic
  *  as two hand-copied blocks; lives here so a new branch lands once, not in
  *  two screens that quietly drift apart.
  *

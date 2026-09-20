@@ -6,6 +6,7 @@ import {
   CampaignMemberListResponse,
   CampaignMemberPatchResponse,
   CampaignPatchResponse,
+  CampaignPreflightResponse,
   CampaignProfile,
   CampaignStartResponse,
   CampaignStopResponse,
@@ -234,6 +235,40 @@ export class CampaignService {
     return CampaignStartResponse.parse({ state: 'RUNNING', waves })
   }
 
+  /** The dry run of `start()` — who a wave would actually reach, and who
+   *  another campaign is mailing at the same time. Writes nothing.
+   *
+   *  `scoped: false` on the verdict, matching what `MasService.send()` does for
+   *  a campaign: the audience is the campaign's, not this reader's, so cutting
+   *  it here would promise a smaller flight than the one that takes off.
+   *
+   *  An empty audience is an ANSWER, not an error — unlike `start()`, which
+   *  refuses it. This door is what a person opens to find out why nothing can
+   *  be fired yet, and "nobody is in the list" is exactly that finding. */
+  async preflight(who: Actor, code: string): Promise<CampaignPreflightResponse> {
+    const found = await this.repo.byCode(who, code, true)
+    if (!found) throw notFound('chiến dịch', code)
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+    }
+
+    const leadCodes = await this.repo.activeMemberCodes(code)
+    const [judged, alsoRunning] = await Promise.all([
+      this.mas.preflightCodes(who, leadCodes, code),
+      this.repo.overlappingRuns(code),
+    ])
+
+    /* `hidden` and `apolloCount` of the MAS verdict are dropped, not forwarded:
+       the first cannot happen on an unscoped read, the second answers a
+       question about a hand-picked list — see `CampaignPreflightResponse`. */
+    return CampaignPreflightResponse.parse({
+      recipients: judged.recipients,
+      sendable: judged.sendable,
+      blocked: judged.blocked,
+      alsoRunning,
+    })
+  }
+
   /** Wave two onwards, on the audience the campaign already froze.
    *
    *  Until this door existed every later wave detoured through the MAS modal
@@ -268,7 +303,7 @@ export class CampaignService {
     }
     if (found.row.state === 'DRAFT' && found.waveCount === 0) {
       throw conflict(
-        `Chiến dịch ${code} chưa bắn đợt nào — bấm "Bắt đầu chạy" trong hồ sơ để gửi đợt đầu tiên.`,
+        `Chiến dịch ${code} chưa bắn đợt nào — bấm "Bắn đợt 1" trong hồ sơ chiến dịch để gửi đợt đầu tiên.`,
       )
     }
 

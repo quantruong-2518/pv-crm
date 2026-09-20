@@ -1349,7 +1349,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 18
+      "count": 16
     }
   },
   "apps/web/src/data/campaigns.ts": {
@@ -1685,20 +1685,6 @@
       "count": 1
     }
   },
-  "apps/web/src/pages/campaign-form.tsx": {
-    "aurora/comment-budget": {
-      "count": 16
-    },
-    "aurora/comments-in-english": {
-      "count": 7
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
   "apps/web/src/pages/campaigns.tsx": {
     "aurora/comment-budget": {
       "count": 3
@@ -1940,7 +1926,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 15
+      "count": 13
     }
   },
   "apps/web/src/test-utils.tsx": {

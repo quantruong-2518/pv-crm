@@ -174,27 +174,18 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/mail-templates'),
   },
   {
-    /** Tạo chiến dịch — đoạn tĩnh `moi`, đứng TRƯỚC `:code` trong mảng nhưng
-     *  thứ tự đó không quyết định gì (React Router xếp theo độ cụ thể, đúng
-     *  lý do `sources` ở trên thắng `:code`). Cùng file `campaign-form.tsx`
-     *  với hai route dưới — ba cửa vào MỘT khung, xem docblock đầu file đó. */
-    path: '/sales/campaigns/new',
-    name: 'Kinh doanh · Module 1 · Chiến dịch mới',
-    branch: 'Sales',
-    /* Write permission, not read — this route and `:code/edit` below only exist
-       to WRITE. Reading was the wrong gate: a Sale opened the form, filled all
-       four steps, and ate a 403 on the last click. Refuse at the door. */
-    permission: 'campaign.edit',
-    load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignCreatePage })),
-  },
-  {
-    /** Sửa hồ sơ một chiến dịch — cùng khung với hồ sơ, mở thẳng vào bước Hồ
-     *  sơ thay vì bước Tổng quan. */
+    /** Editing a campaign is no longer a screen of its own (20/09): it is one
+     *  facet of the profile, at `?tab=profile`. The path stays because links to
+     *  it are out in the world, and it only forwards now — hence `campaign.view`
+     *  rather than `campaign.edit`. An old bookmark held by a read-only role has
+     *  to land where that role can read, not on a 403; the Save button behind it
+     *  is gated by `useCan` and the api layer, which is where it belongs. */
     path: '/sales/campaigns/:code/edit',
     name: 'Kinh doanh · Module 1 · Sửa chiến dịch',
     branch: 'Sales',
-    permission: 'campaign.edit',
-    load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignEditPage })),
+    permission: 'campaign.view',
+    load: () =>
+      import('@/pages/campaign-detail').then((m) => ({ default: m.CampaignEditRedirectPage })),
   },
   {
     /** Hồ sơ một chiến dịch. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì
@@ -203,7 +194,7 @@ export const SCREENS: ScreenDef[] = [
     name: 'Kinh doanh · Module 1 · Hồ sơ chiến dịch',
     branch: 'Sales',
     permission: 'campaign.view',
-    load: () => import('@/pages/campaign-form').then((m) => ({ default: m.CampaignViewPage })),
+    load: () => import('@/pages/campaign-detail'),
   },
   {
     path: '/sales/leads',
@@ -215,8 +206,8 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Typing a lead by hand — static segment `new`, placed BEFORE `:code` in
      *  the array, but that order decides nothing (React Router ranks by
-     *  specificity, the same reason `/sales/campaigns/new` above wins over
-     *  `:code`). */
+     *  specificity, the same reason `/sales/campaigns/sources` above wins
+     *  over `:code`). */
     path: '/sales/leads/new',
     name: 'Kinh doanh · Module 2 · Lead mới',
     branch: 'Sales',
@@ -427,7 +418,10 @@ const LEGACY_PATHS: Record<string, string> = {
   '/sales/campaigns/nguon-dan/:code': '/sales/campaigns/sources/:code',
   '/sales/campaigns/lo-gui': '/sales/campaigns/mail-runs',
   '/sales/campaigns/mau-thu': '/sales/campaigns/mail-templates',
-  '/sales/campaigns/moi': '/sales/campaigns/new',
+  '/sales/campaigns/moi': '/sales/campaigns',
+  /* A static segment outranks `:code`, so this is what stops an old bookmark on
+     `/new` from asking the server for a campaign whose code is "new". */
+  '/sales/campaigns/new': '/sales/campaigns',
   '/sales/campaigns/:code/sua': '/sales/campaigns/:code/edit',
   '/sales/contracts/:code/dot/:no': '/sales/contracts/:code/installments/:no',
   '/dang-nhap': '/sign-in',

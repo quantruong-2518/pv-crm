@@ -36,7 +36,7 @@ import { DELIVERED_MAIL, FAILED_MAIL, mailRunRecipientsQuery } from '@/data/mail
  *  ------------------------------------------------------------------
  *  Law 8 (`docs/design-system/laws.md` §1) puts every table on `.glass-b`, and this
  *  panel is already INSIDE one — nesting a second pane of glass would be a
- *  fifth background layer, which law 12 forbids. So this is a flat list divided
+ *  fifth background layer, which law 4 forbids. So this is a flat list divided
  *  by hairlines, and the wave table above stays the only thing here wearing
  *  glass.
  *
@@ -80,6 +80,7 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
 
   const failed = rows.filter((r) => FAILED_MAIL[r.deliveryState]).length
   const opened = rows.filter((r) => r.openCount > 0).length
+  const clicked = rows.filter((r) => r.clickCount > 0).length
 
   return (
     <div className="-mx-1">
@@ -93,6 +94,7 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
         <span className="min-w-0 truncate">
           <span className="text-foreground font-medium">{rows.length} người nhận</span> · {opened}{' '}
           đã mở
+          {clicked > 0 && <span className="text-accent-foreground"> · {clicked} đã bấm</span>}
           {failed > 0 && <span className="text-warning"> · {failed} không tới nơi</span>}
         </span>
       </div>
@@ -160,7 +162,7 @@ function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: 
         </span>
       </div>
 
-      {/* The parent's four counters, one recipient at a time. Each test is the
+      {/* The parent's five counters, one recipient at a time. Each test is the
           one the parent SUMS rather than the nearest-looking one: the arrival
           tick is `deliveredAt`, not `DELIVERED_MAIL` — a letter merely accepted
           by the provider counts as sent and not yet as arrived, and that gap is
@@ -168,6 +170,7 @@ function RecipientLine({ row, template }: { row: MailRunRecipientRow; template: 
       <Mark on={row.sentAt !== undefined} label="đã gửi" />
       <Mark on={row.deliveredAt !== undefined} label="tới nơi" />
       <Mark on={row.openCount > 0} label="đã mở" />
+      <Mark on={row.clickCount > 0} label="đã bấm" />
       <Mark on={Boolean(FAILED_MAIL[row.deliveryState])} label="bounce" warn />
     </li>
   )

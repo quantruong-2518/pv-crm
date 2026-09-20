@@ -36,11 +36,9 @@ import {
  *
  *  Knows nothing about WHO receives the letters: it produces waves
  *  (`CampaignWaveInput`, i.e. a `MasSendRequest` with no `audience`), and the
- *  caller — campaign wizard, one lead, one opportunity — puts the audience back
- *  on at send time. That is why it lives here and not in `pages/`.
- *
- *  Moved out of `campaign-form.tsx` on 18/09 with its behaviour intact; the only
- *  new thing is the second door (Quick MAS on one subject). */
+ *  caller — the campaign wave drawer, one lead, one opportunity — puts the
+ *  audience back on at send time. That is why it lives here and not in
+ *  `pages/`. Second door: Quick MAS on one subject. */
 
 export function WaveComposer({
   state,
@@ -53,7 +51,7 @@ export function WaveComposer({
   state: ComposerState
   setState: Dispatch<SetStateAction<ComposerState>>
   templates: MailTemplateRow[]
-  /** Off for a running campaign: see `WaveAddStep`, one wave per round. */
+  /** Off for a running campaign: see `WaveDrawer`, one wave per round. */
   showAdd?: boolean
   /** Whose name fills the `{{…}}` slots of the preview. Absent for a campaign:
    *  its audience is frozen `campaign_member` rows, not a mailbox this draft can
@@ -390,6 +388,9 @@ function SendWhen({
     <div className="flex flex-col gap-2">
       <SegmentedControl
         label="Thời điểm gửi"
+        /* `quiet`: this sits inside the wave drawer, where azure is spoken for
+           by the one button that cannot be taken back (law 3). */
+        tone="quiet"
         value={state.timing}
         /* Switching to the scheduled option fills the field with a real slot:
            an empty `datetime-local` locks the send button with the reason

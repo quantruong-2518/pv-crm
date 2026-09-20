@@ -98,6 +98,16 @@ const TEMPLATE_VERSION = 1
  *  whoever greps these keys to the wrong book. */
 const MAS_FLOW = 'mas'
 
+/** THE ONE PLACE THE SCOPE RULE IS WRITTEN.
+ *
+ *  A campaign's audience is read UNSCOPED because the SERVER picked those rows
+ *  out of `campaign_member`, not the caller. A hand-picked list is scoped
+ *  because the caller picked it and may only pick what they can see. Spelling
+ *  that out at each call site is how `send()` and the old `preflight()` came to
+ *  disagree — one said `campaignCode === undefined`, the other a hardcoded
+ *  `true`, and the dry run stopped predicting the flight. */
+const scopeFor = (campaignCode?: string): boolean => campaignCode === undefined
+
 const eventKeyOf = (audience: string, mailRunId: string, code: string): string =>
   `${MAS_FLOW}/${audience}/v${TEMPLATE_VERSION}/${mailRunId}:${code}`
 
@@ -144,8 +154,32 @@ export class MasService {
 
   /** A dry run that writes nothing — not even a sequence number. */
   async preflight(who: Actor, body: MasPreflightRequest): Promise<MasPreflightResponse> {
-    const codes = dedupe(body.leadCodes)
-    const rows = await this.repo.audience(this.repo.readonlyHandle, who, true, 'lead', codes)
+    return this.preflightCodes(who, body.leadCodes)
+  }
+
+  /** The same verdict `send()` reaches, on the same terms — see `scopeFor`.
+   *
+   *  Public because `CampaignService.preflight` needs it: a dry run judging the
+   *  scoped set would call somebody's lead missing and then mail it anyway.
+   *
+   *  Deduped here rather than at the two call sites: `decide()` counts the
+   *  FIRST pick of an address as the letter, and a list carrying one code twice
+   *  would report the second copy `DUPLICATE` of itself. */
+  async preflightCodes(
+    who: Actor,
+    leadCodes: readonly string[],
+    /** Present = these codes ARE a campaign's frozen audience. Absent = a hand
+     *  pick. `scopeFor` turns that into the scope flag, so no caller chooses. */
+    campaignCode?: string,
+  ): Promise<MasPreflightResponse> {
+    const codes = dedupe(leadCodes)
+    const rows = await this.repo.audience(
+      this.repo.readonlyHandle,
+      who,
+      scopeFor(campaignCode),
+      'lead',
+      codes,
+    )
 
     return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
   }
@@ -309,7 +343,7 @@ export class MasService {
       const rows = await this.repo.audience(
         tx,
         who,
-        campaignCode === undefined,
+        scopeFor(campaignCode),
         body.audience.subjectType,
         codes,
       )

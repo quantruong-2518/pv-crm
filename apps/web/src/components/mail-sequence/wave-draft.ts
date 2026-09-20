@@ -2,7 +2,7 @@ import type { CampaignWaveInput } from '@pv/contracts'
 
 /** The draft a mail SEQUENCE is written in — one letter per wave, no audience.
  *
- *  Lifted out of `pages/campaign-form.tsx` unchanged on 18/09: the same chain is
+ *  Lifted out of the campaign screens unchanged on 18/09: the same chain is
  *  now composed from three doors (campaign wizard, one lead, one opportunity),
  *  and a copy per door is three places for "wave 2" to mean different things.
  *
