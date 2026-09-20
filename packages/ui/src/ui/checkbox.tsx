@@ -26,7 +26,7 @@ export type CheckboxProps = {
   trailing?: ReactNode
   disabled?: boolean
   /** Let label and hint wrap instead of truncating — for a label the reader
-   *  must see whole, such as a stage criterion the user is about to confirm. */
+   *  must see whole, such as a `config_entry` row the user is about to pick. */
   wrap?: boolean
   className?: string
 }

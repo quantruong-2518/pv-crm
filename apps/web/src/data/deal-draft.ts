@@ -21,7 +21,6 @@ import {
   usePromoteLead,
   useSaveOpportunity,
 } from '@/data/opportunities-write'
-import { gateRefusalOf } from '@/data/stage-gate'
 
 /** Module 3 · the deal form's draft — ONE hook behind all three doors.
  *
@@ -117,8 +116,6 @@ export type DealDraft = {
   canSubmit: boolean
   busy: boolean
   error: ApiError | null
-  /** The approval criteria a 409 named, when it named any. */
-  gate: string[] | null
   reset: () => void
   submit: () => void
 }
@@ -228,7 +225,6 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     canSubmit: canEdit && missing.length === 0 && !busy && (op === null || dirty.length > 0),
     busy,
     error,
-    gate: gateRefusalOf(save.error) ?? gateRefusalOf(move.error),
     reset: () => {
       setWork(saved)
       setErrors({})

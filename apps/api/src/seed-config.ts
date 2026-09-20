@@ -10,7 +10,7 @@ import {
 import { STAFF } from './staff'
 import { PRODUCTS, SOURCES } from './seed-book'
 
-/** The eight `config_entry` lists and the discovery criteria `seed.ts` plants.
+/** The eight `config_entry` lists `seed.ts` plants.
  *  Vocabulary rather than demo data, so the labels match the ones the old
  *  fixture seed wrote and the screens already print. */
 
@@ -63,7 +63,6 @@ const LOSS_REASONS = [
   'Thời gian triển khai không kịp',
   'Mất người ủng hộ bên trong',
 ]
-export const CRITERIA = ['Ngân sách', 'Người quyết định', 'Timeline', 'Pain point']
 
 type ConfigSeed = { name: string; limitDays?: number; ownerId?: string; kind?: string }
 
@@ -120,10 +119,3 @@ export const configSeed = [
     LOSS_REASONS.map((name) => ({ name })),
   ),
 ]
-
-export const criteriaSeed = CRITERIA.map((label, i) => ({
-  id: `SC-${String(i + 1).padStart(2, '0')}`,
-  stage: 'discovery' as const,
-  label,
-  ord: i + 1,
-}))

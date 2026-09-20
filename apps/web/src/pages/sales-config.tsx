@@ -22,7 +22,6 @@ import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone } from '@/app/toast'
 import { MotionSection } from './sales-config-parts'
-import { StageGateSection } from './sales-config-gate'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
 import { ROLE_LABEL } from '@/data/users'
 import {
@@ -277,15 +276,6 @@ export function SalesConfigPage() {
                   chưa.
                 </p>
               )}
-            </Section>
-
-            {/* 5.2b — the stage gate's exit criteria sit beside the ladder they gate. */}
-            <Section
-              no="5.2b"
-              title="Điều kiện qua stage"
-              hint="Chỉ hai việc bị chặn: tiến cột cần đủ điều kiện đang bật của mọi cột trước nó, ký hợp đồng cần đủ tất cả. Tạo hoặc import thẳng vào một cột giữa chừng, mở lại một đơn đã thua, lùi cột và đánh thua không bao giờ bị chặn. Tắt thay cho xoá."
-            >
-              <StageGateSection stages={stages} />
             </Section>
 
             {/* 5.3 */}

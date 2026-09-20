@@ -62,8 +62,6 @@ export function exitReasonOf(lead: WorkstreamLeadLane): string | null {
   return EXIT_REASON_LABEL[reason] ?? reason
 }
 
-export type LaneGate = { ticked: number; total: number }
-
 /** The one line under a node's ladder: which rung the lane is on, and what
  *  that rung has cost so far. */
 export type LaneSummary = {
@@ -72,7 +70,6 @@ export type LaneSummary = {
   /** `null` when the rung was entered today or carries no count: a zero day
    *  count says nothing and used to print on every node of the screen. */
   days: number | null
-  gate: LaneGate | null
 }
 
 export function laneSummary(lane: WorkstreamLane): LaneSummary | null {
@@ -83,19 +80,6 @@ export function laneSummary(lane: WorkstreamLane): LaneSummary | null {
     step,
     dropped: step.state === 'dropped',
     days: step.days === null || step.days === 0 ? null : step.days,
-    gate: gateOf(step),
-  }
-}
-
-/** The stage-gate tally, which only a deal rung carries: a lead step always
- *  sends `criteria: []`. Never counted on an unreached rung of a closed lane —
- *  a checklist for a stage nobody will stand in is not progress. */
-export function gateOf(step: WorkstreamStep, laneOpen = true): LaneGate | null {
-  if (step.criteria.length === 0) return null
-  if (step.state === 'upcoming' && !laneOpen) return null
-  return {
-    ticked: step.criteria.filter((c) => c.tickedAt !== null).length,
-    total: step.criteria.length,
   }
 }
 

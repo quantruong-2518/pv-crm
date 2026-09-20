@@ -31,7 +31,6 @@ import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
 import { STAGE_LABEL } from '@/components/ops-fields'
 import { ActivityTimeline } from '@/components/lead-history-card'
-import { GateRefusal } from '@/components/sign-drawer'
 
 /** Module 3 · the blocks of the deal screen, around the form card itself.
  *
@@ -265,31 +264,27 @@ export function DealToolsBar({
         aria-label="Thanh công cụ"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {draft.gate ? (
-            <GateRefusal criteria={draft.gate} />
-          ) : (
-            <span
-              className={cn(
-                'flex min-w-0 items-center gap-2 text-[11.5px] leading-[1.5]',
-                blocking && 'text-destructive-foreground',
-              )}
-              aria-live="polite"
-            >
-              {blocking && <Icon icon={TriangleAlert} size={16} className="shrink-0" />}
-              {/* A refusal from the server wins every other sentence: whoever
-                  just pressed Save and saw nothing change needs the reason
-                  before they need a count of unsaved boxes. */}
-              {draft.error
-                ? userMessage(draft.error)
-                : draft.missing.length > 0
-                  ? `Còn thiếu ${draft.missing.join(' · ')}`
-                  : creating
-                    ? 'Phiếu đã đủ — bấm Tạo cơ hội để ghi vào sổ.'
-                    : draft.dirty.length > 0
-                      ? `${draft.dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-                      : 'Phiếu đã khớp với bản trên máy chủ.'}
-            </span>
-          )}
+          <span
+            className={cn(
+              'flex min-w-0 items-center gap-2 text-[11.5px] leading-[1.5]',
+              blocking && 'text-destructive-foreground',
+            )}
+            aria-live="polite"
+          >
+            {blocking && <Icon icon={TriangleAlert} size={16} className="shrink-0" />}
+            {/* A refusal from the server wins every other sentence: whoever
+                just pressed Save and saw nothing change needs the reason
+                before they need a count of unsaved boxes. */}
+            {draft.error
+              ? userMessage(draft.error)
+              : draft.missing.length > 0
+                ? `Còn thiếu ${draft.missing.join(' · ')}`
+                : creating
+                  ? 'Phiếu đã đủ — bấm Tạo cơ hội để ghi vào sổ.'
+                  : draft.dirty.length > 0
+                    ? `${draft.dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
+                    : 'Phiếu đã khớp với bản trên máy chủ.'}
+          </span>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

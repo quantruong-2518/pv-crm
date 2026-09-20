@@ -5,14 +5,11 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { contract } from '../contract/contract.schema'
-import type { GateChecklist } from '../opportunity/opportunity-gate.repository'
 import { opportunityStageEvent } from '../opportunity/opportunity.schema'
 import { touch } from '../touch/touch.schema'
 
 /** The extra SQL of ONE journey's profile lanes. Every read takes the whole
- *  run's codes at once, so the statement count is fixed, not one per step.
- *  The stage-gate checklist is not read here: `OpportunityGateRepository
- *  .checklist` is its one home. */
+ *  run's codes at once, so the statement count is fixed, not one per step. */
 @Injectable()
 export class WorkstreamLanesRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -21,7 +18,7 @@ export class WorkstreamLanesRepository {
     leadCode: string,
     dealCodes: readonly string[],
     accountCode: string | null,
-  ): Promise<LaneRead> {
+  ): Promise<LaneRows> {
     const deals = [...dealCodes]
     const none = Promise.resolve([])
 
@@ -97,7 +94,7 @@ export type StageEventRow = {
   daysInFrom: number | null
 }
 
-type LaneRead = {
+export type LaneRows = {
   /** Oldest first. */
   leadTouches: LeadTouchEntry[]
   /** Oldest first. */
@@ -106,6 +103,3 @@ type LaneRead = {
   contracts: { deal: string; code: string; at: Date }[]
   accountOwner: { id: string; name: string } | null
 }
-
-/** What the lane folds read: this file's rows plus the gate checklist. */
-export type LaneRows = LaneRead & GateChecklist

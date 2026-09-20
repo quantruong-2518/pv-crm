@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
-import { OpportunityGateRepository } from '../opportunity/opportunity-gate.repository'
 import { WorkstreamLanesRepository } from './workstream-lanes.repository'
 import { WorkstreamController } from './workstream.controller'
 import { WorkstreamRepository } from './workstream.repository'
@@ -24,11 +23,7 @@ import { WorkstreamService } from './workstream.service'
  *     purpose (see the table's docblock), so the chain is walked from the
  *     lead. */
 
-/** `OpportunityGateRepository` is a provider here, not an import: the deal
- *  lanes print the stage-gate checklist, and that read has one home. Same move
- *  `OpportunityModule` makes with `ContractRepository`.
- *
- *  No `MailModule`, `TouchModule` or `ObjectMirror`: the lead doors open runs
+/** No `MailModule`, `TouchModule` or `ObjectMirror`: the lead doors open runs
  *  through `WorkstreamRepository` inside THEIR transaction, so the event stays
  *  with the lead row that caused it.
  *
@@ -37,12 +32,7 @@ import { WorkstreamService } from './workstream.service'
 @Module({
   imports: [ApprovalModule, EnginesModule, GraphModule],
   controllers: [WorkstreamController],
-  providers: [
-    WorkstreamService,
-    WorkstreamRepository,
-    WorkstreamLanesRepository,
-    OpportunityGateRepository,
-  ],
+  providers: [WorkstreamService, WorkstreamRepository, WorkstreamLanesRepository],
   exports: [WorkstreamService, WorkstreamRepository],
 })
 export class WorkstreamModule {}

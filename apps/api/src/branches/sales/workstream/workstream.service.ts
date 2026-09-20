@@ -24,7 +24,6 @@ import { toChainLink } from '@api/platform/graph/graph.mapper'
 import { notFound } from '@api/platform/http/problem'
 import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladder'
 import { toRef as leadRef } from '../lead/lead.mapper'
-import { OpportunityGateRepository } from '../opportunity/opportunity-gate.repository'
 import { scopeRefOf, toRef as dealRef } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import { blankFootprint, WorkstreamRepository, type WorkstreamRead } from './workstream.repository'
@@ -48,7 +47,6 @@ export class WorkstreamService {
     private readonly approvals: ApprovalService,
     private readonly graph: GraphService,
     private readonly lanes: WorkstreamLanesRepository,
-    private readonly gate: OpportunityGateRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -110,15 +108,11 @@ export class WorkstreamService {
     ])
     const all = byRun.get(read.row.code) ?? []
     const { deals, hidden } = this.visibleDeals(who, all, owners)
-    const [laneRead, checklist] = await Promise.all([
-      this.lanes.lanesOf(
-        read.lead.code,
-        all.map((d) => d.code),
-        read.row.accountCode,
-      ),
-      this.gate.checklist(deals.map((d) => d.code)),
-    ])
-    const rows = { ...laneRead, ...checklist }
+    const rows = await this.lanes.lanesOf(
+      read.lead.code,
+      all.map((d) => d.code),
+      read.row.accountCode,
+    )
 
     const now = new Date()
     return {

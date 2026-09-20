@@ -9,7 +9,6 @@ import {
   LeadTier,
   WorkstreamCloseReason,
 } from './enums'
-import { GateCriterionState } from './stage-gate'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
  *  lead, its opportunities and the contracts that came out of ONE run at ONE
@@ -188,8 +187,6 @@ export const WorkstreamStep = z.object({
   by: textInput(120).nullable(),
   /** Recorded for done/dropped, counted to now for current, null for upcoming. */
   days: z.number().int().nonnegative().nullable(),
-  /** Always `[]` on lead steps — the gate is an opportunity ladder only. */
-  criteria: z.array(GateCriterionState),
 })
 
 /** `converted` = the lead produced at least one deal (`outcomeAt` = the first);

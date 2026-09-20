@@ -9,8 +9,6 @@ import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityController } from './opportunity.controller'
-import { OpportunityGateRepository } from './opportunity-gate.repository'
-import { OpportunityGate } from './opportunity-gate.service'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityRepository } from './opportunity.repository'
@@ -77,8 +75,6 @@ import { OpportunityService } from './opportunity.service'
   providers: [
     OpportunityService,
     OpportunityRepository,
-    OpportunityGate,
-    OpportunityGateRepository,
     OpportunitySign,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không

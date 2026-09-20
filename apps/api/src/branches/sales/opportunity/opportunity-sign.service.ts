@@ -15,18 +15,17 @@ import { ContractRepository } from '../contract/contract.repository'
 import { fromSign } from '../contract/contract.mapper'
 import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { OpportunityGate } from './opportunity-gate.service'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
 /** Signing a deal, through E3 (ADR 0057 §7).
  *
  *  The door (`propose`) writes no contract: it checks everything the approval
- *  would check — scope, state, the whole stage gate — and raises a
- *  `contract-sign` request, so an approver is never asked to say yes to
- *  something that would fail. The contract is written by `apply`, inside the
- *  transaction that settles the approval, with the RAISER as the signing actor:
- *  they reported the signature, the approver only confirmed it.
+ *  would check — scope, state — and raises a `contract-sign` request, so an
+ *  approver is never asked to say yes to something that would fail. The
+ *  contract is written by `apply`, inside the transaction that settles the
+ *  approval, with the RAISER as the signing actor: they reported the
+ *  signature, the approver only confirmed it.
  *
  *  Signing had no post-commit side effect before E3 (no mail, no queue), so
  *  nothing had to move out of the transaction. */
@@ -35,7 +34,6 @@ export class OpportunitySign implements ApprovalApplier {
   constructor(
     private readonly deals: OpportunityRepository,
     private readonly contracts: ContractRepository,
-    private readonly gate: OpportunityGate,
     private readonly workstreams: WorkstreamRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
@@ -52,7 +50,6 @@ export class OpportunitySign implements ApprovalApplier {
     if (pending.some((r) => r.kind === 'contract-sign')) {
       throw conflict(`Cơ hội ${code} đã có một yêu cầu ký đang chờ duyệt.`)
     }
-    await this.gate.assertSign(code)
 
     /* `signedAt` frozen at the press: the person reporting the signature knows
        when the pen moved, the approval days later does not. A race past the
@@ -89,7 +86,6 @@ export class OpportunitySign implements ApprovalApplier {
     const found = await this.deals.byCode(null, code, tx)
     if (!found) throw notFound('cơ hội', code)
     this.assertSignable(found)
-    await this.gate.assertSign(code, tx)
 
     await this.write(tx, found, sign, { id: request.raisedById, name: request.raisedBy })
   }

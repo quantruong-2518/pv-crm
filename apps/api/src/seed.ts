@@ -17,13 +17,11 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { emailDelivery, mailEvent } from '@api/platform/mail/mail.schema'
 import { sourceCost, sourceEvent, sourceFollower } from '@api/branches/sales/campaign/source.schema'
 import { configEntry } from '@api/branches/sales/config/config.schema'
-import { stageCriterion } from '@api/branches/sales/config/stage-criterion.schema'
 import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
 import { LEAD_NOTE } from '@api/branches/sales/lead/lead-write.mapper'
 import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
-import { opportunityCriterionTick } from '@api/branches/sales/opportunity/opportunity-criterion-tick.schema'
 import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
 import {
   opportunity,
@@ -37,15 +35,7 @@ import { STAFF, type StaffMember } from './staff'
 import { JOURNEYS, PRODUCTS, SOURCES, type DealSeed, type JourneySeed } from './seed-book'
 import { mailHistory } from './seed-mail'
 import { ACCOUNTS, type ContactSeed } from './seed-companies'
-import {
-  configSeed,
-  CRITERIA,
-  criteriaSeed,
-  EXIT_NAME,
-  person,
-  productRows,
-  sourceIdOf,
-} from './seed-config'
+import { configSeed, EXIT_NAME, person, productRows, sourceIdOf } from './seed-config'
 
 /** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
  *
@@ -98,7 +88,6 @@ const out = {
   owners: [] as (typeof opportunityOwner.$inferInsert)[],
   products: [] as (typeof opportunityProduct.$inferInsert)[],
   moves: [] as (typeof opportunityStageEvent.$inferInsert)[],
-  ticks: [] as (typeof opportunityCriterionTick.$inferInsert)[],
   contracts: [] as (typeof contract.$inferInsert)[],
   installments: [] as (typeof contractInstallment.$inferInsert)[],
   touches: [] as (typeof touch.$inferInsert)[],
@@ -482,18 +471,6 @@ function plantDeal(
     }
   })
 
-  const leftDiscovery = path.includes('discovery') && path.at(-1) !== 'discovery'
-  const tickAt = leftDiscovery ? when[path.indexOf('discovery') + 1]! : null
-  CRITERIA.slice(0, leftDiscovery ? CRITERIA.length : (d.ticks ?? 0)).forEach((_, n) =>
-    out.ticks.push({
-      opportunityCode: op,
-      criterionId: criteriaSeed[n]!.id,
-      tickedAt: tickAt ?? ago(d.stageDaysAgo - n - 1, 2),
-      tickedById: owner.id,
-      tickedBy: owner.name,
-    }),
-  )
-
   const last = path[path.length - 1]!
   const signedAt = d.won ? ago(d.won.signedDaysAgo, 6) : null
   const lostAt = d.lost ? ago(d.lost.daysAgo, 6) : null
@@ -688,7 +665,6 @@ async function seed(): Promise<void> {
       .insert(actor)
       .values(STAFF.map(({ ownOnly, ...p }) => ({ ...p, ownOnly: ownOnly ?? false })))
     await tx.insert(configEntry).values(configSeed)
-    await tx.insert(stageCriterion).values(criteriaSeed)
     await tx.insert(objectRef).values(out.objects)
     await tx.insert(account).values(out.accounts)
     await tx.insert(workstream).values(out.runs)
@@ -737,7 +713,6 @@ async function seed(): Promise<void> {
     await tx.insert(opportunityOwner).values(out.owners)
     await tx.insert(opportunityProduct).values(out.products)
     await tx.insert(opportunityStageEvent).values(out.moves)
-    await tx.insert(opportunityCriterionTick).values(out.ticks)
     await tx.insert(contract).values(out.contracts)
     await tx.insert(contractInstallment).values(out.installments)
     await tx.insert(touch).values(out.touches)

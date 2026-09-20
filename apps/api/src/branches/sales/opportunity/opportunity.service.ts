@@ -43,7 +43,6 @@ import { ContractRepository, type ContractRead } from '../contract/contract.repo
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadStateWriter } from '../lead/lead-state'
-import { OpportunityGate } from './opportunity-gate.service'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import {
   fromCreate,
@@ -94,7 +93,6 @@ export class OpportunityService {
   constructor(
     private readonly repo: OpportunityRepository,
     private readonly contracts: ContractRepository,
-    private readonly gate: OpportunityGate,
     private readonly workstreams: WorkstreamRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
@@ -493,7 +491,6 @@ export class OpportunityService {
     if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
     const now = new Date()
     const write = fromUpdate(body, found.row, now, found.signed)
-    await this.gate.assertMove(code, found.row.stage, write.values.stage ?? null)
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
@@ -637,7 +634,6 @@ export class OpportunityService {
       return OpportunityUpdateResponse.parse(toContract(found))
     }
     if (await this.pendingSign(code)) throw frozenForSign()
-    await this.gate.assertMove(code, found.row.stage, body.stage)
 
     const now = new Date()
 

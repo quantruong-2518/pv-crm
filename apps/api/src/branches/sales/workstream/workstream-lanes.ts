@@ -3,7 +3,6 @@ import {
   LEAD_STATE_LABEL,
   StageKey,
   type ExitReason,
-  type GateCriterionState,
   type LeadState,
   type OpportunityOwner,
   type WorkstreamAccountLane,
@@ -14,7 +13,6 @@ import {
 } from '@pv/contracts'
 import { stateByTier } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
-import { gateStatesOf } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
 import type { LaneRows, LeadTouchEntry, StageEventRow } from './workstream-lanes.repository'
@@ -39,7 +37,6 @@ type Ladder<K extends string> = {
   /** Close/exit date for `dropped`, now for `current`. */
   until: Date
   doneDays: (i: number, entryAt: Date | null) => number | null
-  criteriaOf: (key: K) => GateCriterionState[]
 }
 
 const DAY_MS = 86_400_000
@@ -60,9 +57,8 @@ const iso = (d: Date | null): string | null => d?.toISOString() ?? null
 function stepsOf<K extends string>(l: Ladder<K>): WorkstreamStep[] {
   return l.keys.map((key, i) => {
     const label = l.labelOf(key)
-    const criteria = l.criteriaOf(key)
     if (i > l.index) {
-      return { key, label, state: 'upcoming', at: null, by: null, days: null, criteria }
+      return { key, label, state: 'upcoming', at: null, by: null, days: null }
     }
 
     const entry = l.entryOf(key)
@@ -75,13 +71,12 @@ function stepsOf<K extends string>(l: Ladder<K>): WorkstreamStep[] {
         at: iso(at),
         by: entry?.by ?? null,
         days: l.doneDays(i, at),
-        criteria,
       }
     }
 
     const at = entry?.at ?? l.since
     const days = l.closed === 'done' ? l.doneDays(i, at) : wholeDays(l.since, l.until)
-    return { key, label, state: l.closed, at: iso(at), by: entry?.by ?? null, days, criteria }
+    return { key, label, state: l.closed, at: iso(at), by: entry?.by ?? null, days }
   })
 }
 
@@ -164,7 +159,6 @@ export function leadLaneOf(
       since,
       until: leftAt ?? now,
       doneDays,
-      criteriaOf: () => [],
     }),
     nurture: nurtureOf(trail, lead.state, leftAt ?? now),
     exit:
@@ -284,7 +278,6 @@ function dealLaneOf(
       since: deal.stageSince ?? (stood === null ? null : (entryOf(stood)?.at ?? null)),
       until: outcome === 'lost' ? (deal.closedAt ?? now) : now,
       doneDays: (i) => lastOf(events, (e) => e.from === StageKey.options[i])?.daysInFrom ?? null,
-      criteriaOf: (key) => gateStatesOf(rows, deal.code, key),
     }),
     outcome,
     outcomeAt: iso(signed?.at ?? (outcome === 'lost' ? deal.closedAt : null)),

@@ -1,7 +1,8 @@
 # 0057 · Seven sales pipeline decisions — signed-deal editing, reversible lead exit, stage-gate scope, free-text loss reason
 
 Status: accepted (supersedes 0055; partially supersedes 0015 rule 2 and rule
-4, 0031's fourth request type, and 0034)
+4, 0031's fourth request type, and 0034); §6 superseded by 0060 (stage-gate
+is removed outright, not scoped down)
 Source: project owner's decision in session, 17/09/2026
 
 ## Context
@@ -78,6 +79,9 @@ requiring a migration) does not apply, because there is no closed list left
 to migrate.
 
 ### 6 · Stage-gate criteria block only forward moves and signing
+
+Superseded by 0060 — stage-gate is removed outright, not scoped down; nothing
+below this line still holds.
 
 Stage-gate criteria block exactly two actions: moving a deal to a **later**
 stage, and signing. They do not block:

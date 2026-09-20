@@ -1,18 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PenLine, TriangleAlert, X } from '@pv/ui'
-import {
-  Button,
-  Chip,
-  Drawer,
-  Icon,
-  Input,
-  MetaPill,
-  Select,
-  StatusDot,
-  billions,
-  cn,
-  vnd,
-} from '@pv/ui'
+import { Button, Chip, Drawer, Icon, Input, MetaPill, Select, billions, cn, vnd } from '@pv/ui'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import type { ContractSign, OpportunityRow } from '@pv/contracts'
 import { userMessage } from '@/app/api'
@@ -20,7 +8,6 @@ import { toastDone } from '@/app/toast'
 import { peopleIdOptions, useSalesPeople } from '@/data/directory'
 import { saleOwnersOf } from '@/data/opportunities'
 import { useSignContract } from '@/data/opportunities-write'
-import { gateRefusalOf } from '@/data/stage-gate'
 import { Field } from './ops-fields'
 import { dmy } from '@/lib/date'
 
@@ -106,31 +93,6 @@ function bodyOf(form: SignForm): ContractSign {
   }
 }
 
-/** A stage-gate refusal, spelled out. Shared by the sign drawer and the save
- *  on the deal profile, so every refused door says the same sentence.
- *
- *  NO "where to tick" pointer for now: the criteria checklist
- *  (`OpportunityGateCard`) is parked off the deal profile, and a sentence
- *  sending the reader to a block that is not drawn is a dead end. The pointer
- *  comes back with the checklist. */
-export function GateRefusal({ criteria }: { criteria: string[] }) {
-  return (
-    <div role="alert" className="flex flex-col gap-2 text-[11.5px] leading-[1.5]">
-      <span className="text-destructive-foreground font-semibold">
-        Chưa đủ điều kiện qua stage:
-      </span>
-      <ul className="flex flex-col gap-1">
-        {criteria.map((label, i) => (
-          <li key={`${i}:${label}`} className="flex items-center gap-2">
-            <StatusDot state="bad" />
-            {label}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 type Props = {
   op: OpportunityRow
   open: boolean
@@ -171,7 +133,6 @@ export function SignDrawer({ op, open, onClose }: Props) {
   const symbol = CURRENCIES.find((c) => c.code === form.currency)?.symbol ?? ''
   const owner = people.find((a) => a.id === form.ownerId)
   const busy = sign.isPending
-  const gate = gateRefusalOf(sign.error)
 
   return (
     <Drawer
@@ -187,27 +148,26 @@ export function SignDrawer({ op, open, onClose }: Props) {
       meta={<Chip>{op.code}</Chip>}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
-          {gate ? (
-            <GateRefusal criteria={gate} />
-          ) : (
-            <span
-              className={cn(
-                'text-[11.5px] leading-[1.5]',
-                sign.error ? 'text-destructive-foreground' : 'text-foreground',
-              )}
-              aria-live="polite"
-            >
-              {/* Lỗi máy chủ thắng mọi câu khác — người vừa bấm mà bị từ chối cần
-                biết vì sao trước khi biết chuyện gì lẽ ra đã xảy ra. 409 ở cửa
-                này nghĩa là đơn đã ký, đã thua, hoặc đang có đề nghị ký chờ duyệt; `userMessage` dịch
-                nguyên câu của máy chủ thay vì đoán lại. */}
-              {sign.error
-                ? userMessage(sign.error)
-                : busy
-                  ? 'Đang gửi đề nghị ký…'
-                  : 'Gửi xong là một đề nghị chờ duyệt. Hợp đồng và số hợp đồng chỉ có khi người duyệt gật.'}
-            </span>
-          )}
+          {/* `min-w-0 flex-1`, not the default `flex-basis: auto`: the idle
+              sentence is wider than the drawer, so its natural size pushes the
+              buttons onto a second row and `justify-between` then left-aligns them. */}
+          <span
+            className={cn(
+              'min-w-0 flex-1 text-[11.5px] leading-[1.5]',
+              sign.error ? 'text-destructive-foreground' : 'text-foreground',
+            )}
+            aria-live="polite"
+          >
+            {/* Lỗi máy chủ thắng mọi câu khác — người vừa bấm mà bị từ chối cần
+              biết vì sao trước khi biết chuyện gì lẽ ra đã xảy ra. 409 ở cửa
+              này nghĩa là đơn đã ký, đã thua, hoặc đang có đề nghị ký chờ duyệt; `userMessage` dịch
+              nguyên câu của máy chủ thay vì đoán lại. */}
+            {sign.error
+              ? userMessage(sign.error)
+              : busy
+                ? 'Đang gửi đề nghị ký…'
+                : 'Gửi xong là một đề nghị chờ duyệt. Hợp đồng và số hợp đồng chỉ có khi người duyệt gật.'}
+          </span>
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" disabled={busy} onClick={onClose}>
               <Icon icon={X} size={16} />

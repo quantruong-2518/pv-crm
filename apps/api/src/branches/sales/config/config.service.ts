@@ -21,7 +21,6 @@ import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository } from './config.repository'
 import type { ConfigRowDb } from './config.schema'
-import { StageCriterionService } from './stage-criterion.service'
 
 /** Cấu hình danh mục Sales — nơi DUY NHẤT biết cả repository lẫn engine.
  *
@@ -34,7 +33,7 @@ import { StageCriterionService } from './stage-criterion.service'
  *  ------------------------------------------------------------------
  *  ĐỌC THÌ TRẢ, GHI THÌ ĐỀ NGHỊ
  *  ------------------------------------------------------------------
- *  Ba hàm ghi dưới đây kiểm xong xuôi — hình dữ liệu, thuộc tính có đúng danh
+ *  Mọi hàm ghi dưới đây kiểm xong xuôi — hình dữ liệu, thuộc tính có đúng danh
  *  mục không, tên có trùng không, người phụ trách có thật không — rồi KHÔNG
  *  ghi. Chúng dựng một `ConfigChange` và đưa cho cửa duyệt. Lý do nằm ở ma trận
  *  quyền: E2 chỉ cấp `config.propose`, không có `config.edit`.
@@ -47,7 +46,6 @@ export class SalesConfigService implements ApprovalApplier {
   constructor(
     private readonly repo: SalesConfigRepository,
     private readonly gate: SalesConfigGate,
-    private readonly criteria: StageCriterionService,
   ) {}
 
   /** Cả sáu danh mục. Một lần gọi, một câu truy vấn. */
@@ -157,7 +155,7 @@ export class SalesConfigService implements ApprovalApplier {
     return this.propose(who, { kind: 'motion', motion, patch: body })
   }
 
-  // ── CHỖ NỐI E3 · một điểm cho cả ba đường ghi ─────────────────────────────
+  // ── CHỖ NỐI E3 · một điểm cho mọi đường ghi ───────────────────────────────
 
   /** Mọi thay đổi đi qua ĐÚNG hàm này. Không có đường vòng.
    *
@@ -220,9 +218,6 @@ export class SalesConfigService implements ApprovalApplier {
    *  per rule. "This name is taken" is the same fact whether it is read while
    *  typing or while approving. */
   private async applyChange(tx: Db, change: ConfigChange): Promise<void> {
-    if (change.kind === 'criterion-create' || change.kind === 'criterion-update') {
-      return this.criteria.apply(tx, change)
-    }
     if (change.kind === 'motion') {
       /* Nothing to re-check across rows: a motion has no name to collide with
          and no order to keep whole. What could still be wrong — a nonsense

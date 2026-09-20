@@ -1,6 +1,5 @@
 import {
   stageOfState,
-  type GateCriterionState,
   type OpportunityCreate,
   type OpportunityCreateState,
   type OpportunityOwner,
@@ -11,7 +10,6 @@ import {
   type StageKey,
 } from '@pv/contracts'
 import type { ObjectRef } from '@pv/engines'
-import type { GateChecklist } from './opportunity-gate.repository'
 import { STATE_LABEL, stageLabel } from './opportunity.labels'
 import type {
   opportunity,
@@ -484,24 +482,4 @@ export function toContract(input: {
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt?.toISOString() ?? null,
   }
-}
-
-/** One deal's checklist for one stage, in criterion order — shared by the
- *  deal's criteria door and the journey's deal lanes so the pairing exists once. */
-export function gateStatesOf(
-  list: GateChecklist,
-  deal: string,
-  stage: string,
-): GateCriterionState[] {
-  return list.criteria
-    .filter((c) => c.stage === stage)
-    .map((c) => {
-      const tick = list.ticks.find((t) => t.deal === deal && t.criterionId === c.id)
-      return {
-        id: c.id,
-        label: c.label,
-        tickedAt: tick?.at.toISOString() ?? null,
-        tickedBy: tick?.by ?? null,
-      }
-    })
 }

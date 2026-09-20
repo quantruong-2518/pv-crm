@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, Badge, Button, Icon, ListChecks, Lock, RotateCcw, cn } from '@pv/ui'
+import { ArrowRight, Badge, Button, Icon, Lock, RotateCcw, cn } from '@pv/ui'
 import {
   LEAD_STATE_LABEL,
   SOURCE_KIND_LABEL,
@@ -54,7 +54,7 @@ import {
  *
  *  Every node carries its own ladder: dots on a rail, dates UNDER the rail,
  *  never across it. A rung is a button; pressing one opens that rung in the
- *  side panel, which is where per-phase detail and the stage gate live. */
+ *  side panel, which is where per-phase detail lives. */
 
 type Go = (path: string) => void
 type Track = { selected: StepRef | null; onSelect: (ref: StepRef) => void }
@@ -252,12 +252,12 @@ function Rail({
   )
 }
 
-/** The line under a ladder: the rung the lane stands on, what it has cost, and
- *  how much of that rung's stage gate is ticked. */
+/** The line under a ladder: the rung the lane stands on, and what it has
+ *  cost. */
 function Summary({ lane }: { lane: WorkstreamLane }) {
   const summary = laneSummary(lane)
   if (!summary) return null
-  const { step, dropped, days, gate } = summary
+  const { step, dropped, days } = summary
   const live = step.state === 'current' && lane.open
   return (
     <span
@@ -266,11 +266,9 @@ function Summary({ lane }: { lane: WorkstreamLane }) {
         dropped ? 'text-destructive-foreground' : live ? 'text-warning' : 'text-muted-foreground',
       )}
     >
-      {gate && <Icon icon={ListChecks} size={16} className="shrink-0" />}
       <span className="min-w-0 truncate">
         {dropped ? `Rớt ở ${step.label}` : step.label}
         {days !== null && ` · ${days} ngày`}
-        {gate && ` · ${gate.ticked}/${gate.total}`}
       </span>
     </span>
   )

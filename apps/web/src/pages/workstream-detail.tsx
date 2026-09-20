@@ -187,7 +187,6 @@ export default function WorkstreamDetailPage() {
               lane={selection.lane}
               step={selection.step}
               lead={selection.lane.kind === 'LD' ? ws.lead : null}
-              canEdit={canEdit}
               onSelect={setPicked}
             />
           )}

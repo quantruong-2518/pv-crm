@@ -138,8 +138,6 @@ export type DealSeed = {
   expectedCloseInDays: number | null
   products: ProductNo[]
   description: string
-  /** Discovery criteria ticked so far; deals past discovery have all four. */
-  ticks?: number
   won?: { signedDaysAgo: number }
   lost?: { reason: string; note: string; daysAgo: number }
 }
@@ -272,7 +270,6 @@ export const JOURNEYS: JourneySeed[] = [
         expectedCloseInDays: 70,
         products: [3, 2],
         description: 'Giai đoạn 2: bảo trì dự phòng cho 120 máy bonder và kho phụ tùng.',
-        ticks: 3,
       },
     ],
   },
@@ -397,7 +394,6 @@ export const JOURNEYS: JourneySeed[] = [
         products: [1, 2],
         description:
           'Khảo sát truy xuất lô laser diode — dừng giữa chừng vì ngân sách CNTT bị đóng băng.',
-        ticks: 1,
         lost: {
           reason: 'Ngân sách IT bị đóng băng cuối năm',
           note: 'Tập đoàn tạm dừng mọi dự án CNTT ngoài compliance, hẹn xem lại đầu năm sau.',
@@ -413,7 +409,6 @@ export const JOURNEYS: JourneySeed[] = [
         expectedCloseInDays: 90,
         products: [1, 2],
         description: 'Ngân sách được duyệt lại — mở lại khảo sát truy xuất lô laser diode.',
-        ticks: 2,
       },
     ],
   },
@@ -436,7 +431,6 @@ export const JOURNEYS: JourneySeed[] = [
         expectedCloseInDays: 100,
         products: [0, 1],
         description: 'MES và theo dõi lỗi theo ca cho line đế mạch mới.',
-        ticks: 1,
       },
     ],
   },

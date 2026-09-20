@@ -1,16 +1,10 @@
 import { Module, type OnModuleInit } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { ApprovalAppliers } from '@api/platform/approval/approval.service'
-import { registerConstraints } from '@api/platform/http/db-error'
 import { SalesConfigController } from './config.controller'
 import { SalesConfigGate, SalesConfigGateE3 } from './config.approval'
 import { SalesConfigRepository } from './config.repository'
 import { SalesConfigService } from './config.service'
-import { STAGE_CRITERION_CONSTRAINTS } from './stage-criterion.constraints'
-import { StageCriterionRepository } from './stage-criterion.repository'
-import { StageCriterionService } from './stage-criterion.service'
-
-registerConstraints(STAGE_CRITERION_CONSTRAINTS)
 
 /** Module 6 · Cấu hình danh mục Sales.
  *
@@ -49,8 +43,6 @@ registerConstraints(STAGE_CRITERION_CONSTRAINTS)
   providers: [
     SalesConfigService,
     SalesConfigRepository,
-    StageCriterionService,
-    StageCriterionRepository,
     { provide: SalesConfigGate, useClass: SalesConfigGateE3 },
   ],
   exports: [SalesConfigService],

@@ -2,7 +2,6 @@ import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nes
 import type { Actor } from '@pv/engines'
 import {
   ContractSign,
-  CriterionTick,
   ObjectCode,
   OpportunityBookQuery,
   OpportunityCreate,
@@ -10,12 +9,10 @@ import {
   OpportunityLiveDealQuery,
   OpportunityStageMove,
   OpportunityUpdate,
-  StageCriterion,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
-import { OpportunityGate } from './opportunity-gate.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
 
@@ -49,7 +46,6 @@ import { OpportunityService } from './opportunity.service'
 export class OpportunityController {
   constructor(
     private readonly ops: OpportunityService,
-    private readonly gate: OpportunityGate,
     private readonly signs: OpportunitySign,
   ) {}
 
@@ -249,25 +245,5 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   stageHistory(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.ops.stageHistory(who, code)
-  }
-
-  /** The deal's own stage-gate checklist, read by whoever may open the deal. */
-  @Get(':code/criteria')
-  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
-  criteria(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
-    return this.gate.checklist(who, code)
-  }
-
-  /** Tick or untick one stage-gate criterion on a deal. Same permission and
-   *  scope as the column move it unlocks. */
-  @Patch(':code/criteria/:criterionId')
-  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
-  tickCriterion(
-    @CurrentActor() who: Actor,
-    @Param('code', zod(ObjectCode)) code: ObjectCode,
-    @Param('criterionId', zod(StageCriterion.shape.id)) criterionId: string,
-    @Body(zod(CriterionTick)) body: CriterionTick,
-  ) {
-    return this.gate.tick(who, code, criterionId, body)
   }
 }

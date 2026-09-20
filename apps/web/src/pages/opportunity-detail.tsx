@@ -22,8 +22,7 @@ import { DealHeader, DealHistoryTab, DealToolsBar, EmptyOp } from './opportunity
 /** Module 3 · one deal's profile — `/sales/opportunities/:code`.
  *
  *  ONE COLUMN, ONE CARD (17/09). The side column is gone and with it the six
- *  blocks that only restated the row: stage picker, gate checklist, origin
- *  lead, holders. What a reader looked them up for now sits where they were
+ *  blocks that only restated the row: stage picker, origin lead, holders. What a reader looked them up for now sits where they were
  *  already looking — provenance in the header, holders and column inside the
  *  form, everything that HAPPENED behind the history tab.
  *

@@ -14,8 +14,7 @@ import { dm } from '@/lib/date'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { type StepRef, type WorkstreamLane } from '@/data/workstreams'
 import { ConvertDialog } from '@/components/convert-dialog'
-import { GateChecklist } from '@/components/gate-checklist'
-import { exitReasonOf, gateOf, unreachedWord } from './workstream-lane-model'
+import { exitReasonOf, unreachedWord } from './workstream-lane-model'
 
 /** The pieces the journey tree and its side panel are built from.
  *
@@ -216,19 +215,14 @@ export function LanePanel({
   lane,
   step,
   lead,
-  canEdit,
   onSelect,
 }: {
   lane: WorkstreamLane
   step: WorkstreamStep
   /** Present only while the picked lane IS the lead lane. */
   lead: WorkstreamLeadLane | null
-  canEdit: boolean
   onSelect: (ref: StepRef) => void
 }) {
-  const deal = lane.kind === 'OP'
-  const gate = gateOf(step, lane.open)
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -243,25 +237,6 @@ export function LanePanel({
           />
         ))}
       </div>
-
-      {deal && gate && (
-        <>
-          <Separator />
-          <GateChecklist
-            key={`${lane.code}:${step.key}`}
-            opportunityCode={lane.code}
-            criteria={step.criteria}
-            title={`Điều kiện qua ${step.label}`}
-            editable={lane.open && canEdit}
-            passed={step.state === 'done'}
-            note={
-              lane.open
-                ? 'Bạn không có quyền sửa cơ hội này.'
-                : 'Cơ hội đã đóng, không tick được nữa.'
-            }
-          />
-        </>
-      )}
 
       {lead && (
         <>

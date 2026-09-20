@@ -15,8 +15,8 @@ này chỉ giữ việc CÒN THIẾU — xong mục nào thì xoá dòng đó.
   đăng nhập. Mở dashboard, xem có bản build cho hai commit trên không.
 - **Chưa smoke test production:** gửi đề nghị ký → giám đốc duyệt → hợp đồng
   sinh; rời phễu rồi mở lại một lead; sửa tiền đơn đã ký → hợp đồng đổi theo.
-- Neon chưa có điều kiện stage nào — cổng stage chưa chặn gì cho tới khi giám
-  đốc duyệt cấu hình. Đúng thiết kế, không phải lỗi.
+- Cổng stage đã bị bỏ hẳn (ADR 0060) — không còn cổng nào để chặn chuyển
+  stage hay ký hợp đồng, ngoài quyền/scope/E3 như mọi cửa ghi khác.
 
 - **Commit `bf0a667` (Drawer mức xl, nạp lead) đã rơi khỏi lịch sử master** do
   một lần `update-ref` không so-và-đổi của phiên khác. Object vẫn còn trong
@@ -43,7 +43,7 @@ này chỉ giữ việc CÒN THIẾU — xong mục nào thì xoá dòng đó.
 - `OpportunityRepository.lockDeal` đọc thẳng bảng `platform.approval` vì
   `ApprovalService.pendingOn` không nhận transaction handle.
 - Người gửi đề nghị ký bị gỡ khỏi đơn trước khi duyệt vẫn được ghi là người ký.
-- Tick điều kiện và sửa trường thường của cơ hội không để lại vết touch/audit.
+- Sửa trường thường của cơ hội không để lại vết touch/audit.
 - Vai không có `config.view` thấy khoá lý do rời phễu thay vì nhãn ở timeline.
 - `apps/web/src/data/performance.ts` và `apps/web/src/data/plan.ts` còn đọc nhãn
   lý do rời phễu từ fixture.
