@@ -1,4 +1,4 @@
-import { MAS_MAX_RECIPIENTS, MAS_RECIPIENT_BLOCK_LABEL, MasRecipientBlock } from '@pv/contracts'
+import { MAS_RECIPIENT_BLOCK_LABEL, MasRecipientBlock } from '@pv/contracts'
 import type {
   CampaignOverlap,
   CampaignPreflightResponse,
@@ -43,15 +43,16 @@ export function profileFrom(c: CampaignProfile): ProfileDraft {
 
 /** THE CEILING NOBODY WAS TOLD ABOUT, said out loud with both numbers.
  *
- *  One wave is one MAS batch, and `MasService.send()` refuses a batch over
- *  `MAS_MAX_RECIPIENTS` with a 422. Neither `/start` nor `/waves` carries
- *  `leadCodes` — the server reads the audience itself — so nothing on the way
- *  in passes through the zod door that would have caught the size. Meanwhile
- *  `CampaignMemberPatch.add` accepts up to 500, so an audience of 201 is easy
- *  to build and impossible to fire, and until now the only news of that was the
- *  422 after the send button. */
-export function ceilingNote(count: number): string {
-  return `Đang có ${count} người nhận, vượt trần ${MAS_MAX_RECIPIENTS} của một đợt gửi — bớt xuống rồi hãy bắn.`
+ *  Neither `/start` nor `/waves` carries `leadCodes` — the server reads the
+ *  audience itself — so nothing on the way in passes a zod door that could have
+ *  caught the size, while `CampaignMemberPatch.add` takes 500 a round. An
+ *  audience of 201 is easy to build and impossible to fire.
+ *
+ *  The ceiling comes from `CampaignProfile.batchCeiling`, not from
+ *  `MAS_MAX_RECIPIENTS`: that constant bounds a hand-picked REQUEST and never
+ *  sees a campaign, while the real limit is `PV_MAS_BATCH_MAX`. */
+export function ceilingNote(count: number, ceiling: number): string {
+  return `Đang có ${count} người nhận, vượt trần ${ceiling} của một đợt gửi — bớt xuống rồi hãy bắn.`
 }
 
 /** The three faces of one campaign. On the address bar (`?tab=`), so a screen
@@ -120,7 +121,7 @@ export function campaignReadiness(
   c: CampaignProfile,
   preflight: CampaignPreflightResponse | undefined,
 ): ReadyRow[] {
-  const over = c.audienceCount > MAS_MAX_RECIPIENTS
+  const over = c.audienceCount > c.batchCeiling
 
   const audience: ReadyRow = {
     key: 'audience',
@@ -130,8 +131,8 @@ export function campaignReadiness(
       c.audienceCount === 0
         ? 'Chưa có ai trong tệp nhận — máy chủ từ chối một đợt không người nhận.'
         : over
-          ? ceilingNote(c.audienceCount)
-          : `${c.audienceCount} người nhận, còn dưới trần ${MAS_MAX_RECIPIENTS} của một đợt.`,
+          ? ceilingNote(c.audienceCount, c.batchCeiling)
+          : `${c.audienceCount} người nhận, còn dưới trần ${c.batchCeiling} của một đợt.`,
     ...(c.audienceCount > 0 && !over ? {} : { fix: 'audience' as const }),
   }
 

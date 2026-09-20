@@ -43,9 +43,16 @@ export function toContract(read: CampaignRead): CampaignBookRow {
 }
 
 /** Hồ sơ = dòng sổ, cộng chuỗi đợt. Không map lại `read` lần hai, đúng luật
- *  `toProfile` gọi `toContract` bên `lead.mapper.ts`. */
-export function toProfile(read: CampaignRead, waves: CampaignWaveRow[]): CampaignProfile {
-  return { ...toContract(read), waves }
+ *  `toProfile` gọi `toContract` bên `lead.mapper.ts`.
+ *
+ *  `limits` đi vào từ ngoài chứ không đọc `Env` ở đây: mapper là hàm thuần,
+ *  và hai con số đó là của môi trường chứ không của hàng trong bảng. */
+export function toProfile(
+  read: CampaignRead,
+  waves: CampaignWaveRow[],
+  limits: { batchCeiling: number; bounceCeilingPercent: number },
+): CampaignProfile {
+  return { ...toContract(read), waves, ...limits }
 }
 
 /** One `campaign_member` row joined to the lead behind it. */

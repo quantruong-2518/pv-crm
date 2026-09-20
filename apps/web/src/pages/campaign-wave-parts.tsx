@@ -17,7 +17,7 @@ import {
   cn,
   type TableColumn,
 } from '@pv/ui'
-import { MAS_MAX_RECIPIENTS, MAS_RECIPIENT_BLOCK_LABEL, MasRecipientBlock } from '@pv/contracts'
+import { MAS_RECIPIENT_BLOCK_LABEL, MasRecipientBlock } from '@pv/contracts'
 import type {
   CampaignPreflightResponse,
   CampaignProfile,
@@ -97,7 +97,7 @@ export function WaveDrawer({
   const firstRun = campaign.state === 'DRAFT' && campaign.waveCount === 0
   const waves = effectiveWaves(composer)
   const ready = firstRun ? waves.length > 0 : composerDraftValid(composer)
-  const overCeiling = campaign.audienceCount > MAS_MAX_RECIPIENTS
+  const overCeiling = campaign.audienceCount > campaign.batchCeiling
   const noAudience = campaign.audienceCount === 0
   const busy = start.isPending || waveAdd.isPending
   /* The one refusal that is the SERVER's count, not the screen's. An overlap
@@ -231,8 +231,8 @@ function fireNote(
   if (campaign.audienceCount === 0)
     return { text: 'Tệp nhận còn rỗng — thêm người nhận ở tab Tệp nhận trước khi bắn.', warn: true }
 
-  if (campaign.audienceCount > MAS_MAX_RECIPIENTS)
-    return { text: ceilingNote(campaign.audienceCount), warn: true }
+  if (campaign.audienceCount > campaign.batchCeiling)
+    return { text: ceilingNote(campaign.audienceCount, campaign.batchCeiling), warn: true }
 
   if (preflight?.sendable === 0)
     return {

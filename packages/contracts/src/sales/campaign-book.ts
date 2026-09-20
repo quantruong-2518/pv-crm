@@ -79,8 +79,21 @@ export const CampaignWaveRow = z.object({
   run: MailRunRow,
 })
 
+/** THE TWO LIMITS THIS CAMPAIGN IS GOVERNED BY, carried on the profile.
+ *
+ *  Both are environment settings (`PV_MAS_BATCH_MAX`,
+ *  `PV_MAS_BOUNCE_CEILING_PERCENT`), and the screen used to invent them — the
+ *  send ceiling by borrowing `MAS_MAX_RECIPIENTS`, a contract constant that
+ *  bounds a hand-picked REQUEST and never sees a campaign's audience, and the
+ *  bounce ceiling by typing "4%" into JSX. Both lied in two directions: raise
+ *  the real ceiling and the screen locks a send the server allows, lower it and
+ *  the readiness band stays green until a 409. */
 export const CampaignProfile = CampaignBookRow.extend({
   waves: z.array(CampaignWaveRow),
+  /** Most recipients one wave may carry. */
+  batchCeiling: z.number().int().positive(),
+  /** Bounce rate at which the breaker holds the rest of a wave, in percent. */
+  bounceCeilingPercent: z.number().positive(),
 })
 
 /** `POST /sales/campaigns` — mã do máy chủ sinh, trạng thái luôn bắt đầu `DRAFT`. */

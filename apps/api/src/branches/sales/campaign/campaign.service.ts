@@ -66,6 +66,15 @@ export class CampaignService {
     })
   }
 
+  /** The two environment limits the profile carries, in one place so the
+   *  screen never has to guess either of them again. */
+  private limits(): { batchCeiling: number; bounceCeilingPercent: number } {
+    return {
+      batchCeiling: this.env.PV_MAS_BATCH_MAX,
+      bounceCeilingPercent: this.env.PV_MAS_BOUNCE_CEILING_PERCENT,
+    }
+  }
+
   async profile(who: Actor, code: string): Promise<CampaignProfile> {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
@@ -74,7 +83,7 @@ export class CampaignService {
     }
 
     const waves = await this.wavesOf(code)
-    return CampaignProfile.parse(toProfile(found, waves))
+    return CampaignProfile.parse(toProfile(found, waves, this.limits()))
   }
 
   /** The creator owns it unless the form says otherwise.

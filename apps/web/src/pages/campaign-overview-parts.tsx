@@ -169,7 +169,11 @@ export function WaveTotals({ campaign }: { campaign: CampaignProfile }) {
         icon={CircleAlert}
         value={totals.bounced.toLocaleString('vi-VN')}
         label="Bounce"
-        hint={totals.sent > 0 ? `${percent(totals.bounced / totals.sent)} · trần 4%` : 'trần 4%'}
+        hint={
+          totals.sent > 0
+            ? `${percent(totals.bounced / totals.sent)} · trần ${campaign.bounceCeilingPercent}%`
+            : `trần ${campaign.bounceCeilingPercent}%`
+        }
       />
     </div>
   )

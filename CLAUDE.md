@@ -109,7 +109,7 @@ Máy gác — sai là không merge được:
 
 Người gác — CI **không** biết, phải tự nhìn:
 
-- **Luật 12** — nền đúng 4 lớp, không lớp thứ 5
+- **Luật 12** — nền màn đúng MỘT lớp: aurora glow trên `--background`, đặt ở khung ngoài cùng
 - **Luật 13** — tương phản ≥ 4.5:1 trên cả `.glass-a` và `.glass-b`; nút tablet ≥ 48px
 - **Mẫu mail** — không compiler nào render và không test nào chạy, nên đổi gì
   trong `packages/mail-templates` thì mở `pnpm mail:preview` mà nhìn. Luật 13 áp
