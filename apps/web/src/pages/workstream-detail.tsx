@@ -38,7 +38,7 @@ import {
 import { CloseBadge } from '@/components/workstream-bits'
 import { LanePanel } from './workstream-detail-parts'
 import { BADGE_INK, laneStartedAt } from './workstream-lane-model'
-import { Journey } from './workstream-journey'
+import { Journey, JourneyLegend } from './workstream-journey'
 
 /** One customer journey run — `/sales/workstreams/:code`, drawn as a LEFT-TO-
  *  RIGHT FAMILY TREE: lead → the deals it produced → each deal's contract →
@@ -139,7 +139,13 @@ export default function WorkstreamDetailPage() {
         <StatStrip label="Tóm tắt hành trình" items={summaryOf(ws, now)} />
 
         <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5 lg:p-6">
-          <h3 className="font-display m-0 text-[16px] font-semibold">Hành trình</h3>
+          {/* The legend rides with the title: inside the tree's scroller it sat
+              on top of the last two column captions, and scrolled away from
+              the dots it explains. */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-display m-0 text-[16px] font-semibold">Hành trình</h3>
+            <JourneyLegend />
+          </div>
           <Journey
             ws={ws}
             selected={selection && { lane: selection.lane.code, step: selection.step.key }}
@@ -261,7 +267,7 @@ function Header({ ws, go }: { ws: Profile; go: Go }) {
         <Button
           variant="ghost"
           size="lg"
-          className="w-12 shrink-0 px-0"
+          className="hover:bg-surface-ink/9 w-12 shrink-0 bg-transparent px-0 shadow-none"
           aria-label="Về sổ hành trình"
           onClick={() => go(BOOK)}
         >

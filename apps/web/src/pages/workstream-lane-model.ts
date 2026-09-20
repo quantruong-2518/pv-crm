@@ -76,11 +76,11 @@ export function laneSummary(lane: WorkstreamLane): LaneSummary | null {
   const dropped = lane.steps.find((s) => s.state === 'dropped')
   const step = dropped ?? currentStepOf(lane) ?? lastReachedOf(lane)
   if (!step) return null
-  return {
-    step,
-    dropped: step.state === 'dropped',
-    days: step.days === null || step.days === 0 ? null : step.days,
-  }
+  const days = step.days === null || step.days === 0 ? null : step.days
+  /* A closed lane stopped on its own last rung repeats the stamp word for word.
+     A DROP still prints: the stamp names the outcome, this line the rung. */
+  if (!lane.open && !dropped && days === null) return null
+  return { step, dropped: step.state === 'dropped', days }
 }
 
 /** The day a lane began: the first rung it actually entered. A deal lane has no
@@ -117,3 +117,8 @@ export const WORKING_RUNG: LeadState = 'working'
  *  NOT `--on-tint-*-strong`: that token is the same hex as its base in both
  *  themes (globals.css:72-75 and 491-494), so it moves nothing. */
 export const BADGE_INK = 'text-foreground'
+
+/** An action INSIDE a node, where `ghost`'s own ground reads as a second card
+ *  stacked on the first. Only the ground goes: the 48px hit box stays, because
+ *  law 13 measures the target, not the paint. */
+export const QUIET_ACTION = 'hover:bg-surface-ink/9 justify-start bg-transparent shadow-none'

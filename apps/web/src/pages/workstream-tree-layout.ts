@@ -14,8 +14,8 @@ import type { JourneyContract, WorkstreamDealLaneView } from '@/data/workstreams
 export const COL = {
   lead: { x: 0, w: 280 },
   deal: { x: 336, w: 300 },
-  contract: { x: 692, w: 160 },
-  account: { x: 908, w: 176 },
+  contract: { x: 692, w: 180 },
+  account: { x: 928, w: 236 },
 } as const
 
 export const TREE_WIDTH = COL.account.x + COL.account.w
@@ -23,13 +23,41 @@ export const TREE_WIDTH = COL.account.x + COL.account.w
 /* A rung button is a real target on the site's tablet: five of them across the
    narrowest column must each clear 48px wide (law 13), which is what sets the
    lead column to 280. */
-const LEAD_H = 168
-const LEAD_NURTURE_H = 28
-const DEAL_H = 140
+
+/* EVERY NODE IS THE SAME FOUR BANDS — head, body, note, foot — so one set of
+   band heights sizes all four kinds, and a card can no longer end above its
+   own last row. The numbers below are the rendered heights of the elements
+   `workstream-journey.tsx` puts in each band; change a band there and change
+   its constant here in the same edit. */
+const PAD = 16 // Node's `p-4`, top and bottom
+const GAP = 12 // Node's `gap-3`, between bands
+const HEAD_H = 25 // a Badge: `py-1` over 11px text at the 1.5 preflight leading
+const RAIL_H = 48 // one rung button's `min-h-12`, taller than the dot and date it holds
+const NOTE_H = 18 // one 11.5px summary line
+const FOOT_H = 25 // a Badge again, half a pixel over Avatar `sm`
+
+/* THE PRICE OF DECLARING INSTEAD OF MEASURING. Every band above is a rounded-up
+   reading of a CSS box, and text boxes land on fractions. Without this the sums
+   came out exact, so one extra half-pixel put a card's foot through its floor —
+   which is the bug this whole block was rewritten to kill. */
+const SLACK = 4
+
+const frame = (bands: number) => PAD * 2 + GAP * (bands - 1) + SLACK
+
+/* Head, rail, foot — the lead's three certain bands. Everything below is a
+   band it only sometimes draws, declared by the caller rather than measured. */
+const LEAD_H = frame(3) + HEAD_H + RAIL_H + FOOT_H
+const LEAD_NOTE_H = GAP + NOTE_H
+const LEAD_TIER_H = 29 // `mt-1` over a Badge, riding under one rung inside the rail band
+const LEAD_NURTURE_H = GAP + 17
+/* A deal reserves its note band whether or not it draws one: deals stack, and
+   a column of cards that each ended at its own height reads as a mistake. */
+const DEAL_H = frame(4) + HEAD_H + RAIL_H + NOTE_H + FOOT_H
 const DEAL_GAP = 14
 const HIDDEN_H = 48
-const CONTRACT_H = 108
-const ACCOUNT_H = 124
+const CONTRACT_H = frame(3) + HEAD_H + NOTE_H + NOTE_H
+/* Two bands, but the second stacks the foot over a 48px action (`gap-2`). */
+const ACCOUNT_H = frame(2) + HEAD_H + (FOOT_H + 8 + 48)
 const GHOST_H = 56
 
 /* The one write door of the tree is a button, not a node — its own pair of
@@ -75,12 +103,17 @@ export function treeLayout(input: {
   hiddenDeals: number
   contracts: JourneyContract[]
   hasNurture: boolean
+  /** The lead was graded, so a tier badge rides under one of its rungs. */
+  hasTier: boolean
+  /** The lead lane has a summary line to draw under its rail. */
+  hasLeadNote: boolean
   hasAccount: boolean
   /** Caller already folded `canEdit && lead.outcome !== 'exited'` into this —
    *  layout math should not know a permission from a business outcome. */
   showCreateDeal: boolean
 }): TreeLayout {
-  const { deals, hiddenDeals, contracts, hasNurture, hasAccount, showCreateDeal } = input
+  const { deals, hiddenDeals, contracts, hasAccount, showCreateDeal } = input
+  const { hasNurture, hasTier, hasLeadNote } = input
 
   const dealBoxes = deals.map((_, i) => box(i * (DEAL_H + DEAL_GAP), DEAL_H))
   const afterDeals = dealBoxes.length === 0 ? 0 : dealBoxes.length * (DEAL_H + DEAL_GAP)
@@ -92,7 +125,11 @@ export function treeLayout(input: {
     : (dealGhost?.height ?? afterDeals - DEAL_GAP)
   const stackCenter = stackBottom / 2
 
-  const leadHeight = LEAD_H + (hasNurture ? LEAD_NURTURE_H : 0)
+  const leadHeight =
+    LEAD_H +
+    (hasLeadNote ? LEAD_NOTE_H : 0) +
+    (hasTier ? LEAD_TIER_H : 0) +
+    (hasNurture ? LEAD_NURTURE_H : 0)
   const lead = box(stackCenter - leadHeight / 2, leadHeight)
 
   /* A contract hangs on the deal that produced it — that pairing IS the reason
@@ -108,7 +145,11 @@ export function treeLayout(input: {
     contractBoxes.length === 0
       ? stackCenter
       : contractBoxes.reduce((sum, b) => sum + b.center, 0) / contractBoxes.length
-  const account = box(accountAnchor - ACCOUNT_H / 2, ACCOUNT_H)
+  /* An empty column is a GHOST, and a ghost is ghost-sized: billing the
+     account's full height for its placeholder drew one three times taller
+     than the two beside it. */
+  const accountHeight = hasAccount ? ACCOUNT_H : GHOST_H
+  const account = box(accountAnchor - accountHeight / 2, accountHeight)
 
   const all = [lead, ...dealBoxes, ...contractBoxes, account, hidden, dealGhost, contractGhost]
   const boxes = all.filter((b): b is Box => b !== null)

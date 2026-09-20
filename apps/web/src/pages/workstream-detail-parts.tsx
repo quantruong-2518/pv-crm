@@ -14,7 +14,7 @@ import { dm } from '@/lib/date'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { type StepRef, type WorkstreamLane } from '@/data/workstreams'
 import { ConvertDialog } from '@/components/convert-dialog'
-import { exitReasonOf, unreachedWord } from './workstream-lane-model'
+import { QUIET_ACTION, exitReasonOf, unreachedWord } from './workstream-lane-model'
 
 /** The pieces the journey tree and its side panel are built from.
  *
@@ -52,12 +52,14 @@ export function StepDot({ state, halo }: { state: WorkstreamStepState; halo?: bo
   )
 }
 
+/** Truncating, both ways: this sits in a node foot beside a badge that never
+ *  shrinks, and the narrowest column has 168px of room for the pair. */
 export function Holder({ owner }: { owner: WorkstreamHolder | null }) {
-  if (!owner) return <span className="text-muted-foreground text-[11.5px]">Chưa có người giữ</span>
+  const label = owner?.name ?? 'Chưa có người giữ'
   return (
-    <span className="flex min-w-0 items-center gap-2 text-[11.5px]">
-      <Avatar name={owner.name} size="sm" />
-      <span className="truncate">{owner.name}</span>
+    <span className="flex min-w-0 items-center gap-2 text-[11.5px]" title={label}>
+      {owner && <Avatar name={owner.name} size="sm" />}
+      <span className={cn('truncate', !owner && 'text-muted-foreground')}>{label}</span>
     </span>
   )
 }
@@ -85,6 +87,7 @@ export function CreateDealButton({
       <Button
         variant="ghost"
         size="lg"
+        className={cn(QUIET_ACTION, 'w-full px-4')}
         disabled={waiting}
         onClick={() => {
           if (profile.isError) void profile.refetch()

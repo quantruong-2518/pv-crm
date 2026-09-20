@@ -6,6 +6,7 @@ import {
   SOURCE_KIND_UNKNOWN,
   WorkstreamStepState,
   type WorkstreamAccountLane,
+  type WorkstreamHolder,
   type WorkstreamLeadLane,
   type WorkstreamProfileResponse,
   type WorkstreamStep,
@@ -25,6 +26,7 @@ import {
 import { CreateDealButton, Holder, StepDot } from './workstream-detail-parts'
 import {
   BADGE_INK,
+  QUIET_ACTION,
   STEP_STATE_LABEL,
   WORKING_RUNG,
   dealStamp,
@@ -137,11 +139,30 @@ function Ghost({
   )
 }
 
-function NodeHead({ kind, tag }: { kind: string; tag: ReactNode }) {
+/** The first band of every card: what the object is on the left, how it ended
+ *  on the right. `truncate` because a node whose title is a company name has
+ *  no room to wrap — the card's height is arithmetic in
+ *  `workstream-tree-layout.ts`, and a second line would push the foot through
+ *  the floor. */
+function NodeHead({ kind, title, tag }: { kind: string; title?: string; tag?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="font-display text-[13px] font-semibold">{kind}</span>
+    <div className="flex min-h-6 items-center justify-between gap-2">
+      <span className="font-display truncate text-[13px] font-semibold" title={title}>
+        {kind}
+      </span>
       {tag}
+    </div>
+  )
+}
+
+/** The last band of every card: who holds the object on the left, the one
+ *  thing that kind of card adds on the right. `mt-auto` pins it to the floor,
+ *  so a card with a shorter body opens a gap rather than floating its foot. */
+function NodeFoot({ owner, children }: { owner: WorkstreamHolder | null; children?: ReactNode }) {
+  return (
+    <div className="mt-auto flex min-h-6 items-center justify-between gap-2">
+      <Holder owner={owner} />
+      {children}
     </div>
   )
 }
@@ -267,8 +288,12 @@ function Summary({ lane }: { lane: WorkstreamLane }) {
       )}
     >
       <span className="min-w-0 truncate">
-        {dropped ? `Rớt ở ${step.label}` : step.label}
-        {days !== null && ` · ${days} ngày`}
+        {/* A closed lane that did not drop is already named by the node stamp,
+            so this line drops the repeat and keeps the one thing the stamp
+            cannot say: how long that last rung took. */}
+        {!lane.open && !dropped
+          ? `${days} ngày`
+          : `${dropped ? `Rớt ở ${step.label}` : step.label}${days === null ? '' : ` · ${days} ngày`}`}
       </span>
     </span>
   )
@@ -283,14 +308,7 @@ function LeadNode({
   const tier = lead.tier === null ? null : tierLabel(lead.tier)
   return (
     <Node box={box} col={COL.lead} tinted={track.selected?.lane === lane.code}>
-      <NodeHead
-        kind="Lead"
-        tag={
-          <Badge className={cn(BADGE_INK, 'shrink-0')}>
-            {lead.sourceKind ? SOURCE_KIND_LABEL[lead.sourceKind] : SOURCE_KIND_UNKNOWN}
-          </Badge>
-        }
-      />
+      <NodeHead kind="Lead" tag={<Stamp stamp={leadStamp(lead)} />} />
       <Rail
         lane={lane}
         {...track}
@@ -307,10 +325,11 @@ function LeadNode({
           {LEAD_STATE_LABEL.nurturing} · {lead.nurture.count} lần · {lead.nurture.totalDays} ngày
         </span>
       )}
-      <div className="mt-auto flex items-center justify-between gap-2">
-        <Holder owner={lead.owner} />
-        <Stamp stamp={leadStamp(lead)} />
-      </div>
+      <NodeFoot owner={lead.owner}>
+        <Badge className={cn(BADGE_INK, 'shrink-0')}>
+          {lead.sourceKind ? SOURCE_KIND_LABEL[lead.sourceKind] : SOURCE_KIND_UNKNOWN}
+        </Badge>
+      </NodeFoot>
     </Node>
   )
 }
@@ -320,10 +339,8 @@ function DealNode({ lane, box, ...track }: Track & { lane: WorkstreamDealLaneVie
     <Node box={box} col={COL.deal} tinted={track.selected?.lane === lane.code}>
       <NodeHead kind="Cơ hội" tag={<Stamp stamp={dealStamp(lane)} />} />
       <Rail lane={lane} {...track} />
-      <div className="mt-auto flex items-center justify-between gap-3">
-        <Summary lane={lane} />
-        <Holder owner={lane.owner} />
-      </div>
+      <Summary lane={lane} />
+      <NodeFoot owner={lane.owner} />
     </Node>
   )
 }
@@ -349,23 +366,33 @@ function ContractNode({ contract, box }: { contract: JourneyContract; box: Box }
 
 function AccountNode({ account, box, go }: { account: WorkstreamAccountLane; box: Box; go: Go }) {
   const path = account.code === null ? undefined : chainPath('AC', account.code)
+  const name = account.name ?? 'Công ty'
   return (
     <Node box={box} col={COL.account}>
-      <span className="font-display text-[13px] font-semibold leading-[1.35]">
-        {account.name ?? 'Công ty'}
-      </span>
-      <Badge className={cn(BADGE_INK, 'self-start', account.purchased && 'bg-success/13')}>
-        {account.purchased ? 'Đã mua' : 'Chưa mua'}
-      </Badge>
+      {/* The name takes the whole head row: sharing it with the badge left about
+          ninety pixels, which truncated most company names. */}
+      <NodeHead kind={name} title={name} />
       {/* Stacked, not side by side: the account column is the narrowest one,
           and the old `-ml-3` fought the button's own padding to make room,
           pushing it past the node's edge instead of sitting inside it. */}
       <div className="mt-auto flex flex-col gap-2">
-        <Holder owner={account.owner} />
+        <NodeFoot owner={account.owner}>
+          <Badge className={cn(BADGE_INK, 'shrink-0', account.purchased && 'bg-success/13')}>
+            {account.purchased ? 'Đã mua' : 'Chưa mua'}
+          </Badge>
+        </NodeFoot>
         {path && (
-          <Button variant="ghost" size="lg" className="self-start" onClick={() => go(path)}>
+          /* A stretched flex item resolves its width against negative margins,
+             so `-mx-2 px-2` bleeds the hover ground into the card's padding
+             while the label stays aligned with the holder above it. */
+          <Button
+            variant="ghost"
+            size="lg"
+            className={cn(QUIET_ACTION, '-mx-2 px-2')}
+            onClick={() => go(path)}
+          >
             Mở công ty
-            <Icon icon={ArrowRight} size={16} />
+            <Icon icon={ArrowRight} size={16} className="ml-auto" />
           </Button>
         )}
       </div>
@@ -381,6 +408,22 @@ function ColumnCaption({ col, children }: { col: { x: number }; children: ReactN
     >
       {children}
     </span>
+  )
+}
+
+/** The dot legend, rendered by the CARD not by the tree. It used to sit at the
+ *  right of the caption row inside the horizontal scroller, where the last two
+ *  column captions are laid out at x=692 and x=928 and ran straight through it. */
+export function JourneyLegend() {
+  return (
+    <ul className="m-0 flex shrink-0 list-none flex-wrap items-center gap-4 p-0 text-[12px]">
+      {LEGEND.map((state) => (
+        <li key={state} className="text-muted-foreground flex items-center gap-2">
+          <StepDot state={state} />
+          {STEP_STATE_LABEL[state]}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -410,6 +453,8 @@ export function Journey({
     hiddenDeals: ws.hiddenDeals,
     contracts,
     hasNurture: ws.lead.nurture !== null,
+    hasTier: ws.lead.tier !== null,
+    hasLeadNote: laneSummary(lead) !== null,
     hasAccount: ws.account.code !== null,
     showCreateDeal,
   })
@@ -421,21 +466,11 @@ export function Journey({
           with flex traps half the overflow past `scrollLeft: 0`. A negative
           auto margin resolves to 0, so a narrow card just left-aligns it. */}
       <div className="relative mx-auto" style={{ width: TREE_WIDTH }}>
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative h-4 flex-1">
-            <ColumnCaption col={COL.lead}>Lead</ColumnCaption>
-            <ColumnCaption col={COL.deal}>Cơ hội</ColumnCaption>
-            <ColumnCaption col={COL.contract}>Hợp đồng</ColumnCaption>
-            <ColumnCaption col={COL.account}>Sau bán</ColumnCaption>
-          </div>
-          <ul className="m-0 flex shrink-0 list-none items-center gap-4 p-0 text-[12px]">
-            {LEGEND.map((state) => (
-              <li key={state} className="flex items-center gap-2">
-                <StepDot state={state} />
-                {STEP_STATE_LABEL[state]}
-              </li>
-            ))}
-          </ul>
+        <div className="relative h-4">
+          <ColumnCaption col={COL.lead}>Lead</ColumnCaption>
+          <ColumnCaption col={COL.deal}>Cơ hội</ColumnCaption>
+          <ColumnCaption col={COL.contract}>Hợp đồng</ColumnCaption>
+          <ColumnCaption col={COL.account}>Sau bán</ColumnCaption>
         </div>
 
         <div className="relative mt-3" style={{ height: layout.height }}>
