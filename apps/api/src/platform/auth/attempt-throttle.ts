@@ -29,6 +29,10 @@
  *  do to a colleague is make them wait, once, for a quarter of an hour — as
  *  against an account that stays locked until an administrator is found, which
  *  is a free denial of service against every address in the company. */
+
+/** The default budget: how many consecutive failures cost nothing. Every door
+ *  that guesses at a PASSWORD takes this one. `forgotPassword` overrides it —
+ *  see `fail`. */
 const FAILURES_BEFORE_BLOCK = 5
 const BASE_BACKOFF_MS = 30_000
 const MAX_BACKOFF_MS = 15 * 60_000
@@ -61,16 +65,23 @@ export class AttemptThrottle {
 
   /** One more consecutive failure for this key.
    *
-   *  The first `FAILURES_BEFORE_BLOCK` cost nothing, deliberately: people
-   *  mistype passwords, and a brake that fires on the second attempt trains
-   *  everyone to hate the sign-in screen without slowing an attacker who was
-   *  always going to need thousands of tries. */
-  fail(key: string, now: number = Date.now()): void {
+   *  The first `free` cost nothing, deliberately: people mistype passwords, and
+   *  a brake that fires on the second attempt trains everyone to hate the
+   *  sign-in screen without slowing an attacker who was always going to need
+   *  thousands of tries.
+   *
+   *  `free` IS AN ARGUMENT BECAUSE NOT EVERY DOOR IS GUESSING AT A SECRET.
+   *  `forgot-password` counts every call rather than only failures — it cannot
+   *  tell one outcome from the other without saying so out loud — so five free
+   *  calls there is five letters posted to an address the caller merely
+   *  guessed, not five wrong passwords. The budget belongs at the door that
+   *  knows what it is counting; this class only knows how to count. */
+  fail(key: string, free: number = FAILURES_BEFORE_BLOCK, now: number = Date.now()): void {
     const entry = this.entries.get(key) ?? { failures: 0, blockedUntil: 0, lastAt: now }
     entry.failures += 1
     entry.lastAt = now
-    if (entry.failures >= FAILURES_BEFORE_BLOCK) {
-      const steps = entry.failures - FAILURES_BEFORE_BLOCK
+    if (entry.failures >= free) {
+      const steps = entry.failures - free
       entry.blockedUntil = now + Math.min(BASE_BACKOFF_MS * 2 ** steps, MAX_BACKOFF_MS)
     }
     this.entries.set(key, entry)

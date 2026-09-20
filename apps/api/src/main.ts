@@ -194,7 +194,15 @@ async function bootstrap(): Promise<void> {
   })
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' })
-  new Logger('bootstrap').log(`PV One API · cổng ${env.PORT} · ${env.NODE_ENV}`)
+  const log = new Logger('bootstrap')
+  log.log(`PV One API · cổng ${env.PORT} · ${env.NODE_ENV}`)
+
+  /* Said out loud every boot, or the flag stays on for weeks unmentioned.
+     `env.ts` refuses it in production, so what this stops is a dev machine
+     where anyone able to send a header becomes whoever they name. */
+  if (env.PV_TRUST_ACTOR_HEADER) {
+    log.warn('PV_TRUST_ACTOR_HEADER=true · X-PV-Actor-Id impersonates anyone. Development only.')
+  }
 }
 
 void bootstrap()

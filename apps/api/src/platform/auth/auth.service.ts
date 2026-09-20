@@ -60,6 +60,22 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60_000
  *  it. See `resolve`. */
 const IDLE_TOUCH_FLOOR_MS = 60_000
 
+/** How many `forgot-password` calls for one mailbox cost nothing, and why it is
+ *  lower than the throttle's default of five.
+ *
+ *  That default counts WRONG PASSWORDS, where five is the room a person needs
+ *  to mistype their own. This door counts every call, because it cannot tell a
+ *  known mailbox from an unknown one without saying so out loud — so the same
+ *  five would be five letters posted to an address somebody merely guessed.
+ *  Three covers the honest shape — send, then press the resend button once or
+ *  twice when the first letter is slow — and puts a mail bomb on the
+ *  exponential backoff three calls in rather than five.
+ *
+ *  It also bounds a smaller nuisance: each new ticket retires this account's
+ *  previous one, so whoever knows an address can invalidate the link its owner
+ *  is reading. Fewer free calls, fewer times they can do it. */
+const FORGOT_FREE_ATTEMPTS = 3
+
 /** How long the sudo mark stays fresh.
  *
  *  What this window stops is a machine whose owner just walked away with a live
@@ -329,7 +345,7 @@ export class AuthService {
   async forgotPassword(email: string): Promise<void> {
     const key = `forgot:${email}`
     this.refuseWhileThrottled(key)
-    this.throttle.fail(key)
+    this.throttle.fail(key, FORGOT_FREE_ATTEMPTS)
 
     const row = await this.repo.actorByEmail(email)
     if (!row || row.disabledAt) return

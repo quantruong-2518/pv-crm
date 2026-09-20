@@ -47,8 +47,10 @@ import { useLang } from '@/app/i18n'
  *  chuyện gì. Một lần gõ mật khẩu, đổi lấy việc mọi phiên cũ thật sự chết. */
 export function ResetPasswordPage() {
   const navigate = useNavigate()
-  const [params] = useSearchParams()
-  const token = params.get('token')
+  const [params, setParams] = useSearchParams()
+  /* Read ONCE: the effect below sweeps `?token=` out of the bar, and a
+     `params.get` per render would come back null the moment it does. */
+  const [token] = useState(() => params.get('token'))
   const lang = useLang()
 
   const [ticket, setTicket] = useState<{ email: string } | null>(null)
@@ -59,6 +61,13 @@ export function ResetPasswordPage() {
   const [busy, setBusy] = useState(false)
 
   const firstRef = useRef<HTMLInputElement>(null)
+
+  /* The ticket leaves the URL once read: history, `Referer` on any cross-origin
+     resource, and the URL somebody copies to ask for help all carry it
+     otherwise. `setParams`, so the router's location stays in step. */
+  useEffect(() => {
+    if (params.has('token')) setParams({}, { replace: true })
+  }, [params, setParams])
 
   useEffect(() => {
     /* `alive` chặn một câu trả lời cũ ghi đè lên màn sau khi người dùng đã rời
