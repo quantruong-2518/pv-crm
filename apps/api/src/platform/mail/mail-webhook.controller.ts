@@ -12,6 +12,7 @@ import {
 import type { FastifyRequest } from 'fastify'
 import { Resend, type WebhookEventPayload } from 'resend'
 import { Public } from '@api/platform/access/need.decorator'
+import { MachineDoor } from '@api/platform/http/cross-site.guard'
 import { ENV, type Env } from '@api/platform/config/env'
 import { PvError } from '@api/platform/http/problem'
 import {
@@ -137,7 +138,12 @@ type Signal = {
  *  so ordinary retrying never reads as broken. */
 const STUCK_AFTER_SECONDS = 900
 
+/* `@MachineDoor()` on the whole controller: both routes are opened by Resend,
+   never by a browser, and each proves itself with an HMAC over the raw bytes —
+   a stronger fence than the one being waived. Held against them, a stray
+   `Origin` would drop mail events silently, which is the failure nobody sees. */
 @Controller('integrations/resend')
+@MachineDoor()
 export class MailWebhookController {
   private readonly log = new Logger('mail.webhook')
   private client: Resend | null = null

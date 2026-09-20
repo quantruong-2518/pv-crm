@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { ENV, type Env } from '@api/platform/config/env'
+import { isAllowedOrigin } from '@api/platform/http/origin'
 import { PvError, invalid, rateLimited } from '@api/platform/http/problem'
 import { LeadIntakeRepository, type IntakeClient } from './lead-intake.repository'
 
@@ -106,13 +107,11 @@ export class LeadIntakeGuard implements CanActivate {
     }
   }
 
+  /* Kept even though `CrossSiteGuard` now asks the same question on every write
+     door: this one says WHICH door refused, and a public form is the one caller
+     that reads the sentence. Both read `isAllowedOrigin`, so they cannot drift. */
   private assertOrigin(req: FastifyRequest): void {
-    const origin = req.headers.origin
-    if (origin === undefined) return
-    if (typeof origin !== 'string') throw this.originDenied()
-
-    const local = this.env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+$/.test(origin)
-    if (!local && !this.env.PV_CORS_ORIGINS.includes(origin)) throw this.originDenied()
+    if (!isAllowedOrigin(this.env, req.headers.origin)) throw this.originDenied()
   }
 
   private originDenied(): PvError {

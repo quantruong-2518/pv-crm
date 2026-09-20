@@ -1,5 +1,6 @@
 import { Controller, Get, Header, HttpCode, Inject, Logger, Param, Post } from '@nestjs/common'
 import { Public } from '@api/platform/access/need.decorator'
+import { MachineDoor } from '@api/platform/http/cross-site.guard'
 import { ENV, type Env } from '@api/platform/config/env'
 import { MAIL_LEDGER, type MailLedger } from './mail.contract'
 import { verify } from './unsubscribe-token'
@@ -83,8 +84,16 @@ export class UnsubscribeController {
 
   /** One-click unsubscribe (RFC 8058). No body is read and none is required:
    *  the receiver posts `List-Unsubscribe=One-Click` as a form body, and every
-   *  byte this door needs is already in the path. */
+   *  byte this door needs is already in the path.
+   *
+   *  `@MachineDoor()` BECAUSE OF THAT FORM BODY: RFC 8058 specifies
+   *  `application/x-www-form-urlencoded`, which is exactly what `CrossSiteGuard`
+   *  refuses everywhere else. The caller here is Gmail, not a page in a browser,
+   *  and the fence it waives would only ever turn a genuine unsubscribe into a
+   *  403 — the one answer this route's own docblock argues hardest against. The
+   *  signed token in the path is what actually guards it. */
   @Post(':token')
+  @MachineDoor()
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @Public()

@@ -22,11 +22,12 @@ const csv = z
 
 /** A browser's `Origin` header is scheme + host + port and NEVER a trailing
  *  slash (RFC 6454 §6.1), but a URL pasted from the address bar carries one.
- *  Both readers compare exact strings — `main.ts` for CORS, `lead-intake.guard`
- *  for the public door — so one stray slash silently allows nothing at all.
+ *  Every reader goes through `isAllowedOrigin` in `platform/http/origin.ts`,
+ *  which compares exact strings, so one stray slash silently allows nothing at
+ *  all — on CORS, on the write fence and on the public intake door at once.
  *  That is not hypothetical: on 31/08 `PV_CORS_ORIGINS=https://crm.pebblevina.com/`
  *  matched no origin and every sign-in died at preflight. Normalising here fixes
- *  both readers at once, because both read this parsed value. */
+ *  all of them at once, because they all read this parsed value. */
 const origins = csv.transform((list) => [
   ...new Set(list.map((origin) => origin.replace(/\/+$/, ''))),
 ])

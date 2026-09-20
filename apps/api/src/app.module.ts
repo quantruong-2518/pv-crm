@@ -15,6 +15,7 @@ import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
 import { HealthModule } from './platform/health/health.module'
 import { MailModule } from './platform/mail/mail.module'
+import { CrossSiteGuard } from './platform/http/cross-site.guard'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
 import { SettingModule } from './platform/setting/setting.module'
@@ -95,8 +96,13 @@ import { RolesModule } from './platform/roles/roles.module'
   ],
   providers: [
     /** THỨ TỰ CÓ NGHĨA. Nest chạy guard toàn cục theo đúng thứ tự khai báo, và
-     *  bốn dòng này là bốn câu hỏi phải hỏi đúng thứ tự ấy:
+     *  năm dòng này là năm câu hỏi phải hỏi đúng thứ tự ấy:
      *
+     *   0 · request này có hình dạng của một cú giả mạo chéo site không — hỏi
+     *                            TRƯỚC MỌI CÂU KHÁC vì nó không cần biết ai
+     *                            đang gọi, và một request giả mạo không đáng
+     *                            một lượt tra phiên. `cross-site.guard.ts`
+     *                            viết đủ;
      *   1 · anh là ai          — đổi chỗ với dòng 3 thì `AccessGuard` luôn thấy
      *                            `actor === null` và từ chối tất cả;
      *   2 · anh vào được chưa  — còn nợ đổi mật khẩu thì mọi cửa đóng trừ bốn
@@ -112,6 +118,7 @@ import { RolesModule } from './platform/roles/roles.module'
      *                            hỏi SAU câu 3, nếu không thì người không có
      *                            quyền bị bắt gõ mật khẩu cho một việc họ không
      *                            bao giờ làm được. `reauth.guard.ts` viết đủ. */
+    { provide: APP_GUARD, useClass: CrossSiteGuard },
     { provide: APP_GUARD, useClass: ActorGuard },
     { provide: APP_GUARD, useClass: PasswordChangeGuard },
     { provide: APP_GUARD, useClass: AccessGuard },

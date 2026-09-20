@@ -11,6 +11,7 @@ import { fastifyCookie } from '@fastify/cookie'
 import type { FastifyInstance } from 'fastify'
 import { AppModule } from './app.module'
 import { ENV, type Env } from './platform/config/env'
+import { isAllowedOrigin } from './platform/http/origin'
 
 /** Điểm vào HTTP.
  *
@@ -116,8 +117,6 @@ async function bootstrap(): Promise<void> {
      is a lockfile change and does not belong in this commit. */
   await adapter.getInstance<FastifyInstance>().register(fastifyCookie)
 
-  const configuredOrigins = new Set(env.PV_CORS_ORIGINS)
-
   /* ------------------------------------------------------------------
      `localhost` AND `127.0.0.1` ARE NOT THE SAME SITE — WRITE IT DOWN ONCE
      ------------------------------------------------------------------
@@ -137,9 +136,11 @@ async function bootstrap(): Promise<void> {
      and `pvone-crm-api.fly.dev` really are two different registrable domains.
      The attribute table lives in `platform/auth/cookie.ts`. */
   app.enableCors({
+    /* `isAllowedOrigin` rather than a comparison spelled out here: `CrossSiteGuard`
+       asks this exact question on every write door, and two copies that drift
+       mean an origin CORS lets through and the guard then refuses. */
     origin(origin, done) {
-      const local = env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+$/.test(origin ?? '')
-      done(null, origin === undefined || local || configuredOrigins.has(origin))
+      done(null, isAllowedOrigin(env, origin))
     },
     /* KHAI TƯỜNG MINH, và đây là lý do — không phải thói quen.
      *
