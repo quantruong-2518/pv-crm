@@ -122,7 +122,7 @@ export class WorkstreamService {
 
     const now = new Date()
     return {
-      lead: leadLaneOf(read, all, rows, tierConfigOf(ladders.tier), now),
+      lead: leadLaneOf(read, all, rows, now),
       deals: dealLanesOf(deals, owners, rows, stageConfigOf(ladders.stage), now),
       hiddenDeals: hidden,
       account: accountLaneOf(read, rows),

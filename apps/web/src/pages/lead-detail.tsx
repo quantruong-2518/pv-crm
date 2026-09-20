@@ -36,6 +36,7 @@ import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { MasMailModal } from '@/components/mas-mail-modal'
 import { masRecipientsOf } from '@/data/mas-mail-draft'
 import { OwnerSourceCard } from '@/components/owner-source-card'
+import { ObjectChip } from '@/components/workstream-bits'
 import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
 
 /** Module 2 · One lead's profile — `/sales/leads/:code`.
@@ -169,6 +170,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
             <>
               <Chip>{lead.code}</Chip>
               <CustomerPill lead={lead} />
+              <WorkstreamChip lead={lead} go={navigate} />
               {/* No "by <person>": the profile carries no creator column, and
                   the vector's first holder answers a different question. */}
               <MetaPill mono>Tạo {dmy(lead.createdAt)}</MetaPill>
@@ -278,6 +280,21 @@ function CustomerPill({ lead }: { lead: LeadProfile }) {
   const link = lead.chain.find((entry) => entry.kind === 'AC')
   if (!link) return null
   return <MetaPill>Khách hàng {link.code}</MetaPill>
+}
+
+/** The customer-journey run this lead started — the one screen that puts this
+ *  lead beside its deals and its account.
+ *
+ *  Nothing is drawn when the code is null: a lead written before migration
+ *  0045 has no run, and a chip that opens nothing is worse than no chip. The
+ *  same rule costs the permission too — `marketing` holds `lead.view` without
+ *  `workstream.view`, and the route gates on the latter, so the chip would
+ *  open a refusal. Hiding it is not a data cut: the `WS-` code sits on a
+ *  `LeadRow` this reader already reads. */
+function WorkstreamChip({ lead, go }: { lead: LeadProfile; go: (path: string) => void }) {
+  const canOpenWorkstream = useCan('workstream.view')
+  if (lead.workstreamCode === null || !canOpenWorkstream) return null
+  return <ObjectChip kind="WS" code={lead.workstreamCode} go={go} />
 }
 
 /** The screen that would not open — ONE block, three sentences, and the glyph

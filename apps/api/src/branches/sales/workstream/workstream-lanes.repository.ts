@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { LeadTier, StageKey } from '@pv/contracts'
+import type { StageKey, TouchKind } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
@@ -25,16 +25,11 @@ export class WorkstreamLanesRepository {
     const deals = [...dealCodes]
     const none = Promise.resolve([])
 
-    const [tiers, events, contracts, owner] = await Promise.all([
+    const [leadTouches, events, contracts, owner] = await Promise.all([
       this.db
-        .select({ at: touch.at, by: touch.by, tier: touch.toTier })
+        .select({ at: touch.at, by: touch.by, kind: touch.kind, to: touch.toActorId })
         .from(touch)
-        .where(
-          and(
-            eq(touch.subjectCode, leadCode),
-            inArray(touch.kind, ['created', 'verified', 'tier-raised']),
-          ),
-        )
+        .where(and(eq(touch.subjectCode, leadCode), inArray(touch.kind, [...LEAD_LANE_KINDS])))
         .orderBy(asc(touch.at)),
       deals.length === 0
         ? none
@@ -67,11 +62,31 @@ export class WorkstreamLanesRepository {
             .limit(1),
     ])
 
-    return { tiers, events, contracts, accountOwner: owner[0] ?? null }
+    return { leadTouches, events, contracts, accountOwner: owner[0] ?? null }
   }
 }
 
-export type TierEntry = { at: Date; by: string; tier: LeadTier | null }
+/** Every touch kind that MOVES a lead's state (ADR 0058), and no other: the
+ *  lead lane folds its backbone, its nurture loop and its exit out of these.
+ *  `tier-raised` is gone with the tier ladder the lane used to draw; so are
+ *  `contacted`, `field-filled` and `first-meeting`, which record work done but
+ *  move no column — `first-action` is the row written AS the state moves. */
+const LEAD_LANE_KINDS = [
+  'created',
+  'handed-over',
+  'first-action',
+  'verified',
+  'nurtured',
+  'resumed',
+  'entered-pipeline',
+  'exited',
+  'archived',
+] as const satisfies readonly TouchKind[]
+
+/** One state-moving touch of the anchor lead. `to` is the RECEIVING end of a
+ *  hand-over — also set on `created` for a lead born with a holder, which is
+ *  the only way to tell that lead from one that landed in the common pool. */
+export type LeadTouchEntry = { at: Date; by: string; kind: TouchKind; to: string | null }
 
 export type StageEventRow = {
   deal: string
@@ -84,7 +99,7 @@ export type StageEventRow = {
 
 type LaneRead = {
   /** Oldest first. */
-  tiers: TierEntry[]
+  leadTouches: LeadTouchEntry[]
   /** Oldest first. */
   events: StageEventRow[]
   /** Newest signature first. */

@@ -64,6 +64,13 @@ export const TouchKind = z.enum([
   'handed-over',
   /** The lead moved up a tier, after it was verified. */
   'tier-raised',
+  /** The PIC's FIRST action of any kind on the lead (→ `verifying`).
+   *
+   *  Written by `LeadStateWriter.firstAction` itself, not by the nine doors
+   *  that call it: sending mail, attaching an account and logging a comms
+   *  message all move the state and none of them writes a trail of its own, so
+   *  a lead whose first touch was an email had a rung with no date on it. */
+  'first-action',
   /** The PIC confirmed verification and set the first tier (→ `working`). */
   'verified',
   /** The PIC parked the lead as not ready yet (→ `nurturing`). */

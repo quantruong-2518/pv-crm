@@ -75,8 +75,11 @@ const marketingOwner = alias(actor, 'marketing_owner')
  *  only place that mismatch can be caught.
  *
  *  A LEFT join, never inner: most leads have no campaign at all, and an inner
- *  join here would silently drop them out of the book. */
-const CAMPAIGN_ON = and(eq(configEntry.id, lead.campaignId), eq(configEntry.list, 'SOURCE'))
+ *  join here would silently drop them out of the book.
+ *
+ *  Exported because the journey book prints the same name off the same lead row
+ *  — a second spelling of this ON clause is a second thing to keep in step. */
+export const CAMPAIGN_ON = and(eq(configEntry.id, lead.campaignId), eq(configEntry.list, 'SOURCE'))
 
 /** One profile row, plus the verdict of the scope axis on it.
  *

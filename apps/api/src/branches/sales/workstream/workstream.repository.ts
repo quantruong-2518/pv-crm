@@ -27,6 +27,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
+import { CAMPAIGN_ON } from '../lead/lead.repository'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
 import { leadSigned } from '../open-deal'
 import {
@@ -139,6 +140,7 @@ export class WorkstreamRepository {
       .leftJoin(account, eq(account.code, workstream.accountCode))
       .leftJoin(SALE_ACTOR, eq(SALE_ACTOR.id, lead.ownerId))
       .leftJoin(BD_ACTOR, eq(BD_ACTOR.id, lead.bdOwnerId))
+      .leftJoin(configEntry, CAMPAIGN_ON)
       .where(eq(workstream.code, code))
       .limit(1)
 
@@ -276,6 +278,7 @@ export class WorkstreamRepository {
       .leftJoin(account, eq(account.code, workstream.accountCode))
       .leftJoin(SALE_ACTOR, eq(SALE_ACTOR.id, lead.ownerId))
       .leftJoin(BD_ACTOR, eq(BD_ACTOR.id, lead.bdOwnerId))
+      .leftJoin(configEntry, CAMPAIGN_ON)
       .where(where)
       .orderBy(...this.orderBy(q))
       .limit(q.size)
@@ -358,6 +361,9 @@ export type WorkstreamRead = {
   accountName: string | null
   saleName: string | null
   bdName: string | null
+  /** The campaign the anchor lead is attributed to, by NAME — the lead lane
+   *  prints it and a `SR-09` on screen is an id nobody can read. */
+  campaignName: string | null
 }
 
 export type WorkstreamBookPage = {
@@ -443,6 +449,7 @@ const READ_COLUMNS = {
   accountName: account.name,
   saleName: SALE_ACTOR.name,
   bdName: BD_ACTOR.name,
+  campaignName: configEntry.name,
 }
 
 function toRead(r: {
@@ -451,6 +458,7 @@ function toRead(r: {
   accountName: string | null
   saleName: string | null
   bdName: string | null
+  campaignName: string | null
 }): WorkstreamRead {
   return {
     row: r.row,
@@ -458,6 +466,7 @@ function toRead(r: {
     accountName: r.accountName,
     saleName: r.saleName,
     bdName: r.bdName,
+    campaignName: r.campaignName,
   }
 }
 

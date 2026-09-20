@@ -140,6 +140,7 @@ export function toContract(read: LeadRead): LeadRow {
   const { row, daysHere, ownerName, ownerEmail, signed } = read
   return {
     code: row.code,
+    workstreamCode: row.workstreamCode,
     company: row.company,
     contactName: row.contactName,
     email: row.email,

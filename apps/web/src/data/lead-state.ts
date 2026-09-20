@@ -1,9 +1,10 @@
-import { LEAD_OPEN_STATES, type LeadState, type LeadTier } from '@pv/contracts'
+import { LEAD_OPEN_STATES, LEAD_STATE_LABEL, type LeadState, type LeadTier } from '@pv/contracts'
 import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
 
 /** How the screen names and colours a lead's stored lifecycle state (ADR 0058).
- *  Labels are the screen's job (`@pv/contracts/sales/enums.ts`), so the one
- *  table lives here and the book, the profile and the account card all read it.
+ *  The NAME is not decided here: `LEAD_STATE_LABEL` in `@pv/contracts` is the
+ *  one table the server and every screen read, so a state can never wear two
+ *  names. What stays here is the TONE, which never travels on the wire.
  *
  *  The pill tone answers "does this row need somebody": amber while nobody
  *  has acted, azure while a PIC is on it, grey while parked or retired, green
@@ -16,14 +17,14 @@ export const LEAD_STATE_FACE: Record<
     badge: 'warning' | 'running' | 'draft' | 'success' | 'danger'
   }
 > = {
-  new: { label: 'Mới tạo', badge: 'warning' },
-  assigned: { label: 'Đã nhận', badge: 'warning' },
-  verifying: { label: 'Đang xác minh', badge: 'running' },
-  working: { label: 'Đang chăm', badge: 'running' },
-  nurturing: { label: 'Nuôi dài hạn', badge: 'draft' },
-  converted: { label: 'Đã lên cơ hội', badge: 'success' },
-  disqualified: { label: 'Đã loại', badge: 'danger' },
-  archived: { label: 'Lưu trữ', badge: 'draft' },
+  new: { label: LEAD_STATE_LABEL.new, badge: 'warning' },
+  assigned: { label: LEAD_STATE_LABEL.assigned, badge: 'warning' },
+  verifying: { label: LEAD_STATE_LABEL.verifying, badge: 'running' },
+  working: { label: LEAD_STATE_LABEL.working, badge: 'running' },
+  nurturing: { label: LEAD_STATE_LABEL.nurturing, badge: 'draft' },
+  converted: { label: LEAD_STATE_LABEL.converted, badge: 'success' },
+  disqualified: { label: LEAD_STATE_LABEL.disqualified, badge: 'danger' },
+  archived: { label: LEAD_STATE_LABEL.archived, badge: 'draft' },
 }
 
 const OPEN: ReadonlySet<string> = new Set(LEAD_OPEN_STATES)

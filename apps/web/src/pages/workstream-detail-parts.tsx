@@ -7,26 +7,33 @@ import {
   Button,
   Icon,
   Plus,
+  RotateCcw,
   Separator,
   StatusDot,
   cn,
   type StatusDotState,
 } from '@pv/ui'
 import {
+  LEAD_STATE_LABEL,
   SOURCE_KIND_LABEL,
   SOURCE_KIND_UNKNOWN,
+  type LeadState,
   type WorkstreamAccountLane,
   type WorkstreamDealLane,
   type WorkstreamHolder,
+  type WorkstreamLeadExit,
   type WorkstreamLeadLane,
+  type WorkstreamLeadNurture,
   type WorkstreamStep,
   type WorkstreamStepState,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dm } from '@/lib/date'
+import { EXIT_REASON_LABEL } from '@/data/leads'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { chainPath } from '@/data/opportunities'
-import { currentStepOf, type StepRef, type WorkstreamLane } from '@/data/workstreams'
+import { tierLabel } from '@/data/lead-state'
+import { currentStepOf, lastReachedOf, type StepRef, type WorkstreamLane } from '@/data/workstreams'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { GateChecklist } from '@/components/gate-checklist'
 
@@ -131,7 +138,19 @@ const END_CAP: Record<EndCapTone, { surface: string; mark: string; text: string 
   quiet: { surface: 'bg-surface-ink/6', mark: 'bg-surface-ink/24', text: 'text-muted-foreground' },
 }
 
-function EndCap({ tone, label, sub }: { tone: EndCapTone; label: string; sub: string | null }) {
+/** `sub` is the mono line (a date); `note` is prose — who and why — which a
+ *  lead that left the funnel carries and a deal does not. */
+function EndCap({
+  tone,
+  label,
+  sub,
+  note,
+}: {
+  tone: EndCapTone
+  label: string
+  sub: string | null
+  note?: ReactNode
+}) {
   const face = END_CAP[tone]
   return (
     <div
@@ -145,15 +164,16 @@ function EndCap({ tone, label, sub }: { tone: EndCapTone; label: string; sub: st
         {label}
       </span>
       {sub && <span className={cn('tnum font-mono text-[11px]', face.text)}>{sub}</span>}
+      {note}
     </div>
   )
 }
 
-/** Only the rungs a lane has something to say about — an `upcoming` rung is
- *  empty by construction (no `at`, no `by`), and a fresh deal one column into
- *  a five-column ladder used to trail four empty boxes behind it. At least one
- *  rung always shows, even the one lane that has reached none yet (a lead with
- *  no tier). */
+/** Only the rungs a DEAL lane has something to say about — an `upcoming` rung
+ *  is empty by construction (no `at`, no `by`), and a fresh deal one column
+ *  into a five-column ladder used to trail four empty boxes behind it. At
+ *  least one rung always shows, even a lane that has reached none yet. The
+ *  lead lane does not trim: see `LeadLaneRow`. */
 function reachedSteps(steps: WorkstreamStep[]): WorkstreamStep[] {
   let cut = 0
   steps.forEach((s, i) => {
@@ -163,19 +183,31 @@ function reachedSteps(steps: WorkstreamStep[]): WorkstreamStep[] {
 }
 
 /** The track scrolls inside itself so a narrow screen never scrolls the page
- *  sideways. A connector is lit when the step it leads INTO was reached. */
+ *  sideways. A connector is lit when the step it leads INTO was reached.
+ *
+ *  `steps` comes from the caller because the two ladders answer differently:
+ *  a deal shows only the rungs it reached, a lead always shows all five.
+ *  `branch` hangs a block UNDER one named rung — what the lead lane does with
+ *  its nurture loop, which is not a rung of the backbone (ADR 0058). `sideLabel`
+ *  rides INSIDE one rung, for the lead's tier: also not a rung, but a grade the
+ *  rung carries. */
 function StepTrack({
   lane,
+  steps,
   selected,
   onSelect,
   endCap,
+  branch,
+  sideLabel,
 }: {
   lane: WorkstreamLane
+  steps: WorkstreamStep[]
   selected: StepRef | null
   onSelect: (ref: StepRef) => void
   endCap: ReactNode
+  branch?: { at: string; node: ReactNode } | null
+  sideLabel?: { at: string; node: ReactNode } | null
 }) {
-  const steps = reachedSteps(lane.steps)
   return (
     <div className="overflow-x-auto">
       <div className="flex w-max min-w-full items-stretch gap-4">
@@ -210,7 +242,10 @@ function StepTrack({
                   )}
                 >
                   <StepDot state={step.state} />
-                  <span className={cn('text-[13px]', LABEL_TONE[step.state])}>{step.label}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className={cn('text-[13px]', LABEL_TONE[step.state])}>{step.label}</span>
+                    {sideLabel?.at === step.key && sideLabel.node}
+                  </span>
                   <span
                     className={cn(
                       'tnum text-[11px]',
@@ -222,6 +257,7 @@ function StepTrack({
                     {stepMeta(step)}
                   </span>
                 </button>
+                {branch?.at === step.key && branch.node}
               </li>
             )
           })}
@@ -235,9 +271,82 @@ function StepTrack({
 type TrackProps = { selected: StepRef | null; onSelect: (ref: StepRef) => void }
 
 const LEAD_END: Record<WorkstreamLeadLane['outcome'], [EndCapTone, string]> = {
-  converted: ['success', 'Converted'],
+  converted: ['success', LEAD_STATE_LABEL.converted],
+  /* `exited` never prints: that outcome always carries a non-null `lead.exit`,
+     and `LeadLaneRow` reads `exitCap` then. It is here only so the `Record`
+     holds every outcome — do not "fix the wording", fix nothing. */
   exited: ['danger', 'Rời phễu'],
   open: ['quiet', 'Đang mở'],
+}
+
+/** The rung the tier rides on: ADR 0058 sets the grade exactly at this step and
+ *  calls it a grade, not a state. It is also where the nurture loop hangs once
+ *  the lead has stood here — `nurturing` is a loop on `working`, never a sixth
+ *  rung — but a lead can be parked before it, so see `nurtureRungOf`. */
+const WORKING_RUNG: LeadState = 'working'
+
+/* Lifts the tier badge text to 9.95:1 on the worst ground — a selected rung in
+   the stone theme — where the default badge text reads 3.11:1 (law 13). Same
+   mechanism as `CLOSE_BADGE` in `components/workstream-bits.tsx`. */
+const TIER_TEXT = 'text-foreground'
+
+/** Which rung the nurture block hangs under: the one the lead ACTUALLY stands
+ *  on. Never pinned to `working` — the server parks a lead with no tier on
+ *  `verifying` (`workstream-lanes.ts` `standingOn`), and a lead nurtured in the
+ *  past can still stand before `working`; either way the block would hang under
+ *  an `upcoming` cell while the lit rung sat a column earlier. */
+function nurtureRungOf(lane: WorkstreamLane): string {
+  const working = lane.steps.find((step) => step.key === WORKING_RUNG)
+  if (working && working.state !== 'upcoming') return WORKING_RUNG
+  return lastReachedOf(lane)?.key ?? WORKING_RUNG
+}
+
+/** The loop that returns a lead to the rung it hangs under: how many stays and
+ *  how many days over all of them, plus — only while a stay is open — since
+ *  when. `since` null is a lead back on the backbone, not a missing date. */
+function NurtureLoop({ nurture }: { nurture: WorkstreamLeadNurture }) {
+  /* `ink/4`, not the `ink/6` the end caps use: the warning badge below reads
+     4.48:1 on that deeper tint in the stone theme, 4.65:1 on this (law 13). */
+  return (
+    <div className="bg-surface-ink/4 mr-4 mt-2 flex flex-col gap-1 rounded-md p-3">
+      <span className="flex items-center gap-2 text-[12px] font-medium">
+        <Icon icon={RotateCcw} size={16} className="text-muted-foreground" />
+        {LEAD_STATE_LABEL.nurturing}
+      </span>
+      <span className="text-muted-foreground tnum font-mono text-[11px]">
+        {nurture.count} lần · {nurture.totalDays} ngày
+      </span>
+      {nurture.since && (
+        <Badge tone="warning" className="tnum self-start">
+          Đang nuôi từ {dm(nurture.since)}
+        </Badge>
+      )}
+    </div>
+  )
+}
+
+/** A lead that left the backbone ends the lane THERE, with the day, the person
+ *  and — for a disqualified lead only — the reason. `archived` has none: the
+ *  system retires a lead on a timer, it does not pick a reason, so nothing
+ *  prints rather than an empty field. */
+function exitCap(exit: WorkstreamLeadExit): {
+  tone: EndCapTone
+  label: string
+  sub: string
+  note: ReactNode
+} {
+  const reason = exit.reason === null ? null : (EXIT_REASON_LABEL[exit.reason] ?? exit.reason)
+  return {
+    tone: exit.state === 'disqualified' ? 'danger' : 'quiet',
+    label: LEAD_STATE_LABEL[exit.state],
+    sub: dm(exit.at),
+    note: (exit.by || reason) && (
+      <span className="text-muted-foreground flex flex-col gap-1 text-[11px] leading-[1.45]">
+        {exit.by && <span>{exit.by}</span>}
+        {reason && <span>{reason}</span>}
+      </span>
+    ),
+  }
 }
 
 export function LeadLaneRow({
@@ -247,6 +356,9 @@ export function LeadLaneRow({
   ...track
 }: TrackProps & { lead: WorkstreamLeadLane; lane: WorkstreamLane; action: ReactNode }) {
   const [tone, label] = LEAD_END[lead.outcome]
+  const end = lead.exit
+    ? exitCap(lead.exit)
+    : { tone, label, sub: lead.outcomeAt === null ? null : dm(lead.outcomeAt), note: null }
   return (
     <LaneRow
       meta={
@@ -265,16 +377,22 @@ export function LeadLaneRow({
         </>
       }
     >
+      {/* All five rungs, never trimmed: two leads only compare when both draw
+          the same ladder (ADR 0058). */}
       <StepTrack
         lane={lane}
+        steps={lane.steps}
         {...track}
-        endCap={
-          <EndCap
-            tone={tone}
-            label={label}
-            sub={lead.outcomeAt === null ? null : dm(lead.outcomeAt)}
-          />
+        branch={
+          lead.nurture && { at: nurtureRungOf(lane), node: <NurtureLoop nurture={lead.nurture} /> }
         }
+        sideLabel={
+          lead.tier && {
+            at: WORKING_RUNG,
+            node: <Badge className={TIER_TEXT}>{tierLabel(lead.tier)}</Badge>,
+          }
+        }
+        endCap={<EndCap tone={end.tone} label={end.label} sub={end.sub} note={end.note} />}
       />
     </LaneRow>
   )
@@ -308,7 +426,12 @@ export function DealLaneRow({
         </>
       }
     >
-      <StepTrack lane={lane} {...track} endCap={<EndCap tone={tone} label={label} sub={sub} />} />
+      <StepTrack
+        lane={lane}
+        steps={reachedSteps(lane.steps)}
+        {...track}
+        endCap={<EndCap tone={tone} label={label} sub={sub} />}
+      />
     </LaneRow>
   )
 }

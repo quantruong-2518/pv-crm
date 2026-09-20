@@ -143,6 +143,7 @@ const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'
   contacted: 'next',
   'field-filled': 'current',
   'handed-over': 'current',
+  'first-action': 'current',
   'tier-raised': 'ok',
   verified: 'ok',
   nurtured: 'next',

@@ -15,7 +15,7 @@ import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
-import { LeadStateWriter, stateOnReopen } from './lead-state'
+import { LeadStateWriter, stateByTier, stateOnReopen } from './lead-state'
 import { LeadWriteRepository } from './lead-write.repository'
 
 /** The lifecycle doors a person presses (ADR 0058): confirm contact, exit and
@@ -153,7 +153,7 @@ export class LeadExitService {
         throw conflict(`Lead ${code} không ở trạng thái nuôi dài hạn nên không có gì để chăm lại.`)
       }
 
-      await this.states.move(tx, code, held.tier === null ? 'verifying' : 'working')
+      await this.states.move(tx, code, stateByTier(held.tier))
       await this.record(tx, who, code, 'resumed', LEAD_NOTE.resumed)
     })
 

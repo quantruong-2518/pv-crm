@@ -27,7 +27,9 @@ export function ObjectChip({
   code,
   go,
 }: {
-  kind: WorkstreamStandKind | 'AC'
+  /** `WS` is the run itself — the one object a stand never is, and the one a
+   *  lead profile links out to. */
+  kind: WorkstreamStandKind | 'AC' | 'WS'
   code: string
   go: (path: string) => void
 }) {

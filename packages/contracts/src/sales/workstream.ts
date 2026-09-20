@@ -2,7 +2,13 @@ import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ObjectChainLink, PipelinePositionView } from '../position'
 import { Moment, ObjectCode, textInput } from '../primitives'
-import { LeadSourceKind, WorkstreamCloseReason } from './enums'
+import {
+  ExitReason,
+  LeadSourceKind,
+  type LeadState,
+  LeadTier,
+  WorkstreamCloseReason,
+} from './enums'
 import { GateCriterionState } from './stage-gate'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
@@ -167,10 +173,13 @@ export const WorkstreamStepState = z.enum(
   'Trạng thái bước không có trong danh sách',
 )
 
-/** One rung of a lane. `key` is a `StageKey` or `LeadTier` value, left as a
- *  string because one step shape serves both ladders; `label` comes from
- *  `config_entry`. `at` is when the rung was entered — null for upcoming or a
- *  skipped rung. `by` is the mover's name snapshotted then. */
+/** One rung of a lane. `key` is a `StageKey` value on a deal lane or one of
+ *  `LEAD_LANE_BACKBONE` on a lead lane, left as a string because one step
+ *  shape serves both ladders. `label` comes from `config_entry` for the deal
+ *  ladder; on a lead lane it is the matching `LEAD_STATE_LABEL` entry — no
+ *  catalogue lookup needed for a fixed set of five. `at` is when the rung was
+ *  entered — null for upcoming or a skipped rung. `by` is the mover's name
+ *  snapshotted then. */
 export const WorkstreamStep = z.object({
   key: z.string().min(1).max(40),
   label: textInput(120),
@@ -184,14 +193,66 @@ export const WorkstreamStep = z.object({
 })
 
 /** `converted` = the lead produced at least one deal (`outcomeAt` = the first);
- *  `exited` = `lead.exited_at`. */
+ *  `exited` = the lead left the backbone, `disqualified` OR `archived`. Not
+ *  `lead.exited_at` alone: that column pairs with `disqualified` only, and an
+ *  archived lead has none. */
 export const WorkstreamLeadOutcome = z.enum(['converted', 'exited', 'open'])
 
+/** The five backbone rungs, in order, and no others — every lead lane draws
+ *  exactly this ladder so any two leads sit side by side and compare (ADR
+ *  0058). Declared once so the API's writer and this contract agree on which
+ *  five. */
+export const LEAD_LANE_BACKBONE = [
+  'new',
+  'assigned',
+  'verifying',
+  'working',
+  'converted',
+] as const satisfies readonly LeadState[]
+
+/** The nurture loop, attached to the `working` rung rather than drawn as a rung
+ *  of its own — ADR 0058 parks a lead in `nurturing`, it does not advance it.
+ *  Null means this lead has never been parked. `count`/`totalDays` cover every
+ *  stay, closed or open; `since` is only the CURRENT stay's start, null once
+ *  the lead is back on the backbone. */
+export const WorkstreamLeadNurture = z.object({
+  count: z.number().int().nonnegative(),
+  totalDays: z.number().int().nonnegative(),
+  since: Moment.nullable(),
+})
+
+/** How a lead actually left the backbone. Null on a lane that never left —
+ *  deliberately absent rather than two ever-present dropped/archived cells,
+ *  which made a lead still being worked look like an exit was pending. `reason`
+ *  is set for `disqualified` and null for `archived`: the system retires a lead
+ *  on a timer, it does not choose among `ExitReason`. */
+export const WorkstreamLeadExit = z.object({
+  state: z.enum(['disqualified', 'archived']),
+  at: Moment,
+  by: textInput(120).nullable(),
+  reason: ExitReason.nullable(),
+})
+
+/** The lead lane: a fixed five-rung backbone (`LEAD_LANE_BACKBONE`) so every
+ *  lead lines up the same way, plus two things that happen ALONGSIDE the
+ *  backbone rather than on it — `nurture`, a loop that can return the lead to
+ *  `working`, and `exit`, which is present only once a lead has actually left.
+ *  `tier` rides on the lane rather than being read off a `LeadRow`: this screen
+ *  never holds one, so fetching the lead door would cost a round trip to print
+ *  one badge. It is a side-label of `working`, not a rung. It, `sourceKind` and
+ *  `campaignName` are lead facts reaching a reader who only proved
+ *  `workstream.view` — safe while no role holds that without `lead.view`, and
+ *  the thing to re-check the day somebody builds a journey-only role. `campaignName` is null for a lead typed in by hand —
+ *  the same absence `LeadSource.campaignId` states in `./lead-source`. */
 export const WorkstreamLeadLane = z.object({
   code: ObjectCode,
   sourceKind: LeadSourceKind.nullable(),
+  campaignName: textInput(120).nullable(),
+  tier: LeadTier.nullable(),
   owner: WorkstreamHolder.nullable(),
   steps: z.array(WorkstreamStep),
+  nurture: WorkstreamLeadNurture.nullable(),
+  exit: WorkstreamLeadExit.nullable(),
   outcome: WorkstreamLeadOutcome,
   outcomeAt: Moment.nullable(),
 })
@@ -244,6 +305,8 @@ export type WorkstreamBookResponse = z.infer<typeof WorkstreamBookResponse>
 export type WorkstreamStepState = z.infer<typeof WorkstreamStepState>
 export type WorkstreamStep = z.infer<typeof WorkstreamStep>
 export type WorkstreamLeadOutcome = z.infer<typeof WorkstreamLeadOutcome>
+export type WorkstreamLeadNurture = z.infer<typeof WorkstreamLeadNurture>
+export type WorkstreamLeadExit = z.infer<typeof WorkstreamLeadExit>
 export type WorkstreamLeadLane = z.infer<typeof WorkstreamLeadLane>
 export type WorkstreamDealOutcome = z.infer<typeof WorkstreamDealOutcome>
 export type WorkstreamDealLane = z.infer<typeof WorkstreamDealLane>

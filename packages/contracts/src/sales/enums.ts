@@ -74,6 +74,22 @@ export const LeadState = z.enum(
   'Trạng thái lead không có trong danh sách',
 )
 
+/** Vietnamese label for each stored state — content, not an identifier (law 2
+ *  in the root `CLAUDE.md`), and declared exactly ONCE so the server and the
+ *  screen can never disagree on what a state is called. Pill TONE stays out:
+ *  colour is presentation, not part of the wire contract, so
+ *  `apps/web/src/data/lead-state.ts` pairs this label with a tone locally. */
+export const LEAD_STATE_LABEL: Record<LeadState, string> = {
+  new: 'Mới tạo',
+  assigned: 'Đã nhận',
+  verifying: 'Đang xác minh',
+  working: 'Đang chăm',
+  nurturing: 'Nuôi dài hạn',
+  converted: 'Đã lên cơ hội',
+  disqualified: 'Đã loại',
+  archived: 'Lưu trữ',
+}
+
 /** The states still in the funnel — the book's default tab and every "still
  *  open" count. Declared once so no two readers disagree on which five. */
 export const LEAD_OPEN_STATES = [

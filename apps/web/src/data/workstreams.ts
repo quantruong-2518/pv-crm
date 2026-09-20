@@ -105,6 +105,9 @@ export type WorkstreamLane = {
 export type StepRef = { lane: string; step: string }
 
 export function lanesOf(ws: WorkstreamProfileResponse): WorkstreamLane[] {
+  /* No backbone patching: `stepsOf` maps over `LEAD_LANE_BACKBONE`, so all
+     five rungs always arrive in order — and the day they do not, the screen
+     should show the gap instead of drawing a ladder nobody sent. */
   const lead = { kind: 'LD' as const, ...ws.lead, open: ws.lead.outcome === 'open' }
   const deals = ws.deals.map((d) => ({ kind: 'OP' as const, ...d, open: d.outcome === 'open' }))
   return [lead, ...deals]
@@ -115,7 +118,7 @@ export const currentStepOf = (lane: WorkstreamLane) => lane.steps.find((s) => s.
 /** The rung a lane actually stands on once it stopped moving — `at(-1)` would
  *  answer the LAST rung of the ladder instead, which for a deal lost or won
  *  before the final column is an `upcoming` rung nothing ever reached. */
-const lastReachedOf = (lane: WorkstreamLane | undefined) =>
+export const lastReachedOf = (lane: WorkstreamLane | undefined) =>
   lane && [...lane.steps].reverse().find((s) => s.state !== 'upcoming')
 
 /** The newest open deal is what somebody opens a run to push forward; the lead

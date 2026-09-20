@@ -82,6 +82,10 @@ export const LEAD_NOTE = {
    *  timeline row nobody reads to the end. */
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
   contacted: 'Đã gọi khách',
+  /** The rung `LeadStateWriter.firstAction` writes as it moves the lead: the
+   *  sentence says WHAT the step is, not which door pressed it, because nine
+   *  doors reach it and the trail already names the person who did. */
+  firstAction: 'Bắt đầu xử lý · chuyển sang bước xác minh',
   /** The reason travels as its key: labels belong to the screen (`ExitReason`). */
   exited: (reason: ExitReason, note: string | undefined) =>
     note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,

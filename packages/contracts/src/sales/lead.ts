@@ -72,6 +72,12 @@ export const REQUIRED_SLOTS = 6
 
 export const LeadRow = z.object({
   code: ObjectCode,
+  /** The customer-journey run this lead started. Null only for leads written
+   *  before migration 0045 minted one per lead — every lead written since
+   *  carries one; see `workstream_code` in `lead.schema.ts` for why the column
+   *  itself stays nullable rather than a `NOT NULL` the intake door could be
+   *  refused over. */
+  workstreamCode: ObjectCode.nullable(),
   company: z.string().min(1),
   /** The contact person — the real target of every touch. */
   contactName: z.string().min(1),

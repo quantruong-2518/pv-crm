@@ -213,6 +213,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     null,
     'Agent 1 nhắn lại trên kênh khách vừa dùng',
   )
+  plantFirstAction(ld, owner, ago(m.contacted, 2))
   if (reached) {
     pushTouch(
       ld,
@@ -278,10 +279,12 @@ function plantJourney(j: JourneySeed, i: number): void {
   const closedAt = won?.signedAt ?? exitedAt
   const state = stateOf(j, owner, deals.length)
   const firstDealAt = deals[0]?.enteredAt ?? null
-  const verifiedAt =
-    state === 'working'
-      ? plantVerified(ld, j, owner, ago(reached ? m.meeting : j.bornDaysAgo, 7))
-      : null
+  /* Every HELD lead carries it, not just one parked at `working`: a lead that
+     went on to a deal still passed verification to get its tier, and the
+     journey lane dates the `working` rung off this row alone. */
+  const verifiedAt = owner
+    ? plantVerified(ld, j, owner, ago(reached ? m.meeting : j.bornDaysAgo, 7))
+    : null
   out.runs.push({
     code: ws,
     accountCode: ac,
@@ -355,6 +358,12 @@ function stateOf(j: JourneySeed, owner: Hand | null, deals: number): LeadState {
   if (j.exit) return 'disqualified'
   if (deals > 0) return 'converted'
   return owner ? 'working' : 'new'
+}
+
+/** Only a HELD lead has one — the row records the holder's first move, and the
+ *  journey lane dates its `verifying` rung off nothing else. */
+function plantFirstAction(ld: string, owner: Hand | null, at: Date): void {
+  if (owner) pushTouch(ld, 'lead', 'first-action', at, owner, LEAD_NOTE.firstAction)
 }
 
 /** A working lead got its tier through verify (ADR 0058), so it carries the

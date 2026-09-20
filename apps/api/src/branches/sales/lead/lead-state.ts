@@ -6,7 +6,10 @@ import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
+import { TouchModule } from '../touch/touch.module'
 import { toRef } from './lead.mapper'
+import { LEAD_NOTE } from './lead-write.mapper'
 import { lead, type LeadRowDb } from './lead.schema'
 
 /** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058).
@@ -16,9 +19,10 @@ import { lead, type LeadRowDb } from './lead.schema'
  *  others. Callers pass their own `tx`: the move lands in the same commit as
  *  the write that caused it.
  *
- *  A leaf on purpose: it imports only the lead's table and mapper, so the
- *  meeting, contact, account, MAS and deal modules can import `LeadStateModule`
- *  without a cycle through `LeadModule` (which imports several of them). */
+ *  A leaf on purpose: it imports the lead's table and mappers plus `TouchModule`
+ *  — which has no controller and no lead import — so the meeting, contact,
+ *  account, MAS and deal modules can import `LeadStateModule` without a cycle
+ *  through `LeadModule` (which imports several of them). */
 
 /** How long a lead may sit in `nurturing` before the system archives it — the
  *  diagram's six months, ADR 0058. A constant, not a `config_entry` row: that
@@ -40,8 +44,15 @@ export function stateAfterOwnerChange(state: LeadState, ownerId: string | null):
   return state === 'new' ? 'assigned' : state
 }
 
+/** Where a lead stands once it is put back on the backbone: no tier means it
+ *  never passed verification, so it lands on `verifying` rather than `working`.
+ *  The one copy of that clause — reopen, resume and the journey lane all read
+ *  the same stored column and must read it the same way. */
+export const stateByTier = (tier: string | null): Extract<LeadState, 'verifying' | 'working'> =>
+  tier === null ? 'verifying' : 'working'
+
 /** Reopen recomputes from facts rather than restoring: a deal → `converted`,
- *  no holder → `new`, no tier → `verifying`, else `working`. */
+ *  no holder → `new`, else by tier. */
 export function stateOnReopen(lead: {
   hasDeal: boolean
   ownerId: string | null
@@ -49,18 +60,26 @@ export function stateOnReopen(lead: {
 }): LeadState {
   if (lead.hasDeal) return 'converted'
   if (lead.ownerId === null) return 'new'
-  return lead.tier === null ? 'verifying' : 'working'
+  return stateByTier(lead.tier)
 }
 
 type LeadColumns = Omit<PgUpdateSetSource<typeof lead>, 'code' | 'state' | 'stateSince'>
 
+type StoredLead = { row: LeadRowDb; ownerName: string | null }
+
 @Injectable()
 export class LeadStateWriter {
-  constructor(private readonly mirror: ObjectMirror) {}
+  constructor(
+    private readonly mirror: ObjectMirror,
+    private readonly touch: TouchService,
+  ) {}
 
   /** The PIC's first action of any kind: `new|assigned` → `verifying`. One
    *  conditional UPDATE, so it is race-free without a row lock: only the
-   *  current holder's action counts, and only the first one moves anything. */
+   *  current holder's action counts, and only the first one moves anything.
+   *
+   *  It writes its OWN timeline row, because most of the nine doors that call
+   *  it write none — mail, account, comms — and the rung was dateless there. */
   async firstAction(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
     if (codes.length === 0) return
     const moved = await tx
@@ -74,9 +93,26 @@ export class LeadStateWriter {
         ),
       )
       .returning({ code: lead.code })
-    await this.refresh(
+    if (moved.length === 0) return
+
+    const rows = await this.reload(
       tx,
       moved.map((r) => r.code),
+    )
+    await this.put(tx, rows)
+
+    /* The name is the holder's, off the join the mirror already needs: the
+       UPDATE moved only leads whose owner IS `actorId`, so they are one person. */
+    await this.touch.record(
+      tx,
+      rows.map((r) => ({
+        subjectCode: r.row.code,
+        subjectKind: 'lead' as const,
+        kind: 'first-action' as const,
+        by: r.ownerName ?? SYSTEM_ACTOR,
+        actorId,
+        note: LEAD_NOTE.firstAction,
+      })),
     )
   }
 
@@ -126,11 +162,21 @@ export class LeadStateWriter {
    *  its owner or state. */
   async refresh(tx: Db, codes: readonly string[]): Promise<void> {
     if (codes.length === 0) return
-    const rows = await tx
+    await this.put(tx, await this.reload(tx, codes))
+  }
+
+  /** The stored leads with their holder's name — one SELECT, whatever the
+   *  batch size. Split out of `refresh` so `firstAction` can take the name it
+   *  stamps on the timeline off the row it is already reading. */
+  private reload(tx: Db, codes: readonly string[]): Promise<StoredLead[]> {
+    return tx
       .select({ row: lead, ownerName: actor.name })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
       .where(inArray(lead.code, [...codes]))
+  }
+
+  private async put(tx: Db, rows: readonly StoredLead[]): Promise<void> {
     await this.mirror.putMany(
       tx,
       rows.map((r) => toRef(r.row, r.ownerName)),
@@ -139,7 +185,7 @@ export class LeadStateWriter {
 }
 
 @Module({
-  imports: [GraphModule],
+  imports: [GraphModule, TouchModule],
   providers: [LeadStateWriter],
   exports: [LeadStateWriter],
 })
