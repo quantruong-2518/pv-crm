@@ -4,6 +4,7 @@ import {
   WorkstreamBookResponse,
   WorkstreamProfileResponse,
   type WorkstreamCloseReason,
+  type WorkstreamDealLane,
   type WorkstreamFootprint,
   type WorkstreamHolder,
   type WorkstreamRow,
@@ -104,13 +105,25 @@ export type WorkstreamLane = {
 
 export type StepRef = { lane: string; step: string }
 
+/** A deal lane carries its own outcome, so nothing has to pair a lane back to
+ *  a `WorkstreamDealLane` by array index. */
+export type WorkstreamDealLaneView = WorkstreamLane &
+  Pick<WorkstreamDealLane, 'outcome' | 'outcomeAt' | 'contractCode'>
+
+/* No backbone patching: `stepsOf` maps over `LEAD_LANE_BACKBONE`, so all five
+   rungs always arrive in order — and the day they do not, the screen should
+   show the gap instead of drawing a ladder nobody sent. */
+export const leadLaneOf = (ws: WorkstreamProfileResponse): WorkstreamLane => ({
+  kind: 'LD',
+  ...ws.lead,
+  open: ws.lead.outcome === 'open',
+})
+
+export const dealLanesOf = (ws: WorkstreamProfileResponse): WorkstreamDealLaneView[] =>
+  ws.deals.map((d) => ({ kind: 'OP', ...d, open: d.outcome === 'open' }))
+
 export function lanesOf(ws: WorkstreamProfileResponse): WorkstreamLane[] {
-  /* No backbone patching: `stepsOf` maps over `LEAD_LANE_BACKBONE`, so all
-     five rungs always arrive in order — and the day they do not, the screen
-     should show the gap instead of drawing a ladder nobody sent. */
-  const lead = { kind: 'LD' as const, ...ws.lead, open: ws.lead.outcome === 'open' }
-  const deals = ws.deals.map((d) => ({ kind: 'OP' as const, ...d, open: d.outcome === 'open' }))
-  return [lead, ...deals]
+  return [leadLaneOf(ws), ...dealLanesOf(ws)]
 }
 
 export const currentStepOf = (lane: WorkstreamLane) => lane.steps.find((s) => s.state === 'current')
@@ -143,16 +156,30 @@ export function findStep(ws: WorkstreamProfileResponse, ref: StepRef | null) {
   return lane && step ? { lane, step } : null
 }
 
-/** "Owner deal" in the header: whoever holds the newest open deal, else the
- *  newest deal of any outcome. */
-export function dealOwnerOf(ws: WorkstreamProfileResponse): WorkstreamHolder | null {
-  const deal = [...ws.deals].reverse().find((d) => d.outcome === 'open') ?? ws.deals.at(-1)
-  return deal?.owner ?? null
-}
-
 /** A deal created from the lead lane changes the lanes, and `usePromoteLead`
  *  only invalidates the opportunity book. */
 export function useRefreshWorkstream(code: string) {
   const client = useQueryClient()
   return () => void client.invalidateQueries({ queryKey: workstreamProfileQuery(code).queryKey })
+}
+
+/** A contract IS the other side of a won deal, so it is read off the deals
+ *  rather than asked for: the profile door sends no contract lane. `dealWonAt`
+ *  is null unless the deal was actually won — `outcomeAt` is the day a deal
+ *  ENDED either way, so reading it as a win date labels a lost deal's closing
+ *  day as its victory. */
+export type JourneyContract = { code: string; dealCode: string; dealWonAt: string | null }
+
+export function contractsOf(ws: WorkstreamProfileResponse): JourneyContract[] {
+  return ws.deals.flatMap((d) =>
+    d.contractCode === null
+      ? []
+      : [
+          {
+            code: d.contractCode,
+            dealCode: d.code,
+            dealWonAt: d.outcome === 'won' ? d.outcomeAt : null,
+          },
+        ],
+  )
 }
