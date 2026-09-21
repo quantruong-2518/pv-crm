@@ -1,5 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
-import { MOTION_BY_CHANNEL, type LeadProfile as WireLeadProfile } from '@pv/contracts'
+import {
+  MOTION_BY_CHANNEL,
+  type LeadProfile as WireLeadProfile,
+  type MotionAsks,
+} from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import {
   buildLeadCreate,
@@ -68,8 +72,9 @@ export type LeadDraft = {
   formError: string | undefined
   /** Create door only: the motions this door offers, in policy order. */
   motions: MotionChoice[]
-  /** Create door only: the chosen motion's policy demands a campaign. */
-  campaignRequired: boolean
+  /** Create door only: the one box the chosen motion asks for next —
+   *  `undefined` while the motions are still loading. */
+  asks: MotionAsks | undefined
 }
 
 export type UseLeadDraftArgs =
@@ -96,8 +101,8 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   const save = useUpdateLeadProfile()
   const create = useCreateLead()
   const motions = useMotionChoices(MOTION_BY_CHANNEL.MANUAL, mode === 'create')
-  const needsCampaign = (motion: string | undefined) =>
-    motions.some((m) => m.motion === motion && m.requiresCampaign)
+  const asksOf = (motion: string | undefined): MotionAsks | undefined =>
+    motions.find((m) => m.motion === motion)?.asks
 
   /* `profileForm` turns a field the wire left out into the `''`/`null` the
      boxes and the init-data gate read as "not dug out yet". No browser-side
@@ -165,6 +170,13 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
 
   const set = (field: FormField, raw: string) => {
     const next = { ...live.current, [field.key]: writeField(field, raw) } as FormValues
+    /* A new motion may ask a different box; the old answer must not ride along. */
+    if (field.key === 'motion') {
+      const keep = asksOf(raw)
+      if (keep !== 'ORIGIN') next.origin = ''
+      if (keep !== 'CAMPAIGN') next.campaignCode = ''
+      if (keep !== 'REFERRER') next.refCode = ''
+    }
     live.current = next
     setValues(next)
     dropComplaint(field.key)
@@ -215,9 +227,12 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
 
   const submit = () => {
     if (args.mode !== 'create' || create.isPending) return
-    const built = buildLeadCreate(live.current, {
-      campaignRequired: needsCampaign(live.current.motion),
-    })
+    const asks = asksOf(live.current.motion)
+    if (!asks) {
+      refuse({ motion: ['Chưa chọn phương án tiếp cận'] })
+      return
+    }
+    const built = buildLeadCreate(live.current, asks)
     if (!built.ok) {
       refuse(built.errors)
       return
@@ -262,6 +277,6 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     fieldError: (key) => failed?.[wireOf(key)]?.[0],
     formError,
     motions,
-    campaignRequired: needsCampaign(values.motion),
+    asks: asksOf(values.motion),
   }
 }

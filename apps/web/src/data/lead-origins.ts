@@ -1,4 +1,11 @@
-import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {
   CampaignPickableResponse,
   LeadOriginListResponse,
@@ -37,7 +44,7 @@ const STATS_KEY = ['sales', 'lead-source-stats'] as const
 /** Same literal `data/lead-create.ts` copies, for the reason it states there. */
 const LEAD_BOOK_KEY = ['sales', 'lead-book'] as const
 
-function paramsOf(query: Record<string, string | boolean | undefined>): string {
+export function paramsOf(query: Record<string, string | boolean | undefined>): string {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined && value !== '') params.set(key, String(value))
@@ -70,6 +77,13 @@ export const pickableCampaignsQuery = (q: string | undefined) =>
       }),
     placeholderData: keepPreviousData,
   })
+
+/** Origin id → name over the whole catalog, hidden rows included — for a
+ *  screen that holds an `originId` and must print it. */
+export function useOriginNames(): ReadonlyMap<string, string> {
+  const { data } = useQuery(leadOriginsQuery({ includeInactive: true }))
+  return useMemo(() => new Map((data?.rows ?? []).map((o) => [o.id, o.name])), [data])
+}
 
 export const leadSourceStatsQuery = (query: LeadSourceStatsQuery) =>
   queryOptions({

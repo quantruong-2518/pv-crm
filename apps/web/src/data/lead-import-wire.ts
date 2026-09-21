@@ -76,6 +76,10 @@ export type ImportBatchChoices = {
   /** Origin for the whole batch — a row's own `origin` cell wins over it; the
    *  batch pick only fills rows that leave that cell empty. */
   origin?: LeadImportBody['origin']
+  /** Partner for the whole batch, when the motion's `asks` is `REFERRER`. */
+  refCode?: LeadImportBody['refCode']
+  /** Campaign row for the whole batch, when the motion's `asks` is `CAMPAIGN`. */
+  campaignCode?: LeadImportBody['campaignCode']
 }
 
 /** Keep only the sixteen keys the wire actually understands.
@@ -173,6 +177,8 @@ export function buildLeadImportBody(
     motion: choices.motion,
     source: choices.source,
     origin: choices.origin,
+    refCode: choices.refCode,
+    campaignCode: choices.campaignCode,
     rows: rows.map((row) => ({
       line: row.line,
       first: clip(row.first, LEAD_MAX.company),

@@ -2,6 +2,7 @@ import { boolean, check, date, index, primaryKey, text, timestamp } from 'drizzl
 import { sql, type SQL } from 'drizzle-orm'
 import { sales } from '../sales.schema'
 import { configEntry } from '../config/config.schema'
+import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { lead } from '../lead/lead.schema'
 
 /** Same second net as `lead_no_blank`: the mapper normalises `''` to NULL on
@@ -70,6 +71,9 @@ export const campaign = sales.table(
     /** Last day the campaign runs, inclusive. Optional: an always-on campaign
      *  has no end, and inventing one would close it on a made-up date. */
     endsOn: date('ends_on'),
+    /** The level-2 origin a lead brought in by this campaign is filed under.
+     *  Nullable: campaigns created before 0059 have none, and none is guessed. */
+    originId: text('origin_id').references(() => leadOrigin.id),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

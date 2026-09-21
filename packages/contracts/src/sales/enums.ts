@@ -184,6 +184,35 @@ export const LeadMotion = z.enum(
   'Thế không có trong danh sách',
 )
 
+/** What a motion asks the intake form for NEXT — the field a create/import
+ *  door requires once `LeadMotion` is chosen. Replaces the old boolean
+ *  `motion_policy.requires_campaign`, which could only say yes/no to one
+ *  field; `MotionAsks` names WHICH of the three doors is the one asked.
+ *
+ *   · `ORIGIN`   — `LeadOriginPick`, the free-form catalog pick.
+ *   · `CAMPAIGN` — `campaignCode`; origin is then DERIVED from the campaign.
+ *   · `REFERRER` — `refCode`; origin is then DERIVED from the partner.
+ *
+ *  Which motion asks what lives only in `sales.motion_policy` (seeded by 0059,
+ *  admin-editable) — never restate that table in code. */
+export const MotionAsks = z.enum(['ORIGIN', 'CAMPAIGN', 'REFERRER'])
+export type MotionAsks = z.infer<typeof MotionAsks>
+
+/** One wording per ask, read by the admin control, the approval sentence and
+ *  both doors' refusals — so proposer, approver and typist see the same name. */
+export const MOTION_ASKS_LABEL: Record<MotionAsks, string> = {
+  ORIGIN: 'Nguồn chi tiết',
+  CAMPAIGN: 'Chiến dịch',
+  REFERRER: 'Mã giới thiệu',
+}
+
+/** The refusal when the asked field is missing, identical in browser and server. */
+export const MOTION_ASKS_MISSING: Record<MotionAsks, string> = {
+  ORIGIN: 'Phương án tiếp cận này cần chọn nguồn chi tiết',
+  CAMPAIGN: 'Phương án tiếp cận này cần gắn một chiến dịch đang chạy',
+  REFERRER: 'Phương án tiếp cận này cần mã giới thiệu',
+}
+
 /** Kênh gọi lại được khách — ô 5 của cổng init data.
  *
  *  Cùng bộ với kênh của module 1 (`WaveChannel` bên fixture): một chiến dịch

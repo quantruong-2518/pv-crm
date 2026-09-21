@@ -127,6 +127,15 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/lead-origins'),
   },
   {
+    /** Admin · partner book — who sends us leads; its kind is the origin
+     *  referred leads inherit, so it sits behind the same permission. */
+    path: '/admin/partners',
+    name: 'Sales · Quản trị · Đối tác',
+    branch: 'Sales',
+    permission: 'lead-origin.manage',
+    load: () => import('@/pages/partners'),
+  },
+  {
     /** BA SỔ, MỘT TIỀN TỐ — và thứ tự khai ở đây không quyết định gì.
      *
      *  React Router xếp hạng route theo độ cụ thể chứ không theo thứ tự mảng,

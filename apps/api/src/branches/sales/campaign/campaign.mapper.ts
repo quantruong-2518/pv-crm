@@ -33,6 +33,7 @@ export function toContract(read: CampaignRead): CampaignBookRow {
     ...(ownerEmail ? { ownerEmail } : {}),
     ...(row.sourceId ? { sourceId: row.sourceId } : {}),
     ...(sourceName ? { sourceName } : {}),
+    originId: row.originId,
     ...(row.slogan ? { slogan: row.slogan } : {}),
     ...(row.thumbnailUrl ? { thumbnailUrl: row.thumbnailUrl } : {}),
     ...(row.endsOn ? { endsOn: row.endsOn } : {}),

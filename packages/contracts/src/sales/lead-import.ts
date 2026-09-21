@@ -4,6 +4,7 @@ import { LeadSourceKind } from './enums'
 import { LEAD_MAX } from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginPick } from './lead-origin'
+import { PartnerCode } from './partner'
 
 /** Loading leads from a file — TWO endpoints, one body.
  *
@@ -173,6 +174,14 @@ export const LeadImportBody = z.object({
    *  above, a row's cell wins: a file naming each row's origin is more precise
    *  than one pick for the batch. */
   origin: LeadOriginPick.optional(),
+  /** The partner for the WHOLE batch, when the chosen motion's `asks` is
+   *  `REFERRER` — same batch-wide shape as `source` above, and same reason:
+   *  one motion per batch means one partner per batch, never a per-row cell. */
+  refCode: PartnerCode.optional(),
+  /** The campaign row (`CP-…`) for the WHOLE batch when `asks` is `CAMPAIGN`.
+   *  Not `source`: that is a SOURCE catalogue id, and only a campaign row can
+   *  enrol the leads and hand them its origin. */
+  campaignCode: ObjectCode.optional(),
   rows: z
     .array(LeadImportRow)
     .min(1, 'Không có dòng nào để nạp')

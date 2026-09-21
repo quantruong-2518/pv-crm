@@ -2,7 +2,9 @@ import { and, asc, eq, notInArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { LeadMotion } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { campaign } from '../campaign/campaign.schema'
 import { lead } from '../lead/lead.schema'
+import { partner } from '../partner/partner.schema'
 import { leadHasContract } from '../open-deal'
 import {
   leadOrigin,
@@ -170,6 +172,26 @@ export class LeadOriginRepository {
       .where(eq(lead.originId, from))
       .returning({ code: lead.code })
     return rows.length
+  }
+
+  /** Partners and campaigns name an origin for FUTURE leads, so a merge moves
+   *  them too — else they would keep deriving a folded origin. Returns counts. */
+  async repointReferrers(
+    tx: Db,
+    from: string,
+    to: string,
+  ): Promise<{ partners: number; campaigns: number }> {
+    const partners = await tx
+      .update(partner)
+      .set({ originId: to, updatedAt: new Date() })
+      .where(eq(partner.originId, from))
+      .returning({ code: partner.code })
+    const campaigns = await tx
+      .update(campaign)
+      .set({ originId: to, updatedAt: new Date() })
+      .where(eq(campaign.originId, from))
+      .returning({ code: campaign.code })
+    return { partners: partners.length, campaigns: campaigns.length }
   }
 
   /** One row per (motion, origin, campaign) over leads created in [from, to],

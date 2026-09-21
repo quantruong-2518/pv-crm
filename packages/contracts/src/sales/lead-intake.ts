@@ -110,8 +110,8 @@ export const CHANNEL_TRUST = {
  *  motions, while `satisfies` still makes `tsc` check every key and value
  *  against the two axes in `./enums`. */
 export const MOTION_BY_CHANNEL = {
-  /* EVENT is typeable since it must carry a campaign (`motion_policy.requires_campaign`),
-     which is what traces the row back to its event. */
+  /* EVENT is typeable since its `motion_policy.asks` is `CAMPAIGN`, which is
+     what traces the row back to its event. */
   MANUAL: ['INBOUND', 'OUTBOUND', 'EVENT', 'REFERRAL', 'PARTNER', 'RECYCLE'],
   IMPORT: ['OUTBOUND', 'EVENT', 'PARTNER', 'RECYCLE'],
   /* Narrower than `IMPORT`, and that is the point of naming the vendor: a

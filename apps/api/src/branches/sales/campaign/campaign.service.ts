@@ -27,8 +27,9 @@ import {
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
+import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
-import { PvError, conflict, denied, notFound } from '@api/platform/http/problem'
+import { PvError, conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { toContract, toMemberRow, toProfile } from './campaign.mapper'
 import { CampaignRepository } from './campaign.repository'
 import { MasService } from './mas.service'
@@ -54,6 +55,7 @@ export class CampaignService {
     private readonly runs: MailRunRepository,
     private readonly mas: MasService,
     @Inject(ENV) private readonly env: Env,
+    private readonly origins: LeadOriginService,
   ) {}
 
   /** Không chạy `E2.visible()` như lưới thứ hai của `LeadService.book()`: đó
@@ -100,12 +102,14 @@ export class CampaignService {
    *  attached, `ownerName` has to be the real name, and only the join inside
    *  `byCode` knows it. Unscoped read — this is the row the caller just wrote. */
   async create(who: Actor, body: CampaignCreate): Promise<CampaignCreateResponse> {
+    const originId = body.originId ? await this.liveOrigin(body.originId) : null
     const code = await this.repo.nextCode()
     await this.repo.create({
       code,
       name: body.name,
       ownerId: body.ownerId ?? who.id,
       sourceId: body.sourceId ?? null,
+      originId,
       slogan: body.slogan ?? null,
       thumbnailUrl: body.thumbnailUrl ?? null,
       endsOn: body.endsOn ?? null,
@@ -123,10 +127,12 @@ export class CampaignService {
       throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 
+    const originId = body.originId ? await this.liveOrigin(body.originId) : body.originId
     await this.repo.patch(code, {
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.ownerId !== undefined ? { ownerId: body.ownerId } : {}),
       ...(body.sourceId !== undefined ? { sourceId: body.sourceId } : {}),
+      ...(originId !== undefined ? { originId } : {}),
       ...(body.slogan !== undefined ? { slogan: body.slogan } : {}),
       ...(body.thumbnailUrl !== undefined ? { thumbnailUrl: body.thumbnailUrl } : {}),
       ...(body.endsOn !== undefined ? { endsOn: body.endsOn } : {}),
@@ -152,13 +158,23 @@ export class CampaignService {
 
   /** The lead-create door's two asks: is this campaign pickable (`null` = no),
    *  and enrol the new lead inside the lead's own transaction. */
-  async pickableOne(code: string): Promise<{ name: string; sourceId: string | null } | null> {
+  async pickableOne(
+    code: string,
+  ): Promise<{ name: string; sourceId: string | null; originId: string | null } | null> {
     const [row] = await this.repo.pickable({ code })
-    return row ? { name: row.name, sourceId: row.sourceId } : null
+    return row ? { name: row.name, sourceId: row.sourceId, originId: row.originId } : null
   }
 
-  async enrol(tx: Db, code: string, leadCode: string): Promise<void> {
-    await this.repo.addMembers(tx, code, [leadCode])
+  async enrol(tx: Db, code: string, leadCodes: readonly string[]): Promise<void> {
+    await this.repo.addMembers(tx, code, leadCodes)
+  }
+
+  /** The id to store: a merged origin's survivor, so the campaign never points
+   *  at a folded row. Asked first so a wrong id is a 400 on the field, not an FK. */
+  private async liveOrigin(id: string): Promise<string> {
+    const found = await this.origins.survivorOf(id)
+    if (!found) throw invalid({ originId: ['Nguồn không có trong danh mục.'] })
+    return found.id
   }
 
   async members(

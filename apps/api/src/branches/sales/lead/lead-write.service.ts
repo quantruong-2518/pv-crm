@@ -7,8 +7,10 @@ import {
   LeadOwnerResponse,
   LeadTier,
   originKey,
+  type LeadMotion,
   type LeadOriginPick,
   type LeadPatchResponse,
+  type MotionAsks,
   type LeadCreate,
   type LeadImportBody,
   type LeadOwnerWrite,
@@ -40,6 +42,8 @@ import {
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
+import { PartnerService } from '../partner/partner.service'
+import { referrerOf, refuseByAsks } from './lead-motion-asks'
 
 /** The five columns every lead write already carries, in the shape
  *  `ContactService.seedPrimary` asks for — see its docblock for why this call
@@ -122,6 +126,7 @@ export class LeadWriteService {
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly origins: LeadOriginService,
     private readonly campaigns: CampaignService,
+    private readonly partners: PartnerService,
   ) {}
 
   // ── door 1 · one lead, typed by a person ─────────────────────────────────
@@ -140,6 +145,7 @@ export class LeadWriteService {
 
     const write = fromCreate(body, owner?.name ?? null)
     const picked = await this.campaignOf(handle, body)
+    const referrer = body.refCode ? await referrerOf(this.partners, handle, body.refCode) : null
     const campaignId = picked ? picked.sourceId : (body.campaignId ?? null)
     /* Read before the write, beside the owner lookup and for the same reason:
        the response is a full book row, and a book row prints names, not ids. */
@@ -160,20 +166,24 @@ export class LeadWriteService {
          `edge.to_code` is a foreign key into it. */
       await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
       await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
-      const origin = await this.origins.resolveOrigin(tx, body.origin, body.motion, who.id)
+      /* No pick = the motion derives it: the partner's origin, else the campaign's. */
+      const origin = body.origin
+        ? await this.origins.resolveOrigin(tx, body.origin, body.motion, who.id)
+        : await this.derivedOrigin(tx, referrer?.originId ?? picked?.originId ?? null)
       const [written] = await this.repo.insertLeads(tx, [
         {
           ...write.values,
           campaignId,
           originId: origin.id,
           originRaw: origin.raw,
+          partnerCode: referrer?.code ?? null,
           accountCode,
           code,
           workstreamCode: run,
         },
       ])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
-      if (body.campaignCode) await this.campaigns.enrol(tx, body.campaignCode, code)
+      if (body.campaignCode) await this.campaigns.enrol(tx, body.campaignCode, [code])
 
       /* Same transaction as the lead row — see `ContactService.seedPrimary`. */
       await this.contacts.seedPrimary(tx, code, mirrorOf(write.values), who)
@@ -215,6 +225,7 @@ export class LeadWriteService {
         ownerEmail: owner?.email ?? null,
         campaignName,
         originName: row.originName,
+        partnerName: referrer?.name ?? null,
         signed: false,
       }),
     )
@@ -571,7 +582,9 @@ export class LeadWriteService {
           rows.push({
             ...p.row,
             accountCode,
-            originId: p.origin ? (originIds.get(pickKey(p.origin)) ?? null) : null,
+            originId: p.origin
+              ? (originIds.get(pickKey(p.origin)) ?? null)
+              : (p.row.originId ?? null),
             originRaw: p.origin && 'name' in p.origin ? p.origin.name : null,
           })
           links.push({ from: p.row.code, to: accountCode, kind: 'belongs-to' })
@@ -581,6 +594,13 @@ export class LeadWriteService {
         await this.mirror.linkMany(tx, links)
         await this.runs.insertOpened(tx, opened)
         await this.repo.insertLeads(tx, rows)
+        if (body.campaignCode) {
+          await this.campaigns.enrol(
+            tx,
+            body.campaignCode,
+            rows.map((r) => r.code),
+          )
+        }
         /* Sequential, one `nextCode()` round trip per row — same accepted
            cost as `codes` above, bounded by `CHUNK` per pass. */
         for (const row of rows) {
@@ -635,26 +655,53 @@ export class LeadWriteService {
 
   // ── the shared half ──────────────────────────────────────────────────────
 
-  /** The motion's own create rules (0057), then the campaign pick: `null` = no
-   *  campaign code sent. The code must be pickable (`CampaignService.pickable`). */
+  /** The motion's own create rules (0057, `asks` 0059), then the campaign
+   *  pick: `null` = no campaign code sent. The code must be pickable. */
   private async campaignOf(
     handle: Db,
     body: LeadCreate,
-  ): Promise<{ sourceId: string | null } | null> {
-    const rule = await this.repo.motionRule(handle, body.motion)
-    if (rule && !rule.active) throw invalid({ motion: ['Phương án tiếp cận này đang tắt.'] })
-    if (rule?.requiresCampaign && !body.campaignCode) {
-      throw invalid({ campaignCode: ['Phương án tiếp cận này phải gắn chiến dịch'] })
-    }
-    if (!body.campaignCode) return null
+  ): Promise<{ sourceId: string | null; originId: string | null } | null> {
+    const asks = await this.asksOf(handle, body.motion)
+    refuseByAsks(asks, {
+      origin: body.origin !== undefined,
+      campaign: body.campaignCode !== undefined,
+      refCode: body.refCode !== undefined,
+      originRequired: true,
+    })
+    return body.campaignCode ? this.pickable(body.campaignCode) : null
+  }
 
-    const picked = await this.campaigns.pickableOne(body.campaignCode)
+  /** Same rule at both doors: DRAFT/RUNNING and not past `ends_on`. */
+  private async pickable(
+    code: string,
+  ): Promise<{ sourceId: string | null; originId: string | null }> {
+    const picked = await this.campaigns.pickableOne(code)
     if (!picked) {
       throw invalid({
         campaignCode: ['Chiến dịch không nhận lead mới — đã dừng, đã xong hoặc quá ngày kết thúc.'],
       })
     }
     return picked
+  }
+
+  /** Refuses a switched-off motion. A missing policy row is a broken install
+   *  (0036 plants all six), so it fails loudly instead of guessing an answer. */
+  private async asksOf(handle: Db, motion: LeadMotion): Promise<MotionAsks> {
+    const rule = await this.repo.motionRule(handle, motion)
+    if (!rule) throw new Error(`sales.motion_policy has no row for ${motion}`)
+    if (!rule.active) throw invalid({ motion: ['Phương án tiếp cận này đang tắt.'] })
+    return rule.asks
+  }
+
+  /** A derived origin in `resolveOrigin`'s shape; `raw` is null — nobody typed
+   *  it. A hidden survivor yields no origin rather than filing under a hidden one. */
+  private async derivedOrigin(
+    tx: Db,
+    id: string | null,
+  ): Promise<{ id: string | null; name: string | null; raw: null }> {
+    const found = id ? await this.origins.survivorOf(id, tx) : null
+    const live = found?.active ? found : null
+    return { id: live?.id ?? null, name: live?.name ?? null, raw: null }
   }
 
   /** The campaign has to be a campaign, and this is where that gets SAID.
@@ -686,24 +733,33 @@ export class LeadWriteService {
       .map((r) => r.values.email?.trim().toLowerCase())
       .filter((e): e is string => e !== undefined && e !== '')
 
+    /* The create door's motion rules, asked here so preview and commit agree.
+       Batch-wide: one file is one motion, so one answer for every row. */
+    const asks = await this.asksOf(handle, body.motion)
+    refuseByAsks(asks, {
+      origin: body.origin !== undefined,
+      campaign: body.campaignCode !== undefined,
+      refCode: body.refCode !== undefined,
+      originRequired: false,
+    })
+    const referrer = body.refCode ? await referrerOf(this.partners, handle, body.refCode) : null
+    const picked = body.campaignCode ? await this.pickable(body.campaignCode) : null
+    /* Partner first, then campaign — the same order `create()` derives in. */
+    const derived = await this.derivedOrigin(handle, referrer?.originId ?? picked?.originId ?? null)
+    /* Manual create's rule: the batch `source` if given, else the picked campaign's. */
+    const source = body.source ?? picked?.sourceId ?? undefined
+
     /* Every campaign code the batch could land on: the one chosen for the
        whole file, plus whatever the source column carries per row. Asked in ONE
        query rather than per row — 5.000 rows is 5.000 round trips otherwise,
        and the answer is the same small set every time. */
     const campaigns = [
       ...new Set(
-        [body.source, ...body.rows.map((r) => r.values.source)].filter(
+        [source, ...body.rows.map((r) => r.values.source)].filter(
           (c): c is string => c !== undefined && c.trim() !== '',
         ),
       ),
     ]
-
-    /* The create door's motion rules, asked here so preview and commit agree. */
-    const rule = await this.repo.motionRule(handle, body.motion)
-    if (rule && !rule.active) throw invalid({ motion: ['Phương án tiếp cận này đang tắt.'] })
-    if (rule?.requiresCampaign && body.source === undefined) {
-      throw invalid({ source: ['Phương án tiếp cận này phải gắn chiến dịch'] })
-    }
 
     const [staff, book, live, origins] = await Promise.all([
       this.repo.staff(handle),
@@ -718,8 +774,11 @@ export class LeadWriteService {
     return checkBatch({
       rows: body.rows,
       motion: body.motion,
-      ...(body.source === undefined ? {} : { source: body.source }),
+      ...(source === undefined ? {} : { source }),
       ...(body.origin === undefined ? {} : { origin: body.origin }),
+      ...(asks === 'ORIGIN'
+        ? {}
+        : { derived: { originId: derived.id, partnerCode: referrer?.code ?? null } }),
       origins,
       staff,
       campaigns: live,

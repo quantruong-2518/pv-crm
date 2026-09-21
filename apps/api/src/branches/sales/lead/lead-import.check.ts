@@ -80,6 +80,9 @@ export type ImportCheckInput = {
   source?: string
   /** Origin for rows whose own `origin` cell is empty — the cell wins. */
   origin?: LeadOriginPick
+  /** Set when the motion's `asks` is not ORIGIN: every row takes these two
+   *  columns and no origin cell is read — the motion decides, not the file. */
+  derived?: { originId: string | null; partnerCode: string | null }
   /** The catalog by key, for "exists / hidden / would be created". */
   origins: OriginIndex
   /** Everybody in the staff book, for turning the `owner` NAME into an id. */
@@ -297,7 +300,7 @@ function indexStaff(staff: readonly ActorLite[]): Map<string, ActorLite[]> {
 
 function checkRow(
   row: LeadImportRow,
-  batch: Pick<ImportCheckInput, 'motion' | 'source' | 'origin' | 'origins'>,
+  batch: Pick<ImportCheckInput, 'motion' | 'source' | 'origin' | 'origins' | 'derived'>,
   staff: Map<string, ActorLite[]>,
   campaigns: ReadonlySet<string>,
 ): Outcome {
@@ -393,7 +396,9 @@ function checkRow(
   if (source !== undefined) out.source = source
 
   // ── origin · the cell wins over the batch pick ──────────────────────────
-  const originCell = optional(cells, 'origin', TEXT.origin)
+  const originCell = batch.derived
+    ? ({ ok: true, value: undefined } as const)
+    : optional(cells, 'origin', TEXT.origin)
   if (!originCell.ok) return fail('origin', originCell.reason)
   const origin = readOrigin(originCell.value, batch)
   if (!origin.ok) return fail('origin', origin.reason)
@@ -443,6 +448,7 @@ function checkRow(
            and the other half of the origin is stamped above. Translating here
            keeps the file's vocabulary out of the table's. */
         campaignId: source ?? null,
+        ...batch.derived,
       },
     },
   }

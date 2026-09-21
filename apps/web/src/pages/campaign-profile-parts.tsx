@@ -16,6 +16,8 @@ import type { CampaignPatch, CampaignProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
 import { useCampaignCreate, type useCampaignPatch } from '@/data/campaign-book'
+import { useOriginNames } from '@/data/lead-origins'
+import { OriginSelect } from '@/components/lead-origin-pickers'
 import { dmhm, dmy } from '@/lib/date'
 import { emptyProfile, profileFrom, type ProfileDraft } from './campaign-model'
 
@@ -37,6 +39,8 @@ export function ProfileFields({
   setOwnerId,
   sourceId,
   setSourceId,
+  originId,
+  setOriginId,
   endsOn,
   setEndsOn,
   people,
@@ -53,6 +57,8 @@ export function ProfileFields({
   setOwnerId: (v: string) => void
   sourceId: string
   setSourceId: (v: string) => void
+  originId: string
+  setOriginId: (v: string) => void
   endsOn: string
   setEndsOn: (v: string) => void
   people: Actor[]
@@ -110,6 +116,20 @@ export function ProfileFields({
               ]}
             />
           </label>
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-[11px]">Nguồn của lead</span>
+          <OriginSelect
+            label="Nguồn của lead"
+            hideLabel
+            value={originId}
+            onChange={setOriginId}
+            emptyLabel="Chưa gán"
+          />
+          <span className="text-muted-foreground text-[11px] leading-[1.5]">
+            Lead mới gắn vào chiến dịch này qua phương án hỏi chiến dịch mang nguồn này; lead đã vào
+            sổ giữ nguồn cũ.
+          </span>
         </div>
         <label className="flex flex-col gap-2 sm:max-w-[240px]">
           <span className="text-muted-foreground text-[11px]">Ngày kết thúc (không bắt buộc)</span>
@@ -273,6 +293,7 @@ export function CampaignCreateModal({
         name,
         ...(draft.ownerId ? { ownerId: draft.ownerId } : {}),
         ...(draft.sourceId ? { sourceId: draft.sourceId } : {}),
+        ...(draft.originId ? { originId: draft.originId } : {}),
         ...(draft.slogan.trim() ? { slogan: draft.slogan.trim() } : {}),
         ...(draft.thumbnailUrl.trim() ? { thumbnailUrl: draft.thumbnailUrl.trim() } : {}),
         ...(draft.endsOn ? { endsOn: draft.endsOn } : {}),
@@ -299,7 +320,7 @@ export function CampaignCreateModal({
       open={open}
       onClose={onClose}
       title="Chiến dịch mới"
-      subtitle="Sáu ô này mở một chiến dịch NHÁP. Chưa lá thư nào rời máy ở bước này."
+      subtitle="Bảy ô này mở một chiến dịch NHÁP. Chưa lá thư nào rời máy ở bước này."
       footer={
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
           <span className="text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]">
@@ -329,6 +350,8 @@ export function CampaignCreateModal({
         setOwnerId={(v) => setDraft((d) => ({ ...d, ownerId: v }))}
         sourceId={draft.sourceId}
         setSourceId={(v) => setDraft((d) => ({ ...d, sourceId: v }))}
+        originId={draft.originId}
+        setOriginId={(v) => setDraft((d) => ({ ...d, originId: v }))}
         endsOn={draft.endsOn}
         setEndsOn={(v) => setDraft((d) => ({ ...d, endsOn: v }))}
         people={people}
@@ -359,6 +382,7 @@ function patchField(next: string, original: string): string | null | undefined {
  *  under a header naming the very source it cannot see. Printing the stored
  *  value is the call `opportunity-form-card.tsx` already made. */
 function ProfileFacts({ campaign }: { campaign: CampaignProfile }) {
+  const originNames = useOriginNames()
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
       <ThumbnailPreview
@@ -373,6 +397,11 @@ function ProfileFacts({ campaign }: { campaign: CampaignProfile }) {
         <Fact label="Slogan">{campaign.slogan || '—'}</Fact>
         <Fact label="Chủ chiến dịch">{campaign.ownerName ?? 'Chưa gán'}</Fact>
         <Fact label="Nguồn dẫn">{campaign.sourceName ?? 'Chưa gán'}</Fact>
+        <Fact label="Nguồn của lead">
+          {campaign.originId
+            ? (originNames.get(campaign.originId) ?? campaign.originId)
+            : 'Chưa gán'}
+        </Fact>
         <Fact label="Ngày kết thúc">{campaign.endsOn ? dmy(campaign.endsOn) : 'Không đặt'}</Fact>
       </dl>
     </div>
@@ -411,6 +440,7 @@ export function ProfileTab({
     draft.thumbnailUrl.trim() !== original.thumbnailUrl ||
     draft.ownerId !== original.ownerId ||
     draft.sourceId !== original.sourceId ||
+    draft.originId !== original.originId ||
     draft.endsOn !== original.endsOn
 
   const canSave = draft.name.trim().length > 0 && changed && !patch.isPending
@@ -421,6 +451,7 @@ export function ProfileTab({
     const thumbnailUrl = patchField(draft.thumbnailUrl.trim(), original.thumbnailUrl)
     const ownerId = patchField(draft.ownerId, original.ownerId)
     const sourceId = patchField(draft.sourceId, original.sourceId)
+    const originId = patchField(draft.originId, original.originId)
     const endsOn = patchField(draft.endsOn, original.endsOn)
     const body: CampaignPatch = {
       ...(draft.name.trim() === original.name ? {} : { name: draft.name.trim() }),
@@ -428,6 +459,7 @@ export function ProfileTab({
       ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
       ...(ownerId === undefined ? {} : { ownerId }),
       ...(sourceId === undefined ? {} : { sourceId }),
+      ...(originId === undefined ? {} : { originId }),
       ...(endsOn === undefined ? {} : { endsOn }),
     }
     patch.mutate(body, {
@@ -466,6 +498,8 @@ export function ProfileTab({
             setOwnerId={(v) => setDraft((d) => ({ ...d, ownerId: v }))}
             sourceId={draft.sourceId}
             setSourceId={(v) => setDraft((d) => ({ ...d, sourceId: v }))}
+            originId={draft.originId}
+            setOriginId={(v) => setDraft((d) => ({ ...d, originId: v }))}
             endsOn={draft.endsOn}
             setEndsOn={(v) => setDraft((d) => ({ ...d, endsOn: v }))}
             people={people}

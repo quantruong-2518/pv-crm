@@ -37,6 +37,7 @@ import {
 import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginId, LeadOriginPick } from './lead-origin'
 import { LeadSource } from './lead-source'
+import { PartnerCode } from './partner'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
  *
@@ -554,7 +555,11 @@ export const LeadProfile = LeadRow.extend({
  *     `CHECK lead_disqualified_has_reason` would be the one to say so.
  *   · `source.kind` — the system records the origin, nobody types it. For this
  *     endpoint the origin is `MANUAL`, which is why `motion` is narrowed below
- *     to the motions that door can carry. Only `campaignId` is accepted. */
+ *     to the motions that door can carry. Only `campaignId` is accepted.
+ *   · A fixed pairing between `motion` and `origin`/`campaignCode`/`refCode`
+ *     — which one the chosen motion NEEDS lives in `MotionPolicy.asks`, and
+ *     zod cannot see the admin's current answer, so the three below stay
+ *     optional here and the pairing is checked server-side. */
 export const LeadCreate = z
   .object({
     // ── the three required ones · exactly the three NOT NULL columns ─────────
@@ -621,17 +626,24 @@ export const LeadCreate = z
      *  the `MANUAL` origin, and a caller that can name its own origin can
      *  claim `LANDING_PAGE`, which `CHANNEL_TRUST` reads as customer-verified. */
     campaignId: ConfigCode.optional(),
-    /** Level 2 of the origin — required, unlike `campaignId`: a hand-typed
-     *  lead always has SOME answer to "where from" even when it has no
-     *  campaign. Id or name; see `LeadOriginPick`. */
-    origin: LeadOriginPick,
+    /** Level 2 of the origin. Sent only when the chosen motion's `asks` is
+     *  `ORIGIN` — for `CAMPAIGN`/`REFERRER` motions the server derives it from
+     *  the campaign or the partner instead, so a caller sending both is
+     *  refused rather than silently overridden. Optional at this zod layer for
+     *  exactly that reason: which motions need it is `MotionPolicy.asks` data,
+     *  not something the shape can encode. Id or name; see `LeadOriginPick`. */
+    origin: LeadOriginPick.optional(),
     /** A campaign's CODE (`CP-nnnn`), not `campaignId` above (a config-list
      *  code). Wins over `campaignId` when both are sent — the server derives
      *  `campaignId` from it — and also enrols the lead as a member. Required
-     *  only when the chosen `motion`'s `motion_policy.requires_campaign` is
-     *  true (`EVENT` by default); that rule is DATA, so it is enforced by the
-     *  server, not a zod refine here. */
+     *  only when the chosen motion's `MotionPolicy.asks` is `CAMPAIGN`
+     *  (`EVENT`/`RECYCLE` by default); server-enforced, not a zod refine here. */
     campaignCode: ObjectCode.optional(),
+    /** The partner who sent this lead — required only when the chosen
+     *  motion's `MotionPolicy.asks` is `REFERRER` (`REFERRAL`/`PARTNER` by
+     *  default). The server derives `origin` from the partner's `originId`;
+     *  sending `origin` alongside this is refused, not merged. */
+    refCode: PartnerCode.optional(),
   })
   .refine((v) => (v.budget === undefined) === (v.currency === undefined), {
     /* Money always carries its unit. Enforced here rather than left to

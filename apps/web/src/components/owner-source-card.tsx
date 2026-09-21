@@ -12,13 +12,16 @@ import type { Lead } from '@pv/engines/fixtures/das-vina'
 import { OWNER_SOURCE_FIELDS, originValue, readField, type FormField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { NO_OWNER_TITLE } from '@/data/leads'
+import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
 import { AssignMenu } from './assign-menu'
 import {
   CampaignPicker,
   OriginPicker,
+  PartnerPicker,
   type CampaignChoice,
   type OriginChoice,
+  type PartnerChoice,
 } from './lead-origin-pickers'
 
 /** The holder-and-origin card — who holds this lead and how it got here.
@@ -63,9 +66,11 @@ const boxOf = (key: FormField['key']) => OWNER_SOURCE_FIELDS.find((field) => fie
 const MOTION_BOX = boxOf('motion')
 const ORIGIN_BOX = boxOf('origin')
 const CAMPAIGN_BOX = boxOf('campaignCode')
+const REFERRER_BOX = boxOf('refCode')
 
 function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
   const motionLabel = useMotionLabel()
+  const partner = sourcePartnerLabel(profile.source)
   return (
     <>
       <Block label="Lead PIC" hint={PIC_HINT}>
@@ -106,6 +111,7 @@ function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
       >
         <div className="flex flex-wrap items-center gap-2">
           {profile.source.origin && <MetaPill>{profile.source.origin.name}</MetaPill>}
+          {partner && <MetaPill title="Mã giới thiệu">{partner}</MetaPill>}
           <MetaPill>{campaignLabel(profile.source)}</MetaPill>
           <Chip variant="source">{sourceKindLabel(profile.source)}</Chip>
         </div>
@@ -114,12 +120,13 @@ function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
   )
 }
 
-/** The create door: the holder stated, then the three origin boxes.
+/** The create door: the holder stated, the motion, then the ONE box it asks.
  *
  *  `POST /sales/leads` IS the manual door — it takes no `kind`, because a
  *  caller that may name its own origin may claim `LANDING_PAGE`, which
- *  `CHANNEL_TRUST` reads as customer-verified. What it does take is the motion,
- *  the catalog origin and — when the motion's policy says so — a campaign. */
+ *  `CHANNEL_TRUST` reads as customer-verified. What it does take is the motion
+ *  and whichever of origin · campaign · referrer its `asks` names; the server
+ *  derives the origin from the other two. */
 function CreateBody({ draft }: { draft: LeadDraft }) {
   return (
     <>
@@ -134,7 +141,9 @@ function CreateBody({ draft }: { draft: LeadDraft }) {
       </Block>
 
       <MotionBlock draft={draft} />
-      <OriginBlocks draft={draft} />
+      {draft.asks === 'ORIGIN' && <OriginBlock draft={draft} />}
+      {draft.asks === 'CAMPAIGN' && <CampaignBlock draft={draft} />}
+      {draft.asks === 'REFERRER' && <ReferrerBlock draft={draft} />}
     </>
   )
 }
@@ -163,61 +172,87 @@ function MotionBlock({ draft }: { draft: LeadDraft }) {
   )
 }
 
-/** Origin and campaign. The draft holds only what goes on the wire, so the
- *  names shown in the boxes are kept here and dropped once the draft moves on. */
-function OriginBlocks({ draft }: { draft: LeadDraft }) {
+/** The draft holds only what goes on the wire, so each block keeps the name
+ *  shown in its box and drops it once the draft moves on. */
+function OriginBlock({ draft }: { draft: LeadDraft }) {
   const [origin, setOrigin] = useState<OriginChoice | null>(null)
-  const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
-  if (!ORIGIN_BOX || !CAMPAIGN_BOX) return null
-
-  const originRaw = readField(draft.values, 'origin')
-  const shownOrigin = origin && originValue(origin) === originRaw ? origin : null
-  const campaignRaw = readField(draft.values, 'campaignCode')
-  const shownCampaign = campaign && campaign.code === campaignRaw ? campaign : null
+  if (!ORIGIN_BOX) return null
+  const raw = readField(draft.values, 'origin')
+  const shown = origin && originValue(origin) === raw ? origin : null
   const motion = readField(draft.values, 'motion') as LeadMotion | ''
-
   return (
-    <>
-      <Block
-        label="Nguồn *"
-        hint="Chọn nguồn đã có; tên mới chỉ được tạo khi lưu lead."
-        error={draft.fieldError('origin')}
-      >
-        <OriginPicker
-          label="Nguồn"
-          hideLabel
-          value={shownOrigin}
-          motion={motion === '' ? undefined : motion}
-          invalid={Boolean(draft.fieldError('origin'))}
-          onChange={(choice) => {
-            setOrigin(choice)
-            draft.set(ORIGIN_BOX, originValue(choice))
-          }}
-        />
-      </Block>
+    <Block
+      label="Nguồn *"
+      hint="Chọn nguồn đã có; tên mới chỉ được tạo khi lưu lead."
+      error={draft.fieldError('origin')}
+    >
+      <OriginPicker
+        label="Nguồn"
+        hideLabel
+        value={shown}
+        motion={motion === '' ? undefined : motion}
+        invalid={Boolean(draft.fieldError('origin'))}
+        onChange={(choice) => {
+          setOrigin(choice)
+          draft.set(ORIGIN_BOX, originValue(choice))
+        }}
+      />
+    </Block>
+  )
+}
 
-      <Block
-        label={draft.campaignRequired ? 'Chiến dịch *' : 'Chiến dịch'}
-        hint={
-          draft.campaignRequired
-            ? 'Phương án tiếp cận này bắt buộc gắn chiến dịch — lead vào luôn danh sách của nó.'
-            : 'Không bắt buộc. Gắn vào thì lead vào luôn danh sách của chiến dịch.'
-        }
-        error={draft.fieldError('campaignCode')}
-      >
-        <CampaignPicker
-          label="Chiến dịch"
-          hideLabel
-          required={draft.campaignRequired}
-          value={shownCampaign}
-          invalid={Boolean(draft.fieldError('campaignCode'))}
-          onChange={(choice) => {
-            setCampaign(choice)
-            draft.set(CAMPAIGN_BOX, choice?.code ?? '')
-          }}
-        />
-      </Block>
-    </>
+function CampaignBlock({ draft }: { draft: LeadDraft }) {
+  const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
+  if (!CAMPAIGN_BOX) return null
+  const raw = readField(draft.values, 'campaignCode')
+  const shown = campaign && campaign.code === raw ? campaign : null
+  return (
+    <Block
+      label="Chiến dịch *"
+      hint="Chỉ chiến dịch còn nhận lead. Nguồn của lead lấy theo chiến dịch, lead vào luôn danh sách của nó."
+      error={draft.fieldError('campaignCode')}
+    >
+      <CampaignPicker
+        label="Chiến dịch"
+        hideLabel
+        required
+        value={shown}
+        invalid={Boolean(draft.fieldError('campaignCode'))}
+        onChange={(choice) => {
+          setCampaign(choice)
+          draft.set(CAMPAIGN_BOX, choice?.code ?? '')
+        }}
+      />
+    </Block>
+  )
+}
+
+function ReferrerBlock({ draft }: { draft: LeadDraft }) {
+  const [partner, setPartner] = useState<PartnerChoice | null>(null)
+  if (!REFERRER_BOX) return null
+  const raw = readField(draft.values, 'refCode')
+  const shown = partner && partner.code === raw ? partner : null
+  return (
+    <Block
+      label="Mã giới thiệu *"
+      hint={
+        shown?.originName
+          ? `Nguồn lấy theo mã giới thiệu: ${shown.originName}.`
+          : 'Nguồn của lead lấy theo mã giới thiệu. Chưa có trong danh sách thì nhờ quản trị thêm.'
+      }
+      error={draft.fieldError('refCode')}
+    >
+      <PartnerPicker
+        label="Mã giới thiệu"
+        hideLabel
+        value={shown}
+        invalid={Boolean(draft.fieldError('refCode'))}
+        onChange={(choice) => {
+          setPartner(choice)
+          draft.set(REFERRER_BOX, choice.code)
+        }}
+      />
+    </Block>
   )
 }
 

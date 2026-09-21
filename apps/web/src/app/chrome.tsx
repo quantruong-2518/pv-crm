@@ -133,6 +133,13 @@ const ONE_CORE: NavEntry[] = [
     path: '/admin/lead-origins',
     permission: 'lead-origin.manage',
   },
+  {
+    /** Admin side of the partner book picked by referral/partner leads. */
+    icon: Handshake,
+    label: 'Đối tác',
+    path: '/admin/partners',
+    permission: 'lead-origin.manage',
+  },
 ]
 
 /** BottomNav (< lg) — bốn mục CHỐT theo docs/design-system/devices.md, không cấu hình

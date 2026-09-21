@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ObjectCode, Moment, Day, textInput, textInputOptional } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ConfigCode } from './config'
+import { LeadOriginId } from './lead-origin'
 import {
   MasRecipient,
   MasSendRequest,
@@ -41,6 +42,12 @@ export const CampaignBookRow = z.object({
    *  `LeadRow.source.campaignId`. */
   sourceId: ConfigCode.optional(),
   sourceName: z.string().min(1).optional(),
+
+  /** Which origin THIS CAMPAIGN'S leads get — `CAMPAIGN`-motion leads derive
+   *  their `LeadSource.origin` from here rather than picking one, same as a
+   *  `REFERRER`-motion lead derives it from its partner. `null` until an admin
+   *  names one; not every campaign needs it (see `MotionPolicy.asks`). */
+  originId: LeadOriginId.nullable(),
 
   /** Câu mở đầu ngắn hiện dưới tên chiến dịch trên bước Hồ sơ. Trang trí,
    *  không phải dữ liệu nghiệp vụ — vắng là bình thường. */
@@ -105,6 +112,7 @@ export const CampaignCreate = z.object({
   name: textInput(200),
   ownerId: textInputOptional(64),
   sourceId: ConfigCode.optional(),
+  originId: LeadOriginId.optional(),
   slogan: textInputOptional(200),
   thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
   endsOn: Day.optional(),
@@ -129,6 +137,7 @@ export const CampaignPatch = z
      *  `NULL` passes it by design rather than by luck. */
     ownerId: textInputOptional(64).nullable(),
     sourceId: ConfigCode.nullable().optional(),
+    originId: LeadOriginId.nullable().optional(),
     slogan: textInputOptional(200).nullable(),
     thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').nullable().optional(),
     endsOn: Day.nullable().optional(),
@@ -138,6 +147,7 @@ export const CampaignPatch = z
       v.name !== undefined ||
       v.ownerId !== undefined ||
       v.sourceId !== undefined ||
+      v.originId !== undefined ||
       v.slogan !== undefined ||
       v.thumbnailUrl !== undefined ||
       v.endsOn !== undefined,

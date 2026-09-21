@@ -1,6 +1,6 @@
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { LeadMotion, RoleId } from '@pv/contracts'
+import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
@@ -131,14 +131,14 @@ export class LeadWriteRepository {
     return new Set(rows.map((r) => r.id))
   }
 
-  /** The two create-door rules a motion carries (0057). `null` = no row,
-   *  which only a hand-deleted row could cause. */
+  /** The two create-door rules a motion carries (0057, `asks` since 0059).
+   *  `null` = no row, which only a hand-deleted row could cause. */
   async motionRule(
     tx: Db,
     motion: LeadMotion,
-  ): Promise<{ active: boolean; requiresCampaign: boolean } | null> {
+  ): Promise<{ active: boolean; asks: MotionAsks } | null> {
     const [row] = await tx
-      .select({ active: motionPolicy.active, requiresCampaign: motionPolicy.requiresCampaign })
+      .select({ active: motionPolicy.active, asks: motionPolicy.asks })
       .from(motionPolicy)
       .where(eq(motionPolicy.motion, motion))
       .limit(1)

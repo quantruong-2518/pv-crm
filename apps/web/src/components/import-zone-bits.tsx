@@ -1,10 +1,29 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, FileSpreadsheet, FileUp, GlassCard, Icon, Kicker, TriangleAlert, cn } from '@pv/ui'
+import {
+  Button,
+  FileSpreadsheet,
+  FileUp,
+  GlassCard,
+  Icon,
+  Kicker,
+  SegmentedControl,
+  Select,
+  TriangleAlert,
+  cn,
+} from '@pv/ui'
+import type { LeadMotion } from '@pv/engines'
 import { ACCEPT, type Sheet } from '@/data/intake-file'
-import type { BuiltRow, DupRow, ImportSpec, RowError } from '@/data/intake'
+import {
+  MOTION_FACE,
+  type BuiltRow,
+  type DupRow,
+  type ImportSpec,
+  type RowError,
+} from '@/data/intake'
 
 /** THE EDGES OF THE IMPORT PANEL — the file strip and encoding warning above
- *  the mapping, the result lists after a load, and the window-wide drop catcher.
+ *  the mapping, the batch-wide card, the result lists after a load, and the
+ *  window-wide drop catcher.
  *
  *  Split out of `import-zone.tsx` on size alone (`max-lines`). Neither half
  *  reads the pick/map state of the panel, so the seam costs no shared state.
@@ -327,7 +346,7 @@ export function FileStrip({ sheet, onChangeFile }: { sheet: Sheet; onChangeFile:
       <span className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px]">
         <span className="font-num tnum">{sheet.rows.length}</span> dòng dữ liệu{tabNote}
       </span>
-      <Button size="md" variant="ghost" onClick={onChangeFile}>
+      <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onChangeFile}>
         Đổi tệp
       </Button>
     </GlassCard>
@@ -345,6 +364,102 @@ export function MojibakeNote({ column, sample }: { column: string; sample: strin
         có dấu đều đang hỏng, không riêng cột này: lưu lại tệp dạng CSV UTF-8 rồi chọn lại, hoặc vẫn
         nạp rồi sửa tay sau.
       </p>
+    </GlassCard>
+  )
+}
+
+/** What a screen adds batch-wide for the motion on show — see
+ *  `ImportZoneProps.batchExtra`. */
+export type BatchExtra = {
+  node: ReactNode
+  /** Why the load button stays shut; absent = nothing is missing. */
+  missing?: string
+  /** Mapping fields this motion does not ask for — out of the grid and the rows. */
+  hideFields?: readonly string[]
+}
+
+/** Assigned to the WHOLE BATCH — two things no file carries but every row needs.
+ *
+ *  The motion a file never carries: nobody exports an "inbound or outbound"
+ *  column out of Apollo. A source can be carried, but loading from inside a
+ *  campaign means that campaign's code wins — the user is standing in it, and
+ *  letting them pick again is inviting one wrong pick.
+ *
+ *  The whole card DISAPPEARS when a door assigns nothing batch-wide (see
+ *  `assigns` in `StepMap`): a card down to its title is a blank to decipher. */
+export function BatchAssign({
+  count,
+  noun,
+  motion,
+  motions,
+  onMotion,
+  scope,
+  scopeOptions,
+  picked,
+  onPick,
+  sourceHint,
+  extra,
+}: {
+  count: number
+  noun: string
+  motion: LeadMotion
+  motions: readonly LeadMotion[]
+  onMotion: (m: LeadMotion) => void
+  scope?: string
+  scopeOptions?: { value: string; label: string }[]
+  picked: string
+  onPick: (value: string) => void
+  sourceHint: string
+  extra?: ReactNode
+}) {
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4">
+      <Kicker>
+        Áp cho cả {count} {noun}
+      </Kicker>
+
+      {motions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {/* SegmentedControl and not Select: both motions on show can be
+              compared, and the definition below follows the active one — a
+              popup covers exactly that sentence while it is being read. */}
+          <SegmentedControl
+            label="Phương án tiếp cận"
+            value={motion}
+            options={motions.map((m) => ({ value: m, label: MOTION_FACE[m].label }))}
+            onChange={(v) => onMotion(v as LeadMotion)}
+          />
+          <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
+            {MOTION_FACE[motion].blurb}{' '}
+            <span className="text-muted-foreground">{MOTION_FACE[motion].example}</span>
+          </p>
+        </div>
+      )}
+
+      {scope ? (
+        <div className="flex flex-col gap-2">
+          <Kicker>Nguồn</Kicker>
+          <span className="font-mono text-[12.5px] font-semibold">{scope}</span>
+        </div>
+      ) : (
+        scopeOptions && (
+          <div className="flex flex-col gap-2">
+            <Select
+              label="Nguồn khi cột Nguồn trống"
+              value={picked}
+              neutralValue=""
+              options={scopeOptions}
+              onChange={onPick}
+              /* Campaign names run to 40 characters and the box grows to its
+                 longest option — unclamped, one box swallows the whole row. */
+              className="max-w-[240px]"
+            />
+            <p className="text-glass-foreground text-[11.5px] leading-[1.7]">{sourceHint}</p>
+          </div>
+        )
+      )}
+
+      {extra}
     </GlassCard>
   )
 }

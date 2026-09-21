@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { RoleId } from '../auth'
-import { LeadMotion } from './enums'
+import { LeadMotion, MotionAsks } from './enums'
 
 /** What each of the six lead motions DECLARES about itself.
  *
@@ -94,9 +94,10 @@ export const MotionPolicy = z.object({
   /** Can a lead still be created with this motion. Off does not touch leads
    *  already carrying it. */
   active: z.boolean(),
-  /** Does THIS motion require `LeadCreate.campaignCode` — `true` for `EVENT`
-   *  by default. Server-enforced at the create door; see `LeadCreate.campaignCode`. */
-  requiresCampaign: z.boolean(),
+  /** What THIS motion asks the intake form for next — see `MotionAsks`.
+   *  Server-enforced at every create/import door, never a zod refinement,
+   *  because the door cannot know the admin's current answer. */
+  asks: MotionAsks,
 
   /** §5, first of the four: how long until the first human contact is due. */
   firstTouchMinutes: FirstTouchMinutes.nullable(),
@@ -140,7 +141,7 @@ export const MotionPolicyPatch = z
     label: z.string().min(1).nullable().optional(),
     ord: z.number().int().positive().optional(),
     active: z.boolean().optional(),
-    requiresCampaign: z.boolean().optional(),
+    asks: MotionAsks.optional(),
     firstTouchMinutes: FirstTouchMinutes.nullable().optional(),
     ownerRoleId: RoleId.nullable().optional(),
     coldMailAllowed: z.boolean().nullable().optional(),
@@ -149,6 +150,20 @@ export const MotionPolicyPatch = z
   .refine((v) => Object.keys(v).length > 0, {
     message: 'Không có ô nào được gửi lên.',
   })
+
+/** What a typist needs of each motion — `GET /sales/lead-motions`, gated by
+ *  `lead.edit` rather than `config.view`, because the people who type leads
+ *  are exactly the ones without config rights and must follow the LIVE `asks`. */
+export const LeadMotionOption = MotionPolicy.pick({
+  motion: true,
+  label: true,
+  ord: true,
+  active: true,
+  asks: true,
+})
+export const LeadMotionOptionResponse = z.object({ rows: z.array(LeadMotionOption) })
+export type LeadMotionOption = z.infer<typeof LeadMotionOption>
+export type LeadMotionOptionResponse = z.infer<typeof LeadMotionOptionResponse>
 
 export type MotionPolicy = z.infer<typeof MotionPolicy>
 export type MotionPolicyResponse = z.infer<typeof MotionPolicyResponse>

@@ -33,6 +33,7 @@ import { PicCell } from '@/components/table-bits'
 import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
+import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
 
 /** Module 2 · the cells and blocks of the lead book, split from `leads.tsx` so
@@ -166,24 +167,27 @@ const KIND_ICON: Record<LeadSourceKind, typeof Inbox> = {
 }
 
 /** Two lines: the approach (motion) with its icon, over the source detail as a
- *  pill. The pill's icon and tone say WHAT the detail is: catalog origin,
- *  campaign, or — the last fallback for a lead with none of those — the
+ *  pill. The pill's icon and tone say WHAT the detail is: partner, catalog
+ *  origin, campaign, or — the last fallback for a lead with none of those — the
  *  intake kind. Leads written before the two-level origin carry no motion: the
  *  intake kind takes line one and the pill keeps whatever else there is. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
   const { kind, motion, origin, campaignName } = lead.source
   const motionLabel = useMotionLabel()
 
+  const partner = sourcePartnerLabel(lead.source)
   const top = motion ? motionLabel(motion) : sourceKindLabel(lead.source)
   const kindLabel = motion && kind ? sourceKindLabel(lead.source) : undefined
-  const detail = origin
-    ? { label: origin.name, icon: Link, tone: 'running' as const }
-    : campaignName
-      ? { label: shortSourceName(campaignName), icon: Megaphone, tone: 'warning' as const }
-      : kindLabel && kind
-        ? { label: kindLabel, icon: KIND_ICON[kind], tone: 'draft' as const }
-        : undefined
-  const title = [top, origin?.name, campaignName ?? kindLabel].filter(Boolean).join(' · ')
+  const detail = partner
+    ? { label: partner, icon: Handshake, tone: 'success' as const }
+    : origin
+      ? { label: origin.name, icon: Link, tone: 'running' as const }
+      : campaignName
+        ? { label: shortSourceName(campaignName), icon: Megaphone, tone: 'warning' as const }
+        : kindLabel && kind
+          ? { label: kindLabel, icon: KIND_ICON[kind], tone: 'draft' as const }
+          : undefined
+  const title = [top, origin?.name, partner, campaignName ?? kindLabel].filter(Boolean).join(' · ')
   const face = motion && MOTION_FACE[motion]
 
   return (

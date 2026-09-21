@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ConfigCode } from './config'
 import { LeadMotion, LeadSourceKind } from './enums'
 import { LeadOriginId } from './lead-origin'
+import { PartnerCode } from './partner'
 
 /** Where a lead came from — ONE object, two facts, one label table.
  *
@@ -34,7 +35,10 @@ import { LeadOriginId } from './lead-origin'
  *     the Performance screen needs its "no campaign" group to stay truthful.
  *   · `campaignId` present but `campaignName` absent — the campaign row was
  *     turned off or deleted underneath the lead. The screen falls back to a
- *     neutral label rather than printing the bare code. */
+ *     neutral label rather than printing the bare code.
+ *
+ *  One exception: `partnerCode` is REQUIRED (though nullable) — every lead has
+ *  a real answer to "which partner", `null` included, so it is never absent. */
 export const LeadSource = z.object({
   kind: LeadSourceKind.optional(),
   campaignId: ConfigCode.optional(),
@@ -45,6 +49,13 @@ export const LeadSource = z.object({
   /** Level 2 — the catalog pick. `name` rides along for the same reason
    *  `campaignName` does: the id is for comparing, this is for printing. */
   origin: z.object({ id: LeadOriginId, name: z.string().min(1) }).optional(),
+  /** Set only for `REFERRER`-motion leads: the partner who sent this row, and
+   *  the origin above is then DERIVED from the partner's `originId` rather
+   *  than picked. `null`, not absent — a referred lead always HAS an answer
+   *  to "which partner", so the field is a real column, not one write-doors
+   *  never touch. */
+  partnerCode: PartnerCode.nullable(),
+  partnerName: z.string().min(1).optional(),
 })
 
 export type LeadSource = z.infer<typeof LeadSource>

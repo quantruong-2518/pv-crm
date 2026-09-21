@@ -43,7 +43,7 @@ import { useDirectory } from '@/data/directory'
 import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
-import { OriginPicker, type OriginChoice } from '@/components/lead-origin-pickers'
+import { useLeadImportBatch } from '@/components/lead-import-batch'
 import { MasMailModal } from '@/components/mas-mail-modal'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
@@ -459,9 +459,9 @@ export function LeadsPage() {
      bên đã ghi thật — xem docblock `onCommit` ở `components/import-zone.tsx`.
      Hàm này không bao giờ ném, vì `runLeadImport` đã đổi mọi lời từ chối thành
      một báo cáo nói đúng những gì đã vào sổ. */
-  /* Origin for the whole batch — drawn inside the import panel, held here
-     because the commit below is where it goes onto the wire. */
-  const [importOrigin, setImportOrigin] = useState<OriginChoice | null>(null)
+  /* The batch-wide origin / campaign / partner pick — drawn inside the import
+     panel, held here because the commit below is where it goes onto the wire. */
+  const importBatch = useLeadImportBatch()
 
   const commitLeads = async ({
     rows,
@@ -469,12 +469,7 @@ export function LeadsPage() {
     fileName,
     scope,
   }: ImportCommit & { scope?: string }) => {
-    const origin = importOrigin
-      ? importOrigin.id
-        ? { id: importOrigin.id }
-        : { name: importOrigin.name }
-      : undefined
-    const run = await loadFile({ rows, motion, fileName, source: scope, origin })
+    const run = await loadFile({ rows, motion, fileName, ...importBatch.wireOf(motion, scope) })
     /* The codes ride ALONG with the report rather than inside it, because
        `runLeadImport` has to answer for the preview-only path too — where rows
        survived and nothing was written. Joining them here is what lets step 3
@@ -617,14 +612,7 @@ export function LeadsPage() {
                 spec={leadSpec}
                 existingKeys={NO_LOCAL_KEYS}
                 scopeOptions={importSourceOptions}
-                batchExtra={
-                  <OriginPicker
-                    label="Nguồn lead cho cả lô — dùng cho dòng để trống cột Nguồn lead"
-                    value={importOrigin}
-                    onChange={setImportOrigin}
-                    onClear={() => setImportOrigin(null)}
-                  />
-                }
+                batchExtra={importBatch.extra}
                 buttonLabel="Nhập từ file"
                 onCommit={commitLeads}
                 onSeeResult={() => {

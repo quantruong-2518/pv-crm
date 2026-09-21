@@ -8,6 +8,7 @@ import { CampaignModule } from '../campaign/campaign.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
 import { ContactModule } from '../contact/contact.module'
 import { MeetingModule } from '../meeting/meeting.module'
+import { PartnerModule } from '../partner/partner.module'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { LeadContactController } from './lead-contact.controller'
@@ -81,6 +82,8 @@ import { LeadCommsHook } from './lead-comms.hook'
        create door enrols a picked campaign — both via exported services. */
     LeadOriginModule,
     CampaignModule,
+    /* A REFERRER-motion lead names its partner; `PartnerService.live` checks it. */
+    PartnerModule,
   ],
   controllers: [LeadController, LeadIntakeController, LeadContactController],
   providers: [

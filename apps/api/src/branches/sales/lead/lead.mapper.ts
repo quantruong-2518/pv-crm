@@ -95,6 +95,8 @@ export type LeadRead = {
   campaignName: string | null
   /** Name of `origin_id`'s catalog row, from the `lead_origin` left join. */
   originName: string | null
+  /** Name of `partner_code`'s row, from the `partner` left join. */
+  partnerName: string | null
   signed: boolean
 }
 
@@ -122,13 +124,15 @@ export type LeadRead = {
  *  as a value it has to special-case. The object itself is always present even
  *  when empty — the contract requires it, so the screen reads `source.kind`
  *  rather than guarding one more level. */
-function sourceOf({ row, campaignName, originName }: LeadRead) {
+function sourceOf({ row, campaignName, originName, partnerName }: LeadRead) {
   return {
     ...(row.sourceKind ? { kind: row.sourceKind } : {}),
     ...(row.campaignId ? { campaignId: row.campaignId } : {}),
     ...(campaignName ? { campaignName } : {}),
     ...(row.motion ? { motion: row.motion } : {}),
     ...(row.originId && originName ? { origin: { id: row.originId, name: originName } } : {}),
+    partnerCode: row.partnerCode,
+    ...(row.partnerCode && partnerName ? { partnerName } : {}),
   }
 }
 

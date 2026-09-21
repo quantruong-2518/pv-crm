@@ -134,10 +134,10 @@ export function buildLeadPatch(base: ProfileForm, work: ProfileForm): PatchResul
   const candidate: Record<string, unknown> = {}
 
   for (const key of changedFields(base, work)) {
-    /* The three create-only boxes `changedFields` also tracks
-       (`data/lead-form.ts`) — no profile column holds them, so the patch door
-       has nothing to send for them. */
-    if (key === 'motion' || key === 'origin' || key === 'campaignCode') continue
+    /* The create-only boxes `changedFields` also tracks (`data/lead-form.ts`)
+       — no profile column holds them, so the patch door has nothing to send. */
+    if (key === 'motion' || key === 'origin' || key === 'campaignCode' || key === 'refCode')
+      continue
     const wire = wireKeyOf(key)
     if (!wire) continue
 

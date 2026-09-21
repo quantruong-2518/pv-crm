@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, Combobox, type ComboboxOption } from '@pv/ui'
+import { Button, Combobox, Select, type ComboboxOption } from '@pv/ui'
 import type { LeadMotion, LeadOrigin } from '@pv/contracts'
-import { leadOriginsQuery, pickableCampaignsQuery } from '@/data/lead-origins'
+import { leadOriginsQuery, pickableCampaignsQuery, useOriginNames } from '@/data/lead-origins'
+import { partnerLabel, partnersQuery } from '@/data/partners'
 import { dm } from '@/lib/date'
 
-/** The two search-as-you-type pickers of a lead's origin — origin and campaign.
+/** The search-as-you-type pickers of a lead's origin — origin, campaign and
+ *  partner — plus `OriginSelect`, the short catalog list admin screens pin to.
  *
  *  Both own their search text and debounce it into the list endpoint; the
  *  caller owns only the pick. `Combobox` itself never fetches (`@pv/ui` knows
@@ -160,5 +162,103 @@ export function CampaignPicker({
         </Button>
       )}
     </div>
+  )
+}
+
+/** `originName` is the origin the server will DERIVE for a referred lead —
+ *  carried so the form can show it without asking again. */
+export type PartnerChoice = { code: string; name: string; originName?: string }
+
+/** Partners only; none is created from here — the partner book is admin's. */
+export function PartnerPicker({
+  label,
+  value,
+  onChange,
+  invalid,
+  hideLabel,
+}: {
+  label: string
+  value: PartnerChoice | null
+  onChange: (choice: PartnerChoice) => void
+  invalid?: boolean
+  hideLabel?: boolean
+}) {
+  const [query, setQuery] = useState('')
+  const q = useSettled(query.trim())
+  const { data, isFetching } = useQuery(partnersQuery({ q: q === '' ? undefined : q }))
+  const originNames = useOriginNames()
+  const rows = data?.rows ?? []
+
+  return (
+    <Combobox
+      label={label}
+      hideLabel={hideLabel}
+      size="lg"
+      className="min-w-0"
+      value={value?.code ?? ''}
+      valueLabel={value ? partnerLabel(value.code, value.name) : undefined}
+      query={query}
+      onQueryChange={setQuery}
+      options={rows.map((p) => ({
+        value: p.code,
+        label: partnerLabel(p.code, p.name),
+        hint: originNames.get(p.originId),
+      }))}
+      onSelect={(option) => {
+        const partner = rows.find((p) => p.code === option.value)
+        if (partner) {
+          onChange({
+            code: partner.code,
+            name: partner.name,
+            originName: originNames.get(partner.originId),
+          })
+        }
+      }}
+      placeholder="Gõ mã REF hoặc tên đối tác"
+      emptyText="Không có mã giới thiệu nào khớp — thêm ở trang Đối tác"
+      loading={isFetching}
+      invalid={invalid}
+    />
+  )
+}
+
+/** A plain list of catalog origins, optionally only those filed under any of
+ *  `motions` — short enough that a Select beats a search box. The stored value
+ *  stays listed even once hidden, so an old pick never reads as blank. */
+export function OriginSelect({
+  label,
+  value,
+  onChange,
+  motions,
+  emptyLabel,
+  hideLabel,
+}: {
+  label: string
+  value: string
+  onChange: (id: string) => void
+  /** Absent = every origin; empty = none (nothing asks for them yet). */
+  motions?: readonly LeadMotion[]
+  /** The row standing for "nothing picked" (value `''`). */
+  emptyLabel: string
+  hideLabel?: boolean
+}) {
+  const { data } = useQuery(leadOriginsQuery({ includeInactive: true }))
+  const rows = (data?.rows ?? []).filter(
+    (o) =>
+      (o.active || o.id === value) &&
+      !o.mergedInto &&
+      (!motions || o.motions.some((m) => motions.includes(m))),
+  )
+  const options = rows.map((o) => ({ value: o.id, label: o.active ? o.name : `${o.name} · đã ẩn` }))
+
+  return (
+    <Select
+      label={label}
+      hideLabel={hideLabel}
+      size="lg"
+      value={value}
+      onChange={onChange}
+      options={[{ value: '', label: emptyLabel }, ...options]}
+    />
   )
 }

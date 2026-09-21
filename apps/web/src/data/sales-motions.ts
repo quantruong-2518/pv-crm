@@ -6,6 +6,9 @@ import {
   type ConfigProposalReceipt,
   type LeadMotion,
   type LeadSide,
+  LeadMotionOptionResponse,
+  type LeadMotionOption,
+  type MotionAsks,
   type MotionPolicy,
   type MotionPolicyPatch,
   type MotionPolicyResponse,
@@ -17,6 +20,7 @@ import { useCan } from '@/app/auth'
  *
  *      GET   /sales/config/motions          permission `config.view`
  *      PATCH /sales/config/motions/:motion  permission `config.propose` → 202
+ *      GET   /sales/lead-motions            permission `lead.edit` — the typist's view
  *
  *  ------------------------------------------------------------------
  *  THE WRITE DOOR DOES NOT WRITE
@@ -77,36 +81,41 @@ export type MotionChoice = {
   motion: LeadMotion
   label: string
   side: LeadSide
-  requiresCampaign: boolean
+  asks: MotionAsks
 }
 
-export const motionLabelOf = (policy: MotionPolicy): string =>
+/** What a typist needs of each motion, readable with `lead.edit` alone — the
+ *  create form and the import panel follow the LIVE `asks`, never a copy. */
+const OPTIONS_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
+
+export const leadMotionsQuery = () =>
+  queryOptions({
+    queryKey: ['sales', 'lead-motions'] as const,
+    queryFn: ({ signal }) =>
+      api.read<LeadMotionOptionResponse>('/sales/lead-motions', {
+        need: OPTIONS_NEED,
+        schema: LeadMotionOptionResponse,
+        signal,
+      }),
+    select: (d: LeadMotionOptionResponse) => d.rows,
+  })
+
+export const motionLabelOf = (policy: Pick<MotionPolicy, 'motion' | 'label'>): string =>
   policy.label ?? MOTION_LABEL[policy.motion]
 
-/** `allowed` narrows to what the calling door accepts. Without policies (no
- *  `config.view`, or still in flight) every allowed motion is offered in
- *  contract order and nothing is marked as needing a campaign — the server
- *  still enforces `requiresCampaign` at the create door. */
+/** `allowed` narrows to what the calling door accepts; inactive motions drop. */
 export function motionChoices(
   allowed: readonly LeadMotion[],
-  policies: readonly MotionPolicy[] | undefined,
+  rows: readonly LeadMotionOption[],
 ): MotionChoice[] {
-  if (!policies) {
-    return allowed.map((motion) => ({
-      motion,
-      label: MOTION_LABEL[motion],
-      side: MOTION_SIDE[motion],
-      requiresCampaign: false,
-    }))
-  }
-  return policies
+  return rows
     .filter((p) => p.active && allowed.includes(p.motion))
     .sort((a, b) => a.ord - b.ord)
     .map((p) => ({
       motion: p.motion,
       label: motionLabelOf(p),
       side: MOTION_SIDE[p.motion],
-      requiresCampaign: p.requiresCampaign,
+      asks: p.asks,
     }))
 }
 
@@ -124,10 +133,26 @@ export function useMotionLabel(): (motion: LeadMotion) => string {
   )
 }
 
-/** The motion policies, read only when the reader holds `config.view` — an
- *  account executive types leads without it, and gets the fallback above. */
+/** Empty while the list is in flight — the form then offers no motion and
+ *  draws nothing below it, rather than guessing what a motion asks. */
 export function useMotionChoices(allowed: readonly LeadMotion[], enabled = true): MotionChoice[] {
-  const canView = useCan('config.view')
-  const { data } = useQuery({ ...salesMotionsQuery(), enabled: enabled && canView })
-  return useMemo(() => motionChoices(allowed, data), [allowed, data])
+  const { data } = useQuery({ ...leadMotionsQuery(), enabled })
+  return useMemo(() => motionChoices(allowed, data ?? []), [allowed, data])
+}
+
+/** Motion → what the intake asks next, for the import panel, which offers
+ *  motions of its own. `undefined` = not loaded yet, or the motion is off. */
+export function useMotionAsks(): (motion: LeadMotion) => MotionAsks | undefined {
+  const { data } = useQuery(leadMotionsQuery())
+  return useCallback(
+    (motion: LeadMotion) => data?.find((p) => p.motion === motion && p.active)?.asks,
+    [data],
+  )
+}
+
+/** Motions whose live `asks` is `REFERRER` — the ones a partner's kind must
+ *  be filed under. `undefined` while loading. */
+export function useReferrerMotions(): LeadMotion[] | undefined {
+  const { data } = useQuery(leadMotionsQuery())
+  return useMemo(() => data?.filter((p) => p.asks === 'REFERRER').map((p) => p.motion), [data])
 }

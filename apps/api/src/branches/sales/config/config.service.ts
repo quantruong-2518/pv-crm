@@ -6,6 +6,7 @@ import {
   ConfigProposalReceipt,
   isLadder,
   MotionPolicyResponse,
+  LeadMotionOptionResponse,
   type LeadMotion,
   type MotionPolicyPatch,
   type ConfigEntryCreate,
@@ -137,6 +138,11 @@ export class SalesConfigService implements ApprovalApplier {
    *  nothing, which is most of them and is the honest answer. */
   async motions(): Promise<MotionPolicyResponse> {
     return MotionPolicyResponse.parse({ rows: await this.repo.motions() })
+  }
+
+  /** The typist's slice of the same rows; `parse` drops the policy columns. */
+  async motionOptions(): Promise<LeadMotionOptionResponse> {
+    return LeadMotionOptionResponse.parse({ rows: await this.repo.motions() })
   }
 
   /** Change one motion's declaration. Like every other write on this module it

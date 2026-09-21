@@ -89,9 +89,10 @@ export type FormMode = 'edit' | 'create'
  *  thất vọng — và trên tablet thì nó còn ăn mất một vùng chạm 48px. */
 export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 'read'
 
-/** The create door draws three boxes no stored profile has a column for —
- *  `motion`, `origin` and `campaignCode` say how the lead got here. */
-export type FieldKey = keyof LeadProfile | 'motion' | 'origin' | 'campaignCode'
+/** The create door draws boxes no stored profile has a column for — `motion`,
+ *  then ONE of `origin` · `campaignCode` · `refCode`, as the motion's `asks`
+ *  says, tell how the lead got here. */
+export type FieldKey = keyof LeadProfile | 'motion' | 'origin' | 'campaignCode' | 'refCode'
 
 export type ProfileField = {
   key: keyof LeadProfile
@@ -125,10 +126,15 @@ export type ProfileField = {
  *  wider, so both forms draw through one set of components. */
 export type FormField = Omit<ProfileField, 'key'> & { key: FieldKey }
 
-/** What the boxes hold: the frozen profile shape plus the three create-only
- *  boxes, ABSENT on a lead that already exists. `origin` is the pick encoded
- *  as one string (`originValue`) so dirty tracking stays a string compare. */
-export type FormValues = LeadProfile & { motion?: string; origin?: string; campaignCode?: string }
+/** What the boxes hold: the frozen profile shape plus the create-only boxes,
+ *  ABSENT on a lead that already exists. `origin` is the pick encoded as one
+ *  string (`originValue`) so dirty tracking stays a string compare. */
+export type FormValues = LeadProfile & {
+  motion?: string
+  origin?: string
+  campaignCode?: string
+  refCode?: string
+}
 
 const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
@@ -573,7 +579,7 @@ const MOTION_FIELD: FormField = {
   label: 'Phương án tiếp cận',
   kind: 'select',
   group: 'system',
-  hint: 'Ai chủ động trước. Sự kiện phải gắn một chiến dịch.',
+  hint: 'Ai chủ động trước. Mỗi phương án hỏi tiếp đúng một ô: nguồn, chiến dịch hoặc mã giới thiệu.',
 }
 
 /** Level 2 of the origin. Drawn by `OwnerSourceCard` through a Combobox, but
@@ -583,6 +589,13 @@ const ORIGIN_FIELD: FormField = { key: 'origin', label: 'Nguồn', kind: 'select
 const CAMPAIGN_FIELD: FormField = {
   key: 'campaignCode',
   label: 'Chiến dịch',
+  kind: 'select',
+  group: 'system',
+}
+
+const REFERRER_FIELD: FormField = {
+  key: 'refCode',
+  label: 'Mã giới thiệu',
   kind: 'select',
   group: 'system',
 }
@@ -625,17 +638,23 @@ export const CREATE_FIELDS: FormField[] = [
   MOTION_FIELD,
   ORIGIN_FIELD,
   CAMPAIGN_FIELD,
+  REFERRER_FIELD,
 ]
 
 /** The boxes the "Phụ trách và nguồn" card draws through this blueprint, so its
  *  labels and options cannot drift from the form's.
  *
- *  The three create-only boxes — motion, origin, campaign. The holder is
+ *  The create-only boxes — motion, then origin, campaign or referrer. The holder is
  *  PRINTED there, not drawn: it has its own write door
  *  (`PATCH /sales/leads/:code/owner`). A declared box nobody draws is a field
  *  that quietly leaves the screen, which is how `bdOwner` and `marketingOwner`
  *  vanished before 17/09. */
-export const OWNER_SOURCE_FIELDS: FormField[] = [MOTION_FIELD, ORIGIN_FIELD, CAMPAIGN_FIELD]
+export const OWNER_SOURCE_FIELDS: FormField[] = [
+  MOTION_FIELD,
+  ORIGIN_FIELD,
+  CAMPAIGN_FIELD,
+  REFERRER_FIELD,
+]
 
 /** Wire name → the box that carries it, so a complaint the server keys by
  *  CONTRACT field can be printed under the box that caused it.
@@ -684,7 +703,13 @@ export function writeField(field: FormField, raw: string): FormValues[FieldKey] 
  *  `PROFILE_FIELDS` — kẻo đổi mỗi ô "Thế" không tính là dirty và nút "Xoá
  *  hết" ở cửa tạo cứ đứng im khoá. */
 export function changedFields(base: FormValues, work: FormValues): FieldKey[] {
-  const keys: FieldKey[] = [...PROFILE_FIELDS.map((f) => f.key), 'motion', 'origin', 'campaignCode']
+  const keys: FieldKey[] = [
+    ...PROFILE_FIELDS.map((f) => f.key),
+    'motion',
+    'origin',
+    'campaignCode',
+    'refCode',
+  ]
   return keys.filter((k) => base[k] !== work[k])
 }
 

@@ -113,3 +113,16 @@ export class SalesConfigController {
     return this.config.patch(who, list, id, body)
   }
 }
+
+/** `GET /sales/lead-motions` — the live `asks` for whoever types a lead. On
+ *  `lead.edit`, not `config.view`: typists lack config rights yet must follow it. */
+@Controller('sales/lead-motions')
+export class LeadMotionController {
+  constructor(private readonly config: SalesConfigService) {}
+
+  @Get()
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
+  list() {
+    return this.config.motionOptions()
+  }
+}

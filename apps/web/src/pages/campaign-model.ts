@@ -25,12 +25,23 @@ export type ProfileDraft = {
   thumbnailUrl: string
   ownerId: string
   sourceId: string
+  /** The origin this campaign's leads inherit (`CAMPAIGN`-asking motions);
+   *  `''` = not named yet. */
+  originId: string
   /** `YYYY-MM-DD` as the date box reads it; `''` = open-ended. */
   endsOn: string
 }
 
 export function emptyProfile(): ProfileDraft {
-  return { name: '', slogan: '', thumbnailUrl: '', ownerId: '', sourceId: '', endsOn: '' }
+  return {
+    name: '',
+    slogan: '',
+    thumbnailUrl: '',
+    ownerId: '',
+    sourceId: '',
+    originId: '',
+    endsOn: '',
+  }
 }
 
 export function profileFrom(c: CampaignProfile): ProfileDraft {
@@ -40,6 +51,7 @@ export function profileFrom(c: CampaignProfile): ProfileDraft {
     thumbnailUrl: c.thumbnailUrl ?? '',
     ownerId: c.ownerId ?? '',
     sourceId: c.sourceId ?? '',
+    originId: c.originId ?? '',
     endsOn: c.endsOn ?? '',
   }
 }

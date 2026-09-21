@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { LeadCreate, type LeadCreateResponse } from '@pv/contracts'
+import {
+  LeadCreate,
+  MOTION_ASKS_MISSING,
+  type LeadCreateResponse,
+  type MotionAsks,
+} from '@pv/contracts'
 import type { CurrencyCode, LeadCategory, LeadTier } from '@pv/engines/fixtures/das-vina'
 import { api, userMessage, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import {
@@ -8,6 +13,7 @@ import {
   isRequiredOnCreate,
   originPickOf,
   readField,
+  type FieldKey,
   type FormValues,
 } from '@/data/lead-form'
 
@@ -162,6 +168,7 @@ export const emptyDraft = (): FormValues => ({
   motion: DEFAULT_MOTION,
   origin: '',
   campaignCode: '',
+  refCode: '',
 })
 
 // ---------------------------------------------------------------------------
@@ -188,6 +195,15 @@ function fieldErrorsOf(
   }
   return errors
 }
+
+/** The box each `MotionAsks` answer requires. */
+const ASKED = {
+  ORIGIN: 'origin',
+  CAMPAIGN: 'campaignCode',
+  REFERRER: 'refCode',
+} as const satisfies Record<MotionAsks, FieldKey>
+
+const ASKED_KEYS = new Set<FieldKey>(Object.values(ASKED))
 
 /** Draft → body, validated by THE CONTRACT ITSELF.
  *
@@ -218,15 +234,12 @@ function fieldErrorsOf(
  *  Required fields keep the opposite treatment — a blank one is SENT as `''`
  *  so the contract answers "Không được để trống" against that field, rather
  *  than the form quietly posting three fields and calling it a lead. */
-export function buildLeadCreate(
-  values: FormValues,
-  opts: { campaignRequired?: boolean } = {},
-): BuildResult {
+export function buildLeadCreate(values: FormValues, asks: MotionAsks): BuildResult {
   const candidate: Record<string, unknown> = {}
 
   for (const field of CREATE_FIELDS) {
     const wire = createWireOf(field)
-    if (!wire || field.key === 'origin') continue
+    if (!wire || ASKED_KEYS.has(field.key)) continue
 
     const raw = readField(values, field.key)
     if (field.kind === 'num' || field.kind === 'money') {
@@ -241,16 +254,16 @@ export function buildLeadCreate(
     candidate[wire] = raw
   }
 
-  candidate.origin = originPickOf(values.origin)
+  /* Exactly the one box the motion asks for travels — the server refuses a
+     second one rather than merging it. */
+  const asked = ASKED[asks]
+  const raw = readField(values, asked)
+  if (raw !== '') candidate[asked] = asks === 'ORIGIN' ? originPickOf(raw) : raw
 
   const parsed = LeadCreate.safeParse(candidate)
   const errors = parsed.success ? {} : fieldErrorsOf(parsed.error.issues)
-  /* Two rules zod cannot word: a missing union reads "Invalid input", and the
-     campaign requirement is motion-policy DATA the contract does not carry. */
-  if (candidate.origin === undefined) errors.origin = ['Chưa chọn nguồn']
-  if (opts.campaignRequired && !values.campaignCode) {
-    errors.campaignCode = ['Phương án tiếp cận này cần gắn một chiến dịch']
-  }
+  /* zod cannot word this: which box is required is motion-policy DATA. */
+  if (candidate[asked] === undefined) errors[asked] = [MOTION_ASKS_MISSING[asks]]
   if (parsed.success && Object.keys(errors).length === 0) return { ok: true, body: parsed.data }
   return { ok: false, errors }
 }

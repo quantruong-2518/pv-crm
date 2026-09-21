@@ -11,7 +11,6 @@ import {
   Kicker,
   Progress,
   SectionTitle,
-  SegmentedControl,
   Select,
   Stepper,
   cn,
@@ -31,7 +30,6 @@ import {
   buildRows,
   errorRows,
   guessMapping,
-  MOTION_FACE,
   originTally,
   sampleRows,
   trustOf,
@@ -43,6 +41,7 @@ import {
   type ImportSpec,
 } from '@/data/intake'
 import {
+  BatchAssign,
   DoneRows,
   DroppedRows,
   FailedRows,
@@ -50,6 +49,7 @@ import {
   MojibakeNote,
   Tally,
   WindowDropCatcher,
+  type BatchExtra,
 } from '@/components/import-zone-bits'
 
 /** Luồng nạp tệp — MỘT component cho cả ba sổ.
@@ -117,10 +117,10 @@ export type ImportZoneProps = {
   /** Danh sách nguồn để người dùng CHỌN, dùng khi nạp từ sổ chứ không từ trong
    *  một hồ sơ. Bỏ qua khi `scope` có giá trị — cố định thắng chọn. */
   scopeOptions?: { value: string; label: string }[]
-  /** One more batch-wide control the screen owns — the lead book's origin
-   *  picker. Drawn inside the "apply to all" card; its value never passes
-   *  through the panel, the screen reads it back in `onCommit`. */
-  batchExtra?: ReactNode
+  /** The batch-wide control the screen owns for the motion on show — the lead
+   *  book's origin, campaign or partner pick. Drawn inside the "apply to all"
+   *  card; its value never passes through the panel, `onCommit` reads it. */
+  batchExtra?: (motion: LeadMotion) => BatchExtra
   /** Nạp thật — màn tự đẩy dòng vào sổ của nó và tự bắn toast.
    *
    *  Panel KHÔNG tự ghi vào kho: ba sổ ghi vào ba chỗ khác nhau và dựng dòng
@@ -251,6 +251,10 @@ export function ImportZone({
     }
   }
 
+  const extra = batchExtra?.(motion)
+  const liveSpec = extra?.hideFields
+    ? { ...spec, fields: spec.fields.filter((f) => !extra.hideFields?.includes(f.key)) }
+    : spec
   /** Nguồn thật của lô: cố định thắng chọn, chọn thắng bỏ trống. */
   const effectiveScope = scope ?? (picked === '' ? undefined : picked)
 
@@ -260,7 +264,7 @@ export function ImportZone({
     setPhase('run')
     setDone(0)
 
-    const built = await buildRows(sheet, mapping, spec, existingKeys, (n) => setDone(n))
+    const built = await buildRows(sheet, mapping, liveSpec, existingKeys, (n) => setDone(n))
 
     /* Khối nạp đứng nguyên ở "Đang nạp" cho tới khi người ghi trả lời. Nhảy sang
        bảng kết quả trước đó là vẽ bốn con số chưa ai xác nhận, rồi sửa chúng
@@ -301,7 +305,7 @@ export function ImportZone({
     setPhase('done')
   }
 
-  const missing = sheet ? unmappedRequired(mapping, spec) : []
+  const missing = sheet ? unmappedRequired(mapping, liveSpec) : []
   /* Không có `motions` = luồng này không hỏi thế, và bước 2 giấu hẳn ô đó —
      xem docblock của `ImportSpec.motions`. `motion` vẫn giữ `defaultMotion` để
      `onCommit` luôn chở một giá trị; cửa nào không có cột thế thì bỏ nó ở
@@ -341,14 +345,18 @@ export function ImportZone({
                 ? 'Nạp xong — đóng panel để về sổ.'
                 : missing.length > 0
                   ? `Còn thiếu cột: ${missing.join(' · ')}`
-                  : trust.blurb}
+                  : (extra?.missing ?? trust.blurb)}
             </span>
             <div className="flex items-center gap-3">
               <Button size="md" variant="ghost" onClick={close}>
                 {phase === 'done' ? 'Đóng' : 'Huỷ'}
               </Button>
               {phase === 'map' && (
-                <Button size="md" disabled={missing.length > 0} onClick={() => void run()}>
+                <Button
+                  size="md"
+                  disabled={missing.length > 0 || extra?.missing !== undefined}
+                  onClick={() => void run()}
+                >
                   Nạp {sheet?.rows.length ?? 0} dòng
                 </Button>
               )}
@@ -383,7 +391,7 @@ export function ImportZone({
           ) : (
             sheet && (
               <StepMap
-                spec={spec}
+                spec={liveSpec}
                 sheet={sheet}
                 mapping={mapping}
                 onMap={(key, at) => {
@@ -400,7 +408,7 @@ export function ImportZone({
                 scopeOptions={scope ? undefined : scopeOptions}
                 picked={picked}
                 onPick={setPicked}
-                batchExtra={batchExtra}
+                batchExtra={extra?.node}
                 locked={phase !== 'map'}
               />
             )
@@ -583,92 +591,6 @@ function SkippedFields({
       >
         Khớp thêm
       </button>
-    </GlassCard>
-  )
-}
-
-/** Assigned to the WHOLE BATCH — two things no file carries but every row needs.
- *
- *  The motion a file never carries: nobody exports an "inbound or outbound"
- *  column out of Apollo. A source can be carried, but loading from inside a
- *  campaign means that campaign's code wins — the user is standing in it, and
- *  letting them pick again is inviting one wrong pick.
- *
- *  The whole card DISAPPEARS when a door assigns nothing batch-wide (see
- *  `assigns` in `StepMap`): a card down to its title is a blank to decipher. */
-function BatchAssign({
-  count,
-  noun,
-  motion,
-  motions,
-  onMotion,
-  scope,
-  scopeOptions,
-  picked,
-  onPick,
-  sourceHint,
-  extra,
-}: {
-  count: number
-  noun: string
-  motion: LeadMotion
-  motions: readonly LeadMotion[]
-  onMotion: (m: LeadMotion) => void
-  scope?: string
-  scopeOptions?: { value: string; label: string }[]
-  picked: string
-  onPick: (value: string) => void
-  sourceHint: string
-  extra?: ReactNode
-}) {
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4">
-      <Kicker>
-        Áp cho cả {count} {noun}
-      </Kicker>
-
-      {motions.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {/* SegmentedControl and not Select: both motions on show can be
-              compared, and the definition below follows the active one — a
-              popup covers exactly that sentence while it is being read. */}
-          <SegmentedControl
-            label="Thế tiếp cận"
-            value={motion}
-            options={motions.map((m) => ({ value: m, label: MOTION_FACE[m].label }))}
-            onChange={(v) => onMotion(v as LeadMotion)}
-          />
-          <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-            {MOTION_FACE[motion].blurb}{' '}
-            <span className="opacity-70">{MOTION_FACE[motion].example}</span>
-          </p>
-        </div>
-      )}
-
-      {scope ? (
-        <div className="flex flex-col gap-2">
-          <Kicker>Nguồn</Kicker>
-          <span className="font-mono text-[12.5px] font-semibold">{scope}</span>
-        </div>
-      ) : (
-        scopeOptions && (
-          <div className="flex flex-col gap-2">
-            <Select
-              label="Nguồn khi cột Nguồn trống"
-              value={picked}
-              neutralValue=""
-              options={scopeOptions}
-              onChange={onPick}
-              /* Tên chiến dịch dài tới 40 ký tự và `<select>` gốc nở theo option
-                 dài nhất — không kẹp thì một ô nuốt cả hàng. */
-              className="max-w-[240px]"
-            />
-            <p className="text-glass-foreground text-[11.5px] leading-[1.7]">{sourceHint}</p>
-          </div>
-        )
-      )}
-
-      {extra}
     </GlassCard>
   )
 }

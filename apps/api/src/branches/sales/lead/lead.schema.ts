@@ -25,6 +25,7 @@ import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
+import { partner } from '../partner/partner.schema'
 import { sales } from '../sales.schema'
 import { workstream } from '../workstream/workstream.schema'
 
@@ -258,6 +259,9 @@ export const lead = sales.table(
     /** The text the door was given for the origin (a typed name, a
      *  `utm_source`), whether or not it resolved — the evidence behind `origin_id`. */
     originRaw: text('origin_raw'),
+    /** The referrer, when `motion_policy.asks` is REFERRER. Not in
+     *  `lead_no_blank`, like `origin_id`: '' can never match a `REF-` code. */
+    partnerCode: text('partner_code').references(() => partner.code),
     /** Chiến dịch được quy công — dây nối module 1 ↔ module 2. Giá trị là `id`
      *  của một dòng `sales.config_entry` trong danh mục `SOURCE`.
      *
@@ -358,6 +362,8 @@ export const lead = sales.table(
     /** "How many leads came from origin X" — the Performance breakdown under
      *  each motion, and the repoint step of an origin merge. */
     index('lead_origin_idx').on(t.originId),
+    /** "Which leads did partner REF-x bring" — the referrer's own tally. */
+    index('lead_partner_idx').on(t.partnerCode),
     /** "Everything belonging to this run" — the book screen groups by this
      *  column, and it is the hottest join of the feature. */
     index('lead_workstream_idx').on(t.workstreamCode),

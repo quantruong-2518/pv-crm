@@ -104,6 +104,11 @@ const WIRE_MOTION: Partial<Record<LeadMotion, LeadImportBody['motion']>> = {
   recycle: 'RECYCLE',
 }
 
+/** `WIRE_MOTION` read from outside — the panel asks the policy of a motion in
+ *  the contract's spelling, and must not grow a conversion of its own. */
+export const wireMotionOf = (motion: LeadMotion): LeadImportBody['motion'] | undefined =>
+  WIRE_MOTION[motion]
+
 export type LeadImportInput = {
   /** Rows the panel already built, each carrying its first cell verbatim. */
   rows: readonly ImportableRow[]
@@ -116,6 +121,10 @@ export type LeadImportInput = {
   source?: string
   /** Origin for the whole batch — see `ImportBatchChoices.origin`. */
   origin?: LeadImportBody['origin']
+  /** Partner for the whole batch — see `ImportBatchChoices.refCode`. */
+  refCode?: LeadImportBody['refCode']
+  /** Campaign for the whole batch — see `ImportBatchChoices.campaignCode`. */
+  campaignCode?: LeadImportBody['campaignCode']
   signal?: AbortSignal
 }
 
@@ -179,6 +188,8 @@ export async function runLeadImport(input: LeadImportInput): Promise<LeadImportR
     motion,
     source: input.source,
     origin: input.origin,
+    refCode: input.refCode,
+    campaignCode: input.campaignCode,
   })
   if (!body.success) {
     /* The schema running here is the same one the server runs, so its first

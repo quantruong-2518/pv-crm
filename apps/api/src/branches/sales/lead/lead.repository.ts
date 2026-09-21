@@ -32,6 +32,7 @@ import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
+import { partner } from '../partner/partner.schema'
 import { leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
@@ -171,6 +172,7 @@ export class LeadRepository {
         ownerEmail: actor.email,
         campaignName: configEntry.name,
         originName: leadOrigin.name,
+        partnerName: partner.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
       })
@@ -178,6 +180,7 @@ export class LeadRepository {
       .leftJoin(actor, eq(actor.id, lead.ownerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
       .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
+      .leftJoin(partner, eq(partner.code, lead.partnerCode))
       .where(and(...filters, scope))
       .orderBy(...this.orderBy(q))
       .limit(q.size)
@@ -294,6 +297,7 @@ export class LeadRepository {
         marketingOwnerEmail: marketingOwner.email,
         campaignName: configEntry.name,
         originName: leadOrigin.name,
+        partnerName: partner.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
         inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
@@ -304,6 +308,7 @@ export class LeadRepository {
       .leftJoin(marketingOwner, eq(marketingOwner.id, lead.marketingOwnerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
       .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
+      .leftJoin(partner, eq(partner.code, lead.partnerCode))
       .where(eq(lead.code, code))
       .limit(1)
 

@@ -114,13 +114,19 @@ export class LeadOriginService {
       }
 
       const moved = await this.repo.repointLeads(tx, id, into)
+      const referrers = await this.repo.repointReferrers(tx, id, into)
       await this.repo.moveAliases(tx, id, into)
       await this.repo.addAlias(tx, from.key, into)
       await this.repo.copyMotions(tx, id, into)
       /* Rows already folded into `id` now point at `into`: every merge chain stays one hop. */
       await this.repo.repointMerged(tx, id, into)
       await this.repo.update(tx, id, { mergedInto: into, active: false })
-      await this.note(tx, who.id, { kind: 'lead-origin-merge', from: id, into, moved })
+      await this.note(tx, who.id, {
+        kind: 'lead-origin-merge',
+        from: id,
+        into,
+        moved: { leads: moved, ...referrers },
+      })
       return moved
     })
 
@@ -157,6 +163,12 @@ export class LeadOriginService {
     const found = key ? await this.lookup(tx, key) : null
     const live = found ? await this.survivor(tx, found) : null
     return live?.active ? { id: live.id } : null
+  }
+
+  /** The row an origin id lands on after following `merged_into`; null = no such id. */
+  async survivorOf(id: string, db: Db = this.repo.handle): Promise<LeadOriginRowDb | null> {
+    const row = await this.repo.byId(db, id)
+    return row ? this.survivor(db, row) : null
   }
 
   /** The whole catalog as lookups, merged rows already followed to survivors. */

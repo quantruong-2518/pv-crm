@@ -82,6 +82,7 @@ export class CampaignRepository {
     name: string
     ownerId: string | null
     sourceId: string | null
+    originId: string | null
     slogan: string | null
     thumbnailUrl: string | null
     endsOn: string | null
@@ -105,6 +106,7 @@ export class CampaignRepository {
         state: campaign.state,
         endsOn: campaign.endsOn,
         sourceId: campaign.sourceId,
+        originId: campaign.originId,
       })
       .from(campaign)
       .where(
@@ -127,6 +129,7 @@ export class CampaignRepository {
          from cleared, and all four columns are nullable. */
       ownerId?: string | null
       sourceId?: string | null
+      originId?: string | null
       slogan?: string | null
       thumbnailUrl?: string | null
       endsOn?: string | null

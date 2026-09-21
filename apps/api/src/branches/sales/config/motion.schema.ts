@@ -1,6 +1,6 @@
 import { boolean, check, integer, text } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { LeadMotion, RoleId } from '@pv/contracts'
+import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
 import { sales } from '../sales.schema'
 
 /** What each of the six lead motions declares about itself.
@@ -66,9 +66,11 @@ export const motionPolicy = sales.table(
     /** Hidden from pickers when false. Switch-off, never delete — the list
      *  stays closed at six (see docblock). */
     active: boolean('active').notNull().default(true),
-    /** A lead of this motion must name a campaign (EVENT: which event). Read
-     *  by the service — `campaign_id` is nullable at every other motion. */
-    requiresCampaign: boolean('requires_campaign').notNull().default(false),
+    /** What the lead form asks for after the motion: an origin, a campaign
+     *  (EVENT, RECYCLE) or a referrer (REFERRAL, PARTNER). One of three rather
+     *  than 0057's boolean, which could only say "campaign or not". No default:
+     *  0059 backfilled all six, and a guess here would hide a missing answer. */
+    asks: text('asks').$type<MotionAsks>().notNull(),
   },
   () => [
     /** The six, copied rather than generated — the same call `touch_kind_known`
@@ -97,6 +99,8 @@ export const motionPolicy = sales.table(
           OR ("first_touch_minutes" > 0 AND "first_touch_minutes" <= 129600)`,
     ),
     check('motion_policy_label_no_blank', sql`"label" <> ''`),
+    /** Copied by hand for `motion_policy_motion_known`'s reason. */
+    check('motion_policy_asks_known', sql`"asks" IN ('ORIGIN', 'CAMPAIGN', 'REFERRER')`),
   ],
 )
 

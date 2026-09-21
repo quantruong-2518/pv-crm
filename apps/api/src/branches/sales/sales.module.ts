@@ -14,6 +14,7 @@ import { LeadOriginModule } from './lead-origin/lead-origin.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
+import { PartnerModule } from './partner/partner.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
 import { WorkstreamModule } from './workstream/workstream.module'
 
@@ -51,6 +52,7 @@ registerConstraints(CONTACT_CONSTRAINTS)
   imports: [
     LeadModule,
     LeadOriginModule,
+    PartnerModule,
     OpportunityModule,
     ContractModule,
     SalesConfigModule,

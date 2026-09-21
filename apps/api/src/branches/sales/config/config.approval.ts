@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type { Actor, ApprovalState, RoleId } from '@pv/engines'
-import { FIRST_TOUCH_UNITS, splitFirstTouch, type ConfigList, type LeadMotion } from '@pv/contracts'
+import {
+  FIRST_TOUCH_UNITS,
+  MOTION_ASKS_LABEL,
+  splitFirstTouch,
+  type ConfigList,
+  type LeadMotion,
+} from '@pv/contracts'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ConfigDraft, ConfigPatchDb } from './config.repository'
 import type { MotionPolicyPatchDb } from './motion.schema'
@@ -148,9 +154,7 @@ function motionWords(patch: MotionPolicyPatchDb): string[] {
     said.push(patch.label === null ? 'tên: về mặc định' : `tên "${patch.label}"`)
   if (patch.ord !== undefined) said.push(`thứ tự ${patch.ord}`)
   if (patch.active !== undefined) said.push(patch.active ? 'bật' : 'tắt')
-  if (patch.requiresCampaign !== undefined) {
-    said.push(patch.requiresCampaign ? 'bắt buộc gắn chiến dịch' : 'không bắt buộc chiến dịch')
-  }
+  if (patch.asks !== undefined) said.push(`form hỏi: ${MOTION_ASKS_LABEL[patch.asks]}`)
 
   return said
 }
