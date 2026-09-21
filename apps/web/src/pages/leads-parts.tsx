@@ -13,7 +13,7 @@ import {
   cn,
   percent,
 } from '@pv/ui'
-import { sourceKindLabel, type LeadRow } from '@pv/contracts'
+import { MOTION_SIDE, sourceKindLabel, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
@@ -128,30 +128,29 @@ function shortSourceName(name: string): string {
   return cut === -1 ? name : name.slice(0, cut).trimEnd()
 }
 
-/** `‹motion› · ‹origin›` when the lead carries the two-level origin, the
- *  campaign name under it. Leads written before that feature have neither, and
- *  keep the old line: campaign name when there is one, else the intake kind. */
+/** Two lines: the approach (motion) over the source detail as a pill — the
+ *  origin's name, else the campaign's. The campaign rides in the tooltip when
+ *  the pill shows the origin. The pill is tinted when the customer moved first
+ *  (passive side), neutral otherwise. Leads written before the two-level origin carry
+ *  no motion: the intake kind takes line one, the campaign the pill. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
   const { motion, origin, campaignName } = lead.source
-  const kind = sourceKindLabel(lead.source)
   const motionLabel = useMotionLabel()
 
-  if (!motion && !origin) {
-    return (
-      <span className="truncate text-[12.5px] font-semibold" title={campaignName ?? kind}>
-        {campaignName ? shortSourceName(campaignName) : kind}
-      </span>
-    )
-  }
+  const top = motion ? motionLabel(motion) : sourceKindLabel(lead.source)
+  const detail = origin?.name ?? (campaignName && shortSourceName(campaignName))
+  const title = [top, origin?.name, campaignName].filter(Boolean).join(' · ')
 
-  const head = [motion && motionLabel(motion), origin?.name].filter(Boolean).join(' · ')
   return (
-    <span className="flex min-w-0 flex-col" title={campaignName ?? head}>
-      <span className="truncate text-[12.5px] font-semibold">{head}</span>
-      {campaignName && (
-        <span className="text-muted-foreground truncate text-[11.5px]">
-          {shortSourceName(campaignName)}
-        </span>
+    <span className="flex min-w-0 flex-col items-start gap-1" title={title}>
+      <span className="max-w-full truncate text-[13px] font-semibold">{top}</span>
+      {detail && (
+        <Badge
+          tone={motion && MOTION_SIDE[motion] === 'PASSIVE' ? 'running' : 'draft'}
+          className="max-w-full"
+        >
+          <span className="truncate">{detail}</span>
+        </Badge>
       )}
     </span>
   )
@@ -159,10 +158,17 @@ export function SourceCell({ lead }: { lead: LeadRow }) {
 
 /** The lead's stored lifecycle state (ADR 0058), shown as the same text pill
  *  table in `data/lead-state.ts`. How long it has sat there lives on the lead's
- *  own page: states carry no limit to be late against (ADR 0057 §4). */
+ *  own page: states carry no limit to be late against (ADR 0057 §4).
+ *
+ *  TRUNCATES inside its cell: the longest label is 23 characters and the column
+ *  is an `fr` track, so an untruncated pill spills over the PIC column. */
 export function StatusCell({ lead }: { lead: LeadRow }) {
   const face = LEAD_STATE_FACE[lead.state]
-  return <Badge tone={face.badge}>{face.label}</Badge>
+  return (
+    <Badge tone={face.badge} className="max-w-full" title={face.label}>
+      <span className="truncate">{face.label}</span>
+    </Badge>
+  )
 }
 
 /** Lead PIC cell for the book row.
