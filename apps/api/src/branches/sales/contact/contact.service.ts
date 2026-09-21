@@ -13,7 +13,6 @@ import {
 import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, notFound } from '@api/platform/http/problem'
-import { LeadStateWriter } from '../lead/lead-state'
 import { ContactRepository, type LeadContactMirror } from './contact.repository'
 import { fromCreate, fromLeadBirth, fromPatch, refOf, toContract } from './contact.mapper'
 
@@ -38,8 +37,6 @@ export class ContactService {
   constructor(
     private readonly repo: ContactRepository,
     private readonly mirror: ObjectMirror,
-    /* A contact write by the lead's holder is their first action (ADR 0058). */
-    private readonly states: LeadStateWriter,
   ) {}
 
   async list(leadCode: ObjectCode): Promise<ContactListResponse> {
@@ -159,19 +156,13 @@ export class ContactService {
       const row = await this.repo.insert(tx, { ...values, code })
 
       if (isPrimary) await this.repo.mirrorOntoLead(tx, leadCode, row)
-      await this.states.firstAction(tx, [leadCode], who.id)
       return row
     })
 
     return ContactRow.parse(toContract(written))
   }
 
-  async edit(
-    who: Actor,
-    leadCode: ObjectCode,
-    code: ObjectCode,
-    body: ContactPatch,
-  ): Promise<ContactRow> {
+  async edit(leadCode: ObjectCode, code: ObjectCode, body: ContactPatch): Promise<ContactRow> {
     const current = await this.mine(leadCode, code)
 
     const written = await this.repo.run(async (tx) => {
@@ -184,7 +175,6 @@ export class ContactService {
          the lead profile prints an old number while the contact book right
          next to it prints the new one. */
       if (current.isPrimary) await this.repo.mirrorOntoLead(tx, leadCode, row)
-      await this.states.firstAction(tx, [leadCode], who.id)
       return row
     })
 
@@ -222,7 +212,7 @@ export class ContactService {
    *  A separate endpoint rather than `PATCH { isPrimary: true }` because it
    *  touches two rows and only works in exactly one order; the full
    *  reasoning is in the docblock of `packages/contracts/src/sales/contact.ts`. */
-  async setPrimary(who: Actor, leadCode: ObjectCode, code: ObjectCode): Promise<ContactRow> {
+  async setPrimary(leadCode: ObjectCode, code: ObjectCode): Promise<ContactRow> {
     const row = await this.mine(leadCode, code)
     if (row.isPrimary) return ContactRow.parse(toContract(row))
 
@@ -235,7 +225,6 @@ export class ContactService {
 
       await this.mirror.put(tx, refOf(code, leadCode, fresh))
       await this.repo.mirrorOntoLead(tx, leadCode, fresh)
-      await this.states.firstAction(tx, [leadCode], who.id)
       return fresh
     })
 

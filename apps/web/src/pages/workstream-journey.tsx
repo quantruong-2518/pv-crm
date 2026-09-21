@@ -28,10 +28,10 @@ import {
   BADGE_INK,
   QUIET_ACTION,
   STEP_STATE_LABEL,
-  WORKING_RUNG,
   dealStamp,
   laneSummary,
   leadStamp,
+  tierRungOf,
   unreachedWord,
   type NodeStamp,
   type NodeTone,
@@ -77,11 +77,17 @@ const STAMP_FACE: Record<NodeTone, string> = {
   quiet: 'bg-surface-ink/10',
 }
 
+/** The state name TRUNCATES and the date does not: a node is a fixed-width box
+ *  and the longest state label no longer fits beside "· dd/mm". The full text
+ *  rides on `title`. */
 function Stamp({ stamp }: { stamp: NodeStamp }) {
   return (
-    <Badge className={cn(BADGE_INK, 'shrink-0', STAMP_FACE[stamp.tone])}>
-      {stamp.label}
-      {stamp.at !== null && <span className="tnum font-mono"> · {stamp.at}</span>}
+    <Badge
+      className={cn(BADGE_INK, 'min-w-0', STAMP_FACE[stamp.tone])}
+      title={stamp.at === null ? stamp.label : `${stamp.label} · ${stamp.at}`}
+    >
+      <span className="truncate">{stamp.label}</span>
+      {stamp.at !== null && <span className="tnum shrink-0 font-mono"> · {stamp.at}</span>}
     </Badge>
   )
 }
@@ -306,6 +312,7 @@ function LeadNode({
   ...track
 }: Track & { lead: WorkstreamLeadLane; lane: WorkstreamLane; box: Box }) {
   const tier = lead.tier === null ? null : tierLabel(lead.tier)
+  const rung = tierRungOf(lane)
   return (
     <Node box={box} col={COL.lead} tinted={track.selected?.lane === lane.code}>
       <NodeHead kind="Lead" tag={<Stamp stamp={leadStamp(lead)} />} />
@@ -313,16 +320,27 @@ function LeadNode({
         lane={lane}
         {...track}
         rider={
-          tier === null
+          tier === null || rung === null
             ? undefined
-            : { at: WORKING_RUNG, node: <Badge className={cn(BADGE_INK, 'mt-1')}>{tier}</Badge> }
+            : {
+                at: rung,
+                node: (
+                  <Badge className={cn(BADGE_INK, 'mt-1 max-w-full')}>
+                    <span className="truncate">{tier}</span>
+                  </Badge>
+                ),
+              }
         }
       />
       <Summary lane={lane} />
       {lead.nurture && (
         <span className="text-muted-foreground tnum flex items-center gap-2 font-mono text-[11px]">
           <Icon icon={RotateCcw} size={16} className="shrink-0" />
-          {LEAD_STATE_LABEL.nurturing} · {lead.nurture.count} lần · {lead.nurture.totalDays} ngày
+          {/* ONE line, always: the node's height is arithmetic in
+              `workstream-tree-layout.ts`, so a wrap here pushes the foot out. */}
+          <span className="truncate">
+            {LEAD_STATE_LABEL.nurturing} · {lead.nurture.count} lần · {lead.nurture.totalDays} ngày
+          </span>
         </span>
       )}
       <NodeFoot owner={lead.owner}>
@@ -501,7 +519,7 @@ export function Journey({
           })}
           {layout.dealGhost && (
             <Ghost box={layout.dealGhost} col={COL.deal}>
-              Lead chưa lên cơ hội nào
+              Chưa có cơ hội nào từ lead này
             </Ghost>
           )}
           {layout.hidden && (

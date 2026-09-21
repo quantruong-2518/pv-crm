@@ -97,7 +97,7 @@ const clearable = (key: PatchKey) => SHAPE[key].safeParse(null).success
 /** Which `LeadPatch` field a drawn profile field writes into — `undefined` when
  *  the contract has no such field, which is how the save drops what it must not
  *  send (`code`, `stage`, the three owner names, `createdAt`…). `tier` does
- *  map, and `isEditable` keeps it shut until the lead is past verification.
+ *  map, and `isEditable` keeps it shut only on a lead that left the funnel.
  *
  *  The cast is the one `PROFILE_TO_WIRE` documents: the table is typed against
  *  `LeadCreate`, and every name the two contracts share they spell the same. */

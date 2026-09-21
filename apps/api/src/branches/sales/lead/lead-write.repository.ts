@@ -6,7 +6,7 @@ import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { motionPolicy } from '../config/motion.schema'
 import { leadHasOpenDeal, leadSigned } from '../open-deal'
-import { LEAD_GONE_STATES } from './lead-state'
+import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
@@ -257,10 +257,13 @@ export class LeadWriteRepository {
     await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
   }
 
-  /** What a lifecycle door (contacted, exit, reopen, verify, nurture, resume) must know,
+  /** What a lifecycle door (contacted, exit, reopen, nurture, resume) must know,
    *  read under a row lock for the reason `lockForOwnerChange` gives: two
    *  presses would otherwise both see the old state and both write a touch.
-   *  `hasDeal` counts lost deals too — reopen reads it as "was converted". */
+   *  `hasDeal` counts lost deals too — reopen reads it as "was converted".
+   *
+   *  `reached` rides on this same locked read rather than a second round trip:
+   *  reopen and resume both need it, and both already hold this row. */
   async lockForMove(
     tx: Db,
     code: string,
@@ -269,6 +272,7 @@ export class LeadWriteRepository {
         openDeal: boolean
         signed: boolean
         hasDeal: boolean
+        reached: LeadReach
       })
     | null
   > {
@@ -281,6 +285,7 @@ export class LeadWriteRepository {
         openDeal: sql<boolean>`${leadHasOpenDeal(lead.code)}`,
         signed: sql<boolean>`${leadSigned(lead.code)}`,
         hasDeal: sql<boolean>`EXISTS (SELECT 1 FROM sales.opportunity o WHERE o.lead_code = ${lead.code})`,
+        reached: reachedRung,
       })
       .from(lead)
       .where(eq(lead.code, code))
@@ -353,3 +358,15 @@ export class LeadWriteRepository {
     return row
   }
 }
+
+/** The highest backbone rung this lead's trail PROVES it reached (ADR 0063 §4).
+ *
+ *  Rides inside `lockForMove`'s locked SELECT, so `lead.code` is the OUTER
+ *  column and the inner aliases are private — the reason `open-deal.ts` gives.
+ *  Legacy kinds sit beside their new twins forever, the same pairing the
+ *  off-backbone walk of `sales.workstream_stand()` makes (migration 0058). */
+const reachedRung = sql<LeadReach>`CASE
+     WHEN EXISTS (SELECT 1 FROM sales.touch lr_w WHERE lr_w.subject_code = ${lead.code} AND lr_w.kind IN ('verified', 'exchange-logged')) THEN 'working'
+     WHEN EXISTS (SELECT 1 FROM sales.touch lr_v WHERE lr_v.subject_code = ${lead.code} AND lr_v.kind IN ('first-action', 'care-planned')) THEN 'verifying'
+     ELSE 'assigned'
+   END`

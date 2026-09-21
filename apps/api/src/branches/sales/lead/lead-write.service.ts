@@ -13,6 +13,7 @@ import {
   type LeadImportBody,
   type LeadOwnerWrite,
   type LeadPatch,
+  type LeadState,
   type ObjectCode,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
@@ -30,7 +31,12 @@ import { toContract } from './lead.mapper'
 import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
-import { LeadStateWriter, stateAfterOwnerChange } from './lead-state'
+import {
+  LEAD_GONE_STATES,
+  LEAD_GONE_WORDS,
+  LeadStateWriter,
+  stateAfterOwnerChange,
+} from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
@@ -384,13 +390,11 @@ export class LeadWriteService {
    *  holds for the whole call.
    *
    *  ------------------------------------------------------------------
-   *  THE HOLDER'S FIRST EDIT MOVES THE STATE; TIER WAITS FOR VERIFICATION
+   *  A SAVE MOVES NO STATE; TIER IS A FIELD LIKE ANY OTHER
    *  ------------------------------------------------------------------
-   *  A save by the lead's own holder is their first action (ADR 0058), so
-   *  `LeadStateWriter.firstAction` runs in the same transaction and refreshes
-   *  the mirror row if it moved anything. `tier` is accepted only while the
-   *  lead is `working` or `converted`: the first tier is `:code/verify`'s to
-   *  set, and a parked lead must not come back verified by a patch. A raise
+   *  Editing a profile is not care being scheduled and not an exchange, so it
+   *  moves nothing (ADR 0063 §2) — the label would lie. `tier` is accepted in
+   *  every state but the two gone ones (§3), still never cleared. A raise
    *  writes `tier-raised` beside `field-filled`; a lowering writes no tier row.
    *
    *  ------------------------------------------------------------------
@@ -413,9 +417,9 @@ export class LeadWriteService {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 
-    if (body.tier !== undefined && !TIER_EDITABLE.has(before.row.state)) {
+    if (body.tier !== undefined && !TIER_EDITABLE(before.row.state)) {
       throw conflict(
-        `Lead ${code} chỉ sửa bậc được khi đang chăm hoặc đã lên cơ hội — bậc đầu tiên chốt ở bước "Xác minh xong".`,
+        `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS} — không sửa bậc của lead đã rời phễu được.`,
       )
     }
     const values = fromPatch(body)
@@ -426,7 +430,6 @@ export class LeadWriteService {
          have been deleted since. `patchLead` answers that and nothing else. */
       const written = await this.repo.patchLead(tx, code, values)
       if (!written) throw notFound('lead', code)
-      await this.states.firstAction(tx, [code], who.id)
 
       await this.touch.record(tx, [
         {
@@ -736,8 +739,10 @@ const pickKey = (p: LeadOriginPick): string =>
  *  parameter ceiling, not a durability boundary. */
 const CHUNK = 500
 
-/** The only states in which a patch may re-grade the tier (ADR 0058). */
-const TIER_EDITABLE: ReadonlySet<string> = new Set(['working', 'converted'])
+/** Tier is a plain optional field now (ADR 0063 §3): patchable in every state
+ *  but the two a lead has left the book by. */
+const TIER_EDITABLE = (state: LeadState): boolean =>
+  !(LEAD_GONE_STATES as readonly LeadState[]).includes(state)
 
 /** Rung index on the tier ladder; no tier sits below the first rung. */
 const rungOf = (tier: LeadTier | null): number =>

@@ -51,7 +51,8 @@ export type LeadDraft = {
    *  No-op on the create door. */
   commit: (field: FormField) => void
   /** Edit door only: does saving this box reach the server for THIS lead —
-   *  `isEditable`, asked with the lead's state so tier opens after verification. */
+   *  `isEditable`, asked with the lead's state: tier is shut once it left the
+   *  funnel. */
   editable: (field: FormField) => boolean
   dirty: FieldKey[]
   /** Create door only: drops everything typed. */

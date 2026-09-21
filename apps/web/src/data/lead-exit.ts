@@ -7,8 +7,6 @@ import type {
   LeadNurtureResponse,
   LeadReopenResponse,
   LeadResumeResponse,
-  LeadVerifyBody,
-  LeadVerifyResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { WORKSTREAM_BOOK_KEY } from './workstreams'
@@ -24,17 +22,18 @@ import { WORKSTREAM_BOOK_KEY } from './workstreams'
  *  the dialog prints through `userMessage`.
  *
  *  The PIC's own lifecycle steps (ADR 0058) sit here too, same shape, under
- *  `lead.edit`: `:code/contacted` · `:code/verify` · `:code/nurture` ·
- *  `:code/resume`. */
+ *  `lead.edit`: `:code/contacted` · `:code/nurture` · `:code/resume`. The
+ *  `:code/verify` door is gone — `verifying` is now entered by SCHEDULING care,
+ *  not by a manual step, and the tier left the state machine (ADR 0063). */
 
 const EXIT_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.disqualify', scoped: true }
 const STEP_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: true }
 
 /** Every read that prints a lead's state (ADR 0058): the book and its counts,
  *  the scorecard, the profile, the timeline, the company card's lead list, and
- *  the journey run. The server now moves the state inside OTHER doors too
- *  (meeting, mail, contact, deal, call log), and the cache never goes stale on
- *  its own (`staleTime: Infinity`) — so each of those doors calls this. */
+ *  the journey run. The server also moves the state inside OTHER doors (a
+ *  scheduled meeting or mail run, a logged exchange, a deal), and the cache
+ *  never goes stale on its own (`staleTime: Infinity`) — so those call this. */
 export const LEAD_STATE_KEYS = [
   ['sales', 'lead-book'],
   ['sales', 'lead-scorecard'],
@@ -48,10 +47,8 @@ export function invalidateLeadState(client: QueryClient) {
   for (const key of LEAD_STATE_KEYS) void client.invalidateQueries({ queryKey: key })
 }
 
-const leadPath = (
-  code: string,
-  door: 'contacted' | 'exit' | 'reopen' | 'verify' | 'nurture' | 'resume',
-) => `/sales/leads/${encodeURIComponent(code)}/${door}`
+const leadPath = (code: string, door: 'contacted' | 'exit' | 'reopen' | 'nurture' | 'resume') =>
+  `/sales/leads/${encodeURIComponent(code)}/${door}`
 
 export function useContactLead(code: string) {
   const client = useQueryClient()
@@ -88,20 +85,6 @@ export function useReopenLead(code: string) {
       api.write<LeadReopenResponse>(leadPath(code, 'reopen'), {
         method: 'POST',
         need: EXIT_NEED,
-      }),
-    onSuccess: () => invalidateLeadState(client),
-  })
-}
-
-export function useVerifyLead(code: string) {
-  const client = useQueryClient()
-
-  return useMutation<LeadVerifyResponse, ApiError, LeadVerifyBody>({
-    mutationFn: (body) =>
-      api.write<LeadVerifyResponse>(leadPath(code, 'verify'), {
-        method: 'POST',
-        body,
-        need: STEP_NEED,
       }),
     onSuccess: () => invalidateLeadState(client),
   })

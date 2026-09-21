@@ -11,7 +11,7 @@ import {
   type WorkstreamLeadNurture,
   type WorkstreamStep,
 } from '@pv/contracts'
-import { stateByTier } from '../lead/lead-state'
+import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
@@ -84,17 +84,18 @@ function stepsOf<K extends string>(l: Ladder<K>): WorkstreamStep[] {
  *  to `created` as well: a lead born with a holder was never handed over, so
  *  its receiving end rides on the creation row (`lead-write.service.ts`).
  *
- *  `verifying` reads the row `LeadStateWriter.firstAction` writes as it moves
+ *  `verifying` and `working` read the rows `LeadStateWriter` writes as it moves
  *  the state, and nothing else: any other kind dates the rung off an action by
- *  somebody who was not the holder, which is not what moved the column. Leads
- *  that moved before that row existed show the rung without a date. */
+ *  somebody who was not the holder, which is not what moved the column. Two
+ *  kinds each, legacy beside new and both valid forever (ADR 0063 §5). Leads
+ *  that moved before those rows existed show the rung without a date. */
 type Rung = (typeof LEAD_LANE_BACKBONE)[number]
 
 const RUNG_HIT: Record<Rung, (t: LeadTouchEntry) => boolean> = {
   new: (t) => t.kind === 'created',
   assigned: (t) => (t.kind === 'handed-over' || t.kind === 'created') && t.to !== null,
-  verifying: (t) => t.kind === 'first-action',
-  working: (t) => t.kind === 'verified',
+  verifying: (t) => t.kind === 'first-action' || t.kind === 'care-planned',
+  working: (t) => t.kind === 'verified' || t.kind === 'exchange-logged',
   converted: (t) => t.kind === 'entered-pipeline',
 }
 
@@ -172,11 +173,15 @@ export function leadLaneOf(
 
 /** Which rung the lane DRAWS the lead on. `nurturing` is a stop, not a step
  *  forward, so it parks the lead exactly where `LeadExitService.resume` would
- *  put it back — the same `stateByTier` both of them read. A lead that LEFT
+ *  put it back — the same `stateByWork` both of them read, off the FACT that an
+ *  exchange was once logged (ADR 0063 §4). The SQL twin is the `nurturing`
+ *  branch of `sales.workstream_stand()` (migration 0058). A lead that LEFT
  *  stands on the last rung its trail proves it reached, not the one it was
  *  heading for. */
 function standingOn(lead: LeadRowDb, entryOf: (key: Rung) => Entry): number {
-  if (lead.state === 'nurturing') return LEAD_LANE_BACKBONE.indexOf(stateByTier(lead.tier))
+  if (lead.state === 'nurturing') {
+    return LEAD_LANE_BACKBONE.indexOf(stateByWork(entryOf('working') !== null))
+  }
   const onBackbone = (LEAD_LANE_BACKBONE as readonly LeadState[]).indexOf(lead.state)
   if (onBackbone >= 0) return onBackbone
 

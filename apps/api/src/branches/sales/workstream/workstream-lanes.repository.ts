@@ -63,16 +63,22 @@ export class WorkstreamLanesRepository {
   }
 }
 
-/** Every touch kind that MOVES a lead's state (ADR 0058), and no other: the
- *  lead lane folds its backbone, its nurture loop and its exit out of these.
+/** Every touch kind that MOVES a lead's state (ADR 0058, 0063), and no other:
+ *  the lead lane folds its backbone, its nurture loop and its exit out of these.
  *  `tier-raised` is gone with the tier ladder the lane used to draw; so are
  *  `contacted`, `field-filled` and `first-meeting`, which record work done but
- *  move no column — `first-action` is the row written AS the state moves. */
+ *  move no column — the rung rows are the ones written AS the state moves.
+ *
+ *  Two kinds per forward rung, legacy beside new, and both stay FOREVER: the
+ *  rows written under `first-action`/`verified` are on disk (ADR 0063 §5). Same
+ *  pairing as the trigger WHEN list in migration 0058. */
 const LEAD_LANE_KINDS = [
   'created',
   'handed-over',
   'first-action',
+  'care-planned',
   'verified',
+  'exchange-logged',
   'nurtured',
   'resumed',
   'entered-pipeline',

@@ -292,7 +292,7 @@ export class LeadService {
     body: MeetingPatch,
   ): Promise<MeetingRow> {
     await this.guard(who, code)
-    return this.meetings.amend(code, id, body)
+    return this.meetings.amend(who, code, id, body)
   }
 
   async meetingDrop(who: Actor, code: ObjectCode, id: string): Promise<void> {
@@ -324,7 +324,7 @@ export class LeadService {
 
   async contactEdit(who: Actor, code: ObjectCode, body: ContactPatch): Promise<ContactRow> {
     const leadCode = await this.guardByContact(who, code)
-    return this.contacts.edit(who, leadCode, code, body)
+    return this.contacts.edit(leadCode, code, body)
   }
 
   async contactDrop(who: Actor, code: ObjectCode): Promise<void> {
@@ -334,7 +334,7 @@ export class LeadService {
 
   async contactPrimary(who: Actor, code: ObjectCode): Promise<ContactRow> {
     const leadCode = await this.guardByContact(who, code)
-    return this.contacts.setPrimary(who, leadCode, code)
+    return this.contacts.setPrimary(leadCode, code)
   }
 
   /** Attach a lead to a company, or detach it.
@@ -347,7 +347,7 @@ export class LeadService {
    *  department-wide grant in order to fix one cell on their own profile. */
   async attachAccount(who: Actor, code: ObjectCode, body: LeadAccountAttach): Promise<void> {
     await this.guard(who, code)
-    await this.accounts.attachLead(who, code, body.accountCode)
+    await this.accounts.attachLead(code, body.accountCode)
   }
 
   /** Thẻ điểm Sổ lead. `GET /sales/leads/scorecard`.
@@ -418,7 +418,7 @@ export class LeadService {
  *     one place allowed to make it;
  *   · the EVIDENCE — a lead's own tier IS the evidence. A deal passes its
  *     column; a lead has nothing to infer — the column is the record of which
- *     rung it reached, set by `:code/verify` and raised by `PATCH :code`.
+ *     rung it reached, graded and raised through `PATCH :code` (ADR 0063 §3).
  *
  *  `since` is when the lead reached its CURRENT tier — the latest `verified`
  *  or `tier-raised` touch naming it — not `state_since`, which nurture/resume

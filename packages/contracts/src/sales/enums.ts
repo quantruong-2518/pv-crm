@@ -55,20 +55,18 @@ export const ExitReason = z.enum([
   'silent-after-quote',
 ])
 
-/** Where a lead stands in its OWN lifecycle (ADR 0058). STORED in a column under
- *  a CHECK and moved only by the server, inside the write that caused the move —
- *  a screen reads it and never derives it from other fields.
+/** Where a lead stands in its OWN lifecycle (ADR 0058, entry rules ADR 0063).
+ *  STORED under a CHECK and moved only by the server; a screen never derives it.
  *
- *   · `new`          — no PIC yet
- *   · `assigned`     — has a PIC who has not acted on it yet
- *   · `verifying`    — the PIC's first action happened; data and need being checked
- *   · `working`      — the PIC confirmed verification and set the tier
- *   · `nurturing`    — parked as "not ready"; archived after six months
- *   · `converted`    — the first opportunity was opened from it
+ *   · `new` / `assigned` — no PIC yet / a PIC who has scheduled nothing yet
+ *   · `verifying`  — the owner scheduled care (future meeting, timed mail run)
+ *   · `working`    — a real exchange was logged (call, message, meeting held)
+ *   · `nurturing`  — parked "not ready", from verifying|working; archived after 6 months
+ *   · `converted`  — the first opportunity was opened from it
  *   · `disqualified` — dropped with an `ExitReason`; reopen recomputes from facts
- *   · `archived`     — retired by the system after six months in `nurturing`
+ *   · `archived`   — retired by the system after six months in `nurturing`
  *
- *  Not `StageKey`: that ladder belongs to the opportunity. */
+ *  Tier (prospect/mql/sql) belongs to no state. Not `StageKey`: that is the deal's. */
 export const LeadState = z.enum(
   ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted', 'disqualified', 'archived'],
   'Trạng thái lead không có trong danh sách',
@@ -80,13 +78,13 @@ export const LeadState = z.enum(
  *  colour is presentation, not part of the wire contract, so
  *  `apps/web/src/data/lead-state.ts` pairs this label with a tone locally. */
 export const LEAD_STATE_LABEL: Record<LeadState, string> = {
-  new: 'Mới tạo',
-  assigned: 'Đã nhận',
-  verifying: 'Đang xác minh',
-  working: 'Đang chăm',
-  nurturing: 'Nuôi dài hạn',
-  converted: 'Đã lên cơ hội',
-  disqualified: 'Đã loại',
+  new: 'Khởi tạo lead',
+  assigned: 'Nhận PIC',
+  verifying: 'Tạo chiến lược chăm sóc',
+  working: 'Tình trạng chăm sóc',
+  nurturing: 'Chờ thời điểm',
+  converted: 'Đổi thành Opp',
+  disqualified: 'Không theo nữa',
   archived: 'Lưu trữ',
 }
 

@@ -409,12 +409,12 @@ export class MasService {
         await this.repo.linkSequenceWave(tx, { ...subject, mailRunId, waveNo })
       }
 
-      if (campaignCode === undefined && body.audience.subjectType === 'lead') {
-        /* First action of the lead's holder (ADR 0058). A campaign wave is
-           marketing's, not the PIC's; a letter to a DEAL moves nothing either —
-           the lead behind an open deal is long past `new`/`assigned`. */
+      if (campaignCode === undefined && body.audience.subjectType === 'lead' && scheduledAt) {
+        /* A SEND TIME is care being scheduled (ADR 0063 §2) — an immediate blast
+           is not a plan, a campaign wave is marketing's rather than the PIC's,
+           and a letter to a DEAL moves nothing. */
         const mailed = sendable.map((d) => d.row.code)
-        await this.states.firstAction(tx, mailed, who.id)
+        await this.states.scheduled(tx, mailed, who.id)
       }
 
       return { mailRunId, written }

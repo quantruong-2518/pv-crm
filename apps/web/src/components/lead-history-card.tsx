@@ -138,12 +138,17 @@ function useCommsTabHead(code: string) {
 // The lead's own moments — `sales.touch`
 // ---------------------------------------------------------------------------
 
+/* `care-planned` and `first-action` share a tone, and so do `exchange-logged`
+   and `verified`: each new kind replaced a legacy one on the same rung, and two
+   tones for one rung would read as two different things happening. */
 const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'> = {
   created: 'next',
   contacted: 'next',
   'field-filled': 'current',
   'handed-over': 'current',
+  'care-planned': 'current',
   'first-action': 'current',
+  'exchange-logged': 'ok',
   'tier-raised': 'ok',
   verified: 'ok',
   nurtured: 'next',
@@ -294,7 +299,12 @@ function MailTimelinePanel({ code }: { code: string }) {
                   <MetaPill>
                     {row.campaignName ? `Chiến dịch · ${row.campaignName}` : 'Gửi riêng'}
                   </MetaPill>
-                  <Badge tone={face.tone}>{face.label}</Badge>
+                  <Badge
+                    tone={face.tone}
+                    className={face.tone === 'draft' ? 'text-foreground' : undefined}
+                  >
+                    {face.label}
+                  </Badge>
                   {face.at && <MetaPill mono>{face.at}</MetaPill>}
                   {signal && (
                     <MetaPill tone={row.clickCount > 0 ? 'accent' : undefined}>{signal}</MetaPill>

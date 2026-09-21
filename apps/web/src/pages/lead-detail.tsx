@@ -14,6 +14,7 @@ import {
   ScreenHeader,
   ScreenLayout,
   Skeleton,
+  cn,
 } from '@pv/ui'
 import type { LeadProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
@@ -31,7 +32,7 @@ import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
 import { LeadActivityCard } from '@/components/lead-activity-card'
-import { NurtureDialog, VerifyDialog } from '@/components/lead-state-actions'
+import { NurtureDialog } from '@/components/lead-state-actions'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { MasMailModal } from '@/components/mas-mail-modal'
 import { masRecipientsOf } from '@/data/mas-mail-draft'
@@ -132,7 +133,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
   const [scheduleSeq, setScheduleSeq] = useState(0)
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
-  const [step, setStep] = useState<'verify' | 'nurture' | null>(null)
+  const [nurturing, setNurturing] = useState(false)
   const [composing, setComposing] = useState(false)
 
   /* ONE draft for the whole screen: the form card on the left and the holder
@@ -237,8 +238,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
         canConvert={canConvert}
         onPin={() => me && togglePin(me.id, lead.code)}
         onExit={() => setExiting(true)}
-        onVerify={() => setStep('verify')}
-        onNurture={() => setStep('nurture')}
+        onNurture={() => setNurturing(true)}
         onConvert={() => setConverting(true)}
         onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
         onCompose={() => setComposing(true)}
@@ -250,8 +250,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
           stored row rather than regenerated from the code. */}
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
-      <VerifyDialog profile={lead} open={step === 'verify'} onClose={() => setStep(null)} />
-      <NurtureDialog profile={lead} open={step === 'nurture'} onClose={() => setStep(null)} />
+      <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
       <MasMailModal
         open={composing}
         onClose={() => setComposing(false)}
@@ -333,10 +332,17 @@ function StatusBadge({ lead, className }: { lead: LeadProfile; className?: strin
     lead.state === 'disqualified' && lead.exitReason
       ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
       : undefined
+  const text = reason ? `${face.label} · ${reason}` : face.label
 
+  /* Truncates rather than pushes the company name off the row: this is the
+     longest state pill in the app, and the header is one line on a tablet. */
   return (
-    <Badge tone={face.badge} className={className}>
-      {reason ? `${face.label} · ${reason}` : face.label}
+    <Badge
+      tone={face.badge}
+      className={cn('max-w-full', face.badge === 'draft' && 'text-foreground', className)}
+      title={text}
+    >
+      <span className="truncate">{text}</span>
     </Badge>
   )
 }

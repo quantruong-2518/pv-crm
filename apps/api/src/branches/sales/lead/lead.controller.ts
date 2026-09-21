@@ -11,7 +11,6 @@ import {
   LeadNurtureBody,
   LeadOwnerWrite,
   LeadPatch,
-  LeadVerifyBody,
   ObjectCode,
   MailRunId,
   MeetingCreate,
@@ -289,8 +288,8 @@ export class LeadController {
   }
 
   /** A dial button cannot tell whether a call happened. The PIC confirms it
-   *  here; that one write records the touch and advances the first-action
-   *  state in the same transaction. */
+   *  here; that one write records the touch and moves the lead to `working` — a
+   *  logged exchange — in the same transaction. */
   @Post(':code/contacted')
   @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
@@ -319,20 +318,10 @@ export class LeadController {
     return this.exits.reopen(who, code)
   }
 
-  /** The PIC's own lifecycle calls (ADR 0058): confirm verification with the
-   *  first tier, park as not ready, bring back. `lead.edit` and scoped like
-   *  `PATCH :code` — moving one's own lead is editing it. 200, like `exit`. */
-  @Post(':code/verify')
-  @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
-  verify(
-    @CurrentActor() who: Actor,
-    @Param('code', zod(ObjectCode)) code: ObjectCode,
-    @Body(zod(LeadVerifyBody)) body: LeadVerifyBody,
-  ) {
-    return this.exits.verify(who, code, body)
-  }
-
+  /** The PIC's own lifecycle calls (ADR 0058, 0063): park as not ready, bring
+   *  back. `lead.edit` and scoped like `PATCH :code` — moving one's own lead is
+   *  editing it. 200, like `exit`. The forward moves have no door of their own:
+   *  they are facts the work doors write (ADR 0063 §2). */
   @Post(':code/nurture')
   @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })

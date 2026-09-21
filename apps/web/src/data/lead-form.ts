@@ -516,8 +516,8 @@ export function isRequiredOnSave(field: FormField): boolean {
  *  silence could hint at it. Asked of the contract, never listed. */
 export function isEditable(field: FormField, lead?: Parameters<typeof tierEditable>[0]): boolean {
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
-  /* `LeadPatch` carries `tier`, but the server refuses it before verification
-     (ADR 0058) — so the box opens only once the lead is past that gate. */
+  /* `LeadPatch` carries `tier`, but the server refuses it on a lead that left
+     the funnel (ADR 0063) — so the box follows `tierEditable`, not the state. */
   if (wire === 'tier') return lead !== undefined && tierEditable(lead)
   return wire in PATCH_SHAPE
 }
@@ -541,8 +541,8 @@ const CREATE_SHAPE = LeadCreate.shape as Record<string, FieldProbe>
  *  has no such field, which is how the create form drops what it must not send.
  *
  *  That is the whole filter and it needs no exclusion list: `tier` and `stage`
- *  are withheld by the contract (a client that names its own tier claims a gate
- *  it never went through), the three holder boxes hold NAMES while the contract
+ *  are withheld by the contract (a lead that has just been typed has not been
+ *  assessed yet), the three holder boxes hold NAMES while the contract
  *  takes actor ids, and `code` · `createdAt` · `source` · `exitReason` are the
  *  book's own bookkeeping — `kind: 'read'` besides. */
 export function createWireOf(field: FormField): CreateKey | undefined {

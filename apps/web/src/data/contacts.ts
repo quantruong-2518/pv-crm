@@ -10,7 +10,6 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Contacts — TWO path shapes, and both are real.
  *
@@ -113,15 +112,16 @@ export function leadContactsQuery(leadCode: ObjectCode) {
  *  · the LEAD profile — because writing a PRIMARY contact also overwrites the
  *    lead's five mirrored contact columns (`ContactRepository.mirrorOntoLead`).
  *    Dropping the third spot would leave the lead profile printing the old
- *    phone number right next to the panel that just printed the new one. */
+ *    phone number right next to the panel that just printed the new one.
+ *
+ *  The lead's lifecycle STATE is NOT among them: since ADR 0063 a contact write
+ *  no longer moves it, so there is nothing stale to drop. */
 function invalidateAround(client: ReturnType<typeof useQueryClient>, leadCode?: string) {
   void client.invalidateQueries({ queryKey: CONTACT_BOOK_KEY })
   if (leadCode !== undefined) {
     void client.invalidateQueries({ queryKey: ['sales', 'leads', leadCode, 'contacts'] })
     void client.invalidateQueries({ queryKey: ['sales', 'leads', leadCode] })
   }
-  /* A contact write by the owner moves the lead to `verifying` (ADR 0058). */
-  invalidateLeadState(client)
 }
 
 export function useAddContact(leadCode: ObjectCode) {

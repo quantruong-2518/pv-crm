@@ -35,9 +35,9 @@ import { LeadTier } from './enums'
  *
  *  Not every kind has a writer yet, and that is honest rather than aspirational:
  *  the branch writes what its doors actually do. `exited`/`reopened` are written
- *  by `POST /sales/leads/:code/exit` and `.../reopen` (`./lead`), the four
- *  ADR 0058 lifecycle kinds by `.../verify`, `.../nurture`, `.../resume` and
- *  the archive sweep.
+ *  by `POST /sales/leads/:code/exit` and `.../reopen` (`./lead`), the
+ *  lifecycle kinds by the state writer, `.../nurture`, `.../resume` and the
+ *  archive sweep.
  *
  *  ------------------------------------------------------------------
  *  MAIL IS NOT IN HERE
@@ -64,14 +64,17 @@ export const TouchKind = z.enum([
   'handed-over',
   /** The lead moved up a tier, after it was verified. */
   'tier-raised',
-  /** The PIC's FIRST action of any kind on the lead (→ `verifying`).
-   *
-   *  Written by `LeadStateWriter.firstAction` itself, not by the nine doors
-   *  that call it: sending mail, attaching an account and logging a comms
-   *  message all move the state and none of them writes a trail of its own, so
-   *  a lead whose first touch was an email had a rung with no date on it. */
+  /** The PIC's FIRST scheduling action: a future meeting or a timed mail run
+   *  (`assigned` → `verifying`). Written by the state writer itself, so every
+   *  door that schedules care leaves a dated rung. */
+  'care-planned',
+  /** The first real exchange with the customer was logged (`assigned` |
+   *  `verifying` → `working`). Carries no tier. */
+  'exchange-logged',
+  /** LEGACY, rows persist: same rung as `care-planned` (→ `verifying`). */
   'first-action',
-  /** The PIC confirmed verification and set the first tier (→ `working`). */
+  /** LEGACY, rows persist: same rung as `exchange-logged` (→ `working`); such
+   *  rows carry the tier set at the time. */
   'verified',
   /** The PIC parked the lead as not ready yet (→ `nurturing`). */
   'nurtured',

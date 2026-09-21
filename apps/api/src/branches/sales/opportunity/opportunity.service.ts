@@ -42,7 +42,7 @@ import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { LeadStateWriter } from '../lead/lead-state'
+import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import {
   fromCreate,
@@ -293,7 +293,8 @@ export class OpportunityService {
       this.repo.actorNames(handle, [...body.saleOwners, ...body.bdOwners]),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
-    if (lead.exited) throw conflict('Lead đã loại hoặc đã lưu trữ — không tạo được cơ hội')
+    if (lead.exited)
+      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
        `fromCreate` call, which was enough while one place needed it; the column
@@ -480,7 +481,8 @@ export class OpportunityService {
     // A reopened deal on an exited lead would be an open deal the exit door refused to leave behind.
     if (found.row.state === 'close-lost' && body.state !== 'close-lost') {
       const lead = await this.repo.leadCompany(this.repo.readonlyHandle, found.row.leadCode)
-      if (lead?.exited) throw conflict('Lead đã loại hoặc đã lưu trữ — không tạo được cơ hội')
+      if (lead?.exited)
+        throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
     }
 
     const [names, signedContract, pendingSign] = await Promise.all([
@@ -947,7 +949,8 @@ export class OpportunityService {
   /** Share-lock the leads a deal write lands on; an exit racing it waits. */
   private async assertLeadsLive(tx: Db, leadCodes: readonly string[]): Promise<void> {
     const exited = await this.repo.exitedLocked(tx, leadCodes)
-    if (exited.length > 0) throw conflict('Lead đã loại hoặc đã lưu trữ — không tạo được cơ hội')
+    if (exited.length > 0)
+      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
   }
 
   /** A signed deal's edit carries its money and commission holder onto the

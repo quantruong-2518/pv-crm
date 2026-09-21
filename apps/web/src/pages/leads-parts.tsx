@@ -165,7 +165,11 @@ export function SourceCell({ lead }: { lead: LeadRow }) {
 export function StatusCell({ lead }: { lead: LeadRow }) {
   const face = LEAD_STATE_FACE[lead.state]
   return (
-    <Badge tone={face.badge} className="max-w-full" title={face.label}>
+    <Badge
+      tone={face.badge}
+      className={face.badge === 'draft' ? 'text-foreground max-w-full' : 'max-w-full'}
+      title={face.label}
+    >
       <span className="truncate">{face.label}</span>
     </Badge>
   )

@@ -1,7 +1,7 @@
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { Injectable, Module } from '@nestjs/common'
-import { LEAD_OPEN_STATES, type LeadState } from '@pv/contracts'
+import { LEAD_OPEN_STATES, LEAD_STATE_LABEL, type LeadState } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { GraphModule } from '@api/platform/graph/graph.module'
@@ -12,7 +12,11 @@ import { toRef } from './lead.mapper'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { lead, type LeadRowDb } from './lead.schema'
 
-/** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058).
+/** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058, 0063).
+ *
+ *  Two facts move a lead forward, and nothing else does: care was SCHEDULED
+ *  (→ `verifying`) and a real exchange was LOGGED (→ `working`). An edit of any
+ *  kind moves nothing.
  *
  *  Every write moves `state_since` with `state` and refreshes the lead's mirror
  *  row, whose `state` IS `lead.state` — so no door can move one without the
@@ -32,6 +36,13 @@ export const NURTURE_MAX = sql`interval '6 months'`
 /** The two terminal states a deal may not be opened on, and mail may not reach. */
 export const LEAD_GONE_STATES = ['disqualified', 'archived'] as const satisfies readonly LeadState[]
 
+/** The same two states in the words a screen shows them in. One copy, off
+ *  `LEAD_STATE_LABEL`: every door that refuses a lead that has left says it the
+ *  same way, and renaming a state renames the refusal with it. */
+export const LEAD_GONE_WORDS = LEAD_GONE_STATES.map((s) => `“${LEAD_STATE_LABEL[s]}”`).join(
+  ' hoặc ',
+)
+
 const isOpen = (state: LeadState): boolean =>
   (LEAD_OPEN_STATES as readonly LeadState[]).includes(state)
 
@@ -44,23 +55,29 @@ export function stateAfterOwnerChange(state: LeadState, ownerId: string | null):
   return state === 'new' ? 'assigned' : state
 }
 
-/** Where a lead stands once it is put back on the backbone: no tier means it
- *  never passed verification, so it lands on `verifying` rather than `working`.
- *  The one copy of that clause — reopen, resume and the journey lane all read
- *  the same stored column and must read it the same way. */
-export const stateByTier = (tier: string | null): Extract<LeadState, 'verifying' | 'working'> =>
-  tier === null ? 'verifying' : 'working'
+/** The highest backbone rung a lead's touch trail proves it ever reached
+ *  (ADR 0063 §4) — read by `LeadWriteRepository.lockForMove`. */
+export type LeadReach = Extract<LeadState, 'assigned' | 'verifying' | 'working'>
+
+/** Where a lead stands once it is put back on the backbone: an exchange was
+ *  logged means it really was being worked, otherwise care had only been
+ *  planned. Reads FACTS, never the tier (ADR 0063 §3).
+ *
+ *  The SQL twin is the `nurturing` branch of `sales.workstream_stand()`
+ *  (migration 0058) — change one and change the other. */
+export const stateByWork = (exchanged: boolean): Extract<LeadState, 'verifying' | 'working'> =>
+  exchanged ? 'working' : 'verifying'
 
 /** Reopen recomputes from facts rather than restoring: a deal → `converted`,
- *  no holder → `new`, else by tier. */
+ *  no holder → `new`, else the rung the trail proves. */
 export function stateOnReopen(lead: {
   hasDeal: boolean
   ownerId: string | null
-  tier: string | null
+  reached: LeadReach
 }): LeadState {
   if (lead.hasDeal) return 'converted'
   if (lead.ownerId === null) return 'new'
-  return stateByTier(lead.tier)
+  return lead.reached
 }
 
 type LeadColumns = Omit<PgUpdateSetSource<typeof lead>, 'code' | 'state' | 'stateSince'>
@@ -74,22 +91,57 @@ export class LeadStateWriter {
     private readonly touch: TouchService,
   ) {}
 
-  /** The PIC's first action of any kind: `new|assigned` → `verifying`. One
-   *  conditional UPDATE, so it is race-free without a row lock: only the
-   *  current holder's action counts, and only the first one moves anything.
+  /** The owner PIC scheduled care: `assigned` → `verifying` (ADR 0063 §2). A
+   *  future meeting or a timed mail run, nothing else. */
+  scheduled(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
+    return this.advance(tx, codes, actorId, {
+      to: 'verifying',
+      from: ['assigned'],
+      kind: 'care-planned',
+      note: LEAD_NOTE.carePlanned,
+    })
+  }
+
+  /** A real exchange was logged: `assigned|verifying` → `working`. Skipping is
+   *  allowed — an exchange on an `assigned` lead lands straight on `working`. */
+  exchanged(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
+    return this.advance(tx, codes, actorId, {
+      to: 'working',
+      from: ['assigned', 'verifying'],
+      kind: 'exchange-logged',
+      note: LEAD_NOTE.exchanged,
+    })
+  }
+
+  /** One forward move by the current holder, plus its dated timeline row.
    *
-   *  It writes its OWN timeline row, because most of the nine doors that call
-   *  it write none — mail, account, comms — and the rung was dateless there. */
-  async firstAction(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
+   *  ONE conditional UPDATE, so it is race-free without a row lock: only the
+   *  current holder's action counts, and a repeated call finds the state
+   *  already moved and writes nothing.
+   *
+   *  It writes its OWN timeline row, because most of the doors that call it
+   *  write none — mail, comms — and the rung was dateless there. No `toTier`:
+   *  the tier left the state machine (ADR 0063 §3). */
+  private async advance(
+    tx: Db,
+    codes: readonly string[],
+    actorId: string,
+    step: {
+      to: LeadState
+      from: readonly LeadState[]
+      kind: 'care-planned' | 'exchange-logged'
+      note: string
+    },
+  ): Promise<void> {
     if (codes.length === 0) return
     const moved = await tx
       .update(lead)
-      .set({ state: 'verifying', stateSince: sql`now()` })
+      .set({ state: step.to, stateSince: sql`now()` })
       .where(
         and(
           inArray(lead.code, [...codes]),
           eq(lead.ownerId, actorId),
-          inArray(lead.state, ['new', 'assigned']),
+          inArray(lead.state, [...step.from]),
         ),
       )
       .returning({ code: lead.code })
@@ -108,10 +160,10 @@ export class LeadStateWriter {
       rows.map((r) => ({
         subjectCode: r.row.code,
         subjectKind: 'lead' as const,
-        kind: 'first-action' as const,
+        kind: step.kind,
         by: r.ownerName ?? SYSTEM_ACTOR,
         actorId,
-        note: LEAD_NOTE.firstAction,
+        note: step.note,
       })),
     )
   }
@@ -166,7 +218,7 @@ export class LeadStateWriter {
   }
 
   /** The stored leads with their holder's name — one SELECT, whatever the
-   *  batch size. Split out of `refresh` so `firstAction` can take the name it
+   *  batch size. Split out of `refresh` so `advance` can take the name it
    *  stamps on the timeline off the row it is already reading. */
   private reload(tx: Db, codes: readonly string[]): Promise<StoredLead[]> {
     return tx

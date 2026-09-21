@@ -96,7 +96,7 @@ export const LeadRow = z.object({
 
   province: z.string().min(1).optional(),
   category: LeadCategory.optional(),
-  /** Absent until a PIC confirms verification — `POST :code/verify` sets it. */
+  /** Optional and independent of state; absent until a PIC grades the lead. */
   tier: LeadTier.optional(),
   phone: z.string().min(1).optional(),
   contactChannel: ContactChannel.optional(),
@@ -547,9 +547,9 @@ export const LeadProfile = LeadRow.extend({
  *     disagree with the data it counts.
  *   · `score`, `state`, `stateSince`, `createdAt`, `lastTouchAt` — the system's
  *     own bookkeeping; `state` starts at `new` or `assigned` by owner.
- *   · `tier` — set only when a PIC confirms verification (`POST :code/verify`,
- *     ADR 0058). A lead that has just been typed has not been verified, and a
- *     client that can name its own tier can claim a gate it never went through.
+ *   · `tier` — graded later by the PIC through the patch door, in any state
+ *     but `disqualified` | `archived`; a lead that has just been typed has not
+ *     been assessed yet.
  *   · `exitReason` / `exitedAt` — a lead cannot be born already lost, and
  *     `CHECK lead_disqualified_has_reason` would be the one to say so.
  *   · `source.kind` — the system records the origin, nobody types it. For this
@@ -697,8 +697,7 @@ const clearableText = (max: number) =>
  *
  *   · `code` · `createdAt` · `score` · `requiredFilled` — the system's own
  *     bookkeeping, two of them generated columns Postgres computes.
- *   · `state` — moved by the server and the lifecycle doors (`:code/verify`,
- *     `nurture`, `resume`, `exit`, `reopen`), never typed.
+ *   · `state` — moved by the server and the lifecycle doors (`nurture`, `resume`, `exit`, `reopen`), never typed.
  *   · `ownerId` · `bdOwnerId` · `marketingOwnerId` — `PATCH :code/owner` is
  *     their door, and it holds a rule this one does not (who may hand a lead
  *     to somebody else) that would have to be copied here to stay true.
@@ -727,9 +726,8 @@ export const LeadPatch = z
     address: clearableText(LEAD_MAX.address),
     province: clearableText(LEAD_MAX.province),
     category: LeadCategory.nullish(),
-    /** Re-grading AFTER verification. The server refuses it before `working`:
-     *  the first tier is set by `POST :code/verify`, and a patch must not be a
-     *  way round that gate. Not clearable — a verified lead always has a tier. */
+    /** Tier is decoupled from state: patchable in any state except
+     *  `disqualified` | `archived`. Not clearable once set. */
     tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
     headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),
@@ -850,21 +848,15 @@ export const LeadReopenResponse = LeadProfile
 // MOVING THROUGH THE LIFECYCLE — the PIC's own call (ADR 0058)
 // ---------------------------------------------------------------------------
 
-/** `POST /sales/leads/:code/verify` — `verifying` → `working`. The tier is
- *  REQUIRED: this is the one step that sets the first tier. */
-export const LeadVerifyBody = z.object({
-  tier: LeadTier,
-})
-
 /** `POST /sales/leads/:code/nurture` — `verifying` | `working` → `nurturing`.
- *  `POST :code/resume` (no body) brings it back to `working`. */
+ *  `POST :code/resume` (no body) brings it back to `working` if an exchange
+ *  was ever logged on the lead, else to `verifying`. */
 export const LeadNurtureBody = z.object({
   note: textInputOptional(500),
 })
 
 /** All lifecycle doors answer the re-read profile, like `:code/exit`. */
 export const LeadContactedResponse = LeadProfile
-export const LeadVerifyResponse = LeadProfile
 export const LeadNurtureResponse = LeadProfile
 export const LeadResumeResponse = LeadProfile
 
@@ -926,10 +918,8 @@ export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
 export type LeadExitBody = z.infer<typeof LeadExitBody>
 export type LeadExitResponse = z.infer<typeof LeadExitResponse>
 export type LeadReopenResponse = z.infer<typeof LeadReopenResponse>
-export type LeadVerifyBody = z.infer<typeof LeadVerifyBody>
 export type LeadNurtureBody = z.infer<typeof LeadNurtureBody>
 export type LeadContactedResponse = z.infer<typeof LeadContactedResponse>
-export type LeadVerifyResponse = z.infer<typeof LeadVerifyResponse>
 export type LeadNurtureResponse = z.infer<typeof LeadNurtureResponse>
 export type LeadResumeResponse = z.infer<typeof LeadResumeResponse>
 export type LeadScorecard = z.infer<typeof LeadScorecard>

@@ -21,6 +21,10 @@ Two further facts about the computed `stand` decided the shape of the fix.
 between `insertOpened` opening a run and the anchoring lead being written,
 there is a window in which no honest code exists to store.
 
+> Amendment 21/09/2026: any statement here that the tier-based rung copy
+> (`stateByTier`) lives in SQL is no longer true — the `nurturing` rung is now
+> read from touches, not from the tier; see 0063 and migration 0058.
+
 ## Decision
 
 ### 1 · `stand` is materialized, and plpgsql owns it

@@ -33,8 +33,8 @@ const OPEN: ReadonlySet<string> = new Set(LEAD_OPEN_STATES)
  *  asked too — it simply answers no. */
 export const isOpenState = (state: string): state is LeadState => OPEN.has(state)
 
-/** Tier options for the verify picker — the same fixture table the profile
- *  form's tier select already draws, so one tier never wears two names. */
+/** The tier table every tier picker draws from, so one tier never wears two
+ *  names. */
 export const TIER_CHOICES: readonly { key: LeadTier; label: string }[] = LEAD_TIERS
 
 const TIER_LABEL: ReadonlyMap<string, string> = new Map(TIER_CHOICES.map((t) => [t.key, t.label]))
@@ -43,9 +43,10 @@ const TIER_LABEL: ReadonlyMap<string, string> = new Map(TIER_CHOICES.map((t) => 
  *  an unknown key prints as itself rather than vanishing. */
 export const tierLabel = (tier: string): string => TIER_LABEL.get(tier) ?? tier
 
-/** May `PATCH` carry `tier`? Only while `working` or `converted` — the server
- *  refuses every other state, nurturing included (ADR 0058 amendment), and
- *  `POST :code/verify` is the door that sets the first tier. */
+/** May `PATCH` carry `tier`? Everywhere but the two states that left the
+ *  funnel — the mirror of the server's rule since the grade was decoupled from
+ *  the state (ADR 0063): a tier is an assessment the PIC may write at any point
+ *  while the lead is still being worked, and nobody re-grades a dropped one. */
 export function tierEditable(lead: { state: LeadState }): boolean {
-  return lead.state === 'working' || lead.state === 'converted'
+  return lead.state !== 'disqualified' && lead.state !== 'archived'
 }

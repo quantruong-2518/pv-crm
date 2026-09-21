@@ -11,7 +11,7 @@ import {
   type IconGlyph,
 } from '@pv/ui'
 import { Avatar, Badge, Button, GlassCard, Icon } from '@pv/ui'
-import type { LeadProfile, OpportunityLiveDeal } from '@pv/contracts'
+import { LEAD_STATE_LABEL, type LeadProfile, type OpportunityLiveDeal } from '@pv/contracts'
 import type { Lead } from '@pv/engines/fixtures/das-vina'
 import { userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
@@ -19,7 +19,7 @@ import { useContactLead, useReopenLead } from '@/data/lead-exit'
 import { readField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { EXIT_REASON_LABEL } from '@/data/leads'
-import { isOpenState } from '@/data/lead-state'
+import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { AssignMenu } from './assign-menu'
 import { LeadStepButton } from './lead-state-actions'
 
@@ -61,8 +61,7 @@ export function LeadToolsBar(
         canConvert: boolean
         onPin: () => void
         onExit: () => void
-        /** The PIC's lifecycle steps (ADR 0058), gated by `canEdit`. */
-        onVerify: () => void
+        /** The PIC's one lifecycle step left (ADR 0063), gated by `canEdit`. */
         onNurture: () => void
         onConvert: () => void
         onOpenOp: (code: string) => void
@@ -98,7 +97,6 @@ function EditBar({
   canConvert,
   onPin,
   onExit,
-  onVerify,
   onNurture,
   onConvert,
   onOpenOp,
@@ -150,7 +148,7 @@ function EditBar({
           Đặt lịch
         </Button>
 
-        <LeadStepButton lead={lead} canEdit={canEdit} onVerify={onVerify} />
+        <LeadStepButton lead={lead} canEdit={canEdit} />
 
         <OverflowMenu>
           {(close) => (
@@ -176,7 +174,7 @@ function EditBar({
               {nurturable && (
                 <MenuRow
                   icon={Timer}
-                  label="Nuôi dài hạn"
+                  label={`Chuyển sang ${LEAD_STATE_LABEL.nurturing}`}
                   disabled={!canEdit}
                   title={canEdit ? undefined : 'Cần quyền sửa lead.'}
                   onClick={() => {
@@ -229,8 +227,9 @@ function EditBar({
 }
 
 /** Dial first, confirm second. The browser cannot know whether leaving through
- *  `tel:` produced a real call, so only the short confirmation press writes
- *  the touch and advances an assigned lead to `verifying`. */
+ *  `tel:` produced a real call, so only the short confirmation press writes the
+ *  touch — and that touch is a real exchange, which moves the lead to `working`
+ *  (ADR 0063). */
 function CallButton({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
   const contact = useContactLead(lead.code)
   const [dialed, setDialed] = useState(false)
@@ -357,9 +356,15 @@ function ExitRow({
   const reopen = useReopenLead(code)
 
   if (!canDisqualify) {
+    /* The state's name comes from the one table (`LEAD_STATE_FACE`), and the
+       pill truncates: "<state> · <reason>" outgrows this 280px panel. */
+    const face = LEAD_STATE_FACE.disqualified
+    const text = `${face.label}${exitLabel ? ` · ${exitLabel}` : ''}`
     return dropped ? (
       <div className="px-3 py-2">
-        <Badge tone="danger">Đã loại{exitLabel ? ` · ${exitLabel}` : ''}</Badge>
+        <Badge tone={face.badge} className="max-w-full" title={text}>
+          <span className="truncate">{text}</span>
+        </Badge>
       </div>
     ) : null
   }
@@ -434,12 +439,12 @@ function MenuRow({
       variant="ghost"
       aria-pressed={pressed}
       disabled={disabled}
-      title={title}
+      title={title ?? label}
       onClick={onClick}
-      className="min-h-12 w-full justify-start bg-transparent shadow-none"
+      className="min-h-12 w-full min-w-0 justify-start bg-transparent shadow-none"
     >
       {icon && <Icon icon={icon} size={16} />}
-      <span className={mono ? 'font-mono' : undefined}>{label}</span>
+      <span className={mono ? 'min-w-0 truncate font-mono' : 'min-w-0 truncate'}>{label}</span>
     </Button>
   )
 }

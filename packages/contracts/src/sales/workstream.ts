@@ -263,7 +263,8 @@ export const WorkstreamLeadOutcome = z.enum(['converted', 'exited', 'open'])
 /** The five backbone rungs, in order, and no others — every lead lane draws
  *  exactly this ladder so any two leads sit side by side and compare (ADR
  *  0058). Declared once so the API's writer and this contract agree on which
- *  five. */
+ *  five. The `verifying` rung is entered by touch kind `care-planned` or legacy
+ *  `first-action`; `working` by `exchange-logged` or legacy `verified`. */
 export const LEAD_LANE_BACKBONE = [
   'new',
   'assigned',
@@ -316,7 +317,7 @@ export const WorkstreamLeadExit = z.object({
  *  `working`, and `exit`, which is present only once a lead has actually left.
  *  `tier` rides on the lane rather than being read off a `LeadRow`: this screen
  *  never holds one, so fetching the lead door would cost a round trip to print
- *  one badge. It is a side-label of `working`, not a rung. It, `sourceKind` and
+ *  one badge. It is an optional field independent of state, not a rung. It, `sourceKind` and
  *  `campaignName` are lead facts reaching a reader who only proved
  *  `workstream.view` — safe while no role holds that without `lead.view`, and
  *  the thing to re-check the day somebody builds a journey-only role. `campaignName` is null for a lead typed in by hand —

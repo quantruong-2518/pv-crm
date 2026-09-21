@@ -1,46 +1,24 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, ShieldCheck, Timer, X, type IconGlyph } from '@pv/ui'
-import { Button, Drawer, Icon, Select, Textarea, cn } from '@pv/ui'
-import { LeadTier, type LeadProfile } from '@pv/contracts'
+import { RefreshCw, Timer, X, type IconGlyph } from '@pv/ui'
+import { Button, Drawer, Icon, Textarea, cn } from '@pv/ui'
+import { LEAD_STATE_LABEL, type LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
-import { useNurtureLead, useResumeLead, useVerifyLead } from '@/data/lead-exit'
-import { LEAD_STATE_FACE, TIER_CHOICES } from '@/data/lead-state'
+import { useNurtureLead, useResumeLead } from '@/data/lead-exit'
+import { LEAD_STATE_FACE } from '@/data/lead-state'
 
-/** The PIC's own lifecycle steps (ADR 0058) — the one forward step a state
- *  offers, standing in the toolbar, and the two drawers behind them.
+/** The PIC's own lifecycle steps — the one forward step a state offers,
+ *  standing in the toolbar, and the drawer behind the parking one.
  *
- *  Only `verifying` and `nurturing` get a bar button: those are the two states
- *  that wait on a person's call. Parking a lead (`nurture`) is rarer, so it sits
- *  in the `…` menu. Every door answers a 409 when the state moved under the
- *  reader; the drawer prints the server's own sentence and stays open. */
-export function LeadStepButton({
-  lead,
-  canEdit,
-  onVerify,
-}: {
-  lead: LeadProfile
-  canEdit: boolean
-  onVerify: () => void
-}) {
+ *  Only `nurturing` gets a bar button now: it is the one state that waits on a
+ *  person's call. `verifying` and `working` are entered by what the PIC DOES —
+ *  scheduling care, logging an exchange — so they have no button of their own
+ *  (ADR 0063). Parking a lead (`nurture`) is rarer, so it sits in the `…` menu.
+ *  Every door answers a 409 when the state moved under the reader; the drawer
+ *  prints the server's own sentence and stays open. */
+export function LeadStepButton({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
   const resume = useResumeLead(lead.code)
   const locked = canEdit ? undefined : 'Cần quyền sửa lead.'
-
-  if (lead.state === 'verifying') {
-    return (
-      <Button
-        size="md"
-        variant="secondary"
-        className="pointer-coarse:h-12"
-        disabled={!canEdit}
-        title={locked}
-        onClick={onVerify}
-      >
-        <Icon icon={ShieldCheck} size={16} />
-        Xác minh xong
-      </Button>
-    )
-  }
 
   if (lead.state !== 'nurturing') return null
 
@@ -53,7 +31,8 @@ export function LeadStepButton({
       title={locked}
       onClick={() =>
         resume.mutate(undefined, {
-          /* No tier yet → the server resumes to `verifying`, not `working`. */
+          /* Which rung it lands on is read off the touch trail, not the tier —
+             so the toast prints the state the server answered with. */
           onSuccess: (next) =>
             toastDone(`${lead.code} chuyển sang ${LEAD_STATE_FACE[next.state].label}.`),
           onError: (error) => toastFail('Không chăm lại được lead.', userMessage(error)),
@@ -63,71 +42,6 @@ export function LeadStepButton({
       <Icon icon={RefreshCw} size={16} />
       {resume.isPending ? 'Đang ghi…' : 'Chăm lại'}
     </Button>
-  )
-}
-
-/** `verifying` → `working`: the tier is REQUIRED here, since this is the one
- *  step that sets it (`LeadVerifyBody`). */
-export function VerifyDialog({
-  profile,
-  open,
-  onClose,
-}: {
-  profile: LeadProfile
-  open: boolean
-  onClose: () => void
-}) {
-  const [tier, setTier] = useState('')
-  const verify = useVerifyLead(profile.code)
-  const { reset } = verify
-  const picked = LeadTier.safeParse(tier)
-
-  useEffect(() => {
-    if (open) {
-      setTier('')
-      reset()
-    }
-  }, [open, reset])
-
-  return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      title="Xác minh xong lead"
-      subtitle={<Subject profile={profile} what="chuyển sang Đang chăm, kèm bậc của lead." />}
-      footer={
-        <StepFooter
-          error={verify.error}
-          pending={verify.isPending}
-          hint={picked.success ? 'Ghi ngay, không cần ai duyệt.' : 'Chọn bậc để bật nút.'}
-          onClose={onClose}
-          confirm={{
-            icon: ShieldCheck,
-            label: 'Xác nhận đã xác minh',
-            disabled: !picked.success,
-            onClick: () => {
-              if (!picked.success) return
-              verify.mutate(
-                { tier: picked.data },
-                { onSuccess: () => done(`Đã xác minh ${profile.code}.`, onClose) },
-              )
-            },
-          }}
-        />
-      }
-    >
-      <Select
-        label="Bậc"
-        value={tier}
-        neutralValue=""
-        onChange={setTier}
-        className="w-full"
-        options={[
-          { value: '', label: '— chọn một bậc —' },
-          ...TIER_CHOICES.map((t) => ({ value: t.key, label: t.label })),
-        ]}
-      />
-    </Drawer>
   )
 }
 
@@ -157,11 +71,11 @@ export function NurtureDialog({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Nuôi dài hạn"
+      title={LEAD_STATE_LABEL.nurturing}
       subtitle={
         <Subject
           profile={profile}
-          what="khách chưa sẵn sàng. Để lâu không chăm lại, hệ thống tự chuyển lead vào Lưu trữ."
+          what={`khách chưa sẵn sàng. Để lâu không chăm lại, hệ thống tự chuyển lead vào ${LEAD_STATE_LABEL.archived}.`}
         />
       }
       footer={
@@ -172,12 +86,13 @@ export function NurtureDialog({
           onClose={onClose}
           confirm={{
             icon: Timer,
-            label: 'Chuyển sang nuôi dài hạn',
+            label: `Chuyển sang ${LEAD_STATE_LABEL.nurturing}`,
             disabled: false,
             onClick: () => {
               const trimmed = note.trim()
               nurture.mutate(trimmed === '' ? {} : { note: trimmed }, {
-                onSuccess: () => done(`Đã chuyển ${profile.code} sang nuôi dài hạn.`, onClose),
+                onSuccess: () =>
+                  done(`Đã chuyển ${profile.code} sang ${LEAD_STATE_LABEL.nurturing}.`, onClose),
               })
             },
           }}
@@ -190,7 +105,7 @@ export function NurtureDialog({
           autoGrow
           rows={3}
           value={note}
-          aria-label="Ghi chú khi chuyển nuôi dài hạn"
+          aria-label={`Ghi chú khi chuyển sang ${LEAD_STATE_LABEL.nurturing}`}
           placeholder="Khách hẹn quay lại khi nào, chờ điều gì…"
           onChange={(e) => setNote(e.target.value)}
         />

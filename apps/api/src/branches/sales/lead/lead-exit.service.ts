@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type {
-  LeadExitBody,
-  LeadNurtureBody,
-  LeadProfile,
-  LeadVerifyBody,
-  ObjectCode,
+import {
+  LEAD_STATE_LABEL,
+  type LeadExitBody,
+  type LeadNurtureBody,
+  type LeadProfile,
+  type ObjectCode,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, notFound } from '@api/platform/http/problem'
@@ -15,11 +15,11 @@ import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
-import { LeadStateWriter, stateByTier, stateOnReopen } from './lead-state'
+import { LEAD_GONE_WORDS, LeadStateWriter, stateByWork, stateOnReopen } from './lead-state'
 import { LeadWriteRepository } from './lead-write.repository'
 
-/** The lifecycle doors a person presses (ADR 0058): confirm contact, exit and
- *  reopen (ADR 0057 §2 — direct, no E3, because each undoes the other), verify,
+/** The lifecycle doors a person presses (ADR 0058, 0063): confirm contact, exit
+ *  and reopen (ADR 0057 §2 — direct, no E3, because each undoes the other),
  *  nurture and resume. Each locks the row, checks the state it leaves, moves it through
  *  `LeadStateWriter` with its timeline row in one transaction, then answers
  *  with the profile read back through `LeadService.profile`.
@@ -39,18 +39,20 @@ export class LeadExitService {
 
   /** `POST /sales/leads/:code/contacted` — confirm that the phone call really
    *  happened. Opening a `tel:` URL alone proves nothing, so the screen asks
-   *  for this short second press. It records every valid call and performs the
-   *  PIC's first-action move when the lead is still `new|assigned`. */
+   *  for this short second press. It records every valid call and, being a real
+   *  exchange, moves `assigned|verifying` → `working` (ADR 0063 §2). */
   async contacted(who: Actor, code: ObjectCode): Promise<LeadProfile> {
     await this.inScope(who, code)
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified' || held.state === 'archived') {
-        throw conflict(`Lead ${code} đã dừng — không ghi cuộc gọi mới được.`)
+        throw conflict(
+          `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS} — không ghi cuộc gọi mới được.`,
+        )
       }
 
-      await this.states.firstAction(tx, [code], who.id)
+      await this.states.exchanged(tx, [code], who.id)
       await this.record(tx, who, code, 'contacted', LEAD_NOTE.contacted)
     })
 
@@ -66,7 +68,9 @@ export class LeadExitService {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified') throw conflict(`Lead ${code} đã rời phễu rồi.`)
       if (held.state === 'archived') {
-        throw conflict(`Lead ${code} đã được lưu trữ — không cần cho rời phễu nữa.`)
+        throw conflict(
+          `Lead ${code} đã ở “${LEAD_STATE_LABEL.archived}” — không cần cho rời phễu nữa.`,
+        )
       }
       if (held.openDeal) {
         throw conflict(`Lead ${code} còn cơ hội đang mở — đóng cơ hội trước khi cho lead rời phễu.`)
@@ -104,25 +108,6 @@ export class LeadExitService {
     return this.profiles.profile(who, code)
   }
 
-  /** `POST /sales/leads/:code/verify` — `verifying` → `working`, with the tier. */
-  async verify(who: Actor, code: ObjectCode, body: LeadVerifyBody): Promise<LeadProfile> {
-    await this.inScope(who, code)
-
-    await this.repo.run(async (tx) => {
-      const held = await this.lockRow(tx, who, code)
-      if (held.state !== 'verifying') {
-        throw conflict(
-          `Lead ${code} không ở bước xác minh — chỉ lead đang xác minh mới chốt bậc được.`,
-        )
-      }
-
-      await this.states.move(tx, code, 'working', { tier: body.tier })
-      await this.record(tx, who, code, 'verified', LEAD_NOTE.verified(body.tier), body.tier)
-    })
-
-    return this.profiles.profile(who, code)
-  }
-
   /** `POST /sales/leads/:code/nurture` — `verifying|working` → `nurturing`. */
   async nurture(who: Actor, code: ObjectCode, body: LeadNurtureBody): Promise<LeadProfile> {
     await this.inScope(who, code)
@@ -131,7 +116,7 @@ export class LeadExitService {
       const held = await this.lockRow(tx, who, code)
       if (held.state !== 'verifying' && held.state !== 'working') {
         throw conflict(
-          `Lead ${code} không ở bước xác minh hay đang chăm — chỉ hai bước đó chuyển nuôi dài hạn được.`,
+          `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” — chỉ hai bước đó chuyển chờ thời điểm được.`,
         )
       }
 
@@ -142,18 +127,21 @@ export class LeadExitService {
     return this.profiles.profile(who, code)
   }
 
-  /** `POST /sales/leads/:code/resume` — `nurturing` → `working`, or back to
-   *  `verifying` when it was parked before a tier was ever set. */
+  /** `POST /sales/leads/:code/resume` — `nurturing` → `working` when an exchange
+   *  was ever logged, else back to `verifying`. Nurture is only reachable from
+   *  those two, so `verifying` is the floor. */
   async resume(who: Actor, code: ObjectCode): Promise<LeadProfile> {
     await this.inScope(who, code)
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state !== 'nurturing') {
-        throw conflict(`Lead ${code} không ở trạng thái nuôi dài hạn nên không có gì để chăm lại.`)
+        throw conflict(
+          `Lead ${code} không ở “${LEAD_STATE_LABEL.nurturing}” nên không có gì để chăm lại.`,
+        )
       }
 
-      await this.states.move(tx, code, stateByTier(held.tier))
+      await this.states.move(tx, code, stateByWork(held.reached === 'working'))
       await this.record(tx, who, code, 'resumed', LEAD_NOTE.resumed)
     })
 
@@ -166,14 +154,12 @@ export class LeadExitService {
     code: ObjectCode,
     kind: TouchEntry['kind'],
     note: string,
-    toTier?: TouchEntry['toTier'],
   ): Promise<void> {
     await this.touch.record(tx, [
       {
         subjectCode: code,
         subjectKind: 'lead',
         kind,
-        ...(toTier ? { toTier } : {}),
         ...byOf(who),
         note,
       },

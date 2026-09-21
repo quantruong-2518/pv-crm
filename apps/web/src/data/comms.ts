@@ -132,7 +132,8 @@ export function useCaptureMessage(objectCode: string) {
     onSuccess: (written) => {
       void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'threads', objectCode] })
       void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'messages', written.thread.id] })
-      /* A logged call by the owner moves the lead to `verifying` (ADR 0058). */
+      /* Any message or call logged on a lead is a real exchange, and that moves
+         it to `working` — any direction, any duration (ADR 0063). */
       invalidateLeadState(client)
     },
   })

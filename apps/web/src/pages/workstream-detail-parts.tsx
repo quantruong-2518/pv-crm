@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Avatar, Button, Icon, Plus, Separator, StatusDot, cn, type StatusDotState } from '@pv/ui'
 import {
+  LEAD_STATE_LABEL,
   SOURCE_KIND_LABEL,
   SOURCE_KIND_UNKNOWN,
   type WorkstreamHolder,
@@ -198,7 +199,7 @@ function LeadFacts({ lead }: { lead: WorkstreamLeadLane }) {
       />
       {lead.campaignName !== null && <Fact label="Chiến dịch" value={lead.campaignName} />}
       <Fact
-        label="Nuôi dài hạn"
+        label={LEAD_STATE_LABEL.nurturing}
         value={
           lead.nurture === null
             ? 'chưa lần nào'

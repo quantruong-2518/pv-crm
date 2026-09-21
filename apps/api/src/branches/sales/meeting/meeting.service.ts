@@ -33,7 +33,7 @@ export class MeetingService {
   constructor(
     private readonly repo: MeetingRepository,
     private readonly touch: TouchService,
-    /* A meeting logged by the lead's holder is their first action (ADR 0058). */
+    /* A meeting by the lead's holder moves the state — see `moveLead` below. */
     private readonly states: LeadStateWriter,
   ) {}
 
@@ -92,7 +92,7 @@ export class MeetingService {
 
       await this.guestsBelongHere(tx, code, body.guests)
       await this.repo.setAttendees(tx, meetingId, attendeesOf(meetingId, body))
-      await this.states.firstAction(tx, [code], who.id)
+      await this.moveLead(tx, code, who.id, at)
 
       await this.touch.record(tx, [
         {
@@ -115,9 +115,13 @@ export class MeetingService {
 
   /** Sửa một buổi đã ghi. Không đẻ thêm dòng `touch`: dòng thời gian ghi việc
    *  đã xảy ra, và sửa chính tả một tiêu đề không phải một việc đã xảy ra với
-   *  khách hàng. */
-  async amend(code: string, id: string, body: MeetingPatch): Promise<MeetingRow> {
-    await this.mine(code, id)
+   *  khách hàng.
+   *
+   *  Trạng thái lead thì vẫn chạy — cùng MỘT luật với `record` (`moveLead`): đổi
+   *  giờ họp sang tương lai là đặt lịch chăm, đổi về quá khứ là đã trao đổi. */
+  async amend(who: Actor, code: string, id: string, body: MeetingPatch): Promise<MeetingRow> {
+    const current = await this.mine(code, id)
+    const at = body.at === undefined ? current.at : new Date(body.at)
 
     /* Đọc bản hiện tại TRƯỚC khi mở transaction, không đọc bên trong: hai danh
        sách người dự chỉ cần thiết khi lượt PATCH đụng tới đúng một trong hai,
@@ -131,7 +135,7 @@ export class MeetingService {
 
     await this.repo.run(async (tx) => {
       await this.repo.update(tx, id, {
-        ...(body.at === undefined ? {} : { at: new Date(body.at) }),
+        ...(body.at === undefined ? {} : { at }),
         ...(body.title === undefined ? {} : { title: body.title }),
         /* `link` và `transcript` phân biệt "không gửi" với "gửi rỗng": vắng mặt
            là không đụng tới, còn chuỗi rỗng đã bị zod biến thành vắng mặt ở
@@ -168,9 +172,22 @@ export class MeetingService {
           }),
         )
       }
+
+      if (body.at !== undefined) await this.moveLead(tx, code, who.id, at)
     })
 
     return this.one(code, id)
+  }
+
+  /** THE meeting rule, one copy for both doors (ADR 0063 §2): a meeting still
+   *  ahead is care SCHEDULED, a meeting already held is an exchange LOGGED. The
+   *  server clock at write time decides, with no tolerance window — the same
+   *  tense `noteOf` writes its sentence in. Both moves are owner-only and
+   *  forward-only, so a second call finds the state moved and writes nothing. */
+  private moveLead(tx: Db, code: string, actorId: string, at: Date): Promise<void> {
+    return at.getTime() > Date.now()
+      ? this.states.scheduled(tx, [code], actorId)
+      : this.states.exchanged(tx, [code], actorId)
   }
 
   async drop(code: string, id: string): Promise<void> {

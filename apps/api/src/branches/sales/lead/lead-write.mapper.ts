@@ -85,19 +85,22 @@ export const LEAD_NOTE = {
    *  timeline row nobody reads to the end. */
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
   contacted: 'Đã gọi khách',
-  /** The rung `LeadStateWriter.firstAction` writes as it moves the lead: the
-   *  sentence says WHAT the step is, not which door pressed it, because nine
-   *  doors reach it and the trail already names the person who did. */
-  firstAction: 'Bắt đầu xử lý · chuyển sang bước xác minh',
+  /** The two rungs `LeadStateWriter` writes as it moves the lead. Each sentence
+   *  says WHAT happened, not which door pressed it and not which state it landed
+   *  on: several doors reach each rung, the trail already names the person, and a
+   *  stored sentence that quotes `LEAD_STATE_LABEL` goes stale the day a label
+   *  is renamed. */
+  carePlanned: 'Đặt lịch làm việc với khách',
+  exchanged: 'Có trao đổi thật với khách',
   /** The reason travels as its key: labels belong to the screen (`ExitReason`). */
   exited: (reason: ExitReason, note: string | undefined) =>
     note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,
   reopened: 'Mở lại lead — quay về phễu',
   verified: (tier: LeadTier) => `Xác minh xong · bậc ${tier}`,
   nurtured: (note: string | undefined) =>
-    note ? `Chuyển nuôi dài hạn · ${note}` : 'Chuyển nuôi dài hạn',
-  resumed: 'Chăm lại sau thời gian nuôi',
-  archived: 'Lưu trữ tự động · quá 6 tháng nuôi dài hạn',
+    note ? `Chuyển sang Chờ thời điểm · ${note}` : 'Chuyển sang Chờ thời điểm',
+  resumed: 'Chăm lại sau thời gian chờ',
+  archived: 'Lưu trữ tự động · quá 6 tháng ở Chờ thời điểm',
   tierRaised: (tier: LeadTier) => `Nâng bậc · ${tier}`,
 } as const
 
@@ -129,7 +132,7 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
  *   · `code`, `createdAt`, `stateSince`, `score` — minted or defaulted by the
  *     server; see `LeadValues` above and the column defaults. `state` is
  *     derived from the owner (`stateAtBirth`), never accepted.
- *   · `tier` — withheld by the contract: set only on verification (ADR 0058).
+ *   · `tier` — withheld by the contract: graded later through `PATCH :code`.
  *   · `exitReason`, `exitedAt` — a lead cannot be born already lost.
  *   · `sourceKind` — set here, not accepted from the caller: the system records
  *     where a row came from. `MANUAL` reads as `DECLARED` in `CHANNEL_TRUST`

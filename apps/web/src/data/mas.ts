@@ -342,7 +342,8 @@ export function useMasSend() {
          không được phụ thuộc ngược lên chúng. */
       void client.invalidateQueries({ queryKey: ['sales', 'campaign-book'] })
       void client.invalidateQueries({ queryKey: ['sales', 'mail-runs'] })
-      /* A mail from the owner moves the lead to `verifying` (ADR 0058). */
+      /* A mail run the owner SCHEDULES is planned care, and that moves the lead
+         to `verifying` (ADR 0063). */
       invalidateLeadState(client)
     },
   })

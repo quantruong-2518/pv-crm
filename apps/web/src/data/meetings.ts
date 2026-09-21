@@ -82,7 +82,9 @@ export function useAddMeeting() {
     onSuccess: (_row, { code }) => {
       void client.invalidateQueries({ queryKey: [...MEETING_KEY, code] })
       void client.invalidateQueries({ queryKey: SCORECARD_KEY })
-      /* The owner's first meeting moves the lead to `verifying` (ADR 0058). */
+      /* The owner's meeting moves the lead: a FUTURE `at` is planned care
+         (`verifying`), a PAST one is an exchange already had (`working`) — see
+         ADR 0063 §2. */
       invalidateLeadState(client)
     },
   })
@@ -99,6 +101,9 @@ export function useEditMeeting() {
          nên cũng vứt cả danh sách. Thẻ điểm thì không đụng: sửa một buổi không
          làm lead nào có thêm hay bớt buổi họp. */
       void client.invalidateQueries({ queryKey: [...MEETING_KEY, code] })
+      /* An AMENDED `at` moves the state too, on the same rule as a new meeting
+         (ADR 0063 §2) — so the lead's state is re-read here as well. */
+      invalidateLeadState(client)
     },
   })
 }

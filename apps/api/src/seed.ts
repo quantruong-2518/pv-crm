@@ -356,7 +356,7 @@ function stateOf(j: JourneySeed, owner: Hand | null, deals: number): LeadState {
 /** Only a HELD lead has one — the row records the holder's first move, and the
  *  journey lane dates its `verifying` rung off nothing else. */
 function plantFirstAction(ld: string, owner: Hand | null, at: Date): void {
-  if (owner) pushTouch(ld, 'lead', 'first-action', at, owner, LEAD_NOTE.firstAction)
+  if (owner) pushTouch(ld, 'lead', 'first-action', at, owner, LEAD_NOTE.carePlanned)
 }
 
 /** A working lead got its tier through verify (ADR 0058), so it carries the

@@ -10,7 +10,6 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { invalidateLeadState } from '@/data/lead-exit'
 
 /** The stored key is English; every account screen prints this name instead. */
 export const CATEGORY_LABEL: Record<LeadCategory, string> = {
@@ -135,7 +134,6 @@ export function useSaveAccount(code: ObjectCode) {
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: [...ACCOUNT_BOOK_KEY, code] })
       void client.invalidateQueries({ queryKey: ACCOUNT_BOOK_KEY })
-      invalidateLeadState(client)
     },
   })
 }

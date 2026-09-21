@@ -417,9 +417,10 @@ export const lead = sales.table(
       'lead_disqualified_has_reason',
       sql`("state" = 'disqualified') = ("exit_reason" IS NOT NULL)`,
     ),
-    /** `working` is entered only by the PIC confirming verification WITH a tier
-     *  (ADR 0058, "tier is not a state") — a tierless `working` row skipped it. */
-    check('lead_working_has_tier', sql`"state" <> 'working' OR "tier" IS NOT NULL`),
+    /* NO `lead_working_has_tier` here, and the absence is the decision: `working`
+       is entered by a logged exchange with the customer, which says nothing about
+       grading, so a tierless `working` lead is an ordinary row (ADR 0063). */
+
     /** Among the open states, `new` means exactly "no PIC yet". Terminal states
      *  are exempt: a spam intake lead is disqualified without ever having one. */
     check(

@@ -1,6 +1,5 @@
 import {
   LEAD_STATE_LABEL,
-  type LeadState,
   type WorkstreamLeadLane,
   type WorkstreamStep,
   type WorkstreamStepState,
@@ -105,9 +104,14 @@ export function unreachedWord(open: boolean): string {
   return open ? STEP_STATE_LABEL.upcoming : 'Không đi tới'
 }
 
-/** The rung the tier rides on: ADR 0058 sets the grade exactly at this step and
- *  calls it a grade, not a state. */
-export const WORKING_RUNG: LeadState = 'working'
+/** The rung the tier badge rides on: the one the lane STANDS on, since the grade
+ *  was decoupled from the state (ADR 0063) — a lead may carry a tier from any
+ *  rung, so pinning the badge to `working` hid it on every other one. `null`
+ *  when no rung was ever entered, and then nothing is drawn. */
+export function tierRungOf(lane: WorkstreamLane): string | null {
+  const dropped = lane.steps.find((s) => s.state === 'dropped')
+  return (dropped ?? currentStepOf(lane) ?? lastReachedOf(lane))?.key ?? null
+}
 
 /** Law 13 rescue for a `Badge` on this screen's grounds. `Badge`'s own `draft`
  *  ink reads 3.8:1 on a node and 3.6:1 on a tinted one — both under 4.5, where

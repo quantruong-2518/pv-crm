@@ -171,10 +171,10 @@ const TEXT = {
  *  person meant, and a row error that quotes the cell says so instead. */
 const GROUPED_INT = /^\d[\d.,\s]*$/
 
-/* No imported lead gets a tier: the first tier is set when a PIC confirms
-   verification (`POST :code/verify`, ADR 0058), which no spreadsheet can
-   witness. The Bậc cell is still CHECKED against the closed list, because a
-   value outside it means the column mapping is wrong — then it is dropped. */
+/* No imported lead gets a tier: grading is the PIC's own call through
+   `PATCH :code` (ADR 0063 §3), which no spreadsheet can make for them. The Bậc
+   cell is still CHECKED against the closed list, because a value outside it
+   means the column mapping is wrong — then it is dropped. */
 
 /** The dedupe key, and the only identity this import has.
  *

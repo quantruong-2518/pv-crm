@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common'
 import { GraphModule } from '@api/platform/graph/graph.module'
-import { LeadStateModule } from '../lead/lead-state'
 import { ContactRepository } from './contact.repository'
 import { ContactService } from './contact.service'
 
@@ -18,7 +17,7 @@ import { ContactService } from './contact.service'
  *  first-class object in E1 (`CT-0391` has a mirror row, a meeting does
  *  not), so this module needs `ObjectMirror`. */
 @Module({
-  imports: [GraphModule, LeadStateModule],
+  imports: [GraphModule],
   providers: [ContactService, ContactRepository],
   exports: [ContactService],
 })

@@ -9,6 +9,7 @@ import {
   type OpportunityImportRow,
   type OpportunityImportRowOut,
 } from '@pv/contracts'
+import { LEAD_GONE_WORDS } from '../lead/lead-state'
 
 /** Bộ kiểm của lô nạp cơ hội — THUẦN. Không DB, không promise, không clock.
  *
@@ -199,7 +200,7 @@ function checkRow(
   if (leadCode === undefined && input.exitedCompany.has(folded)) {
     return {
       field: 'company',
-      reason: `Lead "${company}" đã loại hoặc đã lưu trữ — không tạo được cơ hội`,
+      reason: `Lead "${company}" đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`,
     }
   }
   if (leadCode === undefined) {
