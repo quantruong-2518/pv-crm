@@ -3,17 +3,28 @@ import {
   Button,
   Badge,
   CalendarCheck,
+  CalendarDays,
   FileCheck,
+  FileUp,
+  Globe,
+  Handshake,
   Icon,
+  Inbox,
+  Link,
+  Megaphone,
+  PenLine,
   Pin,
+  RefreshCw,
+  Send,
   StatCard,
   Target,
   UserRoundPlus,
   Users,
+  Zap,
   cn,
   percent,
 } from '@pv/ui'
-import { MOTION_SIDE, sourceKindLabel, type LeadRow } from '@pv/contracts'
+import { sourceKindLabel, type LeadMotion, type LeadRow, type LeadSourceKind } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
@@ -102,20 +113,28 @@ export function ScoreStrip() {
   )
 }
 
-/** Company over contact · title. The row already opens the lead's own code on
- *  click, so the cell prints the two things a person actually scans for. */
+/** Company over `contact · email`, small and italic. The email is a `mailto:`
+ *  link that stops the click, or the row would open the lead as well. */
 export function CompanyCell({ lead }: { lead: LeadRow }) {
-  const meta = [lead.contactName, lead.contactTitle].filter(Boolean).join(' · ')
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <span className="truncate text-[13px] font-semibold" title={lead.company}>
         {lead.company}
       </span>
-      {meta && (
-        <span className="text-muted-foreground truncate text-[11.5px]" title={meta}>
-          {meta}
+      <span className="text-muted-foreground flex min-w-0 gap-1 text-[11.5px] italic">
+        <span className="max-w-[45%] shrink-0 truncate" title={lead.contactName}>
+          {lead.contactName}
         </span>
-      )}
+        <span aria-hidden>·</span>
+        <a
+          href={`mailto:${lead.email}`}
+          title={`Gửi mail tới ${lead.email}`}
+          onClick={(event) => event.stopPropagation()}
+          className="hover:text-foreground truncate underline-offset-2 hover:underline"
+        >
+          {lead.email}
+        </a>
+      </span>
     </span>
   )
 }
@@ -128,28 +147,55 @@ function shortSourceName(name: string): string {
   return cut === -1 ? name : name.slice(0, cut).trimEnd()
 }
 
-/** Two lines: the approach (motion) over the source detail as a pill — the
- *  origin's name, else the campaign's. The campaign rides in the tooltip when
- *  the pill shows the origin. The pill is tinted when the customer moved first
- *  (passive side), neutral otherwise. Leads written before the two-level origin carry
- *  no motion: the intake kind takes line one, the campaign the pill. */
+/** One icon and one hue per approach, so the column scans by shape and colour
+ *  before it is read. Three hues over six motions: the icon carries the rest. */
+const MOTION_FACE: Record<LeadMotion, { icon: typeof Inbox; className: string }> = {
+  INBOUND: { icon: Inbox, className: 'text-primary' },
+  REFERRAL: { icon: Users, className: 'text-success' },
+  PARTNER: { icon: Handshake, className: 'text-success' },
+  OUTBOUND: { icon: Send, className: 'text-warning' },
+  EVENT: { icon: CalendarDays, className: 'text-warning' },
+  RECYCLE: { icon: RefreshCw, className: 'text-muted-foreground' },
+}
+
+const KIND_ICON: Record<LeadSourceKind, typeof Inbox> = {
+  MANUAL: PenLine,
+  IMPORT: FileUp,
+  APOLLO: Zap,
+  LANDING_PAGE: Globe,
+}
+
+/** Two lines: the approach (motion) with its icon, over the source detail as a
+ *  pill. The pill's icon and tone say WHAT the detail is: catalog origin,
+ *  campaign, or — the last fallback for a lead with none of those — the
+ *  intake kind. Leads written before the two-level origin carry no motion: the
+ *  intake kind takes line one and the pill keeps whatever else there is. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
-  const { motion, origin, campaignName } = lead.source
+  const { kind, motion, origin, campaignName } = lead.source
   const motionLabel = useMotionLabel()
 
   const top = motion ? motionLabel(motion) : sourceKindLabel(lead.source)
-  const detail = origin?.name ?? (campaignName && shortSourceName(campaignName))
-  const title = [top, origin?.name, campaignName].filter(Boolean).join(' · ')
+  const kindLabel = motion && kind ? sourceKindLabel(lead.source) : undefined
+  const detail = origin
+    ? { label: origin.name, icon: Link, tone: 'running' as const }
+    : campaignName
+      ? { label: shortSourceName(campaignName), icon: Megaphone, tone: 'warning' as const }
+      : kindLabel && kind
+        ? { label: kindLabel, icon: KIND_ICON[kind], tone: 'draft' as const }
+        : undefined
+  const title = [top, origin?.name, campaignName ?? kindLabel].filter(Boolean).join(' · ')
+  const face = motion && MOTION_FACE[motion]
 
   return (
     <span className="flex min-w-0 flex-col items-start gap-1" title={title}>
-      <span className="max-w-full truncate text-[13px] font-semibold">{top}</span>
+      <span className="flex max-w-full items-center gap-2 text-[13px] font-semibold">
+        {face && <Icon icon={face.icon} size={16} className={face.className} />}
+        <span className="truncate">{top}</span>
+      </span>
       {detail && (
-        <Badge
-          tone={motion && MOTION_SIDE[motion] === 'PASSIVE' ? 'running' : 'draft'}
-          className="max-w-full"
-        >
-          <span className="truncate">{detail}</span>
+        <Badge tone={detail.tone} className="max-w-full gap-1">
+          <Icon icon={detail.icon} size={14} />
+          <span className="truncate">{detail.label}</span>
         </Badge>
       )}
     </span>
