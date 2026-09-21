@@ -1,4 +1,4 @@
-import type { CampaignWaveInput } from '@pv/contracts'
+import { CAMPAIGN_START_MAX_WAVES, type CampaignWaveInput } from '@pv/contracts'
 
 /** The draft a mail SEQUENCE is written in — one letter per wave, no audience.
  *
@@ -55,11 +55,21 @@ function composerScheduleOk(s: ComposerState): boolean {
   )
 }
 
+const HTTP_URL = /^https?:\/\/\S+$/
+
+function composerLinksOk(s: ComposerState): boolean {
+  const ctaEmpty = s.ctaLabel.trim() === '' && s.ctaUrl.trim() === ''
+  const ctaComplete = s.ctaLabel.trim() !== '' && HTTP_URL.test(s.ctaUrl.trim())
+  const bookingOk = s.bookingUrl.trim() === '' || HTTP_URL.test(s.bookingUrl.trim())
+  return (ctaEmpty || ctaComplete) && bookingOk
+}
+
 export function composerDraftValid(s: ComposerState): boolean {
   return (
     s.label.trim() !== '' &&
     s.subject.trim() !== '' &&
     s.body.trim() !== '' &&
+    composerLinksOk(s) &&
     composerScheduleOk(s)
   )
 }
@@ -84,8 +94,23 @@ export function composerDraftInput(s: ComposerState): CampaignWaveInput {
  *  next one. So what actually goes out is every locked wave plus the one in the
  *  box, when that one is complete enough to send. */
 export function effectiveWaves(s: ComposerState): CampaignWaveInput[] {
-  const locked = s.committed.map(stripLocalId)
+  const locked = s.committed.slice(0, CAMPAIGN_START_MAX_WAVES).map(stripLocalId)
+  if (locked.length >= CAMPAIGN_START_MAX_WAVES) return locked
   return composerDraftValid(s) ? [...locked, composerDraftInput(s)] : locked
+}
+
+/** Whether the live row contains intent that must not be silently discarded. */
+export function composerDraftTouched(s: ComposerState): boolean {
+  return [
+    s.templateCode,
+    s.label,
+    s.subject,
+    s.body,
+    s.ctaLabel,
+    s.ctaUrl,
+    s.bookingUrl,
+    s.at,
+  ].some((value) => value.trim() !== '')
 }
 
 /** Lock the wave being written and open an empty box for the next one. The id
@@ -107,7 +132,9 @@ export function dropCommitted(s: ComposerState, localId: string): ComposerState 
  *  what is missing without re-reading the draft field by field. `null` = at
  *  least one wave would go out. */
 export function composerBlocker(s: ComposerState): string | null {
-  if (effectiveWaves(s).length > 0) return null
+  if (composerDraftValid(s) && effectiveWaves(s).length > 0) return null
+  if (s.committed.length > 0 && !composerDraftTouched(s)) return null
+  if (s.committed.length >= CAMPAIGN_START_MAX_WAVES) return null
 
   const gaps = [
     s.label.trim() === '' ? 'tên đợt' : null,
@@ -115,7 +142,13 @@ export function composerBlocker(s: ComposerState): string | null {
     s.body.trim() === '' ? 'nội dung' : null,
   ].filter((gap) => gap !== null)
 
-  return gaps.length > 0
-    ? `Còn thiếu ${gaps.join(', ')}.`
-    : 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
+  if (gaps.length > 0) return `Còn thiếu ${gaps.join(', ')}.`
+  const ctaTouched = s.ctaLabel.trim() !== '' || s.ctaUrl.trim() !== ''
+  if (ctaTouched && (s.ctaLabel.trim() === '' || !HTTP_URL.test(s.ctaUrl.trim()))) {
+    return 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
+  }
+  if (s.bookingUrl.trim() !== '' && !HTTP_URL.test(s.bookingUrl.trim())) {
+    return 'Link đặt lịch phải bắt đầu bằng http/https.'
+  }
+  return 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
 }

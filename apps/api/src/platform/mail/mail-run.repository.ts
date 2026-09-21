@@ -28,6 +28,7 @@ export type MailRunCreate = {
   bookingUrl?: string | null
   fromAddress: string
   replyTo?: string | null
+  ccAddresses?: string[]
   state: MailRunState
   scheduledAt?: Date | null
   audienceCount: number
@@ -184,6 +185,7 @@ export class MailRunRepository {
         bookingUrl: input.bookingUrl ?? null,
         fromAddress: input.fromAddress,
         replyTo: input.replyTo ?? null,
+        ccAddresses: input.ccAddresses ?? [],
         state: input.state,
         scheduledAt: input.scheduledAt ?? null,
         audienceCount: input.audienceCount,

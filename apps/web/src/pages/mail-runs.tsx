@@ -276,14 +276,18 @@ export function MailRunsPage() {
               id: r.id,
               cells: [
                 <div key="l" className="min-w-0">
-                  <span className="block truncate" title={r.label}>
-                    {r.label}
+                  <span
+                    className="block truncate"
+                    title={r.sequenceName ?? r.campaignName ?? r.label}
+                  >
+                    {r.sequenceName ?? r.campaignName ?? r.label}
                   </span>
                   <span
                     className="text-muted-foreground block truncate text-[11px]"
-                    title={r.subject}
+                    title={`${r.phase ?? r.label} · ${r.subject}`}
                   >
-                    {r.subject}
+                    {r.waveNo ? `Đợt ${r.waveNo} · ` : ''}
+                    {r.phase ?? r.label} · {r.subject}
                   </span>
                 </div>,
                 <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>

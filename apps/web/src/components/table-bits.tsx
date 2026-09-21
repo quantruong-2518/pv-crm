@@ -260,7 +260,7 @@ export function FilterMenu({
 
 /** A row's checkbox, shared by every book that lets rows be picked out for a
  *  bulk action. Pressing it starts a paint-drag across rows; the click that
- *  follows the same press is ignored by the screen (its own `suppressClick`),
+ *  follows the same press is ignored by the shared selection gesture,
  *  so a press toggles once, not twice. */
 export function SelectionCell({
   checked,

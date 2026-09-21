@@ -70,6 +70,7 @@ export function mailHistory(input: MailHistoryInput): MailHistory {
       subjectCode: campaignCode,
       mailRunId: runId,
       waveNo: w.no,
+      phase: w.label,
       expected: audience.length,
     })
 

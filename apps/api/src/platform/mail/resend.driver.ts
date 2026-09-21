@@ -77,6 +77,7 @@ export class ResendMailDriver implements MailPort {
       html: message.html,
       text: message.text,
     }
+    if (message.cc?.length) payload.cc = message.cc
     if (message.replyTo) payload.replyTo = message.replyTo
     if (message.headers) payload.headers = message.headers
 

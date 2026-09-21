@@ -207,7 +207,12 @@ export const CampaignMemberListResponse = paged(CampaignMemberRow)
  *  chưa có audience opportunity) và `campaignCode` (đã có trên đường dẫn). Một
  *  hình, không phải hai — đúng lý do `MasSendRequest` vốn đã gộp Quick MAS và
  *  chiến dịch làm một. */
-export const CampaignWaveInput = MasSendRequest.omit({ audience: true, campaignCode: true })
+export const CampaignWaveInput = MasSendRequest.omit({
+  audience: true,
+  campaignCode: true,
+  sequence: true,
+  cc: true,
+})
 
 /** `POST /sales/campaigns/:code/start` — chuyển `DRAFT` → `RUNNING` và bắn đợt
  *  đầu (có thể nhiều đợt cùng lúc nếu đã soạn sẵn). Chỉ nhận chiến dịch NHÁP

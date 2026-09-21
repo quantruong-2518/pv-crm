@@ -18,6 +18,7 @@ import type {
   LeadSourceKind,
   LeadState,
   MailRunListQuery,
+  MailRunState,
   MailTemplateRow,
   MasAudience,
 } from '@pv/contracts'
@@ -28,7 +29,12 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
-import { mailSequenceRun, type MailSequenceRunRow } from '../mail-sequence.schema'
+import {
+  mailSequence,
+  mailSequenceRun,
+  type MailSequenceRow,
+  type MailSequenceRunRow,
+} from '../mail-sequence.schema'
 import { campaign, mailTemplate } from './campaign.schema'
 
 /** One picked SUBJECT — a lead or an opportunity — with every FACT the
@@ -117,6 +123,34 @@ export type RunScope = {
   onlyIds: string[] | undefined
   /** Rows the filter matched and the scope axis removed — `MailRunListResponse.hidden`. */
   hidden: number
+}
+
+export type RunSequenceContext = {
+  mailRunId: string
+  waveNo: number
+  phase: string
+  sequenceId?: string
+  sequenceName?: string
+  campaignCode?: string
+  campaignName?: string
+}
+
+export type ExistingSequenceWave = {
+  mailRunId: string
+  waveNo: number
+  phase: string
+  label: string
+  templateCode: string | null
+  subject: string
+  body: string
+  ctaLabel: string | null
+  ctaUrl: string | null
+  bookingUrl: string | null
+  ccAddresses: string[]
+  scheduledAt: Date | null
+  audienceCount: number
+  trackEngagement: boolean
+  state: MailRunState
 }
 
 /** THE ONLY SQL OF THE MAS FEATURE. Decides nothing — per `apps/api/CLAUDE.md`.
@@ -355,6 +389,59 @@ export class MasRepository {
     return row !== undefined
   }
 
+  /** Insert-once header for a non-campaign sequence, then return the canonical
+   * row. The service compares every immutable field before it appends a wave. */
+  async ensureSequence(tx: Db, input: typeof mailSequence.$inferInsert): Promise<MailSequenceRow> {
+    await tx.insert(mailSequence).values(input).onConflictDoNothing({ target: mailSequence.id })
+    const [row] = await tx
+      .select()
+      .from(mailSequence)
+      .where(eq(mailSequence.id, input.id))
+      .limit(1)
+      .for('update')
+    if (!row) throw new Error(`Không đọc lại được mail_sequence ${input.id}.`)
+    return row
+  }
+
+  /** Existing wave under the locked sequence header. Used to make a repeated
+   * POST return the original batch instead of mailing the audience twice. */
+  async sequenceWave(
+    tx: Db,
+    sequenceId: string,
+    waveNo: number,
+  ): Promise<ExistingSequenceWave | undefined> {
+    const [row] = await tx
+      .select({
+        mailRunId: mailSequenceRun.mailRunId,
+        waveNo: mailSequenceRun.waveNo,
+        phase: mailSequenceRun.phase,
+        label: mailRun.label,
+        templateCode: mailRun.templateCode,
+        subject: mailRun.subject,
+        body: mailRun.body,
+        ctaLabel: mailRun.ctaLabel,
+        ctaUrl: mailRun.ctaUrl,
+        bookingUrl: mailRun.bookingUrl,
+        ccAddresses: mailRun.ccAddresses,
+        scheduledAt: mailRun.scheduledAt,
+        audienceCount: mailRun.audienceCount,
+        trackEngagement: mailRun.trackEngagement,
+        state: mailRun.state,
+      })
+      .from(mailSequenceRun)
+      .innerJoin(mailRun, eq(mailRun.id, mailSequenceRun.mailRunId))
+      .where(
+        and(
+          eq(mailSequenceRun.subjectType, 'sequence'),
+          eq(mailSequenceRun.subjectCode, sequenceId),
+          eq(mailSequenceRun.waveNo, waveNo),
+        ),
+      )
+      .limit(1)
+
+    return row
+  }
+
   /** Wave numbers of ONE subject, one past the highest so far.
    *
    *  Read inside `tx`, and the primary key `(subject_type, subject_code,
@@ -385,6 +472,7 @@ export class MasRepository {
       subjectCode: string
       mailRunId: string
       waveNo: number
+      phase: string
     },
   ): Promise<void> {
     await tx.insert(mailSequenceRun).values(link)
@@ -436,6 +524,56 @@ export class MasRepository {
       )
 
     return rows.map((r) => r.id)
+  }
+
+  /** Sales context for a page of platform runs. One bounded query restores the
+   * chain name and explicit phase without teaching platform about Sales. */
+  async sequenceContexts(mailRunIds: readonly string[]): Promise<Map<string, RunSequenceContext>> {
+    if (mailRunIds.length === 0) return new Map()
+
+    const rows = await this.db
+      .select({
+        mailRunId: mailSequenceRun.mailRunId,
+        waveNo: mailSequenceRun.waveNo,
+        phase: mailSequenceRun.phase,
+        subjectType: mailSequenceRun.subjectType,
+        subjectCode: mailSequenceRun.subjectCode,
+        sequenceName: mailSequence.name,
+        campaignName: campaign.name,
+      })
+      .from(mailSequenceRun)
+      .leftJoin(
+        mailSequence,
+        and(
+          eq(mailSequenceRun.subjectType, 'sequence'),
+          sql`${mailSequence.id}::text = ${mailSequenceRun.subjectCode}`,
+        ),
+      )
+      .leftJoin(
+        campaign,
+        and(
+          eq(mailSequenceRun.subjectType, 'campaign'),
+          eq(campaign.code, mailSequenceRun.subjectCode),
+        ),
+      )
+      .where(inArray(mailSequenceRun.mailRunId, [...mailRunIds]))
+
+    return new Map(
+      rows.map((row) => [
+        row.mailRunId,
+        {
+          mailRunId: row.mailRunId,
+          waveNo: row.waveNo,
+          phase: row.phase,
+          ...(row.subjectType === 'sequence'
+            ? { sequenceId: row.subjectCode, sequenceName: row.sequenceName ?? undefined }
+            : {}),
+          ...(row.subjectType === 'campaign'
+            ? { campaignCode: row.subjectCode, campaignName: row.campaignName ?? undefined }
+            : {}),
+        },
+      ]),
+    )
   }
 
   /** WHO this run went to, one row per letter — the named half of the counters

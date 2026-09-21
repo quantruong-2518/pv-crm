@@ -119,6 +119,12 @@ export const mailRun = platform.table(
      *  batch has to keep going out from the address it was reviewed under. */
     fromAddress: text('from_address').notNull(),
     replyTo: text('reply_to'),
+    /** Internal copies chosen when the run was created. An array belongs on
+     * the batch because every delivery in that batch uses the same CC list. */
+    ccAddresses: text('cc_addresses')
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
 
     state: text('state').$type<MailRunState>().notNull(),
 
@@ -159,6 +165,10 @@ export const mailRun = platform.table(
     index('mail_run_due_idx').on(t.state, t.scheduledAt),
     check('mail_run_state_valid', sql`${t.state} IN (${MAIL_RUN_STATE_LIST})`),
     check('mail_run_cta_pair', sql`(${t.ctaLabel} IS NULL) = (${t.ctaUrl} IS NULL)`),
+    check(
+      'mail_run_cc_addresses_known',
+      sql`${t.ccAddresses} <@ ARRAY['contact@pebblevina.com', 'sales@pebblevina.co']::text[]`,
+    ),
   ],
 )
 

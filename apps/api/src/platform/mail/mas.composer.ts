@@ -116,6 +116,7 @@ export class MasMailComposer implements MailComposer {
       flow: 'mas',
       from: header(run.fromAddress),
       to: delivery.recipient,
+      ...(run.ccAddresses.length > 0 ? { cc: run.ccAddresses.map(header) } : {}),
       replyTo: this.replyToFor(run.replyTo, delivery.id),
       subject: finalSubject,
       html,

@@ -115,7 +115,9 @@ export function WaveComposer({
   }
 
   const draftValid = composerDraftValid(state)
-  const canAdd = draftValid && state.committed.length < CAMPAIGN_START_MAX_WAVES
+  /* The live draft already counts as the last wave. At 19 committed waves a
+     valid draft is wave 20 and must not open a blank wave 21. */
+  const canAdd = draftValid && state.committed.length + 1 < CAMPAIGN_START_MAX_WAVES
   const nextIndex = alreadyFired + state.committed.length + 1
   const totalCount = effectiveWaves(state).length
 
@@ -258,8 +260,9 @@ function ComposeCard({
       templateCode: value,
       ...(found ? { subject: found.subject, body: found.body } : {}),
       ...(found && s.label.trim() === '' ? { label: found.name } : {}),
-      ...(found?.cta ? { ctaLabel: found.cta.label, ctaUrl: found.cta.url } : {}),
-      ...(found?.bookingUrl ? { bookingUrl: found.bookingUrl } : {}),
+      ctaLabel: found?.cta?.label ?? '',
+      ctaUrl: found?.cta?.url ?? '',
+      bookingUrl: found?.bookingUrl ?? '',
     }))
   }
 
@@ -282,7 +285,7 @@ function ComposeCard({
       </label>
 
       <label className="flex flex-col gap-2">
-        <span className="text-muted-foreground text-[11px]">Tên đợt</span>
+        <span className="text-muted-foreground text-[11px]">Phase / tên đợt</span>
         <Input
           value={state.label}
           onChange={(e) => setState((s) => ({ ...s, label: e.target.value }))}

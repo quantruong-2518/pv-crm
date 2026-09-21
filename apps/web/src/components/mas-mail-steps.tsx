@@ -1,32 +1,10 @@
-import { useRef } from 'react'
 import { Info, Mail, Pencil, TriangleAlert } from '@pv/ui'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  GlassCard,
-  Icon,
-  Input,
-  SectionTitle,
-  SegmentedControl,
-  Select,
-  Textarea,
-} from '@pv/ui'
-import type { CampaignBookRow, MailTemplateRow, MasPreflightResponse } from '@pv/contracts'
-import { MAIL_NAME_MAX, MAIL_SUBJECT_MAX, MAS_RECIPIENT_BLOCK_LABEL } from '@pv/contracts'
+import { Badge, Button, Checkbox, GlassCard, Icon, Input, SectionTitle, Select } from '@pv/ui'
+import type { CampaignBookRow, MasCcAddress, MasPreflightResponse } from '@pv/contracts'
+import { MAIL_NAME_MAX, MAS_CC_ADDRESSES, MAS_RECIPIENT_BLOCK_LABEL } from '@pv/contracts'
 import { Field } from '@/components/field-bits'
 import { PersonTokenField } from '@/components/person-token-field'
-import { localSlot } from '@/lib/date'
-import {
-  MERGE_ACCOUNT,
-  MERGE_RECIPIENT,
-  NO_CAMPAIGN,
-  NO_TEMPLATE,
-  ctaWith,
-  type MasMailDraft,
-  type MasRecipient,
-  type MailSendTiming,
-} from '@/data/mas-mail-draft'
+import { NO_CAMPAIGN, type MasMailDraft, type MasRecipient } from '@/data/mas-mail-draft'
 
 /** The three step bodies of the compose panel, in the order they are walked.
  *
@@ -38,11 +16,11 @@ import {
 /** STEP 1 · who receives it. */
 export function RecipientsStep({
   draft,
-  leads,
+  recipients,
   chosen,
 }: {
   draft: MasMailDraft
-  leads: readonly MasRecipient[]
+  recipients: readonly MasRecipient[]
   chosen: readonly MasRecipient[]
 }) {
   const pick = (code: string) => {
@@ -74,13 +52,25 @@ export function RecipientsStep({
         <PersonTokenField
           label="Thêm người nhận"
           placeholder="Thêm người nhận…"
-          tokens={chosen.map((lead) => ({ id: lead.code, name: lead.contactName }))}
-          suggestions={leads
+          tokens={chosen.map((lead) => ({
+            id: lead.code,
+            name: lead.destinationLabel
+              ? `${lead.contactName} · ${lead.destinationLabel}`
+              : lead.contactName,
+          }))}
+          suggestions={recipients
             .filter((lead) => !draft.selected.has(lead.code))
             .map((lead) => ({
               id: lead.code,
               name: lead.contactName,
-              note: `${lead.contactTitle || 'Chưa có chức danh'} · ${lead.company} · ${lead.email}`,
+              note: [
+                lead.destinationLabel,
+                lead.contactTitle || 'Chưa có chức danh',
+                lead.company,
+                lead.email,
+              ]
+                .filter(Boolean)
+                .join(' · '),
             }))}
           onPick={pick}
           onRemove={drop}
@@ -108,222 +98,12 @@ export function RecipientsStep({
   )
 }
 
-/** STEP 2 · what it says. */
-export function ComposeStep({
-  draft,
-  templates,
-  canSaveTemplate,
-  ctaBroken,
-  bookingBroken,
-  onOpenGuide,
-}: {
-  draft: MasMailDraft
-  templates: readonly MailTemplateRow[]
-  canSaveTemplate: boolean
-  ctaBroken: boolean
-  bookingBroken: boolean
-  onOpenGuide: () => void
-}) {
-  const box = useRef<HTMLTextAreaElement>(null)
-
-  /* Insert where the caret IS. Appending to the end instead puts the slot at
-     the bottom of a letter whose greeting is what needed it. */
-  const insert = (token: string) => {
-    const el = box.current
-    const at = el?.selectionStart ?? draft.body.length
-    const to = el?.selectionEnd ?? at
-    draft.setBody(`${draft.body.slice(0, at)}${token}${draft.body.slice(to)}`)
-    requestAnimationFrame(() => {
-      el?.focus()
-      el?.setSelectionRange(at + token.length, at + token.length)
-    })
-  }
-
-  const applyTemplate = (key: string) => {
-    draft.setTemplate(key)
-    const found = templates.find((item) => item.code === key)
-    draft.setSubject(found?.subject ?? '')
-    draft.setBody(found?.body ?? '')
-    draft.setCta(found?.cta)
-    draft.setWithCta(Boolean(found?.cta))
-    draft.setBookingUrl(found?.bookingUrl ?? '')
-  }
-
-  return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle
-        size="md"
-        hint="Bắt đầu từ mẫu hoặc tự soạn. Bản xem trước bên phải cập nhật theo từng chữ."
-      >
-        Viết gì?
-      </SectionTitle>
-
-      <Field label="Bắt đầu từ mẫu" hint="Chọn mẫu sẽ thay tiêu đề và nội dung đang soạn.">
-        <Select
-          label="Bắt đầu từ mẫu"
-          hideLabel
-          className="w-full"
-          value={draft.template}
-          neutralValue={NO_TEMPLATE}
-          onChange={applyTemplate}
-          options={[
-            { value: NO_TEMPLATE, label: 'Không dùng mẫu — tự soạn' },
-            ...templates.map((item) => ({ value: item.code, label: item.name })),
-          ]}
-        />
-      </Field>
-
-      <Field label="Tiêu đề *" note={`${draft.subject.length}/${MAIL_SUBJECT_MAX}`}>
-        <Input
-          value={draft.subject}
-          maxLength={MAIL_SUBJECT_MAX}
-          placeholder="Ví dụ: Mời anh/chị xem giải pháp cho nhà máy"
-          onChange={(event) => draft.setSubject(event.target.value)}
-        />
-      </Field>
-
-      <Field
-        label="Nội dung *"
-        hint={
-          <span className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="min-w-0">
-              **đậm** · _nghiêng_ · dòng bắt đầu bằng &apos;- &apos; thành danh sách
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              type="button"
-              className="pointer-coarse:h-12"
-              onClick={onOpenGuide}
-            >
-              <Icon icon={Info} size={14} />
-              Cách viết nội dung
-            </Button>
-          </span>
-        }
-        action={
-          <span className="flex shrink-0 items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              type="button"
-              className="pointer-coarse:h-12"
-              onClick={() => insert(MERGE_RECIPIENT)}
-            >
-              Tên người nhận
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              type="button"
-              className="pointer-coarse:h-12"
-              onClick={() => insert(MERGE_ACCOUNT)}
-            >
-              Tên công ty
-            </Button>
-          </span>
-        }
-      >
-        <Textarea
-          ref={box}
-          autoGrow
-          rows={8}
-          value={draft.body}
-          placeholder="Viết nội dung email ở đây…"
-          onChange={(event) => draft.setBody(event.target.value)}
-        />
-      </Field>
-
-      <CtaBlock draft={draft} ctaBroken={ctaBroken} bookingBroken={bookingBroken} />
-      <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
-    </section>
-  )
-}
-
-function CtaBlock({
-  draft,
-  ctaBroken,
-  bookingBroken,
-}: {
-  draft: MasMailDraft
-  ctaBroken: boolean
-  bookingBroken: boolean
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <Checkbox
-        className="min-h-12"
-        checked={draft.withCta}
-        onChange={(on) => {
-          draft.setWithCta(on)
-          /* Turning it off drops the button from the letter; the contract reads
-             an absent `cta` as "no button", never as "keep the template's". */
-          if (!on) {
-            draft.setCta(undefined)
-            draft.setBookingUrl('')
-          }
-        }}
-        label="Thêm nút trong email"
-        hint="VD: nút đặt lịch họp"
-      />
-
-      {draft.withCta && (
-        <>
-          <Field
-            label="Nhãn và địa chỉ của nút"
-            problem={
-              ctaBroken
-                ? 'Nút cần đủ nhãn và địa chỉ bắt đầu bằng http:// hoặc https://.'
-                : undefined
-            }
-          >
-            <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,.55fr)_minmax(0,1fr)]">
-              <Input
-                value={draft.cta?.label ?? ''}
-                placeholder="Tên nút"
-                aria-label="Tên nút trong email"
-                onChange={(event) =>
-                  draft.setCta(ctaWith(draft.cta, { label: event.target.value }))
-                }
-              />
-              <Input
-                value={draft.cta?.url ?? ''}
-                placeholder="https://…"
-                aria-label="Địa chỉ nút trong email"
-                invalid={ctaBroken}
-                onChange={(event) => draft.setCta(ctaWith(draft.cta, { url: event.target.value }))}
-              />
-            </div>
-          </Field>
-
-          <Field
-            label="Link đặt lịch (không bắt buộc)"
-            hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
-            problem={
-              bookingBroken ? 'Link đặt lịch phải bắt đầu bằng http:// hoặc https://.' : undefined
-            }
-          >
-            <Input
-              value={draft.bookingUrl}
-              invalid={bookingBroken}
-              placeholder="https://calendly.com/…"
-              aria-label="Link đặt lịch trong email"
-              onChange={(event) => draft.setBookingUrl(event.target.value)}
-            />
-          </Field>
-        </>
-      )}
-    </div>
-  )
-}
-
 /** Saving the letter as a template is a DIFFERENT permission from sending it —
  *  `campaign.edit`, not `lead.send-email` — so somebody without it sees the box
  *  locked with the reason rather than a 403 after pressing send.
  *
- *  Exported because the CHAIN door composes in `WaveComposer` instead of
- *  `ComposeStep`, and losing this box there would quietly take the feature away
- *  from the screen that uses it most. */
+ *  Exported because `WaveComposer` owns the letter while this shared setting
+ *  remains in the modal shell. */
 export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; allowed: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -358,83 +138,88 @@ export function DeliveryStep({
   draft,
   chosen,
   campaigns,
+  allowCampaign,
   preflight,
-  scheduleBroken,
   chain,
-  audienceNote,
   onEdit,
 }: {
   draft: MasMailDraft
   chosen: readonly MasRecipient[]
   campaigns: readonly CampaignBookRow[]
+  allowCampaign: boolean
   preflight?: MasPreflightResponse
-  scheduleBroken: boolean
-  /** Present = the letter is a CHAIN, so every wave already carries its own
-   *  time and this step must not ask for a second one. */
-  chain?: { waves: number; subject: string }
-  /** Said out loud when the check below reads a DIFFERENT code from the one the
-   *  run is filed against — the deal door, where preflight is lead-only. */
-  audienceNote?: string
+  chain: { waves: number; subject: string }
   onEdit: (step: number) => void
 }) {
+  const toggleCc = (address: MasCcAddress, on: boolean) =>
+    draft.setCc((current) => {
+      const next = new Set(current)
+      if (on) next.add(address)
+      else next.delete(address)
+      return next
+    })
+
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <SectionTitle size="md" hint="Chọn thời điểm và chiến dịch, kiểm tra lại lần cuối rồi gửi.">
         Gửi thế nào?
       </SectionTitle>
 
-      {!chain && (
-        <Field label="Thời điểm">
-          <SegmentedControl
-            label="Thời điểm"
+      {/* Only RUNNING campaigns: attaching a wave to a DRAFT one sends the mail
+          while `campaign.state` stays DRAFT, so its start button still passes
+          its own guard and blasts the whole audience a second time. */}
+      {allowCampaign && (
+        <Field
+          label="Chiến dịch (không bắt buộc)"
+          hint="Để trống thì các đợt vẫn thuộc chuỗi gửi riêng. Chiến dịch còn nháp thì bắt đầu từ hồ sơ chiến dịch."
+        >
+          <Select
+            label="Chiến dịch"
             hideLabel
-            value={draft.sendTiming}
-            onChange={(value) => draft.setSendTiming(value as MailSendTiming)}
+            className="w-full"
+            value={draft.campaignCode}
+            onChange={draft.setCampaignCode}
             options={[
-              { value: 'now', label: 'Gửi ngay' },
-              { value: 'later', label: 'Hẹn giờ' },
+              { value: NO_CAMPAIGN, label: 'Chuỗi riêng, không gắn chiến dịch' },
+              ...campaigns.map((item) => ({
+                value: item.code,
+                label: `${item.code} · ${item.name}`,
+              })),
             ]}
           />
         </Field>
       )}
 
-      {!chain && draft.sendTiming === 'later' && (
+      {draft.campaignCode === NO_CAMPAIGN && (
         <Field
-          label="Ngày và giờ gửi"
-          hint="Hiển thị theo giờ trên máy của bạn."
-          problem={scheduleBroken ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.' : undefined}
+          label="Tên chuỗi gửi *"
+          hint="Dùng để gom các đợt này thành một chuỗi dù không thuộc chiến dịch."
         >
           <Input
-            type="datetime-local"
-            value={draft.scheduledAt}
-            min={localSlot(1)}
-            invalid={scheduleBroken}
-            onChange={(event) => draft.setScheduledAt(event.target.value)}
+            value={draft.sequenceName}
+            maxLength={MAIL_NAME_MAX}
+            placeholder="VD: Chăm sóc lead triển lãm tháng 9"
+            onChange={(event) => draft.setSequenceName(event.target.value)}
           />
         </Field>
       )}
 
-      {/* Only RUNNING campaigns: attaching a wave to a DRAFT one sends the mail
-          while `campaign.state` stays DRAFT, so its start button still passes
-          its own guard and blasts the whole audience a second time. */}
       <Field
-        label="Chiến dịch (không bắt buộc)"
-        hint="Để trống thì lô này đi lẻ, vẫn xem được ở Sổ lô gửi. Chiến dịch còn nháp thì bắt đầu từ hồ sơ chiến dịch."
+        label="CC nội bộ (không bắt buộc)"
+        hint="Mỗi địa chỉ được chọn nhận một bản CC cho từng email gửi tới từng người nhận."
       >
-        <Select
-          label="Chiến dịch"
-          hideLabel
-          className="w-full"
-          value={draft.campaignCode}
-          onChange={draft.setCampaignCode}
-          options={[
-            { value: NO_CAMPAIGN, label: 'Gửi lẻ, không gắn' },
-            ...campaigns.map((item) => ({
-              value: item.code,
-              label: `${item.code} · ${item.name}`,
-            })),
-          ]}
-        />
+        <div className="flex min-w-0 flex-col gap-2">
+          {MAS_CC_ADDRESSES.map((address) => (
+            <Checkbox
+              key={address}
+              className="min-h-12"
+              checked={draft.cc.has(address)}
+              onChange={(on) => toggleCc(address, on)}
+              label={address}
+              hint="Bản lưu nội bộ của email gửi từ hộp thư noreply."
+            />
+          ))}
+        </div>
       </Field>
 
       <Checkbox
@@ -446,10 +231,6 @@ export function DeliveryStep({
       />
 
       <ReviewTable draft={draft} chain={chain} chosen={chosen} onEdit={onEdit} />
-
-      {audienceNote && (
-        <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">{audienceNote}</p>
-      )}
 
       {preflight && <PreflightReport report={preflight} />}
     </section>
@@ -471,7 +252,7 @@ function ReviewTable({
   onEdit,
 }: {
   draft: MasMailDraft
-  chain?: { waves: number; subject: string }
+  chain: { waves: number; subject: string }
   chosen: readonly MasRecipient[]
   onEdit: (step: number) => void
 }) {
@@ -481,17 +262,11 @@ function ReviewTable({
     value: only ? `${only.contactName} · ${only.email}` : `${draft.selected.size} người`,
     step: 0,
   }
-  const rows = chain
-    ? [
-        to,
-        { label: 'Chuỗi đợt', value: `${chain.waves} đợt sẽ gửi`, step: 1 },
-        { label: 'Tiêu đề', value: chain.subject || 'Chưa có', step: 1 },
-      ]
-    : [
-        to,
-        { label: 'Tiêu đề', value: draft.subject || 'Chưa có', step: 1 },
-        { label: 'Nội dung', value: firstLine(draft.body), step: 1 },
-      ]
+  const rows = [
+    to,
+    { label: 'Chuỗi đợt', value: `${chain.waves} đợt sẽ gửi`, step: 1 },
+    { label: 'Tiêu đề', value: chain.subject || 'Chưa có', step: 1 },
+  ]
 
   return (
     <GlassCard variant="b" className="min-w-0 p-4">
@@ -522,8 +297,6 @@ function ReviewTable({
   )
 }
 
-const firstLine = (body: string): string => body.split('\n')[0]?.trim() || 'Chưa có'
-
 export function PreflightReport({ report }: { report: MasPreflightResponse }) {
   return (
     <GlassCard variant="b" className="min-w-0 overflow-hidden">
@@ -534,7 +307,7 @@ export function PreflightReport({ report }: { report: MasPreflightResponse }) {
       <ul className="m-0 flex max-h-64 list-none flex-col gap-2 overflow-y-auto p-4">
         {report.recipients.map((recipient) => (
           <li
-            key={recipient.leadCode}
+            key={recipient.subjectCode}
             className="bg-surface-ink/5 flex min-w-0 items-start justify-between gap-3 rounded-sm p-3"
           >
             <span className="flex min-w-0 flex-col">

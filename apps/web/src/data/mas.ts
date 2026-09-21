@@ -9,6 +9,7 @@ import type {
   MailTemplatePatch,
   MailTemplatePatchResponse,
   MasPreflightResponse,
+  MasAudience,
   MasPreviewRequest,
   MasPreviewResponse,
   MasSendRequest,
@@ -171,12 +172,12 @@ export function useMailTemplatePatch() {
  *  So the panel calls this once per step transition and holds the answer in its
  *  own state, where its lifetime is obvious: it lives as long as the panel. */
 export function masPreflight(
-  leadCodes: readonly string[],
+  audience: MasAudience,
   signal?: AbortSignal,
 ): Promise<MasPreflightResponse> {
   return api.write<MasPreflightResponse>('/sales/mail/preflight', {
     method: 'POST',
-    body: { leadCodes: [...leadCodes] },
+    body: { audience },
     need: SEND_NEED,
     signal,
   })

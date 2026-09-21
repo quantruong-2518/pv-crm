@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
@@ -32,6 +33,7 @@ import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
 import {
   MasRepository,
+  type ExistingSequenceWave,
   type MasRecipientRead,
   type MasSubjectRow,
   type SequenceSubject,
@@ -154,7 +156,15 @@ export class MasService {
 
   /** A dry run that writes nothing — not even a sequence number. */
   async preflight(who: Actor, body: MasPreflightRequest): Promise<MasPreflightResponse> {
-    return this.preflightCodes(who, body.leadCodes)
+    const codes = dedupe(body.audience.codes)
+    const rows = await this.repo.audience(
+      this.repo.readonlyHandle,
+      who,
+      true,
+      body.audience.subjectType,
+      codes,
+    )
+    return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
   }
 
   /** The same verdict `send()` reaches, on the same terms — see `scopeFor`.
@@ -307,6 +317,8 @@ export class MasService {
       )
     }
 
+    validateSequenceChoice(body)
+
     /* The ceiling, before anything is read. `MAS_MAX_RECIPIENTS` in the
        contract has already refused anything over 200 at the zod gate; this is
        the operator's own brake underneath it, and it only bites when it is set
@@ -334,6 +346,61 @@ export class MasService {
     const queued = await this.repo.run(async (tx) => {
       if (campaignCode !== undefined && !(await this.repo.campaignExists(tx, campaignCode))) {
         throw notFound('chiến dịch', campaignCode)
+      }
+
+      if (body.sequence) {
+        const fingerprint = audienceFingerprint(body.audience.subjectType, codes)
+        const sequence = await this.repo.ensureSequence(tx, {
+          id: body.sequence.id,
+          name: body.sequence.name,
+          destinationType: body.audience.subjectType,
+          audienceFingerprint: fingerprint,
+          audienceCount: codes.length,
+          createdBy: who.id,
+        })
+        if (
+          sequence.createdBy !== who.id ||
+          sequence.name !== body.sequence.name ||
+          sequence.destinationType !== body.audience.subjectType ||
+          sequence.audienceFingerprint !== fingerprint ||
+          sequence.audienceCount !== codes.length
+        ) {
+          throw conflict(
+            'Chuỗi gửi này đã tồn tại với tên, người tạo hoặc nhóm destination khác — hãy mở một chuỗi mới.',
+          )
+        }
+
+        const existing = await this.repo.sequenceWave(tx, body.sequence.id, body.sequence.waveNo)
+        if (existing) {
+          if (!sameSequenceWave(existing, body, scheduledAt)) {
+            throw conflict(
+              `Đợt ${body.sequence.waveNo} của chuỗi này đã tồn tại với nội dung hoặc cách gửi khác.`,
+            )
+          }
+          return {
+            mailRunId: existing.mailRunId,
+            written: existing.audienceCount,
+            waveNo: existing.waveNo,
+            state: existing.state,
+          }
+        }
+
+        const nextWaveNo = await this.repo.nextWaveNo(tx, 'sequence', body.sequence.id)
+        if (body.sequence.waveNo !== nextWaveNo) {
+          throw conflict(
+            `Chuỗi đang chờ đợt ${nextWaveNo}, không thể ghi đợt ${body.sequence.waveNo}.`,
+          )
+        }
+      }
+
+      /* Validate against the server clock only for a NEW wave. An idempotent
+         replay of a wave scheduled yesterday must still return its original
+         run instead of becoming invalid merely because time passed. */
+      if (scheduledAt && scheduledAt <= new Date()) {
+        throw invalid(
+          { scheduledAt: ['Thời gian đặt lịch phải sau thời điểm hiện tại.'] },
+          'Không thể đặt lịch gửi trong quá khứ.',
+        )
       }
 
       /* Read the audience INSIDE the transaction, not before it: the block
@@ -378,6 +445,7 @@ export class MasService {
            letters written by nobody. */
         fromAddress: this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM,
         replyTo: this.env.PV_EMAIL_MAS_REPLY_TO || null,
+        ccAddresses: [...new Set(body.cc ?? [])],
         /* Absent stays absent so the column's own `DEFAULT true` answers — the
            flag is opt-OUT, and passing `?? false` here would mute open/click
            recording for every caller that simply does not send the field. */
@@ -403,11 +471,16 @@ export class MasService {
       /* The wave row is written in the SAME transaction as the run it numbers:
          `subject_code` has no foreign key (migration 0053), so a chain rolled
          back with its run is the only thing keeping the two in step. */
-      const subject = sequenceSubjectOf(campaignCode, body.audience.subjectType, codes)
-      if (subject) {
-        const waveNo = await this.repo.nextWaveNo(tx, subject.subjectType, subject.subjectCode)
-        await this.repo.linkSequenceWave(tx, { ...subject, mailRunId, waveNo })
-      }
+      const subject = sequenceSubjectOf(campaignCode, body.sequence?.id)
+      const waveNo = body.sequence
+        ? body.sequence.waveNo
+        : await this.repo.nextWaveNo(tx, subject.subjectType, subject.subjectCode)
+      await this.repo.linkSequenceWave(tx, {
+        ...subject,
+        mailRunId,
+        waveNo,
+        phase: body.label,
+      })
 
       if (campaignCode === undefined && body.audience.subjectType === 'lead' && scheduledAt) {
         /* A SEND TIME is care being scheduled (ADR 0063 §2) — an immediate blast
@@ -417,11 +490,13 @@ export class MasService {
         await this.states.scheduled(tx, mailed, who.id)
       }
 
-      return { mailRunId, written }
+      return { mailRunId, written, waveNo, state }
     })
 
     return MasSendResponse.parse({
       mailRunId: queued.mailRunId,
+      ...(body.sequence ? { sequenceId: body.sequence.id } : {}),
+      ...(queued.waveNo ? { waveNo: queued.waveNo } : {}),
       queued: queued.written,
       /* `queued + skipped` equals the number of codes POSTED — the identity
          `MasSendResponse` exists to give a person, so they can see that 40
@@ -430,7 +505,7 @@ export class MasService {
          a pick produced no row: the three block reasons, a code repeated in the
          list, a code naming nothing, and a row the scope axis cut. */
       skipped: picked.length - queued.written,
-      state,
+      state: queued.state,
     })
   }
 
@@ -462,8 +537,13 @@ export class MasService {
 
     const scope = await this.repo.visibleRuns(who, query, campaignIds)
     const page = await this.runs.list(query, scope.onlyIds)
+    const contexts = await this.repo.sequenceContexts(page.rows.map((row) => row.id))
 
-    return MailRunListResponse.parse({ ...page, hidden: page.hidden + scope.hidden })
+    return MailRunListResponse.parse({
+      ...page,
+      rows: page.rows.map((row) => ({ ...row, ...contexts.get(row.id) })),
+      hidden: page.hidden + scope.hidden,
+    })
   }
 
   /** STOP A BATCH. The one state transition a person may ask for.
@@ -712,7 +792,7 @@ export class MasService {
    *  ticked; see `MasPreflightResponse.hidden`. */
   private report(codes: readonly string[], decided: readonly Decided[]): MasPreflightResponse {
     const recipients: MasRecipient[] = decided.map((d) => ({
-      leadCode: d.row.code,
+      subjectCode: d.row.code,
       company: d.row.company,
       contactName: d.row.contactName,
       contactTitle: d.row.contactTitle ?? undefined,
@@ -810,25 +890,81 @@ const SAMPLE_MERGE: Record<MailMergeKey, string> = mergeOf({
   email: 'nguoi.nhan@congty-mau.vn',
 })
 
-/** WHOSE CHAIN THIS RUN IS A WAVE OF — or nobody's.
- *
- *  A wave number only means something when it counts letters to ONE subject:
- *  "the third time we wrote to this deal". So a run earns a `mail_sequence_run`
- *  row in exactly two cases — a campaign, which names itself whatever its
- *  members are, and a batch aimed at a single lead or deal.
- *
- *  A hand-picked batch of forty gets NO row, and that is the answer rather than
- *  a gap: forty leads have no shared chain to be the third wave of, and writing
- *  forty rows would make every one of them read "wave 1" forever. Keeping a
- *  chain across sends is what a campaign is for. */
+/** WHOSE CHAIN THIS RUN IS A WAVE OF. Every send belongs to exactly one: a
+ * campaign, or the reusable sequence header minted by the shared composer. */
 function sequenceSubjectOf(
   campaignCode: string | undefined,
+  sequenceId: string | undefined,
+): { subjectType: SequenceSubject; subjectCode: string } {
+  if (campaignCode !== undefined) return { subjectType: 'campaign', subjectCode: campaignCode }
+  if (sequenceId !== undefined) return { subjectType: 'sequence', subjectCode: sequenceId }
+  throw new Error('Invariant: mail run thiếu cả campaignCode lẫn sequence.id.')
+}
+
+/** Exactly one chain owner, with campaigns remaining lead-only. Kept outside
+ * `send()` so the transactional path stays readable as one unit of work. */
+function validateSequenceChoice(body: MasSendRequest): void {
+  if (body.campaignCode !== undefined && body.sequence !== undefined) {
+    throw invalid(
+      { sequence: ['Một lượt gửi không thể đồng thời thuộc chiến dịch và chuỗi dùng chung.'] },
+      'Chỉ chọn một nơi quản lý chuỗi gửi.',
+    )
+  }
+  if (body.campaignCode !== undefined && body.audience.subjectType !== 'lead') {
+    throw invalid(
+      { campaignCode: ['Chiến dịch chỉ nhận destination từ sổ lead.'] },
+      'Không thể gắn một lượt gửi Opportunity vào chiến dịch lead.',
+    )
+  }
+  if (body.campaignCode === undefined && body.sequence === undefined) {
+    throw invalid(
+      { sequence: ['Lượt gửi ngoài chiến dịch phải thuộc một chuỗi gửi.'] },
+      'Hãy đặt tên chuỗi gửi trước khi tạo các đợt.',
+    )
+  }
+}
+
+/** Stable identity of an ordered-insensitive destination set. No addresses or
+ * names enter the digest; only server-resolved subject codes do. */
+function audienceFingerprint(
   subjectType: MasSendRequest['audience']['subjectType'],
   codes: readonly string[],
-): { subjectType: SequenceSubject; subjectCode: string } | undefined {
-  if (campaignCode !== undefined) return { subjectType: 'campaign', subjectCode: campaignCode }
-  const only = codes.length === 1 ? codes[0] : undefined
-  return only === undefined ? undefined : { subjectType, subjectCode: only }
+): string {
+  return createHash('sha256')
+    .update(`${subjectType}\0${[...codes].sort().join('\0')}`)
+    .digest('hex')
+}
+
+/** A repeated POST may return the already-created wave only when it is the
+ * exact same intent. Reusing the idempotency key for different content is a
+ * conflict, never permission to overwrite mail already queued. */
+function sameSequenceWave(
+  existing: ExistingSequenceWave,
+  body: MasSendRequest,
+  scheduledAt: Date | null,
+): boolean {
+  const cta = body.cta ?? null
+  const cc = [...new Set(body.cc ?? [])].sort()
+  const storedCc = [...existing.ccAddresses].sort()
+  const sameMoment =
+    existing.scheduledAt === null
+      ? scheduledAt === null
+      : scheduledAt !== null && new Date(existing.scheduledAt).getTime() === scheduledAt.getTime()
+
+  return (
+    existing.phase === body.label &&
+    existing.label === body.label &&
+    existing.templateCode === (body.templateCode ?? null) &&
+    existing.subject === body.subject &&
+    existing.body === body.body &&
+    existing.ctaLabel === (cta?.label ?? null) &&
+    existing.ctaUrl === (cta?.url ?? null) &&
+    existing.bookingUrl === (body.bookingUrl ?? null) &&
+    existing.trackEngagement === (body.trackEngagement ?? true) &&
+    sameMoment &&
+    storedCc.length === cc.length &&
+    storedCc.every((address, index) => address === cc[index])
+  )
 }
 
 /** The same code twice in one pick is one recipient, not two letters.

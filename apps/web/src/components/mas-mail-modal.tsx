@@ -8,7 +8,6 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
-import { MailSyntaxGuide } from '@/components/mail-syntax-guide'
 import { WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
   composerBlocker,
@@ -17,7 +16,6 @@ import {
   type ComposerState,
 } from '@/components/mail-sequence/wave-draft'
 import {
-  ComposeStep,
   DeliveryStep,
   PreviewPlaceholder,
   RecipientsStep,
@@ -28,10 +26,8 @@ import { isHttpUrl } from '@/data/http-url'
 import { mailHints } from '@/data/mail-hints'
 import {
   NO_CAMPAIGN,
-  NO_TEMPLATE,
   templateCodeFrom,
   useMasMailDraft,
-  type MasMailDraft,
   type MasRecipient,
 } from '@/data/mas-mail-draft'
 import {
@@ -57,18 +53,13 @@ import {
 export type MasMailModalProps = {
   open: boolean
   onClose: () => void
-  leads: MasRecipient[]
-  initialLeadCode?: string
-  /** Rows highlighted out in the lead book. Seed, not a lock — more can be
+  recipients: MasRecipient[]
+  initialCode?: string
+  /** Rows highlighted in the source book. Seed, not a lock — more can be
    *  added in step 1. */
-  initialLeadCodes?: readonly string[]
-  /** THE DEAL this run is filed against, when the panel was opened from one.
-   *
-   *  Absent = a lead run, and the audience is whatever the picker holds. Present
-   *  = the run goes out as `subjectType: 'opportunity'`, while `leads` still
-   *  carries the deal's origin lead — that row is the mailbox, and preflight and
-   *  preview are both lead-side doors (`MasPreflightRequest.leadCodes`). */
-  opportunityCode?: string
+  initialCodes?: readonly string[]
+  /** Which business book owns the selected destination codes. */
+  subjectType?: MasAudience['subjectType']
   defaultLabel?: string
   onQueued: () => void
 }
@@ -79,35 +70,26 @@ const STEPS = [
   { key: 'how', label: 'Cách gửi' },
 ]
 
-/** THE CHECK ON THE DEAL DOOR READS THE LEAD, AND SAYS SO.
- *
- *  `POST /sales/mail/preflight` takes lead codes only, so a run filed against an
- *  opportunity is checked through the origin lead — the mailbox the letter
- *  actually reaches. Posting the deal's own code there would ask a lead-shaped
- *  question about a code no lead carries. Written on screen rather than left to
- *  be assumed: a verdict about a different row than the one on the header is
- *  exactly the kind of quiet lie this panel's preflight exists to prevent. */
-const DEAL_PREFLIGHT_NOTE =
-  'Cơ hội chưa có bước kiểm riêng — danh sách dưới đây kiểm theo lead gốc của đơn, cũng là hộp thư sẽ nhận thư này.'
-
 export function MasMailModal({
   open,
   onClose,
-  leads,
-  initialLeadCode,
-  initialLeadCodes,
-  opportunityCode,
+  recipients,
+  initialCode,
+  initialCodes,
+  subjectType = 'lead',
   defaultLabel,
   onQueued,
 }: MasMailModalProps) {
-  const draft = useMasMailDraft(open, initialLeadCode, initialLeadCodes)
+  const draft = useMasMailDraft(open, initialCode, initialCodes, defaultLabel)
   const [chain, setChain] = useState<ComposerState>(emptyComposerState)
+  const [sequenceId, setSequenceId] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
   const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof masPreflight>>>()
   const [checking, setChecking] = useState(false)
   const [failure, setFailure] = useState('')
-  const [guideOpen, setGuideOpen] = useState(false)
+  const [submittedWaves, setSubmittedWaves] = useState(0)
+  const [queuedEmails, setQueuedEmails] = useState(0)
 
   const { data: catalogue } = useQuery({ ...masTemplatesQuery, enabled: open })
   const { data: campaignBook } = useQuery({ ...campaignFacetQuery, enabled: open })
@@ -117,15 +99,17 @@ export function MasMailModal({
 
   useEffect(() => {
     if (!open) {
-      setGuideOpen(false)
       return
     }
     setStep(0)
     setReached(0)
     setChain(emptyComposerState())
+    setSequenceId(crypto.randomUUID())
     setPreflight(undefined)
     setChecking(false)
     setFailure('')
+    setSubmittedWaves(0)
+    setQueuedEmails(0)
   }, [open])
 
   /* The audience changed, so the server's verdict about it is stale. Clearing
@@ -142,48 +126,26 @@ export function MasMailModal({
     [campaignBook],
   )
   const chosen = useMemo(
-    () => leads.filter((lead) => draft.selected.has(lead.code)),
-    [leads, draft.selected],
+    () => recipients.filter((recipient) => draft.selected.has(recipient.code)),
+    [recipients, draft.selected],
   )
   const previewLead = chosen.find((lead) => lead.code === draft.previewCode) ?? chosen[0] ?? null
 
   /* WHO THE RUN IS FILED AGAINST, in the one shape the contract accepts. The
      deal door carries its own code; every other door is the picked leads. */
-  const audience: MasAudience = opportunityCode
-    ? { subjectType: 'opportunity', codes: [opportunityCode] }
-    : { subjectType: 'lead', codes: chosen.map((lead) => lead.code) }
+  const audience: MasAudience = { subjectType, codes: chosen.map((recipient) => recipient.code) }
 
-  /* THE CHAIN DOOR — one subject, opened from its own screen. Firing several
-     waves at a hand-picked batch is what a campaign is for, so a bulk pick
-     never becomes a chain even when exactly one row is ticked. */
-  const oneSubject = opportunityCode !== undefined || initialLeadCode !== undefined
-  const chained = oneSubject && audience.codes.length === 1
-
-  const ctaBroken = Boolean(draft.cta && (!draft.cta.label.trim() || !isHttpUrl(draft.cta.url)))
-  const bookingBroken = Boolean(draft.bookingUrl.trim() && !isHttpUrl(draft.bookingUrl.trim()))
-  const scheduleBroken =
-    draft.sendTiming === 'later' &&
-    (!draft.scheduledAt ||
-      Number.isNaN(new Date(draft.scheduledAt).getTime()) ||
-      new Date(draft.scheduledAt) <= new Date())
+  /* A sequence belongs to the selection as a whole. It can contain one or many
+     destinations and does not need a campaign behind it. */
+  const oneSubject = audience.codes.length === 1
+  const cta = chainCta(chain)
+  const bookingUrl = isHttpUrl(chain.bookingUrl.trim()) ? chain.bookingUrl.trim() : ''
 
   /* EVERY DOOR SENDS A LIST OF WAVES, and the single letter is a list of one.
      Two code paths into `POST /sales/mail/runs` would be two places for the
      campaign field or the tracking flag to be forgotten. */
-  const waves = chained ? effectiveWaves(chain) : [waveOfDraft(draft, templates, defaultLabel)]
-  const letter = chained
-    ? {
-        subject: chain.subject,
-        body: chain.body,
-        cta: chainCta(chain),
-        bookingUrl: chain.bookingUrl,
-      }
-    : {
-        subject: draft.subject,
-        body: draft.body,
-        cta: draft.cta,
-        bookingUrl: draft.bookingUrl.trim(),
-      }
+  const waves = effectiveWaves(chain)
+  const letter = { subject: chain.subject, body: chain.body, cta, bookingUrl }
 
   const templateNameGap =
     draft.saveAsTemplate && canSaveTemplate && !templateCodeFrom(draft.templateName)
@@ -196,10 +158,10 @@ export function MasMailModal({
       : chosen.length === 0
         ? 'Chưa chọn người nhận.'
         : null,
-    (chained ? composerBlocker(chain) : letterBlocker(draft, ctaBroken, bookingBroken)) ??
-      templateNameGap,
-    /* Each wave of a chain carries its own time, so this step asks for none. */
-    !chained && scheduleBroken ? 'Thời gian đặt lịch phải sau thời điểm hiện tại.' : null,
+    composerBlocker(chain) ?? templateNameGap,
+    draft.campaignCode === NO_CAMPAIGN && !draft.sequenceName.trim()
+      ? 'Đặt tên cho chuỗi gửi này.'
+      : null,
   ]
   /* The send needs EVERY step to be clean, not just the one on screen — a
      subject deleted on the way back must not leave the button live. */
@@ -207,15 +169,15 @@ export function MasMailModal({
 
   /* The composer draws its own preview beside its own compose box, so the
      panel's column would be a second rendering of the same letter. */
-  const ownPreview = chained && step === 1
+  const ownPreview = step === 1
   const letterReady = letter.subject.trim() !== '' && letter.body.trim() !== ''
   const preview = useMailPreview(
     {
       subject: letter.subject,
       body: letter.body,
-      ...(letter.cta && !ctaBroken ? { cta: letter.cta } : {}),
-      ...(letter.bookingUrl && !bookingBroken ? { bookingUrl: letter.bookingUrl } : {}),
-      ...(previewLead ? { leadCode: previewLead.code } : {}),
+      ...(letter.cta ? { cta: letter.cta } : {}),
+      ...(letter.bookingUrl ? { bookingUrl: letter.bookingUrl } : {}),
+      ...(previewLead ? { leadCode: previewLead.leadCode ?? previewLead.code } : {}),
     },
     letterReady && !ownPreview,
   )
@@ -228,6 +190,9 @@ export function MasMailModal({
   })
 
   const goTo = (next: number) => {
+    /* Once any wave is queued, changing recipients or earlier phases would
+       turn retry into a different sequence. The only safe action is resume. */
+    if (submittedWaves > 0 && next < STEPS.length - 1) return
     setStep(next)
     setReached((furthest) => Math.max(furthest, next))
     setFailure('')
@@ -238,7 +203,7 @@ export function MasMailModal({
     setChecking(true)
     setFailure('')
     try {
-      setPreflight(await masPreflight(chosen.map((lead) => lead.code)))
+      setPreflight(await masPreflight(audience))
     } catch (error) {
       setFailure(isApiError(error) ? userMessage(error) : 'Không kiểm tra được người nhận.')
     } finally {
@@ -252,37 +217,55 @@ export function MasMailModal({
   const submit = async () => {
     if (blocker || !preflight || preflight.sendable === 0 || send.isPending) return
     const done: MasSendResponse[] = []
+    let completed = submittedWaves
+    let queuedTotal = queuedEmails
 
     setFailure('')
     try {
-      for (const wave of waves) {
-        done.push(
-          await send.mutateAsync({
-            ...wave,
-            audience,
-            ...(draft.campaignCode === NO_CAMPAIGN ? {} : { campaignCode: draft.campaignCode }),
-            /* Stated on every send even though absent already means ON: this is
+      for (const [offset, wave] of waves.slice(submittedWaves).entries()) {
+        const waveNo = submittedWaves + offset + 1
+        const result = await send.mutateAsync({
+          ...wave,
+          audience,
+          ...(draft.campaignCode === NO_CAMPAIGN ? {} : { campaignCode: draft.campaignCode }),
+          ...(draft.campaignCode === NO_CAMPAIGN
+            ? { sequence: { id: sequenceId, name: draft.sequenceName.trim(), waveNo } }
+            : {}),
+          ...(draft.cc.size > 0 ? { cc: [...draft.cc] } : {}),
+          /* Stated on every send even though absent already means ON: this is
                the one value on the panel a person can turn OFF, and a field the
                request omits is a field nobody can read back off the wire. */
-            trackEngagement: draft.trackEngagement,
-          }),
-        )
+          trackEngagement: draft.trackEngagement,
+        })
+        done.push(result)
+        completed += 1
+        queuedTotal += result.queued
+        setSubmittedWaves(completed)
+        setQueuedEmails(queuedTotal)
       }
-      toast(sendReport(done), {
-        tone: 'success',
-        detail: 'Email sẽ rời hệ thống sau vài chục giây.',
-      })
-      const last = waves.at(-1)
-      if (draft.saveAsTemplate && canSaveTemplate && last) keepAsTemplate(last)
-      onQueued()
-      onClose()
     } catch (error) {
       const reason = isApiError(error) ? userMessage(error) : 'Không tạo được lượt gửi này.'
       setFailure(
-        done.length > 0
-          ? `${reason} Đợt 1–${done.length} đã vào hàng đợi và không rút lại được.`
+        completed > 0
+          ? `${reason} Đợt 1–${completed} đã vào hàng đợi và không rút lại được; bấm gửi lại chỉ tiếp tục từ đợt ${completed + 1}.`
           : reason,
       )
+      return
+    }
+
+    toast(sendReport(waves.length, queuedTotal, done), {
+      tone: 'success',
+      detail: 'Email sẽ rời hệ thống sau vài chục giây.',
+    })
+    const last = waves.at(-1)
+    if (draft.saveAsTemplate && canSaveTemplate && last) keepAsTemplate(last)
+    /* Screen cleanup is not part of sending. Even if a caller's optional
+       callback fails, the completed sequence must close instead of being
+       presented as a retryable mail failure. */
+    try {
+      onQueued()
+    } finally {
+      onClose()
     }
   }
 
@@ -316,7 +299,7 @@ export function MasMailModal({
         ? (chosen[0]?.contactName ?? '')
         : `${chosen.length} người nhận`,
     letter.subject.trim() || 'Chưa soạn',
-    chained ? `${waves.length} đợt` : draft.sendTiming === 'later' ? 'Hẹn giờ' : 'Gửi ngay',
+    `${waves.length} đợt`,
   ]
 
   return (
@@ -347,6 +330,7 @@ export function MasMailModal({
             sending={send.isPending}
             preflightDone={Boolean(preflight)}
             sendable={preflight?.sendable ?? 0}
+            backBlocked={submittedWaves > 0}
             waves={waves.length}
             timing={waves.length > 0 && waves.every((wave) => wave.scheduledAt) ? 'later' : 'now'}
             onBack={() => (step === 0 ? onClose() : goTo(step - 1))}
@@ -377,37 +361,28 @@ export function MasMailModal({
               and quietly shrinks the "phone" view below a real phone. Below
               1440 the preview stacks under the form at full width. */}
           <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
-            {step === 0 && <RecipientsStep draft={draft} leads={leads} chosen={chosen} />}
-            {step === 1 &&
-              (chained ? (
-                <div className="wide:col-span-2 flex min-w-0 flex-col gap-4">
-                  <WaveComposer
-                    state={chain}
-                    setState={setChain}
-                    templates={templates}
-                    {...(previewLead ? { previewLeadCode: previewLead.code } : {})}
-                  />
-                  <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
-                </div>
-              ) : (
-                <ComposeStep
-                  draft={draft}
+            {step === 0 && <RecipientsStep draft={draft} recipients={recipients} chosen={chosen} />}
+            {step === 1 && (
+              <div className="wide:col-span-2 flex min-w-0 flex-col gap-4">
+                <WaveComposer
+                  state={chain}
+                  setState={setChain}
                   templates={templates}
-                  canSaveTemplate={canSaveTemplate}
-                  ctaBroken={ctaBroken}
-                  bookingBroken={bookingBroken}
-                  onOpenGuide={() => setGuideOpen(true)}
+                  {...(previewLead
+                    ? { previewLeadCode: previewLead.leadCode ?? previewLead.code }
+                    : {})}
                 />
-              ))}
+                <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
+              </div>
+            )}
             {step === 2 && (
               <DeliveryStep
                 draft={draft}
                 chosen={chosen}
                 campaigns={campaigns}
+                allowCampaign={subjectType === 'lead'}
                 preflight={preflight}
-                scheduleBroken={scheduleBroken}
-                {...(chained ? { chain: { waves: waves.length, subject: letter.subject } } : {})}
-                {...(opportunityCode ? { audienceNote: DEAL_PREFLIGHT_NOTE } : {})}
+                chain={{ waves: waves.length, subject: letter.subject }}
                 onEdit={goTo}
               />
             )}
@@ -435,42 +410,8 @@ export function MasMailModal({
           </div>
         </div>
       </Modal>
-
-      {/* A sibling of the modal, not a child: it is a second overlay, and
-          `overlay-stack.ts` gives Escape to whichever is on top. */}
-      <MailSyntaxGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </>
   )
-}
-
-/** The single-letter form as ONE wave, so both doors send the same shape. The
- *  run's name falls back the way it always has: the caller's label, then the
- *  template's name, then the subject — an unnamed run is a row nobody can find
- *  again in the run list. */
-function waveOfDraft(
-  draft: MasMailDraft,
-  templates: readonly { code: string; name: string }[],
-  defaultLabel?: string,
-): CampaignWaveInput {
-  const label = (
-    defaultLabel ||
-    templates.find((item) => item.code === draft.template)?.name ||
-    draft.subject
-  ).trim()
-  /* Built on every render, so a half-typed time must not throw: an emptied
-     `datetime-local` is `Invalid Date`, and `toISOString()` on one is a
-     RangeError. The send button is already held by `scheduleBroken`. */
-  const at = draft.sendTiming === 'later' ? new Date(draft.scheduledAt) : null
-
-  return {
-    label,
-    subject: draft.subject,
-    body: draft.body,
-    ...(draft.template === NO_TEMPLATE ? {} : { templateCode: draft.template }),
-    ...(draft.cta ? { cta: draft.cta } : {}),
-    ...(draft.bookingUrl.trim() ? { bookingUrl: draft.bookingUrl.trim() } : {}),
-    ...(at && !Number.isNaN(at.getTime()) ? { scheduledAt: at.toISOString() } : {}),
-  }
 }
 
 /** The chain's live wave as the preview reads it — the button only travels when
@@ -481,27 +422,12 @@ function chainCta(chain: ComposerState): MasSendRequest['cta'] {
   return label !== '' && isHttpUrl(url) ? { label, url } : undefined
 }
 
-/** What still stops the single-letter form from going out. */
-function letterBlocker(
-  draft: MasMailDraft,
-  ctaBroken: boolean,
-  bookingBroken: boolean,
-): string | null {
-  if (!draft.subject.trim() && !draft.body.trim()) return 'Còn thiếu tiêu đề, nội dung.'
-  if (!draft.subject.trim()) return 'Còn thiếu tiêu đề.'
-  if (!draft.body.trim()) return 'Còn thiếu nội dung.'
-  if (ctaBroken) return 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
-  if (bookingBroken) return 'Link đặt lịch phải bắt đầu bằng http/https.'
-  return null
-}
-
 /** What the toast says — "queued", never "sent": rows are written and a worker
  *  posts them seconds later. A chain reports its length, because the number of
  *  letters is not what the person just decided. */
-function sendReport(results: readonly MasSendResponse[]): string {
-  const queued = results.reduce((total, result) => total + result.queued, 0)
-  if (results.length > 1) return `Đã xếp hàng ${results.length} đợt · ${queued} email`
-  return results.every((result) => result.state === 'SCHEDULED')
+function sendReport(waves: number, queued: number, latest: readonly MasSendResponse[]): string {
+  if (waves > 1) return `Đã xếp hàng ${waves} đợt · ${queued} email`
+  return latest.every((result) => result.state === 'SCHEDULED')
     ? `Đã đặt lịch ${queued} email`
     : `Đã xếp hàng ${queued} email`
 }
@@ -523,6 +449,7 @@ function MailFooter({
   sending,
   preflightDone,
   sendable,
+  backBlocked,
   waves,
   timing,
   onBack,
@@ -539,6 +466,7 @@ function MailFooter({
   sending: boolean
   preflightDone: boolean
   sendable: number
+  backBlocked: boolean
   /** How many runs the button is about to open. More than one = a chain. */
   waves: number
   timing: 'now' | 'later'
@@ -562,7 +490,7 @@ function MailFooter({
         {message}
       </span>
       <div className="flex shrink-0 gap-2">
-        <Button size="lg" variant="ghost" type="button" onClick={onBack}>
+        <Button size="lg" variant="ghost" type="button" disabled={backBlocked} onClick={onBack}>
           {step === 0 ? 'Huỷ' : 'Quay lại'}
         </Button>
         {!last ? (

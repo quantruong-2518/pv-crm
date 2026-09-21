@@ -414,6 +414,13 @@
       "when": 1788503000000,
       "tag": "0059_motion_asks_and_partner",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788503100000,
+      "tag": "0060_mail_sequence_and_cc",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,8 @@ import { render } from '@testing-library/react'
 import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useLeadDesk } from '@/app/desk'
 import { SESSION_LIMITS, useSession } from '@/app/auth'
+import { closeMasMail } from '@/app/mas-mail-composer'
+import { MasMailComposerHost } from '@/components/mas-mail-composer-host'
 
 /** Dựng một màn trong test với đúng ba thứ màn thật có: router, query client,
  *  và một phiên đăng nhập.
@@ -29,6 +31,7 @@ function wrap(children: ReactNode, route: string) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+      <MasMailComposerHost />
     </QueryClientProvider>,
   )
 }
@@ -57,6 +60,7 @@ function signIn(actorId = 'u-ha') {
     },
   })
   useLeadDesk.getState().reset()
+  closeMasMail()
 }
 
 export function renderScreen(ui: ReactElement, opts: Opts = {}) {

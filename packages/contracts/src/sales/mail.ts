@@ -10,12 +10,10 @@ import { PageQuery, paged, SortDir } from '../pagination'
  *  A run is ONE act of sending: one subject, one body, one audience, one
  *  moment. Both doors into MAS produce exactly one:
  *
- *   · Quick MAS from the lead book — a bare `mail_run` and nothing else. The
- *     person picked rows, typed a subject, pressed send. No campaign is
- *     involved and none should be invented, for the same reason `LeadCreate`
- *     refuses to mint a campaign code (`./lead-source`): a campaign that
- *     appears in no campaign book is worse than no campaign.
- *   · A campaign send — the same `mail_run`, plus one `campaign_run` row
+ *   · Shared composer — one `mail_sequence` header and one
+ *     `mail_sequence_run` per phase, whether its destinations are leads or
+ *     opportunities. No campaign is invented.
+ *   · A campaign send — the same `mail_run`, plus a `mail_sequence_run` row
  *     joining it to the campaign. A campaign fires several times; the run is
  *     what makes "the third send" a thing with its own numbers.
  *
@@ -332,7 +330,9 @@ export const MAS_RECIPIENT_BLOCK_LABEL = {
  *  merely mirrored. See the handover note; this contract does not want to be
  *  the thing that breaks the day a lead reaches the book without a mailbox. */
 export const MasRecipient = z.object({
-  leadCode: ObjectCode,
+  /** Code from the book that was checked. It is a lead code for a lead
+   *  audience and an opportunity code for an opportunity audience. */
+  subjectCode: ObjectCode,
   company: z.string().min(1),
   contactName: z.string().min(1),
   /** Chức danh để người gửi phân biệt đúng người trước khi bấm gửi. */
@@ -392,7 +392,7 @@ export const MasAudience = z.object({
  *  of it also means the panel can run this the moment rows are picked, before
  *  anything is typed. */
 export const MasPreflightRequest = z.object({
-  leadCodes,
+  audience: MasAudience,
 })
 
 /** What the preflight answers with. Rows AND counts, and the redundancy is on
@@ -510,6 +510,24 @@ const mailBody = z
   )
   .pipe(z.string().min(1, 'Nội dung mail không được để trống'))
 
+/** Internal copies explicitly available to the shared noreply composer.
+ *  Closed rather than `z.email()`: this control is not an arbitrary CC field
+ *  and cannot be used to turn the bulk sender into a relay. */
+export const MAS_CC_ADDRESSES = ['contact@pebblevina.com', 'sales@pebblevina.co'] as const
+export const MasCcAddress = z.enum(MAS_CC_ADDRESSES)
+
+/** One reusable sequence outside a campaign. The browser mints the id once
+ *  when the composer opens and repeats it on every wave; the server fences the
+ *  id to one owner and one immutable audience. */
+export const MailSequenceId = z.uuid()
+export const MasSequence = z.object({
+  id: MailSequenceId,
+  name: textInput(MAIL_NAME_MAX),
+  /** Stable client position. Together with `id` this is the idempotency key
+   * for retrying a POST whose response may have been lost. */
+  waveNo: z.number().int().positive().max(1000),
+})
+
 /** `POST /sales/mail/runs` — create a run and hand it to the queue.
  *
  *  ------------------------------------------------------------------
@@ -531,6 +549,8 @@ const mailBody = z
  *     appear on any subject's timeline. */
 export const MasSendRequest = z.object({
   audience: MasAudience,
+  /** Present on every wave composed outside a campaign. */
+  sequence: MasSequence.optional(),
   /** What this batch is CALLED — what the run list shows and what a person
    *  says when asking "how did the March mailing do". Required: an unnamed run
    *  in a list of thirty runs is a row nobody can identify, and "Untitled" is
@@ -568,13 +588,12 @@ export const MasSendRequest = z.object({
    *  that difference rejects legitimate sends. The service compares against
    *  its own clock, which is the only one that decides when the run fires. */
   scheduledAt: Moment.optional(),
-  /** Present = this run belongs to a campaign, and the service also writes the
-   *  `campaign_run` row joining the two. Absent = Quick MAS from the lead or
-   *  opportunity book: a run that belongs to no campaign, which is a complete
-   *  answer and not a gap (same rule as `LeadSource.campaignId` in
-   *  `./lead-source`). Campaigns are lead-only today, so `audience.subjectType`
-   *  is always `'lead'` whenever this is present. */
+  /** Present = this run belongs to a campaign. Mutually exclusive with
+   *  `sequence`; campaigns are lead-only today. */
   campaignCode: ObjectCode.optional(),
+  /** Optional internal archive copies, snapshotted on the run and applied to
+   *  every recipient delivery in this batch. */
+  cc: z.array(MasCcAddress).max(MAS_CC_ADDRESSES.length).optional(),
   /** Whether this run RECORDS `OPEN`/`CLICK` for its letters — not whether
    *  they are tracked. Tracking itself (the pixel, the wrapped link) is
    *  Resend's doing at the account/domain level and has no per-send switch;
@@ -605,6 +624,8 @@ export const MasSendRequest = z.object({
  *  became 37 letters without going to count anything. */
 export const MasSendResponse = z.object({
   mailRunId: MailRunId,
+  sequenceId: MailSequenceId.optional(),
+  waveNo: z.number().int().positive().optional(),
   /** Rows written to the ledger. Letters that WILL be attempted. */
   queued: z.number().int().nonnegative(),
   /** Picks that produced no row — suppressed, no mailbox, duplicate address.
@@ -718,6 +739,14 @@ export const MasPreviewResponse = z.object({
 export const MailRunRow = z.object({
   id: MailRunId,
   label: z.string().min(1),
+  /** Sales-side chain context. `phase` is snapshotted separately from `label`
+   * so a run remains explicit even if one of the two concepts later changes. */
+  waveNo: z.number().int().positive().optional(),
+  phase: z.string().min(1).optional(),
+  sequenceId: MailSequenceId.optional(),
+  sequenceName: z.string().min(1).optional(),
+  campaignCode: ObjectCode.optional(),
+  campaignName: z.string().min(1).optional(),
   /** Which template the text started from, if any. See `MasSendRequest`. */
   templateCode: MailTemplateCode.optional(),
   subject: z.string().min(1),
@@ -1032,7 +1061,7 @@ export const LeadMailTimelineRow = z.object({
   failReason: z.string().optional(),
 
   /** Which campaign this run belongs to, if any. Both present together or
-   *  both absent — a run is joined to at most one campaign (`campaign_run`)
+   *  both absent — a run is joined to at most one campaign (`mail_sequence_run`)
    *  or none at all. Absent means Quick MAS, sent straight from the lead
    *  book — a real state, not a missing value; the screen must label this
    *  case as a manual send, never leave a blank where a campaign name would
@@ -1156,6 +1185,9 @@ export type MasPreflightRequest = z.infer<typeof MasPreflightRequest>
 export type MasPreflightResponse = z.infer<typeof MasPreflightResponse>
 export type MasSendRequest = z.infer<typeof MasSendRequest>
 export type MasSendResponse = z.infer<typeof MasSendResponse>
+export type MasCcAddress = z.infer<typeof MasCcAddress>
+export type MailSequenceId = z.infer<typeof MailSequenceId>
+export type MasSequence = z.infer<typeof MasSequence>
 export type MasPreviewRequest = z.infer<typeof MasPreviewRequest>
 export type MasPreviewResponse = z.infer<typeof MasPreviewResponse>
 export type MailRunRow = z.infer<typeof MailRunRow>

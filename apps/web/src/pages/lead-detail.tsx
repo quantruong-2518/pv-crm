@@ -19,6 +19,7 @@ import {
 import type { LeadProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
+import { openMasMail } from '@/app/mas-mail-composer'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
@@ -34,7 +35,6 @@ import { ExitDialog } from '@/components/exit-dialog'
 import { LeadActivityCard } from '@/components/lead-activity-card'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
-import { MasMailModal } from '@/components/mas-mail-modal'
 import { masRecipientsOf } from '@/data/mas-mail-draft'
 import { OwnerSourceCard } from '@/components/owner-source-card'
 import { ObjectChip } from '@/components/workstream-bits'
@@ -134,7 +134,6 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
-  const [composing, setComposing] = useState(false)
 
   /* ONE draft for the whole screen: the form card on the left and the holder
      card on the right type into the same boxes. */
@@ -152,6 +151,12 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
         : !lead.contactName
           ? 'Lead chưa có người liên hệ.'
           : undefined
+  const composeMail = () =>
+    openMasMail({
+      recipients: masRecipientsOf(lead),
+      initialCode: masBlocker ? undefined : lead.code,
+      defaultLabel: `Gửi email · ${lead.company}`,
+    })
 
   return (
     <ScreenLayout>
@@ -210,7 +215,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
               touches={touches}
               focus={null}
               seedAddress={lead.email}
-              onCompose={() => setComposing(true)}
+              onCompose={composeMail}
               composeBlocked={masBlocker}
               openSchedule={scheduleSeq}
             />
@@ -241,7 +246,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
         onNurture={() => setNurturing(true)}
         onConvert={() => setConverting(true)}
         onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
-        onCompose={() => setComposing(true)}
+        onCompose={composeMail}
         composeBlocked={masBlocker}
         onSchedule={() => setScheduleSeq((n) => n + 1)}
       />
@@ -251,14 +256,6 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
-      <MasMailModal
-        open={composing}
-        onClose={() => setComposing(false)}
-        leads={masRecipientsOf(lead)}
-        initialLeadCode={masBlocker ? undefined : lead.code}
-        defaultLabel={`Gửi email · ${lead.company}`}
-        onQueued={() => setComposing(false)}
-      />
     </ScreenLayout>
   )
 }

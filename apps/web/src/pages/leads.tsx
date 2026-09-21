@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -24,6 +24,7 @@ import {
   type LeadStateFilter,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { openMasMail } from '@/app/mas-mail-composer'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import {
@@ -44,8 +45,8 @@ import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useLeadImportBatch } from '@/components/lead-import-batch'
-import { MasMailModal } from '@/components/mas-mail-modal'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { useBookSelection } from '@/components/book-selection'
 import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
@@ -133,7 +134,6 @@ const NO_SOURCES: ConfigEntry[] = []
  *  người nhận của hai màn Nguồn dẫn qua chính hai cửa trên (31/08). `leadBookKeys`
  *  không còn chỗ gọi nào — nó ở lại `data/intake.ts` cho tới lượt dọn. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
-const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
 
 export function LeadsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -363,87 +363,26 @@ export function LeadsPage() {
     ...(counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name })),
   ]
 
-  /* Phiếu MAS sống trọn trong Modal: nội dung, lịch và người nhận cùng một chỗ.
-     Sổ không đổi cột hay chèn thêm section khi soạn mail. */
-  const [composing, setComposing] = useState(false)
-  /* One lead's address pressed in its row: the same composer, seeded with it. */
-  const [mailTo, setMailTo] = useState<string>()
   const canEmail = useCan('lead.send-email')
 
-  /* The selection outlives paging: the codes live on the screen, not in the ten
-     rows of this page. The mail modal takes them as a seed and still lets the
-     user add and remove. */
-  const [selectedCodes, setSelectedCodes] = useState<ReadonlySet<string>>(NO_SELECTED_CODES)
-  const dragIntent = useRef<'select' | 'deselect' | null>(null)
-  const suppressClick = useRef<string | null>(null)
+  /* Shared by every bulk-action book: selection outlives paging and keeps the
+     mouse/pen paint gesture identical between the lead and opportunity books. */
+  const {
+    selectedCodes,
+    pageSelected,
+    allPageSelected,
+    changeSelection,
+    beginDrag,
+    paintSelection,
+    selectPage,
+    clearSelection,
+  } = useBookSelection(shown)
 
   const selectedLeads = useMemo(
     () => wholeBook.filter((lead) => selectedCodes.has(lead.code)),
     [wholeBook, selectedCodes],
   )
-  const selectedCodeList = useMemo(() => [...selectedCodes], [selectedCodes])
   const selectedEmailCount = selectedLeads.filter((lead) => Boolean(lead.email)).length
-  const pageSelected = shown.filter((lead) => selectedCodes.has(lead.code)).length
-  const allPageSelected = shown.length > 0 && pageSelected === shown.length
-
-  const setCodeSelected = (code: string, on: boolean) => {
-    setSelectedCodes((current) => {
-      const next = new Set(current)
-      if (on) next.add(code)
-      else next.delete(code)
-      return next
-    })
-  }
-
-  const beginDrag = (code: string, event: ReactPointerEvent<HTMLElement>) => {
-    /* Touch keeps its native scroll and toggles through the click that follows;
-       mouse and pen press a checkbox and paint across rows. */
-    if (event.pointerType === 'touch' || event.button !== 0) return
-    event.preventDefault()
-    const intent = selectedCodes.has(code) ? 'deselect' : 'select'
-    dragIntent.current = intent
-    suppressClick.current = code
-    setCodeSelected(code, intent === 'select')
-  }
-
-  const paintSelection = (code: string, event: ReactPointerEvent<HTMLElement>) => {
-    if (event.pointerType === 'touch' || event.buttons !== 1 || dragIntent.current === null) return
-    setCodeSelected(code, dragIntent.current === 'select')
-  }
-
-  const selectPage = (on: boolean) => {
-    setSelectedCodes((current) => {
-      const next = new Set(current)
-      for (const lead of shown) {
-        if (on) next.add(lead.code)
-        else next.delete(lead.code)
-      }
-      return next
-    })
-  }
-
-  const clearSelection = () => {
-    setSelectedCodes(NO_SELECTED_CODES)
-    dragIntent.current = null
-    suppressClick.current = null
-  }
-
-  useEffect(() => {
-    const finish = () => {
-      dragIntent.current = null
-      /* The press's own `click` fires right after `pointerup`; clearing on the
-         next macrotask keeps it from undoing what the press just painted. */
-      window.setTimeout(() => {
-        suppressClick.current = null
-      }, 0)
-    }
-    window.addEventListener('pointerup', finish)
-    window.addEventListener('pointercancel', finish)
-    return () => {
-      window.removeEventListener('pointerup', finish)
-      window.removeEventListener('pointercancel', finish)
-    }
-  }, [])
 
   /* Bản vẽ nạp tệp + sổ người của máy chủ. Ô "Lead PIC" là danh sách đóng, và
      danh sách đó là những người ĐANG làm ở đây — không phải bảy cái tên từng
@@ -543,21 +482,26 @@ export function LeadsPage() {
       id: l.code,
       state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
       onOpen: () => open(l.code),
-      onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) => paintSelection(l.code, event),
+      onPointerEnter: (event) => paintSelection(l.code, event),
       cells: [
         <SelectionCell
           key="select"
           checked={selectedCodes.has(l.code)}
           label={l.company}
           onPress={(event) => beginDrag(l.code, event)}
-          onChange={(on) => suppressClick.current !== l.code && setCodeSelected(l.code, on)}
+          onChange={(on) => changeSelection(l.code, on)}
         />,
         <CompanyCell
           key="c"
           lead={l}
           onEmail={
             canEmail && l.state !== 'disqualified' && l.state !== 'archived'
-              ? () => setMailTo(l.code)
+              ? () =>
+                  openMasMail({
+                    recipients: wholeBook,
+                    initialCode: l.code,
+                    defaultLabel: 'Gửi email · Sổ lead',
+                  })
               : undefined
           }
         />,
@@ -744,29 +688,20 @@ export function LeadsPage() {
         />
 
         {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
-        <MasMailModal
-          open={composing || mailTo !== undefined}
-          onClose={() => {
-            setComposing(false)
-            setMailTo(undefined)
-          }}
-          leads={wholeBook}
-          initialLeadCode={mailTo}
-          initialLeadCodes={selectedCodeList}
-          defaultLabel="Gửi email · Sổ lead"
-          onQueued={() => {
-            setComposing(false)
-            if (mailTo === undefined) clearSelection()
-            setMailTo(undefined)
-          }}
-        />
         {selectedCodes.size > 0 && (
           <BookSelectionBar
             count={selectedCodes.size}
             noun="lead"
             meta={`${selectedEmailCount} địa chỉ email`}
             onClear={clearSelection}
-            onSend={() => setComposing(true)}
+            onSend={() =>
+              openMasMail({
+                recipients: wholeBook,
+                initialCodes: [...selectedCodes],
+                defaultLabel: 'Gửi email · Sổ lead',
+                onQueued: clearSelection,
+              })
+            }
           />
         )}
       </ScreenLayout>

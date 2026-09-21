@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Ban, FileCheck, Plus, Target, Wallet } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
@@ -32,6 +32,7 @@ import {
 } from '@pv/contracts'
 import { OPPORTUNITY_STATES } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
+import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
@@ -57,7 +58,7 @@ import { useOpportunityImport } from '@/data/opportunity-import'
 import { leadFacetQuery } from '@/data/leads'
 import { type MasRecipient } from '@/data/mas-mail-draft'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
-import { MasMailModal } from '@/components/mas-mail-modal'
+import { useBookSelection } from '@/components/book-selection'
 import { BookCount, BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import {
@@ -211,7 +212,6 @@ const NO_SALE_TITLE = 'Chưa có Sale đứng đơn'
  *  tệ hơn nữa là nó loại dòng TRƯỚC khi máy chủ được nhìn, mà bốn con số panel
  *  vẽ lại là số của máy chủ. Một cửa chống trùng, và đó là cửa biết mã lead. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
-const NO_SELECTED_CODES: ReadonlySet<string> = new Set()
 
 export function OpportunitiesPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -254,20 +254,24 @@ export function OpportunitiesPage() {
      carries the `leadCode` that points at one. */
   const { data: leadFacets } = useQuery(leadFacetQuery)
   const wholeLeadBook = useMemo(() => leadFacets?.rows ?? [], [leadFacets])
-  const opportunityLeadCodes = useMemo(() => new Set(wholeBook.map((o) => o.leadCode)), [wholeBook])
-  const recipients: MasRecipient[] = useMemo(
-    () =>
-      wholeLeadBook
-        .filter((lead) => opportunityLeadCodes.has(lead.code))
-        .map((lead) => ({
-          code: lead.code,
+  const recipients: MasRecipient[] = useMemo(() => {
+    const leadsByCode = new Map(wholeLeadBook.map((lead) => [lead.code, lead]))
+    return wholeBook.flatMap((op) => {
+      const lead = leadsByCode.get(op.leadCode)
+      if (!lead) return []
+      return [
+        {
+          code: op.code,
+          leadCode: lead.code,
           company: lead.company,
           contactName: lead.contactName,
           contactTitle: lead.contactTitle,
           email: lead.email,
-        })),
-    [wholeLeadBook, opportunityLeadCodes],
-  )
+          destinationLabel: op.name,
+        },
+      ]
+    })
+  }, [wholeBook, wholeLeadBook])
 
   const open = (code: string) => navigate(`/sales/opportunities/${code}`)
 
@@ -430,87 +434,22 @@ export function OpportunitiesPage() {
     return report
   }
 
-  /* Row selection + bulk mail — the lead book's own shape (`pages/leads.tsx`),
-     copied so the two books keep reading as one product. Selection outlives
-     paging: codes live on the screen, not in this page's ten rows. */
-  const [composing, setComposing] = useState(false)
-  const [selectedCodes, setSelectedCodes] = useState<ReadonlySet<string>>(NO_SELECTED_CODES)
-  const dragIntent = useRef<'select' | 'deselect' | null>(null)
-  const suppressClick = useRef<string | null>(null)
+  /* One selection protocol for every bulk-action book. Codes outlive paging;
+     the shared hook also owns mouse/pen paint selection and click suppression. */
+  const {
+    selectedCodes,
+    pageSelected,
+    allPageSelected,
+    changeSelection,
+    beginDrag,
+    paintSelection,
+    selectPage,
+    clearSelection,
+  } = useBookSelection(rows)
 
-  const selectedOps = useMemo(
-    () => wholeBook.filter((o) => selectedCodes.has(o.code)),
-    [wholeBook, selectedCodes],
-  )
-  const selectedLeadCodes = useMemo(
-    () => [...new Set(selectedOps.map((o) => o.leadCode))],
-    [selectedOps],
-  )
   const selectedEmailCount = recipients.filter(
-    (r) => selectedLeadCodes.includes(r.code) && Boolean(r.email),
+    (r) => selectedCodes.has(r.code) && Boolean(r.email),
   ).length
-  const pageSelected = rows.filter((o) => selectedCodes.has(o.code)).length
-  const allPageSelected = rows.length > 0 && pageSelected === rows.length
-
-  const setCodeSelected = (code: string, on: boolean) => {
-    setSelectedCodes((current) => {
-      const next = new Set(current)
-      if (on) next.add(code)
-      else next.delete(code)
-      return next
-    })
-  }
-
-  const beginDrag = (code: string, event: ReactPointerEvent<HTMLElement>) => {
-    /* Touch keeps its native scroll and toggles through the click that follows;
-       mouse and pen press a checkbox and paint across rows. */
-    if (event.pointerType === 'touch' || event.button !== 0) return
-    event.preventDefault()
-    const intent = selectedCodes.has(code) ? 'deselect' : 'select'
-    dragIntent.current = intent
-    suppressClick.current = code
-    setCodeSelected(code, intent === 'select')
-  }
-
-  const paintSelection = (code: string, event: ReactPointerEvent<HTMLElement>) => {
-    if (event.pointerType === 'touch' || event.buttons !== 1 || dragIntent.current === null) return
-    setCodeSelected(code, dragIntent.current === 'select')
-  }
-
-  const selectPage = (on: boolean) => {
-    setSelectedCodes((current) => {
-      const next = new Set(current)
-      for (const o of rows) {
-        if (on) next.add(o.code)
-        else next.delete(o.code)
-      }
-      return next
-    })
-  }
-
-  const clearSelection = () => {
-    setSelectedCodes(NO_SELECTED_CODES)
-    dragIntent.current = null
-    suppressClick.current = null
-  }
-
-  useEffect(() => {
-    const finish = () => {
-      dragIntent.current = null
-      /* The press's own `click` fires right after `pointerup`; clearing on the
-         next macrotask keeps it from undoing what the press just painted. */
-      window.setTimeout(() => {
-        suppressClick.current = null
-      }, 0)
-    }
-    window.addEventListener('pointerup', finish)
-    window.addEventListener('pointercancel', finish)
-    return () => {
-      window.removeEventListener('pointerup', finish)
-      window.removeEventListener('pointercancel', finish)
-    }
-  }, [])
-
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
@@ -681,15 +620,14 @@ export function OpportunitiesPage() {
               id: o.code,
               state: selectedCodes.has(o.code) ? ('selected' as const) : undefined,
               onOpen: () => open(o.code),
-              onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) =>
-                paintSelection(o.code, event),
+              onPointerEnter: (event) => paintSelection(o.code, event),
               cells: [
                 <SelectionCell
                   key="select"
                   checked={selectedCodes.has(o.code)}
                   label={o.name}
                   onPress={(event) => beginDrag(o.code, event)}
-                  onChange={(on) => suppressClick.current !== o.code && setCodeSelected(o.code, on)}
+                  onChange={(on) => changeSelection(o.code, on)}
                 />,
                 <Chip key="c">{o.code}</Chip>,
                 <span key="n" className="block truncate" title={o.name}>
@@ -723,24 +661,21 @@ export function OpportunitiesPage() {
         />
 
         {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
-        <MasMailModal
-          open={composing}
-          onClose={() => setComposing(false)}
-          leads={recipients}
-          initialLeadCodes={selectedLeadCodes}
-          defaultLabel="Gửi email · Sổ cơ hội"
-          onQueued={() => {
-            setComposing(false)
-            clearSelection()
-          }}
-        />
         {selectedCodes.size > 0 && (
           <BookSelectionBar
             count={selectedCodes.size}
             noun="cơ hội"
             meta={`${selectedEmailCount} địa chỉ email`}
             onClear={clearSelection}
-            onSend={() => setComposing(true)}
+            onSend={() =>
+              openMasMail({
+                recipients,
+                initialCodes: [...selectedCodes],
+                subjectType: 'opportunity',
+                defaultLabel: 'Gửi email · Sổ cơ hội',
+                onQueued: clearSelection,
+              })
+            }
           />
         )}
       </ScreenLayout>

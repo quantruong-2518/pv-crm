@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Button,
@@ -21,6 +21,7 @@ import type { LeadBookQuery, LeadBookResponse, LeadCategory, LeadTier } from '@p
 import { LEAD_CATEGORIES, LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
+import { useSelectionGesture } from '@/components/book-selection'
 import { leadBookQuery } from '@/data/leads'
 import { campaignMembersQuery, type useCampaignMembers } from '@/data/campaign-book'
 
@@ -103,27 +104,10 @@ function AudiencePicker({
     setTier('')
   }
 
-  const dragIntent = useRef<'select' | 'deselect' | null>(null)
-  const suppressClick = useRef<string | null>(null)
-
-  const activate = (code: string) => {
-    if (suppressClick.current === code) return
-    onSetOne(code, !selected.has(code))
-  }
-
-  const beginDrag = (code: string, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === 'touch' || event.button !== 0) return
-    event.preventDefault()
-    const intent = selected.has(code) ? 'deselect' : 'select'
-    dragIntent.current = intent
-    suppressClick.current = code
-    onSetOne(code, intent === 'select')
-  }
-
-  const paintSelection = (code: string, event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === 'touch' || event.buttons !== 1 || dragIntent.current === null) return
-    onSetOne(code, dragIntent.current === 'select')
-  }
+  const { toggleSelection, beginDrag, paintSelection, changeSelection } = useSelectionGesture(
+    selected,
+    onSetOne,
+  )
 
   return (
     <div className="flex flex-col gap-3">
@@ -150,8 +134,8 @@ function AudiencePicker({
         filtered={filtered}
         onClearFilters={clearFilters}
         selected={selected}
-        onSetOne={onSetOne}
-        onActivate={activate}
+        onSetOne={changeSelection}
+        onActivate={toggleSelection}
         onBeginDrag={beginDrag}
         onPaint={paintSelection}
       />

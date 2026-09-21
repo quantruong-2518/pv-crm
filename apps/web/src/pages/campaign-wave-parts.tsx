@@ -321,7 +321,7 @@ function RecipientGroup({
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {rows.map((r) => (
           <li
-            key={r.leadCode}
+            key={r.subjectCode}
             className="bg-surface-ink/5 flex min-w-0 items-center justify-between gap-3 rounded-sm p-3"
           >
             <span className="flex min-w-0 flex-col">

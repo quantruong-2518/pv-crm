@@ -118,6 +118,7 @@ export type MailMessage = {
   flow: MailFlow
   from: string
   to: string
+  cc?: string[]
   replyTo?: string
   subject: string
   html: string
