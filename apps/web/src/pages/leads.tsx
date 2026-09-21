@@ -49,6 +49,7 @@ import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
+  EnteredCell,
   LeadPicCell,
   PinCell,
   ScoreStrip,
@@ -365,6 +366,9 @@ export function LeadsPage() {
   /* Phiếu MAS sống trọn trong Modal: nội dung, lịch và người nhận cùng một chỗ.
      Sổ không đổi cột hay chèn thêm section khi soạn mail. */
   const [composing, setComposing] = useState(false)
+  /* One lead's address pressed in its row: the same composer, seeded with it. */
+  const [mailTo, setMailTo] = useState<string>()
+  const canEmail = useCan('lead.send-email')
 
   /* The selection outlives paging: the codes live on the screen, not in the ten
      rows of this page. The mail modal takes them as a seed and still lets the
@@ -499,7 +503,7 @@ export function LeadsPage() {
   const sortable = !pinnedView
 
   const table: BookTable = {
-    minWidth: 'min-w-[880px]',
+    minWidth: 'min-w-[960px]',
     /* The arrow lights only while the book sorts by this column; the default
        order (`createdAt desc`) is no column on the table. */
     sort: sortable && query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined,
@@ -531,6 +535,7 @@ export function LeadsPage() {
       { header: 'Công ty · Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
       { header: 'Nguồn', width: 'minmax(0,1.3fr)' },
       { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
+      { header: 'Ngày vào', width: 'minmax(0,0.8fr)' },
       { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
       { header: <span className="sr-only">Ghim</span>, width: '48px' },
     ],
@@ -547,9 +552,18 @@ export function LeadsPage() {
           onPress={(event) => beginDrag(l.code, event)}
           onChange={(on) => suppressClick.current !== l.code && setCodeSelected(l.code, on)}
         />,
-        <CompanyCell key="c" lead={l} />,
+        <CompanyCell
+          key="c"
+          lead={l}
+          onEmail={
+            canEmail && l.state !== 'disqualified' && l.state !== 'archived'
+              ? () => setMailTo(l.code)
+              : undefined
+          }
+        />,
         <SourceCell key="s" lead={l} />,
         <StatusCell key="w" lead={l} />,
+        <EnteredCell key="d" lead={l} />,
         <LeadPicCell key="o" lead={l} />,
         <PinCell
           key="p"
@@ -731,14 +745,19 @@ export function LeadsPage() {
 
         {selectedCodes.size > 0 && <div aria-hidden className="h-24" />}
         <MasMailModal
-          open={composing}
-          onClose={() => setComposing(false)}
+          open={composing || mailTo !== undefined}
+          onClose={() => {
+            setComposing(false)
+            setMailTo(undefined)
+          }}
           leads={wholeBook}
+          initialLeadCode={mailTo}
           initialLeadCodes={selectedCodeList}
           defaultLabel="Gửi email · Sổ lead"
           onQueued={() => {
             setComposing(false)
-            clearSelection()
+            if (mailTo === undefined) clearSelection()
+            setMailTo(undefined)
           }}
         />
         {selectedCodes.size > 0 && (

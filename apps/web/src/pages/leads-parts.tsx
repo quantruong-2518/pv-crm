@@ -5,14 +5,9 @@ import {
   CalendarCheck,
   CalendarDays,
   FileCheck,
-  FileUp,
-  Globe,
   Handshake,
   Icon,
   Inbox,
-  Link,
-  Megaphone,
-  PenLine,
   Pin,
   RefreshCw,
   Send,
@@ -20,11 +15,10 @@ import {
   Target,
   UserRoundPlus,
   Users,
-  Zap,
   cn,
   percent,
 } from '@pv/ui'
-import { sourceKindLabel, type LeadMotion, type LeadRow, type LeadSourceKind } from '@pv/contracts'
+import { sourceKindLabel, type LeadMotion, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
@@ -33,7 +27,6 @@ import { PicCell } from '@/components/table-bits'
 import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
-import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
 
 /** Module 2 · the cells and blocks of the lead book, split from `leads.tsx` so
@@ -114,9 +107,12 @@ export function ScoreStrip() {
   )
 }
 
-/** Company over `contact · email`, small and italic. The email is a `mailto:`
- *  link that stops the click, or the row would open the lead as well. */
-export function CompanyCell({ lead }: { lead: LeadRow }) {
+/** Company over `contact · email`, small and italic. With `onEmail` the address
+ *  is a button that opens the system's mail composer for this lead (not the
+ *  visitor's mail client); it stops the click, or the row would open the lead
+ *  as well. Without it — no `lead.send-email`, or a lead mail is refused for —
+ *  the address is plain text. */
+export function CompanyCell({ lead, onEmail }: { lead: LeadRow; onEmail?: () => void }) {
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <span className="truncate text-[13px] font-semibold" title={lead.company}>
@@ -127,14 +123,23 @@ export function CompanyCell({ lead }: { lead: LeadRow }) {
           {lead.contactName}
         </span>
         <span aria-hidden>·</span>
-        <a
-          href={`mailto:${lead.email}`}
-          title={`Gửi mail tới ${lead.email}`}
-          onClick={(event) => event.stopPropagation()}
-          className="hover:text-foreground truncate underline-offset-2 hover:underline"
-        >
-          {lead.email}
-        </a>
+        {onEmail ? (
+          <button
+            type="button"
+            title={`Soạn email gửi ${lead.email}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onEmail()
+            }}
+            className="hover:text-foreground truncate underline-offset-2 hover:underline"
+          >
+            {lead.email}
+          </button>
+        ) : (
+          <span className="truncate" title={lead.email}>
+            {lead.email}
+          </span>
+        )}
       </span>
     </span>
   )
@@ -159,49 +164,58 @@ const MOTION_FACE: Record<LeadMotion, { icon: typeof Inbox; className: string }>
   RECYCLE: { icon: RefreshCw, className: 'text-muted-foreground' },
 }
 
-const KIND_ICON: Record<LeadSourceKind, typeof Inbox> = {
-  MANUAL: PenLine,
-  IMPORT: FileUp,
-  APOLLO: Zap,
-  LANDING_PAGE: Globe,
-}
-
-/** Two lines: the approach (motion) with its icon, over the source detail as a
- *  pill. The pill's icon and tone say WHAT the detail is: partner, catalog
- *  origin, campaign, or — the last fallback for a lead with none of those — the
- *  intake kind. Leads written before the two-level origin carry no motion: the
- *  intake kind takes line one and the pill keeps whatever else there is. */
+/** Two lines: the approach (motion) with its icon, over the source detail as
+ *  small italic text behind a dash: catalog origin, else campaign,
+ *  else — the last fallback for a lead with none of those — the intake kind.
+ *  Leads written before the two-level origin carry no motion: the intake kind
+ *  takes line one and the detail keeps whatever else there is. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
   const { kind, motion, origin, campaignName } = lead.source
   const motionLabel = useMotionLabel()
 
-  const partner = sourcePartnerLabel(lead.source)
   const top = motion ? motionLabel(motion) : sourceKindLabel(lead.source)
   const kindLabel = motion && kind ? sourceKindLabel(lead.source) : undefined
-  const detail = partner
-    ? { label: partner, icon: Handshake, tone: 'success' as const }
-    : origin
-      ? { label: origin.name, icon: Link, tone: 'running' as const }
-      : campaignName
-        ? { label: shortSourceName(campaignName), icon: Megaphone, tone: 'warning' as const }
-        : kindLabel && kind
-          ? { label: kindLabel, icon: KIND_ICON[kind], tone: 'draft' as const }
-          : undefined
-  const title = [top, origin?.name, partner, campaignName ?? kindLabel].filter(Boolean).join(' · ')
+  const detail = origin?.name ?? (campaignName ? shortSourceName(campaignName) : kindLabel)
+  const title = [top, origin?.name, campaignName ?? kindLabel].filter(Boolean).join(' · ')
   const face = motion && MOTION_FACE[motion]
 
   return (
-    <span className="flex min-w-0 flex-col items-start gap-1" title={title}>
+    <span className="flex min-w-0 flex-col gap-1" title={title}>
       <span className="flex max-w-full items-center gap-2 text-[13px] font-semibold">
         {face && <Icon icon={face.icon} size={16} className={face.className} />}
         <span className="truncate">{top}</span>
       </span>
       {detail && (
-        <Badge tone={detail.tone} className="max-w-full gap-1">
-          <Icon icon={detail.icon} size={14} />
-          <span className="truncate">{detail.label}</span>
-        </Badge>
+        <span className="text-muted-foreground truncate text-[11.5px] italic">– {detail}</span>
       )}
+    </span>
+  )
+}
+
+const ENTRY_DAY = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+const ENTRY_TIME = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+/** Day the lead entered the book (`createdAt`), the hour beneath it. Pinned to
+ *  Vietnam time so two machines in two zones print the same day. */
+export function EnteredCell({ lead }: { lead: LeadRow }) {
+  const at = new Date(lead.createdAt)
+  if (Number.isNaN(at.getTime())) return <span className="text-muted-foreground">—</span>
+  return (
+    <span className="flex min-w-0 flex-col gap-1" title={lead.createdAt}>
+      <span className="truncate text-[13px] font-semibold">{ENTRY_DAY.format(at)}</span>
+      <span className="text-muted-foreground truncate text-[11.5px] italic">
+        {ENTRY_TIME.format(at)}
+      </span>
     </span>
   )
 }
