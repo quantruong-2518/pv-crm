@@ -1,7 +1,8 @@
 import { Input, Select, Textarea } from '@pv/ui'
-import { LeadCategory } from '@pv/contracts'
+import { ACCOUNT_ADDRESS_MAX, LeadCategory } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
 import { CATEGORY_LABEL, type AccountDraft } from '@/data/accounts'
+import { AddressField } from './address-field'
 import { Field } from './ops-fields'
 
 /** The company form's nine fields, shared between TWO places.
@@ -82,25 +83,18 @@ export function AccountFields({
           />
         </Field>
 
-        <Field label="Địa chỉ" errors={errors.address} className="sm:col-span-2">
-          <Input
-            value={draft.address}
-            maxLength={300}
-            aria-label="Địa chỉ"
-            invalid={Boolean(errors.address)}
-            onChange={(e) => onSet('address', e.target.value)}
-          />
-        </Field>
-
-        <Field label="Tỉnh/thành" errors={errors.province}>
-          <Input
-            value={draft.province}
-            maxLength={120}
-            aria-label="Tỉnh thành"
-            invalid={Boolean(errors.province)}
-            onChange={(e) => onSet('province', e.target.value)}
-          />
-        </Field>
+        <AddressField
+          value={draft.address}
+          province={draft.province}
+          errors={{ address: errors.address, province: errors.province }}
+          maxLength={ACCOUNT_ADDRESS_MAX}
+          onType={(address) => onSet('address', address)}
+          onTypeProvince={(province) => onSet('province', province)}
+          onPick={(address, province) => {
+            onSet('address', address)
+            onSet('province', province)
+          }}
+        />
 
         <Field
           label="Ngành"

@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { Input, Select, Textarea, billions, cn, vnd } from '@pv/ui'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
+import { AddressField, type AddressBoxKey } from '@/components/address-field'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
 import type { LeadDraft } from '@/data/lead-draft'
 import {
@@ -225,6 +226,63 @@ function FieldControl({
   )
 }
 
+/** The address pair, drawn by the shared picker instead of two text boxes.
+ *
+ *  A pick has no blur a person would recognise — the same case as a select —
+ *  so it writes both boxes through at once. Typed text still commits on blur,
+ *  which is why the picker gets the frame and the form keeps the saving. */
+function LeadAddressBoxes({
+  address,
+  province,
+  draft,
+  writable,
+}: {
+  address: FormField
+  province: FormField
+  draft: LeadDraft
+  writable: boolean
+}) {
+  const boxOf = (key: AddressBoxKey) => (key === 'address' ? address : province)
+  const complaint = (field: FormField) => {
+    const message = draft.fieldError(field.key)
+    return message === undefined ? undefined : [message]
+  }
+
+  return (
+    <AddressField
+      value={readField(draft.values, address.key)}
+      province={readField(draft.values, province.key)}
+      labels={{ address: address.label, province: province.label }}
+      errors={{ address: complaint(address), province: complaint(province) }}
+      maxLength={{ address: maxCharsOf(address), province: maxCharsOf(province) }}
+      /* Same two heights every other box on this form takes — 44px, and the
+         48px of law 13 the moment the pointer is a finger. */
+      inputClassName="pointer-coarse:h-12 h-11 text-[13px]"
+      pickerClassName="[&_input]:pointer-coarse:h-12 [&_input]:h-11 [&_input]:text-[13px]"
+      onType={(raw) => draft.set(address, raw)}
+      onTypeProvince={(raw) => draft.set(province, raw)}
+      onCommit={(key) => draft.commit(boxOf(key))}
+      onPick={(addr, prov) => {
+        draft.set(address, addr)
+        draft.commit(address)
+        draft.set(province, prov)
+        draft.commit(province)
+      }}
+      frame={({ key, label, plain, errors, children }) => (
+        <FieldShell
+          key={key}
+          field={{ ...boxOf(key), label }}
+          required={writable && isRequired(boxOf(key), draft.mode)}
+          error={errors?.[0]}
+          plain={plain}
+        >
+          {children}
+        </FieldShell>
+      )}
+    />
+  )
+}
+
 /** Does this box write itself through the moment it changes?
  *
  *  A select, a date picker and a segmented control have no blur a person would
@@ -253,6 +311,20 @@ function drawnField(field: FormField, draft: LeadDraft, writable: boolean): Form
   }
 }
 
+/** The two boxes the picker draws together, or `null` when this row holds only
+ *  one of them or draws either as printed text. */
+function addressPair(
+  fields: FormField[],
+  draft: LeadDraft,
+  writable: boolean,
+): { address: FormField; province: FormField } | null {
+  const address = fields.find((field) => field.key === 'address')
+  const province = fields.find((field) => field.key === 'province')
+  if (!address || !province) return null
+  const typeable = (field: FormField) => drawnField(field, draft, writable).kind !== 'read'
+  return typeable(address) && typeable(province) ? { address, province } : null
+}
+
 /** A row of boxes on an even grid — two columns from the tablet up, one on a
  *  phone. Autosave is wired here, once, for every card that draws boxes.
  *
@@ -276,9 +348,18 @@ export function FieldRow({
   const people = useSalesPeople()
   const staffOptions = useMemo(() => peopleRoleOptions(people), [people])
 
+  /* One picker fills both address boxes, so they are drawn as a pair — but
+     only while both may still be typed into. */
+  const pair = addressPair(fields, draft, writable)
+
   return (
     <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
       {fields.map((field) => {
+        if (pair && field.key === 'province') return null
+        if (pair && field.key === 'address') {
+          return <LeadAddressBoxes key={field.key} {...pair} draft={draft} writable={writable} />
+        }
+
         const drawn = drawnField(field, draft, writable)
         const error = draft.fieldError(field.key)
         const instant = savesOnChange(drawn)

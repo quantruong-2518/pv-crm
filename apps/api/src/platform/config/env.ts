@@ -143,6 +143,11 @@ const Env = z
      *  `.refine` bắt buộc bên dưới: bật cửa gửi mà chưa dùng tới module Ops là
      *  một trạng thái hợp lệ. */
     PV_OPS_NOTIFICATION_TO: z.string().default(''),
+    /** Vietmap Autocomplete key. Empty = address picker off, forms fall back to typing. */
+    VIETMAP_API_KEY: z.string().default(''),
+    /** Lookups the company lets itself spend a day (UTC). The default is the free plan's
+     *  60.000 a month over 30 days; raise it when the plan does. */
+    VIETMAP_DAILY_CAP: z.coerce.number().int().min(0).max(1_000_000).default(2_000),
     /** Gốc của app web — email nội bộ mang một liên kết mở thẳng lead. */
     PV_APP_URL: z.string().default('http://localhost:5173'),
 

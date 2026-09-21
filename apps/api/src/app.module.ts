@@ -13,6 +13,7 @@ import { CommsModule } from './platform/comms/comms.module'
 import { ConfigModule } from './platform/config/config.module'
 import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
+import { GeoModule } from './platform/geo/geo.module'
 import { HealthModule } from './platform/health/health.module'
 import { MailModule } from './platform/mail/mail.module'
 import { CrossSiteGuard } from './platform/http/cross-site.guard'
@@ -79,6 +80,7 @@ import { RolesModule } from './platform/roles/roles.module'
        module asks what a threshold is worth today. */
     SettingModule,
     HealthModule,
+    GeoModule,
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
        là của platform, không được đi nhờ qua một nhánh mới có mặt trong cây;
        và nó mang ba controller — cửa webhook của Resend, `/healthz/email` và

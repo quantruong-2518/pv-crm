@@ -188,6 +188,9 @@ export const AccountBookQuery = PageQuery.extend({
 /** The fields a person fills in, on either door — same technique as
  *  `dealFields` next door, and for the same reason: the create dialog and the
  *  profile form are one form in two places. */
+/** Column limits the company form and the address picker both read. */
+export const ACCOUNT_ADDRESS_MAX = { address: 300, province: 120 } as const
+
 const companyFields = {
   name: textInput(200),
   legalName: textInputOptional(200),
@@ -198,8 +201,8 @@ const companyFields = {
    *  matters. */
   taxCode: textInputOptional(32),
 
-  address: textInputOptional(300),
-  province: textInputOptional(120),
+  address: textInputOptional(ACCOUNT_ADDRESS_MAX.address),
+  province: textInputOptional(ACCOUNT_ADDRESS_MAX.province),
   category: LeadCategory.optional(),
 
   headcount: z.number().int().nonnegative().max(1_000_000).optional(),
