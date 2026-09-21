@@ -35,6 +35,7 @@ export function toContract(read: CampaignRead): CampaignBookRow {
     ...(sourceName ? { sourceName } : {}),
     ...(row.slogan ? { slogan: row.slogan } : {}),
     ...(row.thumbnailUrl ? { thumbnailUrl: row.thumbnailUrl } : {}),
+    ...(row.endsOn ? { endsOn: row.endsOn } : {}),
     audienceCount,
     waveCount,
     createdAt: row.createdAt.toISOString(),

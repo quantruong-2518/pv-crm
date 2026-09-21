@@ -1,11 +1,17 @@
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import type {
-  ConfigProposalReceipt,
-  LeadMotion,
-  MotionPolicyPatch,
-  MotionPolicyResponse,
+import { useCallback, useMemo } from 'react'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  MOTION_LABEL,
+  MOTION_SIDE,
+  type ConfigProposalReceipt,
+  type LeadMotion,
+  type LeadSide,
+  type MotionPolicy,
+  type MotionPolicyPatch,
+  type MotionPolicyResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { useCan } from '@/app/auth'
 
 /** What each of the six lead motions declares — the flow-setup section.
  *
@@ -64,4 +70,64 @@ export function useProposeMotion(motion: LeadMotion) {
       void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
     },
   })
+}
+
+/** One motion as a picker offers it — label and order from the stored policy. */
+export type MotionChoice = {
+  motion: LeadMotion
+  label: string
+  side: LeadSide
+  requiresCampaign: boolean
+}
+
+export const motionLabelOf = (policy: MotionPolicy): string =>
+  policy.label ?? MOTION_LABEL[policy.motion]
+
+/** `allowed` narrows to what the calling door accepts. Without policies (no
+ *  `config.view`, or still in flight) every allowed motion is offered in
+ *  contract order and nothing is marked as needing a campaign — the server
+ *  still enforces `requiresCampaign` at the create door. */
+export function motionChoices(
+  allowed: readonly LeadMotion[],
+  policies: readonly MotionPolicy[] | undefined,
+): MotionChoice[] {
+  if (!policies) {
+    return allowed.map((motion) => ({
+      motion,
+      label: MOTION_LABEL[motion],
+      side: MOTION_SIDE[motion],
+      requiresCampaign: false,
+    }))
+  }
+  return policies
+    .filter((p) => p.active && allowed.includes(p.motion))
+    .sort((a, b) => a.ord - b.ord)
+    .map((p) => ({
+      motion: p.motion,
+      label: motionLabelOf(p),
+      side: MOTION_SIDE[p.motion],
+      requiresCampaign: p.requiresCampaign,
+    }))
+}
+
+/** Motion → the label the create form prints, for every other screen that
+ *  names a motion. Readers without `config.view` get the contract default. */
+export function useMotionLabel(): (motion: LeadMotion) => string {
+  const canView = useCan('config.view')
+  const { data } = useQuery({ ...salesMotionsQuery(), enabled: canView })
+  return useCallback(
+    (motion: LeadMotion) => {
+      const policy = data?.find((p) => p.motion === motion)
+      return policy ? motionLabelOf(policy) : MOTION_LABEL[motion]
+    },
+    [data],
+  )
+}
+
+/** The motion policies, read only when the reader holds `config.view` — an
+ *  account executive types leads without it, and gets the fallback above. */
+export function useMotionChoices(allowed: readonly LeadMotion[], enabled = true): MotionChoice[] {
+  const canView = useCan('config.view')
+  const { data } = useQuery({ ...salesMotionsQuery(), enabled: enabled && canView })
+  return useMemo(() => motionChoices(allowed, data), [allowed, data])
 }

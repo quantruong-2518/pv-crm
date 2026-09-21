@@ -98,11 +98,12 @@ export class LeadService {
    *  lead nào để gắn `ref` mà xét lại. Hàng rào duy nhất là `scopeOf()` trong
    *  SQL, đúng hàng rào `book()` dùng để cắt xuống cùng một tập lead. */
   async facets(who: Actor, q: LeadFacetsQuery): Promise<LeadFacets> {
-    const [sourceKinds, byState] = await Promise.all([
+    const [sourceKinds, byState, { motions, origins }] = await Promise.all([
       this.repo.sourceKindFacets(who),
       this.repo.stateFacets(who, q),
+      this.repo.originFacets(who),
     ])
-    return LeadFacets.parse({ sourceKinds, byState })
+    return LeadFacets.parse({ sourceKinds, motions, origins, byState })
   }
 
   /** Hồ sơ một lead. Ba cách hỏng, và chúng KHÔNG gộp được vào nhau.

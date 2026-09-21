@@ -22,6 +22,7 @@ import {
   OWNER_NONE,
   type LeadBookQuery,
   type LeadFacetsQuery,
+  type LeadMotion,
   type LeadSourceKind,
   type LeadTier,
   type LeadStateFilter,
@@ -30,6 +31,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
+import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
@@ -168,12 +170,14 @@ export class LeadRepository {
         ownerName: actor.name,
         ownerEmail: actor.email,
         campaignName: configEntry.name,
+        originName: leadOrigin.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
+      .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
       .where(and(...filters, scope))
       .orderBy(...this.orderBy(q))
       .limit(q.size)
@@ -203,6 +207,30 @@ export class LeadRepository {
       .where(and(isNull(lead.campaignId), isNotNull(lead.sourceKind), scope))
 
     return rows.map((r) => r.kind as LeadSourceKind)
+  }
+
+  /** The motions and origins present in the caller's scoped book — the
+   *  `sourceKindFacets` rule for the two-level origin filters. */
+  async originFacets(
+    who: Actor,
+  ): Promise<{ motions: LeadMotion[]; origins: { id: string; name: string }[] }> {
+    const scope = this.scopeOf(who, true)
+    const [motions, origins] = await Promise.all([
+      this.db
+        .selectDistinct({ motion: lead.motion })
+        .from(lead)
+        .where(and(isNotNull(lead.motion), scope)),
+      this.db
+        .selectDistinct({ id: leadOrigin.id, name: leadOrigin.name })
+        .from(lead)
+        .innerJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
+        .where(scope)
+        .orderBy(asc(leadOrigin.name)),
+    ])
+    return {
+      motions: motions.flatMap((r) => (r.motion ? [r.motion] : [])),
+      origins,
+    }
   }
 
   /** How many leads each state tab would show: the book's own filters and
@@ -265,6 +293,7 @@ export class LeadRepository {
         marketingOwnerName: marketingOwner.name,
         marketingOwnerEmail: marketingOwner.email,
         campaignName: configEntry.name,
+        originName: leadOrigin.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
         inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
@@ -274,6 +303,7 @@ export class LeadRepository {
       .leftJoin(bdOwner, eq(bdOwner.id, lead.bdOwnerId))
       .leftJoin(marketingOwner, eq(marketingOwner.id, lead.marketingOwnerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
+      .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
       .where(eq(lead.code, code))
       .limit(1)
 
@@ -514,6 +544,8 @@ export class LeadRepository {
          kéo về cả những dòng đang hiện tên chiến dịch, không hiện "Web
          landing" ở đâu cả. */
       q.sourceKind ? and(isNull(lead.campaignId), eq(lead.sourceKind, q.sourceKind)) : undefined,
+      q.motion ? eq(lead.motion, q.motion) : undefined,
+      q.origin ? eq(lead.originId, q.origin) : undefined,
       /* Ô tìm hứa "tên công ty hoặc mã lead" (placeholder ở `pages/leads.tsx`)
          nên phải hỏi CẢ HAI cột, không riêng company — trước bản sửa này gõ
          `LD-0235` trả về rỗng dù dòng đó tồn tại, đúng nghĩa "search chưa gọi

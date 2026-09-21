@@ -37,6 +37,7 @@ import {
   RichTextView,
   ScanField,
   SearchField,
+  Combobox,
   StageTrack,
   StatCard,
   StatStrip,
@@ -301,6 +302,28 @@ function StepperDemo() {
   )
 }
 
+function ComboboxDemo() {
+  const all = ['Apollo', 'LinkedIn', 'Facebook', 'Zalo OA'].map((l) => ({ value: l, label: l }))
+  const [query, setQuery] = useState('')
+  const [picked, setPicked] = useState({ value: '', label: '' })
+  const hits = all.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+  return (
+    <Combobox
+      label="Nguồn"
+      value={picked.value}
+      valueLabel={picked.label || undefined}
+      query={query}
+      onQueryChange={setQuery}
+      options={hits}
+      suggestions={hits.length === 0 && query ? all.slice(1, 2) : []}
+      onSelect={(o) => (setPicked(o), setQuery(o.label))}
+      createLabel={(q) => `Tạo “${q}”`}
+      onCreate={(q) => (setPicked({ value: q, label: q }), setQuery(q))}
+      placeholder="Chọn hoặc gõ nguồn mới…"
+    />
+  )
+}
+
 export function ZoneMolecules() {
   return (
     <section id="zone-02" className="pb-2 pt-12">
@@ -382,6 +405,16 @@ export function ZoneMolecules() {
         >
           <SearchField />
           <SearchField size="page" value="sao đỏ" meta="4 nguồn · 0,3 giây" />
+        </SpecCard>
+
+        {/* M-18 */}
+        <SpecCard
+          code="M-18"
+          name="Combobox"
+          bodyClassName="px-4 py-4"
+          footer="người gọi tự tìm · nhóm “Có phải …?” · dòng “+ Tạo …” cho tên mới"
+        >
+          <ComboboxDemo />
         </SpecCard>
 
         {/* M-05 */}

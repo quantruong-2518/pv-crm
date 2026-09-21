@@ -15,7 +15,6 @@ import {
   LEAD_NUM,
   LeadCreate,
   LeadPatch,
-  MOTION_BY_CHANNEL,
   PHONE_MAX,
 } from '@pv/contracts'
 import { tierEditable } from '@/data/lead-state'
@@ -90,9 +89,9 @@ export type FormMode = 'edit' | 'create'
  *  thất vọng — và trên tablet thì nó còn ăn mất một vùng chạm 48px. */
 export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 'read'
 
-/** The create door draws ONE box no stored lead has a column for: `motion` is
- *  not part of a profile, it is how the lead got here. */
-export type FieldKey = keyof LeadProfile | 'motion'
+/** The create door draws three boxes no stored profile has a column for —
+ *  `motion`, `origin` and `campaignCode` say how the lead got here. */
+export type FieldKey = keyof LeadProfile | 'motion' | 'origin' | 'campaignCode'
 
 export type ProfileField = {
   key: keyof LeadProfile
@@ -126,10 +125,10 @@ export type ProfileField = {
  *  wider, so both forms draw through one set of components. */
 export type FormField = Omit<ProfileField, 'key'> & { key: FieldKey }
 
-/** What the boxes hold: the frozen profile shape plus `motion`, which is
- *  ABSENT on a lead that already exists — optional, not an empty string, so
- *  nothing reads a blank motion off a stored profile. */
-export type FormValues = LeadProfile & { motion?: string }
+/** What the boxes hold: the frozen profile shape plus the three create-only
+ *  boxes, ABSENT on a lead that already exists. `origin` is the pick encoded
+ *  as one string (`originValue`) so dirty tracking stays a string compare. */
+export type FormValues = LeadProfile & { motion?: string; origin?: string; campaignCode?: string }
 
 const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
@@ -566,38 +565,40 @@ export function isRequiredOnCreate(field: FormField): boolean {
 export const isRequired = (field: FormField, mode: FormMode): boolean =>
   mode === 'create' ? isRequiredOnCreate(field) : isRequiredOnSave(field)
 
-/** Vietnamese for the five motions the `MANUAL` door can carry.
- *
- *  NOT read from `MOTION_FACE` in `data/intake.ts`: that table is keyed by the
- *  ENGINE's lower-case spelling (`inbound`) while the wire speaks `INBOUND`, and
- *  `@pv/contracts/sales/enums.ts` states the conversion between the two has
- *  exactly ONE legal site — the server's mapper. A label table is not a
- *  conversion; this one is keyed by the values actually sent. */
-const MOTION_LABEL: Record<LeadCreate['motion'], string> = {
-  INBOUND: 'Inbound · khách tự tìm tới mình',
-  OUTBOUND: 'Outbound · mình đi tìm khách',
-  REFERRAL: 'Giới thiệu · khách cũ chỉ sang',
-  PARTNER: 'Đối tác · đại lý đẩy khách sang',
-  RECYCLE: 'Đánh thức lại · lead cũ quay lại',
-}
-
 /** Motion has no `PROFILE_FIELDS` row to reuse, so it is the one box this table
- *  describes itself.
- *
- *  Five options taken from `MOTION_BY_CHANNEL.MANUAL` rather than listed:
- *  `EVENT` is absent from that row because an event arrives as a LIST, and a
- *  hand-typed row claiming to be an event lead is one nobody can trace back to
- *  an event. Listing five by hand would be a promise to remember that. */
+ *  describes itself. No options here: the card draws `LeadDraft.motions`, the
+ *  policy-ordered list with policy labels (`data/sales-motions.ts`). */
 const MOTION_FIELD: FormField = {
   key: 'motion',
-  label: 'Thế',
+  label: 'Phương án tiếp cận',
   kind: 'select',
   group: 'system',
-  hint: 'Ai chủ động. Lead của một sự kiện về theo danh sách, không gõ tay từng dòng.',
-  options: MOTION_BY_CHANNEL.MANUAL.map((motion) => ({
-    value: motion,
-    label: MOTION_LABEL[motion],
-  })),
+  hint: 'Ai chủ động trước. Sự kiện phải gắn một chiến dịch.',
+}
+
+/** Level 2 of the origin. Drawn by `OwnerSourceCard` through a Combobox, but
+ *  declared here so the star, `fieldOfWire` and the refusal line all find it. */
+const ORIGIN_FIELD: FormField = { key: 'origin', label: 'Nguồn', kind: 'select', group: 'system' }
+
+const CAMPAIGN_FIELD: FormField = {
+  key: 'campaignCode',
+  label: 'Chiến dịch',
+  kind: 'select',
+  group: 'system',
+}
+
+/** `origin` in the draft: an existing catalog row by id, or a typed name the
+ *  server will create-or-reuse on save. The prefix keeps the two apart. */
+const ORIGIN_ID = 'id:'
+const ORIGIN_NAME = 'name:'
+
+export const originValue = (pick: { id?: string; name: string }): string =>
+  pick.id ? `${ORIGIN_ID}${pick.id}` : `${ORIGIN_NAME}${pick.name}`
+
+export function originPickOf(raw: string | undefined): LeadCreate['origin'] | undefined {
+  if (raw?.startsWith(ORIGIN_ID)) return { id: raw.slice(ORIGIN_ID.length) }
+  if (raw?.startsWith(ORIGIN_NAME)) return { name: raw.slice(ORIGIN_NAME.length) }
+  return undefined
 }
 
 /** Placeholder row for an OPTIONAL select whose own list has no "nothing
@@ -622,20 +623,19 @@ export const CREATE_FIELDS: FormField[] = [
     options: createOptions(f),
   })),
   MOTION_FIELD,
+  ORIGIN_FIELD,
+  CAMPAIGN_FIELD,
 ]
 
 /** The boxes the "Phụ trách và nguồn" card draws through this blueprint, so its
  *  labels and options cannot drift from the form's.
  *
- *  ONE box, and the list stayed a list rather than becoming a constant because
- *  that is the shape the card reads. It carried five until 17/09 — `owner`,
- *  `bdOwner`, `marketingOwner`, `source` and `motion` — while the card drew
- *  only `motion`: the holder and the origin are PRINTED there, read straight
- *  off `LeadProfile`, because neither has a write door on this screen (`owner`
- *  goes through `PATCH /sales/leads/:code/owner`). A declared box nobody draws
- *  is a field that quietly leaves the screen, which is what happened to
- *  `bdOwner` and `marketingOwner` — no block prints them anywhere now. */
-export const OWNER_SOURCE_FIELDS: FormField[] = [MOTION_FIELD]
+ *  The three create-only boxes — motion, origin, campaign. The holder is
+ *  PRINTED there, not drawn: it has its own write door
+ *  (`PATCH /sales/leads/:code/owner`). A declared box nobody draws is a field
+ *  that quietly leaves the screen, which is how `bdOwner` and `marketingOwner`
+ *  vanished before 17/09. */
+export const OWNER_SOURCE_FIELDS: FormField[] = [MOTION_FIELD, ORIGIN_FIELD, CAMPAIGN_FIELD]
 
 /** Wire name → the box that carries it, so a complaint the server keys by
  *  CONTRACT field can be printed under the box that caused it.
@@ -684,7 +684,7 @@ export function writeField(field: FormField, raw: string): FormValues[FieldKey] 
  *  `PROFILE_FIELDS` — kẻo đổi mỗi ô "Thế" không tính là dirty và nút "Xoá
  *  hết" ở cửa tạo cứ đứng im khoá. */
 export function changedFields(base: FormValues, work: FormValues): FieldKey[] {
-  const keys: FieldKey[] = [...PROFILE_FIELDS.map((f) => f.key), 'motion']
+  const keys: FieldKey[] = [...PROFILE_FIELDS.map((f) => f.key), 'motion', 'origin', 'campaignCode']
   return keys.filter((k) => base[k] !== work[k])
 }
 

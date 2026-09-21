@@ -16,7 +16,7 @@ import type { CampaignPatch, CampaignProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
 import { useCampaignCreate, type useCampaignPatch } from '@/data/campaign-book'
-import { dmhm } from '@/lib/date'
+import { dmhm, dmy } from '@/lib/date'
 import { emptyProfile, profileFrom, type ProfileDraft } from './campaign-model'
 
 /** Module 1 · the campaign PROFILE — the boxes naming a campaign, the modal
@@ -37,6 +37,8 @@ export function ProfileFields({
   setOwnerId,
   sourceId,
   setSourceId,
+  endsOn,
+  setEndsOn,
   people,
   sources,
   autoFocusName = false,
@@ -51,6 +53,8 @@ export function ProfileFields({
   setOwnerId: (v: string) => void
   sourceId: string
   setSourceId: (v: string) => void
+  endsOn: string
+  setEndsOn: (v: string) => void
   people: Actor[]
   sources: { id: string; name: string; active: boolean }[]
   /** On in the create modal, off in the tab: a tab that grabs the caret the
@@ -107,6 +111,13 @@ export function ProfileFields({
             />
           </label>
         </div>
+        <label className="flex flex-col gap-2 sm:max-w-[240px]">
+          <span className="text-muted-foreground text-[11px]">Ngày kết thúc (không bắt buộc)</span>
+          <Input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+          <span className="text-muted-foreground text-[11px] leading-[1.5]">
+            Qua ngày này, chiến dịch thôi hiện ở ô chọn chiến dịch khi tạo lead.
+          </span>
+        </label>
       </div>
 
       <ThumbnailField value={thumbnailUrl} onChange={setThumbnailUrl} />
@@ -264,6 +275,7 @@ export function CampaignCreateModal({
         ...(draft.sourceId ? { sourceId: draft.sourceId } : {}),
         ...(draft.slogan.trim() ? { slogan: draft.slogan.trim() } : {}),
         ...(draft.thumbnailUrl.trim() ? { thumbnailUrl: draft.thumbnailUrl.trim() } : {}),
+        ...(draft.endsOn ? { endsOn: draft.endsOn } : {}),
       },
       {
         onSuccess: (row) => {
@@ -287,7 +299,7 @@ export function CampaignCreateModal({
       open={open}
       onClose={onClose}
       title="Chiến dịch mới"
-      subtitle="Năm ô này mở một chiến dịch NHÁP. Chưa lá thư nào rời máy ở bước này."
+      subtitle="Sáu ô này mở một chiến dịch NHÁP. Chưa lá thư nào rời máy ở bước này."
       footer={
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
           <span className="text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]">
@@ -317,6 +329,8 @@ export function CampaignCreateModal({
         setOwnerId={(v) => setDraft((d) => ({ ...d, ownerId: v }))}
         sourceId={draft.sourceId}
         setSourceId={(v) => setDraft((d) => ({ ...d, sourceId: v }))}
+        endsOn={draft.endsOn}
+        setEndsOn={(v) => setDraft((d) => ({ ...d, endsOn: v }))}
         people={people}
         sources={sources}
         autoFocusName
@@ -359,6 +373,7 @@ function ProfileFacts({ campaign }: { campaign: CampaignProfile }) {
         <Fact label="Slogan">{campaign.slogan || '—'}</Fact>
         <Fact label="Chủ chiến dịch">{campaign.ownerName ?? 'Chưa gán'}</Fact>
         <Fact label="Nguồn dẫn">{campaign.sourceName ?? 'Chưa gán'}</Fact>
+        <Fact label="Ngày kết thúc">{campaign.endsOn ? dmy(campaign.endsOn) : 'Không đặt'}</Fact>
       </dl>
     </div>
   )
@@ -395,7 +410,8 @@ export function ProfileTab({
     draft.slogan.trim() !== original.slogan ||
     draft.thumbnailUrl.trim() !== original.thumbnailUrl ||
     draft.ownerId !== original.ownerId ||
-    draft.sourceId !== original.sourceId
+    draft.sourceId !== original.sourceId ||
+    draft.endsOn !== original.endsOn
 
   const canSave = draft.name.trim().length > 0 && changed && !patch.isPending
 
@@ -405,12 +421,14 @@ export function ProfileTab({
     const thumbnailUrl = patchField(draft.thumbnailUrl.trim(), original.thumbnailUrl)
     const ownerId = patchField(draft.ownerId, original.ownerId)
     const sourceId = patchField(draft.sourceId, original.sourceId)
+    const endsOn = patchField(draft.endsOn, original.endsOn)
     const body: CampaignPatch = {
       ...(draft.name.trim() === original.name ? {} : { name: draft.name.trim() }),
       ...(slogan === undefined ? {} : { slogan }),
       ...(thumbnailUrl === undefined ? {} : { thumbnailUrl }),
       ...(ownerId === undefined ? {} : { ownerId }),
       ...(sourceId === undefined ? {} : { sourceId }),
+      ...(endsOn === undefined ? {} : { endsOn }),
     }
     patch.mutate(body, {
       onSuccess: () => toast('Đã lưu hồ sơ chiến dịch', { tone: 'success' }),
@@ -448,6 +466,8 @@ export function ProfileTab({
             setOwnerId={(v) => setDraft((d) => ({ ...d, ownerId: v }))}
             sourceId={draft.sourceId}
             setSourceId={(v) => setDraft((d) => ({ ...d, sourceId: v }))}
+            endsOn={draft.endsOn}
+            setEndsOn={(v) => setDraft((d) => ({ ...d, endsOn: v }))}
             people={people}
             sources={sources}
           />

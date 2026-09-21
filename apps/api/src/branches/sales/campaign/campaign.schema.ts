@@ -1,4 +1,4 @@
-import { boolean, check, index, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, check, date, index, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
 import { sales } from '../sales.schema'
 import { configEntry } from '../config/config.schema'
@@ -67,6 +67,9 @@ export const campaign = sales.table(
     sourceId: text('source_id').references(() => configEntry.id),
 
     state: text('state').$type<'DRAFT' | 'RUNNING' | 'STOPPED' | 'DONE'>().notNull(),
+    /** Last day the campaign runs, inclusive. Optional: an always-on campaign
+     *  has no end, and inventing one would close it on a made-up date. */
+    endsOn: date('ends_on'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

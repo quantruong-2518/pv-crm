@@ -5,7 +5,9 @@ import {
   LEAD_NUM,
   LeadCategory,
   LeadTier,
+  ORIGIN_NAME_MAX,
   email as emailField,
+  originKey,
   phoneOptional,
   taxCodeOptional,
   textInput,
@@ -17,7 +19,9 @@ import {
   type LeadImportRow,
   type LeadImportRowOut,
   type LeadMotion,
+  type LeadOriginPick,
 } from '@pv/contracts'
+import type { OriginIndex } from '../lead-origin/lead-origin.service'
 import { stateAtBirth, type LeadWrite } from './lead-write.mapper'
 
 /** THE ONE CHECK BOTH IMPORT ENDPOINTS RUN.
@@ -74,6 +78,10 @@ export type ImportCheckInput = {
    *  the person pressing the button is saying something about the whole file,
    *  and a stale code in a column must not quietly overrule them. */
   source?: string
+  /** Origin for rows whose own `origin` cell is empty — the cell wins. */
+  origin?: LeadOriginPick
+  /** The catalog by key, for "exists / hidden / would be created". */
+  origins: OriginIndex
   /** Everybody in the staff book, for turning the `owner` NAME into an id. */
   staff: readonly ActorLite[]
   /** The campaign codes that actually exist and are actually campaigns —
@@ -123,6 +131,7 @@ const LABEL: Record<LeadImportField, string> = {
   channel: 'Kênh liên hệ',
   headcount: 'Quy mô',
   pain: 'Vấn đề đang gặp',
+  origin: 'Nguồn lead',
 }
 
 /** Text bounds, read off `LEAD_MAX` — the SAME table `LeadCreate` is built
@@ -150,6 +159,8 @@ const TEXT = {
   contactTitle: textInputOptional(LEAD_MAX.contactTitle),
   pain: textInputOptional(LEAD_MAX.pain),
   source: textInputOptional(LEAD_MAX.campaignCode),
+  /* `LeadOriginPick.name`'s ceiling, so a cell mints what the form could. */
+  origin: textInputOptional(ORIGIN_NAME_MAX),
 }
 
 /** Headcount as a spreadsheet writes it: digits, optionally grouped.
@@ -235,8 +246,31 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
       total: input.rows.length,
       dupWithBook,
       dupWithinFile,
+      origins: originTally(writes, input.origins),
     },
   }
+}
+
+/** Distinct existing origins the accepted rows land on, and the names a
+ *  commit would mint — computed, never written, so the preview stays read-only. */
+function originTally(
+  writes: readonly LeadWrite[],
+  index: OriginIndex,
+): LeadImportReport['origins'] {
+  const matched = new Set<string>()
+  const created = new Map<string, string>()
+  for (const { origin } of writes) {
+    if (!origin) continue
+    if ('id' in origin) {
+      matched.add(origin.id)
+      continue
+    }
+    const key = originKey(origin.name)
+    const hit = index.byKey.get(key)
+    if (hit) matched.add(hit.id)
+    else if (!created.has(key)) created.set(key, origin.name)
+  }
+  return { matched: matched.size, created: [...created.values()] }
 }
 
 /** Fold a name the way two spellings of one person fold together.
@@ -263,7 +297,7 @@ function indexStaff(staff: readonly ActorLite[]): Map<string, ActorLite[]> {
 
 function checkRow(
   row: LeadImportRow,
-  batch: Pick<ImportCheckInput, 'motion' | 'source'>,
+  batch: Pick<ImportCheckInput, 'motion' | 'source' | 'origin' | 'origins'>,
   staff: Map<string, ActorLite[]>,
   campaigns: ReadonlySet<string>,
 ): Outcome {
@@ -358,11 +392,19 @@ function checkRow(
   }
   if (source !== undefined) out.source = source
 
+  // ── origin · the cell wins over the batch pick ──────────────────────────
+  const originCell = optional(cells, 'origin', TEXT.origin)
+  if (!originCell.ok) return fail('origin', originCell.reason)
+  const origin = readOrigin(originCell.value, batch)
+  if (!origin.ok) return fail('origin', origin.reason)
+  if (originCell.value !== undefined) out.origin = originCell.value
+
   return {
     ok: true,
     out: { line: row.line, values: out, key: keyOf(email.value) },
     write: {
       ownerName: owner.value?.name ?? null,
+      ...(origin.value ? { origin: origin.value } : {}),
       values: {
         company: company.value,
         contactName: contactName.value,
@@ -492,6 +534,23 @@ function readOwner(
     }
   }
   return { ok: true, value: hits[0] }
+}
+
+/** A typed origin must still key to something, and must not name a hidden
+ *  one — the commit's `resolveOrigin` would refuse the whole batch on it. */
+function readOrigin(
+  cell: string | undefined,
+  batch: Pick<ImportCheckInput, 'origin' | 'origins'>,
+): Read<LeadOriginPick | undefined> {
+  const pick = cell !== undefined ? { name: cell } : batch.origin
+  if (!pick || 'id' in pick) return { ok: true, value: pick }
+  const key = originKey(pick.name)
+  if (key === '')
+    return { ok: false, reason: `${LABEL.origin} "${pick.name}" không còn chữ hoặc số` }
+  if (batch.origins.byKey.get(key)?.active === false) {
+    return { ok: false, reason: `${LABEL.origin} "${pick.name}" đang tắt trong danh mục` }
+  }
+  return { ok: true, value: pick }
 }
 
 /** The first cell of the row, for the downloadable error file.

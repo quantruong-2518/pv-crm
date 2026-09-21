@@ -125,6 +125,14 @@ const ONE_CORE: NavEntry[] = [
     path: '/admin/roles',
     permission: 'role.manage',
   },
+  {
+    /** Admin side of lead origins: tidy the catalogue anybody may extend while
+     *  typing a lead. Gated by the permission that renames and merges. */
+    icon: Route,
+    label: 'Nguồn lead',
+    path: '/admin/lead-origins',
+    permission: 'lead-origin.manage',
+  },
 ]
 
 /** BottomNav (< lg) — bốn mục CHỐT theo docs/design-system/devices.md, không cấu hình

@@ -84,6 +84,20 @@ export function firstTouchToMinutes(value: number, unit: FirstTouchUnit): number
 export const MotionPolicy = z.object({
   motion: LeadMotion,
 
+  /** Vietnamese label for the motion picker; `null` falls back to
+   *  `MOTION_LABEL` in `./lead-origin`. Editable because the EVENT label reads
+   *  wrong for a branch that runs webinars, not trade shows. */
+  label: z.string().min(1).nullable(),
+  /** Display order on the config screen and the create form — business order,
+   *  same rule `ConfigEntry.ord` states, not the order the six were declared. */
+  ord: z.number().int().positive(),
+  /** Can a lead still be created with this motion. Off does not touch leads
+   *  already carrying it. */
+  active: z.boolean(),
+  /** Does THIS motion require `LeadCreate.campaignCode` — `true` for `EVENT`
+   *  by default. Server-enforced at the create door; see `LeadCreate.campaignCode`. */
+  requiresCampaign: z.boolean(),
+
   /** §5, first of the four: how long until the first human contact is due. */
   firstTouchMinutes: FirstTouchMinutes.nullable(),
 
@@ -123,6 +137,10 @@ export const MotionPolicyResponse = z.object({ rows: z.array(MotionPolicy) })
  *  when somebody approves it. */
 export const MotionPolicyPatch = z
   .object({
+    label: z.string().min(1).nullable().optional(),
+    ord: z.number().int().positive().optional(),
+    active: z.boolean().optional(),
+    requiresCampaign: z.boolean().optional(),
     firstTouchMinutes: FirstTouchMinutes.nullable().optional(),
     ownerRoleId: RoleId.nullable().optional(),
     coldMailAllowed: z.boolean().nullable().optional(),

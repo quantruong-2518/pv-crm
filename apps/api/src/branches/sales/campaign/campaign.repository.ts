@@ -84,6 +84,7 @@ export class CampaignRepository {
     sourceId: string | null
     slogan: string | null
     thumbnailUrl: string | null
+    endsOn: string | null
   }): Promise<CampaignRowDb> {
     const [row] = await this.db
       .insert(campaign)
@@ -91,6 +92,31 @@ export class CampaignRepository {
       .returning()
     if (!row) throw new Error('Ghi chiến dịch mới thất bại — không dòng nào trả về.')
     return row
+  }
+
+  /** Campaigns a new lead may join: `DRAFT`/`RUNNING` and not past `ends_on`
+   *  on today's Asia/Ho_Chi_Minh date. `code` narrows to one row for the
+   *  lead-create door; `q` is the picker's search. */
+  pickable(by: { code?: string; q?: string }, db: Db = this.db) {
+    return db
+      .select({
+        code: campaign.code,
+        name: campaign.name,
+        state: campaign.state,
+        endsOn: campaign.endsOn,
+        sourceId: campaign.sourceId,
+      })
+      .from(campaign)
+      .where(
+        and(
+          inArray(campaign.state, ['DRAFT', 'RUNNING']),
+          sql`(${campaign.endsOn} IS NULL OR ${campaign.endsOn} >= (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)`,
+          by.code ? eq(campaign.code, by.code) : undefined,
+          by.q ? ilike(campaign.name, contains(by.q)) : undefined,
+        ),
+      )
+      .orderBy(asc(campaign.name))
+      .limit(20)
   }
 
   async patch(
@@ -103,6 +129,7 @@ export class CampaignRepository {
       sourceId?: string | null
       slogan?: string | null
       thumbnailUrl?: string | null
+      endsOn?: string | null
     },
   ): Promise<void> {
     await this.db

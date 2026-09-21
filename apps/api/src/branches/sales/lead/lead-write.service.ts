@@ -6,6 +6,8 @@ import {
   LeadImportPreviewResponse,
   LeadOwnerResponse,
   LeadTier,
+  originKey,
+  type LeadOriginPick,
   type LeadPatchResponse,
   type LeadCreate,
   type LeadImportBody,
@@ -30,6 +32,8 @@ import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadStateWriter, stateAfterOwnerChange } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
+import { LeadOriginService } from '../lead-origin/lead-origin.service'
+import { CampaignService } from '../campaign/campaign.service'
 
 /** The five columns every lead write already carries, in the shape
  *  `ContactService.seedPrimary` asks for — see its docblock for why this call
@@ -110,6 +114,8 @@ export class LeadWriteService {
        already settled licence and session, and there is no `ref` yet whose
        owner could be compared. */
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly origins: LeadOriginService,
+    private readonly campaigns: CampaignService,
   ) {}
 
   // ── door 1 · one lead, typed by a person ─────────────────────────────────
@@ -127,9 +133,11 @@ export class LeadWriteService {
     const owner = body.ownerId ? await this.repo.actorById(handle, body.ownerId) : null
 
     const write = fromCreate(body, owner?.name ?? null)
+    const picked = await this.campaignOf(handle, body)
+    const campaignId = picked ? picked.sourceId : (body.campaignId ?? null)
     /* Read before the write, beside the owner lookup and for the same reason:
        the response is a full book row, and a book row prints names, not ids. */
-    const campaignName = body.campaignId ? await this.assertCampaign(handle, body.campaignId) : null
+    const campaignName = campaignId ? await this.assertCampaign(handle, campaignId) : null
     const code = await this.leads.nextCode()
     const run = await this.runs.nextCode()
 
@@ -146,10 +154,20 @@ export class LeadWriteService {
          `edge.to_code` is a foreign key into it. */
       await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
       await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
+      const origin = await this.origins.resolveOrigin(tx, body.origin, body.motion, who.id)
       const [written] = await this.repo.insertLeads(tx, [
-        { ...write.values, accountCode, code, workstreamCode: run },
+        {
+          ...write.values,
+          campaignId,
+          originId: origin.id,
+          originRaw: origin.raw,
+          accountCode,
+          code,
+          workstreamCode: run,
+        },
       ])
       if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
+      if (body.campaignCode) await this.campaigns.enrol(tx, body.campaignCode, code)
 
       /* Same transaction as the lead row — see `ContactService.seedPrimary`. */
       await this.contacts.seedPrimary(tx, code, mirrorOf(write.values), who)
@@ -176,7 +194,7 @@ export class LeadWriteService {
         },
       ])
 
-      return written
+      return { written, originName: origin.name }
     })
 
     /* `daysHere` is 0 and `signed` is false by construction, not by guesswork:
@@ -185,11 +203,12 @@ export class LeadWriteService {
        time by `lead.repository.ts`; here the answer is known without asking. */
     return LeadCreateResponse.parse(
       toContract({
-        row,
+        row: row.written,
         daysHere: 0,
         ownerName: owner?.name ?? null,
         ownerEmail: owner?.email ?? null,
         campaignName,
+        originName: row.originName,
         signed: false,
       }),
     )
@@ -496,9 +515,18 @@ export class LeadWriteService {
     const ready = writes.map((write, i) => ({
       row: { ...write.values, code: codes[i]!, workstreamCode: runs[i]! },
       ref: refOf(codes[i]!, write),
+      origin: write.origin,
     }))
 
     const batch = await this.repo.run(async (tx) => {
+      /* Each distinct origin resolved ONCE per batch, before any row needs it. */
+      const originIds = new Map<string, string>()
+      for (const { origin } of ready) {
+        if (!origin || originIds.has(pickKey(origin))) continue
+        const found = await this.origins.resolveOrigin(tx, origin, body.motion, who.id)
+        originIds.set(pickKey(origin), found.id)
+      }
+
       /* Chunked, and still atomic — every statement below runs in this one
          transaction. The chunking is about a protocol limit, not about
          durability: Postgres accepts at most 65.535 bind parameters per
@@ -537,7 +565,12 @@ export class LeadWriteService {
           const known = seen.get(key)
           const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row))
           if (!known) seen.set(key, accountCode)
-          rows.push({ ...p.row, accountCode })
+          rows.push({
+            ...p.row,
+            accountCode,
+            originId: p.origin ? (originIds.get(pickKey(p.origin)) ?? null) : null,
+            originRaw: p.origin && 'name' in p.origin ? p.origin.name : null,
+          })
           links.push({ from: p.row.code, to: accountCode, kind: 'belongs-to' })
           opened.push({ code: p.row.workstreamCode, accountCode, openedAt })
         }
@@ -599,6 +632,28 @@ export class LeadWriteService {
 
   // ── the shared half ──────────────────────────────────────────────────────
 
+  /** The motion's own create rules (0057), then the campaign pick: `null` = no
+   *  campaign code sent. The code must be pickable (`CampaignService.pickable`). */
+  private async campaignOf(
+    handle: Db,
+    body: LeadCreate,
+  ): Promise<{ sourceId: string | null } | null> {
+    const rule = await this.repo.motionRule(handle, body.motion)
+    if (rule && !rule.active) throw invalid({ motion: ['Phương án tiếp cận này đang tắt.'] })
+    if (rule?.requiresCampaign && !body.campaignCode) {
+      throw invalid({ campaignCode: ['Phương án tiếp cận này phải gắn chiến dịch'] })
+    }
+    if (!body.campaignCode) return null
+
+    const picked = await this.campaigns.pickableOne(body.campaignCode)
+    if (!picked) {
+      throw invalid({
+        campaignCode: ['Chiến dịch không nhận lead mới — đã dừng, đã xong hoặc quá ngày kết thúc.'],
+      })
+    }
+    return picked
+  }
+
   /** The campaign has to be a campaign, and this is where that gets SAID.
    *
    *  `lead_campaign_fk` already makes it impossible to store a code that names
@@ -640,16 +695,29 @@ export class LeadWriteService {
       ),
     ]
 
-    const [staff, book, live] = await Promise.all([
+    /* The create door's motion rules, asked here so preview and commit agree. */
+    const rule = await this.repo.motionRule(handle, body.motion)
+    if (rule && !rule.active) throw invalid({ motion: ['Phương án tiếp cận này đang tắt.'] })
+    if (rule?.requiresCampaign && body.source === undefined) {
+      throw invalid({ source: ['Phương án tiếp cận này phải gắn chiến dịch'] })
+    }
+
+    const [staff, book, live, origins] = await Promise.all([
       this.repo.staff(handle),
       this.repo.liveByEmail(handle, [...new Set(mailboxes)]),
       this.repo.campaignCodes(handle, campaigns),
+      this.origins.index(),
     ])
+    if (body.origin && 'id' in body.origin && !origins.byId.get(body.origin.id)?.active) {
+      throw invalid({ origin: ['Nguồn không có trong danh mục hoặc đang tắt.'] })
+    }
 
     return checkBatch({
       rows: body.rows,
       motion: body.motion,
       ...(body.source === undefined ? {} : { source: body.source }),
+      ...(body.origin === undefined ? {} : { origin: body.origin }),
+      origins,
       staff,
       campaigns: live,
       /* The check speaks in dedupe keys, the table speaks in mailboxes. One
@@ -659,6 +727,10 @@ export class LeadWriteService {
     })
   }
 }
+
+/** One memo key per distinct origin pick — an id, or the typed name's key. */
+const pickKey = (p: LeadOriginPick): string =>
+  'id' in p ? `id:${p.id}` : `key:${originKey(p.name)}`
 
 /** Rows per statement. See the note at the call site — this is the bind
  *  parameter ceiling, not a durability boundary. */

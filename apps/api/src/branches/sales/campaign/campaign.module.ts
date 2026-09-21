@@ -62,6 +62,10 @@ import { SourceService } from './source.service'
        `worker.ts` `app.get()` nó từ ngoài module này. */
     CampaignSweeper,
   ],
-  exports: [CampaignSweeper],
+  exports: [
+    CampaignSweeper,
+    /* Lead create asks `pickableOne` and `enrol` — the service, not the table. */
+    CampaignService,
+  ],
 })
 export class CampaignModule {}

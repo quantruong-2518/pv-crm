@@ -3,7 +3,6 @@ import {
   Button,
   Badge,
   CalendarCheck,
-  CalendarDays,
   FileCheck,
   Icon,
   Pin,
@@ -23,6 +22,7 @@ import { PicCell } from '@/components/table-bits'
 import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
+import { useMotionLabel } from '@/data/sales-motions'
 
 /** Module 2 · the cells and blocks of the lead book, split from `leads.tsx` so
  *  the screen file stays the layout: header, score strip, one list card.
@@ -30,19 +30,6 @@ import { LEAD_STATE_FACE } from '@/data/lead-state'
  *  Every cell here reads one `LeadRow` and nothing else — no lookup tables, no
  *  fixture-generated names. Where the row has nothing (no contact title, no
  *  campaign) the cell prints less rather than inventing a value. */
-
-/** The header's period, as text rather than a button: the scorecard endpoint
- *  takes no date range yet, and a picker that changes nothing is a lie. */
-export function PeriodLabel({ from, to }: { from: string; to: string }) {
-  return (
-    <span className="text-muted-foreground flex h-10 items-center gap-2 px-2 text-[12.5px] max-sm:hidden">
-      <Icon icon={CalendarDays} size={16} />
-      <span className="tnum text-foreground font-medium">
-        {from} – {to}
-      </span>
-    </span>
-  )
-}
 
 /** The book's four headline numbers, one block. Whole-book counts from
  *  `GET /sales/leads/scorecard`; they deliberately ignore the tab and filters —
@@ -141,16 +128,31 @@ function shortSourceName(name: string): string {
   return cut === -1 ? name : name.slice(0, cut).trimEnd()
 }
 
-/** Campaign name when there is one — it tells two neighbouring rows apart,
- *  the kind does not — else the kind itself. One line: the day the lead
- *  entered the book lives in the sort order, not in every row's text. */
+/** `‹motion› · ‹origin›` when the lead carries the two-level origin, the
+ *  campaign name under it. Leads written before that feature have neither, and
+ *  keep the old line: campaign name when there is one, else the intake kind. */
 export function SourceCell({ lead }: { lead: LeadRow }) {
+  const { motion, origin, campaignName } = lead.source
   const kind = sourceKindLabel(lead.source)
-  const name = lead.source.campaignName
+  const motionLabel = useMotionLabel()
 
+  if (!motion && !origin) {
+    return (
+      <span className="truncate text-[12.5px] font-semibold" title={campaignName ?? kind}>
+        {campaignName ? shortSourceName(campaignName) : kind}
+      </span>
+    )
+  }
+
+  const head = [motion && motionLabel(motion), origin?.name].filter(Boolean).join(' · ')
   return (
-    <span className="truncate text-[12.5px] font-semibold" title={name ?? kind}>
-      {name ? shortSourceName(name) : kind}
+    <span className="flex min-w-0 flex-col" title={campaignName ?? head}>
+      <span className="truncate text-[12.5px] font-semibold">{head}</span>
+      {campaignName && (
+        <span className="text-muted-foreground truncate text-[11.5px]">
+          {shortSourceName(campaignName)}
+        </span>
+      )}
     </span>
   )
 }

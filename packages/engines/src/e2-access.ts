@@ -119,6 +119,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
        says whose address is whose. Sale and BD do not: mislinking one address
        silently re-files somebody else's conversation. */
     'comm.capture-manage',
+    /* Marketing answers "which source produces customers", so it keeps the
+       origin catalogue clean enough to answer it. */
+    'lead-origin.manage',
   ],
 
   /** BD — mang lead vào và đẩy qua cổng init data. Không `lead.assign`: giao việc

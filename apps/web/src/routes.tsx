@@ -118,6 +118,15 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/roles'),
   },
   {
+    /** Admin · lead origins — the origin catalogue behind every lead, plus
+     *  the per-motion policy. Sales data, so it carries the Sales licence. */
+    path: '/admin/lead-origins',
+    name: 'Sales · Quản trị · Nguồn lead',
+    branch: 'Sales',
+    permission: 'lead-origin.manage',
+    load: () => import('@/pages/lead-origins'),
+  },
+  {
     /** BA SỔ, MỘT TIỀN TỐ — và thứ tự khai ở đây không quyết định gì.
      *
      *  React Router xếp hạng route theo độ cụ thể chứ không theo thứ tự mảng,

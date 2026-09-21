@@ -1,18 +1,25 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Chip, GlassCard, MetaPill, SectionTitle, SegmentedControl } from '@pv/ui'
 import {
-  CAMPAIGN_NONE,
-  SOURCE_KIND_LABEL,
+  LEAD_SIDE_LABEL,
+  LeadSide,
   campaignLabel,
   sourceKindLabel,
   type LeadMotion,
   type LeadProfile,
 } from '@pv/contracts'
 import type { Lead } from '@pv/engines/fixtures/das-vina'
-import { OWNER_SOURCE_FIELDS, readField, type FormField } from '@/data/lead-form'
+import { OWNER_SOURCE_FIELDS, originValue, readField, type FormField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { NO_OWNER_TITLE } from '@/data/leads'
+import { useMotionLabel } from '@/data/sales-motions'
 import { AssignMenu } from './assign-menu'
+import {
+  CampaignPicker,
+  OriginPicker,
+  type CampaignChoice,
+  type OriginChoice,
+} from './lead-origin-pickers'
 
 /** The holder-and-origin card — who holds this lead and how it got here.
  *
@@ -47,30 +54,18 @@ export function OwnerSourceCard(
   )
 }
 
-/** Vietnamese for the six motions, keyed by the UPPERCASE wire values.
- *
- *  Not read through `MOTION_FACE` in `data/intake.ts`: that table is keyed by
- *  the engine's lower-case spelling of the same vocabulary, and
- *  `packages/contracts/src/sales/enums.ts` says the conversion between the two
- *  has exactly one legal site. `Record<LeadMotion, …>` so a motion the contract
- *  adds later and this table forgets is a compile error, not a blank pill. */
-const LEAD_MOTION_LABEL: Record<LeadMotion, string> = {
-  INBOUND: 'Inbound',
-  OUTBOUND: 'Outbound',
-  EVENT: 'Sự kiện',
-  REFERRAL: 'Giới thiệu',
-  PARTNER: 'Đối tác',
-  RECYCLE: 'Đánh thức lại',
-}
-
 const PIC_HINT = 'PIC nhận việc tiếp theo và thông báo của lead này.'
 
-/** The one draft box this card draws, read off `OWNER_SOURCE_FIELDS` — the
- *  list `data/lead-form.ts` exports FOR this card, rather than reached out of
+/** The draft boxes this card draws, read off `OWNER_SOURCE_FIELDS` — the list
+ *  `data/lead-form.ts` exports FOR this card, rather than reached out of
  *  `CREATE_FIELDS` behind its back. */
-const MOTION_BOX = OWNER_SOURCE_FIELDS.find((field) => field.key === 'motion')
+const boxOf = (key: FormField['key']) => OWNER_SOURCE_FIELDS.find((field) => field.key === key)
+const MOTION_BOX = boxOf('motion')
+const ORIGIN_BOX = boxOf('origin')
+const CAMPAIGN_BOX = boxOf('campaignCode')
 
 function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
+  const motionLabel = useMotionLabel()
   return (
     <>
       <Block label="Lead PIC" hint={PIC_HINT}>
@@ -92,15 +87,15 @@ function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
         </div>
       </Block>
 
-      <Block label="Thế tiếp cận" hint="Chốt lúc lead vào sổ — sửa lại phải qua sổ nguồn.">
+      <Block label="Phương án tiếp cận" hint="Chốt lúc lead vào sổ — sửa lại phải qua sổ nguồn.">
         {/* Printed, not drawn as a control: `LeadPatch` carries no `motion`, and
             the repo's own rule for a read-only field is text rather than a
             greyed-out box nobody can use (`FieldKind.read`). */}
         <div className="flex flex-wrap items-center gap-2">
           {profile.motion ? (
-            <MetaPill>{LEAD_MOTION_LABEL[profile.motion]}</MetaPill>
+            <MetaPill>{motionLabel(profile.motion)}</MetaPill>
           ) : (
-            <MetaPill title="Lead vào sổ trước khi cột này được ghi.">Chưa rõ thế</MetaPill>
+            <MetaPill title="Lead vào sổ trước khi cột này được ghi.">Chưa rõ</MetaPill>
           )}
         </div>
       </Block>
@@ -110,6 +105,7 @@ function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
         hint="Xuất xứ của một lead đã vào sổ không ghi lại được."
       >
         <div className="flex flex-wrap items-center gap-2">
+          {profile.source.origin && <MetaPill>{profile.source.origin.name}</MetaPill>}
           <MetaPill>{campaignLabel(profile.source)}</MetaPill>
           <Chip variant="source">{sourceKindLabel(profile.source)}</Chip>
         </div>
@@ -118,12 +114,12 @@ function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
   )
 }
 
-/** The create door: one real box, and two lines of truth around it.
+/** The create door: the holder stated, then the three origin boxes.
  *
  *  `POST /sales/leads` IS the manual door — it takes no `kind`, because a
  *  caller that may name its own origin may claim `LANDING_PAGE`, which
- *  `CHANNEL_TRUST` reads as customer-verified. A hand-typed lead belongs to no
- *  campaign either, so both halves are stated rather than asked. */
+ *  `CHANNEL_TRUST` reads as customer-verified. What it does take is the motion,
+ *  the catalog origin and — when the motion's policy says so — a campaign. */
 function CreateBody({ draft }: { draft: LeadDraft }) {
   return (
     <>
@@ -137,24 +133,89 @@ function CreateBody({ draft }: { draft: LeadDraft }) {
         <MetaPill title={NO_OWNER_TITLE}>Chưa ai nhận</MetaPill>
       </Block>
 
-      <Block label="Thế tiếp cận" hint={MOTION_BOX?.hint} error={draft.fieldError('motion')}>
-        {MOTION_BOX && (
+      <MotionBlock draft={draft} />
+      <OriginBlocks draft={draft} />
+    </>
+  )
+}
+
+/** Six motions in two halves — who moved first reads before which channel. */
+function MotionBlock({ draft }: { draft: LeadDraft }) {
+  if (!MOTION_BOX) return null
+  const value = readField(draft.values, 'motion')
+  return (
+    <Block label="Phương án tiếp cận *" hint={MOTION_BOX.hint} error={draft.fieldError('motion')}>
+      {LeadSide.options.map((side) => {
+        const options = draft.motions.filter((m) => m.side === side)
+        if (options.length === 0) return null
+        return (
           <SegmentedControl
-            label="Thế tiếp cận"
-            hideLabel
-            value={readField(draft.values, 'motion')}
-            options={MOTION_BOX.options ?? []}
+            key={side}
+            label={LEAD_SIDE_LABEL[side]}
+            value={value}
+            options={options.map((m) => ({ value: m.motion, label: m.label }))}
             onChange={(raw) => write(draft, MOTION_BOX, raw)}
             className="flex-wrap"
           />
-        )}
+        )
+      })}
+    </Block>
+  )
+}
+
+/** Origin and campaign. The draft holds only what goes on the wire, so the
+ *  names shown in the boxes are kept here and dropped once the draft moves on. */
+function OriginBlocks({ draft }: { draft: LeadDraft }) {
+  const [origin, setOrigin] = useState<OriginChoice | null>(null)
+  const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
+  if (!ORIGIN_BOX || !CAMPAIGN_BOX) return null
+
+  const originRaw = readField(draft.values, 'origin')
+  const shownOrigin = origin && originValue(origin) === originRaw ? origin : null
+  const campaignRaw = readField(draft.values, 'campaignCode')
+  const shownCampaign = campaign && campaign.code === campaignRaw ? campaign : null
+  const motion = readField(draft.values, 'motion') as LeadMotion | ''
+
+  return (
+    <>
+      <Block
+        label="Nguồn *"
+        hint="Chọn nguồn đã có; tên mới chỉ được tạo khi lưu lead."
+        error={draft.fieldError('origin')}
+      >
+        <OriginPicker
+          label="Nguồn"
+          hideLabel
+          value={shownOrigin}
+          motion={motion === '' ? undefined : motion}
+          invalid={Boolean(draft.fieldError('origin'))}
+          onChange={(choice) => {
+            setOrigin(choice)
+            draft.set(ORIGIN_BOX, originValue(choice))
+          }}
+        />
       </Block>
 
-      <Block label="Nguồn · Chi tiết nguồn" hint="Lead gõ tay không thuộc chiến dịch nào.">
-        <div className="flex flex-wrap items-center gap-2">
-          <MetaPill>{CAMPAIGN_NONE}</MetaPill>
-          <Chip variant="source">{SOURCE_KIND_LABEL.MANUAL}</Chip>
-        </div>
+      <Block
+        label={draft.campaignRequired ? 'Chiến dịch *' : 'Chiến dịch'}
+        hint={
+          draft.campaignRequired
+            ? 'Phương án tiếp cận này bắt buộc gắn chiến dịch — lead vào luôn danh sách của nó.'
+            : 'Không bắt buộc. Gắn vào thì lead vào luôn danh sách của chiến dịch.'
+        }
+        error={draft.fieldError('campaignCode')}
+      >
+        <CampaignPicker
+          label="Chiến dịch"
+          hideLabel
+          required={draft.campaignRequired}
+          value={shownCampaign}
+          invalid={Boolean(draft.fieldError('campaignCode'))}
+          onChange={(choice) => {
+            setCampaign(choice)
+            draft.set(CAMPAIGN_BOX, choice?.code ?? '')
+          }}
+        />
       </Block>
     </>
   )

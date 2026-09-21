@@ -4,6 +4,8 @@ import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { AccountModule } from '../account/account.module'
+import { CampaignModule } from '../campaign/campaign.module'
+import { LeadOriginModule } from '../lead-origin/lead-origin.module'
 import { ContactModule } from '../contact/contact.module'
 import { MeetingModule } from '../meeting/meeting.module'
 import { TouchModule } from '../touch/touch.module'
@@ -75,6 +77,10 @@ import { LeadCommsHook } from './lead-comms.hook'
     WorkstreamModule,
     /* The one writer of `lead.state` (ADR 0058), shared with the other doors. */
     LeadStateModule,
+    /* Every write door resolves its origin through `resolveOrigin`, and the
+       create door enrols a picked campaign — both via exported services. */
+    LeadOriginModule,
+    CampaignModule,
   ],
   controllers: [LeadController, LeadIntakeController, LeadContactController],
   providers: [

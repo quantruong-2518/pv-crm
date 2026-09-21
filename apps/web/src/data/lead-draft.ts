@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import type { LeadProfile as WireLeadProfile } from '@pv/contracts'
+import { MOTION_BY_CHANNEL, type LeadProfile as WireLeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import {
   buildLeadCreate,
@@ -21,6 +21,7 @@ import {
   type FormMode,
   type FormValues,
 } from '@/data/lead-form'
+import { useMotionChoices, type MotionChoice } from '@/data/sales-motions'
 
 /** Module 2 · ONE DRAFT, THREE CARDS — the state of the lead form, lifted out
  *  of the form card so the page owns it.
@@ -64,6 +65,10 @@ export type LeadDraft = {
   fieldError: (key: FieldKey) => string | undefined
   /** Complaints that name no box (a 409, a network failure). */
   formError: string | undefined
+  /** Create door only: the motions this door offers, in policy order. */
+  motions: MotionChoice[]
+  /** Create door only: the chosen motion's policy demands a campaign. */
+  campaignRequired: boolean
 }
 
 export type UseLeadDraftArgs =
@@ -89,6 +94,9 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
      mutation nobody calls costs nothing. */
   const save = useUpdateLeadProfile()
   const create = useCreateLead()
+  const motions = useMotionChoices(MOTION_BY_CHANNEL.MANUAL, mode === 'create')
+  const needsCampaign = (motion: string | undefined) =>
+    motions.some((m) => m.motion === motion && m.requiresCampaign)
 
   /* `profileForm` turns a field the wire left out into the `''`/`null` the
      boxes and the init-data gate read as "not dug out yet". No browser-side
@@ -206,7 +214,9 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
 
   const submit = () => {
     if (args.mode !== 'create' || create.isPending) return
-    const built = buildLeadCreate(live.current)
+    const built = buildLeadCreate(live.current, {
+      campaignRequired: needsCampaign(live.current.motion),
+    })
     if (!built.ok) {
       refuse(built.errors)
       return
@@ -250,5 +260,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     saveState,
     fieldError: (key) => failed?.[wireOf(key)]?.[0],
     formError,
+    motions,
+    campaignRequired: needsCampaign(values.motion),
   }
 }

@@ -10,6 +10,7 @@ import { ContractModule } from './contract/contract.module'
 import { LeaderboardModule } from './leaderboard/leaderboard.module'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
+import { LeadOriginModule } from './lead-origin/lead-origin.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
@@ -49,6 +50,7 @@ registerConstraints(CONTACT_CONSTRAINTS)
 @Module({
   imports: [
     LeadModule,
+    LeadOriginModule,
     OpportunityModule,
     ContractModule,
     SalesConfigModule,

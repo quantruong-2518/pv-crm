@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FileUp, GlassCard, Icon, Kicker, cn } from '@pv/ui'
-import { ACCEPT } from '@/data/intake-file'
+import { Button, FileSpreadsheet, FileUp, GlassCard, Icon, Kicker, TriangleAlert, cn } from '@pv/ui'
+import { ACCEPT, type Sheet } from '@/data/intake-file'
 import type { BuiltRow, DupRow, ImportSpec, RowError } from '@/data/intake'
 
-/** THE EDGES OF THE IMPORT PANEL — the result lists after a load, and the
- *  window-wide drop catcher around it.
+/** THE EDGES OF THE IMPORT PANEL — the file strip and encoding warning above
+ *  the mapping, the result lists after a load, and the window-wide drop catcher.
  *
  *  Split out of `import-zone.tsx` on size alone (`max-lines`). Neither half
  *  reads the pick/map state of the panel, so the seam costs no shared state.
@@ -306,5 +306,45 @@ export function WindowDropCatcher({
         </p>
       </div>
     </div>
+  )
+}
+
+/** The file being mapped: name, row count, and the way back to step 1.
+ *
+ *  The multi-tab note sits here rather than after the load, because this is
+ *  while the user can still swap files — said afterwards the other tab has
+ *  already been dropped. Only spoken above ONE tab; CSV and paste have none. */
+export function FileStrip({ sheet, onChangeFile }: { sheet: Sheet; onChangeFile: () => void }) {
+  const tabNote =
+    sheet.sheetCount && sheet.sheetCount > 1
+      ? ` · tệp có ${sheet.sheetCount} tab, đang đọc "${sheet.sheetName}"`
+      : ''
+
+  return (
+    <GlassCard variant="b" className="flex flex-wrap items-center gap-3 p-4">
+      <Icon icon={FileSpreadsheet} size={16} className="text-accent-foreground" />
+      <span className="text-[12.5px] font-semibold">{sheet.fileName}</span>
+      <span className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px]">
+        <span className="font-num tnum">{sheet.rows.length}</span> dòng dữ liệu{tabNote}
+      </span>
+      <Button size="md" variant="ghost" onClick={onChangeFile}>
+        Đổi tệp
+      </Button>
+    </GlassCard>
+  )
+}
+
+/** Warns that the file was saved in the wrong encoding. Never repairs it —
+ *  see `detectMojibakeColumn`. */
+export function MojibakeNote({ column, sample }: { column: string; sample: string }) {
+  return (
+    <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
+      <Icon icon={TriangleAlert} size={18} className="text-warning" />
+      <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
+        Tệp lưu sai bảng mã — ví dụ cột &quot;{column}&quot; đang ra &quot;{sample}&quot;. Mọi cột
+        có dấu đều đang hỏng, không riêng cột này: lưu lại tệp dạng CSV UTF-8 rồi chọn lại, hoặc vẫn
+        nạp rồi sửa tay sau.
+      </p>
+    </GlassCard>
   )
 }

@@ -416,6 +416,13 @@ export const LEAD_SPEC: ImportSpec = {
       sample: 'CD-0101',
     },
     {
+      /* Free text, folded by `originKey` on the server; a new name mints a row. */
+      key: 'origin',
+      label: 'Nguồn lead',
+      aliases: ['nguon lead', 'nguon goc', 'kenh nguon', 'lead source', 'origin'],
+      sample: 'LinkedIn',
+    },
+    {
       key: 'owner',
       label: 'Lead PIC',
       aliases: ['lead pic', 'pic', 'nguoi giu', 'phu trach', 'owner', 'sale'],
@@ -903,6 +910,17 @@ export type ImportReport = {
    *  Absent on a browser-only report and on a preview — a row that went nowhere
    *  has no code, and inventing a blank column for it would suggest it does. */
   codes?: string[]
+  /** Lead book only: how the batch's origins resolved against the catalog. */
+  origins?: { matched: number; created: string[] }
+}
+
+/** Matched count, then the names a batch mints — the one line both the toast
+ *  and the result panel print, so the two never word one fact differently. */
+export function originTally(origins: { matched: number; created: string[] }): string {
+  const made = origins.created.length
+  return made === 0
+    ? `Khớp ${origins.matched} nguồn`
+    : `Khớp ${origins.matched} nguồn · tạo mới ${made}: ${origins.created.join(', ')}`
 }
 
 /** Nhường lại một nhịp vẽ cho trình duyệt.

@@ -12,13 +12,13 @@ import {
   SegmentedControl,
   Select,
 } from '@pv/ui'
-import { DAS_VINA_FROZEN_AT, dayISO } from '@pv/engines/fixtures/das-vina'
 import {
   LEAD_OPEN_STATES,
   LeadState,
   SOURCE_KIND_LABEL,
   type ConfigEntry,
   type LeadBookQuery,
+  type LeadMotion,
   type LeadRow,
   type LeadSourceKind,
   type LeadStateFilter,
@@ -33,23 +33,23 @@ import {
   parseLeadBookQuery,
   queryPageFromPageIndex,
 } from '@/app/url'
-import { dm, dmy } from '@/lib/date'
 import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { salesCatalogQuery } from '@/data/sales-config'
+import { useMotionLabel } from '@/data/sales-motions'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory } from '@/data/directory'
-import { LEAD_SPEC, withPeople } from '@/data/intake'
+import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
+import { OriginPicker, type OriginChoice } from '@/components/lead-origin-pickers'
 import { MasMailModal } from '@/components/mas-mail-modal'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
   LeadPicCell,
-  PeriodLabel,
   PinCell,
   ScoreStrip,
   SourceCell,
@@ -91,9 +91,6 @@ const KIND_PREFIX = 'kind:'
  *  một mục cache mới. Ghi thẳng từng phím thì gõ "Coreline" là tám lần gọi cho
  *  một câu hỏi. Chữ trong ô vẫn đổi ngay từng phím — chỉ có địa chỉ là đợi. */
 const SEARCH_DELAY_MS = 300
-
-/* Mốc kỳ suy từ fixture, không gõ vào JSX. `dayISO(0)` là ngày đầu kỳ. */
-const PERIOD_FROM = dm(dayISO(0))
 
 /** The state tabs (ADR 0058). `open` is the default because the book is a work
  *  list; a dropped or archived lead is still one tab away, since that is where
@@ -339,6 +336,8 @@ export function LeadsPage() {
     text.trim() !== '' ||
     query.campaign !== undefined ||
     query.sourceKind !== undefined ||
+    query.motion !== undefined ||
+    query.origin !== undefined ||
     query.state !== DEFAULT_LEAD_BOOK_QUERY.state
 
   const clearFilters = () =>
@@ -346,8 +345,22 @@ export function LeadsPage() {
       q: undefined,
       campaign: undefined,
       sourceKind: undefined,
+      motion: undefined,
+      origin: undefined,
       state: DEFAULT_LEAD_BOOK_QUERY.state,
     })
+
+  /* Level 1 and 2 of the origin, each its own contract axis. Options come from
+     the facets, so a filter never offers a value no lead carries. */
+  const motionLabel = useMotionLabel()
+  const motionFilterOptions = [
+    { value: ANY, label: 'Mọi phương án' },
+    ...(counts?.motions ?? []).map((m) => ({ value: m, label: motionLabel(m) })),
+  ]
+  const originFilterOptions = [
+    { value: ANY, label: 'Mọi nguồn' },
+    ...(counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name })),
+  ]
 
   /* Phiếu MAS sống trọn trong Modal: nội dung, lịch và người nhận cùng một chỗ.
      Sổ không đổi cột hay chèn thêm section khi soạn mail. */
@@ -446,13 +459,22 @@ export function LeadsPage() {
      bên đã ghi thật — xem docblock `onCommit` ở `components/import-zone.tsx`.
      Hàm này không bao giờ ném, vì `runLeadImport` đã đổi mọi lời từ chối thành
      một báo cáo nói đúng những gì đã vào sổ. */
+  /* Origin for the whole batch — drawn inside the import panel, held here
+     because the commit below is where it goes onto the wire. */
+  const [importOrigin, setImportOrigin] = useState<OriginChoice | null>(null)
+
   const commitLeads = async ({
     rows,
     motion,
     fileName,
     scope,
   }: ImportCommit & { scope?: string }) => {
-    const run = await loadFile({ rows, motion, fileName, source: scope })
+    const origin = importOrigin
+      ? importOrigin.id
+        ? { id: importOrigin.id }
+        : { name: importOrigin.name }
+      : undefined
+    const run = await loadFile({ rows, motion, fileName, source: scope, origin })
     /* The codes ride ALONG with the report rather than inside it, because
        `runLeadImport` has to answer for the preview-only path too — where rows
        survived and nothing was written. Joining them here is what lets step 3
@@ -466,6 +488,7 @@ export function LeadsPage() {
         report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, bỏ qua`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+        report.origins && originTally(report.origins),
       ]
         .filter(Boolean)
         .join(' · '),
@@ -590,11 +613,18 @@ export function LeadsPage() {
           title="Sổ lead"
           actions={
             <>
-              <PeriodLabel from={PERIOD_FROM} to={dmy(DAS_VINA_FROZEN_AT)} />
               <ImportZone
                 spec={leadSpec}
                 existingKeys={NO_LOCAL_KEYS}
                 scopeOptions={importSourceOptions}
+                batchExtra={
+                  <OriginPicker
+                    label="Nguồn lead cho cả lô — dùng cho dòng để trống cột Nguồn lead"
+                    value={importOrigin}
+                    onChange={setImportOrigin}
+                    onClear={() => setImportOrigin(null)}
+                  />
+                }
                 buttonLabel="Nhập từ file"
                 onCommit={commitLeads}
                 onSeeResult={() => {
@@ -640,7 +670,12 @@ export function LeadsPage() {
                 />
                 <FilterMenu
                   label="Bộ lọc sổ lead"
-                  active={(sourceFiltered ? 1 : 0) + (oneOpenState ? 1 : 0)}
+                  active={
+                    (sourceFiltered ? 1 : 0) +
+                    (oneOpenState ? 1 : 0) +
+                    (query.motion ? 1 : 0) +
+                    (query.origin ? 1 : 0)
+                  }
                 >
                   {tabValue === 'open' && (
                     <Select
@@ -652,13 +687,30 @@ export function LeadsPage() {
                     />
                   )}
                   <Select
+                    label="Phương án tiếp cận"
+                    value={query.motion ?? ANY}
+                    onChange={(v) => patch({ motion: v === ANY ? undefined : (v as LeadMotion) })}
+                    className="w-full max-w-none"
+                    options={motionFilterOptions}
+                  />
+                  <Select
                     label="Nguồn"
+                    value={query.origin ?? ANY}
+                    onChange={(v) => patch({ origin: v === ANY ? undefined : v })}
+                    className="w-full max-w-none"
+                    options={originFilterOptions}
+                  />
+                  <Select
+                    label="Chiến dịch hoặc cửa vào"
                     value={sourceFilterValue}
                     onChange={patchSourceFilter}
                     /* Campaign names run to 40 characters and a native select
                        grows to its longest option — clamp it to the panel. */
                     className="w-full max-w-none"
-                    options={[{ value: ANY, label: 'Mọi nguồn' }, ...sourceFilterOptions]}
+                    options={[
+                      { value: ANY, label: 'Mọi chiến dịch và cửa vào' },
+                      ...sourceFilterOptions,
+                    ]}
                   />
                   {dirty && (
                     <Button size="md" variant="ghost" onClick={clearFilters}>

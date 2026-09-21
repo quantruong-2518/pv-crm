@@ -114,6 +114,8 @@ export type LeadImportInput = {
   /** Source code for the whole batch, when the load started inside a campaign.
    *  The lead book itself has no campaign, so it is normally absent. */
   source?: string
+  /** Origin for the whole batch — see `ImportBatchChoices.origin`. */
+  origin?: LeadImportBody['origin']
   signal?: AbortSignal
 }
 
@@ -176,6 +178,7 @@ export async function runLeadImport(input: LeadImportInput): Promise<LeadImportR
     fileName: input.fileName,
     motion,
     source: input.source,
+    origin: input.origin,
   })
   if (!body.success) {
     /* The schema running here is the same one the server runs, so its first

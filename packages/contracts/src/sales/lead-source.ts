@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ConfigCode } from './config'
-import { LeadSourceKind } from './enums'
+import { LeadMotion, LeadSourceKind } from './enums'
+import { LeadOriginId } from './lead-origin'
 
 /** Where a lead came from — ONE object, two facts, one label table.
  *
@@ -38,6 +39,12 @@ export const LeadSource = z.object({
   kind: LeadSourceKind.optional(),
   campaignId: ConfigCode.optional(),
   campaignName: z.string().min(1).optional(),
+  /** Level 1 of the newer two-level origin — WHO moved first. Absent on
+   *  every row written before this feature, same reason `kind` can be absent. */
+  motion: LeadMotion.optional(),
+  /** Level 2 — the catalog pick. `name` rides along for the same reason
+   *  `campaignName` does: the id is for comparing, this is for printing. */
+  origin: z.object({ id: LeadOriginId, name: z.string().min(1) }).optional(),
 })
 
 export type LeadSource = z.infer<typeof LeadSource>

@@ -35,6 +35,7 @@ import {
   taxCodeOptional,
 } from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
+import { LeadOriginId, LeadOriginPick } from './lead-origin'
 import { LeadSource } from './lead-source'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
@@ -259,6 +260,12 @@ export const LeadBookQuery = PageQuery.extend({
    *  both. */
   sourceKind: LeadSourceKind.optional(),
 
+  /** WHO moved first, level 1 of the newer origin. Absent on every lead
+   *  written before this feature — same reason `sourceKind` can be absent. */
+  motion: LeadMotion.optional(),
+  /** Level 2 — the catalog pick, by id. */
+  origin: LeadOriginId.optional(),
+
   /** Lead PIC, exact `actor.id`. Absent = every owner, including none.
    *
    *  The docblock above has promised this param since the filter row moved to
@@ -319,6 +326,10 @@ export const LeadFacets = z.object({
    *  rỗng, và ô lọc không vẽ ra một lựa chọn chết. Cùng trục phạm vi với
    *  `book()`. */
   sourceKinds: z.array(LeadSourceKind),
+  /** Same "only what actually occurs" rule as `sourceKinds`, for the newer
+   *  motion/origin filters. */
+  motions: z.array(LeadMotion),
+  origins: z.array(z.object({ id: LeadOriginId, name: z.string().min(1) })),
   /** A count for EVERY `LeadState`, zeros included, so the tabs print straight
    *  off the object — the rule `WorkstreamFootprint.byChannel` states. `open`
    *  and `all` are sums the screen takes itself. */
@@ -591,12 +602,9 @@ export const LeadCreate = z
     marketingOwnerId: textInputOptional(LEAD_MAX.actorId),
 
     // ── where it came from ───────────────────────────────────────────────────
-    /** Narrowed to the motions the `MANUAL` door can carry, so `EVENT` is
-     *  refused here: an event arrives as a LIST, and a hand-typed row claiming
-     *  to be an event lead is a row nobody can trace back to an event.
-     *
-     *  See the handover — the brief asked for all six, `MOTION_BY_CHANNEL` says
-     *  five, and this follows the table rather than quietly widening it. */
+    /** Narrowed to the motions the `MANUAL` door can carry. `EVENT` is among
+     *  them because the server refuses it without `campaignCode` — the
+     *  campaign is what traces a hand-typed event lead back to its event. */
     motion: z.enum(MOTION_BY_CHANNEL.MANUAL, {
       /* Two different mistakes, two sentences. A missing motion is a control
          nobody touched; a motion outside the five is a caller claiming a door
@@ -613,6 +621,17 @@ export const LeadCreate = z
      *  the `MANUAL` origin, and a caller that can name its own origin can
      *  claim `LANDING_PAGE`, which `CHANNEL_TRUST` reads as customer-verified. */
     campaignId: ConfigCode.optional(),
+    /** Level 2 of the origin — required, unlike `campaignId`: a hand-typed
+     *  lead always has SOME answer to "where from" even when it has no
+     *  campaign. Id or name; see `LeadOriginPick`. */
+    origin: LeadOriginPick,
+    /** A campaign's CODE (`CP-nnnn`), not `campaignId` above (a config-list
+     *  code). Wins over `campaignId` when both are sent — the server derives
+     *  `campaignId` from it — and also enrols the lead as a member. Required
+     *  only when the chosen `motion`'s `motion_policy.requires_campaign` is
+     *  true (`EVENT` by default); that rule is DATA, so it is enforced by the
+     *  server, not a zod refine here. */
+    campaignCode: ObjectCode.optional(),
   })
   .refine((v) => (v.budget === undefined) === (v.currency === undefined), {
     /* Money always carries its unit. Enforced here rather than left to

@@ -6,6 +6,7 @@ import {
   createWireOf,
   CREATE_FIELDS,
   isRequiredOnCreate,
+  originPickOf,
   readField,
   type FormValues,
 } from '@/data/lead-form'
@@ -159,6 +160,8 @@ export const emptyDraft = (): FormValues => ({
   exitReason: '',
 
   motion: DEFAULT_MOTION,
+  origin: '',
+  campaignCode: '',
 })
 
 // ---------------------------------------------------------------------------
@@ -179,7 +182,8 @@ function fieldErrorsOf(
 ): FieldErrors {
   const errors: FieldErrors = {}
   for (const issue of issues) {
-    const key = issue.path.map(String).join('.') || ROOT_FIELD
+    const key =
+      issue.path[0] === 'origin' ? 'origin' : issue.path.map(String).join('.') || ROOT_FIELD
     ;(errors[key] ??= []).push(issue.message)
   }
   return errors
@@ -214,12 +218,15 @@ function fieldErrorsOf(
  *  Required fields keep the opposite treatment — a blank one is SENT as `''`
  *  so the contract answers "Không được để trống" against that field, rather
  *  than the form quietly posting three fields and calling it a lead. */
-export function buildLeadCreate(values: FormValues): BuildResult {
+export function buildLeadCreate(
+  values: FormValues,
+  opts: { campaignRequired?: boolean } = {},
+): BuildResult {
   const candidate: Record<string, unknown> = {}
 
   for (const field of CREATE_FIELDS) {
     const wire = createWireOf(field)
-    if (!wire) continue
+    if (!wire || field.key === 'origin') continue
 
     const raw = readField(values, field.key)
     if (field.kind === 'num' || field.kind === 'money') {
@@ -234,9 +241,18 @@ export function buildLeadCreate(values: FormValues): BuildResult {
     candidate[wire] = raw
   }
 
+  candidate.origin = originPickOf(values.origin)
+
   const parsed = LeadCreate.safeParse(candidate)
-  if (parsed.success) return { ok: true, body: parsed.data }
-  return { ok: false, errors: fieldErrorsOf(parsed.error.issues) }
+  const errors = parsed.success ? {} : fieldErrorsOf(parsed.error.issues)
+  /* Two rules zod cannot word: a missing union reads "Invalid input", and the
+     campaign requirement is motion-policy DATA the contract does not carry. */
+  if (candidate.origin === undefined) errors.origin = ['Chưa chọn nguồn']
+  if (opts.campaignRequired && !values.campaignCode) {
+    errors.campaignCode = ['Phương án tiếp cận này cần gắn một chiến dịch']
+  }
+  if (parsed.success && Object.keys(errors).length === 0) return { ok: true, body: parsed.data }
+  return { ok: false, errors }
 }
 
 /** The one sentence shown above the buttons when the write is refused.

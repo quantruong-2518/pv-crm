@@ -144,6 +144,14 @@ function motionWords(patch: MotionPolicyPatchDb): string[] {
     )
   }
 
+  if (patch.label !== undefined)
+    said.push(patch.label === null ? 'tên: về mặc định' : `tên "${patch.label}"`)
+  if (patch.ord !== undefined) said.push(`thứ tự ${patch.ord}`)
+  if (patch.active !== undefined) said.push(patch.active ? 'bật' : 'tắt')
+  if (patch.requiresCampaign !== undefined) {
+    said.push(patch.requiresCampaign ? 'bắt buộc gắn chiến dịch' : 'không bắt buộc chiến dịch')
+  }
+
   return said
 }
 

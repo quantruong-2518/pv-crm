@@ -95,8 +95,8 @@ export const CHANNEL_TRUST = {
  *  Not every combination does, and this table says so instead of leaving each
  *  caller to guess: `LANDING_PAGE` carries only `INBOUND` and `PARTNER`, because a
  *  public form is something a stranger walks up to — nothing `OUTBOUND` ever
- *  falls out of it. `MANUAL` carries everything except `EVENT`, which arrives
- *  as a list rather than as one typed row.
+ *  falls out of it. `MANUAL` carries all six — a typed `EVENT` lead is traced
+ *  back to its event by the campaign the server requires with it.
  *
  *  A pair missing from this table is not "not supported yet"; it is a pair that
  *  DOES NOT HAPPEN. That is why the import and create contracts narrow their
@@ -110,7 +110,9 @@ export const CHANNEL_TRUST = {
  *  motions, while `satisfies` still makes `tsc` check every key and value
  *  against the two axes in `./enums`. */
 export const MOTION_BY_CHANNEL = {
-  MANUAL: ['INBOUND', 'OUTBOUND', 'REFERRAL', 'PARTNER', 'RECYCLE'],
+  /* EVENT is typeable since it must carry a campaign (`motion_policy.requires_campaign`),
+     which is what traces the row back to its event. */
+  MANUAL: ['INBOUND', 'OUTBOUND', 'EVENT', 'REFERRAL', 'PARTNER', 'RECYCLE'],
   IMPORT: ['OUTBOUND', 'EVENT', 'PARTNER', 'RECYCLE'],
   /* Narrower than `IMPORT`, and that is the point of naming the vendor: a
      bought list is cold outbound, or the same list bought again to wake old
@@ -155,6 +157,8 @@ export const LeadIntakeQuery = z
   .object({
     from: z.literal('landingpage', 'from phải là "landingpage"'),
     landingPage,
+    /** What the server resolves into a `LeadOriginPick` name (`originKey`
+     *  folds the usual spellings together) — no separate origin param here. */
     utm_source: campaignParam(),
     utm_medium: campaignParam(),
     utm_campaign: campaignParam(),

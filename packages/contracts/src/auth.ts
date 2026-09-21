@@ -93,6 +93,10 @@ export const Permission = z.enum([
   'plan.submit',
   'config.view',
   'config.propose',
+  /** Rename, hide, merge and re-file lead origins (`sales.lead_origin`).
+   *  Creating one is NOT gated here — anybody typing a lead may add a new
+   *  origin (`lead.edit`); tidying the catalogue afterwards is this one. */
+  'lead-origin.manage',
   /** The channel identity book — which person a wire address belongs to.
    *  `comms.identity`, one permission for read and write both. */
   'comm.view',

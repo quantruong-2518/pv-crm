@@ -25,10 +25,12 @@ export type ProfileDraft = {
   thumbnailUrl: string
   ownerId: string
   sourceId: string
+  /** `YYYY-MM-DD` as the date box reads it; `''` = open-ended. */
+  endsOn: string
 }
 
 export function emptyProfile(): ProfileDraft {
-  return { name: '', slogan: '', thumbnailUrl: '', ownerId: '', sourceId: '' }
+  return { name: '', slogan: '', thumbnailUrl: '', ownerId: '', sourceId: '', endsOn: '' }
 }
 
 export function profileFrom(c: CampaignProfile): ProfileDraft {
@@ -38,6 +40,7 @@ export function profileFrom(c: CampaignProfile): ProfileDraft {
     thumbnailUrl: c.thumbnailUrl ?? '',
     ownerId: c.ownerId ?? '',
     sourceId: c.sourceId ?? '',
+    endsOn: c.endsOn ?? '',
   }
 }
 

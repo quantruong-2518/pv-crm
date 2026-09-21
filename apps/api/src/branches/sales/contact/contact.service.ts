@@ -119,7 +119,8 @@ export class ContactService {
     mirror: LeadContactMirror,
     who: { id: string; name: string },
   ): Promise<void> {
-    const code = await this.repo.nextCode()
+    /* On the caller's `tx`: the pool is one connection on PGlite, held by that tx. */
+    const code = await this.repo.nextCode(tx)
     const values = fromLeadBirth(leadCode, mirror, who)
 
     await this.mirror.put(tx, refOf(code, leadCode, values))

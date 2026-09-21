@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CircleCheck, Download, FileSpreadsheet, TriangleAlert, Upload } from '@pv/ui'
+import { useState, type ReactNode } from 'react'
+import { CircleCheck, Download, TriangleAlert, Upload } from '@pv/ui'
 import {
   Badge,
   Button,
@@ -32,6 +32,7 @@ import {
   errorRows,
   guessMapping,
   MOTION_FACE,
+  originTally,
   sampleRows,
   trustOf,
   unmappedRequired,
@@ -45,6 +46,8 @@ import {
   DoneRows,
   DroppedRows,
   FailedRows,
+  FileStrip,
+  MojibakeNote,
   Tally,
   WindowDropCatcher,
 } from '@/components/import-zone-bits'
@@ -114,6 +117,10 @@ export type ImportZoneProps = {
   /** Danh sách nguồn để người dùng CHỌN, dùng khi nạp từ sổ chứ không từ trong
    *  một hồ sơ. Bỏ qua khi `scope` có giá trị — cố định thắng chọn. */
   scopeOptions?: { value: string; label: string }[]
+  /** One more batch-wide control the screen owns — the lead book's origin
+   *  picker. Drawn inside the "apply to all" card; its value never passes
+   *  through the panel, the screen reads it back in `onCommit`. */
+  batchExtra?: ReactNode
   /** Nạp thật — màn tự đẩy dòng vào sổ của nó và tự bắn toast.
    *
    *  Panel KHÔNG tự ghi vào kho: ba sổ ghi vào ba chỗ khác nhau và dựng dòng
@@ -170,6 +177,7 @@ export function ImportZone({
   scope,
   scopeLabel,
   scopeOptions,
+  batchExtra,
   onCommit,
   onSeeResult,
   buttonLabel,
@@ -392,6 +400,7 @@ export function ImportZone({
                 scopeOptions={scope ? undefined : scopeOptions}
                 picked={picked}
                 onPick={setPicked}
+                batchExtra={batchExtra}
                 locked={phase !== 'map'}
               />
             )
@@ -515,46 +524,6 @@ function sourceNote(spec: ImportSpec, sheet: Sheet, mapping: ColumnMapping): str
     : `${blank} trên ${n} dòng bỏ trống cột Nguồn, và sẽ lấy lựa chọn này.`
 }
 
-/** The file being mapped: name, row count, and the way back to step 1.
- *
- *  The multi-tab note sits here rather than after the load, because this is
- *  while the user can still swap files — said afterwards the other tab has
- *  already been dropped. Only spoken above ONE tab; CSV and paste have none. */
-function FileStrip({ sheet, onChangeFile }: { sheet: Sheet; onChangeFile: () => void }) {
-  const tabNote =
-    sheet.sheetCount && sheet.sheetCount > 1
-      ? ` · tệp có ${sheet.sheetCount} tab, đang đọc "${sheet.sheetName}"`
-      : ''
-
-  return (
-    <GlassCard variant="b" className="flex flex-wrap items-center gap-3 p-4">
-      <Icon icon={FileSpreadsheet} size={16} className="text-accent-foreground" />
-      <span className="text-[12.5px] font-semibold">{sheet.fileName}</span>
-      <span className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px]">
-        <span className="font-num tnum">{sheet.rows.length}</span> dòng dữ liệu{tabNote}
-      </span>
-      <Button size="md" variant="ghost" onClick={onChangeFile}>
-        Đổi tệp
-      </Button>
-    </GlassCard>
-  )
-}
-
-/** Warns that the file was saved in the wrong encoding. Never repairs it —
- *  see `detectMojibakeColumn`. */
-function MojibakeNote({ column, sample }: { column: string; sample: string }) {
-  return (
-    <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
-      <Icon icon={TriangleAlert} size={18} className="text-warning" />
-      <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
-        Tệp lưu sai bảng mã — ví dụ cột &quot;{column}&quot; đang ra &quot;{sample}&quot;. Mọi cột
-        có dấu đều đang hỏng, không riêng cột này: lưu lại tệp dạng CSV UTF-8 rồi chọn lại, hoặc vẫn
-        nạp rồi sửa tay sau.
-      </p>
-    </GlassCard>
-  )
-}
-
 /** One group of mapping selects. Two groups and not one flat grid — see `StepMap`. */
 function FieldGrid({
   title,
@@ -638,6 +607,7 @@ function BatchAssign({
   picked,
   onPick,
   sourceHint,
+  extra,
 }: {
   count: number
   noun: string
@@ -649,6 +619,7 @@ function BatchAssign({
   picked: string
   onPick: (value: string) => void
   sourceHint: string
+  extra?: ReactNode
 }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4">
@@ -696,6 +667,8 @@ function BatchAssign({
           </div>
         )
       )}
+
+      {extra}
     </GlassCard>
   )
 }
@@ -721,6 +694,7 @@ function StepMap({
   scopeOptions,
   picked,
   onPick,
+  batchExtra,
   locked,
 }: {
   spec: ImportSpec
@@ -737,6 +711,7 @@ function StepMap({
   scopeOptions?: { value: string; label: string }[]
   picked: string
   onPick: (value: string) => void
+  batchExtra?: ReactNode
   locked: boolean
 }) {
   const columnOptions = [
@@ -760,7 +735,11 @@ function StepMap({
   const mojibake = detectMojibakeColumn(sheet.headers, sheet.rows)
 
   /** Anything to assign batch-wide at all — a motion, or a source. */
-  const assigns = motions.length > 0 || scope !== undefined || scopeOptions !== undefined
+  const assigns =
+    motions.length > 0 ||
+    scope !== undefined ||
+    scopeOptions !== undefined ||
+    batchExtra !== undefined
 
   return (
     <section className={cn('flex flex-col gap-4', locked && 'pointer-events-none opacity-55')}>
@@ -807,6 +786,7 @@ function StepMap({
           picked={picked}
           onPick={onPick}
           sourceHint={sourceNote(spec, sheet, mapping)}
+          extra={batchExtra}
         />
       )}
 
@@ -887,6 +867,12 @@ function StepRun({
             <Tally label="Trùng trong tệp" value={report.dupInFile} />
             <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
           </div>
+
+          {report.origins && (
+            <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
+              {originTally(report.origins)}
+            </p>
+          )}
 
           {report.errors.length > 0 && (
             <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">

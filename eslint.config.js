@@ -298,8 +298,9 @@ export default tseslint.config(
     // it only asks for half of that exception: it's a CLI command so
     // `no-console` is off, but it imports no fixture — the real staff ledger
     // lives in `staff.ts`. Merging it in would open the door for customer
-    // names to enter a file that has no need of them.
-    files: ['apps/api/src/reset-staff.ts'],
+    // names to enter a file that has no need of them. `seed-mail-leads.ts` is
+    // the same half for the same reason: a CLI command, no fixture.
+    files: ['apps/api/src/reset-staff.ts', 'apps/api/src/seed-mail-leads.ts'],
     rules: { 'no-console': 'off' },
   },
   {

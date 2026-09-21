@@ -14,7 +14,7 @@ import { sales } from '../sales.schema'
  *  So this table has no create door and no delete door — the six rows exist
  *  from migration `0036` onward and only their columns ever change.
  *
- *  That is also why every column is nullable and every row starts NULL. The
+ *  That is also why every POLICY column is nullable and starts NULL. The
  *  numbers do not exist yet and must not be invented; a `DEFAULT 3` here would
  *  be exactly the invented
  *  number, wearing a schema for a disguise. NULL reads as "nobody has decided",
@@ -26,7 +26,7 @@ import { sales } from '../sales.schema'
  *  ------------------------------------------------------------------
  *  `sales.config_entry` holds VOCABULARY — rows a person adds and reorders,
  *  each one a name with at most one attribute. A motion is not vocabulary: the
- *  list cannot grow, the rows have no order, and each carries four unrelated
+ *  list cannot grow, `ord` is display only, and each carries four unrelated
  *  declarations. Forcing them into `config_entry` would mean four more columns
  *  that only six of its rows ever fill, which is how a shared table stops being
  *  shared. They travel the same approval path, though — see `ConfigChange`. */
@@ -57,6 +57,18 @@ export const motionPolicy = sales.table(
      *  init-data gate up to `mql`. An open question rather than a setting —
      *  `inbound` can arrive fully self-described, `outbound` never does. */
     selfServeCountsAsInitData: boolean('self_serve_counts_as_init_data'),
+
+    /** Display override; NULL = the screen's built-in label for the motion. */
+    label: text('label'),
+    /** Display order. NOT NULL unlike the four above: an order is layout, not a
+     *  policy number, so a default invents nothing. 0057 sets 1…6. */
+    ord: integer('ord').notNull().default(0),
+    /** Hidden from pickers when false. Switch-off, never delete — the list
+     *  stays closed at six (see docblock). */
+    active: boolean('active').notNull().default(true),
+    /** A lead of this motion must name a campaign (EVENT: which event). Read
+     *  by the service — `campaign_id` is nullable at every other motion. */
+    requiresCampaign: boolean('requires_campaign').notNull().default(false),
   },
   () => [
     /** The six, copied rather than generated — the same call `touch_kind_known`
@@ -84,6 +96,7 @@ export const motionPolicy = sales.table(
       sql`"first_touch_minutes" IS NULL
           OR ("first_touch_minutes" > 0 AND "first_touch_minutes" <= 129600)`,
     ),
+    check('motion_policy_label_no_blank', sql`"label" <> ''`),
   ],
 )
 

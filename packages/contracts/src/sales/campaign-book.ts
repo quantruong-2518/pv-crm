@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
+import { ObjectCode, Moment, Day, textInput, textInputOptional } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ConfigCode } from './config'
 import {
@@ -48,6 +48,10 @@ export const CampaignBookRow = z.object({
   /** URL ảnh thumbnail, không phải file lưu ở máy chủ — kho file chưa có nên
    *  đây là ô dán URL, giống `MailCta.url`. */
   thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
+
+  /** Last day the campaign takes new leads; absent = open-ended. With `state`,
+   *  it is what the lead-create picker filters on — see `CampaignPickableResponse`. */
+  endsOn: Day.optional(),
 
   /** Số lead đang `ACTIVE` trong `campaign_member`. Máy chủ tính, không phải
    *  cột — giống `LeadRow.daysHere`. */
@@ -103,6 +107,7 @@ export const CampaignCreate = z.object({
   sourceId: ConfigCode.optional(),
   slogan: textInputOptional(200),
   thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
+  endsOn: Day.optional(),
 })
 
 export const CampaignCreateResponse = CampaignBookRow
@@ -126,6 +131,7 @@ export const CampaignPatch = z
     sourceId: ConfigCode.nullable().optional(),
     slogan: textInputOptional(200).nullable(),
     thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').nullable().optional(),
+    endsOn: Day.nullable().optional(),
   })
   .refine(
     (v) =>
@@ -133,7 +139,8 @@ export const CampaignPatch = z
       v.ownerId !== undefined ||
       v.sourceId !== undefined ||
       v.slogan !== undefined ||
-      v.thumbnailUrl !== undefined,
+      v.thumbnailUrl !== undefined ||
+      v.endsOn !== undefined,
     { message: 'Cần sửa ít nhất một trường' },
   )
 
@@ -283,6 +290,27 @@ export const CampaignPreflightResponse = z.object({
    *  audience, and a missing member here would be a bug, not a permission. */
   alsoRunning: z.array(CampaignOverlap),
 })
+
+/** `GET /sales/campaigns/pickable` — the campaign box on `LeadCreate`. Only
+ *  `DRAFT`/`RUNNING` campaigns not past `endsOn` are pickable: a `STOPPED` or
+ *  `DONE` one, or one whose window closed, cannot gain a new member. */
+export const CampaignPickableQuery = z.object({
+  q: z.string().trim().min(1).max(120).optional(),
+})
+export type CampaignPickableQuery = z.infer<typeof CampaignPickableQuery>
+
+export const CampaignPickableResponse = z.object({
+  rows: z.array(
+    z.object({
+      code: ObjectCode,
+      name: z.string().min(1),
+      state: z.enum(['DRAFT', 'RUNNING']),
+      endsOn: Day.optional(),
+      sourceId: ConfigCode.optional(),
+    }),
+  ),
+})
+export type CampaignPickableResponse = z.infer<typeof CampaignPickableResponse>
 
 export type CampaignState = z.infer<typeof CampaignState>
 export type CampaignBookRow = z.infer<typeof CampaignBookRow>

@@ -6,6 +6,7 @@ import {
   CampaignMemberListResponse,
   CampaignMemberPatchResponse,
   CampaignPatchResponse,
+  CampaignPickableResponse,
   CampaignPreflightResponse,
   CampaignProfile,
   CampaignStartResponse,
@@ -16,6 +17,7 @@ import {
   type CampaignMemberPatch,
   type CampaignMemberQuery,
   type CampaignPatch,
+  type CampaignPickableQuery,
   type CampaignStart,
   type CampaignWaveAdd,
   type CampaignWaveRow,
@@ -24,6 +26,7 @@ import {
   type MasSendResponse,
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
+import type { Db } from '@api/platform/db/db.module'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { PvError, conflict, denied, notFound } from '@api/platform/http/problem'
 import { toContract, toMemberRow, toProfile } from './campaign.mapper'
@@ -105,6 +108,7 @@ export class CampaignService {
       sourceId: body.sourceId ?? null,
       slogan: body.slogan ?? null,
       thumbnailUrl: body.thumbnailUrl ?? null,
+      endsOn: body.endsOn ?? null,
     })
 
     const created = await this.repo.byCode(who, code, false)
@@ -125,11 +129,36 @@ export class CampaignService {
       ...(body.sourceId !== undefined ? { sourceId: body.sourceId } : {}),
       ...(body.slogan !== undefined ? { slogan: body.slogan } : {}),
       ...(body.thumbnailUrl !== undefined ? { thumbnailUrl: body.thumbnailUrl } : {}),
+      ...(body.endsOn !== undefined ? { endsOn: body.endsOn } : {}),
     })
 
     const after = await this.repo.byCode(who, code, true)
     if (!after) throw notFound('chiến dịch', code)
     return CampaignPatchResponse.parse(toContract(after))
+  }
+
+  async pickable(q: CampaignPickableQuery): Promise<CampaignPickableResponse> {
+    const rows = await this.repo.pickable(q.q ? { q: q.q } : {})
+    return CampaignPickableResponse.parse({
+      rows: rows.map((r) => ({
+        code: r.code,
+        name: r.name,
+        state: r.state,
+        ...(r.endsOn ? { endsOn: r.endsOn } : {}),
+        ...(r.sourceId ? { sourceId: r.sourceId } : {}),
+      })),
+    })
+  }
+
+  /** The lead-create door's two asks: is this campaign pickable (`null` = no),
+   *  and enrol the new lead inside the lead's own transaction. */
+  async pickableOne(code: string): Promise<{ name: string; sourceId: string | null } | null> {
+    const [row] = await this.repo.pickable({ code })
+    return row ? { name: row.name, sourceId: row.sourceId } : null
+  }
+
+  async enrol(tx: Db, code: string, leadCode: string): Promise<void> {
+    await this.repo.addMembers(tx, code, [leadCode])
   }
 
   async members(

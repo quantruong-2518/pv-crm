@@ -45,10 +45,11 @@ export * from './ui/sparkline'
 export * from './ui/status-dot'
 export * from './ui/textarea'
 
-// ---- Zone 02 · Molecules (M-01 … M-12) ----
+// ---- Zone 02 · Molecules (M-01 … M-18) ----
 export * from './patterns/ai-action'
 export * from './patterns/approval-chain'
 export * from './patterns/bar-chart'
+export * from './patterns/combobox'
 export * from './patterns/context-rail'
 export * from './patterns/data-table'
 export * from './patterns/empty-state'

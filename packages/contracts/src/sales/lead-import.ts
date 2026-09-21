@@ -3,6 +3,7 @@ import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from
 import { LeadSourceKind } from './enums'
 import { LEAD_MAX } from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
+import { LeadOriginPick } from './lead-origin'
 
 /** Loading leads from a file — TWO endpoints, one body.
  *
@@ -76,6 +77,10 @@ export const LEAD_IMPORT_FIELDS = [
   'channel',
   'headcount',
   'pain',
+  /** Free text naming this row's origin — folded through `originKey` at
+   *  commit, same as a typed name in `LeadOriginPick`. Absent means the
+   *  batch-level `LeadImportBody.origin` covers the whole file instead. */
+  'origin',
 ] as const
 
 export const LeadImportField = z.enum(LEAD_IMPORT_FIELDS)
@@ -164,6 +169,10 @@ export const LeadImportBody = z.object({
    *  saying something about the whole file, and a stale code in a column should
    *  not quietly overrule them. */
   source: textInputOptional(LEAD_MAX.campaignCode),
+  /** Origin for the rows whose own `origin` cell is empty — unlike `source`
+   *  above, a row's cell wins: a file naming each row's origin is more precise
+   *  than one pick for the batch. */
+  origin: LeadOriginPick.optional(),
   rows: z
     .array(LeadImportRow)
     .min(1, 'Không có dòng nào để nạp')
@@ -244,6 +253,14 @@ export const LeadImportReport = z.object({
 
   dupWithBook: z.array(LeadImportDup),
   dupWithinFile: z.array(LeadImportDup),
+
+  /** Origins this batch touches. `matched` hit an existing catalog key;
+   *  `created` names the NEW ones a commit would mint — a dry run has no ids
+   *  for them yet, so names are all there is to show. */
+  origins: z.object({
+    matched: z.number().int().nonnegative(),
+    created: z.array(z.string()),
+  }),
 })
 
 /** Dry run. Nothing is written, no code is minted, no batch exists afterwards.

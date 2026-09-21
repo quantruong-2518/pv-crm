@@ -73,6 +73,9 @@ export type ImportBatchChoices = {
    *  not by this file; a per-row `source` cell, if the column was mapped, is
    *  passed through untouched in `values`. */
   source?: string
+  /** Origin for the whole batch — a row's own `origin` cell wins over it; the
+   *  batch pick only fills rows that leave that cell empty. */
+  origin?: LeadImportBody['origin']
 }
 
 /** Keep only the sixteen keys the wire actually understands.
@@ -169,6 +172,7 @@ export function buildLeadImportBody(
     fileName: clip(choices.fileName, LEAD_MAX.fileName),
     motion: choices.motion,
     source: choices.source,
+    origin: choices.origin,
     rows: rows.map((row) => ({
       line: row.line,
       first: clip(row.first, LEAD_MAX.company),
@@ -204,6 +208,7 @@ export type LeadImportPanelReport = {
   dupWithinFile: LeadImportDup[]
   /** Codes minted for `rows`, in the same order — only after a commit. */
   codes?: string[]
+  origins?: LeadImportReport['origins']
 }
 
 /** Translate a server `LeadImportReport` — returned by BOTH the preview and
@@ -233,5 +238,6 @@ export function toPanelReport(report: LeadImportReport): LeadImportPanelReport {
     total: report.total,
     dupWithBook: report.dupWithBook,
     dupWithinFile: report.dupWithinFile,
+    origins: report.origins,
   }
 }

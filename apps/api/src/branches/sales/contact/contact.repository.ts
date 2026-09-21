@@ -42,8 +42,8 @@ export class ContactRepository {
     return this.db.transaction((tx) => work(tx))
   }
 
-  async nextCode(): Promise<string> {
-    const r = (await this.db.execute(NEXT_CODE)) as { rows: { code: string }[] }
+  async nextCode(db: Db = this.db): Promise<string> {
+    const r = (await db.execute(NEXT_CODE)) as { rows: { code: string }[] }
     const code = r.rows[0]?.code
     if (!code) throw new Error('sales.contact_code_seq trả về rỗng — migration đã chạy chưa?')
     return code

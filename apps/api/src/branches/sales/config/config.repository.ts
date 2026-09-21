@@ -169,12 +169,9 @@ export class SalesConfigRepository {
    *  danh sách để CHỌN thì lọc ở chỗ đó. */
   // ── the six motions · a table with no create door ────────────────────────
 
-  /** All six, in the order the contract declares them.
+  /** All six, by `ord`.
    *
-   *  No `ord` column: there is nothing to reorder here, and a column that can
-   *  drift from the closed list it mirrors is a column that will.
-   *
-   *  Ordered by `LeadMotion.options` — the STORED spelling — rather than by the
+   *  Ties fall back to `LeadMotion.options` — the STORED spelling — rather than by the
    *  engine's `LEAD_MOTIONS`, which holds the same six in lower case. That
    *  second spelling is the "enum declared twice" debt recorded in
    *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`,
@@ -184,7 +181,9 @@ export class SalesConfigRepository {
   async motions(db: Db = this.db): Promise<MotionPolicyRowDb[]> {
     const order = LeadMotion.options
     const rows = await db.select().from(motionPolicy)
-    return [...rows].sort((a, b) => order.indexOf(a.motion) - order.indexOf(b.motion))
+    return [...rows].sort(
+      (a, b) => a.ord - b.ord || order.indexOf(a.motion) - order.indexOf(b.motion),
+    )
   }
 
   /** Write one motion's declaration. `false` = no such row, which can only

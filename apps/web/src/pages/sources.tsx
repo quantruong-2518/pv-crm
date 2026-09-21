@@ -47,6 +47,7 @@ import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { FilterMenu } from '@/components/table-bits'
 import { CampaignForm } from './source-parts'
+import { SourceStatsBlock } from './source-stats-parts'
 import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from './source-model'
 
 /** Module 1 · SỔ NGUỒN DẪN (`SR-nn`).
@@ -499,6 +500,8 @@ export function SourcesPage() {
             }),
           }}
         />
+
+        <SourceStatsBlock />
       </ScreenLayout>
     </AppShell>
   )

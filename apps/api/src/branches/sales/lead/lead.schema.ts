@@ -24,6 +24,7 @@ import type {
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
+import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { sales } from '../sales.schema'
 import { workstream } from '../workstream/workstream.schema'
 
@@ -250,6 +251,13 @@ export const lead = sales.table(
      *  `lead.mapper.ts` is the ONE place the two forms meet. See the docblock
      *  on `LeadMotion` in `packages/contracts/src/sales/enums.ts`. */
     motion: text('motion').$type<LeadMotion>(),
+    /** Level 2 under `motion` — which place in the open origin catalogue.
+     *  Nullable for `motion`'s reason: the fixture predates it, and 0057 only
+     *  backfills what `source_kind` already proves (APOLLO, LANDING_PAGE). */
+    originId: text('origin_id').references(() => leadOrigin.id),
+    /** The text the door was given for the origin (a typed name, a
+     *  `utm_source`), whether or not it resolved — the evidence behind `origin_id`. */
+    originRaw: text('origin_raw'),
     /** Chiến dịch được quy công — dây nối module 1 ↔ module 2. Giá trị là `id`
      *  của một dòng `sales.config_entry` trong danh mục `SOURCE`.
      *
@@ -347,6 +355,9 @@ export const lead = sales.table(
     index('lead_state_idx').on(t.state),
     index('lead_exit_idx').on(t.exitReason),
     index('lead_campaign_idx').on(t.campaignId),
+    /** "How many leads came from origin X" — the Performance breakdown under
+     *  each motion, and the repoint step of an origin merge. */
+    index('lead_origin_idx').on(t.originId),
     /** "Everything belonging to this run" — the book screen groups by this
      *  column, and it is the hottest join of the feature. */
     index('lead_workstream_idx').on(t.workstreamCode),
@@ -443,6 +454,7 @@ export const lead = sales.table(
         'decision_maker',
         'approver',
         'campaign_id',
+        'origin_raw',
       ),
     ),
   ],

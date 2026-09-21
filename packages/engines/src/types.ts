@@ -157,6 +157,10 @@ export const PERMISSIONS = [
   'plan.submit',
   'config.view',
   'config.propose',
+  /** Rename, hide, merge and re-file lead origins (`sales.lead_origin`).
+   *  Creating one is NOT gated here — anybody typing a lead may add a new
+   *  origin; tidying the catalogue afterwards is this permission. */
+  'lead-origin.manage',
   /** The channel identity book — which person a wire address belongs to.
    *
    *  ONE permission covering read and write, unlike every book beside it, and

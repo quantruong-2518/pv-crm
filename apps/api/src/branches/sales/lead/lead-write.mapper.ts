@@ -3,6 +3,7 @@ import type {
   ExitReason,
   LeadCreate,
   LeadIntakeBody,
+  LeadOriginPick,
   LeadPatch,
   LeadState,
   LeadTier,
@@ -48,6 +49,8 @@ export type LeadValues = Omit<typeof lead.$inferInsert, 'code'>
 export type LeadWrite = {
   values: LeadValues
   ownerName: string | null
+  /** Origin still to resolve — the file door resolves it inside its commit. */
+  origin?: LeadOriginPick
 }
 
 /** The mirror row for a draft, once its code has been minted.

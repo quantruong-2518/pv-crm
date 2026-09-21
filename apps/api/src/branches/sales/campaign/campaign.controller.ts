@@ -6,6 +6,7 @@ import {
   CampaignMemberPatch,
   CampaignMemberQuery,
   CampaignPatch,
+  CampaignPickableQuery,
   CampaignStart,
   CampaignWaveAdd,
   ObjectCode,
@@ -40,6 +41,14 @@ export class CampaignController {
   @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(CampaignBookQuery)) q: CampaignBookQuery) {
     return this.campaigns.book(who, q)
+  }
+
+  /** The campaign box on the lead-create form, so it asks what that form asks:
+   *  `lead.edit`. Static segment, so it wins over `:code` below. */
+  @Get('pickable')
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
+  pickable(@Query(zod(CampaignPickableQuery)) q: CampaignPickableQuery) {
+    return this.campaigns.pickable(q)
   }
 
   @Get(':code')

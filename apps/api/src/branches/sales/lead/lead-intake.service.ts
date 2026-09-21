@@ -1,5 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { LeadIntakeResponse, type LeadIntakeBody, type LeadIntakeQuery } from '@pv/contracts'
+import {
+  LeadIntakeResponse,
+  ORIGIN_NAME_MAX,
+  originKey,
+  type LeadIntakeBody,
+  type LeadIntakeQuery,
+} from '@pv/contracts'
 import { AUDIENCE_INTERNAL, LEAD_INTAKE_ACCEPTED, plan, type ObjectRef } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
@@ -13,6 +19,7 @@ import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadIntakeRepository, type IntakeClient } from './lead-intake.repository'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
+import { LeadOriginService } from '../lead-origin/lead-origin.service'
 
 @Injectable()
 export class LeadIntakeService {
@@ -26,6 +33,7 @@ export class LeadIntakeService {
     private readonly runs: WorkstreamRepository,
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
+    private readonly origins: LeadOriginService,
   ) {}
 
   async accept(
@@ -57,8 +65,11 @@ export class LeadIntakeService {
            already exists, or every repeat submission opens a new customer. */
         const accountCode = await this.accounts.resolveForLead(tx, write.values)
         await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
+        const origin = await this.originOf(tx, query.utm_source)
         await this.writes.insertLandingLead(tx, {
           ...write.values,
+          originId: origin.id,
+          originRaw: origin.raw,
           accountCode,
           code,
           workstreamCode: run,
@@ -95,6 +106,18 @@ export class LeadIntakeService {
     }
 
     return LeadIntakeResponse.parse({ accepted: true })
+  }
+
+  /** `utm_source` → an EXISTING origin, blank → Website. Lookup only: an
+   *  anonymous caller must not grow the catalog, so an unknown source keeps
+   *  `origin_id` null and its text in `origin_raw` for a person to file later. */
+  private async originOf(
+    tx: Db,
+    utm: string | undefined,
+  ): Promise<{ id: string | null; raw: string | null }> {
+    const typed = utm !== undefined && originKey(utm) !== '' ? utm.trim() : undefined
+    const found = await this.origins.findLive(tx, typed ?? 'Website')
+    return { id: found?.id ?? null, raw: typed?.slice(0, ORIGIN_NAME_MAX) ?? null }
   }
 
   /** Queue the internal alert IN THE SAME UNIT OF WORK as the lead.
