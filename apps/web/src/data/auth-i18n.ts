@@ -211,9 +211,9 @@ export const resetPasswordText = {
   leadBefore: tr('Cho tài khoản ', 'For account ', '계정: '),
   leadAfter: (n: number) =>
     tr(
-      `. Tối thiểu ${n} ký tự. Đặt xong, mọi phiên cũ của tài khoản này bị đóng và bạn đăng nhập lại bằng mật khẩu mới.`,
-      `. At least ${n} characters. Once set, every old session on this account is closed and you sign in again with the new password.`,
-      `. 최소 ${n}자. 설정하면 이 계정의 기존 세션이 모두 종료되며 새 비밀번호로 다시 로그인합니다.`,
+      `. Tối thiểu ${n} ký tự. Đặt xong, mọi phiên cũ của tài khoản này bị đóng và bạn được đăng nhập lại ngay.`,
+      `. At least ${n} characters. Once set, every old session on this account is closed and you are signed straight back in.`,
+      `. 최소 ${n}자. 설정하면 이 계정의 기존 세션이 모두 종료되며 바로 다시 로그인됩니다.`,
     ),
   newPassword: tr('Mật khẩu mới', 'New password', '새 비밀번호'),
   newPasswordPlaceholder: (n: number) =>
@@ -226,6 +226,11 @@ export const resetPasswordText = {
   ),
   submit: tr('Đặt lại mật khẩu', 'Set new password', '비밀번호 재설정'),
   submitting: tr('Đang đặt lại…', 'Setting…', '설정 중…'),
+  done: tr(
+    'Đã đặt lại mật khẩu — bạn đã đăng nhập.',
+    'Password reset — you are signed in.',
+    '비밀번호가 재설정되어 로그인되었습니다.',
+  ),
   back: tr('Về màn đăng nhập', 'Back to sign in', '로그인 화면으로'),
 }
 

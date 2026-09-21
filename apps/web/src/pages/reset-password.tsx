@@ -7,10 +7,13 @@ import {
   checkNewPassword,
   readResetTicket,
   setNewPassword,
+  signInWithEmail,
   type AuthError,
 } from '@/data/auth'
 import { authErrorText, resetPasswordText, t } from '@/data/auth-i18n'
 import { useLang } from '@/app/i18n'
+import { CHANGE_PASSWORD_PATH, useSession } from '@/app/auth'
+import { toastDone } from '@/app/toast'
 
 /** Quên mật khẩu — bước 2: đặt mật khẩu mới.
  *
@@ -30,21 +33,11 @@ import { useLang } from '@/app/i18n'
  *  password into a link that was already expired.
  *
  *  ------------------------------------------------------------------
- *  ĐẶT XONG KHÔNG VÀO THẲNG NỮA — VỀ MÀN ĐĂNG NHẬP
+ *  ĐẶT XONG → ĐĂNG NHẬP NHANH
  *  ------------------------------------------------------------------
- *  Bản POC vào luôn, với lý do hợp lý ở thời điểm đó: người vừa gõ mật khẩu mới
- *  hai lần mà còn bị bắt gõ lần thứ ba là bắt chứng minh một việc hệ vừa tận
- *  mắt nhìn thấy.
- *
- *  Có máy chủ thì lý do đó không còn đứng được. Đặt lại mật khẩu thành công
- *  **thu hồi mọi phiên đang sống của tài khoản** — đó chính là việc nó sinh ra
- *  để làm, vì trường hợp phải dùng tới nó là trường hợp có người khác đang cầm
- *  mật khẩu cũ và có thể đang ngồi trong một phiên. Cấp một phiên mới ngay tại
- *  đây là mở lại đúng cánh cửa vừa đóng, và tệ hơn: người bấm link trong mail
- *  rất hay đang ngồi máy lạ.
- *
- *  Nên màn này đưa họ về `/sign-in`, điền sẵn email và nói rõ vừa xảy ra
- *  chuyện gì. Một lần gõ mật khẩu, đổi lấy việc mọi phiên cũ thật sự chết. */
+ *  Máy chủ thu hồi mọi phiên cũ khi đặt lại, nên phiên mới không "còn sống sót"
+ *  mà được mở bằng đúng mật khẩu vừa gõ, qua cửa đăng nhập thường. Đăng nhập
+ *  hỏng (mạng, khoá tạm) thì rơi về `/sign-in` như trước. */
 export function ResetPasswordPage() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -52,6 +45,7 @@ export function ResetPasswordPage() {
      `params.get` per render would come back null the moment it does. */
   const [token] = useState(() => params.get('token'))
   const lang = useLang()
+  const signIn = useSession((s) => s.signIn)
 
   const [ticket, setTicket] = useState<{ email: string } | null>(null)
   const [checking, setChecking] = useState(true)
@@ -146,10 +140,21 @@ export function ResetPasswordPage() {
           setBusy(false)
           if (refused) return setError(refused)
 
-          /* Không `signIn` ở đây — xem docblock đầu file. Email đi kèm để họ
-             không phải gõ lại, `reset` để màn kia nói đúng câu thay vì để họ
-             đoán xem mình vừa bị đá về đây vì cái gì. */
-          navigate('/sign-in', { replace: true, state: { email: ticket.email, reset: true } })
+          /* Không có phiên nào để giữ (máy chủ vừa thu hồi hết), nên đăng nhập
+             lại bằng chính mật khẩu vừa đặt — `remember` tắt, như một lần đăng
+             nhập mặc định. */
+          const result = await signInWithEmail(ticket.email, password)
+          if (!result.ok) {
+            navigate('/sign-in', { replace: true, state: { email: ticket.email, reset: true } })
+            return
+          }
+          signIn(result.actor, {
+            session: result.session,
+            remember: false,
+            mustChangePassword: result.mustChangePassword,
+          })
+          toastDone(t(lang, resetPasswordText.done))
+          navigate(result.mustChangePassword ? CHANGE_PASSWORD_PATH : '/', { replace: true })
         }}
         className="flex flex-col gap-5"
       >

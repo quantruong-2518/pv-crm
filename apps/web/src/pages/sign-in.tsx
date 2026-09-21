@@ -60,10 +60,8 @@ export function SignInPage() {
    *  vừa chết hay chưa từng có. Cả hai đều phải dùng — quay lại đúng chỗ cũ, và
    *  nói đúng lý do.
    *
-   *  Màn đặt lại mật khẩu gửi thêm hai thứ nữa (`email`, `reset`). Nó KHÔNG
-   *  được tự đăng nhập hộ — máy chủ vừa thu hồi mọi phiên của tài khoản đó — nên
-   *  người dùng hạ cánh ở đây ngay sau khi vừa gõ mật khẩu mới hai lần. Không
-   *  nói gì thì cú nhảy ấy trông y như thao tác vừa rồi đã hỏng. */
+   *  Màn đặt lại mật khẩu chỉ gửi `email` + `reset` khi đăng nhập nhanh của nó
+   *  hỏng; không nói gì thì cú nhảy trông như thao tác vừa rồi đã hỏng. */
   const sent = location.state as {
     from?: string
     expired?: boolean
