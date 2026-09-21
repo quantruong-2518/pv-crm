@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 import {
+  daysUntil,
   pipelinePosition,
   type AccessControl,
   type Actor,
@@ -10,6 +11,7 @@ import {
   LeadTier,
   PipelinePositionView,
   StageKey,
+  WorkstreamBoardResponse,
   WorkstreamBookResponse,
   WorkstreamProfileResponse,
   type ObjectCode,
@@ -26,8 +28,22 @@ import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladd
 import { toRef as leadRef } from '../lead/lead.mapper'
 import { scopeRefOf, toRef as dealRef } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
-import { blankFootprint, WorkstreamRepository, type WorkstreamRead } from './workstream.repository'
-import { holdersOf, liveOf, standOf, toContract, type WorkstreamLive } from './workstream.mapper'
+import {
+  blankFootprint,
+  WorkstreamRepository,
+  type WorkstreamFilters,
+  type WorkstreamRead,
+} from './workstream.repository'
+import {
+  boardColumns,
+  holdersOf,
+  liveCodeOf,
+  liveOf,
+  opensStand,
+  standOf,
+  toContract,
+  type WorkstreamLive,
+} from './workstream.mapper'
 import { accountLaneOf, dealLanesOf, leadLaneOf } from './workstream-lanes'
 import { WorkstreamLanesRepository } from './workstream-lanes.repository'
 
@@ -63,6 +79,27 @@ export class WorkstreamService {
       rows: await this.rowsOf(who, visible),
       total: page.total,
       hidden: page.hidden + hidden,
+    })
+  }
+
+  /** The board's column catalogue — `GET /sales/workstreams/board`.
+   *
+   *  Counts only: the screen then asks the book door once per column, so a
+   *  column pages and sorts like any other view. Each `total` is counted under
+   *  the book door's own joins, filters and scope axis, which is what lets a
+   *  header and the cards below it agree.
+   *
+   *  E2's second grid is NOT applied here and cannot be: it cuts rows one ref
+   *  at a time, and this door never reads a row. `book()` reports that cut as
+   *  `hidden` against the same SQL total, so the two numbers stay comparable. */
+  async board(who: Actor, q: WorkstreamFilters): Promise<WorkstreamBoardResponse> {
+    const [totals, ladders] = await Promise.all([
+      this.repo.boardTotals(who, q, true),
+      this.repo.ladderRows(),
+    ])
+
+    return WorkstreamBoardResponse.parse({
+      columns: boardColumns(totals, q.status, stageConfigOf(ladders.stage)),
     })
   }
 
@@ -142,12 +179,21 @@ export class WorkstreamService {
       this.repo.ladderRows(),
     ])
 
+    /* Null for a reader who sees the whole book — `standPair` takes the same
+       branch in SQL, and the two must fence the same rows or a card lands in a
+       column that does not describe it. */
+    const readerId = who.ownOnly ? who.id : null
+
     const walked = reads.map((read) => {
+      const runContracts = contracts.get(read.row.code) ?? []
       const own = this.visibleDeals(who, deals.get(read.row.code) ?? [], owners).deals
-      const signed = (contracts.get(read.row.code) ?? []).find((c) =>
-        own.some((d) => d.code === c.deal),
-      )
-      return { read, own, live: liveOf(own, signed?.code ?? null) }
+      const signed = runContracts.find((c) => own.some((d) => d.code === c.deal))
+      return {
+        read,
+        own,
+        live: liveOf(own, signed?.code ?? null),
+        kept: opensStand(read, runContracts, owners, readerId),
+      }
     })
 
     const waiting = await this.approvals.pendingOnMany(
@@ -156,11 +202,13 @@ export class WorkstreamService {
 
     const stage = stageConfigOf(ladders.stage)
     const tier = tierConfigOf(ladders.tier)
+    const now = new Date().toISOString()
 
     return walked.map((w) =>
       toContract({
         read: w.read,
-        stand: standOf(w.read, w.live, stage, tier),
+        stand: standOf(w.read, w.kept, stage),
+        overdueBy: overdueOf(w.read.row.standDueAt, now),
         position: positionOf(
           w.read,
           w.live,
@@ -199,8 +247,16 @@ export class WorkstreamService {
   }
 }
 
-const liveCodeOf = (read: WorkstreamRead, live: WorkstreamLive): string =>
-  live.kind === 'HĐ' ? live.code : live.kind === 'OP' ? live.deal.code : read.lead.code
+/** `overdueBy` off the stored deadline: days from that deadline to now, in
+ *  whole calendar days.
+ *
+ *  `daysUntil(a, b)` is `a − b`, so passing `now` as the near side gives the
+ *  days ALREADY PAST the deadline — the same subtraction `pipelinePosition`
+ *  makes from the other end, reused rather than written again. The book's
+ *  `ORDER BY` sorts on this very column, so the number on the card and the
+ *  place in the list are one fact. */
+const overdueOf = (due: Date | null, now: string): number | null =>
+  due === null ? null : daysUntil(now, due.toISOString())
 
 /** Where the live object of a journey stands, translated for the engine.
  *

@@ -212,6 +212,15 @@ export const WorkstreamCloseReason = z.enum(
   'Lý do đóng không có trong danh sách',
 )
 
+/** Vietnamese label for each close reason, declared once for the same reason
+ *  `LEAD_STATE_LABEL` is: the board door prints these server-side while the
+ *  book screen prints them in the browser, and two copies of one word drift. */
+export const CLOSE_REASON_LABEL: Record<WorkstreamCloseReason, string> = {
+  WON: 'Thắng',
+  LOST: 'Thua',
+  CHURNED: 'Rời bỏ',
+}
+
 export type LeadSourceKind = z.infer<typeof LeadSourceKind>
 export type LeadMotion = z.infer<typeof LeadMotion>
 export type ContactChannel = z.infer<typeof ContactChannel>

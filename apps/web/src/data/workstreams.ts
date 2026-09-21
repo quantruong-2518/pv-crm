@@ -1,13 +1,16 @@
-import { queryOptions, useQueryClient } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions, useQueryClient } from '@tanstack/react-query'
 import {
+  WORKSTREAM_JOURNEY_STEPS,
+  WorkstreamBoardResponse,
   WorkstreamBookQuery,
   WorkstreamBookResponse,
   WorkstreamProfileResponse,
-  type WorkstreamCloseReason,
+  type WorkstreamBoardColumn,
   type WorkstreamDealLane,
   type WorkstreamFootprint,
   type WorkstreamHolder,
   type WorkstreamRow,
+  type WorkstreamStatus,
   type WorkstreamStep,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
@@ -26,11 +29,16 @@ const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'workstream.view', sco
 
 export const DEFAULT_WORKSTREAM_BOOK_QUERY: WorkstreamBookQuery = WorkstreamBookQuery.parse({})
 
-/** The enum key is English; every workstream screen prints this instead. */
-export const CLOSE_REASON_LABEL: Record<WorkstreamCloseReason, string> = {
-  WON: 'Thắng',
-  LOST: 'Thua',
-  CHURNED: 'Rời bỏ',
+/** Re-exported, not re-declared: the label set lives in `@pv/contracts`
+ *  beside its enum so the board door and this screen print the same word. */
+export { CLOSE_REASON_LABEL } from '@pv/contracts'
+
+/** One name per status, so the table's tab and the board's filter chip cannot
+ *  call the same filter two different things. */
+export const WORKSTREAM_STATUS_LABEL: Record<WorkstreamStatus, string> = {
+  open: 'Đang chạy',
+  closed: 'Đã đóng',
+  all: 'Tất cả',
 }
 
 /** Every channel is always present on the wire, so a sum of 0 is a real 0.
@@ -52,6 +60,9 @@ export function workstreamBookQueryToParams(q: WorkstreamBookQuery): string {
   if (q.dir !== d.dir) p.set('dir', q.dir)
   if (q.accountCode !== undefined) p.set('accountCode', q.accountCode)
   if (q.q !== undefined) p.set('q', q.q)
+  if (q.standKind !== undefined) p.set('standKind', q.standKind)
+  if (q.standKey !== undefined) p.set('standKey', q.standKey)
+  if (q.closeReason !== undefined) p.set('closeReason', q.closeReason)
   return p.toString()
 }
 
@@ -71,6 +82,214 @@ export function workstreamBookQuery(q: WorkstreamBookQuery) {
         signal,
       }),
   })
+}
+
+// ---------------------------------------------------------------------------
+// THE BOARD — one catalogue call, then one paging call per column
+// ---------------------------------------------------------------------------
+
+/** What the catalogue and its columns must ASK ALIKE. Paging and sorting are
+ *  left out — they change which rows come back, never how many match — but
+ *  `status`, `q` and `accountCode` go to both doors or the header counts a book
+ *  the cards below it are no longer showing. */
+export function workstreamBoardFilterParams(q: WorkstreamBookQuery): string {
+  const d = DEFAULT_WORKSTREAM_BOOK_QUERY
+  const p = new URLSearchParams()
+  if (q.status !== d.status) p.set('status', q.status)
+  if (q.accountCode !== undefined) p.set('accountCode', q.accountCode)
+  if (q.q !== undefined) p.set('q', q.q)
+  return p.toString()
+}
+
+/** The column catalogue. Its `total` is the ONLY number a column header prints:
+ *  a page of the book answers the same question for one moment of one read, and
+ *  two sources for one figure is how two figures start to disagree. The filter
+ *  is part of the key — without it React Query would re-serve the catalogue of
+ *  a search nobody is running any more. */
+export function workstreamBoardColumnsQuery(base: WorkstreamBookQuery) {
+  const filters = workstreamBoardFilterParams(base)
+  return queryOptions({
+    queryKey: [...WORKSTREAM_BOOK_KEY, 'board', filters] as const,
+    queryFn: ({ signal }) =>
+      api.read<WorkstreamBoardResponse>(
+        filters === '' ? `${BOOK_PATH}/board` : `${BOOK_PATH}/board?${filters}`,
+        { need: READ_NEED, schema: WorkstreamBoardResponse, signal },
+      ),
+  })
+}
+
+/** Smaller than the book's own page: a column is read at a glance and scrolled
+ *  rarely, so a first paint waits for one short page per column instead of six
+ *  long ones. */
+const COLUMN_PAGE_SIZE = 20
+
+/** WHETHER rows were cut for scope, never how many.
+ *
+ *  The door's `hidden` is two counts added together (`workstream.service.ts`):
+ *  one cut made in SQL over the WHOLE book, identical on every page, plus one
+ *  E2 makes over THAT PAGE alone. No arithmetic on this side recovers the true
+ *  figure — summing the pages double-counts the first half, reading the last
+ *  page drops every earlier second half. So the fact is declared and the number
+ *  is not. It comes back the day the door splits the two. */
+export type WorkstreamColumnCards = { rows: WorkstreamRow[]; anyHidden: boolean }
+
+/** A run can change rung between two page reads, so page 2 may repeat a card
+ *  page 1 already holds. First copy wins — the column keeps the order the
+ *  server sent and never prints one `code` twice. */
+function dedupeByCode(pages: readonly WorkstreamBookResponse[]): WorkstreamRow[] {
+  const seen = new Set<string>()
+  const rows: WorkstreamRow[] = []
+  for (const page of pages) {
+    for (const row of page.rows) {
+      if (seen.has(row.code)) continue
+      seen.add(row.code)
+      rows.push(row)
+    }
+  }
+  return rows
+}
+
+/** The door params one column is fetched with. The column CARRIES them, all of
+ *  them — the screen narrows on the `by` tag and infers nothing, `status`
+ *  included: which runs a rung counts is the server's fact, and a literal here
+ *  would be a second copy of it that can only drift. */
+function columnFilter(column: WorkstreamBoardColumn): Partial<WorkstreamBookQuery> {
+  const asks =
+    column.by === 'stand'
+      ? { standKind: column.kind, standKey: column.key }
+      : { closeReason: column.closeReason }
+  return { ...asks, status: column.status }
+}
+
+/** One key per column, and one identity for a `key=` prop. */
+export function boardColumnId(column: WorkstreamBoardColumn): string {
+  return column.by === 'stand'
+    ? `stand:${column.kind}:${column.key}`
+    : `closed:${column.closeReason}`
+}
+
+/** One column = one call to the book door narrowed to that column's question.
+ *  Same key prefix as the book, so one write invalidates the table view and
+ *  every column of the board together. The screen never re-sorts: `sort`/`dir`
+ *  ride on `base`. The three filters are cleared before the column's own are
+ *  laid on, so nothing left on the address narrows a column twice. */
+export function workstreamColumnQuery(base: WorkstreamBookQuery, column: WorkstreamBoardColumn) {
+  const q: WorkstreamBookQuery = {
+    ...base,
+    standKind: undefined,
+    standKey: undefined,
+    closeReason: undefined,
+    ...columnFilter(column),
+    size: COLUMN_PAGE_SIZE,
+    page: 1,
+  }
+  return infiniteQueryOptions({
+    queryKey: [...WORKSTREAM_BOOK_KEY, 'column', q] as const,
+    initialPageParam: q.page,
+    queryFn: ({ pageParam, signal }) =>
+      api.read<WorkstreamBookResponse>(
+        `${BOOK_PATH}?${workstreamBookQueryToParams({ ...q, page: pageParam })}`,
+        { need: READ_NEED, schema: WorkstreamBookResponse, signal },
+      ),
+    /* Counted over rows actually received, and an empty page ends the column
+       whatever `total` says — scope can cut rows a count still includes, and
+       that gap would otherwise ask for page after page forever. */
+    getNextPageParam: (last, pages, lastParam) => {
+      if (last.rows.length === 0) return undefined
+      const got = pages.reduce((n, page) => n + page.rows.length, 0)
+      return got < last.total ? lastParam + 1 : undefined
+    },
+    select: (data): WorkstreamColumnCards => ({
+      rows: dedupeByCode(data.pages),
+      anyHidden: data.pages.some((page) => page.hidden > 0),
+    }),
+  })
+}
+
+export type JourneyStep = (typeof WORKSTREAM_JOURNEY_STEPS)[number]
+export type JourneyStepKey = JourneyStep['key']
+
+/** Which step a column hangs under — off the `by` tag and the MACHINE key,
+ *  never off `phaseLabel`: one catalogue rename would otherwise move a column
+ *  to another step. A closed run grouped by WHY it ended is the dropped step;
+ *  a live run reads at the step of the object it stands on, and nothing is
+ *  quietly swept into `dropped` — a rung off its own ladder is a data fault,
+ *  and it has to stay visible at its own kind's step to be seen at all. */
+export function journeyStepOfColumn(column: WorkstreamBoardColumn): JourneyStepKey {
+  if (column.by === 'closeReason') return 'dropped'
+  if (column.kind === 'HĐ') return 'contract'
+  return column.kind === 'OP' ? 'opportunity' : 'lead'
+}
+
+export type BoardStepGroup = {
+  step: JourneyStep
+  columns: WorkstreamBoardColumn[]
+  /** The catalogue has answered and sent this step no column. THE ABSENCE IS
+   *  THE FLAG (`WorkstreamBoardResponse`) — the screen holds no list of which
+   *  steps are built, or the day one of them gains a book the screen would keep
+   *  locking a step whose columns are already arriving. */
+  locked: boolean
+  /** Every column of this step is counted under `status: 'closed'` — read off
+   *  the columns' own `status`, not off the `by` tag: the contract step counts
+   *  closed runs through a `stand` column (a signed run is a closed run), and
+   *  grouping-by-close-reason would miss it. Such a step answers a different
+   *  question from its neighbours, so it says so on the card. */
+  closedOnly: boolean
+  /** Null is two different absences, and both print a dash rather than a zero:
+   *  the catalogue has not answered yet, or this step has no book at all. */
+  total: number | null
+}
+
+export function boardStepGroups(columns: WorkstreamBoardColumn[] | undefined): BoardStepGroup[] {
+  return WORKSTREAM_JOURNEY_STEPS.map((step) => {
+    const own = (columns ?? []).filter((c) => journeyStepOfColumn(c) === step.key)
+    const locked = columns !== undefined && own.length === 0
+    return {
+      step,
+      columns: own,
+      locked,
+      closedOnly: own.length > 0 && own.every((c) => c.status === 'closed'),
+      total: columns === undefined || locked ? null : own.reduce((n, c) => n + c.total, 0),
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// WHICH VIEW, WHICH STEP — both on the address so a board is pasteable
+// ---------------------------------------------------------------------------
+
+export type BoardView = 'table' | 'kanban'
+
+const VIEW_PARAM = 'view'
+const STEP_PARAM = 'step'
+
+/** The first step of the journey: the rung a run starts on, and the one a
+ *  reader who pasted no step means. */
+const DEFAULT_BOARD_STEP: JourneyStepKey = 'lead'
+
+export const parseBoardView = (params: URLSearchParams): BoardView =>
+  params.get(VIEW_PARAM) === 'kanban' ? 'kanban' : 'table'
+
+/** A step nobody has heard of opens the first one instead of a blank board. */
+export function parseBoardStep(params: URLSearchParams): JourneyStepKey {
+  const asked = params.get(STEP_PARAM)
+  return WORKSTREAM_JOURNEY_STEPS.find((s) => s.key === asked)?.key ?? DEFAULT_BOARD_STEP
+}
+
+/** Every other parameter stays: switching view or step may not drop the search
+ *  somebody typed or the sort they chose. */
+export function withBoardParams(
+  params: URLSearchParams,
+  next: { view?: BoardView; step?: JourneyStepKey },
+): URLSearchParams {
+  const out = new URLSearchParams(params)
+  if (next.view === 'table') {
+    out.delete(VIEW_PARAM)
+    out.delete(STEP_PARAM)
+  }
+  if (next.view === 'kanban') out.set(VIEW_PARAM, next.view)
+  if (next.step !== undefined) out.set(STEP_PARAM, next.step)
+  return out
 }
 
 /** Missing and out-of-scope runs both answer 404 on purpose — see

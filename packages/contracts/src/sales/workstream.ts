@@ -57,6 +57,13 @@ export const WorkstreamStandKind = z.enum(
 export const WorkstreamStand = z.object({
   code: z.string().min(1).max(20),
   kind: WorkstreamStandKind,
+  /** The rung's MACHINE key, same shape as `WorkstreamStep.key`: a `StageKey`
+   *  when `kind` is `OP`, a `LeadState` when `LD`, and `'signed'` for the
+   *  contract kind.
+   *  The board groups columns by this and never by `phaseLabel` — a label is
+   *  translatable text owned by `config_entry`, so grouping by it means one
+   *  catalogue rename silently splits or merges columns. */
+  key: z.string().min(1).max(40),
   phaseLabel: textInput(120),
 })
 
@@ -109,6 +116,9 @@ export const WorkstreamFootprint = z.object({
 export const WorkstreamRow = z.object({
   code: ObjectCode,
   customer: textInput(200),
+  /** The customer-side person to call. From `sales.lead.contact_name`, a
+   *  `notNull` column, so never nullable here. */
+  contact: textInput(120),
   accountCode: ObjectCode.nullable(),
 
   openedAt: Moment,
@@ -146,7 +156,13 @@ export const WorkstreamRow = z.object({
  *  still worth finding — the same argument `LeadStatus` makes for `exited`. */
 export const WorkstreamStatus = z.enum(['open', 'closed', 'all'])
 
-export const WorkstreamSortKey = z.enum(['openedAt', 'customer'])
+/** `priority` is one composite ladder, not a column: `overdueBy` descending
+ *  with nulls last, then journeys already past their deadline while waiting on
+ *  somebody else, then the oldest `lastContactedAt` with never-contacted runs
+ *  first, then the oldest `openedAt`. The rungs are declared in `@pv/engines`
+ *  and the repository translates them to SQL mechanically — this contract only
+ *  names the ladder so the URL can ask for it. No threshold lives here. */
+export const WorkstreamSortKey = z.enum(['openedAt', 'customer', 'priority', 'lastContactedAt'])
 
 /** `GET /sales/workstreams`. Server-side paging, filtering and sorting —
  *  the same arithmetic `LeadBookQuery` and `OpportunityBookQuery` already
@@ -156,11 +172,60 @@ export const WorkstreamBookQuery = PageQuery.extend({
   status: WorkstreamStatus.default('open'),
   accountCode: ObjectCode.optional(),
   q: z.string().trim().min(1).max(120).optional(),
-  sort: WorkstreamSortKey.default('openedAt'),
+  /** The board's "this column only" filter — each column is one call to the
+   *  same book door, so a column pages and sorts like any other view instead
+   *  of needing a door of its own. */
+  standKind: WorkstreamStandKind.optional(),
+  standKey: z.string().min(1).max(40).optional(),
+  /** The dropped step's filter — it groups by WHY a run closed, not by the
+   *  rung it stands on. Only meaningful with `status` `closed` or `all`: an
+   *  open run has no close reason at all, the invariant the DB already holds
+   *  as `CHECK workstream_close_pair`. */
+  closeReason: WorkstreamCloseReason.optional(),
+  sort: WorkstreamSortKey.default('priority'),
   dir: SortDir.default('desc'),
 })
 
 export const WorkstreamBookResponse = paged(WorkstreamRow)
+
+/** One board column, tagged by WHICH question fetched it, because the first
+ *  three steps group by the rung a live run stands on and the dropped step
+ *  groups by why a closed run ended. The tag carries exactly the book-door
+ *  params for that column and nothing else, so a reader never has to infer
+ *  them from `key` — `status` included, because a signed run is a CLOSED run
+ *  and its column would read 0 forever under the view's own filter. `total`
+ *  is the whole book's count in that column — a `GROUP BY` at the DB, not the
+ *  length of a page the screen holds. */
+export const WorkstreamBoardColumn = z.discriminatedUnion('by', [
+  z.object({
+    by: z.literal('stand'),
+    kind: WorkstreamStandKind,
+    key: z.string().min(1).max(40),
+    status: WorkstreamStatus,
+    label: textInput(120),
+    total: z.number().int().nonnegative(),
+  }),
+  z.object({
+    by: z.literal('closeReason'),
+    closeReason: WorkstreamCloseReason,
+    status: WorkstreamStatus,
+    label: textInput(120),
+    total: z.number().int().nonnegative(),
+  }),
+])
+
+/** `GET /sales/workstreams/board` — the column catalogue in ladder order, the
+ *  screen then asks the book door once per column. The server returns columns
+ *  ONLY for the steps that have a book behind them (lead, opportunity,
+ *  `signed`, and the dropped step off `close_reason`); for a step with no book
+ *  it returns nothing rather than an empty column, because a zero that means
+ *  "no data yet" and a zero that means "none here" are different facts. The
+ *  screen draws its own "not built yet" placeholder from
+ *  `WORKSTREAM_JOURNEY_STEPS`. Every column names the status it was counted
+ *  under, and the screen asks the book door with that one, not the view's. */
+export const WorkstreamBoardResponse = z.object({
+  columns: z.array(WorkstreamBoardColumn),
+})
 
 // ---------------------------------------------------------------------------
 // THE PROFILE — swimlanes: one lead lane, one lane per deal, one account lane
@@ -206,6 +271,21 @@ export const LEAD_LANE_BACKBONE = [
   'working',
   'converted',
 ] as const satisfies readonly LeadState[]
+
+/** The six journey steps in order — level one of the board, above the rungs
+ *  each step's book supplies. Declared once here for the same reason
+ *  `LEAD_LANE_BACKBONE` is: both ends read it, the screen to draw the six and
+ *  the API to know which of them has a book. `after-sale` and `growth` have no
+ *  book yet, so the board door returns no column for them and the screen draws
+ *  the placeholder; no flag marks that — the absent column already says it. */
+export const WORKSTREAM_JOURNEY_STEPS = [
+  { key: 'lead', label: 'Lead' },
+  { key: 'opportunity', label: 'Cơ hội' },
+  { key: 'contract', label: 'Hợp đồng' },
+  { key: 'after-sale', label: 'Sau bán' },
+  { key: 'growth', label: 'Tăng trưởng' },
+  { key: 'dropped', label: 'Rơi' },
+] as const
 
 /** The nurture loop, attached to the `working` rung rather than drawn as a rung
  *  of its own — ADR 0058 parks a lead in `nurturing`, it does not advance it.
@@ -299,6 +379,8 @@ export type WorkstreamStatus = z.infer<typeof WorkstreamStatus>
 export type WorkstreamSortKey = z.infer<typeof WorkstreamSortKey>
 export type WorkstreamBookQuery = z.infer<typeof WorkstreamBookQuery>
 export type WorkstreamBookResponse = z.infer<typeof WorkstreamBookResponse>
+export type WorkstreamBoardColumn = z.infer<typeof WorkstreamBoardColumn>
+export type WorkstreamBoardResponse = z.infer<typeof WorkstreamBoardResponse>
 export type WorkstreamStepState = z.infer<typeof WorkstreamStepState>
 export type WorkstreamStep = z.infer<typeof WorkstreamStep>
 export type WorkstreamLeadOutcome = z.infer<typeof WorkstreamLeadOutcome>

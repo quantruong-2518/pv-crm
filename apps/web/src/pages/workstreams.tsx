@@ -25,14 +25,19 @@ import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import { dm, dmy } from '@/lib/date'
 import {
   DEFAULT_WORKSTREAM_BOOK_QUERY,
+  WORKSTREAM_STATUS_LABEL,
   footprintTotal,
+  parseBoardView,
   parseWorkstreamBookQuery,
+  withBoardParams,
   workstreamBookQuery,
   workstreamBookQueryToParams,
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
 import { PersonCell, TableFooter } from '@/components/table-bits'
 import { CloseBadge, ObjectChip, StandCell } from '@/components/workstream-bits'
+import { WorkstreamsBoard } from './workstreams-board'
+import { ViewSwitch } from './workstreams-board-parts'
 
 /** The workstream book — `/sales/workstreams`. One row per customer journey run.
  *
@@ -45,11 +50,11 @@ import { CloseBadge, ObjectChip, StandCell } from '@/components/workstream-bits'
 
 type Go = (path: string) => void
 
-const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = [
-  { value: 'open', label: 'Đang chạy' },
-  { value: 'closed', label: 'Đã đóng' },
-  { value: 'all', label: 'Tất cả' },
-]
+/* Built from the shared label table, not typed out again: the board names the
+   same three statuses on its filter chip. */
+const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = WorkstreamStatus.options.map(
+  (value) => ({ value, label: WORKSTREAM_STATUS_LABEL[value] }),
+)
 
 const COLUMNS: TableColumn[] = [
   { header: 'Mã', width: '0.9fr' },
@@ -120,7 +125,14 @@ function rowCells(row: WorkstreamRow, go: Go) {
   ]
 }
 
+/** Table or board, chosen by `?view=` and nothing else: the screen a link opens
+ *  must be the screen the sender was looking at. */
 export default function WorkstreamsPage() {
+  const [params] = useSearchParams()
+  return parseBoardView(params) === 'kanban' ? <WorkstreamsBoard /> : <WorkstreamsBook />
+}
+
+function WorkstreamsBook() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hành trình, khách hàng…' })
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -197,6 +209,12 @@ export default function WorkstreamsPage() {
                   <Icon icon={X} size={16} />
                 </Button>
               )}
+              <ViewSwitch
+                view="table"
+                onChange={(next) =>
+                  setParams(withBoardParams(params, { view: next }), { replace: true })
+                }
+              />
             </>
           }
           pending={isPending}

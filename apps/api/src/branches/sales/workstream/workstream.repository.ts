@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  exists,
   ilike,
   inArray,
   isNotNull,
@@ -14,12 +15,14 @@ import {
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { WORKSTREAM_PRIORITY_LADDER, type Actor, type WorkstreamPriorityRung } from '@pv/engines'
 import {
   WorkstreamChannel,
   type OpportunityOwner,
   type WorkstreamBookQuery,
+  type WorkstreamCloseReason,
   type WorkstreamFootprint,
+  type WorkstreamStandKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
@@ -111,7 +114,7 @@ export class WorkstreamRepository {
 
   async book(who: Actor, q: WorkstreamBookQuery, scoped: boolean): Promise<WorkstreamBookPage> {
     const scope = this.scopeOf(who, scoped)
-    const filters = this.filtersOf(q)
+    const filters = this.filtersOf(q, this.standPair(who, scoped))
 
     /* Count a SECOND time only while the scope axis is actually cutting: for a
        reader who sees the whole book `hidden` is always 0, and a full count to
@@ -316,8 +319,60 @@ export class WorkstreamRepository {
     return (scope ? sql`COALESCE(${scope}, false)` : sql`true`) as SQL<boolean>
   }
 
+  /** WHERE the run stands, AS THIS READER MAY SEE IT — one expression, used by
+   *  the book's filter and by the board's `GROUP BY` so the two cannot drift.
+   *
+   *  A reader who sees the whole book compares the bare columns and the partial
+   *  index answers. An `ownOnly` reader must not find a card at the rung of an
+   *  object they cannot open — a deal OR a signature, since the service cuts
+   *  both on the same axis — so that card falls back to the lead's own rung,
+   *  the column 0056 materialized for exactly this, never a third fold.
+   *
+   *  The pair is TWO expressions, so the reader's fence is planned twice: two
+   *  hashed SubPlans instead of one. A single `CASE` returning a record would
+   *  halve that and cost the board its `GROUP BY` — Postgres cannot take the
+   *  components back out of one. Correctness over a hash build. */
+  private standPair(who: Actor, scoped: boolean): StandPair {
+    if (!scoped || !who.ownOnly) {
+      return {
+        kind: sql<WorkstreamStandKind>`${workstream.standKind}`,
+        key: sql<string>`${workstream.standKey}`,
+      }
+    }
+
+    /* `= 'LD'` rather than `<> 'OP'`: a lead is the one kind that has no deal
+       behind it, so it is the one kind nobody needs to prove they may open. */
+    const keep = sql`(${workstream.standKind} = 'LD' OR ${this.opensStand(who)})`
+    return {
+      kind: sql<WorkstreamStandKind>`CASE WHEN ${keep} THEN ${workstream.standKind} ELSE 'LD' END`,
+      key: sql<string>`CASE WHEN ${keep} THEN ${workstream.standKey} ELSE ${workstream.standLeadKey} END`,
+    }
+  }
+
+  /** "May this reader open the object the run stands on" — the same predicate
+   *  `OpportunityRepository.scopeOf` puts on the deal book, asked about the
+   *  deal behind `stand_code`.
+   *
+   *  ONE question for both kinds, because the service already cuts both on one
+   *  axis: it keeps a signature only while the reader stands on the DEAL that
+   *  signature came out of (`rowsOf`), never on the contract row itself — no
+   *  table names an owner of a contract. */
+  private opensStand(who: Actor): SQL {
+    return exists(
+      this.db
+        .select({ one: sql`1` })
+        .from(opportunityOwner)
+        .where(
+          and(
+            eq(opportunityOwner.opportunityCode, STAND_DEAL),
+            eq(opportunityOwner.actorId, who.id),
+          ),
+        ),
+    )
+  }
+
   /** THE USER's filters. The scope axis stands outside them — see `book()`. */
-  private filtersOf(q: WorkstreamBookQuery): (SQL | undefined)[] {
+  private filtersOf(q: WorkstreamFilters, stand: StandPair): (SQL | undefined)[] {
     return [
       q.status === 'open'
         ? isNull(workstream.closedAt)
@@ -335,6 +390,11 @@ export class WorkstreamRepository {
             ilike(account.name, contains(q.q)),
           )
         : undefined,
+      q.closeReason ? eq(workstream.closeReason, q.closeReason) : undefined,
+      /* Half a pair still narrows: the two are independent in the contract, so
+         each answers on its own rather than waiting for the other. */
+      q.standKind ? sql`${stand.kind} = ${q.standKind}` : undefined,
+      q.standKey ? sql`${stand.key} = ${q.standKey}` : undefined,
     ]
   }
 
@@ -342,12 +402,69 @@ export class WorkstreamRepository {
    *
    *  The tie-break is not decoration: without a stable second key Postgres is
    *  free to return two different orders for two reads of the same page, and a
-   *  row then appears on page 1 and page 2 — or on neither. */
+   *  row then appears on page 1 and page 2 — or on neither.
+   *
+   *  `priority` carries its own directions (the ladder's) and ignores `dir`:
+   *  the engine declares which way each rung reads, and a URL must not be able
+   *  to invert half a ladder. `lastContactedAt` never reaches here: the door
+   *  refuses a key the book cannot sort on rather than answer in some other
+   *  order — see the book door, and `RUNG_SQL` for which rungs are missing. */
   private orderBy(q: WorkstreamBookQuery): SQL[] {
-    const dir = q.dir === 'asc' ? 'asc' : 'desc'
-    const primary = q.sort === 'customer' ? CUSTOMER : workstream.openedAt
+    if (q.sort === 'priority') return [...PRIORITY_ORDER, sql`${workstream.code} desc`]
 
+    const dir = q.dir === 'asc' ? 'asc' : 'desc'
+    const primary = q.sort === 'customer' ? CUSTOMER : OPENED_AT
     return [sql`${primary} ${sql.raw(dir)}`, sql`${workstream.code} ${sql.raw(dir)}`]
+  }
+
+  /** The board's three counts, under the book door's joins, filters and scope —
+   *  so a column header and the column's own first page report one number.
+   *
+   *  TWO of them are counted under `status: 'closed'` whatever the view is on,
+   *  and for one reason: signing a run CLOSES it with `WON`, so the signature
+   *  rung and every close reason live on the closed side of the book. Asked
+   *  under `open` they would read zero for ever. The column says which status
+   *  it was counted under, so the screen asks the book door the same way. */
+  async boardTotals(
+    who: Actor,
+    q: WorkstreamFilters,
+    scoped: boolean,
+  ): Promise<WorkstreamBoardTotals> {
+    const scope = this.scopeOf(who, scoped)
+    const stand = this.standPair(who, scoped)
+    const closed = and(...this.filtersOf({ ...q, status: 'closed' }, stand), scope)
+    const [live, signed, dropped] = await Promise.all([
+      this.standTotals(and(...this.filtersOf(q, stand), scope), stand),
+      this.standTotals(closed, stand),
+      this.reasonTotals(closed),
+    ])
+    return { stand: live, signed, closeReason: dropped }
+  }
+
+  /** Grouped BY ORDINAL, never by repeating the two expressions: a scoped
+   *  reader's pair carries an `EXISTS`, and Postgres matches no subquery node
+   *  to another — the same text in `GROUP BY` comes back as ungrouped. */
+  private standTotals(where: SQL | undefined, stand: StandPair): Promise<StandTotal[]> {
+    return this.db
+      .select({ kind: stand.kind, key: stand.key, n: count() })
+      .from(workstream)
+      .innerJoin(lead, ANCHOR_ON)
+      .leftJoin(account, eq(account.code, workstream.accountCode))
+      .where(where)
+      .groupBy(sql`1`, sql`2`)
+  }
+
+  private reasonTotals(where: SQL | undefined): Promise<CloseReasonTotal[]> {
+    return this.db
+      .select({ closeReason: workstream.closeReason, n: count() })
+      .from(workstream)
+      .innerJoin(lead, ANCHOR_ON)
+      .leftJoin(account, eq(account.code, workstream.accountCode))
+      .where(and(where, isNotNull(workstream.closeReason)))
+      .groupBy(workstream.closeReason)
+      .then((rows) =>
+        rows.map((r) => ({ closeReason: r.closeReason as WorkstreamCloseReason, n: r.n })),
+      )
   }
 }
 
@@ -364,6 +481,32 @@ export type WorkstreamRead = {
   /** The campaign the anchor lead is attributed to, by NAME — the lead lane
    *  prints it and a `SR-09` on screen is an id nobody can read. */
   campaignName: string | null
+}
+
+/** What BOTH doors narrow by — the book's query minus paging and sorting, which
+ *  change which rows come back and never how many match. Borrowed from the
+ *  contract rather than declared a second time. */
+export type WorkstreamFilters = Pick<
+  WorkstreamBookQuery,
+  'status' | 'accountCode' | 'q' | 'standKind' | 'standKey' | 'closeReason'
+>
+
+/** The rung as THIS reader sees it — see `standPair`. */
+type StandPair = { kind: SQL<WorkstreamStandKind>; key: SQL<string> }
+
+export type StandTotal = { kind: WorkstreamStandKind; key: string; n: number }
+export type CloseReasonTotal = { closeReason: WorkstreamCloseReason; n: number }
+
+/** One `GROUP BY` per question the board asks, each counted over the WHOLE
+ *  book — never over a page, which is what the screen already holds.
+ *
+ *  `stand` is counted under the view's own status and `signed` under `closed`;
+ *  the catalogue reads the signature rung out of the second one — see
+ *  `boardTotals` for why that rung has no other side. */
+export type WorkstreamBoardTotals = {
+  stand: StandTotal[]
+  signed: StandTotal[]
+  closeReason: CloseReasonTotal[]
 }
 
 export type WorkstreamBookPage = {
@@ -442,6 +585,48 @@ const ANCHOR_ON = eq(lead.workstreamCode, workstream.code)
  *  one factory can spell it two ways. A null `account_code` is the normal path
  *  (see the column's docblock), so the second branch is not a fallback. */
 const CUSTOMER = sql<string>`COALESCE(${account.name}, ${lead.company})`
+
+const OPENED_AT = sql`${workstream.openedAt}`
+
+/** The DEAL behind whatever the run stands on: a signature names its own
+ *  (`opportunity_code` is NOT NULL and carries a foreign key), a deal names
+ *  itself, and a lead names a code no owner row can ever match — which is the
+ *  honest answer, since `stand_kind = 'LD'` never asks. */
+const STAND_DEAL = sql`COALESCE(
+  (SELECT ${contract.opportunityCode} FROM ${contract} WHERE ${contract.code} = ${workstream.standCode}),
+  ${workstream.standCode})`
+
+/** Each rung of `WORKSTREAM_PRIORITY_LADDER` as a column — or `null` while the
+ *  fact is not one. TWO OF THE FOUR ARE NULL TODAY, and they are named here so
+ *  nobody later reads this as a two-rung ladder:
+ *
+ *   · `waitingOverdue` — E3's inbox lives in `platform.approval`, and platform
+ *     does not get to know a branch, so no trigger may derive it.
+ *   · `lastContactedAt` — three ledgers folded per page; a column for it would
+ *     have needed a trigger on `comms.message`, same fence.
+ *
+ *  `inverted` marks a column that counts the OTHER WAY from its rung:
+ *  `stand_due_at` holds the DEADLINE, while the rung reads the LATENESS, so
+ *  the ladder's `desc` becomes `asc` here. Truncated to the day because
+ *  `overdueBy` is whole calendar days (`daysUntil`): two runs due the same day
+ *  must TIE at this rung and let the next one decide, and a raw timestamp
+ *  would break that tie earlier than the engine does. */
+const RUNG_SQL: Record<WorkstreamPriorityRung['key'], { at: SQL; inverted: boolean } | null> = {
+  overdueBy: { at: sql`date_trunc('day', ${workstream.standDueAt})`, inverted: true },
+  waitingOverdue: null,
+  lastContactedAt: null,
+  openedAt: { at: OPENED_AT, inverted: false },
+}
+
+/** The ladder translated MECHANICALLY: one term per rung, in the engine's
+ *  order, with the engine's direction and null side. A rung with no column
+ *  contributes nothing — never a stand-in, which would be a second ladder. */
+const PRIORITY_ORDER: SQL[] = WORKSTREAM_PRIORITY_LADDER.flatMap((rung) => {
+  const column = RUNG_SQL[rung.key]
+  if (column === null) return []
+  const dir = column.inverted === (rung.dir === 'desc') ? 'asc' : 'desc'
+  return [sql`${column.at} ${sql.raw(dir)} nulls ${sql.raw(rung.nulls)}`]
+})
 
 const READ_COLUMNS = {
   row: workstream,

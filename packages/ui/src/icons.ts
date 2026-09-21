@@ -115,6 +115,7 @@ export {
   ContactBookIcon as ContactBook,
   FileSpreadsheetIcon as FileSpreadsheet,
   GaugeIcon as Gauge,
+  KanbanIcon as Kanban,
   Key01Icon as KeyRound,
   Logout03Icon as LogOut,
   Moon02Icon as Moon,
