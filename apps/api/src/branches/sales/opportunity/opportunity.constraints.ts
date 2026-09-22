@@ -23,24 +23,38 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     message: 'Giá trị đơn phải đi kèm đơn vị tiền: điền cả hai ô, hoặc bỏ trống cả hai.',
   },
 
-  opportunity_lost_closed: {
+  /** Going into care demands all three: off the board, a reason, and the column
+   *  remembered. `POST /:code/care` writes them in one UPDATE, so this sentence
+   *  only ever answers a second write door added later. */
+  opportunity_care_closed: {
     kind: 'invalid',
-    fields: ['lossReason'],
+    fields: ['reasonKey'],
     message:
-      'Đơn có lý do thua thì phải được đóng — một đơn thua mà vẫn đang mở thì không ai đọc được.',
+      'Đẩy đơn sang danh sách chăm sóc thì phải có lý do và phải đóng sổ đơn — thiếu một trong hai thì không ai đọc lại được.',
   },
 
-  opportunity_lost_state_closed: {
+  opportunity_open_has_no_care: {
     kind: 'invalid',
-    fields: ['state'],
-    message: 'Chọn Close lost là đóng sổ đơn — không để đơn thua nằm lại trong năm cột.',
+    fields: ['reasonKey'],
+    message: 'Đơn đang triển khai không mang lý do chăm sóc — mở lại đơn là xoá sạch ba ô đó.',
+  },
+
+  opportunity_care_from_stage_known: {
+    kind: 'invalid',
+    message: 'Cột để mở lại đơn không nằm trong năm cột của bảng.',
   },
 
   opportunity_state_known: {
     kind: 'invalid',
-    fields: ['state'],
     message:
-      'Trạng thái không hợp lệ. "Close won" không đặt được ở đây: đơn thắng là đơn CÓ HỢP ĐỒNG, ký ở hồ sơ cơ hội.',
+      'Trạng thái lưu chỉ có "đang triển khai" hoặc "danh sách chăm sóc". Đơn thắng là đơn CÓ HỢP ĐỒNG, ký ở hồ sơ cơ hội.',
+  },
+
+  /** A column and its clock travel together or not at all. Only the lifecycle
+   *  writer sets the pair, so this is a net under a future write door. */
+  opportunity_stage_clock: {
+    kind: 'invalid',
+    message: 'Đơn đứng ở một cột thì phải có mốc vào cột đó, và ngược lại.',
   },
 
   /** Lead không có thật. Service đã trả 404 gọi tên mã trước khi tới đây, nên
@@ -88,9 +102,8 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     message: 'Một sản phẩm chỉ chọn được một lần trên cùng một đơn.',
   },
 
-  /** A user should never see the two sentences below: the stage-move door
-   *  refuses a drag back onto the column the deal already stands in before it
-   *  touches the table, and the other two doors only write history when the
+  /** A user should never see the two sentences below: every column move goes
+   *  through `OpportunityLifecycle`, which writes a history row only when the
    *  column really changed. They exist so that a write door added later can read
    *  what it got wrong, instead of getting a 500 naming a constraint. */
   opportunity_stage_event_moved: {

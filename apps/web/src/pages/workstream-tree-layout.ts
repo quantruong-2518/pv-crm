@@ -95,7 +95,11 @@ const box = (top: number, height: number): Box => ({ top, height, center: top + 
 const rightOf = (col: { x: number; w: number }) => col.x + col.w
 
 function edgeTone(outcome: WorkstreamDealLaneView['outcome']): EdgeTone {
-  return outcome === 'won' ? 'won' : outcome === 'lost' ? 'lost' : 'open'
+  if (outcome === 'won') return 'won'
+  /* `care` reuses the neutral `open` reading, never `lost`'s red — a parked
+     deal can still be reactivated (ADR 0064 §6), same call as `dealStamp`. */
+  if (outcome === 'care') return 'open'
+  return outcome === 'lost' ? 'lost' : 'open'
 }
 
 export function treeLayout(input: {

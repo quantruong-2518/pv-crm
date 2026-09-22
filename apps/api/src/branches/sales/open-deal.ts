@@ -9,9 +9,9 @@ import { sql, type SQL, type SQLWrapper } from 'drizzle-orm'
  *  inside queries whose outer FROM may be `sales.opportunity` or `sales.contract`
  *  itself, and an unaliased inner table would capture the outer column. */
 
-/** A deal still being worked: not lost, and no contract signed on it. */
+/** A deal still being worked: not in the care list, and no contract signed on it. */
 export const dealOpen = (code: SQLWrapper, state: SQLWrapper): SQL =>
-  sql`(${state} <> 'close-lost' AND NOT EXISTS (SELECT 1 FROM sales.contract od_k WHERE od_k.opportunity_code = ${code}))`
+  sql`(${state} <> 'care' AND NOT EXISTS (SELECT 1 FROM sales.contract od_k WHERE od_k.opportunity_code = ${code}))`
 
 /** The lead has at least one open deal. `leadCode` is the OUTER column. */
 export const leadHasOpenDeal = (leadCode: SQLWrapper): SQL =>

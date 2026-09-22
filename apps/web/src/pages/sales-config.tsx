@@ -13,10 +13,11 @@ import {
   Kicker,
   ScreenHeader,
   ScreenLayout,
+  Select,
   Skeleton,
   StatusDot,
 } from '@pv/ui'
-import type { ConfigList } from '@pv/contracts'
+import { OPPORTUNITY_STAGE_LABEL, StageKey, type ConfigList } from '@pv/contracts'
 import { MOTION_BY_INTAKE } from '@pv/engines'
 import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
@@ -24,6 +25,7 @@ import { toastDone } from '@/app/toast'
 import { ConfigBooks } from '@/components/config-books'
 import { MotionSection } from './sales-config-parts'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
+import { BADGE_INK } from '@/data/opportunities'
 import { ROLE_LABEL } from '@/data/users'
 import {
   ANCHOR_CODE,
@@ -35,6 +37,7 @@ import {
   salesCatalogQuery,
   salesConfigQuery,
   useProposeConfigEdits,
+  useProposeLossReason,
   useProposeProduct,
   type ConfigEdit,
   type ConfigEditResult,
@@ -266,6 +269,7 @@ export function SalesConfigPage() {
               <GlassCard variant="b" className="p-4">
                 <LadderTable
                   list="STAGE"
+                  head="Cột"
                   rows={stages}
                   unit="đơn"
                   typed={typed}
@@ -347,24 +351,36 @@ export function SalesConfigPage() {
               </p>
             </Section>
 
-            {/* 5.4b — DEAL-LOSS REASONS. Placed right after 5.4 on purpose: the
+            {/* 5.4b — DEAL CARE REASONS. Placed right after 5.4 on purpose: the
                 two catalogs are easy to mistake for one, so they sit side by
                 side where a reader sees the difference instead of guessing. */}
             <Section
               no="5.4b"
-              title="Lý do thua đơn"
-              hint="Danh sách MỞ — khác hẳn 5.4 ngay trên. Lý do một LEAD ra khỏi luồng và lý do một ĐƠN bị thua là hai câu hỏi về hai thứ, ở hai chỗ khác nhau của phễu."
+              title="Lý do vào danh sách chăm sóc"
+              hint="Danh sách MỞ — khác hẳn 5.4 ngay trên. Lý do một LEAD ra khỏi luồng và lý do một ĐƠN rời bảng sang danh sách chăm sóc là hai câu hỏi về hai thứ, ở hai chỗ khác nhau của phễu."
             >
               <GlassCard variant="b" className="p-4">
                 <DataTable
                   columns={[
                     { header: 'Lý do', width: '2fr' },
-                    { header: 'Đơn đã thua', width: '1fr', align: 'right' },
+                    { header: 'Áp dụng ở cột', width: '1.1fr' },
+                    { header: 'Đơn đang chăm sóc', width: '1fr', align: 'right' },
                   ]}
                   rows={lossReasons.map((r) => ({
                     id: r.id,
                     cells: [
                       r.label,
+                      r.stageLabel === null ? (
+                        <span key="s" className="text-muted-foreground text-[11.5px]">
+                          Mọi cột
+                        </span>
+                      ) : (
+                        /* `BADGE_INK`: the default `draft` tone alone misses the
+                           4.5:1 floor on both themes (law 13). */
+                        <Badge key="s" className={BADGE_INK}>
+                          {r.stageLabel}
+                        </Badge>
+                      ),
                       <span key="u" className="tnum font-num">
                         {r.usage} đơn
                       </span>,
@@ -373,11 +389,14 @@ export function SalesConfigPage() {
                 />
               </GlassCard>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Phép đếm nối bằng NHÃN chứ chưa bằng mã: cột{' '}
-                <code>sales.opportunity.lost_reason</code> đang chở đúng chuỗi người bán đã bấm. Sửa
-                một nhãn ở đây làm số của dòng đó về 0 cho tới khi đơn cũ được sửa theo — nợ
-                slug-so-với-nhãn, nhìn từ chỗ nó đau.
+                Phép đếm nối bằng MÃ cấu hình, như danh mục sản phẩm 5.4c: cột{' '}
+                <code>sales.opportunity.care_reason</code> chở đúng <code>id</code> người bán đã
+                chọn, nên sửa nhãn ở đây không làm số của dòng đó về 0. Đây là danh mục thứ ba thoát
+                khỏi nợ slug-so-với-nhãn. Đơn chọn &quot;Khác&quot; không cộng vào dòng nào —
+                &quot;Khác&quot; là lựa chọn bắt buộc kèm ghi chú, không phải một dòng của danh mục.
               </p>
+
+              <AddLossReason />
             </Section>
 
             {/* 5.4c — PRODUCTS AND SERVICES. The ONLY catalog with a real foreign
@@ -394,11 +413,11 @@ export function SalesConfigPage() {
                   <div className="flex flex-col gap-2">
                     <span className="text-[11.5px] font-semibold">Chưa có mục nào</span>
                     <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Migration CỐ TÌNH không mồi sẵn danh sách này. Bảy lý do thua ở mục trên là dữ
-                      liệu đã có thật trong sổ nên chuyển được nguyên văn; còn công ty bán gì thì
-                      không dòng nào trong cơ sở dữ liệu nói ra, và bịa một danh sách sản phẩm là
-                      bịa dữ liệu nghiệp vụ. Nhập ở đây, rồi ô &quot;Sản phẩm/dịch vụ quan tâm&quot;
-                      trên phiếu cơ hội sẽ có thứ để chọn.
+                      Migration CỐ TÌNH không mồi sẵn danh sách này. Bảy lý do chăm sóc ở mục trên
+                      là dữ liệu đã có thật trong sổ nên chuyển được nguyên văn; còn công ty bán gì
+                      thì không dòng nào trong cơ sở dữ liệu nói ra, và bịa một danh sách sản phẩm
+                      là bịa dữ liệu nghiệp vụ. Nhập ở đây, rồi ô &quot;Sản phẩm/dịch vụ quan
+                      tâm&quot; trên phiếu cơ hội sẽ có thứ để chọn.
                     </p>
                   </div>
                 </div>
@@ -443,7 +462,14 @@ export function SalesConfigPage() {
               hint="Hạn ở mục 5.2 chỉ áp cho đơn đã vào sổ cơ hội. Đây là hạn của lead: đứng ở một bậc bao lâu thì coi là quá. Số ngày nguyên từ 1, đi qua Hộp duyệt như mọi hạn khác — nhưng chưa ai chốt số. Thang bậc cố định: không thêm, tắt hay đổi thứ tự."
             >
               <GlassCard variant="b" className="p-4">
-                <LadderTable list="TIER" rows={tiers} unit="lead" typed={typed} onType={setTyped} />
+                <LadderTable
+                  list="TIER"
+                  head="Bậc"
+                  rows={tiers}
+                  unit="lead"
+                  typed={typed}
+                  onType={setTyped}
+                />
               </GlassCard>
 
               {tiers.some((t) => t.limitDays !== null) ? null : (
@@ -818,12 +844,16 @@ function editsOf(
  *  ba — chưa ai đặt hạn nào — thứ mà số 0 không nói được. */
 function LadderTable({
   list,
+  head,
   rows,
   unit,
   typed,
   onType,
 }: {
   list: ConfigList
+  /** What one rung is CALLED: a deal stands in a board COLUMN, a lead sits on a
+   *  GRADE. One word per list, so no corner of the screen renames the other. */
+  head: string
   rows: LadderRow[]
   unit: string
   typed: Record<string, string>
@@ -832,7 +862,7 @@ function LadderTable({
   return (
     <DataTable
       columns={[
-        { header: 'Bậc', width: '1.4fr' },
+        { header: head, width: '1.4fr' },
         { header: 'Hạn · ngày', width: '1fr' },
         { header: 'Đang có', width: '0.9fr', align: 'right' },
       ]}
@@ -895,6 +925,64 @@ function AddProduct() {
               toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
             },
           })
+        }
+      >
+        <Icon icon={Plus} size={16} />
+        Gửi đề nghị
+      </Button>
+    </div>
+  )
+}
+
+/** Options for the create form's column picker: the 5 columns plus a clearing
+ *  choice (empty value), which sends no `stage` at all — an absent `stage` is
+ *  what makes a reason apply everywhere (ADR 0064 §6). */
+const LOSS_REASON_STAGE_OPTIONS = [
+  { value: '', label: 'Mọi cột' },
+  ...StageKey.options.map((key) => ({ value: key, label: OPPORTUNITY_STAGE_LABEL[key] })),
+]
+
+/** 5.4b · add one care reason to the catalog, optionally scoped to a column.
+ *
+ *  Same shape as `AddProduct` below — an OPEN list, its own `POST` door —
+ *  plus one more field: the column picker. Left on the clearing option, no
+ *  `stage` travels, matching the rule "absent means every column"; picking one
+ *  scopes the reason to that column. */
+function AddLossReason() {
+  const [name, setName] = useState('')
+  const [stage, setStage] = useState('')
+  const propose = useProposeLossReason()
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <Input
+        aria-label="Thêm lý do vào danh sách chăm sóc"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Lý do vào danh sách chăm sóc"
+        className="min-w-0 flex-1"
+      />
+      <Select
+        label="Áp dụng ở cột"
+        value={stage}
+        onChange={setStage}
+        options={LOSS_REASON_STAGE_OPTIONS}
+      />
+
+      <Button
+        size="md"
+        disabled={name.trim() === '' || propose.isPending}
+        onClick={() =>
+          propose.mutate(
+            { name: name.trim(), ...(stage === '' ? {} : { stage: stage as StageKey }) },
+            {
+              onSuccess: () => {
+                setName('')
+                setStage('')
+                toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
+              },
+            },
+          )
         }
       >
         <Icon icon={Plus} size={16} />

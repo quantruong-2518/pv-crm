@@ -231,17 +231,19 @@ export const WorkstreamBoardResponse = z.object({
 // THE PROFILE — swimlanes: one lead lane, one lane per deal, one account lane
 // ---------------------------------------------------------------------------
 
-/** The four states the screen legend prints, one per dot colour. */
+/** The five states the screen legend prints, one per dot colour. `parked` is a
+ *  rung a CARE-listed deal stopped on — reversible, so it draws quiet, never
+ *  the red `dropped` reserved for a lead that truly exited (ADR 0064 §6). */
 export const WorkstreamStepState = z.enum(
-  ['done', 'current', 'dropped', 'upcoming'],
+  ['done', 'current', 'dropped', 'parked', 'upcoming'],
   'Trạng thái bước không có trong danh sách',
 )
 
-/** One rung of a lane. `key` is a `StageKey` value on a deal lane or one of
- *  `LEAD_LANE_BACKBONE` on a lead lane, left as a string because one step
- *  shape serves both ladders. `label` comes from `config_entry` for the deal
- *  ladder; on a lead lane it is the matching `LEAD_STATE_LABEL` entry — no
- *  catalogue lookup needed for a fixed set of five. `at` is when the rung was
+/** One rung of a lane. `key` is a `StageKey` value (`new` … `quotation`) on a
+ *  deal lane or one of `LEAD_LANE_BACKBONE` on a lead lane, left as a string
+ *  because one step shape serves both ladders. `label` comes from `config_entry`
+ *  for the deal ladder, falling back to `OPPORTUNITY_STAGE_LABEL`; on a lead
+ *  lane it is the matching `LEAD_STATE_LABEL` entry. `at` is when the rung was
  *  entered — null for upcoming or a skipped rung. `by` is the mover's name
  *  snapshotted then. */
 export const WorkstreamStep = z.object({
@@ -335,7 +337,13 @@ export const WorkstreamLeadLane = z.object({
   outcomeAt: Moment.nullable(),
 })
 
-export const WorkstreamDealOutcome = z.enum(['won', 'lost', 'open'])
+/** `care` is a LIVE, reversible parking state (ADR 0064's
+ *  `sales.opportunity.state = 'care'`) — a deal there can still be
+ *  reactivated, so it must not collapse into `lost`. `lost` is kept for a
+ *  truly closed loss; under the current lifecycle no writer produces it
+ *  (`OpportunityState` only carries `open`/`care` before `won` — see
+ *  `./opportunity`), so it is dead until a real terminal-loss state exists. */
+export const WorkstreamDealOutcome = z.enum(['won', 'care', 'lost', 'open'])
 
 export const WorkstreamDealLane = z.object({
   code: ObjectCode,

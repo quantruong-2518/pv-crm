@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, X } from '@pv/ui'
-import { Badge, Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
+import { Button, Drawer, Icon, Input, Select, Textarea, cn } from '@pv/ui'
 import {
   CURRENCIES,
   draftOpportunity,
   type CurrencyCode,
   type OpportunityDraft,
-  type OpportunityState,
 } from '@pv/engines/fixtures/das-vina'
 import {
   OPPORTUNITY_DESCRIPTION_MAX,
@@ -17,15 +16,10 @@ import {
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
-import { missingOf, STATE_TONE, toggled } from '@/data/opportunities'
-import {
-  createBodyOf,
-  CREATE_STATES,
-  draftErrorsOf,
-  usePromoteLead,
-} from '@/data/opportunities-write'
+import { missingOf, toggled } from '@/data/opportunities'
+import { createBodyOf, draftErrorsOf, usePromoteLead } from '@/data/opportunities-write'
 import { AmountField, AttachmentsDropField, PersonPickField, ProductTagsField } from './deal-fields'
-import { Field, LossBlock, STATE_LABEL } from './ops-fields'
+import { Field } from './ops-fields'
 
 /** Turn a lead into a deal — a panel over the profile it reads from.
  *
@@ -205,9 +199,10 @@ function ConvertFields({
         />
       </Field>
 
-      {/* Four boxes in one 2×2 block rather than four stacked rows — not one of
-          them needs the panel's full width. */}
-      <section className="grid gap-4 sm:grid-cols-2">
+      {/* Three boxes on ONE line: none needs the panel's full width, and the
+          amount belongs beside the currency it is counted in. The status select
+          that stood here left with ADR 0064 — the column follows recorded facts. */}
+      <section className="grid gap-4 sm:grid-cols-3">
         <Field label="Ngày chốt dự kiến" required errors={errors.closedDate}>
           <Input
             type="date"
@@ -216,21 +211,6 @@ function ConvertFields({
             aria-required
             invalid={Boolean(errors.closedDate)}
             onChange={(e) => onSet('closedDate', e.target.value)}
-          />
-        </Field>
-
-        <Field label="Trạng thái" plain errors={errors.state}>
-          <Select
-            label="Trạng thái"
-            hideLabel
-            value={draft.state}
-            neutralValue={draft.state}
-            valueContent={
-              <Badge tone={STATE_TONE[draft.state]}>{STATE_LABEL.get(draft.state)}</Badge>
-            }
-            onChange={(v) => onSet('state', v as OpportunityState)}
-            options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
-            className="w-full"
           />
         </Field>
 
@@ -292,8 +272,6 @@ function ConvertFields({
 
         <AttachmentsDropField draft={draft} onSet={onSet} errors={errors.attachments} />
       </section>
-
-      {draft.state === 'close-lost' && <LossBlock draft={draft} onSet={onSet} errors={errors} />}
     </div>
   )
 }

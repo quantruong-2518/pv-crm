@@ -3,13 +3,8 @@ import type {
   ObjectCode,
   OpportunityCreateResponse,
   OpportunityProfileResponse,
-  OpportunityRow,
 } from '@pv/contracts'
-import {
-  OPPORTUNITY_STATES,
-  type OpportunityDraft,
-  type OpportunityState,
-} from '@pv/engines/fixtures/das-vina'
+import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { ApiError, FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { missingOf } from '@/data/opportunities'
@@ -17,21 +12,21 @@ import {
   createBodyOf,
   draftErrorsOf,
   updateBodyOf,
-  useMoveStage,
   usePromoteLead,
   useSaveOpportunity,
 } from '@/data/opportunities-write'
 
-/** Module 3 · the deal form's draft — ONE hook behind all three doors.
+/** Module 3 · the deal form's draft — ONE hook behind both write doors.
  *
  *  The form card and the sticky bar are two blocks of the same screen and they
  *  type into the same boxes, so neither of them may own the draft; the same
  *  split `useLeadDraft` made for the lead screens.
  *
- *  TWO WRITE DOORS, NOT ONE. The status box goes through `PATCH :code/stage`
- *  and lands at once, every other box waits for the Save button — the reason
- *  is in the docblock of `moveOpportunityStage`: a full save carries thirteen
- *  fields, including the ones being half-typed elsewhere on the form.
+ *  ONE WRITE DOOR NOW. The status box is gone with ADR 0064 — a seller picks
+ *  neither state nor column, so this draft carries no cell that writes itself
+ *  through, and every box waits for the Save button. Where the deal STANDS moves
+ *  through the three doors on the sticky bar (`useLogMilestone` and friends),
+ *  which touch the server row and never this draft.
  *
  *  `probability` and `currency` have no box on screen since 17/09 and still
  *  ride through here untouched: they are carried by `dealBody`, and a form
@@ -42,7 +37,6 @@ import {
 const EDITABLE = [
   'name',
   'closedDate',
-  'state',
   'amount',
   'currency',
   'saleOwners',
@@ -51,20 +45,12 @@ const EDITABLE = [
   'products',
   'description',
   'attachments',
-  'lossReason',
-  'lossNote',
 ] as const satisfies readonly (keyof OpportunityDraft)[]
 
 export type SetDraft = <K extends keyof OpportunityDraft>(
   key: K,
   value: OpportunityDraft[K],
 ) => void
-
-/** Which state drops the deal into which column. `null` for the two endings —
- *  a closed deal stands in no column, so the one-field door cannot carry it. */
-const STAGE_OF_STATE = new Map<OpportunityState, OpportunityRow['stage']>(
-  OPPORTUNITY_STATES.map((s) => [s.key, s.stage]),
-)
 
 const sameValue = (a: unknown, b: unknown) =>
   Array.isArray(a) && Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b
@@ -81,9 +67,9 @@ function changedFields(base: OpportunityDraft, work: OpportunityDraft): string[]
 
 /** A newer server copy, with whatever the person has already typed kept on top.
  *
- *  Plain re-seeding is what this replaces, and it lost work: a status change
- *  writes a new row into the cache mid-edit, so every other box the person had
- *  touched would snap back to the server's answer under their hands. */
+ *  Plain re-seeding is what this replaces, and it lost work: recording a
+ *  milestone writes a new row into the cache mid-edit, so every other box the
+ *  person had touched would snap back to the server's answer under their hands. */
 function rebase(
   stale: OpportunityDraft,
   work: OpportunityDraft,
@@ -101,10 +87,6 @@ export type DealDraft = {
   mode: 'create' | 'edit'
   work: OpportunityDraft
   set: SetDraft
-  /** The status box, which writes itself through on the edit door. */
-  setState: (next: OpportunityState) => void
-  stateHint: string
-  stateLocked: boolean
   /** Amount and the sale owners, locked while a signature is in play. */
   moneyLocked: boolean
   moneyHint: string | null
@@ -120,8 +102,7 @@ export type DealDraft = {
   submit: () => void
 }
 
-export const WAITING_SIGN =
-  'Đơn đang chờ duyệt ký — trạng thái, tiền, đồng tiền, Sale đứng đơn và cột tạm khoá.'
+export const WAITING_SIGN = 'Đơn đang chờ duyệt ký — tiền, đồng tiền và Sale đứng đơn tạm khoá.'
 
 export const SIGNED_MONEY_NEEDS_CLOSE =
   'Đổi tiền/người ăn hoa hồng của đơn đã ký cần quyền chốt đơn.'
@@ -143,7 +124,6 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
      mutation nobody fires costs nothing. */
   const save = useSaveOpportunity(op?.code ?? '')
   const promote = usePromoteLead()
-  const move = useMoveStage(op?.code ?? '')
 
   const [work, setWork] = useState<OpportunityDraft>(saved)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -173,23 +153,11 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
   const signed = op?.contractCode !== undefined
   const waiting = Boolean(op?.pendingSign)
   const moneyLocked = waiting || (signed && !canClose)
-  const stateLocked = op !== null && (signed || waiting || !canEdit)
-
-  const setState = (next: OpportunityState) => {
-    set('state', next)
-    if (op === null || stateLocked) return
-    const stage = STAGE_OF_STATE.get(next) ?? null
-    /* Close lost leaves the five-column board, so the one-field door — which
-       carries a column and nothing else — cannot say it. That one waits for
-       the Save button, together with the loss reason it must not go without. */
-    if (stage === null || stage === op.stage) return
-    move.mutate({ stage }, { onError: () => set('state', saved.state) })
-  }
 
   const dirty = useMemo(() => changedFields(saved, work), [saved, work])
   const missing = missingOf(work)
   const busy = save.isPending || promote.isPending
-  const error = save.error ?? promote.error ?? move.error
+  const error = save.error ?? promote.error
 
   const submit = () => {
     /* The server names the box it refused and `draftErrorsOf` turns its
@@ -212,9 +180,6 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     mode: op === null ? 'create' : 'edit',
     work,
     set,
-    setState,
-    stateHint: stateHintOf(op, stateLocked, waiting, signed, work.state),
-    stateLocked,
     moneyLocked,
     moneyHint: waiting ? WAITING_SIGN : moneyLocked ? SIGNED_MONEY_NEEDS_CLOSE : null,
     errors,
@@ -231,24 +196,4 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     },
     submit,
   }
-}
-
-/** What the status box promises, and it must promise only what happens: the
- *  create door has no stage endpoint at all, and close lost waits for a button
- *  on both doors. */
-function stateHintOf(
-  op: OpportunityProfileResponse | null,
-  stateLocked: boolean,
-  waiting: boolean,
-  signed: boolean,
-  state: OpportunityState,
-): string {
-  if (op === null) return 'Trạng thái mở đơn — ghi cùng lúc phiếu được tạo.'
-  if (waiting) return WAITING_SIGN
-  if (signed) return 'Đơn đã ký — trạng thái không mở lại được ở đây.'
-  if (stateLocked) return 'Vai của bạn không sửa được cơ hội.'
-  if ((STAGE_OF_STATE.get(state) ?? null) === null) {
-    return 'Đóng sổ cần lý do thua và nút Lưu phiếu — đơn ra khỏi bảng cột.'
-  }
-  return 'Đổi xong lưu ngay · ghi vào Lịch sử.'
 }

@@ -1,15 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { GlassCard, Badge, Input, SegmentedControl, Select, Textarea } from '@pv/ui'
-import {
-  OPPORTUNITY_DESCRIPTION_MAX,
-  OPPORTUNITY_NAME_MAX,
-  type OpportunityState,
-} from '@pv/contracts'
+import { GlassCard, Input, SegmentedControl, Textarea } from '@pv/ui'
+import { OPPORTUNITY_DESCRIPTION_MAX, OPPORTUNITY_NAME_MAX } from '@pv/contracts'
 import { toggled } from '@/data/opportunities'
-import { STATE_TONE } from '@/data/opportunities'
-import { CREATE_STATES } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
-import { Field, LossBlock, STATE_LABEL } from '@/components/ops-fields'
+import { Field } from '@/components/ops-fields'
 import {
   AmountField,
   AttachmentsDropField,
@@ -17,20 +11,21 @@ import {
   ProductTagsField,
 } from '@/components/deal-fields'
 
-/** Module 3 · the deal form — ONE card behind all three doors.
+/** Module 3 · the deal form — ONE card behind both doors.
  *
  *  `/sales/opportunities/:code` reads and edits it, `/sales/opportunities/new`
  *  types a fresh one, and both get the same boxes in the same order for the
  *  same reason the lead screens share `LeadForm`: a deal typed on one door and
  *  opened on the other must not look like two different pieces of paper.
  *
- *  NO BUTTONS HERE. Save, discard and sign live on the sticky bar, which is
- *  where the screen's primary action belongs; two save buttons are two answers
- *  to "which one actually saves".
+ *  NO BUTTONS HERE. Save, discard and sign live on the sticky bar; two save
+ *  buttons are two answers to "which one actually saves". Win probability and
+ *  currency are carried through by `useDealDraft` untouched — dropping a box is
+ *  not the same act as clearing its value.
  *
- *  Two boxes the form no longer draws — win probability and currency — are
- *  still carried through by `useDealDraft`, untouched. Dropping a box from a
- *  screen is not the same act as clearing its value. */
+ *  NO STATUS BOX AND NO LOSS BLOCK since ADR 0064. A seller picks neither state
+ *  nor column: where the deal stands is READ-ONLY on the sticky bar and moved by
+ *  the three doors beside it (`opportunity-parts.tsx`). */
 
 export function DealFormCard({
   draft,
@@ -72,7 +67,6 @@ export function DealFormCard({
 
 function InfoTab({ draft }: { draft: DealDraft }) {
   const { work, set, errors } = draft
-  const lost = work.state === 'close-lost'
 
   /* A reader without `opportunity.edit` gets every box shut BEFORE typing,
      not a lit Save button that ends in a 403. */
@@ -90,9 +84,7 @@ function InfoTab({ draft }: { draft: DealDraft }) {
           />
         </Field>
 
-        <section className="grid gap-4 sm:grid-cols-3">
-          <StateBox draft={draft} />
-
+        <section className="grid gap-4 sm:grid-cols-2">
           {/* A REQUIRED BOX LEFT EMPTY SAYS SO HERE, not only on the sticky bar.
             The bar names what blocks the save; without this, the reader has to
             carry that sentence back up the form to find the box it means. */}
@@ -165,43 +157,9 @@ function InfoTab({ draft }: { draft: DealDraft }) {
 
           <AttachmentsDropField draft={work} onSet={set} errors={errors.attachments} />
         </section>
-
-        {lost && <LossBlock draft={work} onSet={set} errors={errors} />}
       </div>
     </fieldset>
   )
 }
 
 const MISSING_NOTE = 'Còn thiếu — chưa lưu được phiếu.'
-
-/** The status box, and the one box on this form that writes itself through.
- *
- *  The selected value stays a text pill in both read and edit modes. Colour
- *  groups open/won/lost; the label carries the exact state.
- *
- *  A locked state prints the value instead of a shut picker: `Select` has no
- *  `disabled` prop, and adding one to the library for one caller would change
- *  its API. The reader reads WHY rather than clicking a grey box. */
-function StateBox({ draft }: { draft: DealDraft }) {
-  const state = draft.work.state
-  const pill = <Badge tone={STATE_TONE[state]}>{STATE_LABEL.get(state)}</Badge>
-
-  return (
-    <Field label="Trạng thái" required plain errors={draft.errors.state} hint={draft.stateHint}>
-      {draft.stateLocked ? (
-        <span className="flex h-10 items-center">{pill}</span>
-      ) : (
-        <Select
-          label="Trạng thái"
-          hideLabel
-          valueContent={pill}
-          value={state}
-          neutralValue={state}
-          onChange={(v) => draft.setState(v as OpportunityState)}
-          options={CREATE_STATES.map((s) => ({ value: s.key, label: s.label }))}
-          className="w-full"
-        />
-      )}
-    </Field>
-  )
-}

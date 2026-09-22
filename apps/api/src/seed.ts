@@ -1,12 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import {
-  normalisePhone,
-  StageKey,
-  type LeadState,
-  type OpportunityCreateState,
-  type TouchKind,
-} from '@pv/contracts'
+import { normalisePhone, StageKey, type LeadState, type TouchKind } from '@pv/contracts'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
@@ -437,7 +431,7 @@ function plantDeal(
     )
   }
   pushTouch(ld, 'lead', 'entered-pipeline', entered, owner, NOTE.promoted(op, name))
-  pushTouch(op, 'opportunity', 'entered-pipeline', entered, owner, NOTE.opened(ld, 'pending'))
+  pushTouch(op, 'opportunity', 'entered-pipeline', entered, owner, NOTE.opened(ld))
 
   /* Columns spread evenly from the day it opened to the day it reached the last one. */
   const when = path.map((_, k) =>
@@ -445,6 +439,14 @@ function plantDeal(
       ? entered
       : ago(d.enteredDaysAgo - ((d.enteredDaysAgo - d.stageDaysAgo) * k) / (path.length - 1), 4),
   )
+  /* The three recordable milestones (spec §2, §6) — reaching one of these
+     columns writes both the generic `stage-changed` line and its own kind, so
+     the profile's milestone trail is populated the same way the writer would. */
+  const MILESTONE_KIND: Partial<Record<StageKey, TouchKind>> = {
+    sample: 'sample-sent',
+    poc: 'poc-run',
+    quotation: 'quotation-sent',
+  }
   path.forEach((stage, k) => {
     const from = k === 0 ? null : path[k - 1]!
     out.moves.push({
@@ -458,11 +460,21 @@ function plantDeal(
     })
     if (from)
       pushTouch(op, 'opportunity', 'stage-changed', when[k]!, owner, NOTE.moved(from, stage))
-    if (stage === 'demo-done') {
+    const milestone = MILESTONE_KIND[stage]
+    if (milestone)
+      pushTouch(
+        op,
+        'opportunity',
+        milestone,
+        when[k]!,
+        owner,
+        NOTE.milestone(stage as 'sample' | 'poc' | 'quotation'),
+      )
+    if (stage === 'poc') {
       plantMeeting(
         ld,
         when[k]!,
-        'Demo PV One trên dữ liệu xưởng',
+        'Chạy POC trên dữ liệu xưởng',
         'online',
         60,
         [PRESALES, owner],
@@ -474,8 +486,6 @@ function plantDeal(
   const last = path[path.length - 1]!
   const signedAt = d.won ? ago(d.won.signedDaysAgo, 6) : null
   const lostAt = d.lost ? ago(d.lost.daysAgo, 6) : null
-  const openState: OpportunityCreateState =
-    last === 'quoted' ? 'quote-sent' : last === 'awaiting-signature' ? 'nego' : 'pending'
   const closedAt = signedAt ?? lostAt
 
   if (closedAt) {
@@ -493,17 +503,16 @@ function plantDeal(
     pushTouch(
       op,
       'opportunity',
-      'stage-changed',
+      'care-entered',
       lostAt,
       owner,
-      NOTE.restated(openState, 'close-lost'),
+      NOTE.careEntered(d.lost!.reason, d.lost!.note),
     )
-  if (!closedAt && (last === 'quoted' || last === 'awaiting-signature')) {
-    const next = last === 'quoted' ? 'Chốt phạm vi và giá' : 'Rà soát điều khoản hợp đồng'
+  if (!closedAt && last === 'quotation') {
     plantMeeting(
       ld,
-      ago(last === 'quoted' ? -3 : -2, 5),
-      next,
+      ago(-3, 5),
+      'Chốt phạm vi, giá và điều khoản hợp đồng',
       'office',
       60,
       [owner],
@@ -524,7 +533,7 @@ function plantDeal(
   out.deals.push({
     code: op,
     leadCode: ld,
-    state: lostAt ? 'close-lost' : openState,
+    state: lostAt ? 'care' : 'open',
     stage: closedAt ? null : last,
     stageSince: closedAt ? null : when[when.length - 1]!,
     name,
@@ -536,8 +545,9 @@ function plantDeal(
     probability: d.probability,
     description: d.description,
     closedAt,
-    lostReason: d.lost?.reason ?? null,
-    lostNote: d.lost?.note ?? null,
+    careFromStage: lostAt ? last : null,
+    careReason: d.lost?.reason ?? null,
+    careNote: d.lost?.note ?? null,
     createdAt: entered,
   })
   out.owners.push({ opportunityCode: op, actorId: owner.id, role: 'SALE' })

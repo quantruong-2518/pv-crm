@@ -3,7 +3,7 @@ import { BrandShell, CtaButton, Eyebrow, FallbackLink, Para, ShellHeading } from
 import { Divider, Field, Paragraphs } from './ops-mail-bits'
 import { COLOR_MUTED, FONT_STACK, formatMoment, formatMoney } from './ops-mail-style'
 
-/** Template 2 · "Một đơn vừa thua" — gửi hộp thư nội bộ.
+/** Template 2 · "Một đơn vừa vào chăm sóc" — gửi hộp thư nội bộ.
  *
  *  ------------------------------------------------------------------
  *  MAIL NÀY TỒN TẠI ĐỂ CHỞ MỘT BÀI HỌC, KHÔNG PHẢI ĐỂ BÁO MỘT SỐ ÂM
@@ -33,8 +33,8 @@ import { COLOR_MUTED, FONT_STACK, formatMoment, formatMoney } from './ops-mail-s
  *  ------------------------------------------------------------------
  *  HAI Ô LÝ DO, VÀ CẢ HAI ĐỀU TUỲ CHỌN — nhưng không cùng lúc
  *  ------------------------------------------------------------------
- *  `lossReason` là một trong bảy lý do dựng sẵn, `lossNote` là câu của riêng
- *  đơn này (tên đối thủ, con số họ chào, ai đổi ý). Hợp đồng ở
+ *  `careReason` là một lý do dựng sẵn theo bậc (mục 5.4, ADR 0064), `careNote`
+ *  là câu của riêng đơn này (tên đối thủ, con số họ chào, ai đổi ý). Hợp đồng ở
  *  `@pv/contracts` đòi ÍT NHẤT một trong hai, nên mail luôn có gì đó để in ở
  *  khối này; template vẫn kiểm từng ô vì nó không được quyền tin điều đó — nó
  *  cũng dựng được từ dữ liệu cũ, có trước lúc luật ấy tồn tại.
@@ -48,10 +48,10 @@ export type OpportunityLostData = {
   name: string
   amount: number | null
   currency: string | null
-  /** Một trong bảy lý do dựng sẵn. */
-  lossReason?: string
+  /** Một lý do dựng sẵn theo bậc. */
+  careReason?: string
   /** Câu của riêng đơn này. */
-  lossNote?: string
+  careNote?: string
   saleOwners: string[]
   bdOwners: string[]
   /** ISO có múi giờ. */
@@ -65,11 +65,14 @@ export type OpportunityLostData = {
 
 export function OpportunityLostEmail(data: OpportunityLostData) {
   const money = formatMoney(data.amount, data.currency)
-  const headline = data.lossReason ?? data.lossNote ?? 'chưa ghi lý do'
+  const headline = data.careReason ?? data.careNote ?? 'chưa ghi lý do'
 
   return (
-    <BrandShell preview={`${data.account} · thua · ${headline}`} assetBaseUrl={data.assetBaseUrl}>
-      <ShellHeading tone="alert">Đơn đã thua</ShellHeading>
+    <BrandShell
+      preview={`${data.account} · vào chăm sóc · ${headline}`}
+      assetBaseUrl={data.assetBaseUrl}
+    >
+      <ShellHeading tone="alert">Đơn vào danh sách chăm sóc</ShellHeading>
       <Eyebrow>
         {data.opCode} · từ lead {data.leadCode} · đóng lúc {formatMoment(data.closedAt)}
       </Eyebrow>
@@ -78,11 +81,11 @@ export function OpportunityLostEmail(data: OpportunityLostData) {
         <Text
           style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px', fontFamily: FONT_STACK }}
         >
-          Vì sao thua
+          Vì sao vào chăm sóc
         </Text>
-        <Field label="Lý do" value={data.lossReason} />
-        {data.lossNote && data.lossNote.trim() ? (
-          <Paragraphs text={data.lossNote} keyPrefix="note" />
+        <Field label="Lý do" value={data.careReason} />
+        {data.careNote && data.careNote.trim() ? (
+          <Paragraphs text={data.careNote} keyPrefix="note" />
         ) : null}
       </Section>
 

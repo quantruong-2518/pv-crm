@@ -193,7 +193,9 @@ function RailHalf({
           ? 'bg-surface-ink/14'
           : into?.state === 'dropped'
             ? 'bg-destructive-foreground'
-            : 'bg-success',
+            : into?.state === 'parked'
+              ? 'bg-surface-ink/24'
+              : 'bg-success',
       )}
     />
   )
@@ -280,12 +282,18 @@ function Rail({
 }
 
 /** The line under a ladder: the rung the lane stands on, and what it has
- *  cost. */
-function Summary({ lane }: { lane: WorkstreamLane }) {
+ *  cost.
+ *
+ *  `parked` is the one case where a STOPPED rung is not a failure: the deal is
+ *  waiting on the care list, so the rung is named plainly and stays muted. The
+ *  red "dropped at" wording there is the reading ADR 0064 removed. */
+function Summary({ lane, parked = false }: { lane: WorkstreamLane; parked?: boolean }) {
   const summary = laneSummary(lane)
   if (!summary) return null
-  const { step, dropped, days } = summary
+  const { step, days } = summary
+  const dropped = summary.dropped && !parked
   const live = step.state === 'current' && lane.open
+  const word = dropped ? `Rớt ở ${step.label}` : parked ? `Dừng ở ${step.label}` : step.label
   return (
     <span
       className={cn(
@@ -297,9 +305,9 @@ function Summary({ lane }: { lane: WorkstreamLane }) {
         {/* A closed lane that did not drop is already named by the node stamp,
             so this line drops the repeat and keeps the one thing the stamp
             cannot say: how long that last rung took. */}
-        {!lane.open && !dropped
+        {!lane.open && !dropped && !parked
           ? `${days} ngày`
-          : `${dropped ? `Rớt ở ${step.label}` : step.label}${days === null ? '' : ` · ${days} ngày`}`}
+          : `${word}${days === null ? '' : ` · ${days} ngày`}`}
       </span>
     </span>
   )
@@ -357,7 +365,7 @@ function DealNode({ lane, box, ...track }: Track & { lane: WorkstreamDealLaneVie
     <Node box={box} col={COL.deal} tinted={track.selected?.lane === lane.code}>
       <NodeHead kind="Cơ hội" tag={<Stamp stamp={dealStamp(lane)} />} />
       <Rail lane={lane} {...track} />
-      <Summary lane={lane} />
+      <Summary lane={lane} parked={lane.outcome === 'care'} />
       <NodeFoot owner={lane.owner} />
     </Node>
   )

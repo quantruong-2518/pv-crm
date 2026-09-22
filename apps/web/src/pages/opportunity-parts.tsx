@@ -1,35 +1,65 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Handshake, Mail, Phone, TriangleAlert, Users, type IconGlyph } from '@pv/ui'
+import {
+  CalendarClock,
+  Check,
+  Handshake,
+  ListChecks,
+  Mail,
+  Phone,
+  RotateCcw,
+  TriangleAlert,
+  Users,
+  X,
+  type IconGlyph,
+} from '@pv/ui'
 import {
   Avatar,
+  Badge,
   Button,
   ContextRail,
+  Drawer,
   FlowVector,
   GlassCard,
   Icon,
+  Input,
   MetaPill,
   ScreenHeader,
   SectionTitle,
+  Select,
   Separator,
   Skeleton,
+  Textarea,
   cn,
 } from '@pv/ui'
 import {
   campaignLabel,
+  OPPORTUNITY_CARE_NOTE_MAX,
+  OPPORTUNITY_CARE_REASON_OTHER,
+  OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STAGE_NOTE_MAX,
   type LeadProfile,
+  type OpportunityMilestoneKind,
   type OpportunityProfileResponse,
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { toastDone } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
 import { realContact } from '@/data/lead-profile'
-import { opportunityStageHistoryQuery } from '@/data/opportunities-write'
+import { BADGE_INK, milestonesOf, standingLabel, STATE_TONE } from '@/data/opportunities'
+import { useCareReasonLabel, useCareReasons } from '@/data/sales-config'
+import {
+  opportunityStageHistoryQuery,
+  useLogMilestone,
+  usePushToCare,
+  useReactivateDeal,
+} from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
-import { STAGE_LABEL } from '@/components/ops-fields'
+import { Field } from '@/components/ops-fields'
 import { ActivityTimeline } from '@/components/lead-history-card'
 
 /** Module 3 · the blocks of the deal screen, around the form card itself.
@@ -216,10 +246,9 @@ export function DealHistoryTab({
   )
 }
 
-/** A column's label, falling back to the key itself. Printing the raw key is
- *  ugly but TRUE for a column configured after `PIPELINE_STAGES` was frozen,
- *  while a dash would hide a column that really exists. */
-const stageName = (key: NonNullable<OpportunityRow['stage']>) => STAGE_LABEL.get(key) ?? key
+/** A column's label, from the ONE table the server prints from as well — no
+ *  fallback, because `StageKey` and this record are the same five keys. */
+const stageName = (key: NonNullable<OpportunityRow['stage']>) => OPPORTUNITY_STAGE_LABEL[key]
 
 /** The sticky bar — what BLOCKS on the left, where to go on the right.
  *
@@ -231,6 +260,7 @@ export function DealToolsBar({
   draft,
   op,
   onSign,
+  quotationLogged = false,
   canSendEmail = false,
   composeBlocked,
   onCompose,
@@ -239,6 +269,9 @@ export function DealToolsBar({
   /** `null` on the create door — nothing is signed and nothing is dirty yet. */
   op: OpportunityProfileResponse | null
   onSign: () => void
+  /** Has a `quotation-sent` touch been recorded? The sign door 409s without one
+   *  (ADR 0064 §3), so the button says so BEFORE the press rather than after. */
+  quotationLogged?: boolean
   /** `lead.send-email`, scoped — the permission `data/mas.ts` declares. */
   canSendEmail?: boolean
   /** Why this deal cannot be written to, when it cannot. */
@@ -249,11 +282,11 @@ export function DealToolsBar({
   const creating = draft.mode === 'create'
   const blocking = Boolean(draft.error) || draft.missing.length > 0
 
-  /* Three states ruling each other out in order: signed prints a static pill
-     for EVERY role, lost draws nothing at all (the server answers a 409), and
-     anything else opens the sign panel for a role holding `opportunity.close`. */
+  /* Three states ruling each other out: signed prints a static pill for every
+     role, a parked deal draws no sign button (409 — the reopen button beside it
+     is the way back), anything else opens the panel for `opportunity.close`. */
   const signed = op?.contractCode !== undefined
-  const lost = draft.work.state === 'close-lost'
+  const parked = op?.state === 'care'
   const pending = op?.pendingSign
 
   return (
@@ -263,6 +296,11 @@ export function DealToolsBar({
         className="bg-hc-surface shadow-panel flex flex-wrap items-center gap-3 p-3"
         aria-label="Thanh công cụ"
       >
+        {/* WHERE THE DEAL STANDS, on its own line above the actions: the row
+            below is already full of buttons. Absent on the create door — a deal
+            that does not exist yet stands nowhere. */}
+        {op && <DealMoves op={op} canEdit={draft.canEdit} />}
+
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={cn(
@@ -334,12 +372,20 @@ export function DealToolsBar({
           {/* HIDDEN OUTRIGHT without `opportunity.close` — decision 4 of ADR
               `docs/decisions/0018-opportunity-module-decisions.md`. Hiding is
               NOT the fence: the real one stays at the api layer. */}
-          {!creating && !signed && !lost && draft.canClose && (
+          {/* Shut until a quotation has been sent, reason on the title: the door
+              answers 409 otherwise, and a seller who filled in the whole panel
+              first deserves to have been told before pressing. */}
+          {!creating && !signed && !parked && draft.canClose && (
             <Button
               size="md"
               variant="success"
               className="pointer-coarse:h-12"
-              disabled={Boolean(pending)}
+              disabled={Boolean(pending) || !quotationLogged}
+              title={
+                quotationLogged
+                  ? undefined
+                  : 'Chưa ghi mốc Quotation — gửi báo giá và ghi mốc trước khi chốt.'
+              }
               onClick={onSign}
             >
               <Icon icon={Check} size={16} />
@@ -368,6 +414,294 @@ export function DealToolsBar({
       </GlassCard>
     </div>
   )
+}
+
+/** Where the deal STANDS, and the three doors that move it (ADR 0064 §3).
+ *
+ *  A read-only badge, never a picker: `PATCH :code/stage` is gone, and a seller
+ *  picks neither state nor column. Every button here carries a FACT instead — a
+ *  milestone that really happened, a parking with a reason, a reopen — and the
+ *  server's single stage writer draws the conclusion from it.
+ *
+ *  WHICH milestone buttons appear is `milestonesOf`'s answer rather than this
+ *  block's: it applies the same rank rule the door refuses by, so no button on
+ *  screen can earn a 409 for naming the wrong column. */
+function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: boolean }) {
+  const [note, setNote] = useState('')
+  const [caring, setCaring] = useState(false)
+  const milestone = useLogMilestone(op.code)
+  const reopen = useReactivateDeal(op.code)
+  const careReason = useCareReasonLabel(op.careReason)
+
+  const offers = milestonesOf(op)
+  const parked = op.state === 'care'
+  const signed = op.contractCode !== undefined
+  const busy = milestone.isPending || reopen.isPending
+  const failure = milestone.error ?? reopen.error
+
+  /* The note box is shared by every milestone button rather than repeated per
+     button: one deal moves one column at a time, and four note boxes on a
+     sticky bar is four boxes nobody fills in. */
+  const record = (kind: OpportunityMilestoneKind, label: string) => {
+    const typed = note.trim()
+    milestone.mutate(
+      { kind, ...(typed === '' ? {} : { note: typed }) },
+      {
+        onSuccess: () => {
+          setNote('')
+          toastDone(`Đã ghi mốc ${label}.`)
+        },
+      },
+    )
+  }
+
+  return (
+    <div className="flex basis-full flex-wrap items-center gap-2">
+      {/* `BADGE_INK` only on the parked tone — law 13; see its own note. */}
+      <Badge tone={STATE_TONE[op.state]} className={cn(op.state === 'care' && BADGE_INK)}>
+        {standingLabel(op)}
+      </Badge>
+
+      {op.daysInStage !== null && (
+        <span className="text-muted-foreground text-[11px] leading-[1.5]">
+          {op.daysInStage} ngày ở cột này
+        </span>
+      )}
+
+      {/* A parked deal prints WHY it is parked, right beside the reopen button:
+          whoever comes back to it a month later is reading this bar to decide.
+          The stored value is a catalogue id, so it is read through the book. */}
+      {parked && careReason !== undefined && (
+        <span className="text-muted-foreground min-w-0 truncate text-[11px] leading-[1.5]">
+          Lý do: {careReason}
+          {op.careNote !== undefined && ` · ${op.careNote}`}
+        </span>
+      )}
+
+      {/* A deal that has not taken its PIC records nothing, and the door says so
+          in a 409 — print the reason instead of three refusable buttons. */}
+      {canEdit && !signed && !parked && offers.length === 0 && op.stage !== null && (
+        <span className="text-muted-foreground text-[11px] leading-[1.5]">
+          Chưa đủ PIC nên chưa ghi mốc được — cần một trưởng phòng và ít nhất một người nữa đứng
+          đơn.
+        </span>
+      )}
+
+      {canEdit && !signed && (
+        <>
+          {offers.length > 0 && (
+            <Input
+              value={note}
+              aria-label="Ghi chú mốc"
+              placeholder="Ghi chú mốc (tuỳ chọn)"
+              maxLength={OPPORTUNITY_STAGE_NOTE_MAX}
+              className="w-full sm:w-[220px]"
+              onChange={(e) => setNote(e.target.value)}
+            />
+          )}
+
+          {offers.map((offer) => (
+            <Button
+              key={offer.kind}
+              size="md"
+              variant="secondary"
+              className="pointer-coarse:h-12"
+              disabled={busy}
+              /* The repeat wording is the whole point of `repeat`: pressing
+                 Quotation again is another Nego round, not a mistake. */
+              title={
+                offer.repeat
+                  ? 'Ghi thêm một lần nữa ở đúng cột này — cột và đồng hồ giữ nguyên.'
+                  : undefined
+              }
+              onClick={() => record(offer.kind, OPPORTUNITY_STAGE_LABEL[offer.stage])}
+            >
+              <Icon icon={ListChecks} size={16} />
+              {offer.repeat ? 'Ghi lại ' : 'Ghi mốc '}
+              {OPPORTUNITY_STAGE_LABEL[offer.stage]}
+            </Button>
+          ))}
+
+          {parked ? (
+            <Button
+              size="md"
+              variant="secondary"
+              className="pointer-coarse:h-12"
+              disabled={busy}
+              onClick={() =>
+                reopen.mutate(undefined, {
+                  onSuccess: () => toastDone('Đã mở lại đơn — về đúng cột cũ.'),
+                })
+              }
+            >
+              <Icon icon={RotateCcw} size={16} />
+              Mở lại
+            </Button>
+          ) : (
+            <Button
+              size="md"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              disabled={busy}
+              onClick={() => setCaring(true)}
+            >
+              <Icon icon={CalendarClock} size={16} />
+              Đẩy sang danh sách chăm sóc
+            </Button>
+          )}
+        </>
+      )}
+
+      {failure && (
+        <span
+          role="alert"
+          className="text-destructive-foreground min-w-0 text-[11px] leading-[1.5]"
+        >
+          {userMessage(failure)}
+        </span>
+      )}
+
+      <CareDrawer op={op} open={caring} onClose={() => setCaring(false)} />
+    </div>
+  )
+}
+
+/** Park a deal on the care list — a panel over the profile, the same overlay
+ *  language `SignDrawer` uses and for the same reason: whoever presses the button
+ *  is half way through reading this deal.
+ *
+ *  THE REASON IS PICKED, NOT TYPED. The catalogue lives in `sales.config_entry`
+ *  (ADR 0064 §6) and the server refuses a key that is not in it, so a text box
+ *  here could only invite a 400: what travels is the configuration row's `id`.
+ *  The list is cut to the column the deal stands in, exactly as the door cuts
+ *  it, plus the `other` row for the reason nobody has written down yet.
+ *
+ *  The note is required for the `other` reason and optional otherwise — the
+ *  contract's own refine, mirrored so the button says whether it will be
+ *  accepted before the press. Every reason in the catalogue names itself. */
+function CareDrawer({
+  op,
+  open,
+  onClose,
+}: {
+  op: OpportunityRow
+  open: boolean
+  onClose: () => void
+}) {
+  const [reasonKey, setReasonKey] = useState('')
+  const [note, setNote] = useState('')
+  const care = usePushToCare(op.code)
+  const reasons = useCareReasons(op.stage)
+  const busy = care.isPending
+  const noteNeeded = reasonKey === OPPORTUNITY_CARE_REASON_OTHER
+  const ready = reasonKey !== '' && (!noteNeeded || note.trim() !== '') && !busy
+
+  const submit = () =>
+    care.mutate(
+      { reasonKey, ...(note.trim() === '' ? {} : { note: note.trim() }) },
+      {
+        /* Closes ONLY once the server has accepted. Closing first and sending
+           after is the surest way for a refusal to vanish without a trace. */
+        onSuccess: () => {
+          toastDone(`Đã đẩy ${op.code} sang danh sách chăm sóc.`)
+          setReasonKey('')
+          setNote('')
+          onClose()
+        },
+      },
+    )
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title="Đẩy sang danh sách chăm sóc"
+      subtitle={
+        <>
+          <span className="font-mono">{op.code}</span> · {op.account} — đơn rời năm cột, và mở lại
+          thì về đúng cột nó đang đứng.
+        </>
+      }
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <span
+            className={cn(
+              'min-w-0 flex-1 text-[11.5px] leading-[1.5]',
+              care.error ? 'text-destructive-foreground' : 'text-muted-foreground',
+            )}
+            aria-live="polite"
+          >
+            {care.error
+              ? userMessage(care.error)
+              : busy
+                ? 'Đang đẩy sang chăm sóc…'
+                : ready
+                  ? 'Lead gốc KHÔNG đổi trạng thái — chỉ đơn này rời bảng.'
+                  : noteNeeded
+                    ? 'Chọn "Khác" thì phải ghi rõ lý do.'
+                    : 'Chọn một lý do trong danh mục.'}
+          </span>
+          <div className="flex shrink-0 gap-2">
+            <Button size="md" variant="ghost" disabled={busy} onClick={onClose}>
+              <Icon icon={X} size={16} />
+              Huỷ
+            </Button>
+            <Button size="md" disabled={!ready} onClick={submit}>
+              <Icon icon={CalendarClock} size={16} />
+              {busy ? 'Đang đẩy…' : 'Đẩy sang chăm sóc'}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-6">
+        <Field
+          label="Lý do"
+          required
+          plain
+          hint="Danh mục lý do ở màn Thiết lập, cắt theo đúng cột đơn đang đứng. Thiếu lý do nào thì thêm ở đó, không gõ tay ở đây."
+        >
+          <Select
+            label="Lý do đẩy sang chăm sóc"
+            hideLabel
+            value={reasonKey}
+            onChange={setReasonKey}
+            options={careReasonOptions(reasons)}
+            className="w-full"
+          />
+        </Field>
+
+        <Field
+          label="Ghi chú"
+          required={noteNeeded}
+          hint="Câu của riêng đơn này — khách nói gì, ai đổi ý, bao giờ nên gọi lại."
+        >
+          <Textarea
+            autoGrow
+            rows={3}
+            value={note}
+            aria-label="Ghi chú khi đẩy sang chăm sóc"
+            aria-required={noteNeeded}
+            maxLength={OPPORTUNITY_CARE_NOTE_MAX}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </Field>
+      </div>
+    </Drawer>
+  )
+}
+
+/** The picker's rows: the catalogue for this column, then the `other` row.
+ *
+ *  The empty first row is what makes "nobody has chosen yet" a state the drawer
+ *  can be in — a select opening on the first real reason would let one press
+ *  send a reason nobody read. */
+function careReasonOptions(reasons: readonly { id: string; label: string }[]) {
+  return [
+    { value: '', label: 'Chọn lý do…' },
+    ...reasons.map((r) => ({ value: r.id, label: r.label })),
+    { value: OPPORTUNITY_CARE_REASON_OTHER, label: 'Khác' },
+  ]
 }
 
 /** The screen that would not open — ONE block, four sentences, glyph follows

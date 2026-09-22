@@ -1,6 +1,6 @@
 # 0032 · The opportunity board drops from five columns to three; "demoed" becomes an inferred flag, not a column
 
-Status: accepted
+Status: accepted (the column set superseded by 0064: the board is five columns by the new stages, not three)
 Source: docs/tam-nhin-pipeline.md — "Ba câu chủ dự án chốt 31/08" (table),
 "§3 · Quyết định 1 — bảng cơ hội rút còn BA cột"
 

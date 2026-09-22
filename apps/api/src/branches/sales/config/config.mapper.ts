@@ -24,6 +24,7 @@ export function toContract(row: ConfigRowDb): ConfigEntry {
     ...(row.limitDays === null ? {} : { limitDays: row.limitDays }),
     ...(row.ownerId ? { ownerId: row.ownerId } : {}),
     ...(row.kind ? { kind: row.kind } : {}),
+    ...(row.stage === null ? {} : { stage: row.stage }),
   }
 }
 

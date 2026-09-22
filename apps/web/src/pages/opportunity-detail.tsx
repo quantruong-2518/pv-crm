@@ -139,6 +139,11 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const saved = useMemo(() => draftOf(op), [op])
   const draft = useDealDraft({ saved, op, leadCode: op.leadCode })
 
+  /* Read as the FACT the sign door checks (`quotation-sent`), not off `stage`:
+     the door refuses on the touch, and a deal reopened from care stands in
+     `quotation` again without that saying the quotation was ever sent twice. */
+  const quotationLogged = touches.some((t) => t.kind === 'quotation-sent')
+
   return (
     <ScreenLayout>
       {/* THE OBJECT CHAIN rides in the header's meta row (law 10), built by
@@ -173,6 +178,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         draft={draft}
         op={op}
         onSign={() => setSigning(true)}
+        quotationLogged={quotationLogged}
         canSendEmail={canSendEmail}
         composeBlocked={mailBlocker}
         onCompose={composeMail}

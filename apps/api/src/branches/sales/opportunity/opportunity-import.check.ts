@@ -1,7 +1,6 @@
 import {
   CurrencyCode,
   OpportunityCreate,
-  OpportunityCreateState,
   type OpportunityImportDup,
   type OpportunityImportError,
   type OpportunityImportField,
@@ -76,7 +75,6 @@ const LABEL: Record<OpportunityImportField, string> = {
   closedDate: 'Ngày đóng dự kiến',
   saleOwner: 'Sale đứng đơn',
   bdOwner: 'BD mở cửa',
-  state: 'Trạng thái',
   currency: 'Đồng tiền',
   description: 'Mô tả',
 }
@@ -254,23 +252,9 @@ function checkRow(
     bdOwners = [bd]
   }
 
-  // ── trạng thái ───────────────────────────────────────────────────────────
-  const rawState = cell('state')
-  keep('state', rawState)
-  const state = rawState === '' ? 'pending' : rawState
-  if (!OpportunityCreateState.safeParse(state).success) {
-    return {
-      field: 'state',
-      /* 'close-won' được gọi tên riêng vì nó là thứ người ta sẽ thử. Một cột
-         "Trạng thái" trong Excel gần như chắc chắn có dòng "đã thắng", và câu
-         "không nằm trong danh sách" không nói được vì sao. */
-      reason:
-        state === 'close-won'
-          ? 'Đơn thắng không nạp được từ tệp — thắng là có hợp đồng, ký ở hồ sơ cơ hội'
-          : `${LABEL.state} "${rawState}" không nằm trong danh sách`,
-    }
-  }
-
+  /* KHÔNG có ô trạng thái nữa (ADR 0064): một đơn nạp vào đứng ở `new`, hoặc ở
+     `assigned` khi tập PIC của dòng đó đã đủ — và cột đó do writer của máy chủ
+     đặt, không do một ô Excel. */
   const description = cell('description')
   keep('description', description)
 
@@ -279,7 +263,6 @@ function checkRow(
     leadCode,
     name,
     expectedClose,
-    state,
     amount,
     currency,
     saleOwners: [sale],

@@ -23,7 +23,7 @@ export const PipelinePositionView = z.object({
    *  §7 warns that a phase drawn from Sales' own `P0…P7` scale either gets
    *  rewritten when Supply and Factory arrive or serves Sales forever. Scoping
    *  the key to its pipeline is that warning answered in the shape — and it is
-   *  needed on the wire too, since two ladders may both call a phase `awaiting-signature`
+   *  needed on the wire too, since two ladders may both call a phase `quotation`
    *  and a screen listing several pipelines could not tell them apart. */
   phase: z.object({
     pipeline: textInput(40),

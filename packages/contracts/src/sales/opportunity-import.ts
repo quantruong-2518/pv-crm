@@ -50,9 +50,9 @@ import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from
  *  one customer is legal, and the day somebody genuinely wants one they will
  *  open it through `POST /sales/opportunities`, where there is a person to ask.
  *
- *  "Still open" excludes both terminal ends: a lost deal and a signed one are
- *  finished, and a customer coming back next quarter is a new deal, not a
- *  duplicate of an old one. */
+ *  "Still open" excludes both ends: a deal parked on the care list and a signed
+ *  one are off the board, and a customer coming back next quarter is a new
+ *  deal, not a duplicate of an old one. */
 
 /** One batch, at most. Lower than the lead import's 5,000 on purpose: a lead
  *  file is a list bought or exported by the thousand, a pipeline is what one
@@ -64,9 +64,14 @@ export const MAX_IMPORT_OPS = 2_000
 // WHAT A COLUMN MAY BE
 // ---------------------------------------------------------------------------
 
-/** The closed field set. The first six are `OP_SPEC` verbatim; the last three
- *  are optional and exist because the columns exist on the table and a file
- *  that has them should not have to throw them away. */
+/** The closed field set. The first six are `OP_SPEC` verbatim; the last two are
+ *  optional and exist because the columns exist on the table and a file that
+ *  has them should not have to throw them away.
+ *
+ *  No `state` column: an imported deal enters at stage `new`, or at `assigned`
+ *  if its PIC set already qualifies — the same single writer every other door
+ *  goes through (ADR 0064). A spreadsheet cell naming a state would be the one
+ *  way to put a deal in a column no event put it in. */
 export const OPPORTUNITY_IMPORT_FIELDS = [
   'name',
   'company',
@@ -74,7 +79,6 @@ export const OPPORTUNITY_IMPORT_FIELDS = [
   'closedDate',
   'saleOwner',
   'bdOwner',
-  'state',
   'currency',
   'description',
 ] as const

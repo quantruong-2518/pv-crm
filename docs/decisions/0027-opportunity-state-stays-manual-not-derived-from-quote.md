@@ -1,6 +1,6 @@
 # 0027 · `opportunity.state` stays hand-typeable and is never derived from quote status
 
-Status: accepted
+Status: superseded by 0064
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§11 · Năm câu treo — đã chốt
 30/08 · 4 · `opportunity.state` — VẪN GÕ TAY ĐƯỢC, và KHÔNG suy ra từ báo giá"
 and "§7 · Màn" ("Trạng thái đơn phải tự đi theo báo giá")

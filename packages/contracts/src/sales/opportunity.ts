@@ -11,26 +11,23 @@ import {
   textInputOptional,
 } from '../primitives'
 import { ConfigCode } from './config'
-import { CurrencyCode, StageKey } from './enums'
+import { CurrencyCode, OpportunityStatus, StageKey } from './enums'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
  *
- *  ------------------------------------------------------------------
- *  THE CREATE DOOR ACCEPTS FOUR STATES, THE BOOK CARRIES FIVE
- *  ------------------------------------------------------------------
- *  `close-won` is missing from `OpportunityCreate` on purpose, and the reason
- *  is a table that is not this one: "won" is not a state of an opportunity at
- *  all, it is the EXISTENCE of a row in `sales.contract` (see the docblock on
- *  `opportunity.schema.ts`). A contract row needs a contract number and a
- *  signing date, and the promote form has an input for neither — so a create
- *  door accepting `close-won` could only invent both.
+ *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
+ *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram
+ *      POST   …/:code/milestones · …/:code/care · …/:code/reactivate
  *
- *  Two enums rather than one `.refine()` because the difference is structural,
- *  not a validation rule: the four are what a caller may SAY, the five are what
- *  the book may CONTAIN. A screen reading `OpportunityState` gets all five and
- *  renders them; a body claiming the fifth dies at the gate naming the field.
- *  Closing a deal as won stays where the missing facts can be asked for — the
- *  opportunity profile, not the promote form.
+ *  ------------------------------------------------------------------
+ *  NO WRITE BODY CARRIES `state` OR `stage` (ADR 0064)
+ *  ------------------------------------------------------------------
+ *  One axis, one writer. `stage` follows facts the server can see — the PIC set
+ *  for `assigned`, a recorded milestone for the last three — and `state` follows
+ *  the care door. `won` is not stored anywhere: it is the existence of a row in
+ *  `sales.contract`, folded in on read. So a seller picks neither, which is why
+ *  the milestone/care/reactivate doors below exist and `PATCH /:code/stage` no
+ *  longer does: a drag gesture cannot be what advances a deal.
  *
  *  ------------------------------------------------------------------
  *  OWNERS ARE A LIST, AND THE LIST HAS TWO ROLES
@@ -51,31 +48,11 @@ import { CurrencyCode, StageKey } from './enums'
 // STATES
 // ---------------------------------------------------------------------------
 
-/** What a seller is DOING with the deal. Five values, two of them terminal. */
-export const OpportunityState = z.enum(['quote-sent', 'nego', 'close-won', 'close-lost', 'pending'])
-
-/** The four a create body may claim. See the docblock above for why
- *  `close-won` is not one of them. */
-export const OpportunityCreateState = z.enum(['quote-sent', 'nego', 'close-lost', 'pending'])
-
-/** Which of the five pipeline columns a state drops the deal into.
- *
- *  `null` is an answer, not a gap: both terminal states leave the five-column
- *  board entirely, and a sixth column invented to hold them would be a column
- *  nobody works. The map lives in the contract rather than in a screen because
- *  the server writes `stage` from `state` on the way in — one table, so the
- *  column a row lands in cannot disagree with the badge printed on it. */
-export const STAGE_OF_STATE = {
-  'quote-sent': 'quoted',
-  nego: 'awaiting-signature',
-  'close-won': null,
-  'close-lost': null,
-  pending: 'discovery',
-} as const satisfies Record<z.infer<typeof OpportunityState>, z.infer<typeof StageKey> | null>
-
-export function stageOfState(state: OpportunityState): StageKey | null {
-  return STAGE_OF_STATE[state]
-}
+/** Whether the deal is still on the board. The two values a COLUMN may hold —
+ *  `won` is absent because no column spells it. Derived from `OpportunityStatus`
+ *  (`./enums`) rather than retyped, so the stored half and the read half cannot
+ *  drift apart by a letter. */
+export const OpportunityState = OpportunityStatus.exclude(['won'])
 
 /** Which half of the deal a person is on. UPPER_SNAKE — the naming law for
  *  enum VALUES here, same as `LeadSourceKind`. */
@@ -103,8 +80,8 @@ export const OpportunityFile = z.object({
  *  what every read of the book expects to carry. */
 export const OPPORTUNITY_FILES_MAX = 20
 
-/** The four length caps of `dealFields`, named and EXPORTED rather than left as
- *  literals in the shapes below.
+/** The length caps of the deal form and the care door, named and EXPORTED
+ *  rather than left as literals in the shapes below.
  *
  *  The form that fills this contract in has to stop the typist at the same
  *  number, and a `maxLength={200}` copied by hand into a screen is a number
@@ -116,8 +93,11 @@ export const OPPORTUNITY_FILES_MAX = 20
  *  the 201st character before the request rather than after it. */
 export const OPPORTUNITY_NAME_MAX = 200
 export const OPPORTUNITY_DESCRIPTION_MAX = 2_000
-export const OPPORTUNITY_LOSS_REASON_MAX = 120
-export const OPPORTUNITY_LOSS_NOTE_MAX = 1_000
+export const OPPORTUNITY_CARE_REASON_MAX = 120
+export const OPPORTUNITY_CARE_NOTE_MAX = 1_000
+/** The one care reason key with a rule attached: picking it demands a note.
+ *  Declared here so the form and the door test the same string. */
+export const OPPORTUNITY_CARE_REASON_OTHER = 'other'
 /** A deal asking about more than a dozen product lines is a deal nobody has
  *  qualified yet. The cap is generous rather than tight because refusing a
  *  legitimate form is worse than storing one that is too broad — it exists to
@@ -147,7 +127,6 @@ const dealFields = {
   name: textInput(OPPORTUNITY_NAME_MAX),
 
   expectedClose: Day,
-  state: OpportunityCreateState,
 
   /** Money always travels with its unit — both required together, unlike the
    *  lead's budget where the customer may simply not have named one. A deal
@@ -191,18 +170,11 @@ const dealFields = {
 
   description: textInputOptional(OPPORTUNITY_DESCRIPTION_MAX),
   attachments: z.array(OpportunityFile).max(OPPORTUNITY_FILES_MAX).optional().default([]),
-
-  /** Only meaningful when `state === 'close-lost'`; refused otherwise. */
-  lossReason: textInputOptional(OPPORTUNITY_LOSS_REASON_MAX),
-  lossNote: textInputOptional(OPPORTUNITY_LOSS_NOTE_MAX),
 }
 
-/* Ba luật LIÊN Ô dưới đây lặp lại ở cả hai cửa, và lặp có chủ ý. Zod 4 không
-   cho gắn `.refine` vào một object literal rồi trải nó ra — `.refine` trả về
-   `ZodEffects`, không còn `.shape` để trải — nên gói chúng thành một hàm sẽ đòi
-   một chữ ký generic mà chỉ có ba dòng thân hàm. Chia sẻ phần TRƯỜNG (nơi một
-   sai lệch làm hai form hỏi hai bộ câu khác nhau) và chép phần LUẬT (ba dòng,
-   đọc tại chỗ) là đánh đổi đúng chiều. */
+/* The "must have a sale owner" rule repeats on both doors, on purpose: zod 4
+   won't let a `.refine` attach to an object literal and still spread it.
+   Sharing the FIELDS and copying the one-line RULE is the right trade. */
 
 /** `POST /sales/opportunities` — promote a lead into an opportunity.
  *
@@ -210,9 +182,10 @@ const dealFields = {
  *  that could name its own code could land on somebody else's deal, and two
  *  people with the promote form open would mint the same number.
  *
- *  `stage` is absent for the same class of reason — it is DERIVED from `state`
- *  through `STAGE_OF_STATE`, and a body carrying both invites the two to
- *  disagree. */
+ *  `state` and `stage` are absent for a different one: a new deal opens at
+ *  `new`, or at `assigned` when the PIC set already qualifies — the server reads
+ *  that off `saleOwners`/`bdOwners`, so a body naming a stage could only
+ *  contradict it. */
 export const OpportunityCreate = z
   .object({
     /** The lead this deal came out of. One lead may produce many. */
@@ -225,14 +198,6 @@ export const OpportunityCreate = z
     error: 'Phải có ít nhất một Sale đứng đơn',
     path: ['saleOwners'],
   })
-  .refine(
-    (v) => v.state !== 'close-lost' || v.lossReason !== undefined || v.lossNote !== undefined,
-    { error: 'Đơn thua phải ghi lý do', path: ['lossReason'] },
-  )
-  .refine(
-    (v) => v.state === 'close-lost' || (v.lossReason === undefined && v.lossNote === undefined),
-    { error: 'Chỉ đơn thua mới ghi được lý do thua', path: ['lossReason'] },
-  )
 
 /** `PATCH /sales/opportunities/:code` — the opportunity profile's save button.
  *
@@ -240,32 +205,21 @@ export const OpportunityCreate = z
  *  THE WHOLE EDITABLE SET, NOT THE CHANGED FIELDS
  *  ------------------------------------------------------------------
  *  The screen knows which cells are dirty and says so on the button ("Lưu 3 ô
- *  đã sửa"), but it sends all eleven. That is deliberate: the three rules above
- *  are CROSS-FIELD, and a sparse body cannot be checked against them without
- *  first re-reading the row and merging — which means the rule is enforced
- *  against a state that existed one query ago. Sending the whole form makes the
- *  body self-describing, so "is this a legal deal" is answered by looking at
- *  the body alone.
+ *  đã sửa"), but it sends the whole editable set. Sending the whole form makes
+ *  the body self-describing, so "is this a legal deal" is answered by looking at
+ *  the body alone rather than against a row read one query ago.
  *
  *  What is NOT here is as load-bearing as what is: `leadCode` and `accountCode`
  *  cannot be edited — a deal does not move to another customer, and a request
  *  that could move it is a request that can rewrite somebody's pipeline by
- *  typo. `code` is not editable for the same reason it is not creatable. */
+ *  typo. `code` is not editable for the same reason it is not creatable, and
+ *  `state`/`stage` are not editable at all — see the top of this file. */
 export const OpportunityUpdate = z
-  // `close-won` so a signed deal's form can save (ADR 0057); the server polices it.
-  .object({ ...dealFields, state: OpportunityState })
+  .object({ ...dealFields })
   .refine((v) => v.saleOwners.length > 0, {
     error: 'Phải có ít nhất một Sale đứng đơn',
     path: ['saleOwners'],
   })
-  .refine(
-    (v) => v.state !== 'close-lost' || v.lossReason !== undefined || v.lossNote !== undefined,
-    { error: 'Đơn thua phải ghi lý do', path: ['lossReason'] },
-  )
-  .refine(
-    (v) => v.state === 'close-lost' || (v.lossReason === undefined && v.lossNote === undefined),
-    { error: 'Chỉ đơn thua mới ghi được lý do thua', path: ['lossReason'] },
-  )
 
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
@@ -304,24 +258,24 @@ export const OpportunityRow = z.object({
   accountCode: ObjectCode.optional(),
 
   name: textInput(200),
-  state: OpportunityState,
-  /** The number on the paper that made `state` read `close-won`.
+  /** The READ vocabulary — `open` · `care` · `won`. The first two are the
+   *  column; `won` is resolved from the existence of a `sales.contract` row, in
+   *  the one mapper that folds it in. */
+  state: OpportunityStatus,
+  /** The number on the paper that made `state` read `won`.
    *
    *  Present ONLY on a signed deal, and absent — not `''` — on every other one.
-   *  The two facts are one fact: `close-won` IS the existence of a row in
-   *  `sales.contract` (see the docblock at the top of this file), so a row
-   *  carrying the fifth state without a number, or a number without the fifth
-   *  state, would be the server disagreeing with itself. An empty string would
-   *  be a third way of saying "no contract" beside `state` and absence, and the
-   *  screen would have to test for all three before printing.
+   *  The two facts are one fact: `won` IS the existence of a row in
+   *  `sales.contract`, so a row carrying `won` without a number, or a number
+   *  without `won`, would be the server disagreeing with itself.
    *
    *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`. The primitive lives in
    *  `primitives.ts` and its docblock says why it cannot be reused from
    *  `./contract` — that module imports this one. */
   contractCode: ContractCode.optional(),
   /** Which of the five columns the deal stands in. `null` = it has left the
-   *  board (won or lost). Written from `state` at create time, then free to
-   *  move on its own — see the schema's docblock. */
+   *  board — won, or parked in `care`, where `careFromStage` remembers the
+   *  column it will come back to. */
   stage: StageKey.nullable(),
   /** Days the deal has stood in its CURRENT column, counted server-side.
    *
@@ -357,8 +311,14 @@ export const OpportunityRow = z.object({
   description: z.string().optional(),
   attachments: z.array(OpportunityFile),
 
-  lossReason: z.string().optional(),
-  lossNote: z.string().optional(),
+  /** The three care facts, present exactly when `state === 'care'`.
+   *  `careFromStage` is the column `POST /:code/reactivate` puts the deal back
+   *  into — stored rather than re-derived from the stage history, which a
+   *  re-entered deal would answer wrongly. `careReason` is a catalogue KEY
+   *  (`sales.config_entry`), never its Vietnamese label. */
+  careFromStage: StageKey.optional(),
+  careReason: z.string().optional(),
+  careNote: z.string().optional(),
 
   createdAt: Moment,
   closedAt: Moment.nullable(),
@@ -416,12 +376,10 @@ export const OpportunitySortKey = z.enum([
 export const OpportunityBookQuery = PageQuery.extend({
   leadCode: ObjectCode.optional(),
 
-  /** One of the five the book may CONTAIN, not one of the four a body may
-   *  claim — `close-won` filters too, and it has to: it is the state the deal
-   *  board's rightmost card is counted in. The server resolves it the same way
+  /** The READ vocabulary, so `won` filters too — the server resolves it the way
    *  every read path does, by the existence of a `sales.contract` row, because
-   *  no column spells it (see the docblock at the top of this file). */
-  state: OpportunityState.optional(),
+   *  no column spells it. */
+  state: OpportunityStatus.optional(),
 
   /** Actor id of a Sale on the deal, or `OWNER_NONE` for "nobody is closing it
    *  yet". Two fields rather than one `owner`, unlike the lead book: the two
@@ -480,9 +438,9 @@ export const OpportunityBookQuery = PageQuery.extend({
  *  its own histogram, and the open approvals are one `IN (…)`
  *  (`ApprovalService.pendingOnMany`). Two queries for a page of up to 200.
  *
- *  `null` on a row means the deal stands in no column — won and lost have left
- *  the board — which is rule 1 of §2 answered honestly rather than defaulted
- *  away. */
+ *  `null` on a row means the deal stands in no column — a won deal and a
+ *  cared-for one have both left the board — which is rule 1 of §2 answered
+ *  honestly rather than defaulted away. */
 export const OpportunityBookRow = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
 })
@@ -521,7 +479,7 @@ export const OpportunityCreateResponse = OpportunityRow
 /** Cả hai cửa ghi trả về NGUYÊN dòng sổ, cùng một hình với lượt đọc.
  *
  *  Không phải `{ok: true}`: màn vừa sửa xong cần biết máy chủ đã chuẩn hoá
- *  thành cái gì — cột nào `state` mới rơi vào, `closed_at` có được đặt không,
+ *  thành cái gì — dòng đang đứng ở cột nào, `closed_at` có được đặt không,
  *  tên người đứng đơn đọc ra sao. Trả một cờ rồi bắt màn gọi lần thứ hai là
  *  hai lượt mạng cho một câu, và giữa hai lượt đó màn hiển thị dữ liệu nó tự
  *  đoán. */
@@ -563,22 +521,24 @@ export const OpportunityScorecard = z.object({
   /** Every deal in the book, whatever its state — the denominator. */
   total: z.number().int().nonnegative(),
   /** Deals still standing in one of the five columns (`stage IS NOT NULL`).
-   *  Won and lost have left the board, so neither is counted here. */
+   *  Won deals and cared-for deals have left the board, so neither counts. */
   open: z.number().int().nonnegative(),
   /** Sum of the open deals that HAVE an amount, converted to dong. */
   openAmountVnd: MoneyVnd,
   /** How many open deals carry no amount — the ones missing from the sum. */
   openBlank: z.number().int().nonnegative(),
   won: z.number().int().nonnegative(),
-  lost: z.number().int().nonnegative(),
+  /** Deals parked on the care list — the card that used to read "lost". Nobody
+   *  is lost any more; a deal is either being worked or waiting to be. */
+  care: z.number().int().nonnegative(),
 })
 
 // ---------------------------------------------------------------------------
 // OPEN DEALS OF ONE LEAD — `GET /sales/opportunities/live-deal`
 // ---------------------------------------------------------------------------
 
-/** "Which deals of this lead are still open?" — open means not lost and not
- *  signed, the same meaning the import door uses (`liveDealsByLead`).
+/** "Which deals of this lead are still open?" — open means neither parked in
+ *  `care` nor signed, the same meaning the import door uses (`liveDealsByLead`).
  *
  *  Unscoped on purpose: the book is `scoped: true`, so a Sale filtering it
  *  would not see a colleague's deal on the same lead. */
@@ -598,7 +558,6 @@ export type OpportunityLiveDealQuery = z.infer<typeof OpportunityLiveDealQuery>
 export type OpportunityLiveDeal = z.infer<typeof OpportunityLiveDeal>
 
 export type OpportunityState = z.infer<typeof OpportunityState>
-export type OpportunityCreateState = z.infer<typeof OpportunityCreateState>
 export type OpportunityOwnerRole = z.infer<typeof OpportunityOwnerRole>
 export type OpportunityFile = z.infer<typeof OpportunityFile>
 export type OpportunityCreate = z.infer<typeof OpportunityCreate>
@@ -617,54 +576,79 @@ export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileRespon
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 
 // ---------------------------------------------------------------------------
-// MOVING A DEAL BETWEEN COLUMNS — AND REMEMBERING THAT IT MOVED
+// THE THREE DOORS THAT MOVE A DEAL — MILESTONE · CARE · REACTIVATE
 // ---------------------------------------------------------------------------
 
-/** `PATCH /sales/opportunities/:code/stage` — drag a deal to another column.
+/** The three recordable milestones, in the order a deal passes them.
  *
- *  ------------------------------------------------------------------
- *  A DOOR OF ITS OWN, NEXT TO `PATCH /:code` THAT ALREADY WRITES `stage`
- *  ------------------------------------------------------------------
- *  Two doors reaching the same column looks like a duplication and is not,
- *  because until now there was NO door that could reach it. `PATCH /:code`
- *  writes `stage` only as a consequence of `state` — through `STAGE_OF_STATE` —
- *  which leaves two of the five columns unreachable: no state maps to 'new' or
- *  'demo-done', so a deal could never be put into either one from any screen. The
- *  board had five columns and three of them were writable.
+ *  Exported as an ordered tuple as well as an enum because the order IS the
+ *  rule: a milestone below the deal's current column is refused, a repeat of
+ *  the current one is allowed, and skipping forward is allowed. A second copy
+ *  of that order in the server would be the copy that goes stale. */
+export const OPPORTUNITY_MILESTONES = ['sample', 'poc', 'quotation'] as const
+export const OpportunityMilestoneKind = z.enum(
+  OPPORTUNITY_MILESTONES,
+  'Mốc không có trong danh sách',
+)
+
+/** `POST /sales/opportunities/:code/milestones` — record a real event, and let
+ *  the stage follow it. Permission `opportunity.edit`, `scoped: true`.
  *
- *  The two doors also mean different things, and that is the durable reason to
- *  keep them apart rather than widen the first:
- *
- *      PATCH /:code         "what is the seller DOING"   -> state, and stage follows
- *      PATCH /:code/stage   "where does the card SIT"    -> stage, and state does not move
- *
- *  Moving a card between two of the early columns does not change what the
- *  seller is doing, and forcing it through `state` would either invent two
- *  states nobody works in, or silently rewrite the work state to reach the
- *  column. It also keeps the reach honest: this body cannot touch money,
- *  owners or the close date, so the drag gesture on a board — the cheapest
- *  gesture in the product — cannot be the one that overwrites a deal's value.
- *
- *  `stage` is NOT nullable here. Leaving the board is winning (a contract) or
- *  losing (`state`), and both already have doors that do more than move a card.
- *  A null through this one would close a deal without a reason or a signature. */
-export const OpportunityStageMove = z.object({
-  stage: StageKey,
-  /** What the mover typed, when they typed anything. Optional because demanding
-   *  a sentence for every move is how a team learns to type 'x'. */
+ *  This is the only way past `assigned`: there is no "move the card" door, so a
+ *  deal reads `quotation` because a quotation was sent, not because somebody
+ *  dragged it. `at` is optional and defaults to now server-side — backdating is
+ *  for paperwork entered late, not the common case. */
+export const OpportunityMilestoneBody = z.object({
+  kind: OpportunityMilestoneKind,
+  at: Moment.optional(),
   note: textInputOptional(OPPORTUNITY_STAGE_NOTE_MAX),
 })
+
+/** `POST /sales/opportunities/:code/care` — park the deal on the care list.
+ *
+ *  `reasonKey` is a STRING, deliberately not an enum: the reasons are a
+ *  per-stage catalogue in `sales.config_entry` that the desk edits without a
+ *  deploy (spec §5), so a closed list here would refuse a row somebody just
+ *  added. The server checks the key against the catalogue; the contract only
+ *  guarantees a key was sent — and that `other` came with a sentence, because
+ *  "Khác" with no note is a reason nobody can read later. */
+export const OpportunityCareBody = z
+  .object({
+    reasonKey: textInput(OPPORTUNITY_CARE_REASON_MAX),
+    note: textInputOptional(OPPORTUNITY_CARE_NOTE_MAX),
+  })
+  .refine((v) => v.reasonKey !== OPPORTUNITY_CARE_REASON_OTHER || v.note !== undefined, {
+    error: 'Chọn "Khác" thì phải ghi lý do',
+    path: ['note'],
+  })
+
+/** `POST /sales/opportunities/:code/reactivate` — bring a cared-for deal back
+ *  to `careFromStage`. No fields: the column to return to is remembered on the
+ *  row, and asking the caller for it would let a deal come back one column
+ *  further along than it left. */
+export const OpportunityReactivateBody = z.object({})
+
+/** All three doors answer with the whole book row, like the write doors above:
+ *  stage, state, the care fields and the clock are all recomputed, and a screen
+ *  patching its own cached row would disagree with the next `GET`. */
+export const OpportunityMilestoneResponse = OpportunityRow
+export const OpportunityCareResponse = OpportunityRow
+export const OpportunityReactivateResponse = OpportunityRow
+
+// ---------------------------------------------------------------------------
+// REMEMBERING THAT IT MOVED
+// ---------------------------------------------------------------------------
 
 /** One line of a deal's column history.
  *
  *  Read-only, always: no door writes one of these directly. Every row is a
- *  by-product of a move that happened somewhere else — the create door, the
- *  state change, the stage move, the signature — which is what makes the
- *  history trustworthy as a record rather than a second thing to maintain.
+ *  by-product of a move that happened somewhere else — the create door, a
+ *  milestone, the care door, the signature — which is what makes the history
+ *  trustworthy as a record rather than a second thing to maintain.
  *
  *  `from` and `to` are both nullable, and each null is a real event rather than
  *  missing data: `from: null` is the deal entering the board when it was
- *  opened, `to: null` is it leaving by being signed or lost. A funnel report
+ *  opened, `to: null` is it leaving by being signed or parked. A funnel report
  *  reads the first as "entered" and the second as "exited"; dropping either
  *  would make the first and last step of every deal invisible. */
 export const OpportunityStageEvent = z.object({
@@ -691,9 +675,17 @@ export const OpportunityStageHistory = z.object({
 })
 
 export type OpportunityProduct = z.infer<typeof OpportunityProduct>
-export type OpportunityStageMove = z.infer<typeof OpportunityStageMove>
+export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
+export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
+export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>
+export type OpportunityCareBody = z.infer<typeof OpportunityCareBody>
+export type OpportunityCareResponse = z.infer<typeof OpportunityCareResponse>
+export type OpportunityReactivateBody = z.infer<typeof OpportunityReactivateBody>
+export type OpportunityReactivateResponse = z.infer<typeof OpportunityReactivateResponse>
 export type OpportunityStageEvent = z.infer<typeof OpportunityStageEvent>
 export type OpportunityStageHistory = z.infer<typeof OpportunityStageHistory>
+
+// ---------------------------------------------------------------------------
 // THE HISTOGRAM — `GET /sales/opportunities/histogram`
 // ---------------------------------------------------------------------------
 

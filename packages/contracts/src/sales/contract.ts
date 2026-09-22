@@ -4,7 +4,7 @@ import { paged } from '../pagination'
 import { CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
-/** Signing a deal — the door that RAISES the request to make `close-won` true.
+/** Signing a deal — the door that RAISES the request that makes a deal read `won`.
  *
  *      POST /sales/opportunities/:code/contract     permission `opportunity.close`
  *      -> 202 `ConfigProposalReceipt` (`./config`) — one inbox, one receipt shape,
@@ -20,15 +20,15 @@ import { OpportunityRow } from './opportunity'
  *  ------------------------------------------------------------------
  *  WHY THIS IS A CONTRACT DOOR AND NOT A STATE ON THE DEAL
  *  ------------------------------------------------------------------
- *  `sales.opportunity.state` has four values and none of them is `close-won`,
- *  because "won" was never a state of the opportunity — it is the EXISTENCE of
- *  a row in `sales.contract`. Every read path in the server already agrees:
+ *  `sales.opportunity.state` stores `open` and `care` and nothing else, because
+ *  "won" was never a state of the opportunity — it is the EXISTENCE of a row in
+ *  `sales.contract`. Every read path in the server already agrees:
  *  `OpportunityRepository.signed()` answers the question with an `EXISTS`, and
  *  `opportunity.mapper.ts` is the one place that folds that boolean back into
- *  the fifth state the screen renders.
+ *  the `won` the screen renders.
  *
  *  So there is exactly one honest way to win a deal, and it is to write the
- *  contract. A `PATCH` accepting `state: 'close-won'` would need somewhere to
+ *  contract. A `PATCH` accepting `state: 'won'` would need somewhere to
  *  put the number and the date, and the only somewhere is this table — which
  *  makes the patch a contract door wearing a disguise, and leaves the door open
  *  to a deal marked won with no contract behind it.
@@ -275,8 +275,8 @@ export const ContractDetailResponse = ContractDetailRow
  *
  *  BOTH halves, because the caller needs both and neither implies the other.
  *  The opportunity comes back because signing changes how it reads — `state`
- *  flips to `close-won`, `stage` and `daysInStage` go null, `closedAt` is set —
- *  and every one of those is computed, so a screen that patched its own cached
+ *  reads `won` (derived, never stored), `stage` and `daysInStage` go null,
+ *  `closedAt` is set — every one of those is computed, so a screen that patched its own cached
  *  row would get a different answer than the next `GET`. The contract comes
  *  back because the number the server just minted exists nowhere else yet, and
  *  making the caller re-read to learn it is the same round trip twice.

@@ -421,6 +421,20 @@
       "when": 1788503100000,
       "tag": "0060_mail_sequence_and_cc",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788503200000,
+      "tag": "0061_opportunity_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788503300000,
+      "tag": "0062_care_reason_stage",
+      "breakpoints": true
     }
   ]
 }

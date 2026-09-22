@@ -31,10 +31,10 @@ type Ladder<K extends string> = {
   /** Rung the object stands or last stood on; -1 when nothing says which. */
   index: number
   /** What the stood-on rung reads as once the object stopped moving. */
-  closed: 'current' | 'dropped' | 'done'
+  closed: 'current' | 'dropped' | 'parked' | 'done'
   entryOf: (key: K) => Entry
   since: Date | null
-  /** Close/exit date for `dropped`, now for `current`. */
+  /** Close/exit date for `dropped`/`parked`, now for `current`. */
   until: Date
   doneDays: (i: number, entryAt: Date | null) => number | null
 }
@@ -264,7 +264,10 @@ function dealLaneOf(
 ): WorkstreamDealLane {
   const events = rows.events.filter((e) => e.deal === deal.code)
   const signed = rows.contracts.find((c) => c.deal === deal.code) ?? null
-  const outcome = signed ? 'won' : deal.state === 'close-lost' ? 'lost' : 'open'
+  /* `care`, NEVER `lost`: the care list is reversible (`POST /:code/reactivate`)
+     and drawing it as a hard loss is the reading ADR 0064 removed. The rung it
+     parked on still stops (`dropped`) — nothing runs while it waits. */
+  const outcome = signed ? 'won' : deal.state === 'care' ? 'care' : 'open'
   const entryOf = (key: StageKey): Entry => lastOf(events, (e) => e.to === key) ?? null
   const sale = (owners.get(deal.code) ?? []).find((o) => o.role === 'SALE')
   const stood = deal.stage ?? lastStageOf(events)
@@ -276,16 +279,16 @@ function dealLaneOf(
       keys: StageKey.options,
       labelOf: (key) => stage.get(key)?.label ?? key,
       index: stood === null ? -1 : StageKey.options.indexOf(stood),
-      closed: outcome === 'won' ? 'done' : outcome === 'lost' ? 'dropped' : 'current',
+      closed: outcome === 'won' ? 'done' : outcome === 'care' ? 'parked' : 'current',
       entryOf,
       /* A closed deal's `stage_since` is nulled on close, so its clock falls
          back to when it entered the rung it left from. */
       since: deal.stageSince ?? (stood === null ? null : (entryOf(stood)?.at ?? null)),
-      until: outcome === 'lost' ? (deal.closedAt ?? now) : now,
+      until: outcome === 'care' ? (deal.closedAt ?? now) : now,
       doneDays: (i) => lastOf(events, (e) => e.from === StageKey.options[i])?.daysInFrom ?? null,
     }),
     outcome,
-    outcomeAt: iso(signed?.at ?? (outcome === 'lost' ? deal.closedAt : null)),
+    outcomeAt: iso(signed?.at ?? (outcome === 'care' ? deal.closedAt : null)),
     contractCode: signed?.code ?? null,
   }
 }

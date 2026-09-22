@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
 import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
@@ -364,14 +365,14 @@ export function ZoneAtoms() {
           footer="ba size: sm 32 · md 40 · lg 48 (sàn chạm tablet, luật 13) · listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên · `leading` gắn một dấu nhỏ trước GIÁ TRỊ, aria-hidden vì chữ ngay cạnh đã nói"
         >
           <Select
-            label="Trạng thái"
+            label="Cột opp"
             leading={<StatusDot state="current" />}
-            value="nego"
+            value="quotation"
             onChange={() => {}}
-            options={[
-              { value: 'pending', label: 'Pending' },
-              { value: 'nego', label: 'Nego' },
-            ]}
+            options={StageKey.options.map((key) => ({
+              value: key,
+              label: OPPORTUNITY_STAGE_LABEL[key],
+            }))}
           />
           <Select
             label="Bậc"

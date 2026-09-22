@@ -1,6 +1,13 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import { CONFIG_PREFIX, ConfigList, LEAD_OPEN_STATES, LeadMotion } from '@pv/contracts'
+import {
+  CONFIG_PREFIX,
+  ConfigList,
+  LEAD_OPEN_STATES,
+  LeadMotion,
+  OPPORTUNITY_CARE_REASON_OTHER,
+  type StageKey,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry, type ConfigRowDb } from './config.schema'
@@ -22,16 +29,19 @@ export type ConfigDraft = {
   limitDays?: number
   ownerId?: string
   kind?: string
+  stage?: StageKey
 }
 
 /** Phần sửa. Vắng mặt = không đụng tới; `ownerId: null` = XOÁ người phụ trách.
- *  Hai thứ đó khác nhau, và cột phân biệt được, nên kiểu cũng phải phân biệt. */
+ *  Hai thứ đó khác nhau, và cột phân biệt được, nên kiểu cũng phải phân biệt.
+ *  `stage: null` cùng nghĩa đó cho lý do — xem cùng dòng ở `patch()`. */
 export type ConfigPatchDb = {
   name?: string
   active?: boolean
   limitDays?: number
   ownerId?: string | null
   kind?: string
+  stage?: StageKey | null
 }
 
 /** One row of the merged tally query — see `usage()`. Three flat columns rather
@@ -123,13 +133,15 @@ export class SalesConfigRepository {
       SELECT 'PRODUCT', product_id, count(*)::int
         FROM sales.opportunity_product GROUP BY product_id
       UNION ALL
-      /* LOSS_REASON is keyed by the lower-cased NAME, living with the
-         slug-versus-label debt rather than inventing a different rule for one list:
-         sales.opportunity.lost_reason stores what the seller picked as text.
-         Lower-cased on both sides so a label edited to change only its casing
-         does not split one reason into two rows on the config screen. */
-      SELECT 'LOSS_REASON', lower(lost_reason), count(*)::int
-        FROM sales.opportunity WHERE lost_reason IS NOT NULL GROUP BY lower(lost_reason)
+      /* LOSS_REASON is keyed by config_entry.id too, the same real key as
+         PRODUCT above: since ADR 0064 the care door writes the id it was given,
+         not a label, so the count is exact and switching a reason off is a
+         decision with a visible weight. 'other' is excluded because it is a
+         VIRTUAL key (OPPORTUNITY_CARE_REASON_OTHER) with no row to tally onto. */
+      SELECT 'LOSS_REASON', care_reason, count(*)::int
+        FROM sales.opportunity
+       WHERE care_reason IS NOT NULL AND care_reason <> ${OPPORTUNITY_CARE_REASON_OTHER}
+       GROUP BY care_reason
       UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
@@ -280,6 +292,7 @@ export class SalesConfigRepository {
         limitDays: draft.limitDays ?? null,
         ownerId: draft.ownerId ?? null,
         kind: draft.kind ?? null,
+        stage: draft.stage ?? null,
       })
       .returning()
 
@@ -302,6 +315,7 @@ export class SalesConfigRepository {
     if (patch.limitDays !== undefined) set.limitDays = patch.limitDays
     if (patch.ownerId !== undefined) set.ownerId = patch.ownerId
     if (patch.kind !== undefined) set.kind = patch.kind
+    if (patch.stage !== undefined) set.stage = patch.stage
 
     const [row] = await tx
       .update(configEntry)

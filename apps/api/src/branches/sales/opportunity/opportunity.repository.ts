@@ -15,7 +15,7 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import type { Actor, RoleId } from '@pv/engines'
 import {
   CURRENCIES,
   OWNER_NONE,
@@ -24,7 +24,8 @@ import {
   type OpportunityOwner,
   type OpportunityProduct,
   type OpportunityStageBucket,
-  type OpportunityState,
+  type OpportunityStatus,
+  type TouchKind,
 } from '@pv/contracts'
 import { approval } from '@api/platform/approval/approval.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -35,6 +36,7 @@ import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { dealOpen } from '../open-deal'
+import { touch } from '../touch/touch.schema'
 import {
   opportunity,
   opportunityOwner,
@@ -160,7 +162,7 @@ export type OpportunityScorecardRow = {
   openAmountVnd: number
   openBlank: number
   won: number
-  lost: number
+  care: number
 }
 
 /** Một số từ `sales.opportunity_code_seq`, in ra dạng `OP-%04d`.
@@ -418,6 +420,36 @@ export class OpportunityRepository {
     return new Map(rows.map((r) => [r.id, r.name]))
   }
 
+  /** The ROLE of a set of actors — what the PIC rule is decided on (ADR 0064 §4).
+   *
+   *  A second statement beside `actorNames` rather than a widening of it: a name
+   *  is a LABEL a screen prints, a role is a KEY a decision turns on, and the
+   *  doors that only need the label should not start carrying the key. Both run
+   *  inside one `Promise.all`, so the pair costs no extra wait. */
+  async actorRoles(tx: Db, ids: readonly string[]): Promise<Map<string, RoleId>> {
+    if (ids.length === 0) return new Map()
+    const rows = await tx
+      .select({ id: actor.id, roleId: actor.roleId })
+      .from(actor)
+      .where(inArray(actor.id, [...ids]))
+    return new Map(rows.map((r) => [r.id, r.roleId]))
+  }
+
+  /** "Has this milestone been recorded?" — one EXISTS over the deal's trail.
+   *
+   *  The sign door asks it for `quotation-sent`: no quotation, no contract
+   *  (ADR 0064 §3). Read off `sales.touch` here rather than through
+   *  `TouchService`, whose one method builds the whole timeline for a screen — a
+   *  yes/no question does not load a list to filter it in Node. */
+  async hasTouch(tx: Db, code: string, kind: TouchKind): Promise<boolean> {
+    const [found] = await tx
+      .select({ one: sql`1` })
+      .from(touch)
+      .where(and(eq(touch.subjectCode, code), eq(touch.kind, kind)))
+      .limit(1)
+    return found !== undefined
+  }
+
   /** Cả sổ nhân sự, một lượt đọc. Lô nạp dịch TÊN sang id, và nó dịch cho tới
    *  hai nghìn dòng — hỏi từng dòng là hai nghìn vòng tới Neon cho một bảng
    *  bảy người. Cùng phép mà `LeadWriteRepository.staff` dùng. */
@@ -480,7 +512,7 @@ export class OpportunityRepository {
   /** Lead code → every OPEN deal code of it, oldest first. A lead may hold
    *  several; `code` only breaks ties, since 'OP-10000' sorts before 'OP-9999'.
    *
-   *  "Đang mở" loại cả hai đầu cuối: `state <> 'close-lost'` bỏ đơn thua, và
+   *  "Đang mở" loại cả hai đầu cuối: `state <> 'care'` bỏ đơn đang chăm sóc, và
    *  `NOT signed` bỏ đơn đã ký. Một khách quay lại quý sau là một đơn MỚI, không
    *  phải bản trùng của một đơn đã xong — nên chỉ đơn còn sống mới làm một dòng
    *  trong tệp thành trùng.
@@ -731,8 +763,8 @@ export class OpportunityRepository {
    *
    *  The caller already slices at 500 to stay under Postgres' bind-parameter
    *  ceiling, so this one does not slice again — it inserts exactly what it is
-   *  handed. Empty is a real case (a whole chunk of deals opened straight into
-   *  'close-lost' stands in no column) and returns without a statement. */
+   *  handed. Empty is a real case (a batch whose every row was refused) and
+   *  returns without a statement. */
   async insertStageEvents(tx: Db, rows: readonly OpportunityStageEventInsert[]): Promise<void> {
     if (rows.length === 0) return
     await tx.insert(opportunityStageEvent).values([...rows])
@@ -903,18 +935,18 @@ export class OpportunityRepository {
     ]
   }
 
-  /** Lọc theo trạng thái, và trạng thái thứ NĂM không có cột.
+  /** Lọc theo trạng thái, và trạng thái thứ BA không có cột.
    *
-   *  `close-won` là SỰ TỒN TẠI của một dòng `sales.contract` — cột `state` chỉ
-   *  chở bốn giá trị, đúng như `opportunity_state_known` ép. Nên lọc "đơn đã
-   *  thắng" là hỏi `EXISTS`, và lọc bốn giá trị kia phải kèm `NOT EXISTS`: một
-   *  đơn đã ký mà cột `state` còn ghi `nego` ra sổ dưới nhãn `close-won` (đường
-   *  đọc gấp lại như thế ở `opportunity.mapper.ts#toContract`), nên để nó lọt
-   *  vào lượt lọc `nego` là in ra một dòng mang nhãn người dùng vừa bảo đừng
-   *  hiện. Bộ lọc phải gấp giống hệt đường đọc, nếu không sổ tự cãi mình. */
-  private stateFilter(state: OpportunityState | undefined): SQL | undefined {
+   *  `won` là SỰ TỒN TẠI của một dòng `sales.contract` — cột `state` chỉ chở hai
+   *  giá trị, đúng như `opportunity_state_known` ép. Nên lọc "đơn đã thắng" là
+   *  hỏi `EXISTS`, và lọc hai giá trị kia phải kèm `NOT EXISTS`: một đơn đã ký
+   *  vẫn lưu `state = 'open'` và ra sổ dưới nhãn `won` (đường đọc gấp lại như
+   *  thế ở `opportunity.mapper.ts#toContract`), nên để nó lọt vào lượt lọc
+   *  `open` là in ra một dòng mang nhãn người dùng vừa bảo đừng hiện. Bộ lọc
+   *  phải gấp giống hệt đường đọc, nếu không sổ tự cãi mình. */
+  private stateFilter(state: OpportunityStatus | undefined): SQL | undefined {
     if (!state) return undefined
-    if (state === 'close-won') return this.signed()
+    if (state === 'won') return this.signed()
     return and(eq(opportunity.state, state), not(this.signed()))
   }
 
@@ -962,9 +994,9 @@ export class OpportunityRepository {
    *  "ĐANG MỞ" ĐỌC TỪ `stage`, KHÔNG ĐỌC TỪ `state`
    *  ------------------------------------------------------------------
    *  `stage IS NOT NULL` là định nghĩa của "còn đứng trong năm cột", và nó đúng
-   *  cho cả hai đầu cuối: `stageOfState('close-lost')` trả NULL, còn cửa ký gọi
-   *  `closeForSign` đặt `stage` về NULL. Đọc `state` thay vào đó sẽ đếm nhầm
-   *  một đơn đã ký mà cột `state` còn ghi `nego`.
+   *  cho cả hai đầu cuối: cửa đẩy sang chăm sóc và cửa ký đều đặt `stage` về
+   *  NULL. Đọc `state` thay vào đó sẽ đếm nhầm một đơn đã ký, vì đơn thắng vẫn
+   *  lưu `state = 'open'`.
    *
    *  `SUM` ra kiểu `bigint`, mà `bigint` về tới Node là CHUỖI với node-postgres
    *  (PGlite thì trả số). `Number()` ở dưới nuốt cả hai; ép `::int` ở đây thì
@@ -981,11 +1013,11 @@ export class OpportunityRepository {
         >`COALESCE(SUM(${AMOUNT_VND}) FILTER (WHERE ${open} AND ${opportunity.amount} IS NOT NULL), 0)::bigint`,
         openBlank: sql<number>`count(*) FILTER (WHERE ${open} AND ${opportunity.amount} IS NULL)::int`,
         won: sql<number>`count(*) FILTER (WHERE ${this.signed()})::int`,
-        /* Thua = cột `state` nói thua VÀ chưa ký. Vế thứ hai giữ cho `won` và
-           `lost` không cùng đếm một dòng — đường đọc gấp `signed` đè lên
-           `state`, nên một đơn vừa ghi thua vừa có hợp đồng ra sổ là đơn THẮNG,
-           và thẻ điểm phải đếm nó đúng một lần, ở đúng ô đó. */
-        lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'close-lost' AND NOT ${this.signed()})::int`,
+        /* Chăm sóc = cột `state` nói chăm sóc VÀ chưa ký. Vế thứ hai giữ cho
+           `won` và `care` không cùng đếm một dòng — đường đọc gấp `signed` đè
+           lên `state`, nên một đơn vừa vào chăm sóc vừa có hợp đồng ra sổ là đơn
+           THẮNG, và thẻ điểm phải đếm nó đúng một lần, ở đúng ô đó. */
+        care: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'care' AND NOT ${this.signed()})::int`,
       })
       .from(opportunity)
 
@@ -995,7 +1027,7 @@ export class OpportunityRepository {
       openAmountVnd: Number(r?.openAmountVnd ?? 0),
       openBlank: r?.openBlank ?? 0,
       won: r?.won ?? 0,
-      lost: r?.lost ?? 0,
+      care: r?.care ?? 0,
     }
   }
 
@@ -1008,7 +1040,7 @@ export class OpportunityRepository {
    *  ordinal position and that lives in `../ladder.ts` behind its fence.
    *
    *  Unscoped like the scorecard, and open reads from `stage IS NOT NULL` for
-   *  the same reason stated there: won and lost have left the board. */
+   *  the same reason stated there: won and cared-for deals have left the board. */
   async histogram(): Promise<OpportunityStageBucket[]> {
     const config = stageConfigOf(await this.stageRows())
     const rotting = rottingIn(config)
@@ -1107,7 +1139,7 @@ export class OpportunityRepository {
     ) as SQL
   }
 
-  /** "Still open": not lost, not signed — the branch's one rule, `../open-deal.ts`. */
+  /** "Still open": not in care, not signed — the branch's one rule, `../open-deal.ts`. */
   private live(): SQL {
     return dealOpen(opportunity.code, opportunity.state)
   }

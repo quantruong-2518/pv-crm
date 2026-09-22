@@ -168,7 +168,7 @@ export const workstream = sales.table(
       'workstream_stand_key_known',
       sql`CASE "stand_kind"
             WHEN 'HĐ' THEN "stand_key" = 'signed'
-            WHEN 'OP' THEN "stand_key" IN ('new', 'discovery', 'demo-done', 'quoted', 'awaiting-signature')
+            WHEN 'OP' THEN "stand_key" IN ('new', 'assigned', 'sample', 'poc', 'quotation')
             WHEN 'LD' THEN "stand_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
                                            'converted', 'disqualified', 'archived')
             ELSE true

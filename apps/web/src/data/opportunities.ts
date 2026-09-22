@@ -1,19 +1,24 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
+  OPPORTUNITY_MILESTONES,
+  OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STATE_LABEL,
   OpportunityBookQuery,
   OpportunityBookResponse,
   OpportunityHistogram,
   OpportunityScorecard,
+  StageKey,
   type OpportunityLiveDeal,
+  type OpportunityMilestoneKind,
   type OpportunityOwner,
   type ObjectChainLink,
   type OpportunityBookRow,
   type OpportunityProfileResponse,
   type OpportunityRow,
-  type OpportunityState,
+  type OpportunityStatus,
 } from '@pv/contracts'
 
-import { PIPELINE_STAGES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import { toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { RailObject } from '@pv/ui'
 import { api, type ApiNeed } from '@/app/api'
 
@@ -37,8 +42,8 @@ import { api, type ApiNeed } from '@/app/api'
  *   · `nameOfActor` — dòng sổ nay chở `owners[]` có sẵn TÊN. Tra ngược id sang
  *     tên bằng danh sách actor của fixture là đọc tên khách hàng ra từ một kịch
  *     bản đóng băng, cho dữ liệu không thuộc kịch bản đó.
- *   · `stageOfState` — chuyển sang `@pv/contracts`, nơi máy chủ cũng đọc nó.
- *     Một bảng nối, hai đầu dây.
+ *   · `stageOfState` — ĐÃ CHẾT hẳn cùng ADR 0064. Không còn hai trục để nối:
+ *     `stage` do một writer duy nhất ở máy chủ đẩy theo sự kiện thật.
  *
  *  Thứ KHÔNG biến mất: `missingOf` và `toggled`. Chúng là luật của PHIẾU, và
  *  phiếu vẫn là phiếu — người dùng vẫn điền `OpportunityDraft` ở cả popup lẫn
@@ -81,10 +86,10 @@ export const OPPORTUNITY_BOOK_KEY = ['sales', 'ops-book'] as const
  *  cùng một ma trận quyền đọc ra cùng một câu; biên lai của phép cắt thật là
  *  `hidden` trên phản hồi (xem `ApiNeed` ở `app/api/client.ts`).
  *
- *  Lượt đọc còn thiếu trục này giờ chỉ còn `opportunityProfileQuery`, và đó là
- *  một sự lệch có ý thức chứ không phải quên: cửa `GET /sales/opportunities/:code`
- *  trả MỘT dòng, không phải một sổ, nên `hidden` không có nghĩa gì ở đó — sửa
- *  nó là việc khác. */
+ *  `opportunityProfileQuery` đã khai đúng trục này từ 22/09: `hidden` không có
+ *  nghĩa gì với một dòng, nhưng một `need` nói khác controller thì không ai đọc
+ *  lại. Lượt đọc CỐ TÌNH không có trục này còn lại là hai thẻ điểm — điểm của
+ *  cả phòng, đọc docblock của chúng. */
 const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view', scoped: true }
 
 /** Mọi tên trường `OpportunityBookQuery` nhận, đọc thẳng từ chính schema chứ
@@ -266,6 +271,10 @@ export const opportunityFacetQuery = queryOptions({
 
 /** One deal, plus WHERE IT STANDS.
  *
+ *  `scoped: true` because `GET /:code` declares it (ADR 0064 §5). It cuts
+ *  nothing in the browser — one row has no `hidden` to report — but a `need`
+ *  that disagrees with its controller is the line nobody re-reads.
+ *
  *  `OpportunityProfileResponse` rather than `OpportunityRow`: this door carries
  *  `position` — the phase, who is being waited on, and how many days of the
  *  column's limit are left or gone. The book does not, and deliberately: a
@@ -276,7 +285,7 @@ export const opportunityProfileQuery = (code: string) =>
     queryKey: ['sales', 'ops', code] as const,
     queryFn: () =>
       api.read<OpportunityProfileResponse>(`/sales/opportunities/${code}`, {
-        need: { branch: 'Sales', permission: 'opportunity.view' },
+        need: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
       }),
   })
 
@@ -364,8 +373,12 @@ export function isRottingOp(op: Pick<OpportunityBookRow, 'position'>): boolean {
 }
 
 /** The five columns plus where this deal stands, shaped for `StageTrack`.
- *  `null` means the deal stands in no column (signed or lost) and there is no
+ *  `null` means the deal stands in no column (signed or parked) and there is no
  *  bar to draw at all.
+ *
+ *  Order and labels come from `StageKey.options` and `OPPORTUNITY_STAGE_LABEL`,
+ *  the ladder the server ranks and prints by — this file reads live rows, so
+ *  the frozen scenario's own stage list has no standing here.
  *
  *  ONE function for both callers — the book grid and the deal profile. Two
  *  screens each building their own step array is two screens painting the same
@@ -390,11 +403,11 @@ export function stageTrackOf(
   const stage = op.stage
   if (stage === null) return null
 
-  const current = PIPELINE_STAGES.findIndex((s) => s.key === stage)
-  /* A column the server returned that the constant does not know: the deal
-     stands somewhere this screen cannot draw. Return `null` so the caller falls
-     back to its badge, rather than painting five grey segments — that bar reads
-     as "this deal has not moved anywhere", which is a false sentence. */
+  const current = StageKey.options.indexOf(stage)
+  /* A column the server returned that the enum does not know: the deal stands
+     somewhere this screen cannot draw. Return `null` so the caller falls back
+     to its badge, rather than painting five grey segments — that bar reads as
+     "this deal has not moved anywhere", which is a false sentence. */
   if (current === -1) return null
 
   const overdueBy = op.position?.overdueBy ?? null
@@ -403,9 +416,9 @@ export function stageTrackOf(
 
   return {
     current,
-    steps: PIPELINE_STAGES.map((s, i) => ({
-      key: s.key,
-      label: s.label,
+    steps: StageKey.options.map((key, i) => ({
+      key,
+      label: OPPORTUNITY_STAGE_LABEL[key],
       ...(i === current && op.daysInStage !== null
         ? {
             hint:
@@ -451,9 +464,6 @@ export function missingOf(draft: OpportunityDraft): string[] {
   if (draft.closedDate === '') missing.push('ngày chốt dự kiến')
   if (draft.amount === null || draft.amount === 0) missing.push('giá trị đơn')
   if (draft.saleOwners.length === 0) missing.push('ít nhất một Sale đứng đơn')
-  if (draft.state === 'close-lost' && draft.lossReason === '' && draft.lossNote.trim() === '') {
-    missing.push('lý do thua')
-  }
   return missing
 }
 
@@ -465,22 +475,84 @@ export const toggled = (list: string[], id: string) =>
 // Cách một dòng sổ ra mặt
 // ---------------------------------------------------------------------------
 
-/** Màu của trạng thái — năm trạng thái, năm tone, không trùng nhau.
+/** Màu của trạng thái đọc — ba giá trị, ba tone.
  *
- *  Bảng nằm ở tầng app chứ không ở hợp đồng: "close-won màu gì" là cách trình
- *  bày của phòng kinh doanh, không phải hình của dữ liệu (cùng cách chia với
- *  `ORIGIN_FACE` ở `data/leads.ts`).
+ *  Bảng nằm ở tầng app chứ không ở hợp đồng: "thành hợp đồng màu gì" là cách
+ *  trình bày của phòng kinh doanh, không phải hình của dữ liệu (cùng cách chia
+ *  với `ORIGIN_FACE` ở `data/leads.ts`).
  *
- *  Ba trạng thái đang chạy KHÔNG tô ba màu khác nhau: bảng token có năm tone
- *  semantic, và tô hết cho ba bậc của cùng một việc thì màu chỉ còn nói lại
- *  đúng chữ đã in trong chính cái pill. Màu ở đây trả lời "đơn này còn sống
- *  không", chữ trả lời "đang ở bậc nào". */
-export const STATE_TONE: Record<OpportunityState, 'success' | 'danger' | 'running' | 'draft'> = {
-  'close-won': 'success',
-  'close-lost': 'danger',
-  nego: 'running',
-  'quote-sent': 'running',
-  pending: 'draft',
+ *  Năm CỘT của một đơn đang mở KHÔNG tô năm màu: màu ở đây trả lời "đơn này còn
+ *  trên bảng không", chữ trả lời "đang ở cột nào". Và `care` không tô `danger` —
+ *  danh sách chăm sóc không phải một đơn đã mất (ADR 0064). */
+export const STATE_TONE: Record<OpportunityStatus, 'success' | 'running' | 'draft'> = {
+  open: 'running',
+  care: 'draft',
+  won: 'success',
+}
+
+/** Law 13 rescue for the `draft` tone `care` wears. `Badge`'s own `draft` ink
+ *  measures 4.41:1 on the dark theme and 3.81:1 on the light one, both under the
+ *  4.5 floor, where `text-foreground` clears it on either glass. Same mechanism
+ *  and same wording as `BADGE_INK` in `pages/workstream-lane-model.ts`, the
+ *  screen that hit this first. */
+export const BADGE_INK = 'text-foreground'
+
+/** What a row's pill SAYS: the COLUMN while the deal is on the board, the read
+ *  STATE once it has left — the care list, or a signed contract.
+ *
+ *  One function for the book cell and the deal's own sticky bar alike: two
+ *  screens deciding this separately are two screens calling one deal by two
+ *  names. The words come from `@pv/contracts`, which the server prints from too,
+ *  so there is no second copy of the vocabulary at the screen layer. */
+export const standingLabel = (op: Pick<OpportunityRow, 'state' | 'stage'>): string =>
+  op.state === 'open' && op.stage !== null
+    ? OPPORTUNITY_STAGE_LABEL[op.stage]
+    : OPPORTUNITY_STATE_LABEL[op.state]
+
+/** The five columns as an ORDER, read off the contract's own enum rather than
+ *  the frozen fixture's array: `StageKey.options` is the list the server ranks
+ *  by (`RANK` in `opportunity-lifecycle.ts`). */
+export const stageRank = (stage: StageKey): number => StageKey.options.indexOf(stage)
+
+/** Which column a milestone lands the deal in — a COPY of the server's
+ *  `MILESTONE_STAGE`, deliberately written out rather than derived by a cast.
+ *  The server's own note says why: column keys and milestone keys are two
+ *  vocabularies that happen to line up today. This copy decides which BUTTON
+ *  appears and nothing else; a wrong guess is refused by the door's 409, which
+ *  names both labels — it cannot put a wrong row in a table. */
+const MILESTONE_STAGE: Record<OpportunityMilestoneKind, StageKey> = {
+  sample: 'sample',
+  poc: 'poc',
+  quotation: 'quotation',
+}
+
+/** One milestone the deal may record NOW. `repeat` is the column it stands in. */
+export type MilestoneOffer = {
+  kind: OpportunityMilestoneKind
+  stage: StageKey
+  repeat: boolean
+}
+
+/** Which milestones the deal may record right now, in the order it passes them.
+ *
+ *  Empty once the deal has left the board, and empty at `new`: a deal that has
+ *  not taken its PIC is refused before anything else. A milestone BELOW the
+ *  current column is dropped (the door answers 409), the current column's own
+ *  milestone stays — a second quotation is another Nego round, not a second
+ *  entry into the column — and every one ahead is offered, because skipping
+ *  Sample and POC is allowed. */
+export function milestonesOf(op: Pick<OpportunityRow, 'state' | 'stage'>): MilestoneOffer[] {
+  const stage = op.stage
+  if (op.state !== 'open' || stage === null) return []
+  if (stageRank(stage) < stageRank('assigned')) return []
+
+  return OPPORTUNITY_MILESTONES.filter(
+    (kind) => stageRank(MILESTONE_STAGE[kind]) >= stageRank(stage),
+  ).map((kind) => ({
+    kind,
+    stage: MILESTONE_STAGE[kind],
+    repeat: MILESTONE_STAGE[kind] === stage,
+  }))
 }
 
 /** The object chain as ContextRail wants it — chips, with a way to open each.

@@ -4,15 +4,18 @@ import {
   ContractSign,
   ObjectCode,
   OpportunityBookQuery,
+  OpportunityCareBody,
   OpportunityCreate,
   OpportunityImportBody,
   OpportunityLiveDealQuery,
-  OpportunityStageMove,
+  OpportunityMilestoneBody,
+  OpportunityReactivateBody,
   OpportunityUpdate,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
 
@@ -46,6 +49,7 @@ import { OpportunityService } from './opportunity.service'
 export class OpportunityController {
   constructor(
     private readonly ops: OpportunityService,
+    private readonly moves: OpportunityMoves,
     private readonly signs: OpportunitySign,
   ) {}
 
@@ -163,7 +167,7 @@ export class OpportunityController {
     return this.ops.importCommit(who, body)
   }
 
-  /** Ký — cửa DUY NHẤT làm một đơn thành `close-won`.
+  /** Ký — cửa DUY NHẤT làm một đơn đọc ra `won`.
    *
    *  ------------------------------------------------------------------
    *  QUYỀN LÀ `opportunity.close`, VÀ ĐÂY LÀ ĐƯỜNG ĐẦU TIÊN DÙNG NÓ
@@ -221,23 +225,60 @@ export class OpportunityController {
     return this.ops.update(who, code, body)
   }
 
-  /** Drag a deal to another column — a board gesture, not a form save.
+  /** Record a milestone — `sample-sent`, `poc-run`, `quotation-sent`.
    *
-   *  Same write permission as the door above, and the same scope axis. Two doors
-   *  because they say two different things, not because they need two levels of
-   *  trust — see the docblock on `OpportunityStageMove`.
+   *  ------------------------------------------------------------------
+   *  THREE DOORS INSTEAD OF ONE DRAG, AND ALL THREE ON ONE PERMISSION
+   *  ------------------------------------------------------------------
+   *  `PATCH :code/stage` is gone (ADR 0064 §7): a drag gesture is not a reason a
+   *  deal advanced. This door takes a REAL EVENT and lets the column follow it,
+   *  so it is a `POST` to a sub-resource — every press records another
+   *  milestone, including a second press of the same one (quotation rounds).
    *
-   *  Declaration order settles nothing here: `:code/stage` has a static segment
-   *  after the dynamic one, so it cannot collide with bare `:code`, exactly as
-   *  `:code/contract` already does. */
-  @Patch(':code/stage')
+   *  `opportunity.edit` + `scoped: true` on all three doors below: standing in
+   *  the PIC is what grants the right, and no new role is added (ADR 0064 §5).
+   *  Signing stays `opportunity.close`. One route, one permission
+   *  (`docs/decisions/0004-one-route-one-permission.md`) is why these are three
+   *  doors rather than one "change the lifecycle" door taking a `kind`. */
+  @Post(':code/milestones')
+  @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
-  moveStage(
+  milestone(
     @CurrentActor() who: Actor,
     @Param('code', zod(ObjectCode)) code: ObjectCode,
-    @Body(zod(OpportunityStageMove)) body: OpportunityStageMove,
+    @Body(zod(OpportunityMilestoneBody)) body: OpportunityMilestoneBody,
   ) {
-    return this.ops.moveStage(who, code, body)
+    return this.moves.milestone(who, code, body)
+  }
+
+  /** Park the deal on the care list, with a reason. It leaves the board but is
+   *  NOT lost: `care_from_stage` remembers the column, so the door below puts it
+   *  back exactly where it fell. */
+  @Post(':code/care')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  care(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(OpportunityCareBody)) body: OpportunityCareBody,
+  ) {
+    return this.moves.care(who, code, body)
+  }
+
+  /** Bring a cared-for deal back to the column it failed at.
+   *
+   *  An empty body that still goes through `zod`: this door takes NO target
+   *  column — taking one would let a deal come back further along than it left.
+   *  `@HttpCode(200)` because nothing is created; an existing row moves. */
+  @Post(':code/reactivate')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  reactivate(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(OpportunityReactivateBody)) _body: OpportunityReactivateBody,
+  ) {
+    return this.moves.reactivate(who, code)
   }
 
   /** Which columns the deal has passed through, and how long it stood in each. */

@@ -139,6 +139,9 @@ export type DealSeed = {
   products: ProductNo[]
   description: string
   won?: { signedDaysAgo: number }
+  /** `reason` is a `config_entry` id from the `LOSS_REASON` list seeded in
+   *  `seed-config.ts` (a quotation-stage row when `stage` is `quotation`), or
+   *  the virtual key `'other'`. `note` is the free sentence. */
   lost?: { reason: string; note: string; daysAgo: number }
 }
 
@@ -186,7 +189,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 140,
-        stage: 'awaiting-signature',
+        stage: 'quotation',
         stageDaysAgo: 52,
         amount: 4_850_000_000,
         probability: 90,
@@ -211,7 +214,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 128,
-        stage: 'awaiting-signature',
+        stage: 'quotation',
         stageDaysAgo: 38,
         amount: 3_200_000_000,
         probability: 85,
@@ -236,7 +239,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 100,
-        stage: 'awaiting-signature',
+        stage: 'quotation',
         stageDaysAgo: 24,
         amount: 2_450_000_000,
         probability: 85,
@@ -263,7 +266,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 15,
-        stage: 'discovery',
+        stage: 'assigned',
         stageDaysAgo: 8,
         amount: 1_600_000_000,
         probability: 30,
@@ -288,7 +291,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 92,
-        stage: 'awaiting-signature',
+        stage: 'quotation',
         stageDaysAgo: 6,
         amount: 5_400_000_000,
         probability: 80,
@@ -313,7 +316,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 58,
-        stage: 'quoted',
+        stage: 'quotation',
         stageDaysAgo: 12,
         amount: 7_900_000_000,
         probability: 50,
@@ -337,7 +340,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 70,
-        stage: 'quoted',
+        stage: 'quotation',
         stageDaysAgo: 34,
         amount: 2_900_000_000,
         probability: 40,
@@ -360,7 +363,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 50,
-        stage: 'demo-done',
+        stage: 'poc',
         stageDaysAgo: 9,
         amount: 3_600_000_000,
         probability: 35,
@@ -386,7 +389,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 130,
-        stage: 'discovery',
+        stage: 'assigned',
         stageDaysAgo: 115,
         amount: 1_800_000_000,
         probability: 15,
@@ -395,14 +398,14 @@ export const JOURNEYS: JourneySeed[] = [
         description:
           'Khảo sát truy xuất lô laser diode — dừng giữa chừng vì ngân sách CNTT bị đóng băng.',
         lost: {
-          reason: 'Ngân sách IT bị đóng băng cuối năm',
-          note: 'Tập đoàn tạm dừng mọi dự án CNTT ngoài compliance, hẹn xem lại đầu năm sau.',
+          reason: 'other',
+          note: 'Ngân sách IT bị đóng băng cuối năm — tập đoàn tạm dừng mọi dự án CNTT ngoài compliance, hẹn xem lại đầu năm sau.',
           daysAgo: 110,
         },
       },
       {
         enteredDaysAgo: 30,
-        stage: 'discovery',
+        stage: 'assigned',
         stageDaysAgo: 11,
         amount: 2_100_000_000,
         probability: 20,
@@ -424,7 +427,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 25,
-        stage: 'discovery',
+        stage: 'assigned',
         stageDaysAgo: 17,
         amount: 3_800_000_000,
         probability: 20,
@@ -469,7 +472,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 112,
-        stage: 'quoted',
+        stage: 'quotation',
         stageDaysAgo: 55,
         amount: 4_200_000_000,
         probability: 10,
@@ -477,7 +480,7 @@ export const JOURNEYS: JourneySeed[] = [
         products: [0, 2, 5],
         description: 'MES và WMS cho line lắp ráp mới.',
         lost: {
-          reason: 'Giá cao hơn đối thủ',
+          reason: 'LR-13',
           note: 'Tập đoàn chọn MES của nhà cung cấp Đài Loan đang chạy ở nhà máy mẹ, giá thấp hơn khoảng 20%.',
           daysAgo: 30,
         },
@@ -503,7 +506,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 45,
-        stage: 'demo-done',
+        stage: 'poc',
         stageDaysAgo: 20,
         amount: 2_600_000_000,
         probability: 25,
@@ -511,8 +514,8 @@ export const JOURNEYS: JourneySeed[] = [
         products: [0, 1],
         description: 'Nối kết quả kiểm công suất với lô wafer đầu vào cho khu test.',
         lost: {
-          reason: 'Chọn giải pháp nội bộ tập đoàn',
-          note: 'Tập đoàn Infineon toàn cầu đã có công cụ tương tự, nhà máy dùng lại thay vì mua ngoài.',
+          reason: 'other',
+          note: 'Chọn giải pháp nội bộ tập đoàn — Tập đoàn Infineon toàn cầu đã có công cụ tương tự, nhà máy dùng lại thay vì mua ngoài.',
           daysAgo: 15,
         },
       },
@@ -538,8 +541,8 @@ export const JOURNEYS: JourneySeed[] = [
         products: [1],
         description: 'Gắn số serial vào kết quả test cho dây chuyền kiểm thử mới.',
         lost: {
-          reason: 'Dự án hoãn',
-          note: 'Nhà máy dời lịch chạy dây chuyền kiểm thử sang năm sau, dừng mọi mua sắm liên quan.',
+          reason: 'other',
+          note: 'Dự án hoãn — Nhà máy dời lịch chạy dây chuyền kiểm thử sang năm sau, dừng mọi mua sắm liên quan.',
           daysAgo: 4,
         },
       },
@@ -595,7 +598,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 20,
-        stage: 'awaiting-signature',
+        stage: 'quotation',
         stageDaysAgo: 5,
         amount: 2_000_000_000,
         probability: 60,
@@ -603,7 +606,7 @@ export const JOURNEYS: JourneySeed[] = [
         products: [1, 5],
         description: 'Truy xuất lô PCB theo yêu cầu khách ô tô, số hoá phiếu kiểm tra giấy.',
         lost: {
-          reason: 'Ban giám đốc phủ quyết phút chót',
+          reason: 'LR-15',
           note: 'Hợp đồng đã thống nhất điều khoản; Tổng Giám đốc mới nhậm chức yêu cầu dừng để rà soát lại toàn bộ ngân sách CNTT.',
           daysAgo: 2,
         },

@@ -258,8 +258,8 @@ export function WinRate({
   className?: string
 }) {
   const won = scorecard?.won ?? 0
-  const lost = scorecard?.lost ?? 0
-  const decided = won + lost
+  const care = scorecard?.care ?? 0
+  const decided = won + care
 
   return (
     <StatCard
@@ -267,7 +267,9 @@ export function WinRate({
       icon={Target}
       value={ratio(won, decided)}
       label="Tỷ lệ thắng"
-      source={decided === 0 ? 'Sổ cơ hội · chưa đơn nào đóng' : `${won} thắng · ${lost} thua`}
+      source={
+        decided === 0 ? 'Sổ cơ hội · chưa đơn nào đóng' : `${won} thắng · ${care} vào chăm sóc`
+      }
       className={className}
     />
   )

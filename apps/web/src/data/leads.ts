@@ -384,7 +384,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       primary: out.length === 0,
       why: `Nằm cột "${limit?.label ?? lead.stage}" ${lead.daysHere} ngày, quá hạn ${limit?.limitDays ?? '?'} ngày của cột.`,
     })
-  } else if (lead.stage === 'awaiting-signature') {
+  } else if (lead.stage === 'quotation') {
     out.push({
       key: 'chase-signature',
       label: 'Nhắc ký',
@@ -541,7 +541,7 @@ export function myWork(input: {
 
   if (actor.roleId === 'presales') {
     for (const lead of running) {
-      if (lead.stage === 'discovery' || lead.stage === 'demo-done') {
+      if (lead.stage === 'assigned' || lead.stage === 'poc') {
         push(lead, `Đơn ở cột có demo · chủ đơn ${lead.owner ?? 'chưa ai'}`)
       }
     }

@@ -20,8 +20,8 @@ import { QUIET_ACTION, exitReasonOf, unreachedWord } from './workstream-lane-mod
 /** The pieces the journey tree and its side panel are built from.
  *
  *  They are built here rather than bent out of `StageTrack` or `Stepper`: a
- *  lane has four states including "dropped", and every rung is a selection
- *  button — neither pattern carries both (see their docblocks). */
+ *  lane has five states including "dropped" and "parked", and every rung is a
+ *  selection button — neither pattern carries both (see their docblocks). */
 
 /* `current` maps to the WARNING dot, not `StatusDot`'s own `current`: that one
    is brand blue, which on this screen is the colour of the SELECTED node, so
@@ -31,6 +31,9 @@ const DOT: Record<Exclude<WorkstreamStepState, 'upcoming'>, StatusDotState> = {
   done: 'ok',
   current: 'warning',
   dropped: 'bad',
+  /* `next`'s dim fill — closest neutral `@pv/ui` has today. A parked rung is
+     reversible (ADR 0064 §6), so it must read as quiet, never `bad`'s red. */
+  parked: 'next',
 }
 
 /** `halo` marks the one rung a LIVE lane is standing on, so the eye finds it

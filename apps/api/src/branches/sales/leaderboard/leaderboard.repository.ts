@@ -73,10 +73,10 @@ export class LeaderboardRepository {
           >`COALESCE(SUM(${opsVnd}) FILTER (WHERE ${open}), 0)::bigint`,
           blank: sql<number>`count(*) FILTER (WHERE ${open} AND ${opportunity.amount} IS NULL)::int`,
           won: sql<number>`count(*) FILTER (WHERE ${signed})::int`,
-          /* Lost = the column says lost AND nothing was signed, so won and lost
+          /* Lost = in the care list AND nothing was signed, so won and lost
              never count one deal twice — the same tie-break the scorecard uses,
              where a contract beats whatever `state` still reads. */
-          lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'close-lost' AND NOT ${signed})::int`,
+          lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'care' AND NOT ${signed})::int`,
         })
         .from(opportunityOwner)
         .innerJoin(opportunity, eq(opportunity.code, opportunityOwner.opportunityCode))

@@ -35,8 +35,38 @@ export const LeadCategory = z.enum(
 
 export const LeadTier = z.enum(['prospect', 'mql', 'sql'], 'Bậc không có trong danh sách')
 
-/** Năm cột của sổ cơ hội. Không có cột thứ sáu. */
-export const StageKey = z.enum(['new', 'discovery', 'demo-done', 'quoted', 'awaiting-signature'])
+/** Where a deal stands in its OWN lifecycle — five columns, no sixth (ADR 0064).
+ *  STORED, nullable on the row, and written only by the server's single stage
+ *  writer: `assigned` follows the PIC set, the last three follow a recorded
+ *  milestone (`sample-sent`, `poc-run`, `quotation-sent`). A seller never picks
+ *  one, so no write body carries this enum. */
+export const StageKey = z.enum(['new', 'assigned', 'sample', 'poc', 'quotation'])
+
+/** Vietnamese label per column, declared ONCE for the reason `LEAD_STATE_LABEL`
+ *  is: the board door prints these server-side while the book prints them in the
+ *  browser, and two copies of one word drift. */
+export const OPPORTUNITY_STAGE_LABEL: Record<StageKey, string> = {
+  new: 'Khởi tạo opp',
+  assigned: 'Nhận PIC',
+  sample: 'Sample',
+  poc: 'POC',
+  quotation: 'Quotation',
+}
+
+/** How a deal READS: the two stored values plus `won`, which is not stored at
+ *  all — it is the existence of a `sales.contract` row, folded in on the way
+ *  out. The stored half is `OpportunityState` in `./opportunity`, derived from
+ *  this list so the two can never disagree on spelling. */
+export const OpportunityStatus = z.enum(
+  ['open', 'care', 'won'],
+  'Trạng thái cơ hội không có trong danh sách',
+)
+
+export const OPPORTUNITY_STATE_LABEL: Record<OpportunityStatus, string> = {
+  open: 'Đang triển khai',
+  care: 'Danh sách chăm sóc',
+  won: 'Thành hợp đồng',
+}
 
 /** SÁU lý do rơi — KHOÁ ASCII, không phải nhãn tiếng Việt.
  *
@@ -101,6 +131,7 @@ export const LEAD_OPEN_STATES = [
 export type LeadCategory = z.infer<typeof LeadCategory>
 export type LeadTier = z.infer<typeof LeadTier>
 export type StageKey = z.infer<typeof StageKey>
+export type OpportunityStatus = z.infer<typeof OpportunityStatus>
 export type ExitReason = z.infer<typeof ExitReason>
 export type LeadState = z.infer<typeof LeadState>
 

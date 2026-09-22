@@ -1,6 +1,6 @@
 # 0018 · Opportunity module decisions — `state`/`stage` split, permission split, five screen defaults
 
-Status: accepted
+Status: accepted (the five `state` values and the `state`/`stage` split superseded by 0064)
 Source: docs/ban-giao-co-hoi.md — sections "`state` and `stage` are TWO
 columns, not one", "Endpoint", and "Five decisions still pending" (ratified in
 section "Round three · 29/08/2026")

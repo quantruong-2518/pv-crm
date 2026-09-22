@@ -1,25 +1,28 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  OpportunityCreateState,
   type ConfigProposalReceipt,
   type ContractSign,
   type ObjectCode,
+  type OpportunityCareBody,
+  type OpportunityCareResponse,
   type OpportunityCreate,
   type OpportunityCreateResponse,
+  type OpportunityMilestoneBody,
+  type OpportunityMilestoneResponse,
   type OpportunityProfileResponse,
+  type OpportunityReactivateResponse,
   type OpportunityRow,
   type OpportunityStageHistory,
-  type OpportunityStageMove,
   type OpportunityUpdate,
   type OpportunityUpdateResponse,
 } from '@pv/contracts'
-import { OPPORTUNITY_STATES, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { invalidateLeadState } from '@/data/lead-exit'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 
-/** Module 3 · ba cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
+/** Module 3 · các cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
  *
  *  ------------------------------------------------------------------
  *  PHIẾU GIỮ NGUYÊN HÌNH CỦA NÓ, DÂY LÀ MỘT HÌNH KHÁC
@@ -46,12 +49,27 @@ import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/op
 
 const BOOK_PATH = '/sales/opportunities'
 
-/** Cùng ba trục mà `OpportunityController` khai bằng `@Need`.
+/** Cửa TẠO và hai cửa NẠP LÔ — `@Need({ …, permission: 'opportunity.edit' })`,
+ *  KHÔNG `scoped`, đúng như ba dòng khai ở controller.
  *
  *  `opportunity.edit` chứ không phải `opportunity.close`: mở một đơn thì đóng lại được, ký
  *  thì không — đọc docblock của controller cho phần đầy đủ. Khai ở đây để nút
- *  tắt đi TRƯỚC khi người dùng bấm, thay vì để họ điền hết phiếu rồi ăn 403. */
+ *  tắt đi TRƯỚC khi người dùng bấm, thay vì để họ điền hết phiếu rồi ăn 403.
+ *
+ *  Vắng `scoped` là ĐÚNG ở những cửa này: chưa có đơn nào thì chưa có phạm vi
+ *  nào để cắt — người tạo chính là người sắp đứng đơn. */
 export const OPPORTUNITY_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.edit' }
+
+/** Cửa SỬA — cùng quyền, nhưng `scoped: true` như `@Need` của `PATCH :code`.
+ *
+ *  Tách khỏi hằng trên chứ không dùng chung: đứng trong PIC là thứ cho quyền
+ *  sửa (ADR 0064 §5), nên một dòng khai thiếu `scoped` là hai đầu của cùng một
+ *  ma trận quyền đọc ra hai câu khác nhau. */
+export const OPPORTUNITY_UPDATE_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'opportunity.edit',
+  scoped: true,
+}
 
 /** Cửa KÝ đòi một quyền khác hẳn — `@Need({ …, permission: 'opportunity.close',
  *  scoped: true })` ở `opportunity.controller.ts`.
@@ -71,33 +89,18 @@ export const OPPORTUNITY_SIGN_NEED: ApiNeed = {
   scoped: true,
 }
 
-/** Bốn trạng thái hai phiếu nhận, lọc từ năm trạng thái của sổ.
- *
- *  "Close won" rụng ở đây, và không phải vì màn ngại vẽ nó: một đơn thắng là
- *  một đơn CÓ HỢP ĐỒNG — số hợp đồng và ngày ký — mà phiếu không có ô nào hỏi
- *  hai thứ đó. Cho chọn thì hoặc màn phải bịa, hoặc máy chủ phải bịa.
- *
- *  Lọc từ `OPPORTUNITY_STATES` chứ không khai lại bốn dòng: nhãn tiếng Việt chỉ
- *  có một bản, và `OpportunityCreateState` của hợp đồng là thứ nói cái nào được
- *  phép. Thêm một trạng thái ở hợp đồng thì danh sách này tự dài ra. */
-export const CREATE_STATES = OPPORTUNITY_STATES.filter(
-  (s) => OpportunityCreateState.safeParse(s.key).success,
-)
-
 const some = (s: string) => (s.trim() === '' ? undefined : s)
 
-/** Phần thân chung của hai cửa — đúng mười một ô sửa được. */
+/** Phần thân chung của hai cửa — đúng bộ ô sửa được.
+ *
+ *  KHÔNG có `state`, `stage`, hay lý do chăm sóc, và cả ba đều vắng vì cùng một
+ *  lý do (ADR 0064): một trục, một writer. Cột đi theo sự kiện thật ở máy chủ,
+ *  còn lý do chăm sóc đi qua cửa riêng `POST /:code/care` — kèm đúng thân của
+ *  nó. Một phiếu sửa mà chở được cột là một phiếu cãi lại chính máy chủ. */
 function dealBody(draft: OpportunityDraft) {
-  const lost = draft.state === 'close-lost'
-
   return {
     name: draft.name,
     expectedClose: draft.closedDate,
-    /* Ép kiểu vì `OpportunityDraft.state` còn mang cả năm giá trị. Nút gửi đã
-       tắt với 'close-won' (nó không có trong `CREATE_STATES` nên không chọn
-       được), và nếu nó lọt tới đây thì zod ở máy chủ trả 400 gọi tên ô — hàng
-       rào thật nằm ở đó, không nằm ở phép ép này. */
-    state: draft.state as OpportunityCreate['state'],
     /* `missingOf` đã chặn `null` và `0` trước khi nút gửi bật. */
     amount: draft.amount ?? 0,
     currency: draft.currency,
@@ -110,11 +113,6 @@ function dealBody(draft: OpportunityDraft) {
     products: draft.products,
     ...(some(draft.description) === undefined ? {} : { description: draft.description }),
     attachments: draft.attachments,
-    /* Lý do thua CHỈ đi kèm đơn thua. Hợp đồng từ chối một lý do trên đơn còn
-       sống, nên gửi kèm "cho chắc" là một 400 chứ không phải một trường bị bỏ
-       qua. */
-    ...(lost && some(draft.lossReason) !== undefined ? { lossReason: draft.lossReason } : {}),
-    ...(lost && some(draft.lossNote) !== undefined ? { lossNote: draft.lossNote } : {}),
   }
 }
 
@@ -151,7 +149,10 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
     account: op.account,
     accountCode: op.accountCode ?? '',
     closedDate: op.expectedClose ?? '',
-    state: op.state,
+    /* Chở theo mà KHÔNG có ô nào vẽ nó và KHÔNG cửa nào nhận nó: `stage` rời
+       khỏi cả hai thân request từ ADR 0064. `'new'` cho đơn đã ra khỏi bảng chỉ
+       là một giá trị hợp kiểu — cột thật của đơn đọc ở `op.stage`. */
+    stage: op.stage ?? 'new',
     amount: op.amount,
     /* Đơn cũ chưa có tiền thì cũng chưa có đồng tiền. Phiếu phải chọn sẵn một
        cái để ô Select không rỗng, và VND là mặc định của sổ này. */
@@ -168,8 +169,6 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
     products: op.products.map((p) => p.id),
     description: op.description ?? '',
     attachments: op.attachments,
-    lossReason: op.lossReason ?? '',
-    lossNote: op.lossNote ?? '',
   }
 }
 
@@ -178,7 +177,7 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
  *  ------------------------------------------------------------------
  *  ONE CELL IS SPELLED DIFFERENTLY ON EACH SIDE, AND THAT IS THE WHOLE JOB
  *  ------------------------------------------------------------------
- *  Eleven of the twelve names match, so this looks like it could be skipped —
+ *  Every name but one matches, so this looks like it could be skipped —
  *  right up to `expectedClose`, which the form calls `closedDate` (see
  *  `draftOf`). Handed straight through, zod's complaint about a date that is
  *  not on the calendar lands under a key no box on either screen is listening
@@ -196,7 +195,6 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
 const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft> = {
   name: 'name',
   expectedClose: 'closedDate',
-  state: 'state',
   amount: 'amount',
   currency: 'currency',
   saleOwners: 'saleOwners',
@@ -205,8 +203,6 @@ const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft> = {
   products: 'products',
   description: 'description',
   attachments: 'attachments',
-  lossReason: 'lossReason',
-  lossNote: 'lossNote',
 }
 
 export function draftErrorsOf(errors: FieldErrors | undefined): FieldErrors {
@@ -247,12 +243,12 @@ export function saveOpportunity(
   return api.write<OpportunityUpdateResponse>(`${BOOK_PATH}/${code}`, {
     method: 'PATCH',
     body,
-    need: OPPORTUNITY_WRITE_NEED,
+    need: OPPORTUNITY_UPDATE_NEED,
     signal,
   })
 }
 
-/** Raise a request to sign — the only road to `close-won`, and it now passes E3.
+/** Raise a request to sign — the only road to `won`, and it now passes E3.
  *
  *  202 with a receipt: the contract row exists only once an approver accepts
  *  the `contract-sign` request (`docs/decisions/0057-seven-sales-pipeline-decisions.md`,
@@ -334,53 +330,112 @@ export function useSignContract(code: ObjectCode) {
 }
 
 // ---------------------------------------------------------------------------
-// A deal's column — moving it, and reading its history back
+// THE THREE DOORS THAT MOVE A DEAL — MILESTONE · CARE · REACTIVATE
 // ---------------------------------------------------------------------------
 
-/** Drag a deal to another column.
+/** `PATCH :code/stage` IS GONE (ADR 0064 §1) and so is the mutation that drove
+ *  it. A drag gesture was never a reason a deal advanced, so the three doors
+ *  below take the FACT instead and let the server's single stage writer move the
+ *  column: a milestone that really happened, a parking with a reason, a reopen.
  *
- *  A DOOR OF ITS OWN rather than an ordinary `PATCH`, and at the screen layer
- *  that difference earns its keep: `saveOpportunity` sends all thirteen fields,
- *  so calling it just to change the column would send money, owners and the
- *  close date along with it — every field the user may be half-editing in
- *  another tab. This door carries exactly one field.
- *
- *  Full reasoning is in the docblock of `OpportunityStageMove` in
- *  `@pv/contracts`. */
-export function moveOpportunityStage(
+ *  `scoped: true` on all three, the same flag `OPPORTUNITY_UPDATE_NEED` above
+ *  carries and the create door deliberately does not: standing in the PIC is what
+ *  grants the right (ADR 0064 §5), so every declaration here has to read the same
+ *  as its controller `@Need`. */
+export const OPPORTUNITY_MOVE_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'opportunity.edit',
+  scoped: true,
+}
+
+export function logMilestone(
   code: ObjectCode,
-  body: OpportunityStageMove,
+  body: OpportunityMilestoneBody,
   signal?: AbortSignal,
-): Promise<OpportunityUpdateResponse> {
-  return api.write<OpportunityUpdateResponse>(`${BOOK_PATH}/${code}/stage`, {
-    method: 'PATCH',
+): Promise<OpportunityMilestoneResponse> {
+  return api.write<OpportunityMilestoneResponse>(`${BOOK_PATH}/${code}/milestones`, {
+    method: 'POST',
     body,
-    need: OPPORTUNITY_WRITE_NEED,
+    need: OPPORTUNITY_MOVE_NEED,
     signal,
   })
 }
 
-/** The mutation behind the column picker on a deal's profile.
+export function pushToCare(
+  code: ObjectCode,
+  body: OpportunityCareBody,
+  signal?: AbortSignal,
+): Promise<OpportunityCareResponse> {
+  return api.write<OpportunityCareResponse>(`${BOOK_PATH}/${code}/care`, {
+    method: 'POST',
+    body,
+    need: OPPORTUNITY_MOVE_NEED,
+    signal,
+  })
+}
+
+/** An EMPTY body, and it is sent rather than omitted: the door parses one, and
+ *  the column to return to is remembered on the row — asking the caller for it
+ *  would let a deal come back further along than it left. */
+export function reactivateDeal(
+  code: ObjectCode,
+  signal?: AbortSignal,
+): Promise<OpportunityReactivateResponse> {
+  return api.write<OpportunityReactivateResponse>(`${BOOK_PATH}/${code}/reactivate`, {
+    method: 'POST',
+    body: {},
+    need: OPPORTUNITY_MOVE_NEED,
+    signal,
+  })
+}
+
+/** What all three moves have to refresh, written ONCE.
  *
- *  Same two-step shape as `useSaveOpportunity`, plus ONE more invalidation: a
- *  column move produces a history row, so the history card open right beside it
- *  has to reload. Without that, whoever just dragged the card sees the new
- *  column at the top and a history that says nothing about the move they just
- *  made — exactly the kind of mismatch that makes people click twice. */
-export function useMoveStage(code: ObjectCode) {
+ *  Three keys, three different reasons. The profile is ON SCREEN, so the row
+ *  that just came back is merged straight in — merged and not replaced, because
+ *  it lacks `chain`, `position` and `pendingSign` — and then re-read, since
+ *  `position` and `daysInStage` are computed from the column the move just
+ *  changed. The prefix key also covers the column history one card below. The
+ *  deal's timeline gains a touch row, and the book's counts have moved. */
+function useMoveSettled(code: ObjectCode) {
   const client = useQueryClient()
 
-  return useMutation<OpportunityUpdateResponse, ApiError, OpportunityStageMove>({
-    mutationFn: (body) => moveOpportunityStage(code, body),
-    onSuccess: (row) => {
-      /* Merged, not replaced: the row lacks the profile's `chain`, `position`
-         and `pendingSign`, and a bare row would crash the rail on the next render. */
-      client.setQueryData<OpportunityProfileResponse>(['sales', 'ops', code], (prev) =>
-        prev ? { ...prev, ...row } : prev,
-      )
-      void client.invalidateQueries({ queryKey: ['sales', 'ops', code, 'stage-history'] })
-      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
-    },
+  return (row: OpportunityRow) => {
+    client.setQueryData<OpportunityProfileResponse>(['sales', 'ops', code], (prev) =>
+      prev ? { ...prev, ...row } : prev,
+    )
+    void client.invalidateQueries({ queryKey: ['sales', 'ops', code] })
+    void client.invalidateQueries({ queryKey: ['sales', 'ops-touches', code] })
+    void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+  }
+}
+
+/** Record `sample-sent` · `poc-run` · `quotation-sent`. Pressing the CURRENT
+ *  column's milestone again is legal and expected — another quotation round. */
+export function useLogMilestone(code: ObjectCode) {
+  const settled = useMoveSettled(code)
+
+  return useMutation<OpportunityMilestoneResponse, ApiError, OpportunityMilestoneBody>({
+    mutationFn: (body) => logMilestone(code, body),
+    onSuccess: settled,
+  })
+}
+
+export function usePushToCare(code: ObjectCode) {
+  const settled = useMoveSettled(code)
+
+  return useMutation<OpportunityCareResponse, ApiError, OpportunityCareBody>({
+    mutationFn: (body) => pushToCare(code, body),
+    onSuccess: settled,
+  })
+}
+
+export function useReactivateDeal(code: ObjectCode) {
+  const settled = useMoveSettled(code)
+
+  return useMutation<OpportunityReactivateResponse, ApiError, void>({
+    mutationFn: () => reactivateDeal(code),
+    onSuccess: settled,
   })
 }
 

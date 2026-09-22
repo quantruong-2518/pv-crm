@@ -23,11 +23,11 @@ export function person(id: string) {
 /* Labels keyed by the enum, so a new enum value is a compile error here and
    the ord of each row matches the enum's order — the join `ladder.ts` relies on. */
 const STAGE_CONFIG: Record<StageKey, [string, number]> = {
-  new: ['Mới', 2],
-  discovery: ['Đang tìm hiểu', 14],
-  'demo-done': ['Đã demo', 21],
-  quoted: ['Đã báo giá', 30],
-  'awaiting-signature': ['Chờ ký', 10],
+  new: ['Khởi tạo opp', 2],
+  assigned: ['Nhận PIC', 14],
+  sample: ['Sample', 21],
+  poc: ['POC', 21],
+  quotation: ['Quotation', 30],
 }
 const TIER_NAME: Record<LeadTier, string> = { prospect: 'Đầu mối', mql: 'MQL', sql: 'SQL' }
 const CATEGORY_CONFIG: Record<LeadCategory, [string, string]> = {
@@ -53,18 +53,38 @@ const CHANNEL_NAME: Record<ContactChannel, string> = {
   facebook: 'Facebook',
   website: 'Website',
 }
-/** Planted by migration 0026; re-planted because the wipe takes it too. */
-const LOSS_REASONS = [
-  'Giá cao hơn đối thủ',
-  'Khách chọn đối thủ khác',
-  'Không đủ ngân sách năm nay',
-  'Dự án hoãn vô thời hạn',
-  'Thiếu tính năng khách cần',
-  'Thời gian triển khai không kịp',
-  'Mất người ủng hộ bên trong',
+/** Provisional (ADR 0064 §5 — Open #2): why an opp leaves the board into the
+ *  care list, one bucket per stage it can fail at. The owner will replace this
+ *  catalogue. No catch-all row: `OPPORTUNITY_CARE_REASON_OTHER` is a virtual
+ *  API value, not a `config_entry` row, so five scoped catch-alls never collide
+ *  on `config_name_live`. */
+const CARE_REASONS: ConfigSeed[] = [
+  { name: 'Không tìm được PIC phù hợp', stage: 'new' },
+  { name: 'Lead không đủ điều kiện', stage: 'new' },
+  { name: 'Trùng opp khác', stage: 'new' },
+  { name: 'Không liên lạc được khách', stage: 'assigned' },
+  { name: 'Khách chưa có nhu cầu thật', stage: 'assigned' },
+  { name: 'Khách hẹn lại sau', stage: 'assigned' },
+  { name: 'Khách từ chối nhận sample', stage: 'sample' },
+  { name: 'Sample không đạt yêu cầu', stage: 'sample' },
+  { name: 'Khách không phản hồi', stage: 'sample' },
+  { name: 'POC không đạt', stage: 'poc' },
+  { name: 'Khách đổi yêu cầu kỹ thuật', stage: 'poc' },
+  { name: 'Chọn giải pháp khác', stage: 'poc' },
+  { name: 'Giá cao hơn đối thủ', stage: 'quotation' },
+  { name: 'Khách không chấp nhận điều khoản', stage: 'quotation' },
+  { name: 'Ngân sách bị cắt', stage: 'quotation' },
+  { name: 'Chọn đối thủ', stage: 'quotation' },
+  { name: 'Khách hoãn dự án', stage: 'quotation' },
 ]
 
-type ConfigSeed = { name: string; limitDays?: number; ownerId?: string; kind?: string }
+type ConfigSeed = {
+  name: string
+  limitDays?: number
+  ownerId?: string
+  kind?: string
+  stage?: StageKey
+}
 
 function configRows(list: ConfigList, items: ConfigSeed[]) {
   return items.map((it, i) => ({
@@ -75,6 +95,7 @@ function configRows(list: ConfigList, items: ConfigSeed[]) {
     limitDays: it.limitDays ?? null,
     ownerId: it.ownerId ?? null,
     kind: it.kind ?? null,
+    stage: it.stage ?? null,
   }))
 }
 
@@ -114,8 +135,5 @@ export const configSeed = [
   ),
   ...sourceRows,
   ...productRows,
-  ...configRows(
-    'LOSS_REASON',
-    LOSS_REASONS.map((name) => ({ name })),
-  ),
+  ...configRows('LOSS_REASON', CARE_REASONS),
 ]

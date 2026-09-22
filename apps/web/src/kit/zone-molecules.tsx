@@ -47,6 +47,7 @@ import {
   Timeline,
   type TimelineItem,
 } from '@pv/ui'
+import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
 
 /** Zone 02 · Molecules — tầng mang chữ ký của hệ: ContextRail và AIAction. */
 
@@ -261,6 +262,15 @@ function RichTextDemo() {
   )
 }
 
+/** The five pipeline columns — keys and labels from `OPPORTUNITY_STAGE_LABEL`
+ *  (ADR 0064), because the kit page draws COMPONENTS and must not fork the
+ *  real vocabulary. The hint here is sample text, not a real deal's numbers. */
+const KIT_STAGES = StageKey.options.map((key) => ({
+  key,
+  label: OPPORTUNITY_STAGE_LABEL[key],
+  ...(key === 'sample' ? { hint: '9 ngày · hạn 21' } : {}),
+}))
+
 /** Bấm một chip đã qua để lùi lại — chứng minh `onGo` đổi state của MÀN,
  *  Stepper chỉ vẽ lại theo `current` nó nhận vào.
  *
@@ -268,17 +278,6 @@ function RichTextDemo() {
  *  press back to step 2 and step 3 stays clickable, because `reached` remembers
  *  that it was opened. Holding only `current` here would reproduce on the kit
  *  page the exact dead end the prop exists to end — see `StepperProps.reached`. */
-/** The five pipeline columns, names copied rather than imported from
- *  `PIPELINE_STAGES`: the kit page draws COMPONENTS and stands on no scenario.
- *  The hint here is sample text, not a real deal's numbers. */
-const KIT_STAGES = [
-  { key: 'new', label: 'Mới' },
-  { key: 'discovery', label: 'Đang tìm hiểu' },
-  { key: 'demo-done', label: 'Đã demo', hint: '9 ngày · hạn 21' },
-  { key: 'quoted', label: 'Đã báo giá' },
-  { key: 'awaiting-signature', label: 'Chờ ký' },
-]
-
 function StepperDemo() {
   const [current, setCurrent] = useState(2)
   const [reached, setReached] = useState(2)

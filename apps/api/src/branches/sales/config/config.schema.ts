@@ -1,6 +1,6 @@
 import { boolean, check, integer, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { ConfigList } from '@pv/contracts'
+import type { ConfigList, StageKey } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 
@@ -73,6 +73,13 @@ export const configEntry = sales.table(
     ownerId: text('owner_id').references(() => actor.id),
     /** CHỈ `SOURCE` — 'campaign' · 'event' · 'organic'. */
     kind: text('kind'),
+
+    /** Only `LOSS_REASON` — the stage this care reason is scoped to.
+     *
+     *  `NULL` is an ANSWER, not a gap: the reason fits every stage. That is why
+     *  0062 backfills nothing — the rows written before the column existed are
+     *  correct as they stand. */
+    stage: text('stage').$type<StageKey>(),
   },
   (t) => [
     /** Trống là `NULL`, không bao giờ là `''` — cùng quy ước với `lead`. */
@@ -95,6 +102,19 @@ export const configEntry = sales.table(
      *  month later. The nagging half of luật 2 §2 lives on the screen, where a
      *  human can answer it. */
     check('config_limit_only_ladder', sql`"limit_days" IS NULL OR "list" IN ('STAGE', 'TIER')`),
+
+    /** A stage scope belongs to `LOSS_REASON` alone — the price of six lists in
+     *  one table, paid again (`config_limit_only_ladder`): the reason a deal is
+     *  parked at `new` is not the reason it is parked after a quotation. */
+    check('config_stage_only_loss_reason', sql`"stage" IS NULL OR "list" = 'LOSS_REASON'`),
+
+    /** `StageKey.options`, copied out rather than generated, for
+     *  `opportunity_care_from_stage_known`'s reason: the day the ladder grows,
+     *  that has to be a migration a person reads. */
+    check(
+      'config_stage_known',
+      sql`"stage" IS NULL OR "stage" IN ('new', 'assigned', 'sample', 'poc', 'quotation')`,
+    ),
 
     /** ĐÍCH của khoá ngoại GHÉP mà `sales.lead` sẽ trỏ vào.
      *

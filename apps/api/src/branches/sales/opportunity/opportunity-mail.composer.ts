@@ -3,7 +3,7 @@ import { renderOpportunityLost, renderOpportunityOpened } from '@pv/mail-templat
 import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import type { DeliveryToSend, MailMessage } from '@api/platform/mail/mail.contract'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
-import { STAGE_LABEL, STATE_LABEL } from './opportunity.labels'
+import { OPPORTUNITY_STAGE_LABEL, OPPORTUNITY_STATE_LABEL } from '@pv/contracts'
 import { OpportunityRepository } from './opportunity.repository'
 
 /** THÂN CỦA HAI MAIL SỔ CƠ HỘI, DỰNG Ở NƠI CƠ HỘI SỐNG.
@@ -20,17 +20,16 @@ import { OpportunityRepository } from './opportunity.repository'
  *  `OpportunityRepository`, gọi đúng một hàm `forMail`, và dịch đúng một bộ
  *  nhãn — tức hai file cùng biết một thứ, đúng hình mà đăng bạ composer được
  *  dựng ra để tránh. Chỗ CHIA là `compose`, và nó chia bằng một câu `if` đọc
- *  chính trạng thái đã lưu, không bằng tên template: đơn thua thì gửi thư
- *  thua, kể cả khi có ai đó xếp nhầm hàng.
+ *  chính trạng thái đã lưu, không bằng tên template: đơn đã sang danh sách chăm
+ *  sóc thì gửi thư chăm sóc, kể cả khi có ai đó xếp nhầm hàng.
  *
  *  ------------------------------------------------------------------
- *  NHÃN TIẾNG VIỆT ĐÃ RỜI KHỎI FILE NÀY
+ *  NHÃN TIẾNG VIỆT ĐỌC TỪ HỢP ĐỒNG
  *  ------------------------------------------------------------------
- *  `@pv/contracts` cố tình chỉ giữ KHOÁ ('quote-sent'), không giữ nhãn —
- *  nhãn là việc của tầng hiển thị. Hai bảng nhãn từng nằm ngay đây; nay chúng ở
- *  `opportunity.labels.ts`, vì dòng thời gian (`sales.touch`) cũng phải dựng
- *  câu "đơn vừa sang cột Chờ ký" và một bản chép thứ hai trong cùng một thư mục
- *  là bản sẽ bị quên. Bản của MÀN (`ops-fields.tsx`) vẫn còn và vẫn là một khoản nợ chưa có ADR nào nhận. */
+ *  Hai bảng nhãn từng nằm ngay đây, rồi sang `opportunity.labels.ts`. Từ ADR
+ *  0064 chúng khai một lần trong `@pv/contracts`
+ *  (`OPPORTUNITY_STAGE_LABEL`/`OPPORTUNITY_STATE_LABEL`), nên file này đọc thẳng
+ *  từ đó — không còn bản chép nào ở `apps/api`. */
 
 @Injectable()
 export class OpportunityMailComposer implements MailComposer {
@@ -55,7 +54,7 @@ export class OpportunityMailComposer implements MailComposer {
     const opUrl = `${this.env.PV_APP_URL.replace(/\/+$/, '')}/sales/opportunities/${row.code}`
 
     const { subject, html, text } =
-      row.state === 'close-lost'
+      row.state === 'care'
         ? await renderOpportunityLost({
             opCode: row.code,
             leadCode: row.leadCode,
@@ -63,14 +62,14 @@ export class OpportunityMailComposer implements MailComposer {
             name: row.name,
             amount: row.amount,
             currency: row.currency,
-            ...(row.lostReason ? { lossReason: row.lostReason } : {}),
-            ...(row.lostNote ? { lossNote: row.lostNote } : {}),
+            ...(row.careReason ? { careReason: row.careReason } : {}),
+            ...(row.careNote ? { careNote: row.careNote } : {}),
             saleOwners,
             bdOwners,
-            /* `closed_at` không thể null ở nhánh này — `opportunity_lost_state_closed`
-               chặn một đơn `close-lost` chưa đóng. Vẫn lùi về `created_at` chứ
-               không dùng `!`: một CHECK là hàng rào của bảng, không phải giấy
-               phép để tầng trên bỏ nhánh còn lại. */
+            /* `closed_at` không thể null ở nhánh này — `opportunity_care_closed`
+               chặn một đơn `care` chưa đóng. Vẫn lùi về `created_at` chứ không
+               dùng `!`: một CHECK là hàng rào của bảng, không phải giấy phép để
+               tầng trên bỏ nhánh còn lại. */
             closedAt: (row.closedAt ?? row.createdAt).toISOString(),
             daysOpen: deal.daysOpen,
             opUrl,
@@ -81,8 +80,8 @@ export class OpportunityMailComposer implements MailComposer {
             leadCode: row.leadCode,
             account,
             name: row.name,
-            stateLabel: STATE_LABEL[row.state],
-            ...(row.stage ? { stageLabel: STAGE_LABEL[row.stage] } : {}),
+            stateLabel: OPPORTUNITY_STATE_LABEL[row.state],
+            ...(row.stage ? { stageLabel: OPPORTUNITY_STAGE_LABEL[row.stage] } : {}),
             amount: row.amount,
             currency: row.currency,
             expectedClose: row.expectedClose,

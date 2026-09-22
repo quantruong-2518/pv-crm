@@ -13,7 +13,7 @@ import { LeadTier } from './enums'
  *  ------------------------------------------------------------------
  *  Two event streams already exist and neither can answer this. `platform.audit`
  *  records who called which route — it is a security trail, keyed on an HTTP
- *  action, and it cannot say "this deal moved from Đã demo to Chờ ký" because
+ *  action, and it cannot say "this deal moved from POC to Quotation" because
  *  by the time it is written the only thing left is `action: 'edit'`.
  *  `platform.email_delivery` knows every letter sent, which is one kind of
  *  contact and the only kind those tables see.
@@ -86,8 +86,20 @@ export const TouchKind = z.enum([
   'first-meeting',
   /** A lead became an opportunity. */
   'entered-pipeline',
-  /** A deal changed column. */
+  /** A deal changed column. Written by the stage writer as a by-product of the
+   *  five kinds below — no door reports a column move on its own. */
   'stage-changed',
+  /** The three deal MILESTONES, each recorded through
+   *  `POST /sales/opportunities/:code/milestones`; the stage follows the
+   *  milestone, never the other way round (ADR 0064). `quotation-sent` may
+   *  repeat — a renegotiated quotation is another round, not another column. */
+  'sample-sent',
+  'poc-run',
+  'quotation-sent',
+  /** The deal was parked on the care list; `note` carries the reason. */
+  'care-entered',
+  /** It came back to the column it was parked from. */
+  'care-left',
   /** A contract was signed. */
   'signed',
   /** The lead left the funnel. */
@@ -97,7 +109,7 @@ export const TouchKind = z.enum([
 ])
 
 /** Which book the row hangs off. A deal and its lead keep separate trails —
- *  merging them would make "this deal moved to Chờ ký" appear on a sibling deal
+ *  merging them would make "this deal moved to Quotation" appear on a sibling deal
  *  belonging to the same customer. */
 export const TouchSubject = z.enum(['lead', 'opportunity'])
 

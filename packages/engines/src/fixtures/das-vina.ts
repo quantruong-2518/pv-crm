@@ -1,5 +1,11 @@
 import { DEFAULT_ROLE_PERMISSIONS } from '../e2-access'
-import { CURRENCIES, USD_VND, toMoneyVnd, type CurrencyCode } from '@pv/contracts'
+import {
+  CURRENCIES,
+  OPPORTUNITY_CARE_REASON_OTHER,
+  USD_VND,
+  toMoneyVnd,
+  type CurrencyCode,
+} from '@pv/contracts'
 import { loadScenario, type Scenario } from './scenario'
 import type { Actor } from '../types'
 
@@ -40,7 +46,7 @@ const scenario: Scenario = {
       branch: 'Sales',
       label: 'Factory MES + One Plus',
       owner: 'Đỗ Quang Huy',
-      state: 'discovery',
+      state: 'assigned',
       amount: 4_200_000_000,
     },
     {
@@ -155,11 +161,11 @@ export const HEAD_OF_SALES = 'Trần Thu Hà'
  *
  *  Sửa được ở module Cấu hình (mục 5.2), không sửa ở tầng màn. */
 export const PIPELINE_STAGES = [
-  { key: 'new', label: 'Mới', limitDays: 2 },
-  { key: 'discovery', label: 'Đang tìm hiểu', limitDays: 14 },
-  { key: 'demo-done', label: 'Đã demo', limitDays: 21 },
-  { key: 'quoted', label: 'Đã báo giá', limitDays: 30 },
-  { key: 'awaiting-signature', label: 'Chờ ký', limitDays: 10 },
+  { key: 'new', label: 'Khởi tạo opp', limitDays: 2 },
+  { key: 'assigned', label: 'Nhận PIC', limitDays: 14 },
+  { key: 'sample', label: 'Sample', limitDays: 21 },
+  { key: 'poc', label: 'POC', limitDays: 21 },
+  { key: 'quotation', label: 'Quotation', limitDays: 30 },
 ] as const
 
 export type StageKey = (typeof PIPELINE_STAGES)[number]['key']
@@ -200,7 +206,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Bắc Ninh',
     amount: 4_200_000_000,
     owner: 'Đỗ Quang Huy',
-    stage: 'discovery',
+    stage: 'assigned',
     daysInStage: 11,
   },
   {
@@ -209,7 +215,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Bình Dương',
     amount: 1_100_000_000,
     owner: 'Nguyễn Khánh Linh',
-    stage: 'discovery',
+    stage: 'assigned',
     daysInStage: 6,
   },
   {
@@ -218,7 +224,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Hải Dương',
     amount: 900_000_000,
     owner: 'Đặng Thanh Bình',
-    stage: 'demo-done',
+    stage: 'poc',
     daysInStage: 24,
   },
   {
@@ -227,7 +233,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Hà Nam',
     amount: 2_600_000_000,
     owner: 'Nguyễn Khánh Linh',
-    stage: 'demo-done',
+    stage: 'poc',
     daysInStage: 19,
   },
   {
@@ -236,7 +242,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Đà Nẵng',
     amount: 1_700_000_000,
     owner: 'Nguyễn Khánh Linh',
-    stage: 'quoted',
+    stage: 'quotation',
     daysInStage: 31,
   },
   {
@@ -245,7 +251,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Thái Nguyên',
     amount: 3_400_000_000,
     owner: 'Đặng Thanh Bình',
-    stage: 'quoted',
+    stage: 'quotation',
     daysInStage: 9,
   },
   {
@@ -254,7 +260,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Hưng Yên',
     amount: 2_200_000_000,
     owner: 'Đỗ Quang Huy',
-    stage: 'awaiting-signature',
+    stage: 'quotation',
     daysInStage: 5,
   },
   {
@@ -263,7 +269,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Bắc Ninh',
     amount: 1_300_000_000,
     owner: 'Đỗ Quang Huy',
-    stage: 'awaiting-signature',
+    stage: 'quotation',
     daysInStage: 14,
   },
 ]
@@ -1840,46 +1846,13 @@ const ROWS: Row[] = [
   // ── 10 SQL đang mở · khớp từng dòng với OPEN_DEALS ───────────────────────
   ['Điện tử Kỳ Anh', 'Hải Phòng', 'chip', 'sql', 6, 2, 'Đỗ Quang Huy', 'new', 4, -1],
   ['Nhựa Tân Á', 'Hưng Yên', 'mechanical', 'sql', 6, 1, 'Đặng Thanh Bình', 'new', 2, -1],
-  ['DAS Vina', 'Bắc Ninh', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'discovery', 11, -1],
-  [
-    'Bao bì Minh Long',
-    'Bình Dương',
-    'pharma',
-    'sql',
-    6,
-    2,
-    'Nguyễn Khánh Linh',
-    'discovery',
-    6,
-    -1,
-  ],
-  [
-    'Cơ khí Phú Thái',
-    'Hải Dương',
-    'mechanical',
-    'sql',
-    6,
-    3,
-    'Đặng Thanh Bình',
-    'demo-done',
-    24,
-    -1,
-  ],
-  ['Dược Vĩnh Hà', 'Hà Nam', 'pharma', 'sql', 6, 3, 'Nguyễn Khánh Linh', 'demo-done', 19, -1],
-  ['Thực phẩm Hải Vân', 'Đà Nẵng', 'pharma', 'sql', 6, 4, 'Nguyễn Khánh Linh', 'quoted', 31, -1],
-  ['Thép Đông Đô', 'Thái Nguyên', 'mechanical', 'sql', 6, 4, 'Đặng Thanh Bình', 'quoted', 9, -1],
-  [
-    'Nhựa An Phát Tây',
-    'Hưng Yên',
-    'chip',
-    'sql',
-    6,
-    4,
-    'Đỗ Quang Huy',
-    'awaiting-signature',
-    5,
-    -1,
-  ],
+  ['DAS Vina', 'Bắc Ninh', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'assigned', 11, -1],
+  ['Bao bì Minh Long', 'Bình Dương', 'pharma', 'sql', 6, 2, 'Nguyễn Khánh Linh', 'assigned', 6, -1],
+  ['Cơ khí Phú Thái', 'Hải Dương', 'mechanical', 'sql', 6, 3, 'Đặng Thanh Bình', 'poc', 24, -1],
+  ['Dược Vĩnh Hà', 'Hà Nam', 'pharma', 'sql', 6, 3, 'Nguyễn Khánh Linh', 'poc', 19, -1],
+  ['Thực phẩm Hải Vân', 'Đà Nẵng', 'pharma', 'sql', 6, 4, 'Nguyễn Khánh Linh', 'quotation', 31, -1],
+  ['Thép Đông Đô', 'Thái Nguyên', 'mechanical', 'sql', 6, 4, 'Đặng Thanh Bình', 'quotation', 9, -1],
+  ['Nhựa An Phát Tây', 'Hưng Yên', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'quotation', 5, -1],
   [
     'Điện lạnh Thái Bình Dương',
     'Bắc Ninh',
@@ -1888,7 +1861,7 @@ const ROWS: Row[] = [
     6,
     3,
     'Đỗ Quang Huy',
-    'awaiting-signature',
+    'quotation',
     14,
     -1,
   ],
@@ -3197,28 +3170,12 @@ export function leadProfile(lead: FrozenLead): LeadProfile {
 // Đổi lead thành cơ hội — trạng thái, lý do thua, và bản nháp phiếu
 // ---------------------------------------------------------------------------
 
-/** NĂM trạng thái của một cơ hội.
+/** Cơ hội còn trên bảng, đang ở danh sách chăm sóc, hay đã thành hợp đồng.
  *
- *  Đừng nhầm với `PIPELINE_STAGES`. Hai bảng trả lời hai câu khác nhau:
- *   · `PIPELINE_STAGES` — đơn ĐANG NẰM Ở CỘT NÀO của sổ cơ hội, và cột đó có
- *     hạn bao nhiêu ngày. Đó là thứ đo tắc nghẽn.
- *   · `OPPORTUNITY_STATES` — người bán ĐANG LÀM GÌ với đơn, kể cả hai kết cục
- *     đóng sổ (won · lost) mà cột pipeline không diễn tả được.
- *
- *  `stage` dưới đây là dây nối: chọn một trạng thái là đơn rơi vào đúng một cột.
- *  Hai kết cục đóng sổ không có cột nào — đơn ra khỏi bảng năm cột, nên `stage`
- *  của chúng là `null` chứ không phải "cột thứ sáu".
- *
- *  Thứ tự giữ đúng thứ tự đã chốt khi đặt hàng màn, không xếp lại theo nhóm. */
-export const OPPORTUNITY_STATES = [
-  { key: 'quote-sent', label: 'Gửi quotation', stage: 'quoted' },
-  { key: 'nego', label: 'Nego', stage: 'awaiting-signature' },
-  { key: 'close-won', label: 'Close won', stage: null },
-  { key: 'close-lost', label: 'Close lost', stage: null },
-  { key: 'pending', label: 'Pending', stage: 'discovery' },
-] as const satisfies readonly { key: string; label: string; stage: StageKey | null }[]
-
-export type OpportunityState = (typeof OPPORTUNITY_STATES)[number]['key']
+ *  Chỉ `open` và `care` là giá trị LƯU; `won` suy ra lúc đọc từ hợp đồng. Sale
+ *  không chọn trạng thái ở đâu cả: cột (`PIPELINE_STAGES`) do sự kiện thật đẩy
+ *  đi. Nhãn hiển thị khai ở `@pv/contracts`, engine không giữ bảng nhãn thứ hai. */
+export type OpportunityState = 'open' | 'care' | 'won'
 
 /** Lý do thua một CƠ HỘI. Khác `EXIT_REASONS`, và khác ở chỗ quan trọng:
  *
@@ -3249,7 +3206,8 @@ export type OpportunityDraft = {
   accountCode: string
   /** ISO ngày — ngày dự kiến đóng đơn. */
   closedDate: string
-  state: OpportunityState
+  /** Every new deal is born at `new`; the writer moves it, never the seller. */
+  stage: StageKey
   amount: number | null
   currency: CurrencyCode
   /** id của actor, không phải tên: tên đổi được, id thì không. */
@@ -3266,9 +3224,6 @@ export type OpportunityDraft = {
   products: string[]
   description: string
   attachments: OpportunityFile[]
-  /** Chỉ có nghĩa khi `state === 'close-lost'`. */
-  lossReason: string
-  lossNote: string
 }
 
 // ---------------------------------------------------------------------------
@@ -3280,7 +3235,7 @@ export type OpportunityDraft = {
 // không phải hai. Con số khớp ba chỗ và `scenario.test.ts` khoá cả ba:
 //
 //     LEADS.filter(tier === 'sql')  =  FUNNEL['opportunity'].count  =  30
-//     = 10 đơn đang mở (OPEN_DEALS) + 6 hợp đồng đã ký + 14 đơn đã thua
+//     = 10 đơn đang mở (OPEN_DEALS) + 6 hợp đồng đã ký + 14 đơn vào danh sách chăm sóc
 //
 // Khai một mảng 30 dòng riêng ở đây là tạo bản chép thứ hai của cùng một sự
 // thật: sửa một dòng lead thì sổ cơ hội trôi khỏi nó ngay, và không test nào
@@ -3295,28 +3250,34 @@ export type OpportunityDraft = {
  *  thì chưa có: lead nó sinh ra từ đâu, và nó đang nằm ở cột nào. Một kiểu chứ
  *  không hai: phiếu vừa gửi ở màn hồ sơ lead phải xếp cạnh 30 dòng này trong
  *  cùng một bảng, mà hai kiểu gần giống nhau là hai chỗ để lệch trường. */
-export type Opportunity = OpportunityDraft & {
+export type Opportunity = Omit<OpportunityDraft, 'stage'> & {
   /** Lead sinh ra đơn này. Đây là dây nối module Lead ↔ module Ops. */
   leadCode: string
-  /** Cột của `PIPELINE_STAGES`, hoặc `null` với hai kết cục đã đóng sổ. */
+  state: OpportunityState
+  /** Cột của `PIPELINE_STAGES`, hoặc `null` khi đã thắng hoặc đang chăm sóc. */
   stage: StageKey | null
+  /** Cột lúc bị đẩy vào chăm sóc — chỉ có khi `state === 'care'`. */
+  careFromStage: StageKey | null
+  /** Lý do vào chăm sóc; trống với đơn chưa chọn lý do có cấu trúc. */
+  careReason: string
+  careNote: string
 }
 
-/** Đơn ĐANG LÀM GÌ, suy từ dòng lead.
+/** Đơn còn trên bảng, đã thắng hay đang chăm sóc, suy từ dòng lead.
  *
- *  Đây là dây nối `PIPELINE_STAGES` (đơn nằm cột nào) sang `OPPORTUNITY_STATES`
- *  (người bán đang làm gì với nó). Hai kết cục đóng sổ thắng chỗ mọi thứ khác:
- *  một đơn đã ký thì cột nó từng đứng không còn là câu trả lời nữa.
- *
- *  Ba cột đầu (`new` · `discovery` · `demo-done`) đều ra "Pending" — không phải vì
- *  lười gộp, mà vì `OPPORTUNITY_STATES` chỉ có năm giá trị và cả ba cột đó đều
- *  là "chưa gửi giá". Cột vẫn còn nguyên ở trường `stage`, không mất chỗ nào. */
+ *  Hợp đồng thắng chỗ mọi thứ khác: một đơn đã ký thì cột nó từng đứng không
+ *  còn là câu trả lời. Lead đã ra khỏi luồng thì đơn vào danh sách chăm sóc. */
 export function opportunityStateOf(lead: Lead): OpportunityState {
-  if (lead.contractCode) return 'close-won'
-  if (lead.exitReason) return 'close-lost'
-  if (lead.stage === 'awaiting-signature') return 'nego'
-  if (lead.stage === 'quoted') return 'quote-sent'
-  return 'pending'
+  if (lead.contractCode) return 'won'
+  if (lead.exitReason) return 'care'
+  return 'open'
+}
+
+/** Cột lúc đơn rơi vào chăm sóc. Lead không ghi cột cuối, nên chỉ lý do nói rõ
+ *  "sau báo giá" mới biết chắc là `quotation`; còn lại lùi về `new`. */
+function careFromStageOf(lead: Lead): StageKey | null {
+  if (opportunityStateOf(lead) !== 'care') return null
+  return lead.exitReason === 'Im sau báo giá' ? 'quotation' : 'new'
 }
 
 /** Ngày đóng của một đơn, tính bằng số ngày kể từ đầu kỳ.
@@ -3331,9 +3292,9 @@ export function opportunityStateOf(lead: Lead): OpportunityState {
  *  có ngày sớm hơn đơn vừa vào cột, đúng như thực tế.
  *
  *  Ngày dự kiến RƠI VÀO QUÁ KHỨ được, và không kẹp lại: một đơn mục ở cột CUỐI
- *  (Chờ ký) không còn hạn nào phía sau để bù, nên nó đáng lẽ đã đóng rồi. Kẹp
- *  ngày đó về lát cắt là xoá đúng câu đáng nói nhất của dòng. Trong kịch bản
- *  đóng băng có đúng một đơn như vậy — OP-0252, `scenario.test.ts` khoá. */
+ *  (Quotation) không còn hạn nào phía sau để bù, nên nó đáng lẽ đã đóng rồi.
+ *  Từ khi cột "Chờ ký" bị gộp vào Quotation (hạn 30), kịch bản đóng băng
+ *  không còn đơn nào như vậy — `opportunities.test.ts` khoá. */
 export function opportunityCloseDay(lead: FrozenLead): number {
   if (lead.contractCode || lead.exitReason) return DAY_FROZEN - lead.daysHere
 
@@ -3391,15 +3352,16 @@ function buildOpportunities(): Opportunity[] {
       closedDate: dayISO(opportunityCloseDay(lead)).slice(0, 10),
       state: opportunityStateOf(lead),
       stage: lead.stage ?? null,
+      careFromStage: careFromStageOf(lead),
       saleOwners: sale ? [sale] : [],
       bdOwners: bd ? [bd] : [],
       description: profile.pain,
       attachments: [],
-      /* Lý do thua để TRỐNG có chủ đích. `EXIT_REASONS` là lý do một LEAD chết,
-         `LOSS_REASONS` là lý do một ĐƠN thua — hai danh sách khác nhau, và nhét
-         nhãn của bảng này vào trường của bảng kia làm bảy nút chọn không nút
-         nào sáng mà người dùng tưởng đã chọn rồi. Câu thật đi vào ô ghi thêm,
-         chỗ nó là chữ tự do; chọn lý do thua là việc còn phải làm. */
+      /* `OPPORTUNITY_CARE_REASON_OTHER`, chưa phải một dòng danh mục cụ thể.
+         `EXIT_REASONS` là lý do một LEAD chết, `LOSS_REASON` là danh mục của
+         một ĐƠN vào chăm sóc — hai danh sách khác nhau, nhét nhãn bảng này vào
+         trường bảng kia làm bảy nút chọn không nút nào sáng. Câu thật đi vào ô
+         ghi thêm, chỗ nó là chữ tự do; xếp đúng dòng danh mục là việc còn lại. */
       /* The two fields added by the customer-book sweep on 03/09. The frozen
          book does NOT invent values for them: no row of this scenario ever
          recorded a win probability or a product line, and filling them in would
@@ -3407,8 +3369,8 @@ function buildOpportunities(): Opportunity[] {
          what is true — nobody has filled these in. */
       probability: null,
       products: [],
-      lossReason: '',
-      lossNote: lead.exitReason ?? '',
+      careReason: opportunityStateOf(lead) === 'care' ? OPPORTUNITY_CARE_REASON_OTHER : '',
+      careNote: lead.exitReason ?? '',
     }
   })
 }
@@ -3523,7 +3485,7 @@ export function draftOpportunity(
     account: profile.company,
     accountCode: account?.code ?? '',
     closedDate: dayISO(DAY_FROZEN + 45).slice(0, 10),
-    state: 'quote-sent',
+    stage: 'new',
     amount: profile.budget,
     currency: CURRENCIES.some((c) => c.code === profile.currency) ? profile.currency : 'VND',
     saleOwners: sale ? [sale] : [],
@@ -3532,8 +3494,6 @@ export function draftOpportunity(
     attachments: [],
     probability: null,
     products: [],
-    lossReason: '',
-    lossNote: '',
   }
 }
 

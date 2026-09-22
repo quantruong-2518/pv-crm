@@ -1,5 +1,6 @@
 import {
   LEAD_STATE_LABEL,
+  OPPORTUNITY_STATE_LABEL,
   type WorkstreamLeadLane,
   type WorkstreamStep,
   type WorkstreamStepState,
@@ -27,9 +28,13 @@ export type NodeTone = 'success' | 'danger' | 'warning' | 'quiet'
  *  not. A closed deal carries the day it closed; an open one has none. */
 export type NodeStamp = { tone: NodeTone; label: string; at: string | null }
 
+/** A PARKED deal is `quiet`, never `danger`, and never wears the word "Thua":
+ *  the care list is where a deal waits, not where it died (ADR 0064 §6) — the
+ *  same reading `STATE_TONE.care` gives it in the deal book. */
 export function dealStamp(deal: WorkstreamDealLaneView): NodeStamp {
   const at = deal.outcomeAt === null ? null : dm(deal.outcomeAt)
   if (deal.outcome === 'won') return { tone: 'success', label: CLOSE_REASON_LABEL.WON, at }
+  if (deal.outcome === 'care') return { tone: 'quiet', label: OPPORTUNITY_STATE_LABEL.care, at }
   if (deal.outcome === 'lost') return { tone: 'danger', label: CLOSE_REASON_LABEL.LOST, at }
   return { tone: 'quiet', label: 'Đang mở', at: null }
 }
@@ -93,6 +98,7 @@ export const STEP_STATE_LABEL: Record<WorkstreamStepState, string> = {
   done: 'Xong',
   current: 'Đang ở',
   dropped: 'Rớt',
+  parked: 'Dừng',
   upcoming: 'Chưa tới',
 }
 

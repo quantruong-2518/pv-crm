@@ -1270,90 +1270,12 @@ export type ImportedOpportunity = Opportunity & {
   batchId: string
 }
 
-/** Đọc một ô tiền. Nhận cả `1.800.000.000`, `1 800 000 000` và `1800000000`.
- *
- *  Bỏ mọi thứ không phải chữ số, và đó là chỗ phải cẩn thận: dấu chấm trong
- *  tệp Việt là dấu ngăn nghìn, không phải dấu thập phân. `parseFloat` đọc
- *  `1.800` thành 1,8 — tức một đơn 1,8 tỷ vào sổ thành một đơn 1,8 đồng. Tiền
- *  của kịch bản này không có phần lẻ, nên cắt sạch là đúng chứ không phải xấp xỉ. */
-function readMoney(raw: string): number | null {
-  const digits = raw.replace(/[^0-9]/g, '')
-  return digits === '' ? null : Number(digits)
-}
+/* `rowsToOps` ĐÃ XOÁ 22/09 cùng ADR 0064, và nó đã chết từ trước đó: lô nạp cơ
+   hội ghi thẳng lên máy chủ qua `POST /sales/opportunities/import`, nên không
+   màn nào còn gọi hàm dựng dòng sổ ở trình duyệt. Hai hàm đọc ô tiền và ô ngày
+   đi theo nó — chúng không có người gọi thứ hai. Bản mới của nó nằm ở
+   `apps/api/.../opportunity-import.check.ts`, nơi mã lead có thật để đối chiếu. */
 
-/** Đọc một ô ngày về ISO ngày.
- *
- *  Nhận `2026-10-15` (xlsx đã chuẩn hoá sẵn) và `15/10/2026` (người Việt gõ
- *  tay). KHÔNG đưa vào `new Date(raw)`: chuỗi `10/15/2026` và `15/10/2026` đều
- *  hợp lệ với bộ đọc của trình duyệt và nó chọn kiểu Mỹ, nên một nửa số ngày
- *  của tệp sẽ đúng và một nửa lệch bốn tháng — kiểu sai tệ nhất vì nó im lặng. */
-function readDate(raw: string): string | undefined {
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (iso) return raw.slice(0, 10)
-
-  const vn = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
-  if (!vn) return undefined
-  const [, d, m, y] = vn
-  return `${y}-${m!.padStart(2, '0')}-${d!.padStart(2, '0')}`
-}
-
-/** Dựng dòng sổ cơ hội từ dòng tệp.
- *
- *  Trạng thái luôn là `pending`, không đọc từ tệp. Lý do cùng loại với trần bậc
- *  của lead: `close-won` là một đơn ĐÃ KÝ, và một cột Excel gõ chữ "won" không
- *  phải là một hợp đồng. Đơn di trú vào sổ ở bậc thấp nhất rồi người bán tự kéo
- *  lên — mất vài phút, đổi lại sổ không tự cộng ra doanh số chưa có thật.
- *
- *  `leadCode` để rỗng: đơn di trú thường không có lead nào đứng sau, và bịa một
- *  mã cho đủ ô là đẻ ra lead ma trong sổ lead. */
-export function rowsToOps(
-  rows: BuiltRow[],
-  opts: {
-    nextCode: (taken: readonly string[]) => string
-    motion: LeadMotion
-    intake: LeadIntake
-    batchId: string
-    at: string
-  },
-): ImportedOpportunity[] {
-  const taken: string[] = []
-
-  return rows.map((row) => {
-    const v = row.values
-    const code = opts.nextCode(taken)
-    taken.push(code)
-
-    return {
-      code,
-      name: v.name ?? '',
-      account: v.company ?? '',
-      accountCode: '',
-      closedDate: readDate(v.closedDate ?? '') ?? '',
-      state: 'pending' as const,
-      stage: 'discovery' as const,
-      amount: readMoney(v.amount ?? ''),
-      currency: 'VND' as const,
-      saleOwners: v.saleOwner === undefined || v.saleOwner === '' ? [] : [v.saleOwner],
-      bdOwners: v.bdOwner === undefined || v.bdOwner === '' ? [] : [v.bdOwner],
-      description: `Nạp từ tệp · dòng ${row.line} · ${MOTION_FACE[opts.motion].label}`,
-      attachments: [],
-      probability: null,
-      products: [],
-      lossReason: '',
-      lossNote: '',
-      leadCode: '',
-      motion: opts.motion,
-      intake: opts.intake,
-      batchId: opts.batchId,
-    }
-  })
-}
-
-/** Khoá chống trùng của sổ cơ hội: tên account, không có tỉnh để ghép.
- *
- *  Yếu hơn khoá của sổ lead, và nói ra chứ không giấu: sổ cơ hội không giữ
- *  tỉnh, nên hai đơn khác nhau của cùng một account sẽ đụng khoá. Đó là chỗ
- *  người nạp phải đọc lại phần "trùng" thay vì tin thẳng. */
-export function opsBookKeys(book: readonly Opportunity[]): Set<string> {
-  return new Set(book.flatMap((o) => dedupeKeys({ company: o.account })))
-}
+/* `opsBookKeys` ĐÃ XOÁ 22/09, cùng lý do và cùng lượt với `rowsToOps` ngay
+   trên: phép dò trùng của lô cơ hội chạy ở máy chủ, nơi sổ thật nằm, nên khoá
+   dựng từ một mảng trong trình duyệt không còn người gọi. */

@@ -26,7 +26,6 @@ import {
   type OpportunityBookQuery,
   type OpportunityCreate,
   type OpportunityImportBody,
-  type OpportunityStageMove,
   type OpportunityUpdate,
   type TouchTimelineResponse,
 } from '@pv/contracts'
@@ -44,6 +43,7 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
+import { OpportunityLifecycle, picOf, picQualifies, picRefusal } from './opportunity-lifecycle'
 import {
   fromCreate,
   fromUpdate,
@@ -107,6 +107,9 @@ export class OpportunityService {
     @Inject(ENV) private readonly env: Env,
     /* A deal opened on a lead converts it (ADR 0058), in the deal's own tx. */
     private readonly leadStates: LeadStateWriter,
+    /* The only writer of `stage`/`state` (ADR 0064). This service asks it for
+       ONE move — `new` → `assigned`, when an owners edit fills the PIC set. */
+    private readonly lifecycle: OpportunityLifecycle,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -288,9 +291,11 @@ export class OpportunityService {
   async create(who: Actor, body: OpportunityCreate): Promise<OpportunityCreateResponse> {
     const handle = this.repo.readonlyHandle
 
-    const [lead, names] = await Promise.all([
+    const pic = [...body.saleOwners, ...body.bdOwners]
+    const [lead, names, roles] = await Promise.all([
       this.repo.leadCompany(handle, body.leadCode),
-      this.repo.actorNames(handle, [...body.saleOwners, ...body.bdOwners]),
+      this.repo.actorNames(handle, pic),
+      this.repo.actorRoles(handle, pic),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
     if (lead.exited)
@@ -302,7 +307,11 @@ export class OpportunityService {
        milliseconds apart are two answers to "when did this deal enter the
        column". */
     const now = new Date()
-    const write = fromCreate(body, now, lead.workstreamCode)
+    /* A deal opens at `new`, or straight at `assigned` when the PIC set is
+       already complete (ADR 0064 §3). No refusal here: one PIC is a legal way to
+       open a deal, it just does not reach the second column. */
+    const stage = picQualifies(picOf(pic, roles)) ? 'assigned' : 'new'
+    const write = fromCreate(body, now, lead.workstreamCode, stage)
     const code = await this.repo.nextCode()
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
@@ -325,24 +334,20 @@ export class OpportunityService {
          Written at the create door rather than waiting for the first column
          move, because a funnel missing its ENTRY step counts nothing: every
          conversion rate has "deals that entered the first column" as its
-         denominator. A deal opened straight into the lost state stands in no
-         column, and a `null -> null` row is refused by
-         `opportunity_stage_event_moved` — exactly right, because that deal was
-         never on the board. */
-      if (written.stage !== null) {
-        await this.repo.insertStageEvent(
-          tx,
-          stageEventOf({
-            code,
-            from: null,
-            to: written.stage,
-            stageSince: null,
-            at: now,
-            by: { id: who.id, name: who.name },
-            note: NOTE.opened(body.leadCode, body.state),
-          }),
-        )
-      }
+         denominator. Unconditional since ADR 0064: a new deal always stands in
+         a column, either `new` or `assigned`. */
+      await this.repo.insertStageEvent(
+        tx,
+        stageEventOf({
+          code,
+          from: null,
+          to: written.stage,
+          stageSince: null,
+          at: now,
+          by: { id: who.id, name: who.name },
+          note: NOTE.opened(body.leadCode),
+        }),
+      )
 
       /* HAI dòng thời gian, không một. Đơn mới cần dòng đầu tiên của chính nó
          ("mở đơn từ lead nào"), còn hồ sơ lead cần biết khách này đã lên
@@ -355,7 +360,7 @@ export class OpportunityService {
           subjectKind: 'opportunity',
           kind: 'entered-pipeline',
           ...byOf(who),
-          note: NOTE.opened(body.leadCode, body.state),
+          note: NOTE.opened(body.leadCode),
         },
         {
           subjectCode: body.leadCode,
@@ -366,7 +371,9 @@ export class OpportunityService {
         },
       ])
 
-      await this.notify(tx, ref, body.state === 'close-lost')
+      /* Never the care letter from this door: a deal is opened onto the board,
+         and the only way off it is the care door (ADR 0064 §3). */
+      await this.notify(tx, ref, false)
       await this.leadStates.converted(tx, [body.leadCode])
       if (written.workstreamCode) await this.workstreams.syncClosed(tx, [written.workstreamCode])
       return written
@@ -420,40 +427,20 @@ export class OpportunityService {
    *  khác nhau — đơn không tồn tại (404, quay về sổ) và đơn không phải của bạn
    *  (403, đi hỏi người đứng đơn). Đọc trước thì máy chủ phân biệt được.
    *
-   *  Dòng đọc ra cũng là thứ `fromUpdate` cần: đồng hồ của cột chỉ được dí lại
-   *  khi cột THẬT SỰ đổi, mà "đổi so với cái gì" thì phải có dòng cũ mới biết.
-   *
    *  ------------------------------------------------------------------
-   *  ĐÚNG MỘT LƯỢT SỬA ĐƯỢC BẮN THƯ, VÀ NÓ LÀ LƯỢT CHUYỂN SANG THUA
+   *  CỬA NÀY KHÔNG CHẠM VÒNG ĐỜI, VÀ NÓ CHỈ CÓ MỘT LUẬT RIÊNG: PIC KHÔNG TỤT
    *  ------------------------------------------------------------------
-   *  Bản trước không bắn thư nào từ đây, và ghi rõ điều kiện để có một lá: "sửa
-   *  một ô không phải một sự kiện đáng bắn thư — bắn thì mỗi lần ai đó sửa
-   *  chính tả tên đơn là một lá vào hộp thư chung, và hộp thư đó thôi được đọc
-   *  sau tuần thứ hai." Điều kiện đó vẫn nguyên; thứ đổi là nay có một lượt sửa
-   *  KHÔNG phải sửa một ô.
+   *  `state`, `stage`, đồng hồ cột, `closed_at` và ba cột `care_*` không nằm
+   *  trong `OpportunityEdit` (ADR 0064), nên lưu phiếu không kéo được đơn đi
+   *  đâu. Thứ duy nhất lượt lưu này quyết định về vòng đời là hệ quả của việc
+   *  đổi người: một tập PIC vừa đủ (một trưởng phòng + một người nữa) đưa đơn
+   *  từ `new` sang `assigned`, và writer là chỗ ghi điều đó.
    *
-   *  Vị từ là `becameLost`, không phải `lost`:
-   *
-   *      const becameLost = body.state === 'close-lost' && found.row.state !== 'close-lost'
-   *
-   *  `lost` một mình đúng ở MỌI lượt lưu một đơn đã thua — sửa lại câu lý do
-   *  thua, thêm một người đứng đơn — nên nó chính là cái bẫy "một lá mỗi lượt
-   *  sửa" mà đoạn trên cảnh báo, chỉ hẹp hơn một chút. Cùng hình với `moved` mà
-   *  `fromUpdate` dùng để quyết định đồng hồ cột: câu hỏi luôn là "đổi so với
-   *  dòng đang có", và đó là lý do dòng cũ phải được đọc trước.
-   *
-   *  KHÔNG có rule mới ở E4, và đó là điều đáng đọc: `opportunity-lost-internal`
-   *  đã có sẵn, nghe cùng `OPPORTUNITY_OPENED`, tách bằng `when(data.lost)`.
-   *  `flow` của nó (`opportunity-lost`) khác `flow` của lá "đơn mở"
-   *  (`opportunity-open`), nên khoá `UNIQUE(event_key)` KHÔNG coi lá thứ hai là
-   *  trùng — một đơn mở rồi thua sau này nhận đủ hai lá. Bảng rule đã tính
-   *  trước đường này; đây chỉ là đường đó được nối vào.
-   *
-   *  Hệ quả của khoá đó, nói ra để không ai phát hiện trên production: một đơn
-   *  thua → mở lại → thua lần nữa chỉ bắn ĐÚNG MỘT lá, mãi mãi. `event_key` là
-   *  `opportunity-lost/internal/v1/<mã>` và `enqueue` là `onConflictDoNothing`.
-   *  Đó là hành vi đúng — hộp thư chung không cần nghe cùng một đơn thua hai
-   *  lần — nhưng nó là một quyết định, không phải một tai nạn. */
+   *  Chiều ngược lại bị CHẶN: một lượt sửa không được làm giảm số PIC xuống
+   *  dưới hai, cũng không được gỡ trưởng phòng cuối cùng của một đơn đã nhận
+   *  PIC. Hàng rào đứng TRƯỚC `replaceOwners` vì sau đó thì tập cũ đã mất, và
+   *  nó chỉ chặn lượt ghi làm TỆ ĐI — đơn cũ dưới hai PIC vẫn sửa được tên và
+   *  tiền, nếu không thì mọi dòng migration để lại thành bất động. */
   async update(
     who: Actor,
     code: ObjectCode,
@@ -461,109 +448,59 @@ export class OpportunityService {
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
-    if (found.signed && body.state !== 'close-won') {
-      throw conflict(`Cơ hội ${code} đã ký — sửa được thông tin nhưng không đổi được trạng thái.`, {
-        state: ['Đơn đã ký'],
-      })
-    }
-    if (!found.signed && body.state === 'close-won') {
-      throw conflict('Chốt thắng bằng nút Ký hợp đồng', {
-        state: ['Chốt thắng bằng nút Ký hợp đồng'],
-      })
-    }
     /* Money or SALE owners on a signed deal rewrite the contract, so they need
-       the sign door's permission and scope; state is already pinned above. */
+       the sign door's permission and scope. */
     if (found.signed && touchesSignTerms(found, body)) {
       const ref = scopeRefOf(found.row, found.owners, who.id)
       const verdict = this.access.check(who, { permission: 'opportunity.close', ref })
       if (!verdict.ok) throw denied(verdict.reason, verdict.note)
     }
-    // A reopened deal on an exited lead would be an open deal the exit door refused to leave behind.
-    if (found.row.state === 'close-lost' && body.state !== 'close-lost') {
-      const lead = await this.repo.leadCompany(this.repo.readonlyHandle, found.row.leadCode)
-      if (lead?.exited)
-        throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
-    }
 
-    const [names, signedContract, pendingSign] = await Promise.all([
-      this.repo.actorNames(this.repo.readonlyHandle, [...body.saleOwners, ...body.bdOwners]),
+    const pic = [...body.saleOwners, ...body.bdOwners]
+    const [names, roles, signedContract, pendingSign] = await Promise.all([
+      this.repo.actorNames(this.repo.readonlyHandle, pic),
+      this.repo.actorRoles(this.repo.readonlyHandle, [...pic, ...found.owners.map((o) => o.id)]),
       found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : null,
       this.pendingSign(code),
     ])
     if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
+
+    const before = picOf(
+      found.owners.map((o) => o.id),
+      roles,
+    )
+    const after = picOf(pic, roles)
+    const refusal = picRefusal(before, after, found.row)
+    if (refusal) throw conflict(refusal, { saleOwners: [refusal] })
+
     const now = new Date()
-    const write = fromUpdate(body, found.row, now, found.signed)
+    const write = fromUpdate(body)
     const ownerName =
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
-    const becameLost = body.state === 'close-lost' && found.row.state !== 'close-lost'
-    const stateChanged = write.values.state !== found.row.state
-
     const row = await this.repo.run(async (tx) => {
       await this.assertLockedAsRead(tx, code, found.signed, pendingSign)
-      if (found.row.state === 'close-lost' && body.state !== 'close-lost') {
-        await this.assertLeadsLive(tx, [found.row.leadCode])
-      }
-      /* Dòng gương cập nhật theo — `put` là upsert. Không cập nhật thì
-         ContextRail vẫn in tên đơn cũ và cột cũ sau khi người dùng đã sửa, và
-         không có gì đỏ để chỉ ra điều đó. */
-      const ref = refOf(code, write, { label: write.values.name, ownerName })
-      await this.mirror.put(tx, ref)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
       if (signedContract) await this.syncContract(tx, found, body, signedContract, names)
 
-      /* Chỉ ghi vết khi TRẠNG THÁI đổi. Sửa tên đơn, thêm một tệp, đổi ngày
-         đóng — không cái nào là một mẩu lịch sử bán hàng, và ghi hết thì thẻ
-         hoạt động thành một sổ nhật ký chỉnh sửa mà không ai đọc tới dòng thứ
-         mười. Cùng ngưỡng mà `stage_since` dùng, và vì cùng lý do.
+      /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
+         Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
+         sửa, và không có gì đỏ để chỉ ra điều đó. */
+      await this.mirror.put(tx, toRef(written, ownerName))
 
-         Cột đọc từ dòng ĐÃ GHI (`written.stage`) chứ không từ bản nháp: đó là
-         giá trị bảng thật sự đang giữ, và nó là thứ câu văn phải nói đúng. */
-      if (stateChanged) {
-        const moved = written.stage !== found.row.stage
-        await this.touch.record(tx, [
-          {
-            subjectCode: code,
-            subjectKind: 'opportunity',
-            kind: 'stage-changed',
-            ...byOf(who),
-            note: moved
-              ? NOTE.moved(found.row.stage, written.stage)
-              : NOTE.restated(found.row.state, write.values.state ?? found.row.state),
-          },
-        ])
-
-        /* A NARROWER threshold than the timeline row just above, and the gap is
-           deliberate: the activity card records a state change that did not move
-           the column too (a sentence a seller reads with meaning), while the
-           history table records only a deal that REALLY left a column. Writing
-           both here would ruin the very number this table exists to answer —
-           "average days spent in a column" would start counting moves that went
-           nowhere. */
-        if (moved) {
-          await this.repo.insertStageEvent(
-            tx,
-            stageEventOf({
-              code,
-              from: found.row.stage,
-              to: written.stage,
-              stageSince: found.row.stageSince,
-              at: now,
-              by: { id: who.id, name: who.name },
-              note: NOTE.moved(found.row.stage, written.stage),
-            }),
-          )
-        }
-      }
-
-      if (becameLost) await this.notify(tx, ref, true)
-      /* Losing or reopening a deal can end or reopen its run. */
-      if (stateChanged && written.workstreamCode) {
-        await this.workstreams.syncClosed(tx, [written.workstreamCode])
-      }
-      return written
+      /* A PIC set that now qualifies moves the deal to `assigned`, and the
+         writer records the timeline and funnel rows of that move itself. It
+         skips a deal that has left `new` on its own. */
+      if (!picQualifies(after)) return written
+      const moved = await this.lifecycle.assigned(
+        tx,
+        { row: written, ownerName, signed: found.signed, pendingSign },
+        { id: who.id, name: who.name },
+        now,
+      )
+      return moved ?? written
     })
 
     const productNames =
@@ -587,104 +524,6 @@ export class OpportunityService {
         signed: found.signed,
         daysInStage: daysInStageOf(row, new Date()),
         products: productNames,
-      }),
-    )
-  }
-
-  /** `PATCH /sales/opportunities/:code/stage` — drag a deal to another column.
-   *
-   *  ------------------------------------------------------------------
-   *  THIS DOOR IS WHAT OPENS THE TWO COLUMNS NOBODY COULD REACH
-   *  ------------------------------------------------------------------
-   *  Before it, `stage` could only be written INDIRECTLY, through `state` and
-   *  the `STAGE_OF_STATE` table. That table covers three of the five columns —
-   *  no state maps to 'new' or 'demo-done' — so the board had five columns and
-   *  only three of them writable. Full reasoning is in the docblock of
-   *  `OpportunityStageMove` in the contract.
-   *
-   *  It does NOT touch `state`, and that is the important half: dragging a card
-   *  between the first two columns does not change what the seller is doing.
-   *  This door also touches neither money, nor owners, nor the close date — the
-   *  cheapest gesture in the product must not be the one that overwrites a
-   *  deal's value.
-   *
-   *  A DEAL THAT HAS LEFT THE BOARD IS REFUSED. A signed or lost deal stands in
-   *  no column (`stage` NULL), and dragging it back onto the board through this
-   *  door would reopen a closed deal without any signature being withdrawn —
-   *  making the book lie about a contract that exists. Reopening is a different
-   *  operation, and nobody has asked for it. */
-  async moveStage(
-    who: Actor,
-    code: ObjectCode,
-    body: OpportunityStageMove,
-  ): Promise<OpportunityUpdateResponse> {
-    const found = await this.repo.byCode(who, code)
-    if (!found || !found.inScope) throw notFound('cơ hội', code)
-
-    if (found.signed || found.row.closedAt !== null) {
-      throw conflict(
-        `Cơ hội ${code} đã đóng sổ nên không còn đứng ở cột nào — mở lại đơn trước khi chuyển cột.`,
-        { stage: ['Đơn đã đóng'] },
-      )
-    }
-
-    /* Dragging back onto the column the deal already stands in is a no-op.
-       Return the current row rather than write an empty history entry:
-       `opportunity_stage_event_moved` would refuse it, and a 500 for a card
-       dropped back where it was is the wrong answer. */
-    if (found.row.stage === body.stage) {
-      return OpportunityUpdateResponse.parse(toContract(found))
-    }
-    if (await this.pendingSign(code)) throw frozenForSign()
-
-    const now = new Date()
-
-    const row = await this.repo.run(async (tx) => {
-      await this.assertLockedAsRead(tx, code, false, false)
-      const written = await this.repo.updateOpportunity(tx, code, {
-        stage: body.stage,
-        /* The column clock is reset — this IS a column move, exactly what
-           `stage_since` exists to measure. */
-        stageSince: now,
-      })
-
-      await this.repo.insertStageEvent(
-        tx,
-        stageEventOf({
-          code,
-          from: found.row.stage,
-          to: body.stage,
-          stageSince: found.row.stageSince,
-          at: now,
-          by: { id: who.id, name: who.name },
-          note: body.note ?? NOTE.moved(found.row.stage, body.stage),
-        }),
-      )
-
-      await this.touch.record(tx, [
-        {
-          subjectCode: code,
-          subjectKind: 'opportunity',
-          kind: 'stage-changed',
-          ...byOf(who),
-          note: body.note ?? NOTE.moved(found.row.stage, body.stage),
-        },
-      ])
-
-      /* The mirror row carries E1's `state`, and `toRef` builds it from the
-         column — so moving the column moves what the ContextRail prints. */
-      await this.mirror.put(tx, toRef(written, found.owners[0]?.name ?? null))
-      return written
-    })
-
-    return OpportunityUpdateResponse.parse(
-      toContract({
-        row,
-        account: found.account,
-        owners: found.owners,
-        signed: false,
-        daysInStage: daysInStageOf(row, now),
-        products: found.products,
       }),
     )
   }
@@ -745,16 +584,23 @@ export class OpportunityService {
     const codes = await this.repo.nextCodes(writes.length)
     const now = new Date()
 
-    const names = await this.repo.actorNames(
-      handle,
-      writes.flatMap((w) => [...w.saleOwners, ...w.bdOwners]),
-    )
+    const everyone = writes.flatMap((w) => [...w.saleOwners, ...w.bdOwners])
+    const [names, roles] = await Promise.all([
+      this.repo.actorNames(handle, everyone),
+      this.repo.actorRoles(handle, everyone),
+    ])
 
     /* Dòng, dòng gương, bảng nối và lần chạm dựng CÙNG một lượt, từ cùng một
        bản nháp và cùng một mã — bốn thứ không lệch nhau bằng một chỉ số được. */
     const ready = writes.map((write, i) => {
       const code = codes[i] ?? ''
-      const draft = fromCreate(write, now, workstreamByLead.get(write.leadCode) ?? null)
+      /* Cùng luật cột với cửa gõ tay, qua cùng một hàm: một dòng tệp mang đủ
+         PIC vào thẳng `assigned`, không thì `new`. Tệp KHÔNG có cột trạng thái
+         nữa, nên đây là đường duy nhất một đơn nạp vào nhận cột (ADR 0064). */
+      const stage = picQualifies(picOf([...write.saleOwners, ...write.bdOwners], roles))
+        ? 'assigned'
+        : 'new'
+      const draft = fromCreate(write, now, workstreamByLead.get(write.leadCode) ?? null, stage)
       const ownerName =
         write.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
@@ -774,33 +620,24 @@ export class OpportunityService {
 
            `stageSince: null`, not `now`: this row leaves no column, so
            `days_in_from` must be NULL — `opportunity_stage_event_clock` pins
-           that pair. A deal opened straight into 'close-lost' stands in no
-           column and gets no history row at all, exactly as at the create
-           door. */
-        /* `?? null` rather than an `=== null` test: `OpportunityValues` is
-           inferred from `$inferInsert`, so a nullable column there is
-           `StageKey | undefined` and not `| null` — skip this and `undefined`
-           reaches `stageEventOf`, writing a history row for a column that does
-           not exist. */
-        stageEvent:
-          (draft.values.stage ?? null) === null
-            ? null
-            : stageEventOf({
-                code,
-                from: null,
-                to: draft.values.stage ?? null,
-                stageSince: null,
-                at: now,
-                by: { id: who.id, name: who.name },
-                note: NOTE.opened(write.leadCode, write.state),
-              }),
+           that pair. Unconditional since ADR 0064, like the single-deal door:
+           every imported deal enters a column. */
+        stageEvent: stageEventOf({
+          code,
+          from: null,
+          to: stage,
+          stageSince: null,
+          at: now,
+          by: { id: who.id, name: who.name },
+          note: NOTE.opened(write.leadCode),
+        }),
         touches: [
           {
             subjectCode: code,
             subjectKind: 'opportunity' as const,
             kind: 'entered-pipeline' as const,
             ...byOf(who),
-            note: NOTE.opened(write.leadCode, write.state),
+            note: NOTE.opened(write.leadCode),
           },
           {
             subjectCode: write.leadCode,
@@ -853,7 +690,7 @@ export class OpportunityService {
            convention someone could reorder. */
         await this.repo.insertStageEvents(
           tx,
-          slice.flatMap((p) => (p.stageEvent === null ? [] : [p.stageEvent])),
+          slice.map((p) => p.stageEvent),
         )
         await this.touch.record(
           tx,
@@ -1003,17 +840,22 @@ export class OpportunityService {
    *  được gõ ra. Thứ duy nhất nhánh đóng góp là điều engine không được biết:
    *  bản triển khai này gửi vào hộp thư nào.
    *
-   *  `lost` đi qua `data` chứ không thành một event name thứ hai — xem docblock
+   *  `care` đi qua `data` chứ không thành một event name thứ hai — xem docblock
    *  của `OPPORTUNITY_OPENED`. Hộp thư trống = KHÔNG xếp hàng gì, đúng hành vi
    *  của một máy chưa được bảo gửi đi đâu; `PV_EMAIL_ENABLED` cố tình KHÔNG gác
    *  chỗ này, vì một cửa gửi đang tắt vẫn phải ghi sổ, nó chỉ không cho thư rời
-   *  khỏi máy (xem `env.ts`). */
-  private async notify(tx: Db, ref: ObjectRef, lost: boolean): Promise<void> {
+   *  khỏi máy (xem `env.ts`).
+   *
+   *  CÔNG KHAI vì cửa đẩy sang chăm sóc (`OpportunityMoves.care`) cũng bắn lá
+   *  này: hai cửa, một lời hứa gửi. Chép `plan()` sang file kia là dựng câu trả
+   *  lời thứ hai cho "ai được biết một đơn vừa chết". Khoá `data.lost` của E4
+   *  giữ nguyên tên cho tới khi bảng rule ở `packages/engines` đổi theo. */
+  async notify(tx: Db, ref: ObjectRef, care: boolean): Promise<void> {
     const intents = plan({
       name: OPPORTUNITY_OPENED,
       ref,
       audiences: { [AUDIENCE_INTERNAL]: this.env.PV_OPS_NOTIFICATION_TO },
-      data: { lost },
+      data: { lost: care },
     })
 
     for (const intent of intents) {
@@ -1076,12 +918,14 @@ function positionOf(
   return position === null ? null : PipelinePositionView.parse(position)
 }
 
-/** While a sign request waits, the terms the approver read are frozen: state,
- *  money and SALE owners. Name, dates, files and the rest may still be saved. */
+/** While a sign request waits, the terms the approver read are frozen: money and
+ *  SALE owners. Name, dates, files and the rest may still be saved.
+ *
+ *  `state` left the list because it left the body (ADR 0064): the doors that move
+ *  a deal are their own, and each of them refuses a signed deal on its own. */
 function touchesSignTerms(found: OpportunityRead, body: OpportunityUpdate): boolean {
   const sale = found.owners.filter((o) => o.role === 'SALE').map((o) => o.id)
   return (
-    body.state !== (found.signed ? 'close-won' : found.row.state) ||
     body.amount !== found.row.amount ||
     body.currency !== found.row.currency ||
     sale.length !== body.saleOwners.length ||

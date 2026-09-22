@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Ban, FileCheck, Plus, Target, Wallet } from '@pv/ui'
+import { CalendarClock, FileCheck, Plus, Target, Wallet } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -22,15 +22,16 @@ import {
   type TableSort,
 } from '@pv/ui'
 import {
+  OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STATE_LABEL,
   OpportunitySortKey,
+  OpportunityStatus,
   OWNER_NONE,
   type OpportunityBookQuery,
   type OpportunityOwner,
   type OpportunityBookRow,
   type OpportunityRow,
-  type OpportunityState,
 } from '@pv/contracts'
-import { OPPORTUNITY_STATES } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
@@ -38,6 +39,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import { dm } from '@/lib/date'
 import {
+  BADGE_INK,
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   amountVndOf,
@@ -51,6 +53,7 @@ import {
   parseOpportunityBookQuery,
   saleOwnersOf,
   stageTrackOf,
+  standingLabel,
   STATE_TONE,
 } from '@/data/opportunities'
 import { OP_SPEC } from '@/data/intake'
@@ -68,7 +71,6 @@ import {
   SelectionCell,
   TableFooter,
 } from '@/components/table-bits'
-import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
 
 /** Module 3 · Sổ cơ hội — `GET /sales/opportunities`.
  *
@@ -113,8 +115,8 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *     những dòng đó đọc y hệt dòng máy chủ nhưng không ai khác thấy, không nằm
  *     trong thẻ điểm của người bên cạnh, và biến mất khi đổi máy. Nút đã QUAY
  *     LẠI (29/08) đúng cái ngày `POST /sales/opportunities/import[/preview]` lên: nay nó
- *     ghi thẳng lên máy chủ qua `data/opportunity-import.ts`, và `rowsToOps` của
- *     `data/intake.ts` không còn người gọi — bộ kiểm của máy chủ thay nó.
+ *     ghi thẳng lên máy chủ qua `data/opportunity-import.ts`, và hàm dựng dòng
+ *     sổ cục bộ ở `data/intake.ts` đã bị xoá — bộ kiểm của máy chủ thay nó.
  *   · **Hòm thư suy từ tên** (`staffEmail`). Dòng sổ nay chở `owners[]` có sẵn
  *     TÊN thật; cột người in tên, không in một địa chỉ ghép theo quy ước.
  *   · **Gộp ba nguồn** (`mergeOps`). Phiếu vừa gửi và bản sửa tại chỗ đều đã đi
@@ -155,8 +157,8 @@ import { STAGE_LABEL, STATE_LABEL } from '@/components/ops-fields'
  *     moi được ô 9 vẽ "—", không vẽ 0.
  *   · **Close date** — ngày dự kiến đã trôi qua thì tô cảnh báo. Đơn chưa đặt
  *     ngày đóng vẽ "—": không có hạn thì không có gì để quá.
- *   · **State** — màu nói "đơn còn sống không", chữ nói "đang ở bậc nào";
- *     `title` chở tên cột pipeline cho ba trạng thái đang chạy.
+ *   · **State** — màu nói "đơn còn trên bảng không", chữ nói đang ở CỘT nào (đơn
+ *     đã rời bảng thì in trạng thái đọc); `title` chở số ngày và dấu quá hạn.
  *
  *  Vào được màn này là vai có nhánh Sales — cửa ở `app/guard.tsx`, không kiểm
  *  lại ở đây. Trục phạm vi thì máy chủ cắt, và `hidden` là con số nó trả về. */
@@ -183,16 +185,23 @@ const ANY = 'all'
 /** The book's tab row — the `state` axis, the one people flip back and forth all
  *  day, so it lies open (A-19) instead of hiding inside a select.
  *
+ *  THREE tabs since ADR 0064, not the five old states: `open` covers all five
+ *  columns, `care` is the parking list, `won` is derived from a contract row.
+ *  Built from `OpportunityStatus.options` and `OPPORTUNITY_STATE_LABEL` — the
+ *  same list the server filters by and the same words it prints.
+ *
  *  The all-states tab stands FIRST because it is the tab the screen opens on
- *  when nothing
- *  is filtered, and the lead book likewise opens on its own first tab — two
- *  books of one department have to open in the same place. The array lives
- *  outside the component because `useQueries` below reads its length: rebuilding
- *  it each render would still be the same length, but nobody should have to
- *  check that. */
+ *  when nothing is filtered, and the lead book likewise opens on its own first
+ *  tab — two books of one department have to open in the same place. The array
+ *  lives outside the component because `useQueries` below reads its length:
+ *  rebuilding it each render would still be the same length, but nobody should
+ *  have to check that. */
 const STATE_TABS: { value: string; label: string }[] = [
   { value: ANY, label: 'Tất cả' },
-  ...OPPORTUNITY_STATES.map((state) => ({ value: state.key as string, label: state.label })),
+  ...OpportunityStatus.options.map((state) => ({
+    value: state as string,
+    label: OPPORTUNITY_STATE_LABEL[state],
+  })),
 ]
 
 /** Ô tìm nhỏ giọt lên địa chỉ sau chừng này. Gõ tới đâu thấy tới đó là việc của
@@ -378,7 +387,7 @@ export function OpportunitiesPage() {
     queries: STATE_TABS.map((tab) =>
       opportunityBookQuery({
         ...urlQuery,
-        state: tab.value === ANY ? undefined : (tab.value as OpportunityState),
+        state: tab.value === ANY ? undefined : (tab.value as OpportunityStatus),
         page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
         size: 1,
       }),
@@ -490,7 +499,7 @@ export function OpportunitiesPage() {
               value={query.state ?? ANY}
               options={tabs}
               onChange={(value) =>
-                patch({ state: value === ANY ? undefined : (value as OpportunityState) })
+                patch({ state: value === ANY ? undefined : (value as OpportunityStatus) })
               }
             />
           }
@@ -742,7 +751,7 @@ function ScoreCards() {
   const openAmount = data?.openAmountVnd ?? 0
   const openBlank = data?.openBlank ?? 0
   const won = data?.won ?? 0
-  const lost = data?.lost ?? 0
+  const care = data?.care ?? 0
 
   /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
   const per = (n: number) => (total === 0 ? '—' : percent(n / total))
@@ -753,8 +762,8 @@ function ScoreCards() {
       label: 'Tổng số cơ hội',
       value: String(total),
       /* An empty book is worth flagging — same warning threshold as the
-         open-pipeline and win-rate cards below. The lost-rate card never gets
-         this tone: zero lost deals is good news, not something to warn about. */
+         open-pipeline and win-rate cards below. The care-list card never gets
+         this tone: an empty care list is good news, not something to warn about. */
       tone: total === 0 ? ('warning' as const) : ('default' as const),
       hint: 'đơn đang có trong sổ',
     },
@@ -774,16 +783,16 @@ function ScoreCards() {
     },
     {
       icon: FileCheck,
-      label: 'Close won',
+      label: 'Thành hợp đồng',
       value: per(won),
       tone: total > 0 && won === 0 ? ('warning' as const) : ('default' as const),
       hint: `${won} đơn đã ký trên ${total} cơ hội`,
     },
     {
-      icon: Ban,
-      label: 'Close lost',
-      value: per(lost),
-      hint: `${lost} đơn đã thua trên ${total} cơ hội`,
+      icon: CalendarClock,
+      label: 'Danh sách chăm sóc',
+      value: per(care),
+      hint: `${care} đơn đang chờ thời điểm trên ${total} cơ hội`,
     },
   ]
 
@@ -877,8 +886,10 @@ function CloseCell({ op }: { op: OpportunityRow }) {
 
 /** The state cell — a PILL, and under it the flow the deal is walking.
  *
- *  The pill's colour says whether the deal is still alive (green signed · red
- *  lost · azure running · grey no quote sent yet), its text says which state.
+ *  The pill's colour says whether the deal is still ON THE BOARD (green signed ·
+ *  azure running · grey parked on the care list), its text says WHERE: the column
+ *  while the deal is open, the read state once it has left. One helper decides
+ *  that word for both this cell and the deal's own sticky bar — `standingLabel`.
  *
  *  ------------------------------------------------------------------
  *  THE PIPELINE COLUMN COMES OUT OF THE TOOLTIP — REVERSED 03/09
@@ -899,14 +910,15 @@ function CloseCell({ op }: { op: OpportunityRow }) {
  *  column. */
 function StateCell({ op }: { op: OpportunityBookRow }) {
   const rotting = isRottingOp(op)
-  const stage = op.stage ? STAGE_LABEL.get(op.stage) : null
+  const stage = op.stage === null ? null : OPPORTUNITY_STAGE_LABEL[op.stage]
   const track = stageTrackOf(op)
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <Badge
         tone={rotting ? 'warning' : STATE_TONE[op.state]}
-        className="max-w-full"
+        /* `BADGE_INK` only where the pill wears the parked tone — law 13. */
+        className={cn('max-w-full', !rotting && op.state === 'care' && BADGE_INK)}
         title={
           stage
             ? rotting
@@ -916,8 +928,8 @@ function StateCell({ op }: { op: OpportunityBookRow }) {
         }
       >
         <span className="min-w-0 truncate">
-          {STATE_LABEL.get(op.state)}
-          {rotting && ' · mục'}
+          {standingLabel(op)}
+          {rotting && ' · quá hạn'}
         </span>
       </Badge>
 

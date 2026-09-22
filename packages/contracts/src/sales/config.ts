@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ApprovalState } from '../approval'
 import { Moment, textInput, textInputOptional } from '../primitives'
+import { StageKey } from './enums'
 
 /** Cấu hình danh mục Sales — module 6. `/sales/config`.
  *
@@ -54,16 +55,15 @@ export const ConfigList = z.enum([
    *  makes it the first list where "turn off an entry" has teeth — the counts
    *  in `usage.PRODUCT` are rows Postgres will refuse to orphan. */
   'PRODUCT',
-  /** Why a DEAL was lost — distinct from `EXIT_REASON`, which is why a LEAD
-   *  left the funnel, and the two must not be merged.
+  /** Why an opportunity leaves the board into the care list. The stored name
+   *  stays `LOSS_REASON`; only its meaning moved, so no prefix or column changes.
    *
-   *  They answer different questions about different objects at different
-   *  points of the pipeline: "nobody ever picked up" loses a lead, "a rival
-   *  quoted lower" loses a deal, and a report that mixed them would count a
-   *  lead that never spoke to us against a quotation we lost on price.
-   *  `EXIT_REASON` is also a CLOSED list by decision — it has no catch-all
-   *  entry and never will — while this one is open, because the next reason a
-   *  deal was lost is usually a sentence nobody had written down before. */
+   *  Distinct from `EXIT_REASON` (why a LEAD left the funnel) and the two must
+   *  not be merged: a report that mixed them would count a lead nobody reached
+   *  against an opportunity parked after a quotation. `EXIT_REASON` is CLOSED by
+   *  decision; this list is open, because the next reason is usually a sentence
+   *  nobody had written down. An entry may be scoped to one stage with `stage`;
+   *  without it the reason applies at every stage. */
   'LOSS_REASON',
 ])
 
@@ -131,6 +131,8 @@ export const ConfigEntry = z.object({
   ownerId: z.string().min(1).optional(),
   /** CHỈ `SOURCE` — 'campaign' · 'event' · 'organic'. */
   kind: z.string().min(1).optional(),
+  /** Only `LOSS_REASON` — the stage this reason applies to. Absent = every stage. */
+  stage: StageKey.optional(),
 })
 
 /** One tally table: key -> how many rows currently hold that value. */
@@ -157,7 +159,7 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
  *     `sales.lead.campaign_id` references `config_entry.id`. This is the ONLY
  *     list with a real relation today.
  *   · `STAGE` · `TIER` · `CATEGORY` · `EXIT_REASON` — the key is the lower-case
- *     slug the column holds ('awaiting-signature', 'chip'), because `sales.lead` does not
+ *     slug the column holds ('quotation', 'chip'), because `sales.lead` does not
  *     carry config ids yet. The server does NOT invent a name-to-slug join to
  *     paper over that debt, because a
  *     join that has to be guessed is a join that goes wrong silently the day
@@ -317,6 +319,8 @@ export const ConfigEntryCreate = z.object({
 
   ownerId: textInputOptional(64),
   kind: textInputOptional(32),
+  /** Only `LOSS_REASON`, judged by the service like `ownerId`/`kind`. */
+  stage: StageKey.optional(),
 })
 
 /** Sửa MỘT dòng. Trường vắng mặt = không đụng tới.
@@ -332,6 +336,8 @@ export const ConfigEntryPatch = z
     limitDays: z.number().int().positive().max(365).optional(),
     ownerId: textInputOptional(64).nullable(),
     kind: textInputOptional(32),
+    /** `null` clears the scope (reason applies to every stage again). */
+    stage: StageKey.nullable().optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có trường nào để sửa',

@@ -2,7 +2,8 @@
 
 Status: accepted (supersedes 0055; partially supersedes 0015 rule 2 and rule
 4, 0031's fourth request type, and 0034); §6 superseded by 0060 (stage-gate
-is removed outright, not scoped down)
+is removed outright, not scoped down); §5 amended by 0064 (loss reason becomes
+care reason, picked from a per-stage catalogue)
 Source: project owner's decision in session, 17/09/2026
 
 ## Context

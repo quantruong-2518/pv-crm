@@ -14,12 +14,13 @@ import {
   CREDIT_RULES,
   INIT_DATA_QUESTIONS,
   LEAD_CATEGORIES,
-  LOSS_REASONS,
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 import {
   ExitReason,
   LeadTier,
+  OPPORTUNITY_CARE_REASON_OTHER,
+  OPPORTUNITY_STAGE_LABEL,
   StageKey,
   type ConfigBundle,
   type ConfigEntry,
@@ -260,7 +261,7 @@ export function naturalSources(catalog: ConfigBundle | undefined) {
 }
 
 // ---------------------------------------------------------------------------
-// Two new catalogs — PRODUCTS and DEAL-LOSS REASONS
+// Two new catalogs — PRODUCTS and DEAL CARE REASONS
 // ---------------------------------------------------------------------------
 
 /** The `PRODUCT` catalog, for the picker on the deal form.
@@ -284,42 +285,54 @@ export function useProductCatalog() {
   return data?.PRODUCT ?? []
 }
 
-/** The `LOSS_REASON` catalog — why a DEAL was lost.
+/** The `LOSS_REASON` catalog — why a DEAL went to the care list (ADR 0064 §6).
+ *  The list name is unchanged; only its meaning moved.
  *
  *  DIFFERENT from `exitReasonRows` just above: that one is why a LEAD left the
  *  funnel, a CLOSED list that will never grow an "other" box. This one is open,
- *  because the next reason a deal is lost is usually a sentence nobody had
+ *  because the next reason a deal is parked is usually a sentence nobody had
  *  written down before.
  *
- *  Joined by LABEL rather than by id, and that is debt §6 rather than a new
- *  rule: `sales.opportunity.lost_reason` carries the exact string the seller
- *  clicked. The day that column carries a configuration id, this function
- *  shrinks to a single `map`. */
+ *  Joined by ID, the second list after `PRODUCT` able to say that:
+ *  `sales.opportunity.care_reason` stores the configuration id the seller
+ *  picked, so editing a label no longer resets that row's count to zero.
+ *  `stageLabel` is `null` when `stage` is absent — the reason applies in every
+ *  column, and the caller draws that caption. */
 export function lossReasonRows(catalog: ConfigBundle | undefined) {
   return (catalog?.LOSS_REASON ?? [])
     .filter((r) => r.active)
     .map((r) => ({
       id: r.id,
       label: r.name,
-      usage: catalog?.usage.LOSS_REASON[r.name.toLowerCase()] ?? 0,
+      stage: r.stage ?? null,
+      stageLabel: r.stage ? OPPORTUNITY_STAGE_LABEL[r.stage] : null,
+      usage: catalog?.usage.LOSS_REASON[r.id] ?? 0,
     }))
 }
 
-/** The loss reasons, for the button group on the deal form.
+/** The care reasons a deal standing in ONE column may be parked with.
  *
- *  Replaces the fixture's `LOSS_REASONS` constant, which is exactly what
- *  `config_entry` exists to do: changing a reason is an editable row on the
- *  configuration screen, not a build.
- *
- *  Falls back to the fixture while the query is IN FLIGHT rather than to an
- *  empty array: a lost-deal form that opens with no buttons to press is a form
- *  the user cannot submit, and that state lasts exactly one network round trip.
- *  The fixture's strings are the same strings the migration wrote into the
- *  table, so the fallback does not say anything different from the truth. */
-export function useLossReasons(): string[] {
+ *  A reason with no `stage` applies everywhere; one carrying a stage is offered
+ *  only in that column — the same rule the server checks the sent key by, so a
+ *  key the drawer could offer can never earn a 400. Empty until the catalog
+ *  lands, never `undefined`: the picker maps over it. */
+export function useCareReasons(stage: StageKey | null) {
   const { data } = useQuery(salesCatalogQuery)
-  const rows = lossReasonRows(data)
-  return rows.length > 0 ? rows.map((r) => r.label) : [...LOSS_REASONS]
+  return lossReasonRows(data).filter((r) => r.stage === null || r.stage === stage)
+}
+
+/** The LABEL behind a stored care key — `opportunity.careReason` is a catalogue
+ *  id, never a Vietnamese sentence, so a screen printing it raw shows 'LR-03'.
+ *
+ *  Reads the whole list rather than `lossReasonRows`, inactive rows included: a
+ *  deal parked under a reason the desk later switched off still has to say what
+ *  it was parked for. Falls back to the key, which is ugly and TRUE — the one
+ *  thing it must never do is borrow a neighbouring row's label. */
+export function useCareReasonLabel(reasonKey: string | undefined) {
+  const { data } = useQuery(salesCatalogQuery)
+  if (reasonKey === undefined) return undefined
+  if (reasonKey === OPPORTUNITY_CARE_REASON_OTHER) return 'Khác'
+  return (data?.LOSS_REASON ?? []).find((r) => r.id === reasonKey)?.name ?? reasonKey
 }
 
 // ---------------------------------------------------------------------------
@@ -476,6 +489,31 @@ export function useProposeProduct() {
       api.write<ConfigProposalReceipt>('/sales/config/PRODUCT', {
         method: 'POST',
         body: { name },
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
+      void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
+    },
+  })
+}
+
+/** Add one entry to `LOSS_REASON` — used by 5.4b.
+ *
+ *  `stage` scopes the reason to one column of the board; absent, it applies to
+ *  every stage (spec §5). Same shape as `useProposeProduct` above — a second
+ *  list, a second door — because `LOSS_REASON` is the other OPEN catalog on
+ *  this screen and stays that way rather than sharing a body with `PRODUCT`,
+ *  which the service's `assertAttrs` would refuse anyway (`stage` belongs to
+ *  `LOSS_REASON` alone). */
+export function useProposeLossReason() {
+  const client = useQueryClient()
+
+  return useMutation<ConfigProposalReceipt, ApiError, { name: string; stage?: StageKey }>({
+    mutationFn: (body) =>
+      api.write<ConfigProposalReceipt>('/sales/config/LOSS_REASON', {
+        method: 'POST',
+        body,
         need: { branch: 'Sales', permission: 'config.propose' },
       }),
     onSuccess: () => {

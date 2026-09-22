@@ -1,6 +1,7 @@
 # 0060 · Stage-gate is removed
 
-Status: accepted (supersedes 0057 §6; retires migration 0047_stage_gate.sql)
+Status: accepted (supersedes 0057 §6; retires migration 0047_stage_gate.sql); the stage keys it names (`discovery`
+etc.) were replaced by 0064 — read them as the stage set of 20/09
 Source: project owner's decision in session, 20/09/2026
 
 ## Context

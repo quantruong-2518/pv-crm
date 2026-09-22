@@ -1,7 +1,6 @@
 import {
-  stageOfState,
   type OpportunityCreate,
-  type OpportunityCreateState,
+  type OpportunityMilestoneKind,
   type OpportunityOwner,
   type OpportunityProduct,
   type OpportunityRow,
@@ -10,7 +9,7 @@ import {
   type StageKey,
 } from '@pv/contracts'
 import type { ObjectRef } from '@pv/engines'
-import { STATE_LABEL, stageLabel } from './opportunity.labels'
+import { stageLabel } from './opportunity.labels'
 import type {
   opportunity,
   OpportunityRowDb,
@@ -20,9 +19,9 @@ import type {
 /** Bảng ↔ dây. Không quyết định gì, không đọc gì.
  *
  *  ------------------------------------------------------------------
- *  'close-won' ĐƯỢC LẮP VÀO Ở ĐÂY, KHÔNG ĐỌC RA TỪ CỘT
+ *  'won' ĐƯỢC LẮP VÀO Ở ĐÂY, KHÔNG ĐỌC RA TỪ CỘT
  *  ------------------------------------------------------------------
- *  Cột `state` chỉ có bốn giá trị; trạng thái thứ năm là một câu hỏi về bảng
+ *  Cột `state` chỉ lưu hai giá trị; trạng thái thứ ba là một câu hỏi về bảng
  *  KHÁC ("có dòng nào trong `contract` không"). Repository trả lời câu đó và
  *  đưa xuống đây thành một `boolean`, nên chỗ duy nhất biết ghép hai nửa lại
  *  là hàm này — không phải năm màn, mỗi màn một bản ghép.
@@ -31,10 +30,11 @@ import type {
  *  được số của nó, và một màn phải hỏi lần thứ hai để lấy số đó là một màn có
  *  hai nguồn cho một sự thật.
  *
- *  Đơn đã thắng thì `stage` cũng là NULL. Cột sinh trong bảng đã trả NULL cho
- *  mọi dòng có `closed_at`, nên hai đường ra cùng một kết quả; dòng dưới là để
- *  một đơn được đánh dấu thắng mà chưa kịp đóng ngày cũng không rơi lại vào
- *  một cột của bảng năm cột. */
+ *  `stage` và `state` KHÔNG được tính ở hai cửa ghi dưới đây: mọi lượt đi của
+ *  đơn TRƯỚC khi có hợp đồng thuộc về `opportunity-lifecycle.ts` (ADR 0064).
+ *  Ngoại lệ DUY NHẤT nằm ngay trong file này — `closeForSign`, chuyến đi một
+ *  chiều ra khỏi bảng lúc ký; docblock của nó nói vì sao hai người ghi không
+ *  bao giờ giẫm chân nhau. */
 
 /** Cột của một dòng `sales.opportunity`, trừ khoá.
  *
@@ -60,12 +60,17 @@ export type OpportunityWrite = {
 
 /** Một cơ hội sắp được SỬA.
  *
- *  `leadCode` vắng mặt và đó là nửa quan trọng của kiểu này: cột không có trong
- *  `values` thì câu `UPDATE … SET` không nhắc tới nó, nên không có đường nào —
- *  kể cả một lỗi gõ — làm một cơ hội đổi sang khách khác. Cấm ở tầng kiểu chứ
- *  không ở tầng "nhớ đừng ghi cột đó". */
+ *  Kiểu LIỆT KÊ cột sửa được thay vì loại trừ cột cấm, và đó là nửa quan trọng
+ *  của nó: cột không có trong `values` thì câu `UPDATE … SET` không nhắc tới
+ *  nó. `leadCode` vắng vì một cơ hội không đổi sang khách khác được; `state`,
+ *  `stage`, `stage_since`, `closed_at` và ba cột `care_*` vắng vì ba cửa vòng
+ *  đời là đường duy nhất ghi chúng (ADR 0064). Cấm ở tầng kiểu chứ không ở tầng
+ *  "nhớ đừng ghi cột đó". */
 export type OpportunityEdit = {
-  values: Omit<OpportunityValues, 'leadCode'>
+  values: Pick<
+    OpportunityValues,
+    'name' | 'amount' | 'currency' | 'expectedClose' | 'probability' | 'description' | 'attachments'
+  >
   saleOwners: readonly string[]
   bdOwners: readonly string[]
   products: readonly string[]
@@ -90,31 +95,24 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
  *  mọi `''` thành `undefined`. Làm lại lần thứ hai ở đây là dựng quy ước thứ
  *  hai, và hai quy ước thì có ngày lệch.
  *
- *  Hàm tự quyết đúng HAI cột, và cả hai đều suy ra chứ không đoán:
- *
- *   · `closed_at` — chọn "Close lost" là đóng sổ đơn ngay lúc bấm. Ghi ở đây
- *     chứ không để cột tự default, vì `opportunity_lost_state_closed` chặn dòng
- *     thiếu nó, và một CHECK ném 500 thì người dùng đọc được ít hơn nhiều so
- *     với một cột đã đúng.
- *   · `stage` — cột đơn rơi vào, lấy từ `stageOfState` của hợp đồng. Phiếu chỉ
- *     hỏi trạng thái; bắt người điền chọn thêm cột là hỏi hai lần một câu. Hai
- *     cột rời nhau được về sau (kéo trên bảng), nên đây là GIÁ TRỊ ĐẦU chứ
- *     không phải một ràng buộc — xem docblock của `opportunity.schema.ts`. */
+ *  `stage` là THAM SỐ chứ không phải thứ hàm này tính: đơn mở ra ở `new`, hoặc
+ *  thẳng `assigned` khi tập PIC đã đủ, và câu đó cần biết vai của từng người —
+ *  dữ liệu chỉ service mới nạp được (`picQualifies`, ADR 0064). `state` luôn là
+ *  `open`: cửa tạo không mở được một đơn đã nằm trong danh sách chăm sóc. */
 export function fromCreate(
   body: OpportunityCreate,
   now: Date,
   workstreamCode: string | null,
+  stage: StageKey,
 ): OpportunityWrite {
-  const lost = body.state === 'close-lost'
-
   return {
     values: {
       leadCode: body.leadCode,
-      state: body.state,
-      stage: stageOfState(body.state),
-      /* Đơn vừa vào cột lúc này. `null` khi đơn mở ra đã ở trạng thái đóng sổ
-         — `opportunity_stage_clock` đòi cột và đồng hồ đi cùng nhau. */
-      stageSince: stageOfState(body.state) === null ? null : now,
+      state: 'open',
+      stage,
+      /* The deal entered its column just now — `opportunity_stage_clock` demands
+         the column and the clock together, and a new deal always has a column. */
+      stageSince: now,
       name: body.name,
       /* The lead's run, read by the caller; a lead predating runs stays null. */
       workstreamCode,
@@ -129,9 +127,7 @@ export function fromCreate(
       ...(body.probability === undefined ? {} : { probability: body.probability }),
       ...(body.description === undefined ? {} : { description: body.description }),
       attachments: [...body.attachments],
-      closedAt: lost ? now : null,
-      ...(body.lossReason === undefined ? {} : { lostReason: body.lossReason }),
-      ...(body.lossNote === undefined ? {} : { lostNote: body.lossNote }),
+      closedAt: null,
     },
     saleOwners: body.saleOwners,
     bdOwners: body.bdOwners,
@@ -139,54 +135,26 @@ export function fromCreate(
   }
 }
 
-/** `PATCH /sales/opportunities/:code` body + dòng đang có → cột mới.
+/** `PATCH /sales/opportunities/:code` body → cột.
  *
  *  ------------------------------------------------------------------
- *  BA CỘT KHÔNG NẰM TRONG THÂN REQUEST, VÀ CẢ BA ĐỀU SUY TỪ CÙNG MỘT Ô
+ *  NĂM CỘT VÒNG ĐỜI KHÔNG CÓ MẶT Ở ĐÂY, VÀ ĐÓ LÀ NỬA QUAN TRỌNG NHẤT
  *  ------------------------------------------------------------------
- *  Người dùng chọn một trạng thái. Ba cột đi theo, và không cột nào trong số
- *  đó được để màn tự tính rồi gửi lên — gửi lên là mở đường cho một thân
- *  request nói "đang ở cột Chờ ký" trên một đơn đã thua:
+ *  `state`, `stage`, `stage_since`, `closed_at` và ba cột `care_*` đều vắng
+ *  khỏi `values`, nên câu `UPDATE … SET` không nhắc tới chúng. Đó là cách cấm ở
+ *  tầng kiểu thay vì ở tầng "nhớ đừng ghi cột đó": ba cửa vòng đời (ghi mốc,
+ *  đẩy chăm sóc, mở lại) là đường DUY NHẤT chạm tới chúng (ADR 0064), và một
+ *  lượt lưu phiếu không được kéo đơn sang cột nào cả.
  *
- *   · `stage`       — cột. Tính lại qua `stageOfState` CHỈ KHI trạng thái đổi.
- *     Tính lại ở mọi lượt lưu là một lỗi thật, và nó đã lộ ra khi bấm thử
- *     (28/08): một đơn đang đứng ở "Đã demo", sửa mỗi cái tên rồi bấm Lưu, bị
- *     kéo ngược về "Đang tìm hiểu" — vì `pending` ánh xạ xuống 'discovery'. Hai
- *     cột 'new' và 'demo-done' KHÔNG có trạng thái nào trỏ tới, nên với chúng thì
- *     mọi lượt lưu đều là một lần dời cột ngoài ý muốn. Trạng thái không đổi
- *     thì cột giữ nguyên, chấm hết.
- *   · `stage_since` — ĐỒNG HỒ CỦA CỘT. Chỉ chạm khi cột THẬT SỰ ĐỔI. Sửa tên
- *     đơn hay thêm một người đứng đơn mà cũng dí lại đồng hồ thì mọi đơn đều
- *     "vừa mới vào cột", và tín hiệu mục không bao giờ bật nữa — một lỗi im
- *     lặng, chỉ lộ ra sau vài tuần không ai thấy cảnh báo nào.
- *   · `closed_at`   — đóng khi sang `close-lost`, MỞ LẠI khi rời khỏi nó. Vế
- *     thứ hai là thứ dễ quên: một đơn thua rồi được mở lại mà vẫn giữ ngày đóng
- *     là một đơn `stage` nói đang chạy còn `closed_at` nói đã xong, và
- *     `opportunity_stage_clock` bắt được vế đó chứ không bắt được vế này.
- *
- *  `signed`: editing a signed deal never reopens it (ADR 0057 §1). Its form
- *  says 'close-won', which is the contract row rather than a column value, so
- *  the stored `state` and `closed_at` stay; the service refuses anything else. */
-export function fromUpdate(
-  body: OpportunityUpdate,
-  current: Pick<OpportunityRowDb, 'state' | 'stage' | 'stageSince' | 'closedAt'>,
-  now: Date,
-  signed: boolean,
-): OpportunityEdit {
-  const state = signed || body.state === 'close-won' ? current.state : body.state
-  const lost = state === 'close-lost'
-  const stateChanged = state !== current.state
-  const stage = stateChanged ? stageOfState(state) : current.stage
-  const moved = stage !== current.stage
-
+ *  Bản trước tính `stage` lại từ trạng thái người dùng chọn, và đó chính là lỗi
+ *  đã lộ ra khi bấm thử (28/08): sửa mỗi cái tên rồi bấm Lưu cũng kéo ngược đơn
+ *  về một cột khác. Nay không còn ô nào để tính từ đó. */
+export function fromUpdate(body: OpportunityUpdate): OpportunityEdit {
   return {
     values: {
       /* `leadCode` KHÔNG có ở đây và cũng không có trong `OpportunityUpdate`:
          một cơ hội không đổi được sang khách khác. Bỏ khỏi `values` nghĩa là
          câu UPDATE không nhắc tới cột đó, chứ không phải ghi đè bằng undefined. */
-      state,
-      stage,
-      stageSince: stage === null ? null : moved ? now : (current.stageSince ?? now),
       name: body.name,
       amount: body.amount,
       currency: body.currency,
@@ -199,9 +167,6 @@ export function fromUpdate(
       probability: body.probability ?? null,
       description: body.description ?? null,
       attachments: [...body.attachments],
-      closedAt: lost ? (current.closedAt ?? now) : signed ? current.closedAt : null,
-      lostReason: body.lossReason ?? null,
-      lostNote: body.lossNote ?? null,
     },
     saleOwners: body.saleOwners,
     bdOwners: body.bdOwners,
@@ -214,11 +179,10 @@ export function fromUpdate(
  *  ------------------------------------------------------------------
  *  BA CỘT, VÀ `state` KHÔNG NẰM TRONG SỐ ĐÓ
  *  ------------------------------------------------------------------
- *  Ký không đổi `state`, vì bảng không có `'close-won'` để đổi sang — CHECK
- *  `opportunity_state_known` chỉ nhận bốn giá trị, và trạng thái thứ năm được
+ *  Ký không đổi `state`, vì bảng không có `'won'` để đổi sang — CHECK
+ *  `opportunity_state_known` chỉ nhận hai giá trị, và trạng thái thứ ba được
  *  `toContract` lắp vào từ câu hỏi "có dòng hợp đồng không". Đơn đã ký giữ
- *  nguyên `state = 'nego'` (hoặc bất kỳ giá trị nào nó đang mang), đúng như sáu
- *  dòng `seed.ts` đã nạp.
+ *  nguyên `state = 'open'`: nó thắng chứ không vào danh sách chăm sóc.
  *
  *   · `stage` + `stage_since` — cùng về NULL. Đơn đã ký ra khỏi bảng năm cột,
  *     và `opportunity_stage_clock` đòi hai cột đó cùng vắng. Bỏ sót một cái là
@@ -228,8 +192,14 @@ export function fromUpdate(
  *     ngày thì đơn đã đóng từ ba ngày trước, và `daysOpen` của mail đọc thẳng
  *     cột này.
  *
- *  KHÔNG chạm `lost_reason`/`lost_note`: chúng đã là NULL trên một đơn đang mở,
- *  và service từ chối ký một đơn đã thua trước khi tới đây. */
+ *  KHÔNG chạm ba cột `care_*`: chúng đã là NULL trên một đơn đang mở —
+ *  `opportunity_open_has_no_care` ép thế — và cửa ký từ chối một đơn đang nằm
+ *  trong danh sách chăm sóc trước khi tới đây.
+ *
+ *  Đây là NGƯỜI GHI THỨ HAI của `stage`, cạnh `opportunity-lifecycle.ts`, và
+ *  hai bên không giẫm chân nhau được: muốn ký thì đơn phải tới `quotation` —
+ *  cột chỉ lớp kia ghi — còn ký rồi thì `care`/`reactivate` từ chối vĩnh viễn,
+ *  nên không có lượt nào đi ngược về tay lớp kia. */
 export function closeForSign(
   signedAt: Date,
 ): Pick<OpportunityValues, 'stage' | 'stageSince' | 'closedAt'> {
@@ -238,9 +208,9 @@ export function closeForSign(
 
 /** Câu của một dòng thời gian.
  *
- *  Gom về một chỗ vì chúng là NGÔN NGỮ, không phải logic: bốn câu dưới đây là
- *  thứ người dùng đọc trên thẻ hoạt động, và rải chúng vào bốn nhánh `if` của
- *  service là cách chắc chắn nhất để câu thứ tư đọc không giống ba câu kia.
+ *  Gom về một chỗ vì chúng là NGÔN NGỮ, không phải logic: mấy câu dưới đây là
+ *  thứ người dùng đọc trên thẻ hoạt động, và rải chúng vào từng nhánh `if` của
+ *  service là cách chắc chắn nhất để câu cuối đọc không giống mấy câu kia.
  *
  *  Tiếng Việt, cùng lý do mọi `ConstraintNote.message` là tiếng Việt: đây là
  *  chữ gửi cho người, không phải chữ gửi cho máy. */
@@ -249,21 +219,36 @@ export const NOTE = {
   promoted: (opCode: string, name: string) => `Lên cơ hội ${opCode} · ${name}`,
 
   /** Trên dòng thời gian của ĐƠN. */
-  opened: (leadCode: string, state: OpportunityCreateState) =>
-    `Mở đơn từ lead ${leadCode} · ${STATE_LABEL[state]}`,
+  opened: (leadCode: string) => `Mở đơn từ lead ${leadCode}`,
 
-  /** Đơn đổi chỗ. Hai câu chứ không một, vì hai chuyện khác nhau: đổi CỘT là
-   *  đơn đi tiếp trên bảng, đổi mỗi TRẠNG THÁI là người bán đổi việc đang làm
-   *  mà đơn vẫn đứng yên. Một câu chung ("đã cập nhật") không nói được cái nào,
-   *  và dòng thời gian tồn tại để nói đúng cái đó. */
+  /** Đơn đi tiếp trên bảng. Một câu duy nhất cho mọi lượt đổi cột, vì nay chỉ
+   *  còn một trục: cột đổi là đơn đi tiếp, không có "đổi trạng thái mà đứng
+   *  yên" nữa (ADR 0064). */
   moved: (from: StageKey | null, to: StageKey | null) =>
     `Đổi cột: ${stageLabel(from)} → ${stageLabel(to)}`,
 
-  restated: (from: OpportunityCreateState, to: OpportunityCreateState) =>
-    `Đổi trạng thái: ${STATE_LABEL[from]} → ${STATE_LABEL[to]}`,
+  /** Mốc vừa ghi, kèm câu người ghi gõ thêm nếu có. */
+  milestone: (kind: OpportunityMilestoneKind, note?: string | undefined) =>
+    note ? `${MILESTONE_WORD[kind]} · ${note}` : MILESTONE_WORD[kind],
+
+  careEntered: (reasonKey: string, note?: string | undefined) =>
+    note
+      ? `Vào danh sách chăm sóc · ${reasonKey} · ${note}`
+      : `Vào danh sách chăm sóc · ${reasonKey}`,
+
+  careLeft: (stage: StageKey) => `Mở lại, về cột ${stageLabel(stage)}`,
 
   signed: (contractCode: string) => `Ký hợp đồng ${contractCode}`,
 } as const
+
+/** One sentence per milestone. NOT the column label: a milestone is a thing
+ *  DONE ("the sample went out"), a column label is where the deal now stands —
+ *  and a timeline tells what happened. */
+const MILESTONE_WORD: Record<OpportunityMilestoneKind, string> = {
+  sample: 'Đã gửi sample',
+  poc: 'Đã chạy POC',
+  quotation: 'Đã gửi quotation',
+}
 
 /** Dòng của bảng nối, cho một đơn vừa được cấp mã. */
 export function ownerRowsOf(
@@ -452,7 +437,7 @@ export function toContract(input: {
     ...(row.accountCode ? { accountCode: row.accountCode } : {}),
 
     name: row.name,
-    state: signed ? 'close-won' : row.state,
+    state: signed ? 'won' : row.state,
     /* Đi CÙNG trạng thái thứ năm và chỉ đi cùng nó: mã hợp đồng trên một đơn
        chưa ký là một tờ giấy không tồn tại, nên `signed` gác cả hai vế chứ
        không riêng vế `state`. Vắng mặt chứ không phải chuỗi rỗng — hợp đồng
@@ -476,8 +461,12 @@ export function toContract(input: {
     ...(row.description ? { description: row.description } : {}),
     attachments: row.attachments,
 
-    ...(row.lostReason ? { lossReason: row.lostReason } : {}),
-    ...(row.lostNote ? { lossNote: row.lostNote } : {}),
+    /* The three care columns, present exactly when `state === 'care'`:
+       `opportunity_open_has_no_care` keeps them empty on a deal still on the
+       board, so these three lines need not ask about `state` again. */
+    ...(row.careFromStage ? { careFromStage: row.careFromStage } : {}),
+    ...(row.careReason ? { careReason: row.careReason } : {}),
+    ...(row.careNote ? { careNote: row.careNote } : {}),
 
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt?.toISOString() ?? null,

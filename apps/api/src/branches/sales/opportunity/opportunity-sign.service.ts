@@ -44,7 +44,7 @@ export class OpportunitySign implements ApprovalApplier {
   async propose(who: Actor, code: ObjectCode, body: ContractSign): Promise<ConfigProposalReceipt> {
     const found = await this.deals.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
-    this.assertSignable(found)
+    await this.assertSignable(this.deals.readonlyHandle, found)
 
     const pending = await this.approvals.pendingOn(code)
     if (pending.some((r) => r.kind === 'contract-sign')) {
@@ -85,13 +85,19 @@ export class OpportunitySign implements ApprovalApplier {
     if (!(await this.deals.lockDeal(tx, code))) throw notFound('cơ hội', code)
     const found = await this.deals.byCode(null, code, tx)
     if (!found) throw notFound('cơ hội', code)
-    this.assertSignable(found)
+    await this.assertSignable(tx, found)
 
     await this.write(tx, found, sign, { id: request.raisedById, name: request.raisedBy })
   }
 
-  /** Signed and lost are both 409: the body is fine, the deal's state is not. */
-  private assertSignable(found: OpportunityRead): void {
+  /** Three 409s: the body is fine, the deal is not.
+   *
+   *  The third one is the quotation gate (ADR 0064 §3): no contract without a
+   *  quotation having been sent, which is a `quotation-sent` touch and nothing
+   *  else. Read as a fact rather than off `stage`, because a deal can only be
+   *  standing in `quotation` BECAUSE that touch exists — and a deal signed
+   *  after somebody backdated its column would slip through a stage check. */
+  private async assertSignable(handle: Db, found: OpportunityRead): Promise<void> {
     const code = found.row.code
     if (found.signed) {
       throw conflict(
@@ -100,8 +106,11 @@ export class OpportunitySign implements ApprovalApplier {
           : `Cơ hội ${code} đã ký.`,
       )
     }
-    if (found.row.state === 'close-lost') {
-      throw conflict(`Cơ hội ${code} đã thua — mở lại đơn trước khi ký.`)
+    if (found.row.state === 'care') {
+      throw conflict(`Cơ hội ${code} đang ở danh sách chăm sóc — mở lại đơn trước khi ký.`)
+    }
+    if (!(await this.deals.hasTouch(handle, code, 'quotation-sent'))) {
+      throw conflict(`Cơ hội ${code} chưa gửi quotation — ghi mốc Quotation trước khi ký.`)
     }
   }
 

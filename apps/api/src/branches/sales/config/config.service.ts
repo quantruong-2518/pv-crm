@@ -13,6 +13,7 @@ import {
   type ConfigEntryPatch,
   type ConfigList,
   type ConfigOrderPatch,
+  type StageKey,
 } from '@pv/contracts'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import type { ApprovalApplier } from '@api/platform/approval/approval.service'
@@ -79,6 +80,7 @@ export class SalesConfigService implements ApprovalApplier {
         ...(body.limitDays === undefined ? {} : { limitDays: body.limitDays }),
         ...(body.ownerId === undefined ? {} : { ownerId: body.ownerId }),
         ...(body.kind === undefined ? {} : { kind: body.kind }),
+        ...(body.stage === undefined ? {} : { stage: body.stage }),
       },
     }
     this.assertAttrs(list, body)
@@ -277,7 +279,7 @@ export class SalesConfigService implements ApprovalApplier {
    *  bằng tiếng của Postgres. */
   private assertAttrs(
     list: ConfigList,
-    v: { limitDays?: number; ownerId?: string | null; kind?: string },
+    v: { limitDays?: number; ownerId?: string | null; kind?: string; stage?: StageKey | null },
   ): void {
     const wrong: Record<string, string[]> = {}
     const only = (field: string, owner: ConfigList, given: boolean): void => {
@@ -292,6 +294,7 @@ export class SalesConfigService implements ApprovalApplier {
     }
     only('ownerId', 'CATEGORY', v.ownerId !== undefined)
     only('kind', 'SOURCE', v.kind !== undefined)
+    only('stage', 'LOSS_REASON', v.stage !== undefined)
 
     /* A new rung of a ladder used to be REQUIRED to arrive with a deadline.
        It no longer is, for the reason written where the CHECK lives: since
