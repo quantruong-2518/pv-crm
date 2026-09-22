@@ -1114,11 +1114,12 @@ export const MailTemplateListResponse = z.object({
  *  in every paragraph break the day somebody sent it. A template is a draft of
  *  a letter; it should not be allowed to be a shape a letter cannot be.
  *
- *  `code` is typed by a person and is the row's identity forever — it is what
- *  `mail_run.template_code` records to answer "which of our templates works".
- *  There is no rename: changing it would orphan every run that names it. */
+ *  `code` is not on this input: the server derives it from `name`, and it is
+ *  the row's identity forever — what `mail_run.template_code` records to answer
+ *  "which of our templates works". There is no rename, because changing it
+ *  would orphan every run that names it, and a hand-typed slug was one more
+ *  field to get wrong for no reader who ever sees it. */
 export const MailTemplateCreate = z.object({
-  code: MailTemplateCode,
   name: textInput(MAIL_NAME_MAX),
   subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,

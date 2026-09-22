@@ -1769,7 +1769,7 @@
   },
   "apps/web/src/pages/mail-templates-parts.tsx": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 4
     },
     "max-lines-per-function": {
       "count": 1

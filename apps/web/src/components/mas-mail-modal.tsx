@@ -24,12 +24,7 @@ import {
 import { campaignFacetQuery } from '@/data/campaign-book'
 import { isHttpUrl } from '@/data/http-url'
 import { mailHints } from '@/data/mail-hints'
-import {
-  NO_CAMPAIGN,
-  templateCodeFrom,
-  useMasMailDraft,
-  type MasRecipient,
-} from '@/data/mas-mail-draft'
+import { NO_CAMPAIGN, useMasMailDraft, type MasRecipient } from '@/data/mas-mail-draft'
 import {
   masPreflight,
   masTemplatesQuery,
@@ -148,7 +143,7 @@ export function MasMailModal({
   const letter = { subject: chain.subject, body: chain.body, cta, bookingUrl }
 
   const templateNameGap =
-    draft.saveAsTemplate && canSaveTemplate && !templateCodeFrom(draft.templateName)
+    draft.saveAsTemplate && canSaveTemplate && draft.templateName.trim() === ''
       ? 'Đặt tên cho mẫu sắp lưu.'
       : null
 
@@ -270,12 +265,11 @@ export function MasMailModal({
   }
 
   /* Fired AFTER the send resolves and never awaited: the letter is the job, and
-     a template the library refuses (a code already taken) must not turn a
+     a template the library refuses for any other reason must not turn a
      successful send into an error on screen. */
   const keepAsTemplate = (wave: CampaignWaveInput) =>
     saveTemplate.mutate(
       {
-        code: templateCodeFrom(draft.templateName),
         name: draft.templateName.trim(),
         subject: wave.subject,
         body: wave.body,

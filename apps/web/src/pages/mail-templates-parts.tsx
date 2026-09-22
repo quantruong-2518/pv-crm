@@ -1,15 +1,21 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Info } from '@pv/ui'
-import { Badge, Button, Drawer, Icon, Input, SegmentedControl, Textarea, cn } from '@pv/ui'
+import { Badge, Button, Icon, Input, Modal, SegmentedControl, Textarea, cn } from '@pv/ui'
 import type { MailTemplateRow } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
-import { useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
-import { MailSyntaxGuide } from '@/components/mail-syntax-guide'
+import { isHttpUrl } from '@/data/http-url'
+import { useMailPreview, useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
+import { MailGuideDrawer } from '@/components/mail-guide-drawer'
+import { MailPreviewCard } from '@/components/mail-compose-bits'
 
 /** THE PANEL THAT WRITES A TEMPLATE — one panel for both jobs, the way
  *  `users-parts.tsx` does it: a null row adds, a row edits that row. Two panels
  *  would be two copies of one form, and the second copy is where the CTA pair
- *  stops matching. */
+ *  stops matching.
+ *
+ *  A `Modal`, not a `Drawer` (22/09): the letter body and its rendered preview
+ *  have to be checked side by side before saving, and that is T-07's case for
+ *  a modal over a drawer — see `layout/modal.tsx`. */
 export function MailTemplateDrawer({
   open,
   onClose,
@@ -22,7 +28,6 @@ export function MailTemplateDrawer({
   const create = useMailTemplateCreate()
   const patch = useMailTemplatePatch()
 
-  const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -43,7 +48,6 @@ export function MailTemplateDrawer({
       setGuideOpen(false)
       return
     }
-    setCode(template?.code ?? '')
     setName(template?.name ?? '')
     setSubject(template?.subject ?? '')
     setBody(template?.body ?? '')
@@ -74,6 +78,24 @@ export function MailTemplateDrawer({
 
   const busy = create.isPending || patch.isPending
 
+  /* Only a COMPLETE, parseable pair travels to the preview — same shape the
+     submit below builds, minus the trim: a preview lags a keystroke behind
+     either way, so there is nothing to lose by gating it earlier. */
+  const previewCta =
+    ctaLabel.trim() && isHttpUrl(ctaUrl.trim())
+      ? { label: ctaLabel, url: ctaUrl.trim() }
+      : undefined
+  const previewBooking = isHttpUrl(bookingUrl.trim()) ? bookingUrl.trim() : undefined
+  const preview = useMailPreview(
+    {
+      subject,
+      body,
+      ...(previewCta ? { cta: previewCta } : {}),
+      ...(previewBooking ? { bookingUrl: previewBooking } : {}),
+    },
+    open,
+  )
+
   const submit = () => {
     /* Two human clicks are two real requests — `mayReplay` only refuses the
        automatic kind. */
@@ -101,7 +123,6 @@ export function MailTemplateDrawer({
 
     create.mutate(
       {
-        code,
         name,
         subject,
         body,
@@ -114,13 +135,10 @@ export function MailTemplateDrawer({
 
   return (
     <>
-      <Drawer
+      <Modal
         open={open}
         onClose={onClose}
-        /* `lg`, not the `md` the user panel uses: this form's centre of gravity is
-         a letter body, and a body typed seven characters at a time in a narrow
-         column reads nothing like the letter it becomes. */
-        width="lg"
+        width="xl"
         title={template ? `Sửa ${template.name}` : 'Thêm mẫu thư'}
         subtitle={
           template
@@ -155,177 +173,159 @@ export function MailTemplateDrawer({
           </div>
         }
       >
-        <div className="flex min-w-0 flex-col gap-4">
-          <Field
-            label="Mã mẫu"
-            errors={errors['code']}
-            hint={
-              template
-                ? 'Mã không sửa được: lô đã gửi còn gọi tên nó.'
-                : 'Chữ thường, số và dấu nối. Ví dụ: mas-tiep-can-4.'
-            }
-          >
-            <Input
-              value={code}
-              /* Locked once the row exists, the same way a mailbox is locked on
-               the user panel: changing it would orphan every run naming it. */
-              disabled={Boolean(template)}
-              invalid={Boolean(errors['code']?.length)}
-              placeholder="mas-tiep-can-4"
-              className="font-mono"
-              onChange={(event) => {
-                setCode(event.target.value)
-                clearError('code')
-              }}
-            />
-          </Field>
-
-          <Field label="Tên mẫu" errors={errors['name']} hint="Tên hiện trong ô chọn mẫu.">
-            <Input
-              value={name}
-              maxLength={200}
-              invalid={Boolean(errors['name']?.length)}
-              placeholder="Ví dụ: Tiếp cận lần 4 — nhắc hội thảo"
-              onChange={(event) => {
-                setName(event.target.value)
-                clearError('name')
-                /* Suggest the code from the name, but only while CREATING and
-                 only while the person has not typed their own: hand-writing a
-                 slug is a habit of people who work with code, and this screen
-                 is built for the people who write the copy. */
-                if (!template && code === slugify(name)) setCode(slugify(event.target.value))
-              }}
-            />
-          </Field>
-
-          <Field
-            label={`Tiêu đề email · ${subject.length}/200`}
-            errors={errors['subject']}
-            hint="Phần lớn hộp thư cắt quanh 70 ký tự."
-          >
-            <Input
-              value={subject}
-              maxLength={200}
-              invalid={Boolean(errors['subject']?.length)}
-              placeholder="Tiêu đề người nhận đọc thấy trong hộp thư"
-              onChange={(event) => {
-                setSubject(event.target.value)
-                clearError('subject')
-              }}
-            />
-          </Field>
-
-          <Field
-            label="Nội dung"
-            errors={errors['body']}
-            hint="**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để điền tên từng người."
-            /* The guide opens as a second drawer over this one. The button rides
-             on this field's label rather than sitting in the panel header
-             because this is the only field the guide is about, and a person
-             looks for help where they are stuck — not at the top of a form they
-             have already scrolled past. Escape closes only the guide: `Drawer`
-             keeps a stack for exactly this case, so a half-written template
-             survives the keypress. */
-            action={
-              <Button size="sm" variant="ghost" type="button" onClick={() => setGuideOpen(true)}>
-                <Icon icon={Info} size={14} />
-                Cách viết nội dung
-              </Button>
-            }
-          >
-            <Textarea
-              autoGrow
-              rows={10}
-              value={body}
-              invalid={Boolean(errors['body']?.length)}
-              placeholder="Thân thư. Một dòng trống là một đoạn."
-              onChange={(event) => {
-                setBody(event.target.value)
-                clearError('body')
-              }}
-            />
-          </Field>
-
-          <Field
-            label="Nút trong email (không bắt buộc)"
-            errors={errors['cta.label'] ?? errors['cta.url'] ?? errors['cta']}
-            hint="Để trống cả hai ô nếu mẫu không cần nút. Link dán trong thân thư không bấm được."
-          >
-            <div className="grid gap-2 sm:grid-cols-[minmax(150px,.55fr)_minmax(0,1fr)]">
+        {/* 3:1 — the letter is the thing being written, the preview is a
+           check on it, not a peer of equal weight. */}
+        <div className="grid min-w-0 gap-4 md:grid-cols-[3fr_1fr] md:items-start">
+          <div className="flex min-w-0 flex-col gap-4">
+            <Field label="Tên mẫu" errors={errors['name']} hint="Tên hiện trong ô chọn mẫu.">
               <Input
-                value={ctaLabel}
-                maxLength={80}
-                aria-label="Tên nút trong email"
-                invalid={Boolean(errors['cta.label']?.length)}
-                placeholder="Tên nút"
+                value={name}
+                maxLength={200}
+                invalid={Boolean(errors['name']?.length)}
+                placeholder="Ví dụ: Tiếp cận lần 4 — nhắc hội thảo"
                 onChange={(event) => {
-                  setCtaLabel(event.target.value)
-                  clearError('cta.label')
+                  setName(event.target.value)
+                  clearError('name')
                 }}
-              />
-              <Input
-                value={ctaUrl}
-                aria-label="Địa chỉ nút trong email"
-                invalid={Boolean(errors['cta.url']?.length)}
-                placeholder="https://…"
-                onChange={(event) => {
-                  setCtaUrl(event.target.value)
-                  clearError('cta.url')
-                }}
-              />
-            </div>
-          </Field>
-
-          {/* The letter's SECOND button, so its own field rather than a third
-            box in the row above. One input only — the wording is a constant
-            (`BOOKING_LABEL` in `@pv/mail-templates`), so every letter the
-            company sends names that button the same way. */}
-          <Field
-            label="Link đặt lịch (không bắt buộc)"
-            errors={errors['bookingUrl']}
-            hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
-          >
-            <Input
-              value={bookingUrl}
-              aria-label="Link đặt lịch trong email"
-              invalid={Boolean(errors['bookingUrl']?.length)}
-              placeholder="https://calendly.com/…"
-              onChange={(event) => {
-                setBookingUrl(event.target.value)
-                clearError('bookingUrl')
-              }}
-            />
-          </Field>
-
-          {/* Only while EDITING: a template just created is in use, and a control
-            with one correct answer is a control not worth asking. Retiring
-            stands in for deleting — a batch already sent still names this
-            template. */}
-          {template && (
-            <Field
-              label="Trạng thái"
-              hint="Ngừng dùng thì mẫu biến khỏi ô chọn, nhưng lô cũ vẫn đọc được tên nó."
-              control="plain"
-            >
-              <SegmentedControl
-                label="Trạng thái"
-                hideLabel
-                value={active ? 'active' : 'off'}
-                onChange={(value) => setActive(value === 'active')}
-                options={[
-                  { value: 'active', label: 'Đang dùng' },
-                  { value: 'off', label: 'Ngừng dùng' },
-                ]}
               />
             </Field>
-          )}
-        </div>
-      </Drawer>
 
-      {/* A sibling, not a child: both drawers portal to `document.body` anyway,
+            <Field
+              label={`Tiêu đề email · ${subject.length}/200`}
+              errors={errors['subject']}
+              hint="Phần lớn hộp thư cắt quanh 70 ký tự."
+            >
+              <Input
+                value={subject}
+                maxLength={200}
+                invalid={Boolean(errors['subject']?.length)}
+                placeholder="Tiêu đề người nhận đọc thấy trong hộp thư"
+                onChange={(event) => {
+                  setSubject(event.target.value)
+                  clearError('subject')
+                }}
+              />
+            </Field>
+
+            <Field
+              label="Nội dung"
+              errors={errors['body']}
+              hint="**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để điền tên từng người."
+              /* The guide opens as a second drawer over this one. The button rides
+               on this field's label rather than sitting in the panel header
+               because this is the only field the guide is about, and a person
+               looks for help where they are stuck — not at the top of a form they
+               have already scrolled past. Escape closes only the guide: `Modal`
+               keeps a stack for exactly this case, so a half-written template
+               survives the keypress. */
+              action={
+                <Button size="sm" variant="ghost" type="button" onClick={() => setGuideOpen(true)}>
+                  <Icon icon={Info} size={14} />
+                  Cách viết nội dung
+                </Button>
+              }
+            >
+              <Textarea
+                autoGrow
+                rows={20}
+                value={body}
+                invalid={Boolean(errors['body']?.length)}
+                placeholder="Thân thư. Một dòng trống là một đoạn."
+                onChange={(event) => {
+                  setBody(event.target.value)
+                  clearError('body')
+                }}
+              />
+            </Field>
+
+            <Field
+              label="Nút trong email (không bắt buộc)"
+              errors={errors['cta.label'] ?? errors['cta.url'] ?? errors['cta']}
+              hint="Để trống cả hai ô nếu mẫu không cần nút. Link dán trong thân thư không bấm được."
+            >
+              <div className="grid gap-2 sm:grid-cols-[minmax(150px,.55fr)_minmax(0,1fr)]">
+                <Input
+                  value={ctaLabel}
+                  maxLength={80}
+                  aria-label="Tên nút trong email"
+                  invalid={Boolean(errors['cta.label']?.length)}
+                  placeholder="Tên nút"
+                  onChange={(event) => {
+                    setCtaLabel(event.target.value)
+                    clearError('cta.label')
+                  }}
+                />
+                <Input
+                  value={ctaUrl}
+                  aria-label="Địa chỉ nút trong email"
+                  invalid={Boolean(errors['cta.url']?.length)}
+                  placeholder="https://…"
+                  onChange={(event) => {
+                    setCtaUrl(event.target.value)
+                    clearError('cta.url')
+                  }}
+                />
+              </div>
+            </Field>
+
+            {/* The letter's SECOND button, so its own field rather than a third
+              box in the row above. One input only — the wording is a constant
+              (`BOOKING_LABEL` in `@pv/mail-templates`), so every letter the
+              company sends names that button the same way. */}
+            <Field
+              label="Link đặt lịch (không bắt buộc)"
+              errors={errors['bookingUrl']}
+              hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
+            >
+              <Input
+                value={bookingUrl}
+                aria-label="Link đặt lịch trong email"
+                invalid={Boolean(errors['bookingUrl']?.length)}
+                placeholder="https://calendly.com/…"
+                onChange={(event) => {
+                  setBookingUrl(event.target.value)
+                  clearError('bookingUrl')
+                }}
+              />
+            </Field>
+
+            {/* Only while EDITING: a template just created is in use, and a control
+              with one correct answer is a control not worth asking. Retiring
+              stands in for deleting — a batch already sent still names this
+              template. */}
+            {template && (
+              <Field
+                label="Trạng thái"
+                hint="Ngừng dùng thì mẫu biến khỏi ô chọn, nhưng lô cũ vẫn đọc được tên nó."
+                control="plain"
+              >
+                <SegmentedControl
+                  label="Trạng thái"
+                  hideLabel
+                  value={active ? 'active' : 'off'}
+                  onChange={(value) => setActive(value === 'active')}
+                  options={[
+                    { value: 'active', label: 'Đang dùng' },
+                    { value: 'off', label: 'Ngừng dùng' },
+                  ]}
+                />
+              </Field>
+            )}
+          </div>
+
+          <MailPreviewCard
+            letter={preview.letter}
+            pending={preview.pending}
+            error={preview.error}
+            caption="Chưa gắn người nhận nên tên và công ty đang là dữ liệu mẫu. Bố cục thì đúng như thư gửi đi."
+          />
+        </div>
+      </Modal>
+
+      {/* A sibling, not a child: both overlays portal to `document.body` anyway,
           and reading them side by side says what is true — two panels, the
           second stacked on the first. */}
-      <MailSyntaxGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+      <MailGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
     </>
   )
 }
@@ -399,21 +399,4 @@ function Field({
       )}
     </div>
   )
-}
-
-/** An accented name into an unaccented code — `MailTemplateCode` accepts only
- *  lowercase letters, digits and hyphens. `NFD` splits each diacritic off its
- *  base letter so the combining range can be dropped. The d-with-stroke letter
- *  is a letter in its own right rather than an accented `d`, so it survives that
- *  pass untouched and needs a replacement of its own. */
-function slugify(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'd')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
 }

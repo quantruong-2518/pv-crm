@@ -644,24 +644,18 @@ export class MasService {
     return MailTemplateListResponse.parse({ rows: await this.repo.templates() })
   }
 
-  /** A NEW TEMPLATE. The duplicate check is asked here rather than left to the
-   *  primary key for the reason `campaignExists` gives: the constraint would
-   *  refuse the insert anyway, but as a 500 where the honest answer names the
-   *  code the person typed and points at the field they typed it into.
-   *
-   *  It is a race the check does not close — two creates of the same code can
-   *  both read "free" — and it does not need to: the PK still refuses the
-   *  second one, so the outcome is one row either way. This only decides which
-   *  of the two failures a person reads. */
+  /** A NEW TEMPLATE. `code` is derived from `name` (22/09) rather than typed —
+   *  nobody reads it but `mail_run.template_code`, so asking a person to pick a
+   *  slug was a field to get wrong for no reader. The loop below covers the
+   *  ordinary case, two templates sharing a name: it is not the race guard
+   *  `campaignExists` warns about, because there is no field left to point a
+   *  refusal at — a true race (two creates landing the same millisecond) falls
+   *  through to the generic `23505` mapping in `db-error.ts` instead. */
   async createTemplate(input: MailTemplateCreate): Promise<MailTemplateCreateResponse> {
-    if (await this.repo.templateByCode(input.code)) {
-      throw conflict(`Mã mẫu ${input.code} đã có rồi — chọn mã khác.`, {
-        code: ['Mã này đã được dùng cho một mẫu khác.'],
-      })
-    }
+    const code = await this.uniqueTemplateCode(input.name)
 
     await this.repo.createTemplate({
-      code: input.code,
+      code,
       name: input.name,
       subject: input.subject,
       body: input.body,
@@ -670,7 +664,18 @@ export class MasService {
       bookingUrl: input.bookingUrl ?? null,
     })
 
-    return MailTemplateCreateResponse.parse(await this.repo.templateByCode(input.code))
+    return MailTemplateCreateResponse.parse(await this.repo.templateByCode(code))
+  }
+
+  /** Slugify `name`, then append `-2`, `-3`… only if that slug is taken — the
+   *  common case (one template, one name) never sees a suffix. */
+  private async uniqueTemplateCode(name: string): Promise<string> {
+    const base = slugify(name) || 'mau-thu'
+    let code = base
+    for (let n = 2; await this.repo.templateByCode(code); n += 1) {
+      code = `${base}-${n}`
+    }
+    return code
   }
 
   /** EDIT, RETIRE, OR BOTH — and nothing here touches a letter already sent.
@@ -977,6 +982,22 @@ function sameSequenceWave(
  *  first occurrence is the one kept. */
 function dedupe(codes: readonly string[]): string[] {
   return [...new Set(codes)]
+}
+
+/** A template's `name` into the slug that becomes its permanent `code`. `NFD`
+ *  splits each diacritic off its base letter so the combining range can be
+ *  dropped; the crossed-D letter survives that pass untouched (it is a letter
+ *  of its own, not an accented `d`) and needs a replacement of its own. */
+function slugify(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
 }
 
 /** One ledger row → one `MailRunRecipientRow`.

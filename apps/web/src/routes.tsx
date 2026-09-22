@@ -181,12 +181,17 @@ export const SCREENS: ScreenDef[] = [
   },
   {
     /** The MAIL-TEMPLATE book — `sales.mail_template`, the copy library that
-     *  marketing edits itself. Read with the view permission, write with the
-     *  edit one; the second gate lives in `data/mas.ts` and on the buttons, not
-     *  here — reading this screen is useful to a view-only role too, because it
+     *  marketing edits itself. Lives under Module 6 (22/09), not Module 1: a
+     *  template has no instance ID the way a campaign, a source, or a mail run
+     *  does — it is shared configuration every campaign draws from, not the
+     *  record of one send. Permission stays `campaign.*` though, because the
+     *  table and its own edit door belong to that resource, not to
+     *  `config_entry`. Read with the view permission, write with the edit one;
+     *  the second gate lives in `data/mas.ts` and on the buttons, not here —
+     *  reading this screen is useful to a view-only role too, because it
      *  answers what our letters currently say. */
-    path: '/sales/campaigns/mail-templates',
-    name: 'Kinh doanh · Module 1 · Sổ mẫu thư',
+    path: '/sales/config/mail-templates',
+    name: 'Kinh doanh · Module 6 · Sổ mẫu thư',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/mail-templates'),
@@ -436,6 +441,10 @@ const LEGACY_PATHS: Record<string, string> = {
   '/sales/campaigns/nguon-dan/:code': '/sales/campaigns/sources/:code',
   '/sales/campaigns/lo-gui': '/sales/campaigns/mail-runs',
   '/sales/campaigns/mau-thu': '/sales/campaigns/mail-templates',
+  /* 22/09 — the book moved from Module 1 to Module 6; this hop chains onto the
+     one above through a real navigation, so an old `mau-thu` bookmark still
+     lands on the current path in two hops. */
+  '/sales/campaigns/mail-templates': '/sales/config/mail-templates',
   '/sales/campaigns/moi': '/sales/campaigns',
   /* A static segment outranks `:code`, so this is what stops an old bookmark on
      `/new` from asking the server for a campaign whose code is "new". */

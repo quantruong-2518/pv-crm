@@ -8,10 +8,12 @@ import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { masTemplatesQuery } from '@/data/mas'
 import { BookPage } from '@/components/book-page'
-import { Module1Books } from '@/components/module1-books'
+import { ConfigBooks } from '@/components/config-books'
 import { MailTemplateDrawer } from './mail-templates-parts'
 
-/** Module 1 · the mail-template book — `sales.mail_template`.
+/** Module 6 · the mail-template book — `sales.mail_template`. Moved here
+ *  (22/09) from Module 1: this table has no instance ID the way a campaign or
+ *  a mail run does — it is shared configuration, not the record of one send.
  *
  *  ------------------------------------------------------------------
  *  WHY THIS SCREEN EXISTS
@@ -98,7 +100,7 @@ export function MailTemplatesPage() {
               </Button>
             ) : undefined
           }
-          nav={<Module1Books />}
+          nav={<ConfigBooks />}
           /* `tnum` because both numbers change whenever a template is added or
              retired, and uneven digit widths make the line jump sideways. */
           count={<span className="text-muted-foreground tnum text-[11.5px]">{summary}</span>}

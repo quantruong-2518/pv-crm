@@ -21,6 +21,7 @@ import { MOTION_BY_INTAKE } from '@pv/engines'
 import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone } from '@/app/toast'
+import { ConfigBooks } from '@/components/config-books'
 import { MotionSection } from './sales-config-parts'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
 import { ROLE_LABEL } from '@/data/users'
@@ -188,6 +189,8 @@ export function SalesConfigPage() {
             </>
           }
         />
+
+        <ConfigBooks />
 
         <GlassCard className="flex items-start gap-3 p-5 lg:p-6">
           <Icon icon={ShieldCheck} size={20} className="text-accent-foreground mt-1" />
@@ -552,9 +555,9 @@ export function SalesConfigPage() {
                 />
               </GlassCard>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Nền tảng đăng bài ra ngoài chưa có đường trong E4. Đợt vẫn khai báo được và mẫu nội
-                dung vẫn soạn được ở module 1, nhưng gửi thật thì chưa — giấu chúng đi thì người
-                dùng tưởng đợt đã chạy.
+                Nền tảng đăng bài ra ngoài chưa có đường trong E4. Đợt vẫn khai báo được ở module 1
+                và mẫu nội dung vẫn soạn được ở sổ Mẫu thư ngay trên, nhưng gửi thật thì chưa — giấu
+                chúng đi thì người dùng tưởng đợt đã chạy.
               </p>
               {/* This table's two number columns went on 31/08 — full reasoning
                   at `channels` in `data/sales-config.ts`: no column in the

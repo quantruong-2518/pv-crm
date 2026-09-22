@@ -102,22 +102,3 @@ export function useMasMailDraft(
 }
 
 export type MasMailDraft = ReturnType<typeof useMasMailDraft>
-
-/** A template code from the name somebody typed.
- *
- *  `MailTemplateCode` accepts lowercase ASCII, digits and dashes only, and the
- *  name is Vietnamese — so diacritics come off, the crossed D folds to a plain
- *  one, and everything else collapses to a dash. An empty result means the name
- *  held nothing usable, and the caller says so rather than posting a code the
- *  server will refuse. */
-export function templateCodeFrom(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\u0110\u0111]/g, 'd')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
-    .replace(/-+$/g, '')
-}
