@@ -83,7 +83,16 @@ export function dmhm(iso: string): string {
  *  error. This is the ONE place in the web app allowed to call `Date.now()`: it
  *  returns a default for a person to edit, not a moment to display. */
 export function localSlot(minutesFromNow = 10): string {
-  const date = new Date(Date.now() + minutesFromNow * 60_000)
+  return slotOf(new Date(Date.now() + minutesFromNow * 60_000))
+}
+
+/** The same value, for a moment that already exists — editing a batch already
+ *  held for 9am has to put that hour back into the control it came out of. */
+export function localInput(iso: string): string {
+  return slotOf(new Date(iso))
+}
+
+function slotOf(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0')
   return (
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +

@@ -37,6 +37,27 @@ export type MailRunCreate = {
   createdBy: string
 }
 
+/** What may still be changed on a batch that has not gone out.
+ *
+ *  Every field is optional and the two absences are NOT the same thing: a
+ *  field left out leaves its column alone, an explicit `null` clears it. Only
+ *  the three nullable columns can be asked to mean the second one.
+ *
+ *  `cta` is one pair rather than two fields, for the reason `MailRunCreate`
+ *  gives: `mail_run_cta_pair` accepts both halves or neither, so `null` has to
+ *  clear both at once and no shape here may ask for half a button.
+ *
+ *  `scheduledAt: null` reads as "go at the next relay pass", not as
+ *  "unchanged" — see `update()` for what that does to the queued letters. */
+export type MailRunUpdate = {
+  label?: string
+  subject?: string
+  body?: string
+  cta?: { label: string; url: string } | null
+  bookingUrl?: string | null
+  scheduledAt?: Date | null
+}
+
 /** THE COUNTERS ARE COUNTED, NEVER STORED — and this is where the counting
  *  rule is written down once.
  *
@@ -89,6 +110,41 @@ const CANCELLABLE_STATES = [
   'SCHEDULED',
   'SENDING',
 ] as const satisfies readonly MailRunState[]
+
+/** Run states whose copy a person may still rewrite — one, and the two it
+ *  leaves out are left out for different reasons.
+ *
+ *  `SENDING` can be stopped but not edited: `MasMailComposer` renders each letter
+ *  from these columns at send time, so rewriting them mid-flight posts two
+ *  different letters under one batch and the half already gone cannot be
+ *  recalled to match.
+ *
+ *  `DRAFT` is absent because nothing ever writes it — `MasService.send` files a
+ *  new run `SCHEDULED` or `SENDING` and no other door sets the column. Listing
+ *  it would make this the only code that believes the state is reachable, and
+ *  would open a hole rather than a feature: `sweepStates` only promotes
+ *  `SCHEDULED → SENDING`, so a `DRAFT` given an hour here would wait for ever. */
+const EDITABLE_STATES = ['SCHEDULED'] as const satisfies readonly MailRunState[]
+
+/** "Still rewritable" as ONE expression, spliced into both statements that ask.
+ *
+ *  The read door reports it as `MailRunDetail.editable` so a form refuses to
+ *  open; `update()` enforces it in its own `WHERE` so nothing races past. Two
+ *  hand-copies of the same predicate is the worst bug available here — a form
+ *  that opens and then refuses to save, or the reverse — so there is one copy
+ *  and both callers splice it.
+ *
+ *  Takes the run's id and state as SQL because the two statements name them
+ *  differently: correlated to the row being updated in one, bound to a
+ *  parameter in the other. */
+export function stillEditable(runId: SQL, state: SQL): SQL {
+  return sql`${state} IN (${params(EDITABLE_STATES)})
+    AND NOT EXISTS (
+          SELECT 1 FROM "platform"."email_delivery" d
+           WHERE d."mail_run_id" = ${runId}
+             AND d."state" <> 'pending'
+        )`
+}
 
 /** A value list for `IN (…)`, as BIND PARAMETERS.
  *
@@ -367,6 +423,72 @@ export class MailRunRepository {
 
     const row = r.rows[0]
     return row && row.runs > 0 ? { held: row.held } : null
+  }
+
+  /** EDIT A BATCH THAT HAS NOT LEFT YET — the other half of `cancel()`: a run
+   *  already posted is final, a run merely prepared is not.
+   *
+   *  `MasMailComposer` renders each letter AT SEND TIME from these very columns, so
+   *  rewriting them is the whole edit — no `email_delivery` row holds a copy of
+   *  the text that could fall out of step.
+   *
+   *  "Has not left yet" is a predicate in the WHERE clause, for the reason
+   *  `cancel()` writes out at length: deciding it in Node leaves a window in
+   *  which the relay posts a letter between the read and the write. One
+   *  delivery out of `pending` means a worker reached this batch — the same
+   *  test `sweepStates()` makes — and it closes the door.
+   *
+   *  `started_at`/`finished_at` stay untouched: they are the sweeper's
+   *  conclusions, not an intention. `null` when no row moved — see `cancel()`. */
+  async update(
+    handle: Db,
+    id: string,
+    input: MailRunUpdate,
+  ): Promise<{ rescheduled: number } | null> {
+    /* Built field by field because an absent field must not reach the SET
+       list at all: `COALESCE(new, old)` would read an explicit `null` as
+       "unchanged" and make the three nullable columns impossible to clear. */
+    const sets: SQL[] = []
+    if (input.label !== undefined) sets.push(sql`"label" = ${input.label}`)
+    if (input.subject !== undefined) sets.push(sql`"subject" = ${input.subject}`)
+    if (input.body !== undefined) sets.push(sql`"body" = ${input.body}`)
+    if (input.cta !== undefined) {
+      sets.push(sql`"cta_label" = ${input.cta?.label ?? null}`)
+      sets.push(sql`"cta_url" = ${input.cta?.url ?? null}`)
+    }
+    if (input.bookingUrl !== undefined) sets.push(sql`"booking_url" = ${input.bookingUrl}`)
+
+    const reschedules = input.scheduledAt !== undefined
+    const at = input.scheduledAt ?? null
+    if (reschedules) sets.push(sql`"scheduled_at" = ${at}::timestamptz`)
+    sets.push(sql`"updated_at" = now()`)
+
+    /* Moving the hour must move each delivery's `next_attempt_at` too — that is
+       where the wait actually lives — and a NULL there reads as due now in
+       `MailRepository.pendingBatch`, which is what "drop the schedule" relies on. */
+    const r = (await handle.execute(sql`
+      WITH edited AS (
+        UPDATE "platform"."mail_run" r
+           SET ${sql.join(sets, sql`, `)}
+         WHERE r."id" = ${id}::uuid
+           AND ${stillEditable(sql`r."id"`, sql`r."state"`)}
+        RETURNING r."id"
+      ),
+      requeued AS (
+        UPDATE "platform"."email_delivery" d
+           SET "next_attempt_at" = ${at}::timestamptz,
+               "updated_at" = now()
+         WHERE ${reschedules}::boolean
+           AND d."state" = 'pending'
+           AND d."mail_run_id" IN (SELECT "id" FROM edited)
+        RETURNING d."id"
+      )
+      SELECT (SELECT count(*) FROM edited)::int   AS runs,
+             (SELECT count(*) FROM requeued)::int AS rescheduled
+    `)) as { rows: { runs: number; rescheduled: number }[] }
+
+    const row = r.rows[0]
+    return row && row.runs > 0 ? { rescheduled: row.rescheduled } : null
   }
 
   /** Move runs to the state their own letters have already reached.

@@ -31,16 +31,21 @@ import { MasService } from './mas.service'
  *  | `POST  /sales/mail/preview`  | `lead.send-email` · scoped       |
  *  | `POST  /sales/mail/runs`     | `lead.send-email` · scoped (†)   |
  *  | `GET   /sales/mail/runs`     | `campaign.view` · scoped      |
+ *  | `GET   /sales/mail/runs/:id` | `campaign.view` · scoped      |
  *  | `GET   /sales/mail/runs/:id/recipients` | `campaign.view` · scoped |
  *  | `PATCH /sales/mail/runs/:id` | `campaign.broadcast` · scoped (‡)  |
  *  | `GET   /sales/mail/templates`| `campaign.view`               |
  *
- *  (‡) HUỶ ĐÒI QUYỀN CAO HƠN GỬI, và đó không phải sơ suất. Một lô Quick MAS đi
- *  hết trong vài chục giây, nên thứ người ta thật sự huỷ được là một lô ĐÃ HẸN
- *  GIỜ hoặc một đợt của chiến dịch — cả hai đều là việc của người bắn chiến
- *  dịch, không phải của người gửi cho lead mình giữ. Trục phạm vi vẫn bật:
- *  `MasService.cancel` so `mail_run.created_by`, nên một người `ownOnly` dừng
- *  được lô của chính mình chứ không dừng được lô của người khác.
+ *  (‡) MỘT CỬA, HAI VIỆC: dừng một lô, hoặc sửa một lô chưa bắn. Cả hai đòi
+ *  quyền cao hơn gửi, và đó không phải sơ suất. Một lô Quick MAS đi hết trong
+ *  vài chục giây, nên thứ còn dừng hay sửa được là một lô ĐÃ HẸN GIỜ hoặc một
+ *  đợt của chiến dịch — việc của người bắn chiến dịch, không phải của người gửi
+ *  cho lead mình giữ. Sửa một lô chưa bắn là đổi thứ sắp bay tới N người nhận:
+ *  quyền PHÁT ĐI, không phải quyền soạn thảo. Hai nhánh dùng CHUNG một quyền vì
+ *  thứ quyết định nhánh nào chạy là thân yêu cầu do client gửi lên — tách quyền
+ *  theo nhánh bên trong một handler là tự mở lỗ quyền. Trục phạm vi vẫn bật:
+ *  `MasService` so `mail_run.created_by`, nên một người `ownOnly` dừng và sửa
+ *  được lô của chính mình chứ không đụng được lô của người khác.
  *
  *  (†) Một `@Need` chỉ khai được MỘT quyền tĩnh, mà cửa gửi đòi quyền nào lại
  *  phụ thuộc `campaignCode` trong THÂN yêu cầu — thứ decorator chạy trước khi
@@ -120,21 +125,35 @@ export class MasController {
     return this.mas.recipients(who, id)
   }
 
-  /** Dừng một lô. Khai SAU `@Get('runs')` để hai đường của cùng một tài nguyên
-   *  nằm cạnh nhau, đọc trước rồi ghi.
+  /** ONE run with its letter — the read the edit modal opens on.
+   *
+   *  The READ permission again, and scoped again: this is one row of the run
+   *  list plus the three fields that list has no reason to carry (`body`,
+   *  `cta`, `bookingUrl`). Reading a batch is not editing it, so the door that
+   *  fills the form asks for less than the door that submits it. */
+  @Get('runs/:id')
+  @Need({ branch: 'Sales', permission: 'campaign.view', scoped: true })
+  detail(@CurrentActor() who: Actor, @Param('id', zod(MailRunId)) id: MailRunId) {
+    return this.mas.detail(who, id)
+  }
+
+  /** Dừng một lô, hoặc sửa một lô chưa bắn. Khai SAU `@Get('runs')` để hai
+   *  đường của cùng một tài nguyên nằm cạnh nhau, đọc trước rồi ghi.
    *
    *  `MailRunId` gác ở `ZodPipe`: một `:id` không phải UUID chết bằng 400 gọi
    *  tên ô, không đi tới câu `WHERE id = $1::uuid` để chết bằng 500 của driver.
-   *  Có lô đó không, có phải của người này không, còn dừng được không — ba câu
-   *  cần dữ liệu, nên là việc của service. */
+   *  Thân yêu cầu chọn nhánh — `{ state: 'CANCELLED' }` là dừng, còn lại là sửa
+   *  — và `MailRunPatch` gác đúng chỗ đó. Có lô đó không, có phải của người này
+   *  không, còn dừng hay sửa được không — ba câu cần dữ liệu, nên việc của
+   *  service. */
   @Patch('runs/:id')
   @Need({ branch: 'Sales', permission: 'campaign.broadcast', scoped: true })
-  cancel(
+  patchRun(
     @CurrentActor() who: Actor,
     @Param('id', zod(MailRunId)) id: MailRunId,
     @Body(zod(MailRunPatch)) body: MailRunPatch,
   ) {
-    return this.mas.cancel(who, id, body)
+    return this.mas.patchRun(who, id, body)
   }
 
   /** Danh mục mẫu. Không `scoped`: mẫu là tài sản chung của phòng, không đứng

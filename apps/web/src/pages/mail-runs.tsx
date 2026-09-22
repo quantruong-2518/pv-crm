@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CircleX, Mail, MailOpen, Send, CircleAlert } from '@pv/ui'
+import { CircleX, Mail, MailOpen, Pencil, Send, CircleAlert } from '@pv/ui'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -22,6 +22,7 @@ import { toast } from '@/app/toast'
 import {
   CANCELLABLE,
   DEFAULT_MAIL_RUN_QUERY,
+  EDITABLE,
   MAIL_RUN_STATE_LABEL,
   MAIL_RUN_STATE_TONE,
   mailRunListQuery,
@@ -32,6 +33,7 @@ import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { RunWhen } from '@/components/run-when'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { MailRunEditModal } from '@/components/mail-run-edit-modal'
 
 /** Module 1 · Sổ lô gửi — `GET /sales/mail/runs`.
  *
@@ -58,17 +60,23 @@ import { FilterMenu, TableFooter } from '@/components/table-bits'
  *  khoản; thấy nó muộn một ngày là muộn hẳn.
  *
  *  ------------------------------------------------------------------
- *  NÚT DỪNG CÓ Ở ĐÂY, VÀ CHỈ Ở ĐÂY
+ *  DỪNG VÀ SỬA MỘT LÔ CHỈ CÓ Ở ĐÂY
  *  ------------------------------------------------------------------
  *  `/stop` của chiến dịch huỷ mọi đợt cùng lúc. Một lô đơn lẻ — Quick MAS, hay
- *  một đợt hẹn sai giờ trong một chiến dịch còn phải chạy tiếp — chỉ dừng được
- *  từ đây. Nút xám trên `SENT`/`CANCELLED` chứ không để người dùng phát hiện
- *  bằng một thông báo lỗi: máy chủ từ chối hai trạng thái đó (`MailRunPatch`),
- *  nên màn nói trước. */
+ *  một đợt hẹn sai giờ trong một chiến dịch còn phải chạy tiếp — chỉ dừng hoặc
+ *  sửa được từ đây. Cùng một cửa `PATCH /sales/mail/runs/:id`, hai nhánh:
+ *  `MailRunCancel` dừng, `MailRunEdit` viết lại lô chưa bắn.
+ *
+ *  Hai nút xám theo `CANCELLABLE` và `EDITABLE` chứ không để người dùng phát
+ *  hiện bằng một thông báo lỗi: máy chủ từ chối những trạng thái đó, nên màn
+ *  nói trước. Nhưng nút sáng KHÔNG phải lời hứa — cột trạng thái có thể vẫn
+ *  đọc "Hẹn giờ" trong lúc sweeper đã đẩy lá thư đầu tiên rời máy, và lúc đó
+ *  câu từ chối của máy chủ là thứ duy nhất đúng. Nên mọi lần bị từ chối đều
+ *  hiện nguyên văn câu đó, không nuốt. */
 
 const PAGE_SIZE = 10
 
-const TABLE_MIN_WIDTH = 'min-w-[1080px]'
+const TABLE_MIN_WIDTH = 'min-w-[1180px]'
 
 const STATES: MailRunState[] = ['DRAFT', 'SCHEDULED', 'SENDING', 'SENT', 'CANCELLED']
 
@@ -142,6 +150,10 @@ export function MailRunsPage() {
   const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
   const goPage = (index: number) =>
     setParams(mailRunQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
+
+  /* Which batch the edit panel is holding. The panel stays mounted on `null`
+     so it can animate out with the batch still drawn in it. */
+  const [editing, setEditing] = useState<string | null>(null)
 
   const [text, setText] = useState(urlQuery.q ?? '')
   const dirty = text.trim() !== '' || query.state !== undefined || query.campaign !== undefined
@@ -270,7 +282,7 @@ export function MailRunsPage() {
               { header: 'Tới nơi', width: '0.8fr', align: 'right' },
               { header: 'Mở', width: '0.7fr', align: 'right' },
               { header: 'Bounce', width: '0.8fr', align: 'right' },
-              { header: '', width: '0.8fr' },
+              { header: '', width: '1.4fr' },
             ],
             rows: rows.map((r) => ({
               id: r.id,
@@ -308,16 +320,28 @@ export function MailRunsPage() {
                 >
                   {r.bounced.toLocaleString('vi-VN')}
                 </span>,
-                <Button
-                  key="x"
-                  size="sm"
-                  variant="ghost"
-                  disabled={!CANCELLABLE.includes(r.state) || cancel.isPending}
-                  onClick={() => stop(r)}
-                >
-                  <Icon icon={CircleX} size={14} />
-                  Dừng
-                </Button>,
+                <div key="x" className="flex min-w-0 items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="pointer-coarse:h-12"
+                    disabled={!EDITABLE.includes(r.state)}
+                    onClick={() => setEditing(r.id)}
+                  >
+                    <Icon icon={Pencil} size={14} />
+                    Sửa
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="pointer-coarse:h-12"
+                    disabled={!CANCELLABLE.includes(r.state) || cancel.isPending}
+                    onClick={() => stop(r)}
+                  >
+                    <Icon icon={CircleX} size={14} />
+                    Dừng
+                  </Button>
+                </div>,
               ],
             })),
           }}
@@ -325,6 +349,8 @@ export function MailRunsPage() {
             <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
           }
         />
+
+        <MailRunEditModal runId={editing} onClose={() => setEditing(null)} />
       </ScreenLayout>
     </AppShell>
   )

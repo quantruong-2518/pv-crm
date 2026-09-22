@@ -26,6 +26,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { audit } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
+import { stillEditable } from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
@@ -464,6 +465,23 @@ export class MasRepository {
     return row?.next ?? 1
   }
 
+  /** RENAME THE WAVE with the run it names. One statement, called only when
+   *  an edit carries a new `label`.
+   *
+   *  `phase` is written once at `send()` as a copy of `mail_run.label`, and
+   *  both the run book and the edit modal print `phase ?? label`. So a rename
+   *  that stopped at `mail_run` would be invisible on every screen that shows
+   *  it — and worse, `sameSequenceWave()` compares BOTH against the posted
+   *  label, so the two drifting apart turns a repeated POST of that wave from
+   *  idempotent into a permanent 409.
+   *
+   *  Takes `tx`: the two rows move together or neither does, which is the very
+   *  state this exists to prevent. A run outside any chain matches no row and
+   *  updates nothing — that is an ordinary outcome, not a miss. */
+  async renameWavePhase(tx: Db, mailRunId: string, phase: string): Promise<void> {
+    await tx.update(mailSequenceRun).set({ phase }).where(eq(mailSequenceRun.mailRunId, mailRunId))
+  }
+
   /** The join row — sales → platform, the allowed direction. */
   async linkSequenceWave(
     tx: Db,
@@ -501,6 +519,21 @@ export class MasRepository {
     })
   }
 
+  /** WHO REWROTE THIS BATCH — the twin of `writeCancelNote` above; its whole
+   *  argument about writing inside `tx` applies here unchanged.
+   *
+   *  A line of its own rather than a parameter on that one, because `mail_run`
+   *  keeps no history of its own columns: this row is the only trace that the
+   *  letter a recipient received is not the letter the run was opened with. */
+  async writeEditNote(tx: Db, entry: { actorId: string; runId: string }): Promise<void> {
+    await tx.insert(audit).values({
+      actorId: entry.actorId,
+      action: 'edit',
+      code: entry.runId,
+      note: 'sửa lô gửi MAS trước khi bắn',
+    })
+  }
+
   /** Which batches belong to one campaign.
    *
    *  This is the half `MailRunRepository.list()` refuses to do for itself: the
@@ -524,6 +557,30 @@ export class MasRepository {
       )
 
     return rows.map((r) => r.id)
+  }
+
+  /** CAN THIS BATCH STILL BE REWRITTEN — asked of the ledger, not of `state`.
+   *
+   *  The predicate itself is NOT written here: `stillEditable` is spliced in
+   *  from the platform repository, the same expression `update()` enforces in
+   *  its own `WHERE`. Two hand-copies would be the worst bug on this feature —
+   *  a form that opens and then refuses to save, or the reverse.
+   *
+   *  What this door adds is only WHEN it is asked: at read time, so the edit
+   *  modal can refuse to open. It is never a gate. A letter may leave between
+   *  this answer and the save, and `update()` is what actually refuses.
+   *
+   *  One run, by id — deliberately not folded into `MailRunRepository.list()`,
+   *  where one `NOT EXISTS` per row is a cost the whole run book would pay to
+   *  serve one button on one screen. */
+  async runEditable(id: string): Promise<boolean> {
+    const r = (await this.db.execute(sql`
+      SELECT ${stillEditable(sql`r."id"`, sql`r."state"`)} AS editable
+        FROM "platform"."mail_run" r
+       WHERE r."id" = ${id}::uuid
+    `)) as { rows: { editable: boolean }[] }
+
+    return r.rows[0]?.editable === true
   }
 
   /** Sales context for a page of platform runs. One bounded query restores the

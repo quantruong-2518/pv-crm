@@ -1,5 +1,7 @@
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  MailRunDetail,
+  MailRunEdit,
   MailRunListQuery,
   MailRunListResponse,
   MailRunPatchResponse,
@@ -23,13 +25,13 @@ import { LEAD_MAIL_KEY } from '@/data/mas'
  *  lẻ chứ không nghĩa là thiếu dữ liệu.
  *
  *  ------------------------------------------------------------------
- *  ĐỌC BẰNG `campaign.view`, HUỶ BẰNG `campaign.broadcast`
+ *  ĐỌC BẰNG `campaign.view`, GHI BẰNG `campaign.broadcast`
  *  ------------------------------------------------------------------
- *  Chép đúng `@Need` của `MasController`. Hai mức vì huỷ một lô là một quyết
- *  định về mail thật: nó giết những lá thư còn nằm trong hàng đợi. Ai xem được
- *  số liệu chưa chắc được phép dừng một đợt đang bay. */
+ *  Chép đúng `@Need` của `MasController`. Hai mức vì viết vào một lô là một
+ *  quyết định về mail thật: dừng thì giết những lá thư còn nằm trong hàng đợi,
+ *  sửa thì đổi chữ sắp rời máy. Ai xem được số liệu chưa chắc được phép. */
 const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view', scoped: true }
-const CANCEL_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.broadcast', scoped: true }
+const PATCH_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.broadcast', scoped: true }
 
 export const MAIL_RUN_KEY = ['sales', 'mail-runs'] as const
 
@@ -86,6 +88,16 @@ export const MAIL_RUN_STATE_TONE: Record<
  *  đừng để người dùng phát hiện bằng một thông báo lỗi. */
 export const CANCELLABLE: readonly MailRunState[] = ['DRAFT', 'SCHEDULED', 'SENDING']
 
+/** The one state whose letter can still be rewritten.
+ *
+ *  `DRAFT` is deliberately absent and is not an oversight: nothing is ever
+ *  written to `mail_run` in that state, so it cannot appear on this book.
+ *  `SENDING`/`SENT`/`CANCELLED` are refused by the server — and even
+ *  `SCHEDULED` is only a maybe, because the sweeper may have moved letters out
+ *  of `pending` between the read and the press. The screen greys what it knows
+ *  and reports the server's refusal for what it cannot. */
+export const EDITABLE: readonly MailRunState[] = ['SCHEDULED']
+
 /** Một trang sổ lô.
  *
  *  `refetchInterval` chỉ chạy khi có lô ĐANG gửi trên trang này. Một trang
@@ -128,6 +140,27 @@ export const mailRunRecipientsQuery = (runId: string) =>
     refetchInterval: (q) =>
       q.state.data?.rows.some((r) => PENDING_MAIL[r.deliveryState]) ? 5_000 : false,
   })
+
+/** ONE BATCH, WITH THE LETTER IN IT — `GET /sales/mail/runs/:id`.
+ *
+ *  A sub-key of `MAIL_RUN_KEY` like the recipient list, so saving an edit
+ *  sweeps this too. Read on demand and never by the book: `body` is the reason
+ *  this door exists, and a list page carrying twenty kilobytes of letter per
+ *  row would pay for it on every load for the one reader who opens the editor.
+ *
+ *  `enabled` on the panel being OPEN, not on the id being known: the run book
+ *  holds an id for every row it draws. */
+export function useMailRunDetail(runId: string | null) {
+  return useQuery({
+    queryKey: [...MAIL_RUN_KEY, 'detail', runId] as const,
+    queryFn: ({ signal }) =>
+      api.read<MailRunDetail>(`/sales/mail/runs/${encodeURIComponent(runId ?? '')}`, {
+        need: READ_NEED,
+        signal,
+      }),
+    enabled: runId !== null,
+  })
+}
 
 /** THREE LOOKUP TABLES OVER ONE LETTER'S STATE — and why they live in the data
  *  layer rather than beside the screen that draws them.
@@ -177,7 +210,35 @@ export function useMailRunCancel() {
       api.write<MailRunPatchResponse>(`/sales/mail/runs/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: { state: 'CANCELLED' },
-        need: CANCEL_NEED,
+        need: PATCH_NEED,
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: MAIL_RUN_KEY })
+      void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
+    },
+  })
+}
+
+/** Rewrite a batch that has not fired — the other branch of the same
+ *  `PATCH /sales/mail/runs/:id`.
+ *
+ *  `edit` IS THE BODY, UNTOUCHED: `MailRunEdit` is `.strict()` and separates
+ *  absent (leave it alone) from `null` (take it away), so this hook must not
+ *  fill in, default or drop a single key. Whoever builds the patch owns that
+ *  distinction; a helper "cleaning" the object here would erase it.
+ *
+ *  Sweeps the same two keys as the cancel door above: the run list shows the
+ *  subject and the schedule this call just changed, and every recipient's lead
+ *  timeline shows the letter still waiting to go. */
+export function useMailRunEdit() {
+  const client = useQueryClient()
+
+  return useMutation<MailRunPatchResponse, ApiError, { id: string; edit: MailRunEdit }>({
+    mutationFn: ({ id, edit }) =>
+      api.write<MailRunPatchResponse>(`/sales/mail/runs/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: edit,
+        need: PATCH_NEED,
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: MAIL_RUN_KEY })

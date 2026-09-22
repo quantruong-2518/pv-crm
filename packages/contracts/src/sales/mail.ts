@@ -739,8 +739,12 @@ export const MasPreviewResponse = z.object({
 export const MailRunRow = z.object({
   id: MailRunId,
   label: z.string().min(1),
-  /** Sales-side chain context. `phase` is snapshotted separately from `label`
-   * so a run remains explicit even if one of the two concepts later changes. */
+  /** Sales-side chain context. `phase` has its own column so the two concepts
+   *  CAN diverge, but nothing makes them: it is written from `label` when the
+   *  run is filed and rewritten with it on a rename, in the same transaction —
+   *  a rename that reached one row only was invisible on screen and broke
+   *  `sameSequenceWave`'s idempotency. A real phase of its own needs a field on
+   *  `MailRunEdit` first. */
   waveNo: z.number().int().positive().optional(),
   phase: z.string().min(1).optional(),
   sequenceId: MailSequenceId.optional(),
@@ -869,8 +873,44 @@ export const MailRunListQuery = PageQuery.extend({
 
 export const MailRunListResponse = paged(MailRunRow)
 
+/** ONE run, letter and all — `GET /sales/mail/runs/:id`. `campaign.view`
+ *  scoped, the same door and the same argument as `/recipients`.
+ *
+ *  The fields below are the whole difference from `MailRunRow`, and none of
+ *  them is folded into the row on purpose: the run book answers hundreds of
+ *  rows a page and no screen draws a letter body in a list, so carrying it
+ *  there is carrying twenty kilobytes nobody reads, on every load of the book.
+ *  They are wanted in exactly one place — the edit modal, which has to put the
+ *  letter back into the form it came out of, and before this door existed had
+ *  no way to read `body` at all.
+ *
+ *  `.extend` rather than a detail schema written out beside the row: two
+ *  objects describing one run are two places for the next field to grow in
+ *  only one of. */
+export const MailRunDetail = MailRunRow.extend({
+  body: mailBody,
+  cta: MailCta.optional(),
+  bookingUrl: MailBookingUrl.optional(),
+
+  /** Whether this batch can still be rewritten — the half of that condition no
+   *  screen can work out for itself.
+   *
+   *  Editable means `SCHEDULED` AND no delivery has left `pending`. A screen
+   *  reads the first half off `state`; the second is a question about
+   *  `platform.email_delivery`, and the sweeper runs after the fact, so `state`
+   *  can still say `SCHEDULED` while the first letter is already gone. Without
+   *  it a salesperson retypes a whole letter and only then takes a 409 on save,
+   *  over something the server knew before the form opened.
+   *
+   *  True AT READ TIME, not a promise — the real gate stays the `WHERE`
+   *  predicate of `MailRunRepository.update()` (ADR 0065, decision 4). Off
+   *  `MailRunRow` because it costs a `NOT EXISTS` per row and the book renders
+   *  hundreds of them; the book goes on guessing from `state`. */
+  editable: z.boolean(),
+})
+
 // ---------------------------------------------------------------------------
-// Stopping a batch — `PATCH /sales/mail/runs/:id`
+// Stopping or rewriting a batch — `PATCH /sales/mail/runs/:id`
 // ---------------------------------------------------------------------------
 
 /** THE ONLY DOOR A PERSON HAS INTO `MailRunState`, AND IT LEADS ONE WAY.
@@ -897,9 +937,55 @@ export const MailRunListResponse = paged(MailRunRow)
  *  `MailRunState` and reads as one on both ends, and the day a second reachable
  *  state exists it is one more value here instead of a second flag beside the
  *  first. */
-export const MailRunPatch = z.object({
-  state: z.enum(['CANCELLED']),
-})
+export const MailRunCancel = z
+  .object({
+    state: z.enum(['CANCELLED']),
+  })
+  /* BOTH branches are strict, and this half is the one that matters most: the
+     union tries cancel first, so `{ state: 'CANCELLED', subject: '…' }` would
+     otherwise have its `subject` quietly dropped and CANCEL the batch that the
+     sender believed they were rewriting. An ambiguous body must die at the
+     gate, never fall through to the destructive reading. */
+  .strict()
+
+/** The other thing that door does: FIX a batch no letter has left yet.
+ *
+ *  Not a state at all — the docblock above still holds and nothing here asserts
+ *  a `MailRunState`. Before it, a run held at `SCHEDULED` with the wrong
+ *  subject could only be cancelled and composed again from nothing.
+ *
+ *  Absent means "leave it", `null` means "take it away" — the three states
+ *  `MailTemplatePatch` draws, extended to `scheduledAt`, where `null` is "drop
+ *  the hold, go out on the next sweep".
+ *
+ *  `.strict()` IS LOAD-BEARING: with every field optional this matches `{}` and
+ *  matches `{ state: 'CANCELLED' }` too, so a cancel could fall into the edit
+ *  branch and change nothing. Strict makes `state` an unknown key here, which
+ *  is what makes the two branches exclusive. */
+export const MailRunEdit = z
+  .object({
+    label: textInput(MAIL_NAME_MAX).optional(),
+    subject: textInput(MAIL_SUBJECT_MAX).optional(),
+    body: mailBody.optional(),
+    cta: MailCta.nullable().optional(),
+    bookingUrl: MailBookingUrl.nullable().optional(),
+    scheduledAt: Moment.nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (v) =>
+      v.label !== undefined ||
+      v.subject !== undefined ||
+      v.body !== undefined ||
+      v.cta !== undefined ||
+      v.bookingUrl !== undefined ||
+      v.scheduledAt !== undefined,
+    { message: 'Cần sửa ít nhất một trường' },
+  )
+
+/** Cancel first: it is the narrower shape, and the one the union must not let
+ *  the edit branch swallow. */
+export const MailRunPatch = z.union([MailRunCancel, MailRunEdit])
 
 /** What the cancel answers with — and `held` is the reason it is not a 204.
  *
@@ -918,6 +1004,16 @@ export const MailRunPatchResponse = z.object({
   state: MailRunState,
   /** Letters that were still owed and will now never be attempted. */
   held: z.number().int().nonnegative(),
+  /** Letters still `pending` whose `next_attempt_at` MOVED to the new time —
+   *  the edit branch's counterpart to `held`.
+   *
+   *  Without it a rescheduled run can only report that it saved, leaving the
+   *  one doubt that matters unanswered: whether the queue moved with
+   *  `scheduled_at` or only the column did, and the batch goes out at the old
+   *  hour anyway (ADR 0065, decision 6). Optional rather than `0`, for the
+   *  `held` is always present and this is not: a cancel moves no letter, and a
+   *  zero there answers a question nobody asked. */
+  rescheduled: z.number().int().nonnegative().optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -1194,7 +1290,10 @@ export type MasPreviewResponse = z.infer<typeof MasPreviewResponse>
 export type MailRunRow = z.infer<typeof MailRunRow>
 export type MailRunListQuery = z.infer<typeof MailRunListQuery>
 export type MailRunListResponse = z.infer<typeof MailRunListResponse>
+export type MailRunDetail = z.infer<typeof MailRunDetail>
 export type MailRunSortKey = z.infer<typeof MailRunSortKey>
+export type MailRunCancel = z.infer<typeof MailRunCancel>
+export type MailRunEdit = z.infer<typeof MailRunEdit>
 export type MailRunPatch = z.infer<typeof MailRunPatch>
 export type MailRunRecipientRow = z.infer<typeof MailRunRecipientRow>
 export type MailRunRecipientsResponse = z.infer<typeof MailRunRecipientsResponse>

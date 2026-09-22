@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
+  MailRunDetail,
   MailRunListResponse,
   MailRunPatchResponse,
   MailRunRecipientsResponse,
@@ -12,8 +13,11 @@ import {
   MasPreviewResponse,
   MasSendResponse,
   type MailMergeKey,
+  type MailRunCancel,
+  type MailRunEdit,
   type MailRunListQuery,
   type MailRunPatch,
+  type MailRunRow,
   type MailRunState,
   type MailTemplateCreate,
   type MailTemplatePatch,
@@ -29,7 +33,7 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
-import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
+import { MailRunRepository, type MailRunUpdate } from '@api/platform/mail/mail-run.repository'
 import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
 import {
   MasRepository,
@@ -546,6 +550,18 @@ export class MasService {
     })
   }
 
+  /** THE ONE DOOR INTO A RUN — `PATCH /sales/mail/runs/:id`, two verbs.
+   *
+   *  The body chooses: `{ state: 'CANCELLED' }` stops a batch, anything else
+   *  rewrites one that has not left yet. `.strict()` on `MailRunEdit` is what
+   *  keeps the two shapes exclusive, so `'state' in patch` is the whole
+   *  dispatch. Both branches hold the SAME permission deliberately — the `(‡)`
+   *  note in `mas.controller.ts` says why, and why splitting it per branch
+   *  would be a hole rather than a refinement. */
+  patchRun(who: Actor, id: string, patch: MailRunPatch): Promise<MailRunPatchResponse> {
+    return 'state' in patch ? this.cancel(who, id, patch) : this.edit(who, id, patch)
+  }
+
   /** STOP A BATCH. The one state transition a person may ask for.
    *
    *  ------------------------------------------------------------------
@@ -571,7 +587,7 @@ export class MasService {
    *  — and the state on the way back is the receipt. `SENT` is the one refusal:
    *  the letters are gone, and answering "đã huỷ" to that would be the single
    *  most misleading sentence this endpoint could produce. */
-  async cancel(who: Actor, id: string, patch: MailRunPatch): Promise<MailRunPatchResponse> {
+  async cancel(who: Actor, id: string, patch: MailRunCancel): Promise<MailRunPatchResponse> {
     const run = await this.runs.byId(id)
     if (!run) throw notFound('lô gửi', id)
 
@@ -613,6 +629,68 @@ export class MasService {
     return MailRunPatchResponse.parse({ id, state: patch.state, held: stopped.held })
   }
 
+  /** REWRITE A BATCH NO LETTER HAS LEFT YET. Same door as `cancel`, same two
+   *  refusals in the same order, and for the reasons written out there: 404
+   *  sends somebody to check the id, 403 sends them to whoever pressed send.
+   *
+   *  WHETHER it may still be rewritten is not asked here — it is the WHERE
+   *  clause of `MailRunRepository.update`, because a batch can start going out
+   *  between a read and a write. This reads the verdict off the row count.
+   *
+   *  The state does not move and `held` is `0`: an edit withholds no letter,
+   *  it changes the one that is about to go. */
+  private async edit(who: Actor, id: string, patch: MailRunEdit): Promise<MailRunPatchResponse> {
+    const run = await this.runs.byId(id)
+    if (!run) throw notFound('lô gửi', id)
+
+    if (who.ownOnly && run.createdBy !== who.id) {
+      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+    }
+
+    /* One unit of work for the same reason the cancel above is one: a batch
+       rewritten with no record of who rewrote it is the half somebody asks
+       about later, and `mail_run` keeps no history of its own columns. */
+    const edited = await this.repo.run(async (tx) => {
+      const result = await this.runs.update(tx, id, toRunUpdate(patch))
+      if (!result) return result
+      /* The wave carries a COPY of the label (`phase`), and both the book and
+         this modal print `phase ?? label`. Renaming one row only would leave
+         the rename invisible and break `sameSequenceWave`'s idempotency. */
+      if (patch.label !== undefined) await this.repo.renameWavePhase(tx, id, patch.label)
+      await this.repo.writeEditNote(tx, { actorId: who.id, runId: id })
+      return result
+    })
+
+    /* `update()` cannot say WHY nothing moved, and one of its reasons — a
+       delivery already off `pending` — was invisible to the read above. So the
+       refusal is written from a fresh read, never from the stale row. */
+    if (!edited) {
+      const now = await this.runs.byId(id)
+      if (!now) throw notFound('lô gửi', id)
+      if (now.state === 'SENT') {
+        throw conflict(
+          'Lô này đã gửi xong — thư đã rời máy chủ, sửa ở đây không đổi được thứ người nhận đã đọc.',
+        )
+      }
+      if (now.state === 'CANCELLED') {
+        throw conflict('Lô này đã huỷ — soạn một lô mới thay vì sửa lô đã dừng.')
+      }
+      throw conflict(
+        'Lô này đã bắt đầu gửi — chỉ còn dừng được phần chưa gửi, sửa thì không kịp nữa.',
+      )
+    }
+
+    /* `rescheduled` rides on THIS branch only. A cancel moves no clock, and a
+       `0` there would answer a question nobody asked — the optional field in
+       `MailRunPatchResponse` says so, and no parse can catch a wrong `0`. */
+    return MailRunPatchResponse.parse({
+      id,
+      state: run.state,
+      held: 0,
+      rescheduled: edited.rescheduled,
+    })
+  }
+
   /** WHO this run went to and what became of each letter.
    *
    *  ------------------------------------------------------------------
@@ -638,6 +716,44 @@ export class MasService {
 
     const rows = await this.repo.recipients(id)
     return MailRunRecipientsResponse.parse({ rows: rows.map(toRunRecipient) })
+  }
+
+  /** ONE run, letter included — what the edit modal opens onto.
+   *
+   *  The same three questions `recipients()` asks and the same two refusals:
+   *  404 to check the id, 403 to find who holds it. Argued at `cancel`.
+   *
+   *  The eleven counters come from `MailRunRepository.list()` asked for a page
+   *  of exactly this id, NOT from a second aggregate here. Which delivery
+   *  states count as `sent`, why `suppressed` is not `failed` — that is a
+   *  rule, and a branch-side copy of it prints a different number from the run
+   *  book the first time the ladder moves. `byId` adds the three letter
+   *  columns the list has no reason to carry.
+   *
+   *  No audit line, deliberately, though both write branches of this resource
+   *  keep one: `campaign.view` already reads the subject, and a MAS body is
+   *  copy this company wrote itself, not somebody's personal data. */
+  async detail(who: Actor, id: string): Promise<MailRunDetail> {
+    const run = await this.runs.byId(id)
+    if (!run) throw notFound('lô gửi', id)
+
+    if (who.ownOnly && run.createdBy !== who.id) {
+      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+    }
+
+    const [page, contexts, editable] = await Promise.all([
+      this.runs.list(ONE_RUN, [id]),
+      this.repo.sequenceContexts([id]),
+      this.repo.runEditable(id),
+    ])
+
+    /* The row cannot be missing — `byId` just found it — but the page is typed
+       as a list and reading `[0]` off an empty one would hand `parse` an
+       undefined. Same 404 rather than a 500 for a race nobody can observe. */
+    const row = page.rows[0]
+    if (!row) throw notFound('lô gửi', id)
+
+    return toRunDetail({ ...row, ...contexts.get(id) }, run, editable)
   }
 
   async templates(): Promise<MailTemplateListResponse> {
@@ -998,6 +1114,63 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64)
+}
+
+/** The page `detail()` asks the run list for. `onlyIds` is the whole filter,
+ *  so `page`/`size`/`sort` exist only to satisfy the query type — the price of
+ *  reusing the list's counters rather than copying them, paid on purpose. */
+const ONE_RUN: MailRunListQuery = { page: 1, size: 1, sort: 'createdAt', dir: 'desc' }
+
+/** The `mail_run` columns as the platform repository hands them over. Derived
+ *  rather than written out again, so a renamed column fails here. */
+type MailRunColumns = NonNullable<Awaited<ReturnType<MailRunRepository['byId']>>>
+
+/** One run row plus its letter columns → `MailRunDetail`.
+ *
+ *  The CTA is one object or nothing at all, never `{ label: null, url: null }`:
+ *  `mail_run_cta_pair` keeps the two columns both set or both NULL, and the
+ *  contract carries a pair for the same reason — half a button is not a state
+ *  either end may express. Same `...(x ? {} : {})` shape `toRunRecipient` uses
+ *  for its optional fields, and for the same reason: an explicit `undefined`
+ *  is a key the wire still carries. */
+function toRunDetail(
+  row: MailRunRow,
+  letter: Pick<MailRunColumns, 'body' | 'ctaLabel' | 'ctaUrl' | 'bookingUrl'>,
+  editable: boolean,
+): MailRunDetail {
+  return MailRunDetail.parse({
+    ...row,
+    body: letter.body,
+    editable,
+    ...(letter.ctaLabel && letter.ctaUrl
+      ? { cta: { label: letter.ctaLabel, url: letter.ctaUrl } }
+      : {}),
+    ...(letter.bookingUrl ? { bookingUrl: letter.bookingUrl } : {}),
+  })
+}
+
+/** `MailRunEdit` (wire) → `MailRunUpdate` (columns). The whole job is keeping
+ *  ABSENT apart from `null`: absent leaves a column alone, `null` clears it.
+ *
+ *  Key by key rather than one spread, because an object literal carrying
+ *  `scheduledAt: undefined` still HAS that key, and `update()` reads a present
+ *  key as "change this column" — a spread would clear three columns nobody
+ *  asked about. `??` and a single ternary lose the same distinction the other
+ *  way round.
+ *
+ *  `scheduledAt` is the one field whose type changes: `Moment` is an ISO
+ *  string on the wire and `mail_run.scheduled_at` is `timestamptz`. */
+function toRunUpdate(patch: MailRunEdit): MailRunUpdate {
+  const update: MailRunUpdate = {}
+  if (patch.label !== undefined) update.label = patch.label
+  if (patch.subject !== undefined) update.subject = patch.subject
+  if (patch.body !== undefined) update.body = patch.body
+  if (patch.cta !== undefined) update.cta = patch.cta
+  if (patch.bookingUrl !== undefined) update.bookingUrl = patch.bookingUrl
+  if (patch.scheduledAt !== undefined) {
+    update.scheduledAt = patch.scheduledAt === null ? null : new Date(patch.scheduledAt)
+  }
+  return update
 }
 
 /** One ledger row → one `MailRunRecipientRow`.
