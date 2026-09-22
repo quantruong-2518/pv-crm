@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, House, Package, SquareCheckBig, Users } from '@pv/ui'
+import { Bell, House, Info, Package, SquareCheckBig, Users } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -8,6 +8,7 @@ import {
   Button,
   Drawer,
   GlassCard,
+  Icon,
   Modal,
   ScreenHeader,
   ScreenLayout,
@@ -219,7 +220,7 @@ export function ZoneTemplates() {
           className="col-span-3"
           code="T-07"
           name="Modal"
-          note="phiếu giữa · lg 920 / xl 1120"
+          note="phiếu giữa · lg 920 / xl 1120 · headerAction"
           bodyClassName="flex flex-wrap items-center gap-4 px-4 py-5"
           footer="Dùng khi một tác vụ có nhiều phần cần nhìn và kiểm cùng lúc. Đầu và chân đứng yên, thân tự cuộn; mobile chiếm toàn màn."
         >
@@ -232,6 +233,11 @@ export function ZoneTemplates() {
             onClose={() => setModalOpen(false)}
             title="Kiểm tra trước khi gửi"
             subtitle="Nội dung, thời điểm và người nhận nằm trong cùng một phiếu."
+            headerAction={
+              <Button size="sm" variant="ghost" aria-label="Hướng dẫn">
+                <Icon icon={Info} size={16} />
+              </Button>
+            }
           >
             <GlassCard variant="b" className="p-5">
               <p className="text-glass-foreground text-[12px] leading-[1.6]">

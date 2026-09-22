@@ -17,6 +17,12 @@ export type ModalProps = {
   title: ReactNode
   subtitle?: ReactNode
   meta?: ReactNode
+  /** A control that belongs to the panel as a whole rather than to any field
+   *  inside it — the mail composer's help button is the case this exists for.
+   *  It sits beside the close button so it stays reachable while the body
+   *  scrolls, which is the whole reason it is a header slot and not a node the
+   *  caller puts at the top of `children`. */
+  headerAction?: ReactNode
   footer?: ReactNode
   width?: 'lg' | 'xl'
   closeLabel?: string
@@ -30,6 +36,7 @@ export function Modal({
   title,
   subtitle,
   meta,
+  headerAction,
   footer,
   width = 'lg',
   closeLabel = 'Đóng',
@@ -42,13 +49,13 @@ export function Modal({
   const [leaving, setLeaving] = useState(false)
 
   /** Escape closes the TOP overlay only — see `overlay-stack.ts`. A Drawer
-   *  opened from inside this panel (the mail syntax guide does exactly that)
+   *  opened from inside this panel (the mail guide drawer does exactly that)
    *  must take the keypress and leave the half-written form standing. */
   const isTop = useOverlayLayer(mounted && !leaving)
 
-  const shown = useRef({ title, subtitle, meta, footer, children })
-  if (open) shown.current = { title, subtitle, meta, footer, children }
-  const view = leaving ? shown.current : { title, subtitle, meta, footer, children }
+  const shown = useRef({ title, subtitle, meta, headerAction, footer, children })
+  if (open) shown.current = { title, subtitle, meta, headerAction, footer, children }
+  const view = leaving ? shown.current : { title, subtitle, meta, headerAction, footer, children }
 
   useEffect(() => {
     if (open) {
@@ -135,6 +142,7 @@ export function Modal({
             )}
           </div>
           {view.meta}
+          {view.headerAction}
           <button
             type="button"
             onClick={onClose}

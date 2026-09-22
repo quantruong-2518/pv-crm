@@ -6,33 +6,23 @@ import {
   Icon,
   Info,
   Input,
-  MetaPill,
-  Plus,
-  SectionTitle,
   SegmentedControl,
   Select,
+  SectionTitle,
   Textarea,
-  Timeline,
-  Trash2,
 } from '@pv/ui'
 import { CAMPAIGN_START_MAX_WAVES } from '@pv/contracts'
 import type { MailTemplateRow } from '@pv/contracts'
 import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
-import { MailSyntaxGuide } from '@/components/mail-syntax-guide'
+import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { mailHints } from '@/data/mail-hints'
 import { useMailPreview } from '@/data/mas'
-import { dmhm, localSlot } from '@/lib/date'
-import {
-  commitDraft,
-  composerDraftValid,
-  dropCommitted,
-  effectiveWaves,
-  emptyComposerState,
-  type ComposerState,
-} from './wave-draft'
+import { localSlot } from '@/lib/date'
+import { WaveStrip, WaveTimeline } from './wave-chain'
+import { commitDraft, composerDraftValid, type ComposerState } from './wave-draft'
 
-/** THE MAIL SEQUENCE — one wave composed on the left, the whole chain on the
- *  right.
+/** THE MAIL SEQUENCE — one wave composed on the left, the whole chain beside
+ *  it.
  *
  *  Knows nothing about WHO receives the letters: it produces waves
  *  (`CampaignWaveInput`, i.e. a `MasSendRequest` with no `audience`), and the
@@ -47,6 +37,7 @@ export function WaveComposer({
   showAdd = true,
   alreadyFired = 0,
   previewLeadCode,
+  frame = 'own',
 }: {
   state: ComposerState
   setState: Dispatch<SetStateAction<ComposerState>>
@@ -61,7 +52,13 @@ export function WaveComposer({
    *  counts up FROM. A local draft knows nothing of the server, so numbering off
    *  `committed.length` alone opened every composer at wave one. */
   alreadyFired?: number
+  /** How much of the panel this caller wants: `'own'` the campaign wave drawer
+   *  (everything) · `'host'` the MAS modal (preview and `?` already stand in
+   *  its shell) · `'letter'` the run editor (one batch, schedule is a step). */
+  frame?: 'own' | 'host' | 'letter'
 }) {
+  const own = frame === 'own'
+  const letterOnly = frame === 'letter'
   const [previewOpen, setPreviewOpen] = useState(false)
   /* Has the person CLOSED the preview themselves? Auto-opening is a suggestion,
      and a suggestion that comes back after being refused is a nag. */
@@ -88,7 +85,7 @@ export function WaveComposer({
       ...(previewBooking ? { bookingUrl: previewBooking } : {}),
       ...(previewLeadCode ? { leadCode: previewLeadCode } : {}),
     },
-    previewOpen,
+    own && previewOpen,
   )
   const hints = mailHints({
     subject: state.subject,
@@ -119,23 +116,45 @@ export function WaveComposer({
      valid draft is wave 20 and must not open a blank wave 21. */
   const canAdd = draftValid && state.committed.length + 1 < CAMPAIGN_START_MAX_WAVES
   const nextIndex = alreadyFired + state.committed.length + 1
-  const totalCount = effectiveWaves(state).length
 
-  const addEvent = () => {
-    if (canAdd) setState(commitDraft)
+  const chain = {
+    state,
+    setState,
+    alreadyFired,
+    nextIndex,
+    showAdd,
+    canAdd,
+    draftValid,
+    onAdd: () => {
+      if (canAdd) setState(commitDraft)
+    },
+  }
+  const compose = (
+    <ComposeCard
+      state={state}
+      setState={setState}
+      templates={templates}
+      index={nextIndex}
+      previewOpen={previewOpen}
+      letterOnly={letterOnly}
+      {...(own ? { onTogglePreview: togglePreview, onOpenGuide: () => setGuideOpen(true) } : {})}
+    />
+  )
+
+  if (letterOnly) return compose
+
+  if (!own) {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        {compose}
+        <WaveStrip {...chain} />
+      </div>
+    )
   }
 
   return (
     <div className="grid gap-4 md:grid-cols-[7fr_5fr] md:items-start">
-      <ComposeCard
-        state={state}
-        setState={setState}
-        templates={templates}
-        index={nextIndex}
-        previewOpen={previewOpen}
-        onTogglePreview={togglePreview}
-        onOpenGuide={() => setGuideOpen(true)}
-      />
+      {compose}
 
       <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5 lg:p-6">
         {/* THE SAME TWO BLOCKS THE MAS COMPOSE PANEL SHOWS, and the same
@@ -151,89 +170,12 @@ export function WaveComposer({
           />
         )}
 
-        <div className="flex items-center justify-between gap-2">
-          {/* Two panels, two honest titles: without the add button there is no
-              chain and no ceiling, so printing `1/20` would invent both. */}
-          <SectionTitle>
-            {showAdd ? `Chuỗi đợt · ${totalCount}/${CAMPAIGN_START_MAX_WAVES}` : `Đợt ${nextIndex}`}
-          </SectionTitle>
-          {showAdd && (
-            <Button size="sm" variant="ghost" onClick={addEvent} disabled={!canAdd}>
-              <Icon icon={Plus} size={14} />
-              Thêm đợt
-            </Button>
-          )}
-        </div>
-
-        <Timeline
-          items={[
-            ...state.committed.map((w, i) => ({
-              id: w.localId,
-              state: 'next' as const,
-              marker: `Đợt ${alreadyFired + i + 1}`,
-              title: w.label,
-              meta: (
-                <MetaPill>
-                  {w.scheduledAt ? `Hẹn · ${dmhm(w.scheduledAt)}` : 'Gửi ngay khi bắt đầu chạy'}
-                </MetaPill>
-              ),
-              children: <span className="line-clamp-1">{w.subject}</span>,
-              actions: (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setState((s) => dropCommitted(s, w.localId))}
-                >
-                  <Icon icon={Trash2} size={14} />
-                  Xoá
-                </Button>
-              ),
-            })),
-            liveDraftItem(state, nextIndex, draftValid, () =>
-              setState((s) => ({ ...emptyComposerState(), committed: s.committed })),
-            ),
-          ]}
-        />
+        <WaveTimeline {...chain} />
       </GlassCard>
 
-      <MailSyntaxGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
+      <MailGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   )
-}
-
-/** The wave being typed, as the last row of the timeline — always present, so
- *  the chain shows where the next letter lands before it is finished. */
-function liveDraftItem(
-  state: ComposerState,
-  index: number,
-  draftValid: boolean,
-  onClear: () => void,
-) {
-  const touched =
-    state.label.trim() !== '' || state.subject.trim() !== '' || state.body.trim() !== ''
-
-  return {
-    id: 'live-draft',
-    state: 'current' as const,
-    marker: `Đợt ${index}`,
-    title: state.label.trim() || <span className="text-muted-foreground">(đang soạn…)</span>,
-    meta: (
-      <MetaPill>
-        {draftValid ? 'Đang soạn — sẽ gửi' : 'Chưa đủ để gửi — điền tiêu đề và nội dung'}
-      </MetaPill>
-    ),
-    children: state.subject.trim() ? (
-      <span className="line-clamp-1">{state.subject}</span>
-    ) : (
-      <span className="text-muted-foreground">Chưa có tiêu đề</span>
-    ),
-    actions: touched ? (
-      <Button size="sm" variant="ghost" onClick={onClear}>
-        <Icon icon={Trash2} size={14} />
-        Xoá
-      </Button>
-    ) : undefined,
-  }
 }
 
 function ComposeCard({
@@ -242,6 +184,7 @@ function ComposeCard({
   templates,
   index,
   previewOpen,
+  letterOnly,
   onTogglePreview,
   onOpenGuide,
 }: {
@@ -250,8 +193,14 @@ function ComposeCard({
   templates: MailTemplateRow[]
   index: number
   previewOpen: boolean
-  onTogglePreview: () => void
-  onOpenGuide: () => void
+  /** The run editor: one existing batch. No schedule here — it is that panel's
+   *  second step, and one value must not have two controls — and no wave
+   *  number, because the panel's own subtitle already names the batch. */
+  letterOnly: boolean
+  /** Both absent inside the MAS modal: the preview stands open in the shell's
+   *  own column and the `?` lives in its header. */
+  onTogglePreview?: () => void
+  onOpenGuide?: () => void
 }) {
   const pickTemplate = (value: string) => {
     const found = templates.find((t) => t.code === value)
@@ -268,21 +217,25 @@ function ComposeCard({
 
   return (
     <GlassCard className="flex flex-col gap-4 p-5 lg:p-6">
-      <SectionTitle>Soạn Đợt {index}</SectionTitle>
+      <SectionTitle>{letterOnly ? 'Nội dung thư' : `Soạn Đợt ${index}`}</SectionTitle>
 
-      <label className="flex flex-col gap-2">
-        <span className="text-muted-foreground text-[11px]">Mẫu thư (không bắt buộc)</span>
-        <Select
-          label="Mẫu thư"
-          hideLabel
-          value={state.templateCode}
-          onChange={pickTemplate}
-          options={[
-            { value: '', label: 'Tự soạn' },
-            ...templates.map((t) => ({ value: t.code, label: t.name })),
-          ]}
-        />
-      </label>
+      {/* No template picker in the run editor: swapping a whole letter into a
+          batch that is already addressed is not the job that panel is for. */}
+      {!letterOnly && (
+        <label className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-[11px]">Mẫu thư (không bắt buộc)</span>
+          <Select
+            label="Mẫu thư"
+            hideLabel
+            value={state.templateCode}
+            onChange={pickTemplate}
+            options={[
+              { value: '', label: 'Tự soạn' },
+              ...templates.map((t) => ({ value: t.code, label: t.name })),
+            ]}
+          />
+        </label>
+      )}
 
       <label className="flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">Phase / tên đợt</span>
@@ -311,23 +264,33 @@ function ComposeCard({
           click. */}
       <div className="flex items-center justify-between gap-3">
         <span className="text-muted-foreground text-[11px]">Nội dung</span>
-        <Button size="sm" variant="ghost" type="button" onClick={onOpenGuide}>
-          <Icon icon={Info} size={14} />
-          Cách viết nội dung
-        </Button>
+        {onOpenGuide && (
+          <Button
+            size="sm"
+            variant="ghost"
+            type="button"
+            className="pointer-coarse:h-12"
+            onClick={onOpenGuide}
+          >
+            <Icon icon={Info} size={14} />
+            Cách viết nội dung
+          </Button>
+        )}
       </div>
       <label className="flex flex-col gap-2">
         <Textarea
           value={state.body}
           onChange={(e) => setState((s) => ({ ...s, body: e.target.value }))}
           rows={6}
-          placeholder="Thân thư. **đậm**, _nghiêng_, đầu dòng `- ` thành danh sách. Dùng {{company}} và {{contactName}} để điền tên từng người nhận."
+          placeholder="Thân thư. **đậm**, _nghiêng_, đầu dòng `- ` thành danh sách. Dùng {{account}} và {{contact_name}} để điền tên từng người nhận."
         />
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Nút CTA · nhãn (không bắt buộc)</span>
+          <span className="text-muted-foreground text-[11px]">
+            Nút trong email · nhãn (không bắt buộc)
+          </span>
           <Input
             value={state.ctaLabel}
             onChange={(e) => setState((s) => ({ ...s, ctaLabel: e.target.value }))}
@@ -335,7 +298,7 @@ function ComposeCard({
           />
         </label>
         <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Nút CTA · URL</span>
+          <span className="text-muted-foreground text-[11px]">Nút trong email · URL</span>
           <Input
             value={state.ctaUrl}
             onChange={(e) => setState((s) => ({ ...s, ctaUrl: e.target.value }))}
@@ -356,31 +319,35 @@ function ComposeCard({
         />
       </label>
 
-      <SendWhen state={state} setState={setState} />
+      {!letterOnly && <SendWhen state={state} setState={setState} />}
 
       {/* The toggle stays here, next to the field being typed into — but the
           letter itself is DRAWN in the sibling column, so opening it never
           pushes the rest of this card down. */}
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-muted-foreground text-[11px]">Kiểm lại thư trước khi thêm đợt</span>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={state.subject.trim() === '' || state.body.trim() === ''}
-          aria-expanded={previewOpen}
-          onClick={onTogglePreview}
-        >
-          <Icon icon={Eye} size={14} />
-          {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
-        </Button>
-      </div>
+      {onTogglePreview && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground text-[11px]">Kiểm lại thư trước khi thêm đợt</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="pointer-coarse:h-12"
+            disabled={state.subject.trim() === '' || state.body.trim() === ''}
+            aria-expanded={previewOpen}
+            onClick={onTogglePreview}
+          >
+            <Icon icon={Eye} size={14} />
+            {previewOpen ? 'Đóng xem trước' : 'Xem trước'}
+          </Button>
+        </div>
+      )}
     </GlassCard>
   )
 }
 
 /** WHEN this wave leaves — the one question of the compose card that is about
- *  the send rather than the letter. */
-function SendWhen({
+ *  the send rather than the letter. Exported for the run editor, which asks it
+ *  on its own step and must ask it with the same control. */
+export function SendWhen({
   state,
   setState,
 }: {

@@ -1,4 +1,4 @@
-import { Info, Mail, Pencil, TriangleAlert } from '@pv/ui'
+import { Pencil, TriangleAlert, X } from '@pv/ui'
 import { Badge, Button, Checkbox, GlassCard, Icon, Input, SectionTitle, Select } from '@pv/ui'
 import type { CampaignBookRow, MasCcAddress, MasPreflightResponse } from '@pv/contracts'
 import { MAIL_NAME_MAX, MAS_CC_ADDRESSES, MAS_RECIPIENT_BLOCK_LABEL } from '@pv/contracts'
@@ -34,30 +34,17 @@ export function RecipientsStep({
       return next
     })
 
-  /* The token beside the label carries a NAME, and a lead's mailbox is not
-     always the address of the contact it names — so the one-recipient case
-     (every send opened from a lead profile) prints the address itself. */
-  const only = chosen.length === 1 ? chosen[0] : undefined
-
   return (
     <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle
-        size="md"
-        hint="Người liên hệ chính đã được chọn sẵn. Tìm thêm người nhận — gõ tên, công ty hoặc email để lọc."
-      >
-        Gửi tới ai?
-      </SectionTitle>
+      <SectionTitle size="md">Gửi tới ai?</SectionTitle>
 
-      <Field label="Người nhận" note={only?.email}>
+      {/* NO TOKENS: the list below holds the same people with their addresses,
+          and two rows of the same names is one too many. */}
+      <Field label="Thêm người nhận">
         <PersonTokenField
           label="Thêm người nhận"
           placeholder="Thêm người nhận…"
-          tokens={chosen.map((lead) => ({
-            id: lead.code,
-            name: lead.destinationLabel
-              ? `${lead.contactName} · ${lead.destinationLabel}`
-              : lead.contactName,
-          }))}
+          tokens={[]}
           suggestions={recipients
             .filter((lead) => !draft.selected.has(lead.code))
             .map((lead) => ({
@@ -74,27 +61,78 @@ export function RecipientsStep({
             }))}
           onPick={pick}
           onRemove={drop}
-          hint="Mỗi người nhận một email riêng, tên được điền tự động."
-          emptyNote="Không còn ai khác để thêm từ màn này."
         />
       </Field>
 
-      {/* NOT a picker: the sending mailbox is one server setting with no table
-          behind it and no endpoint listing it, so a select with a single option
-          would promise a choice this panel cannot make. */}
-      <Field
-        label="Gửi từ hộp thư"
-        hint="Hệ chưa bật đường ghi thư trả lời, nên trả lời của khách không tự hiện ở Lịch sử của hồ sơ."
-      >
-        <p className="text-glass-foreground bg-surface-ink/5 m-0 flex min-w-0 items-start gap-2 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
-          <Icon icon={Mail} size={16} className="mt-1 shrink-0" />
-          <span className="min-w-0">
-            Thư đi từ hộp thư gửi hàng loạt do cấu hình máy chủ đặt — phiếu này không đổi được địa
-            chỉ gửi.
-          </span>
-        </p>
-      </Field>
+      <ChosenList chosen={chosen} onRemove={drop} />
     </section>
+  )
+}
+
+/** WHO THE LETTER IS ABOUT TO GO TO, one row each.
+ *
+ *  The same shape `PreflightReport` draws at step 3, minus the verdict: nobody
+ *  has asked the server anything yet, and a badge here would answer a question
+ *  that has not been put. It replaced the token row, which could only carry a
+ *  NAME — the address, the thing a mass send is actually aimed at, was on
+ *  screen only when exactly one person was picked, which is the one case this
+ *  panel does not exist for. */
+function ChosenList({
+  chosen,
+  onRemove,
+}: {
+  chosen: readonly MasRecipient[]
+  onRemove: (code: string) => void
+}) {
+  return (
+    <GlassCard variant="b" className="min-w-0 overflow-hidden">
+      <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3">
+        <span className="text-[12.5px] font-semibold">Người nhận đã chọn</span>
+        <span className="tnum font-num text-[14px] font-semibold">{chosen.length}</span>
+      </div>
+      {chosen.length === 0 ? (
+        <p className="text-glass-foreground m-0 px-4 pb-4 text-[11.5px] leading-[1.5]">
+          Chưa chọn ai.
+        </p>
+      ) : (
+        <ul className="m-0 flex max-h-64 list-none flex-col gap-2 overflow-y-auto p-4">
+          {chosen.map((lead) => (
+            <li
+              key={lead.code}
+              className="bg-surface-ink/5 flex min-w-0 items-start justify-between gap-3 rounded-sm py-2 pl-3 pr-1"
+            >
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[12.5px] font-semibold">
+                  {lead.destinationLabel
+                    ? `${lead.contactName} · ${lead.destinationLabel}`
+                    : lead.contactName}
+                </span>
+                <span className="text-glass-foreground truncate text-[11px]">{lead.company}</span>
+                <span
+                  className={
+                    lead.email
+                      ? 'text-glass-foreground truncate font-mono text-[10.5px]'
+                      : 'text-warning truncate font-mono text-[10.5px]'
+                  }
+                >
+                  {lead.email || 'Chưa có email'}
+                </span>
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                type="button"
+                className="pointer-coarse:h-12"
+                onClick={() => onRemove(lead.code)}
+              >
+                <Icon icon={X} size={14} />
+                Bỏ
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </GlassCard>
   )
 }
 
@@ -113,11 +151,11 @@ export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; all
         checked={draft.saveAsTemplate && allowed}
         onChange={draft.setSaveAsTemplate}
         label="Lưu nội dung này thành mẫu"
-        hint={
-          allowed
-            ? 'Cả đội dùng lại được cho thư sau.'
-            : 'Cần quyền sửa mẫu email mới lưu được — thư vẫn gửi bình thường.'
-        }
+        /* The only hint left in the form: not guidance, but the reason a
+           control is locked, and it has to stand beside that control. */
+        {...(allowed
+          ? {}
+          : { hint: 'Cần quyền sửa mẫu email mới lưu được — thư vẫn gửi bình thường.' })}
       />
       {allowed && draft.saveAsTemplate && (
         <Field label="Tên mẫu *" hint="Tên này hiện trong ô 'Bắt đầu từ mẫu' của cả đội.">
@@ -161,18 +199,13 @@ export function DeliveryStep({
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle size="md" hint="Chọn thời điểm và chiến dịch, kiểm tra lại lần cuối rồi gửi.">
-        Gửi thế nào?
-      </SectionTitle>
+      <SectionTitle size="md">Gửi thế nào?</SectionTitle>
 
       {/* Only RUNNING campaigns: attaching a wave to a DRAFT one sends the mail
           while `campaign.state` stays DRAFT, so its start button still passes
           its own guard and blasts the whole audience a second time. */}
       {allowCampaign && (
-        <Field
-          label="Chiến dịch (không bắt buộc)"
-          hint="Để trống thì các đợt vẫn thuộc chuỗi gửi riêng. Chiến dịch còn nháp thì bắt đầu từ hồ sơ chiến dịch."
-        >
+        <Field label="Chiến dịch (không bắt buộc)" hint="Chỉ chiến dịch đang chạy mới hiện ở đây.">
           <Select
             label="Chiến dịch"
             hideLabel
@@ -191,10 +224,7 @@ export function DeliveryStep({
       )}
 
       {draft.campaignCode === NO_CAMPAIGN && (
-        <Field
-          label="Tên chuỗi gửi *"
-          hint="Dùng để gom các đợt này thành một chuỗi dù không thuộc chiến dịch."
-        >
+        <Field label="Tên chuỗi gửi *">
           <Input
             value={draft.sequenceName}
             maxLength={MAIL_NAME_MAX}
@@ -206,9 +236,9 @@ export function DeliveryStep({
 
       <Field
         label="CC nội bộ (không bắt buộc)"
-        hint="Mỗi địa chỉ được chọn nhận một bản CC cho từng email gửi tới từng người nhận."
+        hint="Mỗi địa chỉ nhận một bản của từng email. Khách không thấy các địa chỉ này."
       >
-        <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
           {MAS_CC_ADDRESSES.map((address) => (
             <Checkbox
               key={address}
@@ -216,7 +246,6 @@ export function DeliveryStep({
               checked={draft.cc.has(address)}
               onChange={(on) => toggleCc(address, on)}
               label={address}
-              hint="Bản lưu nội bộ của email gửi từ hộp thư noreply."
             />
           ))}
         </div>
@@ -227,7 +256,7 @@ export function DeliveryStep({
         checked={draft.trackEngagement}
         onChange={draft.setTrackEngagement}
         label="Ghi nhận khi khách mở email hoặc bấm nút"
-        hint="Tín hiệu hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi nhận lượt mở và lượt bấm."
+        hint="Tín hiệu hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi lượt mở hay lượt bấm nào."
       />
 
       <ReviewTable draft={draft} chain={chain} chosen={chosen} onEdit={onEdit} />
@@ -337,18 +366,12 @@ export function PreflightReport({ report }: { report: MasPreflightResponse }) {
   )
 }
 
-/** The letter has not been written yet, so there is nothing to render — said in
- *  a sentence rather than by a skeleton that never resolves. */
+/** Nothing written yet, so nothing to render — one dim line in the column the
+ *  letter will occupy, not a card that announces its own emptiness. */
 export function PreviewPlaceholder() {
   return (
-    <GlassCard variant="b" className="flex min-w-0 flex-col gap-2 p-4">
-      <span className="flex items-center gap-2 text-[12.5px] font-semibold">
-        <Icon icon={Info} size={16} />
-        Chưa có gì để xem trước
-      </span>
-      <p className="text-glass-foreground m-0 text-[11.5px] leading-[1.6]">
-        Bản xem trước hiện ở đây ngay khi bước "Nội dung" có tiêu đề và nội dung.
-      </p>
-    </GlassCard>
+    <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
+      Bản xem trước hiện ở đây ngay khi bước "Nội dung" có tiêu đề và nội dung.
+    </p>
   )
 }

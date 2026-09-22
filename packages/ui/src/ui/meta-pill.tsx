@@ -16,7 +16,9 @@ import { cn } from '../lib/cn'
 const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-1 text-[11px]', {
   variants: {
     tone: {
-      muted: 'bg-surface-ink/9 text-glass-foreground',
+      /* A pill usually sits on a row that is ALREADY tinted, and two tints
+         stacked drop `--glass-foreground` to 3.91:1 — under law 13. */
+      muted: 'bg-surface-ink/9 text-muted-foreground',
       accent: 'bg-primary/24 text-accent-foreground',
       warning: 'bg-warning/20 text-on-tint-warning',
       success: 'bg-success/20 text-on-tint-success',

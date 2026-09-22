@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarClock, Check, Send } from '@pv/ui'
-import { Badge, Button, Icon, Modal, Stepper } from '@pv/ui'
+import { Badge, Modal, Stepper } from '@pv/ui'
 import type { CampaignWaveInput, MasAudience, MasSendRequest, MasSendResponse } from '@pv/contracts'
 import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
+import {
+  MailGuideButton,
+  MailGuideDrawer,
+  type MailGuideSection,
+} from '@/components/mail-guide-drawer'
 import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
+import { MailFooter } from '@/components/mas-mail-footer'
 import { WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
   composerBlocker,
@@ -65,6 +70,9 @@ const STEPS = [
   { key: 'how', label: 'Cách gửi' },
 ]
 
+/** The guide opens on the part that answers the step being stood on. */
+const GUIDE_SECTION: MailGuideSection[] = ['recipients', 'content', 'delivery']
+
 export function MasMailModal({
   open,
   onClose,
@@ -80,6 +88,7 @@ export function MasMailModal({
   const [sequenceId, setSequenceId] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
+  const [guideOpen, setGuideOpen] = useState(false)
   const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof masPreflight>>>()
   const [checking, setChecking] = useState(false)
   const [failure, setFailure] = useState('')
@@ -94,6 +103,9 @@ export function MasMailModal({
 
   useEffect(() => {
     if (!open) {
+      /* The guide is a sibling of this panel, not a child — left open it would
+         stay on screen after the panel it explains is gone. */
+      setGuideOpen(false)
       return
     }
     setStep(0)
@@ -162,9 +174,6 @@ export function MasMailModal({
      subject deleted on the way back must not leave the button live. */
   const blocker = stepBlockers.find((item) => item !== null) ?? null
 
-  /* The composer draws its own preview beside its own compose box, so the
-     panel's column would be a second rendering of the same letter. */
-  const ownPreview = step === 1
   const letterReady = letter.subject.trim() !== '' && letter.body.trim() !== ''
   const preview = useMailPreview(
     {
@@ -174,7 +183,7 @@ export function MasMailModal({
       ...(letter.bookingUrl ? { bookingUrl: letter.bookingUrl } : {}),
       ...(previewLead ? { leadCode: previewLead.leadCode ?? previewLead.code } : {}),
     },
-    letterReady && !ownPreview,
+    letterReady,
   )
   const hints = mailHints({
     subject: letter.subject,
@@ -286,15 +295,18 @@ export function MasMailModal({
       },
     )
 
+  /* A step not yet walked has nothing to summarise: three lines saying
+     "nothing picked, nothing written" under a panel somebody just opened only
+     report back what they already know. */
   const summaries = [
     chosen.length === 0
-      ? 'Chưa chọn'
+      ? ''
       : chosen.length === 1
         ? (chosen[0]?.contactName ?? '')
         : `${chosen.length} người nhận`,
-    letter.subject.trim() || 'Chưa soạn',
+    letter.subject.trim(),
     `${waves.length} đợt`,
-  ]
+  ].map((summary, index) => (index <= reached ? summary : ''))
 
   return (
     <>
@@ -309,16 +321,15 @@ export function MasMailModal({
             {preflight ? `${preflight.sendable} người sẽ nhận` : `${chosen.length} đã chọn`}
           </Badge>
         }
+        headerAction={<MailGuideButton onOpen={() => setGuideOpen(true)} />}
         footer={
           <MailFooter
-            message={
-              failure ||
-              stepBlockers[step] ||
-              footerNote(step, chosen.length, preflight ? preflight.sendable : null)
-            }
-            warning={Boolean(failure || stepBlockers[step])}
+            failure={failure}
+            stepBlocker={stepBlockers[step] ?? null}
+            picked={chosen.length}
             step={step}
-            stepBlocked={Boolean(stepBlockers[step])}
+            last={step === STEPS.length - 1}
+            nextLabel={STEPS[step + 1]?.label ?? ''}
             sendBlocked={Boolean(blocker)}
             checking={checking}
             sending={send.isPending}
@@ -357,11 +368,12 @@ export function MasMailModal({
           <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
             {step === 0 && <RecipientsStep draft={draft} recipients={recipients} chosen={chosen} />}
             {step === 1 && (
-              <div className="wide:col-span-2 flex min-w-0 flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-4">
                 <WaveComposer
                   state={chain}
                   setState={setChain}
                   templates={templates}
+                  frame="host"
                   {...(previewLead
                     ? { previewLeadCode: previewLead.leadCode ?? previewLead.code }
                     : {})}
@@ -381,29 +393,36 @@ export function MasMailModal({
               />
             )}
 
-            {!ownPreview && (
-              <section className="flex min-w-0 flex-col gap-4">
-                {letterReady ? (
-                  <MailPreviewCard
-                    letter={preview.letter}
-                    pending={preview.pending}
-                    error={preview.error}
-                    recipients={chosen.map((lead) => ({
-                      code: lead.code,
-                      label: `Như ${lead.contactName} nhận`,
-                    }))}
-                    recipientCode={previewLead?.code}
-                    onRecipient={draft.setPreviewCode}
-                  />
-                ) : (
-                  <PreviewPlaceholder />
-                )}
-                <MailHintList hints={hints} />
-              </section>
-            )}
+            {/* ONE PREVIEW COLUMN FOR ALL THREE STEPS: it used to stand down
+                while the composer drew its own, and a letter leaving the frame
+                between two neighbouring steps read as a layout bug. */}
+            <section className="flex min-w-0 flex-col gap-4">
+              {letterReady ? (
+                <MailPreviewCard
+                  letter={preview.letter}
+                  pending={preview.pending}
+                  error={preview.error}
+                  recipients={chosen.map((lead) => ({
+                    code: lead.code,
+                    label: `Như ${lead.contactName} nhận`,
+                  }))}
+                  recipientCode={previewLead?.code}
+                  onRecipient={draft.setPreviewCode}
+                />
+              ) : (
+                <PreviewPlaceholder />
+              )}
+              <MailHintList hints={hints} />
+            </section>
           </div>
         </div>
       </Modal>
+
+      <MailGuideDrawer
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        section={GUIDE_SECTION[step] ?? 'content'}
+      />
     </>
   )
 }
@@ -424,94 +443,4 @@ function sendReport(waves: number, queued: number, latest: readonly MasSendRespo
   return latest.every((result) => result.state === 'SCHEDULED')
     ? `Đã đặt lịch ${queued} email`
     : `Đã xếp hàng ${queued} email`
-}
-
-/** What the footer says when nothing is wrong — one fact per step. */
-function footerNote(step: number, picked: number, sendable: number | null): string {
-  if (step === 0) return `${picked} người nhận · thư đi từ hộp thư chung của công ty`
-  if (step === 1) return 'Xem bản bên phải trước khi sang bước sau.'
-  return sendable === null ? 'Kiểm tra lại rồi gửi.' : `${sendable} người sẽ nhận thư này.`
-}
-
-function MailFooter({
-  message,
-  warning,
-  step,
-  stepBlocked,
-  sendBlocked,
-  checking,
-  sending,
-  preflightDone,
-  sendable,
-  backBlocked,
-  waves,
-  timing,
-  onBack,
-  onNext,
-  onCheck,
-  onSend,
-}: {
-  message: string
-  warning: boolean
-  step: number
-  stepBlocked: boolean
-  sendBlocked: boolean
-  checking: boolean
-  sending: boolean
-  preflightDone: boolean
-  sendable: number
-  backBlocked: boolean
-  /** How many runs the button is about to open. More than one = a chain. */
-  waves: number
-  timing: 'now' | 'later'
-  onBack: () => void
-  onNext: () => void
-  onCheck: () => void
-  onSend: () => void
-}) {
-  const last = step === STEPS.length - 1
-
-  return (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
-      <span
-        aria-live="polite"
-        className={
-          warning
-            ? 'text-warning min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
-            : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
-        }
-      >
-        {message}
-      </span>
-      <div className="flex shrink-0 gap-2">
-        <Button size="lg" variant="ghost" type="button" disabled={backBlocked} onClick={onBack}>
-          {step === 0 ? 'Huỷ' : 'Quay lại'}
-        </Button>
-        {!last ? (
-          <Button size="lg" type="button" disabled={stepBlocked} onClick={onNext}>
-            Tiếp: {STEPS[step + 1]?.label}
-          </Button>
-        ) : preflightDone ? (
-          <Button
-            size="lg"
-            type="button"
-            disabled={sendBlocked || sendable === 0 || sending}
-            onClick={onSend}
-          >
-            <Icon icon={timing === 'later' ? CalendarClock : Send} size={16} />
-            {sending
-              ? 'Đang tạo lượt gửi…'
-              : waves > 1
-                ? `Gửi ${waves} đợt`
-                : `Gửi ${sendable} email`}
-          </Button>
-        ) : (
-          <Button size="lg" type="button" disabled={sendBlocked || checking} onClick={onCheck}>
-            <Icon icon={Check} size={16} />
-            {checking ? 'Đang kiểm tra…' : 'Kiểm tra người nhận'}
-          </Button>
-        )}
-      </div>
-    </div>
-  )
 }

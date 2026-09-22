@@ -107,6 +107,10 @@ export type MailPreviewCardProps = {
   recipients?: readonly { code: string; label: string }[]
   recipientCode?: string
   onRecipient?: (code: string) => void
+  /** Replaces the line under the frame. The run editor needs it: its audience
+   *  was frozen into `email_delivery` when the batch opened, so the default
+   *  sentence about nobody being picked yet would be false there. */
+  caption?: string
 }
 
 export function MailPreviewCard({
@@ -116,6 +120,7 @@ export function MailPreviewCard({
   recipients,
   recipientCode,
   onRecipient,
+  caption,
 }: MailPreviewCardProps) {
   const [view, setView] = useState<'html' | 'text'>('html')
   const [width, setWidth] = useState<'desktop' | 'phone'>('desktop')
@@ -194,9 +199,10 @@ export function MailPreviewCard({
       )}
 
       <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
-        {recipients && recipients.length > 0
-          ? 'Đây là thư thật, dựng bằng đúng bộ khung máy chủ dùng khi gửi. Mỗi người nhận được thay tên riêng.'
-          : 'Chưa chọn người nhận nên tên và công ty đang là dữ liệu mẫu. Bố cục thì đúng như thư gửi đi.'}
+        {caption ??
+          (recipients && recipients.length > 0
+            ? 'Đây là thư thật, dựng bằng đúng bộ khung máy chủ dùng khi gửi. Mỗi người nhận được thay tên riêng.'
+            : 'Chưa chọn người nhận nên tên và công ty đang là dữ liệu mẫu. Bố cục thì đúng như thư gửi đi.')}
       </p>
     </GlassCard>
   )
