@@ -87,6 +87,9 @@ export type ImportCheckInput = {
   origins: OriginIndex
   /** Everybody in the staff book, for turning the `owner` NAME into an id. */
   staff: readonly ActorLite[]
+  /** Set when the caller lacks `lead.assign`: an owner cell may name only this
+   *  actor — `setOwner`'s rule, so a file cannot hand leads out either. */
+  onlyOwner?: string
   /** The campaign codes that actually exist and are actually campaigns —
    *  `list = 'SOURCE'` rows of `config_entry`, loaded for exactly the codes
    *  this batch mentions.
@@ -300,7 +303,10 @@ function indexStaff(staff: readonly ActorLite[]): Map<string, ActorLite[]> {
 
 function checkRow(
   row: LeadImportRow,
-  batch: Pick<ImportCheckInput, 'motion' | 'source' | 'origin' | 'origins' | 'derived'>,
+  batch: Pick<
+    ImportCheckInput,
+    'motion' | 'source' | 'origin' | 'origins' | 'derived' | 'onlyOwner'
+  >,
   staff: Map<string, ActorLite[]>,
   campaigns: ReadonlySet<string>,
 ): Outcome {
@@ -380,6 +386,12 @@ function checkRow(
   // ── owner · a NAME in the file, an id in the column ──────────────────────
   const owner = readOwner(cells.owner, staff)
   if (!owner.ok) return fail('owner', owner.reason)
+  if (batch.onlyOwner !== undefined && owner.value && owner.value.id !== batch.onlyOwner) {
+    return fail(
+      'owner',
+      `${LABEL.owner} "${cells.owner}": bạn chỉ nhập lead đứng tên mình được. Giao cho người khác là việc của trưởng phòng.`,
+    )
+  }
   if (owner.value !== undefined) out.owner = owner.value.name
 
   // ── source · the batch wins over the cell ───────────────────────────────

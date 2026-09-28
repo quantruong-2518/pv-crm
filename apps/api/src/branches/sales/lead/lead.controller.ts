@@ -376,8 +376,8 @@ export class LeadController {
   @Post('import/preview')
   @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'lead.edit' })
-  preview(@Body(zod(LeadImportBody)) body: LeadImportBody) {
-    return this.write.preview(body)
+  preview(@CurrentActor() who: Actor, @Body(zod(LeadImportBody)) body: LeadImportBody) {
+    return this.write.preview(who, body)
   }
 
   /** Nạp thật. Cả lô vào hết hoặc không dòng nào vào. */

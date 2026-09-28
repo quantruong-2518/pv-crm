@@ -140,6 +140,13 @@ export class LeadWriteService {
    *  later, and that fence holds for every door at once rather than only for
    *  the ones that remembered to check. */
   async create(who: Actor, body: LeadCreate): Promise<LeadCreateResponse> {
+    /* `setOwner`'s fence: born in somebody else's name is a hand-over. */
+    if (body.ownerId && body.ownerId !== who.id && !this.access.allows(who, 'lead.assign')) {
+      throw denied(
+        'out-of-scope',
+        'Bạn chỉ tạo lead đứng tên mình được. Giao cho người khác là việc của trưởng phòng.',
+      )
+    }
     const handle = this.repo.readonlyHandle
     const owner = body.ownerId ? await this.repo.actorById(handle, body.ownerId) : null
 
@@ -481,8 +488,8 @@ export class LeadWriteService {
    *  in the code series for nothing. The preview exists to answer "what would
    *  happen", and a question that changes the thing it asks about is not that
    *  question. */
-  async preview(body: LeadImportBody): Promise<LeadImportPreviewResponse> {
-    const { report } = await this.check(this.repo.readonlyHandle, body)
+  async preview(who: Actor, body: LeadImportBody): Promise<LeadImportPreviewResponse> {
+    const { report } = await this.check(this.repo.readonlyHandle, body, who)
     return LeadImportPreviewResponse.parse(report)
   }
 
@@ -501,7 +508,7 @@ export class LeadWriteService {
    *  of the more useful things a log can say six months later. */
   async commit(who: Actor, body: LeadImportBody): Promise<LeadImportCommitResponse> {
     const handle = this.repo.readonlyHandle
-    const { report, writes } = await this.check(handle, body)
+    const { report, writes } = await this.check(handle, body, who)
 
     /* One code per accepted row, all of them before the transaction opens —
        see the note at the top of this class.
@@ -728,7 +735,7 @@ export class LeadWriteService {
    *  preview said it was clean" and "the commit reported errors" cannot become
    *  two different sentences about one file. The reads are identical too: the
    *  same staff book, the same live mailboxes, the same lookup. */
-  private async check(handle: Db, body: LeadImportBody): Promise<ImportCheck> {
+  private async check(handle: Db, body: LeadImportBody, who: Actor): Promise<ImportCheck> {
     const mailboxes = body.rows
       .map((r) => r.values.email?.trim().toLowerCase())
       .filter((e): e is string => e !== undefined && e !== '')
@@ -781,6 +788,7 @@ export class LeadWriteService {
         : { derived: { originId: derived.id, partnerCode: referrer?.code ?? null } }),
       origins,
       staff,
+      ...(this.access.allows(who, 'lead.assign') ? {} : { onlyOwner: who.id }),
       campaigns: live,
       /* The check speaks in dedupe keys, the table speaks in mailboxes. One
          `keyOf` on both sides is what keeps the two vocabularies from needing
