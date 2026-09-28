@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import type { CampaignWaveInput } from '@pv/contracts'
 
-/** Everything the three-step compose panel is holding while it is open.
+/** Everything the two-step compose panel is holding while it is open.
  *
- *  It lives here and not inside the panel because the panel is now four files:
- *  a shell that owns the steps and the footer, and one component per step. A
- *  draft threaded through as twenty props would be twenty chances for step 3 to
- *  read a subject step 2 no longer has. */
+ *  It lives here and not inside the panel because the panel is several files:
+ *  a shell that owns the steps and the footer, and one component per part. A
+ *  draft threaded through as twenty props would be twenty chances for one part
+ *  to read a subject another no longer has. */
 
 /** "No campaign" as a value rather than an empty string, which a select cannot
  * distinguish from a catalogue that has not loaded yet. */
@@ -25,6 +26,15 @@ export type MasRecipient = {
   destinationLabel?: string
 }
 
+/** Every wave still to go is held for a time — then the press schedules. */
+export const isLater = (waves: readonly CampaignWaveInput[]) =>
+  waves.length > 0 && waves.every((wave) => wave.scheduledAt)
+
+/** One wording for the footer button and the confirm button, so the count a
+ *  person presses is the count they were shown. */
+export const sendLabel = (later: boolean, letters: number) =>
+  `${later ? 'Lên lịch' : 'Gửi'} ${Math.max(0, letters)} thư`
+
 const NO_SELECTION: ReadonlySet<string> = new Set()
 
 export function useMasMailDraft(
@@ -39,8 +49,8 @@ export function useMasMailDraft(
      list and the template (G3) instead of freezing the first guess. */
   const [sequenceName, setSequenceName] = useState<string | null>(null)
   /* ON by default, matching both the contract and the column's `DEFAULT true`.
-     The request states it anyway — see the checkbox in step 3 — because a panel
-     that leans on a default elsewhere stops explaining its own box. */
+     The request states it anyway — see the checkbox in the send options — because
+     a panel that leans on a default elsewhere stops explaining its own box. */
   const [trackEngagement, setTrackEngagement] = useState(true)
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')

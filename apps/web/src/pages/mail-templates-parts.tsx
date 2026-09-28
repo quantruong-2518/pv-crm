@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react'
 import { Info } from '@pv/ui'
 import { Badge, Button, Icon, Input, Modal, SegmentedControl, Textarea, cn } from '@pv/ui'
 import type { MailDoor, MailTemplateRow } from '@pv/contracts'
@@ -7,9 +7,14 @@ import { isHttpUrl } from '@/data/http-url'
 import { useMailPreview, useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
-import { MailRichBody } from '@/components/mail-rich-body'
 import { useMailBodyMode } from '@/components/mail-rich-body-model'
 import { DoorsField } from './mail-templates-doors'
+
+/* Tiptap is ~110 kB gzipped. Fetched beside the list, not inside its chunk: the
+   list paints first, and by the time a template opens the editor is usually here. */
+const loadRichBody = () => import('@/components/mail-rich-body')
+void loadRichBody().catch(() => {})
+const MailRichBody = lazy(() => loadRichBody().then((m) => ({ default: m.MailRichBody })))
 
 /** THE PANEL THAT WRITES A TEMPLATE — one panel for both jobs, the way
  *  `users-parts.tsx` does it: a null row adds, a row edits that row. Two panels
@@ -297,15 +302,17 @@ export function MailTemplateDrawer({
               }
             >
               {bodyMode === 'rich' ? (
-                <MailRichBody
-                  value={body}
-                  invalid={Boolean(errors['body']?.length)}
-                  placeholder="Thân thư. Enter là đoạn mới, Shift+Enter là xuống dòng."
-                  onChange={(markdown) => {
-                    setBody(markdown)
-                    clearError('body')
-                  }}
-                />
+                <Suspense fallback={<Textarea rows={20} value={body} readOnly />}>
+                  <MailRichBody
+                    value={body}
+                    invalid={Boolean(errors['body']?.length)}
+                    placeholder="Thân thư. Enter là đoạn mới, Shift+Enter là xuống dòng."
+                    onChange={(markdown) => {
+                      setBody(markdown)
+                      clearError('body')
+                    }}
+                  />
+                </Suspense>
               ) : (
                 <Textarea
                   autoGrow

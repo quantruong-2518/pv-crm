@@ -35,7 +35,7 @@ export type MailGuideSection = 'recipients' | 'content' | 'delivery'
 const TABS: { value: MailGuideSection; label: string }[] = [
   { value: 'recipients', label: 'Người nhận' },
   { value: 'content', label: 'Nội dung thư' },
-  { value: 'delivery', label: 'Cách gửi' },
+  { value: 'delivery', label: 'Tuỳ chọn gửi' },
 ]
 
 const ALL_PARTS: MailGuideSection[] = ['recipients', 'content', 'delivery']
@@ -81,7 +81,7 @@ export function MailGuideDrawer({
       subtitle={
         only
           ? 'Không cần nhớ hết — mở lại bảng này bất cứ lúc nào.'
-          : 'Ba mục cho một lượt gửi: người nhận, nội dung thư, cách gửi. Không cần nhớ hết — mở lại bất cứ lúc nào.'
+          : 'Hai bước — người nhận, rồi nội dung thư với tuỳ chọn gửi ở cuối. Không cần nhớ hết — mở lại bất cứ lúc nào.'
       }
     >
       <div className="flex min-w-0 flex-col gap-6">

@@ -140,13 +140,13 @@ export type MailBodyMode = 'markdown' | 'rich'
 
 const MODE_KEY = 'pv-mail-body-mode'
 
-/** Markdown stays the default while the rich editor is on trial. */
+/** The rich editor is the default; markdown stays one tap away for whoever prefers it. */
 export function useMailBodyMode(): [MailBodyMode, (mode: MailBodyMode) => void] {
   const [mode, setMode] = useState<MailBodyMode>(() => {
     try {
-      return localStorage.getItem(MODE_KEY) === 'rich' ? 'rich' : 'markdown'
+      return localStorage.getItem(MODE_KEY) === 'markdown' ? 'markdown' : 'rich'
     } catch {
-      return 'markdown'
+      return 'rich'
     }
   })
   const choose = (next: MailBodyMode) => {

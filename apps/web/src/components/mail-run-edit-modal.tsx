@@ -1,6 +1,13 @@
-import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react'
 import { Save } from '@pv/ui'
-import { Badge, Button, GlassCard, Icon, Modal, SectionTitle, Skeleton, Stepper } from '@pv/ui'
+import { Badge, Button, GlassCard, Icon, Modal, Skeleton } from '@pv/ui'
 import type { MailRunDetail } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
@@ -8,6 +15,7 @@ import { toast } from '@/app/toast'
 import { MailFloatingAids, MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
 import { MailGuideDrawer, type MailGuideSection } from '@/components/mail-guide-drawer'
 import { composerFromRun, mailRunEditFrom } from '@/components/mail-run-edit-draft'
+import { MailSendConfirm, SendOptions } from '@/components/mail-send-confirm'
 import { SendWhen, WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
   composerBlocker,
@@ -23,29 +31,20 @@ import {
   useMailRunEdit,
 } from '@/data/mail-runs'
 import { useMailPreview } from '@/data/mas'
+import { dmhm } from '@/lib/date'
 
-/** FIX A BATCH BEFORE IT LEAVES — two steps, no audience, no send.
+/** FIX A BATCH BEFORE IT LEAVES — one letter, no audience, no new run.
  *
- *  A sibling of `MasMailModal` rather than a mode inside it: that panel is a
- *  three-step walk around an AUDIENCE — pick it, preflight it, post one run per
- *  wave — and none of those four things exist here. The letter itself is the
- *  same `WaveComposer` in both, so what is shared is shared as components and
- *  what differs does not have to be branched inside the door that sends real
- *  mail to hundreds of people.
+ *  A sibling of `MasMailModal` rather than a mode inside it: that panel walks
+ *  an AUDIENCE — pick it, preflight it, post one run per wave — and none of
+ *  that exists here; the shared letter is shared as `WaveComposer`. Recipients
+ *  were frozen into `email_delivery` rows when the batch opened, so only the
+ *  fields of `MailRunEdit` change. Saving still decides what leaves and when,
+ *  so it asks first (`SaveConfirm`). Saves go through `/own` for the run's
+ *  creator (G8), else the broadcast door — see `mailRunRoute`.
  *
- *  The recipients are NOT a question here. They were frozen into
- *  `email_delivery` rows when the batch opened, so the only things this panel
- *  may change are the fields of `MailRunEdit`. Saves go through `/own` when the
- *  caller created the run (G8), else the broadcast door — see `mailRunRoute`. */
-const STEPS = [
-  { key: 'content', label: 'Nội dung' },
-  { key: 'how', label: 'Cách gửi' },
-]
-
-/** The only part of the guide this panel has a use for. Its audience is frozen
- *  and its second step holds one control, so the other two would explain
- *  campaign, sequence, CC and tracking — the four things `RunFacts` has just
- *  said cannot be touched from here. */
+ *  Only the content part of the guide applies: campaign, sequence, CC and
+ *  tracking are exactly what `RunFacts` says cannot be touched here. */
 const GUIDE_PARTS: MailGuideSection[] = ['content']
 
 const PREVIEW_CAPTION =
@@ -74,8 +73,9 @@ export function MailRunEditModal({
   const save = useMailRunEdit()
   const can = { send: useCan('lead.send-email'), broadcast: useCan('campaign.broadcast') }
 
-  const [step, setStep] = useState(0)
-  const [reached, setReached] = useState(0)
+  const [confirming, setConfirming] = useState(false)
+  /* Cleared by a refusal or a new opening only — see the send panel's twin. */
+  const inFlight = useRef(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [failure, setFailure] = useState('')
   /* The batch AS IT WAS READ. It is both the seed of the form and the thing
@@ -87,8 +87,8 @@ export function MailRunEditModal({
   useEffect(() => {
     if (open) return
     setBase(undefined)
-    setStep(0)
-    setReached(0)
+    setConfirming(false)
+    inFlight.current = false
     setGuideOpen(false)
     setFailure('')
     setDropBooking(false)
@@ -132,7 +132,8 @@ export function MailRunEditModal({
   })
 
   const submit = () => {
-    if (!base || !route || changed === 0 || blocker || save.isPending) return
+    if (inFlight.current || !base || !route || changed === 0 || blocker || save.isPending) return
+    inFlight.current = true
     setFailure('')
     save.mutate(
       { id: base.id, edit: patch, route },
@@ -149,6 +150,7 @@ export function MailRunEditModal({
           onClose()
         },
         onError: (error) => {
+          inFlight.current = false
           const reason = isApiError(error) ? userMessage(error) : 'Không lưu được thay đổi.'
           setFailure(reason)
           toast('Máy chủ từ chối sửa lô này', { tone: 'danger', detail: reason })
@@ -183,7 +185,6 @@ export function MailRunEditModal({
         meta={base ? runBadge(base) : null}
         footer={
           <EditFooter
-            step={step}
             ready={Boolean(base) && !locked}
             blocker={failure || blocker}
             warn={Boolean(failure || blocker)}
@@ -191,26 +192,17 @@ export function MailRunEditModal({
             saveBlocked={changed === 0 || Boolean(blocker)}
             saving={save.isPending}
             aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}
-            onBack={() => (step === 0 ? onClose() : setStep(0))}
-            onNext={() => {
-              setStep(1)
-              setReached(1)
-            }}
-            onSave={submit}
+            onClose={onClose}
+            onSave={() => setConfirming(true)}
           />
         }
       >
         <div className="flex min-w-0 flex-col gap-6">
           {body ??
             (base && (
-              <EditSteps
+              <EditBody
                 run={base}
-                step={step}
-                reached={reached}
-                onGo={(next) => {
-                  setStep(next)
-                  setReached((furthest) => Math.max(furthest, next))
-                }}
+                blocked={blocker !== null}
                 form={form}
                 setForm={setForm}
                 letter={letterReady ? preview : null}
@@ -220,6 +212,15 @@ export function MailRunEditModal({
             ))}
         </div>
       </Modal>
+
+      <SaveConfirm
+        run={base}
+        open={confirming}
+        at={scheduledSlot(form)}
+        changed={changed}
+        onBack={() => setConfirming(false)}
+        onConfirm={submit}
+      />
 
       <MailGuideDrawer
         open={guideOpen}
@@ -231,15 +232,13 @@ export function MailRunEditModal({
   )
 }
 
-/** The two steps and the letter beside them — the same split as the send
- *  panel, and for the same reason: see the `wide:` note there. `letter` is
- *  `null` until the thing has a subject and a body, because there is nothing to
- *  render before that. */
-function EditSteps({
+/** The letter, its folded send options, and the preview beside them — the
+ *  same split as the send panel, and for the same reason: see the `wide:` note
+ *  there. `letter` is `null` until the thing has a subject and a body, because
+ *  there is nothing to render before that. */
+function EditBody({
   run,
-  step,
-  reached,
-  onGo,
+  blocked,
   form,
   setForm,
   letter,
@@ -247,65 +246,110 @@ function EditSteps({
   onDropBooking,
 }: {
   run: MailRunDetail
-  step: number
-  reached: number
-  onGo: (next: number) => void
+  /** Save is locked — by the letter, or by the hour in the folded block. */
+  blocked: boolean
   form: ComposerState
   setForm: Dispatch<SetStateAction<ComposerState>>
   letter: ReturnType<typeof useMailPreview> | null
   dropBooking: boolean
   onDropBooking: (drop: boolean) => void
 }) {
+  const at = scheduledSlot(form)
+  /* Only the hour lives in the folded block, so an error the letter alone does
+     not cause is the one that block would hide. */
+  const timeGap = blocked && composerBlocker({ ...form, timing: 'now' }) === null
   return (
-    <>
-      <Stepper steps={STEPS} current={step} reached={reached} onGo={onGo} />
-
-      <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
-        {step === 0 ? (
-          <div className="flex min-w-0 flex-col gap-4">
-            <WaveComposer state={form} setState={setForm} templates={[]} frame="letter" />
-            {run.bookingUrl && (
-              <OldBookingLink
-                owner="Thư"
-                url={run.bookingUrl}
-                dropped={dropBooking}
-                onDrop={onDropBooking}
-              />
-            )}
-          </div>
-        ) : (
-          <section className="flex min-w-0 flex-col gap-4">
-            <SectionTitle size="md">Gửi khi nào?</SectionTitle>
-            <SendWhen state={form} setState={setForm} />
-            <RunFacts run={run} />
-          </section>
+    <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
+      <div className="flex min-w-0 flex-col gap-4">
+        <WaveComposer state={form} setState={setForm} templates={[]} frame="letter" />
+        {run.bookingUrl && (
+          <OldBookingLink
+            owner="Thư"
+            url={run.bookingUrl}
+            dropped={dropBooking}
+            onDrop={onDropBooking}
+          />
         )}
-
-        <section className="flex min-w-0 flex-col gap-4">
-          {letter ? (
-            <MailPreviewCard
-              letter={letter.letter}
-              pending={letter.pending}
-              error={letter.error}
-              caption={run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION}
-            />
-          ) : (
-            <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
-              Bản xem trước hiện ở đây khi thư có tiêu đề và nội dung.
-            </p>
-          )}
-        </section>
+        <SendOptions forceOpen={timeGap} summary={at ? `Lúc ${dmhm(at)}` : 'Gửi ngay khi lưu'}>
+          <SendWhen state={form} setState={setForm} />
+          <RunFacts run={run} />
+        </SendOptions>
       </div>
-    </>
+
+      <section className="flex min-w-0 flex-col gap-4">
+        {letter ? (
+          <MailPreviewCard
+            letter={letter.letter}
+            pending={letter.pending}
+            error={letter.error}
+            caption={run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION}
+          />
+        ) : (
+          <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
+            Bản xem trước hiện ở đây khi thư có tiêu đề và nội dung.
+          </p>
+        )}
+      </section>
+    </div>
   )
 }
+
+/** Saving IS sending for this batch — it leaves at the hour below — so the
+ *  save asks with the same box as the send panel. A group run's
+ *  `audienceCount` is 1: one shared letter, not one per person. */
+function SaveConfirm({
+  run,
+  open,
+  at,
+  changed,
+  onBack,
+  onConfirm,
+}: {
+  /** Absent while the batch loads — nothing to confirm yet. */
+  run?: MailRunDetail
+  open: boolean
+  /** The local slot the batch will hold, or `null` for "on the next sweep". */
+  at: string | null
+  changed: number
+  onBack: () => void
+  onConfirm: () => void
+}) {
+  if (!run) return null
+  const letters = run.audienceCount.toLocaleString('vi-VN')
+  return (
+    <MailSendConfirm
+      open={open}
+      title="Xác nhận lưu"
+      subtitle="Chỉ những ô bạn sửa được lưu. Người nhận giữ nguyên."
+      rows={[
+        {
+          label: 'Người nhận',
+          value:
+            run.kind === 'group'
+              ? 'Một thư chung · người nhận đã chốt'
+              : `${letters} người · đã chốt`,
+        },
+        { label: 'Tổng số thư', value: `${letters} thư` },
+        { label: 'Thời điểm', value: at ? `Lúc ${dmhm(at)}` : 'Gửi ngay khi lưu' },
+        { label: 'Thay đổi', value: `${changed} mục` },
+      ]}
+      action={`${at ? 'Lưu và lên lịch' : 'Lưu và gửi'} ${letters} thư`}
+      later={at !== null}
+      onBack={onBack}
+      onConfirm={onConfirm}
+    />
+  )
+}
+
+/** The local slot the batch will be held to, or `null` for the next sweep. */
+const scheduledSlot = (form: ComposerState) =>
+  form.timing === 'later' && form.at !== '' ? form.at : null
 
 /** The strip under the panel: what is missing or what will be saved, and the
  *  one button that moves. `ready` is false while the batch is still loading and
  *  on a batch that can no longer be edited — both cases leave only the way
  *  out. */
 function EditFooter({
-  step,
   ready,
   blocker,
   warn,
@@ -313,11 +357,9 @@ function EditFooter({
   saveBlocked,
   saving,
   aids,
-  onBack,
-  onNext,
+  onClose,
   onSave,
 }: {
-  step: number
   ready: boolean
   blocker: string | null
   warn: boolean
@@ -326,8 +368,8 @@ function EditFooter({
   saving: boolean
   /** Floats above the strip's right edge, as in the send panel. */
   aids: ReactNode
-  onBack: () => void
-  onNext: () => void
+  onClose: () => void
+  /** Opens the confirm box — the save itself happens there. */
   onSave: () => void
 }) {
   return (
@@ -344,15 +386,10 @@ function EditFooter({
         {blocker || note}
       </span>
       <div className="flex shrink-0 gap-2">
-        <Button size="lg" variant="ghost" type="button" onClick={onBack}>
-          {step === 0 ? 'Đóng' : 'Quay lại'}
+        <Button size="lg" variant="ghost" type="button" onClick={onClose}>
+          Đóng
         </Button>
-        {ready && step === 0 && (
-          <Button size="lg" type="button" disabled={warn} onClick={onNext}>
-            Tiếp: {STEPS[1]?.label}
-          </Button>
-        )}
-        {ready && step === 1 && (
+        {ready && (
           <Button size="lg" type="button" disabled={saveBlocked || saving} onClick={onSave}>
             <Icon icon={Save} size={16} />
             {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
@@ -422,7 +459,7 @@ function RunFacts({ run }: { run: MailRunDetail }) {
   ]
 
   return (
-    <GlassCard variant="b" className="min-w-0 p-4">
+    <div className="min-w-0">
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {rows.map((row) => (
           <li
@@ -437,6 +474,6 @@ function RunFacts({ run }: { run: MailRunDetail }) {
       <p className="text-muted-foreground m-0 mt-3 text-[11px] leading-[1.5]">
         {rows.length} mục trên không sửa được từ đây. Cần đổi thì dừng lô rồi gửi lại.
       </p>
-    </GlassCard>
+    </div>
   )
 }

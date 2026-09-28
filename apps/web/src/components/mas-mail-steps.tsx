@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Check, Lock, Pencil, TriangleAlert, X } from '@pv/ui'
+import { Check, TriangleAlert, X } from '@pv/ui'
 import {
   Avatar,
   Badge,
-  Button,
   Checkbox,
   GlassCard,
   Icon,
@@ -13,20 +12,28 @@ import {
   Select,
   cn,
 } from '@pv/ui'
-import type { CampaignBookRow, MasPreflightResponse } from '@pv/contracts'
+import type { CampaignBookRow, CampaignWaveInput, MasPreflightResponse } from '@pv/contracts'
 import { MAIL_NAME_MAX, MAS_RECIPIENT_BLOCK_LABEL, SALES_INBOX } from '@pv/contracts'
 import { MailPreviewCard } from '@/components/mail-compose-bits'
 import { Field } from '@/components/field-bits'
 import { PersonTokenField } from '@/components/person-token-field'
+import { MailSendConfirm, SendOptions, type ConfirmRow } from '@/components/mail-send-confirm'
 import type { useMailPreview } from '@/data/mas'
-import { NO_CAMPAIGN, type MasMailDraft, type MasRecipient } from '@/data/mas-mail-draft'
+import { dmhm } from '@/lib/date'
+import {
+  NO_CAMPAIGN,
+  isLater,
+  sendLabel,
+  type MasMailDraft,
+  type MasRecipient,
+} from '@/data/mas-mail-draft'
 
-/** The three step bodies of the compose panel, in the order they are walked.
+/** The step bodies of the compose panel, in the order they are walked.
  *
  *  Split off `mas-mail-modal.tsx` because that file was 822 lines holding a
  *  form, a preview, a preflight report and a send. The shell keeps what the
- *  steps SHARE — the draft, the footer, the gate — and each step here only
- *  knows its own three questions. */
+ *  steps SHARE — the draft, the footer, the gate — and each part here only
+ *  knows its own questions. */
 
 /** The server's answer about the list on screen — or nothing yet. */
 export type RecipientVerdicts = { report?: MasPreflightResponse; checking: boolean }
@@ -253,31 +260,37 @@ export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; all
   )
 }
 
-/** STEP 3 · when and under what, then one last look. */
-export function DeliveryStep({
+/** The three send choices, folded under the letter (see `SendOptions`). Same
+ *  defaults as before: no campaign, derived chain name, tracking on. */
+export function DeliveryOptions({
   draft,
-  chosen,
   campaigns,
   allowCampaign,
-  preflight,
-  chain,
+  waves,
   sequenceName,
-  onEdit,
+  forceOpen,
 }: {
   draft: MasMailDraft
-  chosen: readonly MasRecipient[]
   campaigns: readonly CampaignBookRow[]
   allowCampaign: boolean
-  preflight?: MasPreflightResponse
-  chain: { waves: number; subject: string }
+  waves: number
   /** What the chain is called right now — typed, or derived (G3). */
   sequenceName: string
-  onEdit: (step: number) => void
+  /** The typed chain name is empty — its error must not sit folded away. */
+  forceOpen: boolean
 }) {
-  return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle size="md">Gửi thế nào?</SectionTitle>
+  const chained = draft.campaignCode === NO_CAMPAIGN && waves > 1
+  const summary = [
+    draft.campaignCode !== NO_CAMPAIGN
+      ? `Chiến dịch ${draft.campaignCode}`
+      : chained
+        ? `Chuỗi: ${sequenceName}`
+        : 'Không gắn chiến dịch',
+    draft.trackEngagement ? 'ghi nhận mở và bấm' : 'không ghi nhận mở, bấm',
+  ].join(' · ')
 
+  return (
+    <SendOptions forceOpen={forceOpen} summary={summary}>
       {/* Only RUNNING campaigns: attaching a wave to a DRAFT one sends the mail
           while `campaign.state` stays DRAFT, so its start button still passes
           its own guard and blasts the whole audience a second time. */}
@@ -303,7 +316,7 @@ export function DeliveryStep({
 
       {/* One wave needs no chain name on screen (G3): it is still sent, filled
           from the list and the template, and only a chain makes it worth a look. */}
-      {draft.campaignCode === NO_CAMPAIGN && chain.waves > 1 && (
+      {chained && (
         <Field label="Tên chuỗi gửi · tự điền, sửa được">
           <Input
             value={sequenceName}
@@ -313,21 +326,6 @@ export function DeliveryStep({
         </Field>
       )}
 
-      {/* A fact, not a choice (G9): the server files one archive copy per run
-          to the sales inbox, so there is nothing here to tick. */}
-      <Field label="Bản lưu nội bộ">
-        <div className="bg-surface-ink/5 flex min-w-0 items-center gap-3 rounded-md px-4 py-3">
-          <Icon icon={Lock} size={16} className="text-muted-foreground shrink-0" />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate font-mono text-[12px] leading-4">{SALES_INBOX}</span>
-            <span className="text-muted-foreground text-[12px] leading-4">
-              Nhận một bản BCC cho mỗi lô, không phải một bản cho từng người. Khách không thấy địa
-              chỉ này.
-            </span>
-          </span>
-        </div>
-      </Field>
-
       <Checkbox
         className="min-h-12"
         checked={draft.trackEngagement}
@@ -335,73 +333,84 @@ export function DeliveryStep({
         label="Ghi nhận khi khách mở email hoặc bấm nút"
         hint="Tín hiệu hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi lượt mở hay lượt bấm nào."
       />
-
-      <ReviewTable chain={chain} chosen={chosen} preflight={preflight} onEdit={onEdit} />
-    </section>
+    </SendOptions>
   )
 }
 
-/** The last look before the button: three lines and a way back to each one. A
- *  chain reads its own count instead of the body, because the box on screen
- *  holds the wave being written and not everything about to go out.
- *
- *  A single recipient is NAMED WITH THEIR MAILBOX: a count of one is the case
- *  where the number says nothing the reader needed — the question at this point
- *  is which address this letter is about to land in, and a lead's mailbox is
- *  not always the address of the contact shown beside it. */
-function ReviewTable({
-  chain,
+/** Send's last look. Opens only once the server has answered for this list —
+ *  the footer keeps Send shut until then, and the count below is that answer. */
+export function MasSendConfirm({
+  open,
   chosen,
-  preflight,
-  onEdit,
+  report,
+  waves,
+  queued,
+  onBack,
+  onConfirm,
 }: {
-  chain: { waves: number; subject: string }
+  open: boolean
   chosen: readonly MasRecipient[]
-  preflight?: MasPreflightResponse
-  onEdit: (step: number) => void
+  report?: MasPreflightResponse
+  /** Only the waves still to go — a part-failed press resumes after `queued`. */
+  waves: readonly CampaignWaveInput[]
+  queued: number
+  onBack: () => void
+  onConfirm: () => void
 }) {
-  const only = chosen.length === 1 ? chosen[0] : undefined
-  const count = preflight
-    ? `${chosen.length} người · ${preflight.sendable} sẽ nhận`
-    : `${chosen.length} người`
-  const to = {
-    label: 'Người nhận',
-    value: only ? `${only.contactName} · ${only.email}` : count,
-    step: 0,
-  }
-  const rows = [
-    to,
-    { label: 'Chuỗi đợt', value: `${chain.waves} đợt sẽ gửi`, step: 1 },
-    { label: 'Tiêu đề', value: chain.subject || 'Chưa có', step: 1 },
-  ]
-
+  const sendable = report?.sendable ?? 0
+  const later = isLater(waves)
   return (
-    <GlassCard variant="b" className="min-w-0 p-4">
-      <ul className="m-0 flex list-none flex-col gap-2 p-0">
-        {rows.map((row) => (
-          <li
-            key={row.label}
-            className="bg-surface-ink/5 flex min-w-0 items-center gap-3 rounded-sm py-1 pl-3 pr-1"
-          >
-            <span className="text-muted-foreground w-20 shrink-0 text-[11px]">{row.label}</span>
-            <span className="text-foreground min-w-0 flex-1 truncate text-[12.5px]">
-              {row.value}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              type="button"
-              className="pointer-coarse:h-12"
-              onClick={() => onEdit(row.step)}
-            >
-              <Icon icon={Pencil} size={14} />
-              Sửa
-            </Button>
-          </li>
-        ))}
-      </ul>
-    </GlassCard>
+    <MailSendConfirm
+      open={open && Boolean(report)}
+      title="Xác nhận gửi"
+      subtitle={
+        later
+          ? 'Trước giờ hẹn vẫn dừng được ở sổ lô gửi.'
+          : 'Thư đã vào hàng đợi thì không rút lại được.'
+      }
+      rows={confirmRows(chosen, sendable, waves, queued)}
+      action={sendLabel(later, sendable * waves.length)}
+      later={later}
+      onBack={onBack}
+      onConfirm={onConfirm}
+    />
   )
+}
+
+/** The confirm box's numbers, over the waves still to go. One recipient is
+ *  named with the mailbox: the question then is which address, not how many. */
+function confirmRows(
+  chosen: readonly MasRecipient[],
+  sendable: number,
+  waves: readonly CampaignWaveInput[],
+  queued: number,
+): ConfirmRow[] {
+  const only = chosen.length === 1 ? chosen[0] : undefined
+  const left = waves.length
+  const first = waves[0]?.scheduledAt
+  return [
+    {
+      label: 'Người nhận',
+      value: only
+        ? `${only.contactName} · ${only.email}`
+        : chosen.length === sendable
+          ? `${sendable} người`
+          : `${chosen.length} người đã chọn · ${sendable} sẽ nhận`,
+    },
+    {
+      label: 'Số đợt',
+      value: queued > 0 ? `${left} đợt còn lại · ${queued} đợt đã xếp hàng` : `${left} đợt`,
+    },
+    {
+      label: 'Tổng số thư',
+      value: left > 1 ? `${sendable} × ${left} = ${sendable * left} thư` : `${sendable} thư`,
+    },
+    {
+      label: 'Thời điểm',
+      value: `${first ? `Lúc ${dmhm(first)}` : 'Gửi ngay'}${left > 1 ? ' · các đợt sau theo giờ đặt ở từng đợt' : ''}`,
+    },
+    { label: 'Bản lưu nội bộ', value: `${SALES_INBOX} nhận một bản BCC mỗi đợt` },
+  ]
 }
 
 /** The header badge: the server's count once it answered for this list. */
@@ -423,7 +432,7 @@ export function CheckBadge({
   )
 }
 
-/** Steps 2–3's right column: the letter as the lead picked in the select gets
+/** Step 2's right column: the letter as the lead picked in the select gets
  *  it, under the envelope a recipient sees (G-Bulk). */
 export function LetterColumn({
   ready,

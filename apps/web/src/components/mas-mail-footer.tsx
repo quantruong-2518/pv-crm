@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CalendarClock, RefreshCw, Send } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
+import { sendLabel } from '@/data/mas-mail-draft'
 
 /** The strip under the mail panel: one sentence about what is missing, and the
  *  one button that moves. Split out of `mas-mail-modal.tsx` so the shell holds
@@ -11,8 +12,9 @@ function footerNote(step: number, picked: number, sendable: number | null): stri
   if (step === 0) {
     return `${picked} người nhận · thư đi từ noreply; khách bấm Trả lời thì máy ghi nhận và báo người giữ.`
   }
-  if (step === 1) return 'Xem bản bên phải trước khi sang bước sau.'
-  return sendable === null ? 'Đang kiểm tra người nhận…' : `${sendable} người sẽ nhận thư này.`
+  return sendable === null
+    ? 'Đang kiểm tra người nhận…'
+    : `${sendable} người sẽ nhận · xem bản bên phải trước khi gửi.`
 }
 
 export function MailFooter({
@@ -20,8 +22,6 @@ export function MailFooter({
   stepBlocker,
   picked,
   step,
-  last,
-  nextLabel,
   sendBlocked,
   checking,
   sending,
@@ -41,11 +41,8 @@ export function MailFooter({
   failure: string
   stepBlocker: string | null
   picked: number
+  /** 0 = recipients, 1 = the letter; Send lives on the second. */
   step: number
-  /** The step list stays in the shell, so its shape arrives as two facts rather
-   *  than as a second import of the same array. */
-  last: boolean
-  nextLabel: string
   sendBlocked: boolean
   checking: boolean
   sending: boolean
@@ -53,7 +50,7 @@ export function MailFooter({
    *  while there is no such answer, which is what keeps Send shut (G2). */
   verdict: number | null
   backBlocked: boolean
-  /** How many runs the button is about to open. More than one = a chain. */
+  /** How many runs the button is about to open — the ones still to go. */
   waves: number
   timing: 'now' | 'later'
   /** Floats above the strip's right edge — the hints and `?` stack. */
@@ -63,6 +60,7 @@ export function MailFooter({
   /** Set only when the automatic check failed: the one case a person has to
    *  ask again, because the list did not change and so nothing re-asks. */
   onRetryCheck?: () => void
+  /** Opens the confirm box — the send itself happens there. */
   onSend: () => void
 }) {
   const message = failure || stepBlocker || footerNote(step, picked, verdict)
@@ -84,9 +82,9 @@ export function MailFooter({
         <Button size="lg" variant="ghost" type="button" disabled={backBlocked} onClick={onBack}>
           {step === 0 ? 'Huỷ' : 'Quay lại'}
         </Button>
-        {!last ? (
+        {step === 0 ? (
           <Button size="lg" type="button" disabled={Boolean(stepBlocker)} onClick={onNext}>
-            Tiếp: {nextLabel}
+            Tiếp: Nội dung
           </Button>
         ) : onRetryCheck ? (
           <Button size="lg" type="button" onClick={onRetryCheck}>
@@ -106,10 +104,8 @@ export function MailFooter({
               : verdict === null
                 ? checking
                   ? 'Đang kiểm tra…'
-                  : 'Gửi email'
-                : waves > 1
-                  ? `Gửi ${waves} đợt`
-                  : `Gửi ${verdict} email`}
+                  : 'Gửi thư'
+                : sendLabel(timing === 'later', verdict * waves)}
           </Button>
         )}
       </div>

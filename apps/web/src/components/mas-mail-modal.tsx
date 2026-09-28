@@ -20,15 +20,16 @@ import {
 } from '@/components/mail-sequence/wave-draft'
 import {
   CheckBadge,
-  DeliveryStep,
+  DeliveryOptions,
   LetterColumn,
+  MasSendConfirm,
   RecipientsStep,
   SaveTemplateBlock,
 } from '@/components/mas-mail-steps'
 import { campaignFacetQuery } from '@/data/campaign-book'
 import { isHttpUrl } from '@/data/http-url'
 import { mailHints, type MailHint } from '@/data/mail-hints'
-import { NO_CAMPAIGN, useMasMailDraft, type MasRecipient } from '@/data/mas-mail-draft'
+import { NO_CAMPAIGN, isLater, useMasMailDraft, type MasRecipient } from '@/data/mas-mail-draft'
 import {
   doorDefault,
   doorTemplatesQuery,
@@ -38,13 +39,11 @@ import {
   useMasSend,
 } from '@/data/mas'
 
-/** One mail — or one CHAIN of them — composed in three answers: who · what · how.
+/** One mail — or one CHAIN of them — composed in two answers: who · what.
  *
- *  It replaces a single long form in which the send button sat below a
- *  recipient grid, a compose box, a schedule and a checklist — everything at
- *  once, and nothing finished. Each step now asks one question, the letter
- *  stands beside the two steps that shape it, and the footer says in a
- *  sentence what is still missing.
+ *  It replaces one long form where Send sat below a recipient grid, a compose
+ *  box, a schedule and a checklist. Each step asks one question, the rare send
+ *  choices fold under the letter, and Send asks once more with the numbers.
  *
  *  THE PREFLIGHT GATE STAYS: Send is shut until `POST /sales/mail/preflight`
  *  has answered for EXACTLY the list on screen, because suppression and
@@ -66,11 +65,10 @@ export type MasMailModalProps = {
 const STEPS = [
   { key: 'to', label: 'Gửi tới' },
   { key: 'content', label: 'Nội dung' },
-  { key: 'how', label: 'Cách gửi' },
 ]
 
-/** The guide opens on the part that answers the step being stood on. */
-const GUIDE_SECTION: MailGuideSection[] = ['recipients', 'content', 'delivery']
+/** The guide opens on the step being stood on; "delivery" is one tab away. */
+const GUIDE_SECTION: MailGuideSection[] = ['recipients', 'content']
 
 export function MasMailModal({
   open,
@@ -87,6 +85,7 @@ export function MasMailModal({
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [failure, setFailure] = useState('')
   const [submittedWaves, setSubmittedWaves] = useState(0)
   const [queuedEmails, setQueuedEmails] = useState(0)
@@ -95,6 +94,9 @@ export function MasMailModal({
      opens on the default of — the lead detail door; likewise opportunity. */
   const { data: catalogue } = useQuery({ ...doorTemplatesQuery(subjectType), enabled: open })
   const seeded = useRef(false)
+  /* Set before the first POST, cleared only by a failure or a new opening: a
+     stale second call would re-post every wave (no idempotency server-side). */
+  const inFlight = useRef(false)
   const { data: campaignBook } = useQuery({ ...campaignFacetQuery, enabled: open })
   const send = useMasSend()
   const saveTemplate = useMailTemplateCreate()
@@ -109,6 +111,8 @@ export function MasMailModal({
     }
     setStep(0)
     setReached(0)
+    setConfirming(false)
+    inFlight.current = false
     setChain(emptyComposerState())
     setSequenceId(crypto.randomUUID())
     seeded.current = false
@@ -160,6 +164,7 @@ export function MasMailModal({
      Two code paths into `POST /sales/mail/runs` would be two places for the
      campaign field or the tracking flag to be forgotten. */
   const waves = effectiveWaves(chain)
+  const pending = waves.slice(submittedWaves)
   const letter = { subject: chain.subject, body: chain.body, cta }
   /* A typed name counts only while its field is on screen (a chain); a lone
      wave always carries the derived one, so no hidden field can block Send. */
@@ -172,6 +177,8 @@ export function MasMailModal({
     draft.saveAsTemplate && canSaveTemplate && draft.templateName.trim() === ''
       ? 'Đặt tên cho mẫu sắp lưu.'
       : null
+  const chainNameGap =
+    draft.campaignCode === NO_CAMPAIGN && !sequenceName.trim() ? 'Đặt tên cho chuỗi gửi này.' : null
 
   const stepBlockers: (string | null)[] = [
     chosen.length > MAS_MAX_RECIPIENTS
@@ -179,10 +186,7 @@ export function MasMailModal({
       : chosen.length === 0
         ? 'Chưa chọn người nhận.'
         : null,
-    composerBlocker(chain) ?? templateNameGap,
-    draft.campaignCode === NO_CAMPAIGN && !sequenceName.trim()
-      ? 'Đặt tên cho chuỗi gửi này.'
-      : null,
+    composerBlocker(chain) ?? templateNameGap ?? chainNameGap,
   ]
   /* The send needs EVERY step to be clean, not just the one on screen — a
      subject deleted on the way back must not leave the button live. */
@@ -221,7 +225,9 @@ export function MasMailModal({
      that opens several runs at once outside a campaign, and a wave already
      queued cannot be recalled — so a chain that dies at wave 3 says so. */
   const submit = async () => {
-    if (blocker || !report || report.sendable === 0 || send.isPending) return
+    if (inFlight.current || blocker || !report || report.sendable === 0 || send.isPending) return
+    if (waves.length <= submittedWaves) return
+    inFlight.current = true
     const done: MasSendResponse[] = []
     let completed = submittedWaves
     let queuedTotal = queuedEmails
@@ -249,6 +255,7 @@ export function MasMailModal({
         setQueuedEmails(queuedTotal)
       }
     } catch (error) {
+      inFlight.current = false
       const reason = isApiError(error) ? userMessage(error) : 'Không tạo được lượt gửi này.'
       setFailure(
         completed > 0
@@ -297,7 +304,7 @@ export function MasMailModal({
       },
     )
 
-  /* A step not yet walked has nothing to summarise: three lines saying
+  /* A step not yet walked has nothing to summarise: two lines saying
      "nothing picked, nothing written" under a panel somebody just opened only
      report back what they already know. */
   const summaries = [
@@ -306,8 +313,7 @@ export function MasMailModal({
       : chosen.length === 1
         ? (chosen[0]?.contactName ?? '')
         : `${chosen.length} người nhận`,
-    letter.subject.trim(),
-    `${waves.length} đợt`,
+    waves.length > 1 ? `${letter.subject.trim()} · ${waves.length} đợt` : letter.subject.trim(),
   ].map((summary, index) => (index <= reached ? summary : ''))
 
   return (
@@ -317,7 +323,7 @@ export function MasMailModal({
         onClose={onClose}
         width="wide"
         title={oneSubject ? 'Gửi email' : 'Gửi email hàng loạt'}
-        subtitle="Ba bước: chọn người nhận, viết nội dung, chọn cách gửi."
+        subtitle="Hai bước: chọn người nhận, rồi viết nội dung và gửi."
         meta={<CheckBadge checking={preflight.checking} report={report} picked={chosen.length} />}
         footer={
           <MailFooter
@@ -325,27 +331,25 @@ export function MasMailModal({
             stepBlocker={stepBlockers[step] ?? null}
             picked={chosen.length}
             step={step}
-            last={step === STEPS.length - 1}
-            nextLabel={STEPS[step + 1]?.label ?? ''}
             sendBlocked={Boolean(blocker)}
             checking={preflight.checking}
             sending={send.isPending}
             verdict={report ? report.sendable : null}
             backBlocked={submittedWaves > 0}
-            waves={waves.length}
-            timing={waves.length > 0 && waves.every((wave) => wave.scheduledAt) ? 'later' : 'now'}
+            waves={pending.length}
+            timing={isLater(pending) ? 'later' : 'now'}
             aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}
             onBack={() => (step === 0 ? onClose() : goTo(step - 1))}
             onNext={() => goTo(step + 1)}
             {...(preflight.error ? { onRetryCheck: preflight.retry } : {})}
-            onSend={() => void submit()}
+            onSend={() => setConfirming(true)}
           />
         }
       >
         <div className="flex min-w-0 flex-col gap-6">
           <div className="flex min-w-0 flex-col gap-2">
             <Stepper steps={STEPS} current={step} reached={reached} onGo={goTo} />
-            <div className="grid min-w-0 grid-cols-3 gap-2">
+            <div className="grid min-w-0 grid-cols-2 gap-2">
               {summaries.map((summary, index) => (
                 <p
                   key={STEPS[index]?.key}
@@ -369,32 +373,37 @@ export function MasMailModal({
                `lg:` — 1024 IS the tablet frame, and half of it crops a ~600px
                letter; below 1440 the letter stacks under the form. */
             <div className="wide:grid-cols-2 grid min-w-0 items-start gap-6">
-              {step === 1 ? (
-                <div className="flex min-w-0 flex-col gap-4">
-                  <WaveComposer
-                    state={chain}
-                    setState={setChain}
-                    templates={templates}
-                    frame="host"
-                    door={subjectType}
-                    {...(previewLead
-                      ? { previewLeadCode: previewLead.leadCode ?? previewLead.code }
-                      : {})}
-                  />
-                  <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
-                </div>
-              ) : (
-                <DeliveryStep
-                  draft={draft}
-                  chosen={chosen}
-                  campaigns={campaigns}
-                  allowCampaign={subjectType === 'lead'}
-                  preflight={report}
-                  chain={{ waves: waves.length, subject: letter.subject }}
-                  sequenceName={sequenceName}
-                  onEdit={goTo}
-                />
-              )}
+              <div className="flex min-w-0 flex-col gap-4">
+                {/* Once a wave is queued the chain is frozen: editing it now would
+                    make "resume" send a different chain (see `goTo`). */}
+                {submittedWaves > 0 ? (
+                  <p className="text-warning m-0 text-[12.5px] leading-[1.6]">
+                    {`Đợt 1–${submittedWaves} đã vào hàng đợi và không rút lại được. Thư và tuỳ chọn gửi đã khoá — bấm gửi để tiếp tục từ đợt ${submittedWaves + 1}.`}
+                  </p>
+                ) : (
+                  <>
+                    <WaveComposer
+                      state={chain}
+                      setState={setChain}
+                      templates={templates}
+                      frame="host"
+                      door={subjectType}
+                      {...(previewLead
+                        ? { previewLeadCode: previewLead.leadCode ?? previewLead.code }
+                        : {})}
+                    />
+                    <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
+                    <DeliveryOptions
+                      draft={draft}
+                      campaigns={campaigns}
+                      allowCampaign={subjectType === 'lead'}
+                      waves={waves.length}
+                      sequenceName={sequenceName}
+                      forceOpen={chainNameGap !== null}
+                    />
+                  </>
+                )}
+              </div>
               <LetterColumn
                 ready={letterReady}
                 preview={preview}
@@ -406,6 +415,16 @@ export function MasMailModal({
           )}
         </div>
       </Modal>
+
+      <MasSendConfirm
+        open={confirming}
+        chosen={chosen}
+        report={report}
+        waves={pending}
+        queued={submittedWaves}
+        onBack={() => setConfirming(false)}
+        onConfirm={() => void submit()}
+      />
 
       <MailGuideDrawer
         open={guideOpen}
