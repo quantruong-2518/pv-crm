@@ -1,11 +1,35 @@
 # Hành trình lặp lại — thiết kế lại màn hành trình (27/09/2026)
 
-Mới là THIẾT KẾ: chưa có ADR, contract, migration hay code. Bản thiết kế nằm
+**Web đã dựng xong trên mock (28/09), BE chưa làm gì** — xem "Trạng thái" ngay
+dưới. Chưa có ADR, migration hay API cho luồng này. Bản thiết kế nằm
 trên canvas https://claude.ai/artifact/GWVAqJSDxm87NwbgT6eGB5 — hàng A là màn
 đang chạy (dựng lại để đối chiếu), B·C·D đã bị thay, **hàng E là bản hiện hành**:
 `E-Model` (luật), `E-Main` (màn, bấm được), `E-Deal` và `E-Fall` (drawer). Đọc
 nguồn bằng Artifact `read` với path `project/E-Main.dc.html`. Dữ liệu trên canvas
 là mẫu MES ("Nhựa Tân Á"), không phải WS-0007 thật.
+
+## Trạng thái — 28/09/2026
+
+Đã có (chưa commit lúc viết — cây làm việc lẫn file của phiên làm mail/lead,
+commit phải chọn đúng file):
+
+- Contract đọc `WorkstreamJourneyResponse` —
+  `packages/contracts/src/sales/workstream-journey.ts`. Tách riêng khỏi
+  `WorkstreamProfileResponse`; API vẫn trả hình cũ.
+- Mock sao-do bốn hành trình + test khoá số —
+  `packages/engines/src/fixtures/sao-do-journey.ts`. WS-0088 là bản đủ nhất
+  (lead → 3 cơ hội: 1 dừng, 1 ra 1 hợp đồng, 1 ra 2 hợp đồng).
+- Màn thay hẳn màn cũ: `apps/web/src/pages/workstream-detail.tsx` +
+  `workstream-tree*.ts(x)` + `workstream-drawers.tsx`. Query ở
+  `apps/web/src/data/workstream-journey.ts` còn `load:`; mã ngoài mock → 404,
+  nên sổ hành trình thật bấm vào đều "Không có hành trình này".
+- Chủ dự án đã duyệt UI. Drawer chỉ xem, chưa có nút ghi nào.
+
+Quyết định đã chốt trong lượt: mock ở kịch bản sao-do (không thêm kịch bản thứ
+ba); mức trễ của bậc do bên gửi tính (`JourneyDealRung.dueLevel`, luồng G3);
+bậc Thu tiền của hợp đồng chỉ chạy khi tới lượt, đợt tạm ứng đã thu chỉ hiện
+trong danh sách đợt; pill trạng thái đầu màn đặt trên mặt kính (pill xanh
+không đạt 4.5:1 trên nền sáng trần).
 
 ## Các cấp logic đã chốt với chủ dự án
 
@@ -74,12 +98,13 @@ là mẫu MES ("Nhựa Tân Á"), không phải WS-0007 thật.
 - Thêm mới: danh mục loại hợp đồng, state hợp đồng và mốc triển khai, mốc hoá
   đơn và đã thu cho từng đợt, bản ghi chuyển Chờ thời điểm, cạnh "nối từ" giữa
   các hành trình, trường "bước tiếp theo" trên cơ hội.
-- `WorkstreamProfileResponse` gửi thêm: giá trị, ngày dự kiến chốt, bước tiếp
-  theo của cơ hội; danh sách hợp đồng (loại, giá trị, state); hành trình trước và
-  sau; bản ghi Chờ thời điểm.
+- Cửa `GET /sales/workstreams/:code` phải trả `WorkstreamJourneyResponse`
+  (hình đã chốt, kể cả `dueLevel` từng bậc do engine tính). Query web đã gắn
+  `schema`, nên bỏ `load:` trước khi cửa đổi hình là lỗi "không khớp hợp đồng",
+  không phải màn vẽ dở.
 - Cột "Rơi" của `WORKSTREAM_JOURNEY_STEPS` đổi nhãn cho khớp từ product.
-- Màn hiện tại để đối chiếu: `apps/web/src/pages/workstream-detail.tsx`,
-  `apps/web/src/pages/workstream-journey.tsx`, `apps/web/src/pages/workstream-tree-layout.ts`.
+- Màn đã dựng lại (cây 4 làn, đọc mock sao-do): `apps/web/src/pages/workstream-detail.tsx`,
+  `apps/web/src/pages/workstream-tree.tsx`, `apps/web/src/pages/workstream-tree-model.ts`.
   Server đánh dấu bậc bỏ qua là "done" không ngày (`apps/api/src/branches/sales/workstream/workstream-lanes.ts`).
 
 ## Còn mở
@@ -88,16 +113,25 @@ là mẫu MES ("Nhựa Tân Á"), không phải WS-0007 thật.
 - `--brand-gold` (màu logo, `packages/tokens/globals.css`) có được dùng làm màu
   giá trị tiền không — nếu có thì cần token chính thức.
 - Nhãn cơ hội đang mở "Đang triển khai" dễ nhầm với bậc hợp đồng "Triển khai".
+- Pill giá trị tiền đang trung tính (`bg-surface-ink/9`) chờ câu trên.
+- Nhãn "xong" của thang hạn cho việc/mốc (câu mở #24) — drawer đang không in
+  pill cho mốc đã xong vì `DUE_LABEL.done` là "Đã thu".
+- Mock chưa có cửa Chờ thời điểm do máy kết luận (C5) hay mang cờ Không liên
+  hệ (C4) — code có nhánh, chưa màn nào hiện ra để nhìn.
+- Mã hợp đồng không bấm được: `chainPath` chưa có `HĐ` vì module hợp đồng đang gác.
 
 ## Việc tiếp theo, theo thứ tự
 
-1. ADR "Hành trình lặp lại" qua `doc-keeper` — thay một phần ADR 0058 và 0064,
+1. Commit phần web + contract + mock (chọn file, xem "Trạng thái").
+2. ADR "Hành trình lặp lại" qua `doc-keeper` — thay một phần ADR 0058 và 0064,
    ghi luôn quyết định hoá đơn.
-2. Contract qua `contract-drafter`.
-3. Migration qua `migration-writer`.
-4. API qua `api-builder`.
-5. Màn qua `screen-builder`, rồi `aurora-reviewer` và `rules-reviewer`. Có thể
-   gom cả chuỗi bằng `/build`.
+3. Migration qua `migration-writer` — danh sách ở "Phải đổi khi làm thật".
+4. API qua `api-builder`: cửa đọc trả `WorkstreamJourneyResponse`; đổi hành vi
+   ký/dừng; rồi các cửa ghi (dừng, đánh thức, tăng trưởng, ghi đợt thu, việc
+   tiếp theo) — contract ghi chưa có, soạn qua `contract-drafter` trước.
+5. Web: bỏ `load:` (và `journeyNow()` về đồng hồ thật), gắn nút ghi vào drawer.
+6. Ngăn Dòng hoạt động và Tài liệu cạnh cây (F-Model) — cần mock/API trước.
+   Gom cả chuỗi bằng `/build`.
 
 ---
 

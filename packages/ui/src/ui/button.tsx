@@ -50,7 +50,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled}
       className={cn(
         buttonVariants({ variant, size }),
-        disabled && 'text-muted-foreground bg-surface-ink/5 cursor-not-allowed shadow-none',
+        /* bg-none: the default variant paints a gradient image that sits above
+           bg-color, so without it the disabled label lands on blue (law 13). */
+        disabled && 'text-muted-foreground bg-muted cursor-not-allowed bg-none shadow-none',
         className,
       )}
       {...props}

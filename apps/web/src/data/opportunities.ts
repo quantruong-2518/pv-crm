@@ -493,8 +493,7 @@ export const STATE_TONE: Record<OpportunityStatus, 'success' | 'running' | 'draf
 /** Law 13 rescue for the `draft` tone `care` wears. `Badge`'s own `draft` ink
  *  measures 4.41:1 on the dark theme and 3.81:1 on the light one, both under the
  *  4.5 floor, where `text-foreground` clears it on either glass. Same mechanism
- *  and same wording as `BADGE_INK` in `pages/workstream-lane-model.ts`, the
- *  screen that hit this first. */
+ *  as `CLOSE_BADGE` in `components/workstream-bits.tsx`. */
 export const BADGE_INK = 'text-foreground'
 
 /** What a row's pill SAYS: the COLUMN while the deal is on the board, the read

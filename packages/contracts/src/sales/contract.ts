@@ -153,6 +153,14 @@ export const InstallmentConditionRow = z.object({
  *  the fixture's own `DocState`. */
 export const DocState = z.enum(['complete', 'awaiting-signature', 'missing'])
 
+/** Declared beside the enum so every screen says the same word; tone stays a
+ *  per-screen choice because urgency depends on what the document gates. */
+export const DOC_STATE_LABEL: Record<z.infer<typeof DocState>, string> = {
+  complete: 'Đủ',
+  'awaiting-signature': 'Chờ ký',
+  missing: 'Chưa có',
+}
+
 export const InstallmentDocRow = z.object({
   id: z.string().min(1).max(64),
   name: textInput(300),

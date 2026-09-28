@@ -1,17 +1,13 @@
-import { infiniteQueryOptions, queryOptions, useQueryClient } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import {
   WORKSTREAM_JOURNEY_STEPS,
   WorkstreamBoardResponse,
   WorkstreamBookQuery,
   WorkstreamBookResponse,
-  WorkstreamProfileResponse,
   type WorkstreamBoardColumn,
-  type WorkstreamDealLane,
   type WorkstreamFootprint,
-  type WorkstreamHolder,
   type WorkstreamRow,
   type WorkstreamStatus,
-  type WorkstreamStep,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 
@@ -292,113 +288,9 @@ export function withBoardParams(
   return out
 }
 
-/** Missing and out-of-scope runs both answer 404 on purpose — see
- *  `WorkstreamService.profile`. */
-export function workstreamProfileQuery(code: string) {
-  return queryOptions({
-    queryKey: [...WORKSTREAM_BOOK_KEY, 'one', code] as const,
-    queryFn: ({ signal }) =>
-      api.read<WorkstreamProfileResponse>(`${BOOK_PATH}/${encodeURIComponent(code)}`, {
-        need: READ_NEED,
-        schema: WorkstreamProfileResponse,
-        signal,
-      }),
-  })
-}
-
 /** Every run counts to the day it closed; an open one counts to `now`, which
  *  the caller reads once per mount so a redraw never changes the figure. */
 export function runDays(ws: Pick<WorkstreamRow, 'openedAt' | 'closedAt'>, now: number): number {
   const end = ws.closedAt === null ? now : Date.parse(ws.closedAt)
   return Math.max(0, Math.floor((end - Date.parse(ws.openedAt)) / 86_400_000))
-}
-
-/** A lead lane and a deal lane read alike once the outcome is folded into `open`. */
-export type WorkstreamLane = {
-  kind: 'LD' | 'OP'
-  code: string
-  owner: WorkstreamHolder | null
-  steps: WorkstreamStep[]
-  open: boolean
-}
-
-export type StepRef = { lane: string; step: string }
-
-/** A deal lane carries its own outcome, so nothing has to pair a lane back to
- *  a `WorkstreamDealLane` by array index. */
-export type WorkstreamDealLaneView = WorkstreamLane &
-  Pick<WorkstreamDealLane, 'outcome' | 'outcomeAt' | 'contractCode'>
-
-/* No backbone patching: `stepsOf` maps over `LEAD_LANE_BACKBONE`, so all five
-   rungs always arrive in order — and the day they do not, the screen should
-   show the gap instead of drawing a ladder nobody sent. */
-export const leadLaneOf = (ws: WorkstreamProfileResponse): WorkstreamLane => ({
-  kind: 'LD',
-  ...ws.lead,
-  open: ws.lead.outcome === 'open',
-})
-
-export const dealLanesOf = (ws: WorkstreamProfileResponse): WorkstreamDealLaneView[] =>
-  ws.deals.map((d) => ({ kind: 'OP', ...d, open: d.outcome === 'open' }))
-
-export function lanesOf(ws: WorkstreamProfileResponse): WorkstreamLane[] {
-  return [leadLaneOf(ws), ...dealLanesOf(ws)]
-}
-
-export const currentStepOf = (lane: WorkstreamLane) => lane.steps.find((s) => s.state === 'current')
-
-/** The rung a lane actually stands on once it stopped moving — `at(-1)` would
- *  answer the LAST rung of the ladder instead, which for a deal lost or won
- *  before the final column is an `upcoming` rung nothing ever reached. */
-export const lastReachedOf = (lane: WorkstreamLane | undefined) =>
-  lane && [...lane.steps].reverse().find((s) => s.state !== 'upcoming')
-
-/** The newest open deal is what somebody opens a run to push forward; the lead
- *  and the last deal are fallbacks for a run with nothing moving. */
-export function defaultStepOf(ws: WorkstreamProfileResponse): StepRef | null {
-  const [lead, ...deals] = lanesOf(ws)
-  const newest = deals.at(-1)
-  const ref = (lane: WorkstreamLane | undefined, step: WorkstreamStep | undefined) =>
-    lane && step ? { lane: lane.code, step: step.key } : null
-  const open = [...deals].reverse().find((d) => d.open)
-  return (
-    ref(open, open && currentStepOf(open)) ??
-    ref(lead, lead && currentStepOf(lead)) ??
-    ref(newest, lastReachedOf(newest)) ??
-    ref(lead, lastReachedOf(lead))
-  )
-}
-
-export function findStep(ws: WorkstreamProfileResponse, ref: StepRef | null) {
-  const lane = lanesOf(ws).find((l) => l.code === ref?.lane)
-  const step = lane?.steps.find((s) => s.key === ref?.step)
-  return lane && step ? { lane, step } : null
-}
-
-/** A deal created from the lead lane changes the lanes, and `usePromoteLead`
- *  only invalidates the opportunity book. */
-export function useRefreshWorkstream(code: string) {
-  const client = useQueryClient()
-  return () => void client.invalidateQueries({ queryKey: workstreamProfileQuery(code).queryKey })
-}
-
-/** A contract IS the other side of a won deal, so it is read off the deals
- *  rather than asked for: the profile door sends no contract lane. `dealWonAt`
- *  is null unless the deal was actually won — `outcomeAt` is the day a deal
- *  ENDED either way, so reading it as a win date labels a lost deal's closing
- *  day as its victory. */
-export type JourneyContract = { code: string; dealCode: string; dealWonAt: string | null }
-
-export function contractsOf(ws: WorkstreamProfileResponse): JourneyContract[] {
-  return ws.deals.flatMap((d) =>
-    d.contractCode === null
-      ? []
-      : [
-          {
-            code: d.contractCode,
-            dealCode: d.code,
-            dealWonAt: d.outcome === 'won' ? d.outcomeAt : null,
-          },
-        ],
-  )
 }

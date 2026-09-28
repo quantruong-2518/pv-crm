@@ -23,7 +23,14 @@ export function ContextRail({ objects, max, className }: ContextRailProps) {
   const shown = typeof max === 'number' ? objects.slice(0, max) : objects
 
   return (
-    <div className={cn('flex flex-wrap gap-1.5', className)} aria-label="Chuỗi object liên quan">
+    /* Coarse pointers widen the gaps to fit each chip's 48px hit area. */
+    <div
+      className={cn(
+        'pointer-coarse:gap-x-2 pointer-coarse:gap-y-6 flex flex-wrap gap-1.5',
+        className,
+      )}
+      aria-label="Chuỗi object liên quan"
+    >
       {shown.map((o) => (
         <Chip key={o.code} variant={o.source ? 'source' : 'object'} onOpen={o.onOpen}>
           {o.code}

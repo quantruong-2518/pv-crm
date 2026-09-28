@@ -13,7 +13,9 @@ const chipVariants = cva(
         source: 'bg-primary/24 text-accent-foreground',
       },
       interactive: {
-        true: 'hover:bg-surface-ink/16 cursor-pointer',
+        /* 24px chip; on a coarse pointer the pseudo-element pads the hit area to
+           48px (law 13). Fine pointers skip it so dense rails never overlap. */
+        true: "hover:bg-surface-ink/16 pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:-inset-y-3 pointer-coarse:after:content-[''] relative cursor-pointer",
         false: '',
       },
     },

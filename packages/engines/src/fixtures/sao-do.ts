@@ -210,3 +210,5 @@ export const SAO_DO_TIMELINE = [
  *  here so `@pv/engines/fixtures/sao-do` stays the only door — a screen should
  *  not have to know how many files the scenario is cut into. */
 export * from './sao-do-contracts'
+/** The journey half, re-exported for the same reason as the contract half. */
+export * from './sao-do-journey'
