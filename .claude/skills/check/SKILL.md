@@ -5,8 +5,8 @@ description: Cổng kiểm trước khi commit hoặc push ở pv-crm — ba t�
 
 # Kiểm trước khi commit
 
-Repo và Claude Code cùng nằm trong WSL — gọi `pnpm`/`git` thẳng. Nếu `uname -s`
-không trả về `Linux` thì phiên này đang ở Windows: dừng và hỏi.
+WSL (`Linux`) hay macOS (`Darwin`) đều gọi `pnpm`/`git` thẳng. `uname -s` ra thứ
+khác là phiên đang ở Windows ngoài WSL: dừng và hỏi.
 
 Cái gì đã gác sẵn: hook `on-edit.mjs` (prettier + eslint sau mỗi lần ghi) ·
 lint-staged ở pre-commit · CI chạy `pnpm check`. Skill này lấp đúng khoảng giữa

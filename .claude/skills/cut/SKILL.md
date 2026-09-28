@@ -86,7 +86,7 @@ Leave the fixture behind it **in place** unless nothing imports it any more —
 ## Step 6 · Look at it, then close the pass
 
 ```bash
-pnpm dev        # run_in_background — see /wsl, never nohup
+pnpm dev        # run_in_background, never nohup
 ```
 
 The screen must show numbers. A browser error `does not provide an export named X`

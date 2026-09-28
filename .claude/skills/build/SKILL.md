@@ -61,6 +61,9 @@ là xong. Bốn thứ luôn phải nhắc lại vì nó không thể tự biết
 4. **Trần comment và trần độ dài** (luật 1 và 3) — lint sẽ đỏ, và sửa sau đắt hơn
    viết đúng ngay.
 
+Model và effort cho từng agent: theo `/dispatch` (Bước 3–4) — bảng ở đây chọn
+AI làm, `/dispatch` chọn chạy bằng model nào, effort nào.
+
 Gửi mọi agent độc lập **trong cùng một lượt** để chúng chạy song song.
 
 ## Bước 4 · Soát trước khi tin

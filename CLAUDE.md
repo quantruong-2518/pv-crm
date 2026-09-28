@@ -46,9 +46,11 @@ pnpm lint:debt      # còn nợ bao nhiêu vi phạm cũ, ở file nào
 pnpm mail:preview   # http://localhost:5175 — mọi mẫu mail, render lại mỗi lần F5
 ```
 
-Node 22 (`.nvmrc`), pnpm 10. Repo và Claude Code **cùng nằm trong WSL** — gọi
-`pnpm`/`git` thẳng. Nếu `uname -s` không trả về `Linux` thì phiên này đang chạy
-từ Windows: dừng lại và hỏi, đừng gọi bừa.
+Node 22 (`.nvmrc`), pnpm 10. Repo chạy trên **hai máy**: WSL (`uname -s` =
+`Linux`) và macOS (`Darwin`) — cả hai gọi `pnpm`/`git` thẳng. `uname -s` ra thứ
+khác (`MINGW*` · `MSYS*` · `CYGWIN*`) hoặc không có `uname` là phiên đang chạy từ
+Windows ngoài WSL: dừng lại và hỏi, đừng gọi bừa. Lệnh shell viết ra phải chạy
+được cả GNU lẫn BSD — không `sed -i` trần, không `grep -P`, không `readlink -f`.
 
 ## Không con số chết trong file này
 

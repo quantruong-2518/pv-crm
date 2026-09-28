@@ -50,7 +50,6 @@ này chỉ giữ việc CÒN THIẾU — xong mục nào thì xoá dòng đó.
 - Lệch ADR từ đợt audit, chưa quyết: 0032 (bảng 3 cột, code vẫn 5); câu hỏi mở
   Q4/Q5/Q7 bị code tự chọn đáp án; làn Account "Đã mua" chỉ tính lượt hiện tại;
   `apps/api/src/branches/sales/config/config.repository.ts` còn định nghĩa "đã ký" cũ.
-- `CLAUDE.md` gốc còn ghi repo nằm trong WSL — máy hiện tại là macOS.
 
 ---
 
