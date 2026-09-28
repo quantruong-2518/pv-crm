@@ -114,6 +114,8 @@ export const ScanFile = z.object({
   /** Short result line for the row (e.g. a people count); null until read. */
   note: z.string().nullable(),
   error: z.string().nullable(),
+  /** Short-lived link to the uploaded file, from the preview on — so a field can open its source. */
+  url: z.string().optional(),
 })
 
 // ---------------------------------------------------------------------------

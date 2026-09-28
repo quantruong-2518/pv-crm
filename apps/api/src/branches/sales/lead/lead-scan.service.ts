@@ -186,7 +186,15 @@ export class LeadScanService {
       code,
       state: batch.state,
       campaignCode: batch.campaignCode,
-      files: files.map(toScanFile),
+      /* Signing is local and cheap; the preview needs a link per source file. */
+      files: previewed
+        ? await Promise.all(
+            files.map(async (f) => ({
+              ...toScanFile(f),
+              url: await this.storage.presignGet(f.storageKey),
+            })),
+          )
+        : files.map(toScanFile),
       counts: {
         read: count(['READ', 'EMPTY']),
         reading: count(['READING']),

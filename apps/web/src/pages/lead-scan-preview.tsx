@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Chip,
   DataTable,
+  FileText,
   GlassCard,
   Icon,
   MetaPill,
@@ -39,7 +40,7 @@ const GROUP_COLUMNS = [
 const FIELD_COLUMNS = [
   { header: 'Trường', width: 'minmax(0,1fr)' },
   { header: 'Giá trị', width: 'minmax(0,1.6fr)' },
-  { header: 'Lấy từ', width: 'minmax(0,1.3fr)' },
+  { header: 'Nguồn', width: '56px' },
   { header: 'Độ chắc', width: 'minmax(0,.8fr)' },
 ]
 
@@ -98,7 +99,8 @@ export function PreviewStep({
               <PeopleCell key="people" group={group} />,
               <OutcomeCell key="outcome" group={group} />,
             ],
-            details: open === group.key ? <FieldTable group={group} /> : undefined,
+            details:
+              open === group.key ? <FieldTable group={group} files={batch.files} /> : undefined,
           }))}
         />
       </GlassCard>
@@ -186,7 +188,10 @@ function OutcomeCell({ group }: { group: ScanGroup }) {
   )
 }
 
-function FieldTable({ group }: { group: ScanGroup }) {
+/** The source is a button, not a column of file names: the name lives in its
+ *  tooltip, and a click opens the file itself. */
+function FieldTable({ group, files }: { group: ScanGroup; files: LeadScanResponse['files'] }) {
+  const urlOf = new Map(files.map((file) => [file.name, file.url]))
   return (
     <DataTable
       columns={FIELD_COLUMNS}
@@ -202,14 +207,36 @@ function FieldTable({ group }: { group: ScanGroup }) {
             <span className="break-words">{f.value}</span>
             {f.alt && <span className="text-warning break-words">hoặc {f.alt}</span>}
           </span>,
-          <span key="from" className="text-muted-foreground truncate" title={f.fromFile}>
-            {f.fromFile}
-          </span>,
+          <SourceButton key="from" name={f.fromFile} url={urlOf.get(f.fromFile)} />,
           <Badge key="c" tone={CONFIDENCE_FACE[f.confidence].tone}>
             {CONFIDENCE_FACE[f.confidence].text}
           </Badge>,
         ],
       }))}
     />
+  )
+}
+
+function SourceButton({ name, url }: { name: string; url: string | undefined }) {
+  const face =
+    'text-muted-foreground inline-flex size-8 items-center justify-center rounded-sm pointer-coarse:size-12'
+  if (!url) {
+    return (
+      <span className={face} title={name} aria-label={`Nguồn: ${name}`}>
+        <Icon icon={FileText} size={16} />
+      </span>
+    )
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={name}
+      aria-label={`Mở tệp nguồn: ${name}`}
+      className={cn(face, 'motion-std hover:bg-surface-ink/8 hover:text-foreground')}
+    >
+      <Icon icon={FileText} size={16} />
+    </a>
   )
 }
