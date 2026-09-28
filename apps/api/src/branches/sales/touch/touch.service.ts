@@ -116,6 +116,8 @@ export type TouchEntry = {
 export const SYSTEM_ACTOR = 'Hệ thống'
 
 /** Cặp `by`/`actorId` từ một actor có thể vắng mặt. */
-export function byOf(who: Actor | null | undefined): Pick<TouchEntry, 'by' | 'actorId'> {
+export function byOf(
+  who: Pick<Actor, 'id' | 'name'> | null | undefined,
+): Pick<TouchEntry, 'by' | 'actorId'> {
   return who ? { by: who.name, actorId: who.id } : { by: SYSTEM_ACTOR }
 }

@@ -22,3 +22,4 @@ chats/
 # chạy thử với `pglite://./.pglite-scratch` đẻ ra 1.106 file mà `git add -A`
 # quét sạch vào index (28/08). Mọi biến thể `.pglite-*` đều là dữ liệu máy dev.
 apps/api/.pglite*/
+apps/api/.storage/

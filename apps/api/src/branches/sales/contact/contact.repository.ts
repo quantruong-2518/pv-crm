@@ -53,8 +53,8 @@ export class ContactRepository {
 
   /** Primary first, then alphabetical. The person who answers the phone belongs
    *  at the top of the list, not wherever the alphabet puts them. */
-  async byLead(leadCode: string): Promise<ContactRowDb[]> {
-    return this.db
+  async byLead(leadCode: string, db: Db = this.db): Promise<ContactRowDb[]> {
+    return db
       .select()
       .from(contact)
       .where(eq(contact.leadCode, leadCode))

@@ -253,7 +253,7 @@ export const LeadBookQuery = PageQuery.extend({
 
   /** The OTHER half of an origin — see `LeadSource` for why the two facts
    *  cannot share one param. `campaign` picks one named campaign; this picks
-   *  a lead that has NO campaign at all and came in through one of the four
+   *  a lead that has NO campaign at all and came in through one of the
    *  raw doors (`LeadSourceKind`). The two are mutually exclusive on a row —
    *  a lead with a campaign never shows its kind on screen (`SourceMark`
    *  prints the campaign name, not the kind) — so the repository ANDs this
@@ -321,8 +321,8 @@ export const LeadFacets = z.object({
    *  không có lấy MỘT lựa chọn nào trỏ tới những dòng đó. Chọn "Mọi nguồn" là
    *  cách duy nhất một lead `LANDING_PAGE` không chiến dịch còn tìm lại được.
    *
-   *  Đây là DANH SÁCH THẬT bốn giá trị `LeadSourceKind` nào đang thật sự xuất
-   *  hiện KHÔNG kèm chiến dịch trong sổ — không phải cả bốn giá trị enum lúc
+   *  Đây là DANH SÁCH THẬT những giá trị `LeadSourceKind` nào đang thật sự xuất
+   *  hiện KHÔNG kèm chiến dịch trong sổ — không phải mọi giá trị enum lúc
    *  nào cũng liệt kê đủ: một sổ mà mọi lead đều có chiến dịch thì mảng này
    *  rỗng, và ô lọc không vẽ ra một lựa chọn chết. Cùng trục phạm vi với
    *  `book()`. */

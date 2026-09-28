@@ -33,6 +33,7 @@ import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
 import { LeadActivityCard } from '@/components/lead-activity-card'
+import { LeadAttachmentsCard } from '@/components/lead-attachments-card'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { masRecipientsOf } from '@/data/mas-mail-draft'
@@ -227,6 +228,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
                 now", while holder and origin are looked up once and dropped. */}
             <NextActionCard lead={legacy} />
             <OwnerSourceCard mode="edit" profile={lead} legacy={legacy} />
+            <LeadAttachmentsCard code={lead.code} />
           </DetailSidePanel>
         }
       />

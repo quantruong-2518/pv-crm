@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus } from '@pv/ui'
+import { ImagePlus, Plus } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -578,6 +578,17 @@ export function LeadsPage() {
                   clearFilters()
                 }}
               />
+              {canWrite && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={() => navigate('/sales/leads/scan')}
+                  className="pointer-coarse:h-12 max-sm:flex-1"
+                >
+                  <Icon icon={ImagePlus} size={16} />
+                  Nạp từ ảnh
+                </Button>
+              )}
               {/* Typing a lead by hand is a PAGE now (`/sales/leads/new`), not a
                   drawer: it asks the very questions the lead profile asks, so it
                   uses that same form — see `pages/lead-new.tsx`. */}

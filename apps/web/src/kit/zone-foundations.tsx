@@ -4,6 +4,7 @@ import {
   Factory,
   FileText,
   House,
+  Loader,
   Package,
   ScanLine,
   Search,
@@ -112,6 +113,7 @@ const ICON_ROW = [
   { icon: Users, className: 'text-foreground' },
   { icon: TriangleAlert, className: 'text-warning' },
   { icon: CircleCheck, className: 'text-success' },
+  { icon: Loader, className: 'text-accent-foreground motion-safe:animate-spin' },
 ]
 
 export function ZoneFoundations() {

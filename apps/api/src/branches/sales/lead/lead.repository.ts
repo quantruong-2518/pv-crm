@@ -315,6 +315,38 @@ export class LeadRepository {
     return row ?? null
   }
 
+  /** Live leads sharing a mailbox or a tax root with a scan batch, the scope
+   *  verdict SELECTED as `byCode` does, ordered by code so the preview is
+   *  the same on every poll. A branch code (`…-001`) matches its root. */
+  async scanBook(
+    who: Pick<Actor, 'id' | 'ownOnly'>,
+    emails: readonly string[],
+    taxRoots: readonly string[],
+    db: Db = this.db,
+  ): Promise<{ code: string; emailLower: string; taxCode: string | null; inScope: boolean }[]> {
+    if (emails.length === 0 && taxRoots.length === 0) return []
+    const scope = this.scopeOf(who, true)
+    const root = sql`left(regexp_replace(${lead.taxCode}, '[^0-9]', '', 'g'), 10)`
+    return db
+      .select({
+        code: lead.code,
+        emailLower: sql<string>`lower(${lead.email})`,
+        taxCode: lead.taxCode,
+        inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+      })
+      .from(lead)
+      .where(
+        and(
+          notInArray(lead.state, [...LEAD_GONE_STATES]),
+          or(
+            emails.length > 0 ? inArray(sql`lower(${lead.email})`, [...emails]) : undefined,
+            taxRoots.length > 0 ? inArray(root, [...taxRoots]) : undefined,
+          ),
+        ),
+      )
+      .orderBy(asc(lead.code))
+  }
+
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.
    *
    *  So bằng `id`, KHÔNG bằng tên hiển thị. Đây là chỗ nợ số 2 được trả trước ở
@@ -329,7 +361,7 @@ export class LeadRepository {
    *
    *  `undefined` means the axis is not cutting anything, which is what Drizzle
    *  reads as "no condition" inside `and(...)`. */
-  private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
+  private scopeOf(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean): SQL | undefined {
     return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
   }
 

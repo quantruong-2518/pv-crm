@@ -16,6 +16,7 @@
 
 export * from './types'
 export * from './lead-intake'
+export * from './lead-scan'
 export * from './e1-object-graph'
 export * from './e2-access'
 export * from './e3-approvals'

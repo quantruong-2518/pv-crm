@@ -76,14 +76,15 @@ export type LeadIntake = (typeof LEAD_INTAKES)[number]
 // ---------------------------------------------------------------------------
 
 /** The trust levels are declared once, in `@pv/contracts`; this table only
- *  maps the five doors onto them. `scan` and `api` are VERIFIED because the
- *  customer handed over the data themselves; `sync` and `manual` are DECLARED
- *  because someone on our side owns the row; `file` is RAW until touched. */
+ *  maps the five doors onto them. `api` is VERIFIED because the customer
+ *  typed the data themselves; `scan` is DECLARED like `sync` and `manual`
+ *  because an AI read a card or profile a seller chose to upload, and the
+ *  seller owns that row; `file` is RAW until touched. */
 export const INTAKE_TRUST: Record<LeadIntake, IntakeTrust> = {
   sync: 'DECLARED',
   manual: 'DECLARED',
   file: 'RAW',
-  scan: 'VERIFIED',
+  scan: 'DECLARED',
   api: 'VERIFIED',
 }
 
@@ -91,22 +92,20 @@ export const INTAKE_TRUST: Record<LeadIntake, IntakeTrust> = {
 // Đường vào nào chở được thế nào
 // ---------------------------------------------------------------------------
 
-/** Cặp (thế, đường vào) nào có thật.
+/** Which (motion, door) pairs exist — said here so no screen has to guess.
  *
- *  Không phải mọi cặp đều tồn tại, và bảng này nói ra chỗ đó thay vì để màn tự
- *  đoán: `sync` chỉ chở `outbound` và `inbound` (đợt gửi đi, hoặc người bấm
- *  landing của đợt) — một lead `referral` không bao giờ tự đổ về từ một đợt vì
- *  không có đợt nào gửi cho nó; `scan` chỉ chở `event` vì máy quét chỉ đứng ở
- *  sự kiện.
+ *  `sync` carries only `outbound` and `inbound`: no campaign ever sends to a
+ *  `referral`, so none can flow back from one. `scan` carries `event` when the
+ *  batch names a campaign and `outbound` when it does not — the door derives
+ *  the motion and has no way to tell a referral or partner card apart.
  *
- *  Dùng ở màn nạp tệp để lọc danh sách thế theo chỗ người dùng đang đứng, và ở
- *  module Cấu hình để in ra bảng sáu-nhân-năm. Cặp không có trong bảng thì
- *  không phải "chưa hỗ trợ" — nó là cặp KHÔNG XẢY RA. */
+ *  A pair missing from this table is not "unsupported yet" — it never
+ *  happens. The import screen filters motions by it; settings prints it. */
 export const MOTION_BY_INTAKE: Record<LeadIntake, readonly LeadMotion[]> = {
   sync: ['outbound', 'inbound'],
   manual: ['inbound', 'outbound', 'referral', 'partner', 'recycle'],
   file: ['outbound', 'event', 'partner', 'recycle'],
-  scan: ['event'],
+  scan: ['event', 'outbound'],
   api: ['inbound', 'partner'],
 }
 

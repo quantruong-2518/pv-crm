@@ -43,12 +43,12 @@ import { LEAD_MAX } from './lead-fields'
  *  ------------------------------------------------------------------
  *  `packages/engines/src/lead-intake.ts` models this axis with FIVE values
  *  (`sync · manual · file · scan · api`) in lower case, and the import panel in
- *  `apps/web` reads that one. The stored vocabulary is the four in `./enums`:
- *  every one of them has a code path behind it, whereas `sync` and `scan`
- *  describe doors nothing has been built for yet. The tables below are that
- *  five-door table narrowed to the origins that exist, with `manual → MANUAL`,
- *  `file → IMPORT`, `api → LANDING_PAGE`; `APOLLO` has no counterpart there at
- *  all, because the engine copy has no notion of a named vendor. Reconciling
+ *  `apps/web` reads that one. The stored vocabulary is the five in `./enums`:
+ *  every one of them has a code path behind it, whereas `sync` describes a
+ *  door nothing has been built for yet. The tables below are that five-door
+ *  table narrowed to the origins that exist, with `manual → MANUAL`,
+ *  `file → IMPORT`, `scan → SCAN`, `api → LANDING_PAGE`; `APOLLO` has no
+ *  counterpart there at all, because the engine copy has no notion of a named vendor. Reconciling
  *  the two is the "enum declared twice" debt in
  *  `docs/decisions/0012-rename-vietnamese-identifiers-in-six-batches.md`; the
  *  conversion happens in `lead.mapper.ts`, in exactly ONE place, until it is
@@ -88,6 +88,8 @@ export const CHANNEL_TRUST = {
   IMPORT: 'RAW',
   APOLLO: 'RAW',
   LANDING_PAGE: 'VERIFIED',
+  /* The AI only drafts; the uploader reviews every row and presses create. */
+  SCAN: 'DECLARED',
 } as const satisfies Record<z.infer<typeof LeadSourceKind>, z.infer<typeof IntakeTrust>>
 
 /** Which origin can carry which motion — the pairs that actually exist.
@@ -121,6 +123,9 @@ export const MOTION_BY_CHANNEL = {
      file, not an Apollo invoice. */
   APOLLO: ['OUTBOUND', 'RECYCLE'],
   LANDING_PAGE: ['INBOUND', 'PARTNER'],
+  /* The batch asks only for a campaign: picked means an event, none means a
+     cold visit. Nothing else can be derived from a pile of cards. */
+  SCAN: ['EVENT', 'OUTBOUND'],
 } as const satisfies Record<z.infer<typeof LeadSourceKind>, readonly z.infer<typeof LeadMotion>[]>
 
 /** Does this pair exist. */

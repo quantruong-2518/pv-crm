@@ -435,6 +435,13 @@
       "when": 1788503300000,
       "tag": "0062_care_reason_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788503400000,
+      "tag": "0063_lead_scan",
+      "breakpoints": true
     }
   ]
 }

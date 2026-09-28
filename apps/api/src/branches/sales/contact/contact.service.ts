@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { normalisePhone, type Actor } from '@pv/engines'
 import {
   ContactBookResponse,
   ContactBookRow,
@@ -32,6 +32,8 @@ import { fromCreate, fromLeadBirth, fromPatch, refOf, toContract } from './conta
  *  the contact really belongs to the lead on the path, and throws 404
  *  rather than 403 — the same reason `MeetingService.mine` does that, so it
  *  never reveals that the code exists under a different lead. */
+type ContactSeed = Pick<ContactCreate, 'name' | 'title' | 'email' | 'phone'>
+
 @Injectable()
 export class ContactService {
   constructor(
@@ -123,6 +125,40 @@ export class ContactService {
     await this.mirror.put(tx, refOf(code, leadCode, values))
     await this.mirror.link(tx, { from: code, to: leadCode, kind: 'belongs-to' })
     await this.repo.insert(tx, { ...values, code })
+  }
+
+  /** Scanned people onto a lead, on the caller's `tx`, never as primary: the
+   *  primary is seeded with the lead, or already exists on a merge target.
+   *  Someone already on the lead is skipped, keyed by mailbox, else name,
+   *  else phone — `unnamed` is the stored label for "no name", so it never
+   *  keys, or two nameless phone-only cards would collapse into one. */
+  async seedExtra(
+    tx: Db,
+    leadCode: string,
+    people: readonly (Omit<ContactSeed, 'name'> & { name: string | null })[],
+    who: { id: string; name: string },
+    unnamed: string,
+  ): Promise<number> {
+    const keyOf = (p: { name: string | null; email?: string | null; phone?: string | null }) => {
+      const name = p.name && p.name !== unnamed ? p.name.trim().toLowerCase() : null
+      const phone = p.phone ? (normalisePhone(p.phone) ?? p.phone) : null
+      if (p.email) return `e:${p.email.toLowerCase()}`
+      return name ? `n:${name}` : `p:${phone ?? ''}`
+    }
+    const known = new Set((await this.repo.byLead(leadCode, tx)).map(keyOf))
+    let added = 0
+    for (const person of people) {
+      if (known.has(keyOf(person))) continue
+      known.add(keyOf(person))
+      const code = await this.repo.nextCode(tx)
+      const body = { ...person, name: person.name ?? unnamed, isPrimary: false }
+      const values = fromCreate(leadCode, body, who, false)
+      await this.mirror.put(tx, refOf(code, leadCode, values))
+      await this.mirror.link(tx, { from: code, to: leadCode, kind: 'belongs-to' })
+      await this.repo.insert(tx, { ...values, code })
+      added += 1
+    }
+    return added
   }
 
   /** Write a new person into a lead's book.

@@ -65,6 +65,11 @@ PV_QUEUE_POLL_SECONDS = "30"
 # tách nhau nên tắt được chiến dịch mà vẫn giữ thư giao dịch.
 PV_LEAD_NOTIFICATION_TO = "contact@pebblevina.com"
 
+# Scan uploads go to Tigris. The bucket's own variables (BUCKET_NAME,
+# AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+# are secrets set by `fly storage create`; env.ts refuses `disk` here.
+STORAGE_DRIVER = "s3"
+
 [build]
 dockerfile = "Dockerfile"
 

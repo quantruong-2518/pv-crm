@@ -1,8 +1,13 @@
 import { Module } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
+import { AiModule } from '@api/platform/ai/ai.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { ScanQueueModule } from '@api/platform/queue/scan-enqueue'
+import { SCAN_JOB_HANDLER, type ScanJobHandler } from '@api/platform/queue/scan-jobs'
+import { SessionModule } from '@api/platform/session/session.module'
+import { StorageModule } from '@api/platform/storage/storage.module'
 import { AccountModule } from '../account/account.module'
 import { CampaignModule } from '../campaign/campaign.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
@@ -26,6 +31,11 @@ import { LeadMailComposer } from './lead-mail.composer'
 import { LeadArchiveSweeper } from './lead-archive.sweeper'
 import { LeadStateModule } from './lead-state'
 import { LeadCommsHook } from './lead-comms.hook'
+import { LeadScanCommit } from './lead-scan.commit'
+import { LeadScanController } from './lead-scan.controller'
+import { LeadScanRepository } from './lead-scan.repository'
+import { LeadScanService } from './lead-scan.service'
+import { LeadScanSweeper } from './lead-scan.sweeper'
 
 /** Module 2 · Sổ lead.
  *
@@ -84,8 +94,14 @@ import { LeadCommsHook } from './lead-comms.hook'
     CampaignModule,
     /* A REFERRER-motion lead names its partner; `PartnerService.live` checks it. */
     PartnerModule,
+    /* The scan door: its bytes, its reader and its two queues. */
+    StorageModule,
+    AiModule,
+    ScanQueueModule,
+    /* The commit re-reads the uploader as an `Actor` to re-ask E2. */
+    SessionModule,
   ],
-  controllers: [LeadController, LeadIntakeController, LeadContactController],
+  controllers: [LeadController, LeadIntakeController, LeadContactController, LeadScanController],
   providers: [
     LeadService,
     LeadRepository,
@@ -105,7 +121,21 @@ import { LeadCommsHook } from './lead-comms.hook'
     LeadMailComposer,
     /* Bound to comms' `MESSAGE_LOGGED_HOOK` by `app.module.ts`, same reason. */
     LeadCommsHook,
+    LeadScanRepository,
+    LeadScanService,
+    LeadScanCommit,
+    /* Self-timed like `LeadArchiveSweeper`. */
+    LeadScanSweeper,
+    /* What `worker.ts` runs for the two scan queues — `platform/` cannot name us. */
+    {
+      provide: SCAN_JOB_HANDLER,
+      inject: [LeadScanService, LeadScanCommit],
+      useFactory: (scans: LeadScanService, commit: LeadScanCommit): ScanJobHandler => ({
+        readFile: (fileId, attempt) => scans.readFile(fileId, attempt),
+        commitBatch: (code, attempt) => commit.commitBatch(code, attempt),
+      }),
+    },
   ],
-  exports: [LeadService, LeadMailComposer, LeadCommsHook],
+  exports: [LeadService, LeadMailComposer, LeadCommsHook, SCAN_JOB_HANDLER],
 })
 export class LeadModule {}

@@ -73,6 +73,9 @@ export const LEAD_NOTE = {
   typed: 'Vào sổ · gõ tay',
   landing: 'Vào sổ · form landing page',
   imported: (fileName: string) => `Vào sổ · nạp từ tệp ${fileName}`,
+  scanned: (batchCode: string) => `Tạo từ lô nạp ảnh ${batchCode}`,
+  scanMerged: (batchCode: string, files: number) =>
+    `Bổ sung từ lô nạp ảnh ${batchCode} · ${files} tệp`,
   /** Hai đầu của một lần đổi tay. Tên người nhận nối vào sau `handedTo` ở
    *  `LeadWriteService.setOwner` — dòng thời gian phải đọc được thành câu mà
    *  không phải tra thêm bảng nào: "Giao cho Đỗ Quang Huy", "Trả về kho chung". */

@@ -5,6 +5,13 @@ import type { Env } from '../config/env'
 import { connectWithRetry } from '../db/connection-retry'
 import type { DbHandle } from '../db/create-db'
 import { EMAIL_QUEUE, EMAIL_QUEUE_DEAD } from '../mail/mail.contract'
+import {
+  SCAN_COMMIT_CONCURRENCY,
+  SCAN_COMMIT_QUEUE,
+  SCAN_READ_CONCURRENCY,
+  SCAN_READ_QUEUE,
+  SCAN_RETRY_LIMIT,
+} from './scan-jobs'
 
 /** THE ONE pg-boss INSTANCE, AND THE TWO SHAPES IT COMES IN.
  *
@@ -98,7 +105,9 @@ export async function createBoss(role: QueueRole, env: Env, handle: DbHandle): P
     /* One connection per worker slot plus headroom for maintenance and the
        listener. The sender only ever inserts, so it needs almost nothing —
        and on Neon every idle connection is a compute that will not sleep. */
-    options.max = worker ? env.PV_EMAIL_WORKER_CONCURRENCY + 3 : 2
+    options.max = worker
+      ? env.PV_EMAIL_WORKER_CONCURRENCY + SCAN_READ_CONCURRENCY + SCAN_COMMIT_CONCURRENCY + 3
+      : 2
   }
 
   /* Wake on NOTIFY instead of waiting out the poll — but only in the worker,
@@ -154,7 +163,7 @@ export async function createBoss(role: QueueRole, env: Env, handle: DbHandle): P
   return boss
 }
 
-/** Both queues, declared by whoever starts first.
+/** Every queue, declared by whoever starts first.
  *
  *  `createQueue` is `ON CONFLICT DO NOTHING` under an advisory lock, so it is
  *  safe to call from every process on every boot — but for the same reason it
@@ -212,4 +221,20 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
   }
   await boss.createQueue(EMAIL_QUEUE, { ...policy, ...live })
   await boss.updateQueue(EMAIL_QUEUE, live)
+
+  /* `exclusive`, not `standard`: one queued-or-active job per singletonKey is
+     what turns a double click into a no-op — see `scan-jobs.ts`. */
+  const scan: QueueSettings = {
+    retryLimit: SCAN_RETRY_LIMIT,
+    retryDelay: 10,
+    retryBackoff: true,
+    /* Above one model call with its retry, and above a 50-file commit. */
+    expireInSeconds: 300,
+    retentionSeconds: 7 * DAY_SECONDS,
+    notify,
+  }
+  for (const name of [SCAN_READ_QUEUE, SCAN_COMMIT_QUEUE]) {
+    await boss.createQueue(name, { policy: 'exclusive', ...scan })
+    await boss.updateQueue(name, scan)
+  }
 }

@@ -2,7 +2,8 @@
 
 Status: partially superseded by 0054 (the delivery/acceptance half of the
 "no sales order, delivery, acceptance, or real payment collection" line only —
-the other four exclusions stand)
+the other four exclusions stand) and by 0066 (the "no dedicated attachment
+store" half of the third bullet only — no server-side PDF generation stands)
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§9 · Cố ý KHÔNG làm"
 
 ## Context

@@ -1,4 +1,4 @@
-import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -313,6 +313,27 @@ export class LeadWriteRepository {
       .where(eq(lead.code, code))
       .returning({ code: lead.code })
 
+    return rows.length > 0
+  }
+
+  /** Fill-empty-only: each column keeps what it holds and takes `values` only
+   *  where it is NULL, decided per row inside the UPDATE, so a value written
+   *  a moment ago by somebody else is never overwritten. True = at least one
+   *  column was empty and took a value. */
+  async fillEmpty(tx: Db, code: string, values: Partial<LeadValues>): Promise<boolean> {
+    const columns = Object.keys(values).map((key) => lead[key as keyof typeof lead.$inferSelect])
+    if (columns.length === 0) return false
+    const set = Object.fromEntries(
+      Object.entries(values).map(([key, value], i) => [
+        key,
+        sql`COALESCE(${columns[i]}, ${value})`,
+      ]),
+    )
+    const rows = await tx
+      .update(lead)
+      .set(set)
+      .where(and(eq(lead.code, code), or(...columns.map((c) => isNull(c)))))
+      .returning({ code: lead.code })
     return rows.length > 0
   }
 

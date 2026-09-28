@@ -17,6 +17,7 @@ import {
   type LeadPatch,
   type LeadState,
   type ObjectCode,
+  type RoleId,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
@@ -28,7 +29,15 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { ContactService } from '../contact/contact.service'
 import type { LeadContactMirror } from '../contact/contact.repository'
 import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
-import { fromCreate, fromPatch, LEAD_NOTE, refOf } from './lead-write.mapper'
+import {
+  fromCreate,
+  fromPatch,
+  LEAD_NOTE,
+  refOf,
+  type LeadValues,
+  type LeadWrite,
+} from './lead-write.mapper'
+import type { LeadRowDb } from './lead.schema'
 import { toContract } from './lead.mapper'
 import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
@@ -161,62 +170,25 @@ export class LeadWriteService {
     const run = await this.runs.nextCode()
 
     const row = await this.repo.run(async (tx) => {
-      await this.mirror.put(tx, refOf(code, write))
-      /* The company is resolved BEFORE the lead row, in the same transaction:
-         `lead.account_code` is a foreign key into `sales.account`, so the other
-         order kills the lead insert because its target does not exist yet. */
-      const accountCode = await this.accounts.resolveForLead(tx, write.values)
-      /* The lead BELONGS TO the company, so the arrow runs lead → company and
-         the rail climbs from the lead to the customer it is part of. Written
-         after `resolveForLead` and not before: that call is what puts the
-         company's mirror row there when the company is new, and
-         `edge.to_code` is a foreign key into it. */
-      await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
-      await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
       /* No pick = the motion derives it: the partner's origin, else the campaign's. */
       const origin = body.origin
         ? await this.origins.resolveOrigin(tx, body.origin, body.motion, who.id)
         : await this.derivedOrigin(tx, referrer?.originId ?? picked?.originId ?? null)
-      const [written] = await this.repo.insertLeads(tx, [
-        {
-          ...write.values,
+      const written = await this.bear(tx, {
+        code,
+        run,
+        write,
+        extra: {
           campaignId,
           originId: origin.id,
           originRaw: origin.raw,
           partnerCode: referrer?.code ?? null,
-          accountCode,
-          code,
-          workstreamCode: run,
         },
-      ])
-      if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
+        who,
+        owner,
+        note: LEAD_NOTE.typed,
+      })
       if (body.campaignCode) await this.campaigns.enrol(tx, body.campaignCode, [code])
-
-      /* Same transaction as the lead row — see `ContactService.seedPrimary`. */
-      await this.contacts.seedPrimary(tx, code, mirrorOf(write.values), who)
-
-      /* The lead's first timeline row, written in the same commit as the lead.
-         A customer whose history starts at the day somebody happened to open
-         the profile is a customer with no history — and the row costs one
-         INSERT on a path that is already writing two.
-
-         `to` is the holder the lead is BORN with, and it is on this row rather
-         than on a `handed-over` row of its own: nobody handed the lead over, it
-         arrived with a name on it. Without it the flow vector's first step
-         would have to be inferred from `lead.owner_id`, which says who holds it
-         TODAY and has no date to stand on. Same place `toTier` sits for a lead
-         that entered the book already graded. */
-      await this.touch.record(tx, [
-        {
-          subjectCode: code,
-          subjectKind: 'lead',
-          kind: 'created',
-          ...byOf(who),
-          ...(owner ? { to: { actorId: owner.id, name: owner.name, role: owner.roleId } } : {}),
-          note: LEAD_NOTE.typed,
-        },
-      ])
-
       return { written, originName: origin.name }
     })
 
@@ -236,6 +208,79 @@ export class LeadWriteService {
         signed: false,
       }),
     )
+  }
+
+  /** Every write one lead's birth makes, in foreign-key order, on the caller's
+   *  transaction — shared by `create()` and the scan commit so the two cannot
+   *  drift. Campaign enrolment stays with the caller: the scan door skips it. */
+  async bear(
+    tx: Db,
+    b: {
+      code: string
+      run: string
+      write: LeadWrite
+      extra: Pick<LeadValues, 'campaignId' | 'originId' | 'originRaw' | 'partnerCode'>
+      who: { id: string; name: string }
+      owner: { id: string; name: string; roleId: RoleId } | null
+      note: string
+    },
+  ): Promise<LeadRowDb> {
+    const { code, run, write, who, owner } = b
+    await this.mirror.put(tx, refOf(code, write))
+    /* The company is resolved BEFORE the lead row, in the same transaction:
+       `lead.account_code` is a foreign key into `sales.account`, so the other
+       order kills the lead insert because its target does not exist yet. */
+    const accountCode = await this.accounts.resolveForLead(tx, write.values)
+    /* The lead BELONGS TO the company, so the arrow runs lead → company and
+       the rail climbs from the lead to the customer it is part of. Written
+       after `resolveForLead` and not before: that call is what puts the
+       company's mirror row there when the company is new, and
+       `edge.to_code` is a foreign key into it. */
+    await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
+    await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
+    const [written] = await this.repo.insertLeads(tx, [
+      { ...write.values, ...b.extra, accountCode, code, workstreamCode: run },
+    ])
+    if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
+
+    /* Same transaction as the lead row — see `ContactService.seedPrimary`. */
+    await this.contacts.seedPrimary(tx, code, mirrorOf(write.values), who)
+
+    /* The lead's first timeline row, written in the same commit as the lead.
+       A customer whose history starts at the day somebody happened to open
+       the profile is a customer with no history — and the row costs one
+       INSERT on a path that is already writing two.
+
+       `to` is the holder the lead is BORN with, and it is on this row rather
+       than on a `handed-over` row of its own: nobody handed the lead over, it
+       arrived with a name on it. Without it the flow vector's first step
+       would have to be inferred from `lead.owner_id`, which says who holds it
+       TODAY and has no date to stand on. Same place `toTier` sits for a lead
+       that entered the book already graded. */
+    await this.touch.record(tx, [
+      {
+        subjectCode: code,
+        subjectKind: 'lead',
+        kind: 'created',
+        ...byOf(who),
+        ...(owner ? { to: { actorId: owner.id, name: owner.name, role: owner.roleId } } : {}),
+        note: b.note,
+      },
+    ])
+    return written
+  }
+
+  /** The scan door's motion + campaign rules: `create()`'s asks and pickable
+   *  check, with no origin to pick — the file door's `originRequired: false`. */
+  async scanCampaign(motion: LeadMotion, campaignCode: string | undefined): Promise<void> {
+    const asks = await this.asksOf(this.repo.readonlyHandle, motion)
+    refuseByAsks(asks, {
+      origin: false,
+      campaign: campaignCode !== undefined,
+      refCode: false,
+      originRequired: false,
+    })
+    if (campaignCode) await this.pickable(campaignCode)
   }
 
   // ── door 1b · hand the lead over ─────────────────────────────────────────
@@ -702,7 +747,7 @@ export class LeadWriteService {
 
   /** A derived origin in `resolveOrigin`'s shape; `raw` is null — nobody typed
    *  it. A hidden survivor yields no origin rather than filing under a hidden one. */
-  private async derivedOrigin(
+  async derivedOrigin(
     tx: Db,
     id: string | null,
   ): Promise<{ id: string | null; name: string | null; raw: null }> {

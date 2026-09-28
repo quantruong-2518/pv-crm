@@ -21,6 +21,7 @@ import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
 import { SettingModule } from './platform/setting/setting.module'
 import { SessionModule } from './platform/session/session.module'
+import { StorageModule } from './platform/storage/storage.module'
 import { UsersModule } from './platform/users/users.module'
 import { RolesModule } from './platform/roles/roles.module'
 
@@ -94,6 +95,9 @@ import { RolesModule } from './platform/roles/roles.module'
        lead moves its state — see `message-logged.hook.ts`. */
     CommsModule.withHook({ imports: [LeadModule], hook: LeadCommsHook }),
     MailModule,
+    /* Explicit for `MailModule`'s reason: it carries `/storage/local/:token`,
+       the disk driver's upload door, even though Sales imports it too. */
+    StorageModule,
     SalesModule,
   ],
   providers: [

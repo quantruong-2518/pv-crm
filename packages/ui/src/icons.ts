@@ -117,6 +117,7 @@ export {
   GaugeIcon as Gauge,
   KanbanIcon as Kanban,
   Key01Icon as KeyRound,
+  Loading03Icon as Loader,
   Location01Icon as MapPin,
   Logout03Icon as LogOut,
   Moon02Icon as Moon,

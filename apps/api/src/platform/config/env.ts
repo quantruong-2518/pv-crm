@@ -371,6 +371,26 @@ const Env = z
      *  pgbouncer ở chế độ transaction không đưa LISTEN/NOTIFY qua, và trạng
      *  thái mức phiên không còn đáng tin. Bỏ trống = dùng chung DATABASE_URL. */
     PV_QUEUE_DATABASE_URL: z.string().default(''),
+
+    // ------------------------------------------------------------------
+    // SCAN — object storage and the AI reader behind lead scan intake
+    // ------------------------------------------------------------------
+    /** `s3` is Tigris on Fly; `disk` keeps files on this machine and signs its
+     *  own URLs, so a dev machine needs no bucket. */
+    STORAGE_DRIVER: z.enum(['s3', 'disk']).default('disk'),
+    STORAGE_DISK_DIR: z.string().default('./.storage'),
+    /** HMAC key of the disk driver's local URLs. Dev-only, like the driver. */
+    STORAGE_DISK_SECRET: z.string().default('development-only-storage-secret'),
+    /** The names `fly storage create` sets as secrets — kept verbatim so
+     *  attaching a Tigris bucket needs no renaming. */
+    BUCKET_NAME: z.string().default(''),
+    AWS_ENDPOINT_URL_S3: z.string().default(''),
+    AWS_ACCESS_KEY_ID: z.string().default(''),
+    AWS_SECRET_ACCESS_KEY: z.string().default(''),
+    AWS_REGION: z.string().default('auto'),
+    /** Empty = the scan door stays up but reads nothing (`ScanReader.enabled`). */
+    GEMINI_API_KEY: z.string().default(''),
+    SCAN_GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
   })
   /** PGlite nhận một kết nối tại một thời điểm và không có đủ extension. Nó là
    *  công cụ phát triển; để nó lọt vào production là một sự cố chờ sẵn. */
@@ -545,6 +565,38 @@ const Env = z
       'PV_EMAIL_WORKER_CONCURRENCY vượt PV_EMAIL_RATE_PER_SECOND — số luồng nhiều hơn token mỗi giây thì thư thua cửa nhịp, và mỗi lần thua tiêu một lượt trong ngân sách thử lại cho tới khi bị parking. Nâng nhịp gửi, đừng nâng số luồng.',
     path: ['PV_EMAIL_WORKER_CONCURRENCY'],
   })
+  /* A Fly machine's disk does not survive a deploy, so `disk` in production
+     is attachments that vanish on the next release. */
+  /* The default disk secret is in the repo, so anyone could mint upload and
+     download URLs for a box running it outside a dev machine. */
+  .refine(
+    (e) =>
+      e.STORAGE_DRIVER !== 'disk' ||
+      e.NODE_ENV === 'development' ||
+      e.NODE_ENV === 'test' ||
+      e.STORAGE_DISK_SECRET !== 'development-only-storage-secret',
+    {
+      message:
+        'STORAGE_DISK_SECRET đang là giá trị mặc định công khai — chỉ dùng được trên máy dev.',
+      path: ['STORAGE_DISK_SECRET'],
+    },
+  )
+  .refine((e) => e.NODE_ENV !== 'production' || e.STORAGE_DRIVER === 's3', {
+    message: 'Production phải dùng STORAGE_DRIVER=s3 — ổ đĩa máy Fly mất sạch sau mỗi lần deploy.',
+    path: ['STORAGE_DRIVER'],
+  })
+  .refine(
+    (e) =>
+      e.STORAGE_DRIVER !== 's3' ||
+      [e.BUCKET_NAME, e.AWS_ENDPOINT_URL_S3, e.AWS_ACCESS_KEY_ID, e.AWS_SECRET_ACCESS_KEY].every(
+        (v) => v.length > 0,
+      ),
+    {
+      message:
+        'STORAGE_DRIVER=s3 thì phải có BUCKET_NAME, AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.',
+      path: ['STORAGE_DRIVER'],
+    },
+  )
   .refine(
     (e) =>
       e.NODE_ENV !== 'production' ||

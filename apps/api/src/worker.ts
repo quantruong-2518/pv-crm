@@ -19,6 +19,17 @@ import { MasMailComposer } from './platform/mail/mas.composer'
 import { ENV, type Env } from './platform/config/env'
 import { EMAIL_QUEUE, type EmailJob } from './platform/mail/mail.contract'
 import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/queue.module'
+import {
+  SCAN_COMMIT_CONCURRENCY,
+  SCAN_COMMIT_QUEUE,
+  SCAN_JOB_HANDLER,
+  SCAN_READ_CONCURRENCY,
+  SCAN_READ_QUEUE,
+  SCAN_RETRY_LIMIT,
+  type ScanCommitJob,
+  type ScanJobHandler,
+  type ScanReadJob,
+} from './platform/queue/scan-jobs'
 
 /** Entrypoint THỨ HAI, trên cùng một image với `main.ts`.
  *
@@ -145,6 +156,32 @@ async function bootstrap(): Promise<void> {
     (jobs: JobWithMetadata<EmailJob>[]) => consumer.handle(jobs),
   )
 
+  /* The scan handler is the Sales branch's, found anywhere in the tree —
+     `app.get` is not strict, the way `CampaignSweeper` is reached below. One
+     job per call: a read is one model round trip, nothing to batch. */
+  const scan = app.get<ScanJobHandler>(SCAN_JOB_HANDLER)
+  const scanPoll = {
+    pollingIntervalSeconds: env.PV_QUEUE_POLL_SECONDS,
+    notifyPollingIntervalSeconds: Math.max(env.PV_QUEUE_POLL_SECONDS, 30),
+  }
+  const attemptOf = (job: JobWithMetadata<object>) => ({
+    final: job.retryCount >= SCAN_RETRY_LIMIT,
+  })
+  await boss.work(
+    SCAN_READ_QUEUE,
+    { ...scanPoll, includeMetadata: true, localConcurrency: SCAN_READ_CONCURRENCY },
+    async ([job]: JobWithMetadata<ScanReadJob>[]) => {
+      if (job) await scan.readFile(job.data.fileId, attemptOf(job))
+    },
+  )
+  await boss.work(
+    SCAN_COMMIT_QUEUE,
+    { ...scanPoll, includeMetadata: true, localConcurrency: SCAN_COMMIT_CONCURRENCY },
+    async ([job]: JobWithMetadata<ScanCommitJob>[]) => {
+      if (job) await scan.commitBatch(job.data.code, attemptOf(job))
+    },
+  )
+
   /* ------------------------------------------------------------------
      BA LƯỢT QUÉT, MỘT ĐỒNG HỒ
      ------------------------------------------------------------------
@@ -185,6 +222,7 @@ async function bootstrap(): Promise<void> {
 
   log.log(
     `Worker đã lên · ${EMAIL_QUEUE} · ${env.PV_EMAIL_WORKER_CONCURRENCY} luồng · ` +
+      `${SCAN_READ_QUEUE} · ${SCAN_READ_CONCURRENCY} readers · ` +
       `poll ${env.PV_QUEUE_POLL_SECONDS}s · gửi thật: ${env.PV_EMAIL_ENABLED ? 'BẬT' : 'tắt'}`,
   )
 

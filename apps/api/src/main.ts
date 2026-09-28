@@ -9,6 +9,7 @@ import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify'
 import { fastifyCookie } from '@fastify/cookie'
 import type { FastifyInstance } from 'fastify'
+import { SCAN_MAX_RAW_BYTES, SCAN_UPLOAD_MIME } from '@pv/contracts'
 import { AppModule } from './app.module'
 import { ENV, type Env } from './platform/config/env'
 import { isAllowedOrigin } from './platform/http/origin'
@@ -32,6 +33,9 @@ async function bootstrap(): Promise<void> {
     /* Do not trust arbitrary X-Forwarded-For values. The public intake door
        reads Fly-Client-IP in production and req.ip only in local development. */
     trustProxy: false,
+    /* Fastify's default of 100 is shorter than a `/storage/local/:token`
+       grant (key + HMAC). Every other param is a code zod already bounds. */
+    maxParamLength: 512,
   })
 
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -117,6 +121,19 @@ async function bootstrap(): Promise<void> {
      is a lockfile change and does not belong in this commit. */
   await adapter.getInstance<FastifyInstance>().register(fastifyCookie)
 
+  /* The disk storage driver's upload door takes raw file bytes. Registered
+     per content type, so the global 1 MiB limit stays for everything else,
+     and only on `disk`: with `s3` the bytes never touch this process. */
+  if (env.STORAGE_DRIVER === 'disk') {
+    adapter
+      .getInstance<FastifyInstance>()
+      .addContentTypeParser(
+        [...SCAN_UPLOAD_MIME],
+        { parseAs: 'buffer', bodyLimit: SCAN_MAX_RAW_BYTES },
+        (_req, body, done) => done(null, body),
+      )
+  }
+
   /* ------------------------------------------------------------------
      `localhost` AND `127.0.0.1` ARE NOT THE SAME SITE — WRITE IT DOWN ONCE
      ------------------------------------------------------------------
@@ -165,7 +182,9 @@ async function bootstrap(): Promise<void> {
      *  hồi ấy đổi một động từ mới cho toàn bộ API lấy một chút REST đẹp mắt là
      *  món lỗ. Nay động từ đã mở cho một cửa CÓ quyền canh (`lead.edit`, trục
      *  phạm vi bật), lập luận đó không đổi: cửa đăng xuất vẫn không cần nó. */
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
+    /* `PUT` only for `/storage/local/:token`, the disk driver's stand-in for
+       a presigned bucket URL — no JSON door uses it. */
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
     /* PHẢI đủ MỌI header app web gắn, không chỉ những header handler đọc.
      *
      *  Ba cái, và cả ba đều khai ở `apps/web/src/app/api/client.ts`:

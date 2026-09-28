@@ -82,6 +82,7 @@ export const SOURCE_KIND_LABEL = {
   IMPORT: 'Nạp theo lô',
   APOLLO: 'Apollo',
   LANDING_PAGE: 'Web landing',
+  SCAN: 'Nạp từ ảnh',
 } as const satisfies Record<z.infer<typeof LeadSourceKind>, string>
 
 /** What to print when a lead carries no `kind` at all.

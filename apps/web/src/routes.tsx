@@ -240,6 +240,22 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/lead-new'),
   },
   {
+    /** Card photos and profile PDFs into leads. Static `scan` outranks `:code`. */
+    path: '/sales/leads/scan',
+    name: 'Kinh doanh · Module 2 · Nạp lead từ ảnh',
+    branch: 'Sales',
+    permission: 'lead.edit',
+    load: () => import('@/pages/lead-scan'),
+  },
+  {
+    /* Same module: a batch survives reload and resumes at its step. */
+    path: '/sales/leads/scan/:code',
+    name: 'Kinh doanh · Module 2 · Lô nạp từ ảnh',
+    branch: 'Sales',
+    permission: 'lead.edit',
+    load: () => import('@/pages/lead-scan'),
+  },
+  {
     /** Hồ sơ một lead. Đường dẫn nằm DƯỚI sổ vì nó là một dòng của sổ — nav
      *  bên trái vẫn sáng ở mục Lead, không đẻ thêm mục thứ sáu cho nhánh. */
     path: '/sales/leads/:code',

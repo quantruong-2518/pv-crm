@@ -152,7 +152,7 @@ export type LeadState = z.infer<typeof LeadState>
  *     (`CHANNEL_TRUST`), so it cannot be a row someone adds at runtime: a new
  *     catalogue entry would arrive with no trust level and no import path.
  *
- *  The four values:
+ *  The five values:
  *
  *   · `MANUAL`       — a person typed the row in. Somebody here owns every
  *     cell of it.
@@ -163,6 +163,8 @@ export type LeadState = z.infer<typeof LeadState>
  *     is a question with a budget attached, and it is unanswerable once
  *     vendor rows are mixed into the generic file bucket.
  *   · `LANDING_PAGE` — the public form posted it. The customer pressed send.
+ *   · `SCAN`         — an AI read a card or profile the uploader dropped in,
+ *     and the uploader reviewed the rows before one button created them.
  *
  *  Adding a fifth vendor (ZoomInfo, Lusha) is a migration, not a config row,
  *  and that is the intended cost: each one needs its own trust level, its own
@@ -173,7 +175,7 @@ export type LeadState = z.infer<typeof LeadState>
  *  `./lead-source`, ONE table shared by the server and the screen; see the
  *  docblock there for why they are no longer view-layer-only. */
 export const LeadSourceKind = z.enum(
-  ['MANUAL', 'IMPORT', 'APOLLO', 'LANDING_PAGE'],
+  ['MANUAL', 'IMPORT', 'APOLLO', 'LANDING_PAGE', 'SCAN'],
   'Đường vào không có trong danh sách',
 )
 

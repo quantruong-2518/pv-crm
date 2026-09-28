@@ -26,7 +26,10 @@
     "db:reset:staff": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-staff.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "@fastify/cookie": "^11.0.2",
+    "@google/genai": "^2.24.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-fastify": "^11.0.0",
@@ -35,6 +38,7 @@
     "@pv/mail-templates": "workspace:*",
     "drizzle-orm": "^0.38.0",
     "fastify": "^5.2.0",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.13.0",
     "pg-boss": "^12.28.0",
     "reflect-metadata": "^0.2.2",

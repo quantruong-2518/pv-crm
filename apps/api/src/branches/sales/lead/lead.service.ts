@@ -370,7 +370,7 @@ export class LeadService {
    *  `mailTimeline` và `touches` giữ nguyên bản của chúng: đổi cả ba trong
    *  cùng lượt này là trộn một đợt dựng tính năng với một đợt dọn dẹp, và
    *  người review sẽ phải đọc cả hai cùng lúc. */
-  private async guard(who: Actor, code: ObjectCode): Promise<void> {
+  async guard(who: Actor, code: ObjectCode): Promise<void> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
