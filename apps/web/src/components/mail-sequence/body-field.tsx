@@ -1,6 +1,7 @@
 import { useId, useRef } from 'react'
 import { Button, Icon, Info, Plus, Textarea } from '@pv/ui'
 import type { MailMergeKey } from '@pv/contracts'
+import { MERGE_LABEL } from '@/data/mail-hints'
 
 /** The letter's body box with its quick-insert row (G-Bulk · G-Compose).
  *
@@ -8,10 +9,7 @@ import type { MailMergeKey } from '@pv/contracts'
  *  hand is the one the merge does not know, and it blanks in every letter. The
  *  keys are typed against `MailMergeKey`, so a key the contract drops stops
  *  compiling here instead of inserting a slot the server ignores. */
-const QUICK_INSERT: readonly { key: MailMergeKey; label: string }[] = [
-  { key: 'company', label: 'Tên công ty' },
-  { key: 'contactName', label: 'Tên khách' },
-]
+const QUICK_INSERT: readonly MailMergeKey[] = ['company', 'contactName']
 
 export function BodyField({
   body,
@@ -62,17 +60,17 @@ export function BodyField({
           </Button>
         )}
         <span className="text-muted-foreground text-[11px]">Chèn nhanh</span>
-        {QUICK_INSERT.map((item) => (
+        {QUICK_INSERT.map((key) => (
           <Button
-            key={item.key}
+            key={key}
             size="sm"
             variant="ghost"
             type="button"
             className="pointer-coarse:h-12"
-            onClick={() => insert(item.key)}
+            onClick={() => insert(key)}
           >
             <Icon icon={Plus} size={14} />
-            {item.label}
+            {MERGE_LABEL[key]}
           </Button>
         ))}
       </div>

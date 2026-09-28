@@ -6,6 +6,10 @@
   "//why": "apps/api is forbidden from importing react (eslint.config.js block 3b). Email HTML still wants a component model, so React Email lives here and the server calls a plain async function. The boundary is the export: renderers in, {subject, html, text} out.",
   "type": "module",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./markup": "./src/mail-markup.ts"
+  },
   "dependencies": {
     "@pv/tokens": "workspace:*",
     "@react-email/components": "^1.0.12",

@@ -1,4 +1,4 @@
-import { MAIL_MERGE_KEYS } from '@pv/contracts'
+import { MAIL_MERGE_KEYS, type MailMergeKey } from '@pv/contracts'
 
 /** WHAT WOULD MAKE THIS LETTER BETTER — a checklist, not a gate.
  *
@@ -37,6 +37,15 @@ import { MAIL_MERGE_KEYS } from '@pv/contracts'
  *  inbox's cut is written for nobody. Anything that would only be taste was
  *  left out — a checklist that cries about everything is a checklist people
  *  turn off. */
+
+/** What a merge chip or quick-insert button says, one label per value across both spellings. */
+export const MERGE_LABEL: Record<MailMergeKey, string> = {
+  account: 'Tên công ty',
+  company: 'Tên công ty',
+  contactName: 'Tên khách',
+  contact_name: 'Tên khách',
+  email: 'Email khách',
+}
 
 export type MailHintTone = 'warn' | 'tip'
 

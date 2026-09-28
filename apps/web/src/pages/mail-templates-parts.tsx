@@ -7,6 +7,8 @@ import { isHttpUrl } from '@/data/http-url'
 import { useMailPreview, useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
+import { MailRichBody } from '@/components/mail-rich-body'
+import { useMailBodyMode } from '@/components/mail-rich-body-model'
 import { DoorsField } from './mail-templates-doors'
 
 /** THE PANEL THAT WRITES A TEMPLATE — one panel for both jobs, the way
@@ -41,6 +43,7 @@ export function MailTemplateDrawer({
   const [errors, setErrors] = useState<FieldErrors>({})
   const [failure, setFailure] = useState('')
   const [guideOpen, setGuideOpen] = useState(false)
+  const [bodyMode, setBodyMode] = useMailBodyMode()
 
   /* Reset on every open, keyed on the row too: reopening the panel on a
      different template must not show the previous one's text for a frame. */
@@ -252,7 +255,14 @@ export function MailTemplateDrawer({
             <Field
               label="Nội dung"
               errors={errors['body']}
-              hint="**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để điền tên từng người."
+              /* The rich box carries toolbar buttons, and a `<label>` round it
+                 would forward every click on the text to the first of them. */
+              control={bodyMode === 'rich' ? 'plain' : 'input'}
+              hint={
+                bodyMode === 'rich'
+                  ? 'Bôi đen chữ rồi bấm B / I. Bấm nút để chèn tên khách, tên công ty.'
+                  : '**đậm** · _nghiêng_ · đầu dòng `- ` thành danh sách. Dùng {{contact_name}} và {{account}} để điền tên từng người.'
+              }
               /* The guide opens as a second drawer over this one. The button rides
                on this field's label rather than sitting in the panel header
                because this is the only field the guide is about, and a person
@@ -261,29 +271,54 @@ export function MailTemplateDrawer({
                keeps a stack for exactly this case, so a half-written template
                survives the keypress. */
               action={
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  type="button"
-                  className="pointer-coarse:h-12"
-                  onClick={() => setGuideOpen(true)}
-                >
-                  <Icon icon={Info} size={14} />
-                  Cách viết nội dung
-                </Button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <SegmentedControl
+                    label="Cách soạn"
+                    hideLabel
+                    tone="quiet"
+                    value={bodyMode}
+                    onChange={(value) => setBodyMode(value === 'rich' ? 'rich' : 'markdown')}
+                    options={[
+                      { value: 'rich', label: 'Soạn kiểu Gmail' },
+                      { value: 'markdown', label: 'Markdown' },
+                    ]}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    className="pointer-coarse:h-12"
+                    onClick={() => setGuideOpen(true)}
+                  >
+                    <Icon icon={Info} size={14} />
+                    Cách viết nội dung
+                  </Button>
+                </div>
               }
             >
-              <Textarea
-                autoGrow
-                rows={20}
-                value={body}
-                invalid={Boolean(errors['body']?.length)}
-                placeholder="Thân thư. Một dòng trống là một đoạn."
-                onChange={(event) => {
-                  setBody(event.target.value)
-                  clearError('body')
-                }}
-              />
+              {bodyMode === 'rich' ? (
+                <MailRichBody
+                  value={body}
+                  invalid={Boolean(errors['body']?.length)}
+                  placeholder="Thân thư. Enter là đoạn mới, Shift+Enter là xuống dòng."
+                  onChange={(markdown) => {
+                    setBody(markdown)
+                    clearError('body')
+                  }}
+                />
+              ) : (
+                <Textarea
+                  autoGrow
+                  rows={20}
+                  value={body}
+                  invalid={Boolean(errors['body']?.length)}
+                  placeholder="Thân thư. Một dòng trống là một đoạn."
+                  onChange={(event) => {
+                    setBody(event.target.value)
+                    clearError('body')
+                  }}
+                />
+              )}
             </Field>
 
             <Field
