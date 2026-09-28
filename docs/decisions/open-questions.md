@@ -97,3 +97,25 @@ checked against `git show` if the original is ever needed.
     decides, the PIC-driven transitions in ADR 0058 use the existing
     permissions (`lead.edit` scoped for the PIC's own moves, `lead.disqualify`
     for disqualify/reopen). _(see ADR 0058)_
+
+## Shared flows (added 28/09/2026)
+
+Raised while drawing row F of the workstream canvas. The decisions they hang on
+are not an ADR yet; they live in `.claude/HANDOFF-workstream-loop.md`.
+
+24. **The "done" label of the shared due ladder.** `DueLevel` now covers next
+    steps, installments, rollout milestones and time spent at a rung, but the
+    product's only label for `done` is "Đã thu" (`DUE_LABEL` in
+    `apps/web/src/data/contracts.ts`), which is about money. The canvas uses
+    "Đã xong" for the non-money kinds until the owner names one.
+25. **Bulk send with a template that carries a file.** Attachments are allowed
+    only in group send, and the "Báo giá" template attaches the latest quote
+    PDF. Either bulk send is allowed and drops the file, or a template that
+    carries a file forces group send.
+26. **Which stop reasons carry the no-contact flag.** The shared reason
+    catalogue gives each reason a "Không liên hệ" flag (never mailed, never put
+    in a campaign), but no reason carries it in code yet. The canvas flags
+    "Không phải khách của mình" and "Trùng opp khác" as placeholders.
+27. **What a customer reply on an opportunity or a contract moves.** A reply
+    counts as a real exchange and moves the LEAD a rung; an opportunity or a
+    contract has no rung it maps to. The canvas only rings the holder's bell.
