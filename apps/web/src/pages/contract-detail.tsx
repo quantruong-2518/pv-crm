@@ -1,14 +1,16 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AiAction,
   AppShell,
+  Button,
   Chip,
   ChevronRight,
   FileCheck,
   GlassCard,
   Icon,
+  Mail,
   MetaPill,
   ScreenHeader,
   ScreenLayout,
@@ -23,8 +25,8 @@ import {
 } from '@pv/ui'
 import { daysUntil, needsAttention } from '@pv/engines'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { toast } from '@/app/toast'
 import { dm, dmy } from '@/lib/date'
 import {
   contractDetailQuery,
@@ -36,6 +38,8 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { ConditionBar, DueBadge, MoneySplit } from '@/components/contract-bits'
+import { LetterComposer } from '@/components/mail-letter/letter-composer'
+import { LetterLines } from '@/components/mail-letter/letter-lines'
 
 /** Level 1 of the drill — one contract: the headline numbers, the shape of the
  *  money, and the four installments as doors into level 2.
@@ -195,6 +199,10 @@ export function ContractDetailPage() {
   const { code = '' } = useParams()
 
   const { data: contract, isPending, error } = useQuery(contractDetailQuery(code))
+  /* A contract writes through its origin lead, on that lead's send permission
+     (decision 7) — locked with the reason rather than refused after composing. */
+  const canSendEmail = useCan('lead.send-email')
+  const [composing, setComposing] = useState(false)
 
   /* One clock read for the whole screen. Two reads either side of midnight give
      two levels for one contract, on one render. */
@@ -249,6 +257,19 @@ export function ContractDetailPage() {
           title={contract.customer}
           description={`${contract.code} · ký ${dmy(contract.signedAt)}`}
           back={{ label: 'Hợp đồng', onClick: () => navigate('/sales/contracts') }}
+          actions={
+            <Button
+              size="md"
+              variant="secondary"
+              className="pointer-coarse:h-12"
+              disabled={!canSendEmail}
+              title={canSendEmail ? undefined : 'Cần quyền gửi email cho lead.'}
+              onClick={() => setComposing(true)}
+            >
+              <Icon icon={Mail} size={16} />
+              Gửi email
+            </Button>
+          }
           meta={
             <div className="flex flex-wrap gap-2">
               <MetaPill icon={FileCheck}>{contract.installments.length} đợt thanh toán</MetaPill>
@@ -356,6 +377,17 @@ export function ContractDetailPage() {
           </div>
         </GlassCard>
 
+        <GlassCard variant="b" className="flex flex-col gap-4 p-5">
+          <SectionTitle
+            kicker="Dòng hoạt động"
+            size="lg"
+            hint="Thư gửi từ hợp đồng này và trạng thái của từng thư."
+          >
+            Email
+          </SectionTitle>
+          <LetterLines door="contract" code={contract.code} />
+        </GlassCard>
+
         {next?.blocking && (
           <AiAction
             suggestion={
@@ -367,11 +399,19 @@ export function ContractDetailPage() {
             basis={`đợt ${next.installment.no} ${daysPhrase(next.daysLeft)} · điều kiện "${next.blocking.what}" trễ ${-daysUntil(next.blocking.due, now)} ngày · lượt nhắc gần nhất chưa có trả lời`}
             empty="Chưa tạo gì cả — trợ lý chờ bạn bấm."
             confirmLabel="Soạn thư"
-            onConfirm={() => toast('Bản nháp thư nhắc sẽ mở khi thư viện mail nối vào màn này.')}
+            onConfirm={() => setComposing(true)}
             onInspect={() =>
               navigate(`/sales/contracts/${contract.code}/installments/${next.installment.no}`)
             }
             inspectLabel="Mở đợt"
+          />
+        )}
+        {composing && (
+          <LetterComposer
+            door="contract"
+            code={contract.code}
+            leadCode={contract.leadCode}
+            onClose={() => setComposing(false)}
           />
         )}
       </ScreenLayout>

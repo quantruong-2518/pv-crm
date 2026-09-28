@@ -77,7 +77,7 @@ export class LeadMailComposer implements MailComposer {
          account. See `MailFlow`. */
       flow: 'transactional',
       from: this.env.PV_EMAIL_FROM,
-      to: delivery.recipient,
+      to: [delivery.recipient],
       /* Reply-To is the LEAD's mailbox, so a salesperson answering the alert
          is already writing to the customer. `From` stays on the verified
          sending domain — putting the lead's address there would be a forgery

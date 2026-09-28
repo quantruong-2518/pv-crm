@@ -6,10 +6,11 @@ import type {
   MailRunListResponse,
   MailRunPatchResponse,
   MailRunRecipientsResponse,
+  MailRunRow,
   MailRunState,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { LEAD_MAIL_KEY } from '@/data/mas'
+import { LEAD_MAIL_KEY, LETTERS_KEY } from '@/data/mas'
 
 /** SỔ LÔ GỬI — `platform.mail_run`, mọi lô thư đã rời hoặc sắp rời máy.
  *
@@ -31,7 +32,28 @@ import { LEAD_MAIL_KEY } from '@/data/mas'
  *  quyết định về mail thật: dừng thì giết những lá thư còn nằm trong hàng đợi,
  *  sửa thì đổi chữ sắp rời máy. Ai xem được số liệu chưa chắc được phép. */
 const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view', scoped: true }
+const CONTENT_NEED: ApiNeed = { branch: 'Sales', permission: 'comm.view-content', scoped: true }
 const PATCH_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.broadcast', scoped: true }
+/** G8 — the creator's own door, on the permission they sent with. */
+const OWN_PATCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.send-email', scoped: true }
+
+/** Which PATCH door a run's Edit · Stop goes through, or `null` = neither
+ *  would accept this caller, so the buttons stay off instead of eating a 403.
+ *  `/own` refuses campaign waves, so a creator's campaign wave needs broadcast. */
+export type MailRunRoute = 'own' | 'broadcast'
+
+export function mailRunRoute(
+  run: Pick<MailRunRow, 'mine' | 'campaignCode'>,
+  can: { send: boolean; broadcast: boolean },
+): MailRunRoute | null {
+  if (run.mine && run.campaignCode === undefined && can.send) return 'own'
+  return can.broadcast ? 'broadcast' : null
+}
+
+const patchDoor = (id: string, route: MailRunRoute) => ({
+  path: `/sales/mail/runs/${encodeURIComponent(id)}${route === 'own' ? '/own' : ''}`,
+  need: route === 'own' ? OWN_PATCH_NEED : PATCH_NEED,
+})
 
 export const MAIL_RUN_KEY = ['sales', 'mail-runs'] as const
 
@@ -150,14 +172,16 @@ export const mailRunRecipientsQuery = (runId: string) =>
  *
  *  `enabled` on the panel being OPEN, not on the id being known: the run book
  *  holds an id for every row it draws. */
-export function useMailRunDetail(runId: string | null) {
+export function useMailRunDetail(runId: string | null, viaContent = false) {
   return useQuery({
-    queryKey: [...MAIL_RUN_KEY, 'detail', runId] as const,
+    queryKey: [...MAIL_RUN_KEY, 'detail', runId, viaContent] as const,
+    /* A group letter is 1:1 customer mail: only its creator reads it on the
+       plain door; anyone else goes through the audited content door. */
     queryFn: ({ signal }) =>
-      api.read<MailRunDetail>(`/sales/mail/runs/${encodeURIComponent(runId ?? '')}`, {
-        need: READ_NEED,
-        signal,
-      }),
+      api.read<MailRunDetail>(
+        `/sales/mail/runs/${encodeURIComponent(runId ?? '')}${viaContent ? '/content' : ''}`,
+        { need: viaContent ? CONTENT_NEED : READ_NEED, signal },
+      ),
     enabled: runId !== null,
   })
 }
@@ -187,6 +211,13 @@ export const DELIVERED_MAIL: Record<string, true | undefined> = {
   delivered: true,
 }
 
+/** Held back by the later-wave gate (G6): the recipient replied or met us after
+ *  wave 1. Terminal, never posted, and not a failure — its own label. */
+export const SKIPPED_MAIL: Record<string, true | undefined> = {
+  withheld: true,
+}
+export const SKIPPED_MAIL_LABEL = 'Bỏ qua'
+
 /** Still able to change, so still worth asking about. `accepted` is NOT here
  *  even though a `delivered` webhook may follow it: a letter the receiving
  *  server never reports back on is ordinary, and keeping it in this list is a
@@ -205,16 +236,19 @@ const PENDING_MAIL: Record<string, true | undefined> = {
 export function useMailRunCancel() {
   const client = useQueryClient()
 
-  return useMutation<MailRunPatchResponse, ApiError, string>({
-    mutationFn: (id) =>
-      api.write<MailRunPatchResponse>(`/sales/mail/runs/${encodeURIComponent(id)}`, {
+  return useMutation<MailRunPatchResponse, ApiError, { id: string; route: MailRunRoute }>({
+    mutationFn: ({ id, route }) => {
+      const door = patchDoor(id, route)
+      return api.write<MailRunPatchResponse>(door.path, {
         method: 'PATCH',
         body: { state: 'CANCELLED' },
-        need: PATCH_NEED,
-      }),
+        need: door.need,
+      })
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: MAIL_RUN_KEY })
       void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
+      void client.invalidateQueries({ queryKey: LETTERS_KEY })
     },
   })
 }
@@ -233,16 +267,23 @@ export function useMailRunCancel() {
 export function useMailRunEdit() {
   const client = useQueryClient()
 
-  return useMutation<MailRunPatchResponse, ApiError, { id: string; edit: MailRunEdit }>({
-    mutationFn: ({ id, edit }) =>
-      api.write<MailRunPatchResponse>(`/sales/mail/runs/${encodeURIComponent(id)}`, {
+  return useMutation<
+    MailRunPatchResponse,
+    ApiError,
+    { id: string; edit: MailRunEdit; route: MailRunRoute }
+  >({
+    mutationFn: ({ id, edit, route }) => {
+      const door = patchDoor(id, route)
+      return api.write<MailRunPatchResponse>(door.path, {
         method: 'PATCH',
         body: edit,
-        need: PATCH_NEED,
-      }),
+        need: door.need,
+      })
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: MAIL_RUN_KEY })
       void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
+      void client.invalidateQueries({ queryKey: LETTERS_KEY })
     },
   })
 }

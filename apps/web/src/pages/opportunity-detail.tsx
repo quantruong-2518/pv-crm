@@ -7,14 +7,13 @@ import type { OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { openMasMail } from '@/app/mas-mail-composer'
-import { masRecipientsOf } from '@/data/mas-mail-draft'
 import { leadProfileQuery, NO_TOUCHES } from '@/data/lead-profile'
 import { NO_STEPS, opportunityTouchesQuery, opportunityVectorQuery } from '@/data/touches'
 import type { TouchFocus } from '@/data/touches'
 import { opportunityProfileQuery, railOf } from '@/data/opportunities'
 import { draftOf } from '@/data/opportunities-write'
 import { useDealDraft } from '@/data/deal-draft'
+import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { SignDrawer } from '@/components/sign-drawer'
 import { DealFormCard } from './opportunity-form-card'
 import { DealHeader, DealHistoryTab, DealToolsBar, EmptyOp } from './opportunity-parts'
@@ -116,22 +115,9 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   /* Asked HERE and handed to the toolbar, the same call the lead screen makes:
      a button that opens a panel ending in a 403 is worse than a locked one. */
   const canSendEmail = useCan('lead.send-email')
-  /* The deal writes to its ORIGIN LEAD's mailbox, so the three gaps that stop a
-     lead mail stop this one — said on the button, not after composing. */
-  const mailBlocker = !lead
-    ? 'Chưa đọc được lead gốc của đơn này.'
-    : !lead.email
-      ? 'Lead gốc chưa có địa chỉ email.'
-      : !lead.contactName
-        ? 'Lead gốc chưa có người liên hệ.'
-        : undefined
-  const composeMail = () =>
-    openMasMail({
-      recipients: masRecipientsOf(lead, { code: op.code, label: op.name }),
-      ...(lead && !mailBlocker ? { initialCode: op.code } : {}),
-      subjectType: 'opportunity',
-      defaultLabel: `Gửi email · ${op.name}`,
-    })
+  /* The letter is written about the deal but through its ORIGIN LEAD — whose
+     contacts it addresses and whose scope the server checks (decision 7). */
+  const [composing, setComposing] = useState(false)
 
   /* The stored row as the form sees it. Through `useMemo` so the seed keeps
      its reference between renders — react-query hands back the same `op`, so
@@ -180,11 +166,18 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         onSign={() => setSigning(true)}
         quotationLogged={quotationLogged}
         canSendEmail={canSendEmail}
-        composeBlocked={mailBlocker}
-        onCompose={composeMail}
+        onCompose={() => setComposing(true)}
       />
 
       <SignDrawer op={op} open={signing} onClose={() => setSigning(false)} />
+      {composing && (
+        <LetterComposer
+          door="opportunity"
+          code={op.code}
+          leadCode={op.leadCode}
+          onClose={() => setComposing(false)}
+        />
+      )}
     </ScreenLayout>
   )
 }

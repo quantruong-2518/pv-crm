@@ -126,6 +126,22 @@ export const mailRun = platform.table(
       .notNull()
       .default(sql`ARRAY[]::text[]`),
 
+    /** `group` = one letter to named To/CC addresses (`email_delivery_address`),
+     *  `bulk` = one letter per recipient. The default is what every run before
+     *  0065 was, so old writers stay valid without knowing the column. */
+    kind: text('kind').$type<'bulk' | 'group'>().notNull().default('bulk'),
+
+    /** The shared inbox that gets ONE copy of a bulk run, carried by its own
+     *  `role = 'run_copy'` delivery rather than a BCC on recipient 1 — whose
+     *  letter holds their own unsubscribe link and tracking Reply-To. */
+    bccCopyTo: text('bcc_copy_to'),
+
+    /** Wave ≥ 2 of a chain waits for the Sales sweeper to drop leads who
+     *  replied or met; `pendingBatch()` refuses its rows until `released_at`
+     *  is set. Fails closed: a sweeper that never runs sends nothing. */
+    awaitsRelease: boolean('awaits_release').notNull().default(false),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+
     state: text('state').$type<MailRunState>().notNull(),
 
     /** NULL = go as soon as the relay sees it. A value = the relay leaves the
@@ -165,9 +181,29 @@ export const mailRun = platform.table(
     index('mail_run_due_idx').on(t.state, t.scheduledAt),
     check('mail_run_state_valid', sql`${t.state} IN (${MAIL_RUN_STATE_LIST})`),
     check('mail_run_cta_pair', sql`(${t.ctaLabel} IS NULL) = (${t.ctaUrl} IS NULL)`),
+    /** 0064 rewrote every `.co` row to `.com` before tightening this, so the
+     *  retired mailbox is refused without refusing any stored run. */
     check(
       'mail_run_cc_addresses_known',
-      sql`${t.ccAddresses} <@ ARRAY['contact@pebblevina.com', 'sales@pebblevina.co']::text[]`,
+      sql`${t.ccAddresses} <@ ARRAY['contact@pebblevina.com', 'sales@pebblevina.com']::text[]`,
+    ),
+    /** The gate sweeper's question: "which held runs are due to be judged".
+     *  Partial, so it holds only runs still waiting — a handful, not history. */
+    index('mail_run_gate_due_idx')
+      .on(t.scheduledAt)
+      .where(sql`${t.awaitsRelease} AND ${t.releasedAt} IS NULL`),
+    check('mail_run_kind_known', sql`${t.kind} IN ('bulk', 'group')`),
+    check(
+      'mail_run_bcc_copy_known',
+      sql`${t.bccCopyTo} IS NULL OR ${t.bccCopyTo} = 'sales@pebblevina.com'`,
+    ),
+    /** A release with no gate would be a run nobody held being "let go". */
+    check('mail_run_release_pair', sql`${t.releasedAt} IS NULL OR ${t.awaitsRelease}`),
+    /** A group letter is already addressed to sales@ by CC and is never a
+     *  later wave of a chain, so neither the copy nor the gate applies. */
+    check(
+      'mail_run_group_plain',
+      sql`${t.kind} = 'bulk' OR (${t.bccCopyTo} IS NULL AND NOT ${t.awaitsRelease})`,
     ),
   ],
 )

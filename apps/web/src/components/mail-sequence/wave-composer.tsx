@@ -1,25 +1,15 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import {
-  Button,
-  Eye,
-  GlassCard,
-  Icon,
-  Info,
-  Input,
-  SegmentedControl,
-  Select,
-  SectionTitle,
-  Textarea,
-} from '@pv/ui'
-import { CAMPAIGN_START_MAX_WAVES } from '@pv/contracts'
-import type { MailTemplateRow } from '@pv/contracts'
-import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
+import { Button, Eye, GlassCard, Icon, Input, SegmentedControl, Select, SectionTitle } from '@pv/ui'
+import { CAMPAIGN_START_MAX_WAVES, MAIL_DOOR_LABEL } from '@pv/contracts'
+import type { MailDoor, MailTemplateRow } from '@pv/contracts'
+import { MailFloatingAids, MailPreviewCard } from '@/components/mail-compose-bits'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { mailHints } from '@/data/mail-hints'
 import { useMailPreview } from '@/data/mas'
 import { localSlot } from '@/lib/date'
+import { BodyField } from './body-field'
 import { WaveStrip, WaveTimeline } from './wave-chain'
-import { commitDraft, composerDraftValid, type ComposerState } from './wave-draft'
+import { commitDraft, composerDraftValid, withTemplate, type ComposerState } from './wave-draft'
 
 /** THE MAIL SEQUENCE — one wave composed on the left, the whole chain beside
  *  it.
@@ -38,6 +28,7 @@ export function WaveComposer({
   alreadyFired = 0,
   previewLeadCode,
   frame = 'own',
+  door,
 }: {
   state: ComposerState
   setState: Dispatch<SetStateAction<ComposerState>>
@@ -56,6 +47,9 @@ export function WaveComposer({
    *  (everything) · `'host'` the MAS modal (preview and `?` already stand in
    *  its shell) · `'letter'` the run editor (one batch, schedule is a step). */
   frame?: 'own' | 'host' | 'letter'
+  /** The door the picker was filtered by (G4) — named on its label so an
+   *  absent template reads as "not for here", not as missing. */
+  door?: MailDoor
 }) {
   const own = frame === 'own'
   const letterOnly = frame === 'letter'
@@ -71,18 +65,11 @@ export function WaveComposer({
     state.ctaLabel.trim() !== '' && /^https?:\/\/\S+$/.test(state.ctaUrl.trim())
       ? { label: state.ctaLabel.trim(), url: state.ctaUrl.trim() }
       : undefined
-  /* Same gate as the CTA above and for the same reason: `MailBookingUrl` refuses
-     a half-typed address, and somebody mid-way through `https://` has one on
-     every keystroke. */
-  const previewBooking = /^https?:\/\/\S+$/.test(state.bookingUrl.trim())
-    ? state.bookingUrl.trim()
-    : undefined
   const preview = useMailPreview(
     {
       subject: state.subject,
       body: state.body,
       ...(previewCta ? { cta: previewCta } : {}),
-      ...(previewBooking ? { bookingUrl: previewBooking } : {}),
       ...(previewLeadCode ? { leadCode: previewLeadCode } : {}),
     },
     own && previewOpen,
@@ -91,7 +78,6 @@ export function WaveComposer({
     subject: state.subject,
     body: state.body,
     ctaUrl: state.ctaUrl,
-    bookingUrl: state.bookingUrl,
     missing: preview.letter?.missing,
   })
 
@@ -137,7 +123,11 @@ export function WaveComposer({
       index={nextIndex}
       previewOpen={previewOpen}
       letterOnly={letterOnly}
-      {...(own ? { onTogglePreview: togglePreview, onOpenGuide: () => setGuideOpen(true) } : {})}
+      {...(door ? { door } : {})}
+      /* G3: inside the MAS modal a lone wave is named after its template and
+         nobody needs to see that — the field appears once there is a chain. */
+      showLabel={frame !== 'host' || state.committed.length > 0}
+      {...(own ? { onTogglePreview: togglePreview } : {})}
     />
   )
 
@@ -157,11 +147,8 @@ export function WaveComposer({
       {compose}
 
       <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5 lg:p-6">
-        {/* THE SAME TWO BLOCKS THE MAS COMPOSE PANEL SHOWS, and the same
-            components rather than a second pair: a wave leaves through the
-            identical send path, so a second preview would drift from it. */}
-        <MailHintList hints={hints} />
-
+        {/* The same preview component the MAS panel shows: a wave leaves
+            through the identical send path, so a second one would drift. */}
         {previewOpen && (
           <MailPreviewCard
             letter={preview.letter}
@@ -172,6 +159,14 @@ export function WaveComposer({
 
         <WaveTimeline {...chain} />
       </GlassCard>
+
+      {/* The hints float like the MAS panel's (G-Bulk): sticky to the bottom
+          of the drawer's scroll, so advice never pushes the letter down. */}
+      <div className="pointer-events-none sticky bottom-6 flex justify-end md:col-span-2">
+        <div className="pointer-events-auto">
+          <MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />
+        </div>
+      </div>
 
       <MailGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
@@ -185,34 +180,40 @@ function ComposeCard({
   index,
   previewOpen,
   letterOnly,
+  showLabel,
+  door,
   onTogglePreview,
-  onOpenGuide,
 }: {
   state: ComposerState
   setState: Dispatch<SetStateAction<ComposerState>>
   templates: MailTemplateRow[]
   index: number
   previewOpen: boolean
+  showLabel: boolean
   /** The run editor: one existing batch. No schedule here — it is that panel's
    *  second step, and one value must not have two controls — and no wave
    *  number, because the panel's own subtitle already names the batch. */
   letterOnly: boolean
-  /** Both absent inside the MAS modal: the preview stands open in the shell's
-   *  own column and the `?` lives in its header. */
+  door?: MailDoor
+  /** Absent inside the MAS modal: the preview stands open in the shell's own
+   *  column. The `?` floats in the corner of every frame that has one. */
   onTogglePreview?: () => void
-  onOpenGuide?: () => void
 }) {
+  /* G3: the wave is named after its template (or, hand-written, its subject)
+     until somebody types a name — a label still equal to the old default
+     is a default, and follows the next one. */
+  const autoLabel = (s: ComposerState) =>
+    templates.find((t) => t.code === s.templateCode)?.name ?? s.subject.trim()
+  const edit = (change: (s: ComposerState) => ComposerState) =>
+    setState((s) => {
+      const next = change(s)
+      const follows = !letterOnly && (s.label === '' || s.label === autoLabel(s))
+      return follows ? { ...next, label: autoLabel(next) } : next
+    })
+
   const pickTemplate = (value: string) => {
     const found = templates.find((t) => t.code === value)
-    setState((s) => ({
-      ...s,
-      templateCode: value,
-      ...(found ? { subject: found.subject, body: found.body } : {}),
-      ...(found && s.label.trim() === '' ? { label: found.name } : {}),
-      ctaLabel: found?.cta?.label ?? '',
-      ctaUrl: found?.cta?.url ?? '',
-      bookingUrl: found?.bookingUrl ?? '',
-    }))
+    edit((s) => withTemplate(s, value, found))
   }
 
   return (
@@ -223,10 +224,15 @@ function ComposeCard({
           batch that is already addressed is not the job that panel is for. */}
       {!letterOnly && (
         <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Mẫu thư (không bắt buộc)</span>
+          <span className="text-muted-foreground text-[11px]">
+            {door
+              ? `Mẫu thư · chỉ mẫu dùng ở ${MAIL_DOOR_LABEL[door].toLowerCase()}`
+              : 'Mẫu thư (không bắt buộc)'}
+          </span>
           <Select
             label="Mẫu thư"
             hideLabel
+            size="lg"
             value={state.templateCode}
             onChange={pickTemplate}
             options={[
@@ -237,15 +243,19 @@ function ComposeCard({
         </label>
       )}
 
-      <label className="flex flex-col gap-2">
-        <span className="text-muted-foreground text-[11px]">Phase / tên đợt</span>
-        <Input
-          value={state.label}
-          onChange={(e) => setState((s) => ({ ...s, label: e.target.value }))}
-          placeholder="Ví dụ: Đợt 1 · giới thiệu"
-          maxLength={200}
-        />
-      </label>
+      {showLabel && (
+        <label className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-[11px]">
+            {letterOnly ? 'Phase / tên đợt' : 'Phase / tên đợt · tự lấy tên mẫu'}
+          </span>
+          <Input
+            value={state.label}
+            onChange={(e) => setState((s) => ({ ...s, label: e.target.value }))}
+            placeholder="Ví dụ: Đợt 1 · giới thiệu"
+            maxLength={200}
+          />
+        </label>
+      )}
 
       <label className="flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">
@@ -253,38 +263,13 @@ function ComposeCard({
         </span>
         <Input
           value={state.subject}
-          onChange={(e) => setState((s) => ({ ...s, subject: e.target.value }))}
+          onChange={(e) => edit((s) => ({ ...s, subject: e.target.value }))}
           maxLength={200}
           placeholder="Tiêu đề người nhận đọc thấy trong hộp thư"
         />
       </label>
 
-      {/* The label row carries the guide button, so it sits OUTSIDE the
-          `<label>`: a button inside a label re-focuses the textarea on every
-          click. */}
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-muted-foreground text-[11px]">Nội dung</span>
-        {onOpenGuide && (
-          <Button
-            size="sm"
-            variant="ghost"
-            type="button"
-            className="pointer-coarse:h-12"
-            onClick={onOpenGuide}
-          >
-            <Icon icon={Info} size={14} />
-            Cách viết nội dung
-          </Button>
-        )}
-      </div>
-      <label className="flex flex-col gap-2">
-        <Textarea
-          value={state.body}
-          onChange={(e) => setState((s) => ({ ...s, body: e.target.value }))}
-          rows={6}
-          placeholder="Thân thư. **đậm**, _nghiêng_, đầu dòng `- ` thành danh sách. Dùng {{account}} và {{contact_name}} để điền tên từng người nhận."
-        />
-      </label>
+      <BodyField body={state.body} onBody={(body) => setState((s) => ({ ...s, body }))} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-2">
@@ -306,18 +291,6 @@ function ComposeCard({
           />
         </label>
       </div>
-
-      {/* Full width and on its own row, not a third cell beside the CTA pair:
-          it is the letter's SECOND button, not a third piece of the first one.
-          No label field — the wording is a constant, see `BOOKING_LABEL`. */}
-      <label className="flex flex-col gap-2">
-        <span className="text-muted-foreground text-[11px]">Link đặt lịch (không bắt buộc)</span>
-        <Input
-          value={state.bookingUrl}
-          onChange={(e) => setState((s) => ({ ...s, bookingUrl: e.target.value }))}
-          placeholder="https://calendly.com/…"
-        />
-      </label>
 
       {!letterOnly && <SendWhen state={state} setState={setState} />}
 

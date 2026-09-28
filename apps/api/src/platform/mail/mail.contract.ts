@@ -50,6 +50,7 @@ export const MAIL_STATES = [
   'suppressed',
   'failed_permanent',
   'dead',
+  'withheld',
 ] as const
 
 export type MailState = (typeof MAIL_STATES)[number]
@@ -67,6 +68,9 @@ export const MAIL_STATE_RANK: Record<MailState, number> = {
   suppressed: 5,
   failed_permanent: 5,
   dead: 6,
+  /* A later wave's release gate dropped this letter before it was ever
+     claimed (`MailRunRepository.release`). Terminal and never posted. */
+  withheld: 5,
 }
 
 export function advances(from: MailState, to: MailState): boolean {
@@ -117,7 +121,8 @@ export type MailMessage = {
    *  failure this field exists to make impossible. */
   flow: MailFlow
   from: string
-  to: string
+  /** Always an array: a group letter has several To, every other letter one. */
+  to: string[]
   cc?: string[]
   replyTo?: string
   subject: string
@@ -182,7 +187,31 @@ export type MailIntent = {
    *  queues the batch is the only half allowed to read `sales.lead`; by the
    *  time the worker composes, that door is shut. See `email_delivery.merge`. */
   merge?: Record<string, string>
+
+  /** `run_copy` = the one archive copy of a bulk run (`mail_run.bcc_copy_to`);
+   *  absent = `recipient`. Counters and the bounce breaker read recipients only. */
+  role?: MailRole
+
+  /** A group letter's To/CC set. Only `enqueueLetter` writes it — the batch
+   *  path refuses an intent carrying one rather than drop the CCs silently. */
+  addresses?: MailAddressIntent[]
 }
+
+export type MailRole = 'recipient' | 'run_copy'
+
+/** One To/CC of a group letter, as the branch resolved it. `displayName` and
+ *  `ref` (opaque, e.g. `contact:CT-…`) are snapshots — platform never reads
+ *  `sales.contact`. The address is normalised on write, like `recipient`. */
+export type MailAddressIntent = {
+  role: 'to' | 'cc'
+  address: string
+  displayName: string | null
+  ref: string | null
+}
+
+/** The template of a group letter (ADR 0066): one delivery, N address rows,
+ *  no List-Unsubscribe, no tracking. Bulk letters stay `mas-v1`. */
+export const MAS_GROUP_TEMPLATE = 'mas-group-v1'
 
 /** Written by the branch, inside `tx`. Implemented by the ledger repository;
  *  declared here so the branch never has to import the repository's file.
@@ -215,6 +244,17 @@ export interface MailEnqueue {
     intents: MailIntent[],
     opts?: { nextAttemptAt?: Date | null },
   ): Promise<number>
+
+  /** ONE group letter: its delivery row and one address row per To/CC, in the
+   *  caller's `tx`. Returns the delivery id, or `null` when `eventKey` already
+   *  exists — an idempotent replay that wrote nothing, addresses included.
+   *  `recipient` is overwritten with the first To (design §1); `nextAttemptAt`
+   *  is how a scheduled letter waits, exactly as in `enqueueBatch`. */
+  enqueueLetter(
+    tx: Db,
+    intent: MailIntent & { addresses: MailAddressIntent[] },
+    opts?: { nextAttemptAt?: Date | null },
+  ): Promise<string | null>
 }
 
 export const MAIL_ENQUEUE = Symbol('pv.mail.enqueue')
@@ -250,9 +290,21 @@ export type DeliveryToSend = {
    *  needs none. Read off the delivery row rather than from the branch's
    *  tables — that is the whole reason the column exists. */
   merge: Record<string, string> | null
+
+  role: MailRole
+
+  /** A group letter's To/CC in listed order, minus any address the first
+   *  attempt dropped as suppressed — so every retry sends the identical
+   *  payload under the same idempotency key. Empty for every other letter. */
+  addresses: MailAddressIntent[]
 }
 
 export type WebhookOutcome = 'applied' | 'ignored-duplicate' | 'ignored-stale' | 'unknown-delivery'
+
+/** What `applyWebhook` did, and which addresses a bounce/complaint is pinned
+ *  on. `attributed` is empty when the event names nobody for certain (design
+ *  §1): the caller suppresses exactly these and never the envelope's `to`. */
+export type WebhookApplied = { outcome: WebhookOutcome; attributed: string[] }
 
 /** WHAT THE RECIPIENT DID — a SECOND, WEAKER axis, deliberately kept off
  *  `email_delivery.state`.
@@ -344,6 +396,12 @@ export interface MailLedger extends MailEnqueue {
   ): Promise<void>
   markSuppressed(deliveryId: string, reason: SuppressionReason): Promise<void>
   isSuppressed(recipient: string): Promise<boolean>
+  /** Which of `addresses` are blocked right now — one read for a whole group
+   *  letter instead of one `isSuppressed` per address. Normalised form out. */
+  suppressedAmong(addresses: string[]): Promise<string[]>
+  /** Freeze a group letter's surviving set: `dropped` → `dropped_suppressed`.
+   *  The consumer calls it on the FIRST attempt only (see `DeliveryToSend.addresses`). */
+  settleAddresses(deliveryId: string, dropped: string[]): Promise<void>
   suppress(
     recipient: string,
     reason: SuppressionReason,
@@ -351,7 +409,12 @@ export interface MailLedger extends MailEnqueue {
   ): Promise<void>
 
   /** Idempotent by `svixId`: the same event replayed changes nothing.
-   *  State only moves forward — see `advances`. */
+   *  State only moves forward — see `advances`.
+   *
+   *  A bounce/complaint on a GROUP letter moves the pinned address row, and
+   *  the letter itself only once no To is left standing. `attributed` is
+   *  computed on a replay too, so a crash between the ledger write and the
+   *  caller's `suppress()` heals on Resend's retry. */
   applyWebhook(event: {
     svixId: string
     type: string
@@ -359,7 +422,10 @@ export interface MailLedger extends MailEnqueue {
     state: MailState | null
     reason?: string
     at: Date
-  }): Promise<WebhookOutcome>
+    /** The envelope's `data.to` — To only, never CC. Read solely to pin a
+     *  bounce/complaint on a delivery this ledger does not know. */
+    to: string[]
+  }): Promise<WebhookApplied>
 
   /** Record an open, a click or an unsubscribe. NEVER touches
    *  `email_delivery.state` — see `MailEngagement` for why that separation is
@@ -447,7 +513,24 @@ export interface MailLedger extends MailEnqueue {
   pendingBatch(limit: number): Promise<EmailJob[]>
 
   /** For `/healthz/email` and the runbook. */
-  queueHealth(): Promise<{ pending: number; oldestPendingSeconds: number | null; dead: number }>
+  queueHealth(): Promise<QueueHealth>
+}
+
+/** `gatedOverdue` = later-wave runs still held past their hour by more than
+ *  the health bar — the Sales gate sweeper is not running, and the gate fails
+ *  closed, so nothing else would ever say so. */
+export type QueueHealth = {
+  pending: number
+  oldestPendingSeconds: number | null
+  dead: number
+  gatedOverdue: number
 }
 
 export const MAIL_LEDGER = Symbol('pv.mail.ledger')
+
+/** The one health bar for "is anything stuck," shared by `/healthz/email`
+ *  (a pending row this old) and `queueHealth()`'s `gatedOverdue` (a held run
+ *  this far past its hour) — both are asking the same question, "is the thing
+ *  that should be moving this actually moving," and a single constant keeps
+ *  their two readers from drifting apart on the answer. */
+export const MAIL_QUEUE_STUCK_SECONDS = 900

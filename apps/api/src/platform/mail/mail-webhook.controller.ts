@@ -17,6 +17,7 @@ import { ENV, type Env } from '@api/platform/config/env'
 import { PvError } from '@api/platform/http/problem'
 import {
   MAIL_LEDGER,
+  MAIL_QUEUE_STUCK_SECONDS,
   type MailEngagement,
   type MailLedger,
   type MailState,
@@ -133,11 +134,6 @@ type Signal = {
   suppress?: SuppressionReason
 }
 
-/** A pending row older than this means nothing is draining the queue — the
- *  worker is down, wedged, or never started. Above the retry backoff ceiling
- *  so ordinary retrying never reads as broken. */
-const STUCK_AFTER_SECONDS = 900
-
 /* `@MachineDoor()` on the whole controller: both routes are opened by Resend,
    never by a browser, and each proves itself with an HMAC over the raw bytes —
    a stronger fence than the one being waived. Held against them, a stray
@@ -184,22 +180,21 @@ export class MailWebhookController {
        ledger, keyed by `svixId` and compared by state rank. Re-deciding either
        of them here would be a second implementation of the same rule, and the
        two would drift. */
-    const outcome = await this.ledger.applyWebhook({
+    const { outcome, attributed } = await this.ledger.applyWebhook({
       svixId,
       type: event.type,
       providerEmailId: signal.data.email_id || null,
       state: signal.state,
       ...(signal.reason ? { reason: signal.reason.slice(0, 500) } : {}),
       at: this.timeOf(event.created_at),
+      to: signal.data.to,
     })
 
-    /* Suppression is keyed by ADDRESS, not by delivery row: it has to outlive
-       the mail that revealed it, and it has to apply even when the webhook
-       names a delivery this system never queued. It is idempotent by address,
-       so it runs on a stale or duplicated event too — a hard bounce is a hard
-       bounce regardless of whether the row moved. */
+    /* Only the addresses the ledger pinned the event on — never all of
+       `data.to`, which named every To of a group letter for one bad mailbox.
+       Idempotent by address, and `attributed` survives a replay. */
     if (signal.suppress) {
-      for (const address of signal.data.to) {
+      for (const address of attributed) {
         await this.ledger.suppress(address, signal.suppress, 'resend')
       }
     }
@@ -441,6 +436,7 @@ export type EmailHealth =
       pending: number
       oldestPendingSeconds: number | null
       dead: number
+      gatedOverdue: number
     }
   | { status: 'degraded'; ledger: false }
 
@@ -462,7 +458,10 @@ export class MailHealthController {
       /* `degraded`, never a 5xx: a deep queue or a parked row needs a human,
          but the process is healthy. Answering 500 here would make a load
          balancer pull a perfectly good machine out of rotation over a mail. */
-      const stuck = queue.dead > 0 || (queue.oldestPendingSeconds ?? 0) > STUCK_AFTER_SECONDS
+      const stuck =
+        queue.dead > 0 ||
+        queue.gatedOverdue > 0 ||
+        (queue.oldestPendingSeconds ?? 0) > MAIL_QUEUE_STUCK_SECONDS
       return { status: stuck ? 'degraded' : 'ok', ledger: true, ...queue }
     } catch {
       return { status: 'degraded', ledger: false }

@@ -500,7 +500,6 @@ export function LeadsPage() {
                   openMasMail({
                     recipients: wholeBook,
                     initialCode: l.code,
-                    defaultLabel: 'Gửi email · Sổ lead',
                   })
               : undefined
           }
@@ -709,7 +708,6 @@ export function LeadsPage() {
               openMasMail({
                 recipients: wholeBook,
                 initialCodes: [...selectedCodes],
-                defaultLabel: 'Gửi email · Sổ lead',
                 onQueued: clearSelection,
               })
             }

@@ -18,7 +18,7 @@ export class ConsoleMailDriver implements MailPort {
        that cannot be read back off the log any other way — which account it
        would have gone out through on a machine that has the split configured. */
     this.log.log(
-      `[console] ${message.flow} → ${message.to} · "${message.subject}" · html ${message.html.length}b`,
+      `[console] ${message.flow} → ${message.to.join(', ')} · "${message.subject}" · html ${message.html.length}b`,
     )
     return { ok: true, providerEmailId: `console-${idempotencyKey}` }
   }

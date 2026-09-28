@@ -113,6 +113,11 @@ export function WaveStrip({
           {...(draftTouched(state) ? { onDrop: () => setState(clearDraft) } : {})}
         />
       </ul>
+      {/* G6 as decision 3 reads it: "met" is a meeting recorded on the lead —
+          the board's booking wording predates the Calendly retirement. */}
+      <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
+        Từ Đợt 2, ai đã trả lời thư hoặc đã có cuộc gặp được ghi sau khi Đợt 1 đi sẽ tự được bỏ ra.
+      </p>
     </GlassCard>
   )
 }

@@ -1,83 +1,126 @@
-import { useEffect, useRef, useState } from 'react'
-import { CircleCheck, Info, ListChecks, Mail, TriangleAlert } from '@pv/ui'
-import { Badge, GlassCard, Icon, SegmentedControl, Select, Skeleton, cn } from '@pv/ui'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { Info, Mail, TriangleAlert } from '@pv/ui'
+import { Button, GlassCard, Icon, Select, Separator, Skeleton, cn } from '@pv/ui'
 import type { MasPreviewResponse } from '@pv/contracts'
 import type { MailHint } from '@/data/mail-hints'
 
-/** The two blocks every compose box in this app now shows under the letter:
- *  what could be better about it, and what it will actually look like. */
+/** What every compose box in this app shows beside the letter: what could be
+ *  better about it (the floating corner stack), and what it will actually look
+ *  like. */
 
 // ---------------------------------------------------------------------------
 // The checklist
 // ---------------------------------------------------------------------------
 
-/** Advice, rendered as a list of short rows a person can work down.
+/** The corner stack of every compose panel (G-Bulk): the guide `?`, and a
+ *  count of hints that opens their list. `null` hints (nothing written yet)
+ *  and `[]` both draw no count — there is nothing to approve.
  *
- *  ------------------------------------------------------------------
- *  IT NEVER GROWS AN "OK" STATE THAT COMPETES WITH THE SEND BUTTON
- *  ------------------------------------------------------------------
- *  An empty list draws one quiet line and nothing else. The temptation is a
- *  green "ready to send" panel, and it would be a lie of exactly the kind
- *  this checklist exists to avoid: these rules see spelling, not judgement. A
- *  letter can pass all of them and still be the wrong letter to send.
- *
- *  The count in the header is there so somebody who has scrolled past can tell
- *  whether anything is waiting, without the list having to stay open.
- *
- *  `null` — a letter not yet started — draws nothing at all. See `mailHints`
- *  for why that is a different answer from an empty array. */
-export function MailHintList({ hints }: { hints: readonly MailHint[] | null }) {
-  if (!hints) return null
-  const warnings = hints.filter((hint) => hint.tone === 'warn').length
+ *  Floating rather than a block in the column so advice never pushes the letter
+ *  down; still advice only — nothing here touches the send button. Square
+ *  corners per law 5 — `rounded-full` is reserved for status dots, avatars
+ *  and the FAB, and these are neither. */
+export function MailFloatingAids({
+  hints,
+  onGuide,
+}: {
+  hints: readonly MailHint[] | null
+  onGuide: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const count = hints?.length ?? 0
+  const shown = open && count > 0
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-[12.5px] font-semibold">
-          <Icon icon={ListChecks} size={16} />
-          Nên xem lại trước khi gửi
-        </span>
-        {hints.length > 0 && (
-          <Badge tone={warnings > 0 ? 'warning' : 'draft'}>{`${hints.length} mục`}</Badge>
-        )}
-      </div>
-
-      {hints.length === 0 ? (
-        <p className="text-muted-foreground m-0 flex items-center gap-2 text-[11.5px] leading-[1.5]">
-          <Icon icon={CircleCheck} size={14} />
-          Không có gì gợn. Đọc lại một lượt rồi gửi.
-        </p>
-      ) : (
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {hints.map((hint) => (
-            <li
-              key={hint.id}
-              className="bg-surface-ink/5 flex items-start gap-3 rounded-sm px-3 py-2"
-            >
-              <Icon
-                icon={hint.tone === 'warn' ? TriangleAlert : Info}
-                size={14}
-                className={cn('mt-1 shrink-0', hint.tone === 'warn' && 'text-warning')}
-              />
-              <span className="flex min-w-0 flex-col gap-1">
+    <div className="flex flex-col items-end gap-2">
+      {shown && (
+        <div
+          role="dialog"
+          aria-label="Nên xem lại trước khi gửi"
+          className="glass-overlay flex w-[360px] max-w-[calc(100vw-48px)] flex-col gap-2 rounded-lg p-4"
+        >
+          <span className="text-[13px] font-semibold leading-5">
+            Nên xem lại · không chặn nút Gửi
+          </span>
+          <ul className="m-0 flex max-h-[360px] list-none flex-col gap-2 overflow-y-auto p-0">
+            {hints?.map((hint) => (
+              <li
+                key={hint.id}
+                className="bg-surface-ink/5 flex flex-col gap-1 rounded-md px-3 py-2"
+              >
                 <span
                   className={cn(
-                    'text-[12px] font-semibold leading-[1.4]',
+                    'text-[12px] font-semibold leading-4',
                     hint.tone === 'warn' && 'text-warning',
                   )}
                 >
                   {hint.text}
                 </span>
                 {hint.detail && (
-                  <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                    {hint.detail}
-                  </span>
+                  <span className="text-muted-foreground text-[12px] leading-4">{hint.detail}</span>
                 )}
-              </span>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
+      <button
+        type="button"
+        aria-label="Hướng dẫn gửi email"
+        onClick={onGuide}
+        className="glass-overlay text-muted-foreground motion-std hover:text-foreground flex size-12 items-center justify-center rounded-md"
+      >
+        <Icon icon={Info} size={16} />
+      </button>
+      {count > 0 && (
+        <button
+          type="button"
+          aria-label={`${count} điều nên xem lại`}
+          aria-expanded={shown}
+          onClick={() => setOpen((value) => !value)}
+          className="glass-overlay text-on-tint-warning tnum flex size-12 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--warning)_20%,var(--popover))] text-[15px] font-semibold"
+        >
+          {count}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** Calendly is retired (decision 2): an old run or template keeps its link as
+ *  history until somebody clears it here — there is no field to type a new one,
+ *  and the preview no longer draws that button, so the card names the link. */
+export function OldBookingLink({
+  owner,
+  url,
+  dropped,
+  onDrop,
+}: {
+  /** Whose link it is, as the sentence names it. */
+  owner: 'Thư' | 'Mẫu'
+  url: string
+  dropped: boolean
+  onDrop: (drop: boolean) => void
+}) {
+  return (
+    <GlassCard variant="b" className="flex min-w-0 flex-wrap items-center gap-3 p-4">
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-[12.5px] font-semibold">
+          {dropped ? 'Link đặt lịch cũ sẽ bị bỏ khi lưu' : `${owner} còn link đặt lịch cũ`}
+        </span>
+        <span className="text-muted-foreground truncate font-mono text-[11px]" title={url}>
+          {url}
+        </span>
+      </span>
+      <Button
+        size="sm"
+        variant="secondary"
+        type="button"
+        className="pointer-coarse:h-12"
+        onClick={() => onDrop(!dropped)}
+      >
+        {dropped ? 'Giữ lại' : 'Bỏ link đặt lịch cũ'}
+      </Button>
     </GlassCard>
   )
 }
@@ -86,17 +129,13 @@ export function MailHintList({ hints }: { hints: readonly MailHint[] | null }) {
 // The preview
 // ---------------------------------------------------------------------------
 
-/** How wide the letter is drawn. A real choice, not a gimmick: the shell caps
- *  the card at 560px, so on a desktop the letter floats in a wide grey field
- *  while on a phone it fills the screen edge to edge — and most of these
- *  letters are opened on a phone. A preview that only ever shows one of the two
- *  hides the one people actually get. */
-const PHONE_WIDTH = 390
-
 /** Where the frame stops growing and starts scrolling. Tall enough to hold a
  *  normal first-touch letter whole; a letter that overflows it is telling the
  *  writer something the `body-long` hint also says. */
 const FRAME_MAX = 560
+
+/** One line of the envelope above the letter: sender, recipient, reply-to. */
+export type MailEnvelopeLine = { label: string; value: string }
 
 export type MailPreviewCardProps = {
   letter?: MasPreviewResponse
@@ -107,12 +146,18 @@ export type MailPreviewCardProps = {
   recipients?: readonly { code: string; label: string }[]
   recipientCode?: string
   onRecipient?: (code: string) => void
+  /** The header lines of the letter, drawn above its subject. Absent for a door
+   *  that has no recipient to name (the template book). */
+  envelope?: readonly MailEnvelopeLine[]
   /** Replaces the line under the frame. The run editor needs it: its audience
    *  was frozen into `email_delivery` when the batch opened, so the default
    *  sentence about nobody being picked yet would be false there. */
   caption?: string
 }
 
+/** The letter AS THE RECIPIENT SEES IT — one view, no toolbar. The format and
+ *  width switches were dropped with the G-Bulk board: a preview offering four
+ *  renderings answers a question the sender never asked. */
 export function MailPreviewCard({
   letter,
   pending,
@@ -120,63 +165,48 @@ export function MailPreviewCard({
   recipients,
   recipientCode,
   onRecipient,
+  envelope,
   caption,
 }: MailPreviewCardProps) {
-  const [view, setView] = useState<'html' | 'text'>('html')
-  const [width, setWidth] = useState<'desktop' | 'phone'>('desktop')
-
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-[12.5px] font-semibold">
+        <span className="flex items-center gap-2 text-[13px] font-semibold leading-5">
           <Icon icon={Mail} size={16} />
           Thư sẽ gửi đi
         </span>
-        <div className="flex flex-wrap items-center gap-2">
-          {recipients && recipients.length > 1 && onRecipient && (
-            <Select
-              label="Xem trước theo lead"
-              hideLabel
-              size="sm"
-              value={recipientCode ?? ''}
-              onChange={onRecipient}
-              options={recipients.map((item) => ({ value: item.code, label: item.label }))}
-            />
-          )}
-          <SegmentedControl
-            label="Kiểu hiển thị"
+        {recipients && recipients.length > 1 && onRecipient && (
+          <Select
+            label="Xem trước theo người nhận"
             hideLabel
             size="sm"
-            value={view}
-            onChange={(value) => setView(value as 'html' | 'text')}
-            options={[
-              { value: 'html', label: 'Thư' },
-              { value: 'text', label: 'Chữ thuần' },
-            ]}
+            value={recipientCode ?? ''}
+            onChange={onRecipient}
+            options={recipients.map((item) => ({ value: item.code, label: item.label }))}
           />
-          {view === 'html' && (
-            <SegmentedControl
-              label="Bề ngang"
-              hideLabel
-              size="sm"
-              value={width}
-              onChange={(value) => setWidth(value as 'desktop' | 'phone')}
-              options={[
-                { value: 'desktop', label: 'Máy tính' },
-                { value: 'phone', label: 'Điện thoại' },
-              ]}
-            />
-          )}
-        </div>
+        )}
       </div>
 
-      {/* THE SUBJECT SITS OUTSIDE THE FRAME, because it is outside the letter.
-          It is the inbox row, not the page — and it is the half of a mass mail
-          that decides whether the rest is ever read. Drawing it inside the
-          rendered body would put it somewhere it never appears. */}
-      <div className="bg-surface-ink/5 flex min-w-0 flex-col gap-1 rounded-sm px-3 py-2">
-        <span className="text-muted-foreground text-[10.5px]">Tiêu đề trong hộp thư</span>
-        <span className="truncate text-[12.5px] font-semibold">{letter?.subject || '—'}</span>
+      {/* THE SUBJECT SITS OUTSIDE THE FRAME, under the envelope: it is the inbox
+          row, not the page, and drawing it inside the body would put it where
+          it never appears. */}
+      <div className="bg-surface-ink/5 flex min-w-0 flex-col gap-3 rounded-sm p-4">
+        {envelope && envelope.length > 0 && (
+          <>
+            <dl className="m-0 grid min-w-0 grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-2 text-[13px] leading-5">
+              {envelope.map((line) => (
+                <Fragment key={line.label}>
+                  <dt className="text-muted-foreground">{line.label}</dt>
+                  <dd className="m-0 min-w-0 truncate">{line.value}</dd>
+                </Fragment>
+              ))}
+            </dl>
+            <Separator />
+          </>
+        )}
+        <span className="truncate text-[15px] font-semibold leading-6">
+          {letter?.subject || '—'}
+        </span>
       </div>
 
       {error ? (
@@ -186,16 +216,8 @@ export function MailPreviewCard({
         </p>
       ) : !letter ? (
         <Skeleton height={160} />
-      ) : view === 'text' ? (
-        /* The plain-text half, and the only place in the product it can be
-           seen. Every letter carries one, a share of recipients read that one
-           and not the HTML, and until this tab existed nobody had ever looked
-           at it. */
-        <pre className="text-glass-foreground bg-surface-ink/5 m-0 max-h-[560px] overflow-auto whitespace-pre-wrap rounded-sm p-4 font-mono text-[11px] leading-[1.6]">
-          {letter.text}
-        </pre>
       ) : (
-        <LetterFrame html={letter.html} width={width} stale={pending} />
+        <LetterFrame html={letter.html} stale={pending} />
       )}
 
       <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
@@ -226,15 +248,7 @@ export function MailPreviewCard({
  *  privilege to nothing — it exists only so this component may read
  *  `scrollHeight` and size the frame to the letter instead of guessing. Adding
  *  `allow-scripts` alongside it would undo the sandbox entirely; do not. */
-function LetterFrame({
-  html,
-  width,
-  stale,
-}: {
-  html: string
-  width: 'desktop' | 'phone'
-  stale: boolean
-}) {
+function LetterFrame({ html, stale }: { html: string; stale: boolean }) {
   const frame = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(FRAME_MAX)
 
@@ -252,7 +266,7 @@ function LetterFrame({
     node?.addEventListener('load', measure)
     measure()
     return () => node?.removeEventListener('load', measure)
-  }, [html, width])
+  }, [html])
 
   return (
     <div
@@ -274,9 +288,7 @@ function LetterFrame({
              `aurora/no-box-border` refuses, and the rule reads classes. */
           border: 'none',
           height,
-          width: width === 'phone' ? PHONE_WIDTH : '100%',
-          maxWidth: '100%',
-          margin: width === 'phone' ? '0 auto' : undefined,
+          width: '100%',
         }}
       />
     </div>

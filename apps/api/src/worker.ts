@@ -9,6 +9,7 @@ import { NestFactory } from '@nestjs/core'
 import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
 import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
+import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
@@ -113,6 +114,7 @@ async function bootstrap(): Promise<void> {
   const relay = app.get(MailRelay)
   const runs = app.get(MailRunSweeper)
   const campaigns = app.get(CampaignSweeper)
+  const gates = app.get(MailWaveGateSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -207,9 +209,17 @@ async function bootstrap(): Promise<void> {
      vẫn `RUNNING`, vòng sau nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự
      thật chứ không phải hàng đợi. */
   const sweep = setInterval(() => {
-    void relay.sweep().catch((error: unknown) => {
-      log.error(`Relay lỗi: ${error instanceof Error ? error.message : String(error)}`)
-    })
+    // Gate first so a due later wave is released (or withheld) before the relay looks;
+    // the gate fails closed, so a slow gate only delays that wave by one poll.
+    void gates
+      .sweep()
+      .catch((error: unknown) => {
+        log.error(`Wave gate failed: ${error instanceof Error ? error.message : String(error)}`)
+      })
+      .then(() => relay.sweep())
+      .catch((error: unknown) => {
+        log.error(`Relay lỗi: ${error instanceof Error ? error.message : String(error)}`)
+      })
     void runs.sweep().catch((error: unknown) => {
       log.error(`Quét lô mail lỗi: ${error instanceof Error ? error.message : String(error)}`)
     })

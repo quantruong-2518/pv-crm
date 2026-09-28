@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
-import { CircleX, Mail, MailOpen, Pencil, Send, CircleAlert } from '@pv/ui'
+import { Mail, MailOpen, Send, CircleAlert } from '@pv/ui'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
-  Icon,
   SearchField,
   Select,
   ScreenLayout,
@@ -17,23 +16,25 @@ import {
 import type { MailRunListQuery, MailRunRow, MailRunState } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import { toast } from '@/app/toast'
 import {
-  CANCELLABLE,
   DEFAULT_MAIL_RUN_QUERY,
-  EDITABLE,
   MAIL_RUN_STATE_LABEL,
   MAIL_RUN_STATE_TONE,
   mailRunListQuery,
   mailRunQueryToParams,
+  mailRunRoute,
   useMailRunCancel,
+  type MailRunRoute,
 } from '@/data/mail-runs'
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { RunWhen } from '@/components/run-when'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
+import { RunActions, RunAudience, RunLabel, RunSent } from './mail-runs-parts'
 
 /** Module 1 · Sổ lô gửi — `GET /sales/mail/runs`.
  *
@@ -113,6 +114,7 @@ export function MailRunsPage() {
 
   const { data, isPending, error, refetch } = useQuery(mailRunListQuery(query))
   const cancel = useMailRunCancel()
+  const can = { send: useCan('lead.send-email'), broadcast: useCan('campaign.broadcast') }
 
   /* `useMemo` chứ không phải `data?.rows ?? []` trần: mảng rỗng dựng mới mỗi
      lượt vẽ, nên phép cộng bốn con số bên dưới chạy lại mỗi lượt kể cả khi
@@ -153,7 +155,7 @@ export function MailRunsPage() {
 
   /* Which batch the edit panel is holding. The panel stays mounted on `null`
      so it can animate out with the batch still drawn in it. */
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ id: string; viaContent: boolean } | null>(null)
 
   const [text, setText] = useState(urlQuery.q ?? '')
   const dirty = text.trim() !== '' || query.state !== undefined || query.campaign !== undefined
@@ -162,21 +164,24 @@ export function MailRunsPage() {
     patch({ q: undefined, state: undefined, campaign: undefined })
   }
 
-  const stop = (run: MailRunRow) => {
-    cancel.mutate(run.id, {
-      onSuccess: (res) => {
-        toast(`Đã dừng lô "${run.label}"`, {
-          tone: 'success',
-          detail: `${res.held} thư chưa gửi đã được giữ lại.`,
-        })
+  const stop = (run: MailRunRow, route: MailRunRoute) => {
+    cancel.mutate(
+      { id: run.id, route },
+      {
+        onSuccess: (res) => {
+          toast(`Đã dừng lô "${run.label}"`, {
+            tone: 'success',
+            detail: `${res.held} thư chưa gửi đã được giữ lại.`,
+          })
+        },
+        onError: (err) => {
+          toast('Không dừng được lô', {
+            tone: 'danger',
+            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+          })
+        },
       },
-      onError: (err) => {
-        toast('Không dừng được lô', {
-          tone: 'danger',
-          detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
-        })
-      },
-    })
+    )
   }
 
   return (
@@ -287,29 +292,17 @@ export function MailRunsPage() {
             rows: rows.map((r) => ({
               id: r.id,
               cells: [
-                <div key="l" className="min-w-0">
-                  <span
-                    className="block truncate"
-                    title={r.sequenceName ?? r.campaignName ?? r.label}
-                  >
-                    {r.sequenceName ?? r.campaignName ?? r.label}
-                  </span>
-                  <span
-                    className="text-muted-foreground block truncate text-[11px]"
-                    title={`${r.phase ?? r.label} · ${r.subject}`}
-                  >
-                    {r.waveNo ? `Đợt ${r.waveNo} · ` : ''}
-                    {r.phase ?? r.label} · {r.subject}
-                  </span>
-                </div>,
+                <RunLabel key="l" run={r} />,
                 <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
                   {MAIL_RUN_STATE_LABEL[r.state]}
                 </Badge>,
                 <RunWhen key="w" run={r} />,
-                <span key="a">{r.audienceCount.toLocaleString('vi-VN')}</span>,
-                <span key="sent">{r.sent.toLocaleString('vi-VN')}</span>,
+                <RunAudience key="a" run={r} />,
+                <RunSent key="sent" run={r} />,
                 <span key="d">{r.delivered.toLocaleString('vi-VN')}</span>,
-                <span key="o">{r.opened.toLocaleString('vi-VN')}</span>,
+                /* A group letter records no open (owner decision), so 0 would
+                   read as "nobody opened it". */
+                <span key="o">{r.kind === 'group' ? '—' : r.opened.toLocaleString('vi-VN')}</span>,
                 /* Bounce tô cảnh báo NGAY TỪ MỘT dòng khi lô đủ mẫu, không
                    đợi chạm 4%: cầu dao ở máy chủ mới là thứ dừng lô, còn ô
                    này chỉ để người nhìn thấy trước khi nó dừng. */
@@ -320,37 +313,34 @@ export function MailRunsPage() {
                 >
                   {r.bounced.toLocaleString('vi-VN')}
                 </span>,
-                <div key="x" className="flex min-w-0 items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="pointer-coarse:h-12"
-                    disabled={!EDITABLE.includes(r.state)}
-                    onClick={() => setEditing(r.id)}
-                  >
-                    <Icon icon={Pencil} size={14} />
-                    Sửa
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="pointer-coarse:h-12"
-                    disabled={!CANCELLABLE.includes(r.state) || cancel.isPending}
-                    onClick={() => stop(r)}
-                  >
-                    <Icon icon={CircleX} size={14} />
-                    Dừng
-                  </Button>
-                </div>,
+                <RunActions
+                  key="x"
+                  run={r}
+                  route={mailRunRoute(r, can)}
+                  busy={cancel.isPending}
+                  onEdit={() => setEditing({ id: r.id, viaContent: r.kind === 'group' && !r.mine })}
+                  onStop={(route) => stop(r, route)}
+                />,
               ],
             })),
           }}
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+            <>
+              <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+              <p className="text-muted-foreground m-0 px-5 pb-4 text-[11.5px] leading-[1.5]">
+                Sửa chỉ khi lô còn Hẹn giờ; Dừng khi lô còn Hẹn giờ hoặc Đang gửi. Người tạo lô tự
+                Sửa, Dừng lô của mình; người có quyền phát chiến dịch Sửa, Dừng được mọi lô. Nút
+                sáng vẫn có thể bị máy chủ từ chối nếu thư đầu đã rời máy.
+              </p>
+            </>
           }
         />
 
-        <MailRunEditModal runId={editing} onClose={() => setEditing(null)} />
+        <MailRunEditModal
+          runId={editing?.id ?? null}
+          viaContent={editing?.viaContent ?? false}
+          onClose={() => setEditing(null)}
+        />
       </ScreenLayout>
     </AppShell>
   )

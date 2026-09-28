@@ -845,7 +845,7 @@
   },
   "apps/api/src/platform/mail/mail-webhook.controller.ts": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 4
     },
     "aurora/comments-in-english": {
       "count": 1
@@ -1262,13 +1262,10 @@
   },
   "apps/web/src/components/mail-compose-bits.tsx": {
     "aurora/comment-budget": {
-      "count": 5
+      "count": 3
     }
   },
   "apps/web/src/components/mas-mail-modal.tsx": {
-    "aurora/comment-budget": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -1454,10 +1451,7 @@
   },
   "apps/web/src/data/mail-hints.ts": {
     "aurora/comment-budget": {
-      "count": 4
-    },
-    "max-lines-per-function": {
-      "count": 1
+      "count": 2
     }
   },
   "apps/web/src/data/mail-runs.ts": {
@@ -1761,7 +1755,7 @@
   },
   "apps/web/src/pages/mail-templates-parts.tsx": {
     "aurora/comment-budget": {
-      "count": 4
+      "count": 3
     },
     "max-lines-per-function": {
       "count": 1
@@ -2071,7 +2065,7 @@
   },
   "packages/contracts/src/sales/mail.ts": {
     "aurora/comment-budget": {
-      "count": 16
+      "count": 15
     },
     "aurora/comments-in-english": {
       "count": 10
@@ -2272,7 +2266,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 5
+      "count": 4
     }
   },
   "packages/mail-templates/src/opportunity-lost.tsx": {

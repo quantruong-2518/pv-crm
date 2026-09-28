@@ -1,6 +1,10 @@
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { MailRunListQuery, MailRunListResponse, MailRunState } from '@pv/contracts'
+import type {
+  MailRunListQuery,
+  MailRunRow as MailRunListRowWire,
+  MailRunState,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { MAIL_STATE_RANK, MAIL_STATES, type MailState } from './mail.contract'
@@ -35,6 +39,32 @@ export type MailRunCreate = {
   /** Absent on purpose means "whatever the column decides" — see `create()`. */
   trackEngagement?: boolean
   createdBy: string
+  /** `group` = one letter to named To/CC (ADR 0066); `bulk` = one per recipient. */
+  kind: 'bulk' | 'group'
+  /** The shared inbox that gets this bulk run's one archive copy, or `null`. */
+  bccCopyTo: string | null
+  /** Wave ≥ 2: held until the Sales gate sweeper calls `release()` (ADR 0068). */
+  awaitsRelease: boolean
+}
+
+/** One run of the list as platform can answer it: the wire row minus what only
+ *  the branch knows (`mine`, the creator's display name), plus `kind` and the
+ *  `withheld` count the screen shows as skipped. */
+export type MailRunListRow = Omit<MailRunListRowWire, 'createdBy' | 'mine'> & {
+  kind: 'bulk' | 'group'
+  /** Actor id — the branch resolves the name and computes `mine`. */
+  createdBy: string
+  withheld: number
+}
+
+export type MailRunPage = { total: number; hidden: number; rows: MailRunListRow[] }
+
+/** One held later wave whose hour has come, and the letters the gate will
+ *  judge — recipients only; the run copy follows them in `release()`. */
+export type DueGatedRun = {
+  runId: string
+  scheduledAt: Date
+  pending: Array<{ deliveryId: string; aggregateType: string; aggregateId: string }>
 }
 
 /** What may still be changed on a batch that has not gone out.
@@ -86,6 +116,8 @@ const NEVER_LEFT: Partial<Record<MailState, true>> = {
   suppressed: true,
   failed_permanent: true,
   dead: true,
+  /* Dropped by a later wave's release gate before any attempt (`release()`). */
+  withheld: true,
 }
 
 const SENT_STATES = MAIL_STATES.filter(
@@ -173,6 +205,7 @@ type DeliveryCounts = {
   complained: number
   failed: number
   suppressed: number
+  withheld: number
 }
 
 /** One run the bounce breaker stopped, and the three numbers that explain why.
@@ -207,6 +240,7 @@ export type RunTally = {
   bounced: number
   failed: number
   suppressed: number
+  withheld: number
   complained: number
   opened: number
   clicked: number
@@ -249,7 +283,12 @@ export class MailRunRepository {
            the default, and a second copy of it here is two places to remember
            on the day it changes. An absent flag leaves the column to decide. */
         ...(input.trackEngagement === undefined ? {} : { trackEngagement: input.trackEngagement }),
+        // Owner rule, not a setting: a group letter is 1:1 correspondence, never watched.
+        ...(input.kind === 'group' ? { trackEngagement: false } : {}),
         createdBy: input.createdBy,
+        kind: input.kind,
+        bccCopyTo: input.bccCopyTo,
+        awaitsRelease: input.awaitsRelease,
       })
       .returning({ id: mailRun.id })
 
@@ -294,7 +333,7 @@ export class MailRunRepository {
    *  `hidden` is always 0. It is the count of rows the permission axis cut
    *  (luật 7), and permissions are not a platform-repository decision — the
    *  Sales service that owns the endpoint fills it if its axis cuts anything. */
-  async list(query: MailRunListQuery, onlyIds?: readonly string[]): Promise<MailRunListResponse> {
+  async list(query: MailRunListQuery, onlyIds?: readonly string[]): Promise<MailRunPage> {
     if (query.campaign !== undefined && onlyIds === undefined) {
       throw new Error(
         'Lọc theo chiến dịch phải được nhánh Sales giải sẵn thành danh sách id lô gửi — ' +
@@ -352,8 +391,11 @@ export class MailRunRepository {
           complained: d?.complained ?? 0,
           failed: d?.failed ?? 0,
           suppressed: d?.suppressed ?? 0,
+          withheld: d?.withheld ?? 0,
           unsubscribed: e?.unsubscribed ?? 0,
           createdAt: row.createdAt.toISOString(),
+          kind: row.kind,
+          createdBy: row.createdBy,
         }
       }),
     }
@@ -489,6 +531,124 @@ export class MailRunRepository {
 
     const row = r.rows[0]
     return row && row.runs > 0 ? { rescheduled: row.rescheduled } : null
+  }
+
+  /** Held later waves whose hour has come (ADR 0068) — the Sales gate
+   *  sweeper's worklist. A cancelled run is not due: its rows are already
+   *  `dead`, and releasing it would only write a misleading audit line. */
+  async dueGatedRuns(now: Date): Promise<DueGatedRun[]> {
+    const r = (await this.db.execute(sql`
+      SELECT r."id" AS run_id,
+             COALESCE(r."scheduled_at", r."created_at") AS scheduled_at,
+             d."id" AS delivery_id, d."aggregate_type", d."aggregate_id"
+        FROM "platform"."mail_run" r
+        LEFT JOIN "platform"."email_delivery" d
+               ON d."mail_run_id" = r."id" AND d."role" = 'recipient' AND d."state" = 'pending'
+       WHERE r."awaits_release" AND r."released_at" IS NULL
+         AND r."state" IN ('SCHEDULED', 'SENDING')
+         AND COALESCE(r."scheduled_at", r."created_at") <= ${now.toISOString()}::timestamptz
+       ORDER BY 2, r."id", d."created_at"
+    `)) as {
+      rows: {
+        run_id: string
+        scheduled_at: Date | string
+        delivery_id: string | null
+        aggregate_type: string | null
+        aggregate_id: string | null
+      }[]
+    }
+
+    const runs = new Map<string, DueGatedRun>()
+    for (const row of r.rows) {
+      let run = runs.get(row.run_id)
+      if (!run) {
+        run = { runId: row.run_id, scheduledAt: new Date(row.scheduled_at), pending: [] }
+        runs.set(row.run_id, run)
+      }
+      if (row.delivery_id && row.aggregate_type && row.aggregate_id) {
+        run.pending.push({
+          deliveryId: row.delivery_id,
+          aggregateType: row.aggregate_type,
+          aggregateId: row.aggregate_id,
+        })
+      }
+    }
+    return [...runs.values()]
+  }
+
+  /** OPEN ONE GATE, AS ONE STATEMENT — the only writer of `released_at`.
+   *
+   *  `released_at IS NULL` in the WHERE is the double-release guard: a second
+   *  sweeper pass (or a second worker) matches no run and holds nothing. The
+   *  held recipients become `withheld` carrying the branch's opaque
+   *  `reasonCode`; the run copy follows them only when NO recipient is left to
+   *  send, since an archive of a letter nobody got is noise in the inbox. The
+   *  copy CTE reads `held` by id because every CTE sees the same pre-update
+   *  snapshot. `tx`, so the branch's audit row commits with the release. */
+  async release(
+    tx: Db,
+    runId: string,
+    holds: Array<{ aggregateId: string; reasonCode: string }>,
+  ): Promise<{ released: boolean; withheld: number }> {
+    const unique = new Map<string, string>()
+    for (const h of holds) if (!unique.has(h.aggregateId)) unique.set(h.aggregateId, h.reasonCode)
+    const json = JSON.stringify(
+      [...unique].map(([aggregate_id, reason_code]) => ({ aggregate_id, reason_code })),
+    )
+
+    const r = (await tx.execute(sql`
+      WITH released AS (
+        UPDATE "platform"."mail_run" r
+           SET "released_at" = now(), "updated_at" = now()
+         WHERE r."id" = ${runId}::uuid
+           AND r."awaits_release" AND r."released_at" IS NULL
+           AND r."state" IN ('SCHEDULED', 'SENDING')
+        RETURNING r."id"
+      ),
+      holds AS (
+        SELECT h.aggregate_id, h.reason_code
+          FROM jsonb_to_recordset(${json}::jsonb) AS h(aggregate_id text, reason_code text)
+      ),
+      held AS (
+        UPDATE "platform"."email_delivery" d
+           SET "state" = 'withheld',
+               "next_attempt_at" = NULL,
+               "last_error_code" = h.reason_code,
+               "last_error_summary" = 'đợt sau: người nhận được giữ lại ở cổng xét',
+               "updated_at" = now()
+          FROM holds h
+         WHERE d."mail_run_id" IN (SELECT "id" FROM released)
+           AND d."role" = 'recipient'
+           AND d."state" = 'pending'
+           AND d."aggregate_id" = h.aggregate_id
+        RETURNING d."id"
+      ),
+      copy_held AS (
+        UPDATE "platform"."email_delivery" d
+           SET "state" = 'withheld',
+               "next_attempt_at" = NULL,
+               "last_error_code" = 'mas-no-recipient-left',
+               "last_error_summary" = 'đợt sau: mọi người nhận bị giữ lại nên không gửi bản lưu',
+               "updated_at" = now()
+         WHERE d."mail_run_id" IN (SELECT "id" FROM released)
+           AND d."role" = 'run_copy'
+           AND d."state" = 'pending'
+           AND NOT EXISTS (
+                 SELECT 1 FROM "platform"."email_delivery" o
+                  WHERE o."mail_run_id" = d."mail_run_id"
+                    AND o."role" = 'recipient'
+                    AND o."state" = 'pending'
+                    AND o."id" NOT IN (SELECT "id" FROM held)
+               )
+        RETURNING d."id"
+      )
+      SELECT (SELECT count(*) FROM released)::int  AS released,
+             (SELECT count(*) FROM held)::int      AS withheld,
+             (SELECT count(*) FROM copy_held)::int AS copies
+    `)) as { rows: { released: number; withheld: number; copies: number }[] }
+
+    const row = r.rows[0]
+    return { released: (row?.released ?? 0) > 0, withheld: row?.withheld ?? 0 }
   }
 
   /** Move runs to the state their own letters have already reached.
@@ -666,6 +826,7 @@ export class MailRunRepository {
                count(*) FILTER (WHERE d."state" = 'bounced')::int                  AS bounced
           FROM "platform"."email_delivery" d
          WHERE d."mail_run_id" IN (SELECT "id" FROM live)
+           AND d."role" = 'recipient'
          GROUP BY d."mail_run_id"
       ),
       tripped AS (
@@ -721,9 +882,11 @@ export class MailRunRepository {
              count(*) FILTER (WHERE d."state" = 'bounced')::int                       AS bounced,
              count(*) FILTER (WHERE d."state" = 'complained')::int                    AS complained,
              count(*) FILTER (WHERE d."state" IN (${params(FAILED_STATES)}))::int      AS failed,
-             count(*) FILTER (WHERE d."state" = 'suppressed')::int                    AS suppressed
+             count(*) FILTER (WHERE d."state" = 'suppressed')::int                    AS suppressed,
+             count(*) FILTER (WHERE d."state" = 'withheld')::int                      AS withheld
         FROM "platform"."email_delivery" d
        WHERE d."mail_run_id" IN (${params(ids)})
+         AND d."role" = 'recipient'
        GROUP BY d."mail_run_id"
     `)) as { rows: DeliveryCounts[] }
 
@@ -760,6 +923,7 @@ export class MailRunRepository {
             bounced: d?.bounced ?? 0,
             failed: d?.failed ?? 0,
             suppressed: d?.suppressed ?? 0,
+            withheld: d?.withheld ?? 0,
             complained: d?.complained ?? 0,
             opened: e?.opened ?? 0,
             clicked: e?.clicked ?? 0,
@@ -792,6 +956,7 @@ export class MailRunRepository {
         FROM "platform"."mail_event" e
         JOIN "platform"."email_delivery" d ON d."id" = e."delivery_id"
        WHERE d."mail_run_id" IN (${params(ids)})
+         AND d."role" = 'recipient'
        GROUP BY d."mail_run_id"
     `)) as { rows: EngagementCounts[] }
 

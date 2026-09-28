@@ -72,14 +72,15 @@ describe('sales.mail_sequence_run', () => {
     expect(rows.rows).toHaveLength(2)
   })
 
-  it('accepts only the two internal CC mailboxes', async () => {
+  it('accepts the internal CC mailboxes', async () => {
+    const all = ['contact@pebblevina.com', 'sales@pebblevina.com']
     await db.execute(sql`
       UPDATE "platform"."mail_run"
-      SET "cc_addresses" = ARRAY['contact@pebblevina.com', 'sales@pebblevina.co']::text[]
+      SET "cc_addresses" = ARRAY['contact@pebblevina.com', 'sales@pebblevina.com']::text[]
       WHERE "id" = ${RUN}`)
     const rows = await db.execute(sql`
       SELECT "cc_addresses" FROM "platform"."mail_run" WHERE "id" = ${RUN}`)
-    expect(rows.rows[0]?.cc_addresses).toEqual(['contact@pebblevina.com', 'sales@pebblevina.co'])
+    expect(rows.rows[0]?.cc_addresses).toEqual(all)
   })
 
   it.each([
@@ -95,6 +96,11 @@ describe('sales.mail_sequence_run', () => {
     ['a negative expectation', insert('lead', 'LD-0002', OTHER_RUN, 1, '-1'), '23514'],
     ['an empty subject code', insert('lead', '', OTHER_RUN, 1), '23514'],
     ['an empty phase', insert('lead', 'LD-0002', OTHER_RUN, 1, 'NULL', ''), '23514'],
+    [
+      'the retired .co mailbox',
+      `UPDATE "platform"."mail_run" SET "cc_addresses" = ARRAY['sales@pebblevina.co']::text[] WHERE "id" = '${OTHER_RUN}'`,
+      '23514',
+    ],
     [
       'an arbitrary CC mailbox',
       `UPDATE "platform"."mail_run" SET "cc_addresses" = ARRAY['outside@example.com']::text[] WHERE "id" = '${OTHER_RUN}'`,

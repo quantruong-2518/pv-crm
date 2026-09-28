@@ -99,7 +99,7 @@ export class OpportunityMailComposer implements MailComposer {
          `MailFlow`. */
       flow: 'transactional',
       from: this.env.PV_EMAIL_FROM,
-      to: delivery.recipient,
+      to: [delivery.recipient],
       /* KHÁC mail lead intake: `replyTo` KHÔNG phải hộp thư khách.
          Thư này đi tới người gật đơn, và trả lời nó là trả lời trong nội bộ —
          mở sẵn một đường thư thẳng tới khách hàng ngay dưới một dòng "vì sao

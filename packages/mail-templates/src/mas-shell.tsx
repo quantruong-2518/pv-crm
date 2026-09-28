@@ -53,8 +53,10 @@ export type MasShellData = {
    *  third letter recognises it without reading it. Merge values inside the URL
    *  were substituted and percent-encoded in `mas-letter.ts` before arriving. */
   bookingUrl?: string
-  /** Bắt buộc với mail marketing — link huỷ đăng ký. */
-  unsubscribeUrl: string
+  /** Required on marketing mail. Absent on a group letter and on the run copy:
+   *  one shared body cannot carry a per-person token, and a 1:1 letter is not
+   *  marketing — so the whole "why you got this" footer goes with it. */
+  unsubscribeUrl?: string
   /** Chân thư: tên và địa chỉ công ty, bản đã chụp của lô. */
   sender: { name: string; address: string }
   /** Gốc URL công khai của ảnh nhận diện — xem `PV_BRAND_ASSET_URL`. */
@@ -75,12 +77,14 @@ export function MasShellEmail(data: MasShellData) {
       assetBaseUrl={data.assetBaseUrl}
       sender={data.sender}
       footerNote={
-        <>
-          Bạn nhận thư này vì đã để lại thông tin cho {data.sender.name}.{' '}
-          <Link href={data.unsubscribeUrl} style={{ color: COLOR_PRIMARY }}>
-            Huỷ nhận thư
-          </Link>
-        </>
+        data.unsubscribeUrl ? (
+          <>
+            Bạn nhận thư này vì đã để lại thông tin cho {data.sender.name}.{' '}
+            <Link href={data.unsubscribeUrl} style={{ color: COLOR_PRIMARY }}>
+              Huỷ nhận thư
+            </Link>
+          </>
+        ) : undefined
       }
     >
       {data.blocks.map((block, index) =>

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { LeadProfile, MasCcAddress } from '@pv/contracts'
 
 /** Everything the three-step compose panel is holding while it is open.
  *
@@ -26,41 +25,19 @@ export type MasRecipient = {
   destinationLabel?: string
 }
 
-/** The panel takes a LIST of recipients; a detail screen holds exactly one, and
- *  none at all while the lead has no mailbox or no person to address. Shared by
- *  the lead screen and the deal screen — a deal writes to its origin lead's
- *  mailbox, so both build the same row from the same profile. */
-export function masRecipientsOf(
-  lead: LeadProfile | null,
-  destination?: { code: string; label?: string },
-): MasRecipient[] {
-  if (!lead?.contactName || !lead.email) return []
-  return [
-    {
-      code: destination?.code ?? lead.code,
-      leadCode: lead.code,
-      company: lead.company,
-      contactName: lead.contactName,
-      contactTitle: lead.contactTitle,
-      email: lead.email,
-      ...(destination?.label ? { destinationLabel: destination.label } : {}),
-    },
-  ]
-}
-
 const NO_SELECTION: ReadonlySet<string> = new Set()
 
 export function useMasMailDraft(
   open: boolean,
   initialCode?: string,
   initialCodes?: readonly string[],
-  defaultSequenceName?: string,
 ) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION)
   const [previewCode, setPreviewCode] = useState('')
   const [campaignCode, setCampaignCode] = useState(NO_CAMPAIGN)
-  const [sequenceName, setSequenceName] = useState('')
-  const [cc, setCc] = useState<ReadonlySet<MasCcAddress>>(new Set())
+  /* `null` = not typed by anybody, so the panel keeps deriving it from the
+     list and the template (G3) instead of freezing the first guess. */
+  const [sequenceName, setSequenceName] = useState<string | null>(null)
   /* ON by default, matching both the contract and the column's `DEFAULT true`.
      The request states it anyway — see the checkbox in step 3 — because a panel
      that leans on a default elsewhere stops explaining its own box. */
@@ -74,12 +51,11 @@ export function useMasMailDraft(
     setSelected(seeded.length > 0 ? new Set(seeded) : NO_SELECTION)
     setPreviewCode(seeded[0] ?? '')
     setCampaignCode(NO_CAMPAIGN)
-    setSequenceName(defaultSequenceName ?? 'Chuỗi email')
-    setCc(new Set())
+    setSequenceName(null)
     setTrackEngagement(true)
     setSaveAsTemplate(false)
     setTemplateName('')
-  }, [open, initialCode, initialCodes, defaultSequenceName])
+  }, [open, initialCode, initialCodes])
 
   return {
     selected,
@@ -90,8 +66,6 @@ export function useMasMailDraft(
     setCampaignCode,
     sequenceName,
     setSequenceName,
-    cc,
-    setCc,
     trackEngagement,
     setTrackEngagement,
     saveAsTemplate,

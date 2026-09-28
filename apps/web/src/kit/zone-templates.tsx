@@ -51,6 +51,7 @@ export function ZoneTemplates() {
      thì không có gì để nhìn, nên nó phải mở được ngay trên trang kit. */
   const [open, setOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalWidth, setModalWidth] = useState<'lg' | 'wide'>('lg')
 
   return (
     <section id="zone-04" className="pb-2 pt-12">
@@ -220,16 +221,33 @@ export function ZoneTemplates() {
           className="col-span-3"
           code="T-07"
           name="Modal"
-          note="phiếu giữa · lg 920 / xl 1120 · headerAction"
+          note="phiếu giữa · lg 920 / xl 1120 / wide min(1296, 90vw) · headerAction"
           bodyClassName="flex flex-wrap items-center gap-4 px-4 py-5"
           footer="Dùng khi một tác vụ có nhiều phần cần nhìn và kiểm cùng lúc. Đầu và chân đứng yên, thân tự cuộn; mobile chiếm toàn màn."
         >
-          <Button onClick={() => setModalOpen(true)}>Mở phiếu đầy đủ</Button>
+          <Button
+            onClick={() => {
+              setModalWidth('lg')
+              setModalOpen(true)
+            }}
+          >
+            Mở phiếu đầy đủ
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setModalWidth('wide')
+              setModalOpen(true)
+            }}
+          >
+            Mở phiếu rộng
+          </Button>
           <span className="text-muted-foreground text-[11.5px]">
             Phù hợp với form soạn mail có nội dung, lịch gửi và danh sách người nhận.
           </span>
           <Modal
             open={modalOpen}
+            width={modalWidth}
             onClose={() => setModalOpen(false)}
             title="Kiểm tra trước khi gửi"
             subtitle="Nội dung, thời điểm và người nhận nằm trong cùng một phiếu."

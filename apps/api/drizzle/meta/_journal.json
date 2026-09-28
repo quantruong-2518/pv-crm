@@ -442,6 +442,20 @@
       "when": 1788503400000,
       "tag": "0063_lead_scan",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1788503500000,
+      "tag": "0064_mail_sales_inbox_com",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1788503600000,
+      "tag": "0065_mail_group_gate_doors",
+      "breakpoints": true
     }
   ]
 }

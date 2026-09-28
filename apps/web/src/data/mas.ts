@@ -3,11 +3,13 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import type {
   LeadMailEventsResponse,
   LeadMailTimelineResponse,
+  MailDoor,
   MailTemplateCreate,
   MailTemplateCreateResponse,
   MailTemplateListResponse,
   MailTemplatePatch,
   MailTemplatePatchResponse,
+  MailTemplateRow,
   MasPreflightResponse,
   MasAudience,
   MasPreviewRequest,
@@ -76,6 +78,11 @@ const TIMELINE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scope
  *  without knowing which leads it just wrote to. */
 export const LEAD_MAIL_KEY = ['sales', 'lead-mail'] as const
 
+/** Prefix of every letter-activity key (`data/mail-letters.ts`). Lives here,
+ *  not there, because `data/mas.ts` is the lower layer of both it and
+ *  `data/mail-runs.ts` and must not import upward into either. */
+export const LETTERS_KEY = ['sales', 'letters'] as const
+
 /** The picker's catalogue. `GET /sales/mail/templates`.
  *
  *  Long `staleTime`: a template list is a handful of rows a human edits by
@@ -95,6 +102,28 @@ export const masTemplatesQuery = queryOptions({
     }),
   staleTime: 10 * 60 * 1000,
 })
+
+/** One door's picker (G4): `GET /sales/mail/templates?door=…`. A sub-key of
+ *  the book's key, so every template write sweeps it with the book. */
+export const doorTemplatesQuery = (door: MailDoor) =>
+  queryOptions({
+    queryKey: [...masTemplatesQuery.queryKey, door] as const,
+    queryFn: ({ signal }) =>
+      api.read<MailTemplateListResponse>(`/sales/mail/templates?door=${door}`, {
+        need: TEMPLATES_NEED,
+        signal,
+      }),
+    staleTime: 10 * 60 * 1000,
+  })
+
+/** The template a composer opens pre-filled with at `door` — one per door,
+ *  the server keeps it unique. Retired ones never pre-fill. */
+export function doorDefault(
+  rows: readonly MailTemplateRow[],
+  door: MailDoor,
+): MailTemplateRow | undefined {
+  return rows.find((row) => row.active && row.defaultFor.includes(door))
+}
 
 /** The template book writes with the EDIT permission, not the one that fires
  *  mail: editing a template sends no letter, because a run snapshots subject and
@@ -169,7 +198,7 @@ export function useMailTemplatePatch() {
  *     cannot be retried does not behave like a query and should not look like
  *     one.
  *
- *  So the panel calls this once per step transition and holds the answer in its
+ *  So the panel runs it through `useAutoPreflight` and holds the answer in its
  *  own state, where its lifetime is obvious: it lives as long as the panel. */
 export function masPreflight(
   audience: MasAudience,
@@ -181,6 +210,59 @@ export function masPreflight(
     need: SEND_NEED,
     signal,
   })
+}
+
+/** Long enough to sit through a burst of ticks or removals, short enough that
+ *  the verdict lands before anybody reaches the send button (G2). */
+const PREFLIGHT_SETTLE_MS = 400
+
+type PreflightAnswer = { key: string; report?: MasPreflightResponse; error?: string }
+
+/** The preflight, re-asked every time the list settles (G2).
+ *
+ *  THE ANSWER IS KEYED TO THE EXACT LIST IT DESCRIBES. A verdict for yesterday's
+ *  list is not "slightly stale", it is about other people — so `report` is
+ *  handed out only while its key equals the list on screen, and a list changed
+ *  mid-flight aborts the request that was asking about the old one. */
+export function useAutoPreflight(audience: MasAudience, enabled: boolean) {
+  const { subjectType } = audience
+  const codes = audience.codes.join(',')
+  const key = `${subjectType}:${codes}`
+  const [answer, setAnswer] = useState<PreflightAnswer>()
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    if (!enabled) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      masPreflight({ subjectType, codes: codes.split(',') }, controller.signal)
+        .then((report) => {
+          if (!controller.signal.aborted) setAnswer({ key, report })
+        })
+        .catch((cause: unknown) => {
+          if (controller.signal.aborted) return
+          setAnswer({
+            key,
+            error: isApiError(cause) ? userMessage(cause) : 'Không kiểm tra được người nhận.',
+          })
+        })
+    }, PREFLIGHT_SETTLE_MS)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [enabled, key, subjectType, codes, attempt])
+
+  const current = enabled && answer?.key === key ? answer : undefined
+  return {
+    report: current?.report,
+    error: current?.error ?? '',
+    checking: enabled && !current,
+    retry: () => {
+      setAnswer(undefined)
+      setAttempt((n) => n + 1)
+    },
+  }
 }
 
 /** The letter as it will really look. `POST /sales/mail/preview`.
@@ -242,7 +324,6 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
   const { subject, body, leadCode } = draft
   const ctaLabel = draft.cta?.label
   const ctaUrl = draft.cta?.url
-  const bookingUrl = draft.bookingUrl
   const ready = enabled && subject.trim() !== '' && body.trim() !== ''
 
   useEffect(() => {
@@ -259,7 +340,6 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
           subject,
           body,
           ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
-          ...(bookingUrl ? { bookingUrl } : {}),
           ...(leadCode ? { leadCode } : {}),
         },
         controller.signal,
@@ -284,7 +364,7 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
       clearTimeout(timer)
       controller.abort()
     }
-  }, [ready, subject, body, ctaLabel, ctaUrl, bookingUrl, leadCode])
+  }, [ready, subject, body, ctaLabel, ctaUrl, leadCode])
 
   return { letter, error, pending }
 }
@@ -337,6 +417,7 @@ export function useMasSend() {
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
+      void client.invalidateQueries({ queryKey: LETTERS_KEY })
       /* Một lô gắn chiến dịch đổi `waveCount` của dòng đó trong Sổ chiến dịch
          và thêm một dòng vào Sổ lô gửi. Dọn theo TIỀN TỐ chuỗi, không import
          hằng khoá của hai file kia — `data/mas.ts` là tầng dưới của cả hai và

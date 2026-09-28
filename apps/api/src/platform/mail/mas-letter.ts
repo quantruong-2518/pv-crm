@@ -45,7 +45,8 @@ export type MasLetterInput = {
   /** This recipient's substitution values. Keys absent here become the empty
    *  string and are reported back in `missing` — see `substitute`. */
   merge: Record<string, string>
-  unsubscribeUrl: string
+  /** Absent = no unsubscribe footer (group letter, run copy). */
+  unsubscribeUrl?: string
   sender: { name: string; address: string }
   assetBaseUrl: string
 }
@@ -92,7 +93,7 @@ export async function renderMasLetter(input: MasLetterInput): Promise<MasLetter>
     blocks: mapMailText(parseMailBody(input.body), fill),
     cta,
     ...(bookingUrl ? { bookingUrl } : {}),
-    unsubscribeUrl: input.unsubscribeUrl,
+    ...(input.unsubscribeUrl ? { unsubscribeUrl: input.unsubscribeUrl } : {}),
     sender: input.sender,
     assetBaseUrl: input.assetBaseUrl,
   })

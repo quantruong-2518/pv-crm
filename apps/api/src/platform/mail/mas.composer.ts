@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { brandAssetUrl, domainOf, ENV, type Env } from '@api/platform/config/env'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
-import type { DeliveryToSend, MailMessage } from './mail.contract'
+import { MAS_GROUP_TEMPLATE, type DeliveryToSend, type MailMessage } from './mail.contract'
+import type { MailRunRow } from './mail-run.schema'
 import { renderMasLetter, senderOf } from './mas-letter'
 import { MailRunRepository } from './mail-run.repository'
 import { sign } from './unsubscribe-token'
@@ -11,6 +12,9 @@ import { sign } from './unsubscribe-token'
  *  day the shell changes shape, `mas-v2` renders the new letters while every
  *  row already queued still finds the renderer it was written against. */
 const TEMPLATE = 'mas-v1'
+
+/** Content, not a key — the owner's wording for the archive copy's subject. */
+const RUN_COPY_PREFIX = '[Bản lưu lô] '
 
 /** THE BODY OF A MASS MAIL, BUILT WITHOUT KNOWING WHOSE IT IS.
  *
@@ -59,7 +63,7 @@ export class MasMailComposer implements MailComposer {
   ) {}
 
   supports(template: string): boolean {
-    return template === TEMPLATE
+    return template === TEMPLATE || template === MAS_GROUP_TEMPLATE
   }
 
   async compose(delivery: DeliveryToSend): Promise<MailMessage> {
@@ -69,7 +73,9 @@ export class MasMailComposer implements MailComposer {
        parked — never sent with a default body. A mass mail with the wrong body
        cannot be recalled. */
     if (!delivery.mailRunId) {
-      throw new Error(`Delivery ${delivery.id} mang template ${TEMPLATE} nhưng không có mail_run.`)
+      throw new Error(
+        `Delivery ${delivery.id} mang template ${delivery.template} nhưng không có mail_run.`,
+      )
     }
 
     const run = await this.runs.byId(delivery.mailRunId)
@@ -77,6 +83,8 @@ export class MasMailComposer implements MailComposer {
       throw new Error(`Không tìm thấy mail_run ${delivery.mailRunId} của delivery ${delivery.id}.`)
     }
 
+    // Only a bulk recipient letter is marketing; the group letter and the copy carry no footer link.
+    const isBulkLetter = delivery.role !== 'run_copy' && delivery.template !== MAS_GROUP_TEMPLATE
     const unsubscribeUrl = this.unsubscribeUrl(delivery.id)
     const {
       subject: finalSubject,
@@ -89,7 +97,7 @@ export class MasMailComposer implements MailComposer {
       cta: run.ctaLabel && run.ctaUrl ? { label: run.ctaLabel, url: run.ctaUrl } : undefined,
       ...(run.bookingUrl ? { bookingUrl: run.bookingUrl } : {}),
       merge: delivery.merge ?? {},
-      unsubscribeUrl,
+      ...(isBulkLetter ? { unsubscribeUrl } : {}),
       sender: senderOf(run.fromAddress, this.env.PV_MAS_SENDER_POSTAL),
       assetBaseUrl: brandAssetUrl(this.env),
     })
@@ -110,21 +118,73 @@ export class MasMailComposer implements MailComposer {
       )
     }
 
+    const letter = { subject: finalSubject, html, text }
+    if (delivery.role === 'run_copy') return this.runCopy(delivery, run, letter)
+    if (delivery.template === MAS_GROUP_TEMPLATE) return this.groupLetter(delivery, run, letter)
+
     return {
       /* `mas`, and this one line is what keeps a bad batch from taking the
          transactional pipeline down with it — see `MailFlow`. */
       flow: 'mas',
       from: header(run.fromAddress),
-      to: delivery.recipient,
+      to: [header(delivery.recipient)],
       ...(run.ccAddresses.length > 0 ? { cc: run.ccAddresses.map(header) } : {}),
       replyTo: this.replyToFor(run.replyTo, delivery.id),
-      subject: finalSubject,
-      html,
-      text,
+      ...letter,
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
+    }
+  }
+
+  /** ONE letter to named people (ADR 0066) — correspondence, not a campaign:
+   *  no List-Unsubscribe (owner decision 28/09), and no tracking beyond the
+   *  reply address, since the run is filed with `track_engagement` off. The
+   *  locked sales@ CC rides `run.ccAddresses`; colleague CCs are address rows. */
+  private groupLetter(
+    delivery: DeliveryToSend,
+    run: MailRunRow,
+    letter: { subject: string; html: string; text: string },
+  ): MailMessage {
+    const to = delivery.addresses.filter((a) => a.role === 'to').map((a) => header(a.address))
+    const seen = new Set(to)
+    const cc: string[] = []
+    for (const address of [
+      ...delivery.addresses.filter((a) => a.role === 'cc').map((a) => a.address),
+      ...run.ccAddresses,
+    ]) {
+      const clean = header(address).toLowerCase()
+      if (!seen.has(clean)) cc.push(clean)
+      seen.add(clean)
+    }
+    return {
+      flow: 'mas',
+      from: header(run.fromAddress),
+      to,
+      ...(cc.length > 0 ? { cc } : {}),
+      replyTo: this.replyToFor(run.replyTo, delivery.id),
+      ...letter,
+    }
+  }
+
+  /** The bulk run's ONE archive copy (ADR 0067), to the shared inbox. No
+   *  List-Unsubscribe and no tracking Reply-To — a reply to an archive is a
+   *  colleague's, not a lead's — and a subject prefix so nobody mistakes it
+   *  for a letter a customer wrote. */
+  private runCopy(
+    delivery: DeliveryToSend,
+    run: MailRunRow,
+    letter: { subject: string; html: string; text: string },
+  ): MailMessage {
+    return {
+      flow: 'mas',
+      from: header(run.fromAddress),
+      to: [header(delivery.recipient)],
+      ...(run.replyTo ? { replyTo: header(run.replyTo) } : {}),
+      ...letter,
+      subject: `${RUN_COPY_PREFIX}${letter.subject}`,
+      headers: { 'X-PV-Run-Copy': run.id },
     }
   }
 

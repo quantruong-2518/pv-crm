@@ -1,4 +1,8 @@
-import { CAMPAIGN_START_MAX_WAVES, type CampaignWaveInput } from '@pv/contracts'
+import {
+  CAMPAIGN_START_MAX_WAVES,
+  type CampaignWaveInput,
+  type MailTemplateRow,
+} from '@pv/contracts'
 
 /** The draft a mail SEQUENCE is written in — one letter per wave, no audience.
  *
@@ -17,7 +21,7 @@ const newWaveId = () => `w${++waveSeq}`
 const stripLocalId = ({ localId: _localId, ...rest }: WaveDraft): CampaignWaveInput => rest
 
 /** The live state of `WaveComposer` — NOT just the locked waves. `committed`
- *  holds the ones already added; the eight fields beside it are the wave BEING
+ *  holds the ones already added; the seven fields beside it are the wave BEING
  *  WRITTEN, not locked yet. The two are kept apart because wave 1 exists
  *  without anybody pressing "+" — see `effectiveWaves`. */
 export type ComposerState = {
@@ -28,7 +32,6 @@ export type ComposerState = {
   body: string
   ctaLabel: string
   ctaUrl: string
-  bookingUrl: string
   timing: 'now' | 'later'
   at: string
 }
@@ -42,7 +45,6 @@ export function emptyComposerState(): ComposerState {
     body: '',
     ctaLabel: '',
     ctaUrl: '',
-    bookingUrl: '',
     timing: 'now',
     at: '',
   }
@@ -60,8 +62,7 @@ const HTTP_URL = /^https?:\/\/\S+$/
 function composerLinksOk(s: ComposerState): boolean {
   const ctaEmpty = s.ctaLabel.trim() === '' && s.ctaUrl.trim() === ''
   const ctaComplete = s.ctaLabel.trim() !== '' && HTTP_URL.test(s.ctaUrl.trim())
-  const bookingOk = s.bookingUrl.trim() === '' || HTTP_URL.test(s.bookingUrl.trim())
-  return (ctaEmpty || ctaComplete) && bookingOk
+  return ctaEmpty || ctaComplete
 }
 
 export function composerDraftValid(s: ComposerState): boolean {
@@ -83,7 +84,6 @@ export function composerDraftInput(s: ComposerState): CampaignWaveInput {
     ...(s.ctaLabel.trim() !== '' && s.ctaUrl.trim() !== ''
       ? { cta: { label: s.ctaLabel.trim(), url: s.ctaUrl.trim() } }
       : {}),
-    ...(s.bookingUrl.trim() !== '' ? { bookingUrl: s.bookingUrl.trim() } : {}),
     ...(s.timing === 'later' ? { scheduledAt: new Date(s.at).toISOString() } : {}),
   }
 }
@@ -101,16 +101,9 @@ export function effectiveWaves(s: ComposerState): CampaignWaveInput[] {
 
 /** Whether the live row contains intent that must not be silently discarded. */
 export function composerDraftTouched(s: ComposerState): boolean {
-  return [
-    s.templateCode,
-    s.label,
-    s.subject,
-    s.body,
-    s.ctaLabel,
-    s.ctaUrl,
-    s.bookingUrl,
-    s.at,
-  ].some((value) => value.trim() !== '')
+  return [s.templateCode, s.label, s.subject, s.body, s.ctaLabel, s.ctaUrl, s.at].some(
+    (value) => value.trim() !== '',
+  )
 }
 
 /** Lock the wave being written and open an empty box for the next one. The id
@@ -120,6 +113,23 @@ export function commitDraft(s: ComposerState): ComposerState {
   return {
     ...emptyComposerState(),
     committed: [...s.committed, { localId: newWaveId(), ...composerDraftInput(s) }],
+  }
+}
+
+/** The wave being written, re-seeded from a template (`undefined` = back to
+ *  hand-written: the text stays, the button goes). The label is the caller's
+ *  G3 rule, not this function's. */
+export function withTemplate(
+  s: ComposerState,
+  code: string,
+  template: MailTemplateRow | undefined,
+): ComposerState {
+  return {
+    ...s,
+    templateCode: code,
+    ...(template ? { subject: template.subject, body: template.body } : {}),
+    ctaLabel: template?.cta?.label ?? '',
+    ctaUrl: template?.cta?.url ?? '',
   }
 }
 
@@ -146,9 +156,6 @@ export function composerBlocker(s: ComposerState): string | null {
   const ctaTouched = s.ctaLabel.trim() !== '' || s.ctaUrl.trim() !== ''
   if (ctaTouched && (s.ctaLabel.trim() === '' || !HTTP_URL.test(s.ctaUrl.trim()))) {
     return 'Nút trong email cần đủ nhãn và địa chỉ bắt đầu bằng http/https.'
-  }
-  if (s.bookingUrl.trim() !== '' && !HTTP_URL.test(s.bookingUrl.trim())) {
-    return 'Link đặt lịch phải bắt đầu bằng http/https.'
   }
   return 'Thời gian đặt lịch phải sau thời điểm hiện tại.'
 }

@@ -126,7 +126,7 @@ export class PasswordResetMailer implements ResetMailer {
            `To:` header and turn everything after it into headers of its own —
            the same defence `lead-mail.composer.ts` applies for the same
            reason. */
-        to: header(issued.email),
+        to: [header(issued.email)],
         /* Kept when the deployment configured one. This letter says "không cần
            trả lời", but the person most worth hearing from is the one replying
            "I never asked for this" — that reply should reach a human rather

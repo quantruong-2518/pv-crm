@@ -24,7 +24,8 @@ export type ModalProps = {
    *  caller puts at the top of `children`. */
   headerAction?: ReactNode
   footer?: ReactNode
-  width?: 'lg' | 'xl'
+  /** `wide` is for side-by-side compose + preview, where 1120px squeezes both columns. */
+  width?: 'lg' | 'xl' | 'wide'
   closeLabel?: string
   children: ReactNode
   className?: string
@@ -127,7 +128,11 @@ export function Modal({
         }}
         className={cn(
           'glass-overlay relative flex h-dvh w-full flex-col overflow-hidden outline-none sm:h-[min(820px,calc(100dvh-48px))] sm:rounded-lg',
-          width === 'xl' ? 'sm:max-w-[1120px]' : 'sm:max-w-[920px]',
+          width === 'wide'
+            ? 'sm:max-w-[min(1296px,90vw)]'
+            : width === 'xl'
+              ? 'sm:max-w-[1120px]'
+              : 'sm:max-w-[920px]',
           leaving ? 'animate-scrim-out' : 'animate-scrim-in',
           className,
         )}

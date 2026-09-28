@@ -25,7 +25,7 @@ import { useCan } from '@/app/auth'
 import { dm } from '@/lib/date'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
-import { masTemplatesQuery } from '@/data/mas'
+import { doorTemplatesQuery } from '@/data/mas'
 import {
   CAMPAIGN_STATE_LABEL,
   CAMPAIGN_STATE_TONE,
@@ -133,7 +133,7 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
      `campaign.view`. Reading a campaign must not depend on it. */
   const { data: catalog } = useQuery({ ...salesCatalogQuery, enabled: canEdit })
   const sources = useMemo(() => catalog?.SOURCE ?? [], [catalog])
-  const { data: templateData } = useQuery(masTemplatesQuery)
+  const { data: templateData } = useQuery(doorTemplatesQuery('campaign'))
   const templates = templateData?.rows ?? []
 
   /* THE SERVER COUNTS WHO CAN BE REACHED, nobody here. Gated twice: the door

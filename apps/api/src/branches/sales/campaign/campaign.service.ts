@@ -87,7 +87,7 @@ export class CampaignService {
       throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 
-    const waves = await this.wavesOf(code)
+    const waves = await this.wavesOf(who, code)
     return CampaignProfile.parse(toProfile(found, waves, this.limits()))
   }
 
@@ -402,7 +402,7 @@ export class CampaignService {
     /* One read for the whole chain, through the same `wavesOf` the profile
        uses — the old loop asked `runs.byId` once per wave, two lanes for one
        question with the N+1 on the lane nobody looked at. */
-    for (const { run } of await this.wavesOf(code)) {
+    for (const { run } of await this.wavesOf(who, code)) {
       if (run.state === 'SENT' || run.state === 'CANCELLED') continue
 
       /* Một lô do người KHÁC đứng tên (`created_by`) có thể bị `MasService.cancel`
@@ -435,7 +435,7 @@ export class CampaignService {
    *  `MailRunRepository` tự làm. Một đợt mà lô của nó không còn trong kết quả
    *  (không nên xảy ra, `mail_run_id` có khoá ngoại) bị bỏ qua thay vì làm vỡ
    *  cả hồ sơ. */
-  private async wavesOf(code: string): Promise<CampaignWaveRow[]> {
+  private async wavesOf(who: Actor, code: string): Promise<CampaignWaveRow[]> {
     const waveRows = await this.repo.waves(code)
     if (waveRows.length === 0) return []
 
@@ -444,7 +444,8 @@ export class CampaignService {
       { page: 1, size: Math.min(ids.length, 200), sort: 'createdAt', dir: 'asc' },
       ids,
     )
-    const runById = new Map(page.rows.map((run) => [run.id, run]))
+    const rows = await this.mas.withCreators(who, page.rows)
+    const runById = new Map(rows.map((run) => [run.id, run]))
 
     const waves: CampaignWaveRow[] = []
     for (const w of waveRows) {

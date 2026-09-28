@@ -3,7 +3,13 @@ import { Badge, Check, Chip, CircleAlert, Icon, Inbox, Skeleton, cn } from '@pv/
 import type { MailRunRecipientRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dmhm } from '@/lib/date'
-import { DELIVERED_MAIL, FAILED_MAIL, mailRunRecipientsQuery } from '@/data/mail-runs'
+import {
+  DELIVERED_MAIL,
+  FAILED_MAIL,
+  SKIPPED_MAIL,
+  SKIPPED_MAIL_LABEL,
+  mailRunRecipientsQuery,
+} from '@/data/mail-runs'
 
 /** WHO GOT THIS WAVE — the panel that opens under one row of the wave table.
  *
@@ -35,10 +41,11 @@ import { DELIVERED_MAIL, FAILED_MAIL, mailRunRecipientsQuery } from '@/data/mail
  *  NOT A `DataTable`, THOUGH IT IS A LIST
  *  ------------------------------------------------------------------
  *  Law 8 (`docs/design-system/laws.md` §1) puts every table on `.glass-b`, and this
- *  panel is already INSIDE one — nesting a second pane of glass would be a
- *  fifth background layer, which law 4 forbids. So this is a flat list divided
- *  by hairlines, and the wave table above stays the only thing here wearing
- *  glass.
+ *  panel is already INSIDE one — nesting a second pane of glass would stack two
+ *  translucent surfaces, which this app avoids as a matter of style (law 12
+ *  only fixes the single aurora-glow layer at the screen's outer frame). So
+ *  this is a flat list divided by hairlines, and the wave table above stays
+ *  the only thing here wearing glass.
  *
  *  ------------------------------------------------------------------
  *  NOTHING IS PREFETCHED — MOUNTING THIS COMPONENT IS THE `enabled`
@@ -214,6 +221,7 @@ function deliveryFace(row: MailRunRecipientRow): DeliveryFace {
   if (FAILED_MAIL[row.deliveryState]) {
     return { label: 'Không tới nơi', tone: 'danger' }
   }
+  if (SKIPPED_MAIL[row.deliveryState]) return { label: SKIPPED_MAIL_LABEL, tone: 'draft' }
   if (DELIVERED_MAIL[row.deliveryState]) {
     const at = row.deliveredAt ?? row.sentAt
     return {

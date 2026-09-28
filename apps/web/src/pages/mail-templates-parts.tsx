@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Info } from '@pv/ui'
 import { Badge, Button, Icon, Input, Modal, SegmentedControl, Textarea, cn } from '@pv/ui'
-import type { MailTemplateRow } from '@pv/contracts'
+import type { MailDoor, MailTemplateRow } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { isHttpUrl } from '@/data/http-url'
 import { useMailPreview, useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
-import { MailPreviewCard } from '@/components/mail-compose-bits'
+import { MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
+import { DoorsField } from './mail-templates-doors'
 
 /** THE PANEL THAT WRITES A TEMPLATE — one panel for both jobs, the way
  *  `users-parts.tsx` does it: a null row adds, a row edits that row. Two panels
@@ -33,7 +34,9 @@ export function MailTemplateDrawer({
   const [body, setBody] = useState('')
   const [ctaLabel, setCtaLabel] = useState('')
   const [ctaUrl, setCtaUrl] = useState('')
-  const [bookingUrl, setBookingUrl] = useState('')
+  const [dropBooking, setDropBooking] = useState(false)
+  const [doors, setDoors] = useState<MailDoor[]>([])
+  const [defaultFor, setDefaultFor] = useState<MailDoor[]>([])
   const [active, setActive] = useState(true)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [failure, setFailure] = useState('')
@@ -53,7 +56,9 @@ export function MailTemplateDrawer({
     setBody(template?.body ?? '')
     setCtaLabel(template?.cta?.label ?? '')
     setCtaUrl(template?.cta?.url ?? '')
-    setBookingUrl(template?.bookingUrl ?? '')
+    setDropBooking(false)
+    setDoors(template?.doors ?? [])
+    setDefaultFor(template?.defaultFor ?? [])
     setActive(template?.active ?? true)
     setErrors({})
     setFailure('')
@@ -85,13 +90,11 @@ export function MailTemplateDrawer({
     ctaLabel.trim() && isHttpUrl(ctaUrl.trim())
       ? { label: ctaLabel, url: ctaUrl.trim() }
       : undefined
-  const previewBooking = isHttpUrl(bookingUrl.trim()) ? bookingUrl.trim() : undefined
   const preview = useMailPreview(
     {
       subject,
       body,
       ...(previewCta ? { cta: previewCta } : {}),
-      ...(previewBooking ? { bookingUrl: previewBooking } : {}),
     },
     open,
   )
@@ -107,14 +110,22 @@ export function MailTemplateDrawer({
        not `undefined` on the patch: the contract reads absent as "leave it".
        On create there is nothing to leave, so absent is the honest shape. */
     const cta = ctaLabel.trim() && ctaUrl.trim() ? { label: ctaLabel, url: ctaUrl } : null
-    /* Same `null` vs absent split as the CTA above, one field instead of two. */
-    const booking = bookingUrl.trim() ? bookingUrl.trim() : null
 
     if (template) {
       patch.mutate(
         {
           code: template.code,
-          patch: { name, subject, body, cta, bookingUrl: booking, active },
+          patch: {
+            name,
+            subject,
+            body,
+            cta,
+            active,
+            doors,
+            defaultFor,
+            /* Calendly is retired: an old link can only be cleared. */
+            ...(dropBooking ? { bookingUrl: null } : {}),
+          },
         },
         { onSuccess: onClose, onError: onRefusal },
       )
@@ -127,7 +138,8 @@ export function MailTemplateDrawer({
         subject,
         body,
         ...(cta ? { cta } : {}),
-        ...(booking ? { bookingUrl: booking } : {}),
+        doors,
+        defaultFor,
       },
       { onSuccess: onClose, onError: onRefusal },
     )
@@ -141,9 +153,14 @@ export function MailTemplateDrawer({
         width="xl"
         title={template ? `Sửa ${template.name}` : 'Thêm mẫu thư'}
         subtitle={
-          template
-            ? 'Sửa mẫu KHÔNG đụng tới lô đã gửi — mỗi lô đã chụp lại tiêu đề và nội dung lúc tạo.'
-            : 'Mẫu là chỗ bắt đầu của một lá thư. Người soạn vẫn sửa được trước khi gửi.'
+          template ? (
+            <>
+              Sửa mẫu <span className="font-semibold">không</span> đụng tới lô đã gửi — mỗi lô đã
+              chụp lại tiêu đề và nội dung lúc tạo.
+            </>
+          ) : (
+            'Mẫu là chỗ bắt đầu của một lá thư. Người soạn vẫn sửa được trước khi gửi.'
+          )
         }
         meta={
           template ? (
@@ -163,19 +180,32 @@ export function MailTemplateDrawer({
               </span>
             )}
             <div className="flex justify-end gap-2">
-              <Button size="md" variant="ghost" type="button" onClick={onClose}>
+              <Button
+                size="md"
+                variant="ghost"
+                type="button"
+                className="pointer-coarse:h-12"
+                onClick={onClose}
+              >
                 Huỷ
               </Button>
-              <Button size="md" type="button" onClick={submit} disabled={busy}>
+              <Button
+                size="md"
+                type="button"
+                className="pointer-coarse:h-12"
+                onClick={submit}
+                disabled={busy || doors.length === 0}
+              >
                 {busy ? 'Đang lưu…' : template ? 'Lưu thay đổi' : 'Tạo mẫu'}
               </Button>
             </div>
           </div>
         }
       >
-        {/* 3:1 — the letter is the thing being written, the preview is a
-           check on it, not a peer of equal weight. */}
-        <div className="grid min-w-0 gap-4 md:grid-cols-[3fr_1fr] md:items-start">
+        {/* 3:2 (G-Template) — the letter is the thing being written, the
+           preview a check on it. Narrower than a real inbox at this modal's
+           width: it reads the copy and shape, not the sent pixel width. */}
+        <div className="grid min-w-0 gap-4 md:grid-cols-[3fr_2fr] md:items-start">
           <div className="flex min-w-0 flex-col gap-4">
             <Field label="Tên mẫu" errors={errors['name']} hint="Tên hiện trong ô chọn mẫu.">
               <Input
@@ -189,6 +219,18 @@ export function MailTemplateDrawer({
                 }}
               />
             </Field>
+
+            <DoorsField
+              doors={doors}
+              defaultFor={defaultFor}
+              errors={{ doors: errors['doors'], defaultFor: errors['defaultFor'] }}
+              onChange={(next) => {
+                setDoors(next.doors)
+                setDefaultFor(next.defaultFor)
+                clearError('doors')
+                clearError('defaultFor')
+              }}
+            />
 
             <Field
               label={`Tiêu đề email · ${subject.length}/200`}
@@ -219,7 +261,13 @@ export function MailTemplateDrawer({
                keeps a stack for exactly this case, so a half-written template
                survives the keypress. */
               action={
-                <Button size="sm" variant="ghost" type="button" onClick={() => setGuideOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="button"
+                  className="pointer-coarse:h-12"
+                  onClick={() => setGuideOpen(true)}
+                >
                   <Icon icon={Info} size={14} />
                   Cách viết nội dung
                 </Button>
@@ -268,26 +316,14 @@ export function MailTemplateDrawer({
               </div>
             </Field>
 
-            {/* The letter's SECOND button, so its own field rather than a third
-              box in the row above. One input only — the wording is a constant
-              (`BOOKING_LABEL` in `@pv/mail-templates`), so every letter the
-              company sends names that button the same way. */}
-            <Field
-              label="Link đặt lịch (không bắt buộc)"
-              errors={errors['bookingUrl']}
-              hint="Dán link Calendly. Thêm ?name={{contact_name}}&email={{email}} vào cuối để khách khỏi gõ lại tên và email."
-            >
-              <Input
-                value={bookingUrl}
-                aria-label="Link đặt lịch trong email"
-                invalid={Boolean(errors['bookingUrl']?.length)}
-                placeholder="https://calendly.com/…"
-                onChange={(event) => {
-                  setBookingUrl(event.target.value)
-                  clearError('bookingUrl')
-                }}
+            {template?.bookingUrl && (
+              <OldBookingLink
+                owner="Mẫu"
+                url={template.bookingUrl}
+                dropped={dropBooking}
+                onDrop={setDropBooking}
               />
-            </Field>
+            )}
 
             {/* Only while EDITING: a template just created is in use, and a control
               with one correct answer is a control not worth asking. Retiring
@@ -296,6 +332,7 @@ export function MailTemplateDrawer({
             {template && (
               <Field
                 label="Trạng thái"
+                errors={errors['active']}
                 hint="Ngừng dùng thì mẫu biến khỏi ô chọn, nhưng lô cũ vẫn đọc được tên nó."
                 control="plain"
               >
@@ -303,7 +340,10 @@ export function MailTemplateDrawer({
                   label="Trạng thái"
                   hideLabel
                   value={active ? 'active' : 'off'}
-                  onChange={(value) => setActive(value === 'active')}
+                  onChange={(value) => {
+                    setActive(value === 'active')
+                    clearError('active')
+                  }}
                   options={[
                     { value: 'active', label: 'Đang dùng' },
                     { value: 'off', label: 'Ngừng dùng' },

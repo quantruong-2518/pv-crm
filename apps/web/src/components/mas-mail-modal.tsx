@@ -1,38 +1,38 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Modal, Stepper } from '@pv/ui'
+import { Modal, Stepper } from '@pv/ui'
 import type { CampaignWaveInput, MasAudience, MasSendRequest, MasSendResponse } from '@pv/contracts'
 import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
-import {
-  MailGuideButton,
-  MailGuideDrawer,
-  type MailGuideSection,
-} from '@/components/mail-guide-drawer'
-import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
+import { MailGuideDrawer, type MailGuideSection } from '@/components/mail-guide-drawer'
+import { MailFloatingAids } from '@/components/mail-compose-bits'
 import { MailFooter } from '@/components/mas-mail-footer'
 import { WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
   composerBlocker,
   effectiveWaves,
+  composerDraftTouched,
   emptyComposerState,
+  withTemplate,
   type ComposerState,
 } from '@/components/mail-sequence/wave-draft'
 import {
+  CheckBadge,
   DeliveryStep,
-  PreviewPlaceholder,
+  LetterColumn,
   RecipientsStep,
   SaveTemplateBlock,
 } from '@/components/mas-mail-steps'
 import { campaignFacetQuery } from '@/data/campaign-book'
 import { isHttpUrl } from '@/data/http-url'
-import { mailHints } from '@/data/mail-hints'
+import { mailHints, type MailHint } from '@/data/mail-hints'
 import { NO_CAMPAIGN, useMasMailDraft, type MasRecipient } from '@/data/mas-mail-draft'
 import {
-  masPreflight,
-  masTemplatesQuery,
+  doorDefault,
+  doorTemplatesQuery,
+  useAutoPreflight,
   useMailPreview,
   useMailTemplateCreate,
   useMasSend,
@@ -42,14 +42,14 @@ import {
  *
  *  It replaces a single long form in which the send button sat below a
  *  recipient grid, a compose box, a schedule and a checklist — everything at
- *  once, and nothing finished. Each step now asks one question, the preview
- *  stands beside all three so the letter is never out of sight, and the footer
- *  says in a sentence what is still missing.
+ *  once, and nothing finished. Each step now asks one question, the letter
+ *  stands beside the two steps that shape it, and the footer says in a
+ *  sentence what is still missing.
  *
- *  THE PREFLIGHT GATE IS UNCHANGED and must stay where it is: the send button
- *  does not exist until `POST /sales/mail/preflight` has answered, because
- *  suppression and duplicate addresses are only known to the server. Picking
- *  anybody new throws the answer away again. */
+ *  THE PREFLIGHT GATE STAYS: Send is shut until `POST /sales/mail/preflight`
+ *  has answered for EXACTLY the list on screen, because suppression and
+ *  duplicate addresses are only known to the server. Since G2 nobody presses
+ *  a button for it — it re-runs whenever the list settles. */
 export type MasMailModalProps = {
   open: boolean
   onClose: () => void
@@ -60,7 +60,6 @@ export type MasMailModalProps = {
   initialCodes?: readonly string[]
   /** Which business book owns the selected destination codes. */
   subjectType?: MasAudience['subjectType']
-  defaultLabel?: string
   onQueued: () => void
 }
 
@@ -80,22 +79,22 @@ export function MasMailModal({
   initialCode,
   initialCodes,
   subjectType = 'lead',
-  defaultLabel,
   onQueued,
 }: MasMailModalProps) {
-  const draft = useMasMailDraft(open, initialCode, initialCodes, defaultLabel)
+  const draft = useMasMailDraft(open, initialCode, initialCodes)
   const [chain, setChain] = useState<ComposerState>(emptyComposerState)
   const [sequenceId, setSequenceId] = useState(() => crypto.randomUUID())
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
   const [guideOpen, setGuideOpen] = useState(false)
-  const [preflight, setPreflight] = useState<Awaited<ReturnType<typeof masPreflight>>>()
-  const [checking, setChecking] = useState(false)
   const [failure, setFailure] = useState('')
   const [submittedWaves, setSubmittedWaves] = useState(0)
   const [queuedEmails, setQueuedEmails] = useState(0)
 
-  const { data: catalogue } = useQuery({ ...masTemplatesQuery, enabled: open })
+  /* The book IS the door (G4, decision 9): a lead window picks from — and
+     opens on the default of — the lead detail door; likewise opportunity. */
+  const { data: catalogue } = useQuery({ ...doorTemplatesQuery(subjectType), enabled: open })
+  const seeded = useRef(false)
   const { data: campaignBook } = useQuery({ ...campaignFacetQuery, enabled: open })
   const send = useMasSend()
   const saveTemplate = useMailTemplateCreate()
@@ -112,22 +111,27 @@ export function MasMailModal({
     setReached(0)
     setChain(emptyComposerState())
     setSequenceId(crypto.randomUUID())
-    setPreflight(undefined)
-    setChecking(false)
+    seeded.current = false
     setFailure('')
     setSubmittedWaves(0)
     setQueuedEmails(0)
   }, [open])
 
-  /* The audience changed, so the server's verdict about it is stale. Clearing
-     it puts the send button back behind the check — the whole point of the
-     gate is that it describes THIS list. */
-  useEffect(() => setPreflight(undefined), [draft.selected])
-
   const templates = useMemo(
     () => (catalogue?.rows ?? []).filter((item) => item.active),
     [catalogue],
   )
+  const preset = catalogue ? doorDefault(catalogue.rows, subjectType) : undefined
+
+  /* Once per opening, and never over a letter already begun: the default is
+     where a blank panel starts, not something that overwrites typing. */
+  useEffect(() => {
+    if (!open || !preset || seeded.current) return
+    seeded.current = true
+    setChain((s) =>
+      composerDraftTouched(s) ? s : { ...withTemplate(s, preset.code, preset), label: preset.name },
+    )
+  }, [open, preset])
   const campaigns = useMemo(
     () => (campaignBook?.rows ?? []).filter((item) => item.state === 'RUNNING'),
     [campaignBook],
@@ -145,14 +149,24 @@ export function MasMailModal({
   /* A sequence belongs to the selection as a whole. It can contain one or many
      destinations and does not need a campaign behind it. */
   const oneSubject = audience.codes.length === 1
+  const preflight = useAutoPreflight(
+    audience,
+    open && chosen.length > 0 && chosen.length <= MAS_MAX_RECIPIENTS,
+  )
+  const report = preflight.report
   const cta = chainCta(chain)
-  const bookingUrl = isHttpUrl(chain.bookingUrl.trim()) ? chain.bookingUrl.trim() : ''
 
   /* EVERY DOOR SENDS A LIST OF WAVES, and the single letter is a list of one.
      Two code paths into `POST /sales/mail/runs` would be two places for the
      campaign field or the tracking flag to be forgotten. */
   const waves = effectiveWaves(chain)
-  const letter = { subject: chain.subject, body: chain.body, cta, bookingUrl }
+  const letter = { subject: chain.subject, body: chain.body, cta }
+  /* A typed name counts only while its field is on screen (a chain); a lone
+     wave always carries the derived one, so no hidden field can block Send. */
+  const sequenceName =
+    waves.length > 1 && draft.sequenceName !== null
+      ? draft.sequenceName
+      : autoSequenceName(chosen, subjectType, chain.committed[0]?.label ?? chain.label)
 
   const templateNameGap =
     draft.saveAsTemplate && canSaveTemplate && draft.templateName.trim() === ''
@@ -166,7 +180,7 @@ export function MasMailModal({
         ? 'Chưa chọn người nhận.'
         : null,
     composerBlocker(chain) ?? templateNameGap,
-    draft.campaignCode === NO_CAMPAIGN && !draft.sequenceName.trim()
+    draft.campaignCode === NO_CAMPAIGN && !sequenceName.trim()
       ? 'Đặt tên cho chuỗi gửi này.'
       : null,
   ]
@@ -180,18 +194,19 @@ export function MasMailModal({
       subject: letter.subject,
       body: letter.body,
       ...(letter.cta ? { cta: letter.cta } : {}),
-      ...(letter.bookingUrl ? { bookingUrl: letter.bookingUrl } : {}),
       ...(previewLead ? { leadCode: previewLead.leadCode ?? previewLead.code } : {}),
     },
     letterReady,
   )
-  const hints = mailHints({
-    subject: letter.subject,
-    body: letter.body,
-    ctaUrl: letter.cta?.url,
-    bookingUrl: letter.bookingUrl,
-    missing: preview.letter?.missing,
-  })
+  const hints = withApollo(
+    mailHints({
+      subject: letter.subject,
+      body: letter.body,
+      ctaUrl: letter.cta?.url,
+      missing: preview.letter?.missing,
+    }),
+    report?.apolloCount ?? 0,
+  )
 
   const goTo = (next: number) => {
     /* Once any wave is queued, changing recipients or earlier phases would
@@ -202,24 +217,11 @@ export function MasMailModal({
     setFailure('')
   }
 
-  const checkRecipients = async () => {
-    if (blocker) return
-    setChecking(true)
-    setFailure('')
-    try {
-      setPreflight(await masPreflight(audience))
-    } catch (error) {
-      setFailure(isApiError(error) ? userMessage(error) : 'Không kiểm tra được người nhận.')
-    } finally {
-      setChecking(false)
-    }
-  }
-
   /* ONE POST PER WAVE, IN ORDER, AND THE FAILURE IS NAMED. There is no door
      that opens several runs at once outside a campaign, and a wave already
      queued cannot be recalled — so a chain that dies at wave 3 says so. */
   const submit = async () => {
-    if (blocker || !preflight || preflight.sendable === 0 || send.isPending) return
+    if (blocker || !report || report.sendable === 0 || send.isPending) return
     const done: MasSendResponse[] = []
     let completed = submittedWaves
     let queuedTotal = queuedEmails
@@ -233,9 +235,8 @@ export function MasMailModal({
           audience,
           ...(draft.campaignCode === NO_CAMPAIGN ? {} : { campaignCode: draft.campaignCode }),
           ...(draft.campaignCode === NO_CAMPAIGN
-            ? { sequence: { id: sequenceId, name: draft.sequenceName.trim(), waveNo } }
+            ? { sequence: { id: sequenceId, name: sequenceName.trim(), waveNo } }
             : {}),
-          ...(draft.cc.size > 0 ? { cc: [...draft.cc] } : {}),
           /* Stated on every send even though absent already means ON: this is
                the one value on the panel a person can turn OFF, and a field the
                request omits is a field nobody can read back off the wire. */
@@ -283,7 +284,8 @@ export function MasMailModal({
         subject: wave.subject,
         body: wave.body,
         ...(wave.cta ? { cta: wave.cta } : {}),
-        ...(wave.bookingUrl ? { bookingUrl: wave.bookingUrl } : {}),
+        /* G4: a template saved from a panel serves the door it was written at. */
+        doors: [subjectType],
       },
       {
         onSuccess: () => toast('Đã lưu mẫu email', { tone: 'success' }),
@@ -313,34 +315,29 @@ export function MasMailModal({
       <Modal
         open={open}
         onClose={onClose}
-        width="xl"
+        width="wide"
         title={oneSubject ? 'Gửi email' : 'Gửi email hàng loạt'}
         subtitle="Ba bước: chọn người nhận, viết nội dung, chọn cách gửi."
-        meta={
-          <Badge tone={preflight?.blocked ? 'warning' : preflight ? 'success' : 'draft'}>
-            {preflight ? `${preflight.sendable} người sẽ nhận` : `${chosen.length} đã chọn`}
-          </Badge>
-        }
-        headerAction={<MailGuideButton onOpen={() => setGuideOpen(true)} />}
+        meta={<CheckBadge checking={preflight.checking} report={report} picked={chosen.length} />}
         footer={
           <MailFooter
-            failure={failure}
+            failure={failure || preflight.error}
             stepBlocker={stepBlockers[step] ?? null}
             picked={chosen.length}
             step={step}
             last={step === STEPS.length - 1}
             nextLabel={STEPS[step + 1]?.label ?? ''}
             sendBlocked={Boolean(blocker)}
-            checking={checking}
+            checking={preflight.checking}
             sending={send.isPending}
-            preflightDone={Boolean(preflight)}
-            sendable={preflight?.sendable ?? 0}
+            verdict={report ? report.sendable : null}
             backBlocked={submittedWaves > 0}
             waves={waves.length}
             timing={waves.length > 0 && waves.every((wave) => wave.scheduledAt) ? 'later' : 'now'}
+            aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}
             onBack={() => (step === 0 ? onClose() : goTo(step - 1))}
             onNext={() => goTo(step + 1)}
-            onCheck={() => void checkRecipients()}
+            {...(preflight.error ? { onRetryCheck: preflight.retry } : {})}
             onSend={() => void submit()}
           />
         }
@@ -360,61 +357,53 @@ export function MasMailModal({
             </div>
           </div>
 
-          {/* `wide:` (1440px), NOT `lg:` (1024px) — 1024 IS the tablet frame,
-              and splitting there leaves the preview ~348px of usable width for
-              a ~600px letter table with `overflow-hidden`, which crops the mail
-              and quietly shrinks the "phone" view below a real phone. Below
-              1440 the preview stacks under the form at full width. */}
-          <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
-            {step === 0 && <RecipientsStep draft={draft} recipients={recipients} chosen={chosen} />}
-            {step === 1 && (
-              <div className="flex min-w-0 flex-col gap-4">
-                <WaveComposer
-                  state={chain}
-                  setState={setChain}
-                  templates={templates}
-                  frame="host"
-                  {...(previewLead
-                    ? { previewLeadCode: previewLead.leadCode ?? previewLead.code }
-                    : {})}
-                />
-                <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
-              </div>
-            )}
-            {step === 2 && (
-              <DeliveryStep
-                draft={draft}
-                chosen={chosen}
-                campaigns={campaigns}
-                allowCampaign={subjectType === 'lead'}
-                preflight={preflight}
-                chain={{ waves: waves.length, subject: letter.subject }}
-                onEdit={goTo}
-              />
-            )}
-
-            {/* ONE PREVIEW COLUMN FOR ALL THREE STEPS: it used to stand down
-                while the composer drew its own, and a letter leaving the frame
-                between two neighbouring steps read as a layout bug. */}
-            <section className="flex min-w-0 flex-col gap-4">
-              {letterReady ? (
-                <MailPreviewCard
-                  letter={preview.letter}
-                  pending={preview.pending}
-                  error={preview.error}
-                  recipients={chosen.map((lead) => ({
-                    code: lead.code,
-                    label: `Như ${lead.contactName} nhận`,
-                  }))}
-                  recipientCode={previewLead?.code}
-                  onRecipient={draft.setPreviewCode}
-                />
+          {step === 0 ? (
+            <RecipientsStep
+              draft={draft}
+              recipients={recipients}
+              chosen={chosen}
+              verdicts={{ report, checking: preflight.checking }}
+            />
+          ) : (
+            /* Two equal columns, form | letter (G-Bulk). `wide:` (1440px), NOT
+               `lg:` — 1024 IS the tablet frame, and half of it crops a ~600px
+               letter; below 1440 the letter stacks under the form. */
+            <div className="wide:grid-cols-2 grid min-w-0 items-start gap-6">
+              {step === 1 ? (
+                <div className="flex min-w-0 flex-col gap-4">
+                  <WaveComposer
+                    state={chain}
+                    setState={setChain}
+                    templates={templates}
+                    frame="host"
+                    door={subjectType}
+                    {...(previewLead
+                      ? { previewLeadCode: previewLead.leadCode ?? previewLead.code }
+                      : {})}
+                  />
+                  <SaveTemplateBlock draft={draft} allowed={canSaveTemplate} />
+                </div>
               ) : (
-                <PreviewPlaceholder />
+                <DeliveryStep
+                  draft={draft}
+                  chosen={chosen}
+                  campaigns={campaigns}
+                  allowCampaign={subjectType === 'lead'}
+                  preflight={report}
+                  chain={{ waves: waves.length, subject: letter.subject }}
+                  sequenceName={sequenceName}
+                  onEdit={goTo}
+                />
               )}
-              <MailHintList hints={hints} />
-            </section>
-          </div>
+              <LetterColumn
+                ready={letterReady}
+                preview={preview}
+                chosen={chosen}
+                previewLead={previewLead}
+                onRecipient={draft.setPreviewCode}
+              />
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -425,6 +414,35 @@ export function MasMailModal({
       />
     </>
   )
+}
+
+/** G3 · what an unnamed chain is called: the one subject's code, or the size of
+ *  the list, then the first wave's name — which is its template's by default. */
+function autoSequenceName(
+  chosen: readonly MasRecipient[],
+  subjectType: MasAudience['subjectType'],
+  firstWave: string,
+): string {
+  const only = chosen.length === 1 ? chosen[0] : undefined
+  const who = only
+    ? only.code
+    : `${chosen.length} ${subjectType === 'opportunity' ? 'cơ hội' : 'lead'}`
+  return [who, firstWave.trim() || 'Tự soạn'].join(' · ')
+}
+
+/** The Apollo warning rides with the hints: advice for whoever is about to
+ *  press send (ADR 0041), reachable from every step, never a block. */
+function withApollo(hints: MailHint[] | null, apollo: number): MailHint[] | null {
+  if (!hints || apollo === 0) return hints
+  return [
+    ...hints,
+    {
+      id: 'apollo',
+      tone: 'warn',
+      text: `Có ${apollo} liên hệ từ Apollo`,
+      detail: 'Chỉ gửi khi đã xác nhận họ đồng ý nhận email.',
+    },
+  ]
 }
 
 /** The chain's live wave as the preview reads it — the button only travels when

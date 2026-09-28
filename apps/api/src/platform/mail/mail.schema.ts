@@ -112,6 +112,11 @@ export const emailDelivery = platform.table(
      *  so the rename moved no data. */
     mailRunId: uuid('mail_run_id').references(() => mailRun.id),
 
+    /** `run_copy` = the one archive copy of a bulk run sent to the shared
+     *  inbox (`mail_run.bcc_copy_to`). Every counter and the bounce breaker
+     *  read `recipient` only — a copy to ourselves is not an audience member. */
+    role: text('role').$type<'recipient' | 'run_copy'>().notNull().default('recipient'),
+
     /** Per-recipient substitution values, resolved before the letter is
      *  composed — `{"company": "…", "contactName": "…"}`.
      *
@@ -167,7 +172,78 @@ export const emailDelivery = platform.table(
       .on(t.nextAttemptAt, t.createdAt)
       .where(sql`${t.state} = 'pending'`),
 
+    /** One copy per run, whatever retries the send path makes. It is also the
+     *  index for "this run's copy row", which cancel/edit follow. */
+    uniqueIndex('email_delivery_run_copy_once')
+      .on(t.mailRunId)
+      .where(sql`${t.role} = 'run_copy'`),
+
     check('email_delivery_state_valid', sql`${t.state} IN (${MAIL_STATE_LIST})`),
+    check('email_delivery_role_known', sql`${t.role} IN ('recipient', 'run_copy')`),
+    /** A copy with no run would slip the unique index above (NULLs never
+     *  collide) and copy nothing anyone could name. */
+    check(
+      'email_delivery_copy_has_run',
+      sql`${t.role} = 'recipient' OR ${t.mailRunId} IS NOT NULL`,
+    ),
+  ],
+)
+
+/** ONE ROW PER TO/CC ADDRESS OF A GROUP LETTER.
+ *
+ *  A group letter is ONE delivery, not one per address: `provider_email_id`
+ *  and `idempotency_key` are unique, and N keys would be N separate emails.
+ *  `email_delivery.recipient` keeps the first To so every existing reader
+ *  still works; this table carries the full set and each address's own fate.
+ *
+ *  `display_name` and `ref` are snapshots the Sales branch writes (`ref` is
+ *  opaque, e.g. `contact:CT-…`): platform never reads `sales.contact`.
+ *  Cascade for `mail_event`'s reason — the row describes a letter. */
+export const emailDeliveryAddress = platform.table(
+  'email_delivery_address',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    deliveryId: uuid('delivery_id')
+      .notNull()
+      .references(() => emailDelivery.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'to' | 'cc'>().notNull(),
+    /** Order within the letter as the sender listed it — "first To" is the
+     *  `{{contactName}}` of the letter, so the order is data, not cosmetics. */
+    position: integer('position').notNull(),
+    /** Same normal form as `email_delivery.recipient` and `email_suppression`,
+     *  so suppression and reply matching compare like with like. */
+    address: text('address').notNull(),
+    displayName: text('display_name'),
+    ref: text('ref'),
+    /** `queued` until the first attempt settles it; a bounce on a CC marks
+     *  this row, not the letter, while any To still stands. */
+    outcome: text('outcome')
+      .$type<'queued' | 'dropped_suppressed' | 'bounced' | 'complained'>()
+      .notNull()
+      .default('queued'),
+    /** Provider free text — bounded like every outside string we keep. */
+    outcomeReason: text('outcome_reason'),
+    outcomeAt: timestamp('outcome_at', { withTimezone: true }),
+  },
+  (t) => [
+    /** One address once per letter. Leading on `delivery_id`, it is also the
+     *  index for "this letter's addresses" — claim, webhook, timeline. */
+    unique('email_delivery_address_once').on(t.deliveryId, t.address),
+    /** "Which letters carried this address as To or CC" — `recipient` names
+     *  only the first To, so a bounce or a person's history of a CC'd
+     *  address cannot be found from the ledger alone. */
+    index('email_delivery_address_address_idx').on(t.address),
+    check('email_delivery_address_role_known', sql`${t.role} IN ('to', 'cc')`),
+    check('email_delivery_address_position_nonneg', sql`${t.position} >= 0`),
+    check(
+      'email_delivery_address_normal',
+      sql`${t.address} = lower(btrim(${t.address})) AND ${t.address} <> ''`,
+    ),
+    check(
+      'email_delivery_address_outcome_known',
+      sql`${t.outcome} IN ('queued', 'dropped_suppressed', 'bounced', 'complained')`,
+    ),
+    check('email_delivery_address_reason_bounded', sql`char_length(${t.outcomeReason}) <= 500`),
   ],
 )
 
@@ -371,6 +447,7 @@ export const mailReply = platform.table(
 )
 
 export type EmailDeliveryRow = typeof emailDelivery.$inferSelect
+export type EmailDeliveryAddressRow = typeof emailDeliveryAddress.$inferSelect
 export type EmailSuppressionRow = typeof emailSuppression.$inferSelect
 export type EmailWebhookEventRow = typeof emailWebhookEvent.$inferSelect
 export type MailEventRow = typeof mailEvent.$inferSelect

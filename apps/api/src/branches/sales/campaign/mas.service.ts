@@ -6,12 +6,10 @@ import {
   MailRunListResponse,
   MailRunPatchResponse,
   MailRunRecipientsResponse,
-  MailTemplateCreateResponse,
-  MailTemplateListResponse,
-  MailTemplatePatchResponse,
   MasPreflightResponse,
   MasPreviewResponse,
   MasSendResponse,
+  SALES_INBOX,
   type MailMergeKey,
   type MailRunCancel,
   type MailRunEdit,
@@ -19,8 +17,6 @@ import {
   type MailRunPatch,
   type MailRunRow,
   type MailRunState,
-  type MailTemplateCreate,
-  type MailTemplatePatch,
   type MasPreflightRequest,
   type MasPreviewRequest,
   type MasRecipient,
@@ -29,6 +25,7 @@ import {
   type MasSendRequest,
 } from '@pv/contracts'
 import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
+import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
@@ -114,7 +111,7 @@ const MAS_FLOW = 'mas'
  *  `true`, and the dry run stopped predicting the flight. */
 const scopeFor = (campaignCode?: string): boolean => campaignCode === undefined
 
-const eventKeyOf = (audience: string, mailRunId: string, code: string): string =>
+export const eventKeyOf = (audience: string, mailRunId: string, code: string): string =>
   `${MAS_FLOW}/${audience}/v${TEMPLATE_VERSION}/${mailRunId}:${code}`
 
 /** What caused the letter, for `email_delivery.event_type`. Dotted and prefixed
@@ -219,39 +216,20 @@ export class MasService {
    *  the read — a name this actor may not see never reaches the render — it
    *  just degrades to sample values instead of to an error. */
   async preview(who: Actor, body: MasPreviewRequest): Promise<MasPreviewResponse> {
-    const rows = body.leadCode
-      ? await this.repo.audience(this.repo.readonlyHandle, who, true, 'lead', [body.leadCode])
-      : []
-    const row = rows[0]
+    const row = body.leadCode ? await this.repo.previewSubject(who, body.leadCode) : undefined
+    const frame = previewFrame(this.env)
 
     const letter = await renderMasLetter({
       subject: body.subject,
       body: body.body,
       cta: body.cta,
-      ...(body.bookingUrl ? { bookingUrl: body.bookingUrl } : {}),
       merge: row ? mergeOf(row) : SAMPLE_MERGE,
-      unsubscribeUrl: this.previewUnsubscribeUrl(),
-      sender: senderOf(
-        this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM,
-        this.env.PV_MAS_SENDER_POSTAL,
-      ),
-      assetBaseUrl: brandAssetUrl(this.env),
+      unsubscribeUrl: frame.unsubscribeUrl,
+      sender: frame.sender,
+      assetBaseUrl: frame.assetBaseUrl,
     })
 
-    return MasPreviewResponse.parse(letter)
-  }
-
-  /** A footer link that goes to the unsubscribe page and unsubscribes nobody.
-   *
-   *  The real link signs a `email_delivery.id`, and a preview has no delivery.
-   *  Minting one to make the footer look finished would mint a token that
-   *  cancels somebody's mail; leaving the footer out would hide the one line
-   *  the sender is legally answerable for. So the link is real in shape and
-   *  inert in effect: the token does not verify, and `UnsubscribeController`
-   *  answers it the way it answers any bad token. */
-  private previewUnsubscribeUrl(): string {
-    const origin = this.env.PV_API_PUBLIC_URL || this.env.PV_APP_URL
-    return `${origin.replace(/\/+$/, '')}/mail/unsubscribe/preview`
+    return MasPreviewResponse.parse({ ...letter, from: frame.from })
   }
 
   /** Open one batch and hand it to the queue. Nothing is sent inside this call.
@@ -352,50 +330,8 @@ export class MasService {
         throw notFound('chiến dịch', campaignCode)
       }
 
-      if (body.sequence) {
-        const fingerprint = audienceFingerprint(body.audience.subjectType, codes)
-        const sequence = await this.repo.ensureSequence(tx, {
-          id: body.sequence.id,
-          name: body.sequence.name,
-          destinationType: body.audience.subjectType,
-          audienceFingerprint: fingerprint,
-          audienceCount: codes.length,
-          createdBy: who.id,
-        })
-        if (
-          sequence.createdBy !== who.id ||
-          sequence.name !== body.sequence.name ||
-          sequence.destinationType !== body.audience.subjectType ||
-          sequence.audienceFingerprint !== fingerprint ||
-          sequence.audienceCount !== codes.length
-        ) {
-          throw conflict(
-            'Chuỗi gửi này đã tồn tại với tên, người tạo hoặc nhóm destination khác — hãy mở một chuỗi mới.',
-          )
-        }
-
-        const existing = await this.repo.sequenceWave(tx, body.sequence.id, body.sequence.waveNo)
-        if (existing) {
-          if (!sameSequenceWave(existing, body, scheduledAt)) {
-            throw conflict(
-              `Đợt ${body.sequence.waveNo} của chuỗi này đã tồn tại với nội dung hoặc cách gửi khác.`,
-            )
-          }
-          return {
-            mailRunId: existing.mailRunId,
-            written: existing.audienceCount,
-            waveNo: existing.waveNo,
-            state: existing.state,
-          }
-        }
-
-        const nextWaveNo = await this.repo.nextWaveNo(tx, 'sequence', body.sequence.id)
-        if (body.sequence.waveNo !== nextWaveNo) {
-          throw conflict(
-            `Chuỗi đang chờ đợt ${nextWaveNo}, không thể ghi đợt ${body.sequence.waveNo}.`,
-          )
-        }
-      }
+      const replay = await this.sequenceReplay(tx, who, body, codes, scheduledAt)
+      if (replay) return replay
 
       /* Validate against the server clock only for a NEW wave. An idempotent
          replay of a wave scheduled yesterday must still return its original
@@ -424,6 +360,14 @@ export class MasService {
           d.block === undefined && d.row.email !== null,
       )
 
+      /* Numbered BEFORE the run exists: a later wave is filed behind the G6
+         release gate, and the gate is a column of the run itself. */
+      const subject = sequenceSubjectOf(campaignCode, body.sequence?.id)
+      const waveNo = body.sequence
+        ? body.sequence.waveNo
+        : await this.repo.nextWaveNo(tx, subject.subjectType, subject.subjectCode)
+      const copyMerge = sendable[0]
+
       const mailRunId = await this.runs.create(tx, {
         label: body.label,
         templateCode: body.templateCode ?? null,
@@ -439,9 +383,6 @@ export class MasService {
            the letter and belongs in the same snapshot. The template's pair now
            pre-fills the panel instead — see `MasSendRequest.cta`. */
         cta: body.cta ?? null,
-        /* Same snapshot, same argument as the CTA above: the booking link the
-           sender saw is the one that goes out. */
-        bookingUrl: body.bookingUrl ?? null,
         /* Snapshotted at creation, never re-resolved at send time — see
            `mail_run.from_address`. The fallback is not a nicety: a machine
            with no marketing identity configured must still be able to rehearse
@@ -449,7 +390,12 @@ export class MasService {
            letters written by nobody. */
         fromAddress: this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM,
         replyTo: this.env.PV_EMAIL_MAS_REPLY_TO || null,
-        ccAddresses: [...new Set(body.cc ?? [])],
+        /* G9: a bulk letter carries no CC; the inbox gets one copy per run,
+           as its own delivery (`copyIntentOf`), and only if a letter exists. */
+        ccAddresses: [],
+        kind: 'bulk',
+        bccCopyTo: copyMerge ? SALES_INBOX : null,
+        awaitsRelease: waveNo >= 2,
         /* Absent stays absent so the column's own `DEFAULT true` answers — the
            flag is opt-OUT, and passing `?? false` here would mute open/click
            recording for every caller that simply does not send the field. */
@@ -471,14 +417,14 @@ export class MasService {
          how a SCHEDULED batch waits: `pendingBatch()` already refuses a row
          that is not due, so scheduling needs no second scanner. */
       const written = await this.mail.enqueueBatch(tx, intents, { nextAttemptAt: scheduledAt })
+      if (copyMerge) {
+        const copy = copyIntentOf(mailRunId, body.audience.subjectType, copyMerge.row)
+        await this.mail.enqueueBatch(tx, [copy], { nextAttemptAt: scheduledAt })
+      }
 
       /* The wave row is written in the SAME transaction as the run it numbers:
          `subject_code` has no foreign key (migration 0053), so a chain rolled
          back with its run is the only thing keeping the two in step. */
-      const subject = sequenceSubjectOf(campaignCode, body.sequence?.id)
-      const waveNo = body.sequence
-        ? body.sequence.waveNo
-        : await this.repo.nextWaveNo(tx, subject.subjectType, subject.subjectCode)
       await this.repo.linkSequenceWave(tx, {
         ...subject,
         mailRunId,
@@ -494,6 +440,11 @@ export class MasService {
         await this.states.scheduled(tx, mailed, who.id)
       }
 
+      await this.repo.writeRunNote(tx, {
+        actorId: who.id,
+        runId: mailRunId,
+        note: `tạo lô MAS · ${written} thư · ${body.label}`,
+      })
       return { mailRunId, written, waveNo, state }
     })
 
@@ -511,6 +462,61 @@ export class MasService {
       skipped: picked.length - queued.written,
       state: queued.state,
     })
+  }
+
+  /** The chain header and, for a wave already filed, the idempotent replay.
+   *  Returns the existing wave's answer, or `undefined` to file a new one. */
+  private async sequenceReplay(
+    tx: Db,
+    who: Actor,
+    body: MasSendRequest,
+    codes: readonly string[],
+    scheduledAt: Date | null,
+  ): Promise<
+    { mailRunId: string; written: number; waveNo: number; state: MailRunState } | undefined
+  > {
+    if (!body.sequence) return undefined
+    const fingerprint = audienceFingerprint(body.audience.subjectType, codes)
+    const sequence = await this.repo.ensureSequence(tx, {
+      id: body.sequence.id,
+      name: body.sequence.name,
+      destinationType: body.audience.subjectType,
+      audienceFingerprint: fingerprint,
+      audienceCount: codes.length,
+      createdBy: who.id,
+    })
+    if (
+      sequence.createdBy !== who.id ||
+      sequence.name !== body.sequence.name ||
+      sequence.destinationType !== body.audience.subjectType ||
+      sequence.audienceFingerprint !== fingerprint ||
+      sequence.audienceCount !== codes.length
+    ) {
+      throw conflict(
+        'Chuỗi gửi này đã tồn tại với tên, người tạo hoặc nhóm destination khác — hãy mở một chuỗi mới.',
+      )
+    }
+
+    const existing = await this.repo.sequenceWave(tx, body.sequence.id, body.sequence.waveNo)
+    if (existing) {
+      if (!sameSequenceWave(existing, body, scheduledAt)) {
+        throw conflict(
+          `Đợt ${body.sequence.waveNo} của chuỗi này đã tồn tại với nội dung hoặc cách gửi khác.`,
+        )
+      }
+      return {
+        mailRunId: existing.mailRunId,
+        written: existing.audienceCount,
+        waveNo: existing.waveNo,
+        state: existing.state,
+      }
+    }
+
+    const nextWaveNo = await this.repo.nextWaveNo(tx, 'sequence', body.sequence.id)
+    if (body.sequence.waveNo !== nextWaveNo) {
+      throw conflict(`Chuỗi đang chờ đợt ${nextWaveNo}, không thể ghi đợt ${body.sequence.waveNo}.`)
+    }
+    return undefined
   }
 
   /** The run list. Two things the platform repository cannot do for itself.
@@ -541,13 +547,23 @@ export class MasService {
 
     const scope = await this.repo.visibleRuns(who, query, campaignIds)
     const page = await this.runs.list(query, scope.onlyIds)
-    const contexts = await this.repo.sequenceContexts(page.rows.map((row) => row.id))
+    const [contexts, rows] = await Promise.all([
+      this.repo.sequenceContexts(page.rows.map((row) => row.id)),
+      this.withCreators(who, page.rows),
+    ])
 
     return MailRunListResponse.parse({
       ...page,
-      rows: page.rows.map((row) => ({ ...row, ...contexts.get(row.id) })),
+      rows: rows.map((row) => ({ ...row, ...contexts.get(row.id) })),
       hidden: page.hidden + scope.hidden,
     })
+  }
+
+  /** Platform run rows → the creator's display name and `mine` (G8). Public
+   *  because the campaign profile lists the same rows for its waves. */
+  async withCreators<R extends { createdBy: string }>(who: Actor, rows: readonly R[]) {
+    const names = await this.repo.actorNames(rows.map((row) => row.createdBy))
+    return rows.map((row) => ({ ...row, ...creatorOf(who, row.createdBy, names) }))
   }
 
   /** THE ONE DOOR INTO A RUN — `PATCH /sales/mail/runs/:id`, two verbs.
@@ -560,6 +576,30 @@ export class MasService {
    *  would be a hole rather than a refinement. */
   patchRun(who: Actor, id: string, patch: MailRunPatch): Promise<MailRunPatchResponse> {
     return 'state' in patch ? this.cancel(who, id, patch) : this.edit(who, id, patch)
+  }
+
+  /** G8 — `PATCH /sales/mail/runs/:id/own`: the creator stops or rewrites
+   *  their own run with `lead.send-email` alone. `created_by` must match
+   *  whatever the caller's reach (a manager editing someone else's run goes
+   *  through the broadcast door), and a campaign wave is refused by name —
+   *  it belongs to whoever holds `campaign.broadcast`. */
+  async patchOwnRun(who: Actor, id: string, patch: MailRunPatch): Promise<MailRunPatchResponse> {
+    const run = await this.runs.byId(id)
+    if (!run) throw notFound('lô gửi', id)
+
+    if (run.createdBy !== who.id) {
+      throw denied('out-of-scope', 'Chỉ người tạo lô sửa hay dừng được lô này từ đây.')
+    }
+    if (await this.repo.campaignOfRun(id)) {
+      throw denied(
+        'permission-denied',
+        'Lô này là một đợt của chiến dịch — sửa hay dừng cần quyền “campaign.broadcast”, ở Sổ lô gửi.',
+      )
+    }
+
+    return 'state' in patch
+      ? this.cancelRun(who, run, patch, 'own')
+      : this.editRun(who, run, patch, 'own')
   }
 
   /** STOP A BATCH. The one state transition a person may ask for.
@@ -595,6 +635,17 @@ export class MasService {
       throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
     }
 
+    return this.cancelRun(who, run, patch)
+  }
+
+  /** The cancel itself, on a run whose entitlement the caller's door settled. */
+  private async cancelRun(
+    who: Actor,
+    run: MailRunColumns,
+    patch: MailRunCancel,
+    door?: 'own',
+  ): Promise<MailRunPatchResponse> {
+    const id = run.id
     if (run.state === 'SENT') {
       throw conflict('Lô này đã gửi xong — không còn thư nào để giữ lại.')
     }
@@ -609,7 +660,7 @@ export class MasService {
        `LeadWriteRepository.writeBatchNote` exists rather than calling it. */
     const stopped = await this.repo.run(async (tx) => {
       const result = await this.runs.cancel(tx, id)
-      if (result) await this.repo.writeCancelNote(tx, { actorId: who.id, runId: id })
+      if (result) await this.repo.writeCancelNote(tx, { actorId: who.id, runId: id, door })
       return result
     })
 
@@ -647,6 +698,18 @@ export class MasService {
       throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
     }
 
+    return this.editRun(who, run, patch)
+  }
+
+  /** The rewrite itself, on a run whose entitlement the caller's door settled. */
+  private async editRun(
+    who: Actor,
+    run: MailRunColumns,
+    patch: MailRunEdit,
+    door?: 'own',
+  ): Promise<MailRunPatchResponse> {
+    const id = run.id
+
     /* One unit of work for the same reason the cancel above is one: a batch
        rewritten with no record of who rewrote it is the half somebody asks
        about later, and `mail_run` keeps no history of its own columns. */
@@ -657,7 +720,7 @@ export class MasService {
          this modal print `phase ?? label`. Renaming one row only would leave
          the rename invisible and break `sameSequenceWave`'s idempotency. */
       if (patch.label !== undefined) await this.repo.renameWavePhase(tx, id, patch.label)
-      await this.repo.writeEditNote(tx, { actorId: who.id, runId: id })
+      await this.repo.writeEditNote(tx, { actorId: who.id, runId: id, door })
       return result
     })
 
@@ -723,28 +786,58 @@ export class MasService {
    *  The same three questions `recipients()` asks and the same two refusals:
    *  404 to check the id, 403 to find who holds it. Argued at `cancel`.
    *
-   *  The eleven counters come from `MailRunRepository.list()` asked for a page
-   *  of exactly this id, NOT from a second aggregate here. Which delivery
-   *  states count as `sent`, why `suppressed` is not `failed` — that is a
-   *  rule, and a branch-side copy of it prints a different number from the run
-   *  book the first time the ladder moves. `byId` adds the three letter
-   *  columns the list has no reason to carry.
-   *
-   *  No audit line, deliberately, though both write branches of this resource
-   *  keep one: `campaign.view` already reads the subject, and a MAS body is
-   *  copy this company wrote itself, not somebody's personal data. */
+   *  No audit line for a BULK run (ADR 0065): its body is copy this company
+   *  wrote about itself. A GROUP letter is a named 1:1 letter to a customer,
+   *  so on this `campaign.view` door only its creator reads it; everyone else
+   *  goes through `content()`, which needs `comm.view-content` and leaves a
+   *  trail (ADR 0011 §c). Two doors, not a permission picked here (ADR 0004). */
   async detail(who: Actor, id: string): Promise<MailRunDetail> {
+    const run = await this.ownedRun(who, id)
+    if (run.kind === 'group' && run.createdBy !== who.id) {
+      throw denied(
+        'permission-denied',
+        'Đây là thư nhóm gửi đích danh khách — chỉ người gửi đọc được nội dung ở đây; người có quyền "comm.view-content" mở qua cửa nội dung.',
+      )
+    }
+    return this.detailOf(who, run)
+  }
+
+  /** The content door of `detail()`: any run, for a reader cleared for message
+   *  bodies. Reading somebody else's letter writes one `view` audit line, and
+   *  it is written BEFORE the body leaves — no trail, no body. */
+  async content(who: Actor, id: string): Promise<MailRunDetail> {
+    const run = await this.ownedRun(who, id)
+    if (run.createdBy !== who.id) {
+      await this.repo.writeContentRead({ actorId: who.id, runId: id, kind: run.kind })
+    }
+    return this.detailOf(who, run)
+  }
+
+  /** 404 to check the id, 403 to find who holds it — argued at `cancel`. */
+  private async ownedRun(who: Actor, id: string) {
     const run = await this.runs.byId(id)
     if (!run) throw notFound('lô gửi', id)
 
     if (who.ownOnly && run.createdBy !== who.id) {
       throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
     }
+    return run
+  }
 
-    const [page, contexts, editable] = await Promise.all([
+  /** The eleven counters come from `MailRunRepository.list()` asked for a page
+   *  of exactly this id, NOT from a second aggregate here. Which delivery
+   *  states count as `sent`, why `suppressed` is not `failed` — that is a
+   *  rule, and a branch-side copy of it prints a different number from the run
+   *  book the first time the ladder moves. `byId` adds the three letter
+   *  columns the list has no reason to carry. */
+  private async detailOf(who: Actor, run: MailRunColumns): Promise<MailRunDetail> {
+    const id = run.id
+
+    const [page, contexts, editable, names] = await Promise.all([
       this.runs.list(ONE_RUN, [id]),
       this.repo.sequenceContexts([id]),
       this.repo.runEditable(id),
+      this.repo.actorNames([run.createdBy]),
     ])
 
     /* The row cannot be missing — `byId` just found it — but the page is typed
@@ -753,73 +846,11 @@ export class MasService {
     const row = page.rows[0]
     if (!row) throw notFound('lô gửi', id)
 
-    return toRunDetail({ ...row, ...contexts.get(id) }, run, editable)
-  }
-
-  async templates(): Promise<MailTemplateListResponse> {
-    return MailTemplateListResponse.parse({ rows: await this.repo.templates() })
-  }
-
-  /** A NEW TEMPLATE. `code` is derived from `name` (22/09) rather than typed —
-   *  nobody reads it but `mail_run.template_code`, so asking a person to pick a
-   *  slug was a field to get wrong for no reader. The loop below covers the
-   *  ordinary case, two templates sharing a name: it is not the race guard
-   *  `campaignExists` warns about, because there is no field left to point a
-   *  refusal at — a true race (two creates landing the same millisecond) falls
-   *  through to the generic `23505` mapping in `db-error.ts` instead. */
-  async createTemplate(input: MailTemplateCreate): Promise<MailTemplateCreateResponse> {
-    const code = await this.uniqueTemplateCode(input.name)
-
-    await this.repo.createTemplate({
-      code,
-      name: input.name,
-      subject: input.subject,
-      body: input.body,
-      ctaLabel: input.cta?.label ?? null,
-      ctaUrl: input.cta?.url ?? null,
-      bookingUrl: input.bookingUrl ?? null,
-    })
-
-    return MailTemplateCreateResponse.parse(await this.repo.templateByCode(code))
-  }
-
-  /** Slugify `name`, then append `-2`, `-3`… only if that slug is taken — the
-   *  common case (one template, one name) never sees a suffix. */
-  private async uniqueTemplateCode(name: string): Promise<string> {
-    const base = slugify(name) || 'mau-thu'
-    let code = base
-    for (let n = 2; await this.repo.templateByCode(code); n += 1) {
-      code = `${base}-${n}`
-    }
-    return code
-  }
-
-  /** EDIT, RETIRE, OR BOTH — and nothing here touches a letter already sent.
-   *
-   *  That is a property of the table, not of this method: `mail_run` snapshots
-   *  subject and body when the batch is created (`mail-run.schema.ts`), so a
-   *  template is only ever a starting point. Editing one changes what the next
-   *  person starts from and nothing else.
-   *
-   *  `cta` carries the three states `MailTemplatePatch` documents. The pair is
-   *  split back into two columns HERE rather than in the repository because the
-   *  `mail_template_cta_pair` CHECK is about columns while the contract is
-   *  about a button — this line is where one becomes the other. */
-  async patchTemplate(code: string, input: MailTemplatePatch): Promise<MailTemplatePatchResponse> {
-    if (!(await this.repo.templateByCode(code))) throw notFound('mẫu thư', code)
-
-    await this.repo.patchTemplate(code, {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.subject !== undefined ? { subject: input.subject } : {}),
-      ...(input.body !== undefined ? { body: input.body } : {}),
-      ...(input.active !== undefined ? { active: input.active } : {}),
-      ...(input.cta !== undefined
-        ? { ctaLabel: input.cta?.label ?? null, ctaUrl: input.cta?.url ?? null }
-        : {}),
-      ...(input.bookingUrl !== undefined ? { bookingUrl: input.bookingUrl } : {}),
-    })
-
-    return MailTemplatePatchResponse.parse(await this.repo.templateByCode(code))
+    return toRunDetail(
+      { ...row, ...contexts.get(id), ...creatorOf(who, run.createdBy, names) },
+      run,
+      editable,
+    )
   }
 
   /** WHO GETS A LETTER — the whole decision, in one pass over the picks.
@@ -987,7 +1018,7 @@ export class MasService {
  *
  *  Called by `intentOf` for every real recipient and by `preview` for the one
  *  on screen, so what a person reviews substitutes exactly what the send will. */
-function mergeOf(
+export function mergeOf(
   row: Pick<MasSubjectRow, 'company' | 'contactName' | 'email'>,
 ): Record<MailMergeKey, string> {
   return {
@@ -996,6 +1027,57 @@ function mergeOf(
     contactName: row.contactName,
     contact_name: row.contactName,
     email: row.email ?? '',
+  }
+}
+
+/** The inbox's copy of a bulk run — its own delivery, never a BCC on
+ *  recipient 1, whose letter carries their own unsubscribe link (design §2).
+ *  Merged as the first letter of the run so the copy reads like one. */
+function copyIntentOf(
+  mailRunId: string,
+  subjectType: MasSendRequest['audience']['subjectType'],
+  first: MasSubjectRow,
+): MailIntent {
+  return {
+    eventKey: `${MAS_FLOW}/${subjectType}/v${TEMPLATE_VERSION}/${mailRunId}:copy`,
+    eventType: MAS_EVENT,
+    aggregateType: 'mail_run',
+    aggregateId: mailRunId,
+    template: TEMPLATE,
+    templateVersion: TEMPLATE_VERSION,
+    recipient: SALES_INBOX,
+    mailRunId,
+    role: 'run_copy',
+    merge: mergeOf(first),
+  }
+}
+
+/** Everything a preview renders around the letter, for both moulds.
+ *
+ *  The footer link goes to the unsubscribe page and unsubscribes nobody: the
+ *  real link signs an `email_delivery.id` and a preview has none, so the token
+ *  does not verify and `UnsubscribeController` answers it like any bad token.
+ *  `from` is the sender line a mail client shows ("noreply · Pebble Vina"),
+ *  from the same configured identity `send()` snapshots onto the run. */
+export function previewFrame(env: Env) {
+  const fromAddress = env.PV_EMAIL_MAS_FROM || env.PV_EMAIL_FROM
+  const identity = senderOf(fromAddress, '')
+  const local = identity.address.split('@')[0] || identity.address
+  const origin = env.PV_API_PUBLIC_URL || env.PV_APP_URL
+  return {
+    unsubscribeUrl: `${origin.replace(/\/+$/, '')}/mail/unsubscribe/preview`,
+    sender: senderOf(fromAddress, env.PV_MAS_SENDER_POSTAL),
+    assetBaseUrl: brandAssetUrl(env),
+    from: identity.name === identity.address ? identity.address : `${local} · ${identity.name}`,
+  }
+}
+
+/** `MailRunRow.createdBy` + `mine`. The name is display only; a creator whose
+ *  actor row is gone still shows their id rather than failing the page. */
+function creatorOf(who: Actor, actorId: string, names: ReadonlyMap<string, string>) {
+  return {
+    createdBy: { actorId, name: names.get(actorId) ?? actorId },
+    mine: actorId === who.id,
   }
 }
 
@@ -1058,15 +1140,15 @@ function audienceFingerprint(
 
 /** A repeated POST may return the already-created wave only when it is the
  * exact same intent. Reusing the idempotency key for different content is a
- * conflict, never permission to overwrite mail already queued. */
+ * conflict, never permission to overwrite mail already queued. Booking link
+ * and CC are no longer request inputs (G9, design §6): a stored run matches
+ * only if it carries neither, i.e. what this request would write now. */
 function sameSequenceWave(
   existing: ExistingSequenceWave,
   body: MasSendRequest,
   scheduledAt: Date | null,
 ): boolean {
   const cta = body.cta ?? null
-  const cc = [...new Set(body.cc ?? [])].sort()
-  const storedCc = [...existing.ccAddresses].sort()
   const sameMoment =
     existing.scheduledAt === null
       ? scheduledAt === null
@@ -1080,11 +1162,10 @@ function sameSequenceWave(
     existing.body === body.body &&
     existing.ctaLabel === (cta?.label ?? null) &&
     existing.ctaUrl === (cta?.url ?? null) &&
-    existing.bookingUrl === (body.bookingUrl ?? null) &&
+    existing.bookingUrl === null &&
     existing.trackEngagement === (body.trackEngagement ?? true) &&
     sameMoment &&
-    storedCc.length === cc.length &&
-    storedCc.every((address, index) => address === cc[index])
+    existing.ccAddresses.length === 0
   )
 }
 
@@ -1098,22 +1179,6 @@ function sameSequenceWave(
  *  first occurrence is the one kept. */
 function dedupe(codes: readonly string[]): string[] {
   return [...new Set(codes)]
-}
-
-/** A template's `name` into the slug that becomes its permanent `code`. `NFD`
- *  splits each diacritic off its base letter so the combining range can be
- *  dropped; the crossed-D letter survives that pass untouched (it is a letter
- *  of its own, not an accented `d`) and needs a replacement of its own. */
-function slugify(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'd')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
 }
 
 /** The page `detail()` asks the run list for. `onlyIds` is the whole filter,
@@ -1159,14 +1224,15 @@ function toRunDetail(
  *  way round.
  *
  *  `scheduledAt` is the one field whose type changes: `Moment` is an ISO
- *  string on the wire and `mail_run.scheduled_at` is `timestamptz`. */
+ *  string on the wire and `mail_run.scheduled_at` is `timestamptz`. A booking
+ *  link may only be cleared — Calendly is retired (design §6). */
 function toRunUpdate(patch: MailRunEdit): MailRunUpdate {
   const update: MailRunUpdate = {}
   if (patch.label !== undefined) update.label = patch.label
   if (patch.subject !== undefined) update.subject = patch.subject
   if (patch.body !== undefined) update.body = patch.body
   if (patch.cta !== undefined) update.cta = patch.cta
-  if (patch.bookingUrl !== undefined) update.bookingUrl = patch.bookingUrl
+  if (patch.bookingUrl === null) update.bookingUrl = null
   if (patch.scheduledAt !== undefined) {
     update.scheduledAt = patch.scheduledAt === null ? null : new Date(patch.scheduledAt)
   }
@@ -1216,7 +1282,7 @@ function toRunRecipient(read: MasRecipientRead): MailRunRecipientRow {
  *  same reasoning as `isoOf` in `lead.mapper.ts`: PGlite prints
  *  `2027-01-01 02:00:00+00`, which `Moment` refuses, and an unreadable moment is
  *  dropped rather than allowed to throw out of `toISOString()`. */
-function isoOf(at: Date | string | null): string | undefined {
+export function isoOf(at: Date | string | null): string | undefined {
   if (!at) return undefined
   const date = at instanceof Date ? at : new Date(at)
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString()

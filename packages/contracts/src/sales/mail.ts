@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, paged, SortDir } from '../pagination'
+import { MailDoor, MailDoorSet, MAIL_DOOR_LEGACY } from './mail-door'
 
 /** MAS mail — sending ONE batch to many leads. `/sales/mail/*`.
  *
@@ -188,28 +189,8 @@ export const MailCta = z.object({
   url: webUrl('Địa chỉ nút'),
 })
 
-/** THE BOOKING LINK — a SECOND button, and a field of its own rather than a
- *  second `MailCta`.
- *
- *  ------------------------------------------------------------------
- *  WHY IT IS NOT JUST "CTA NUMBER TWO"
- *  ------------------------------------------------------------------
- *  A CTA is a pair because its label is the writer's own argument — a capability
- *  deck, a price list, whatever this letter is really about — and only they know
- *  what the destination is. A booking link has exactly one thing to say, and
- *  every letter this company sends should say it identically: a recipient who
- *  gets three letters should recognise the same button each time. So the label
- *  is a constant in `@pv/mail-templates`, not a column, and this field is a
- *  bare URL.
- *
- *  That also removes the half-filled state the CTA pair has to defend against
- *  with `mail_run_cta_pair`: one nullable column cannot disagree with itself,
- *  so there is no CHECK to write and no way to store a button with no address.
- *
- *  `{{contact_name}}`/`{{email}}` belong in this URL — the whole point is that
- *  the booking page opens with the form already filled. `mas-letter.ts`
- *  percent-encodes every merge value that lands here, the same as it does for
- *  the CTA url. */
+/** Retired booking link (Calendly) — read-only history on old runs and
+ *  templates; a request may only clear it (`null`), never set one. */
 export const MailBookingUrl = webUrl('Link đặt lịch')
 
 export const MailTemplateRow = z.object({
@@ -227,12 +208,25 @@ export const MailTemplateRow = z.object({
    *  send time, which meant nobody ever reviewed the link in their own letter.
    *  A template with no CTA is ordinary — most letters are prose. */
   cta: MailCta.optional(),
-  /** The template's booking link, when it has one. Pre-fills the panel the
-   *  same way `cta` does, and is absent on most templates — a letter that
-   *  simply makes an argument has nothing to book. */
+  /** History only — see `MailBookingUrl`. */
   bookingUrl: MailBookingUrl.optional(),
   active: z.boolean(),
+  /** Where this template may be picked (G4) — the picker filters on it. */
+  doors: MailDoorSet,
+  /** Doors whose composer opens pre-filled with this template. Always a subset
+   *  of `doors`; one template per door, so setting it here moves it off the
+   *  previous holder server-side. */
+  defaultFor: z.array(MailDoor),
 })
+
+/** `defaultFor ⊆ doors` — a default for a door the template is hidden from
+ *  would pre-fill a composer whose own picker cannot show what it chose. */
+const defaultsWithinDoors = (doors: readonly MailDoor[], defaults: readonly MailDoor[] = []) =>
+  defaults.every((d) => doors.includes(d))
+const DEFAULTS_OUTSIDE_DOORS = 'Mẫu mặc định chỉ đặt được cho nơi mẫu được dùng'
+const DoorDefaults = z
+  .array(MailDoor)
+  .refine((ds) => new Set(ds).size === ds.length, 'Cửa mặc định bị lặp')
 
 /** EVERY `{{key}}` A MAS LETTER MAY NAME. Five names, three values.
  *
@@ -258,20 +252,9 @@ export const MailTemplateRow = z.object({
  *  compose box's own hint text uses the other, and both are already in letters
  *  people have written. Accepting both costs two properties.
  *
- *  ------------------------------------------------------------------
- *  `email` HAS ONE SPELLING AND EARNS ITS PLACE IN THE CTA URL
- *  ------------------------------------------------------------------
- *  It is here for the LINK, not for the prose: a booking page (Calendly and
- *  every tool like it) prefills its form from the query string, so a CTA
- *  written `…?email={{email}}&name={{contact_name}}` turns "click, retype your
- *  address, pick a slot" into "click, pick a slot". That is the whole
- *  difference between a booking link people use and one they abandon.
- *
- *  `mas-letter.ts` percent-encodes every value that lands in the CTA url, so
- *  an address with a `+` in it stays one address and cannot grow a second
- *  query parameter. One spelling only — the alias pairs above exist because
- *  two were already in circulation before the list did, and a new key starts
- *  with no such debt. */
+ *  `email` is for the CTA url (a form that prefills from its query string), and
+ *  `mas-letter.ts` percent-encodes it there. One spelling only — a new key
+ *  starts without the alias debt above. */
 export const MAIL_MERGE_KEYS = [
   'account',
   'company',
@@ -499,7 +482,7 @@ export const MasPreflightResponse = z.object({
  *     spellings depending on whether the user touched it.
  *   · trailing spaces at end of line, and blank space at both ends of the whole
  *     body — invisible to the person typing, visible to `=` and to any diff. */
-const mailBody = z
+export const mailBody = z
   .string('Nội dung mail là bắt buộc')
   .max(20_000, 'Nội dung mail tối đa 20.000 ký tự')
   .transform((s) =>
@@ -509,12 +492,6 @@ const mailBody = z
       .trim(),
   )
   .pipe(z.string().min(1, 'Nội dung mail không được để trống'))
-
-/** Internal copies explicitly available to the shared noreply composer.
- *  Closed rather than `z.email()`: this control is not an arbitrary CC field
- *  and cannot be used to turn the bulk sender into a relay. */
-export const MAS_CC_ADDRESSES = ['contact@pebblevina.com', 'sales@pebblevina.co'] as const
-export const MasCcAddress = z.enum(MAS_CC_ADDRESSES)
 
 /** One reusable sequence outside a campaign. The browser mints the id once
  *  when the composer opens and repeats it on every wave; the server fences the
@@ -546,7 +523,9 @@ export const MasSequence = z.object({
  *     mass mail whose addresses came from the client is a mass mail that
  *     cannot be traced back to a lead or opportunity, cannot be checked
  *     against `email_suppression` by anything the server trusts, and cannot
- *     appear on any subject's timeline. */
+ *     appear on any subject's timeline.
+ *   · CC or a booking link — the server files one archive copy per run to
+ *     `SALES_INBOX` (G9); Calendly is retired (`MailBookingUrl`). */
 export const MasSendRequest = z.object({
   audience: MasAudience,
   /** Present on every wave composed outside a campaign. */
@@ -578,9 +557,6 @@ export const MasSendRequest = z.object({
    *  run snapshots subject and body for that exact reason; the button is part
    *  of the letter and belongs in the same snapshot. */
   cta: MailCta.optional(),
-  /** The booking button, snapshotted for the same reason `cta` is: what goes
-   *  out is what the person had on screen, never what the template says now. */
-  bookingUrl: MailBookingUrl.optional(),
   /** Absent = send now. Present = hold the run at `SCHEDULED` until then.
    *
    *  Not validated as "in the future" here: the client's clock and the
@@ -591,9 +567,6 @@ export const MasSendRequest = z.object({
   /** Present = this run belongs to a campaign. Mutually exclusive with
    *  `sequence`; campaigns are lead-only today. */
   campaignCode: ObjectCode.optional(),
-  /** Optional internal archive copies, snapshotted on the run and applied to
-   *  every recipient delivery in this batch. */
-  cc: z.array(MasCcAddress).max(MAS_CC_ADDRESSES.length).optional(),
   /** Whether this run RECORDS `OPEN`/`CLICK` for its letters — not whether
    *  they are tracked. Tracking itself (the pixel, the wrapped link) is
    *  Resend's doing at the account/domain level and has no per-send switch;
@@ -679,7 +652,6 @@ export const MasPreviewRequest = z.object({
   subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,
   cta: MailCta.optional(),
-  bookingUrl: MailBookingUrl.optional(),
   /** Whose name and company fill the `{{…}}` slots. Optional, and the fallback
    *  is not a blank letter: with no lead the server substitutes visible sample
    *  values, so somebody previewing before picking recipients still sees the
@@ -700,11 +672,21 @@ export const MasPreviewResponse = z.object({
    *  The composer turns these into one hint rather than a silent empty string —
    *  the exact failure `mas.composer.ts` can only log after the fact. */
   missing: z.array(z.string()),
+  /** The sender line as the recipient's client shows it ("noreply · Pebble
+   *  Vina"). From the server because the sending identity is its config. */
+  from: z.string().min(1),
 })
 
 // ---------------------------------------------------------------------------
 // The run list — `GET /sales/mail/runs`
 // ---------------------------------------------------------------------------
+
+/** Who filed a run (`mail_run.created_by`). `name` is resolved at read time for
+ *  display only — `actorId` is the identity. */
+export const MailRunCreator = z.object({
+  actorId: z.string().min(1).max(64),
+  name: z.string().min(1),
+})
 
 /** One row of the run list: a whole batch and how it went.
  *
@@ -739,6 +721,10 @@ export const MasPreviewResponse = z.object({
 export const MailRunRow = z.object({
   id: MailRunId,
   label: z.string().min(1),
+  /** `bulk` = one letter per recipient (three-step mould); `group` = ONE letter
+   *  to named To/CC from a detail door (G1). A group run records no open/click
+   *  (`trackEngagement` is always false) and carries no archive copy. */
+  kind: z.enum(['bulk', 'group']),
   /** Sales-side chain context. `phase` has its own column so the two concepts
    *  CAN diverge, but nothing makes them: it is written from `label` when the
    *  run is filed and rewritten with it on a rename, in the same transaction —
@@ -776,7 +762,7 @@ export const MailRunRow = z.object({
    *
    *  `audienceCount - sent` is therefore what was written to the ledger and
    *  never left the building — held by the bounce breaker, suppressed between
-   *  the send and its turn, or out of retries. It is the on-screen sign that
+   *  the send and its turn, withheld by the gate, or out of retries. It is the on-screen sign that
    *  something went wrong INSIDE the run, which is a different question from
    *  how many picks were rejected before it opened. */
   audienceCount: z.number().int().nonnegative(),
@@ -822,6 +808,11 @@ export const MailRunRow = z.object({
    *  the split `bounced`/`failed` already exists to protect. */
   suppressed: z.number().int().nonnegative(),
 
+  /** Skipped by the later-wave gate (G6): the recipient replied or met us after
+   *  wave 1, so the letter was never posted. Not a failure and not `sent` — the
+   *  screen shows it as the "skipped" label. Always 0 on wave 1 and on group runs. */
+  withheld: z.number().int().nonnegative(),
+
   /** Recipients who asked to stop hearing from us, out of this run.
    *
    *  The one number here worth more than the open rate. An unsubscribe is an
@@ -847,6 +838,11 @@ export const MailRunRow = z.object({
    *  above are each absent for at least one legitimate state. Paging on a key
    *  that is NULL for some rows silently drops them from the list. */
   createdAt: Moment,
+  createdBy: MailRunCreator,
+  /** Whether the CALLER created this run — server-computed, because the
+   *  browser does not hold a trustworthy actor id to compare. True routes the
+   *  screen's Edit/Stop to `PATCH /runs/:id/own` (G8), which re-checks. */
+  mine: z.boolean(),
 })
 
 /** Sort keys of the run list — exactly two, and both are columns that exist on
@@ -890,6 +886,7 @@ export const MailRunListResponse = paged(MailRunRow)
 export const MailRunDetail = MailRunRow.extend({
   body: mailBody,
   cta: MailCta.optional(),
+  /** History only — see `MailBookingUrl`. */
   bookingUrl: MailBookingUrl.optional(),
 
   /** Whether this batch can still be rewritten — the half of that condition no
@@ -910,7 +907,8 @@ export const MailRunDetail = MailRunRow.extend({
 })
 
 // ---------------------------------------------------------------------------
-// Stopping or rewriting a batch — `PATCH /sales/mail/runs/:id`
+// Stopping or rewriting a batch — `PATCH /sales/mail/runs/:id` (campaign.broadcast)
+// and `PATCH /sales/mail/runs/:id/own` (the run's creator, G8) take one body
 // ---------------------------------------------------------------------------
 
 /** THE ONLY DOOR A PERSON HAS INTO `MailRunState`, AND IT LEADS ONE WAY.
@@ -968,7 +966,8 @@ export const MailRunEdit = z
     subject: textInput(MAIL_SUBJECT_MAX).optional(),
     body: mailBody.optional(),
     cta: MailCta.nullable().optional(),
-    bookingUrl: MailBookingUrl.nullable().optional(),
+    /** Clear-only — see `MailBookingUrl`. */
+    bookingUrl: z.null().optional(),
     scheduledAt: Moment.nullable().optional(),
   })
   .strict()
@@ -1215,13 +1214,20 @@ export const MailTemplateListResponse = z.object({
  *  "which of our templates works". There is no rename, because changing it
  *  would orphan every run that names it, and a hand-typed slug was one more
  *  field to get wrong for no reader who ever sees it. */
-export const MailTemplateCreate = z.object({
-  name: textInput(MAIL_NAME_MAX),
-  subject: textInput(MAIL_SUBJECT_MAX),
-  body: mailBody,
-  cta: MailCta.optional(),
-  bookingUrl: MailBookingUrl.optional(),
-})
+export const MailTemplateCreate = z
+  .object({
+    name: textInput(MAIL_NAME_MAX),
+    subject: textInput(MAIL_SUBJECT_MAX),
+    body: mailBody,
+    cta: MailCta.optional(),
+    /** Absent = `MAIL_DOOR_LEGACY`. The composer posts its own door (G4). */
+    doors: MailDoorSet.optional(),
+    defaultFor: DoorDefaults.optional(),
+  })
+  .refine((v) => defaultsWithinDoors(v.doors ?? MAIL_DOOR_LEGACY, v.defaultFor), {
+    message: DEFAULTS_OUTSIDE_DOORS,
+    path: ['defaultFor'],
+  })
 
 export const MailTemplateCreateResponse = MailTemplateRow
 
@@ -1244,10 +1250,13 @@ export const MailTemplatePatch = z
     subject: textInput(MAIL_SUBJECT_MAX).optional(),
     body: mailBody.optional(),
     cta: MailCta.nullable().optional(),
-    /** Three states like `cta`: absent leaves it alone, `null` removes the
-     *  booking button, a string replaces it. */
-    bookingUrl: MailBookingUrl.nullable().optional(),
+    /** Clear-only — see `MailBookingUrl`. */
+    bookingUrl: z.null().optional(),
     active: z.boolean().optional(),
+    /** Replace the whole set. When only one of the pair is posted, the server
+     *  checks `defaultFor ⊆ doors` against the stored other half. */
+    doors: MailDoorSet.optional(),
+    defaultFor: DoorDefaults.optional(),
   })
   .refine(
     (v) =>
@@ -1256,9 +1265,15 @@ export const MailTemplatePatch = z
       v.body !== undefined ||
       v.cta !== undefined ||
       v.bookingUrl !== undefined ||
-      v.active !== undefined,
+      v.active !== undefined ||
+      v.doors !== undefined ||
+      v.defaultFor !== undefined,
     { message: 'Cần sửa ít nhất một trường' },
   )
+  .refine((v) => v.doors === undefined || defaultsWithinDoors(v.doors, v.defaultFor), {
+    message: DEFAULTS_OUTSIDE_DOORS,
+    path: ['defaultFor'],
+  })
 
 export const MailTemplatePatchResponse = MailTemplateRow
 
@@ -1282,11 +1297,11 @@ export type MasPreflightRequest = z.infer<typeof MasPreflightRequest>
 export type MasPreflightResponse = z.infer<typeof MasPreflightResponse>
 export type MasSendRequest = z.infer<typeof MasSendRequest>
 export type MasSendResponse = z.infer<typeof MasSendResponse>
-export type MasCcAddress = z.infer<typeof MasCcAddress>
 export type MailSequenceId = z.infer<typeof MailSequenceId>
 export type MasSequence = z.infer<typeof MasSequence>
 export type MasPreviewRequest = z.infer<typeof MasPreviewRequest>
 export type MasPreviewResponse = z.infer<typeof MasPreviewResponse>
+export type MailRunCreator = z.infer<typeof MailRunCreator>
 export type MailRunRow = z.infer<typeof MailRunRow>
 export type MailRunListQuery = z.infer<typeof MailRunListQuery>
 export type MailRunListResponse = z.infer<typeof MailRunListResponse>

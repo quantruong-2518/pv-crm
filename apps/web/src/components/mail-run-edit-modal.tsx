@@ -1,15 +1,12 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Save } from '@pv/ui'
 import { Badge, Button, GlassCard, Icon, Modal, SectionTitle, Skeleton, Stepper } from '@pv/ui'
 import type { MailRunDetail } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
-import { MailHintList, MailPreviewCard } from '@/components/mail-compose-bits'
-import {
-  MailGuideButton,
-  MailGuideDrawer,
-  type MailGuideSection,
-} from '@/components/mail-guide-drawer'
+import { MailFloatingAids, MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
+import { MailGuideDrawer, type MailGuideSection } from '@/components/mail-guide-drawer'
 import { composerFromRun, mailRunEditFrom } from '@/components/mail-run-edit-draft'
 import { SendWhen, WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
@@ -21,6 +18,7 @@ import { mailHints } from '@/data/mail-hints'
 import {
   MAIL_RUN_STATE_LABEL,
   MAIL_RUN_STATE_TONE,
+  mailRunRoute,
   useMailRunDetail,
   useMailRunEdit,
 } from '@/data/mail-runs'
@@ -37,7 +35,8 @@ import { useMailPreview } from '@/data/mas'
  *
  *  The recipients are NOT a question here. They were frozen into
  *  `email_delivery` rows when the batch opened, so the only things this panel
- *  may change are the six fields of `MailRunEdit`. */
+ *  may change are the fields of `MailRunEdit`. Saves go through `/own` when the
+ *  caller created the run (G8), else the broadcast door — see `mailRunRoute`. */
 const STEPS = [
   { key: 'content', label: 'Nội dung' },
   { key: 'how', label: 'Cách gửi' },
@@ -51,19 +50,29 @@ const GUIDE_PARTS: MailGuideSection[] = ['content']
 
 const PREVIEW_CAPTION =
   'Tên và công ty là dữ liệu mẫu. Người nhận của lô này đã chốt lúc tạo lô và không đổi được.'
+/** `/sales/mail/preview` always renders a sample unsubscribe footer — it has no
+ *  `delivery_id` to sign yet and cannot know the letter is bound for a GROUP
+ *  door. A group letter never carries that footer when it actually sends
+ *  (`mas-letter.ts`), so the note replaces the caption rather than letting the
+ *  preview promise a link the real letter will not have. */
+const GROUP_PREVIEW_CAPTION = `${PREVIEW_CAPTION} Dòng huỷ đăng ký dưới thư chỉ hiện ở bản xem trước — thư gộp gửi thật không có dòng đó.`
 
 export function MailRunEditModal({
   runId,
+  viaContent = false,
   onClose,
 }: {
   /** The batch being rewritten, or `null` when the panel is shut. The panel
    *  stays mounted either way so it can animate out with its content. */
   runId: string | null
+  /** Someone else's group letter: its body is read through the audited door. */
+  viaContent?: boolean
   onClose: () => void
 }) {
   const open = runId !== null
-  const detail = useMailRunDetail(runId)
+  const detail = useMailRunDetail(runId, viaContent)
   const save = useMailRunEdit()
+  const can = { send: useCan('lead.send-email'), broadcast: useCan('campaign.broadcast') }
 
   const [step, setStep] = useState(0)
   const [reached, setReached] = useState(0)
@@ -73,6 +82,7 @@ export function MailRunEditModal({
      every field is compared against when the patch is built. */
   const [base, setBase] = useState<MailRunDetail>()
   const [form, setForm] = useState<ComposerState>(emptyComposerState)
+  const [dropBooking, setDropBooking] = useState(false)
 
   useEffect(() => {
     if (open) return
@@ -81,6 +91,7 @@ export function MailRunEditModal({
     setReached(0)
     setGuideOpen(false)
     setFailure('')
+    setDropBooking(false)
   }, [open])
 
   /* Seeded ONCE per opening: this query refetches on window focus, and a second
@@ -91,7 +102,8 @@ export function MailRunEditModal({
     setForm(composerFromRun(detail.data))
   }, [detail.data, base])
 
-  const patch = base ? mailRunEditFrom(base, form) : {}
+  const patch = base ? mailRunEditFrom(base, form, dropBooking) : {}
+  const route = base ? mailRunRoute(base, can) : null
   const changed = Object.keys(patch).length
 
   /* The hour is re-checked only when somebody MOVED it. A batch whose time has
@@ -109,7 +121,6 @@ export function MailRunEditModal({
       ...(form.ctaLabel.trim() !== '' && form.ctaUrl.trim() !== ''
         ? { cta: { label: form.ctaLabel.trim(), url: form.ctaUrl.trim() } }
         : {}),
-      ...(form.bookingUrl.trim() !== '' ? { bookingUrl: form.bookingUrl.trim() } : {}),
     },
     open && letterReady,
   )
@@ -117,15 +128,14 @@ export function MailRunEditModal({
     subject: form.subject,
     body: form.body,
     ctaUrl: form.ctaUrl,
-    bookingUrl: form.bookingUrl,
     missing: preview.letter?.missing,
   })
 
   const submit = () => {
-    if (!base || changed === 0 || blocker || save.isPending) return
+    if (!base || !route || changed === 0 || blocker || save.isPending) return
     setFailure('')
     save.mutate(
-      { id: base.id, edit: patch },
+      { id: base.id, edit: patch, route },
       {
         onSuccess: (result) => {
           toast('Đã lưu thay đổi', {
@@ -147,7 +157,7 @@ export function MailRunEditModal({
     )
   }
 
-  const locked = base && !base.editable
+  const locked = base && (!base.editable || !route)
   /* A refetch that fails AFTER the form is seeded must not replace it: the
      letter on screen is the one being typed, and the read already succeeded. */
   const body = !base ? (
@@ -167,11 +177,10 @@ export function MailRunEditModal({
       <Modal
         open={open}
         onClose={onClose}
-        width="xl"
+        width="wide"
         title="Sửa lô thư chưa gửi"
         subtitle={base ? runLine(base) : 'Đang mở lô…'}
         meta={base ? runBadge(base) : null}
-        headerAction={<MailGuideButton onOpen={() => setGuideOpen(true)} />}
         footer={
           <EditFooter
             step={step}
@@ -181,6 +190,7 @@ export function MailRunEditModal({
             note={footerNote(Boolean(locked), changed)}
             saveBlocked={changed === 0 || Boolean(blocker)}
             saving={save.isPending}
+            aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}
             onBack={() => (step === 0 ? onClose() : setStep(0))}
             onNext={() => {
               setStep(1)
@@ -204,7 +214,8 @@ export function MailRunEditModal({
                 form={form}
                 setForm={setForm}
                 letter={letterReady ? preview : null}
-                hints={hints}
+                dropBooking={dropBooking}
+                onDropBooking={setDropBooking}
               />
             ))}
         </div>
@@ -232,7 +243,8 @@ function EditSteps({
   form,
   setForm,
   letter,
-  hints,
+  dropBooking,
+  onDropBooking,
 }: {
   run: MailRunDetail
   step: number
@@ -241,7 +253,8 @@ function EditSteps({
   form: ComposerState
   setForm: Dispatch<SetStateAction<ComposerState>>
   letter: ReturnType<typeof useMailPreview> | null
-  hints: ReturnType<typeof mailHints>
+  dropBooking: boolean
+  onDropBooking: (drop: boolean) => void
 }) {
   return (
     <>
@@ -249,7 +262,17 @@ function EditSteps({
 
       <div className="wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] grid min-w-0 items-start gap-6">
         {step === 0 ? (
-          <WaveComposer state={form} setState={setForm} templates={[]} frame="letter" />
+          <div className="flex min-w-0 flex-col gap-4">
+            <WaveComposer state={form} setState={setForm} templates={[]} frame="letter" />
+            {run.bookingUrl && (
+              <OldBookingLink
+                owner="Thư"
+                url={run.bookingUrl}
+                dropped={dropBooking}
+                onDrop={onDropBooking}
+              />
+            )}
+          </div>
         ) : (
           <section className="flex min-w-0 flex-col gap-4">
             <SectionTitle size="md">Gửi khi nào?</SectionTitle>
@@ -264,14 +287,13 @@ function EditSteps({
               letter={letter.letter}
               pending={letter.pending}
               error={letter.error}
-              caption={PREVIEW_CAPTION}
+              caption={run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION}
             />
           ) : (
             <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
               Bản xem trước hiện ở đây khi thư có tiêu đề và nội dung.
             </p>
           )}
-          <MailHintList hints={hints} />
         </section>
       </div>
     </>
@@ -290,6 +312,7 @@ function EditFooter({
   note,
   saveBlocked,
   saving,
+  aids,
   onBack,
   onNext,
   onSave,
@@ -301,12 +324,15 @@ function EditFooter({
   note: string
   saveBlocked: boolean
   saving: boolean
+  /** Floats above the strip's right edge, as in the send panel. */
+  aids: ReactNode
   onBack: () => void
   onNext: () => void
   onSave: () => void
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+    <div className="relative flex min-w-0 flex-wrap items-center justify-between gap-4">
+      <div className="absolute bottom-full right-0 mb-8">{aids}</div>
       <span
         aria-live="polite"
         className={
@@ -371,9 +397,11 @@ function LockedNote({ run }: { run: MailRunDetail }) {
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-2 p-4">
       <span className="text-[12.5px] font-semibold">Lô này không sửa được nữa</span>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">
-        {run.state === 'SCHEDULED'
-          ? 'Thư của lô đã bắt đầu rời máy, nên nội dung chốt từ lúc đó. Muốn dừng phần chưa gửi thì dùng nút Dừng ở sổ lô gửi.'
-          : `Lô đang ở trạng thái "${MAIL_RUN_STATE_LABEL[run.state]}" — chỉ lô còn hẹn giờ và chưa gửi thư nào mới sửa được.`}
+        {run.editable
+          ? 'Chỉ người tạo lô hoặc người có quyền phát chiến dịch mới sửa được lô này.'
+          : run.state === 'SCHEDULED'
+            ? 'Thư của lô đã bắt đầu rời máy, nên nội dung chốt từ lúc đó. Muốn dừng phần chưa gửi thì dùng nút Dừng ở sổ lô gửi.'
+            : `Lô đang ở trạng thái "${MAIL_RUN_STATE_LABEL[run.state]}" — chỉ lô còn hẹn giờ và chưa gửi thư nào mới sửa được.`}
       </p>
     </GlassCard>
   )

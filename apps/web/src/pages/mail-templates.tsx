@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from '@pv/ui'
 import { AppShell, Badge, Button, Icon, ScreenLayout } from '@pv/ui'
-import type { MailTemplateRow } from '@pv/contracts'
+import { MAIL_DOOR_LABEL, type MailTemplateRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
@@ -40,16 +40,22 @@ const NO_ROWS: MailTemplateRow[] = []
 const EMPTY_MESSAGE =
   'Chưa có mẫu thư nào. Mẫu là chỗ bắt đầu của một lá thư — người soạn vẫn sửa được trước khi gửi.'
 
-/** What buttons the letter carries — not just the CTA's label.
- *
- *  A template holding only a booking link still sends a button, and printing
- *  `—` for it says the letter has none. The booking button is NAMED here
- *  rather than quoted: its wording is `BOOKING_LABEL`, a constant inside
- *  `@pv/mail-templates`, a package this bundle deliberately does not carry —
- *  and the column asks which buttons exist, not what one of them says. */
-function buttonSummary(row: MailTemplateRow): string {
-  if (row.cta) return row.bookingUrl ? `${row.cta.label} · Đặt lịch` : row.cta.label
-  return row.bookingUrl ? 'Đặt lịch' : '—'
+/** Where a template is listed (G4), a default door marked on its own tag —
+ *  the one fact the book must show, since only one template holds each door. */
+function DoorTags({ row }: { row: MailTemplateRow }) {
+  return (
+    <span className="flex min-w-0 flex-wrap gap-1">
+      {row.doors.map((door) =>
+        row.defaultFor.includes(door) ? (
+          <Badge key={door} tone="running">{`${MAIL_DOOR_LABEL[door]} · mặc định`}</Badge>
+        ) : (
+          <Badge key={door} tone="draft">
+            {MAIL_DOOR_LABEL[door]}
+          </Badge>
+        ),
+      )}
+    </span>
+  )
 }
 
 export function MailTemplatesPage() {
@@ -130,12 +136,13 @@ export function MailTemplatesPage() {
               : undefined
           }
           table={{
-            minWidth: 'min-w-[890px]',
+            minWidth: 'min-w-[1120px]',
             columns: [
               { header: 'Mã', width: '1fr' },
               { header: 'Tên mẫu', width: '1.4fr' },
               { header: 'Tiêu đề email', width: '1.9fr' },
-              { header: 'Nút', width: '180px' },
+              { header: 'Nút', width: '160px' },
+              { header: 'Dùng ở', width: '1.4fr' },
               { header: 'Trạng thái', width: '128px' },
             ],
             rows: rows.map((row) => ({
@@ -155,9 +162,12 @@ export function MailTemplatesPage() {
                 <span key="s" className="text-muted-foreground block truncate" title={row.subject}>
                   {row.subject}
                 </span>,
-                <span key="b" className="block truncate" title={buttonSummary(row)}>
-                  {buttonSummary(row)}
+                /* The CTA only: a legacy booking link no longer reaches a
+                   letter (Calendly retired), so it is not a button here. */
+                <span key="b" className="block truncate" title={row.cta?.label}>
+                  {row.cta?.label ?? '—'}
                 </span>,
+                <DoorTags key="d" row={row} />,
                 <Badge key="t" tone={row.active ? 'success' : 'draft'}>
                   {row.active ? 'Đang dùng' : 'Ngừng dùng'}
                 </Badge>,

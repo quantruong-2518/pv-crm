@@ -1,5 +1,7 @@
 import { boolean, check, date, index, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
+import type { MailDoor } from '@pv/contracts'
+import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 import { configEntry } from '../config/config.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
@@ -130,6 +132,14 @@ export const mailTemplate = sales.table(
      *  pair: the button's label is a constant in `@pv/mail-templates`, so there
      *  is no second half to fall out of step and no CHECK to write. */
     bookingUrl: text('booking_url'),
+    /** Which composer doors list this template. The default is the three
+     *  doors every pre-G4 template already appeared at (`MAIL_DOOR_LEGACY`),
+     *  so no template lost its place when the column arrived. */
+    doors: text('doors')
+      .array()
+      .$type<MailDoor[]>()
+      .notNull()
+      .default(sql`ARRAY['lead', 'opportunity', 'campaign']::text[]`),
     /** Same "no delete, only switch off" rule the config catalogue uses: a
      *  retired template must stay readable, because runs still name it. */
     active: boolean('active').notNull().default(true),
@@ -142,6 +152,46 @@ export const mailTemplate = sales.table(
       'mail_template_no_blank',
       noBlank('name', 'subject', 'body', 'cta_label', 'cta_url', 'booking_url'),
     ),
+    /** Copied by hand from `MailDoor`. Empty would hide an `active` template
+     *  from every picker — retiring is `active = false`. Duplicates are zod's. */
+    check(
+      'mail_template_doors_known',
+      sql`${t.doors} <@ ARRAY['lead', 'opportunity', 'quote', 'contract', 'campaign']::text[] AND cardinality(${t.doors}) >= 1`,
+    ),
+  ],
+)
+
+/** THE TEMPLATE A DOOR OPENS WITH — at most one per door, by primary key.
+ *
+ *  A table and not a `default_for` column on `mail_template`: "one default per
+ *  door" is then the primary key itself, and moving it is one upsert instead
+ *  of clearing the old holder and setting the new one in the right order.
+ *  That the door is one of the template's `doors`, and the template active,
+ *  crosses two rows — the service checks it in the same transaction.
+ *
+ *  `set_by` is a real foreign key, as `setting.updated_by` is: only a
+ *  signed-in operator holding `campaign.edit` writes here, so the actor row
+ *  exists; no machine writer needs a NULL. */
+export const mailTemplateDefault = sales.table(
+  'mail_template_default',
+  {
+    door: text('door').$type<MailDoor>().primaryKey(),
+    templateCode: text('template_code')
+      .notNull()
+      .references(() => mailTemplate.code),
+    setBy: text('set_by')
+      .notNull()
+      .references(() => actor.id),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    /** "Which doors is this template the default of" — asked on every template
+     *  patch that drops a door or deactivates it, and by the template book. */
+    index('mail_template_default_template_idx').on(t.templateCode),
+    check(
+      'mail_template_default_door_known',
+      sql`${t.door} IN ('lead', 'opportunity', 'quote', 'contract', 'campaign')`,
+    ),
   ],
 )
 
@@ -150,3 +200,4 @@ export const mailTemplate = sales.table(
 export type CampaignRowDb = typeof campaign.$inferSelect
 export type CampaignMemberRow = typeof campaignMember.$inferSelect
 export type MailTemplateRow = typeof mailTemplate.$inferSelect
+export type MailTemplateDefaultRow = typeof mailTemplateDefault.$inferSelect

@@ -130,8 +130,11 @@ export class MailConsumer {
    *  deliberately withheld), otherwise the failure to be settled. */
   private async attempt(
     job: JobWithMetadata<EmailJob>,
-    delivery: DeliveryToSend,
+    claimed: DeliveryToSend,
   ): Promise<MailFailure | null> {
+    const delivery = await this.frozen(claimed)
+    if (!delivery) return null
+
     const parkedMs = await this.gate.parkedFor(EMAIL_QUEUE)
     if (parkedMs > 0) {
       return {
@@ -141,7 +144,11 @@ export class MailConsumer {
       }
     }
 
-    if (await this.ledger.isSuppressed(delivery.recipient)) {
+    /* The locked sales@ copy (`role='run_copy'`) is never suppression-checked —
+       an archive line addressed to the shared inbox, not a recipient whose
+       mailbox can burn out from under it (`mail.repository.ts` matches this). */
+    const checkable = delivery.addresses.length === 0 && delivery.role !== 'run_copy'
+    if (checkable && (await this.ledger.isSuppressed(delivery.recipient))) {
       /* `isSuppressed` answers yes/no and deliberately does not carry the
          reason — the authoritative one is on the suppression list row, written
          when the bounce or complaint arrived. `manual` here means "withheld by
@@ -180,6 +187,33 @@ export class MailConsumer {
     }
 
     return result
+  }
+
+  /** Step 3 for a GROUP letter, run before anything else can fail the attempt.
+   *
+   *  The first claim checks every address and freezes the survivors in the
+   *  ledger; every later claim sends exactly that set, because a retry under
+   *  the same idempotency key must carry the same payload. No To left → the
+   *  letter is `suppressed` (a CC alone is not a letter). The locked sales@ CC
+   *  is on the run, not an address row, so it is never checked. */
+  private async frozen(delivery: DeliveryToSend): Promise<DeliveryToSend | null> {
+    if (delivery.addresses.length === 0) return delivery
+
+    let addresses = delivery.addresses
+    if (delivery.attemptCount === 1) {
+      const blocked = new Set(await this.ledger.suppressedAmong(addresses.map((a) => a.address)))
+      if (blocked.size > 0) {
+        await this.ledger.settleAddresses(delivery.id, [...blocked])
+        addresses = addresses.filter((a) => !blocked.has(a.address))
+      }
+    }
+
+    if (!addresses.some((a) => a.role === 'to')) {
+      await this.ledger.markSuppressed(delivery.id, 'manual')
+      this.log.log(`Held ${delivery.eventKey}: every To address is on the suppression list.`)
+      return null
+    }
+    return { ...delivery, addresses }
   }
 
   /** Step 5's lookup. FIRST match wins — see `mail-composer.ts`.

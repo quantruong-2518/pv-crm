@@ -19,7 +19,6 @@ export function composerFromRun(run: MailRunDetail): ComposerState {
     body: run.body,
     ctaLabel: run.cta?.label ?? '',
     ctaUrl: run.cta?.url ?? '',
-    bookingUrl: run.bookingUrl ?? '',
     timing: run.scheduledAt ? 'later' : 'now',
     at: run.scheduledAt ? localInput(run.scheduledAt) : '',
   }
@@ -40,8 +39,15 @@ const sameMinute = (a: string, b: string) =>
  *  intent that was never made.
  *
  *  `{}` is a legitimate answer and means there is nothing to save; the panel
- *  keeps its button off rather than posting a body the `.refine` would reject. */
-export function mailRunEditFrom(run: MailRunDetail, form: ComposerState): MailRunEdit {
+ *  keeps its button off rather than posting a body the `.refine` would reject.
+ *
+ *  `dropBooking`: Calendly is retired, so an old run's link can only be taken
+ *  away (`null`), never typed — there is no field for it. */
+export function mailRunEditFrom(
+  run: MailRunDetail,
+  form: ComposerState,
+  dropBooking = false,
+): MailRunEdit {
   const edit: MailRunEdit = {}
 
   const label = form.label.trim()
@@ -61,8 +67,7 @@ export function mailRunEditFrom(run: MailRunDetail, form: ComposerState): MailRu
   const cta = ctaLabel !== '' && ctaUrl !== '' ? { label: ctaLabel, url: ctaUrl } : null
   if (cta?.label !== run.cta?.label || cta?.url !== run.cta?.url) edit.cta = cta
 
-  const bookingUrl = form.bookingUrl.trim()
-  if (bookingUrl !== (run.bookingUrl ?? '')) edit.bookingUrl = bookingUrl === '' ? null : bookingUrl
+  if (dropBooking && run.bookingUrl) edit.bookingUrl = null
 
   /* `null` is "drop the hold, go out on the next sweep" — exactly what the
      person picked by moving the switch back to sending now. */

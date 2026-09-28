@@ -6,6 +6,7 @@ import {
   MailRunPatch,
   MailTemplateCode,
   MailTemplateCreate,
+  MailTemplateListQuery,
   MailTemplatePatch,
   MasPreflightRequest,
   MasPreviewRequest,
@@ -14,6 +15,7 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { MailTemplateService } from './mail-template.service'
 import { MasService } from './mas.service'
 
 /** `/sales/mail` — MAS mail, cửa HTTP của nhánh Sales.
@@ -32,8 +34,10 @@ import { MasService } from './mas.service'
  *  | `POST  /sales/mail/runs`     | `lead.send-email` · scoped (†)   |
  *  | `GET   /sales/mail/runs`     | `campaign.view` · scoped      |
  *  | `GET   /sales/mail/runs/:id` | `campaign.view` · scoped      |
+ *  | `GET   /sales/mail/runs/:id/content` | `comm.view-content` · scoped |
  *  | `GET   /sales/mail/runs/:id/recipients` | `campaign.view` · scoped |
  *  | `PATCH /sales/mail/runs/:id` | `campaign.broadcast` · scoped (‡)  |
+ *  | `PATCH /sales/mail/runs/:id/own` | `lead.send-email` · scoped (G8) |
  *  | `GET   /sales/mail/templates`| `campaign.view`               |
  *
  *  (‡) MỘT CỬA, HAI VIỆC: dừng một lô, hoặc sửa một lô chưa bắn. Cả hai đòi
@@ -67,7 +71,10 @@ import { MasService } from './mas.service'
  *  đọc một bảng phẳng là một module không nói thêm điều gì. */
 @Controller('sales/mail')
 export class MasController {
-  constructor(private readonly mas: MasService) {}
+  constructor(
+    private readonly mas: MasService,
+    private readonly library: MailTemplateService,
+  ) {}
 
   /** Chạy thử. KHÔNG ghi gì. */
   @Post('preflight')
@@ -137,6 +144,16 @@ export class MasController {
     return this.mas.detail(who, id)
   }
 
+  /** The same letter for a reader cleared for message bodies — how anyone but
+   *  its creator opens a GROUP letter (a named customer letter). Its own route
+   *  because the permission differs, not the body (ADR 0004); each read of
+   *  somebody else's run leaves a `view` audit line. */
+  @Get('runs/:id/content')
+  @Need({ branch: 'Sales', permission: 'comm.view-content', scoped: true })
+  content(@CurrentActor() who: Actor, @Param('id', zod(MailRunId)) id: MailRunId) {
+    return this.mas.content(who, id)
+  }
+
   /** Dừng một lô, hoặc sửa một lô chưa bắn. Khai SAU `@Get('runs')` để hai
    *  đường của cùng một tài nguyên nằm cạnh nhau, đọc trước rồi ghi.
    *
@@ -156,12 +173,27 @@ export class MasController {
     return this.mas.patchRun(who, id, body)
   }
 
+  /** G8 — the creator's own door onto the same union, so the permission is the
+   *  one they sent with. A second route rather than a softer check on the one
+   *  above, because which permission applies must not depend on who is asking
+   *  (ADR 0004). `MasService.patchOwnRun` holds `created_by` to the caller and
+   *  refuses campaign waves. */
+  @Patch('runs/:id/own')
+  @Need({ branch: 'Sales', permission: 'lead.send-email', scoped: true })
+  patchOwnRun(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(MailRunId)) id: MailRunId,
+    @Body(zod(MailRunPatch)) body: MailRunPatch,
+  ) {
+    return this.mas.patchOwnRun(who, id, body)
+  }
+
   /** Danh mục mẫu. Không `scoped`: mẫu là tài sản chung của phòng, không đứng
    *  tên ai — không có trục phạm vi nào để cắt. */
   @Get('templates')
   @Need({ branch: 'Sales', permission: 'campaign.view' })
-  templates() {
-    return this.mas.templates()
+  templates(@Query(zod(MailTemplateListQuery)) q: MailTemplateListQuery) {
+    return this.library.templates(q)
   }
 
   /** The library's two write doors — the EDIT permission, not the one that
@@ -175,19 +207,25 @@ export class MasController {
    *  Not `scoped`, for the same reason the read door above is not: a template
    *  is nobody's property, so there is no scope axis to cut on. There is no
    *  DELETE door either — retiring a template is `active: false`, because a
-   *  batch already run still names it (see `campaign.schema.ts`). */
+   *  batch already run still names it (see `campaign.schema.ts`). Moving a
+   *  door's default rides these two doors via `defaultFor` (G4), on the same
+   *  permission — owner decision 6. */
   @Post('templates')
   @Need({ branch: 'Sales', permission: 'campaign.edit' })
-  createTemplate(@Body(zod(MailTemplateCreate)) body: MailTemplateCreate) {
-    return this.mas.createTemplate(body)
+  createTemplate(
+    @CurrentActor() who: Actor,
+    @Body(zod(MailTemplateCreate)) body: MailTemplateCreate,
+  ) {
+    return this.library.createTemplate(who, body)
   }
 
   @Patch('templates/:code')
   @Need({ branch: 'Sales', permission: 'campaign.edit' })
   patchTemplate(
+    @CurrentActor() who: Actor,
     @Param('code', zod(MailTemplateCode)) code: MailTemplateCode,
     @Body(zod(MailTemplatePatch)) body: MailTemplatePatch,
   ) {
-    return this.mas.patchTemplate(code, body)
+    return this.library.patchTemplate(who, code, body)
   }
 }

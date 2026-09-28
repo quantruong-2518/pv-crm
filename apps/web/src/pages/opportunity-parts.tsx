@@ -61,6 +61,7 @@ import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
 import { Field } from '@/components/ops-fields'
 import { ActivityTimeline } from '@/components/lead-history-card'
+import { LetterLines } from '@/components/mail-letter/letter-lines'
 
 /** Module 3 · the blocks of the deal screen, around the form card itself.
  *
@@ -178,8 +179,10 @@ export function DealHeader({
  *  columns it stood in.
  *
  *  Drawn WITHOUT a card of its own: it lives inside the form card's glass, and
- *  a second sheet of glass inside the first is the fifth layer law 12 refuses.
- *  That is why it reaches for `ActivityTimeline` rather than `ActivityCard`. */
+ *  a second sheet of glass inside the first would stack two panels — avoided
+ *  by convention, not law 12 (that law fixes only the screen's single
+ *  aurora-glow layer). That is why it reaches for `ActivityTimeline` rather
+ *  than `ActivityCard`. */
 export function DealHistoryTab({
   op,
   touches,
@@ -203,6 +206,13 @@ export function DealHistoryTab({
       {vector.length > 0 && <FlowVector steps={vector} you={me} onOpen={onFocusStep} />}
 
       <ActivityTimeline history={touches} focus={focus} />
+
+      <Separator />
+
+      <SectionTitle size="sm" hint="Thư gửi từ cơ hội này và trạng thái của từng thư.">
+        Email
+      </SectionTitle>
+      <LetterLines door="opportunity" code={op.code} />
 
       <Separator />
 

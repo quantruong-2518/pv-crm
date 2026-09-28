@@ -58,10 +58,6 @@ export type MailDraft = {
    *  without a button is ordinary, and because the field is half-typed on most
    *  keystrokes — the checks below parse it and stay silent when they cannot. */
   ctaUrl?: string
-  /** The booking button's destination — a field of its own since the letter
-   *  grew a second button. Checked separately from `ctaUrl` because the advice
-   *  differs: only this one is worth telling somebody to prefill. */
-  bookingUrl?: string
   /** Merge keys the SERVER reported it had no value for, from the last preview.
    *  Empty until a preview has run — this file never guesses at them, because
    *  whether a key resolves depends on the lead, which only the server has. */
@@ -82,14 +78,6 @@ const SLOT = /\[[^\]\n]{3,}\]/g
 /** `{{key}}`, spelled exactly as `mas-letter.ts` spells it, because the whole
  *  value of this check is catching a key that file would silently blank. */
 const PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g
-
-/** Booking pages whose form prefills from the query string.
- *
- *  Named hosts and not a guess at "looks like a scheduler": the hint below
- *  tells the writer the EXACT parameters to add, and the parameter names are a
- *  fact about each tool. A host nobody listed gets no hint rather than advice
- *  that quietly does nothing. */
-const BOOKING_HOSTS = ['calendly.com', 'cal.com']
 
 /** Most clients stop drawing a subject somewhere around here. Past it a person
  *  is writing for the archive, not for the inbox row. */
@@ -124,16 +112,10 @@ const SPAM_WORDS = [
   'lợi nhuận',
 ]
 
-/** `null` means "there is no letter yet", and it is NOT the same answer as `[]`.
- *
- *  `[]` says the checklist looked and found nothing, and the panel prints an
- *  all-clear line on the strength of it. Printing that over a blank form would
- *  be approving a letter nobody has written — the one sentence this whole file
- *  must never produce. `null` says there is nothing to judge yet, and the block
- *  does not draw at all.
- *
- *  Carried in the return type rather than left to each caller so the rule lives
- *  in one place: two compose boxes call this, and a third will. */
+/** `null` means "there is no letter yet", and it is NOT the same answer as `[]`
+ *  ("looked, found nothing"). No caller may turn either into an all-clear —
+ *  these rules see spelling, not judgement. Carried in the return type so the
+ *  rule lives in one place for every compose box. */
 export function mailHints(draft: MailDraft): MailHint[] | null {
   const subject = draft.subject.trim()
   const body = draft.body.trim()
@@ -156,14 +138,8 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
      An unfilled slot in a sentence embarrasses; an unfilled slot in the button's
      address sends every recipient to a page that does not exist, and "delete it
      if you don't need it" — the advice the hint above gives — is exactly the
-     wrong move here. The template seeded for booking links carries one of these
-     on purpose, because the Calendly address is the one thing the system cannot
-     know and must not invent. */
-  const linkSlots = unique(
-    [...(draft.ctaUrl ?? '').matchAll(SLOT), ...(draft.bookingUrl ?? '').matchAll(SLOT)].map(
-      (m) => m[0],
-    ),
-  )
+     wrong move here. */
+  const linkSlots = unique([...(draft.ctaUrl ?? '').matchAll(SLOT)].map((m) => m[0]))
   if (linkSlots.length > 0) {
     hints.push({
       id: 'link-slot',
@@ -285,37 +261,14 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
     })
   }
 
-  /* Both buttons, one check: the letter has two links now and `http` is the
-     same mistake in either. Not a mail-client problem — the letter renders
-     either way. The cost lands on the reader: a form opened over http is one a
-     browser marks unsafe, and whatever they type into it travels in the clear. */
-  const cta = parseUrl(draft.ctaUrl)
-  const booking = parseUrl(draft.bookingUrl)
-  const insecure = [cta, booking].filter((url) => url?.protocol === 'http:')
-  if (insecure.length > 0) {
+  /* Not a mail-client problem — the letter renders either way. The cost lands
+     on the reader: a page opened over http is one a browser marks unsafe. */
+  if (parseUrl(draft.ctaUrl)?.protocol === 'http:') {
     hints.push({
       id: 'link-insecure',
       tone: 'warn',
       text: 'Link của nút đi qua http, không phải https',
       detail: 'Trang mở ra bị trình duyệt gắn cảnh báo, và thứ khách gõ vào đó đi không mã hoá.',
-    })
-  }
-
-  /* Only fires on a host whose prefill parameters this hint can actually NAME.
-     A booking tool nobody listed gets no hint rather than two parameter names
-     that its form ignores — advice that quietly does nothing is worse than
-     silence, because it looks like the job is done. */
-  if (
-    booking &&
-    BOOKING_HOSTS.some((host) => hostMatches(booking.hostname, host)) &&
-    !booking.search
-  ) {
-    hints.push({
-      id: 'booking-no-prefill',
-      tone: 'tip',
-      text: 'Link đặt lịch chưa điền sẵn thông tin khách',
-      detail:
-        'Thêm ?name={{contact_name}}&email={{email}} vào cuối link — khách bấm là chọn giờ luôn, không phải gõ lại tên và email.',
     })
   }
 
@@ -357,10 +310,4 @@ function parseUrl(value: string | undefined): URL | undefined {
   } catch {
     return undefined
   }
-}
-
-/** The host itself or a subdomain of it — never a suffix match on the string,
- *  which would read `evil-calendly.com` as Calendly. */
-function hostMatches(hostname: string, host: string): boolean {
-  return hostname === host || hostname.endsWith(`.${host}`)
 }

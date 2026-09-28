@@ -2,11 +2,22 @@ import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
+import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
+import { LeadRepository } from '../lead/lead.repository'
+import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import { CampaignController } from './campaign.controller'
 import { CampaignRepository } from './campaign.repository'
 import { CampaignService } from './campaign.service'
 import { CampaignSweeper } from './campaign.sweeper'
+import { MailLetterController } from './mail-letter.controller'
+import { MailLetterRepository } from './mail-letter.repository'
+import { MailLetterService } from './mail-letter.service'
+import { MailTemplateService } from './mail-template.service'
+import { MailTimelineController } from './mail-timeline.controller'
+import { MailTimelineRepository } from './mail-timeline.repository'
+import { MailTimelineService } from './mail-timeline.service'
+import { MailWaveGateSweeper } from './mail-wave-gate.sweeper'
 import { MasController } from './mas.controller'
 import { MasRepository } from './mas.repository'
 import { MasService } from './mas.service'
@@ -47,10 +58,28 @@ import { SourceService } from './source.service'
  *  dịch cần biết "lô này thuộc đợt mấy" thì thêm `MasService`, không mở bảng. */
 @Module({
   imports: [EnginesModule, MailModule, LeadStateModule, LeadOriginModule],
-  controllers: [MasController, SourceController, CampaignController],
+  controllers: [
+    MasController,
+    MailLetterController,
+    MailTimelineController,
+    SourceController,
+    CampaignController,
+  ],
   providers: [
     MasService,
     MasRepository,
+    MailTemplateService,
+    MailLetterService,
+    MailLetterRepository,
+    MailTimelineService,
+    MailTimelineRepository,
+    /* Scope probes only: the group letter proves the axis on the subject's
+       lead, the timeline on each book's own `byCode`. Stateless SQL classes
+       provided here rather than importing their modules — `LeadModule`
+       already imports this one, so the module edge would be a cycle. */
+    LeadRepository,
+    OpportunityRepository,
+    ContractRepository,
     SourceService,
     SourceRepository,
     /* Sổ chiến dịch (A3). `CampaignService` gọi thẳng `MasService.send()` và
@@ -62,9 +91,12 @@ import { SourceService } from './source.service'
        ai gọi, đúng như `MailRunSweeper` nằm sẵn trong `MailModule`. Export vì
        `worker.ts` `app.get()` nó từ ngoài module này. */
     CampaignSweeper,
+    /* G6 release gate — `worker.ts` runs it before the relay, like the one above. */
+    MailWaveGateSweeper,
   ],
   exports: [
     CampaignSweeper,
+    MailWaveGateSweeper,
     /* Lead create asks `pickableOne` and `enrol` — the service, not the table. */
     CampaignService,
   ],

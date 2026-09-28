@@ -681,7 +681,6 @@ export function OpportunitiesPage() {
                 recipients,
                 initialCodes: [...selectedCodes],
                 subjectType: 'opportunity',
-                defaultLabel: 'Gửi email · Sổ cơ hội',
                 onQueued: clearSelection,
               })
             }

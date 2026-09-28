@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  CalendarClock,
   CircleAlert,
   Inbox,
   Link,
@@ -13,7 +12,8 @@ import {
   Users,
   type IconGlyph,
 } from '@pv/ui'
-import { Badge, DataTable, Drawer, GlassCard, Icon, Info, SegmentedControl } from '@pv/ui'
+import { Badge, DataTable, Drawer, GlassCard, Icon, SegmentedControl } from '@pv/ui'
+import { SALES_INBOX } from '@pv/contracts'
 
 /** EVERYTHING THE MAIL PANEL WOULD OTHERWISE EXPLAIN IN PLACE, in one drawer.
  *
@@ -21,7 +21,7 @@ import { Badge, DataTable, Drawer, GlassCard, Icon, Info, SegmentedControl } fro
  *  paragraph over the recipient box, another over the campaign select, a
  *  sentence under four checkboxes. Read once, then in the way forever — and it
  *  pushed the controls that do the work below the fold. The three parts here
- *  hold the same words, opened from the `?` in the panel header on the part the
+ *  hold the same words, opened from the `?` in the panel's corner on the part the
  *  reader is standing on.
  *
  *  Half of the content part is about what does *not* work, because
@@ -39,23 +39,6 @@ const TABS: { value: MailGuideSection; label: string }[] = [
 ]
 
 const ALL_PARTS: MailGuideSection[] = ['recipients', 'content', 'delivery']
-
-/** The `?` of a mail panel, for the header slot beside the close button so it
- *  stays reachable while the body scrolls. `Info` and not a question mark: the
- *  registry has no question glyph, and this is the icon the guide has worn
- *  since it was a button inside the compose card. */
-export function MailGuideButton({ onOpen }: { onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label="Hướng dẫn gửi email"
-      className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 pointer-coarse:size-12 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
-    >
-      <Icon icon={Info} size={16} />
-    </button>
-  )
-}
 
 export function MailGuideDrawer({
   open,
@@ -137,13 +120,13 @@ export function MailGuideDrawer({
 const RECIPIENT_FACTS: { icon: IconGlyph; title: string; body: string }[] = [
   {
     icon: Mail,
-    title: 'Thư đi từ hộp thư chung của công ty',
-    body: 'Hộp thư gửi hàng loạt do cấu hình máy chủ đặt — phiếu này không đổi được địa chỉ gửi, nên không có ô chọn hộp thư.',
+    title: 'Thư đi từ noreply',
+    body: 'Địa chỉ gửi do cấu hình máy chủ đặt — phiếu này không đổi được địa chỉ gửi, nên không có ô chọn hộp thư.',
   },
   {
     icon: Reply,
-    title: 'Khách trả lời thì thư về hộp thư chung',
-    body: 'Hệ chưa bật đường ghi thư trả lời, nên trả lời của khách không tự hiện ở Lịch sử của hồ sơ. Ai trông hộp thư chung thì đọc ở đó.',
+    title: 'Khách bấm Trả lời thì máy ghi nhận',
+    body: 'Mỗi thư mang một địa chỉ trả lời theo dõi riêng. Khách trả lời thì máy ghi vào hồ sơ và báo người giữ.',
   },
   {
     icon: Users,
@@ -165,8 +148,8 @@ const DELIVERY_FACTS: { icon: IconGlyph; title: string; body: string }[] = [
   },
   {
     icon: Inbox,
-    title: 'CC nội bộ là bản lưu cho người trong nhà',
-    body: 'Mỗi địa chỉ được chọn nhận một bản CC cho từng email gửi tới từng người nhận. Khách không thấy các địa chỉ này.',
+    title: 'sales@ nhận một bản lưu mỗi lô',
+    body: `Hộp thư chung ${SALES_INBOX} nhận một bản BCC cho mỗi lô, không phải một bản cho từng người. Khách không thấy địa chỉ này.`,
   },
   {
     icon: MailOpen,
@@ -207,7 +190,7 @@ function ContentPart() {
       <div className="flex flex-col gap-3">
         <span className="flex items-center gap-2 text-[12.5px] font-semibold">
           <Icon icon={CircleAlert} size={16} />
-          Ba thứ KHÔNG làm được trong thân thư
+          Hai thứ không làm được trong thân thư
         </span>
 
         <Note
@@ -219,14 +202,7 @@ function ContentPart() {
         <Note
           icon={Paperclip}
           title="Chưa đính kèm được tệp"
-          body="Hệ thống chưa có chỗ chứa tệp cho thư đi hàng loạt, nên phiếu này không có ô chọn tệp. Cách đang dùng: tải tài liệu lên Google Drive, mở quyền xem cho người ngoài, rồi dán link đó vào ô “Nút trong email”. Ô đó chỉ có một đích đến, nên chọn một thứ đáng bấm nhất — lời mời đặt lịch không phải tranh chỗ ở đây nữa, nó có ô riêng."
-        />
-
-        <Note
-          icon={CalendarClock}
-          title="Không nhúng được lịch đặt hẹn vào thư"
-          body="Khung chọn giờ của Calendly chạy bằng JavaScript, mà Gmail, Outlook và Apple Mail đều bóc script khỏi thư — không có hòm thư nào cho khách bấm chọn giờ ngay trong email, dù hướng dẫn của Calendly có nói gì. Cách thay: dán link Calendly vào ô “Link đặt lịch” ở cuối bước Nội dung. Nó thành nút viền “Chọn khung giờ” nằm dưới nút chính, nên một lá thư mang được cả hai lời mời. Thêm hai tham số dưới đây thì tên và email khách được điền sẵn — khách bấm là chọn giờ luôn, không phải gõ lại, và đó là chỗ phần lớn người bỏ dở."
-          sample="https://calendly.com/<lịch-của-bạn>?name={{contact_name}}&email={{email}}"
+          body="Hệ thống chưa có chỗ chứa tệp cho thư đi hàng loạt, nên phiếu này không có ô chọn tệp. Cách đang dùng: tải tài liệu lên Google Drive, mở quyền xem cho người ngoài, rồi dán link đó vào ô “Nút trong email”. Ô đó chỉ có một đích đến, nên chọn một thứ đáng bấm nhất."
         />
       </div>
     </div>
@@ -244,25 +220,18 @@ function Sample({ children }: { children: ReactNode }) {
   )
 }
 
-/** `sample` only where the answer IS a string to copy. The other two cards tell
- *  the writer where to put something they already have; the booking card hands
- *  them a line they have to reproduce character for character, and a URL buried
- *  in a paragraph is a URL somebody retypes with a typo in it.
- *
- *  `tone`: the amber icon means "this will bite you". A part that merely
+/** `tone`: the amber icon means "this will bite you". A part that merely
  *  explains how the panel behaves is not a warning and must not borrow the
  *  colour of one. */
 function Note({
   icon,
   title,
   body,
-  sample,
   tone = 'warn',
 }: {
   icon: IconGlyph
   title: string
   body: string
-  sample?: string
   tone?: 'warn' | 'plain'
 }) {
   return (
@@ -272,16 +241,9 @@ function Note({
         size={16}
         className={tone === 'warn' ? 'text-warning mt-1 shrink-0' : 'mt-1 shrink-0'}
       />
-      <span className="flex min-w-0 flex-col gap-2">
-        <span className="flex flex-col gap-1">
-          <span className="text-[12.5px] font-semibold leading-[1.45]">{title}</span>
-          <span className="text-muted-foreground text-[11.5px] leading-[1.65]">{body}</span>
-        </span>
-        {sample ? (
-          <span className="overflow-x-auto">
-            <Sample>{sample}</Sample>
-          </span>
-        ) : null}
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="text-[12.5px] font-semibold leading-[1.45]">{title}</span>
+        <span className="text-muted-foreground text-[11.5px] leading-[1.65]">{body}</span>
       </span>
     </GlassCard>
   )
@@ -297,10 +259,9 @@ function Note({
  *  value; teaching four would make somebody choose between two identical
  *  things.
  *
- *  The fifth — `{{email}}` — is deliberately NOT a row here. It exists for the
- *  BOOKING LINK, where it saves the reader from retyping their own address; in
- *  the prose of a letter it would only print the recipient's address back at
- *  them. It is taught in the card that needs it, next to the URL it goes into. */
+ *  The fifth — `{{email}}` — is deliberately NOT a row here: it exists for a
+ *  CTA url that prefills a form; in the prose of a letter it would only print
+ *  the recipient's address back at them. */
 const ROWS: { id: string; want: string; type: ReactNode; result: ReactNode }[] = [
   {
     id: 'bold',

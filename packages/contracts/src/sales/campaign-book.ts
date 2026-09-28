@@ -211,7 +211,6 @@ export const CampaignWaveInput = MasSendRequest.omit({
   audience: true,
   campaignCode: true,
   sequence: true,
-  cc: true,
 })
 
 /** `POST /sales/campaigns/:code/start` — chuyển `DRAFT` → `RUNNING` và bắn đợt

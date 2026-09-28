@@ -17,6 +17,7 @@ import type { Actor } from '@pv/engines'
 import type {
   LeadSourceKind,
   LeadState,
+  MailDoor,
   MailRunListQuery,
   MailRunState,
   MailTemplateRow,
@@ -24,7 +25,7 @@ import type {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
-import { audit } from '@api/platform/db/platform.schema'
+import { actor, audit } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { stillEditable } from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
@@ -36,7 +37,8 @@ import {
   type MailSequenceRow,
   type MailSequenceRunRow,
 } from '../mail-sequence.schema'
-import { campaign, mailTemplate } from './campaign.schema'
+import { campaign, mailTemplate, mailTemplateDefault } from './campaign.schema'
+import { fromCustomer } from './mail-timeline.repository'
 
 /** One picked SUBJECT — a lead or an opportunity — with every FACT the
  *  preflight needs and no verdict.
@@ -153,6 +155,42 @@ export type ExistingSequenceWave = {
   trackEngagement: boolean
   state: MailRunState
 }
+
+/** One template as `templates()` and `templateByCode()` both select it —
+ *  `defaultFor` folded from `mail_template_default` so a row carries its own
+ *  defaults and the book needs no second request. */
+const TEMPLATE_COLUMNS = {
+  code: mailTemplate.code,
+  name: mailTemplate.name,
+  subject: mailTemplate.subject,
+  body: mailTemplate.body,
+  ctaLabel: mailTemplate.ctaLabel,
+  ctaUrl: mailTemplate.ctaUrl,
+  bookingUrl: mailTemplate.bookingUrl,
+  active: mailTemplate.active,
+  doors: mailTemplate.doors,
+  defaultFor: sql<MailDoor[]>`COALESCE((
+    SELECT array_agg(${mailTemplateDefault.door} ORDER BY ${mailTemplateDefault.door})
+      FROM ${mailTemplateDefault}
+     WHERE ${mailTemplateDefault.templateCode} = ${mailTemplate.code}
+  ), ARRAY[]::text[])`,
+}
+
+/** The template columns a write may set; `undefined` leaves a column alone. */
+export type TemplateWrite = {
+  name?: string
+  subject?: string
+  body?: string
+  ctaLabel?: string | null
+  ctaUrl?: string | null
+  bookingUrl?: string | null
+  active?: boolean
+  doors?: MailDoor[]
+}
+
+/** One pending recipient of a gated wave that must not go out, and why. The
+ *  reason is an opaque branch code the platform stores in `last_error_code`. */
+export type GateHold = { aggregateId: string; reasonCode: 'replied' | 'met' }
 
 /** THE ONLY SQL OF THE MAS FEATURE. Decides nothing — per `apps/api/CLAUDE.md`.
  *
@@ -276,25 +314,43 @@ export class MasRepository {
       .orderBy(asc(lead.code))
   }
 
+  /** The lead a preview merges from, reachable through the lead OR through a
+   *  deal on it the caller holds — the three-step mould at the deal book posts
+   *  the deal's lead, and a deal owner must see their own customer's name. */
+  async previewSubject(who: Actor, leadCode: string): Promise<MasSubjectRow | undefined> {
+    const viaDeal = exists(
+      this.db
+        .select({ one: sql`1` })
+        .from(opportunity)
+        .innerJoin(opportunityOwner, eq(opportunityOwner.opportunityCode, opportunity.code))
+        .where(and(eq(opportunity.leadCode, lead.code), eq(opportunityOwner.actorId, who.id))),
+    )
+    const [row] = await this.db
+      .select({ code: lead.code, ...LEAD_FACTS })
+      .from(lead)
+      .leftJoin(emailSuppression, SUPPRESSED_ON)
+      .where(
+        and(
+          eq(lead.code, leadCode),
+          who.ownOnly ? or(eq(lead.ownerId, who.id), viaDeal) : undefined,
+        ),
+      )
+      .limit(1)
+    return row
+  }
+
   /** The picker's catalogue, inactive rows included.
    *
    *  Not paged and not filtered by `active`, both per `MailTemplateListResponse`:
    *  a dropdown that pages is a dropdown missing options, and a run that names a
    *  retired template must still be able to print its name. Active first so the
-   *  usable rows are at the top of the list without the screen having to sort. */
-  async templates(): Promise<MailTemplateRow[]> {
+   *  usable rows are at the top of the list without the screen having to sort.
+   *  `door` narrows to the templates that door lists (G4); absent = the book. */
+  async templates(door?: MailDoor): Promise<MailTemplateRow[]> {
     const rows = await this.db
-      .select({
-        code: mailTemplate.code,
-        name: mailTemplate.name,
-        subject: mailTemplate.subject,
-        body: mailTemplate.body,
-        ctaLabel: mailTemplate.ctaLabel,
-        ctaUrl: mailTemplate.ctaUrl,
-        bookingUrl: mailTemplate.bookingUrl,
-        active: mailTemplate.active,
-      })
+      .select(TEMPLATE_COLUMNS)
       .from(mailTemplate)
+      .where(door ? sql`${door} = ANY(${mailTemplate.doors})` : undefined)
       .orderBy(sql`${mailTemplate.active} DESC`, asc(mailTemplate.name))
 
     /* Two nullable columns become one optional object, because that is the
@@ -308,72 +364,98 @@ export class MasRepository {
        gone: the sender must review the link that goes out in their name, so the
        pair travels to the panel with the rest of the row and comes back on
        `MasSendRequest.cta`. */
-    return rows.map(({ ctaLabel, ctaUrl, bookingUrl, ...row }) => ({
-      ...row,
-      ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
-      ...(bookingUrl ? { bookingUrl } : {}),
-    }))
+    return rows.map(toTemplateRow)
   }
 
   /** One template by its code, in the same wire shape `templates()` returns —
    *  the read every write below finishes with, so the screen is handed the row
    *  as it now stands rather than the row it asked for. */
-  async templateByCode(code: string): Promise<MailTemplateRow | undefined> {
-    const [row] = await this.db
-      .select({
-        code: mailTemplate.code,
-        name: mailTemplate.name,
-        subject: mailTemplate.subject,
-        body: mailTemplate.body,
-        ctaLabel: mailTemplate.ctaLabel,
-        ctaUrl: mailTemplate.ctaUrl,
-        bookingUrl: mailTemplate.bookingUrl,
-        active: mailTemplate.active,
-      })
+  async templateByCode(code: string, handle: Db = this.db): Promise<MailTemplateRow | undefined> {
+    const [row] = await handle
+      .select(TEMPLATE_COLUMNS)
       .from(mailTemplate)
       .where(eq(mailTemplate.code, code))
-
-    if (!row) return undefined
-    const { ctaLabel, ctaUrl, bookingUrl, ...rest } = row
-    return {
-      ...rest,
-      ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
-      ...(bookingUrl ? { bookingUrl } : {}),
-    }
+    return row ? toTemplateRow(row) : undefined
   }
 
-  async createTemplate(input: {
-    code: string
-    name: string
-    subject: string
-    body: string
-    ctaLabel: string | null
-    ctaUrl: string | null
-    bookingUrl: string | null
-  }): Promise<void> {
-    await this.db.insert(mailTemplate).values(input)
+  /** The template row locked for the rest of `tx`, so two patches that move
+   *  the same defaults cannot interleave their "is it still a door" checks. */
+  async lockTemplate(
+    tx: Db,
+    code: string,
+  ): Promise<{ doors: MailDoor[]; active: boolean } | undefined> {
+    const [row] = await tx
+      .select({ doors: mailTemplate.doors, active: mailTemplate.active })
+      .from(mailTemplate)
+      .where(eq(mailTemplate.code, code))
+      .for('update')
+    return row
+  }
+
+  async defaultsOf(tx: Db, code: string): Promise<MailDoor[]> {
+    const rows = await tx
+      .select({ door: mailTemplateDefault.door })
+      .from(mailTemplateDefault)
+      .where(eq(mailTemplateDefault.templateCode, code))
+    return rows.map((r) => r.door)
+  }
+
+  async createTemplate(
+    tx: Db,
+    input: TemplateWrite & { code: string; name: string; subject: string; body: string },
+  ): Promise<void> {
+    await tx.insert(mailTemplate).values(input)
   }
 
   /** `undefined` leaves a column alone, `null` clears it — the three states
    *  `MailTemplatePatch` carries, passed straight through. Drizzle omits keys
    *  whose value is `undefined`, so spreading the input is what makes "absent"
    *  mean "absent" instead of "write NULL". */
-  async patchTemplate(
-    code: string,
-    input: {
-      name?: string
-      subject?: string
-      body?: string
-      ctaLabel?: string | null
-      ctaUrl?: string | null
-      bookingUrl?: string | null
-      active?: boolean
-    },
-  ): Promise<void> {
-    await this.db
+  async patchTemplate(tx: Db, code: string, input: TemplateWrite): Promise<void> {
+    await tx
       .update(mailTemplate)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(mailTemplate.code, code))
+  }
+
+  /** Move each door's default onto this template — the primary key on `door`
+   *  is what makes "one per door" true, so the upsert takes it off the holder. */
+  async setDefaults(
+    tx: Db,
+    code: string,
+    doors: readonly MailDoor[],
+    actorId: string,
+  ): Promise<void> {
+    if (doors.length === 0) return
+    await tx
+      .insert(mailTemplateDefault)
+      .values(doors.map((door) => ({ door, templateCode: code, setBy: actorId })))
+      .onConflictDoUpdate({
+        target: mailTemplateDefault.door,
+        set: { templateCode: code, setBy: actorId, setAt: sql`now()` },
+      })
+  }
+
+  /** Clear the doors this template is default for; the door then opens blank. */
+  async dropDefaults(tx: Db, code: string, doors: readonly MailDoor[]): Promise<void> {
+    if (doors.length === 0) return
+    await tx
+      .delete(mailTemplateDefault)
+      .where(
+        and(
+          eq(mailTemplateDefault.templateCode, code),
+          inArray(mailTemplateDefault.door, [...doors]),
+        ),
+      )
+  }
+
+  /** WHO CHANGED THE LIBRARY — `writeCancelNote`'s pattern keyed by template
+   *  code: `mail_template` keeps no history of its own columns. */
+  async writeTemplateNote(
+    tx: Db,
+    entry: { actorId: string; code: string; note: string },
+  ): Promise<void> {
+    await tx.insert(audit).values({ ...entry, action: 'edit' })
   }
 
   /** Does this campaign exist? THE ONLY FENCE, not a friendlier first one:
@@ -510,12 +592,12 @@ export class MasRepository {
    *  `action: 'edit'` because the vocabulary is E2's five verbs and stopping a
    *  batch is a change to it, not a new object and not a reading. The run id
    *  goes in `code`, which is what makes the line findable from the run. */
-  async writeCancelNote(tx: Db, entry: { actorId: string; runId: string }): Promise<void> {
+  async writeCancelNote(tx: Db, entry: RunNoteEntry): Promise<void> {
     await tx.insert(audit).values({
       actorId: entry.actorId,
       action: 'edit',
       code: entry.runId,
-      note: 'huỷ lô gửi MAS — thư chưa gửi bị giữ lại',
+      note: `huỷ lô gửi MAS — thư chưa gửi bị giữ lại${doorTag(entry.door)}`,
     })
   }
 
@@ -525,13 +607,64 @@ export class MasRepository {
    *  A line of its own rather than a parameter on that one, because `mail_run`
    *  keeps no history of its own columns: this row is the only trace that the
    *  letter a recipient received is not the letter the run was opened with. */
-  async writeEditNote(tx: Db, entry: { actorId: string; runId: string }): Promise<void> {
+  async writeEditNote(tx: Db, entry: RunNoteEntry): Promise<void> {
     await tx.insert(audit).values({
       actorId: entry.actorId,
       action: 'edit',
       code: entry.runId,
-      note: 'sửa lô gửi MAS trước khi bắn',
+      note: `sửa lô gửi MAS trước khi bắn${doorTag(entry.door)}`,
     })
+  }
+
+  /** WHO OPENED THIS RUN, or who let a gated wave go — same row shape as the
+   *  two notes above, written in the transaction that files or releases it. */
+  async writeRunNote(
+    tx: Db,
+    entry: { actorId: string; runId: string; note: string },
+  ): Promise<void> {
+    await tx.insert(audit).values({
+      actorId: entry.actorId,
+      action: 'edit',
+      code: entry.runId,
+      note: entry.note,
+    })
+  }
+
+  /** WHO READ SOMEBODY ELSE'S LETTER — `ThreadService.trailContentRead`'s line
+   *  for a run: through the pool, since it is the request's only write. */
+  async writeContentRead(entry: {
+    actorId: string
+    runId: string
+    kind: 'bulk' | 'group'
+  }): Promise<void> {
+    await this.db.insert(audit).values({
+      actorId: entry.actorId,
+      action: 'view',
+      code: entry.runId,
+      note: `mail_run ${entry.runId} · read body of ${entry.kind} letter`,
+    })
+  }
+
+  /** The campaign a run is a wave of, or `null`. The creator's door refuses
+   *  those: a campaign wave belongs to whoever holds `campaign.broadcast`. */
+  async campaignOfRun(runId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ code: mailSequenceRun.subjectCode })
+      .from(mailSequenceRun)
+      .where(and(eq(mailSequenceRun.mailRunId, runId), eq(mailSequenceRun.subjectType, 'campaign')))
+      .limit(1)
+    return row?.code ?? null
+  }
+
+  /** Display names for `MailRunRow.createdBy`, one statement per page. */
+  async actorNames(ids: readonly string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)]
+    if (unique.length === 0) return new Map()
+    const rows = await this.db
+      .select({ id: actor.id, name: actor.name })
+      .from(actor)
+      .where(inArray(actor.id, unique))
+    return new Map(rows.map((r) => [r.id, r.name]))
   }
 
   /** Which batches belong to one campaign.
@@ -709,6 +842,66 @@ export class MasRepository {
     return r.rows
   }
 
+  /** G6 — which pending letters of a gated wave to withhold: the subject
+   *  replied to any letter filed on it, or its lead logged a meeting, since the
+   *  chain's earlier waves first left (the first accepted letter, else the first
+   *  earlier run's creation). A deal's meetings are its lead's. Inside `tx` so
+   *  the verdict and the release see the same ledger. */
+  async gateHolds(tx: Db, runId: string): Promise<GateHold[]> {
+    const r = (await tx.execute(sql`
+      WITH wave AS (
+        SELECT s."subject_type", s."subject_code", s."wave_no"
+          FROM "sales"."mail_sequence_run" s
+         WHERE s."mail_run_id" = ${runId}::uuid
+      ), earlier AS (
+        SELECT s."mail_run_id"
+          FROM "sales"."mail_sequence_run" s
+          JOIN wave w ON w."subject_type" = s."subject_type"
+                     AND w."subject_code" = s."subject_code"
+                     AND s."wave_no" < w."wave_no"
+      ), cutoff AS (
+        SELECT COALESCE(
+                 (SELECT min(d."accepted_at") FROM "platform"."email_delivery" d
+                   WHERE d."mail_run_id" IN (SELECT "mail_run_id" FROM earlier)
+                     AND d."role" = 'recipient'),
+                 (SELECT min(r."created_at") FROM "platform"."mail_run" r
+                   WHERE r."id" IN (SELECT "mail_run_id" FROM earlier))
+               ) AS at
+      ), judged AS (
+        SELECT d."aggregate_id",
+               EXISTS (
+                 SELECT 1 FROM "platform"."mail_reply" p
+                   JOIN "platform"."email_delivery" d2 ON d2."id" = p."delivery_id"
+                   LEFT JOIN "platform"."mail_run" r2 ON r2."id" = d2."mail_run_id"
+                  WHERE d2."aggregate_type" = d."aggregate_type"
+                    AND d2."aggregate_id" = d."aggregate_id"
+                    AND p."received_at" >= c.at
+                    AND ${fromCustomer(sql.raw('p'), sql`r2."cc_addresses"`)}
+               ) AS replied,
+               EXISTS (
+                 SELECT 1 FROM "sales"."meeting" m
+                  WHERE m."lead_code" = CASE WHEN d."aggregate_type" = 'lead'
+                                             THEN d."aggregate_id" ELSE o."lead_code" END
+                    AND m."created_at" >= c.at
+               ) AS met
+          FROM "platform"."email_delivery" d
+          CROSS JOIN cutoff c
+          LEFT JOIN "sales"."opportunity" o
+                 ON d."aggregate_type" = 'opportunity' AND o."code" = d."aggregate_id"
+         WHERE d."mail_run_id" = ${runId}::uuid
+           AND d."role" = 'recipient'
+           AND d."state" = 'pending'
+           AND c.at IS NOT NULL
+      )
+      SELECT "aggregate_id" AS aggregate_id,
+             CASE WHEN replied THEN 'replied' ELSE 'met' END AS reason_code
+        FROM judged
+       WHERE replied OR met
+    `)) as { rows: { aggregate_id: string; reason_code: GateHold['reasonCode'] }[] }
+
+    return r.rows.map((row) => ({ aggregateId: row.aggregate_id, reasonCode: row.reason_code }))
+  }
+
   /** THE SCOPE AXIS OF THE RUN LIST — resolved here, because `hidden` is not a
    *  platform decision.
    *
@@ -802,5 +995,34 @@ export class MasRepository {
           : sql`false`
         : undefined,
     )
+  }
+}
+
+/** Who wrote a cancel/edit note, and through which door — `own` marks the
+ *  creator's G8 door so the audit trail tells it from the broadcast one. */
+type RunNoteEntry = { actorId: string; runId: string; door?: 'own' }
+
+const doorTag = (door: RunNoteEntry['door']): string =>
+  door === 'own' ? ' · cửa người tạo lô' : ''
+
+/** Two nullable columns become one optional object, the shape
+ *  `mail_template_cta_pair` already guarantees — see `templates()`. */
+function toTemplateRow(row: {
+  code: string
+  name: string
+  subject: string
+  body: string
+  ctaLabel: string | null
+  ctaUrl: string | null
+  bookingUrl: string | null
+  active: boolean
+  doors: MailDoor[]
+  defaultFor: MailDoor[]
+}): MailTemplateRow {
+  const { ctaLabel, ctaUrl, bookingUrl, ...rest } = row
+  return {
+    ...rest,
+    ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
+    ...(bookingUrl ? { bookingUrl } : {}),
   }
 }

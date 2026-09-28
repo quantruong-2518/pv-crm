@@ -19,7 +19,6 @@ import {
 import type { LeadProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { openMasMail } from '@/app/mas-mail-composer'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
@@ -36,7 +35,7 @@ import { LeadActivityCard } from '@/components/lead-activity-card'
 import { LeadAttachmentsCard } from '@/components/lead-attachments-card'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LeadToolsBar } from '@/components/lead-tools-bar'
-import { masRecipientsOf } from '@/data/mas-mail-draft'
+import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { OwnerSourceCard } from '@/components/owner-source-card'
 import { ObjectChip } from '@/components/workstream-bits'
 import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
@@ -142,22 +141,15 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
   /* The blocks still living on `app/desk.ts` read the fixture's `Lead` shape —
      built ONCE here instead of every block converting it for itself. */
   const legacy = leadOf(lead)
-  /* The server treats a dropped or archived lead as left the funnel, and
-     refuses mail to it — say so on the button rather than after composing. */
+  /* A dropped or archived lead has left the funnel — say so on the button
+     rather than after composing. Who has an address is the composer's own
+     question now: it addresses the company's contacts, not the lead row. */
   const masBlocker =
     lead.state === 'disqualified' || lead.state === 'archived'
       ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
-      : !lead.email
-        ? 'Lead chưa có địa chỉ email.'
-        : !lead.contactName
-          ? 'Lead chưa có người liên hệ.'
-          : undefined
-  const composeMail = () =>
-    openMasMail({
-      recipients: masRecipientsOf(lead),
-      initialCode: masBlocker ? undefined : lead.code,
-      defaultLabel: `Gửi email · ${lead.company}`,
-    })
+      : undefined
+  const [composing, setComposing] = useState(false)
+  const composeMail = () => setComposing(true)
 
   return (
     <ScreenLayout>
@@ -258,6 +250,14 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
+      {composing && (
+        <LetterComposer
+          door="lead"
+          code={lead.code}
+          leadCode={lead.code}
+          onClose={() => setComposing(false)}
+        />
+      )}
     </ScreenLayout>
   )
 }
