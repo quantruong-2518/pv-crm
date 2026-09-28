@@ -345,11 +345,17 @@ export class OpportunityRepository {
   async leadCompany(
     tx: Db,
     code: string,
-  ): Promise<{ company: string; workstreamCode: string | null; exited: boolean } | null> {
+  ): Promise<{
+    company: string
+    workstreamCode: string | null
+    exited: boolean
+    ownerId: string | null
+  } | null> {
     const [row] = await tx
       .select({
         company: lead.company,
         workstreamCode: lead.workstreamCode,
+        ownerId: lead.ownerId,
         exited: sql<boolean>`${inArray(lead.state, [...LEAD_GONE_STATES])}`,
       })
       .from(lead)
@@ -480,6 +486,7 @@ export class OpportunityRepository {
     ambiguous: Set<string>
     workstreamByLead: Map<string, string | null>
     exited: Set<string>
+    ownerByLead: Map<string, string | null>
   }> {
     const rows = await tx
       .select({
@@ -487,6 +494,7 @@ export class OpportunityRepository {
         folded: sql<string>`lower(${lead.company})`,
         workstreamCode: lead.workstreamCode,
         state: lead.state,
+        ownerId: lead.ownerId,
       })
       .from(lead)
 
@@ -494,6 +502,7 @@ export class OpportunityRepository {
     const ambiguous = new Set<string>()
     const workstreamByLead = new Map<string, string | null>()
     const exited = new Set<string>()
+    const ownerByLead = new Map<string, string | null>()
 
     for (const r of rows) {
       const key = r.folded.trim().replace(/\s+/g, ' ')
@@ -502,11 +511,12 @@ export class OpportunityRepository {
         continue
       }
       workstreamByLead.set(r.code, r.workstreamCode)
+      ownerByLead.set(r.code, r.ownerId)
       if (byCompany.has(key)) ambiguous.add(key)
       else byCompany.set(key, r.code)
     }
 
-    return { byCompany, ambiguous, workstreamByLead, exited }
+    return { byCompany, ambiguous, workstreamByLead, exited, ownerByLead }
   }
 
   /** Lead code → every OPEN deal code of it, oldest first. A lead may hold
@@ -658,20 +668,29 @@ export class OpportunityRepository {
     return state ?? null
   }
 
-  /** Lock leads `FOR NO KEY UPDATE` and answer which are `disqualified`/
-   *  `archived`, so a deal write cannot land on a lead exiting in the same
-   *  instant. Not `FOR SHARE`: the same tx then UPDATEs the lead to `converted`,
-   *  and two share-holders upgrading at once deadlock. The deal's FK takes KEY
-   *  SHARE, which this mode allows; `ORDER BY code` keeps batch locks ordered. */
+  /** Which of these leads are `disqualified`/`archived`, under `lockLeads`. */
   async exitedLocked(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
+    return (await this.lockLeads(tx, leadCodes)).filter((r) => r.exited).map((r) => r.code)
+  }
+
+  /** Lock leads `FOR NO KEY UPDATE` and answer, per lead, whether it has exited
+   *  and who holds it — so a deal write cannot land on a lead exiting or
+   *  changing hands in the same instant. Not `FOR SHARE`: the same tx then
+   *  UPDATEs the lead to `converted`, and two share-holders upgrading at once
+   *  deadlock. The deal's FK takes KEY SHARE, which this mode allows;
+   *  `ORDER BY code` keeps batch locks ordered. */
+  async lockLeads(
+    tx: Db,
+    leadCodes: readonly string[],
+  ): Promise<{ code: string; exited: boolean; ownerId: string | null }[]> {
     if (leadCodes.length === 0) return []
     const rows = await tx
-      .select({ code: lead.code, state: lead.state })
+      .select({ code: lead.code, state: lead.state, ownerId: lead.ownerId })
       .from(lead)
       .where(inArray(lead.code, [...leadCodes]))
       .orderBy(asc(lead.code))
       .for('no key update')
-    return rows.filter((r) => GONE.has(r.state)).map((r) => r.code)
+    return rows.map((r) => ({ code: r.code, exited: GONE.has(r.state), ownerId: r.ownerId }))
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */

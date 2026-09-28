@@ -149,14 +149,22 @@ export class AccountService {
    *  its `guard()`: the permission here is the lead's edit permission,
    *  because the row being changed is a lead row. */
   async attachLead(leadCode: ObjectCode, accountCode: ObjectCode | null): Promise<void> {
+    /* Before the tx: `byCode` reads the pool, and inside the tx that waits on
+       the one connection PGlite has. The FK still refuses a target gone since. */
+    if (accountCode !== null && !(await this.repo.byCode(accountCode))) {
+      throw notFound('công ty', accountCode)
+    }
     const moved = await this.repo.run(async (tx) => {
-      if (accountCode !== null) {
-        const target = await this.repo.byCode(accountCode)
-        if (!target) throw notFound('công ty', accountCode)
-      }
       const ok = await this.repo.attachLead(tx, leadCode, accountCode)
-      if (ok) await this.repo.syncDealsOfLead(tx, leadCode, accountCode)
-      return ok
+      if (!ok) return false
+      await this.repo.syncDealsOfLead(tx, leadCode, accountCode)
+      /* The rail climbs lead → company by this edge; left behind, it keeps
+         showing the old company after the column moved. */
+      await this.mirror.unlink(tx, { from: leadCode, kind: 'belongs-to', toKind: 'AC' })
+      if (accountCode !== null) {
+        await this.mirror.link(tx, { from: leadCode, to: accountCode, kind: 'belongs-to' })
+      }
+      return true
     })
 
     if (!moved) throw notFound('lead', leadCode)

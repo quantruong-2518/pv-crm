@@ -11,7 +11,7 @@ import {
   type WorkstreamHolder,
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
-import { daysUntil, dueLevelOf } from '../contract-due'
+import { daysUntil, dueLevelOf, stepLevelOf } from '../contract-due'
 import { PIPELINE_STAGES } from './das-vina'
 import { saoDo, SAO_DO_CUSTOMER, SAO_DO_FROZEN_AT, SAO_DO_PEOPLE, SAO_DO_SIGNED_AT } from './sao-do'
 import { SAO_DO_CONTRACTS, type Contract } from './sao-do-contracts'
@@ -670,7 +670,7 @@ function ws0089(): Body {
           text: 'Hẹn anh Đạt chốt kết quả POC',
           due: nextDue,
           doer: huy,
-          dueLevel: dueLevelOf(nextDue, SAO_DO_FROZEN_AT),
+          dueLevel: stepLevelOf(nextDue, SAO_DO_FROZEN_AT),
         },
         contractCodes: [],
       },

@@ -14,7 +14,15 @@ import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { ContactRepository, type LeadContactMirror } from './contact.repository'
-import { fromCreate, fromLeadBirth, fromPatch, refOf, toContract } from './contact.mapper'
+import {
+  fromCreate,
+  fromLeadBirth,
+  fromLeadMirror,
+  fromPatch,
+  refOf,
+  toContract,
+} from './contact.mapper'
+import type { ContactRowDb } from './contact.schema'
 
 /** The contact book — hangs under lead, the same shape as `MeetingService`.
  *
@@ -101,30 +109,59 @@ export class ContactService {
     })
   }
 
-  /** Seed a newborn lead's primary contact FROM the lead's own columns, in the
-   *  SAME transaction the lead is born in.
+  /** Seed a lead's primary contact FROM the lead's own columns, on the
+   *  caller's transaction.
    *
-   *  The only caller is `LeadWriteService` (typed create and file import), and
-   *  it hands in its own `tx` rather than letting this method open one:
-   *  `contact.lead_code` is a foreign key into the lead row that transaction is
-   *  still writing, so the two inserts have to land atomically or not at all —
-   *  the same reason every write in this file runs inside `this.repo.run()`
-   *  everywhere ELSE the transaction starts here instead. No `countOf` check
-   *  first, unlike `add()`: the lead was just minted in this same transaction,
-   *  so it is a mathematical certainty this is its first and only contact. */
+   *  Two kinds of caller: the birth doors (`LeadWriteService.bear` for typed
+   *  create, scan and landing intake, plus the file import), where the lead is
+   *  minted in that same `tx` and this is certainly its first contact; and
+   *  `editPrimary`, for a lead whose last contact was deleted. Never opens its
+   *  own transaction: `contact.lead_code` is a foreign key into a lead row the
+   *  caller may still be writing, so both land atomically or not at all. */
   async seedPrimary(
     tx: Db,
     leadCode: string,
     mirror: LeadContactMirror,
-    who: { id: string; name: string },
-  ): Promise<void> {
+    who: { id: string; name: string } | null,
+  ): Promise<ContactRowDb> {
     /* On the caller's `tx`: the pool is one connection on PGlite, held by that tx. */
     const code = await this.repo.nextCode(tx)
     const values = fromLeadBirth(leadCode, mirror, who)
 
     await this.mirror.put(tx, refOf(code, leadCode, values))
     await this.mirror.link(tx, { from: code, to: leadCode, kind: 'belongs-to' })
-    await this.repo.insert(tx, { ...values, code })
+    return this.repo.insert(tx, { ...values, code })
+  }
+
+  /** `PATCH /sales/leads/:code`'s person fields, on the lead door's `tx`, so
+   *  the five lead columns keep ONE writer (`mirrorOntoLead`).
+   *
+   *  The base is the LEAD's current five, not the contact's: until this door
+   *  existed the lead door wrote them alone, so the lead copy is the fresher
+   *  one, and a one-field autosave must not revert the other four. Contact is
+   *  locked before the lead is touched — the order `edit()` and `setPrimary()`
+   *  already take. A lead with no contact left gets its primary seeded. */
+  async editPrimary(
+    tx: Db,
+    leadCode: string,
+    fields: Partial<LeadContactMirror>,
+    who: { id: string; name: string },
+  ): Promise<void> {
+    const primary = await this.repo.primaryOf(tx, leadCode)
+    const lead = await this.repo.leadMirrorOf(tx, leadCode)
+    if (!lead) throw notFound('lead', leadCode)
+    if (!primary) {
+      const seeded = await this.seedPrimary(tx, leadCode, { ...lead, ...fields }, who)
+      return this.repo.mirrorOntoLead(tx, leadCode, seeded)
+    }
+
+    /* A primary kept without a mailbox stays so unless the edit names one —
+       `mirrorOntoLead` leaves the lead's mailbox alone in that case too. */
+    const base = primary.email === null ? { ...lead, email: undefined } : lead
+    const row = await this.repo.patch(tx, primary.code, fromLeadMirror({ ...base, ...fields }))
+    if (!row) throw notFound('người liên hệ', primary.code)
+    await this.mirror.put(tx, refOf(row.code, leadCode, row))
+    await this.repo.mirrorOntoLead(tx, leadCode, row)
   }
 
   /** Scanned people onto a lead, on the caller's `tx`, never as primary: the

@@ -29,8 +29,7 @@ const MAX_ITEMS = 3
 type ToastState = {
   items: ToastItem[]
   /** Bộ đếm sinh id. Đếm chứ không `Date.now()`: hai toast bắn trong cùng một
-   *  mili giây sẽ trùng id, và React thì dựng lại nhầm tấm. Cùng lý do với
-   *  `seq` của `desk.ts`. */
+   *  mili giây sẽ trùng id, và React thì dựng lại nhầm tấm. */
   seq: number
   push: (toast: Omit<ToastItem, 'id'>) => void
   dismiss: (id: string) => void

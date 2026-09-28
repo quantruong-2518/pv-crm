@@ -9,14 +9,12 @@ import {
 import { AUDIENCE_INTERNAL, LEAD_INTAKE_ACCEPTED, plan, type ObjectRef } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
-import { ObjectMirror } from '@api/platform/graph/object-mirror'
-import { AccountService } from '../account/account.service'
 import { isDbConstraint } from '@api/platform/http/db-error'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
-import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
 import { fromIntake, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
+import { LeadWriteService } from './lead-write.service'
 import { LeadIntakeRepository, type IntakeClient } from './lead-intake.repository'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadOriginService } from '../lead-origin/lead-origin.service'
@@ -27,9 +25,7 @@ export class LeadIntakeService {
     private readonly intake: LeadIntakeRepository,
     private readonly writes: LeadWriteRepository,
     private readonly leads: LeadRepository,
-    private readonly touch: TouchService,
-    private readonly mirror: ObjectMirror,
-    private readonly accounts: AccountService,
+    private readonly births: LeadWriteService,
     private readonly runs: WorkstreamRepository,
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
@@ -56,41 +52,25 @@ export class LeadIntakeService {
 
     try {
       await this.writes.run(async (tx) => {
-        const ref = refOf(code, write)
-        await this.mirror.put(tx, ref)
-        /* Same transaction and same order as the other two lead write paths:
-           the foreign key on `lead.account_code` wants the company row to exist
-           first. This door is anonymous, but the company is not — somebody
-           filling in the landing page form has to land on the company row that
-           already exists, or every repeat submission opens a new customer. */
-        const accountCode = await this.accounts.resolveForLead(tx, write.values)
-        await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
         const origin = await this.originOf(tx, query.utm_source)
-        await this.writes.insertLandingLead(tx, {
-          ...write.values,
-          originId: origin.id,
-          originRaw: origin.raw,
-          accountCode,
+        /* The same birth every other door makes (company edge, primary contact,
+           first touch) — this door only adds its attempt row and the alert. */
+        await this.births.bear(tx, {
           code,
-          workstreamCode: run,
+          run,
+          write,
+          extra: {
+            campaignId: null,
+            originId: origin.id,
+            originRaw: origin.raw,
+            partnerCode: null,
+          },
+          who: null,
+          owner: null,
+          note: LEAD_NOTE.landing,
         })
         await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
-
-        /* `SYSTEM_ACTOR` and no `actorId`, because this door is anonymous by
-           design — there is no session and there is nobody to credit. "Hệ
-           thống" is the true answer to "who did this", and inventing an actor
-           here would put a name on work no person did. */
-        await this.touch.record(tx, [
-          {
-            subjectCode: code,
-            subjectKind: 'lead',
-            kind: 'created',
-            by: SYSTEM_ACTOR,
-            note: LEAD_NOTE.landing,
-          },
-        ])
-
-        await this.notify(tx, ref)
+        await this.notify(tx, refOf(code, write))
       })
     } catch (error) {
       if (!isDbConstraint(error, 'lead_email_live_idx')) throw error

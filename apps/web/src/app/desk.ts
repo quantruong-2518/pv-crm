@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Opportunity } from '@pv/engines/fixtures/das-vina'
 
 /** Bàn làm việc của một người trên sổ lead — ghim, và mọi thứ người dùng GÕ
- *  VÀO một hồ sơ lead (bản sửa hồ sơ, ghi chú, bước tiếp theo).
+ *  VÀO một hồ sơ lead mà chưa có bảng nào giữ (ghi chú).
  *
  *  ------------------------------------------------------------------
  *  VÌ SAO NẰM Ở ĐÂY CHỨ KHÔNG NẰM TRONG MÀN
@@ -19,7 +19,7 @@ import type { Opportunity } from '@pv/engines/fixtures/das-vina'
  *
  *  **Giao lead KHÔNG còn ở đây.** Nó là một phép ghi thật lên `lead.owner_id`
  *  (`data/lead-owner.ts`), không phải một đề nghị nằm trong trình duyệt — lý do
- *  đầy đủ ở khối ghi chú ngay dưới `LeadTodo`.
+ *  đầy đủ ở khối ghi chú ngay dưới docblock này.
  *
  *  ------------------------------------------------------------------
  *  `deals` ĐÃ RỜI HÌNH — VÀ BẢN LƯU CŨ CÒN MANG NÓ (29/08)
@@ -40,8 +40,8 @@ import type { Opportunity } from '@pv/engines/fixtures/das-vina'
  *  Chấp nhận được, và không phải vì lười: nó không đổi hành vi (không nhánh nào
  *  đọc nó nữa), không lớn (một object rỗng ở gần như mọi máy, vì `convert` đã
  *  ngừng ghi từ trước), và đánh số `version: 1` để dọn nó thì mọi bản lưu cũ
- *  phải đi qua một `migrate` — mà một `migrate` viết sai sẽ thổi bay cả ghim,
- *  ghi chú và việc tự ghi của người dùng, thứ chưa có endpoint nào để dựng lại.
+ *  phải đi qua một `migrate` — mà một `migrate` viết sai sẽ thổi bay cả ghim
+ *  và ghi chú của người dùng, thứ chưa có endpoint nào để dựng lại.
  *  Ngày store này thật sự cần đổi hình dữ liệu (không phải bỏ bớt một khoá chết)
  *  thì `version`+`migrate` vào cùng lượt đó, và dọn luôn khoá này. */
 
@@ -58,32 +58,9 @@ import type { Opportunity } from '@pv/engines/fixtures/das-vina'
    Khoá `assigns` trong bản lưu cũ vẫn mồ côi lại như `deals` — cùng lý lẽ đã
    ghi ngay bên trên, dọn cả hai trong lượt `version`+`migrate` đầu tiên. */
 
-/** Một việc NGƯỜI DÙNG tự ghi trên hồ sơ lead.
- *
- *  Khác `NextAction` ở `data/leads.ts` một bậc quan trọng: `NextAction` là việc
- *  hệ SUY RA từ trạng thái lead (thiếu ô thì đi moi ô, quá hạn thì báo tắc) —
- *  nó đúng nhưng chung chung. Dòng này là việc người cầm lead tự hẹn với mình:
- *  "gọi lại sau khi khách họp xong thứ Năm". Hệ không đoán được câu đó.
- *
- *  Hai thứ sống cạnh nhau chứ không thay nhau: khối next action trên màn bày
- *  gợi ý của hệ ở trên, việc tự ghi ở dưới, và bấm một gợi ý là nó rơi xuống
- *  thành một dòng tự ghi có thể hẹn ngày. */
-export type LeadTodo = {
-  id: string
-  text: string
-  /** ISO ngày. Rỗng = chưa hẹn ngày — hợp lệ, đừng ép chọn. */
-  due: string
-  /** actorId người nhận. Rỗng = chính mình. */
-  who: string
-  done: boolean
-}
-
-/** The next step on one lead: a sentence, and when it has to be done.
- *
- *  `due` is an ISO local datetime (`2026-09-18T09:00`) — empty means no date
- *  was set, which is allowed: half the steps on a lead are "call them back
- *  before the week is out", and forcing a time on that only invents one. */
-export type NextStep = { text: string; due: string }
+/* `nextSteps` and `todos` (with its `seq` counter) left on 28/09: the next step
+   moved to the server (`data/next-step.ts`) and nothing wrote a todo any more.
+   Their keys stay orphaned in old saves exactly like `deals`/`assigns` above. */
 
 type DeskState = {
   /** actorId → mã lead đã ghim. */
@@ -101,28 +78,12 @@ type DeskState = {
    *  The one FREE box of the profile, deliberately outside the ten questions:
    *  those ten are what the system measures, this is what only the holder knows.
    *
-   *  STILL IN THE BROWSER, AND THE DEBT GREW — word for word the debt
-   *  `nextSteps` below records: open the lead on another machine and this is
+   *  STILL IN THE BROWSER, AND THE DEBT GREW — the one the next step paid off
+   *  by moving to the server: open the lead on another machine and this is
    *  simply not there. The new layout gives it a tab of its own beside server
    *  data, which makes it easier to mistake for a record and worse to lose. It
    *  moves the day a table holds it; until then the box says so out loud. */
   notes: Record<string, string>
-
-  /** mã lead → việc tự ghi. */
-  todos: Record<string, LeadTodo[]>
-
-  /** lead code → the one next step its holder wrote down, and when it is due.
-   *  One sentence per lead; saving again replaces it.
-   *
-   *  STILL IN THE BROWSER, AND THE DEBT GREW: open the lead on another machine
-   *  and this is simply not there. The new layout prints it beside real server
-   *  data, deadline and all, which makes it easier to mistake for a record and
-   *  worse to lose. It moves the day a table holds it.
-   *
-   *  A copy saved before the due date existed holds a bare string, and this
-   *  store has no `version`/`migrate` (file docblock above), so both shapes are
-   *  declared and `nextStepOf` is the only place allowed to read them. */
-  nextSteps: Record<string, NextStep | string>
 
   /** MÃ CƠ HỘI → những trường hồ sơ ĐÃ SỬA so với dòng dựng từ fixture.
    *
@@ -139,17 +100,9 @@ type DeskState = {
    *  một dòng sổ cơ hội sửa được, mà nó chưa chắc đã có lead nào đứng sau. */
   ops: Record<string, Partial<Opportunity>>
 
-  /** Bộ đếm sinh id cho việc tự ghi. Đếm chứ không `Date.now()`: cùng một chuỗi
-   *  thao tác phải ra cùng một chuỗi id, nếu không test không khoá được gì. */
-  seq: number
-
   togglePin: (actorId: string, code: string) => void
   act: (code: string, actionKey: string) => void
   setNote: (code: string, html: string) => void
-  setNextStep: (code: string, step: NextStep) => void
-  addTodo: (code: string, todo: Omit<LeadTodo, 'id' | 'done'>) => void
-  toggleTodo: (code: string, id: string) => void
-  removeTodo: (code: string, id: string) => void
   patchOp: (code: string, patch: Partial<Opportunity>) => void
   resetOp: (code: string) => void
   /** Dọn sạch — dùng ở test và ở nút "bỏ hết ghim". */
@@ -166,10 +119,7 @@ export const useLeadDesk = create<DeskState>()(
       pins: {},
       acted: {},
       notes: {},
-      todos: {},
-      nextSteps: {},
       ops: {},
-      seq: 0,
 
       togglePin: (actorId, code) =>
         set((s) => {
@@ -187,31 +137,6 @@ export const useLeadDesk = create<DeskState>()(
 
       setNote: (code, html) => set((s) => ({ notes: { ...s.notes, [code]: html } })),
 
-      setNextStep: (code, step) => set((s) => ({ nextSteps: { ...s.nextSteps, [code]: step } })),
-
-      addTodo: (code, todo) =>
-        set((s) => {
-          const id = `todo-${s.seq + 1}`
-          const rows = s.todos[code] ?? []
-          return {
-            seq: s.seq + 1,
-            todos: { ...s.todos, [code]: [...rows, { ...todo, id, done: false }] },
-          }
-        }),
-
-      toggleTodo: (code, id) =>
-        set((s) => ({
-          todos: {
-            ...s.todos,
-            [code]: (s.todos[code] ?? []).map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
-          },
-        })),
-
-      removeTodo: (code, id) =>
-        set((s) => ({
-          todos: { ...s.todos, [code]: (s.todos[code] ?? []).filter((t) => t.id !== id) },
-        })),
-
       patchOp: (code, patch) =>
         set((s) => ({ ops: { ...s.ops, [code]: { ...s.ops[code], ...patch } } })),
 
@@ -227,10 +152,7 @@ export const useLeadDesk = create<DeskState>()(
           pins: {},
           acted: {},
           notes: {},
-          todos: {},
-          nextSteps: {},
           ops: {},
-          seq: 0,
         }),
     }),
     { name: 'pv-lead-desk' },
@@ -242,30 +164,4 @@ export const useLeadDesk = create<DeskState>()(
 export function pinsOf(state: DeskState, actorId: string | undefined): string[] {
   if (!actorId) return NONE
   return state.pins[actorId] ?? NONE
-}
-
-/** Shared blank, same reason as `NONE`. */
-const NO_NEXT_STEP: NextStep = { text: '', due: '' }
-
-/** The next step on a lead, in one shape whatever the browser has stored.
- *
- *  A copy saved before the due date existed is a bare string; reading it as an
- *  object would print `undefined` into the box and lose a sentence somebody
- *  typed. Widened here so no card has to know this store ever changed shape.
- *
- *  Takes the STORED VALUE, not the state, unlike `pinsOf` and `todosOf`: it
- *  builds a new object for the legacy shape, and a zustand selector that builds
- *  an object hands React a new snapshot on every render. The card selects the
- *  raw value and calls this. */
-export function nextStepOf(saved: NextStep | string | undefined): NextStep {
-  if (saved === undefined) return NO_NEXT_STEP
-  return typeof saved === 'string' ? { text: saved, due: '' } : saved
-}
-
-/** Mảng rỗng dùng chung, cùng lý do với `NONE`. */
-const NO_TODOS: LeadTodo[] = []
-
-/** Việc tự ghi trên một lead. */
-export function todosOf(state: DeskState, code: string): LeadTodo[] {
-  return state.todos[code] ?? NO_TODOS
 }

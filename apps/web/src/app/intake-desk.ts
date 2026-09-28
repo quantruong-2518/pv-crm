@@ -59,8 +59,8 @@ type IntakeState = {
   leads: ImportedLead[]
   /** Dòng đã nạp vào sổ cơ hội. */
   ops: ImportedOpportunity[]
-  /** Bộ đếm sinh mã lô — đếm chứ không `Date.now()`, cùng lý do với `seq` của
-   *  `desk.ts`: hai lô nạp trong cùng một mili giây phải ra hai mã khác nhau. */
+  /** Bộ đếm sinh mã lô — đếm chứ không `Date.now()`: hai lô nạp trong cùng một
+   *  mili giây phải ra hai mã khác nhau. */
   seq: number
 
   addLeads: (batch: Omit<ImportBatch, 'id'>, rows: (batchId: string) => ImportedLead[]) => string

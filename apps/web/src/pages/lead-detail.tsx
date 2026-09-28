@@ -23,7 +23,7 @@ import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { EXIT_REASON_LABEL } from '@/data/leads'
-import { LEAD_STATE_FACE } from '@/data/lead-state'
+import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { useLeadDraft } from '@/data/lead-draft'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { chainPath, opportunitiesOfLeadQuery } from '@/data/opportunities'
@@ -218,7 +218,13 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
           <DetailSidePanel>
             {/* Next action stands first: this column answers "what do I do
                 now", while holder and origin are looked up once and dropped. */}
-            <NextActionCard lead={legacy} />
+            {/* Keyed by code: an open form must not carry one lead's sentence
+                onto the next. A closed lead answers 409 to every step write. */}
+            <NextActionCard
+              key={lead.code}
+              lead={lead}
+              canEdit={canWrite && isOpenState(lead.state)}
+            />
             <OwnerSourceCard mode="edit" profile={lead} legacy={legacy} />
             <LeadAttachmentsCard code={lead.code} />
           </DetailSidePanel>

@@ -435,7 +435,7 @@ describe('Bước con, việc kế tiếp, mốc triển khai', () => {
       'Hẹn anh Đạt chốt kết quả POC',
       '2026-08-12',
       'u-huy',
-      'due-soon',
+      'upcoming',
     ])
   })
 

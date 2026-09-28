@@ -12,6 +12,8 @@ import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
 import { LeadOriginModule } from './lead-origin/lead-origin.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
+import { NEXT_STEP_CONSTRAINTS } from './next-step/next-step.constraints'
+import { NextStepModule } from './next-step/next-step.module'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
 import { PartnerModule } from './partner/partner.module'
@@ -34,6 +36,7 @@ registerConstraints(TOUCH_CONSTRAINTS)
 registerConstraints(MEETING_CONSTRAINTS)
 registerConstraints(ACCOUNT_CONSTRAINTS)
 registerConstraints(CONTACT_CONSTRAINTS)
+registerConstraints(NEXT_STEP_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
@@ -72,6 +75,7 @@ registerConstraints(CONTACT_CONSTRAINTS)
        three, so hanging it off any one would make the other two reach across a
        module boundary to read it. */
     WorkstreamModule,
+    NextStepModule,
   ],
   exports: [
     LeadModule,

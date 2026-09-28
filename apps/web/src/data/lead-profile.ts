@@ -188,8 +188,8 @@ function exitLabel(key: string | undefined): ExitReason | '' {
  *  ------------------------------------------------------------------
  *  WHY THIS EXISTS AT ALL
  *  ------------------------------------------------------------------
- *  Six blocks of the detail screen are desk-backed (pins, notes, todos,
- *  assignment, convert, exit) and have no endpoint yet, so they stay exactly
+ *  Five blocks of the detail screen are desk-backed (pins, notes, assignment,
+ *  convert, exit) and have no endpoint yet, so they stay exactly
  *  as they are. They — and the three shared derivations they call
  *  (`nextActions`, `assigneeOptions`, `peopleOn` in `data/leads.ts`) — are
  *  typed against the frozen `Lead`. This is the one place that shape is built

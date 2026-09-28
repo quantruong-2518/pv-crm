@@ -212,7 +212,7 @@ export class ThreadService {
         await this.logged?.afterLogged(tx, {
           subjectKind: anchor.kind,
           subjectCode: anchor.code,
-          actorId: who.id,
+          actor: who,
         })
       }
 

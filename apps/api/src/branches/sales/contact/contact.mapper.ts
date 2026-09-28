@@ -2,6 +2,7 @@ import type { ObjectRef } from '@pv/engines'
 import type { ContactCreate, ContactPatch, ContactRow } from '@pv/contracts'
 import type { contact, ContactRowDb } from './contact.schema'
 import type { LeadContactMirror } from './contact.repository'
+import { byOf } from '../touch/touch.service'
 
 export type ContactValues = Omit<typeof contact.$inferInsert, 'code' | 'createdAt' | 'updatedAt'>
 
@@ -32,9 +33,10 @@ export function fromCreate(
   }
 }
 
-/** A newborn lead's own five columns → its first, primary `sales.contact` row.
+/** A lead's own five columns → its primary `sales.contact` row.
  *
- *  Both write doors of `sales.lead` (`fromCreate`, the import batch) collect
+ *  Every birth door of `sales.lead` (typed create, scan, landing intake, the
+ *  import batch) collects
  *  `contactName`/`contactTitle`/… onto the lead row itself — a lead cannot be
  *  born without them. Nothing turned that into a contact row, so the profile's
  *  "person" tab (`ContactsCard`, which reads ONLY `sales.contact`) printed
@@ -45,8 +47,10 @@ export function fromCreate(
 export function fromLeadBirth(
   leadCode: string,
   mirror: LeadContactMirror,
-  by: { id: string; name: string },
+  by: { id: string; name: string } | null,
 ): ContactValues {
+  /* `null` is the anonymous landing door: `SYSTEM_ACTOR` and no id, as on its touch row. */
+  const who = byOf(by)
   return {
     leadCode,
     name: mirror.contactName,
@@ -56,8 +60,8 @@ export function fromLeadBirth(
     channel: mirror.contactChannel,
     note: null,
     isPrimary: true,
-    by: by.name,
-    createdBy: by.id,
+    by: who.by,
+    createdBy: who.actorId ?? null,
   }
 }
 
@@ -83,6 +87,18 @@ export function fromPatch(body: ContactPatch): Partial<ContactValues> {
     ...(body.phone === undefined ? {} : { phone: body.phone }),
     ...(body.channel === undefined ? {} : { channel: body.channel }),
     ...(body.note === undefined ? {} : { note: body.note }),
+  }
+}
+
+/** The lead door's person fields, in the lead's spelling → contact columns.
+ *  Sparse like `fromPatch`: an absent key leaves the column alone. */
+export function fromLeadMirror(f: Partial<LeadContactMirror>): Partial<ContactValues> {
+  return {
+    ...(f.contactName === undefined ? {} : { name: f.contactName }),
+    ...(f.contactTitle === undefined ? {} : { title: f.contactTitle }),
+    ...(f.email === undefined ? {} : { email: f.email }),
+    ...(f.phone === undefined ? {} : { phone: f.phone }),
+    ...(f.contactChannel === undefined ? {} : { channel: f.contactChannel }),
   }
 }
 

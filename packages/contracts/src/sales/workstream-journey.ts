@@ -1,7 +1,14 @@
 import { z } from 'zod'
 import { ContractCode, Day, Moment, MoneyVnd, ObjectCode, textInput } from '../primitives'
 import { DocState, InstallmentSummaryRow } from './contract'
-import { LEAD_STATE_LABEL, OPPORTUNITY_STATE_LABEL, StageKey, WorkstreamCloseReason } from './enums'
+import {
+  DueLevel,
+  LEAD_STATE_LABEL,
+  OPPORTUNITY_STATE_LABEL,
+  StageKey,
+  WorkstreamCloseReason,
+} from './enums'
+import { NextStep } from './next-step'
 import { LEAD_LANE_BACKBONE, WorkstreamHolder } from './workstream'
 
 /** Journey detail — the rebuilt read of `/sales/workstreams/:code` (canvas row E).
@@ -89,15 +96,6 @@ export const CONTRACT_RUNG_LABEL: Record<ContractRungKey, string> = {
   done: 'Hoàn tất',
 }
 
-/** Mirror of `DueLevel` in `packages/engines/src/contract-due.ts` — contracts may
- *  not import engines, so the two lists must be kept equal by hand (the type-level
- *  equality check belongs on a side that can import both). Sent server-computed
- *  because the server sweeps by its own today, not the browser's clock. */
-export const DueLevel = z.enum(
-  ['done', 'upcoming', 'due-soon', 'due', 'overdue', 'long-overdue'],
-  'Mức hạn không có trong danh sách',
-)
-
 export const LeadBackboneKey = z.enum(LEAD_LANE_BACKBONE)
 
 /** Any rung of any ladder — what a continuation door says it left from. */
@@ -117,13 +115,8 @@ export const JourneyLink = z.object({
   closeReason: WorkstreamCloseReason.nullable(),
 })
 
-/** Optional by design (flow G2): absent is not a warning. */
-export const JourneyNextAction = z.object({
-  text: textInput(200),
-  due: Day,
-  doer: WorkstreamHolder,
-  dueLevel: DueLevel,
-})
+/** The server's next step itself, not a copy (`./next-step`). */
+export const JourneyNextAction = NextStep
 
 /** A drawer-only step under a rung: quote sends, approvals, POC steps, and a
  *  contract's deployment milestones. `due` is the promised or planned day. */
@@ -281,7 +274,6 @@ export type JourneyDealOutcome = z.infer<typeof JourneyDealOutcome>
 export type JourneyRungState = z.infer<typeof JourneyRungState>
 export type ContractKind = z.infer<typeof ContractKind>
 export type ContractRungKey = z.infer<typeof ContractRungKey>
-export type DueLevel = z.infer<typeof DueLevel>
 export type LeadBackboneKey = z.infer<typeof LeadBackboneKey>
 export type JourneyRungKey = z.infer<typeof JourneyRungKey>
 export type JourneyLink = z.infer<typeof JourneyLink>

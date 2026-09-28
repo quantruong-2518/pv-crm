@@ -137,7 +137,7 @@ export class OpportunityController {
    *  đơn phải ghi được ai mở nó. Docblock của `OpportunityService.create` nói
    *  đầy đủ vì sao tham số này từng KHÔNG có mặt và điều gì đã đổi. */
   @Post()
-  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   create(@CurrentActor() who: Actor, @Body(zod(OpportunityCreate)) body: OpportunityCreate) {
     return this.ops.create(who, body)
   }
@@ -152,14 +152,17 @@ export class OpportunityController {
    *  đúng bằng chính những dòng dữ liệu. Cùng lý lẽ mà lô nạp lead đã ghi. */
   @Post('import/preview')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
-  importPreview(@Body(zod(OpportunityImportBody)) body: OpportunityImportBody) {
-    return this.ops.importPreview(body)
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  importPreview(
+    @CurrentActor() who: Actor,
+    @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
+  ) {
+    return this.ops.importPreview(who, body)
   }
 
   /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào. */
   @Post('import')
-  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   import(
     @CurrentActor() who: Actor,
     @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,

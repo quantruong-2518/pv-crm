@@ -53,6 +53,7 @@ import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
 import { PartnerService } from '../partner/partner.service'
 import { referrerOf, refuseByAsks } from './lead-motion-asks'
+import { handStepOver } from '../next-step/next-step.handover'
 
 /** The five columns every lead write already carries, in the shape
  *  `ContactService.seedPrimary` asks for — see its docblock for why this call
@@ -221,8 +222,9 @@ export class LeadWriteService {
   }
 
   /** Every write one lead's birth makes, in foreign-key order, on the caller's
-   *  transaction — shared by `create()` and the scan commit so the two cannot
-   *  drift. Campaign enrolment stays with the caller: the scan door skips it. */
+   *  transaction — shared by `create()`, the scan commit and the landing intake
+   *  so they cannot drift. `who: null` is the anonymous intake (`SYSTEM_ACTOR`).
+   *  Campaign enrolment stays with the caller: the scan door skips it. */
   async bear(
     tx: Db,
     b: {
@@ -230,7 +232,7 @@ export class LeadWriteService {
       run: string
       write: LeadWrite
       extra: Pick<LeadValues, 'campaignId' | 'originId' | 'originRaw' | 'partnerCode'>
-      who: { id: string; name: string }
+      who: { id: string; name: string } | null
       owner: { id: string; name: string; roleId: RoleId } | null
       note: string
     },
@@ -400,6 +402,9 @@ export class LeadWriteService {
       } else {
         await this.states.move(tx, code, state, { ownerId })
       }
+      /* The outgoing holder's step goes with the lead (flow G1): to the new
+         holder, or away on a release. A claim from the pool has none to carry. */
+      if (found.ownerId !== null) await handStepOver(tx, code, found.ownerId, ownerId)
 
       await this.touch.record(tx, [
         {
@@ -495,14 +500,20 @@ export class LeadWriteService {
         `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS} — không sửa bậc của lead đã rời phễu được.`,
       )
     }
-    const values = fromPatch(body)
+    /* The five person columns belong to the primary contact's writer; the
+       wire shape is unchanged, only who writes them. */
+    const { contactName, contactTitle, email, phone, contactChannel, ...own } = body
+    const person = fromPatch({ contactName, contactTitle, email, phone, contactChannel })
+    const values = fromPatch(own)
     const raised = body.tier !== undefined && rungOf(body.tier) > rungOf(before.row.tier)
 
     await this.repo.run(async (tx) => {
-      /* The row was read a moment ago and outside this transaction, so it can
-         have been deleted since. `patchLead` answers that and nothing else. */
-      const written = await this.repo.patchLead(tx, code, values)
-      if (!written) throw notFound('lead', code)
+      /* Contact first: it locks contact then lead, the order every contact
+         write takes. Both calls re-find the lead the pre-read saw (404 if gone). */
+      if (Object.keys(person).length > 0) await this.contacts.editPrimary(tx, code, person, who)
+      if (Object.keys(values).length > 0 && !(await this.repo.patchLead(tx, code, values))) {
+        throw notFound('lead', code)
+      }
 
       await this.touch.record(tx, [
         {
@@ -510,7 +521,7 @@ export class LeadWriteService {
           subjectKind: 'lead',
           kind: 'field-filled',
           ...byOf(who),
-          note: LEAD_NOTE.corrected(Object.keys(values).length),
+          note: LEAD_NOTE.corrected(Object.keys(values).length + Object.keys(person).length),
         },
         ...(raised && body.tier
           ? [

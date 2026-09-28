@@ -61,6 +61,34 @@ export class ContactRepository {
       .orderBy(desc(contact.isPrimary), asc(contact.name))
   }
 
+  /** The primary contact, row-locked: the lead door's contact edit writes it
+   *  and its lead copy together, and a concurrent primary swap must wait. */
+  async primaryOf(tx: Db, leadCode: string): Promise<ContactRowDb | null> {
+    const [found] = await tx
+      .select()
+      .from(contact)
+      .where(and(eq(contact.leadCode, leadCode), eq(contact.isPrimary, true)))
+      .limit(1)
+      .for('update')
+    return found ?? null
+  }
+
+  /** The lead's own copy of the five, read on the caller's `tx`. */
+  async leadMirrorOf(tx: Db, leadCode: string): Promise<LeadContactMirror | null> {
+    const [found] = await tx
+      .select({
+        contactName: lead.contactName,
+        contactTitle: lead.contactTitle,
+        email: lead.email,
+        phone: lead.phone,
+        contactChannel: lead.contactChannel,
+      })
+      .from(lead)
+      .where(eq(lead.code, leadCode))
+      .limit(1)
+    return found ?? null
+  }
+
   async byCode(code: string): Promise<ContactRowDb | null> {
     const [found] = await this.db.select().from(contact).where(eq(contact.code, code)).limit(1)
     return found ?? null

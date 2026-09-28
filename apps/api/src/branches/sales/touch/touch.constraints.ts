@@ -20,7 +20,7 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
 
   touch_kind_known: {
     kind: 'invalid',
-    message: 'Loại lần chạm không nằm trong mười loại đã biết.',
+    message: 'Loại lần chạm không nằm trong danh sách loại đã biết.',
   },
 
   touch_no_blank: {

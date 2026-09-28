@@ -281,8 +281,18 @@ export const CLOSE_REASON_LABEL: Record<WorkstreamCloseReason, string> = {
   CHURNED: 'Rời bỏ',
 }
 
+/** Mirror of `DueLevel` in `packages/engines/src/contract-due.ts` — contracts may
+ *  not import engines, so the two lists must be kept equal by hand (the type-level
+ *  equality check belongs on a side that can import both). Sent server-computed
+ *  because the server sweeps by its own today, not the browser's clock. */
+export const DueLevel = z.enum(
+  ['done', 'upcoming', 'due-soon', 'due', 'overdue', 'long-overdue'],
+  'Mức hạn không có trong danh sách',
+)
+
 export type LeadSourceKind = z.infer<typeof LeadSourceKind>
 export type LeadMotion = z.infer<typeof LeadMotion>
 export type ContactChannel = z.infer<typeof ContactChannel>
 export type CurrencyCode = z.infer<typeof CurrencyCode>
 export type WorkstreamCloseReason = z.infer<typeof WorkstreamCloseReason>
+export type DueLevel = z.infer<typeof DueLevel>

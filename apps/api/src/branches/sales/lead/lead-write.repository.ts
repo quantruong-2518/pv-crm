@@ -10,6 +10,7 @@ import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
+import type { LeadContactMirror } from '../contact/contact.repository'
 
 /** THE WRITE HALF OF THE LEAD BOOK'S SQL. Decides nothing.
  *
@@ -306,7 +307,12 @@ export class LeadWriteRepository {
    *  `returning` rather than `rowCount`: it answers the one question the
    *  service still has — whether the row was deleted between the read and this
    *  statement — and a zero-row UPDATE otherwise reads exactly like success. */
-  async patchLead(tx: Db, code: string, values: Partial<LeadValues>): Promise<boolean> {
+  async patchLead(
+    tx: Db,
+    code: string,
+    /* The five person columns have one writer, `ContactRepository.mirrorOntoLead`. */
+    values: Partial<Omit<LeadValues, keyof LeadContactMirror>>,
+  ): Promise<boolean> {
     const rows = await tx
       .update(lead)
       .set(values)
@@ -320,7 +326,11 @@ export class LeadWriteRepository {
    *  where it is NULL, decided per row inside the UPDATE, so a value written
    *  a moment ago by somebody else is never overwritten. True = at least one
    *  column was empty and took a value. */
-  async fillEmpty(tx: Db, code: string, values: Partial<LeadValues>): Promise<boolean> {
+  async fillEmpty(
+    tx: Db,
+    code: string,
+    values: Partial<Omit<LeadValues, keyof LeadContactMirror>>,
+  ): Promise<boolean> {
     const columns = Object.keys(values).map((key) => lead[key as keyof typeof lead.$inferSelect])
     if (columns.length === 0) return false
     const set = Object.fromEntries(
@@ -335,15 +345,6 @@ export class LeadWriteRepository {
       .where(and(eq(lead.code, code), or(...columns.map((c) => isNull(c)))))
       .returning({ code: lead.code })
     return rows.length > 0
-  }
-
-  /** One public intake insert. A duplicate-email race is allowed to throw so
-   *  Postgres rolls back the mirror row; the service recognises exactly that
-   *  named constraint and returns the generic public acknowledgement. */
-  async insertLandingLead(tx: Db, row: LeadValues & { code: string }): Promise<LeadRowDb> {
-    const [written] = await tx.insert(lead).values(row).returning()
-    if (!written) throw new Error(`sales.lead: INSERT ${row.code} không trả về dòng nào`)
-    return written
   }
 
   /** One row in `platform.audit` for one load. The batch record.

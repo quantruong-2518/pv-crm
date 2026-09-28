@@ -298,6 +298,7 @@ export class OpportunityService {
       this.repo.actorRoles(handle, pic),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
+    if (!holds(who, lead.ownerId)) throw foreignLead(body.leadCode)
     if (lead.exited)
       throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
 
@@ -317,7 +318,7 @@ export class OpportunityService {
       body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
 
     const row = await this.repo.run(async (tx) => {
-      await this.assertLeadsLive(tx, [body.leadCode])
+      await this.assertLeadsLive(tx, who, [body.leadCode])
       const ref = refOf(code, write, { label: write.values.name, ownerName })
       await this.mirror.put(tx, ref)
       /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
@@ -561,8 +562,11 @@ export class OpportunityService {
   // ── nạp từ tệp ───────────────────────────────────────────────────────────
 
   /** Chạy thử. KHÔNG ghi gì — kể cả một con số của dãy mã. */
-  async importPreview(body: OpportunityImportBody): Promise<OpportunityImportPreviewResponse> {
-    const { report } = await this.check(this.repo.readonlyHandle, body)
+  async importPreview(
+    who: Actor,
+    body: OpportunityImportBody,
+  ): Promise<OpportunityImportPreviewResponse> {
+    const { report } = await this.check(this.repo.readonlyHandle, who, body)
     return OpportunityImportPreviewResponse.parse(report)
   }
 
@@ -576,7 +580,7 @@ export class OpportunityService {
     body: OpportunityImportBody,
   ): Promise<OpportunityImportCommitResponse> {
     const handle = this.repo.readonlyHandle
-    const { report, writes, workstreamByLead } = await this.check(handle, body)
+    const { report, writes, workstreamByLead } = await this.check(handle, who, body)
 
     /* Mã cấp TRƯỚC khi mở transaction, một câu cho cả lô — lý do đầy đủ ở
        `nextCodes`. Dãy trả theo thứ tự tăng nên thứ tự của tệp cũng là thứ tự
@@ -651,7 +655,7 @@ export class OpportunityService {
     })
 
     const batch = await this.repo.run(async (tx) => {
-      await this.assertLeadsLive(tx, [...new Set(ready.map((p) => p.row.leadCode))])
+      await this.assertLeadsLive(tx, who, [...new Set(ready.map((p) => p.row.leadCode))])
       /* Cắt khúc, và vẫn nguyên tử — mọi câu dưới đây chạy trong đúng
          transaction này. Cắt khúc là chuyện trần 65.535 tham số ràng buộc của
          Postgres, không phải chuyện bền vững.
@@ -734,6 +738,7 @@ export class OpportunityService {
    *  đó — nên tập mã hỏi ở đây và tập mã bộ kiểm phân giải không lệch nhau. */
   private async check(
     handle: Db,
+    who: Actor,
     body: OpportunityImportBody,
   ): Promise<ImportCheck & { workstreamByLead: ReadonlyMap<string, string | null> }> {
     const [staff, leads] = await Promise.all([
@@ -759,6 +764,9 @@ export class OpportunityService {
         ambiguousCompany: leads.ambiguous,
         liveDealByLead,
         exitedCompany: leads.exited,
+        outOfScope: new Set(
+          [...leads.ownerByLead].filter(([, owner]) => !holds(who, owner)).map(([code]) => code),
+        ),
       }),
       workstreamByLead: leads.workstreamByLead,
     }
@@ -783,10 +791,14 @@ export class OpportunityService {
     }
   }
 
-  /** Share-lock the leads a deal write lands on; an exit racing it waits. */
-  private async assertLeadsLive(tx: Db, leadCodes: readonly string[]): Promise<void> {
-    const exited = await this.repo.exitedLocked(tx, leadCodes)
-    if (exited.length > 0)
+  /** Lock the leads a deal write lands on (`lockLeads`), so an exit or a
+   *  hand-over racing it waits, then re-check scope and liveness on the locked
+   *  rows — the pre-reads ran outside the tx. */
+  private async assertLeadsLive(tx: Db, who: Actor, leadCodes: readonly string[]): Promise<void> {
+    const rows = await this.repo.lockLeads(tx, leadCodes)
+    const foreign = rows.find((r) => !holds(who, r.ownerId))
+    if (foreign) throw foreignLead(foreign.code)
+    if (rows.some((r) => r.exited))
       throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
   }
 
@@ -932,6 +944,13 @@ function touchesSignTerms(found: OpportunityRead, body: OpportunityUpdate): bool
     sale.some((id) => !body.saleOwners.includes(id))
   )
 }
+
+/** Lead scope by id, the lead doors' rule (`LeadExitService.lockRow`): an
+ *  `ownOnly` caller converts only a lead they hold — never a pool lead. */
+const holds = (who: Actor, ownerId: string | null): boolean => !who.ownOnly || ownerId === who.id
+
+const foreignLead = (code: string) =>
+  denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
 
 const frozenForSign = () =>
   conflict('Cơ hội đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa')

@@ -49,22 +49,23 @@ import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/op
 
 const BOOK_PATH = '/sales/opportunities'
 
-/** Cửa TẠO và hai cửa NẠP LÔ — `@Need({ …, permission: 'opportunity.edit' })`,
- *  KHÔNG `scoped`, đúng như ba dòng khai ở controller.
+/** The CREATE door and both BATCH doors — `@Need({ …, permission: 'opportunity.edit',
+ *  scoped: true })`, mirroring the controller.
  *
- *  `opportunity.edit` chứ không phải `opportunity.close`: mở một đơn thì đóng lại được, ký
- *  thì không — đọc docblock của controller cho phần đầy đủ. Khai ở đây để nút
- *  tắt đi TRƯỚC khi người dùng bấm, thay vì để họ điền hết phiếu rồi ăn 403.
+ *  `opportunity.edit`, not `opportunity.close`: see the controller docblock.
+ *  Declared here so the button turns off BEFORE the form is filled, not after.
  *
- *  Vắng `scoped` là ĐÚNG ở những cửa này: chưa có đơn nào thì chưa có phạm vi
- *  nào để cắt — người tạo chính là người sắp đứng đơn. */
-export const OPPORTUNITY_WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.edit' }
+ *  `scoped` because the deal is opened ON a lead: an ownOnly caller may only
+ *  convert a lead they hold, and the server checks it under the lead lock. */
+export const OPPORTUNITY_WRITE_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'opportunity.edit',
+  scoped: true,
+}
 
-/** Cửa SỬA — cùng quyền, nhưng `scoped: true` như `@Need` của `PATCH :code`.
- *
- *  Tách khỏi hằng trên chứ không dùng chung: đứng trong PIC là thứ cho quyền
- *  sửa (ADR 0064 §5), nên một dòng khai thiếu `scoped` là hai đầu của cùng một
- *  ma trận quyền đọc ra hai câu khác nhau. */
+/** The EDIT door — `@Need` of `PATCH :code`. Same flags as the create door today,
+ *  kept apart because the scope answers a different question: create is scoped
+ *  by the LEAD it converts, edit by standing in the deal's PIC (ADR 0064 §5). */
 export const OPPORTUNITY_UPDATE_NEED: ApiNeed = {
   branch: 'Sales',
   permission: 'opportunity.edit',
@@ -339,7 +340,7 @@ export function useSignContract(code: ObjectCode) {
  *  column: a milestone that really happened, a parking with a reason, a reopen.
  *
  *  `scoped: true` on all three, the same flag `OPPORTUNITY_UPDATE_NEED` above
- *  carries and the create door deliberately does not: standing in the PIC is what
+ *  carries: standing in the PIC is what
  *  grants the right (ADR 0064 §5), so every declaration here has to read the same
  *  as its controller `@Need`. */
 export const OPPORTUNITY_MOVE_NEED: ApiNeed = {

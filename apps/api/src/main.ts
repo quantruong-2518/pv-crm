@@ -182,8 +182,9 @@ async function bootstrap(): Promise<void> {
      *  hồi ấy đổi một động từ mới cho toàn bộ API lấy một chút REST đẹp mắt là
      *  món lỗ. Nay động từ đã mở cho một cửa CÓ quyền canh (`lead.edit`, trục
      *  phạm vi bật), lập luận đó không đổi: cửa đăng xuất vẫn không cần nó. */
-    /* `PUT` only for `/storage/local/:token`, the disk driver's stand-in for
-       a presigned bucket URL — no JSON door uses it. */
+    /* `PUT` for `/storage/local/:token`, the disk driver's stand-in for a
+       presigned bucket URL, and for `PUT /sales/leads/:code/next-step`, which
+       sets or replaces the one next step and is safe to repeat. */
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
     /* PHẢI đủ MỌI header app web gắn, không chỉ những header handler đọc.
      *

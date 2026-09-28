@@ -61,6 +61,15 @@ export function dueLevelOf(due: string, today: string, doneAt?: string): DueLeve
   return 'long-overdue'
 }
 
+/** Level of a next step (flow G3). The owner chose three levels only (28/09): a
+ *  step is a day-to-day task, so the contract's 14/15-day near and long-overdue
+ *  bands would say nothing useful about it. */
+export function stepLevelOf(due: string, today: string): DueLevel {
+  const left = daysUntil(due, today)
+  if (left > 0) return 'upcoming'
+  return left === 0 ? 'due' : 'overdue'
+}
+
 /** Which levels demand something today. Used to count the "needs you" tile and
  *  to sort the book by urgency rather than by signing date. */
 export function needsAttention(level: DueLevel): boolean {

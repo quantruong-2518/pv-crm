@@ -11,6 +11,7 @@ import { TouchModule } from '../touch/touch.module'
 import { toRef } from './lead.mapper'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { lead, type LeadRowDb } from './lead.schema'
+import { dropStep, dropSteps } from '../next-step/next-step.handover'
 
 /** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058, 0063).
  *
@@ -23,10 +24,10 @@ import { lead, type LeadRowDb } from './lead.schema'
  *  others. Callers pass their own `tx`: the move lands in the same commit as
  *  the write that caused it.
  *
- *  A leaf on purpose: it imports the lead's table and mappers plus `TouchModule`
- *  — which has no controller and no lead import — so the meeting, contact,
- *  account, MAS and deal modules can import `LeadStateModule` without a cycle
- *  through `LeadModule` (which imports several of them). */
+ *  A leaf on purpose: lead table and mappers, `TouchModule` (no controller, no
+ *  lead import) and module-free `next-step.handover` only — so the meeting,
+ *  contact, account, MAS and deal modules can import `LeadStateModule` without
+ *  a cycle through `LeadModule` (which imports several of them). */
 
 /** How long a lead may sit in `nurturing` before the system archives it — the
  *  diagram's six months, ADR 0058. A constant, not a `config_entry` row: that
@@ -181,6 +182,7 @@ export class LeadStateWriter {
       tx,
       moved.map((r) => r.code),
     )
+    await this.dropSteps(tx, moved)
   }
 
   /** A move the caller has already decided under its own row lock. `also`
@@ -192,6 +194,7 @@ export class LeadStateWriter {
       .set({ ...also, state: to, stateSince: sql`now()` })
       .where(eq(lead.code, code))
     await this.refresh(tx, [code])
+    if (!isOpen(to)) await dropStep(tx, code)
   }
 
   /** `nurturing` → `archived` past `NURTURE_MAX`. Idempotent: a second sweep,
@@ -207,6 +210,7 @@ export class LeadStateWriter {
       tx,
       moved.map((r) => r.code),
     )
+    await this.dropSteps(tx, moved)
     return moved
   }
 
@@ -226,6 +230,15 @@ export class LeadStateWriter {
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
       .where(inArray(lead.code, [...codes]))
+  }
+
+  /** A next step lives only on an OPEN lead (flow G1): every move out of the
+   *  open states drops it here, in the move's own tx, so no door has to. */
+  private dropSteps(tx: Db, moved: readonly { code: string }[]): Promise<void> {
+    return dropSteps(
+      tx,
+      moved.map((m) => m.code),
+    )
   }
 
   private async put(tx: Db, rows: readonly StoredLead[]): Promise<void> {

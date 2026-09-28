@@ -1,6 +1,6 @@
-import { sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
-import type { Edge, ObjectRef } from '@pv/engines'
+import type { Edge, EdgeKind, ObjectKind, ObjectRef } from '@pv/engines'
 import { type Db } from '../db/db.module'
 import { edge, objectRef } from '../db/platform.schema'
 
@@ -126,6 +126,19 @@ export class ObjectMirror {
          on conflict; settling it in SQL keeps it a single statement instead of
          a read every writer would have to remember. */
       .onConflictDoNothing()
+  }
+
+  /** Drop every `kind` arrow from `from` to an object of `toKind` — the other
+   *  half of re-pointing a relation, same caller-owned transaction as `link`.
+   *  By target KIND, not code, so an arrow an older write left stale goes too. */
+  async unlink(tx: Db, e: { from: string; kind: EdgeKind; toKind: ObjectKind }): Promise<void> {
+    const targets = tx
+      .select({ code: objectRef.code })
+      .from(objectRef)
+      .where(eq(objectRef.kind, e.toKind))
+    await tx
+      .delete(edge)
+      .where(and(eq(edge.fromCode, e.from), eq(edge.kind, e.kind), inArray(edge.toCode, targets)))
   }
 
   /* `kind` and `branch` are deliberately absent from the update set. They are

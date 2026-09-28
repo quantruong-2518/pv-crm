@@ -186,7 +186,7 @@ function firstTab(draft: LeadDraft): TabKey {
  *  holding the lead knows. Mixing the two miscounts the gate.
  *
  *  STILL IN THE BROWSER, AND THE DEBT GREW — the same debt `app/desk.ts` records
- *  against `nextSteps`: this text lives in one machine's `localStorage`, so a
+ *  against `notes`: this text lives in one machine's `localStorage`, so a
  *  colleague opening the lead simply does not see it. The new layout sits it in
  *  a tab beside server data, which makes it easier to mistake for a record and
  *  worse to lose. Hence the line under the box until a table holds it. */

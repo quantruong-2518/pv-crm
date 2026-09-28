@@ -1,116 +1,376 @@
-import { useMemo, useState } from 'react'
-import { Check } from '@pv/ui'
-import { Badge, Button, GlassCard, Icon, Input, SectionTitle, Textarea } from '@pv/ui'
-import type { Lead } from '@pv/engines/fixtures/das-vina'
-import { nextStepOf, useLeadDesk, type NextStep } from '@/app/desk'
+import { useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  Avatar,
+  Button,
+  CalendarDays,
+  Check,
+  GlassCard,
+  Icon,
+  Input,
+  Pencil,
+  Plus,
+  SectionTitle,
+  Select,
+  Skeleton,
+  Textarea,
+  Trash2,
+} from '@pv/ui'
+import type { LeadProfile, NextStep, NextStepSetBody } from '@pv/contracts'
+import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
+import { dmy } from '@/lib/date'
+import { useSalesPeople } from '@/data/directory'
+import {
+  nextStepQuery,
+  useClearNextStep,
+  useFinishNextStep,
+  useSetNextStep,
+} from '@/data/next-step'
+import { DueBadge } from '@/components/contract-bits'
+import { Field } from '@/components/field-bits'
 
-/** Module 2 · The one thing that has to happen next on this lead.
+/** Module 2 · The one thing that has to happen next on this lead (flow G1–G3).
  *
- *  Deliberately not a todo list: ONE sentence, one deadline, replaced the next
- *  time it is saved. Assigning work to somebody else is a different act with a
- *  different door (`PATCH /sales/leads/:code/owner`).
+ *  Deliberately not a todo list: ONE sentence, one day, one doer, replaced the
+ *  next time it is saved. Stored on the server (`data/next-step.ts`); the level
+ *  pill is the server's grade, never derived here. No step is not a warning
+ *  (G2) — the card just offers to set one.
  *
- *  STILL A DEBT: this lives in `localStorage`, so opening the same lead on
- *  another machine shows nothing. The new layout stands it beside real server
- *  data and gives it a real deadline box, which makes it look more like a
- *  record than it is — so the debt is worth more, not less, than it was. It
- *  moves the day a table holds it (`app/desk.ts` says the same). */
+ *  "Xong" asks for the NEXT step in the same breath and sends both in one
+ *  request, so no other tab ever reads a gap between two steps. */
 
-/** Three openings that cover most of what follows a first conversation.
- *
- *  A chip FILLS the box and saves nothing: the sentence still has to be made
- *  true for this customer before it is worth storing. They stand down once the
- *  box holds anything — overwriting somebody's typing on one mis-tap is how a
- *  screen loses work. */
+/** Openings that cover most of what follows a first conversation. A chip FILLS
+ *  the box and saves nothing, and stands down once the box holds anything —
+ *  overwriting somebody's typing on one mis-tap is how a screen loses work. */
 const SUGGESTIONS = ['Gọi lại', 'Gửi hồ sơ năng lực', 'Hẹn khảo sát']
 
-export function NextActionCard({ lead, locked }: { lead: Lead | null; locked?: boolean }) {
-  const code = lead?.code ?? ''
-  const stored = useLeadDesk((s) => s.nextSteps[code])
-  const setNextStep = useLeadDesk((s) => s.setNextStep)
-  const saved = useMemo(() => nextStepOf(stored), [stored])
+const TEXT_MAX = 200
 
-  const [draft, setDraft] = useState<NextStep>(saved)
-  /* Reseeded during render when the LEAD changes, not by an effect — the same
-     reason the profile form does it: an effect runs after the paint, so the
-     previous lead's sentence would flash in the box first. */
-  const [seededFor, setSeededFor] = useState(code)
-  if (seededFor !== code) {
-    setSeededFor(code)
-    setDraft(saved)
-  }
+type Props = { lead?: null; locked: true } | { lead: LeadProfile; canEdit: boolean; locked?: false }
 
-  if (locked) {
-    return (
-      <GlassCard variant="b" className="flex flex-col gap-3 p-4 sm:p-5" aria-label="Việc tiếp theo">
-        <SectionTitle size="detail">Việc tiếp theo</SectionTitle>
+export function NextActionCard(props: Props) {
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Việc tiếp theo">
+      <SectionTitle size="detail" hint="Một bước cụ thể phải làm tiếp.">
+        Việc tiếp theo
+      </SectionTitle>
+      {props.locked ? (
         <p className="text-muted-foreground text-[12.5px] leading-[1.6]">Có sau khi tạo lead.</p>
-      </GlassCard>
+      ) : (
+        <StepBody lead={props.lead} canEdit={props.canEdit} />
+      )}
+    </GlassCard>
+  )
+}
+
+/** `finish` is the edit form opened by "Xong": same boxes, empty, different doors. */
+type Mode = 'view' | 'edit' | 'finish'
+
+function StepBody({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
+  const { data, isPending, error } = useQuery(nextStepQuery(lead.code))
+  const [mode, setMode] = useState<Mode>('view')
+
+  if (isPending) return <Skeleton className="h-16 w-full" />
+  if (!data) {
+    return (
+      <p className="text-warning text-[12.5px] leading-[1.6]">
+        Không đọc được việc tiếp theo.{' '}
+        {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+      </p>
     )
   }
 
-  const text = draft.text.trim()
-  const changed = text !== saved.text || draft.due !== saved.due
-  const save = () => {
-    setNextStep(code, { text, due: draft.due })
-    setDraft({ text, due: draft.due })
+  const step = data.step
+  if (canEdit && mode !== 'view') {
+    return (
+      <StepForm
+        lead={lead}
+        step={step}
+        finishing={mode === 'finish'}
+        onClose={() => setMode('view')}
+      />
+    )
   }
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Việc tiếp theo">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionTitle size="detail" hint="Một bước cụ thể phải làm tiếp.">
-          Việc tiếp theo
-        </SectionTitle>
-        {saved.text === '' && <Badge tone="warning">Chưa có việc</Badge>}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {SUGGESTIONS.map((suggestion) => (
+  if (!step) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+          Chưa đặt việc tiếp theo.
+        </p>
+        {canEdit && (
           <Button
-            key={suggestion}
-            size="sm"
+            size="md"
             variant="ghost"
             className="pointer-coarse:h-12"
-            disabled={text !== ''}
-            onClick={() => setDraft((cur) => ({ ...cur, text: suggestion }))}
+            onClick={() => setMode('edit')}
           >
-            {suggestion}
+            <Icon icon={Plus} size={16} />
+            Đặt việc tiếp theo
           </Button>
-        ))}
+        )}
       </div>
-
-      <Textarea
-        value={draft.text}
-        rows={2}
-        autoGrow
-        placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát vào chiều thứ Năm."
-        aria-label="Bước nên thực hiện tiếp theo"
-        onChange={(e) => setDraft((cur) => ({ ...cur, text: e.target.value }))}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && changed) save()
-        }}
-      />
-
-      <label className="flex flex-col gap-2">
-        <span className="text-glass-foreground text-[13px] font-semibold leading-[1.4]">Hạn</span>
-        {/* Empty is allowed and stays allowed: half the steps on a lead are
-            "before the week is out", and forcing a time only invents one. */}
-        <Input
-          type="datetime-local"
-          value={draft.due}
-          aria-label="Hạn của việc tiếp theo"
-          className="h-11 text-[13px]"
-          onChange={(e) => setDraft((cur) => ({ ...cur, due: e.target.value }))}
-        />
-      </label>
-
-      <div className="flex justify-end">
-        <Button size="md" className="pointer-coarse:h-12" disabled={!changed} onClick={save}>
-          <Icon icon={Check} size={16} />
-          Lưu việc
-        </Button>
-      </div>
-    </GlassCard>
+    )
+  }
+  return (
+    <StepView
+      step={step}
+      canEdit={canEdit}
+      onEdit={() => setMode('edit')}
+      onFinish={() => setMode('finish')}
+    />
   )
+}
+
+function StepView({
+  step,
+  canEdit,
+  onEdit,
+  onFinish,
+}: {
+  step: NextStep
+  canEdit: boolean
+  onEdit: () => void
+  onFinish: () => void
+}) {
+  return (
+    <>
+      <p className="text-foreground break-words text-[13px] leading-[1.6]">{step.text}</p>
+      <div className="flex flex-wrap items-center gap-3 text-[12.5px]">
+        <span className="text-muted-foreground inline-flex items-center gap-2 tabular-nums">
+          <Icon icon={CalendarDays} size={16} />
+          {dmy(step.due)}
+        </span>
+        {/* Case and tracking reset: the contract screens' uppercase breaks law 6. */}
+        <DueBadge level={step.dueLevel} className="normal-case tracking-normal" />
+        <span className="text-muted-foreground inline-flex min-w-0 items-center gap-2">
+          <Avatar name={step.doer.name} size="sm" />
+          <span className="truncate">{step.doer.name}</span>
+        </span>
+      </div>
+      {canEdit && (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
+            <Icon icon={Pencil} size={16} />
+            Sửa
+          </Button>
+          <Button size="md" className="pointer-coarse:h-12" onClick={onFinish}>
+            <Icon icon={Check} size={16} />
+            Xong
+          </Button>
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Set, edit, or — when `finishing` — name what comes after the step just done.
+ *  Mounted fresh on every open, so its boxes seed from props without a reseed. */
+function StepForm({
+  lead,
+  step,
+  finishing,
+  onClose,
+}: {
+  lead: LeadProfile
+  step: NextStep | null
+  finishing: boolean
+  onClose: () => void
+}) {
+  const seed = finishing ? null : step
+  const [text, setText] = useState(seed?.text ?? '')
+  /* Empty rather than today: a pre-filled day is a deadline nobody chose. */
+  const [due, setDue] = useState(seed?.due ?? '')
+  const canAssign = useCan('lead.assign')
+  /* Without `lead.assign` the doer IS the holder, so the form never offers another. */
+  const [doerId, setDoerId] = useState((canAssign ? seed?.doer.id : null) ?? lead.ownerId ?? '')
+  const box = useRef<HTMLTextAreaElement>(null)
+
+  const set = useSetNextStep(lead.code)
+  const finish = useFinishNextStep(lead.code)
+  const clear = useClearNextStep(lead.code)
+  const busy = set.isPending || finish.isPending || clear.isPending
+  const failure = set.error ?? finish.error ?? clear.error
+
+  /* The holder is sent as "absent": the server resolves it at write time, so a
+     hand-over since this profile was read cannot leave a stale id behind. */
+  const body: NextStepSetBody = {
+    text: text.trim(),
+    due,
+    ...(doerId !== lead.ownerId && { doerId }),
+  }
+  const ready = body.text !== '' && due !== '' && doerId !== '' && !busy
+  const done = { onSuccess: onClose }
+  /* The step the person saw: a double-sent "done" then finds another and is refused. */
+  const closing = step && { text: step.text, due: step.due }
+  const save = () =>
+    finishing && closing ? finish.mutate({ closing, next: body }, done) : set.mutate(body, done)
+
+  return (
+    <div className="flex flex-col gap-4">
+      {finishing && step && (
+        <p className="text-muted-foreground break-words text-[12.5px] leading-[1.6]">
+          Đã xong “{step.text}”. Việc tiếp theo là gì? Chưa có thì chọn “Xong, không đặt việc mới”.
+        </p>
+      )}
+
+      {text === '' && (
+        <div className="flex flex-wrap gap-2">
+          {SUGGESTIONS.map((suggestion) => (
+            <Button
+              key={suggestion}
+              size="sm"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              onClick={() => {
+                setText(suggestion)
+                box.current?.focus()
+              }}
+            >
+              {suggestion}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      <Field label="Việc cần làm" note={`${text.length}/${TEXT_MAX}`}>
+        <Textarea
+          ref={box}
+          value={text}
+          rows={2}
+          autoGrow
+          maxLength={TEXT_MAX}
+          placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát."
+          aria-label="Việc cần làm"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && ready) save()
+          }}
+        />
+      </Field>
+
+      {/* Two columns only while the card is wide; the xl side column clips them. */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+        <Field label="Hạn">
+          <Input
+            type="date"
+            value={due}
+            aria-label="Hạn của việc tiếp theo"
+            className="h-12"
+            onChange={(e) => setDue(e.target.value)}
+          />
+        </Field>
+        {canAssign ? (
+          <DoerPicker lead={lead} step={step} value={doerId} onChange={setDoerId} />
+        ) : (
+          <Field label="Người làm" hint="Người giữ lead.">
+            <p className="text-foreground flex h-12 min-w-0 items-center gap-2 text-[12.5px]">
+              {lead.ownerId ? (
+                <>
+                  <Avatar name={lead.ownerName ?? lead.ownerId} size="sm" />
+                  <span className="truncate">{lead.ownerName ?? lead.ownerId}</span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
+                  Chưa ai giữ lead, cần giao lead trước.
+                </span>
+              )}
+            </p>
+          </Field>
+        )}
+      </div>
+
+      {failure && (
+        <p role="alert" className="text-warning text-[12.5px] leading-[1.6]">
+          {userMessage(failure)}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {step && !finishing && (
+          <Button
+            size="md"
+            variant="ghost"
+            className="pointer-coarse:h-12"
+            disabled={busy}
+            onClick={() => clear.mutate(undefined, done)}
+          >
+            <Icon icon={Trash2} size={16} />
+            Xoá
+          </Button>
+        )}
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button
+            size="md"
+            variant="ghost"
+            className="pointer-coarse:h-12"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Huỷ
+          </Button>
+          {finishing && (
+            <Button
+              size="md"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              disabled={busy}
+              onClick={() => closing && finish.mutate({ closing }, done)}
+            >
+              Xong, không đặt việc mới
+            </Button>
+          )}
+          <Button size="md" className="pointer-coarse:h-12" disabled={!ready} onClick={save}>
+            <Icon icon={Check} size={16} />
+            {finishing ? 'Xong và lưu việc mới' : 'Lưu việc'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DoerPicker({
+  lead,
+  step,
+  value,
+  onChange,
+}: {
+  lead: LeadProfile
+  step: NextStep | null
+  value: string
+  onChange: (id: string) => void
+}) {
+  const options = useDoerOptions(lead, step)
+  return (
+    <Field label="Người làm">
+      <Select
+        label="Người làm"
+        hideLabel
+        size="lg"
+        className="w-full"
+        value={value}
+        neutralValue=""
+        options={options}
+        onChange={onChange}
+      />
+    </Field>
+  )
+}
+
+/** Sales people, plus the holder and the current doer when the roster lacks
+ *  them — a select whose value is not among its options prints a bare id. The
+ *  empty first row exists only for a pool lead, which has no default doer. */
+function useDoerOptions(lead: LeadProfile, step: NextStep | null) {
+  const options = useSalesPeople().map((a) => ({ value: a.id, label: a.name }))
+  const known = [
+    step?.doer,
+    lead.ownerId ? { id: lead.ownerId, name: lead.ownerName ?? lead.ownerId } : null,
+  ]
+  for (const person of known) {
+    if (person && !options.some((o) => o.value === person.id)) {
+      options.unshift({ value: person.id, label: person.name })
+    }
+  }
+  return lead.ownerId ? options : [{ value: '', label: 'Chọn người làm' }, ...options]
 }

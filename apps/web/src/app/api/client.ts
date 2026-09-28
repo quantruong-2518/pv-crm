@@ -53,7 +53,7 @@ import { isGatewayDown, reportAnswering, reportUnreachable } from './server-heal
  *  Đó là điều kiện để cắt từng sổ một sang máy chủ mà năm màn còn lại không
  *  chết trong lúc chờ; bỏ `load` khỏi một query là cắt xong query đó. */
 
-export type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 /** What one endpoint asks for — the SAME shape the server declares.
  *
@@ -484,7 +484,7 @@ export type WriteOptions<T = unknown> = {
    *  `DELETE` KHÔNG vào `REPLAYABLE` dù nó idempotent theo nghĩa của HTTP: lần
    *  xoá thứ hai trả 404, và 404 đó hiện lên màn thành "không xoá được" cho
    *  một thao tác vừa thành công. */
-  method?: 'POST' | 'PATCH' | 'DELETE'
+  method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   /** Serialize thành JSON. `undefined` = không gửi thân, và cũng không gắn
    *  `Content-Type` — một preflight thừa cho một request rỗng. */
   body?: unknown

@@ -54,6 +54,9 @@ export type ImportCheckInput = {
   /** Folded company names of leads that have left the funnel — refused with
    *  their own sentence, since "no such lead" would send the reader hunting. */
   exitedCompany: ReadonlySet<string>
+  /** Lead codes the caller may not convert (an `ownOnly` caller's foreign or
+   *  pool leads) — a row error here, so preview and commit agree. */
+  outOfScope: ReadonlySet<string>
 }
 
 export type ImportCheck = {
@@ -205,6 +208,12 @@ function checkRow(
     return {
       field: 'company',
       reason: `Không có lead nào tên "${company}" — nạp lead trước, rồi nạp cơ hội`,
+    }
+  }
+  if (input.outOfScope.has(leadCode)) {
+    return {
+      field: 'company',
+      reason: `Lead "${company}" không đứng tên bạn — hỏi người đang giữ nó.`,
     }
   }
 

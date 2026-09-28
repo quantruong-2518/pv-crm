@@ -106,6 +106,9 @@ export const TouchKind = z.enum([
   'exited',
   /** The lead came back into the funnel, after `exited`. */
   'reopened',
+  /** The holder marked the next step done (`./next-step`); `note` quotes its
+   *  text, since the step itself is replaced or cleared in the same write. */
+  'next-step-done',
 ])
 
 /** Which book the row hangs off. A deal and its lead keep separate trails —

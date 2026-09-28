@@ -456,6 +456,13 @@
       "when": 1788503600000,
       "tag": "0065_mail_group_gate_doors",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788503700000,
+      "tag": "0066_next_step",
+      "breakpoints": true
     }
   ]
 }

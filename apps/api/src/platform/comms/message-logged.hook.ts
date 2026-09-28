@@ -1,4 +1,4 @@
-import type { ObjectKind } from '@pv/engines'
+import type { Actor, ObjectKind } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 
 /** THE SEAM BETWEEN A LOGGED TURN AND THE BRANCH THAT OWNS ITS SUBJECT.
@@ -16,7 +16,9 @@ export interface MessageLoggedHook {
   afterLogged(tx: Db, event: MessageLogged): Promise<void>
 }
 
-export type MessageLogged = { subjectKind: ObjectKind; subjectCode: string; actorId: string }
+/** The whole `Actor`, not an id: whether the turn may move the subject is the
+ *  branch's permission question, and only the caller's grants can answer it. */
+export type MessageLogged = { subjectKind: ObjectKind; subjectCode: string; actor: Actor }
 
 /** Optional: with no branch bound, comms still logs turns and nothing moves. */
 export const MESSAGE_LOGGED_HOOK = Symbol('pv.comms.message-logged')
