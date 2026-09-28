@@ -2,7 +2,8 @@
 
 Status: accepted (supersedes 0027; partially supersedes 0018 (the five `state`
 values and the `state`/`stage` two-column split), 0032 (the board's column set),
-0057 §5 (loss reason becomes care reason))
+0057 §5 (loss reason becomes care reason)); §3 reactivate row and §6
+reactivation and per-stage catalogue superseded by 0067
 Source: project owner's decision in session, 21/09/2026
 
 ## Context
@@ -99,6 +100,9 @@ chain, unchanged. The web `need` must match the controller including the
 `scoped` flag (today it disagrees on profile, PATCH and stage).
 
 ### 6 · The care list
+
+> Partially superseded by 0067: a stop is a stop record, waking opens a new
+> journey, reasons come from one shared catalogue.
 
 A deal may fail from ANY state and stage. The reason is mandatory and comes
 from a per-stage catalogue held in `config_entry` (extending the existing

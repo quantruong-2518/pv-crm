@@ -1,6 +1,7 @@
 # 0066 · A fourth lead intake door reads photos and files through Gemini, deterministic grouping, no AI-preview block
 
-Status: accepted
+Status: accepted; §6 narrowed by 0067 (a parked `SCAN` lead may be put into a
+campaign)
 Source: project owner's decision in session, 28/09/2026
 
 ## Context
@@ -103,6 +104,8 @@ no-attachment-store half does not; see `apps/api/src/platform/storage/` for
 what replaced it. A pointer line was added to 0029 rather than rewriting it.
 
 ### 6 · Scanned contacts are not opted in to MAS
+
+> Narrowed by 0067 §8: once parked, a `SCAN` lead may be put into a campaign.
 
 A `SCAN` lead keeps its campaign attribution (for reporting: which event or
 outbound push produced it) but is **not** enrolled as a campaign member, so it

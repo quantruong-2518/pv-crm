@@ -1,7 +1,8 @@
 # 0063 · Lead state follows scheduled care and real exchange, not edits; tier leaves the state machine
 
 Status: accepted (partially supersedes 0058: the entry conditions of `verifying`,
-`working` and `nurturing`, "Tier is not a state", and three Amendment bullets)
+`working` and `nurturing`, "Tier is not a state", and three Amendment bullets);
+§1 `disqualified`/`archived` labels, §2 last bullet and §4 superseded by 0067
 Source: project owner's decision in session, 21/09/2026
 
 ## Context
@@ -45,6 +46,8 @@ state except `disqualified`|`archived`, still not clearable. The
 `POST :code/verify` door and the "Xác minh xong" button are removed.
 
 ### 4 · Reopen and resume read FACTS in the touch trail
+
+> Superseded by 0067: no reopen, no resume — waking opens a new lead.
 
 Highest rung ever reached: `working` if an `exchange-logged` or legacy
 `verified` touch exists, `verifying` if `care-planned` or legacy `first-action`,

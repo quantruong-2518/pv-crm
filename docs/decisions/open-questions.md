@@ -101,13 +101,14 @@ checked against `git show` if the original is ever needed.
 ## Shared flows (added 28/09/2026)
 
 Raised while drawing row F of the workstream canvas. The decisions they hang on
-are not an ADR yet; they live in `.claude/HANDOFF-workstream-loop.md`.
+are in `.claude/HANDOFF-workstream-loop.md`; the presale ones are ADR 0067.
 
 24. **The "done" label of the shared due ladder.** `DueLevel` now covers next
     steps, installments, rollout milestones and time spent at a rung, but the
     product's only label for `done` is "Đã thu" (`DUE_LABEL` in
     `apps/web/src/data/contracts.ts`), which is about money. The canvas uses
     "Đã xong" for the non-money kinds until the owner names one.
+    **Answered 28/09/2026: "Đã xong" — ADR 0067 §7 (D8).**
 25. **Bulk send with a template that carries a file.** Attachments are allowed
     only in group send, and the "Báo giá" template attaches the latest quote
     PDF. Either bulk send is allowed and drops the file, or a template that
@@ -116,6 +117,8 @@ are not an ADR yet; they live in `.claude/HANDOFF-workstream-loop.md`.
     catalogue gives each reason a "Không liên hệ" flag (never mailed, never put
     in a campaign), but no reason carries it in code yet. The canvas flags
     "Không phải khách của mình" and "Trùng opp khác" as placeholders.
+    **Answered 28/09/2026: "Không phải khách của mình" and "Người liên hệ nghỉ
+    việc" — ADR 0067 §4 (D5).**
 27. **What a customer reply on an opportunity or a contract moves.** A reply
     counts as a real exchange and moves the LEAD a rung; an opportunity or a
     contract has no rung it maps to. The canvas only rings the holder's bell.

@@ -14,27 +14,9 @@ Kế hoạch đầy đủ (luồng đích, 13 luật cũ phải lật, 6 đợt,
 thu): https://claude.ai/artifact/Ho7qfF1zV5M93Tv5x5LSXV. UI hành trình đã commit
 (`ec150fe`).
 
-- **Đã chốt đủ D1–D11 (28/09)** — câu gốc ở mục 4 của trang; ADR chưa viết:
-  - D1 bậc con của lead = bằng chứng đọc từ dòng hoạt động, không lưu cột.
-  - D2 dừng một cơ hội KHÔNG sinh lead chờ; list Chờ thời điểm = danh sách
-    lần dừng (lead, cơ hội, sau này hợp đồng). Đánh thức mới tạo lead.
-  - D3 lead cũ sau đánh thức giữ `nurturing`, lần dừng ghi `woken_at` + lead mới,
-    rời khỏi list. Không thêm state.
-  - D4 **KHÔNG giới hạn** lead sống mỗi email (khác đề xuất): gỡ
-    `lead_email_live_idx`; landing hiện bắt trùng bằng index đó → cần cách
-    chống trùng khác ở cửa nhập (cảnh báo, không chặn).
-  - D5 danh mục lý do: seed F-Wait + "Khác (ghi chú)", nhãn tiền "Chưa có ngân
-    sách năm nay"; cờ Không liên hệ: "Không phải khách của mình", "Người liên hệ
-    nghỉ việc".
-  - D6 khách trả lời khi lead ở kho: giữ `new`, chuông trưởng phòng; ai nhận thì
-    vào thẳng Tình trạng chăm sóc.
-  - D7 hết chiến dịch = gửi xong đợt cuối (DONE), không ân hạn; không có ngày kết
-    thúc thì không trả về.
-  - D8 bậc lead chưa có hạn; nhãn mức xong của thang hạn "Đã xong".
-  - D9 quyền tạm dùng quyền hiện có (dừng của mình `lead.edit`, của người khác
-    `lead.disqualify`, đánh thức `lead.edit`); lead SCAN nằm chờ vào chiến dịch được.
-  - D10 được viết MỘT file test tầng API cho máy trạng thái lead.
-  - D11 việc tiếp theo chỉ 3 mức (Chưa tới · Đến hạn · Quá hạn) — `stepLevelOf`.
+- D1–D11 (chủ dự án chốt 28/09) đã ghi thành ADR:
+  `docs/decisions/0067-park-every-presale-stop-and-wake-into-a-new-journey.md`.
+- Còn mở: SDR (câu mở #23) · trả lời trên cơ hội/hợp đồng (#27).
 - Đã commit (28/09), qua `pnpm check` và nhìn trên PGlite: làn I (việc tiếp
   theo lên máy chủ — bảng `sales.next_step`, 4 cửa `/sales/leads/:code/next-step`,
   thẻ trên chi tiết lead) và làn II (convert xét phạm vi lead, comms chỉ đẩy bậc
@@ -42,7 +24,7 @@ thu): https://claude.ai/artifact/Ho7qfF1zV5M93Tv5x5LSXV. UI hành trình đã co
   ghi trường liên hệ). Chưa lên Neon: migration `0066` đi cùng lần `/ship` sau.
 - Còn nợ nhỏ: E2 so người giữ bằng tên (`packages/engines/src/e2-access.ts`);
   bước dừng/đóng cơ hội chưa xoá việc tiếp theo của cơ hội (chưa có cửa OP).
-- Việc tiếp: W0 → ADR, rồi W1 contract + W1b mock (màn mới chạy trên mock trước).
+- Việc tiếp: W1 contract + W1b mock (màn mới chạy trên mock trước).
 
 ## Trạng thái — 28/09/2026
 
@@ -150,8 +132,8 @@ không đạt 4.5:1 trên nền sáng trần).
   giá trị tiền không — nếu có thì cần token chính thức.
 - Nhãn cơ hội đang mở "Đang triển khai" dễ nhầm với bậc hợp đồng "Triển khai".
 - Pill giá trị tiền đang trung tính (`bg-surface-ink/9`) chờ câu trên.
-- Nhãn "xong" của thang hạn cho việc/mốc (câu mở #24) — drawer đang không in
-  pill cho mốc đã xong vì `DUE_LABEL.done` là "Đã thu".
+- Nhãn "xong" của thang hạn đã chốt "Đã xong" (ADR 0067 §7, câu mở #24) nhưng
+  `DUE_LABEL.done` vẫn là "Đã thu" — drawer đang không in pill cho mốc đã xong.
 - Mock chưa có cửa Chờ thời điểm do máy kết luận (C5) hay mang cờ Không liên
   hệ (C4) — code có nhánh, chưa màn nào hiện ra để nhìn.
 - Mã hợp đồng không bấm được: `chainPath` chưa có `HĐ` vì module hợp đồng đang gác.

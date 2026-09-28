@@ -3,7 +3,8 @@
 Status: accepted (supersedes 0055; partially supersedes 0015 rule 2 and rule
 4, 0031's fourth request type, and 0034); §6 superseded by 0060 (stage-gate
 is removed outright, not scoped down); §5 amended by 0064 (loss reason becomes
-care reason, picked from a per-stage catalogue)
+care reason, picked from a per-stage catalogue); §2 partially superseded by
+0067 (lead exit becomes a stop into `nurturing`; no reopen)
 Source: project owner's decision in session, 17/09/2026
 
 ## Context
@@ -33,6 +34,9 @@ only `opportunity.edit`. The contract's commission holder changes only when
 that person is no longer a SALE owner on the deal.
 
 ### 2 · Lead exit is direct, reversible, and outside E3
+
+> Partially superseded by 0067: no reopen, one shared reason catalogue,
+> `lead.edit` for one's own stop. "Direct, outside E3" still holds.
 
 A lead leaving the funnel ("rời phễu") is performed by the salesperson
 directly: one of the six closed `EXIT_REASONS` (ADR 0015 rule 4) plus an

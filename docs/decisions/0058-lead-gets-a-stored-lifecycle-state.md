@@ -1,7 +1,8 @@
 # 0058 · A lead gets one stored lifecycle state, replacing `stage` and the running/signed/exited split
 
-Status: một phần bị thay thế bởi 0063 (entry conditions of `verifying`/`working`,
-tier rules); accepted (partially supersedes 0015 and 0034's use of the pipeline
+Status: partially superseded by 0063 (entry conditions of `verifying`/`working`,
+tier rules) and by 0067 (`disqualified`/`archived` retired, no reopen or
+resume, no archive sweep); accepted (partially supersedes 0015 and 0034's use of the pipeline
 `phase` ladder for the lead's own status; keeps 0057 §2 for `disqualified`)
 Source: project owner's decision in session, 18/09/2026; diagram
 `crm_workstream_v2.pdf`, block 2 ("Lead") — already cited by ADR 0054
@@ -31,13 +32,16 @@ computed after the fact.
 
 ### States
 
+> Superseded by 0067 for the `nurturing`, `disqualified` and `archived` rows:
+> `nurturing` is the only stop, the other two are retired.
+
 | Key            | Vietnamese label | Entered by                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `new`          | Mới tạo          | No PIC yet. Manual create, import, landing-page intake without an owner.                                                                                                                                                                                                                                                                                                                                                |
 | `assigned`     | Đã nhận          | Has a PIC, PIC has not acted yet. Automatic when a PIC is set (self-claim or assigned by a manager).                                                                                                                                                                                                                                                                                                                    |
-| `verifying`    | Đang xác minh    | Covers both checking the lead's information and qualifying need/timing after first contact. Automatic on the PIC's first action of any kind (editing fields, a contact, a meeting, a mail sent). **Đã thay bởi 0063.**                                                                                                                                                                                                  |
-| `working`      | Đang chăm        | Manual: the PIC confirms the lead is verified and must pick the tier in the same action. **Đã thay bởi 0063.**                                                                                                                                                                                                                                                                                                          |
-| `nurturing`    | Nuôi dài hạn     | Manual by the PIC from `verifying` or `working` ("not ready"); at most 6 months (the diagram's number). The PIC brings it back to `working` when there is a new signal. **Resume rule đã thay bởi 0063.**                                                                                                                                                                                                               |
+| `verifying`    | Đang xác minh    | Covers both checking the lead's information and qualifying need/timing after first contact. Automatic on the PIC's first action of any kind (editing fields, a contact, a meeting, a mail sent). **Superseded by 0063.**                                                                                                                                                                                                |
+| `working`      | Đang chăm        | Manual: the PIC confirms the lead is verified and must pick the tier in the same action. **Superseded by 0063.**                                                                                                                                                                                                                                                                                                        |
+| `nurturing`    | Nuôi dài hạn     | Manual by the PIC from `verifying` or `working` ("not ready"); at most 6 months (the diagram's number). The PIC brings it back to `working` when there is a new signal. **Resume rule superseded by 0063.**                                                                                                                                                                                                             |
 | `converted`    | Đã lên cơ hội    | Automatic when the first opportunity is created from the lead.                                                                                                                                                                                                                                                                                                                                                          |
 | `disqualified` | Đã loại          | Manual, one of the six closed exit reasons plus an optional note; reversible (reopen recomputes the resulting state from current facts — see Amendment). This is the lead exit ADR 0057 decision 2 named, renamed as a state — everything 0057 §2 says (direct, no E3, refused while an open deal exists or the lead is signed, the run closes `LOST` / reopens on reversal, permission `lead.disqualify`) still holds. |
 | `archived`     | Lưu trữ          | Automatic, by the system, after 6 months in `nurturing`.                                                                                                                                                                                                                                                                                                                                                                |
@@ -49,7 +53,7 @@ are the only way back (`nurturing` → `working` or `verifying`; `disqualified`
 
 ### Tier is not a state
 
-> Đã thay bởi 0063: tier is optional, editable in any state except
+> Superseded by 0063: tier is optional, editable in any state except
 > `disqualified`|`archived`, and no longer set by a verify step.
 
 `tier` (`prospect`/`mql`/`sql`) stays a separate field, not folded into the
@@ -103,16 +107,18 @@ rulings on when tier may be written or edited).
 
 ## Amendment · 18/09/2026
 
+> Reopen, resume, disqualify and `archived` bullets superseded by 0067.
+
 Source: project owner, further rulings in session, same day, made as the
 code implementing this ADR was being built.
 
 - **Reopen from `disqualified` recomputes, it does not return to a fixed
   state.** The resulting state is derived from current facts: any deal
   exists → `converted`; no owner → `new`; no tier → `verifying`; otherwise →
-  `working`. **Đã thay bởi 0063** (recomputed from touch facts, not tier). This corrects the body above, which said reopen unconditionally
+  `working`. **Superseded by 0063** (recomputed from touch facts, not tier). This corrects the body above, which said reopen unconditionally
   returns to `working`.
 - **Resume from `nurturing`** goes to `working` if the lead already has a
-  tier, otherwise to `verifying`. **Đã thay bởi 0063.**
+  tier, otherwise to `verifying`. **Superseded by 0063.**
 - **Owner change.** Handing a lead from one PIC to another (A → B) keeps the
   current state unchanged. Releasing a lead to the pool (no owner) from any
   open state moves it to `new`. Terminal states (`converted`, `disqualified`,
@@ -130,10 +136,10 @@ code implementing this ADR was being built.
   transition fires only when the actor performing the action is the lead's
   current owner. An action by anyone else does not count, and a campaign
   wave touching the lead does not count. A call logged against the lead in
-  comms does count, regardless of which channel logged it. **Đã thay bởi 0063.**
+  comms does count, regardless of which channel logged it. **Superseded by 0063.**
 - **Tier writes narrow further.** The first tier value is set only by the
   verify step (the `working` entry action), never earlier. After that, tier
-  may be edited only while the lead is in `working` or `converted`. **Đã thay bởi 0063.** Import no
+  may be edited only while the lead is in `working` or `converted`. **Superseded by 0063.** Import no
   longer writes a tier at all — this supersedes the body's earlier mention of
   an importer cap, which assumed import still set a (capped) tier.
 - **`archived` is a dead end with side effects.** Reaching `archived` frees
