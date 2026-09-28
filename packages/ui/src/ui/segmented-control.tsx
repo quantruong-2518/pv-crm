@@ -1,4 +1,6 @@
 import { useId } from 'react'
+import type { IconGlyph } from '../icons'
+import { Icon } from './icon'
 import { cn } from '../lib/cn'
 
 /** A-19 · SegmentedControl — chọn ĐÚNG MỘT trong vài lựa chọn ngang hàng.
@@ -17,6 +19,8 @@ export type SegmentedOption = {
    *  cái đếm được có mẫu số. Chuỗi đi cùng đường vẽ với số để hai tab cạnh
    *  nhau không in ra hai kiểu chữ số. */
   count?: number | string
+  /** Glyph before the label — for tabs that name the faces of one object. */
+  icon?: IconGlyph
   disabled?: boolean
 }
 
@@ -80,6 +84,7 @@ export function SegmentedControl({
                 o.disabled && 'cursor-not-allowed opacity-45 hover:bg-transparent',
               )}
             >
+              {o.icon && <Icon icon={o.icon} size={16} />}
               {o.label}
               {/* On `--primary` the count takes `--primary-foreground`:
                   `--on-tint-*` is for a TINTED ground and fails 4.5:1 here

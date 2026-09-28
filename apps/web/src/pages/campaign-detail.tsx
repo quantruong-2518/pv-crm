@@ -3,32 +3,24 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Badge,
-  Button,
   CircleAlert,
-  ContextRail,
   EmptyState,
+  FileText,
   GlassCard,
-  Icon,
-  Octagon,
-  ScreenHeader,
   ScreenLayout,
-  SectionTitle,
   SegmentedControl,
   Send,
   Skeleton,
+  Users,
 } from '@pv/ui'
 import type { CampaignProfile } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { dm } from '@/lib/date'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { doorTemplatesQuery } from '@/data/mas'
 import {
-  CAMPAIGN_STATE_LABEL,
-  CAMPAIGN_STATE_TONE,
   campaignPreflightQuery,
   campaignProfileQuery,
   useCampaignMembers,
@@ -37,26 +29,25 @@ import {
   useCampaignStop,
   useCampaignWaveAdd,
 } from '@/data/campaign-book'
-import {
-  campaignReadiness,
-  parseCampaignTab,
-  DEFAULT_CAMPAIGN_TAB,
-  type CampaignTab,
-} from './campaign-model'
+import { parseCampaignTab, DEFAULT_CAMPAIGN_TAB, type CampaignTab } from './campaign-model'
 import { ProfileTab } from './campaign-profile-parts'
 import { AudienceTab } from './campaign-audience-parts'
-import { StopDrawer, WaveDrawer, WaveTable } from './campaign-wave-parts'
-import { CampaignStageBand, ReadinessBand, WaveTotals } from './campaign-overview-parts'
+import { StopModal, WaveTable } from './campaign-wave-parts'
+import { WaveModal } from './campaign-wave-modal'
+import {
+  CampaignActionBar,
+  CampaignIdentity,
+  WaveResults,
+  WavesEmpty,
+} from './campaign-overview-parts'
 
 /** Module 1 · one campaign's workspace — `/sales/campaigns/:code`.
  *
- *  NOT A WIZARD ANY MORE (20/09). `Stepper` was carrying three jobs at once
- *  here, and the patches proved it: `initialStep = 3` for a campaign that
- *  already exists, a high-water `reached` hack, and a back-to-overview button
- *  that existed only because the stepper could not walk forward. What replaces
- *  it splits those jobs — `StageTrack` for the lifecycle position, a
- *  `SegmentedControl` for moving between the faces of an object that already
- *  exists, and a Drawer for the one act that sends real mail.
+ *  NOT A WIZARD ANY MORE (20/09): a campaign that already exists is not a
+ *  form being walked. The state badge names the lifecycle, a
+ *  `SegmentedControl` moves between the faces of the object, a Modal holds
+ *  the one act that sends real mail, and since 28/09 a bar pinned to the
+ *  bottom keeps both acts in reach from every tab.
  *
  *  The tab rides on the address (`?tab=`) so an opened face can be sent to
  *  whoever has to fix it — the same ritual the book uses for its filters. */
@@ -133,15 +124,19 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
      `campaign.view`. Reading a campaign must not depend on it. */
   const { data: catalog } = useQuery({ ...salesCatalogQuery, enabled: canEdit })
   const sources = useMemo(() => catalog?.SOURCE ?? [], [catalog])
-  const { data: templateData } = useQuery(doorTemplatesQuery('campaign'))
+  const { data: templateData } = useQuery({ ...doorTemplatesQuery('campaign'), enabled: canFire })
   const templates = templateData?.rows ?? []
 
-  /* THE SERVER COUNTS WHO CAN BE REACHED, nobody here. Gated twice: the door
-     declares `campaign.broadcast` (a read-only role would take a 403 on load),
-     and a STOPPED campaign shows nothing the answer could fill. */
+  const [firing, setFiring] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const stopped = campaign.state === 'STOPPED'
+
+  /* THE SERVER COUNTS WHO CAN BE REACHED, nobody here — and only the fire
+     dialog reads the answer, so it is asked while that dialog is open. The
+     door declares `campaign.broadcast`; a read-only role would take a 403. */
   const { data: preflight, isError: preflightFailed } = useQuery({
     ...campaignPreflightQuery(code),
-    enabled: canFire && campaign.state !== 'STOPPED',
+    enabled: firing && canFire && !stopped,
   })
 
   const patch = useCampaignPatch(code)
@@ -150,71 +145,20 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
   const stop = useCampaignStop(code)
   const waveAdd = useCampaignWaveAdd(code)
 
-  const [firing, setFiring] = useState(false)
-  const [stopping, setStopping] = useState(false)
-  const stopped = campaign.state === 'STOPPED'
+  const emptyWaves = campaign.waveCount === 0
+  /* The empty waves tab carries its own first-wave call, and with nobody to
+     send to the fire door is closed in both places — one rule for both. */
+  const barFire =
+    canFire && !stopped && campaign.audienceCount > 0 && !(tab === 'waves' && emptyWaves)
+  const barStop = canFire && campaign.state === 'RUNNING'
 
   return (
     <ScreenLayout>
-      <ScreenHeader
-        back={{ label: 'Sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
-        title={campaign.name}
-        description={campaign.slogan}
-        /* Law 10 · ONE chip, the object open right now, and that is everything
-           E1 can say here — see the same call in `source-detail.tsx`. */
-        context={<ContextRail objects={[{ code: campaign.code, source: true }]} />}
-        meta={
-          <>
-            <Badge tone={CAMPAIGN_STATE_TONE[campaign.state]}>
-              {CAMPAIGN_STATE_LABEL[campaign.state]}
-            </Badge>
-            {/* Not `Kicker`: that is a short GROUP LABEL in mono caps, and law 6
-                bans caps plus letter-spacing on Vietnamese — a person's name in
-                it stops reading. */}
-            <span className="text-muted-foreground text-[11.5px]">
-              {campaign.ownerName ?? 'Chưa có chủ'}
-              {campaign.sourceName ? ` · nguồn ${campaign.sourceName}` : ''} · mở{' '}
-              {dm(campaign.createdAt)}
-            </span>
-          </>
-        }
-        actions={
-          <>
-            {canFire && !stopped && (
-              <Button
-                size="md"
-                className="pointer-coarse:h-12"
-                onClick={() => setFiring(true)}
-                aria-haspopup="dialog"
-              >
-                <Icon icon={Send} size={16} />
-                Bắn đợt {campaign.waveCount + 1}
-              </Button>
-            )}
-            {canFire && campaign.state === 'RUNNING' && (
-              <Button
-                size="md"
-                variant="ghost"
-                className="pointer-coarse:h-12"
-                onClick={() => setStopping(true)}
-                aria-haspopup="dialog"
-              >
-                <Icon icon={Octagon} size={16} />
-                Dừng chiến dịch
-              </Button>
-            )}
-          </>
-        }
-      />
+      <CampaignIdentity campaign={campaign} onBack={() => navigate('/sales/campaigns')} />
 
-      <CampaignStageBand campaign={campaign} />
-
-      {!stopped && (
-        <ReadinessBand
-          rows={campaignReadiness(campaign, preflight)}
-          onFix={(next) => goTab(next)}
-        />
-      )}
+      {/* Above the tabs and always drawn, zeros included: the results answer
+          "how is it going" whichever face is open, even before wave 1. */}
+      <WaveResults campaign={campaign} />
 
       <SegmentedControl
         label="Phần chiến dịch"
@@ -222,25 +166,25 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
         tone="quiet"
         value={tab}
         options={[
-          { value: 'waves', label: 'Chuỗi đợt' },
-          { value: 'audience', label: 'Tệp nhận', count: campaign.audienceCount },
-          { value: 'profile', label: 'Hồ sơ' },
+          { value: 'profile', label: 'Thông tin chung', icon: FileText },
+          { value: 'audience', label: 'Người nhận', icon: Users, count: campaign.audienceCount },
+          { value: 'waves', label: 'Các đợt gửi', icon: Send, count: campaign.waveCount },
         ]}
         onChange={(next) => goTab(next as CampaignTab)}
       />
 
-      {tab === 'waves' && (
-        <div className="flex flex-col gap-5">
-          <WaveTotals campaign={campaign} />
-          <div className="flex flex-col gap-1">
-            <SectionTitle>Chuỗi đợt</SectionTitle>
-            <span className="text-muted-foreground text-[11px]">
-              Bấm một đợt để xem thư của từng người nhận đi tới đâu.
-            </span>
-          </div>
+      {tab === 'waves' &&
+        (emptyWaves ? (
+          <WavesEmpty
+            campaign={campaign}
+            canFire={canFire}
+            canEdit={canEdit}
+            onFire={() => setFiring(true)}
+            onAudience={() => goTab('audience')}
+          />
+        ) : (
           <WaveTable campaign={campaign} />
-        </div>
-      )}
+        ))}
 
       {tab === 'audience' && <AudienceTab code={code} members={members} canEdit={canEdit} />}
 
@@ -258,7 +202,7 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
         />
       )}
 
-      <WaveDrawer
+      <WaveModal
         campaign={campaign}
         templates={templates}
         preflight={preflight}
@@ -269,12 +213,20 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
         waveAdd={waveAdd}
       />
 
-      <StopDrawer
+      <StopModal
         campaign={campaign}
         open={stopping}
         onClose={() => setStopping(false)}
         stop={stop}
       />
+
+      <CampaignActionBar
+        nextWave={campaign.waveCount + 1}
+        onFire={barFire ? () => setFiring(true) : undefined}
+        onStop={barStop ? () => setStopping(true) : undefined}
+      />
+      {/* Room under the last block so the fixed bar never sits on it. */}
+      {(barFire || barStop) && <div aria-hidden className="h-12 shrink-0" />}
     </ScreenLayout>
   )
 }

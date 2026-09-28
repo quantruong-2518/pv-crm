@@ -5,16 +5,16 @@ import {
   Checkbox,
   Chip,
   DataTable,
+  Drawer,
   EmptyState,
   GlassCard,
   Icon,
   Inbox,
+  Plus,
   SearchField,
-  SectionTitle,
   Select,
   Skeleton,
   Trash2,
-  UserPlus,
   Users,
 } from '@pv/ui'
 import type { LeadBookQuery, LeadBookResponse, LeadCategory, LeadTier } from '@pv/contracts'
@@ -25,12 +25,15 @@ import { useSelectionGesture } from '@/components/book-selection'
 import { leadBookQuery } from '@/data/leads'
 import { campaignMembersQuery, type useCampaignMembers } from '@/data/campaign-book'
 
-/** Module 1 · the campaign AUDIENCE — who the letters go to, picked from the
- *  lead book and listed back with the rows that cannot be written to.
+/** Module 1 · the campaign AUDIENCE — ONE card holding who the letters go to,
+ *  and a `Drawer` (same shape as `WaveDrawer`) that adds more from the lead
+ *  book.
  *
- *  ONE tab of the campaign workspace since 20/09, no longer a wizard step: the
- *  list and the picker stand as sibling tiles on the screen, because a card
- *  holding the table's own `glass-b` tile is the layer law 4 forbids. */
+ *  Locked 28/09: the member list and the candidate picker used to stand as
+ *  two stacked blocks, the top one reading empty on a fresh campaign before
+ *  anyone had picked a soul — confusing order for the first thing a new
+ *  campaign asks of its owner. The add flow now opens over the list instead
+ *  of sitting under it, so the card the owner came to read never moves. */
 
 const CATEGORY_LABEL = new Map(LEAD_CATEGORIES.map((c) => [c.key, c.label]))
 const TIER_LABEL = new Map(LEAD_TIERS.map((t) => [t.key, t.label]))
@@ -44,14 +47,13 @@ const AUDIENCE_PAGE_SIZE = 100
  *  stay in state (typing shows up at once) and only drip into the query. */
 const SEARCH_DELAY_MS = 300
 
-/** THE PICKER, AND THE ROWS IT MUST NOT OFFER AGAIN.
+/** THE DRAWER'S CANDIDATE LIST, AND THE ROWS IT MUST NOT OFFER AGAIN.
  *
  *  `alreadyIn` is the audience as it stands. A lead already in the campaign has
  *  nothing left for this table to do with it: ticking it a second time posts an
  *  `add` the server answers with `added: 0`, and the reader — who is looking at
- *  that same name in the list right above — reasonably reads the repeat as the
- *  screen having lost track of what it already holds. Absent for a campaign
- *  being CREATED, where the audience is exactly what this table is building. */
+ *  that same name in the card behind this drawer — reasonably reads the repeat
+ *  as the screen having lost track of what it already holds. */
 function AudiencePicker({
   selected,
   onSetOne,
@@ -61,7 +63,7 @@ function AudiencePicker({
   selected: ReadonlySet<string>
   onSetOne: (code: string, on: boolean) => void
   onSetMany: (codes: string[], on: boolean) => void
-  alreadyIn?: ReadonlySet<string>
+  alreadyIn: ReadonlySet<string>
 }) {
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
@@ -92,7 +94,7 @@ function AudiencePicker({
      about this audience, so a page of 100 holding 3 members shows 97 rows. The
      sentence under the table owns up to it, or 97 reads as a miscount. */
   const page = data?.rows ?? []
-  const rows = alreadyIn ? page.filter((l) => !alreadyIn.has(l.code)) : page
+  const rows = page.filter((l) => !alreadyIn.has(l.code))
   const alreadyOnPage = page.length - rows.length
   /* The DEBOUNCED word, not the live one: the table is answering `search`, so
      reading `text` would flip this 300ms early and tell a reader mid-clear that
@@ -141,9 +143,9 @@ function AudiencePicker({
       />
       <p className="text-muted-foreground text-[11px]">
         Hiện tới {AUDIENCE_PAGE_SIZE} lead khớp lọc, mới nhất trước
-        {alreadyOnPage > 0 ? `, bỏ ${alreadyOnPage} lead đã có trong tệp nhận` : ''}. Bấm từng dòng
-        để chọn — chạm cũng vậy. Riêng với chuột, giữ nút trái rồi rê qua nhiều dòng để bôi đen hàng
-        loạt.
+        {alreadyOnPage > 0 ? `, bỏ ${alreadyOnPage} lead đã có trong danh sách người nhận` : ''}.
+        Bấm từng dòng để chọn — chạm cũng vậy. Riêng với chuột, giữ nút trái rồi rê qua nhiều dòng
+        để bôi đen hàng loạt.
       </p>
     </div>
   )
@@ -173,13 +175,13 @@ function PickerToolbar({
   onSelectAll: () => void
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_repeat(2,minmax(140px,1fr))_auto] xl:items-center">
+    <div className="grid gap-3 sm:grid-cols-2 sm:items-center">
       <SearchField
         size="topbar"
         placeholder="Tìm theo công ty, người liên hệ hoặc mã lead…"
         value={text}
         onChange={setText}
-        className="w-full"
+        className="w-full sm:col-span-2"
       />
       <Select
         label="Ngành"
@@ -204,7 +206,7 @@ function PickerToolbar({
         variant="ghost"
         onClick={onSelectAll}
         disabled={visible === 0}
-        className="pointer-coarse:h-12 w-full xl:w-auto"
+        className="pointer-coarse:h-12 w-full sm:col-span-2"
       >
         Chọn tất cả {visible} đang hiện
       </Button>
@@ -238,109 +240,176 @@ function PickerTable({
   onPaint: (code: string, event: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   return (
-    <>
-      {/* `px-4` and not `p-0`: a table flush against the glass puts the first
-          chip and the last button hard against its edge, the same way
-          `leads.tsx` pads its own. On the SCROLL box, so it travels. */}
-      <GlassCard variant="b" className="max-h-[50vh] select-none overflow-y-auto px-4 py-3 lg:px-5">
-        {pending ? (
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon={Inbox}
-            message={
-              alreadyOnPage > 0
-                ? 'Mọi lead khớp bộ lọc đều đã có trong tệp nhận rồi.'
-                : filtered
-                  ? 'Không có lead nào khớp bộ lọc đang chọn.'
-                  : 'Sổ lead đang mở (trạng thái ĐANG CHẠY) hiện chưa có dòng nào.'
-            }
-            action={{ label: 'Bỏ hết bộ lọc', onClick: onClearFilters }}
-            className="py-8"
-          />
-        ) : (
-          <DataTable
-            columns={[
-              { header: 'Chọn', width: '48px' },
-              { header: 'Mã', width: '0.8fr' },
-              { header: 'Account', width: '1.7fr' },
-              { header: 'Người liên hệ', width: '1.4fr' },
-              { header: 'Ngành · Bậc', width: '1.2fr' },
-            ]}
-            rows={rows.map((l) => ({
-              id: l.code,
-              state: selected.has(l.code) ? ('selected' as const) : undefined,
-              onOpen: () => onActivate(l.code),
-              onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) =>
-                onBeginDrag(l.code, event),
-              onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) => onPaint(l.code, event),
-              cells: [
-                <span
-                  key="chk"
-                  className="flex w-full justify-center"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <Checkbox
-                    checked={selected.has(l.code)}
-                    onChange={(on) => onSetOne(l.code, on)}
-                    label={<span className="sr-only">Chọn {l.company}</span>}
-                    className="w-full justify-center gap-0 p-0"
-                  />
-                </span>,
-                <Chip key="c">{l.code}</Chip>,
-                <span key="n" className="block truncate" title={l.company}>
-                  {l.company}
-                </span>,
-                <span key="ct" className="block truncate">
-                  {l.contactName}
-                </span>,
-                <span key="cat" className="text-muted-foreground">
-                  {l.category ? (CATEGORY_LABEL.get(l.category) ?? l.category) : '—'} ·{' '}
-                  {l.tier ? (TIER_LABEL.get(l.tier) ?? l.tier) : '—'}
-                </span>,
-              ],
-            }))}
-          />
-        )}
-      </GlassCard>
-    </>
+    <GlassCard variant="b" className="max-h-[50vh] select-none overflow-y-auto px-4 py-3 lg:px-5">
+      {pending ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          message={
+            alreadyOnPage > 0
+              ? 'Mọi lead khớp bộ lọc đều đã có trong danh sách người nhận rồi.'
+              : filtered
+                ? 'Không có lead nào khớp bộ lọc đang chọn.'
+                : 'Sổ lead đang mở (trạng thái ĐANG CHẠY) hiện chưa có dòng nào.'
+          }
+          action={{ label: 'Bỏ hết bộ lọc', onClick: onClearFilters }}
+          className="py-8"
+        />
+      ) : (
+        <DataTable
+          columns={[
+            { header: 'Chọn', width: '48px' },
+            { header: 'Mã', width: '0.8fr' },
+            { header: 'Account', width: '1.7fr' },
+            { header: 'Người liên hệ', width: '1.4fr' },
+            { header: 'Ngành · Bậc', width: '1.2fr' },
+          ]}
+          rows={rows.map((l) => ({
+            id: l.code,
+            state: selected.has(l.code) ? ('selected' as const) : undefined,
+            onOpen: () => onActivate(l.code),
+            onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => onBeginDrag(l.code, event),
+            onPointerEnter: (event: ReactPointerEvent<HTMLDivElement>) => onPaint(l.code, event),
+            cells: [
+              <span
+                key="chk"
+                className="flex w-full justify-center"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={selected.has(l.code)}
+                  onChange={(on) => onSetOne(l.code, on)}
+                  label={<span className="sr-only">Chọn {l.company}</span>}
+                  className="w-full justify-center gap-0 p-0"
+                />
+              </span>,
+              <Chip key="c">{l.code}</Chip>,
+              <span key="n" className="block truncate" title={l.company}>
+                {l.company}
+              </span>,
+              <span key="ct" className="block truncate">
+                {l.contactName}
+              </span>,
+              <span key="cat" className="text-muted-foreground">
+                {l.category ? (CATEGORY_LABEL.get(l.category) ?? l.category) : '—'} ·{' '}
+                {l.tier ? (TIER_LABEL.get(l.tier) ?? l.tier) : '—'}
+              </span>,
+            ],
+          }))}
+        />
+      )}
+    </GlassCard>
   )
 }
 
-/** WHO IS ALREADY IN — the list, and the door to take somebody out of it.
+/** THE ADD-RECIPIENTS DRAWER — the only door in this module that writes.
+ *
+ *  Selection resets to empty every time it opens (`AudienceTab` clears it in
+ *  the same click that opens the drawer): a stale tick from three opens ago
+ *  reads as the screen having picked something the owner never touched. */
+function AudienceDrawer({
+  open,
+  onClose,
+  selected,
+  onSetOne,
+  onSetMany,
+  alreadyIn,
+  onSubmit,
+  pending,
+}: {
+  open: boolean
+  onClose: () => void
+  selected: ReadonlySet<string>
+  onSetOne: (code: string, on: boolean) => void
+  onSetMany: (codes: string[], on: boolean) => void
+  alreadyIn: ReadonlySet<string>
+  onSubmit: () => void
+  pending: boolean
+}) {
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width="lg"
+      title="Thêm người nhận"
+      subtitle="Chỉ hiện lead chưa có trong danh sách của chiến dịch."
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <span className="text-[13px] font-medium">Đã chọn {selected.size}</span>
+          <div className="flex gap-2">
+            <Button size="lg" variant="ghost" onClick={onClose} disabled={pending}>
+              Huỷ
+            </Button>
+            <Button size="lg" onClick={onSubmit} disabled={selected.size === 0 || pending}>
+              {pending ? 'Đang thêm…' : `Thêm ${selected.size} người`}
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <AudiencePicker
+        selected={selected}
+        onSetOne={onSetOne}
+        onSetMany={onSetMany}
+        alreadyIn={alreadyIn}
+      />
+    </Drawer>
+  )
+}
+
+/** WHO IS ALREADY IN — one `.glass-b` card: a toolbar, the table, and the door
+ *  to take somebody out. The toolbar's search runs on the rows already loaded
+ *  here (cheap: this door loads the whole audience up to `MAS_MAX_RECIPIENTS`
+ *  in one page); the industry and tier selects stay OUT of it because
+ *  `CampaignMemberRow` carries neither field, only the lead book behind the
+ *  drawer does.
  *
  *  It no longer counts missing addresses. That count used to live here because
  *  the only preflight ran scoped and so lied about a campaign holding somebody
  *  else's leads; `POST /sales/campaigns/:code/preflight` reads unscoped, the
- *  way the send does, and the readiness band says it once for the WHOLE
- *  audience. Counting a second time over one loaded page produced a smaller
- *  number one tab away from the right one. */
-function CampaignMemberList({
+ *  way the send does, and `WavePreflight` in the fire dialog says it once for
+ *  the WHOLE audience. Counting a second time over one loaded page produced a
+ *  smaller number one tab away from the right one. */
+function MemberCard({
   code,
   members,
   canEdit,
+  onAdd,
 }: {
   code: string
   members: ReturnType<typeof useCampaignMembers>
   canEdit: boolean
+  onAdd: () => void
 }) {
-  const { data, isPending } = useQuery(campaignMembersQuery(code))
+  const { data, isPending, refetch } = useQuery(campaignMembersQuery(code))
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
+  const [search, setSearch] = useState('')
+
+  const term = search.trim().toLowerCase()
+  const visible =
+    term === ''
+      ? rows
+      : rows.filter((m) =>
+          [m.leadCode, m.company, m.contactName, m.email ?? ''].some((v) =>
+            v.toLowerCase().includes(term),
+          ),
+        )
 
   const removeOne = (leadCode: string) =>
     members.mutate(
       { remove: [leadCode] },
       {
         onSuccess: (res) =>
-          toast('Đã gỡ khỏi tệp nhận', {
+          toast('Đã gỡ khỏi danh sách người nhận', {
             tone: 'success',
-            detail: `Tệp nhận nay có ${res.audienceCount} người.`,
+            detail: `Danh sách người nhận nay có ${res.audienceCount} người.`,
           }),
         onError: (err) =>
           toast('Không gỡ được người nhận', {
@@ -351,91 +420,112 @@ function CampaignMemberList({
     )
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionTitle>Đang trong tệp nhận</SectionTitle>
-        <Chip>{total} người</Chip>
-      </div>
+    <div className="flex flex-col gap-2">
+      <GlassCard variant="b" className="flex flex-col gap-3 p-0">
+        <div className="flex flex-wrap items-center gap-3 px-4 pt-4 lg:px-5">
+          <SearchField
+            size="topbar"
+            placeholder="Tìm theo công ty, người liên hệ hoặc mã lead…"
+            value={search}
+            onChange={setSearch}
+            className="min-w-[240px] flex-1"
+          />
+          {canEdit && (
+            <Button size="md" onClick={onAdd} className="pointer-coarse:h-12">
+              <Icon icon={Plus} size={16} />
+              Thêm người nhận
+            </Button>
+          )}
+        </div>
+
+        {/* `overflow-x-auto` with a floor: without it `DataTable` clips (it is
+            `overflow-x-hidden`), and on a phone the email column — the whole
+            reason this list exists — truncates to nothing. */}
+        <div className="max-h-[50vh] overflow-x-auto overflow-y-auto px-4 pb-4 lg:px-5">
+          <div className="min-w-[720px]">
+            {isPending ? (
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : total === 0 ? (
+              <EmptyState
+                icon={Users}
+                message="Danh sách người nhận còn rỗng."
+                action={
+                  canEdit
+                    ? { label: 'Thêm người nhận', onClick: onAdd }
+                    : { label: 'Tải lại', onClick: () => void refetch() }
+                }
+                className="py-8"
+              />
+            ) : visible.length === 0 ? (
+              <EmptyState
+                icon={Inbox}
+                message="Không có người nhận nào khớp tìm kiếm."
+                action={{ label: 'Xoá tìm kiếm', onClick: () => setSearch('') }}
+                className="py-8"
+              />
+            ) : (
+              <DataTable
+                columns={[
+                  { header: 'Mã', width: '0.8fr' },
+                  { header: 'Account', width: '1.7fr' },
+                  { header: 'Người liên hệ', width: '1.3fr' },
+                  { header: 'Email', width: '1.6fr' },
+                  { header: 'Gỡ', width: '96px', align: 'right' },
+                ]}
+                rows={visible.map((m) => ({
+                  id: m.leadCode,
+                  cells: [
+                    <Chip key="c">{m.leadCode}</Chip>,
+                    <span key="n" className="block truncate" title={m.company}>
+                      {m.company}
+                    </span>,
+                    <span key="ct" className="block truncate">
+                      {m.contactName}
+                    </span>,
+                    m.email ? (
+                      <span key="e" className="block truncate" title={m.email}>
+                        {m.email}
+                      </span>
+                    ) : (
+                      <span key="e" className="text-warning">
+                        Chưa có email
+                      </span>
+                    ),
+                    canEdit ? (
+                      <Button
+                        key="rm"
+                        size="sm"
+                        variant="ghost"
+                        className="pointer-coarse:h-12"
+                        onClick={() => removeOne(m.leadCode)}
+                        disabled={members.isPending}
+                      >
+                        <Icon icon={Trash2} size={14} />
+                        Gỡ
+                      </Button>
+                    ) : (
+                      <span key="rm" className="text-muted-foreground">
+                        —
+                      </span>
+                    ),
+                  ],
+                }))}
+              />
+            )}
+          </div>
+        </div>
+      </GlassCard>
 
       {rows.length < total && (
         <p className="text-muted-foreground text-[12px]">
-          Đang hiện {rows.length} trên {total} người trong tệp — {total - rows.length} dòng còn lại
-          chưa nạp ở màn này.
+          Đang hiện {rows.length} trên {total} người trong danh sách — {total - rows.length} dòng
+          còn lại chưa nạp ở màn này.
         </p>
       )}
-
-      {/* `overflow-x-auto` with a floor: without it `DataTable` clips (it is
-          `overflow-x-hidden`), and on a phone the email column — the whole
-          reason this list exists — truncates to nothing. */}
-      <GlassCard
-        variant="b"
-        className="max-h-[40vh] overflow-x-auto overflow-y-auto px-4 py-3 lg:px-5"
-      >
-        <div className="min-w-[720px]">
-          {isPending ? (
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Icon icon={Users} size={26} className="text-muted-foreground" />
-              <p className="text-muted-foreground text-pretty text-[12.5px] leading-[1.65]">
-                Tệp nhận còn rỗng — chọn lead ở bảng dưới rồi bấm thêm.
-              </p>
-            </div>
-          ) : (
-            <DataTable
-              columns={[
-                { header: 'Mã', width: '0.8fr' },
-                { header: 'Account', width: '1.7fr' },
-                { header: 'Người liên hệ', width: '1.3fr' },
-                { header: 'Email', width: '1.6fr' },
-                { header: 'Gỡ', width: '96px', align: 'right' },
-              ]}
-              rows={rows.map((m) => ({
-                id: m.leadCode,
-                cells: [
-                  <Chip key="c">{m.leadCode}</Chip>,
-                  <span key="n" className="block truncate" title={m.company}>
-                    {m.company}
-                  </span>,
-                  <span key="ct" className="block truncate">
-                    {m.contactName}
-                  </span>,
-                  m.email ? (
-                    <span key="e" className="block truncate" title={m.email}>
-                      {m.email}
-                    </span>
-                  ) : (
-                    <span key="e" className="text-warning">
-                      Chưa có email
-                    </span>
-                  ),
-                  canEdit ? (
-                    <Button
-                      key="rm"
-                      size="sm"
-                      variant="ghost"
-                      className="pointer-coarse:h-12"
-                      onClick={() => removeOne(m.leadCode)}
-                      disabled={members.isPending}
-                    >
-                      <Icon icon={Trash2} size={14} />
-                      Gỡ
-                    </Button>
-                  ) : (
-                    <span key="rm" className="text-muted-foreground">
-                      —
-                    </span>
-                  ),
-                ],
-              }))}
-            />
-          )}
-        </div>
-      </GlassCard>
-    </section>
+    </div>
   )
 }
 
@@ -448,27 +538,35 @@ export function AudienceTab({
   members: ReturnType<typeof useCampaignMembers>
   canEdit: boolean
 }) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
-  const setOne = (code: string, on: boolean) =>
+
+  /* A fresh sheet every time it opens — see `AudienceDrawer`'s docblock for why
+     stale ticks from an earlier visit must not survive to this one. */
+  const openDrawer = () => {
+    setSelected(new Set())
+    setDrawerOpen(true)
+  }
+
+  const setOne = (leadCode: string, on: boolean) =>
     setSelected((cur) => {
       const next = new Set(cur)
-      if (on) next.add(code)
-      else next.delete(code)
+      if (on) next.add(leadCode)
+      else next.delete(leadCode)
       return next
     })
   const setMany = (codes: string[], on: boolean) =>
     setSelected((cur) => {
       const next = new Set(cur)
-      for (const code of codes) {
-        if (on) next.add(code)
-        else next.delete(code)
+      for (const c of codes) {
+        if (on) next.add(c)
+        else next.delete(c)
       }
       return next
     })
 
-  /* The SAME query `CampaignMemberList` below is drawing — one key, one trip,
-     no second definition of "already in" able to disagree with the list on
-     screen. ACTIVE rows only: the server's default for `CampaignMemberQuery`. */
+  /* The SAME query `MemberCard` below is drawing — one key, one trip, no second
+     definition of "already in" able to disagree with the list on screen. */
   const { data: audience } = useQuery(campaignMembersQuery(code))
   const alreadyIn = useMemo(
     () => new Set((audience?.rows ?? []).map((m) => m.leadCode)),
@@ -481,11 +579,12 @@ export function AudienceTab({
       { add: [...selected] },
       {
         onSuccess: (res) => {
-          toast(`Tệp nhận nay có ${res.audienceCount} người`, {
+          toast(`Danh sách người nhận nay có ${res.audienceCount} người`, {
             tone: 'success',
             detail: `Đã thêm ${res.added} lead.`,
           })
           setSelected(new Set())
+          setDrawerOpen(false)
         },
         onError: (err) =>
           toast('Không thêm được người nhận', {
@@ -497,36 +596,23 @@ export function AudienceTab({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <CampaignMemberList code={code} members={members} canEdit={canEdit} />
+    <div className="flex flex-col gap-4">
+      <MemberCard code={code} members={members} canEdit={canEdit} onAdd={openDrawer} />
 
-      {/* The whole picker goes, not just its button: a read-only reader would
-          otherwise tick forty leads before finding nothing to press. The list
-          above stays — that is what the read permission buys. */}
+      {/* No drawer at all for a reader who cannot write it — the button that
+          opens it is already hidden on the card above, so there is nothing
+          left in here for a read-only role to reach. */}
       {canEdit && (
-        <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <SectionTitle>Thêm người nhận</SectionTitle>
-            {selected.size > 0 && <Chip>{selected.size} đã chọn</Chip>}
-          </div>
-          <AudiencePicker
-            selected={selected}
-            onSetOne={setOne}
-            onSetMany={setMany}
-            alreadyIn={alreadyIn}
-          />
-          <div className="flex justify-end">
-            <Button
-              size="md"
-              className="pointer-coarse:h-12"
-              onClick={submit}
-              disabled={selected.size === 0 || members.isPending}
-            >
-              <Icon icon={UserPlus} size={16} />
-              {members.isPending ? 'Đang thêm…' : `Thêm ${selected.size || ''} người nhận`}
-            </Button>
-          </div>
-        </section>
+        <AudienceDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          selected={selected}
+          onSetOne={setOne}
+          onSetMany={setMany}
+          alreadyIn={alreadyIn}
+          onSubmit={submit}
+          pending={members.isPending}
+        />
       )}
     </div>
   )

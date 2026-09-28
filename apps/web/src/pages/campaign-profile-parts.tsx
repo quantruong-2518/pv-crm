@@ -1,16 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import {
-  Button,
-  CircleAlert,
-  GlassCard,
-  Icon,
-  ImagePlus,
-  Input,
-  Modal,
-  SectionTitle,
-  Select,
-  cn,
-} from '@pv/ui'
+import { Button, CircleAlert, GlassCard, Icon, ImageFrame, Input, Modal, Select, cn } from '@pv/ui'
 import type { Actor } from '@pv/engines'
 import type { CampaignPatch, CampaignProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
@@ -193,16 +182,16 @@ function ThumbnailField({ value, onChange }: { value: string; onChange: (v: stri
   )
 }
 
-/** THE PICTURE FRAME — the create modal's preview and the read-only profile
- *  draw the same 16:9 box over the same URL, and both have to say which of two
- *  nothings they are showing: no address yet, versus an address the browser
- *  refused.
+/** THE PICTURE FRAME — the create modal's preview, the read-only profile and
+ *  the campaign header draw the same 16:9 box over the same URL, and each has
+ *  to say which of two nothings it is showing: no address yet, versus an
+ *  address the browser refused.
  *
  *  `broken` is state and not a DOM mutation, and it resets whenever `url`
  *  changes — a verdict belongs to ONE address. `referrerPolicy="no-referrer"`
  *  earns its line: a number of image hosts answer 403 to a request carrying
  *  somebody else's page as referrer, and sending none is what loads them. */
-function ThumbnailPreview({
+export function ThumbnailPreview({
   url,
   empty,
   broken: brokenNote,
@@ -211,9 +200,8 @@ function ThumbnailPreview({
   url: string
   empty: string
   broken: string
-  /** The overview lays this out as a bento tile whose height comes from the
-   *  tiles beside it, so it hands in `aspect-auto` — 16:9 stays the default
-   *  everywhere the frame stands on its own. */
+  /** Placement only — the header fixes a width beside the title. The frame
+   *  keeps its 16:9 in every caller. */
   className?: string
 }) {
   const [broken, setBroken] = useState(false)
@@ -227,7 +215,7 @@ function ThumbnailPreview({
       {url === '' || broken ? (
         <div className="flex flex-col items-center gap-2 px-6 text-center">
           <Icon
-            icon={broken ? CircleAlert : ImagePlus}
+            icon={broken ? CircleAlert : ImageFrame}
             size={24}
             className={broken ? 'text-warning' : 'text-muted-foreground'}
           />
@@ -380,31 +368,17 @@ function patchField(next: string, original: string): string | null | undefined {
  *  does not carry while holding `campaign.view`. That query refuses, the
  *  options come back empty, and a shut picker then reads as unassigned one row
  *  under a header naming the very source it cannot see. Printing the stored
- *  value is the call `opportunity-form-card.tsx` already made. */
+ *  value is the call `opportunity-form-card.tsx` already made. Name, slogan,
+ *  owner, source and thumbnail are left out: the header above shows them. */
 function ProfileFacts({ campaign }: { campaign: CampaignProfile }) {
   const originNames = useOriginNames()
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-      <ThumbnailPreview
-        url={campaign.thumbnailUrl ?? ''}
-        empty="Chiến dịch chưa gắn ảnh."
-        broken="Ảnh của chiến dịch không tải được — địa chỉ có thể đã hỏng."
-      />
-      <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        <Fact label="Tên chiến dịch">
-          <span className="font-display text-[15px] font-semibold">{campaign.name}</span>
-        </Fact>
-        <Fact label="Slogan">{campaign.slogan || '—'}</Fact>
-        <Fact label="Chủ chiến dịch">{campaign.ownerName ?? 'Chưa gán'}</Fact>
-        <Fact label="Nguồn dẫn">{campaign.sourceName ?? 'Chưa gán'}</Fact>
-        <Fact label="Nguồn của lead">
-          {campaign.originId
-            ? (originNames.get(campaign.originId) ?? campaign.originId)
-            : 'Chưa gán'}
-        </Fact>
-        <Fact label="Ngày kết thúc">{campaign.endsOn ? dmy(campaign.endsOn) : 'Không đặt'}</Fact>
-      </dl>
-    </div>
+    <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+      <Fact label="Nguồn của lead">
+        {campaign.originId ? (originNames.get(campaign.originId) ?? campaign.originId) : 'Chưa gán'}
+      </Fact>
+      <Fact label="Ngày kết thúc">{campaign.endsOn ? dmy(campaign.endsOn) : 'Không đặt'}</Fact>
+    </dl>
   )
 }
 
@@ -477,12 +451,11 @@ export function ProfileTab({
      tile inside a tile has nothing left to tell the two apart. */
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <SectionTitle>Hồ sơ {campaign.code}</SectionTitle>
-        <span className="text-muted-foreground text-[11.5px]">
-          Mở {dmhm(campaign.createdAt)} · sửa gần nhất {dmhm(campaign.updatedAt)}
-        </span>
-      </div>
+      {/* No section title: the tab already names this face, and the header
+          above already says when the campaign opened. */}
+      <span className="text-muted-foreground text-[11.5px]">
+        Sửa gần nhất {dmhm(campaign.updatedAt)}
+      </span>
       {!canEdit ? (
         <ProfileFacts campaign={campaign} />
       ) : (
@@ -518,10 +491,10 @@ export function ProfileTab({
             onClick={() => setDraft(original)}
             disabled={!changed || patch.isPending}
           >
-            Hoàn tác
+            Bỏ thay đổi
           </Button>
           <Button size="md" className="pointer-coarse:h-12" onClick={submit} disabled={!canSave}>
-            {patch.isPending ? 'Đang lưu…' : 'Lưu'}
+            {patch.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
           </Button>
         </div>
       )}

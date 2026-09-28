@@ -314,7 +314,7 @@ export function BookSelectionBar({
 }) {
   return (
     <div
-      className="glass-overlay shadow-panel fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
+      className="glass-overlay fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex w-[min(760px,calc(100vw-32px))] -translate-x-1/2 flex-wrap items-center justify-between gap-4 rounded-lg p-3 lg:bottom-6"
       role="region"
       aria-label={`Đang chọn ${count} ${noun}`}
     >

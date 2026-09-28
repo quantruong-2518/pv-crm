@@ -40,8 +40,9 @@ export type StatCardProps = {
   /** icon nhận dạng chỉ số — compact dùng như watermark nền, hero đặt cạnh label */
   icon?: IconGlyph
   /** `warning` when the number itself is the alert — zero reads as "missing",
-   *  not "fine". Tints value + hint, leaves label and icon alone. */
-  tone?: 'default' | 'warning'
+   *  not "fine". `danger` when the number counts damage (bounces, opt-outs).
+   *  Tints value + hint, leaves label and icon alone. */
+  tone?: 'default' | 'warning' | 'danger'
   delta?: {
     direction: 'up' | 'down' | 'flat'
     text: string
@@ -74,7 +75,11 @@ export function StatCard({
 }: StatCardProps) {
   const compact = size === 'compact'
   const compactContext = source ?? hint
-  const warn = tone === 'warning'
+  const toneText = {
+    default: undefined,
+    warning: 'text-warning',
+    danger: 'text-destructive-foreground',
+  }[tone]
 
   return (
     <GlassCard
@@ -106,7 +111,7 @@ export function StatCard({
           className={cn(
             'tnum font-num min-w-0 font-semibold leading-none',
             compact ? 'text-[30px] tracking-[-1px]' : 'text-[42px] tracking-[-1.5px]',
-            warn && 'text-warning',
+            toneText,
           )}
         >
           {value}
@@ -121,12 +126,7 @@ export function StatCard({
       )}
 
       {!compact && hint && (
-        <div
-          className={cn(
-            'mt-1 text-[11px] leading-[1.5]',
-            warn ? 'text-warning' : 'text-muted-foreground',
-          )}
-        >
+        <div className={cn('mt-1 text-[11px] leading-[1.5]', toneText ?? 'text-muted-foreground')}>
           {hint}
         </div>
       )}
@@ -135,7 +135,7 @@ export function StatCard({
         <div
           className={cn(
             'relative z-10 mt-2 pr-8 text-[11px] leading-[1.5]',
-            warn ? 'text-warning' : 'text-glass-foreground',
+            toneText ?? 'text-glass-foreground',
           )}
         >
           {compactContext}

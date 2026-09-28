@@ -115,6 +115,7 @@ export {
   ContactBookIcon as ContactBook,
   FileSpreadsheetIcon as FileSpreadsheet,
   GaugeIcon as Gauge,
+  Image01Icon as ImageFrame,
   KanbanIcon as Kanban,
   Key01Icon as KeyRound,
   Loading03Icon as Loader,

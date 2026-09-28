@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
-import { CalendarDays, Hash, Linkedin, Mail, MessageCircle, Send } from '@pv/ui'
+import { CalendarDays, FileText, Hash, Linkedin, Mail, MessageCircle, Send, Users } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -90,6 +90,7 @@ export function ZoneAtoms() {
   const [picked, setPicked] = useState<string[]>(['Đỗ Quang Huy'])
   const [grain, setGrain] = useState('quarter')
   const [fn, setFn] = useState('all')
+  const [face, setFace] = useState('waves')
 
   return (
     <section id="zone-01" className="pb-2 pt-12">
@@ -523,6 +524,17 @@ export function ZoneAtoms() {
               { value: 'bd', label: 'BD', count: 1 },
               { value: 'sale', label: 'Sale', count: 3 },
               { value: 'cs', label: 'CS', count: 0, disabled: true },
+            ]}
+          />
+          <SegmentedControl
+            label="Phần chiến dịch"
+            tone="quiet"
+            value={face}
+            onChange={setFace}
+            options={[
+              { value: 'profile', label: 'Thông tin chung', icon: FileText },
+              { value: 'audience', label: 'Người nhận', icon: Users, count: 128 },
+              { value: 'waves', label: 'Các đợt gửi', icon: Send, count: 2 },
             ]}
           />
         </SpecCard>

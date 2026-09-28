@@ -11,6 +11,7 @@ import {
   MessageCircle,
   SquareCheckBig,
   Target,
+  UserMinus,
   Users,
 } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
@@ -367,6 +368,14 @@ export function ZoneMolecules() {
             value="34%"
             label="Tỉ lệ MQL"
             source="21 / 61 lead · Sổ lead đợt đang chạy"
+          />
+          <StatCard
+            size="compact"
+            tone="danger"
+            icon={UserMinus}
+            value="4"
+            label="Hủy đăng ký"
+            hint="1,7% số tới nơi"
           />
         </SpecCard>
 
