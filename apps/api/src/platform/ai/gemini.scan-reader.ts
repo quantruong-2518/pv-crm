@@ -11,7 +11,7 @@ import {
   type ScanReader,
 } from './scan-reader'
 
-/** Gemini behind `ScanReader`, tuned for cost: minimal thinking, a bounded answer, and a PDF cut to the pages that name the
+/** Gemini behind `ScanReader`, tuned for cost: the lowest thinking level the model accepts, a bounded answer, and a PDF cut to the pages that name the
  *  company before a single token is paid for.
  *
  *  The response schema is DERIVED from the zod contract, never written beside
@@ -85,12 +85,16 @@ export class GeminiScanReader implements ScanReader {
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           responseMimeType: 'application/json',
           responseJsonSchema: RESPONSE_SCHEMA,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          /* LOW, not MINIMAL: gemini-3.8-flash refuses MINIMAL with a 400. */
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         },
       })
       .catch((error: unknown) => {
         throw refused(error)
-          ? new ScanOutputError(`scan reader: vendor refused (${error.status})`)
+          ? /* The vendor's reason names the request fault, never file content. */
+            new ScanOutputError(
+              `scan reader: vendor refused (${error.status}): ${error.message.slice(0, 200)}`,
+            )
           : error
       })
 
