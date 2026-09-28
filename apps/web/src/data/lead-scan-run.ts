@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { SCAN_PUT_HEADERS } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastOf } from '@/app/toast'
 import { createScanBatch, scanBatchKey, startScanBatch } from './lead-scan'
@@ -20,7 +21,10 @@ import {
  *  `start` does the batch belong to the server alone.
  *
  *  One retry per PUT, three in flight: enough to ride out a blip on hotel
- *  wifi without hammering a storage endpoint that is actually down. */
+ *  wifi without hammering a storage endpoint that is actually down.
+ *
+ *  A refused `create` (quota, budget) hands the picked files back to step 1
+ *  as `held`, so trying again later does not mean picking them again. */
 
 export type LocalPhase = 'preparing' | 'uploading' | 'uploaded' | 'failed'
 
@@ -43,7 +47,15 @@ export type ScanRun = {
   failure: string | null
 }
 
-export const useScanRun = create<{ run: ScanRun | null }>()(() => ({ run: null }))
+/** Structurally `CampaignChoice` — kept so a retry reopens with the same campaign. */
+export type HeldCampaign = { code: string; name: string }
+
+export type HeldPick = { picked: Picked[]; campaign: HeldCampaign | null; reason: string }
+
+export const useScanRun = create<{ run: ScanRun | null; held: HeldPick | null }>()(() => ({
+  run: null,
+  held: null,
+}))
 
 /** True while the browser still has work to do for the run. */
 export const inFlight = (run: ScanRun | null): run is ScanRun =>
@@ -78,22 +90,29 @@ function dropFiles(keys: ReadonlySet<string>) {
   )
 }
 
+/* Keys are unique per file id, so "already exists" (412 on storage, 409 on the
+   local disk route) can only be this same body from an earlier try that landed. */
+const ALREADY_THERE = new Set([409, 412])
+
 function put(url: string, blob: Blob, mime: string, onProgress?: (f: number) => void) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('PUT', url)
     xhr.setRequestHeader('Content-Type', mime)
+    for (const [name, value] of Object.entries(SCAN_PUT_HEADERS)) xhr.setRequestHeader(name, value)
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress?.(e.loaded / e.total)
     }
     xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(String(xhr.status)))
+      (xhr.status >= 200 && xhr.status < 300) || ALREADY_THERE.has(xhr.status)
+        ? resolve()
+        : reject(new Error(String(xhr.status)))
     xhr.onerror = () => reject(new Error('network'))
     xhr.send(blob)
   })
 }
 
-async function putOnceMore(
+export async function putOnceMore(
   url: string,
   blob: Blob,
   mime: string,
@@ -107,7 +126,7 @@ async function putOnceMore(
   }
 }
 
-const failureOf = (error: unknown, fallback: string) =>
+export const failureOf = (error: unknown, fallback: string) =>
   isApiError(error) ? userMessage(error) : fallback
 
 type Ready = { key: string; prepared: Prepared }
@@ -144,7 +163,14 @@ async function prepareAll(picked: Picked[], keys: string[]): Promise<Ready[]> {
   return ready
 }
 
-async function upload(ready: Ready[], slots: Awaited<ReturnType<typeof createScanBatch>>['files']) {
+/** False once the run is gone — cancelled, or replaced by a new one. */
+const alive = (code: string) => useScanRun.getState().run?.code === code
+
+async function upload(
+  code: string,
+  ready: Ready[],
+  slots: Awaited<ReturnType<typeof createScanBatch>>['files'],
+) {
   const repeats = new Set<string>()
   const jobs = ready.flatMap((r, i) => {
     const slot = slots[i]
@@ -160,6 +186,7 @@ async function upload(ready: Ready[], slots: Awaited<ReturnType<typeof createSca
   }
 
   const ids = await inPool(jobs, UPLOAD_LANES, async ({ key, prepared, slot }) => {
+    if (!alive(code)) return null
     patchFile(key, { phase: 'uploading', id: slot.id })
     try {
       await putOnceMore(slot.putUrl, prepared.upload, prepared.declared.mime, (progress) =>
@@ -182,7 +209,7 @@ async function upload(ready: Ready[], slots: Awaited<ReturnType<typeof createSca
 async function runScan(
   picked: Picked[],
   keys: string[],
-  campaignCode: string | undefined,
+  campaign: HeldCampaign | null,
   client: QueryClient,
 ) {
   const ready = await prepareAll(picked, keys)
@@ -190,13 +217,19 @@ async function runScan(
 
   let created: Awaited<ReturnType<typeof createScanBatch>>
   try {
-    created = await createScanBatch({ campaignCode, files: ready.map((r) => r.prepared.declared) })
+    created = await createScanBatch({
+      campaignCode: campaign?.code,
+      files: ready.map((r) => r.prepared.declared),
+    })
   } catch (error) {
-    return patchRun({ failure: failureOf(error, 'Không mở được lô mới.') })
+    const reason = failureOf(error, 'Không mở được lô mới.')
+    useScanRun.setState({ run: null, held: { picked, campaign, reason } })
+    return toastWarn('Chưa mở được lô mới', reason)
   }
   patchRun({ code: created.code })
 
-  const ids = await upload(ready, created.files)
+  const ids = await upload(created.code, ready, created.files)
+  if (!alive(created.code)) return
   if (ids.length === 0) return patchRun({ failure: 'Không tệp nào tải lên được.' })
   try {
     await startScanBatch(created.code, ids)
@@ -210,9 +243,10 @@ async function runScan(
 /** Starts a run and returns at once; the store carries its progress. */
 export function useBeginScan() {
   const client = useQueryClient()
-  return (picked: Picked[], campaignCode: string | undefined) => {
+  return (picked: Picked[], campaign: HeldCampaign | null) => {
     const keys = picked.map((_, i) => `f${i}`)
     useScanRun.setState({
+      held: null,
       run: {
         code: null,
         started: false,
@@ -228,7 +262,7 @@ export function useBeginScan() {
         })),
       },
     })
-    runScan(picked, keys, campaignCode, client).catch((error: unknown) => {
+    runScan(picked, keys, campaign, client).catch((error: unknown) => {
       patchRun({ failure: failureOf(error, 'Lô này dừng giữa chừng.') })
       toastFail('Lô này dừng giữa chừng')
     })

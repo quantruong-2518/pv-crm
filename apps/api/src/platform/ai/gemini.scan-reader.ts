@@ -99,11 +99,14 @@ export class GeminiScanReader implements ScanReader {
       })
 
     const usage = response.usageMetadata
-    return {
-      extraction: parse(response.text, response.candidates?.[0]?.finishReason),
+    const tokens: Tokens = {
       tokensIn: usage?.promptTokenCount ?? 0,
       /* Thinking is billed at the output rate, so it counts as output here. */
       tokensOut: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0),
+    }
+    return {
+      extraction: parse(response.text, response.candidates?.[0]?.finishReason, tokens),
+      ...tokens,
     }
   }
 }
@@ -119,18 +122,30 @@ function refused(error: unknown): error is ApiError {
   )
 }
 
-function parse(text: string | undefined, finish: string | undefined): ScanExtraction {
-  if (!text) throw new ScanOutputError(`scan reader: no answer (finish ${finish ?? 'unknown'})`)
+type Tokens = Pick<ScanReadResult, 'tokensIn' | 'tokensOut'>
+
+function parse(
+  text: string | undefined,
+  finish: string | undefined,
+  tokens: Tokens,
+): ScanExtraction {
+  if (!text) {
+    throw new ScanOutputError(`scan reader: no answer (finish ${finish ?? 'unknown'})`, tokens)
+  }
   let raw: unknown
   try {
     raw = JSON.parse(text)
   } catch {
-    throw new ScanOutputError(`scan reader: answer is not JSON (finish ${finish ?? 'unknown'})`)
+    throw new ScanOutputError(
+      `scan reader: answer is not JSON (finish ${finish ?? 'unknown'})`,
+      tokens,
+    )
   }
   const parsed = ScanExtraction.safeParse(raw)
   if (!parsed.success) {
     throw new ScanOutputError(
       `scan reader: answer off-schema at ${parsed.error.issues[0]?.path.join('.')}`,
+      tokens,
     )
   }
   return parsed.data

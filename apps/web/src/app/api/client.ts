@@ -327,6 +327,7 @@ async function toApiError(raw: unknown, req: ApiRequest): Promise<ApiError> {
       reason: denyReasonOf(problem.reason),
       errors: problem.errors,
       traceId: problem.traceId ?? req.headers[TRACE_HEADER],
+      serverTitle: problem.title,
     })
   }
   return new ApiError({

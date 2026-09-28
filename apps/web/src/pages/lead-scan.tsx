@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   AppShell,
   Button,
+  ContextRail,
   EmptyState,
   GlassCard,
   Inbox,
@@ -12,24 +13,30 @@ import {
   TriangleAlert,
   cn,
   type IconGlyph,
+  type RailObject,
 } from '@pv/ui'
-import { SCAN_MAX_FILES } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { toastFail, toastOf } from '@/app/toast'
-import { useCommitScan, useScanBatch } from '@/data/lead-scan'
+import { useCancelScan, useCommitScan, useScanBatch } from '@/data/lead-scan'
 import {
   ACCEPT_ATTR,
   ACCEPT_LABEL,
   CAPTURE_ACCEPT_ATTR,
-  MAX_RAW_MB,
+  LIMITS_LABEL,
   screenPicked,
 } from '@/data/lead-scan-prep'
 import { inFlight, useBeginScan, useScanRun } from '@/data/lead-scan-run'
 import { CampaignPicker, type CampaignChoice } from '@/components/lead-origin-pickers'
 import { ScanDropZone } from '@/components/scan-drop-zone'
-import { BOOK_PATH, SCAN_STEPS, STEP_OF, viewOf, type ScanView } from './lead-scan-model'
-import { ReadingStep, ResultView, ScanHeader } from './lead-scan-parts'
+import { BOOK_PATH, SCAN_STEPS, STEP_OF, scanRail, viewOf, type ScanView } from './lead-scan-model'
+import {
+  FailureLine,
+  ReadingStep,
+  ResultView,
+  ScanHeader,
+  type CancelProps,
+} from './lead-scan-parts'
 import { PreviewStep } from './lead-scan-preview'
 
 /** Module 2 · the scan door, as a page — `/sales/leads/scan[/:code]`.
@@ -54,6 +61,7 @@ export function LeadScanPage() {
   const run = useScanRun((s) => s.run)
   const batch = useScanBatch(code)
   const commit = useCommitScan(code)
+  const cancelled = useCancelScan(code)
 
   /* On the bare path, a run still working (or one that failed before the
      server gave it a code) is shown; a finished one is history. */
@@ -80,6 +88,22 @@ export function LeadScanPage() {
       onError: (error) =>
         toastFail('Chưa tạo được lead', isApiError(error) ? userMessage(error) : undefined),
     })
+  /* No code yet means nothing on the server to cancel; the local run is
+     dropped too, so its remaining uploads and its `start` stand down. */
+  const cancel: CancelProps | undefined =
+    code === ''
+      ? undefined
+      : {
+          pending: cancelled.isPending,
+          onConfirm: () =>
+            cancelled.mutate(undefined, {
+              onSuccess: () => {
+                if (useScanRun.getState().run?.code === code) useScanRun.setState({ run: null })
+              },
+              onError: (error) =>
+                toastFail('Chưa huỷ được lô', isApiError(error) ? userMessage(error) : undefined),
+            }),
+        }
 
   const view: ScanView | 'loading' | 'missing' =
     code === '' || (batch.isPending && local)
@@ -98,8 +122,12 @@ export function LeadScanPage() {
       <ScreenLayout className={cn('mx-auto', view === 'drop' || view === 'result' ? NARROW : WIDE)}>
         {step !== undefined && <Stepper steps={SCAN_STEPS} current={step} reached={step} />}
         {view === 'drop' && <DropStep />}
-        {view === 'reading' && <ReadingStep batch={batch.data} run={local} onRestart={restart} />}
-        {view === 'preview' && batch.data && <PreviewStep batch={batch.data} onCommit={onCommit} />}
+        {view === 'reading' && (
+          <ReadingStep batch={batch.data} run={local} onRestart={restart} cancel={cancel} />
+        )}
+        {view === 'preview' && batch.data && cancel && (
+          <PreviewStep batch={batch.data} onCommit={onCommit} cancel={cancel} />
+        )}
         {view === 'result' && batch.data && (
           <ResultView batch={batch.data} redirect={commit.isSuccess} />
         )}
@@ -107,7 +135,8 @@ export function LeadScanPage() {
         {view === 'failed' && (
           <Dead
             icon={TriangleAlert}
-            message="Lô này dừng lại, không đọc tiếp được."
+            message={batch.data?.error ?? 'Lô này dừng lại, không đọc tiếp được.'}
+            rail={batch.data && scanRail(batch.data, navigate)}
             onRestart={restart}
           />
         )}
@@ -129,14 +158,21 @@ export function LeadScanPage() {
 
 export default LeadScanPage
 
+/** A refused batch comes back here with its files `held`: a new drop joins
+ *  them rather than silently discarding what the user already picked. */
 function DropStep() {
   const begin = useBeginScan()
-  const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
+  const held = useScanRun((s) => s.held)
+  const heldNames = held?.picked.map((p) => p.file.name).join(' · ')
+  const [campaign, setCampaign] = useState<CampaignChoice | null>(held?.campaign ?? null)
 
   const onFiles = (files: File[]) => {
-    const { accepted, rejected } = screenPicked(files)
+    const { accepted, rejected } = screenPicked([
+      ...(held?.picked.map((p) => p.file) ?? []),
+      ...files,
+    ])
     if (rejected.length > 0) toastWarn('Có tệp không nhận', rejected.join(' · '))
-    if (accepted.length > 0) begin(accepted, campaign?.code)
+    if (accepted.length > 0) begin(accepted, campaign)
   }
 
   return (
@@ -154,10 +190,42 @@ function DropStep() {
             Người phụ trách: <span className="text-foreground font-semibold">bạn</span>
           </p>
         </div>
+        {held && (
+          <div className="flex flex-col gap-3">
+            <p className="tnum line-clamp-2 text-[12.5px]" title={heldNames}>
+              <span className="font-semibold">Đang giữ {held.picked.length} tệp đã chọn: </span>
+              <span className="text-muted-foreground">{heldNames}</span>
+            </p>
+            <FailureLine
+              action={
+                <>
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    className="pointer-coarse:h-12"
+                    onClick={() => begin(held.picked, campaign)}
+                  >
+                    Thử lại
+                  </Button>
+                  <Button
+                    size="md"
+                    variant="ghost"
+                    className="pointer-coarse:h-12"
+                    onClick={() => useScanRun.setState({ held: null })}
+                  >
+                    Bỏ các tệp này
+                  </Button>
+                </>
+              }
+            >
+              {held.reason}
+            </FailureLine>
+          </div>
+        )}
         <ScanDropZone
           accept={ACCEPT_ATTR}
           captureAccept={CAPTURE_ACCEPT_ATTR}
-          footnote={`${ACCEPT_LABEL} · tối đa ${SCAN_MAX_FILES} tệp mỗi lô, ${MAX_RAW_MB} MB mỗi tệp`}
+          footnote={`${ACCEPT_LABEL} · ${LIMITS_LABEL}`}
           onFiles={onFiles}
         />
       </GlassCard>
@@ -165,13 +233,16 @@ function DropStep() {
   )
 }
 
+/** Law 10: a batch that exists keeps its rail even here, so its code stays one click away. */
 function Dead({
   icon,
   message,
+  rail,
   onRestart,
 }: {
   icon: IconGlyph
   message: string
+  rail?: RailObject[]
   onRestart: () => void
 }) {
   const navigate = useNavigate()
@@ -182,6 +253,7 @@ function Dead({
         message={message}
         action={{ label: 'Nạp lô mới', onClick: onRestart }}
       />
+      {rail && <ContextRail objects={rail} className="justify-center" />}
       <Button
         size="sm"
         variant="ghost"

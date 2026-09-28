@@ -88,6 +88,9 @@ export class ApiError extends Error {
   /** The `X-PV-Request-Id` this call carried, echoed back by the server. It is
    *  what ties one line in the browser log to one line in the server log. */
   readonly traceId?: string
+  /** The server's own sentence (`problem.title`), absent when the reply had none —
+   *  unlike `message`, it never holds the technical fallback line. */
+  readonly serverTitle?: string
 
   constructor(init: {
     kind: ApiFailure
@@ -97,6 +100,7 @@ export class ApiError extends Error {
     reason?: DenyReason
     errors?: FieldErrors
     traceId?: string
+    serverTitle?: string
     cause?: unknown
   }) {
     super(init.message, { cause: init.cause })
@@ -107,6 +111,7 @@ export class ApiError extends Error {
     this.reason = init.reason
     this.errors = init.errors
     this.traceId = init.traceId
+    this.serverTitle = init.serverTitle
   }
 }
 
@@ -204,8 +209,10 @@ export function userMessage(error: ApiError): string {
        this sentence must stand on its own even when `errors` is empty. */
     case 'invalid-data':
       return 'Dữ liệu vừa nhập chưa hợp lệ. Kiểm tra lại rồi thử lại.'
+    /* Every 429 the server sends carries its own sentence (a daily quota is not
+       "too fast"), so it wins, as for `conflict` above. */
     case 'rate-limited':
-      return 'Bạn thao tác quá nhanh. Chờ một lát rồi thử lại.'
+      return error.serverTitle ?? 'Bạn thao tác quá nhanh. Chờ một lát rồi thử lại.'
     case 'aborted':
       return ''
     /* Name the action that actually helps. "Try again in a few minutes" is the

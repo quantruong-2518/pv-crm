@@ -29,8 +29,15 @@ export class ScanReaderDisabledError extends Error {
  *  refused the request (a 4xx other than 408/429 — too large, unsupported,
  *  bad key) or answered blocked, truncated or off-schema. Always final. */
 export class ScanOutputError extends Error {
-  constructor(message: string) {
+  /** Set only when the vendor answered: an unusable answer is still billed, so
+   *  the daily budget must count it. A refused request carries none. */
+  readonly tokensIn?: number
+  readonly tokensOut?: number
+
+  constructor(message: string, usage?: Pick<ScanReadResult, 'tokensIn' | 'tokensOut'>) {
     super(message)
     this.name = 'ScanOutputError'
+    this.tokensIn = usage?.tokensIn
+    this.tokensOut = usage?.tokensOut
   }
 }

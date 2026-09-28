@@ -65,7 +65,7 @@ export class LeadScanCommit {
       const kind = error instanceof Error ? error.name : 'unknown'
       this.log.error(`scan ${code}: commit failed (${kind}) — ${String(error)}`)
       if (!attempt.final) throw new Error(`scan ${code}: transient commit failure (${kind})`)
-      await this.repo.failBatch(this.repo.pool, code, 'COMMITTING', COMMIT_FAILED)
+      await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], COMMIT_FAILED)
     }
   }
 
@@ -78,7 +78,7 @@ export class LeadScanCommit {
     const caller = await this.actors.byId(batch.createdBy)
     const need = { branch: 'Sales', permission: 'lead.edit' } as const
     if (!creator || creator.disabledAt || !caller || !this.access.check(caller.actor, need).ok) {
-      await this.repo.failBatch(this.repo.pool, code, 'COMMITTING', CREATOR_REVOKED)
+      await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], CREATOR_REVOKED)
       return
     }
     const plan = await this.scans.planOf(creator, await this.repo.files(code))

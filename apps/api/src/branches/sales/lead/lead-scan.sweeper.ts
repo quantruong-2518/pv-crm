@@ -32,6 +32,8 @@ const UNLINKED_KEEP_MS = 30 * 24 * 60 * 60_000
 const SWEEP_EVERY_MS = WORK_STALE_MS
 
 const UPLOAD_EXPIRED = 'Lô này chưa tải lên xong trong một ngày nên đã bị huỷ.'
+const FILE_UPLOAD_EXPIRED = 'Tệp này chưa tải lên xong trong một ngày.'
+const ADDED_UPLOAD_EXPIRED = `Tệp này chưa tải lên xong trong ${WORK_STALE_MS / 60_000} phút.`
 
 @Injectable()
 export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -66,8 +68,26 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
           new Date(now - UPLOAD_STALE_MS),
           UPLOAD_EXPIRED,
         )
-        const reads = await this.repo.expireReads(tx, new Date(now - WORK_STALE_MS), FILE_FAILED)
-        for (const code of reads) await this.repo.readyIfDone(tx, code)
+        const stale = new Date(now - WORK_STALE_MS)
+        const reads = [
+          ...(await this.repo.expireReads(tx, stale, FILE_FAILED)),
+          /* Handed to the queue and not claimed within a read's span: the job was lost. */
+          ...(await this.repo.expireQueued(tx, true, stale, FILE_FAILED)),
+          /* Added by `:code/files` to a batch already reading or read: it holds
+             that batch from READY or commit, so it gets a read's span, not a day. */
+          ...(await this.repo.expireQueued(tx, false, stale, ADDED_UPLOAD_EXPIRED, [
+            'READING',
+            'READY',
+          ])),
+          /* Any other never-started file (an UPLOADING batch's): the day its PUTs get. */
+          ...(await this.repo.expireQueued(
+            tx,
+            false,
+            new Date(now - UPLOAD_STALE_MS),
+            FILE_UPLOAD_EXPIRED,
+          )),
+        ]
+        for (const code of new Set(reads)) await this.repo.readyIfDone(tx, code)
         const commits = await this.repo.expireBatches(
           tx,
           'COMMITTING',

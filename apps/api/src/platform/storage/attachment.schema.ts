@@ -28,7 +28,7 @@ export const attachment = platform.table(
     /** The name as picked on the user's disk — a label, not a key. */
     name: text('name').notNull(),
     mime: text('mime').$type<ScanUploadMime>().notNull(),
-    /** `integer`: `SCAN_MAX_RAW_BYTES` is 25 MB, far under `int4`. */
+    /** `integer`: `SCAN_MAX_PDF_BYTES` is 25 MB, far under `int4`. */
     bytes: integer('bytes').notNull(),
     /** Lower-case hex of the ORIGINAL picked file, as the browser computed it. */
     sha256: text('sha256').notNull(),

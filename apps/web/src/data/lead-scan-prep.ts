@@ -3,7 +3,8 @@ import {
   SCAN_ACCEPT_MIME,
   SCAN_IMAGE_EDGE_PX,
   SCAN_MAX_FILES,
-  SCAN_MAX_RAW_BYTES,
+  SCAN_MAX_IMAGE_RAW_BYTES,
+  SCAN_MAX_PDF_BYTES,
   SCAN_THUMB_EDGE_PX,
   type ScanFileDeclared,
 } from '@pv/contracts'
@@ -45,7 +46,15 @@ const EXTENSION_LABEL: Record<AcceptMime, string> = {
   'application/pdf': 'PDF',
 }
 
-export const MAX_RAW_MB = SCAN_MAX_RAW_BYTES / 1024 / 1024
+const MB = 1024 * 1024
+
+/* Images are capped as picked, before compression shrinks them; a PDF uploads
+   as-is, so its cap is the body the presigned PUT will carry. */
+const capOf = (mime: AcceptMime) =>
+  mime === 'application/pdf' ? SCAN_MAX_PDF_BYTES : SCAN_MAX_IMAGE_RAW_BYTES
+
+/** The footnote's limits, read off the contract so a changed cap prints itself. */
+export const LIMITS_LABEL = `tối đa ${SCAN_MAX_FILES} tệp mỗi lô · ảnh ${SCAN_MAX_IMAGE_RAW_BYTES / MB} MB · PDF ${SCAN_MAX_PDF_BYTES / MB} MB`
 
 /** "JPG · PNG · … · PDF", read off the accept list so a new type prints itself. */
 export const ACCEPT_LABEL = [...new Set(SCAN_ACCEPT_MIME.map((m) => EXTENSION_LABEL[m]))].join(
@@ -76,7 +85,7 @@ export function screenPicked(files: readonly File[]): { accepted: Picked[]; reje
     const mime = mimeOf(file)
     if (!mime) rejected.push(`${file.name} không phải ảnh hay PDF`)
     else if (file.size === 0) rejected.push(`${file.name} rỗng`)
-    else if (file.size > SCAN_MAX_RAW_BYTES) rejected.push(`${file.name} lớn hơn ${MAX_RAW_MB} MB`)
+    else if (file.size > capOf(mime)) rejected.push(`${file.name} lớn hơn ${capOf(mime) / MB} MB`)
     else if (accepted.length >= SCAN_MAX_FILES) overflow += 1
     else accepted.push({ file, mime })
   }
@@ -113,8 +122,10 @@ function callWorker(request: Omit<PrepRequest, 'id' | 'edge' | 'thumbEdge'>): Pr
   })
 }
 
-/** Fifty decoded bitmaps' worth of heap goes back once the batch is prepared. */
+/** Fifty decoded bitmaps' worth of heap goes back once the batch is prepared.
+ *  Skipped while a request is still out: a row's replace may share the worker. */
 export function releasePrepWorker(): void {
+  if (waiting.size > 0) return
   worker?.terminate()
   worker = null
   waiting.clear()

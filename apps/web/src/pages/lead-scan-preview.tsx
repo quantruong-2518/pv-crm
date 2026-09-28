@@ -14,6 +14,7 @@ import {
   cn,
 } from '@pv/ui'
 import type { LeadScanResponse, ScanGroup } from '@pv/contracts'
+import { useScanReplaces } from '@/data/lead-scan-replace'
 import {
   CONFIDENCE_FACE,
   OUTCOME_FACE,
@@ -22,11 +23,11 @@ import {
   outcomeText,
   scanRail,
 } from './lead-scan-model'
-import { ScanHeader } from './lead-scan-parts'
+import { FailedFiles, ScanHeader, type CancelProps } from './lead-scan-parts'
 
 /** Step 3 — what the button WILL do, read-only.
  *
- *  No per-row actions, on purpose (product decision): which group becomes a
+ *  No actions on the group rows, on purpose (product decision): which group becomes a
  *  lead, joins one or waits is the server's rule, and the one button below
  *  applies all of it. A row only opens to show where each value came from.
  *  Nothing is written until the button — the page says so in its subtitle. */
@@ -47,10 +48,12 @@ const FIELD_COLUMNS = [
 export function PreviewStep({
   batch,
   onCommit,
+  cancel,
 }: {
   batch: LeadScanResponse
   /** The page owns the write: pressing switches it to the result view at once. */
   onCommit: () => void
+  cancel: CancelProps
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState<string | null>(null)
@@ -59,6 +62,8 @@ export function PreviewStep({
   const merges = mergeCount(batch)
   const skipped = notCreatedPills(batch)
   const nothing = totals.leadsToCreate === 0 && merges === 0
+  /* A replace in flight is about to reopen the batch; committing now would race it. */
+  const replacing = useScanReplaces((s) => batch.files.some((f) => f.id in s.jobs))
 
   return (
     <>
@@ -66,6 +71,7 @@ export function PreviewStep({
         title={`Đọc xong ${batch.files.length} tệp`}
         description="Xem trước bên dưới. Chưa có gì được ghi vào sổ cho tới khi bấm tạo."
         rail={scanRail(batch, navigate)}
+        cancel={cancel}
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -84,6 +90,8 @@ export function PreviewStep({
           ))}
         </div>
       )}
+
+      <FailedFiles batch={batch} />
 
       <GlassCard variant="b" className="overflow-hidden">
         <DataTable
@@ -106,7 +114,7 @@ export function PreviewStep({
       </GlassCard>
 
       <div className="flex flex-col items-start gap-3">
-        <Button size="lg" disabled={nothing} onClick={onCommit} className="tnum">
+        <Button size="lg" disabled={nothing || replacing} onClick={onCommit} className="tnum">
           {totals.leadsToCreate > 0
             ? `Tạo ${totals.leadsToCreate} lead`
             : `Nhập ${merges} công ty vào lead có sẵn`}

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -15,58 +15,116 @@ import {
   type RailObject,
 } from '@pv/ui'
 import type { LeadScanResponse } from '@pv/contracts'
+import { toastOf } from '@/app/toast'
+import { ACCEPT_ATTR, CAPTURE_ACCEPT_ATTR, screenPicked } from '@/data/lead-scan-prep'
+import { useReplaceScanFile, useScanReplaces, type ReplaceJob } from '@/data/lead-scan-replace'
 import type { ScanRun } from '@/data/lead-scan-run'
+import { ScanReplacePicker } from '@/components/scan-drop-zone'
 import {
   BOOK_PATH,
   REDIRECT_MS,
   scanRail,
   countRows,
+  failedRows,
   fileRows,
   progressOf,
+  rowStatus,
   type BadgeTone,
+  type FileRow,
   type RowStatus,
 } from './lead-scan-model'
 
 /** Blocks of the scan screen shared by more than one step, plus step 2 and
  *  the result view. Step 3 is big enough to live in `lead-scan-preview.tsx`. */
 
+const toastWarn = toastOf('warning')
+
+/** The page owns the write, as it does for commit — see `useCancelScan`. */
+export type CancelProps = { onConfirm: () => void; pending: boolean }
+
 export function ScanHeader({
   title,
   description,
   rail,
+  cancel,
 }: {
   title: ReactNode
   description: ReactNode
   rail?: RailObject[]
+  /** Absent until the server has a batch to cancel. */
+  cancel?: CancelProps
 }) {
   const navigate = useNavigate()
+  const [asking, setAsking] = useState(false)
   return (
-    <GlassCard variant="b" className="p-4">
+    <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <ScreenHeader
         title={title}
         description={description}
         className="gap-3"
         actions={
-          <Button
-            size="md"
-            variant="secondary"
-            className="pointer-coarse:h-12"
-            onClick={() => navigate(BOOK_PATH)}
-          >
-            <Icon icon={ArrowLeft} size={16} />
-            Quay lại sổ lead
-          </Button>
+          <>
+            {cancel && !asking && (
+              <Button
+                size="md"
+                variant="ghost"
+                className="pointer-coarse:h-12"
+                onClick={() => setAsking(true)}
+              >
+                Huỷ lô
+              </Button>
+            )}
+            <Button
+              size="md"
+              variant="secondary"
+              className="pointer-coarse:h-12"
+              onClick={() => navigate(BOOK_PATH)}
+            >
+              <Icon icon={ArrowLeft} size={16} />
+              Quay lại sổ lead
+            </Button>
+          </>
         }
         context={rail && <ContextRail objects={rail} />}
       />
+      {cancel && asking && <CancelConfirm {...cancel} onKeep={() => setAsking(false)} />}
     </GlassCard>
+  )
+}
+
+/** Asked in place, as the campaign form asks before dropping a draft — no
+ *  `window.confirm`, which sits outside the design system and blocks the tab.
+ *  Its own row: inside the header's shrink-0 actions it squeezes the title at tablet widths. */
+function CancelConfirm({ onConfirm, pending, onKeep }: CancelProps & { onKeep: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-foreground text-[12.5px]">Huỷ lô này? Chưa lead nào được tạo.</span>
+      <Button
+        size="md"
+        variant="destructive"
+        disabled={pending}
+        className="pointer-coarse:h-12"
+        onClick={onConfirm}
+      >
+        {pending ? 'Đang huỷ…' : 'Huỷ lô'}
+      </Button>
+      <Button
+        size="md"
+        variant="ghost"
+        disabled={pending}
+        className="pointer-coarse:h-12"
+        onClick={onKeep}
+      >
+        Giữ lô
+      </Button>
+    </div>
   )
 }
 
 /** Something still moving: a turning glyph and words, never a pill. */
 export function Moving({ children }: { children: ReactNode }) {
   return (
-    <span className="flex items-center gap-2">
+    <span className="tnum flex items-center gap-2">
       <Icon icon={Loader} size={14} className="text-accent-foreground motion-safe:animate-spin" />
       {children}
     </span>
@@ -108,17 +166,98 @@ const FILE_COLUMNS = [
   { header: 'Kết quả', width: 'minmax(0,1.6fr)' },
 ]
 
+/** The error line, plus the replace-file picker on a row that read FAILED and is not already being replaced. */
+function ResultCell({
+  row,
+  job,
+  onFile,
+}: {
+  row: FileRow
+  job: ReplaceJob | undefined
+  onFile: (id: string, file: File) => void
+}) {
+  const failedId = row.failedId
+  return (
+    <span className="pointer-coarse:flex-col pointer-coarse:items-start flex min-w-0 items-center gap-2">
+      <span
+        className="text-muted-foreground pointer-coarse:line-clamp-2 pointer-coarse:whitespace-normal min-w-0 flex-1 truncate"
+        title={row.result}
+      >
+        {row.result}
+      </span>
+      {failedId && !job && (
+        <ScanReplacePicker
+          accept={ACCEPT_ATTR}
+          captureAccept={CAPTURE_ACCEPT_ATTR}
+          name={row.name}
+          onFile={(file) => onFile(failedId, file)}
+        />
+      )}
+    </span>
+  )
+}
+
+/** The replace wiring both step 2 and step 3 hang on their FAILED rows. */
+function useRowReplace(batch: LeadScanResponse | undefined) {
+  const replace = useReplaceScanFile()
+  const jobs = useScanReplaces((s) => s.jobs)
+  /* Screened exactly as a step-1 drop, so a replacement meets the same caps. */
+  const onReplace = (id: string, file: File) => {
+    const { accepted, rejected } = screenPicked([file])
+    if (rejected.length > 0) toastWarn('Có tệp không nhận', rejected.join(' · '))
+    const picked = accepted[0]
+    if (batch && picked) replace(batch.code, id, picked)
+  }
+  return { jobs, onReplace }
+}
+
+const FAILED_COLUMNS = [
+  { header: 'Tệp', width: 'minmax(0,1.3fr)' },
+  { header: 'Trạng thái', width: 'minmax(0,1fr)' },
+  { header: 'Lý do', width: 'minmax(0,2fr)' },
+]
+
+/** Step 3 — the files that read FAILED, each replaceable in place. Starting a
+ *  replace puts the batch back to READING, which returns the page to step 2. */
+export function FailedFiles({ batch }: { batch: LeadScanResponse }) {
+  const { jobs, onReplace } = useRowReplace(batch)
+  const rows = failedRows(batch)
+  if (rows.length === 0) return null
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-3 overflow-hidden pt-4">
+      <h3 className="px-5 text-[13px] font-semibold">Tệp không đọc được</h3>
+      <DataTable
+        flush
+        columns={FAILED_COLUMNS}
+        rows={rows.map((row) => ({
+          id: row.key,
+          cells: [
+            <span key="name" className="block truncate" title={row.name}>
+              {row.name}
+            </span>,
+            <StatusCell key="status" status={rowStatus(row, jobs[row.key])} />,
+            <ResultCell key="result" row={row} job={jobs[row.key]} onFile={onReplace} />,
+          ],
+        }))}
+      />
+    </GlassCard>
+  )
+}
+
 /** Step 2 — one progress panel, then the plain file list. */
 export function ReadingStep({
   batch,
   run,
   onRestart,
+  cancel,
 }: {
   batch: LeadScanResponse | undefined
   run: ScanRun | null
   onRestart: () => void
+  cancel?: CancelProps
 }) {
   const navigate = useNavigate()
+  const { jobs, onReplace } = useRowReplace(batch)
   const rows = fileRows(batch, run)
   const counts = countRows(rows)
   const progress = progressOf(run, counts, rows.length)
@@ -136,6 +275,7 @@ export function ReadingStep({
             : 'Đóng trang cũng không sao — lô chạy tiếp trên máy chủ.'
         }
         rail={batch && scanRail(batch, navigate)}
+        cancel={cancel}
       />
 
       <GlassCard className="flex flex-col gap-4 p-5">
@@ -173,14 +313,8 @@ export function ReadingStep({
               <span key="type" className="text-muted-foreground">
                 {row.type}
               </span>,
-              <StatusCell key="status" status={row.status} />,
-              <span
-                key="result"
-                className="text-muted-foreground block truncate"
-                title={row.result}
-              >
-                {row.result}
-              </span>,
+              <StatusCell key="status" status={rowStatus(row, jobs[row.key])} />,
+              <ResultCell key="result" row={row} job={jobs[row.key]} onFile={onReplace} />,
             ],
           }))}
         />

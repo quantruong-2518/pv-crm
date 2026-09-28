@@ -391,6 +391,10 @@ const Env = z
     /** Empty = the scan door stays up but reads nothing (`ScanReader.enabled`). */
     GEMINI_API_KEY: z.string().default(''),
     SCAN_GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
+    /** Owner-approved global Gemini ceiling over a rolling 24 h of `scan_file` tokens_in +
+     *  tokens_out: reaching it refuses new batches and added or replaced files, while reads
+     *  already in flight finish. 0 = no cap. */
+    SCAN_DAILY_TOKEN_BUDGET: z.coerce.number().int().min(0).default(3_000_000),
   })
   /** PGlite nhận một kết nối tại một thời điểm và không có đủ extension. Nó là
    *  công cụ phát triển; để nó lọt vào production là một sự cố chờ sẵn. */

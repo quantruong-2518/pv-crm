@@ -2,10 +2,13 @@ import { useEffect } from 'react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LeadAttachmentsResponse,
+  LeadScanAddFilesResponse,
+  LeadScanCancelResponse,
   LeadScanCommitResponse,
   LeadScanCreateResponse,
   LeadScanResponse,
   LeadScanStartResponse,
+  type LeadScanAddFilesBody,
   type LeadScanCreateBody,
   type ScanBatchState,
 } from '@pv/contracts'
@@ -62,12 +65,28 @@ export function useScanBatch(code: string) {
 export const createScanBatch = (body: LeadScanCreateBody) =>
   api.write('/sales/leads/scan', { body, need: SCAN_NEED, schema: LeadScanCreateResponse })
 
-export const startScanBatch = (code: string, files: string[]) =>
+/** `retire` names FAILED files that `files` replace — the server drops them only here. */
+export const startScanBatch = (code: string, files: string[], retire?: string[]) =>
   api.write(`${scanPath(code)}/start`, {
-    body: { files },
+    body: { files, retire },
     need: SCAN_NEED,
     schema: LeadScanStartResponse,
   })
+
+/** More files into an open batch, or the one file that replaces a FAILED row. */
+export const addScanFiles = (code: string, body: LeadScanAddFilesBody) =>
+  api.write(`${scanPath(code)}/files`, { body, need: SCAN_NEED, schema: LeadScanAddFilesResponse })
+
+/** Settles only once the refetch shows the batch FAILED, so the screen never
+ *  flashes the step it is leaving. */
+export function useCancelScan(code: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      api.write(`${scanPath(code)}/cancel`, { need: SCAN_NEED, schema: LeadScanCancelResponse }),
+    onSettled: () => client.invalidateQueries({ queryKey: scanBatchKey(code) }),
+  })
+}
 
 /** 202 then poll: the refetch right after flips the batch to `COMMITTING`,
  *  which is what switches polling back on. */

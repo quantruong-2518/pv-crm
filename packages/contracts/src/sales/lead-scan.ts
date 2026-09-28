@@ -4,7 +4,9 @@ import { Moment, ObjectCode, textInput } from '../primitives'
 /** Scan door — card photos and company-profile PDFs become leads.
  *
  *      POST /sales/leads/scan                 declare files, get upload URLs
+ *      POST /sales/leads/scan/:code/files     declare more, or replace one FAILED file
  *      POST /sales/leads/scan/:code/start     read the files that uploaded
+ *      POST /sales/leads/scan/:code/cancel    give up before commit; ends the batch FAILED
  *      GET  /sales/leads/scan/:code           progress, then the preview
  *      POST /sales/leads/scan/:code/commit    202; ONE button creates the leads
  *      GET  /sales/leads/:code/attachments    the source files, now on the lead
@@ -19,11 +21,23 @@ import { Moment, ObjectCode, textInput } from '../primitives'
 // Limits
 // ---------------------------------------------------------------------------
 
-export const SCAN_MAX_FILES = 50
-/** Raw size as picked, BEFORE browser compression — a PDF is uploaded as-is. */
-export const SCAN_MAX_RAW_BYTES = 25 * 1024 * 1024
+export const SCAN_MAX_FILES = 20
+/** Image ceiling is checked in the browser against the file AS PICKED, before
+ *  compression shrinks it to a few hundred KB — the server never sees this number. */
+export const SCAN_MAX_IMAGE_RAW_BYTES = 15 * 1024 * 1024
+/** PDFs upload as-is, so this is also the largest body any presigned PUT ever
+ *  carries — the ceiling `ScanFileDeclared.bytes` is checked against. */
+export const SCAN_MAX_PDF_BYTES = 25 * 1024 * 1024
 export const SCAN_IMAGE_EDGE_PX = 2048
 export const SCAN_THUMB_EDGE_PX = 320
+
+/** Rolling 24h, per uploader. The global daily token budget is server config
+ *  (env), not a contract constant — it never needs to match across the wire. */
+export const SCAN_DAILY_BATCHES_PER_USER = 10
+
+/** Every presigned PUT is signed `If-None-Match: *`; the browser must echo it
+ *  so a concurrent retry cannot silently overwrite an already-uploaded body. */
+export const SCAN_PUT_HEADERS = { 'If-None-Match': '*' } as const
 
 /** What the picker accepts from the user's disk. */
 export const SCAN_ACCEPT_MIME = [
@@ -131,7 +145,7 @@ export const ScanFileDeclared = z.object({
     .number()
     .int()
     .positive('Tệp rỗng')
-    .max(SCAN_MAX_RAW_BYTES, `Tệp lớn hơn ${SCAN_MAX_RAW_BYTES / 1024 / 1024} MB`),
+    .max(SCAN_MAX_PDF_BYTES, `Tệp lớn hơn ${SCAN_MAX_PDF_BYTES / 1024 / 1024} MB`),
   /** Lower-case hex of the ORIGINAL picked bytes — stable across browsers, so it keys both in-batch dedupe and the read cache. */
   sha256: z.string().regex(/^[0-9a-f]{64}$/, 'sha256 sai dạng'),
   width: dimension.optional(),
@@ -139,7 +153,7 @@ export const ScanFileDeclared = z.object({
   pages: dimension.optional(),
   hasThumb: z.boolean(),
   /** Size of the thumbnail body — a presigned PUT binds its exact length. */
-  thumbBytes: z.number().int().positive().max(SCAN_MAX_RAW_BYTES).optional(),
+  thumbBytes: z.number().int().positive().max(SCAN_MAX_PDF_BYTES).optional(),
 })
 
 export const LeadScanCreateBody = z.object({
@@ -168,14 +182,44 @@ export const LeadScanCreateResponse = z.object({
 
 export const LeadScanParams = z.object({ code: ScanBatchCode })
 
-/** Only files whose PUT succeeded; the rest stay out of the batch. */
+/** Only files whose PUT succeeded. The FIRST call also drops the batch's
+ *  files it does not list; later calls (after `POST :code/files`) touch only
+ *  what they name, so two replaces in flight never undo each other. */
 export const LeadScanStartBody = z.object({
   files: z.array(ScanFileId).min(1, 'Chưa tệp nào tải lên xong').max(SCAN_MAX_FILES),
+  /** FAILED files these uploads replace — dropped only now, once the new bytes
+   *  exist, so a failed replace upload leaves the old row to retry. */
+  retire: z.array(ScanFileId).max(SCAN_MAX_FILES).optional(),
 })
 
 const accepted = z.object({ code: ScanBatchCode })
 export const LeadScanStartResponse = accepted
 export const LeadScanCommitResponse = accepted
+
+// ---------------------------------------------------------------------------
+// POST :code/cancel — allowed before commit only (UPLOADING/READING/READY);
+// the batch ends FAILED with a Vietnamese error the server writes.
+// ---------------------------------------------------------------------------
+
+export const LeadScanCancelResponse = accepted
+
+// ---------------------------------------------------------------------------
+// POST :code/files — the replace-image retry for one FAILED row, or adding more
+// files to a batch still open; response mirrors `LeadScanCreateResponse`.
+// ---------------------------------------------------------------------------
+
+export const LeadScanAddFilesBody = z
+  .object({
+    files: z.array(ScanFileDeclared).min(1, 'Chưa chọn tệp nào').max(SCAN_MAX_FILES),
+    /** Set only to replace one FAILED file already in the batch. */
+    replaces: ScanFileId.optional(),
+  })
+  .refine((body) => !body.replaces || body.files.length === 1, {
+    message: 'Thay tệp chỉ nhận đúng một tệp mới',
+    path: ['files'],
+  })
+
+export const LeadScanAddFilesResponse = LeadScanCreateResponse
 
 // ---------------------------------------------------------------------------
 // GET /sales/leads/scan/:code
@@ -237,6 +281,8 @@ export const ScanResult = z.object({
 export const LeadScanResponse = z.object({
   code: ScanBatchCode,
   state: ScanBatchState,
+  /** Why a FAILED batch failed (cancelled, expired, creator revoked); null otherwise. */
+  error: z.string().nullable(),
   campaignCode: ObjectCode.nullable(),
   files: z.array(ScanFile),
   /** `read` counts `READ` and `EMPTY` alike — both are finished. */
@@ -288,6 +334,9 @@ export type LeadScanParams = z.infer<typeof LeadScanParams>
 export type LeadScanStartBody = z.infer<typeof LeadScanStartBody>
 export type LeadScanStartResponse = z.infer<typeof LeadScanStartResponse>
 export type LeadScanCommitResponse = z.infer<typeof LeadScanCommitResponse>
+export type LeadScanCancelResponse = z.infer<typeof LeadScanCancelResponse>
+export type LeadScanAddFilesBody = z.infer<typeof LeadScanAddFilesBody>
+export type LeadScanAddFilesResponse = z.infer<typeof LeadScanAddFilesResponse>
 export type ScanConfidence = z.infer<typeof ScanConfidence>
 export type ScanOutcome = z.infer<typeof ScanOutcome>
 export type ScanGroupField = z.infer<typeof ScanGroupField>

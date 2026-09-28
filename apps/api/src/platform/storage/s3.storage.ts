@@ -8,6 +8,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { SCAN_PUT_HEADERS } from '@pv/contracts'
 import type { Env } from '../config/env'
 import {
   GET_TTL_SECONDS,
@@ -53,12 +54,14 @@ export class S3Storage extends StorageService implements OnApplicationBootstrap 
       Key: key,
       ContentType: mime,
       ContentLength: bytes,
+      IfNoneMatch: SCAN_PUT_HEADERS['If-None-Match'],
     })
-    /* The presigner leaves `content-type` unsigned unless told; unsigned, the
-       browser could store any type under a key the server believes is WebP. */
+    /* The presigner leaves headers unsigned unless told: unsigned `content-type`
+       lets any type land under a WebP key, and unsigned `if-none-match` lets a
+       retry drop the condition and overwrite bytes the reader already read. */
     return getSignedUrl(this.client, command, {
       expiresIn: PUT_TTL_SECONDS,
-      signableHeaders: new Set(['content-type']),
+      signableHeaders: new Set(['content-type', 'if-none-match']),
     })
   }
 
@@ -87,7 +90,7 @@ export class S3Storage extends StorageService implements OnApplicationBootstrap 
     const rule = {
       AllowedOrigins: origins,
       AllowedMethods: ['PUT', 'GET', 'HEAD'],
-      AllowedHeaders: ['Content-Type'],
+      AllowedHeaders: ['Content-Type', ...Object.keys(SCAN_PUT_HEADERS)],
       ExposeHeaders: ['ETag'],
       MaxAgeSeconds: 3600,
     }

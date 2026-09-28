@@ -109,7 +109,7 @@ outbound push produced it) but is **not** enrolled as a campaign member, so it
 draws no MAS wave. Uploading a photo of a business card is not the contact
 opting into marketing mail.
 
-### 7 · Retention: one sweep every 15 minutes, three rules
+### 7 · Retention: one sweep every 15 minutes, keyed to what each row is waiting on
 
 `LeadScanSweeper` (`apps/api/src/branches/sales/lead/lead-scan.sweeper.ts`)
 runs on the 15-minute rung itself, in both the API process and the worker,
@@ -117,9 +117,16 @@ because a daily pace would leave a batch stuck for up to a day before the
 15-minute rule ever got to look at it:
 
 - a batch stuck in `UPLOADING` for more than a day is failed;
-- a batch stuck in `READING` or `COMMITTING` for more than 15 minutes is
-  failed — a read is one model call and a commit a handful of short
-  transactions, so 15 minutes past either means the worker holding it died;
+- a batch stuck in `COMMITTING` for more than 15 minutes is failed — a commit
+  is a handful of short transactions, so 15 minutes past it means the worker
+  holding it died;
+- a `QUEUED` file already handed to a read job (`read_at` set) but not claimed
+  within 15 minutes had its job lost, and fails;
+- a `QUEUED` file added by `:code/files` to a batch that is already `READING`
+  or `READY` gets that same read's span — 15 minutes — because it is holding
+  a batch that would otherwise be ready or already past it; any other
+  never-started file (one sitting in a still-`UPLOADING` batch) gets the same
+  day its own PUT would get;
 - a file in `platform.attachment` that nothing points to for more than 30
   days is deleted, in its own pass so a failed purge cannot undo the expiries
   above it.
@@ -143,9 +150,63 @@ non-`border` way to mark a droppable edge, so this needs no new exception.
 
 ### 10 · Batch and file limits live in the contract
 
-50 files per batch, 25 MB raw per file, as constants in
-`packages/contracts/src/sales/lead-scan.ts` — not hand-checked separately on
+20 files per batch; an image is checked against 15 MB **as picked**, in the
+browser, before compression shrinks it — the server never sees that number
+— and a PDF (uploaded as-is) against 25 MB. All as constants in
+`packages/contracts/src/sales/lead-scan.ts`, not hand-checked separately on
 each side of the wire.
+
+### 11 · Quota: 10 batches/user/rolling 24h, plus a global rolling-24h Gemini token ceiling
+
+The per-uploader count is checked and incremented under an advisory lock
+(`LeadScanRepository.lockUploader`) inside `create`'s own insert transaction,
+so two parallel creates from the same uploader cannot both slip in under the
+limit by reading it before either has written. The company-wide
+`SCAN_DAILY_TOKEN_BUDGET` (env, default 3,000,000; `0` turns the ceiling off)
+is checked both when a batch is created or files are added, and again at
+`start` — the two moments a request is about to spend a Gemini call — never
+mid-read: a batch already reading finishes. Both refusals answer
+`429 rate-limited`, with the server's own wording — "trong 24 giờ qua"
+(rolling 24h) — reaching the browser through `ApiError.serverTitle`
+(`apps/web/src/app/api/errors.ts`) rather than a generic client-side line. A
+read whose answer Gemini charged for but that still failed (`ScanOutputError`
+carries the token usage) is billed against the budget anyway — an unusable
+answer was still paid for. The per-user quota is a contract constant (it
+never needs to match across the wire); the shared token budget is server
+config, because it is not a promise made to any one browser.
+
+### 12 · Cancel, and replace-or-add before a second `start`
+
+`POST :code/cancel` ends an unfinished batch as `FAILED` ("Bạn đã huỷ lô
+này.") and writes an audit note (`{ kind: 'lead-scan-cancel' }`); its files
+stay for the 30-day sweep (§7) rather than being purged early. Any read still
+`QUEUED` at that point becomes a no-op when it is claimed.
+
+`POST :code/files` covers both "add more files" and "swap a `FAILED` file for
+new bytes" — the `FAILED` row is kept until `start` retires it (`retire` in
+`LeadScanStartBody`), not dropped on the spot, so a replace still uploading in
+one tab and a `duplicateOf` answer in another never undo each other, and a
+retry of a failed PUT still has its old row to fall back to. Only the
+**first** `start` call (batch still `UPLOADING`) drops never-started files it
+was not given; every later call touches only the ids it names, for the same
+reason — two replaces in flight must not cancel each other's files. `read_at`
+is stamped the moment a file is queued, not only when its read finishes —
+there is no separate `queued_at` column; a `QUEUED` file with `read_at` set
+means "already handed to the queue", so a repeated `start` neither drops it
+nor enqueues it twice. Recorded as a deliberate trade-off, not an oversight:
+one column carries two different "when" questions. A batch only reaches
+`READY` (and so becomes committable) once no file is left non-terminal, so a
+commit implicitly refuses while anything is still `QUEUED`.
+
+### 13 · A presigned PUT cannot silently overwrite a body already uploaded
+
+Every PUT URL is signed with `If-None-Match: *`
+(`SCAN_PUT_HEADERS` in the contract) and the browser must echo it. Tigris
+answers `412` and disk answers `409` when the key already holds a body; the
+browser treats either as "already there". This closes the gap a presigned URL
+otherwise leaves open for its full validity window: without the header, a
+retried or duplicated PUT to the same key would replace bytes already read
+by the AI, with nothing re-reading them.
 
 ## Consequences
 

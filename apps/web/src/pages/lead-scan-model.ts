@@ -8,6 +8,7 @@ import type {
   ScanOutcome,
 } from '@pv/contracts'
 import type { RailObject } from '@pv/ui'
+import type { ReplaceJob } from '@/data/lead-scan-replace'
 import type { LocalFile, ScanRun } from '@/data/lead-scan-run'
 
 /** What the scan screen shows, derived — no JSX, no fetching.
@@ -58,6 +59,8 @@ export type FileRow = {
   status: RowStatus
   bucket: Bucket
   result: string
+  /** Set on a server row that read FAILED — the id a replace-file targets. */
+  failedId: string | null
 }
 
 const SERVER_STATUS: Record<ScanFile['state'], { status: RowStatus; bucket: Bucket }> = {
@@ -84,6 +87,7 @@ const fromLocal = (f: LocalFile): FileRow => ({
       : LOCAL_STATUS[f.phase],
   bucket: f.phase === 'failed' ? 'failed' : 'queued',
   result: f.error ?? '—',
+  failedId: null,
 })
 
 const fromServer = (f: ScanFile): FileRow => ({
@@ -92,7 +96,28 @@ const fromServer = (f: ScanFile): FileRow => ({
   type: f.kind ? KIND_LABEL[f.kind] : f.mime === 'application/pdf' ? 'PDF' : 'Ảnh',
   ...SERVER_STATUS[f.state],
   result: f.error ?? f.note ?? '—',
+  failedId: f.state === 'FAILED' ? f.id : null,
 })
+
+const REPLACE_STATUS: Record<Exclude<ReplaceJob['phase'], 'uploading'>, string> = {
+  preparing: 'Đang chuẩn bị tệp thay…',
+  starting: 'Đang gửi đọc lại…',
+}
+
+/** A row being replaced shows the replace's progress, not its old FAILED pill. */
+export const rowStatus = (row: FileRow, job: ReplaceJob | undefined): RowStatus =>
+  !job
+    ? row.status
+    : {
+        moving:
+          job.phase === 'uploading'
+            ? `Đang tải tệp thay · ${Math.round(job.progress * 100)}%`
+            : REPLACE_STATUS[job.phase],
+      }
+
+/** Step 3's "could not read" block: the FAILED files only, same row shape as step 2. */
+export const failedRows = (batch: LeadScanResponse): FileRow[] =>
+  batch.files.filter((f) => f.state === 'FAILED').map(fromServer)
 
 /** Before `start` the browser knows more than the server; after, the server
  *  does — plus the files that never made it up, which it has never heard of. */

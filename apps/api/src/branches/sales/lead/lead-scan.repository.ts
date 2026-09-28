@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type {
   RoleId,
@@ -22,6 +22,8 @@ const NEXT_CODE = sql`SELECT 'SCN-' || to_char(now() AT TIME ZONE 'Asia/Ho_Chi_M
   || '-' || lpad(nextval('sales.scan_batch_code_seq')::text, 2, '0') AS code`
 
 const TERMINAL = ['READ', 'EMPTY', 'FAILED'] as const
+/** The quota window, on the database clock so every API machine agrees. */
+const LAST_DAY = sql`now() - interval '24 hours'`
 
 /** One file of a batch with the attachment columns every caller needs. */
 export type ScanFileJoined = {
@@ -33,6 +35,7 @@ export type ScanFileJoined = {
   extraction: ScanExtraction | null
   note: string | null
   error: string | null
+  readAt: Date | null
   attachmentId: string
   name: string
   mime: (typeof attachment.$inferSelect)['mime']
@@ -64,6 +67,7 @@ const JOINED = {
   extraction: scanFile.extraction,
   note: scanFile.note,
   error: scanFile.error,
+  readAt: scanFile.readAt,
   attachmentId: attachment.id,
   name: attachment.name,
   mime: attachment.mime,
@@ -110,6 +114,40 @@ export class LeadScanRepository {
     return row ?? null
   }
 
+  /** The batch row, locked to the transaction's end: every change to a
+   *  batch's file set (add, replace, start) serialises on it. */
+  async lockBatch(tx: Db, code: string): Promise<ScanBatchRowDb | null> {
+    const [row] = await tx.select().from(scanBatch).where(eq(scanBatch.code, code)).for('update')
+    return row ?? null
+  }
+
+  /** Held to the transaction's end; serialises one uploader's creates. */
+  async lockUploader(tx: Db, createdBy: string): Promise<void> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${createdBy}))`)
+  }
+
+  /** Batches this uploader opened in the last 24 hours. */
+  async batchesLastDay(createdBy: string, db: Db = this.db): Promise<number> {
+    const [row] = await db
+      .select({ n: count() })
+      .from(scanBatch)
+      .where(and(eq(scanBatch.createdBy, createdBy), gt(scanBatch.createdAt, LAST_DAY)))
+    return row?.n ?? 0
+  }
+
+  /** Model tokens every read of the last 24 hours cost, all uploaders. */
+  async tokensLastDay(db: Db = this.db): Promise<number> {
+    const [row] = await db
+      .select({
+        n: sql<number>`coalesce(sum(coalesce(${scanFile.tokensIn}, 0) + coalesce(${scanFile.tokensOut}, 0)), 0)`.mapWith(
+          Number,
+        ),
+      })
+      .from(scanFile)
+      .where(gt(scanFile.readAt, LAST_DAY))
+    return row?.n ?? 0
+  }
+
   /** `created_at` then id: the door stamps body order into `created_at`. */
   async files(code: string, db: Db = this.db): Promise<ScanFileJoined[]> {
     return db
@@ -130,19 +168,24 @@ export class LeadScanRepository {
     return row ?? null
   }
 
-  /** Drops the batch's files NOT in `keep`; answers the object keys to delete. */
-  async dropUnlisted(tx: Db, code: string, keep: readonly string[]): Promise<string[]> {
+  /** Drops these files and their attachments; answers the object keys to delete. */
+  async dropFiles(tx: Db, ids: readonly string[]): Promise<string[]> {
+    if (ids.length === 0) return []
     const gone = await tx
       .delete(scanFile)
-      .where(and(eq(scanFile.batchCode, code), notInArray(scanFile.id, [...keep])))
+      .where(inArray(scanFile.id, [...ids]))
       .returning({ attachmentId: scanFile.attachmentId })
     if (gone.length === 0) return []
+    /* A file a lead already took keeps its bytes, whatever the caller thought. */
     const rows = await tx
       .delete(attachment)
       .where(
-        inArray(
-          attachment.id,
-          gone.map((g) => g.attachmentId),
+        and(
+          isNull(attachment.ownerCode),
+          inArray(
+            attachment.id,
+            gone.map((g) => g.attachmentId),
+          ),
         ),
       )
       .returning({ key: attachment.storageKey, thumb: attachment.thumbKey })
@@ -190,15 +233,33 @@ export class LeadScanRepository {
       .where(eq(scanFile.id, id))
   }
 
+  /** `read_at` on a QUEUED file means "handed to the queue": a later `start`
+   *  must neither drop it nor enqueue it twice. */
+  async markQueued(tx: Db, ids: readonly string[]): Promise<void> {
+    if (ids.length === 0) return
+    await tx
+      .update(scanFile)
+      .set({ readAt: sql`now()` })
+      .where(inArray(scanFile.id, [...ids]))
+  }
+
   /** QUEUED → READING. READING is claimable too: a job re-delivered after a
-   *  crash mid-read must retry, not wait forever. Null = already terminal. */
+   *  crash mid-read must retry, not wait forever. Null = already terminal, or
+   *  the batch was cancelled — a queued read after that costs nothing. */
   async claimFile(id: string): Promise<{ batchCode: string } | null> {
     const [row] = await this.db
       .update(scanFile)
       /* `read_at` doubles as "claimed at" until the read lands: the sweeper
          needs a clock for a READING file whose worker died. */
       .set({ state: 'READING', readAt: sql`now()` })
-      .where(and(eq(scanFile.id, id), inArray(scanFile.state, ['QUEUED', 'READING'])))
+      .where(
+        and(
+          eq(scanFile.id, id),
+          inArray(scanFile.state, ['QUEUED', 'READING']),
+          sql`NOT EXISTS (SELECT 1 FROM ${scanBatch} WHERE ${scanBatch.code} = ${scanFile.batchCode}
+                AND ${scanBatch.state} = 'FAILED')`,
+        ),
+      )
       .returning({ batchCode: scanFile.batchCode })
     return row ?? null
   }
@@ -220,12 +281,20 @@ export class LeadScanRepository {
     return rows.length > 0
   }
 
-  /** `from` → FAILED; `result` is left as the committed groups saved it. */
-  async failBatch(db: Db, code: string, from: ScanBatchState, error: string): Promise<void> {
-    await db
+  /** `from` → FAILED; `result` is left as the committed groups saved it.
+   *  False when the batch was not in `from`. */
+  async failBatch(
+    db: Db,
+    code: string,
+    from: readonly ScanBatchState[],
+    error: string,
+  ): Promise<boolean> {
+    const rows = await db
       .update(scanBatch)
       .set({ state: 'FAILED', error })
-      .where(and(eq(scanBatch.code, code), eq(scanBatch.state, from)))
+      .where(and(eq(scanBatch.code, code), inArray(scanBatch.state, [...from])))
+      .returning({ code: scanBatch.code })
+    return rows.length > 0
   }
 
   /** READING → READY once no file of the batch is still open. */
@@ -301,6 +370,40 @@ export class LeadScanRepository {
       .update(scanFile)
       .set({ state: 'FAILED', error })
       .where(and(eq(scanFile.state, 'READING'), lt(scanFile.readAt, before)))
+      .returning({ batchCode: scanFile.batchCode })
+    return [...new Set(rows.map((r) => r.batchCode))]
+  }
+
+  /** QUEUED files past `before`: never started ones by `created_at` (the
+   *  PUT never landed), queued ones by `read_at` (the job was lost).
+   *  `inBatch` narrows to files of batches in those states. */
+  async expireQueued(
+    tx: Db,
+    started: boolean,
+    before: Date,
+    error: string,
+    inBatch?: readonly ScanBatchState[],
+  ): Promise<string[]> {
+    const rows = await tx
+      .update(scanFile)
+      .set({ state: 'FAILED', error })
+      .where(
+        and(
+          eq(scanFile.state, 'QUEUED'),
+          started
+            ? lt(scanFile.readAt, before)
+            : and(isNull(scanFile.readAt), lt(scanFile.createdAt, before)),
+          inBatch
+            ? inArray(
+                scanFile.batchCode,
+                tx
+                  .select({ code: scanBatch.code })
+                  .from(scanBatch)
+                  .where(inArray(scanBatch.state, [...inBatch])),
+              )
+            : undefined,
+        ),
+      )
       .returning({ batchCode: scanFile.batchCode })
     return [...new Set(rows.map((r) => r.batchCode))]
   }

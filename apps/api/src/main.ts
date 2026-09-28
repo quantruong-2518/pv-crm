@@ -9,7 +9,7 @@ import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify'
 import { fastifyCookie } from '@fastify/cookie'
 import type { FastifyInstance } from 'fastify'
-import { SCAN_MAX_RAW_BYTES, SCAN_UPLOAD_MIME } from '@pv/contracts'
+import { SCAN_MAX_PDF_BYTES, SCAN_PUT_HEADERS, SCAN_UPLOAD_MIME } from '@pv/contracts'
 import { AppModule } from './app.module'
 import { ENV, type Env } from './platform/config/env'
 import { isAllowedOrigin } from './platform/http/origin'
@@ -129,7 +129,7 @@ async function bootstrap(): Promise<void> {
       .getInstance<FastifyInstance>()
       .addContentTypeParser(
         [...SCAN_UPLOAD_MIME],
-        { parseAs: 'buffer', bodyLimit: SCAN_MAX_RAW_BYTES },
+        { parseAs: 'buffer', bodyLimit: SCAN_MAX_PDF_BYTES },
         (_req, body, done) => done(null, body),
       )
   }
@@ -208,7 +208,14 @@ async function bootstrap(): Promise<void> {
      *  `X-PV-Actor-Id` giữ lại: nó là cửa sau `PV_TRUST_ACTOR_HEADER`, giờ chỉ
      *  còn là đường LÙI của `ActorGuard` (cookie đi trước). Bỏ nó khỏi đây là
      *  chặn luôn đường Postman/curl mà cờ kia sinh ra để phục vụ. */
-    allowedHeaders: ['Content-Type', 'X-PV-Actor-Id', 'X-PV-Request-Id'],
+    /* `SCAN_PUT_HEADERS` rides only on the disk driver's `PUT /storage/local/:token`,
+       echoing what a presigned bucket PUT is signed with. */
+    allowedHeaders: [
+      'Content-Type',
+      'X-PV-Actor-Id',
+      'X-PV-Request-Id',
+      ...Object.keys(SCAN_PUT_HEADERS),
+    ],
     credentials: true,
   })
 
