@@ -148,12 +148,22 @@ export class LeadWriteService {
    *  refused here: the insert dies on `lead_owner_id_actor_id_fk` a moment
    *  later, and that fence holds for every door at once rather than only for
    *  the ones that remembered to check. */
-  async create(who: Actor, body: LeadCreate): Promise<LeadCreateResponse> {
+  async create(who: Actor, input: LeadCreate): Promise<LeadCreateResponse> {
+    const mayAssign = this.access.allows(who, 'lead.assign')
+    /* An ownOnly caller cannot open a lead nobody holds, so theirs is born held. */
+    const body = !mayAssign && who.ownOnly && !input.ownerId ? { ...input, ownerId: who.id } : input
     /* `setOwner`'s fence: born in somebody else's name is a hand-over. */
-    if (body.ownerId && body.ownerId !== who.id && !this.access.allows(who, 'lead.assign')) {
+    if (body.ownerId && body.ownerId !== who.id && !mayAssign) {
       throw denied(
         'out-of-scope',
         'Bạn chỉ tạo lead đứng tên mình được. Giao cho người khác là việc của trưởng phòng.',
+      )
+    }
+    /* BD/marketing credit is commission too (`COMMISSION_SPLIT`) — same fence. */
+    if (!mayAssign && [body.bdOwnerId, body.marketingOwnerId].some((id) => id && id !== who.id)) {
+      throw denied(
+        'out-of-scope',
+        'Bạn chỉ ghi công BD, Marketing cho chính mình được. Ghi công cho người khác là việc của trưởng phòng.',
       )
     }
     const handle = this.repo.readonlyHandle
@@ -815,7 +825,8 @@ export class LeadWriteService {
 
     const [staff, book, live, origins] = await Promise.all([
       this.repo.staff(handle),
-      this.repo.liveByEmail(handle, [...new Set(mailboxes)]),
+      /* The book's own scope verdict, so a duplicate never leaks a code the caller cannot open. */
+      this.leads.scanBook(who, [...new Set(mailboxes)], [], handle),
       this.repo.campaignCodes(handle, campaigns),
       this.origins.index(),
     ])
@@ -823,6 +834,7 @@ export class LeadWriteService {
       throw invalid({ origin: ['Nguồn không có trong danh mục hoặc đang tắt.'] })
     }
 
+    const mayAssign = this.access.allows(who, 'lead.assign')
     return checkBatch({
       rows: body.rows,
       motion: body.motion,
@@ -833,12 +845,13 @@ export class LeadWriteService {
         : { derived: { originId: derived.id, partnerCode: referrer?.code ?? null } }),
       origins,
       staff,
-      ...(this.access.allows(who, 'lead.assign') ? {} : { onlyOwner: who.id }),
+      ...(mayAssign ? {} : { onlyOwner: who.id }),
+      ...(mayAssign || !who.ownOnly ? {} : { blankOwner: { id: who.id, name: who.name } }),
       campaigns: live,
       /* The check speaks in dedupe keys, the table speaks in mailboxes. One
          `keyOf` on both sides is what keeps the two vocabularies from needing
          a translation nobody maintains. */
-      book: new Map([...book].map(([email, code]) => [keyOf(email), code])),
+      book: new Map(book.map((b) => [keyOf(b.emailLower), b.inScope ? b.code : null])),
     })
   }
 }

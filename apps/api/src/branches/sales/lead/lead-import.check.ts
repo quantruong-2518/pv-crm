@@ -90,6 +90,9 @@ export type ImportCheckInput = {
   /** Set when the caller lacks `lead.assign`: an owner cell may name only this
    *  actor — `setOwner`'s rule, so a file cannot hand leads out either. */
   onlyOwner?: string
+  /** Set for an `ownOnly` caller without `lead.assign`: a blank owner cell
+   *  means them, since an unheld lead is one they could not open. */
+  blankOwner?: ActorLite
   /** The campaign codes that actually exist and are actually campaigns —
    *  `list = 'SOURCE'` rows of `config_entry`, loaded for exactly the codes
    *  this batch mentions.
@@ -103,8 +106,9 @@ export type ImportCheckInput = {
   campaigns: ReadonlySet<string>
   /** `lower(email)` → code, over leads not disqualified or archived. The rows
    *  `lead_email_live_idx` covers, so what this map says and what the unique
-   *  index will say are the same answer. */
-  book: ReadonlyMap<string, string>
+   *  index will say are the same answer. `null` = a lead outside the caller's
+   *  scope: still a duplicate, but its code is not theirs to learn. */
+  book: ReadonlyMap<string, string | null>
 }
 
 export type ImportCheck = {
@@ -232,7 +236,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     const code = input.book.get(out.key)
 
     if (code !== undefined) {
-      dupWithBook.push({ line: row.line, first, key: out.key, code })
+      dupWithBook.push({ line: row.line, first, key: out.key, ...(code === null ? {} : { code }) })
     } else if (seen.has(out.key)) {
       dupWithinFile.push({ line: row.line, first, key: out.key })
     } else {
@@ -305,7 +309,7 @@ function checkRow(
   row: LeadImportRow,
   batch: Pick<
     ImportCheckInput,
-    'motion' | 'source' | 'origin' | 'origins' | 'derived' | 'onlyOwner'
+    'motion' | 'source' | 'origin' | 'origins' | 'derived' | 'onlyOwner' | 'blankOwner'
   >,
   staff: Map<string, ActorLite[]>,
   campaigns: ReadonlySet<string>,
@@ -392,7 +396,8 @@ function checkRow(
       `${LABEL.owner} "${cells.owner}": bạn chỉ nhập lead đứng tên mình được. Giao cho người khác là việc của trưởng phòng.`,
     )
   }
-  if (owner.value !== undefined) out.owner = owner.value.name
+  const held = owner.value ?? batch.blankOwner
+  if (held !== undefined) out.owner = held.name
 
   // ── source · the batch wins over the cell ───────────────────────────────
   const rowSource = optional(cells, 'source', TEXT.source)
@@ -420,7 +425,7 @@ function checkRow(
     ok: true,
     out: { line: row.line, values: out, key: keyOf(email.value) },
     write: {
-      ownerName: owner.value?.name ?? null,
+      ownerName: held?.name ?? null,
       ...(origin.value ? { origin: origin.value } : {}),
       values: {
         company: company.value,
@@ -440,8 +445,8 @@ function checkRow(
 
         pain: pain.value ?? null,
 
-        ownerId: owner.value?.id ?? null,
-        state: stateAtBirth(owner.value?.id),
+        ownerId: held?.id ?? null,
+        state: stateAtBirth(held?.id),
 
         /* The door, stated by the server. `CHANNEL_TRUST` reads `IMPORT` as
            `RAW` — nobody has confirmed anything about these rows yet — and a
