@@ -66,6 +66,8 @@ export type LeadBookPage = {
  *  join identically. */
 const bdOwner = alias(actor, 'bd_owner')
 const marketingOwner = alias(actor, 'marketing_owner')
+/** The other live leads on one mailbox, for `duplicateOf` (ADR 0070). */
+const twin = alias(lead, 'twin')
 
 /** The campaign a lead is attributed to, joined for its NAME.
  *
@@ -175,6 +177,7 @@ export class LeadRepository {
         partnerName: partner.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
+        duplicateOf: this.duplicatesOf(who, scoped),
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
@@ -300,6 +303,7 @@ export class LeadRepository {
         partnerName: partner.name,
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
+        duplicateOf: this.duplicatesOf(who, true),
         inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
       })
       .from(lead)
@@ -349,9 +353,9 @@ export class LeadRepository {
 
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.
    *
-   *  So bằng `id`, KHÔNG bằng tên hiển thị. Đây là chỗ nợ số 2 được trả trước ở
-   *  phía máy chủ: hai người trùng tên không thấy sổ của nhau, và không mở được
-   *  hồ sơ của nhau.
+   *  By `id`, never by display name — the same axis E2 now compares (ADR 0070):
+   *  two people sharing a name neither see each other's book nor open each
+   *  other's profile.
    *
    *  Built here rather than spelled out at each call site because the book and
    *  the profile MUST agree: a lead readable in one and refused in the other is
@@ -363,6 +367,25 @@ export class LeadRepository {
    *  reads as "no condition" inside `and(...)`. */
   private scopeOf(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean): SQL | undefined {
     return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+  }
+
+  /** Codes of the OTHER live leads on this row's mailbox — flagged, not refused,
+   *  since ADR 0070 dropped the unique index. A twin outside the reader's scope
+   *  comes back `null`: counted, not named. NULL for a disqualified row. */
+  private duplicatesOf(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean) {
+    /* `${twin}` inside raw `sql` prints "sales"."twin", not the aliased table,
+       so the FROM spells `lead AS "twin"` out and the columns follow the alias. */
+    const named =
+      scoped && who.ownOnly ? sql`COALESCE(${twin.ownerId} = ${who.id}, false)` : sql`true`
+    return sql<
+      (string | null)[] | null
+    >`CASE WHEN ${notInArray(lead.state, [...LEAD_GONE_STATES])} THEN (
+      SELECT array_agg(CASE WHEN ${named} THEN ${twin.code} END ORDER BY ${twin.code})
+        FROM ${lead} AS "twin"
+       WHERE lower(${twin.email}) = lower(${lead.email})
+         AND ${twin.code} <> ${lead.code}
+         AND ${notInArray(twin.state, [...LEAD_GONE_STATES])}
+    ) END`
   }
 
   private async count(where: SQL | undefined): Promise<number> {

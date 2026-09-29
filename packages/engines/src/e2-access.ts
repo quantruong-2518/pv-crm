@@ -447,9 +447,14 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
       }
     }
 
-    /* Trục 3 chỉ có nghĩa khi đang hỏi về một DÒNG cụ thể. `ref.owner` trống là
-       object không có chủ (bảng dùng chung) — không phải object của người khác. */
-    if (need.ref && actor.ownOnly && need.ref.owner && need.ref.owner !== actor.name) {
+    /* Axis 3 compares ids, never names: a ref naming a holder without an id
+       reads as someone else's (fail closed); an ownerless ref is a shared row. */
+    if (
+      need.ref &&
+      actor.ownOnly &&
+      (need.ref.ownerId ?? need.ref.owner) &&
+      need.ref.ownerId !== actor.id
+    ) {
       return { ok: false, reason: 'out-of-scope', note: `${need.ref.code} không đứng tên bạn.` }
     }
 

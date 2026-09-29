@@ -27,10 +27,10 @@ export const platform = pgSchema('platform')
 export const actor = platform.table('actor', {
   id: text('id').primaryKey(),
 
-  /** NHÃN hiển thị. Trục phạm vi của E2 hiện đang so bằng trường này
-   *  (`ref.owner !== actor.name`) — một khoản nợ chưa trả. Lọc ở SQL thì đã so
-   *  bằng `id`; ngày trả nợ
-   *  xong, engine cũng so bằng `id` và trường này thôi làm khoá. */
+  /** Display label. E2's scope axis (`e2-access.ts`) compares `owner_id`
+   *  against this row's `id`, never this field — debt #2 is paid: a ref
+   *  naming a holder by name only, with no id, now reads as someone else's
+   *  rather than being string-matched against this column. */
   name: text('name').notNull(),
 
   email: text('email').notNull().unique(),
@@ -108,6 +108,16 @@ export const objectRef = platform.table(
     branch: text('branch').$type<Branch>().notNull(),
     label: text('label').notNull(),
     owner: text('owner'),
+    /** The anchor E2's scope axis now reads (see `actor.name`'s docblock) —
+     *  `owner` stays as the display copy.
+     *
+     *  Nullable and `ON DELETE SET NULL`, not a hard fence: `owner` today is
+     *  a NAME copied at write time, and a migration can only match that
+     *  string back to an actor when exactly one holds it — an object whose
+     *  owner name is ambiguous or gone stays NULL rather than guess wrong.
+     *  The lead and the contract kinds are the two a branch table already
+     *  forces to a real `owner_id`, so those backfill exactly, no guessing. */
+    ownerId: text('owner_id').references(() => actor.id, { onDelete: 'set null' }),
     state: text('state'),
     /** Tiền, đơn vị ĐỒNG. `bigint` vì một hợp đồng vài tỷ đã vượt `int4`, và
      *  `mode: 'number'` an toàn tới 2^53 — hơn 9 triệu tỷ đồng. */

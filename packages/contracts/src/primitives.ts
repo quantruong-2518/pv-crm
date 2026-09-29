@@ -174,13 +174,12 @@ export const EMAIL_MAX = 254
 
 /** Mailbox. trim, then LOWERCASE, then check the shape — in that order.
  *
- *  Lowercasing is mandatory, not a courtesy. `lead_email_live_idx` in
- *  `lead.schema.ts` is unique on the `email` column itself, so
- *  'Thanh.NV@kyanh.vn' and 'thanh.nv@kyanh.vn' land as two LIVE leads for one
- *  person — exactly what that index exists to prevent. Once the index moves to
- *  `lower(email)` the fence moves down into the table, but the column still
- *  holds two spellings and every hand-written `WHERE email = ?` still misses
- *  half the rows it was meant to find.
+ *  Lowercasing is mandatory, not a courtesy. `lead_email_idx` in
+ *  `lead.schema.ts` indexes `lower(email)` for the duplicate-lead check
+ *  (ADR 0070 — two live leads on one mailbox are now flagged, not refused,
+ *  so this is a lookup index, not a unique fence). 'Thanh.NV@kyanh.vn' and
+ *  'thanh.nv@kyanh.vn' still have to land as the SAME key, or the flag misses
+ *  half the collisions it exists to catch.
  *
  *  `Actor.email` on the platform side already stores trimmed lowercase (said
  *  so at `lead.schema.ts`), so this is also what keeps the two tables speaking

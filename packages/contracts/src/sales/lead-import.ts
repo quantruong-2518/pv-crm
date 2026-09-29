@@ -217,12 +217,17 @@ export const LeadImportError = z.object({
   reason: z.string().min(1),
 })
 
-/** A row dropped for being a duplicate.
+/** A row that collided with something.
  *
- *  Duplicates are reported as ROWS and not only as a count, because a count
+ *  Collisions are reported as ROWS and not only as a count, because a count
  *  answers "how many" and the question people actually have is "which ones, and
  *  is that right". A batch that reports "312 duplicates" and nothing else gets
- *  either trusted blindly or abandoned. */
+ *  either trusted blindly or abandoned.
+ *
+ *  `dupWithBook` rows are NOT dropped (ADR 0070, like a landing-page
+ *  duplicate): the commit writes them anyway, flagged on read through
+ *  `LeadRow.duplicateOf`. `dupWithinFile` rows still are — a second row of one
+ *  file colliding with the FIRST has no lead of its own behind it to write. */
 export const LeadImportDup = z.object({
   line: z.number().int().min(2),
   first: z.string(),
@@ -250,10 +255,14 @@ export const LeadImportDup = z.object({
  *  normal outcome of loading the same list a second time. One combined number
  *  leaves the person unable to tell whether to go fix the file or ignore it. */
 export const LeadImportReport = z.object({
-  /** Rows that passed everything and would be written. */
+  /** Rows that passed everything and would be written — INCLUDING the
+   *  `dupWithBook` rows below, since ADR 0070: a collision with the book is
+   *  written and flagged, not refused. */
   rows: z.array(LeadImportRowOut),
   errors: z.array(LeadImportError),
-  /** Count of rows dropped for matching a lead ALREADY in the book. */
+  /** Count of rows matching a lead ALREADY in the book — written and flagged
+   *  (`LeadRow.duplicateOf`), not dropped. Name kept for the screen; see
+   *  `LeadImportDup`. */
   duplicates: z.number().int().nonnegative(),
   /** Count of rows dropped for matching ANOTHER row in this same file. */
   dupInFile: z.number().int().nonnegative(),
@@ -274,10 +283,10 @@ export const LeadImportReport = z.object({
 
 /** Dry run. Nothing is written, no code is minted, no batch exists afterwards.
  *
- *  Duplicates against the book are decided on `lower(email)`: it is the only
- *  identity the lead table actually enforces (`lead_email_live_idx`, unique
- *  among leads that have not exited). Note the mismatch this creates with the
- *  screen, which dedupes on tax code, then on company+province — see the
+ *  Collisions against the book are decided on `lower(email)`, the same key
+ *  `lead_email_idx` looks up for every other duplicate check (ADR 0070 — a
+ *  live match is flagged, not refused). Note the mismatch this creates with
+ *  the screen, which dedupes on tax code, then on company+province — see the
  *  handover; the two sides are answering "is this the same company" and "is
  *  this the same live lead", which are not the same question. */
 export const LeadImportPreviewResponse = LeadImportReport

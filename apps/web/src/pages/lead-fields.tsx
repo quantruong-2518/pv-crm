@@ -1,8 +1,11 @@
 import { useMemo, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Input, Select, Textarea, billions, cn, vnd } from '@pv/ui'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
+import { leadStopReasonsQuery } from '@/data/leads'
+import { stopReasonLabel } from '@/data/sales-config'
 import type { LeadDraft } from '@/data/lead-draft'
 import {
   channelUrlLabel,
@@ -120,6 +123,10 @@ function FieldControl({
   const marked = required || undefined
 
   if (field.kind === 'read') {
+    /* `exitReason` prints a config id or `'other'` on the wire (ADR 0070), not
+       a name any static `options` list carries — resolved on its own. */
+    if (field.key === 'exitReason') return <StopReasonRead value={value} mono={field.mono} />
+
     const shown = options.find((o) => o.value === value)?.label ?? value
     return (
       <span
@@ -397,6 +404,26 @@ export function FieldRow({
         )
       })}
     </div>
+  )
+}
+
+/** The system group's one read-only box that is a catalogue key, not a plain
+ *  string — split out so the query it needs is not paid by every other field
+ *  on this thirty-box form. */
+function StopReasonRead({ value, mono }: { value: string; mono?: boolean }) {
+  const { data } = useQuery(leadStopReasonsQuery)
+  const shown = value === '' ? undefined : stopReasonLabel(data?.rows, value)
+
+  return (
+    <span
+      className={cn(
+        'flex h-11 items-center text-[13px]',
+        mono && 'font-mono',
+        !shown && 'text-muted-foreground',
+      )}
+    >
+      {shown ?? '—'}
+    </span>
   )
 }
 

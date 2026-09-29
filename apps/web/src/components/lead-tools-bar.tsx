@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
   CalendarClock,
@@ -18,7 +19,8 @@ import { toastDone, toastFail } from '@/app/toast'
 import { useContactLead, useReopenLead } from '@/data/lead-exit'
 import { readField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
-import { EXIT_REASON_LABEL } from '@/data/leads'
+import { leadStopReasonsQuery } from '@/data/leads'
+import { stopReasonLabel } from '@/data/sales-config'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { AssignMenu } from './assign-menu'
 import { LeadStepButton } from './lead-state-actions'
@@ -104,11 +106,10 @@ function EditBar({
   composeBlocked,
   onSchedule,
 }: EditBarProps) {
-  /* The server answers with the exit reason's KEY (`unreachable`); the screen
-     prints the LABEL. */
-  const exitLabel = lead.exitReason
-    ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
-    : undefined
+  /* The server answers with the stop reason's config id (or `'other'`); the
+     screen prints the LABEL (ADR 0070), off the `lead.view`-safe catalogue. */
+  const { data } = useQuery(leadStopReasonsQuery)
+  const exitLabel = lead.exitReason ? stopReasonLabel(data?.rows, lead.exitReason) : undefined
   const convertible = isOpenState(lead.state) || lead.state === 'converted'
   const nurturable = lead.state === 'verifying' || lead.state === 'working'
   /* A converted lead may still be dropped while it holds no open deal and has

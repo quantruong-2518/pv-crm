@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CircleAlert, Plus, Send, ShieldCheck } from '@pv/ui'
+import { CircleAlert, Send, ShieldCheck } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -13,11 +13,10 @@ import {
   Kicker,
   ScreenHeader,
   ScreenLayout,
-  Select,
   Skeleton,
   StatusDot,
 } from '@pv/ui'
-import { OPPORTUNITY_STAGE_LABEL, StageKey, type ConfigList } from '@pv/contracts'
+import type { ConfigList } from '@pv/contracts'
 import { MOTION_BY_INTAKE } from '@pv/engines'
 import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { useAppChrome } from '@/app/chrome'
@@ -29,20 +28,19 @@ import { BADGE_INK } from '@/data/opportunities'
 import { ROLE_LABEL } from '@/data/users'
 import {
   ANCHOR_CODE,
-  exitReasonRows,
   isEditDone,
   ladderRows,
   naturalSources,
   lossReasonRows,
   salesCatalogQuery,
   salesConfigQuery,
+  stopReasonRows,
   useProposeConfigEdits,
-  useProposeLossReason,
-  useProposeProduct,
   type ConfigEdit,
   type ConfigEditResult,
   type LadderRow,
 } from '@/data/sales-config'
+import { AddLossReason, AddProduct, AddStopReason } from './sales-config-add-rows'
 
 /** Ai gật một thay đổi cấu hình. MỘT mắt xích, và là VAI chứ không phải một
  *  người: `CONFIG_APPROVERS` ở `config.approval.ts` khai `['director']`, và
@@ -125,7 +123,7 @@ export function SalesConfigPage() {
      page behind a second wait. */
   const { data: catalog } = useQuery(salesCatalogQuery)
   const usage = catalog?.usage
-  const exitReasons = exitReasonRows(catalog)
+  const stopReasons = stopReasonRows(catalog)
   const lossReasons = lossReasonRows(catalog)
   /* The product catalog is NOT filtered by `active` here, unlike the picker on
      the deal form: the configuration screen has to show switched-off rows —
@@ -322,33 +320,42 @@ export function SalesConfigPage() {
               </p>
             </Section>
 
-            {/* 5.4 */}
+            {/* 5.4 — stats live HERE, not on the lead (ADR 0070): one row on
+                `sales.touch` per stop, so a lead stopped twice counts twice. */}
             <Section
               no="5.4"
-              title="Lý do ra khỏi luồng"
-              hint='Danh sách ĐÓNG. Sửa được, nhưng không bao giờ có ô "khác" — lý do thứ bảy là một quyết định, không phải ô gõ tự do.'
+              title="Lý do dừng chăm sóc"
+              hint='Danh sách MỞ, dùng cho cả "Nhóm chờ chăm sóc" và "Ngừng chăm sóc" — một lead tạm dừng và một lead dừng hẳn chọn từ đúng một danh mục. Là điểm thống kê: đếm LƯỢT dừng, không phải lead đang đứng.'
             >
               <GlassCard variant="b" className="p-4">
                 <DataTable
                   columns={[
                     { header: 'Lý do', width: '2fr' },
-                    { header: 'Lead đã rơi', width: '1fr', align: 'right' },
+                    { header: 'Lượt dừng', width: '1fr', align: 'right' },
                   ]}
-                  rows={exitReasons.map((r) => ({
-                    id: r.key,
+                  rows={stopReasons.map((r) => ({
+                    id: r.id,
                     cells: [
-                      r.label,
+                      <span key="n" className={r.active ? undefined : 'opacity-60'}>
+                        {r.label}
+                        {!r.active && ' · đã tắt'}
+                      </span>,
                       <span key="u" className="tnum font-num">
-                        {r.usage} lead
+                        {r.usage} lượt
                       </span>,
                     ],
                   }))}
                 />
               </GlassCard>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Mọi lý do đang có lead đứng — bỏ bất kỳ dòng nào cũng phải qua {APPROVER} gật, vì
-                ngần ấy dòng sổ mất chỗ đứng ngay lúc đó.
+                Phép đếm nối bằng MÃ cấu hình, như danh mục chăm sóc 5.4b: cột{' '}
+                <code>sales.touch.reason_id</code> chở đúng <code>id</code> người dùng đã chọn, nên
+                sửa nhãn ở đây không làm số của dòng đó về 0. Lead chọn &quot;Khác&quot; không cộng
+                vào dòng nào — &quot;Khác&quot; là lựa chọn bắt buộc kèm ghi chú, không phải một
+                dòng của danh mục.
               </p>
+
+              <AddStopReason />
             </Section>
 
             {/* 5.4b — DEAL CARE REASONS. Placed right after 5.4 on purpose: the
@@ -390,7 +397,7 @@ export function SalesConfigPage() {
               </GlassCard>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 Phép đếm nối bằng MÃ cấu hình, như danh mục sản phẩm 5.4c: cột{' '}
-                <code>sales.opportunity.care_reason</code> chở đúng <code>id</code> người bán đã
+                <code>sales.opportunity.stop_reason</code> chở đúng <code>id</code> người bán đã
                 chọn, nên sửa nhãn ở đây không làm số của dòng đó về 0. Đây là danh mục thứ ba thoát
                 khỏi nợ slug-so-với-nhãn. Đơn chọn &quot;Khác&quot; không cộng vào dòng nào —
                 &quot;Khác&quot; là lựa chọn bắt buộc kèm ghi chú, không phải một dòng của danh mục.
@@ -891,104 +898,6 @@ function LadderTable({
         }
       })}
     />
-  )
-}
-
-/** Mục 5.4c · thêm một sản phẩm vào danh mục.
- *
- *  Gửi RIÊNG chứ không nhập đoàn với nút gửi chung: đây là động từ khác trên
- *  một cửa khác (`POST` thay vì `PATCH`), và một cái tên vừa gõ không có bản cũ
- *  nào để so — tức không có phép "gõ rồi xoá về như cũ" mà bản nháp kia dựng
- *  trên đó. Ô tự dọn sau khi gửi được, vì lần gõ tiếp là một dòng khác chứ
- *  không phải sửa dòng vừa gửi. */
-function AddProduct() {
-  const [name, setName] = useState('')
-  const propose = useProposeProduct()
-
-  return (
-    <div className="flex flex-wrap items-end gap-3">
-      <Input
-        aria-label="Thêm sản phẩm/dịch vụ"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Tên sản phẩm hoặc dịch vụ"
-        className="min-w-0 flex-1"
-      />
-
-      <Button
-        size="md"
-        disabled={name.trim() === '' || propose.isPending}
-        onClick={() =>
-          propose.mutate(name.trim(), {
-            onSuccess: () => {
-              setName('')
-              toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
-            },
-          })
-        }
-      >
-        <Icon icon={Plus} size={16} />
-        Gửi đề nghị
-      </Button>
-    </div>
-  )
-}
-
-/** Options for the create form's column picker: the 5 columns plus a clearing
- *  choice (empty value), which sends no `stage` at all — an absent `stage` is
- *  what makes a reason apply everywhere (ADR 0064 §6). */
-const LOSS_REASON_STAGE_OPTIONS = [
-  { value: '', label: 'Mọi cột' },
-  ...StageKey.options.map((key) => ({ value: key, label: OPPORTUNITY_STAGE_LABEL[key] })),
-]
-
-/** 5.4b · add one care reason to the catalog, optionally scoped to a column.
- *
- *  Same shape as `AddProduct` below — an OPEN list, its own `POST` door —
- *  plus one more field: the column picker. Left on the clearing option, no
- *  `stage` travels, matching the rule "absent means every column"; picking one
- *  scopes the reason to that column. */
-function AddLossReason() {
-  const [name, setName] = useState('')
-  const [stage, setStage] = useState('')
-  const propose = useProposeLossReason()
-
-  return (
-    <div className="flex flex-wrap items-end gap-3">
-      <Input
-        aria-label="Thêm lý do vào danh sách chăm sóc"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Lý do vào danh sách chăm sóc"
-        className="min-w-0 flex-1"
-      />
-      <Select
-        label="Áp dụng ở cột"
-        value={stage}
-        onChange={setStage}
-        options={LOSS_REASON_STAGE_OPTIONS}
-      />
-
-      <Button
-        size="md"
-        disabled={name.trim() === '' || propose.isPending}
-        onClick={() =>
-          propose.mutate(
-            { name: name.trim(), ...(stage === '' ? {} : { stage: stage as StageKey }) },
-            {
-              onSuccess: () => {
-                setName('')
-                setStage('')
-                toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
-              },
-            },
-          )
-        }
-      >
-        <Icon icon={Plus} size={16} />
-        Gửi đề nghị
-      </Button>
-    </div>
   )
 }
 

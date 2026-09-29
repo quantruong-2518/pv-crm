@@ -81,6 +81,7 @@ export class GraphRepository {
         branch: o.branch,
         label: o.label,
         ...(o.owner ? { owner: o.owner } : {}),
+        ...(o.ownerId ? { ownerId: o.ownerId } : {}),
         ...(o.state ? { state: o.state } : {}),
         ...(o.amount !== null ? { amount: o.amount } : {}),
       })),

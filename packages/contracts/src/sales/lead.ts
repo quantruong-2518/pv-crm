@@ -17,7 +17,6 @@ import { ConfigCode } from './config'
 import {
   ContactChannel,
   CurrencyCode,
-  ExitReason,
   LeadCategory,
   LeadMotion,
   LeadSourceKind,
@@ -38,6 +37,7 @@ import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginId, LeadOriginPick } from './lead-origin'
 import { LeadSource } from './lead-source'
 import { PartnerCode } from './partner'
+import { OPPORTUNITY_STOP_REASON_OTHER, OpportunityStopBody } from './opportunity'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
  *
@@ -178,9 +178,20 @@ export const LeadRow = z.object({
   lastTouchAt: Moment.optional(),
 
   createdAt: Moment,
-  /** Both present exactly while `state` is `disqualified`. */
-  exitReason: ExitReason.optional(),
+  /** Both present exactly while `state` is `disqualified`. A config id from the
+   *  `EXIT_REASON` list (ADR 0070), or the virtual key `'other'` — never the
+   *  fixed six-value enum this used to be, since the catalogue is now admin-
+   *  edited. A plain string because a closed list here would refuse a reason
+   *  somebody just added on the Config screen. */
+  exitReason: z.string().optional(),
   exitedAt: Moment.optional(),
+
+  /** Other LIVE leads sharing this mailbox, by code — flagged, not blocked
+   *  (ADR 0070): the book stopped refusing a second live lead on one email, so
+   *  a row a caller must notice is marked here instead. Absent when none.
+   *  `null` entries are leads OUTSIDE this reader's scope (see `scopeOf`):
+   *  present, so the count is right, but unnamed. */
+  duplicateOf: z.array(ObjectCode.nullable()).optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -845,12 +856,26 @@ export const LeadOwnerResponse = LeadRow
 // LEAVING AND RE-ENTERING THE FUNNEL — no approval, the Sale's own call
 // ---------------------------------------------------------------------------
 
+/** The lead's stop doors take the SAME body as the deal's (ADR 0070): one
+ *  catalogue kind of choice, one pair of caps, one `'other'` string. */
+export const LEAD_STOP_REASON_OTHER = OPPORTUNITY_STOP_REASON_OTHER
+export const LeadStopBody = OpportunityStopBody
+
+/** `GET /sales/lead-stop-reasons` — the `EXIT_REASON` catalogue for people who
+ *  stop leads or read their history but hold no `config.view`. Inactive rows
+ *  stay so an old stop still prints its label. */
+export const LeadStopReasonOption = z.object({
+  id: ConfigCode,
+  name: z.string(),
+  active: z.boolean(),
+})
+export const LeadStopReasonResponse = z.object({ rows: z.array(LeadStopReasonOption) })
+export type LeadStopReasonOption = z.infer<typeof LeadStopReasonOption>
+export type LeadStopReasonResponse = z.infer<typeof LeadStopReasonResponse>
+
 /** `POST /sales/leads/:code/exit`. No approval: `POST :code/reopen` (no body)
  *  undoes it, so E3 has nothing irreversible to weigh (ADR 0057). */
-export const LeadExitBody = z.object({
-  reason: ExitReason,
-  note: textInputOptional(500),
-})
+export const LeadExitBody = LeadStopBody
 
 /** Both doors answer the re-read profile, like `PATCH :code`. */
 export const LeadExitResponse = LeadProfile
@@ -862,10 +887,10 @@ export const LeadReopenResponse = LeadProfile
 
 /** `POST /sales/leads/:code/nurture` — `verifying` | `working` → `nurturing`.
  *  `POST :code/resume` (no body) brings it back to `working` if an exchange
- *  was ever logged on the lead, else to `verifying`. */
-export const LeadNurtureBody = z.object({
-  note: textInputOptional(500),
-})
+ *  was ever logged on the lead, else to `verifying`. Same reason, same
+ *  catalogue as `:code/exit` (ADR 0070) — both are stop events counted on
+ *  `EXIT_REASON`. */
+export const LeadNurtureBody = LeadStopBody
 
 /** All lifecycle doors answer the re-read profile, like `:code/exit`. */
 export const LeadContactedResponse = LeadProfile
@@ -927,6 +952,7 @@ export type LeadPatch = z.infer<typeof LeadPatch>
 export type LeadPatchResponse = z.infer<typeof LeadPatchResponse>
 export type LeadOwnerWrite = z.infer<typeof LeadOwnerWrite>
 export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
+export type LeadStopBody = z.infer<typeof LeadStopBody>
 export type LeadExitBody = z.infer<typeof LeadExitBody>
 export type LeadExitResponse = z.infer<typeof LeadExitResponse>
 export type LeadReopenResponse = z.infer<typeof LeadReopenResponse>

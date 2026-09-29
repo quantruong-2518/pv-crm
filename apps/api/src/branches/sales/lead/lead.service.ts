@@ -134,11 +134,10 @@ export class LeadService {
    *  ------------------------------------------------------------------
    *  `book()` above runs `E2.visible()` as a second net behind the SQL filter.
    *  A second net on this path would be dead code, not safety: E2's scope axis
-   *  still compares `ref.owner` against `actor.name` (debt #2), which is a
-   *  WEAKER test than the `owner_id = actor.id` the query just performed — it
-   *  can never refuse a row the id comparison let through. Adding a check that
-   *  cannot fire is how a reader learns to trust a fence that is not holding
-   *  anything. When E2 compares by id, this is the place to hang it. */
+   *  compares `ref.ownerId` against `actor.id` (ADR 0070), the very test the
+   *  query's `owner_id = actor.id` just performed — it can never refuse a row
+   *  the SQL let through. Adding a check that cannot fire is how a reader
+   *  learns to trust a fence that is not holding anything. */
   async profile(who: Actor, code: ObjectCode): Promise<LeadProfile> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)

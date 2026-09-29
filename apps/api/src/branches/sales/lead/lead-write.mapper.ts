@@ -1,6 +1,5 @@
 import type { ObjectRef } from '@pv/engines'
 import type {
-  ExitReason,
   LeadCreate,
   LeadIntakeBody,
   LeadOriginPick,
@@ -103,13 +102,16 @@ export const LEAD_NOTE = {
       ? `Thư tới ${address} quá hạn gửi lại — không rõ đã tới khách chưa`
       : `Gửi thư tới ${address} thất bại — lý do ở nhật ký gửi thư`,
   mailSyncFailed: 'Thư đã tới khách nhưng chưa chuyển được trạng thái lead — cần chỉnh tay',
-  /** The reason travels as its key: labels belong to the screen (`ExitReason`). */
-  exited: (reason: ExitReason, note: string | undefined) =>
+  /** Both stop doors carry the reason as its config id (ADR 0070): labels
+   *  belong to the screen, which swaps the second segment for the catalogue's. */
+  exited: (reason: string, note: string | undefined) =>
     note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,
   reopened: 'Mở lại lead — quay về phễu',
   verified: (tier: LeadTier) => `Xác minh xong · bậc ${tier}`,
-  nurtured: (note: string | undefined) =>
-    note ? `Tạm dừng chăm sóc, chờ dịp sau · ${note}` : 'Tạm dừng chăm sóc, chờ dịp sau',
+  nurtured: (reason: string, note: string | undefined) =>
+    note
+      ? `Tạm dừng chăm sóc, chờ dịp sau · ${reason} · ${note}`
+      : `Tạm dừng chăm sóc, chờ dịp sau · ${reason}`,
   resumed: 'Chăm lại sau thời gian chờ',
   tierRaised: (tier: LeadTier) => `Nâng bậc · ${tier}`,
 } as const
@@ -126,6 +128,7 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
     branch: 'Sales',
     label: write.values.company,
     ...(write.ownerName ? { owner: write.ownerName } : {}),
+    ...(write.values.ownerId ? { ownerId: write.values.ownerId } : {}),
     ...(write.values.state ? { state: write.values.state } : {}),
   }
 }

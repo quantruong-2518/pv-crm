@@ -104,9 +104,8 @@ export type ImportCheckInput = {
    *  what makes the difference between "fix one cell" and "the import is
    *  broken". */
   campaigns: ReadonlySet<string>
-  /** `lower(email)` → code, over leads not disqualified. The rows
-   *  `lead_email_live_idx` covers, so what this map says and what the unique
-   *  index will say are the same answer. `null` = a lead outside the caller's
+  /** `lower(email)` → code, over leads not disqualified — the same live set
+   *  the book's `duplicateOf` flags on. `null` = a lead outside the caller's
    *  scope: still a duplicate, but its code is not theirs to learn. */
   book: ReadonlyMap<string, string | null>
 }
@@ -188,15 +187,14 @@ const GROUPED_INT = /^\d[\d.,\s]*$/
 
 /** The dedupe key, and the only identity this import has.
  *
- *  `lower(email)`, because that is the one identity `sales.lead` actually
- *  enforces — `lead_email_live_idx`, unique among leads not disqualified.
- *  Prefixed the way the screen prefixes its own keys (`mst:`, `ten:`) so a key
+ *  `lower(email)`, the mailbox key the book flags duplicates on (ADR 0070 —
+ *  flagged, no longer enforced unique). Prefixed the way the screen prefixes its own keys (`mst:`, `ten:`) so a key
  *  printed in the report says what kind of thing it is.
  *
  *  Note for whoever reads the panel: the screen dedupes on tax code, then on
  *  company+province. That is a PRE-CHECK inside the browser and it answers "is
  *  this the same company"; this answers "is this the same live lead". Both are
- *  useful, only one of them is backed by an index. */
+ *  useful, only one of them is what the book flags on. */
 export const keyOf = (email: string): string => `email:${email}`
 
 type Cells = Partial<Record<LeadImportField, string>>
@@ -206,14 +204,13 @@ type Read<T> = { ok: true; value: T } | { ok: false; reason: string }
 type Outcome =
   { ok: true; write: LeadWrite; out: LeadImportRowOut } | { ok: false; error: LeadImportError }
 
-/** Check a whole batch: every row, then the batch against the book, then the
- *  batch against itself.
+/** Check a whole batch: every row, then the batch against itself, then the
+ *  batch against the book.
  *
- *  Order matters, and it is the screen's order: a broken row is reported as
- *  broken and never as a duplicate; a row colliding with the book is reported
- *  as a book collision and not as a file one. Reversing either pair produces a
- *  report that is true and useless — "312 duplicates" when the real answer was
- *  "312 rows have no mailbox". */
+ *  A broken row is reported as broken and never as a duplicate — reversing that
+ *  produces "312 duplicates" when the real answer was "312 rows have no
+ *  mailbox". A repeat inside the file is dropped; only its first row is written
+ *  and, if the book already holds that mailbox, flagged (ADR 0070). */
 export function checkBatch(input: ImportCheckInput): ImportCheck {
   const staff = indexStaff(input.staff)
 
@@ -235,14 +232,17 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     const first = firstOf(row, out.values)
     const code = input.book.get(out.key)
 
+    if (seen.has(out.key)) {
+      dupWithinFile.push({ line: row.line, first, key: out.key })
+      continue
+    }
+    seen.add(out.key)
+    rows.push(out)
+    writes.push(write)
+    /* Written AND reported (ADR 0070): the book flags it through `duplicateOf`,
+       like a second landing submit — a collision is a signal, not a refusal. */
     if (code !== undefined) {
       dupWithBook.push({ line: row.line, first, key: out.key, ...(code === null ? {} : { code }) })
-    } else if (seen.has(out.key)) {
-      dupWithinFile.push({ line: row.line, first, key: out.key })
-    } else {
-      seen.add(out.key)
-      rows.push(out)
-      writes.push(write)
     }
   }
 

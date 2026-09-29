@@ -12,7 +12,6 @@ import {
 import type { LeadProfile } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import type { TouchEvent } from '@/data/touches'
-import { EXIT_REASON_LABEL } from '@/data/leads'
 
 /** Module 2 · `GET /sales/leads/:code` — ONE whole lead profile.
  *
@@ -164,19 +163,11 @@ export function profileForm(p: LeadProfile): ProfileForm {
     stage: '',
     dealCode: '',
     contractCode: '',
-    exitReason: exitLabel(p.exitReason),
+    /* Raw stop key (config id, or `'other'`), not a label — the catalogue is
+       admin-edited now (ADR 0070), so a fixed lookup table cannot cover it.
+       The screen resolves the label with `stopReasonLabel` instead. */
+    exitReason: (p.exitReason ?? '') as ExitReason,
   }
-}
-
-/** ASCII exit key → the Vietnamese label the frozen shapes carry.
- *
- *  The server stores and sends a key (`unreachable`); the fixture typed the
- *  field as the label itself. One table does the translation for the whole app
- *  and it already exists next to the book — spelling a second one here is how
- *  two screens end up naming one exit reason two ways. */
-function exitLabel(key: string | undefined): ExitReason | '' {
-  if (!key) return ''
-  return (EXIT_REASON_LABEL[key] ?? key) as ExitReason
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +261,8 @@ export function leadOf(p: LeadProfile): Lead {
        is "no frozen source code", which is what `''` means here. */
     source: '',
     createdAt: p.createdAt,
-    exitReason: p.exitReason ? exitLabelOrUndefined(p.exitReason) : undefined,
+    /* Raw key, same reasoning as `profileForm` above — no label lookup here. */
+    exitReason: p.exitReason ? (p.exitReason as ExitReason) : undefined,
     exitedAt: p.exitedAt,
     history: [],
   }
@@ -293,14 +285,6 @@ export function leadOf(p: LeadProfile): Lead {
  *  dead on screen (both call sites passed an empty transcript), so the panel
  *  and the constant went together. */
 export const NO_TOUCHES: readonly TouchEvent[] = []
-
-/** Same table as `exitLabel`, minus the `''` branch: a `Lead` spells "still
- *  running" as an ABSENT `exitReason`, and `''` there would read as "it exited
- *  for a reason nobody wrote down". */
-function exitLabelOrUndefined(key: string): ExitReason | undefined {
-  const label = exitLabel(key)
-  return label === '' ? undefined : label
-}
 
 // ---------------------------------------------------------------------------
 // Wire → the contact `nextActions` reads — no generator involved

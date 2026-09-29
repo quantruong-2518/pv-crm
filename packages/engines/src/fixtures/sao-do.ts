@@ -33,6 +33,7 @@ const scenario: Scenario = {
       branch: 'Sales',
       label: 'Hợp đồng Sao Đỏ',
       owner: 'Đỗ Quang Huy',
+      ownerId: 'u-huy',
       state: 'đã ký',
       amount: 1_840_000_000,
     },

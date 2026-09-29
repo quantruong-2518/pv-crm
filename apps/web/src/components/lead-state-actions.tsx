@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, Timer, X, type IconGlyph } from '@pv/ui'
-import { Button, Drawer, Icon, Textarea, cn } from '@pv/ui'
-import { LEAD_STATE_LABEL, type LeadProfile } from '@pv/contracts'
+import { Button, Drawer, Icon, cn } from '@pv/ui'
+import { LEAD_STATE_LABEL, LEAD_STOP_REASON_OTHER, type LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
+import { StopReasonField } from '@/components/exit-dialog'
 import { useNurtureLead, useResumeLead } from '@/data/lead-exit'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
 
@@ -45,8 +46,9 @@ export function LeadStepButton({ lead, canEdit }: { lead: LeadProfile; canEdit: 
   )
 }
 
-/** `verifying` | `working` → `nurturing`. The note is optional: "not ready" is
- *  already the whole reason, and a required box would collect filler. */
+/** `verifying` | `working` → `nurturing`. Reason and note come from the same
+ *  `EXIT_REASON` catalogue the exit door reads (ADR 0070, `StopReasonField`):
+ *  parking is a stop event too, so it is counted the same way a disqualify is. */
 export function NurtureDialog({
   profile,
   open,
@@ -56,16 +58,20 @@ export function NurtureDialog({
   open: boolean
   onClose: () => void
 }) {
+  const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
   const nurture = useNurtureLead(profile.code)
   const { reset } = nurture
 
   useEffect(() => {
     if (open) {
+      setReasonKey('')
       setNote('')
       reset()
     }
   }, [open, reset])
+
+  const ready = reasonKey !== '' && (reasonKey !== LEAD_STOP_REASON_OTHER || note.trim() !== '')
 
   return (
     <Drawer
@@ -84,34 +90,37 @@ export function NurtureDialog({
         <StepFooter
           error={nurture.error}
           pending={nurture.isPending}
-          hint="Ghi ngay, không cần ai duyệt. Bấm Chăm lại khi khách có tín hiệu mới."
+          hint={
+            ready
+              ? 'Ghi ngay, không cần ai duyệt. Bấm Chăm lại khi khách có tín hiệu mới.'
+              : 'Chọn một lý do để bật nút.'
+          }
           onClose={onClose}
           confirm={{
             icon: Timer,
             label: `Chuyển sang ${LEAD_STATE_LABEL.nurturing}`,
-            disabled: false,
+            disabled: !ready,
             onClick: () => {
               const trimmed = note.trim()
-              nurture.mutate(trimmed === '' ? {} : { note: trimmed }, {
-                onSuccess: () =>
-                  done(`Đã chuyển ${profile.code} sang ${LEAD_STATE_LABEL.nurturing}.`, onClose),
-              })
+              nurture.mutate(
+                { reasonKey, ...(trimmed === '' ? {} : { note: trimmed }) },
+                {
+                  onSuccess: () =>
+                    done(`Đã chuyển ${profile.code} sang ${LEAD_STATE_LABEL.nurturing}.`, onClose),
+                },
+              )
             },
           }}
         />
       }
     >
-      <label className="flex flex-col gap-2">
-        <span className="text-muted-foreground text-[11px]">Ghi chú</span>
-        <Textarea
-          autoGrow
-          rows={3}
-          value={note}
-          aria-label={`Ghi chú khi chuyển sang ${LEAD_STATE_LABEL.nurturing}`}
-          placeholder="Khách hẹn quay lại khi nào, chờ điều gì…"
-          onChange={(e) => setNote(e.target.value)}
-        />
-      </label>
+      <StopReasonField
+        reasonKey={reasonKey}
+        onReasonChange={setReasonKey}
+        note={note}
+        onNoteChange={setNote}
+        notePlaceholder="Khách hẹn quay lại khi nào, chờ điều gì…"
+      />
     </Drawer>
   )
 }

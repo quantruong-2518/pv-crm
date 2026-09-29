@@ -9,8 +9,8 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  `lead.schema.ts` dựng năm ràng buộc và ba khoá ngoại. Chúng làm đúng việc
  *  của chúng — chặn dữ liệu sai từ MỌI cửa vào, kể cả cửa mà form quên kiểm —
  *  nhưng thứ Postgres ném lên là một mã năm ký tự cùng một câu tiếng Anh nói
- *  về cột và ràng buộc. Không có bảng dưới đây thì người điền form landing
- *  nhận "máy chủ gặp sự cố" cho một cái email họ gõ trùng.
+ *  về cột và ràng buộc. Without the table below, a form filler gets "server
+ *  error" for a cell they typed wrong.
  *
  *  Đây là bảng NHÃN, không phải bảng luật: luật đã nằm ở `lead.schema.ts` và
  *  chỉ nằm ở đó. Sửa ràng buộc thì sửa bên schema, rồi sang đây sửa câu.
@@ -27,14 +27,6 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  Tên ô ở `fields` là tên theo HỢP ĐỒNG (`exitReason`), không phải tên cột
  *  (`exit_reason`): màn tô đỏ theo tên nó biết. */
 export const LEAD_CONSTRAINTS: ConstraintBook = {
-  /** Một email = một lead ĐANG SỐNG. Cửa hay đâm vào nhất, vì nộp lại form là
-   *  phản xạ tự nhiên của người không thấy phản hồi ngay. */
-  lead_email_live_idx: {
-    kind: 'conflict',
-    fields: ['email'],
-    message: 'Email này đã có trong sổ lead — một email không mở được hai lead cùng lúc.',
-  },
-
   /** Tiền luôn mang đơn vị. */
   lead_money_pair: {
     kind: 'invalid',

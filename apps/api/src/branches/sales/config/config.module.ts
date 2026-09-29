@@ -1,7 +1,11 @@
 import { Module, type OnModuleInit } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { ApprovalAppliers } from '@api/platform/approval/approval.service'
-import { LeadMotionController, SalesConfigController } from './config.controller'
+import {
+  LeadMotionController,
+  LeadStopReasonController,
+  SalesConfigController,
+} from './config.controller'
 import { SalesConfigGate, SalesConfigGateE3 } from './config.approval'
 import { SalesConfigRepository } from './config.repository'
 import { SalesConfigService } from './config.service'
@@ -39,7 +43,7 @@ import { SalesConfigService } from './config.service'
  *  đổi mã sang nhãn. */
 @Module({
   imports: [ApprovalModule],
-  controllers: [SalesConfigController, LeadMotionController],
+  controllers: [SalesConfigController, LeadMotionController, LeadStopReasonController],
   providers: [
     SalesConfigService,
     SalesConfigRepository,

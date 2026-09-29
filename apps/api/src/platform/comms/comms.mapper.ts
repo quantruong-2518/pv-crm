@@ -240,6 +240,7 @@ export function toObjectRef(row: ObjectRow): ObjectRef {
     branch: row.branch,
     label: row.label,
     ...(row.owner ? { owner: row.owner } : {}),
+    ...(row.ownerId ? { ownerId: row.ownerId } : {}),
     ...(row.state ? { state: row.state } : {}),
     ...(row.amount !== null ? { amount: row.amount } : {}),
   }

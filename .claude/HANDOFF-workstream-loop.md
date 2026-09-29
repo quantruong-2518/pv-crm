@@ -30,8 +30,10 @@ thu): https://claude.ai/artifact/Ho7qfF1zV5M93Tv5x5LSXV. UI hành trình đã co
 - **Tiền trạm `/ship`:** migration `0067` (đưa các lead `archived` cũ về
   `nurturing`) văng lỗi `23505` nếu một lead `archived` trùng email với một
   lead còn sống trên Neon — đếm số lead trùng trước khi chạy migration.
-- Còn nợ nhỏ: E2 so người giữ bằng tên (`packages/engines/src/e2-access.ts`);
-  bước dừng/đóng cơ hội chưa xoá việc tiếp theo của cơ hội (chưa có cửa OP).
+- Đã trả: E2 so người giữ bằng tên (`packages/engines/src/e2-access.ts`) — nay
+  so bằng `id` (`docs/decisions/0070-stop-reasons-from-config-and-shared-emails.md`
+  §C). Còn nợ nhỏ: bước dừng/đóng cơ hội chưa xoá việc tiếp theo của cơ hội
+  (chưa có cửa OP).
 - Việc tiếp: W1 contract + W1b mock (màn mới chạy trên mock trước).
 
 ## Trạng thái — 28/09/2026

@@ -114,6 +114,19 @@ export class SalesConfigController {
   }
 }
 
+/** `GET /sales/lead-stop-reasons` — on `lead.view`, not `config.view`: whoever
+ *  stops a lead or reads its history must name the reason (ADR 0070). */
+@Controller('sales/lead-stop-reasons')
+export class LeadStopReasonController {
+  constructor(private readonly config: SalesConfigService) {}
+
+  @Get()
+  @Need({ branch: 'Sales', permission: 'lead.view' })
+  list() {
+    return this.config.stopReasons()
+  }
+}
+
 /** `GET /sales/lead-motions` — the live `asks` for whoever types a lead. On
  *  `lead.edit`, not `config.view`: typists lack config rights yet must follow it. */
 @Controller('sales/lead-motions')

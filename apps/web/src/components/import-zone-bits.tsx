@@ -150,13 +150,17 @@ export function FailedRows({ errors, spec }: { errors: RowError[]; spec: ImportS
   )
 }
 
-/** Duplicates are neither done nor broken, so they get their own list.
+/** Duplicates are neither plainly done nor plainly broken, so they get their
+ *  own list — but the two kinds no longer share ONE fate (ADR 0070).
  *
- *  The two kinds stay apart in one table, via the column naming what each row
- *  collided with, rather than in two tables: a collision with the book is the
- *  ordinary outcome of loading a list twice, a collision inside the file is a
- *  defect in the file, and the reader needs to tell them apart — but they are
- *  one decision, taken in one sitting, over one list.
+ *  A collision WITHIN the file is still dropped: the second row of one file
+ *  colliding with the first has no lead of its own behind it to write. A
+ *  collision WITH THE BOOK is not — the lead door writes that row anyway and
+ *  flags it (`LeadRow.duplicateOf`), the same way a landing-page duplicate
+ *  already worked. So `withBook` rows also show up in `DoneRows` above; this
+ *  list still names what they collided with, but the "why" column says which
+ *  outcome it got — written-and-flagged for a book collision, dropped for one
+ *  inside the file — rather than one kicker claiming both were dropped.
  *
  *  Absent arrays mean this loader reports duplicates as counts only (the
  *  recipient and opportunity doors still do), and then nothing is drawn — a
@@ -169,14 +173,20 @@ export function DroppedRows({
   withinFile?: DupRow[]
 }) {
   const rows = [
-    ...(withBook ?? []).map((d) => ({ ...d, why: d.code ? `Lead ${d.code}` : 'Một lead đã có' })),
-    ...(withinFile ?? []).map((d) => ({ ...d, why: 'Một dòng khác trong chính tệp này' })),
+    ...(withBook ?? []).map((d) => ({
+      ...d,
+      why: d.code ? `Đã nạp, gắn cờ trùng ${d.code}` : 'Đã nạp, gắn cờ trùng một lead đang sống',
+    })),
+    ...(withinFile ?? []).map((d) => ({
+      ...d,
+      why: 'Bỏ qua · trùng một dòng khác trong chính tệp này',
+    })),
   ].sort((a, b) => a.line - b.line)
 
   return (
     <ResultList
-      kicker="Bỏ vì trùng"
-      head={['Dòng trong tệp', 'Ô đầu dòng', 'Trùng với']}
+      kicker="Trùng phát hiện được"
+      head={['Dòng trong tệp', 'Ô đầu dòng', 'Kết quả']}
       count={rows.length}
     >
       {rows.slice(0, LIST_CAP).map((d) => (

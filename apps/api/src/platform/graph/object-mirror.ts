@@ -84,6 +84,7 @@ export class ObjectMirror {
              stage any more, and `undefined` would quietly leave the old one
              standing on the rail. */
           owner: r.owner ?? null,
+          ownerId: r.ownerId ?? null,
           state: r.state ?? null,
           amount: r.amount ?? null,
         })),
@@ -93,6 +94,7 @@ export class ObjectMirror {
         set: {
           label: sql`excluded.label`,
           owner: sql`excluded.owner`,
+          ownerId: sql`excluded.owner_id`,
           state: sql`excluded.state`,
           amount: sql`excluded.amount`,
         },

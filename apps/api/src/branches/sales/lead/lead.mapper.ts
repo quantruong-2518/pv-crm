@@ -98,6 +98,8 @@ export type LeadRead = {
   /** Name of `partner_code`'s row, from the `partner` left join. */
   partnerName: string | null
   signed: boolean
+  /** From the book's correlated subquery; absent on write-door re-reads. */
+  duplicateOf?: (string | null)[] | null
 }
 
 /** The two halves of an origin, assembled into the one object the wire carries.
@@ -174,6 +176,7 @@ export function toContract(read: LeadRead): LeadRow {
     createdAt: row.createdAt.toISOString(),
     ...(row.exitReason ? { exitReason: row.exitReason } : {}),
     ...(row.exitedAt ? { exitedAt: row.exitedAt.toISOString() } : {}),
+    ...(read.duplicateOf?.length ? { duplicateOf: read.duplicateOf } : {}),
   }
 }
 
@@ -260,13 +263,8 @@ export function toProfile(read: LeadProfileRead): Omit<LeadProfile, 'position' |
   }
 }
 
-/** Hàng trong bảng → object của E1/E2.
- *
- *  `owner` là TÊN HIỂN THỊ, không phải id — vì trục phạm vi của E2 hiện so
- *  `ref.owner !== actor.name`. Nợ đó chưa được trả; câu truy vấn ở
- *  `lead.repository.ts` đã lọc bằng `id`
- *  (trục đúng), nên hàng rào thật không phụ thuộc vào chỗ này. Ngày engine so
- *  bằng `id`, xoá tham số `ownerName` và mọi thứ khớp lại. */
+/** Table row → the E1/E2 object. `ownerId` is what E2's scope axis
+ *  compares (ADR 0070); `owner` is the display label only. */
 export function toRef(row: LeadRowDb, ownerName: string | null): ObjectRef {
   return {
     code: row.code,
@@ -274,6 +272,7 @@ export function toRef(row: LeadRowDb, ownerName: string | null): ObjectRef {
     branch: 'Sales',
     label: row.company,
     ...(ownerName ? { owner: ownerName } : {}),
+    ...(row.ownerId ? { ownerId: row.ownerId } : {}),
     state: row.state,
   }
 }

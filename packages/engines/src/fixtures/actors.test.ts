@@ -165,8 +165,8 @@ describe('Ma trận vai → quyền', () => {
 
   it('vai sale có quyền chốt, nhưng chỉ trên đơn đứng tên mình', () => {
     const huy = roleOf('u-huy')
-    const mine = dasVina.objects.find((o) => o.kind === 'OP' && o.owner === huy.name)
-    const theirs = dasVina.objects.find((o) => o.kind === 'OP' && o.owner && o.owner !== huy.name)
+    const mine = dasVina.objects.find((o) => o.kind === 'OP' && o.ownerId === huy.id)
+    const theirs = dasVina.objects.find((o) => o.kind === 'OP' && o.ownerId && o.ownerId !== huy.id)
 
     expect(access.allows(huy, 'opportunity.close')).toBe(true)
     if (mine)

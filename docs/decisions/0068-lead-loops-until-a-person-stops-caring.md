@@ -2,7 +2,8 @@
 
 Status: accepted (partially supersedes 0067 §1, the holder-cleared rule in §1
 and §2, §4, §5 including D3, and D7; to that extent revives the
-`disqualified` reopen path of 0057 §2 and 0058)
+`disqualified` reopen path of 0057 §2 and 0058; Open item on the stop
+record/reason catalogue settled by 0070)
 Source: project owner's decisions in chat, 29/09/2026
 
 ## Context
@@ -189,5 +190,7 @@ address.
   record a `nurturing` entry now that it loops in place, or whether they
   narrow to opportunity/contract stops only (0067 D2). Not raised in chat;
   flagged here rather than assumed.
+  **Settled by 0070: yes — same catalogue, reason stored on the stop's
+  activity row so a loop never erases a count.**
 - `docs/decisions/open-questions.md` #26 (which stop reasons carry the
   no-contact flag) is unaffected by this ADR and stays open.

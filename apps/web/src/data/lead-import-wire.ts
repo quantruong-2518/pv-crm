@@ -25,10 +25,10 @@ import type { BuiltRow, RowError } from '@/data/intake'
  *     607-627`) keys on `mst:<tax code>` first, falling back to
  *     `ten:<company>|<province>` — it is answering "is this the same
  *     COMPANY".
- *   · The server keys on `email:lower(email)`, and only against leads that
- *     have not exited (`lead_email_live_idx` — see the docblock on
- *     `LeadImportPreviewResponse` in the contract). It is answering "is this
- *     the same LIVE LEAD".
+ *   · The server keys on `email:lower(email)`, against leads that have not
+ *     exited — a collision is FLAGGED, not refused (ADR 0070: no more
+ *     write-time uniqueness index; see `LeadImportDup` in the contract). It is
+ *     answering "is this the same LIVE LEAD".
  *
  *  Because the two questions are different, a file the panel calls clean can
  *  still collide at the server, and a file the panel flags as full of

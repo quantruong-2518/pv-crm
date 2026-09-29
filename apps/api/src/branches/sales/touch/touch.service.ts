@@ -51,6 +51,7 @@ export class TouchService {
         ...(e.toTier === undefined ? {} : { toTier: e.toTier }),
         ...(e.actorId === undefined ? {} : { actorId: e.actorId }),
         ...(e.at === undefined ? {} : { at: e.at }),
+        ...(e.reasonId === undefined ? {} : { reasonId: e.reasonId }),
         /* One end spreads into two columns, and the pair is spread together so
            an id can never land without its name — the shape
            `touch_hand_over_sides` refuses. */
@@ -104,6 +105,9 @@ export type TouchEntry = {
    *  `touch_hand_over_sides` in the database; these carry the value there. */
   from?: TouchHolder
   to?: TouchHolder
+  /** `EXIT_REASON` config id (or `'other'`) of a stop — only on `'exited'` and
+   *  `'nurtured'`, which `touch_reason_only_stop` enforces (ADR 0070). */
+  reasonId?: string
 }
 
 /** Tên máy tự xưng khi không có ai bấm nút.

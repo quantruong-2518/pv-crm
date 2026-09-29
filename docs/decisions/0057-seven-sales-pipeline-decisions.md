@@ -4,7 +4,8 @@ Status: accepted (supersedes 0055; partially supersedes 0015 rule 2 and rule
 4, 0031's fourth request type, and 0034); §6 superseded by 0060 (stage-gate
 is removed outright, not scoped down); §5 amended by 0064 (loss reason becomes
 care reason, picked from a per-stage catalogue); §2 partially superseded by
-0067 (lead exit becomes a stop into `nurturing`; no reopen)
+0067 (lead exit becomes a stop into `nurturing`; no reopen) and by 0070 (the
+six `EXIT_REASONS` are no longer a closed list — admin-editable config)
 Source: project owner's decision in session, 17/09/2026
 
 ## Context
@@ -42,6 +43,9 @@ A lead leaving the funnel ("rời phễu") is performed by the salesperson
 directly: one of the six closed `EXIT_REASONS` (ADR 0015 rule 4) plus an
 optional note, no approval step. It is **reversible** — a lead can be
 reopened when the customer comes back.
+
+> Reason list narrowed by 0070: no longer closed at six — an admin-editable
+> config catalogue shared with the `nurturing` stop door.
 
 Because it is reversible, **ADR 0015 rule 3** ("every non-reversible step
 must go through E3") **does not apply to it**. This removes lead

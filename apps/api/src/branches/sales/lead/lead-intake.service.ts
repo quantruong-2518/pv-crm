@@ -9,7 +9,6 @@ import {
 import { AUDIENCE_INTERNAL, LEAD_INTAKE_ACCEPTED, plan, type ObjectRef } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
-import { isDbConstraint } from '@api/platform/http/db-error'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
 import { fromIntake, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
@@ -50,40 +49,29 @@ export class LeadIntakeService {
     const code = await this.leads.nextCode()
     const run = await this.runs.nextCode()
 
-    try {
-      await this.writes.run(async (tx) => {
-        const origin = await this.originOf(tx, query.utm_source)
-        /* The same birth every other door makes (company edge, primary contact,
-           first touch) — this door only adds its attempt row and the alert. */
-        await this.births.bear(tx, {
-          code,
-          run,
-          write,
-          extra: {
-            campaignId: null,
-            originId: origin.id,
-            originRaw: origin.raw,
-            partnerCode: null,
-          },
-          who: null,
-          owner: null,
-          note: LEAD_NOTE.landing,
-        })
-        await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
-        await this.notify(tx, refOf(code, write))
+    /* No live-email fence any more (ADR 0070): a second lead on one mailbox is
+       written and flagged by the book's `duplicateOf`, never refused here. */
+    await this.writes.run(async (tx) => {
+      const origin = await this.originOf(tx, query.utm_source)
+      /* The same birth every other door makes (company edge, primary contact,
+         first touch) — this door only adds its attempt row and the alert. */
+      await this.births.bear(tx, {
+        code,
+        run,
+        write,
+        extra: {
+          campaignId: null,
+          originId: origin.id,
+          originRaw: origin.raw,
+          partnerCode: null,
+        },
+        who: null,
+        owner: null,
+        note: LEAD_NOTE.landing,
       })
-    } catch (error) {
-      if (!isDbConstraint(error, 'lead_email_live_idx')) throw error
-
-      /* Record attribution for a repeated submit, but never tell the public
-         caller whether this mailbox already existed. */
-      const existing = await this.writes.liveByEmail(this.writes.readonlyHandle, [body.email])
-      await this.intake.writeAttempt(this.intake.handle, {
-        ...attempt,
-        status: 'duplicate',
-        leadCode: existing.get(body.email),
-      })
-    }
+      await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
+      await this.notify(tx, refOf(code, write))
+    })
 
     return LeadIntakeResponse.parse({ accepted: true })
   }

@@ -22,7 +22,8 @@ import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
 import { dmy } from '@/lib/date'
-import { EXIT_REASON_LABEL } from '@/data/leads'
+import { leadStopReasonsQuery } from '@/data/leads'
+import { stopReasonLabel } from '@/data/sales-config'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { useLeadDraft } from '@/data/lead-draft'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
@@ -332,10 +333,11 @@ function EmptyLead({
  *  book reads — two screens of one row must print one word. A disqualified
  *  lead also says why, because that is the first question about it. */
 function StatusBadge({ lead, className }: { lead: LeadProfile; className?: string }) {
+  const { data } = useQuery(leadStopReasonsQuery)
   const face = LEAD_STATE_FACE[lead.state]
   const reason =
     lead.state === 'disqualified' && lead.exitReason
-      ? (EXIT_REASON_LABEL[lead.exitReason] ?? lead.exitReason)
+      ? stopReasonLabel(data?.rows, lead.exitReason)
       : undefined
   const text = reason ? `${face.label} · ${reason}` : face.label
 

@@ -191,10 +191,11 @@ export function SourcesPage() {
      không nhận dòng nào: người dùng mở Sổ lead ngay sau đó và không thấy gì.
 
      Ba thứ chết theo cùng lượt và không thứ nào là mất mát: mã lead do MÁY CHỦ
-     cấp nên `rowsToLeads` hết việc; chống trùng do máy chủ làm trên chỉ mục
-     hộp thư nên `frozenLeadBookQuery` — sổ fixture 100 dòng — hết lý do tồn
-     tại; và bốn con số cuối panel là số của bên đã ghi thật, không phải số
-     trình duyệt tự đếm. */
+     cấp nên `rowsToLeads` hết việc; chống trùng do máy chủ đọc tại thời điểm
+     đọc, trên chỉ mục hộp thư (ADR 0070, không còn chặn ghi) nên
+     `frozenLeadBookQuery` — sổ fixture 100 dòng — hết lý do tồn tại; và bốn
+     con số cuối panel là số của bên đã ghi thật, không phải số trình duyệt tự
+     đếm. */
   const commitRecipients = async ({
     rows,
     motion,
@@ -208,7 +209,7 @@ export function SourcesPage() {
       tone: run.failure ? 'danger' : 'success',
       detail: [
         scope && `Gắn vào nguồn ${scope}`,
-        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, bỏ qua`,
+        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
       ]

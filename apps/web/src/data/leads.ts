@@ -32,7 +32,7 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import { LeadFacetsQuery, LeadScorecard } from '@pv/contracts'
+import { LeadFacetsQuery, LeadScorecard, LeadStopReasonResponse } from '@pv/contracts'
 import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadRow } from '@pv/contracts'
 import { api } from '@/app/api'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
@@ -135,6 +135,30 @@ export const leadScorecardQuery = queryOptions({
   staleTime: 60 * 1000,
 })
 
+/** The `EXIT_REASON` catalogue, for anyone who stops a lead or reads its
+ *  history but holds no `config.view` — `GET /sales/lead-stop-reasons`.
+ *
+ *  A separate door from `salesCatalogQuery` (`data/sales-config.ts`) on
+ *  purpose: that one needs `config.view`, which an ordinary Sale does not
+ *  hold, and a stop dialog gated behind the config screen's own permission
+ *  would refuse the very people who stop leads all day. Inactive rows stay,
+ *  so an old stop still prints its label rather than a bare id.
+ *
+ *  `stopReasonLabel` (`data/sales-config.ts`) reads `rows` from either this
+ *  query or `salesCatalogQuery`'s `EXIT_REASON` — same two fields, one
+ *  function, two doors for two audiences. */
+export const leadStopReasonsQuery = queryOptions({
+  queryKey: ['sales', 'lead-stop-reasons'] as const,
+  /* No explicit `<T>` — `@pv/contracts` has no `export type` twin for this
+     const yet (sharedRequests), so `T` is inferred from `schema` instead. */
+  queryFn: ({ signal }) =>
+    api.read('/sales/lead-stop-reasons', {
+      need: { branch: 'Sales', permission: 'lead.view' },
+      schema: LeadStopReasonResponse,
+      signal,
+    }),
+})
+
 /** Trần `size` của hợp đồng (`PageQuery.size.max(200)`). Đây là con số làm cho
  *  `leadFacetQuery` bên dưới có hạn sử dụng, nên nó phải đọc được thành số
  *  chứ không nấp trong một chuỗi. */
@@ -228,8 +252,12 @@ export const ORIGIN_FACE: Record<
  *
  *  CHỈ hình, không chữ: chữ nằm ở `CAMPAIGN_NONE` trong `@pv/contracts`, cùng
  *  chỗ với `campaignLabel` đang chọn giữa ba trạng thái. Để nhãn ở cả hai nơi
- *  là dựng đúng cái bản-thứ-hai-của-một-quyết-định mà file này đã ghi nợ hai
- *  lần rồi (`EXIT_REASON_LABEL`, `SOURCE_KIND_FACE`).
+ *  là dựng đúng cái bản-thứ-hai-của-một-quyết-định mà file này đã ghi nợ trước
+ *  đây (`SOURCE_KIND_FACE`).
+ *
+ *  `EXIT_REASON_LABEL` carried the same debt and is gone: `exitReason` became
+ *  a config id (ADR 0070), and `stopReasonLabel` (`data/sales-config.ts`)
+ *  resolves it now, from either stop-reason source.
  *
  *  Bản trước tên là `UNKNOWN_SOURCE_FACE` và nói "Không có trong sổ nguồn", vì
  *  hồi đó nó thật sự là một lỗi tra cứu: màn cầm một mã trần rồi tự đi tìm tên
@@ -237,27 +265,6 @@ export const ORIGIN_FACE: Record<
  *  gửi thẳng `campaignName` cạnh `campaignId`, nên phép tra ấy không còn, và
  *  cùng với nó là cả một lớp lỗi: không còn chỗ nào để trượt. */
 export const NO_CAMPAIGN_ICON = CircleDashed
-
-/** Nhãn tiếng Việt của sáu lý do rơi.
- *
- *  Bảng này là bản ĐẢO của `EXIT_KEY` trong `apps/api/src/seed.ts`, và nó tồn
- *  tại vì cùng một món nợ: fixture lưu thẳng nhãn hiển thị làm giá trị của
- *  `Lead.exitReason`, còn hợp đồng đã đổi sang khoá ASCII. Máy chủ trả khoá,
- *  màn phải in ra chữ.
- *
- *  Viết tay chứ không ghép theo `ord` của danh mục `EXIT_REASON` bên
- *  `/sales/config`: ghép theo thứ tự là một phép nối ngầm gãy im lặng đúng
- *  ngày ai đó kéo một dòng lên trên trong màn Cấu hình. Bảng biến mất khi
- *  `exitReason` trên `LeadRow` đổi sang ID cấu hình — nợ đã ghi ở
- *  `docs/decisions/0015-pipeline-queue-and-ledger-are-different-things.md` luật 4. */
-export const EXIT_REASON_LABEL: Record<string, string> = {
-  unreachable: 'Không gọi được ai',
-  'not-a-fit': 'Không phải khách của mình',
-  'no-budget': 'Năm nay không có tiền',
-  'contact-left': 'Người liên hệ nghỉ việc',
-  'chose-competitor': 'Khách chọn bên khác',
-  'silent-after-quote': 'Im sau báo giá',
-}
 
 /** Câu giải thích ô PIC trống — MỘT bản, dùng ở cả sổ lẫn hồ sơ.
  *

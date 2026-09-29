@@ -6,7 +6,7 @@ import {
   type MotionAsks,
 } from '@pv/contracts'
 import type { CurrencyCode, LeadCategory, LeadTier } from '@pv/engines/fixtures/das-vina'
-import { api, userMessage, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
+import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import {
   createWireOf,
   CREATE_FIELDS,
@@ -266,22 +266,4 @@ export function buildLeadCreate(values: FormValues, asks: MotionAsks): BuildResu
   if (candidate[asked] === undefined) errors[asked] = [MOTION_ASKS_MISSING[asks]]
   if (parsed.success && Object.keys(errors).length === 0) return { ok: true, body: parsed.data }
   return { ok: false, errors }
-}
-
-/** The one sentence shown above the buttons when the write is refused.
- *
- *  `userMessage` owns this for every failure but one. A 409 here is not two
- *  people editing one row — it is `lead_email_live_idx`, one mailbox already
- *  holding a live lead — and the generic "người khác vừa sửa dữ liệu này, tải
- *  lại rồi làm lại thao tác" sends the user to reload a page that will tell
- *  them exactly the same thing on the next attempt. The server writes a
- *  sentence for that case that names the real fix, so use it.
- *
- *  Trade-off, stated: if a 409 ever arrives without a `title` (a gateway, not
- *  our server), `ApiError.message` falls back to a technical line and the user
- *  sees it. That is a worse sentence than the generic one, and still better
- *  than confidently telling somebody to reload. */
-export function createFailureMessage(error: ApiError): string {
-  if (error.kind === 'conflict' && error.message !== '') return error.message
-  return userMessage(error)
 }

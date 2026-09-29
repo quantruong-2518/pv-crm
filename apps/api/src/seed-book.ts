@@ -1,11 +1,5 @@
-import type {
-  CostKind,
-  ExitReason,
-  LeadMotion,
-  LeadSourceKind,
-  LeadTier,
-  StageKey,
-} from '@pv/contracts'
+import type { CostKind, LeadMotion, LeadSourceKind, LeadTier, StageKey } from '@pv/contracts'
+import type { SeedExitKey } from './seed-config'
 
 /** The demo book `seed.ts` plants: twenty chip-industry companies, each walked
  *  along the real order of a sale — account → contacts → lead from a source →
@@ -162,7 +156,7 @@ export type JourneySeed = {
   approver?: string
   budget?: number
   deadlineInDays?: number
-  exit?: { reason: ExitReason; daysAgo: number }
+  exit?: { reason: SeedExitKey; daysAgo: number }
   /** Oldest first. More than one is the SAME lead trying again — a deal that
    *  died without the lead exiting, then a later deal opened fresh. Only the
    *  furthest-along OPEN one ever drives the lead's own `stage` column and the

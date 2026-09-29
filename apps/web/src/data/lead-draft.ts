@@ -5,13 +5,7 @@ import {
   type MotionAsks,
 } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
-import {
-  buildLeadCreate,
-  createFailureMessage,
-  emptyDraft,
-  ROOT_FIELD,
-  useCreateLead,
-} from '@/data/lead-create'
+import { buildLeadCreate, emptyDraft, ROOT_FIELD, useCreateLead } from '@/data/lead-create'
 import { buildLeadPatch, useUpdateLeadProfile, type SaveState } from '@/data/lead-patch'
 import { profileForm } from '@/data/lead-profile'
 import {
@@ -162,11 +156,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   }
 
   const refuseCall = (error: ApiError) =>
-    refuse(
-      error.errors ?? {
-        [ROOT_FIELD]: [mode === 'create' ? createFailureMessage(error) : userMessage(error)],
-      },
-    )
+    refuse(error.errors ?? { [ROOT_FIELD]: [userMessage(error)] })
 
   const set = (field: FormField, raw: string) => {
     const next = { ...live.current, [field.key]: writeField(field, raw) } as FormValues

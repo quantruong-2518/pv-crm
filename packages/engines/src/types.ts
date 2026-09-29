@@ -48,6 +48,8 @@ export type ObjectRef = {
   branch: Branch
   label: string
   owner?: string
+  /** Actor id backing `owner`; `owner` stays the display label only. */
+  ownerId?: string
   state?: string
   /** Tiền, đơn vị đồng. Không làm tròn khác con số đã chốt trong kịch bản. */
   amount?: number

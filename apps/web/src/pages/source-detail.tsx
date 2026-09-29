@@ -148,7 +148,7 @@ export function SourceDetailPage() {
     toast(run.failure ?? `${report.rows.length} người nhận vào sổ lead, gắn nguồn ${source.code}`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
-        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, bỏ qua`,
+        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
       ]
