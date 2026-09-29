@@ -112,7 +112,7 @@ function Legend() {
     { word: STATE_WORD.skipped, rung: { state: 'skipped', late: null } },
   ] as const
   const edges = [
-    ...(['won', 'open', 'waiting'] as const).map((outcome) => ({
+    ...(['won', 'open', 'lost'] as const).map((outcome) => ({
       word: JOURNEY_DEAL_OUTCOME_LABEL[outcome],
       tone: EDGE_OF[outcome],
     })),

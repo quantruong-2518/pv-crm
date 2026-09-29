@@ -37,7 +37,10 @@ export class ContractService {
        from the very row whose `owner_id` the predicate matched. */
     const items = page.rows.map((r) => ({
       ...r,
-      ref: toRef(r.row, { label: r.customer, ownerName: r.ownerName }),
+      ref: toRef(r.row, {
+        label: r.customer,
+        owner: r.row.ownerId && r.ownerName ? { id: r.row.ownerId, name: r.ownerName } : null,
+      }),
     }))
     const { visible, hidden } = this.access.visible(who, items)
 

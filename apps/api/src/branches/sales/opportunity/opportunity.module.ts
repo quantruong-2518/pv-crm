@@ -4,6 +4,8 @@ import { ApprovalAppliers } from '@api/platform/approval/approval.service'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { RolesModule } from '@api/platform/roles/roles.module'
+import { MasRepository } from '../campaign/mas.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
@@ -11,6 +13,7 @@ import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityController } from './opportunity.controller'
 import { OpportunityLifecycle } from './opportunity-lifecycle'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
+import { OpportunityMailSentHook } from './opportunity-mail-sent.hook'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityRepository } from './opportunity.repository'
@@ -72,12 +75,14 @@ import { OpportunityService } from './opportunity.service'
     TouchModule,
     WorkstreamModule,
     LeadStateModule,
+    /* `RolePermissionRepository`, for the mail-sent hook's permission read. */
+    RolesModule,
   ],
   controllers: [OpportunityController],
   providers: [
     OpportunityService,
     OpportunityRepository,
-    /* The ONE writer of `stage`/`state`, and the three doors that press it
+    /* The ONE writer of `stage`/`state`, and the two doors that press it
        (ADR 0064). Not a module of its own the way `LeadStateModule` is: that one
        exists to break an import cycle across five modules, while both halves
        here live in this module. */
@@ -91,8 +96,12 @@ import { OpportunityService } from './opportunity.service'
        được hai provider cùng token ở hai module. `worker.ts` là file gọi tên
        class này cạnh hai composer kia. */
     OpportunityMailComposer,
+    /* A mail leaving the opportunity door records its template's milestone
+       (ADR 0069 §7); `MasRepository` answers which template that was. */
+    MasRepository,
+    OpportunityMailSentHook,
   ],
-  exports: [OpportunityService, OpportunityMailComposer],
+  exports: [OpportunityService, OpportunityMailComposer, OpportunityMailSentHook],
 })
 export class OpportunityModule implements OnModuleInit {
   constructor(

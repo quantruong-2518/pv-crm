@@ -164,7 +164,7 @@ const SAMPLES = [
   },
   {
     slug: 'opportunity-lost',
-    title: 'Đơn thua',
+    title: 'Cơ hội đã dừng',
     note: 'Khung nội bộ, giọng cảnh báo. Không có tiền — để kiểm nhánh `amount: null`.',
     render: (m, assetBaseUrl) =>
       m.renderOpportunityLost({
@@ -174,8 +174,9 @@ const SAMPLES = [
         name: 'Nâng cấp trạm kiểm tra AOI',
         amount: null,
         currency: null,
-        lossReason: 'Giá cao hơn đối thủ',
-        lossNote: 'Khách chốt với nhà cung cấp cũ vì đã có sẵn hợp đồng bảo trì tới hết 2027.',
+        stoppedAt: 'Quotation',
+        stopReason: 'Giá cao hơn đối thủ',
+        stopNote: 'Khách chốt với nhà cung cấp cũ vì đã có sẵn hợp đồng bảo trì tới hết 2027.',
         saleOwners: ['Trần Huy Đức'],
         bdOwners: [],
         assetBaseUrl,

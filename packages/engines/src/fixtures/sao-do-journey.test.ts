@@ -107,7 +107,7 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
         'u-huy',
         180_000_000,
         '2026-09-30',
-        'waiting',
+        'lost',
         '2026-08-03T15:30:00+07:00',
         [],
       ],
@@ -200,10 +200,30 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
     ])
   })
 
+  it('OP-0289 · nhật ký thua mang lý do và người kết luận của cửa chờ cũ; deal khác stop null', () => {
+    const ws = journey('WS-0088')
+    expect(ws.deals.map((d) => [d.code, d.stop])).toEqual([
+      [
+        'OP-0289',
+        {
+          reason: 'Chưa có ngân sách năm nay',
+          note: null,
+          doNotContact: false,
+          concludedBy: { id: 'u-huy', name: expect.any(String) },
+        },
+      ],
+      ['OP-0290', null],
+      ['OP-0291', null],
+    ])
+    expect(
+      JOURNEYS.flatMap((j) => j.deals).filter((d) => (d.stop === null) === (d.outcome === 'lost')),
+    ).toEqual([])
+  })
+
   it('WS-0088: một lead ra đúng ba cơ hội — một hỏng, một ra 1 hợp đồng, một ra 2', () => {
     const ws = journey('WS-0088')
     expect(ws.deals.map((d) => [d.code, d.outcome, d.contractCodes.length])).toEqual([
-      ['OP-0289', 'waiting', 0],
+      ['OP-0289', 'lost', 0],
       ['OP-0290', 'won', 1],
       ['OP-0291', 'won', 2],
     ])
@@ -233,7 +253,6 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
       'HĐ-2609',
       'LD-0058',
       'LD-0335',
-      'LD-0347',
       'LD-0352',
       'OP-0074',
       'OP-0289',
@@ -393,43 +412,28 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
 })
 
 describe('Bước con, việc kế tiếp, mốc triển khai', () => {
-  const sub = (code: string) =>
-    deal(code)?.rungs.flatMap((r) =>
-      r.subSteps.map((s) => [r.key, s.label, s.state, s.at, s.due, s.dueLevel]),
-    )
-
-  it('OP-0289 · hai bước POC xong rồi dừng; OP-0290 · hai bước Quotation', () => {
-    expect(sub('OP-0289')).toEqual([
-      ['poc', 'Khảo sát kho thành phẩm', 'done', '2026-07-16T09:00:00+07:00', null, null],
-      ['poc', 'Cân thử trên một dây đóng gói', 'done', '2026-07-24T15:00:00+07:00', null, null],
+  it('Bước con hạng Quotation chỉ còn "Gửi lần n"; POC và duyệt chờ nguồn thật', () => {
+    const sent = (code: string) =>
+      deal(code)?.rungs.flatMap((r) =>
+        r.subSteps.map((s) => [
+          r.key,
+          s.kind,
+          s.kind === 'quote-sent' ? s.round : null,
+          s.label,
+          s.at,
+        ]),
+      )
+    expect(sent('OP-0289')).toEqual([])
+    expect(sent('OP-0290')).toEqual([
+      ['quotation', 'quote-sent', 1, 'Gửi báo giá', '2026-07-15T10:00:00+07:00'],
     ])
-    expect(sub('OP-0290')).toEqual([
-      ['quotation', 'Gửi báo giá', 'done', '2026-07-15T10:00:00+07:00', null, null],
-      ['quotation', 'Duyệt ký hợp đồng', 'done', '2026-07-24T11:00:00+07:00', null, null],
+    expect(sent('OP-0291')).toEqual([
+      ['quotation', 'quote-sent', 1, 'Gửi báo giá', '2026-07-17T10:00:00+07:00'],
     ])
+    expect(sent('OP-0293')).toEqual([])
   })
 
-  it('OP-0291 · ba bước ở Quotation', () => {
-    expect(sub('OP-0291')).toEqual([
-      ['quotation', 'Gửi báo giá', 'done', '2026-07-17T10:00:00+07:00', null, null],
-      ['quotation', 'Duyệt chiết khấu', 'done', '2026-07-18T15:00:00+07:00', null, null],
-      ['quotation', 'Duyệt ký hợp đồng', 'done', '2026-07-21T11:00:00+07:00', null, null],
-    ])
-  })
-
-  it('OP-0293 · ba bước POC, bước cuối quá hạn; việc kế tiếp 12/08 sắp tới hạn', () => {
-    expect(sub('OP-0293')).toEqual([
-      ['poc', 'Khảo sát thiết bị xưởng X2', 'done', '2026-07-17T09:00:00+07:00', null, null],
-      ['poc', 'Cài thử CMMS trên một nhóm máy', 'done', '2026-07-28T16:00:00+07:00', null, null],
-      [
-        'poc',
-        'Khách đánh giá kết quả POC',
-        'current',
-        null,
-        '2026-08-07T17:00:00+07:00',
-        'overdue',
-      ],
-    ])
+  it('OP-0293 · việc kế tiếp 12/08 sắp tới hạn', () => {
     const next = deal('OP-0293')?.nextAction
     expect([next?.text, next?.due, next?.doer.id, next?.dueLevel]).toEqual([
       'Hẹn anh Đạt chốt kết quả POC',
@@ -456,10 +460,17 @@ describe('Bước con, việc kế tiếp, mốc triển khai', () => {
   })
 
   it('OP-0292 · gửi BG-0512 04/08 rồi chờ; không việc kế tiếp', () => {
-    expect(sub('OP-0292')).toEqual([
-      ['quotation', 'Gửi báo giá BG-0512', 'done', '2026-08-04T10:00:00+07:00', null, null],
-      ['quotation', 'Chờ khách phản hồi', 'current', null, null, null],
-    ])
+    expect(
+      deal('OP-0292')?.rungs.flatMap((r) =>
+        r.subSteps.map((s) => [
+          r.key,
+          s.kind,
+          s.kind === 'quote-sent' ? s.round : null,
+          s.label,
+          s.at,
+        ]),
+      ),
+    ).toEqual([['quotation', 'quote-sent', 1, 'Gửi báo giá BG-0512', '2026-08-04T10:00:00+07:00']])
     expect(deal('OP-0292')?.nextAction).toBeNull()
   })
 
@@ -561,7 +572,7 @@ describe('Tiền — khớp với sổ hợp đồng và cộng đúng', () => {
 })
 
 describe('Cửa tiếp nối và cây hành trình', () => {
-  it('bốn cửa, đủ từng trường', () => {
+  it('ba cửa, đủ từng trường — OP-0289 thua không vẽ cửa chờ', () => {
     const doors = JOURNEYS.flatMap((j) =>
       j.doors.map((d) =>
         d.kind === 'growth'
@@ -600,18 +611,6 @@ describe('Cửa tiếp nối và cây hành trình', () => {
         '2026-07-08T14:00:00+07:00',
         'Bản quyền CMMS hết hạn cuối tháng 8 — khách muốn gia hạn',
         'u-huy',
-      ],
-      [
-        'WS-0088',
-        'waiting',
-        'LD-0347',
-        { code: 'OP-0289', rung: 'poc' },
-        '2026-08-03T15:30:00+07:00',
-        'Chưa có ngân sách năm nay',
-        'u-huy',
-        false,
-        null,
-        null,
       ],
       [
         'WS-0088',

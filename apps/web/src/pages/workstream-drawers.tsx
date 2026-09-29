@@ -6,10 +6,13 @@ import {
   DOC_STATE_LABEL,
   JOURNEY_DEAL_OUTCOME_LABEL,
   LEAD_STATE_LABEL,
+  LOSS_REASON_DO_NOT_CONTACT_LABEL,
   type DocState,
   type DueLevel,
   type JourneyContract,
   type JourneyDeal,
+  type JourneyDealStop,
+  type JourneyDealSubStep,
   type JourneyGrowthDoor,
   type JourneyRungKey,
   type JourneySubStep,
@@ -32,6 +35,8 @@ import {
   rungStatus,
   STATE_WORD,
   stepAlong,
+  STOPPED_AT,
+  stoppedRungLabel,
   type Journey,
   type PickKind,
   type RailRung,
@@ -80,7 +85,7 @@ const TEXT = {
   freshIntake: 'Nhập mới',
   outcome: 'Kết quả',
   value: 'Giá trị',
-  contracts: 'hợp đồng',
+  contracts: 'Hợp đồng',
   kind: 'Loại',
   signedAt: 'Ký',
   fromDeal: 'Từ cơ hội',
@@ -92,9 +97,10 @@ const TEXT = {
   movedAt: 'Ngày chuyển',
   from: 'Từ',
   reason: 'Lý do',
+  note: 'Ghi chú',
   concludedBy: 'Người kết luận',
   system: 'Hệ thống',
-  doNotContact: 'Không liên hệ',
+  doNotContact: LOSS_REASON_DO_NOT_CONTACT_LABEL,
   campaign: 'Chiến dịch',
   lastTouch: 'Tương tác gần nhất',
   /* ADR 0068: a parked lead loops back on itself, same journey and holder;
@@ -171,7 +177,10 @@ function DuePill({ level, money = false }: { level: DueLevel | null; money?: boo
   return <DueBadge level={level} className="shrink-0 normal-case tracking-normal" />
 }
 
-function SubStepRow({ step }: { step: JourneySubStep }) {
+type AnyStep = JourneySubStep | JourneyDealSubStep
+
+/** The server sends each step's final wording, so the label prints as-is. */
+function SubStepRow({ step }: { step: AnyStep }) {
   const when = step.at ? dm(step.at) : step.due ? `${TEXT.due} ${dm(step.due)}` : null
   return (
     <li className="flex items-start gap-3 py-2">
@@ -190,7 +199,7 @@ function SubStepRow({ step }: { step: JourneySubStep }) {
   )
 }
 
-function SubSteps({ title, steps }: { title: string; steps: JourneySubStep[] }) {
+function SubSteps({ title, steps }: { title: string; steps: AnyStep[] }) {
   if (steps.length === 0) return null
   return (
     <Section title={title}>
@@ -241,7 +250,7 @@ function Ladder({
                   {r.label}
                 </span>
                 <span className="text-muted-foreground tnum text-[11px]">
-                  {r.at ? dm(r.at) : r.state === 'skipped' ? STATE_WORD.skipped : '—'}
+                  {r.state === 'skipped' ? STATE_WORD.skipped : r.at ? dm(r.at) : '—'}
                 </span>
               </button>
             </li>
@@ -397,10 +406,20 @@ function dealView({ go, onPick }: Ctx, deal: JourneyDeal, key: JourneyRungKey): 
     current && raw.limitDays !== null && raw.days !== null
       ? [TEXT.stayedLimit, `${raw.days} / ${raw.limitDays} ${TEXT.days}`]
       : [TEXT.stayed, raw.days === null ? '—' : `${raw.days} ${TEXT.days}`]
-  const outcome =
-    deal.outcome === 'won'
-      ? `${JOURNEY_DEAL_OUTCOME_LABEL.won} · ${deal.contractCodes.length} ${TEXT.contracts}`
-      : JOURNEY_DEAL_OUTCOME_LABEL[deal.outcome]
+  /* Not links: contract routes are parked, so `chainPath` has no contract door. */
+  const signed: [string, ReactNode][] =
+    deal.contractCodes.length === 0
+      ? []
+      : [
+          [
+            TEXT.contracts,
+            <span key="contracts" className="flex flex-wrap justify-end gap-2">
+              {deal.contractCodes.map((c) => (
+                <CodePill key={c} kind="HĐ" code={c} go={go} />
+              ))}
+            </span>,
+          ],
+        ]
   const action = current ? deal.nextAction : null
   return {
     title: r.label,
@@ -439,18 +458,41 @@ function dealView({ go, onPick }: Ctx, deal: JourneyDeal, key: JourneyRungKey): 
             </div>
           </Section>
         )}
+        {deal.stop && <StopLog stop={deal.stop} at={stoppedRungLabel(deal)} />}
         <Section title={TEXT.aboutDeal}>
           <Facts
             rows={[
               [TEXT.value, deal.amount === null ? '—' : moneyShort(deal.amount)],
               [TEXT.holder, person(deal.holder)],
-              [TEXT.outcome, outcome],
+              [TEXT.outcome, JOURNEY_DEAL_OUTCOME_LABEL[deal.outcome]],
+              ...signed,
             ]}
           />
         </Section>
       </>
     ),
   }
+}
+
+/** The fail log of a lost deal (ADR 0069 §1), titled with the outcome's own word. */
+function StopLog({ stop, at }: { stop: JourneyDealStop; at: string | null }) {
+  return (
+    <Section title={JOURNEY_DEAL_OUTCOME_LABEL.lost}>
+      <Facts
+        rows={[
+          ...(at ? [[STOPPED_AT, at] as [string, ReactNode]] : []),
+          [TEXT.reason, stop.reason],
+          ...(stop.note ? [[TEXT.note, stop.note] as [string, ReactNode]] : []),
+          [TEXT.concludedBy, stop.concludedBy?.name ?? TEXT.system],
+        ]}
+      />
+      {stop.doNotContact && (
+        <span className="flex">
+          <Badge tone="warning">{TEXT.doNotContact}</Badge>
+        </span>
+      )}
+    </Section>
+  )
 }
 
 function Installments({ contract }: { contract: JourneyContract }) {
@@ -560,7 +602,7 @@ function fromText(j: Journey, from: { code: string; rung: string }) {
 function waitingView({ journey, go }: Ctx, d: JourneyWaitingDoor): View {
   const path = chainPath('LD', d.leadCode)
   return {
-    title: JOURNEY_DEAL_OUTCOME_LABEL.waiting,
+    title: LEAD_STATE_LABEL.nurturing,
     subtitle: (
       <Kicker phase={NEXT}>
         <CodePill kind="LD" code={d.leadCode} go={go} />

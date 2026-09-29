@@ -3,7 +3,6 @@ import type {
   ContractDetailRow,
   ContractRow,
   ContractSign,
-  CurrencyCode,
   InstallmentConditionRow,
   InstallmentDocRow,
   InstallmentNoteRow,
@@ -26,43 +25,24 @@ import type {
  *  nên không có bản nháp nào hợp lệ mà thiếu mã. */
 export type ContractValues = typeof contract.$inferInsert
 
-/** Thân request + dòng cơ hội → cột.
+/** Request body + deal row → columns.
  *
- *  ------------------------------------------------------------------
- *  BA MẶC ĐỊNH, VÀ CẢ BA ĐỀU ĐỌC TỪ ĐƠN CHỨ KHÔNG TỪ HƯ KHÔNG
- *  ------------------------------------------------------------------
- *   · tiền — `amount`/`currency` vắng mặt thì lấy của đơn. Ký đúng bằng số đã
- *     chào là trường hợp thường, và bắt gõ lại một con số đã có là mời gõ sai.
- *     Vắng mặt CẢ HAI là điều kiện: hợp đồng đã kiểm cặp đó ở `.refine`, nên
- *     tới đây chỉ còn "có cả hai" hoặc "không có gì".
- *   · `signedAt` — vắng mặt = bây giờ. Người bấm nút "Chốt thắng" đang cầm bút,
- *     nên `now` là câu trả lời thật; nhập tay là cho lượt vào sổ muộn.
- *   · `ownerId` — vắng mặt = Sale đứng đơn đầu tiên. Hoa hồng đi theo người
- *     đứng đơn trừ khi có người nói khác.
+ *   · money and kind — always from the body: a won deal signs again (ADR 0069
+ *     §5), so the deal's value cannot stand in for each paper's.
+ *   · `signedAt` — absent = now; typing it is for a late entry.
+ *   · `ownerId` — absent = `fallbackOwnerId`, the deal's holder (`holderOf`):
+ *     commission follows the holder unless somebody names another Sale.
  *
- *  `leadCode` KHÔNG lấy từ thân request và không có ô nào để lấy: nó đọc từ
- *  chính dòng cơ hội. Khoá ngoại ghép `contract_opportunity_fk` neo cặp
- *  `(opportunity_code, lead_code)`, nên một giá trị do người gọi gửi lên hoặc
- *  trùng cái đã có — tức thừa — hoặc lệch, tức là một câu INSERT Postgres từ
- *  chối. Cột nào bảng đã biết thì đừng hỏi lại. */
+ *  `leadCode` comes off the deal row, never the body: `contract_opportunity_fk`
+ *  anchors the `(opportunity_code, lead_code)` pair, so a caller's value is
+ *  either redundant or an INSERT Postgres refuses. */
 export function fromSign(
   body: ContractSign,
   code: string,
-  deal: {
-    code: string
-    leadCode: string
-    amount: number | null
-    currency: CurrencyCode | null
-    workstreamCode: string | null
-  },
+  deal: { code: string; leadCode: string; workstreamCode: string | null },
   fallbackOwnerId: string | null,
   now: Date,
 ): ContractValues {
-  const money =
-    body.amount === undefined
-      ? { amount: deal.amount, currency: deal.currency }
-      : { amount: body.amount, currency: body.currency ?? null }
-
   const ownerId = body.ownerId ?? fallbackOwnerId
 
   return {
@@ -72,8 +52,9 @@ export function fromSign(
     /* The run of the signed deal — copied, never re-derived. Whether signing
        closes the run is `WorkstreamRepository.syncClosed`'s call, not this row's. */
     workstreamCode: deal.workstreamCode,
-    amount: money.amount,
-    currency: money.currency,
+    kind: body.kind,
+    amount: body.amount,
+    currency: body.currency,
     signedAt: body.signedAt === undefined ? now : new Date(body.signedAt),
     ...(ownerId === null ? {} : { ownerId }),
   }
@@ -95,6 +76,7 @@ export function toContract(
     opportunityCode: row.opportunityCode,
     leadCode: row.leadCode,
     customer,
+    kind: row.kind,
     amount: row.amount,
     currency: row.currency,
     signedAt: row.signedAt.toISOString(),
@@ -109,20 +91,20 @@ export function toContract(
  *
  *  `label` is the customer name rather than the code: the code is already
  *  `ref.code`, and an audit line naming a company is the one a human can act
- *  on. `owner` carries the commission holder's NAME because that is what E2
- *  compares against `actor.name` — the id lives on the row, the label lives
- *  here (debt 2 of the backend handover). No owner means no scope check, and
- *  that is right for a contract nobody has been assigned yet. */
+ *  on. `ownerId` is the commission holder E2 compares (ADR 0070), `owner` only
+ *  their label — both or neither, since an owner without an id reads as
+ *  somebody else's. No owner means no scope check, and that is right for a
+ *  contract nobody has been assigned yet. */
 export function toRef(
   row: ContractRowDb,
-  opts: { label: string; ownerName: string | null },
+  opts: { label: string; owner: { id: string; name: string } | null },
 ): ObjectRef {
   return {
     code: row.code,
     kind: 'HĐ',
     branch: 'Sales',
     label: opts.label,
-    ...(opts.ownerName ? { owner: opts.ownerName } : {}),
+    ...(opts.owner ? { owner: opts.owner.name, ownerId: opts.owner.id } : {}),
   }
 }
 

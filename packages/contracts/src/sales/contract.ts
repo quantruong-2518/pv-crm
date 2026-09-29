@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { paged } from '../pagination'
-import { CurrencyCode } from './enums'
+import { ContractKind, CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
 /** Signing a deal — the door that RAISES the request that makes a deal read `won`.
@@ -20,7 +20,7 @@ import { OpportunityRow } from './opportunity'
  *  ------------------------------------------------------------------
  *  WHY THIS IS A CONTRACT DOOR AND NOT A STATE ON THE DEAL
  *  ------------------------------------------------------------------
- *  `sales.opportunity.state` stores `open` and `care` and nothing else, because
+ *  `sales.opportunity.state` stores `open` and `lost` and nothing else, because
  *  "won" was never a state of the opportunity — it is the EXISTENCE of a row in
  *  `sales.contract`. Every read path in the server already agrees:
  *  `OpportunityRepository.signed()` answers the question with an `EXISTS`, and
@@ -47,15 +47,13 @@ import { OpportunityRow } from './opportunity'
  *  deal.
  *
  *  ------------------------------------------------------------------
- *  THREE FIELDS, ALL OPTIONAL, AND THE DEFAULTS COME FROM THE DEAL
+ *  VALUE AND KIND ARE ALWAYS TYPED; THE REST DEFAULTS FROM THE DEAL
  *  ------------------------------------------------------------------
- *  A contract signed for exactly what the opportunity said it was worth, by the
- *  Sale already standing on it, today — that is the common case, and it should
- *  cost zero fields. Each override exists for a case that really happens:
+ *  A won deal may sign again (licence beside deployment), so the deal's own
+ *  value cannot stand in for the paper's: every request names `amount`,
+ *  `currency` and `kind`, and the deal's value stays as it was (29/09).
+ *  The two optional overrides exist for cases that really happen:
  *
- *   · `amount`/`currency` — the final number is often not the quoted one.
- *     Both or neither, mirroring CHECK `contract_money_pair`; sending one is a
- *     400 naming the field rather than a 500 from the constraint.
  *   · `signedAt` — paperwork gets entered days after the pen moved.
  *   · `ownerId` — commission can land on somebody other than the first Sale in
  *     the list.
@@ -92,27 +90,23 @@ import { OpportunityRow } from './opportunity'
 // THE REQUEST
 // ---------------------------------------------------------------------------
 
-export const ContractSign = z
-  .object({
-    /** Final signed value. Absent = whatever the opportunity carried. */
-    amount: MoneyVnd.optional(),
-    currency: CurrencyCode.optional(),
+export const ContractSign = z.object({
+  /** Final signed value of THIS paper, in `currency`. */
+  amount: MoneyVnd,
+  currency: CurrencyCode,
+  kind: ContractKind,
 
-    /** When the pen actually moved. Absent = now.
-     *
-     *  A moment rather than a date, because the column is `timestamptz` and
-     *  narrowing to `YYYY-MM-DD` here would force the server to invent a time
-     *  of day — which lands on the wrong calendar day for anybody signing after
-     *  17:00 in Hanoi once the string is read back as UTC. */
-    signedAt: Moment.optional(),
+  /** When the pen actually moved. Absent = now.
+   *
+   *  A moment rather than a date, because the column is `timestamptz` and
+   *  narrowing to `YYYY-MM-DD` here would force the server to invent a time
+   *  of day — which lands on the wrong calendar day for anybody signing after
+   *  17:00 in Hanoi once the string is read back as UTC. */
+  signedAt: Moment.optional(),
 
-    /** Whose commission. Absent = the first `SALE` owner on the deal. */
-    ownerId: z.string().trim().min(1).max(64).optional(),
-  })
-  .refine((v) => (v.amount === undefined) === (v.currency === undefined), {
-    error: 'Số tiền và đồng tiền phải đi cùng nhau',
-    path: ['currency'],
-  })
+  /** Whose commission. Absent = the first `SALE` owner on the deal. */
+  ownerId: z.string().trim().min(1).max(64).optional(),
+})
 
 /** The `contract-sign` payload raised into the One inbox (`ApprovalKind` in
  *  `../approval`).
@@ -246,6 +240,8 @@ export const ContractRow = z.object({
    *  out loud. The repository already selects it for the book (the E2 second
    *  net needs it for `toRef`); only the mapper was dropping it. */
   customer: textInput(200),
+  /** Null only on contracts signed before a sign request had to name its kind. */
+  kind: ContractKind.nullable(),
   amount: MoneyVnd.nullable(),
   currency: CurrencyCode.nullable(),
   signedAt: Moment,

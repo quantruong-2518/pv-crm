@@ -20,6 +20,8 @@ checked against `git show` if the original is ever needed.
    deal, one contract" invariant is held only by a 409 in the service layer —
    unpaid debt, not a ratified decision to leave it that way.
    _(was `ban-giao-co-hoi.md`)_
+   **Answered 29/09/2026: no `UNIQUE` on `contract.opportunity_code` — a won
+   opportunity can sign again, ADR 0069 §5.**
 3. **Contract-code prefix.** Whether `HĐ` is shown on screen at all, and if so
    whether it becomes `HD` or `CTR`. Stated unresolved by the owner as of 14/09.
    _(was `fix-later.md` §14; see ADR 0012)_
@@ -30,6 +32,8 @@ checked against `git show` if the original is ever needed.
    `stage_since`. _(see ADR 0032)_
 5. **`stage='da-bao-gia'`** — keyed off `state`, or off `EXISTS(quote)`.
    _(see ADR 0033)_
+   **Moot 29/09/2026: the `quotation` stage follows the recorded
+   `quotation-sent` milestone (ADR 0064 §3), sub-rungs in ADR 0069 §8.**
 6. **Discount threshold** — no number is set anywhere, and none was invented.
 7. **Where "demoed" is printed** — a flag, or a `pipeline_position` field. Only
    the requirement that the signal survives is settled. _(see ADR 0032)_
@@ -122,3 +126,5 @@ are in `.claude/HANDOFF-workstream-loop.md`; the presale ones are ADR 0067.
 27. **What a customer reply on an opportunity or a contract moves.** A reply
     counts as a real exchange and moves the LEAD a rung; an opportunity or a
     contract has no rung it maps to. The canvas only rings the holder's bell.
+    **Answered 29/09/2026 for opportunities: recorded in its activity only, it
+    never moves a rung — ADR 0069 §9. Contracts stay open until Postsale.**

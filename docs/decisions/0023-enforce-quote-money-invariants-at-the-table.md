@@ -1,6 +1,7 @@
 # 0023 · Quote and contract money invariants are enforced at the Postgres table layer, not trusted to service memory
 
-Status: accepted
+Status: accepted (the one-contract-per-opportunity invariant and `UNIQUE
+(opportunity_code)` on `sales.contract` superseded by 0069)
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§2 · Bốn quyết định xương sống ·
 4 · Cưỡng chế ở tầng BẢNG, không nhờ service nhớ" and "§3 · Dữ liệu" (all
 subsections), "§10" item 1, "§11 · Năm câu treo · 1 · Cột ghim `quote_status`

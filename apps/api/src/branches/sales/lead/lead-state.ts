@@ -12,6 +12,7 @@ import { toRef } from './lead.mapper'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { lead, type LeadRowDb } from './lead.schema'
 import { dropStep, dropSteps } from '../next-step/next-step.handover'
+import { syncLeadRuns } from '../workstream/workstream-sync'
 
 /** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058, 0063, 0068).
  *
@@ -19,15 +20,15 @@ import { dropStep, dropSteps } from '../next-step/next-step.handover'
  *  (→ `verifying`) and a real touch happened — call, message, meeting held, a
  *  mail that went out (→ `working`, also out of `nurturing`). Edits move nothing.
  *
- *  Every write moves `state_since` with `state` and refreshes the lead's mirror
- *  row, whose `state` IS `lead.state` — so no door can move one without the
- *  others. Callers pass their own `tx`: the move lands in the same commit as
+ *  Every write moves `state_since` with `state`, refreshes the lead's mirror
+ *  row (whose `state` IS `lead.state`) and re-syncs its run — so no door can
+ *  move one without the others. Callers pass their own `tx`: the move lands in the same commit as
  *  the write that caused it.
  *
  *  A leaf on purpose: lead table and mappers, `TouchModule` (no controller, no
- *  lead import) and module-free `next-step.handover` only — so the meeting,
- *  contact, account, MAS and deal modules can import `LeadStateModule` without
- *  a cycle through `LeadModule` (which imports several of them). */
+ *  lead import) and the module-free `next-step.handover` and `workstream-sync`
+ *  only — so the meeting, contact, account, MAS and deal modules can import
+ *  `LeadStateModule` without a cycle through `LeadModule`. */
 
 /** The terminal state a deal may not be opened on, and mail may not reach — a
  *  list because every caller filters with it, and `archived` left it (ADR 0068). */
@@ -39,6 +40,13 @@ export const LEAD_GONE_STATES = ['disqualified'] as const satisfies readonly Lea
 export const LEAD_GONE_WORDS = LEAD_GONE_STATES.map((s) => `“${LEAD_STATE_LABEL[s]}”`).join(
   ' hoặc ',
 )
+
+/** Why a parked lead's unsent mail is held (ADR 0068 §6) — one reason for
+ *  every door that parks a lead, so the delivery row reads the same. */
+export const LEAD_NURTURED_WITHHOLD = {
+  code: 'lead-nurtured',
+  summary: 'lead đã vào nhóm chờ: thư chưa gửi bị giữ lại',
+} as const
 
 const isOpen = (state: LeadState): boolean =>
   (LEAD_OPEN_STATES as readonly LeadState[]).includes(state)
@@ -65,8 +73,9 @@ export type LeadReach = Extract<LeadState, 'assigned' | 'verifying' | 'working'>
 export const stateByWork = (exchanged: boolean): Extract<LeadState, 'verifying' | 'working'> =>
   exchanged ? 'working' : 'verifying'
 
-/** Reopen recomputes from facts rather than restoring: a deal → `converted`,
- *  no holder → `new`, else the rung the trail proves. */
+/** Reopen recomputes from facts rather than restoring: `hasDeal` → `converted`,
+ *  no holder → `new`, else the rung the trail proves. `hasDeal` means an open
+ *  deal or a contract (`leadConverted` in `../open-deal`), never a lost deal. */
 export function stateOnReopen(lead: {
   hasDeal: boolean
   ownerId: string | null
@@ -179,6 +188,11 @@ export class LeadStateWriter {
       moved.map((r) => r.code),
     )
     await this.put(tx, rows)
+    /* A lead leaving `nurturing` re-opens a run closed LOST (ADR 0069 §4). */
+    await syncLeadRuns(
+      tx,
+      moved.map((r) => r.code),
+    )
 
     /* A holder's name comes off the join the mirror already needs: the UPDATE
        moved only leads that person holds. */
@@ -214,6 +228,44 @@ export class LeadStateWriter {
     await this.dropSteps(tx, moved)
   }
 
+  /** The last live deal of a `converted` lead stopped with nothing signed (ADR
+   *  0069 §3): → `nurturing`, holder kept. With no holder it goes to the pool
+   *  (`new`) — `lead_open_owner_matches` refuses an ownerless `nurturing`.
+   *  Either landing is dated by a `nurtured` row (a pool release names a
+   *  giver, and there is none), with the caller's sentence for that landing.
+   *  Re-syncs the lead's run. Returns where it landed, `null` if it did not move. */
+  async dealsLost(
+    tx: Db,
+    code: string,
+    by: { id: string; name: string },
+    notes: Record<'nurturing' | 'new', string>,
+  ): Promise<'nurturing' | 'new' | null> {
+    const [moved] = await tx
+      .update(lead)
+      .set({
+        state: sql`CASE WHEN ${lead.ownerId} IS NULL THEN 'new' ELSE 'nurturing' END`,
+        stateSince: sql`now()`,
+      })
+      .where(and(eq(lead.code, code), eq(lead.state, 'converted')))
+      .returning({ state: lead.state })
+    if (!moved) return null
+    const landed = moved.state === 'new' ? 'new' : 'nurturing'
+
+    await this.refresh(tx, [code])
+    await syncLeadRuns(tx, [code])
+    await this.touch.record(tx, [
+      {
+        subjectCode: code,
+        subjectKind: 'lead',
+        kind: 'nurtured',
+        by: by.name,
+        actorId: by.id,
+        note: notes[landed],
+      },
+    ])
+    return landed
+  }
+
   /** A move the caller has already decided under its own row lock. `also`
    *  rides in the SAME statement because the CHECKs tie state to owner, tier
    *  and exit reason — two UPDATEs would fail on the first. */
@@ -223,6 +275,7 @@ export class LeadStateWriter {
       .set({ ...also, state: to, stateSince: sql`now()` })
       .where(eq(lead.code, code))
     await this.refresh(tx, [code])
+    await syncLeadRuns(tx, [code])
     if (!isOpen(to)) await dropStep(tx, code)
   }
 

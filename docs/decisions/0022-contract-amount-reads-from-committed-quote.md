@@ -1,6 +1,7 @@
 # 0022 · Contract amount is read from the customer-committed quote, never typed by hand; the mismatch override checkbox is rejected
 
-Status: accepted
+Status: accepted; deferred by 0069 until the quote object (`BG`) exists —
+meanwhile each sign request carries its own amount, currency and contract kind
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§2 · Bốn quyết định xương sống ·
 2 · Tiền hợp đồng KHÔNG gõ tay — neo vào bản báo giá khách đã chốt" and
 "§10 · Bốn chỗ bản nháp sai, đã sửa" item 3

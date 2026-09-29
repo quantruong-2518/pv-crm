@@ -3,7 +3,9 @@
 Status: accepted (supersedes 0027; partially supersedes 0018 (the five `state`
 values and the `state`/`stage` two-column split), 0032 (the board's column set),
 0057 §5 (loss reason becomes care reason)); §3 reactivate row and §6
-reactivation and per-stage catalogue superseded by 0067
+reactivation and per-stage catalogue superseded by 0067; the `care` state and
+its labels (§1/§2), §3's `care` → `open` row and converted-lead rule, and §6's
+return of the same opportunity partially superseded by 0069
 Source: project owner's decision in session, 21/09/2026
 
 ## Context
@@ -26,6 +28,9 @@ ruling 0063 made for the lead.
 
 ### 1 · One axis
 
+> Partially superseded by 0069: `care` becomes `lost`, a final stop; nothing
+> is reactivated.
+
 `stage` = position in the lifecycle. `state` = still on the board or not.
 
 | Column                      | Stored values                                                | Note                                                                                                                               |
@@ -44,6 +49,9 @@ anywhere afterwards (migration and the old-mapping test excepted).
 
 ### 2 · Labels (display only)
 
+> Partially superseded by 0069: state labels are `open` "Đang chạy" and
+> `lost` "Đã dừng".
+
 Declared ONCE in `packages/contracts`, like `LEAD_STATE_LABEL`.
 
 - stage: `new` = "Khởi tạo opp" · `assigned` = "Nhận PIC" · `sample` = "Sample"
@@ -52,6 +60,9 @@ Declared ONCE in `packages/contracts`, like `LEAD_STATE_LABEL`.
   "Thành hợp đồng"
 
 ### 3 · Triggers — state and stage derive from facts
+
+> Partially superseded by 0069: no `care` → `open` row; the last stop moves a
+> `converted` lead to `nurturing`.
 
 One class writes `opportunity.stage`/`state` (as `LeadStateWriter` does for
 leads): conditional UPDATE, forward-only, idempotent, writes a touch, updates
@@ -103,6 +114,10 @@ chain, unchanged. The web `need` must match the controller including the
 
 > Partially superseded by 0067: a stop is a stop record, waking opens a new
 > journey, reasons come from one shared catalogue.
+>
+> Partially superseded by 0069: a stopped opportunity is lost for good, with a
+> fail log on its own row; re-nurturing goes through the lead, and reasons
+> stay the stage-scoped `LOSS_REASON` list.
 
 A deal may fail from ANY state and stage. The reason is mandatory and comes
 from a per-stage catalogue held in `config_entry` (extending the existing

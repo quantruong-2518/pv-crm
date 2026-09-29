@@ -11,6 +11,7 @@ import { ENV, type Env } from '../config/env'
 import { DB_HANDLE } from '../db/db.module'
 import type { DbHandle } from '../db/create-db'
 import { BOSS, createBoss, type QueueRole } from './boss.provider'
+import { MAIL_SENT_HOOK, type MailSentHook } from '../mail/mail-sent.hook'
 import { MAIL_COMPOSER, type MailComposer } from './mail-composer'
 import { MailConsumer } from './mail.consumer'
 import { MailQueue } from './mail-queue'
@@ -32,10 +33,12 @@ export { MAIL_COMPOSER, type MailComposer } from './mail-composer'
  *  repository — and a class whose module was forgotten is a resolution error at
  *  boot rather than a template that turns out to be unrenderable the first time
  *  somebody presses send. Order is the registry's order; first `supports()`
- *  wins. */
+ *  wins. `sentHooks` is the same shape for `MAIL_SENT_HOOK`: every hook runs,
+ *  in order. */
 type Wiring = {
   imports?: ModuleMetadata['imports']
   composers?: Type<MailComposer>[]
+  sentHooks?: Type<MailSentHook>[]
 }
 
 /** THE QUEUE, IN TWO SHAPES THAT ARE NOT THE SAME MODULE.
@@ -147,6 +150,11 @@ function build(
         provide: MAIL_COMPOSER,
         useFactory: (...resolved: MailComposer[]): MailComposer[] => resolved,
         inject: composers,
+      },
+      {
+        provide: MAIL_SENT_HOOK,
+        useFactory: (...resolved: MailSentHook[]): MailSentHook[] => resolved,
+        inject: wiring.sentHooks ?? [],
       },
       MailRateGate,
       MailQueue,

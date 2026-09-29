@@ -5,15 +5,15 @@ import { WorkstreamHolder } from './workstream'
 
 /** Next step — the ONE thing to do next on an open object (flow G1–G3).
  *
- *      GET    /sales/leads/:code/next-step        the step, or null
- *      PUT    /sales/leads/:code/next-step        set or replace it
- *      POST   /sales/leads/:code/next-step/done   write a `next-step-done` touch,
- *                                                 then set `next` or clear, in one tx
- *      DELETE /sales/leads/:code/next-step        clear; writes no touch
+ *      GET    /sales/{leads|opportunities}/:code/next-step        the step, or null
+ *      PUT    /sales/{leads|opportunities}/:code/next-step        set or replace it
+ *      POST   /sales/{leads|opportunities}/:code/next-step/done   `next-step-done`
+ *                                          touch, then set `next` or clear, one tx
+ *      DELETE /sales/{leads|opportunities}/:code/next-step        clear; no touch
  *
- *  Keyed by `ObjectCode` so `/sales/opportunities/:code/next-step` reuses every
- *  shape here. Optional by design (G2): null is not a warning. `dueLevel` is
- *  graded by the server on the shared ladder (G3) — the screen never derives it.
+ *  Keyed by `ObjectCode`, so `LD-` and `OP-` share every shape. Optional (G2):
+ *  null is not a warning. `dueLevel` is graded by the server on the same 3-level
+ *  ladder for both (`stepLevelOf`, 0067 D11) — the screen never derives it.
  *  `JourneyNextAction` IS `NextStep`; the journey carries this fact, not a copy. */
 
 export const NextStepParams = z.object({ code: ObjectCode })

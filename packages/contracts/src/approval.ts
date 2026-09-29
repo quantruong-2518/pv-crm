@@ -22,6 +22,12 @@ import { Moment, ObjectCode, textInput } from './primitives'
  *  engine for the sake of a three-member union. */
 export const ApprovalState = z.enum(['waiting', 'approved', 'rejected'])
 
+export const APPROVAL_STATE_LABEL: Record<z.infer<typeof ApprovalState>, string> = {
+  waiting: 'Chờ duyệt',
+  approved: 'Đã duyệt',
+  rejected: 'Từ chối',
+}
+
 /** What is being asked for. `config-change` was first, settled by
  *  `docs/decisions/0031-waiting-on-comes-from-e3-approval-links.md`;
  *  `contract-sign` is a deal's signature, which the sales floor may no longer

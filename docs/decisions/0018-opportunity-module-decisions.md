@@ -1,6 +1,7 @@
 # 0018 · Opportunity module decisions — `state`/`stage` split, permission split, five screen defaults
 
-Status: accepted (the five `state` values and the `state`/`stage` split superseded by 0064)
+Status: accepted (the five `state` values and the `state`/`stage` split superseded by 0064;
+default 5 superseded by 0069 for the opportunity's own activity)
 Source: docs/ban-giao-co-hoi.md — sections "`state` and `stage` are TWO
 columns, not one", "Endpoint", and "Five decisions still pending" (ratified in
 section "Round three · 29/08/2026")
@@ -49,6 +50,8 @@ approved both the sketch and all five defaults, nothing changed since:**
    fully hidden for presales, never shown-then-disabled.
 5. **`ActivityCard` on the deal profile reads the DEAL's touches; on the lead
    profile it reads the LEAD's** — the two timelines are never merged.
+   _Superseded by 0069 §12: the deal's activity is one stream of its touches
+   and its stage events._
 
 ## Consequences (added 16/09/2026 — `close-won` confirmed out of `state`)
 

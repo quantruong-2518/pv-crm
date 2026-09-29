@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarClock, FileCheck, Plus, Target, Wallet } from '@pv/ui'
+import { CircleX, FileCheck, Plus, Target, Wallet } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -186,7 +186,7 @@ const ANY = 'all'
  *  day, so it lies open (A-19) instead of hiding inside a select.
  *
  *  THREE tabs since ADR 0064, not the five old states: `open` covers all five
- *  columns, `care` is the parking list, `won` is derived from a contract row.
+ *  columns, `lost` is a final stop, `won` is derived from a contract row.
  *  Built from `OpportunityStatus.options` and `OPPORTUNITY_STATE_LABEL` — the
  *  same list the server filters by and the same words it prints.
  *
@@ -750,7 +750,7 @@ function ScoreCards() {
   const openAmount = data?.openAmountVnd ?? 0
   const openBlank = data?.openBlank ?? 0
   const won = data?.won ?? 0
-  const care = data?.care ?? 0
+  const lost = data?.lost ?? 0
 
   /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
   const per = (n: number) => (total === 0 ? '—' : percent(n / total))
@@ -761,8 +761,8 @@ function ScoreCards() {
       label: 'Tổng số cơ hội',
       value: String(total),
       /* An empty book is worth flagging — same warning threshold as the
-         open-pipeline and win-rate cards below. The care-list card never gets
-         this tone: an empty care list is good news, not something to warn about. */
+         open-pipeline and win-rate cards below. The lost card never gets this
+         tone: no stopped deal is good news, not something to warn about. */
       tone: total === 0 ? ('warning' as const) : ('default' as const),
       hint: 'đơn đang có trong sổ',
     },
@@ -788,10 +788,10 @@ function ScoreCards() {
       hint: `${won} đơn đã ký trên ${total} cơ hội`,
     },
     {
-      icon: CalendarClock,
-      label: 'Danh sách chăm sóc',
-      value: per(care),
-      hint: `${care} đơn đang chờ thời điểm trên ${total} cơ hội`,
+      icon: CircleX,
+      label: OPPORTUNITY_STATE_LABEL.lost,
+      value: per(lost),
+      hint: `${lost} đơn đã dừng trên ${total} cơ hội`,
     },
   ]
 
@@ -886,7 +886,7 @@ function CloseCell({ op }: { op: OpportunityRow }) {
 /** The state cell — a PILL, and under it the flow the deal is walking.
  *
  *  The pill's colour says whether the deal is still ON THE BOARD (green signed ·
- *  azure running · grey parked on the care list), its text says WHERE: the column
+ *  azure running · grey stopped), its text says WHERE: the column
  *  while the deal is open, the read state once it has left. One helper decides
  *  that word for both this cell and the deal's own sticky bar — `standingLabel`.
  *
@@ -916,8 +916,8 @@ function StateCell({ op }: { op: OpportunityBookRow }) {
     <div className="flex min-w-0 flex-col gap-1">
       <Badge
         tone={rotting ? 'warning' : STATE_TONE[op.state]}
-        /* `BADGE_INK` only where the pill wears the parked tone — law 13. */
-        className={cn('max-w-full', !rotting && op.state === 'care' && BADGE_INK)}
+        /* `BADGE_INK` only where the pill wears the lost tone — law 13. */
+        className={cn('max-w-full', !rotting && op.state === 'lost' && BADGE_INK)}
         title={
           stage
             ? rotting

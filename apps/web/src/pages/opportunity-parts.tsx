@@ -1,16 +1,15 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  CalendarClock,
   Check,
   Handshake,
   ListChecks,
   Mail,
+  Octagon,
+  PenLine,
   Phone,
-  RotateCcw,
   TriangleAlert,
   Users,
-  X,
   type IconGlyph,
 } from '@pv/ui'
 import {
@@ -18,7 +17,6 @@ import {
   Badge,
   Button,
   ContextRail,
-  Drawer,
   FlowVector,
   GlassCard,
   Icon,
@@ -26,16 +24,12 @@ import {
   MetaPill,
   ScreenHeader,
   SectionTitle,
-  Select,
   Separator,
   Skeleton,
-  Textarea,
   cn,
 } from '@pv/ui'
 import {
   campaignLabel,
-  OPPORTUNITY_CARE_NOTE_MAX,
-  OPPORTUNITY_CARE_REASON_OTHER,
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STAGE_NOTE_MAX,
   type LeadProfile,
@@ -49,17 +43,11 @@ import { dm, dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
 import { realContact } from '@/data/lead-profile'
 import { BADGE_INK, milestonesOf, standingLabel, STATE_TONE } from '@/data/opportunities'
-import { useCareReasonLabel, useCareReasons } from '@/data/sales-config'
-import {
-  opportunityStageHistoryQuery,
-  useLogMilestone,
-  usePushToCare,
-  useReactivateDeal,
-} from '@/data/opportunities-write'
+import { opportunityStageHistoryQuery, useLogMilestone } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
-import { Field } from '@/components/ops-fields'
+import { StopDrawer } from '@/components/opportunity-stop'
 import { ActivityTimeline } from '@/components/lead-history-card'
 import { LetterLines } from '@/components/mail-letter/letter-lines'
 
@@ -279,8 +267,8 @@ export function DealToolsBar({
   /** `null` on the create door — nothing is signed and nothing is dirty yet. */
   op: OpportunityProfileResponse | null
   onSign: () => void
-  /** Has a `quotation-sent` touch been recorded? The sign door 409s without one
-   *  (ADR 0064 §3), so the button says so BEFORE the press rather than after. */
+  /** Has a `quotation-sent` touch been recorded? The first sign 409s without
+   *  one (ADR 0064 §3), so the button says so BEFORE the press rather than after. */
   quotationLogged?: boolean
   /** `lead.send-email`, scoped — the permission `data/mas.ts` declares. */
   canSendEmail?: boolean
@@ -292,11 +280,9 @@ export function DealToolsBar({
   const creating = draft.mode === 'create'
   const blocking = Boolean(draft.error) || draft.missing.length > 0
 
-  /* Three states ruling each other out: signed prints a static pill for every
-     role, a parked deal draws no sign button (409 — the reopen button beside it
-     is the way back), anything else opens the panel for `opportunity.close`. */
-  const signed = op?.contractCode !== undefined
-  const parked = op?.state === 'care'
+  /* Open signs for the first time, won signs again (ADR 0069 §5), lost never:
+     the door refuses it and there is no way back from a stop. */
+  const won = op?.state === 'won'
   const pending = op?.pendingSign
 
   return (
@@ -336,11 +322,12 @@ export function DealToolsBar({
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {signed && (
-            <MetaPill icon={Handshake} tone="success" mono>
-              Đã ký · {op?.contractCode}
+          {/* Plain pills, not links: the contract routes are parked. */}
+          {op?.contractCodes.map((contract) => (
+            <MetaPill key={contract} icon={Handshake} tone="success" mono>
+              {contract}
             </MetaPill>
-          )}
+          ))}
           {pending && (
             <MetaPill tone="warning">
               Chờ duyệt ký · {pending.raisedBy} gửi {dmhm(pending.raisedAt)}
@@ -385,7 +372,7 @@ export function DealToolsBar({
           {/* Shut until a quotation has been sent, reason on the title: the door
               answers 409 otherwise, and a seller who filled in the whole panel
               first deserves to have been told before pressing. */}
-          {!creating && !signed && !parked && draft.canClose && (
+          {!creating && op?.state === 'open' && draft.canClose && (
             <Button
               size="md"
               variant="success"
@@ -400,6 +387,18 @@ export function DealToolsBar({
             >
               <Icon icon={Check} size={16} />
               Chốt thắng
+            </Button>
+          )}
+          {won && draft.canClose && (
+            <Button
+              size="md"
+              variant="success"
+              className="pointer-coarse:h-12"
+              disabled={Boolean(pending)}
+              onClick={onSign}
+            >
+              <Icon icon={PenLine} size={16} />
+              Ký thêm hợp đồng
             </Button>
           )}
 
@@ -426,28 +425,24 @@ export function DealToolsBar({
   )
 }
 
-/** Where the deal STANDS, and the three doors that move it (ADR 0064 §3).
+/** Where the deal STANDS, and the two doors that move it (ADR 0064 §3, 0069 §1).
  *
  *  A read-only badge, never a picker: `PATCH :code/stage` is gone, and a seller
  *  picks neither state nor column. Every button here carries a FACT instead — a
- *  milestone that really happened, a parking with a reason, a reopen — and the
- *  server's single stage writer draws the conclusion from it.
+ *  milestone that really happened, or a stop with a reason — and the server's
+ *  single stage writer draws the conclusion from it. A stop is final, so a
+ *  lost deal keeps only its badge; the fail log is its own card.
  *
  *  WHICH milestone buttons appear is `milestonesOf`'s answer rather than this
  *  block's: it applies the same rank rule the door refuses by, so no button on
  *  screen can earn a 409 for naming the wrong column. */
 function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: boolean }) {
   const [note, setNote] = useState('')
-  const [caring, setCaring] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const milestone = useLogMilestone(op.code)
-  const reopen = useReactivateDeal(op.code)
-  const careReason = useCareReasonLabel(op.careReason)
 
   const offers = milestonesOf(op)
-  const parked = op.state === 'care'
-  const signed = op.contractCode !== undefined
-  const busy = milestone.isPending || reopen.isPending
-  const failure = milestone.error ?? reopen.error
+  const open = op.state === 'open'
 
   /* The note box is shared by every milestone button rather than repeated per
      button: one deal moves one column at a time, and four note boxes on a
@@ -467,8 +462,8 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
 
   return (
     <div className="flex basis-full flex-wrap items-center gap-2">
-      {/* `BADGE_INK` only on the parked tone — law 13; see its own note. */}
-      <Badge tone={STATE_TONE[op.state]} className={cn(op.state === 'care' && BADGE_INK)}>
+      {/* `BADGE_INK` only on the lost tone — law 13; see its own note. */}
+      <Badge tone={STATE_TONE[op.state]} className={cn(op.state === 'lost' && BADGE_INK)}>
         {standingLabel(op)}
       </Badge>
 
@@ -478,26 +473,16 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
         </span>
       )}
 
-      {/* A parked deal prints WHY it is parked, right beside the reopen button:
-          whoever comes back to it a month later is reading this bar to decide.
-          The stored value is a catalogue id, so it is read through the book. */}
-      {parked && careReason !== undefined && (
-        <span className="text-muted-foreground min-w-0 truncate text-[11px] leading-[1.5]">
-          Lý do: {careReason}
-          {op.careNote !== undefined && ` · ${op.careNote}`}
-        </span>
-      )}
-
       {/* A deal that has not taken its PIC records nothing, and the door says so
           in a 409 — print the reason instead of three refusable buttons. */}
-      {canEdit && !signed && !parked && offers.length === 0 && op.stage !== null && (
+      {canEdit && open && offers.length === 0 && op.stage !== null && (
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
           Chưa đủ PIC nên chưa ghi mốc được — cần một trưởng phòng và ít nhất một người nữa đứng
           đơn.
         </span>
       )}
 
-      {canEdit && !signed && (
+      {canEdit && open && (
         <>
           {offers.length > 0 && (
             <Input
@@ -505,7 +490,7 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
               aria-label="Ghi chú mốc"
               placeholder="Ghi chú mốc (tuỳ chọn)"
               maxLength={OPPORTUNITY_STAGE_NOTE_MAX}
-              className="w-full sm:w-[220px]"
+              className="pointer-coarse:h-12 w-full sm:w-[220px]"
               onChange={(e) => setNote(e.target.value)}
             />
           )}
@@ -516,7 +501,7 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
               size="md"
               variant="secondary"
               className="pointer-coarse:h-12"
-              disabled={busy}
+              disabled={milestone.isPending}
               /* The repeat wording is the whole point of `repeat`: pressing
                  Quotation again is another Nego round, not a mistake. */
               title={
@@ -532,186 +517,31 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
             </Button>
           ))}
 
-          {parked ? (
-            <Button
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              disabled={busy}
-              onClick={() =>
-                reopen.mutate(undefined, {
-                  onSuccess: () => toastDone('Đã mở lại đơn — về đúng cột cũ.'),
-                })
-              }
-            >
-              <Icon icon={RotateCcw} size={16} />
-              Mở lại
-            </Button>
-          ) : (
-            <Button
-              size="md"
-              variant="ghost"
-              className="pointer-coarse:h-12"
-              disabled={busy}
-              onClick={() => setCaring(true)}
-            >
-              <Icon icon={CalendarClock} size={16} />
-              Đẩy sang danh sách chăm sóc
-            </Button>
-          )}
+          <Button
+            size="md"
+            variant="ghost"
+            className="pointer-coarse:h-12"
+            disabled={milestone.isPending}
+            onClick={() => setStopping(true)}
+          >
+            <Icon icon={Octagon} size={16} />
+            Dừng cơ hội
+          </Button>
         </>
       )}
 
-      {failure && (
+      {milestone.error && (
         <span
           role="alert"
           className="text-destructive-foreground min-w-0 text-[11px] leading-[1.5]"
         >
-          {userMessage(failure)}
+          {userMessage(milestone.error)}
         </span>
       )}
 
-      <CareDrawer op={op} open={caring} onClose={() => setCaring(false)} />
+      <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
     </div>
   )
-}
-
-/** Park a deal on the care list — a panel over the profile, the same overlay
- *  language `SignDrawer` uses and for the same reason: whoever presses the button
- *  is half way through reading this deal.
- *
- *  THE REASON IS PICKED, NOT TYPED. The catalogue lives in `sales.config_entry`
- *  (ADR 0064 §6) and the server refuses a key that is not in it, so a text box
- *  here could only invite a 400: what travels is the configuration row's `id`.
- *  The list is cut to the column the deal stands in, exactly as the door cuts
- *  it, plus the `other` row for the reason nobody has written down yet.
- *
- *  The note is required for the `other` reason and optional otherwise — the
- *  contract's own refine, mirrored so the button says whether it will be
- *  accepted before the press. Every reason in the catalogue names itself. */
-function CareDrawer({
-  op,
-  open,
-  onClose,
-}: {
-  op: OpportunityRow
-  open: boolean
-  onClose: () => void
-}) {
-  const [reasonKey, setReasonKey] = useState('')
-  const [note, setNote] = useState('')
-  const care = usePushToCare(op.code)
-  const reasons = useCareReasons(op.stage)
-  const busy = care.isPending
-  const noteNeeded = reasonKey === OPPORTUNITY_CARE_REASON_OTHER
-  const ready = reasonKey !== '' && (!noteNeeded || note.trim() !== '') && !busy
-
-  const submit = () =>
-    care.mutate(
-      { reasonKey, ...(note.trim() === '' ? {} : { note: note.trim() }) },
-      {
-        /* Closes ONLY once the server has accepted. Closing first and sending
-           after is the surest way for a refusal to vanish without a trace. */
-        onSuccess: () => {
-          toastDone(`Đã đẩy ${op.code} sang danh sách chăm sóc.`)
-          setReasonKey('')
-          setNote('')
-          onClose()
-        },
-      },
-    )
-
-  return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      title="Đẩy sang danh sách chăm sóc"
-      subtitle={
-        <>
-          <span className="font-mono">{op.code}</span> · {op.account} — đơn rời năm cột, và mở lại
-          thì về đúng cột nó đang đứng.
-        </>
-      }
-      footer={
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <span
-            className={cn(
-              'min-w-0 flex-1 text-[11.5px] leading-[1.5]',
-              care.error ? 'text-destructive-foreground' : 'text-muted-foreground',
-            )}
-            aria-live="polite"
-          >
-            {care.error
-              ? userMessage(care.error)
-              : busy
-                ? 'Đang đẩy sang chăm sóc…'
-                : ready
-                  ? 'Lead gốc KHÔNG đổi trạng thái — chỉ đơn này rời bảng.'
-                  : noteNeeded
-                    ? 'Chọn "Khác" thì phải ghi rõ lý do.'
-                    : 'Chọn một lý do trong danh mục.'}
-          </span>
-          <div className="flex shrink-0 gap-2">
-            <Button size="md" variant="ghost" disabled={busy} onClick={onClose}>
-              <Icon icon={X} size={16} />
-              Huỷ
-            </Button>
-            <Button size="md" disabled={!ready} onClick={submit}>
-              <Icon icon={CalendarClock} size={16} />
-              {busy ? 'Đang đẩy…' : 'Đẩy sang chăm sóc'}
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-6">
-        <Field
-          label="Lý do"
-          required
-          plain
-          hint="Danh mục lý do ở màn Thiết lập, cắt theo đúng cột đơn đang đứng. Thiếu lý do nào thì thêm ở đó, không gõ tay ở đây."
-        >
-          <Select
-            label="Lý do đẩy sang chăm sóc"
-            hideLabel
-            value={reasonKey}
-            onChange={setReasonKey}
-            options={careReasonOptions(reasons)}
-            className="w-full"
-          />
-        </Field>
-
-        <Field
-          label="Ghi chú"
-          required={noteNeeded}
-          hint="Câu của riêng đơn này — khách nói gì, ai đổi ý, bao giờ nên gọi lại."
-        >
-          <Textarea
-            autoGrow
-            rows={3}
-            value={note}
-            aria-label="Ghi chú khi đẩy sang chăm sóc"
-            aria-required={noteNeeded}
-            maxLength={OPPORTUNITY_CARE_NOTE_MAX}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </Field>
-      </div>
-    </Drawer>
-  )
-}
-
-/** The picker's rows: the catalogue for this column, then the `other` row.
- *
- *  The empty first row is what makes "nobody has chosen yet" a state the drawer
- *  can be in — a select opening on the first real reason would let one press
- *  send a reason nobody read. */
-function careReasonOptions(reasons: readonly { id: string; label: string }[]) {
-  return [
-    { value: '', label: 'Chọn lý do…' },
-    ...reasons.map((r) => ({ value: r.id, label: r.label })),
-    { value: OPPORTUNITY_CARE_REASON_OTHER, label: 'Khác' },
-  ]
 }
 
 /** The screen that would not open — ONE block, four sentences, glyph follows

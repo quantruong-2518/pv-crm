@@ -34,13 +34,13 @@ import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { CAMPAIGN_ON } from '../lead/lead.repository'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
-import { leadSigned } from '../open-deal'
 import {
   opportunity,
   opportunityOwner,
   type OpportunityRowDb,
 } from '../opportunity/opportunity.schema'
 import { workstream, type WorkstreamRowDb } from './workstream.schema'
+import { syncClosed } from './workstream-sync'
 
 /** The only SQL of the workstream module. It decides nothing about permission
  *  — it only ENFORCES the axis the endpoint declared with `@Need`.
@@ -100,18 +100,17 @@ export class WorkstreamRepository {
    *  transaction, so a run's end is written with the row that caused it.
    *
    *  WON when the lead is signed (`leadSigned`, the lead book's rule) at its
-   *  latest signature; else LOST when the lead is `disqualified` (at
-   *  `exited_at`); else OPEN — which also REOPENS
-   *  a closed run. The date is floored at `opened_at` for
+   *  latest signature; else LOST when every deal of a PARKED lead is lost with
+   *  nothing signed, or a lead with no deal is `disqualified`; else OPEN — which
+   *  also REOPENS a closed run. The statement is `./workstream-sync.ts`. The date is floored at `opened_at` for
    *  `workstream_closed_after_opened`; `CHURNED` is never derived. Only rows
    *  whose pair actually changes are written.
    *
    *  Called by every door that can move the answer: deal create, import, a
    *  state change, sign; lead exit and reopen. No door deletes a contract
    *  today — the day one does, it calls this too. */
-  async syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
-    if (workstreamCodes.length === 0) return
-    await tx.execute(SYNC_CLOSED(workstreamCodes))
+  syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
+    return syncClosed(tx, workstreamCodes)
   }
 
   async book(who: Actor, q: WorkstreamBookQuery, scoped: boolean): Promise<WorkstreamBookPage> {
@@ -548,40 +547,6 @@ export type LadderRow = { name: string; limitDays: number | null }
 const NEXT_CODES = (n: number): SQL =>
   sql`SELECT 'WS-' || lpad(nextval('sales.workstream_code_seq')::text, 4, '0') AS code
       FROM generate_series(1, ${n})`
-
-/** One UPDATE for `syncClosed`. The `CASE` around `greatest` is load-bearing:
- *  `greatest` skips NULLs, so an open run would otherwise get `opened_at`. */
-function SYNC_CLOSED(codes: readonly string[]): SQL {
-  const list = sql.join(
-    codes.map((c) => sql`${c}`),
-    sql`, `,
-  )
-
-  return sql`
-    UPDATE sales.workstream w
-       SET closed_at = v.closed_at, close_reason = v.close_reason
-      FROM (
-        SELECT w2.code,
-               CASE WHEN x.won THEN greatest(x.signed_at, w2.opened_at)
-                    WHEN x.lost_at IS NOT NULL THEN greatest(x.lost_at, w2.opened_at)
-               END AS closed_at,
-               CASE WHEN x.won THEN 'WON'
-                    WHEN x.lost_at IS NOT NULL THEN 'LOST'
-               END AS close_reason
-          FROM sales.workstream w2
-          JOIN LATERAL (
-            SELECT ${leadSigned(sql`l.code`)} AS won,
-                   (SELECT max(k.signed_at) FROM sales.contract k WHERE k.lead_code = l.code) AS signed_at,
-                   CASE l.state WHEN 'disqualified' THEN l.exited_at END AS lost_at
-              FROM sales.lead l
-             WHERE l.workstream_code = w2.code
-          ) x ON true
-         WHERE w2.code IN (${list})
-      ) v
-     WHERE w.code = v.code
-       AND (w.closed_at, w.close_reason) IS DISTINCT FROM (v.closed_at, v.close_reason)
-  `
-}
 
 const SALE_ACTOR = alias(actor, 'sale_actor')
 const BD_ACTOR = alias(actor, 'bd_actor')

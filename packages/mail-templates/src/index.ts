@@ -81,7 +81,7 @@ export async function renderOpportunityOpened(
 export async function renderOpportunityLost(
   data: OpportunityLostData,
 ): Promise<{ subject: string; html: string; text: string }> {
-  const subject = `Đơn thua · ${sanitizeSubjectPart(data.account)} · ${data.opCode}`
+  const subject = `Cơ hội đã dừng · ${sanitizeSubjectPart(data.account)} · ${data.opCode}`
   const element = createElement(OpportunityLostEmail, data)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
   return { subject, html, text }

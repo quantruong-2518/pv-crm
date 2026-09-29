@@ -2,33 +2,34 @@ import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
 import type { RoleId } from '@pv/engines'
 import {
-  OPPORTUNITY_CARE_REASON_OTHER,
   OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STOP_REASON_OTHER,
   StageKey,
-  type OpportunityCareBody,
   type OpportunityMilestoneKind,
+  type OpportunityStopBody,
   type TouchKind,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { configEntry } from '../config/config.schema'
+import { dropStep } from '../next-step/next-step.handover'
 import { TouchService } from '../touch/touch.service'
-import { NOTE, stageEventOf, toRef } from './opportunity.mapper'
+import { NOTE, stageEventOf, toRef, type RefOwner } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 import { opportunity, type OpportunityRowDb } from './opportunity.schema'
 
-/** EVERY MOVE A DEAL MAKES BEFORE A CONTRACT EXISTS (ADR 0064).
+/** EVERY MOVE A DEAL MAKES BEFORE A CONTRACT EXISTS (ADR 0064, 0069).
  *
- *  Four facts move a deal here and nothing else does: the PIC set filled up
+ *  Three facts move a deal here and nothing else does: the PIC set filled up
  *  (`new` → `assigned`), a milestone was recorded (`sample`/`poc`/`quotation`),
- *  it was parked on the care list, or it came back. Saving the form moves
+ *  or it was stopped — final, there is no way back. Saving the form moves
  *  nothing — that is what `OpportunityEdit` leaves out of its columns.
  *
  *  The ONE other writer is the sign flow (`closeForSign` in
  *  `opportunity.mapper.ts`), which owns the one-way trip off the board. They
- *  cannot race: signing is refused below `quotation`, a column only this class
- *  writes, and a signed deal is refused by `care`/`reactivate` for good.
+ *  cannot race: signing needs a quotation, a milestone only this class
+ *  records, and a signed deal is refused by every move here for good.
  *
  *  Every move is ONE conditional UPDATE naming the column it may leave, so it
  *  is forward-only without a second lock, and carries `stage_since`, a timeline
@@ -82,19 +83,18 @@ export const picQualifies = (pic: PicSet): boolean => pic.heads > 0 && pic.peopl
  *  it would freeze every row the migration left behind, including its name and
  *  its money.
  *
- *  The rank comes from `stage ?? care_from_stage`, not from `stage` alone: a
- *  deal on the care list has no column, and judging it by that NULL would let
- *  the last head of sales be stripped off — then `reactivate` puts the deal
- *  back on the board with none, which §4 forbids. */
+ *  The rank comes from `stage ?? stopped_at_stage`, not from `stage` alone: a
+ *  lost deal has no column, and its fail log must keep reading as the PIC set
+ *  that stood on it. */
 export function picRefusal(
   before: PicSet,
   after: PicSet,
-  at: Pick<OpportunityRowDb, 'stage' | 'careFromStage'>,
+  at: Pick<OpportunityRowDb, 'stage' | 'stoppedAtStage'>,
 ): string | null {
   if (after.people < 2 && after.people < before.people) {
     return 'Cơ hội phải có ít nhất 2 người phụ trách — thêm người mới trước khi bớt người cũ.'
   }
-  const reached = at.stage ?? at.careFromStage
+  const reached = at.stage ?? at.stoppedAtStage
   if (reached !== null && RANK[reached] >= RANK.assigned && after.heads === 0 && before.heads > 0) {
     return 'Cơ hội đã nhận PIC thì phải còn một trưởng phòng đứng đơn — không gỡ người cuối cùng được.'
   }
@@ -102,17 +102,24 @@ export function picRefusal(
 }
 
 /** A stored deal plus the two facts every move needs beside its columns: the
- *  name the mirror row prints, and whether a contract already exists. Both are
+ *  owner the mirror row names, and whether a contract already exists. Both are
  *  already in the door's hand (`OpportunityRead`), so no move re-reads them. */
 export type DealAt = {
   row: OpportunityRowDb
-  ownerName: string | null
+  owner: RefOwner | null
   signed: boolean
   /** A `contract-sign` request is waiting on this deal. Read under the same
    *  row lock a move takes, so the answer is the approval the apply step will
    *  actually see — not one a screen was looking at a moment earlier. */
   pendingSign: boolean
 }
+
+/** A read deal → what a move needs. The mirror row names the deal's holder
+ *  (`holderOf`, ADR 0069 §10), as every door that writes it does. */
+export const dealAtOf = (
+  found: { row: OpportunityRowDb; holder: RefOwner | null; signed: boolean },
+  pendingSign: boolean,
+): DealAt => ({ row: found.row, owner: found.holder, signed: found.signed, pendingSign })
 
 type By = { id: string; name: string }
 
@@ -153,8 +160,8 @@ export class OpportunityLifecycle {
 
   /** A milestone was recorded — `POST /:code/milestones`.
    *
-   *  Guards in the order a person hits them: a signed deal, a deal on the care
-   *  list, a deal that has not taken its PIC yet, then a milestone BELOW where
+   *  Guards in the order a person hits them: a signed deal, a lost deal, a deal
+   *  that has not taken its PIC yet, then a milestone BELOW where
    *  the deal already stands. Re-recording the column it is standing in is
    *  allowed and writes only the timeline row: a second quotation is another
    *  round of the same column, not a second entry into it, so the rot clock
@@ -208,30 +215,31 @@ export class OpportunityLifecycle {
     return written
   }
 
-  /** Parked on the care list — `POST /:code/care`. The deal leaves the board:
-   *  stage and its clock go to NULL, `closed_at` is stamped, and the column it
-   *  left is remembered in `care_from_stage` for the reopen door. */
-  async care(
+  /** Stopped for good — `POST /:code/stop` (ADR 0069 §1). The deal leaves the
+   *  board: stage and its clock go to NULL, `closed_at` is stamped, and the fail
+   *  log (column, reason, note) lands on the row; who concluded it is the stage
+   *  event's `by_id`. Its open next step goes with it (§10). */
+  async stop(
     tx: Db,
     deal: DealAt,
     by: By,
-    body: OpportunityCareBody,
+    body: OpportunityStopBody,
     at: Date,
   ): Promise<OpportunityRowDb> {
     const code = deal.row.code
-    const from = this.onBoard(deal, 'đẩy sang chăm sóc')
+    const from = this.onBoard(deal, 'dừng')
     await this.assertReason(tx, body.reasonKey, from)
 
     const [written] = await tx
       .update(opportunity)
       .set({
-        state: 'care',
+        state: 'lost',
         stage: null,
         stageSince: null,
         closedAt: at,
-        careFromStage: from,
-        careReason: body.reasonKey,
-        careNote: body.note ?? null,
+        stoppedAtStage: from,
+        stopReason: body.reasonKey,
+        stopNote: body.note ?? null,
       })
       .where(and(eq(opportunity.code, code), eq(opportunity.state, 'open')))
       .returning()
@@ -240,49 +248,10 @@ export class OpportunityLifecycle {
     await this.after(tx, deal, written, by, {
       at,
       from,
-      kind: 'care-entered',
-      note: NOTE.careEntered(body.reasonKey, body.note),
+      kind: 'exited',
+      note: NOTE.stopped(body.reasonKey, body.note),
     })
-    return written
-  }
-
-  /** Back onto the board — `POST /:code/reactivate`. The deal returns to the
-   *  column it failed at, never one further along: `care_from_stage` is read
-   *  off the row rather than taken from the caller. */
-  async reactivate(tx: Db, deal: DealAt, by: By, at: Date): Promise<OpportunityRowDb> {
-    const code = deal.row.code
-    if (deal.row.state !== 'care') {
-      throw conflict(`Cơ hội ${code} không nằm trong danh sách chăm sóc nên không có gì để mở lại.`)
-    }
-    const back = deal.row.careFromStage
-    if (back === null) {
-      throw conflict(`Cơ hội ${code} không còn nhớ cột cũ nên không mở lại tự động được.`)
-    }
-
-    const [written] = await tx
-      .update(opportunity)
-      .set({
-        state: 'open',
-        stage: back,
-        stageSince: at,
-        closedAt: null,
-        careFromStage: null,
-        careReason: null,
-        careNote: null,
-      })
-      .where(and(eq(opportunity.code, code), eq(opportunity.state, 'care')))
-      .returning()
-    if (!written) throw raced(code)
-
-    /* `from: null` — the deal is ENTERING the board again, the same shape the
-       create door writes. A `care -> quotation` row would count as a column
-       move in the funnel, which it is not. */
-    await this.after(tx, deal, written, by, {
-      at,
-      from: null,
-      kind: 'care-left',
-      note: NOTE.careLeft(back),
-    })
+    await dropStep(tx, code)
     return written
   }
 
@@ -296,7 +265,7 @@ export class OpportunityLifecycle {
    *  `config_name_live`. Read on the move's own `tx`, so the catalogue judged is
    *  the one the UPDATE two statements later writes against. */
   private async assertReason(tx: Db, reasonKey: string, from: StageKey): Promise<void> {
-    if (reasonKey === OPPORTUNITY_CARE_REASON_OTHER) return
+    if (reasonKey === OPPORTUNITY_STOP_REASON_OTHER) return
 
     const [found] = await tx
       .select({ id: configEntry.id })
@@ -319,7 +288,7 @@ export class OpportunityLifecycle {
   }
 
   /** The column a deal is standing in, or the refusal for one that has left the
-   *  board. Won and cared-for deals both read `stage IS NULL`, and they get two
+   *  board. Won and lost deals both read `stage IS NULL`, and they get two
    *  different sentences because they lead to two different next actions. */
   private onBoard(deal: DealAt, action: string): StageKey {
     const code = deal.row.code
@@ -327,8 +296,10 @@ export class OpportunityLifecycle {
     if (deal.pendingSign) {
       throw conflict(`Cơ hội ${code} đang chờ duyệt ký — không ${action} được lúc này.`)
     }
-    if (deal.row.state === 'care') {
-      throw conflict(`Cơ hội ${code} đang ở danh sách chăm sóc — mở lại đơn trước khi ${action}.`)
+    if (deal.row.state === 'lost') {
+      throw conflict(
+        `Cơ hội ${code} đã dừng — không ${action} được nữa. Muốn chăm lại thì đi từ lead.`,
+      )
     }
     if (deal.row.stage === null) {
       throw conflict(`Cơ hội ${code} đã ra khỏi bảng nên không ${action} được.`)
@@ -360,7 +331,7 @@ export class OpportunityLifecycle {
       }),
     )
     await this.record(tx, written.code, step.kind, by, step.note, step.at)
-    await this.mirror.put(tx, toRef(written, deal.ownerName))
+    await this.mirror.put(tx, toRef(written, deal.owner))
   }
 
   private async record(

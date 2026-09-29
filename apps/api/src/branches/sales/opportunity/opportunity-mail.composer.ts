@@ -3,33 +3,22 @@ import { renderOpportunityLost, renderOpportunityOpened } from '@pv/mail-templat
 import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
 import type { DeliveryToSend, MailMessage } from '@api/platform/mail/mail.contract'
 import type { MailComposer } from '@api/platform/queue/mail-composer'
-import { OPPORTUNITY_STAGE_LABEL, OPPORTUNITY_STATE_LABEL } from '@pv/contracts'
+import {
+  OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STATE_LABEL,
+  OPPORTUNITY_STOP_REASON_OTHER,
+} from '@pv/contracts'
 import { OpportunityRepository } from './opportunity.repository'
 
-/** THÂN CỦA HAI MAIL SỔ CƠ HỘI, DỰNG Ở NƠI CƠ HỘI SỐNG.
+/** The bodies of the two internal deal mails, built where the deal lives:
+ *  they read `sales.opportunity`, its owners and `sales.lead`, and `platform/`
+ *  may not import `branches/` — so the worker asks through `MAIL_COMPOSER`.
  *
- *  Cùng lý do `lead-mail.composer.ts` nằm trong nhánh: dựng thân mail này phải
- *  đọc `sales.opportunity`, `sales.opportunity_owner` và `sales.lead`, mà
- *  `platform/` không được nhập `branches/`. Nên đường nối chạy ngược: worker
- *  hỏi qua `MAIL_COMPOSER` và không bao giờ biết nhánh nào trả lời.
- *
- *  ------------------------------------------------------------------
- *  MỘT COMPOSER, HAI TEMPLATE — VÌ CHÚNG ĐỌC CÙNG MỘT DÒNG
- *  ------------------------------------------------------------------
- *  `supports` nhận cả hai tên. Tách làm hai class thì cả hai vẫn phải nhập
- *  `OpportunityRepository`, gọi đúng một hàm `forMail`, và dịch đúng một bộ
- *  nhãn — tức hai file cùng biết một thứ, đúng hình mà đăng bạ composer được
- *  dựng ra để tránh. Chỗ CHIA là `compose`, và nó chia bằng một câu `if` đọc
- *  chính trạng thái đã lưu, không bằng tên template: đơn đã sang danh sách chăm
- *  sóc thì gửi thư chăm sóc, kể cả khi có ai đó xếp nhầm hàng.
- *
- *  ------------------------------------------------------------------
- *  NHÃN TIẾNG VIỆT ĐỌC TỪ HỢP ĐỒNG
- *  ------------------------------------------------------------------
- *  Hai bảng nhãn từng nằm ngay đây, rồi sang `opportunity.labels.ts`. Từ ADR
- *  0064 chúng khai một lần trong `@pv/contracts`
- *  (`OPPORTUNITY_STAGE_LABEL`/`OPPORTUNITY_STATE_LABEL`), nên file này đọc thẳng
- *  từ đó — không còn bản chép nào ở `apps/api`. */
+ *  One composer for both templates because both read the same row through
+ *  `forMail`. The split is in `compose`, on the STORED state rather than the
+ *  template name: a lost deal gets the lost letter even if somebody queued the
+ *  other one. Labels come from `@pv/contracts`, never a copy here; the stop
+ *  reason is resolved to its catalogue label before rendering. */
 
 @Injectable()
 export class OpportunityMailComposer implements MailComposer {
@@ -54,7 +43,7 @@ export class OpportunityMailComposer implements MailComposer {
     const opUrl = `${this.env.PV_APP_URL.replace(/\/+$/, '')}/sales/opportunities/${row.code}`
 
     const { subject, html, text } =
-      row.state === 'care'
+      row.state === 'lost'
         ? await renderOpportunityLost({
             opCode: row.code,
             leadCode: row.leadCode,
@@ -62,14 +51,16 @@ export class OpportunityMailComposer implements MailComposer {
             name: row.name,
             amount: row.amount,
             currency: row.currency,
-            ...(row.careReason ? { careReason: row.careReason } : {}),
-            ...(row.careNote ? { careNote: row.careNote } : {}),
+            ...(await this.reasonOf(row.stopReason)),
+            ...(row.stoppedAtStage
+              ? { stoppedAt: OPPORTUNITY_STAGE_LABEL[row.stoppedAtStage] }
+              : {}),
+            ...(row.stopNote ? { stopNote: row.stopNote } : {}),
             saleOwners,
             bdOwners,
-            /* `closed_at` không thể null ở nhánh này — `opportunity_care_closed`
-               chặn một đơn `care` chưa đóng. Vẫn lùi về `created_at` chứ không
-               dùng `!`: một CHECK là hàng rào của bảng, không phải giấy phép để
-               tầng trên bỏ nhánh còn lại. */
+            /* `opportunity_lost_closed` keeps `closed_at` set on a lost deal;
+               `created_at` rather than `!`, since a CHECK is the table's fence,
+               not a licence for this layer to drop the other branch. */
             closedAt: (row.closedAt ?? row.createdAt).toISOString(),
             daysOpen: deal.daysOpen,
             opUrl,
@@ -109,5 +100,13 @@ export class OpportunityMailComposer implements MailComposer {
       html,
       text,
     }
+  }
+
+  /** The stored reason is a catalogue id; the reader gets its label, and
+   *  `other` reads "Khác" — its sentence is the note printed under it. */
+  private async reasonOf(id: string | null): Promise<{ stopReason?: string }> {
+    if (id === null) return {}
+    if (id === OPPORTUNITY_STOP_REASON_OTHER) return { stopReason: 'Khác' }
+    return { stopReason: (await this.repo.lossReasonName(id)) ?? id }
   }
 }

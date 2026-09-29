@@ -226,10 +226,10 @@
   },
   "apps/api/src/branches/sales/contract/contract.mapper.ts": {
     "aurora/comment-budget": {
-      "count": 2
+      "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 4
+      "count": 3
     }
   },
   "apps/api/src/branches/sales/contract/contract.module.ts": {
@@ -296,7 +296,7 @@
   },
   "apps/api/src/branches/sales/lead/lead-write.repository.ts": {
     "aurora/comment-budget": {
-      "count": 6
+      "count": 5
     },
     "aurora/comments-in-english": {
       "count": 1
@@ -315,7 +315,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 6
+      "count": 5
     }
   },
   "apps/api/src/branches/sales/lead/lead.controller.ts": {
@@ -331,7 +331,7 @@
       "count": 4
     },
     "aurora/comments-in-english": {
-      "count": 8
+      "count": 7
     }
   },
   "apps/api/src/branches/sales/lead/lead.module.ts": {
@@ -415,10 +415,10 @@
   },
   "apps/api/src/branches/sales/opportunity/opportunity-mail.composer.ts": {
     "aurora/comment-budget": {
-      "count": 3
+      "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 3
+      "count": 2
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.constraints.ts": {
@@ -441,10 +441,10 @@
   },
   "apps/api/src/branches/sales/opportunity/opportunity.mapper.ts": {
     "aurora/comment-budget": {
-      "count": 7
+      "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 25
+      "count": 18
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.module.ts": {
@@ -457,7 +457,7 @@
   },
   "apps/api/src/branches/sales/opportunity/opportunity.repository.ts": {
     "aurora/comment-budget": {
-      "count": 8
+      "count": 6
     },
     "aurora/comments-in-english": {
       "count": 42
@@ -468,7 +468,7 @@
       "count": 10
     },
     "aurora/comments-in-english": {
-      "count": 16
+      "count": 10
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.service.ts": {
@@ -757,7 +757,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 24
+      "count": 23
     }
   },
   "apps/api/src/platform/engines/engines.module.ts": {
@@ -1289,12 +1289,6 @@
     }
   },
   "apps/web/src/components/sign-drawer.tsx": {
-    "aurora/comment-budget": {
-      "count": 2
-    },
-    "aurora/comments-in-english": {
-      "count": 12
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -1393,7 +1387,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 4
+      "count": 3
     }
   },
   "apps/web/src/data/lead-form.ts": {
@@ -1443,7 +1437,7 @@
       "count": 8
     },
     "aurora/comments-in-english": {
-      "count": 37
+      "count": 36
     }
   },
   "apps/web/src/data/mail-hints.ts": {
@@ -1480,7 +1474,7 @@
       "count": 3
     },
     "aurora/comments-in-english": {
-      "count": 14
+      "count": 13
     }
   },
   "apps/web/src/data/opportunities.ts": {
@@ -1488,7 +1482,7 @@
       "count": 8
     },
     "aurora/comments-in-english": {
-      "count": 21
+      "count": 20
     }
   },
   "apps/web/src/data/opportunity-import-wire.ts": {
@@ -1538,10 +1532,10 @@
   },
   "apps/web/src/data/sales-config.ts": {
     "aurora/comment-budget": {
-      "count": 11
+      "count": 10
     },
     "aurora/comments-in-english": {
-      "count": 16
+      "count": 15
     }
   },
   "apps/web/src/data/sales-motions.ts": {
@@ -1824,7 +1818,7 @@
       "count": 13
     },
     "aurora/comments-in-english": {
-      "count": 18
+      "count": 17
     },
     "max-lines": {
       "count": 1
@@ -2026,7 +2020,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 4
+      "count": 3
     }
   },
   "packages/contracts/src/sales/lead-fields.ts": {
@@ -2119,7 +2113,7 @@
       "count": 6
     },
     "aurora/comments-in-english": {
-      "count": 27
+      "count": 26
     }
   },
   "packages/engines/src/e3-approvals.ts": {
@@ -2267,11 +2261,8 @@
     }
   },
   "packages/mail-templates/src/opportunity-lost.tsx": {
-    "aurora/comment-budget": {
-      "count": 1
-    },
     "aurora/comments-in-english": {
-      "count": 7
+      "count": 1
     }
   },
   "packages/mail-templates/src/opportunity-opened.tsx": {

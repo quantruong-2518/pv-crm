@@ -1,14 +1,14 @@
 import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react'
 import { Info } from '@pv/ui'
 import { Badge, Button, Icon, Input, Modal, SegmentedControl, Textarea, cn } from '@pv/ui'
-import type { MailDoor, MailTemplateRow } from '@pv/contracts'
+import type { MailDoor, MailTemplateMilestone, MailTemplateRow } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { isHttpUrl } from '@/data/http-url'
 import { useMailPreview, useMailTemplateCreate, useMailTemplatePatch } from '@/data/mas'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { MailPreviewCard, OldBookingLink } from '@/components/mail-compose-bits'
 import { useMailBodyMode } from '@/components/mail-rich-body-model'
-import { DoorsField } from './mail-templates-doors'
+import { DoorsField, MilestoneField, MilestonePill } from './mail-templates-doors'
 
 /* Tiptap is ~110 kB gzipped. Fetched beside the list, not inside its chunk: the
    list paints first, and by the time a template opens the editor is usually here. */
@@ -44,6 +44,7 @@ export function MailTemplateDrawer({
   const [dropBooking, setDropBooking] = useState(false)
   const [doors, setDoors] = useState<MailDoor[]>([])
   const [defaultFor, setDefaultFor] = useState<MailDoor[]>([])
+  const [milestone, setMilestone] = useState<MailTemplateMilestone | null>(null)
   const [active, setActive] = useState(true)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [failure, setFailure] = useState('')
@@ -67,6 +68,7 @@ export function MailTemplateDrawer({
     setDropBooking(false)
     setDoors(template?.doors ?? [])
     setDefaultFor(template?.defaultFor ?? [])
+    setMilestone(template?.milestone ?? null)
     setActive(template?.active ?? true)
     setErrors({})
     setFailure('')
@@ -131,6 +133,8 @@ export function MailTemplateDrawer({
             active,
             doors,
             defaultFor,
+            /* `null` clears it — absent would leave the stored one alone. */
+            milestone,
             /* Calendly is retired: an old link can only be cleared. */
             ...(dropBooking ? { bookingUrl: null } : {}),
           },
@@ -146,6 +150,7 @@ export function MailTemplateDrawer({
         subject,
         body,
         ...(cta ? { cta } : {}),
+        ...(milestone ? { milestone } : {}),
         doors,
         defaultFor,
       },
@@ -172,9 +177,12 @@ export function MailTemplateDrawer({
         }
         meta={
           template ? (
-            <Badge tone={template.active ? 'success' : 'draft'}>
-              {template.active ? 'Đang dùng' : 'Ngừng dùng'}
-            </Badge>
+            <span className="flex flex-wrap gap-1">
+              {template.milestone && <MilestonePill milestone={template.milestone} />}
+              <Badge tone={template.active ? 'success' : 'draft'}>
+                {template.active ? 'Đang dùng' : 'Ngừng dùng'}
+              </Badge>
+            </span>
           ) : undefined
         }
         footer={
@@ -235,10 +243,24 @@ export function MailTemplateDrawer({
               onChange={(next) => {
                 setDoors(next.doors)
                 setDefaultFor(next.defaultFor)
+                /* The milestone rides on the opportunity door alone. */
+                if (!next.doors.includes('opportunity')) setMilestone(null)
                 clearError('doors')
                 clearError('defaultFor')
+                clearError('milestone')
               }}
             />
+
+            {doors.includes('opportunity') && (
+              <MilestoneField
+                milestone={milestone}
+                errors={errors['milestone']}
+                onChange={(next) => {
+                  setMilestone(next)
+                  clearError('milestone')
+                }}
+              />
+            )}
 
             <Field
               label={`Tiêu đề email · ${subject.length}/200`}

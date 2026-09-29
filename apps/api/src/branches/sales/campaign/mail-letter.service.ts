@@ -28,6 +28,7 @@ import { renderMasLetter } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { LeadRepository } from '../lead/lead.repository'
 import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
+import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import {
   MailLetterRepository,
   type FiledLetter,
@@ -65,6 +66,7 @@ export class MailLetterService {
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ENV) private readonly env: Env,
     private readonly states: LeadStateWriter,
+    private readonly deals: OpportunityRepository,
   ) {}
 
   async preflight(
@@ -203,7 +205,8 @@ export class MailLetterService {
 
   /** 404 for a subject that does not exist, 403 when its lead is not the
    *  caller's — the two refusals `LeadService.guard` keeps apart — and 409 when
-   *  a person stopped caring for that lead: it is never mailed (ADR 0068 §5). */
+   *  a person stopped caring for that lead: it is never mailed (ADR 0068 §5).
+   *  409 too for a lost deal: its care goes on from the lead (ADR 0069 §1). */
   private async subjectFor(
     who: Actor,
     door: MailSubjectKind,
@@ -223,6 +226,9 @@ export class MailLetterService {
       throw conflict(
         `Lead ${subject.leadCode}${via} đang ở trạng thái ${LEAD_GONE_WORDS} — không gửi thư được.`,
       )
+    }
+    if (door === 'opportunity' && (await this.deals.byCode(null, code))?.row.state === 'lost') {
+      throw conflict('Cơ hội đã dừng — gửi thư từ lead.')
     }
     return subject
   }

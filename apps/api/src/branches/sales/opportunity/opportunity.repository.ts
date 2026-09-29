@@ -27,7 +27,6 @@ import {
   type OpportunityStatus,
   type TouchKind,
 } from '@pv/contracts'
-import { approval } from '@api/platform/approval/approval.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor, audit } from '@api/platform/db/platform.schema'
@@ -35,7 +34,7 @@ import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
-import { dealOpen } from '../open-deal'
+import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
 import { touch } from '../touch/touch.schema'
 import {
   opportunity,
@@ -47,18 +46,24 @@ import {
 } from './opportunity.schema'
 import { stageConfigOf, type StageConfig } from '../ladder'
 import type { ActorLite } from './opportunity-import.check'
-import type { OpportunityValues } from './opportunity.mapper'
+import { holderOf, type OpportunityValues, type RefOwner } from './opportunity.mapper'
 
 const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
+
+/** Who stands on a deal, and which of them holds it. */
+type DealPeople = { owners: OpportunityOwner[]; holder: RefOwner | null }
+const NOBODY: DealPeople = { owners: [], holder: null }
 
 /** Một dòng sổ đã nạp đủ thứ nó cần để ra mặt. */
 export type OpportunityRead = {
   row: OpportunityRowDb
   account: string
   owners: OpportunityOwner[]
-  /** Mã hợp đồng đã ký, `null` khi chưa ký. Đọc từ chính lượt nối đã trả lời
-   *  `signed` — hai trường, MỘT nguồn, nên chúng không lệch nhau được. */
-  contractCode: string | null
+  /** The deal's holder (`holderOf`, ADR 0069 §10), read with the owners. */
+  holder: RefOwner | null
+  /** Mọi hợp đồng đã ký của đơn, cũ nhất trước — một đơn thắng ký thêm được
+   *  (ADR 0069 §5). `signed` là "danh sách không rỗng": hai trường, MỘT nguồn. */
+  contractCodes: string[]
   signed: boolean
   /** Số ngày đơn đã đứng trong cột hiện tại. `null` = đơn đã ra khỏi bảng. */
   daysInStage: number | null
@@ -88,6 +93,14 @@ export type OpportunityStageEventInsert = Omit<typeof opportunityStageEvent.$inf
  *  cột nào, và số 0 ở đó đọc ra là "vừa mới vào cột". */
 const DAYS_IN_STAGE = sql<number | null>`CASE WHEN ${opportunity.stageSince} IS NULL THEN NULL ELSE
   GREATEST(0, FLOOR(EXTRACT(epoch FROM now() - ${opportunity.stageSince}) / 86400))::int END`
+
+/** Every contract of the deal, oldest first — a won deal may sign again (ADR
+ *  0069 §5). A subquery, not a join: a join would print the deal once per paper
+ *  while `total` counts it once. `ARRAY(…)` is `{}` when nothing is signed. */
+const CONTRACT_CODES = sql<string[]>`ARRAY(
+  SELECT k.code FROM ${contract} k
+   WHERE k.opportunity_code = ${opportunity.code} AND k.lead_code = ${opportunity.leadCode}
+   ORDER BY k.signed_at, k.code)`
 
 /** Giá trị đơn QUY RA ĐỒNG, tính trong SQL.
  *
@@ -162,7 +175,7 @@ export type OpportunityScorecardRow = {
   openAmountVnd: number
   openBlank: number
   won: number
-  care: number
+  lost: number
 }
 
 /** Một số từ `sales.opportunity_code_seq`, in ra dạng `OP-%04d`.
@@ -229,12 +242,11 @@ export class OpportunityRepository {
       .select({
         row: opportunity,
         account: lead.company,
-        contractCode: contract.code,
+        contractCodes: CONTRACT_CODES,
         daysInStage: DAYS_IN_STAGE,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .leftJoin(contract, this.signedOn())
       .where(where)
       .orderBy(...this.orderBy(q))
       .limit(q.size)
@@ -252,8 +264,8 @@ export class OpportunityRepository {
     return {
       rows: rows.map((r) => ({
         ...r,
-        signed: r.contractCode !== null,
-        owners: owners.get(r.row.code) ?? [],
+        signed: r.contractCodes.length > 0,
+        ...(owners.get(r.row.code) ?? NOBODY),
         products: products.get(r.row.code) ?? [],
       })),
       total: scopedTotal,
@@ -279,13 +291,12 @@ export class OpportunityRepository {
       .select({
         row: opportunity,
         account: lead.company,
-        contractCode: contract.code,
+        contractCodes: CONTRACT_CODES,
         daysInStage: DAYS_IN_STAGE,
         inScope: who ? this.inScopeValue(who) : sql<boolean>`true`,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .leftJoin(contract, this.signedOn())
       .where(eq(opportunity.code, code))
       .limit(1)
 
@@ -297,8 +308,8 @@ export class OpportunityRepository {
     ])
     return {
       ...found,
-      signed: found.contractCode !== null,
-      owners: owners.get(code) ?? [],
+      signed: found.contractCodes.length > 0,
+      ...(owners.get(code) ?? NOBODY),
       products: products.get(code) ?? [],
     }
   }
@@ -312,7 +323,7 @@ export class OpportunityRepository {
    *  Thứ tự trong mỗi đơn là thứ tự cố định (`role` rồi `name`) vì màn in ra
    *  một hàng avatar — hai lần mở cùng một đơn mà hàng đó đảo chỗ thì đọc như
    *  dữ liệu vừa đổi. */
-  private async ownersOf(tx: Db, codes: string[]): Promise<Map<string, OpportunityOwner[]>> {
+  private async ownersOf(tx: Db, codes: string[]): Promise<Map<string, DealPeople>> {
     if (codes.length === 0) return new Map()
 
     const rows = await tx
@@ -321,20 +332,24 @@ export class OpportunityRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
+        roleId: actor.roleId,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
       .where(inArray(opportunityOwner.opportunityCode, codes))
-      .orderBy(opportunityOwner.role, actor.name)
+      .orderBy(opportunityOwner.role, actor.name, actor.id)
 
-    const byCode = new Map<string, OpportunityOwner[]>()
-    for (const r of rows) {
-      const list = byCode.get(r.code)
-      const owner = { id: r.id, name: r.name, role: r.role }
-      if (list) list.push(owner)
-      else byCode.set(r.code, [owner])
-    }
-    return byCode
+    const byCode = new Map<string, (typeof rows)[number][]>()
+    for (const r of rows) byCode.set(r.code, [...(byCode.get(r.code) ?? []), r])
+    return new Map(
+      [...byCode].map(([code, list]) => [
+        code,
+        {
+          owners: list.map((r) => ({ id: r.id, name: r.name, role: r.role })),
+          holder: holderOf(list),
+        },
+      ]),
+    )
   }
 
   /** Tên khách của một lead. Sổ in tên chứ không in mã.
@@ -381,7 +396,7 @@ export class OpportunityRepository {
       .select({
         row: opportunity,
         account: lead.company,
-        contractCode: contract.code,
+        contractCodes: CONTRACT_CODES,
         /* Số ngày đơn sống. Tính trong câu truy vấn chứ không đọc từ cột: đây
            là con số đổi theo thời gian ngay cả khi không ai chạm vào dòng. Qua
            `epoch` để không phụ thuộc cách Postgres cắt interval. */
@@ -392,7 +407,6 @@ export class OpportunityRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .leftJoin(contract, this.signedOn())
       .where(eq(opportunity.code, code))
       .limit(1)
 
@@ -404,8 +418,8 @@ export class OpportunityRepository {
     ])
     return {
       ...found,
-      signed: found.contractCode !== null,
-      owners: owners.get(code) ?? [],
+      signed: found.contractCodes.length > 0,
+      ...(owners.get(code) ?? NOBODY),
       products: products.get(code) ?? [],
     }
   }
@@ -439,6 +453,17 @@ export class OpportunityRepository {
       .from(actor)
       .where(inArray(actor.id, [...ids]))
     return new Map(rows.map((r) => [r.id, r.roleId]))
+  }
+
+  /** The label of a `LOSS_REASON` row, retired rows included — a deal stopped
+   *  under a reason since switched off still says why. `null` = no such row. */
+  async lossReasonName(id: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ name: configEntry.name })
+      .from(configEntry)
+      .where(and(eq(configEntry.list, 'LOSS_REASON'), eq(configEntry.id, id)))
+      .limit(1)
+    return row?.name ?? null
   }
 
   /** "Has this milestone been recorded?" — one EXISTS over the deal's trail.
@@ -522,7 +547,7 @@ export class OpportunityRepository {
   /** Lead code → every OPEN deal code of it, oldest first. A lead may hold
    *  several; `code` only breaks ties, since 'OP-10000' sorts before 'OP-9999'.
    *
-   *  "Đang mở" loại cả hai đầu cuối: `state <> 'care'` bỏ đơn đang chăm sóc, và
+   *  "Đang mở" loại cả hai đầu cuối: `state = 'open'` bỏ đơn đã dừng, và
    *  `NOT signed` bỏ đơn đã ký. Một khách quay lại quý sau là một đơn MỚI, không
    *  phải bản trùng của một đơn đã xong — nên chỉ đơn còn sống mới làm một dòng
    *  trong tệp thành trùng.
@@ -651,9 +676,12 @@ export class OpportunityRepository {
    *  The waiting request is read off `platform.approval` directly because
    *  `ApprovalService.pendingOn` cannot join a transaction handle (PGlite would
    *  deadlock); same predicate as `approval_contract_sign_waiting_uq`. */
-  async lockDeal(tx: Db, code: string): Promise<{ signed: boolean; pendingSign: boolean } | null> {
+  async lockDeal(
+    tx: Db,
+    code: string,
+  ): Promise<{ signed: boolean; pendingSign: boolean; lost: boolean } | null> {
     const [locked] = await tx
-      .select({ code: opportunity.code })
+      .select({ code: opportunity.code, state: opportunity.state })
       .from(opportunity)
       .where(eq(opportunity.code, code))
       .for('update')
@@ -662,15 +690,19 @@ export class OpportunityRepository {
     const [state] = await tx
       .select({
         signed: sql<boolean>`EXISTS (SELECT 1 FROM ${contract} WHERE ${contract.opportunityCode} = ${code})`,
-        pendingSign: sql<boolean>`EXISTS (SELECT 1 FROM ${approval} WHERE ${approval.kind} = 'contract-sign' AND ${approval.state} = 'waiting' AND ${approval.payload}->>'opportunityCode' = ${code})`,
+        pendingSign: sql<boolean>`${dealSignWaiting(sql`${code}`)}`,
       })
       .from(sql`(SELECT 1) AS one`)
-    return state ?? null
+    return state ? { ...state, lost: locked.state === 'lost' } : null
   }
 
-  /** Which of these leads are `disqualified`, under `lockLeads`. */
-  async exitedLocked(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
-    return (await this.lockLeads(tx, leadCodes)).filter((r) => r.exited).map((r) => r.code)
+  /** Every deal of the lead is lost and nothing is signed (`../open-deal.ts`),
+   *  read on the stop's own `tx` so it sees the stop it just wrote. */
+  async allLost(tx: Db, leadCode: string): Promise<boolean> {
+    const [r] = await tx
+      .select({ lost: sql<boolean>`${leadDealsAllLost(sql`${leadCode}`)}` })
+      .from(sql`(SELECT 1) AS one`)
+    return r?.lost === true
   }
 
   /** Lock leads `FOR NO KEY UPDATE` and answer, per lead, whether it has exited
@@ -1013,7 +1045,7 @@ export class OpportunityRepository {
    *  "ĐANG MỞ" ĐỌC TỪ `stage`, KHÔNG ĐỌC TỪ `state`
    *  ------------------------------------------------------------------
    *  `stage IS NOT NULL` là định nghĩa của "còn đứng trong năm cột", và nó đúng
-   *  cho cả hai đầu cuối: cửa đẩy sang chăm sóc và cửa ký đều đặt `stage` về
+   *  cho cả hai đầu cuối: cửa dừng và cửa ký lần đầu đều đặt `stage` về
    *  NULL. Đọc `state` thay vào đó sẽ đếm nhầm một đơn đã ký, vì đơn thắng vẫn
    *  lưu `state = 'open'`.
    *
@@ -1032,11 +1064,10 @@ export class OpportunityRepository {
         >`COALESCE(SUM(${AMOUNT_VND}) FILTER (WHERE ${open} AND ${opportunity.amount} IS NOT NULL), 0)::bigint`,
         openBlank: sql<number>`count(*) FILTER (WHERE ${open} AND ${opportunity.amount} IS NULL)::int`,
         won: sql<number>`count(*) FILTER (WHERE ${this.signed()})::int`,
-        /* Chăm sóc = cột `state` nói chăm sóc VÀ chưa ký. Vế thứ hai giữ cho
-           `won` và `care` không cùng đếm một dòng — đường đọc gấp `signed` đè
-           lên `state`, nên một đơn vừa vào chăm sóc vừa có hợp đồng ra sổ là đơn
-           THẮNG, và thẻ điểm phải đếm nó đúng một lần, ở đúng ô đó. */
-        care: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'care' AND NOT ${this.signed()})::int`,
+        /* Đã dừng = cột `state` nói `lost` VÀ chưa ký. Vế thứ hai giữ cho `won`
+           và `lost` không cùng đếm một dòng — đường đọc gấp `signed` đè lên
+           `state`, nên thẻ điểm đếm mỗi đơn đúng một lần, ở đúng ô của nó. */
+        lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'lost' AND NOT ${this.signed()})::int`,
       })
       .from(opportunity)
 
@@ -1046,7 +1077,7 @@ export class OpportunityRepository {
       openAmountVnd: Number(r?.openAmountVnd ?? 0),
       openBlank: r?.openBlank ?? 0,
       won: r?.won ?? 0,
-      care: r?.care ?? 0,
+      lost: r?.lost ?? 0,
     }
   }
 
@@ -1059,7 +1090,7 @@ export class OpportunityRepository {
    *  ordinal position and that lives in `../ladder.ts` behind its fence.
    *
    *  Unscoped like the scorecard, and open reads from `stage IS NOT NULL` for
-   *  the same reason stated there: won and cared-for deals have left the board. */
+   *  the same reason stated there: won and lost deals have left the board. */
   async histogram(): Promise<OpportunityStageBucket[]> {
     const config = stageConfigOf(await this.stageRows())
     const rotting = rottingIn(config)
@@ -1118,39 +1149,11 @@ export class OpportunityRepository {
       .orderBy(asc(configEntry.ord))
   }
 
-  /* ------------------------------------------------------------------
-     "ĐÃ THẮNG" CÓ HAI HÌNH, VÀ HAI HÌNH LÀ CỐ Ý
-     ------------------------------------------------------------------
-     Câu hỏi thì một — "đơn này có dòng nào trong `sales.contract` không" —
-     nhưng nó được hỏi ở hai VAI khác nhau, và mỗi vai có một hình đúng:
+  /* "Đã thắng" có hai hình, cố ý: ĐỌC RA là `CONTRACT_CODES` (một mảng, vì đơn
+     thắng ký thêm được và một `LEFT JOIN` sẽ nhân dòng sổ lên), ĐEM ĐI LỌC là
+     `signed` (`EXISTS`). Cả hai khớp CẢ HAI cột mà `contract_opportunity_fk` neo. */
 
-      · ĐỌC RA (`signedOn`, một `LEFT JOIN`) — đường đọc không chỉ cần biết có
-        hay không, nó còn phải IN RA MÃ hợp đồng. Một `EXISTS` trả về boolean và
-        không có chỗ nào để lấy `contract.code` ra; muốn cả hai thì hoặc nối,
-        hoặc chạy `EXISTS` rồi thêm một truy vấn con thứ hai cho cái mã — hai
-        lần quét cùng một bảng cho cùng một dòng.
-      · ĐEM ĐI LỌC (`signed`, vẫn là `EXISTS`) — xem `liveDealsByLead`.
-
-     Vì sao KHÔNG ép vị từ dùng luôn `LEFT JOIN`: `not(exists(...))` là một
-     điều kiện đứng trong `WHERE`, còn phản-nối là một `LEFT JOIN … WHERE
-     contract.code IS NULL` — cùng kết quả, nhưng nó đòi câu truy vấn mọc thêm
-     một mệnh đề nối mà `liveDealsByLead` không chọn cột nào của nó, và nghĩa
-     của câu ("lead này chưa có đơn nào đang mở") lúc đó nằm rải ở hai chỗ thay
-     vì một. Một vị từ sai ở đó không hỏng màn nào — nó lặng lẽ cho phép mở đơn
-     thứ hai cho một khách đã có đơn, đúng thứ `dupWithBook` sinh ra để chặn.
-
-     Cả hai khớp CẢ HAI cột (`opportunity_code` và `lead_code`) chứ không riêng
-     mã đơn: cặp đó chính là thứ `contract_opportunity_fk` neo, và đọc bằng cả
-     cặp là cách câu truy vấn nói lại đúng bất biến mà bảng đang giữ. */
-
-  /** Mệnh đề nối `contract` cho ĐƯỜNG ĐỌC.
-   *
-   *  Nối chứ không nhân dòng: một cơ hội có tối đa một hợp đồng, và cửa ký giữ
-   *  điều đó — `sign` từ chối bằng 409 khi `signed` đã đúng, trước khi ghi. Bảng
-   *  chưa có UNIQUE trên `(opportunity_code, lead_code)` để nói hộ, nên nếu một
-   *  ngày sổ có hai hợp đồng cho một đơn thì dòng đó ra bảng HAI lần trong khi
-   *  `total` — đếm trên `opportunity` một mình — vẫn nói một. Chỗ trả khoản nợ
-   *  đó là một unique index, không phải một `DISTINCT` ở đây. */
+  /** Mệnh đề khớp `contract` với đơn, cho vị từ `signed` bên dưới. */
   private signedOn(): SQL {
     return and(
       eq(contract.opportunityCode, opportunity.code),
@@ -1158,7 +1161,7 @@ export class OpportunityRepository {
     ) as SQL
   }
 
-  /** "Still open": not in care, not signed — the branch's one rule, `../open-deal.ts`. */
+  /** "Still open": not lost, not signed — the branch's one rule, `../open-deal.ts`. */
   private live(): SQL {
     return dealOpen(opportunity.code, opportunity.state)
   }

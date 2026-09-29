@@ -38,9 +38,9 @@ import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from
  *  ------------------------------------------------------------------
  *  DIFFERENCE 3 · THE DUPLICATE KEY IS THE LEAD, AND IT MEANS SOMETHING NARROWER
  *  ------------------------------------------------------------------
- *  `sales.lead` has `lead_email_live_idx`, so the lead import's `dupWithBook` is
- *  backed by a constraint: a row it calls a duplicate is a row Postgres would
- *  refuse. There is NO comparable unique index on `sales.opportunity`, and there
+ *  `sales.lead` indexes `lower(email)` (`lead_email_idx`) for its own duplicate
+ *  check, but since ADR 0070 that check FLAGS and imports rather than refuses —
+ *  there was never a comparable unique index on `sales.opportunity`, and there
  *  should not be — one lead legitimately holds several deals, which is why
  *  `lead_code` moved onto this table in the first place.
  *
@@ -50,7 +50,7 @@ import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from
  *  one customer is legal, and the day somebody genuinely wants one they will
  *  open it through `POST /sales/opportunities`, where there is a person to ask.
  *
- *  "Still open" excludes both ends: a deal parked on the care list and a signed
+ *  "Still open" excludes both ends: a stopped (`lost`) deal and a signed
  *  one are off the board, and a customer coming back next quarter is a new
  *  deal, not a duplicate of an old one. */
 

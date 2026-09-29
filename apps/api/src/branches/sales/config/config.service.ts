@@ -7,6 +7,7 @@ import {
   isLadder,
   MotionPolicyResponse,
   LeadMotionOptionResponse,
+  LeadStopReasonResponse,
   type LeadMotion,
   type MotionPolicyPatch,
   type ConfigEntryCreate,
@@ -81,6 +82,7 @@ export class SalesConfigService implements ApprovalApplier {
         ...(body.ownerId === undefined ? {} : { ownerId: body.ownerId }),
         ...(body.kind === undefined ? {} : { kind: body.kind }),
         ...(body.stage === undefined ? {} : { stage: body.stage }),
+        ...(body.doNotContact === undefined ? {} : { doNotContact: body.doNotContact }),
       },
     }
     this.assertAttrs(list, body)
@@ -145,6 +147,12 @@ export class SalesConfigService implements ApprovalApplier {
   /** The typist's slice of the same rows; `parse` drops the policy columns. */
   async motionOptions(): Promise<LeadMotionOptionResponse> {
     return LeadMotionOptionResponse.parse({ rows: await this.repo.motions() })
+  }
+
+  /** The stop-reason catalogue for lead readers without `config.view` (ADR 0070).
+   *  Inactive rows included, so an old stop still prints its label. */
+  async stopReasons() {
+    return LeadStopReasonResponse.parse({ rows: await this.repo.list('EXIT_REASON') })
   }
 
   /** Change one motion's declaration. Like every other write on this module it
@@ -279,7 +287,13 @@ export class SalesConfigService implements ApprovalApplier {
    *  bằng tiếng của Postgres. */
   private assertAttrs(
     list: ConfigList,
-    v: { limitDays?: number; ownerId?: string | null; kind?: string; stage?: StageKey | null },
+    v: {
+      limitDays?: number
+      ownerId?: string | null
+      kind?: string
+      stage?: StageKey | null
+      doNotContact?: boolean
+    },
   ): void {
     const wrong: Record<string, string[]> = {}
     const only = (field: string, owner: ConfigList, given: boolean): void => {
@@ -295,6 +309,7 @@ export class SalesConfigService implements ApprovalApplier {
     only('ownerId', 'CATEGORY', v.ownerId !== undefined)
     only('kind', 'SOURCE', v.kind !== undefined)
     only('stage', 'LOSS_REASON', v.stage !== undefined)
+    only('doNotContact', 'LOSS_REASON', v.doNotContact !== undefined)
 
     /* A new rung of a ladder used to be REQUIRED to arrive with a deadline.
        It no longer is, for the reason written where the CHECK lives: since

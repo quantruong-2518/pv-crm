@@ -10,7 +10,8 @@ import { NO_TOUCHES } from '@/data/lead-profile'
 import type { TouchEvent } from '@/data/touches'
 import { useCan } from '@/app/auth'
 import { objectThreadsQuery } from '@/data/comms'
-import { exitReasonRows, salesCatalogQuery } from '@/data/sales-config'
+import { leadStopReasonsQuery } from '@/data/leads'
+import { salesCatalogQuery, stopReasonLabel } from '@/data/sales-config'
 import { CommsPanel } from './comms-card'
 import { LetterLines } from './mail-letter/letter-lines'
 
@@ -151,7 +152,6 @@ const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'
   'sample-sent': 'ok',
   'poc-run': 'ok',
   'quotation-sent': 'ok',
-  'care-entered': 'bad',
   'care-left': 'current',
   'mail-failed': 'bad',
   'mail-sync-failed': 'warning',
@@ -173,8 +173,12 @@ export function ActivityTimeline({
   history: readonly TouchEvent[]
   focus?: TouchFocus | null
 }) {
+  /* Draws BOTH a lead's stop touches (`EXIT_REASON`, `lead.view`-safe) and a
+     deal's (`LOSS_REASON`, needs `config.view`) — merged below, so a reader
+     missing the second still gets the lead half right. */
+  const { data: stopReasons } = useQuery(leadStopReasonsQuery)
   const { data: catalog } = useQuery(salesCatalogQuery)
-  const reasons = new Map(exitReasonRows(catalog).map((r) => [r.key, r.label]))
+  const reasonRows = [...(stopReasons?.rows ?? []), ...(catalog?.LOSS_REASON ?? [])]
 
   useEffect(() => {
     if (!focus) return
@@ -202,18 +206,22 @@ export function ActivityTimeline({
         state: EVENT_DOT[row.kind],
         marker: dm(row.at),
         title:
-          lifecycleTitle(row) ?? (row.kind === 'exited' ? exitNote(row.note, reasons) : row.note),
+          lifecycleTitle(row) ??
+          (row.kind === 'exited' || row.kind === 'nurtured'
+            ? stopNote(row.note, reasonRows)
+            : row.note),
         meta: <MetaPill avatar={row.by}>{row.by}</MetaPill>,
       }))}
     />
   )
 }
 
-/** An `exited` note arrives as "<prefix> · <reason-key>[ · note]" — swap the key
+/** An `exited` or `nurtured` note arrives as "<prefix> · <reason-key>[ ·
+ *  note]" (ADR 0070, both stop events share one note shape) — swap the key
  *  for its configured label. Anything else is printed as the server wrote it. */
-function exitNote(note: string, labels: Map<string, string>): string {
+function stopNote(note: string, rows: readonly { id: string; name: string }[]): string {
   const [head, key, ...rest] = note.split(' · ')
-  const label = key === undefined ? undefined : labels.get(key)
+  const label = key === undefined ? undefined : stopReasonLabel(rows, key)
   return label === undefined ? note : [head, label, ...rest].join(' · ')
 }
 

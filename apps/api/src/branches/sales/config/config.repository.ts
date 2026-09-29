@@ -4,8 +4,9 @@ import {
   CONFIG_PREFIX,
   ConfigList,
   LEAD_OPEN_STATES,
+  LEAD_STOP_REASON_OTHER,
   LeadMotion,
-  OPPORTUNITY_CARE_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER,
   type StageKey,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -30,6 +31,7 @@ export type ConfigDraft = {
   ownerId?: string
   kind?: string
   stage?: StageKey
+  doNotContact?: boolean
 }
 
 /** Phần sửa. Vắng mặt = không đụng tới; `ownerId: null` = XOÁ người phụ trách.
@@ -42,6 +44,7 @@ export type ConfigPatchDb = {
   ownerId?: string | null
   kind?: string
   stage?: StageKey | null
+  doNotContact?: boolean
 }
 
 /** One row of the merged tally query — see `usage()`. Three flat columns rather
@@ -119,8 +122,13 @@ export class SalesConfigRepository {
       SELECT 'CATEGORY', category, count(*)::int
         FROM sales.lead WHERE category IS NOT NULL GROUP BY category
       UNION ALL
-      SELECT 'EXIT_REASON', exit_reason, count(*)::int
-        FROM sales.lead WHERE exit_reason IS NOT NULL GROUP BY exit_reason
+      /* Stop EVENTS, not leads now disqualified (ADR 0070): every exit and park
+         keeps its reason on its own touch, so a loop never erases a count. */
+      SELECT 'EXIT_REASON', reason_id, count(*)::int
+        FROM sales.touch
+       WHERE subject_kind = 'lead' AND reason_id IS NOT NULL
+         AND reason_id <> ${LEAD_STOP_REASON_OTHER}
+       GROUP BY reason_id
       UNION ALL
       SELECT 'SOURCE', campaign_id, count(*)::int
         FROM sales.lead WHERE campaign_id IS NOT NULL GROUP BY campaign_id
@@ -134,14 +142,14 @@ export class SalesConfigRepository {
         FROM sales.opportunity_product GROUP BY product_id
       UNION ALL
       /* LOSS_REASON is keyed by config_entry.id too, the same real key as
-         PRODUCT above: since ADR 0064 the care door writes the id it was given,
-         not a label, so the count is exact and switching a reason off is a
-         decision with a visible weight. 'other' is excluded because it is a
-         VIRTUAL key (OPPORTUNITY_CARE_REASON_OTHER) with no row to tally onto. */
-      SELECT 'LOSS_REASON', care_reason, count(*)::int
+         PRODUCT above: the stop door writes the id it was given, not a label,
+         so the count is exact and switching a reason off is a decision with a
+         visible weight. 'other' is excluded because it is a VIRTUAL key
+         (OPPORTUNITY_STOP_REASON_OTHER) with no row to tally onto. */
+      SELECT 'LOSS_REASON', stop_reason, count(*)::int
         FROM sales.opportunity
-       WHERE care_reason IS NOT NULL AND care_reason <> ${OPPORTUNITY_CARE_REASON_OTHER}
-       GROUP BY care_reason
+       WHERE stop_reason IS NOT NULL AND stop_reason <> ${OPPORTUNITY_STOP_REASON_OTHER}
+       GROUP BY stop_reason
       UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
@@ -293,6 +301,7 @@ export class SalesConfigRepository {
         ownerId: draft.ownerId ?? null,
         kind: draft.kind ?? null,
         stage: draft.stage ?? null,
+        doNotContact: draft.doNotContact ?? false,
       })
       .returning()
 
@@ -316,6 +325,7 @@ export class SalesConfigRepository {
     if (patch.ownerId !== undefined) set.ownerId = patch.ownerId
     if (patch.kind !== undefined) set.kind = patch.kind
     if (patch.stage !== undefined) set.stage = patch.stage
+    if (patch.doNotContact !== undefined) set.doNotContact = patch.doNotContact
 
     const [row] = await tx
       .update(configEntry)

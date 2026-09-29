@@ -3,7 +3,7 @@ import { Inbox, Lock, TriangleAlert } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, GlassCard, ScreenLayout, Skeleton } from '@pv/ui'
-import type { OpportunityProfileResponse } from '@pv/contracts'
+import { OPPORTUNITY_STATE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -15,6 +15,8 @@ import { draftOf } from '@/data/opportunities-write'
 import { useDealDraft } from '@/data/deal-draft'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { SignDrawer } from '@/components/sign-drawer'
+import { FailLogCard } from '@/components/opportunity-stop'
+import { NextStepCard, type StepSubject } from './lead-next-action'
 import { DealFormCard } from './opportunity-form-card'
 import { DealHeader, DealHistoryTab, DealToolsBar, EmptyOp } from './opportunity-parts'
 
@@ -126,8 +128,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const draft = useDealDraft({ saved, op, leadCode: op.leadCode })
 
   /* Read as the FACT the sign door checks (`quotation-sent`), not off `stage`:
-     the door refuses on the touch, and a deal reopened from care stands in
-     `quotation` again without that saying the quotation was ever sent twice. */
+     the door refuses on the touch, not on the column. */
   const quotationLogged = touches.some((t) => t.kind === 'quotation-sent')
 
   return (
@@ -142,6 +143,12 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         onBack={() => navigate('/sales/opportunities')}
         onOpenLead={() => navigate(`/sales/leads/${op.leadCode}`)}
       />
+
+      {op.state === 'lost' ? (
+        <FailLogCard op={op} />
+      ) : (
+        <DealNextStep op={op} canEdit={draft.canEdit} />
+      )}
 
       <DealFormCard
         draft={draft}
@@ -180,4 +187,24 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       )}
     </ScreenLayout>
   )
+}
+
+/** The deal's next step (ADR 0069 §10). The default doer is the row's
+ *  server-computed `holder`; the form sends it as "absent", so the server's
+ *  own holder wins. */
+function DealNextStep({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: boolean }) {
+  const subject: StepSubject = {
+    kind: 'opportunity',
+    code: op.code,
+    holder: op.holder,
+    canAssign: true,
+    holderHint: 'Người giữ cơ hội.',
+    noHolder: 'Cơ hội chưa có Sale đứng đơn.',
+  }
+  const closedNote =
+    op.state === 'won'
+      ? `Cơ hội đã ${OPPORTUNITY_STATE_LABEL.won.toLowerCase()} — không còn việc tiếp theo ở đây.`
+      : undefined
+
+  return <NextStepCard subject={subject} canEdit={canEdit} closedNote={closedNote} />
 }

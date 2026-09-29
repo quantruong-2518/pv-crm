@@ -87,7 +87,7 @@ export class MailConsumer {
     @Inject(MAIL_COMPOSER) private readonly composers: MailComposer[],
     private readonly gate: MailRateGate,
     private readonly queue: MailQueue,
-    @Inject(MAIL_SENT_HOOK) private readonly sent: MailSentHook,
+    @Inject(MAIL_SENT_HOOK) private readonly sent: MailSentHook[],
   ) {}
 
   /** pg-boss hands the handler a BATCH, always — one job here, because
@@ -189,7 +189,10 @@ export class MailConsumer {
 
     if (result.ok) {
       const missed = await this.ledger.markAccepted(delivery.id, result.providerEmailId, {
-        run: (tx) => this.sent.afterSent(tx, delivery),
+        /* Every hook in one savepoint per attempt: any throw rolls all back and retries. */
+        run: async (tx) => {
+          for (const hook of this.sent) await hook.afterSent(tx, delivery)
+        },
         attempts: HOOK_ATTEMPTS,
       })
       /* The mail is out either way — failing the job would retry a letter the
@@ -332,10 +335,15 @@ export class MailConsumer {
   /** Tell the subject's branch; a report that fails is logged, never thrown —
    *  the ledger row is already settled and must stay so. */
   private async report(delivery: DeliveryToSend, trouble: MailTrouble): Promise<void> {
-    try {
-      await this.sent.afterTrouble(delivery, trouble)
-    } catch (error) {
-      this.log.error(`Could not report ${trouble.kind} on ${delivery.eventKey}: ${describe(error)}`)
+    /* One try per hook: a branch that fails to report must not silence the next. */
+    for (const hook of this.sent) {
+      try {
+        await hook.afterTrouble(delivery, trouble)
+      } catch (error) {
+        this.log.error(
+          `Could not report ${trouble.kind} on ${delivery.eventKey}: ${describe(error)}`,
+        )
+      }
     }
   }
 

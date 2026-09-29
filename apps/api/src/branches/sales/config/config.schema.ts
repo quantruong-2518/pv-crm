@@ -74,12 +74,17 @@ export const configEntry = sales.table(
     /** CHỈ `SOURCE` — 'campaign' · 'event' · 'organic'. */
     kind: text('kind'),
 
-    /** Only `LOSS_REASON` — the stage this care reason is scoped to.
+    /** Only `LOSS_REASON` — the stage this stop reason is scoped to.
      *
      *  `NULL` is an ANSWER, not a gap: the reason fits every stage. That is why
      *  0062 backfills nothing — the rows written before the column existed are
      *  correct as they stand. */
     stage: text('stage').$type<StageKey>(),
+
+    /** Only `LOSS_REASON` — the do-not-contact flag: the customer asked not
+     *  to be approached again. NOT NULL because every row has an answer, and before
+     *  0068 that answer was always no. */
+    doNotContact: boolean('do_not_contact').notNull().default(false),
   },
   (t) => [
     /** Trống là `NULL`, không bao giờ là `''` — cùng quy ước với `lead`. */
@@ -108,8 +113,14 @@ export const configEntry = sales.table(
      *  parked at `new` is not the reason it is parked after a quotation. */
     check('config_stage_only_loss_reason', sql`"stage" IS NULL OR "list" = 'LOSS_REASON'`),
 
+    /** Same price again: the flag means nothing outside `LOSS_REASON`. */
+    check(
+      'config_do_not_contact_only_loss_reason',
+      sql`NOT "do_not_contact" OR "list" = 'LOSS_REASON'`,
+    ),
+
     /** `StageKey.options`, copied out rather than generated, for
-     *  `opportunity_care_from_stage_known`'s reason: the day the ladder grows,
+     *  `opportunity_stopped_at_stage_known`'s reason: the day the ladder grows,
      *  that has to be a migration a person reads. */
     check(
       'config_stage_known',

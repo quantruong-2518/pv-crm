@@ -5,7 +5,7 @@ import { z } from 'zod'
  *  ------------------------------------------------------------------
  *  VÌ SAO Ở ĐÂY CHỨ KHÔNG IMPORT TỪ FIXTURE
  *  ------------------------------------------------------------------
- *  Hôm nay `LeadCategory`, `LeadTier`, `StageKey`, `ExitReason` đều đang được
+ *  Hôm nay `LeadCategory`, `LeadTier`, `StageKey` đều đang được
  *  định nghĩa bên trong `@pv/engines/fixtures/das-vina.ts` — tức tên một khách
  *  hàng đang nằm trong đường import của hệ kiểu. Kéo đường đó vào
  *  `packages/contracts` là hàn tên khách vào cả hợp đồng dữ liệu.
@@ -55,35 +55,32 @@ export const OPPORTUNITY_STAGE_LABEL: Record<StageKey, string> = {
 
 /** How a deal READS: the two stored values plus `won`, which is not stored at
  *  all — it is the existence of a `sales.contract` row, folded in on the way
- *  out. The stored half is `OpportunityState` in `./opportunity`, derived from
- *  this list so the two can never disagree on spelling. */
+ *  out. `lost` is final: a stopped deal never reopens; nurturing again starts
+ *  from the lead. The stored half is `OpportunityState` in `./opportunity`,
+ *  derived from this list so the two can never disagree on spelling. */
 export const OpportunityStatus = z.enum(
-  ['open', 'care', 'won'],
+  ['open', 'lost', 'won'],
   'Trạng thái cơ hội không có trong danh sách',
 )
 
 export const OPPORTUNITY_STATE_LABEL: Record<OpportunityStatus, string> = {
-  open: 'Đang triển khai',
-  care: 'Danh sách chăm sóc',
+  open: 'Đang chạy',
+  lost: 'Đã dừng',
   won: 'Thành hợp đồng',
 }
 
-/** SÁU lý do rơi — KHOÁ ASCII, không phải nhãn tiếng Việt.
- *
- *  Đây là một khoản nợ được trả ngay: fixture đang
- *  lưu thẳng NHÃN ('Không gọi được ai') làm giá trị của `Lead.exitReason`, nên
- *  sửa một chữ trên màn là đổi dữ liệu 52 dòng sổ. Trả bây giờ tốn một bảng
- *  tra; trả sau khi có dữ liệu thật thì tốn một migration.
- *
- *  Nhãn hiển thị KHÔNG nằm ở đây — nhãn là việc của tầng màn. */
-export const ExitReason = z.enum([
-  'unreachable',
-  'not-a-fit',
-  'no-budget',
-  'contact-left',
-  'chose-competitor',
-  'silent-after-quote',
-])
+/** What a signed contract is for. Chosen by the proposer on every sign
+ *  request; which contract rungs a kind skips rides on the rungs. */
+export const ContractKind = z.enum(
+  ['licence', 'deployment', 'training'],
+  'Loại hợp đồng không có trong danh sách',
+)
+
+export const CONTRACT_KIND_LABEL: Record<ContractKind, string> = {
+  licence: 'Bản quyền',
+  deployment: 'Triển khai',
+  training: 'Đào tạo',
+}
 
 /** Where a lead stands in its OWN lifecycle (ADR 0058, entry rules ADR 0063).
  *  STORED under a CHECK and moved only by the server; a screen never derives it.
@@ -130,7 +127,7 @@ export type LeadCategory = z.infer<typeof LeadCategory>
 export type LeadTier = z.infer<typeof LeadTier>
 export type StageKey = z.infer<typeof StageKey>
 export type OpportunityStatus = z.infer<typeof OpportunityStatus>
-export type ExitReason = z.infer<typeof ExitReason>
+export type ContractKind = z.infer<typeof ContractKind>
 export type LeadState = z.infer<typeof LeadState>
 
 /** WHERE a lead originated — the closed half of `LeadSource`.

@@ -47,7 +47,7 @@ import { workstream } from '../workstream/workstream.schema'
  *  ngược lại. Hai giá trị lưu cộng `contract` kể đủ ba trạng thái:
  *
  *      đang mở   · state 'open', chưa có hợp đồng
- *      chăm sóc  · state 'care' — closed_at + care_reason + care_from_stage
+ *      đã dừng   · state 'lost' — closed_at + stop_reason + stopped_at_stage
  *      đã thắng  · EXISTS (SELECT 1 FROM contract WHERE opportunity_code = …)
  *
  *  ------------------------------------------------------------------
@@ -65,8 +65,8 @@ import { workstream } from '../workstream/workstream.schema'
  *
  *     Một trục: `stage` là VỊ TRÍ trong vòng đời, do MỘT chỗ trên máy chủ ghi
  *     theo sự kiện thật (nhận đủ PIC, ghi mốc sample/poc/quotation) — không
- *     phiếu nào hỏi, không ai kéo tay. `state` chỉ còn trả lời "đơn còn trên
- *     bảng hay đã sang danh sách chăm sóc", đúng HAI giá trị lưu.
+ *     phiếu nào hỏi, không ai kéo tay. `state` only answers "still on the
+ *     board, or stopped for good" (ADR 0069) — exactly TWO stored values.
  *
  *     'won' vẫn không phải một trạng thái, đúng như mục trên.
  *
@@ -95,13 +95,13 @@ export const opportunity = sales.table(
       .notNull()
       .references(() => lead.code),
 
-    /** Đơn CÒN TRÊN BẢNG hay đã sang danh sách chăm sóc. Đúng hai giá trị
-     *  lưu, 'won' suy từ `contract` — `OpportunityState` của hợp đồng là đúng
-     *  bộ này, không phải một bản chép hẹp hơn. */
+    /** Still on the board (`open`) or stopped for good (`lost`, ADR 0069).
+     *  'won' is derived from `contract` — `OpportunityState` is exactly this
+     *  pair, not a narrower copy. */
     state: text('state').$type<OpportunityState>().notNull(),
 
-    /** Cột đơn đang đứng. NULL = đã ra khỏi bảng năm cột (thắng, hoặc đang ở
-     *  danh sách chăm sóc — lúc đó `care_from_stage` giữ cột cũ).
+    /** Cột đơn đang đứng. NULL = off the five-column board (won, or lost —
+     *  then `stopped_at_stage` records the column it stopped in).
      *
      *  KHÔNG cửa nào cho người dùng chọn giá trị này: một chỗ duy nhất trên
      *  máy chủ ghi nó theo sự kiện thật (ADR 0064), nên không thân request nào
@@ -127,7 +127,7 @@ export const opportunity = sales.table(
      *  yên, không đo thời gian từ lần sửa cuối. `opportunity.mapper.ts#stageMove`
      *  là chỗ duy nhất quyết định điều đó.
      *
-     *  NULL = đơn đã ra khỏi năm cột (thắng, hoặc vào danh sách chăm sóc),
+     *  NULL = đơn đã ra khỏi năm cột (won or lost),
      *  không còn cột nào để đếm. Cùng lúc với `stage`, luôn luôn — CHECK dưới
      *  đây ép cặp đó. */
     stageSince: timestamp('stage_since', { withTimezone: true }),
@@ -197,21 +197,21 @@ export const opportunity = sales.table(
       .notNull()
       .default(sql`'[]'::jsonb`),
 
-    /** Có giá trị = cơ hội đã RỜI BẢNG, hướng nào thì `state` nói: thắng (có
-     *  hợp đồng) hay sang danh sách chăm sóc. Xoá khi đơn được mở lại. */
+    /** Set = the deal has LEFT THE BOARD; `state` says which way: won (has a
+     *  contract) or lost. Never cleared — a stop is final (ADR 0069). */
     closedAt: timestamp('closed_at', { withTimezone: true }),
 
-    /** The rung the deal stood on when it was pushed into care, and the one
-     *  `reactivate` puts it straight back on. Kept as a column rather than
-     *  re-read off the trail: `opportunity_stage_event` is the funnel's table
-     *  and a deal may have none, so reopening would have to guess. */
-    careFromStage: text('care_from_stage').$type<StageKey>(),
+    /** The fail log (ADR 0069 §1): the rung the deal stood on when it was
+     *  stopped. A column rather than re-read off the trail: a deal may have no
+     *  `opportunity_stage_event` rows, and the stop report groups by this. */
+    stoppedAtStage: text('stopped_at_stage').$type<StageKey>(),
 
-    careReason: text('care_reason'),
-    /** Câu của riêng đơn này — tên đối thủ, con số họ chào, ai đổi ý. Tách khỏi
-     *  `care_reason` vì lý do thật thường là "một lý do dựng sẵn CỘNG một câu",
-     *  không phải một trong hai. */
-    careNote: text('care_note'),
+    /** A `LOSS_REASON` catalogue key, never its label. */
+    stopReason: text('stop_reason'),
+    /** This deal's own sentence — the rival's name, their price. Apart from
+     *  `stop_reason` because a real reason is "a catalogue entry PLUS a
+     *  sentence", not one of the two. */
+    stopNote: text('stop_note'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -226,39 +226,37 @@ export const opportunity = sales.table(
      *  thi thay vì chỉ "đừng làm thế". */
     unique('opportunity_code_lead_key').on(t.code, t.leadCode),
     check('opportunity_money_pair', sql`("amount" IS NULL) = ("currency" IS NULL)`),
-    /** Vào chăm sóc thì phải đủ ba thứ: đã rời bảng, có lý do, và nhớ cột cũ.
-     *  Thiếu cột cũ là một đơn không mở lại được về đâu. */
+    /** A stop writes the whole fail log: where it stood, why, and when it
+     *  ended. Who concluded it is `opportunity_stage_event.by_id`. */
     check(
-      'opportunity_care_closed',
-      sql`"state" <> 'care'
-          OR ("care_from_stage" IS NOT NULL AND "care_reason" IS NOT NULL AND "closed_at" IS NOT NULL)`,
+      'opportunity_lost_closed',
+      sql`"state" <> 'lost'
+          OR ("stopped_at_stage" IS NOT NULL AND "stop_reason" IS NOT NULL AND "closed_at" IS NOT NULL)`,
     ),
-    /** Rời bảng là rời hẳn — không CHECK nào ở trên chặn một dòng đủ ba cột
-     *  care mà vẫn giữ `stage`, hai sổ đếm sẽ nói khác nhau về cùng một đơn.
-     *  `stage_since` không cần vế riêng, đồng hồ đã buộc vào `stage`. */
-    check('opportunity_care_off_board', sql`"state" <> 'care' OR "stage" IS NULL`),
-    /** Và chiều còn lại của cùng một luật: đơn CÒN trên bảng không mang chữ
-     *  nào của chăm sóc. `closed_at` không nằm trong danh sách này — nó cũng
-     *  là ngày đơn thắng, mà đơn thắng vẫn lưu `state = 'open'`. */
+    /** A lost deal has left the board; one still holding `stage` would be
+     *  counted in a column by the board and as stopped by the scorecard.
+     *  `stage_since` needs no clause — the clock is tied to `stage`. */
+    check('opportunity_lost_off_board', sql`"state" <> 'lost' OR "stage" IS NULL`),
+    /** The other direction: a live deal carries no fail log. `closed_at` is
+     *  not listed — it is also the day a won deal signed, and won is `open`. */
     check(
-      'opportunity_open_has_no_care',
+      'opportunity_open_has_no_stop',
       sql`"state" <> 'open'
-          OR ("care_from_stage" IS NULL AND "care_reason" IS NULL AND "care_note" IS NULL)`,
+          OR ("stopped_at_stage" IS NULL AND "stop_reason" IS NULL AND "stop_note" IS NULL)`,
     ),
     /** The five `StageKey` values, copied out rather than generated, for
-     *  `touch_kind_known`'s reason. It fences the column the reopen door
-     *  reads: a rung nothing can put back is a deal stuck in care for ever. */
+     *  `touch_kind_known`'s reason: the stop report groups by this column. */
     check(
-      'opportunity_care_from_stage_known',
-      sql`"care_from_stage" IS NULL
-          OR "care_from_stage" IN ('new', 'assigned', 'sample', 'poc', 'quotation')`,
+      'opportunity_stopped_at_stage_known',
+      sql`"stopped_at_stage" IS NULL
+          OR "stopped_at_stage" IN ('new', 'assigned', 'sample', 'poc', 'quotation')`,
     ),
     /** Cột và đồng hồ của cột đi cùng nhau hoặc cùng vắng. Một `stage` không có
      *  `stage_since` là một đơn đứng trong cột từ "không biết bao giờ" — và màn
      *  sẽ vẽ nó là không mục, tức im lặng nói dối. Chiều ngược lại là một đồng
      *  hồ chạy cho một cột không tồn tại. */
     check('opportunity_stage_clock', sql`("stage" IS NULL) = ("stage_since" IS NULL)`),
-    check('opportunity_state_known', sql`"state" IN ('open', 'care')`),
+    check('opportunity_state_known', sql`"state" IN ('open', 'lost')`),
     /** A percentage is a percentage. Written `BETWEEN` rather than left to zod
      *  because the forecast on the plan screen multiplies by this number, and a
      *  110 that slipped in through an import would not look wrong on the row it
@@ -364,8 +362,8 @@ export const opportunityStageEvent = sales.table(
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 
     /** NULL on the way in (the deal had no column before it was opened) and on
-     *  the way out (it left the five columns by being signed or by going into
-     *  care). Both ends of a deal's life are legitimate NULLs here, which is
+     *  the way out (it left the five columns by being signed or stopped).
+     *  Both ends of a deal's life are legitimate NULLs here, which is
      *  why there is no `NOT NULL` on either side. */
     fromStage: text('from_stage').$type<StageKey>(),
     toStage: text('to_stage').$type<StageKey>(),

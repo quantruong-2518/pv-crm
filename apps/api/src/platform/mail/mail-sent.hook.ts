@@ -23,6 +23,8 @@ export type MailTrouble =
   /** `unknown`: given up past the resend window, so it may have arrived. */
   { kind: 'failed'; address: string; unknown: boolean } | { kind: 'sync-failed' }
 
-/** Bound by the module that owns the subject; the worker's `QueueModule`
- *  imports it, so a worker without it fails at boot instead of moving nothing. */
+/** Resolves to `MailSentHook[]` — a registry, because more than one branch
+ *  owns subjects (lead, opportunity) and Nest cannot merge two bindings of one
+ *  token. `QueueModule.forWorker({ sentHooks: [...] })` assembles it, so a hook
+ *  whose module is missing fails at boot instead of moving nothing. */
 export const MAIL_SENT_HOOK = Symbol('pv.mail.sent')

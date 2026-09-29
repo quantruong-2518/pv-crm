@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
-  OpportunityCareResponse,
   OpportunityMilestoneResponse,
-  OpportunityReactivateResponse,
+  OpportunityStopResponse,
   type ObjectCode,
-  type OpportunityCareBody,
   type OpportunityMilestoneBody,
+  type OpportunityStopBody,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, notFound } from '@api/platform/http/problem'
-import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { LEAD_GONE_WORDS } from '../lead/lead-state'
-import { OpportunityLifecycle, type DealAt } from './opportunity-lifecycle'
-import { daysInStageOf, toContract, toRef } from './opportunity.mapper'
+import { notFound } from '@api/platform/http/problem'
+import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
+import { syncLeadRuns } from '../workstream/workstream-sync'
+import { LEAD_NURTURED_WITHHOLD, LeadStateWriter } from '../lead/lead-state'
+import { dealAtOf, OpportunityLifecycle, type DealAt } from './opportunity-lifecycle'
+import { daysInStageOf, NOTE, toContract, toRef } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 import { OpportunityService } from './opportunity.service'
 
-/** The three doors that MOVE a deal (ADR 0064 §3): record a milestone, park it
- *  on the care list, bring it back. One shape for all three, and it is the lead
+/** The two doors that MOVE a deal (ADR 0064 §3, 0069 §1): record a milestone,
+ *  stop it for good. One shape for both, and it is the lead
  *  exit door's shape: read for the two refusals (404 / out of scope), open the
  *  transaction, lock the row, re-read it UNDER the lock, hand the move to
  *  `OpportunityLifecycle`, answer with the whole book row.
@@ -37,7 +37,8 @@ export class OpportunityMoves {
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
     private readonly ops: OpportunityService,
-    private readonly runs: WorkstreamRepository,
+    private readonly leadStates: LeadStateWriter,
+    private readonly mailRuns: MailRunRepository,
   ) {}
 
   /** `POST /sales/opportunities/:code/milestones` — a real event was recorded,
@@ -51,7 +52,7 @@ export class OpportunityMoves {
     const at = body.at === undefined ? new Date() : new Date(body.at)
 
     const row = await this.deals.run(async (tx) => {
-      const fresh = await this.locked(tx, code)
+      const fresh = await this.locked(tx, who, code)
       return this.lifecycle.milestone(tx, fresh, body.kind, mover(who), {
         at,
         ...(body.note === undefined ? {} : { note: body.note }),
@@ -61,52 +62,47 @@ export class OpportunityMoves {
     return OpportunityMilestoneResponse.parse(this.answer(found, row, at))
   }
 
-  /** `POST /sales/opportunities/:code/care` — park the deal, with a reason.
+  /** `POST /sales/opportunities/:code/stop` — the deal is lost, with a reason.
    *
-   *  The run is re-synced and the ops mailbox is told, both inside the move's
-   *  own transaction: a deal leaving the board can end its run, and a deal that
-   *  died without anybody hearing is the case the mail exists for. */
-  async care(
+   *  One transaction for everything the stop causes: the ops mail, the lead
+   *  parked when this was its last live deal (ADR 0069 §3), the LEAD's run
+   *  re-synced — the deal's own run code may be an older journey of the lead.
+   *  The lead is locked BEFORE the deal — the order the lead hand-over takes. */
+  async stop(
     who: Actor,
     code: ObjectCode,
-    body: OpportunityCareBody,
-  ): Promise<OpportunityCareResponse> {
+    body: OpportunityStopBody,
+  ): Promise<OpportunityStopResponse> {
     const found = await this.inScope(who, code)
     const at = new Date()
 
     const row = await this.deals.run(async (tx) => {
-      const fresh = await this.locked(tx, code)
-      const written = await this.lifecycle.care(tx, fresh, mover(who), body, at)
-      await this.ops.notify(tx, toRef(written, fresh.ownerName), true)
-      if (written.workstreamCode) await this.runs.syncClosed(tx, [written.workstreamCode])
+      await this.deals.lockLeads(tx, [found.row.leadCode])
+      const fresh = await this.locked(tx, who, code)
+      const written = await this.lifecycle.stop(tx, fresh, mover(who), body, at)
+      await this.ops.notify(tx, toRef(written, fresh.owner), true)
+      const parked =
+        (await this.deals.allLost(tx, written.leadCode)) && (await this.parkLead(tx, who, written))
+      if (!parked) await syncLeadRuns(tx, [written.leadCode])
       return written
     })
 
-    return OpportunityCareResponse.parse(this.answer(found, row, at))
+    return OpportunityStopResponse.parse(this.answer(found, row, at))
   }
 
-  /** `POST /sales/opportunities/:code/reactivate` — back to the column it failed
-   *  at.
-   *
-   *  The lead is locked and checked first: while the deal sat in care its lead
-   *  could have left the funnel, and reopening the deal would leave an OPEN deal
-   *  on an exited lead — exactly what the lead exit door refuses to create. */
-  async reactivate(who: Actor, code: ObjectCode): Promise<OpportunityReactivateResponse> {
-    const found = await this.inScope(who, code)
-    const at = new Date()
-
-    const row = await this.deals.run(async (tx) => {
-      const fresh = await this.locked(tx, code)
-      const exited = await this.deals.exitedLocked(tx, [fresh.row.leadCode])
-      if (exited.length > 0) {
-        throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không mở lại cơ hội được`)
-      }
-      const written = await this.lifecycle.reactivate(tx, fresh, mover(who), at)
-      if (written.workstreamCode) await this.runs.syncClosed(tx, [written.workstreamCode])
-      return written
-    })
-
-    return OpportunityReactivateResponse.parse(this.answer(found, row, at))
+  /** The lead goes back to waiting (the state writer re-syncs its run); parked
+   *  means parked, so its unsent mail is held like the lead's own nurture door
+   *  holds it (ADR 0068 §6). `true` when the lead moved. */
+  private async parkLead(tx: Db, who: Actor, deal: OpportunityRead['row']): Promise<boolean> {
+    const landed = await this.leadStates.dealsLost(tx, deal.leadCode, mover(who), NOTE.lastLost)
+    if (landed === 'nurturing') {
+      await this.mailRuns.withholdSubject(
+        tx,
+        { aggregateType: 'lead', aggregateId: deal.leadCode },
+        LEAD_NURTURED_WITHHOLD,
+      )
+    }
+    return landed !== null
   }
 
   /** The same two refusals every read door of this module makes, in the same
@@ -117,15 +113,16 @@ export class OpportunityMoves {
     return found
   }
 
-  /** The deal under `FOR UPDATE`, read back through the same handle. `pendingSign`
-   *  comes from the LOCK read, not `fresh`: it is the fact a move must never
+  /** The deal under `FOR UPDATE`, read back through the same handle — scope
+   *  included, so an owners edit that landed while this waited is judged too.
+   *  `pendingSign` comes from the LOCK read: it is the fact a move must never
    *  race with the sign door's own apply step. */
-  private async locked(tx: Db, code: ObjectCode): Promise<DealAt> {
+  private async locked(tx: Db, who: Actor, code: ObjectCode): Promise<DealAt> {
     const lock = await this.deals.lockDeal(tx, code)
     if (!lock) throw notFound('cơ hội', code)
-    const fresh = await this.deals.byCode(null, code, tx)
-    if (!fresh) throw notFound('cơ hội', code)
-    return dealAt(fresh, lock.pendingSign) satisfies DealAt
+    const fresh = await this.deals.byCode(who, code, tx)
+    if (!fresh || !fresh.inScope) throw notFound('cơ hội', code)
+    return dealAtOf(fresh, lock.pendingSign)
   }
 
   /** The book row, built from the row the move returned plus the labels the read
@@ -135,22 +132,12 @@ export class OpportunityMoves {
       row,
       account: found.account,
       owners: found.owners,
-      signed: found.signed,
-      ...(found.contractCode === null ? {} : { contractCode: found.contractCode }),
+      contractCodes: found.contractCodes,
+      holder: found.holder,
       daysInStage: daysInStageOf(row, at),
       products: found.products,
     })
   }
 }
-
-/** `OpportunityRead` → what a move needs. The mirror row prints the FIRST owner,
- *  a summary line for whoever opens the rail — `opportunity.mapper.ts#toRef`
- *  argues the choice. */
-const dealAt = (found: OpportunityRead, pendingSign: boolean): DealAt => ({
-  row: found.row,
-  ownerName: found.owners[0]?.name ?? null,
-  signed: found.signed,
-  pendingSign,
-})
 
 const mover = (who: Actor) => ({ id: who.id, name: who.name })

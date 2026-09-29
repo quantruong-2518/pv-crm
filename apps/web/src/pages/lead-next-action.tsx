@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Avatar,
@@ -26,11 +26,13 @@ import {
   useClearNextStep,
   useFinishNextStep,
   useSetNextStep,
+  type NextStepSubject,
 } from '@/data/next-step'
 import { DueBadge } from '@/components/contract-bits'
 import { Field } from '@/components/field-bits'
 
-/** Module 2 · The one thing that has to happen next on this lead (flow G1–G3).
+/** Module 2 · The one thing that has to happen next on a lead — and, through
+ *  `NextStepCard`, on an opportunity (flow G1–G3, ADR 0069 §10).
  *
  *  Deliberately not a todo list: ONE sentence, one day, one doer, replaced the
  *  next time it is saved. Stored on the server (`data/next-step.ts`); the level
@@ -47,19 +49,75 @@ const SUGGESTIONS = ['Gọi lại', 'Gửi hồ sơ năng lực', 'Hẹn khảo 
 
 const TEXT_MAX = 200
 
+/** What the card needs to know about the record a step hangs on. Each profile
+ *  builds its own, so the card never learns a lead's or a deal's shape. */
+export type StepSubject = {
+  kind: NextStepSubject
+  code: string
+  /** The default doer. Sent as "absent" so the server resolves it at write time. */
+  holder: { id: string; name: string } | null
+  /** May the form name somebody other than the holder? */
+  canAssign: boolean
+  /** Caption under a fixed doer, and the sentence when there is nobody. */
+  holderHint: string
+  noHolder: string
+}
+
 type Props = { lead?: null; locked: true } | { lead: LeadProfile; canEdit: boolean; locked?: false }
 
 export function NextActionCard(props: Props) {
+  if (props.locked) {
+    return (
+      <StepShell>
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">Có sau khi tạo lead.</p>
+      </StepShell>
+    )
+  }
+  return <LeadStep lead={props.lead} canEdit={props.canEdit} />
+}
+
+function LeadStep({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
+  const canAssign = useCan('lead.assign')
+  const subject: StepSubject = {
+    kind: 'lead',
+    code: lead.code,
+    holder: lead.ownerId ? { id: lead.ownerId, name: lead.ownerName ?? lead.ownerId } : null,
+    canAssign,
+    holderHint: 'Người giữ lead.',
+    noHolder: 'Chưa ai giữ lead, cần giao lead trước.',
+  }
+  return <NextStepCard subject={subject} canEdit={canEdit} />
+}
+
+/** `closedNote` replaces the whole body: a stopped or signed deal has no step
+ *  and refuses writes (409), so the card says why instead of reading `null`. */
+export function NextStepCard({
+  subject,
+  canEdit,
+  closedNote,
+}: {
+  subject: StepSubject
+  canEdit: boolean
+  closedNote?: string
+}) {
+  return (
+    <StepShell>
+      {closedNote ? (
+        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">{closedNote}</p>
+      ) : (
+        <StepBody subject={subject} canEdit={canEdit} />
+      )}
+    </StepShell>
+  )
+}
+
+function StepShell({ children }: { children: ReactNode }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Việc tiếp theo">
       <SectionTitle size="detail" hint="Một bước cụ thể phải làm tiếp.">
         Việc tiếp theo
       </SectionTitle>
-      {props.locked ? (
-        <p className="text-muted-foreground text-[12.5px] leading-[1.6]">Có sau khi tạo lead.</p>
-      ) : (
-        <StepBody lead={props.lead} canEdit={props.canEdit} />
-      )}
+      {children}
     </GlassCard>
   )
 }
@@ -67,8 +125,8 @@ export function NextActionCard(props: Props) {
 /** `finish` is the edit form opened by "Xong": same boxes, empty, different doors. */
 type Mode = 'view' | 'edit' | 'finish'
 
-function StepBody({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
-  const { data, isPending, error } = useQuery(nextStepQuery(lead.code))
+function StepBody({ subject, canEdit }: { subject: StepSubject; canEdit: boolean }) {
+  const { data, isPending, error } = useQuery(nextStepQuery(subject.kind, subject.code))
   const [mode, setMode] = useState<Mode>('view')
 
   if (isPending) return <Skeleton className="h-16 w-full" />
@@ -85,7 +143,7 @@ function StepBody({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
   if (canEdit && mode !== 'view') {
     return (
       <StepForm
-        lead={lead}
+        subject={subject}
         step={step}
         finishing={mode === 'finish'}
         onClose={() => setMode('view')}
@@ -145,7 +203,7 @@ function StepView({
         <DueBadge level={step.dueLevel} className="normal-case tracking-normal" />
         <span className="text-muted-foreground inline-flex min-w-0 items-center gap-2">
           <Avatar name={step.doer.name} size="sm" />
-          <span className="truncate">{step.doer.name}</span>
+          <span className="min-w-0 break-words">{step.doer.name}</span>
         </span>
       </div>
       {canEdit && (
@@ -167,12 +225,12 @@ function StepView({
 /** Set, edit, or — when `finishing` — name what comes after the step just done.
  *  Mounted fresh on every open, so its boxes seed from props without a reseed. */
 function StepForm({
-  lead,
+  subject,
   step,
   finishing,
   onClose,
 }: {
-  lead: LeadProfile
+  subject: StepSubject
   step: NextStep | null
   finishing: boolean
   onClose: () => void
@@ -181,14 +239,14 @@ function StepForm({
   const [text, setText] = useState(seed?.text ?? '')
   /* Empty rather than today: a pre-filled day is a deadline nobody chose. */
   const [due, setDue] = useState(seed?.due ?? '')
-  const canAssign = useCan('lead.assign')
-  /* Without `lead.assign` the doer IS the holder, so the form never offers another. */
-  const [doerId, setDoerId] = useState((canAssign ? seed?.doer.id : null) ?? lead.ownerId ?? '')
+  const { canAssign, holder } = subject
+  /* Without the right to assign, the doer IS the holder, so the form never offers another. */
+  const [doerId, setDoerId] = useState((canAssign ? seed?.doer.id : null) ?? holder?.id ?? '')
   const box = useRef<HTMLTextAreaElement>(null)
 
-  const set = useSetNextStep(lead.code)
-  const finish = useFinishNextStep(lead.code)
-  const clear = useClearNextStep(lead.code)
+  const set = useSetNextStep(subject.kind, subject.code)
+  const finish = useFinishNextStep(subject.kind, subject.code)
+  const clear = useClearNextStep(subject.kind, subject.code)
   const busy = set.isPending || finish.isPending || clear.isPending
   const failure = set.error ?? finish.error ?? clear.error
 
@@ -197,7 +255,7 @@ function StepForm({
   const body: NextStepSetBody = {
     text: text.trim(),
     due,
-    ...(doerId !== lead.ownerId && { doerId }),
+    ...(doerId !== holder?.id && { doerId }),
   }
   const ready = body.text !== '' && due !== '' && doerId !== '' && !busy
   const done = { onSuccess: onClose }
@@ -261,19 +319,17 @@ function StepForm({
           />
         </Field>
         {canAssign ? (
-          <DoerPicker lead={lead} step={step} value={doerId} onChange={setDoerId} />
+          <DoerPicker subject={subject} step={step} value={doerId} onChange={setDoerId} />
         ) : (
-          <Field label="Người làm" hint="Người giữ lead.">
-            <p className="text-foreground flex h-12 min-w-0 items-center gap-2 text-[12.5px]">
-              {lead.ownerId ? (
+          <Field label="Người làm" hint={subject.holderHint}>
+            <p className="text-foreground flex min-h-12 min-w-0 items-center gap-2 text-[12.5px]">
+              {holder ? (
                 <>
-                  <Avatar name={lead.ownerName ?? lead.ownerId} size="sm" />
-                  <span className="truncate">{lead.ownerName ?? lead.ownerId}</span>
+                  <Avatar name={holder.name} size="sm" />
+                  <span className="min-w-0 break-words">{holder.name}</span>
                 </>
               ) : (
-                <span className="text-muted-foreground">
-                  Chưa ai giữ lead, cần giao lead trước.
-                </span>
+                <span className="text-muted-foreground">{subject.noHolder}</span>
               )}
             </p>
           </Field>
@@ -331,17 +387,17 @@ function StepForm({
 }
 
 function DoerPicker({
-  lead,
+  subject,
   step,
   value,
   onChange,
 }: {
-  lead: LeadProfile
+  subject: StepSubject
   step: NextStep | null
   value: string
   onChange: (id: string) => void
 }) {
-  const options = useDoerOptions(lead, step)
+  const options = useDoerOptions(subject.holder, step)
   return (
     <Field label="Người làm">
       <Select
@@ -360,17 +416,14 @@ function DoerPicker({
 
 /** Sales people, plus the holder and the current doer when the roster lacks
  *  them — a select whose value is not among its options prints a bare id. The
- *  empty first row exists only for a pool lead, which has no default doer. */
-function useDoerOptions(lead: LeadProfile, step: NextStep | null) {
+ *  empty first row exists only for a record with no holder, so no default doer. */
+function useDoerOptions(holder: StepSubject['holder'], step: NextStep | null) {
   const options = useSalesPeople().map((a) => ({ value: a.id, label: a.name }))
-  const known = [
-    step?.doer,
-    lead.ownerId ? { id: lead.ownerId, name: lead.ownerName ?? lead.ownerId } : null,
-  ]
+  const known = [step?.doer, holder]
   for (const person of known) {
     if (person && !options.some((o) => o.value === person.id)) {
       options.unshift({ value: person.id, label: person.name })
     }
   }
-  return lead.ownerId ? options : [{ value: '', label: 'Chọn người làm' }, ...options]
+  return holder ? options : [{ value: '', label: 'Chọn người làm' }, ...options]
 }

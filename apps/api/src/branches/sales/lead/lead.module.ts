@@ -4,7 +4,6 @@ import { AiModule } from '@api/platform/ai/ai.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
-import { MAIL_SENT_HOOK } from '@api/platform/mail/mail-sent.hook'
 import { ScanQueueModule } from '@api/platform/queue/scan-enqueue'
 import { SCAN_JOB_HANDLER, type ScanJobHandler } from '@api/platform/queue/scan-jobs'
 import { SessionModule } from '@api/platform/session/session.module'
@@ -120,9 +119,9 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadMailComposer,
     /* Bound to comms' `MESSAGE_LOGGED_HOOK` by `app.module.ts`, same reason. */
     LeadCommsHook,
-    /* Under the token, unlike the composer: one binding, and `worker.ts` already
-       hands this module to `QueueModule.forWorker`, so the consumer resolves it. */
-    { provide: MAIL_SENT_HOOK, useClass: LeadMailSentHook },
+    /* One entry of the `MAIL_SENT_HOOK` registry — exported as the CLASS for the
+       same reason as the composer; `worker.ts` names it in `sentHooks`. */
+    LeadMailSentHook,
     LeadScanRepository,
     LeadScanService,
     LeadScanCommit,
@@ -138,6 +137,6 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
       }),
     },
   ],
-  exports: [LeadService, LeadMailComposer, LeadCommsHook, SCAN_JOB_HANDLER, MAIL_SENT_HOOK],
+  exports: [LeadService, LeadMailComposer, LeadCommsHook, SCAN_JOB_HANDLER, LeadMailSentHook],
 })
 export class LeadModule {}

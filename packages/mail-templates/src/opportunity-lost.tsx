@@ -3,44 +3,18 @@ import { BrandShell, CtaButton, Eyebrow, FallbackLink, Para, ShellHeading } from
 import { Divider, Field, Paragraphs } from './ops-mail-bits'
 import { COLOR_MUTED, FONT_STACK, formatMoment, formatMoney } from './ops-mail-style'
 
-/** Template 2 · "Một đơn vừa vào chăm sóc" — gửi hộp thư nội bộ.
+/** Template 2 · "Cơ hội đã dừng" — to the internal mailbox (ADR 0069 §1, §13).
  *
- *  ------------------------------------------------------------------
- *  MAIL NÀY TỒN TẠI ĐỂ CHỞ MỘT BÀI HỌC, KHÔNG PHẢI ĐỂ BÁO MỘT SỐ ÂM
- *  ------------------------------------------------------------------
- *  Sổ tự trừ đúng số tiền dù có mail hay không. Thứ sổ KHÔNG tự làm được là đưa
- *  câu "vì sao thua" tới người đang chào đúng khách đó tuần sau — và đó là toàn
- *  bộ lý do mail này được gửi. Nên LÝ DO đứng trên cùng, trước cả số tiền: mở
- *  preview trong hộp thư là đọc được ngay, không phải bấm vào.
+ *  A stop is final, so this letter carries a lesson, not a rescue: the REASON
+ *  stands on top, before the money, readable from the inbox preview. The one
+ *  button opens the deal's profile to read that reason in context — "Xem hồ sơ
+ *  đơn", a promise to read, not to reopen.
  *
- *  ------------------------------------------------------------------
- *  LÁ NÀY TỪNG CỐ Ý KHÔNG CÓ NÚT. GIỜ CÓ — VÀ ĐÂY LÀ CHỖ GHI VÌ SAO
- *  ------------------------------------------------------------------
- *  Lập luận cũ: đơn đã đóng, không còn việc phải làm, nên một CTA chỉ tạo cảm
- *  giác còn cứu được và người đọc sẽ bấm vào để phát hiện là không.
+ *  `stopReason` arrives as a LABEL (the composer resolves the catalogue id, and
+ *  `other` reads "Khác"); `stopNote` is this deal's own sentence. Each field is
+ *  still checked, since older rows may lack one. Alert tone on the heading only.
  *
- *  Lập luận đó đúng về ĐƠN nhưng sai về LÁ THƯ. Việc còn phải làm không phải
- *  là cứu đơn — nó là đọc lại lý do trước lần chào tiếp theo, đúng câu mà
- *  chính khối chú thích trên vừa nói là toàn bộ lý do lá thư này được gửi. Bỏ
- *  nút không làm người ta thôi muốn xem hồ sơ; nó chỉ bắt họ tự đi tìm, và
- *  một lá thư nói "hãy đọc lại lý do" mà không mở được hồ sơ là một lá thư
- *  giao việc rồi giấu công cụ.
- *
- *  Nhãn nút vì thế là "Xem hồ sơ đơn", không phải "Mở đơn": nó hứa đọc, không
- *  hứa sửa. Cảnh báo cũ vẫn còn giá trị ở đúng chỗ đó — nút không được phép
- *  trông như một đường cứu đơn.
- *
- *  ------------------------------------------------------------------
- *  HAI Ô LÝ DO, VÀ CẢ HAI ĐỀU TUỲ CHỌN — nhưng không cùng lúc
- *  ------------------------------------------------------------------
- *  `careReason` là một lý do dựng sẵn theo bậc (mục 5.4, ADR 0064), `careNote`
- *  là câu của riêng đơn này (tên đối thủ, con số họ chào, ai đổi ý). Hợp đồng ở
- *  `@pv/contracts` đòi ÍT NHẤT một trong hai, nên mail luôn có gì đó để in ở
- *  khối này; template vẫn kiểm từng ô vì nó không được quyền tin điều đó — nó
- *  cũng dựng được từ dữ liệu cũ, có trước lúc luật ấy tồn tại.
- *
- *  Tông màu cảnh báo dùng ở ĐÚNG dòng tiêu đề. Tô đỏ cả mail thì mắt hết chỗ
- *  bám, và một hộp thư toàn mail đỏ là một hộp thư không ai đọc mail đỏ nữa. */
+ *  No compiler renders this and no test runs it: look at `pnpm mail:preview`. */
 export type OpportunityLostData = {
   opCode: string
   leadCode: string
@@ -48,44 +22,47 @@ export type OpportunityLostData = {
   name: string
   amount: number | null
   currency: string | null
-  /** Một lý do dựng sẵn theo bậc. */
-  careReason?: string
-  /** Câu của riêng đơn này. */
-  careNote?: string
+  /** The catalogue label of the reason, already resolved. */
+  stopReason?: string
+  /** Label of the rung the deal stopped on. */
+  stoppedAt?: string
+  /** This deal's own sentence. */
+  stopNote?: string
   saleOwners: string[]
   bdOwners: string[]
-  /** ISO có múi giờ. */
+  /** ISO with offset. */
   closedAt: string
-  /** Số ngày đơn sống, từ lúc mở tới lúc đóng. Chưa tính được thì bỏ. */
+  /** Days the deal lived, open to close; omitted when unknown. */
   daysOpen?: number
   opUrl: string
-  /** Gốc URL công khai của ảnh nhận diện — xem `PV_BRAND_ASSET_URL`. */
+  /** Public base URL of the brand images — see `PV_BRAND_ASSET_URL`. */
   assetBaseUrl: string
 }
 
 export function OpportunityLostEmail(data: OpportunityLostData) {
   const money = formatMoney(data.amount, data.currency)
-  const headline = data.careReason ?? data.careNote ?? 'chưa ghi lý do'
+  const headline = data.stopReason ?? data.stopNote ?? 'chưa ghi lý do'
 
   return (
     <BrandShell
-      preview={`${data.account} · vào chăm sóc · ${headline}`}
+      preview={`${data.account} · cơ hội đã dừng · ${headline}`}
       assetBaseUrl={data.assetBaseUrl}
     >
-      <ShellHeading tone="alert">Đơn vào danh sách chăm sóc</ShellHeading>
+      <ShellHeading tone="alert">Cơ hội đã dừng</ShellHeading>
       <Eyebrow>
-        {data.opCode} · từ lead {data.leadCode} · đóng lúc {formatMoment(data.closedAt)}
+        {data.opCode} · từ lead {data.leadCode} · dừng lúc {formatMoment(data.closedAt)}
       </Eyebrow>
 
       <Section>
         <Text
           style={{ fontSize: 12, color: COLOR_MUTED, margin: '0 0 2px', fontFamily: FONT_STACK }}
         >
-          Vì sao vào chăm sóc
+          Vì sao dừng
         </Text>
-        <Field label="Lý do" value={data.careReason} />
-        {data.careNote && data.careNote.trim() ? (
-          <Paragraphs text={data.careNote} keyPrefix="note" />
+        <Field label="Dừng ở" value={data.stoppedAt} />
+        <Field label="Lý do" value={data.stopReason} />
+        {data.stopNote && data.stopNote.trim() ? (
+          <Paragraphs text={data.stopNote} keyPrefix="note" />
         ) : null}
       </Section>
 
@@ -110,10 +87,12 @@ export function OpportunityLostEmail(data: OpportunityLostData) {
 
       <Divider />
 
-      <Para>Khách vẫn còn trong sổ. Lý do trên là thứ cần đọc lại trước lần chào tiếp theo.</Para>
-      {/* Nút dẫn tới hồ sơ đơn chứ không tới sổ khách, dù câu trên nói về
-          khách: thứ người đọc cần làm ngay là đọc lại lý do trong ngữ cảnh
-          đầy đủ của đơn, và từ đó mới sang khách. Một nút, một việc. */}
+      <Para>
+        Cơ hội này không mở lại được. Khách vẫn còn trong sổ — chăm lại thì đi từ lead, và đọc lại
+        lý do trên trước lần chào tiếp theo.
+      </Para>
+      {/* The button opens the deal, not the customer: the reason is read in the
+          deal's full context first. One button, one job. */}
       <CtaButton href={data.opUrl}>Xem hồ sơ đơn {data.opCode}</CtaButton>
       <FallbackLink url={data.opUrl} />
     </BrandShell>

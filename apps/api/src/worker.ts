@@ -12,8 +12,10 @@ import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
+import { LeadMailSentHook } from './branches/sales/lead/lead-mail-sent.hook'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
+import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
 import { MailModule } from './platform/mail/mail.module'
 import { MailRunSweeper } from './platform/mail/mail-run.sweeper'
 import { MasMailComposer } from './platform/mail/mas.composer'
@@ -90,6 +92,8 @@ import {
     QueueModule.forWorker({
       imports: [MailModule, LeadModule, OpportunityModule],
       composers: [MasMailComposer, LeadMailComposer, OpportunityMailComposer],
+      /* Every hook runs on each accepted letter; each skips subjects it does not own. */
+      sentHooks: [LeadMailSentHook, OpportunityMailSentHook],
     }),
   ],
 })

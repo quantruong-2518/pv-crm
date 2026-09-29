@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { OPPORTUNITY_CARE_REASON_OTHER } from '@pv/contracts'
+import { OPPORTUNITY_STOP_REASON_OTHER } from '@pv/contracts'
 import {
   DAY_FROZEN,
   DAS_VINA_LEAD as DAS_LEAD,
@@ -38,7 +38,7 @@ describe('Sổ cơ hội — 30 dòng suy ra từ sổ lead', () => {
     const by = (state: string) => OPPORTUNITIES.filter((o) => o.state === state).length
     expect(by('open')).toBe(10)
     expect(by('won')).toBe(6)
-    expect(by('care')).toBe(14)
+    expect(by('lost')).toBe(14)
     expect(OPPORTUNITIES.filter((o) => o.stage !== null)).toHaveLength(10)
   })
 
@@ -58,15 +58,15 @@ describe('Sổ cơ hội — 30 dòng suy ra từ sổ lead', () => {
     for (const op of OPPORTUNITIES) expect(op.stage !== null, op.code).toBe(op.state === 'open')
   })
 
-  it('đơn thắng và đơn chăm sóc chỉ có careFromStage khi ở chăm sóc: 3 ở Quotation khớp phễu', () => {
-    const care = OPPORTUNITIES.filter((o) => o.state === 'care')
-    for (const op of OPPORTUNITIES.filter((o) => o.state !== 'care')) {
-      expect(op.careFromStage, op.code).toBeNull()
+  it('đơn thắng và đơn chăm sóc chỉ có stoppedAtStage khi ở chăm sóc: 3 ở Quotation khớp phễu', () => {
+    const care = OPPORTUNITIES.filter((o) => o.state === 'lost')
+    for (const op of OPPORTUNITIES.filter((o) => o.state !== 'lost')) {
+      expect(op.stoppedAtStage, op.code).toBeNull()
     }
-    expect(care.every((o) => o.careFromStage !== null)).toBe(true)
+    expect(care.every((o) => o.stoppedAtStage !== null)).toBe(true)
     /* Phễu bậc "Báo giá" = 19 = 10 mở + 6 thắng + 3 rơi SAU báo giá. */
-    expect(care.filter((o) => o.careFromStage === 'quotation')).toHaveLength(FUNNEL[3].count - 16)
-    expect(care.filter((o) => o.careFromStage === 'new')).toHaveLength(11)
+    expect(care.filter((o) => o.stoppedAtStage === 'quotation')).toHaveLength(FUNNEL[3].count - 16)
+    expect(care.filter((o) => o.stoppedAtStage === 'new')).toHaveLength(11)
   })
 
   it('phiếu mới sinh ra ở cột new, không mang trạng thái nào', () => {
@@ -135,11 +135,11 @@ describe('Sổ cơ hội — 30 dòng suy ra từ sổ lead', () => {
   })
 
   it('14 đơn chăm sóc chưa xếp dòng danh mục, câu thật giữ ở ô ghi thêm, KHÔNG mượn nhãn của EXIT_REASONS', () => {
-    const care = OPPORTUNITIES.filter((o) => o.state === 'care')
+    const care = OPPORTUNITIES.filter((o) => o.state === 'lost')
     const exits = new Set<string>(EXIT_REASONS.map((r) => r.label))
     for (const op of care) {
-      expect(op.careReason, op.code).toBe(OPPORTUNITY_CARE_REASON_OTHER)
-      expect(exits.has(op.careNote), op.code).toBe(true)
+      expect(op.stopReason, op.code).toBe(OPPORTUNITY_STOP_REASON_OTHER)
+      expect(exits.has(op.stopNote), op.code).toBe(true)
     }
   })
 

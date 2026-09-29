@@ -1,11 +1,16 @@
 import {
+  APPROVAL_STATE_LABEL,
   ContractRungKey,
+  JourneyDealStop,
+  JourneySubStep,
+  JourneyWaitingDoor,
   LEAD_LANE_BACKBONE,
-  OPPORTUNITY_CARE_REASON_OTHER,
   StageKey,
   type JourneyContract,
   type JourneyDeal,
+  type JourneyDealSubStep,
   type JourneyDoor,
+  type JourneyDoorAnchor,
   type JourneyLead,
   type JourneyRungState,
   type LeadState,
@@ -18,20 +23,23 @@ import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
 import { toContract as toNextStep } from '../next-step/next-step.mapper'
 import type { NextStepBatchRead } from '../next-step/next-step.repository'
+import { holderOf } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
 import type {
   ContractLaneRow,
   LaneRows,
   LeadTouchEntry,
+  SignApprovalRow,
   StageEventRow,
 } from './workstream-lanes.repository'
 import type { WorkstreamRead } from './workstream.repository'
 
 /** The journey detail, folded from rows already read — no SQL, no engine call
  *  beyond the pure due ladder. A rung's state compares its ladder index with
- *  the rung the object stands (or last stood) on; `stopped` is where it went
- *  to waiting. Labels never travel — the contract maps keys to words. */
+ *  the rung the object stands (or last stood) on; `stopped` is where it
+ *  stopped. Rung labels never travel — the contract maps keys to words; only
+ *  sub-steps carry a label, built from the contract's own tables. */
 
 type Entry = { at: Date; by: WorkstreamHolder | null } | null
 
@@ -41,6 +49,8 @@ type Ladder<K extends string> = {
   index: number
   /** What the stood-on rung reads as once the object stopped moving. */
   closed: Extract<JourneyRungState, 'current' | 'stopped' | 'done'>
+  /** A passed rung nothing ever entered reads `skipped`, not a dateless `done`. */
+  skipUnentered: boolean
   entryOf: (key: K) => Entry
   since: Date | null
   /** Stop date for `stopped`, now for `current`. */
@@ -57,9 +67,23 @@ type Rung<K extends string> = {
 }
 
 const DAY_MS = 86_400_000
-/** `textInput(200)` on every door reason; a longer free note is clipped, not refused. */
-const REASON_MAX = 200
+/** No contract constant names the catch-all reason's words. */
 const REASON_OTHER_LABEL = 'Khác'
+/** ADR 0069 §3: the lead parked on a deal this reader may not open. */
+const HIDDEN_DEAL_REASON = 'Cơ hội cuối đã dừng'
+
+/** The `textInput(n)` cap a journey field declares, read off the contract. */
+const capOf = (field: { out: { maxLength: number | null } }): number =>
+  field.out.maxLength ?? Number.POSITIVE_INFINITY
+const REASON_MAX = capOf(JourneyWaitingDoor.shape.reason)
+const STOP_REASON_MAX = capOf(JourneyDealStop.shape.reason)
+/** Both below what their doors accept (`OPPORTUNITY_STOP_NOTE_MAX`, a refusal's
+ *  `textInput(500)`) — a contract mismatch; `clip` marks the cut. */
+const STOP_NOTE_MAX = capOf(JourneyDealStop.shape.note.unwrap())
+const NOTE_MAX = capOf(JourneySubStep.shape.note.unwrap())
+
+const clip = (text: string, max: number): string =>
+  text.length <= max ? text : `${text.slice(0, max - 1)}…`
 
 /** Calendar days between two instants, the book's own count (`daysUntil`). */
 const wholeDays = (from: Date | null, to: Date | null): number | null =>
@@ -77,7 +101,7 @@ const iso = (d: Date | null): string | null => d?.toISOString() ?? null
 const vndOf = (amount: number | null, currency: string | null): number | null =>
   currency === 'VND' ? amount : null
 
-const holderOf = (id: string | null, name: string | null): WorkstreamHolder | null =>
+const personOf = (id: string | null, name: string | null): WorkstreamHolder | null =>
   id !== null && name !== null ? { id, name } : null
 
 function rungsOf<K extends string>(l: Ladder<K>): Rung<K>[] {
@@ -85,6 +109,9 @@ function rungsOf<K extends string>(l: Ladder<K>): Rung<K>[] {
     if (i > l.index) return { key, state: 'upcoming', at: null, by: null, days: null }
 
     const entry = l.entryOf(key)
+    if (i < l.index && entry === null && l.skipUnentered) {
+      return { key, state: 'skipped', at: null, by: null, days: null }
+    }
     if (i < l.index) {
       const at = entry?.at ?? null
       return { key, state: 'done', at: iso(at), by: entry?.by ?? null, days: l.doneDays(i, at) }
@@ -116,10 +143,10 @@ export type JourneyInput = {
 export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
   const { read, rows } = input
   const { row } = read
-  const lead = leadOf(read, input.all, rows, input.now)
   const deals = [...input.deals]
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.code.localeCompare(b.code))
     .map((deal) => dealOf(deal, input))
+  const lead = leadOf(read, input.all, rows, input.now, parkedOnDeal(input.all, deals, rows))
 
   return {
     code: row.code,
@@ -134,11 +161,31 @@ export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
     previous: null,
     next: [],
     lead: lead.lead,
-    deals: deals.map((d) => d.deal),
+    deals,
     hiddenDeals: input.hidden,
     contracts: rows.contracts.map((c) => contractOf(c, rows, input.now, input.today)),
-    doors: [lead.door, ...deals.map((d) => d.door)].filter((d): d is JourneyDoor => d !== null),
+    doors: lead.door ? [lead.door] : [],
   }
+}
+
+/** Where the lead's door hangs when its last live deal was lost (ADR 0069
+ *  §3): SQL says every deal is lost, and the latest to stop anchors it. A
+ *  hidden latest deal yields `hidden`: the door keeps the lead's own anchor,
+ *  a neutral reason and no concluder — the park's touch note is not read. */
+type DealPark = { from: JourneyDoorAnchor; stop: JourneyDealStop } | 'hidden'
+
+function parkedOnDeal(
+  all: readonly OpportunityRowDb[],
+  deals: JourneyDeal[],
+  rows: LaneRows,
+): DealPark | null {
+  if (!rows.allLost || all.length === 0) return null
+  const closed = (d: OpportunityRowDb): number => d.closedAt?.getTime() ?? 0
+  const last = all.reduce((a, b) => (closed(b) > closed(a) ? b : a))
+  const shown = deals.find((d) => d.code === last.code)
+  if (!shown) return 'hidden'
+  if (!shown.stop || last.stoppedAtStage === null) return null
+  return { from: { code: last.code, rung: last.stoppedAtStage }, stop: shown.stop }
 }
 
 /** A backbone rung, and the touch that puts the lead on it. `assigned` answers
@@ -154,16 +201,18 @@ const RUNG_HIT: Record<LeadRungKey, (t: LeadTouchEntry) => boolean> = {
   converted: (t) => t.kind === 'entered-pipeline',
 }
 
-const touchHolder = (t: LeadTouchEntry): WorkstreamHolder | null => holderOf(t.actorId, t.by)
+const touchHolder = (t: LeadTouchEntry): WorkstreamHolder | null => personOf(t.actorId, t.by)
 
 /** The five backbone rungs, and the waiting door while the lead sits in
- *  `nurturing` (ADR 0068: it loops there on the same lead). `disqualified`
- *  also stops the rung but opens no door — a person stopped caring. */
+ *  `nurturing` (ADR 0068: it loops there on the same lead) — the ONLY waiting
+ *  door: a lost deal draws none (ADR 0069). `disqualified` also stops the
+ *  rung but opens no door — a person stopped caring. */
 function leadOf(
   read: WorkstreamRead,
   deals: readonly OpportunityRowDb[],
   rows: LaneRows,
   now: Date,
+  onDeal: DealPark | null,
 ): { lead: JourneyLead; door: JourneyDoor | null } {
   const { lead } = read
   const trail = rows.leadTouches
@@ -208,33 +257,50 @@ function leadOf(
     keys: LEAD_LANE_BACKBONE,
     index,
     closed: stoppedAt ? 'stopped' : firstDeal ? 'done' : 'current',
+    skipUnentered: false,
     entryOf,
     since,
     until: stoppedAt ?? now,
     doneDays,
   })
 
+  const shown = onDeal === 'hidden' ? null : onDeal
+  const why: Pick<JourneyDealStop, 'reason' | 'concludedBy'> =
+    onDeal === 'hidden'
+      ? { reason: HIDDEN_DEAL_REASON, concludedBy: null }
+      : (shown?.stop ?? {
+          reason: parkReasonOf(parked),
+          concludedBy: parked ? touchHolder(parked) : null,
+        })
   const door: JourneyDoor | null =
     lead.state !== 'nurturing'
       ? null
       : {
           kind: 'waiting',
           leadCode: lead.code,
-          from: { code: lead.code, rung: LEAD_LANE_BACKBONE[index] ?? 'new' },
+          from: shown?.from ?? { code: lead.code, rung: LEAD_LANE_BACKBONE[index] ?? 'new' },
           at: (parked?.at ?? lead.stateSince).toISOString(),
-          /* A lead parked before the `nurtured` touch existed has no note;
-             0067 migrated those under the catch-all "other" reason. */
-          reason: (parked?.note ?? REASON_OTHER_LABEL).slice(0, REASON_MAX),
-          concludedBy: parked ? touchHolder(parked) : null,
-          doNotContact: null,
+          reason: clip(why.reason, REASON_MAX),
+          concludedBy: why.concludedBy,
+          /* A presale park is an `EXIT_REASON`; the flag lives on `LOSS_REASON` only (drizzle 0068). */
+          doNotContact: shown?.stop.doNotContact ?? null,
           campaignName: read.campaignName,
           lastTouch: null,
         }
 
   return {
-    lead: { code: lead.code, holder: holderOf(lead.ownerId, read.saleName), rungs },
+    lead: { code: lead.code, holder: personOf(lead.ownerId, read.saleName), rungs },
     door,
   }
+}
+
+/** A presale park's words. The touch note embeds the raw reason id since ADR
+ *  0070, so it is read only for a park older than `reason_id`; 0067 migrated
+ *  parks with no touch at all under the catch-all "other". */
+function parkReasonOf(parked: LeadTouchEntry | null | undefined): string {
+  if (!parked) return REASON_OTHER_LABEL
+  if (parked.reasonId !== null) return parked.reasonName ?? REASON_OTHER_LABEL
+  return parked.note
 }
 
 /** Which rung the lead is DRAWN on. `nurturing` parks it exactly where
@@ -255,31 +321,30 @@ function standingOn(lead: LeadRowDb, entryOf: (key: LeadRungKey) => Entry): numb
   return reached
 }
 
-/** `care` is drawn as `waiting`, NEVER a loss: the care list is reversible
- *  (ADR 0064) and every presale stop becomes a waiting lead (ADR 0067). */
-function dealOf(
-  deal: OpportunityRowDb,
-  input: JourneyInput,
-): { deal: JourneyDeal; door: JourneyDoor | null } {
+/** A stop is final (ADR 0069 §1): `lost` stands `stopped` on the rung its fail
+ *  log names, and carries that log as `stop`. A step belongs to an open deal only — same rule as the deal's own
+ *  next-step door, so a row the stop/sign door has not dropped yet never shows. */
+function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
   const { rows, now } = input
   const events = rows.events.filter((e) => e.deal === deal.code)
   const signed = rows.contracts.filter((c) => c.deal === deal.code)
-  const outcome = signed.length > 0 ? 'won' : deal.state === 'care' ? 'waiting' : 'open'
+  const outcome = signed.length > 0 ? 'won' : deal.state === 'lost' ? 'lost' : 'open'
   const entryOf = (key: StageKey): Entry => {
     const e = lastOf(events, (x) => x.to === key)
     return e ? { at: e.at, by: { id: e.byId, name: e.by } } : null
   }
-  const stood = deal.stage ?? deal.careFromStage ?? lastStageOf(events)
+  const stood = deal.stage ?? deal.stoppedAtStage ?? lastStageOf(events)
 
   const rungs = rungsOf({
     keys: StageKey.options,
     index: stood === null ? -1 : StageKey.options.indexOf(stood),
-    closed: outcome === 'won' ? 'done' : outcome === 'waiting' ? 'stopped' : 'current',
+    closed: outcome === 'won' ? 'done' : outcome === 'lost' ? 'stopped' : 'current',
+    skipUnentered: true,
     entryOf,
     /* A closed deal's `stage_since` is nulled on close, so its clock falls
        back to when it entered the rung it left from. */
     since: deal.stageSince ?? (stood === null ? null : (entryOf(stood)?.at ?? null)),
-    until: outcome === 'waiting' ? (deal.closedAt ?? now) : now,
+    until: outcome === 'lost' ? (deal.closedAt ?? now) : now,
     doneDays: (i) => lastOf(events, (e) => e.from === StageKey.options[i])?.daysInFrom ?? null,
   }).map((r) => {
     const limit = input.stage.get(r.key)?.limitDays ?? null
@@ -294,63 +359,84 @@ function dealOf(
       ...r,
       limitDays,
       dueLevel: clockEnd ? stepLevelOf(clockEnd, input.today) : null,
-      subSteps: [],
+      subSteps: r.key === 'quotation' ? quotationStepsOf(deal.code, rows) : [],
     }
   })
 
-  const sale = (input.owners.get(deal.code) ?? []).find((o) => o.role === 'SALE')
+  const holder = holderOf(rows.dealOwners.filter((o) => o.deal === deal.code))
   const step = input.steps.get(deal.code)
 
   return {
-    deal: {
-      code: deal.code,
-      name: deal.name,
-      holder: sale ? { id: sale.id, name: sale.name } : null,
-      amount: vndOf(deal.amount, deal.currency),
-      expectedClose: deal.expectedClose,
-      outcome,
-      outcomeAt: iso(
-        outcome === 'won'
-          ? (signed[0]?.signedAt ?? null)
-          : outcome === 'waiting'
-            ? deal.closedAt
-            : null,
-      ),
-      rungs,
-      nextAction: step ? toNextStep(step, input.today) : null,
-      contractCodes: signed.map((c) => c.code),
-    },
-    door: outcome === 'waiting' ? careDoorOf(deal, events, rows) : null,
+    code: deal.code,
+    name: deal.name,
+    holder,
+    amount: vndOf(deal.amount, deal.currency),
+    expectedClose: deal.expectedClose,
+    outcome,
+    outcomeAt: iso(
+      outcome === 'won' ? (signed[0]?.signedAt ?? null) : outcome === 'lost' ? deal.closedAt : null,
+    ),
+    rungs,
+    nextAction: step && outcome === 'open' ? toNextStep(step, input.today) : null,
+    contractCodes: signed.map((c) => c.code),
+    stop: outcome === 'lost' ? stopOf(deal, events, rows) : null,
   }
 }
 
-/** The waiting door of a cared-for deal. `closed_at` and `care_from_stage` are
- *  non-null in `care` (CHECK, drizzle 0061); the guard only narrows the type.
- *  Who concluded is the mover of the event that took the deal off the board. */
-function careDoorOf(
+/** The quotation rung's drawer: one round per quote send, then each sign request,
+ *  merged in time order (ADR 0069 §8). A decided request is `done` either way;
+ *  `decision` says which way, and a refusal's reason rides as the note. */
+function quotationStepsOf(dealCode: string, rows: LaneRows): JourneyDealSubStep[] {
+  const sends = rows.quoteSends
+    .filter((q) => q.deal === dealCode)
+    .map((q, i) => ({ at: q.at, step: quoteSentStep(i + 1, q.at) }))
+  const signs = rows.signApprovals
+    .filter((a) => a.deal === dealCode)
+    .map((a) => ({ at: a.decidedAt ?? a.raisedAt, step: signStep(a) }))
+  return [...sends, ...signs].sort((a, b) => a.at.getTime() - b.at.getTime()).map((x) => x.step)
+}
+
+const quoteSentStep = (round: number, at: Date): JourneyDealSubStep => ({
+  kind: 'quote-sent',
+  round,
+  label: `Gửi lần ${round}`,
+  state: 'done',
+  at: at.toISOString(),
+  due: null,
+  note: null,
+  dueLevel: null,
+})
+
+/** `at` is when it was raised while waiting, when it was decided after. */
+const signStep = (a: SignApprovalRow): JourneyDealSubStep => ({
+  kind: 'sign-approval',
+  approvalId: a.id,
+  decision: a.state,
+  label: `${APPROVAL_STATE_LABEL[a.state]} ký`,
+  state: a.state === 'waiting' ? 'current' : 'done',
+  at: (a.decidedAt ?? a.raisedAt).toISOString(),
+  due: null,
+  note: a.decidedReason ? clip(a.decidedReason, NOTE_MAX) : null,
+  dueLevel: null,
+})
+
+/** The fail log of a lost deal. Never a raw config id: a key the catalogue
+ *  does not hold (`'other'`, a retired entry) reads as the catch-all label, and the deal's own
+ *  sentence travels only as `note`. Who concluded is the mover of the event
+ *  that took the deal off the board. */
+function stopOf(
   deal: OpportunityRowDb,
   events: readonly StageEventRow[],
   rows: LaneRows,
-): JourneyDoor | null {
-  if (deal.closedAt === null || deal.careFromStage === null) return null
-  const key = deal.careReason
-  const reason =
-    key === null
-      ? REASON_OTHER_LABEL
-      : (rows.careReasons.get(key) ??
-        (key === OPPORTUNITY_CARE_REASON_OTHER ? (deal.careNote ?? REASON_OTHER_LABEL) : key))
+): JourneyDealStop {
+  const known = deal.stopReason === null ? undefined : rows.stopReasons.get(deal.stopReason)
   const off = lastOf(events, (e) => e.to === null)
-
   return {
-    kind: 'waiting',
-    leadCode: deal.leadCode,
-    from: { code: deal.code, rung: deal.careFromStage },
-    at: deal.closedAt.toISOString(),
-    reason: reason.slice(0, REASON_MAX),
+    reason: clip(known?.name ?? REASON_OTHER_LABEL, STOP_REASON_MAX),
+    note: deal.stopNote ? clip(deal.stopNote, STOP_NOTE_MAX) : null,
+    /* Null, not false, off the catalogue: nobody answered the question. */
+    doNotContact: known?.doNotContact ?? null,
     concludedBy: off ? { id: off.byId, name: off.by } : null,
-    doNotContact: null,
-    campaignName: null,
-    lastTouch: null,
   }
 }
 
@@ -394,10 +480,10 @@ function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string
   return {
     code: c.code,
     dealCode: c.deal,
-    kind: null,
+    kind: c.kind,
     amount: vndOf(c.amount, c.currency),
     signedAt: c.signedAt.toISOString(),
-    holder: holderOf(c.ownerId, c.ownerName),
+    holder: personOf(c.ownerId, c.ownerName),
     implementer: null,
     rungs,
     milestones: [],

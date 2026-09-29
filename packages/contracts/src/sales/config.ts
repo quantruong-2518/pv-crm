@@ -44,6 +44,12 @@ export const ConfigList = z.enum([
   'STAGE',
   'TIER',
   'CATEGORY',
+  /** Why a lead left the loop — the SAME catalogue for BOTH stop doors,
+   *  `:code/exit` (final) and `:code/nurture` (park): ADR 0070 counts a park
+   *  as a stop event too, so one list answers both rather than a screen
+   *  merging two. OPEN, not the closed six-value enum this used to mirror —
+   *  the desk adds a row here without a deploy. Virtual key `'other'` needs a
+   *  note, same rule as `LOSS_REASON` below. */
   'EXIT_REASON',
   'CHANNEL',
   'SOURCE',
@@ -55,15 +61,14 @@ export const ConfigList = z.enum([
    *  makes it the first list where "turn off an entry" has teeth — the counts
    *  in `usage.PRODUCT` are rows Postgres will refuse to orphan. */
   'PRODUCT',
-  /** Why an opportunity leaves the board into the care list. The stored name
-   *  stays `LOSS_REASON`; only its meaning moved, so no prefix or column changes.
+  /** Why an opportunity was stopped (`lost`, final). An entry may carry
+   *  `doNotContact`: the customer asked not to be approached.
    *
    *  Distinct from `EXIT_REASON` (why a LEAD left the funnel) and the two must
    *  not be merged: a report that mixed them would count a lead nobody reached
-   *  against an opportunity parked after a quotation. `EXIT_REASON` is CLOSED by
-   *  decision; this list is open, because the next reason is usually a sentence
-   *  nobody had written down. An entry may be scoped to one stage with `stage`;
-   *  without it the reason applies at every stage. */
+   *  against an opportunity parked after a quotation. Both lists are open now.
+   *  An entry may be scoped to one stage with `stage`; without it the reason
+   *  applies at every stage. */
   'LOSS_REASON',
 ])
 
@@ -133,7 +138,11 @@ export const ConfigEntry = z.object({
   kind: z.string().min(1).optional(),
   /** Only `LOSS_REASON` — the stage this reason applies to. Absent = every stage. */
   stage: StageKey.optional(),
+  /** Only `LOSS_REASON` (do-not-contact). Absent on every other list. */
+  doNotContact: z.boolean().optional(),
 })
+
+export const LOSS_REASON_DO_NOT_CONTACT_LABEL = 'Không liên hệ'
 
 /** One tally table: key -> how many rows currently hold that value. */
 const Tally = z.record(z.string(), z.number().int().nonnegative())
@@ -155,15 +164,16 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
  *  One rule for all six tables, and it is not pretty because the data is not
  *  pretty yet:
  *
- *   · `SOURCE` — the key IS the config id ('SR-03'), because
- *     `sales.lead.campaign_id` references `config_entry.id`. This is the ONLY
- *     list with a real relation today.
- *   · `STAGE` · `TIER` · `CATEGORY` · `EXIT_REASON` — the key is the lower-case
- *     slug the column holds ('quotation', 'chip'), because `sales.lead` does not
- *     carry config ids yet. The server does NOT invent a name-to-slug join to
- *     paper over that debt, because a
- *     join that has to be guessed is a join that goes wrong silently the day
- *     somebody edits a label.
+ *   · `SOURCE` · `EXIT_REASON` — the key IS the config id ('SR-03', 'EX-04').
+ *     `sales.lead.campaign_id` references `config_entry.id`, and so does
+ *     `sales.touch.reason_id` since ADR 0070 moved the reason off the old
+ *     six-value enum. `EXIT_REASON` counts STOP EVENTS — every exit and every
+ *     park, a loop never erasing one — not "leads currently disqualified".
+ *   · `STAGE` · `TIER` · `CATEGORY` — the key is the lower-case slug the
+ *     column holds ('quotation', 'chip'), because `sales.lead` does not carry
+ *     config ids yet. The server does NOT invent a name-to-slug join to paper
+ *     over that debt, because a join that has to be guessed is a join that
+ *     goes wrong silently the day somebody edits a label.
  *   · `CHANNEL` — always empty: no column in the database records a send
  *     channel. Empty is the correct answer, not an oversight.
  *
@@ -178,6 +188,8 @@ export const ConfigUsage = z.object({
   STAGE: Tally,
   TIER: Tally,
   CATEGORY: Tally,
+  /** Keyed by config id, like `SOURCE` — count of STOP EVENTS on `sales.touch`,
+   *  not of leads currently `disqualified`. See the rule above. */
   EXIT_REASON: Tally,
   CHANNEL: Tally,
   SOURCE: Tally,
@@ -321,6 +333,7 @@ export const ConfigEntryCreate = z.object({
   kind: textInputOptional(32),
   /** Only `LOSS_REASON`, judged by the service like `ownerId`/`kind`. */
   stage: StageKey.optional(),
+  doNotContact: z.boolean().optional(),
 })
 
 /** Sửa MỘT dòng. Trường vắng mặt = không đụng tới.
@@ -338,6 +351,7 @@ export const ConfigEntryPatch = z
     kind: textInputOptional(32),
     /** `null` clears the scope (reason applies to every stage again). */
     stage: StageKey.nullable().optional(),
+    doNotContact: z.boolean().optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có trường nào để sửa',

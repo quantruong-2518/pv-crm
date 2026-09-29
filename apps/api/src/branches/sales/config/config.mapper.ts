@@ -25,6 +25,7 @@ export function toContract(row: ConfigRowDb): ConfigEntry {
     ...(row.ownerId ? { ownerId: row.ownerId } : {}),
     ...(row.kind ? { kind: row.kind } : {}),
     ...(row.stage === null ? {} : { stage: row.stage }),
+    ...(row.list === 'LOSS_REASON' ? { doNotContact: row.doNotContact } : {}),
   }
 }
 

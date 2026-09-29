@@ -1,7 +1,7 @@
 import { DEFAULT_ROLE_PERMISSIONS } from '../e2-access'
 import {
   CURRENCIES,
-  OPPORTUNITY_CARE_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER,
   USD_VND,
   toMoneyVnd,
   type CurrencyCode,
@@ -46,6 +46,7 @@ const scenario: Scenario = {
       branch: 'Sales',
       label: 'Factory MES + One Plus',
       owner: 'Đỗ Quang Huy',
+      ownerId: 'u-huy',
       state: 'assigned',
       amount: 4_200_000_000,
     },
@@ -3172,10 +3173,10 @@ export function leadProfile(lead: FrozenLead): LeadProfile {
 
 /** Cơ hội còn trên bảng, đang ở danh sách chăm sóc, hay đã thành hợp đồng.
  *
- *  Chỉ `open` và `care` là giá trị LƯU; `won` suy ra lúc đọc từ hợp đồng. Sale
+ *  Chỉ `open` và `lost` là giá trị LƯU; `won` suy ra lúc đọc từ hợp đồng. Sale
  *  không chọn trạng thái ở đâu cả: cột (`PIPELINE_STAGES`) do sự kiện thật đẩy
  *  đi. Nhãn hiển thị khai ở `@pv/contracts`, engine không giữ bảng nhãn thứ hai. */
-export type OpportunityState = 'open' | 'care' | 'won'
+export type OpportunityState = 'open' | 'lost' | 'won'
 
 /** Lý do thua một CƠ HỘI. Khác `EXIT_REASONS`, và khác ở chỗ quan trọng:
  *
@@ -3256,11 +3257,11 @@ export type Opportunity = Omit<OpportunityDraft, 'stage'> & {
   state: OpportunityState
   /** Cột của `PIPELINE_STAGES`, hoặc `null` khi đã thắng hoặc đang chăm sóc. */
   stage: StageKey | null
-  /** Cột lúc bị đẩy vào chăm sóc — chỉ có khi `state === 'care'`. */
-  careFromStage: StageKey | null
+  /** Cột lúc bị đẩy vào chăm sóc — chỉ có khi `state === 'lost'`. */
+  stoppedAtStage: StageKey | null
   /** Lý do vào chăm sóc; trống với đơn chưa chọn lý do có cấu trúc. */
-  careReason: string
-  careNote: string
+  stopReason: string
+  stopNote: string
 }
 
 /** Đơn còn trên bảng, đã thắng hay đang chăm sóc, suy từ dòng lead.
@@ -3269,14 +3270,14 @@ export type Opportunity = Omit<OpportunityDraft, 'stage'> & {
  *  còn là câu trả lời. Lead đã ra khỏi luồng thì đơn vào danh sách chăm sóc. */
 export function opportunityStateOf(lead: Lead): OpportunityState {
   if (lead.contractCode) return 'won'
-  if (lead.exitReason) return 'care'
+  if (lead.exitReason) return 'lost'
   return 'open'
 }
 
 /** Cột lúc đơn rơi vào chăm sóc. Lead không ghi cột cuối, nên chỉ lý do nói rõ
  *  "sau báo giá" mới biết chắc là `quotation`; còn lại lùi về `new`. */
-function careFromStageOf(lead: Lead): StageKey | null {
-  if (opportunityStateOf(lead) !== 'care') return null
+function stoppedAtStageOf(lead: Lead): StageKey | null {
+  if (opportunityStateOf(lead) !== 'lost') return null
   return lead.exitReason === 'Im sau báo giá' ? 'quotation' : 'new'
 }
 
@@ -3352,12 +3353,12 @@ function buildOpportunities(): Opportunity[] {
       closedDate: dayISO(opportunityCloseDay(lead)).slice(0, 10),
       state: opportunityStateOf(lead),
       stage: lead.stage ?? null,
-      careFromStage: careFromStageOf(lead),
+      stoppedAtStage: stoppedAtStageOf(lead),
       saleOwners: sale ? [sale] : [],
       bdOwners: bd ? [bd] : [],
       description: profile.pain,
       attachments: [],
-      /* `OPPORTUNITY_CARE_REASON_OTHER`, chưa phải một dòng danh mục cụ thể.
+      /* `OPPORTUNITY_STOP_REASON_OTHER`, chưa phải một dòng danh mục cụ thể.
          `EXIT_REASONS` là lý do một LEAD chết, `LOSS_REASON` là danh mục của
          một ĐƠN vào chăm sóc — hai danh sách khác nhau, nhét nhãn bảng này vào
          trường bảng kia làm bảy nút chọn không nút nào sáng. Câu thật đi vào ô
@@ -3369,8 +3370,8 @@ function buildOpportunities(): Opportunity[] {
          what is true — nobody has filled these in. */
       probability: null,
       products: [],
-      careReason: opportunityStateOf(lead) === 'care' ? OPPORTUNITY_CARE_REASON_OTHER : '',
-      careNote: lead.exitReason ?? '',
+      stopReason: opportunityStateOf(lead) === 'lost' ? OPPORTUNITY_STOP_REASON_OTHER : '',
+      stopNote: lead.exitReason ?? '',
     }
   })
 }

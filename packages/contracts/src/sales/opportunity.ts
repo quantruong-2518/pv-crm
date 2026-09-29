@@ -12,22 +12,23 @@ import {
 } from '../primitives'
 import { ConfigCode } from './config'
 import { CurrencyCode, OpportunityStatus, StageKey } from './enums'
+import { WorkstreamHolder } from './workstream'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
  *
  *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
  *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram
- *      POST   …/:code/milestones · …/:code/care · …/:code/reactivate
+ *      POST   …/:code/milestones · …/:code/stop
  *
  *  ------------------------------------------------------------------
  *  NO WRITE BODY CARRIES `state` OR `stage` (ADR 0064)
  *  ------------------------------------------------------------------
  *  One axis, one writer. `stage` follows facts the server can see — the PIC set
  *  for `assigned`, a recorded milestone for the last three — and `state` follows
- *  the care door. `won` is not stored anywhere: it is the existence of a row in
+ *  the stop door. `won` is not stored anywhere: it is the existence of a row in
  *  `sales.contract`, folded in on read. So a seller picks neither, which is why
- *  the milestone/care/reactivate doors below exist and `PATCH /:code/stage` no
- *  longer does: a drag gesture cannot be what advances a deal.
+ *  the milestone/stop doors below exist and `PATCH /:code/stage` no longer does:
+ *  a drag gesture cannot be what advances a deal. A stop is final (29/09).
  *
  *  ------------------------------------------------------------------
  *  OWNERS ARE A LIST, AND THE LIST HAS TWO ROLES
@@ -80,7 +81,7 @@ export const OpportunityFile = z.object({
  *  what every read of the book expects to carry. */
 export const OPPORTUNITY_FILES_MAX = 20
 
-/** The length caps of the deal form and the care door, named and EXPORTED
+/** The length caps of the deal form and the stop door, named and EXPORTED
  *  rather than left as literals in the shapes below.
  *
  *  The form that fills this contract in has to stop the typist at the same
@@ -93,11 +94,11 @@ export const OPPORTUNITY_FILES_MAX = 20
  *  the 201st character before the request rather than after it. */
 export const OPPORTUNITY_NAME_MAX = 200
 export const OPPORTUNITY_DESCRIPTION_MAX = 2_000
-export const OPPORTUNITY_CARE_REASON_MAX = 120
-export const OPPORTUNITY_CARE_NOTE_MAX = 1_000
-/** The one care reason key with a rule attached: picking it demands a note.
+export const OPPORTUNITY_STOP_REASON_MAX = 120
+export const OPPORTUNITY_STOP_NOTE_MAX = 1_000
+/** The one stop reason key with a rule attached: picking it demands a note.
  *  Declared here so the form and the door test the same string. */
-export const OPPORTUNITY_CARE_REASON_OTHER = 'other'
+export const OPPORTUNITY_STOP_REASON_OTHER = 'other'
 /** A deal asking about more than a dozen product lines is a deal nobody has
  *  qualified yet. The cap is generous rather than tight because refusing a
  *  legitimate form is worse than storing one that is too broad — it exists to
@@ -258,24 +259,19 @@ export const OpportunityRow = z.object({
   accountCode: ObjectCode.optional(),
 
   name: textInput(200),
-  /** The READ vocabulary — `open` · `care` · `won`. The first two are the
+  /** The READ vocabulary — `open` · `lost` · `won`. The first two are the
    *  column; `won` is resolved from the existence of a `sales.contract` row, in
    *  the one mapper that folds it in. */
   state: OpportunityStatus,
-  /** The number on the paper that made `state` read `won`.
-   *
-   *  Present ONLY on a signed deal, and absent — not `''` — on every other one.
-   *  The two facts are one fact: `won` IS the existence of a row in
-   *  `sales.contract`, so a row carrying `won` without a number, or a number
-   *  without `won`, would be the server disagreeing with itself.
-   *
-   *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`. The primitive lives in
-   *  `primitives.ts` and its docblock says why it cannot be reused from
-   *  `./contract` — that module imports this one. */
-  contractCode: ContractCode.optional(),
+  /** The papers that made `state` read `won`, oldest first — a won deal may
+   *  sign again (licence beside deployment). Empty exactly when not `won`.
+   *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`; see `primitives.ts`. */
+  contractCodes: z.array(ContractCode),
+  /** First SALE owner who is not `head-of-sales`, else the first SALE (ADR
+   *  0069 §10) — computed by the server so no screen re-derives it. */
+  holder: WorkstreamHolder.nullable(),
   /** Which of the five columns the deal stands in. `null` = it has left the
-   *  board — won, or parked in `care`, where `careFromStage` remembers the
-   *  column it will come back to. */
+   *  board — won, or `lost`, where `stoppedAtStage` records where it stopped. */
   stage: StageKey.nullable(),
   /** Days the deal has stood in its CURRENT column, counted server-side.
    *
@@ -311,14 +307,12 @@ export const OpportunityRow = z.object({
   description: z.string().optional(),
   attachments: z.array(OpportunityFile),
 
-  /** The three care facts, present exactly when `state === 'care'`.
-   *  `careFromStage` is the column `POST /:code/reactivate` puts the deal back
-   *  into — stored rather than re-derived from the stage history, which a
-   *  re-entered deal would answer wrongly. `careReason` is a catalogue KEY
-   *  (`sales.config_entry`), never its Vietnamese label. */
-  careFromStage: StageKey.optional(),
-  careReason: z.string().optional(),
-  careNote: z.string().optional(),
+  /** The fail log, present exactly when `state === 'lost'`: the column the deal
+   *  stood in, why, and the note; who concluded it is on the stage history.
+   *  `stopReason` is a `LOSS_REASON` catalogue KEY, never its Vietnamese label. */
+  stoppedAtStage: StageKey.optional(),
+  stopReason: z.string().optional(),
+  stopNote: z.string().optional(),
 
   createdAt: Moment,
   closedAt: Moment.nullable(),
@@ -439,7 +433,7 @@ export const OpportunityBookQuery = PageQuery.extend({
  *  (`ApprovalService.pendingOnMany`). Two queries for a page of up to 200.
  *
  *  `null` on a row means the deal stands in no column — a won deal and a
- *  cared-for one have both left the board — which is rule 1 of §2 answered
+ *  lost one have both left the board — which is rule 1 of §2 answered
  *  honestly rather than defaulted away. */
 export const OpportunityBookRow = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
@@ -466,7 +460,7 @@ export const OpportunityProfileResponse = OpportunityRow.extend({
 
   /** The object chain this deal sits in — see `ObjectChainLink`.
    *
-   *  The deal already holds `leadCode` and `contractCode`, so a screen COULD
+   *  The deal already holds `leadCode` and `contractCodes`, so a screen COULD
    *  assemble a chain itself — and that is exactly what rule 10 forbids, for
    *  the reason the rail exists: two screens each building their own chain draw
    *  two different pictures of one record the day a link is added. The graph
@@ -521,24 +515,23 @@ export const OpportunityScorecard = z.object({
   /** Every deal in the book, whatever its state — the denominator. */
   total: z.number().int().nonnegative(),
   /** Deals still standing in one of the five columns (`stage IS NOT NULL`).
-   *  Won deals and cared-for deals have left the board, so neither counts. */
+   *  Won deals and lost deals have left the board, so neither counts. */
   open: z.number().int().nonnegative(),
   /** Sum of the open deals that HAVE an amount, converted to dong. */
   openAmountVnd: MoneyVnd,
   /** How many open deals carry no amount — the ones missing from the sum. */
   openBlank: z.number().int().nonnegative(),
   won: z.number().int().nonnegative(),
-  /** Deals parked on the care list — the card that used to read "lost". Nobody
-   *  is lost any more; a deal is either being worked or waiting to be. */
-  care: z.number().int().nonnegative(),
+  /** Deals stopped — final; nurturing again starts from the lead. */
+  lost: z.number().int().nonnegative(),
 })
 
 // ---------------------------------------------------------------------------
 // OPEN DEALS OF ONE LEAD — `GET /sales/opportunities/live-deal`
 // ---------------------------------------------------------------------------
 
-/** "Which deals of this lead are still open?" — open means neither parked in
- *  `care` nor signed, the same meaning the import door uses (`liveDealsByLead`).
+/** "Which deals of this lead are still open?" — open means neither `lost`
+ *  nor signed, the same meaning the import door uses (`liveDealsByLead`).
  *
  *  Unscoped on purpose: the book is `scoped: true`, so a Sale filtering it
  *  would not see a colleague's deal on the same lead. */
@@ -576,7 +569,7 @@ export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileRespon
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 
 // ---------------------------------------------------------------------------
-// THE THREE DOORS THAT MOVE A DEAL — MILESTONE · CARE · REACTIVATE
+// THE TWO DOORS THAT MOVE A DEAL — MILESTONE · STOP
 // ---------------------------------------------------------------------------
 
 /** The three recordable milestones, in the order a deal passes them.
@@ -604,36 +597,30 @@ export const OpportunityMilestoneBody = z.object({
   note: textInputOptional(OPPORTUNITY_STAGE_NOTE_MAX),
 })
 
-/** `POST /sales/opportunities/:code/care` — park the deal on the care list.
+/** `POST /sales/opportunities/:code/stop` — the deal is lost, for good; there is
+ *  no reopen door. Nurturing again starts from the lead.
  *
- *  `reasonKey` is a STRING, deliberately not an enum: the reasons are a
- *  per-stage catalogue in `sales.config_entry` that the desk edits without a
- *  deploy (spec §5), so a closed list here would refuse a row somebody just
- *  added. The server checks the key against the catalogue; the contract only
- *  guarantees a key was sent — and that `other` came with a sentence, because
- *  "Khác" with no note is a reason nobody can read later. */
-export const OpportunityCareBody = z
+ *  `reasonKey` is a STRING, deliberately not an enum: the reasons are the
+ *  `LOSS_REASON` catalogue in `sales.config_entry` that the desk edits without a
+ *  deploy, so a closed list here would refuse a row somebody just added. The
+ *  server checks the key against the catalogue; the contract only guarantees a
+ *  key was sent — and that `other` came with a sentence, because "Khác" with no
+ *  note is a reason nobody can read later. */
+export const OpportunityStopBody = z
   .object({
-    reasonKey: textInput(OPPORTUNITY_CARE_REASON_MAX),
-    note: textInputOptional(OPPORTUNITY_CARE_NOTE_MAX),
+    reasonKey: textInput(OPPORTUNITY_STOP_REASON_MAX),
+    note: textInputOptional(OPPORTUNITY_STOP_NOTE_MAX),
   })
-  .refine((v) => v.reasonKey !== OPPORTUNITY_CARE_REASON_OTHER || v.note !== undefined, {
+  .refine((v) => v.reasonKey !== OPPORTUNITY_STOP_REASON_OTHER || v.note !== undefined, {
     error: 'Chọn "Khác" thì phải ghi lý do',
     path: ['note'],
   })
 
-/** `POST /sales/opportunities/:code/reactivate` — bring a cared-for deal back
- *  to `careFromStage`. No fields: the column to return to is remembered on the
- *  row, and asking the caller for it would let a deal come back one column
- *  further along than it left. */
-export const OpportunityReactivateBody = z.object({})
-
-/** All three doors answer with the whole book row, like the write doors above:
- *  stage, state, the care fields and the clock are all recomputed, and a screen
+/** Both doors answer with the whole book row, like the write doors above:
+ *  stage, state, the stop fields and the clock are all recomputed, and a screen
  *  patching its own cached row would disagree with the next `GET`. */
 export const OpportunityMilestoneResponse = OpportunityRow
-export const OpportunityCareResponse = OpportunityRow
-export const OpportunityReactivateResponse = OpportunityRow
+export const OpportunityStopResponse = OpportunityRow
 
 // ---------------------------------------------------------------------------
 // REMEMBERING THAT IT MOVED
@@ -643,12 +630,12 @@ export const OpportunityReactivateResponse = OpportunityRow
  *
  *  Read-only, always: no door writes one of these directly. Every row is a
  *  by-product of a move that happened somewhere else — the create door, a
- *  milestone, the care door, the signature — which is what makes the history
+ *  milestone, the stop door, the signature — which is what makes the history
  *  trustworthy as a record rather than a second thing to maintain.
  *
  *  `from` and `to` are both nullable, and each null is a real event rather than
  *  missing data: `from: null` is the deal entering the board when it was
- *  opened, `to: null` is it leaving by being signed or parked. A funnel report
+ *  opened, `to: null` is it leaving by being signed or stopped. A funnel report
  *  reads the first as "entered" and the second as "exited"; dropping either
  *  would make the first and last step of every deal invisible. */
 export const OpportunityStageEvent = z.object({
@@ -678,10 +665,8 @@ export type OpportunityProduct = z.infer<typeof OpportunityProduct>
 export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
 export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>
-export type OpportunityCareBody = z.infer<typeof OpportunityCareBody>
-export type OpportunityCareResponse = z.infer<typeof OpportunityCareResponse>
-export type OpportunityReactivateBody = z.infer<typeof OpportunityReactivateBody>
-export type OpportunityReactivateResponse = z.infer<typeof OpportunityReactivateResponse>
+export type OpportunityStopBody = z.infer<typeof OpportunityStopBody>
+export type OpportunityStopResponse = z.infer<typeof OpportunityStopResponse>
 export type OpportunityStageEvent = z.infer<typeof OpportunityStageEvent>
 export type OpportunityStageHistory = z.infer<typeof OpportunityStageHistory>
 

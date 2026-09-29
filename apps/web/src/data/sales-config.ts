@@ -17,9 +17,9 @@ import {
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 import {
-  ExitReason,
+  LEAD_STOP_REASON_OTHER,
   LeadTier,
-  OPPORTUNITY_CARE_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STAGE_LABEL,
   StageKey,
   type ConfigBundle,
@@ -214,35 +214,42 @@ export const salesCatalogQuery = queryOptions({
     }),
 })
 
-/** MỤC 5.4 · LÝ DO RA KHỎI LUỒNG — dựng KHÔNG dùng một chữ nào của fixture.
+/** Section 5.4 · the `EXIT_REASON` catalogue, as the CONFIG SCREEN needs it —
+ *  `config.view`-gated, unlike `leadStopReasonsQuery` (`data/leads.ts`), which
+ *  is the AE-safe door the stop dialogs and the lead screens read instead
+ *  (a permission an ordinary Sale does not hold).
  *
- *  ------------------------------------------------------------------
- *  MỘT LÝ DO, HAI VỰNG, VÀ CHÚNG KHÔNG NỐI ĐƯỢC BẰNG KHOÁ
- *  ------------------------------------------------------------------
- *  `sales.lead.exit_reason` chứa KHOÁ ('unreachable'); `config_entry.name`
- *  chứa NHÃN ('Không gọi được ai'). Không cột nào chở cả hai, nên không có phép
- *  nối bằng khoá — đó là nợ slug-so-với-nhãn nhìn từ đúng chỗ nó đau.
- *
- *  Phép nối duy nhất đang đúng là THỨ TỰ, và nó đúng vì có người đặt cho nó
- *  đúng chứ không phải tình cờ: `seed.ts` sinh sáu dòng `EX-01…EX-06` theo đúng
- *  thứ tự mảng, `ord` bắt đầu từ 1, và `ExitReason.options` giữ nguyên thứ tự
- *  ấy. Nối theo vị trí là thứ dễ hỏng lặng lẽ nhất trong repo này, nên nó nằm
- *  đúng MỘT chỗ — ở đây — có rào và có đường xoá:
- *
- *   · rào: số lượng lệch thì bỏ hẳn nhãn của máy chủ và in khoá ra. Một màn in
- *     'unreachable' là một màn xấu mà ĐÚNG; một màn ghép nhầm nhãn với số là
- *     một màn đẹp mà nói dối, và không ai phát hiện ra.
- *   · đường xoá: ngày `sales.lead.exit_reason` chở `id` cấu hình, hàm này rút
- *     còn một vòng `map` trên `catalog.EXIT_REASON`. */
-export function exitReasonRows(catalog: ConfigBundle | undefined) {
-  const rows = catalog?.EXIT_REASON ?? []
-  const aligned = rows.length === ExitReason.options.length
-
-  return ExitReason.options.map((key, i) => ({
-    key,
-    label: aligned ? (rows[i]?.name ?? key) : key,
-    usage: catalog?.usage.EXIT_REASON[key] ?? 0,
+ *  Inactive rows are KEPT, like `products` on this same screen: switching a
+ *  reason off is the only "delete" this system has, and hiding the row here
+ *  would make an administrator think it had vanished rather than muted. */
+export function stopReasonRows(catalog: ConfigBundle | undefined) {
+  return (catalog?.EXIT_REASON ?? []).map((r) => ({
+    id: r.id,
+    label: r.name,
+    active: r.active,
+    usage: catalog?.usage.EXIT_REASON[r.id] ?? 0,
   }))
+}
+
+/** The label behind a stored stop key — a config id, or the virtual `'other'`
+ *  key (`LEAD_STOP_REASON_OTHER`, an alias of `OPPORTUNITY_STOP_REASON_OTHER`
+ *  — one sentinel, ADR 0070), never a sentence.
+ *
+ *  `rows` comes from whichever door the caller can reach: `leadStopReasonsQuery`
+ *  for anyone who stops or reads a lead, or this screen's own `EXIT_REASON`
+ *  (`stopReasonRows` above) — same two fields either way, so one function
+ *  serves both without asking either caller for a permission it may not hold.
+ *
+ *  Reads the WHOLE list, inactive rows included — a lead stopped under a
+ *  reason the desk later switched off still has to say what it was stopped
+ *  for. Falls back to the key itself, which is ugly and TRUE. */
+export function stopReasonLabel(
+  rows: readonly { id: string; name: string }[] | undefined,
+  key: string | undefined,
+): string | undefined {
+  if (key === undefined) return undefined
+  if (key === LEAD_STOP_REASON_OTHER) return 'Khác'
+  return (rows ?? []).find((r) => r.id === key)?.name ?? key
 }
 
 /** Nguồn TỰ NHIÊN — khách tự tìm tới, không đợt nào chạy cho họ.
@@ -285,16 +292,12 @@ export function useProductCatalog() {
   return data?.PRODUCT ?? []
 }
 
-/** The `LOSS_REASON` catalog — why a DEAL went to the care list (ADR 0064 §6).
- *  The list name is unchanged; only its meaning moved.
- *
- *  DIFFERENT from `exitReasonRows` just above: that one is why a LEAD left the
- *  funnel, a CLOSED list that will never grow an "other" box. This one is open,
- *  because the next reason a deal is parked is usually a sentence nobody had
- *  written down before.
+/** The `LOSS_REASON` catalog — why a DEAL was stopped (ADR 0069 §1, final).
+ *  DIFFERENT from the lead's `EXIT_REASON` list: that one is why a LEAD left
+ *  or parked. Both are open lists with a virtual "other" key.
  *
  *  Joined by ID, the second list after `PRODUCT` able to say that:
- *  `sales.opportunity.care_reason` stores the configuration id the seller
+ *  `sales.opportunity.stop_reason` stores the configuration id the seller
  *  picked, so editing a label no longer resets that row's count to zero.
  *  `stageLabel` is `null` when `stage` is absent — the reason applies in every
  *  column, and the caller draws that caption. */
@@ -310,7 +313,7 @@ export function lossReasonRows(catalog: ConfigBundle | undefined) {
     }))
 }
 
-/** The care reasons a deal standing in ONE column may be parked with.
+/** The stop reasons a deal standing in ONE column may be stopped with.
  *
  *  A reason with no `stage` applies everywhere; one carrying a stage is offered
  *  only in that column — the same rule the server checks the sent key by, so a
@@ -321,17 +324,17 @@ export function useCareReasons(stage: StageKey | null) {
   return lossReasonRows(data).filter((r) => r.stage === null || r.stage === stage)
 }
 
-/** The LABEL behind a stored care key — `opportunity.careReason` is a catalogue
+/** The LABEL behind a stored stop key — `opportunity.stopReason` is a catalogue
  *  id, never a Vietnamese sentence, so a screen printing it raw shows 'LR-03'.
  *
  *  Reads the whole list rather than `lossReasonRows`, inactive rows included: a
- *  deal parked under a reason the desk later switched off still has to say what
- *  it was parked for. Falls back to the key, which is ugly and TRUE — the one
+ *  deal stopped under a reason the desk later switched off still has to say
+ *  why it stopped. Falls back to the key, which is ugly and TRUE — the one
  *  thing it must never do is borrow a neighbouring row's label. */
 export function useCareReasonLabel(reasonKey: string | undefined) {
   const { data } = useQuery(salesCatalogQuery)
   if (reasonKey === undefined) return undefined
-  if (reasonKey === OPPORTUNITY_CARE_REASON_OTHER) return 'Khác'
+  if (reasonKey === OPPORTUNITY_STOP_REASON_OTHER) return 'Khác'
   return (data?.LOSS_REASON ?? []).find((r) => r.id === reasonKey)?.name ?? reasonKey
 }
 
@@ -514,6 +517,29 @@ export function useProposeLossReason() {
       api.write<ConfigProposalReceipt>('/sales/config/LOSS_REASON', {
         method: 'POST',
         body,
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
+      void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
+    },
+  })
+}
+
+/** Add one entry to `EXIT_REASON` — used by 5.4's `AddStopReason` row.
+ *
+ *  Same shape as `useProposeProduct` — a name-only `POST`, no `stage` — because
+ *  the door refuses `stage` on any list but `LOSS_REASON` (`assertAttrs`). The
+ *  catalogue is shared by both stop doors (ADR 0070), so one new row here
+ *  reaches the park picker and the disqualify picker at once. */
+export function useProposeStopReason() {
+  const client = useQueryClient()
+
+  return useMutation<ConfigProposalReceipt, ApiError, string>({
+    mutationFn: (name) =>
+      api.write<ConfigProposalReceipt>('/sales/config/EXIT_REASON', {
+        method: 'POST',
+        body: { name },
         need: { branch: 'Sales', permission: 'config.propose' },
       }),
     onSuccess: () => {

@@ -124,10 +124,10 @@ export class WorkstreamService {
     const all = byRun.get(found.row.code) ?? []
     const { deals, hidden } = this.visibleDeals(who, all, owners)
     const dealCodes = deals.map((d) => d.code)
-    const careKeys = deals.flatMap((d) => (d.careReason === null ? [] : [d.careReason]))
+    const stopKeys = deals.flatMap((d) => (d.stopReason === null ? [] : [d.stopReason]))
 
     const [rows, steps, today] = await Promise.all([
-      this.lanes.lanesOf(found.lead.code, dealCodes, careKeys),
+      this.lanes.lanesOf(found.lead.code, dealCodes, stopKeys),
       this.steps.stepsOf(dealCodes),
       this.steps.today(),
     ])
@@ -232,8 +232,8 @@ export class WorkstreamService {
       ref: scopeRefOf(row, owners.get(row.code) ?? [], who.id),
     }))
     const { visible } = this.access.visible(who, items)
-    /* `E2.visible` matches the owner by NAME (known debt): two people sharing
-       one must not see each other's deals, so an own-only reader also needs the id. */
+    /* E2 reads a ref with no owner as shared; a deal with no owner row must
+       still stay out of an own-only reader's journey, so the id is asked here too. */
     const deals = visible
       .map((v) => v.row)
       .filter((d) => !who.ownOnly || owners.get(d.code)?.some((o) => o.id === who.id))
@@ -289,7 +289,10 @@ function inputOf(
 
   if (live.kind === 'OP') {
     return {
-      ref: dealRef(live.deal, read.saleName),
+      ref: dealRef(
+        live.deal,
+        read.lead.ownerId && read.saleName ? { id: read.lead.ownerId, name: read.saleName } : null,
+      ),
       phases: phasesOf(config.stage, StageKey.options),
       reached: [live.stage],
       since: live.deal.stageSince?.toISOString() ?? null,

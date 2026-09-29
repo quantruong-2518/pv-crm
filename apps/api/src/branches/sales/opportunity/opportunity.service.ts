@@ -6,6 +6,7 @@ import {
   plan,
   type AccessControl,
   type Actor,
+  type RoleId,
   type Decidable,
   type ObjectRef,
 } from '@pv/engines'
@@ -47,6 +48,7 @@ import { OpportunityLifecycle, picOf, picQualifies, picRefusal } from './opportu
 import {
   fromCreate,
   fromUpdate,
+  holderOf,
   daysInStageOf,
   NOTE,
   ownerRowsOf,
@@ -57,6 +59,7 @@ import {
   toContract,
   toRef,
   toStageEvent,
+  type RefOwner,
 } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 import type { OpportunityRowDb } from './opportunity.schema'
@@ -314,12 +317,11 @@ export class OpportunityService {
     const stage = picQualifies(picOf(pic, roles)) ? 'assigned' : 'new'
     const write = fromCreate(body, now, lead.workstreamCode, stage)
     const code = await this.repo.nextCode()
-    const ownerName =
-      body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
+    const owner = holderOfIds(body.saleOwners, names, roles)
 
     const row = await this.repo.run(async (tx) => {
       await this.assertLeadsLive(tx, who, [body.leadCode])
-      const ref = refOf(code, write, { label: write.values.name, ownerName })
+      const ref = refOf(code, write, { label: write.values.name, owner })
       await this.mirror.put(tx, ref)
       /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
          rather than left to the seed because a rail that only exists in seeded
@@ -372,8 +374,8 @@ export class OpportunityService {
         },
       ])
 
-      /* Never the care letter from this door: a deal is opened onto the board,
-         and the only way off it is the care door (ADR 0064 §3). */
+      /* Never the lost letter from this door: a deal is opened onto the board,
+         and the only way off it short of signing is the stop door (ADR 0069). */
       await this.notify(tx, ref, false)
       await this.leadStates.converted(tx, [body.leadCode])
       if (written.workstreamCode) await this.workstreams.syncClosed(tx, [written.workstreamCode])
@@ -408,7 +410,8 @@ export class OpportunityService {
           })),
           ...body.bdOwners.map((id) => ({ id, name: names.get(id) ?? id, role: 'BD' as const })),
         ],
-        signed: false,
+        contractCodes: [],
+        holder: owner,
         daysInStage: daysInStageOf(row, row.createdAt),
         /* Labels read from the catalog after the write rather than rebuilt from
            the ids in the body: the body only carries ids, and the answer has to
@@ -431,7 +434,7 @@ export class OpportunityService {
    *  ------------------------------------------------------------------
    *  CỬA NÀY KHÔNG CHẠM VÒNG ĐỜI, VÀ NÓ CHỈ CÓ MỘT LUẬT RIÊNG: PIC KHÔNG TỤT
    *  ------------------------------------------------------------------
-   *  `state`, `stage`, đồng hồ cột, `closed_at` và ba cột `care_*` không nằm
+   *  `state`, `stage`, đồng hồ cột, `closed_at` và ba cột fail log không nằm
    *  trong `OpportunityEdit` (ADR 0064), nên lưu phiếu không kéo được đơn đi
    *  đâu. Thứ duy nhất lượt lưu này quyết định về vòng đời là hệ quả của việc
    *  đổi người: một tập PIC vừa đủ (một trưởng phòng + một người nữa) đưa đơn
@@ -449,6 +452,7 @@ export class OpportunityService {
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
+    if (found.row.state === 'lost') throw frozenLost(code)
     /* Money or SALE owners on a signed deal rewrite the contract, so they need
        the sign door's permission and scope. */
     if (found.signed && touchesSignTerms(found, body)) {
@@ -458,10 +462,10 @@ export class OpportunityService {
     }
 
     const pic = [...body.saleOwners, ...body.bdOwners]
-    const [names, roles, signedContract, pendingSign] = await Promise.all([
+    const [names, roles, signedContracts, pendingSign] = await Promise.all([
       this.repo.actorNames(this.repo.readonlyHandle, pic),
       this.repo.actorRoles(this.repo.readonlyHandle, [...pic, ...found.owners.map((o) => o.id)]),
-      found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : null,
+      found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
       this.pendingSign(code),
     ])
     if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
@@ -476,20 +480,19 @@ export class OpportunityService {
 
     const now = new Date()
     const write = fromUpdate(body)
-    const ownerName =
-      body.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
+    const owner = holderOfIds(body.saleOwners, names, roles)
 
     const row = await this.repo.run(async (tx) => {
-      await this.assertLockedAsRead(tx, code, found.signed, pendingSign)
+      await this.assertLockedAsRead(tx, code, found, pendingSign)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
-      if (signedContract) await this.syncContract(tx, found, body, signedContract, names)
+      for (const signed of signedContracts) await this.syncContract(tx, found, body, signed, owner)
 
       /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
          sửa, và không có gì đỏ để chỉ ra điều đó. */
-      await this.mirror.put(tx, toRef(written, ownerName))
+      await this.mirror.put(tx, toRef(written, owner))
 
       /* A PIC set that now qualifies moves the deal to `assigned`, and the
          writer records the timeline and funnel rows of that move itself. It
@@ -497,7 +500,7 @@ export class OpportunityService {
       if (!picQualifies(after)) return written
       const moved = await this.lifecycle.assigned(
         tx,
-        { row: written, ownerName, signed: found.signed, pendingSign },
+        { row: written, owner, signed: found.signed, pendingSign },
         { id: who.id, name: who.name },
         now,
       )
@@ -522,7 +525,8 @@ export class OpportunityService {
         /* "Đã thắng" không đổi được bằng cửa này — nó là câu hỏi về bảng
            `contract`, và lượt sửa vừa rồi không chạm bảng đó. Chở lại đúng câu
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */
-        signed: found.signed,
+        contractCodes: found.contractCodes,
+        holder: owner,
         daysInStage: daysInStageOf(row, new Date()),
         products: productNames,
       }),
@@ -605,13 +609,13 @@ export class OpportunityService {
         ? 'assigned'
         : 'new'
       const draft = fromCreate(write, now, workstreamByLead.get(write.leadCode) ?? null, stage)
-      const ownerName =
-        write.saleOwners.map((id) => names.get(id)).find((n) => n !== undefined) ?? null
-
       return {
         code,
         row: { ...draft.values, code },
-        ref: refOf(code, draft, { label: draft.values.name, ownerName }),
+        ref: refOf(code, draft, {
+          label: draft.values.name,
+          owner: holderOfIds(write.saleOwners, names, roles),
+        }),
         owners: ownerRowsOf(code, draft),
         /* THE "ENTERED THE BOARD" ROW — the same row the single-deal create
            door writes, for the same reason. This door forgot it until 03/09,
@@ -776,18 +780,23 @@ export class OpportunityService {
     return (await this.approvals.pendingOn(code)).some((a) => a.kind === 'contract-sign')
   }
 
-  /** Inside the write's transaction: lock the deal, and refuse if signing or a
-   *  sign request landed between the pre-transaction checks and the lock. */
+  /** Inside the write's transaction: lock the deal, and refuse if signing, a
+   *  sign request or a stop landed between the pre-transaction checks and the lock. */
   private async assertLockedAsRead(
     tx: Db,
     code: string,
-    signed: boolean,
+    found: OpportunityRead,
     pendingSign: boolean,
   ): Promise<void> {
     const locked = await this.repo.lockDeal(tx, code)
     if (!locked) throw notFound('cơ hội', code)
-    if (locked.signed !== signed || locked.pendingSign !== pendingSign) {
-      throw conflict(`Cơ hội ${code} vừa được ký hoặc gửi duyệt ký — tải lại rồi thử lại.`)
+    const lost = found.row.state === 'lost'
+    if (
+      locked.signed !== found.signed ||
+      locked.pendingSign !== pendingSign ||
+      locked.lost !== lost
+    ) {
+      throw conflict(`Cơ hội ${code} vừa được ký, gửi duyệt ký hoặc dừng — tải lại rồi thử lại.`)
     }
   }
 
@@ -802,38 +811,29 @@ export class OpportunityService {
       throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
   }
 
-  /** A signed deal's edit carries its money and commission holder onto the
-   *  contract, in the edit's transaction (ADR 0057 §1). The holder moves only
-   *  when they are no longer a SALE owner — one hand-picked in the sign drawer
-   *  survives a reorder. The contract's mirror row carries both, so it moves. */
+  /** A signed deal's edit carries its commission holder onto each contract, in
+   *  the edit's transaction (ADR 0057 §1). The holder moves only when they are
+   *  no longer a SALE owner — one hand-picked in the sign drawer survives — and
+   *  moves to the deal's holder (`holderOf`). Money no longer follows: each
+   *  paper names its own (ADR 0069 §5). */
   private async syncContract(
     tx: Db,
     found: OpportunityRead,
     body: OpportunityUpdate,
     signed: ContractRead,
-    names: ReadonlyMap<string, string>,
+    holder: RefOwner | null,
   ): Promise<void> {
-    const moneyChanged = body.amount !== found.row.amount || body.currency !== found.row.currency
-    const main = body.saleOwners[0] ?? null
-    const ownerChanged =
-      signed.row.ownerId === null || !body.saleOwners.includes(signed.row.ownerId)
-    if (!moneyChanged && !ownerChanged) return
+    if (signed.row.ownerId !== null && body.saleOwners.includes(signed.row.ownerId)) return
 
     const row = await this.contracts.updateTerms(tx, signed.row.code, {
-      ...(moneyChanged ? { amount: body.amount, currency: body.currency } : {}),
-      ...(ownerChanged ? { ownerId: main } : {}),
+      ownerId: holder?.id ?? null,
     })
-    const ownerName = ownerChanged
-      ? main === null
-        ? null
-        : (names.get(main) ?? null)
-      : signed.ownerName
     await this.mirror.put(tx, {
       code: row.code,
       kind: 'HĐ',
       branch: 'Sales',
       label: `${found.account} · ${body.name}`,
-      ...(ownerName ? { owner: ownerName } : {}),
+      ...(holder ? { owner: holder.name, ownerId: holder.id } : {}),
       ...(row.amount === null ? {} : { amount: row.amount }),
     })
   }
@@ -852,22 +852,21 @@ export class OpportunityService {
    *  được gõ ra. Thứ duy nhất nhánh đóng góp là điều engine không được biết:
    *  bản triển khai này gửi vào hộp thư nào.
    *
-   *  `care` đi qua `data` chứ không thành một event name thứ hai — xem docblock
+   *  `lost` đi qua `data` chứ không thành một event name thứ hai — xem docblock
    *  của `OPPORTUNITY_OPENED`. Hộp thư trống = KHÔNG xếp hàng gì, đúng hành vi
    *  của một máy chưa được bảo gửi đi đâu; `PV_EMAIL_ENABLED` cố tình KHÔNG gác
    *  chỗ này, vì một cửa gửi đang tắt vẫn phải ghi sổ, nó chỉ không cho thư rời
    *  khỏi máy (xem `env.ts`).
    *
-   *  CÔNG KHAI vì cửa đẩy sang chăm sóc (`OpportunityMoves.care`) cũng bắn lá
-   *  này: hai cửa, một lời hứa gửi. Chép `plan()` sang file kia là dựng câu trả
-   *  lời thứ hai cho "ai được biết một đơn vừa chết". Khoá `data.lost` của E4
-   *  giữ nguyên tên cho tới khi bảng rule ở `packages/engines` đổi theo. */
-  async notify(tx: Db, ref: ObjectRef, care: boolean): Promise<void> {
+   *  CÔNG KHAI vì cửa dừng (`OpportunityMoves.stop`) cũng bắn lá này: hai cửa,
+   *  một lời hứa gửi. Chép `plan()` sang file kia là dựng câu trả lời thứ hai
+   *  cho "ai được biết một đơn vừa chết". */
+  async notify(tx: Db, ref: ObjectRef, lost: boolean): Promise<void> {
     const intents = plan({
       name: OPPORTUNITY_OPENED,
       ref,
       audiences: { [AUDIENCE_INTERNAL]: this.env.PV_OPS_NOTIFICATION_TO },
-      data: { lost: care },
+      data: { lost },
     })
 
     for (const intent of intents) {
@@ -945,12 +944,33 @@ function touchesSignTerms(found: OpportunityRead, body: OpportunityUpdate): bool
   )
 }
 
+/** `holderOf` over a body's SALE ids, with names and roles resolved first so
+ *  it applies its own order, not the body's; ids the actor book does not know
+ *  are skipped (their insert dies on the owner foreign key). */
+function holderOfIds(
+  ids: readonly string[],
+  names: ReadonlyMap<string, string>,
+  roles: ReadonlyMap<string, RoleId>,
+): RefOwner | null {
+  return holderOf(
+    ids.flatMap((id) => {
+      const name = names.get(id)
+      return name === undefined
+        ? []
+        : [{ id, name, role: 'SALE' as const, roleId: roles.get(id) ?? null }]
+    }),
+  )
+}
+
 /** Lead scope by id, the lead doors' rule (`LeadExitService.lockRow`): an
  *  `ownOnly` caller converts only a lead they hold — never a pool lead. */
 const holds = (who: Actor, ownerId: string | null): boolean => !who.ownOnly || ownerId === who.id
 
 const foreignLead = (code: string) =>
   denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+
+const frozenLost = (code: string) =>
+  conflict(`Cơ hội ${code} đã dừng — không sửa được nữa. Muốn chăm lại thì đi từ lead.`)
 
 const frozenForSign = () =>
   conflict('Cơ hội đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa')

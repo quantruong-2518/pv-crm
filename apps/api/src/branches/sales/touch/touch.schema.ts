@@ -130,6 +130,20 @@ export const touch = sales.table(
      *  a row that predates the column, not a person with no job. */
     toRole: text('to_role').$type<RoleId>(),
 
+    /** Config id of the stop reason (`EXIT_REASON` list) — the SAME catalogue
+     *  `exited` and `nurtured` both write to, ADR 0070's point: a lead paused
+     *  and a lead dropped share one list of reasons. May also carry the
+     *  virtual key `'other'`, which is never a config row — an FK to
+     *  `config_entry.id` could not accept it, so this stays a bare `text`,
+     *  the same call `opportunity.stop_reason` already made.
+     *
+     *  NULL on every row written before this column existed and on every
+     *  `kind` but the two above — `touch_reason_only_stop` below is
+     *  one-way, like `touch_hand_over_sides`' sibling constraint, for the
+     *  same reason: old code keeps writing reason-less rows between migrate
+     *  and deploy. */
+    reasonId: text('reason_id'),
+
     note: text('note').notNull(),
   },
   (t) => [
@@ -140,9 +154,9 @@ export const touch = sales.table(
     /** "Việc tôi đã làm", chưa có màn nào hỏi. Rẻ, và cột đã có sẵn. */
     index('touch_actor_idx').on(t.actorId),
     check('touch_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
-    /** The twenty-six `TouchKind` values, copied out rather than generated: the enum
-     *  growing must be a migration somebody reads (0067 adds the two mail-failure
-     *  kinds). `first-action`/`verified` stay — their rows are on disk. */
+    /** The twenty-five `TouchKind` values, copied out: the enum changing must be a
+     *  migration somebody reads. 0068 turned `care-entered` rows into `exited`;
+     *  `first-action`/`verified`/`care-left` stay — their rows are on disk. */
     check(
       'touch_kind_known',
       sql`"kind" IN ('created', 'contacted', 'field-filled', 'handed-over', 'tier-raised',
@@ -150,7 +164,7 @@ export const touch = sales.table(
                      'nurtured', 'resumed', 'archived', 'first-meeting',
                      'entered-pipeline', 'stage-changed', 'signed', 'exited',
                      'reopened', 'sample-sent', 'poc-run', 'quotation-sent',
-                     'care-entered', 'care-left', 'next-step-done',
+                     'care-left', 'next-step-done',
                      'mail-failed', 'mail-sync-failed')`,
     ),
     /** Ba giá trị của `LeadTier`. Chép ra đây cùng lý do với `touch_kind_known`
@@ -207,6 +221,10 @@ export const touch = sales.table(
     ),
     /** Một dòng thời gian không có câu nào để đọc là một dòng trống chiếm chỗ. */
     check('touch_no_blank', sql`"by" <> '' AND "note" <> '' AND "subject_code" <> ''`),
+    /** Only `exited`/`nurtured` carry a reason. One-way, like
+     *  `touch_hand_over_sides`: a pre-column or pre-deploy row stays NULL
+     *  rather than fail. */
+    check('touch_reason_only_stop', sql`"reason_id" IS NULL OR "kind" IN ('nurtured', 'exited')`),
   ],
 )
 

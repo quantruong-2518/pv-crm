@@ -475,29 +475,30 @@ export const toggled = (list: string[], id: string) =>
 // Cách một dòng sổ ra mặt
 // ---------------------------------------------------------------------------
 
-/** Màu của trạng thái đọc — ba giá trị, ba tone.
+/** The tone of each read state — three values, three tones. Exported for the
+ *  journey screen too, so a deal wears one colour everywhere.
  *
- *  Bảng nằm ở tầng app chứ không ở hợp đồng: "thành hợp đồng màu gì" là cách
- *  trình bày của phòng kinh doanh, không phải hình của dữ liệu (cùng cách chia
- *  với `ORIGIN_FACE` ở `data/leads.ts`).
- *
- *  Năm CỘT của một đơn đang mở KHÔNG tô năm màu: màu ở đây trả lời "đơn này còn
- *  trên bảng không", chữ trả lời "đang ở cột nào". Và `care` không tô `danger` —
- *  danh sách chăm sóc không phải một đơn đã mất (ADR 0064). */
+ *  The table lives in the app, not the contract: "what colour is won" is how
+ *  the sales desk presents, not the shape of the data (same split as
+ *  `ORIGIN_FACE` in `data/leads.ts`). The five COLUMNS of an open deal wear one
+ *  tone: colour answers "is it still on the board", the text answers "which
+ *  column". `lost` stays grey rather than `danger`: a stop is a recorded
+ *  outcome, and the lead it came from may be nurtured again (ADR 0069 §3). */
 export const STATE_TONE: Record<OpportunityStatus, 'success' | 'running' | 'draft'> = {
   open: 'running',
-  care: 'draft',
+  lost: 'draft',
   won: 'success',
 }
 
-/** Law 13 rescue for the `draft` tone `care` wears. `Badge`'s own `draft` ink
- *  measures 4.41:1 on the dark theme and 3.81:1 on the light one, both under the
- *  4.5 floor, where `text-foreground` clears it on either glass. Same mechanism
- *  as `CLOSE_BADGE` in `components/workstream-bits.tsx`. */
+/** Ink for the `draft` tone `lost` wears, born as a law 13 rescue when `Badge`'s
+ *  `draft` ink measured 4.41:1 dark and 3.81:1 light. That ink is now
+ *  `--muted-foreground` and measures 6.3:1 dark and 5.4:1 light, so this only
+ *  darkens a pill that already clears 4.5. Same mechanism as `CLOSE_BADGE` in
+ *  `components/workstream-bits.tsx`. */
 export const BADGE_INK = 'text-foreground'
 
 /** What a row's pill SAYS: the COLUMN while the deal is on the board, the read
- *  STATE once it has left — the care list, or a signed contract.
+ *  STATE once it has left — stopped, or a signed contract.
  *
  *  One function for the book cell and the deal's own sticky bar alike: two
  *  screens deciding this separately are two screens calling one deal by two

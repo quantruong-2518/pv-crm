@@ -2,14 +2,16 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Db } from '@api/platform/db/db.module'
 import { nextStep } from './next-step.schema'
 
-/** What other doors do to a step inside THEIR transaction: exit and convert
- *  drop it; an owner change hands it over.
+/** What other doors do to a step inside THEIR transaction: lead exit and
+ *  convert, and a deal's stop and sign, drop it; an owner change hands it over.
  *
  *  Plain functions over `tx`, not a provider: the lead and deal modules call
  *  these, and `NextStepModule` imports `LeadModule`, so a provider here would
  *  be a module cycle. This file imports only the table. Both are idempotent and
  *  write no touch — the door that calls them writes its own. */
 
+/** The clear-for-subject the opportunity module calls on stop and on sign
+ *  (ADR 0069 §10), inside its own tx. Works on any `LD-`/`OP-` code. */
 export async function dropStep(tx: Db, subjectCode: string): Promise<void> {
   await tx.delete(nextStep).where(eq(nextStep.subjectCode, subjectCode))
 }

@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type {
-  ContractSummary,
-  LeadScorecard,
-  OpportunityHistogram,
-  OpportunityScorecard,
+import {
+  OPPORTUNITY_STATE_LABEL,
+  type ContractSummary,
+  type LeadScorecard,
+  type OpportunityHistogram,
+  type OpportunityScorecard,
 } from '@pv/contracts'
 import { DUE_NEAR_DAYS } from '@pv/engines'
 import {
@@ -258,8 +259,8 @@ export function WinRate({
   className?: string
 }) {
   const won = scorecard?.won ?? 0
-  const care = scorecard?.care ?? 0
-  const decided = won + care
+  const lost = scorecard?.lost ?? 0
+  const decided = won + lost
 
   return (
     <StatCard
@@ -268,7 +269,9 @@ export function WinRate({
       value={ratio(won, decided)}
       label="Tỷ lệ thắng"
       source={
-        decided === 0 ? 'Sổ cơ hội · chưa đơn nào đóng' : `${won} thắng · ${care} vào chăm sóc`
+        decided === 0
+          ? 'Sổ cơ hội · chưa đơn nào đóng'
+          : `${won} thắng · ${lost} ${OPPORTUNITY_STATE_LABEL.lost.toLowerCase()}`
       }
       className={className}
     />

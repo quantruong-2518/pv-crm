@@ -3,16 +3,15 @@ import {
   type ConfigProposalReceipt,
   type ContractSign,
   type ObjectCode,
-  type OpportunityCareBody,
-  type OpportunityCareResponse,
   type OpportunityCreate,
   type OpportunityCreateResponse,
   type OpportunityMilestoneBody,
   type OpportunityMilestoneResponse,
   type OpportunityProfileResponse,
-  type OpportunityReactivateResponse,
   type OpportunityRow,
   type OpportunityStageHistory,
+  type OpportunityStopBody,
+  type OpportunityStopResponse,
   type OpportunityUpdate,
   type OpportunityUpdateResponse,
 } from '@pv/contracts'
@@ -20,6 +19,7 @@ import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { invalidateLeadState } from '@/data/lead-exit'
+import { nextStepKey } from '@/data/next-step'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 
 /** Module 3 · các cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
@@ -92,12 +92,12 @@ export const OPPORTUNITY_SIGN_NEED: ApiNeed = {
 
 const some = (s: string) => (s.trim() === '' ? undefined : s)
 
-/** Phần thân chung của hai cửa — đúng bộ ô sửa được.
+/** The body shared by both doors — exactly the editable boxes.
  *
- *  KHÔNG có `state`, `stage`, hay lý do chăm sóc, và cả ba đều vắng vì cùng một
- *  lý do (ADR 0064): một trục, một writer. Cột đi theo sự kiện thật ở máy chủ,
- *  còn lý do chăm sóc đi qua cửa riêng `POST /:code/care` — kèm đúng thân của
- *  nó. Một phiếu sửa mà chở được cột là một phiếu cãi lại chính máy chủ. */
+ *  NO `state`, `stage` or stop reason, all for one reason (ADR 0064): one axis,
+ *  one writer. The column follows real events on the server, and the stop
+ *  reason goes through its own door `POST /:code/stop`. A form that carried the
+ *  column would be a form arguing with the server. */
 function dealBody(draft: OpportunityDraft) {
   return {
     name: draft.name,
@@ -249,13 +249,13 @@ export function saveOpportunity(
   })
 }
 
-/** Raise a request to sign — the only road to `won`, and it now passes E3.
+/** Raise a request to sign — the only road to `won`, and it passes E3.
  *
  *  202 with a receipt: the contract row exists only once an approver accepts
  *  the `contract-sign` request (`docs/decisions/0057-seven-sales-pipeline-decisions.md`,
- *  decision 7). All three body fields are optional — absent means "as the deal
- *  says" — and the drawer still shows them so the requester confirms the
- *  figures the approver will read. A second request while one waits is a 409. */
+ *  decision 7). Open to an open deal with a quotation sent and to a won deal
+ *  signing again (ADR 0069 §5); every request names its own amount, currency
+ *  and kind. A second request while one waits is a 409. */
 export function signContract(
   code: ObjectCode,
   body: ContractSign,
@@ -312,7 +312,7 @@ export function useSaveOpportunity(code: ObjectCode) {
   })
 }
 
-/** Mutation of the "Chốt thắng" button.
+/** Mutation of the "Chốt thắng" and "Ký thêm hợp đồng" buttons.
  *
  *  Nothing about the deal has changed yet, so nothing is written into the
  *  cache: the profile is re-read for its `pendingSign`, which locks the button,
@@ -331,15 +331,16 @@ export function useSignContract(code: ObjectCode) {
 }
 
 // ---------------------------------------------------------------------------
-// THE THREE DOORS THAT MOVE A DEAL — MILESTONE · CARE · REACTIVATE
+// THE TWO DOORS THAT MOVE A DEAL — MILESTONE · STOP
 // ---------------------------------------------------------------------------
 
 /** `PATCH :code/stage` IS GONE (ADR 0064 §1) and so is the mutation that drove
- *  it. A drag gesture was never a reason a deal advanced, so the three doors
+ *  it. A drag gesture was never a reason a deal advanced, so the two doors
  *  below take the FACT instead and let the server's single stage writer move the
- *  column: a milestone that really happened, a parking with a reason, a reopen.
+ *  column: a milestone that really happened, or a stop with a reason. A stop is
+ *  final — there is no reopen door (ADR 0069 §1).
  *
- *  `scoped: true` on all three, the same flag `OPPORTUNITY_UPDATE_NEED` above
+ *  `scoped: true` on both, the same flag `OPPORTUNITY_UPDATE_NEED` above
  *  carries: standing in the PIC is what
  *  grants the right (ADR 0064 §5), so every declaration here has to read the same
  *  as its controller `@Need`. */
@@ -362,12 +363,12 @@ export function logMilestone(
   })
 }
 
-export function pushToCare(
+export function stopDeal(
   code: ObjectCode,
-  body: OpportunityCareBody,
+  body: OpportunityStopBody,
   signal?: AbortSignal,
-): Promise<OpportunityCareResponse> {
-  return api.write<OpportunityCareResponse>(`${BOOK_PATH}/${code}/care`, {
+): Promise<OpportunityStopResponse> {
+  return api.write<OpportunityStopResponse>(`${BOOK_PATH}/${code}/stop`, {
     method: 'POST',
     body,
     need: OPPORTUNITY_MOVE_NEED,
@@ -375,22 +376,7 @@ export function pushToCare(
   })
 }
 
-/** An EMPTY body, and it is sent rather than omitted: the door parses one, and
- *  the column to return to is remembered on the row — asking the caller for it
- *  would let a deal come back further along than it left. */
-export function reactivateDeal(
-  code: ObjectCode,
-  signal?: AbortSignal,
-): Promise<OpportunityReactivateResponse> {
-  return api.write<OpportunityReactivateResponse>(`${BOOK_PATH}/${code}/reactivate`, {
-    method: 'POST',
-    body: {},
-    need: OPPORTUNITY_MOVE_NEED,
-    signal,
-  })
-}
-
-/** What all three moves have to refresh, written ONCE.
+/** What both moves have to refresh, written ONCE.
  *
  *  Three keys, three different reasons. The profile is ON SCREEN, so the row
  *  that just came back is merged straight in — merged and not replaced, because
@@ -408,6 +394,11 @@ function useMoveSettled(code: ObjectCode) {
     void client.invalidateQueries({ queryKey: ['sales', 'ops', code] })
     void client.invalidateQueries({ queryKey: ['sales', 'ops-touches', code] })
     void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+    if (row.state !== 'lost') return
+    /* A stop clears the deal's next step, and the last one parks the lead and
+       closes the journey (ADR 0069 §3) — both read elsewhere. */
+    void client.invalidateQueries({ queryKey: nextStepKey(code) })
+    invalidateLeadState(client)
   }
 }
 
@@ -422,20 +413,11 @@ export function useLogMilestone(code: ObjectCode) {
   })
 }
 
-export function usePushToCare(code: ObjectCode) {
+export function useStopDeal(code: ObjectCode) {
   const settled = useMoveSettled(code)
 
-  return useMutation<OpportunityCareResponse, ApiError, OpportunityCareBody>({
-    mutationFn: (body) => pushToCare(code, body),
-    onSuccess: settled,
-  })
-}
-
-export function useReactivateDeal(code: ObjectCode) {
-  const settled = useMoveSettled(code)
-
-  return useMutation<OpportunityReactivateResponse, ApiError, void>({
-    mutationFn: () => reactivateDeal(code),
+  return useMutation<OpportunityStopResponse, ApiError, OpportunityStopBody>({
+    mutationFn: (body) => stopDeal(code, body),
     onSuccess: settled,
   })
 }

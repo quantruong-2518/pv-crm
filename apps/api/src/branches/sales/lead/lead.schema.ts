@@ -8,13 +8,11 @@ import {
   smallint,
   text,
   timestamp,
-  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
 import type {
   ContactChannel,
   CurrencyCode,
-  ExitReason,
   LeadCategory,
   LeadMotion,
   LeadSourceKind,
@@ -350,7 +348,9 @@ export const lead = sales.table(
       ),
 
     // ── exit · ra khỏi luồng ───────────────────────────────────────────────
-    exitReason: text('exit_reason').$type<ExitReason>(),
+    /** An `EXIT_REASON` config id or `'other'` — a plain string since the
+     *  catalogue became desk-edited (`LeadRow.exitReason`). */
+    exitReason: text('exit_reason'),
     exitedAt: timestamp('exited_at', { withTimezone: true }),
   },
   (t) => [
@@ -373,22 +373,15 @@ export const lead = sales.table(
        dữ liệu thật thì bật `pg_trgm` và thêm một GIN index trên `company`.
        Chưa làm bây giờ vì extension phải đi kèm migration riêng. */
 
-    /** ONE email = ONE LIVE lead.
+    /** "Which live leads share this mailbox" — NOT a fence any more.
      *
-     *  A landing page submitted twice is two raw rows in `lead_intake`, not two
-     *  leads. But a customer disqualified last year who comes back this year is
-     *  a legitimate NEW lead — so the fence covers every state except the one a
-     *  lead does not come back from on its own (`disqualified`; `archived` was
-     *  the other one, retired by ADR 0068). `converted` stays inside: the
-     *  customer is live, as a deal.
-     *
-     *  Indexed on `lower(email)`: `An@x.vn` and `an@x.vn` are one mailbox, and
-     *  on a raw index they slip through as two live leads that MAS mail writes
-     *  to twice. The name is load-bearing — `lead-intake.service.ts` matches the
-     *  23505 on it. */
-    uniqueIndex('lead_email_live_idx')
-      .on(sql`lower("email")`)
-      .where(sql`"state" <> 'disqualified'`),
+     *  Until ADR 0070 exactly one live lead could hold an email; the intake
+     *  door refused a second one outright. Owner decision B keeps the
+     *  collision as a SIGNAL instead of a wall: the door now always writes
+     *  the row, and the read side (`lead.repository.ts`) groups on this
+     *  index to flag `duplicateOf`. `lower(email)` stays — `An@x.vn` and
+     *  `an@x.vn` are one mailbox either way. */
+    index('lead_email_idx').on(sql`lower("email")`),
 
     /** The campaign has to EXIST, and has to be a row of the source catalogue.
      *

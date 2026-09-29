@@ -25,7 +25,7 @@ import {
  *  ONE WRITE DOOR NOW. The status box is gone with ADR 0064 — a seller picks
  *  neither state nor column, so this draft carries no cell that writes itself
  *  through, and every box waits for the Save button. Where the deal STANDS moves
- *  through the three doors on the sticky bar (`useLogMilestone` and friends),
+ *  through the two doors on the sticky bar (`useLogMilestone`, `useStopDeal`),
  *  which touch the server row and never this draft.
  *
  *  `probability` and `currency` have no box on screen since 17/09 and still
@@ -93,6 +93,8 @@ export type DealDraft = {
   errors: FieldErrors
   dirty: string[]
   missing: string[]
+  /** `opportunity.edit`, and the deal is not lost — the server 409s every
+   *  write on a stopped deal (ADR 0069 §1), so the form turns read-only. */
   canEdit: boolean
   canClose: boolean
   canSubmit: boolean
@@ -118,7 +120,7 @@ export type UseDealDraftArgs = {
 }
 
 export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArgs): DealDraft {
-  const canEdit = useCan('opportunity.edit')
+  const canEdit = useCan('opportunity.edit') && op?.state !== 'lost'
   const canClose = useCan('opportunity.close')
   /* Both doors opened up front — a hook cannot sit behind a branch, and a
      mutation nobody fires costs nothing. */
@@ -150,7 +152,7 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     })
   }
 
-  const signed = op?.contractCode !== undefined
+  const signed = op?.state === 'won'
   const waiting = Boolean(op?.pendingSign)
   const moneyLocked = waiting || (signed && !canClose)
 

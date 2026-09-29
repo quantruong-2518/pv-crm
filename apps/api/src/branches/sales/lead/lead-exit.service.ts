@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   LEAD_STATE_LABEL,
+  LEAD_STOP_REASON_OTHER,
   type LeadExitBody,
   type LeadNurtureBody,
   type LeadProfile,
@@ -16,7 +17,13 @@ import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
-import { LEAD_GONE_WORDS, LeadStateWriter, stateByWork, stateOnReopen } from './lead-state'
+import {
+  LEAD_GONE_WORDS,
+  LEAD_NURTURED_WITHHOLD,
+  LeadStateWriter,
+  stateByWork,
+  stateOnReopen,
+} from './lead-state'
 import { LeadWriteRepository } from './lead-write.repository'
 
 /** The lifecycle doors a person presses (ADR 0058, 0063): confirm contact, exit
@@ -73,13 +80,16 @@ export class LeadExitService {
         throw conflict(`Lead ${code} còn cơ hội đang mở — đóng cơ hội trước khi cho lead rời phễu.`)
       }
       if (held.signed) throw conflict(`Lead ${code} đã ký hợp đồng — không cho rời phễu được.`)
+      await this.assertReason(tx, body.reasonKey)
 
       await this.states.move(tx, code, 'disqualified', {
-        exitReason: body.reason,
+        exitReason: body.reasonKey,
         /* The DB clock, same as the `state_since` this move stamps. */
         exitedAt: sql`now()`,
       })
-      await this.record(tx, who, code, 'exited', LEAD_NOTE.exited(body.reason, body.note))
+      await this.record(tx, who, code, 'exited', LEAD_NOTE.exited(body.reasonKey, body.note), {
+        reasonId: body.reasonKey,
+      })
       /* A timed letter or a queued wave must not reach a customer a person just
          stopped caring for (ADR 0068 §5); reopen does not release them. */
       await this.mailRuns.withholdSubject(
@@ -123,14 +133,19 @@ export class LeadExitService {
           `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” — chỉ hai bước đó chuyển sang “${LEAD_STATE_LABEL.nurturing}” được.`,
         )
       }
+      await this.assertReason(tx, body.reasonKey)
 
       await this.states.move(tx, code, 'nurturing')
-      await this.record(tx, who, code, 'nurtured', LEAD_NOTE.nurtured(body.note))
+      /* The reason lives on the touch, not the lead: nurturing loops in place,
+         and a column on the lead would be overwritten by the next park (ADR 0070). */
+      await this.record(tx, who, code, 'nurtured', LEAD_NOTE.nurtured(body.reasonKey, body.note), {
+        reasonId: body.reasonKey,
+      })
       /* Parked means parked: a timed letter must not undo it (ADR 0068). */
       await this.mailRuns.withholdSubject(
         tx,
         { aggregateType: 'lead', aggregateId: code },
-        { code: 'lead-nurtured', summary: 'lead đã vào nhóm chờ: thư chưa gửi bị giữ lại' },
+        LEAD_NURTURED_WITHHOLD,
       )
     })
 
@@ -164,6 +179,7 @@ export class LeadExitService {
     code: ObjectCode,
     kind: TouchEntry['kind'],
     note: string,
+    extra: Pick<TouchEntry, 'reasonId'> = {},
   ): Promise<void> {
     await this.touch.record(tx, [
       {
@@ -172,8 +188,18 @@ export class LeadExitService {
         kind,
         ...byOf(who),
         note,
+        ...extra,
       },
     ])
+  }
+
+  /** Both stop doors pick from the `EXIT_REASON` catalogue (ADR 0070); `other`
+   *  is virtual — no row — and the contract already demanded its note. */
+  private async assertReason(tx: Db, reasonKey: string): Promise<void> {
+    if (reasonKey === LEAD_STOP_REASON_OTHER) return
+    if (!(await this.repo.stopReasonLive(tx, reasonKey))) {
+      throw conflict('Lý do không có trong danh mục lý do dừng chăm sóc — chọn lại lý do.')
+    }
   }
 
   /** The same two refusals, in the same words, as `LeadWriteService.patch`. */

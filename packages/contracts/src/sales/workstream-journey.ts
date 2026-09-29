@@ -1,14 +1,17 @@
 import { z } from 'zod'
+import { ApprovalState } from '../approval'
 import { ContractCode, Day, Moment, MoneyVnd, ObjectCode, textInput } from '../primitives'
 import { DocState, InstallmentSummaryRow } from './contract'
 import {
+  ContractKind,
   DueLevel,
-  LEAD_STATE_LABEL,
   OPPORTUNITY_STATE_LABEL,
+  OpportunityStatus,
   StageKey,
   WorkstreamCloseReason,
 } from './enums'
 import { NextStep } from './next-step'
+import { OPPORTUNITY_STOP_NOTE_MAX } from './opportunity'
 import { LEAD_LANE_BACKBONE, WorkstreamHolder } from './workstream'
 
 /** Journey detail — the rebuilt read of `/sales/workstreams/:code` (canvas row E).
@@ -47,39 +50,25 @@ export const JOURNEY_BORN_BY_LABEL: Record<JourneyBornBy, string> = {
   wake: 'Đánh thức lại',
 }
 
-/** `waiting` = the deal stopped and its lead went to the waiting list. No `care`
- *  and no `lost`: under the journey rules every stop becomes a waiting lead. */
-export const JourneyDealOutcome = z.enum(
-  ['open', 'won', 'waiting'],
-  'Kết quả cơ hội không có trong danh sách',
-)
+/** The deal's own outcome, same words as `OpportunityStatus`. A stop is final;
+ *  the lead goes back to nurturing only when no deal is left alive and none
+ *  signed — that is the lead's fact, not this deal's. */
+export const JourneyDealOutcome = OpportunityStatus
 
 /** Borrowed words only — no new name for a state the product already names. */
 export const JOURNEY_DEAL_OUTCOME_LABEL: Record<JourneyDealOutcome, string> = {
   open: OPPORTUNITY_STATE_LABEL.open,
   won: OPPORTUNITY_STATE_LABEL.won,
-  waiting: LEAD_STATE_LABEL.nurturing,
+  lost: OPPORTUNITY_STATE_LABEL.lost,
 }
 
-/** One state set for all three ladders. `skipped` is a rung this object's type
- *  never uses (a licence has no deployment) — drawn as skipped, never as a
- *  dateless `done`; `stopped` is the rung where the object went to waiting. */
+/** One state set for all three ladders. `skipped` is a rung this object never
+ *  used (a deal that jumped past `sample`, a licence with no deployment) —
+ *  drawn as skipped, never as a dateless `done`; `stopped` is where it stopped. */
 export const JourneyRungState = z.enum(
   ['done', 'current', 'skipped', 'upcoming', 'stopped'],
   'Trạng thái bậc không có trong danh sách',
 )
-
-/** A catalogue of contract types; which rungs a kind skips rides on the rungs. */
-export const ContractKind = z.enum(
-  ['licence', 'deployment', 'training'],
-  'Loại hợp đồng không có trong danh sách',
-)
-
-export const CONTRACT_KIND_LABEL: Record<ContractKind, string> = {
-  licence: 'Bản quyền',
-  deployment: 'Triển khai',
-  training: 'Đào tạo',
-}
 
 /** One ladder for every contract kind; a rung a kind does not use is skipped. */
 export const ContractRungKey = z.enum(
@@ -117,16 +106,33 @@ export const JourneyLink = z.object({
 /** The server's next step itself, not a copy (`./next-step`). */
 export const JourneyNextAction = NextStep
 
-/** A drawer-only step under a rung: quote sends, approvals, POC steps, and a
- *  contract's deployment milestones. `due` is the promised or planned day. */
+/** A drawer-only step under a rung — as-is, a contract's deployment milestone.
+ *  `due` is the promised or planned day. */
 export const JourneySubStep = z.object({
   label: textInput(200),
   state: JourneyRungState,
   at: Moment.nullable(),
   due: Moment.nullable(),
-  note: textInput(300).nullable(),
+  note: textInput(500).nullable(),
   dueLevel: DueLevel.nullable(),
 })
+
+/** A deal-rung sub-step — exactly two kinds this turn, both under `quotation`:
+ *  one per `quotation-sent` touch (`round` = n, the n-th send) and one per
+ *  `contract-sign` approval (`decision` is E3's state; a won deal signing again
+ *  adds another). Discount approval waits for a quote
+ *  object; POC steps ride on next steps. */
+export const JourneyDealSubStep = z.discriminatedUnion('kind', [
+  JourneySubStep.extend({
+    kind: z.literal('quote-sent'),
+    round: z.number().int().positive(),
+  }),
+  JourneySubStep.extend({
+    kind: z.literal('sign-approval'),
+    approvalId: z.string().min(1),
+    decision: ApprovalState,
+  }),
+])
 
 /** `days` is recorded for a finished rung and counted to now for `current`. */
 const JourneyRungBase = z.object({
@@ -145,7 +151,7 @@ export const JourneyDealRung = JourneyRungBase.extend({
   key: StageKey,
   limitDays: z.number().int().positive().nullable(),
   dueLevel: DueLevel.nullable(),
-  subSteps: z.array(JourneySubStep),
+  subSteps: z.array(JourneyDealSubStep),
 })
 
 export const JourneyContractRung = JourneyRungBase.extend({ key: ContractRungKey })
@@ -156,6 +162,15 @@ export const JourneyLead = z.object({
   code: ObjectCode,
   holder: WorkstreamHolder.nullable(),
   rungs: z.array(JourneyLeadRung).length(LEAD_LANE_BACKBONE.length),
+})
+
+/** The fail log of a lost deal (ADR 0069 §1). A lost deal draws no waiting
+ *  door — only the lead parks, and only when its last live deal is lost. */
+export const JourneyDealStop = z.object({
+  reason: textInput(200),
+  note: textInput(OPPORTUNITY_STOP_NOTE_MAX).nullable(),
+  doNotContact: z.boolean().nullable(),
+  concludedBy: WorkstreamHolder.nullable(),
 })
 
 export const JourneyDeal = z.object({
@@ -170,6 +185,8 @@ export const JourneyDeal = z.object({
   nextAction: JourneyNextAction.nullable(),
   /** A list, not one code: a won deal may sign again (licence beside deployment). */
   contractCodes: z.array(ContractCode),
+  /** Set exactly when `outcome` is `lost`; the rung is the `stopped` one. */
+  stop: JourneyDealStop.nullable(),
 })
 
 /** Invoice fields are RECORDED only — this system does not issue invoices. */
@@ -193,8 +210,7 @@ export const JourneyAcceptance = z.object({
 export const JourneyContract = z.object({
   code: ContractCode,
   dealCode: ObjectCode,
-  // No table column holds contract kind yet; null = "not recorded", the
-  // screen prints no label.
+  // Null only on contracts signed before a sign request had to name its kind.
   kind: ContractKind.nullable(),
   amount: MoneyVnd.nullable(),
   signedAt: Moment,
@@ -213,9 +229,9 @@ export const JourneyDoorAnchor = z.object({
   rung: JourneyRungKey,
 })
 
-/** `reason` is free text until the shared reason catalogue (flow C3) exists.
- *  `concludedBy` is null when the machine parked the lead (flow C5: a campaign
- *  ended with no real exchange). */
+/** The lead's park only — a lost deal carries its own `stop` instead. `reason`
+ *  is a catalogue name, never a raw config id. `concludedBy` is null when the
+ *  machine parked the lead (flow C5: a campaign ended with no real exchange). */
 export const JourneyWaitingDoor = z.object({
   kind: z.literal('waiting'),
   leadCode: ObjectCode,
@@ -223,7 +239,8 @@ export const JourneyWaitingDoor = z.object({
   at: Moment,
   reason: textInput(200),
   concludedBy: WorkstreamHolder.nullable(),
-  // No do-not-contact flag is stored; `false` would claim a permission nobody gave.
+  // Null when the reason is not in the catalogue; `false` would claim a
+  // permission nobody gave.
   doNotContact: z.boolean().nullable(),
   campaignName: textInput(120).nullable(),
   lastTouch: z.object({ at: Moment, text: textInput(300) }).nullable(),
@@ -276,18 +293,19 @@ export type JourneyStatus = z.infer<typeof JourneyStatus>
 export type JourneyBornBy = z.infer<typeof JourneyBornBy>
 export type JourneyDealOutcome = z.infer<typeof JourneyDealOutcome>
 export type JourneyRungState = z.infer<typeof JourneyRungState>
-export type ContractKind = z.infer<typeof ContractKind>
 export type ContractRungKey = z.infer<typeof ContractRungKey>
 export type LeadBackboneKey = z.infer<typeof LeadBackboneKey>
 export type JourneyRungKey = z.infer<typeof JourneyRungKey>
 export type JourneyLink = z.infer<typeof JourneyLink>
 export type JourneyNextAction = z.infer<typeof JourneyNextAction>
 export type JourneySubStep = z.infer<typeof JourneySubStep>
+export type JourneyDealSubStep = z.infer<typeof JourneyDealSubStep>
 export type JourneyLeadRung = z.infer<typeof JourneyLeadRung>
 export type JourneyDealRung = z.infer<typeof JourneyDealRung>
 export type JourneyContractRung = z.infer<typeof JourneyContractRung>
 export type JourneyLead = z.infer<typeof JourneyLead>
 export type JourneyDeal = z.infer<typeof JourneyDeal>
+export type JourneyDealStop = z.infer<typeof JourneyDealStop>
 export type JourneyInstallment = z.infer<typeof JourneyInstallment>
 export type JourneyAcceptance = z.infer<typeof JourneyAcceptance>
 export type JourneyContract = z.infer<typeof JourneyContract>

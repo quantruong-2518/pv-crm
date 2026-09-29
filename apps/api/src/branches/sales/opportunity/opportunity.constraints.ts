@@ -23,31 +23,36 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     message: 'Giá trị đơn phải đi kèm đơn vị tiền: điền cả hai ô, hoặc bỏ trống cả hai.',
   },
 
-  /** Going into care demands all three: off the board, a reason, and the column
-   *  remembered. `POST /:code/care` writes them in one UPDATE, so this sentence
-   *  only ever answers a second write door added later. */
-  opportunity_care_closed: {
+  /** A stop writes the whole fail log: the column, a reason, the close date.
+   *  `POST /:code/stop` writes them in one UPDATE, so this sentence only ever
+   *  answers a second write door added later. */
+  opportunity_lost_closed: {
     kind: 'invalid',
     fields: ['reasonKey'],
     message:
-      'Đẩy đơn sang danh sách chăm sóc thì phải có lý do và phải đóng sổ đơn — thiếu một trong hai thì không ai đọc lại được.',
+      'Dừng đơn thì phải ghi cột đang đứng, lý do và ngày đóng — thiếu một thứ thì không ai đọc lại được.',
   },
 
-  opportunity_open_has_no_care: {
+  opportunity_lost_off_board: {
+    kind: 'invalid',
+    message: 'Đơn đã dừng không còn đứng ở cột nào của bảng.',
+  },
+
+  opportunity_open_has_no_stop: {
     kind: 'invalid',
     fields: ['reasonKey'],
-    message: 'Đơn đang triển khai không mang lý do chăm sóc — mở lại đơn là xoá sạch ba ô đó.',
+    message: 'Đơn đang chạy không mang lý do dừng.',
   },
 
-  opportunity_care_from_stage_known: {
+  opportunity_stopped_at_stage_known: {
     kind: 'invalid',
-    message: 'Cột để mở lại đơn không nằm trong năm cột của bảng.',
+    message: 'Cột đơn dừng lại không nằm trong năm cột của bảng.',
   },
 
   opportunity_state_known: {
     kind: 'invalid',
     message:
-      'Trạng thái lưu chỉ có "đang triển khai" hoặc "danh sách chăm sóc". Đơn thắng là đơn CÓ HỢP ĐỒNG, ký ở hồ sơ cơ hội.',
+      'Trạng thái lưu chỉ có "Đang chạy" hoặc "Đã dừng". Đơn thắng là đơn CÓ HỢP ĐỒNG, ký ở hồ sơ cơ hội.',
   },
 
   /** A column and its clock travel together or not at all. Only the lifecycle

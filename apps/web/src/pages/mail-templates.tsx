@@ -9,6 +9,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { masTemplatesQuery } from '@/data/mas'
 import { BookPage } from '@/components/book-page'
 import { ConfigBooks } from '@/components/config-books'
+import { MilestonePill } from './mail-templates-doors'
 import { MailTemplateDrawer } from './mail-templates-parts'
 
 /** Module 6 · the mail-template book — `sales.mail_template`. Moved here
@@ -41,7 +42,8 @@ const EMPTY_MESSAGE =
   'Chưa có mẫu thư nào. Mẫu là chỗ bắt đầu của một lá thư — người soạn vẫn sửa được trước khi gửi.'
 
 /** Where a template is listed (G4), a default door marked on its own tag —
- *  the one fact the book must show, since only one template holds each door. */
+ *  the one fact the book must show, since only one template holds each door.
+ *  A milestone pill trails the doors when the template records one. */
 function DoorTags({ row }: { row: MailTemplateRow }) {
   return (
     <span className="flex min-w-0 flex-wrap gap-1">
@@ -54,6 +56,7 @@ function DoorTags({ row }: { row: MailTemplateRow }) {
           </Badge>
         ),
       )}
+      {row.milestone && <MilestonePill milestone={row.milestone} />}
     </span>
   )
 }

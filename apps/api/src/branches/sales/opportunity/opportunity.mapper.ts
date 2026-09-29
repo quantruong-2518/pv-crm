@@ -1,14 +1,16 @@
 import {
+  OPPORTUNITY_STATE_LABEL,
   type OpportunityCreate,
   type OpportunityMilestoneKind,
   type OpportunityOwner,
+  type OpportunityOwnerRole,
   type OpportunityProduct,
   type OpportunityRow,
   type OpportunityStageEvent,
   type OpportunityUpdate,
   type StageKey,
 } from '@pv/contracts'
-import type { ObjectRef } from '@pv/engines'
+import type { ObjectRef, RoleId } from '@pv/engines'
 import { stageLabel } from './opportunity.labels'
 import type {
   opportunity,
@@ -26,9 +28,9 @@ import type {
  *  đưa xuống đây thành một `boolean`, nên chỗ duy nhất biết ghép hai nửa lại
  *  là hàm này — không phải năm màn, mỗi màn một bản ghép.
  *
- *  Mã hợp đồng đi CÙNG cái boolean đó, từ cùng một lượt nối. Đơn đã ký phải in
- *  được số của nó, và một màn phải hỏi lần thứ hai để lấy số đó là một màn có
- *  hai nguồn cho một sự thật.
+ *  Các mã hợp đồng đi CÙNG câu trả lời đó, từ cùng một truy vấn con. Đơn đã ký
+ *  phải in được số của nó — một đơn thắng còn ký thêm được (ADR 0069 §5), nên
+ *  là một danh sách, cũ nhất trước.
  *
  *  `stage` và `state` KHÔNG được tính ở hai cửa ghi dưới đây: mọi lượt đi của
  *  đơn TRƯỚC khi có hợp đồng thuộc về `opportunity-lifecycle.ts` (ADR 0064).
@@ -63,9 +65,9 @@ export type OpportunityWrite = {
  *  Kiểu LIỆT KÊ cột sửa được thay vì loại trừ cột cấm, và đó là nửa quan trọng
  *  của nó: cột không có trong `values` thì câu `UPDATE … SET` không nhắc tới
  *  nó. `leadCode` vắng vì một cơ hội không đổi sang khách khác được; `state`,
- *  `stage`, `stage_since`, `closed_at` và ba cột `care_*` vắng vì ba cửa vòng
- *  đời là đường duy nhất ghi chúng (ADR 0064). Cấm ở tầng kiểu chứ không ở tầng
- *  "nhớ đừng ghi cột đó". */
+ *  `stage`, `stage_since`, `closed_at` và ba cột fail log (`stopped_at_stage`,
+ *  `stop_reason`, `stop_note`) vắng vì cửa vòng đời là đường duy nhất ghi chúng
+ *  (ADR 0064, 0069). Cấm ở tầng kiểu chứ không ở tầng "nhớ đừng ghi cột đó". */
 export type OpportunityEdit = {
   values: Pick<
     OpportunityValues,
@@ -98,7 +100,7 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
  *  `stage` là THAM SỐ chứ không phải thứ hàm này tính: đơn mở ra ở `new`, hoặc
  *  thẳng `assigned` khi tập PIC đã đủ, và câu đó cần biết vai của từng người —
  *  dữ liệu chỉ service mới nạp được (`picQualifies`, ADR 0064). `state` luôn là
- *  `open`: cửa tạo không mở được một đơn đã nằm trong danh sách chăm sóc. */
+ *  `open`: cửa tạo không mở được một đơn đã dừng. */
 export function fromCreate(
   body: OpportunityCreate,
   now: Date,
@@ -140,11 +142,11 @@ export function fromCreate(
  *  ------------------------------------------------------------------
  *  NĂM CỘT VÒNG ĐỜI KHÔNG CÓ MẶT Ở ĐÂY, VÀ ĐÓ LÀ NỬA QUAN TRỌNG NHẤT
  *  ------------------------------------------------------------------
- *  `state`, `stage`, `stage_since`, `closed_at` và ba cột `care_*` đều vắng
+ *  `state`, `stage`, `stage_since`, `closed_at` và ba cột fail log đều vắng
  *  khỏi `values`, nên câu `UPDATE … SET` không nhắc tới chúng. Đó là cách cấm ở
- *  tầng kiểu thay vì ở tầng "nhớ đừng ghi cột đó": ba cửa vòng đời (ghi mốc,
- *  đẩy chăm sóc, mở lại) là đường DUY NHẤT chạm tới chúng (ADR 0064), và một
- *  lượt lưu phiếu không được kéo đơn sang cột nào cả.
+ *  tầng kiểu thay vì ở tầng "nhớ đừng ghi cột đó": hai cửa vòng đời (ghi mốc,
+ *  dừng) là đường DUY NHẤT chạm tới chúng (ADR 0064, 0069), và một lượt lưu
+ *  phiếu không được kéo đơn sang cột nào cả.
  *
  *  Bản trước tính `stage` lại từ trạng thái người dùng chọn, và đó chính là lỗi
  *  đã lộ ra khi bấm thử (28/08): sửa mỗi cái tên rồi bấm Lưu cũng kéo ngược đơn
@@ -174,7 +176,7 @@ export function fromUpdate(body: OpportunityUpdate): OpportunityEdit {
   }
 }
 
-/** Cột đổi khi một đơn được KÝ.
+/** Cột đổi khi một đơn được KÝ LẦN ĐẦU. Lần ký sau không đổi cột nào của đơn.
  *
  *  ------------------------------------------------------------------
  *  BA CỘT, VÀ `state` KHÔNG NẰM TRONG SỐ ĐÓ
@@ -182,7 +184,7 @@ export function fromUpdate(body: OpportunityUpdate): OpportunityEdit {
  *  Ký không đổi `state`, vì bảng không có `'won'` để đổi sang — CHECK
  *  `opportunity_state_known` chỉ nhận hai giá trị, và trạng thái thứ ba được
  *  `toContract` lắp vào từ câu hỏi "có dòng hợp đồng không". Đơn đã ký giữ
- *  nguyên `state = 'open'`: nó thắng chứ không vào danh sách chăm sóc.
+ *  nguyên `state = 'open'`: nó thắng chứ không dừng.
  *
  *   · `stage` + `stage_since` — cùng về NULL. Đơn đã ký ra khỏi bảng năm cột,
  *     và `opportunity_stage_clock` đòi hai cột đó cùng vắng. Bỏ sót một cái là
@@ -192,13 +194,13 @@ export function fromUpdate(body: OpportunityUpdate): OpportunityEdit {
  *     ngày thì đơn đã đóng từ ba ngày trước, và `daysOpen` của mail đọc thẳng
  *     cột này.
  *
- *  KHÔNG chạm ba cột `care_*`: chúng đã là NULL trên một đơn đang mở —
- *  `opportunity_open_has_no_care` ép thế — và cửa ký từ chối một đơn đang nằm
- *  trong danh sách chăm sóc trước khi tới đây.
+ *  KHÔNG chạm ba cột fail log: chúng đã là NULL trên một đơn đang mở —
+ *  `opportunity_open_has_no_stop` ép thế — và cửa ký từ chối một đơn đã dừng
+ *  trước khi tới đây.
  *
  *  Đây là NGƯỜI GHI THỨ HAI của `stage`, cạnh `opportunity-lifecycle.ts`, và
- *  hai bên không giẫm chân nhau được: muốn ký thì đơn phải tới `quotation` —
- *  cột chỉ lớp kia ghi — còn ký rồi thì `care`/`reactivate` từ chối vĩnh viễn,
+ *  hai bên không giẫm chân nhau được: muốn ký thì đơn phải có quotation — mốc
+ *  chỉ lớp kia ghi — còn ký rồi thì mọi cửa của lớp kia từ chối vĩnh viễn,
  *  nên không có lượt nào đi ngược về tay lớp kia. */
 export function closeForSign(
   signedAt: Date,
@@ -231,12 +233,22 @@ export const NOTE = {
   milestone: (kind: OpportunityMilestoneKind, note?: string | undefined) =>
     note ? `${MILESTONE_WORD[kind]} · ${note}` : MILESTONE_WORD[kind],
 
-  careEntered: (reasonKey: string, note?: string | undefined) =>
+  /** The fail log as a sentence. The reason is the catalogue KEY; the screen
+   *  swaps in its label, like the lead's stop doors (ADR 0070). */
+  stopped: (reasonKey: string, note?: string | undefined) =>
     note
-      ? `Vào danh sách chăm sóc · ${reasonKey} · ${note}`
-      : `Vào danh sách chăm sóc · ${reasonKey}`,
+      ? `${OPPORTUNITY_STATE_LABEL.lost} · ${reasonKey} · ${note}`
+      : `${OPPORTUNITY_STATE_LABEL.lost} · ${reasonKey}`,
 
-  careLeft: (stage: StageKey) => `Mở lại, về cột ${stageLabel(stage)}`,
+  /** On the LEAD, when the stop above was its last live deal (ADR 0069 §3).
+   *  No deal code: the lead's readers may not see the deal. */
+  lastLost: {
+    nurturing: 'Cơ hội cuối đã dừng — lead về nhóm chờ chăm sóc',
+    new: 'Cơ hội cuối đã dừng — lead không có người giữ nên về kho chung',
+  },
+
+  /** On a deal a lead hand-over left behind (ADR 0069 §10), with the reason. */
+  handOverSkipped: (to: string, why: string) => `Không chuyển theo lead sang ${to}: ${why}`,
 
   signed: (contractCode: string) => `Ký hợp đồng ${contractCode}`,
 } as const
@@ -346,21 +358,20 @@ export function toStageEvent(row: OpportunityStageEventRowDb): OpportunityStageE
  *  ngoại về `platform.object`, nên ở đây Postgres không ép — bỏ quên dòng
  *  gương thì không có gì đỏ, chỉ có một cơ hội mà rail mở ra trống trơn.
  *
- *  `owner` là tên hiển thị của Sale đứng đơn đầu tiên: `platform.object` chở
- *  NHÃN còn bảng nối chở id. Đơn nhiều
- *  người thì rail in người đầu — nó là một dòng tóm tắt, không phải bảng phân
- *  chia hoa hồng. */
+ *  `owner` là Sale đứng đơn đầu tiên: tên làm nhãn, id cho trục phạm vi của E2
+ *  (so bằng id, ADR 0070). Đơn nhiều người thì rail in người đầu — nó là một
+ *  dòng tóm tắt, không phải bảng phân chia hoa hồng. */
 export function refOf(
   code: string,
   write: { values: Pick<OpportunityValues, 'stage'> },
-  opts: { label: string; ownerName: string | null },
+  opts: { label: string; owner: RefOwner | null },
 ): ObjectRef {
   return {
     code,
     kind: 'OP',
     branch: 'Sales',
     label: opts.label,
-    ...(opts.ownerName ? { owner: opts.ownerName } : {}),
+    ...ownerOf(opts.owner),
     /* `state` của một object E1 chở KHOÁ CỘT, không chở trạng thái phiếu —
        cùng quy ước `lead.mapper.ts#toRef` dùng. */
     ...(write.values.stage ? { state: write.values.stage } : {}),
@@ -374,61 +385,87 @@ export function refOf(
  *  nào, còn hàm này đọc từ dòng đã ghi — cùng nút thắt mà
  *  `lead-write.mapper.ts` giải thích ở đầu file.
  *
- *  `ownerName` là THAM SỐ chứ không moi từ `row`, và người gọi chọn nó theo
+ *  `owner` là THAM SỐ chứ không moi từ `row`, và người gọi chọn nó theo
  *  việc mình đang làm — bảng nối chở người, dòng đơn thì không. Chỗ dựng ref
  *  để E2 KIỂM PHẠM VI (`OpportunityService.book`) phải đưa vào tên của chính
  *  người đang hỏi khi họ có đứng tên, nếu không lưới E2 hỏi một câu khác câu
  *  `scopeOf` của repository đã hỏi; chỗ dựng ref để LƯU GƯƠNG thì đưa người
  *  đầu danh sách, vì rail là một dòng tóm tắt cho bất kỳ ai mở nó. Lập luận
  *  đầy đủ nằm ở chính chỗ gọi trong `book()`. */
-export function toRef(row: OpportunityRowDb, ownerName: string | null): ObjectRef {
+export function toRef(row: OpportunityRowDb, owner: RefOwner | null): ObjectRef {
   return {
     code: row.code,
     kind: 'OP',
     branch: 'Sales',
     label: row.name,
-    ...(ownerName ? { owner: ownerName } : {}),
+    ...ownerOf(owner),
     ...(row.stage ? { state: row.stage } : {}),
   }
 }
 
-/** The ref E2 checks SCOPE on: the reader's own name when they stand on the
- *  deal, else the first owner — so E2 asks the question `scopeOf` asks in SQL.
- *  Every read that cuts deals per reader builds its ref here; `book()` argues it. */
+/** The person a ref names: the label E1 prints and the id E2 compares. */
+export type RefOwner = { id: string; name: string }
+
+/** THE holder of a deal (ADR 0069 §10): the first SALE owner who is not head of
+ *  sales, else the first SALE (a deal whose only Sale is a head of sales).
+ *  "First" is ONE order whatever the caller's: actor name, then id — the order
+ *  the owner read uses — compared by code point, so no body order and no
+ *  database collation can pick a different person. Every holder is picked here:
+ *  mirror row, book row, sign fallback, contract owner, next step's doer. */
+export function holderOf(
+  owners: readonly {
+    id: string
+    name: string
+    role: OpportunityOwnerRole
+    roleId: RoleId | null
+  }[],
+): RefOwner | null {
+  const sale = owners.filter((o) => o.role === 'SALE').sort(byNameThenId)
+  const pick = sale.find((o) => o.roleId !== 'head-of-sales') ?? sale[0]
+  return pick ? { id: pick.id, name: pick.name } : null
+}
+
+const byNameThenId = (a: RefOwner, b: RefOwner): number =>
+  a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+
+/** Both keys or neither: E2 reads an `owner` without `ownerId` as somebody
+ *  else's (fail closed), so a half pair would hide the deal from its own Sale. */
+const ownerOf = (owner: RefOwner | null): Pick<ObjectRef, 'owner' | 'ownerId'> =>
+  owner ? { owner: owner.name, ownerId: owner.id } : {}
+
+/** The ref E2 checks SCOPE on: the reader when they stand on the deal, else the
+ *  first owner — so E2 asks the question `scopeOf` asks in SQL. Every read that
+ *  cuts deals per reader builds its ref here; `book()` argues it. */
 export function scopeRefOf(
   row: OpportunityRowDb,
   owners: readonly OpportunityOwner[],
   readerId: string,
 ): ObjectRef {
-  return toRef(row, (owners.find((o) => o.id === readerId) ?? owners[0])?.name ?? null)
+  const pick = owners.find((o) => o.id === readerId) ?? owners[0]
+  return toRef(row, pick ? { id: pick.id, name: pick.name } : null)
 }
 
-/** Một dòng sổ, như màn đọc nó. */
+/** One book row, as a screen reads it. */
 export function toContract(input: {
   row: OpportunityRowDb
-  /** Tên khách, đọc từ `sales.lead` — sổ in tên chứ không in mã. */
+  /** The customer's name, off `sales.lead` — the book prints names, not codes. */
   account: string
   owners: OpportunityOwner[]
-  /** Có dòng nào trong `sales.contract` cho lead này không. Đây là toàn bộ
-   *  định nghĩa của "đã thắng" — xem docblock của `opportunity.schema.ts`. */
-  signed: boolean
-  /** Mã của chính dòng hợp đồng đó, khi người gọi đã có nó trong tay.
-   *
-   *  Tuỳ chọn vì không phải đường nào cũng đọc được nó: ba đường ĐỌC lấy mã
-   *  bằng cùng lượt nối đã trả lời `signed`, còn hai cửa GHI tự biết câu trả
-   *  lời từ việc chúng vừa làm (`create` biết là `false`, `sign` biết là `true`
-   *  và trả mã hợp đồng ở nửa kia của câu trả lời). Vắng mặt nghĩa là "người
-   *  gọi không cầm mã", KHÔNG phải "đơn chưa ký" — câu đó là việc của `signed`. */
-  contractCode?: string | null
-  /** Số ngày đơn đứng ở cột hiện tại, repository đếm. */
+  /** Every contract of the deal, oldest first. At least one IS the whole
+   *  definition of "won" — see `opportunity.schema.ts`. */
+  contractCodes: readonly string[]
+  /** Days in the current column, counted by the repository. */
   daysInStage: number | null
+  /** `holderOf` over the stored owners, or over the ones a write just set. */
+  holder: RefOwner | null
   /** What the deal is asking about, with labels. Defaults to empty so the two
    *  WRITE doors do not have to build an array just to say "nothing picked" —
    *  they re-read the row after writing, and the read path is the one that
    *  always holds this list. */
   products?: OpportunityProduct[]
 }): OpportunityRow {
-  const { row, account, owners, signed } = input
+  const { row, account, owners } = input
+  const signed = input.contractCodes.length > 0
 
   return {
     code: row.code,
@@ -438,16 +475,11 @@ export function toContract(input: {
 
     name: row.name,
     state: signed ? 'won' : row.state,
-    /* Đi CÙNG trạng thái thứ năm và chỉ đi cùng nó: mã hợp đồng trên một đơn
-       chưa ký là một tờ giấy không tồn tại, nên `signed` gác cả hai vế chứ
-       không riêng vế `state`. Vắng mặt chứ không phải chuỗi rỗng — hợp đồng
-       khai `contractCode` là tuỳ chọn, và một `''` ở đó là cách thứ ba để nói
-       "chưa ký", tức thêm một nhánh cho mọi màn đọc nó. */
-    ...(signed && input.contractCode ? { contractCode: input.contractCode } : {}),
+    contractCodes: [...input.contractCodes],
+    holder: input.holder,
     stage: signed ? null : (row.stage ?? null),
-    /* Đơn đã thắng ra khỏi bảng năm cột, nên đồng hồ cột của nó cũng thôi có
-       nghĩa — cùng một câu với dòng trên, và phải nói ở cả hai chỗ vì `signed`
-       là thứ cột `stage_since` trong bảng không biết. */
+    /* A won deal has left the board, so its column clock means nothing —
+       said here too because `stage_since` does not know about `signed`. */
     daysInStage: signed ? null : input.daysInStage,
 
     expectedClose: row.expectedClose,
@@ -461,12 +493,12 @@ export function toContract(input: {
     ...(row.description ? { description: row.description } : {}),
     attachments: row.attachments,
 
-    /* The three care columns, present exactly when `state === 'care'`:
-       `opportunity_open_has_no_care` keeps them empty on a deal still on the
-       board, so these three lines need not ask about `state` again. */
-    ...(row.careFromStage ? { careFromStage: row.careFromStage } : {}),
-    ...(row.careReason ? { careReason: row.careReason } : {}),
-    ...(row.careNote ? { careNote: row.careNote } : {}),
+    /* The fail log, present exactly when `state === 'lost'`:
+       `opportunity_open_has_no_stop` keeps it empty on a live deal, so these
+       three lines need not ask about `state` again. */
+    ...(row.stoppedAtStage ? { stoppedAtStage: row.stoppedAtStage } : {}),
+    ...(row.stopReason ? { stopReason: row.stopReason } : {}),
+    ...(row.stopNote ? { stopNote: row.stopNote } : {}),
 
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt?.toISOString() ?? null,

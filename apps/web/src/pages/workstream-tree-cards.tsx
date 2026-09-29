@@ -14,7 +14,8 @@ import {
 import {
   CONTRACT_KIND_LABEL,
   JOURNEY_BORN_BY_LABEL,
-  JOURNEY_DEAL_OUTCOME_LABEL,
+  LEAD_STATE_LABEL,
+  LOSS_REASON_DO_NOT_CONTACT_LABEL,
   type JourneyContract,
   type JourneyDeal,
   type JourneyDoor,
@@ -40,6 +41,8 @@ import {
   rungLabel,
   rungStatus,
   STATE_WORD,
+  STOPPED_AT,
+  stoppedRungLabel,
   type Box,
   type Journey,
   type PickKind,
@@ -117,7 +120,8 @@ function Holder({ person }: { person: WorkstreamHolder | null }) {
 // ---------------------------------------------------------------------------
 
 /** `current` is warm, not StatusDot's own brand blue: blue is the selection
- *  ring on this screen. `stopped` is a solid grey dot — parked, never failed.
+ *  ring on this screen. `stopped` is a solid grey dot, the same grey the book
+ *  gives a lost deal (`STATE_TONE`).
  *  Unreached rungs are RINGS in `--muted-foreground` (a faint fill missed the
  *  3:1 non-text floor); a skipped one is dashed. */
 const HALO = {
@@ -214,7 +218,7 @@ function Rail({
                       : 'text-muted-foreground',
                 )}
               >
-                {r.at !== null ? dm(r.at) : r.state === 'skipped' ? STATE_WORD.skipped : ''}
+                {r.state === 'skipped' ? STATE_WORD.skipped : r.at !== null ? dm(r.at) : ''}
               </span>
             </button>
           </li>
@@ -313,6 +317,20 @@ function NextAction({ action }: { action: NonNullable<JourneyDeal['nextAction']>
   )
 }
 
+/** The fail log's headline; the drawer carries its note and who concluded. */
+function StopLine({ deal }: { deal: JourneyDeal }) {
+  if (!deal.stop) return null
+  const at = stoppedRungLabel(deal)
+  return (
+    <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px]">
+      <span className="min-w-0 break-words">
+        {[at && `${STOPPED_AT} ${at}`, deal.stop.reason].filter(Boolean).join(' · ')}
+      </span>
+      {deal.stop.doNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
+    </span>
+  )
+}
+
 export function DealCard({
   deal,
   box,
@@ -339,6 +357,7 @@ export function DealCard({
             <CodePill kind="OP" code={deal.code} go={go} />
             <StatusPill status={status} />
           </span>
+          <StopLine deal={deal} />
         </div>
         <Expander code={deal.code} open={false} onToggle={onToggle} />
       </Card>
@@ -379,6 +398,7 @@ export function DealCard({
       <div className="flex">
         <StatusPill status={status} />
       </div>
+      <StopLine deal={deal} />
       {deal.outcome === 'open' && deal.nextAction && <NextAction action={deal.nextAction} />}
     </Card>
   )
@@ -485,10 +505,10 @@ function WaitingDoor({
 }: DoorProps & { door: JourneyWaitingDoor; from: PickKind }) {
   const fromLabel = rungLabel(from, door.from.rung)
   return (
-    <DoorShell door={door} title={JOURNEY_DEAL_OUTCOME_LABEL.waiting} {...props}>
+    <DoorShell door={door} title={LEAD_STATE_LABEL.nurturing} {...props}>
       <div className="flex flex-wrap items-center gap-2">
         <CodePill kind="LD" code={door.leadCode} go={props.go} />
-        {door.doNotContact && <Badge tone="warning">Không liên hệ</Badge>}
+        {door.doNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
       </div>
       <span className="flex flex-wrap items-center gap-2 text-[12px]">
         {fromLabel !== undefined && <span>Từ {fromLabel}</span>}

@@ -1,7 +1,6 @@
 import {
   CONFIG_PREFIX,
   ContactChannel,
-  ExitReason,
   LeadCategory,
   LeadTier,
   StageKey,
@@ -36,10 +35,21 @@ const CATEGORY_CONFIG: Record<LeadCategory, [string, string]> = {
   automotive: ['Ô tô', 'u-am'],
   pharma: ['Dược', 'u-grace'],
 }
-export const EXIT_NAME: Record<ExitReason, string> = {
+/** Seed-local keys for the six stop reasons the catalogue starts with (ADR 0070);
+ *  the closed contract enum is gone, and what a lead stores is the `EX-` id. */
+const EXIT_KEYS = [
+  'unreachable',
+  'not-a-fit',
+  'no-budget',
+  'contact-left',
+  'chose-competitor',
+  'silent-after-quote',
+] as const
+export type SeedExitKey = (typeof EXIT_KEYS)[number]
+const EXIT_NAME: Record<SeedExitKey, string> = {
   unreachable: 'Không gọi được ai',
   'not-a-fit': 'Không phải khách của mình',
-  'no-budget': 'Năm nay không có tiền',
+  'no-budget': 'Chưa có ngân sách năm nay',
   'contact-left': 'Người liên hệ nghỉ việc',
   'chose-competitor': 'Khách chọn bên khác',
   'silent-after-quote': 'Im sau báo giá',
@@ -78,6 +88,17 @@ const CARE_REASONS: ConfigSeed[] = [
   { name: 'Khách hoãn dự án', stage: 'quotation' },
 ]
 
+/** The any-rung reasons of canvas board F-Wait (ADR 0069 §11), with the ids
+ *  and do-not-contact flags migration 0068 plants on Neon (ADR 0067 D5).
+ *  LR-93 is left out: seed row LR-17 already carries its name, and
+ *  `config_name_live` refuses a second — 0068 skips it the same way. */
+const ANY_RUNG_REASONS = [
+  { id: 'LR-90', name: 'Chưa có ngân sách năm nay', doNotContact: false },
+  { id: 'LR-91', name: 'Người liên hệ nghỉ việc', doNotContact: true },
+  { id: 'LR-92', name: 'Khách chọn bên khác', doNotContact: false },
+  { id: 'LR-94', name: 'Không phải khách của mình', doNotContact: true },
+]
+
 type ConfigSeed = {
   name: string
   limitDays?: number
@@ -108,6 +129,11 @@ export const productRows = configRows(
   PRODUCTS.map((name) => ({ name })),
 )
 export const sourceIdOf = (key: string) => sourceRows[SOURCES.findIndex((s) => s.key === key)]!.id
+const exitRows = configRows(
+  'EXIT_REASON',
+  EXIT_KEYS.map((k) => ({ name: EXIT_NAME[k] })),
+)
+export const exitIdOf = (key: SeedExitKey) => exitRows[EXIT_KEYS.indexOf(key)]!.id
 
 export const configSeed = [
   ...configRows(
@@ -125,10 +151,7 @@ export const configSeed = [
       ownerId: person(CATEGORY_CONFIG[k][1]).id,
     })),
   ),
-  ...configRows(
-    'EXIT_REASON',
-    ExitReason.options.map((k) => ({ name: EXIT_NAME[k] })),
-  ),
+  ...exitRows,
   ...configRows(
     'CHANNEL',
     ContactChannel.options.map((k) => ({ name: CHANNEL_NAME[k] })),
@@ -136,4 +159,10 @@ export const configSeed = [
   ...sourceRows,
   ...productRows,
   ...configRows('LOSS_REASON', CARE_REASONS),
+  ...ANY_RUNG_REASONS.map((r, i) => ({
+    ...r,
+    list: 'LOSS_REASON' as const,
+    ord: CARE_REASONS.length + i + 1,
+    stage: null,
+  })),
 ]

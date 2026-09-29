@@ -1,9 +1,11 @@
 import {
   and,
+  arrayContains,
   asc,
   count,
   eq,
   exists,
+  getTableColumns,
   ilike,
   inArray,
   isNull,
@@ -20,12 +22,13 @@ import type {
   MailDoor,
   MailRunListQuery,
   MailRunState,
+  MailTemplateMilestone,
   MailTemplateRow,
   MasAudience,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
-import { actor, audit } from '@api/platform/db/platform.schema'
+import { actor, audit, type ActorRow } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { stillEditable } from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
@@ -167,6 +170,7 @@ const TEMPLATE_COLUMNS = {
   ctaLabel: mailTemplate.ctaLabel,
   ctaUrl: mailTemplate.ctaUrl,
   bookingUrl: mailTemplate.bookingUrl,
+  milestone: mailTemplate.milestone,
   active: mailTemplate.active,
   doors: mailTemplate.doors,
   defaultFor: sql<MailDoor[]>`COALESCE((
@@ -184,6 +188,7 @@ export type TemplateWrite = {
   ctaLabel?: string | null
   ctaUrl?: string | null
   bookingUrl?: string | null
+  milestone?: MailTemplateMilestone | null
   active?: boolean
   doors?: MailDoor[]
 }
@@ -383,13 +388,36 @@ export class MasRepository {
   async lockTemplate(
     tx: Db,
     code: string,
-  ): Promise<{ doors: MailDoor[]; active: boolean } | undefined> {
+  ): Promise<
+    { doors: MailDoor[]; active: boolean; milestone: MailTemplateMilestone | null } | undefined
+  > {
     const [row] = await tx
-      .select({ doors: mailTemplate.doors, active: mailTemplate.active })
+      .select({
+        doors: mailTemplate.doors,
+        active: mailTemplate.active,
+        milestone: mailTemplate.milestone,
+      })
       .from(mailTemplate)
       .where(eq(mailTemplate.code, code))
       .for('update')
     return row
+  }
+
+  /** The milestone a run's letter records on leaving (ADR 0069 §7), read off
+   *  the template as it stands NOW — only one that still serves the
+   *  opportunity door — with the run's creator, whose right to record it the
+   *  caller checks. `undefined` = no such template, or one without a milestone. */
+  async sentMilestone(
+    tx: Db,
+    mailRunId: string,
+  ): Promise<{ milestone: MailTemplateMilestone; creator: ActorRow } | undefined> {
+    const [row] = await tx
+      .select({ milestone: mailTemplate.milestone, creator: getTableColumns(actor) })
+      .from(mailRun)
+      .innerJoin(mailTemplate, eq(mailTemplate.code, mailRun.templateCode))
+      .innerJoin(actor, eq(actor.id, mailRun.createdBy))
+      .where(and(eq(mailRun.id, mailRunId), arrayContains(mailTemplate.doors, ['opportunity'])))
+    return row?.milestone ? { milestone: row.milestone, creator: row.creator } : undefined
   }
 
   async defaultsOf(tx: Db, code: string): Promise<MailDoor[]> {
@@ -1015,14 +1043,16 @@ function toTemplateRow(row: {
   ctaLabel: string | null
   ctaUrl: string | null
   bookingUrl: string | null
+  milestone: MailTemplateMilestone | null
   active: boolean
   doors: MailDoor[]
   defaultFor: MailDoor[]
 }): MailTemplateRow {
-  const { ctaLabel, ctaUrl, bookingUrl, ...rest } = row
+  const { ctaLabel, ctaUrl, bookingUrl, milestone, ...rest } = row
   return {
     ...rest,
     ...(ctaLabel && ctaUrl ? { cta: { label: ctaLabel, url: ctaUrl } } : {}),
     ...(bookingUrl ? { bookingUrl } : {}),
+    ...(milestone ? { milestone } : {}),
   }
 }

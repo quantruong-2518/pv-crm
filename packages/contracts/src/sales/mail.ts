@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, paged, SortDir } from '../pagination'
 import { MailDoor, MailDoorSet, MAIL_DOOR_LEGACY } from './mail-door'
+import { OpportunityMilestoneKind } from './opportunity'
 
 /** MAS mail — sending ONE batch to many leads. `/sales/mail/*`.
  *
@@ -193,6 +194,10 @@ export const MailCta = z.object({
  *  templates; a request may only clear it (`null`), never set one. */
 export const MailBookingUrl = webUrl('Link đặt lịch')
 
+/** The deal milestone a template's send records (S4, 29/09). Only the two a
+ *  letter can BE — a POC is run, not mailed. Absent = the send records none. */
+export const MailTemplateMilestone = OpportunityMilestoneKind.extract(['sample', 'quotation'])
+
 export const MailTemplateRow = z.object({
   code: MailTemplateCode,
   /** NAME shown in the picker. A label — never a key. */
@@ -210,6 +215,7 @@ export const MailTemplateRow = z.object({
   cta: MailCta.optional(),
   /** History only — see `MailBookingUrl`. */
   bookingUrl: MailBookingUrl.optional(),
+  milestone: MailTemplateMilestone.optional(),
   active: z.boolean(),
   /** Where this template may be picked (G4) — the picker filters on it. */
   doors: MailDoorSet,
@@ -1220,6 +1226,7 @@ export const MailTemplateCreate = z
     subject: textInput(MAIL_SUBJECT_MAX),
     body: mailBody,
     cta: MailCta.optional(),
+    milestone: MailTemplateMilestone.optional(),
     /** Absent = `MAIL_DOOR_LEGACY`. The composer posts its own door (G4). */
     doors: MailDoorSet.optional(),
     defaultFor: DoorDefaults.optional(),
@@ -1252,6 +1259,8 @@ export const MailTemplatePatch = z
     cta: MailCta.nullable().optional(),
     /** Clear-only — see `MailBookingUrl`. */
     bookingUrl: z.null().optional(),
+    /** `null` removes the milestone, absent leaves it — the `cta` rule. */
+    milestone: MailTemplateMilestone.nullable().optional(),
     active: z.boolean().optional(),
     /** Replace the whole set. When only one of the pair is posted, the server
      *  checks `defaultFor ⊆ doors` against the stored other half. */
@@ -1265,6 +1274,7 @@ export const MailTemplatePatch = z
       v.body !== undefined ||
       v.cta !== undefined ||
       v.bookingUrl !== undefined ||
+      v.milestone !== undefined ||
       v.active !== undefined ||
       v.doors !== undefined ||
       v.defaultFor !== undefined,
@@ -1290,6 +1300,7 @@ export type MailEngagementKind = z.infer<typeof MailEngagementKind>
 export type MailRunId = z.infer<typeof MailRunId>
 export type MailTemplateCode = z.infer<typeof MailTemplateCode>
 export type MailTemplateRow = z.infer<typeof MailTemplateRow>
+export type MailTemplateMilestone = z.infer<typeof MailTemplateMilestone>
 export type MasRecipientBlock = z.infer<typeof MasRecipientBlock>
 export type MasRecipient = z.infer<typeof MasRecipient>
 export type MasAudience = z.infer<typeof MasAudience>

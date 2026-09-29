@@ -12,6 +12,7 @@ import {
 import { sql } from 'drizzle-orm'
 import type {
   ConditionSide,
+  ContractKind,
   CurrencyCode,
   DocState,
   RecordChannel,
@@ -62,6 +63,11 @@ export const contract = sales.table(
      *  contract that arrives with nothing in it is a run still counted open,
      *  not a write refused at the moment a deal is won. */
     workstreamCode: text('workstream_code').references(() => workstream.code),
+
+    /** What this paper is for (ADR 0069 §5). Nullable for ever: contracts
+     *  signed before 0068 never named one, and inventing it would put a word
+     *  in the director's mouth. The sign door requires it from now on. */
+    kind: text('kind').$type<ContractKind>(),
   },
   (t) => [
     foreignKey({
@@ -75,6 +81,11 @@ export const contract = sales.table(
      *  by run, and this is the join that answers it without a scan. */
     index('contract_workstream_idx').on(t.workstreamCode),
     check('contract_money_pair', sql`("amount" IS NULL) = ("currency" IS NULL)`),
+    /** `ContractKind.options`, copied out for `touch_kind_known`'s reason. */
+    check(
+      'contract_kind_known',
+      sql`"kind" IS NULL OR "kind" IN ('licence', 'deployment', 'training')`,
+    ),
   ],
 )
 

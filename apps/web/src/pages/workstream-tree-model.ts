@@ -16,6 +16,7 @@ import {
 } from '@pv/contracts'
 import { billions, millions } from '@pv/ui'
 import { DUE_LABEL } from '@/data/contracts'
+import { STATE_TONE } from '@/data/opportunities'
 
 /** The journey tree's arithmetic — ordering, rung and status reading, layout.
  *  No React, so every rule the cards obey can be read in one place.
@@ -40,7 +41,7 @@ export const isPicked = (p: TreePick | null, kind: TreePick['kind'], code: strin
 
 export const doorId = (d: JourneyDoor) => `door:${d.leadCode}`
 
-export type Tone = 'draft' | 'warning' | 'success' | 'danger'
+export type Tone = 'draft' | 'warning' | 'success' | 'danger' | 'running'
 export type Status = { label: string; tone: Tone }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ export const LANES = [
     x: 928,
     w: 248,
     phase: 'Tiếp nối',
-    object: `${JOURNEY_STATUS_LABEL.growth} · ${JOURNEY_DEAL_OUTCOME_LABEL.waiting}`,
+    object: `${JOURNEY_STATUS_LABEL.growth} · ${LEAD_STATE_LABEL.nurturing}`,
   },
 ] as const
 
@@ -109,7 +110,7 @@ export const POOL = 'Kho chung'
 export const STATE_WORD: Record<JourneyRungState, string> = {
   done: 'Xong',
   current: 'Đang ở',
-  stopped: JOURNEY_DEAL_OUTCOME_LABEL.waiting,
+  stopped: JOURNEY_DEAL_OUTCOME_LABEL.lost,
   skipped: 'Bỏ qua',
   upcoming: 'Chưa tới',
 }
@@ -200,6 +201,14 @@ export function leadStatus(lead: Journey['lead']): Status | null {
   return { label, tone: 'success' }
 }
 
+export const STOPPED_AT = 'Dừng ở'
+
+/** The stage a lost deal's fail log stands on — its `stopped` rung. */
+export function stoppedRungLabel(deal: JourneyDeal): string | null {
+  const r = deal.rungs.find((x) => x.state === 'stopped')
+  return r ? OPPORTUNITY_STAGE_LABEL[r.key] : null
+}
+
 const currentRung = (deal: JourneyDeal) => deal.rungs.find((r) => r.state === 'current')
 
 /** The sender grades time-in-rung against the stage limit (flow G3); this side
@@ -212,19 +221,19 @@ export function dealLate(deal: JourneyDeal): DueLevel | null {
  *  customer's reply says more than "Quotation"); the rung label stands in
  *  when no sub-step runs. */
 export function dealStatus(deal: JourneyDeal): Status {
-  if (deal.outcome !== 'open') {
-    const tone = deal.outcome === 'won' ? 'success' : 'draft'
-    return { label: JOURNEY_DEAL_OUTCOME_LABEL[deal.outcome], tone }
-  }
+  // Deal outcome keys ARE opportunity state keys; the book owns their colour.
+  const tone = STATE_TONE[deal.outcome]
+  if (deal.outcome !== 'open') return { label: JOURNEY_DEAL_OUTCOME_LABEL[deal.outcome], tone }
   const r = currentRung(deal)
-  if (!r) return { label: JOURNEY_DEAL_OUTCOME_LABEL.open, tone: 'warning' }
-  const name =
-    r.subSteps.find((s) => s.state === 'current')?.label ?? OPPORTUNITY_STAGE_LABEL[r.key]
+  if (!r) return { label: JOURNEY_DEAL_OUTCOME_LABEL.open, tone }
+  const running = r.subSteps.find((s) => s.state === 'current')
+  // The server sends a sub-step's final wording (quote round n, sign decision).
+  const name = running ? running.label : OPPORTUNITY_STAGE_LABEL[r.key]
   const late = dealLate(deal)
   if (late) return { label: `${name} · ${DUE_LABEL[late]}`, tone: 'danger' }
-  if (r.days === null) return { label: name, tone: 'warning' }
+  if (r.days === null) return { label: name, tone }
   const limit = r.limitDays === null ? '' : `/${r.limitDays}`
-  return { label: `${name} · ngày ${r.days}${limit}`, tone: 'warning' }
+  return { label: `${name} · ngày ${r.days}${limit}`, tone }
 }
 
 /** A contract rung is late only by the sub-items that belong to it: deploy
@@ -266,7 +275,7 @@ export const moneyShort = (v: number) => (v >= 1e9 ? billions(v) : millions(v, 0
 const rank = (d: JourneyDeal) =>
   d.outcome === 'open' ? (dealLate(d) ? 0 : 1) : d.outcome === 'won' ? 2 : 3
 
-/** Late first, then open, then won newest first, waiting last. */
+/** Late first, then open, then won newest first, lost last. */
 export function orderDeals(deals: readonly JourneyDeal[]): JourneyDeal[] {
   return [...deals].sort(
     (a, b) => rank(a) - rank(b) || (b.outcomeAt ?? '').localeCompare(a.outcomeAt ?? ''),
@@ -300,7 +309,7 @@ const box = (top: number, h: number): Box => ({ top, center: top + h / 2 })
 export const EDGE_OF: Record<JourneyDeal['outcome'], EdgeTone> = {
   won: 'won',
   open: 'open',
-  waiting: 'ghost',
+  lost: 'ghost',
 }
 
 export function layoutTree(

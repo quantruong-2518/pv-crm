@@ -7,6 +7,7 @@ import {
   type JourneyInstallment,
   type JourneyLink,
   type JourneyRungState,
+  type JourneyDealSubStep,
   type JourneySubStep,
   type WorkstreamHolder,
   type WorkstreamJourneyResponse,
@@ -85,7 +86,7 @@ function walk<K extends string>(keys: readonly K[], marks: Partial<Record<K, Mar
 function dealRungs(
   marks: Partial<Record<StageKey, Mark>>,
   tail: Tail,
-  subSteps: Partial<Record<StageKey, JourneySubStep[]>> = {},
+  subSteps: Partial<Record<StageKey, JourneyDealSubStep[]>> = {},
 ): JourneyDeal['rungs'] {
   return walk(StageKey.options, marks, tail).map((r) => {
     const limitDays = LIMIT_DAYS.get(r.key) ?? null
@@ -116,6 +117,11 @@ function step(label: string, state: JourneyRungState, s: StepInput = {}): Journe
     note: s.note ?? null,
     dueLevel: due ? dueLevelOf(due, SAO_DO_FROZEN_AT, doneAt ?? undefined) : null,
   }
+}
+
+/** The n-th quote send, as a rung sub-step: one per quotation-sent touch. */
+function quoteSent(round: number, label: string, s: StepInput): JourneyDealSubStep {
+  return { ...step(label, 'done', s), kind: 'quote-sent', round }
 }
 
 type InstallmentInput = Pick<
@@ -244,6 +250,7 @@ function ws0041(): Body {
         ),
         nextAction: null,
         contractCodes: ['HĐ-2531'],
+        stop: null,
       },
     ],
     contracts: [
@@ -417,7 +424,6 @@ function hd2609(dealCode: string, holder: WorkstreamHolder): JourneyContract {
 function ws0088(): Body {
   const huy = actor('u-huy')
   const ha = actor('u-ha')
-  const thang = actor('u-thang')
   const lead = must(
     saoDo.objects.find((o) => o.code === 'LD-0334'),
     'LD-0334',
@@ -466,7 +472,7 @@ function ws0088(): Body {
         holder: huy,
         amount: 180_000_000,
         expectedClose: '2026-09-30',
-        outcome: 'waiting',
+        outcome: 'lost',
         outcomeAt: stoppedAt,
         rungs: dealRungs(
           {
@@ -476,15 +482,16 @@ function ws0088(): Body {
             poc: { at: at('2026-07-14'), by: huy },
           },
           { state: 'stopped', endAt: stoppedAt },
-          {
-            poc: [
-              step('Khảo sát kho thành phẩm', 'done', { at: at('2026-07-16') }),
-              step('Cân thử trên một dây đóng gói', 'done', { at: at('2026-07-24', '15:00') }),
-            ],
-          },
+          {},
         ),
         nextAction: null,
         contractCodes: [],
+        stop: {
+          reason: 'Chưa có ngân sách năm nay',
+          note: null,
+          doNotContact: false,
+          concludedBy: huy,
+        },
       },
       {
         code: 'OP-0290',
@@ -504,17 +511,12 @@ function ws0088(): Body {
           },
           { state: 'done', endAt: training.signedAt },
           {
-            quotation: [
-              step('Gửi báo giá', 'done', { at: at('2026-07-15', '10:00') }),
-              step('Duyệt ký hợp đồng', 'done', {
-                at: at('2026-07-24', '11:00'),
-                note: thang.name,
-              }),
-            ],
+            quotation: [quoteSent(1, 'Gửi báo giá', { at: at('2026-07-15', '10:00') })],
           },
         ),
         nextAction: null,
         contractCodes: [training.code],
+        stop: null,
       },
       {
         code: 'OP-0291',
@@ -534,33 +536,16 @@ function ws0088(): Body {
           },
           { state: 'done', endAt: SAO_DO_SIGNED_AT },
           {
-            quotation: [
-              step('Gửi báo giá', 'done', { at: at('2026-07-17', '10:00') }),
-              step('Duyệt chiết khấu', 'done', { at: at('2026-07-18', '15:00'), note: ha.name }),
-              step('Duyệt ký hợp đồng', 'done', {
-                at: at('2026-07-21', '11:00'),
-                note: thang.name,
-              }),
-            ],
+            quotation: [quoteSent(1, 'Gửi báo giá', { at: at('2026-07-17', '10:00') })],
           },
         ),
         nextAction: null,
         contractCodes: [mes.code, licence.code],
+        stop: null,
       },
     ],
     contracts: [training, mes, licence],
     doors: [
-      {
-        kind: 'waiting',
-        leadCode: 'LD-0347',
-        from: { code: 'OP-0289', rung: 'poc' },
-        at: stoppedAt,
-        reason: 'Chưa có ngân sách năm nay',
-        concludedBy: huy,
-        doNotContact: false,
-        campaignName: null,
-        lastTouch: null,
-      },
       {
         kind: 'growth',
         journeyCode: 'WS-0093',
@@ -630,14 +615,12 @@ function ws0089(): Body {
           },
           { state: 'current', endAt: null },
           {
-            quotation: [
-              step(`Gửi báo giá ${quote.code}`, 'done', { at: sentAt }),
-              step('Chờ khách phản hồi', 'current'),
-            ],
+            quotation: [quoteSent(1, `Gửi báo giá ${quote.code}`, { at: sentAt })],
           },
         ),
         nextAction: null,
         contractCodes: [],
+        stop: null,
       },
       {
         code: 'OP-0293',
@@ -655,16 +638,7 @@ function ws0089(): Body {
             poc: { at: at('2026-07-16'), by: huy },
           },
           { state: 'current', endAt: null },
-          {
-            poc: [
-              step('Khảo sát thiết bị xưởng X2', 'done', { at: at('2026-07-17') }),
-              step('Cài thử CMMS trên một nhóm máy', 'done', { at: at('2026-07-28', '16:00') }),
-              step('Khách đánh giá kết quả POC', 'current', {
-                due: at('2026-08-07', '17:00'),
-                note: 'Người đánh giá bên khách đang đi công tác',
-              }),
-            ],
-          },
+          {},
         ),
         nextAction: {
           text: 'Hẹn anh Đạt chốt kết quả POC',
@@ -673,6 +647,7 @@ function ws0089(): Body {
           dueLevel: stepLevelOf(nextDue, SAO_DO_FROZEN_AT),
         },
         contractCodes: [],
+        stop: null,
       },
     ],
     contracts: [],

@@ -4,7 +4,10 @@ Status: accepted (partially supersedes 0057 §2, 0058, 0063 §1/§2/§4, 0064 §
 and §6, 0066 §6 — exact paragraphs under "Superseded"); partially superseded
 by 0068 (§1's holder-cleared rule and retiring `disqualified`, §5 including
 D3, D7 — `nurturing` now loops on the same lead instead of waking a new one,
-and `disqualified` is revived as its own terminal state)
+and `disqualified` is revived as its own terminal state); D2's separate stop
+record for opportunities superseded by 0069; §4's open question (whether the
+catalogue covers `nurturing`) settled and §9/D4 carried out as described,
+both by 0070
 Source: project owner's answers to D1–D11 in session, 28/09/2026; the shared
 flows C, A2, D, G and H agreed 27/09 (`.claude/HANDOFF-workstream-loop.md`,
 "Luồng chung"); the presale plan page
@@ -78,6 +81,9 @@ Waking the same stop record twice does nothing the second time.
 
 ### 3 · Stops of an opportunity (D2)
 
+> Partially superseded by 0069: an opportunity stop writes its fail log on the
+> opportunity row and its stage event, not on a stop record.
+
 **D2** — stopping one opportunity while the journey still runs does **not**
 create a waiting lead. The "Chờ thời điểm" list is the list of stops (lead,
 opportunity, later contract). Only waking creates a lead. The opportunity and
@@ -95,6 +101,9 @@ records not yet woken.
 One shared reason catalogue (config, admin-editable), each reason recording
 which flow/rung it applies to. It replaces the lead's six `ExitReason` values
 and the per-stage care reasons of 0064 §6 (flow C3).
+
+> 0070 settles whether this catalogue also covers a lead's `nurturing` entry:
+> yes, same list as `disqualified`, reason stored on the stop's activity row.
 
 **D5** — seed from board F-Wait plus "Khác (ghi chú)"; the money reason is
 labelled "Chưa có ngân sách năm nay". The no-contact flag ("Không liên hệ")
@@ -164,6 +173,9 @@ a person merges by hand. This also went **against** the recommendation
 Detection is a lookup at intake, not a constraint. The CSV import dedupe
 (`apps/api/src/branches/sales/lead/lead-import.check.ts`) is keyed to the same
 index and must be re-keyed to that lookup too.
+
+> Carried out as described by 0070: the index is dropped, and CSV import now
+> imports and flags a colliding row instead of skipping it, matching landing.
 
 ### 10 · One test file (D10)
 

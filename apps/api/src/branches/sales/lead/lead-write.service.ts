@@ -22,6 +22,7 @@ import {
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { ActorRepository } from '@api/platform/session/actor.repository'
 import { AccountService } from '../account/account.service'
 import { identityOfLead } from '../account/account.mapper'
 import type { Db } from '@api/platform/db/db.module'
@@ -54,6 +55,7 @@ import { CampaignService } from '../campaign/campaign.service'
 import { PartnerService } from '../partner/partner.service'
 import { referrerOf, refuseByAsks } from './lead-motion-asks'
 import { handStepOver } from '../next-step/next-step.handover'
+import { handDealsOver } from '../opportunity/opportunity-handover'
 
 /** The five columns every lead write already carries, in the shape
  *  `ContactService.seedPrimary` asks for — see its docblock for why this call
@@ -137,6 +139,8 @@ export class LeadWriteService {
     private readonly origins: LeadOriginService,
     private readonly campaigns: CampaignService,
     private readonly partners: PartnerService,
+    /* One read per hand-over: can the receiver open deals (`opportunity.view`)? */
+    private readonly actors: ActorRepository,
   ) {}
 
   // ── door 1 · one lead, typed by a person ─────────────────────────────────
@@ -356,6 +360,7 @@ export class LeadWriteService {
     const next = body.ownerId
       ? await this.repo.actorById(this.repo.readonlyHandle, body.ownerId)
       : null
+    const nextSeesDeals = next ? await this.seesDeals(next.id) : false
 
     await this.repo.run(async (tx) => {
       const found = await this.repo.lockForOwnerChange(tx, code)
@@ -405,6 +410,23 @@ export class LeadWriteService {
       /* The outgoing holder's step goes with the lead (flow G1): to the new
          holder, or away on a release. A claim from the pool has none to carry. */
       if (found.ownerId !== null) await handStepOver(tx, code, found.ownerId, ownerId)
+      /* The old holder's open deals follow A→B (ADR 0069 §10); a release to the
+         pool leaves them, since a deal cannot stand without a SALE. A receiver
+         who cannot hold a deal refuses the whole hand-over (400 on `ownerId`). */
+      if (prev && next) {
+        await handDealsOver(
+          tx,
+          { mirror: this.mirror, touch: this.touch },
+          {
+            leadCode: code,
+            from: { actorId: prev.id, name: prev.name },
+            to: { actorId: next.id, name: next.name, role: next.roleId },
+            toSeesDeals: nextSeesDeals,
+            by: byOf(who),
+            note: `${LEAD_NOTE.handedTo} ${next.name}`,
+          },
+        )
+      }
 
       await this.touch.record(tx, [
         {
@@ -444,6 +466,16 @@ export class LeadWriteService {
     if (!after) throw notFound('lead', code)
 
     return LeadOwnerResponse.parse(toContract(after))
+  }
+
+  /** Whether this person may open deals, through E2 off the `Actor` the
+   *  session builds — the next-step doer's check. Asked before the hand-over's
+   *  tx: `ActorRepository` reads on the pool (PGlite has one connection). */
+  private async seesDeals(id: string): Promise<boolean> {
+    const doer = (await this.actors.byId(id))?.actor
+    return doer
+      ? this.access.check(doer, { branch: 'Sales', permission: 'opportunity.view' }).ok
+      : false
   }
 
   // ── door 1c · correct what is already in the book ────────────────────────

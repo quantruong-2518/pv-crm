@@ -29,7 +29,7 @@ import { STAFF, type StaffMember } from './staff'
 import { JOURNEYS, PRODUCTS, SOURCES, type DealSeed, type JourneySeed } from './seed-book'
 import { mailHistory } from './seed-mail'
 import { ACCOUNTS, type ContactSeed } from './seed-companies'
-import { configSeed, EXIT_NAME, person, productRows, sourceIdOf } from './seed-config'
+import { configSeed, exitIdOf, person, productRows, sourceIdOf } from './seed-config'
 
 /** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
  *
@@ -95,7 +95,14 @@ function plantAccounts(): void {
   ACCOUNTS.forEach((a) => {
     const ac = accountCodeOf.get(a.key)!
     const owner = a.ownerId ? person(a.ownerId) : null
-    out.objects.push({ code: ac, kind: 'AC', branch: 'Sales', label: a.name, owner: owner?.name })
+    out.objects.push({
+      code: ac,
+      kind: 'AC',
+      branch: 'Sales',
+      label: a.name,
+      owner: owner?.name,
+      ownerId: owner?.id,
+    })
     out.accounts.push({
       code: ac,
       name: a.name,
@@ -254,17 +261,13 @@ function plantJourney(j: JourneySeed, i: number): void {
       'exited',
       exitedAt!,
       owner ?? MARKETING,
-      `Ra khỏi luồng · ${EXIT_NAME[j.exit.reason]}`,
+      LEAD_NOTE.exited(exitIdOf(j.exit.reason), undefined),
+      { reasonId: exitIdOf(j.exit.reason) },
     )
   }
 
-  /* A lost deal never ends the run by itself — the lead can raise another,
-     which is exactly what a second entry in `deals` does. Only a SIGNED deal
-     or the lead's own exit closes the journey. */
-  const won = deals.find((r) => r.signedAt !== null)
-
-  const closedAt = won?.signedAt ?? exitedAt
-  const state = stateOf(j, owner, deals.length)
+  const { won, parkedAt, closedAt } = outcomeOf(ld, owner, deals, exitedAt)
+  const state = stateOf(j, owner, deals.length, parkedAt !== null)
   const firstDealAt = deals[0]?.enteredAt ?? null
   /* Every HELD lead carries it, not just one parked at `working`: a lead that
      went on to a deal still passed verification to get its tier, and the
@@ -277,7 +280,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     accountCode: ac,
     openedAt: born,
     closedAt,
-    closeReason: won ? 'WON' : exitedAt ? 'LOST' : null,
+    closeReason: won ? 'WON' : closedAt ? 'LOST' : null,
   })
 
   /* The fields a phase fills: a prospect is a name and a mailbox, MQL adds
@@ -290,6 +293,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     branch: 'Sales',
     label: a.name,
     owner: owner?.name,
+    ownerId: owner?.id,
     state,
   })
   out.edges.push({ fromCode: ld, toCode: ac, kind: 'belongs-to' })
@@ -324,14 +328,15 @@ function plantJourney(j: JourneySeed, i: number): void {
     /* An unowned `new` lead has not been verified, so it has no tier. */
     tier: state === 'new' ? null : j.tier,
     state,
-    stateSince: exitedAt ?? firstDealAt ?? verifiedAt ?? ago(reached ? m.mql : j.bornDaysAgo),
+    stateSince:
+      exitedAt ?? parkedAt ?? firstDealAt ?? verifiedAt ?? ago(reached ? m.mql : j.bornDaysAgo),
     sourceKind: src.sourceKind,
     motion: src.motion,
     campaignId: sourceIdOf(src.key),
     lastTouchAt: out.touches
       .filter((t) => t.subjectCode === ld)
       .reduce((max, t) => (t.at! > max ? t.at! : max), born),
-    exitReason: j.exit?.reason ?? null,
+    exitReason: j.exit ? exitIdOf(j.exit.reason) : null,
     exitedAt,
   })
   if (src.campaign) {
@@ -339,13 +344,40 @@ function plantJourney(j: JourneySeed, i: number): void {
   }
 }
 
-/** Every CHECK of ADR 0058 holds: exit ⇔ disqualified, a deal ⇒ converted,
- *  no holder ⇔ new, and a holder with a tier is a verified lead. */
-function stateOf(j: JourneySeed, owner: Hand | null, deals: number): LeadState {
+/** Every CHECK of ADR 0058 holds: exit ⇔ disqualified, a live deal ⇒
+ *  converted, every deal lost ⇒ parked (ADR 0069 §3), no holder ⇔ new, and a
+ *  holder with a tier is a verified lead. */
+function stateOf(j: JourneySeed, owner: Hand | null, deals: number, parked: boolean): LeadState {
   if (j.exit) return 'disqualified'
+  if (parked) return owner ? 'nurturing' : 'new'
   if (deals > 0) return 'converted'
   return owner ? 'working' : 'new'
 }
+
+/** How the run ends. A lost deal ends it only when it was the last one and
+ *  nothing is signed (ADR 0069 §3); a lead not exited is then parked as the
+ *  stop door parks it, dated by the same `nurtured` row. */
+function outcomeOf(
+  ld: string,
+  owner: Hand | null,
+  deals: readonly { signedAt: Date | null; lostAt: Date | null }[],
+  exitedAt: Date | null,
+) {
+  const won = deals.find((r) => r.signedAt !== null)
+  const lastLost =
+    won || deals.length === 0 || deals.some((r) => r.lostAt === null)
+      ? null
+      : new Date(Math.max(...deals.map((r) => r.lostAt!.getTime())))
+  const parkedAt = lastLost && !exitedAt ? lastLost : null
+  if (parkedAt) {
+    pushTouch(ld, 'lead', 'nurtured', parkedAt, owner, NOTE.lastLost[owner ? 'nurturing' : 'new'])
+  }
+  return { won, parkedAt, closedAt: won?.signedAt ?? latest(lastLost, exitedAt) }
+}
+
+/** `greatest()` as the run sync reads it: NULLs skipped. */
+const latest = (a: Date | null, b: Date | null): Date | null =>
+  a && b ? (a > b ? a : b) : (a ?? b)
 
 /** Only a HELD lead has one — the row records the holder's first move, and the
  *  journey lane dates its `verifying` rung off nothing else. */
@@ -503,10 +535,10 @@ function plantDeal(
     pushTouch(
       op,
       'opportunity',
-      'care-entered',
+      'exited',
       lostAt,
       owner,
-      NOTE.careEntered(d.lost!.reason, d.lost!.note),
+      NOTE.stopped(d.lost!.reason, d.lost!.note),
     )
   if (!closedAt && last === 'quotation') {
     plantMeeting(
@@ -526,6 +558,7 @@ function plantDeal(
     branch: 'Sales',
     label: name,
     owner: owner.name,
+    ownerId: owner.id,
     state: closedAt ? null : last,
     amount: d.amount,
   })
@@ -533,7 +566,7 @@ function plantDeal(
   out.deals.push({
     code: op,
     leadCode: ld,
-    state: lostAt ? 'care' : 'open',
+    state: lostAt ? 'lost' : 'open',
     stage: closedAt ? null : last,
     stageSince: closedAt ? null : when[when.length - 1]!,
     name,
@@ -545,9 +578,9 @@ function plantDeal(
     probability: d.probability,
     description: d.description,
     closedAt,
-    careFromStage: lostAt ? last : null,
-    careReason: d.lost?.reason ?? null,
-    careNote: d.lost?.note ?? null,
+    stoppedAtStage: lostAt ? last : null,
+    stopReason: d.lost?.reason ?? null,
+    stopNote: d.lost?.note ?? null,
     createdAt: entered,
   })
   out.owners.push({ opportunityCode: op, actorId: owner.id, role: 'SALE' })
@@ -557,7 +590,7 @@ function plantDeal(
   )
 
   if (signedAt) plantContract(ld, op, ws, owner, name, d.amount!, signedAt)
-  return { signedAt, enteredAt: entered }
+  return { signedAt, lostAt, enteredAt: entered }
 }
 
 /** Standard PV One terms: 30% on signing, 50% at go-live, 20% after a year. */
@@ -583,6 +616,7 @@ function plantContract(
     branch: 'Sales',
     label: name,
     owner: owner.name,
+    ownerId: owner.id,
     amount,
   })
   out.edges.push({ fromCode: op, toCode: hd, kind: 'spawned' })

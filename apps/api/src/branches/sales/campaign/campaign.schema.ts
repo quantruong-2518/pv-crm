@@ -1,6 +1,6 @@
 import { boolean, check, date, index, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
-import type { MailDoor } from '@pv/contracts'
+import type { MailDoor, MailTemplateMilestone } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 import { configEntry } from '../config/config.schema'
@@ -140,6 +140,9 @@ export const mailTemplate = sales.table(
       .$type<MailDoor[]>()
       .notNull()
       .default(sql`ARRAY['lead', 'opportunity', 'campaign']::text[]`),
+    /** The deal milestone a send from the opportunity door records (ADR 0069
+     *  §7). NULL = the send records none. */
+    milestone: text('milestone').$type<MailTemplateMilestone>(),
     /** Same "no delete, only switch off" rule the config catalogue uses: a
      *  retired template must stay readable, because runs still name it. */
     active: boolean('active').notNull().default(true),
@@ -157,6 +160,11 @@ export const mailTemplate = sales.table(
     check(
       'mail_template_doors_known',
       sql`${t.doors} <@ ARRAY['lead', 'opportunity', 'quote', 'contract', 'campaign']::text[] AND cardinality(${t.doors}) >= 1`,
+    ),
+    /** Copied by hand from `MailTemplateMilestone`; a POC is run, not mailed. */
+    check(
+      'mail_template_milestone_known',
+      sql`"milestone" IS NULL OR "milestone" IN ('sample', 'quotation')`,
     ),
   ],
 )

@@ -5,7 +5,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { motionPolicy } from '../config/motion.schema'
-import { leadHasOpenDeal, leadSigned } from '../open-deal'
+import { leadConverted, leadHasOpenDeal, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
 import type { ActorLite } from './lead-import.check'
@@ -155,23 +155,28 @@ export class LeadWriteRepository {
     return row?.name ?? null
   }
 
-  /** Which of these mailboxes already belong to a LIVE lead.
-   *
-   *  ------------------------------------------------------------------
-   *  THE `WHERE` HAS TO MATCH THE INDEX, NOT MERELY RESEMBLE IT
-   *  ------------------------------------------------------------------
-   *  `lead_email_live_idx` is unique on `lower(email)` among rows whose
-   *  `state` is not `disqualified`. Both halves are copied here on
-   *  purpose. Drop the
-   *  `lower()` and two spellings of one mailbox read as two different leads —
-   *  the check passes and the INSERT then dies on the index, turning a row
-   *  the preview called clean into a failed batch. Drop the exit filter and a
-   *  customer who left the funnel last year can never come back as a new lead,
-   *  which is a real and legitimate thing for a customer to do.
-   *
-   *  Asked about the batch's own mailboxes only, never `SELECT email FROM
-   *  lead`: the book is a hundred rows today and will not be, and the answer
-   *  needed is about at most five thousand named addresses. */
+  /** A live row of the stop-reason catalogue (ADR 0070). Read on the stop's own
+   *  `tx`, so the catalogue judged is the one the touch is written against. */
+  async stopReasonLive(tx: Db, id: string): Promise<boolean> {
+    const [row] = await tx
+      .select({ id: configEntry.id })
+      .from(configEntry)
+      .where(
+        and(
+          eq(configEntry.list, 'EXIT_REASON'),
+          eq(configEntry.id, id),
+          eq(configEntry.active, true),
+        ),
+      )
+      .limit(1)
+    return row !== undefined
+  }
+
+  /** Which of these mailboxes already belong to a LIVE lead — `lower(email)`,
+   *  state not gone: the same match the book's `duplicateOf` flags on. No
+   *  index refuses a second one any more (ADR 0070); a caller that wants one
+   *  lead per mailbox asks here first. Asked about named addresses only,
+   *  never `SELECT email FROM lead`. */
   async liveByEmail(tx: Db, emails: readonly string[]): Promise<Map<string, string>> {
     if (emails.length === 0) return new Map()
 
@@ -261,7 +266,7 @@ export class LeadWriteRepository {
   /** What a lifecycle door (contacted, exit, reopen, nurture, resume) must know,
    *  read under a row lock for the reason `lockForOwnerChange` gives: two
    *  presses would otherwise both see the old state and both write a touch.
-   *  `hasDeal` counts lost deals too — reopen reads it as "was converted".
+   *  `hasDeal` = an open deal or a contract (ADR 0069): all-lost does not count.
    *
    *  `reached` rides on this same locked read rather than a second round trip:
    *  reopen and resume both need it, and both already hold this row. */
@@ -285,7 +290,7 @@ export class LeadWriteRepository {
         workstreamCode: lead.workstreamCode,
         openDeal: sql<boolean>`${leadHasOpenDeal(lead.code)}`,
         signed: sql<boolean>`${leadSigned(lead.code)}`,
-        hasDeal: sql<boolean>`EXISTS (SELECT 1 FROM sales.opportunity o WHERE o.lead_code = ${lead.code})`,
+        hasDeal: sql<boolean>`${leadConverted(lead.code)}`,
         reached: reachedRung,
       })
       .from(lead)

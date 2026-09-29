@@ -8,6 +8,7 @@ import {
   MailTemplatePatchResponse,
   type MailDoor,
   type MailTemplateCreate,
+  type MailTemplateMilestone,
   type MailTemplateListQuery,
   type MailTemplatePatch,
 } from '@pv/contracts'
@@ -39,6 +40,7 @@ export class MailTemplateService {
   async createTemplate(who: Actor, input: MailTemplateCreate): Promise<MailTemplateCreateResponse> {
     const code = await this.uniqueTemplateCode(input.name)
     const doors = input.doors ?? [...MAIL_DOOR_LEGACY]
+    assertMilestoneFits(doors, input.milestone ?? null)
 
     await this.repo.run(async (tx) => {
       await this.repo.createTemplate(tx, {
@@ -48,6 +50,7 @@ export class MailTemplateService {
         body: input.body,
         ctaLabel: input.cta?.label ?? null,
         ctaUrl: input.cta?.url ?? null,
+        milestone: input.milestone ?? null,
         doors,
       })
       await this.repo.setDefaults(tx, code, input.defaultFor ?? [], who.id)
@@ -80,6 +83,7 @@ export class MailTemplateService {
       const doors = input.doors ?? stored.doors
       const defaults = input.defaultFor ?? held
       assertDefaultsFit(doors, defaults, input.active ?? stored.active)
+      assertMilestoneFits(doors, input.milestone === undefined ? stored.milestone : input.milestone)
 
       await this.repo.patchTemplate(tx, code, {
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -91,6 +95,7 @@ export class MailTemplateService {
           ? { ctaLabel: input.cta?.label ?? null, ctaUrl: input.cta?.url ?? null }
           : {}),
         ...(input.bookingUrl === null ? { bookingUrl: null } : {}),
+        ...(input.milestone !== undefined ? { milestone: input.milestone } : {}),
       })
       await this.repo.dropDefaults(
         tx,
@@ -146,6 +151,17 @@ function assertDefaultsFit(
     throw invalid(
       { active: [`Mẫu đang là mặc định của ${labels(defaults)} — chọn mẫu mặc định khác trước.`] },
       'Không ngừng dùng được một mẫu đang là mặc định.',
+    )
+  }
+}
+
+/** A milestone is recorded only by a letter sent from the opportunity door
+ *  (ADR 0069 §7), so a template hidden from that door could never record it. */
+function assertMilestoneFits(doors: readonly MailDoor[], milestone: MailTemplateMilestone | null) {
+  if (milestone !== null && !doors.includes('opportunity')) {
+    throw invalid(
+      { milestone: [`Mẫu ghi mốc phải dùng được ở ${MAIL_DOOR_LABEL.opportunity}.`] },
+      'Mẫu ghi mốc chỉ dùng được cho thư gửi từ cơ hội.',
     )
   }
 }

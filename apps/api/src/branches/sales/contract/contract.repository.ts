@@ -142,20 +142,19 @@ export class ContractRepository {
     return written
   }
 
-  /** Hợp đồng của một cơ hội, nếu có.
+  /** Mọi hợp đồng của một cơ hội, cũ nhất trước — đơn thắng ký thêm được
+   *  (ADR 0069 §5).
    *
    *  Khớp CẢ HAI cột chứ không riêng mã đơn — cùng cặp mà `contract_opportunity_fk`
    *  neo, và đọc bằng cả cặp là cách câu truy vấn nói lại đúng bất biến bảng
    *  đang giữ (cùng lý lẽ với `OpportunityRepository.signed`). */
-  async byOpportunity(opportunityCode: string, leadCode: string): Promise<ContractRead | null> {
-    const [found] = await this.db
+  async byOpportunity(opportunityCode: string, leadCode: string): Promise<ContractRead[]> {
+    return this.db
       .select({ row: contract, ownerName: actor.name })
       .from(contract)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
       .where(and(eq(contract.opportunityCode, opportunityCode), eq(contract.leadCode, leadCode)))
-      .limit(1)
-
-    return found ?? null
+      .orderBy(asc(contract.signedAt), asc(contract.code))
   }
 
   // -- read ------------------------------------------------------------------

@@ -88,7 +88,7 @@ export const TouchKind = z.enum([
   /** A lead became an opportunity. */
   'entered-pipeline',
   /** A deal changed column. Written by the stage writer as a by-product of the
-   *  five kinds below — no door reports a column move on its own. */
+   *  milestone, stop and sign kinds below — no door reports a column move alone. */
   'stage-changed',
   /** The three deal MILESTONES, each recorded through
    *  `POST /sales/opportunities/:code/milestones`; the stage follows the
@@ -97,13 +97,13 @@ export const TouchKind = z.enum([
   'sample-sent',
   'poc-run',
   'quotation-sent',
-  /** The deal was parked on the care list; `note` carries the reason. */
-  'care-entered',
-  /** It came back to the column it was parked from. */
+  /** LEGACY, rows persist, no writer: a parked deal came back (retired 29/09 —
+   *  a stop is final). Migrated `care-entered` rows read `exited`. */
   'care-left',
   /** A contract was signed. */
   'signed',
-  /** The lead left the funnel. */
+  /** The lead left the funnel, or the deal was stopped (`note` carries the
+   *  reason); `subjectKind` says which. */
   'exited',
   /** The lead came back into the funnel, after `exited`. */
   'reopened',

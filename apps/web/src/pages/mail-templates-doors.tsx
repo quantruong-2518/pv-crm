@@ -1,5 +1,10 @@
-import { Checkbox, GlassCard } from '@pv/ui'
-import { MAIL_DOOR_LABEL, MailDoor } from '@pv/contracts'
+import { Checkbox, GlassCard, MetaPill, SegmentedControl } from '@pv/ui'
+import {
+  MAIL_DOOR_LABEL,
+  MailDoor,
+  OPPORTUNITY_STAGE_LABEL,
+  type MailTemplateMilestone,
+} from '@pv/contracts'
 
 /** The template's "where used" block (G4, G-Template): which doors list it, and
  *  which of those open pre-filled with it. Split off `mail-templates-parts.tsx`
@@ -8,7 +13,10 @@ import { MAIL_DOOR_LABEL, MailDoor } from '@pv/contracts'
  *  `defaultFor ⊆ doors` is kept here on every toggle — the contract refuses the
  *  other shape, and a default for a door the template is hidden from would
  *  pre-fill a picker that cannot show what it chose. One template per door is
- *  the SERVER's move: ticking a default here takes it off the previous holder. */
+ *  the SERVER's move: ticking a default here takes it off the previous holder.
+ *
+ *  The milestone field lives here too: it only means something on the
+ *  `opportunity` door, so it is drawn from the same door list. */
 
 type DoorSets = { doors: MailDoor[]; defaultFor: MailDoor[] }
 
@@ -98,5 +106,49 @@ function Problem({ lines }: { lines?: string[] }) {
     <span role="alert" className="text-destructive-foreground text-[11px] leading-[1.5]">
       {lines.join(' · ')}
     </span>
+  )
+}
+
+/** Sentinel for "no milestone" — a segmented control cannot hold `null`. */
+const NO_MILESTONE = 'none'
+
+/** Small pill for a template that records a milestone when its letter leaves. */
+export function MilestonePill({ milestone }: { milestone: MailTemplateMilestone }) {
+  return <MetaPill tone="accent">{`Mốc ${OPPORTUNITY_STAGE_LABEL[milestone]}`}</MetaPill>
+}
+
+/** ADR 0069 §7. The caller renders it only while `opportunity` is a ticked
+ *  door; the server refuses the pair otherwise (`errors.milestone`). */
+export function MilestoneField({
+  milestone,
+  errors,
+  onChange,
+}: {
+  milestone: MailTemplateMilestone | null
+  errors?: string[]
+  onChange: (next: MailTemplateMilestone | null) => void
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span className="text-muted-foreground text-[11px]">Gắn mốc cơ hội</span>
+      <SegmentedControl
+        label="Gắn mốc cơ hội"
+        hideLabel
+        value={milestone ?? NO_MILESTONE}
+        onChange={(value) => onChange(value === 'sample' || value === 'quotation' ? value : null)}
+        options={[
+          { value: NO_MILESTONE, label: 'Không gắn' },
+          { value: 'sample', label: OPPORTUNITY_STAGE_LABEL.sample },
+          { value: 'quotation', label: OPPORTUNITY_STAGE_LABEL.quotation },
+        ]}
+      />
+      {errors?.length ? (
+        <Problem lines={errors} />
+      ) : (
+        <span className="text-muted-foreground text-[11px] leading-[1.5]">
+          Thư dùng mẫu này rời hệ thống từ một cơ hội thì máy ghi mốc này cho cơ hội.
+        </span>
+      )}
+    </div>
   )
 }

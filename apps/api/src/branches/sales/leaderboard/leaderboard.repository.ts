@@ -6,6 +6,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { dealLost, dealOpen } from '../open-deal'
 import { toVndSql } from '../money'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 
@@ -48,10 +49,9 @@ export class LeaderboardRepository {
   async rows(): Promise<LeaderboardTally[]> {
     const opsVnd = toVndSql(opportunity.amount, opportunity.currency)
     const contractVnd = toVndSql(contract.amount, contract.currency)
-    /* Standing in one of the five columns, read from `stage` and not from
-       `state`: both terminal states leave the board, and a signed deal whose
-       `state` still says `nego` would be counted open. */
-    const open = sql`${opportunity.stage} IS NOT NULL`
+    /* Open and lost come from `../open-deal`, the one reading of both. */
+    const open = dealOpen(opportunity.code, opportunity.state)
+    const lost = dealLost(opportunity.code, opportunity.state)
     const signed = this.dealSigned()
 
     const [leads, ops, contracts] = await Promise.all([
@@ -73,10 +73,7 @@ export class LeaderboardRepository {
           >`COALESCE(SUM(${opsVnd}) FILTER (WHERE ${open}), 0)::bigint`,
           blank: sql<number>`count(*) FILTER (WHERE ${open} AND ${opportunity.amount} IS NULL)::int`,
           won: sql<number>`count(*) FILTER (WHERE ${signed})::int`,
-          /* Lost = in the care list AND nothing was signed, so won and lost
-             never count one deal twice — the same tie-break the scorecard uses,
-             where a contract beats whatever `state` still reads. */
-          lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'care' AND NOT ${signed})::int`,
+          lost: sql<number>`count(*) FILTER (WHERE ${lost})::int`,
         })
         .from(opportunityOwner)
         .innerJoin(opportunity, eq(opportunity.code, opportunityOwner.opportunityCode))
