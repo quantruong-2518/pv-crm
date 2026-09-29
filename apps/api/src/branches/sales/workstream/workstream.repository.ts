@@ -9,6 +9,8 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
+  lte,
   or,
   sql,
   type SQL,
@@ -148,6 +150,25 @@ export class WorkstreamRepository {
       .limit(1)
 
     return found ? { ...toRead(found), inScope: found.inScope } : null
+  }
+
+  /** Which run of its company this is, counting from 1 in `(opened_at, code)`
+   *  order. A run with no company yet is its own first. */
+  async ordinalOf(run: WorkstreamRowDb): Promise<number> {
+    if (run.accountCode === null) return 1
+    const [r] = await this.db
+      .select({ n: count() })
+      .from(workstream)
+      .where(
+        and(
+          eq(workstream.accountCode, run.accountCode),
+          or(
+            lt(workstream.openedAt, run.openedAt),
+            and(eq(workstream.openedAt, run.openedAt), lte(workstream.code, run.code)),
+          ),
+        ),
+      )
+    return r?.n ?? 1
   }
 
   /** Every deal of a page of runs, in ONE statement.

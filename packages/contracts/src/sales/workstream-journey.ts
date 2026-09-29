@@ -13,9 +13,8 @@ import { LEAD_LANE_BACKBONE, WorkstreamHolder } from './workstream'
 
 /** Journey detail — the rebuilt read of `/sales/workstreams/:code` (canvas row E).
  *
- *  A SEPARATE schema from `WorkstreamProfileResponse` on purpose: the API still
- *  produces the old profile, and the new screen reads this shape from the sao-do
- *  scenario mock until a door exists for it.
+ *  The door at `GET /sales/workstreams/:code` sends exactly this shape; the
+ *  old lane-based profile response is gone.
  *
  *  One journey = one lead, n deals, n contracts per deal; journeys link as a
  *  tree (one previous, many next). Rung LABELS never travel: every key maps
@@ -194,7 +193,9 @@ export const JourneyAcceptance = z.object({
 export const JourneyContract = z.object({
   code: ContractCode,
   dealCode: ObjectCode,
-  kind: ContractKind,
+  // No table column holds contract kind yet; null = "not recorded", the
+  // screen prints no label.
+  kind: ContractKind.nullable(),
   amount: MoneyVnd.nullable(),
   signedAt: Moment,
   holder: WorkstreamHolder.nullable(),
@@ -222,7 +223,8 @@ export const JourneyWaitingDoor = z.object({
   at: Moment,
   reason: textInput(200),
   concludedBy: WorkstreamHolder.nullable(),
-  doNotContact: z.boolean(),
+  // No do-not-contact flag is stored; `false` would claim a permission nobody gave.
+  doNotContact: z.boolean().nullable(),
   campaignName: textInput(120).nullable(),
   lastTouch: z.object({ at: Moment, text: textInput(300) }).nullable(),
 })
@@ -260,6 +262,8 @@ export const WorkstreamJourneyResponse = z
     next: z.array(JourneyLink),
     lead: JourneyLead,
     deals: z.array(JourneyDeal),
+    // Deals of this run the reader's ownOnly scope cut out; the screen says so.
+    hiddenDeals: z.number().int().nonnegative(),
     contracts: z.array(JourneyContract),
     doors: z.array(JourneyDoor),
   })

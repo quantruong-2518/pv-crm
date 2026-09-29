@@ -29,7 +29,7 @@ import { SAO_DO_CONTRACTS, type Contract } from './sao-do-contracts'
  *  declaration of them (the live ones sit in config rows). New figures are
  *  locked by `sao-do-journey.test.ts`. */
 
-type Body = Omit<WorkstreamJourneyResponse, 'previous' | 'next'>
+type Body = Omit<WorkstreamJourneyResponse, 'previous' | 'next' | 'hiddenDeals'>
 type Mark = { at: string; by: WorkstreamHolder | null } | 'skip' | undefined
 type Tail = {
   state: Extract<JourneyRungState, 'current' | 'done' | 'stopped'>
@@ -736,6 +736,7 @@ function assemble(bodies: Body[]): WorkstreamJourneyResponse[] {
     const prev = edges.find((e) => e.to.code === b.code)
     return {
       ...b,
+      hiddenDeals: 0,
       previous: prev ? linkOf(prev.from) : null,
       next: edges.filter((e) => e.from.code === b.code).map((e) => linkOf(e.to)),
     }

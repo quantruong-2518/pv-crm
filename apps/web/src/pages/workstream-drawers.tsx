@@ -104,6 +104,7 @@ const TEXT = {
     'Đưa lead vào chiến dịch hoặc bấm tay "Chăm lại" là chính lead này quay lại chăm sóc, vẫn trong hành trình này và vẫn do người giữ cũ phụ trách.',
   wakeManual:
     'Chỉ bấm tay "Chăm lại": chính lead này quay lại chăm sóc trong hành trình này. Lead này không bao giờ được đưa vào chiến dịch hay nhận mail.',
+  wakeUnknown: 'Chưa ghi nhận khách có đồng ý được liên hệ lại hay không.',
   onReply: `Thư gửi đi hoặc một lần liên hệ thật là lead chuyển ngay sang ${LEAD_STATE_LABEL.working}.`,
   need: 'Nhu cầu',
   arose: 'Phát sinh từ',
@@ -488,7 +489,7 @@ function contractView({ go, onPick }: Ctx, c: JourneyContract, key: JourneyRungK
   const r = rungs.find((x) => x.key === key)
   if (!r) return null
   const facts: [string, ReactNode][] = [
-    [TEXT.kind, CONTRACT_KIND_LABEL[c.kind]],
+    [TEXT.kind, c.kind && CONTRACT_KIND_LABEL[c.kind]],
     [TEXT.value, c.amount === null ? '—' : moneyShort(c.amount)],
     [TEXT.signedAt, dmy(c.signedAt)],
     [TEXT.fromDeal, <CodePill key="deal" kind="OP" code={c.dealCode} go={go} />],
@@ -501,7 +502,7 @@ function contractView({ go, onPick }: Ctx, c: JourneyContract, key: JourneyRungK
       <Kicker phase={POSTSALE}>
         <CodePill kind="HĐ" code={c.code} go={go} />
         <span>
-          {CONTRACT_KIND_LABEL[c.kind]}
+          {c.kind && CONTRACT_KIND_LABEL[c.kind]}
           {c.amount === null ? '' : ` · ${moneyShort(c.amount)}`}
         </span>
       </Kicker>
@@ -592,8 +593,15 @@ function waitingView({ journey, go }: Ctx, d: JourneyWaitingDoor): View {
         </Section>
         <Note title={JOURNEY_BORN_BY_LABEL.wake}>
           <span className="flex flex-col gap-2">
-            <span>{d.doNotContact ? TEXT.wakeManual : TEXT.wakeAny}</span>
-            {!d.doNotContact && <span>{TEXT.onReply}</span>}
+            {/* null = not recorded: promise nothing, unlike false */}
+            <span>
+              {d.doNotContact === null
+                ? TEXT.wakeUnknown
+                : d.doNotContact
+                  ? TEXT.wakeManual
+                  : TEXT.wakeAny}
+            </span>
+            {d.doNotContact === false && <span>{TEXT.onReply}</span>}
           </span>
         </Note>
       </>

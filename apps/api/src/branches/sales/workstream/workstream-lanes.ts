@@ -1,50 +1,69 @@
 import {
+  ContractRungKey,
   LEAD_LANE_BACKBONE,
-  LEAD_STATE_LABEL,
+  OPPORTUNITY_CARE_REASON_OTHER,
   StageKey,
-  type ExitReason,
+  type JourneyContract,
+  type JourneyDeal,
+  type JourneyDoor,
+  type JourneyLead,
+  type JourneyRungState,
   type LeadState,
   type OpportunityOwner,
-  type WorkstreamAccountLane,
-  type WorkstreamDealLane,
-  type WorkstreamLeadLane,
-  type WorkstreamLeadNurture,
-  type WorkstreamStep,
+  type WorkstreamHolder,
+  type WorkstreamJourneyResponse,
 } from '@pv/contracts'
+import { daysUntil, dueLevelOf, stepLevelOf } from '@pv/engines'
 import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
+import { toContract as toNextStep } from '../next-step/next-step.mapper'
+import type { NextStepBatchRead } from '../next-step/next-step.repository'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
-import type { LaneRows, LeadTouchEntry, StageEventRow } from './workstream-lanes.repository'
+import type {
+  ContractLaneRow,
+  LaneRows,
+  LeadTouchEntry,
+  StageEventRow,
+} from './workstream-lanes.repository'
 import type { WorkstreamRead } from './workstream.repository'
 
-/** The profile's swimlanes, folded from rows already read — no SQL, no engine.
- *
- *  A step's state compares its ladder index with the rung the object stands (or
- *  last stood) on; the rules per state are the contract's `WorkstreamStep`. */
+/** The journey detail, folded from rows already read — no SQL, no engine call
+ *  beyond the pure due ladder. A rung's state compares its ladder index with
+ *  the rung the object stands (or last stood) on; `stopped` is where it went
+ *  to waiting. Labels never travel — the contract maps keys to words. */
 
-type Entry = { at: Date; by: string | null } | null
+type Entry = { at: Date; by: WorkstreamHolder | null } | null
 
 type Ladder<K extends string> = {
   keys: readonly K[]
-  labelOf: (key: K) => string
   /** Rung the object stands or last stood on; -1 when nothing says which. */
   index: number
   /** What the stood-on rung reads as once the object stopped moving. */
-  closed: 'current' | 'dropped' | 'parked' | 'done'
+  closed: Extract<JourneyRungState, 'current' | 'stopped' | 'done'>
   entryOf: (key: K) => Entry
   since: Date | null
-  /** Close/exit date for `dropped`/`parked`, now for `current`. */
+  /** Stop date for `stopped`, now for `current`. */
   until: Date
   doneDays: (i: number, entryAt: Date | null) => number | null
 }
 
-const DAY_MS = 86_400_000
+type Rung<K extends string> = {
+  key: K
+  state: JourneyRungState
+  at: string | null
+  by: WorkstreamHolder | null
+  days: number | null
+}
 
+const DAY_MS = 86_400_000
+/** `textInput(200)` on every door reason; a longer free note is clipped, not refused. */
+const REASON_MAX = 200
+const REASON_OTHER_LABEL = 'Khác'
+
+/** Calendar days between two instants, the book's own count (`daysUntil`). */
 const wholeDays = (from: Date | null, to: Date | null): number | null =>
-  from === null || to === null
-    ? null
-    : Math.max(0, Math.floor((to.getTime() - from.getTime()) / DAY_MS))
+  from === null || to === null ? null : Math.max(0, daysUntil(to.toISOString(), from.toISOString()))
 
 /** `Array.prototype.findLast` is past the api's `lib` target. */
 function lastOf<T>(list: readonly T[], hit: (x: T) => boolean): T | undefined {
@@ -54,44 +73,80 @@ function lastOf<T>(list: readonly T[], hit: (x: T) => boolean): T | undefined {
 
 const iso = (d: Date | null): string | null => d?.toISOString() ?? null
 
-function stepsOf<K extends string>(l: Ladder<K>): WorkstreamStep[] {
+/** A foreign amount printed as dong (VND) is worse than a blank. */
+const vndOf = (amount: number | null, currency: string | null): number | null =>
+  currency === 'VND' ? amount : null
+
+const holderOf = (id: string | null, name: string | null): WorkstreamHolder | null =>
+  id !== null && name !== null ? { id, name } : null
+
+function rungsOf<K extends string>(l: Ladder<K>): Rung<K>[] {
   return l.keys.map((key, i) => {
-    const label = l.labelOf(key)
-    if (i > l.index) {
-      return { key, label, state: 'upcoming', at: null, by: null, days: null }
-    }
+    if (i > l.index) return { key, state: 'upcoming', at: null, by: null, days: null }
 
     const entry = l.entryOf(key)
     if (i < l.index) {
       const at = entry?.at ?? null
-      return {
-        key,
-        label,
-        state: 'done',
-        at: iso(at),
-        by: entry?.by ?? null,
-        days: l.doneDays(i, at),
-      }
+      return { key, state: 'done', at: iso(at), by: entry?.by ?? null, days: l.doneDays(i, at) }
     }
 
     const at = entry?.at ?? l.since
     const days = l.closed === 'done' ? l.doneDays(i, at) : wholeDays(l.since, l.until)
-    return { key, label, state: l.closed, at: iso(at), by: entry?.by ?? null, days }
+    return { key, state: l.closed, at: iso(at), by: entry?.by ?? null, days }
   })
 }
 
-/** A backbone rung, and the touch that puts the lead on it. `assigned` answers
- *  to `created` as well: a lead born with a holder was never handed over, so
- *  its receiving end rides on the creation row (`lead-write.service.ts`).
- *
- *  `verifying` and `working` read the rows `LeadStateWriter` writes as it moves
- *  the state, and nothing else: any other kind dates the rung off an action by
- *  somebody who was not the holder, which is not what moved the column. Two
- *  kinds each, legacy beside new and both valid forever (ADR 0063 §5). Leads
- *  that moved before those rows existed show the rung without a date. */
-type Rung = (typeof LEAD_LANE_BACKBONE)[number]
+export type JourneyInput = {
+  read: WorkstreamRead
+  ordinal: number
+  /** Every deal of the run — the lead's `converted` rung is a fact about the lead. */
+  all: readonly OpportunityRowDb[]
+  /** Only the deals this reader may open. */
+  deals: readonly OpportunityRowDb[]
+  hidden: number
+  owners: Map<string, OpportunityOwner[]>
+  rows: LaneRows
+  steps: Map<string, NextStepBatchRead>
+  stage: Map<StageKey, PhaseConfig>
+  now: Date
+  /** Vietnam calendar day (`YYYY-MM-DD`) every due level is graded against. */
+  today: string
+}
 
-const RUNG_HIT: Record<Rung, (t: LeadTouchEntry) => boolean> = {
+export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
+  const { read, rows } = input
+  const { row } = read
+  const lead = leadOf(read, input.all, rows, input.now)
+  const deals = [...input.deals]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.code.localeCompare(b.code))
+    .map((deal) => dealOf(deal, input))
+
+  return {
+    code: row.code,
+    ordinal: input.ordinal,
+    customer: read.accountName ?? read.lead.company,
+    accountCode: row.accountCode,
+    status: row.closedAt === null ? 'open' : 'closed',
+    closeReason: row.closeReason ?? null,
+    openedAt: row.openedAt.toISOString(),
+    closedAt: iso(row.closedAt),
+    /* No table links one run to the next yet. */
+    previous: null,
+    next: [],
+    lead: lead.lead,
+    deals: deals.map((d) => d.deal),
+    hiddenDeals: input.hidden,
+    contracts: rows.contracts.map((c) => contractOf(c, rows, input.now, input.today)),
+    doors: [lead.door, ...deals.map((d) => d.door)].filter((d): d is JourneyDoor => d !== null),
+  }
+}
+
+/** A backbone rung, and the touch that puts the lead on it. `assigned` answers
+ *  to `created` as well: a lead born with a holder was never handed over.
+ *  Two kinds each for `verifying`/`working`, legacy beside new (ADR 0063 §5). */
+type LeadRungKey = (typeof LEAD_LANE_BACKBONE)[number]
+
+const RUNG_HIT: Record<LeadRungKey, (t: LeadTouchEntry) => boolean> = {
   new: (t) => t.kind === 'created',
   assigned: (t) => (t.kind === 'handed-over' || t.kind === 'created') && t.to !== null,
   verifying: (t) => t.kind === 'first-action' || t.kind === 'care-planned',
@@ -99,16 +154,17 @@ const RUNG_HIT: Record<Rung, (t: LeadTouchEntry) => boolean> = {
   converted: (t) => t.kind === 'entered-pipeline',
 }
 
-/** The lead lane: the five backbone rungs every lead draws, plus the nurture
- *  loop and the exit, which happen BESIDE the backbone rather than on it (ADR
- *  0058). Rung labels come from `LEAD_STATE_LABEL`, not `config_entry` — that
- *  catalogue holds the STAGE and TIER ladders and knows nothing about states. */
-export function leadLaneOf(
+const touchHolder = (t: LeadTouchEntry): WorkstreamHolder | null => holderOf(t.actorId, t.by)
+
+/** The five backbone rungs, and the waiting door while the lead sits in
+ *  `nurturing` (ADR 0068: it loops there on the same lead). `disqualified`
+ *  also stops the rung but opens no door — a person stopped caring. */
+function leadOf(
   read: WorkstreamRead,
   deals: readonly OpportunityRowDb[],
   rows: LaneRows,
   now: Date,
-): WorkstreamLeadLane {
+): { lead: JourneyLead; door: JourneyDoor | null } {
   const { lead } = read
   const trail = rows.leadTouches
   const firstDeal = deals.reduce<Date | null>(
@@ -118,13 +174,20 @@ export function leadLaneOf(
 
   /* FIRST hit, not last: a rung is entered once, while `handed-over` fires
      again every time the lead changes hands afterwards. */
-  const entryOf = (key: Rung): Entry =>
-    trail.find(RUNG_HIT[key]) ?? (key === 'new' ? { at: lead.createdAt, by: null } : null)
+  const entryOf = (key: LeadRungKey): Entry => {
+    const hit = trail.find(RUNG_HIT[key])
+    if (hit) return { at: hit.at, by: touchHolder(hit) }
+    return key === 'new' ? { at: lead.createdAt, by: null } : null
+  }
 
-  const exit = exitOf(lead, trail)
-  const leftAt = exit?.at ?? null
-  const outcome = leftAt ? 'exited' : firstDeal ? 'converted' : 'open'
-  const outcomeAt = leftAt ?? firstDeal
+  const parked = lead.state === 'nurturing' ? lastOf(trail, (t) => t.kind === 'nurtured') : null
+  const stoppedAt =
+    lead.state === 'disqualified'
+      ? (lastOf(trail, (t) => t.kind === 'exited')?.at ?? lead.exitedAt ?? lead.stateSince)
+      : lead.state === 'nurturing'
+        ? (parked?.at ?? lead.stateSince)
+        : null
+  const outcomeAt = stoppedAt ?? firstDeal
 
   const index = standingOn(lead, entryOf)
   const since = entryOf(LEAD_LANE_BACKBONE[index] ?? 'new')?.at ?? lead.stateSince
@@ -132,7 +195,6 @@ export function leadLaneOf(
     const key = LEAD_LANE_BACKBONE[i]
     return (key ? entryOf(key)?.at : null) ?? (i === index ? since : null)
   }
-
   const doneDays = (i: number, at: Date | null): number | null => {
     if (i === index) return wholeDays(at, outcomeAt)
     for (let j = i + 1; j <= index; j++) {
@@ -142,43 +204,44 @@ export function leadLaneOf(
     return null
   }
 
+  const rungs = rungsOf({
+    keys: LEAD_LANE_BACKBONE,
+    index,
+    closed: stoppedAt ? 'stopped' : firstDeal ? 'done' : 'current',
+    entryOf,
+    since,
+    until: stoppedAt ?? now,
+    doneDays,
+  })
+
+  const door: JourneyDoor | null =
+    lead.state !== 'nurturing'
+      ? null
+      : {
+          kind: 'waiting',
+          leadCode: lead.code,
+          from: { code: lead.code, rung: LEAD_LANE_BACKBONE[index] ?? 'new' },
+          at: (parked?.at ?? lead.stateSince).toISOString(),
+          /* A lead parked before the `nurtured` touch existed has no note;
+             0067 migrated those under the catch-all "other" reason. */
+          reason: (parked?.note ?? REASON_OTHER_LABEL).slice(0, REASON_MAX),
+          concludedBy: parked ? touchHolder(parked) : null,
+          doNotContact: null,
+          campaignName: read.campaignName,
+          lastTouch: null,
+        }
+
   return {
-    code: lead.code,
-    sourceKind: lead.sourceKind ?? null,
-    campaignName: read.campaignName,
-    tier: lead.tier,
-    owner:
-      lead.ownerId !== null && read.saleName !== null
-        ? { id: lead.ownerId, name: read.saleName }
-        : null,
-    steps: stepsOf({
-      keys: LEAD_LANE_BACKBONE,
-      labelOf: (key) => LEAD_STATE_LABEL[key],
-      index,
-      closed: outcome === 'exited' ? 'dropped' : outcome === 'converted' ? 'done' : 'current',
-      entryOf,
-      since,
-      until: leftAt ?? now,
-      doneDays,
-    }),
-    nurture: nurtureOf(trail, lead.state, leftAt ?? now),
-    exit:
-      exit === null
-        ? null
-        : { state: exit.state, at: exit.at.toISOString(), by: exit.by, reason: exit.reason },
-    outcome,
-    outcomeAt: iso(outcomeAt),
+    lead: { code: lead.code, holder: holderOf(lead.ownerId, read.saleName), rungs },
+    door,
   }
 }
 
-/** Which rung the lane DRAWS the lead on. `nurturing` is a stop, not a step
- *  forward, so it parks the lead exactly where `LeadExitService.resume` would
- *  put it back — the same `stateByWork` both of them read, off the FACT that an
- *  exchange was once logged (ADR 0063 §4). The SQL twin is the `nurturing`
- *  branch of `sales.workstream_stand()`. A lead that LEFT
- *  stands on the last rung its trail proves it reached, not the one it was
- *  heading for. */
-function standingOn(lead: LeadRowDb, entryOf: (key: Rung) => Entry): number {
+/** Which rung the lead is DRAWN on. `nurturing` parks it exactly where
+ *  `LeadExitService.resume` would put it back — the same `stateByWork`, off
+ *  the fact that an exchange was once logged (ADR 0063 §4). A lead that LEFT
+ *  stands on the last rung its trail proves it reached. */
+function standingOn(lead: LeadRowDb, entryOf: (key: LeadRungKey) => Entry): number {
   if (lead.state === 'nurturing') {
     return LEAD_LANE_BACKBONE.indexOf(stateByWork(entryOf('working') !== null))
   }
@@ -192,101 +255,102 @@ function standingOn(lead: LeadRowDb, entryOf: (key: Rung) => Entry): number {
   return reached
 }
 
-type Exit = {
-  state: 'disqualified'
-  at: Date
-  by: string | null
-  reason: ExitReason | null
-}
-
-/** How the lead left, or null while it is still on the backbone. The moment
- *  comes off the touch that WROTE the move; the lead's own columns are the
- *  fallback for rows written before those touch kinds existed. */
-function exitOf(lead: LeadRowDb, trail: readonly LeadTouchEntry[]): Exit | null {
-  if (lead.state === 'disqualified') {
-    const row = lastOf(trail, (t) => t.kind === 'exited')
-    return {
-      state: 'disqualified',
-      at: row?.at ?? lead.exitedAt ?? lead.stateSince,
-      by: row?.by ?? null,
-      reason: lead.exitReason,
-    }
-  }
-  return null
-}
-
-/** Every stay in `nurturing`, folded from the `nurtured` → back pairs on the
- *  trail: `resumed` by hand, or `exchange-logged` when a real touch looped it
- *  back (ADR 0068 §4). `until` closes an open stay — the exit, or now. */
-function nurtureOf(
-  trail: readonly LeadTouchEntry[],
-  state: LeadState,
-  until: Date,
-): WorkstreamLeadNurture | null {
-  const stays = trail.filter((t) => t.kind === 'nurtured')
-  if (stays.length === 0) return null
-
-  let totalDays = 0
-  for (const stay of stays) {
-    const back = trail.find(
-      (t) => (t.kind === 'resumed' || t.kind === 'exchange-logged') && t.at > stay.at,
-    )
-    totalDays += wholeDays(stay.at, back?.at ?? until) ?? 0
-  }
-
-  const open = state === 'nurturing' ? (stays[stays.length - 1]?.at ?? null) : null
-  return { count: stays.length, totalDays, since: iso(open) }
-}
-
-/** Oldest deal first, as the contract orders the lanes. */
-export function dealLanesOf(
-  deals: readonly OpportunityRowDb[],
-  owners: Map<string, OpportunityOwner[]>,
-  rows: LaneRows,
-  stage: Map<StageKey, PhaseConfig>,
-  now: Date,
-): WorkstreamDealLane[] {
-  const oldestFirst = [...deals].sort(
-    (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.code.localeCompare(b.code),
-  )
-  return oldestFirst.map((deal) => dealLaneOf(deal, owners, rows, stage, now))
-}
-
-function dealLaneOf(
+/** `care` is drawn as `waiting`, NEVER a loss: the care list is reversible
+ *  (ADR 0064) and every presale stop becomes a waiting lead (ADR 0067). */
+function dealOf(
   deal: OpportunityRowDb,
-  owners: Map<string, OpportunityOwner[]>,
-  rows: LaneRows,
-  stage: Map<StageKey, PhaseConfig>,
-  now: Date,
-): WorkstreamDealLane {
+  input: JourneyInput,
+): { deal: JourneyDeal; door: JourneyDoor | null } {
+  const { rows, now } = input
   const events = rows.events.filter((e) => e.deal === deal.code)
-  const signed = rows.contracts.find((c) => c.deal === deal.code) ?? null
-  /* `care`, NEVER `lost`: the care list is reversible (`POST /:code/reactivate`)
-     and drawing it as a hard loss is the reading ADR 0064 removed. The rung it
-     parked on still stops (`dropped`) — nothing runs while it waits. */
-  const outcome = signed ? 'won' : deal.state === 'care' ? 'care' : 'open'
-  const entryOf = (key: StageKey): Entry => lastOf(events, (e) => e.to === key) ?? null
-  const sale = (owners.get(deal.code) ?? []).find((o) => o.role === 'SALE')
-  const stood = deal.stage ?? lastStageOf(events)
+  const signed = rows.contracts.filter((c) => c.deal === deal.code)
+  const outcome = signed.length > 0 ? 'won' : deal.state === 'care' ? 'waiting' : 'open'
+  const entryOf = (key: StageKey): Entry => {
+    const e = lastOf(events, (x) => x.to === key)
+    return e ? { at: e.at, by: { id: e.byId, name: e.by } } : null
+  }
+  const stood = deal.stage ?? deal.careFromStage ?? lastStageOf(events)
+
+  const rungs = rungsOf({
+    keys: StageKey.options,
+    index: stood === null ? -1 : StageKey.options.indexOf(stood),
+    closed: outcome === 'won' ? 'done' : outcome === 'waiting' ? 'stopped' : 'current',
+    entryOf,
+    /* A closed deal's `stage_since` is nulled on close, so its clock falls
+       back to when it entered the rung it left from. */
+    since: deal.stageSince ?? (stood === null ? null : (entryOf(stood)?.at ?? null)),
+    until: outcome === 'waiting' ? (deal.closedAt ?? now) : now,
+    doneDays: (i) => lastOf(events, (e) => e.from === StageKey.options[i])?.daysInFrom ?? null,
+  }).map((r) => {
+    const limit = input.stage.get(r.key)?.limitDays ?? null
+    const limitDays = limit !== null && limit > 0 ? limit : null
+    /* The stage clock ends `limitDays` after entry, graded by `stepLevelOf`:
+       the same three levels the opportunity book uses, not the contract band. */
+    const clockEnd =
+      r.state === 'current' && limitDays !== null && deal.stageSince !== null
+        ? new Date(deal.stageSince.getTime() + limitDays * DAY_MS).toISOString()
+        : null
+    return {
+      ...r,
+      limitDays,
+      dueLevel: clockEnd ? stepLevelOf(clockEnd, input.today) : null,
+      subSteps: [],
+    }
+  })
+
+  const sale = (input.owners.get(deal.code) ?? []).find((o) => o.role === 'SALE')
+  const step = input.steps.get(deal.code)
 
   return {
-    code: deal.code,
-    owner: sale ? { id: sale.id, name: sale.name } : null,
-    steps: stepsOf({
-      keys: StageKey.options,
-      labelOf: (key) => stage.get(key)?.label ?? key,
-      index: stood === null ? -1 : StageKey.options.indexOf(stood),
-      closed: outcome === 'won' ? 'done' : outcome === 'care' ? 'parked' : 'current',
-      entryOf,
-      /* A closed deal's `stage_since` is nulled on close, so its clock falls
-         back to when it entered the rung it left from. */
-      since: deal.stageSince ?? (stood === null ? null : (entryOf(stood)?.at ?? null)),
-      until: outcome === 'care' ? (deal.closedAt ?? now) : now,
-      doneDays: (i) => lastOf(events, (e) => e.from === StageKey.options[i])?.daysInFrom ?? null,
-    }),
-    outcome,
-    outcomeAt: iso(signed?.at ?? (outcome === 'care' ? deal.closedAt : null)),
-    contractCode: signed?.code ?? null,
+    deal: {
+      code: deal.code,
+      name: deal.name,
+      holder: sale ? { id: sale.id, name: sale.name } : null,
+      amount: vndOf(deal.amount, deal.currency),
+      expectedClose: deal.expectedClose,
+      outcome,
+      outcomeAt: iso(
+        outcome === 'won'
+          ? (signed[0]?.signedAt ?? null)
+          : outcome === 'waiting'
+            ? deal.closedAt
+            : null,
+      ),
+      rungs,
+      nextAction: step ? toNextStep(step, input.today) : null,
+      contractCodes: signed.map((c) => c.code),
+    },
+    door: outcome === 'waiting' ? careDoorOf(deal, events, rows) : null,
+  }
+}
+
+/** The waiting door of a cared-for deal. `closed_at` and `care_from_stage` are
+ *  non-null in `care` (CHECK, drizzle 0061); the guard only narrows the type.
+ *  Who concluded is the mover of the event that took the deal off the board. */
+function careDoorOf(
+  deal: OpportunityRowDb,
+  events: readonly StageEventRow[],
+  rows: LaneRows,
+): JourneyDoor | null {
+  if (deal.closedAt === null || deal.careFromStage === null) return null
+  const key = deal.careReason
+  const reason =
+    key === null
+      ? REASON_OTHER_LABEL
+      : (rows.careReasons.get(key) ??
+        (key === OPPORTUNITY_CARE_REASON_OTHER ? (deal.careNote ?? REASON_OTHER_LABEL) : key))
+  const off = lastOf(events, (e) => e.to === null)
+
+  return {
+    kind: 'waiting',
+    leadCode: deal.leadCode,
+    from: { code: deal.code, rung: deal.careFromStage },
+    at: deal.closedAt.toISOString(),
+    reason: reason.slice(0, REASON_MAX),
+    concludedBy: off ? { id: off.byId, name: off.by } : null,
+    doNotContact: null,
+    campaignName: null,
+    lastTouch: null,
   }
 }
 
@@ -297,13 +361,59 @@ function lastStageOf(events: readonly StageEventRow[]): StageKey | null {
   return stood
 }
 
-/** `purchased` reads every contract of the run, hidden deals included: it is a
- *  fact about the company and names no deal. */
-export function accountLaneOf(read: WorkstreamRead, rows: LaneRows): WorkstreamAccountLane {
+/** Only `signed` and `collect` have a source today; deploy, accept and done
+ *  stay `upcoming` until their tables exist. `collect` reads the schedule:
+ *  all paid → done, some → current. */
+function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string): JourneyContract {
+  const schedule = rows.installments.filter((i) => i.contractCode === c.code)
+  const paid = schedule
+    .map((i) => i.paidAt)
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime())
+  const firstPaid = paid[0] ?? null
+  const collect: JourneyRungState =
+    paid.length === 0 ? 'upcoming' : paid.length === schedule.length ? 'done' : 'current'
+  const collectEnd = collect === 'done' ? (paid[paid.length - 1] ?? null) : now
+
+  const rungs = ContractRungKey.options.map((key) => {
+    if (key === 'signed') {
+      return { key, state: 'done' as const, at: c.signedAt.toISOString(), by: null, days: null }
+    }
+    if (key === 'collect' && collect !== 'upcoming') {
+      return {
+        key,
+        state: collect,
+        at: iso(firstPaid),
+        by: null,
+        days: wholeDays(firstPaid, collectEnd),
+      }
+    }
+    return { key, state: 'upcoming' as const, at: null, by: null, days: null }
+  })
+
   return {
-    code: read.row.accountCode,
-    name: read.accountName,
-    owner: rows.accountOwner,
-    purchased: rows.contracts.length > 0,
+    code: c.code,
+    dealCode: c.deal,
+    kind: null,
+    amount: vndOf(c.amount, c.currency),
+    signedAt: c.signedAt.toISOString(),
+    holder: holderOf(c.ownerId, c.ownerName),
+    implementer: null,
+    rungs,
+    milestones: [],
+    acceptance: [],
+    installments: schedule.map((i) => ({
+      no: i.no,
+      label: i.label,
+      share: i.share,
+      amount: i.amount,
+      due: i.due.toISOString(),
+      invoiceNo: null,
+      invoicedAt: null,
+      paidAt: iso(i.paidAt),
+      paidAmount: i.paidAt ? i.amount : null,
+      dueLevel: dueLevelOf(i.due.toISOString(), today, iso(i.paidAt) ?? undefined),
+    })),
+    licence: null,
   }
 }

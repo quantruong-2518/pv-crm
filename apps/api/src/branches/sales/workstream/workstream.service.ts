@@ -13,7 +13,7 @@ import {
   StageKey,
   WorkstreamBoardResponse,
   WorkstreamBookResponse,
-  WorkstreamProfileResponse,
+  WorkstreamJourneyResponse,
   type ObjectCode,
   type OpportunityOwner,
   type WorkstreamBookQuery,
@@ -21,11 +21,10 @@ import {
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ApprovalService } from '@api/platform/approval/approval.service'
-import { GraphService } from '@api/platform/graph/graph.service'
-import { toChainLink } from '@api/platform/graph/graph.mapper'
 import { notFound } from '@api/platform/http/problem'
 import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladder'
 import { toRef as leadRef } from '../lead/lead.mapper'
+import { NextStepRepository } from '../next-step/next-step.repository'
 import { scopeRefOf, toRef as dealRef } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import {
@@ -44,7 +43,7 @@ import {
   toContract,
   type WorkstreamLive,
 } from './workstream.mapper'
-import { accountLaneOf, dealLanesOf, leadLaneOf } from './workstream-lanes'
+import { journeyOf } from './workstream-lanes'
 import { WorkstreamLanesRepository } from './workstream-lanes.repository'
 
 /** Module 5 · the journey book. Repository AND engine, the only layer allowed
@@ -61,8 +60,8 @@ export class WorkstreamService {
     /* E3's durable half, asked one question: what is still waiting on the
        object this run currently stands on. */
     private readonly approvals: ApprovalService,
-    private readonly graph: GraphService,
     private readonly lanes: WorkstreamLanesRepository,
+    private readonly steps: NextStepRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -108,56 +107,46 @@ export class WorkstreamService {
    *  `WS-` codes run from 1 with no gaps, so telling "no such run" apart from
    *  "not your run" hands anyone with a session a way to walk the space and
    *  count what the desk is holding. That is the trade `OpportunityService
-   *  .profile` already made and for the stronger reason here; the book still
-   *  reports `hidden`, so the count is available where it is not a list. */
-  async profile(who: Actor, code: ObjectCode): Promise<WorkstreamProfileResponse> {
+   *  .profile` already made and for the stronger reason here.
+   *
+   *  Deals are cut per reader BEFORE the second read: contracts, installments,
+   *  stage events and next steps are asked for visible deals only, so a hidden
+   *  deal's codes and amounts never leave the database. */
+  async profile(who: Actor, code: ObjectCode): Promise<WorkstreamJourneyResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('hành trình', code)
 
-    /* Walked from the LEAD: E1 has no `WS` kind to start at, and the lead is
-       the first link of the chain the rail draws anyway. `storyFor`, not
-       `story` — E2 cuts links this reader may not open. */
-    const [rows, story, lanes] = await Promise.all([
-      this.rowsOf(who, [found]),
-      this.graph.storyFor(who, found.lead.code),
-      this.lanesOf(who, found),
-    ])
-    const [row] = rows
-    if (!row) throw notFound('hành trình', code)
-
-    return WorkstreamProfileResponse.parse({
-      ...row,
-      chain: story.chain.map(toChainLink),
-      ...lanes,
-    })
-  }
-
-  /** The swimlanes of one run. Re-reads the run's deals and ladders beside
-   *  `rowsOf` rather than threading them out of the book's merge: two cheap
-   *  statements on one row, against reshaping the page path.
-   *
-   *  Only deals this reader may open get a lane; the lead lane and `purchased`
-   *  still read every deal, facts about the lead and the company that name none. */
-  private async lanesOf(who: Actor, read: WorkstreamRead) {
-    const [[byRun, owners], ladders] = await Promise.all([
-      this.dealsWithOwners([read.row.code]),
+    const [[byRun, owners], ladders, ordinal] = await Promise.all([
+      this.dealsWithOwners([found.row.code]),
       this.repo.ladderRows(),
+      this.repo.ordinalOf(found.row),
     ])
-    const all = byRun.get(read.row.code) ?? []
+    const all = byRun.get(found.row.code) ?? []
     const { deals, hidden } = this.visibleDeals(who, all, owners)
-    const rows = await this.lanes.lanesOf(
-      read.lead.code,
-      all.map((d) => d.code),
-      read.row.accountCode,
-    )
+    const dealCodes = deals.map((d) => d.code)
+    const careKeys = deals.flatMap((d) => (d.careReason === null ? [] : [d.careReason]))
 
-    const now = new Date()
-    return {
-      lead: leadLaneOf(read, all, rows, now),
-      deals: dealLanesOf(deals, owners, rows, stageConfigOf(ladders.stage), now),
-      hiddenDeals: hidden,
-      account: accountLaneOf(read, rows),
-    }
+    const [rows, steps, today] = await Promise.all([
+      this.lanes.lanesOf(found.lead.code, dealCodes, careKeys),
+      this.steps.stepsOf(dealCodes),
+      this.steps.today(),
+    ])
+
+    return WorkstreamJourneyResponse.parse(
+      journeyOf({
+        read: found,
+        ordinal,
+        all,
+        deals,
+        hidden,
+        owners,
+        rows,
+        steps,
+        stage: stageConfigOf(ladders.stage),
+        now: new Date(),
+        today,
+      }),
+    )
   }
 
   /** The merge, for one page or for one row.
@@ -242,8 +231,13 @@ export class WorkstreamService {
       row,
       ref: scopeRefOf(row, owners.get(row.code) ?? [], who.id),
     }))
-    const { visible, hidden } = this.access.visible(who, items)
-    return { deals: visible.map((v) => v.row), hidden }
+    const { visible } = this.access.visible(who, items)
+    /* `E2.visible` matches the owner by NAME (known debt): two people sharing
+       one must not see each other's deals, so an own-only reader also needs the id. */
+    const deals = visible
+      .map((v) => v.row)
+      .filter((d) => !who.ownOnly || owners.get(d.code)?.some((o) => o.id === who.id))
+    return { deals, hidden: all.length - deals.length }
   }
 }
 

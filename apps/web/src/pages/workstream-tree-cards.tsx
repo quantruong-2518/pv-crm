@@ -400,7 +400,9 @@ export function ContractCard({
       className="gap-3 p-3"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[14px] font-semibold">{CONTRACT_KIND_LABEL[contract.kind]}</span>
+        <span className="text-[14px] font-semibold">
+          {contract.kind && CONTRACT_KIND_LABEL[contract.kind]}
+        </span>
         {contract.amount !== null && <MoneyPill>{moneyShort(contract.amount)}</MoneyPill>}
       </div>
       <div className="flex flex-wrap items-center gap-2">

@@ -1,14 +1,8 @@
 import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
-import { ObjectChainLink, PipelinePositionView } from '../position'
+import { PipelinePositionView } from '../position'
 import { Moment, ObjectCode, textInput } from '../primitives'
-import {
-  ExitReason,
-  LeadSourceKind,
-  type LeadState,
-  LeadTier,
-  WorkstreamCloseReason,
-} from './enums'
+import { type LeadState, WorkstreamCloseReason } from './enums'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
  *  lead, its opportunities and the contracts that came out of ONE run at ONE
@@ -57,7 +51,7 @@ export const WorkstreamStandKind = z.enum(
 export const WorkstreamStand = z.object({
   code: z.string().min(1).max(20),
   kind: WorkstreamStandKind,
-  /** The rung's MACHINE key, same shape as `WorkstreamStep.key`: a `StageKey`
+  /** The rung's MACHINE key, a `StageKey`
    *  when `kind` is `OP`, a `LeadState` when `LD`, and `'signed'` for the
    *  contract kind.
    *  The board groups columns by this and never by `phaseLabel` — a label is
@@ -228,37 +222,8 @@ export const WorkstreamBoardResponse = z.object({
 })
 
 // ---------------------------------------------------------------------------
-// THE PROFILE — swimlanes: one lead lane, one lane per deal, one account lane
+// SHARED LADDERS
 // ---------------------------------------------------------------------------
-
-/** The five states the screen legend prints, one per dot colour. `parked` is a
- *  rung a CARE-listed deal stopped on — reversible, so it draws quiet, never
- *  the red `dropped` reserved for a lead that truly exited (ADR 0064 §6). */
-export const WorkstreamStepState = z.enum(
-  ['done', 'current', 'dropped', 'parked', 'upcoming'],
-  'Trạng thái bước không có trong danh sách',
-)
-
-/** One rung of a lane. `key` is a `StageKey` value (`new` … `quotation`) on a
- *  deal lane or one of `LEAD_LANE_BACKBONE` on a lead lane, left as a string
- *  because one step shape serves both ladders. `label` comes from `config_entry`
- *  for the deal ladder, falling back to `OPPORTUNITY_STAGE_LABEL`; on a lead
- *  lane it is the matching `LEAD_STATE_LABEL` entry. `at` is when the rung was
- *  entered — null for upcoming or a skipped rung. `by` is the mover's name
- *  snapshotted then. */
-export const WorkstreamStep = z.object({
-  key: z.string().min(1).max(40),
-  label: textInput(120),
-  state: WorkstreamStepState,
-  at: Moment.nullable(),
-  by: textInput(120).nullable(),
-  /** Recorded for done/dropped, counted to now for current, null for upcoming. */
-  days: z.number().int().nonnegative().nullable(),
-})
-
-/** `converted` = the lead produced at least one deal (`outcomeAt` = the first);
- *  `exited` = a person pressed "stop caring" (`disqualified`, ADR 0068). */
-export const WorkstreamLeadOutcome = z.enum(['converted', 'exited', 'open'])
 
 /** The five backbone rungs, in order, and no others — every lead lane draws
  *  exactly this ladder so any two leads sit side by side and compare (ADR
@@ -288,93 +253,6 @@ export const WORKSTREAM_JOURNEY_STEPS = [
   { key: 'dropped', label: 'Rơi' },
 ] as const
 
-/** The nurture loop, attached to the `working` rung rather than drawn as a rung
- *  of its own — ADR 0058 parks a lead in `nurturing`, it does not advance it.
- *  Null means this lead has never been parked. `count`/`totalDays` cover every
- *  stay, closed or open; `since` is only the CURRENT stay's start, null once
- *  the lead is back on the backbone. */
-export const WorkstreamLeadNurture = z.object({
-  count: z.number().int().nonnegative(),
-  totalDays: z.number().int().nonnegative(),
-  since: Moment.nullable(),
-})
-
-/** How a lead actually left the backbone. Null on a lane that never left —
- *  deliberately absent rather than an ever-present dropped cell, which made a
- *  lead still being worked look like an exit was pending. Only a person's
- *  "stop caring" leaves it; nothing retires a lead on a timer (ADR 0068). */
-export const WorkstreamLeadExit = z.object({
-  state: z.literal('disqualified'),
-  at: Moment,
-  by: textInput(120).nullable(),
-  reason: ExitReason.nullable(),
-})
-
-/** The lead lane: a fixed five-rung backbone (`LEAD_LANE_BACKBONE`) so every
- *  lead lines up the same way, plus two things that happen ALONGSIDE the
- *  backbone rather than on it — `nurture`, a loop that can return the lead to
- *  `working`, and `exit`, which is present only once a lead has actually left.
- *  `tier` rides on the lane rather than being read off a `LeadRow`: this screen
- *  never holds one, so fetching the lead door would cost a round trip to print
- *  one badge. It is an optional field independent of state, not a rung. It, `sourceKind` and
- *  `campaignName` are lead facts reaching a reader who only proved
- *  `workstream.view` — safe while no role holds that without `lead.view`, and
- *  the thing to re-check the day somebody builds a journey-only role. `campaignName` is null for a lead typed in by hand —
- *  the same absence `LeadSource.campaignId` states in `./lead-source`. */
-export const WorkstreamLeadLane = z.object({
-  code: ObjectCode,
-  sourceKind: LeadSourceKind.nullable(),
-  campaignName: textInput(120).nullable(),
-  tier: LeadTier.nullable(),
-  owner: WorkstreamHolder.nullable(),
-  steps: z.array(WorkstreamStep),
-  nurture: WorkstreamLeadNurture.nullable(),
-  exit: WorkstreamLeadExit.nullable(),
-  outcome: WorkstreamLeadOutcome,
-  outcomeAt: Moment.nullable(),
-})
-
-/** `care` is a LIVE, reversible parking state (ADR 0064's
- *  `sales.opportunity.state = 'care'`) — a deal there can still be
- *  reactivated, so it must not collapse into `lost`. `lost` is kept for a
- *  truly closed loss; under the current lifecycle no writer produces it
- *  (`OpportunityState` only carries `open`/`care` before `won` — see
- *  `./opportunity`), so it is dead until a real terminal-loss state exists. */
-export const WorkstreamDealOutcome = z.enum(['won', 'care', 'lost', 'open'])
-
-export const WorkstreamDealLane = z.object({
-  code: ObjectCode,
-  /** The first sale owner. */
-  owner: WorkstreamHolder.nullable(),
-  steps: z.array(WorkstreamStep),
-  outcome: WorkstreamDealOutcome,
-  outcomeAt: Moment.nullable(),
-  /** Not `ObjectCode`: a contract code fails that regex, as `WorkstreamStand.code` notes. */
-  contractCode: z.string().min(1).max(20).nullable(),
-})
-
-/** `code` is null while the run has no company yet. `purchased` = at least one
- *  deal of the run is signed, including deals not listed in `deals`. */
-export const WorkstreamAccountLane = z.object({
-  code: ObjectCode.nullable(),
-  name: textInput(200).nullable(),
-  owner: WorkstreamHolder.nullable(),
-  purchased: z.boolean(),
-})
-
-/** `GET /sales/workstreams/:code` — the book row, the object chain for
- *  ContextRail (server-walked via `E1.story()`, never assembled by a screen),
- *  and the lanes. `deals` is oldest first and holds only deals the reader may
- *  open — the run is scoped by the lead, a deal by its own owners — and
- *  `hiddenDeals` counts the ones cut. */
-export const WorkstreamProfileResponse = WorkstreamRow.extend({
-  chain: z.array(ObjectChainLink),
-  lead: WorkstreamLeadLane,
-  deals: z.array(WorkstreamDealLane),
-  hiddenDeals: z.number().int().nonnegative(),
-  account: WorkstreamAccountLane,
-})
-
 export type WorkstreamStandKind = z.infer<typeof WorkstreamStandKind>
 export type WorkstreamStand = z.infer<typeof WorkstreamStand>
 export type WorkstreamHolder = z.infer<typeof WorkstreamHolder>
@@ -387,13 +265,3 @@ export type WorkstreamBookQuery = z.infer<typeof WorkstreamBookQuery>
 export type WorkstreamBookResponse = z.infer<typeof WorkstreamBookResponse>
 export type WorkstreamBoardColumn = z.infer<typeof WorkstreamBoardColumn>
 export type WorkstreamBoardResponse = z.infer<typeof WorkstreamBoardResponse>
-export type WorkstreamStepState = z.infer<typeof WorkstreamStepState>
-export type WorkstreamStep = z.infer<typeof WorkstreamStep>
-export type WorkstreamLeadOutcome = z.infer<typeof WorkstreamLeadOutcome>
-export type WorkstreamLeadNurture = z.infer<typeof WorkstreamLeadNurture>
-export type WorkstreamLeadExit = z.infer<typeof WorkstreamLeadExit>
-export type WorkstreamLeadLane = z.infer<typeof WorkstreamLeadLane>
-export type WorkstreamDealOutcome = z.infer<typeof WorkstreamDealOutcome>
-export type WorkstreamDealLane = z.infer<typeof WorkstreamDealLane>
-export type WorkstreamAccountLane = z.infer<typeof WorkstreamAccountLane>
-export type WorkstreamProfileResponse = z.infer<typeof WorkstreamProfileResponse>

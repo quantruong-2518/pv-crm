@@ -1,4 +1,4 @@
-import { and, arrayContains, eq, isNull, sql } from 'drizzle-orm'
+import { and, arrayContains, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
@@ -7,6 +7,9 @@ import { nextStep, type NextStepValues } from './next-step.schema'
 
 /** The step as read: the doer's name joined from `actor` at read time. */
 export type NextStepRead = { text: string; due: string; doerId: string; doerName: string }
+
+/** One object's step out of a batch. */
+export type NextStepBatchRead = NextStepRead & { subjectCode: string }
 
 /** One lead's step with what grading it needs: the lead state and today. */
 export type NextStepSlot = { state: LeadRowDb['state']; today: string; step: NextStepRead | null }
@@ -52,6 +55,31 @@ export class NextStepRepository {
         ? null
         : { text, due, doerId, doerName }
     return { state, today, step }
+  }
+
+  /** The Vietnam calendar day, for a reader that grades several things at once.
+   *  Drizzle needs a FROM; `actor` is never empty for a caller with a session. */
+  async today(): Promise<string> {
+    const [row] = await this.db.select({ today: VIETNAM_TODAY }).from(actor).limit(1)
+    return row?.today ?? new Date().toISOString().slice(0, 10)
+  }
+
+  /** Many objects' steps in one statement — the journey detail reads every
+   *  deal of a run at once. An object with no step is absent from the map. */
+  async stepsOf(codes: readonly string[]): Promise<Map<string, NextStepBatchRead>> {
+    if (codes.length === 0) return new Map()
+    const rows = await this.db
+      .select({
+        subjectCode: nextStep.subjectCode,
+        text: nextStep.text,
+        due: nextStep.due,
+        doerId: nextStep.doerId,
+        doerName: actor.name,
+      })
+      .from(nextStep)
+      .innerJoin(actor, eq(actor.id, nextStep.doerId))
+      .where(inArray(nextStep.subjectCode, [...codes]))
+    return new Map(rows.map((r) => [r.subjectCode, r]))
   }
 
   /** The lead row under lock: every write on its step is serialised behind it,

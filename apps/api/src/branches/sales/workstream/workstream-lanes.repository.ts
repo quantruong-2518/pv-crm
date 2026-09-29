@@ -1,15 +1,18 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { StageKey, TouchKind } from '@pv/contracts'
+import type { CurrencyCode, StageKey, TouchKind } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
-import { account } from '../account/account.schema'
-import { contract } from '../contract/contract.schema'
+import { configEntry } from '../config/config.schema'
+import { contract, contractInstallment } from '../contract/contract.schema'
 import { opportunityStageEvent } from '../opportunity/opportunity.schema'
 import { touch } from '../touch/touch.schema'
 
-/** The extra SQL of ONE journey's profile lanes. Every read takes the whole
- *  run's codes at once, so the statement count is fixed, not one per step. */
+/** The extra SQL of ONE journey's detail. Every read takes the whole run's
+ *  codes at once, so the statement count is fixed, not one per rung.
+ *
+ *  `dealCodes` are the deals the reader may OPEN: contracts, installments and
+ *  stage events of a hidden deal never leave the database. */
 @Injectable()
 export class WorkstreamLanesRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -17,14 +20,21 @@ export class WorkstreamLanesRepository {
   async lanesOf(
     leadCode: string,
     dealCodes: readonly string[],
-    accountCode: string | null,
+    careReasonKeys: readonly string[],
   ): Promise<LaneRows> {
     const deals = [...dealCodes]
     const none = Promise.resolve([])
 
-    const [leadTouches, events, contracts, owner] = await Promise.all([
+    const [leadTouches, events, contracts, installments, reasons] = await Promise.all([
       this.db
-        .select({ at: touch.at, by: touch.by, kind: touch.kind, to: touch.toActorId })
+        .select({
+          at: touch.at,
+          by: touch.by,
+          actorId: touch.actorId,
+          kind: touch.kind,
+          to: touch.toActorId,
+          note: touch.note,
+        })
         .from(touch)
         .where(and(eq(touch.subjectCode, leadCode), inArray(touch.kind, [...LEAD_LANE_KINDS])))
         .orderBy(asc(touch.at)),
@@ -34,6 +44,7 @@ export class WorkstreamLanesRepository {
             .select({
               deal: opportunityStageEvent.opportunityCode,
               at: opportunityStageEvent.at,
+              byId: opportunityStageEvent.byId,
               by: opportunityStageEvent.by,
               from: opportunityStageEvent.fromStage,
               to: opportunityStageEvent.toStage,
@@ -45,33 +56,63 @@ export class WorkstreamLanesRepository {
       deals.length === 0
         ? none
         : this.db
-            .select({ deal: contract.opportunityCode, code: contract.code, at: contract.signedAt })
+            .select({
+              code: contract.code,
+              deal: contract.opportunityCode,
+              amount: contract.amount,
+              currency: contract.currency,
+              signedAt: contract.signedAt,
+              ownerId: contract.ownerId,
+              ownerName: actor.name,
+            })
             .from(contract)
+            .leftJoin(actor, eq(actor.id, contract.ownerId))
             .where(inArray(contract.opportunityCode, deals))
-            .orderBy(desc(contract.signedAt), desc(contract.code)),
-      accountCode === null
+            .orderBy(asc(contract.signedAt), asc(contract.code)),
+      deals.length === 0
         ? none
         : this.db
-            .select({ id: actor.id, name: actor.name })
-            .from(account)
-            .innerJoin(actor, eq(actor.id, account.ownerId))
-            .where(eq(account.code, accountCode))
-            .limit(1),
+            .select({
+              contractCode: contractInstallment.contractCode,
+              no: contractInstallment.no,
+              label: contractInstallment.label,
+              share: contractInstallment.share,
+              amount: contractInstallment.amount,
+              due: contractInstallment.due,
+              paidAt: contractInstallment.paidAt,
+            })
+            .from(contractInstallment)
+            .innerJoin(contract, eq(contract.code, contractInstallment.contractCode))
+            .where(inArray(contract.opportunityCode, deals))
+            .orderBy(asc(contractInstallment.contractCode), asc(contractInstallment.no)),
+      careReasonKeys.length === 0
+        ? none
+        : this.db
+            .select({ id: configEntry.id, name: configEntry.name })
+            .from(configEntry)
+            .where(
+              and(
+                eq(configEntry.list, 'LOSS_REASON'),
+                inArray(configEntry.id, [...careReasonKeys]),
+              ),
+            ),
     ])
 
-    return { leadTouches, events, contracts, accountOwner: owner[0] ?? null }
+    return {
+      leadTouches,
+      events,
+      contracts,
+      installments,
+      careReasons: new Map(reasons.map((r) => [r.id, r.name])),
+    }
   }
 }
 
 /** Every touch kind that MOVES a lead's state (ADR 0058, 0063), and no other:
- *  the lead lane folds its backbone, its nurture loop and its exit out of these.
- *  `tier-raised` is gone with the tier ladder the lane used to draw; so are
- *  `contacted`, `field-filled` and `first-meeting`, which record work done but
- *  move no column — the rung rows are the ones written AS the state moves.
- *
- *  Two kinds per forward rung, legacy beside new, and both stay FOREVER: the
- *  rows written under `first-action`/`verified` are on disk (ADR 0063 §5). Same
- *  pairing as the trigger WHEN list in migration 0058. */
+ *  the lead rungs and its waiting door fold out of these. Two kinds per forward
+ *  rung, legacy beside new, and both stay FOREVER: the rows written under
+ *  `first-action`/`verified` are on disk (ADR 0063 §5). Same pairing as the
+ *  trigger WHEN list in migration 0058. */
 const LEAD_LANE_KINDS = [
   'created',
   'handed-over',
@@ -86,17 +127,45 @@ const LEAD_LANE_KINDS = [
 ] as const satisfies readonly TouchKind[]
 
 /** One state-moving touch of the anchor lead. `to` is the RECEIVING end of a
- *  hand-over — also set on `created` for a lead born with a holder, which is
- *  the only way to tell that lead from one that landed in the common pool. */
-export type LeadTouchEntry = { at: Date; by: string; kind: TouchKind; to: string | null }
+ *  hand-over — also set on `created` for a lead born with a holder. `actorId`
+ *  is null when the machine wrote the row. */
+export type LeadTouchEntry = {
+  at: Date
+  by: string
+  actorId: string | null
+  kind: TouchKind
+  to: string | null
+  note: string
+}
 
 export type StageEventRow = {
   deal: string
   at: Date
+  byId: string
   by: string
   from: StageKey | null
   to: StageKey | null
   daysInFrom: number | null
+}
+
+export type ContractLaneRow = {
+  code: string
+  deal: string
+  amount: number | null
+  currency: CurrencyCode | null
+  signedAt: Date
+  ownerId: string | null
+  ownerName: string | null
+}
+
+export type InstallmentLaneRow = {
+  contractCode: string
+  no: number
+  label: string
+  share: number
+  amount: number
+  due: Date
+  paidAt: Date | null
 }
 
 export type LaneRows = {
@@ -104,7 +173,9 @@ export type LaneRows = {
   leadTouches: LeadTouchEntry[]
   /** Oldest first. */
   events: StageEventRow[]
-  /** Newest signature first. */
-  contracts: { deal: string; code: string; at: Date }[]
-  accountOwner: { id: string; name: string } | null
+  /** Oldest signature first. */
+  contracts: ContractLaneRow[]
+  installments: InstallmentLaneRow[]
+  /** `config_entry` LOSS_REASON id → display name. */
+  careReasons: Map<string, string>
 }

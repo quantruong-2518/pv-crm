@@ -24,7 +24,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { dmy } from '@/lib/date'
 import { chainPath } from '@/data/opportunities'
-import { journeyNow, workstreamJourneyQuery } from '@/data/workstream-journey'
+import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { runDays } from '@/data/workstreams'
 import { CloseBadge } from '@/components/workstream-bits'
 import { JourneyDrawer } from './workstream-drawers'
@@ -163,7 +163,7 @@ function captionOf(j: Journey): string {
   return [
     `Mở ${dmy(j.openedAt)}`,
     j.closedAt !== null ? `đóng ${dmy(j.closedAt)}` : null,
-    `${runDays(j, journeyNow())} ngày`,
+    `${runDays(j, Date.now())} ngày`,
     j.previous
       ? `nối từ hành trình ${j.previous.ordinal} (${JOURNEY_BORN_BY_LABEL[j.previous.bornBy]})`
       : null,

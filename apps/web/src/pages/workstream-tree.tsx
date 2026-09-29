@@ -250,6 +250,12 @@ export function WorkstreamTree({ journey, go, ...track }: Track & { journey: Jou
         <ZoomBar zoom={zoom} fitted={zoomAsked === null} onZoom={setZoom} />
       </div>
 
+      {journey.hiddenDeals > 0 && (
+        <p className="text-glass-foreground m-0 text-[12px]">
+          {journey.hiddenDeals} cơ hội ngoài phạm vi của bạn
+        </p>
+      )}
+
       <div
         ref={frameRef}
         className="overflow-auto rounded-lg"

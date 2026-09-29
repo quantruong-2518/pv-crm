@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
-import { GraphModule } from '@api/platform/graph/graph.module'
+import { NextStepRepository } from '../next-step/next-step.repository'
 import { WorkstreamLanesRepository } from './workstream-lanes.repository'
 import { WorkstreamController } from './workstream.controller'
 import { WorkstreamRepository } from './workstream.repository'
@@ -18,10 +18,9 @@ import { WorkstreamService } from './workstream.service'
  *     the run stands on, which `pipelinePosition` needs for `waitingOn`. No
  *     applier is registered; reading the inbox and having something to apply
  *     are separate things.
- *   · `GraphModule` — the READ half of E1. This module registers no object and
- *     draws no edge: `sales.workstream` has no `platform.object` mirror row, on
- *     purpose (see the table's docblock), so the chain is walked from the
- *     lead. */
+ *
+ *  `NextStepRepository` is PROVIDED, not imported via its module: that module
+ *  imports `LeadModule`, which imports this one. It needs only `DB`. */
 
 /** No `MailModule`, `TouchModule` or `ObjectMirror`: the lead doors open runs
  *  through `WorkstreamRepository` inside THEIR transaction, so the event stays
@@ -30,9 +29,14 @@ import { WorkstreamService } from './workstream.service'
  *  `exports` carries the repository for that reason only. This module must never
  *  import `LeadModule`, which imports it. */
 @Module({
-  imports: [ApprovalModule, EnginesModule, GraphModule],
+  imports: [ApprovalModule, EnginesModule],
   controllers: [WorkstreamController],
-  providers: [WorkstreamService, WorkstreamRepository, WorkstreamLanesRepository],
+  providers: [
+    WorkstreamService,
+    WorkstreamRepository,
+    WorkstreamLanesRepository,
+    NextStepRepository,
+  ],
   exports: [WorkstreamService, WorkstreamRepository],
 })
 export class WorkstreamModule {}

@@ -68,7 +68,8 @@ export class WorkstreamController {
     return this.runs.board(who, q)
   }
 
-  /** One journey, plus the object chain for ContextRail.
+  /** One journey: its lead, the deals this reader may open, their contracts
+   *  and the waiting doors (`WorkstreamJourneyResponse`).
    *
    *  DECLARED LAST, after `board` — see that door for what reversing the two
    *  costs. `ObjectCode` is the first fence: a malformed code dies at `ZodPipe`
