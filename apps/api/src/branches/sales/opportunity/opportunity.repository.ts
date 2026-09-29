@@ -473,7 +473,7 @@ export class OpportunityRepository {
    *  Node, vì `regexp_replace` cho một sổ trăm dòng là trả phí cho thứ vòng lặp
    *  đã đi qua rồi.
    *
-   *  Only leads not `disqualified`/`archived` enter `byCompany` — the same
+   *  Only leads not `disqualified` enter `byCompany` — the same
    *  condition `lead_email_live_idx` carries; the rest go to `exited` so their
    *  row is refused with the same "reopen the lead first" sentence.
    *
@@ -668,7 +668,7 @@ export class OpportunityRepository {
     return state ?? null
   }
 
-  /** Which of these leads are `disqualified`/`archived`, under `lockLeads`. */
+  /** Which of these leads are `disqualified`, under `lockLeads`. */
   async exitedLocked(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
     return (await this.lockLeads(tx, leadCodes)).filter((r) => r.exited).map((r) => r.code)
   }

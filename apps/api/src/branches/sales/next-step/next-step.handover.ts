@@ -2,8 +2,8 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Db } from '@api/platform/db/db.module'
 import { nextStep } from './next-step.schema'
 
-/** What other doors do to a step inside THEIR transaction: exit, archive and
- *  convert drop it; an owner change hands it over.
+/** What other doors do to a step inside THEIR transaction: exit and convert
+ *  drop it; an owner change hands it over.
  *
  *  Plain functions over `tx`, not a provider: the lead and deal modules call
  *  these, and `NextStepModule` imports `LeadModule`, so a provider here would
@@ -14,7 +14,7 @@ export async function dropStep(tx: Db, subjectCode: string): Promise<void> {
   await tx.delete(nextStep).where(eq(nextStep.subjectCode, subjectCode))
 }
 
-/** Many leads leaving at once (the archive sweep): one DELETE, not one per code. */
+/** Many leads leaving at once (a deal opened on several): one DELETE, not one per code. */
 export async function dropSteps(tx: Db, subjectCodes: readonly string[]): Promise<void> {
   if (subjectCodes.length === 0) return
   await tx.delete(nextStep).where(inArray(nextStep.subjectCode, [...subjectCodes]))

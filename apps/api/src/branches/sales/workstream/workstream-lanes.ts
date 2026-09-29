@@ -175,7 +175,7 @@ export function leadLaneOf(
  *  forward, so it parks the lead exactly where `LeadExitService.resume` would
  *  put it back — the same `stateByWork` both of them read, off the FACT that an
  *  exchange was once logged (ADR 0063 §4). The SQL twin is the `nurturing`
- *  branch of `sales.workstream_stand()` (migration 0058). A lead that LEFT
+ *  branch of `sales.workstream_stand()`. A lead that LEFT
  *  stands on the last rung its trail proves it reached, not the one it was
  *  heading for. */
 function standingOn(lead: LeadRowDb, entryOf: (key: Rung) => Entry): number {
@@ -193,7 +193,7 @@ function standingOn(lead: LeadRowDb, entryOf: (key: Rung) => Entry): number {
 }
 
 type Exit = {
-  state: 'disqualified' | 'archived'
+  state: 'disqualified'
   at: Date
   by: string | null
   reason: ExitReason | null
@@ -212,17 +212,12 @@ function exitOf(lead: LeadRowDb, trail: readonly LeadTouchEntry[]): Exit | null 
       reason: lead.exitReason,
     }
   }
-  if (lead.state === 'archived') {
-    /* No reason, by contract: the sweeper retires on a timer and picks none. */
-    const row = lastOf(trail, (t) => t.kind === 'archived')
-    return { state: 'archived', at: row?.at ?? lead.stateSince, by: row?.by ?? null, reason: null }
-  }
   return null
 }
 
-/** Every stay in `nurturing`, folded from the `nurtured` → `resumed` pairs on
- *  the trail. `until` closes a stay nobody resumed — the exit that ended it, or
- *  now — so `totalDays` counts the open stay too. */
+/** Every stay in `nurturing`, folded from the `nurtured` → back pairs on the
+ *  trail: `resumed` by hand, or `exchange-logged` when a real touch looped it
+ *  back (ADR 0068 §4). `until` closes an open stay — the exit, or now. */
 function nurtureOf(
   trail: readonly LeadTouchEntry[],
   state: LeadState,
@@ -233,7 +228,9 @@ function nurtureOf(
 
   let totalDays = 0
   for (const stay of stays) {
-    const back = trail.find((t) => t.kind === 'resumed' && t.at > stay.at)
+    const back = trail.find(
+      (t) => (t.kind === 'resumed' || t.kind === 'exchange-logged') && t.at > stay.at,
+    )
     totalDays += wholeDays(stay.at, back?.at ?? until) ?? 0
   }
 

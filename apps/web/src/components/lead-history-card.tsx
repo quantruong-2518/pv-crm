@@ -153,6 +153,8 @@ const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'
   'quotation-sent': 'ok',
   'care-entered': 'bad',
   'care-left': 'current',
+  'mail-failed': 'bad',
+  'mail-sync-failed': 'warning',
 }
 
 /** What has happened to this record, one row per `sales.touch`.

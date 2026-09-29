@@ -68,8 +68,9 @@ export const TouchKind = z.enum([
    *  (`assigned` → `verifying`). Written by the state writer itself, so every
    *  door that schedules care leaves a dated rung. */
   'care-planned',
-  /** The first real exchange with the customer was logged (`assigned` |
-   *  `verifying` → `working`). Carries no tier. */
+  /** The first real touch — logged exchange or a mail actually sent — moved
+   *  the lead to `working`, from `assigned`, `verifying` or `nurturing` (the
+   *  loop, ADR 0068). Carries no tier. */
   'exchange-logged',
   /** LEGACY, rows persist: same rung as `care-planned` (→ `verifying`). */
   'first-action',
@@ -80,7 +81,7 @@ export const TouchKind = z.enum([
   'nurtured',
   /** The PIC brought a nurtured lead back (→ `working`). */
   'resumed',
-  /** The system retired a lead left in `nurturing` too long (→ `archived`). */
+  /** LEGACY, rows persist: the retired six-month sweep (→ `archived`, ADR 0068). */
   'archived',
   /** First meeting happened. */
   'first-meeting',
@@ -109,6 +110,12 @@ export const TouchKind = z.enum([
   /** The holder marked the next step done (`./next-step`); `note` quotes its
    *  text, since the step itself is replaced or cleared in the same write. */
   'next-step-done',
+  /** A mail to this lead died after its retries; the address was put on the
+   *  suppression list so nothing else is sent to it (ADR 0068). */
+  'mail-failed',
+  /** A mail reached the customer but the lead's state could not be moved
+   *  after retries; the holder moves it by hand (ADR 0068). */
+  'mail-sync-failed',
 ])
 
 /** Which book the row hangs off. A deal and its lead keep separate trails —

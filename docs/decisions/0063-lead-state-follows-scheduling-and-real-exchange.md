@@ -2,7 +2,10 @@
 
 Status: accepted (partially supersedes 0058: the entry conditions of `verifying`,
 `working` and `nurturing`, "Tier is not a state", and three Amendment bullets);
-§1 `disqualified`/`archived` labels, §2 last bullet and §4 superseded by 0067
+§1 `disqualified`/`archived` labels, §2 last bullet and §4 superseded by 0067.
+Superseded in part by 0068: §1's `nurturing` label "Chờ thời điểm" is now
+"Nhóm chờ chăm sóc"; §1's `disqualified` label is revived (reopen path back),
+now shown as "Ngừng chăm sóc" instead of "Không theo nữa".
 Source: project owner's decision in session, 21/09/2026
 
 ## Context

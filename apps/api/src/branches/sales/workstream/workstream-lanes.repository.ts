@@ -83,7 +83,6 @@ const LEAD_LANE_KINDS = [
   'resumed',
   'entered-pipeline',
   'exited',
-  'archived',
 ] as const satisfies readonly TouchKind[]
 
 /** One state-moving touch of the anchor lead. `to` is the RECEIVING end of a

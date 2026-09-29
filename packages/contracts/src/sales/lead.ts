@@ -549,7 +549,7 @@ export const LeadProfile = LeadRow.extend({
  *   · `score`, `state`, `stateSince`, `createdAt`, `lastTouchAt` — the system's
  *     own bookkeeping; `state` starts at `new` or `assigned` by owner.
  *   · `tier` — graded later by the PIC through the patch door, in any state
- *     but `disqualified` | `archived`; a lead that has just been typed has not
+ *     but `disqualified`; a lead that has just been typed has not
  *     been assessed yet.
  *   · `exitReason` / `exitedAt` — a lead cannot be born already lost, and
  *     `CHECK lead_disqualified_has_reason` would be the one to say so.
@@ -739,7 +739,7 @@ export const LeadPatch = z
     province: clearableText(LEAD_MAX.province),
     category: LeadCategory.nullish(),
     /** Tier is decoupled from state: patchable in any state except
-     *  `disqualified` | `archived`. Not clearable once set. */
+     *  `disqualified`. Not clearable once set. */
     tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
     headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),

@@ -24,7 +24,6 @@ export const LEAD_STATE_FACE: Record<
   nurturing: { label: LEAD_STATE_LABEL.nurturing, badge: 'draft' },
   converted: { label: LEAD_STATE_LABEL.converted, badge: 'success' },
   disqualified: { label: LEAD_STATE_LABEL.disqualified, badge: 'danger' },
-  archived: { label: LEAD_STATE_LABEL.archived, badge: 'draft' },
 }
 
 const OPEN: ReadonlySet<string> = new Set(LEAD_OPEN_STATES)
@@ -43,10 +42,10 @@ const TIER_LABEL: ReadonlyMap<string, string> = new Map(TIER_CHOICES.map((t) => 
  *  an unknown key prints as itself rather than vanishing. */
 export const tierLabel = (tier: string): string => TIER_LABEL.get(tier) ?? tier
 
-/** May `PATCH` carry `tier`? Everywhere but the two states that left the
+/** May `PATCH` carry `tier`? Everywhere but the one state that left the
  *  funnel — the mirror of the server's rule since the grade was decoupled from
  *  the state (ADR 0063): a tier is an assessment the PIC may write at any point
  *  while the lead is still being worked, and nobody re-grades a dropped one. */
 export function tierEditable(lead: { state: LeadState }): boolean {
-  return lead.state !== 'disqualified' && lead.state !== 'archived'
+  return lead.state !== 'disqualified'
 }

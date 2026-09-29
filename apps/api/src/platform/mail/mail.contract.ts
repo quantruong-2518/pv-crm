@@ -87,8 +87,10 @@ export function advances(from: MailState, to: MailState): boolean {
  *  released without the person asking — which is exactly why it needs its own
  *  value rather than arriving as `manual`. A list that cannot tell an operator's
  *  block from a person's own request is a list somebody will eventually
- *  "clean up". */
-export type SuppressionReason = 'hard_bounce' | 'complaint' | 'manual' | 'unsubscribe'
+ *  "clean up". `send_failed`: the provider refused a letter to this address
+ *  for good (`MailConsumer`), so it is not tried again. */
+export type SuppressionReason =
+  'hard_bounce' | 'complaint' | 'manual' | 'unsubscribe' | 'send_failed'
 
 // ---------------------------------------------------------------------------
 // The message and the provider
@@ -138,9 +140,14 @@ export type MailMessage = {
  *  additionally parks the whole queue — one job backing off while nine others
  *  keep hammering a 429 is not backoff. `permanent` never tries again. */
 export type MailFailure =
-  | { kind: 'retry'; code: string; summary: string }
+  | { kind: 'retry'; code: string; summary: string; wide?: true }
   | { kind: 'rate-limit'; code: string; summary: string; retryAfterSeconds: number }
-  | { kind: 'permanent'; code: string; summary: string }
+  | { kind: 'permanent'; code: string; summary: string; wide?: true; blamesRecipient?: true }
+
+/* `wide`: the provider is down, or the key or sender is wrong for every letter
+   alike — the queue parks and no attempt is spent (`MailConsumer`).
+   `blamesRecipient`: the provider named the `to` address itself; only then is
+   the address banned. */
 
 export type MailSendResult = { ok: true; providerEmailId: string } | ({ ok: false } & MailFailure)
 
@@ -297,6 +304,11 @@ export type DeliveryToSend = {
    *  attempt dropped as suppressed — so every retry sends the identical
    *  payload under the same idempotency key. Empty for every other letter. */
   addresses: MailAddressIntent[]
+  /** The set was already frozen by an earlier claim (`settleAddresses`). */
+  addressesFrozen: boolean
+  /** The latest moment known to precede the first send (delivery, schedule
+   *  or release): the idempotency window is measured from here. */
+  sendableFrom: Date
 }
 
 export type WebhookOutcome = 'applied' | 'ignored-duplicate' | 'ignored-stale' | 'unknown-delivery'
@@ -387,20 +399,28 @@ export interface MailLedger extends MailEnqueue {
    *  Returns null when the row is gone or already past sending, which is what
    *  makes a redelivered job harmless. */
   claim(deliveryId: string): Promise<DeliveryToSend | null>
-  markAccepted(deliveryId: string, providerEmailId: string): Promise<void>
-  /** `dead` parks the row for a human; everything else keeps it retryable. */
+  /** `then.run` rides the accept's transaction, up to `then.attempts` times,
+   *  each under a fresh savepoint: a failure rolls back only its own writes,
+   *  and the last one comes back as the result (else null). */
+  markAccepted(
+    deliveryId: string,
+    providerEmailId: string,
+    then?: { run: (tx: Db) => Promise<void>; attempts: number },
+  ): Promise<unknown>
+  /** `dead` parks the row for a human; everything else keeps it retryable.
+   *  `refund` gives back the attempt `claim()` counted — a queue-wide stop. */
   markFailure(
     deliveryId: string,
     failure: MailFailure,
-    opts: { dead: boolean; nextAttemptAt: Date | null },
+    opts: { dead: boolean; nextAttemptAt: Date | null; refund?: boolean },
   ): Promise<void>
   markSuppressed(deliveryId: string, reason: SuppressionReason): Promise<void>
   isSuppressed(recipient: string): Promise<boolean>
   /** Which of `addresses` are blocked right now — one read for a whole group
    *  letter instead of one `isSuppressed` per address. Normalised form out. */
   suppressedAmong(addresses: string[]): Promise<string[]>
-  /** Freeze a group letter's surviving set: `dropped` → `dropped_suppressed`.
-   *  The consumer calls it on the FIRST attempt only (see `DeliveryToSend.addresses`). */
+  /** Freeze a group letter's surviving set: `dropped` → `dropped_suppressed`,
+   *  the rest stamped, so `addressesFrozen` holds for every later claim. */
   settleAddresses(deliveryId: string, dropped: string[]): Promise<void>
   suppress(
     recipient: string,

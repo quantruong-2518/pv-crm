@@ -65,7 +65,7 @@ export type MasSubjectRow = {
   /** The lead's lifecycle state (ADR 0058). A FACT and not a filter: a lead
    *  cut in SQL comes back in no row at all, and the preflight would then
    *  report "40 picked, 37 sendable" with three that vanished for a reason the
-   *  screen never names. A `disqualified` or `archived` lead is one this caller
+   *  screen never names. A `disqualified` lead is one this caller
    *  is fully entitled to see; it just must not be written to — so it comes
    *  back whole, and `MasService.decide` turns it into `EXITED`. */
   state: LeadState
@@ -280,7 +280,7 @@ export class MasRepository {
    *  `state` IS SELECTED, NOT FILTERED — AND THAT IS THE POINT
    *  ------------------------------------------------------------------
    *  A lead that left the funnel must not be written to, and the obvious fix is
-   *  `AND state NOT IN ('disqualified', 'archived')` in the WHERE clause. It is the wrong one: the
+   *  `AND state <> 'disqualified'` in the WHERE clause. It is the wrong one: the
    *  row would then be absent exactly like a row the scope axis cut, the
    *  preflight would say "40 picked · 37 sendable" and account for none of the
    *  other three, and the sender would go looking for a data problem that is

@@ -3,7 +3,10 @@
 Status: partially superseded by 0063 (entry conditions of `verifying`/`working`,
 tier rules) and by 0067 (`disqualified`/`archived` retired, no reopen or
 resume, no archive sweep); accepted (partially supersedes 0015 and 0034's use of the pipeline
-`phase` ladder for the lead's own status; keeps 0057 §2 for `disqualified`)
+`phase` ladder for the lead's own status; keeps 0057 §2 for `disqualified`).
+Superseded in part by 0068: 0067's retirement of `disqualified` and its reopen
+path is itself reversed — `disqualified` is back, so this ADR's `disqualified`
+row and reopen text apply again.
 Source: project owner's decision in session, 18/09/2026; diagram
 `crm_workstream_v2.pdf`, block 2 ("Lead") — already cited by ADR 0054
 

@@ -95,6 +95,7 @@ export class ResendMailDriver implements MailPort {
       return {
         ok: false,
         kind: 'retry',
+        wide: true,
         code: 'unexpected_exception',
         summary: 'Gửi mail thất bại không rõ nguyên nhân — SDK ném lỗi thay vì trả về.',
       }
@@ -120,7 +121,7 @@ function classify(error: ResendErrorLike, headers: Record<string, string> | null
 
   // No HTTP response at all: timeout or network reset, both surfaced by the
   // SDK as `statusCode: null` (see `ResendErrorLike` above).
-  if (statusCode === null) return { kind: 'retry', code, summary }
+  if (statusCode === null) return { kind: 'retry', code, summary, wide: true }
 
   if (code === 'daily_quota_exceeded' || code === 'monthly_quota_exceeded') {
     return {
@@ -147,12 +148,24 @@ function classify(error: ResendErrorLike, headers: Record<string, string> | null
     return { kind: 'retry', code, summary }
   }
 
-  if (statusCode >= 500) return { kind: 'retry', code, summary }
+  if (statusCode >= 500) return { kind: 'retry', code, summary, wide: true }
 
   // Everything left — 400/422 validation, 401/403 auth — is a request that
-  // will fail exactly the same way on the next attempt.
+  // will fail exactly the same way on the next attempt. Auth and the sender
+  // domain fail for every address alike, so they must not ban this one.
+  if (statusCode === 401 || statusCode === 403 || code === 'invalid_from_address') {
+    return { kind: 'permanent', code, summary, wide: true }
+  }
+  // Only a 422 that names the `to` field blames the recipient; a template or
+  // config bug fails the letter without banning a customer.
+  if (statusCode === 422 && TO_FIELD.test(summary)) {
+    return { kind: 'permanent', code, summary, blamesRecipient: true }
+  }
   return { kind: 'permanent', code, summary }
 }
+
+/** Resend's wording for a bad recipient: "Invalid `to` field. ..." */
+const TO_FIELD = /\binvalid `?to`? field\b/i
 
 function readRetryAfterSeconds(headers: Record<string, string> | null): number | null {
   if (!headers) return null

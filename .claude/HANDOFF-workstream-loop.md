@@ -16,12 +16,20 @@ thu): https://claude.ai/artifact/Ho7qfF1zV5M93Tv5x5LSXV. UI hành trình đã co
 
 - D1–D11 (chủ dự án chốt 28/09) đã ghi thành ADR:
   `docs/decisions/0067-park-every-presale-stop-and-wake-into-a-new-journey.md`.
+- Chốt tiếp 29/09, sửa lại một phần 0067: `docs/decisions/0068-lead-loops-until-a-person-stops-caring.md`.
+  Gửi mail (kể cả gửi loạt/hẹn giờ) tự đẩy sang "Tình trạng chăm sóc" khi thư đi;
+  "Nhóm chờ chăm sóc" quay vòng trên CÙNG lead (giữ mã, hành trình, người giữ),
+  không mở lead mới; "Ngừng chăm sóc" (`disqualified`) là điểm kết riêng, chỉ vào
+  khi có người bấm.
 - Còn mở: SDR (câu mở #23) · trả lời trên cơ hội/hợp đồng (#27).
 - Đã commit (28/09), qua `pnpm check` và nhìn trên PGlite: làn I (việc tiếp
   theo lên máy chủ — bảng `sales.next_step`, 4 cửa `/sales/leads/:code/next-step`,
   thẻ trên chi tiết lead) và làn II (convert xét phạm vi lead, comms chỉ đẩy bậc
   khi có `lead.edit`, landing qua `bear()`, gắn công ty trỏ lại cạnh, một người
   ghi trường liên hệ). Chưa lên Neon: migration `0066` đi cùng lần `/ship` sau.
+- **Tiền trạm `/ship`:** migration `0067` (đưa các lead `archived` cũ về
+  `nurturing`) văng lỗi `23505` nếu một lead `archived` trùng email với một
+  lead còn sống trên Neon — đếm số lead trùng trước khi chạy migration.
 - Còn nợ nhỏ: E2 so người giữ bằng tên (`packages/engines/src/e2-access.ts`);
   bước dừng/đóng cơ hội chưa xoá việc tiếp theo của cơ hội (chưa có cửa OP).
 - Việc tiếp: W1 contract + W1b mock (màn mới chạy trên mock trước).
@@ -54,7 +62,7 @@ không đạt 4.5:1 trên nền sáng trần).
 1. **Công ty lặp lại mãi, mỗi hành trình là một lượt bán.** Các hành trình của
    một công ty nối nhau bằng cạnh "nối từ" trong E1.
 2. **Phase chỉ là nhãn gom**, không phải state: Presale (lead) · Sale (cơ hội,
-   báo giá, ký) · Postsale (hợp đồng) · Tiếp nối (Tăng trưởng, Chờ thời điểm).
+   báo giá, ký) · Postsale (hợp đồng) · Tiếp nối (Tăng trưởng, Nhóm chờ chăm sóc).
 3. **Số lượng:** 1 hành trình : 1 lead : n cơ hội : n hợp đồng mỗi cơ hội. Mỗi
    hợp đồng có một loại (bản quyền, triển khai, đào tạo…).
 4. **State dùng đúng nhãn product** (`packages/contracts/src/sales/enums.ts`,
@@ -75,7 +83,7 @@ không đạt 4.5:1 trên nền sáng trần).
 
 ## Luật
 
-- Dừng ở bất kỳ bậc nào, phase nào → lead chuyển **Chờ thời điểm**, lưu ngày,
+- Dừng ở bất kỳ bậc nào, phase nào → lead chuyển **Nhóm chờ chăm sóc**, lưu ngày,
   bậc, lý do, người kết luận. Kể cả "không phù hợp" — chiến dịch lọc theo lý do.
 - **Đánh thức lại** hoặc **Tăng trưởng** luôn mở lead mới, hành trình mới, nối về
   hành trình cũ. Ai quyết định (hoặc ai đánh thức) thì người đó giữ lead.
@@ -99,7 +107,7 @@ không đạt 4.5:1 trên nền sáng trần).
 - Mỗi loại thông tin một kiểu: mã là pill xám chữ đơn cách, bấm sang trang chi
   tiết đang có (leads, opportunities, contracts, workstreams, accounts); giá trị
   là pill vàng; trạng thái là pill màu tình trạng; ngày có icon lịch; người giữ là avatar.
-- Drawer 4 loại: bậc lead/cơ hội · bậc hợp đồng · Chờ thời điểm · Tăng trưởng.
+- Drawer 4 loại: bậc lead/cơ hội · bậc hợp đồng · Nhóm chờ chăm sóc · Tăng trưởng.
 - Nút ≥ 48px (pill có vùng bấm mở rộng), khoảng cách 8 bậc, không chữ nào bị cắt "…".
 
 ## Phải đổi khi làm thật
@@ -109,12 +117,12 @@ không đạt 4.5:1 trên nền sáng trần).
   hành trình đi tiếp sang Postsale.
 - Cơ hội vào Danh sách chăm sóc rồi kích hoạt lại tại chỗ (ADR 0064) và lead Chờ
   thời điểm quay về bậc cũ (`docs/decisions/0058-lead-gets-a-stored-lifecycle-state.md`)
-  → đổi thành: dừng thì sang Chờ thời điểm, kéo lại là hành trình mới.
-- "Không theo nữa", "Lưu trữ" đang là điểm kết → sang Chờ thời điểm, có lý do.
+  → đổi thành: dừng thì sang Nhóm chờ chăm sóc, kéo lại là hành trình mới.
+- "Không theo nữa", "Lưu trữ" đang là điểm kết → sang Nhóm chờ chăm sóc, có lý do.
 - Mỗi cơ hội chỉ có một `contractCode` (`packages/contracts/src/sales/workstream.ts`)
   → danh sách hợp đồng; cửa ký phải cho ký thêm trên cơ hội đã thắng.
 - Thêm mới: danh mục loại hợp đồng, state hợp đồng và mốc triển khai, mốc hoá
-  đơn và đã thu cho từng đợt, bản ghi chuyển Chờ thời điểm, cạnh "nối từ" giữa
+  đơn và đã thu cho từng đợt, bản ghi chuyển Nhóm chờ chăm sóc, cạnh "nối từ" giữa
   các hành trình, trường "bước tiếp theo" trên cơ hội.
 - Cửa `GET /sales/workstreams/:code` phải trả `WorkstreamJourneyResponse`
   (hình đã chốt, kể cả `dueLevel` từng bậc do engine tính). Query web đã gắn
@@ -134,7 +142,7 @@ không đạt 4.5:1 trên nền sáng trần).
 - Pill giá trị tiền đang trung tính (`bg-surface-ink/9`) chờ câu trên.
 - Nhãn "xong" của thang hạn đã chốt "Đã xong" (ADR 0067 §7, câu mở #24) nhưng
   `DUE_LABEL.done` vẫn là "Đã thu" — drawer đang không in pill cho mốc đã xong.
-- Mock chưa có cửa Chờ thời điểm do máy kết luận (C5) hay mang cờ Không liên
+- Mock chưa có cửa Nhóm chờ chăm sóc do máy kết luận (C5) hay mang cờ Không liên
   hệ (C4) — code có nhánh, chưa màn nào hiện ra để nhìn.
 - Mã hợp đồng không bấm được: `chainPath` chưa có `HĐ` vì module hợp đồng đang gác.
 
@@ -159,11 +167,11 @@ Trước năm luồng dọc, chốt các luồng mọi luồng đều dùng lạ
 (F) để sau.** Thứ tự: C → A → D → E → G. Chốt xong kế hoạch thì dựng lên canvas
 Claude Design đang có (link ở đầu file) rồi mới làm code.
 
-## C · List Chờ thời điểm và Đánh thức lại — ĐÃ CHỐT
+## C · List Nhóm chờ chăm sóc và Đánh thức lại — ĐÃ CHỐT
 
 1. **Tái khởi động ngay khi lead được đưa vào chiến dịch**: mở lead mới + hành
    trình mới, nối về hành trình cũ.
-2. **Mọi điểm dừng về Chờ thời điểm + lý do.** "Không theo nữa" gộp vào; bỏ
+2. **Mọi điểm dừng về Nhóm chờ chăm sóc + lý do.** "Không theo nữa" gộp vào; bỏ
    "Lưu trữ" tự động sau 6 tháng — lead nằm chờ không hạn.
 3. **Một danh mục lý do chung** (cấu hình, admin sửa), mỗi lý do ghi nó dùng được
    ở luồng/bậc nào. Thay 6 `ExitReason` của lead + 17 lý do chăm sóc của cơ hội.
@@ -171,7 +179,7 @@ Claude Design đang có (link ở đầu file) rồi mới làm code.
    (để thống kê) nhưng không bao giờ được bốc vào chiến dịch hay nhận mail. Chặn
    theo địa chỉ (bounce, huỷ đăng ký) vẫn chạy song song như hiện tại.
 5. **Hết chiến dịch mà lead được đánh thức vẫn chưa có trao đổi thật** → máy tự
-   chuyển Chờ thời điểm, lý do "Không phản hồi chiến dịch", hành trình đóng Thua.
+   chuyển Nhóm chờ chăm sóc, lý do "Không phản hồi chiến dịch", hành trình đóng Thua.
 6. **Người giữ:** nằm chờ thì không ai giữ (về pool). Đánh thức qua chiến dịch →
    lead mới ở Khởi tạo lead, không PIC, vào pool, ai nhận trước giữ. Bấm tay
    "Đánh thức lại" → người bấm giữ. (Thay luật 3 trên canvas cho trường hợp
@@ -264,7 +272,7 @@ Dùng **modal gửi mail đang có** — không thiết kế lại phần chọn
 - **Nhập khách đang dùng**: hợp đồng cũ (công ty, loại, giá trị, ngày ký, trạng
   thái) → máy dựng sẵn hành trình ở đúng bậc (thường là Tăng trưởng).
 - **Nhập công ty + liên hệ** riêng, không kèm lead.
-- **Nhập thẳng vào list Chờ thời điểm** kèm lý do dừng.
+- **Nhập thẳng vào list Nhóm chờ chăm sóc** kèm lý do dừng.
 - Nhập lead, nhập cơ hội giữ như hiện tại.
 
 ## Còn để sau

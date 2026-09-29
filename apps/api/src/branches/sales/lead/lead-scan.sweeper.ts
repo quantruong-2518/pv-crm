@@ -12,7 +12,7 @@ import { LeadScanRepository } from './lead-scan.repository'
 import { FILE_FAILED } from './lead-scan.service'
 
 /** Retention and dead-worker cleanup for the scan door. Self-timed like
- *  `LeadArchiveSweeper`, so it also runs in the worker; every statement is
+ *  `SessionSweeper`, so it also runs in the worker; every statement is
  *  conditional and `remove` treats absent as success, so two passes overlap
  *  harmlessly. Rows are deleted BEFORE their objects: a failed removal
  *  leaves orphan bytes, never a row pointing at nothing. */

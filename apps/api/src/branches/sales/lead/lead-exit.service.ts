@@ -10,6 +10,7 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, notFound } from '@api/platform/http/problem'
+import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
@@ -35,18 +36,19 @@ export class LeadExitService {
     private readonly touch: TouchService,
     private readonly states: LeadStateWriter,
     private readonly runs: WorkstreamRepository,
+    private readonly mailRuns: MailRunRepository,
   ) {}
 
   /** `POST /sales/leads/:code/contacted` — confirm that the phone call really
    *  happened. Opening a `tel:` URL alone proves nothing, so the screen asks
    *  for this short second press. It records every valid call and, being a real
-   *  exchange, moves `assigned|verifying` → `working` (ADR 0063 §2). */
+   *  exchange, moves `assigned|verifying|nurturing` → `working` (ADR 0068). */
   async contacted(who: Actor, code: ObjectCode): Promise<LeadProfile> {
     await this.inScope(who, code)
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
-      if (held.state === 'disqualified' || held.state === 'archived') {
+      if (held.state === 'disqualified') {
         throw conflict(
           `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS} — không ghi cuộc gọi mới được.`,
         )
@@ -67,11 +69,6 @@ export class LeadExitService {
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified') throw conflict(`Lead ${code} đã rời phễu rồi.`)
-      if (held.state === 'archived') {
-        throw conflict(
-          `Lead ${code} đã ở “${LEAD_STATE_LABEL.archived}” — không cần cho rời phễu nữa.`,
-        )
-      }
       if (held.openDeal) {
         throw conflict(`Lead ${code} còn cơ hội đang mở — đóng cơ hội trước khi cho lead rời phễu.`)
       }
@@ -83,6 +80,13 @@ export class LeadExitService {
         exitedAt: sql`now()`,
       })
       await this.record(tx, who, code, 'exited', LEAD_NOTE.exited(body.reason, body.note))
+      /* A timed letter or a queued wave must not reach a customer a person just
+         stopped caring for (ADR 0068 §5); reopen does not release them. */
+      await this.mailRuns.withholdSubject(
+        tx,
+        { aggregateType: 'lead', aggregateId: code },
+        { code: 'lead-disqualified', summary: 'lead đã ngừng chăm sóc: thư chưa gửi bị giữ lại' },
+      )
       if (held.workstreamCode) await this.runs.syncClosed(tx, [held.workstreamCode])
     })
 
@@ -116,12 +120,18 @@ export class LeadExitService {
       const held = await this.lockRow(tx, who, code)
       if (held.state !== 'verifying' && held.state !== 'working') {
         throw conflict(
-          `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” — chỉ hai bước đó chuyển chờ thời điểm được.`,
+          `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” — chỉ hai bước đó chuyển sang “${LEAD_STATE_LABEL.nurturing}” được.`,
         )
       }
 
       await this.states.move(tx, code, 'nurturing')
       await this.record(tx, who, code, 'nurtured', LEAD_NOTE.nurtured(body.note))
+      /* Parked means parked: a timed letter must not undo it (ADR 0068). */
+      await this.mailRuns.withholdSubject(
+        tx,
+        { aggregateType: 'lead', aggregateId: code },
+        { code: 'lead-nurtured', summary: 'lead đã vào nhóm chờ: thư chưa gửi bị giữ lại' },
+      )
     })
 
     return this.profiles.profile(who, code)

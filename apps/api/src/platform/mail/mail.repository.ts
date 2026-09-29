@@ -185,12 +185,13 @@ export class MailRepository implements MailLedger {
       .returning()
     if (!row) return null
 
-    const addresses = await this.db
+    const rows = await this.db
       .select({
         role: emailDeliveryAddress.role,
         address: emailDeliveryAddress.address,
         displayName: emailDeliveryAddress.displayName,
         ref: emailDeliveryAddress.ref,
+        outcomeAt: emailDeliveryAddress.outcomeAt,
       })
       .from(emailDeliveryAddress)
       .where(
@@ -200,21 +201,56 @@ export class MailRepository implements MailLedger {
         ),
       )
       .orderBy(asc(emailDeliveryAddress.position))
+    const [run] = row.mailRunId
+      ? await this.db
+          .select({ scheduledAt: mailRun.scheduledAt, releasedAt: mailRun.releasedAt })
+          .from(mailRun)
+          .where(eq(mailRun.id, row.mailRunId))
+      : []
 
-    return this.toDeliveryToSend(row, addresses)
+    return {
+      ...this.toDeliveryToSend(
+        row,
+        rows.map(({ outcomeAt: _, ...a }) => a),
+      ),
+      addressesFrozen: rows.some((a) => a.outcomeAt !== null),
+      /* Each of these precedes any send, so the latest is a safe lower bound. */
+      sendableFrom: new Date(
+        Math.max(
+          ...[row.createdAt, run?.scheduledAt, run?.releasedAt].map((d) => d?.getTime() ?? 0),
+        ),
+      ),
+    }
   }
 
-  async markAccepted(deliveryId: string, providerEmailId: string): Promise<void> {
-    await this.db
-      .update(emailDelivery)
-      .set({ state: 'accepted', acceptedAt: sql`now()`, providerEmailId, updatedAt: sql`now()` })
-      .where(eq(emailDelivery.id, deliveryId))
+  async markAccepted(
+    deliveryId: string,
+    providerEmailId: string,
+    then?: { run: (tx: Db) => Promise<void>; attempts: number },
+  ): Promise<unknown> {
+    return this.db.transaction(async (tx) => {
+      await tx
+        .update(emailDelivery)
+        .set({ state: 'accepted', acceptedAt: sql`now()`, providerEmailId, updatedAt: sql`now()` })
+        .where(eq(emailDelivery.id, deliveryId))
+      let error: unknown = null
+      for (let i = 0; then && i < then.attempts; i++) {
+        error = await tx
+          .transaction((sp) => then.run(sp))
+          .then(
+            () => null,
+            (failed: unknown) => failed ?? new Error('hook failed'),
+          )
+        if (error === null) break
+      }
+      return error
+    })
   }
 
   /** `dead` beats `failure.kind`: a worker that has decided to park a row for
    *  a human is stating that no further retry is coming, regardless of
    *  whether THIS particular attempt looked retryable. Otherwise `permanent`
-   *  is terminal (`failed_permanent`) and anything else goes back to
+   *  is terminal (`failed_permanent`) unless refunded; anything else goes back to
    *  `pending` for the next attempt at `opts.nextAttemptAt`. The 500-char cut
    *  on the summary is defensive: a provider error string is free text from
    *  outside this process and this column is not the place for it to grow
@@ -222,14 +258,15 @@ export class MailRepository implements MailLedger {
   async markFailure(
     deliveryId: string,
     failure: MailFailure,
-    opts: { dead: boolean; nextAttemptAt: Date | null },
+    opts: { dead: boolean; nextAttemptAt: Date | null; refund?: boolean },
   ): Promise<void> {
     const state: MailState = opts.dead
       ? 'dead'
-      : failure.kind === 'permanent'
+      : failure.kind === 'permanent' && !opts.refund
         ? 'failed_permanent'
         : 'pending'
 
+    /* `sending` only: a row withheld while in the worker's hands stays held. */
     await this.db
       .update(emailDelivery)
       .set({
@@ -238,8 +275,9 @@ export class MailRepository implements MailLedger {
         lastErrorCode: failure.code,
         lastErrorSummary: failure.summary.slice(0, 500),
         updatedAt: sql`now()`,
+        ...(opts.refund ? { attemptCount: sql`${emailDelivery.attemptCount} - 1` } : {}),
       })
-      .where(eq(emailDelivery.id, deliveryId))
+      .where(and(eq(emailDelivery.id, deliveryId), eq(emailDelivery.state, 'sending')))
   }
 
   /** `reason` has nowhere else to live: `email_delivery` carries no
@@ -286,14 +324,17 @@ export class MailRepository implements MailLedger {
   /** `outcome = 'queued'` in the WHERE so a settle can never overwrite a
    *  bounce or a complaint the webhook already wrote. */
   async settleAddresses(deliveryId: string, dropped: string[]): Promise<void> {
-    if (dropped.length === 0) return
+    const drop = new Set(dropped.map(normalAddress))
     await this.db
       .update(emailDeliveryAddress)
-      .set({ outcome: 'dropped_suppressed', outcomeAt: sql`now()` })
+      .set({
+        outcome: sql`CASE WHEN ${inArray(emailDeliveryAddress.address, [...drop, ''])}
+                          THEN 'dropped_suppressed' ELSE 'queued' END`,
+        outcomeAt: sql`now()`,
+      })
       .where(
         and(
           eq(emailDeliveryAddress.deliveryId, deliveryId),
-          inArray(emailDeliveryAddress.address, dropped.map(normalAddress)),
           eq(emailDeliveryAddress.outcome, 'queued'),
         ),
       )
@@ -727,7 +768,7 @@ export class MailRepository implements MailLedger {
   private toDeliveryToSend(
     row: typeof emailDelivery.$inferSelect,
     addresses: MailAddressIntent[],
-  ): DeliveryToSend {
+  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom'> {
     return {
       id: row.id,
       eventKey: row.eventKey,

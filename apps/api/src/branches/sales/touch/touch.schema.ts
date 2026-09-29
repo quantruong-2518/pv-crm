@@ -140,9 +140,9 @@ export const touch = sales.table(
     /** "Việc tôi đã làm", chưa có màn nào hỏi. Rẻ, và cột đã có sẵn. */
     index('touch_actor_idx').on(t.actorId),
     check('touch_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
-    /** The twenty-four `TouchKind` values, copied out rather than generated: the enum
-     *  growing must be a migration somebody reads (0061 milestones and care, 0066
-     *  `next-step-done`). `first-action`/`verified` stay — their rows are on disk. */
+    /** The twenty-six `TouchKind` values, copied out rather than generated: the enum
+     *  growing must be a migration somebody reads (0067 adds the two mail-failure
+     *  kinds). `first-action`/`verified` stay — their rows are on disk. */
     check(
       'touch_kind_known',
       sql`"kind" IN ('created', 'contacted', 'field-filled', 'handed-over', 'tier-raised',
@@ -150,7 +150,8 @@ export const touch = sales.table(
                      'nurtured', 'resumed', 'archived', 'first-meeting',
                      'entered-pipeline', 'stage-changed', 'signed', 'exited',
                      'reopened', 'sample-sent', 'poc-run', 'quotation-sent',
-                     'care-entered', 'care-left', 'next-step-done')`,
+                     'care-entered', 'care-left', 'next-step-done',
+                     'mail-failed', 'mail-sync-failed')`,
     ),
     /** Ba giá trị của `LeadTier`. Chép ra đây cùng lý do với `touch_kind_known`
      *  ở trên: enum dài thêm thì phải là một migration có người đọc. */

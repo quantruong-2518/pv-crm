@@ -4,6 +4,7 @@ import { AiModule } from '@api/platform/ai/ai.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { MAIL_SENT_HOOK } from '@api/platform/mail/mail-sent.hook'
 import { ScanQueueModule } from '@api/platform/queue/scan-enqueue'
 import { SCAN_JOB_HANDLER, type ScanJobHandler } from '@api/platform/queue/scan-jobs'
 import { SessionModule } from '@api/platform/session/session.module'
@@ -28,9 +29,9 @@ import { LeadIntakeGuard } from './lead-intake.guard'
 import { LeadIntakeRepository } from './lead-intake.repository'
 import { LeadIntakeService } from './lead-intake.service'
 import { LeadMailComposer } from './lead-mail.composer'
-import { LeadArchiveSweeper } from './lead-archive.sweeper'
 import { LeadStateModule } from './lead-state'
 import { LeadCommsHook } from './lead-comms.hook'
+import { LeadMailSentHook } from './lead-mail-sent.hook'
 import { LeadScanCommit } from './lead-scan.commit'
 import { LeadScanController } from './lead-scan.controller'
 import { LeadScanRepository } from './lead-scan.repository'
@@ -111,8 +112,6 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadIntakeService,
     LeadIntakeRepository,
     LeadIntakeGuard,
-    /* Self-timed like `SessionSweeper`, so it needs no line in `worker.ts`. */
-    LeadArchiveSweeper,
     /* One entry of the `MAIL_COMPOSER` registry. Exported as the CLASS, not
        under the token: the registry is an array assembled by
        `QueueModule.forWorker({ composers: [...] })`, because Nest cannot merge
@@ -121,10 +120,13 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadMailComposer,
     /* Bound to comms' `MESSAGE_LOGGED_HOOK` by `app.module.ts`, same reason. */
     LeadCommsHook,
+    /* Under the token, unlike the composer: one binding, and `worker.ts` already
+       hands this module to `QueueModule.forWorker`, so the consumer resolves it. */
+    { provide: MAIL_SENT_HOOK, useClass: LeadMailSentHook },
     LeadScanRepository,
     LeadScanService,
     LeadScanCommit,
-    /* Self-timed like `LeadArchiveSweeper`. */
+    /* Self-timed like `SessionSweeper`, so it needs no line in `worker.ts`. */
     LeadScanSweeper,
     /* What `worker.ts` runs for the two scan queues — `platform/` cannot name us. */
     {
@@ -136,6 +138,6 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
       }),
     },
   ],
-  exports: [LeadService, LeadMailComposer, LeadCommsHook, SCAN_JOB_HANDLER],
+  exports: [LeadService, LeadMailComposer, LeadCommsHook, SCAN_JOB_HANDLER, MAIL_SENT_HOOK],
 })
 export class LeadModule {}

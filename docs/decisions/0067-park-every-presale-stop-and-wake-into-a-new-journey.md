@@ -1,7 +1,10 @@
 # 0067 · Presale in the repeating journey: every stop parks the lead in `nurturing` ("Chờ thời điểm"), waking opens a new lead and a new journey
 
 Status: accepted (partially supersedes 0057 §2, 0058, 0063 §1/§2/§4, 0064 §3
-and §6, 0066 §6 — exact paragraphs under "Superseded")
+and §6, 0066 §6 — exact paragraphs under "Superseded"); partially superseded
+by 0068 (§1's holder-cleared rule and retiring `disqualified`, §5 including
+D3, D7 — `nurturing` now loops on the same lead instead of waking a new one,
+and `disqualified` is revived as its own terminal state)
 Source: project owner's answers to D1–D11 in session, 28/09/2026; the shared
 flows C, A2, D, G and H agreed 27/09 (`.claude/HANDOFF-workstream-loop.md`,
 "Luồng chung"); the presale plan page
@@ -190,7 +193,7 @@ no-generated-tests rule.
 
 ## Consequences
 
-- Removed: `apps/api/src/branches/sales/lead/lead-archive.sweeper.ts` and
+- Removed: `LeadArchiveSweeper` and
   `NURTURE_MAX`; the `exit`/`reopen`/`nurture`/`resume` doors in
   `apps/api/src/branches/sales/lead/lead.controller.ts`, replaced by stop and
   wake.

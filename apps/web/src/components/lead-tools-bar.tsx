@@ -33,8 +33,8 @@ import { LeadStepButton } from './lead-state-actions'
  *  rest sits behind `…`, because a bar of ten buttons has no first button.
  *
  *  The convert button stands on every open or converted lead: a lead may hold
- *  several deals, so an open deal never blocks one more. A disqualified or
- *  archived lead has no convert button at all — the door refuses those.
+ *  several deals, so an open deal never blocks one more. A disqualified lead
+ *  has no convert button at all — the door refuses that.
  *
  *  STICKY rather than fixed: it stays in the content flow so it cannot cover the
  *  sidebar, and below `lg` it leaves room for AppShell's 84px BottomNav. */
@@ -241,7 +241,7 @@ function CallButton({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.code])
 
-  const canConfirm = canEdit && lead.state !== 'disqualified' && lead.state !== 'archived'
+  const canConfirm = canEdit && lead.state !== 'disqualified'
 
   const press = () => {
     if (!lead.phone) return
@@ -336,8 +336,8 @@ function ContactFace({
 
 /** On a disqualified lead this row reopens it; on a `droppable` one (open, or
  *  converted with no open deal and no signature) it drops it. One row, because
- *  those are two ways of one switch. Anything else — archived, or converted
- *  with a live deal — gets neither: the server refuses both from there. */
+ *  those are two ways of one switch. A converted lead with a live deal gets
+ *  neither: the server refuses both from there. */
 function ExitRow({
   code,
   dropped,
@@ -387,7 +387,7 @@ function ExitRow({
   }
 
   if (!droppable) return null
-  return <MenuRow icon={TriangleAlert} label="Loại lead" onClick={onExit} />
+  return <MenuRow icon={TriangleAlert} label={LEAD_STATE_LABEL.disqualified} onClick={onExit} />
 }
 
 /** The deals this lead holds — a pressable row for each one this reader may

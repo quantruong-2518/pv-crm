@@ -88,22 +88,29 @@ export const LEAD_NOTE = {
    *  timeline row nobody reads to the end. */
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
   contacted: 'Đã gọi khách',
-  /** The two rungs `LeadStateWriter` writes as it moves the lead. Each sentence
+  /** The rung sentences `LeadStateWriter` writes as it moves the lead. Each sentence
    *  says WHAT happened, not which door pressed it and not which state it landed
    *  on: several doors reach each rung, the trail already names the person, and a
    *  stored sentence that quotes `LEAD_STATE_LABEL` goes stale the day a label
    *  is renamed. */
   carePlanned: 'Đặt lịch làm việc với khách',
   exchanged: 'Có trao đổi thật với khách',
+  mailed: 'Thư đã gửi tới khách',
+  /** The two mail troubles the worker reports (ADR 0068): the holder must see
+   *  them on the trail, since nothing else on the lead would change. */
+  mailFailed: (address: string, unknown: boolean) =>
+    unknown
+      ? `Thư tới ${address} quá hạn gửi lại — không rõ đã tới khách chưa`
+      : `Gửi thư tới ${address} thất bại — lý do ở nhật ký gửi thư`,
+  mailSyncFailed: 'Thư đã tới khách nhưng chưa chuyển được trạng thái lead — cần chỉnh tay',
   /** The reason travels as its key: labels belong to the screen (`ExitReason`). */
   exited: (reason: ExitReason, note: string | undefined) =>
     note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,
   reopened: 'Mở lại lead — quay về phễu',
   verified: (tier: LeadTier) => `Xác minh xong · bậc ${tier}`,
   nurtured: (note: string | undefined) =>
-    note ? `Chuyển sang Chờ thời điểm · ${note}` : 'Chuyển sang Chờ thời điểm',
+    note ? `Tạm dừng chăm sóc, chờ dịp sau · ${note}` : 'Tạm dừng chăm sóc, chờ dịp sau',
   resumed: 'Chăm lại sau thời gian chờ',
-  archived: 'Lưu trữ tự động · quá 6 tháng ở Chờ thời điểm',
   tierRaised: (tier: LeadTier) => `Nâng bậc · ${tier}`,
 } as const
 

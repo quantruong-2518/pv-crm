@@ -90,15 +90,14 @@ export const ExitReason = z.enum([
  *
  *   · `new` / `assigned` — no PIC yet / a PIC who has scheduled nothing yet
  *   · `verifying`  — the owner scheduled care (future meeting, timed mail run)
- *   · `working`    — a real exchange was logged (call, message, meeting held)
- *   · `nurturing`  — parked "not ready", from verifying|working; archived after 6 months
+ *   · `working`    — first real touch: call, message, meeting held, any mail sent
+ *   · `nurturing`  — parked, never expires; any real touch loops it back to `working`
  *   · `converted`  — the first opportunity was opened from it
- *   · `disqualified` — dropped with an `ExitReason`; reopen recomputes from facts
- *   · `archived`   — retired by the system after six months in `nurturing`
+ *   · `disqualified` — a person pressed "stop caring"; out of the loop (ADR 0068)
  *
  *  Tier (prospect/mql/sql) belongs to no state. Not `StageKey`: that is the deal's. */
 export const LeadState = z.enum(
-  ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted', 'disqualified', 'archived'],
+  ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted', 'disqualified'],
   'Trạng thái lead không có trong danh sách',
 )
 
@@ -112,10 +111,9 @@ export const LEAD_STATE_LABEL: Record<LeadState, string> = {
   assigned: 'Nhận PIC',
   verifying: 'Tạo chiến lược chăm sóc',
   working: 'Tình trạng chăm sóc',
-  nurturing: 'Chờ thời điểm',
+  nurturing: 'Nhóm chờ chăm sóc',
   converted: 'Đổi thành Opp',
-  disqualified: 'Không theo nữa',
-  archived: 'Lưu trữ',
+  disqualified: 'Ngừng chăm sóc',
 }
 
 /** The states still in the funnel — the book's default tab and every "still

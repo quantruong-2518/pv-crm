@@ -170,18 +170,18 @@ export const workstream = sales.table(
             WHEN 'HĐ' THEN "stand_key" = 'signed'
             WHEN 'OP' THEN "stand_key" IN ('new', 'assigned', 'sample', 'poc', 'quotation')
             WHEN 'LD' THEN "stand_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                                           'converted', 'disqualified', 'archived')
+                                           'converted', 'disqualified')
             ELSE true
           END`,
     ),
 
-    /** A `LeadState` whatever the run stands on. The trigger only ever writes
-     *  the five backbone rungs; the domain is the contract's. `stand_code` is
-     *  fenced by a DEFERRED constraint trigger instead — see its column. */
+    /** A `LeadState` whatever the run stands on (`archived` retired, ADR 0068).
+     *  The trigger only ever writes the five backbone rungs; the domain is the
+     *  contract's. `stand_code` is fenced by a DEFERRED trigger — see its column. */
     check(
       'workstream_stand_lead_key_known',
       sql`"stand_lead_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                               'converted', 'disqualified', 'archived')`,
+                               'converted', 'disqualified')`,
     ),
   ],
 )

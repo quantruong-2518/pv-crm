@@ -224,7 +224,8 @@ export const lead = sales.table(
     /** Where the lead is in its OWN lifecycle (ADR 0058) — not the pipeline
      *  stage, which belongs to `pipeline_position`. Stored, not derived: the
      *  server moves it in the same transaction as the write that caused it.
-     *  The eight values are fenced by `lead_state_known` below. */
+     *  The seven values are fenced by `lead_state_known` below — `archived`
+     *  retired by ADR 0068, nothing retires a lead on a timer any more. */
     state: text('state').$type<LeadState>().notNull().default('new'),
     /** When the lead entered `state`. Replaces `days_here`: a stored day count
      *  goes stale with nobody touching the row, a stored timestamp does not —
@@ -376,9 +377,10 @@ export const lead = sales.table(
      *
      *  A landing page submitted twice is two raw rows in `lead_intake`, not two
      *  leads. But a customer disqualified last year who comes back this year is
-     *  a legitimate NEW lead — so the fence covers every state except the two a
-     *  lead does not come back from on its own (`disqualified`, `archived`).
-     *  `converted` stays inside: the customer is live, as a deal.
+     *  a legitimate NEW lead — so the fence covers every state except the one a
+     *  lead does not come back from on its own (`disqualified`; `archived` was
+     *  the other one, retired by ADR 0068). `converted` stays inside: the
+     *  customer is live, as a deal.
      *
      *  Indexed on `lower(email)`: `An@x.vn` and `an@x.vn` are one mailbox, and
      *  on a raw index they slip through as two live leads that MAS mail writes
@@ -386,7 +388,7 @@ export const lead = sales.table(
      *  23505 on it. */
     uniqueIndex('lead_email_live_idx')
       .on(sql`lower("email")`)
-      .where(sql`"state" NOT IN ('disqualified', 'archived')`),
+      .where(sql`"state" <> 'disqualified'`),
 
     /** The campaign has to EXIST, and has to be a row of the source catalogue.
      *
@@ -409,13 +411,13 @@ export const lead = sales.table(
     check('lead_money_pair', sql`("budget" IS NULL) = ("currency" IS NULL)`),
     /** Rơi thì phải có mốc rơi. Thiếu mốc thì mọi báo cáo theo kỳ đếm hụt. */
     check('lead_exit_pair', sql`("exit_reason" IS NULL) = ("exited_at" IS NULL)`),
-    /** The eight `LeadState` values, copied out by hand for `touch_kind_known`'s
-     *  reason: a state added to the contract must be a migration somebody
-     *  reads, not a string that changes underneath the rows already written. */
+    /** The seven `LeadState` values, copied out by hand for `touch_kind_known`'s
+     *  reason: a state added to the contract must be a migration somebody reads.
+     *  `archived` retired by ADR 0068 — 0067 moves those rows to `nurturing`. */
     check(
       'lead_state_known',
       sql`"state" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                      'converted', 'disqualified', 'archived')`,
+                      'converted', 'disqualified')`,
     ),
     /** A reason exists exactly when the lead is disqualified — ADR 0057 §2's
      *  exit, renamed as a state. `lead_exit_pair` above pairs the timestamp. */

@@ -651,6 +651,55 @@ export class MailRunRepository {
     return { released: (row?.released ?? 0) > 0, withheld: row?.withheld ?? 0 }
   }
 
+  /** Hold every letter to one subject that no worker has claimed yet — how a
+   *  branch stops mail it no longer wants sent (a lead nobody cares for, ADR
+   *  0068 §5). `withheld` as a gate hold; a `sending` row too, since a failed
+   *  attempt cannot reopen it (`markFailure`) and an accepted one says so. A
+   *  run copy follows when its run is left with no recipient, as `release()`. */
+  async withholdSubject(
+    tx: Db,
+    subject: { aggregateType: string; aggregateId: string },
+    reason: { code: string; summary: string },
+  ): Promise<number> {
+    const r = (await tx.execute(sql`
+      WITH held AS (
+        UPDATE "platform"."email_delivery" d
+           SET "state" = 'withheld',
+               "next_attempt_at" = NULL,
+               "last_error_code" = ${reason.code},
+               "last_error_summary" = ${reason.summary},
+               "updated_at" = now()
+         WHERE d."aggregate_type" = ${subject.aggregateType}
+           AND d."aggregate_id" = ${subject.aggregateId}
+           AND d."role" = 'recipient'
+           AND d."state" IN ('pending', 'sending')
+        RETURNING d."id", d."mail_run_id"
+      ),
+      copy_held AS (
+        UPDATE "platform"."email_delivery" d
+           SET "state" = 'withheld',
+               "next_attempt_at" = NULL,
+               "last_error_code" = 'mas-no-recipient-left',
+               "last_error_summary" = 'mọi người nhận bị giữ lại nên không gửi bản lưu',
+               "updated_at" = now()
+         WHERE d."role" = 'run_copy'
+           AND d."state" = 'pending'
+           AND d."mail_run_id" IN (SELECT "mail_run_id" FROM held)
+           AND NOT EXISTS (
+                 SELECT 1 FROM "platform"."email_delivery" o
+                  WHERE o."mail_run_id" = d."mail_run_id"
+                    AND o."role" = 'recipient'
+                    AND o."state" = 'pending'
+                    AND o."id" NOT IN (SELECT "id" FROM held)
+               )
+        RETURNING d."id"
+      )
+      SELECT (SELECT count(*) FROM held)::int AS withheld,
+             (SELECT count(*) FROM copy_held)::int AS copies
+    `)) as { rows: { withheld: number }[] }
+    return r.rows[0]?.withheld ?? 0
+  }
+
   /** Move runs to the state their own letters have already reached.
    *
    *  ------------------------------------------------------------------

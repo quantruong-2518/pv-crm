@@ -104,7 +104,7 @@ export type ImportCheckInput = {
    *  what makes the difference between "fix one cell" and "the import is
    *  broken". */
   campaigns: ReadonlySet<string>
-  /** `lower(email)` → code, over leads not disqualified or archived. The rows
+  /** `lower(email)` → code, over leads not disqualified. The rows
    *  `lead_email_live_idx` covers, so what this map says and what the unique
    *  index will say are the same answer. `null` = a lead outside the caller's
    *  scope: still a duplicate, but its code is not theirs to learn. */
@@ -189,7 +189,7 @@ const GROUPED_INT = /^\d[\d.,\s]*$/
 /** The dedupe key, and the only identity this import has.
  *
  *  `lower(email)`, because that is the one identity `sales.lead` actually
- *  enforces — `lead_email_live_idx`, unique among leads not disqualified/archived.
+ *  enforces — `lead_email_live_idx`, unique among leads not disqualified.
  *  Prefixed the way the screen prefixes its own keys (`mst:`, `ten:`) so a key
  *  printed in the report says what kind of thing it is.
  *

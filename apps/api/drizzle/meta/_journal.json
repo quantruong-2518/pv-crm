@@ -463,6 +463,13 @@
       "when": 1788503700000,
       "tag": "0066_next_step",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788503800000,
+      "tag": "0067_lead_state_retire_archived",
+      "breakpoints": true
     }
   ]
 }

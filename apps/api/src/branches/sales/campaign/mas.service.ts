@@ -432,12 +432,11 @@ export class MasService {
         phase: body.label,
       })
 
-      if (campaignCode === undefined && body.audience.subjectType === 'lead' && scheduledAt) {
-        /* A SEND TIME is care being scheduled (ADR 0063 §2) — an immediate blast
-           is not a plan, a campaign wave is marketing's rather than the PIC's,
-           and a letter to a DEAL moves nothing. */
+      if (body.audience.subjectType === 'lead' && scheduledAt) {
+        /* A SEND TIME is care scheduled, campaign wave or not (ADR 0068 §2); the
+           letter going out moves it to `working` (`LeadMailSentHook`). */
         const mailed = sendable.map((d) => d.row.code)
-        await this.states.scheduled(tx, mailed, who.id)
+        await this.states.mailTimed(tx, mailed, who)
       }
 
       await this.repo.writeRunNote(tx, {

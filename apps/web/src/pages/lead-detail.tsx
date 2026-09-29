@@ -141,11 +141,11 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
   /* The blocks still living on `app/desk.ts` read the fixture's `Lead` shape —
      built ONCE here instead of every block converting it for itself. */
   const legacy = leadOf(lead)
-  /* A dropped or archived lead has left the funnel — say so on the button
-     rather than after composing. Who has an address is the composer's own
-     question now: it addresses the company's contacts, not the lead row. */
+  /* A dropped lead has left the funnel — say so on the button rather than
+     after composing. Who has an address is the composer's own question now:
+     it addresses the company's contacts, not the lead row. */
   const masBlocker =
-    lead.state === 'disqualified' || lead.state === 'archived'
+    lead.state === 'disqualified'
       ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
       : undefined
   const [composing, setComposing] = useState(false)

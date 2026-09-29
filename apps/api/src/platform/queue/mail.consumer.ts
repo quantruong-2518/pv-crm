@@ -11,6 +11,7 @@ import {
   type MailLedger,
   type MailPort,
 } from '../mail/mail.contract'
+import { MAIL_SENT_HOOK, type MailSentHook, type MailTrouble } from '../mail/mail-sent.hook'
 import { MAIL_COMPOSER, type MailComposer } from './mail-composer'
 import { MailQueue } from './mail-queue'
 import { MailRateGate, acquireToken } from './mail-rate'
@@ -51,12 +52,14 @@ import { MailRateGate, acquireToken } from './mail-rate'
  *       hears about it, the job is redelivered. Same key, same 24-hour window
  *       — the provider returns the first result instead of sending twice.
  *
- *   7 · ACCEPTED → write the provider id, done.
+ *   7 · ACCEPTED → write the provider id, and in the same transaction tell
+ *       the subject's branch the letter went out (`MAIL_SENT_HOOK`), done.
  *
  *   8 · FAILED → branch on the KIND, because the three kinds want three
  *       different things: `permanent` must never be tried again, `rate-limit`
- *       must stop the whole queue and not just this job, `retry` is an
- *       ordinary backoff.
+ *       (and a `wide` retry: the provider is down) must stop the whole queue
+ *       and spend no attempt, `retry` is an ordinary backoff. A letter given
+ *       up on is reported to its subject and, if the address is to blame, banned.
  *
  *   9 · OUT OF ATTEMPTS, or older than the provider's idempotency window →
  *       mark `dead` and park it for a person. Past 24 hours the key no longer
@@ -84,6 +87,7 @@ export class MailConsumer {
     @Inject(MAIL_COMPOSER) private readonly composers: MailComposer[],
     private readonly gate: MailRateGate,
     private readonly queue: MailQueue,
+    @Inject(MAIL_SENT_HOOK) private readonly sent: MailSentHook,
   ) {}
 
   /** pg-boss hands the handler a BATCH, always — one job here, because
@@ -132,6 +136,14 @@ export class MailConsumer {
     job: JobWithMetadata<EmailJob>,
     claimed: DeliveryToSend,
   ): Promise<MailFailure | null> {
+    /* Past the provider's idempotency window a resend may be a second letter. */
+    if (Date.now() - claimed.sendableFrom.getTime() >= IDEMPOTENCY_WINDOW_MS) {
+      return {
+        kind: 'permanent',
+        code: EXPIRED,
+        summary: 'Quá cửa sổ chống trùng — không gửi lại.',
+      }
+    }
     const delivery = await this.frozen(claimed)
     if (!delivery) return null
 
@@ -176,14 +188,29 @@ export class MailConsumer {
     const result = await this.port.send(message, delivery.idempotencyKey)
 
     if (result.ok) {
-      await this.ledger.markAccepted(delivery.id, result.providerEmailId)
+      const missed = await this.ledger.markAccepted(delivery.id, result.providerEmailId, {
+        run: (tx) => this.sent.afterSent(tx, delivery),
+        attempts: HOOK_ATTEMPTS,
+      })
+      /* The mail is out either way — failing the job would retry a letter the
+         provider already took. Only the subject's move is lost: say so, twice. */
+      if (missed) {
+        this.log.error(`Sent ${delivery.eventKey}, subject not moved: ${describe(missed)}`)
+        await this.report(delivery, { kind: 'sync-failed' })
+      }
       return null
     }
 
-    if (result.kind === 'rate-limit') {
-      /* Not this job's problem — the account's. Shut the gate for every worker
-         before handing the failure back. */
-      await this.gate.park(EMAIL_QUEUE, result.retryAfterSeconds, result.code)
+    if (result.kind === 'rate-limit' || result.wide) {
+      /* Not this job's problem — the account's or the provider's. Shut the
+         gate for every worker; a broken key or sender waits the longest. */
+      const seconds =
+        result.kind === 'rate-limit'
+          ? result.retryAfterSeconds
+          : result.kind === 'retry'
+            ? this.env.PV_EMAIL_RETRY_DELAY_SECONDS
+            : this.env.PV_EMAIL_RETRY_DELAY_MAX_SECONDS
+      await this.gate.park(EMAIL_QUEUE, seconds, result.code)
     }
 
     return result
@@ -200,12 +227,10 @@ export class MailConsumer {
     if (delivery.addresses.length === 0) return delivery
 
     let addresses = delivery.addresses
-    if (delivery.attemptCount === 1) {
+    if (!delivery.addressesFrozen) {
       const blocked = new Set(await this.ledger.suppressedAmong(addresses.map((a) => a.address)))
-      if (blocked.size > 0) {
-        await this.ledger.settleAddresses(delivery.id, [...blocked])
-        addresses = addresses.filter((a) => !blocked.has(a.address))
-      }
+      await this.ledger.settleAddresses(delivery.id, [...blocked])
+      addresses = addresses.filter((a) => !blocked.has(a.address))
     }
 
     if (!addresses.some((a) => a.role === 'to')) {
@@ -237,19 +262,41 @@ export class MailConsumer {
     delivery: DeliveryToSend,
     failure: MailFailure,
   ): Promise<'settled' | 'retry'> {
+    if (failure.code === EXPIRED) {
+      await this.ledger.markFailure(delivery.id, failure, { dead: true, nextAttemptAt: null })
+      await this.gaveUp(delivery, failure, true)
+      await this.queue.park(job.data)
+      return 'settled'
+    }
+
+    if (queueWide(failure)) {
+      /* The account or the pace stopped, not this letter: hand back the
+         attempt and leave the row to the relay until the gate reopens — never
+         a budget spent, never a death, so never a ban. */
+      const reopens = Date.now() + (await this.gate.parkedFor(EMAIL_QUEUE))
+      await this.ledger.markFailure(delivery.id, failure, {
+        dead: false,
+        nextAttemptAt: new Date(Math.max(this.nextAttemptAt(job).getTime(), reopens)),
+        refund: true,
+      })
+      return 'settled'
+    }
+
     if (failure.kind === 'permanent') {
       /* A rejected address does not become valid by waiting. `dead` is for
          mails a person still has to decide about; this is not one, so the row
          goes to `failed_permanent` and the job completes normally. */
       await this.ledger.markFailure(delivery.id, failure, { dead: false, nextAttemptAt: null })
       this.log.warn(`Bỏ hẳn ${delivery.eventKey}: ${failure.code} · ${failure.summary}`)
+      await this.gaveUp(delivery, failure, false)
       return 'settled'
     }
 
     if (this.exhausted(job, delivery)) {
       await this.ledger.markFailure(delivery.id, failure, { dead: true, nextAttemptAt: null })
-      await this.queue.park(job.data)
       this.log.error(`Chết hẳn ${delivery.eventKey}: ${failure.code} · ${failure.summary}`)
+      await this.gaveUp(delivery, failure, false)
+      await this.queue.park(job.data)
       return 'settled'
     }
 
@@ -260,21 +307,44 @@ export class MailConsumer {
     return 'retry'
   }
 
-  /** Two ways a delivery stops being worth retrying.
-   *
-   *  The attempt count is the obvious one. The AGE is the one that matters:
-   *  the provider's idempotency key only deduplicates for 24 hours, so a retry
-   *  after that no longer has the guarantee the whole design rests on — it is
-   *  a coin flip between "delivers" and "delivers again". The margin below 24
-   *  keeps the last retry inside the window rather than on its edge.
-   *
-   *  `job.retryCount` and the ledger's `attemptCount` should agree; the larger
-   *  wins, so neither a re-enqueued job nor a redelivered one can quietly
-   *  restart the budget. */
+  /** A letter given up on. The address is banned only when the provider named
+   *  it (`blamesRecipient`) on a customer letter to one recipient — a group
+   *  letter cannot name the culprit. `unknown`: it may have arrived after all. */
+  private async gaveUp(
+    delivery: DeliveryToSend,
+    failure: MailFailure,
+    unknown: boolean,
+  ): Promise<void> {
+    const blamesAddress =
+      failure.kind === 'permanent' &&
+      failure.blamesRecipient === true &&
+      delivery.role === 'recipient' &&
+      delivery.mailRunId !== null &&
+      delivery.addresses.length === 0
+    try {
+      if (blamesAddress) await this.ledger.suppress(delivery.recipient, 'send_failed', 'resend')
+    } catch (error) {
+      this.log.error(`Could not suppress ${delivery.recipient}: ${describe(error)}`)
+    }
+    await this.report(delivery, { kind: 'failed', address: delivery.recipient, unknown })
+  }
+
+  /** Tell the subject's branch; a report that fails is logged, never thrown —
+   *  the ledger row is already settled and must stay so. */
+  private async report(delivery: DeliveryToSend, trouble: MailTrouble): Promise<void> {
+    try {
+      await this.sent.afterTrouble(delivery, trouble)
+    } catch (error) {
+      this.log.error(`Could not report ${trouble.kind} on ${delivery.eventKey}: ${describe(error)}`)
+    }
+  }
+
+  /** The attempt budget. `job.retryCount` and the ledger's `attemptCount`
+   *  should agree; the larger wins, so neither a re-enqueued job nor a
+   *  redelivered one can quietly restart it. The AGE limit is not here: it is
+   *  checked before any send (`attempt`), against the ledger row. */
   private exhausted(job: JobWithMetadata<EmailJob>, delivery: DeliveryToSend): boolean {
-    const attempts = Math.max(job.retryCount, delivery.attemptCount - 1)
-    if (attempts >= this.env.PV_EMAIL_RETRY_LIMIT) return true
-    return Date.now() - job.createdOn.getTime() >= IDEMPOTENCY_WINDOW_MS
+    return Math.max(job.retryCount, delivery.attemptCount - 1) >= this.env.PV_EMAIL_RETRY_LIMIT
   }
 
   /** When pg-boss will next run this job, as the ledger records it.
@@ -285,10 +355,8 @@ export class MailConsumer {
    *  active while this is written, which is the wrong time to be rewriting its
    *  schedule.
    *
-   *  Consequence worth knowing before reading a 429 in the logs: a park longer
-   *  than the current backoff will wake this job early, and it will spend an
-   *  attempt discovering the gate is still shut (step 2, before any provider
-   *  call). The park protects the PROVIDER, not the retry budget. */
+   *  A queue-wide stop is settled differently: the row waits for the later of
+   *  this backoff and the gate reopening, and its attempt is refunded. */
   private nextAttemptAt(job: JobWithMetadata<EmailJob>): Date {
     const step = this.env.PV_EMAIL_RETRY_DELAY_SECONDS * 2 ** Math.min(16, job.retryCount)
     const seconds = Math.min(this.env.PV_EMAIL_RETRY_DELAY_MAX_SECONDS, step)
@@ -296,7 +364,22 @@ export class MailConsumer {
   }
 }
 
-/** 23 hours, not 24 — see `exhausted`. */
+/** The first try plus two, each on a fresh savepoint (owner decision, ADR 0068). */
+const HOOK_ATTEMPTS = 3
+
+/** A stop of the pace, the gate or the provider, never of one letter: the
+ *  attempt is refunded (`settle`). `rate-window`/`queue-parked` are this file's. */
+const queueWide = (f: MailFailure): boolean =>
+  f.kind === 'rate-limit' ||
+  f.wide === true ||
+  f.code === 'queue-parked' ||
+  f.code === 'rate-window'
+
+/** A letter too old to resend safely — see `attempt`. */
+const EXPIRED = 'idempotency-expired'
+
+/** 23 hours, not 24: the provider deduplicates a key for 24, and the margin
+ *  keeps the last send inside the window rather than on its edge. */
 const IDEMPOTENCY_WINDOW_MS = 23 * 60 * 60 * 1_000
 
 function describe(error: unknown): string {

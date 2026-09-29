@@ -95,20 +95,19 @@ const KIND_PREFIX = 'kind:'
 const SEARCH_DELAY_MS = 300
 
 /** The state tabs (ADR 0058). `open` is the default because the book is a work
- *  list; a dropped or archived lead is still one tab away, since that is where
- *  "why did we lose it" is answered. Each key is a `LeadStateFilter` value, so
- *  it goes onto the URL and the wire unchanged.
+ *  list; a dropped lead is still one tab away, since that is where "why did we
+ *  lose it" is answered. Each key is a `LeadStateFilter` value, so it goes onto
+ *  the URL and the wire unchanged.
  *
  *  Narrowing to ONE open state (every `assigned` lead, say) is the state select
  *  in the filter menu, not a sixth to ninth tab: a row of nine tabs has no
  *  first tab on a tablet. */
-type StateTab = 'open' | 'converted' | 'disqualified' | 'archived' | 'all'
+type StateTab = 'open' | 'converted' | 'disqualified' | 'all'
 
 const STATE_TABS: { key: StateTab; label: string }[] = [
   { key: 'open', label: 'Đang chạy' },
   { key: 'converted', label: LEAD_STATE_FACE.converted.label },
   { key: 'disqualified', label: LEAD_STATE_FACE.disqualified.label },
-  { key: 'archived', label: LEAD_STATE_FACE.archived.label },
   { key: 'all', label: 'Tất cả' },
 ]
 
@@ -495,7 +494,7 @@ export function LeadsPage() {
           key="c"
           lead={l}
           onEmail={
-            canEmail && l.state !== 'disqualified' && l.state !== 'archived'
+            canEmail && l.state !== 'disqualified'
               ? () =>
                   openMasMail({
                     recipients: wholeBook,

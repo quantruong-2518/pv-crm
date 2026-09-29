@@ -176,7 +176,7 @@ const Env = z
      *  token bucket trong RAM của từng tiến trình là ba worker ba ngân sách. */
     PV_EMAIL_RATE_PER_SECOND: z.coerce.number().int().min(1).max(50).default(4),
     PV_EMAIL_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(2),
-    PV_EMAIL_RETRY_LIMIT: z.coerce.number().int().min(0).max(20).default(8),
+    PV_EMAIL_RETRY_LIMIT: z.coerce.number().int().min(0).max(20).default(2),
     PV_EMAIL_RETRY_DELAY_SECONDS: z.coerce.number().int().min(1).max(600).default(5),
     PV_EMAIL_RETRY_DELAY_MAX_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
 
@@ -552,21 +552,12 @@ const Env = z
       path: ['PV_API_PUBLIC_URL'],
     },
   )
-  /* ------------------------------------------------------------------
-     NHỊP GỬI PHẢI RỘNG HƠN SỐ LUỒNG, KHÔNG THÌ THƯ CHẾT VÌ LÝ DO NỘI BỘ
-     ------------------------------------------------------------------
-     Thua cửa nhịp, `MailConsumer` trả `kind: 'retry'` — và `exhausted()` đếm
-     lượt đó chung ngân sách với lỗi thật của nhà cung cấp. Hết
-     `PV_EMAIL_RETRY_LIMIT` lượt là dòng bị parking `dead`: một lá thư không hề
-     bị ai từ chối, chết vì hai con số cấu hình không khớp nhau.
-
-     Cấu hình mặc định (2 luồng, 4 thư/giây) an toàn. Cái bẫy là người vận hành
-     nâng số luồng lên để "chạy nhanh hơn" — số luồng KHÔNG phải thứ quyết định
-     tốc độ, `PV_EMAIL_RATE_PER_SECOND` mới là, và nâng vế sai làm hỏng thư chứ
-     không làm nhanh hơn. Bắt ở đây vì đó là chỗ hai con số cùng đứng. */
+  /* More workers than tokens per second buys nothing: the extra ones lose the
+     pace window and hand the letter back to the relay (no attempt spent).
+     Throughput is `PV_EMAIL_RATE_PER_SECOND`, so raise that instead. */
   .refine((e) => e.PV_EMAIL_WORKER_CONCURRENCY <= e.PV_EMAIL_RATE_PER_SECOND, {
     message:
-      'PV_EMAIL_WORKER_CONCURRENCY vượt PV_EMAIL_RATE_PER_SECOND — số luồng nhiều hơn token mỗi giây thì thư thua cửa nhịp, và mỗi lần thua tiêu một lượt trong ngân sách thử lại cho tới khi bị parking. Nâng nhịp gửi, đừng nâng số luồng.',
+      'PV_EMAIL_WORKER_CONCURRENCY vượt PV_EMAIL_RATE_PER_SECOND — luồng thừa chỉ thua cửa nhịp và trả thư về hàng đợi, không gửi nhanh hơn. Nâng nhịp gửi, đừng nâng số luồng.',
     path: ['PV_EMAIL_WORKER_CONCURRENCY'],
   })
   /* A Fly machine's disk does not survive a deploy, so `disk` in production

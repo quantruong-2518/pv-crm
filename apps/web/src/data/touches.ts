@@ -129,7 +129,10 @@ export function lifecycleTitle(event: TouchEvent): string | undefined {
     case 'resumed':
       return 'Chăm lại'
     case 'archived':
-      return `${LEAD_STATE_LABEL.archived} (quá lâu ở ${LEAD_STATE_LABEL.nurturing})`
+      /* Legacy rows only: `archived` retired as a live state (ADR 0068), but
+         old touch rows still carry the kind, so the sentence stays fixed text
+         rather than a table entry with no state behind it. */
+      return `Lưu trữ (quá lâu ở ${LEAD_STATE_LABEL.nurturing})`
     default:
       return undefined
   }

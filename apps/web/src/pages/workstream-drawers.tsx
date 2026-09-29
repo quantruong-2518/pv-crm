@@ -66,7 +66,7 @@ const TEXT = {
   aboutLead: 'Về lead',
   aboutDeal: 'Về cơ hội',
   aboutContract: 'Về hợp đồng',
-  whyWaiting: 'Vì sao chờ thời điểm',
+  whyWaiting: 'Vì sao vào nhóm chờ chăm sóc',
   newNeed: 'Nhu cầu mới',
   enteredAt: 'Vào bậc',
   stayedLimit: 'Đã ở / hạn',
@@ -97,14 +97,14 @@ const TEXT = {
   doNotContact: 'Không liên hệ',
   campaign: 'Chiến dịch',
   lastTouch: 'Tương tác gần nhất',
-  /* Flow C1/C6: waking opens the new lead at once; flow C4: a do-not-contact
-     lead is never picked into a campaign or mail, so only the manual wake is
-     left for it. Flow A2: a real reply moves the new lead on. */
+  /* ADR 0068: a parked lead loops back on itself, same journey and holder;
+     flow C4: a do-not-contact lead is never mailed, so only the manual door is
+     left. Any mail sent counts as the first real touch. */
   wakeAny:
-    'Đưa lead vào chiến dịch hoặc bấm tay "Đánh thức lại" là mở ngay lead mới và hành trình mới nối về hành trình này. Bấm tay thì người bấm giữ lead; qua chiến dịch thì lead vào kho chung, ai nhận trước thì giữ.',
+    'Đưa lead vào chiến dịch hoặc bấm tay "Chăm lại" là chính lead này quay lại chăm sóc, vẫn trong hành trình này và vẫn do người giữ cũ phụ trách.',
   wakeManual:
-    'Chỉ bấm tay "Đánh thức lại": mở ngay lead mới và hành trình mới nối về hành trình này, người bấm giữ lead. Lead này không bao giờ được đưa vào chiến dịch hay nhận mail.',
-  onReply: `Sau đó khách trả lời thư hoặc đặt lịch từ thư thì lead mới chuyển sang ${LEAD_STATE_LABEL.working}.`,
+    'Chỉ bấm tay "Chăm lại": chính lead này quay lại chăm sóc trong hành trình này. Lead này không bao giờ được đưa vào chiến dịch hay nhận mail.',
+  onReply: `Thư gửi đi hoặc một lần liên hệ thật là lead chuyển ngay sang ${LEAD_STATE_LABEL.working}.`,
   need: 'Nhu cầu',
   arose: 'Phát sinh từ',
   decidedBy: 'Người quyết định và giữ lead',

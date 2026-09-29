@@ -27,7 +27,7 @@ import {
 import { renderMasLetter } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { LeadRepository } from '../lead/lead.repository'
-import { LeadStateWriter } from '../lead/lead-state'
+import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import {
   MailLetterRepository,
   type FiledLetter,
@@ -185,8 +185,10 @@ export class MailLetterService {
          a concurrent retry. Roll this copy back; the other one stands. */
       if (!deliveryId) throw conflict('Thư này vừa được gửi bởi một yêu cầu khác — tải lại để xem.')
 
+      /* Timed = care scheduled; sent now moves nothing here — the letter going
+         out does, in the worker (`LeadMailSentHook`, ADR 0068 §1–2). */
       if (body.door === 'lead' && scheduledAt) {
-        await this.states.scheduled(tx, [subject.leadCode], who.id)
+        await this.states.mailTimed(tx, [subject.leadCode], who)
       }
       await this.mas.writeRunNote(tx, {
         actorId: who.id,
@@ -200,7 +202,8 @@ export class MailLetterService {
   }
 
   /** 404 for a subject that does not exist, 403 when its lead is not the
-   *  caller's — the two refusals `LeadService.guard` keeps apart. */
+   *  caller's — the two refusals `LeadService.guard` keeps apart — and 409 when
+   *  a person stopped caring for that lead: it is never mailed (ADR 0068 §5). */
   private async subjectFor(
     who: Actor,
     door: MailSubjectKind,
@@ -209,11 +212,16 @@ export class MailLetterService {
     const subject = await this.repo.subjectOf(door, code)
     if (!subject) throw notFound(subjectLabel(door), code)
     const found = await this.leads.byCode(who, subject.leadCode)
+    const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
     if (!found?.inScope) {
-      const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
       throw denied(
         'out-of-scope',
         `Lead ${subject.leadCode}${via} không đứng tên bạn — hỏi người đang giữ nó.`,
+      )
+    }
+    if ((LEAD_GONE_STATES as readonly string[]).includes(found.row.state)) {
+      throw conflict(
+        `Lead ${subject.leadCode}${via} đang ở trạng thái ${LEAD_GONE_WORDS} — không gửi thư được.`,
       )
     }
     return subject

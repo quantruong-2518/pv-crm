@@ -52,6 +52,7 @@ const SUPPRESSION_REASON_SET = {
   complaint: true,
   manual: true,
   unsubscribe: true,
+  send_failed: true,
 } as const satisfies Record<SuppressionReason, true>
 
 const SUPPRESSION_REASON_LIST = sql.raw(

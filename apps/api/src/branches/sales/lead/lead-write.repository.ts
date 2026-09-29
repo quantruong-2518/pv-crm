@@ -161,7 +161,7 @@ export class LeadWriteRepository {
    *  THE `WHERE` HAS TO MATCH THE INDEX, NOT MERELY RESEMBLE IT
    *  ------------------------------------------------------------------
    *  `lead_email_live_idx` is unique on `lower(email)` among rows whose
-   *  `state` is not `disqualified`/`archived`. Both halves are copied here on
+   *  `state` is not `disqualified`. Both halves are copied here on
    *  purpose. Drop the
    *  `lower()` and two spellings of one mailbox read as two different leads —
    *  the check passes and the INSERT then dies on the index, turning a row

@@ -257,9 +257,7 @@ export const WorkstreamStep = z.object({
 })
 
 /** `converted` = the lead produced at least one deal (`outcomeAt` = the first);
- *  `exited` = the lead left the backbone, `disqualified` OR `archived`. Not
- *  `lead.exited_at` alone: that column pairs with `disqualified` only, and an
- *  archived lead has none. */
+ *  `exited` = a person pressed "stop caring" (`disqualified`, ADR 0068). */
 export const WorkstreamLeadOutcome = z.enum(['converted', 'exited', 'open'])
 
 /** The five backbone rungs, in order, and no others — every lead lane draws
@@ -302,12 +300,11 @@ export const WorkstreamLeadNurture = z.object({
 })
 
 /** How a lead actually left the backbone. Null on a lane that never left —
- *  deliberately absent rather than two ever-present dropped/archived cells,
- *  which made a lead still being worked look like an exit was pending. `reason`
- *  is set for `disqualified` and null for `archived`: the system retires a lead
- *  on a timer, it does not choose among `ExitReason`. */
+ *  deliberately absent rather than an ever-present dropped cell, which made a
+ *  lead still being worked look like an exit was pending. Only a person's
+ *  "stop caring" leaves it; nothing retires a lead on a timer (ADR 0068). */
 export const WorkstreamLeadExit = z.object({
-  state: z.enum(['disqualified', 'archived']),
+  state: z.literal('disqualified'),
   at: Moment,
   by: textInput(120).nullable(),
   reason: ExitReason.nullable(),

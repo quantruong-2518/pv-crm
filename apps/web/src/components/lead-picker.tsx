@@ -67,7 +67,7 @@ export function LeadPickList({
 
   const { data, isPending, error, refetch } = useQuery({
     /* `live` = open or converted: a lead that already raised a deal may raise
-       another, while a dropped or archived one is refused by the door. */
+       another, while a dropped one is refused by the door. */
     ...leadBookQuery({ ...DEFAULT_LEAD_BOOK_QUERY, state: 'live', q, size: PICK_SIZE }),
     enabled,
   })

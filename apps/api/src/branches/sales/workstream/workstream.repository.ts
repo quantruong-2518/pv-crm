@@ -99,13 +99,13 @@ export class WorkstreamRepository {
    *
    *  WON when the lead is signed (`leadSigned`, the lead book's rule) at its
    *  latest signature; else LOST when the lead is `disqualified` (at
-   *  `exited_at`) or `archived` (at `state_since`); else OPEN — which also REOPENS
+   *  `exited_at`); else OPEN — which also REOPENS
    *  a closed run. The date is floored at `opened_at` for
    *  `workstream_closed_after_opened`; `CHURNED` is never derived. Only rows
    *  whose pair actually changes are written.
    *
    *  Called by every door that can move the answer: deal create, import, a
-   *  state change, sign; lead exit, reopen and archive. No door deletes a contract
+   *  state change, sign; lead exit and reopen. No door deletes a contract
    *  today — the day one does, it calls this too. */
   async syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
     if (workstreamCodes.length === 0) return
@@ -551,9 +551,7 @@ function SYNC_CLOSED(codes: readonly string[]): SQL {
           JOIN LATERAL (
             SELECT ${leadSigned(sql`l.code`)} AS won,
                    (SELECT max(k.signed_at) FROM sales.contract k WHERE k.lead_code = l.code) AS signed_at,
-                   CASE l.state WHEN 'disqualified' THEN l.exited_at
-                                WHEN 'archived' THEN l.state_since
-                   END AS lost_at
+                   CASE l.state WHEN 'disqualified' THEN l.exited_at END AS lost_at
               FROM sales.lead l
              WHERE l.workstream_code = w2.code
           ) x ON true

@@ -75,7 +75,9 @@ export function NurtureDialog({
       subtitle={
         <Subject
           profile={profile}
-          what={`khách chưa sẵn sàng. Để lâu không chăm lại, hệ thống tự chuyển lead vào ${LEAD_STATE_LABEL.archived}.`}
+          /* ADR 0068: a parked lead never expires on its own — only a real
+             touch wakes it, or a person presses the disqualify button. */
+          what={`khách chưa sẵn sàng. Lead không tự hết hạn ở đây — một lần liên hệ thật sẽ đưa lead quay lại, và chỉ người mới bấm ${LEAD_STATE_LABEL.disqualified} được.`}
         />
       }
       footer={
