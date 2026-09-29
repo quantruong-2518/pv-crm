@@ -216,6 +216,7 @@ function ws0041(): Body {
     closedAt: at('2026-07-08', '14:00'),
     lead: {
       code: 'LD-0058',
+      state: 'converted',
       holder: huy,
       rungs: walk(
         LEAD_LANE_BACKBONE,
@@ -452,6 +453,7 @@ function ws0088(): Body {
     closedAt: null,
     lead: {
       code: lead.code,
+      state: 'converted',
       holder: ha,
       rungs: walk(
         LEAD_LANE_BACKBONE,
@@ -582,6 +584,7 @@ function ws0089(): Body {
     closedAt: null,
     lead: {
       code: 'LD-0335',
+      state: 'converted',
       holder: huy,
       rungs: walk(
         LEAD_LANE_BACKBONE,
@@ -673,6 +676,7 @@ function ws0093(): Body {
     closedAt: null,
     lead: {
       code: 'LD-0352',
+      state: 'assigned',
       holder: ha,
       rungs: walk(
         LEAD_LANE_BACKBONE,

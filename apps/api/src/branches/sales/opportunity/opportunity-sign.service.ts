@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import type { Actor, RoleId } from '@pv/engines'
+import { seatedIn, type Actor, type RoleId } from '@pv/engines'
 import {
   CONTRACT_KIND_LABEL,
   ConfigProposalReceipt,
@@ -46,49 +46,70 @@ export class OpportunitySign implements ApprovalApplier {
     private readonly approvals: ApprovalService,
   ) {}
 
-  /** `POST /sales/opportunities/:code/contract` — 202 with a receipt. */
+  /** `POST /sales/opportunities/:code/contract` — 202 with a receipt.
+   *
+   *  Checked twice: on the pool to fail fast, then again under the deal's row
+   *  lock with the request opened in that same transaction — a stop takes the
+   *  same lock and refuses a deal with a sign waiting, so the two serialise. */
   async propose(who: Actor, code: ObjectCode, body: ContractSign): Promise<ConfigProposalReceipt> {
     const found = await this.deals.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
-    await this.assertSignable(this.deals.readonlyHandle, found)
+    const pending = await this.approvals.pendingOn(code)
+    await this.assertProposable(this.deals.readonlyHandle, found, body, pending.some(isSign))
+
+    /* On the pool, before the lock: PGlite has one connection, so a pool read
+       inside the transaction would wait on the transaction forever. */
+    const chain = await this.approvals.chainFor(SIGN_APPROVERS)
+    if (chain.some((link) => seatedIn(link, who))) {
+      throw conflict(
+        'Bạn đang giữ ghế duyệt ký nên không tự gửi đề nghị ký được — nhờ một sale đứng đơn gửi.',
+      )
+    }
+
+    const request = await this.deals.run(async (tx) => {
+      const lock = await this.deals.lockDeal(tx, code)
+      const fresh = lock ? await this.deals.byCode(who, code, tx) : null
+      if (!lock || !fresh || !fresh.inScope) throw notFound('cơ hội', code)
+      await this.assertProposable(tx, fresh, body, lock.pendingSign)
+
+      /* `signedAt` frozen at the press: the person reporting the signature knows
+         when the pen moved, the approval days later does not. */
+      const proposal: ContractSignProposal = {
+        opportunityCode: code,
+        sign: { ...body, signedAt: body.signedAt ?? new Date().toISOString() },
+      }
+      const draft = {
+        kind: 'contract-sign' as const,
+        consequence: consequenceOf(fresh, body),
+        payload: proposal,
+        chain,
+        links: [{ objectCode: code, objectLabel: fresh.row.name }],
+      }
+      return this.approvals.open(who, draft, tx)
+    })
+
+    return ConfigProposalReceipt.parse({ requestId: request.id, state: request.state })
+  }
+
+  /** Every refusal the door makes about the deal and the body, in the order
+   *  they have always been made: 409 lost / no quotation, 422 owner, 409 a sign
+   *  already waiting. */
+  private async assertProposable(
+    handle: Db,
+    found: OpportunityRead,
+    body: ContractSign,
+    pendingSign: boolean,
+  ): Promise<void> {
+    await this.assertSignable(handle, found)
     /* Commission follows a Sale standing on the deal, never a stranger. Owners
-       are frozen while the request waits (`touchesSignTerms`), so once is enough. */
+       are frozen while the request waits (`touchesSignTerms`). */
     if (body.ownerId !== undefined && !isSaleOwner(found, body.ownerId)) {
       throw invalid(
         { ownerId: ['Người hưởng hoa hồng phải là một Sale đứng tên cơ hội này.'] },
         'Người hưởng hoa hồng không hợp lệ.',
       )
     }
-
-    const pending = await this.approvals.pendingOn(code)
-    if (pending.some((r) => r.kind === 'contract-sign')) {
-      throw conflict(`Cơ hội ${code} đã có một yêu cầu ký đang chờ duyệt.`)
-    }
-
-    /* `signedAt` frozen at the press: the person reporting the signature knows
-       when the pen moved, the approval days later does not. A race past the
-       check above dies on `approval_contract_sign_waiting_uq` (409 via the book). */
-    const proposal: ContractSignProposal = {
-      opportunityCode: code,
-      sign: { ...body, signedAt: body.signedAt ?? new Date().toISOString() },
-    }
-    /* The chain is frozen on the row now, so a raiser holding a seat on it
-       would approve their own signature — matched by name, as `decideOn` does. */
-    const chain = await this.approvals.chainFor(SIGN_APPROVERS)
-    if (chain.some((link) => link.person === who.name)) {
-      throw conflict(
-        'Bạn đang giữ ghế duyệt ký nên không tự gửi đề nghị ký được — nhờ một sale đứng đơn gửi.',
-      )
-    }
-    const request = await this.approvals.open(who, {
-      kind: 'contract-sign',
-      consequence: consequenceOf(found, body),
-      payload: proposal,
-      chain,
-      links: [{ objectCode: code, objectLabel: found.row.name }],
-    })
-
-    return ConfigProposalReceipt.parse({ requestId: request.id, state: request.state })
+    if (pendingSign) throw conflict(`Cơ hội ${found.row.code} đã có một yêu cầu ký đang chờ duyệt.`)
   }
 
   /** `ApprovalApplier` for `contract-sign`. Everything is checked again against
@@ -208,6 +229,8 @@ export class OpportunitySign implements ApprovalApplier {
     await dropStep(tx, code)
   }
 }
+
+const isSign = (r: ApprovalRowDb): boolean => r.kind === 'contract-sign'
 
 const isSaleOwner = (found: OpportunityRead, id: string): boolean =>
   found.owners.some((o) => o.role === 'SALE' && o.id === id)

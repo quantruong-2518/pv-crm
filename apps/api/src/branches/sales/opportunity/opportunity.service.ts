@@ -382,16 +382,9 @@ export class OpportunityService {
       return written
     })
 
-    /* `signed: false` là biết chứ không đoán: "đã thắng" nghĩa là có dòng trong
-       `sales.contract`, và đơn này ra đời một mili giây trước — chưa có cửa nào
-       ký được cho nó. Cùng phép mà `LeadWriteService.create` dùng cho `daysHere`.
-
-       Hàm không nhận `Actor`, cùng lý do `LeadWriteService.create` không nhận:
-       ai bấm nút đã là một dòng của `platform.audit` do `RouteAuditService`
-       ghi, và nhận thêm một tham số chỉ để không dùng là mời người sau ghi bản
-       thứ hai của cùng một sự thật. Ngày nối E3, phiếu này thành một đề nghị
-       thật và NGƯỜI ĐỨNG đề nghị mới là dữ liệu — lúc đó tham số quay lại, kèm
-       chỗ để cất nó. */
+    /* `contractCodes: []` is known, not guessed: this deal was born a moment ago
+       and no door has signed it. Who opened it lives in the touch and stage-event
+       rows above; this door writes no `platform.audit` row. */
     /* Labels looked up AFTER the write, outside the transaction: the body only
        carries ids, and the answer has to print names. One extra read per write
        is the right price — building labels from the draft would show the screen
@@ -424,12 +417,12 @@ export class OpportunityService {
   /** `PATCH /sales/opportunities/:code` — lưu phiếu ở hồ sơ cơ hội.
    *
    *  ------------------------------------------------------------------
-   *  ĐỌC QUA `byCode` ĐỂ CÓ CẢ HAI CÂU TỪ CHỐI, RỒI MỚI GHI
+   *  READ THROUGH `byCode` FIRST, THEN WRITE
    *  ------------------------------------------------------------------
-   *  Một `UPDATE … WHERE code = $1` kèm điều kiện phạm vi cũng chặn đúng người,
-   *  và trả về đúng một câu: "không sửa được dòng nào". Câu đó gộp mất hai việc
-   *  khác nhau — đơn không tồn tại (404, quay về sổ) và đơn không phải của bạn
-   *  (403, đi hỏi người đứng đơn). Đọc trước thì máy chủ phân biệt được.
+   *  An `UPDATE … WHERE code = $1` with a scope clause would stop the right
+   *  people too, but it can only say "no row updated". Reading first lets the
+   *  door give each refusal its own answer (409 lost, 403 sign terms, …).
+   *  Missing and out-of-scope stay ONE 404 on purpose — see `profile`.
    *
    *  ------------------------------------------------------------------
    *  CỬA NÀY KHÔNG CHẠM VÒNG ĐỜI, VÀ NÓ CHỈ CÓ MỘT LUẬT RIÊNG: PIC KHÔNG TỤT

@@ -17,10 +17,12 @@ import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportun
  *
  *  Every OPEN deal where the old holder stands as SALE follows the lead: that
  *  SALE row is replaced by the new holder, the old holder's next step on it is
- *  handed over too, and the deal's timeline and mirror row say so. A deal is
- *  left behind — with a timeline row saying why — when a sign request waits on
- *  it (the approver read those owners) or the swap breaks its PIC rule. A
- *  target who cannot hold a deal refuses the whole hand-over.
+ *  handed over too, and the deal's timeline and mirror row say so. With
+ *  `dealCodes` only those follow (`[]` = none); a code that is not such a deal
+ *  is a 400 on `dealCodes`. A chosen deal is left behind — with a timeline row
+ *  saying why — when a sign request waits on it (the approver read those
+ *  owners) or the swap breaks its PIC rule. A target who cannot hold a deal
+ *  refuses the whole hand-over.
  *
  *  A plain function over `tx`: the lead module calls it, and an
  *  `OpportunityModule` provider there would be a module cycle. The deals are
@@ -40,6 +42,8 @@ export async function handDealsOver(
     toSeesDeals: boolean
     by: { by: string; actorId?: string }
     note: string
+    /** The user's choice; absent = every eligible deal. */
+    dealCodes?: readonly string[]
   },
 ): Promise<void> {
   const rows = await tx
@@ -65,7 +69,19 @@ export async function handDealsOver(
     )
     .orderBy(opportunity.code)
     .for('update')
-  if (rows.length === 0) return
+  const strays = (move.dealCodes ?? []).filter((c) => !rows.some((r) => r.row.code === c))
+  if (strays.length > 0) {
+    throw invalid(
+      {
+        dealCodes: [
+          `${strays.join(', ')} không phải cơ hội đang mở của lead này do người giao đứng tên Sale.`,
+        ],
+      },
+      'Cơ hội chọn không hợp lệ.',
+    )
+  }
+  const chosen = move.dealCodes ? rows.filter((r) => move.dealCodes?.includes(r.row.code)) : rows
+  if (chosen.length === 0) return
   if (!move.toSeesDeals || !(await isLiveSalesActor(tx, move.to.actorId))) {
     throw invalid(
       {
@@ -79,14 +95,14 @@ export async function handDealsOver(
 
   const before = await peopleOf(
     tx,
-    rows.map((r) => r.row.code),
+    chosen.map((r) => r.row.code),
   )
   const skipped = new Map<string, string>()
-  for (const { row, signWaiting } of rows) {
+  for (const { row, signWaiting } of chosen) {
     const why = signWaiting ? 'cơ hội đang chờ duyệt ký' : picBreaks(row, before, move)
     if (why) skipped.set(row.code, why)
   }
-  const moving = rows.map((r) => r.row).filter((r) => !skipped.has(r.code))
+  const moving = chosen.map((r) => r.row).filter((r) => !skipped.has(r.code))
   await swapSale(tx, moving, move)
 
   const after = await peopleOf(

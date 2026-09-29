@@ -520,14 +520,18 @@ export const api = {
    *  một `fetch` trần trong `mutationFn` là một đường dữ liệu đi vòng qua
    *  `requireAccess`. Cả tầng này dựng lên để chuyện đó không xảy ra được. */
   write<T>(path: string, opts: WriteOptions<T> = {}): Promise<T> {
-    return dispatch<T>({
-      path,
-      method: opts.method ?? 'POST',
-      need: opts.need ?? {},
-      headers: opts.body === undefined ? {} : { 'Content-Type': 'application/json' },
-      body: opts.body,
-      attempt: 1,
-      signal: opts.signal,
-    })
+    return dispatch<T>(
+      {
+        path,
+        method: opts.method ?? 'POST',
+        need: opts.need ?? {},
+        headers: opts.body === undefined ? {} : { 'Content-Type': 'application/json' },
+        body: opts.body,
+        attempt: 1,
+        signal: opts.signal,
+      },
+      undefined,
+      opts.schema,
+    )
   },
 }

@@ -25,10 +25,12 @@ const buttonVariants = cva(
           'text-primary-foreground shadow-primary bg-[linear-gradient(180deg,var(--primary),var(--primary-strong))] hover:brightness-[1.12]',
         secondary: 'bg-secondary text-secondary-foreground shadow-control hover:bg-secondary-hover',
         ghost: 'bg-surface-ink/9 text-foreground shadow-control hover:bg-surface-ink/16',
+        /* On stone the /32 hover tint drops the ink below 4.5:1, so light
+           keeps the /20 tint and signals hover with the firmer control ring. */
         destructive:
-          'bg-destructive/20 text-destructive-foreground shadow-control-soft hover:bg-destructive/32',
+          'bg-destructive/20 text-destructive-foreground shadow-control-soft hover:bg-destructive/32 stone:hover:bg-destructive/20 stone:hover:shadow-control',
         success:
-          'bg-success/20 text-on-tint-success-strong shadow-control-soft hover:bg-success/32',
+          'bg-success/20 text-on-tint-success-strong shadow-control-soft hover:bg-success/32 stone:hover:bg-success/20 stone:hover:shadow-control',
       },
       size: {
         sm: 'h-8 px-3 text-[11.5px]',

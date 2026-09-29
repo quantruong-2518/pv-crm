@@ -692,3 +692,22 @@ describe('Không ngày nào sau lúc đóng băng, trừ hạn và ngày dự ki
     expect(late).toEqual([])
   })
 })
+
+describe('Trạng thái lead — khớp với các bậc của chính nó', () => {
+  it.each([
+    ['WS-0041', 'LD-0058', 'converted'],
+    ['WS-0088', 'LD-0334', 'converted'],
+    ['WS-0089', 'LD-0335', 'converted'],
+    ['WS-0093', 'LD-0352', 'assigned'],
+  ])('%s · %s là %s', (ws, code, state) => {
+    expect(journey(ws).lead.code).toBe(code)
+    expect(journey(ws).lead.state).toBe(state)
+  })
+
+  it('state là bậc cuối đã chạm tới: converted khi bậc converted đã qua, ngược lại là bậc đang chạy', () => {
+    for (const j of JOURNEYS) {
+      const reached = j.lead.rungs.filter((r) => r.at !== null)
+      expect(j.lead.state).toBe(reached[reached.length - 1]!.key)
+    }
+  })
+})

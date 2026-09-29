@@ -15,7 +15,11 @@ export type ApprovalState = 'waiting' | 'approved' | 'rejected'
 
 export type ChainLink = {
   role: string
+  /** Display name, a snapshot for the screen. Never the identity: names repeat. */
   person: string
+  /** The actor holding this seat. Absent only on rows raised before it existed;
+   *  those fall back to `person` (see `seatedIn`). */
+  personId?: string
   state: ApprovalState
   /** ISO. Quá hạn thì Hộp duyệt tô cảnh báo. */
   due?: string
@@ -99,6 +103,14 @@ export function raise(req: NewRequest, from: { ai: boolean; basis?: string }): A
   return { ...req, fromAi: from.ai, basis: from.basis, state: 'waiting' }
 }
 
+/** Does this actor sit on this link. By id: production has two actors sharing
+ *  one display name, and a name match hands one of them the other's turn. The
+ *  name compare survives only for links stored before `personId` existed —
+ *  those rows are not migrated, so they keep the hole. */
+export function seatedIn(link: ChainLink, actor: Actor): boolean {
+  return link.personId === undefined ? link.person === actor.name : link.personId === actor.id
+}
+
 /** One person's yes or no, applied to a request that was loaded from wherever
  *  it lives. Returns the WHOLE new request; the caller stores it.
  *
@@ -106,10 +118,7 @@ export function raise(req: NewRequest, from: { ai: boolean; basis?: string }): A
  *  first link still `waiting` is the person being waited on. A rejection ends
  *  the request immediately — there is nothing left to ask once somebody has
  *  said no — while an approval only finishes it when no link is still waiting.
- *
- *  The turn is matched on NAME, because that is what a `ChainLink` carries.
- *  Two people sharing a display name would share a turn; that is a real hole
- *  and it is the chain's shape that has it, not this function. */
+ *  The turn is matched by `seatedIn`. */
 export function decideOn<T extends Decidable>(
   request: T | undefined,
   by: Actor,
@@ -121,7 +130,7 @@ export function decideOn<T extends Decidable>(
 
   const turn = request.chain.find((l) => l.state === 'waiting')
   if (!turn) return { ok: false, reason: 'nobody-waiting' }
-  if (turn.person !== by.name) {
+  if (!seatedIn(turn, by)) {
     return { ok: false, reason: 'not-your-turn', waitingFor: turn.person }
   }
 
@@ -159,7 +168,8 @@ export function decideOn<T extends Decidable>(
  *  is precisely how that happens. One reading of "whose turn", used by both. */
 export function isPendingFor(request: Decidable, actor: Actor): boolean {
   if (request.state !== 'waiting') return false
-  return request.chain.find((l) => l.state === 'waiting')?.person === actor.name
+  const turn = request.chain.find((l) => l.state === 'waiting')
+  return turn !== undefined && seatedIn(turn, actor)
 }
 
 export interface ApprovalEngine {

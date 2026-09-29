@@ -184,10 +184,10 @@ export class OpportunityController {
    *  còn `sale` thì được. Đó đúng là hàng của hai vai trong `e2-access.ts`, và
    *  nếu nó sai thì chỗ sửa là ma trận vai, không phải dòng dưới đây.
    *
-   *  `scoped: true` — ký được đơn của mình. Người `ownOnly` bấm nút này trên
-   *  đơn người khác nhận 403 gọi tên phạm vi, không phải một 404 giả vờ đơn
-   *  không tồn tại; service phân biệt được vì `byCode` chở `inScope` về cùng dữ
-   *  liệu.
+   *  `scoped: true` — sign your own deals. An `ownOnly` caller pressing this on
+   *  somebody else's deal gets 404, the same answer as a deal that does not
+   *  exist: a door addressed by code must not tell the two apart (see
+   *  `OpportunityService.profile`).
    *
    *  Tài nguyên con của đơn (`:code/contract`) chứ không phải `/sales/contracts`
    *  cấp một: một hợp đồng KHÔNG tồn tại độc lập — khoá ngoại ghép của nó neo

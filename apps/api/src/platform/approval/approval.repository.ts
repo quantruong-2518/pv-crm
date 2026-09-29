@@ -23,12 +23,17 @@ export class ApprovalRepository {
 
   /** Open a request and tie it to whatever objects it touches, in ONE
    *  transaction — a request whose links are missing points at nothing, and a
-   *  link with no request is a row no query will ever reach. */
+   *  link with no request is a row no query will ever reach.
+   *
+   *  Given the caller's `tx`, this becomes a savepoint inside it: a branch that
+   *  holds a row lock while it re-checks (the sign door) must open the request
+   *  under that same lock, or a stop can land between the check and the INSERT. */
   async open(
     values: ApprovalValues,
     links: readonly { objectCode: string; objectLabel: string }[],
+    outer?: Db,
   ): Promise<ApprovalRowDb> {
-    return this.db.transaction(async (tx) => {
+    return (outer ?? this.db).transaction(async (tx) => {
       const [row] = await tx.insert(approval).values(values).returning()
       if (!row) throw new Error('platform.approval: INSERT returned no row')
 
@@ -52,10 +57,12 @@ export class ApprovalRepository {
    *  Ordered by actor id so a role with two holders resolves to the same person
    *  on every call — an approval that waits on a different person each time it
    *  is read is an approval nobody can finish. */
-  async holdersOf(roles: readonly RoleId[]): Promise<{ roleId: RoleId; name: string }[]> {
+  async holdersOf(
+    roles: readonly RoleId[],
+  ): Promise<{ roleId: RoleId; id: string; name: string }[]> {
     if (roles.length === 0) return []
     return this.db
-      .select({ roleId: actor.roleId, name: actor.name })
+      .select({ roleId: actor.roleId, id: actor.id, name: actor.name })
       .from(actor)
       .where(and(inArray(actor.roleId, [...roles]), isNull(actor.disabledAt)))
       .orderBy(actor.id)
@@ -78,9 +85,9 @@ export class ApprovalRepository {
    *  teaching this query about ordering, would put half of E3's turn rule in
    *  SQL where the other half cannot see it.
    *
-   *  Matched on NAME because a `ChainLink` carries a name; see the note on
-   *  `decideOn`. The hole that opens when two people share a display name is
-   *  the chain's, and it is named there rather than papered over here. */
+   *  Matched on NAME so links stored before `personId` still arrive. Two people
+   *  sharing a name both get the row back; `isPendingFor` then keeps it only
+   *  for the one whose id sits on the link (`seatedIn`). */
   async waitingFor(personName: string): Promise<ApprovalRowDb[]> {
     return this.db
       .select()

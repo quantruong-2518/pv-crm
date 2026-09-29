@@ -5,8 +5,9 @@ import type { LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
+import { HandoverDeals } from '@/components/handover-deals'
 import { useDirectory } from '@/data/directory'
-import { useSetLeadOwner } from '@/data/lead-owner'
+import { useHandoverChoice, useSetLeadOwner } from '@/data/lead-owner'
 import { isOpenState } from '@/data/lead-state'
 import { assigneeOptions, type AssigneeOption, type AssigneeCandidateLead } from '@/data/leads'
 
@@ -103,6 +104,8 @@ export function AssignMenu({
   /** Đường duy nhất còn lại cho người không có `lead.assign`. */
   const mayClaim = held === null && me !== undefined
 
+  const handover = useHandoverChoice(profile.code, held, open && mayAssign)
+
   const people = useMemo(() => assigneeOptions(lead, staff, me?.id), [lead, staff, me?.id])
   const self = people.find((person) => person.group === 'mine')
   /* Người đang giữ đã ở đúng chỗ rồi — chọn lại họ là một cú ghi không đổi gì. */
@@ -132,6 +135,7 @@ export function AssignMenu({
     setDebouncedQuery('')
     setPicked(null)
     setReleasing(false)
+    handover.reset()
     setOwner.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -139,8 +143,10 @@ export function AssignMenu({
   const pickedPerson = picked === self?.id ? self : others.find((person) => person.id === picked)
 
   const commit = (ownerId: string | null, said: string) => {
+    // A release leaves the deals where they are, so it sends no choice.
+    const dealCodes = ownerId !== null && held !== null ? handover.dealCodes : undefined
     setOwner.mutate(
-      { code: profile.code, ownerId },
+      { code: profile.code, ownerId, ...(dealCodes ? { dealCodes } : {}) },
       {
         onSuccess: () => {
           toast(said, { tone: 'success', detail: `${profile.code} · ${profile.company}` })
@@ -232,6 +238,7 @@ export function AssignMenu({
                     : 'Không ghi được. Vui lòng thử lại.'}
                 </p>
               )}
+              {held !== null && <HandoverDeals choice={handover} />}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0 text-[13px]">
                   Xác nhận giao lead cho <span className="font-semibold">{pickedPerson.name}</span>?

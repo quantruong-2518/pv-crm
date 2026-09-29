@@ -841,6 +841,9 @@ export const LeadPatchResponse = LeadProfile
  *  spreadsheet is typed by a human; a screen holds the id it already read. */
 export const LeadOwnerWrite = z.object({
   ownerId: z.string().min(1).max(64).nullable(),
+  /** Open deals that follow a hand-over (ADR 0069 §10: pre-ticked, untickable).
+   *  Absent = every open deal where the old holder stands as SALE. */
+  dealCodes: z.array(ObjectCode).max(50).optional(),
 })
 
 /** The row as the book would show it — same answer shape as `POST /sales/leads`.

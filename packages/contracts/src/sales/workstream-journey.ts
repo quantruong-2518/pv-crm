@@ -5,6 +5,7 @@ import { DocState, InstallmentSummaryRow } from './contract'
 import {
   ContractKind,
   DueLevel,
+  LeadState,
   OPPORTUNITY_STATE_LABEL,
   OpportunityStatus,
   StageKey,
@@ -160,6 +161,9 @@ export const JourneyContractRung = JourneyRungBase.extend({ key: ContractRungKey
  *  the response's `previous` link — one journey, one lead, one origin. */
 export const JourneyLead = z.object({
   code: ObjectCode,
+  /** Stored state, so a stopped rung can say which stop it is: parked in
+   *  `nurturing` or ended in `disqualified`. */
+  state: LeadState,
   holder: WorkstreamHolder.nullable(),
   rungs: z.array(JourneyLeadRung).length(LEAD_LANE_BACKBONE.length),
 })

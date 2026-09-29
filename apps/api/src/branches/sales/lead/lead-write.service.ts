@@ -410,9 +410,9 @@ export class LeadWriteService {
       /* The outgoing holder's step goes with the lead (flow G1): to the new
          holder, or away on a release. A claim from the pool has none to carry. */
       if (found.ownerId !== null) await handStepOver(tx, code, found.ownerId, ownerId)
-      /* The old holder's open deals follow A→B (ADR 0069 §10); a release to the
-         pool leaves them, since a deal cannot stand without a SALE. A receiver
-         who cannot hold a deal refuses the whole hand-over (400 on `ownerId`). */
+      /* The old holder's open deals follow A→B (ADR 0069 §10), narrowed by
+         `dealCodes`; a release to the pool leaves them. A receiver who cannot
+         hold a deal refuses the hand-over (400 on `ownerId`). */
       if (prev && next) {
         await handDealsOver(
           tx,
@@ -424,6 +424,7 @@ export class LeadWriteService {
             toSeesDeals: nextSeesDeals,
             by: byOf(who),
             note: `${LEAD_NOTE.handedTo} ${next.name}`,
+            ...(body.dealCodes ? { dealCodes: body.dealCodes } : {}),
           },
         )
       }

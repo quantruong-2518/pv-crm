@@ -197,7 +197,11 @@ export function leadStatus(lead: Journey['lead']): Status | null {
   if (!at) return null
   const label = LEAD_STATE_LABEL[at.key]
   if (at.state === 'current') return { label, tone: 'warning' }
-  if (at.state === 'stopped') return { label: LEAD_STATE_LABEL.nurturing, tone: 'draft' }
+  if (at.state === 'stopped') {
+    // The stored state says which stop: ended for good, or parked to loop (ADR 0069 §3).
+    const stop = lead.state === 'disqualified' ? 'disqualified' : 'nurturing'
+    return { label: LEAD_STATE_LABEL[stop], tone: 'draft' }
+  }
   return { label, tone: 'success' }
 }
 

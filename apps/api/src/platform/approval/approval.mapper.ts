@@ -21,7 +21,13 @@ export function toContract(
     raisedAt: row.raisedAt.toISOString(),
     fromAi: row.fromAi,
     ...(row.basis ? { basis: row.basis } : {}),
-    chain: row.chain,
+    /* `personId` stays server-side: the contract's link has no such field. */
+    chain: row.chain.map(({ role, person, state, due }) => ({
+      role,
+      person,
+      state,
+      ...(due ? { due } : {}),
+    })),
     state: row.state,
     consequence: row.consequence,
     /* NULL becomes ABSENT, never `null`: the contract uses `.optional()`, and a

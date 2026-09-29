@@ -289,7 +289,12 @@ function leadOf(
         }
 
   return {
-    lead: { code: lead.code, holder: personOf(lead.ownerId, read.saleName), rungs },
+    lead: {
+      code: lead.code,
+      state: lead.state,
+      holder: personOf(lead.ownerId, read.saleName),
+      rungs,
+    },
     door,
   }
 }

@@ -141,20 +141,24 @@ Trước `/ship`: chạy `.claude/ship-preflight-0068.sql` trên Neon (chỉ đ�
 - Truy vấn 4 phải bằng 0.
 - Truy vấn 5 đếm thư chưa gửi mà migration không giữ lại.
 
-Nợ còn lại (ghi, chưa làm):
+Nợ đã trả (29/09, lượt sau ship):
 
-- Khoá cơ hội khi mở đề nghị ký: cần `ApprovalService.open` nhận `tx` ở `platform/approval`.
-- E3 so người duyệt bằng tên, không bằng id.
-- Stop, ký, mốc, việc tiếp theo không ghi `platform.audit`.
-- `api.write` ở web bỏ `schema`.
-- Mốc mẫu thư đọc lúc gửi, không chụp lúc xếp hàng.
-- Bàn giao chưa cho chọn từng cơ hội.
-- `JourneyLead` chưa mang state, nên lead "Ngừng chăm sóc" vẫn in "Nhóm chờ chăm sóc".
-- ADR §12 (một dòng hoạt động trên màn cơ hội) chưa làm.
+- khoá cơ hội khi mở đề nghị ký;
+- E3 so người duyệt bằng id (`seatedIn`, có test);
+- `api.write` kiểm `schema`;
+- bàn giao chọn từng cơ hội (`dealCodes`);
+- `JourneyLead.state`;
+- hover nút ở theme Đá mịn (biến thể `stone:`).
+
+Nợ còn lại:
+
+- Stop, ký, mốc, việc tiếp theo không ghi `platform.audit`. Chưa có quyết định cửa nào phải ghi.
+- Mốc mẫu thư đọc lúc gửi, không chụp lúc xếp hàng (cần cột trên `mail_run`).
+- `platform.approval.decided_by` còn là tên; chưa có cột id.
+- ADR §12 (một dòng hoạt động trên màn cơ hội) chưa làm, cần chốt giao diện.
 - Chuông: lượt riêng.
-- Nút `destructive`/`success` khi hover ở theme Đá mịn chưa đạt 4.5:1 (`packages/ui`).
 
-## Việc tiếp theo, theo thứ tự
+## Việc tiếp theo, theo thứ tự (đã xong tới bước 3; code lên production 29/09)
 
 1. Chốt S3 và S10 (nhãn, số mức thang hạn).
 2. ADR "Cơ hội trong hành trình lặp lại" qua `doc-keeper`. ADR này thay:

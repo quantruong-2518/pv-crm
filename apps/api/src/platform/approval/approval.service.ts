@@ -83,8 +83,8 @@ export class ApprovalService {
 
   /** The approval chain for a list of roles, in the order given.
    *
-   *  A `ChainLink` carries a NAME, so somebody has to turn a role into the
-   *  person holding it — and this is the only place that should, because branches
+   *  A `ChainLink` carries the holder's id and name, so somebody has to turn a
+   *  role into the person holding it — and this is the only place that should, because branches
    *  would otherwise grow its own copy of the lookup and they would answer
    *  differently the day a role has nobody in it.
    *
@@ -119,7 +119,7 @@ export class ApprovalService {
             'Cần một tài khoản còn hoạt động mang vai đó trong sổ nhân sự.',
         })
       }
-      return { role, person: person.name, state: 'waiting' as const }
+      return { role, person: person.name, personId: person.id, state: 'waiting' as const }
     })
   }
 
@@ -127,7 +127,8 @@ export class ApprovalService {
    *
    *  Nothing is validated twice here: an empty chain and an AI proposal with no
    *  grounds are both refused by CHECK constraints on the table, which hold for
-   *  every door at once rather than only the ones that remembered to look. */
+   *  every door at once rather than only the ones that remembered to look.
+   *  `tx` lets a branch open the request under a row lock it already holds. */
   async open(
     who: Actor,
     draft: {
@@ -138,6 +139,7 @@ export class ApprovalService {
       links?: readonly { objectCode: string; objectLabel: string }[]
       ai?: { basis: string }
     },
+    tx?: Db,
   ): Promise<ApprovalRowDb> {
     /* Refused BEFORE the row exists, not after somebody approves it: a request
        nobody can apply is a promise the system cannot keep, and the cheapest
@@ -158,6 +160,7 @@ export class ApprovalService {
         chain: draft.chain,
       },
       draft.links ?? [],
+      tx,
     )
   }
 
