@@ -23,3 +23,6 @@ chats/
 # quét sạch vào index (28/08). Mọi biến thể `.pglite-*` đều là dữ liệu máy dev.
 apps/api/.pglite*/
 apps/api/.storage/
+
+# A terminal tool writes its ledger under a literal "~" directory here.
+/~/
